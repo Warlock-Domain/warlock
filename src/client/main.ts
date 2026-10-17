@@ -82,9 +82,14 @@ function startLobby(name: string) {
 
 function startRoom(code: string, name: string) {
   document.body.className = 'in-room';
-  let muted = store.get('warlock:mute') === '1';
-  let musicOn = store.get('warlock:music') !== '0';
-  const sound = createSound(() => muted, () => musicOn);
+  // volumes guardados no navegador (0 a 1); quem tinha deixado mudo na versão antiga começa em zero
+  const readVol = (k: string, fallback: number) => {
+    const n = Number(store.get(k));
+    return Number.isFinite(n) && store.get(k) !== null ? Math.max(0, Math.min(1, n)) : fallback;
+  };
+  const oldMute = store.get('warlock:mute') === '1';
+  const vol = { sfx: readVol('warlock:vol-sfx', oldMute ? 0 : 1), music: readVol('warlock:vol-music', oldMute || store.get('warlock:music') === '0' ? 0 : 0.7) };
+  const sound = createSound(() => vol);
   let room: PublicRoom | null = null;
   let me = playerId;
   let online = false;
@@ -106,21 +111,14 @@ function startRoom(code: string, name: string) {
     },
     ready: () => net.send({ t: 'ready' }),
     spell: (s) => input.button(s),
-    toggleMute: () => {
-      muted = !muted;
-      store.set('warlock:mute', muted ? '1' : '0');
+    volumes: () => vol,
+    setVolume: (kind, value) => {
+      vol[kind] = value;
+      store.set(kind === 'sfx' ? 'warlock:vol-sfx' : 'warlock:vol-music', String(value));
       sound.refresh();
-      return muted;
-    },
-    toggleMusic: () => {
-      musicOn = !musicOn;
-      store.set('warlock:music', musicOn ? '1' : '0');
-      sound.refresh();
-      return musicOn;
+      if (kind === 'sfx') sound.play('click');
     },
     click: () => sound.play('click'),
-    muted: () => muted,
-    musicOn: () => musicOn,
   });
   const scene = createScene(canvas, document.getElementById('labels')!);
   const interp = createInterp();

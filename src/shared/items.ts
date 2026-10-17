@@ -20,14 +20,14 @@ export const ITEMS: Record<ItemId, Item> = {
   armor: { name: 'Armadura', cost: 6, text: 'Menos empurrão.', levels: [{ kb: 0.12 }, { kb: 0.18 }, { kb: 0.22 }] },
   boots: { name: 'Botas', cost: 5, text: 'Anda mais rápido.', levels: [{ speed: 18 * UNIT }, { speed: 29 * UNIT }, { speed: 40 * UNIT }] },
   watch: { name: 'Relógio de bolso', cost: 2, text: 'Lentidões e penalidades duram menos.', levels: [{ debuff: -0.35 }, { debuff: -0.45 }] },
-  scourge: { name: 'Flagelo', cost: 7, key: '1', text: 'Explode em volta depois de 0,9 s; você perde a mesma vida.', levels: [{}, {}, {}] },
+  scourge: { name: 'Flagelo', cost: 7, key: '1', text: 'Explode em volta depois de 0,5 s; você perde a mesma vida.', levels: [{}, {}, {}] },
   redirector: { name: 'Redirecionador', cost: 8, key: '2', text: 'Desvia seu projétil mais perto do cursor; 8 s voando mais longe.', levels: [{}] },
   pact: { name: 'Pacto', cost: 10, key: '3', text: 'Próxima magia de dano em 5 s faz 1,5×; depois fica lento.', levels: [{}] },
 };
 
 // ativos (originais): Flagelo dano 100/110/120 de 1000 em 250 unidades, 0,9 s de preparo, recarga 3 s;
 // Redirecionador recarga 24 s, +30% de empurrão por 8 s; Pacto recarga 30 s, 5 s para usar, 1,5×, lentidão de 66 por 6 s
-export const SCOURGE = { dmg: [10, 11, 12], radius: 250 * UNIT, windup: 0.9, cd: 3 };
+export const SCOURGE = { dmg: [10, 11, 12], radius: 250 * UNIT, windup: 0.5, cd: 3 }; // preparo: 0,9 s no original, 0,5 s a pedido do Fernando (17/10)
 // tempo de conjuração dos ativos (o do Flagelo é o preparo de 0,9 s)
 export const ITEM_CAST: Partial<Record<ItemId, number>> = { scourge: SCOURGE.windup, redirector: 0.1, pact: 0.1 };
 export const REDIRECTOR = { cd: 24, kbPenalty: 0.3, penaltyTime: 8, extraLife: 0.5 };

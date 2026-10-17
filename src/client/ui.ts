@@ -122,11 +122,9 @@ export type RoomActions = {
   pick: (c: CharacterId) => void;
   ready: () => void;
   spell: (s: SpellId) => void;
-  toggleMute: () => boolean;
-  toggleMusic: () => boolean;
+  volumes: () => { sfx: number; music: number };
+  setVolume: (kind: 'sfx' | 'music', value: number) => void;
   click: () => void;
-  muted: () => boolean;
-  musicOn: () => boolean;
 };
 
 const dot = (color: number) => el('span', { class: 'dot', style: `background:${COLORS[color]}` });
@@ -149,13 +147,26 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const status = el('span', { class: 'dot off', title: 'conexão' });
   const roundEl = el('span', { class: 'round' });
   const players = el('ul', { class: 'players' });
-  const muteBtn = el('button', { type: 'button', class: 'icon', title: 'Som', onclick: () => (muteBtn.textContent = act.toggleMute() ? '🔇' : '🔊') }, act.muted() ? '🔇' : '🔊');
-  const musicBtn = el('button', { type: 'button', class: 'icon', title: 'Música', onclick: () => musicBtn.classList.toggle('off', !act.toggleMusic()) }, '🎵');
-  musicBtn.classList.toggle('off', !act.musicOn());
+  // volume: um botão abre dois controles, efeitos e música
+  const slider = (kind: 'sfx' | 'music', label: string) => {
+    const input = el('input', { type: 'range', id: 'vol-' + kind, min: 0, max: 100, step: 5, value: Math.round(act.volumes()[kind] * 100) }) as HTMLInputElement;
+    const out = el('span', { class: 'vol-value' }, input.value + '%');
+    input.addEventListener('input', () => {
+      out.textContent = input.value + '%';
+      act.setVolume(kind, Number(input.value) / 100);
+      volBtn.textContent = act.volumes().sfx + act.volumes().music === 0 ? '🔇' : '🔊';
+    });
+    return el('label', { class: 'vol-row', for: 'vol-' + kind }, el('span', {}, label), input, out);
+  };
+  const volPanel = el('div', { class: 'vol-panel', hidden: true }, slider('sfx', 'Efeitos'), slider('music', 'Música'));
+  const volBtn = el('button', { type: 'button', class: 'icon', title: 'Volume', 'aria-expanded': 'false', onclick: () => {
+    volPanel.hidden = !volPanel.hidden;
+    volBtn.setAttribute('aria-expanded', String(!volPanel.hidden));
+  } }, act.volumes().sfx + act.volumes().music === 0 ? '🔇' : '🔊');
   const top = el('div', { class: 'hud-top' },
     el('button', { type: 'button', class: 'code', title: 'Copiar link da sala', onclick: copyLink }, status, ' ', code),
     roundEl,
-    el('div', { class: 'hud-right' }, musicBtn, muteBtn, el('button', { type: 'button', class: 'icon', title: 'Como jogar', onclick: showRules }, '?')),
+    el('div', { class: 'hud-right' }, el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', onclick: showRules }, '?')),
   );
   const center = el('div', { class: 'center' });
   const timer = el('div', { class: 'timer' });

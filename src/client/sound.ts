@@ -7,7 +7,8 @@ const FILES: Partial<Record<SoundKind, string[]>> = {
   hit: ['hit', 'explode'], reflect: ['shield'], death: ['explode'], click: ['click'], go: ['confirm'],
 };
 
-export function createSound(isMuted: () => boolean, musicOn: () => boolean) {
+// volumes de 0 a 1, separados para efeitos e música
+export function createSound(volumes: () => { sfx: number; music: number }) {
   let ctx: AudioContext | null = null;
   let noise: AudioBuffer | null = null;
   let master: GainNode | null = null;
@@ -36,7 +37,7 @@ export function createSound(isMuted: () => boolean, musicOn: () => boolean) {
       }
       // compressor + volume geral abaixo de 1: vários sons juntos (golpe + explosão) não estouram
       master = ctx.createGain();
-      master.gain.value = 0.6;
+      master.gain.value = 0.6 * volumes().sfx;
       const comp = ctx.createDynamicsCompressor();
       master.connect(comp).connect(ctx.destination);
       noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
@@ -53,11 +54,14 @@ export function createSound(isMuted: () => boolean, musicOn: () => boolean) {
 
   // música e lava tocam só dentro da partida e com som ligado
   function syncAmbience() {
-    const on = wantAmbience && !isMuted() && !!ctx && ctx.state === 'running';
-    if (on && musicOn()) void music.play().catch(() => {});
+    const vol = volumes();
+    if (master) master.gain.value = 0.6 * vol.sfx;
+    music.volume = Math.min(1, 0.35 * vol.music);
+    const on = wantAmbience && !!ctx && ctx.state === 'running';
+    if (on && vol.music > 0) void music.play().catch(() => {});
     else music.pause();
     const buf = buffers.get('lava_loop');
-    if (on && buf && !lava) {
+    if (on && vol.sfx > 0 && buf && !lava) {
       const src = ctx!.createBufferSource();
       src.buffer = buf;
       src.loop = true;
@@ -66,7 +70,7 @@ export function createSound(isMuted: () => boolean, musicOn: () => boolean) {
       src.connect(gain).connect(master!);
       src.start();
       lava = { src, gain };
-    } else if (!on && lava) {
+    } else if ((!on || vol.sfx === 0) && lava) {
       lava.src.stop();
       lava = null;
     }
@@ -125,7 +129,7 @@ export function createSound(isMuted: () => boolean, musicOn: () => boolean) {
     },
     refresh: syncAmbience,
     play(kind: SoundKind, volume = 1) {
-      if (!ctx || !noise || isMuted() || ctx.state !== 'running') return;
+      if (!ctx || !noise || volumes().sfx === 0 || ctx.state !== 'running') return;
       const v = Math.max(0.05, Math.min(1, volume));
       const names = FILES[kind];
       if (names && names.map((n) => file(n, v * 0.8)).some(Boolean)) return;
