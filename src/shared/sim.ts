@@ -63,7 +63,7 @@ export type Cmd =
 
 export type SimEvent =
   | { k: 'cast'; id: string; spell: SpellId }
-  | { k: 'hit'; id: string; by: string; x: number; y: number; dmg: number }
+  | { k: 'hit'; id: string; by: string; x: number; y: number; dmg: number; src: string }
   | { k: 'reflect'; id: string; x: number; y: number }
   | { k: 'lightning'; from: Vec; to: Vec }
   | { k: 'teleport'; id: string; from: Vec; to: Vec }
@@ -180,7 +180,8 @@ export function moveWizard(wz: Wizard, dt: number) {
 const byId = (w: World, id: string | null) => w.wizards.find((z) => z.id === id && z.alive);
 const shielded = (w: World, wz: Wizard) => w.t < wz.shieldUntil;
 
-function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec) {
+// src: o que causou o dano (magia, item, choque ou pilar), para o placar e os dados de balanceamento
+function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src = 'outro') {
   if (w.t < target.invulnUntil) return;
   const penalty = w.t < target.kbPenaltyUntil ? REDIRECTOR.kbPenalty : 0;
   const mult = (1 + (KNOCK_HP_SCALE * target.dmgTaken) / HP_MAX) * Math.max(0, 1 - target.kbResist + penalty);
@@ -196,7 +197,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
     thief.hp = Math.min(thief.hpMax, thief.hp + heal);
     thief.dmgTaken = Math.max(0, thief.dmgTaken - heal * 0.5);
   }
-  w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg * 10) / 10 });
+  w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg * 10) / 10, src });
 }
 
 // primeiro mago (fora os excluídos) que o segmento a→b toca; t em [0,1] ao longo do segmento
@@ -236,7 +237,7 @@ function area(w: World, at: Vec, radius: number, dmg: number, kbFactor: number, 
     const k = falloff ? Math.max(0, 1 - d / (radius + WIZ_R)) : 1;
     const amount = dmg * k;
     if (amount <= 0.05) continue;
-    hit(w, o, by && by !== o.id ? by : (o.lastHitBy ?? by ?? o.id), amount, amount * KB_PER_DMG * kbFactor, sub(o.pos, at));
+    hit(w, o, by && by !== o.id ? by : (o.lastHitBy ?? by ?? o.id), amount, amount * KB_PER_DMG * kbFactor, sub(o.pos, at), 'choque:' + combo);
   }
   w.events.push({ k: 'clash', x: at.x, y: at.y, combo, r: radius });
 }
@@ -369,9 +370,9 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     if (shielded(w, target)) {
       w.events.push({ k: 'reflect', id: target.id, x: target.pos.x, y: target.pos.y });
       w.events.push({ k: 'lightning', from: target.pos, to: wz.pos });
-      hit(w, wz, target.id, L.dmg * dmgMult, L.knock * dmgMult, scale(dir, -1));
+      hit(w, wz, target.id, L.dmg * dmgMult, L.knock * dmgMult, scale(dir, -1), 'lightning');
     } else {
-      hit(w, target, wz.id, L.dmg * dmgMult, L.knock * dmgMult, dir);
+      hit(w, target, wz.id, L.dmg * dmgMult, L.knock * dmgMult, dir, 'lightning');
       w.events.push({ k: 'land', id: wz.id, src: 'lightning' });
     }
   } else if (spell === 'shield') {
@@ -448,10 +449,16 @@ function scourge(w: World, wz: Wizard) {
     const d = dist(o.pos, wz.pos);
     if (d > SCOURGE.radius + WIZ_R) continue;
     const factor = 0.75 + 0.25 * Math.max(0, 1 - d / SCOURGE.radius);
-    hit(w, o, wz.id, dmg, dmg * KB_PER_DMG * factor, sub(o.pos, wz.pos));
+    hit(w, o, wz.id, dmg, dmg * KB_PER_DMG * factor, sub(o.pos, wz.pos), 'scourge');
     landed = true;
   }
   if (landed) w.events.push({ k: 'land', id: wz.id, src: 'scourge' });
+  // também destrói bolas de fogo e mísseis inimigos dentro da explosão (pedido do Fernando, 17/10)
+  const caught = w.projectiles.filter((p) => p.owner !== wz.id && dist(p.pos, wz.pos) <= SCOURGE.radius + PROJ_R);
+  if (caught.length) {
+    w.projectiles = w.projectiles.filter((p) => !caught.includes(p));
+    for (const p of caught) w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pulse', r: 0.6 });
+  }
   w.events.push({ k: 'scourge', id: wz.id, x: wz.pos.x, y: wz.pos.y, r: SCOURGE.radius });
 }
 
@@ -491,7 +498,7 @@ function stepProjectiles(w: World) {
         keep.push(p);
         continue;
       }
-      hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel);
+      hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel, p.kind);
       if (p.owner === p.caster) w.events.push({ k: 'land', id: p.caster, src: p.kind });
       continue;
     }

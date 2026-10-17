@@ -18,13 +18,14 @@ export type ClientMsg =
   | { t: 'buyItem'; item: ItemId }
   | { t: 'buyMastery'; mastery: MasteryId | 'all' }
   | { t: 'kick'; target: string }
+  | { t: 'undo'; key: string }
   | { t: 'item'; item: ItemId; x: number; y: number; seq: number }
   | { t: 'ready' }
   | { t: 'alive' };
 
 export type PublicPlayer = {
   id: string; name: string; bot: boolean; color: number; character: CharacterId; score: number; gold: number;
-  spells: Record<SpellId, number>; items: Record<ItemId, number>; masteries: Record<MasteryId, number>; stats: Stats; ready: boolean; connected: boolean;
+  spells: Record<SpellId, number>; items: Record<ItemId, number>; masteries: Record<MasteryId, number>; stats: Stats; bought: string[]; ready: boolean; connected: boolean;
 };
 
 export type PublicRoom = {
@@ -90,6 +91,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return spell(m.spell) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'cast', spell: m.spell, x: m.x, y: m.y, seq: m.seq } : null;
     case 'buy':
       return spell(m.spell) ? { t: 'buy', spell: m.spell } : null;
+    case 'undo':
+      return typeof m.key === 'string' && /^(spell|item|mastery):[a-z_]{2,20}$/.test(m.key) ? { t: 'undo', key: m.key } : null;
     case 'kick':
       return typeof m.target === 'string' && /^p[0-9a-z]{1,8}$/.test(m.target) ? { t: 'kick', target: m.target } : null;
     case 'buyMastery':
@@ -123,7 +126,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     phase: m.phase,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, score, gold, spells, items, masteries, stats, ready, connected }) => ({ id: pub(id), name, bot, color, character, score, gold, spells, items, masteries, stats, ready, connected })),
+    players: m.players.map(({ id, name, bot, color, character, score, gold, spells, items, masteries, stats, bought, ready, connected }) => ({ id: pub(id), name, bot, color, character, score, gold, spells, items, masteries, stats, bought: bought.map((b) => b.key), ready, connected })),
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),

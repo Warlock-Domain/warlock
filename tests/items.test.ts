@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DT, HP_MAX, WIZ_SPEED } from '../src/shared/constants.ts';
 import { ITEMS, MAX_ITEMS, PACT, SCOURGE, itemPrice, noItems, type ItemId } from '../src/shared/items.ts';
-import { addPlayer, buyItem, buyMastery, newMatch, startMatch } from '../src/shared/match.ts';
+import { addPlayer, buy, buyItem, buyMastery, newMatch, startMatch, undoBuy } from '../src/shared/match.ts';
 import { newWorld, stepWorld, type World } from '../src/shared/sim.ts';
 import { SPELLS, type SpellId } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
@@ -92,6 +92,17 @@ describe('itens ativos', () => {
     expect(w.wizards[1].hp).toBeLessThan(HP_MAX);
   });
 
+  it('scourge destroys enemy projectiles in the blast', () => {
+    // a bola de fogo chega na área no meio do preparo de 0,5 s
+    const w = world([[0, 0], [5.5, 0]], [{ scourge: 1 }]);
+    stepWorld(w, [{ id: 'p1', kind: 'cast', spell: 'fireball', at: v(0, 0) }]);
+    steps(w, 6);
+    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
+    steps(w, 32);
+    expect(w.projectiles.length).toBe(0);
+    expect(w.wizards[0].hp).toBe(HP_MAX);
+  });
+
   it('item not owned does nothing', () => {
     const w = world([[0, 0], [1, 0]]);
     stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
@@ -119,6 +130,29 @@ describe('loja de itens', () => {
     expect(itemPrice(p.items, 'pact')).toBeNull();
     expect(buyItem(m, 'a', 'pact')).toBe(false);
     expect(Object.values(p.items).filter(Boolean).length).toBe(MAX_ITEMS);
+  });
+});
+
+describe('desfazer compra', () => {
+  it('undo refunds the latest purchase of that kind in this shop', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'Ana');
+    addPlayer(m, 'b', 'Bia');
+    startMatch(m, 0, 0);
+    const p = m.players[0];
+    p.gold = 50;
+    buy(m, 'a', 'lightning');
+    buyItem(m, 'a', 'armor');
+    buyMastery(m, 'a', 'all');
+    expect(p.gold).toBe(50 - 11 - 6 - 13);
+    expect(undoBuy(m, 'a', 'spell:lightning')).toBe(true);
+    expect(undoBuy(m, 'a', 'mastery:all')).toBe(true);
+    expect(p.spells.lightning).toBe(0);
+    expect(p.masteries).toEqual({ duration: 0, range: 0, lifesteal: 0 });
+    expect(p.gold).toBe(50 - 6);
+    expect(undoBuy(m, 'a', 'spell:lightning')).toBe(false);
+    // o Flagelo grátis do começo não pode ser "desfeito" para ganhar ouro
+    expect(undoBuy(m, 'a', 'item:scourge')).toBe(false);
   });
 });
 

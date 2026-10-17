@@ -1,9 +1,10 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
-import { addPlayer, buy, buyItem, buyMastery, endIdle, kick, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../shared/match.ts';
+import { addPlayer, buy, buyItem, buyMastery, endIdle, kick, newMatch, undoBuy, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
+import { roundRecord } from '../shared/telemetry.ts';
 import { v } from '../shared/vec.ts';
 
 const STEP_MS = DT * 1000;
@@ -135,6 +136,9 @@ export class Room extends DurableObject<Env> {
         this.cmds.push({ id, kind: 'item', item: msg.item, at: v(msg.x, msg.y) });
         this.acks.set(id, msg.seq);
         return;
+      case 'undo':
+        if (undoBuy(m, id, msg.key)) await this.changed();
+        return;
       case 'kick': {
         // o cliente só conhece o id público: acha o jogador correspondente
         const target = m.players.find((p) => publicId(s.id, p.id) === msg.target);
@@ -254,6 +258,7 @@ export class Room extends DurableObject<Env> {
       this.events.push(...tickMatch(m, now, cmds));
       if (++this.steps % SEND_EVERY === 0) this.sendSnaps();
     }
+    if (m.phase === 'roundEnd' && before.startsWith('playing')) this.lobby().record(roundRecord(m, now)).catch(() => {});
     if (now - this.lastCmdAt > IDLE_MS) endIdle(m);
     if (`${m.phase}:${m.round}:${m.players.length}` !== before) void this.changed();
   }

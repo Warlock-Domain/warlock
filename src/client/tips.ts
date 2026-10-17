@@ -1,6 +1,7 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
 import { ITEMS, PACT, REDIRECTOR, SCOURGE, type ItemId } from '../shared/items.ts';
 import { MASTERIES, MASTERY_COST, MASTERY_MAX, masteryValue, type MasteryId } from '../shared/masteries.ts';
+import { labelOf } from './keys.ts';
 import { MAX_SPELL_LEVEL, SPELLS, type Level, type SpellId } from '../shared/spells.ts';
 
 const n1 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
@@ -24,7 +25,7 @@ export function spellTip(id: SpellId, level: number): string {
   const sp = SPELLS[id];
   const cur = sp.levels[Math.max(0, level - 1)];
   const next = level >= 1 && level < MAX_SPELL_LEVEL ? sp.levels[level] : null;
-  const head = `<b>${sp.name}</b> <span class="k">${sp.key}</span><br><small>${level ? `Nível ${level} de ${MAX_SPELL_LEVEL}` : 'Ainda não comprada · preço ' + sp.cost}</small>`;
+  const head = `<b>${sp.name}</b> <span class="k">${labelOf(id)}</span><br><small>${level ? `Nível ${level} de ${MAX_SPELL_LEVEL}` : 'Ainda não comprada · preço ' + sp.cost}</small>`;
   const rows = SPELL_ROWS[id].map(([k, f]): [string, string, string | null] => [k, f(cur), next ? f(next) : null]);
   const foot = next ? `<small class="up">Próximo nível (${sp.up[level - 1]} de ouro): o que está à direita</small>` : level >= MAX_SPELL_LEVEL ? '<small>Nível máximo</small>' : '';
   return `${head}${table(rows)}${foot}<small class="muted">Empurrão: distância que um mago sem dano acumulado desliza.</small>`;
@@ -45,7 +46,7 @@ const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string][]>> = 
 export function itemTip(id: ItemId, level: number): string {
   const it = ITEMS[id];
   const max = it.levels.length;
-  const head = `<b>${it.name}</b>${it.key ? ` <span class="k">${it.key}</span>` : ''}<br><small>${level ? `Nível ${level} de ${max}` : 'Ainda não comprado'} · ${it.key ? 'ativo' : 'passivo'} · ${it.cost} de ouro por nível</small>`;
+  const head = `<b>${it.name}</b>${it.key ? ` <span class="k">${labelOf(id)}</span>` : ''}<br><small>${level ? `Nível ${level} de ${max}` : 'Ainda não comprado'} · ${it.key ? 'ativo' : 'passivo'} · ${it.cost} de ouro por nível</small>`;
   const rows = ITEM_ROWS[id]!;
   const cur = rows(Math.max(0, level - 1));
   const next = level >= 1 && level < max ? rows(level) : null;

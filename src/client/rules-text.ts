@@ -10,7 +10,8 @@ export const RULES: [string, string[]][] = [
   ['Controles no PC', [
     'Botão direito no chão: andar (segure para arrastar o destino). S: parar.',
     'Q bola de fogo · W raio · E míssil teleguiado · R escudo · F teleporte: saem na direção do cursor.',
-    'Espaço: centralizar a câmera.',
+    'Espaço: centralizar a câmera. Tab: placar.',
+    'Dá para trocar a tecla de cada magia e item no botão ⌨️ (fica salvo no navegador).',
   ]],
   ['Controles no celular', [
     'Toque no chão para andar.',

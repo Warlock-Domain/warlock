@@ -5,6 +5,7 @@ import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
 import { MASTERIES, MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, type MasteryId } from '../shared/masteries.ts';
 import { MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, priceOf, type SpellId } from '../shared/spells.ts';
+import { ACTIONS, RESERVED, keyLabel, keyOf, labelOf, onKeysChange, resetKeys, setKey, type Action } from './keys.ts';
 import { hideTip, itemTip, masteryTip, spellTip, withTip } from './tips.ts';
 import { COLORS } from './scene.ts';
 import { RULES } from './rules-text.ts';
@@ -119,6 +120,7 @@ export type RoomActions = {
   buyItem: (i: ItemId) => void;
   buyMastery: (m: MasteryId | 'all') => void;
   kick: (id: string) => void;
+  undo: (key: string) => void;
   useItem: (i: ItemId) => void;
   pick: (c: CharacterId) => void;
   ready: () => void;
@@ -148,9 +150,9 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
     el('div', { class: 'stats-tabs', role: 'tablist' }, ...SCOPES.map(([k, label]) =>
       el('button', { type: 'button', role: 'tab', 'aria-selected': String(k === scope), class: k === scope ? 'on' : '', onclick: () => setScope(k) }, label))),
     el('div', { class: 'stats-wrap' }, el('table', { class: 'stats-table' },
-      el('thead', {}, el('tr', {}, el('th', {}, 'Jogador'), el('th', {}, 'Vitórias'), el('th', {}, 'Ouro'), el('th', {}, 'Dano'), ...AIM.map(([, ico, name]) => el('th', { title: 'Precisão: ' + name }, ico)))),
+      el('thead', {}, el('tr', {}, el('th', {}, 'Jogador'), el('th', {}, 'Vitórias'), el('th', {}, 'Abates'), el('th', {}, 'Ouro'), el('th', {}, 'Dano'), ...AIM.map(([, ico, name]) => el('th', { title: 'Precisão: ' + name }, ico)))),
       el('tbody', {}, ...rows.map((p) => el('tr', { class: p.id === me ? 'me' : '' },
-        el('td', {}, dot(p.color), ' ', p.name), el('td', { class: 'num' }, String(p.score)),
+        el('td', {}, dot(p.color), ' ', p.name), el('td', { class: 'num' }, String(p.score)), el('td', { class: 'num' }, String(p.stats[scope].kills ?? 0)),
         el('td', { class: 'num' }, n0(p.stats[scope].gold)), el('td', { class: 'num' }, n0(p.stats[scope].dmg)),
         ...AIM.map(([k]) => aimCell(p, k)),
       ))),
@@ -191,6 +193,41 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     return el('label', { class: 'vol-row', for: 'vol-' + kind }, el('span', {}, label), input, out);
   };
   const volPanel = el('div', { class: 'vol-panel', hidden: true }, slider('sfx', 'Efeitos'), slider('music', 'Música'));
+  // teclas: clique na tecla de uma ação e aperte a nova
+  const ACTION_NAME = (a: Action) => (a in SPELLS ? SPELLS[a as SpellId].name : ITEMS[a as ItemId].name);
+  const ACTION_ICON = (a: Action) => (a in SPELLS ? ICON[a as SpellId] : ITEM_ICON[a as ItemId]);
+  let waiting: Action | null = null;
+  const keysList = el('div', { class: 'keys-list' });
+  function drawKeys() {
+    keysList.replaceChildren(...ACTIONS.map((a) => el('div', { class: 'keys-row' },
+      el('span', {}, ACTION_ICON(a), ' ', ACTION_NAME(a)),
+      el('button', { type: 'button', class: 'keycap' + (waiting === a ? ' wait' : ''), onclick: () => {
+        waiting = waiting === a ? null : a;
+        drawKeys();
+      } }, waiting === a ? 'aperte…' : keyLabel(keyOf(a))))));
+  }
+  addEventListener('keydown', (e) => {
+    if (!waiting) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (e.code !== 'Escape') {
+      if (RESERVED.has(e.code)) return toast('Essa tecla já tem outra função (S para, Espaço centraliza, Tab mostra o placar).');
+      setKey(waiting, e.code);
+    }
+    waiting = null;
+    drawKeys();
+  }, true);
+  const keysPanel = el('div', { class: 'vol-panel keys-panel', hidden: true }, el('b', {}, 'Teclas'), keysList,
+    el('button', { type: 'button', onclick: () => resetKeys() }, 'Voltar ao padrão'));
+  const keysBtn = el('button', { type: 'button', class: 'icon', title: 'Trocar teclas', onclick: () => {
+    keysPanel.hidden = !keysPanel.hidden;
+    if (!keysPanel.hidden) drawKeys();
+  } }, '⌨️');
+  onKeysChange(() => {
+    drawKeys();
+    bar.querySelectorAll<HTMLElement>('[data-action]').forEach((k) => (k.textContent = labelOf(k.dataset.action as Action)));
+    drawCenter();
+  });
   const volBtn = el('button', { type: 'button', class: 'icon', title: 'Volume', 'aria-expanded': 'false', onclick: () => {
     volPanel.hidden = !volPanel.hidden;
     volBtn.setAttribute('aria-expanded', String(!volPanel.hidden));
@@ -198,7 +235,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const top = el('div', { class: 'hud-top' },
     el('button', { type: 'button', class: 'code', title: 'Copiar link da sala', onclick: copyLink }, status, ' ', code),
     roundEl,
-    el('div', { class: 'hud-right' }, el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', onclick: showRules }, '?')),
+    el('div', { class: 'hud-right' }, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', onclick: showRules }, '?')),
   );
   const center = el('div', { class: 'center' });
   const timer = el('div', { class: 'timer' });
@@ -208,7 +245,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const cd = el('span', { class: 'cd' });
     const pips = el('span', { class: 'pips' });
     const b = withTip(el('button', { type: 'button', class: 'spell', 'aria-label': SPELLS[s].name, onclick: () => act.spell(s) },
-      el('span', { class: 'key' }, SPELLS[s].key), el('span', { class: 'ico' }, ICON[s]), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0));
+      el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, ICON[s]), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0));
     buttons.set(s, { b, cd, pips });
     return b;
   }));
@@ -217,7 +254,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   for (const i of ACTIVE_ITEMS) {
     const cd = el('span', { class: 'cd' });
     const b = withTip(el('button', { type: 'button', class: 'spell item', 'aria-label': ITEMS[i].name, onclick: () => act.useItem(i) },
-      el('span', { class: 'key' }, ITEMS[i].key!), el('span', { class: 'ico' }, ITEM_ICON[i]), cd), () => itemTip(i, mine?.items[i] ?? 0));
+      el('span', { class: 'key', 'data-action': i }, labelOf(i)), el('span', { class: 'ico' }, ITEM_ICON[i]), cd), () => itemTip(i, mine?.items[i] ?? 0));
     b.hidden = true;
     itemButtons.set(i, { b, cd });
     bar.append(b);
@@ -299,6 +336,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   function shopPanel(r: PublicRoom) {
     const mine = r.players.find((p) => p.id === me);
+    // desfazer: só o que foi comprado nesta loja (devolve o ouro)
+    const undoBtn = (key: string) => (mine?.bought.includes(key) ? el('button', { type: 'button', class: 'undo', title: 'Desfazer a compra (devolve o ouro)', 'aria-label': 'Desfazer a compra', 'data-key': 'undo-' + key, onclick: () => act.undo(key) }, '↩') : null);
     if (!mine) return el('div', { class: 'card' }, el('p', {}, 'Você está assistindo. Entra na próxima partida.'));
     // duas colunas: compras à esquerda; ouro, Pronto, placar e personagem à direita (pedido do Fernando: loja mais larga)
     return el('div', { class: 'card shop' }, el('div', { class: 'shop-main' },
@@ -308,10 +347,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         const price = priceOf(s, lvl);
         const label = price === null ? 'Máximo' : lvl === 0 ? `Comprar · ${price}` : `Nível ${lvl + 1} · ${price}`;
         return withTip(el('div', { class: 'shop-item' + (lvl ? ' owned' : '') },
-          el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, ICON[s]), el('b', {}, SPELLS[s].name), el('span', { class: 'key' }, SPELLS[s].key)),
+          el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, ICON[s]), el('b', {}, SPELLS[s].name), el('span', { class: 'key' }, labelOf(s))),
           el('small', {}, RULES_SHORT[s]),
           el('span', { class: 'pips' }, ...Array.from({ length: MAX_SPELL_LEVEL }, (_, n) => el('i', { class: n < lvl ? 'on' : '' }))),
-          el('button', { type: 'button', 'data-key': 'spell-' + s, disabled: price === null || mine.gold < price, onclick: () => act.buy(s) }, label),
+          el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'spell-' + s, disabled: price === null || mine.gold < price, onclick: () => act.buy(s) }, label), undoBtn('spell:' + s)),
         ), () => spellTip(s, lvl));
       })),
       el('div', { class: 'shop-head' }, el('h3', {}, 'Itens'), el('small', {}, `${ITEM_IDS.filter((i) => mine.items[i] > 0).length} de ${MAX_ITEMS}`)),
@@ -321,10 +360,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         const price = itemPrice(mine.items, i);
         const label = lvl >= max ? 'Máximo' : price === null ? 'Sem espaço' : lvl === 0 ? `Comprar · ${price}` : `Nível ${lvl + 1} · ${price}`;
         return withTip(el('div', { class: 'shop-item' + (lvl ? ' owned' : '') },
-          el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, ITEM_ICON[i]), el('b', {}, ITEMS[i].name), ITEMS[i].key ? el('span', { class: 'key' }, ITEMS[i].key!) : null),
+          el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, ITEM_ICON[i]), el('b', {}, ITEMS[i].name), ITEMS[i].key ? el('span', { class: 'key' }, labelOf(i)) : null),
           el('small', {}, ITEMS[i].text),
           el('span', { class: 'pips' }, ...ITEMS[i].levels.map((_, n) => el('i', { class: n < lvl ? 'on' : '' }))),
-          el('button', { type: 'button', 'data-key': 'item-' + i, disabled: price === null || mine.gold < price, onclick: () => act.buyItem(i) }, label),
+          el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'item-' + i, disabled: price === null || mine.gold < price, onclick: () => act.buyItem(i) }, label), undoBtn('item:' + i)),
         ), () => itemTip(i, lvl));
       })),
       el('div', { class: 'shop-head' }, el('h3', {}, 'Maestrias'), el('small', {}, `${MASTERY_COST} de ouro por nível · as três por ${MASTERY_ALL_COST}`)),
@@ -334,12 +373,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           el('div', { class: 'shop-title' }, el('b', {}, MASTERIES[k].name)),
           el('small', {}, MASTERIES[k].text),
           el('span', { class: 'pips' }, ...Array.from({ length: MASTERY_MAX }, (_, n) => el('i', { class: n < lvl ? 'on' : '' }))),
-          el('button', { type: 'button', 'data-key': 'mastery-' + k, disabled: lvl >= MASTERY_MAX || mine.gold < MASTERY_COST, onclick: () => act.buyMastery(k) }, lvl >= MASTERY_MAX ? 'Máximo' : `Nível ${lvl + 1} · ${MASTERY_COST}`),
+          el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'mastery-' + k, disabled: lvl >= MASTERY_MAX || mine.gold < MASTERY_COST, onclick: () => act.buyMastery(k) }, lvl >= MASTERY_MAX ? 'Máximo' : `Nível ${lvl + 1} · ${MASTERY_COST}`), undoBtn('mastery:' + k)),
         ), () => masteryTip(k, lvl));
       }), el('div', { class: 'shop-item' },
         el('div', { class: 'shop-title' }, el('b', {}, 'As três')),
         el('small', {}, 'Sobe Duração, Alcance e Roubo de vida um nível cada.'),
-        el('button', { type: 'button', 'data-key': 'mastery-all', disabled: MASTERY_IDS.some((k) => mine.masteries[k] >= MASTERY_MAX) || mine.gold < MASTERY_ALL_COST, onclick: () => act.buyMastery('all') }, `Subir as três · ${MASTERY_ALL_COST}`),
+        el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'mastery-all', disabled: MASTERY_IDS.some((k) => mine.masteries[k] >= MASTERY_MAX) || mine.gold < MASTERY_ALL_COST, onclick: () => act.buyMastery('all') }, `Subir as três · ${MASTERY_ALL_COST}`), undoBtn('mastery:all')),
       )),
       el('h3', {}, 'Placar'),
       statsBoard(r, me, scope, setScope),

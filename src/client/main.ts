@@ -105,6 +105,7 @@ function startRoom(code: string, name: string) {
     buyItem: (item) => net.send({ t: 'buyItem', item }),
     buyMastery: (mastery) => net.send({ t: 'buyMastery', mastery }),
     kick: (target) => net.send({ t: 'kick', target }),
+    undo: (key) => net.send({ t: 'undo', key }),
     useItem: (item) => input.itemButton(item),
     pick: (character) => {
       store.set(CHAR, character);

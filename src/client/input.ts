@@ -1,7 +1,8 @@
 // Controles do Dota: botão direito anda, Q W E R F lançam na direção do cursor, S para.
 // No celular: tocar no chão anda; tocar no botão da magia e depois no chão lança.
-import { ACTIVE_ITEMS, ITEMS, type ItemId } from '../shared/items.ts';
-import { SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
+import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
+import type { SpellId } from '../shared/spells.ts';
+import { actionFor } from './keys.ts';
 import type { Vec } from '../shared/vec.ts';
 
 export type InputHandlers = {
@@ -14,8 +15,6 @@ export type InputHandlers = {
   armedChanged: (armed: SpellId | ItemId | null) => void;
 };
 
-const KEYS: Record<string, SpellId> = Object.fromEntries(SPELL_IDS.map((s) => ['Key' + SPELLS[s].key, s]));
-const ITEM_KEYS: Record<string, ItemId> = Object.fromEntries(ACTIVE_ITEMS.map((i) => ['Digit' + ITEMS[i].key, i]));
 const isItem = (x: string): x is ItemId => (ACTIVE_ITEMS as string[]).includes(x);
 
 export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
@@ -63,19 +62,15 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   });
   addEventListener('keydown', (e) => {
     if (!enabled || e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT') return;
-    const item = ITEM_KEYS[e.code];
-    if (item) {
+    // teclas trocáveis pelo jogador (keys.ts)
+    const action = actionFor(e.code);
+    if (action) {
       const p = h.pick(cursor.x, cursor.y);
-      if (p) h.useItem(item, p);
+      if (p) (isItem(action) ? h.useItem(action, p) : h.cast(action as SpellId, p));
       e.preventDefault();
       return;
     }
-    const spell = KEYS[e.code];
-    if (spell) {
-      const p = h.pick(cursor.x, cursor.y);
-      if (p) h.cast(spell, p);
-      e.preventDefault();
-    } else if (e.code === 'KeyS') h.stop();
+    if (e.code === 'KeyS') h.stop();
     else if (e.code === 'Space') {
       h.center();
       e.preventDefault();

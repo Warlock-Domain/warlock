@@ -14,9 +14,9 @@ import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.
 import { noSpells, priceOf, type SpellId } from './spells.ts';
 
 // estatísticas do placar: ouro ganho, dano causado e precisão (lançadas e acertadas) por magia
-export type Stat = { gold: number; dmg: number; fired: Record<string, number>; landed: Record<string, number> };
+export type Stat = { gold: number; dmg: number; kills: number; dmgBy: Record<string, number>; fired: Record<string, number>; landed: Record<string, number> };
 export type Stats = { round: Stat; match: Stat; room: Stat };
-const newStat = (): Stat => ({ gold: 0, dmg: 0, fired: {}, landed: {} });
+const newStat = (): Stat => ({ gold: 0, dmg: 0, kills: 0, dmgBy: {}, fired: {}, landed: {} });
 const newStats = (): Stats => ({ round: newStat(), match: newStat(), room: newStat() });
 function addStat(p: Player, f: (s: Stat) => void) {
   f(p.stats.round);
@@ -42,6 +42,8 @@ export type Player = {
   items: Record<ItemId, number>;
   masteries: Record<MasteryId, number>;
   stats: Stats;
+  // compras feitas nesta loja (mais recente por último), para poder desfazer e trocar
+  bought: { key: string; price: number }[];
   ready: boolean;
   connected: boolean;
 };
@@ -76,7 +78,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false): bool
   const color = [0, 1, 2, 3, 4, 5, 6, 7].find((c) => !used.has(c)) ?? 0;
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
-  m.players.push({ id, name, bot, color, character, score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries(), stats: newStats(), ready: bot, connected: true });
+  m.players.push({ id, name, bot, color, character, score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries(), stats: newStats(), bought: [], ready: bot, connected: true });
   return true;
 }
 
@@ -97,6 +99,11 @@ export function startMatch(m: Match, now: number, bots: number): boolean {
   for (const p of m.players) {
     Object.assign(p, { score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries() });
     p.stats ??= newStats();
+    p.bought ??= [];
+    p.stats.round.kills ??= 0;
+    for (const st of [p.stats.round, p.stats.match, p.stats.room]) st.dmgBy ??= {};
+    p.stats.match.kills ??= 0;
+    p.stats.room.kills ??= 0;
     p.stats.match = newStat();
     p.stats.round = newStat();
   }
@@ -112,6 +119,7 @@ export function buy(m: Match, id: string, spell: SpellId): boolean {
   if (price === null || p.gold < price) return false;
   p.gold -= price;
   p.spells[spell]++;
+  p.bought.push({ key: 'spell:' + spell, price });
   return true;
 }
 
@@ -130,6 +138,7 @@ export function buyItem(m: Match, id: string, item: ItemId): boolean {
   if (price === null || p.gold < price) return false;
   p.gold -= price;
   p.items[item]++;
+  p.bought.push({ key: 'item:' + item, price });
   return true;
 }
 
@@ -142,6 +151,22 @@ export function buyMastery(m: Match, id: string, which: MasteryId | 'all'): bool
   if (p.gold < cost || targets.some((t) => p.masteries[t] >= MASTERY_MAX)) return false;
   p.gold -= cost;
   for (const t of targets) p.masteries[t]++;
+  p.bought.push({ key: 'mastery:' + which, price: cost });
+  return true;
+}
+
+// desfaz a compra mais recente daquele tipo feita nesta loja: devolve o ouro e baixa o nível
+export function undoBuy(m: Match, id: string, key: string): boolean {
+  const p = m.players.find((q) => q.id === id);
+  if (m.phase !== 'shop' || !p) return false;
+  const i = p.bought.map((b) => b.key).lastIndexOf(key);
+  if (i < 0) return false;
+  const [kind, what] = key.split(':');
+  if (kind === 'spell') p.spells[what as SpellId]--;
+  else if (kind === 'item') p.items[what as ItemId]--;
+  else for (const t of what === 'all' ? MASTERY_IDS : [what as MasteryId]) p.masteries[t]--;
+  p.gold += p.bought[i].price;
+  p.bought.splice(i, 1);
   return true;
 }
 
@@ -193,6 +218,7 @@ export const shouldRun = (m: Match, humansConnected: number) => humansConnected 
 
 function enterShop(m: Match, now: number) {
   m.phase = 'shop';
+  for (const p of m.players) p.bought = [];
   m.phaseEnds = now + SHOP_MS;
   m.world = null;
   for (const p of m.players) {
@@ -264,14 +290,18 @@ export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number
   for (const e of w.events) {
     if (e.k === 'hit' && e.by !== e.id) {
       const p = m.players.find((q) => q.id === e.by);
-      if (p) addStat(p, (s) => (s.dmg += e.dmg));
+      if (p) addStat(p, (s) => {
+        s.dmg += e.dmg;
+        s.dmgBy[e.src] = (s.dmgBy[e.src] ?? 0) + e.dmg;
+      });
     } else if (e.k === 'fire' || e.k === 'land') {
       const p = m.players.find((q) => q.id === e.id);
       const bucket = e.k === 'fire' ? 'fired' : 'landed';
       if (p) addStat(p, (s) => (s[bucket][e.src] = (s[bucket][e.src] ?? 0) + 1));
     } else if (e.k === 'death' && e.by && e.by !== e.id) {
-      // abate não vale ponto no original, só ouro (zero no padrão)
+      // abate não vale ponto no original, só ouro (zero no padrão); entra no placar
       const killer = m.players.find((p) => p.id === e.by);
+      if (killer) addStat(killer, (s) => (s.kills += 1));
       if (killer && KILL_GOLD) earn(killer, KILL_GOLD);
     }
   }

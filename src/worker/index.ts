@@ -14,6 +14,7 @@ export default {
     const lobby = env.LOBBY.get(env.LOBBY.idFromName('lobby'));
 
     if (url.pathname === '/api/health') return new Response('ok');
+    if (url.pathname === '/api/telemetry') return Response.json(await lobby.telemetry(), { headers: { 'cache-control': 'no-store' } });
 
     if (url.pathname === '/api/rooms' && req.method === 'POST') {
       let id = newCode();

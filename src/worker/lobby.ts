@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
+import { addRecord, emptyTotals, type RoundRecord, type Totals } from '../shared/telemetry.ts';
 
 export type RoomInfo = { id: string; players: number; phase: string };
 
@@ -30,6 +31,16 @@ export class Lobby extends DurableObject<Env> {
     const rooms = await this.rooms();
     delete rooms[id];
     await this.save(rooms);
+  }
+
+  // dados de balanceamento: soma de todas as rodadas jogadas no site
+  async record(r: RoundRecord) {
+    const t = (await this.ctx.storage.get<Totals>('telemetry')) ?? emptyTotals();
+    await this.ctx.storage.put('telemetry', addRecord(t, r));
+  }
+
+  async telemetry(): Promise<Totals> {
+    return (await this.ctx.storage.get<Totals>('telemetry')) ?? emptyTotals();
   }
 
   async has(id: string): Promise<boolean> {
