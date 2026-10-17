@@ -3,6 +3,7 @@ import { isCharacter } from '../shared/characters.ts';
 import type { PublicRoom, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView } from '../shared/snapshot.ts';
+import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
 import { SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { dist, len, type Vec } from '../shared/vec.ts';
 import { createInput } from './input.ts';
@@ -87,7 +88,7 @@ function startRoom(code: string, name: string) {
   let room: PublicRoom | null = null;
   let me = playerId;
   let online = false;
-  let armed: SpellId | null = null;
+  let armed: SpellId | ItemId | null = null;
   let seq = 0;
   const sentAt = new Map<number, number>();
   let lastSnap: Snap | null = null;
@@ -96,6 +97,8 @@ function startRoom(code: string, name: string) {
   const view = createRoomUi(ui, code, {
     start: (bots) => net.send({ t: 'start', bots }),
     buy: (spell) => net.send({ t: 'buy', spell }),
+    buyItem: (item) => net.send({ t: 'buyItem', item }),
+    useItem: (item) => input.itemButton(item),
     pick: (character) => {
       store.set(CHAR, character);
       net.send({ t: 'pick', character });
@@ -124,7 +127,7 @@ function startRoom(code: string, name: string) {
 
   const myWizard = (s: SnapView | null) => s?.wizards.find((w) => w.id === me) ?? null;
 
-  function command(msg: { t: 'move'; x: number; y: number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
+  function command(msg: { t: 'move'; x: number; y: number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number } | { t: 'item'; item: ItemId; x: number; y: number }) {
     seq++;
     sentAt.set(seq, performance.now());
     if (sentAt.size > 50) sentAt.delete(sentAt.keys().next().value!);
@@ -151,6 +154,13 @@ function startRoom(code: string, name: string) {
       scene.castLocal(me, spell);
       scene.clickMarker(at, true);
       sound.play(spell);
+    },
+    useItem(item, at) {
+      const mine = room?.players.find((p) => p.id === me);
+      if (!mine?.items[item]) return toast('Você ainda não tem esse item. Compre na loja.');
+      if ((lastSnap?.icd[ACTIVE_ITEMS.indexOf(item)] ?? 0) > 0.1) return;
+      command({ t: 'item', item, x: at.x, y: at.y });
+      scene.clickMarker(at, true);
     },
     center: () => (follow = true),
     armedChanged: (s) => (armed = s),
@@ -183,6 +193,8 @@ function startRoom(code: string, name: string) {
       } else if (e.k === 'hit') sound.play('hit', near(e.x, e.y));
       else if (e.k === 'reflect') sound.play('reflect', near(e.x, e.y));
       else if (e.k === 'teleport' && e.id === me) predict.teleported(e.to);
+      else if (e.k === 'item') sound.play(e.item === 'redirector' ? 'teleport' : e.item === 'pact' ? 'shield' : 'homing', 0.7);
+      else if (e.k === 'scourge') sound.play('death', near(e.x, e.y));
       else if (e.k === 'shrink') sound.play('shrink');
       else if (e.k === 'death') {
         sound.play('death');
@@ -198,6 +210,8 @@ function startRoom(code: string, name: string) {
   function onMsg(m: ServerMsg) {
     if (m.t === 'error') {
       if (m.code === 'not_found') return screen(ui, 'Sala não encontrada', 'Ela pode ter fechado por ficar vazia.', 'Ver salas', () => (location.hash = ''));
+      // sem parar a conexão, ela se reconectaria sozinha e derrubaria a outra aba, num vaivém sem fim
+      if (m.code === 'other_tab' || m.code === 'full') net.stop();
       if (m.code === 'other_tab') return screen(ui, 'Sala aberta em outra aba', 'Continue por lá ou recarregue esta.', 'Recarregar', () => location.reload());
       if (m.code === 'full') return screen(ui, 'Sala cheia', 'Já tem 8 magos nesta sala.', 'Ver salas', () => (location.hash = ''));
       return toast(m.msg);
@@ -207,11 +221,13 @@ function startRoom(code: string, name: string) {
       room = m.room;
       me = m.you;
       view.update(room, me, online);
+      scene.preload(room.players.map((p) => p.character));
       if (room.phase !== lastPhase) onPhase(prev);
       lastPhase = room.phase;
       return;
     }
     lastSnap = m;
+    predict.setSpeed(m.sp);
     const acked = sentAt.get(m.ack);
     if (acked !== undefined) {
       predict.setRtt(performance.now() - acked);
@@ -224,7 +240,8 @@ function startRoom(code: string, name: string) {
 
   function onPhase(prev: PublicRoom | null) {
     if (!room) return;
-    input.setEnabled(room.phase === 'playing' || room.phase === 'countdown');
+    // na contagem o servidor ainda não aceita comandos: liberar só quando a rodada começa
+    input.setEnabled(room.phase === 'playing');
     sound.setAmbience(room.phase !== 'lobby' && room.phase !== 'end');
     if (room.phase === 'countdown') {
       interp.reset();
@@ -240,7 +257,7 @@ function startRoom(code: string, name: string) {
       banner(!w ? 'Ninguém sobrou!' : w.id === me ? 'Você venceu a rodada!' : `${w.name} venceu a rodada!`, w?.id === me ? 'good' : '');
     } else if (room.phase === 'end' && prev) {
       const w = room.players.find((p) => p.id === room!.winner);
-      banner(w?.id === me ? 'Você venceu a partida!' : `${w?.name ?? '?'} venceu!`, 'good');
+      banner(!w ? 'Partida encerrada' : w.id === me ? 'Você venceu a partida!' : `${w.name} venceu!`, 'good');
     }
   }
 
@@ -280,7 +297,7 @@ function startRoom(code: string, name: string) {
       projectiles: playing && s ? s.projectiles : [],
       follow: follow ? myPos : null,
     });
-    view.frame(lastSnap?.cd ?? [], armed, shrinkIn);
+    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, shrinkIn);
   }
   const drawn = new Map<string, Vec>();
   void scene.ready.then(() => requestAnimationFrame(frame), () => toast('Não deu para carregar o mago. Recarregue a página.'));

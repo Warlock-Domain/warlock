@@ -2,7 +2,9 @@
 import { MAX_PLAYERS, WINS_TO_WIN } from '../shared/constants.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
+import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
 import { SPELLS, SPELL_IDS, priceOf, type SpellId } from '../shared/spells.ts';
+import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { COLORS } from './scene.ts';
 import { RULES } from './rules-text.ts';
 
@@ -21,6 +23,7 @@ export function el(tag: string, props: Record<string, any> = {}, ...children: Ch
 }
 
 export const ICON: Record<SpellId, string> = { fireball: '🔥', lightning: '⚡', homing: '🎯', shield: '🛡️', teleport: '✨' };
+export const ITEM_ICON: Record<ItemId, string> = { ring: '💍', cursed_ring: '🧿', cape: '🧣', armor: '⛓️', boots: '👢', watch: '⏱️', scourge: '💥', redirector: '↪️', pact: '🩸' };
 const TITLE = 'Warlock';
 
 export function askName(root: HTMLElement, current: string): Promise<string> {
@@ -100,7 +103,7 @@ export function toast(msg: string) {
 
 export function banner(text: string, kind: '' | 'good' | 'bad' = '') {
   document.querySelectorAll('.banner').forEach((b) => b.remove());
-  const b = el('div', { class: `banner ${kind}` }, text);
+  const b = el('div', { class: `banner ${kind}`, role: 'status', 'aria-live': 'polite' }, text);
   document.body.append(b);
   setTimeout(() => b.remove(), 1700);
 }
@@ -112,6 +115,8 @@ export function screen(root: HTMLElement, title: string, text: string, button: s
 export type RoomActions = {
   start: (bots: number) => void;
   buy: (s: SpellId) => void;
+  buyItem: (i: ItemId) => void;
+  useItem: (i: ItemId) => void;
   pick: (c: CharacterId) => void;
   ready: () => void;
   spell: (s: SpellId) => void;
@@ -153,14 +158,25 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const center = el('div', { class: 'center' });
   const timer = el('div', { class: 'timer' });
   const buttons = new Map<SpellId, { b: HTMLElement; cd: HTMLElement; pips: HTMLElement }>();
+  let mine: PublicPlayer | undefined;
   const bar = el('div', { class: 'spellbar' }, ...SPELL_IDS.map((s) => {
     const cd = el('span', { class: 'cd' });
     const pips = el('span', { class: 'pips' });
-    const b = el('button', { type: 'button', class: 'spell', title: SPELLS[s].name, onclick: () => act.spell(s) },
-      el('span', { class: 'key' }, SPELLS[s].key), el('span', { class: 'ico' }, ICON[s]), pips, cd);
+    const b = withTip(el('button', { type: 'button', class: 'spell', 'aria-label': SPELLS[s].name, onclick: () => act.spell(s) },
+      el('span', { class: 'key' }, SPELLS[s].key), el('span', { class: 'ico' }, ICON[s]), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0));
     buttons.set(s, { b, cd, pips });
     return b;
   }));
+  // itens ativos (teclas 1, 2 e 3) ao lado das magias; só aparecem se comprados
+  const itemButtons = new Map<ItemId, { b: HTMLElement; cd: HTMLElement }>();
+  for (const i of ACTIVE_ITEMS) {
+    const cd = el('span', { class: 'cd' });
+    const b = withTip(el('button', { type: 'button', class: 'spell item', 'aria-label': ITEMS[i].name, onclick: () => act.useItem(i) },
+      el('span', { class: 'key' }, ITEMS[i].key!), el('span', { class: 'ico' }, ITEM_ICON[i]), cd), () => itemTip(i, mine?.items[i] ?? 0));
+    b.hidden = true;
+    itemButtons.set(i, { b, cd });
+    bar.append(b);
+  }
   root.replaceChildren(el('div', { class: 'hud' }, top, players, timer, center, bar), el('div', { class: 'labels', id: 'labels' }));
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
@@ -206,7 +222,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (humans + bots < 2) startBtn.setAttribute('disabled', '');
     return el('div', { class: 'card' },
       r.phase === 'end'
-        ? el('div', {}, el('h2', { class: 'title' }, `🏆 ${r.players.find((p) => p.id === r.winner)?.name ?? '?'} venceu!`), board(r, me))
+        ? el('div', {}, el('h2', { class: 'title' }, r.winner ? `🏆 ${r.players.find((p) => p.id === r.winner)?.name ?? '?'} venceu!` : 'Partida encerrada'), r.winner ? null : el('p', { class: 'muted' }, 'Três rodadas seguidas sem ninguém sobrar.'), board(r, me))
         : el('div', {}, el('h2', { class: 'title' }, 'Sala ' + r.id), el('p', { class: 'muted' }, 'Mande o link para os amigos entrarem. Até 8 magos.'),
             el('ul', { class: 'board' }, ...r.players.filter((p) => !p.bot).map((p) => el('li', {}, el('span', {}, dot(p.color), ' ', nameOf(p, me)))))),
       picker(r),
@@ -225,12 +241,25 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         const lvl = mine.spells[s];
         const price = priceOf(s, lvl);
         const label = price === null ? 'Máximo' : lvl === 0 ? `Comprar · ${price}` : `Nível ${lvl + 1} · ${price}`;
-        return el('div', { class: 'shop-item' + (lvl ? ' owned' : '') },
+        return withTip(el('div', { class: 'shop-item' + (lvl ? ' owned' : '') },
           el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, ICON[s]), el('b', {}, SPELLS[s].name), el('span', { class: 'key' }, SPELLS[s].key)),
           el('small', {}, RULES_SHORT[s]),
           el('span', { class: 'pips' }, ...[1, 2, 3].map((n) => el('i', { class: n <= lvl ? 'on' : '' }))),
-          el('button', { type: 'button', disabled: price === null || mine.gold < price, onclick: () => act.buy(s) }, label),
-        );
+          el('button', { type: 'button', 'data-key': 'spell-' + s, disabled: price === null || mine.gold < price, onclick: () => act.buy(s) }, label),
+        ), () => spellTip(s, lvl));
+      })),
+      el('div', { class: 'shop-head' }, el('h3', {}, 'Itens'), el('small', {}, `${ITEM_IDS.filter((i) => mine.items[i] > 0).length} de ${MAX_ITEMS}`)),
+      el('div', { class: 'shop-grid' }, ...ITEM_IDS.map((i) => {
+        const lvl = mine.items[i];
+        const max = ITEMS[i].levels.length;
+        const price = itemPrice(mine.items, i);
+        const label = lvl >= max ? 'Máximo' : price === null ? 'Sem espaço' : lvl === 0 ? `Comprar · ${price}` : `Nível ${lvl + 1} · ${price}`;
+        return withTip(el('div', { class: 'shop-item' + (lvl ? ' owned' : '') },
+          el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, ITEM_ICON[i]), el('b', {}, ITEMS[i].name), ITEMS[i].key ? el('span', { class: 'key' }, ITEMS[i].key!) : null),
+          el('small', {}, ITEMS[i].text),
+          el('span', { class: 'pips' }, ...ITEMS[i].levels.map((_, n) => el('i', { class: n < lvl ? 'on' : '' }))),
+          el('button', { type: 'button', 'data-key': 'item-' + i, disabled: price === null || mine.gold < price, onclick: () => act.buyItem(i) }, label),
+        ), () => itemTip(i, lvl));
       })),
       picker(r),
       el('button', { type: 'button', class: 'primary big', disabled: mine.ready, onclick: act.ready }, mine.ready ? 'Esperando os outros…' : 'Pronto'),
@@ -241,7 +270,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   function drawCenter() {
     if (!room) return;
     const r = room;
+    // redesenhar a loja não pode tirar o foco de quem usa o teclado
+    const focused = (document.activeElement as HTMLElement | null)?.dataset?.key;
+    hideTip();
     center.replaceChildren(r.phase === 'lobby' || r.phase === 'end' ? lobbyPanel(r) : r.phase === 'shop' ? shopPanel(r) : '');
+    if (focused) (center.querySelector(`[data-key="${focused}"]`) as HTMLElement | null)?.focus();
   }
 
   return {
@@ -254,7 +287,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       players.replaceChildren(...[...r.players].sort((a, b) => b.score - a.score).map((p) =>
         el('li', { class: p.id === you ? 'me' : '' }, dot(p.color), el('span', {}, nameOf(p, you)), el('b', {}, String(p.score))),
       ));
-      const mine = r.players.find((p) => p.id === you);
+      mine = r.players.find((p) => p.id === you);
+      for (const i of ACTIVE_ITEMS) itemButtons.get(i)!.b.hidden = !mine?.items[i];
       for (const s of SPELL_IDS) {
         const { b, pips } = buttons.get(s)!;
         const lvl = mine?.spells[s] ?? 0;
@@ -268,7 +302,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       status.className = 'dot ' + (on ? 'on' : 'off');
     },
     // a cada quadro: recargas, magia escolhida e o relógio da fase
-    frame(cd: number[], armed: SpellId | null, shrinkIn: number | null) {
+    frame(cd: number[], icd: number[], armed: string | null, shrinkIn: number | null) {
+      ACTIVE_ITEMS.forEach((i, k) => {
+        const { b, cd: c } = itemButtons.get(i)!;
+        const left = icd[k] ?? 0;
+        c.textContent = left > 0.05 ? left.toFixed(left < 1 ? 1 : 0) : '';
+        b.classList.toggle('cooling', left > 0.05);
+        b.classList.toggle('armed', armed === i);
+      });
       SPELL_IDS.forEach((s, i) => {
         const { b, cd: c } = buttons.get(s)!;
         const left = cd[i] ?? 0;

@@ -1,5 +1,6 @@
 // Controles do Dota: botão direito anda, Q W E R F lançam na direção do cursor, S para.
 // No celular: tocar no chão anda; tocar no botão da magia e depois no chão lança.
+import { ACTIVE_ITEMS, ITEMS, type ItemId } from '../shared/items.ts';
 import { SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import type { Vec } from '../shared/vec.ts';
 
@@ -8,20 +9,23 @@ export type InputHandlers = {
   move: (to: Vec) => void;
   stop: () => void;
   cast: (spell: SpellId, at: Vec) => void;
+  useItem: (item: ItemId, at: Vec) => void;
   center: () => void;
-  armedChanged: (spell: SpellId | null) => void;
+  armedChanged: (armed: SpellId | ItemId | null) => void;
 };
 
 const KEYS: Record<string, SpellId> = Object.fromEntries(SPELL_IDS.map((s) => ['Key' + SPELLS[s].key, s]));
+const ITEM_KEYS: Record<string, ItemId> = Object.fromEntries(ACTIVE_ITEMS.map((i) => ['Digit' + ITEMS[i].key, i]));
+const isItem = (x: string): x is ItemId => (ACTIVE_ITEMS as string[]).includes(x);
 
 export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   let cursor = { x: innerWidth / 2, y: innerHeight / 2 };
-  let armed: SpellId | null = null;
+  let armed: SpellId | ItemId | null = null;
   let dragging = false;
   let lastDrag = 0;
   let enabled = false;
 
-  const arm = (s: SpellId | null) => {
+  const arm = (s: SpellId | ItemId | null) => {
     armed = s;
     h.armedChanged(s);
   };
@@ -43,7 +47,8 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     if (!p) return;
     const touch = e.pointerType === 'touch';
     if (armed && (e.button === 0 || touch)) {
-      h.cast(armed, p);
+      if (isItem(armed)) h.useItem(armed, p);
+      else h.cast(armed, p);
       arm(null);
     } else if (e.button === 2 || touch) {
       h.move(p);
@@ -58,6 +63,13 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   });
   addEventListener('keydown', (e) => {
     if (!enabled || e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+    const item = ITEM_KEYS[e.code];
+    if (item) {
+      const p = h.pick(cursor.x, cursor.y);
+      if (p) h.useItem(item, p);
+      e.preventDefault();
+      return;
+    }
     const spell = KEYS[e.code];
     if (spell) {
       const p = h.pick(cursor.x, cursor.y);
@@ -81,6 +93,9 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     // botão da barra: escolhe a magia e o próximo clique (ou toque) no chão lança
     button(spell: SpellId) {
       if (enabled) arm(armed === spell ? null : spell);
+    },
+    itemButton(item: ItemId) {
+      if (enabled) arm(armed === item ? null : item);
     },
   };
 }

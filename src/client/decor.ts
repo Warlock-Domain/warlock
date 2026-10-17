@@ -7,18 +7,19 @@ type Prop = { obj: THREE.Object3D; r: number; baseY: number };
 
 // [modelos da ilha, raio, ângulo em graus]
 const ISLANDS: [string[], number, number][] = [
-  [['tree_dead_large', 'skull'], 16, 20],
-  [['pillar_decorated', 'torch_lit'], 15.5, 62],
-  [['arch'], 17, 105],
-  [['post_skull', 'rubble_large'], 15.2, 148],
-  [['tree_dead_medium', 'lantern_standing'], 16.5, 190],
-  [['column', 'torch_lit'], 15.4, 232],
-  [['shrine_candles', 'ribcage'], 16.2, 275],
-  [['pillar', 'skull_candle'], 15.6, 318],
+  [['tree_dead_large', 'skull'], 17.3, 20],
+  [['pillar_decorated', 'torch_lit'], 16.6, 62],
+  [['arch'], 18, 105],
+  [['post_skull', 'rubble_large'], 16.4, 148],
+  [['tree_dead_medium', 'lantern_standing'], 17.6, 190],
+  [['column', 'torch_lit'], 16.5, 232],
+  [['shrine_candles', 'ribcage'], 17.2, 275],
+  [['pillar', 'skull_candle'], 16.7, 318],
 ];
 const FLOOR: [string, number, number][] = [
-  ['bone_A', 10.2, 35], ['skull', 9.6, 80], ['rubble_half', 10.6, 128], ['bone_B', 8.8, 170],
-  ['ribcage', 10.1, 215], ['candle_triple', 9.4, 255], ['bone_A', 8.4, 300], ['skull', 9.9, 340],
+  // dentro da menor arena (2 magos, 9,7 m) para nenhum começar afundado
+  ['bone_A', 8.9, 35], ['skull', 8.4, 80], ['rubble_half', 9.2, 128], ['bone_B', 7.7, 170],
+  ['ribcage', 8.8, 215], ['candle_triple', 8.2, 255], ['bone_A', 7.3, 300], ['skull', 8.6, 340],
 ];
 // entulho do Dungeon tem 4 a 8 unidades de largura: reduzido para caber como detalhe
 const SCALE: Record<string, number> = { rubble_large: 0.35, rubble_half: 0.4 };

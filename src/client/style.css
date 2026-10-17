@@ -95,6 +95,8 @@ h2.title { font-family: var(--display); font-size: 1.6rem; text-transform: none;
 
 .labels { position: fixed; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; }
 .wiz-label { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .78rem; font-weight: 700; text-shadow: 0 1px 3px #000, 0 0 2px #000; white-space: nowrap; will-change: transform; }
+.dmg { position: absolute; left: 0; top: 0; font-family: var(--display); font-size: 1.15rem; font-weight: 700; color: #fff4dc; text-shadow: 0 2px 4px #000, 0 0 2px #000; pointer-events: none; will-change: transform, opacity; }
+.dmg.big { color: #ffb347; font-size: 1.45rem; }
 .hp { width: 54px; height: 6px; border-radius: 3px; background: rgba(0, 0, 0, .65); overflow: hidden; border: 1px solid rgba(0, 0, 0, .6); }
 .hp-fill { height: 100%; width: 100%; }
 
@@ -111,6 +113,16 @@ body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: no
 .pick img { width: 60px; height: 80px; object-fit: contain; }
 .pick small { font-size: .7rem; line-height: 1.1; text-align: center; }
 .pick.on { border-color: var(--ember); background: rgba(255, 179, 71, .16); box-shadow: 0 0 0 1px var(--ember); }
+.shop h3 { margin: 4px 0 0; font-family: var(--display); font-size: 1.2rem; }
+.spell.item { border-color: #5a4a9a; }
+.tip { position: fixed; left: 0; top: 0; z-index: 30; pointer-events: none; max-width: 300px; background: rgba(20, 10, 7, .97); border: 1px solid #8a4a20; border-radius: 10px; padding: 10px 12px; font-size: .85rem; line-height: 1.35; box-shadow: 0 10px 30px rgba(0, 0, 0, .6); }
+.tip p { margin: 6px 0; color: var(--muted); }
+.tip table { border-collapse: collapse; margin: 6px 0; width: 100%; font-variant-numeric: tabular-nums; }
+.tip th { text-align: left; font-weight: 600; color: var(--muted); padding: 2px 8px 2px 0; white-space: nowrap; }
+.tip td { padding: 2px 6px 2px 0; white-space: nowrap; }
+.tip .up { color: var(--ok); }
+.tip small { display: block; color: var(--muted); }
+.tip .k { font-family: ui-monospace, Consolas, monospace; font-size: .75rem; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
 .rules { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
 .rules h2 { margin: 8px 0 6px; }
 .rules ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; line-height: 1.45; }

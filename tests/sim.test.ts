@@ -192,3 +192,55 @@ describe('magias', () => {
     expect(wz(w, 0).alive).toBe(false);
   });
 });
+
+describe('choque de magias', () => {
+  it('two enemy fireballs meeting explode in an area', () => {
+    const w = world([[-3, 0], [3, 0], [0, 0.8]]);
+    stepWorld(w, [
+      { id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) },
+      { id: 'p1', kind: 'cast', spell: 'fireball', at: v(-3, 0) },
+    ]);
+    const clashes: string[] = [];
+    for (let i = 0; i < 40; i++) {
+      stepWorld(w, []);
+      for (const e of w.events) if (e.k === 'clash') clashes.push(e.combo);
+    }
+    expect(clashes).toEqual(['fire']);
+    expect(w.projectiles.length).toBe(0);
+    expect(wz(w, 2).hp).toBeLessThan(HP_MAX);
+    expect(wz(w, 0).hp).toBe(HP_MAX);
+  });
+
+  it('fireball meeting a homing missile makes an arcane explosion', () => {
+    const w = world([[-3, 0], [3, 0]]);
+    stepWorld(w, [
+      { id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) },
+      { id: 'p1', kind: 'cast', spell: 'homing', at: v(-3, 0) },
+    ]);
+    const clashes: string[] = [];
+    for (let i = 0; i < 60; i++) {
+      stepWorld(w, []);
+      for (const e of w.events) if (e.k === 'clash') clashes.push(e.combo);
+    }
+    expect(clashes).toEqual(['arcane']);
+  });
+
+  it('own projectiles do not collide with each other', () => {
+    const w = world([[0, 0], [8, 8]]);
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'homing', at: v(3, 0) }]);
+    stepWorld(w, []);
+    expect(w.projectiles.length).toBe(2);
+  });
+
+  it('lightning detonates a fireball in its path', () => {
+    const w = world([[0, 0], [3, 2], [2.2, 0.6]]);
+    stepWorld(w, [{ id: 'p1', kind: 'cast', spell: 'fireball', at: v(-3, -2) }]);
+    for (let i = 0; i < 6; i++) stepWorld(w, []);
+    const fb = w.projectiles[0].pos;
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(fb.x, fb.y) }]);
+    expect(w.events.some((e) => e.k === 'clash' && e.combo === 'detonate')).toBe(true);
+    expect(w.projectiles.length).toBe(0);
+    expect(wz(w, 2).hp).toBeLessThan(HP_MAX);
+  });
+});

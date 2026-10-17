@@ -55,7 +55,7 @@ export type Cmd =
 
 export type SimEvent =
   | { k: 'cast'; id: string; spell: SpellId }
-  | { k: 'hit'; id: string; by: string; x: number; y: number }
+  | { k: 'hit'; id: string; by: string; x: number; y: number; dmg: number }
   | { k: 'reflect'; id: string; x: number; y: number }
   | { k: 'lightning'; from: Vec; to: Vec }
   | { k: 'teleport'; id: string; from: Vec; to: Vec }
@@ -63,7 +63,11 @@ export type SimEvent =
   | { k: 'shrink'; r: number }
   | { k: 'item'; id: string; item: ItemId }
   | { k: 'scourge'; id: string; x: number; y: number; r: number }
-  | { k: 'redirect'; x: number; y: number };
+  | { k: 'redirect'; x: number; y: number }
+  | { k: 'clash'; x: number; y: number; combo: Combo; r: number };
+
+// choque de magias: fogo×fogo, fogo×míssil, míssil×míssil, e o raio detonando uma bola de fogo
+export type Combo = 'fire' | 'arcane' | 'pulse' | 'detonate';
 
 export type World = {
   t: number;
@@ -144,7 +148,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   target.vel = add(target.vel, scale(norm(dir), knock * mult));
   target.lastHitBy = by;
   target.lastHitAt = w.t;
-  w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y });
+  w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg * 10) / 10 });
 }
 
 // primeiro mago (fora os excluídos) que o segmento a→b toca; t em [0,1] ao longo do segmento
@@ -159,6 +163,62 @@ function firstOnSegment(w: World, a: Vec, b: Vec, radius: number, skip: string):
     if (!best || t < best.t) best = { wz, t };
   }
   return best;
+}
+
+// bola de fogo de qualquer dono ou míssil de outro dono no caminho do raio
+function firstProjectileOnSegment(w: World, a: Vec, b: Vec, caster: string): { p: Projectile; t: number } | null {
+  const d = sub(b, a);
+  const dd = dot(d, d);
+  let best: { p: Projectile; t: number } | null = null;
+  for (const p of w.projectiles) {
+    if (p.kind === 'homing' && p.owner === caster) continue;
+    const t = dd > 0 ? Math.max(0, Math.min(1, dot(sub(p.pos, a), d) / dd)) : 0;
+    if (dist(add(a, scale(d, t)), p.pos) > PROJ_R + 0.15) continue;
+    if (!best || t < best.t) best = { p, t };
+  }
+  return best;
+}
+
+// explosão em área: dano e empurrão em todos dentro do raio (inclusive donos); falloff = dano cai até zero na borda
+function area(w: World, at: Vec, radius: number, dmg: number, kbFactor: number, by: string | null, falloff: boolean, combo: Combo) {
+  for (const o of w.wizards) {
+    if (!o.alive) continue;
+    const d = dist(o.pos, at);
+    if (d > radius + WIZ_R) continue;
+    const k = falloff ? Math.max(0, 1 - d / (radius + WIZ_R)) : 1;
+    const amount = dmg * k;
+    if (amount <= 0.05) continue;
+    hit(w, o, by && by !== o.id ? by : (o.lastHitBy ?? by ?? o.id), amount, amount * KB_PER_DMG * kbFactor, sub(o.pos, at));
+  }
+  w.events.push({ k: 'clash', x: at.x, y: at.y, combo, r: radius });
+}
+
+// combinações quando dois projéteis de donos diferentes se encontram (minha decisão; no original os dois só somem)
+export const CLASH = {
+  fire: { r: 1.3, dmg: 4, kb: 1 },
+  arcane: { r: 1.8, dmg: 5, kb: 1.3 },
+  pulse: { r: 1.0, dmg: 3, kb: 0.8 },
+  detonate: { r: 225 * 0.00647 },
+};
+
+function clashProjectiles(w: World) {
+  const gone = new Set<Projectile>();
+  for (let i = 0; i < w.projectiles.length; i++) {
+    const a = w.projectiles[i];
+    if (gone.has(a)) continue;
+    for (let j = i + 1; j < w.projectiles.length; j++) {
+      const b = w.projectiles[j];
+      if (gone.has(b) || a.owner === b.owner || dist(a.pos, b.pos) > PROJ_R * 2 + 0.1) continue;
+      gone.add(a);
+      gone.add(b);
+      const at = scale(add(a.pos, b.pos), 0.5);
+      const combo: Combo = a.kind === b.kind ? (a.kind === 'fireball' ? 'fire' : 'pulse') : 'arcane';
+      const c = CLASH[combo];
+      area(w, at, c.r, c.dmg * Math.max(a.dmgMult, b.dmgMult), c.kb, null, true, combo);
+      break;
+    }
+  }
+  if (gone.size) w.projectiles = w.projectiles.filter((p) => !gone.has(p));
 }
 
 function nearestEnemy(w: World, to: Vec, skip: string): Wizard | null {
@@ -196,6 +256,15 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   } else if (spell === 'lightning') {
     const end = add(wz.pos, scale(dir, L.range));
     const found = firstOnSegment(w, wz.pos, end, WIZ_R, wz.id);
+    const proj = firstProjectileOnSegment(w, wz.pos, end, wz.id);
+    if (proj && (!found || proj.t < found.t)) {
+      w.events.push({ k: 'lightning', from: wz.pos, to: proj.p.pos });
+      w.projectiles = w.projectiles.filter((q) => q !== proj.p);
+      // como no original: dano máximo 2/3 de (dano do raio + 7), caindo até zero na borda, empurrão 1,35×
+      if (proj.p.kind === 'fireball') area(w, proj.p.pos, CLASH.detonate.r, (2 / 3) * (L.dmg * dmgMult + 7), 1.35, wz.id, true, 'detonate');
+      else w.events.push({ k: 'clash', x: proj.p.pos.x, y: proj.p.pos.y, combo: 'pulse', r: 0.6 });
+      return;
+    }
     if (!found) return void w.events.push({ k: 'lightning', from: wz.pos, to: end });
     const target = found.wz;
     w.events.push({ k: 'lightning', from: wz.pos, to: target.pos });
@@ -343,6 +412,7 @@ export function stepWorld(w: World, cmds: Cmd[]) {
   for (const wz of w.wizards) if (wz.alive) moveWizard(wz, DT);
   separate(w);
   stepProjectiles(w);
+  clashProjectiles(w);
 
   for (const wz of w.wizards) {
     if (!wz.alive) continue;

@@ -21,6 +21,10 @@ try {
   await page.getByRole('button', { name: 'Começar partida' }).click();
   await page.getByRole('button', { name: /^Comprar/ }).first().click();
   await page.waitForTimeout(400);
+  await page.getByRole('button', { name: /^Comprar/ }).nth(3).click().catch(() => {});
+  await page.waitForTimeout(300);
+  await page.locator('.shop-item').first().hover();
+  await page.waitForTimeout(200);
   await page.screenshot({ path: out + '/1-loja.png' });
   await page.getByRole('button', { name: 'Pronto' }).click();
   await page.waitForTimeout(1500);
@@ -41,6 +45,10 @@ try {
   await page.keyboard.press('KeyW');
   await page.waitForTimeout(120);
   await page.screenshot({ path: out + '/4-raio.png' });
+  await page.locator('.spell').first().hover();
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: out + '/4b-dica.png' });
+  await page.mouse.move(Number(w) / 2, Number(h) / 2 - 100);
   await page.waitForTimeout(6000);
   await page.screenshot({ path: out + '/5-depois.png' });
   const fps = await page.evaluate(() => new Promise((r) => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 2000) requestAnimationFrame(f); else r(n / 2); }; requestAnimationFrame(f); }));

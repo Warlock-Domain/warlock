@@ -64,6 +64,8 @@ void main(){
     col = tex * (0.45 + 0.55 * veins) + hot * core * 0.2;
   }
   gl_FragColor = vec4(col, 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
 }`;
 
 function stoneTexture(): THREE.CanvasTexture {
@@ -193,6 +195,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   warn.position.y = 0.02;
   scene.add(warn);
   let shownR = 11;
+  let warnR = -1;
 
   const glow = glowTexture();
   const fireMat = new THREE.MeshBasicMaterial({ color: '#ffb347' });
@@ -238,12 +241,38 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const mages = new Map<string, Mage>();
   const decor = createDecor(scene, ready.then(() => mageScale), FX.flame);
 
+  const failed = new Set<string>();
+  function preload(id: string) {
+    if (models.has(id) || failed.has(id)) return;
+    models.set(id, null);
+    loadModel(id).catch(() => {
+      models.delete(id);
+      failed.add(id); // não tenta de novo a cada quadro; usa o mago padrão
+    });
+  }
+
+  // geometrias de efeito compartilhadas: criar uma por efeito vazava memória de vídeo
+  const ringGeo = new THREE.RingGeometry(WIZ_R * 0.9, WIZ_R * 1.25, 40);
+  const shieldGeo = new THREE.SphereGeometry(0.85, 24, 16);
+  const markerGeo = new THREE.RingGeometry(0.15, 0.25, 24);
+  const scorchGeo = new THREE.PlaneGeometry(1.6, 1.6);
+  const waveGeo = new THREE.RingGeometry(0.85, 1, 64);
+  const SHARED = new Set<THREE.BufferGeometry>([ringGeo, shieldGeo, markerGeo, scorchGeo, waveGeo, ballGeo]);
+
+  // libera o que o efeito criou (material sempre; geometria se não for compartilhada; sprite usa a geometria interna do three)
+  function dispose(obj: THREE.Object3D) {
+    obj.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh && !(o as THREE.Line).isLine && !(o as THREE.Sprite).isSprite) return;
+      if (!(o as THREE.Sprite).isSprite && mesh.geometry && !SHARED.has(mesh.geometry)) mesh.geometry.dispose();
+      const mat = mesh.material as THREE.Material | THREE.Material[];
+      (Array.isArray(mat) ? mat : [mat]).forEach((x) => x?.dispose());
+    });
+  }
+
   function makeMage(d: WizDraw): Mage | null {
-    const src = models.get(d.character);
-    if (src === undefined) {
-      models.set(d.character, null);
-      loadModel(d.character).catch(() => models.delete(d.character));
-    }
+    preload(d.character);
+    const src = models.get(d.character) ?? (failed.has(d.character) ? models.get('mage') : null);
     if (!src) return null;
     const model = cloneSkinned(src.scene) as THREE.Group;
     model.scale.setScalar(mageScale);
@@ -259,17 +288,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
     const root = new THREE.Group();
     root.add(model);
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(WIZ_R * 0.9, WIZ_R * 1.25, 40),
-      new THREE.MeshBasicMaterial({ color: COLORS[d.color], transparent: true, opacity: 0.85, depthWrite: false }),
-    );
+    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: COLORS[d.color], transparent: true, opacity: 0.85, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.03;
     root.add(ring);
-    const shield = new THREE.Mesh(
-      new THREE.SphereGeometry(0.85, 24, 16),
-      new THREE.MeshBasicMaterial({ color: '#8fd3ff', transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending }),
-    );
+    const shield = new THREE.Mesh(shieldGeo, new THREE.MeshBasicMaterial({ color: '#8fd3ff', transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending }));
     shield.position.y = 0.8;
     shield.visible = false;
     root.add(shield);
@@ -340,10 +363,32 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   // marca de queimado no chão onde a bola de fogo explodiu
   function scorch(at: Vec) {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), new THREE.MeshBasicMaterial({ map: FX.scorch, color: '#000000', transparent: true, opacity: 0.7, depthWrite: false }));
+    const m = new THREE.Mesh(scorchGeo, new THREE.MeshBasicMaterial({ map: FX.scorch, color: '#000000', transparent: true, opacity: 0.7, depthWrite: false }));
     m.rotation.set(-Math.PI / 2, 0, Math.random() * Math.PI * 2);
     m.position.copy(w3(at, 0.025));
     addFx(m, 7, (k) => ((m.material as THREE.MeshBasicMaterial).opacity = 0.7 * Math.min(1, (1 - k) * 3)));
+  }
+
+  // número de dano que sobe e some em cima de quem levou
+  const numbers: { el: HTMLDivElement; at: THREE.Vector3; born: number }[] = [];
+  function damageNumber(at: Vec, dmg: number) {
+    if (dmg < 0.5) return;
+    const el = document.createElement('div');
+    el.className = 'dmg' + (dmg >= 9 ? ' big' : '');
+    el.textContent = '-' + (dmg >= 10 ? Math.round(dmg) : dmg.toLocaleString('pt-BR', { maximumFractionDigits: 1 }));
+    labels.append(el);
+    numbers.push({ el, at: w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0)), born: performance.now() / 1000 });
+  }
+
+  // anel que se expande no chão até o raio da área
+  function shockwave(at: Vec, radius: number, color: string) {
+    const ring = new THREE.Mesh(waveGeo, new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.copy(w3(at, 0.06));
+    addFx(ring, 0.45, (k) => {
+      ring.scale.setScalar(Math.max(0.01, radius * (0.2 + 0.8 * k)));
+      (ring.material as THREE.MeshBasicMaterial).opacity = 1 - k;
+    });
   }
 
   function explosion(at: Vec) {
@@ -379,6 +424,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         oneShot(e.id, 'Hit_A', 0.45);
         explosion(v(e.x, e.y));
         scorch(v(e.x, e.y));
+        damageNumber(v(e.x, e.y), e.dmg);
       } else if (e.k === 'reflect') {
         burst(v(e.x, e.y), '#8fd3ff', 2.4, 0.3, 0.8, FX.circle);
         burst(v(e.x, e.y), '#cfeaff', 1.6, 0.25, 0.8, FX.light);
@@ -388,6 +434,43 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(e.from, '#c49bff', 2.4, 0.45, 0.8, FX.magic);
         burst(e.to, '#c49bff', 2.6, 0.45, 0.8, FX.magic);
         burst(e.to, '#e9d8ff', 1.6, 0.3, 0.8, FX.light);
+      } else if (e.k === 'item' && e.item === 'scourge') {
+        // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
+        const m = mages.get(e.id);
+        if (m) {
+          const at = v(m.root.position.x, m.root.position.z);
+          burst(at, '#ff5a1a', 3, 0.9, 0.6, FX.magic);
+          burst(at, '#ffb347', 1.6, 0.9, 1.2, FX.light);
+        }
+      } else if (e.k === 'item' && e.item === 'pact') {
+        const m = mages.get(e.id);
+        if (m) burst(v(m.root.position.x, m.root.position.z), '#c2122a', 2.6, 0.6, 1, FX.magic);
+      } else if (e.k === 'scourge') {
+        shockwave(v(e.x, e.y), e.r, '#ff7a1a');
+        explosion(v(e.x, e.y));
+      } else if (e.k === 'clash') {
+        const at = v(e.x, e.y);
+        if (e.combo === 'fire') {
+          shockwave(at, e.r, '#ff7a1a');
+          explosion(at);
+          scorch(at);
+        } else if (e.combo === 'arcane') {
+          shockwave(at, e.r, '#c46bff');
+          shockwave(at, e.r * 0.6, '#ffb347');
+          burst(at, '#c46bff', 3.6, 0.5, 0.9, FX.magic);
+          burst(at, '#ffd27a', 2.8, 0.4, 0.9, FX.fire);
+          smoke(at, 2, 1.2);
+        } else if (e.combo === 'detonate') {
+          shockwave(at, e.r, '#9fd0ff');
+          burst(at, '#e6f4ff', 2.6, 0.35, 0.9, FX.spark);
+          explosion(at);
+          scorch(at);
+        } else {
+          shockwave(at, e.r, '#b98cff');
+          burst(at, '#b98cff', 2.2, 0.4, 0.9, FX.magic);
+        }
+      } else if (e.k === 'redirect') {
+        burst(v(e.x, e.y), '#b98cff', 2, 0.35, 0.9, FX.circle);
       } else if (e.k === 'death') {
         const m = mages.get(e.id);
         if (m) {
@@ -420,6 +503,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
+      ((g.children[1] as THREE.Sprite).material as THREE.Material).dispose();
       projs.delete(id);
     }
   }
@@ -431,6 +515,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // trocou de personagem na loja: refaz o boneco
       if (m && m.character !== d.character) {
         scene.remove(m.root);
+        m.ring.material instanceof THREE.Material && m.ring.material.dispose();
+        m.shield.material instanceof THREE.Material && m.shield.material.dispose();
         m.label.remove();
         mages.delete(d.id);
         m = undefined;
@@ -441,6 +527,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         mages.set(d.id, (m = made));
       }
       seen.add(d.id);
+      m.root.visible = true;
       m.root.position.copy(w3(d.pos));
       m.root.rotation.y = Math.PI / 2 - d.facing;
       m.shield.visible = d.shield && d.alive;
@@ -463,9 +550,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.hpFill.style.width = `${Math.max(0, d.hp)}%`;
     }
     for (const [id, m] of mages) if (!seen.has(id)) {
-      scene.remove(m.root);
-      m.label.remove();
-      mages.delete(id);
+      m.root.visible = false;
+      m.label.hidden = true;
+      void id;
     }
   }
 
@@ -499,6 +586,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   return {
     ready,
     onEvents,
+    // baixa antes os personagens de quem está na sala, para ninguém aparecer invisível na rodada
+    preload(ids: string[]) {
+      for (const id of ids) preload(id);
+    },
     // ponto do chão sob o cursor, em coordenadas da simulação
     pick(clientX: number, clientY: number): Vec | null {
       const ndc = new THREE.Vector2((clientX / innerWidth) * 2 - 1, -(clientY / innerHeight) * 2 + 1);
@@ -507,7 +598,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       return raycaster.ray.intersectPlane(ground, hit) ? v(hit.x, hit.z) : null;
     },
     clickMarker(at: Vec, cast: boolean) {
-      const ring = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.25, 24), new THREE.MeshBasicMaterial({ color: cast ? '#ffb347' : '#7dff9a', transparent: true, depthWrite: false }));
+      const ring = new THREE.Mesh(markerGeo, new THREE.MeshBasicMaterial({ color: cast ? '#ffb347' : '#7dff9a', transparent: true, depthWrite: false }));
       ring.rotation.x = -Math.PI / 2;
       ring.position.copy(w3(at, 0.04));
       addFx(ring, 0.45, (k) => {
@@ -530,10 +621,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       under.intensity = 40 + Math.sin(now * 2) * 8;
       const warning = state.shrinkIn > 0 && state.shrinkIn < SHRINK_WARN && state.arenaR > 0;
       warnMat.opacity = warning ? 0.25 + 0.25 * Math.sin(now * 14) : 0;
-      if (warning) {
-        const outer = state.arenaR, inner = Math.max(0.01, state.arenaR - ARENA_STEP);
+      if (warning && warnR !== state.arenaR) {
+        warnR = state.arenaR;
+        const inner = Math.max(0.01, state.arenaR - ARENA_STEP);
         warn.geometry.dispose();
-        warn.geometry = new THREE.RingGeometry(inner, outer, 96);
+        warn.geometry = new THREE.RingGeometry(inner, state.arenaR, 96);
       }
 
       syncWizards(state.wizards, now);
@@ -545,6 +637,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const k = (now - f.born) / (f.until - f.born);
         if (k >= 1) {
           scene.remove(f.obj);
+          dispose(f.obj);
           fx.splice(i, 1);
         } else f.update?.(k);
       }
@@ -559,6 +652,20 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const lookZ = focus.z + dist * 0.06;
       camera.position.set(focus.x, dist * 0.74, lookZ + dist * 0.67);
       camera.lookAt(focus.x, 0, lookZ);
+
+      // números de dano: sobem 1,2 m em 0,9 s e somem
+      for (let i = numbers.length - 1; i >= 0; i--) {
+        const d = numbers[i];
+        const k = (now - d.born) / 0.9;
+        if (k >= 1) {
+          d.el.remove();
+          numbers.splice(i, 1);
+          continue;
+        }
+        const p = d.at.clone().setY(d.at.y + k * 1.2).project(camera);
+        d.el.style.transform = `translate(${(p.x * innerWidth) / 2 + innerWidth / 2}px, ${(-p.y * innerHeight) / 2 + innerHeight / 2}px) translate(-50%, -50%) scale(${1 + 0.3 * Math.max(0, 0.2 - k) * 5})`;
+        d.el.style.opacity = String(Math.min(1, (1 - k) * 2.5));
+      }
 
       // nome e vida em cima de cada mago
       const half = new THREE.Vector2(innerWidth / 2, innerHeight / 2);
