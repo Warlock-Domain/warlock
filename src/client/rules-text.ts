@@ -1,9 +1,9 @@
 export const RULES: [string, string[]][] = [
   ['Objetivo', [
     'Empurre os outros magos para fora da arena. Na lava a vida cai 10 por segundo.',
-    'A arena encolhe a cada 10 segundos; a faixa que vai afundar pisca em vermelho antes. Ela é maior quanto mais magos tiver.',
+    'A arena encolhe a cada 10 segundos até um tamanho mínimo (nunca some); a faixa que vai afundar pisca em vermelho antes. Ela é maior quanto mais magos tiver.',
     'O último vivo vence a rodada e ganha 1 ponto, como no Warlock original. Quem vencer 5 rodadas primeiro ganha a partida.',
-    'Se ninguém sobrar, a rodada fica sem vencedor.',
+    'A rodada só acaba quando sobra um. Se os últimos caírem juntos, vence quem tinha mais vida.',
     'Nos 2 primeiros segundos de cada rodada ninguém leva dano.',
     'As magias saem 0,1 s depois da tecla (Escudo e Teleporte na hora) e o mago para enquanto conjura; andar cancela.',
   ]],

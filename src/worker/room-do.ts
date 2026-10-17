@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
-import { addPlayer, buy, buyItem, buyMastery, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../shared/match.ts';
+import { addPlayer, buy, buyItem, buyMastery, endIdle, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
@@ -9,6 +9,7 @@ import { v } from '../shared/vec.ts';
 const STEP_MS = DT * 1000;
 const MAX_CATCHUP = 5; // passos por chamada do laço; atraso maior que isso é descartado
 const EMPTY_MS = 5 * 60_000;
+const IDLE_MS = 3 * 60_000; // partida sem nenhum comando de gente por 3 min é encerrada
 
 type Saved = { id: string; match: Match };
 type Attachment = { playerId: string | null };
@@ -24,6 +25,7 @@ export class Room extends DurableObject<Env> {
   private cmds: Cmd[] = [];
   private acks = new Map<string, number>();
   private events: SimEvent[] = [];
+  private lastCmdAt = Date.now();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -101,6 +103,7 @@ export class Room extends DurableObject<Env> {
 
     const id = this.playerOf(ws);
     if (!id) return send(ws, { t: 'error', code: 'bad_msg', msg: 'Envie hello primeiro.' });
+    if (msg.t !== 'alive') this.lastCmdAt = now;
     // comandos de jogo só valem com a rodada rolando (fora dela a fila cresceria sem limite)
     const playing = m.phase === 'playing';
     switch (msg.t) {
@@ -221,6 +224,7 @@ export class Room extends DurableObject<Env> {
     if (this.loop) return;
     this.last = Date.now();
     this.acc = 0;
+    this.lastCmdAt = Date.now();
     this.loop = setInterval(() => this.tick(), 16);
   }
 
@@ -244,6 +248,7 @@ export class Room extends DurableObject<Env> {
       this.events.push(...tickMatch(m, now, cmds));
       if (++this.steps % SEND_EVERY === 0) this.sendSnaps();
     }
+    if (now - this.lastCmdAt > IDLE_MS) endIdle(m);
     if (`${m.phase}:${m.round}:${m.players.length}` !== before) void this.changed();
   }
 

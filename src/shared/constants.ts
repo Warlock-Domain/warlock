@@ -8,6 +8,8 @@ export const UNIT = 0.00647; // metros por unidade do original
 export const ARENA_STEP = 100 * UNIT; // uma camada de ladrilhos
 export const arenaRadius = (wizards: number) => (13 + wizards) * ARENA_STEP; // 13 camadas + 1 por mago
 export const ARENA_R0 = arenaRadius(4);
+// a arena para de encolher aqui (no original o mínimo é 1 camada): nunca some, a rodada só acaba quando sobra 1
+export const ARENA_MIN = 2 * ARENA_STEP;
 export const SPAWN_INSET = 600 * UNIT;
 export const SHRINK_EVERY = 10;
 export const SHRINK_WARN = 2;

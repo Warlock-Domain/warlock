@@ -338,7 +338,6 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       timer.textContent =
         room.phase === 'shop' ? `Rodada começa em ${Math.ceil(left)} s`
         : room.phase === 'countdown' ? String(Math.max(1, Math.ceil(left)))
-        : room.phase === 'playing' && shrinkIn !== null ? `A arena encolhe em ${Math.max(0, Math.ceil(shrinkIn))} s`
         : '';
       timer.className = 'timer ' + room.phase;
     },

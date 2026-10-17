@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { botBuy, botCmds } from '../src/shared/bots.ts';
 import { ARENA_R0, COUNTDOWN_MS, DT, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
-import { addPlayer, buy, newMatch, removePlayer, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
+import { addPlayer, buy, endIdle, newMatch, removePlayer, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { newWorld } from '../src/shared/sim.ts';
 import { noItems } from '../src/shared/items.ts';
 import { noSpells } from '../src/shared/spells.ts';
@@ -68,14 +68,23 @@ describe('partida', () => {
     expect(m.players.find((p) => p.id === 'a')!.score).toBe(0);
   });
 
-  it('simultaneous death ends round with no winner', () => {
+  it('if the last ones die together, the one with more hp wins', () => {
     const m = twoPlayers();
     const now = toPlaying(m, 0);
     kill(m, 'a', null);
     kill(m, 'b', null);
+    m.world!.wizards[1].hp = 0.05;
     until(m, now, () => m.phase === 'roundEnd');
-    expect(m.lastRoundWinner).toBeNull();
-    expect(m.players.every((p) => p.score === 0)).toBe(true);
+    expect(m.lastRoundWinner).toBe('b');
+  });
+
+  it('idle match is closed', () => {
+    const m = twoPlayers();
+    toPlaying(m, 0);
+    m.players[0].score = 2;
+    endIdle(m);
+    expect(m.phase).toBe('end');
+    expect(m.winner).toBe('a');
   });
 
   it('first to WINS_TO_WIN rounds wins the match', () => {
@@ -83,9 +92,7 @@ describe('partida', () => {
     let now = 0;
     for (let r = 0; r < WINS_TO_WIN + 2; r++) {
       now = toPlaying(m, now);
-      // a primeira rodada fica sem vencedor (os dois morrem); depois só a Ana vence
       kill(m, 'b', null);
-      if (r === 0) kill(m, 'a', null);
       now = until(m, now, () => m.phase === 'roundEnd');
       now = until(m, now, () => m.phase !== 'roundEnd');
       if (m.phase === 'end') break;
@@ -93,7 +100,7 @@ describe('partida', () => {
     expect(m.phase).toBe('end');
     expect(m.winner).toBe('a');
     expect(m.players[0].score).toBe(WINS_TO_WIN);
-    expect(m.round).toBe(WINS_TO_WIN + 1);
+    expect(m.round).toBe(WINS_TO_WIN);
   });
 
   it('buy deducts gold and caps at level 7', () => {

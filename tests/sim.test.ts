@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ARENA_R0, ARENA_STEP, DT, HP_MAX, PILLAR, SHRINK_EVERY, WIZ_R } from '../src/shared/constants.ts';
+import { ARENA_MIN, ARENA_R0, ARENA_STEP, DT, HP_MAX, PILLAR, SHRINK_EVERY, WIZ_R } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
 import { newWorld, stepWorld, type Cmd, type World } from '../src/shared/sim.ts';
 import { noSpells, type SpellId } from '../src/shared/spells.ts';
@@ -51,6 +51,12 @@ describe('movimento, lava e arena', () => {
     const w = world([[ARENA_R0 + 1, 0]]);
     run(w, 1);
     expect(wz(w, 0).hp).toBeCloseTo(HP_MAX - 10, 1);
+  });
+
+  it('arena stops shrinking at the minimum size', () => {
+    const w = world([[0, 0]]);
+    run(w, SHRINK_EVERY * 40);
+    expect(w.arenaR).toBeCloseTo(ARENA_MIN);
   });
 
   it('arena shrinks by ARENA_STEP every SHRINK_EVERY', () => {

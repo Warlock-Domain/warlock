@@ -146,7 +146,15 @@ export function resume(m: Match, now: number) {
   } else if (m.phase === 'roundEnd') afterRound(m, now);
 }
 
-export const shouldRun =(m: Match, humansConnected: number) => humansConnected > 0 && m.phase !== 'lobby' && m.phase !== 'end';
+// sala esquecida aberta (ninguém joga há muito tempo): encerra a partida para o laço parar
+export function endIdle(m: Match) {
+  const best = Math.max(0, ...m.players.map((p) => p.score));
+  m.winner = best > 0 ? (m.players.find((p) => p.score === best)?.id ?? null) : null;
+  m.phase = 'end';
+  m.world = null;
+}
+
+export const shouldRun = (m: Match, humansConnected: number) => humansConnected > 0 && m.phase !== 'lobby' && m.phase !== 'end';
 
 function enterShop(m: Match, now: number) {
   m.phase = 'shop';
@@ -214,6 +222,8 @@ export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number
   m.players.forEach((p, i) => {
     if (p.bot && m.steps % 10 === i % 10) all.push(...botCmds(w, p.id, rand));
   });
+  // a rodada só acaba quando sobra 1: se os últimos morrerem no mesmo passo, vence quem tinha mais vida
+  const before = w.wizards.filter((z) => z.alive).map((z) => ({ id: z.id, hp: z.hp }));
   stepWorld(w, all);
   for (const e of w.events) {
     if (e.k !== 'death' || !e.by || e.by === e.id) continue;
@@ -222,6 +232,7 @@ export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number
     if (killer) killer.gold += KILL_GOLD;
   }
   const alive = w.wizards.filter((z) => z.alive);
-  if (alive.length <= 1) endRound(m, now, alive[0]?.id ?? null);
+  if (alive.length === 1) endRound(m, now, alive[0].id);
+  else if (alive.length === 0) endRound(m, now, before.sort((a, b) => b.hp - a.hp)[0]?.id ?? null);
   return w.events;
 }

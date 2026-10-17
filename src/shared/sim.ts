@@ -1,6 +1,6 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
-  ARENA_STEP, CREDIT_WINDOW, PILLAR, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
+  ARENA_MIN, ARENA_STEP, CREDIT_WINDOW, PILLAR, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
   WIZ_R, WIZ_SPEED, arenaRadius,
 } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, itemStats, noItems, type ItemId } from './items.ts';
@@ -523,8 +523,8 @@ export function stepWorld(w: World, cmds: Cmd[]) {
     wz.speed = Math.max(0.2, wz.baseSpeed - (w.t < wz.slowUntil ? PACT.slow : 0));
   }
 
-  if (w.t >= w.shrinkAt) {
-    w.arenaR = Math.max(0, w.arenaR - ARENA_STEP);
+  if (w.t >= w.shrinkAt && w.arenaR > ARENA_MIN) {
+    w.arenaR = Math.max(ARENA_MIN, w.arenaR - ARENA_STEP);
     w.shrinkAt += SHRINK_EVERY;
     w.events.push({ k: 'shrink', r: w.arenaR });
   }
