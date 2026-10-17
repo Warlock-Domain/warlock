@@ -355,3 +355,14 @@ describe('acerto em invulnerável', () => {
     expect(wz(w, 1).hp).toBe(HP_MAX);
   });
 });
+
+describe('tecla repetida', () => {
+  it('pressing the same spell twice during the cast fires it once and keeps the first timing', () => {
+    const w = world([[0, 0], [9, 0]]);
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(9, 0) }]);
+    for (let i = 0; i < 4; i++) stepWorld(w, []);
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(9, 0) }]);
+    for (let i = 0; i < 2; i++) stepWorld(w, []);
+    expect(w.projectiles.length).toBe(1);
+  });
+});

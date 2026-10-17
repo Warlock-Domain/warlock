@@ -451,6 +451,8 @@ function usePact(w: World, wz: Wizard): number {
 
 // começa a conjurar: confere nível e recarga agora; o efeito sai depois do tempo de conjuração
 function beginCast(w: World, wz: Wizard, what: { spell?: SpellId; item?: ItemId }, at: Vec) {
+  // a mesma magia já sendo conjurada: ignora a tecla repetida (a recarga só começa quando ela sai)
+  if (wz.casting && wz.casting.spell === what.spell && wz.casting.item === what.item) return;
   if (what.spell) {
     if (!wz.spells[what.spell] || w.t < wz.cd[what.spell]) return;
   } else if (what.item) {

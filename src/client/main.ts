@@ -103,6 +103,7 @@ function startRoom(code: string, name: string) {
   let seq = 0;
   const sentAt = new Map<number, number>();
   let lastSnap: Snap | null = null;
+  const justCast = new Map<string, number>();
   let follow = true;
 
   const view = createRoomUi(ui, code, {
@@ -156,7 +157,9 @@ function startRoom(code: string, name: string) {
       const i = SPELL_IDS.indexOf(spell);
       const mine = room?.players.find((p) => p.id === me);
       if (!mine?.spells[spell]) return toast('Você ainda não tem essa magia. Compre na loja.');
-      if ((lastSnap?.cd[i] ?? 0) > 0.1) return;
+      if ((lastSnap?.cd[i] ?? 0) > 0.1 || performance.now() < (justCast.get(spell) ?? 0)) return;
+      // até a recarga chegar do servidor, não repete a mesma magia (senão a animação e o som tocam sem sair nada)
+      justCast.set(spell, performance.now() + 120 + CAST_POINT[spell] * 1000 + predict.rtt() * 1000);
       command({ t: 'cast', spell, x: at.x, y: at.y });
       // conjurando, o mago fica parado e o clique de andar espera a magia sair (o servidor faz o mesmo)
       predict.hold(CAST_POINT[spell]);
@@ -167,7 +170,8 @@ function startRoom(code: string, name: string) {
     useItem(item, at) {
       const mine = room?.players.find((p) => p.id === me);
       if (!mine?.items[item]) return toast('Você ainda não tem esse item. Compre na loja.');
-      if ((lastSnap?.icd[ACTIVE_ITEMS.indexOf(item)] ?? 0) > 0.1) return;
+      if ((lastSnap?.icd[ACTIVE_ITEMS.indexOf(item)] ?? 0) > 0.1 || performance.now() < (justCast.get(item) ?? 0)) return;
+      justCast.set(item, performance.now() + 120 + (ITEM_CAST[item] ?? 0) * 1000 + predict.rtt() * 1000);
       command({ t: 'item', item, x: at.x, y: at.y });
       predict.hold(ITEM_CAST[item] ?? 0);
       scene.clickMarker(at, true);
