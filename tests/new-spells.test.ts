@@ -44,6 +44,31 @@ describe('Troca', () => {
   });
 });
 
+describe('escudo contra as magias novas', () => {
+  it('blocks Troca: nobody moves and the projectile is gone', () => {
+    const w = world([[0, 0], [3, 0]], ['swap']);
+    w.wizards[1].shieldUntil = 99;
+    run(w, 0.5, [cast('p0', 'swap', 3, 0)]);
+    expect(w.wizards[0].pos).toEqual(v(0, 0));
+    expect(w.wizards[1].pos.x).toBeCloseTo(3, 5);
+    expect(w.projectiles).toHaveLength(0);
+  });
+
+  it('reflects Rajada back at the caster without crediting a hit', () => {
+    const w = world([[0, 0], [4, 0]], ['cluster']);
+    w.wizards[1].shieldUntil = 99;
+    let landed = false;
+    stepWorld(w, [cast('p0', 'cluster', 4, 0)]);
+    for (let i = 0; i < 60; i++) {
+      stepWorld(w, []);
+      landed ||= w.events.some((e) => e.k === 'land');
+    }
+    expect(w.projectiles.some((p) => p.kind === 'cluster' && p.owner === 'p1')).toBe(true);
+    expect(w.wizards[1].hp).toBe(100);
+    expect(landed).toBe(false);
+  });
+});
+
 describe('Agarrar', () => {
   it('stops the target from walking while it lasts, then releases', () => {
     const w = world([[0, 0], [4, 0]], ['grip']);

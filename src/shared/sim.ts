@@ -83,7 +83,7 @@ export type SimEvent =
   | { k: 'redirect'; x: number; y: number }
   | { k: 'clash'; x: number; y: number; combo: Combo; r: number }
   | { k: 'pillar'; i: number; x: number; y: number }
-  // estatística de precisão: 'fire' quando uma magia de dano sai, 'land' quando ela acerta um inimigo (uma vez por lançamento)
+  // estatística de precisão: 'fire' quando uma magia de dano sai, 'land' quando ela acerta um inimigo (uma vez por projétil; a Rajada conta os 4)
   | { k: 'fire'; id: string; src: AimSrc }
   | { k: 'land'; id: string; src: AimSrc };
 
@@ -567,6 +567,11 @@ function stepProjectiles(w: World) {
     if (found) {
       const wz = found.wz;
       if (shielded(w, wz)) {
+        // a Troca não faz mal a ninguém: o escudo só a barra, ninguém sai do lugar
+        if (p.kind === 'swap') {
+          w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
+          continue;
+        }
         // devolve mirando onde quem atirou está agora (pedido do Fernando, 17/10: deixa o escudo mais forte);
         // se ele já morreu, volta pelo mesmo caminho. O projétil passa a ser de quem refletiu.
         const shooter = byId(w, p.owner);
