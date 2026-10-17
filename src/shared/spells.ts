@@ -18,8 +18,8 @@ const zip = (a: number[], b: number[]) => a.map((x, i) => [x, b[i]]);
 
 export const SPELLS: Record<SpellId, Spell> = {
   fireball: { key: 'Q', name: 'Bola de fogo', cost: 0, up: [7, 7, 7, 7, 7, 7], levels: [70, 77, 84, 91, 98, 105, 112].map((d) => L({ cd: 4.8, dmg: d / 10, speed: 1000 * UNIT, range: 1000 * UNIT })) },
-  lightning: { key: 'W', name: 'Raio', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 15.5, 15, 14.5, 14, 13.5, 13], [70, 78, 86, 94, 102, 110, 118]).map(([cd, d]) => L({ cd, dmg: d / 10, kbf: 0.92, range: 600 * UNIT })) },
-  homing: { key: 'E', name: 'Míssil teleguiado', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [70, 80, 90, 100, 110, 120, 130]).map(([cd, d]) => L({ cd, dmg: d / 10, speed: 1000 * UNIT, duration: 4.5 })) },
+  lightning: { key: 'W', name: 'Raio', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 15.5, 15, 14.5, 14, 13.5, 13], [70, 78, 86, 94, 102, 110, 118]).map(([cd, d]) => L({ cd: Math.round(cd * 7) / 10, dmg: d / 10, kbf: 0.92, range: 600 * UNIT })) },
+  homing: { key: 'E', name: 'Míssil teleguiado', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [70, 80, 90, 100, 110, 120, 130]).map(([cd, d]) => L({ cd, dmg: (d / 10) * 0.8, speed: 1000 * UNIT, duration: 4.5 })) },
   shield: { key: 'R', name: 'Escudo', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [14, 13, 12, 11, 10, 9, 8].map((cd) => L({ cd, duration: 1.2 })) },
   teleport: { key: 'F', name: 'Teleporte', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([16, 13.5, 11.5, 10, 9, 8, 7], [770, 840, 910, 980, 1050, 1120, 1190]).map(([cd, r]) => L({ cd, range: r * UNIT })) },
   // as cinco magias seguintes: npc_abilities_custom.txt, spells/*.lua e shop/warlock_shop_data.js do Warlock Brawl

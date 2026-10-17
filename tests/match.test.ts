@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { botBuy, botCmds } from '../src/shared/bots.ts';
-import { ARENA_R0, COUNTDOWN_MS, DT, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
+import { ARENA_R0, COUNTDOWN_MS, DT, KILL_GOLD, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
 import { addPlayer, buy, endIdle, kick, newMatch, removePlayer, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { newWorld } from '../src/shared/sim.ts';
@@ -66,6 +66,18 @@ describe('partida', () => {
     kill(m, 'b', 'a');
     until(m, now, () => !m.world!.wizards[1].alive);
     expect(m.players.find((p) => p.id === 'a')!.score).toBe(0);
+  });
+
+  it('kill gives gold to the killer, with a live event over them', () => {
+    const m = twoPlayers();
+    addPlayer(m, 'c', 'Caio');
+    let now = toPlaying(m, 0);
+    const before = m.players.find((p) => p.id === 'a')!.gold;
+    kill(m, 'b', 'a');
+    let ev: unknown;
+    for (let i = 0; i < 600 && !ev; i++) ev = tickMatch(m, (now += STEP_MS), [], () => 0.5).find((e) => e.k === 'gold');
+    expect(ev).toMatchObject({ k: 'gold', id: 'a', n: KILL_GOLD });
+    expect(m.players.find((p) => p.id === 'a')!.gold).toBe(before + KILL_GOLD);
   });
 
   it('if the last ones die together, the one with more hp wins', () => {

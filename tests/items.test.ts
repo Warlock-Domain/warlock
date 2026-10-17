@@ -68,7 +68,7 @@ describe('itens ativos', () => {
     expect(w.wizards[0].hp).toBeGreaterThanOrEqual(1);
   });
 
-  it('pact makes the next damaging spell stronger, then slows', () => {
+  it('pact makes the next damaging spell stronger and does not slow', () => {
     const w = world([[0, 0], [2, 0]], [{ pact: 1 }]);
     stepWorld(w, [{ id: 'p0', kind: 'item', item: 'pact', at: v(0, 0) }]);
     steps(w, 15);
@@ -77,7 +77,18 @@ describe('itens ativos', () => {
     // a vida volta um pouco (regeneração) entre o acerto e a conferência
     expect(HP_MAX - w.wizards[1].hp).toBeGreaterThan(SPELLS.lightning.levels[0].dmg * PACT.mult - 0.2);
     steps(w, 2);
-    expect(w.wizards[0].speed).toBeLessThan(WIZ_SPEED);
+    expect(w.wizards[0].speed).toBe(WIZ_SPEED);
+  });
+
+  it('no spell goes out while the scourge is winding up', () => {
+    const w = world([[0, 0], [1, 0]], [{ scourge: 1 }]);
+    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
+    steps(w, 5);
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(2, 0) }]);
+    expect(w.wizards[0].casting?.item).toBe('scourge');
+    expect(w.wizards[0].cd.lightning).toBe(0);
+    steps(w, 40);
+    expect(w.wizards[1].hp).toBeLessThan(HP_MAX); // o Flagelo saiu mesmo assim
   });
 
   it('redirector turns your nearest projectile toward the cursor', () => {

@@ -398,6 +398,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     labels.append(el);
     numbers.push({ el, at: w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0)), born: performance.now() / 1000 });
   }
+  // ouro ganho no abate: sobe dourado em cima de quem matou
+  function goldNumber(at: Vec, n: number) {
+    const el = document.createElement('div');
+    el.className = 'dmg gold';
+    el.textContent = `+${n} 🪙`;
+    labels.append(el);
+    numbers.push({ el, at: w3(at, 2.1), born: performance.now() / 1000 });
+  }
 
   // marca que fica no chão alguns segundos onde houve choque de magias (só visual)
   const MARK: Record<string, { map: THREE.Texture; color: string; secs: number; spin: number }> = {
@@ -494,6 +502,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     smoke(at, 1.8, 1.1);
   }
 
+  function zap(at: Vec) {
+    burst(at, '#9fd0ff', 3.4, 0.45, 1, FX.light);
+    burst(at, '#e6f4ff', 2.2, 0.4, 1, FX.spark);
+    burst(at, '#6fb6ff', 2.8, 0.5, 0.9, FX.circle);
+  }
+
   function bolt(from: Vec, to: Vec) {
     const pts: THREE.Vector3[] = [];
     const n = 10;
@@ -506,7 +520,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     for (let j = 0; j < 3; j++) {
       const jit = pts.map((p, i) => (i === 0 || i === n ? p : p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.18, (Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.18))));
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(jit), new THREE.LineBasicMaterial({ color: j ? '#9fd0ff' : '#ffffff', transparent: true, blending: THREE.AdditiveBlending }));
-      addFx(line, 0.25, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 1 - k));
+      addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 1 - k));
     }
     burst(to, '#9fd0ff', 2.4, 0.3, 1, FX.light);
     burst(to, '#e6f4ff', 1.4, 0.35, 1, FX.spark);
@@ -518,10 +532,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (e.k === 'cast') oneShot(e.id, e.spell === 'shield' || e.spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
       else if (e.k === 'hit') {
         oneShot(e.id, 'Hit_A', 0.45);
-        explosion(v(e.x, e.y));
+        // o acerto do raio tem impacto elétrico próprio: a explosão de fogo cobria o raio e parecia que ele não tinha saído
+        if (e.src === 'lightning') zap(v(e.x, e.y));
+        else explosion(v(e.x, e.y));
         scorch(v(e.x, e.y));
         damageNumber(v(e.x, e.y), e.dmg);
-      } else if (e.k === 'reflect') {
+      } else if (e.k === 'gold') goldNumber(v(e.x, e.y), e.n);
+      else if (e.k === 'reflect') {
         burst(v(e.x, e.y), '#8fd3ff', 2.4, 0.3, 0.8, FX.circle);
         burst(v(e.x, e.y), '#cfeaff', 1.6, 0.25, 0.8, FX.light);
       }
@@ -681,7 +698,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // ícones de efeito em cima do mago (negativos primeiro)
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
-        const icons: [number, string, string][] = [[16, '💫', 'atordoado'], [4, '🐌', 'lento'], [8, '⚠️', 'vulnerável'], [32, '✨', 'invulnerável'], [64, '🩸', 'Pacto armado'], [128, '⛓️', 'preso'], [256, '💨', 'Investida']];
+        const icons: [number, string, string][] = [[16, '💫', 'atordoado'], [8, '⚠️', 'vulnerável'], [32, '✨', 'invulnerável'], [64, '🩸', 'Pacto armado'], [128, '⛓️', 'preso'], [256, '💨', 'Investida']];
         m.statusEl.replaceChildren(...icons.filter(([bit]) => d.status & bit).map(([bit, ico, name]) => Object.assign(document.createElement('i'), { textContent: ico, title: name, className: [16, 4, 8, 128].includes(bit) ? 'bad' : 'good' })));
       }
       m.hpFill.style.width = `${Math.max(0, Math.min(100, (d.hp / d.hpMax) * 100))}%`;

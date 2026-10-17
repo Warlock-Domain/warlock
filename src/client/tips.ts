@@ -45,7 +45,7 @@ const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string][]>> = 
   watch: (l) => [['Lentidões', `−${n1(-ITEMS.watch.levels[l].debuff! * 100)}% de duração`]],
   scourge: (l) => [['Dano em volta', n1(SCOURGE.dmg[l])], ['Raio', m(SCOURGE.radius)], ['Preparo', s(SCOURGE.windup)], ['Recarga', s(SCOURGE.cd)]],
   redirector: () => [['Recarga', s(REDIRECTOR.cd)], ['Penalidade', `+${REDIRECTOR.kbPenalty * 100}% de empurrão por ${s(REDIRECTOR.penaltyTime)}`]],
-  pact: () => [['Próxima magia de dano', `${n1(PACT.mult)}×`], ['Janela', s(PACT.window)], ['Depois', `lento por ${s(PACT.slowTime)}`], ['Recarga', s(PACT.cd)]],
+  pact: () => [['Próxima magia de dano', `${n1(PACT.mult)}× dano e empurrão`], ['Janela', s(PACT.window)], ['Recarga', s(PACT.cd)]],
 };
 
 export function itemTip(id: ItemId, level: number): string {

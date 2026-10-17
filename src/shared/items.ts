@@ -22,16 +22,17 @@ export const ITEMS: Record<ItemId, Item> = {
   watch: { name: 'Relógio de bolso', cost: 2, text: 'Lentidões e penalidades duram menos.', levels: [{ debuff: -0.35 }, { debuff: -0.45 }] },
   scourge: { name: 'Flagelo', cost: 7, key: '1', text: 'Explode em volta depois de 0,5 s e empurra quem estiver perto.', levels: [{}, {}, {}] },
   redirector: { name: 'Redirecionador', cost: 8, key: '2', text: 'Desvia seu projétil mais perto do cursor; 8 s voando mais longe.', levels: [{}] },
-  pact: { name: 'Pacto', cost: 10, key: '3', text: 'Próxima magia de dano em 5 s faz 1,5×; depois fica lento.', levels: [{}] },
+  pact: { name: 'Pacto', cost: 10, key: '3', text: 'Próxima magia de dano em 5 s faz 2× de dano e empurrão.', levels: [{}] },
 };
 
 // ativos (originais): Flagelo dano 100/110/120 de 1000 em 250 unidades, 0,9 s de preparo, recarga 3 s;
-// Redirecionador recarga 24 s, +30% de empurrão por 8 s; Pacto recarga 30 s, 5 s para usar, 1,5×, lentidão de 66 por 6 s
-export const SCOURGE = { dmg: [10, 11, 12], radius: 250 * UNIT, windup: 0.5, cd: 3 }; // preparo: 0,9 s no original, 0,5 s a pedido do Fernando (17/10)
+// Redirecionador recarga 24 s, +30% de empurrão por 8 s; Pacto no original: recarga 30 s, 5 s para usar, 1,5×, lentidão de 66 por 6 s
+export const SCOURGE = { dmg: [10, 11, 12], radius: 250 * UNIT, windup: 0.5, cd: 5 }; // recarga 3 s no original; 5 s no balanceamento de 17/10 // preparo: 0,9 s no original, 0,5 s a pedido do Fernando (17/10)
 // tempo de conjuração dos ativos (o do Flagelo é o preparo de 0,9 s)
 export const ITEM_CAST: Partial<Record<ItemId, number>> = { scourge: SCOURGE.windup, redirector: 0.1, pact: 0.1 };
 export const REDIRECTOR = { cd: 24, kbPenalty: 0.3, penaltyTime: 8, extraLife: 0.5 };
-export const PACT = { cd: 30, window: 5, mult: 1.5, slow: 66 * UNIT, slowTime: 6 };
+// balanceamento de 17/10 (5 rodadas com ele, 0 vitórias): 2×, sem lentidão, recarga 20 s
+export const PACT = { cd: 20, window: 5, mult: 2 };
 
 export const noItems = (): Record<ItemId, number> => Object.fromEntries(ITEM_IDS.map((i) => [i, 0])) as Record<ItemId, number>;
 

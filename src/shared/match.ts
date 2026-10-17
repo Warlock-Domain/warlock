@@ -328,11 +328,15 @@ export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number
       const bucket = e.k === 'fire' ? 'fired' : 'landed';
       if (p) addStat(p, (s) => (s[bucket][e.src] = (s[bucket][e.src] ?? 0) + 1));
     } else if (e.k === 'death' && e.by && e.by !== e.id) {
-      // nas rodadas o abate não vale ponto (como no original), só ouro (zero no padrão); no deathmatch vale 1 ponto
+      // nas rodadas o abate não vale ponto (como no original), só ouro; no deathmatch vale 1 ponto
       const killer = m.players.find((p) => p.id === e.by);
       if (killer) addStat(killer, (s) => (s.kills += 1));
       if (killer && m.mode === 'deathmatch') killer.score++;
-      if (killer && KILL_GOLD) earn(killer, KILL_GOLD);
+      if (killer && KILL_GOLD) {
+        earn(killer, KILL_GOLD);
+        const kz = w.wizards.find((z) => z.id === killer.id);
+        if (kz) w.events.push({ k: 'gold', id: killer.id, n: KILL_GOLD, x: kz.pos.x, y: kz.pos.y });
+      }
     }
   }
   if (m.mode === 'deathmatch') {

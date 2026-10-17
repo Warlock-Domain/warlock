@@ -21,7 +21,7 @@ export function createPredict() {
     reset() {
       me = null;
     },
-    // velocidade de andar que o servidor diz que o mago tem agora (botas, lentidão do Pacto)
+    // velocidade de andar que o servidor diz que o mago tem agora (botas, Investida, preso)
     setSpeed(sp: number) {
       if (me && sp > 0) me.speed = sp;
     },

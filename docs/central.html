@@ -163,8 +163,16 @@ figcaption { font-size: 14.5px; color: var(--muted); max-width: 68ch; }
   <h2>Agora estamos decidindo</h2>
   <div class="decide">
     <div class="q">
-      <div class="ask">Nenhuma decisão pendente.</div>
-      <p class="why"><b>Fazendo agora:</b> Deathmatch (rodadas de 60 s, volta 10 s depois de morrer, 1 ponto por abate). Depois: as 5 magias novas (Swap, Grip, Meteoro, Rush, Cluster) com o limite de 6 magias por jogador, que você escolheu.</p>
+      <div class="ask">Ajustes de balanceamento (primeira rodada de sugestões)</div>
+      <p class="why"><b>Contexto:</b> você pediu sugestões e disse que o Pacto está fraco. Dados de 6 rodadas com 7 pessoas, lidos em /api/telemetry (medido; amostra pequena, então são pistas). A precisão das 3 primeiras rodadas veio incompleta, por isso comparo <b>dano por lançamento</b>, que está certo desde o começo.</p>
+      <div class="tbl"><table><thead><tr><th>O quê</th><th>Dado</th><th>Leitura</th></tr></thead><tbody>
+        <tr><td>Míssil teleguiado</td><td class="num">6,5 de dano por lançamento (136 lançamentos)</td><td>O dobro da Bola de fogo: forte</td></tr>
+        <tr><td>Bola de fogo</td><td class="num">3,3 por lançamento (407)</td><td>Referência</td></tr>
+        <tr><td>Flagelo</td><td class="num">5,4 por lançamento (95); grátis, recarga 3 s, sem custo de vida</td><td>Forte</td></tr>
+        <tr><td>Raio</td><td class="num">2,3 por lançamento (68), recarga 16,5 s</td><td>Fraco</td></tr>
+        <tr><td>Pacto</td><td class="num">5 rodadas com ele, 0 vitórias</td><td>Fraco (bate com o que você sentiu)</td></tr>
+      </tbody></table></div>
+      <p class="why"><b>Recomendação:</b> Pacto mais forte (dano e empurrão 2× na próxima magia, sem lentidão, recarga 20 s), Raio com recarga 30% menor, Míssil com 20% menos dano e Flagelo com recarga de 5 s. Depois de mais partidas eu comparo de novo.</p>
     </div>
   </div>
 </section>

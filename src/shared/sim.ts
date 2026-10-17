@@ -28,7 +28,7 @@ export type Wizard = {
   regen: number;
   kbResist: number; // fração de empurrão a menos (itens)
   baseSpeed: number;
-  speed: number; // velocidade de andar agora (botas, lentidão do Pacto)
+  speed: number; // velocidade de andar agora (botas, Investida, preso)
   debuffMult: number; // duração de lentidões e penalidades
   kbPenaltyUntil: number; // Redirecionador: voa mais longe até este instante
   pactUntil: number; // Pacto armado até este instante
@@ -36,7 +36,6 @@ export type Wizard = {
   rushUntil: number; // Investida ativa até este instante
   rushLeft: number; // dano que a Investida ainda pode absorver
   rushBonus: number; // velocidade extra da Investida agora (m/s)
-  slowUntil: number;
   invulnUntil: number;
   respawnAt: number; // deathmatch: instante (w.t) em que o morto volta
   durF: number; // maestria de duração (multiplica escudo e pacto)
@@ -78,6 +77,7 @@ export type SimEvent =
   | { k: 'teleport'; id: string; from: Vec; to: Vec }
   | { k: 'grip'; id: string; x: number; y: number }
   | { k: 'death'; id: string; by: string | null }
+  | { k: 'gold'; id: string; n: number; x: number; y: number }
   | { k: 'shrink'; r: number }
   | { k: 'item'; id: string; item: ItemId }
   | { k: 'scourge'; id: string; x: number; y: number; r: number }
@@ -151,7 +151,6 @@ export function newWorld(
       rushUntil: 0,
       rushLeft: 0,
       rushBonus: 0,
-      slowUntil: 0,
       invulnUntil: INVULN_TIME,
       respawnAt: 0,
       durF: 1 + masteryValue('duration', ms.duration),
@@ -441,11 +440,10 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   }
 }
 
-// Pacto armado: esta magia sai 1,5× mais forte, o Pacto acaba e o mago fica lento
+// Pacto armado: esta magia sai 2× mais forte (dano e empurrão) e o Pacto acaba
 function usePact(w: World, wz: Wizard): number {
   if (w.t >= wz.pactUntil) return 1;
   wz.pactUntil = 0;
-  wz.slowUntil = w.t + PACT.slowTime * wz.debuffMult;
   return PACT.mult;
 }
 
@@ -453,6 +451,8 @@ function usePact(w: World, wz: Wizard): number {
 function beginCast(w: World, wz: Wizard, what: { spell?: SpellId; item?: ItemId }, at: Vec) {
   // a mesma magia já sendo conjurada: ignora a tecla repetida (a recarga só começa quando ela sai)
   if (wz.casting && wz.casting.spell === what.spell && wz.casting.item === what.item) return;
+  // Flagelo em preparo: nada mais sai até ele explodir (pedido do Fernando, 17/10)
+  if (wz.casting?.item === 'scourge') return;
   if (what.spell) {
     if (!wz.spells[what.spell] || w.t < wz.cd[what.spell]) return;
   } else if (what.item) {
@@ -658,7 +658,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
   }
   Object.assign(wz, {
     alive: true, pos: best, vel: v(0, 0), target: null, casting: null, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
-    shieldUntil: 0, slowUntil: 0, kbPenaltyUntil: 0, pactUntil: 0, invulnUntil: w.t + INVULN_TIME,
+    shieldUntil: 0, kbPenaltyUntil: 0, pactUntil: 0, invulnUntil: w.t + INVULN_TIME,
   });
 }
 
@@ -687,7 +687,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     }
     // preso: velocidade zero e o destino de andar some; a Investida soma velocidade
     const rooted = w.t < wz.gripUntil;
-    wz.speed = rooted ? 0 : Math.max(0.2, wz.baseSpeed - (w.t < wz.slowUntil ? PACT.slow : 0) + (w.t < wz.rushUntil ? wz.rushBonus : 0));
+    wz.speed = rooted ? 0 : Math.max(0.2, wz.baseSpeed + (w.t < wz.rushUntil ? wz.rushBonus : 0));
     if (rooted) wz.target = null;
   }
 

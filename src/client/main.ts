@@ -3,7 +3,7 @@ import { isCharacter } from '../shared/characters.ts';
 import type { PublicRoom, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView } from '../shared/snapshot.ts';
-import { ACTIVE_ITEMS, ITEM_CAST, itemStats, type ItemId } from '../shared/items.ts';
+import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
 import { CAST_POINT, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { dist, len, type Vec } from '../shared/vec.ts';
 import { createInput } from './input.ts';
@@ -104,6 +104,7 @@ function startRoom(code: string, name: string) {
   const sentAt = new Map<number, number>();
   let lastSnap: Snap | null = null;
   const justCast = new Map<string, number>();
+  let scourgeUntil = 0;
   let follow = true;
 
   const view = createRoomUi(ui, code, {
@@ -157,7 +158,7 @@ function startRoom(code: string, name: string) {
       const i = SPELL_IDS.indexOf(spell);
       const mine = room?.players.find((p) => p.id === me);
       if (!mine?.spells[spell]) return toast('Você ainda não tem essa magia. Compre na loja.');
-      if ((lastSnap?.cd[i] ?? 0) > 0.1 || performance.now() < (justCast.get(spell) ?? 0)) return;
+      if ((lastSnap?.cd[i] ?? 0) > 0.1 || performance.now() < (justCast.get(spell) ?? 0) || performance.now() < scourgeUntil) return;
       // até a recarga chegar do servidor, não repete a mesma magia (senão a animação e o som tocam sem sair nada)
       justCast.set(spell, performance.now() + 120 + CAST_POINT[spell] * 1000 + predict.rtt() * 1000);
       command({ t: 'cast', spell, x: at.x, y: at.y });
@@ -170,7 +171,9 @@ function startRoom(code: string, name: string) {
     useItem(item, at) {
       const mine = room?.players.find((p) => p.id === me);
       if (!mine?.items[item]) return toast('Você ainda não tem esse item. Compre na loja.');
-      if ((lastSnap?.icd[ACTIVE_ITEMS.indexOf(item)] ?? 0) > 0.1 || performance.now() < (justCast.get(item) ?? 0)) return;
+      if ((lastSnap?.icd[ACTIVE_ITEMS.indexOf(item)] ?? 0) > 0.1 || performance.now() < (justCast.get(item) ?? 0) || performance.now() < scourgeUntil) return;
+      // Flagelo em preparo: o servidor ignora outras magias até ele explodir
+      if (item === 'scourge') scourgeUntil = performance.now() + SCOURGE.windup * 1000;
       justCast.set(item, performance.now() + 120 + (ITEM_CAST[item] ?? 0) * 1000 + predict.rtt() * 1000);
       command({ t: 'item', item, x: at.x, y: at.y });
       predict.hold(ITEM_CAST[item] ?? 0);
