@@ -40,8 +40,8 @@ export type PublicRoom = {
 };
 
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits de estado (ver encodeSnap)
-// p: 6 números por projétil: id, tipo (0 fogo, 1 míssil), x, y, vx, vy
-// cd: recarga restante das 5 magias de quem recebe, na ordem de SPELL_IDS; icd: dos 3 itens ativos (ACTIVE_ITEMS);
+// p: 6 números por projétil: id, tipo (índice em PROJ_KINDS), x, y, vx, vy (no meteoro: raio e segundos até cair)
+// cd: recarga restante das magias de quem recebe, na ordem de SPELL_IDS; icd: dos 3 itens ativos (ACTIVE_ITEMS);
 // pl: 3 números por pilar: x, y, vida em % (0 = quebrado)
 // sp: velocidade de andar dele agora (botas, lentidão), para a previsão; ack: último seq aplicado dele
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'

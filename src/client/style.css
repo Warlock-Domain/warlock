@@ -80,6 +80,7 @@ button.kick:hover { background: rgba(255, 122, 106, .15); }
 .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .shop-item { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 10px; background: rgba(255, 255, 255, .04); border: 1px solid var(--line); }
 .shop-item.owned { border-color: #8a4a20; }
+.shop-item.locked { opacity: .55; }
 .shop-item button { min-height: 38px; padding: 6px 8px; font-size: .9rem; }
 .shop-title { display: flex; align-items: center; gap: 6px; }
 .shop-title b { flex: 1; font-size: .95rem; }

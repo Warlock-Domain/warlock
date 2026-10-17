@@ -8,7 +8,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ARENA_STEP, PILLAR, SHRINK_WARN, WIZ_R } from '../shared/constants.ts';
-import type { SimEvent } from '../shared/sim.ts';
+import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView } from '../shared/snapshot.ts';
 import { v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
@@ -205,6 +205,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const fireMat = new THREE.MeshBasicMaterial({ color: '#ffb347' });
   const homingMat = new THREE.MeshBasicMaterial({ color: '#d58bff' });
   const ballGeo = new THREE.SphereGeometry(0.28, 16, 12);
+  const swapMat = new THREE.MeshBasicMaterial({ color: '#8ffff2' });
+  const gripMat = new THREE.MeshBasicMaterial({ color: '#ff8a9a' });
+  // aparência de cada projétil: corpo, cor do brilho e do rastro, textura do rastro e tamanho
+  const LOOK: Record<ProjKind, { mat: THREE.Material; halo: string; trail: string; tex: THREE.Texture; size: number }> = {
+    fireball: { mat: fireMat, halo: '#ff7a1a', trail: '#ff7a20', tex: FX.flame, size: 1 },
+    homing: { mat: homingMat, halo: '#b05cff', trail: '#a050ff', tex: FX.magic, size: 1 },
+    cluster: { mat: fireMat, halo: '#ffd23a', trail: '#ffb347', tex: FX.spark, size: 0.55 },
+    swap: { mat: swapMat, halo: '#2fe0d0', trail: '#2fe0d0', tex: FX.magic, size: 0.9 },
+    grip: { mat: gripMat, halo: '#e0203a', trail: '#c2122a', tex: FX.magic, size: 0.9 },
+    meteor: { mat: fireMat, halo: '#ff5a1a', trail: '#ff7a20', tex: FX.fire, size: 3 },
+  };
   const projs = new Map<number, THREE.Group>();
   const fx: Fx[] = [];
 
@@ -483,7 +494,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   function onEvents(events: SimEvent[], names: Map<string, string>) {
     for (const e of events) {
-      if (e.k === 'cast') oneShot(e.id, e.spell === 'shield' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
+      if (e.k === 'cast') oneShot(e.id, e.spell === 'shield' || e.spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
       else if (e.k === 'hit') {
         oneShot(e.id, 'Hit_A', 0.45);
         explosion(v(e.x, e.y));
@@ -494,6 +505,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(v(e.x, e.y), '#cfeaff', 1.6, 0.25, 0.8, FX.light);
       }
       else if (e.k === 'lightning') bolt(e.from, e.to);
+      else if (e.k === 'grip') {
+        burst(v(e.x, e.y), '#e0203a', 2.4, 0.5, 0.8, FX.magic);
+        burst(v(e.x, e.y), '#ffd0d8', 1.6, 0.3, 0.8, FX.light);
+        shockwave(v(e.x, e.y), 1.2, '#e0203a');
+      }
       else if (e.k === 'teleport') {
         burst(e.from, '#c49bff', 2.4, 0.45, 0.8, FX.magic);
         burst(e.to, '#c49bff', 2.6, 0.45, 0.8, FX.magic);
@@ -566,20 +582,36 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       let g = projs.get(p.id);
       if (!g) {
         g = new THREE.Group();
-        const core = new THREE.Mesh(ballGeo, p.kind === 'fireball' ? fireMat : homingMat);
-        const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: FX.light, color: p.kind === 'fireball' ? '#ff7a1a' : '#b05cff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-        halo.scale.setScalar(1.6);
+        const look = LOOK[p.kind];
+        const core = new THREE.Mesh(ballGeo, look.mat);
+        core.scale.setScalar(look.size);
+        const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: FX.light, color: look.halo, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+        halo.scale.setScalar(1.6 * look.size);
         g.add(core, halo);
+        if (p.kind === 'meteor') {
+          // aviso no chão: círculo do tamanho da explosão, que pulsa até a pedra cair
+          const warn = new THREE.Mesh(scorchGeo, new THREE.MeshBasicMaterial({ map: FX.circle, color: '#ff3a1a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+          warn.rotation.x = -Math.PI / 2;
+          warn.scale.setScalar((p.vel.x * 2) / 1.6);
+          g.add(warn);
+        }
         scene.add(g);
         projs.set(p.id, g);
       }
-      g.position.copy(w3(p.pos, 0.9));
+      if (p.kind === 'meteor') {
+        const y = 0.9 + p.vel.y * 8; // vel.y = segundos até cair
+        g.position.copy(w3(p.pos, y));
+        g.children[2].position.y = 0.04 - y;
+        ((g.children[2] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.sin(performance.now() / 70);
+      } else g.position.copy(w3(p.pos, 0.9));
       // rastro: brasas que ficam para trás e somem
-      if (Math.random() < 0.7) burst(p.pos, p.kind === 'fireball' ? '#ff7a20' : '#a050ff', 1.1, 0.35, 0.9, p.kind === 'fireball' ? FX.flame : FX.magic);
+      const look = LOOK[p.kind];
+      if (Math.random() < 0.7) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
       ((g.children[1] as THREE.Sprite).material as THREE.Material).dispose();
+      if (g.children[2]) ((g.children[2] as THREE.Mesh).material as THREE.Material).dispose();
       projs.delete(id);
     }
   }
@@ -626,8 +658,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // ícones de efeito em cima do mago (negativos primeiro)
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
-        const icons: [number, string, string][] = [[16, '💫', 'atordoado'], [4, '🐌', 'lento'], [8, '⚠️', 'vulnerável'], [32, '✨', 'invulnerável'], [64, '🩸', 'Pacto armado']];
-        m.statusEl.replaceChildren(...icons.filter(([bit]) => d.status & bit).map(([, ico, name]) => Object.assign(document.createElement('i'), { textContent: ico, title: name, className: [16, 4, 8].includes(icons.find((x) => x[1] === ico)![0]) ? 'bad' : 'good' })));
+        const icons: [number, string, string][] = [[16, '💫', 'atordoado'], [4, '🐌', 'lento'], [8, '⚠️', 'vulnerável'], [32, '✨', 'invulnerável'], [64, '🩸', 'Pacto armado'], [128, '⛓️', 'preso'], [256, '💨', 'Investida']];
+        m.statusEl.replaceChildren(...icons.filter(([bit]) => d.status & bit).map(([bit, ico, name]) => Object.assign(document.createElement('i'), { textContent: ico, title: name, className: [16, 4, 8, 128].includes(bit) ? 'bad' : 'good' })));
       }
       m.hpFill.style.width = `${Math.max(0, Math.min(100, (d.hp / d.hpMax) * 100))}%`;
       m.hpText.textContent = `${Math.max(0, Math.ceil(d.hp))}/${d.hpMax}`;
@@ -690,7 +722,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       });
     },
     castLocal(id: string, spell: string) {
-      oneShot(id, spell === 'shield' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
+      oneShot(id, spell === 'shield' || spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
     },
     render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; follow: Vec | null }) {
       const now = performance.now() / 1000;

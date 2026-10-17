@@ -20,7 +20,7 @@ describe('protocolo', () => {
     expect(parseClientMessage('{"t":"move","x":NaN,"y":0,"seq":1}')).toBeNull();
     expect(p({ t: 'move', x: 1e9, y: 0, seq: 1 })).toBeNull();
     expect(p({ t: 'move', x: 1, y: 0, seq: -1 })).toBeNull();
-    expect(p({ t: 'cast', spell: 'meteor', x: 0, y: 0, seq: 1 })).toBeNull();
+    expect(p({ t: 'cast', spell: 'invisibility', x: 0, y: 0, seq: 1 })).toBeNull();
     expect(p({ t: 'start', bots: 8 })).toBeNull();
     expect(p({ t: 'hello', playerId: 'x', name: 'a' })).toBeNull();
     expect(p({ t: 'buy', spell: 'shield', extra: 'x'.repeat(2000) })).toBeNull();
