@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { botBuy, botCmds } from '../src/shared/bots.ts';
-import { ARENA_R0, COUNTDOWN_MS, DT, ROUND_END_MS, ROUND_GOLD, ROUNDS, SHOP_MS, START_GOLD, WIN_GOLD } from '../src/shared/constants.ts';
+import { ARENA_R0, COUNTDOWN_MS, DT, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
 import { addPlayer, buy, newMatch, removePlayer, setReady, shouldRun, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { newWorld } from '../src/shared/sim.ts';
@@ -49,22 +49,22 @@ describe('partida', () => {
     expect(m.players.filter((p) => p.bot).length).toBe(2);
   });
 
-  it('last alive gets 3 points', () => {
+  it('last alive gets 1 point', () => {
     const m = twoPlayers();
     let now = toPlaying(m, 0);
     kill(m, 'b', null);
     now = until(m, now, () => m.phase === 'roundEnd');
-    expect(m.players.find((p) => p.id === 'a')!.score).toBe(3);
+    expect(m.players.find((p) => p.id === 'a')!.score).toBe(1);
     expect(m.lastRoundWinner).toBe('a');
   });
 
-  it('kill gives 1 point', () => {
+  it('kill gives no points', () => {
     const m = twoPlayers();
     addPlayer(m, 'c', 'Caio');
     const now = toPlaying(m, 0);
     kill(m, 'b', 'a');
     until(m, now, () => !m.world!.wizards[1].alive);
-    expect(m.players.find((p) => p.id === 'a')!.score).toBe(1);
+    expect(m.players.find((p) => p.id === 'a')!.score).toBe(0);
   });
 
   it('simultaneous death ends round with no winner', () => {
@@ -77,32 +77,22 @@ describe('partida', () => {
     expect(m.players.every((p) => p.score === 0)).toBe(true);
   });
 
-  it('full match runs 5 rounds and ends', () => {
+  it('first to WINS_TO_WIN rounds wins the match', () => {
     const m = twoPlayers();
     let now = 0;
-    for (let r = 0; r < ROUNDS; r++) {
+    for (let r = 0; r < WINS_TO_WIN + 2; r++) {
       now = toPlaying(m, now);
+      // a primeira rodada fica sem vencedor (os dois morrem); depois só a Ana vence
       kill(m, 'b', null);
+      if (r === 0) kill(m, 'a', null);
       now = until(m, now, () => m.phase === 'roundEnd');
       now = until(m, now, () => m.phase !== 'roundEnd');
+      if (m.phase === 'end') break;
     }
     expect(m.phase).toBe('end');
     expect(m.winner).toBe('a');
-    expect(m.round).toBe(ROUNDS);
-  });
-
-  it('tie triggers extra round', () => {
-    const m = twoPlayers();
-    let now = 0;
-    for (let r = 0; r < ROUNDS; r++) {
-      now = toPlaying(m, now);
-      kill(m, r % 2 ? 'a' : 'b', null);
-      if (r === ROUNDS - 1) kill(m, 'a', null); // última rodada: os dois morrem, 6 a 6
-      now = until(m, now, () => m.phase === 'roundEnd');
-      now = until(m, now, () => m.phase !== 'roundEnd');
-    }
-    expect(m.phase).toBe('shop');
-    expect(m.contenders).toEqual(['a', 'b']);
+    expect(m.players[0].score).toBe(WINS_TO_WIN);
+    expect(m.round).toBe(WINS_TO_WIN + 1);
   });
 
   it('buy deducts gold and caps level 3', () => {

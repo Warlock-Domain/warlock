@@ -207,7 +207,7 @@ function startRoom(code: string, name: string) {
       interp.reset();
       predict.reset();
       follow = true;
-      banner(room.round > 5 ? 'Desempate!' : `Rodada ${room.round}`);
+      banner(`Rodada ${room.round}`);
       [3, 2, 1].forEach((_, i) => setTimeout(() => sound.play('beep'), i * 1000));
     } else if (room.phase === 'playing') {
       banner('Já!', 'good');

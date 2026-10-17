@@ -26,12 +26,11 @@ export const CREDIT_WINDOW = 5; // o abate vai para quem acertou nos últimos 5 
 export const PROJ_R = 0.2;
 
 export const MAX_PLAYERS = 8;
-export const ROUNDS = 5;
+export const WINS_TO_WIN = 5; // original: 1 ponto por rodada vencida (lá o padrão é 11; aqui 5, decisão do Fernando)
 export const START_GOLD = 30;
 export const ROUND_GOLD = 10;
 export const KILL_GOLD = 0;
 export const WIN_GOLD = 0;
-export const WIN_POINTS = 3;
 export const SHOP_MS = 20_000;
 export const COUNTDOWN_MS = 3_000;
 export const ROUND_END_MS = 2_500;

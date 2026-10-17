@@ -28,7 +28,6 @@ export type PublicRoom = {
   ids: string[]; // ordem dos magos no estado compacto ('snap')
   winner: string | null;
   lastRoundWinner: string | null;
-  contenders: string[] | null;
 };
 
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits (1 vivo, 2 escudo)
@@ -98,6 +97,5 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     ids: m.world?.wizards.map((z) => z.id) ?? [],
     winner: m.winner,
     lastRoundWinner: m.lastRoundWinner,
-    contenders: m.contenders,
   };
 }

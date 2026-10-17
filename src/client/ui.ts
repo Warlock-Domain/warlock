@@ -1,5 +1,5 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
-import { MAX_PLAYERS, ROUNDS } from '../shared/constants.ts';
+import { MAX_PLAYERS, WINS_TO_WIN } from '../shared/constants.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { SPELLS, SPELL_IDS, priceOf, type SpellId } from '../shared/spells.ts';
 import { COLORS } from './scene.ts';
@@ -122,7 +122,7 @@ const nameOf = (p: PublicPlayer, me: string) => p.name + (p.id === me ? ' (você
 function board(room: PublicRoom, me: string) {
   const sorted = [...room.players].sort((a, b) => b.score - a.score);
   return el('ol', { class: 'board' }, ...sorted.map((p) =>
-    el('li', { class: p.id === room.winner ? 'win' : '' }, el('span', {}, dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), el('b', {}, `${p.score} pts`)),
+    el('li', { class: p.id === room.winner ? 'win' : '' }, el('span', {}, dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), el('b', {}, `${p.score} ${p.score === 1 ? 'vitória' : 'vitórias'}`)),
   ));
 }
 
@@ -195,10 +195,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   function shopPanel(r: PublicRoom) {
     const mine = r.players.find((p) => p.id === me);
     if (!mine) return el('div', { class: 'card' }, el('p', {}, 'Você está assistindo. Entra na próxima partida.'));
-    const extra = r.contenders ? el('p', { class: 'good' }, `Desempate! Só ${r.contenders.map((id) => r.players.find((p) => p.id === id)?.name).join(' e ')} jogam.`) : null;
     return el('div', { class: 'card shop' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? 'Loja' : `Loja · depois da rodada ${r.round}`), el('span', { class: 'gold' }, `🪙 ${mine.gold}`)),
-      extra,
       el('div', { class: 'shop-grid' }, ...SPELL_IDS.map((s) => {
         const lvl = mine.spells[s];
         const price = priceOf(s, lvl);
@@ -227,7 +225,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       me = you;
       phaseEndsAt = performance.now() + r.phaseLeft;
       status.className = 'dot ' + (online ? 'on' : 'off');
-      roundEl.textContent = r.round > 0 && r.phase !== 'lobby' ? `Rodada ${Math.min(r.round, ROUNDS)}${r.round > ROUNDS ? ' (desempate)' : ` de ${ROUNDS}`}` : '';
+      roundEl.textContent = r.round > 0 && r.phase !== 'lobby' ? `Rodada ${r.round} · vence quem fizer ${WINS_TO_WIN}` : '';
       players.replaceChildren(...[...r.players].sort((a, b) => b.score - a.score).map((p) =>
         el('li', { class: p.id === you ? 'me' : '' }, dot(p.color), el('span', {}, nameOf(p, you)), el('b', {}, String(p.score))),
       ));

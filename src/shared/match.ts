@@ -1,7 +1,7 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { botBuy, botCmds } from './bots.ts';
 import {
-  COUNTDOWN_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, ROUNDS, SHOP_MS, START_GOLD, WIN_GOLD, WIN_POINTS,
+  COUNTDOWN_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, WIN_GOLD, WINS_TO_WIN,
 } from './constants.ts';
 import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.ts';
 import { noSpells, priceOf, type SpellId } from './spells.ts';
@@ -13,7 +13,7 @@ export type Player = {
   name: string;
   bot: boolean;
   color: number; // 0..7
-  score: number;
+  score: number; // rodadas vencidas
   gold: number;
   spells: Record<SpellId, number>;
   ready: boolean;
@@ -28,12 +28,11 @@ export type Match = {
   world: World | null;
   winner: string | null;
   lastRoundWinner: string | null;
-  contenders: string[] | null; // rodada extra de desempate: só estes jogam
   steps: number;
 };
 
 export const newMatch = (): Match => ({
-  phase: 'lobby', round: 0, phaseEnds: 0, players: [], world: null, winner: null, lastRoundWinner: null, contenders: null, steps: 0,
+  phase: 'lobby', round: 0, phaseEnds: 0, players: [], world: null, winner: null, lastRoundWinner: null, steps: 0,
 });
 
 const BOT_NAMES = ['Gul’dan', 'Merlim', 'Morgana', 'Rasputin', 'Zatanna', 'Mandrake', 'Gandalfo'];
@@ -67,7 +66,7 @@ export function startMatch(m: Match, now: number, bots: number): boolean {
   for (let i = 0; m.players.length < MAX_PLAYERS && i < bots; i++) addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true);
   if (m.players.length < 2) return false;
   for (const p of m.players) Object.assign(p, { score: 0, gold: START_GOLD, spells: noSpells() });
-  Object.assign(m, { round: 0, winner: null, lastRoundWinner: null, contenders: null, steps: 0 });
+  Object.assign(m, { round: 0, winner: null, lastRoundWinner: null, steps: 0 });
   enterShop(m, now);
   return true;
 }
@@ -109,7 +108,7 @@ function enterShop(m: Match, now: number) {
 
 function enterCountdown(m: Match, now: number) {
   m.round++;
-  const ids = m.contenders ?? m.players.map((p) => p.id);
+  const ids = m.players.map((p) => p.id);
   m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])));
   m.phase = 'countdown';
   m.phaseEnds = now + COUNTDOWN_MS;
@@ -118,7 +117,7 @@ function enterCountdown(m: Match, now: number) {
 function endRound(m: Match, now: number, winner: string | null) {
   const p = m.players.find((q) => q.id === winner);
   if (p) {
-    p.score += WIN_POINTS;
+    p.score++;
     p.gold += WIN_GOLD;
   }
   const played = new Set(m.world?.wizards.map((z) => z.id));
@@ -128,16 +127,12 @@ function endRound(m: Match, now: number, winner: string | null) {
   m.phaseEnds = now + ROUND_END_MS;
 }
 
+// como no original: ganha quem vencer WINS_TO_WIN rodadas primeiro
 function afterRound(m: Match, now: number) {
-  if (m.round < ROUNDS) return enterShop(m, now);
-  const best = Math.max(...m.players.map((p) => p.score));
-  const tied = m.players.filter((p) => p.score === best);
-  if (tied.length > 1) {
-    m.contenders = tied.map((p) => p.id);
-    return enterShop(m, now);
-  }
+  const champion = m.players.find((p) => p.score >= WINS_TO_WIN);
+  if (!champion) return enterShop(m, now);
   m.phase = 'end';
-  m.winner = tied[0].id;
+  m.winner = champion.id;
   m.world = null;
 }
 
@@ -166,10 +161,9 @@ export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number
   stepWorld(w, all);
   for (const e of w.events) {
     if (e.k !== 'death' || !e.by || e.by === e.id) continue;
+    // abate não vale ponto no original, só ouro (zero no padrão)
     const killer = m.players.find((p) => p.id === e.by);
-    if (!killer) continue;
-    killer.score++;
-    killer.gold += KILL_GOLD;
+    if (killer) killer.gold += KILL_GOLD;
   }
   const alive = w.wizards.filter((z) => z.alive);
   if (alive.length <= 1) endRound(m, now, alive[0]?.id ?? null);

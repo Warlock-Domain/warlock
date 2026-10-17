@@ -2,8 +2,8 @@ export const RULES: [string, string[]][] = [
   ['Objetivo', [
     'Empurre os outros magos para fora da arena. Na lava a vida cai 10 por segundo.',
     'A arena encolhe a cada 10 segundos; a faixa que vai afundar pisca em vermelho antes. Ela é maior quanto mais magos tiver.',
-    'O último vivo ganha 3 pontos; cada abate vale 1 (o abate é de quem acertou por último, até 5 s antes da morte).',
-    'São 5 rodadas. Empate no fim vira rodada extra só entre os empatados.',
+    'O último vivo vence a rodada e ganha 1 ponto, como no Warlock original. Quem vencer 5 rodadas primeiro ganha a partida.',
+    'Se ninguém sobrar, a rodada fica sem vencedor.',
   ]],
   ['Controles no PC', [
     'Botão direito no chão: andar (segure para arrastar o destino). S: parar.',
