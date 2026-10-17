@@ -213,13 +213,14 @@ describe('conjuração e invulnerabilidade', () => {
     expect(wz(w, 0).target).toBeNull();
   });
 
-  it('moving during the cast cancels it without spending the cooldown', () => {
-    const w = world([[0, 0], [3, 0]]);
-    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
+  it('clicking to move during the cast does not cancel it; the wizard walks after', () => {
+    const w = world([[0, 0], [9, 0]]);
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(9, 0) }]);
     stepWorld(w, [{ id: 'p0', kind: 'move', to: v(0, 5) }]);
-    run(w, 0.3);
-    expect(w.projectiles.length).toBe(0);
-    expect(wz(w, 0).cd.fireball).toBe(0);
+    expect(wz(w, 0).pos.y).toBe(0); // parado enquanto conjura
+    run(w, 0.5);
+    expect(w.projectiles.length).toBe(1);
+    expect(wz(w, 0).pos.y).toBeGreaterThan(0.2);
   });
 
   it('nobody takes damage in the first 2 seconds', () => {

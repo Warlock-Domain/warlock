@@ -3,7 +3,7 @@ import { isCharacter } from '../shared/characters.ts';
 import type { PublicRoom, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView } from '../shared/snapshot.ts';
-import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
+import { ACTIVE_ITEMS, ITEM_CAST, type ItemId } from '../shared/items.ts';
 import { CAST_POINT, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { dist, len, type Vec } from '../shared/vec.ts';
 import { createInput } from './input.ts';
@@ -150,8 +150,8 @@ function startRoom(code: string, name: string) {
       if (!mine?.spells[spell]) return toast('Você ainda não tem essa magia. Compre na loja.');
       if ((lastSnap?.cd[i] ?? 0) > 0.1) return;
       command({ t: 'cast', spell, x: at.x, y: at.y });
-      // conjurando, o mago para (o servidor faz o mesmo)
-      if (CAST_POINT[spell] > 0) predict.stop();
+      // conjurando, o mago fica parado e o clique de andar espera a magia sair (o servidor faz o mesmo)
+      predict.hold(CAST_POINT[spell]);
       scene.castLocal(me, spell);
       scene.clickMarker(at, true);
       sound.play(spell);
@@ -161,7 +161,7 @@ function startRoom(code: string, name: string) {
       if (!mine?.items[item]) return toast('Você ainda não tem esse item. Compre na loja.');
       if ((lastSnap?.icd[ACTIVE_ITEMS.indexOf(item)] ?? 0) > 0.1) return;
       command({ t: 'item', item, x: at.x, y: at.y });
-      predict.stop();
+      predict.hold(ITEM_CAST[item] ?? 0);
       scene.clickMarker(at, true);
     },
     center: () => (follow = true),

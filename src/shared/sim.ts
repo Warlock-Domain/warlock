@@ -37,8 +37,9 @@ export type Wizard = {
   durF: number; // maestria de duração (multiplica escudo e pacto)
   rangeF: number; // maestria de alcance
   lifesteal: number; // fração do dano causado que volta como vida
-  // magia ou item sendo conjurado: sai em fireAt; andar ou parar cancela, como no Dota
-  casting: { spell?: SpellId; item?: ItemId; at: Vec; fireAt: number } | null;
+  // magia ou item sendo conjurado: sai em fireAt e o mago fica parado até lá (pedido do Fernando, 17/10:
+  // clicar para andar não cancela); o clique de andar fica guardado em `then` e vale quando a magia sai
+  casting: { spell?: SpellId; item?: ItemId; at: Vec; fireAt: number; then?: Vec | null } | null;
 };
 
 export type Projectile = {
@@ -505,11 +506,11 @@ export function stepWorld(w: World, cmds: Cmd[]) {
     const wz = byId(w, c.id);
     if (!wz) continue;
     if (c.kind === 'move') {
-      wz.target = c.to;
-      wz.casting = null;
+      if (wz.casting) wz.casting.then = c.to;
+      else wz.target = c.to;
     } else if (c.kind === 'stop') {
-      wz.target = null;
-      wz.casting = null;
+      if (wz.casting) wz.casting.then = null;
+      else wz.target = null;
     } else if (c.kind === 'item') beginCast(w, wz, { item: c.item }, c.at);
     else beginCast(w, wz, { spell: c.spell }, c.at);
   }
@@ -519,6 +520,7 @@ export function stepWorld(w: World, cmds: Cmd[]) {
       const c = wz.casting;
       wz.casting = null;
       fire(w, wz, c, c.at);
+      if (c.then !== undefined) wz.target = c.then;
     }
     wz.speed = Math.max(0.2, wz.baseSpeed - (w.t < wz.slowUntil ? PACT.slow : 0));
   }

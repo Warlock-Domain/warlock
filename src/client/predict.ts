@@ -7,6 +7,10 @@ import { add, dist, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 export function createPredict() {
   let me: Wizard | null = null;
   let rttSec = 0.1;
+  // conjurando: o mago fica parado até holdUntil; o clique de andar nesse meio-tempo fica guardado
+  let holdUntil = 0;
+  let queued: Vec | null | undefined;
+  const now = () => performance.now() / 1000;
 
   return {
     setRtt(ms: number) {
@@ -20,11 +24,19 @@ export function createPredict() {
     setSpeed(sp: number) {
       if (me && sp > 0) me.speed = sp;
     },
+    hold(secs: number) {
+      if (secs <= 0) return;
+      holdUntil = now() + secs;
+      queued = undefined;
+      if (me) me.target = null;
+    },
     move(to: Vec) {
-      if (me) me.target = to;
+      if (now() < holdUntil) queued = to;
+      else if (me) me.target = to;
     },
     stop() {
-      if (me) me.target = null;
+      if (now() < holdUntil) queued = null;
+      else if (me) me.target = null;
     },
     teleported(to: Vec) {
       if (!me) return;
@@ -42,6 +54,10 @@ export function createPredict() {
         me.pos = add(me.pos, scale(sub(server.pos, me.pos), 0.35));
         me.vel = v(0, 0);
         return me.pos;
+      }
+      if (queued !== undefined && now() >= holdUntil) {
+        me.target = queued;
+        queued = undefined;
       }
       moveWizard(me, dt);
       const slack = WIZ_SPEED * (rttSec / 2) + 0.3;

@@ -5,7 +5,7 @@ export const RULES: [string, string[]][] = [
     'O último vivo vence a rodada e ganha 1 ponto, como no Warlock original. Quem vencer 5 rodadas primeiro ganha a partida.',
     'A rodada só acaba quando sobra um. Se os últimos caírem juntos, vence quem tinha mais vida.',
     'Nos 2 primeiros segundos de cada rodada ninguém leva dano.',
-    'As magias saem 0,1 s depois da tecla (Escudo e Teleporte na hora) e o mago para enquanto conjura; andar cancela.',
+    'As magias saem 0,1 s depois da tecla (Escudo e Teleporte na hora) e o mago fica parado enquanto conjura; o clique de andar vale assim que a magia sai.',
   ]],
   ['Controles no PC', [
     'Botão direito no chão: andar (segure para arrastar o destino). S: parar.',
