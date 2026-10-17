@@ -1,9 +1,9 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
 import type { Snap } from './protocol.ts';
-import type { SimEvent, World } from './sim.ts';
+import { PROJ_KINDS, type ProjKind, type SimEvent, type World } from './sim.ts';
 import { OBSTACLES, OBSTACLE_KINDS, STUN_SPEED, type ObstacleKind } from './constants.ts';
 import { ACTIVE_ITEMS } from './items.ts';
-import { SPELL_IDS } from './spells.ts';
+import { SPELL_IDS, spellLevel } from './spells.ts';
 import { v, type Vec } from './vec.ts';
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -21,13 +21,18 @@ export function publicEvents(events: SimEvent[], pub: (id: string) => string): S
 export function encodeSnap(w: World, forId: string, ack: number, events: SimEvent[]): Snap {
   const wz: number[] = [];
   for (const z of w.wizards) {
-    // bits: 1 vivo, 2 escudo, 4 lento, 8 vulnerável (Redirecionador), 16 atordoado (arremessado), 32 invulnerável, 64 Pacto armado
+    // bits: 1 vivo, 2 escudo, 4 lento, 8 vulnerável (Redirecionador), 16 atordoado (arremessado), 32 invulnerável, 64 Pacto armado, 128 preso (Agarrar), 256 Investida
     const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0) | (w.t < z.slowUntil ? 4 : 0) | (w.t < z.kbPenaltyUntil ? 8 : 0)
-      | (Math.hypot(z.vel.x, z.vel.y) > STUN_SPEED ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0);
+      | (Math.hypot(z.vel.x, z.vel.y) > STUN_SPEED ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
+      | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0);
     wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x), r2(z.vel.y), Math.ceil(z.hp), r2(z.facing), bits);
   }
   const p: number[] = [];
-  for (const q of w.projectiles) p.push(q.id, q.kind === 'fireball' ? 0 : 1, r2(q.pos.x), r2(q.pos.y), r2(q.vel.x), r2(q.vel.y));
+  // o meteoro não anda: no lugar da velocidade vão o raio da explosão e os segundos que faltam para cair
+  for (const q of w.projectiles) {
+    const meteor = q.kind === 'meteor';
+    p.push(q.id, PROJ_KINDS.indexOf(q.kind), r2(q.pos.x), r2(q.pos.y), r2(meteor ? spellLevel('meteor', q.level).radius : q.vel.x), r2(meteor ? Math.max(0, q.until - w.t) : q.vel.y));
+  }
   const me = w.wizards.find((z) => z.id === forId);
   const cd = SPELL_IDS.map((s) => (me ? r2(Math.max(0, me.cd[s] - w.t)) : 0));
   const icd = ACTIVE_ITEMS.map((i) => (me ? r2(Math.max(0, me.itemCd[i] - w.t)) : 0));
@@ -39,7 +44,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
 }
 
 export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number };
-export type ProjView = { id: number; kind: 'fireball' | 'homing'; pos: Vec; vel: Vec };
+// meteor: vel = (raio, segundos até cair)
+export type ProjView = { id: number; kind: ProjKind; pos: Vec; vel: Vec };
 export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
 export type SnapView = { time: number; arenaR: number; shrinkAt: number; wizards: WizView[]; projectiles: ProjView[]; pillars: PillarView[] };
 
@@ -52,7 +58,7 @@ export function decodeSnap(s: Snap, ids: string[]): SnapView {
   const projectiles: ProjView[] = [];
   for (let i = 0; i < s.p.length; i += 6) {
     const [id, kind, x, y, vx, vy] = s.p.slice(i, i + 6);
-    projectiles.push({ id, kind: kind === 0 ? 'fireball' : 'homing', pos: v(x, y), vel: v(vx, vy) });
+    projectiles.push({ id, kind: PROJ_KINDS[kind] ?? 'fireball', pos: v(x, y), vel: v(vx, vy) });
   }
   const pillars: PillarView[] = [];
   for (let i = 0; i + 3 < (s.pl?.length ?? 0); i += 4) pillars.push({ pos: v(s.pl[i], s.pl[i + 1]), hp: s.pl[i + 2], kind: OBSTACLE_KINDS[s.pl[i + 3]] ?? 'pillar' });

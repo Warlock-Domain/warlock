@@ -14,6 +14,12 @@ import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
 import { askName, banner, createRoomUi, renderLobby, screen, toast, type RoomInfo } from './ui.ts';
 
+// som de cada magia: as novas reaproveitam os sons que já existem
+const SPELL_SOUND: Record<SpellId, SoundKind> = {
+  fireball: 'fireball', lightning: 'lightning', homing: 'homing', shield: 'shield', teleport: 'teleport',
+  swap: 'teleport', grip: 'lightning', meteor: 'fireball', rush: 'shield', cluster: 'fireball',
+};
+
 // localStorage pode falhar (aba anônima, dados bloqueados): cai para a memória
 const memory = new Map<string, string>();
 const store = {
@@ -156,7 +162,7 @@ function startRoom(code: string, name: string) {
       predict.hold(CAST_POINT[spell]);
       scene.castLocal(me, spell);
       scene.clickMarker(at, true);
-      sound.play(spell);
+      sound.play(SPELL_SOUND[spell]);
     },
     useItem(item, at) {
       const mine = room?.players.find((p) => p.id === me);
@@ -193,9 +199,10 @@ function startRoom(code: string, name: string) {
     for (const e of events) {
       if (e.k === 'cast' && e.id !== me) {
         const w = interp.latest()?.wizards.find((z) => z.id === e.id);
-        sound.play(e.spell as SoundKind, w ? near(w.pos.x, w.pos.y) : 0.5);
+        sound.play(SPELL_SOUND[e.spell], w ? near(w.pos.x, w.pos.y) : 0.5);
       } else if (e.k === 'hit') sound.play('hit', near(e.x, e.y));
       else if (e.k === 'pillar') sound.play('hit', near(e.x, e.y) * 0.6);
+      else if (e.k === 'grip') sound.play('hit', near(e.x, e.y));
       else if (e.k === 'reflect') sound.play('reflect', near(e.x, e.y));
       else if (e.k === 'teleport' && e.id === me) predict.teleported(e.to);
       else if (e.k === 'item') sound.play(e.item === 'redirector' ? 'teleport' : e.item === 'pact' ? 'shield' : 'homing', 0.7);
