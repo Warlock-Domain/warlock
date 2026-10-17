@@ -1,6 +1,7 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
 import type { Snap } from './protocol.ts';
 import type { SimEvent, World } from './sim.ts';
+import { ACTIVE_ITEMS } from './items.ts';
 import { SPELL_IDS } from './spells.ts';
 import { v, type Vec } from './vec.ts';
 
@@ -10,13 +11,14 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   const wz: number[] = [];
   for (const z of w.wizards) {
     const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0);
-    wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x), r2(z.vel.y), Math.ceil(z.hp), r2(z.facing), bits);
+    wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x), r2(z.vel.y), Math.ceil((z.hp / z.hpMax) * 100), r2(z.facing), bits);
   }
   const p: number[] = [];
   for (const q of w.projectiles) p.push(q.id, q.kind === 'fireball' ? 0 : 1, r2(q.pos.x), r2(q.pos.y), r2(q.vel.x), r2(q.vel.y));
   const me = w.wizards.find((z) => z.id === forId);
   const cd = SPELL_IDS.map((s) => (me ? r2(Math.max(0, me.cd[s] - w.t)) : 0));
-  const snap: Snap = { t: 'snap', time: r2(w.t * 1000) / 1000, r: r2(w.arenaR), s: r2(w.shrinkAt), w: wz, p, cd, ack };
+  const icd = ACTIVE_ITEMS.map((i) => (me ? r2(Math.max(0, me.itemCd[i] - w.t)) : 0));
+  const snap: Snap = { t: 'snap', time: r2(w.t * 1000) / 1000, r: r2(w.arenaR), s: r2(w.shrinkAt), w: wz, p, cd, icd, sp: r2(me?.speed ?? 0), ack };
   if (events.length) snap.e = events;
   return snap;
 }

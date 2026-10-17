@@ -1,6 +1,7 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { botBuy, botCmds } from './bots.ts';
 import { CHARACTERS, type CharacterId } from './characters.ts';
+import { itemPrice, noItems, type ItemId } from './items.ts';
 import {
   COUNTDOWN_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, WIN_GOLD, WINS_TO_WIN,
 } from './constants.ts';
@@ -18,6 +19,7 @@ export type Player = {
   score: number; // rodadas vencidas
   gold: number;
   spells: Record<SpellId, number>;
+  items: Record<ItemId, number>;
   ready: boolean;
   connected: boolean;
 };
@@ -51,7 +53,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false): bool
   const color = [0, 1, 2, 3, 4, 5, 6, 7].find((c) => !used.has(c)) ?? 0;
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
-  m.players.push({ id, name, bot, color, character, score: 0, gold: START_GOLD, spells: noSpells(), ready: bot, connected: true });
+  m.players.push({ id, name, bot, color, character, score: 0, gold: START_GOLD, spells: noSpells(), items: noItems(), ready: bot, connected: true });
   return true;
 }
 
@@ -69,7 +71,7 @@ export function startMatch(m: Match, now: number, bots: number): boolean {
   m.players = m.players.filter((p) => !p.bot && p.connected);
   for (let i = 0; m.players.length < MAX_PLAYERS && i < bots; i++) addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true);
   if (m.players.length < 2) return false;
-  for (const p of m.players) Object.assign(p, { score: 0, gold: START_GOLD, spells: noSpells() });
+  for (const p of m.players) Object.assign(p, { score: 0, gold: START_GOLD, spells: noSpells(), items: noItems() });
   Object.assign(m, { round: 0, winner: null, lastRoundWinner: null, steps: 0 });
   enterShop(m, now);
   return true;
@@ -93,6 +95,16 @@ export function setCharacter(m: Match, id: string, character: CharacterId): bool
   return true;
 }
 
+export function buyItem(m: Match, id: string, item: ItemId): boolean {
+  const p = m.players.find((q) => q.id === id);
+  if (m.phase !== 'shop' || !p) return false;
+  const price = itemPrice(p.items, item);
+  if (price === null || p.gold < price) return false;
+  p.gold -= price;
+  p.items[item]++;
+  return true;
+}
+
 export function setReady(m: Match, id: string) {
   const p = m.players.find((q) => q.id === id);
   if (m.phase === 'shop' && p) p.ready = true;
@@ -101,7 +113,10 @@ export function setReady(m: Match, id: string) {
 // a sala reiniciou (o mundo da rodada só vive na memória): repete a rodada a partir da loja
 export function resume(m: Match, now: number) {
   // salas gravadas antes da escolha de personagem existir
-  for (const p of m.players) p.character ??= 'mage';
+  for (const p of m.players) {
+    p.character ??= 'mage';
+    p.items ??= noItems();
+  }
   if (m.phase === 'countdown' || m.phase === 'playing') {
     m.round--;
     enterShop(m, now);
@@ -116,14 +131,14 @@ function enterShop(m: Match, now: number) {
   m.world = null;
   for (const p of m.players) {
     p.ready = p.bot;
-    for (let s = botBuy(p); p.bot && s && buy(m, p.id, s); s = botBuy(p));
+    for (let b = botBuy(p); p.bot && b && (b.kind === 'spell' ? buy(m, p.id, b.id) : buyItem(m, p.id, b.id)); b = botBuy(p));
   }
 }
 
 function enterCountdown(m: Match, now: number) {
   m.round++;
   const ids = m.players.map((p) => p.id);
-  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])));
+  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])));
   m.phase = 'countdown';
   m.phaseEnds = now + COUNTDOWN_MS;
 }

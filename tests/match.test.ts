@@ -4,6 +4,7 @@ import { ARENA_R0, COUNTDOWN_MS, DT, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GO
 import { SPELLS } from '../src/shared/spells.ts';
 import { addPlayer, buy, newMatch, removePlayer, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { newWorld } from '../src/shared/sim.ts';
+import { noItems } from '../src/shared/items.ts';
 import { noSpells } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
 
@@ -192,9 +193,10 @@ describe('partida', () => {
 
 describe('bots', () => {
   it('bot buys cheapest missing spell', () => {
-    expect(botBuy({ gold: 11, spells: noSpells() })).toBe('lightning');
-    expect(botBuy({ gold: 10, spells: noSpells() })).toBe('fireball');
-    expect(botBuy({ gold: 6, spells: noSpells() })).toBeNull();
+    expect(botBuy({ gold: 11, spells: noSpells(), items: noItems() })).toEqual({ kind: 'spell', id: 'lightning' });
+    // sem dinheiro para magia nova: compra armadura (6) antes de melhorar a bola de fogo (7)
+    expect(botBuy({ gold: 10, spells: noSpells(), items: noItems() })).toEqual({ kind: 'item', id: 'armor' });
+    expect(botBuy({ gold: 2, spells: noSpells(), items: noItems() })).toBeNull();
   });
 
   it('bot walks inward when near edge', () => {

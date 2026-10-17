@@ -1,8 +1,9 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
-  ARENA_STEP, CREDIT_WINDOW, DT, FRICTION, HP_MAX, HP_REGEN, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
+  ARENA_STEP, CREDIT_WINDOW, DT, FRICTION, HP_MAX, HP_REGEN, KB_PER_DMG, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
   WIZ_R, WIZ_SPEED, arenaRadius,
 } from './constants.ts';
+import { ACTIVE_ITEMS, PACT, REDIRECTOR, SCOURGE, itemStats, noItems, type ItemId } from './items.ts';
 import { HOMING_TURN, SPELL_IDS, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
@@ -20,6 +21,18 @@ export type Wizard = {
   lastHitAt: number;
   spells: Record<SpellId, number>; // nível; 0 = não tem
   cd: Record<SpellId, number>; // instante (w.t) em que fica pronta
+  items: Record<ItemId, number>;
+  itemCd: Record<ItemId, number>;
+  hpMax: number;
+  regen: number;
+  kbResist: number; // fração de empurrão a menos (itens)
+  baseSpeed: number;
+  speed: number; // velocidade de andar agora (botas, lentidão do Pacto)
+  debuffMult: number; // duração de lentidões e penalidades
+  kbPenaltyUntil: number; // Redirecionador: voa mais longe até este instante
+  pactUntil: number; // Pacto armado até este instante
+  slowUntil: number;
+  scourgeAt: number; // Flagelo explode neste instante (0 = nada preparado)
 };
 
 export type Projectile = {
@@ -31,12 +44,14 @@ export type Projectile = {
   level: number;
   until: number;
   target: string | null;
+  dmgMult: number; // Pacto
 };
 
 export type Cmd =
   | { id: string; kind: 'move'; to: Vec }
   | { id: string; kind: 'stop' }
-  | { id: string; kind: 'cast'; spell: SpellId; at: Vec };
+  | { id: string; kind: 'cast'; spell: SpellId; at: Vec }
+  | { id: string; kind: 'item'; item: ItemId; at: Vec };
 
 export type SimEvent =
   | { k: 'cast'; id: string; spell: SpellId }
@@ -45,7 +60,10 @@ export type SimEvent =
   | { k: 'lightning'; from: Vec; to: Vec }
   | { k: 'teleport'; id: string; from: Vec; to: Vec }
   | { k: 'death'; id: string; by: string | null }
-  | { k: 'shrink'; r: number };
+  | { k: 'shrink'; r: number }
+  | { k: 'item'; id: string; item: ItemId }
+  | { k: 'scourge'; id: string; x: number; y: number; r: number }
+  | { k: 'redirect'; x: number; y: number };
 
 export type World = {
   t: number;
@@ -57,18 +75,20 @@ export type World = {
   nextId: number;
 };
 
-export function newWorld(ids: string[], spells: Record<string, Record<SpellId, number>>): World {
+export function newWorld(ids: string[], spells: Record<string, Record<SpellId, number>>, items: Record<string, Record<ItemId, number>> = {}): World {
   const arenaR = arenaRadius(ids.length);
   const r = arenaR - SPAWN_INSET;
   const wizards = ids.map((id, i): Wizard => {
     const a = (i / ids.length) * Math.PI * 2;
+    const own = { ...noItems(), ...items[id] };
+    const st = itemStats(own);
     return {
       id,
       pos: v(Math.cos(a) * r, Math.sin(a) * r),
       vel: v(0, 0),
       target: null,
       facing: a + Math.PI,
-      hp: HP_MAX,
+      hp: HP_MAX + st.hp,
       dmgTaken: 0,
       alive: true,
       shieldUntil: 0,
@@ -76,6 +96,18 @@ export function newWorld(ids: string[], spells: Record<string, Record<SpellId, n
       lastHitAt: -1e9,
       spells: { ...spells[id] },
       cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])) as Record<SpellId, number>,
+      items: own,
+      itemCd: noItems(),
+      hpMax: HP_MAX + st.hp,
+      regen: HP_REGEN + st.regen,
+      kbResist: st.kb,
+      baseSpeed: WIZ_SPEED + st.speed,
+      speed: WIZ_SPEED + st.speed,
+      debuffMult: Math.max(0, 1 + st.debuff),
+      kbPenaltyUntil: 0,
+      pactUntil: 0,
+      slowUntil: 0,
+      scourgeAt: 0,
     };
   });
   return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], events: [], nextId: 1 };
@@ -87,7 +119,7 @@ export function moveWizard(wz: Wizard, dt: number) {
   if (wz.target && !isSliding(wz)) {
     const d = sub(wz.target, wz.pos);
     const l = len(d);
-    const step = WIZ_SPEED * dt;
+    const step = (wz.speed ?? WIZ_SPEED) * dt;
     if (l <= step) {
       wz.pos = wz.target;
       wz.target = null;
@@ -105,7 +137,8 @@ const byId = (w: World, id: string | null) => w.wizards.find((z) => z.id === id 
 const shielded = (w: World, wz: Wizard) => w.t < wz.shieldUntil;
 
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec) {
-  const mult = 1 + (KNOCK_HP_SCALE * target.dmgTaken) / HP_MAX;
+  const penalty = w.t < target.kbPenaltyUntil ? REDIRECTOR.kbPenalty : 0;
+  const mult = (1 + (KNOCK_HP_SCALE * target.dmgTaken) / HP_MAX) * Math.max(0, 1 - target.kbResist + penalty);
   target.hp -= dmg;
   target.dmgTaken += dmg;
   target.vel = add(target.vel, scale(norm(dir), knock * mult));
@@ -142,6 +175,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   if (!level || w.t < wz.cd[spell]) return;
   const L = spellLevel(spell, level);
   wz.cd[spell] = w.t + L.cd;
+  const dmgMult = L.dmg > 0 ? usePact(w, wz) : 1;
   const dir = norm(sub(at, wz.pos));
   wz.facing = Math.atan2(dir.y, dir.x);
   w.events.push({ k: 'cast', id: wz.id, spell });
@@ -157,6 +191,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
       level,
       until: w.t + (homing ? L.duration : L.range / L.speed),
       target: homing ? (nearestEnemy(w, at, wz.id)?.id ?? null) : null,
+      dmgMult,
     });
   } else if (spell === 'lightning') {
     const end = add(wz.pos, scale(dir, L.range));
@@ -167,8 +202,8 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     if (shielded(w, target)) {
       w.events.push({ k: 'reflect', id: target.id, x: target.pos.x, y: target.pos.y });
       w.events.push({ k: 'lightning', from: target.pos, to: wz.pos });
-      hit(w, wz, target.id, L.dmg, L.knock, scale(dir, -1));
-    } else hit(w, target, wz.id, L.dmg, L.knock, dir);
+      hit(w, wz, target.id, L.dmg * dmgMult, L.knock * dmgMult, scale(dir, -1));
+    } else hit(w, target, wz.id, L.dmg * dmgMult, L.knock * dmgMult, dir);
   } else if (spell === 'shield') {
     wz.shieldUntil = w.t + L.duration;
   } else {
@@ -177,6 +212,53 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     wz.target = null;
     w.events.push({ k: 'teleport', id: wz.id, from, to: wz.pos });
   }
+}
+
+// Pacto armado: esta magia sai 1,5× mais forte, o Pacto acaba e o mago fica lento
+function usePact(w: World, wz: Wizard): number {
+  if (w.t >= wz.pactUntil) return 1;
+  wz.pactUntil = 0;
+  wz.slowUntil = w.t + PACT.slowTime * wz.debuffMult;
+  return PACT.mult;
+}
+
+function useItem(w: World, wz: Wizard, item: ItemId, at: Vec) {
+  const level = wz.items[item];
+  if (!level || !ACTIVE_ITEMS.includes(item) || w.t < wz.itemCd[item]) return;
+  w.events.push({ k: 'item', id: wz.id, item });
+  if (item === 'scourge') {
+    wz.itemCd.scourge = w.t + SCOURGE.cd;
+    wz.scourgeAt = w.t + SCOURGE.windup;
+  } else if (item === 'pact') {
+    wz.itemCd.pact = w.t + PACT.cd;
+    wz.pactUntil = w.t + PACT.window;
+  } else {
+    wz.itemCd.redirector = w.t + REDIRECTOR.cd;
+    wz.kbPenaltyUntil = w.t + REDIRECTOR.penaltyTime * wz.debuffMult;
+    let best: Projectile | null = null;
+    for (const p of w.projectiles) if (p.owner === wz.id && (!best || dist(p.pos, at) < dist(best.pos, at))) best = p;
+    if (!best) return;
+    best.vel = scale(norm(sub(at, best.pos)), len(best.vel));
+    best.until += REDIRECTOR.extraLife;
+    best.target = null; // o míssil passa a seguir reto para onde foi mandado
+    w.events.push({ k: 'redirect', x: best.pos.x, y: best.pos.y });
+  }
+}
+
+// Flagelo: explosão em volta; quanto mais perto do centro, mais empurrão; o próprio mago perde a mesma vida (fica com 1 no mínimo)
+function scourge(w: World, wz: Wizard) {
+  wz.scourgeAt = 0;
+  const mult = usePact(w, wz);
+  const dmg = SCOURGE.dmg[wz.items.scourge - 1] * mult;
+  for (const o of w.wizards) {
+    if (!o.alive || o.id === wz.id) continue;
+    const d = dist(o.pos, wz.pos);
+    if (d > SCOURGE.radius + WIZ_R) continue;
+    const factor = 0.75 + 0.25 * Math.max(0, 1 - d / SCOURGE.radius);
+    hit(w, o, wz.id, dmg, dmg * KB_PER_DMG * factor, sub(o.pos, wz.pos));
+  }
+  wz.hp = Math.max(1, wz.hp - dmg);
+  w.events.push({ k: 'scourge', id: wz.id, x: wz.pos.x, y: wz.pos.y, r: SCOURGE.radius });
 }
 
 function stepProjectiles(w: World) {
@@ -208,7 +290,7 @@ function stepProjectiles(w: World) {
         keep.push(p);
         continue;
       }
-      hit(w, wz, p.owner, L.dmg, L.knock, p.vel);
+      hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel);
       continue;
     }
     p.pos = next;
@@ -241,7 +323,13 @@ export function stepWorld(w: World, cmds: Cmd[]) {
     if (!wz) continue;
     if (c.kind === 'move') wz.target = c.to;
     else if (c.kind === 'stop') wz.target = null;
+    else if (c.kind === 'item') useItem(w, wz, c.item, c.at);
     else cast(w, wz, c.spell, c.at);
+  }
+  for (const wz of w.wizards) {
+    if (!wz.alive) continue;
+    if (wz.scourgeAt && w.t >= wz.scourgeAt) scourge(w, wz);
+    wz.speed = Math.max(0.2, wz.baseSpeed - (w.t < wz.slowUntil ? PACT.slow : 0));
   }
 
   if (w.t >= w.shrinkAt) {
@@ -259,7 +347,7 @@ export function stepWorld(w: World, cmds: Cmd[]) {
     if (len(wz.pos) > w.arenaR) {
       wz.hp -= LAVA_DPS * DT;
       wz.dmgTaken += LAVA_DPS * DT * LAVA_KB_FACTOR;
-    } else wz.hp = Math.min(HP_MAX, wz.hp + HP_REGEN * DT);
+    } else wz.hp = Math.min(wz.hpMax, wz.hp + wz.regen * DT);
     if (wz.hp > 0) continue;
     wz.hp = 0;
     wz.alive = false;
