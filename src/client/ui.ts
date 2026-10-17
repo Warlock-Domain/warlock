@@ -190,7 +190,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     itemButtons.set(i, { b, cd });
     bar.append(b);
   }
-  root.replaceChildren(el('div', { class: 'hud' }, top, players, timer, center, bar), el('div', { class: 'labels', id: 'labels' }));
+  const passives = el('div', { class: 'passives' });
+  const barWrap = el('div', { class: 'barwrap' }, passives, bar);
+  root.replaceChildren(el('div', { class: 'hud' }, top, players, timer, center, barWrap), el('div', { class: 'labels', id: 'labels' }));
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
@@ -248,8 +250,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   function shopPanel(r: PublicRoom) {
     const mine = r.players.find((p) => p.id === me);
     if (!mine) return el('div', { class: 'card' }, el('p', {}, 'Você está assistindo. Entra na próxima partida.'));
-    return el('div', { class: 'card shop' },
-      el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? 'Loja' : `Loja · depois da rodada ${r.round}`), el('span', { class: 'gold' }, `🪙 ${mine.gold}`)),
+    // duas colunas: compras à esquerda; ouro, Pronto, placar e personagem à direita (pedido do Fernando: loja mais larga)
+    return el('div', { class: 'card shop' }, el('div', { class: 'shop-main' },
+      el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? 'Loja' : `Loja · depois da rodada ${r.round}`)),
       el('div', { class: 'shop-grid' }, ...SPELL_IDS.map((s) => {
         const lvl = mine.spells[s];
         const price = priceOf(s, lvl);
@@ -288,9 +291,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         el('small', {}, 'Sobe Duração, Alcance e Roubo de vida um nível cada.'),
         el('button', { type: 'button', 'data-key': 'mastery-all', disabled: MASTERY_IDS.some((k) => mine.masteries[k] >= MASTERY_MAX) || mine.gold < MASTERY_ALL_COST, onclick: () => act.buyMastery('all') }, `Subir as três · ${MASTERY_ALL_COST}`),
       )),
-      picker(r),
-      el('button', { type: 'button', class: 'primary big', disabled: mine.ready, onclick: act.ready }, mine.ready ? 'Esperando os outros…' : 'Pronto'),
-      board(r, me),
+      ),
+      el('aside', { class: 'shop-side' },
+        el('span', { class: 'gold big' }, `🪙 ${mine.gold}`),
+        el('button', { type: 'button', class: 'primary big', disabled: mine.ready, onclick: act.ready }, mine.ready ? 'Esperando os outros…' : 'Pronto'),
+        board(r, me),
+        picker(r),
+      ),
     );
   }
 
@@ -300,6 +307,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // redesenhar a loja não pode tirar o foco de quem usa o teclado
     const focused = (document.activeElement as HTMLElement | null)?.dataset?.key;
     hideTip();
+    center.classList.toggle('wide', r.phase === 'shop');
     center.replaceChildren(r.phase === 'lobby' || r.phase === 'end' ? lobbyPanel(r) : r.phase === 'shop' ? shopPanel(r) : '');
     if (focused) (center.querySelector(`[data-key="${focused}"]`) as HTMLElement | null)?.focus();
   }
@@ -316,13 +324,17 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       ));
       mine = r.players.find((p) => p.id === you);
       for (const i of ACTIVE_ITEMS) itemButtons.get(i)!.b.hidden = !mine?.items[i];
+      // barra da partida: só magias e itens equipados; passivos viram selos pequenos acima dela
+      passives.replaceChildren(...ITEM_IDS.filter((i) => !ITEMS[i].key && (mine?.items[i] ?? 0) > 0).map((i) =>
+        withTip(el('span', { class: 'passive', tabindex: 0, 'aria-label': ITEMS[i].name }, ITEM_ICON[i], el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0)),
+      ));
       for (const s of SPELL_IDS) {
         const { b, pips } = buttons.get(s)!;
         const lvl = mine?.spells[s] ?? 0;
-        b.classList.toggle('locked', lvl === 0);
+        b.hidden = lvl === 0;
         pips.replaceChildren(...Array.from({ length: MAX_SPELL_LEVEL }, (_, n) => el('i', { class: n < lvl ? 'on' : '' })));
       }
-      bar.hidden = r.phase === 'lobby' || r.phase === 'end' || r.phase === 'shop' || !mine;
+      barWrap.hidden = r.phase === 'lobby' || r.phase === 'end' || r.phase === 'shop' || !mine;
       drawCenter();
     },
     setOnline(on: boolean) {
