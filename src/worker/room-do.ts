@@ -33,7 +33,11 @@ export class Room extends DurableObject<Env> {
   private async load(): Promise<Saved | null> {
     if (this.saved === undefined) {
       this.saved = (await this.ctx.storage.get<Saved>('room')) ?? null;
-      if (this.saved) resume(this.saved.match, Date.now());
+      if (this.saved) {
+        resume(this.saved.match, Date.now());
+        // a sala reiniciou (ex.: publicação nova) com gente conectada: avisa a fase nova e religa o laço
+        void this.changed();
+      }
     }
     return this.saved;
   }

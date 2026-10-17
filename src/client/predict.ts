@@ -23,7 +23,10 @@ export function createPredict() {
       if (me) me.target = null;
     },
     teleported(to: Vec) {
-      if (me) me.pos = to;
+      if (!me) return;
+      // o servidor também esquece o destino ao teleportar
+      me.pos = to;
+      me.target = null;
     },
     // server = o estado mais novo do próprio mago que chegou (cerca de meia ida e volta atrás)
     frame(server: WizView, dt: number): Vec {
