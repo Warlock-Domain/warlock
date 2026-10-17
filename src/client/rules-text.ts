@@ -7,6 +7,11 @@ export const RULES: [string, string[]][] = [
     'Nos 2 primeiros segundos de cada rodada ninguém leva dano.',
     'As magias saem 0,1 s depois da tecla (Escudo e Teleporte na hora) e o mago fica parado enquanto conjura; o clique de andar vale assim que a magia sai.',
   ]],
+  ['Deathmatch', [
+    'Quem começa a partida escolhe o modo na sala de espera: Rodadas ou Deathmatch (como no Warlock Brawl).',
+    'Cada rodada dura 60 segundos e a arena não encolhe. Quem cai volta 10 segundos depois, num ponto sorteado na pedra longe dos inimigos, com vida cheia e 2 segundos sem levar dano; magias, itens e maestrias continuam.',
+    'Cada abate vale 1 ponto (cair sozinho na lava não vale). Entre as rodadas tem a loja de sempre. A partida acaba no fim da rodada em que alguém chega a 15 pontos, e vence quem tiver mais (empate joga mais uma rodada).',
+  ]],
   ['Controles no PC', [
     'Botão direito no chão: andar (segure para arrastar o destino). S: parar.',
     'Q bola de fogo · W raio · E míssil teleguiado · R escudo · F teleporte: saem na direção do cursor.',

@@ -60,6 +60,8 @@ h2.title { font-family: var(--display); font-size: 1.6rem; text-transform: none;
 .players li.me { background: rgba(255, 179, 71, .14); }
 .players b { font-variant-numeric: tabular-nums; }
 .timer { position: absolute; left: 50%; top: calc(14px + var(--safe-t)); transform: translateX(-50%); font-weight: 700; text-shadow: 0 2px 6px #000; pointer-events: none; white-space: nowrap; }
+.respawn { position: absolute; left: 50%; top: 38%; transform: translateX(-50%); font-family: var(--display); font-size: clamp(1.6rem, 5vw, 2.8rem); color: var(--ember); text-shadow: 0 2px 8px #000; pointer-events: none; white-space: nowrap; }
+.mode { display: grid; gap: 6px; }
 .timer.countdown { top: 34%; font-family: var(--display); font-size: clamp(4rem, 14vw, 8rem); color: var(--ember); }
 .center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, calc(100% - 24px)); max-height: calc(100% - 150px - var(--safe-t) - var(--safe-b)); overflow-y: auto; }
 .center:empty { display: none; }

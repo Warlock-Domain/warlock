@@ -8,7 +8,7 @@ import { MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, noMasteries, 
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
 const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
 import {
-  COUNTDOWN_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, WIN_GOLD, WINS_TO_WIN,
+  COUNTDOWN_MS, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, WIN_GOLD, WINS_TO_WIN,
 } from './constants.ts';
 import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.ts';
 import { noSpells, priceOf, type SpellId } from './spells.ts';
@@ -28,6 +28,8 @@ function earn(p: Player, gold: number) {
   addStat(p, (s) => (s.gold += gold));
 }
 
+// rounds: último vivo ganha a rodada; deathmatch: rodadas de 60 s, quem morre volta e cada abate vale 1 ponto
+export type Mode = 'rounds' | 'deathmatch';
 export type Phase = 'lobby' | 'shop' | 'countdown' | 'playing' | 'roundEnd' | 'end';
 
 export type Player = {
@@ -36,7 +38,7 @@ export type Player = {
   bot: boolean;
   color: number; // 0..7
   character: CharacterId;
-  score: number; // rodadas vencidas
+  score: number; // rodadas vencidas (deathmatch: abates)
   gold: number;
   spells: Record<SpellId, number>;
   items: Record<ItemId, number>;
@@ -50,6 +52,7 @@ export type Player = {
 
 export type Match = {
   phase: Phase;
+  mode: Mode;
   round: number;
   phaseEnds: number;
   players: Player[];
@@ -61,7 +64,7 @@ export type Match = {
 };
 
 export const newMatch = (): Match => ({
-  phase: 'lobby', round: 0, phaseEnds: 0, players: [], world: null, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0,
+  phase: 'lobby', mode: 'rounds', round: 0, phaseEnds: 0, players: [], world: null, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0,
 });
 
 const BOT_NAMES = ['Gul’dan', 'Merlim', 'Morgana', 'Rasputin', 'Zatanna', 'Mandrake', 'Gandalfo'];
@@ -91,7 +94,7 @@ export function removePlayer(m: Match, id: string) {
   }
 }
 
-export function startMatch(m: Match, now: number, bots: number): boolean {
+export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'rounds'): boolean {
   if (m.phase !== 'lobby' && m.phase !== 'end') return false;
   m.players = m.players.filter((p) => !p.bot && p.connected);
   for (let i = 0; m.players.length < MAX_PLAYERS && i < bots; i++) addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true);
@@ -107,7 +110,7 @@ export function startMatch(m: Match, now: number, bots: number): boolean {
     p.stats.match = newStat();
     p.stats.round = newStat();
   }
-  Object.assign(m, { round: 0, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0 });
+  Object.assign(m, { mode, round: 0, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0 });
   enterShop(m, now);
   return true;
 }
@@ -179,8 +182,9 @@ export function setReady(m: Match, id: string): boolean {
 
 // a sala reiniciou (o mundo da rodada só vive na memória): repete a rodada a partir da loja
 export function resume(m: Match, now: number) {
-  // salas gravadas antes da escolha de personagem existir
+  // salas gravadas antes da escolha de personagem e do deathmatch existirem
   m.emptyRounds ??= 0;
+  m.mode ??= 'rounds';
   for (const p of m.players) {
     p.character ??= 'mage';
     p.items ??= noItems();
@@ -202,6 +206,7 @@ export function kick(m: Match, id: string): boolean {
   if (wz) {
     wz.alive = false;
     wz.hp = 0;
+    wz.respawnAt = Infinity; // no deathmatch o expulso não volta
   }
   return true;
 }
@@ -231,27 +236,39 @@ function enterCountdown(m: Match, now: number) {
   m.round++;
   for (const p of m.players) p.stats.round = newStat();
   const ids = m.players.map((p) => p.id);
-  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), Object.fromEntries(m.players.map((p) => [p.id, p.masteries])), PILLAR.min + Math.floor(Math.random() * (PILLAR.max - PILLAR.min + 1)));
+  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), Object.fromEntries(m.players.map((p) => [p.id, p.masteries])), PILLAR.min + Math.floor(Math.random() * (PILLAR.max - PILLAR.min + 1)), Math.random, m.mode === 'deathmatch');
   m.phase = 'countdown';
   m.phaseEnds = now + COUNTDOWN_MS;
 }
 
 function endRound(m: Match, now: number, winner: string | null) {
+  const dm = m.mode === 'deathmatch';
   const p = m.players.find((q) => q.id === winner);
-  if (p) {
+  // no deathmatch os pontos já vieram dos abates; aqui o vencedor é só quem fez mais abates na rodada
+  if (p && !dm) {
     p.score++;
     earn(p, WIN_GOLD);
   }
   const played = new Set(m.world?.wizards.map((z) => z.id));
   for (const q of m.players) if (played.has(q.id)) earn(q, ROUND_GOLD);
   m.lastRoundWinner = winner;
-  m.emptyRounds = winner ? 0 : m.emptyRounds + 1;
+  m.emptyRounds = winner || dm ? 0 : m.emptyRounds + 1;
   m.phase = 'roundEnd';
   m.phaseEnds = now + ROUND_END_MS;
 }
 
 // como no original: ganha quem vencer WINS_TO_WIN rodadas primeiro
 function afterRound(m: Match, now: number) {
+  if (m.mode === 'deathmatch') {
+    // a meta só vale no fim da rodada (a rodada sempre dura os 60 s); empate no topo joga mais uma rodada
+    const best = Math.max(...m.players.map((p) => p.score));
+    const top = m.players.filter((p) => p.score === best);
+    if (best < DM_KILLS_TO_WIN || top.length > 1) return enterShop(m, now);
+    m.phase = 'end';
+    m.winner = top[0].id;
+    m.world = null;
+    return;
+  }
   const champion = m.players.find((p) => p.score >= WINS_TO_WIN);
   // 3 rodadas seguidas sem ninguém sobrar: todo mundo parado, a partida acaba (e o laço da sala para)
   if (!champion && m.emptyRounds < EMPTY_ROUNDS_END) return enterShop(m, now);
@@ -262,6 +279,13 @@ function afterRound(m: Match, now: number) {
 
 export const EMPTY_ROUNDS_END = 3;
 
+// quem fez mais abates na rodada; empate ou zero abates = ninguém
+function topKiller(m: Match): string | null {
+  const best = Math.max(...m.players.map((p) => p.stats.round.kills));
+  const top = m.players.filter((p) => p.stats.round.kills === best);
+  return best > 0 && top.length === 1 ? top[0].id : null;
+}
+
 export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number = Math.random): SimEvent[] {
   if (m.phase === 'shop') {
     const humans = m.players.filter((p) => !p.bot && p.connected);
@@ -269,7 +293,10 @@ export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number
     return [];
   }
   if (m.phase === 'countdown') {
-    if (now >= m.phaseEnds) m.phase = 'playing';
+    if (now >= m.phaseEnds) {
+      m.phase = 'playing';
+      if (m.mode === 'deathmatch') m.phaseEnds = now + DM_ROUND_MS;
+    }
     return [];
   }
   if (m.phase === 'roundEnd') {
@@ -286,7 +313,7 @@ export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number
   });
   // a rodada só acaba quando sobra 1: se os últimos morrerem no mesmo passo, vence quem tinha mais vida
   const before = w.wizards.filter((z) => z.alive).map((z) => ({ id: z.id, hp: z.hp }));
-  stepWorld(w, all);
+  stepWorld(w, all, rand);
   for (const e of w.events) {
     if (e.k === 'hit' && e.by !== e.id) {
       const p = m.players.find((q) => q.id === e.by);
@@ -299,11 +326,16 @@ export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number
       const bucket = e.k === 'fire' ? 'fired' : 'landed';
       if (p) addStat(p, (s) => (s[bucket][e.src] = (s[bucket][e.src] ?? 0) + 1));
     } else if (e.k === 'death' && e.by && e.by !== e.id) {
-      // abate não vale ponto no original, só ouro (zero no padrão); entra no placar
+      // nas rodadas o abate não vale ponto (como no original), só ouro (zero no padrão); no deathmatch vale 1 ponto
       const killer = m.players.find((p) => p.id === e.by);
       if (killer) addStat(killer, (s) => (s.kills += 1));
+      if (killer && m.mode === 'deathmatch') killer.score++;
       if (killer && KILL_GOLD) earn(killer, KILL_GOLD);
     }
+  }
+  if (m.mode === 'deathmatch') {
+    if (now >= m.phaseEnds) endRound(m, now, topKiller(m));
+    return w.events;
   }
   const alive = w.wizards.filter((z) => z.alive);
   if (alive.length === 1) endRound(m, now, alive[0].id);
