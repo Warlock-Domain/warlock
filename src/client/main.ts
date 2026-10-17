@@ -1,0 +1,266 @@
+import { SHRINK_EVERY, STUN_SPEED } from '../shared/constants.ts';
+import type { PublicRoom, ServerMsg, Snap } from '../shared/protocol.ts';
+import type { SimEvent } from '../shared/sim.ts';
+import { decodeSnap, type SnapView } from '../shared/snapshot.ts';
+import { SPELL_IDS, type SpellId } from '../shared/spells.ts';
+import { dist, len, type Vec } from '../shared/vec.ts';
+import { createInput } from './input.ts';
+import { createInterp } from './interp.ts';
+import { connect } from './net.ts';
+import { createPredict } from './predict.ts';
+import { createScene, type WizDraw } from './scene.ts';
+import { createSound, type SoundKind } from './sound.ts';
+import { askName, banner, createRoomUi, renderLobby, screen, toast, type RoomInfo } from './ui.ts';
+
+// localStorage pode falhar (aba anônima, dados bloqueados): cai para a memória
+const memory = new Map<string, string>();
+const store = {
+  get(k: string): string | null {
+    try {
+      return localStorage.getItem(k) ?? memory.get(k) ?? null;
+    } catch {
+      return memory.get(k) ?? null;
+    }
+  },
+  set(k: string, v: string) {
+    memory.set(k, v);
+    try {
+      localStorage.setItem(k, v);
+    } catch {
+      // só na memória
+    }
+  },
+};
+
+// ?as=nome dá outra identidade na mesma máquina (testar com várias abas)
+const as = new URLSearchParams(location.search).get('as')?.replace(/[^a-z0-9]/gi, '').slice(0, 12) ?? '';
+const PID = 'warlock:pid' + (as && ':' + as);
+const NAME = 'warlock:name' + (as && ':' + as);
+const playerId = store.get(PID) ?? crypto.randomUUID();
+store.set(PID, playerId);
+
+const ui = document.getElementById('ui')!;
+const canvas = document.getElementById('c') as HTMLCanvasElement;
+addEventListener('hashchange', () => location.reload());
+
+async function main() {
+  const name = store.get(NAME) || (await askName(ui, as));
+  store.set(NAME, name);
+  const id = location.hash.slice(1).toUpperCase();
+  if (/^[A-Z]{4}$/.test(id)) startRoom(id, name);
+  else startLobby(name);
+}
+
+function startLobby(name: string) {
+  document.body.className = 'in-lobby';
+  let rooms: RoomInfo[] | null = null;
+  const draw = () =>
+    renderLobby(ui, name, rooms, create, async () => {
+      name = await askName(document.body, name);
+      store.set(NAME, name);
+      draw();
+    });
+  async function create() {
+    try {
+      const res = await fetch('/api/rooms', { method: 'POST' });
+      if (!res.ok) throw new Error(String(res.status));
+      location.hash = (await res.json()).id;
+    } catch {
+      toast('Não deu para criar a sala. Tente de novo.');
+    }
+  }
+  connect('/ws/lobby', (m) => {
+    if (m.t !== 'rooms') return;
+    rooms = (m.rooms as RoomInfo[]).sort((a, b) => Number(b.phase === 'lobby') - Number(a.phase === 'lobby'));
+    draw();
+  }, () => {});
+  draw();
+}
+
+function startRoom(code: string, name: string) {
+  document.body.className = 'in-room';
+  let muted = store.get('warlock:mute') === '1';
+  const sound = createSound(() => muted);
+  let room: PublicRoom | null = null;
+  let me = playerId;
+  let online = false;
+  let armed: SpellId | null = null;
+  let seq = 0;
+  const sentAt = new Map<number, number>();
+  let lastSnap: Snap | null = null;
+  let follow = true;
+
+  const view = createRoomUi(ui, code, {
+    start: (bots) => net.send({ t: 'start', bots }),
+    buy: (spell) => net.send({ t: 'buy', spell }),
+    ready: () => net.send({ t: 'ready' }),
+    spell: (s) => input.button(s),
+    toggleMute: () => {
+      muted = !muted;
+      store.set('warlock:mute', muted ? '1' : '0');
+      return muted;
+    },
+  });
+  const scene = createScene(canvas, document.getElementById('labels')!);
+  const interp = createInterp();
+  const predict = createPredict();
+
+  const myWizard = (s: SnapView | null) => s?.wizards.find((w) => w.id === me) ?? null;
+
+  function command(msg: { t: 'move'; x: number; y: number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
+    seq++;
+    sentAt.set(seq, performance.now());
+    if (sentAt.size > 50) sentAt.delete(sentAt.keys().next().value!);
+    net.send({ ...msg, seq });
+  }
+
+  const input = createInput(canvas, {
+    pick: (x, y) => scene.pick(x, y),
+    move(to) {
+      command({ t: 'move', x: to.x, y: to.y });
+      predict.move(to);
+      scene.clickMarker(to, false);
+    },
+    stop() {
+      command({ t: 'stop' });
+      predict.stop();
+    },
+    cast(spell, at) {
+      const i = SPELL_IDS.indexOf(spell);
+      const mine = room?.players.find((p) => p.id === me);
+      if (!mine?.spells[spell]) return toast('Você ainda não tem essa magia. Compre na loja.');
+      if ((lastSnap?.cd[i] ?? 0) > 0.1) return;
+      command({ t: 'cast', spell, x: at.x, y: at.y });
+      scene.castLocal(me, spell);
+      scene.clickMarker(at, true);
+      sound.play(spell);
+    },
+    center: () => (follow = true),
+    armedChanged: (s) => (armed = s),
+  });
+
+  const net = connect('/ws/room/' + code, onMsg, () => net.send({ t: 'hello', playerId, name }), (on) => {
+    online = on;
+    view.setOnline(on);
+  });
+  // a sala conta a CPU entre mensagens; o "estou aqui" a cada 5 s mantém a conta zerada durante a partida
+  setInterval(() => room && room.phase !== 'lobby' && room.phase !== 'end' && net.send({ t: 'alive' }), 5000);
+
+  function names() {
+    return new Map(room?.players.map((p) => [p.id, p.name]) ?? []);
+  }
+
+  function onEvents(events: SimEvent[]) {
+    const pos = myWizard(interp.latest())?.pos;
+    const near = (x: number, y: number) => (pos ? Math.max(0.25, 1 - dist(pos, { x, y }) / 20) : 0.6);
+    const who = names();
+    for (const e of events) {
+      if (e.k === 'cast' && e.id !== me) {
+        const w = interp.latest()?.wizards.find((z) => z.id === e.id);
+        sound.play(e.spell as SoundKind, w ? near(w.pos.x, w.pos.y) : 0.5);
+      } else if (e.k === 'hit') sound.play('hit', near(e.x, e.y));
+      else if (e.k === 'reflect') sound.play('reflect', near(e.x, e.y));
+      else if (e.k === 'teleport' && e.id === me) predict.teleported(e.to);
+      else if (e.k === 'shrink') sound.play('shrink');
+      else if (e.k === 'death') {
+        sound.play('death');
+        const dead = who.get(e.id) ?? '?';
+        if (e.by) banner(e.by === me ? `Você derrubou ${dead}!` : e.id === me ? `${who.get(e.by)} te derrubou!` : `${who.get(e.by)} derrubou ${dead}!`, e.by === me ? 'good' : e.id === me ? 'bad' : '');
+        else banner(e.id === me ? 'Você caiu na lava!' : `${dead} caiu na lava!`, e.id === me ? 'bad' : '');
+      }
+    }
+    scene.onEvents(events, who);
+  }
+
+  let lastPhase = '';
+  function onMsg(m: ServerMsg) {
+    if (m.t === 'error') {
+      if (m.code === 'not_found') return screen(ui, 'Sala não encontrada', 'Ela pode ter fechado por ficar vazia.', 'Ver salas', () => (location.hash = ''));
+      if (m.code === 'other_tab') return screen(ui, 'Sala aberta em outra aba', 'Continue por lá ou recarregue esta.', 'Recarregar', () => location.reload());
+      if (m.code === 'full') return screen(ui, 'Sala cheia', 'Já tem 8 magos nesta sala.', 'Ver salas', () => (location.hash = ''));
+      return toast(m.msg);
+    }
+    if (m.t === 'room') {
+      const prev = room;
+      room = m.room;
+      me = m.you;
+      view.update(room, me, online);
+      if (room.phase !== lastPhase) onPhase(prev);
+      lastPhase = room.phase;
+      return;
+    }
+    lastSnap = m;
+    const acked = sentAt.get(m.ack);
+    if (acked !== undefined) {
+      predict.setRtt(performance.now() - acked);
+      sentAt.delete(m.ack);
+    }
+    if (!room) return;
+    interp.push(decodeSnap(m, room.ids), performance.now() / 1000);
+    if (m.e) onEvents(m.e);
+  }
+
+  function onPhase(prev: PublicRoom | null) {
+    if (!room) return;
+    input.setEnabled(room.phase === 'playing' || room.phase === 'countdown');
+    if (room.phase === 'countdown') {
+      interp.reset();
+      predict.reset();
+      follow = true;
+      banner(room.round > 5 ? 'Desempate!' : `Rodada ${room.round}`);
+      [3, 2, 1].forEach((_, i) => setTimeout(() => sound.play('beep'), i * 1000));
+    } else if (room.phase === 'playing') {
+      banner('Já!', 'good');
+      sound.play('go');
+    } else if (room.phase === 'roundEnd') {
+      const w = room.players.find((p) => p.id === room!.lastRoundWinner);
+      banner(!w ? 'Ninguém sobrou!' : w.id === me ? 'Você venceu a rodada!' : `${w.name} venceu a rodada!`, w?.id === me ? 'good' : '');
+    } else if (room.phase === 'end' && prev) {
+      const w = room.players.find((p) => p.id === room!.winner);
+      banner(w?.id === me ? 'Você venceu a partida!' : `${w?.name ?? '?'} venceu!`, 'good');
+    }
+  }
+
+  let lastFrame = performance.now();
+  function frame() {
+    requestAnimationFrame(frame);
+    const nowMs = performance.now();
+    const dt = Math.min(0.05, (nowMs - lastFrame) / 1000);
+    lastFrame = nowMs;
+    const s = interp.sample(nowMs / 1000);
+    const latest = interp.latest();
+    const playing = room && (room.phase === 'countdown' || room.phase === 'playing' || room.phase === 'roundEnd');
+    const colorOf = new Map(room?.players.map((p) => [p.id, p]) ?? []);
+    const wizards: WizDraw[] = [];
+    let myPos: Vec | null = null;
+    if (playing && s) {
+      for (const w of s.wizards) {
+        const p = colorOf.get(w.id);
+        let pos = w.pos;
+        let moving = len(w.vel) < STUN_SPEED && w.alive;
+        if (w.id === me && latest) {
+          const server = myWizard(latest);
+          if (server && room?.phase === 'playing') pos = predict.frame(server, dt);
+          myPos = pos;
+        }
+        const prevDraw = drawn.get(w.id);
+        if (prevDraw) moving = moving && dist(prevDraw, pos) > 0.004;
+        drawn.set(w.id, pos);
+        wizards.push({ ...w, pos, color: p?.color ?? 0, name: p?.name ?? '?', moving, cheer: room?.phase === 'roundEnd' && room.lastRoundWinner === w.id });
+      }
+    }
+    const shrinkIn = s && room?.phase === 'playing' ? s.shrinkAt - s.time : null;
+    scene.render({
+      arenaR: s?.arenaR ?? 11,
+      shrinkIn: shrinkIn ?? SHRINK_EVERY,
+      wizards,
+      projectiles: playing && s ? s.projectiles : [],
+      follow: follow ? myPos : null,
+    });
+    view.frame(lastSnap?.cd ?? [], armed, shrinkIn);
+  }
+  const drawn = new Map<string, Vec>();
+  void scene.ready.then(() => requestAnimationFrame(frame), () => toast('Não deu para carregar o mago. Recarregue a página.'));
+}
+
+void main();
