@@ -145,17 +145,9 @@ figcaption { font-size: 14.5px; color: var(--muted); max-width: 68ch; }
   <h2>Agora estamos decidindo</h2>
   <div class="decide">
     <div class="q">
-      <div class="ask">Nenhuma decisão pendente.</div>
-      <p class="why"><b>Próximo passo:</b> escrever o plano detalhado e construir a etapa 1 (jogar sozinho contra bots).</p>
-    </div>
-    <div class="q">
-      <div class="ask">Decidido por você em 17/10</div>
-      <ul class="clean">
-        <li><b>Cada magia com sua tecla:</b> <span class="key">Q</span> Fogo · <span class="key">W</span> Raio · <span class="key">E</span> Míssil · <span class="key">R</span> Escudo · <span class="key">F</span> Teleporte. Dá para comprar as 5. Você preferiu não seguir as "colunas" do Warlock Brawl, onde Raio e Míssil dividem o mesmo espaço.</li>
-        <li><b>Desenho aprovado.</b></li>
-        <li><b>Publicar sozinho</b> em warlock.fernandorffdev.com a cada etapa testada, a partir da etapa 2.</li>
-        <li><b>Commits locais</b> por tarefa, sem push.</li>
-      </ul>
+      <div class="ask">Nenhuma decisão pendente. O jogo está no ar.</div>
+      <p class="why"><b>Para jogar:</b> abra <a href="https://warlock.fernandorffdev.com">warlock.fernandorffdev.com</a>, crie uma sala e mande o link no grupo. Dá para pôr bots e jogar sozinho.</p>
+      <p class="why"><b>Próximo passo:</b> você jogar uma partida e me dizer o que ajustar (dano, velocidade, câmera, sons). Depois vem a etapa de capricho: música, raio mais grosso e efeitos.</p>
     </div>
   </div>
 </section>
@@ -173,13 +165,19 @@ figcaption { font-size: 14.5px; color: var(--muted); max-width: 68ch; }
       <li>Suas 4 decisões: teclas próprias, desenho aprovado, publicar e commitar sozinho</li>
       <li>Plano de construção escrito</li>
       <li>Modelo do mago escolhido (KayKit)</li>
+      <li>Simulação, magias, loja e bots com 45 testes automáticos</li>
+      <li>Servidor das salas (30 envios por segundo, reconexão)</li>
+      <li>Cliente 3D com lava, magos, previsão do seu mago, loja e sons</li>
+      <li>Testado com 3 pessoas na mesma sala (uma em tela de celular)</li>
+      <li><b>Publicado em warlock.fernandorffdev.com</b> e conferido no ar</li>
     </ul></div>
     <div class="col now"><h3>Fazendo agora</h3><ul>
-      <li>Simulação do jogo (andar, lava, arena, magias)</li>
+      <li>Esperando você jogar e dizer o que ajustar</li>
     </ul></div>
     <div class="col next"><h3>Falta</h3><ul>
-            <li>Etapas 1 a 4 do jogo</li>
-      <li>Publicar no subdomínio</li>
+      <li>Música de fundo</li>
+      <li>Raio mais grosso e efeitos mais caprichados</li>
+      <li>Você ouvir os sons e testar no celular</li>
     </ul></div>
   </div>
 </section>
@@ -190,11 +188,11 @@ figcaption { font-size: 14.5px; color: var(--muted); max-width: 68ch; }
   <div class="tbl"><table>
     <thead><tr><th>Data</th><th>Pedido (suas palavras)</th><th>Dono</th><th>Estado</th><th>Próximo passo</th></tr></thead>
     <tbody>
-      <tr><td class="num">17/10</td><td>"Crie um Warlock Wars, o mod do Dota, no mesmo estilo que você fez o jogo de sinuca, para jogar em salas com meus amigos"</td><td>Esta sessão</td><td><span class="pill wait">fazendo</span></td><td>Desenho aprovado; construindo a etapa 1</td></tr>
+      <tr><td class="num">17/10</td><td>"Crie um Warlock Wars, o mod do Dota, no mesmo estilo que você fez o jogo de sinuca, para jogar em salas com meus amigos"</td><td>Esta sessão</td><td><span class="pill ok">no ar</span></td><td>Jogável em warlock.fernandorffdev.com; falta a etapa de capricho (música, efeitos)</td></tr>
       <tr><td class="num">17/10</td><td>"20 atualizações por segundo seria 20 FPS? Não daria pra ser 60 FPS? Qual o custo?"</td><td>Esta sessão</td><td><span class="pill ok">feito</span></td><td>A tela roda a 60+ FPS sempre; você escolheu 60 cálculo / 30 envio (custo zero, ~45 MB/h no 4G)</td></tr>
       <tr><td class="num">17/10</td><td>Manual do Warlock Brawl (warlockbrawl.com/handbook) como referência</td><td>Esta sessão</td><td><span class="pill ok">feito</span></td><td>Lido; Escudo agora reflete o Raio; você escolheu tecla própria para cada magia</td></tr>
       <tr><td class="num">17/10</td><td>"Faça e abra o artefato para eu ver o que você está fazendo e esse plano e desenho pra eu aprovar"</td><td>Esta sessão</td><td><span class="pill ok">feito</span></td><td>Esta página</td></tr>
-      <tr><td class="num">17/10</td><td>"Você pode pegar modelos free da internet em vez de tentar criar seus próprios?"</td><td>Esta sessão</td><td><span class="pill ok">decidido</span></td><td>Mago do KayKit Adventurers (CC0) para todos, na cor de cada jogador; entra na etapa do cliente 3D</td></tr>
+      <tr><td class="num">17/10</td><td>"Você pode pegar modelos free da internet em vez de tentar criar seus próprios?"</td><td>Esta sessão</td><td><span class="pill ok">decidido</span></td><td>Feito: mago do KayKit (CC0) na cor de cada jogador, reduzido de 3,6 MB para 500 KB</td></tr>
     </tbody>
   </table></div>
 </section>
