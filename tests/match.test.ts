@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { botBuy, botCmds } from '../src/shared/bots.ts';
 import { ARENA_R0, COUNTDOWN_MS, DT, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
-import { addPlayer, buy, newMatch, removePlayer, setReady, shouldRun, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
+import { addPlayer, buy, newMatch, removePlayer, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { newWorld } from '../src/shared/sim.ts';
 import { noSpells } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
@@ -166,6 +166,20 @@ describe('partida', () => {
     expect(m.players[0].gold).toBe(START_GOLD + ROUND_GOLD + WIN_GOLD);
     expect(m.players[1].gold).toBe(START_GOLD + ROUND_GOLD);
     expect(ROUND_END_MS).toBeGreaterThan(0);
+  });
+
+  it('character can change in lobby and shop, not during a round', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'Ana');
+    expect(m.players[0].character).toBe('mage');
+    expect(setCharacter(m, 'a', 'knight')).toBe(true);
+    startMatch(m, 0, 2);
+    expect(setCharacter(m, 'a', 'skeleton_mage')).toBe(true);
+    const bots = m.players.filter((p) => p.bot).map((p) => p.character);
+    expect(new Set(bots).size).toBe(bots.length);
+    toPlaying(m, 0);
+    expect(setCharacter(m, 'a', 'rogue')).toBe(false);
+    expect(m.players[0].character).toBe('skeleton_mage');
   });
 
   it('loop stops without humans', () => {

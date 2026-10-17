@@ -15,6 +15,9 @@ try {
   const { id } = await (await fetch(base + '/api/rooms', { method: 'POST' })).json();
   await page.addInitScript(() => localStorage.setItem('warlock:name:pw', 'Fernando'));
   await page.goto(base + '/?as=pw#' + id);
+  await page.getByRole('button', { name: 'Esqueleto guerreiro' }).click();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: out + '/0-sala.png' });
   await page.getByRole('button', { name: 'Começar partida' }).click();
   await page.getByRole('button', { name: /^Comprar/ }).first().click();
   await page.waitForTimeout(400);

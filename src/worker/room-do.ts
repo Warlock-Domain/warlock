@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
-import { addPlayer, buy, newMatch, removePlayer, resume, setReady, shouldRun, startMatch, tickMatch, type Match } from '../shared/match.ts';
+import { addPlayer, buy, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicRoom, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap } from '../shared/snapshot.ts';
@@ -112,6 +112,9 @@ export class Room extends DurableObject<Env> {
         return;
       case 'buy':
         if (buy(m, id, msg.spell)) await this.changed();
+        return;
+      case 'pick':
+        if (setCharacter(m, id, msg.character)) await this.changed();
         return;
       case 'ready':
         setReady(m, id);

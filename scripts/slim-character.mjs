@@ -1,11 +1,11 @@
-// Corta o Mage.glb do KayKit para o jogo: só as animações usadas, sem livro e varinha.
-// node scripts/slim-mage.mjs <entrada.glb> public/models/mage.glb
+// Corta um personagem KayKit para o jogo: só as animações usadas e sem as armas extras.
+// node scripts/slim-character.mjs <entrada.glb> public/models/<id>.glb [nós a remover, separados por vírgula]
 import { NodeIO } from '@gltf-transform/core';
 import { dedup, prune, resample } from '@gltf-transform/functions';
 
 const KEEP = ['Idle', 'Running_A', 'Spellcast_Shoot', 'Spellcast_Raise', 'Hit_A', 'Death_A', 'Cheer'];
-const DROP_NODES = ['Spellbook', 'Spellbook_open', '1H_Wand'];
-const [src, out] = process.argv.slice(2);
+const [src, out, drop = 'Spellbook,Spellbook_open,1H_Wand'] = process.argv.slice(2);
+const DROP_NODES = drop.split(',');
 const io = new NodeIO();
 const doc = await io.read(src);
 const root = doc.getRoot();

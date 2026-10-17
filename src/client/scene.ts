@@ -18,7 +18,7 @@ export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; alive: boolean; shield: boolean; color: number; name: string; moving: boolean; cheer: boolean };
+export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; alive: boolean; shield: boolean; color: number; character: string; name: string; moving: boolean; cheer: boolean };
 
 const w3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, p.y);
 
@@ -34,6 +34,7 @@ type Mage = {
   hpFill: HTMLDivElement;
   dead: boolean;
   color: number;
+  character: string;
 };
 
 type Fx = { obj: THREE.Object3D; until: number; born: number; update?: (k: number) => void };
@@ -200,17 +201,22 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const projs = new Map<number, THREE.Group>();
   const fx: Fx[] = [];
 
-  // modelo do mago: carrega uma vez, cada jogador ganha um clone com as roupas no tom da cor dele
-  let mageScene: THREE.Group | null = null;
-  let clips: THREE.AnimationClip[] = [];
+  // personagens KayKit: cada modelo carrega na primeira vez que alguém o usa e cada jogador ganha um clone.
+  // O mago define a escala (os pacotes KayKit usam a mesma medida) e tem as roupas tingidas na cor do jogador.
+  type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
+  const models = new Map<string, Model | null>(); // null = carregando
   let mageScale = 1;
   const tinted = new Map<number, THREE.Texture>();
-  const ready = new GLTFLoader().loadAsync('/models/mage.glb').then((g) => {
-    mageScene = g.scene;
-    clips = g.animations;
+  const loadModel = (id: string) =>
+    new GLTFLoader().loadAsync(`/models/${id}.glb`).then((g) => {
+      models.set(id, { scene: g.scene, clips: g.animations });
+      return g;
+    });
+  const ready = loadModel('mage').then((g) => {
     const box = new THREE.Box3().setFromObject(g.scene);
     mageScale = 1.9 / (box.max.y - box.min.y);
   });
+  models.set('mage', null);
 
   function tintFor(color: number, base: THREE.Texture): THREE.Texture {
     const hit = tinted.get(color);
@@ -233,14 +239,19 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const decor = createDecor(scene, ready.then(() => mageScale), FX.flame);
 
   function makeMage(d: WizDraw): Mage | null {
-    if (!mageScene) return null;
-    const model = cloneSkinned(mageScene) as THREE.Group;
+    const src = models.get(d.character);
+    if (src === undefined) {
+      models.set(d.character, null);
+      loadModel(d.character).catch(() => models.delete(d.character));
+    }
+    if (!src) return null;
+    const model = cloneSkinned(src.scene) as THREE.Group;
     model.scale.setScalar(mageScale);
     model.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       mesh.castShadow = true;
-      if (/Hat|Body|Cape/.test(mesh.name) || /Hat|Body|Cape/.test(mesh.parent?.name ?? '')) {
+      if (d.character === 'mage' && (/Hat|Body|Cape/.test(mesh.name) || /Hat|Body|Cape/.test(mesh.parent?.name ?? ''))) {
         const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
         if (mat.map) mat.map = tintFor(d.color, mat.map);
         mesh.material = mat;
@@ -265,7 +276,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     scene.add(root);
     const mixer = new THREE.AnimationMixer(model);
     const actions: Record<string, THREE.AnimationAction> = {};
-    for (const c of clips) actions[c.name] = mixer.clipAction(c);
+    for (const c of src.clips) actions[c.name] = mixer.clipAction(c);
     for (const n of ['Spellcast_Shoot', 'Hit_A', 'Death_A', 'Spellcast_Raise']) {
       actions[n]?.setLoop(THREE.LoopOnce, 1);
       if (actions[n]) actions[n].clampWhenFinished = true;
@@ -283,7 +294,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     bar.append(hpFill);
     label.append(nameEl, bar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, label, hpFill, dead: false, color: d.color };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, label, hpFill, dead: false, color: d.color, character: d.character };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -417,6 +428,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const seen = new Set<string>();
     for (const d of list) {
       let m = mages.get(d.id);
+      // trocou de personagem na loja: refaz o boneco
+      if (m && m.character !== d.character) {
+        scene.remove(m.root);
+        m.label.remove();
+        mages.delete(d.id);
+        m = undefined;
+      }
       if (!m) {
         const made = makeMage(d);
         if (!made) continue;

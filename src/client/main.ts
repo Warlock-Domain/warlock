@@ -1,4 +1,5 @@
 import { SHRINK_EVERY, STUN_SPEED } from '../shared/constants.ts';
+import { isCharacter } from '../shared/characters.ts';
 import type { PublicRoom, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView } from '../shared/snapshot.ts';
@@ -36,6 +37,7 @@ const store = {
 const as = new URLSearchParams(location.search).get('as')?.replace(/[^a-z0-9]/gi, '').slice(0, 12) ?? '';
 const PID = 'warlock:pid' + (as && ':' + as);
 const NAME = 'warlock:name' + (as && ':' + as);
+const CHAR = 'warlock:char' + (as && ':' + as);
 const playerId = store.get(PID) ?? crypto.randomUUID();
 store.set(PID, playerId);
 
@@ -94,6 +96,10 @@ function startRoom(code: string, name: string) {
   const view = createRoomUi(ui, code, {
     start: (bots) => net.send({ t: 'start', bots }),
     buy: (spell) => net.send({ t: 'buy', spell }),
+    pick: (character) => {
+      store.set(CHAR, character);
+      net.send({ t: 'pick', character });
+    },
     ready: () => net.send({ t: 'ready' }),
     spell: (s) => input.button(s),
     toggleMute: () => {
@@ -150,7 +156,12 @@ function startRoom(code: string, name: string) {
     armedChanged: (s) => (armed = s),
   });
 
-  const net = connect('/ws/room/' + code, onMsg, () => net.send({ t: 'hello', playerId, name }), (on) => {
+  // o personagem escolhido fica salvo e é reenviado ao entrar em qualquer sala
+  const saved = store.get(CHAR);
+  const net = connect('/ws/room/' + code, onMsg, () => {
+    net.send({ t: 'hello', playerId, name });
+    if (isCharacter(saved)) net.send({ t: 'pick', character: saved });
+  }, (on) => {
     online = on;
     view.setOnline(on);
   });
@@ -258,7 +269,7 @@ function startRoom(code: string, name: string) {
         const prevDraw = drawn.get(w.id);
         if (prevDraw) moving = moving && dist(prevDraw, pos) > 0.004;
         drawn.set(w.id, pos);
-        wizards.push({ ...w, pos, color: p?.color ?? 0, name: p?.name ?? '?', moving, cheer: room?.phase === 'roundEnd' && room.lastRoundWinner === w.id });
+        wizards.push({ ...w, pos, color: p?.color ?? 0, character: p?.character ?? 'mage', name: p?.name ?? '?', moving, cheer: room?.phase === 'roundEnd' && room.lastRoundWinner === w.id });
       }
     }
     const shrinkIn = s && room?.phase === 'playing' ? s.shrinkAt - s.time : null;

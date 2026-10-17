@@ -1,4 +1,5 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
+import { isCharacter, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS } from './constants.ts';
 import type { Match, Phase } from './match.ts';
 import type { SimEvent } from './sim.ts';
@@ -11,11 +12,12 @@ export type ClientMsg =
   | { t: 'stop'; seq: number }
   | { t: 'cast'; spell: SpellId; x: number; y: number; seq: number }
   | { t: 'buy'; spell: SpellId }
+  | { t: 'pick'; character: CharacterId }
   | { t: 'ready' }
   | { t: 'alive' };
 
 export type PublicPlayer = {
-  id: string; name: string; bot: boolean; color: number; score: number; gold: number;
+  id: string; name: string; bot: boolean; color: number; character: CharacterId; score: number; gold: number;
   spells: Record<SpellId, number>; ready: boolean; connected: boolean;
 };
 
@@ -79,6 +81,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return spell(m.spell) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'cast', spell: m.spell, x: m.x, y: m.y, seq: m.seq } : null;
     case 'buy':
       return spell(m.spell) ? { t: 'buy', spell: m.spell } : null;
+    case 'pick':
+      return isCharacter(m.character) ? { t: 'pick', character: m.character } : null;
     case 'ready':
     case 'alive':
       return { t: m.t };
@@ -93,7 +97,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     phase: m.phase,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, score, gold, spells, ready, connected }) => ({ id, name, bot, color, score, gold, spells, ready, connected })),
+    players: m.players.map(({ id, name, bot, color, character, score, gold, spells, ready, connected }) => ({ id, name, bot, color, character, score, gold, spells, ready, connected })),
     ids: m.world?.wizards.map((z) => z.id) ?? [],
     winner: m.winner,
     lastRoundWinner: m.lastRoundWinner,

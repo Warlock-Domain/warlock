@@ -1,5 +1,6 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { botBuy, botCmds } from './bots.ts';
+import { CHARACTERS, type CharacterId } from './characters.ts';
 import {
   COUNTDOWN_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, WIN_GOLD, WINS_TO_WIN,
 } from './constants.ts';
@@ -13,6 +14,7 @@ export type Player = {
   name: string;
   bot: boolean;
   color: number; // 0..7
+  character: CharacterId;
   score: number; // rodadas vencidas
   gold: number;
   spells: Record<SpellId, number>;
@@ -47,7 +49,9 @@ export function addPlayer(m: Match, id: string, name: string, bot = false): bool
   if (m.players.length >= MAX_PLAYERS) return false;
   const used = new Set(m.players.map((p) => p.color));
   const color = [0, 1, 2, 3, 4, 5, 6, 7].find((c) => !used.has(c)) ?? 0;
-  m.players.push({ id, name, bot, color, score: 0, gold: START_GOLD, spells: noSpells(), ready: bot, connected: true });
+  // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
+  const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
+  m.players.push({ id, name, bot, color, character, score: 0, gold: START_GOLD, spells: noSpells(), ready: bot, connected: true });
   return true;
 }
 
@@ -78,6 +82,14 @@ export function buy(m: Match, id: string, spell: SpellId): boolean {
   if (price === null || p.gold < price) return false;
   p.gold -= price;
   p.spells[spell]++;
+  return true;
+}
+
+// troca de personagem fora da rodada (sala, loja ou fim), para o boneco não mudar no meio da luta
+export function setCharacter(m: Match, id: string, character: CharacterId): boolean {
+  const p = m.players.find((q) => q.id === id);
+  if (!p || p.character === character || !['lobby', 'shop', 'end'].includes(m.phase)) return false;
+  p.character = character;
   return true;
 }
 

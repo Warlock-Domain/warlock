@@ -13,6 +13,7 @@ describe('protocolo', () => {
     expect(p({ t: 'move', x: 1.5, y: -2, seq: 3 })).toEqual({ t: 'move', x: 1.5, y: -2, seq: 3 });
     expect(p({ t: 'cast', spell: 'homing', x: 0, y: 0, seq: 9 })).toEqual({ t: 'cast', spell: 'homing', x: 0, y: 0, seq: 9 });
     expect(p({ t: 'start', bots: 7 })).toEqual({ t: 'start', bots: 7 });
+    expect(p({ t: 'pick', character: 'skeleton_warrior' })).toEqual({ t: 'pick', character: 'skeleton_warrior' });
   });
 
   it('rejects bad commands', () => {
@@ -23,6 +24,7 @@ describe('protocolo', () => {
     expect(p({ t: 'start', bots: 8 })).toBeNull();
     expect(p({ t: 'hello', playerId: 'x', name: 'a' })).toBeNull();
     expect(p({ t: 'buy', spell: 'shield', extra: 'x'.repeat(2000) })).toBeNull();
+    expect(p({ t: 'pick', character: 'dragon' })).toBeNull();
     expect(parseClientMessage('nada')).toBeNull();
     expect(p([1, 2])).toBeNull();
   });

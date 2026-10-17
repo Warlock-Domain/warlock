@@ -1,5 +1,6 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
 import { MAX_PLAYERS, WINS_TO_WIN } from '../shared/constants.ts';
+import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { SPELLS, SPELL_IDS, priceOf, type SpellId } from '../shared/spells.ts';
 import { COLORS } from './scene.ts';
@@ -111,6 +112,7 @@ export function screen(root: HTMLElement, title: string, text: string, button: s
 export type RoomActions = {
   start: (bots: number) => void;
   buy: (s: SpellId) => void;
+  pick: (c: CharacterId) => void;
   ready: () => void;
   spell: (s: SpellId) => void;
   toggleMute: () => boolean;
@@ -172,6 +174,19 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let me = '';
   let phaseEndsAt = 0;
 
+  // grade com o retrato de cada personagem; o escolhido fica marcado
+  function picker(r: PublicRoom) {
+    const mine = r.players.find((p) => p.id === me);
+    if (!mine) return null;
+    return el('div', { class: 'picker' },
+      el('span', { class: 'muted' }, 'Seu personagem'),
+      el('div', { class: 'picker-grid' }, ...CHARACTERS.map((c) =>
+        el('button', { type: 'button', class: 'pick' + (mine.character === c.id ? ' on' : ''), title: c.name, 'aria-pressed': mine.character === c.id ? 'true' : 'false', onclick: () => act.pick(c.id) },
+          el('img', { src: `/chars/${c.id}.webp`, alt: '', width: 60, height: 80 }), el('small', {}, c.name)),
+      )),
+    );
+  }
+
   function lobbyPanel(r: PublicRoom) {
     const humans = r.players.filter((p) => !p.bot).length;
     const maxBots = MAX_PLAYERS - humans;
@@ -194,6 +209,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         ? el('div', {}, el('h2', { class: 'title' }, `🏆 ${r.players.find((p) => p.id === r.winner)?.name ?? '?'} venceu!`), board(r, me))
         : el('div', {}, el('h2', { class: 'title' }, 'Sala ' + r.id), el('p', { class: 'muted' }, 'Mande o link para os amigos entrarem. Até 8 magos.'),
             el('ul', { class: 'board' }, ...r.players.filter((p) => !p.bot).map((p) => el('li', {}, el('span', {}, dot(p.color), ' ', nameOf(p, me)))))),
+      picker(r),
       el('div', { class: 'bots' }, el('span', {}, 'Bots'), el('button', { type: 'button', onclick: () => set(bots - 1) }, '−'), count, el('button', { type: 'button', onclick: () => set(bots + 1) }, '+')),
       startBtn,
       el('button', { type: 'button', onclick: copyLink }, 'Copiar link da sala'),
@@ -216,6 +232,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           el('button', { type: 'button', disabled: price === null || mine.gold < price, onclick: () => act.buy(s) }, label),
         );
       })),
+      picker(r),
       el('button', { type: 'button', class: 'primary big', disabled: mine.ready, onclick: act.ready }, mine.ready ? 'Esperando os outros…' : 'Pronto'),
       board(r, me),
     );
