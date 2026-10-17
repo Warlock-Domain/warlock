@@ -1,0 +1,23 @@
+{
+  "name": "warlock",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker",
+    "build": "vite build",
+    "dev:worker": "wrangler dev",
+    "dev:client": "vite"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "0.186.0",
+    "typescript": "7.0.2",
+    "vite": "8.1.4",
+    "vitest": "5.0.3",
+    "wrangler": "4.146.0"
+  }
+}

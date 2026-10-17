@@ -1,0 +1,390 @@
+<title>Warlock online</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700;800&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: sumário fixo à esquerda + coluna de leitura; no celular o sumário vira um bloco recolhível no topo. Paleta: basalto frio + brasa de lava. */
+:root {
+  --bg: #f3efe9; --panel: #ffffff; --ink: #221d1a; --muted: #6b625b; --line: #ddd4ca;
+  --lava: #c2410c; --lava-soft: #fde6d6; --ember: #9a3412; --stone: #e8e2da;
+  --ok: #15803d; --ok-soft: #dcf2e3; --wait: #a16207; --wait-soft: #fbefcf; --todo: #64748b; --todo-soft: #e8edf3;
+  --display: "Alegreya SC", Georgia, serif; --body: "Alegreya Sans", system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15171b; --panel: #1d2026; --ink: #ece6df; --muted: #a39a92; --line: #2f333b;
+  --lava: #fb7a3c; --lava-soft: #3a2218; --ember: #fdba74; --stone: #23272e;
+  --ok: #4ade80; --ok-soft: #173123; --wait: #facc15; --wait-soft: #332b12; --todo: #94a3b8; --todo-soft: #232a35;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #15171b; --panel: #1d2026; --ink: #ece6df; --muted: #a39a92; --line: #2f333b;
+  --lava: #fb7a3c; --lava-soft: #3a2218; --ember: #fdba74; --stone: #23272e;
+  --ok: #4ade80; --ok-soft: #173123; --wait: #facc15; --wait-soft: #332b12; --todo: #94a3b8; --todo-soft: #232a35;
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { background: var(--bg); color: var(--ink); font: 17px/1.55 var(--body); }
+.wrap { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 40px; max-width: 1160px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 32px 80px; }
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; font-size: 15px; }
+nav.toc .brand { font: 800 22px/1.1 var(--display); color: var(--lava); margin-bottom: 14px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; border-left: 2px solid var(--line); }
+nav.toc a { display: block; padding: 5px 12px; margin-left: -2px; border-left: 2px solid transparent; color: var(--muted); text-decoration: none; }
+nav.toc a:hover { color: var(--ink); }
+nav.toc a.on { color: var(--lava); border-left-color: var(--lava); font-weight: 700; }
+nav.toc a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--lava); outline-offset: 2px; }
+nav.toc details > summary { display: none; }
+main { min-width: 0; display: grid; gap: 56px; }
+section { scroll-margin-top: 24px; display: grid; gap: 16px; }
+h1 { font: 800 clamp(34px, 5vw, 52px)/1.05 var(--display); margin: 0; text-wrap: balance; }
+h2 { font: 700 28px/1.15 var(--display); margin: 0; text-wrap: balance; }
+h3 { font: 700 19px/1.25 var(--body); margin: 0; }
+p { margin: 0; max-width: 68ch; }
+.lead { font-size: 19px; color: var(--muted); max-width: 62ch; }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--lava); }
+.src { font: 400 12.5px/1.4 var(--mono); color: var(--muted); }
+code, .mono { font-family: var(--mono); font-size: .88em; }
+a { color: var(--lava); }
+ul.clean { margin: 0; padding-left: 20px; display: grid; gap: 6px; max-width: 70ch; }
+
+/* Decisão aberta */
+.decide { background: var(--panel); border: 2px solid var(--lava); border-radius: 14px; padding: 24px; display: grid; gap: 18px; }
+.q { display: grid; gap: 10px; padding-top: 18px; border-top: 1px solid var(--line); }
+.q:first-of-type { border-top: 0; padding-top: 0; }
+.q .ask { font: 700 20px/1.3 var(--body); }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.opt { border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 8px; align-content: start; background: var(--bg); }
+.opt.rec { border-color: var(--lava); background: var(--lava-soft); }
+.opt h4 { margin: 0; font: 700 16px/1.3 var(--body); }
+.opt .tag { font: 600 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--lava); }
+.opt dl { margin: 0; display: grid; gap: 4px; font-size: 15px; }
+.opt dt { font-weight: 700; color: var(--muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; margin-top: 4px; }
+.opt dd { margin: 0; }
+.why { font-size: 15.5px; color: var(--muted); }
+.why b { color: var(--ink); }
+
+/* Quadro de frentes */
+.board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 8px; align-content: start; }
+.col h3 { font: 600 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+.col.done h3 { color: var(--ok); } .col.now h3 { color: var(--wait); } .col.next h3 { color: var(--todo); }
+.col ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 15.5px; }
+
+/* Tabelas */
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: 15.5px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 12px/1.2 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: var(--stone); }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.key { display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 6px; border: 1px solid var(--line); border-bottom-width: 3px; border-radius: 6px; font: 600 14px/1 var(--mono); background: var(--bg); }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font: 600 12px/1.6 var(--mono); white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.wait { background: var(--wait-soft); color: var(--wait); } .pill.todo { background: var(--todo-soft); color: var(--todo); }
+
+/* Fatos */
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.fact { border-top: 3px solid var(--lava); padding-top: 10px; display: grid; gap: 4px; }
+.fact b { font: 700 26px/1.1 var(--display); color: var(--ink); font-variant-numeric: tabular-nums; }
+.fact span { font-size: 14.5px; color: var(--muted); }
+
+/* Etapas */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.steps li::before { content: counter(s); font: 800 28px/1 var(--display); color: var(--lava); }
+.steps li div { display: grid; gap: 6px; min-width: 0; }
+.steps .test { font-size: 14.5px; color: var(--muted); }
+
+figure { margin: 0; display: grid; gap: 8px; }
+figure svg { width: 100%; height: auto; max-width: 720px; }
+figcaption { font-size: 14.5px; color: var(--muted); max-width: 68ch; }
+.diagram { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+
+@media (max-width: 900px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); gap: 24px; padding-block: 16px 60px; }
+  nav.toc { position: static; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  nav.toc .brand { margin-bottom: 0; }
+  nav.toc details > summary { display: block; cursor: pointer; font: 600 13px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding-top: 10px; }
+  nav.toc details ol { margin-top: 10px; }
+  .board { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Sumário">
+  <div class="brand">Warlock online</div>
+  <details id="tocd" open>
+    <summary>Sumário</summary>
+    <ol>
+      <li><a href="#decidindo">Agora estamos decidindo</a></li>
+      <li><a href="#fazendo">O que estou fazendo</a></li>
+      <li><a href="#pedidos">Pedidos</a></li>
+      <li><a href="#jogo">O jogo em 1 minuto</a></li>
+      <li><a href="#magias">Magias e loja</a></li>
+      <li><a href="#partida">Partida e salas</a></li>
+      <li><a href="#rede">Rede e atraso</a></li>
+      <li><a href="#visual">Visual e controles</a></li>
+      <li><a href="#manual">O que o manual mudou</a></li>
+      <li><a href="#plano">Plano de construção</a></li>
+      <li><a href="#custos">Custos e limites</a></li>
+      <li><a href="#fora">Fora da primeira versão</a></li>
+    </ol>
+  </details>
+</nav>
+
+<main>
+<header style="display:grid;gap:12px">
+  <div class="eyebrow">Sessão 🎮🔥 Warlock online · 17/10/2026</div>
+  <h1>Warlock online</h1>
+  <p class="lead">O mod de arena do Warcraft 3 / Dota no navegador, no mesmo esquema da Sinuquinha do Pix: link no grupo, apelido, sala, e todo mundo jogando em menos de um minuto. Esta página mostra o desenho, o plano e o que falta você decidir.</p>
+</header>
+
+<section id="decidindo">
+  <div class="eyebrow">Decisão aberta</div>
+  <h2>Agora estamos decidindo</h2>
+  <div class="decide">
+    <div class="q">
+      <div class="ask">Nenhuma decisão pendente.</div>
+      <p class="why"><b>Próximo passo:</b> escrever o plano detalhado e construir a etapa 1 (jogar sozinho contra bots).</p>
+    </div>
+    <div class="q">
+      <div class="ask">Decidido por você em 17/10</div>
+      <ul class="clean">
+        <li><b>Cada magia com sua tecla:</b> <span class="key">Q</span> Fogo · <span class="key">W</span> Raio · <span class="key">E</span> Míssil · <span class="key">R</span> Escudo · <span class="key">F</span> Teleporte. Dá para comprar as 5. Você preferiu não seguir as "colunas" do Warlock Brawl, onde Raio e Míssil dividem o mesmo espaço.</li>
+        <li><b>Desenho aprovado.</b></li>
+        <li><b>Publicar sozinho</b> em warlock.fernandorffdev.com a cada etapa testada, a partir da etapa 2.</li>
+        <li><b>Commits locais</b> por tarefa, sem push.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="fazendo">
+  <div class="eyebrow">Quadro da frente</div>
+  <h2>O que estou fazendo</h2>
+  <div class="board">
+    <div class="col done"><h3>Feito</h3><ul>
+      <li>Li como a sinuca foi feita (Three.js, Cloudflare, salas)</li>
+      <li>Suas 5 escolhas: 3D de cima, controles do Dota, 5 magias + loja, todos contra todos, 60 cálculo / 30 envio</li>
+      <li>Medi o atraso até o servidor: ~99 ms</li>
+      <li>Desenho escrito e revisado</li>
+      <li>Li o manual do Warlock Brawl e corrigi o desenho</li>
+      <li>Suas 4 decisões: teclas próprias, desenho aprovado, publicar e commitar sozinho</li>
+    </ul></div>
+    <div class="col now"><h3>Fazendo agora</h3><ul>
+      <li>Plano detalhado da etapa 1</li>
+    </ul></div>
+    <div class="col next"><h3>Falta</h3><ul>
+            <li>Etapas 1 a 4 do jogo</li>
+      <li>Publicar no subdomínio</li>
+    </ul></div>
+  </div>
+</section>
+
+<section id="pedidos">
+  <div class="eyebrow">Central de pedidos</div>
+  <h2>Pedidos</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Data</th><th>Pedido (suas palavras)</th><th>Dono</th><th>Estado</th><th>Próximo passo</th></tr></thead>
+    <tbody>
+      <tr><td class="num">17/10</td><td>"Crie um Warlock Wars, o mod do Dota, no mesmo estilo que você fez o jogo de sinuca, para jogar em salas com meus amigos"</td><td>Esta sessão</td><td><span class="pill wait">fazendo</span></td><td>Desenho aprovado; construindo a etapa 1</td></tr>
+      <tr><td class="num">17/10</td><td>"20 atualizações por segundo seria 20 FPS? Não daria pra ser 60 FPS? Qual o custo?"</td><td>Esta sessão</td><td><span class="pill ok">feito</span></td><td>A tela roda a 60+ FPS sempre; você escolheu 60 cálculo / 30 envio (custo zero, ~45 MB/h no 4G)</td></tr>
+      <tr><td class="num">17/10</td><td>Manual do Warlock Brawl (warlockbrawl.com/handbook) como referência</td><td>Esta sessão</td><td><span class="pill ok">feito</span></td><td>Lido; Escudo agora reflete o Raio; você escolheu tecla própria para cada magia</td></tr>
+      <tr><td class="num">17/10</td><td>"Faça e abra o artefato para eu ver o que você está fazendo e esse plano e desenho pra eu aprovar"</td><td>Esta sessão</td><td><span class="pill ok">feito</span></td><td>Esta página</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="jogo">
+  <div class="eyebrow">Desenho</div>
+  <h2>O jogo em 1 minuto</h2>
+  <p>Magos numa plataforma redonda de pedra cercada de lava. Cada um joga magias para empurrar os outros para fora. Na lava a vida cai; a plataforma encolhe com o tempo; o último vivo vence a rodada.</p>
+  <div class="diagram"><figure>
+    <svg viewBox="0 0 720 300" role="img" aria-label="Arena vista de cima: plataforma de pedra que encolhe em anéis sobre a lava">
+      <rect x="0" y="0" width="720" height="300" rx="8" fill="var(--lava-soft)"/>
+      <circle cx="200" cy="150" r="130" fill="var(--stone)" stroke="var(--lava)" stroke-width="2" stroke-dasharray="6 6"/>
+      <circle cx="200" cy="150" r="95" fill="var(--stone)" stroke="var(--lava)" stroke-width="2" stroke-dasharray="6 6"/>
+      <circle cx="200" cy="150" r="60" fill="var(--panel)" stroke="var(--ink)" stroke-width="1.5"/>
+      <g fill="var(--lava)"><circle cx="200" cy="40" r="7"/><circle cx="290" cy="110" r="7"/><circle cx="280" cy="215" r="7"/><circle cx="120" cy="225" r="7"/><circle cx="105" cy="95" r="7"/></g>
+      <line x1="290" y1="110" x2="225" y2="135" stroke="var(--ember)" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="225" cy="135" r="5" fill="var(--ember)"/>
+      <text x="200" y="154" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)">raio mínimo</text>
+      <g font-family="var(--body)" font-size="15" fill="var(--ink)">
+        <text x="380" y="60">Anéis tracejados: a pedra racha e</text>
+        <text x="380" y="80">afunda a cada ~15 s (aviso 2 s antes).</text>
+        <text x="380" y="120">Pontos laranja: magos, até 8,</text>
+        <text x="380" y="140">em círculo no começo da rodada.</text>
+        <text x="380" y="180">Traço: bola de fogo indo do</text>
+        <text x="380" y="200">mago da direita para o centro.</text>
+        <text x="380" y="240">Fundo: lava, ~10% de vida por segundo.</text>
+      </g>
+    </svg>
+    <figcaption>Vista de cima da arena. Números de tempo e dano são ponto de partida meu (ajusto jogando).</figcaption>
+  </figure></div>
+  <div class="facts">
+    <div class="fact"><b>8</b><span>magos por sala; quem chega com a sala cheia assiste</span></div>
+    <div class="fact"><b>5</b><span>rodadas por partida</span></div>
+    <div class="fact"><b>100</b><span>de vida, sem regeneração</span></div>
+    <div class="fact"><b>~15 s</b><span>entre cada encolhida da arena</span></div>
+  </div>
+  <ul class="clean">
+    <li><b>Empurrão:</b> cada acerto faz o mago deslizar; quanto menos vida, mais longe ele voa (estilo Smash), para as rodadas não empatarem. <span class="src">minha decisão</span></li>
+    <li>Magos se esbarram (não se atravessam). Fora da pedra não há parede: dá para voltar andando. <span class="src">minha decisão</span></li>
+  </ul>
+</section>
+
+<section id="magias">
+  <h2>Magias e loja</h2>
+  <p>As 5 que você escolheu, cada uma com sua tecla.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Tecla</th><th>Magia</th><th>O que faz</th><th>Começa com</th></tr></thead>
+    <tbody>
+      <tr><td><span class="key">Q</span></td><td>Bola de fogo</td><td>Projétil reto; dano e empurrão médios.</td><td><span class="pill ok">todo mundo</span></td></tr>
+      <tr><td><span class="key">W</span></td><td>Raio</td><td>Instantâneo; acerta o primeiro alvo entre você e o ponto mirado. <span class="src">doc: manual, Lightning</span></td><td><span class="pill todo">loja</span></td></tr>
+      <tr><td><span class="key">E</span></td><td>Míssil teleguiado</td><td>Lento; gira em volta do inimigo mais próximo do ponto mirado e acerta. <span class="src">doc: manual, Homing</span></td><td><span class="pill todo">loja</span></td></tr>
+      <tr><td><span class="key">R</span></td><td>Escudo</td><td>~1,5 s refletindo bola de fogo, míssil e raio de volta. <span class="src">doc: manual, Shield</span></td><td><span class="pill todo">loja</span></td></tr>
+      <tr><td><span class="key">F</span></td><td>Teleporte</td><td>Salta na hora até o ponto mirado, alcance curto. <span class="src">doc: manual, Teleport (modo Blink)</span></td><td><span class="pill todo">loja</span></td></tr>
+    </tbody>
+  </table></div>
+  <ul class="clean">
+    <li><b>Loja entre rodadas</b> (até 20 s, ou antes se todos clicarem "Pronto"): ouro por rodada, por abate e por sobreviver. Compra magia nova ou melhora até o <b>nível 3</b> (mais dano/empurrão ou menos recarga).</li>
+    <li>Cada magia tem recarga própria, mostrada nos botões da barra de baixo.</li>
+    <li>Bots compram com regra simples (a próxima magia mais barata que ainda não têm).</li>
+  </ul>
+</section>
+
+<section id="partida">
+  <h2>Partida e salas</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Ação</th><th>Pontos</th></tr></thead>
+    <tbody>
+      <tr><td>Ser o último vivo na rodada</td><td class="num">3</td></tr>
+      <tr><td>Abate (vai para quem acertou o morto por último nos 5 s antes da morte)</td><td class="num">1</td></tr>
+      <tr><td>Morrer sozinho na lava, sem ninguém ter acertado</td><td class="num">0 para todos</td></tr>
+    </tbody>
+  </table></div>
+  <ul class="clean">
+    <li>Vence quem somar mais pontos em 5 rodadas; empate vai para uma rodada extra entre os empatados. <span class="src">minha decisão</span></li>
+    <li><b>Lobby igual ao da sinuca:</b> lista de salas abertas e link direto <code>warlock.fernandorffdev.com/#ABCD</code>. Quem cria a sala escolhe quantos bots pôr e clica "Começar".</li>
+    <li><b>Bots</b> fogem da borda, atiram no mais próximo e às vezes desviam. Servem para testar sozinho e completar a sala.</li>
+    <li><b>Reconexão:</b> se o celular bloquear, a pessoa volta ao mesmo mago (o mago fica parado enquanto isso).</li>
+    <li>Quem entra no meio assiste até a rodada acabar e entra na loja seguinte com ouro mínimo.</li>
+  </ul>
+</section>
+
+<section id="rede">
+  <h2>Rede e atraso</h2>
+  <div class="facts">
+    <div class="fact"><b>60/s</b><span>o servidor calcula o jogo (bola de fogo nunca atravessa ninguém)</span></div>
+    <div class="fact"><b>30/s</b><span>o servidor envia as posições para todos</span></div>
+    <div class="fact"><b>60+ FPS</b><span>a tela desenha na taxa do monitor, suavizando entre envios</span></div>
+    <div class="fact"><b>~99 ms</b><span>ida e volta até o servidor, medido do seu PC</span></div>
+  </div>
+  <p>Medi a ida e volta até o servidor da sinuca: mediana de 99 ms (mínimo 95, máximo 119, 25 medidas). <span class="src">medido em 17/10</span> Esse tipo de servidor da Cloudflare não roda na América do Sul, então não dá para encurtar escolhendo o local. <span class="src">doc: developers.cloudflare.com, data location</span></p>
+  <div class="diagram"><figure>
+    <svg viewBox="0 0 720 190" role="img" aria-label="Linha do tempo de um clique: seu mago anda na hora; o servidor confirma depois de cerca de 99 ms">
+      <line x1="40" y1="60" x2="690" y2="60" stroke="var(--line)" stroke-width="2"/>
+      <line x1="40" y1="140" x2="690" y2="140" stroke="var(--line)" stroke-width="2"/>
+      <g font-family="var(--mono)" font-size="12" fill="var(--muted)">
+        <text x="40" y="40">SEU APARELHO</text><text x="40" y="170">SERVIDOR</text>
+        <text x="40" y="185">0 ms</text><text x="330" y="185">~50 ms</text><text x="620" y="185">~99 ms</text>
+      </g>
+      <circle cx="60" cy="60" r="8" fill="var(--lava)"/>
+      <text x="76" y="52" font-family="var(--body)" font-size="14" fill="var(--ink)">clique: o mago já anda</text>
+      <line x1="60" y1="60" x2="345" y2="140" stroke="var(--ember)" stroke-width="2" stroke-dasharray="5 4"/>
+      <circle cx="345" cy="140" r="7" fill="var(--ember)"/>
+      <text x="360" y="132" font-family="var(--body)" font-size="14" fill="var(--ink)">servidor aplica o comando</text>
+      <line x1="345" y1="140" x2="630" y2="60" stroke="var(--ember)" stroke-width="2" stroke-dasharray="5 4"/>
+      <circle cx="630" cy="60" r="7" fill="var(--ok)"/>
+      <text x="470" y="88" font-family="var(--body)" font-size="14" fill="var(--ink)">confirma e corrige sem salto</text>
+    </svg>
+    <figcaption>Seu próprio mago é previsto no seu aparelho: anda no clique, e a posição do servidor corrige de leve quando chega. Sem isso, o clique levaria ~170 a 200 ms para mover o mago. Os outros magos aparecem ~66 ms no passado, deslizando suave.</figcaption>
+  </figure></div>
+  <ul class="clean">
+    <li>Magia: a animação, o som e um projétil provisório saem na hora no seu aparelho; o projétil do servidor assume quando chega.</li>
+    <li>O servidor só grava no disco nas trocas de fase (lobby, rodada, loja, fim); o resto fica na memória.</li>
+  </ul>
+</section>
+
+<section id="visual">
+  <h2>Visual e controles</h2>
+  <ul class="clean">
+    <li><b>3D, câmera de cima inclinada estilo Dota</b> (Three.js, como a sinuca). Lava com brilho e ondulação, pedra com textura, luz quente de baixo.</li>
+    <li>Magos estilizados (manto, chapéu, cajado), uma cor por jogador, nome e barra de vida em cima.</li>
+    <li>Efeitos: rastro e explosão da bola de fogo, clarão do raio, escudo transparente, sumiço do teleporte, faíscas na lava.</li>
+    <li>Avisos grandes ("Rodada 2!", "Fulano caiu na lava!"), música e som gerados no navegador, menu de regras.</li>
+  </ul>
+  <div class="tbl"><table>
+    <thead><tr><th>Onde</th><th>Andar</th><th>Magia</th></tr></thead>
+    <tbody>
+      <tr><td>PC</td><td>Botão direito no chão (segurar arrasta o destino); <span class="key">S</span> para</td><td>Tecla da magia: sai na direção do cursor. Ou clique no botão da barra e depois no chão.</td></tr>
+      <tr><td>Celular</td><td>Tocar no chão</td><td>Tocar no botão da magia e depois no chão. <span class="src">minha decisão</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="manual">
+  <h2>O que o manual mudou</h2>
+  <p>Li o <a href="https://www.warlockbrawl.com/handbook/">manual do Warlock Brawl</a> que você mandou. A maior parte das páginas de magia é curta (está marcada como "em construção"), sem números.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Ponto</th><th>Antes</th><th>Agora</th></tr></thead>
+    <tbody>
+      <tr><td>Escudo contra Raio</td><td>Bloqueava sem refletir</td><td>Reflete o Raio também</td></tr>
+      <tr><td>Colunas de magia</td><td>Cada magia com sua tecla</td><td>Igual: você preferiu tecla própria para cada uma</td></tr>
+      <tr><td>Míssil teleguiado</td><td>Persegue o alvo</td><td>Gira em volta do alvo antes de acertar</td></tr>
+      <tr><td>Magias iniciais</td><td>Só Bola de fogo</td><td>Igual. No original todos começam com Bola de fogo e mais uma; mantive só a Bola de fogo para a loja ter peso</td></tr>
+    </tbody>
+  </table></div>
+  <p class="src">Ficou de fora (o original tem): mais de 20 magias, itens, maestrias, pilares na arena e os modos alternativos de cada magia.</p>
+</section>
+
+<section id="plano">
+  <h2>Plano de construção</h2>
+  <ol class="steps">
+    <li><div><h3>Jogar sozinho contra bots</h3><p>Projeto novo, arena 3D, andar com botão direito, Bola de fogo, empurrão, lava, encolhimento, rodadas e pontos. Servidor de verdade desde o primeiro dia.</p><p class="test">Teste: simulação automática (acerta, empurra, não atravessa, lava tira vida, último vivo ganha 3) + olhar a arena rodando no navegador.</p></div></li>
+    <li><div><h3>Salas com amigos</h3><p>Lobby, link <code>/#ABCD</code>, até 8, reconexão, previsão do próprio mago. <b>Aqui publico</b> em warlock.fernandorffdev.com (autorizado por você).</p><p class="test">Teste: 3 abas na mesma sala (uma em tela de celular); fechar e reabrir volta ao mesmo mago.</p></div></li>
+    <li><div><h3>As outras magias e a loja</h3><p>Raio, Míssil, Escudo, Teleporte, ouro, compras e níveis até 3.</p><p class="test">Teste: escudo reflete, teleporte respeita alcance, loja desconta ouro e para no nível 3.</p></div></li>
+    <li><div><h3>Capricho</h3><p>Efeitos, som, música, avisos, controles e tela do celular.</p><p class="test">Teste: 60 FPS num Android médio, download abaixo de 1 MB.</p></div></li>
+  </ol>
+</section>
+
+<section id="custos">
+  <h2>Custos e limites</h2>
+  <ul class="clean">
+    <li><b>Dinheiro: zero.</b> Plano grátis da Cloudflare, mesma conta da sinuca. Mensagem enviada pelo servidor é grátis. <span class="src">doc: preços dos Durable Objects, lido em 17/10</span></li>
+    <li><b>Limite que conta:</b> 13.000 GB-s por dia de servidor ligado, cerca de <b>29 horas de partida por dia</b>, somando todas as salas. <span class="src">doc + conta minha (128 MB por sala)</span></li>
+    <li><b>Internet do celular:</b> ~45 MB por hora de partida com 8 jogadores. <span class="src">estimativa</span></li>
+  </ul>
+</section>
+
+<section id="fora">
+  <h2>Fora da primeira versão</h2>
+  <ul class="clean">
+    <li>Contas, ranking, histórico, chat e times (como na sinuca).</li>
+    <li>Mais de 5 magias, itens e maestrias do original.</li>
+    <li>Anticheat além de conferir o formato das mensagens.</li>
+  </ul>
+  <p class="src">Documento completo: D:\Projetos\warlock\docs\superpowers\specs\2026-10-17-warlock-design.md</p>
+</section>
+</main>
+</div>
+
+<script>
+(() => {
+  const links = [...document.querySelectorAll('nav.toc a')];
+  const byId = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const obs = new IntersectionObserver(entries => {
+    for (const e of entries) if (e.isIntersecting) {
+      links.forEach(a => a.classList.remove('on'));
+      byId.get(e.target.id)?.classList.add('on');
+    }
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(s => obs.observe(s));
+  const d = document.getElementById('tocd');
+  const mq = matchMedia('(max-width: 900px)');
+  const sync = () => { d.open = !mq.matches; };
+  sync(); mq.addEventListener('change', sync);
+  links.forEach(a => a.addEventListener('click', () => { if (mq.matches) d.open = false; }));
+})();
+</script>
