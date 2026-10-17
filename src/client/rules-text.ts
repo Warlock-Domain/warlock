@@ -19,4 +19,8 @@ export const RULES: [string, string[]][] = [
     'Compre magias novas ou melhore até o nível 3 (mais dano e empurrão, menos recarga).',
     'Quanto mais dano você já levou na rodada, mais longe voa quando é acertado. Na pedra a vida volta devagar.',
   ]],
+  ['Créditos', [
+    'Personagens e decoração: KayKit, de Kay Lousberg (kaylousberg.com). Texturas: ambientCG e Poly Haven. Partículas e sons: Kenney e OpenGameArt. Música: "Determined Pursuit", de Emma_MA. Tudo em domínio público (CC0).',
+    'Inspirado no Warlock do Warcraft 3 e no Warlock Brawl para Dota 2.',
+  ]],
 ];
