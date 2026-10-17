@@ -118,6 +118,7 @@ export type RoomActions = {
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
   buyMastery: (m: MasteryId | 'all') => void;
+  kick: (id: string) => void;
   useItem: (i: ItemId) => void;
   pick: (c: CharacterId) => void;
   ready: () => void;
@@ -130,10 +131,14 @@ export type RoomActions = {
 const dot = (color: number) => el('span', { class: 'dot', style: `background:${COLORS[color]}` });
 const nameOf = (p: PublicPlayer, me: string) => p.name + (p.id === me ? ' (você)' : '') + (p.bot ? ' 🤖' : '');
 
-function board(room: PublicRoom, me: string) {
+// botão de expulsar: só para bots e para quem caiu e não voltou
+const kickBtn = (p: PublicPlayer, kick?: (id: string) => void) =>
+  kick && (p.bot || !p.connected) ? el('button', { type: 'button', class: 'kick', title: `Expulsar ${p.name}`, 'aria-label': `Expulsar ${p.name}`, onclick: () => kick(p.id) }, '✕') : null;
+
+function board(room: PublicRoom, me: string, kick?: (id: string) => void) {
   const sorted = [...room.players].sort((a, b) => b.score - a.score);
   return el('ol', { class: 'board' }, ...sorted.map((p) =>
-    el('li', { class: p.id === room.winner ? 'win' : '' }, el('span', {}, dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), el('b', {}, `${p.score} ${p.score === 1 ? 'vitória' : 'vitórias'}`)),
+    el('li', { class: p.id === room.winner ? 'win' : '' }, el('span', {}, dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), el('span', { class: 'board-right' }, el('b', {}, `${p.score} ${p.score === 1 ? 'vitória' : 'vitórias'}`), kickBtn(p, kick))),
   ));
 }
 
@@ -237,9 +242,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (humans + bots < 2) startBtn.setAttribute('disabled', '');
     return el('div', { class: 'card' },
       r.phase === 'end'
-        ? el('div', {}, el('h2', { class: 'title' }, r.winner ? `🏆 ${r.players.find((p) => p.id === r.winner)?.name ?? '?'} venceu!` : 'Partida encerrada'), r.winner ? null : el('p', { class: 'muted' }, 'Três rodadas seguidas sem ninguém sobrar.'), board(r, me))
+        ? el('div', {}, el('h2', { class: 'title' }, r.winner ? `🏆 ${r.players.find((p) => p.id === r.winner)?.name ?? '?'} venceu!` : 'Partida encerrada'), r.winner ? null : el('p', { class: 'muted' }, 'Ninguém jogou por um tempo e a partida foi encerrada.'), board(r, me, act.kick))
         : el('div', {}, el('h2', { class: 'title' }, 'Sala ' + r.id), el('p', { class: 'muted' }, 'Mande o link para os amigos entrarem. Até 8 magos.'),
-            el('ul', { class: 'board' }, ...r.players.filter((p) => !p.bot).map((p) => el('li', {}, el('span', {}, dot(p.color), ' ', nameOf(p, me)))))),
+            el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), kickBtn(p, act.kick))))),
       picker(r),
       el('div', { class: 'bots' }, el('span', {}, 'Bots'), el('button', { type: 'button', onclick: () => set(bots - 1) }, '−'), count, el('button', { type: 'button', onclick: () => set(bots + 1) }, '+')),
       startBtn,
@@ -295,7 +300,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('aside', { class: 'shop-side' },
         el('span', { class: 'gold big' }, `🪙 ${mine.gold}`),
         el('button', { type: 'button', class: 'primary big', disabled: mine.ready, onclick: act.ready }, mine.ready ? 'Esperando os outros…' : 'Pronto'),
-        board(r, me),
+        board(r, me, act.kick),
         picker(r),
       ),
     );

@@ -17,6 +17,7 @@ export type ClientMsg =
   | { t: 'pick'; character: CharacterId }
   | { t: 'buyItem'; item: ItemId }
   | { t: 'buyMastery'; mastery: MasteryId | 'all' }
+  | { t: 'kick'; target: string }
   | { t: 'item'; item: ItemId; x: number; y: number; seq: number }
   | { t: 'ready' }
   | { t: 'alive' };
@@ -42,7 +43,7 @@ export type PublicRoom = {
 // cd: recarga restante das 5 magias de quem recebe, na ordem de SPELL_IDS; icd: dos 3 itens ativos (ACTIVE_ITEMS);
 // pl: 3 números por pilar: x, y, vida em % (0 = quebrado)
 // sp: velocidade de andar dele agora (botas, lentidão), para a previsão; ack: último seq aplicado dele
-// a vida em w vai em % da vida máxima de cada mago (os anéis aumentam a máxima)
+// a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
 export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; pl: number[]; ack: number; e?: SimEvent[] };
 
 export type ErrorCode = 'not_found' | 'other_tab' | 'full' | 'bad_msg';
@@ -89,6 +90,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return spell(m.spell) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'cast', spell: m.spell, x: m.x, y: m.y, seq: m.seq } : null;
     case 'buy':
       return spell(m.spell) ? { t: 'buy', spell: m.spell } : null;
+    case 'kick':
+      return typeof m.target === 'string' && /^p[0-9a-z]{1,8}$/.test(m.target) ? { t: 'kick', target: m.target } : null;
     case 'buyMastery':
       return m.mastery === 'all' || MASTERY_IDS.includes(m.mastery as MasteryId) ? { t: 'buyMastery', mastery: m.mastery as MasteryId | 'all' } : null;
     case 'buyItem':

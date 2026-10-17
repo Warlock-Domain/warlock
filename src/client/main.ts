@@ -1,9 +1,9 @@
-import { SHRINK_EVERY, STUN_SPEED } from '../shared/constants.ts';
+import { HP_MAX, SHRINK_EVERY, STUN_SPEED } from '../shared/constants.ts';
 import { isCharacter } from '../shared/characters.ts';
 import type { PublicRoom, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView } from '../shared/snapshot.ts';
-import { ACTIVE_ITEMS, ITEM_CAST, type ItemId } from '../shared/items.ts';
+import { ACTIVE_ITEMS, ITEM_CAST, itemStats, type ItemId } from '../shared/items.ts';
 import { CAST_POINT, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { dist, len, type Vec } from '../shared/vec.ts';
 import { createInput } from './input.ts';
@@ -104,6 +104,7 @@ function startRoom(code: string, name: string) {
     buy: (spell) => net.send({ t: 'buy', spell }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),
     buyMastery: (mastery) => net.send({ t: 'buyMastery', mastery }),
+    kick: (target) => net.send({ t: 'kick', target }),
     useItem: (item) => input.itemButton(item),
     pick: (character) => {
       store.set(CHAR, character);
@@ -288,7 +289,7 @@ function startRoom(code: string, name: string) {
         const prevDraw = drawn.get(w.id);
         if (prevDraw) moving = moving && dist(prevDraw, pos) > 0.004;
         drawn.set(w.id, pos);
-        wizards.push({ ...w, pos, color: p?.color ?? 0, character: p?.character ?? 'mage', name: p?.name ?? '?', moving, cheer: room?.phase === 'roundEnd' && room.lastRoundWinner === w.id });
+        wizards.push({ ...w, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), color: p?.color ?? 0, character: p?.character ?? 'mage', name: p?.name ?? '?', moving, cheer: room?.phase === 'roundEnd' && room.lastRoundWinner === w.id });
       }
     }
     const shrinkIn = s && room?.phase === 'playing' ? s.shrinkAt - s.time : null;

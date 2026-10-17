@@ -146,6 +146,19 @@ export function resume(m: Match, now: number) {
   } else if (m.phase === 'roundEnd') afterRound(m, now);
 }
 
+// expulsa um bot ou alguém que caiu e não voltou (gente conectada não pode ser expulsa por outro)
+export function kick(m: Match, id: string): boolean {
+  const p = m.players.find((q) => q.id === id);
+  if (!p || (!p.bot && p.connected)) return false;
+  m.players = m.players.filter((q) => q !== p);
+  const wz = m.world?.wizards.find((z) => z.id === id);
+  if (wz) {
+    wz.alive = false;
+    wz.hp = 0;
+  }
+  return true;
+}
+
 // sala esquecida aberta (ninguém joga há muito tempo): encerra a partida para o laço parar
 export function endIdle(m: Match) {
   const best = Math.max(0, ...m.players.map((p) => p.score));

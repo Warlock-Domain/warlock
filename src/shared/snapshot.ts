@@ -22,7 +22,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   const wz: number[] = [];
   for (const z of w.wizards) {
     const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0);
-    wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x), r2(z.vel.y), Math.ceil((z.hp / z.hpMax) * 100), r2(z.facing), bits);
+    wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x), r2(z.vel.y), Math.ceil(z.hp), r2(z.facing), bits);
   }
   const p: number[] = [];
   for (const q of w.projectiles) p.push(q.id, q.kind === 'fireball' ? 0 : 1, r2(q.pos.x), r2(q.pos.y), r2(q.vel.x), r2(q.vel.y));

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { botBuy, botCmds } from '../src/shared/bots.ts';
 import { ARENA_R0, COUNTDOWN_MS, DT, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
-import { addPlayer, buy, endIdle, newMatch, removePlayer, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
+import { addPlayer, buy, endIdle, kick, newMatch, removePlayer, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { newWorld } from '../src/shared/sim.ts';
 import { noItems } from '../src/shared/items.ts';
 import { noSpells } from '../src/shared/spells.ts';
@@ -76,6 +76,18 @@ describe('partida', () => {
     m.world!.wizards[1].hp = 0.05;
     until(m, now, () => m.phase === 'roundEnd');
     expect(m.lastRoundWinner).toBe('b');
+  });
+
+  it('kick removes bots and dropped players, never connected people', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'Ana');
+    startMatch(m, 0, 2);
+    expect(kick(m, 'a')).toBe(false);
+    expect(kick(m, 'bot-1')).toBe(true);
+    expect(m.players.some((p) => p.id === 'bot-1')).toBe(false);
+    addPlayer(m, 'c', 'Caio');
+    removePlayer(m, 'c');
+    expect(kick(m, 'c')).toBe(true);
   });
 
   it('idle match is closed', () => {

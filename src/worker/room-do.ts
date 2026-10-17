@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
-import { addPlayer, buy, buyItem, buyMastery, endIdle, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../shared/match.ts';
+import { addPlayer, buy, buyItem, buyMastery, endIdle, kick, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
@@ -135,6 +135,12 @@ export class Room extends DurableObject<Env> {
         this.cmds.push({ id, kind: 'item', item: msg.item, at: v(msg.x, msg.y) });
         this.acks.set(id, msg.seq);
         return;
+      case 'kick': {
+        // o cliente só conhece o id público: acha o jogador correspondente
+        const target = m.players.find((p) => publicId(s.id, p.id) === msg.target);
+        if (target && kick(m, target.id)) await this.changed();
+        return;
+      }
       case 'buyMastery':
         if (buyMastery(m, id, msg.mastery)) await this.changed();
         return;

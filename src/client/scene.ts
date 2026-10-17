@@ -18,7 +18,7 @@ export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; alive: boolean; shield: boolean; color: number; character: string; name: string; moving: boolean; cheer: boolean };
+export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; alive: boolean; shield: boolean; color: number; character: string; name: string; moving: boolean; cheer: boolean };
 
 const w3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, p.y);
 
@@ -32,6 +32,7 @@ type Mage = {
   shield: THREE.Mesh;
   label: HTMLDivElement;
   hpFill: HTMLDivElement;
+  hpText: HTMLSpanElement;
   dead: boolean;
   color: number;
   character: string;
@@ -314,10 +315,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     nameEl.textContent = d.name;
     const bar = document.createElement('div');
     bar.className = 'hp';
-    bar.append(hpFill);
+    const hpText = document.createElement('span');
+    hpText.className = 'hp-text';
+    bar.append(hpFill, hpText);
     label.append(nameEl, bar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, label, hpFill, dead: false, color: d.color, character: d.character };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, label, hpFill, hpText, dead: false, color: d.color, character: d.character };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -606,7 +609,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.moving ? 'Running_A' : 'Idle');
       }
       m.label.hidden = !d.alive;
-      m.hpFill.style.width = `${Math.max(0, d.hp)}%`;
+      m.hpFill.style.width = `${Math.max(0, Math.min(100, (d.hp / d.hpMax) * 100))}%`;
+      m.hpText.textContent = `${Math.max(0, Math.ceil(d.hp))}/${d.hpMax}`;
     }
     for (const [id, m] of mages) if (!seen.has(id)) {
       m.root.visible = false;
