@@ -126,7 +126,7 @@ export class Room extends DurableObject<Env> {
         this.acks.set(id, msg.seq);
         return;
       case 'start':
-        if (startMatch(m, now, msg.bots)) await this.changed();
+        if (startMatch(m, now, msg.bots, msg.mode)) await this.changed();
         return;
       case 'buy':
         if (buy(m, id, msg.spell)) await this.changed();

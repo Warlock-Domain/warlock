@@ -1,6 +1,6 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
-  ARENA_MIN, ARENA_STEP, CREDIT_WINDOW, PILLAR, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
+  ARENA_MIN, ARENA_STEP, CREDIT_WINDOW, DM_RESPAWN, DM_SPAWN_GAP, PILLAR, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
   WIZ_R, WIZ_SPEED, arenaRadius,
 } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, itemStats, noItems, type ItemId } from './items.ts';
@@ -34,6 +34,7 @@ export type Wizard = {
   pactUntil: number; // Pacto armado até este instante
   slowUntil: number;
   invulnUntil: number;
+  respawnAt: number; // deathmatch: instante (w.t) em que o morto volta
   durF: number; // maestria de duração (multiplica escudo e pacto)
   rangeF: number; // maestria de alcance
   lifesteal: number; // fração do dano causado que volta como vida
@@ -94,6 +95,7 @@ export type World = {
   pillars: Pillar[];
   events: SimEvent[];
   nextId: number;
+  dm: boolean; // deathmatch: a arena não encolhe e quem morre volta depois de DM_RESPAWN s
 };
 
 export function newWorld(
@@ -103,6 +105,7 @@ export function newWorld(
   masteries: Record<string, Record<MasteryId, number>> = {},
   pillarCount = 0,
   rand: () => number = Math.random,
+  dm = false,
 ): World {
   const arenaR = arenaRadius(ids.length);
   const r = arenaR - SPAWN_INSET;
@@ -137,13 +140,14 @@ export function newWorld(
       pactUntil: 0,
       slowUntil: 0,
       invulnUntil: INVULN_TIME,
+      respawnAt: 0,
       durF: 1 + masteryValue('duration', ms.duration),
       rangeF: 1 + masteryValue('range', ms.range),
       lifesteal: masteryValue('lifesteal', ms.lifesteal),
       casting: null,
     };
   });
-  return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars: placePillars(pillarCount, wizards.map((z) => z.pos), rand), events: [], nextId: 1 };
+  return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars: placePillars(pillarCount, wizards.map((z) => z.pos), rand), events: [], nextId: 1, dm };
 }
 
 // sorteia pilares longe de onde os magos nascem e longe uns dos outros
@@ -525,7 +529,27 @@ function separate(w: World) {
   }
 }
 
-export function stepWorld(w: World, cmds: Cmd[]) {
+// volta ao jogo no deathmatch: sorteia um ponto na pedra longe dos inimigos vivos e dos pilares (se nenhum
+// sorteio chega a DM_SPAWN_GAP, fica o melhor); vida cheia, parado e invulnerável; magias, itens e recargas ficam
+function respawn(w: World, wz: Wizard, rand: () => number) {
+  const reach = w.arenaR - SPAWN_INSET;
+  const gap = (p: Vec) => Math.min(...w.wizards.filter((z) => z.alive).map((z) => dist(z.pos, p)), ...w.pillars.filter((q) => q.alive).map((q) => dist(q.pos, p)));
+  let best = v(0, 0);
+  let bestGap = -1;
+  for (let i = 0; i < 30 && bestGap < DM_SPAWN_GAP; i++) {
+    const a = rand() * Math.PI * 2;
+    const r = Math.sqrt(rand()) * reach;
+    const p = v(Math.cos(a) * r, Math.sin(a) * r);
+    const g = gap(p);
+    if (g > bestGap) [best, bestGap] = [p, g];
+  }
+  Object.assign(wz, {
+    alive: true, pos: best, vel: v(0, 0), target: null, casting: null, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
+    shieldUntil: 0, slowUntil: 0, kbPenaltyUntil: 0, pactUntil: 0, invulnUntil: w.t + INVULN_TIME,
+  });
+}
+
+export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.random) {
   w.events = [];
   for (const c of cmds) {
     const wz = byId(w, c.id);
@@ -540,6 +564,7 @@ export function stepWorld(w: World, cmds: Cmd[]) {
     else beginCast(w, wz, { spell: c.spell }, c.at);
   }
   for (const wz of w.wizards) {
+    if (!wz.alive && w.dm && w.t >= wz.respawnAt) respawn(w, wz, rand);
     if (!wz.alive) continue;
     if (wz.casting && w.t >= wz.casting.fireAt) {
       const c = wz.casting;
@@ -550,7 +575,7 @@ export function stepWorld(w: World, cmds: Cmd[]) {
     wz.speed = Math.max(0.2, wz.baseSpeed - (w.t < wz.slowUntil ? PACT.slow : 0));
   }
 
-  if (w.t >= w.shrinkAt && w.arenaR > ARENA_MIN) {
+  if (!w.dm && w.t >= w.shrinkAt && w.arenaR > ARENA_MIN) {
     w.arenaR = Math.max(ARENA_MIN, w.arenaR - ARENA_STEP);
     w.shrinkAt += SHRINK_EVERY;
     w.events.push({ k: 'shrink', r: w.arenaR });
@@ -573,6 +598,7 @@ export function stepWorld(w: World, cmds: Cmd[]) {
     wz.hp = 0;
     wz.alive = false;
     wz.target = null;
+    wz.respawnAt = w.t + DM_RESPAWN;
     const by = wz.lastHitBy !== null && w.t - wz.lastHitAt <= CREDIT_WINDOW ? wz.lastHitBy : null;
     w.events.push({ k: 'death', id: wz.id, by });
   }

@@ -100,7 +100,7 @@ function startRoom(code: string, name: string) {
   let follow = true;
 
   const view = createRoomUi(ui, code, {
-    start: (bots) => net.send({ t: 'start', bots }),
+    start: (bots, mode) => net.send({ t: 'start', bots, mode }),
     buy: (spell) => net.send({ t: 'buy', spell }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),
     buyMastery: (mastery) => net.send({ t: 'buyMastery', mastery }),
@@ -258,7 +258,7 @@ function startRoom(code: string, name: string) {
       sound.play('go');
     } else if (room.phase === 'roundEnd') {
       const w = room.players.find((p) => p.id === room!.lastRoundWinner);
-      banner(!w ? 'Ninguém sobrou!' : w.id === me ? 'Você venceu a rodada!' : `${w.name} venceu a rodada!`, w?.id === me ? 'good' : '');
+      banner(!w ? (room.mode === 'deathmatch' ? 'Fim da rodada' : 'Ninguém sobrou!') : room.mode === 'deathmatch' ? (w.id === me ? 'Você fez mais abates!' : `${w.name} fez mais abates!`) : w.id === me ? 'Você venceu a rodada!' : `${w.name} venceu a rodada!`, w?.id === me ? 'good' : '');
     } else if (room.phase === 'end' && prev) {
       const w = room.players.find((p) => p.id === room!.winner);
       banner(!w ? 'Partida encerrada' : w.id === me ? 'Você venceu a partida!' : `${w.name} venceu!`, 'good');
@@ -293,7 +293,7 @@ function startRoom(code: string, name: string) {
         wizards.push({ ...w, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), color: p?.color ?? 0, character: p?.character ?? 'mage', name: p?.name ?? '?', moving, cheer: room?.phase === 'roundEnd' && room.lastRoundWinner === w.id });
       }
     }
-    const shrinkIn = s && room?.phase === 'playing' ? s.shrinkAt - s.time : null;
+    const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' ? s.shrinkAt - s.time : null;
     scene.render({
       arenaR: s?.arenaR ?? 11,
       shrinkIn: shrinkIn ?? SHRINK_EVERY,
@@ -302,7 +302,8 @@ function startRoom(code: string, name: string) {
       pillars: playing && s ? s.pillars : [],
       follow: follow ? myPos : null,
     });
-    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, shrinkIn);
+    const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
+    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, shrinkIn, respawnIn);
   }
   const drawn = new Map<string, Vec>();
   void scene.ready.then(() => requestAnimationFrame(frame), () => toast('Não deu para carregar o mago. Recarregue a página.'));

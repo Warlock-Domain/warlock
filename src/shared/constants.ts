@@ -39,5 +39,10 @@ export const KILL_GOLD = 0;
 export const WIN_GOLD = 0;
 export const SHOP_MS = 30_000; // Mode.SHOP_TIME do original
 export const INVULN_TIME = 2; // invulnerável nos 2 primeiros segundos da rodada (mode.lua)
+// Deathmatch (modo do Warlock Brawl original): rodada de 60 s, volta em 10 s, 1 ponto por abate
+export const DM_ROUND_MS = 60_000;
+export const DM_RESPAWN = 10;
+export const DM_KILLS_TO_WIN = 15;
+export const DM_SPAWN_GAP = 2; // ao voltar, pelo menos 2 m de inimigos vivos e de pilares
 export const COUNTDOWN_MS = 3_000;
 export const ROUND_END_MS = 2_500;

@@ -9,6 +9,7 @@ export function createPredict() {
   let rttSec = 0.1;
   // conjurando: o mago fica parado até holdUntil; o clique de andar nesse meio-tempo fica guardado
   let holdUntil = 0;
+  let dead = false;
   let queued: Vec | null | undefined;
   const now = () => performance.now() / 1000;
 
@@ -48,6 +49,13 @@ export function createPredict() {
     frame(server: WizView, dt: number): Vec {
       if (!me) {
         me = { id: server.id, pos: server.pos, vel: v(0, 0), target: null } as Wizard;
+      }
+      if (!server.alive) dead = true;
+      else if (dead) {
+        // voltou no deathmatch: o servidor sorteou outro ponto, vai direto para lá
+        dead = false;
+        me.pos = server.pos;
+        me.target = null;
       }
       if (!server.alive || len(server.vel) > STUN_SPEED) {
         // empurrado ou morto: quem manda é o servidor

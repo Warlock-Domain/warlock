@@ -3,13 +3,13 @@ import { isCharacter, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_IDS, type ItemId } from './items.ts';
 import { MASTERY_IDS, type MasteryId } from './masteries.ts';
-import type { Match, Phase, Stats } from './match.ts';
+import type { Match, Mode, Phase, Stats } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { SPELL_IDS, type SpellId } from './spells.ts';
 
 export type ClientMsg =
   | { t: 'hello'; playerId: string; name: string }
-  | { t: 'start'; bots: number }
+  | { t: 'start'; bots: number; mode?: Mode }
   | { t: 'move'; x: number; y: number; seq: number }
   | { t: 'stop'; seq: number }
   | { t: 'cast'; spell: SpellId; x: number; y: number; seq: number }
@@ -31,6 +31,7 @@ export type PublicPlayer = {
 export type PublicRoom = {
   id: string;
   phase: Phase;
+  mode: Mode;
   round: number;
   phaseLeft: number; // ms até a fase mudar sozinha
   players: PublicPlayer[];
@@ -43,9 +44,10 @@ export type PublicRoom = {
 // p: 6 números por projétil: id, tipo (0 fogo, 1 míssil), x, y, vx, vy
 // cd: recarga restante das 5 magias de quem recebe, na ordem de SPELL_IDS; icd: dos 3 itens ativos (ACTIVE_ITEMS);
 // pl: 3 números por pilar: x, y, vida em % (0 = quebrado)
+// rs: só no deathmatch, 1 número por mago na ordem de room.ids: segundos até voltar (0 = vivo)
 // sp: velocidade de andar dele agora (botas, lentidão), para a previsão; ack: último seq aplicado dele
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
-export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; pl: number[]; ack: number; e?: SimEvent[] };
+export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; pl: number[]; rs?: number[]; ack: number; e?: SimEvent[] };
 
 export type ErrorCode = 'not_found' | 'other_tab' | 'full' | 'bad_msg';
 
@@ -82,7 +84,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       if (typeof m.playerId !== 'string' || !/^[\w-]{8,64}$/.test(m.playerId)) return null;
       return { t: 'hello', playerId: m.playerId, name: cleanName(m.name) };
     case 'start':
-      return Number.isInteger(m.bots) && (m.bots as number) >= 0 && (m.bots as number) < MAX_PLAYERS ? { t: 'start', bots: m.bots as number } : null;
+      if (m.mode !== undefined && m.mode !== 'rounds' && m.mode !== 'deathmatch') return null;
+      return Number.isInteger(m.bots) && (m.bots as number) >= 0 && (m.bots as number) < MAX_PLAYERS ? { t: 'start', bots: m.bots as number, mode: m.mode } : null;
     case 'move':
       return coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'move', x: m.x, y: m.y, seq: m.seq } : null;
     case 'stop':
@@ -124,6 +127,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
   return {
     id,
     phase: m.phase,
+    mode: m.mode,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
     players: m.players.map(({ id, name, bot, color, character, score, gold, spells, items, masteries, stats, bought, ready, connected }) => ({ id: pub(id), name, bot, color, character, score, gold, spells, items, masteries, stats, bought: bought.map((b) => b.key), ready, connected })),
