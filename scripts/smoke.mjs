@@ -53,13 +53,16 @@ const a = client('/ws/room/' + id, 'smoke-a-00000001', 'Ana');
 const b = client('/ws/room/' + id, 'smoke-b-00000001', 'Bia');
 await a.hello();
 await b.hello();
-await a.waitFor((m) => m.t === 'room' && m.room.players.length === 2, 'two players');
+const ra = await a.waitFor((m) => m.t === 'room' && m.room.players.length === 2, 'two players');
+const pubA = ra.you;
+const pubB = (await b.waitFor((m) => m.t === 'room', 'room b')).you;
+if (pubA === 'smoke-a-00000001') fail('secret id leaked as public id');
 await lobby.waitFor((m) => m.t === 'rooms' && m.rooms.some((r) => r.id === id && r.players === 2), 'room in lobby');
 
 a.send({ t: 'start', bots: 2 });
 await b.waitFor((m) => m.t === 'room' && m.room.phase === 'shop', 'shop');
 a.send({ t: 'buy', spell: 'teleport' });
-await a.waitFor((m) => m.t === 'room' && m.room.players.find((p) => p.id === 'smoke-a-00000001').spells.teleport === 1, 'bought teleport');
+await a.waitFor((m) => m.t === 'room' && m.room.players.find((p) => p.id === pubA).spells.teleport === 1, 'bought teleport');
 a.send({ t: 'ready' });
 b.send({ t: 'ready' });
 const cd = await a.waitFor((m) => m.t === 'room' && m.room.phase === 'countdown', 'countdown');
@@ -74,7 +77,7 @@ console.log('snaps por segundo:', rate);
 if (rate < 25) fail('snap rate too low: ' + rate);
 
 // anda e confere que a posição mudou e o ack voltou
-const ia = cd.room.ids.indexOf('smoke-a-00000001');
+const ia = cd.room.ids.indexOf(pubA);
 const pos = () => { const w = a.last('snap').w; return [w[ia * 7], w[ia * 7 + 1]]; };
 const [x0, y0] = pos();
 const tSent = Date.now();
@@ -87,11 +90,11 @@ if (Math.hypot(x1 - x0, y1 - y0) < 0.5) fail('wizard did not move');
 
 // cai e volta: continua o mesmo mago, com o ouro
 b.ws.close();
-await a.waitFor((m) => m.t === 'room' && m.room.players.find((p) => p.id === 'smoke-b-00000001')?.connected === false, 'b disconnected');
+await a.waitFor((m) => m.t === 'room' && m.room.players.find((p) => p.id === pubB)?.connected === false, 'b disconnected');
 const b2 = client('/ws/room/' + id, 'smoke-b-00000001', 'Bia');
 await b2.hello();
 const back = await b2.waitFor((m) => m.t === 'room', 'b back');
-if (!back.room.ids.includes('smoke-b-00000001')) fail('b lost the wizard');
+if (!back.room.ids.includes(pubB)) fail('b lost the wizard');
 await b2.waitFor((m) => m.t === 'snap', 'b snaps');
 
 // a mesma pessoa em outra aba: a antiga é avisada

@@ -32,11 +32,12 @@ export type Match = {
   world: World | null;
   winner: string | null;
   lastRoundWinner: string | null;
+  emptyRounds: number; // rodadas seguidas sem vencedor
   steps: number;
 };
 
 export const newMatch = (): Match => ({
-  phase: 'lobby', round: 0, phaseEnds: 0, players: [], world: null, winner: null, lastRoundWinner: null, steps: 0,
+  phase: 'lobby', round: 0, phaseEnds: 0, players: [], world: null, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0,
 });
 
 const BOT_NAMES = ['Gul’dan', 'Merlim', 'Morgana', 'Rasputin', 'Zatanna', 'Mandrake', 'Gandalfo'];
@@ -72,7 +73,7 @@ export function startMatch(m: Match, now: number, bots: number): boolean {
   for (let i = 0; m.players.length < MAX_PLAYERS && i < bots; i++) addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true);
   if (m.players.length < 2) return false;
   for (const p of m.players) Object.assign(p, { score: 0, gold: START_GOLD, spells: noSpells(), items: noItems() });
-  Object.assign(m, { round: 0, winner: null, lastRoundWinner: null, steps: 0 });
+  Object.assign(m, { round: 0, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0 });
   enterShop(m, now);
   return true;
 }
@@ -105,14 +106,17 @@ export function buyItem(m: Match, id: string, item: ItemId): boolean {
   return true;
 }
 
-export function setReady(m: Match, id: string) {
+export function setReady(m: Match, id: string): boolean {
   const p = m.players.find((q) => q.id === id);
-  if (m.phase === 'shop' && p) p.ready = true;
+  if (m.phase !== 'shop' || !p || p.ready) return false;
+  p.ready = true;
+  return true;
 }
 
 // a sala reiniciou (o mundo da rodada só vive na memória): repete a rodada a partir da loja
 export function resume(m: Match, now: number) {
   // salas gravadas antes da escolha de personagem existir
+  m.emptyRounds ??= 0;
   for (const p of m.players) {
     p.character ??= 'mage';
     p.items ??= noItems();
@@ -152,6 +156,7 @@ function endRound(m: Match, now: number, winner: string | null) {
   const played = new Set(m.world?.wizards.map((z) => z.id));
   for (const q of m.players) if (played.has(q.id)) q.gold += ROUND_GOLD;
   m.lastRoundWinner = winner;
+  m.emptyRounds = winner ? 0 : m.emptyRounds + 1;
   m.phase = 'roundEnd';
   m.phaseEnds = now + ROUND_END_MS;
 }
@@ -159,11 +164,14 @@ function endRound(m: Match, now: number, winner: string | null) {
 // como no original: ganha quem vencer WINS_TO_WIN rodadas primeiro
 function afterRound(m: Match, now: number) {
   const champion = m.players.find((p) => p.score >= WINS_TO_WIN);
-  if (!champion) return enterShop(m, now);
+  // 3 rodadas seguidas sem ninguém sobrar: todo mundo parado, a partida acaba (e o laço da sala para)
+  if (!champion && m.emptyRounds < EMPTY_ROUNDS_END) return enterShop(m, now);
   m.phase = 'end';
-  m.winner = champion.id;
+  m.winner = champion?.id ?? null;
   m.world = null;
 }
+
+export const EMPTY_ROUNDS_END = 3;
 
 export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number = Math.random): SimEvent[] {
   if (m.phase === 'shop') {

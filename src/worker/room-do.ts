@@ -1,9 +1,9 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
 import { addPlayer, buy, buyItem, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../shared/match.ts';
-import { parseClientMessage, publicRoom, type ServerMsg } from '../shared/protocol.ts';
+import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
-import { encodeSnap } from '../shared/snapshot.ts';
+import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
 import { v } from '../shared/vec.ts';
 
 const STEP_MS = DT * 1000;
@@ -35,6 +35,9 @@ export class Room extends DurableObject<Env> {
       this.saved = (await this.ctx.storage.get<Saved>('room')) ?? null;
       if (this.saved) {
         resume(this.saved.match, Date.now());
+        // depois de reiniciar, conectado é só quem tem socket vivo agora
+        const liveIds = new Set(this.live().map((ws) => this.playerOf(ws)));
+        for (const p of this.saved.match.players) if (!p.bot) p.connected = liveIds.has(p.id);
         // a sala reiniciou (ex.: publicação nova) com gente conectada: avisa a fase nova e religa o laço.
         // Sem ninguém (ex.: o alarme de limpeza acordou a sala), não mexe no lobby nem no alarme.
         if (this.live().length) void this.changed();
@@ -63,6 +66,8 @@ export class Room extends DurableObject<Env> {
     if (await this.load()) return;
     this.saved = { id, match: newMatch() };
     await this.persist();
+    // sala criada e nunca aberta também é limpa
+    await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS);
   }
 
   async fetch(): Promise<Response> {
@@ -81,6 +86,9 @@ export class Room extends DurableObject<Env> {
     const now = Date.now();
 
     if (msg.t === 'hello') {
+      // um socket é uma pessoa: não deixa o mesmo socket registrar vários jogadores
+      const current = this.playerOf(ws);
+      if (current && current !== msg.playerId) return send(ws, { t: 'error', code: 'bad_msg', msg: 'Esta conexão já é de outro jogador.' });
       for (const other of this.live(ws)) {
         if (this.playerOf(other) !== msg.playerId) continue;
         send(other, { t: 'error', code: 'other_tab', msg: 'Sala aberta em outra aba.' });
@@ -93,18 +101,23 @@ export class Room extends DurableObject<Env> {
 
     const id = this.playerOf(ws);
     if (!id) return send(ws, { t: 'error', code: 'bad_msg', msg: 'Envie hello primeiro.' });
+    // comandos de jogo só valem com a rodada rolando (fora dela a fila cresceria sem limite)
+    const playing = m.phase === 'playing';
     switch (msg.t) {
       case 'alive':
         return;
       case 'move':
+        if (!playing) return;
         this.cmds.push({ id, kind: 'move', to: v(msg.x, msg.y) });
         this.acks.set(id, msg.seq);
         return;
       case 'stop':
+        if (!playing) return;
         this.cmds.push({ id, kind: 'stop' });
         this.acks.set(id, msg.seq);
         return;
       case 'cast':
+        if (!playing) return;
         this.cmds.push({ id, kind: 'cast', spell: msg.spell, at: v(msg.x, msg.y) });
         this.acks.set(id, msg.seq);
         return;
@@ -115,6 +128,7 @@ export class Room extends DurableObject<Env> {
         if (buy(m, id, msg.spell)) await this.changed();
         return;
       case 'item':
+        if (!playing) return;
         this.cmds.push({ id, kind: 'item', item: msg.item, at: v(msg.x, msg.y) });
         this.acks.set(id, msg.seq);
         return;
@@ -125,8 +139,8 @@ export class Room extends DurableObject<Env> {
         if (setCharacter(m, id, msg.character)) await this.changed();
         return;
       case 'ready':
-        setReady(m, id);
-        return this.changed();
+        if (setReady(m, id)) await this.changed();
+        return;
     }
   }
 
@@ -149,11 +163,17 @@ export class Room extends DurableObject<Env> {
 
   async alarm() {
     const s = await this.load();
-    if (!s || this.humans() > 0) return;
+    if (!s) return;
+    if (this.humans() > 0) return void (await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS));
     this.stopLoop();
+    // tira do lobby primeiro; se falhar, tenta de novo daqui a 1 minuto (antes a sala sumia do disco e ficava na lista)
+    try {
+      await this.lobby().remove(s.id);
+    } catch {
+      return void (await this.ctx.storage.setAlarm(Date.now() + 60_000));
+    }
     this.saved = null;
     await this.ctx.storage.deleteAll();
-    await this.lobby().remove(s.id);
   }
 
   // fase ou jogadores mudaram: avisa todos, grava, atualiza o lobby e liga/desliga o laço
@@ -161,25 +181,37 @@ export class Room extends DurableObject<Env> {
     const s = this.saved;
     if (!s) return;
     this.broadcastRoom(closing);
-    await this.persist();
+    // laço e alarme antes do disco e do lobby: se o lobby falhar, a sala não congela
     const humans = this.humans(closing);
     if (shouldRun(s.match, humans)) this.startLoop();
     else this.stopLoop();
     if (humans === 0) await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS);
+    await this.persist();
   }
+
+  private lobbyKey = '';
 
   private async persist() {
     const s = this.saved;
     if (!s) return;
     await this.ctx.storage.put('room', { id: s.id, match: { ...s.match, world: null } });
-    await this.lobby().upsert({ id: s.id, players: s.match.players.filter((p) => !p.bot && p.connected).length, phase: s.match.phase });
+    // o lobby é um objeto só para o site todo: só avisa quando muda o que a lista mostra
+    const info = { id: s.id, players: s.match.players.filter((p) => !p.bot && p.connected).length, phase: s.match.phase };
+    const key = `${info.players}:${info.phase}`;
+    if (key === this.lobbyKey) return;
+    try {
+      await this.lobby().upsert(info);
+      this.lobbyKey = key;
+    } catch {
+      // tenta de novo na próxima mudança
+    }
   }
 
   private broadcastRoom(closing?: WebSocket) {
     const s = this.saved;
     if (!s) return;
     const room = publicRoom(s.id, s.match, Date.now());
-    for (const ws of this.live(closing)) send(ws, { t: 'room', room, you: this.playerOf(ws)! });
+    for (const ws of this.live(closing)) send(ws, { t: 'room', room, you: publicId(s.id, this.playerOf(ws)!) });
   }
 
   private startLoop() {
@@ -213,8 +245,10 @@ export class Room extends DurableObject<Env> {
   }
 
   private sendSnaps() {
-    const w = this.saved?.match.world;
-    const events = this.events;
+    const s = this.saved;
+    const w = s?.match.world;
+    const pub = (x: string) => publicId(s!.id, x);
+    const events = publicEvents(this.events, pub);
     this.events = [];
     if (!w) return;
     for (const ws of this.live()) {

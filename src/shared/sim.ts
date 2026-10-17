@@ -280,11 +280,13 @@ function stepProjectiles(w: World) {
     if (found) {
       const wz = found.wz;
       if (shielded(w, wz)) {
-        // espelha a direção na normal do escudo e o projétil passa a ser de quem refletiu
-        const n = norm(sub(p.pos, wz.pos));
-        p.vel = sub(p.vel, scale(n, 2 * dot(p.vel, n)));
+        // devolve mirando onde quem atirou está agora (pedido do Fernando, 17/10: deixa o escudo mais forte);
+        // se ele já morreu, volta pelo mesmo caminho. O projétil passa a ser de quem refletiu.
+        const shooter = byId(w, p.owner);
+        const back = shooter ? norm(sub(shooter.pos, p.pos)) : scale(norm(p.vel), -1);
+        p.vel = scale(back, len(p.vel));
+        p.target = p.kind === 'homing' ? (shooter?.id ?? nearestEnemy(w, p.pos, wz.id)?.id ?? null) : null;
         p.owner = wz.id;
-        p.target = p.kind === 'homing' ? (nearestEnemy(w, p.pos, wz.id)?.id ?? null) : null;
         p.until = w.t + (p.kind === 'homing' ? L.duration : L.range / L.speed);
         w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
         keep.push(p);

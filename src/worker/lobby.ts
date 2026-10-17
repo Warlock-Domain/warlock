@@ -11,7 +11,13 @@ export class Lobby extends DurableObject<Env> {
   private async save(rooms: Record<string, RoomInfo>) {
     await this.ctx.storage.put('rooms', rooms);
     const msg = JSON.stringify({ t: 'rooms', rooms: Object.values(rooms) });
-    for (const ws of this.ctx.getWebSockets()) ws.send(msg);
+    for (const ws of this.ctx.getWebSockets()) {
+      try {
+        ws.send(msg);
+      } catch {
+        // socket fechado
+      }
+    }
   }
 
   async upsert(info: RoomInfo) {

@@ -7,6 +7,16 @@ import { v, type Vec } from './vec.ts';
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
+// troca os ids secretos dos eventos pelos públicos (ver publicId)
+export function publicEvents(events: SimEvent[], pub: (id: string) => string): SimEvent[] {
+  return events.map((e) => {
+    const out: Record<string, unknown> = { ...e };
+    if ('id' in e) out.id = pub(e.id);
+    if ('by' in e && e.by) out.by = pub(e.by);
+    return out as SimEvent;
+  });
+}
+
 export function encodeSnap(w: World, forId: string, ack: number, events: SimEvent[]): Snap {
   const wz: number[] = [];
   for (const z of w.wizards) {

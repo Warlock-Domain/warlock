@@ -128,6 +128,19 @@ describe('magias', () => {
     expect(wz(w, 0).lastHitBy).toBe('p1');
   });
 
+  it('shield aims the reflected fireball at where the shooter is now', () => {
+    const w = world([[0, 0], [4, 0]]);
+    stepWorld(w, [
+      { id: 'p0', kind: 'cast', spell: 'fireball', at: v(4, 0) },
+      { id: 'p1', kind: 'cast', spell: 'shield', at: v(0, 0) },
+    ]);
+    // quem atirou foge para o lado logo depois de lançar
+    wz(w, 0).pos = v(0, 2.5);
+    run(w, 2);
+    expect(wz(w, 1).hp).toBe(HP_MAX);
+    expect(wz(w, 0).hp).toBeLessThan(HP_MAX);
+  });
+
   it('shield reflects lightning to caster', () => {
     const w = world([[0, 0], [3, 0]]);
     stepWorld(w, [{ id: 'p1', kind: 'cast', spell: 'shield', at: v(0, 0) }]);

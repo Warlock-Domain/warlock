@@ -100,15 +100,24 @@ export function parseClientMessage(raw: string): ClientMsg | null {
   }
 }
 
+// O playerId é o segredo de reconexão: para os outros só vai um apelido curto derivado dele (FNV-1a com o código
+// da sala), que não dá para reverter. Assim ninguém copia o id de outro para tomar o lugar dele.
+export function publicId(room: string, id: string): string {
+  let h = 0x811c9dc5;
+  for (const c of room + ':' + id) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0;
+  return 'p' + h.toString(36);
+}
+
 export function publicRoom(id: string, m: Match, now: number): PublicRoom {
+  const pub = (x: string) => publicId(id, x);
   return {
     id,
     phase: m.phase,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, score, gold, spells, items, ready, connected }) => ({ id, name, bot, color, character, score, gold, spells, items, ready, connected })),
-    ids: m.world?.wizards.map((z) => z.id) ?? [],
-    winner: m.winner,
-    lastRoundWinner: m.lastRoundWinner,
+    players: m.players.map(({ id, name, bot, color, character, score, gold, spells, items, ready, connected }) => ({ id: pub(id), name, bot, color, character, score, gold, spells, items, ready, connected })),
+    ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
+    winner: m.winner && pub(m.winner),
+    lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),
   };
 }
