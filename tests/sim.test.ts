@@ -12,6 +12,8 @@ function world(spots: [number, number][]): World {
   const ids = spots.map((_, i) => 'p' + i);
   const w = newWorld(ids, Object.fromEntries(ids.map((id) => [id, all()])));
   spots.forEach(([x, y], i) => (w.wizards[i].pos = v(x, y)));
+  // os testes de mecânica não querem os 2 s de invulnerabilidade do começo da rodada
+  for (const z of w.wizards) z.invulnUntil = 0;
   return w;
 }
 
@@ -91,9 +93,10 @@ describe('magias', () => {
   });
 
   it('cannot cast on cooldown', () => {
-    const w = world([[0, 0], [3, 0]]);
-    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
-    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
+    // alvo longe, fora do alcance: a primeira bola ainda está voando quando a segunda é tentada
+    const w = world([[0, 0], [9, 0]]);
+    run(w, 0.25, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(9, 0) }]);
+    run(w, 0.25, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(9, 0) }]);
     expect(w.projectiles.length).toBe(1);
   });
 
@@ -105,14 +108,14 @@ describe('magias', () => {
 
   it('lightning hits first wizard on the line within range', () => {
     const w = world([[0, 0], [2.5, 0], [3.5, 0]]);
-    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(6, 0) }]);
+    run(w, 0.25, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(6, 0) }]);
     expect(wz(w, 1).hp).toBeLessThan(HP_MAX);
     expect(wz(w, 2).hp).toBe(HP_MAX);
   });
 
   it('lightning does not reach past its range', () => {
     const w = world([[0, 0], [8, 0]]);
-    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(8, 0) }]);
+    run(w, 0.25, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(8, 0) }]);
     expect(wz(w, 1).hp).toBe(HP_MAX);
   });
 
@@ -144,7 +147,7 @@ describe('magias', () => {
   it('shield reflects lightning to caster', () => {
     const w = world([[0, 0], [3, 0]]);
     stepWorld(w, [{ id: 'p1', kind: 'cast', spell: 'shield', at: v(0, 0) }]);
-    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(3, 0) }]);
+    run(w, 0.25, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(3, 0) }]);
     expect(wz(w, 1).hp).toBe(HP_MAX);
     expect(wz(w, 0).hp).toBeLessThan(HP_MAX);
   });
@@ -193,6 +196,36 @@ describe('magias', () => {
   });
 });
 
+describe('conjuração e invulnerabilidade', () => {
+  it('spells fire after the cast point and stop the caster', () => {
+    const w = world([[0, 0], [3, 0]]);
+    stepWorld(w, [{ id: 'p0', kind: 'move', to: v(0, 5) }]);
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
+    expect(w.projectiles.length).toBe(0);
+    run(w, 0.25);
+    expect(w.projectiles.length).toBe(1);
+    expect(wz(w, 0).target).toBeNull();
+  });
+
+  it('moving during the cast cancels it without spending the cooldown', () => {
+    const w = world([[0, 0], [3, 0]]);
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
+    stepWorld(w, [{ id: 'p0', kind: 'move', to: v(0, 5) }]);
+    run(w, 0.3);
+    expect(w.projectiles.length).toBe(0);
+    expect(wz(w, 0).cd.fireball).toBe(0);
+  });
+
+  it('nobody takes damage in the first 2 seconds', () => {
+    const ids = ['a', 'b'];
+    const w = newWorld(ids, { a: all(), b: all() });
+    w.wizards[0].pos = v(0, 0);
+    w.wizards[1].pos = v(2, 0);
+    run(w, 0.5, [{ id: 'a', kind: 'cast', spell: 'lightning', at: v(2, 0) }]);
+    expect(w.wizards[1].hp).toBe(HP_MAX);
+  });
+});
+
 describe('choque de magias', () => {
   it('two enemy fireballs meeting explode in an area', () => {
     const w = world([[-3, 0], [3, 0], [0, 0.8]]);
@@ -227,19 +260,23 @@ describe('choque de magias', () => {
 
   it('own projectiles do not collide with each other', () => {
     const w = world([[0, 0], [8, 8]]);
-    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
-    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'homing', at: v(3, 0) }]);
-    stepWorld(w, []);
+    run(w, 0.3, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
+    run(w, 0.3, [{ id: 'p0', kind: 'cast', spell: 'homing', at: v(3, 0) }]);
     expect(w.projectiles.length).toBe(2);
   });
 
   it('lightning detonates a fireball in its path', () => {
     const w = world([[0, 0], [3, 2], [2.2, 0.6]]);
     stepWorld(w, [{ id: 'p1', kind: 'cast', spell: 'fireball', at: v(-3, -2) }]);
-    for (let i = 0; i < 6; i++) stepWorld(w, []);
+    for (let i = 0; i < 16; i++) stepWorld(w, []);
     const fb = w.projectiles[0].pos;
+    const seen: string[] = [];
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(fb.x, fb.y) }]);
-    expect(w.events.some((e) => e.k === 'clash' && e.combo === 'detonate')).toBe(true);
+    for (let i = 0; i < 14; i++) {
+      stepWorld(w, []);
+      for (const e of w.events) if (e.k === 'clash') seen.push(e.combo);
+    }
+    expect(seen).toContain('detonate');
     expect(w.projectiles.length).toBe(0);
     expect(wz(w, 2).hp).toBeLessThan(HP_MAX);
   });

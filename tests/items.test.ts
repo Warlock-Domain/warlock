@@ -13,6 +13,7 @@ function world(spots: [number, number][], items: Partial<Record<ItemId, number>>
   const ids = spots.map((_, i) => 'p' + i);
   const w = newWorld(ids, Object.fromEntries(ids.map((id) => [id, allSpells()])), Object.fromEntries(ids.map((id, i) => [id, with_(items[i] ?? {})])));
   spots.forEach(([x, y], i) => (w.wizards[i].pos = v(x, y)));
+  for (const z of w.wizards) z.invulnUntil = 0;
   return w;
 }
 const steps = (w: World, n: number) => {
@@ -70,8 +71,11 @@ describe('itens ativos', () => {
   it('pact makes the next damaging spell stronger, then slows', () => {
     const w = world([[0, 0], [2, 0]], [{ pact: 1 }]);
     stepWorld(w, [{ id: 'p0', kind: 'item', item: 'pact', at: v(0, 0) }]);
+    steps(w, 15);
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(2, 0) }]);
-    expect(HP_MAX - w.wizards[1].hp).toBeCloseTo(SPELLS.lightning.levels[0].dmg * PACT.mult, 1);
+    steps(w, 15);
+    // a vida volta um pouco (regeneração) entre o acerto e a conferência
+    expect(HP_MAX - w.wizards[1].hp).toBeGreaterThan(SPELLS.lightning.levels[0].dmg * PACT.mult - 0.2);
     steps(w, 2);
     expect(w.wizards[0].speed).toBeLessThan(WIZ_SPEED);
   });
@@ -79,8 +83,9 @@ describe('itens ativos', () => {
   it('redirector turns your nearest projectile toward the cursor', () => {
     const w = world([[0, 0], [0, 5]], [{ redirector: 1 }]);
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(5, 0) }]);
-    steps(w, 10);
+    steps(w, 20);
     stepWorld(w, [{ id: 'p0', kind: 'item', item: 'redirector', at: v(0, 5) }]);
+    steps(w, 13);
     const p = w.projectiles[0];
     expect(p.vel.y).toBeGreaterThan(Math.abs(p.vel.x));
     steps(w, 80);
@@ -108,9 +113,11 @@ describe('loja de itens', () => {
     expect(buyItem(m, 'a', 'cape')).toBe(true);
     expect(buyItem(m, 'a', 'cape')).toBe(false);
     expect(p.gold).toBe(200 - 3 * ITEMS.cape.cost);
-    for (const i of ['ring', 'armor', 'boots', 'watch', 'pact'] as ItemId[]) expect(buyItem(m, 'a', i)).toBe(true);
-    expect(itemPrice(p.items, 'scourge')).toBeNull();
-    expect(buyItem(m, 'a', 'scourge')).toBe(false);
+    // o Flagelo já vem de graça e ocupa um espaço
+    expect(p.items.scourge).toBe(1);
+    for (const i of ['ring', 'armor', 'boots', 'watch'] as ItemId[]) expect(buyItem(m, 'a', i)).toBe(true);
+    expect(itemPrice(p.items, 'pact')).toBeNull();
+    expect(buyItem(m, 'a', 'pact')).toBe(false);
     expect(Object.values(p.items).filter(Boolean).length).toBe(MAX_ITEMS);
   });
 });

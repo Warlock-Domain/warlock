@@ -20,6 +20,9 @@ export const SPELLS: Record<SpellId, Spell> = {
 
 export const HOMING_TURN = 3; // rad/s
 
+// tempo de conjuração: a magia sai esse tempo depois da tecla (AbilityCastPoint do original era 0,2 s)
+export const CAST_POINT: Record<SpellId, number> = { fireball: 0.1, lightning: 0.1, homing: 0.1, shield: 0, teleport: 0 }; // original 0,2 s; 0,1 s a pedido do Fernando (17/10)
+
 export const spellLevel = (id: SpellId, level: number): Level => SPELLS[id].levels[Math.max(1, Math.min(3, level)) - 1];
 
 // preço para subir do nível atual para o próximo; null = já no máximo

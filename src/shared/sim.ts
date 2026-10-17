@@ -1,10 +1,10 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
-  ARENA_STEP, CREDIT_WINDOW, DT, FRICTION, HP_MAX, HP_REGEN, KB_PER_DMG, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
+  ARENA_STEP, CREDIT_WINDOW, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
   WIZ_R, WIZ_SPEED, arenaRadius,
 } from './constants.ts';
-import { ACTIVE_ITEMS, PACT, REDIRECTOR, SCOURGE, itemStats, noItems, type ItemId } from './items.ts';
-import { HOMING_TURN, SPELL_IDS, spellLevel, type SpellId } from './spells.ts';
+import { ACTIVE_ITEMS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, itemStats, noItems, type ItemId } from './items.ts';
+import { CAST_POINT, HOMING_TURN, SPELL_IDS, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export type Wizard = {
@@ -32,7 +32,9 @@ export type Wizard = {
   kbPenaltyUntil: number; // Redirecionador: voa mais longe até este instante
   pactUntil: number; // Pacto armado até este instante
   slowUntil: number;
-  scourgeAt: number; // Flagelo explode neste instante (0 = nada preparado)
+  invulnUntil: number;
+  // magia ou item sendo conjurado: sai em fireAt; andar ou parar cancela, como no Dota
+  casting: { spell?: SpellId; item?: ItemId; at: Vec; fireAt: number } | null;
 };
 
 export type Projectile = {
@@ -111,7 +113,8 @@ export function newWorld(ids: string[], spells: Record<string, Record<SpellId, n
       kbPenaltyUntil: 0,
       pactUntil: 0,
       slowUntil: 0,
-      scourgeAt: 0,
+      invulnUntil: INVULN_TIME,
+      casting: null,
     };
   });
   return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], events: [], nextId: 1 };
@@ -141,6 +144,7 @@ const byId = (w: World, id: string | null) => w.wizards.find((z) => z.id === id 
 const shielded = (w: World, wz: Wizard) => w.t < wz.shieldUntil;
 
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec) {
+  if (w.t < target.invulnUntil) return;
   const penalty = w.t < target.kbPenaltyUntil ? REDIRECTOR.kbPenalty : 0;
   const mult = (1 + (KNOCK_HP_SCALE * target.dmgTaken) / HP_MAX) * Math.max(0, 1 - target.kbResist + penalty);
   target.hp -= dmg;
@@ -238,7 +242,6 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   const dmgMult = L.dmg > 0 ? usePact(w, wz) : 1;
   const dir = norm(sub(at, wz.pos));
   wz.facing = Math.atan2(dir.y, dir.x);
-  w.events.push({ k: 'cast', id: wz.id, spell });
 
   if (spell === 'fireball' || spell === 'homing') {
     const homing = spell === 'homing';
@@ -291,13 +294,34 @@ function usePact(w: World, wz: Wizard): number {
   return PACT.mult;
 }
 
+// começa a conjurar: confere nível e recarga agora; o efeito sai depois do tempo de conjuração
+function beginCast(w: World, wz: Wizard, what: { spell?: SpellId; item?: ItemId }, at: Vec) {
+  if (what.spell) {
+    if (!wz.spells[what.spell] || w.t < wz.cd[what.spell]) return;
+  } else if (what.item) {
+    if (!wz.items[what.item] || !ACTIVE_ITEMS.includes(what.item) || w.t < wz.itemCd[what.item]) return;
+  }
+  const delay = what.spell ? CAST_POINT[what.spell] : (ITEM_CAST[what.item!] ?? 0);
+  const d = sub(at, wz.pos);
+  if (len(d) > 0.01) wz.facing = Math.atan2(d.y, d.x);
+  if (what.spell) w.events.push({ k: 'cast', id: wz.id, spell: what.spell });
+  else w.events.push({ k: 'item', id: wz.id, item: what.item! });
+  if (delay <= 0) return fire(w, wz, what, at);
+  wz.target = null;
+  wz.casting = { ...what, at, fireAt: w.t + delay };
+}
+
+function fire(w: World, wz: Wizard, what: { spell?: SpellId; item?: ItemId }, at: Vec) {
+  if (what.spell) cast(w, wz, what.spell, at);
+  else useItem(w, wz, what.item!, at);
+}
+
 function useItem(w: World, wz: Wizard, item: ItemId, at: Vec) {
   const level = wz.items[item];
   if (!level || !ACTIVE_ITEMS.includes(item) || w.t < wz.itemCd[item]) return;
-  w.events.push({ k: 'item', id: wz.id, item });
   if (item === 'scourge') {
     wz.itemCd.scourge = w.t + SCOURGE.cd;
-    wz.scourgeAt = w.t + SCOURGE.windup;
+    scourge(w, wz);
   } else if (item === 'pact') {
     wz.itemCd.pact = w.t + PACT.cd;
     wz.pactUntil = w.t + PACT.window;
@@ -316,7 +340,6 @@ function useItem(w: World, wz: Wizard, item: ItemId, at: Vec) {
 
 // Flagelo: explosão em volta; quanto mais perto do centro, mais empurrão; o próprio mago perde a mesma vida (fica com 1 no mínimo)
 function scourge(w: World, wz: Wizard) {
-  wz.scourgeAt = 0;
   const mult = usePact(w, wz);
   const dmg = SCOURGE.dmg[wz.items.scourge - 1] * mult;
   for (const o of w.wizards) {
@@ -392,14 +415,22 @@ export function stepWorld(w: World, cmds: Cmd[]) {
   for (const c of cmds) {
     const wz = byId(w, c.id);
     if (!wz) continue;
-    if (c.kind === 'move') wz.target = c.to;
-    else if (c.kind === 'stop') wz.target = null;
-    else if (c.kind === 'item') useItem(w, wz, c.item, c.at);
-    else cast(w, wz, c.spell, c.at);
+    if (c.kind === 'move') {
+      wz.target = c.to;
+      wz.casting = null;
+    } else if (c.kind === 'stop') {
+      wz.target = null;
+      wz.casting = null;
+    } else if (c.kind === 'item') beginCast(w, wz, { item: c.item }, c.at);
+    else beginCast(w, wz, { spell: c.spell }, c.at);
   }
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
-    if (wz.scourgeAt && w.t >= wz.scourgeAt) scourge(w, wz);
+    if (wz.casting && w.t >= wz.casting.fireAt) {
+      const c = wz.casting;
+      wz.casting = null;
+      fire(w, wz, c, c.at);
+    }
     wz.speed = Math.max(0.2, wz.baseSpeed - (w.t < wz.slowUntil ? PACT.slow : 0));
   }
 
@@ -417,6 +448,7 @@ export function stepWorld(w: World, cmds: Cmd[]) {
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
     if (len(wz.pos) > w.arenaR) {
+      if (w.t < wz.invulnUntil) continue;
       wz.hp -= LAVA_DPS * DT;
       wz.dmgTaken += LAVA_DPS * DT * LAVA_KB_FACTOR;
     } else wz.hp = Math.min(wz.hpMax, wz.hp + wz.regen * DT);

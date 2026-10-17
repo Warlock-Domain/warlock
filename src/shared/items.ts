@@ -28,6 +28,8 @@ export const ITEMS: Record<ItemId, Item> = {
 // ativos (originais): Flagelo dano 100/110/120 de 1000 em 250 unidades, 0,9 s de preparo, recarga 3 s;
 // Redirecionador recarga 24 s, +30% de empurrão por 8 s; Pacto recarga 30 s, 5 s para usar, 1,5×, lentidão de 66 por 6 s
 export const SCOURGE = { dmg: [10, 11, 12], radius: 250 * UNIT, windup: 0.9, cd: 3 };
+// tempo de conjuração dos ativos (o do Flagelo é o preparo de 0,9 s)
+export const ITEM_CAST: Partial<Record<ItemId, number>> = { scourge: SCOURGE.windup, redirector: 0.1, pact: 0.1 };
 export const REDIRECTOR = { cd: 24, kbPenalty: 0.3, penaltyTime: 8, extraLife: 0.5 };
 export const PACT = { cd: 30, window: 5, mult: 1.5, slow: 66 * UNIT, slowTime: 6 };
 

@@ -30,7 +30,7 @@ try {
     }
     if (shop && !seen.has('loja2') && round.includes('1')) {
       seen.add('loja2');
-      console.log(((Date.now() - t0) / 1000).toFixed(0) + 's loja depois da rodada 1:', (await page.locator('.shop-head').innerText()).replace(/\n/g, ' '));
+      console.log(((Date.now() - t0) / 1000).toFixed(0) + 's loja depois da rodada 1:', (await page.locator('.shop-head').first().innerText()).replace(/\n/g, ' '));
       await page.screenshot({ path: `${out}/long-loja.png` });
       await page.getByRole('button', { name: 'Pronto' }).click();
     }
