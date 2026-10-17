@@ -292,7 +292,7 @@ describe('choque de magias', () => {
 describe('pilares', () => {
   const withPillar = (spots: [number, number][], pillar: [number, number]) => {
     const w = world(spots);
-    w.pillars = [{ pos: v(pillar[0], pillar[1]), hp: PILLAR.hp, alive: true }];
+    w.pillars = [{ pos: v(pillar[0], pillar[1]), hp: PILLAR.hp, alive: true, kind: 'pillar' }];
     return w;
   };
 
@@ -320,6 +320,18 @@ describe('pilares', () => {
     }
     expect(seen).toContain('pillar');
     expect(w.pillars[0].alive).toBe(false);
+  });
+
+  it('a rock never breaks and an altar explodes in fire', () => {
+    const w = world([[0, 0], [5, 0], [4, 1.2]]);
+    w.pillars = [{ pos: v(2.5, 0), hp: Infinity, alive: true, kind: 'rock' }];
+    run(w, 1.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(5, 0) }]);
+    expect(w.pillars[0].alive).toBe(true);
+    const w2 = world([[0, 0], [9, 0], [4, 0.9]]);
+    w2.pillars = [{ pos: v(4, 0), hp: 1, alive: true, kind: 'shrine' }];
+    run(w2, 1.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(9, 0) }]);
+    expect(w2.pillars[0].alive).toBe(false);
+    expect(wz(w2, 2).hp).toBeLessThan(HP_MAX);
   });
 
   it('pillars spawn away from wizards', () => {

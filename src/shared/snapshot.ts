@@ -1,7 +1,7 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
 import type { Snap } from './protocol.ts';
 import type { SimEvent, World } from './sim.ts';
-import { PILLAR, STUN_SPEED } from './constants.ts';
+import { OBSTACLES, OBSTACLE_KINDS, STUN_SPEED, type ObstacleKind } from './constants.ts';
 import { ACTIVE_ITEMS } from './items.ts';
 import { SPELL_IDS } from './spells.ts';
 import { v, type Vec } from './vec.ts';
@@ -31,14 +31,14 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   const me = w.wizards.find((z) => z.id === forId);
   const cd = SPELL_IDS.map((s) => (me ? r2(Math.max(0, me.cd[s] - w.t)) : 0));
   const icd = ACTIVE_ITEMS.map((i) => (me ? r2(Math.max(0, me.itemCd[i] - w.t)) : 0));
-  const snap: Snap = { t: 'snap', time: r2(w.t * 1000) / 1000, r: r2(w.arenaR), s: r2(w.shrinkAt), w: wz, p, cd, icd, sp: r2(me?.speed ?? 0), pl: w.pillars.flatMap((q) => [r2(q.pos.x), r2(q.pos.y), q.alive ? Math.ceil((q.hp / PILLAR.hp) * 100) : 0]), ack };
+  const snap: Snap = { t: 'snap', time: r2(w.t * 1000) / 1000, r: r2(w.arenaR), s: r2(w.shrinkAt), w: wz, p, cd, icd, sp: r2(me?.speed ?? 0), pl: w.pillars.flatMap((q) => [r2(q.pos.x), r2(q.pos.y), q.alive ? (Number.isFinite(q.hp) ? Math.ceil((q.hp / OBSTACLES[q.kind].hp) * 100) : 100) : 0, OBSTACLE_KINDS.indexOf(q.kind)]), ack };
   if (events.length) snap.e = events;
   return snap;
 }
 
 export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number };
 export type ProjView = { id: number; kind: 'fireball' | 'homing'; pos: Vec; vel: Vec };
-export type PillarView = { pos: Vec; hp: number };
+export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
 export type SnapView = { time: number; arenaR: number; shrinkAt: number; wizards: WizView[]; projectiles: ProjView[]; pillars: PillarView[] };
 
 export function decodeSnap(s: Snap, ids: string[]): SnapView {
@@ -53,6 +53,6 @@ export function decodeSnap(s: Snap, ids: string[]): SnapView {
     projectiles.push({ id, kind: kind === 0 ? 'fireball' : 'homing', pos: v(x, y), vel: v(vx, vy) });
   }
   const pillars: PillarView[] = [];
-  for (let i = 0; i + 2 < (s.pl?.length ?? 0); i += 3) pillars.push({ pos: v(s.pl[i], s.pl[i + 1]), hp: s.pl[i + 2] });
+  for (let i = 0; i + 3 < (s.pl?.length ?? 0); i += 4) pillars.push({ pos: v(s.pl[i], s.pl[i + 1]), hp: s.pl[i + 2], kind: OBSTACLE_KINDS[s.pl[i + 3]] ?? 'pillar' });
   return { time: s.time, arenaR: s.r, shrinkAt: s.s, wizards, projectiles, pillars };
 }

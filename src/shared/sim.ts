@@ -1,6 +1,6 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
-  ARENA_MIN, ARENA_STEP, CREDIT_WINDOW, PILLAR, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
+  ARENA_MIN, ARENA_STEP, CREDIT_WINDOW, OBSTACLES, OBSTACLE_KINDS, PILLAR, type ObstacleKind, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
   WIZ_R, WIZ_SPEED, arenaRadius,
 } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, itemStats, noItems, type ItemId } from './items.ts';
@@ -83,7 +83,7 @@ export type AimSrc = 'fireball' | 'lightning' | 'homing' | 'scourge';
 // choque de magias: fogo×fogo, fogo×míssil, míssil×míssil, e o raio detonando uma bola de fogo
 export type Combo = 'fire' | 'arcane' | 'pulse' | 'detonate' | 'pillar';
 
-export type Pillar = { pos: Vec; hp: number; alive: boolean };
+export type Pillar = { pos: Vec; hp: number; alive: boolean; kind: ObstacleKind };
 
 export type World = {
   t: number;
@@ -147,12 +147,23 @@ export function newWorld(
 }
 
 // sorteia pilares longe de onde os magos nascem e longe uns dos outros
+function pickKind(r: number): ObstacleKind {
+  const total = OBSTACLE_KINDS.reduce((s, k) => s + OBSTACLES[k].weight, 0);
+  let acc = 0;
+  for (const k of OBSTACLE_KINDS) {
+    acc += OBSTACLES[k].weight / total;
+    if (r < acc) return k;
+  }
+  return 'pillar';
+}
+
 function placePillars(n: number, spawns: Vec[], rand: () => number): Pillar[] {
   const out: Pillar[] = [];
   for (let tries = 0; out.length < n && tries < n * 60; tries++) {
     const pos = v((rand() * 2 - 1) * PILLAR.spread, (rand() * 2 - 1) * PILLAR.spread);
     if (spawns.some((s) => dist(s, pos) < 2) || out.some((p) => dist(p.pos, pos) < 2)) continue;
-    out.push({ pos, hp: PILLAR.hp, alive: true });
+    const kind = pickKind(rand());
+    out.push({ pos, hp: OBSTACLES[kind].hp, alive: true, kind });
   }
   return out;
 }
@@ -278,7 +289,7 @@ function firstPillarOnSegment(w: World, a: Vec, b: Vec, radius: number): { i: nu
   w.pillars.forEach((p, i) => {
     if (!p.alive) return;
     const t = dd > 0 ? Math.max(0, Math.min(1, dot(sub(p.pos, a), d) / dd)) : 0;
-    if (dist(add(a, scale(d, t)), p.pos) > PILLAR.r + radius) return;
+    if (dist(add(a, scale(d, t)), p.pos) > OBSTACLES[p.kind].r + radius) return;
     if (!best || t < best.t) best = { i, t };
   });
   return best;
@@ -290,7 +301,9 @@ function damagePillar(w: World, i: number, dmg: number, by: string | null) {
   w.events.push({ k: 'pillar', i, x: p.pos.x, y: p.pos.y });
   if (p.hp > 0) return;
   p.alive = false;
-  area(w, p.pos, PILLAR.blastR, PILLAR.blastDmg, 1, by, true, 'pillar');
+  const o = OBSTACLES[p.kind];
+  if (o.blastR > 0) area(w, p.pos, o.blastR, o.blastDmg, 1, by, true, 'pillar');
+  else w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pillar', r: o.r * 1.5 });
 }
 
 // magos não atravessam pilares: empurra para fora e corta o deslize na direção do pilar
@@ -301,7 +314,7 @@ function blockPillars(w: World) {
       if (!wz.alive) continue;
       const d = sub(wz.pos, p.pos);
       const l = len(d);
-      const min = PILLAR.r + WIZ_R;
+      const min = OBSTACLES[p.kind].r + WIZ_R;
       if (l >= min) continue;
       const n = l > 1e-6 ? scale(d, 1 / l) : v(1, 0);
       wz.pos = add(p.pos, scale(n, min));

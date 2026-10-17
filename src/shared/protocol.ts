@@ -42,7 +42,7 @@ export type PublicRoom = {
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits de estado (ver encodeSnap)
 // p: 6 números por projétil: id, tipo (0 fogo, 1 míssil), x, y, vx, vy
 // cd: recarga restante das 5 magias de quem recebe, na ordem de SPELL_IDS; icd: dos 3 itens ativos (ACTIVE_ITEMS);
-// pl: 3 números por pilar: x, y, vida em % (0 = quebrado)
+// pl: 4 números por obstáculo: x, y, vida em % (0 = quebrado), tipo (índice em OBSTACLE_KINDS)
 // sp: velocidade de andar dele agora (botas, lentidão), para a previsão; ack: último seq aplicado dele
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
 export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; pl: number[]; ack: number; e?: SimEvent[] };

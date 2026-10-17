@@ -7,7 +7,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { ARENA_STEP, PILLAR, SHRINK_WARN, WIZ_R } from '../shared/constants.ts';
+import { ARENA_STEP, OBSTACLES, SHRINK_WARN, WIZ_R } from '../shared/constants.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView } from '../shared/snapshot.ts';
 import { v, type Vec } from '../shared/vec.ts';
@@ -412,19 +412,22 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
   }
 
-  // pilares da rodada: modelo KayKit (pilar decorado), escurece conforme apanha e afunda ao quebrar
+  // obstáculos da rodada: modelo KayKit de cada tipo, treme quando apanha e afunda ao quebrar
+  const OBSTACLE_MODEL: Record<string, string> = { pillar: 'pillar_decorated', rock: 'rubble_large', tree: 'tree_dead_large', shrine: 'shrine_candles' };
   const pillarMeshes: { obj: THREE.Object3D; pos: Vec; dead: boolean }[] = [];
   function syncPillars(list: PillarView[]) {
     const changed = list.length !== pillarMeshes.length || list.some((p, i) => p.pos.x !== pillarMeshes[i].pos.x || p.pos.y !== pillarMeshes[i].pos.y);
+    const radius = (p: PillarView) => OBSTACLES[p.kind].r;
     if (changed) {
       for (const p of pillarMeshes) scene.remove(p.obj);
       pillarMeshes.length = 0;
       for (const p of list) {
-        const obj = decor.clone('pillar_decorated') ?? new THREE.Mesh(new THREE.CylinderGeometry(PILLAR.r, PILLAR.r, 2.2, 12), new THREE.MeshStandardMaterial({ color: '#6b625c' }));
+        const obj = decor.clone(OBSTACLE_MODEL[p.kind]) ?? new THREE.Mesh(new THREE.CylinderGeometry(radius(p), radius(p), 2.2, 12), new THREE.MeshStandardMaterial({ color: '#6b625c' }));
         // ajusta a largura do modelo ao raio de colisão do pilar
         const box = new THREE.Box3().setFromObject(obj);
         const width = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) || 1;
-        obj.scale.multiplyScalar((PILLAR.r * 2.3) / width);
+        // árvore é fina no tronco e larga nos galhos: mede pelo tronco (menos que a copa)
+        obj.scale.multiplyScalar((radius(p) * (p.kind === 'tree' ? 6 : 2.3)) / width);
         obj.position.copy(w3(p.pos, 0));
         scene.add(obj);
         pillarMeshes.push({ obj, pos: p.pos, dead: false });

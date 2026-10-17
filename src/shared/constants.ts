@@ -31,6 +31,17 @@ export const PROJ_R = 0.2;
 // 400 de vida (40 aqui); ao quebrar explodem em 300 unidades com 5 a 10 de dano (0,5 a 1 aqui)
 export const PILLAR = { r: 0.5, hp: 40, spread: 1000 * UNIT, blastR: 300 * UNIT, blastDmg: 1, min: 2, max: 8 };
 
+// tipos de obstáculo (pedido do Fernando, 17/10: "não só esses pilares"); o pilar segue o original, os outros são meus:
+// rocha grande que não quebra, árvore morta frágil e altar de velas que explode em fogo. weight = chance relativa no sorteio
+export type ObstacleKind = 'pillar' | 'rock' | 'tree' | 'shrine';
+export const OBSTACLE_KINDS: ObstacleKind[] = ['pillar', 'rock', 'tree', 'shrine'];
+export const OBSTACLES: Record<ObstacleKind, { r: number; hp: number; blastR: number; blastDmg: number; weight: number }> = {
+  pillar: { r: 0.5, hp: 40, blastR: 300 * UNIT, blastDmg: 1, weight: 4 },
+  rock: { r: 0.85, hp: Infinity, blastR: 0, blastDmg: 0, weight: 2 },
+  tree: { r: 0.35, hp: 15, blastR: 0, blastDmg: 0, weight: 2 },
+  shrine: { r: 0.45, hp: 10, blastR: 1.6, blastDmg: 6, weight: 1 },
+};
+
 export const MAX_PLAYERS = 8;
 export const WINS_TO_WIN = 5; // original: 1 ponto por rodada vencida (lá o padrão é 11; aqui 5, decisão do Fernando)
 export const START_GOLD = 30;
