@@ -534,6 +534,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         shockwave(v(e.x, e.y), e.r, '#ff7a1a');
         explosion(v(e.x, e.y));
       } else if (e.k === 'pillar') {
+        // projétil batendo em obstáculo também explode
+        explosion(v(e.x, e.y));
         burst(v(e.x, e.y), '#d8c8b8', 1.4, 0.3, 1.2, FX.smoke);
       } else if (e.k === 'clash') {
         const at = v(e.x, e.y);

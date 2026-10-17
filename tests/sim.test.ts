@@ -340,3 +340,18 @@ describe('pilares', () => {
     for (const p of w.pillars) for (const z of w.wizards) expect(dist(p.pos, z.pos)).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('acerto em invulnerável', () => {
+  it('a fireball hitting an invulnerable wizard still makes a hit event, without damage', () => {
+    const w = world([[0, 0], [3, 0]]);
+    wz(w, 1).invulnUntil = 99;
+    const hits: number[] = [];
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
+    for (let i = 0; i < 60; i++) {
+      stepWorld(w, []);
+      for (const e of w.events) if (e.k === 'hit') hits.push(e.dmg);
+    }
+    expect(hits).toEqual([0]);
+    expect(wz(w, 1).hp).toBe(HP_MAX);
+  });
+});

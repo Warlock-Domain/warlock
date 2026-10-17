@@ -1,5 +1,5 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
-import { DM_KILLS_TO_WIN, MAX_PLAYERS, WINS_TO_WIN } from '../shared/constants.ts';
+import { DM_KILLS_TO_WIN, KILL_GOLD, MAX_PLAYERS, ROUND_GOLD, START_GOLD, WIN_GOLD, WINS_TO_WIN } from '../shared/constants.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import type { Mode } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
@@ -151,13 +151,31 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
     el('div', { class: 'stats-tabs', role: 'tablist' }, ...SCOPES.map(([k, label]) =>
       el('button', { type: 'button', role: 'tab', 'aria-selected': String(k === scope), class: k === scope ? 'on' : '', onclick: () => setScope(k) }, label))),
     el('div', { class: 'stats-wrap' }, el('table', { class: 'stats-table' },
-      el('thead', {}, el('tr', {}, el('th', {}, 'Jogador'), el('th', {}, room.mode === 'deathmatch' ? 'Pontos' : 'Vitórias'), el('th', {}, 'Abates'), el('th', {}, 'Ouro'), el('th', {}, 'Dano'), ...AIM.map(([, ico, name]) => el('th', { title: 'Precisão: ' + name }, ico)))),
+      el('thead', {}, el('tr', {}, el('th', {}, 'Jogador'), el('th', { class: 'num' }, room.mode === 'deathmatch' ? 'Pontos' : 'Vitórias'), el('th', { class: 'num' }, 'Abates'), el('th', { class: 'num' }, 'Ouro'), el('th', { class: 'num' }, 'Dano'), ...AIM.map(([, ico, name]) => el('th', { class: 'num', title: 'Precisão: ' + name }, ico)))),
       el('tbody', {}, ...rows.map((p) => el('tr', { class: p.id === me ? 'me' : '' },
         el('td', {}, dot(p.color), ' ', p.name), el('td', { class: 'num' }, String(p.score)), el('td', { class: 'num' }, String(p.stats[scope].kills ?? 0)),
         el('td', { class: 'num' }, n0(p.stats[scope].gold)), el('td', { class: 'num' }, n0(p.stats[scope].dmg)),
         ...AIM.map(([k]) => aimCell(p, k)),
       ))),
     )),
+  );
+}
+
+// quadro da loja: de onde vem o ouro (regras do Warlock Brawl) e quanto você já ganhou
+function goldInfo(p: PublicPlayer) {
+  const row = (label: string, value: string, cls = '') => el('div', { class: 'gold-row ' + cls }, el('span', {}, label), el('b', {}, value));
+  const rule = (n: number) => (n > 0 ? `+${n}` : 'não dá ouro');
+  return el('div', { class: 'gold-info' },
+    el('b', { class: 'gold-title' }, 'Como ganho ouro'),
+    row('Começo da partida', `+${START_GOLD}`),
+    row('Cada rodada que você jogou', `+${ROUND_GOLD}`),
+    row('Vencer a rodada', rule(WIN_GOLD), WIN_GOLD ? '' : 'muted'),
+    row('Abate', rule(KILL_GOLD), KILL_GOLD ? '' : 'muted'),
+    el('hr', {}),
+    row('Ganho na última rodada', `🪙 ${p.stats.round.gold}`),
+    row('Ganho na partida', `🪙 ${p.stats.match.gold}`),
+    row('Ganho na sala (todas as partidas)', `🪙 ${p.stats.room.gold}`),
+    el('small', { class: 'muted' }, 'Como no Warlock original, todo mundo ganha igual por rodada: o que muda é como você gasta. Desfazer (↩) devolve o ouro do que foi comprado nesta loja.'),
   );
 }
 
@@ -400,6 +418,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       ),
       el('aside', { class: 'shop-side' },
         el('span', { class: 'gold big' }, `🪙 ${mine.gold}`),
+        goldInfo(mine),
         el('button', { type: 'button', class: 'primary big', disabled: mine.ready, onclick: act.ready }, mine.ready ? 'Esperando os outros…' : 'Pronto'),
         board(r, me, act.kick),
         picker(r),

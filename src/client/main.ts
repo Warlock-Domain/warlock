@@ -195,6 +195,7 @@ function startRoom(code: string, name: string) {
         const w = interp.latest()?.wizards.find((z) => z.id === e.id);
         sound.play(e.spell as SoundKind, w ? near(w.pos.x, w.pos.y) : 0.5);
       } else if (e.k === 'hit') sound.play('hit', near(e.x, e.y));
+      else if (e.k === 'pillar') sound.play('hit', near(e.x, e.y) * 0.6);
       else if (e.k === 'reflect') sound.play('reflect', near(e.x, e.y));
       else if (e.k === 'teleport' && e.id === me) predict.teleported(e.to);
       else if (e.k === 'item') sound.play(e.item === 'redirector' ? 'teleport' : e.item === 'pact' ? 'shield' : 'homing', 0.7);
