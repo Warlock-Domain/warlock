@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
-import { addPlayer, buy, buyItem, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../shared/match.ts';
+import { addPlayer, buy, buyItem, buyMastery, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
@@ -131,6 +131,9 @@ export class Room extends DurableObject<Env> {
         if (!playing) return;
         this.cmds.push({ id, kind: 'item', item: msg.item, at: v(msg.x, msg.y) });
         this.acks.set(id, msg.seq);
+        return;
+      case 'buyMastery':
+        if (buyMastery(m, id, msg.mastery)) await this.changed();
         return;
       case 'buyItem':
         if (buyItem(m, id, msg.item)) await this.changed();

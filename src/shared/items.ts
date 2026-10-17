@@ -14,7 +14,7 @@ export type ItemLevel = { hp?: number; regen?: number; kb?: number; speed?: numb
 type Item = { name: string; cost: number; key?: string; text: string; levels: ItemLevel[] };
 
 export const ITEMS: Record<ItemId, Item> = {
-  ring: { name: 'Anel de vida', cost: 4, text: 'Mais vida máxima.', levels: [{ hp: 10 }, { hp: 19 }, { hp: 27 }] },
+  ring: { name: 'Anel de vida', cost: 4, text: 'Mais vida máxima.', levels: [{ hp: 10 }, { hp: 19 }, { hp: 27 }, { hp: 34 }, { hp: 40 }] },
   cursed_ring: { name: 'Anel amaldiçoado', cost: 4, text: 'Vida e menos empurrão, mas lentidões duram mais.', levels: [{ hp: 10, kb: 0.15, debuff: 0.25 }, { hp: 20, kb: 0.15, debuff: 0.3 }] },
   cape: { name: 'Capa', cost: 3, text: 'A vida volta mais rápido.', levels: [{ regen: 0.15 }, { regen: 0.25 }, { regen: 0.35 }] },
   armor: { name: 'Armadura', cost: 6, text: 'Menos empurrão.', levels: [{ kb: 0.12 }, { kb: 0.18 }, { kb: 0.22 }] },

@@ -4,6 +4,7 @@ import {
   WIZ_R, WIZ_SPEED, arenaRadius,
 } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, itemStats, noItems, type ItemId } from './items.ts';
+import { masteryValue, noMasteries, type MasteryId } from './masteries.ts';
 import { CAST_POINT, HOMING_TURN, SPELL_IDS, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
@@ -33,6 +34,9 @@ export type Wizard = {
   pactUntil: number; // Pacto armado até este instante
   slowUntil: number;
   invulnUntil: number;
+  durF: number; // maestria de duração (multiplica escudo e pacto)
+  rangeF: number; // maestria de alcance
+  lifesteal: number; // fração do dano causado que volta como vida
   // magia ou item sendo conjurado: sai em fireAt; andar ou parar cancela, como no Dota
   casting: { spell?: SpellId; item?: ItemId; at: Vec; fireAt: number } | null;
 };
@@ -81,13 +85,19 @@ export type World = {
   nextId: number;
 };
 
-export function newWorld(ids: string[], spells: Record<string, Record<SpellId, number>>, items: Record<string, Record<ItemId, number>> = {}): World {
+export function newWorld(
+  ids: string[],
+  spells: Record<string, Record<SpellId, number>>,
+  items: Record<string, Record<ItemId, number>> = {},
+  masteries: Record<string, Record<MasteryId, number>> = {},
+): World {
   const arenaR = arenaRadius(ids.length);
   const r = arenaR - SPAWN_INSET;
   const wizards = ids.map((id, i): Wizard => {
     const a = (i / ids.length) * Math.PI * 2;
     const own = { ...noItems(), ...items[id] };
     const st = itemStats(own);
+    const ms = { ...noMasteries(), ...masteries[id] };
     return {
       id,
       pos: v(Math.cos(a) * r, Math.sin(a) * r),
@@ -114,6 +124,9 @@ export function newWorld(ids: string[], spells: Record<string, Record<SpellId, n
       pactUntil: 0,
       slowUntil: 0,
       invulnUntil: INVULN_TIME,
+      durF: 1 + masteryValue('duration', ms.duration),
+      rangeF: 1 + masteryValue('range', ms.range),
+      lifesteal: masteryValue('lifesteal', ms.lifesteal),
       casting: null,
     };
   });
@@ -152,6 +165,13 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   target.vel = add(target.vel, scale(norm(dir), knock * mult));
   target.lastHitBy = by;
   target.lastHitAt = w.t;
+  // roubo de vida: quem acertou recupera parte do dano (e, como no original, a cura reduz o dano acumulado pela metade dela)
+  const thief = by !== target.id ? byId(w, by) : undefined;
+  if (thief && thief.lifesteal > 0) {
+    const heal = dmg * thief.lifesteal;
+    thief.hp = Math.min(thief.hpMax, thief.hp + heal);
+    thief.dmgTaken = Math.max(0, thief.dmgTaken - heal * 0.5);
+  }
   w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg * 10) / 10 });
 }
 
@@ -252,12 +272,12 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
       pos: add(wz.pos, scale(dir, WIZ_R + PROJ_R + 0.05)),
       vel: scale(dir, L.speed),
       level,
-      until: w.t + (homing ? L.duration : L.range / L.speed),
+      until: w.t + (homing ? L.duration : L.range / L.speed) * wz.rangeF,
       target: homing ? (nearestEnemy(w, at, wz.id)?.id ?? null) : null,
       dmgMult,
     });
   } else if (spell === 'lightning') {
-    const end = add(wz.pos, scale(dir, L.range));
+    const end = add(wz.pos, scale(dir, L.range * wz.rangeF));
     const found = firstOnSegment(w, wz.pos, end, WIZ_R, wz.id);
     const proj = firstProjectileOnSegment(w, wz.pos, end, wz.id);
     if (proj && (!found || proj.t < found.t)) {
@@ -277,10 +297,10 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
       hit(w, wz, target.id, L.dmg * dmgMult, L.knock * dmgMult, scale(dir, -1));
     } else hit(w, target, wz.id, L.dmg * dmgMult, L.knock * dmgMult, dir);
   } else if (spell === 'shield') {
-    wz.shieldUntil = w.t + L.duration;
+    wz.shieldUntil = w.t + L.duration * wz.durF;
   } else {
     const from = wz.pos;
-    wz.pos = add(wz.pos, clampLen(sub(at, wz.pos), L.range));
+    wz.pos = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
     wz.target = null;
     w.events.push({ k: 'teleport', id: wz.id, from, to: wz.pos });
   }
@@ -324,7 +344,7 @@ function useItem(w: World, wz: Wizard, item: ItemId, at: Vec) {
     scourge(w, wz);
   } else if (item === 'pact') {
     wz.itemCd.pact = w.t + PACT.cd;
-    wz.pactUntil = w.t + PACT.window;
+    wz.pactUntil = w.t + PACT.window * wz.durF;
   } else {
     wz.itemCd.redirector = w.t + REDIRECTOR.cd;
     wz.kbPenaltyUntil = w.t + REDIRECTOR.penaltyTime * wz.debuffMult;

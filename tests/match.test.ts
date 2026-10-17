@@ -96,16 +96,15 @@ describe('partida', () => {
     expect(m.round).toBe(WINS_TO_WIN + 1);
   });
 
-  it('buy deducts gold and caps level 3', () => {
+  it('buy deducts gold and caps at level 7', () => {
     const m = twoPlayers();
-    m.players[0].gold = 100;
+    m.players[0].gold = 200;
     expect(buy(m, 'a', 'lightning')).toBe(true);
-    expect(m.players[0].gold).toBe(100 - SPELLS.lightning.cost);
-    expect(buy(m, 'a', 'lightning')).toBe(true);
-    expect(buy(m, 'a', 'lightning')).toBe(true);
+    expect(m.players[0].gold).toBe(200 - SPELLS.lightning.cost);
+    for (let i = 0; i < 6; i++) expect(buy(m, 'a', 'lightning')).toBe(true);
     expect(buy(m, 'a', 'lightning')).toBe(false);
-    expect(m.players[0].spells.lightning).toBe(3);
-    expect(m.players[0].gold).toBe(100 - SPELLS.lightning.cost - SPELLS.lightning.up[0] - SPELLS.lightning.up[1]);
+    expect(m.players[0].spells.lightning).toBe(7);
+    expect(m.players[0].gold).toBe(200 - SPELLS.lightning.cost - SPELLS.lightning.up.reduce((a, b) => a + b, 0));
   });
 
   it('cannot buy without gold or outside the shop', () => {

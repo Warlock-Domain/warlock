@@ -98,6 +98,7 @@ function startRoom(code: string, name: string) {
     start: (bots) => net.send({ t: 'start', bots }),
     buy: (spell) => net.send({ t: 'buy', spell }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),
+    buyMastery: (mastery) => net.send({ t: 'buyMastery', mastery }),
     useItem: (item) => input.itemButton(item),
     pick: (character) => {
       store.set(CHAR, character);

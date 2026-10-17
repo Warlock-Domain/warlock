@@ -2,6 +2,7 @@
 import { botBuy, botCmds } from './bots.ts';
 import { CHARACTERS, type CharacterId } from './characters.ts';
 import { itemPrice, noItems, type ItemId } from './items.ts';
+import { MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, noMasteries, type MasteryId } from './masteries.ts';
 
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
 const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
@@ -23,6 +24,7 @@ export type Player = {
   gold: number;
   spells: Record<SpellId, number>;
   items: Record<ItemId, number>;
+  masteries: Record<MasteryId, number>;
   ready: boolean;
   connected: boolean;
 };
@@ -57,7 +59,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false): bool
   const color = [0, 1, 2, 3, 4, 5, 6, 7].find((c) => !used.has(c)) ?? 0;
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
-  m.players.push({ id, name, bot, color, character, score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), ready: bot, connected: true });
+  m.players.push({ id, name, bot, color, character, score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries(), ready: bot, connected: true });
   return true;
 }
 
@@ -75,7 +77,7 @@ export function startMatch(m: Match, now: number, bots: number): boolean {
   m.players = m.players.filter((p) => !p.bot && p.connected);
   for (let i = 0; m.players.length < MAX_PLAYERS && i < bots; i++) addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true);
   if (m.players.length < 2) return false;
-  for (const p of m.players) Object.assign(p, { score: 0, gold: START_GOLD, spells: noSpells(), items: startItems() });
+  for (const p of m.players) Object.assign(p, { score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries() });
   Object.assign(m, { round: 0, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0 });
   enterShop(m, now);
   return true;
@@ -109,6 +111,18 @@ export function buyItem(m: Match, id: string, item: ItemId): boolean {
   return true;
 }
 
+// uma maestria (5 de ouro) ou as três de uma vez (13); máximo 6 níveis cada
+export function buyMastery(m: Match, id: string, which: MasteryId | 'all'): boolean {
+  const p = m.players.find((q) => q.id === id);
+  if (m.phase !== 'shop' || !p) return false;
+  const targets = which === 'all' ? MASTERY_IDS : [which];
+  const cost = which === 'all' ? MASTERY_ALL_COST : MASTERY_COST;
+  if (p.gold < cost || targets.some((t) => p.masteries[t] >= MASTERY_MAX)) return false;
+  p.gold -= cost;
+  for (const t of targets) p.masteries[t]++;
+  return true;
+}
+
 export function setReady(m: Match, id: string): boolean {
   const p = m.players.find((q) => q.id === id);
   if (m.phase !== 'shop' || !p || p.ready) return false;
@@ -123,6 +137,7 @@ export function resume(m: Match, now: number) {
   for (const p of m.players) {
     p.character ??= 'mage';
     p.items ??= noItems();
+    p.masteries ??= noMasteries();
   }
   if (m.phase === 'countdown' || m.phase === 'playing') {
     m.round--;
@@ -145,7 +160,7 @@ function enterShop(m: Match, now: number) {
 function enterCountdown(m: Match, now: number) {
   m.round++;
   const ids = m.players.map((p) => p.id);
-  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])));
+  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), Object.fromEntries(m.players.map((p) => [p.id, p.masteries])));
   m.phase = 'countdown';
   m.phaseEnds = now + COUNTDOWN_MS;
 }

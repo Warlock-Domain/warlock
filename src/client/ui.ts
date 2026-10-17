@@ -3,8 +3,9 @@ import { MAX_PLAYERS, WINS_TO_WIN } from '../shared/constants.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
-import { SPELLS, SPELL_IDS, priceOf, type SpellId } from '../shared/spells.ts';
-import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
+import { MASTERIES, MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, type MasteryId } from '../shared/masteries.ts';
+import { MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, priceOf, type SpellId } from '../shared/spells.ts';
+import { hideTip, itemTip, masteryTip, spellTip, withTip } from './tips.ts';
 import { COLORS } from './scene.ts';
 import { RULES } from './rules-text.ts';
 
@@ -116,6 +117,7 @@ export type RoomActions = {
   start: (bots: number) => void;
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
+  buyMastery: (m: MasteryId | 'all') => void;
   useItem: (i: ItemId) => void;
   pick: (c: CharacterId) => void;
   ready: () => void;
@@ -244,7 +246,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         return withTip(el('div', { class: 'shop-item' + (lvl ? ' owned' : '') },
           el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, ICON[s]), el('b', {}, SPELLS[s].name), el('span', { class: 'key' }, SPELLS[s].key)),
           el('small', {}, RULES_SHORT[s]),
-          el('span', { class: 'pips' }, ...[1, 2, 3].map((n) => el('i', { class: n <= lvl ? 'on' : '' }))),
+          el('span', { class: 'pips' }, ...Array.from({ length: MAX_SPELL_LEVEL }, (_, n) => el('i', { class: n < lvl ? 'on' : '' }))),
           el('button', { type: 'button', 'data-key': 'spell-' + s, disabled: price === null || mine.gold < price, onclick: () => act.buy(s) }, label),
         ), () => spellTip(s, lvl));
       })),
@@ -261,6 +263,20 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           el('button', { type: 'button', 'data-key': 'item-' + i, disabled: price === null || mine.gold < price, onclick: () => act.buyItem(i) }, label),
         ), () => itemTip(i, lvl));
       })),
+      el('div', { class: 'shop-head' }, el('h3', {}, 'Maestrias'), el('small', {}, `${MASTERY_COST} de ouro por nível · as três por ${MASTERY_ALL_COST}`)),
+      el('div', { class: 'shop-grid' }, ...MASTERY_IDS.map((k) => {
+        const lvl = mine.masteries[k];
+        return withTip(el('div', { class: 'shop-item' + (lvl ? ' owned' : '') },
+          el('div', { class: 'shop-title' }, el('b', {}, MASTERIES[k].name)),
+          el('small', {}, MASTERIES[k].text),
+          el('span', { class: 'pips' }, ...Array.from({ length: MASTERY_MAX }, (_, n) => el('i', { class: n < lvl ? 'on' : '' }))),
+          el('button', { type: 'button', 'data-key': 'mastery-' + k, disabled: lvl >= MASTERY_MAX || mine.gold < MASTERY_COST, onclick: () => act.buyMastery(k) }, lvl >= MASTERY_MAX ? 'Máximo' : `Nível ${lvl + 1} · ${MASTERY_COST}`),
+        ), () => masteryTip(k, lvl));
+      }), el('div', { class: 'shop-item' },
+        el('div', { class: 'shop-title' }, el('b', {}, 'As três')),
+        el('small', {}, 'Sobe Duração, Alcance e Roubo de vida um nível cada.'),
+        el('button', { type: 'button', 'data-key': 'mastery-all', disabled: MASTERY_IDS.some((k) => mine.masteries[k] >= MASTERY_MAX) || mine.gold < MASTERY_ALL_COST, onclick: () => act.buyMastery('all') }, `Subir as três · ${MASTERY_ALL_COST}`),
+      )),
       picker(r),
       el('button', { type: 'button', class: 'primary big', disabled: mine.ready, onclick: act.ready }, mine.ready ? 'Esperando os outros…' : 'Pronto'),
       board(r, me),
@@ -293,7 +309,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         const { b, pips } = buttons.get(s)!;
         const lvl = mine?.spells[s] ?? 0;
         b.classList.toggle('locked', lvl === 0);
-        pips.replaceChildren(...[1, 2, 3].map((n) => el('i', { class: n <= lvl ? 'on' : '' })));
+        pips.replaceChildren(...Array.from({ length: MAX_SPELL_LEVEL }, (_, n) => el('i', { class: n < lvl ? 'on' : '' })));
       }
       bar.hidden = r.phase === 'lobby' || r.phase === 'end' || r.phase === 'shop' || !mine;
       drawCenter();

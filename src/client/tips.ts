@@ -1,6 +1,7 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
 import { ITEMS, PACT, REDIRECTOR, SCOURGE, type ItemId } from '../shared/items.ts';
-import { SPELLS, type Level, type SpellId } from '../shared/spells.ts';
+import { MASTERIES, MASTERY_COST, MASTERY_MAX, masteryValue, type MasteryId } from '../shared/masteries.ts';
+import { MAX_SPELL_LEVEL, SPELLS, type Level, type SpellId } from '../shared/spells.ts';
 
 const n1 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const m = (x: number) => `${n1(x)} m`;
@@ -22,10 +23,10 @@ function table(rows: [string, string, string | null][]): string {
 export function spellTip(id: SpellId, level: number): string {
   const sp = SPELLS[id];
   const cur = sp.levels[Math.max(0, level - 1)];
-  const next = level >= 1 && level < 3 ? sp.levels[level] : null;
-  const head = `<b>${sp.name}</b> <span class="k">${sp.key}</span><br><small>${level ? `Nível ${level} de 3` : 'Ainda não comprada · preço ' + sp.cost}</small>`;
+  const next = level >= 1 && level < MAX_SPELL_LEVEL ? sp.levels[level] : null;
+  const head = `<b>${sp.name}</b> <span class="k">${sp.key}</span><br><small>${level ? `Nível ${level} de ${MAX_SPELL_LEVEL}` : 'Ainda não comprada · preço ' + sp.cost}</small>`;
   const rows = SPELL_ROWS[id].map(([k, f]): [string, string, string | null] => [k, f(cur), next ? f(next) : null]);
-  const foot = next ? `<small class="up">Próximo nível (${sp.up[level - 1]} de ouro): o que está à direita</small>` : level >= 3 ? '<small>Nível máximo</small>' : '';
+  const foot = next ? `<small class="up">Próximo nível (${sp.up[level - 1]} de ouro): o que está à direita</small>` : level >= MAX_SPELL_LEVEL ? '<small>Nível máximo</small>' : '';
   return `${head}${table(rows)}${foot}<small class="muted">Empurrão: distância que um mago sem dano acumulado desliza.</small>`;
 }
 
@@ -50,6 +51,14 @@ export function itemTip(id: ItemId, level: number): string {
   const next = level >= 1 && level < max ? rows(level) : null;
   const body = table(cur.map(([k, v], i): [string, string, string | null] => [k, v, next ? next[i][1] : null]));
   return `${head}<p>${it.text}</p>${body}${next ? '<small class="up">Próximo nível: o que está à direita</small>' : level >= max ? '<small>Nível máximo</small>' : ''}`;
+}
+
+export function masteryTip(id: MasteryId, level: number): string {
+  const ms = MASTERIES[id];
+  const pct = (l: number) => `+${n1(masteryValue(id, l) * 100)}%`;
+  const label = id === 'lifesteal' ? 'Vida de volta' : id === 'range' ? 'Alcance' : 'Duração';
+  const next = level < MASTERY_MAX ? pct(level + 1) : null;
+  return `<b>${ms.name}</b><br><small>Nível ${level} de ${MASTERY_MAX} · ${MASTERY_COST} de ouro por nível</small><p>${ms.text}</p>${table([[label, pct(level), next]])}${next ? '<small class="up">Próximo nível: o que está à direita</small>' : '<small>Nível máximo</small>'}`;
 }
 
 let tipEl: HTMLDivElement | null = null;

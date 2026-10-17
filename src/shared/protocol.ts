@@ -2,6 +2,7 @@
 import { isCharacter, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_IDS, type ItemId } from './items.ts';
+import { MASTERY_IDS, type MasteryId } from './masteries.ts';
 import type { Match, Phase } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { SPELL_IDS, type SpellId } from './spells.ts';
@@ -15,13 +16,14 @@ export type ClientMsg =
   | { t: 'buy'; spell: SpellId }
   | { t: 'pick'; character: CharacterId }
   | { t: 'buyItem'; item: ItemId }
+  | { t: 'buyMastery'; mastery: MasteryId | 'all' }
   | { t: 'item'; item: ItemId; x: number; y: number; seq: number }
   | { t: 'ready' }
   | { t: 'alive' };
 
 export type PublicPlayer = {
   id: string; name: string; bot: boolean; color: number; character: CharacterId; score: number; gold: number;
-  spells: Record<SpellId, number>; items: Record<ItemId, number>; ready: boolean; connected: boolean;
+  spells: Record<SpellId, number>; items: Record<ItemId, number>; masteries: Record<MasteryId, number>; ready: boolean; connected: boolean;
 };
 
 export type PublicRoom = {
@@ -86,6 +88,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return spell(m.spell) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'cast', spell: m.spell, x: m.x, y: m.y, seq: m.seq } : null;
     case 'buy':
       return spell(m.spell) ? { t: 'buy', spell: m.spell } : null;
+    case 'buyMastery':
+      return m.mastery === 'all' || MASTERY_IDS.includes(m.mastery as MasteryId) ? { t: 'buyMastery', mastery: m.mastery as MasteryId | 'all' } : null;
     case 'buyItem':
       return ITEM_IDS.includes(m.item as ItemId) ? { t: 'buyItem', item: m.item as ItemId } : null;
     case 'item':
@@ -115,7 +119,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     phase: m.phase,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, score, gold, spells, items, ready, connected }) => ({ id: pub(id), name, bot, color, character, score, gold, spells, items, ready, connected })),
+    players: m.players.map(({ id, name, bot, color, character, score, gold, spells, items, masteries, ready, connected }) => ({ id: pub(id), name, bot, color, character, score, gold, spells, items, masteries, ready, connected })),
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),

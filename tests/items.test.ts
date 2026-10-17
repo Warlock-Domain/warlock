@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DT, HP_MAX, WIZ_SPEED } from '../src/shared/constants.ts';
 import { ITEMS, MAX_ITEMS, PACT, SCOURGE, itemPrice, noItems, type ItemId } from '../src/shared/items.ts';
-import { addPlayer, buyItem, newMatch, startMatch } from '../src/shared/match.ts';
+import { addPlayer, buyItem, buyMastery, newMatch, startMatch } from '../src/shared/match.ts';
 import { newWorld, stepWorld, type World } from '../src/shared/sim.ts';
 import { SPELLS, type SpellId } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
@@ -119,5 +119,49 @@ describe('loja de itens', () => {
     expect(itemPrice(p.items, 'pact')).toBeNull();
     expect(buyItem(m, 'a', 'pact')).toBe(false);
     expect(Object.values(p.items).filter(Boolean).length).toBe(MAX_ITEMS);
+  });
+});
+
+describe('maestrias', () => {
+  it('cost 5 each or 13 for all three, max 6 levels', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'Ana');
+    addPlayer(m, 'b', 'Bia');
+    startMatch(m, 0, 0);
+    const p = m.players[0];
+    p.gold = 100;
+    expect(buyMastery(m, 'a', 'range')).toBe(true);
+    expect(p.gold).toBe(95);
+    expect(buyMastery(m, 'a', 'all')).toBe(true);
+    expect(p.gold).toBe(82);
+    expect(p.masteries).toEqual({ duration: 1, range: 2, lifesteal: 1 });
+    for (let i = 0; i < 4; i++) buyMastery(m, 'a', 'range');
+    expect(p.masteries.range).toBe(6);
+    expect(buyMastery(m, 'a', 'range')).toBe(false);
+    expect(buyMastery(m, 'a', 'all')).toBe(false);
+  });
+
+  it('range mastery makes the fireball fly farther', () => {
+    const base = newWorld(['a', 'b'], { a: allSpells(), b: allSpells() });
+    const far = newWorld(['a', 'b'], { a: allSpells(), b: allSpells() }, {}, { a: { duration: 0, range: 6, lifesteal: 0 } });
+    for (const w of [base, far]) {
+      w.wizards[0].pos = v(0, 0);
+      w.wizards[1].pos = v(0, 9);
+      stepWorld(w, [{ id: 'a', kind: 'cast', spell: 'fireball', at: v(5, 0) }]);
+      steps(w, 12);
+    }
+    // alcance nível 6 = +52%: a bola vive ~0,5 s a mais
+    expect(far.projectiles[0].until - base.projectiles[0].until).toBeCloseTo(0.52, 1);
+  });
+
+  it('lifesteal heals the attacker', () => {
+    const w = newWorld(['a', 'b'], { a: allSpells(), b: allSpells() }, {}, { a: { duration: 0, range: 0, lifesteal: 6 } });
+    w.wizards[0].pos = v(0, 0);
+    w.wizards[1].pos = v(2, 0);
+    for (const z of w.wizards) z.invulnUntil = 0;
+    w.wizards[0].hp = 50;
+    stepWorld(w, [{ id: 'a', kind: 'cast', spell: 'lightning', at: v(2, 0) }]);
+    steps(w, 10);
+    expect(w.wizards[0].hp).toBeGreaterThan(52);
   });
 });
