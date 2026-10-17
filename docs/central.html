@@ -123,6 +123,7 @@ figcaption { font-size: 14.5px; color: var(--muted); max-width: 68ch; }
   <details id="tocd" open>
     <summary>Sumário</summary>
     <ol>
+      <li><a href="#fila">Fila de pedidos (ao vivo)</a></li>
       <li><a href="#decidindo">Agora estamos decidindo</a></li>
       <li><a href="#fazendo">O que estou fazendo</a></li>
       <li><a href="#pedidos">Pedidos</a></li>
@@ -146,6 +147,16 @@ figcaption { font-size: 14.5px; color: var(--muted); max-width: 68ch; }
   <h1>Warlock online</h1>
   <p class="lead">O mod de arena do Warcraft 3 / Dota no navegador, no mesmo esquema da Sinuquinha do Pix: link no grupo, apelido, sala, e todo mundo jogando em menos de um minuto. Esta página mostra o desenho, o plano e o que falta você decidir.</p>
 </header>
+
+<section id="fila">
+  <div class="eyebrow">Ao vivo</div>
+  <h2>Fila de pedidos</h2>
+  <p class="why">Atualiza sozinha enquanto eu trabalho: <b>fazendo</b> no topo, depois <b>na fila</b>, e os últimos <b>no ar</b>.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Estado</th><th>Pedido</th><th>Quem</th><th>Nota</th></tr></thead>
+    <tbody id="fila-body"><tr><td colspan="4" class="src">Carregando a fila… (se não aparecer nada, a página não conseguiu ler a fila ao vivo; o histórico completo está em Pedidos)</td></tr></tbody>
+  </table></div>
+</section>
 
 <section id="decidindo">
   <div class="eyebrow">Decisão aberta</div>
@@ -463,5 +474,23 @@ figcaption { font-size: 14.5px; color: var(--muted); max-width: 68ch; }
   const sync = () => { d.open = !mq.matches; };
   sync(); mq.addEventListener('change', sync);
   links.forEach(a => a.addEventListener('click', () => { if (mq.matches) d.open = false; }));
+})();
+</script>
+<script>
+(async () => {
+  // fila ao vivo: documentos em db "fila" ({ordem, pedido, estado, quem, nota}); quem escreve é o Claude, a página só lê
+  const body = document.getElementById('fila-body');
+  const db = await (window.claude?.use?.('db') ?? null);
+  if (!db) return;
+  const rank = { fazendo: 0, 'na fila': 1, bloqueado: 2, 'no ar': 3, feito: 3 };
+  const pill = { fazendo: 'wait', 'na fila': 'todo', bloqueado: 'todo', 'no ar': 'ok', feito: 'ok' };
+  const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  db.collection('fila').onSnapshot((snap) => {
+    const rows = snap.docs.map((d) => d.data()).filter(Boolean);
+    rows.sort((a, b) => (rank[a.estado] ?? 9) - (rank[b.estado] ?? 9) || (rank[a.estado] === 3 ? b.ordem - a.ordem : a.ordem - b.ordem));
+    const shown = rows.filter((r) => rank[r.estado] !== 3).concat(rows.filter((r) => rank[r.estado] === 3).slice(0, 12));
+    body.innerHTML = shown.length ? shown.map((r) => `<tr><td><span class="pill ${pill[r.estado] ?? 'todo'}">${esc(r.estado)}</span></td><td>${esc(r.pedido)}</td><td>${esc(r.quem)}</td><td>${esc(r.nota)}</td></tr>`).join('')
+      : '<tr><td colspan="4" class="src">Fila vazia: nada pendente agora.</td></tr>';
+  }, () => { body.innerHTML = '<tr><td colspan="4" class="src">Não deu para ler a fila ao vivo agora; recarregue a página.</td></tr>'; });
 })();
 </script>

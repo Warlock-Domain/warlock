@@ -414,12 +414,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   // obstáculos da rodada: modelo KayKit de cada tipo, treme quando apanha e afunda ao quebrar
   const OBSTACLE_MODEL: Record<string, string> = { pillar: 'pillar_decorated', rock: 'rubble_large', tree: 'tree_dead_large', shrine: 'shrine_candles' };
-  const pillarMeshes: { obj: THREE.Object3D; pos: Vec; dead: boolean }[] = [];
+  const pillarMeshes: { obj: THREE.Object3D; pos: Vec; dead: boolean; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number }[] = [];
   function syncPillars(list: PillarView[]) {
     const changed = list.length !== pillarMeshes.length || list.some((p, i) => p.pos.x !== pillarMeshes[i].pos.x || p.pos.y !== pillarMeshes[i].pos.y);
     const radius = (p: PillarView) => OBSTACLES[p.kind].r;
     if (changed) {
-      for (const p of pillarMeshes) scene.remove(p.obj);
+      for (const p of pillarMeshes) {
+        scene.remove(p.obj);
+        p.bar?.remove();
+      }
       pillarMeshes.length = 0;
       for (const p of list) {
         const obj = decor.clone(OBSTACLE_MODEL[p.kind]) ?? new THREE.Mesh(new THREE.CylinderGeometry(radius(p), radius(p), 2.2, 12), new THREE.MeshStandardMaterial({ color: '#6b625c' }));
@@ -430,7 +433,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         obj.scale.multiplyScalar((radius(p) * (p.kind === 'tree' ? 6 : 2.3)) / width);
         obj.position.copy(w3(p.pos, 0));
         scene.add(obj);
-        pillarMeshes.push({ obj, pos: p.pos, dead: false });
+        // barra de vida discreta: só para o que quebra, e só aparece depois do primeiro dano
+        let bar: HTMLDivElement | null = null, fill: HTMLDivElement | null = null;
+        if (Number.isFinite(OBSTACLES[p.kind].hp)) {
+          bar = document.createElement('div');
+          bar.className = 'obstacle-hp';
+          bar.hidden = true;
+          fill = document.createElement('div');
+          bar.append(fill);
+          labels.append(bar);
+        }
+        const height = new THREE.Box3().setFromObject(obj).max.y;
+        pillarMeshes.push({ obj, pos: p.pos, dead: false, bar, fill, height });
       }
     }
     list.forEach((p, i) => {
@@ -442,6 +456,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       } else {
         // tremida curta quando apanha
         const shake = p.hp < 100 ? (100 - p.hp) / 100 : 0;
+        if (m.bar && m.fill) {
+          m.bar.hidden = p.hp >= 100;
+          m.fill.style.width = `${p.hp}%`;
+        }
         m.obj.rotation.z = Math.sin(performance.now() / 40) * 0.02 * shake;
       }
     });
@@ -757,6 +775,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const p = d.at.clone().setY(d.at.y + k * 1.2).project(camera);
         d.el.style.transform = `translate(${(p.x * innerWidth) / 2 + innerWidth / 2}px, ${(-p.y * innerHeight) / 2 + innerHeight / 2}px) translate(-50%, -50%) scale(${1 + 0.3 * Math.max(0, 0.2 - k) * 5})`;
         d.el.style.opacity = String(Math.min(1, (1 - k) * 2.5));
+      }
+
+      // barras dos obstáculos, logo acima de cada um
+      for (const p of pillarMeshes) {
+        if (!p.bar || p.bar.hidden) continue;
+        if (p.dead) {
+          p.bar.hidden = true;
+          continue;
+        }
+        const q = p.obj.position.clone().setY(p.height + 0.15).project(camera);
+        p.bar.style.transform = `translate(${(q.x * innerWidth) / 2 + innerWidth / 2}px, ${(-q.y * innerHeight) / 2 + innerHeight / 2}px) translate(-50%, -100%)`;
       }
 
       // nome e vida em cima de cada mago
