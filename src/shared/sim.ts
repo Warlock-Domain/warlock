@@ -1,6 +1,7 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
-  ARENA_R0, ARENA_STEP, CREDIT_WINDOW, DT, FRICTION, HP_MAX, KNOCK_HP_SCALE, LAVA_DPS, PROJ_R, SHRINK_EVERY, STUN_SPEED, WIZ_R, WIZ_SPEED,
+  ARENA_STEP, CREDIT_WINDOW, DT, FRICTION, HP_MAX, HP_REGEN, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
+  WIZ_R, WIZ_SPEED, arenaRadius,
 } from './constants.ts';
 import { HOMING_TURN, SPELL_IDS, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
@@ -12,6 +13,7 @@ export type Wizard = {
   target: Vec | null;
   facing: number;
   hp: number;
+  dmgTaken: number; // dano acumulado na rodada: quanto maior, mais longe o mago voa
   alive: boolean;
   shieldUntil: number;
   lastHitBy: string | null;
@@ -56,7 +58,8 @@ export type World = {
 };
 
 export function newWorld(ids: string[], spells: Record<string, Record<SpellId, number>>): World {
-  const r = ARENA_R0 * 0.7;
+  const arenaR = arenaRadius(ids.length);
+  const r = arenaR - SPAWN_INSET;
   const wizards = ids.map((id, i): Wizard => {
     const a = (i / ids.length) * Math.PI * 2;
     return {
@@ -66,6 +69,7 @@ export function newWorld(ids: string[], spells: Record<string, Record<SpellId, n
       target: null,
       facing: a + Math.PI,
       hp: HP_MAX,
+      dmgTaken: 0,
       alive: true,
       shieldUntil: 0,
       lastHitBy: null,
@@ -74,7 +78,7 @@ export function newWorld(ids: string[], spells: Record<string, Record<SpellId, n
       cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])) as Record<SpellId, number>,
     };
   });
-  return { t: 0, arenaR: ARENA_R0, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], events: [], nextId: 1 };
+  return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], events: [], nextId: 1 };
 }
 
 export const isSliding = (wz: Wizard) => len(wz.vel) > STUN_SPEED;
@@ -101,8 +105,9 @@ const byId = (w: World, id: string | null) => w.wizards.find((z) => z.id === id 
 const shielded = (w: World, wz: Wizard) => w.t < wz.shieldUntil;
 
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec) {
-  const mult = 1 + (KNOCK_HP_SCALE * (HP_MAX - target.hp)) / HP_MAX;
+  const mult = 1 + (KNOCK_HP_SCALE * target.dmgTaken) / HP_MAX;
   target.hp -= dmg;
+  target.dmgTaken += dmg;
   target.vel = add(target.vel, scale(norm(dir), knock * mult));
   target.lastHitBy = by;
   target.lastHitAt = w.t;
@@ -251,7 +256,10 @@ export function stepWorld(w: World, cmds: Cmd[]) {
 
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
-    if (len(wz.pos) > w.arenaR) wz.hp -= LAVA_DPS * DT;
+    if (len(wz.pos) > w.arenaR) {
+      wz.hp -= LAVA_DPS * DT;
+      wz.dmgTaken += LAVA_DPS * DT * LAVA_KB_FACTOR;
+    } else wz.hp = Math.min(HP_MAX, wz.hp + HP_REGEN * DT);
     if (wz.hp > 0) continue;
     wz.hp = 0;
     wz.alive = false;

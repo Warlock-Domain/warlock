@@ -1,28 +1,36 @@
-// Números do jogo. Metros e segundos. Valores iniciais: ajustar jogando.
+// Números do jogo, em metros e segundos, convertidos do Warlock Brawl para Dota 2 (github.com/warlockbrawl/warlock,
+// scripts/vscripts/base/config.lua, arena.lua, pawn.lua e npc_abilities_custom.txt). Escala: a arena com 4 magos
+// (1700 unidades de raio no original) vira 11 m, ou seja, 1 unidade = 0,00647 m. Vida 1000 do original = 100 aqui.
 export const DT = 1 / 60;
 export const SEND_EVERY = 2; // envia o estado a cada 2 passos (30 por segundo)
 
-export const ARENA_R0 = 11;
-export const ARENA_STEP = 1.4;
-export const SHRINK_EVERY = 15;
+export const UNIT = 0.00647; // metros por unidade do original
+export const ARENA_STEP = 100 * UNIT; // uma camada de ladrilhos
+export const arenaRadius = (wizards: number) => (13 + wizards) * ARENA_STEP; // 13 camadas + 1 por mago
+export const ARENA_R0 = arenaRadius(4);
+export const SPAWN_INSET = 600 * UNIT;
+export const SHRINK_EVERY = 10;
 export const SHRINK_WARN = 2;
 
-export const WIZ_R = 0.45;
-export const WIZ_SPEED = 3.2;
+export const WIZ_R = 0.35; // original 30 unidades (0,19 m); maior aqui porque o modelo 3D é mais largo
+export const WIZ_SPEED = 210 * UNIT;
 export const HP_MAX = 100;
+export const HP_REGEN = 0.5; // 5 por segundo no original
 export const LAVA_DPS = 10;
-export const FRICTION = 2.2; // a velocidade do empurrão cai e^(-FRICTION·t)
+export const FRICTION = -Math.log(0.96) / 0.035; // 0,96 por tique de 0,035 s: a velocidade do empurrão cai e^(-FRICTION·t)
+export const KB_PER_DMG = 10 * UNIT * 10; // empurrão (m/s) por ponto de dano: 10 unidades/s por dano do original
 export const STUN_SPEED = 1.5; // deslizando mais rápido que isso, o mago não anda
-export const KNOCK_HP_SCALE = 1; // empurrão × (1 + KNOCK_HP_SCALE·vidaPerdida/HP_MAX)
+export const KNOCK_HP_SCALE = 1; // empurrão × (1 + KNOCK_HP_SCALE·danoRecebido/HP_MAX); a lava conta pela metade
+export const LAVA_KB_FACTOR = 0.5;
 export const CREDIT_WINDOW = 5; // o abate vai para quem acertou nos últimos 5 s
-export const PROJ_R = 0.3;
+export const PROJ_R = 0.2;
 
 export const MAX_PLAYERS = 8;
 export const ROUNDS = 5;
-export const START_GOLD = 10;
+export const START_GOLD = 30;
 export const ROUND_GOLD = 10;
-export const KILL_GOLD = 5;
-export const WIN_GOLD = 5;
+export const KILL_GOLD = 0;
+export const WIN_GOLD = 0;
 export const WIN_POINTS = 3;
 export const SHOP_MS = 20_000;
 export const COUNTDOWN_MS = 3_000;

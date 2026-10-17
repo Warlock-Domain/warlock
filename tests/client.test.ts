@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createInterp } from '../src/client/interp.ts';
 import { createPredict } from '../src/client/predict.ts';
 import type { SnapView, WizView } from '../src/shared/snapshot.ts';
+import { WIZ_SPEED } from '../src/shared/constants.ts';
 import { v } from '../src/shared/vec.ts';
 
 const wiz = (x: number, extra: Partial<WizView> = {}): WizView => ({ id: 'a', pos: v(x, 0), vel: v(0, 0), hp: 100, facing: 0, alive: true, shield: false, ...extra });
@@ -30,7 +31,7 @@ describe('previsão', () => {
     const p = createPredict();
     p.frame(wiz(0), 0.016);
     p.move(v(5, 0));
-    expect(p.frame(wiz(0), 0.1).x).toBeCloseTo(0.32, 2);
+    expect(p.frame(wiz(0), 0.1).x).toBeCloseTo(WIZ_SPEED * 0.1, 3);
   });
 
   it('follows the server while being pushed', () => {

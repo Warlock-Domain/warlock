@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { botBuy, botCmds } from '../src/shared/bots.ts';
-import { ARENA_R0, COUNTDOWN_MS, DT, ROUND_END_MS, ROUNDS, SHOP_MS, START_GOLD } from '../src/shared/constants.ts';
+import { ARENA_R0, COUNTDOWN_MS, DT, ROUND_END_MS, ROUND_GOLD, ROUNDS, SHOP_MS, START_GOLD, WIN_GOLD } from '../src/shared/constants.ts';
+import { SPELLS } from '../src/shared/spells.ts';
 import { addPlayer, buy, newMatch, removePlayer, setReady, shouldRun, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { newWorld } from '../src/shared/sim.ts';
 import { noSpells } from '../src/shared/spells.ts';
@@ -108,12 +109,12 @@ describe('partida', () => {
     const m = twoPlayers();
     m.players[0].gold = 100;
     expect(buy(m, 'a', 'lightning')).toBe(true);
-    expect(m.players[0].gold).toBe(90);
+    expect(m.players[0].gold).toBe(100 - SPELLS.lightning.cost);
     expect(buy(m, 'a', 'lightning')).toBe(true);
     expect(buy(m, 'a', 'lightning')).toBe(true);
     expect(buy(m, 'a', 'lightning')).toBe(false);
     expect(m.players[0].spells.lightning).toBe(3);
-    expect(m.players[0].gold).toBe(100 - 10 - 8 - 12);
+    expect(m.players[0].gold).toBe(100 - SPELLS.lightning.cost - SPELLS.lightning.up[0] - SPELLS.lightning.up[1]);
   });
 
   it('cannot buy without gold or outside the shop', () => {
@@ -172,8 +173,8 @@ describe('partida', () => {
     const now = toPlaying(m, 0);
     kill(m, 'b', null);
     until(m, now, () => m.phase === 'roundEnd');
-    expect(m.players[0].gold).toBe(START_GOLD + 10 + 5);
-    expect(m.players[1].gold).toBe(START_GOLD + 10);
+    expect(m.players[0].gold).toBe(START_GOLD + ROUND_GOLD + WIN_GOLD);
+    expect(m.players[1].gold).toBe(START_GOLD + ROUND_GOLD);
     expect(ROUND_END_MS).toBeGreaterThan(0);
   });
 
@@ -187,9 +188,9 @@ describe('partida', () => {
 
 describe('bots', () => {
   it('bot buys cheapest missing spell', () => {
-    expect(botBuy({ gold: 10, spells: noSpells() })).toBe('lightning');
-    expect(botBuy({ gold: 9, spells: noSpells() })).toBe('fireball');
-    expect(botBuy({ gold: 7, spells: noSpells() })).toBeNull();
+    expect(botBuy({ gold: 11, spells: noSpells() })).toBe('lightning');
+    expect(botBuy({ gold: 10, spells: noSpells() })).toBe('fireball');
+    expect(botBuy({ gold: 6, spells: noSpells() })).toBeNull();
   });
 
   it('bot walks inward when near edge', () => {
@@ -204,7 +205,7 @@ describe('bots', () => {
     const w = newWorld(['bot', 'near', 'far'], { bot: noSpells(), near: noSpells(), far: noSpells() });
     w.wizards[0].pos = v(0, 0);
     w.wizards[1].pos = v(4, 0);
-    w.wizards[2].pos = v(-8, 0);
+    w.wizards[2].pos = v(-6, 0);
     const cast = botCmds(w, 'bot', () => 0.3).find((c) => c.kind === 'cast');
     expect(cast && cast.kind === 'cast' && cast.spell === 'fireball' && cast.at.x > 2).toBe(true);
   });

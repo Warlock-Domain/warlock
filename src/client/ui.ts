@@ -269,6 +269,6 @@ const RULES_SHORT: Record<SpellId, string> = {
   fireball: 'Projétil reto. Dano e empurrão médios.',
   lightning: 'Instantâneo. Acerta o primeiro na linha.',
   homing: 'Lento, persegue o alvo mais perto da mira.',
-  shield: 'Reflete fogo, míssil e raio por 1,5 s.',
+  shield: 'Reflete fogo, míssil e raio por 1,2 s.',
   teleport: 'Salta até o cursor (alcance curto).',
 };

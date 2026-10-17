@@ -1,7 +1,7 @@
 // Bots simples: fogem da borda, desviam às vezes e atiram no mais próximo.
 import { WIZ_R, WIZ_SPEED } from './constants.ts';
 import type { Cmd, World } from './sim.ts';
-import { SPELL_IDS, priceOf, type SpellId } from './spells.ts';
+import { SPELL_IDS, priceOf, spellLevel, type SpellId } from './spells.ts';
 import { add, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 type Buyer = { gold: number; spells: Record<SpellId, number> };
@@ -41,11 +41,12 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
   if (!enemy) return cmds;
   const d = dist(enemy.pos, me.pos);
   // mira onde o alvo vai estar quando a bola de fogo chegar
-  const travel = d / 9;
+  const fire = spellLevel('fireball', me.spells.fireball);
+  const travel = d / fire.speed;
   const lead = enemy.target ? scale(norm(sub(enemy.target, enemy.pos)), Math.min(dist(enemy.target, enemy.pos), WIZ_SPEED * travel)) : v(0, 0);
   const aim = add(add(add(enemy.pos, lead), scale(enemy.vel, travel * 0.5)), jitter(0.8));
-  if (ready('lightning') && d < 6.5 && rand() < 0.5) cmds.push({ id, kind: 'cast', spell: 'lightning', at: aim });
+  if (ready('lightning') && d < spellLevel('lightning', me.spells.lightning).range && rand() < 0.5) cmds.push({ id, kind: 'cast', spell: 'lightning', at: aim });
   else if (ready('homing') && rand() < 0.3) cmds.push({ id, kind: 'cast', spell: 'homing', at: enemy.pos });
-  else if (ready('fireball') && d < 11 && d > WIZ_R * 3 && rand() < 0.5) cmds.push({ id, kind: 'cast', spell: 'fireball', at: aim });
+  else if (ready('fireball') && d < fire.range + 1 && d > WIZ_R * 3 && rand() < 0.5) cmds.push({ id, kind: 'cast', spell: 'fireball', at: aim });
   return cmds;
 }

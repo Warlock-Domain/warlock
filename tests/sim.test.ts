@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ARENA_R0, ARENA_STEP, DT, HP_MAX, SHRINK_EVERY, WIZ_R } from '../src/shared/constants.ts';
+import { SPELLS } from '../src/shared/spells.ts';
 import { newWorld, stepWorld, type Cmd, type World } from '../src/shared/sim.ts';
 import { noSpells, type SpellId } from '../src/shared/spells.ts';
 import { dist, v } from '../src/shared/vec.ts';
@@ -24,7 +25,7 @@ const wz = (w: World, i: number) => w.wizards[i];
 describe('movimento, lava e arena', () => {
   it('walks to target and stops', () => {
     const w = world([[0, 0]]);
-    run(w, 2, [{ id: 'p0', kind: 'move', to: v(3, 0) }]);
+    run(w, 3, [{ id: 'p0', kind: 'move', to: v(3, 0) }]);
     expect(wz(w, 0).pos.x).toBeCloseTo(3, 5);
     expect(wz(w, 0).target).toBeNull();
   });
@@ -37,6 +38,13 @@ describe('movimento, lava e arena', () => {
     expect(wz(w, 0).pos.y).toBeGreaterThan(0);
   });
 
+  it('regenerates slowly on stone', () => {
+    const w = world([[0, 0]]);
+    wz(w, 0).hp = 50;
+    run(w, 2);
+    expect(wz(w, 0).hp).toBeCloseTo(51, 1);
+  });
+
   it('lava drains 10 hp per second', () => {
     const w = world([[ARENA_R0 + 1, 0]]);
     run(w, 1);
@@ -44,7 +52,8 @@ describe('movimento, lava e arena', () => {
   });
 
   it('arena shrinks by ARENA_STEP every SHRINK_EVERY', () => {
-    const w = world([[0, 0]]);
+    const w = world([[0, 0], [1, 0], [2, 0], [3, 0]]);
+    expect(w.arenaR).toBeCloseTo(ARENA_R0);
     run(w, SHRINK_EVERY + 0.1);
     expect(w.arenaR).toBeCloseTo(ARENA_R0 - ARENA_STEP);
     expect(w.events.length + 0).toBeGreaterThanOrEqual(0);
@@ -68,13 +77,15 @@ describe('magias', () => {
   it('fireball hits and pushes away from caster', () => {
     const w = world([[0, 0], [4, 0]]);
     run(w, 1.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(4, 0) }]);
-    expect(wz(w, 1).hp).toBeCloseTo(HP_MAX - 10);
+    // a regeneração devolve um pouco da vida depois do acerto
+    expect(wz(w, 1).hp).toBeGreaterThanOrEqual(HP_MAX - SPELLS.fireball.levels[0].dmg);
+    expect(wz(w, 1).hp).toBeLessThan(HP_MAX - SPELLS.fireball.levels[0].dmg + 1);
     expect(wz(w, 1).pos.x).toBeGreaterThan(5);
     expect(wz(w, 1).lastHitBy).toBe('p0');
   });
 
   it('fireball never tunnels', () => {
-    const w = world([[0, 0], [10.4, 0]]);
+    const w = world([[0, 0], [SPELLS.fireball.levels[0].range - 0.3, 0]]);
     run(w, 2, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(1, 0) }]);
     expect(wz(w, 1).hp).toBeLessThan(HP_MAX);
   });
@@ -93,7 +104,7 @@ describe('magias', () => {
   });
 
   it('lightning hits first wizard on the line within range', () => {
-    const w = world([[0, 0], [3, 0], [5, 0]]);
+    const w = world([[0, 0], [2.5, 0], [3.5, 0]]);
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(6, 0) }]);
     expect(wz(w, 1).hp).toBeLessThan(HP_MAX);
     expect(wz(w, 2).hp).toBe(HP_MAX);
@@ -135,13 +146,13 @@ describe('magias', () => {
   it('teleport clamps to range', () => {
     const w = world([[0, 0]]);
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'teleport', at: v(20, 0) }]);
-    expect(wz(w, 0).pos.x).toBeCloseTo(6);
+    expect(wz(w, 0).pos.x).toBeCloseTo(SPELLS.teleport.levels[0].range);
   });
 
   it('knockback grows as hp drops', () => {
     const fresh = world([[0, 0], [3, 0]]);
     const hurt = world([[0, 0], [3, 0]]);
-    wz(hurt, 1).hp = 20;
+    wz(hurt, 1).dmgTaken = 80;
     for (const w of [fresh, hurt]) run(w, 2.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
     expect(wz(hurt, 1).pos.x - 3).toBeGreaterThan((wz(fresh, 1).pos.x - 3) * 1.5);
   });
