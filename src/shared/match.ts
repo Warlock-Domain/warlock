@@ -87,7 +87,15 @@ export function setReady(m: Match, id: string) {
   if (m.phase === 'shop' && p) p.ready = true;
 }
 
-export const shouldRun = (m: Match, humansConnected: number) => humansConnected > 0 && m.phase !== 'lobby' && m.phase !== 'end';
+// a sala reiniciou (o mundo da rodada só vive na memória): repete a rodada a partir da loja
+export function resume(m: Match, now: number) {
+  if (m.phase === 'countdown' || m.phase === 'playing') {
+    m.round--;
+    enterShop(m, now);
+  } else if (m.phase === 'roundEnd') afterRound(m, now);
+}
+
+export const shouldRun =(m: Match, humansConnected: number) => humansConnected > 0 && m.phase !== 'lobby' && m.phase !== 'end';
 
 function enterShop(m: Match, now: number) {
   m.phase = 'shop';
