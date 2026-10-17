@@ -20,7 +20,7 @@ export const ITEMS: Record<ItemId, Item> = {
   armor: { name: 'Armadura', cost: 6, text: 'Menos empurrão.', levels: [{ kb: 0.12 }, { kb: 0.18 }, { kb: 0.22 }] },
   boots: { name: 'Botas', cost: 5, text: 'Anda mais rápido.', levels: [{ speed: 18 * UNIT }, { speed: 29 * UNIT }, { speed: 40 * UNIT }] },
   watch: { name: 'Relógio de bolso', cost: 2, text: 'Lentidões e penalidades duram menos.', levels: [{ debuff: -0.35 }, { debuff: -0.45 }] },
-  scourge: { name: 'Flagelo', cost: 7, key: '1', text: 'Explode em volta depois de 0,5 s; você perde a mesma vida.', levels: [{}, {}, {}] },
+  scourge: { name: 'Flagelo', cost: 7, key: '1', text: 'Explode em volta depois de 0,5 s e empurra quem estiver perto.', levels: [{}, {}, {}] },
   redirector: { name: 'Redirecionador', cost: 8, key: '2', text: 'Desvia seu projétil mais perto do cursor; 8 s voando mais longe.', levels: [{}] },
   pact: { name: 'Pacto', cost: 10, key: '3', text: 'Próxima magia de dano em 5 s faz 1,5×; depois fica lento.', levels: [{}] },
 };

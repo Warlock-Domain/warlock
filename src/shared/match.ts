@@ -13,6 +13,21 @@ import {
 import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.ts';
 import { noSpells, priceOf, type SpellId } from './spells.ts';
 
+// estatísticas do placar: ouro ganho, dano causado e precisão (lançadas e acertadas) por magia
+export type Stat = { gold: number; dmg: number; fired: Record<string, number>; landed: Record<string, number> };
+export type Stats = { round: Stat; match: Stat; room: Stat };
+const newStat = (): Stat => ({ gold: 0, dmg: 0, fired: {}, landed: {} });
+const newStats = (): Stats => ({ round: newStat(), match: newStat(), room: newStat() });
+function addStat(p: Player, f: (s: Stat) => void) {
+  f(p.stats.round);
+  f(p.stats.match);
+  f(p.stats.room);
+}
+function earn(p: Player, gold: number) {
+  p.gold += gold;
+  addStat(p, (s) => (s.gold += gold));
+}
+
 export type Phase = 'lobby' | 'shop' | 'countdown' | 'playing' | 'roundEnd' | 'end';
 
 export type Player = {
@@ -26,6 +41,7 @@ export type Player = {
   spells: Record<SpellId, number>;
   items: Record<ItemId, number>;
   masteries: Record<MasteryId, number>;
+  stats: Stats;
   ready: boolean;
   connected: boolean;
 };
@@ -60,7 +76,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false): bool
   const color = [0, 1, 2, 3, 4, 5, 6, 7].find((c) => !used.has(c)) ?? 0;
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
-  m.players.push({ id, name, bot, color, character, score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries(), ready: bot, connected: true });
+  m.players.push({ id, name, bot, color, character, score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries(), stats: newStats(), ready: bot, connected: true });
   return true;
 }
 
@@ -78,7 +94,12 @@ export function startMatch(m: Match, now: number, bots: number): boolean {
   m.players = m.players.filter((p) => !p.bot && p.connected);
   for (let i = 0; m.players.length < MAX_PLAYERS && i < bots; i++) addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true);
   if (m.players.length < 2) return false;
-  for (const p of m.players) Object.assign(p, { score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries() });
+  for (const p of m.players) {
+    Object.assign(p, { score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries() });
+    p.stats ??= newStats();
+    p.stats.match = newStat();
+    p.stats.round = newStat();
+  }
   Object.assign(m, { round: 0, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0 });
   enterShop(m, now);
   return true;
@@ -139,6 +160,7 @@ export function resume(m: Match, now: number) {
     p.character ??= 'mage';
     p.items ??= noItems();
     p.masteries ??= noMasteries();
+    p.stats ??= newStats();
   }
   if (m.phase === 'countdown' || m.phase === 'playing') {
     m.round--;
@@ -181,6 +203,7 @@ function enterShop(m: Match, now: number) {
 
 function enterCountdown(m: Match, now: number) {
   m.round++;
+  for (const p of m.players) p.stats.round = newStat();
   const ids = m.players.map((p) => p.id);
   m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), Object.fromEntries(m.players.map((p) => [p.id, p.masteries])), PILLAR.min + Math.floor(Math.random() * (PILLAR.max - PILLAR.min + 1)));
   m.phase = 'countdown';
@@ -191,10 +214,10 @@ function endRound(m: Match, now: number, winner: string | null) {
   const p = m.players.find((q) => q.id === winner);
   if (p) {
     p.score++;
-    p.gold += WIN_GOLD;
+    earn(p, WIN_GOLD);
   }
   const played = new Set(m.world?.wizards.map((z) => z.id));
-  for (const q of m.players) if (played.has(q.id)) q.gold += ROUND_GOLD;
+  for (const q of m.players) if (played.has(q.id)) earn(q, ROUND_GOLD);
   m.lastRoundWinner = winner;
   m.emptyRounds = winner ? 0 : m.emptyRounds + 1;
   m.phase = 'roundEnd';
@@ -239,10 +262,18 @@ export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number
   const before = w.wizards.filter((z) => z.alive).map((z) => ({ id: z.id, hp: z.hp }));
   stepWorld(w, all);
   for (const e of w.events) {
-    if (e.k !== 'death' || !e.by || e.by === e.id) continue;
-    // abate não vale ponto no original, só ouro (zero no padrão)
-    const killer = m.players.find((p) => p.id === e.by);
-    if (killer) killer.gold += KILL_GOLD;
+    if (e.k === 'hit' && e.by !== e.id) {
+      const p = m.players.find((q) => q.id === e.by);
+      if (p) addStat(p, (s) => (s.dmg += e.dmg));
+    } else if (e.k === 'fire' || e.k === 'land') {
+      const p = m.players.find((q) => q.id === e.id);
+      const bucket = e.k === 'fire' ? 'fired' : 'landed';
+      if (p) addStat(p, (s) => (s[bucket][e.src] = (s[bucket][e.src] ?? 0) + 1));
+    } else if (e.k === 'death' && e.by && e.by !== e.id) {
+      // abate não vale ponto no original, só ouro (zero no padrão)
+      const killer = m.players.find((p) => p.id === e.by);
+      if (killer && KILL_GOLD) earn(killer, KILL_GOLD);
+    }
   }
   const alive = w.wizards.filter((z) => z.alive);
   if (alive.length === 1) endRound(m, now, alive[0].id);

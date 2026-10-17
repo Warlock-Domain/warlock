@@ -5,7 +5,7 @@ import type { SnapView, WizView } from '../src/shared/snapshot.ts';
 import { WIZ_SPEED } from '../src/shared/constants.ts';
 import { v } from '../src/shared/vec.ts';
 
-const wiz = (x: number, extra: Partial<WizView> = {}): WizView => ({ id: 'a', pos: v(x, 0), vel: v(0, 0), hp: 100, facing: 0, alive: true, shield: false, ...extra });
+const wiz = (x: number, extra: Partial<WizView> = {}): WizView => ({ id: 'a', pos: v(x, 0), vel: v(0, 0), hp: 100, facing: 0, alive: true, shield: false, status: 1, ...extra });
 const snap = (time: number, x: number): SnapView => ({ time, arenaR: 11, shrinkAt: 15, wizards: [wiz(x)], projectiles: [], pillars: [] });
 
 describe('interpolação', () => {

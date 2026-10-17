@@ -1,7 +1,7 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
 import type { Snap } from './protocol.ts';
 import type { SimEvent, World } from './sim.ts';
-import { PILLAR } from './constants.ts';
+import { PILLAR, STUN_SPEED } from './constants.ts';
 import { ACTIVE_ITEMS } from './items.ts';
 import { SPELL_IDS } from './spells.ts';
 import { v, type Vec } from './vec.ts';
@@ -21,7 +21,9 @@ export function publicEvents(events: SimEvent[], pub: (id: string) => string): S
 export function encodeSnap(w: World, forId: string, ack: number, events: SimEvent[]): Snap {
   const wz: number[] = [];
   for (const z of w.wizards) {
-    const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0);
+    // bits: 1 vivo, 2 escudo, 4 lento, 8 vulnerável (Redirecionador), 16 atordoado (arremessado), 32 invulnerável, 64 Pacto armado
+    const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0) | (w.t < z.slowUntil ? 4 : 0) | (w.t < z.kbPenaltyUntil ? 8 : 0)
+      | (Math.hypot(z.vel.x, z.vel.y) > STUN_SPEED ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0);
     wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x), r2(z.vel.y), Math.ceil(z.hp), r2(z.facing), bits);
   }
   const p: number[] = [];
@@ -34,7 +36,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   return snap;
 }
 
-export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean };
+export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number };
 export type ProjView = { id: number; kind: 'fireball' | 'homing'; pos: Vec; vel: Vec };
 export type PillarView = { pos: Vec; hp: number };
 export type SnapView = { time: number; arenaR: number; shrinkAt: number; wizards: WizView[]; projectiles: ProjView[]; pillars: PillarView[] };
@@ -43,7 +45,7 @@ export function decodeSnap(s: Snap, ids: string[]): SnapView {
   const wizards: WizView[] = [];
   for (let i = 0; i * 7 < s.w.length && i < ids.length; i++) {
     const [x, y, vx, vy, hp, facing, bits] = s.w.slice(i * 7, i * 7 + 7);
-    wizards.push({ id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0 });
+    wizards.push({ id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0, status: bits });
   }
   const projectiles: ProjView[] = [];
   for (let i = 0; i < s.p.length; i += 6) {

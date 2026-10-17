@@ -37,7 +37,7 @@ const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string][]>> = 
   armor: (l) => [['Empurrão recebido', `−${n1(ITEMS.armor.levels[l].kb! * 100)}%`]],
   boots: (l) => [['Velocidade', `+${n1(ITEMS.boots.levels[l].speed! * 100) } cm/s`]],
   watch: (l) => [['Lentidões', `−${n1(-ITEMS.watch.levels[l].debuff! * 100)}% de duração`]],
-  scourge: (l) => [['Dano em volta', n1(SCOURGE.dmg[l])], ['Raio', m(SCOURGE.radius)], ['Preparo', s(SCOURGE.windup)], ['Recarga', s(SCOURGE.cd)], ['Custo', `você perde ${n1(SCOURGE.dmg[l])} de vida`]],
+  scourge: (l) => [['Dano em volta', n1(SCOURGE.dmg[l])], ['Raio', m(SCOURGE.radius)], ['Preparo', s(SCOURGE.windup)], ['Recarga', s(SCOURGE.cd)]],
   redirector: () => [['Recarga', s(REDIRECTOR.cd)], ['Penalidade', `+${REDIRECTOR.kbPenalty * 100}% de empurrão por ${s(REDIRECTOR.penaltyTime)}`]],
   pact: () => [['Próxima magia de dano', `${n1(PACT.mult)}×`], ['Janela', s(PACT.window)], ['Depois', `lento por ${s(PACT.slowTime)}`], ['Recarga', s(PACT.cd)]],
 };

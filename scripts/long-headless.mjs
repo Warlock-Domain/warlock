@@ -32,6 +32,7 @@ try {
       seen.add('loja2');
       console.log(((Date.now() - t0) / 1000).toFixed(0) + 's loja depois da rodada 1:', (await page.locator('.shop-head').first().innerText()).replace(/\n/g, ' '));
       await page.screenshot({ path: `${out}/long-loja.png` });
+      console.log('placar:', (await page.locator('.stats-table').first().innerText()).split('\n').join(' | '));
       await page.getByRole('button', { name: 'Pronto' }).click();
     }
     if (round.includes('Rodada 2') && timer.startsWith('A arena')) {

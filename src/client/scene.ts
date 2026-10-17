@@ -18,7 +18,7 @@ export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; alive: boolean; shield: boolean; color: number; character: string; name: string; moving: boolean; cheer: boolean };
+export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; color: number; character: string; name: string; moving: boolean; cheer: boolean };
 
 const w3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, p.y);
 
@@ -33,6 +33,8 @@ type Mage = {
   label: HTMLDivElement;
   hpFill: HTMLDivElement;
   hpText: HTMLSpanElement;
+  statusEl: HTMLSpanElement;
+  statusKey: number;
   dead: boolean;
   color: number;
   character: string;
@@ -196,6 +198,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   warn.position.y = 0.02;
   scene.add(warn);
   let shownR = 11;
+  let shake = 0; // tremor da câmera nos choques
   let warnR = -1;
 
   const glow = glowTexture();
@@ -318,9 +321,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const hpText = document.createElement('span');
     hpText.className = 'hp-text';
     bar.append(hpFill, hpText);
-    label.append(nameEl, bar);
+    const statusEl = document.createElement('span');
+    statusEl.className = 'status-icons';
+    label.append(statusEl, nameEl, bar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, label, hpFill, hpText, dead: false, color: d.color, character: d.character };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, label, hpFill, hpText, statusEl, statusKey: -1, dead: false, color: d.color, character: d.character };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -512,6 +517,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       } else if (e.k === 'clash') {
         const at = v(e.x, e.y);
         groundMark(at, e.combo, e.r);
+        if (e.combo !== 'pillar') {
+          shake = Math.min(0.6, shake + e.r * 0.15);
+          burst(at, '#fff1d0', e.r * 2.2, 0.25, 0.9, FX.light);
+          burst(at, '#ffb347', e.r * 1.8, 0.5, 0.9, FX.fire);
+          for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2;
+            burst(v(at.x + Math.cos(a) * e.r * 0.5, at.y + Math.sin(a) * e.r * 0.5), '#ffd27a', 1.1, 0.5, 0.9, FX.spark, 1.5);
+          }
+        }
         if (e.combo === 'fire') {
           shockwave(at, e.r, '#ff7a1a');
           explosion(at);
@@ -609,6 +623,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.moving ? 'Running_A' : 'Idle');
       }
       m.label.hidden = !d.alive;
+      // ícones de efeito em cima do mago (negativos primeiro)
+      if (m.statusKey !== d.status) {
+        m.statusKey = d.status;
+        const icons: [number, string, string][] = [[16, '💫', 'atordoado'], [4, '🐌', 'lento'], [8, '⚠️', 'vulnerável'], [32, '✨', 'invulnerável'], [64, '🩸', 'Pacto armado']];
+        m.statusEl.replaceChildren(...icons.filter(([bit]) => d.status & bit).map(([, ico, name]) => Object.assign(document.createElement('i'), { textContent: ico, title: name, className: [16, 4, 8].includes(icons.find((x) => x[1] === ico)![0]) ? 'bad' : 'good' })));
+      }
       m.hpFill.style.width = `${Math.max(0, Math.min(100, (d.hp / d.hpMax) * 100))}%`;
       m.hpText.textContent = `${Math.max(0, Math.ceil(d.hp))}/${d.hpMax}`;
     }
@@ -716,6 +736,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const lookZ = focus.z + dist * 0.06;
       camera.position.set(focus.x, dist * 0.74, lookZ + dist * 0.67);
       camera.lookAt(focus.x, 0, lookZ);
+      if (shake > 0.01 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        camera.position.x += (Math.random() - 0.5) * shake;
+        camera.position.z += (Math.random() - 0.5) * shake;
+      }
+      shake *= 0.9;
 
       // números de dano: sobem 1,2 m em 0,9 s e somem
       for (let i = numbers.length - 1; i >= 0; i--) {

@@ -52,6 +52,7 @@ export type Projectile = {
   until: number;
   target: string | null;
   dmgMult: number; // Pacto
+  caster: string; // quem lançou (o dono muda quando um escudo reflete)
 };
 
 export type Cmd =
@@ -72,7 +73,12 @@ export type SimEvent =
   | { k: 'scourge'; id: string; x: number; y: number; r: number }
   | { k: 'redirect'; x: number; y: number }
   | { k: 'clash'; x: number; y: number; combo: Combo; r: number }
-  | { k: 'pillar'; i: number; x: number; y: number };
+  | { k: 'pillar'; i: number; x: number; y: number }
+  // estatística de precisão: 'fire' quando uma magia de dano sai, 'land' quando ela acerta um inimigo (uma vez por lançamento)
+  | { k: 'fire'; id: string; src: AimSrc }
+  | { k: 'land'; id: string; src: AimSrc };
+
+export type AimSrc = 'fireball' | 'lightning' | 'homing' | 'scourge';
 
 // choque de magias: fogo×fogo, fogo×míssil, míssil×míssil, e o raio detonando uma bola de fogo
 export type Combo = 'fire' | 'arcane' | 'pulse' | 'detonate' | 'pillar';
@@ -236,11 +242,12 @@ function area(w: World, at: Vec, radius: number, dmg: number, kbFactor: number, 
 }
 
 // combinações quando dois projéteis de donos diferentes se encontram (minha decisão; no original os dois só somem)
+// (mais fortes e maiores a pedido do Fernando, 17/10)
 export const CLASH = {
-  fire: { r: 1.3, dmg: 4, kb: 1 },
-  arcane: { r: 1.8, dmg: 5, kb: 1.3 },
-  pulse: { r: 1.0, dmg: 3, kb: 0.8 },
-  detonate: { r: 225 * 0.00647 },
+  fire: { r: 2.0, dmg: 7, kb: 1.3 },
+  arcane: { r: 2.6, dmg: 9, kb: 1.6 },
+  pulse: { r: 1.6, dmg: 5, kb: 1.1 },
+  detonate: { r: 2.0 }, // original 225 unidades (1,46 m)
 };
 
 function clashProjectiles(w: World) {
@@ -333,8 +340,11 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
       until: w.t + (homing ? L.duration : L.range / L.speed) * wz.rangeF,
       target: homing ? (nearestEnemy(w, at, wz.id)?.id ?? null) : null,
       dmgMult,
+      caster: wz.id,
     });
+    w.events.push({ k: 'fire', id: wz.id, src: spell });
   } else if (spell === 'lightning') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'lightning' });
     const end = add(wz.pos, scale(dir, L.range * wz.rangeF));
     const found = firstOnSegment(w, wz.pos, end, WIZ_R, wz.id);
     const proj = firstProjectileOnSegment(w, wz.pos, end, wz.id);
@@ -360,7 +370,10 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
       w.events.push({ k: 'reflect', id: target.id, x: target.pos.x, y: target.pos.y });
       w.events.push({ k: 'lightning', from: target.pos, to: wz.pos });
       hit(w, wz, target.id, L.dmg * dmgMult, L.knock * dmgMult, scale(dir, -1));
-    } else hit(w, target, wz.id, L.dmg * dmgMult, L.knock * dmgMult, dir);
+    } else {
+      hit(w, target, wz.id, L.dmg * dmgMult, L.knock * dmgMult, dir);
+      w.events.push({ k: 'land', id: wz.id, src: 'lightning' });
+    }
   } else if (spell === 'shield') {
     wz.shieldUntil = w.t + L.duration * wz.durF;
   } else {
@@ -423,18 +436,22 @@ function useItem(w: World, wz: Wizard, item: ItemId, at: Vec) {
   }
 }
 
-// Flagelo: explosão em volta; quanto mais perto do centro, mais empurrão; o próprio mago perde a mesma vida (fica com 1 no mínimo)
+// Flagelo: explosão em volta; quanto mais perto do centro, mais empurrão (no original custava a mesma vida a quem usa;
+// aqui não custa nada, a pedido do Fernando em 17/10)
 function scourge(w: World, wz: Wizard) {
   const mult = usePact(w, wz);
   const dmg = SCOURGE.dmg[wz.items.scourge - 1] * mult;
+  w.events.push({ k: 'fire', id: wz.id, src: 'scourge' });
+  let landed = false;
   for (const o of w.wizards) {
     if (!o.alive || o.id === wz.id) continue;
     const d = dist(o.pos, wz.pos);
     if (d > SCOURGE.radius + WIZ_R) continue;
     const factor = 0.75 + 0.25 * Math.max(0, 1 - d / SCOURGE.radius);
     hit(w, o, wz.id, dmg, dmg * KB_PER_DMG * factor, sub(o.pos, wz.pos));
+    landed = true;
   }
-  wz.hp = Math.max(1, wz.hp - dmg);
+  if (landed) w.events.push({ k: 'land', id: wz.id, src: 'scourge' });
   w.events.push({ k: 'scourge', id: wz.id, x: wz.pos.x, y: wz.pos.y, r: SCOURGE.radius });
 }
 
@@ -475,6 +492,7 @@ function stepProjectiles(w: World) {
         continue;
       }
       hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel);
+      if (p.owner === p.caster) w.events.push({ k: 'land', id: p.caster, src: p.kind });
       continue;
     }
     p.pos = next;

@@ -47,7 +47,7 @@ describe('itens passivos', () => {
 });
 
 describe('itens ativos', () => {
-  it('scourge explodes after the windup, pushes nearby and costs your own hp', () => {
+  it('scourge explodes after the windup and pushes nearby, without hurting the caster', () => {
     const w = world([[0, 0], [1, 0], [5, 0]], [{ scourge: 1 }]);
     stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
     steps(w, Math.round(SCOURGE.windup / DT) - 5);
@@ -56,7 +56,7 @@ describe('itens ativos', () => {
     expect(w.wizards[1].hp).toBeLessThan(HP_MAX);
     expect(w.wizards[1].vel.x).toBeGreaterThan(0);
     expect(w.wizards[2].hp).toBe(HP_MAX);
-    expect(w.wizards[0].hp).toBeLessThan(HP_MAX);
+    expect(w.wizards[0].hp).toBe(HP_MAX);
   });
 
   it('scourge never kills its caster', () => {

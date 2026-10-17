@@ -131,6 +131,33 @@ export type RoomActions = {
 const dot = (color: number) => el('span', { class: 'dot', style: `background:${COLORS[color]}` });
 const nameOf = (p: PublicPlayer, me: string) => p.name + (p.id === me ? ' (você)' : '') + (p.bot ? ' 🤖' : '');
 
+// placar de estatísticas: ouro ganho, dano causado e precisão de cada magia de dano (acertos / lançamentos)
+type Scope = 'round' | 'match' | 'room';
+const SCOPES: [Scope, string][] = [['round', 'Rodada'], ['match', 'Partida'], ['room', 'Sala']];
+const AIM: [string, string, string][] = [['fireball', '🔥', 'Bola de fogo'], ['lightning', '⚡', 'Raio'], ['homing', '🎯', 'Míssil'], ['scourge', '💥', 'Flagelo']];
+const n0 = (x: number) => Math.round(x).toLocaleString('pt-BR');
+
+function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Scope) => void) {
+  const rows = [...room.players].sort((a, b) => b.stats[scope].dmg - a.stats[scope].dmg);
+  const aimCell = (p: PublicPlayer, k: string) => {
+    const f = p.stats[scope].fired[k] ?? 0;
+    const l = p.stats[scope].landed[k] ?? 0;
+    return el('td', { class: 'num', title: f ? `${l} acertos em ${f} lançamentos` : 'não usou' }, f ? `${Math.round((l / f) * 100)}%` : '–', f ? el('small', {}, ` ${l}/${f}`) : null);
+  };
+  return el('div', { class: 'stats' },
+    el('div', { class: 'stats-tabs', role: 'tablist' }, ...SCOPES.map(([k, label]) =>
+      el('button', { type: 'button', role: 'tab', 'aria-selected': String(k === scope), class: k === scope ? 'on' : '', onclick: () => setScope(k) }, label))),
+    el('div', { class: 'stats-wrap' }, el('table', { class: 'stats-table' },
+      el('thead', {}, el('tr', {}, el('th', {}, 'Jogador'), el('th', {}, 'Vitórias'), el('th', {}, 'Ouro'), el('th', {}, 'Dano'), ...AIM.map(([, ico, name]) => el('th', { title: 'Precisão: ' + name }, ico)))),
+      el('tbody', {}, ...rows.map((p) => el('tr', { class: p.id === me ? 'me' : '' },
+        el('td', {}, dot(p.color), ' ', p.name), el('td', { class: 'num' }, String(p.score)),
+        el('td', { class: 'num' }, n0(p.stats[scope].gold)), el('td', { class: 'num' }, n0(p.stats[scope].dmg)),
+        ...AIM.map(([k]) => aimCell(p, k)),
+      ))),
+    )),
+  );
+}
+
 // botão de expulsar: só para bots e para quem caiu e não voltou
 const kickBtn = (p: PublicPlayer, kick?: (id: string) => void) =>
   kick && (p.bot || !p.connected) ? el('button', { type: 'button', class: 'kick', title: `Expulsar ${p.name}`, 'aria-label': `Expulsar ${p.name}`, onclick: () => kick(p.id) }, '✕') : null;
@@ -196,8 +223,20 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     bar.append(b);
   }
   const passives = el('div', { class: 'passives' });
+  // segurar Tab durante a partida mostra o placar
+  const tabOverlay = el('div', { class: 'tab-overlay', hidden: true });
+  function showTab(on: boolean) {
+    tabOverlay.hidden = !on || !room;
+    if (on && room) tabOverlay.replaceChildren(el('div', { class: 'card' }, el('h2', { class: 'title' }, 'Placar'), statsBoard(room, me, scope, setScope)));
+  }
+  addEventListener('keydown', (e) => {
+    if (e.code !== 'Tab' || !room || (room.phase !== 'playing' && room.phase !== 'countdown' && room.phase !== 'roundEnd')) return;
+    e.preventDefault();
+    if (!e.repeat) showTab(true);
+  });
+  addEventListener('keyup', (e) => e.code === 'Tab' && showTab(false));
   const barWrap = el('div', { class: 'barwrap' }, passives, bar);
-  root.replaceChildren(el('div', { class: 'hud' }, top, players, timer, center, barWrap), el('div', { class: 'labels', id: 'labels' }));
+  root.replaceChildren(el('div', { class: 'hud' }, top, players, timer, center, barWrap, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
@@ -208,6 +247,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   let room: PublicRoom | null = null;
   let me = '';
+  let scope: Scope = 'round';
+  const setScope = (s: Scope) => {
+    scope = s;
+    drawCenter();
+    if (!tabOverlay.hidden) showTab(true);
+  };
   let phaseEndsAt = 0;
 
   // grade com o retrato de cada personagem; o escolhido fica marcado
@@ -242,7 +287,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (humans + bots < 2) startBtn.setAttribute('disabled', '');
     return el('div', { class: 'card' },
       r.phase === 'end'
-        ? el('div', {}, el('h2', { class: 'title' }, r.winner ? `🏆 ${r.players.find((p) => p.id === r.winner)?.name ?? '?'} venceu!` : 'Partida encerrada'), r.winner ? null : el('p', { class: 'muted' }, 'Ninguém jogou por um tempo e a partida foi encerrada.'), board(r, me, act.kick))
+        ? el('div', {}, el('h2', { class: 'title' }, r.winner ? `🏆 ${r.players.find((p) => p.id === r.winner)?.name ?? '?'} venceu!` : 'Partida encerrada'), r.winner ? null : el('p', { class: 'muted' }, 'Ninguém jogou por um tempo e a partida foi encerrada.'), board(r, me, act.kick), statsBoard(r, me, scope, setScope))
         : el('div', {}, el('h2', { class: 'title' }, 'Sala ' + r.id), el('p', { class: 'muted' }, 'Mande o link para os amigos entrarem. Até 8 magos.'),
             el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), kickBtn(p, act.kick))))),
       picker(r),
@@ -296,6 +341,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         el('small', {}, 'Sobe Duração, Alcance e Roubo de vida um nível cada.'),
         el('button', { type: 'button', 'data-key': 'mastery-all', disabled: MASTERY_IDS.some((k) => mine.masteries[k] >= MASTERY_MAX) || mine.gold < MASTERY_ALL_COST, onclick: () => act.buyMastery('all') }, `Subir as três · ${MASTERY_ALL_COST}`),
       )),
+      el('h3', {}, 'Placar'),
+      statsBoard(r, me, scope, setScope),
       ),
       el('aside', { class: 'shop-side' },
         el('span', { class: 'gold big' }, `🪙 ${mine.gold}`),
@@ -319,6 +366,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   return {
     update(r: PublicRoom, you: string, online: boolean) {
+      // a loja abre mostrando a rodada que acabou; o fim mostra a partida inteira
+      if (room && room.phase !== r.phase) scope = r.phase === 'end' ? 'match' : 'round';
       room = r;
       me = you;
       phaseEndsAt = performance.now() + r.phaseLeft;
