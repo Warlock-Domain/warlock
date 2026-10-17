@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ARENA_R0, ARENA_STEP, DT, HP_MAX, SHRINK_EVERY, WIZ_R } from '../src/shared/constants.ts';
+import { ARENA_R0, ARENA_STEP, DT, HP_MAX, PILLAR, SHRINK_EVERY, WIZ_R } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
 import { newWorld, stepWorld, type Cmd, type World } from '../src/shared/sim.ts';
 import { noSpells, type SpellId } from '../src/shared/spells.ts';
@@ -279,5 +279,45 @@ describe('choque de magias', () => {
     expect(seen).toContain('detonate');
     expect(w.projectiles.length).toBe(0);
     expect(wz(w, 2).hp).toBeLessThan(HP_MAX);
+  });
+});
+
+describe('pilares', () => {
+  const withPillar = (spots: [number, number][], pillar: [number, number]) => {
+    const w = world(spots);
+    w.pillars = [{ pos: v(pillar[0], pillar[1]), hp: PILLAR.hp, alive: true }];
+    return w;
+  };
+
+  it('a pillar blocks a fireball and takes the damage', () => {
+    const w = withPillar([[0, 0], [5, 0]], [2.5, 0]);
+    run(w, 1.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(5, 0) }]);
+    expect(wz(w, 1).hp).toBe(HP_MAX);
+    expect(w.pillars[0].hp).toBeLessThan(PILLAR.hp);
+  });
+
+  it('wizards cannot walk through a pillar', () => {
+    const w = withPillar([[0, 0]], [1.5, 0]);
+    run(w, 3, [{ id: 'p0', kind: 'move', to: v(3, 0) }]);
+    expect(dist(wz(w, 0).pos, v(1.5, 0))).toBeGreaterThanOrEqual(PILLAR.r + WIZ_R - 0.01);
+  });
+
+  it('a broken pillar explodes and stops blocking', () => {
+    const w = withPillar([[0, 0], [5, 0]], [2.5, 0]);
+    w.pillars[0].hp = 1;
+    const seen: string[] = [];
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(5, 0) }]);
+    for (let i = 0; i < 60; i++) {
+      stepWorld(w, []);
+      for (const e of w.events) if (e.k === 'clash') seen.push(e.combo);
+    }
+    expect(seen).toContain('pillar');
+    expect(w.pillars[0].alive).toBe(false);
+  });
+
+  it('pillars spawn away from wizards', () => {
+    const w = newWorld(['a', 'b', 'c', 'd'], { a: all(), b: all(), c: all(), d: all() }, {}, {}, 8);
+    expect(w.pillars.length).toBeGreaterThanOrEqual(2);
+    for (const p of w.pillars) for (const z of w.wizards) expect(dist(p.pos, z.pos)).toBeGreaterThanOrEqual(2);
   });
 });

@@ -7,9 +7,9 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { ARENA_STEP, SHRINK_WARN, WIZ_R } from '../shared/constants.ts';
+import { ARENA_STEP, PILLAR, SHRINK_WARN, WIZ_R } from '../shared/constants.ts';
 import type { SimEvent } from '../shared/sim.ts';
-import type { ProjView } from '../shared/snapshot.ts';
+import type { PillarView, ProjView } from '../shared/snapshot.ts';
 import { v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 
@@ -380,6 +380,62 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     numbers.push({ el, at: w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0)), born: performance.now() / 1000 });
   }
 
+  // marca que fica no chão alguns segundos onde houve choque de magias (só visual)
+  const MARK: Record<string, { map: THREE.Texture; color: string; secs: number; spin: number }> = {
+    fire: { map: FX.flame, color: '#ff6a10', secs: 4.5, spin: 0.2 },
+    arcane: { map: FX.magic, color: '#b45cff', secs: 4.5, spin: 1.2 },
+    pulse: { map: FX.circle, color: '#9f7bff', secs: 3, spin: 0.8 },
+    detonate: { map: FX.spark, color: '#8fd3ff', secs: 3.5, spin: 0.5 },
+    pillar: { map: FX.scorch, color: '#ffb066', secs: 4, spin: 0 },
+  };
+  function groundMark(at: Vec, combo: string, radius: number) {
+    const m = MARK[combo] ?? MARK.fire;
+    const plane = new THREE.Mesh(scorchGeo, new THREE.MeshBasicMaterial({ map: m.map, color: m.color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    plane.rotation.x = -Math.PI / 2;
+    plane.position.copy(w3(at, 0.035));
+    const size = Math.max(0.8, radius * 1.4);
+    plane.scale.setScalar(size / 1.6);
+    const spin = m.spin * (Math.random() < 0.5 ? -1 : 1);
+    addFx(plane, m.secs, (k) => {
+      plane.rotation.z += spin * 0.016;
+      // tremula como brasa e some no fim
+      const flicker = 0.75 + 0.25 * Math.sin(performance.now() / 90 + at.x * 7);
+      (plane.material as THREE.MeshBasicMaterial).opacity = flicker * Math.min(1, (1 - k) * 2.5);
+    });
+  }
+
+  // pilares da rodada: modelo KayKit (pilar decorado), escurece conforme apanha e afunda ao quebrar
+  const pillarMeshes: { obj: THREE.Object3D; pos: Vec; dead: boolean }[] = [];
+  function syncPillars(list: PillarView[]) {
+    const changed = list.length !== pillarMeshes.length || list.some((p, i) => p.pos.x !== pillarMeshes[i].pos.x || p.pos.y !== pillarMeshes[i].pos.y);
+    if (changed) {
+      for (const p of pillarMeshes) scene.remove(p.obj);
+      pillarMeshes.length = 0;
+      for (const p of list) {
+        const obj = decor.clone('pillar_decorated') ?? new THREE.Mesh(new THREE.CylinderGeometry(PILLAR.r, PILLAR.r, 2.2, 12), new THREE.MeshStandardMaterial({ color: '#6b625c' }));
+        // ajusta a largura do modelo ao raio de colisão do pilar
+        const box = new THREE.Box3().setFromObject(obj);
+        const width = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) || 1;
+        obj.scale.multiplyScalar((PILLAR.r * 2.3) / width);
+        obj.position.copy(w3(p.pos, 0));
+        scene.add(obj);
+        pillarMeshes.push({ obj, pos: p.pos, dead: false });
+      }
+    }
+    list.forEach((p, i) => {
+      const m = pillarMeshes[i];
+      if (p.hp <= 0) {
+        m.dead = true;
+        m.obj.position.y = Math.max(-3, m.obj.position.y - 0.05);
+        m.obj.visible = m.obj.position.y > -2.9;
+      } else {
+        // tremida curta quando apanha
+        const shake = p.hp < 100 ? (100 - p.hp) / 100 : 0;
+        m.obj.rotation.z = Math.sin(performance.now() / 40) * 0.02 * shake;
+      }
+    });
+  }
+
   // anel que se expande no chão até o raio da área
   function shockwave(at: Vec, radius: number, color: string) {
     const ring = new THREE.Mesh(waveGeo, new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
@@ -448,8 +504,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       } else if (e.k === 'scourge') {
         shockwave(v(e.x, e.y), e.r, '#ff7a1a');
         explosion(v(e.x, e.y));
+      } else if (e.k === 'pillar') {
+        burst(v(e.x, e.y), '#d8c8b8', 1.4, 0.3, 1.2, FX.smoke);
       } else if (e.k === 'clash') {
         const at = v(e.x, e.y);
+        groundMark(at, e.combo, e.r);
         if (e.combo === 'fire') {
           shockwave(at, e.r, '#ff7a1a');
           explosion(at);
@@ -609,7 +668,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     castLocal(id: string, spell: string) {
       oneShot(id, spell === 'shield' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
     },
-    render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; follow: Vec | null }) {
+    render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; follow: Vec | null }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
@@ -630,6 +689,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
       syncWizards(state.wizards, now);
       syncProjectiles(state.projectiles);
+      syncPillars(state.pillars);
       for (const m of mages.values()) m.mixer.update(dt);
       decor.update(shownR, now);
       for (let i = fx.length - 1; i >= 0; i--) {

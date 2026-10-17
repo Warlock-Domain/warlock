@@ -1,5 +1,6 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { botBuy, botCmds } from './bots.ts';
+import { PILLAR } from './constants.ts';
 import { CHARACTERS, type CharacterId } from './characters.ts';
 import { itemPrice, noItems, type ItemId } from './items.ts';
 import { MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, noMasteries, type MasteryId } from './masteries.ts';
@@ -160,7 +161,7 @@ function enterShop(m: Match, now: number) {
 function enterCountdown(m: Match, now: number) {
   m.round++;
   const ids = m.players.map((p) => p.id);
-  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), Object.fromEntries(m.players.map((p) => [p.id, p.masteries])));
+  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), Object.fromEntries(m.players.map((p) => [p.id, p.masteries])), PILLAR.min + Math.floor(Math.random() * (PILLAR.max - PILLAR.min + 1)));
   m.phase = 'countdown';
   m.phaseEnds = now + COUNTDOWN_MS;
 }

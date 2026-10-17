@@ -299,6 +299,7 @@ function startRoom(code: string, name: string) {
       shrinkIn: shrinkIn ?? SHRINK_EVERY,
       wizards,
       projectiles: playing && s ? s.projectiles : [],
+      pillars: playing && s ? s.pillars : [],
       follow: follow ? myPos : null,
     });
     view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, shrinkIn);

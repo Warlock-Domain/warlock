@@ -28,6 +28,8 @@ const FLAME_ON = new Set(['torch_lit', 'lantern_standing', 'skull_candle', 'shri
 // unitScale: escala do mago (os pacotes KayKit usam a mesma medida), conhecida depois que o mago carrega
 export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow: THREE.Texture) {
   const props: Prop[] = [];
+  let models = new Map<string, THREE.Object3D>();
+  let unit = 1;
   const flames: THREE.Sprite[] = [];
   const islandMat = new THREE.MeshStandardMaterial({ color: '#b8aaa0', roughness: 1, emissive: '#3a0c02', emissiveIntensity: 0.4 });
   new THREE.TextureLoader().load('/tex/stone.jpg', (t) => {
@@ -37,8 +39,9 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
   });
 
   const ready = Promise.all([new GLTFLoader().loadAsync('/models/decor.glb'), unitScale]).then(([g, k]) => {
-    const models = new Map<string, THREE.Object3D>();
+    models = new Map<string, THREE.Object3D>();
     for (const child of g.scene.children) models.set(child.name.replace(/\.gltf$/, ''), child);
+    unit = k;
     const place = (name: string, x: number, z: number, rot: number, parent: THREE.Object3D) => {
       const src = models.get(name);
       if (!src) return null;
@@ -86,6 +89,17 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
 
   return {
     ready,
+    // cópia de um modelo da decoração (para os pilares da arena), já na escala do jogo; null se ainda não carregou
+    clone(name: string): THREE.Object3D | null {
+      const src = models.get(name);
+      if (!src) return null;
+      const o = src.clone(true);
+      o.scale.setScalar(unit);
+      o.traverse((m) => {
+        if ((m as THREE.Mesh).isMesh) m.castShadow = m.receiveShadow = true;
+      });
+      return o;
+    },
     // ossos e entulho fora da pedra afundam na lava; as chamas tremulam
     update(arenaR: number, now: number) {
       for (const p of props) {

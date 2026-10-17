@@ -40,9 +40,10 @@ export type PublicRoom = {
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits (1 vivo, 2 escudo)
 // p: 6 números por projétil: id, tipo (0 fogo, 1 míssil), x, y, vx, vy
 // cd: recarga restante das 5 magias de quem recebe, na ordem de SPELL_IDS; icd: dos 3 itens ativos (ACTIVE_ITEMS);
+// pl: 3 números por pilar: x, y, vida em % (0 = quebrado)
 // sp: velocidade de andar dele agora (botas, lentidão), para a previsão; ack: último seq aplicado dele
 // a vida em w vai em % da vida máxima de cada mago (os anéis aumentam a máxima)
-export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; ack: number; e?: SimEvent[] };
+export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; pl: number[]; ack: number; e?: SimEvent[] };
 
 export type ErrorCode = 'not_found' | 'other_tab' | 'full' | 'bad_msg';
 

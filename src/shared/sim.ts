@@ -1,6 +1,6 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
-  ARENA_STEP, CREDIT_WINDOW, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
+  ARENA_STEP, CREDIT_WINDOW, PILLAR, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
   WIZ_R, WIZ_SPEED, arenaRadius,
 } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, itemStats, noItems, type ItemId } from './items.ts';
@@ -70,10 +70,13 @@ export type SimEvent =
   | { k: 'item'; id: string; item: ItemId }
   | { k: 'scourge'; id: string; x: number; y: number; r: number }
   | { k: 'redirect'; x: number; y: number }
-  | { k: 'clash'; x: number; y: number; combo: Combo; r: number };
+  | { k: 'clash'; x: number; y: number; combo: Combo; r: number }
+  | { k: 'pillar'; i: number; x: number; y: number };
 
 // choque de magias: fogo×fogo, fogo×míssil, míssil×míssil, e o raio detonando uma bola de fogo
-export type Combo = 'fire' | 'arcane' | 'pulse' | 'detonate';
+export type Combo = 'fire' | 'arcane' | 'pulse' | 'detonate' | 'pillar';
+
+export type Pillar = { pos: Vec; hp: number; alive: boolean };
 
 export type World = {
   t: number;
@@ -81,6 +84,7 @@ export type World = {
   shrinkAt: number;
   wizards: Wizard[];
   projectiles: Projectile[];
+  pillars: Pillar[];
   events: SimEvent[];
   nextId: number;
 };
@@ -90,6 +94,8 @@ export function newWorld(
   spells: Record<string, Record<SpellId, number>>,
   items: Record<string, Record<ItemId, number>> = {},
   masteries: Record<string, Record<MasteryId, number>> = {},
+  pillarCount = 0,
+  rand: () => number = Math.random,
 ): World {
   const arenaR = arenaRadius(ids.length);
   const r = arenaR - SPAWN_INSET;
@@ -130,7 +136,18 @@ export function newWorld(
       casting: null,
     };
   });
-  return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], events: [], nextId: 1 };
+  return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars: placePillars(pillarCount, wizards.map((z) => z.pos), rand), events: [], nextId: 1 };
+}
+
+// sorteia pilares longe de onde os magos nascem e longe uns dos outros
+function placePillars(n: number, spawns: Vec[], rand: () => number): Pillar[] {
+  const out: Pillar[] = [];
+  for (let tries = 0; out.length < n && tries < n * 60; tries++) {
+    const pos = v((rand() * 2 - 1) * PILLAR.spread, (rand() * 2 - 1) * PILLAR.spread);
+    if (spawns.some((s) => dist(s, pos) < 2) || out.some((p) => dist(p.pos, pos) < 2)) continue;
+    out.push({ pos, hp: PILLAR.hp, alive: true });
+  }
+  return out;
 }
 
 export const isSliding = (wz: Wizard) => len(wz.vel) > STUN_SPEED;
@@ -245,6 +262,46 @@ function clashProjectiles(w: World) {
   if (gone.size) w.projectiles = w.projectiles.filter((p) => !gone.has(p));
 }
 
+function firstPillarOnSegment(w: World, a: Vec, b: Vec, radius: number): { i: number; t: number } | null {
+  const d = sub(b, a);
+  const dd = dot(d, d);
+  let best: { i: number; t: number } | null = null;
+  w.pillars.forEach((p, i) => {
+    if (!p.alive) return;
+    const t = dd > 0 ? Math.max(0, Math.min(1, dot(sub(p.pos, a), d) / dd)) : 0;
+    if (dist(add(a, scale(d, t)), p.pos) > PILLAR.r + radius) return;
+    if (!best || t < best.t) best = { i, t };
+  });
+  return best;
+}
+
+function damagePillar(w: World, i: number, dmg: number, by: string | null) {
+  const p = w.pillars[i];
+  p.hp -= dmg;
+  w.events.push({ k: 'pillar', i, x: p.pos.x, y: p.pos.y });
+  if (p.hp > 0) return;
+  p.alive = false;
+  area(w, p.pos, PILLAR.blastR, PILLAR.blastDmg, 1, by, true, 'pillar');
+}
+
+// magos não atravessam pilares: empurra para fora e corta o deslize na direção do pilar
+function blockPillars(w: World) {
+  for (const p of w.pillars) {
+    if (!p.alive) continue;
+    for (const wz of w.wizards) {
+      if (!wz.alive) continue;
+      const d = sub(wz.pos, p.pos);
+      const l = len(d);
+      const min = PILLAR.r + WIZ_R;
+      if (l >= min) continue;
+      const n = l > 1e-6 ? scale(d, 1 / l) : v(1, 0);
+      wz.pos = add(p.pos, scale(n, min));
+      const into = dot(wz.vel, n);
+      if (into < 0) wz.vel = sub(wz.vel, scale(n, into * 1.5)); // quica de leve
+    }
+  }
+}
+
 function nearestEnemy(w: World, to: Vec, skip: string): Wizard | null {
   let best: Wizard | null = null;
   for (const wz of w.wizards) {
@@ -280,6 +337,13 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     const end = add(wz.pos, scale(dir, L.range * wz.rangeF));
     const found = firstOnSegment(w, wz.pos, end, WIZ_R, wz.id);
     const proj = firstProjectileOnSegment(w, wz.pos, end, wz.id);
+    const pil = firstPillarOnSegment(w, wz.pos, end, 0.1);
+    if (pil && (!found || pil.t < found.t) && (!proj || pil.t < proj.t)) {
+      const at = w.pillars[pil.i].pos;
+      w.events.push({ k: 'lightning', from: wz.pos, to: at });
+      damagePillar(w, pil.i, L.dmg * dmgMult, wz.id);
+      return;
+    }
     if (proj && (!found || proj.t < found.t)) {
       w.events.push({ k: 'lightning', from: wz.pos, to: proj.p.pos });
       w.projectiles = w.projectiles.filter((q) => q !== proj.p);
@@ -389,6 +453,11 @@ function stepProjectiles(w: World) {
     }
     const next = add(p.pos, scale(p.vel, DT));
     const found = firstOnSegment(w, p.pos, next, WIZ_R + PROJ_R, p.owner);
+    const pil = firstPillarOnSegment(w, p.pos, next, PROJ_R);
+    if (pil && (!found || pil.t < found.t)) {
+      damagePillar(w, pil.i, L.dmg * p.dmgMult, p.owner);
+      continue;
+    }
     if (found) {
       const wz = found.wz;
       if (shielded(w, wz)) {
@@ -462,6 +531,7 @@ export function stepWorld(w: World, cmds: Cmd[]) {
 
   for (const wz of w.wizards) if (wz.alive) moveWizard(wz, DT);
   separate(w);
+  blockPillars(w);
   stepProjectiles(w);
   clashProjectiles(w);
 
