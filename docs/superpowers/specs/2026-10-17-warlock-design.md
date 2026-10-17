@@ -102,7 +102,8 @@ Diferente da sinuca (por turnos, quem tacou simulava), aqui **a sala (Durable Ob
 - Câmera: segue o próprio mago, com a arena inteira quase sempre visível; espaço centraliza.
 
 ### 4.9 Visual e som (o "estilo da sinuca")
-- Lava com brilho e ondulação, pedra com textura, luz quente vinda de baixo, vinheta; magos estilizados (manto, chapéu, cajado) feitos com formas simples, sem modelos baixados.
+- Lava com brilho e ondulação, pedra com textura, luz quente vinda de baixo, vinheta.
+- **Magos: modelo `Mage.glb` do KayKit Adventurers** (CC0, [GitHub oficial](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0)), o mesmo para todos, com chapéu e manto tingidos na cor do jogador; animações sem uso cortadas para o arquivo ficar leve **(Fernando, 17/10: "pode pegar modelos free da internet em vez de tentar criar seus próprios?")**.
 - Efeitos: rastro e explosão da bola de fogo, raio com clarão, escudo transparente, sumiço/aparição do teleporte, faíscas ao cair na lava.
 - Avisos grandes como na sinuca ("Rodada 2!", "Fulano caiu na lava!", "Você venceu a rodada!").
 - Som e música gerados no navegador (Web Audio), como a sinuca. Menu de regras curto.
