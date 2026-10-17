@@ -3,10 +3,10 @@ import { DT, HP_MAX, WIZ_SPEED } from '../src/shared/constants.ts';
 import { ITEMS, MAX_ITEMS, PACT, SCOURGE, itemPrice, noItems, type ItemId } from '../src/shared/items.ts';
 import { addPlayer, buy, buyItem, buyMastery, newMatch, startMatch, undoBuy } from '../src/shared/match.ts';
 import { newWorld, stepWorld, type World } from '../src/shared/sim.ts';
-import { SPELLS, type SpellId } from '../src/shared/spells.ts';
+import { SPELLS, noSpells, type SpellId } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
 
-const allSpells = (): Record<SpellId, number> => ({ fireball: 1, lightning: 1, homing: 1, shield: 1, teleport: 1 });
+const allSpells = (): Record<SpellId, number> => ({ ...noSpells(), lightning: 1, homing: 1, shield: 1, teleport: 1 });
 const with_ = (it: Partial<Record<ItemId, number>>) => ({ ...noItems(), ...it });
 
 function world(spots: [number, number][], items: Partial<Record<ItemId, number>>[] = []): World {

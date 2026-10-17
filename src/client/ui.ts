@@ -5,7 +5,7 @@ import type { Mode } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
 import { MASTERIES, MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, type MasteryId } from '../shared/masteries.ts';
-import { MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, priceOf, type SpellId } from '../shared/spells.ts';
+import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { ACTIONS, RESERVED, keyLabel, keyOf, labelOf, onKeysChange, resetKeys, setKey, type Action } from './keys.ts';
 import { hideTip, itemTip, masteryTip, spellTip, withTip } from './tips.ts';
 import { COLORS } from './scene.ts';
@@ -25,7 +25,7 @@ export function el(tag: string, props: Record<string, any> = {}, ...children: Ch
   return e;
 }
 
-export const ICON: Record<SpellId, string> = { fireball: '🔥', lightning: '⚡', homing: '🎯', shield: '🛡️', teleport: '✨' };
+export const ICON: Record<SpellId, string> = { fireball: '🔥', lightning: '⚡', homing: '🎯', shield: '🛡️', teleport: '✨', swap: '🔄', grip: '⛓️', meteor: '☄️', rush: '💨', cluster: '🔱' };
 export const ITEM_ICON: Record<ItemId, string> = { ring: '💍', cursed_ring: '🧿', cape: '🧣', armor: '⛓️', boots: '👢', watch: '⏱️', scourge: '💥', redirector: '↪️', pact: '🩸' };
 const TITLE = 'Warlock';
 
@@ -137,7 +137,7 @@ const nameOf = (p: PublicPlayer, me: string) => p.name + (p.id === me ? ' (você
 // placar de estatísticas: ouro ganho, dano causado e precisão de cada magia de dano (acertos / lançamentos)
 type Scope = 'round' | 'match' | 'room';
 const SCOPES: [Scope, string][] = [['round', 'Rodada'], ['match', 'Partida'], ['room', 'Sala']];
-const AIM: [string, string, string][] = [['fireball', '🔥', 'Bola de fogo'], ['lightning', '⚡', 'Raio'], ['homing', '🎯', 'Míssil'], ['scourge', '💥', 'Flagelo']];
+const AIM: [string, string, string][] = [['fireball', '🔥', 'Bola de fogo'], ['lightning', '⚡', 'Raio'], ['homing', '🎯', 'Míssil'], ['meteor', '☄️', 'Meteoro'], ['cluster', '🔱', 'Rajada'], ['scourge', '💥', 'Flagelo']];
 const n0 = (x: number) => Math.round(x).toLocaleString('pt-BR');
 
 function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Scope) => void) {
@@ -374,16 +374,17 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (!mine) return el('div', { class: 'card' }, el('p', {}, 'Você está assistindo. Entra na próxima partida.'));
     // duas colunas: compras à esquerda; ouro, Pronto, placar e personagem à direita (pedido do Fernando: loja mais larga)
     return el('div', { class: 'card shop' }, el('div', { class: 'shop-main' },
-      el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? 'Loja' : `Loja · depois da rodada ${r.round}`)),
+      el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? 'Loja' : `Loja · depois da rodada ${r.round}`), el('small', {}, `${spellCount(mine.spells)} de ${MAX_SPELLS} magias`)),
       el('div', { class: 'shop-grid' }, ...SPELL_IDS.map((s) => {
         const lvl = mine.spells[s];
         const price = priceOf(s, lvl);
-        const label = price === null ? 'Máximo' : lvl === 0 ? `Comprar · ${price}` : `Nível ${lvl + 1} · ${price}`;
-        return withTip(el('div', { class: 'shop-item' + (lvl ? ' owned' : '') },
+        const full = lvl === 0 && spellCount(mine.spells) >= MAX_SPELLS;
+        const label = price === null ? 'Máximo' : full ? `Limite de ${MAX_SPELLS} magias` : lvl === 0 ? `Comprar · ${price}` : `Nível ${lvl + 1} · ${price}`;
+        return withTip(el('div', { class: 'shop-item' + (lvl ? ' owned' : '') + (full ? ' locked' : '') },
           el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, ICON[s]), el('b', {}, SPELLS[s].name), el('span', { class: 'key' }, labelOf(s))),
           el('small', {}, RULES_SHORT[s]),
           el('span', { class: 'pips' }, ...Array.from({ length: MAX_SPELL_LEVEL }, (_, n) => el('i', { class: n < lvl ? 'on' : '' }))),
-          el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'spell-' + s, disabled: price === null || mine.gold < price, onclick: () => act.buy(s) }, label), undoBtn('spell:' + s)),
+          el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'spell-' + s, disabled: price === null || full || mine.gold < price, onclick: () => act.buy(s) }, label), undoBtn('spell:' + s)),
         ), () => spellTip(s, lvl));
       })),
       el('div', { class: 'shop-head' }, el('h3', {}, 'Itens'), el('small', {}, `${ITEM_IDS.filter((i) => mine.items[i] > 0).length} de ${MAX_ITEMS}`)),
@@ -502,4 +503,9 @@ const RULES_SHORT: Record<SpellId, string> = {
   homing: 'Lento, persegue o alvo mais perto da mira.',
   shield: 'Reflete fogo, míssil e raio por 1,2 s.',
   teleport: 'Salta até o cursor (alcance curto).',
+  swap: 'Troca de lugar com o mago que acertar.',
+  grip: 'Prende o alvo no lugar e reduz o empurrão dele.',
+  meteor: 'Cai em área no ponto marcado, após 1 s.',
+  rush: 'Mais velocidade; dano levado vira mais ainda.',
+  cluster: 'Quatro projéteis em leque, curto alcance.',
 };

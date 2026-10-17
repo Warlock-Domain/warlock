@@ -1,23 +1,25 @@
 // Bots simples: fogem da borda, desviam às vezes e atiram no mais próximo.
 import { WIZ_R, WIZ_SPEED } from './constants.ts';
-import type { Cmd, World } from './sim.ts';
+import type { Cmd, Wizard, World } from './sim.ts';
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
-import { SPELL_IDS, priceOf, spellLevel, type SpellId } from './spells.ts';
+import { MAX_SPELLS, METEOR_DELAY, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { add, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 type Buyer = { gold: number; spells: Record<SpellId, number>; items?: Record<ItemId, number> };
 
+// ordem de compra das magias; com o limite de 6, quem fica de fora são as últimas da lista
+const BOT_SPELLS: SpellId[] = ['lightning', 'homing', 'meteor', 'cluster', 'shield', 'teleport', 'rush', 'swap', 'grip'];
 // magias que faltam primeiro; depois defesa (armadura, anel, botas); depois melhorar a magia de menor nível
 const BOT_ITEMS: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'scourge'];
 export type BotPick = { kind: 'spell'; id: SpellId } | { kind: 'item'; id: ItemId };
 
 export function botBuy(p: Buyer): BotPick | null {
-  const missing = SPELL_IDS.filter((s) => p.spells[s] === 0 && (priceOf(s, 0) ?? Infinity) <= p.gold);
+  const missing = spellCount(p.spells) >= MAX_SPELLS ? [] : BOT_SPELLS.filter((s) => p.spells[s] === 0 && (priceOf(s, 0) ?? Infinity) <= p.gold);
   if (missing.length) return { kind: 'spell', id: missing[0] };
   const items = p.items;
   const item = items && BOT_ITEMS.find((i) => items[i] === 0 && (itemPrice(items, i) ?? Infinity) <= p.gold);
   if (item) return { kind: 'item', id: item };
-  const owned = SPELL_IDS.filter((s) => p.spells[s] > 0 && (priceOf(s, p.spells[s]) ?? Infinity) <= p.gold);
+  const owned = (['fireball', ...BOT_SPELLS] as SpellId[]).filter((s) => p.spells[s] > 0 && (priceOf(s, p.spells[s]) ?? Infinity) <= p.gold);
   owned.sort((a, b) => p.spells[a] - p.spells[b]);
   return owned[0] ? { kind: 'spell', id: owned[0] } : null;
 }
@@ -53,9 +55,13 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
   const fire = spellLevel('fireball', me.spells.fireball);
   const travel = d / fire.speed;
   const lead = enemy.target ? scale(norm(sub(enemy.target, enemy.pos)), Math.min(dist(enemy.target, enemy.pos), WIZ_SPEED * travel)) : v(0, 0);
+  // o meteoro demora a cair: mira onde o alvo vai estar andando até o destino dele
+  const meteorAim = (z: Wizard) => (z.target ? add(z.pos, scale(norm(sub(z.target, z.pos)), Math.min(dist(z.target, z.pos), WIZ_SPEED * METEOR_DELAY))) : z.pos);
   const aim = add(add(add(enemy.pos, lead), scale(enemy.vel, travel * 0.5)), jitter(0.8));
   if (me.items.scourge && w.t >= me.itemCd.scourge && d < 1.4 && rand() < 0.4) cmds.push({ id, kind: 'item', item: 'scourge', at: me.pos });
   else if (ready('lightning') && d < spellLevel('lightning', me.spells.lightning).range && rand() < 0.5) cmds.push({ id, kind: 'cast', spell: 'lightning', at: aim });
+  else if (ready('meteor') && d < spellLevel('meteor', me.spells.meteor).range && rand() < 0.5) cmds.push({ id, kind: 'cast', spell: 'meteor', at: meteorAim(enemy) });
+  else if (ready('cluster') && d < spellLevel('cluster', me.spells.cluster).range && rand() < 0.5) cmds.push({ id, kind: 'cast', spell: 'cluster', at: aim });
   else if (ready('homing') && rand() < 0.3) cmds.push({ id, kind: 'cast', spell: 'homing', at: enemy.pos });
   else if (ready('fireball') && d < fire.range + 1 && d > WIZ_R * 3 && rand() < 0.5) cmds.push({ id, kind: 'cast', spell: 'fireball', at: aim });
   return cmds;

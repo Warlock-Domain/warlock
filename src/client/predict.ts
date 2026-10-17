@@ -67,6 +67,7 @@ export function createPredict() {
         me.target = queued;
         queued = undefined;
       }
+      if (server.status & 128) me.target = null; // preso (Agarrar): não anda
       moveWizard(me, dt);
       const slack = WIZ_SPEED * (rttSec / 2) + 0.3;
       if (dist(me.pos, server.pos) > slack) me.pos = add(me.pos, scale(sub(server.pos, me.pos), 0.15));

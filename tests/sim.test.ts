@@ -5,7 +5,7 @@ import { newWorld, stepWorld, type Cmd, type World } from '../src/shared/sim.ts'
 import { noSpells, type SpellId } from '../src/shared/spells.ts';
 import { dist, v } from '../src/shared/vec.ts';
 
-const all = (): Record<SpellId, number> => ({ fireball: 1, lightning: 1, homing: 1, shield: 1, teleport: 1 });
+const all = (): Record<SpellId, number> => ({ ...noSpells(), lightning: 1, homing: 1, shield: 1, teleport: 1 });
 
 // mundo com magos em posições escolhidas, todos com as 5 magias no nível 1
 function world(spots: [number, number][]): World {

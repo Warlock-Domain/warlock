@@ -15,6 +15,11 @@ const SPELL_ROWS: Record<SpellId, Row[]> = {
   homing: [['Dano', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Tempo de voo', (l) => s(l.duration)]],
   shield: [['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)]],
   teleport: [['Alcance', (l) => m(l.range)], ['Recarga', (l) => s(l.cd)]],
+  swap: [['Alcance', (l) => m(l.range)], ['Recarga', (l) => s(l.cd)]],
+  grip: [['Tempo preso', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  meteor: [['Dano no centro', (l) => n1(l.dmg)], ['Dano na borda', (l) => n1(l.dmgMin)], ['Raio', (l) => m(l.radius)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  rush: [['Duração', (l) => s(l.duration)], ['Dano absorvido', (l) => n1(l.absorb)], ['Recarga', (l) => s(l.cd)]],
+  cluster: [['Dano por projétil', (l) => n1(l.dmg)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
 };
 
 function table(rows: [string, string, string | null][]): string {

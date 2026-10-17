@@ -11,7 +11,7 @@ import {
   COUNTDOWN_MS, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, WIN_GOLD, WINS_TO_WIN,
 } from './constants.ts';
 import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.ts';
-import { noSpells, priceOf, type SpellId } from './spells.ts';
+import { MAX_SPELLS, noSpells, priceOf, spellCount, type SpellId } from './spells.ts';
 
 // estatísticas do placar: ouro ganho, dano causado e precisão (lançadas e acertadas) por magia
 export type Stat = { gold: number; dmg: number; kills: number; dmgBy: Record<string, number>; fired: Record<string, number>; landed: Record<string, number> };
@@ -120,6 +120,7 @@ export function buy(m: Match, id: string, spell: SpellId): boolean {
   if (m.phase !== 'shop' || !p) return false;
   const price = priceOf(spell, p.spells[spell]);
   if (price === null || p.gold < price) return false;
+  if (p.spells[spell] === 0 && spellCount(p.spells) >= MAX_SPELLS) return false;
   p.gold -= price;
   p.spells[spell]++;
   p.bought.push({ key: 'spell:' + spell, price });
@@ -187,6 +188,7 @@ export function resume(m: Match, now: number) {
   m.mode ??= 'rounds';
   for (const p of m.players) {
     p.character ??= 'mage';
+    p.spells = { ...noSpells(), ...p.spells }; // salas gravadas antes das magias novas
     p.items ??= noItems();
     p.masteries ??= noMasteries();
     p.stats ??= newStats();
