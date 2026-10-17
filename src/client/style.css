@@ -19,6 +19,7 @@ button.primary, .button { background: linear-gradient(#ff7a2a, #d9480f); border-
 button.big { font-size: 1.1rem; min-height: 52px; }
 button.link { background: none; border: 0; color: var(--muted); padding: 6px 8px; min-height: 0; }
 button.icon { width: 40px; min-height: 40px; padding: 0; }
+button.icon.off { opacity: .4; text-decoration: line-through; }
 button:focus-visible, .button:focus-visible, input:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
 small { font-size: .8em; color: var(--muted); }
 .muted { color: var(--muted); }

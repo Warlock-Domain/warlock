@@ -80,7 +80,8 @@ function startLobby(name: string) {
 function startRoom(code: string, name: string) {
   document.body.className = 'in-room';
   let muted = store.get('warlock:mute') === '1';
-  const sound = createSound(() => muted);
+  let musicOn = store.get('warlock:music') !== '0';
+  const sound = createSound(() => muted, () => musicOn);
   let room: PublicRoom | null = null;
   let me = playerId;
   let online = false;
@@ -98,8 +99,18 @@ function startRoom(code: string, name: string) {
     toggleMute: () => {
       muted = !muted;
       store.set('warlock:mute', muted ? '1' : '0');
+      sound.refresh();
       return muted;
     },
+    toggleMusic: () => {
+      musicOn = !musicOn;
+      store.set('warlock:music', musicOn ? '1' : '0');
+      sound.refresh();
+      return musicOn;
+    },
+    click: () => sound.play('click'),
+    muted: () => muted,
+    musicOn: () => musicOn,
   });
   const scene = createScene(canvas, document.getElementById('labels')!);
   const interp = createInterp();
@@ -203,6 +214,7 @@ function startRoom(code: string, name: string) {
   function onPhase(prev: PublicRoom | null) {
     if (!room) return;
     input.setEnabled(room.phase === 'playing' || room.phase === 'countdown');
+    sound.setAmbience(room.phase !== 'lobby' && room.phase !== 'end');
     if (room.phase === 'countdown') {
       interp.reset();
       predict.reset();

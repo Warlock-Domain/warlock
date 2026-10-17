@@ -11,6 +11,7 @@ import { ARENA_STEP, SHRINK_WARN, WIZ_R } from '../shared/constants.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import type { ProjView } from '../shared/snapshot.ts';
 import { v, type Vec } from '../shared/vec.ts';
+import { createDecor } from './decor.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
 export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#12c7c7', '#f76b15', '#e93d82'];
@@ -39,7 +40,7 @@ type Fx = { obj: THREE.Object3D; until: number; born: number; update?: (k: numbe
 
 const LAVA_VERT = `varying vec2 vUv; varying vec3 vPos; void main(){ vUv = uv; vec4 wp = modelMatrix * vec4(position,1.0); vPos = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`;
 const LAVA_FRAG = `
-uniform float uTime; varying vec2 vUv; varying vec3 vPos;
+uniform float uTime; uniform sampler2D uMap; uniform float uHas; varying vec2 vUv; varying vec3 vPos;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.0-2.0*f);
   return mix(mix(hash(i), hash(i+vec2(1,0)), u.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), u.x), u.y); }
@@ -53,6 +54,14 @@ void main(){
   vec3 crust = mix(vec3(0.035, 0.008, 0.004), vec3(0.16, 0.025, 0.008), smoothstep(0.3, 0.5, n));
   vec3 hot = mix(vec3(0.7, 0.1, 0.01), vec3(1.0, 0.45, 0.06), core);
   vec3 col = mix(crust, hot, veins);
+  if (uHas > 0.5) {
+    // textura de lava (ambientCG Lava004) em duas camadas que correm em sentidos diferentes
+    vec2 q = vPos.xz * 0.05;
+    vec3 a = texture2D(uMap, q + vec2(t * 0.10, t * 0.04)).rgb;
+    vec3 b = texture2D(uMap, q * 1.7 - vec2(t * 0.06, -t * 0.09)).rgb;
+    vec3 tex = pow(max(a, b * 0.85), vec3(2.2));
+    col = tex * (0.45 + 0.55 * veins) + hot * core * 0.2;
+  }
   gl_FragColor = vec4(col, 1.0);
 }`;
 
@@ -122,7 +131,28 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   under.position.set(0, -1.5, 0);
   scene.add(under);
 
-  const lavaMat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 } }, vertexShader: LAVA_VERT, fragmentShader: LAVA_FRAG });
+  // assets CC0 em public/ (créditos em public/CREDITS.txt); enquanto não carregam, fica o visual gerado por código
+  const loader = new THREE.TextureLoader();
+  const tex = (path: string, srgb = true, repeat = 0) => {
+    const t = loader.load(path);
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    if (repeat) {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(repeat, repeat);
+    }
+    return t;
+  };
+  const fxTex = (name: string) => tex(`/fx/${name}.png`);
+  const FX = {
+    flame: fxTex('flame_01'), fire: fxTex('fire_01'), smoke: fxTex('smoke_01'), spark: fxTex('spark_01'),
+    magic: fxTex('magic_02'), light: fxTex('light_01'), circle: fxTex('circle_05'), scorch: fxTex('scorch_02'),
+  };
+  const lavaMat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uMap: { value: null }, uHas: { value: 0 } }, vertexShader: LAVA_VERT, fragmentShader: LAVA_FRAG });
+  loader.load('/tex/lava_emit.jpg', (t) => {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    lavaMat.uniforms.uMap.value = t;
+    lavaMat.uniforms.uHas.value = 1;
+  });
   const lava = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), lavaMat);
   lava.rotation.x = -Math.PI / 2;
   lava.position.y = -0.6;
@@ -139,6 +169,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   arena.position.y = -0.6;
   arena.receiveShadow = true;
   scene.add(arena);
+  // ardósia de verdade (Poly Haven Slate Floor 02) quando a textura chegar
+  loader.load('/tex/stone.jpg', (t) => {
+    const top = (arena.material as THREE.MeshStandardMaterial[])[1];
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(5, 5);
+    top.map = t;
+    top.normalMap = tex('/tex/stone_nor.jpg', false, 5);
+    top.color.set('#e6ddd6');
+    top.needsUpdate = true;
+  });
   // borda incandescente: a pedra queimando onde encosta na lava
   const rim = new THREE.Mesh(new THREE.RingGeometry(0.975, 1.0, 128), new THREE.MeshBasicMaterial({ color: '#ff7a1a', transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
   rim.rotation.x = -Math.PI / 2;
@@ -189,6 +230,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
 
   const mages = new Map<string, Mage>();
+  const decor = createDecor(scene, ready.then(() => mageScale), FX.flame);
 
   function makeMage(d: WizDraw): Mage | null {
     if (!mageScene) return null;
@@ -264,13 +306,40 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     fx.push({ obj, born: now, until: now + secs, update });
   }
 
-  function burst(at: Vec, color: string, size: number, secs: number, y = 0.8) {
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  function burst(at: Vec, color: string, size: number, secs: number, y = 0.8, map: THREE.Texture = glow, rise = 0) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, rotation: Math.random() * Math.PI * 2 }));
     s.position.copy(w3(at, y));
     addFx(s, secs, (k) => {
       s.scale.setScalar(size * (0.4 + k));
+      s.position.y = y + rise * k;
       s.material.opacity = 1 - k;
     });
+  }
+
+  // fumaça escura que sobe (mistura normal, não soma luz)
+  function smoke(at: Vec, size: number, secs: number) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: FX.smoke, color: '#3a2a22', transparent: true, opacity: 0.55, depthWrite: false, rotation: Math.random() * Math.PI * 2 }));
+    s.position.copy(w3(at, 0.9));
+    addFx(s, secs, (k) => {
+      s.scale.setScalar(size * (0.6 + k));
+      s.position.y = 0.9 + k * 1.4;
+      s.material.opacity = 0.55 * (1 - k);
+    });
+  }
+
+  // marca de queimado no chão onde a bola de fogo explodiu
+  function scorch(at: Vec) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), new THREE.MeshBasicMaterial({ map: FX.scorch, color: '#000000', transparent: true, opacity: 0.7, depthWrite: false }));
+    m.rotation.set(-Math.PI / 2, 0, Math.random() * Math.PI * 2);
+    m.position.copy(w3(at, 0.025));
+    addFx(m, 7, (k) => ((m.material as THREE.MeshBasicMaterial).opacity = 0.7 * Math.min(1, (1 - k) * 3)));
+  }
+
+  function explosion(at: Vec) {
+    burst(at, '#ffb347', 2.6, 0.4, 0.8, FX.fire);
+    burst(at, '#ff6a10', 3.2, 0.3, 0.8, FX.light);
+    for (let i = 0; i < 3; i++) burst(v(at.x + (Math.random() - 0.5) * 0.6, at.y + (Math.random() - 0.5) * 0.6), '#ffd27a', 0.9, 0.45, 0.9, FX.spark, 1.2);
+    smoke(at, 1.8, 1.1);
   }
 
   function bolt(from: Vec, to: Vec) {
@@ -281,9 +350,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.5));
       pts.push(p);
     }
-    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: '#cfe8ff', transparent: true }));
-    addFx(line, 0.22, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 1 - k));
-    burst(to, '#9fd0ff', 2.2, 0.3, 1);
+    // três traços tortos sobrepostos para o raio parecer grosso (linha de WebGL tem 1 px)
+    for (let j = 0; j < 3; j++) {
+      const jit = pts.map((p, i) => (i === 0 || i === n ? p : p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.18, (Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.18))));
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(jit), new THREE.LineBasicMaterial({ color: j ? '#9fd0ff' : '#ffffff', transparent: true, blending: THREE.AdditiveBlending }));
+      addFx(line, 0.25, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 1 - k));
+    }
+    burst(to, '#9fd0ff', 2.4, 0.3, 1, FX.light);
+    burst(to, '#e6f4ff', 1.4, 0.35, 1, FX.spark);
+    burst(from, '#9fd0ff', 1.2, 0.2, 1, FX.light);
   }
 
   function onEvents(events: SimEvent[], names: Map<string, string>) {
@@ -291,15 +366,24 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (e.k === 'cast') oneShot(e.id, e.spell === 'shield' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
       else if (e.k === 'hit') {
         oneShot(e.id, 'Hit_A', 0.45);
-        burst(v(e.x, e.y), '#ff9a3c', 2.6, 0.35);
-      } else if (e.k === 'reflect') burst(v(e.x, e.y), '#8fd3ff', 2.4, 0.3);
+        explosion(v(e.x, e.y));
+        scorch(v(e.x, e.y));
+      } else if (e.k === 'reflect') {
+        burst(v(e.x, e.y), '#8fd3ff', 2.4, 0.3, 0.8, FX.circle);
+        burst(v(e.x, e.y), '#cfeaff', 1.6, 0.25, 0.8, FX.light);
+      }
       else if (e.k === 'lightning') bolt(e.from, e.to);
       else if (e.k === 'teleport') {
-        burst(e.from, '#c49bff', 2.4, 0.4);
-        burst(e.to, '#c49bff', 2.4, 0.4);
+        burst(e.from, '#c49bff', 2.4, 0.45, 0.8, FX.magic);
+        burst(e.to, '#c49bff', 2.6, 0.45, 0.8, FX.magic);
+        burst(e.to, '#e9d8ff', 1.6, 0.3, 0.8, FX.light);
       } else if (e.k === 'death') {
         const m = mages.get(e.id);
-        if (m) burst(v(m.root.position.x, m.root.position.z), '#ffcf5a', 4, 0.6, 0.3);
+        if (m) {
+          const at = v(m.root.position.x, m.root.position.z);
+          burst(at, '#ffcf5a', 4, 0.6, 0.3, FX.fire);
+          smoke(at, 2.6, 1.6);
+        }
       }
     }
     void names;
@@ -313,7 +397,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!g) {
         g = new THREE.Group();
         const core = new THREE.Mesh(ballGeo, p.kind === 'fireball' ? fireMat : homingMat);
-        const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: p.kind === 'fireball' ? '#ff7a1a' : '#b05cff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+        const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: FX.light, color: p.kind === 'fireball' ? '#ff7a1a' : '#b05cff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
         halo.scale.setScalar(1.6);
         g.add(core, halo);
         scene.add(g);
@@ -321,7 +405,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       g.position.copy(w3(p.pos, 0.9));
       // rastro: brasas que ficam para trás e somem
-      if (Math.random() < 0.7) burst(p.pos, p.kind === 'fireball' ? '#ff6a10' : '#a050ff', 0.9, 0.35, 0.9);
+      if (Math.random() < 0.7) burst(p.pos, p.kind === 'fireball' ? '#ff7a20' : '#a050ff', 1.1, 0.35, 0.9, p.kind === 'fireball' ? FX.flame : FX.magic);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
@@ -437,6 +521,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       syncWizards(state.wizards, now);
       syncProjectiles(state.projectiles);
       for (const m of mages.values()) m.mixer.update(dt);
+      decor.update(shownR, now);
       for (let i = fx.length - 1; i >= 0; i--) {
         const f = fx[i];
         const k = (now - f.born) / (f.until - f.born);

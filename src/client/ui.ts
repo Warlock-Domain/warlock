@@ -114,6 +114,10 @@ export type RoomActions = {
   ready: () => void;
   spell: (s: SpellId) => void;
   toggleMute: () => boolean;
+  toggleMusic: () => boolean;
+  click: () => void;
+  muted: () => boolean;
+  musicOn: () => boolean;
 };
 
 const dot = (color: number) => el('span', { class: 'dot', style: `background:${COLORS[color]}` });
@@ -136,11 +140,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const status = el('span', { class: 'dot off', title: 'conexão' });
   const roundEl = el('span', { class: 'round' });
   const players = el('ul', { class: 'players' });
-  const muteBtn = el('button', { type: 'button', class: 'icon', title: 'Som', onclick: () => (muteBtn.textContent = act.toggleMute() ? '🔇' : '🔊') }, '🔊');
+  const muteBtn = el('button', { type: 'button', class: 'icon', title: 'Som', onclick: () => (muteBtn.textContent = act.toggleMute() ? '🔇' : '🔊') }, act.muted() ? '🔇' : '🔊');
+  const musicBtn = el('button', { type: 'button', class: 'icon', title: 'Música', onclick: () => musicBtn.classList.toggle('off', !act.toggleMusic()) }, '🎵');
+  musicBtn.classList.toggle('off', !act.musicOn());
   const top = el('div', { class: 'hud-top' },
     el('button', { type: 'button', class: 'code', title: 'Copiar link da sala', onclick: copyLink }, status, ' ', code),
     roundEl,
-    el('div', { class: 'hud-right' }, muteBtn, el('button', { type: 'button', class: 'icon', title: 'Como jogar', onclick: showRules }, '?')),
+    el('div', { class: 'hud-right' }, musicBtn, muteBtn, el('button', { type: 'button', class: 'icon', title: 'Como jogar', onclick: showRules }, '?')),
   );
   const center = el('div', { class: 'center' });
   const timer = el('div', { class: 'timer' });
@@ -154,6 +160,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     return b;
   }));
   root.replaceChildren(el('div', { class: 'hud' }, top, players, timer, center, bar), el('div', { class: 'labels', id: 'labels' }));
+  // clique dos botões da sala e da loja
+  root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
   function copyLink() {
     const url = location.href;

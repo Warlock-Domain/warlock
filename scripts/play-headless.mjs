@@ -16,7 +16,7 @@ try {
   await page.addInitScript(() => localStorage.setItem('warlock:name:pw', 'Fernando'));
   await page.goto(base + '/?as=pw#' + id);
   await page.getByRole('button', { name: 'Começar partida' }).click();
-  await page.getByRole('button', { name: 'Comprar · 10' }).first().click();
+  await page.getByRole('button', { name: /^Comprar/ }).first().click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: out + '/1-loja.png' });
   await page.getByRole('button', { name: 'Pronto' }).click();
