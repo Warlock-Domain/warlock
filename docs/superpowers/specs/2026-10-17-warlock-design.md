@@ -86,7 +86,7 @@ Diferente da sinuca (por turnos, quem tacou simulava), aqui **a sala (Durable Ob
 - **Bots** compram com regra simples (a próxima magia mais barata que não têm).
 
 ### 4.6 Pontos e partida
-- **5 rodadas.** Por rodada: **3 pontos para o último vivo**, **1 ponto por abate** (o abate vai para quem acertou o morto por último nos 5 s antes da morte; morte sem ninguém = sem dono). Vence quem tiver mais pontos; empate = rodada extra entre os empatados **(minha decisão)**.
+- **Pontuação do original:** o último vivo ganha **1 ponto** por rodada vencida; abate não vale ponto; vence a partida quem fizer **5** primeiro **(Fernando, 17/10: "Original, até 5 vitórias"; o Warlock Brawl usa 11)**. Rodada sem sobrevivente fica sem ponto. (Antes: 5 rodadas com 3 pontos por vitória e 1 por abate.)
 - Placar entre rodadas (na loja) e no fim, com botão "jogar de novo".
 - Rodada com limite de tempo de segurança (a arena encolhe até o mínimo e a lava resolve).
 
@@ -103,7 +103,8 @@ Diferente da sinuca (por turnos, quem tacou simulava), aqui **a sala (Durable Ob
 
 ### 4.9 Visual e som (o "estilo da sinuca")
 - Lava com brilho e ondulação, pedra com textura, luz quente vinda de baixo, vinheta.
-- **Magos: modelo `Mage.glb` do KayKit Adventurers** (CC0, [GitHub oficial](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0)), o mesmo para todos, com chapéu e manto tingidos na cor do jogador; animações sem uso cortadas para o arquivo ficar leve **(Fernando, 17/10: "pode pegar modelos free da internet em vez de tentar criar seus próprios?")**.
+- **Personagens: 9 modelos KayKit (Adventurers e Skeletons, CC0), cada jogador escolhe o seu na sala, só visual** **(Fernando, 17/10)**. Só o mago tem as roupas tingidas na cor do jogador; os outros usam o anel colorido no chão.
+- Antes disso: **magos com o modelo `Mage.glb` do KayKit Adventurers** (CC0, [GitHub oficial](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0)), o mesmo para todos, com chapéu e manto tingidos na cor do jogador; animações sem uso cortadas para o arquivo ficar leve **(Fernando, 17/10: "pode pegar modelos free da internet em vez de tentar criar seus próprios?")**.
 - Efeitos: rastro e explosão da bola de fogo, raio com clarão, escudo transparente, sumiço/aparição do teleporte, faíscas ao cair na lava.
 - Avisos grandes como na sinuca ("Rodada 2!", "Fulano caiu na lava!", "Você venceu a rodada!").
 - Som e música gerados no navegador (Web Audio), como a sinuca. Menu de regras curto.
@@ -141,4 +142,4 @@ Valores tirados do código do Warlock Brawl para Dota 2 (github.com/warlockbrawl
 - Andar 1,36 m/s. Empurrão = dano × 0,647 m/s × (1 + dano acumulado/100); a lava conta metade. Atrito 0,96 por tique de 0,035 s.
 - Bola de fogo: dano 7 (7,7 / 8,4), recarga 4,8 s, 6,5 m/s, alcance 6,5 m. Raio: dano 7, alcance 3,9 m, recarga 16,5 s. Míssil: dano 7, recarga 16,5 s, 4,5 s de voo. Escudo: 1,2 s, recarga 14 s. Teleporte: 5 m, recarga 16 s.
 - Ouro: começa com 30, +10 por rodada, nada por abate ou vitória. Preços: Raio e Míssil 11, Escudo e Teleporte 12; melhorias 6 a 9.
-- **Diferenças mantidas de propósito (minha decisão):** colisão do mago 0,35 m (original 0,19 m) porque o modelo 3D é mais largo; 3 níveis por magia (original 7); pontuação aprovada no desenho (3 por rodada vencida + 1 por abate, 5 rodadas), enquanto o original dá 1 ponto por rodada vencida até 11.
+- **Diferenças mantidas de propósito (minha decisão):** colisão do mago 0,35 m (original 0,19 m) porque o modelo 3D é mais largo; 3 níveis por magia (original 7). A pontuação passou a seguir o original (1 por rodada vencida), até 5 em vez de 11 **(Fernando, 17/10)**.

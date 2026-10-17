@@ -34,8 +34,11 @@ export function createSound(isMuted: () => boolean, musicOn: () => boolean) {
       } catch {
         return;
       }
+      // compressor + volume geral abaixo de 1: vários sons juntos (golpe + explosão) não estouram
       master = ctx.createGain();
-      master.connect(ctx.destination);
+      master.gain.value = 0.6;
+      const comp = ctx.createDynamicsCompressor();
+      master.connect(comp).connect(ctx.destination);
       noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
       const data = noise.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;

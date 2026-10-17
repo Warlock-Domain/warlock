@@ -100,6 +100,8 @@ export function setReady(m: Match, id: string) {
 
 // a sala reiniciou (o mundo da rodada só vive na memória): repete a rodada a partir da loja
 export function resume(m: Match, now: number) {
+  // salas gravadas antes da escolha de personagem existir
+  for (const p of m.players) p.character ??= 'mage';
   if (m.phase === 'countdown' || m.phase === 'playing') {
     m.round--;
     enterShop(m, now);
