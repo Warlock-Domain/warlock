@@ -2,7 +2,7 @@
 import { ITEMS, PACT, REDIRECTOR, SCOURGE, type ItemId } from '../shared/items.ts';
 import { MASTERIES, MASTERY_COST, MASTERY_MAX, masteryValue, type MasteryId } from '../shared/masteries.ts';
 import { labelOf } from './keys.ts';
-import { MAX_SPELL_LEVEL, SPELLS, type Level, type SpellId } from '../shared/spells.ts';
+import { MAX_SPELL_LEVEL, RUSH, SPELLS, type Level, type SpellId } from '../shared/spells.ts';
 
 const n1 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const m = (x: number) => `${n1(x)} m`;
@@ -18,7 +18,7 @@ const SPELL_ROWS: Record<SpellId, Row[]> = {
   swap: [['Alcance', (l) => m(l.range)], ['Recarga', (l) => s(l.cd)]],
   grip: [['Tempo preso', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   meteor: [['Dano no centro', (l) => n1(l.dmg)], ['Dano na borda', (l) => n1(l.dmgMin)], ['Raio', (l) => m(l.radius)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
-  rush: [['Duração', (l) => s(l.duration)], ['Dano absorvido', (l) => n1(l.absorb)], ['Recarga', (l) => s(l.cd)]],
+  rush: [['Avanço', () => m(RUSH.dash)], ['Duração', (l) => s(l.duration)], ['Dano absorvido', (l) => n1(l.absorb)], ['Recarga', (l) => s(l.cd)]],
   cluster: [['Dano por projétil', (l) => n1(l.dmg)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
 };
 

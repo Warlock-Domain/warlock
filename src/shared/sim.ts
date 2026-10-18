@@ -1,6 +1,6 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
-  ARENA_MIN, ARENA_STEP, CREDIT_WINDOW, DM_RESPAWN, DM_SPAWN_GAP, OBSTACLES, OBSTACLE_KINDS, PILLAR, type ObstacleKind, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
+  ARENA_MIN, ARENA_STEP, CREDIT_WINDOW, DM_RESPAWN, DM_SPAWN_GAP, OBSTACLES, OBSTACLE_KINDS, PILLAR, type ObstacleKind, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KB_SOFT_CAP, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
   WIZ_R, WIZ_SPEED, arenaRadius,
 } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, itemStats, noItems, type ItemId } from './items.ts';
@@ -36,6 +36,8 @@ export type Wizard = {
   rushUntil: number; // Investida ativa até este instante
   rushLeft: number; // dano que a Investida ainda pode absorver
   rushBonus: number; // velocidade extra da Investida agora (m/s)
+  dashUntil: number; // avanço da Investida em curso até este instante
+  dashVel: Vec; // velocidade do avanço (m/s)
   invulnUntil: number;
   respawnAt: number; // deathmatch: instante (w.t) em que o morto volta
   durF: number; // maestria de duração (multiplica escudo e pacto)
@@ -151,6 +153,8 @@ export function newWorld(
       rushUntil: 0,
       rushLeft: 0,
       rushBonus: 0,
+      dashUntil: 0,
+      dashVel: v(0, 0),
       invulnUntil: INVULN_TIME,
       respawnAt: 0,
       durF: 1 + masteryValue('duration', ms.duration),
@@ -213,7 +217,9 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   if (w.t < target.invulnUntil) return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
   const penalty = w.t < target.kbPenaltyUntil ? REDIRECTOR.kbPenalty : 0;
   const gripped = w.t < target.gripUntil ? GRIP.kbCut : 0;
-  const mult = (1 + (KNOCK_HP_SCALE * target.dmgTaken) / HP_MAX) * Math.max(0, 1 - target.kbResist + penalty - gripped);
+  // como no mod de Dota 2 (pawn.lua): acima de 10 de dano por golpe o empurrão cresce pela raiz, não em linha reta
+  const big = dmg > KB_SOFT_CAP ? Math.sqrt(KB_SOFT_CAP * dmg) / dmg : 1;
+  const mult = big * (1 + (KNOCK_HP_SCALE * target.dmgTaken) / HP_MAX) * Math.max(0, 1 - target.kbResist + penalty - gripped);
   // Investida: depois do empurrão, absorve metade do golpe (de outro mago) e converte em velocidade
   if (w.t < target.rushUntil && by !== target.id && target.rushLeft > 0) {
     const absorbed = Math.min(target.rushLeft, dmg * RUSH.share);
@@ -398,6 +404,9 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     wz.rushUntil = w.t + L.duration * wz.durF;
     wz.rushLeft = L.absorb;
     wz.rushBonus = RUSH.bonus;
+    wz.dashUntil = w.t + RUSH.dashTime - DT / 2; // meio passo de folga: o arredondamento daria um passo a mais
+    wz.dashVel = scale(dir, RUSH.dash / RUSH.dashTime);
+    wz.target = null;
   } else if (spell === 'lightning') {
     w.events.push({ k: 'fire', id: wz.id, src: 'lightning' });
     const end = add(wz.pos, scale(dir, L.range * wz.rangeF));
@@ -661,7 +670,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
   }
   Object.assign(wz, {
     alive: true, pos: best, vel: v(0, 0), target: null, casting: null, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
-    shieldUntil: 0, kbPenaltyUntil: 0, pactUntil: 0, invulnUntil: w.t + INVULN_TIME,
+    shieldUntil: 0, kbPenaltyUntil: 0, pactUntil: 0, dashUntil: 0, invulnUntil: w.t + INVULN_TIME,
   });
 }
 
@@ -700,7 +709,11 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     w.events.push({ k: 'shrink', r: w.arenaR });
   }
 
-  for (const wz of w.wizards) if (wz.alive) moveWizard(wz, DT);
+  for (const wz of w.wizards) {
+    if (!wz.alive) continue;
+    if (w.t < wz.dashUntil) wz.pos = add(wz.pos, scale(wz.dashVel, DT)); // avançando: não anda, mas o empurrão ainda soma
+    moveWizard(wz, DT);
+  }
   separate(w);
   blockPillars(w);
   stepProjectiles(w);

@@ -513,6 +513,6 @@ const RULES_SHORT: Record<SpellId, string> = {
   swap: 'Troca de lugar com o mago que acertar.',
   grip: 'Prende o alvo no lugar e reduz o empurrão dele.',
   meteor: 'Cai em área no ponto marcado, após 1 s.',
-  rush: 'Mais velocidade; dano levado vira mais ainda.',
+  rush: 'Avança 3 m na direção do mouse e fica mais rápido; dano levado vira mais velocidade.',
   cluster: 'Quatro projéteis em leque, curto alcance.',
 };

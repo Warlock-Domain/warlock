@@ -126,13 +126,21 @@ describe('Meteoro', () => {
 describe('Investida', () => {
   it('raises walking speed and turns hits into extra speed', () => {
     const w = world([[0, 0], [4, 0]], ['rush', 'fireball']);
-    run(w, 0.1, [cast('p1', 'rush', 0, 0)]);
+    // avança para (4, 3), de lado, para a bola de fogo ir até lá
+    run(w, 0.3, [cast('p1', 'rush', 4, 9)]);
     const z = w.wizards[1];
     expect(z.speed).toBeCloseTo(WIZ_SPEED + RUSH.bonus, 5);
     const fb = spellLevel('fireball', 1);
-    run(w, 1.2, [cast('p0', 'fireball', 4, 0)]);
+    run(w, 1.2, [cast('p0', 'fireball', z.pos.x, z.pos.y)]);
     expect(z.speed).toBeGreaterThan(WIZ_SPEED + RUSH.bonus);
     expect(100 - z.hp).toBeCloseTo(fb.dmg * (1 - RUSH.share), 0); // absorveu metade do golpe
+  });
+
+  it('dashes 3 m toward the cursor', () => {
+    const w = world([[0, 0], [9, 9]], ['rush']);
+    run(w, 0.5, [cast('p0', 'rush', 0, -10)]);
+    expect(w.wizards[0].pos.x).toBeCloseTo(0, 1);
+    expect(w.wizards[0].pos.y).toBeCloseTo(-RUSH.dash, 1);
   });
 
   it('ends after its duration', () => {

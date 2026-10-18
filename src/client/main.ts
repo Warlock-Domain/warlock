@@ -161,6 +161,7 @@ function startRoom(code: string, name: string) {
       if (!mine?.spells[spell]) return toast('Você ainda não tem essa magia. Compre na loja.');
       if ((lastSnap?.cd[i] ?? 0) > 0.1 || performance.now() < (justCast.get(spell) ?? 0) || (performance.now() < scourgeUntil && spell !== 'teleport')) return;
       if (spell === 'teleport') scourgeUntil = 0; // o Teleporte cancela o Flagelo em preparo
+      if (spell === 'rush') predict.stop(); // o avanço esquece o destino de andar, como no servidor
       // até a recarga chegar do servidor, não repete a mesma magia (senão a animação e o som tocam sem sair nada)
       justCast.set(spell, performance.now() + 120 + CAST_POINT[spell] * 1000 + predict.rtt() * 1000);
       command({ t: 'cast', spell, x: at.x, y: at.y });

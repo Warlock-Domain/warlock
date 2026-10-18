@@ -25,7 +25,9 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0) | (w.t < z.kbPenaltyUntil ? 8 : 0)
       | (Math.hypot(z.vel.x, z.vel.y) > STUN_SPEED ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
       | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0);
-    wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x), r2(z.vel.y), Math.ceil(z.hp), r2(z.facing), bits);
+    // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão
+    const dash = w.t < z.dashUntil ? z.dashVel : { x: 0, y: 0 };
+    wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x + dash.x), r2(z.vel.y + dash.y), Math.ceil(z.hp), r2(z.facing), bits);
   }
   const p: number[] = [];
   // o meteoro não anda: no lugar da velocidade vão o raio da explosão e os segundos que faltam para cair

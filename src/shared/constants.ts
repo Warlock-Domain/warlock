@@ -20,6 +20,7 @@ export const HP_MAX = 100;
 export const HP_REGEN = 0.5; // 5 por segundo no original
 export const LAVA_DPS = 10;
 export const FRICTION = -Math.log(0.96) / 0.035; // 0,96 por tique de 0,035 s: a velocidade do empurrão cai e^(-FRICTION·t)
+export const KB_SOFT_CAP = 10; // golpe acima disso empurra pela raiz (100 no original, pawn.lua do mod de Dota 2)
 export const KB_PER_DMG = 10 * UNIT * 10; // empurrão (m/s) por ponto de dano: 10 unidades/s por dano do original
 export const STUN_SPEED = 1.5; // deslizando mais rápido que isso, o mago não anda
 export const KNOCK_HP_SCALE = 1; // empurrão × (1 + KNOCK_HP_SCALE·danoRecebido/HP_MAX); a lava conta pela metade
