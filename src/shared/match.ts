@@ -1,6 +1,6 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS } from './arena.ts';
-import { BOT_SKILL, botBuy, botCmds, skillAt, type BotSkill } from './bots.ts';
+import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, type BotSkill } from './bots.ts';
 import { PILLAR } from './constants.ts';
 import { CHARACTERS, type CharacterId } from './characters.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
@@ -424,7 +424,7 @@ function enterShop(m: Match, now: number) {
   m.world = null;
   for (const p of m.players) {
     p.ready = p.bot;
-    for (let b = botBuy(p); p.bot && b && (b.kind === 'spell' ? buy(m, p.id, b.id) : buyItem(m, p.id, b.id)); b = botBuy(p));
+    for (let b = botBuy(p, Math.random, botSkill(m, p)); p.bot && b && (b.kind === 'spell' ? buy(m, p.id, b.id) : buyItem(m, p.id, b.id)); b = botBuy(p, Math.random, botSkill(m, p)));
   }
 }
 
@@ -472,7 +472,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
     const n = [1, 2, 3, 4, 5, 6, 7, 8].find((k) => !m.players.some((p) => p.id === 'bot-' + k)) ?? 0;
     if (!n || !addPlayer(m, 'bot-' + n, BOT_NAMES[(n - 1) % BOT_NAMES.length], true)) break;
     const p = m.players[m.players.length - 1];
-    for (let b = botBuy(p); b && (b.kind === 'spell' ? buy(m, p.id, b.id) : buyItem(m, p.id, b.id)); b = botBuy(p));
+    for (let b = botBuy(p, Math.random, botSkill(m, p)); b && (b.kind === 'spell' ? buy(m, p.id, b.id) : buyItem(m, p.id, b.id)); b = botBuy(p, Math.random, botSkill(m, p)));
   }
   for (; m.botDelta < 0; m.botDelta++) {
     const bot = m.players.filter((p) => p.bot).pop();
@@ -597,9 +597,15 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   const w = m.world;
   m.steps++;
   const all = [...cmds];
+  // os bots enxergam a cada passo e pensam D.rate vezes por segundo; o placar serve para o Difícil caçar o líder
+  botWatch(w);
+  const scores = Object.fromEntries(m.players.map((p) => [p.id, p.score]));
   m.players.forEach((p, i) => {
     // quem caiu vira bot até voltar, como no original (gamesetup.lua: bot assume o desconectado)
-    if ((p.bot || !p.connected) && m.steps % 10 === i % 10) all.push(...botCmds(w, p.id, rand, botSkill(m, p)));
+    if (p.bot || !p.connected) {
+      const D = botSkill(m, p);
+      if (botThinks(m.steps, i, D)) all.push(...botCmds(w, p.id, rand, D, scores));
+    }
   });
   // a rodada só acaba quando sobra 1: se os últimos morrerem no mesmo passo, vence quem tinha mais vida
   const before = w.wizards.filter((z) => z.alive).map((z) => ({ id: z.id, hp: z.hp }));

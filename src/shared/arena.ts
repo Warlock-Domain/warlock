@@ -3,7 +3,7 @@
 // o encolhimento escala a forma inteira. Todos (simulação, bots, cliente) perguntam aqui o que é dentro da pedra.
 // As áreas ficam perto da do círculo (π em escala 1) para a rodada durar parecido.
 import { SPAWN_INSET } from './constants.ts';
-import { add, len, norm, scale, v, type Vec } from './vec.ts';
+import { add, dist, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export const ARENA_IDS = ['circle', 'ring', 'islands', 'cross'] as const;
 export type ArenaId = (typeof ARENA_IDS)[number];
@@ -112,4 +112,69 @@ export function safeInside(w: Arena, p: Vec, depth: number): Vec {
     if (edge(w, q) >= d / 2) return q;
   }
   return add(p, scale(n, Math.max(0, -e) + 0.05));
+}
+
+// folga da lava que dá para ter perto de p: `want` m, ou o que a pedra deixa ali (numa ponte ou faixa estreita, quase o meio dela; nunca menos que 0)
+export function roomAt(w: Arena, p: Vec, want: number): number {
+  const e = edge(w, p);
+  return e >= want ? want : Math.max(0, Math.min(want, edge(w, safeInside(w, p, want + 0.3)) - 0.3));
+}
+
+// grade da busca de caminho: N ímpar põe uma linha de células no eixo (a ponte das Ilhas); 1 = dá para andar com a folga de roomAt
+const N = 41;
+const grids = new WeakMap<Arena, { R: number; want: number; ok: Uint8Array }[]>();
+
+// próximo ponto do caminho a pé de a até b sem passar perto da lava nem pelos obstáculos (avoid: centro e raio a desviar):
+// reta se der; senão busca numa grade (nas Ilhas pela ponte, no Anel em volta do buraco) e corta caminho até o ponto mais
+// longe que dá para ver em linha reta. null = não há caminho com essa folga (quem chama tenta uma folga menor)
+export function pathStep(w: Arena, a: Vec, b: Vec, want: number, avoid: { pos: Vec; r: number }[] = []): Vec | null {
+  const free = (p: Vec) => edge(w, p) > roomAt(w, p, want) - 1e-6;
+  const hits = (p: Vec) => avoid.some((o) => dist(p, o.pos) < o.r);
+  // a até 1 m de uma ponta sem folga (o bot encostado na borda ou num obstáculo, o alvo na beira) basta estar na pedra
+  const clear = (p: Vec, q: Vec) => {
+    const L = dist(p, q), n = Math.ceil(L / 0.25), fp = free(p) && !hits(p), fq = free(q) && !hits(q);
+    for (let i = 1; i < n; i++) {
+      const s = add(p, scale(sub(q, p), i / n));
+      const loose = (!fp && (i * L) / n < 1) || (!fq && ((n - i) * L) / n < 1);
+      if (loose ? edge(w, s) <= 0.2 : !free(s) || hits(s)) return false;
+    }
+    return true;
+  };
+  if (clear(a, b)) return b;
+  const R = w.arenaR, ext = SHAPES[w.arena].reach * R + 0.5, cell = (2 * ext) / N;
+  const at = (c: number) => v(((c % N) + 0.5) * cell - ext, (Math.floor(c / N) + 0.5) * cell - ext);
+  const idx = (p: Vec) => {
+    const k = (x: number) => Math.min(N - 1, Math.max(0, Math.floor((x + ext) / cell)));
+    return k(p.x) + N * k(p.y);
+  };
+  // a grade só muda com o raio (o encolhimento) e a folga pedida
+  const list = grids.get(w) ?? grids.set(w, []).get(w)!;
+  if (list.length && list[0].R !== R) list.length = 0;
+  let g = list.find((x) => x.want === want);
+  if (!g) list.push((g = { R, want, ok: Uint8Array.from({ length: N * N }, (_, c) => (free(at(c)) ? 1 : 0)) }));
+  const ok = (c: number) => g.ok[c] === 1 && !hits(at(c));
+  const from = idx(a), to = idx(b);
+  const prev = new Int32Array(N * N).fill(-1);
+  prev[from] = from;
+  const queue = [from];
+  for (let k = 0; k < queue.length && prev[to] < 0; k++) {
+    const c = queue[k], x = c % N, y = (c - x) / N;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const nx = x + dx, ny = y + dy, n = nx + ny * N;
+      if ((!dx && !dy) || nx < 0 || ny < 0 || nx >= N || ny >= N || prev[n] >= 0 || (n !== to && !ok(n))) continue;
+      if (dx && dy && !(ok(nx + y * N) && ok(x + ny * N))) continue; // na diagonal, sem cortar quina
+      prev[n] = c;
+      queue.push(n);
+    }
+  }
+  if (prev[to] < 0) return null;
+  const path: Vec[] = [];
+  for (let c = to; c !== from; c = prev[c]) path.push(c === to ? b : at(c));
+  path.reverse();
+  let best = path[0];
+  for (const p of path) {
+    if (!clear(a, p)) break;
+    best = p;
+  }
+  return best;
 }

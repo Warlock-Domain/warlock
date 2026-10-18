@@ -11,7 +11,7 @@ import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { MODE_INFO, OPT_INFO, infoButton } from './opt-info.ts';
 import { isRumbleOn, setRumble } from './gamepad.ts';
 import { BOT_LEVEL, COLORS, TEAM_COLORS } from './scene.ts';
-import { RULES, RULES_SHORT, SPELL_GROUPS, SPELL_USE } from './rules-text.ts';
+import { SPELL_GROUPS, SPELL_USE } from './rules-text.ts';
 import { ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, icon } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { TAUNTS } from '../shared/taunts.ts';
@@ -101,24 +101,9 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   );
 }
 
+// grimório (Como jogar): módulo carregado só quando abre, para não pesar o começo do jogo
 export function showRules() {
-  // diálogo: o foco vai para o Entendi e o Esc fecha
-  const overlay = el('div', { class: 'overlay rules-overlay', onclick: (e: Event) => e.target === overlay && overlay.remove(), onkeydown: (e: KeyboardEvent) => e.key === 'Escape' && overlay.remove() },
-    el('div', { class: 'panel rules', role: 'dialog', 'aria-label': 'Como jogar' },
-      el('h1', {}, 'Como jogar'),
-      ...RULES.flatMap(([title, items]) => [el('section', {}, el('h2', {}, title), el('ul', {}, ...items.map((i) => el('li', {}, i)))),
-        // depois dos controles do PC: as teclas de agora (trocadas ou não) e o que cada magia faz, por grupo
-        title === 'Controles no PC' ? el('section', {}, el('h2', {}, isSlotMode() ? 'Suas teclas (Q W E R D F pela ordem da barra)' : 'Suas teclas'),
-          el('div', { class: 'keys-grid' }, ...ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, keyLabel(keyOf(a))), ' ', icon(a in SPELLS ? ICON[a as SpellId] : ITEM_ICON[a as ItemId]), ' ', a in SPELLS ? SPELLS[a as SpellId].name : ITEMS[a as ItemId].name)))) : null,
-        title === 'Loja' ? el('section', {}, el('h2', {}, 'Magias'), ...SPELL_GROUPS.map(([name, hint, ids]) => el('div', {}, el('h3', {}, name, ' ', el('small', {}, hint)),
-          el('ul', {}, ...ids.map((s) => el('li', {}, icon(ICON[s]), ' ', el('b', {}, SPELLS[s].name), ' · ', RULES_SHORT[s])))))) : null,
-        title === 'Loja' ? el('section', {}, el('h2', {}, 'Itens'), ...([['Passivos', false], ['Ativos (com tecla)', true]] as const).map(([name, active]) => el('div', {}, el('h3', {}, name),
-          el('ul', {}, ...ITEM_IDS.filter((i) => !!ITEMS[i].key === active).map((i) => el('li', {}, icon(ITEM_ICON[i]), ' ', el('b', {}, ITEMS[i].name), ' · ', ITEMS[i].text)))))) : null]),
-      el('button', { type: 'button', class: 'primary', onclick: () => overlay.remove() }, 'Entendi'),
-    ),
-  );
-  document.body.append(overlay);
-  overlay.querySelector<HTMLElement>('button.primary')!.focus();
+  void import('./grimoire.ts').then((m) => m.openGrimoire());
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;

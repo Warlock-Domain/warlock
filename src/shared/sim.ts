@@ -71,7 +71,6 @@ export type Wizard = {
   aegis: boolean; // Égide ainda não usada nesta rodada (nesta vida, no deathmatch)
   rune: RuneKind | null; // runa ativa até runeUntil (pegar outra troca)
   runeUntil: number;
-  runeShield: number; // Escudo de runa: dano que ainda absorve
   team: number | null; // modo Times: 0 ou 1; fora dele null (ninguém é aliado)
   // magia ou item sendo conjurado: sai em fireAt e o mago fica parado até lá (pedido do Fernando, 17/10:
   // clicar para andar não cancela); o clique de andar fica guardado em `then` e vale quando a magia sai
@@ -262,7 +261,6 @@ export function newWorld(
       aegis: own.aegis > 0,
       rune: null,
       runeUntil: 0,
-      runeShield: 0,
       team: teams[id] ?? null,
       casting: null,
     };
@@ -351,12 +349,8 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   if (att && att.rune === 'fury' && w.t < att.runeUntil) dmg *= 1 + RUNE.fury;
   // Guardião: tira um pouco de cada golpe, nunca mais que metade dele (senão zerava os tiques da Gravidade e do Elo)
   dmg = Math.max(dmg * 0.5, dmg - target.ward);
-  // Escudo de runa: absorve o dano (o empurrão continua)
-  if (target.rune === 'shield' && w.t < target.runeUntil && target.runeShield > 0) {
-    const soak = Math.min(target.runeShield, dmg);
-    target.runeShield -= soak;
-    dmg -= soak;
-  }
+  // runa do Escudo: menos dano levado (o empurrão do golpe continua)
+  if (target.rune === 'shield' && w.t < target.runeUntil) dmg *= 1 - RUNE.armor;
   // Botas de choque: golpe de outro mago dá velocidade por alguns segundos
   if (target.shockBonus > 0 && by !== target.id && dmg > 0) target.shockUntil = w.t + SHOCK_BOOTS.secs;
   // Investida: depois do empurrão, absorve metade do golpe (de outro mago) e converte em velocidade
@@ -521,7 +515,7 @@ function nearestEnemy(w: World, to: Vec, skip: string, owner = skip): Wizard | n
   const team = w.wizards.find((z) => z.id === owner)?.team ?? null;
   let best: Wizard | null = null;
   for (const wz of w.wizards) {
-    if (!wz.alive || wz.id === skip || (team !== null && wz.team === team)) continue;
+    if (!wz.alive || wz.id === skip || wz.id === owner || (team !== null && wz.team === team)) continue;
     if (!best || dist(wz.pos, to) < dist(best.pos, to)) best = wz;
   }
   return best;
@@ -1203,6 +1197,11 @@ function stepProjectiles(w: World) {
         bounceOff(p, q.pos, OBSTACLES[q.kind].r, p.kind === 'boomerang' ? BOOMERANG.bounceWall : undefined);
         if (p.kind === 'boomerang') [p.curve, p.back] = [undefined, true];
         if (p.kind === 'magnetize') p.prev = ''; // depois de quicar pode pegar quem lançou (repele)
+        // Ricochete: do obstáculo segue para o inimigo mais perto (pedido do Fernando, 18/10)
+        if (p.kind === 'bouncer') {
+          const nextTo = nearestEnemy(w, p.pos, p.owner);
+          if (nextTo) p.vel = scale(norm(sub(nextTo.pos, p.pos)), len(p.vel));
+        }
         // o Bumerangue também quebra o baú (pedido do Fernando, 17/10; no original não batia em obstáculo)
         if (p.kind === 'boomerang' && q.kind === 'chest') damagePillar(w, pil.i, spellLevel('boomerang', p.level).dmg * p.dmgMult, p.owner);
         keep.push(p);
@@ -1284,7 +1283,7 @@ function stepProjectiles(w: World) {
         [p.curve, p.back] = [undefined, true];
         keep.push(p);
       } else if (p.kind === 'bouncer') {
-        // bouncerprojectile.lua: dano só em inimigo (e −30% a cada um); quem lançou só desvia; segue ao mago mais perto
+        // bouncerprojectile.lua: dano só em inimigo (e −30% a cada um); segue ao inimigo mais perto, nunca de volta a quem lançou (18/10)
         // com 1 s de vida renovada, até o dano ficar abaixo de 10
         if (wz.id !== p.owner) {
           hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel, 'bouncer');
@@ -1394,7 +1393,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
     alive: true, pos: best, vel: v(0, 0), target: null, casting: null, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
-    rune: null, runeUntil: 0, runeShield: 0,
+    rune: null, runeUntil: 0,
   });
 }
 
@@ -1429,12 +1428,7 @@ function stepRunes(w: World, rand: () => number) {
     w.runes = w.runes.filter((q) => q !== r);
     w.runeAt = w.t + RUNE.every;
     w.events.push({ k: 'runeTake', id: z.id, kind: r.kind });
-    if (r.kind === 'recharge') {
-      for (const s of SPELL_IDS) z.cd[s] = 0;
-      for (const i of ACTIVE_ITEMS) z.itemCd[i] = 0;
-      continue;
-    }
-    Object.assign(z, { rune: r.kind, runeUntil: w.t + RUNE.secs, runeShield: r.kind === 'shield' ? RUNE.shield : 0 });
+    Object.assign(z, { rune: r.kind, runeUntil: w.t + RUNE.secs });
   }
 }
 
@@ -1479,6 +1473,12 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     }
     const extra = (w.t < wz.rushUntil ? wz.rushBonus : 0) + (w.t < wz.hasteUntil ? wz.haste : 0) + (w.t < wz.windUntil ? WINDWALK.speed : 0) + bootsBonus(w, wz) - (w.t < wz.slowUntil ? wz.slow : 0);
     const haste = wz.rune === 'haste' && w.t < wz.runeUntil ? 1 + RUNE.haste : 1;
+    // runa da Recarga: as recargas correm 1/(1 − 30%) vezes mais rápido enquanto dura
+    if (wz.rune === 'recharge' && w.t < wz.runeUntil) {
+      const extraT = DT * (1 / (1 - RUNE.cdr) - 1);
+      for (const s of SPELL_IDS) if (wz.cd[s] > w.t) wz.cd[s] -= extraT;
+      for (const i of ACTIVE_ITEMS) if (wz.itemCd[i] > w.t) wz.itemCd[i] -= extraT;
+    }
     wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1) * (inWarp(w, wz) ? WARPZONE.wizMult : 1) * haste);
     if (rooted) wz.target = null;
   }

@@ -29,7 +29,7 @@ export const ITEMS: Record<ItemId, Item> = {
   redirector: { name: 'Redirecionador', cost: 8, key: '2', text: 'Desvia todos os seus projéteis voando para o cursor.', levels: [{}] },
   pact: { name: 'Pacto', cost: 10, key: '3', text: 'Próxima magia de dano em 5 s faz 2× de dano e empurrão.', levels: [{}] },
   // itens novos de 18/10, do catálogo docs/itens-candidatos.md (Warlock CE); números conservadores até a simulação dizer
-  lava_boots: { name: 'Botas de lava', cost: 4, text: 'A lava machuca menos.', levels: [{ lava: 0.35 }, { lava: 0.5 }] }, // ciclo 2: nv 2 0,6 → 0,5 (1,35× no nv 2)
+  lava_boots: { name: 'Botas de lava', cost: 4, text: 'A lava machuca menos.', levels: [{ lava: 0.25 }, { lava: 0.4 }] }, // ciclo 2: nv 2 0,6 → 0,5; 18/10 bots humanos: 0,35/0,5 → 0,25/0,4 (26% acima do justo)
   // Guardião do CE: −0,1 por nível; aqui os golpes são maiores (−0,4 por nível na escala antiga de vida 100, −4 na de 1000), mas nunca corta mais que metade do golpe
   warden: { name: 'Guardião', cost: 4, text: 'Cada golpe tira um pouco menos de vida (até metade dele), mas você voa um pouco mais.', levels: [1, 2, 3].map((n) => ({ ward: 4 * n, kb: -0.01 * n })) },
   helmet: { name: 'Elmo', cost: 5, text: 'Menos empurrão, mas suas magias alcançam menos.', levels: [{ kb: 0.15, range: -0.1 }] },
@@ -55,7 +55,7 @@ export const SCOURGE = { dmg: [80, 100, 120], radius: 325 * UNIT, windup: 0.5, c
 // tempo de conjuração dos ativos (o do Flagelo é o preparo de 0,9 s)
 export const ITEM_CAST: Partial<Record<ItemId, number>> = { scourge: SCOURGE.windup, redirector: 0.1, pact: 0.1 };
 // consertado em 18/10 (pedido do Fernando): sem a penalidade de +30% de empurrão por 8 s, recarga 24 → 12 s, desvia todos e não gasta sem projétil
-export const REDIRECTOR = { cd: 12, extraLife: 0.5 };
+export const REDIRECTOR = { cd: 16, extraLife: 0.5 }; // 12 → 16 s: com bots humanos vencia 23% acima do justo
 // balanceamento de 17/10 (5 rodadas com ele, 0 vitórias): 2×, sem lentidão, recarga 20 s
 export const PACT = { cd: 20, window: 5, mult: 2 };
 

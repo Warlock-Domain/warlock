@@ -23,7 +23,7 @@ export function publicEvents(events: SimEvent[], pub: (id: string) => string): S
 
 export function encodeSnap(w: World, forId: string, ack: number, events: SimEvent[]): Snap {
   const wz: number[] = [];
-  const ab: number[] = []; // por mago: dano que o Escudo de runa e a Investida ainda absorvem
+  const ab: number[] = []; // por mago: dano que a Investida ainda absorve
   const me = w.wizards.find((z) => z.id === forId);
   const linked = new Set(w.projectiles.filter((p) => p.kind === 'link' && p.target).map((p) => p.target));
   for (const z of w.wizards) {
@@ -37,13 +37,13 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
       | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 || w.t < z.slowUntil ? 4 : 0) | (z.zone & 2 ? 512 : 0)
       | (w.t < z.windUntil ? (hidden ? 2048 : 1024) : 0) | (w.t < z.hasteUntil || bootsBonus(w, z) > 0 ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)
       | (w.t < z.alterUntil ? 32768 : 0) | (linked.has(z.id) ? 65536 : 0) | (z.aegis ? 131072 : 0)
-      | (w.t < z.runeUntil ? (z.rune === 'haste' ? 262144 : z.rune === 'fury' ? 524288 : z.rune === 'shield' && z.runeShield > 0 ? 1048576 : 0) : 0)
+      | (w.t < z.runeUntil ? (z.rune === 'haste' ? 262144 : z.rune === 'fury' ? 524288 : z.rune === 'shield' ? 1048576 : z.rune === 'recharge' ? 4194304 : 0) : 0)
       | (z.alive && w.zones.some((q) => q.kind === 'pull' && dist(q.pos, z.pos) < q.r + WIZ_R) ? 2097152 : 0);
     // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão
     const dash = w.t < z.dashUntil ? z.dashVel : { x: 0, y: 0 };
     wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x + dash.x), r2(z.vel.y + dash.y), Math.ceil(z.hp), r2(z.facing), bits);
     const seen = !(bits & 2048); // inimigo invisível não entrega nada
-    ab.push(seen && bits & 1048576 ? Math.ceil(z.runeShield) : 0, seen && w.t < z.rushUntil ? Math.ceil(z.rushLeft) : 0);
+    ab.push(seen && w.t < z.rushUntil ? Math.ceil(z.rushLeft) : 0);
   }
   const p: number[] = [];
   // o meteoro e a Zona de dobra não andam: no lugar da velocidade vão o raio e os segundos que faltam;
@@ -72,7 +72,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   return snap;
 }
 
-export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number; runeShield?: number; rushLeft?: number };
+export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number; rushLeft?: number };
 // meteor e warpzone: vel = (raio, segundos que faltam); link: vel = posição de quem lançou
 export type ProjView = { id: number; kind: ProjKind; pos: Vec; vel: Vec };
 export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
@@ -84,7 +84,7 @@ export function decodeSnap(s: Snap, ids: string[]): SnapView {
   const wizards: WizView[] = [];
   for (let i = 0; i * 7 < s.w.length && i < ids.length; i++) {
     const [x, y, vx, vy, hp, facing, bits] = s.w.slice(i * 7, i * 7 + 7);
-    wizards.push({ id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0, status: bits, runeShield: s.ab?.[i * 2] ?? 0, rushLeft: s.ab?.[i * 2 + 1] ?? 0 });
+    wizards.push({ id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0, status: bits, rushLeft: s.ab?.[i] ?? 0 });
   }
   const projectiles: ProjView[] = [];
   for (let i = 0; i < s.p.length; i += 6) {

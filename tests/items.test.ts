@@ -305,9 +305,9 @@ describe('itens novos (18/10)', () => {
     return out;
   };
 
-  it('lava boots cut lava damage by 35% and 50%, but not the knockback the lava builds up', () => {
+  it('lava boots cut lava damage by 25% and 40%, but not the knockback the lava builds up', () => {
     const built: number[] = [];
-    for (const [lvl, cut] of [[0, 0], [1, 0.35], [2, 0.5]]) {
+    for (const [lvl, cut] of [[0, 0], [1, 0.25], [2, 0.4]]) {
       const w = world([[0, 0]], [{ lava_boots: lvl }]);
       w.wizards[0].pos = v(w.arenaR + 1, 0);
       steps(w, 60);

@@ -53,6 +53,21 @@ export function spellTip(id: SpellId, level: number): string {
   return `${head}<p>${RULES_SHORT[id]}</p>${table(rows)}${foot}<small class="muted">Empurrão: distância que um mago sem dano acumulado desliza.</small>`;
 }
 
+// grimório: todos os níveis lado a lado; linha igual em todos os níveis vira uma célula só
+function levelsTable(heads: number, rows: [string, string[]][]): string {
+  const cells = (vals: string[]) => (vals.every((x) => x === vals[0]) ? `<td colspan="${heads}">${vals[0]}</td>` : vals.map((x) => `<td>${x}</td>`).join(''));
+  return `<table class="lv"><tr><th>Nível</th>${Array.from({ length: heads }, (_, i) => `<th>${i + 1}</th>`).join('')}</tr>${rows.map(([k, vals]) => `<tr><th>${k}</th>${cells(vals)}</tr>`).join('')}</table>`;
+}
+export function spellLevels(id: SpellId): string {
+  const sp = SPELLS[id];
+  return levelsTable(MAX_SPELL_LEVEL, [['Ouro', [sp.cost, ...sp.up].map(String)], ...SPELL_ROWS[id].map(([k, f]): [string, string[]] => [k, sp.levels.map(f)])]);
+}
+export function itemLevels(id: ItemId): string {
+  const n = ITEMS[id].levels.length;
+  const per = Array.from({ length: n }, (_, l) => ITEM_ROWS[id]!(l));
+  return levelsTable(n, [['Ouro', per.map(() => String(ITEMS[id].cost))], ...per[0].map(([k], i): [string, string[]] => [k, per.map((r) => r[i][1])])]);
+}
+
 export const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string][]>> = {
   ring: (l) => [['Vida máxima', '+' + n1(ITEMS.ring.levels[l].hp!)]],
   cursed_ring: (l) => [['Vida máxima', '+' + n1(ITEMS.cursed_ring.levels[l].hp!)], ['Empurrão recebido', `−${n1(ITEMS.cursed_ring.levels[l].kb! * 100)}%`], ['Lentidões', `+${n1(ITEMS.cursed_ring.levels[l].debuff! * 100)}% de duração`]],

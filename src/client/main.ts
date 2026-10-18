@@ -276,8 +276,8 @@ function startRoom(code: string, name: string) {
   const RUNE_EFFECT: Record<RuneKind, string> = {
     haste: `anda ${Math.round(RUNE.haste * 100)}% mais rápido por ${RUNE.secs} s`,
     fury: `magias causam ${Math.round(RUNE.fury * 100)}% mais dano por ${RUNE.secs} s`,
-    shield: `escudo que absorve ${RUNE.shield} de dano por ${RUNE.secs} s`,
-    recharge: 'todas as magias e itens recarregados na hora',
+    shield: `leva ${Math.round(RUNE.armor * 100)}% menos dano por ${RUNE.secs} s`,
+    recharge: `recargas ${Math.round(RUNE.cdr * 100)}% mais rápidas por ${RUNE.secs} s`,
   };
   const MULTI_TEXT = ['', '', 'Abate duplo!', 'Abate triplo!', 'Massacre!'];
   const SPREE_TEXT: Record<number, string> = { 3: 'Matança', 5: 'Fúria assassina', 7: 'sequência Imparável', 10: 'sequência Lendária' };

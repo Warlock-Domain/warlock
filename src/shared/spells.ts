@@ -28,7 +28,7 @@ export const SPELLS: Record<SpellId, Spell> = {
   teleport: { key: 'F', name: 'Teleporte', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([16, 13.5, 11.5, 10, 9, 8, 7], [770, 840, 910, 980, 1050, 1120, 1190]).map(([cd, r]) => L({ cd, range: r * UNIT })) },
   // as cinco magias seguintes: npc_abilities_custom.txt, spells/*.lua e shop/warlock_shop_data.js do Warlock Brawl
   // troca: projétil de 1983 u/s que vive 0,4706 s (alcance 933 u)
-  swap: { key: 'D', name: 'Troca', cost: 11, up: [6, 7, 8, 9, 10, 11], levels: [15.8, 13.3, 11.3, 9.8, 8.8, 7.8, 7].map((cd) => L({ cd, speed: 1983 * UNIT, range: 933 * UNIT })) },
+  swap: { key: 'D', name: 'Troca', cost: 11, up: [6, 7, 8, 9, 10, 11], levels: [15.8, 13.3, 11.3, 9.8, 8.8, 7.8, 7].map((cd) => L({ cd: cd * 1.3, speed: 1983 * UNIT, range: 933 * UNIT })) }, // 18/10 bots humanos: recarga ×1,3 (26% / 29% acima do justo no Normal / Difícil)
   // agarrar: projétil de 1000 u/s por 1,1 s; duration = tempo preso
   // Agarrar prende metade do tempo do original (nerf pedido pelo Fernando, 17/10)
   grip: { key: 'G', name: 'Agarrar', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([24, 19, 15, 12, 10, 8.5, 7], [4.5, 4.5, 4.5, 4.5, 4.5, 4.5, 4.5]).map(([cd, duration], i) => L({ cd: cd * 0.8, duration: duration / 2, speed: 1000 * UNIT, range: 1100 * UNIT, scale: steps(0.3, 0.1)[i] })) /* 18/10: tempo preso fixo, preso sem proteção de empurrão (0,81 → 0,91); Agarrar novo (18/10): scale = empurrão a mais do golpe que solta, +30% a +90% */ },
@@ -64,9 +64,9 @@ export const SPELLS: Record<SpellId, Spell> = {
   alteration: { key: 'L', name: 'Alteração', cost: 11, up: [5, 6, 7, 8, 9, 10], levels: steps(19, -1.5).map((cd) => L({ cd, duration: 2, radius: 120 * UNIT })) },
   // elo: 950 u/s por 860 u e volta; preso, puxa a 1550 u/s²; dmg = dano por segundo no inimigo (sem empurrão).
   // AbilityCooldown do original tem só 6 valores (17 a 7): o nível 7 repete o 7, como o Dota faz
-  link: { key: 'U', name: 'Elo', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([17, 15, 13, 11, 9, 7, 7], [12, 20, 28, 36, 44, 52, 60]).map(([cd, d]) => L({ cd: cd * 0.8, dmg: d * 5, kbf: 0, speed: 950 * UNIT, range: 860 * UNIT, pull: 1550 * 1.4 * UNIT })) /* 18/10: dano ×5 e puxada ×1,4 (0,76 → 0,91) */ },
+  link: { key: 'U', name: 'Elo', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([17, 15, 13, 11, 9, 7, 7], [12, 20, 28, 36, 44, 52, 60]).map(([cd, d]) => L({ cd: cd * 0.64, dmg: d * 5, kbf: 0, speed: 950 * UNIT, range: 860 * UNIT, pull: 1550 * 1.4 * UNIT })) /* 18/10: dano ×5, puxada ×1,4 e recarga ×0,64 (20% abaixo do justo com bots humanos) */ },
   // caminhada no vento: 2,6 s invisível e +200 u/s; o primeiro inimigo encostado leva o dano (empurrão normal)
-  windwalk: { key: 'I', name: 'Caminhada no vento', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([29, 26, 23.5, 21, 19.5, 18.5, 17.5], [54, 60, 66, 72, 78, 84, 90]).map(([cd, d]) => L({ cd, dmg: d, duration: 2.6 })) },
+  windwalk: { key: 'I', name: 'Caminhada no vento', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([29, 26, 23.5, 21, 19.5, 18.5, 17.5], [54, 60, 66, 72, 78, 84, 90]).map(([cd, d]) => L({ cd: cd * 1.1, dmg: d, duration: 2.6 })) }, // 18/10 bots humanos: recarga ×1,1 (16% acima no Normal)
   // divisor: 700 u/s por até 1 s (ou até o ponto); dmg = dano de cada um dos 8 filhotes
   splitter: { key: 'P', name: 'Divisor', cost: 15, up: [7, 8, 9, 10, 11, 12], levels: steps(24, -1).map((cd, i) => L({ cd, dmg: 30 + 5 * i, speed: 700 * UNIT, range: 700 * UNIT })) },
   // zona de dobra: esfera de 4,5 s a até 700 u; scale = tempo dos projéteis inimigos dentro dela

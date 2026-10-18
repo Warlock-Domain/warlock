@@ -41,8 +41,8 @@ export const UI_ICON = named({ board: ['histogram', '📊'], sheet: ['scroll-unf
 // efeitos em cima do mago (bits do snapshot, ver shared/snapshot.ts); negativos primeiro. Também listados na ficha do mago
 const fx = named({ stun: ['star-swirl', '💫'], vuln: ['broken-shield', '⚠️'], invuln: ['sunbeams', '🌟'], locked: ['padlock', '🔒'], slow: ['snail', '🐌'], burn: ['small-fire', '🔥'],
   repel: ['magnet-blast', '🌬️'], invis: ['ghost', '👻'], fast: ['run', '🏃'] });
-export const STATUS_ICONS: [bit: number, icon: string, name: string][] = [[16, fx.stun, 'atordoado'], [8, fx.vuln, 'vulnerável'], [32, fx.invuln, 'invulnerável'], [64, ITEM_ICON.pact, 'Pacto armado'],
+export const STATUS_ICONS: [bit: number, icon: string, name: string][] = [[16, fx.stun, 'atordoado'], [32, fx.invuln, 'invulnerável'], [64, ITEM_ICON.pact, 'Pacto armado'],
   [128, fx.locked, 'preso'], [256, ICON.rush, 'Investida'], [4, fx.slow, 'lento'], [512, fx.burn, 'queimando'], [65536, ICON.link, 'preso pelo Elo'], [8192, ICON.magnetize, 'magnetizado: atrai projéteis'],
   [16384, fx.repel, 'magnetizado: afasta projéteis'], [1024, fx.invis, 'invisível (Caminhada no vento)'], [4096, fx.fast, 'acelerado'], [32768, ICON.alteration, 'Alteração'], [131072, ITEM_ICON.aegis, 'Égide pronta'],
-  [262144, RUNE_ICON.haste, 'Runa da Pressa'], [524288, RUNE_ICON.fury, 'Runa da Fúria'], [1048576, RUNE_ICON.shield, 'Runa do Escudo'], [2097152, ICON.gravity, 'no redemoinho']];
-export const BAD_STATUS = [16, 4, 8, 128, 65536, 8192, 512, 2097152];
+  [262144, RUNE_ICON.haste, 'Runa da Pressa'], [524288, RUNE_ICON.fury, 'Runa da Fúria'], [1048576, RUNE_ICON.shield, 'Runa do Escudo'], [4194304, RUNE_ICON.recharge, 'Runa da Recarga'], [2097152, ICON.gravity, 'no redemoinho']];
+export const BAD_STATUS = [16, 4, 128, 65536, 8192, 512, 2097152];

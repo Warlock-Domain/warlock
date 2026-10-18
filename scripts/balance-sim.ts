@@ -1,17 +1,17 @@
-// Simulador de balanceamento: partidas só de bots (4 a 8, rodadas e às vezes Times), em tempo simulado, o mais rápido possível.
+// Simulador de balanceamento: partidas só de bots (2 a 8, rodadas e às vezes Times), em tempo simulado, o mais rápido possível.
 // Soma por rodada quem tinha o quê e quem venceu; grava <out>/summary.json e <out>/report.md a cada --every rodadas e no fim.
-// Uso: node scripts/balance-sim.ts --minutes 480 --out balance/noite --seed 1 [--plan random|classic] [--rounds N] [--every 1000] [--arena random|circle|ring|islands|cross]
+// Uso: node scripts/balance-sim.ts --minutes 480 --out balance/noite --seed 1 [--plan random|classic|smart] [--rounds N] [--every 1000] [--difficulty normal|hard] [--arena random|circle|ring|islands|cross]
 // Juntar vários processos: node scripts/balance-sim.ts --merge --out balance/total balance/p1 balance/p2 ...
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { ARENA_IDS, ARENA_NAMES, type ArenaId } from '../src/shared/arena.ts';
-import { CLASSIC_PLAN, botConfig, type BotPlan } from '../src/shared/bots.ts';
-import { DT } from '../src/shared/constants.ts';
-import { ITEMS, type ItemId } from '../src/shared/items.ts';
-import { newMatch, startMatch, tickMatch, type Match, type MatchOpts } from '../src/shared/match.ts';
+import { CLASSIC_PLAN, botConfig, randomPlan, smartPlan, type BotPlan } from '../src/shared/bots.ts';
+import { ITEMS, ITEM_IDS, type ItemId } from '../src/shared/items.ts';
+import { type Match, type MatchOpts } from '../src/shared/match.ts';
 import { SPELLS, SPELL_IDS, type SpellId } from '../src/shared/spells.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
+import { addCell, adjusted, goldBand, playMatch, seedRandom, simNow, writeAtomic, type Bands } from './sim-lib.ts';
 
 const { values: arg, positionals } = parseArgs({
   allowPositionals: true,
@@ -23,6 +23,7 @@ const { values: arg, positionals } = parseArgs({
     plan: { type: 'string', default: 'random' },
     rounds: { type: 'string' },
     every: { type: 'string', default: '1000' },
+    difficulty: { type: 'string', default: 'normal' }, // easy | normal | hard (grill de 18/10: medir no Normal e no Difícil)
     arena: { type: 'string', default: 'random' }, // arena fixa ou sorteada a cada rodada (padrão do jogo)
   },
 });
@@ -33,23 +34,19 @@ const deadline = Date.now() + Number(arg.minutes) * 60_000;
 const outDir = arg.out!;
 if (arg.arena !== 'random' && !(ARENA_IDS as readonly string[]).includes(arg.arena!)) throw new Error('arena desconhecida: ' + arg.arena);
 const arenaOpt = arg.arena as MatchOpts['arena'];
+if (!['easy', 'normal', 'hard'].includes(arg.difficulty!)) throw new Error('dificuldade desconhecida: ' + arg.difficulty);
 mkdirSync(outDir, { recursive: true });
 
-// mulberry32; a partida usa Math.random direto (pilares, mundo, plano dos bots), então ele também vira o sorteio com semente
-let s = seed | 0;
-const rng = () => {
-  s = (s + 0x6d2b79f5) | 0;
-  let t = Math.imul(s ^ (s >>> 15), 1 | s);
-  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-};
-Math.random = rng;
-if (arg.plan === 'classic') botConfig.planner = () => CLASSIC_PLAN;
+const rng = seedRandom(seed);
+// compras sorteadas em qualquer dificuldade (a simulação mede as magias e itens, não o gosto dos bots); classic = o bot antigo,
+// smart = as combinações que funcionam (para a escolha por magia dizer algo)
+botConfig.planner = arg.plan === 'classic' ? () => CLASSIC_PLAN : arg.plan === 'smart' ? smartPlan : randomPlan;
 
 // por chave ('spell:lightning', 'item:armor@2', 'pair:grip+meteor'...): jogadores-rodada com aquilo, vitórias, vitórias esperadas e médias
-type Agg = { n: number; wins: number; exp: number; dmg: number; kills: number; deaths: number; alive: number; gold: number };
+// by (só em all, spell:* e item:*): por recorte (all, small 2–4 magos, large 5–8, rounds, teams), as faixas de ouro gasto
+type Agg = { n: number; wins: number; exp: number; dmg: number; kills: number; deaths: number; alive: number; gold: number; by?: Record<string, Bands> };
 const S = {
-  seed: String(seed), plan: arg.plan, arena: arg.arena, startedAt: new Date().toISOString(), seconds: 0, roundsPerMin: 0,
+  seed: String(seed), plan: arg.plan, difficulty: arg.difficulty, arena: arg.arena, startedAt: new Date().toISOString(), seconds: 0, roundsPerMin: 0,
   matches: 0, rounds: 0, playerRounds: 0, noWinner: 0, stalled: 0,
   modes: {} as Record<string, number>, sizes: {} as Record<string, number>,
   duration: { sum: 0, by10s: {} as Record<string, number> },
@@ -57,14 +54,17 @@ const S = {
   sources: {} as Record<string, { fired: number; landed: number; dmg: number }>,
   deathBy: {} as Record<string, number>,
   arenaDur: {} as Record<string, { rounds: number; sum: number }>, // rodadas e soma da duração por arena
+  botMatches: 0, picked: {} as Record<string, number>, // bots-partida e quantos deles compraram cada magia/item na partida
 };
 const t0 = Date.now();
 // runas pegas nesta rodada: 'idDoMago:tipo'
 const runes = new Set<string>();
+// o que cada bot teve em alguma rodada desta partida: 'idDoMago|spell:x' (a Égide some ao salvar, por isso não basta o fim)
+const matchPicks = new Set<string>();
 const RUNE_NAMES: Record<string, string> = { haste: 'Runa de pressa', fury: 'Runa de fúria', shield: 'Runa de escudo', recharge: 'Runa de recarga' };
 
-function record(m: Match, now: number) {
-  const r = roundRecord(m, now);
+function record(m: Match) {
+  const r = roundRecord(m, simNow());
   const n = r.players.length;
   const winners = r.players.filter((p) => p.won).length;
   const dur = m.world!.t;
@@ -79,8 +79,10 @@ function record(m: Match, now: number) {
   ad.sum += dur;
   const b = String(Math.floor(dur / 10) * 10);
   S.duration.by10s[b] = (S.duration.by10s[b] ?? 0) + 1;
+  const cuts = ['all', n <= 4 ? 'small' : 'large', m.mode];
   r.players.forEach((p, i) => {
     const gold = m.players[i].gold;
+    const band = goldBand(m.players[i]);
     const plan = (m.players[i] as { plan?: BotPlan }).plan;
     const spells = Object.keys(p.spells).filter((k) => p.spells[k] > 0);
     // a Égide quebra ao salvar: quem a usou nesta rodada conta como dono (senão só sobrariam os que nunca precisaram)
@@ -90,6 +92,7 @@ function record(m: Match, now: number) {
     const keys = ['all', `arena:${arena}`, `nspells:${spells.length}`, `nitems:${items.length}`, `upgrade:${plan?.upgrade ?? '?'}`];
     for (const k of spells) keys.push(`spell:${k}`, `spell:${k}@${p.spells[k]}`, `arena:${arena}/spell:${k}`);
     for (const k of items) keys.push(`item:${k}`, `item:${k}@${p.items[k] || 1}`);
+    for (const k of keys) if (k.startsWith('spell:') || k.startsWith('item:')) matchPicks.add(`${m.players[i].id}|${k}`);
     for (const k of Object.keys(RUNE_NAMES)) if (runes.has(`${m.players[i].id}:${k}`)) keys.push(`rune:${k}`);
     const extra = spells.filter((k) => k !== 'fireball').sort();
     for (let x = 0; x < extra.length; x++) for (let y = x + 1; y < extra.length; y++) keys.push(`pair:${extra[x]}+${extra[y]}`);
@@ -103,6 +106,7 @@ function record(m: Match, now: number) {
       a.deaths += p.deaths ?? 0;
       a.alive += p.alive ?? 0;
       a.gold += gold;
+      if (k === 'all' || k.startsWith('spell:') || k.startsWith('item:')) for (const c of cuts) addCell(((a.by ??= {})[c] ??= {}), band, p.won, winners / n);
     }
     const src = (k: string) => (S.sources[k] ??= { fired: 0, landed: 0, dmg: 0 });
     for (const [k, v] of Object.entries(p.fired)) src(k).fired += v;
@@ -137,17 +141,59 @@ const label = (k: string): string => {
   return name(id) + (lvl ? ` nv ${lvl}` : '');
 };
 
-function table(prefix: string, filter: (k: string) => boolean, limit = Infinity, byN = false): string {
+// vitória ajustada pelo ouro de uma chave num recorte (all, small, large, rounds, teams); ponderada: pequena com peso 2
+const adj = (a: Agg, cut = 'all') => adjusted(a.by?.[cut], S.owned.all?.by?.[cut]);
+const weighted = (a: Agg) => (2 * adj(a, 'small') + adj(a, 'large')) / 3;
+
+// wide: magias e itens, com a vitória ajustada pelo ouro como coluna principal e os recortes por tamanho e modo
+function table(prefix: string, filter: (k: string) => boolean, limit = Infinity, byN = false, wide = false): string {
   let rows = Object.entries(S.owned).filter(([k]) => k.startsWith(prefix) && filter(k));
   if (byN) rows = rows.sort((a, b) => b[1].n - a[1].n).slice(0, limit);
-  rows.sort((a, b) => b[1].wins / b[1].exp - a[1].wins / a[1].exp);
-  const head = '| | n | vitória | esperado | vit ÷ esp | IC 95% | dano/rod | abates/rod | mortes/rod | vivo (s) | ouro fim |\n|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|';
+  // sem faixas de ouro (simulação de antes da ajustada): ordena pela bruta
+  const score = (a: Agg) => (wide ? adj(a) || a.wins / a.exp : a.wins / a.exp) || 0;
+  rows.sort((a, b) => score(b[1]) - score(a[1]));
+  const head = wide
+    ? '| | n | vitória | esperado | **ajustada** | vit ÷ esp | IC 95% | pequena | grande | ponderada | Rodadas | Times | dano/rod | abates/rod | mortes/rod | vivo (s) | ouro fim |\n|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|'
+    : '| | n | vitória | esperado | vit ÷ esp | IC 95% | dano/rod | abates/rod | mortes/rod | vivo (s) | ouro fim |\n|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|';
   const lines = rows.map(([k, a]) => {
     const [lo, hi] = wilson(a.wins, a.n);
     const e = a.exp / a.n;
-    return `| ${label(k)} | ${a.n} | ${pct(a.wins / a.n)} | ${pct(e)} | **${f(a.wins / a.exp)}** | ${f(lo / e)} a ${f(hi / e)} | ${f(a.dmg / a.n, 1)} | ${f(a.kills / a.n)} | ${f(a.deaths / a.n)} | ${f(a.alive / a.n, 1)} | ${f(a.gold / a.n, 1)} |`;
+    const ratio = wide
+      ? `**${f(adj(a))}** | ${f(a.wins / a.exp)} | ${f(lo / e)} a ${f(hi / e)} | ${f(adj(a, 'small'))} | ${f(adj(a, 'large'))} | ${f(weighted(a))} | ${f(adj(a, 'rounds'))} | ${f(adj(a, 'teams'))}`
+      : `**${f(a.wins / a.exp)}** | ${f(lo / e)} a ${f(hi / e)}`;
+    return `| ${label(k)} | ${a.n} | ${pct(a.wins / a.n)} | ${pct(e)} | ${ratio} | ${f(a.dmg / a.n, 1)} | ${f(a.kills / a.n)} | ${f(a.deaths / a.n)} | ${f(a.alive / a.n, 1)} | ${f(a.gold / a.n, 1)} |`;
   });
   return [head, ...lines].join('\n');
+}
+
+// metas de diversão (grill de 18/10): duração, mortes por golpe, escolha de cada magia/item, abates
+function goals(): string {
+  const all = S.owned.all;
+  const mean = S.duration.sum / Math.max(1, S.rounds);
+  const out = Object.entries(S.duration.by10s).filter(([k]) => Number(k) < 60 || Number(k) >= 120).reduce((x, [, v]) => x + v, 0);
+  const deaths = Object.values(S.deathBy).reduce((x, y) => x + y, 0);
+  const hit = 1 - (S.deathBy.lava ?? 0) / Math.max(1, deaths);
+  // Bola de fogo e Flagelo vêm de graça: ficam fora da escolha
+  const picks = [...SPELL_IDS.filter((x) => x !== 'fireball').map((x) => 'spell:' + x), ...ITEM_IDS.filter((x) => x !== 'scourge').map((x) => 'item:' + x)]
+    .map((k) => [k, (S.picked?.[k] ?? 0) / Math.max(1, S.botMatches ?? 0)] as const)
+    .sort((a, b) => b[1] - a[1]);
+  const low = (kind: string) => picks.filter(([k, r]) => k.startsWith(kind) && r < 0.04).map(([k, r]) => `${label(k)} ${pct(r)}`).join(', ');
+  const ok = (b: boolean) => (b ? '✔' : '✘');
+  const pickRow = (kind: string, what: string, none: string) =>
+    !S.botMatches ? `| ${what} | sem dados (simulação de antes da escolha) | |` : `| ${what} | ${low(kind) ? 'abaixo: ' + low(kind) : none} | ${ok(!low(kind))} |`;
+  return `| meta | resultado | |
+|---|---|:-:|
+| rodada entre 60 e 120 s | média ${f(mean, 1)} s · ${pct(out / Math.max(1, S.rounds))} das rodadas fora | ${ok(mean >= 60 && mean <= 120)} |
+| ≥ 60% das mortes por golpe (não lava sozinha) | ${pct(hit)} por golpe | ${ok(hit >= 0.6)} |
+${pickRow('spell:', 'cada magia comprada por ≥ 4% dos bots', 'todas acima')}
+${pickRow('item:', 'itens comprados por ≥ 4% dos bots', 'todos acima')}
+| abates por rodada (sem meta) | ${f(all ? all.kills / Math.max(1, S.rounds) : 0)} | |
+
+Escolha = bots que tiveram a magia/item em alguma rodada da partida ÷ ${S.botMatches ?? 0} bots-partida. Com o plano \`random\` ela sai quase igual para todos de propósito; só diz algo com \`--plan smart\` ou no torneio.
+
+| escolha | |
+|---|--:|
+${picks.map(([k, r]) => `| ${label(k)} | ${pct(r)} |`).join('\n')}`;
 }
 
 function report(): string {
@@ -159,13 +205,17 @@ function report(): string {
   const dur = Object.entries(S.duration.by10s).sort((a, b) => Number(a[0]) - Number(b[0]));
   return `# Balanceamento: simulação só com bots
 
-- Semente(s) ${S.seed}, plano de compras \`${S.plan}\`, início ${S.startedAt}
+- Dificuldade **${S.difficulty ?? 'normal'}** · semente(s) ${S.seed}, plano de compras \`${S.plan}\`, início ${S.startedAt}
 - ${S.rounds} rodadas em ${S.matches} partidas (${S.playerRounds} jogadores-rodada), ${f(S.seconds / 60, 1)} min reais, **${f(S.roundsPerMin, 0)} rodadas/min**
 - Modos: ${modes} · Tamanho: ${sizes}
 - Rodadas sem vencedor: ${S.noWinner} · partidas cortadas por rodada travada (> 600 s): ${S.stalled}
 - Duração média da rodada: ${f(S.duration.sum / Math.max(1, S.rounds), 1)} s · ouro médio ao fim da rodada: ${f(all ? all.gold / all.n : 0, 1)}
 
-Como ler: **vit ÷ esp** = vitórias ÷ vitórias esperadas (1/jogadores nas rodadas; tamanho do time vencedor/jogadores nos Times).
+## Metas de diversão
+${goals()}
+
+Como ler: **ajustada** = vit ÷ esp comparando só quem gastou ouro parecido (faixas de 10 de ouro gasto no que tem; em cada faixa, a razão sobre todos os jogadores da faixa; média das faixas pesada pelo n). pequena = 2 a 4 magos, grande = 5 a 8, ponderada = (2 × pequena + grande) ÷ 3.
+**vit ÷ esp** = vitórias ÷ vitórias esperadas (1/jogadores nas rodadas; tamanho do time vencedor/jogadores nos Times).
 1,00 é neutro; acima de 1 ganha mais que o esperado. IC 95% = intervalo de Wilson da taxa de vitória dividido pelo esperado.
 n = jogadores-rodada que tinham aquilo. Colunas por rodada: médias de quem tinha aquilo.
 
@@ -184,16 +234,16 @@ Lançamentos contam cada projétil (Rajada 4, Gêmeos 2, Divisor 8 filhotes). n 
 ${SPELL_IDS.map((id) => [id, S.owned['spell:' + id]?.n ?? 0, S.sources[id]?.fired ?? 0] as const).sort((a, b) => b[2] / Math.max(1, b[1]) - a[2] / Math.max(1, a[1])).map(([id, n, fired]) => `| ${SPELLS[id].name} | ${n} | ${fired} | ${f(fired / Math.max(1, n))} |`).join('\n')}
 
 ## Magias
-${table('spell:', (k) => !k.includes('@'))}
+${table('spell:', (k) => !k.includes('@'), Infinity, false, true)}
 
 ## Magias por nível
-${table('spell:', (k) => k.includes('@'))}
+${table('spell:', (k) => k.includes('@'), Infinity, false, true)}
 
 ## Itens
-${table('item:', (k) => !k.includes('@'))}
+${table('item:', (k) => !k.includes('@'), Infinity, false, true)}
 
 ## Itens por nível
-${table('item:', (k) => k.includes('@'))}
+${table('item:', (k) => k.includes('@'), Infinity, false, true)}
 
 ## Runas (quem pegou na rodada)
 Pegar runa exige estar vivo mais tempo, então todas saem acima de 1; compare as runas entre si.
@@ -230,17 +280,13 @@ ${dur.map(([k, v]) => `| ${k} a ${Number(k) + 10} | ${v} | ${pct(v / S.rounds)} 
 `;
 }
 
-// grava por cima de forma atômica (arquivo temporário e troca), para não deixar arquivo pela metade se o processo cair
 function save() {
   S.seconds = (Date.now() - t0) / 1000;
   S.roundsPerMin = S.rounds / Math.max(1e-9, S.seconds / 60);
   write();
 }
 function write() {
-  for (const [name, body] of [['summary.json', JSON.stringify(S, null, 1)], ['report.md', report()]]) {
-    writeFileSync(join(outDir, name + '.tmp'), body);
-    renameSync(join(outDir, name + '.tmp'), join(outDir, name));
-  }
+  writeAtomic(outDir, [['summary.json', JSON.stringify(S, null, 1)], ['report.md', report()]]);
 }
 process.on('SIGINT', () => {
   save();
@@ -263,32 +309,29 @@ if (arg.merge) {
   process.exit(0);
 }
 
-let now = 0;
 while (Date.now() < deadline && S.rounds < maxRounds) {
-  const m = newMatch();
-  const bots = 4 + Math.floor(rng() * 5);
-  const mode = rng() < 0.25 ? 'teams' : 'rounds';
-  startMatch(m, now, bots, mode, rng() < 0.5, rng, { arena: arenaOpt });
-  S.matches++;
-  while (m.phase !== 'end' && S.rounds < maxRounds) {
-    const was = m.phase;
-    // sem humanos a loja fecha no primeiro passo; contagem e fim de rodada pulam direto para o fim da espera
-    now = was === 'playing' || was === 'shop' ? now + DT * 1000 : Math.max(now + DT * 1000, m.phaseEnds);
-    tickMatch(m, now, [], rng);
-    for (const e of m.world?.events ?? []) if (e.k === 'runeTake') runes.add(`${e.id}:${e.kind}`);
-    else if (e.k === 'aegis') runes.add(`${e.id}:aegis`);
-    if (was === 'playing' && m.phase === 'roundEnd') {
-      record(m, now);
-      runes.clear();
-      if (S.rounds % every === 0) {
-        save();
-        console.log(`${S.rounds} rodadas, ${f(S.roundsPerMin, 0)}/min`);
-      }
-    } else if (m.phase === 'playing' && m.world!.t > 600) {
-      S.stalled++;
-      break;
+  const opts = { arena: arenaOpt, difficulty: arg.difficulty as MatchOpts['difficulty'] };
+  const onRound = (m: Match) => {
+    record(m);
+    runes.clear();
+    if (S.rounds % every === 0) {
+      save();
+      console.log(`${S.rounds} rodadas, ${f(S.roundsPerMin, 0)}/min`);
     }
+  };
+  const { m, end } = playMatch(rng, opts, onRound, () => S.rounds >= maxRounds, (e) => {
+    if (e.k === 'runeTake') runes.add(`${e.id}:${e.kind}`);
+    else if (e.k === 'aegis') runes.add(`${e.id}:aegis`);
+  });
+  S.matches++;
+  if (end === 'stalled') S.stalled++;
+  // escolha: cada bot conta uma vez por partida
+  S.botMatches += m.players.length;
+  for (const x of matchPicks) {
+    const k = x.slice(x.indexOf('|') + 1);
+    if (!k.includes('@')) S.picked[k] = (S.picked[k] ?? 0) + 1;
   }
+  matchPicks.clear();
 }
 save();
 console.log(`fim: ${S.rounds} rodadas em ${S.matches} partidas, ${f(S.roundsPerMin, 0)} rodadas/min → ${join(outDir, 'report.md')}`);

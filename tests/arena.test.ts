@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { ARENA_IDS, SHAPES, edge, edgeAt, inArena, safeInside, type ArenaId } from '../src/shared/arena.ts';
+import { ARENA_IDS, SHAPES, edge, edgeAt, inArena, pathStep, safeInside, type ArenaId } from '../src/shared/arena.ts';
 import { botCmds } from '../src/shared/bots.ts';
 import { ARENA_R0, DT, SHRINK_EVERY, arenaRadius } from '../src/shared/constants.ts';
 import { addPlayer, newMatch, parseOpt, startMatch, tickMatch } from '../src/shared/match.ts';
 import { publicRoom } from '../src/shared/protocol.ts';
 import { newWorld, stepWorld, type World } from '../src/shared/sim.ts';
 import { noSpells } from '../src/shared/spells.ts';
-import { dist, len, v, type Vec } from '../src/shared/vec.ts';
+import { add, dist, len, scale, sub, v, type Vec } from '../src/shared/vec.ts';
 
 function seeded(seed: number) {
   return () => {
@@ -145,5 +145,22 @@ describe('formatos da arena', () => {
     startMatch(m, 0, 2, 'rounds', true, Math.random, { arena: 'cross' });
     tickMatch(m, 1e9, []);
     expect(m.world!.arena).toBe('cross');
+  });
+
+  it('caminho a pé: no Anel contorna o buraco, nas Ilhas passa pela ponte, sem pisar na lava', () => {
+    for (const [arena, from, to] of [['ring', v(0.72, 0), v(-0.72, 0)], ['islands', v(1.3, 0.2), v(-1.3, -0.2)]] as const) {
+      const w = { arena, arenaR: 10 };
+      let p = scale(from, 10);
+      const end = scale(to, 10);
+      let steps = 0;
+      for (; dist(p, end) > 0.1 && steps < 400; steps++) {
+        const next = pathStep(w, p, end, 1)!;
+        p = add(p, scale(sub(next, p), Math.min(1, 0.25 / dist(next, p))));
+        expect(edge(w, p)).toBeGreaterThan(0.5);
+      }
+      expect([arena, steps < 400]).toEqual([arena, true]);
+    }
+    // destino no buraco de lava do Anel: sem caminho
+    expect(pathStep({ arena: 'ring', arenaR: 10 }, v(7.2, 0), v(0, 0), 1)).toBeNull();
   });
 });

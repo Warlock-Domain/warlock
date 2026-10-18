@@ -90,7 +90,8 @@ export const SUDDEN = { at: 90, every: 5, collapse: 150 };
 // quem pega ganha 8 s de Pressa (+40% de velocidade), Fúria (+30% de dano), Escudo de runa (absorve 100 de dano) ou Recarga (zera as recargas na hora)
 export type RuneKind = 'haste' | 'fury' | 'shield' | 'recharge';
 export const RUNE_KINDS: RuneKind[] = ['haste', 'fury', 'shield', 'recharge'];
-export const RUNE = { first: 15, every: 20, secs: 8, reach: 0.6, spread: 0.6, haste: 0.4, fury: 0.3, shield: 100 };
+// efeitos por 8 s (Fernando, 18/10): Pressa +50% de velocidade, Fúria +30% de dano, Escudo −30% de dano levado, Recarga recargas 30% mais rápidas
+export const RUNE = { first: 15, every: 20, secs: 8, reach: 0.6, spread: 0.6, haste: 0.5, fury: 0.3, armor: 0.3, cdr: 0.3 };
 // sequências de abate (anúncio estilo Dota): abates com até 4 s entre eles; Matança e cia. contam abates sem morrer (atravessam as rodadas);
 // quem derruba alguém com 3 ou mais abates seguidos ganha o Quebra-combo
 export const STREAK = { window: 4, spree: [3, 5, 7, 10], breakAt: 3, breakGold: 3 };

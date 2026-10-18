@@ -86,7 +86,7 @@ describe('runas', () => {
     expect(w.runeAt).toBeGreaterThan(w.t + RUNE.every - 1);
   });
 
-  it('haste: +40% speed for 8 s', () => {
+  it('haste: +50% speed for 8 s', () => {
     const w = take('haste');
     run(w, 1);
     expect(w.wizards[0].speed).toBeCloseTo(w.wizards[0].baseSpeed * (1 + RUNE.haste), 5);
@@ -99,26 +99,23 @@ describe('runas', () => {
     expect(fireballHit(w)[0]).toBeCloseTo(SPELLS.fireball.levels[0].dmg * (1 + RUNE.fury), 1);
   });
 
-  it('rune shield soaks 10 damage, then hits go through', () => {
+  it('rune shield: 30% less damage taken', () => {
     const w = take('shield');
     w.wizards[0].pos = v(3, 0);
     w.wizards[1].pos = v(0, 0);
-    const dmg = SPELLS.fireball.levels[0].dmg;
-    expect(fireballHit(w, 'p1')[0]).toBe(0);
-    w.wizards[1].cd.fireball = 0;
-    w.wizards[0].pos = v(3, 0);
-    expect(fireballHit(w, 'p1')[0]).toBeCloseTo(dmg * 2 - RUNE.shield, 1);
+    expect(fireballHit(w, 'p1')[0]).toBeCloseTo(SPELLS.fireball.levels[0].dmg * (1 - RUNE.armor), 1);
   });
 
-  it('recharge: all cooldowns ready at once', () => {
+  it('recharge: cooldowns run 30% faster while it lasts', () => {
     const w = world([[0, 0], [3, 0]]);
     w.runeAt = Infinity;
     w.wizards[0].cd.lightning = 50;
     w.wizards[0].itemCd.scourge = 50;
     w.runes = [{ pos: v(0, 0), kind: 'recharge' }];
-    run(w, 1);
-    expect(w.wizards[0].cd.lightning).toBe(0);
-    expect(w.wizards[0].itemCd.scourge).toBe(0);
+    run(w, 1 + Math.round(1 / DT));
+    // 1 s de jogo com a runa: a recarga andou 1/(1 − 30%) ≈ 1,43 s, ou seja 0,43 s a mais que o relógio
+    expect(50 - w.wizards[0].cd.lightning).toBeCloseTo(1 / (1 - RUNE.cdr) - 1, 1);
+    expect(50 - w.wizards[0].itemCd.scourge).toBeCloseTo(1 / (1 - RUNE.cdr) - 1, 1);
   });
 
   it('runes and rune effects travel in the snapshot', () => {

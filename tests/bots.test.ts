@@ -47,7 +47,7 @@ describe('bots usam tudo', () => {
     w.wizards[1].pos = v(2, 0);
     w.wizards[2].pos = v(-4, 0);
     w.projectiles.push({ id: 1, kind: 'fireball', owner: 'ally', caster: 'ally', pos: v(1, 0), vel: v(-6.47, 0), level: 1, until: 9, target: null, dmgMult: 1 });
-    for (const r of [0.05, 0.3, 0.6]) {
+    for (const r of [0.1, 0.3, 0.6]) {
       const c = casts(botCmds(w, 'bot', () => r));
       for (const x of c) expect(x.kind === 'cast' && x.spell !== 'shield' && x.at.x < -2).toBe(true);
     }
@@ -118,12 +118,14 @@ describe('bots usam tudo', () => {
   it('grips only with damage ready to follow, and drops the Meteor on the gripped enemy', () => {
     const w = duel({ grip: 1 });
     expect(casts(botCmds(w, 'bot', () => 0.3))).toHaveLength(0); // nada para emendar: não prende
-    w.wizards[0].cd.fireball = 0.5; // a Bola de fogo volta em 0,5 s
+    // a Bola de fogo saiu da recarga em 0,5 s; com o atraso do Normal (1 + 0,3 s no sorteio de 0,3) vale em 1,8 s, menos de 1 s depois
+    w.wizards[0].cd.fireball = 0.5;
+    w.t = 1;
     expect(casts(botCmds(w, 'bot', () => 0.3))[0]).toMatchObject({ kind: 'cast', spell: 'grip' });
     const g = duel({ meteor: 1, lightning: 1 });
     g.wizards[1].gripUntil = 2;
     botCmds(g, 'bot', () => 0.99); // vê o alvo preso; emenda depois do tempo de reação
-    g.t += 0.3;
+    g.t += 0.4;
     expect(casts(botCmds(g, 'bot', () => 0.1))[0]).toMatchObject({ kind: 'cast', spell: 'meteor' });
   });
 
@@ -220,7 +222,7 @@ describe('bots usam tudo', () => {
       now = m.phase === 'playing' || m.phase === 'shop' ? now + DT * 1000 : Math.max(now, m.phaseEnds);
       for (const e of tickMatch(m, now, [], rand)) if (e.k === 'fire') used.add(e.src);
     }
-    botConfig.planner = randomPlan;
+    botConfig.planner = null;
     expect(m.phase).toBe('end');
     expect(used.size).toBeGreaterThanOrEqual(6);
   });

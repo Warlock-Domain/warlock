@@ -29,12 +29,12 @@ export const OPT_INFO: Record<keyof MatchOpts, (mode: Mode) => string> = {
   startGold: () => `<p>Ouro de cada um no começo da partida (também multiplicado pelo Ouro ganho).</p>${list(OPTION_CHOICES.startGold.map((v) => `${v} de ouro`))}`,
   goal: (mode) => `<p>Pontos para vencer a partida.</p>${list(OPTION_CHOICES.goal.map((v) => `${v} rodadas nas Rodadas e nos Times, ou ${DM_GOALS[v]} abates no Deathmatch`))}<small>Agora: ${mode === 'deathmatch' ? 'Deathmatch (conta abates)' : 'conta rodadas vencidas'}.</small>`,
   runes: () => `<p>Uma runa por vez aparece num ponto livre: a primeira aos ${RUNE.first} s e a próxima ${RUNE.every} s depois de alguém pegar. Dura ${RUNE.secs} s.</p>${list([
-    `Pressa: +${pct(RUNE.haste)} de velocidade`, `Fúria: +${pct(RUNE.fury)} de dano`, `Escudo de runa: absorve ${RUNE.shield} de dano`, 'Recarga: zera as recargas na hora'])}<small>Desligado: sem runas.</small>`,
+    `Pressa: +${pct(RUNE.haste)} de velocidade`, `Fúria: +${pct(RUNE.fury)} de dano`, `Escudo de runa: leva ${pct(RUNE.armor)} menos dano`, `Recarga: recargas levam ${pct(RUNE.cdr)} menos tempo`])}<small>Desligado: sem runas.</small>`,
   sudden: () => `<p>Rodada longa: passados ${SUDDEN.at} s, a arena encolhe a cada ${SUDDEN.every} s em vez de 10.</p><small>Desligado: encolhe sempre a cada 10 s. Depois de ${SUDDEN.collapse} s a arena some aos poucos de qualquer jeito, para a rodada acabar.</small>`,
   chests: () => `<p>Baú de ouro no meio da rodada: o primeiro aos ${CHEST.first} s, depois um a cada ${CHEST.every} s (até ${CHEST.maxUp} de pé). Quebre com magias e fique em cima do monte: 1 de ouro a cada ${CHEST.goldEvery} s, até ${CHEST.pile}.</p><small>Desligado: sem baús.</small>`,
   difficulty: () => `<p>Como os bots jogam.</p>${list([...(['easy', 'normal', 'hard'] as const).map((k) => {
     const b = BOT_SKILL[k];
-    return `${SKILL_NAME[k]}: reage em ${n1(b.delay)} s, chance de reagir ×${n1(b.react)}, mira espalha ${n1(b.aim)} m, lança ${pct(b.cast)} das vezes que pode, ${b.combo >= 1 ? 'emenda dano em quem está preso' : 'não emenda combos'}`;
+    return `${SKILL_NAME[k]}: reage em ${n1(b.delay)} s, decide ${n1(b.rate)} vezes por segundo, mira erra até ${n1(b.aim)} m, usa a magia ${n1(b.waitMin)} a ${n1(b.waitMax)} s depois da recarga, desvia ${pct(b.dodge)} dos tiros, emenda ${pct(b.combo)} dos combos, fica a ${n1(b.range)} m do alvo e vê até ${b.vision} m`;
   }), 'Automático: cada bot fica entre o Fácil e o Difícil conforme o placar: humano perdendo deixa os bots mais fracos, ganhando mais fortes'])}`,
   arena: () => `<p>Formato da pedra. Todas têm área parecida e encolhem igual.</p>${list(['Sortear: uma arena diferente a cada rodada', ...ARENA_IDS.map((a) => `${ARENA_NAMES[a]}: ${ARENA_TEXT[a]}`)])}`,
 };

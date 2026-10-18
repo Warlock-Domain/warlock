@@ -66,13 +66,14 @@ describe('protocolo', () => {
     expect(s.wizards[1].alive).toBe(false);
   });
 
-  it('snapshot: absorção do Escudo de runa e da Investida vai só quando existe', () => {
+  it('snapshot: absorção da Investida vai só quando existe; runa do Escudo vai como efeito', () => {
     const w = newWorld(['a', 'b'], { a: noSpells(), b: noSpells() });
     expect(encodeSnap(w, 'a', 0, []).ab).toBeUndefined();
-    Object.assign(w.wizards[0], { rune: 'shield', runeUntil: 5, runeShield: 36.2 });
+    Object.assign(w.wizards[0], { rune: 'shield', runeUntil: 5 });
     Object.assign(w.wizards[1], { rushUntil: 5, rushLeft: 11.5 });
     const s = decodeSnap(JSON.parse(JSON.stringify(encodeSnap(w, 'a', 0, []))), ['a', 'b']);
-    expect([s.wizards[0].runeShield, s.wizards[0].rushLeft, s.wizards[1].runeShield, s.wizards[1].rushLeft]).toEqual([37, 0, 0, 12]);
+    expect([s.wizards[0].rushLeft, s.wizards[1].rushLeft]).toEqual([0, 12]);
+    expect(s.wizards[0].status & 1048576).toBeTruthy();
     // acabou o tempo: some
     w.t = 6;
     expect(encodeSnap(w, 'a', 0, []).ab).toBeUndefined();

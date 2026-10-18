@@ -411,6 +411,19 @@ describe('Pilar de pedra', () => {
 });
 
 describe('Ricochete', () => {
+  it('after a hit it goes to the nearest enemy, never back to the caster; from an obstacle too', () => {
+    // p0 lança em p1; o próximo mais perto de p1 é o próprio p0 (2 m), mas tem de ir para p2 (3 m)
+    const w = world([[0, 0], [2, 0], [2, 3]], ['bouncer']);
+    const ev = runEvents(w, 2, [cast('p0', 'bouncer', 2, 0)]);
+    const ids = ev.filter((e) => e.k === 'hit' && e.src === 'bouncer').map((e) => (e.k === 'hit' ? e.id : ''));
+    expect(ids.slice(0, 2)).toEqual(['p1', 'p2']);
+    // obstáculo no caminho: quica e segue para o inimigo
+    const w2 = world([[0, 0], [0, 4]], ['bouncer']);
+    w2.pillars = [{ pos: v(2, 0), hp: 999, alive: true, kind: 'rock' }];
+    const ev2 = runEvents(w2, 2, [cast('p0', 'bouncer', 2, 0)]);
+    expect(ev2.some((e) => e.k === 'hit' && e.src === 'bouncer' && e.id === 'p1')).toBe(true);
+  });
+
   it('jumps to the next wizard with 70% of the damage and stops once it would drop below 10', () => {
     const w = world([[-2, 0], [2, 0], [2, 2]], ['bouncer']);
     for (const z of w.wizards) z.kbResist = 1; // sem empurrão: os alvos ficam no lugar

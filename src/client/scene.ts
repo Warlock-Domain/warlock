@@ -9,7 +9,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SHAPES as ARENAS, edgeAt, type ArenaId } from '../shared/arena.ts';
-import { ARENA_STEP, CHEST, OBSTACLES, SHRINK_WARN, WIZ_R, type RuneKind } from '../shared/constants.ts';
+import { ARENA_STEP, CHEST, OBSTACLES, RUNE, SHRINK_WARN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
@@ -27,7 +27,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: 'Fáci
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; runeShield?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; name: string; moving: boolean; cheer: boolean; team?: number | null };
+export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; name: string; moving: boolean; cheer: boolean; team?: number | null };
 
 const w3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, p.y);
 
@@ -89,7 +89,6 @@ type Mage = {
   shield: THREE.Mesh;
   aura: THREE.Mesh; // anel no chão: dourado invulnerável, azul com Escudo de runa
   bar: HTMLDivElement;
-  absRune: HTMLDivElement; // trecho da barra: dano que ainda absorve
   absRush: HTMLDivElement;
   extraEl: HTMLSpanElement; // números pequenos ao lado da barra: regeneração por segundo e o que os escudos ainda absorvem
   extraKey: string;
@@ -605,9 +604,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     bar.className = 'hp';
     const hpText = document.createElement('span');
     hpText.className = 'hp-text';
-    const absRune = Object.assign(document.createElement('div'), { className: 'hp-abs rune' });
     const absRush = Object.assign(document.createElement('div'), { className: 'hp-abs rush' });
-    bar.append(hpFill, absRune, absRush, hpText);
+    bar.append(hpFill, absRush, hpText);
     // selo da Égide ao lado da barra, enquanto não usada
     const aegisEl = Object.assign(document.createElement('i'), { className: 'aegis', title: 'Égide pronta', hidden: true });
     aegisEl.append(icon(ITEM_ICON.aegis));
@@ -627,7 +625,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     lootBar.append(lootFill);
     label.append(statusEl, nameEl, hpRow, shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRune, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, dead: false, color: d.color, character: d.character, mats, flash: 0, freezeUntil: 0, cheering: false };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, dead: false, color: d.color, character: d.character, mats, flash: 0, freezeUntil: 0, cheering: false };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -1338,12 +1336,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           return i;
         }));
       }
-      // escudos na barra (estilo Overwatch): o que ainda absorvem vem depois da vida; passando do máximo, a barra inteira encolhe
-      const rune = d.runeShield ?? 0, rush = d.rushLeft ?? 0;
-      const total = Math.max(d.hpMax, d.hp + rune + rush);
+      // Investida na barra (estilo Overwatch): o que ainda absorve vem depois da vida; passando do máximo, a barra inteira encolhe
+      const rush = d.rushLeft ?? 0, armor = (d.status & 1048576) > 0; // runa do Escudo: −30% de dano
+      const total = Math.max(d.hpMax, d.hp + rush);
       m.hpFill.style.width = `${Math.max(0, Math.min(100, (d.hp / total) * 100))}%`;
-      m.absRune.hidden = !rune;
-      if (rune) m.absRune.style.width = `${(rune / total) * 100}%`;
       m.absRush.hidden = !rush;
       if (rush) m.absRush.style.width = `${(rush / total) * 100}%`;
       m.aegisEl.hidden = !(d.status & 131072);
@@ -1365,7 +1361,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.bar.classList.toggle('heal', now - m.healAt < 0.6);
       // ao lado da barra: +N/s enquanto a vida volta (na pedra, sem vida cheia; na lava não regenera) e o que cada escudo ainda absorve
       const regen = d.alive && d.hp < d.hpMax && (d.regen ?? 0) > 0 && edgeAt(shownArena, shownR, d.pos) >= 0 ? d.regen! : 0;
-      const key = `${regen}|${rune}|${rush}`;
+      const key = `${regen}|${armor}|${rush}`;
       if (m.extraKey !== key) {
         m.extraKey = key;
         const part = (cls: string, text: string, ico?: string) => {
@@ -1376,7 +1372,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         };
         m.extraEl.replaceChildren(...[
           regen ? part('regen', `+${Math.round(regen * 10) / 10}/s`) : null,
-          rune ? part('rune', String(Math.ceil(rune)), RUNE_ICON.shield) : null,
+          armor ? part('rune', `−${Math.round(RUNE.armor * 100)}%`, RUNE_ICON.shield) : null,
           rush ? part('rush', String(Math.ceil(rush)), ICON.rush) : null,
         ].filter((e) => e !== null));
       }
