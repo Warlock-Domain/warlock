@@ -222,6 +222,73 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     gravity: { mat: homingMat, halo: '#3b2bff', trail: '#6a3cff', tex: FX.magic, size: 1.5 },
     bouncer: { mat: gripMat, halo: '#3cff9a', trail: '#20d080', tex: FX.magic, size: 0.8 },
   };
+  // corpo de cada projétil: formas low-poly próprias em vez da mesma bola de luz (pedido do Fernando, 17/10;
+  // não há modelos CC0 prontos para magias, então são feitas aqui com as geometrias do Three.js)
+  const jitter = (g: THREE.BufferGeometry, amount: number) => {
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) pos.setXYZ(i, pos.getX(i) * (1 + (Math.random() - 0.5) * amount), pos.getY(i) * (1 + (Math.random() - 0.5) * amount), pos.getZ(i) * (1 + (Math.random() - 0.5) * amount));
+    g.computeVertexNormals();
+    return g;
+  };
+  const flat = (color: string, emissive: string, intensity = 0.6) => new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity, flatShading: true, roughness: 0.5 });
+  const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
+    fireball: () => new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.24, 1), 0.35), flat('#ffb347', '#ff6a00', 1.4)),
+    cluster: () => new THREE.Mesh(new THREE.TetrahedronGeometry(0.2), flat('#ffe066', '#ff9a00', 1.2)),
+    homing: () => {
+      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), flat('#e7b8ff', '#9a30ff', 1.2));
+      m.scale.set(0.8, 0.8, 2); // cristal comprido apontando para onde voa
+      return m;
+    },
+    swap: () => {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(new THREE.OctahedronGeometry(0.2), flat('#cffffb', '#00d8c8', 1.2)));
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.035, 6, 24), flat('#00fff0', '#00b0a8', 1.4));
+      ring.name = 'spin';
+      g.add(ring);
+      return g;
+    },
+    grip: () => {
+      const g = new THREE.Group();
+      const hook = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 6), flat('#ff8095', '#e0103a', 1.1));
+      hook.rotation.x = Math.PI / 2; // ponta para a frente
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.04, 6, 16), flat('#c0c0c8', '#400010', 0.4));
+      ring.position.z = -0.3;
+      g.add(hook, ring);
+      return g;
+    },
+    meteor: () => new THREE.Mesh(jitter(new THREE.DodecahedronGeometry(0.3, 0), 0.4), flat('#4a2c20', '#ff4a00', 0.9)),
+    boomerang: () => {
+      // V de dois braços, extrudado, girando
+      const s = new THREE.Shape();
+      s.moveTo(-0.38, 0.16);
+      s.lineTo(0, -0.12);
+      s.lineTo(0.38, 0.16);
+      s.lineTo(0.3, 0.24);
+      s.lineTo(0, 0.04);
+      s.lineTo(-0.3, 0.24);
+      s.closePath();
+      const geo = new THREE.ExtrudeGeometry(s, { depth: 0.07, bevelEnabled: false });
+      geo.center();
+      const m = new THREE.Mesh(geo, flat('#8fe060', '#3a8a10', 0.7));
+      m.rotation.x = -Math.PI / 2;
+      const g = new THREE.Group();
+      g.add(m);
+      g.name = 'spin';
+      return g;
+    },
+    gravity: () => {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), new THREE.MeshBasicMaterial({ color: '#05020c' })));
+      for (const tilt of [0.5, -0.9]) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.03, 6, 32), flat('#8a6cff', '#4a20ff', 1.6));
+        ring.rotation.x = tilt;
+        ring.name = 'spin';
+        g.add(ring);
+      }
+      return g;
+    },
+    bouncer: () => new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), flat('#7dffb8', '#10c070', 1.2)),
+  };
   const projs = new Map<number, THREE.Group>();
   const fx: Fx[] = [];
 
@@ -674,10 +741,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!g) {
         g = new THREE.Group();
         const look = LOOK[p.kind];
-        const core = new THREE.Mesh(ballGeo, look.mat);
-        core.scale.setScalar(look.size);
+        const core = SHAPES[p.kind]?.() ?? new THREE.Mesh(ballGeo, look.mat);
+        core.scale.multiplyScalar(look.size);
         const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: FX.light, color: look.halo, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-        halo.scale.setScalar(1.6 * look.size);
+        halo.scale.setScalar(1.2 * look.size);
+        halo.material.opacity = 0.7;
         g.add(core, halo);
         if (p.kind === 'meteor') {
           // aviso no chão: círculo do tamanho da explosão, que pulsa até a pedra cair
@@ -695,14 +763,22 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         g.children[2].position.y = 0.04 - y;
         ((g.children[2] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.sin(performance.now() / 70);
       } else g.position.copy(w3(p.pos, 0.9));
+      // giro e direção: aponta para onde voa; anéis, bumerangue e pedras giram
+      const body = g.children[0];
+      const t = performance.now() / 1000;
+      if (p.kind !== 'meteor' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
+      if (p.kind === 'boomerang') body.rotation.y = t * 18;
+      else if (p.kind === 'fireball' || p.kind === 'meteor' || p.kind === 'cluster' || p.kind === 'bouncer') body.rotation.set(t * 3, t * 4, 0);
+      body.traverse((o) => {
+        if (o !== body && o.name === 'spin') o.rotation.y = t * 6; // anel simétrico: girar no próprio eixo não aparece
+      });
       // rastro: brasas que ficam para trás e somem
       const look = LOOK[p.kind];
       if (Math.random() < 0.7) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
-      ((g.children[1] as THREE.Sprite).material as THREE.Material).dispose();
-      if (g.children[2]) ((g.children[2] as THREE.Mesh).material as THREE.Material).dispose();
+      dispose(g); // corpo, halo e aviso são de cada projétil (geometrias compartilhadas ficam)
       projs.delete(id);
     }
   }
