@@ -156,7 +156,7 @@ const srcName = (k: string) => (k === 'lava' ? 'lava' : k in SPELLS ? SPELLS[k a
 // placar completo (pedido do Fernando, 17/10): resumo por jogador + uma coluna por magia que alguém usou; o melhor de cada coluna em destaque
 function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Scope) => void) {
   const st = (p: PublicPlayer) => p.stats[scope];
-  const rows = [...room.players].sort((a, b) => b.score - a.score || st(b).dmg - st(a).dmg);
+  const rows = [...room.players].sort((a, b) => byTeam(room, a, b) || st(b).dmg - st(a).dmg); // em Times, agrupado por time
   const used = [...new Set(rows.flatMap((p) => Object.keys(st(p).fired ?? {})))].sort((a, b) => Number(UTILITY.has(a)) - Number(UTILITY.has(b)));
   const aim = (p: PublicPlayer) => {
     let f = 0, l = 0;
@@ -219,7 +219,7 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
       el('thead', {}, el('tr', {}, el('th', {}, 'Jogador'), ...cols.map((c) => el('th', { class: 'num', title: c.title }, c.head)), el('th', { title: 'O que mais matou' }, 'Caiu por'),
         ...used.map((k) => el('th', { class: 'num', title: UTILITY.has(k) ? `${srcName(k)}: usos` : `${srcName(k)}: precisão e dano` }, srcIcon(k))))),
       el('tbody', {}, ...rows.map((p) => el('tr', { class: p.id === me ? 'me' : '' },
-        el('td', {}, dot(p.color), ' ', p.name),
+        el('td', {}, teamTag(room, p), dot(p.color), ' ', p.name),
         ...cols.map((c, ci) => {
           const n = c.value(p);
           return el('td', { class: 'num' + (bestOf[ci] !== null && n === bestOf[ci] ? ' best' : '') }, c.show(n, p));

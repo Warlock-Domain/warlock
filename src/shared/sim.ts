@@ -346,7 +346,9 @@ function clashProjectiles(w: World) {
     if (gone.has(a) || !clashes(a)) continue;
     for (let j = i + 1; j < w.projectiles.length; j++) {
       const b = w.projectiles[j];
-      if (gone.has(b) || !clashes(b) || a.owner === b.owner || dist(a.pos, b.pos) > PROJ_R * 2 + 0.1) continue;
+      // magias do mesmo dono ou de aliados (modo Times) não se chocam
+      const team = byId(w, a.owner)?.team ?? null;
+      if (gone.has(b) || !clashes(b) || a.owner === b.owner || (team !== null && team === byId(w, b.owner)?.team) || dist(a.pos, b.pos) > PROJ_R * 2 + 0.1) continue;
       gone.add(a);
       gone.add(b);
       const at = scale(add(a.pos, b.pos), 0.5);
