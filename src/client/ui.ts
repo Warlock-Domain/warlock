@@ -37,7 +37,12 @@ export function askName(root: HTMLElement, current: string): Promise<string> {
     const input = el('input', { id: 'name', maxlength: 20, placeholder: 'Seu apelido', value: current, autocomplete: 'nickname' }) as HTMLInputElement;
     const form = el(
       'form',
-      { class: 'panel', onsubmit: (e: Event) => {
+      { class: 'panel', onkeydown: (e: KeyboardEvent) => {
+        // trocar o apelido: Esc desiste e fica o de antes
+        if (e.key !== 'Escape' || !current) return;
+        overlay.remove();
+        resolve(current);
+      }, onsubmit: (e: Event) => {
         e.preventDefault();
         const name = input.value.replace(/[<>]/g, '').trim();
         if (!name) return input.focus();
@@ -95,8 +100,9 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
 }
 
 export function showRules() {
-  const overlay = el('div', { class: 'overlay rules-overlay', onclick: (e: Event) => e.target === overlay && overlay.remove() },
-    el('div', { class: 'panel rules' },
+  // diálogo: o foco vai para o Entendi e o Esc fecha
+  const overlay = el('div', { class: 'overlay rules-overlay', onclick: (e: Event) => e.target === overlay && overlay.remove(), onkeydown: (e: KeyboardEvent) => e.key === 'Escape' && overlay.remove() },
+    el('div', { class: 'panel rules', role: 'dialog', 'aria-label': 'Como jogar' },
       el('h1', {}, 'Como jogar'),
       ...RULES.flatMap(([title, items]) => [el('section', {}, el('h2', {}, title), el('ul', {}, ...items.map((i) => el('li', {}, i)))),
         // depois dos controles do PC: as teclas de agora (trocadas ou não) e o que cada magia faz, por grupo
@@ -110,6 +116,7 @@ export function showRules() {
     ),
   );
   document.body.append(overlay);
+  overlay.querySelector<HTMLElement>('button.primary')!.focus();
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -499,7 +506,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // celular: sem Tab, este botão (só aparece em tela de toque) abre e fecha o placar
   const tabBtn = el('button', { type: 'button', class: 'icon tab-toggle', title: 'Placar', 'aria-label': 'Placar', hidden: true, onclick: () => pinTab(!!tabOverlay.hidden) }, icon(UI_ICON.board));
   const top = el('div', { class: 'hud-top' },
-    el('button', { type: 'button', class: 'code', title: 'Copiar link da sala', onclick: () => copyLink() }, status, ' ', code, ping),
+    el('button', { type: 'button', class: 'code', title: 'Copiar link da sala', 'aria-label': `Sala ${code}: copiar link`, onclick: () => copyLink() }, status, ' ', code, ping),
     roundEl,
     el('div', { class: 'hud-right' }, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', 'aria-label': 'Como jogar', onclick: showRules }, icon(UI_ICON.help))),
   );
@@ -551,7 +558,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     }
     if (e.code === 'Escape' && tabOverlay.classList.contains('pinned')) return pinTab(false);
     // placar pelo Tab (pedido do Fernando, 17/10); na loja o Tab é do teclado e o placar fica no botão ao lado do Pronto
-    if (e.code !== 'Tab' || !room || !TAB_PHASES.includes(room.phase) || (e.target as HTMLElement).closest?.('.center')) return;
+    if (e.code !== 'Tab' || !room || !TAB_PHASES.includes(room.phase) || room.phase === 'shop' || (e.target as HTMLElement).closest?.('.center')) return;
     e.preventDefault();
     if (!e.repeat) showTab(true);
   });

@@ -7,6 +7,8 @@
   --silver: #d6d3cf; --copper: #d98a4e; --cream: #fff4dc; --cream-ink: #2a1206; --on-lava: #fff8f0; --ink: #000; --white: #fff;
   /* desabilitado com cor própria: #9c8b80 sobre #241814 dá 5,3:1 (a opacidade .45 de antes dava 4,0:1) */
   --off-bg: #241814; --off-fg: #9c8b80;
+  /* botão de lava: a parada mais clara do degradê dá 4,75:1 com o texto --on-lava (o #ff8a3a de antes dava 2,2:1) */
+  --lava-btn: #c8400c;
   /* fundos de painel: sólido (cartões, menus) e vidro (por cima da arena) */
   --panel-solid: rgba(34, 17, 12, .96); --panel-glass: rgba(20, 8, 6, .78); --overlay: rgba(12, 5, 3, .84);
   --gold-line: rgba(255, 214, 102, .32); --gold-faint: rgba(255, 214, 102, .14); --sel-bg: rgba(255, 179, 71, .16); --tint: rgba(255, 255, 255, .05);
@@ -29,7 +31,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); o
 body.in-lobby #c { display: none; }
 body.in-lobby { overflow: auto; background: radial-gradient(ellipse at 50% -10%, var(--bg-glow) 0%, var(--bg) 60%); }
 button, .button { font: inherit; color: var(--fg); background: var(--panel2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 14px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; }
-button.primary, .button { background: linear-gradient(var(--lava-hi), var(--lava-deep)); border-color: var(--lava-hi); font-weight: 700; color: var(--on-lava); text-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
+button.primary, .button { background: linear-gradient(var(--lava-btn), var(--lava-dark)); border-color: var(--lava-hi); font-weight: 700; color: var(--on-lava); text-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
 button:disabled, button.primary:disabled { background: var(--off-bg); border-color: var(--line); color: var(--off-fg); text-shadow: none; cursor: default; }
 button.big { font-size: 1.1rem; min-height: 52px; }
 button.link { background: none; border: 0; color: var(--muted); padding: 6px 8px; min-height: 0; }
@@ -46,8 +48,8 @@ button.icon .gi { font-size: 1.3rem; vertical-align: middle; }
 .vol-row { display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 8px; font-size: .9rem; }
 .vol-row input { width: 100%; accent-color: var(--lava); }
 .vol-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
-button:focus-visible, .button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
-small { font-size: .8em; color: var(--muted); }
+button:focus-visible, .button:focus-visible, input:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+small { font-size: max(.8em, 11px); color: var(--muted); }
 .muted { color: var(--muted); }
 .good { color: var(--gold); font-weight: 700; }
 h1 { font-family: var(--display); font-size: 2.2rem; margin: 0; letter-spacing: .02em; }
@@ -65,6 +67,8 @@ h2.title { font-family: var(--display); font-size: 1.6rem; text-transform: none;
 .hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 26px 22px; border-radius: var(--r-lg); background: radial-gradient(ellipse at 50% 120%, var(--lava) 0%, var(--lava-dark) 38%, var(--lava-night) 75%); border: 1px solid var(--lava-edge); box-shadow: inset 0 0 0 3px var(--lava-night), inset 0 0 0 4px var(--gold-faint), 0 10px 40px rgba(255, 90, 20, .15); }
 .hero h1 { font-size: 3.2rem; text-shadow: 0 3px 18px rgba(255, 120, 30, .55); }
 .hero p { margin: 6px 0 0; color: var(--hero-fg); max-width: 36ch; }
+/* "trocar" o apelido: o muted some no degradê do herói (4,1:1 no celular) */
+.hero button.link { color: var(--hero-fg); }
 .lobby-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .lobby-actions .primary { flex: 1; }
 .rooms { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -93,6 +97,8 @@ h2.title { font-family: var(--display); font-size: 1.6rem; text-transform: none;
 .vote-bar button { min-height: 32px; padding: 4px 12px; }
 .respawn { position: absolute; left: 50%; top: 38%; transform: translateX(-50%); font-family: var(--display); font-size: clamp(1.6rem, 5vw, 2.8rem); color: var(--ember); text-shadow: 0 2px 8px var(--ink); pointer-events: none; white-space: nowrap; }
 .mode { display: grid; gap: 6px; }
+/* relógio com fundo de vidro: sem ele o vermelho dos últimos 3 s some na lava (1,8:1) */
+.timer:not(.countdown):not(:empty) { padding: 2px 12px; border-radius: 999px; background: var(--panel-glass); }
 .timer.soon { color: var(--red); animation: pulse-bad .5s ease-in-out infinite alternate; }
 @media (prefers-reduced-motion: reduce) { .timer.soon { animation: none; } }
 /* faixa de queda de conexão: só aparece se a queda durar mais de 1,5 s */
@@ -336,18 +342,28 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
   .timer:not(.countdown) { position: static; transform: none; align-self: center; order: 1; font-size: .95rem; }
   .vote-bar { position: static; transform: none; align-self: center; order: 2; max-width: 100%; }
   .players { order: 3; margin: 0; }
+  /* sem conexão: entra na coluna logo abaixo do topo, em vez de cobrir o título do cartão; só ocupa espaço quando aparece */
+  .offline { position: static; transform: none; align-self: center; white-space: normal; text-align: center; animation: offline-in .2s 1.5s both; }
   .center { position: static; transform: none; order: 4; align-self: center; width: min(560px, 100%); max-height: none; min-height: 0; }
   .center.wide { width: min(1240px, 100%); }
-  /* sala, loja e fim já mostram os jogadores no cartão */
-  .hud:has(.center:not(:empty)) .players { display: none; }
   .vol-panel { position: fixed; left: auto; right: max(10px, var(--safe-r)); top: calc(56px + var(--safe-t)); max-width: calc(100% - 20px); }
   .tab-overlay { top: calc(56px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 64px - var(--safe-t) - var(--safe-b)); }
 }
+@keyframes offline-in { from { opacity: 0; max-height: 0; padding-block: 0; border-width: 0; } to { opacity: 1; max-height: 80px; } }
+/* sala, loja e fim já mostram os jogadores no cartão (no PC a lista aparecia atrás do cartão) */
+.hud:has(.center:not(:empty)) .players { display: none; }
 @media (max-width: 600px) {
+  /* código da sala com o ping embaixo: a barra do topo cabe numa linha com os ícones de 44 px */
+  .hud-top .code { display: grid; grid-template-columns: auto auto; column-gap: 6px; align-content: center; justify-content: center; padding: 2px 10px; line-height: 1.1; }
+  .hud-top .code .ping { grid-column: 1 / -1; margin: 0; text-align: center; }
+  /* faixas grandes abaixo da lista de jogadores e acima da contagem */
+  .banner { top: 38%; }
+  /* "Você volta em N s" do Deathmatch logo abaixo da faixa (a contagem a 46% nunca aparece junto) */
+  .respawn { top: 44%; }
   .round { order: 1; flex: 1 1 100%; font-size: 1rem; line-height: 1.25; }
   /* Votar só com o ícone da urna: o topo cabe numa linha em 393 px */
   .vote-label { display: none; }
-  .vote-btn { width: 40px; min-height: 40px; padding: 0; }
+  .vote-btn { width: 44px; min-height: 44px; padding: 0; }
   .vote-btn .gi { font-size: 1.3rem; vertical-align: middle; }
   .timer.countdown { top: 46%; }
   .vol-panel { left: max(10px, var(--safe-l)); width: auto; }
@@ -374,12 +390,18 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
 .tab-toggle { display: none; }
 .tab-overlay.pinned { pointer-events: auto; top: calc(56px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 64px - var(--safe-t) - var(--safe-b)); }
 
-/* toque: alvos de pelo menos 40 px e texto de pelo menos 12 px */
+/* resumos clicáveis: pelo menos 24 px com o mouse (44 no toque, logo abaixo) */
+.match-opts > summary, .vote-group > summary { min-height: 24px; }
+/* toque: alvos de pelo menos 44 px e texto de pelo menos 12 px */
 @media (pointer: coarse) {
   button.link, .stats-tabs button, .vote-bar button, .shop-item button, button.undo, button.sell, button.keycap { min-height: 44px; }
   button.undo { width: 44px; flex: none; }
   .armed-hint button.icon { width: 44px; min-height: 44px; }
-  button.kick { min-height: 40px; width: 40px; font-size: .9rem; }
+  button.kick { min-height: 44px; width: 44px; font-size: .9rem; }
+  button.icon, .hud-top .code { min-height: 44px; }
+  button.icon { width: 44px; }
+  .match-opts > summary, .vote-group > summary, .gold-title, .sheet-box > summary { min-height: 44px; padding-block: 12px; }
+  .vol-row input { height: 44px; }
   .slot-row { min-height: 44px; }
   .slot-row input { width: 20px; height: 20px; }
   small, .spell .key, .passive small, .pick small, .stats-table td small, .gold-info small, .players li.head small { font-size: max(.8em, .75rem); }
@@ -518,6 +540,8 @@ button.train { flex-direction: column; gap: 0; border-style: dashed; border-colo
 button.train small { font-weight: 400; }
 .hud > .coach { position: absolute; left: 50%; top: calc(48px + var(--safe-t)); transform: translateX(-50%); z-index: 4; max-width: min(520px, calc(100% - 24px)); padding: 8px 16px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--ember); box-shadow: 0 0 16px rgba(255, 179, 71, .35); font-weight: 700; text-align: center; pointer-events: none; animation: fade-in .2s ease-out; }
 @media (max-width: 600px) { .hud > .coach { top: auto; bottom: calc(130px + var(--safe-b)); font-size: .9rem; border-radius: var(--r-md); } }
+/* celular: com a dica do treino na tela, o aviso sobe para não cobri-la */
+@media (max-width: 600px) { body:has(.hud > .coach:not([hidden])) #toast { bottom: calc(214px + var(--safe-b)); } }
 @media (prefers-reduced-motion: reduce) { .hud > .coach { animation: none; } }
 /* na loja o cartão ocupa o meio: a dica desce para o rodapé livre */
 @media (min-width: 601px) { .hud:has(.center .shop) > .coach { top: auto; bottom: calc(16px + var(--safe-b)); } }
