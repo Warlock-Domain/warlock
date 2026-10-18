@@ -280,15 +280,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     tauntPanel.hidden = true;
   };
   const tauntPanel = el('div', { class: 'vol-panel', hidden: true }, el('b', {}, 'Taunts (Y)'),
-    el('div', { class: 'taunt-list' }, ...TAUNTS.map((t, i) => el('button', { type: 'button', onclick: () => sendTaunt(i) }, `${i + 1} · ${t.text}`))));
+    el('div', { class: 'taunt-list' }, ...TAUNTS.map((t, i) => el('button', { type: 'button', onclick: () => sendTaunt(i) }, `${(i + 1) % 10} · ${t.text}`))));
   const tauntBtn = el('button', { type: 'button', class: 'icon', title: 'Taunts (Y)', onclick: () => (tauntPanel.hidden = !tauntPanel.hidden) }, '💬');
   addEventListener('keydown', (e) => {
     if (e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT') return;
     if (e.code === 'KeyY') {
       tauntPanel.hidden = !tauntPanel.hidden;
       e.preventDefault();
-    } else if (!tauntPanel.hidden && /^(Digit|Numpad)[1-9]$/.test(e.code)) {
-      const i = Number(e.code.slice(-1)) - 1;
+    } else if (!tauntPanel.hidden && /^(Digit|Numpad)[0-9]$/.test(e.code)) {
+      const i = (Number(e.code.slice(-1)) + 9) % 10; // 1..9 e o 0 para o 10º
       if (i < TAUNTS.length) sendTaunt(i);
       // o número não pode também usar o item da mesma tecla
       e.preventDefault();
@@ -462,9 +462,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'mastery-' + k, disabled: lvl >= MASTERY_MAX || mine.gold < MASTERY_COST, onclick: () => act.buyMastery(k) }, lvl >= MASTERY_MAX ? 'Máximo' : `Nível ${lvl + 1} · ${MASTERY_COST}`), undoBtn('mastery:' + k)),
         ), () => masteryTip(k, lvl));
       })),
-      el('h3', {}, 'Placar'),
-      statsBoard(r, me, scope, setScope),
       ),
+      // placar numa coluna ao lado da loja (pedido do Fernando, 17/10: "do lado, não lá embaixo")
+      el('section', { class: 'shop-stats' }, el('h3', {}, 'Placar'), statsBoard(r, me, scope, setScope)),
       el('aside', { class: 'shop-side' },
         el('span', { class: 'gold big' }, `🪙 ${mine.gold}`),
         goldInfo(mine),

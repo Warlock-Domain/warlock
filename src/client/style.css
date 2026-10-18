@@ -161,8 +161,10 @@ body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: no
 .tip .up { color: var(--ok); }
 .tip small { display: block; color: var(--muted); }
 .tip .k { font-family: ui-monospace, Consolas, monospace; font-size: .75rem; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
-.center.wide { width: min(1240px, calc(100% - 24px)); }
-.shop { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px; align-items: start; }
+.center.wide { width: min(1680px, calc(100% - 24px)); }
+.shop { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 400px) 280px; gap: 18px; align-items: start; }
+.shop-stats { display: flex; flex-direction: column; gap: 8px; min-width: 0; position: sticky; top: 0; overflow-x: auto; }
+@media (max-width: 1300px) { .shop { grid-template-columns: minmax(0, 1fr) 280px; } .shop-stats { grid-column: 1 / -1; position: static; } }
 .shop-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .shop-side { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; }
 .shop-side .gold.big { font-size: 1.6rem; text-align: center; }

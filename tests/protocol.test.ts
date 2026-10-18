@@ -36,10 +36,11 @@ describe('protocolo', () => {
     expect(p([1, 2])).toBeNull();
   });
 
-  it('taunt: only the 9 fixed ones (0..8)', () => {
+  it('taunt: only the fixed ones (0..9)', () => {
     expect(p({ t: 'taunt', i: 0 })).toEqual({ t: 'taunt', i: 0 });
     expect(p({ t: 'taunt', i: 8 })).toEqual({ t: 'taunt', i: 8 });
-    expect(p({ t: 'taunt', i: 9 })).toBeNull();
+    expect(p({ t: 'taunt', i: 9 })).toEqual({ t: 'taunt', i: 9 });
+    expect(p({ t: 'taunt', i: 10 })).toBeNull();
     expect(p({ t: 'taunt', i: 99 })).toBeNull();
     expect(p({ t: 'taunt', i: 100 })).toBeNull();
     expect(p({ t: 'taunt', i: -1 })).toBeNull();

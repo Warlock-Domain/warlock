@@ -56,3 +56,5 @@ music/battle.mp3
   Kenney, "Voiceover Pack" e "Voiceover Pack: Fighter" (CC0) - https://kenney.nl/assets/voiceover-pack | https://kenney.nl/assets/voiceover-pack-fighter
   AntumDeluge, "Kitten Mew" (CC0) - https://opengameart.org/content/kitten-mew
   "Evil Laugh" (CC0) - https://opengameart.org/content/evil-laugh
+
+  "Ultra kill": voz sintética gerada com o Microsoft Speech (voz Zira) e efeito em ffmpeg, feita para este jogo

@@ -7,6 +7,7 @@ export const TAUNTS = [
   { id: 'flawless', text: 'Vitória perfeita!' },
   { id: 'combo_breaker', text: 'Quebra-combo!' },
   { id: 'multi_kill', text: 'Multi kill!' },
+  { id: 'ultra_kill', text: 'ULTRA KILL!' }, // voz sintética do Windows (Zira) com efeito de locutor; a do Dota é da Valve
   { id: 'fire_in_the_hole', text: 'Lá vai bomba!' },
   { id: 'look_out', text: 'Cuidado!' },
   { id: 'congrats', text: 'Parabéns… 👏' },
