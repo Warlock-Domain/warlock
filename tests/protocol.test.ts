@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cleanName, parseClientMessage } from '../src/shared/protocol.ts';
-import { newWorld } from '../src/shared/sim.ts';
+import { newWorld, stepWorld } from '../src/shared/sim.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
 import { noSpells } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
@@ -64,5 +64,36 @@ describe('protocolo', () => {
     expect(s.wizards[0].pos.y).toBeCloseTo(-7.891, 2);
     expect(s.wizards[0].shield).toBe(true);
     expect(s.wizards[1].alive).toBe(false);
+  });
+
+  it('snapshot: absorção do Escudo de runa e da Investida vai só quando existe', () => {
+    const w = newWorld(['a', 'b'], { a: noSpells(), b: noSpells() });
+    expect(encodeSnap(w, 'a', 0, []).ab).toBeUndefined();
+    Object.assign(w.wizards[0], { rune: 'shield', runeUntil: 5, runeShield: 36.2 });
+    Object.assign(w.wizards[1], { rushUntil: 5, rushLeft: 11.5 });
+    const s = decodeSnap(JSON.parse(JSON.stringify(encodeSnap(w, 'a', 0, []))), ['a', 'b']);
+    expect([s.wizards[0].runeShield, s.wizards[0].rushLeft, s.wizards[1].runeShield, s.wizards[1].rushLeft]).toEqual([37, 0, 0, 12]);
+    // acabou o tempo: some
+    w.t = 6;
+    expect(encodeSnap(w, 'a', 0, []).ab).toBeUndefined();
+  });
+
+  it('snapshot: chão dos choques e o efeito em quem pisa (queimando, lento, no redemoinho)', () => {
+    const w = newWorld(['a', 'b', 'c'], { a: noSpells(), b: noSpells(), c: noSpells() });
+    expect(encodeSnap(w, 'a', 0, []).zn).toBeUndefined();
+    w.wizards[0].pos = v(-3, 0);
+    w.wizards[1].pos = v(0, 0);
+    w.wizards[2].pos = v(3, 0);
+    w.zones.push({ pos: v(-3, 0), r: 1.5, kind: 'burn', until: 4.5 }, { pos: v(0, 0), r: 1.95, kind: 'slow', until: 4.5 }, { pos: v(3, 0), r: 1.2, kind: 'pull', until: 3 });
+    w.t = 1;
+    stepWorld(w, [], () => 0.5); // o passo da simulação marca quem está em cada chão
+    w.t = 1;
+    const s = decodeSnap(JSON.parse(JSON.stringify(encodeSnap(w, 'a', 0, []))), ['a', 'b', 'c']);
+    expect(s.zones).toEqual([
+      { pos: v(-3, 0), r: 1.5, kind: 'burn', left: 3.5 },
+      { pos: v(0, 0), r: 1.95, kind: 'slow', left: 3.5 },
+      { pos: v(3, 0), r: 1.2, kind: 'pull', left: 2 },
+    ]);
+    expect(s.wizards.map((z) => [z.status & 512, z.status & 4, z.status & 2097152])).toEqual([[512, 0, 0], [0, 4, 0], [0, 0, 2097152]]);
   });
 });

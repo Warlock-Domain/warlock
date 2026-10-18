@@ -1,0 +1,380 @@
+<title>Balanceamento do Warlock</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@600;700&family=Alegreya+Sans:wght@400;500;700&display=swap">
+<style>
+/* layout: sumário fixo à esquerda + coluna de cartões; identidade do jogo (fantasia sombria), tema único escuro de propósito */
+:root { --bg:#140d0a; --panel:#211612; --panel2:#2b1d17; --ink:#f3e6d6; --muted:#c4ae98; --line:#4a3328; --gold:#f2c14e; --lava:#ff7a2f; --ok:#7fd18b; --bad:#ff8f6b;
+  --display:"Grenze Gotisch", Georgia, serif; --body:"Alegreya Sans", "Segoe UI", system-ui, sans-serif; color-scheme: dark; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.5 var(--body); }
+.wrap { display:grid; grid-template-columns: 240px minmax(0,1fr); gap: 32px; max-width: 1280px; margin: 0 auto; padding-block: 24px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+nav.toc { position: sticky; top: calc(16px + env(safe-area-inset-top, 0px)); align-self: start; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+nav.toc summary { font: 700 13px var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--gold); cursor: pointer; }
+nav.toc ol { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+nav.toc a { color: var(--muted); text-decoration: none; display: block; padding: 4px 8px; border-radius: 6px; }
+nav.toc a.sub { padding-left: 20px; font-size: 14px; }
+nav.toc a.on, nav.toc a:hover { color: var(--ink); background: var(--panel2); }
+main { min-width: 0; display: grid; gap: 40px; }
+h1 { font: 700 clamp(34px, 5vw, 52px)/1.05 var(--display); margin: 0; color: var(--gold); text-wrap: balance; }
+h2 { font: 700 30px/1.1 var(--display); margin: 0 0 12px; text-wrap: balance; }
+h3 { margin: 0; }
+.lead { color: var(--muted); max-width: 70ch; margin: 8px 0 0; }
+.decide { background: var(--panel); border: 2px solid var(--lava); border-radius: 14px; padding: 20px; display: grid; gap: 8px; }
+.decide b { color: var(--gold); }
+.howto { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.howto div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; color: var(--muted); }
+.howto b { color: var(--ink); display: block; margin-bottom: 4px; }
+.grp { font: 700 22px var(--display); color: var(--lava); margin: 18px 0 10px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 14px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.card header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 10px; }
+.card h3 { font: 700 22px var(--display); }
+.cost { margin-left: auto; color: var(--muted); font-size: 14px; }
+.pill { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: .03em; }
+.p-ch { background: #4a2a12; color: var(--gold); } .p-eq { background: #2d2620; color: var(--muted); } .p-new { background: #1f3a24; color: var(--ok); }
+.win { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; background: var(--panel2); border-radius: 8px; padding: 8px 10px; }
+.wl { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); width: 100%; }
+.wv { font: 700 22px var(--body); font-variant-numeric: tabular-nums; }
+.wv.ok { color: var(--ok); } .wv.out { color: var(--bad); } .wv.na { color: var(--muted); }
+.arrow { color: var(--muted); }
+.wtxt { color: var(--muted); font-size: 14px; }
+.why { margin: 0; color: var(--ink); font-size: 15px; }
+.tw { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+th { text-align: left; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--line); padding: 4px 6px; }
+td { padding: 4px 6px; border-bottom: 1px solid #33231c; }
+td:nth-child(2), td:nth-child(3), th:nth-child(2), th:nth-child(3) { text-align: right; white-space: nowrap; }
+tr.ch td:nth-child(3) { color: var(--gold); font-weight: 700; }
+.lv { color: var(--muted); font-size: 12px; }
+.src { color: var(--muted); font-size: 14px; max-width: 75ch; }
+.src code { color: var(--ink); }
+a { color: var(--gold); }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+@media (max-width: 900px) { .wrap { grid-template-columns: minmax(0,1fr); } nav.toc { position: static; } }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+<div class="wrap">
+<nav class="toc" aria-label="Sumário"><details id="tocd" open><summary>Sumário</summary><ol>
+  <li><a href="#decidindo">Agora estamos decidindo</a></li>
+  <li><a href="#como-ler">Como ler</a></li>
+  <li><a href="#magias">Magias</a></li>
+  <li><a class="sub" href="#g-ataque">Ataque</a></li><li><a class="sub" href="#g-mobilidade">Mobilidade</a></li>
+  <li><a class="sub" href="#g-defesa">Defesa</a></li><li><a class="sub" href="#g-controle">Controle</a></li>
+  <li><a href="#itens">Itens</a></li>
+  <li><a href="#regras">Regras gerais</a></li>
+  <li><a href="#fonte">De onde vêm os números</a></li>
+</ol></details></nav>
+<main>
+<header><h1>Balanceamento do Warlock</h1>
+<p class="lead">Cada magia e cada item com o valor original do Warlock Brawl e o valor de hoje, o motivo da mudança e o resultado nas simulações. Gerado do código em 18/10/2026 (versão e04014d mais o que vai ao ar na próxima publicação: Agarrar novo, Escudo original, Botas de vento, Bola de fogo vendível).</p></header>
+
+<section id="decidindo"><h2>Agora estamos decidindo</h2><div class="decide">
+<p style="margin:0"><b>Nenhuma decisão pendente sobre os números.</b> As 24 magias medidas com bots de reação humana estão na faixa aceita (até 15% acima ou abaixo do justo). O Escudo voltou ao original por escolha sua e ainda vence acima do justo nos bots: 1 magia fora da faixa.</p>
+<p style="margin:0">Próximo passo: jogar partidas reais com os números novos para confirmar, principalmente Escudo, Raio e Míssil.</p></div></section>
+
+<section id="como-ler"><h2>Como ler</h2><div class="howto">
+<div><b>Vitória nas simulações</b>Quanto quem tem a magia ou o item vence, comparado com o justo. 1,00 é o justo; 1,20 vence 20% acima; 0,80 vence 20% abaixo. Verde: dentro da faixa aceita (0,85 a 1,15).</div>
+<div><b>Antes e agora</b>"Antes" é a primeira simulação, com os números originais (599 mil rodadas). "Agora" é a última, com bots de reação humana (36 mil rodadas).</div>
+<div><b>Original e atual</b>Original: o número do Warlock Brawl, já na escala de vida 1000 do jogo. Atual: o que está no jogo. Em dourado: o que mudou. Itens são medidos no nível 1.</div>
+</div></section>
+
+<section id="magias"><h2>Magias</h2><h3 class="grp" id="g-ataque">Ataque</h3><div class="grid"><article class="card" id="s-fireball">
+  <header><h3>Bola de fogo</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 0 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1</span><span class="arrow">→</span><span class="wv ok">1</span>
+    <span class="wtxt">antes: justo · agora: justo</span></div>
+  <p class="why">Referência: é a magia que todo mundo tem, então vale 1,00 por definição. Não mudou. Desde 18/10 pode ser vendida.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>4,8 s</td><td>4,8 s</td></tr><tr class=""><td>Dano <span class="lv">nível 1</span></td><td>70</td><td>70</td></tr><tr class=""><td>Dano <span class="lv">nível 7</span></td><td>112</td><td>112</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>6,47 m/s</td><td>6,47 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>6,47 m</td><td>6,47 m</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 1</span></td><td>4,53 m/s</td><td>4,53 m/s</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 7</span></td><td>7,25 m/s</td><td>7,25 m/s</td></tr></tbody></table></div>
+</article><article class="card" id="s-lightning">
+  <header><h3>Raio</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 11 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv out">1,31</span><span class="arrow">→</span><span class="wv ok">1,11</span>
+    <span class="wtxt">antes: 31% acima do justo · agora: 11% acima do justo</span></div>
+  <p class="why">17/10: alcance 600 → 800 unidades, porque acertava só 21%. 18/10 (números pelo simulador): recarga ×1,4, porque quem tinha vencia 31% acima do justo.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class="ch"><td>Recarga <span class="lv">nível 1</span></td><td>16,5 s</td><td>23,1 s</td></tr><tr class="ch"><td>Recarga <span class="lv">nível 7</span></td><td>13 s</td><td>18,2 s</td></tr><tr class=""><td>Dano <span class="lv">nível 1</span></td><td>70</td><td>70</td></tr><tr class=""><td>Dano <span class="lv">nível 7</span></td><td>118</td><td>118</td></tr><tr class="ch"><td>Alcance <span class="lv">nível 1</span></td><td>3,88 m</td><td>5,18 m</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 1</span></td><td>4,17 m/s</td><td>4,17 m/s</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 7</span></td><td>7,02 m/s</td><td>7,02 m/s</td></tr></tbody></table></div>
+</article><article class="card" id="s-homing">
+  <header><h3>Míssil teleguiado</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 11 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv out">1,34</span><span class="arrow">→</span><span class="wv ok">1,1</span>
+    <span class="wtxt">antes: 34% acima do justo · agora: 10% acima do justo</span></div>
+  <p class="why">17/10: dano ×0,8. 18/10: dano ×0,34 no total e curva mais aberta (3 → 2,5 voltas por segundo), porque vencia 34% acima do justo.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>16,5 s</td><td>16,5 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>9 s</td><td>9 s</td></tr><tr class="ch"><td>Dano <span class="lv">nível 1</span></td><td>70</td><td>23,8</td></tr><tr class="ch"><td>Dano <span class="lv">nível 7</span></td><td>130</td><td>44,2</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>6,47 m/s</td><td>6,47 m/s</td></tr><tr class=""><td>Duração <span class="lv">nível 1</span></td><td>4,5 s</td><td>4,5 s</td></tr><tr class="ch"><td>Empurrão por golpe <span class="lv">nível 1</span></td><td>4,53 m/s</td><td>1,54 m/s</td></tr><tr class="ch"><td>Empurrão por golpe <span class="lv">nível 7</span></td><td>8,41 m/s</td><td>2,86 m/s</td></tr></tbody></table></div>
+</article><article class="card" id="s-meteor">
+  <header><h3>Meteoro</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 14 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">0,94</span><span class="arrow">→</span><span class="wv ok">1,02</span>
+    <span class="wtxt">antes: 6% abaixo do justo · agora: 2% acima do justo</span></div>
+  <p class="why">Ciclo 1 (18/10): recarga ×0,9 e dano mínimo maior, porque vencia 6% abaixo do justo.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class="ch"><td>Recarga <span class="lv">nível 1</span></td><td>20 s</td><td>18 s</td></tr><tr class="ch"><td>Recarga <span class="lv">nível 7</span></td><td>17 s</td><td>15,3 s</td></tr><tr class=""><td>Dano <span class="lv">nível 1</span></td><td>110</td><td>110</td></tr><tr class=""><td>Dano <span class="lv">nível 7</span></td><td>170</td><td>170</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>6,47 m</td><td>6,47 m</td></tr><tr class=""><td>Raio <span class="lv">nível 1</span></td><td>1,46 m</td><td>1,46 m</td></tr><tr class=""><td>Raio <span class="lv">nível 7</span></td><td>1,97 m</td><td>1,97 m</td></tr><tr class="ch"><td>Dano mínimo <span class="lv">nível 1</span></td><td>40</td><td>60</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 1</span></td><td>4,7 m/s</td><td>4,7 m/s</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 7</span></td><td>7,26 m/s</td><td>7,26 m/s</td></tr></tbody></table></div>
+</article><article class="card" id="s-cluster">
+  <header><h3>Rajada</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 14 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">0,99</span><span class="arrow">→</span><span class="wv ok">1,04</span>
+    <span class="wtxt">antes: 1% abaixo do justo · agora: 4% acima do justo</span></div>
+  <p class="why">Sem mudança nos números.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>15,5 s</td><td>15,5 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>11 s</td><td>11 s</td></tr><tr class=""><td>Dano <span class="lv">nível 1</span></td><td>33</td><td>33</td></tr><tr class=""><td>Dano <span class="lv">nível 7</span></td><td>51</td><td>51</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>5,46 m/s</td><td>5,46 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>4,35 m</td><td>4,35 m</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 1</span></td><td>1,39 m/s</td><td>1,39 m/s</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 7</span></td><td>2,15 m/s</td><td>2,15 m/s</td></tr></tbody></table></div>
+</article><article class="card" id="s-boomerang">
+  <header><h3>Bumerangue</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 11 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,05</span><span class="arrow">→</span><span class="wv ok">1,1</span>
+    <span class="wtxt">antes: 5% acima do justo · agora: 10% acima do justo</span></div>
+  <p class="why">Números iguais; desde 17/10 também quebra baús.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>16 s</td><td>16 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>9,6 s</td><td>9,6 s</td></tr><tr class=""><td>Dano <span class="lv">nível 1</span></td><td>70</td><td>70</td></tr><tr class=""><td>Dano <span class="lv">nível 7</span></td><td>106</td><td>106</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>9,71 m/s</td><td>9,71 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>5,18 m</td><td>5,18 m</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 1</span></td><td>4,3 m/s</td><td>4,3 m/s</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 7</span></td><td>6,51 m/s</td><td>6,51 m/s</td></tr></tbody></table></div>
+</article><article class="card" id="s-bouncer">
+  <header><h3>Ricochete</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 14 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,03</span><span class="arrow">→</span><span class="wv ok">1,09</span>
+    <span class="wtxt">antes: 3% acima do justo · agora: 9% acima do justo</span></div>
+  <p class="why">Sem mudança nos números.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>19 s</td><td>19 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>13 s</td><td>13 s</td></tr><tr class=""><td>Dano <span class="lv">nível 1</span></td><td>54</td><td>54</td></tr><tr class=""><td>Dano <span class="lv">nível 7</span></td><td>102</td><td>102</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>5,82 m/s</td><td>5,82 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>5,82 m</td><td>5,82 m</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 1</span></td><td>4,19 m/s</td><td>4,19 m/s</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 7</span></td><td>7,92 m/s</td><td>7,92 m/s</td></tr></tbody></table></div>
+</article><article class="card" id="s-twin">
+  <header><h3>Gêmeos</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 12 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">0,94</span><span class="arrow">→</span><span class="wv ok">0,99</span>
+    <span class="wtxt">antes: 6% abaixo do justo · agora: 1% abaixo do justo</span></div>
+  <p class="why">Ciclo 1 (18/10): dano ×1,08, porque vencia 6% abaixo do justo.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>16 s</td><td>16 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>9,6 s</td><td>9,6 s</td></tr><tr class="ch"><td>Dano <span class="lv">nível 1</span></td><td>44</td><td>47,52</td></tr><tr class="ch"><td>Dano <span class="lv">nível 7</span></td><td>72</td><td>77,76</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>6,47 m/s</td><td>6,47 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>5,18 m</td><td>5,18 m</td></tr><tr class="ch"><td>Empurrão por golpe <span class="lv">nível 1</span></td><td>2,85 m/s</td><td>3,08 m/s</td></tr><tr class="ch"><td>Empurrão por golpe <span class="lv">nível 7</span></td><td>4,66 m/s</td><td>5,03 m/s</td></tr></tbody></table></div>
+</article><article class="card" id="s-recharge">
+  <header><h3>Recarga</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 13 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,03</span><span class="arrow">→</span><span class="wv ok">1,12</span>
+    <span class="wtxt">antes: 3% acima do justo · agora: 12% acima do justo</span></div>
+  <p class="why">Sem mudança nos números.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>23,5 s</td><td>23,5 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>19 s</td><td>19 s</td></tr><tr class=""><td>Dano <span class="lv">nível 1</span></td><td>60</td><td>60</td></tr><tr class=""><td>Dano <span class="lv">nível 7</span></td><td>102</td><td>102</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>5,82 m/s</td><td>5,82 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>5,82 m</td><td>5,82 m</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 1</span></td><td>3,88 m/s</td><td>3,88 m/s</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 7</span></td><td>6,6 m/s</td><td>6,6 m/s</td></tr></tbody></table></div>
+</article><article class="card" id="s-snowball">
+  <header><h3>Bola de neve</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 14 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">0,91</span><span class="arrow">→</span><span class="wv ok">0,98</span>
+    <span class="wtxt">antes: 9% abaixo do justo · agora: 2% abaixo do justo</span></div>
+  <p class="why">18/10: explosão ×1,3 e cresce mais por nível (+35 de dano e +10 de lentidão por nível), porque vencia 9% abaixo e piorava ao subir de nível.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>19 s</td><td>19 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>13 s</td><td>13 s</td></tr><tr class="ch"><td>Dano <span class="lv">nível 1</span></td><td>45</td><td>58,5</td></tr><tr class="ch"><td>Dano <span class="lv">nível 7</span></td><td>135</td><td>331,5</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>2,59 m/s</td><td>2,59 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>3,72 m</td><td>3,72 m</td></tr><tr class=""><td>Raio <span class="lv">nível 1</span></td><td>1,29 m</td><td>1,29 m</td></tr><tr class=""><td>Dano contínuo <span class="lv">nível 1</span></td><td>30</td><td>30</td></tr><tr class="ch"><td>Dano contínuo <span class="lv">nível 7</span></td><td>60</td><td>90</td></tr><tr class="ch"><td>Empurrão por golpe <span class="lv">nível 1</span></td><td>2,33 m/s</td><td>3,03 m/s</td></tr><tr class="ch"><td>Empurrão por golpe <span class="lv">nível 7</span></td><td>6,99 m/s</td><td>17,16 m/s</td></tr></tbody></table></div>
+</article><article class="card" id="s-splitter">
+  <header><h3>Divisor</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 15 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,02</span><span class="arrow">→</span><span class="wv ok">1,07</span>
+    <span class="wtxt">antes: 2% acima do justo · agora: 7% acima do justo</span></div>
+  <p class="why">Sem mudança nos números.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>24 s</td><td>24 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>18 s</td><td>18 s</td></tr><tr class=""><td>Dano <span class="lv">nível 1</span></td><td>30</td><td>30</td></tr><tr class=""><td>Dano <span class="lv">nível 7</span></td><td>60</td><td>60</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>4,53 m/s</td><td>4,53 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>4,53 m</td><td>4,53 m</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 1</span></td><td>1,94 m/s</td><td>1,94 m/s</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 7</span></td><td>3,88 m/s</td><td>3,88 m/s</td></tr></tbody></table></div>
+</article><article class="card" id="s-drain">
+  <header><h3>Drenar</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 14 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,03</span><span class="arrow">→</span><span class="wv ok">1,14</span>
+    <span class="wtxt">antes: 3% acima do justo · agora: 14% acima do justo</span></div>
+  <p class="why">Sem mudança nos números.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>22 s</td><td>22 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>16 s</td><td>16 s</td></tr><tr class=""><td>Dano <span class="lv">nível 1</span></td><td>60</td><td>60</td></tr><tr class=""><td>Dano <span class="lv">nível 7</span></td><td>120</td><td>120</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>4,53 m/s</td><td>4,53 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>5,5 m</td><td>5,5 m</td></tr><tr class=""><td>Duração <span class="lv">nível 1</span></td><td>4 s</td><td>4 s</td></tr><tr class=""><td>Duração <span class="lv">nível 7</span></td><td>10 s</td><td>10 s</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 1</span></td><td>0,78 m/s</td><td>0,78 m/s</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 7</span></td><td>1,55 m/s</td><td>1,55 m/s</td></tr></tbody></table></div>
+</article></div><h3 class="grp" id="g-mobilidade">Mobilidade</h3><div class="grid"><article class="card" id="s-teleport">
+  <header><h3>Teleporte</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 12 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,05</span><span class="arrow">→</span><span class="wv ok">1,05</span>
+    <span class="wtxt">antes: 5% acima do justo · agora: 5% acima do justo</span></div>
+  <p class="why">Sem mudança nos números.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>16 s</td><td>16 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>7 s</td><td>7 s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>4,98 m</td><td>4,98 m</td></tr><tr class=""><td>Alcance <span class="lv">nível 7</span></td><td>7,7 m</td><td>7,7 m</td></tr></tbody></table></div>
+</article><article class="card" id="s-rush">
+  <header><h3>Investida</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 12 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv out">1,3</span><span class="arrow">→</span><span class="wv ok">1,12</span>
+    <span class="wtxt">antes: 30% acima do justo · agora: 12% acima do justo</span></div>
+  <p class="why">17/10: vira um avanço de 3 m que machuca quem encostar (pedido do Fernando). 18/10: absorve ¼ do dano de antes, recarga ×1,2 e avanço com 20 de dano (era 60), porque vencia 30% acima do justo.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class="ch"><td>Recarga <span class="lv">nível 1</span></td><td>21 s</td><td>25,2 s</td></tr><tr class="ch"><td>Recarga <span class="lv">nível 7</span></td><td>15 s</td><td>18 s</td></tr><tr class=""><td>Duração <span class="lv">nível 1</span></td><td>6 s</td><td>6 s</td></tr><tr class=""><td>Duração <span class="lv">nível 7</span></td><td>9 s</td><td>9 s</td></tr><tr class="ch"><td>Dano absorvido <span class="lv">nível 1</span></td><td>50</td><td>12,5</td></tr><tr class="ch"><td>Dano absorvido <span class="lv">nível 7</span></td><td>170</td><td>42,5</td></tr></tbody></table></div>
+</article><article class="card" id="s-thrust">
+  <header><h3>Estocada</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 11 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,15</span><span class="arrow">→</span><span class="wv ok">1,12</span>
+    <span class="wtxt">antes: 15% acima do justo · agora: 12% acima do justo</span></div>
+  <p class="why">18/10: recarga ×1,15, porque vencia 15% acima do justo.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class="ch"><td>Recarga <span class="lv">nível 1</span></td><td>16,5 s</td><td>18,98 s</td></tr><tr class="ch"><td>Recarga <span class="lv">nível 7</span></td><td>9 s</td><td>10,35 s</td></tr><tr class=""><td>Dano <span class="lv">nível 1</span></td><td>50</td><td>50</td></tr><tr class=""><td>Dano <span class="lv">nível 7</span></td><td>80</td><td>80</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>8,41 m/s</td><td>8,41 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>5,82 m</td><td>5,82 m</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 1</span></td><td>3,88 m/s</td><td>3,88 m/s</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 7</span></td><td>6,21 m/s</td><td>6,21 m/s</td></tr></tbody></table></div>
+</article><article class="card" id="s-windwalk">
+  <header><h3>Caminhada no vento</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 14 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,08</span><span class="arrow">→</span><span class="wv ok">1,1</span>
+    <span class="wtxt">antes: 8% acima do justo · agora: 10% acima do justo</span></div>
+  <p class="why">Sem mudança nos números.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>29 s</td><td>29 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>17,5 s</td><td>17,5 s</td></tr><tr class=""><td>Dano <span class="lv">nível 1</span></td><td>54</td><td>54</td></tr><tr class=""><td>Dano <span class="lv">nível 7</span></td><td>90</td><td>90</td></tr><tr class=""><td>Duração <span class="lv">nível 1</span></td><td>2,6 s</td><td>2,6 s</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 1</span></td><td>3,49 m/s</td><td>3,49 m/s</td></tr><tr class=""><td>Empurrão por golpe <span class="lv">nível 7</span></td><td>5,82 m/s</td><td>5,82 m/s</td></tr></tbody></table></div>
+</article><article class="card" id="s-swap">
+  <header><h3>Troca</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 11 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,09</span><span class="arrow">→</span><span class="wv ok">1,12</span>
+    <span class="wtxt">antes: 9% acima do justo · agora: 12% acima do justo</span></div>
+  <p class="why">17/10: voa o alcance todo e, se errar, leva só até a metade da distância (pedido do Fernando). Números iguais ao original.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>15,8 s</td><td>15,8 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>7 s</td><td>7 s</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>12,83 m/s</td><td>12,83 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>6,04 m</td><td>6,04 m</td></tr></tbody></table></div>
+</article></div><h3 class="grp" id="g-defesa">Defesa</h3><div class="grid"><article class="card" id="s-shield">
+  <header><h3>Escudo</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 12 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv out">1,89</span><span class="arrow">→</span><span class="wv out">1,46</span>
+    <span class="wtxt">antes: 89% acima do justo · agora: 46% acima do justo</span></div>
+  <p class="why">Voltou ao original por decisão do Fernando (18/10) até ter partidas reais: nos bots ele vence muito acima do justo porque eles reagem melhor que gente.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>14 s</td><td>14 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>8 s</td><td>8 s</td></tr><tr class=""><td>Duração <span class="lv">nível 1</span></td><td>1,2 s</td><td>1,2 s</td></tr><tr class=""><td>Raio <span class="lv">nível 1</span></td><td>1,29 m</td><td>1,29 m</td></tr><tr class=""><td>Raio <span class="lv">nível 7</span></td><td>1,68 m</td><td>1,68 m</td></tr></tbody></table></div>
+</article><article class="card" id="s-alteration">
+  <header><h3>Alteração</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 11 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,06</span><span class="arrow">→</span><span class="wv ok">1,07</span>
+    <span class="wtxt">antes: 6% acima do justo · agora: 7% acima do justo</span></div>
+  <p class="why">Sem mudança nos números.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>19 s</td><td>19 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>10 s</td><td>10 s</td></tr><tr class=""><td>Duração <span class="lv">nível 1</span></td><td>2 s</td><td>2 s</td></tr><tr class=""><td>Raio <span class="lv">nível 1</span></td><td>0,78 m</td><td>0,78 m</td></tr></tbody></table></div>
+</article><article class="card" id="s-rockpillar">
+  <header><h3>Pilar de pedra</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 13 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">0,86</span><span class="arrow">→</span><span class="wv ok">0,98</span>
+    <span class="wtxt">antes: 14% abaixo do justo · agora: 2% abaixo do justo</span></div>
+  <p class="why">Ciclo 1 e 18/10: recarga ×0,7 e dura 5 s (eram 4), porque vencia 14% abaixo do justo.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class="ch"><td>Recarga <span class="lv">nível 1</span></td><td>26 s</td><td>18,2 s</td></tr><tr class="ch"><td>Recarga <span class="lv">nível 7</span></td><td>14 s</td><td>9,8 s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>4,21 m</td><td>4,21 m</td></tr><tr class=""><td>Alcance <span class="lv">nível 7</span></td><td>7,12 m</td><td>7,12 m</td></tr><tr class="ch"><td>Duração <span class="lv">nível 1</span></td><td>4 s</td><td>5 s</td></tr></tbody></table></div>
+</article><article class="card" id="s-warpzone">
+  <header><h3>Zona de dobra</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 12 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">0,87</span><span class="arrow">→</span><span class="wv ok">0,93</span>
+    <span class="wtxt">antes: 13% abaixo do justo · agora: 7% abaixo do justo</span></div>
+  <p class="why">18/10: recarga ×0,7 e raio cresce o dobro por nível, porque vencia 13% abaixo do justo.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class="ch"><td>Recarga <span class="lv">nível 1</span></td><td>23 s</td><td>16,1 s</td></tr><tr class="ch"><td>Recarga <span class="lv">nível 7</span></td><td>16 s</td><td>11,2 s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>4,53 m</td><td>4,53 m</td></tr><tr class=""><td>Duração <span class="lv">nível 1</span></td><td>4,5 s</td><td>4,5 s</td></tr><tr class=""><td>Raio <span class="lv">nível 1</span></td><td>1,29 m</td><td>1,29 m</td></tr><tr class="ch"><td>Raio <span class="lv">nível 7</span></td><td>1,68 m</td><td>2,07 m</td></tr><tr class=""><td>Velocidade dos tiros dentro da zona <span class="lv">nível 1</span></td><td>40%</td><td>40%</td></tr><tr class=""><td>Velocidade dos tiros dentro da zona <span class="lv">nível 7</span></td><td>16%</td><td>16%</td></tr></tbody></table></div>
+</article></div><h3 class="grp" id="g-controle">Controle</h3><div class="grid"><article class="card" id="s-grip">
+  <header><h3>Agarrar</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 12 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv out">0,83</span><span class="arrow">→</span><span class="wv ok">0,95</span>
+    <span class="wtxt">antes: 17% abaixo do justo · agora: 5% abaixo do justo</span></div>
+  <p class="why">17/10: tempo preso pela metade (pedido do Fernando). 18/10: tempo preso fixo, o nível só baixa a recarga, e o preso fica no chão até o próximo golpe, que o empurra mais longe (ideia do Fernando).</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class="ch"><td>Recarga <span class="lv">nível 1</span></td><td>24 s</td><td>19,2 s</td></tr><tr class="ch"><td>Recarga <span class="lv">nível 7</span></td><td>10,5 s</td><td>5,6 s</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>6,47 m/s</td><td>6,47 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>7,12 m</td><td>7,12 m</td></tr><tr class="ch"><td>Duração <span class="lv">nível 1</span></td><td>4,5 s</td><td>2,25 s</td></tr><tr class="ch"><td>Duração <span class="lv">nível 7</span></td><td>6 s</td><td>2,25 s</td></tr><tr class=""><td>Empurrão extra ao soltar <span class="lv">nível 1</span></td><td>30%</td><td>30%</td></tr><tr class=""><td>Empurrão extra ao soltar <span class="lv">nível 7</span></td><td>90%</td><td>90%</td></tr></tbody></table></div>
+</article><article class="card" id="s-gravity">
+  <header><h3>Gravidade</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 12 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">0,88</span><span class="arrow">→</span><span class="wv ok">0,97</span>
+    <span class="wtxt">antes: 12% abaixo do justo · agora: 3% abaixo do justo</span></div>
+  <p class="why">18/10: dano por segundo ×2, porque vencia 12% abaixo do justo.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>21 s</td><td>21 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>18 s</td><td>18 s</td></tr><tr class="ch"><td>Dano <span class="lv">nível 1</span></td><td>20</td><td>40</td></tr><tr class="ch"><td>Dano <span class="lv">nível 7</span></td><td>100</td><td>200</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>2,91 m/s</td><td>2,91 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>5,82 m</td><td>5,82 m</td></tr><tr class=""><td>Raio <span class="lv">nível 1</span></td><td>1,62 m</td><td>1,62 m</td></tr><tr class=""><td>Puxada <span class="lv">nível 1</span></td><td>3,23 m/s²</td><td>3,23 m/s²</td></tr><tr class=""><td>Puxada <span class="lv">nível 7</span></td><td>4,4 m/s²</td><td>4,4 m/s²</td></tr></tbody></table></div>
+</article><article class="card" id="s-link">
+  <header><h3>Elo</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 12 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv out">0,75</span><span class="arrow">→</span><span class="wv ok">0,92</span>
+    <span class="wtxt">antes: 25% abaixo do justo · agora: 8% abaixo do justo</span></div>
+  <p class="why">18/10: dano ×5, puxada ×1,4 e recarga ×0,8, porque era a mais fraca (vencia 25% abaixo do justo).</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class="ch"><td>Recarga <span class="lv">nível 1</span></td><td>17 s</td><td>13,6 s</td></tr><tr class="ch"><td>Recarga <span class="lv">nível 7</span></td><td>7 s</td><td>5,6 s</td></tr><tr class="ch"><td>Dano <span class="lv">nível 1</span></td><td>12</td><td>60</td></tr><tr class="ch"><td>Dano <span class="lv">nível 7</span></td><td>60</td><td>300</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>6,15 m/s</td><td>6,15 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>5,56 m</td><td>5,56 m</td></tr><tr class="ch"><td>Puxada <span class="lv">nível 1</span></td><td>10,03 m/s²</td><td>14,04 m/s²</td></tr></tbody></table></div>
+</article><article class="card" id="s-magnetize">
+  <header><h3>Magnetizar</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 14 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv out">0,85</span><span class="arrow">→</span><span class="wv ok">0,92</span>
+    <span class="wtxt">antes: 15% abaixo do justo · agora: 8% abaixo do justo</span></div>
+  <p class="why">18/10: dura mais e cresce mais por nível (+1,5 s por nível, era +0,5), porque vencia 15% abaixo e piorava ao subir de nível.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Recarga <span class="lv">nível 1</span></td><td>22 s</td><td>22 s</td></tr><tr class=""><td>Recarga <span class="lv">nível 7</span></td><td>16 s</td><td>16 s</td></tr><tr class=""><td>Velocidade do projétil <span class="lv">nível 1</span></td><td>5,18 m/s</td><td>5,18 m/s</td></tr><tr class=""><td>Alcance <span class="lv">nível 1</span></td><td>6,21 m</td><td>6,21 m</td></tr><tr class="ch"><td>Duração <span class="lv">nível 1</span></td><td>3,5 s</td><td>4,38 s</td></tr><tr class="ch"><td>Duração <span class="lv">nível 7</span></td><td>6,5 s</td><td>15,62 s</td></tr></tbody></table></div>
+</article></div></section>
+<section id="itens"><h2>Itens</h2><div class="grid"><article class="card" id="i-ring">
+  <header><h3>Anel de vida</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 4 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">0,98</span><span class="arrow">→</span><span class="wv ok">1,04</span>
+    <span class="wtxt">antes: 2% abaixo do justo · agora: 4% acima do justo</span></div>
+  <p class="why">Sem mudança.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Vida <span class="lv">nível 1</span></td><td>100</td><td>100</td></tr><tr class=""><td>Vida <span class="lv">nível 5</span></td><td>400</td><td>400</td></tr></tbody></table></div>
+</article><article class="card" id="i-cursed_ring">
+  <header><h3>Anel amaldiçoado</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 4 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,12</span><span class="arrow">→</span><span class="wv ok">1,12</span>
+    <span class="wtxt">antes: 12% acima do justo · agora: 12% acima do justo</span></div>
+  <p class="why">Ciclo 1 (18/10): resistência a empurrão 15% → 10%, como fez o Warlock CE, porque vencia 19% acima do justo.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Vida <span class="lv">nível 1</span></td><td>100</td><td>100</td></tr><tr class=""><td>Vida <span class="lv">nível 2</span></td><td>200</td><td>200</td></tr><tr class="ch"><td>Resistência a empurrão <span class="lv">nível 1</span></td><td>15%</td><td>10%</td></tr><tr class=""><td>Duração de lentidões <span class="lv">nível 1</span></td><td>25%</td><td>25%</td></tr><tr class=""><td>Duração de lentidões <span class="lv">nível 2</span></td><td>30%</td><td>30%</td></tr></tbody></table></div>
+</article><article class="card" id="i-cape">
+  <header><h3>Capa</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 3 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,02</span><span class="arrow">→</span><span class="wv ok">1</span>
+    <span class="wtxt">antes: 2% acima do justo · agora: justo</span></div>
+  <p class="why">17/10: vida por segundo +60% em todos os níveis.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class="ch"><td>Vida por segundo <span class="lv">nível 1</span></td><td>1,5</td><td>2,5</td></tr><tr class="ch"><td>Vida por segundo <span class="lv">nível 3</span></td><td>3,5</td><td>5,5</td></tr></tbody></table></div>
+</article><article class="card" id="i-armor">
+  <header><h3>Armadura</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 6 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,01</span><span class="arrow">→</span><span class="wv ok">1,06</span>
+    <span class="wtxt">antes: 1% acima do justo · agora: 6% acima do justo</span></div>
+  <p class="why">Sem mudança.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Resistência a empurrão <span class="lv">nível 1</span></td><td>12%</td><td>12%</td></tr><tr class=""><td>Resistência a empurrão <span class="lv">nível 3</span></td><td>22%</td><td>22%</td></tr></tbody></table></div>
+</article><article class="card" id="i-boots">
+  <header><h3>Botas</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 5 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">0,98</span><span class="arrow">→</span><span class="wv ok">0,97</span>
+    <span class="wtxt">antes: 2% abaixo do justo · agora: 3% abaixo do justo</span></div>
+  <p class="why">Sem mudança.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Velocidade de andar <span class="lv">nível 1</span></td><td>0,12 m/s</td><td>0,12 m/s</td></tr><tr class=""><td>Velocidade de andar <span class="lv">nível 3</span></td><td>0,26 m/s</td><td>0,26 m/s</td></tr></tbody></table></div>
+</article><article class="card" id="i-watch">
+  <header><h3>Relógio de bolso</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 2 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">0,97</span><span class="arrow">→</span><span class="wv ok">0,95</span>
+    <span class="wtxt">antes: 3% abaixo do justo · agora: 5% abaixo do justo</span></div>
+  <p class="why">Sem mudança.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Duração de lentidões <span class="lv">nível 1</span></td><td>-35%</td><td>-35%</td></tr><tr class=""><td>Duração de lentidões <span class="lv">nível 2</span></td><td>-45%</td><td>-45%</td></tr></tbody></table></div>
+</article><article class="card" id="i-scourge">
+  <header><h3>Flagelo</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 7 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">0,97</span><span class="arrow">→</span><span class="wv ok">0,98</span>
+    <span class="wtxt">antes: 3% abaixo do justo · agora: 2% abaixo do justo</span></div>
+  <p class="why">17/10: destrói magias na área; depois área maior e dano menor (pedido do Fernando) e recarga 5 s.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr><td colspan="3" class="lv">Sem números por nível (efeito descrito ao lado).</td></tr></tbody></table></div>
+</article><article class="card" id="i-redirector">
+  <header><h3>Redirecionador</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 8 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">0,97</span><span class="arrow">→</span><span class="wv ok">0,94</span>
+    <span class="wtxt">antes: 3% abaixo do justo · agora: 6% abaixo do justo</span></div>
+  <p class="why">Sem mudança.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr><td colspan="3" class="lv">Sem números por nível (efeito descrito ao lado).</td></tr></tbody></table></div>
+</article><article class="card" id="i-pact">
+  <header><h3>Pacto</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 10 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1</span><span class="arrow">→</span><span class="wv ok">1,01</span>
+    <span class="wtxt">antes: justo · agora: 1% acima do justo</span></div>
+  <p class="why">17/10: dobra o dano (era ×1,5), sem a lentidão que vinha junto, recarga 20 s (era 30).</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr><td colspan="3" class="lv">Sem números por nível (efeito descrito ao lado).</td></tr></tbody></table></div>
+</article><article class="card" id="i-vampire">
+  <header><h3>Roubo de vida</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 5 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">0,97</span><span class="arrow">→</span><span class="wv ok">1</span>
+    <span class="wtxt">antes: 3% abaixo do justo · agora: justo</span></div>
+  <p class="why">Era uma maestria do original; virou item em 17/10 (pedido do Fernando). Mesmos números.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Vida de volta do dano causado <span class="lv">nível 1</span></td><td>9%</td><td>9%</td></tr><tr class=""><td>Vida de volta do dano causado <span class="lv">nível 6</span></td><td>39%</td><td>39%</td></tr></tbody></table></div>
+</article><article class="card" id="i-lava_boots">
+  <header><h3>Botas de lava</h3><span class="pill p-ch">mudou</span><span class="cost">Preço 4 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,08</span><span class="arrow">→</span><span class="wv ok">1,06</span>
+    <span class="wtxt">antes: 8% acima do justo · agora: 6% acima do justo</span></div>
+  <p class="why">Ciclo 2 (18/10): nível 2 corta 50% do dano da lava (era 60%) e não reduz mais o empurrão acumulado, porque o nível 2 vencia 35% acima do justo.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Dano da lava a menos <span class="lv">nível 1</span></td><td>35%</td><td>35%</td></tr><tr class="ch"><td>Dano da lava a menos <span class="lv">nível 2</span></td><td>60%</td><td>50%</td></tr></tbody></table></div>
+</article><article class="card" id="i-warden">
+  <header><h3>Guardião</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 4 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">0,99</span><span class="arrow">→</span><span class="wv ok">1</span>
+    <span class="wtxt">antes: 1% abaixo do justo · agora: justo</span></div>
+  <p class="why">Sem mudança.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Dano a menos por golpe <span class="lv">nível 1</span></td><td>4</td><td>4</td></tr><tr class=""><td>Dano a menos por golpe <span class="lv">nível 3</span></td><td>12</td><td>12</td></tr><tr class=""><td>Resistência a empurrão <span class="lv">nível 1</span></td><td>-1%</td><td>-1%</td></tr><tr class=""><td>Resistência a empurrão <span class="lv">nível 3</span></td><td>-3%</td><td>-3%</td></tr></tbody></table></div>
+</article><article class="card" id="i-helmet">
+  <header><h3>Elmo</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 5 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,06</span><span class="arrow">→</span><span class="wv ok">1,06</span>
+    <span class="wtxt">antes: 6% acima do justo · agora: 6% acima do justo</span></div>
+  <p class="why">Sem mudança.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr class=""><td>Resistência a empurrão <span class="lv">nível 1</span></td><td>15%</td><td>15%</td></tr><tr class=""><td>Alcance das magias <span class="lv">nível 1</span></td><td>-10%</td><td>-10%</td></tr></tbody></table></div>
+</article><article class="card" id="i-shock_boots">
+  <header><h3>Botas de choque</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 5 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv ok">1,01</span><span class="arrow">→</span><span class="wv ok">1</span>
+    <span class="wtxt">antes: 1% acima do justo · agora: justo</span></div>
+  <p class="why">Sem mudança.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr><td colspan="3" class="lv">Sem números por nível (efeito descrito ao lado).</td></tr></tbody></table></div>
+</article><article class="card" id="i-aegis">
+  <header><h3>Égide</h3><span class="pill p-eq">igual ao original</span><span class="cost">Preço 7 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv out">1,21</span><span class="arrow">→</span><span class="wv ok">1,11</span>
+    <span class="wtxt">antes: 21% acima do justo · agora: 12% acima do justo</span></div>
+  <p class="why">Ciclos 2 a 6 (18/10): virou consumível (quebra ao salvar você; dá para comprar de novo), porque vencia 20% acima do justo e nenhum ajuste de preço ou vida mudava isso.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr><td colspan="3" class="lv">Sem números por nível (efeito descrito ao lado).</td></tr></tbody></table></div>
+</article><article class="card" id="i-wind_boots">
+  <header><h3>Botas de vento</h3><span class="pill p-new">novo</span><span class="cost">Preço 7 de ouro</span></header>
+  <div class="win"><span class="wl">Vitória nas simulações</span>
+    <span class="wv na">—</span><span class="arrow">→</span><span class="wv ok">0,95</span>
+    <span class="wtxt">antes: sem medição · agora: 5% abaixo do justo</span></div>
+  <p class="why">Item novo de 18/10 (aprovado no grill): 5 s sem causar nem levar dano dá mais velocidade. Só itens que valem para qualquer magia.</p>
+  <div class="tw"><table><thead><tr><th>Número</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr><td colspan="3" class="lv">Sem números por nível (efeito descrito ao lado).</td></tr></tbody></table></div>
+</article></div></section>
+<section id="regras"><h2>Regras gerais que mudaram</h2>
+<div class="tw"><table><thead><tr><th>Regra</th><th>Original</th><th>Atual</th></tr></thead><tbody><tr><td>Agarrar</td><td>proteção de empurrão do preso 0,67, empurrão a mais por magia lançada preso 5</td><td>empurrão a mais por magia lançada preso 5</td></tr><tr><td>Curva do Míssil (voltas/s)</td><td>3</td><td>2,5</td></tr><tr><td>Investida</td><td>bonus 0,23, perHp 0,01, share 0,5, dash 3, dashTime 0,2, dano do avanço 60</td><td>bonus 0,23, perHp 0,01, share 0,5, dash 3, dashTime 0,2, dano do avanço 20</td></tr><tr><td>Pacto</td><td>recarga (s) 30, janela (s) 5, multiplicador de dano 1,5, lentidão (m/s) 0,43, tempo da lentidão (s) 6</td><td>recarga (s) 20, janela (s) 5, multiplicador de dano 2</td></tr><tr><td>Flagelo</td><td>dano por nível 100/110/120, raio (m) 1,62, preparo (s) 0,5, recarga (s) 3</td><td>dano por nível 80/100/120, raio (m) 2,1, preparo (s) 0,5, recarga (s) 5</td></tr></tbody></table></div></section>
+<section id="fonte"><h2>De onde vêm os números</h2>
+<p class="src">Original: a versão de cada magia e item no dia em que entrou no jogo, antes de qualquer ajuste (números do código do Warlock Brawl, <code>github.com/warlockbrawl/warlock</code>), convertida para a escala de vida 1000. Atual: <code>src/shared/spells.ts</code> e <code>items.ts</code> do jogo. Vitória: simulador de bots (<code>scripts/balance-sim.ts</code>), relatórios <code>balance/noite</code> (antes) e <code>balance/normal2</code> (agora; Escudo original em <code>balance/esc-orig</code>). Itens novos de 18/10 têm o "antes" da primeira simulação em que apareceram (<code>balance/ciclo2</code>).</p></section>
+</main></div>
+<script>
+const links=[...document.querySelectorAll('nav.toc a')];const secs=links.map(a=>document.querySelector(a.getAttribute('href')));
+const io=new IntersectionObserver(es=>{for(const e of es)if(e.isIntersecting){links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id));}},{rootMargin:'-20% 0px -70% 0px'});
+secs.forEach(s=>s&&io.observe(s));
+const d=document.getElementById('tocd');if(matchMedia('(max-width: 900px)').matches)d.open=false;
+</script>

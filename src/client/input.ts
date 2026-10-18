@@ -1,9 +1,9 @@
 // Controles do Dota: botão direito anda, Q W E R F lançam na direção do cursor, S para.
-// Segurar a tecla mostra o círculo de alcance; a magia sai ao soltar (Esc cancela).
+// Três jeitos de lançar pela tecla (keys.ts, getCastMode): na hora, ao soltar (segurar mostra o alcance) ou com clique.
 // No celular: tocar no chão anda; tocar no botão da magia e depois no chão lança.
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
 import type { SpellId } from '../shared/spells.ts';
-import { actionFor } from './keys.ts';
+import { actionFor, getCastMode } from './keys.ts';
 import { setPadGame } from './gamepad.ts';
 import type { Vec } from '../shared/vec.ts';
 
@@ -91,10 +91,12 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     if (!p) return;
     const touch = e.pointerType === 'touch';
     if (armed && (e.button === 0 || touch)) {
+      // fora do alcance a magia sai na direção do clique, até a borda do alcance (o servidor limita)
       if (isItem(armed)) h.useItem(armed, p);
       else h.cast(armed, p);
       arm(null);
     } else if (e.button === 2 || touch) {
+      if (armed) arm(null); // botão direito cancela a magia escolhida (e anda, como no Dota)
       h.move(p);
       dragging = e.button === 2;
     } else if (e.button === 0 && armed === null) {
@@ -126,10 +128,16 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     // teclas trocáveis pelo jogador (keys.ts)
     const action = actionFor(e.code);
     if (action) {
-      if (held) release(); // outra tecla com uma segurada: a primeira sai antes
-      held = { action, code: e.code };
-      h.preview(action);
       e.preventDefault();
+      const mode = getCastMode();
+      if (mode === 'click') return arm(action); // escolhe e mostra o alcance; o clique esquerdo lança
+      if (mode === 'release') {
+        if (held) release(); // outra tecla com uma segurada: a primeira sai antes
+        held = { action, code: e.code };
+        return h.preview(action);
+      }
+      const p = h.pick(cursor.x, cursor.y);
+      if (p) (isItem(action) ? h.useItem(action, p) : h.cast(action as SpellId, p));
       return;
     }
     if (e.code === 'KeyS') h.stop();

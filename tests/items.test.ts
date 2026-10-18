@@ -233,7 +233,7 @@ describe('vender na loja', () => {
     expect(sellValue(p, 2, 'spell:lightning')).toBe(Math.floor(11 * 0.9));
   });
 
-  it('items sell the same way and the free levels do not sell', () => {
+  it('items sell the same way and the free Scourge level does not sell (the free Fireball does since 18/10)', () => {
     const { m, p } = shop();
     buyItem(m, 'a', 'armor');
     buyItem(m, 'a', 'armor'); // 6 + 6
@@ -242,8 +242,8 @@ describe('vender na loja', () => {
     expect(p.items.armor).toBe(0);
     expect(sell(m, 'a', 'item:scourge')).toBe(false); // nível 1 grátis
     expect(p.items.scourge).toBe(1);
-    expect(sell(m, 'a', 'spell:fireball')).toBe(false); // nível 1 grátis
-    expect(p.spells.fireball).toBe(1);
+    expect(sell(m, 'a', 'spell:fireball')).toBe(true); // nível 1 grátis: volta 0 e libera a vaga
+    expect(p.spells.fireball).toBe(0);
   });
 
   it('does not sell outside the shop', () => {

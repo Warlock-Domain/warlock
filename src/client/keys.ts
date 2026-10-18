@@ -15,7 +15,10 @@ const DEFAULTS: Record<string, string> = {
 // teclas com outra função no jogo: não podem virar atalho de magia
 // ficha do mago: a tecla à esquerda do 1 (' no ABNT2, ` no americano); as letras já são todas de magias
 export const SHEET_KEY = 'Backquote';
-export const RESERVED = new Set(['KeyS', 'Space', 'Escape', 'Tab', 'Enter', 'KeyY', SHEET_KEY]);
+// loja só para ver no meio da rodada (pedido do Fernando, 18/10): o B do Dota é do Bumerangue e as 26 letras já têm dono, então o 4
+// (o 1, 2 e 3 são os itens ativos)
+export const SHOP_KEY = 'Digit4';
+export const RESERVED = new Set(['KeyS', 'Space', 'Escape', 'Tab', 'Enter', 'KeyY', SHEET_KEY, SHOP_KEY]);
 const STORE = 'warlock:keys';
 
 let map: Record<string, string> = { ...DEFAULTS };
@@ -65,6 +68,30 @@ export function setSlots(next: SpellId[]) {
   if (slotMode || pad) listeners.forEach((f) => f());
 }
 export const slotSpell = (i: number): SpellId | undefined => slots[i];
+
+// jeito de lançar pela tecla no PC (decisão do Fernando, 18/10; os três do Dota), guardado no navegador:
+// quick = lança na hora (padrão, como sempre foi); release = segurar mostra o alcance, soltar lança;
+// click = a tecla escolhe a magia e mostra o alcance, o clique esquerdo lança (direito ou Esc cancelam)
+export const CAST_MODES = ['quick', 'release', 'click'] as const;
+export type CastMode = (typeof CAST_MODES)[number];
+const CAST_STORE = 'warlock:castmode';
+let castMode: CastMode = 'quick';
+try {
+  const saved = localStorage.getItem(CAST_STORE);
+  if ((CAST_MODES as readonly string[]).includes(saved ?? '')) castMode = saved as CastMode;
+} catch {
+  // sem armazenamento: lança na hora
+}
+export const getCastMode = () => castMode;
+export function setCastMode(m: CastMode) {
+  castMode = m;
+  try {
+    localStorage.setItem(CAST_STORE, m);
+  } catch {
+    // só nesta aba
+  }
+  listeners.forEach((f) => f());
+}
 
 // controle (gamepad): A B X Y LB RB pela ordem da barra; LT, RT e ↑ para os itens ativos 1 a 3.
 // Com o controle em uso, a barra e a loja mostram esses rótulos; tecla ou mouse de novo voltam às teclas.

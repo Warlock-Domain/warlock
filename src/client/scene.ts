@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -10,10 +11,11 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SHAPES as ARENAS, edgeAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_STEP, CHEST, OBSTACLES, SHRINK_WARN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
-import type { PillarView, ProjView, RuneView } from '../shared/snapshot.ts';
+import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
 import { add, dot, norm, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
-import { BAD_STATUS, STATUS_ICONS, UI_ICON, icon } from './icons.ts';
+import { BAD_STATUS, ITEM_ICON, STATUS_ICONS, UI_ICON, icon } from './icons.ts';
+import { SPELLS } from '../shared/spells.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
 export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#12c7c7', '#f76b15', '#e93d82'];
@@ -22,7 +24,7 @@ export const TEAM_COLORS = ['#3b82f6', '#ef4444'];
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; loot?: number; color: number; character: string; name: string; moving: boolean; cheer: boolean; team?: number | null };
+export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; runeShield?: number; rushLeft?: number; loot?: number; color: number; character: string; name: string; moving: boolean; cheer: boolean; team?: number | null };
 
 const w3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, p.y);
 
@@ -64,6 +66,19 @@ type Mage = {
   oneShotUntil: number;
   ring: THREE.Mesh;
   shield: THREE.Mesh;
+  aura: THREE.Mesh; // anel no chão: dourado invulnerável, azul com Escudo de runa
+  bar: HTMLDivElement;
+  absRune: HTMLDivElement; // trecho da barra: dano que ainda absorve
+  absRush: HTMLDivElement;
+  aegisEl: HTMLElement;
+  shieldBar: HTMLDivElement; // tempo que falta do Escudo
+  shieldFill: HTMLDivElement;
+  shieldSince: number;
+  prevHp: number; // cura: vida do quadro anterior, quando subiu e o que somou no último segundo
+  prevAlive: boolean;
+  healAt: number;
+  healSum: number;
+  healFlushAt: number;
   lootBar: HTMLDivElement;
   lootFill: HTMLDivElement;
   label: HTMLDivElement;
@@ -86,6 +101,10 @@ type Mage = {
 // limiares de golpe (dano por acerto vai de ~30 a ~170): grande e crítico
 const BIG_HIT = 100;
 const CRIT_HIT = 130;
+// cura: salto de uma vez (Drenar, Roubo de vida num golpe forte) mostra na hora; o resto soma e aparece se passar disso em 1 s (a regeneração sozinha, 5 a ~11/s, não passa)
+const HEAL_NOW = 10;
+const HEAL_SUM = 15;
+const SHIELD_SECS = SPELLS.shield.levels[0].duration; // igual em todos os níveis
 const FX_CAP = 320; // teto de efeitos vivos: acima disso, partículas novas são puladas
 const SHAKE_MAX = 0.55;
 
@@ -508,6 +527,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     shield.position.y = 0.8;
     shield.visible = false;
     root.add(shield);
+    const aura = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    aura.rotation.x = -Math.PI / 2;
+    aura.position.y = 0.045;
+    aura.scale.setScalar(1.45);
+    aura.visible = false;
+    root.add(aura);
     scene.add(root);
     const mixer = new THREE.AnimationMixer(model);
     const actions: Record<string, THREE.AnimationAction> = {};
@@ -528,7 +553,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     bar.className = 'hp';
     const hpText = document.createElement('span');
     hpText.className = 'hp-text';
-    bar.append(hpFill, hpText);
+    const absRune = Object.assign(document.createElement('div'), { className: 'hp-abs rune' });
+    const absRush = Object.assign(document.createElement('div'), { className: 'hp-abs rush' });
+    bar.append(hpFill, absRune, absRush, hpText);
+    // selo da Égide ao lado da barra, enquanto não usada
+    const aegisEl = Object.assign(document.createElement('i'), { className: 'aegis', title: 'Égide pronta', hidden: true });
+    aegisEl.append(icon(ITEM_ICON.aegis));
+    const hpRow = Object.assign(document.createElement('div'), { className: 'hp-row' });
+    hpRow.append(aegisEl, bar);
+    const shieldBar = Object.assign(document.createElement('div'), { className: 'shield-bar', hidden: true });
+    const shieldFill = document.createElement('div');
+    shieldBar.append(shieldFill);
     const statusEl = document.createElement('span');
     statusEl.className = 'status-icons';
     // barrinha dourada do monte de ouro: enche a cada 2 s em cima dele
@@ -537,9 +572,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     lootBar.hidden = true;
     const lootFill = document.createElement('div');
     lootBar.append(lootFill);
-    label.append(statusEl, nameEl, bar, lootBar);
+    label.append(statusEl, nameEl, hpRow, shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, label, hpFill, hpText, nameEl, tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, dead: false, color: d.color, character: d.character, mats, flash: 0, freezeUntil: 0, cheering: false };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRune, absRush, aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, dead: false, color: d.color, character: d.character, mats, flash: 0, freezeUntil: 0, cheering: false };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -618,6 +653,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     numbers.push({ el, at: w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0)), born: performance.now() / 1000, pop: crit ? 0.9 : dmg >= BIG_HIT ? 0.55 : 0.3 });
   }
 
+  // cura que sobe em verde em cima de quem se curou
+  function healNumber(at: Vec, n: number) {
+    const el = document.createElement('div');
+    el.className = 'dmg heal';
+    el.style.fontSize = `${Math.min(2.2, 0.95 + n / 90).toFixed(2)}rem`;
+    el.textContent = '+' + Math.round(n);
+    labels.append(el);
+    numbers.push({ el, at: w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0)), born: performance.now() / 1000 });
+  }
+
   // impacto no mago: clarão branco, hit-stop curto, tremor pela força (mais perto da câmera, mais forte) e anel no golpe forte
   function impact(id: string, at: Vec, dmg: number) {
     const m = mages.get(id);
@@ -678,16 +723,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
 
   // marca que fica no chão alguns segundos onde houve choque de magias (só visual)
+  // (os choques que deixam chão com efeito desenham a zona do servidor, ver syncZones)
   const MARK: Record<string, { map: THREE.Texture; color: string; secs: number; spin: number }> = {
-    fire: { map: FX.flame, color: '#ff6a10', secs: 4.5, spin: 0.2 },
-    arcane: { map: FX.magic, color: '#b45cff', secs: 4.5, spin: 1.2 },
-    pulse: { map: FX.circle, color: '#9f7bff', secs: 3, spin: 0.8 },
-    detonate: { map: FX.spark, color: '#8fd3ff', secs: 3.5, spin: 0.5 },
     pillar: { map: FX.scorch, color: '#ffb066', secs: 4, spin: 0 },
     snow: { map: FX.circle, color: '#dff4ff', secs: 3, spin: 0.4 },
   };
   function groundMark(at: Vec, combo: string, radius: number) {
-    const m = MARK[combo] ?? MARK.fire;
+    const m = MARK[combo];
+    if (!m) return;
     const plane = new THREE.Mesh(scorchGeo, new THREE.MeshBasicMaterial({ map: m.map, color: m.color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
     plane.rotation.x = -Math.PI / 2;
     plane.position.copy(w3(at, 0.035));
@@ -720,8 +763,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     g.add(wood, lid, glowSprite);
     return g;
   }
-  // monte de ouro do baú quebrado: moedas no chão com brilho que pulsa
+  // monte de ouro do baú quebrado: moedas no chão com brilho baixo e fraco que pulsa (não cobre quem passa por cima)
   const pile = new THREE.Group();
+  const pileShine = new THREE.SpriteMaterial({ map: glow, color: '#ffd84a', transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false });
   {
     for (let k = 0; k < 9; k++) {
       const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.04, 12), chestGold);
@@ -729,12 +773,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       coin.rotation.set(Math.random(), Math.random(), Math.random());
       pile.add(coin);
     }
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.78, 40), new THREE.MeshBasicMaterial({ color: '#ffd84a', transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.73, 40), new THREE.MeshBasicMaterial({ color: '#ffd84a', transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.03;
-    const shine = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: '#ffd84a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-    shine.scale.setScalar(1.8);
-    shine.position.y = 0.3;
+    const shine = new THREE.Sprite(pileShine);
+    shine.scale.setScalar(0.8);
+    shine.position.y = 0.12;
     pile.add(ring, shine);
   }
   const piles: THREE.Group[] = [];
@@ -742,21 +786,125 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const RUNE_COLOR: Record<RuneKind, string> = { haste: '#4ade80', fury: '#f43f5e', shield: '#60a5fa', recharge: '#facc15' };
   const runeMeshes: { g: THREE.Group; mat: THREE.MeshStandardMaterial; glow: THREE.SpriteMaterial; ring: THREE.MeshBasicMaterial }[] = [];
   function runeMesh() {
-    const mat = new THREE.MeshStandardMaterial({ flatShading: true, emissiveIntensity: 1.2, roughness: 0.4 });
+    const mat = new THREE.MeshStandardMaterial({ flatShading: true, emissiveIntensity: 0.6, roughness: 0.4 });
     const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.28, 0), mat);
     gem.name = 'gem';
-    const glowMat = new THREE.SpriteMaterial({ map: glow, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    // brilho pequeno e fraco junto da pedra, anel fino: a forma e a cor da runa bastam, o mago fica legível por cima
+    const glowMat = new THREE.SpriteMaterial({ map: glow, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false });
     const shine = new THREE.Sprite(glowMat);
-    shine.scale.setScalar(1.6);
+    shine.name = 'shine';
+    shine.scale.setScalar(0.75);
     shine.position.y = 0.7;
-    const ringMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.6, side: THREE.DoubleSide });
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.58, 32), ringMat);
+    const ringMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.53, 32), ringMat);
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.03;
     const g = new THREE.Group();
     g.add(gem, shine, ring);
     scene.add(g);
     return { g, mat, glow: glowMat, ring: ringMat };
+  }
+
+  // chão dos choques, cada tipo com borda nítida no raio real, cor, movimento e ícone próprios; apaga no último 0,8 s
+  // queimando: brasa laranja tremulando; lento: névoa de gelo com borda tracejada; redemoinho: três braços roxos girando para o centro
+  const ZONE_LOOK: Record<ZoneKind, { fill: string; edge: string; tex: THREE.Texture; texColor: string; icon: string; mark: string; add: boolean }> = {
+    burn: { fill: '#ff3d0a', edge: '#ffb347', tex: FX.fire, texColor: '#ff5a10', icon: STATUS_ICONS.find(([b]) => b === 512)![1], mark: '#ffe0a0', add: true },
+    slow: { fill: '#2f8cff', edge: '#e2f4ff', tex: FX.smoke, texColor: '#7cc4ff', icon: STATUS_ICONS.find(([b]) => b === 4)![1], mark: '#0b2a4a', add: false },
+    pull: { fill: '#6a2cff', edge: '#c9a8ff', tex: FX.twirl, texColor: '#b48cff', icon: STATUS_ICONS.find(([b]) => b === 2097152)![1], mark: '#f0e6ff', add: true },
+  };
+  const discGeo = new THREE.CircleGeometry(1, 48);
+  const edgeGeo = new THREE.RingGeometry(0.93, 1, 64);
+  const dashGeo = mergeGeometries(Array.from({ length: 20 }, (_, i) => new THREE.RingGeometry(0.92, 1, 3, 1, (i / 20) * Math.PI * 2, ((Math.PI * 2) / 20) * 0.55)));
+  const texGeo = new THREE.PlaneGeometry(2, 2);
+  type ZoneDraw = { g: THREE.Group; fill: THREE.MeshBasicMaterial; edge: THREE.Mesh; dash: THREE.Mesh; edgeMat: THREE.MeshBasicMaterial; arms: THREE.Group; texMat: THREE.MeshBasicMaterial; mark: THREE.Mesh; markMat: THREE.MeshBasicMaterial; kind: ZoneKind | null };
+  const zoneDraws: ZoneDraw[] = [];
+  // ícone do sprite (public/icons.svg) desenhado no chão, por baixo dos magos: um símbolo vira imagem branca uma vez só
+  const iconTex = new Map<string, THREE.CanvasTexture>();
+  const iconSprite = fetch('/icons.svg').then((r) => r.text()).catch(() => '');
+  function groundIcon(id: string) {
+    let tex = iconTex.get(id);
+    if (tex) return tex;
+    const c = Object.assign(document.createElement('canvas'), { width: 128, height: 128 });
+    iconTex.set(id, (tex = new THREE.CanvasTexture(c)));
+    void iconSprite.then((svg) => {
+      const sym = new DOMParser().parseFromString(svg, 'image/svg+xml').getElementById(id);
+      if (!sym) return;
+      const img = new Image();
+      img.onload = () => {
+        c.getContext('2d')!.drawImage(img, 8, 8, 112, 112);
+        tex.needsUpdate = true;
+      };
+      img.src = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="#fff">${sym.innerHTML}</svg>`);
+    });
+    return tex;
+  }
+  function zoneDraw(): ZoneDraw {
+    const flat = (geo: THREE.BufferGeometry, mat: THREE.Material, y: number) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.rotation.x = -Math.PI / 2;
+      m.position.y = y;
+      return m;
+    };
+    const fill = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
+    const edgeMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
+    const texMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
+    const edge = flat(edgeGeo, edgeMat, 0.04);
+    const dash = flat(dashGeo, edgeMat, 0.04);
+    // gira em torno do centro; o redemoinho usa os três braços, os outros só o primeiro
+    const arms = new THREE.Group();
+    for (let i = 0; i < 3; i++) {
+      const a = flat(texGeo, texMat, 0.037 + i * 0.001);
+      a.rotation.z = (i / 3) * Math.PI * 2;
+      arms.add(a);
+    }
+    const markMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
+    const mark = flat(texGeo, markMat, 0.042);
+    const g = new THREE.Group();
+    g.add(flat(discGeo, fill, 0.033), arms, edge, dash, mark);
+    scene.add(g);
+    return { g, fill, edge, dash, edgeMat, arms, texMat, mark, markMat, kind: null };
+  }
+  function syncZones(list: ZoneView[], now: number, dt: number) {
+    while (zoneDraws.length < list.length) zoneDraws.push(zoneDraw());
+    zoneDraws.forEach((d, i) => {
+      const z = list[i];
+      d.g.visible = !!z;
+      if (!z) return;
+      const L = ZONE_LOOK[z.kind];
+      if (d.kind !== z.kind) {
+        d.kind = z.kind;
+        d.fill.color.set(L.fill);
+        d.edgeMat.color.set(L.edge);
+        d.texMat.map = L.tex;
+        d.texMat.color.set(L.texColor);
+        d.texMat.blending = L.add ? THREE.AdditiveBlending : THREE.NormalBlending;
+        d.texMat.needsUpdate = true;
+        d.edge.visible = z.kind !== 'slow';
+        d.dash.visible = z.kind === 'slow';
+        d.arms.children.forEach((a, k) => (a.visible = z.kind === 'pull' || k === 0));
+        d.markMat.map = groundIcon(L.icon);
+        d.markMat.color.set(L.mark);
+        d.markMat.needsUpdate = true;
+      }
+      d.g.position.copy(w3(z.pos, 0));
+      d.g.scale.setScalar(z.r);
+      d.mark.scale.setScalar(0.42 / z.r); // ícone de ~0,84 m, qualquer que seja o raio
+      const fade = Math.min(1, z.left / 0.8);
+      const flicker = 0.8 + 0.2 * Math.sin(now * 13 + i) * Math.sin(now * 7.7 + i * 3);
+      d.fill.opacity = (z.kind === 'slow' ? (mobile ? 0.6 : 0.42) : 0.24) * fade;
+      d.edgeMat.opacity = (z.kind === 'burn' ? flicker : 0.95) * fade;
+      d.texMat.opacity = (z.kind === 'pull' ? 0.85 : z.kind === 'burn' ? 0.75 * flicker : 0.4) * fade;
+      d.arms.rotation.y += (z.kind === 'pull' ? 2.6 : z.kind === 'slow' ? 0.15 : 0.4) * dt;
+      if (z.kind === 'slow') d.dash.rotation.z += 0.25 * dt;
+      d.markMat.opacity = 0.9 * fade;
+      // brasas subindo e brilhos de gelo (só no modo completo)
+      if (!lite && fade > 0.5) {
+        const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * z.r * 0.9;
+        const at = v(z.pos.x + Math.cos(a) * rr, z.pos.y + Math.sin(a) * rr);
+        if (z.kind === 'burn' && Math.random() < 0.35 * z.r) burst(at, Math.random() < 0.5 ? '#ff7a1a' : '#ffb347', 0.35, 0.8, 0.1, FLAMES[Math.floor(Math.random() * FLAMES.length)], 0.7);
+        else if (z.kind === 'slow' && Math.random() < 0.12 * z.r) burst(at, '#e2f4ff', 0.4, 0.7, 0.15, FX.star);
+      }
+    });
   }
 
   function syncPillars(list: PillarView[]) {
@@ -1055,6 +1203,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         scene.remove(m.root);
         m.ring.material instanceof THREE.Material && m.ring.material.dispose();
         m.shield.material instanceof THREE.Material && m.shield.material.dispose();
+        m.aura.material instanceof THREE.Material && m.aura.material.dispose();
         for (const x of m.mats) x.m.dispose();
         m.label.remove();
         mages.delete(d.id);
@@ -1078,8 +1227,22 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.root.visible = !hidden;
       m.root.position.copy(w3(d.pos));
       m.root.rotation.y = Math.PI / 2 - d.facing;
+      // Escudo: bolha no raio real que vai apagando, e a barrinha do tempo que falta
+      if (d.shield && !m.shield.visible) m.shieldSince = now;
       m.shield.visible = d.shield && d.alive;
       if (d.shieldR) m.shield.scale.setScalar(d.shieldR / 0.85);
+      const shieldLeft = Math.max(0, 1 - (now - m.shieldSince) / SHIELD_SECS);
+      (m.shield.material as THREE.MeshBasicMaterial).opacity = 0.12 + 0.28 * shieldLeft;
+      m.shieldBar.hidden = !m.shield.visible;
+      if (m.shield.visible) m.shieldFill.style.width = `${shieldLeft * 100}%`;
+      // anel no chão: dourado pulsando invulnerável (começo da rodada), azul da runa com Escudo de runa
+      const invuln = (d.status & 32) > 0;
+      m.aura.visible = d.alive && (invuln || (d.status & 1048576) > 0);
+      if (m.aura.visible) {
+        const mat = m.aura.material as THREE.MeshBasicMaterial;
+        mat.color.set(invuln ? '#ffd36a' : RUNE_COLOR.shield);
+        mat.opacity = invuln ? 0.55 + 0.3 * Math.sin(now * 8) : 0.8;
+      }
       m.ring.visible = d.alive;
       if (!d.alive) {
         if (!m.dead) {
@@ -1116,13 +1279,42 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // ícones de efeito em cima do mago (negativos primeiro)
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
-        m.statusEl.replaceChildren(...STATUS_ICONS.filter(([bit]) => d.status & bit).map(([bit, ico, name]) => {
+        m.statusEl.replaceChildren(...STATUS_ICONS.filter(([bit]) => d.status & bit && bit !== 131072).map(([bit, ico, name]) => {
           const i = Object.assign(document.createElement('i'), { title: name, className: BAD_STATUS.includes(bit) ? 'bad' : 'good' });
           i.append(icon(ico));
           return i;
         }));
       }
-      m.hpFill.style.width = `${Math.max(0, Math.min(100, (d.hp / d.hpMax) * 100))}%`;
+      // escudos na barra (estilo Overwatch): o que ainda absorvem vem depois da vida; passando do máximo, a barra inteira encolhe
+      const rune = d.runeShield ?? 0, rush = d.rushLeft ?? 0;
+      const total = Math.max(d.hpMax, d.hp + rune + rush);
+      m.hpFill.style.width = `${Math.max(0, Math.min(100, (d.hp / total) * 100))}%`;
+      m.absRune.hidden = !rune;
+      if (rune) m.absRune.style.width = `${(rune / total) * 100}%`;
+      m.absRush.hidden = !rush;
+      if (rush) m.absRush.style.width = `${(rush / total) * 100}%`;
+      m.aegisEl.hidden = !(d.status & 131072);
+      m.bar.classList.toggle('invuln', invuln);
+      // cura: a vida subiu (fora da volta à vida e do começo da rodada, que enchem a barra)
+      if (d.alive && m.prevAlive && !invuln && !hidden && d.hp > m.prevHp) {
+        const gain = d.hp - m.prevHp;
+        m.healAt = now;
+        if (gain >= HEAL_NOW) {
+          healNumber(d.pos, gain);
+          if (!lite) for (let i = 0; i < 4; i++) burst(v(d.pos.x + (Math.random() - 0.5) * 0.9, d.pos.y + (Math.random() - 0.5) * 0.9), '#7dff9a', 0.45, 0.9, 0.4, glow, 1.4);
+        } else m.healSum += gain;
+      }
+      if (now >= m.healFlushAt) {
+        if (m.healSum >= HEAL_SUM && d.alive && !hidden) healNumber(d.pos, m.healSum);
+        m.healSum = 0;
+        m.healFlushAt = now + 1;
+      }
+      const healing = now - m.healAt < 0.45;
+      m.bar.classList.toggle('heal', healing);
+      // fagulhas verdes discretas subindo enquanto cura
+      if (healing && !lite && !hidden && Math.random() < 0.12) burst(v(d.pos.x + (Math.random() - 0.5) * 0.8, d.pos.y + (Math.random() - 0.5) * 0.8), '#7dff9a', 0.3, 0.9, 0.3 + Math.random() * 0.6, glow, 1.2);
+      m.prevHp = d.hp;
+      m.prevAlive = d.alive;
       m.hpText.textContent = `${Math.max(0, Math.ceil(d.hp))}/${d.hpMax}`;
       m.lootBar.hidden = !d.loot;
       if (d.loot) m.lootFill.style.width = `${Math.min(100, d.loot * 100)}%`;
@@ -1269,7 +1461,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; follow: Vec | null; lock?: boolean }) {
+    render(state: { arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; follow: Vec | null; lock?: boolean }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
@@ -1353,6 +1545,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         g.scale.setScalar(0.6 + 0.4 * (l.left / CHEST.pile));
         g.rotation.y = now * 0.6;
       });
+      pileShine.opacity = 0.22 + 0.1 * Math.sin(now * 3);
       while (runeMeshes.length < state.runes.length) runeMeshes.push(runeMesh());
       runeMeshes.forEach((r, i) => {
         const rune = state.runes[i];
@@ -1366,8 +1559,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         r.g.position.copy(w3(rune.pos, 0));
         const gem = r.g.getObjectByName('gem')!;
         gem.position.y = 0.7 + Math.sin(now * 3) * 0.1;
+        r.g.getObjectByName('shine')!.position.y = gem.position.y;
+        r.glow.opacity = 0.22 + 0.1 * Math.sin(now * 3);
         gem.rotation.y = now * 2;
       });
+      syncZones(state.zones ?? [], now, dt);
       // hit-stop: quem acabou de apanhar fica com a animação parada por ~60 ms
       for (const m of mages.values()) if (now >= m.freezeUntil) m.mixer.update(dt);
       decor.update((p) => edgeAt(shownArena, shownR, p), now);

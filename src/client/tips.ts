@@ -2,7 +2,7 @@
 import { AEGIS, ITEMS, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, type ItemId } from '../shared/items.ts';
 import { LAVA_DPS } from '../shared/constants.ts';
 import { labelOf } from './keys.ts';
-import { MAX_SPELL_LEVEL, RECHARGE, RUSH, SPELLS, type Level, type SpellId } from '../shared/spells.ts';
+import { MAX_SPELL_LEVEL, RECHARGE, RUSH, SPELLS, WARPZONE, type Level, type SpellId } from '../shared/spells.ts';
 import { RULES_SHORT } from './rules-text.ts';
 
 const n1 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
@@ -36,7 +36,7 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   link: [['Dano por segundo', (l) => n1(l.dmg)], ['Puxão', (l) => `${n1(l.pull)} m/s²`], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   windwalk: [['Dano', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)]],
   splitter: [['Dano por filhote (8)', (l) => n1(l.dmg)], ['Empurrão por filhote', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
-  warpzone: [['Tempo dos projéteis', (l) => `${n1(l.scale * 100)}%`], ['Raio', (l) => m(l.radius)], ['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  warpzone: [['Tempo dos projéteis', (l) => `${n1(l.scale * 100)}%`], ['Inimigos andam', () => `${n1(WARPZONE.wizMult * 100)}% da velocidade`], ['Raio', (l) => m(l.radius)], ['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
 };
 
 function table(rows: [string, string, string | null][]): string {
@@ -85,10 +85,12 @@ export function itemTip(id: ItemId, level: number): string {
 
 
 let tipEl: HTMLDivElement | null = null;
+let owner: HTMLElement | null = null; // elemento cuja dica está aberta
 
 // liga a dica a um elemento; o conteúdo é gerado na hora (o nível pode ter mudado)
 export function withTip<T extends HTMLElement>(target: T, html: () => string): T {
   const show = () => {
+    owner = target;
     tipEl ??= Object.assign(document.createElement('div'), { className: 'tip', role: 'tooltip' });
     if (!tipEl.isConnected) document.body.append(tipEl);
     tipEl.innerHTML = html();
@@ -108,6 +110,8 @@ export function withTip<T extends HTMLElement>(target: T, html: () => string): T
   return target;
 }
 
-export function hideTip() {
-  if (tipEl) tipEl.hidden = true;
+// com `within`, só esconde se a dica aberta é de algo dentro dele (ou que já saiu da tela): redesenhar a loja não fecha a dica da barra
+export function hideTip(within?: HTMLElement) {
+  if (!tipEl || (within && owner?.isConnected && !within.contains(owner))) return;
+  tipEl.hidden = true;
 }

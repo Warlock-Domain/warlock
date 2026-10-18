@@ -1,5 +1,5 @@
 import { edgeAt, type ArenaId } from '../shared/arena.ts';
-import { ARENA_MIN, HP_MAX, SHRINK_EVERY, STUN_SPEED, type RuneKind } from '../shared/constants.ts';
+import { ARENA_MIN, HP_MAX, RUNE, SHRINK_EVERY, STUN_SPEED, type RuneKind } from '../shared/constants.ts';
 import { isCharacter } from '../shared/characters.ts';
 import type { PublicRoom, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { SimEvent } from '../shared/sim.ts';
@@ -119,6 +119,7 @@ function startRoom(code: string, name: string) {
   // círculo de alcance: tecla segurada, magia escolhida no botão (toque no chão para lançar) ou controle mirando
   let held: SpellId | ItemId | null = null;
   let padAiming: SpellId | ItemId | null = null;
+  let hovered: SpellId | ItemId | null = null; // mouse em cima da magia na barra
   let seq = 0;
   const sentAt = new Map<number, number>();
   let lastSnap: Snap | null = null;
@@ -163,6 +164,7 @@ function startRoom(code: string, name: string) {
     },
     ready: () => net.send({ t: 'ready' }),
     spell: (s) => input.button(s),
+    hover: (a) => (hovered = a),
     volumes: () => vol,
     setVolume: (kind, value) => {
       vol[kind] = value;
@@ -270,6 +272,13 @@ function startRoom(code: string, name: string) {
 
   const RUNE_NAME: Record<RuneKind, string> = { haste: 'Runa da Pressa', fury: 'Runa da Fúria', shield: 'Runa do Escudo', recharge: 'Runa da Recarga' };
   const RUNE_TEXT = (k: RuneKind) => [icon(RUNE_ICON[k]), ' ' + RUNE_NAME[k]];
+  // o que cada runa faz, com os números do código (pedido do Fernando, 18/10: dizer ao pegar)
+  const RUNE_EFFECT: Record<RuneKind, string> = {
+    haste: `anda ${Math.round(RUNE.haste * 100)}% mais rápido por ${RUNE.secs} s`,
+    fury: `magias causam ${Math.round(RUNE.fury * 100)}% mais dano por ${RUNE.secs} s`,
+    shield: `escudo que absorve ${RUNE.shield} de dano por ${RUNE.secs} s`,
+    recharge: 'todas as magias e itens recarregados na hora',
+  };
   const MULTI_TEXT = ['', '', 'Abate duplo!', 'Abate triplo!', 'Massacre!'];
   const SPREE_TEXT: Record<number, string> = { 3: 'Matança', 5: 'Fúria assassina', 7: 'sequência Imparável', 10: 'sequência Lendária' };
   let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
@@ -320,10 +329,10 @@ function startRoom(code: string, name: string) {
       else if (e.k === 'sudden') {
         sound.play('shrink');
         banner([icon(SOURCE_ICON.lava), ' Morte súbita! A arena encolhe a cada 5 s'], 'bad');
-      } else if (e.k === 'rune') toast([...RUNE_TEXT(e.kind), ' apareceu na arena!'], 'info');
+      } else if (e.k === 'rune') toast([...RUNE_TEXT(e.kind), ` apareceu na arena (${RUNE_EFFECT[e.kind]})`], 'info');
       else if (e.k === 'runeTake') {
         sound.play('shield', e.id === me ? 1 : 0.5);
-        toast([`${e.id === me ? 'Você pegou' : (who.get(e.id) ?? '?') + ' pegou'} `, ...RUNE_TEXT(e.kind)], e.id === me ? 'good' : 'info');
+        toast([`${e.id === me ? 'Você pegou' : (who.get(e.id) ?? '?') + ' pegou'} `, ...RUNE_TEXT(e.kind), `: ${RUNE_EFFECT[e.kind]}`], e.id === me ? 'good' : 'info');
       } else if (e.k === 'streak') {
         const name = e.id === me ? 'Você' : (who.get(e.id) ?? '?');
         // uma voz por lote de eventos: o Quebra-combo vem primeiro, depois o multi e por último a Matança
@@ -497,7 +506,7 @@ function startRoom(code: string, name: string) {
     watchStep = 0;
     watchId = watched?.id ?? null;
     view.watching(watched?.name ?? null);
-    if (training && room) view.coach(meP ? coachTip({ phase: room.phase, round: room.round, playingFor: (nowMs - playingAt) / 1000, shrinkIn, low, lava, alive: !!meW?.alive, touch, fireKey: isPadMode() ? 'A' : labelOf('fireball') }) : null);
+    if (training && room) view.coach(meP ? coachTip({ phase: room.phase, round: room.round, playingFor: (nowMs - playingAt) / 1000, shrinkIn, low, lava, alive: !!meW?.alive, touch, fireKey: isPadMode() ? 'A' : labelOf('fireball'), fire: meP.spells.fireball > 0 }) : null);
     scene.render({
       arena: arenaId,
       arenaR: s?.arenaR ?? 11,
@@ -507,11 +516,12 @@ function startRoom(code: string, name: string) {
       pillars: playing && s ? s.pillars : [],
       loots: playing && s ? s.loots : [],
       runes: playing && s ? s.runes : [],
+      zones: playing && s ? s.zones : [],
       follow: watched ? watched.pos : follow ? myPos : null,
       lock: !!watched,
     });
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
-    const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming) : null;
+    const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
     scene.range(showing && myPos ? myPos : null, showing && meP ? reachOf(showing, meP.spells, meP.items) : 0);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena não encolhe mais: o aviso some

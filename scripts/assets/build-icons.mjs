@@ -16,7 +16,7 @@ const ICONS = [
   'lorc/small-fire', 'lorc/magnet-blast', 'lorc/ghost', 'lorc/run', 'lorc/volcano', 'skoll/knockout', 'lorc/uncertainty',
   // interface
   'delapouite/histogram', 'lorc/scroll-unfurled', 'skoll/talk', 'delapouite/vote', 'delapouite/speaker', 'delapouite/speaker-off', 'sbed/help', 'delapouite/keyboard',
-  'lorc/skull-crossed-bones', 'lorc/spiky-explosion', 'lorc/trophy', 'lorc/archery-target', 'delapouite/two-coins', 'lorc/light-bulb', 'delapouite/robot-antennas', 'delapouite/character',
+  'lorc/skull-crossed-bones', 'lorc/spiky-explosion', 'lorc/trophy', 'lorc/archery-target', 'delapouite/two-coins', 'lorc/light-bulb', 'delapouite/robot-antennas', 'delapouite/character', 'delapouite/info', 'delapouite/shop',
 ];
 
 const symbols = [];

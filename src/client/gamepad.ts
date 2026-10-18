@@ -4,7 +4,7 @@
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import type { Vec } from '../shared/vec.ts';
-import { SHEET_KEY, setPadMode, slotSpell } from './keys.ts';
+import { SHEET_KEY, SHOP_KEY, setPadMode, slotSpell } from './keys.ts';
 
 // índices do mapeamento padrão (Xbox: A B X Y; PlayStation: ✕ ○ □ △ nas mesmas posições)
 export const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 } as const;
@@ -259,6 +259,7 @@ function play(g: PadGame, hit: (b: number) => boolean, mv: Vec, aimS: Vec) {
     else g.cast(a as SpellId, at);
   }
   if (hit(BTN.R3)) g.center();
+  if (hit(BTN.DOWN)) key('keydown', SHOP_KEY); // D-pad ↓: abre e fecha a loja só para ver
   if (hit(BTN.START)) start();
   // morto ou só assistindo: ← → do D-pad trocam quem a câmera segue (com o placar aberto, trocam o período, como no teclado)
   if ($('.watching:not([hidden])')) {

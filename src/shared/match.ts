@@ -253,14 +253,18 @@ export function sellValue(p: { spells: Record<SpellId, number>; items: Record<It
   return Math.floor(total + 1e-9);
 }
 
-// vende a magia ou o item inteiro (todos os níveis, volta ao nível inicial); não é ganho de ouro, então fora das estatísticas
+// dá para vender: vale ouro, ou é a Bola de fogo (pedido do Fernando, 18/10: deixa de ser obrigatória; o nível 1 grátis vale 0,
+// mas vender libera a vaga das magias e a tecla; comprar de volta custa o preço normal, 0 no nível 1)
+export const canSell = (p: Parameters<typeof sellValue>[0], round: number, key: string) =>
+  sellValue(p, round, key) > 0 || (key === 'spell:fireball' && p.spells.fireball > 0);
+
+// vende a magia ou o item inteiro (magia vai a 0, item volta ao nível inicial); não é ganho de ouro, então fora das estatísticas
 export function sell(m: Match, id: string, key: string): boolean {
   const p = m.players.find((q) => q.id === id);
-  if (m.phase !== 'shop' || !p) return false;
+  if (m.phase !== 'shop' || !p || !canSell(p, m.round, key)) return false;
   const value = sellValue(p, m.round, key);
-  if (value === 0) return false;
   const [kind, what] = key.split(':');
-  if (kind === 'spell') p.spells[what as SpellId] = noSpells()[what as SpellId];
+  if (kind === 'spell') p.spells[what as SpellId] = 0;
   else p.items[what as ItemId] = startItems()[what as ItemId];
   p.gold += value;
   p.bought = p.bought.filter((b) => b.key !== key);

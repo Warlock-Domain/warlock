@@ -134,6 +134,8 @@ music/battle.mp3
     som desligado: delapouite/speaker-off.svg, Delapouite (http://delapouite.com)
     ajuda: sbed/help.svg, Sbed (http://opengameart.org/content/95-game-icons)
     trocar teclas: delapouite/keyboard.svg, Delapouite (http://delapouite.com)
+    informações das opções: delapouite/info.svg, Delapouite (http://delapouite.com)
+    loja no meio da rodada: delapouite/shop.svg, Delapouite (http://delapouite.com)
     abates: lorc/skull-crossed-bones.svg, Lorc (http://lorcblog.blogspot.com)
     dano: lorc/spiky-explosion.svg, Lorc (http://lorcblog.blogspot.com)
     vitórias e pódio: lorc/trophy.svg, Lorc (http://lorcblog.blogspot.com)

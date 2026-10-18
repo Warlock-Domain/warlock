@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { coachTip, type CoachState } from '../src/client/coach.ts';
 
-const base: CoachState = { phase: 'playing', round: 1, playingFor: 20, shrinkIn: 12, low: false, lava: false, alive: true, touch: false, fireKey: 'Q' };
+const base: CoachState = { phase: 'playing', round: 1, playingFor: 20, shrinkIn: 12, low: false, lava: false, alive: true, touch: false, fireKey: 'Q', fire: true };
 
 describe('modo treino: dicas', () => {
   it('teaches walking, then shooting with the current key, then stays quiet', () => {
@@ -25,5 +25,11 @@ describe('modo treino: dicas', () => {
 
   it('speaks of touching on a phone', () => {
     expect(coachTip({ ...base, playingFor: 8, touch: true })).toMatch(/Toque/);
+  });
+});
+
+describe('modo treino sem a Bola de fogo', () => {
+  it('não manda atirar a Bola de fogo de quem a vendeu', () => {
+    expect(coachTip({ ...base, playingFor: 8, fire: false })).toBeNull();
   });
 });

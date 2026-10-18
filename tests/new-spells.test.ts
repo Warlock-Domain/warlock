@@ -4,7 +4,7 @@ import { botBuy, botCmds } from '../src/shared/bots.ts';
 import { addPlayer, buy, newMatch, startMatch, undoBuy } from '../src/shared/match.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
 import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from '../src/shared/sim.ts';
-import { MAX_SPELLS, RUSH, SPELLS, noSpells, spellLevel, type SpellId } from '../src/shared/spells.ts';
+import { MAX_SPELLS, RUSH, SPELLS, WARPZONE, noSpells, spellLevel, type SpellId } from '../src/shared/spells.ts';
 import { dist, len, v } from '../src/shared/vec.ts';
 
 // mundo sem invulnerabilidade inicial; todos os magos com as magias dadas no nível 1
@@ -610,5 +610,12 @@ describe('Zona de dobra', () => {
     const view = decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']);
     expect(view.projectiles[0].kind).toBe('warpzone');
     expect(view.projectiles[0].vel.x).toBeCloseTo(spellLevel('warpzone', 1).radius, 1);
+  });
+
+  it('slows enemies walking inside it, not the caster', () => {
+    const w = world([[0, 0], [3, 0]], ['warpzone']);
+    run(w, 0.3, [cast('p0', 'warpzone', 3, 0), { id: 'p1', kind: 'move', to: v(3, 3) }, { id: 'p0', kind: 'move', to: v(0, 3) }]);
+    expect(w.wizards[1].speed).toBeCloseTo(w.wizards[1].baseSpeed * WARPZONE.wizMult, 5);
+    expect(w.wizards[0].speed).toBeCloseTo(w.wizards[0].baseSpeed, 5);
   });
 });
