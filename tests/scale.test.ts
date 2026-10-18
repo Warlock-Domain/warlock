@@ -9,8 +9,8 @@ import { len, v } from '../src/shared/vec.ts';
 
 // empurrão (m/s) por golpe nos níveis 1 e 7, medido na escala antiga
 const KNOCK_BEFORE: Partial<Record<SpellId, [number, number]>> = {
-  fireball: [4.529, 7.2464], lightning: [4.16668, 7.023832], homing: [3.26088, 6.05592], // ×0,9 no ciclo 1 de balanceamento (18/10); Bola de neve ×1,15 e Gêmeos ×1,08 também meteor: [4.69722, 7.25934], cluster: [1.387815, 2.144805],
-  boomerang: [4.30255, 6.51529], thrust: [3.882, 6.2112], bouncer: [4.19256, 7.91928], drain: [0.7764, 1.5528], snowball: [2.67858, 8.03574],
+  fireball: [4.529, 7.2464], lightning: [4.16668, 7.023832], homing: [3.26088 * 0.34 / 0.72, 6.05592 * 0.34 / 0.72], // balanceamento (18/10): Míssil ×0,72 → ×0,34; Bola de neve (45 + 35 nv) ×1,3; Gêmeos ×1,08 meteor: [4.69722, 7.25934], cluster: [1.387815, 2.144805],
+  boomerang: [4.30255, 6.51529], thrust: [3.882, 6.2112], bouncer: [4.19256, 7.91928], drain: [0.7764, 1.5528], snowball: [2.67858 * 1.3 / 1.15, (8.03574 * (255 * 1.3)) / (135 * 1.15)],
   twin: [3.074544, 5.031072], recharge: [3.882, 6.5994], windwalk: [3.4938, 5.823], splitter: [1.941, 3.882],
 };
 
@@ -64,8 +64,8 @@ describe('escala ×10 (vida 1000): o jogo continua igual', () => {
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: z.pos }]);
     for (let i = 0; i < 120 && !w.events.some((e) => e.k === 'hit'); i++) stepWorld(w, []);
     stepWorld(w, []);
-    // escala antiga: metade da Bola de fogo (3,5) × 15 unidades/s por ponto
-    expect(z.speed - WIZ_SPEED - RUSH.bonus).toBeCloseTo(3.5 * 15 * UNIT, 9);
+    // escala antiga: metade da Bola de fogo (3,5) × 15 unidades/s por ponto, até o que a Investida absorve (12,5 desde o balanceamento de 18/10)
+    expect(z.speed - WIZ_SPEED - RUSH.bonus).toBeCloseTo(Math.min(35, SPELLS.rush.levels[0].absorb) * 1.5 * UNIT, 9);
   });
 
   it('a second of lava adds the same share of damage taken (5% of the max life)', () => {

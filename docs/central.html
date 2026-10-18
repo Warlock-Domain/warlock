@@ -125,6 +125,7 @@ figcaption { font-size: 14.5px; color: var(--muted); max-width: 68ch; }
     <ol>
       <li><a href="#fila">Fila de pedidos (ao vivo)</a></li>
       <li><a href="#decidindo">Agora estamos decidindo</a></li>
+      <li><a href="#grill">Grill: o que ainda falta</a></li>
       <li><a href="#fazendo">O que estou fazendo</a></li>
       <li><a href="#pedidos">Pedidos</a></li>
       <li><a href="#assets">Assets do jogo</a></li>
@@ -163,18 +164,90 @@ figcaption { font-size: 14.5px; color: var(--muted); max-width: 68ch; }
   <h2>Agora estamos decidindo</h2>
   <div class="decide">
     <div class="q">
-      <div class="ask">Como balancear as magias daqui para frente?</div>
-      <p class="why"><b>Contexto (medido nesta madrugada, 6 ciclos de simulação, cerca de 1,4 milhão de rodadas só de bots; relatórios em <code>balance/ciclo2</code> a <code>ciclo6</code>):</b> mudar dano e recarga das magias quase não muda quem vence entre bots. Exemplos: Elo com dano ×1,5 e recarga ×0,8 foi de 0,75 para 0,76; Míssil teleguiado com dano ×0,72 ficou em 1,34 → 1,39; Raio com recarga 14% maior foi de 1,31 para 1,29; Investida com avanço 60 → 40 foi de 1,30 para 1,37. Conferi que o código novo estava valendo (dano por lançamento do Elo subiu ×14,8, igual a ×10 da escala × 1,5). O que mexeu foi o jeito de jogar do bot: o Escudo caiu de 1,89 para 1,27 só mudando a reação do bot. Já os itens respondem aos números (Botas de lava nível 2: 1,35 → 1,22).</p>
-      <p class="why"><b>Por que importa:</b> o simulador mede a "inteligência" de cada bot com cada magia, não só a força da magia. Exemplo do dia a dia: um carro mais rápido não ganha a corrida se o piloto não sabe fazer a curva. Ajustar o carro pelo piloto ruim deixa o carro errado para o piloto bom (vocês).</p>
-      <p class="why"><b>Sinais de que bot e gente diferem:</b> Raio acerta 69% nos bots e 13% nas partidas de vocês (/api/telemetry, só 77 rodadas reais, 320 lançamentos: amostra pequena); você pediu para enfraquecer o Agarrar (17/10), e para os bots ele é fraco (0,83).</p>
-      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como funciona</th><th>Prós</th><th>Contras</th></tr></thead><tbody>
-        <tr><td><b>Ensinar os bots e confirmar com partidas reais (recomendada)</b></td><td>Melhorar o jogo de cada bot onde ele é fraco (desviar do Míssil, combos de Elo e Agarrar com Teleporte e Bola de fogo) e mudar números só quando as partidas de vocês confirmarem</td><td>Não estraga o jogo de verdade; bots melhores também deixam o modo treino mais divertido</td><td>Mais lento; precisa de mais partidas reais (hoje 77 rodadas)</td></tr>
-        <tr><td>Mudanças grandes nos números até o simulador fechar a faixa</td><td>Ex.: Raio com recarga ×2, Elo com dano ×3, até tudo ficar entre 0,85 e 1,15 nos bots</td><td>Rápido: cada teste leva 10 minutos</td><td>Para gente, Raio e Míssil ficariam fracos demais e Agarrar forte demais</td></tr>
-        <tr><td>Deixar as magias como estão</td><td>Fica o original do Warlock Brawl com os ajustes do ciclo 1; só os itens seguem sendo balanceados</td><td>Fiel ao original, que já foi testado por anos</td><td>Investida, Míssil e Raio podem dominar entre jogadores fracos</td></tr>
-      </tbody></table></div>
-      <p class="why"><b>Recomendação:</b> ensinar os bots e confirmar com partidas reais. Os números do original são de um jogo testado por anos; o desvio que vemos vem principalmente dos bots.</p>
-      <p class="why"><b>Já feito nessa linha (no ar):</b> bots desviam do Míssil pela distância, derrubam o Míssil com Raio e Bola de fogo, usam Elo saindo de lado (antes eram atropelados pelo puxado e jogados na lava), Pilar para segurar quando deslizam, Gravidade e Bola de neve para arrastar à lava. Efeito pequeno (medido, 88 mil rodadas): Elo 0,78 → 0,82, Pilar 0,89 → 0,93, Míssil 1,37 → 1,34; Agarrar 0,84 → 0,81 (perto do ruído de ±0,03).</p>
-      <p class="why"><b>Achado que depende de você (números):</b> em 5 magias subir de nível não ajuda ou piora, mesmo com o viés de quem tem mais ouro (que costuma subir a taxa nos níveis altos, como o Míssil: 1,18 no nível 1, 1,62 no 7). Agarrar 0,85 → 0,66, Magnetizar 0,88 → 0,78, Elo 0,81 → 0,75, Bola de neve 0,93 → 0,83, Zona de dobra 0,89 → 0,85. No Agarrar o motivo é claro: quem está preso leva 67% menos empurrão (original do Warlock Brawl) e o nível só aumenta o tempo preso, então protege o inimigo. Sugestão para quando escolher: o nível do Agarrar dar menos recarga em vez de mais tempo preso, e as outras quatro ganharem mais por nível.</p>
+      <div class="ask">Grill, rodada 1: dificuldade dos bots, arenas novas, Escudo e perfil com ranking</div>
+      <p class="why"><b>Por que importa:</b> são as 4 mudanças que mais mexem em quanto o jogo diverte e faz voltar. Exemplo do dia a dia: futebol com o campo sempre igual e o adversário sempre igual cansa; variar o campo e o nível do time adversário mantém a graça.</p>
+      <p class="why"><b>Contexto, opções, prós e contras:</b> perguntas 1 a 4 da seção <a href="#grill">Grill</a>. Já decidido hoje: magias balanceadas pelos números do simulador e tabelas de nível das 5 magias (sua escolha às 8h20).</p>
+      <p class="why"><b>Recomendação:</b> três níveis de bot; 2 ou 3 arenas sorteadas; Escudo no meio-termo (1,0 s); perfil por apelido com ranking da semana.</p>
+    </div>
+  </div>
+</section>
+
+<section id="grill">
+  <div class="eyebrow">Grill de 18/10</div>
+  <h2>Grill: o que ainda falta</h2>
+  <p class="why">Ideias que saíram dos testes e das simulações desta madrugada e ainda não estão no jogo. Cada uma tem o que medi (com a origem), as opções e a minha recomendação. Pergunto em rodadas de até 4, no chat.</p>
+  <div class="decide">
+    <div class="q" id="g1">
+      <div class="ask">1. Bots com dificuldade (fácil, normal, difícil)?</div>
+      <p class="why"><b>Contexto:</b> hoje todo bot joga igual. Nesta madrugada eles aprenderam a desviar e emendar golpes (commit 16d7cdb), então ficaram mais duros para quem está começando no modo treino. A reação do escudo do bot já é um número (15% de chance), assim como a mira e a frequência de magias (medido no código, <code>src/shared/bots.ts</code>).</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Três níveis na sala (Recomendada)</b></td><td>Fácil: mira solta, reage pouco; Normal: o de hoje; Difícil: reage sempre e emenda tudo</td><td>Treino bom para iniciante e desafio para vocês</td><td>Mais uma opção na sala</td></tr><tr><td><b>Só o de hoje</b></td><td>Nada muda</td><td>Simples</td><td>Iniciante apanha muito no treino</td></tr><tr><td><b>Dificuldade automática</b></td><td>O bot fica mais fraco se você perde e mais forte se ganha</td><td>Sem escolher nada</td><td>Menos previsível; mais difícil de acertar</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> três níveis na sala, com Normal como padrão.</p>
+    </div>
+    <div class="q" id="g2">
+      <div class="ask">2. Arenas com formatos diferentes?</div>
+      <p class="why"><b>Contexto:</b> a arena hoje é sempre um círculo que encolhe. Num círculo a reta entre dois pontos nunca passa pela lava, então o Elo e a Gravidade quase nunca matam arrastando (dedução da geometria; o Elo foi a magia mais fraca em todos os ciclos: 0,75 a 0,89, medido). O Warlock original tinha mapas diferentes.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>2 ou 3 arenas novas, sorteadas (Recomendada)</b></td><td>Ex.: duas ilhas com ponte, anel com lava no meio, cruz</td><td>Táticas novas; Elo e Gravidade ganham uso; mais variedade</td><td>Trabalho de desenho e de bots; rebalancear</td></tr><tr><td><b>Só obstáculos diferentes</b></td><td>Mesmo círculo, conjuntos de obstáculos por arena</td><td>Barato</td><td>Muda pouco a jogabilidade</td></tr><tr><td><b>Manter o círculo</b></td><td>Nada muda</td><td>Fiel ao Warlock Brawl</td><td>Partidas parecidas entre si</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> 2 ou 3 arenas novas sorteadas por rodada, com votação para fixar uma.</p>
+    </div>
+    <div class="q" id="g3">
+      <div class="ask">3. O Escudo ficou com 0,8 s e recarga ×2,1: manter?</div>
+      <p class="why"><b>Contexto:</b> pelo método que você escolheu (números pelo simulador), o Escudo precisou de bolha 1,2 → 0,8 s e recarga 2,1× maior para sair de 1,28 e chegar perto de 1,15 (ciclos num1 a num4 de 18/10, medido). Para os amigos ele dava 1,12 (telemetria de 17/10), e 0,8 s é uma janela curta para reagir com o mouse.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Manter o do simulador</b></td><td>0,8 s e recarga ×2,1</td><td>Segue o método escolhido</td><td>Pode ficar difícil de acertar para gente</td></tr><tr><td><b>Meio-termo (Recomendada)</b></td><td>1,0 s e recarga ×1,8 (dava 1,21 nos bots)</td><td>Mais justo para humanos; ainda bem mais fraco que antes</td><td>Fica um pouco acima da faixa nos bots</td></tr><tr><td><b>Voltar ao original</b></td><td>1,2 s e recarga normal</td><td>O que os amigos acharam justo (1,12)</td><td>Nos bots fica 1,28</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> meio-termo, e confirmar com as partidas de vocês.</p>
+    </div>
+    <div class="q" id="g4">
+      <div class="ask">4. Perfil e ranking que ficam entre as partidas?</div>
+      <p class="why"><b>Contexto:</b> hoje nada fica salvo: o apelido fica no navegador e as vitórias somem quando a sala fecha. Ter um histórico dá motivo para voltar. O servidor já soma dados por rodada (<code>src/worker/lobby.ts</code>).</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Perfil por apelido + ranking da semana (Recomendada)</b></td><td>Vitórias, abates, magia favorita; tabela dos amigos</td><td>Dá vontade de voltar; usa o que já existe</td><td>Outro pode usar o mesmo apelido (sem senha)</td></tr><tr><td><b>Conta com login (Google)</b></td><td>Perfil seguro</td><td>Ninguém usa seu nome</td><td>Login dá atrito e mais trabalho</td></tr><tr><td><b>Não ter</b></td><td>Nada muda</td><td>Simples</td><td>Sem motivo para voltar além da diversão</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> perfil por apelido com ranking da semana; login só se virar problema.</p>
+    </div>
+    <div class="q" id="g5">
+      <div class="ask">5. O Agarrar ainda piora ao subir de nível: mudar o efeito?</div>
+      <p class="why"><b>Contexto:</b> mesmo tirando a proteção (quem está preso levava 67% menos empurrão; agora 0%) e fixando o tempo preso, o Agarrar dá 0,93 no nível 1 e 0,80 no nível 7 (ciclo num3, medido). As outras magias sobem com o nível por causa do ouro a mais de quem ganha.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Nível aumenta alcance e velocidade do gancho (Recomendada)</b></td><td>Fica mais fácil acertar, sem prender mais tempo</td><td>Nível passa a ajudar de verdade</td><td>Mais um ciclo de simulação</td></tr><tr><td><b>Preso leva mais empurrão</b></td><td>Quem está preso fica vulnerável (+30%)</td><td>Combo forte</td><td>Pode ficar forte demais com a Bola de fogo</td></tr><tr><td><b>Deixar</b></td><td>Fica 0,92 no geral, dentro da faixa</td><td>Sem trabalho</td><td>Subir de nível segue sem sentido</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> nível aumenta alcance e velocidade do gancho.</p>
+    </div>
+    <div class="q" id="g6">
+      <div class="ask">6. Itens novos do catálogo: Cajado de fogo e Botas de vento?</div>
+      <p class="why"><b>Contexto:</b> os 15 itens estão entre 0,95 e 1,20 (ciclo num3, medido). O catálogo (<code>docs/itens-candidatos.md</code>, do Warlock CE) tem dois que dão escolhas novas: Cajado de fogo (a Bola de fogo queima mais a cada acerto seguido) e Botas de vento (+velocidade depois de 5 s sem combate).</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Os dois (Recomendada)</b></td><td>Cajado premia a mira; Botas de vento premiam o posicionamento</td><td>Mais caminhos de compra</td><td>Mais para balancear</td></tr><tr><td><b>Só o Cajado de fogo</b></td><td>Premia quem acerta</td><td>Identidade para quem joga de Bola de fogo</td><td>Menos variedade</td></tr><tr><td><b>Nenhum por enquanto</b></td><td>15 itens</td><td>Menos coisa para aprender</td><td>Menos variedade</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> os dois, medidos pelo simulador antes de publicar.</p>
+    </div>
+    <div class="q" id="g7">
+      <div class="ask">7. Mostrar o alcance da magia ao mirar?</div>
+      <p class="why"><b>Contexto:</b> nos bots o Raio acerta 69%; nas partidas de vocês, 13% (42 de 320, telemetria até 18/10, amostra pequena). Suspeita (dedução): vocês lançam fora do alcance (8 m) e o raio some sem acertar.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Círculo de alcance ao segurar a tecla (Recomendada)</b></td><td>Mostra até onde a magia vai, em todas as magias</td><td>Menos lançamento perdido; ajuda no celular também</td><td>Mais um elemento na tela</td></tr><tr><td><b>Só no Raio</b></td><td>Linha até o alcance máximo</td><td>Resolve o caso medido</td><td>Diferente das outras magias</td></tr><tr><td><b>Nada</b></td><td>Nada muda</td><td>Sem trabalho</td><td>O Raio segue parecendo fraco para vocês</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> círculo de alcance para todas as magias, no PC e no celular.</p>
+    </div>
+    <div class="q" id="g8">
+      <div class="ask">8. Esconder a barra de magias enquanto você assiste morto?</div>
+      <p class="why"><b>Contexto:</b> a auditoria de hoje (<code>docs/ux-auditoria-2.md</code>) apontou que a barra fica na tela quando você morre e está assistindo; nesse momento ela não faz nada.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Esconder e mostrar quem está vivo (Recomendada)</b></td><td>A barra some; aparece quem está vivo e a vida de cada um</td><td>Tela limpa e útil</td><td>Você não vê as recargas</td></tr><tr><td><b>Deixar</b></td><td>Nada muda</td><td>Você vê as recargas</td><td>Ocupa espaço sem uso</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> esconder e mostrar quem está vivo.</p>
+    </div>
+    <div class="q" id="g9">
+      <div class="ask">9. Celular deitado e instalar como app?</div>
+      <p class="why"><b>Contexto:</b> o celular foi conferido só em pé (393×852); deitado não foi testado (auditorias de hoje). Instalar como app (PWA) dá tela cheia, sem a barra do navegador.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Os dois (Recomendada)</b></td><td>Layout para deitado + ícone na tela inicial</td><td>Mais área de jogo; parece app</td><td>Mais testes no celular</td></tr><tr><td><b>Só instalar como app</b></td><td>Tela cheia em pé</td><td>Barato</td><td>Deitado continua sem teste</td></tr><tr><td><b>Nenhum</b></td><td>Nada muda</td><td>Sem trabalho</td><td>Barra do navegador ocupa espaço</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> os dois.</p>
+    </div>
+    <div class="q" id="g10">
+      <div class="ask">10. Música que acompanha a partida?</div>
+      <p class="why"><b>Contexto:</b> hoje toca uma música fixa (Determined Pursuit, CC0). Na morte súbita e no mano a mano final o clima poderia subir.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Camada tensa na morte súbita e no mano a mano (Recomendada)</b></td><td>Troca de faixa ou batida extra no fim da rodada</td><td>Mais emoção no fim</td><td>Precisa de faixa livre (CC0)</td></tr><tr><td><b>Deixar</b></td><td>Nada muda</td><td>Sem trabalho</td><td>Clima igual do começo ao fim</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> camada tensa no fim da rodada, com faixa CC0.</p>
+    </div>
+    <div class="q" id="g11">
+      <div class="ask">11. Telemetria: zerar os dados antigos?</div>
+      <p class="why"><b>Contexto:</b> a telemetria mistura rodadas de antes da escala ×10 (dano 7) com as de depois (dano 70), então os números de dano reais estão misturados (anotado em 18/10). São só 77 rodadas.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Zerar e recomeçar (Recomendada)</b></td><td>Guarda uma cópia e começa do zero com a versão de hoje</td><td>Números confiáveis para o balanceamento</td><td>Perde 77 rodadas (pouco)</td></tr><tr><td><b>Separar por versão</b></td><td>Cada registro com a versão do jogo</td><td>Não perde nada</td><td>Mais trabalho</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> zerar guardando uma cópia.</p>
+    </div>
+    <div class="q" id="g12">
+      <div class="ask">12. GitHub e prints</div>
+      <p class="why"><b>Contexto:</b> o repositório público está 9 commits atrás (push só com o seu pedido). Os prints de teste em <code>docs/prints</code> somam 130 MB e não estão no git.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Push agora; prints para a quarentena (Recomendada)</b></td><td>GitHub em dia; prints vão para D:\_PARA-APAGAR para você apagar</td><td>Repositório leve e atualizado</td><td>Prints saem da pasta do projeto</td></tr><tr><td><b>Push e prints no git</b></td><td>Tudo no GitHub</td><td>Histórico visual</td><td>Repositório pesado</td></tr><tr><td><b>Não mexer</b></td><td>Nada muda</td><td>Sem trabalho</td><td>GitHub desatualizado</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> push agora e prints na quarentena.</p>
     </div>
   </div>
 </section>

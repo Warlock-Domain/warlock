@@ -140,7 +140,7 @@ describe('Investida', () => {
     const fb = spellLevel('fireball', 1);
     run(w, 1.2, [cast('p0', 'fireball', z.pos.x, z.pos.y)]);
     expect(z.speed).toBeGreaterThan(WIZ_SPEED + RUSH.bonus);
-    expect(HP_MAX - z.hp).toBeCloseTo(fb.dmg * (1 - RUSH.share), -1); // absorveu metade do golpe
+    expect(HP_MAX - z.hp).toBeCloseTo(fb.dmg - Math.min(spellLevel('rush', 1).absorb, fb.dmg * RUSH.share), -1); // absorveu até metade do golpe
   });
 
   it('the dash damages whoever it touches, once', () => {

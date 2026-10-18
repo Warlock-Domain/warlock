@@ -22,68 +22,68 @@ const steps = (from: number, by: number) => Array.from({ length: MAX_SPELL_LEVEL
 
 export const SPELLS: Record<SpellId, Spell> = {
   fireball: { key: 'Q', name: 'Bola de fogo', cost: 0, up: [7, 7, 7, 7, 7, 7], levels: [70, 77, 84, 91, 98, 105, 112].map((d) => L({ cd: 4.8, dmg: d, speed: 1000 * UNIT, range: 1000 * UNIT })) },
-  lightning: { key: 'W', name: 'Raio', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 15.5, 15, 14.5, 14, 13.5, 13], [70, 78, 86, 94, 102, 110, 118]).map(([cd, d]) => L({ cd: Math.round(cd * 8) / 10, dmg: d, kbf: 0.92, range: 800 * UNIT })) /* ciclo 1 (18/10): recarga ×0,7 → ×0,8 (1,31× o esperado) */ }, // balanceamento de 17/10: recarga ×0,7 e alcance 600 → 800 (acertava 21%)
-  homing: { key: 'E', name: 'Míssil teleguiado', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [70, 80, 90, 100, 110, 120, 130]).map(([cd, d]) => L({ cd, dmg: d * 0.72, speed: 1000 * UNIT, duration: 4.5 })) /* ciclo 1: dano ×0,8 → ×0,72 (1,34×) */ },
-  shield: { key: 'R', name: 'Escudo', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [14, 13, 12, 11, 10, 9, 8].map((cd, i) => L({ cd, duration: 1.2, radius: (200 + 10 * i) * UNIT })) }, // bolha de 200 a 260 (abil.txt do original)
+  lightning: { key: 'W', name: 'Raio', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 15.5, 15, 14.5, 14, 13.5, 13], [70, 78, 86, 94, 102, 110, 118]).map(([cd, d]) => L({ cd: Math.round(cd * 14) / 10, dmg: d, kbf: 0.92, range: 800 * UNIT })) /* números pelo simulador (18/10, escolha do Fernando): recarga ×1,4 (1,32 → 1,13) */ }, // balanceamento de 17/10: recarga ×0,7 e alcance 600 → 800 (acertava 21%)
+  homing: { key: 'E', name: 'Míssil teleguiado', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [70, 80, 90, 100, 110, 120, 130]).map(([cd, d]) => L({ cd, dmg: d * 0.34, speed: 1000 * UNIT, duration: 4.5 })) /* números pelo simulador (18/10): dano ×0,34 e curva 3 → 2,5 rad/s (1,34 → 1,13) */ },
+  shield: { key: 'R', name: 'Escudo', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [14, 13, 12, 11, 10, 9, 8].map((cd, i) => L({ cd: cd * 2.1, duration: 0.8, radius: (200 + 10 * i) * UNIT })) }, // 18/10 pelo simulador: bolha 1,2 → 0,8 s e recarga ×2,1 (1,28 → 1,15) // bolha de 200 a 260 (abil.txt do original)
   teleport: { key: 'F', name: 'Teleporte', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([16, 13.5, 11.5, 10, 9, 8, 7], [770, 840, 910, 980, 1050, 1120, 1190]).map(([cd, r]) => L({ cd, range: r * UNIT })) },
   // as cinco magias seguintes: npc_abilities_custom.txt, spells/*.lua e shop/warlock_shop_data.js do Warlock Brawl
   // troca: projétil de 1983 u/s que vive 0,4706 s (alcance 933 u)
   swap: { key: 'D', name: 'Troca', cost: 11, up: [6, 7, 8, 9, 10, 11], levels: [15.8, 13.3, 11.3, 9.8, 8.8, 7.8, 7].map((cd) => L({ cd, speed: 1983 * UNIT, range: 933 * UNIT })) },
   // agarrar: projétil de 1000 u/s por 1,1 s; duration = tempo preso
   // Agarrar prende metade do tempo do original (nerf pedido pelo Fernando, 17/10)
-  grip: { key: 'G', name: 'Agarrar', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([24, 20, 17, 15, 13, 12, 10.5], [4.5, 4.75, 5, 5.25, 5.5, 5.75, 6]).map(([cd, duration]) => L({ cd: cd * 0.8, duration: duration / 2, speed: 1000 * UNIT, range: 1100 * UNIT })) /* ciclo 1: recarga ×0,8 (0,83×) */ },
+  grip: { key: 'G', name: 'Agarrar', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([24, 19, 15, 12, 10, 8.5, 7], [4.5, 4.5, 4.5, 4.5, 4.5, 4.5, 4.5]).map(([cd, duration]) => L({ cd: cd * 0.8, duration: duration / 2, speed: 1000 * UNIT, range: 1100 * UNIT })) /* 18/10: tempo preso fixo, nível só baixa a recarga, preso sem proteção de empurrão (0,81 → 0,91) */ },
   // meteoro: dano de 40 na borda (aqui 60) até o máximo no centro; empurrão 0,66
   meteor: { key: 'V', name: 'Meteoro', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([20, 19.5, 19, 18.5, 18, 17.5, 17], [110, 120, 130, 140, 150, 160, 170]).map(([cd, d], i) => L({ cd: cd * 0.9, dmg: d, dmgMin: 60, kbf: 0.66, /* ciclo 1: recarga ×0,9 (0,94×) */ /* borda 40 → 60 em 17/10 */ radius: [225, 240, 255, 269, 282, 294, 304][i] * UNIT, range: 1000 * UNIT })) },
   // investida: absorve até `absorb` de dano (metade de cada golpe) e vira velocidade
-  rush: { key: 'C', name: 'Investida', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([21, 20, 19, 18, 17, 16, 15], [6, 6.5, 7, 7.5, 8, 8.5, 9]).map(([cd, duration], i) => L({ cd, duration, absorb: 50 + 20 * i })) },
+  rush: { key: 'C', name: 'Investida', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([21, 20, 19, 18, 17, 16, 15], [6, 6.5, 7, 7.5, 8, 8.5, 9]).map(([cd, duration], i) => L({ cd: cd * 1.2, duration, absorb: (50 + 20 * i) * 0.25 })) }, // 18/10: absorve ¼ e recarga ×1,2; avanço 40 → 20 (1,36 → 1,13)
   // rajada: 4 projéteis em leque de 844 u/s e 672 u de alcance; empurrão 0,65
   cluster: { key: 'T', name: 'Rajada', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([15.5, 14.75, 14, 13.25, 12.5, 11.75, 11], [33, 36, 39, 42, 45, 48, 51]).map(([cd, d]) => L({ cd, dmg: d, kbf: 0.65, speed: 844 * UNIT, range: 672 * UNIT })) },
   // as cinco do Warlock Brawl de 17/10 (decisão do Fernando): npc_abilities_custom.txt, base/shop.lua, spells/, projectiles/ e modifiers/
   // bumerangue: curva até o ponto (300 a 800 u) e volta ao dono; empurrão 0,95
   boomerang: { key: 'B', name: 'Bumerangue', cost: 11, up: [7, 8, 9, 10, 11, 12], levels: zip([16, 13.9, 12.5, 11.7, 11, 10.3, 9.6], [70, 76, 82, 88, 94, 100, 106]).map(([cd, d]) => L({ cd, dmg: d, kbf: 0.95, speed: 1500 * UNIT, range: 800 * UNIT })) },
   // estocada: o mago dispara até 900 u a 1300 u/s; dano cheio só a 89% da velocidade máxima ou mais; empurrão 1,2
-  thrust: { key: 'X', name: 'Estocada', cost: 11, up: [6, 7, 8, 9, 10, 11], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [50, 55, 60, 65, 70, 75, 80]).map(([cd, d]) => L({ cd, dmg: d, kbf: 1.2, speed: 1300 * UNIT, range: 900 * UNIT })) },
+  thrust: { key: 'X', name: 'Estocada', cost: 11, up: [6, 7, 8, 9, 10, 11], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [50, 55, 60, 65, 70, 75, 80]).map(([cd, d]) => L({ cd: cd * 1.15 /* 18/10: 1,16 → 1,12 */, dmg: d, kbf: 1.2, speed: 1300 * UNIT, range: 900 * UNIT })) },
   // gravidade: orbe de 450 u/s por 900 u; dmg = dano por segundo em quem está a 250 u; pull = força em 550 u (sem empurrão)
-  gravity: { key: 'H', name: 'Gravidade', cost: 12, up: [7, 8, 9, 10, 11, 12], levels: zip([21, 20.5, 20, 19.5, 19, 18.5, 18], [20, 33.33, 46.67, 60, 73.33, 86.67, 100]).map(([cd, d], i) => L({ cd, dmg: d * 1.25, kbf: 0, speed: 450 * UNIT, range: 900 * UNIT, radius: 250 * UNIT, /* ciclo 1: dano por segundo ×1,25 (0,88×) */ pull: (500 + 30 * i) * UNIT })) },
+  gravity: { key: 'H', name: 'Gravidade', cost: 12, up: [7, 8, 9, 10, 11, 12], levels: zip([21, 20.5, 20, 19.5, 19, 18.5, 18], [20, 33.33, 46.67, 60, 73.33, 86.67, 100]).map(([cd, d], i) => L({ cd, dmg: d * 2, kbf: 0, speed: 450 * UNIT, range: 900 * UNIT, radius: 250 * UNIT, /* 18/10: dano por segundo ×2 (0,89 → 0,97) */ pull: (500 + 30 * i) * UNIT })) },
   // pilar de pedra: obstáculo de 4 s a até 650..1100 u; recarga = AbilityCooldown (o cooldown2 do mesmo arquivo diz 24..12 e só aparece na dica)
-  rockpillar: { key: 'Z', name: 'Pilar de pedra', cost: 13, up: [5, 6, 7, 8, 9, 10], levels: zip([26, 24, 22, 20, 18, 16, 14], [650, 725, 800, 875, 950, 1025, 1100]).map(([cd, r]) => L({ cd: cd * 0.85, duration: 5, range: r * UNIT })) /* ciclo 1: recarga ×0,85 e 4 → 5 s (0,86×) */ },
+  rockpillar: { key: 'Z', name: 'Pilar de pedra', cost: 13, up: [5, 6, 7, 8, 9, 10], levels: zip([26, 24, 22, 20, 18, 16, 14], [650, 725, 800, 875, 950, 1025, 1100]).map(([cd, r]) => L({ cd: cd * 0.7, duration: 5, range: r * UNIT })) /* 18/10: recarga ×0,7 e 5 s (0,86 → 0,97) */ },
   // ricochete: 900 u/s, vive 1 s e renova a cada mago tocado; perde 30% a cada inimigo acertado; empurrão 1,2
   bouncer: { key: 'A', name: 'Ricochete', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([19, 18, 17, 16, 15, 14, 13], [54, 62, 70, 78, 86, 94, 102]).map(([cd, d]) => L({ cd, dmg: d, kbf: 1.2, speed: 900 * UNIT, range: 900 * UNIT })) },
   // as dez restantes do Warlock Brawl (dono do jogo, 17/10): npc_abilities_custom.txt, base/shop.lua, spells/, projectiles/ e modifiers/
   // drenar: 700 u/s até o ponto (máx. 850 u), depois vira para o mago mais perto; duration = lentidão no inimigo e pressa no aliado; empurrão 0,2
   drain: { key: 'N', name: 'Drenar', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(22, -1).map((cd, i) => L({ cd, dmg: 60 + 10 * i, kbf: 0.2, speed: 700 * UNIT, range: 850 * UNIT, duration: 4 + i })) },
   // bola de neve: 400 u/s por 575 u; dmg = explosão no centro (damage_max; 0 na borda do raio de 200 u; empurrão 0,8); dot = damage, por segundo encostado
-  snowball: { key: 'O', name: 'Bola de neve', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(19, -1).map((cd, i) => L({ cd, dmg: (45 + 15 * i) * 1.15, kbf: 0.8, dot: 30 + 5 * i, /* ciclo 1: explosão ×1,15 (0,91×) */ speed: 400 * UNIT, range: 575 * UNIT, radius: 200 * UNIT })) },
+  snowball: { key: 'O', name: 'Bola de neve', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(19, -1).map((cd, i) => L({ cd, dmg: (45 + 35 * i) * 1.3, kbf: 0.8, dot: 30 + 10 * i, /* 18/10: explosão ×1,3, +35 e +10 de lentidão por nível (0,91 → 0,96) */ speed: 400 * UNIT, range: 575 * UNIT, radius: 200 * UNIT })) },
   // gêmeos: dois projéteis de 1000 u/s em meia elipse até o ponto (máx. 800 u)
   twin: { key: 'J', name: 'Gêmeos', cost: 12, up: [7, 8, 9, 10, 11, 12], levels: zip([16, 13.9, 12.5, 11.7, 11, 10.3, 9.6], [44, 48, 52, 56, 62, 66, 72]).map(([cd, d]) => L({ cd, dmg: d * 1.08, speed: 1000 * UNIT, range: 800 * UNIT })) }, // ciclo 1: dano ×1,08 (0,94×)
   // magnetizar: projétil de 800 u/s por 1,2 s (960 u); duration = tempo magnetizado
-  magnetize: { key: 'M', name: 'Magnetizar', cost: 14, up: [5, 6, 7, 8, 9, 10], levels: steps(22, -1).map((cd, i) => L({ cd, duration: (3.5 + 0.5 * i) * 1.25, speed: 800 * UNIT, range: 960 * UNIT })) /* ciclo 1: duração ×1,25 (0,85×) */ },
+  magnetize: { key: 'M', name: 'Magnetizar', cost: 14, up: [5, 6, 7, 8, 9, 10], levels: steps(22, -1).map((cd, i) => L({ cd, duration: (3.5 + 1.5 * i) * 1.25, speed: 800 * UNIT, range: 960 * UNIT })) /* 18/10: +1,5 s por nível (era +0,5; 0,88 → 0,92) */ },
   // recarga: 900 u/s por 1 s; +10 de dano por acerto seguido (RECHARGE)
   recharge: { key: 'K', name: 'Recarga', cost: 13, up: [6, 7, 8, 9, 10, 11], levels: zip([23.5, 22, 21, 20.5, 20, 19.5, 19], [60, 67, 74, 81, 88, 95, 102]).map(([cd, d]) => L({ cd, dmg: d, speed: 900 * UNIT, range: 900 * UNIT })) },
   // alteração: por 2 s, troca de lugar com o primeiro projétil inimigo que entrar na bolha de 120 u indo para o mago
   alteration: { key: 'L', name: 'Alteração', cost: 11, up: [5, 6, 7, 8, 9, 10], levels: steps(19, -1.5).map((cd) => L({ cd, duration: 2, radius: 120 * UNIT })) },
   // elo: 950 u/s por 860 u e volta; preso, puxa a 1550 u/s²; dmg = dano por segundo no inimigo (sem empurrão).
   // AbilityCooldown do original tem só 6 valores (17 a 7): o nível 7 repete o 7, como o Dota faz
-  link: { key: 'U', name: 'Elo', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([17, 15, 13, 11, 9, 7, 7], [12, 20, 28, 36, 44, 52, 60]).map(([cd, d]) => L({ cd: cd * 0.8, dmg: d * 1.5, kbf: 0, speed: 950 * UNIT, range: 860 * UNIT, pull: 1550 * UNIT })) /* ciclo 1: recarga ×0,8 e dano ×1,5 (0,75×) */ },
+  link: { key: 'U', name: 'Elo', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([17, 15, 13, 11, 9, 7, 7], [12, 20, 28, 36, 44, 52, 60]).map(([cd, d]) => L({ cd: cd * 0.8, dmg: d * 5, kbf: 0, speed: 950 * UNIT, range: 860 * UNIT, pull: 1550 * 1.4 * UNIT })) /* 18/10: dano ×5 e puxada ×1,4 (0,76 → 0,91) */ },
   // caminhada no vento: 2,6 s invisível e +200 u/s; o primeiro inimigo encostado leva o dano (empurrão normal)
   windwalk: { key: 'I', name: 'Caminhada no vento', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([29, 26, 23.5, 21, 19.5, 18.5, 17.5], [54, 60, 66, 72, 78, 84, 90]).map(([cd, d]) => L({ cd, dmg: d, duration: 2.6 })) },
   // divisor: 700 u/s por até 1 s (ou até o ponto); dmg = dano de cada um dos 8 filhotes
   splitter: { key: 'P', name: 'Divisor', cost: 15, up: [7, 8, 9, 10, 11, 12], levels: steps(24, -1).map((cd, i) => L({ cd, dmg: 30 + 5 * i, speed: 700 * UNIT, range: 700 * UNIT })) },
   // zona de dobra: esfera de 4,5 s a até 700 u; scale = tempo dos projéteis inimigos dentro dela
-  warpzone: { key: '', name: 'Zona de dobra', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([23, 21, 20, 19, 18, 17, 16], steps(0.4, -0.04)).map(([cd, scale], i) => L({ cd: cd * 0.85, duration: 4.5, scale, /* ciclo 1: recarga ×0,85 (0,87×) */ radius: (200 + 10 * i) * UNIT, range: 700 * UNIT })) },
+  warpzone: { key: '', name: 'Zona de dobra', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([23, 21, 20, 19, 18, 17, 16], steps(0.4, -0.04)).map(([cd, scale], i) => L({ cd: cd * 0.7, duration: 4.5, scale, /* 18/10: recarga ×0,7 e raio +20 por nível (0,90 → 0,95) */ radius: (200 + 20 * i) * UNIT, range: 700 * UNIT })) },
 };
 
 // agarrar: empurrão recebido −67% e cada magia lançada preso soma 5 ao dano acumulado (gripmodifier.lua)
-export const GRIP = { kbCut: 0.67, castPenalty: 5 };
+export const GRIP = { kbCut: 0, castPenalty: 5 };
 // meteoro: 0,55 s parado no ar + 0,60 s caindo (meteor.lua)
 export const METEOR_DELAY = 1.15;
 // investida: +35 u/s ao ativar; cada ponto absorvido soma 1,5 u/s (rushmodifier.lua)
 // avanço: 3 m em 0,2 s na direção do mouse (não existe no original; pedido do Fernando, 17/10: "dash não funciona")
-export const RUSH = { bonus: 35 * UNIT, perHp: 1.5 * UNIT, share: 0.5, dash: 3, dashTime: 0.2, dashDmg: 40 }; // ciclo 1 (18/10): dano do avanço 60 → 40 (Investida 1,30×) // dashDmg: dano em quem o avanço encostar (pedido do Fernando, 17/10)
+export const RUSH = { bonus: 35 * UNIT, perHp: 1.5 * UNIT, share: 0.5, dash: 3, dashTime: 0.2, dashDmg: 20 }; // ciclo 1 (18/10): dano do avanço 60 → 40 (Investida 1,30×) // dashDmg: dano em quem o avanço encostar (pedido do Fernando, 17/10)
 // rajada: ângulos do leque em radianos (cluster.lua)
 export const CLUSTER_FAN = [-0.18, -0.06, 0.06, 0.18];
 
-export const HOMING_TURN = 3; // rad/s
+export const HOMING_TURN = 2.5; // rad/s
 
 // bumerangue (boomerangprojectile.lua): sai a 1500 u/s com 300 u/s de lado, volta mirando o dono a 1000 u/s (virando 1000 u/s²);
 // ao bater em mago quica a 500 u/s (750 em obstáculo); some perto do dono; life: teto de segurança (não existe no original)
