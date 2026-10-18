@@ -97,6 +97,7 @@ export type PadGame = {
   useItem: (item: ItemId, at: Vec) => void;
   center: () => void;
   aim: (at: Vec | null) => void;
+  padRange: (aiming: SpellId | ItemId | null) => void; // círculo de alcance enquanto mira
 };
 let game: PadGame | null = null;
 export const setPadGame = (g: PadGame) => (game = g);
@@ -228,6 +229,7 @@ const MOVE_AHEAD = 2; // metros à frente do mago: o destino anda junto enquanto
 let wasMoving = false;
 let lastMove = 0;
 let lastAim: Vec = { x: 0, y: -0.7 };
+let lastCast: SpellId | ItemId = 'fireball'; // o círculo de alcance mostra a última magia lançada pelo controle
 let prevAim = 0;
 
 function play(g: PadGame, hit: (b: number) => boolean, mv: Vec, aimS: Vec) {
@@ -248,9 +250,11 @@ function play(g: PadGame, hit: (b: number) => boolean, mv: Vec, aimS: Vec) {
   prevAim = m;
   const at = me ? aimPoint(me, lastAim) : null;
   g.aim(padMode ? at : null);
+  g.padRange(padMode && m > 0 ? lastCast : null);
   for (const b of CAST_BUTTONS) {
     const a = hit(b) ? padAction(b) : undefined;
     if (!a || !at) continue;
+    lastCast = a as SpellId | ItemId;
     if ((ACTIVE_ITEMS as string[]).includes(a)) g.useItem(a as ItemId, at);
     else g.cast(a as SpellId, at);
   }
@@ -296,6 +300,7 @@ function tick(toast: (msg: string) => void) {
     if (wasMoving) game?.stop();
     wasMoving = false;
     game?.aim(null);
+    game?.padRange(null);
     // D-pad ou analógico esquerdo: anda já ao apertar e repete segurando
     const dir: Dir | null = down[BTN.UP] ? 'up' : down[BTN.DOWN] ? 'down' : down[BTN.LEFT] ? 'left' : down[BTN.RIGHT] ? 'right'
       : Math.max(Math.abs(mv.x), Math.abs(mv.y)) < 0.4 ? null : Math.abs(mv.x) > Math.abs(mv.y) ? (mv.x > 0 ? 'right' : 'left') : mv.y > 0 ? 'down' : 'up';

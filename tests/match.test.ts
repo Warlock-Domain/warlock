@@ -38,7 +38,7 @@ const kill = (m: Match, id: string, by: string | null) => {
   wz.hp = 0.01;
   wz.lastHitBy = by;
   wz.lastHitAt = m.world!.t;
-  wz.pos = v(ARENA_R0 + 3, 0);
+  wz.pos = v(ARENA_R0 * 3, 0);
 };
 
 describe('partida', () => {

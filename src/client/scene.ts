@@ -7,10 +7,11 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { SHAPES as ARENAS, edgeAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_STEP, CHEST, OBSTACLES, SHRINK_WARN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView } from '../shared/snapshot.ts';
-import { v, type Vec } from '../shared/vec.ts';
+import { add, dot, norm, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 import { BAD_STATUS, STATUS_ICONS, UI_ICON, icon } from './icons.ts';
 
@@ -24,6 +25,36 @@ const MAGE_HUE = 255;
 export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; loot?: number; color: number; character: string; name: string; moving: boolean; cheer: boolean; team?: number | null };
 
 const w3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, p.y);
+
+// chão da arena: o contorno da forma (arena.ts, escala 1) extrudado 1,2 m para baixo; a malha é escalada pelo raio atual
+function floorGeo(id: ArenaId) {
+  const [outer, ...holes] = ARENAS[id].outline; // toda forma tem um contorno de fora (o anel tem um buraco)
+  const shape = new THREE.Shape(outer.map((p) => new THREE.Vector2(p.x, p.y)));
+  shape.holes = holes.map((h) => new THREE.Path(h.map((p) => new THREE.Vector2(p.x, p.y))));
+  const g = new THREE.ExtrudeGeometry(shape, { depth: 1.2, bevelEnabled: false });
+  g.rotateX(Math.PI / 2); // (x, y) da forma vira (x, z) do mundo, a espessura para baixo
+  g.translate(0, 0.6, 0); // o topo em y = 0 com a malha em -0,6 (como o cilindro antigo)
+  return g;
+}
+// faixa no chão entre dois contornos de mesmo número de pontos (a e b); keep diz se o quadrilátero entra (pelo meio dele)
+function bandGeo(pairs: [Vec[], Vec[]][], keep: (m: Vec) => boolean = () => true) {
+  const pos: number[] = [];
+  for (const [a, b] of pairs) for (let i = 0; i < a.length; i++) {
+    const j = (i + 1) % a.length;
+    if (!keep(scale(add(add(a[i], a[j]), add(b[i], b[j])), 0.25))) continue;
+    for (const p of [a[i], a[j], b[j], a[i], b[j], b[i]]) pos.push(p.x, 0, p.y);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return g;
+}
+// borda incandescente: cada contorno e ele recuado `width` para dentro (o lado de dentro é a esquerda do contorno);
+// no canto, o recuo em esquadro (n1 + n2) / (1 + n1·n2) mantém a largura
+const left = (d: Vec) => norm(v(-d.y, d.x));
+const rimGeo = (id: ArenaId, width: number) => bandGeo(ARENAS[id].outline.map((loop): [Vec[], Vec[]] => [loop, loop.map((p, i) => {
+  const n1 = left(sub(p, loop[(i + loop.length - 1) % loop.length])), n2 = left(sub(loop[(i + 1) % loop.length], p));
+  return add(p, scale(add(n1, n2), width / (1 + dot(n1, n2))));
+})]));
 
 type Mage = {
   root: THREE.Group;
@@ -197,40 +228,42 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   lava.position.y = -0.6;
   scene.add(lava);
 
-  // arena: cilindro de raio 1 escalado; a borda brilha com a lava
+  // arena: a forma em escala 1 escalada pelo raio; o topo de pedra, a lateral brilha com a lava
   const stone = stoneTexture();
+  let shownArena: ArenaId = 'circle';
   const arena = new THREE.Mesh(
-    new THREE.CylinderGeometry(1, 0.94, 1.2, 96, 1),
-    [new THREE.MeshStandardMaterial({ color: '#6b3a26', roughness: 1, emissive: '#5a1404', emissiveIntensity: 0.6 }),
-      new THREE.MeshStandardMaterial({ map: stone, roughness: 0.95 }),
-      new THREE.MeshStandardMaterial({ color: '#000' })],
+    floorGeo(shownArena),
+    [new THREE.MeshStandardMaterial({ map: stone, roughness: 0.95 }),
+      new THREE.MeshStandardMaterial({ color: '#6b3a26', roughness: 1, emissive: '#5a1404', emissiveIntensity: 0.6 })],
   );
   arena.position.y = -0.6;
   arena.receiveShadow = true;
   scene.add(arena);
   // ardósia de verdade (Poly Haven Slate Floor 02) quando a textura chegar
   loader.load('/tex/stone.jpg', (t) => {
-    const top = (arena.material as THREE.MeshStandardMaterial[])[1];
+    const top = (arena.material as THREE.MeshStandardMaterial[])[0];
     t.colorSpace = THREE.SRGBColorSpace;
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(5, 5);
+    // o topo usa as coordenadas da forma (-1 a 1 no círculo): 2,5 por unidade = os 5 ladrilhos de lado a lado de antes
+    t.repeat.set(2.5, 2.5);
     top.map = t;
-    top.normalMap = tex('/tex/stone_nor.jpg', false, 5);
+    top.normalMap = tex('/tex/stone_nor.jpg', false, 2.5);
     top.color.set('#e6ddd6');
     top.needsUpdate = true;
   });
   // borda incandescente: a pedra queimando onde encosta na lava
-  const rim = new THREE.Mesh(new THREE.RingGeometry(0.975, 1.0, 128), new THREE.MeshBasicMaterial({ color: '#ff7a1a', transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
-  rim.rotation.x = -Math.PI / 2;
+  const rim = new THREE.Mesh(rimGeo(shownArena, 0.025), new THREE.MeshBasicMaterial({ color: '#ff7a1a', transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   rim.position.y = 0.015;
   scene.add(rim);
-  // anel que pisca em vermelho na faixa que vai afundar
-  const warnMat = new THREE.MeshBasicMaterial({ color: '#ff2a00', transparent: true, opacity: 0, depthWrite: false });
-  const warn = new THREE.Mesh(new THREE.RingGeometry(0.5, 1, 96), warnMat);
-  warn.rotation.x = -Math.PI / 2;
+  // faixa que pisca em vermelho onde a pedra vai afundar
+  const warnMat = new THREE.MeshBasicMaterial({ color: '#ff2a00', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
+  const warn = new THREE.Mesh(new THREE.BufferGeometry(), warnMat);
   warn.position.y = 0.02;
   scene.add(warn);
   let shownR = 11;
+  // decoração arrumada para esta arena e este tamanho (rodada nova = arena maior)
+  let decorArena: ArenaId | null = null;
+  let decorR = 0;
   let shake = 0; // tremor da câmera nos choques
   let warnR = -1;
   // Efeitos "Leve": sem tremor, sem hit-stop e sem partículas extras (PC fraco ou quem enjoa)
@@ -912,7 +945,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (m) {
           const at = v(m.root.position.x, m.root.position.z);
           // fora da pedra: caiu na lava (respingo); em cima dela: estoura em fogo
-          if (Math.hypot(at.x, at.y) > shownR - 0.3) lavaSplash(at);
+          if (edgeAt(shownArena, shownR, at) < 0.3) lavaSplash(at);
           else {
             burst(at, '#ffcf5a', 4, 0.6, 0.3, FX.fire);
             smoke(at, 2.6, 1.6);
@@ -1054,7 +1087,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           play(m, 'Death_A', 0.1);
         }
         // afunda na lava se morreu fora da pedra
-        if (Math.hypot(d.pos.x, d.pos.y) > shownR) m.root.position.y = Math.max(-1.8, m.root.position.y - 0.02);
+        if (edgeAt(shownArena, shownR, d.pos) < 0) m.root.position.y = Math.max(-1.8, m.root.position.y - 0.02);
       } else {
         if (m.dead) {
           m.dead = false;
@@ -1139,10 +1172,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   aimRing.renderOrder = 10;
   aimRing.visible = false;
   scene.add(aimRing);
+  // círculo de alcance da magia segurada ou escolhida: anel fino e discreto na cor da mira, escalado pelo alcance
+  const rangeRing = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 128), new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.45, depthWrite: false }));
+  rangeRing.rotation.x = -Math.PI / 2;
+  rangeRing.renderOrder = 9;
+  rangeRing.visible = false;
+  scene.add(rangeRing);
 
   return {
     ready,
     onEvents,
+    // centro no mago e raio em metros; null (ou raio 0) esconde
+    range(at: Vec | null, r: number) {
+      rangeRing.visible = !!at && r > 0;
+      if (!at || r <= 0) return;
+      rangeRing.position.copy(w3(at, 0.04));
+      rangeRing.scale.setScalar(r);
+    },
     aim(at: Vec | null) {
       aimRing.visible = !!at;
       if (at) aimRing.position.copy(w3(at, 0.05));
@@ -1223,12 +1269,25 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; follow: Vec | null; lock?: boolean }) {
+    render(state: { arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; follow: Vec | null; lock?: boolean }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
       lavaMat.uniforms.uTime.value = now;
 
+      // arena nova (sorteada a cada rodada): troca o chão e a borda
+      if (state.arena !== shownArena) {
+        shownArena = state.arena;
+        arena.geometry.dispose();
+        arena.geometry = floorGeo(shownArena);
+        rim.geometry.dispose();
+        rim.geometry = rimGeo(shownArena, 0.025);
+        warnR = -1;
+      }
+      // a decoração em volta se afasta da pedra quando a arena muda ou cresce (rodada nova); no encolhimento fica
+      if (state.arena !== decorArena || state.arenaR > decorR + 0.3) decor.layout((p) => edgeAt(state.arena, state.arenaR, p));
+      decorR = state.arena !== decorArena || state.arenaR > decorR + 0.3 ? state.arenaR : Math.min(decorR, state.arenaR);
+      decorArena = state.arena;
       shownR += (state.arenaR - shownR) * Math.min(1, dt * 4);
       arena.scale.set(shownR, 1, shownR);
       rim.scale.setScalar(Math.max(0.001, shownR));
@@ -1246,8 +1305,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (!s.visible) {
           u.wait -= dt;
           if (u.wait > 0) continue;
-          u.a = Math.random() * Math.PI * 2;
-          u.r = shownR + 0.8 + Math.random() * 7;
+          // um ponto na lava a até 8 m da pedra (algumas tentativas: a forma pode ter buraco e reentrâncias)
+          for (let k = 0; k < 6; k++) {
+            u.a = Math.random() * Math.PI * 2;
+            u.r = Math.random() * (shownR * ARENAS[shownArena].reach + 8);
+            const e = edgeAt(shownArena, shownR, v(Math.cos(u.a) * u.r, Math.sin(u.a) * u.r));
+            if (e < -0.8 && e > -8) break;
+          }
           u.vy = 0.5 + Math.random() * 0.9;
           u.size = 0.12 + Math.random() * 0.16;
           s.position.set(Math.cos(u.a) * u.r, -0.5, Math.sin(u.a) * u.r);
@@ -1263,9 +1327,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       if (warning && warnR !== state.arenaR) {
         warnR = state.arenaR;
-        const inner = Math.max(0.01, state.arenaR - ARENA_STEP);
+        // entre o contorno de agora e o do próximo tamanho, só onde é pedra que vira lava
+        // (no anel o buraco encolhe junto com a forma: lá a lava vira pedra e não pisca)
+        const next = Math.max(0.01, state.arenaR - ARENA_STEP), r = state.arenaR;
         warn.geometry.dispose();
-        warn.geometry = new THREE.RingGeometry(inner, state.arenaR, 96);
+        warn.geometry = bandGeo(ARENAS[shownArena].outline.map((loop): [Vec[], Vec[]] => [loop.map((p) => scale(p, r)), loop.map((p) => scale(p, next))]),
+          (m) => edgeAt(shownArena, r, m) > 0 && edgeAt(shownArena, next, m) <= 0);
       }
 
       syncWizards(state.wizards, now);
@@ -1303,7 +1370,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       });
       // hit-stop: quem acabou de apanhar fica com a animação parada por ~60 ms
       for (const m of mages.values()) if (now >= m.freezeUntil) m.mixer.update(dt);
-      decor.update(shownR, now);
+      decor.update((p) => edgeAt(shownArena, shownR, p), now);
       for (let i = fx.length - 1; i >= 0; i--) {
         const f = fx[i];
         const k = (now - f.born) / (f.until - f.born);
@@ -1327,7 +1394,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       focus.lerp(target, Math.min(1, dt * 3));
       // aproxima conforme a arena encolhe
-      const dist = Math.min(44, Math.max(13, shownR * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
+      const dist = Math.min(44, Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
       lastDist = dist;
       // olha um pouco à frente do centro para a borda de baixo não ficar atrás da barra de magias
       const lookZ = focus.z + dist * 0.06;

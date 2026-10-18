@@ -41,7 +41,7 @@ export const RULES: [string, string[]][] = [
   ]],
   ['Controles no PC', [
     'Botão direito no chão: andar (segure para arrastar o destino). S: parar. Esc: cancela a magia escolhida.',
-    'Tecla da magia: lança na direção do cursor (as suas teclas estão logo abaixo). Clicar no botão da magia e depois no chão também lança.',
+    'Tecla da magia: segurando, aparece o círculo de alcance em volta do mago; ao soltar, a magia sai na direção do cursor (Esc cancela; as suas teclas estão logo abaixo). Clicar no botão da magia e depois no chão também lança, com o mesmo círculo.',
     'Roda do mouse: zoom. Espaço + arrastar com o botão esquerdo: mover a câmera; Espaço sozinho volta ao centro.',
     'Tab (segurar): placar; com ele aberto, ← → troca entre Rodada, Partida e Sala. Na loja o Tab anda pelos botões e o placar fica no botão Placar.',
     'Y: provocações (frase com som em cima do seu mago); o número escolhe. Também no botão do balão de fala, no topo.',
@@ -51,7 +51,7 @@ export const RULES: [string, string[]][] = [
   ]],
   ['Controle (Xbox ou PlayStation)', [
     'Ligue o controle e aperte qualquer botão: aparece "Controle conectado" e a barra passa a mostrar os botões do controle. Tecla ou mouse voltam a mostrar as teclas.',
-    'Analógico esquerdo: andar (soltar para). Analógico direito: mirar; o anel dourado no chão mostra onde, mais longe quanto mais inclinado. Sem mirar, a magia vai para onde você anda.',
+    'Analógico esquerdo: andar (soltar para). Analógico direito: mirar; o anel dourado no chão mostra onde, mais longe quanto mais inclinado, e o círculo fino em volta do mago mostra o alcance da última magia lançada. Sem mirar, a magia vai para onde você anda.',
     'A, B, X e Y (no PlayStation ✕, ○, □ e △), LB e RB (L1 e R1): as magias pela ordem da barra, da 1ª à 6ª. LT e RT (L2 e R2): itens ativos 1 e 2; D-pad ↑: item 3.',
     'Start (Options): ficha do mago na partida, Pronto na loja e esta ajuda nas outras telas. View ou Select (Share), segurado: placar. Apertar o analógico direito (R3): centraliza a câmera.',
     'Morto ou só assistindo: D-pad ← → troca quem a câmera segue (com o placar aberto, troca o período).',
@@ -119,7 +119,7 @@ export const RULES_SHORT: Record<SpellId, string> = {
   shield: 'Reflete fogo, míssil e raio por 1,2 s.',
   teleport: 'Salta até o cursor (alcance curto).',
   swap: 'Voa até o alcance e troca de lugar com o primeiro mago que tocar; sem ninguém, leva você ao ponto da mira.',
-  grip: 'Prende o alvo no lugar e reduz o empurrão dele.',
+  grip: 'Prende o alvo no lugar até o primeiro golpe, que o solta e empurra mais longe.',
   meteor: 'Cai em área no ponto marcado, após 1 s.',
   rush: 'Avança 3 m na direção do mouse e fica mais rápido; dano levado vira mais velocidade.',
   cluster: 'Quatro projéteis em leque, curto alcance.',

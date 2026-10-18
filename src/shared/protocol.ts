@@ -1,4 +1,5 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
+import type { ArenaId } from './arena.ts';
 import { isCharacter, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_IDS, type ItemId } from './items.ts';
@@ -51,6 +52,7 @@ export type PublicRoom = {
   pendingOpts: Partial<MatchOpts>; // opções votadas para a próxima rodada
   botDelta: number; // bots votados para entrar (+) ou sair (−) na próxima rodada
   goal: number; // pontos para vencer no modo atual (rodadas; abates no Deathmatch)
+  arena: ArenaId | null; // formato da arena desta rodada (null sem rodada)
 };
 
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits de estado (ver encodeSnap)
@@ -190,5 +192,6 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     pendingOpts: m.pendingOpts,
     botDelta: m.botDelta,
     goal: goalOf(m),
+    arena: m.world?.arena ?? null,
   };
 }

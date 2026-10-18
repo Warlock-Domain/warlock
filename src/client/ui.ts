@@ -1,5 +1,6 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
+import { ARENA_NAMES, type ArenaId } from '../shared/arena.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import { DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, sellValue, type MatchOpts, type Mode, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
@@ -148,7 +149,7 @@ export function screen(root: HTMLElement, title: string, text: string, button: s
 
 export type RoomActions = {
   start: (bots: number, mode: Mode, shuffle: boolean, opts: MatchOpts) => void;
-  train: () => void; // partida de treino: 3 bots, modo Rodadas e dicas nas primeiras rodadas
+  train: (opts: Partial<MatchOpts>) => void; // partida de treino: 3 bots, modo Rodadas e dicas nas primeiras rodadas (com a dificuldade escolhida)
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
   kick: (id: string) => void;
@@ -177,12 +178,14 @@ const SHUFFLE_NAME = (shuffle: boolean) => (shuffle ? 'sorteados a cada rodada' 
 // opções da partida: nome de cada uma e o texto de cada valor (a meta depende do modo)
 type OptKey = keyof MatchOpts;
 const OPT_KEYS = Object.keys(OPTION_CHOICES) as OptKey[];
-const OPT_NAME: Record<OptKey, string> = { shop: 'Tempo de loja', pace: 'Contagem e fim de rodada', economy: 'Ouro ganho', startGold: 'Ouro inicial', goal: 'Vence com', runes: 'Runas', sudden: 'Morte súbita', chests: 'Baús de ouro' };
+const OPT_NAME: Record<OptKey, string> = { shop: 'Tempo de loja', pace: 'Contagem e fim de rodada', economy: 'Ouro ganho', startGold: 'Ouro inicial', goal: 'Vence com', runes: 'Runas', sudden: 'Morte súbita', chests: 'Baús de ouro', difficulty: 'Dificuldade dos bots', arena: 'Arena' };
 const n1 = (x: number) => x.toLocaleString('pt-BR');
 function optText(k: OptKey, val: MatchOpts[OptKey], mode: Mode): string {
   if (k === 'shop') return (val as number) >= 120 ? '2 min' : `${val} s`;
   if (k === 'pace') return { short: 'Curto', normal: 'Normal', long: 'Longo' }[val as MatchOpts['pace']];
   if (k === 'economy') return { 0.6: 'Pouco ×0,6', 1: 'Normal', 1.6: 'Muito ×1,6', 2.5: 'Festa ×2,5' }[val as MatchOpts['economy']];
+  if (k === 'arena') return val === 'random' ? 'Sortear' : ARENA_NAMES[val as ArenaId];
+  if (k === 'difficulty') return { easy: 'Fácil', normal: 'Normal', hard: 'Difícil', auto: 'Automático' }[val as MatchOpts['difficulty']];
   if (k === 'goal') return mode === 'deathmatch' ? `${DM_GOALS[val as MatchOpts['goal']]} abates` : `${val} rodadas`;
   if (typeof val === 'boolean') return val ? 'Ligado' : 'Desligado';
   return String(val);
@@ -190,7 +193,9 @@ function optText(k: OptKey, val: MatchOpts[OptKey], mode: Mode): string {
 // resumo de uma linha (loja e votação): "Loja 30 s · Ouro ×1,6 · Vence com 5 rodadas · sem runas"
 function optsLine(o: MatchOpts, mode: Mode): string {
   const off = (['runes', 'sudden', 'chests'] as const).filter((k) => !o[k]).map((k) => 'sem ' + OPT_NAME[k].toLowerCase());
-  return [`Loja ${optText('shop', o.shop, mode)}`, `Ouro ×${n1(o.economy)}`, `Vence com ${optText('goal', o.goal, mode)}`, ...off].join(' · ');
+  const bots = o.difficulty !== 'normal' ? ['bots ' + { easy: 'fáceis', hard: 'difíceis', auto: 'automáticos' }[o.difficulty]] : [];
+  const arena = o.arena !== 'random' ? ['arena ' + ARENA_NAMES[o.arena]] : [];
+  return [`Loja ${optText('shop', o.shop, mode)}`, `Ouro ×${n1(o.economy)}`, `Vence com ${optText('goal', o.goal, mode)}`, ...arena, ...bots, ...off].join(' · ');
 }
 // texto de uma votação aberta
 function voteText(v: { kind: Vote['kind']; target: string }, mode: Mode, name: (id: string) => string): string {
@@ -722,7 +727,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('div', {}, el('h2', { class: 'title' }, 'Sala ' + r.id), el('p', { class: 'muted' }, 'Mande o link para os amigos entrarem. Até 8 magos.'),
         el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), kickBtn(p, act.kick))))),
       // sozinho na sala: treino com 3 bots e dicas curtas nas primeiras rodadas, logo à vista
-      humans === 1 && r.phase === 'lobby' ? el('button', { type: 'button', class: 'train', onclick: act.train }, icon(UI_ICON.aim), ' Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')) : null,
+      humans === 1 && r.phase === 'lobby' ? el('button', { type: 'button', class: 'train', onclick: () => act.train({ difficulty: o.difficulty, arena: o.arena }) }, icon(UI_ICON.aim), ' Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')) : null,
       picker(r),
       modePicker,
       optsBlock,

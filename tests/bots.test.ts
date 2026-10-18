@@ -122,6 +122,8 @@ describe('bots usam tudo', () => {
     expect(casts(botCmds(w, 'bot', () => 0.3))[0]).toMatchObject({ kind: 'cast', spell: 'grip' });
     const g = duel({ meteor: 1, lightning: 1 });
     g.wizards[1].gripUntil = 2;
+    botCmds(g, 'bot', () => 0.99); // vê o alvo preso; emenda depois do tempo de reação
+    g.t += 0.3;
     expect(casts(botCmds(g, 'bot', () => 0.1))[0]).toMatchObject({ kind: 'cast', spell: 'meteor' });
   });
 

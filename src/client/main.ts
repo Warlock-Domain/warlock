@@ -1,3 +1,4 @@
+import { edgeAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, HP_MAX, SHRINK_EVERY, STUN_SPEED, type RuneKind } from '../shared/constants.ts';
 import { isCharacter } from '../shared/characters.ts';
 import type { PublicRoom, ServerMsg, Snap } from '../shared/protocol.ts';
@@ -7,6 +8,7 @@ import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../sha
 import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { dist, len, type Vec } from '../shared/vec.ts';
 import { coachTip } from './coach.ts';
+import { reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { isPadMode, labelOf } from './keys.ts';
@@ -114,6 +116,9 @@ function startRoom(code: string, name: string) {
   let me = playerId;
   let online = false;
   let armed: SpellId | ItemId | null = null;
+  // círculo de alcance: tecla segurada, magia escolhida no botão (toque no chão para lançar) ou controle mirando
+  let held: SpellId | ItemId | null = null;
+  let padAiming: SpellId | ItemId | null = null;
   let seq = 0;
   const sentAt = new Map<number, number>();
   let lastSnap: Snap | null = null;
@@ -121,6 +126,7 @@ function startRoom(code: string, name: string) {
   let rttSeen = false;
   // modo treino (só para quem apertou o botão): dicas nas primeiras rodadas; playingAt marca o "Já!"
   let training = false;
+  let arenaId: ArenaId = 'circle'; // formato da arena da rodada (vem na mensagem 'room')
   let playingAt = 0;
   const touch = matchMedia('(hover: none) and (pointer: coarse)').matches;
   const justCast = new Map<string, number>();
@@ -138,9 +144,9 @@ function startRoom(code: string, name: string) {
       training = false; // partida normal depois de um treino: sem dicas
       net.send({ t: 'start', bots, mode, shuffle, opts });
     },
-    train: () => {
+    train: (opts) => {
       training = true;
-      net.send({ t: 'start', bots: 3, mode: 'rounds', shuffle: true });
+      net.send({ t: 'start', bots: 3, mode: 'rounds', shuffle: true, opts });
     },
     buy: (spell) => net.send({ t: 'buy', spell }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),
@@ -240,6 +246,8 @@ function startRoom(code: string, name: string) {
     zoom: (d) => scene.zoomBy(d),
     pan: (dx, dy) => scene.panBy(dx, dy),
     armedChanged: (s) => (armed = s),
+    preview: (s) => (held = s),
+    padRange: (s) => (padAiming = s),
     me: () => (myWizard(interp.latest())?.alive ? (drawn.get(me) ?? null) : null),
     aim: (at) => scene.aim(at),
   });
@@ -340,7 +348,7 @@ function startRoom(code: string, name: string) {
         // fora da pedra: mergulho na lava (chiado e bolhas) em vez da explosão
         const snap = interp.latest();
         const w = snap?.wizards.find((z) => z.id === e.id);
-        sound.play(w && snap && Math.hypot(w.pos.x, w.pos.y) > snap.arenaR - 0.3 ? 'splash' : 'death', w ? near(w.pos.x, w.pos.y) : 1);
+        sound.play(w && snap && edgeAt(arenaId, snap.arenaR, w.pos) < 0.3 ? 'splash' : 'death', w ? near(w.pos.x, w.pos.y) : 1);
         const dead = who.get(e.id) ?? '?';
         // todo abate vai para o feed do canto; a faixa grande fica só para o que envolve você
         view.kill(e.by, e.id, e.src);
@@ -371,6 +379,7 @@ function startRoom(code: string, name: string) {
       const prev = room;
       room = m.room;
       me = m.you;
+      arenaId = room.arena ?? arenaId; // na loja não há rodada: fica a última arena
       view.update(room, me, online);
       // compra na loja: o ouro caiu → som de moedas
       if (prev?.phase === 'shop' && room.phase === 'shop') {
@@ -477,7 +486,7 @@ function startRoom(code: string, name: string) {
     const meW = room?.phase === 'playing' ? myWizard(latest) : null;
     const meP = colorOf.get(me);
     const low = !!meW?.alive && !!meP && meW.hp < 0.25 * (HP_MAX + itemStats(meP.items).hp);
-    const lava = !!meW?.alive && !!latest && len(meW.pos) > latest.arenaR;
+    const lava = !!meW?.alive && !!latest && edgeAt(arenaId, latest.arenaR, meW.pos) < 0;
     view.danger(low, lava);
     const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' ? s.shrinkAt - s.time : null;
     // espectador: morto na rodada (ou só assistindo), a câmera segue o vivo com mais vida; ← → ou os botões trocam
@@ -490,6 +499,7 @@ function startRoom(code: string, name: string) {
     view.watching(watched?.name ?? null);
     if (training && room) view.coach(meP ? coachTip({ phase: room.phase, round: room.round, playingFor: (nowMs - playingAt) / 1000, shrinkIn, low, lava, alive: !!meW?.alive, touch, fireKey: isPadMode() ? 'A' : labelOf('fireball') }) : null);
     scene.render({
+      arena: arenaId,
       arenaR: s?.arenaR ?? 11,
       shrinkIn: shrinkIn ?? SHRINK_EVERY,
       wizards,
@@ -500,6 +510,9 @@ function startRoom(code: string, name: string) {
       follow: watched ? watched.pos : follow ? myPos : null,
       lock: !!watched,
     });
+    // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
+    const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming) : null;
+    scene.range(showing && myPos ? myPos : null, showing && meP ? reachOf(showing, meP.spells, meP.items) : 0);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena não encolhe mais: o aviso some
     view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && s.arenaR > ARENA_MIN + 0.01 ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null);

@@ -3,9 +3,9 @@
 import { UNIT } from './constants.ts';
 
 export type ItemId = 'ring' | 'cursed_ring' | 'cape' | 'armor' | 'boots' | 'watch' | 'vampire' | 'scourge' | 'redirector' | 'pact'
-  | 'lava_boots' | 'warden' | 'helmet' | 'shock_boots' | 'aegis';
+  | 'lava_boots' | 'warden' | 'helmet' | 'shock_boots' | 'aegis' | 'wind_boots';
 export const ITEM_IDS: ItemId[] = ['ring', 'cursed_ring', 'cape', 'armor', 'boots', 'watch', 'vampire', 'scourge', 'redirector', 'pact',
-  'lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis'];
+  'lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis', 'wind_boots'];
 export const ACTIVE_ITEMS: ItemId[] = ['scourge', 'redirector', 'pact'];
 export const MAX_ITEMS = 6;
 
@@ -35,11 +35,15 @@ export const ITEMS: Record<ItemId, Item> = {
   helmet: { name: 'Elmo', cost: 5, text: 'Menos empurrão, mas suas magias alcançam menos.', levels: [{ kb: 0.15, range: -0.1 }] },
   shock_boots: { name: 'Botas de choque', cost: 5, text: 'Ao levar um golpe, anda mais rápido por 3 s (não soma com as Botas: vale a maior).', levels: [{}] },
   // consumível desde o ciclo 4: preço, vida e distância não a tiravam de 1,20× (a vida extra é o poder); some ao salvar
+  // Wind boots do catálogo (docs/itens-candidatos.md); pedido do Fernando, 18/10: item que serve a qualquer jeito de jogar
+  wind_boots: { name: 'Botas de vento', cost: 7, text: 'Depois de 5 s sem causar nem levar dano, anda mais rápido até o próximo golpe (não soma com outras botas: vale a maior).', levels: [{}] },
   aegis: { name: 'Égide', cost: 7, text: 'Na lava com pouca vida, volta para a pedra. Quebra ao salvar você (compre de novo).', levels: [{}] },
 };
 
 // Botas de choque: Shock boots do CE (+25 por 3 s); aqui +30 unidades (+14% do passo), contra "quem apanha não consegue fugir"
 export const SHOCK_BOOTS = { speed: 30 * UNIT, secs: 3 };
+// Botas de vento: Wind boots do CE (+25 com 5 s sem combate); some ao causar ou levar dano (golpe, lava ou chão de fogo)
+export const WIND_BOOTS = { speed: 25 * UNIT, calm: 5 };
 // Égide: na lava com até 250 de vida volta para 60% do raio da arena, na mesma direção, parado; uma vez por rodada (por vida no deathmatch)
 export const AEGIS = { hp: 250, back: 0.6 };
 

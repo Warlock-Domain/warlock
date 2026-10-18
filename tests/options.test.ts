@@ -29,7 +29,7 @@ function toPlaying(g: G) {
 }
 function kill(g: G, id: string, by: string | null): SimEvent[] {
   const wz = g.m.world!.wizards.find((z) => z.id === id)!;
-  Object.assign(wz, { hp: 0.01, lastHitBy: by, lastHitAt: g.m.world!.t, pos: v(ARENA_R0 + 3, 0) });
+  Object.assign(wz, { hp: 0.01, lastHitBy: by, lastHitAt: g.m.world!.t, pos: v(ARENA_R0 * 3, 0) });
   return tick(g);
 }
 const goldOf = (g: G, id: string) => g.m.players.find((p) => p.id === id)!.gold;

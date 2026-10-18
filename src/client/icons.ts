@@ -30,7 +30,7 @@ export const ICON: Record<SpellId, string> = named<SpellId>({ fireball: ['fire-r
 // Armadura e Roubo de vida tinham o mesmo emoji de Agarrar e de Drenar; agora cada um tem desenho próprio
 export const ITEM_ICON: Record<ItemId, string> = named<ItemId>({ ring: ['diamond-ring', '💍'], cursed_ring: ['skull-ring', '🧿'], cape: ['cape', '🧣'], armor: ['breastplate', '🦺'],
   boots: ['leather-boot', '👢'], watch: ['pocket-watch', '⏱️'], vampire: ['bat', '🦇'], scourge: ['flail', '💥'], redirector: ['divert', '↪️'], pact: ['chalice-drops', '🩸'],
-  lava_boots: ['metal-boot', '🥾'], warden: ['stone-bust', '🗿'], helmet: ['spartan-helmet', '🪖'], shock_boots: ['winged-leg', '🌩️'], aegis: ['angel-wings', '👼'] });
+  lava_boots: ['metal-boot', '🥾'], warden: ['stone-bust', '🗿'], helmet: ['spartan-helmet', '🪖'], shock_boots: ['winged-leg', '🌩️'], aegis: ['angel-wings', '👼'], wind_boots: ['feather', '🪶'] });
 export const RUNE_ICON: Record<RuneKind, string> = named<RuneKind>({ haste: ['rabbit', '🐇'], fury: ['enrage', '😡'], shield: ['checked-shield', '🔰'], recharge: ['energise', '🔋'] });
 // o que derrubou alguém, além de magias e itens (placar)
 export const SOURCE_ICON = named({ lava: ['volcano', '🌋'], pillar: ['menhir', '🪨'], shock: ['knockout', '💫'], unknown: ['uncertainty', '❔'] });

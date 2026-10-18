@@ -1,4 +1,5 @@
 // Controles do Dota: botão direito anda, Q W E R F lançam na direção do cursor, S para.
+// Segurar a tecla mostra o círculo de alcance; a magia sai ao soltar (Esc cancela).
 // No celular: tocar no chão anda; tocar no botão da magia e depois no chão lança.
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
 import type { SpellId } from '../shared/spells.ts';
@@ -16,6 +17,8 @@ export type InputHandlers = {
   zoom: (deltaY: number) => void;
   pan: (dx: number, dy: number) => void;
   armedChanged: (armed: SpellId | ItemId | null) => void;
+  preview: (held: SpellId | ItemId | null) => void; // tecla segurada (círculo de alcance)
+  padRange: (aiming: SpellId | ItemId | null) => void; // controle mirando com o analógico direito
   // controle: posição do próprio mago (para andar e mirar) e o retículo no chão
   me: () => Vec | null;
   aim: (at: Vec | null) => void;
@@ -39,6 +42,19 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     armed = s;
     h.armedChanged(s);
   };
+  // tecla de magia segurada: lança ao soltar, no ponto do cursor naquela hora
+  let held: { action: SpellId | ItemId; code: string } | null = null;
+  const cancel = () => {
+    held = null;
+    h.preview(null);
+  };
+  const release = () => {
+    const a = held?.action;
+    cancel();
+    const p = a && enabled ? h.pick(cursor.x, cursor.y) : null;
+    if (a && p) (isItem(a) ? h.useItem(a, p) : h.cast(a as SpellId, p));
+  };
+  addEventListener('blur', cancel);
 
   // o controle usa os mesmos comandos, liberados só durante a rodada
   setPadGame({ ...h, enabled: () => enabled });
@@ -91,6 +107,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     if (e.button === 0) panning = false;
   });
   addEventListener('keyup', (e) => {
+    if (held && e.code === held.code) return release();
     if (e.code !== 'Space') return;
     space = false;
     panning = false;
@@ -109,13 +126,17 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     // teclas trocáveis pelo jogador (keys.ts)
     const action = actionFor(e.code);
     if (action) {
-      const p = h.pick(cursor.x, cursor.y);
-      if (p) (isItem(action) ? h.useItem(action, p) : h.cast(action as SpellId, p));
+      if (held) release(); // outra tecla com uma segurada: a primeira sai antes
+      held = { action, code: e.code };
+      h.preview(action);
       e.preventDefault();
       return;
     }
     if (e.code === 'KeyS') h.stop();
-    else if (e.code === 'Escape') arm(null);
+    else if (e.code === 'Escape') {
+      cancel();
+      arm(null);
+    }
   });
 
   return {
@@ -123,6 +144,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       enabled = on;
       if (!on) {
         dragging = false;
+        cancel();
         arm(null);
       }
     },

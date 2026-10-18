@@ -2,8 +2,11 @@
 // que afundam quando a camada deles cai. Só visual: nada aqui entra na simulação.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { v, type Vec } from '../shared/vec.ts';
 
-type Prop = { obj: THREE.Object3D; r: number; baseY: number };
+type Prop = { obj: THREE.Object3D; pos: Vec; baseY: number };
+// distância até a borda da arena (positiva na pedra), da forma desta rodada
+type EdgeOf = (p: Vec) => number;
 
 // [modelos da ilha, raio, ângulo em graus]
 const ISLANDS: [string[], number, number][] = [
@@ -31,6 +34,21 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
   let models = new Map<string, THREE.Object3D>();
   let unit = 1;
   const flames: THREE.Sprite[] = [];
+  const islands: { g: THREE.Group; r: number; a: number }[] = [];
+  let edgeOf: EdgeOf | null = null;
+  // ilhas de decoração afastadas da pedra (as arenas novas são mais compridas que o círculo); ossos fora da pedra já afundados
+  const arrange = () => {
+    if (!edgeOf) return;
+    for (const it of islands) {
+      let r = it.r;
+      while (r < 40 && edgeOf(v(Math.cos(it.a) * r, Math.sin(it.a) * r)) > -3) r += 0.5;
+      it.g.position.set(Math.cos(it.a) * r, -0.15, Math.sin(it.a) * r);
+    }
+    for (const p of props) {
+      p.obj.position.y = edgeOf(p.pos) < 0.2 ? -1.5 : p.baseY;
+      p.obj.visible = p.obj.position.y > -1.4;
+    }
+  };
   const islandMat = new THREE.MeshStandardMaterial({ color: '#b8aaa0', roughness: 1, emissive: '#3a0c02', emissiveIntensity: 0.4 });
   new THREE.TextureLoader().load('/tex/stone.jpg', (t) => {
     t.colorSpace = THREE.SRGBColorSpace;
@@ -77,14 +95,16 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
       island.add(rock);
       names.forEach((n, i) => place(n, i === 0 ? 0 : 0.8, i === 0 ? 0 : 0.6, a + Math.PI / 2, island));
       scene.add(island);
+      islands.push({ g: island, r, a });
     }
     for (const [name, r, deg] of FLOOR) {
       const a = (deg * Math.PI) / 180;
       const holder = new THREE.Group();
       scene.add(holder);
       const o = place(name, Math.cos(a) * r, Math.sin(a) * r, deg, holder);
-      if (o) props.push({ obj: holder, r, baseY: 0 });
+      if (o) props.push({ obj: holder, pos: v(Math.cos(a) * r, Math.sin(a) * r), baseY: 0 });
     }
+    arrange();
   }).catch(() => console.warn('decoração não carregou; a arena segue sem ela'));
 
   return {
@@ -100,10 +120,15 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
       });
       return o;
     },
+    // arena nova (ou rodada nova): arruma a decoração para a forma dela
+    layout(edge: EdgeOf) {
+      edgeOf = edge;
+      arrange();
+    },
     // ossos e entulho fora da pedra afundam na lava; as chamas tremulam
-    update(arenaR: number, now: number) {
+    update(edge: EdgeOf, now: number) {
       for (const p of props) {
-        const target = p.r > arenaR - 0.2 ? -1.5 : p.baseY;
+        const target = edge(p.pos) < 0.2 ? -1.5 : p.baseY;
         p.obj.position.y += (target - p.obj.position.y) * 0.04;
         p.obj.visible = p.obj.position.y > -1.4;
       }

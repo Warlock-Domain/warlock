@@ -1,5 +1,6 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
-import { botBuy, botCmds } from './bots.ts';
+import { ARENA_IDS } from './arena.ts';
+import { BOT_SKILL, botBuy, botCmds, skillAt, type BotSkill } from './bots.ts';
 import { PILLAR } from './constants.ts';
 import { CHARACTERS, type CharacterId } from './characters.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
@@ -57,10 +58,14 @@ export const OPTION_CHOICES = {
   runes: [true, false],
   sudden: [true, false],
   chests: [true, false],
+  // dificuldade dos bots (pedido do Fernando, 18/10); 'auto' ajusta cada bot pelo placar dos humanos
+  difficulty: ['easy', 'normal', 'hard', 'auto'],
+  // formato da arena (pedido do Fernando, 18/10): sorteado a cada rodada ou fixo
+  arena: ['random', ...ARENA_IDS],
 } as const;
 export type MatchOpts = { [K in keyof typeof OPTION_CHOICES]: (typeof OPTION_CHOICES)[K][number] };
 // os padrões são os números de sempre (SHOP_MS, START_GOLD, WINS_TO_WIN), para o simulador e as salas antigas
-export const DEFAULT_OPTS: MatchOpts = { shop: 30, pace: 'normal', economy: 1, startGold: 30, goal: 5, runes: true, sudden: true, chests: true };
+export const DEFAULT_OPTS: MatchOpts = { shop: 30, pace: 'normal', economy: 1, startGold: 30, goal: 5, runes: true, sudden: true, chests: true, difficulty: 'normal', arena: 'random' };
 // 'chave:valor' de um voto de opção → [chave, valor] válidos, ou null
 export function parseOpt(target: string): [keyof MatchOpts, MatchOpts[keyof MatchOpts]] | null {
   const [k, raw] = target.split(':');
@@ -430,6 +435,16 @@ function shuffleTeams(m: Match, rand: () => number) {
   order.forEach((p, i) => (p.team = (i + first) % 2));
 }
 
+// Automático: humanos à frente deste bot no placar → bot mais forte; atrás → mais fraco (contínuo, em fração da meta)
+export function botSkill(m: Match, bot: Player): BotSkill {
+  const d = m.opts.difficulty;
+  if (d !== 'auto') return BOT_SKILL[d];
+  const humans = m.players.filter((p) => !p.bot);
+  if (!humans.length) return BOT_SKILL.normal;
+  const avg = humans.reduce((s, p) => s + p.score, 0) / humans.length;
+  return skillAt(Math.max(-1, Math.min(1, (avg - bot.score) / goalOf(m))));
+}
+
 const teamSize = (m: Match, t: number) => m.players.filter((p) => p.team === t).length;
 
 function enterCountdown(m: Match, now: number, rand: () => number) {
@@ -471,7 +486,9 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   for (const p of m.players) p.stats.round = newStat();
   const ids = m.players.map((p) => p.id);
   const teams = m.mode === 'teams' ? Object.fromEntries(m.players.map((p) => [p.id, p.team ?? 0])) : {};
-  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), PILLAR.min + Math.floor(Math.random() * (PILLAR.max - PILLAR.min + 1)), Math.random, m.mode === 'deathmatch', teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests });
+  // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
+  const arena = m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
+  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), PILLAR.min + Math.floor(Math.random() * (PILLAR.max - PILLAR.min + 1)), Math.random, m.mode === 'deathmatch', teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests }, arena);
   m.phase = 'countdown';
   m.phaseEnds = now + COUNTDOWN_MS * PACE[m.opts.pace];
 }
@@ -578,11 +595,22 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   const all = [...cmds];
   m.players.forEach((p, i) => {
     // quem caiu vira bot até voltar, como no original (gamesetup.lua: bot assume o desconectado)
-    if ((p.bot || !p.connected) && m.steps % 10 === i % 10) all.push(...botCmds(w, p.id, rand));
+    if ((p.bot || !p.connected) && m.steps % 10 === i % 10) all.push(...botCmds(w, p.id, rand, botSkill(m, p)));
   });
   // a rodada só acaba quando sobra 1: se os últimos morrerem no mesmo passo, vence quem tinha mais vida
   const before = w.wizards.filter((z) => z.alive).map((z) => ({ id: z.id, hp: z.hp }));
   stepWorld(w, all, rand);
+  // metade da vida tirada pela lava vira dano de quem empurrou (fonte 'lava'): placar, top dano e assistência; antes das mortes
+  for (const [by, on] of Object.entries(w.lavaCredit)) for (const [id, dmg] of Object.entries(on)) {
+    const p = m.players.find((q) => q.id === by);
+    if (!p) continue;
+    const mine = ((m.dmgOn ??= {})[id] ??= {});
+    mine[by] = (mine[by] ?? 0) + dmg;
+    addStat(p, (s) => {
+      s.dmg += dmg;
+      s.dmgBy.lava = (s.dmgBy.lava ?? 0) + dmg;
+    });
+  }
   for (const e of w.events) {
     // dano 0 (invulnerável ou fogo amigo) não entra no dano, no top dano nem na assistência
     if (e.k === 'hit' && e.by !== e.id && e.dmg > 0) {

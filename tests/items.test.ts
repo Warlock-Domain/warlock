@@ -392,7 +392,7 @@ describe('itens novos (18/10)', () => {
     while (m.phase !== 'playing') tickMatch(m, (now = Math.max(now + 17, m.phaseEnds)), []);
     const z = m.world!.wizards.find((q) => q.id === 'a')!;
     expect(z.aegis).toBe(true);
-    z.pos = v(0, m.world!.arenaR + 1);
+    z.pos = v(0, m.world!.arenaR * 2); // na lava em qualquer arena
     z.hp = AEGIS.hp + 5;
     for (let i = 0; i < 300 && m.players[0].items.aegis; i++) tickMatch(m, (now += 17), []);
     expect(z.alive).toBe(true);

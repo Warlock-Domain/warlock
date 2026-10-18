@@ -1,6 +1,6 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
 import type { Snap } from './protocol.ts';
-import { PROJ_KINDS, type ProjKind, type SimEvent, type World } from './sim.ts';
+import { PROJ_KINDS, bootsBonus, type ProjKind, type SimEvent, type World } from './sim.ts';
 import { CHEST, OBSTACLES, OBSTACLE_KINDS, RUNE_KINDS, STUN_SPEED, type ObstacleKind, type RuneKind } from './constants.ts';
 import { ACTIVE_ITEMS } from './items.ts';
 import { SPELL_IDS, spellLevel } from './spells.ts';
@@ -25,14 +25,14 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   const linked = new Set(w.projectiles.filter((p) => p.kind === 'link' && p.target).map((p) => p.target));
   for (const z of w.wizards) {
     // bits: 1 vivo, 2 escudo, 4 lento (chão arcano, Drenar, Bola de neve), 512 queimando (chão de fogo), 8 vulnerável (Redirecionador), 16 atordoado (arremessado), 32 invulnerável, 64 Pacto armado, 128 preso (Agarrar), 256 Investida,
-    // 1024 Caminhada no vento (quem anda e os aliados veem), 2048 invisível para quem recebe (o cliente esconde), 4096 acelerado (Drenar, Botas de choque),
+    // 1024 Caminhada no vento (quem anda e os aliados veem), 2048 invisível para quem recebe (o cliente esconde), 4096 acelerado (Drenar, Botas de choque ou de vento),
     // 8192 magnetizado atraindo, 16384 magnetizado repelindo, 32768 Alteração, 65536 preso pelo Elo, 131072 Égide pronta,
     // runas: 262144 Pressa, 524288 Fúria, 1048576 Escudo de runa (com dano ainda a absorver)
     const hidden = z.id !== forId && !(me && me.team !== null && me.team === z.team);
     const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0) | (w.t < z.kbPenaltyUntil ? 8 : 0)
       | (Math.hypot(z.vel.x, z.vel.y) > STUN_SPEED ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
       | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 || w.t < z.slowUntil ? 4 : 0) | (z.zone & 2 ? 512 : 0)
-      | (w.t < z.windUntil ? (hidden ? 2048 : 1024) : 0) | (w.t < z.hasteUntil || w.t < z.shockUntil ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)
+      | (w.t < z.windUntil ? (hidden ? 2048 : 1024) : 0) | (w.t < z.hasteUntil || bootsBonus(w, z) > 0 ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)
       | (w.t < z.alterUntil ? 32768 : 0) | (linked.has(z.id) ? 65536 : 0) | (z.aegis ? 131072 : 0)
       | (w.t < z.runeUntil ? (z.rune === 'haste' ? 262144 : z.rune === 'fury' ? 524288 : z.rune === 'shield' && z.runeShield > 0 ? 1048576 : 0) : 0);
     // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão

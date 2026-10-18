@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { edge } from '../src/shared/arena.ts';
 import { ARENA_R0, DM_KILLS_TO_WIN, DM_RESPAWN, DM_ROUND_MS, DT, INVULN_TIME, SHRINK_EVERY } from '../src/shared/constants.ts';
 import { addPlayer, kick, newMatch, setReady, startMatch, tickMatch, type Match, type Mode } from '../src/shared/match.ts';
 import { parseClientMessage } from '../src/shared/protocol.ts';
@@ -39,7 +40,7 @@ const kill = (m: Match, id: string, by: string | null) => {
   wz.hp = 0.01;
   wz.lastHitBy = by;
   wz.lastHitAt = m.world!.t;
-  wz.pos = v(ARENA_R0 + 3, 0); // na lava: morre no passo seguinte
+  wz.pos = v(ARENA_R0 * 3, 0); // na lava: morre no passo seguinte
 };
 
 describe('deathmatch', () => {
@@ -105,7 +106,7 @@ describe('deathmatch', () => {
     expect(b.vel).toEqual(v(0, 0));
     expect(b.casting).toBeNull();
     expect(b.spells.fireball).toBe(3);
-    expect(Math.hypot(b.pos.x, b.pos.y)).toBeLessThan(m.world!.arenaR);
+    expect(edge(m.world!, b.pos)).toBeGreaterThan(0); // na pedra, qualquer que seja a arena
     expect(dist(b.pos, wiz(m, 'a').pos)).toBeGreaterThanOrEqual(2);
     for (const q of m.world!.pillars) expect(dist(b.pos, q.pos)).toBeGreaterThanOrEqual(2);
   });

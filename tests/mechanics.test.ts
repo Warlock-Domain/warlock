@@ -145,7 +145,7 @@ describe('sequências de abate', () => {
   // mata na hora (na lava, com o último golpe de `by`) e devolve os eventos daquele passo
   function kill(g: { m: Match; now: number }, id: string, by: string): SimEvent[] {
     const wz = g.m.world!.wizards.find((z) => z.id === id)!;
-    Object.assign(wz, { hp: 0.01, lastHitBy: by, lastHitAt: g.m.world!.t, pos: v(ARENA_R0 + 3, 0) });
+    Object.assign(wz, { hp: 0.01, lastHitBy: by, lastHitAt: g.m.world!.t, pos: v(ARENA_R0 * 3, 0) });
     return tickMatch(g.m, (g.now += STEP_MS), [], half).filter((e) => e.k === 'streak');
   }
   const wait = (g: { m: Match; now: number }, secs: number) => {
@@ -187,7 +187,7 @@ describe('sequências de abate', () => {
     const g = playing(['a', 'b', 'c']);
     g.m.streaks!.a = { kills: 2, multi: 1, at: -Infinity };
     const wz = g.m.world!.wizards.find((z) => z.id === 'a')!;
-    Object.assign(wz, { hp: 0.01, invulnUntil: 0, lastHitBy: null, pos: v(ARENA_R0 + 3, 0) });
+    Object.assign(wz, { hp: 0.01, invulnUntil: 0, lastHitBy: null, pos: v(ARENA_R0 * 3, 0) });
     tickMatch(g.m, (g.now += STEP_MS), [], half);
     expect(wz.alive).toBe(false);
     expect(g.m.streaks!.a.kills).toBe(0);

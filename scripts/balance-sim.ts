@@ -1,14 +1,15 @@
 // Simulador de balanceamento: partidas só de bots (4 a 8, rodadas e às vezes Times), em tempo simulado, o mais rápido possível.
 // Soma por rodada quem tinha o quê e quem venceu; grava <out>/summary.json e <out>/report.md a cada --every rodadas e no fim.
-// Uso: node scripts/balance-sim.ts --minutes 480 --out balance/noite --seed 1 [--plan random|classic] [--rounds N] [--every 1000]
+// Uso: node scripts/balance-sim.ts --minutes 480 --out balance/noite --seed 1 [--plan random|classic] [--rounds N] [--every 1000] [--arena random|circle|ring|islands|cross]
 // Juntar vários processos: node scripts/balance-sim.ts --merge --out balance/total balance/p1 balance/p2 ...
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
+import { ARENA_IDS, ARENA_NAMES, type ArenaId } from '../src/shared/arena.ts';
 import { CLASSIC_PLAN, botConfig, type BotPlan } from '../src/shared/bots.ts';
 import { DT } from '../src/shared/constants.ts';
 import { ITEMS, type ItemId } from '../src/shared/items.ts';
-import { newMatch, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
+import { newMatch, startMatch, tickMatch, type Match, type MatchOpts } from '../src/shared/match.ts';
 import { SPELLS, SPELL_IDS, type SpellId } from '../src/shared/spells.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
 
@@ -22,6 +23,7 @@ const { values: arg, positionals } = parseArgs({
     plan: { type: 'string', default: 'random' },
     rounds: { type: 'string' },
     every: { type: 'string', default: '1000' },
+    arena: { type: 'string', default: 'random' }, // arena fixa ou sorteada a cada rodada (padrão do jogo)
   },
 });
 const seed = Number(arg.seed);
@@ -29,6 +31,8 @@ const every = Math.max(1, Number(arg.every));
 const maxRounds = arg.rounds ? Number(arg.rounds) : Infinity;
 const deadline = Date.now() + Number(arg.minutes) * 60_000;
 const outDir = arg.out!;
+if (arg.arena !== 'random' && !(ARENA_IDS as readonly string[]).includes(arg.arena!)) throw new Error('arena desconhecida: ' + arg.arena);
+const arenaOpt = arg.arena as MatchOpts['arena'];
 mkdirSync(outDir, { recursive: true });
 
 // mulberry32; a partida usa Math.random direto (pilares, mundo, plano dos bots), então ele também vira o sorteio com semente
@@ -45,13 +49,14 @@ if (arg.plan === 'classic') botConfig.planner = () => CLASSIC_PLAN;
 // por chave ('spell:lightning', 'item:armor@2', 'pair:grip+meteor'...): jogadores-rodada com aquilo, vitórias, vitórias esperadas e médias
 type Agg = { n: number; wins: number; exp: number; dmg: number; kills: number; deaths: number; alive: number; gold: number };
 const S = {
-  seed: String(seed), plan: arg.plan, startedAt: new Date().toISOString(), seconds: 0, roundsPerMin: 0,
+  seed: String(seed), plan: arg.plan, arena: arg.arena, startedAt: new Date().toISOString(), seconds: 0, roundsPerMin: 0,
   matches: 0, rounds: 0, playerRounds: 0, noWinner: 0, stalled: 0,
   modes: {} as Record<string, number>, sizes: {} as Record<string, number>,
   duration: { sum: 0, by10s: {} as Record<string, number> },
   owned: {} as Record<string, Agg>,
   sources: {} as Record<string, { fired: number; landed: number; dmg: number }>,
   deathBy: {} as Record<string, number>,
+  arenaDur: {} as Record<string, { rounds: number; sum: number }>, // rodadas e soma da duração por arena
 };
 const t0 = Date.now();
 // runas pegas nesta rodada: 'idDoMago:tipo'
@@ -69,6 +74,9 @@ function record(m: Match, now: number) {
   S.modes[m.mode] = (S.modes[m.mode] ?? 0) + 1;
   S.sizes[n] = (S.sizes[n] ?? 0) + 1;
   S.duration.sum += dur;
+  const ad = (S.arenaDur[m.world!.arena] ??= { rounds: 0, sum: 0 });
+  ad.rounds++;
+  ad.sum += dur;
   const b = String(Math.floor(dur / 10) * 10);
   S.duration.by10s[b] = (S.duration.by10s[b] ?? 0) + 1;
   r.players.forEach((p, i) => {
@@ -77,8 +85,10 @@ function record(m: Match, now: number) {
     const spells = Object.keys(p.spells).filter((k) => p.spells[k] > 0);
     // a Égide quebra ao salvar: quem a usou nesta rodada conta como dono (senão só sobrariam os que nunca precisaram)
     const items = Object.keys(p.items).filter((k) => p.items[k] > 0 || (k === 'aegis' && runes.has(`${m.players[i].id}:aegis`)));
-    const keys = ['all', `nspells:${spells.length}`, `nitems:${items.length}`, `upgrade:${plan?.upgrade ?? '?'}`];
-    for (const k of spells) keys.push(`spell:${k}`, `spell:${k}@${p.spells[k]}`);
+    // arena:<id> = jogadores-rodada naquela arena; arena:<id>/spell:<s> = com a magia, naquela arena
+    const arena = m.world!.arena;
+    const keys = ['all', `arena:${arena}`, `nspells:${spells.length}`, `nitems:${items.length}`, `upgrade:${plan?.upgrade ?? '?'}`];
+    for (const k of spells) keys.push(`spell:${k}`, `spell:${k}@${p.spells[k]}`, `arena:${arena}/spell:${k}`);
     for (const k of items) keys.push(`item:${k}`, `item:${k}@${p.items[k] || 1}`);
     for (const k of Object.keys(RUNE_NAMES)) if (runes.has(`${m.players[i].id}:${k}`)) keys.push(`rune:${k}`);
     const extra = spells.filter((k) => k !== 'fireball').sort();
@@ -114,7 +124,11 @@ function wilson(k: number, n: number, z = 1.96): [number, number] {
 
 const f = (x: number, dec = 2) => (Number.isFinite(x) ? x.toFixed(dec).replace('.', ',') : '–');
 const pct = (x: number) => f(100 * x, 1) + '%';
-const label = (k: string) => {
+const label = (k: string): string => {
+  if (k.startsWith('arena:')) {
+    const [a, rest] = k.slice(6).split('/');
+    return rest ? label(rest) : ARENA_NAMES[a as ArenaId] ?? a;
+  }
   const kind = k.slice(0, k.indexOf(':'));
   const [id, lvl] = k.slice(kind.length + 1).split('@');
   const name = (x: string) => SPELLS[x as SpellId]?.name ?? ITEMS[x as ItemId]?.name ?? RUNE_NAMES[x] ?? x;
@@ -154,6 +168,13 @@ function report(): string {
 Como ler: **vit ÷ esp** = vitórias ÷ vitórias esperadas (1/jogadores nas rodadas; tamanho do time vencedor/jogadores nos Times).
 1,00 é neutro; acima de 1 ganha mais que o esperado. IC 95% = intervalo de Wilson da taxa de vitória dividido pelo esperado.
 n = jogadores-rodada que tinham aquilo. Colunas por rodada: médias de quem tinha aquilo.
+
+## Arenas
+Duração média da rodada por arena: ${Object.entries(S.arenaDur ?? {}).map(([k, x]) => `${ARENA_NAMES[k as ArenaId] ?? k} ${f(x.sum / Math.max(1, x.rounds), 1)} s (${x.rounds} rodadas)`).join(' · ')}
+
+${table('arena:', (k) => !k.includes('/'))}
+
+${ARENA_IDS.filter((a) => S.owned[`arena:${a}`]).map((a) => `### Magias: ${ARENA_NAMES[a]}\n${table(`arena:${a}/spell:`, () => true)}`).join('\n\n')}
 
 ## Uso por magia (compradas e lançadas)
 Lançamentos contam cada projétil (Rajada 4, Gêmeos 2, Divisor 8 filhotes). n = jogadores-rodada com a magia.
@@ -247,7 +268,7 @@ while (Date.now() < deadline && S.rounds < maxRounds) {
   const m = newMatch();
   const bots = 4 + Math.floor(rng() * 5);
   const mode = rng() < 0.25 ? 'teams' : 'rounds';
-  startMatch(m, now, bots, mode, rng() < 0.5, rng);
+  startMatch(m, now, bots, mode, rng() < 0.5, rng, { arena: arenaOpt });
   S.matches++;
   while (m.phase !== 'end' && S.rounds < maxRounds) {
     const was = m.phase;

@@ -4,7 +4,7 @@ import { botBuy, botCmds } from '../src/shared/bots.ts';
 import { addPlayer, buy, newMatch, startMatch, undoBuy } from '../src/shared/match.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
 import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from '../src/shared/sim.ts';
-import { GRIP, MAX_SPELLS, RUSH, SPELLS, noSpells, spellLevel, type SpellId } from '../src/shared/spells.ts';
+import { MAX_SPELLS, RUSH, SPELLS, noSpells, spellLevel, type SpellId } from '../src/shared/spells.ts';
 import { dist, len, v } from '../src/shared/vec.ts';
 
 // mundo sem invulnerabilidade inicial; todos os magos com as magias dadas no nível 1
@@ -90,13 +90,23 @@ describe('Agarrar', () => {
     expect(w.wizards[1].pos.y).toBeGreaterThan(0.5);
   });
 
-  it('cuts knockback taken by 67% and cancels the target cast', () => {
+  it('the first damaging hit frees the gripped target and knocks it further (by grip level); cancels the target cast', () => {
     const a = world([[0, 0], [4, 0]], ['fireball']);
     const g = world([[0, 0], [4, 0]], ['fireball']);
-    g.wizards[1].gripUntil = 99;
-    run(a, 0.4, [cast('p0', 'fireball', 4, 0)]);
-    run(g, 0.4, [cast('p0', 'fireball', 4, 0)]);
-    expect(len(g.wizards[1].vel)).toBeCloseTo(len(a.wizards[1].vel) * (1 - GRIP.kbCut), 3);
+    Object.assign(g.wizards[1], { gripUntil: 99, gripBonus: 0.3 });
+    for (const x of [a, g]) x.wizards[1].invulnUntil = 0; // sem os 2 s de invulnerável do começo
+    run(a, 1, [cast('p0', 'fireball', 4, 0)]);
+    run(g, 1, [cast('p0', 'fireball', 4, 0)]);
+    expect(len(a.wizards[1].vel)).toBeGreaterThan(1);
+    expect(len(g.wizards[1].vel)).toBeCloseTo(len(a.wizards[1].vel) * 1.3, 3);
+    expect(g.wizards[1].gripUntil).toBe(0); // solto: o próximo golpe empurra normal
+    // nível 7: +90%
+    const h = world([[0, 0], [4, 0]], ['grip']);
+    h.wizards[0].spells.grip = 7;
+    h.wizards[1].invulnUntil = 0;
+    run(h, 1, [cast('p0', 'grip', 4, 0)]);
+    expect(h.wizards[1].gripUntil).toBeGreaterThan(h.t);
+    expect(h.wizards[1].gripBonus).toBe(0.9);
     const c = world([[0, 0], [4, 0]], ['grip', 'meteor']);
     stepWorld(c, [cast('p1', 'meteor', 0, 0)]);
     expect(c.wizards[1].casting).not.toBeNull();

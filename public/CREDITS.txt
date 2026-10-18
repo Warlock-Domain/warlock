@@ -106,6 +106,7 @@ music/battle.mp3
     Elmo: delapouite/spartan-helmet.svg, Delapouite (http://delapouite.com)
     Botas de choque: lorc/winged-leg.svg, Lorc (http://lorcblog.blogspot.com)
     Égide: lorc/angel-wings.svg, Lorc (http://lorcblog.blogspot.com)
+    Botas de vento: lorc/feather.svg, Lorc (http://lorcblog.blogspot.com)
   Runas:
     Pressa: delapouite/rabbit.svg, Delapouite (http://delapouite.com)
     Fúria: delapouite/enrage.svg, Delapouite (http://delapouite.com)
