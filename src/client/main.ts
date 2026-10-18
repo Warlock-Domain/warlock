@@ -1,5 +1,5 @@
 import { edgeAt, type ArenaId } from '../shared/arena.ts';
-import { ARENA_MIN, HP_MAX, RUNE, SHRINK_EVERY, STUN_SPEED, type RuneKind } from '../shared/constants.ts';
+import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, type RuneKind } from '../shared/constants.ts';
 import { isCharacter } from '../shared/characters.ts';
 import type { PublicRoom, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { SimEvent } from '../shared/sim.ts';
@@ -488,7 +488,7 @@ function startRoom(code: string, name: string) {
         const prevDraw = drawn.get(w.id);
         if (prevDraw) moving = moving && dist(prevDraw, pos) > 0.004;
         drawn.set(w.id, pos);
-        wizards.push({ ...w, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), color: p?.color ?? 0, character: p?.character ?? 'mage', name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0, moving, cheer: room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null });
+        wizards.push({ ...w, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? room?.opts.difficulty : null, color: p?.color ?? 0, character: p?.character ?? 'mage', name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0, moving, cheer: room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null });
       }
     }
     // perigo: vida abaixo de 25% e pé na lava (mesma regra da simulação: fora do raio da arena)

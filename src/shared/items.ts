@@ -26,7 +26,7 @@ export const ITEMS: Record<ItemId, Item> = {
   // era a maestria Roubo de vida do original (shop.lua MASTERY_GAIN: +9/8/7/6/5/4% por nível, 5 de ouro cada); virou item em 17/10
   vampire: { name: 'Roubo de vida', cost: 5, text: 'Recupera parte do dano que você causa.', levels: [0.09, 0.17, 0.24, 0.3, 0.35, 0.39].map((lifesteal) => ({ lifesteal })) },
   scourge: { name: 'Flagelo', cost: 7, key: '1', text: 'Explode em volta depois de 0,5 s e empurra quem estiver perto.', levels: [{}, {}, {}] },
-  redirector: { name: 'Redirecionador', cost: 8, key: '2', text: 'Desvia seu projétil mais perto do cursor; 8 s voando mais longe.', levels: [{}] },
+  redirector: { name: 'Redirecionador', cost: 8, key: '2', text: 'Desvia todos os seus projéteis voando para o cursor.', levels: [{}] },
   pact: { name: 'Pacto', cost: 10, key: '3', text: 'Próxima magia de dano em 5 s faz 2× de dano e empurrão.', levels: [{}] },
   // itens novos de 18/10, do catálogo docs/itens-candidatos.md (Warlock CE); números conservadores até a simulação dizer
   lava_boots: { name: 'Botas de lava', cost: 4, text: 'A lava machuca menos.', levels: [{ lava: 0.35 }, { lava: 0.5 }] }, // ciclo 2: nv 2 0,6 → 0,5 (1,35× no nv 2)
@@ -54,7 +54,8 @@ export const AEGIS = { hp: 250, back: 0.6 };
 export const SCOURGE = { dmg: [80, 100, 120], radius: 325 * UNIT, windup: 0.5, cd: 5 }; // recarga 3 s no original; 5 s no balanceamento de 17/10 // preparo: 0,9 s no original, 0,5 s a pedido do Fernando (17/10)
 // tempo de conjuração dos ativos (o do Flagelo é o preparo de 0,9 s)
 export const ITEM_CAST: Partial<Record<ItemId, number>> = { scourge: SCOURGE.windup, redirector: 0.1, pact: 0.1 };
-export const REDIRECTOR = { cd: 24, kbPenalty: 0.3, penaltyTime: 8, extraLife: 0.5 };
+// consertado em 18/10 (pedido do Fernando): sem a penalidade de +30% de empurrão por 8 s, recarga 24 → 12 s, desvia todos e não gasta sem projétil
+export const REDIRECTOR = { cd: 12, extraLife: 0.5 };
 // balanceamento de 17/10 (5 rodadas com ele, 0 vitórias): 2×, sem lentidão, recarga 20 s
 export const PACT = { cd: 20, window: 5, mult: 2 };
 

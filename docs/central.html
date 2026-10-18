@@ -125,6 +125,7 @@ figcaption { font-size: 14.5px; color: var(--muted); max-width: 68ch; }
     <ol>
       <li><a href="#fila">Fila de pedidos (ao vivo)</a></li>
       <li><a href="#decidindo">Agora estamos decidindo</a></li>
+      <li><a href="#grill-bal">Grill: balanceamento para gente</a></li>
       <li><a href="#bots-gente">Bots como gente</a></li>
       <li><a href="#grill">Grill: o que ainda falta</a></li>
       <li><a href="#fazendo">O que estou fazendo</a></li>
@@ -165,10 +166,66 @@ figcaption { font-size: 14.5px; color: var(--muted); max-width: 68ch; }
   <h2>Agora estamos decidindo</h2>
   <div class="decide">
     <div class="q">
-      <div class="ask">Como os bots devem jogar para parecer gente (15 pontos, em 4 rodadas de perguntas)</div>
-      <p class="why"><b>Por que importa:</b> os bots de hoje sabem para onde você clicou, reagem rápido e não erram; isso deixa a partida injusta e faz a simulação medir as magias com jogadores que não existem. Exemplo do dia a dia: treinar contra uma máquina de tênis que sempre acerta a linha não te prepara para jogar com um amigo.</p>
-      <p class="why"><b>Contexto, opções e recomendação de cada ponto:</b> seção <a href="#bots-gente">Bots como gente</a>.</p>
-      <p class="why"><b>Recomendação geral:</b> mira só pelo que se vê, erro de mira e tempo de reação um pouco maiores, atraso para usar a magia quando a recarga acaba, menos decisões por segundo, visão do tamanho da tela e erros humanos no Fácil.</p>
+      <div class="ask">Como deixar o balanceamento bom para gente (8 perguntas, 2 rodadas)</div>
+      <p class="why"><b>Por que importa:</b> até agora o balanceamento foi medido com bots, que jogam diferente de vocês. Exemplo do dia a dia: provar a receita só com quem gosta de pimenta não diz se a família vai gostar.</p>
+      <p class="why"><b>Contexto, opções, prós e contras:</b> seção <a href="#grill-bal">Grill: balanceamento para gente</a>.</p>
+      <p class="why"><b>Recomendação geral:</b> copiar o jeito de jogar de vocês para os bots, medir em Normal e Difícil, metas de diversão, torneio de compras à noite, vitória ajustada pelo ouro, salas pequenas com mais peso, modo teste votável e treino com desafios.</p>
+    </div>
+  </div>
+</section>
+
+<section id="grill-bal">
+  <div class="eyebrow">Grill de 18/10, tarde</div>
+  <h2>Grill: balanceamento para gente</h2>
+  <p class="why">Estratégias para a simulação e o treino refletirem como vocês jogam. Cada uma com o que medi (com a origem), as opções e a minha recomendação. Pergunto em 2 rodadas de 4 no chat.</p>
+  <div class="decide">
+    <div class="q" id="h1">
+      <div class="ask">1. Copiar o jeito de jogar de vocês para os bots</div>
+      <p class="why"><b>Contexto:</b> hoje os números dos bots são escolhas suas (18/10), não medidas. A telemetria guarda só totais da sala (77 rodadas reais; o Raio acertou 13% contra 64% dos bots). Dá para gravar, por jogador humano: precisão por magia, magias por minuto, tempo até reagir a um tiro, distância média do inimigo, mortes na lava, e comparar com os bots.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Gravar e ajustar sozinho a cada 50 rodadas reais (Recomendada)</b></td><td>O servidor compara humano × bot Normal e sugere os 15 números; eu aplico e aviso</td><td>Bots ficam parecidos com vocês de verdade</td><td>Precisa de partidas reais; 50 rodadas ≈ 1 h de jogo</td></tr><tr><td><b>Gravar e eu ajusto com você</b></td><td>Mesmo dado, mas cada ajuste passa por você no grill</td><td>Você controla tudo</td><td>Mais lento</td></tr><tr><td><b>Gravar só para ver</b></td><td>Painel com humano × bot, sem mexer nos bots</td><td>Sem surpresa</td><td>Bots continuam sendo chute</td></tr><tr><td><b>Não gravar</b></td><td>Nada muda</td><td>Menos dado guardado</td><td>Balanceamento continua só com bots</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> gravar e ajustar sozinho a cada 50 rodadas reais, só com apelido (nada pessoal).</p>
+    </div>
+    <div class="q" id="h2">
+      <div class="ask">2. Em que dificuldade a magia precisa estar justa</div>
+      <p class="why"><b>Contexto:</b> hoje a simulação mede só com bots Normal. Uma magia pode ficar justa no Normal e forte demais com quem mira bem (Difícil), ou fraca com iniciante (Fácil). Faixa aceita: vencer até 15% acima ou abaixo do justo.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Normal e Difícil (Recomendada)</b></td><td>Cada ciclo roda as duas e a magia precisa ficar na faixa nas duas</td><td>Justo para quem joga bem e para quem joga médio</td><td>Ciclo leva o dobro (16 min)</td></tr><tr><td><b>Só Normal (hoje)</b></td><td>Como está</td><td>Rápido</td><td>Pode esconder magia forte nas mãos de quem é bom</td></tr><tr><td><b>As três</b></td><td>Fácil, Normal e Difícil</td><td>Justo para todos</td><td>Ciclo leva o triplo; o Fácil erra muito e distorce</td></tr><tr><td><b>Média dos três</b></td><td>Faixa na média</td><td>Rápido de ler</td><td>Uma dificuldade pode ficar fora</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> Normal e Difícil.</p>
+    </div>
+    <div class="q" id="h3">
+      <div class="ask">3. Medir diversão além da vitória</div>
+      <p class="why"><b>Contexto:</b> hoje o critério é só vitória ÷ justo. Partida pode estar justa e chata: rodada longa demais, todo mundo morrendo na lava sem briga, magia que ninguém compra. Duração média hoje: 92 s no Círculo, 111 a 132 s nas arenas novas (simulação de 18/10).</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Metas de diversão junto (Recomendada)</b></td><td>Rodada de 60 a 120 s; pelo menos 60% das mortes por golpe (não lava sozinha); cada magia comprada por pelo menos 4% dos bots que podem comprar; abates por rodada</td><td>Balanceia o que deixa a partida legal</td><td>Mais números para olhar</td></tr><tr><td><b>Só duração e uso</b></td><td>Duração da rodada e quanto cada magia é comprada</td><td>Simples</td><td>Ignora morte boba na lava</td></tr><tr><td><b>Só vitória (hoje)</b></td><td>Como está</td><td>Um número só</td><td>Não pega partida chata</td></tr><tr><td><b>Pesquisa com vocês</b></td><td>Depois de cada partida, nota de 1 a 5 e o que achou</td><td>Opinião de gente</td><td>Pouca resposta</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> metas de diversão junto, e a nota de 1 a 5 opcional no fim da partida.</p>
+    </div>
+    <div class="q" id="h4">
+      <div class="ask">4. Caçar combinações quebradas</div>
+      <p class="why"><b>Contexto:</b> a simulação sorteia as compras, então mede cada magia sozinha. Duas magias juntas podem ser fortes demais (ex.: Agarrar + Meteoro). Dá para fazer torneios: planos de compra competem, os que vencem mais se multiplicam com pequenas mudanças (como evolução), e no fim aparecem as combinações dominantes.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Torneio de compras toda noite (Recomendada)</b></td><td>200 planos competem por 8 h; relatório das 10 combinações que mais vencem</td><td>Acha o que um jogador esperto vai descobrir</td><td>Usa o PC à noite (em prioridade baixa)</td></tr><tr><td><b>Só tabela de pares</b></td><td>Já existe no relatório (pares de magias), passo a olhar</td><td>Sem trabalho novo</td><td>Só pares, não combos de 3 ou com itens</td></tr><tr><td><b>Torneio só quando você pedir</b></td><td>Rodo sob demanda</td><td>PC livre</td><td>Pode passar combo quebrado</td></tr><tr><td><b>Não</b></td><td>Nada muda</td><td>—</td><td>Combo forte aparece só jogando</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> torneio de compras toda noite, em prioridade baixa.</p>
+    </div>
+    <div class="q" id="h5">
+      <div class="ask">5. Tirar o viés de quem tem mais ouro</div>
+      <p class="why"><b>Contexto:</b> quem vence ganha mais ouro e sobe mais de nível; por isso o nível 7 de quase tudo parece forte (o Míssil vai de 18% acima do justo no nível 1 a 62% no nível 7). Isso mistura força da magia com riqueza.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Vitória ajustada pelo ouro (Recomendada)</b></td><td>A conta compara jogadores com ouro parecido</td><td>Mostra a força real de cada nível</td><td>Número um pouco mais difícil de explicar</td></tr><tr><td><b>Medir só no nível 1</b></td><td>Usa só a linha do nível 1 para decidir</td><td>Simples</td><td>Não vê se subir de nível vale a pena</td></tr><tr><td><b>Simulação com ouro igual para todos</b></td><td>Partidas de teste onde todos ganham o mesmo ouro</td><td>Isola a magia</td><td>Longe do jogo real</td></tr><tr><td><b>Deixar</b></td><td>Como está</td><td>—</td><td>Níveis altos enganam</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> vitória ajustada pelo ouro.</p>
+    </div>
+    <div class="q" id="h6">
+      <div class="ask">6. Balancear por tamanho de sala e modo</div>
+      <p class="why"><b>Contexto:</b> hoje a simulação mistura salas de 4 a 8 magos e 25% em Times. Com vocês, o comum deve ser 2 a 4 pessoas + bots. Magia de área (Rajada, Divisor) rende mais com muita gente; duelo favorece outras.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Separar por sala pequena (2–4) e grande (5–8) (Recomendada)</b></td><td>Faixa nas duas; pesa mais a pequena, que é a de vocês</td><td>Balanceia o jogo que vocês jogam</td><td>Ciclo mais longo</td></tr><tr><td><b>Pesar pelo que vocês jogam</b></td><td>A simulação imita a mistura real de tamanhos e modos da telemetria</td><td>Fiel ao uso</td><td>Precisa de mais partidas reais</td></tr><tr><td><b>Também Times e Deathmatch separados</b></td><td>Faixa em cada modo</td><td>Justo em todo modo</td><td>Triplica o tempo</td></tr><tr><td><b>Deixar misturado</b></td><td>Como está</td><td>Rápido</td><td>Pode esconder desequilíbrio no duelo</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> separar sala pequena e grande, pesando mais a pequena.</p>
+    </div>
+    <div class="q" id="h7">
+      <div class="ask">7. Testar mudanças nas partidas de vocês</div>
+      <p class="why"><b>Contexto:</b> a simulação diz o que acontece com bots. Para saber com gente, dá para jogar uma mudança em metade das salas e comparar (teste A/B), ou deixar vocês votarem um 'modo teste'.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Modo teste votável (Recomendada)</b></td><td>Na sala, opção 'Números em teste' liga a próxima mudança; a telemetria compara</td><td>Vocês escolhem quando testar</td><td>Precisa lembrar de ligar</td></tr><tr><td><b>A/B automático</b></td><td>Metade das salas recebe a mudança sem aviso</td><td>Dado sem viés</td><td>Jogo muda sem vocês saberem</td></tr><tr><td><b>Só pela simulação</b></td><td>Como está</td><td>Nada muda para vocês</td><td>Não confirma com gente</td></tr><tr><td><b>Você testa sozinho no treino</b></td><td>Mudança só no modo treino</td><td>Sem afetar os amigos</td><td>Treino é contra bots</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> modo teste votável.</p>
+    </div>
+    <div class="q" id="h8">
+      <div class="ask">8. Modo treino mais útil</div>
+      <p class="why"><b>Contexto:</b> hoje o treino é uma partida com 3 bots e dicas nas primeiras rodadas. Dá para virar treino de verdade.</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como fica</th><th>Prós</th><th>Contras</th></tr></thead><tbody><tr><td><b>Desafios curtos + replay da morte (Recomendada)</b></td><td>Desafios (desviar de 10 Bolas de fogo, empurrar 3 na lava, acertar 5 Raios) e, ao morrer, 3 s de replay do que te matou</td><td>Aprende o jogo e entende cada morte</td><td>Trabalho de interface</td></tr><tr><td><b>Bot que imita você</b></td><td>Um bot com os seus números da telemetria (mira, reação) para você enfrentar a si mesmo</td><td>Divertido e mostra seus vícios</td><td>Precisa de partidas suas gravadas</td></tr><tr><td><b>Escolher magias dos bots</b></td><td>No treino você escolhe o que os bots compram</td><td>Treina contra a magia que te incomoda</td><td>Menos natural</td></tr><tr><td><b>Deixar como está</b></td><td>Partida com dicas</td><td>—</td><td>Treino raso</td></tr></tbody></table></div>
+      <p class="why"><b>Recomendação:</b> desafios curtos e replay da morte.</p>
     </div>
   </div>
 </section>

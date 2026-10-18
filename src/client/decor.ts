@@ -42,7 +42,7 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
     for (const it of islands) {
       let r = it.r;
       while (r < 40 && edgeOf(v(Math.cos(it.a) * r, Math.sin(it.a) * r)) > -3) r += 0.5;
-      it.g.position.set(Math.cos(it.a) * r, -0.15, Math.sin(it.a) * r);
+      it.g.position.set(Math.cos(it.a) * r, 0.1, Math.sin(it.a) * r);
     }
     for (const p of props) {
       p.obj.position.y = edgeOf(p.pos) < 0.2 ? -1.5 : p.baseY;
@@ -88,7 +88,7 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
     for (const [names, r, deg] of ISLANDS) {
       const a = (deg * Math.PI) / 180;
       const island = new THREE.Group();
-      island.position.set(Math.cos(a) * r, -0.15, Math.sin(a) * r);
+      island.position.set(Math.cos(a) * r, 0.1, Math.sin(a) * r);
       const rock = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.3, 1.2, 9), islandMat);
       rock.position.y = -0.6;
       rock.receiveShadow = true;

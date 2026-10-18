@@ -34,7 +34,6 @@ export type Wizard = {
   baseSpeed: number;
   speed: number; // velocidade de andar agora (botas, Investida, preso)
   debuffMult: number; // duração de lentidões e penalidades
-  kbPenaltyUntil: number; // Redirecionador: voa mais longe até este instante
   pactUntil: number; // Pacto armado até este instante
   gripUntil: number; // preso (Agarrar): não anda até o primeiro golpe com dano
   gripBonus: number; // empurrão a mais desse golpe (pelo nível do Agarrar de quem prendeu)
@@ -225,7 +224,6 @@ export function newWorld(
       baseSpeed: WIZ_SPEED + st.speed,
       speed: WIZ_SPEED + st.speed,
       debuffMult: Math.max(0, 1 + st.debuff),
-      kbPenaltyUntil: 0,
       pactUntil: 0,
       gripUntil: 0,
       gripBonus: 0,
@@ -340,10 +338,9 @@ const allies = (a: Wizard | undefined, b: Wizard) => !!a && a !== b && a.team !=
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src = 'outro') {
   // invulnerável: sem dano nem empurrão, mas o acerto aparece (explosão e som), senão o projétil sumiria sem efeito
   if (w.t < target.invulnUntil) return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
-  const penalty = w.t < target.kbPenaltyUntil ? REDIRECTOR.kbPenalty : 0;
   // como no mod de Dota 2 (pawn.lua): acima de 100 de dano por golpe o empurrão cresce pela raiz, não em linha reta
   const big = dmg > KB_SOFT_CAP ? Math.sqrt(KB_SOFT_CAP * dmg) / dmg : 1;
-  const mult = big * (1 + (KNOCK_HP_SCALE * target.dmgTaken) / HP_MAX) * Math.max(0, 1 - target.kbResist + penalty);
+  const mult = big * (1 + (KNOCK_HP_SCALE * target.dmgTaken) / HP_MAX) * Math.max(0, 1 - target.kbResist);
   // fogo amigo: só empurra; sem dano, sem roubo de vida e sem crédito de abate para o aliado
   if (allies(w.wizards.find((z) => z.id === by), target)) {
     target.vel = add(target.vel, scale(norm(dir), knock * mult));
@@ -764,16 +761,17 @@ function useItem(w: World, wz: Wizard, item: ItemId, at: Vec) {
     wz.itemCd.pact = w.t + PACT.cd;
     wz.pactUntil = w.t + PACT.window * wz.durF;
   } else {
+    // todos os projéteis seus voando viram para o cursor; sem nenhum, o item não gasta
+    const mine = w.projectiles.filter((p) => p.owner === wz.id && !fixed(p) && !returning(p) && p.kind !== 'link' && dist(p.pos, at) > 0.05);
+    if (!mine.length) return;
     w.events.push({ k: 'fire', id: wz.id, src: 'redirector' });
     wz.itemCd.redirector = w.t + REDIRECTOR.cd;
-    wz.kbPenaltyUntil = w.t + REDIRECTOR.penaltyTime * wz.debuffMult;
-    let best: Projectile | null = null;
-    for (const p of w.projectiles) if (p.owner === wz.id && !fixed(p) && !returning(p) && p.kind !== 'link' && (!best || dist(p.pos, at) < dist(best.pos, at))) best = p;
-    if (!best) return;
-    best.vel = scale(norm(sub(at, best.pos)), len(best.vel));
-    best.until += REDIRECTOR.extraLife;
-    best.target = null; // o míssil passa a seguir reto para onde foi mandado
-    w.events.push({ k: 'redirect', x: best.pos.x, y: best.pos.y });
+    for (const p of mine) {
+      p.vel = scale(norm(sub(at, p.pos)), len(p.vel));
+      p.until += REDIRECTOR.extraLife;
+      p.target = null; // o míssil passa a seguir reto para onde foi mandado
+      w.events.push({ k: 'redirect', x: p.pos.x, y: p.pos.y });
+    }
   }
 }
 
@@ -1394,7 +1392,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
   }
   Object.assign(wz, {
     alive: true, pos: best, vel: v(0, 0), target: null, casting: null, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
-    shieldUntil: 0, kbPenaltyUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
+    shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
     rune: null, runeUntil: 0, runeShield: 0,
   });

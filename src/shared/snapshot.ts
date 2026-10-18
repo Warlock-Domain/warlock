@@ -32,7 +32,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     // 8192 magnetizado atraindo, 16384 magnetizado repelindo, 32768 Alteração, 65536 preso pelo Elo, 131072 Égide pronta,
     // runas: 262144 Pressa, 524288 Fúria, 1048576 Escudo de runa (com dano ainda a absorver); 2097152 no redemoinho (mesma conta do puxão em sim.ts)
     const hidden = z.id !== forId && !(me && me.team !== null && me.team === z.team);
-    const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0) | (w.t < z.kbPenaltyUntil ? 8 : 0)
+    const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0)
       | (Math.hypot(z.vel.x, z.vel.y) > STUN_SPEED ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
       | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 || w.t < z.slowUntil ? 4 : 0) | (z.zone & 2 ? 512 : 0)
       | (w.t < z.windUntil ? (hidden ? 2048 : 1024) : 0) | (w.t < z.hasteUntil || bootsBonus(w, z) > 0 ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)

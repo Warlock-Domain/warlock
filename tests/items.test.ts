@@ -126,6 +126,18 @@ describe('itens ativos', () => {
     expect(w.wizards[1].hp).toBeLessThan(HP_MAX);
   });
 
+  it('redirector turns every projectile of yours, has no penalty and is not spent without one', () => {
+    const w = world([[0, 0], [0, 5]], [{ redirector: 1 }]);
+    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'redirector', at: v(0, 5) }]);
+    steps(w, 10);
+    expect(w.wizards[0].itemCd.redirector).toBe(0); // nada voando: não gastou
+    w.projectiles.push(...[v(1, 0), v(-1, 0)].map((pos, i) => ({ id: 90 + i, born: 0, kind: 'fireball' as const, owner: 'p0', caster: 'p0', pos, vel: v(6.47 * Math.sign(pos.x), 0), level: 1, until: w.t + 2, target: null, dmgMult: 1 })));
+    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'redirector', at: v(0, 5) }]);
+    steps(w, 8);
+    for (const p of w.projectiles.filter((q) => q.kind === 'fireball')) expect(p.vel.y).toBeGreaterThan(Math.abs(p.vel.x));
+    expect(w.wizards[0].itemCd.redirector).toBeGreaterThan(w.t);
+  });
+
   it('scourge destroys enemy projectiles in the blast', () => {
     // a bola de fogo chega na área no meio do preparo de 0,5 s
     const w = world([[0, 0], [5.5, 0]], [{ scourge: 1 }]);

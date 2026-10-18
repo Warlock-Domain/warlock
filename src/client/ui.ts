@@ -10,7 +10,7 @@ import { ACTIONS, CAST_MODES, RESERVED, SHEET_KEY, SHOP_KEY, getCastMode, isPadM
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { MODE_INFO, OPT_INFO, infoButton } from './opt-info.ts';
 import { isRumbleOn, setRumble } from './gamepad.ts';
-import { COLORS, TEAM_COLORS } from './scene.ts';
+import { BOT_LEVEL, COLORS, TEAM_COLORS } from './scene.ts';
 import { RULES, RULES_SHORT, SPELL_GROUPS, SPELL_USE } from './rules-text.ts';
 import { ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, icon } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
@@ -575,6 +575,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', 'aria-label': 'Como jogar', onclick: showRules }, icon(UI_ICON.help))),
   );
   const center = el('div', { class: 'center' });
+  // a janela da loja pode ser alargada pela alça do canto (PC); o tamanho fica salvo neste navegador (pedido do Fernando, 18/10)
+  const SHOP_SIZE = 'warlock:shopSize';
+  new ResizeObserver(() => {
+    if (!center.classList.contains('shop-open') || !center.style.width) return;
+    try { localStorage.setItem(SHOP_SIZE, JSON.stringify([center.style.width, center.style.height])); } catch { /* sem armazenamento: vale só nesta visita */ }
+  }).observe(center);
   const timer = el('div', { class: 'timer' });
   const respawn = el('div', { class: 'respawn' });
   const buttons = new Map<SpellId, { b: HTMLElement; cd: HTMLElement; pips: HTMLElement }>();
@@ -1032,6 +1038,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     center.classList.toggle('enter', entering);
     centerPhase = r.phase;
     center.replaceChildren(r.phase === 'lobby' || (r.phase === 'end' && setup) ? lobbyPanel(r) : r.phase === 'end' ? endPanel(r) : r.phase === 'shop' ? shopPanel(r) : '');
+    const shopOpen = r.phase === 'shop';
+    if (shopOpen !== center.classList.contains('shop-open')) {
+      center.classList.toggle('shop-open', shopOpen);
+      let size: [string, string] | null = null;
+      try { size = shopOpen ? JSON.parse(localStorage.getItem(SHOP_SIZE) ?? 'null') : null; } catch { /* idem */ }
+      center.style.width = size?.[0] ?? '';
+      center.style.height = size?.[1] ?? '';
+    }
     // painel novo começa do topo (o fim da partida herdava a rolagem da loja e escondia o título e o pódio)
     if (entering) center.scrollTop = 0;
     if (!online) center.querySelectorAll('button').forEach((b) => b.setAttribute('disabled', ''));
@@ -1046,7 +1060,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // modo Times: agrupada por time, com uma faixa da cor do time à esquerda
     const r = room;
     players.replaceChildren(head, ...[...r.players].sort((a, b) => byTeam(r, a, b)).map((p) =>
-      el('li', { class: p.id === me ? 'me' : '', style: r.mode === 'teams' && p.team !== null ? `box-shadow:inset 3px 0 0 ${TEAM_COLORS[p.team]}` : '' }, dot(p.color), el('span', {}, nameOf(p, me)), el('span', { class: 'live' }, String(live[p.id]?.kills ?? 0)), el('span', { class: 'live' }, String(Math.round(live[p.id]?.dmg ?? 0))), el('b', {}, String(p.score))),
+      el('li', { class: p.id === me ? 'me' : '', style: r.mode === 'teams' && p.team !== null ? `box-shadow:inset 3px 0 0 ${TEAM_COLORS[p.team]}` : '' }, dot(p.color), el('span', {}, nameOf(p, me), p.bot ? el('small', { class: 'bot-tag' }, BOT_LEVEL[r.opts.difficulty]) : null), el('span', { class: 'live' }, String(live[p.id]?.kills ?? 0)), el('span', { class: 'live' }, String(Math.round(live[p.id]?.dmg ?? 0))), el('b', {}, String(p.score))),
     ));
   }
 
