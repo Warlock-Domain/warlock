@@ -573,7 +573,7 @@ const RULES_SHORT: Record<SpellId, string> = {
   homing: 'Lento, persegue o alvo mais perto da mira.',
   shield: 'Reflete fogo, míssil e raio por 1,2 s.',
   teleport: 'Salta até o cursor (alcance curto).',
-  swap: 'Troca de lugar com o mago que acertar.',
+  swap: 'Voa até o alcance e troca de lugar com o primeiro mago que tocar; sem ninguém, leva você ao ponto da mira.',
   grip: 'Prende o alvo no lugar e reduz o empurrão dele.',
   meteor: 'Cai em área no ponto marcado, após 1 s.',
   rush: 'Avança 3 m na direção do mouse e fica mais rápido; dano levado vira mais velocidade.',

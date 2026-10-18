@@ -63,6 +63,7 @@ export type Projectile = {
   target: string | null;
   dmgMult: number; // Pacto
   caster: string; // quem lançou (o dono muda quando um escudo reflete)
+  dest?: Vec; // Troca: aonde o mago vai se ela não tocar ninguém (o ponto da mira)
 };
 
 export type Cmd =
@@ -394,8 +395,10 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   } else if (spell === 'grip') {
     launch('grip', dir, (L.range / L.speed) * wz.rangeF);
   } else if (spell === 'swap') {
-    // sai do centro do mago e para no ponto da mira se ele estiver mais perto que o alcance
-    launch('swap', dir, Math.min(dist(at, wz.pos), L.range * wz.rangeF) / L.speed, null, wz.pos);
+    // voa o alcance todo e troca com o primeiro mago que tocar; sem ninguém, o mago vai ao ponto da mira
+    // (no original parava no clique e errava quem se mexia; mudança a pedido do Fernando, 17/10)
+    launch('swap', dir, (L.range * wz.rangeF) / L.speed, null, wz.pos);
+    w.projectiles[w.projectiles.length - 1].dest = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
   } else if (spell === 'meteor') {
     const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
     w.projectiles.push({ id: w.nextId++, kind: 'meteor', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + METEOR_DELAY, target: null, dmgMult, caster: wz.id });
@@ -548,12 +551,12 @@ function meteorLand(w: World, p: Projectile) {
   if (landed && p.owner === p.caster) w.events.push({ k: 'land', id: p.caster, src: 'meteor' });
 }
 
-// a Troca sem alvo termina onde o projétil parou: o mago vai para lá
+// a Troca sem alvo: o mago vai ao ponto da mira, ou para onde ela bateu num obstáculo antes de chegar lá
 function swapEnd(w: World, p: Projectile) {
   const wz = byId(w, p.owner);
   if (!wz) return;
   const from = wz.pos;
-  wz.pos = p.pos;
+  wz.pos = p.dest && dot(sub(p.pos, p.dest), p.vel) >= 0 ? p.dest : p.pos;
   wz.target = null;
   w.events.push({ k: 'teleport', id: wz.id, from, to: wz.pos });
 }

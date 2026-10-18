@@ -26,7 +26,8 @@ export const SPELLS: Record<SpellId, Spell> = {
   // troca: projétil de 1983 u/s que vive 0,4706 s (alcance 933 u)
   swap: { key: 'D', name: 'Troca', cost: 11, up: [6, 7, 8, 9, 10, 11], levels: [15.8, 13.3, 11.3, 9.8, 8.8, 7.8, 7].map((cd) => L({ cd, speed: 1983 * UNIT, range: 933 * UNIT })) },
   // agarrar: projétil de 1000 u/s por 1,1 s; duration = tempo preso
-  grip: { key: 'G', name: 'Agarrar', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([24, 20, 17, 15, 13, 12, 10.5], [4.5, 4.75, 5, 5.25, 5.5, 5.75, 6]).map(([cd, duration]) => L({ cd, duration, speed: 1000 * UNIT, range: 1100 * UNIT })) },
+  // Agarrar prende metade do tempo do original (nerf pedido pelo Fernando, 17/10)
+  grip: { key: 'G', name: 'Agarrar', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([24, 20, 17, 15, 13, 12, 10.5], [4.5, 4.75, 5, 5.25, 5.5, 5.75, 6]).map(([cd, duration]) => L({ cd, duration: duration / 2, speed: 1000 * UNIT, range: 1100 * UNIT })) },
   // meteoro: dano de 40 (4) na borda até o máximo no centro; empurrão 0,66
   meteor: { key: 'V', name: 'Meteoro', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([20, 19.5, 19, 18.5, 18, 17.5, 17], [110, 120, 130, 140, 150, 160, 170]).map(([cd, d], i) => L({ cd, dmg: d / 10, dmgMin: 4, kbf: 0.66, radius: [225, 240, 255, 269, 282, 294, 304][i] * UNIT, range: 1000 * UNIT })) },
   // investida: absorve até `absorb` de dano (metade de cada golpe) e vira velocidade

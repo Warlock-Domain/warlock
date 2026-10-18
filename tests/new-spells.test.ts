@@ -33,10 +33,17 @@ describe('Troca', () => {
     expect(w.projectiles).toHaveLength(0);
   });
 
+  it('flies past the click point and swaps with whoever is beyond it', () => {
+    const w = world([[0, 0], [4.5, 0]], ['swap']);
+    run(w, 0.6, [cast('p0', 'swap', 2, 0)]);
+    expect(w.wizards[0].pos.x).toBeCloseTo(4.5, 1);
+    expect(w.wizards[1].pos.x).toBeCloseTo(0, 1);
+  });
+
   it('with no hit the caster ends where the projectile stopped, up to max range', () => {
     const w = world([[0, 0], [0, -8]], ['swap']);
-    run(w, 0.3, [cast('p0', 'swap', 3, 0)]);
-    expect(w.wizards[0].pos.x).toBeCloseTo(3, 3); // parou na mira, mais perto que o alcance
+    run(w, 0.6, [cast('p0', 'swap', 3, 0)]);
+    expect(w.wizards[0].pos.x).toBeCloseTo(3, 3); // voou o alcance todo sem tocar ninguém: vai ao ponto da mira
     w.wizards[0].cd.swap = 0;
     w.wizards[0].pos = v(0, 0);
     run(w, 1, [cast('p0', 'swap', 50, 0)]);
