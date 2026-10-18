@@ -32,8 +32,42 @@ const save = () => {
   listeners.forEach((f) => f());
 };
 
-export const keyOf = (a: Action) => map[a];
-export const actionFor = (code: string): Action | undefined => (ACTIONS.find((a) => map[a] === code) as Action | undefined);
+// modo Q W E R D F (como no Dota; pedido do Fernando, 17/10): as magias equipadas, na ordem da barra, usam essas teclas;
+// os itens ativos seguem nas teclas deles. Escolha guardada no navegador.
+export const SLOT_KEYS = ['KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyD', 'KeyF'];
+const SLOT_STORE = 'warlock:slotkeys';
+let slotMode = false;
+try {
+  slotMode = localStorage.getItem(SLOT_STORE) === '1';
+} catch {
+  // sem armazenamento: modo por magia
+}
+let slots: SpellId[] = [];
+const isSpell = (a: Action) => (SPELL_IDS as string[]).includes(a);
+export const isSlotMode = () => slotMode;
+export function setSlotMode(on: boolean) {
+  slotMode = on;
+  try {
+    localStorage.setItem(SLOT_STORE, on ? '1' : '0');
+  } catch {
+    // só nesta aba
+  }
+  listeners.forEach((f) => f());
+}
+// magias equipadas na ordem da barra (a interface avisa quando muda)
+export function setSlots(next: SpellId[]) {
+  if (next.join() === slots.join()) return;
+  slots = next;
+  if (slotMode) listeners.forEach((f) => f());
+}
+
+export const keyOf = (a: Action) => (slotMode && isSpell(a) ? (SLOT_KEYS[slots.indexOf(a as SpellId)] ?? '') : map[a]);
+export const actionFor = (code: string): Action | undefined => {
+  if (!slotMode) return ACTIONS.find((a) => map[a] === code) as Action | undefined;
+  const i = SLOT_KEYS.indexOf(code);
+  if (i >= 0) return slots[i];
+  return ACTIVE_ITEMS.find((a) => map[a] === code);
+};
 export const onKeysChange = (f: () => void) => listeners.push(f);
 
 // rótulo curto para mostrar: KeyQ → Q, Digit1 → 1, Numpad4 → Num 4
@@ -43,7 +77,7 @@ export function keyLabel(code: string): string {
   if (code.startsWith('Numpad')) return 'Num ' + code.slice(6);
   return code.replace('Left', '').replace('Right', '');
 }
-export const labelOf = (a: Action) => keyLabel(map[a]);
+export const labelOf = (a: Action) => keyLabel(keyOf(a));
 
 // troca a tecla; se outra ação já usava essa tecla, as duas trocam entre si
 export function setKey(a: Action, code: string): boolean {

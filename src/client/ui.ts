@@ -6,7 +6,7 @@ import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
 import { MASTERIES, MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, type MasteryId } from '../shared/masteries.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
-import { ACTIONS, RESERVED, keyLabel, keyOf, labelOf, onKeysChange, resetKeys, setKey, type Action } from './keys.ts';
+import { ACTIONS, RESERVED, isSlotMode, keyLabel, keyOf, labelOf, onKeysChange, resetKeys, setKey, setSlotMode, setSlots, type Action } from './keys.ts';
 import { hideTip, itemTip, masteryTip, spellTip, withTip } from './tips.ts';
 import { COLORS } from './scene.ts';
 import { RULES } from './rules-text.ts';
@@ -247,7 +247,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     waiting = null;
     drawKeys();
   }, true);
-  const keysPanel = el('div', { class: 'vol-panel keys-panel', hidden: true }, el('b', {}, 'Teclas'), keysList,
+  const slotToggle = el('input', { type: 'checkbox', id: 'slot-keys', checked: isSlotMode(), onchange: () => {
+    setSlotMode(slotToggle.checked);
+    drawKeys();
+  } }) as HTMLInputElement;
+  const keysPanel = el('div', { class: 'vol-panel keys-panel', hidden: true }, el('b', {}, 'Teclas'),
+    el('label', { class: 'slot-row', for: 'slot-keys' }, slotToggle, el('span', {}, 'Q W E R D F pela ordem da barra (como no Dota)')), keysList,
     el('button', { type: 'button', onclick: () => resetKeys() }, 'Voltar ao padrão'));
   const keysBtn = el('button', { type: 'button', class: 'icon', title: 'Trocar teclas', onclick: () => {
     keysPanel.hidden = !keysPanel.hidden;
@@ -551,6 +556,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       passives.replaceChildren(...ITEM_IDS.filter((i) => !ITEMS[i].key && (mine?.items[i] ?? 0) > 0).map((i) =>
         withTip(el('span', { class: 'passive', tabindex: 0, 'aria-label': ITEMS[i].name }, ITEM_ICON[i], el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0)),
       ));
+      setSlots(SPELL_IDS.filter((s) => (mine?.spells[s] ?? 0) > 0));
       for (const s of SPELL_IDS) {
         const { b, pips } = buttons.get(s)!;
         const lvl = mine?.spells[s] ?? 0;

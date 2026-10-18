@@ -4,6 +4,7 @@ import { createPredict } from '../src/client/predict.ts';
 import type { SnapView, WizView } from '../src/shared/snapshot.ts';
 import { WIZ_SPEED } from '../src/shared/constants.ts';
 import { v } from '../src/shared/vec.ts';
+import { actionFor, labelOf, setSlotMode, setSlots } from '../src/client/keys.ts';
 
 const wiz = (x: number, extra: Partial<WizView> = {}): WizView => ({ id: 'a', pos: v(x, 0), vel: v(0, 0), hp: 100, facing: 0, alive: true, shield: false, status: 1, ...extra });
 const snap = (time: number, x: number): SnapView => ({ time, arenaR: 11, shrinkAt: 15, wizards: [wiz(x)], projectiles: [], pillars: [], loots: [] });
@@ -49,5 +50,20 @@ describe('previsão', () => {
     let x = 4;
     for (let i = 0; i < 40; i++) x = p.frame(wiz(0), 0.016).x;
     expect(x).toBeLessThan(1);
+  });
+});
+
+describe('teclas Q W E R D F', () => {
+  it('in slot mode the equipped spells follow the bar order and items keep their keys', () => {
+    setSlotMode(true);
+    setSlots(['fireball', 'gravity', 'swap']);
+    expect(actionFor('KeyQ')).toBe('fireball');
+    expect(actionFor('KeyW')).toBe('gravity');
+    expect(actionFor('KeyE')).toBe('swap');
+    expect(actionFor('KeyR')).toBeUndefined();
+    expect(actionFor('Digit1')).toBe('scourge');
+    expect(labelOf('gravity')).toBe('W');
+    setSlotMode(false);
+    expect(actionFor('KeyW')).toBe('lightning');
   });
 });
