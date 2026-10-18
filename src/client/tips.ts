@@ -67,7 +67,7 @@ export function itemTip(id: ItemId, level: number): string {
 export function masteryTip(id: MasteryId, level: number): string {
   const ms = MASTERIES[id];
   const pct = (l: number) => `+${n1(masteryValue(id, l) * 100)}%`;
-  const label = id === 'lifesteal' ? 'Vida de volta' : id === 'range' ? 'Alcance' : 'Duração';
+  const label = 'Vida de volta';
   const next = level < MASTERY_MAX ? pct(level + 1) : null;
   return `<b>${ms.name}</b><br><small>Nível ${level} de ${MASTERY_MAX} · ${MASTERY_COST} de ouro por nível</small><p>${ms.text}</p>${table([[label, pct(level), next]])}${next ? '<small class="up">Próximo nível: o que está à direita</small>' : '<small>Nível máximo</small>'}`;
 }

@@ -4,7 +4,7 @@ import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import { VOTE_PHASES, sellValue, type Mode } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
-import { MASTERIES, MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, type MasteryId } from '../shared/masteries.ts';
+import { MASTERIES, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, type MasteryId } from '../shared/masteries.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { ACTIONS, RESERVED, isSlotMode, keyLabel, keyOf, labelOf, onKeysChange, resetKeys, setKey, setSlotMode, setSlots, type Action } from './keys.ts';
 import { hideTip, itemTip, masteryTip, spellTip, withTip } from './tips.ts';
@@ -120,7 +120,7 @@ export type RoomActions = {
   start: (bots: number, mode: Mode) => void;
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
-  buyMastery: (m: MasteryId | 'all') => void;
+  buyMastery: (m: MasteryId) => void;
   kick: (id: string) => void;
   vote: (kind: 'mode' | 'kick', target?: string) => void;
   ballot: (yes: boolean) => void;
@@ -452,7 +452,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'item-' + i, disabled: price === null || mine.gold < price, onclick: () => act.buyItem(i) }, label), undoBtn('item:' + i), sellBtn('item:' + i)),
         ), () => itemTip(i, lvl));
       })),
-      el('div', { class: 'shop-head' }, el('h3', {}, 'Maestrias'), el('small', {}, `${MASTERY_COST} de ouro por nível · as três por ${MASTERY_ALL_COST}`)),
+      el('div', { class: 'shop-head' }, el('h3', {}, 'Maestria'), el('small', {}, `${MASTERY_COST} de ouro por nível`)),
       el('div', { class: 'shop-grid' }, ...MASTERY_IDS.map((k) => {
         const lvl = mine.masteries[k];
         return withTip(el('div', { class: 'shop-item' + (lvl ? ' owned' : '') },
@@ -461,11 +461,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           el('span', { class: 'pips' }, ...Array.from({ length: MASTERY_MAX }, (_, n) => el('i', { class: n < lvl ? 'on' : '' }))),
           el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'mastery-' + k, disabled: lvl >= MASTERY_MAX || mine.gold < MASTERY_COST, onclick: () => act.buyMastery(k) }, lvl >= MASTERY_MAX ? 'Máximo' : `Nível ${lvl + 1} · ${MASTERY_COST}`), undoBtn('mastery:' + k)),
         ), () => masteryTip(k, lvl));
-      }), el('div', { class: 'shop-item' },
-        el('div', { class: 'shop-title' }, el('b', {}, 'As três')),
-        el('small', {}, 'Sobe Duração, Alcance e Roubo de vida um nível cada.'),
-        el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'mastery-all', disabled: MASTERY_IDS.some((k) => mine.masteries[k] >= MASTERY_MAX) || mine.gold < MASTERY_ALL_COST, onclick: () => act.buyMastery('all') }, `Subir as três · ${MASTERY_ALL_COST}`), undoBtn('mastery:all')),
-      )),
+      })),
       el('h3', {}, 'Placar'),
       statsBoard(r, me, scope, setScope),
       ),

@@ -3,7 +3,7 @@ import { botBuy, botCmds } from './bots.ts';
 import { PILLAR } from './constants.ts';
 import { CHARACTERS, type CharacterId } from './characters.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
-import { MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, noMasteries, type MasteryId } from './masteries.ts';
+import { MASTERY_COST, MASTERY_MAX, noMasteries, type MasteryId } from './masteries.ts';
 
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
 const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
@@ -156,11 +156,11 @@ export function buyItem(m: Match, id: string, item: ItemId): boolean {
 }
 
 // uma maestria (5 de ouro) ou as três de uma vez (13); máximo 6 níveis cada
-export function buyMastery(m: Match, id: string, which: MasteryId | 'all'): boolean {
+export function buyMastery(m: Match, id: string, which: MasteryId): boolean {
   const p = m.players.find((q) => q.id === id);
   if (m.phase !== 'shop' || !p) return false;
-  const targets = which === 'all' ? MASTERY_IDS : [which];
-  const cost = which === 'all' ? MASTERY_ALL_COST : MASTERY_COST;
+  const targets = [which];
+  const cost = MASTERY_COST;
   if (p.gold < cost || targets.some((t) => p.masteries[t] >= MASTERY_MAX)) return false;
   p.gold -= cost;
   for (const t of targets) p.masteries[t]++;
@@ -177,7 +177,7 @@ export function undoBuy(m: Match, id: string, key: string): boolean {
   const [kind, what] = key.split(':');
   if (kind === 'spell') p.spells[what as SpellId]--;
   else if (kind === 'item') p.items[what as ItemId]--;
-  else for (const t of what === 'all' ? MASTERY_IDS : [what as MasteryId]) p.masteries[t]--;
+  else p.masteries[what as MasteryId]--;
   p.gold += p.bought[i].price;
   p.bought.splice(i, 1);
   p.held[key]?.pop();
@@ -239,7 +239,7 @@ export function resume(m: Match, now: number) {
     p.character ??= 'mage';
     p.spells = { ...noSpells(), ...p.spells }; // salas gravadas antes das magias novas
     p.items ??= noItems();
-    p.masteries ??= noMasteries();
+    p.masteries = { lifesteal: p.masteries?.lifesteal ?? 0 }; // salas gravadas com Duração e Alcance
     p.held ??= {}; // salas gravadas antes da venda por rodada
     p.stats = fillStats(p.stats);
   }

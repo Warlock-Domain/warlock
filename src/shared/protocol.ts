@@ -17,7 +17,7 @@ export type ClientMsg =
   | { t: 'buy'; spell: SpellId }
   | { t: 'pick'; character: CharacterId }
   | { t: 'buyItem'; item: ItemId }
-  | { t: 'buyMastery'; mastery: MasteryId | 'all' }
+  | { t: 'buyMastery'; mastery: MasteryId }
   | { t: 'kick'; target: string }
   | { t: 'undo'; key: string }
   | { t: 'sell'; key: string }
@@ -118,7 +118,7 @@ export function parseClientMessage(raw: string): ClientMsg | null {
     case 'taunt':
       return Number.isInteger(m.i) && (m.i as number) >= 0 && (m.i as number) < TAUNTS.length ? { t: 'taunt', i: m.i as number } : null;
     case 'buyMastery':
-      return m.mastery === 'all' || MASTERY_IDS.includes(m.mastery as MasteryId) ? { t: 'buyMastery', mastery: m.mastery as MasteryId | 'all' } : null;
+      return MASTERY_IDS.includes(m.mastery as MasteryId) ? { t: 'buyMastery', mastery: m.mastery as MasteryId } : null;
     case 'buyItem':
       return ITEM_IDS.includes(m.item as ItemId) ? { t: 'buyItem', item: m.item as ItemId } : null;
     case 'item':

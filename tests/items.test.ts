@@ -174,12 +174,12 @@ describe('desfazer compra', () => {
     p.gold = 50;
     buy(m, 'a', 'lightning');
     buyItem(m, 'a', 'armor');
-    buyMastery(m, 'a', 'all');
-    expect(p.gold).toBe(50 - 11 - 6 - 13);
+    buyMastery(m, 'a', 'lifesteal');
+    expect(p.gold).toBe(50 - 11 - 6 - 5);
     expect(undoBuy(m, 'a', 'spell:lightning')).toBe(true);
-    expect(undoBuy(m, 'a', 'mastery:all')).toBe(true);
+    expect(undoBuy(m, 'a', 'mastery:lifesteal')).toBe(true);
     expect(p.spells.lightning).toBe(0);
-    expect(p.masteries).toEqual({ duration: 0, range: 0, lifesteal: 0 });
+    expect(p.masteries).toEqual({ lifesteal: 0 });
     expect(p.gold).toBe(50 - 6);
     expect(undoBuy(m, 'a', 'spell:lightning')).toBe(false);
     // o Flagelo grátis do começo não pode ser "desfeito" para ganhar ouro
@@ -245,10 +245,10 @@ describe('vender na loja', () => {
 
   it('masteries cannot be sold', () => {
     const { m, p } = shop();
-    buyMastery(m, 'a', 'range');
+    buyMastery(m, 'a', 'lifesteal');
     p.bought = [];
-    expect(sell(m, 'a', 'mastery:range')).toBe(false);
-    expect(p.masteries.range).toBe(1);
+    expect(sell(m, 'a', 'mastery:lifesteal')).toBe(false);
+    expect(p.masteries.lifesteal).toBe(1);
   });
 
   it('does not sell outside the shop', () => {
@@ -261,39 +261,22 @@ describe('vender na loja', () => {
 });
 
 describe('maestrias', () => {
-  it('cost 5 each or 13 for all three, max 6 levels', () => {
+  it('only lifesteal: 5 per level, max 6 levels', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     addPlayer(m, 'b', 'Bia');
     startMatch(m, 0, 0);
     const p = m.players[0];
     p.gold = 100;
-    expect(buyMastery(m, 'a', 'range')).toBe(true);
+    expect(buyMastery(m, 'a', 'lifesteal')).toBe(true);
     expect(p.gold).toBe(95);
-    expect(buyMastery(m, 'a', 'all')).toBe(true);
-    expect(p.gold).toBe(82);
-    expect(p.masteries).toEqual({ duration: 1, range: 2, lifesteal: 1 });
-    for (let i = 0; i < 4; i++) buyMastery(m, 'a', 'range');
-    expect(p.masteries.range).toBe(6);
-    expect(buyMastery(m, 'a', 'range')).toBe(false);
-    expect(buyMastery(m, 'a', 'all')).toBe(false);
-  });
-
-  it('range mastery makes the fireball fly farther', () => {
-    const base = newWorld(['a', 'b'], { a: allSpells(), b: allSpells() });
-    const far = newWorld(['a', 'b'], { a: allSpells(), b: allSpells() }, {}, { a: { duration: 0, range: 6, lifesteal: 0 } });
-    for (const w of [base, far]) {
-      w.wizards[0].pos = v(0, 0);
-      w.wizards[1].pos = v(0, 9);
-      stepWorld(w, [{ id: 'a', kind: 'cast', spell: 'fireball', at: v(5, 0) }]);
-      steps(w, 12);
-    }
-    // alcance nível 6 = +52%: a bola vive ~0,5 s a mais
-    expect(far.projectiles[0].until - base.projectiles[0].until).toBeCloseTo(0.52, 1);
+    for (let i = 0; i < 5; i++) buyMastery(m, 'a', 'lifesteal');
+    expect(p.masteries.lifesteal).toBe(6);
+    expect(buyMastery(m, 'a', 'lifesteal')).toBe(false);
   });
 
   it('lifesteal heals the attacker', () => {
-    const w = newWorld(['a', 'b'], { a: allSpells(), b: allSpells() }, {}, { a: { duration: 0, range: 0, lifesteal: 6 } });
+    const w = newWorld(['a', 'b'], { a: allSpells(), b: allSpells() }, {}, { a: { lifesteal: 6 } });
     w.wizards[0].pos = v(0, 0);
     w.wizards[1].pos = v(2, 0);
     for (const z of w.wizards) z.invulnUntil = 0;

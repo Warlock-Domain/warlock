@@ -189,8 +189,8 @@ export function newWorld(
       thrustMult: 1,
       invulnUntil: INVULN_TIME,
       respawnAt: 0,
-      durF: 1 + masteryValue('duration', ms.duration),
-      rangeF: 1 + masteryValue('range', ms.range),
+      durF: 1, // maestrias de Duração e Alcance tiradas (17/10); os multiplicadores ficam em 1
+      rangeF: 1,
       lifesteal: masteryValue('lifesteal', ms.lifesteal),
       casting: null,
     };
