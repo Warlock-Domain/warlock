@@ -1,18 +1,21 @@
 // Simulador de balanceamento: partidas só de bots (4 a 8, rodadas e às vezes Times), em tempo simulado, o mais rápido possível.
 // Soma por rodada quem tinha o quê e quem venceu; grava <out>/summary.json e <out>/report.md a cada --every rodadas e no fim.
 // Uso: node scripts/balance-sim.ts --minutes 480 --out balance/noite --seed 1 [--plan random|classic] [--rounds N] [--every 1000]
-import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
+// Juntar vários processos: node scripts/balance-sim.ts --merge --out balance/total balance/p1 balance/p2 ...
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { CLASSIC_PLAN, botConfig, type BotPlan } from '../src/shared/bots.ts';
 import { DT } from '../src/shared/constants.ts';
 import { ITEMS, type ItemId } from '../src/shared/items.ts';
 import { newMatch, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
-import { SPELLS, type SpellId } from '../src/shared/spells.ts';
+import { SPELLS, SPELL_IDS, type SpellId } from '../src/shared/spells.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
 
-const { values: arg } = parseArgs({
+const { values: arg, positionals } = parseArgs({
+  allowPositionals: true,
   options: {
+    merge: { type: 'boolean' },
     minutes: { type: 'string', default: '2' },
     out: { type: 'string', default: 'balance-out' },
     seed: { type: 'string', default: '1' },
@@ -42,7 +45,7 @@ if (arg.plan === 'classic') botConfig.planner = () => CLASSIC_PLAN;
 // por chave ('spell:lightning', 'item:armor@2', 'pair:grip+meteor'...): jogadores-rodada com aquilo, vitórias, vitórias esperadas e médias
 type Agg = { n: number; wins: number; exp: number; dmg: number; kills: number; deaths: number; alive: number; gold: number };
 const S = {
-  seed, plan: arg.plan, startedAt: new Date().toISOString(), seconds: 0, roundsPerMin: 0,
+  seed: String(seed), plan: arg.plan, startedAt: new Date().toISOString(), seconds: 0, roundsPerMin: 0,
   matches: 0, rounds: 0, playerRounds: 0, noWinner: 0, stalled: 0,
   modes: {} as Record<string, number>, sizes: {} as Record<string, number>,
   duration: { sum: 0, by10s: {} as Record<string, number> },
@@ -136,7 +139,7 @@ function report(): string {
   const dur = Object.entries(S.duration.by10s).sort((a, b) => Number(a[0]) - Number(b[0]));
   return `# Balanceamento: simulação só com bots
 
-- Semente ${S.seed}, plano de compras \`${S.plan}\`, início ${S.startedAt}
+- Semente(s) ${S.seed}, plano de compras \`${S.plan}\`, início ${S.startedAt}
 - ${S.rounds} rodadas em ${S.matches} partidas (${S.playerRounds} jogadores-rodada), ${f(S.seconds / 60, 1)} min reais, **${f(S.roundsPerMin, 0)} rodadas/min**
 - Modos: ${modes} · Tamanho: ${sizes}
 - Rodadas sem vencedor: ${S.noWinner} · partidas cortadas por rodada travada (> 600 s): ${S.stalled}
@@ -145,6 +148,13 @@ function report(): string {
 Como ler: **vit ÷ esp** = vitórias ÷ vitórias esperadas (1/jogadores nas rodadas; tamanho do time vencedor/jogadores nos Times).
 1,00 é neutro; acima de 1 ganha mais que o esperado. IC 95% = intervalo de Wilson da taxa de vitória dividido pelo esperado.
 n = jogadores-rodada que tinham aquilo. Colunas por rodada: médias de quem tinha aquilo.
+
+## Uso por magia (compradas e lançadas)
+Lançamentos contam cada projétil (Rajada 4, Gêmeos 2, Divisor 8 filhotes). n = jogadores-rodada com a magia.
+
+| magia | n | lançamentos | por jogador-rodada |
+|---|--:|--:|--:|
+${SPELL_IDS.map((id) => [id, S.owned['spell:' + id]?.n ?? 0, S.sources[id]?.fired ?? 0] as const).sort((a, b) => b[2] / Math.max(1, b[1]) - a[2] / Math.max(1, a[1])).map(([id, n, fired]) => `| ${SPELLS[id].name} | ${n} | ${fired} | ${f(fired / Math.max(1, n))} |`).join('\n')}
 
 ## Magias
 ${table('spell:', (k) => !k.includes('@'))}
@@ -192,6 +202,9 @@ ${dur.map(([k, v]) => `| ${k} a ${Number(k) + 10} | ${v} | ${pct(v / S.rounds)} 
 function save() {
   S.seconds = (Date.now() - t0) / 1000;
   S.roundsPerMin = S.rounds / Math.max(1e-9, S.seconds / 60);
+  write();
+}
+function write() {
   for (const [name, body] of [['summary.json', JSON.stringify(S, null, 1)], ['report.md', report()]]) {
     writeFileSync(join(outDir, name + '.tmp'), body);
     renameSync(join(outDir, name + '.tmp'), join(outDir, name));
@@ -201,6 +214,22 @@ process.on('SIGINT', () => {
   save();
   process.exit(130);
 });
+
+// --merge: soma os summary.json das pastas dadas (todos os campos são somas) e grava um report.md único em --out
+if (arg.merge) {
+  const sum = (a: any, b: any): any =>
+    typeof b === 'number' ? (a ?? 0) + b
+    : b && typeof b === 'object' ? Object.fromEntries([...new Set([...Object.keys(a ?? {}), ...Object.keys(b)])].map((k) => [k, k in b ? sum(a?.[k], b[k]) : a[k]]))
+    : a === undefined || a === b ? b : `${a}, ${b}`;
+  const parts = positionals.map((d) => JSON.parse(readFileSync(join(d, 'summary.json'), 'utf8')));
+  Object.assign(S, parts.reduce(sum, undefined));
+  // tempo real: o do processo mais longo; rodadas/min: a soma dos processos (vazão total)
+  S.seconds = Math.max(...parts.map((p) => p.seconds));
+  S.startedAt = parts.map((p) => p.startedAt).sort()[0];
+  write();
+  console.log(`juntou ${parts.length} pastas: ${S.rounds} rodadas → ${join(outDir, 'report.md')}`);
+  process.exit(0);
+}
 
 let now = 0;
 while (Date.now() < deadline && S.rounds < maxRounds) {

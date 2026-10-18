@@ -62,6 +62,45 @@ describe('bots usam tudo', () => {
     expect(c[0]?.kind === 'cast' && c[0].spell === 'lightning').toBe(true);
   });
 
+  it('uses Alteration or Warp zone against a projectile about to hit', () => {
+    const incoming = (own: Partial<Record<SpellId, number>>, x: number) => {
+      const w = duel(own);
+      w.projectiles.push({ id: 1, kind: 'fireball', owner: 'x', caster: 'x', pos: v(x, 0), vel: v(-6.47, 0), level: 1, until: 9, target: null, dmgMult: 1 });
+      return casts(botCmds(w, 'bot', () => 0.3))[0];
+    };
+    expect(incoming({ alteration: 1 }, 1.5)).toMatchObject({ kind: 'cast', spell: 'alteration' });
+    const z = incoming({ warpzone: 1 }, 3.5);
+    expect(z?.kind === 'cast' && z.spell === 'warpzone' && z.at.x > 0.5 && z.at.x < 3.5).toBe(true);
+  });
+
+  it('magnetizes the enemy when its own projectile is on the way', () => {
+    const w = duel({ magnetize: 1 });
+    w.projectiles.push({ id: 1, kind: 'fireball', owner: 'bot', caster: 'bot', pos: v(1, 0.5), vel: v(6.47, 0), level: 1, until: 9, target: null, dmgMult: 1 });
+    expect(casts(botCmds(w, 'bot', () => 0.3))[0]).toMatchObject({ kind: 'cast', spell: 'magnetize' });
+  });
+
+  it('wind walk: casts it and runs into the enemy, then only chases', () => {
+    const w = duel({ windwalk: 1 });
+    const cmds = botCmds(w, 'bot', () => 0.3);
+    expect(casts(cmds)[0]).toMatchObject({ kind: 'cast', spell: 'windwalk' });
+    expect(cmds.some((c) => c.kind === 'move' && c.to.x === 4)).toBe(true);
+    w.wizards[0].windUntil = 2;
+    expect(botCmds(w, 'bot', () => 0.3)).toEqual([{ id: 'bot', kind: 'move', to: w.wizards[1].pos }]);
+  });
+
+  it('at the edge, links to an obstacle further inside', () => {
+    const w = duel({ link: 1 });
+    w.wizards[0].pos = v(w.arenaR - 0.5, 0);
+    w.pillars.push({ pos: v(w.arenaR - 3, 0), hp: 40, alive: true, kind: 'pillar' });
+    expect(casts(botCmds(w, 'bot', () => 0.3))[0]).toMatchObject({ kind: 'cast', spell: 'link', at: { x: w.arenaR - 3, y: 0 } });
+  });
+
+  it('drains when hurt even with other spells ready', () => {
+    const w = duel({ drain: 1, lightning: 1 });
+    w.wizards[0].hp = 40;
+    expect(casts(botCmds(w, 'bot', () => 0.9))[0]).toMatchObject({ kind: 'cast', spell: 'drain' });
+  });
+
   it('random plans are valid and cover every spell and item', () => {
     const rand = seeded(7);
     const spells = new Set<string>();
