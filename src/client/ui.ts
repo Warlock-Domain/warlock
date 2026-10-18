@@ -1037,8 +1037,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     deadShopping(on: boolean) {
       if (on === deadShop) return;
       deadShop = on;
-      if (on && peekPanel.hidden) togglePeek(true);
-      else drawPeek();
+      // abre 1,5 s depois da queda: antes passa a faixa "Você caiu"
+      if (on) setTimeout(() => deadShop && peekPanel.hidden && togglePeek(true), 1500);
+      drawPeek();
     },
     watching(name: string | null) {
       watchBadge.hidden = !name;
