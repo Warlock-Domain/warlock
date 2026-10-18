@@ -12,6 +12,8 @@ export type InputHandlers = {
   cast: (spell: SpellId, at: Vec) => void;
   useItem: (item: ItemId, at: Vec) => void;
   center: () => void;
+  zoom: (deltaY: number) => void;
+  pan: (dx: number, dy: number) => void;
   armedChanged: (armed: SpellId | ItemId | null) => void;
 };
 
@@ -23,6 +25,11 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   let dragging = false;
   let lastDrag = 0;
   let enabled = false;
+  // Espaço segurado + botão esquerdo arrasta a câmera; Espaço solto sem arrastar volta ao centro
+  let space = false;
+  let panning = false;
+  let panned = false;
+  let panFrom = { x: 0, y: 0 };
 
   const arm = (s: SpellId | ItemId | null) => {
     armed = s;
@@ -30,8 +37,18 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   };
 
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    h.zoom(e.deltaY);
+  }, { passive: false });
   canvas.addEventListener('pointermove', (e) => {
     cursor = { x: e.clientX, y: e.clientY };
+    if (panning) {
+      h.pan(e.clientX - panFrom.x, e.clientY - panFrom.y);
+      panFrom = { x: e.clientX, y: e.clientY };
+      panned = true;
+      return;
+    }
     // segurar o botão direito arrasta o destino (no máximo 10 comandos por segundo)
     if (dragging && enabled && performance.now() - lastDrag > 100) {
       lastDrag = performance.now();
@@ -41,6 +58,11 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   });
   canvas.addEventListener('pointerdown', (e) => {
     cursor = { x: e.clientX, y: e.clientY };
+    if (space && e.button === 0) {
+      panning = true;
+      panFrom = { x: e.clientX, y: e.clientY };
+      return;
+    }
     if (!enabled) return;
     const p = h.pick(e.clientX, e.clientY);
     if (!p) return;
@@ -59,8 +81,23 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   });
   addEventListener('pointerup', (e) => {
     if (e.button === 2) dragging = false;
+    if (e.button === 0) panning = false;
+  });
+  addEventListener('keyup', (e) => {
+    if (e.code !== 'Space') return;
+    space = false;
+    panning = false;
+    if (!panned) h.center();
   });
   addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && (e.target as HTMLElement)?.tagName !== 'INPUT') {
+      e.preventDefault();
+      if (!e.repeat) {
+        space = true;
+        panned = false;
+      }
+      return;
+    }
     if (!enabled || e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT') return;
     // teclas trocáveis pelo jogador (keys.ts)
     const action = actionFor(e.code);
@@ -71,10 +108,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       return;
     }
     if (e.code === 'KeyS') h.stop();
-    else if (e.code === 'Space') {
-      h.center();
-      e.preventDefault();
-    } else if (e.code === 'Escape') arm(null);
+    else if (e.code === 'Escape') arm(null);
   });
 
   return {

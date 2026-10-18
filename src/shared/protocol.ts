@@ -3,7 +3,7 @@ import { isCharacter, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_IDS, type ItemId } from './items.ts';
 import { MASTERY_IDS, type MasteryId } from './masteries.ts';
-import type { Match, Mode, Phase, Stats } from './match.ts';
+import { votesNeeded, type Match, type Mode, type Phase, type Stats, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { SPELL_IDS, type SpellId } from './spells.ts';
 
@@ -21,6 +21,8 @@ export type ClientMsg =
   | { t: 'undo'; key: string }
   | { t: 'sell'; key: string }
   | { t: 'item'; item: ItemId; x: number; y: number; seq: number }
+  | { t: 'vote'; kind: Vote['kind']; target?: string }
+  | { t: 'ballot'; yes: boolean }
   | { t: 'ready' }
   | { t: 'alive' };
 
@@ -39,6 +41,9 @@ export type PublicRoom = {
   ids: string[]; // ordem dos magos no estado compacto ('snap')
   winner: string | null;
   lastRoundWinner: string | null;
+  // votação aberta, com ids públicos (target também, quando é expulsão); left = ms até fechar; need = SIM para passar
+  vote: (Omit<Vote, 'ends'> & { left: number; need: number }) | null;
+  pendingMode: Mode | null;
 };
 
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits de estado (ver encodeSnap)
@@ -50,7 +55,7 @@ export type PublicRoom = {
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
 export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; pl: number[]; rs?: number[]; ack: number; e?: SimEvent[] };
 
-export type ErrorCode = 'not_found' | 'other_tab' | 'full' | 'bad_msg';
+export type ErrorCode = 'not_found' | 'other_tab' | 'full' | 'bad_msg' | 'kicked';
 
 export type ServerMsg =
   | { t: 'room'; room: PublicRoom; you: string }
@@ -101,6 +106,11 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return typeof m.key === 'string' && /^(spell|item|mastery):[a-z_]{2,20}$/.test(m.key) ? { t: 'undo', key: m.key } : null;
     case 'kick':
       return typeof m.target === 'string' && /^p[0-9a-z]{1,8}$/.test(m.target) ? { t: 'kick', target: m.target } : null;
+    case 'vote':
+      if (m.kind === 'mode') return { t: 'vote', kind: 'mode' };
+      return m.kind === 'kick' && typeof m.target === 'string' && /^p[0-9a-z]{1,8}$/.test(m.target) ? { t: 'vote', kind: 'kick', target: m.target } : null;
+    case 'ballot':
+      return typeof m.yes === 'boolean' ? { t: 'ballot', yes: m.yes } : null;
     case 'buyMastery':
       return m.mastery === 'all' || MASTERY_IDS.includes(m.mastery as MasteryId) ? { t: 'buyMastery', mastery: m.mastery as MasteryId | 'all' } : null;
     case 'buyItem':
@@ -137,5 +147,15 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),
+    vote: m.vote && {
+      kind: m.vote.kind,
+      target: m.vote.kind === 'kick' ? pub(m.vote.target) : m.vote.target,
+      by: pub(m.vote.by),
+      yes: m.vote.yes.map(pub),
+      no: m.vote.no.map(pub),
+      left: Math.max(0, m.vote.ends - now),
+      need: votesNeeded(m.players.filter((p) => !p.bot && p.connected).length),
+    },
+    pendingMode: m.pendingMode,
   };
 }

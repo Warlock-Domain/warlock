@@ -16,7 +16,7 @@ export const RULES: [string, string[]][] = [
     'Botão direito no chão: andar (segure para arrastar o destino). S: parar.',
     'Q bola de fogo · W raio · E míssil teleguiado · R escudo · F teleporte: saem na direção do cursor.',
     'D troca · G agarrar · V meteoro (cai no ponto do cursor) · C investida (sem mira) · T rajada.',
-    'Espaço: centralizar a câmera. Tab: placar.',
+    'Roda do mouse: zoom. Espaço + arrastar com o botão esquerdo: mover a câmera; Espaço sozinho volta ao centro. Tab: placar.',
     'Dá para trocar a tecla de cada magia e item no botão ⌨️ (fica salvo no navegador).',
   ]],
   ['Controles no celular', [

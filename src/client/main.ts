@@ -113,6 +113,8 @@ function startRoom(code: string, name: string) {
     buyItem: (item) => net.send({ t: 'buyItem', item }),
     buyMastery: (mastery) => net.send({ t: 'buyMastery', mastery }),
     kick: (target) => net.send({ t: 'kick', target }),
+    vote: (kind, target) => net.send({ t: 'vote', kind, target }),
+    ballot: (yes) => net.send({ t: 'ballot', yes }),
     undo: (key) => net.send({ t: 'undo', key }),
     sell: (key) => net.send({ t: 'sell', key }),
     useItem: (item) => input.itemButton(item),
@@ -182,7 +184,12 @@ function startRoom(code: string, name: string) {
       predict.hold(ITEM_CAST[item] ?? 0);
       scene.clickMarker(at, true);
     },
-    center: () => (follow = true),
+    center: () => {
+      follow = true;
+      scene.resetCamera();
+    },
+    zoom: (d) => scene.zoomBy(d),
+    pan: (dx, dy) => scene.panBy(dx, dy),
     armedChanged: (s) => (armed = s),
   });
 
@@ -202,11 +209,21 @@ function startRoom(code: string, name: string) {
     return new Map(room?.players.map((p) => [p.id, p.name]) ?? []);
   }
 
+  let live: Record<string, { dmg: number; kills: number }> = {};
   function onEvents(events: SimEvent[]) {
     const pos = myWizard(interp.latest())?.pos;
     const near = (x: number, y: number) => (pos ? Math.max(0.25, 1 - dist(pos, { x, y }) / 20) : 0.6);
     const who = names();
+    let liveChanged = false;
     for (const e of events) {
+      // dano e abates da rodada ao vivo na lista do canto
+      if (e.k === 'hit' && e.by !== e.id && e.dmg > 0) {
+        (live[e.by] ??= { dmg: 0, kills: 0 }).dmg += e.dmg;
+        liveChanged = true;
+      } else if (e.k === 'death' && e.by && e.by !== e.id) {
+        (live[e.by] ??= { dmg: 0, kills: 0 }).kills++;
+        liveChanged = true;
+      }
       if (e.k === 'cast' && e.id !== me) {
         const w = interp.latest()?.wizards.find((z) => z.id === e.id);
         sound.play(SPELL_SOUND[e.spell], w ? near(w.pos.x, w.pos.y) : 0.5);
@@ -225,6 +242,7 @@ function startRoom(code: string, name: string) {
         else banner(e.id === me ? 'Você caiu na lava!' : `${dead} caiu na lava!`, e.id === me ? 'bad' : '');
       }
     }
+    if (liveChanged) view.live(live);
     scene.onEvents(events, who);
   }
 
@@ -233,7 +251,8 @@ function startRoom(code: string, name: string) {
     if (m.t === 'error') {
       if (m.code === 'not_found') return screen(ui, 'Sala não encontrada', 'Ela pode ter fechado por ficar vazia.', 'Ver salas', () => (location.hash = ''));
       // sem parar a conexão, ela se reconectaria sozinha e derrubaria a outra aba, num vaivém sem fim
-      if (m.code === 'other_tab' || m.code === 'full') net.stop();
+      if (m.code === 'other_tab' || m.code === 'full' || m.code === 'kicked') net.stop();
+      if (m.code === 'kicked') return screen(ui, 'Você foi removido da sala por votação', 'Não dá para voltar a esta sala. Entre em outra ou crie uma.', 'Ver salas', () => (location.hash = ''));
       if (m.code === 'other_tab') return screen(ui, 'Sala aberta em outra aba', 'Continue por lá ou recarregue esta.', 'Recarregar', () => location.reload());
       if (m.code === 'full') return screen(ui, 'Sala cheia', 'Já tem 8 magos nesta sala.', 'Ver salas', () => (location.hash = ''));
       return toast(m.msg);
@@ -266,6 +285,8 @@ function startRoom(code: string, name: string) {
     input.setEnabled(room.phase === 'playing');
     sound.setAmbience(room.phase !== 'lobby' && room.phase !== 'end');
     if (room.phase === 'countdown') {
+      live = {};
+      view.live(live);
       interp.reset();
       predict.reset();
       follow = true;

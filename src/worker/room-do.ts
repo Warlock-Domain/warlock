@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
-import { addPlayer, buy, buyItem, buyMastery, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sell, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../shared/match.ts';
+import { addPlayer, buy, buyItem, buyMastery, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sell, setCharacter, setReady, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
@@ -97,6 +97,7 @@ export class Room extends DurableObject<Env> {
         send(other, { t: 'error', code: 'other_tab', msg: 'Sala aberta em outra aba.' });
         forget(other);
       }
+      if (m.banned.includes(msg.playerId)) return send(ws, { t: 'error', code: 'kicked', msg: 'Você foi removido da sala por votação.' });
       if (!addPlayer(m, msg.playerId, msg.name)) return send(ws, { t: 'error', code: 'full', msg: 'Sala cheia.' });
       ws.serializeAttachment({ playerId: msg.playerId } satisfies Attachment);
       return this.changed();
@@ -148,6 +149,15 @@ export class Room extends DurableObject<Env> {
         if (target && kick(m, target.id)) await this.changed();
         return;
       }
+      case 'vote': {
+        // expulsão: o alvo chega como id público, como no 'kick'
+        const target = msg.kind === 'kick' ? m.players.find((p) => publicId(s.id, p.id) === msg.target)?.id : '';
+        if (target !== undefined && startVote(m, id, msg.kind, target, now)) await this.changed();
+        return;
+      }
+      case 'ballot':
+        if (castBallot(m, id, msg.yes, now)) await this.changed();
+        return;
       case 'buyMastery':
         if (buyMastery(m, id, msg.mastery)) await this.changed();
         return;
@@ -199,6 +209,12 @@ export class Room extends DurableObject<Env> {
   private async changed(closing?: WebSocket) {
     const s = this.saved;
     if (!s) return;
+    // expulso por votação: avisa e fecha o socket dele (antes de contar quem está na sala)
+    for (const ws of this.live(closing)) {
+      if (!s.match.banned.includes(this.playerOf(ws)!)) continue;
+      send(ws, { t: 'error', code: 'kicked', msg: 'Você foi removido da sala por votação.' });
+      forget(ws, 'kicked');
+    }
     this.broadcastRoom(closing);
     // laço e alarme antes do disco e do lobby: se o lobby falhar, a sala não congela
     const humans = this.humans(closing);
@@ -253,7 +269,9 @@ export class Room extends DurableObject<Env> {
     const now = Date.now();
     this.acc = Math.min(this.acc + now - this.last, STEP_MS * MAX_CATCHUP);
     this.last = now;
-    const before = `${m.phase}:${m.round}:${m.players.length}`;
+    // a votação entra na conta para o fim por tempo (e a troca de modo) chegar aos clientes
+    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}`;
+    const before = sig();
     while (this.acc >= STEP_MS) {
       this.acc -= STEP_MS;
       const cmds = this.cmds;
@@ -263,7 +281,7 @@ export class Room extends DurableObject<Env> {
     }
     if (m.phase === 'roundEnd' && before.startsWith('playing')) this.lobby().record(roundRecord(m, now)).catch(() => {});
     if (now - this.lastCmdAt > IDLE_MS) endIdle(m);
-    if (`${m.phase}:${m.round}:${m.players.length}` !== before) void this.changed();
+    if (sig() !== before) void this.changed();
   }
 
   private sendSnaps() {
@@ -281,10 +299,10 @@ export class Room extends DurableObject<Env> {
 }
 
 // solta o socket da sala antes de fechar, para o fechamento não contar como desconexão
-function forget(ws: WebSocket) {
+function forget(ws: WebSocket, reason = 'other_tab') {
   ws.serializeAttachment({ playerId: null } satisfies Attachment);
   try {
-    ws.close(4000, 'other_tab');
+    ws.close(4000, reason);
   } catch {
     // já fechado
   }

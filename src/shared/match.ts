@@ -8,7 +8,7 @@ import { MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, noMasteries, 
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
 const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
 import {
-  COUNTDOWN_MS, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, TOP_DMG_GOLD, WIN_GOLD, WINS_TO_WIN,
+  COUNTDOWN_MS, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN,
 } from './constants.ts';
 import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.ts';
 import { MAX_SPELLS, SPELL_IDS, noSpells, priceOf, spellCount, type SpellId } from './spells.ts';
@@ -33,6 +33,8 @@ function earn(p: Player, gold: number) {
 // rounds: último vivo ganha a rodada; deathmatch: rodadas de 60 s, quem morre volta e cada abate vale 1 ponto
 export type Mode = 'rounds' | 'deathmatch';
 export type Phase = 'lobby' | 'shop' | 'countdown' | 'playing' | 'roundEnd' | 'end';
+// votação na partida: trocar o modo (target = modo novo) ou expulsar um humano (target = id dele)
+export type Vote = { kind: 'mode' | 'kick'; target: string; by: string; yes: string[]; no: string[]; ends: number };
 
 export type Player = {
   id: string;
@@ -63,15 +65,19 @@ export type Match = {
   lastRoundWinner: string | null;
   emptyRounds: number; // rodadas seguidas sem vencedor
   steps: number;
+  vote: Vote | null;
+  pendingMode: Mode | null; // modo votado: vale quando a próxima rodada começar
+  banned: string[]; // expulsos por votação não voltam a esta sala
 };
 
 export const newMatch = (): Match => ({
-  phase: 'lobby', mode: 'rounds', round: 0, phaseEnds: 0, players: [], world: null, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0,
+  phase: 'lobby', mode: 'rounds', round: 0, phaseEnds: 0, players: [], world: null, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0, vote: null, pendingMode: null, banned: [],
 });
 
 const BOT_NAMES = ['Gul’dan', 'Merlim', 'Morgana', 'Rasputin', 'Zatanna', 'Mandrake', 'Gandalfo'];
 
 export function addPlayer(m: Match, id: string, name: string, bot = false): boolean {
+  if (m.banned.includes(id)) return false;
   const known = m.players.find((p) => p.id === id);
   if (known) {
     known.name = name;
@@ -108,7 +114,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
     p.stats.match = newStat();
     p.stats.round = newStat();
   }
-  Object.assign(m, { mode, round: 0, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0 });
+  Object.assign(m, { mode, round: 0, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0, vote: null, pendingMode: null });
   enterShop(m, now);
   return true;
 }
@@ -219,6 +225,9 @@ export function resume(m: Match, now: number) {
   // salas gravadas antes da escolha de personagem e do deathmatch existirem
   m.emptyRounds ??= 0;
   m.mode ??= 'rounds';
+  m.banned ??= []; // salas gravadas antes da votação
+  m.pendingMode ??= null;
+  m.vote = null; // o prazo de uma votação gravada já passou
   for (const p of m.players) {
     p.character ??= 'mage';
     p.spells = { ...noSpells(), ...p.spells }; // salas gravadas antes das magias novas
@@ -236,14 +245,66 @@ export function resume(m: Match, now: number) {
 export function kick(m: Match, id: string): boolean {
   const p = m.players.find((q) => q.id === id);
   if (!p || (!p.bot && p.connected)) return false;
-  m.players = m.players.filter((q) => q !== p);
+  drop(m, id);
+  return true;
+}
+
+// tira da partida e mata o mago, se a rodada estiver rolando
+function drop(m: Match, id: string) {
+  m.players = m.players.filter((q) => q.id !== id);
   const wz = m.world?.wizards.find((z) => z.id === id);
   if (wz) {
     wz.alive = false;
     wz.hp = 0;
     wz.respawnAt = Infinity; // no deathmatch o expulso não volta
   }
+}
+
+export const VOTE_PHASES: Phase[] = ['shop', 'countdown', 'playing', 'roundEnd'];
+// só humanos conectados votam; passa com mais da metade deles
+const voters = (m: Match) => m.players.filter((p) => !p.bot && p.connected).map((p) => p.id);
+export const votesNeeded = (humans: number) => Math.floor(humans / 2) + 1;
+
+// abre uma votação (uma por vez, só com a partida rolando); quem abre já conta como SIM
+export function startVote(m: Match, id: string, kind: Vote['kind'], target: string, now: number): boolean {
+  if (m.vote || !VOTE_PHASES.includes(m.phase) || !voters(m).includes(id)) return false;
+  if (kind === 'kick') {
+    const t = m.players.find((p) => p.id === target);
+    if (!t || t.bot || t.id === id) return false; // bot já tem o ✕ direto
+  } else {
+    target = m.mode === 'rounds' ? 'deathmatch' : 'rounds';
+    if (m.pendingMode === target) return false;
+  }
+  m.vote = { kind, target, by: id, yes: [id], no: [], ends: now + VOTE_MS };
+  settleVote(m, now);
   return true;
+}
+
+export function castBallot(m: Match, id: string, yes: boolean, now: number): boolean {
+  const v = m.vote;
+  if (!v || !voters(m).includes(id) || v.yes.includes(id) || v.no.includes(id)) return false;
+  (yes ? v.yes : v.no).push(id);
+  settleVote(m, now);
+  return true;
+}
+
+// fecha a votação: passa com maioria; falha se os NÃO a tornam impossível, se o prazo acabou ou se a partida acabou
+function settleVote(m: Match, now: number) {
+  const v = m.vote;
+  if (!v) return;
+  const who = voters(m);
+  const need = votesNeeded(who.length);
+  const yes = v.yes.filter((id) => who.includes(id)).length;
+  const no = v.no.filter((id) => who.includes(id)).length;
+  if (!VOTE_PHASES.includes(m.phase) || now >= v.ends || who.length - no < need) m.vote = null;
+  else if (yes >= need) {
+    m.vote = null;
+    if (v.kind === 'mode') m.pendingMode = v.target as Mode;
+    else {
+      drop(m, v.target);
+      m.banned.push(v.target);
+    }
+  }
 }
 
 // sala esquecida aberta (ninguém joga há muito tempo): encerra a partida para o laço parar
@@ -252,6 +313,7 @@ export function endIdle(m: Match) {
   m.winner = best > 0 ? (m.players.find((p) => p.score === best)?.id ?? null) : null;
   m.phase = 'end';
   m.world = null;
+  m.vote = null;
 }
 
 export const shouldRun = (m: Match, humansConnected: number) => humansConnected > 0 && m.phase !== 'lobby' && m.phase !== 'end';
@@ -268,6 +330,13 @@ function enterShop(m: Match, now: number) {
 }
 
 function enterCountdown(m: Match, now: number) {
+  // troca de modo votada: antes de criar o mundo (que depende do modo); os pontos zeram porque as metas são outras
+  if (m.pendingMode) {
+    m.mode = m.pendingMode;
+    m.pendingMode = null;
+    m.emptyRounds = 0;
+    for (const p of m.players) p.score = 0;
+  }
   m.round++;
   for (const p of m.players) p.stats.round = newStat();
   const ids = m.players.map((p) => p.id);
@@ -332,6 +401,12 @@ function topKiller(m: Match): string | null {
 }
 
 export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number = Math.random): SimEvent[] {
+  const events = stepMatch(m, now, cmds, rand);
+  settleVote(m, now); // prazo, quem caiu e o fim da partida também fecham a votação
+  return events;
+}
+
+function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimEvent[] {
   if (m.phase === 'shop') {
     const humans = m.players.filter((p) => !p.bot && p.connected);
     if (now >= m.phaseEnds || humans.every((p) => p.ready)) enterCountdown(m, now);

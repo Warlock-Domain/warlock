@@ -56,10 +56,15 @@ h2.title { font-family: var(--display); font-size: 1.6rem; text-transform: none;
 .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
 .dot.on { background: var(--ok); } .dot.off { background: var(--bad); }
 .players { list-style: none; margin: 8px 0 0; padding: 6px; display: flex; flex-direction: column; gap: 2px; width: fit-content; min-width: 150px; background: rgba(20, 8, 6, .72); border: 1px solid var(--line); border-radius: 10px; font-size: .9rem; }
-.players li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 2px 6px; border-radius: 6px; }
+.players li { display: grid; grid-template-columns: auto 1fr 2ch 4ch 2ch; align-items: center; gap: 8px; padding: 2px 6px; border-radius: 6px; }
+.players li.head { padding-bottom: 0; opacity: .7; }
+.players li.head small, .players .live { text-align: right; font-variant-numeric: tabular-nums; }
+.players .live { opacity: .85; }
 .players li.me { background: rgba(255, 179, 71, .14); }
 .players b { font-variant-numeric: tabular-nums; }
 .timer { position: absolute; left: 50%; top: calc(14px + var(--safe-t)); transform: translateX(-50%); font-weight: 700; text-shadow: 0 2px 6px #000; pointer-events: none; white-space: nowrap; }
+.vote-bar { position: absolute; left: 50%; top: calc(44px + var(--safe-t)); transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 20px); padding: 6px 10px; border-radius: 10px; background: rgba(34, 17, 12, .92); border: 1px solid var(--line); font-size: .9rem; }
+.vote-bar button { min-height: 32px; padding: 4px 12px; }
 .respawn { position: absolute; left: 50%; top: 38%; transform: translateX(-50%); font-family: var(--display); font-size: clamp(1.6rem, 5vw, 2.8rem); color: var(--ember); text-shadow: 0 2px 8px #000; pointer-events: none; white-space: nowrap; }
 .mode { display: grid; gap: 6px; }
 .timer.countdown { top: 34%; font-family: var(--display); font-size: clamp(4rem, 14vw, 8rem); color: var(--ember); }
@@ -106,7 +111,7 @@ button.kick:hover { background: rgba(255, 122, 106, .15); }
 .spell.cooling .cd { background: rgba(0, 0, 0, .6); }
 .spell.locked { opacity: .35; filter: grayscale(1); }
 .spell.armed { border-color: var(--ember); box-shadow: 0 0 0 2px var(--ember), 0 0 18px rgba(255, 179, 71, .6); }
-@media (max-width: 600px) { .timer:not(.countdown) { top: calc(58px + var(--safe-t)); font-size: .9rem; } .players { margin-top: 30px; } }
+@media (max-width: 600px) { .timer:not(.countdown) { top: calc(58px + var(--safe-t)); font-size: .9rem; } .players { margin-top: 30px; } .vote-bar { top: calc(82px + var(--safe-t)); } }
 @media (max-width: 420px) { .spell { width: 56px; height: 56px; } .spellbar { gap: 6px; } }
 
 .labels { position: fixed; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; }

@@ -716,6 +716,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
 
   let focus = new THREE.Vector3();
+  // câmera do jogador: roda do mouse aproxima/afasta; Espaço + arrastar desloca (Espaço sozinho volta ao centro)
+  let zoom = 1;
+  const pan = new THREE.Vector3();
+  let lastDist = 20;
   const raycaster = new THREE.Raycaster();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
@@ -765,6 +769,19 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         (ring.material as THREE.MeshBasicMaterial).opacity = 1 - k;
       });
     },
+    zoomBy(deltaY: number) {
+      zoom = Math.min(1.7, Math.max(0.45, zoom * Math.exp(deltaY * 0.0012)));
+    },
+    // arrasto em pixels de tela → deslocamento no chão (o chão "anda junto" com o mouse)
+    panBy(dx: number, dy: number) {
+      const k = (lastDist * 1.1) / innerHeight;
+      pan.x -= dx * k;
+      pan.z -= dy * k * 1.3;
+      pan.clampLength(0, 30);
+    },
+    resetCamera() {
+      pan.set(0, 0, 0);
+    },
     castLocal(id: string, spell: string) {
       oneShot(id, spell === 'shield' || spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
     },
@@ -804,10 +821,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
       // câmera inclinada estilo Dota, seguindo de leve o próprio mago
       // em pé a arena não cabe na largura: a câmera acompanha mais o próprio mago
-      const target = state.follow ? w3(state.follow).multiplyScalar(camera.aspect < 1 ? 0.65 : 0.3) : new THREE.Vector3();
+      const target = (state.follow ? w3(state.follow).multiplyScalar(camera.aspect < 1 ? 0.65 : 0.3) : new THREE.Vector3()).add(pan);
       focus.lerp(target, Math.min(1, dt * 3));
       // aproxima conforme a arena encolhe
-      const dist = Math.min(44, Math.max(13, shownR * 2.1 + 2) * (camera.userData.fit as number));
+      const dist = Math.min(44, Math.max(13, shownR * 2.1 + 2) * (camera.userData.fit as number)) * zoom;
+      lastDist = dist;
       // olha um pouco à frente do centro para a borda de baixo não ficar atrás da barra de magias
       const lookZ = focus.z + dist * 0.06;
       camera.position.set(focus.x, dist * 0.74, lookZ + dist * 0.67);

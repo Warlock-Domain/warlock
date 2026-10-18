@@ -59,3 +59,4 @@ export const DM_KILLS_TO_WIN = 15;
 export const DM_SPAWN_GAP = 2; // ao voltar, pelo menos 2 m de inimigos vivos e de pilares
 export const COUNTDOWN_MS = 3_000;
 export const ROUND_END_MS = 2_500;
+export const VOTE_MS = 20_000; // votação na partida (trocar o modo, expulsar alguém) fecha em 20 s; pedido do Fernando (17/10)

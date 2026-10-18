@@ -1,7 +1,7 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
 import { DM_KILLS_TO_WIN, KILL_GOLD, MAX_PLAYERS, ROUND_GOLD, START_GOLD, TOP_DMG_GOLD, WIN_GOLD, WINS_TO_WIN } from '../shared/constants.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
-import { sellValue, type Mode } from '../shared/match.ts';
+import { VOTE_PHASES, sellValue, type Mode } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
 import { MASTERIES, MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, type MasteryId } from '../shared/masteries.ts';
@@ -121,6 +121,8 @@ export type RoomActions = {
   buyItem: (i: ItemId) => void;
   buyMastery: (m: MasteryId | 'all') => void;
   kick: (id: string) => void;
+  vote: (kind: 'mode' | 'kick', target?: string) => void;
+  ballot: (yes: boolean) => void;
   undo: (key: string) => void;
   sell: (key: string) => void;
   useItem: (i: ItemId) => void;
@@ -132,6 +134,7 @@ export type RoomActions = {
   click: () => void;
 };
 
+const MODE_NAME: Record<Mode, string> = { rounds: 'Rodadas', deathmatch: 'Deathmatch' };
 const dot = (color: number) => el('span', { class: 'dot', style: `background:${COLORS[color]}` });
 const nameOf = (p: PublicPlayer, me: string) => p.name + (p.id === me ? ' (você)' : '') + (p.bot ? ' 🤖' : '');
 
@@ -253,10 +256,20 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     volPanel.hidden = !volPanel.hidden;
     volBtn.setAttribute('aria-expanded', String(!volPanel.hidden));
   } }, act.volumes().sfx + act.volumes().music === 0 ? '🔇' : '🔊');
+  // votação na partida: o botão abre as opções; a faixa no topo mostra a votação aberta para todos
+  const votePanel = el('div', { class: 'vol-panel', hidden: true });
+  const voteBtn = el('button', { type: 'button', title: 'Trocar o modo ou expulsar alguém', 'aria-expanded': 'false', onclick: () => {
+    votePanel.hidden = !votePanel.hidden;
+    voteBtn.setAttribute('aria-expanded', String(!votePanel.hidden));
+  } }, 'Votar');
+  const voteWrap = el('div', { class: 'vol' }, voteBtn, votePanel);
+  const voteBar = el('div', { class: 'vote-bar', role: 'status', hidden: true });
+  const voteLeft = el('span', { class: 'muted' });
+  let voteEndsAt = 0;
   const top = el('div', { class: 'hud-top' },
     el('button', { type: 'button', class: 'code', title: 'Copiar link da sala', onclick: copyLink }, status, ' ', code),
     roundEl,
-    el('div', { class: 'hud-right' }, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', onclick: showRules }, '?')),
+    el('div', { class: 'hud-right' }, voteWrap, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', onclick: showRules }, '?')),
   );
   const center = el('div', { class: 'center' });
   const timer = el('div', { class: 'timer' });
@@ -295,7 +308,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   });
   addEventListener('keyup', (e) => e.code === 'Tab' && showTab(false));
   const barWrap = el('div', { class: 'barwrap' }, passives, bar);
-  root.replaceChildren(el('div', { class: 'hud' }, top, players, timer, respawn, center, barWrap, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
+  root.replaceChildren(el('div', { class: 'hud' }, top, players, timer, respawn, center, voteBar, barWrap, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
@@ -434,6 +447,38 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     );
   }
 
+  function drawVote(r: PublicRoom, prev: PublicRoom | null) {
+    const v = r.vote;
+    const human = !!mine && !mine.bot;
+    voteWrap.hidden = !human || !VOTE_PHASES.includes(r.phase);
+    const close = (f: () => void) => () => {
+      votePanel.hidden = true;
+      voteBtn.setAttribute('aria-expanded', 'false');
+      f();
+    };
+    const next: Mode = r.mode === 'rounds' ? 'deathmatch' : 'rounds';
+    votePanel.replaceChildren(el('b', {}, 'Votação'),
+      v ? el('small', { class: 'muted' }, 'Já tem uma votação aberta.') : '',
+      r.pendingMode ? '' : el('button', { type: 'button', disabled: !!v, onclick: close(() => act.vote('mode')) }, `Trocar para ${MODE_NAME[next]}`),
+      ...r.players.filter((p) => !p.bot && p.id !== me).map((p) =>
+        el('button', { type: 'button', disabled: !!v, onclick: close(() => act.vote('kick', p.id)) }, `Expulsar ${p.name}`)),
+      el('small', { class: 'muted' }, 'Passa com mais da metade dos jogadores. O modo novo vale na próxima rodada e zera os pontos; o ouro fica.'));
+    // fim da votação: aprovada se o modo da próxima rodada mudou ou se o alvo saiu da sala
+    const was = prev?.vote;
+    if (was && !v) toast((was.kind === 'mode' ? r.pendingMode !== prev.pendingMode : !r.players.some((p) => p.id === was.target)) ? 'Votação aprovada.' : 'Votação recusada.');
+    voteBar.hidden = !v;
+    if (!v) return;
+    voteEndsAt = performance.now() + v.left;
+    const name = (id: string) => r.players.find((p) => p.id === id)?.name ?? '?';
+    const can = human && !v.yes.includes(me) && !v.no.includes(me);
+    voteBar.replaceChildren(
+      el('span', {}, `${name(v.by)} quer ${v.kind === 'mode' ? 'trocar para ' + MODE_NAME[v.target as Mode] : 'expulsar ' + name(v.target)} · SIM ${v.yes.length} / precisa ${v.need}`),
+      can ? el('button', { type: 'button', class: 'primary', onclick: () => act.ballot(true) }, 'Sim') : '',
+      can ? el('button', { type: 'button', onclick: () => act.ballot(false) }, 'Não') : '',
+      voteLeft,
+    );
+  }
+
   function drawCenter() {
     if (!room) return;
     const r = room;
@@ -445,18 +490,34 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (focused) (center.querySelector(`[data-key="${focused}"]`) as HTMLElement | null)?.focus();
   }
 
+  // lista do canto: pontos da partida e, ao vivo, abates e dano da rodada (somados no cliente a partir dos acertos)
+  let live: Record<string, { dmg: number; kills: number }> = {};
+  function drawPlayers() {
+    if (!room) return;
+    const head = el('li', { class: 'head' }, el('span', {}), el('span', {}), el('small', { title: 'Abates na rodada' }, '☠'), el('small', { title: 'Dano na rodada' }, '💥'), el('small', { title: room.mode === 'deathmatch' ? 'Pontos' : 'Vitórias' }, '🏆'));
+    players.replaceChildren(head, ...[...room.players].sort((a, b) => b.score - a.score).map((p) =>
+      el('li', { class: p.id === me ? 'me' : '' }, dot(p.color), el('span', {}, nameOf(p, me)), el('span', { class: 'live' }, String(live[p.id]?.kills ?? 0)), el('span', { class: 'live' }, String(Math.round(live[p.id]?.dmg ?? 0))), el('b', {}, String(p.score))),
+    ));
+  }
+
   return {
+    live(stats: Record<string, { dmg: number; kills: number }>) {
+      live = stats;
+      drawPlayers();
+    },
     update(r: PublicRoom, you: string, online: boolean) {
       // a loja abre mostrando a rodada que acabou; o fim mostra a partida inteira
       if (room && room.phase !== r.phase) scope = r.phase === 'end' ? 'match' : 'round';
+      const prev = room;
       room = r;
       me = you;
       phaseEndsAt = performance.now() + r.phaseLeft;
       status.className = 'dot ' + (online ? 'on' : 'off');
-      roundEl.textContent = r.round > 0 && r.phase !== 'lobby' ? (r.mode === 'deathmatch' ? `Deathmatch · rodada ${r.round} · ${DM_KILLS_TO_WIN} abates para vencer` : `Rodada ${r.round} · vence quem fizer ${WINS_TO_WIN}`) : '';
-      players.replaceChildren(...[...r.players].sort((a, b) => b.score - a.score).map((p) =>
-        el('li', { class: p.id === you ? 'me' : '' }, dot(p.color), el('span', {}, nameOf(p, you)), el('b', {}, String(p.score))),
-      ));
+      roundEl.textContent = [
+        r.round > 0 && r.phase !== 'lobby' ? (r.mode === 'deathmatch' ? `Deathmatch · rodada ${r.round} · ${DM_KILLS_TO_WIN} abates para vencer` : `Rodada ${r.round} · vence quem fizer ${WINS_TO_WIN}`) : '',
+        r.pendingMode && r.phase !== 'end' ? `Próxima rodada: ${MODE_NAME[r.pendingMode]}` : '',
+      ].filter(Boolean).join(' · ');
+      drawPlayers();
       mine = r.players.find((p) => p.id === you);
       for (const i of ACTIVE_ITEMS) itemButtons.get(i)!.b.hidden = !mine?.items[i];
       // barra da partida: só magias e itens equipados; passivos viram selos pequenos acima dela
@@ -470,6 +531,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         pips.replaceChildren(...Array.from({ length: MAX_SPELL_LEVEL }, (_, n) => el('i', { class: n < lvl ? 'on' : '' })));
       }
       barWrap.hidden = r.phase === 'lobby' || r.phase === 'end' || r.phase === 'shop' || !mine;
+      drawVote(r, prev);
       drawCenter();
     },
     setOnline(on: boolean) {
@@ -498,6 +560,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         : room.phase === 'countdown' ? String(Math.max(1, Math.ceil(left)))
         : room.phase === 'playing' && room.mode === 'deathmatch' ? `Rodada termina em ${Math.ceil(left)} s`
         : '';
+      voteLeft.textContent = room.vote ? `${Math.max(0, Math.ceil((voteEndsAt - performance.now()) / 1000))} s` : '';
       respawn.textContent = room.phase === 'playing' && respawnIn > 0 ? `Você volta em ${Math.ceil(respawnIn)} s` : '';
       timer.className = 'timer ' + room.phase;
     },
