@@ -182,7 +182,7 @@ function goldInfo(p: PublicPlayer) {
     row('Ganho na última rodada', `🪙 ${p.stats.round.gold}`),
     row('Ganho na partida', `🪙 ${p.stats.match.gold}`),
     row('Ganho na sala (todas as partidas)', `🪙 ${p.stats.room.gold}`),
-    el('small', { class: 'muted' }, 'Todo mundo ganha a rodada; vencer, abater e causar mais dano dão ouro extra. Desfazer (↩) devolve o ouro do que foi comprado nesta loja; Vender devolve o que foi comprado nesta loja inteiro e o de rodadas anteriores pela metade.'),
+    el('small', { class: 'muted' }, 'Todo mundo ganha a rodada; vencer, abater e causar mais dano dão ouro extra. Desfazer (↩) devolve o ouro do que foi comprado nesta loja; Vender devolve 100% na loja em que comprou e 5% a menos por rodada com o item, até 75%.'),
   );
 }
 
@@ -412,8 +412,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (!mine) return el('div', { class: 'card' }, el('p', {}, 'Você está assistindo. Entra na próxima partida.'));
     // vender: magia ou item inteiro; o comprado nesta loja volta inteiro, o de antes pela metade
     const sellBtn = (key: string) => {
-      const value = sellValue(mine, mine.bought, key);
-      return value > 0 ? el('button', { type: 'button', class: 'sell', title: 'Vende tudo; o comprado em rodadas anteriores volta pela metade', 'data-key': 'sell-' + key, onclick: () => act.sell(key) }, `Vender · ${value}`) : null;
+      const value = sellValue(mine, r.round, key);
+      return value > 0 ? el('button', { type: 'button', class: 'sell', title: 'Vende tudo: volta 100% na loja em que comprou e 5% a menos por rodada com ele, até 75%', 'data-key': 'sell-' + key, onclick: () => act.sell(key) }, `Vender · ${value}`) : null;
     };
     // duas colunas: compras à esquerda; ouro, Pronto, placar e personagem à direita (pedido do Fernando: loja mais larga)
     return el('div', { class: 'card shop' }, el('div', { class: 'shop-main' },

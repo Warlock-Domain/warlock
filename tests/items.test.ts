@@ -190,61 +190,49 @@ describe('vender na loja', () => {
     return { m, p: m.players[0] };
   };
 
-  it('spell bought in an earlier shop sells for half and goes back to 0', () => {
+  it('sells for 100% in the shop where it was bought, minus 5% per round held, down to 75%', () => {
     const { m, p } = shop();
     buy(m, 'a', 'lightning'); // 11
-    p.bought = [];
+    buy(m, 'a', 'lightning'); // 8
+    expect(sellValue(p, m.round, 'spell:lightning')).toBe(19);
+    expect(sellValue(p, m.round + 1, 'spell:lightning')).toBe(Math.floor(19 * 0.95));
+    expect(sellValue(p, m.round + 3, 'spell:lightning')).toBe(Math.floor(19 * 0.85));
+    expect(sellValue(p, m.round + 20, 'spell:lightning')).toBe(Math.floor(19 * 0.75));
+    m.round += 2;
     const gold = p.gold;
     expect(sell(m, 'a', 'spell:lightning')).toBe(true);
     expect(p.spells.lightning).toBe(0);
-    expect(p.gold).toBe(gold + Math.floor(11 / 2));
+    expect(p.gold).toBe(gold + Math.floor(19 * 0.9));
+    expect(p.held['spell:lightning']).toBeUndefined();
   });
 
-  it('spell bought in this shop is refunded in full', () => {
+  it('each level counts from the round it was bought', () => {
     const { m, p } = shop();
-    buy(m, 'a', 'lightning');
-    buy(m, 'a', 'lightning'); // 11 + 8
-    expect(sell(m, 'a', 'spell:lightning')).toBe(true);
-    expect(p.gold).toBe(100);
-    expect(p.spells.lightning).toBe(0);
-    expect(p.bought).toEqual([]);
+    buy(m, 'a', 'lightning'); // 11 na rodada 0
+    m.round = 4;
+    buy(m, 'a', 'lightning'); // 8 na rodada 4
+    expect(sellValue(p, 4, 'spell:lightning')).toBe(Math.floor(11 * 0.8 + 8));
+    expect(undoBuy(m, 'a', 'spell:lightning')).toBe(true);
+    expect(p.held['spell:lightning']).toEqual([0]);
   });
 
-  it('mixes: level 1 from before + level 2 from this shop = price2 + half of price1', () => {
+  it('a room saved before this rule counts unrecorded levels from round 0', () => {
     const { m, p } = shop();
-    buy(m, 'a', 'lightning');
-    p.bought = [];
-    buy(m, 'a', 'lightning');
-    const gold = p.gold;
-    expect(sell(m, 'a', 'spell:lightning')).toBe(true);
-    expect(p.gold).toBe(gold + 8 + Math.floor(11 / 2));
+    p.spells.lightning = 1;
+    expect(sellValue(p, 2, 'spell:lightning')).toBe(Math.floor(11 * 0.9));
   });
 
-  it('items sell the same way and the free ones do not sell', () => {
+  it('items sell the same way and the free levels do not sell', () => {
     const { m, p } = shop();
     buyItem(m, 'a', 'armor');
-    p.bought = [];
     buyItem(m, 'a', 'armor'); // 6 + 6
-    expect(sellValue(p, p.bought.map((b) => b.key), 'item:armor')).toBe(6 + 3);
+    expect(sellValue(p, m.round + 1, 'item:armor')).toBe(Math.floor(12 * 0.95));
     expect(sell(m, 'a', 'item:armor')).toBe(true);
     expect(p.items.armor).toBe(0);
     expect(sell(m, 'a', 'item:scourge')).toBe(false); // nível 1 grátis
     expect(p.items.scourge).toBe(1);
     expect(sell(m, 'a', 'spell:fireball')).toBe(false); // nível 1 grátis
     expect(p.spells.fireball).toBe(1);
-  });
-
-  it('scourge and fireball at level 3 sell only the upgrades and go back to 1', () => {
-    const { m, p } = shop();
-    p.spells.fireball = 3;
-    p.items.scourge = 3;
-    const gold = p.gold;
-    expect(sell(m, 'a', 'spell:fireball')).toBe(true);
-    expect(p.spells.fireball).toBe(1);
-    expect(p.gold).toBe(gold + Math.floor((7 + 7) / 2));
-    expect(sell(m, 'a', 'item:scourge')).toBe(true);
-    expect(p.items.scourge).toBe(1);
-    expect(p.gold).toBe(gold + 7 + 7); // 7 da bola de fogo + metade de 2 níveis de 7 do Flagelo
   });
 
   it('masteries cannot be sold', () => {

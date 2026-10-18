@@ -8,7 +8,7 @@ import { MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, noMasteries, 
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
 const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
 import {
-  COUNTDOWN_MS, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN,
+  COUNTDOWN_MS, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN,
 } from './constants.ts';
 import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.ts';
 import { MAX_SPELLS, SPELL_IDS, noSpells, priceOf, spellCount, type SpellId } from './spells.ts';
@@ -50,6 +50,7 @@ export type Player = {
   stats: Stats;
   // compras feitas nesta loja (mais recente por último), para poder desfazer e trocar
   bought: { key: string; price: number }[];
+  held: Record<string, number[]>; // rodada em que cada nível comprado (magia/item) entrou, para o valor de venda
   ready: boolean;
   connected: boolean;
 };
@@ -89,7 +90,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false): bool
   const color = [0, 1, 2, 3, 4, 5, 6, 7].find((c) => !used.has(c)) ?? 0;
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
-  m.players.push({ id, name, bot, color, character, score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries(), stats: newStats(), bought: [], ready: bot, connected: true });
+  m.players.push({ id, name, bot, color, character, score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true });
   return true;
 }
 
@@ -111,6 +112,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
     Object.assign(p, { score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries() });
     p.stats = fillStats(p.stats);
     p.bought ??= [];
+    p.held = {};
     p.stats.match = newStat();
     p.stats.round = newStat();
   }
@@ -128,6 +130,7 @@ export function buy(m: Match, id: string, spell: SpellId): boolean {
   p.gold -= price;
   p.spells[spell]++;
   p.bought.push({ key: 'spell:' + spell, price });
+  (p.held['spell:' + spell] ??= []).push(m.round);
   return true;
 }
 
@@ -147,6 +150,7 @@ export function buyItem(m: Match, id: string, item: ItemId): boolean {
   p.gold -= price;
   p.items[item]++;
   p.bought.push({ key: 'item:' + item, price });
+  (p.held['item:' + item] ??= []).push(m.round);
   return true;
 }
 
@@ -175,12 +179,14 @@ export function undoBuy(m: Match, id: string, key: string): boolean {
   else for (const t of what === 'all' ? MASTERY_IDS : [what as MasteryId]) p.masteries[t]--;
   p.gold += p.bought[i].price;
   p.bought.splice(i, 1);
+  p.held[key]?.pop();
   return true;
 }
 
-// quanto a loja devolve por vender a magia/item inteiro ('spell:<id>' ou 'item:<id>'): o comprado nesta loja volta inteiro
-// (os últimos N níveis, N = vezes que a key aparece em boughtKeys) e o de rodadas anteriores volta pela metade; o nível inicial é grátis
-export function sellValue(p: { spells: Record<SpellId, number>; items: Record<ItemId, number> }, boughtKeys: string[], key: string): number {
+// quanto volta ao vender a magia/item inteiro ('spell:<id>' ou 'item:<id>'): cada nível volta 100% na loja em que foi comprado
+// e perde 5% por rodada que a pessoa ficou com ele, até 75%; o nível inicial grátis não se vende. Nível sem registro (sala antiga) conta desde a rodada 0
+export const sellRate = (rounds: number) => Math.max(SELL_FLOOR, 1 - SELL_DECAY * Math.max(0, rounds));
+export function sellValue(p: { spells: Record<SpellId, number>; items: Record<ItemId, number>; held?: Record<string, number[]> }, round: number, key: string): number {
   const [kind, what] = key.split(':');
   const spell = kind === 'spell';
   if (!spell && kind !== 'item') return 0; // maestria não se vende
@@ -188,28 +194,28 @@ export function sellValue(p: { spells: Record<SpellId, number>; items: Record<It
   const now = spell ? p.spells[what as SpellId] : p.items[what as ItemId];
   const first = spell ? noSpells()[what as SpellId] : startItems()[what as ItemId];
   if (now <= first) return 0;
-  const fresh = Math.min(boughtKeys.filter((k) => k === key).length, now - first);
-  let before = 0;
-  let after = 0;
+  const when = p.held?.[key] ?? [];
+  let total = 0;
   for (let l = first; l < now; l++) {
     const price = (spell ? priceOf(what as SpellId, l) : ITEMS[what as ItemId].cost) ?? 0;
-    if (l < now - fresh) before += price;
-    else after += price;
+    const k = when.length - (now - l); // os níveis mais novos estão no fim da lista
+    total += price * sellRate(round - (k >= 0 ? when[k] : 0));
   }
-  return after + Math.floor(before / 2);
+  return Math.floor(total + 1e-9);
 }
 
 // vende a magia ou o item inteiro (todos os níveis, volta ao nível inicial); não é ganho de ouro, então fora das estatísticas
 export function sell(m: Match, id: string, key: string): boolean {
   const p = m.players.find((q) => q.id === id);
   if (m.phase !== 'shop' || !p) return false;
-  const value = sellValue(p, p.bought.map((b) => b.key), key);
+  const value = sellValue(p, m.round, key);
   if (value === 0) return false;
   const [kind, what] = key.split(':');
   if (kind === 'spell') p.spells[what as SpellId] = noSpells()[what as SpellId];
   else p.items[what as ItemId] = startItems()[what as ItemId];
   p.gold += value;
   p.bought = p.bought.filter((b) => b.key !== key);
+  delete p.held[key];
   return true;
 }
 
@@ -233,6 +239,7 @@ export function resume(m: Match, now: number) {
     p.spells = { ...noSpells(), ...p.spells }; // salas gravadas antes das magias novas
     p.items ??= noItems();
     p.masteries ??= noMasteries();
+    p.held ??= {}; // salas gravadas antes da venda por rodada
     p.stats = fillStats(p.stats);
   }
   if (m.phase === 'countdown' || m.phase === 'playing') {

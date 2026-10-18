@@ -30,7 +30,7 @@ export type ClientMsg =
 
 export type PublicPlayer = {
   id: string; name: string; bot: boolean; color: number; character: CharacterId; score: number; gold: number;
-  spells: Record<SpellId, number>; items: Record<ItemId, number>; masteries: Record<MasteryId, number>; stats: Stats; bought: string[]; ready: boolean; connected: boolean;
+  spells: Record<SpellId, number>; items: Record<ItemId, number>; masteries: Record<MasteryId, number>; stats: Stats; bought: string[]; held: Record<string, number[]>; ready: boolean; connected: boolean;
 };
 
 export type PublicRoom = {
@@ -148,7 +148,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     mode: m.mode,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, score, gold, spells, items, masteries, stats, bought, ready, connected }) => ({ id: pub(id), name, bot, color, character, score, gold, spells, items, masteries, stats, bought: bought.map((b) => b.key), ready, connected })),
+    players: m.players.map(({ id, name, bot, color, character, score, gold, spells, items, masteries, stats, bought, held, ready, connected }) => ({ id: pub(id), name, bot, color, character, score, gold, spells, items, masteries, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected })),
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),

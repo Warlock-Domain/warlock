@@ -47,6 +47,9 @@ export const MAX_PLAYERS = 8;
 export const WINS_TO_WIN = 5; // original: 1 ponto por rodada vencida (lá o padrão é 11; aqui 5, decisão do Fernando)
 export const START_GOLD = 30;
 export const ROUND_GOLD = 10;
+// venda: cada nível volta 100% na loja em que foi comprado e perde 5% por rodada com ele, até 75% (Fernando, 17/10)
+export const SELL_DECAY = 0.05;
+export const SELL_FLOOR = 0.75;
 export const KILL_GOLD = 5; // 0 no original; +5 a pedido do Fernando (17/10)
 export const WIN_GOLD = 10; // 0 no original; +10 a pedido do Fernando (17/10)
 export const TOP_DMG_GOLD = 10; // quem causou mais dano na rodada (empate: todos); pedido do Fernando (17/10)
