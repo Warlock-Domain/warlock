@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RESERVED, SHOP_KEY, actionFor, setKey, setSlotMode } from '../src/client/keys.ts';
+import { actionFor, keyOf, resetKeys, setKey, setSlotMode } from '../src/client/keys.ts';
 import { addPlayer, buy, buyItem, newMatch, sell, startMatch, tickMatch, undoBuy } from '../src/shared/match.ts';
 
 describe('loja só para ver no meio da rodada', () => {
@@ -20,13 +20,16 @@ describe('loja só para ver no meio da rodada', () => {
     expect(p.spells.homing).toBe(0);
   });
 
-  it('a tecla da loja (4) não é de magia nem item e não pode virar atalho, nos dois modos de teclas', () => {
-    expect(RESERVED.has(SHOP_KEY)).toBe(true);
-    expect(setKey('lightning', SHOP_KEY)).toBe(false);
+  it('a tecla da loja (4) não lança nada nos dois modos; dada a uma magia, as duas trocam (a loja virou atalho trocável)', () => {
+    resetKeys();
+    expect(keyOf('shop')).toBe('Digit4');
     setSlotMode(false);
-    expect(actionFor(SHOP_KEY)).toBeUndefined();
+    expect(actionFor('Digit4')).toBeUndefined();
     setSlotMode(true);
-    expect(actionFor(SHOP_KEY)).toBeUndefined();
+    expect(actionFor('Digit4')).toBeUndefined();
     setSlotMode(false);
+    expect(setKey('lightning', 'Digit4')).toBe(true);
+    expect([keyOf('lightning'), keyOf('shop')]).toEqual(['Digit4', 'KeyW']);
+    resetKeys();
   });
 });

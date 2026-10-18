@@ -47,6 +47,25 @@ beforeEach(() => {
 });
 
 describe('jeitos de lançar no PC', () => {
+  it('Esc só é consumido (preventDefault) com magia escolhida ou segurada; sobrando, ele segue para abrir as configurações', () => {
+    let used = 0;
+    const esc = () => fire(win, 'keydown', { code: 'Escape', repeat: false, preventDefault: () => used++ });
+    setCastMode('click');
+    esc();
+    expect(used).toBe(0);
+    key('keydown', 'KeyQ');
+    expect(armed).toBe('fireball');
+    esc();
+    expect([used, armed]).toEqual([1, null]);
+    setCastMode('release');
+    key('keydown', 'KeyQ');
+    esc();
+    expect([used, preview]).toEqual([2, null]);
+    esc();
+    expect(used).toBe(2);
+    setCastMode('quick');
+  });
+
   it('Rápido (padrão): a tecla lança na hora no cursor, sem círculo', () => {
     setCastMode('quick');
     key('keydown', 'KeyQ');

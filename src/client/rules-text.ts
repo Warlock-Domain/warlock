@@ -5,6 +5,7 @@ import {
 import { DEFAULT_OPTS, DM_GOALS, OPTION_CHOICES } from '../shared/match.ts';
 import { CLASH } from '../shared/sim.ts';
 import { ITEMS, MAX_ITEMS, SCOURGE } from '../shared/items.ts';
+import { PAD_NAMES, PAD_NAMES_PS, keyLabel, keyOf, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
 import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, RECHARGE, RUSH, SPELLS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -33,28 +34,41 @@ export const RULES = {
     `Abates com até ${STREAK.window} s entre eles viram Abate duplo, Abate triplo e Massacre. Abates sem morrer (contam de uma rodada para outra): ${STREAK.spree[0]} é Matança, ${STREAK.spree[1]} Fúria assassina, ${STREAK.spree[2]} Imparável e ${STREAK.spree[3]} Lendária.`,
     `Quebra-combo: derrubar quem tem ${STREAK.breakAt} ou mais abates seguidos dá +${STREAK.breakGold} de ouro.`,
   ],
-  pc: [
-    'Botão direito no chão: andar (segure para arrastar o destino). S: parar. Esc: cancela a magia escolhida.',
-    'Tecla da magia: três jeitos de lançar, escolhidos no botão do teclado, no topo. Rápido (padrão): lança na hora na direção do mouse; o círculo de alcance aparece ao passar o mouse na magia da barra.',
-    'Ao soltar: segurando a tecla aparece o círculo de alcance; ao soltar, a magia sai (Esc cancela). Com clique: a tecla escolhe a magia e mostra o alcance, o clique esquerdo lança (fora do alcance, vai até a borda); botão direito ou Esc cancelam.',
-    'Clicar no botão da magia e depois no chão também lança.',
-    'Roda do mouse: zoom. Espaço + arrastar com o botão esquerdo: mover a câmera; Espaço sozinho volta ao centro.',
-    'Tab (segurar): placar; com ele aberto, ← → troca entre Rodada, Partida e Sala.',
-    "Y: provocações. Tecla à esquerda do 1 (' no teclado brasileiro): ficha do mago. 4: loja só para ver durante a rodada (o jogo não pausa; 4, Esc ou ✕ fecham).",
-    'Dá para trocar a tecla de cada magia e item no botão do teclado, no topo, ou usar Q W E R D F pela ordem da barra (fica salvo no navegador).',
-  ],
-  controle: [
-    'Ligue o controle (Xbox ou PlayStation) e aperte qualquer botão: aparece "Controle conectado" e a barra mostra os botões do controle.',
-    'Analógico esquerdo: andar. Analógico direito: mirar (o anel dourado no chão mostra onde). Sem mirar, a magia vai para onde você anda.',
-    'A, B, X e Y (✕, ○, □ e △), LB e RB (L1 e R1): as magias pela ordem da barra. LT e RT (L2 e R2): itens ativos 1 e 2; D-pad ↑: item 3.',
-    'Start (Options): ficha do mago na partida, Pronto na loja e este grimório nas outras telas. View/Select segurado: placar. R3: centraliza a câmera. D-pad ↓: loja só para ver.',
-    'Menus e loja: D-pad ou analógico esquerdo anda entre os botões, A confirma, B volta ou fecha, X desfaz ou vende, Y mostra a dica, LB e RB pulam entre os grupos.',
-    'Vibra ao levar golpe forte e ao morrer (dá para desligar no botão do teclado).',
-  ],
+  // os textos de controles leem as teclas e botões atuais (trocáveis nas configurações): getter, refeito a cada leitura
+  get pc() {
+    const k = (a: UiAction) => uiLabel(a);
+    const sheet = keyOf('sheet') === 'Backquote' ? "Tecla à esquerda do 1 (' no teclado brasileiro)" : k('sheet');
+    return [
+      `Botão direito no chão: andar (segure para arrastar o destino). ${k('stop')}: parar. Esc: cancela a magia escolhida, fecha o que estiver aberto e, sem nada aberto, abre as configurações.`,
+      'Tecla da magia: três jeitos de lançar, escolhidos em Configurações > Lançamento. Rápido (padrão): lança na hora na direção do mouse; o círculo de alcance aparece ao passar o mouse na magia da barra.',
+      'Ao soltar: segurando a tecla aparece o círculo de alcance; ao soltar, a magia sai (Esc cancela). Com clique: a tecla escolhe a magia e mostra o alcance, o clique esquerdo lança (fora do alcance, vai até a borda); botão direito ou Esc cancelam.',
+      'Clicar no botão da magia e depois no chão também lança.',
+      'Roda do mouse: zoom. Espaço + arrastar com o botão esquerdo: mover a câmera; Espaço sozinho volta ao centro.',
+      `${k('board')} (segurar): placar; com ele aberto, ← → troca entre Rodada, Partida e Sala.`,
+      `${k('taunt')}: provocações. ${sheet}: ficha do mago. ${k('shop')}: loja só para ver durante a rodada (o jogo não pausa; ${k('shop')}, Esc ou ✕ fecham). ${k('rules')}: este grimório.${keyOf('vote') ? ` ${k('vote')}: votar.` : ''}`,
+      'Dá para trocar a tecla de cada magia, item e atalho em Configurações > Teclas (Esc ou a engrenagem no topo), ou usar Q W E R D F pela ordem da barra (fica salvo no navegador).',
+    ];
+  },
+  get controle() {
+    // nome do botão nas duas famílias: "A (✕)"; L3, R3 e o D-pad são iguais
+    const b = (p: PadAction) => {
+      const i = padButtonOf(p);
+      return PAD_NAMES[i] === PAD_NAMES_PS[i] ? PAD_NAMES[i] : `${PAD_NAMES[i]} (${PAD_NAMES_PS[i]})`;
+    };
+    return [
+      'Ligue o controle (Xbox ou PlayStation) e aperte qualquer botão: aparece "Controle conectado" e a barra mostra os botões do controle.',
+      'Analógico esquerdo: andar. Analógico direito: mirar (o anel dourado no chão mostra onde). Sem mirar, a magia vai para onde você anda.',
+      `${list((['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6'] as const).map(b)).replace(/ ou ([^,]*)$/, ' e $1')}: as magias pela ordem da barra. ${b('item1')}, ${b('item2')} e ${b('item3')}: itens ativos 1, 2 e 3.`,
+      `Start (Options): o Esc do controle (fecha o que estiver aberto; sem nada aberto, abre e fecha as configurações). ${b('board')} segurado: placar. ${b('sheet')}: ficha do mago. ${b('center')}: centraliza a câmera. ${b('shop')}: loja só para ver.`,
+      'Os botões da partida se trocam em Configurações > Controle (desenho do controle: clique no botão e aperte o novo).',
+      'Menus e loja: D-pad ou analógico esquerdo anda entre os botões, A confirma (o Pronto da loja começa focado), B volta ou fecha, X desfaz ou vende, Y mostra a dica, LB e RB pulam entre os grupos.',
+      'Vibra ao levar golpe forte e ao morrer (dá para desligar em Configurações > Controle).',
+    ];
+  },
   celular: [
     'Toque no chão para andar.',
     'Toque no botão da magia e depois no chão para lançar; o ✕ do aviso cancela.',
-    'No topo: o gráfico de barras abre o placar, o pergaminho abre a ficha do mago, o balão manda provocações e a urna (Votar) troca o modo ou expulsa alguém.',
+    'No topo: o gráfico de barras abre o placar, o pergaminho abre a ficha do mago, o balão manda provocações, a urna (Votar) troca o modo ou expulsa alguém e a engrenagem abre as configurações.',
     'Neste grimório: deslize o dedo para os lados para virar a página.',
   ],
   rodadas: [
@@ -78,13 +92,15 @@ export const RULES = {
     `Obstáculos: pilar (${OBSTACLES.pillar.hp} de vida, explode com ${OBSTACLES.pillar.blastDmg} de dano ao quebrar), rocha (não quebra), árvore morta (${OBSTACLES.tree.hp} de vida) e altar de velas (${OBSTACLES.shrine.hp} de vida, explode com ${OBSTACLES.shrine.blastDmg} de dano em ${n1(OBSTACLES.shrine.blastR)} m). Bloqueiam magos, projéteis e o Raio.`,
     `Baú de ouro (pode desligar): o primeiro aos ${CHEST.first} s, depois um a cada ${CHEST.every} s (até ${CHEST.maxUp} de pé). Quebre com magias e fique em cima do monte: 1 de ouro a cada ${CHEST.goldEvery} s, até ${CHEST.pile}.`,
   ],
-  loja: [
-    `Você começa com ${START_GOLD} de ouro (padrão), a Bola de fogo e o Flagelo (tecla 1). A loja abre entre as rodadas e dura ${DEFAULT_OPTS.shop} s (padrão); fecha antes quando todos clicam Pronto.`,
-    `Magias sobem até o nível ${MAX_SPELL_LEVEL} (mais dano e empurrão, menos recarga). No máximo ${MAX_SPELLS} magias e ${MAX_ITEMS} itens por mago.`,
-    `Desfazer: devolve o ouro de uma compra feita nesta loja. Vender: cada nível volta 100% na loja em que foi comprado e perde ${pct(SELL_DECAY)} por rodada, até ${pct(SELL_FLOOR)}.`,
-    'A Bola de fogo também se vende (vale 0 no nível 1, mas libera a vaga e a tecla); comprar de volta custa o preço normal.',
-    'Durante a rodada, a tecla 4 (ou o botão da loja, no topo) mostra a loja só para ver: preços e o que o seu ouro já compra na próxima.',
-  ],
+  get loja() {
+    return [
+      `Você começa com ${START_GOLD} de ouro (padrão), a Bola de fogo e o Flagelo (tecla ${keyLabel(keyOf('scourge'))}). A loja abre entre as rodadas e dura ${DEFAULT_OPTS.shop} s (padrão); fecha antes quando todos clicam Pronto.`,
+      `Magias sobem até o nível ${MAX_SPELL_LEVEL} (mais dano e empurrão, menos recarga). No máximo ${MAX_SPELLS} magias e ${MAX_ITEMS} itens por mago.`,
+      `Desfazer: devolve o ouro de uma compra feita nesta loja. Vender: cada nível volta 100% na loja em que foi comprado e perde ${pct(SELL_DECAY)} por rodada, até ${pct(SELL_FLOOR)}.`,
+      'A Bola de fogo também se vende (vale 0 no nível 1, mas libera a vaga e a tecla); comprar de volta custa o preço normal.',
+      `Durante a rodada, a tecla ${uiLabel('shop')} (ou o botão da loja, no topo) mostra a loja só para ver: preços e o que o seu ouro já compra na próxima.`,
+    ];
+  },
   ouro: [
     `Por rodada: ${ROUND_GOLD}. Vitória: ${WIN_GOLD} (o líder do placar que vence ganha só ${LEADER_WIN_GOLD}). Abate: ${KILL_GOLD}. Mais dano na rodada: ${TOP_DMG_GOLD}. Assistência (mais dano em quem morreu, sem ser quem matou, com pelo menos ${ASSIST_MIN_DMG}): ${ASSIST_GOLD}.`,
     `Recuperação: quem ganhou menos ouro que a média recebe metade da diferença no fim da rodada (até ${RECOVERY.max}). Abater o líder vale +${BOUNTY.perWin} por vitória de vantagem dele sobre a média (até ${BOUNTY.max}).`,

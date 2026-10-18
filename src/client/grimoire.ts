@@ -7,7 +7,7 @@ import { ITEMS, ITEM_IDS, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import { SCRIPTS, createDemo, type DemoId } from './demo.ts';
 import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, icon } from './icons.ts';
-import { ACTIONS, isPadMode, isSlotMode, labelOf } from './keys.ts';
+import { ACTIONS, UI_ACTIONS, UI_NAMES, isPadMode, isSlotMode, labelOf, uiLabel } from './keys.ts';
 import { MODE_INFO, OPT_INFO } from './opt-info.ts';
 import { ITEM_DEMO, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE } from './rules-text.ts';
 import { COLORS } from './scene.ts';
@@ -22,7 +22,7 @@ const html = (s: string) => Object.assign(document.createElement('div'), { class
 const ul = (xs: string[]) => el('ul', {}, ...xs.map((x) => el('li', {}, x)));
 const LEGEND = `Dano: vida que tira (cada mago tem ${HP_MAX}). Empurrão: metros que um mago sem dano acumulado desliza (+10% a cada 100 de dano já levado). Recarga: segundos até lançar de novo. Alcance e raio em metros (a arena de 4 magos tem ${n1(ARENA_R0)} m de raio).`;
 // magia fora da barra não tem tecla no modo Q W E R D F nem no controle (vale a posição na barra)
-const keyText = (a: SpellId | ItemId) => labelOf(a) !== '—' ? `tecla ${labelOf(a)}` : isSlotMode() || isPadMode() ? 'tecla pela posição na barra' : 'sem tecla (escolha no botão do teclado)';
+const keyText = (a: SpellId | ItemId) => labelOf(a) !== '—' ? `tecla ${labelOf(a)}` : isSlotMode() || isPadMode() ? 'tecla pela posição na barra' : 'sem tecla (escolha em Configurações > Teclas)';
 
 // contorno da arena num canvas pequeno (página das arenas)
 function arenaThumb(id: ArenaId): HTMLElement {
@@ -74,7 +74,8 @@ function itemPage(id: ItemId): Page {
   };
 }
 
-const text = (chapter: string, title: string, items: string[], extra: () => (Node | null)[] = () => []): Page => ({ chapter, title, body: () => [el('h2', {}, title), ul(items), ...extra()] });
+// items como função: textos que mostram as teclas e botões atuais (trocáveis), lidos a cada vez que a página abre
+const text = (chapter: string, title: string, items: string[] | (() => string[]), extra: () => (Node | null)[] = () => []): Page => ({ chapter, title, body: () => [el('h2', {}, title), ul(typeof items === 'function' ? items() : items), ...extra()] });
 
 const PAGES: Page[] = [
   // as duas primeiras páginas são o sumário (montado em toc(), que precisa do go)
@@ -82,21 +83,23 @@ const PAGES: Page[] = [
   { chapter: 'Sumário', title: 'Magias e itens', body: () => [] },
   text('Como jogar', 'Objetivo', RULES.objetivo),
   text('Como jogar', 'Empurrão, lava e abates', RULES.empurrao),
-  text('Controles', 'No PC', RULES.pc),
+  text('Controles', 'No PC', () => RULES.pc),
   {
     chapter: 'Controles', title: 'Suas teclas',
     body: () => [el('h2', {}, isSlotMode() ? 'Suas teclas (Q W E R D F pela ordem da barra)' : 'Suas teclas'),
       el('div', { class: 'keys-grid' }, ...ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, labelOf(a)), ' ', icon(a in SPELLS ? ICON[a as SpellId] : ITEM_ICON[a as ItemId]), ' ', a in SPELLS ? SPELLS[a as SpellId].name : ITEMS[a as ItemId].name))),
-      el('small', {}, 'Troque no botão do teclado, no topo da partida.')],
+      el('h3', {}, 'Atalhos'),
+      el('div', { class: 'keys-grid' }, ...UI_ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, uiLabel(a)), ' ', UI_NAMES[a])), el('span', {}, el('span', { class: 'key' }, 'Esc'), ' Configurações')),
+      el('small', {}, 'Troque em Configurações > Teclas (Esc ou a engrenagem no topo).')],
   },
   text('Controles', 'No celular', RULES.celular),
-  text('Controles', 'Com controle', RULES.controle),
+  text('Controles', 'Com controle', () => RULES.controle),
   text('Modos', 'Rodadas', RULES.rodadas, () => [html(MODE_INFO())]),
   text('Modos', 'Deathmatch', RULES.deathmatch),
   text('Modos', 'Times', RULES.times),
   text('Modos', 'Opções, votações e bots', RULES.opcoes, () => [el('h3', {}, 'Dificuldade dos bots'), html(OPT_INFO.difficulty('rounds'))]),
   text('Arenas', 'Arenas e obstáculos', RULES.arenas, () => [el('div', { class: 'g-arenas' }, ...ARENA_IDS.map(arenaThumb)), html(OPT_INFO.arena('rounds'))]),
-  text('Loja e ouro', 'Loja', RULES.loja),
+  text('Loja e ouro', 'Loja', () => RULES.loja),
   text('Loja e ouro', 'Ouro', RULES.ouro),
   ...SPELL_GROUPS.flatMap(([group, , ids]) => ids.map((id) => spellPage(id, group))),
   ...ITEM_IDS.map(itemPage),
@@ -214,7 +217,7 @@ export function openGrimoire() {
   addEventListener('keydown', (e) => {
     if (!overlay.isConnected) return ac.abort();
     const k = e.key;
-    if (k === 'Escape') close();
+    if (k === 'Escape' || e.code === 'Escape') close(); // o Start do controle manda só o code
     else if (k === 'ArrowRight' || k === 'PageDown') turn(1);
     else if (k === 'ArrowLeft' || k === 'PageUp') turn(-1);
     else if (k === 'Home') go(0);

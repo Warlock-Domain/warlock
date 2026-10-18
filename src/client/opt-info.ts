@@ -54,7 +54,11 @@ function close() {
   pop = owner = null;
   pinned = false;
 }
-addEventListener('keydown', (e) => e.key === 'Escape' && close());
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !pop) return;
+  e.preventDefault(); // fechou o balão: este Esc não abre as configurações
+  close();
+});
 addEventListener('pointerdown', (e) => {
   if (pop && !pop.contains(e.target as Node) && !owner?.contains(e.target as Node)) close();
 }, true);

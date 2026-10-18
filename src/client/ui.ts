@@ -6,10 +6,10 @@ import { DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, se
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
-import { ACTIONS, CAST_MODES, RESERVED, SHEET_KEY, SHOP_KEY, getCastMode, isPadMode, isSlotMode, keyLabel, keyOf, labelOf, onKeysChange, resetKeys, setCastMode, setKey, setSlotMode, setSlots, type Action, type CastMode } from './keys.ts';
+import { isPadMode, isUiKey, labelOf, onKeysChange, setSlots, uiLabel, type Action, type UiAction } from './keys.ts';
+import { openSettings, setSettingsCtx } from './settings.ts';
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { MODE_INFO, OPT_INFO, infoButton } from './opt-info.ts';
-import { isRumbleOn, setRumble } from './gamepad.ts';
 import { BOT_LEVEL, COLORS, TEAM_COLORS } from './scene.ts';
 import { SPELL_GROUPS, SPELL_USE } from './rules-text.ts';
 import { ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, icon } from './icons.ts';
@@ -42,6 +42,7 @@ export function askName(root: HTMLElement, current: string): Promise<string> {
       { class: 'panel', onkeydown: (e: KeyboardEvent) => {
         // trocar o apelido: Esc desiste e fica o de antes
         if (e.key !== 'Escape' || !current) return;
+        e.preventDefault(); // este Esc não abre as configurações
         overlay.remove();
         resolve(current);
       }, onsubmit: (e: Event) => {
@@ -68,6 +69,7 @@ const roomPhase = (r: RoomInfo) => r.phase === 'lobby' ? 'esperando começar' : 
   : `jogando${r.round ? ` a rodada ${r.round}` : ''} · você entra na próxima rodada`;
 
 export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onRename: () => void) {
+  setSettingsCtx({ name: () => name, rename: onRename }); // no lobby: sem som nem vídeo (só existem na sala)
   const retry = el('button', { type: 'button', onclick: () => location.reload() }, 'Tentar de novo');
   const list =
     rooms === null && offline
@@ -95,6 +97,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
       el('div', { class: 'lobby-actions' },
         el('button', { type: 'button', class: 'primary big', onclick: onCreate }, 'Criar sala'),
         el('button', { type: 'button', onclick: showRules }, 'Como jogar'),
+        el('button', { type: 'button', onclick: () => openSettings() }, icon(UI_ICON.gear), ' Configurações'),
       ),
       el('section', {}, el('h2', {}, 'Salas abertas'), rooms !== null && offline ? el('p', { class: 'lobby-error', role: 'status' }, 'Sem conexão: a lista pode estar velha. Tentando de novo…') : null, list),
     ),
@@ -105,6 +108,12 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
 export function showRules() {
   void import('./grimoire.ts').then((m) => m.openGrimoire());
 }
+// atalho do grimório (F1 no padrão) em qualquer tela; com ele já aberto, nada (o Esc fecha)
+addEventListener('keydown', (e) => {
+  if (!isUiKey(e.code, 'rules') || e.repeat || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+  e.preventDefault(); // F1: não abre a ajuda do navegador
+  if (!document.querySelector('.rules-overlay')) showRules();
+});
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 // tipo do aviso: muda a cor da borda e o ícone (style.css, #toast[data-kind])
@@ -157,6 +166,8 @@ export type RoomActions = {
   setFxLite: (lite: boolean) => void;
   spellReady: () => void; // uma magia acabou de recarregar
   watch: (step: number) => void; // espectador: +1 próximo vivo, −1 anterior
+  name: () => string; // apelido atual e a troca (aba Jogador das configurações)
+  rename: () => void;
 };
 
 const MODE_NAME: Record<Mode, string> = { rounds: 'Rodadas', deathmatch: 'Deathmatch', teams: 'Times' };
@@ -400,100 +411,31 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let pingAt = 0;
   const roundEl = el('span', { class: 'round' });
   const players = el('ul', { class: 'players' });
-  // volume: um botão abre dois controles, efeitos e música
-  const slider = (kind: 'sfx' | 'music', label: string) => {
-    const input = el('input', { type: 'range', id: 'vol-' + kind, min: 0, max: 100, step: 5, value: Math.round(act.volumes()[kind] * 100) }) as HTMLInputElement;
-    const out = el('span', { class: 'vol-value' }, input.value + '%');
-    input.addEventListener('input', () => {
-      out.textContent = input.value + '%';
-      act.setVolume(kind, Number(input.value) / 100);
-      volBtn.replaceChildren(icon(act.volumes().sfx + act.volumes().music === 0 ? UI_ICON.mute : UI_ICON.sound));
-    });
-    return el('label', { class: 'vol-row', for: 'vol-' + kind }, el('span', {}, label), input, out);
-  };
-  // efeitos visuais: Leve desliga tremor, hit-stop e partículas extras (PC fraco, quem enjoa); fica guardado no navegador
-  const fxRow = el('div', { class: 'fx-row' }, el('small', {}, 'Efeitos visuais'), el('div', { class: 'stats-tabs', role: 'group', 'aria-label': 'Efeitos visuais' }));
-  const drawFx = () => fxRow.lastElementChild!.replaceChildren(...([[false, 'Completo'], [true, 'Leve']] as const).map(([lite, label]) =>
-    el('button', { type: 'button', 'aria-pressed': String(act.fxLite() === lite), class: act.fxLite() === lite ? 'on' : '', onclick: () => {
-      act.setFxLite(lite);
-      drawFx();
-    } }, label)));
-  drawFx();
-  const volPanel = el('div', { class: 'vol-panel', hidden: true }, slider('sfx', 'Efeitos'), slider('music', 'Música'), fxRow);
-  // teclas: clique na tecla de uma ação e aperte a nova
-  const ACTION_NAME = (a: Action) => (a in SPELLS ? SPELLS[a as SpellId].name : ITEMS[a as ItemId].name);
-  const ACTION_ICON = (a: Action) => icon(a in SPELLS ? ICON[a as SpellId] : ITEM_ICON[a as ItemId]);
-  let waiting: Action | null = null;
-  const keysList = el('div', { class: 'keys-list' });
-  function drawKeys() {
-    keysList.replaceChildren(...ACTIONS.map((a) => el('div', { class: 'keys-row' },
-      el('span', {}, ACTION_ICON(a), ' ', ACTION_NAME(a)),
-      el('button', { type: 'button', class: 'keycap' + (waiting === a ? ' wait' : ''), onclick: () => {
-        waiting = waiting === a ? null : a;
-        drawKeys();
-      } }, waiting === a ? 'aperte…' : keyLabel(keyOf(a))))));
-  }
-  addEventListener('keydown', (e) => {
-    if (!waiting) return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    if (e.code !== 'Escape') {
-      if (RESERVED.has(e.code)) return toast('Essa tecla já tem outra função (S para, Espaço centraliza, Tab mostra o placar, Y abre as provocações, a tecla à esquerda do 1 abre a ficha, o 4 abre a loja na rodada).');
-      setKey(waiting, e.code);
-    }
-    waiting = null;
-    drawKeys();
-  }, true);
-  const slotToggle = el('input', { type: 'checkbox', id: 'slot-keys', checked: isSlotMode(), onchange: () => {
-    setSlotMode(slotToggle.checked);
-    drawKeys();
-  } }) as HTMLInputElement;
-  // jeito de lançar pela tecla (os três do Dota); uma linha explicando o escolhido
-  const CAST_TEXT: Record<CastMode, [string, string]> = {
-    quick: ['Rápido', 'A tecla lança na hora na direção do mouse. Passe o mouse na magia da barra para ver o alcance.'],
-    release: ['Ao soltar', 'Segure a tecla para ver o círculo de alcance; ao soltar, a magia sai. Esc cancela.'],
-    click: ['Com clique', 'A tecla escolhe a magia e mostra o alcance; o clique esquerdo lança (fora do alcance, vai até a borda). Botão direito ou Esc cancelam.'],
-  };
-  const castHint = el('small', { class: 'muted' }, CAST_TEXT[getCastMode()][1]);
-  const castPicker = el('div', { class: 'stats-tabs', role: 'group', 'aria-label': 'Jeito de lançar' }, ...CAST_MODES.map((k) =>
-    el('button', { type: 'button', 'data-mode': k, 'aria-pressed': String(getCastMode() === k), class: getCastMode() === k ? 'on' : '', onclick: (e: Event) => {
-      setCastMode(k);
-      for (const b of castPicker.querySelectorAll('button')) {
-        const on = b === e.currentTarget;
-        b.classList.toggle('on', on);
-        b.setAttribute('aria-pressed', String(on));
-      }
-      castHint.textContent = CAST_TEXT[k][1];
-    } }, CAST_TEXT[k][0])));
-  const keysPanel = el('div', { class: 'vol-panel keys-panel', hidden: true }, el('b', {}, 'Teclas'),
-    el('small', {}, 'Lançar pela tecla'), castPicker, castHint,
-    el('label', { class: 'slot-row', for: 'slot-keys' }, slotToggle, el('span', {}, 'Q W E R D F pela ordem da barra (como no Dota)')),
-    el('label', { class: 'slot-row', for: 'pad-rumble' }, el('input', { type: 'checkbox', id: 'pad-rumble', checked: isRumbleOn(), onchange: (e: Event) => setRumble((e.target as HTMLInputElement).checked) }), el('span', {}, 'Vibração do controle (golpe forte e morte)')), keysList,
-    el('button', { type: 'button', onclick: () => resetKeys() }, 'Voltar ao padrão'));
-  // painéis do topo: abrir um fecha os outros (pedido do Fernando, 18/10)
-  function solo(p: HTMLElement) {
-    if (p.hidden) return;
-    for (const [q, b] of [[keysPanel, null], [volPanel, volBtn], [votePanel, voteBtn], [tauntPanel, null], [sheetPanel, sheetBtn], [peekPanel, peekBtn]] as [HTMLElement, HTMLElement | null][]) {
+  // painéis do topo: abrir um fecha os outros (pedido do Fernando, 18/10); solo(null) fecha todos (Esc, menu de configurações)
+  function solo(p: HTMLElement | null) {
+    if (p?.hidden) return;
+    for (const [q, b] of [[votePanel, voteBtn], [tauntPanel, null], [sheetPanel, sheetBtn], [peekPanel, peekBtn]] as [HTMLElement, HTMLElement | null][]) {
       if (q === p || q.hidden) continue;
       q.hidden = true;
       b?.setAttribute('aria-expanded', 'false');
     }
   }
-  const keysBtn = el('button', { type: 'button', class: 'icon', title: 'Trocar teclas', 'aria-label': 'Trocar teclas', onclick: () => {
-    keysPanel.hidden = !keysPanel.hidden;
-    solo(keysPanel);
-    if (!keysPanel.hidden) drawKeys();
-  } }, icon(UI_ICON.keys));
+  // teclas, volume e efeitos moraram em painéis aqui; agora são abas do menu de configurações (settings.ts) e os botões abrem a aba
+  const volIcon = () => volBtn.replaceChildren(icon(act.volumes().sfx + act.volumes().music === 0 ? UI_ICON.mute : UI_ICON.sound));
+  setSettingsCtx({
+    name: act.name, rename: act.rename, volumes: act.volumes, fxLite: act.fxLite, setFxLite: act.setFxLite, closePanels: () => solo(null),
+    setVolume: (kind, v) => {
+      act.setVolume(kind, v);
+      volIcon();
+    },
+  });
+  const gearBtn = el('button', { type: 'button', class: 'icon', title: 'Configurações (Esc)', 'aria-label': 'Configurações', onclick: () => openSettings() }, icon(UI_ICON.gear));
   onKeysChange(() => {
-    drawKeys();
     bar.querySelectorAll<HTMLElement>('[data-action]').forEach((k) => (k.textContent = labelOf(k.dataset.action as Action)));
     drawCenter();
+    drawHints();
   });
-  const volBtn = el('button', { type: 'button', class: 'icon', title: 'Volume', 'aria-label': 'Volume', 'aria-expanded': 'false', onclick: () => {
-    volPanel.hidden = !volPanel.hidden;
-    solo(volPanel);
-    volBtn.setAttribute('aria-expanded', String(!volPanel.hidden));
-  } }, icon(act.volumes().sfx + act.volumes().music === 0 ? UI_ICON.mute : UI_ICON.sound));
+  const volBtn = el('button', { type: 'button', class: 'icon', title: 'Som', 'aria-label': 'Som', onclick: () => openSettings('som') }, icon(act.volumes().sfx + act.volumes().music === 0 ? UI_ICON.mute : UI_ICON.sound));
   // votação na partida: o botão abre as opções; a faixa no topo mostra a votação aberta para todos
   const votePanel = el('div', { class: 'vol-panel', hidden: true });
   const voteBtn = el('button', { type: 'button', class: 'vote-btn', title: 'Votar: trocar o modo ou expulsar alguém', 'aria-label': 'Votar', 'aria-expanded': 'false', onclick: () => {
@@ -502,18 +444,22 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     voteBtn.setAttribute('aria-expanded', String(!votePanel.hidden));
   } }, icon(UI_ICON.vote), el('span', { class: 'vote-label' }, ' Votar'));
   const voteWrap = el('div', { class: 'vol' }, voteBtn, votePanel);
-  // provocações (taunts): Y abre a lista e o número escolhe (ou clique); vale na loja e no jogo
+  // provocações (taunts): a tecla (Y no padrão) abre a lista e o número escolhe (ou clique); vale na loja e no jogo
   const sendTaunt = (i: number) => {
     act.taunt(i);
     tauntPanel.hidden = true;
   };
-  const tauntPanel = el('div', { class: 'vol-panel', hidden: true }, el('b', {}, 'Provocações (Y)'),
+  const tauntTitle = el('b', {}, 'Provocações');
+  const tauntPanel = el('div', { class: 'vol-panel', hidden: true }, tauntTitle,
     el('div', { class: 'taunt-list' }, ...TAUNTS.map((t, i) => el('button', { type: 'button', onclick: () => sendTaunt(i) }, `${(i + 1) % 10} · ${t.text}`))));
-  const sheetBtn = el('button', { type: 'button', class: 'icon', title: "Ficha do mago (tecla ')", 'aria-label': 'Ficha do mago', 'aria-expanded': 'false', onclick: () => toggleSheet() }, icon(UI_ICON.sheet));
-  const tauntBtn = el('button', { type: 'button', class: 'icon', title: 'Provocações (Y)', 'aria-label': 'Provocações (Y)', onclick: () => ((tauntPanel.hidden = !tauntPanel.hidden), solo(tauntPanel)) }, icon(UI_ICON.taunt));
+  const sheetBtn = el('button', { type: 'button', class: 'icon', 'aria-label': 'Ficha do mago', 'aria-expanded': 'false', onclick: () => toggleSheet() }, icon(UI_ICON.sheet));
+  const tauntBtn = el('button', { type: 'button', class: 'icon', onclick: () => ((tauntPanel.hidden = !tauntPanel.hidden), solo(tauntPanel)) }, icon(UI_ICON.taunt));
   addEventListener('keydown', (e) => {
     if (e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT') return;
-    if (e.code === 'KeyY') {
+    if (isUiKey(e.code, 'vote') && voteBtn.checkVisibility()) {
+      e.preventDefault();
+      voteBtn.click();
+    } else if (isUiKey(e.code, 'taunt')) {
       tauntPanel.hidden = !tauntPanel.hidden;
       solo(tauntPanel);
       e.preventDefault();
@@ -523,17 +469,21 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       // o número não pode também usar o item da mesma tecla
       e.preventDefault();
       e.stopImmediatePropagation();
-    } else if (e.code === 'Escape') tauntPanel.hidden = true;
+    } else if (e.code === 'Escape' && [votePanel, tauntPanel, sheetPanel].some((p) => !p.hidden)) {
+      // fechou um painel: este Esc não abre as configurações
+      e.preventDefault();
+      solo(null);
+    }
   });
   const voteBar = el('div', { class: 'vote-bar', role: 'status', hidden: true });
   const voteLeft = el('span', { class: 'muted' });
   let voteEndsAt = 0;
   // celular: sem Tab, este botão (só aparece em tela de toque) abre e fecha o placar
   const tabBtn = el('button', { type: 'button', class: 'icon tab-toggle', title: 'Placar', 'aria-label': 'Placar', hidden: true, onclick: () => pinTab(!!tabOverlay.hidden) }, icon(UI_ICON.board));
-  // loja só para ver no meio da rodada (pedido do Fernando, 18/10): botão no topo, tecla 4, D-pad ↓; não pausa o jogo
+  // loja só para ver no meio da rodada (pedido do Fernando, 18/10): botão no topo, tecla (4 no padrão), D-pad ↓; não pausa o jogo
   const PEEK_PHASES = ['countdown', 'playing', 'roundEnd'];
   const peekPanel = el('div', { class: 'peek-shop', role: 'dialog', 'aria-label': 'Loja (só para ver)', hidden: true });
-  const peekBtn = el('button', { type: 'button', class: 'icon', title: 'Ver a loja (4)', 'aria-label': 'Ver a loja', 'aria-expanded': 'false', hidden: true, onclick: () => togglePeek() }, icon(UI_ICON.shop));
+  const peekBtn = el('button', { type: 'button', class: 'icon', 'aria-expanded': 'false', hidden: true, onclick: () => togglePeek() }, icon(UI_ICON.shop));
   function drawPeek() {
     if (peekPanel.hidden || !room) return;
     hideTip(peekPanel); // a atualização de 1 s não pode deixar a dica órfã
@@ -549,15 +499,30 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   }
   addEventListener('keydown', (e) => {
     if (e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT') return;
-    if (e.code === SHOP_KEY && room && PEEK_PHASES.includes(room.phase)) {
+    if (isUiKey(e.code, 'shop') && room && PEEK_PHASES.includes(room.phase)) {
       e.preventDefault();
       togglePeek();
-    } else if (e.code === 'Escape' && !peekPanel.hidden) togglePeek(false);
+    } else if (e.code === 'Escape' && !peekPanel.hidden) {
+      e.preventDefault();
+      togglePeek(false);
+    }
   });
+  const helpBtn = el('button', { type: 'button', class: 'icon', onclick: showRules }, icon(UI_ICON.help));
+  // dicas (title e aria-label) com a tecla atual de cada atalho
+  const HINTS: [HTMLElement, string, UiAction][] = [[peekBtn, 'Ver a loja', 'shop'], [sheetBtn, 'Ficha do mago', 'sheet'], [tauntBtn, 'Provocações', 'taunt'], [helpBtn, 'Como jogar', 'rules'], [voteBtn, 'Votar: trocar o modo ou expulsar alguém', 'vote']];
+  function drawHints() {
+    for (const [b, text, a] of HINTS) {
+      const t = uiLabel(a) === '—' ? text : `${text} (${uiLabel(a)})`;
+      b.title = t;
+      b.setAttribute('aria-label', t);
+    }
+    tauntTitle.textContent = uiLabel('taunt') === '—' ? 'Provocações' : `Provocações (${uiLabel('taunt')})`;
+  }
+  drawHints();
   const top = el('div', { class: 'hud-top' },
     el('button', { type: 'button', class: 'code', title: 'Copiar link da sala', 'aria-label': `Sala ${code}: copiar link`, onclick: () => copyLink() }, status, ' ', code, ping),
     roundEl,
-    el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', 'aria-label': 'Como jogar', onclick: showRules }, icon(UI_ICON.help))),
+    el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, volBtn, gearBtn, helpBtn),
   );
   const center = el('div', { class: 'center' });
   // a janela da loja pode ser alargada pela alça do canto (PC); o tamanho fica salvo neste navegador (pedido do Fernando, 18/10)
@@ -611,13 +576,16 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       e.preventDefault();
       return;
     }
-    if (e.code === 'Escape' && tabOverlay.classList.contains('pinned')) return pinTab(false);
-    // placar pelo Tab (pedido do Fernando, 17/10); na loja o Tab é do teclado e o placar fica no botão ao lado do Pronto
-    if (e.code !== 'Tab' || !room || !TAB_PHASES.includes(room.phase) || room.phase === 'shop' || (e.target as HTMLElement).closest?.('.center')) return;
+    if (e.code === 'Escape' && tabOverlay.classList.contains('pinned')) {
+      e.preventDefault(); // fechou o placar fixo: este Esc não abre as configurações
+      return pinTab(false);
+    }
+    // placar pelo Tab (pedido do Fernando, 17/10; trocável); na loja o Tab é do teclado e o placar fica no botão ao lado do Pronto
+    if (!isUiKey(e.code, 'board') || !room || !TAB_PHASES.includes(room.phase) || room.phase === 'shop' || (e.target as HTMLElement).closest?.('.center')) return;
     e.preventDefault();
     if (!e.repeat) showTab(true);
   });
-  addEventListener('keyup', (e) => e.code === 'Tab' && !tabOverlay.classList.contains('pinned') && showTab(false));
+  addEventListener('keyup', (e) => isUiKey(e.code, 'board') && !tabOverlay.classList.contains('pinned') && showTab(false));
   // magia escolhida pelo botão: diz o que fazer agora e como desistir (no toque não há Esc)
   let shownArmed: string | null = null;
   const armedText = el('span', {});
@@ -657,7 +625,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     drawSheet();
   }
   addEventListener('keydown', (e) => {
-    if (e.code !== SHEET_KEY || e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT' || !room || room.phase === 'lobby') return;
+    if (!isUiKey(e.code, 'sheet') || e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT' || !room || room.phase === 'lobby') return;
     e.preventDefault();
     toggleSheet();
   });

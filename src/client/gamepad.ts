@@ -4,7 +4,7 @@
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import type { Vec } from '../shared/vec.ts';
-import { SHEET_KEY, SHOP_KEY, setPadMode, slotSpell } from './keys.ts';
+import { PAD_NAMES, keyOf, padActionAt, padButtonOf, setPadMode, slotSpell } from './keys.ts';
 
 // índices do mapeamento padrão (Xbox: A B X Y; PlayStation: ✕ ○ □ △ nas mesmas posições)
 export const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 } as const;
@@ -29,13 +29,17 @@ export function aimPoint(me: Vec, s: Vec, range = AIM_RANGE): Vec {
   return { x: me.x + (s.x / m) * d, y: me.y + (s.y / m) * d };
 }
 
-// A B X Y LB RB = magias 1 a 6 da barra; LT, RT e ↑ = itens ativos 1 a 3 (as teclas 1, 2 e 3)
+// magia ou item do botão, pelo mapeamento da aba Controle (padrão: A B X Y LB RB = magias 1 a 6 da barra; LT, RT e ↑ = itens 1 a 3)
 export function padAction(btn: number): SpellId | ItemId | undefined {
-  if (btn >= BTN.A && btn <= BTN.RB) return slotSpell(btn);
-  if (btn === BTN.LT || btn === BTN.RT) return ACTIVE_ITEMS[btn - BTN.LT];
-  if (btn === BTN.UP) return ACTIVE_ITEMS[2];
+  const p = padActionAt(btn);
+  if (p?.startsWith('slot')) return slotSpell(Number(p.slice(4)) - 1);
+  if (p?.startsWith('item')) return ACTIVE_ITEMS[Number(p.slice(4)) - 1];
   return undefined;
 }
+
+// a aba Controle espera um botão para trocar: o próximo apertado vai para ela e não faz mais nada
+let padCapture: ((btn: number) => void) | null = null;
+export const setPadCapture = (f: ((btn: number) => void) | null) => (padCapture = f);
 
 // próximo botão na direção pedida: o mais perto, punindo o desvio para o lado (a grade da loja anda por linhas e colunas)
 export function nextFocus(from: Rect, rects: Rect[], dir: Dir): number {
@@ -161,14 +165,15 @@ function navigate(dir: Dir) {
   if (i >= 0) focus(others[i]);
 }
 
-// B: fecha a camada de cima (ajuda, painel do topo, placar fixo, ficha, grupo aberto)
+// B: fecha a camada de cima (ajuda, configurações, painel do topo, placar fixo, ficha, grupo aberto)
 function back() {
   const rules = $('.rules-overlay');
   if (rules) return rules.remove();
+  if ($('.settings-overlay')) return key('keydown', 'Escape');
   const panel = $('.vol-panel:not([hidden])');
   if (panel) return (panel.hidden = true);
   if ($('.tab-overlay.pinned')) return key('keydown', 'Escape');
-  if ($('.sheet-panel:not([hidden])')) return key('keydown', SHEET_KEY);
+  if ($('.sheet-panel:not([hidden])')) return key('keydown', keyOf('sheet'));
   const open = (document.activeElement as HTMLElement | null)?.closest('details[open]') as HTMLDetailsElement | null;
   if (open) {
     open.open = false;
@@ -176,15 +181,9 @@ function back() {
   }
 }
 
-// Start: Pronto na loja, ficha do mago na partida, ajuda nas outras telas (aperta de novo para fechar)
-function start() {
-  const rules = $('.rules-overlay');
-  if (rules) return rules.remove();
-  const ready = $<HTMLButtonElement>('[data-key="ready"]');
-  if (ready) return ready.disabled || ready.click();
-  if (game && $('button[aria-label="Ficha do mago"]')?.checkVisibility()) return key('keydown', SHEET_KEY);
-  [...document.querySelectorAll<HTMLElement>('button')].find((b) => b.getAttribute('aria-label') === 'Como jogar' || b.textContent === 'Como jogar')?.click();
-}
+// Start é o Esc do controle (decisão de 18/10, com o menu de configurações): fecha a camada de cima ou, sem nada aberto,
+// abre e fecha as configurações. O Pronto da loja fica no A (o foco começa nele) e a ficha foi para o L3.
+const start = () => key('keydown', 'Escape');
 
 // LB/RB: troca o período do placar aberto ou pula para o grupo anterior/seguinte da loja
 function group(step: 1 | -1) {
@@ -224,7 +223,6 @@ function menu(hit: (b: number) => boolean) {
   if (hit(BTN.START)) start();
 }
 
-const CAST_BUTTONS = [BTN.A, BTN.B, BTN.X, BTN.Y, BTN.LB, BTN.RB, BTN.LT, BTN.RT, BTN.UP];
 const MOVE_AHEAD = 2; // metros à frente do mago: o destino anda junto enquanto o analógico está inclinado
 let wasMoving = false;
 let lastMove = 0;
@@ -251,21 +249,25 @@ function play(g: PadGame, hit: (b: number) => boolean, mv: Vec, aimS: Vec) {
   const at = me ? aimPoint(me, lastAim) : null;
   g.aim(padMode ? at : null);
   g.padRange(padMode && m > 0 ? lastCast : null);
-  for (const b of CAST_BUTTONS) {
-    const a = hit(b) ? padAction(b) : undefined;
-    if (!a || !at) continue;
-    lastCast = a as SpellId | ItemId;
-    if ((ACTIVE_ITEMS as string[]).includes(a)) g.useItem(a as ItemId, at);
-    else g.cast(a as SpellId, at);
-  }
-  if (hit(BTN.R3)) g.center();
-  if (hit(BTN.DOWN)) key('keydown', SHOP_KEY); // D-pad ↓: abre e fecha a loja só para ver
-  if (hit(BTN.START)) start();
   // morto ou só assistindo: ← → do D-pad trocam quem a câmera segue (com o placar aberto, trocam o período, como no teclado)
-  if ($('.watching:not([hidden])')) {
+  const watching = !!$('.watching:not([hidden])');
+  if (watching) {
     if (hit(BTN.LEFT)) key('keydown', 'ArrowLeft');
     if (hit(BTN.RIGHT)) key('keydown', 'ArrowRight');
   }
+  // cada botão faz o que a aba Controle diz (o placar, segurado, fica no tick)
+  for (let b = 0; b < PAD_NAMES.length; b++) {
+    if (!hit(b) || (watching && (b === BTN.LEFT || b === BTN.RIGHT))) continue;
+    const p = padActionAt(b);
+    if (p === 'center') g.center();
+    else if (p === 'sheet' || p === 'shop') key('keydown', keyOf(p)); // ficha e loja só para ver: os mesmos atalhos do teclado
+    const a = padAction(b);
+    if (!a || !at) continue;
+    lastCast = a;
+    if ((ACTIVE_ITEMS as string[]).includes(a)) g.useItem(a as ItemId, at);
+    else g.cast(a as SpellId, at);
+  }
+  if (hit(BTN.START)) start();
 }
 
 let prev: boolean[] = [];
@@ -286,10 +288,20 @@ function tick(toast: (msg: string) => void) {
   }
   if (gp.id !== seen) {
     seen = gp.id;
-    toast(`Controle conectado: ${padName(gp.id)} · Start abre a ajuda com o mapa dos botões`);
+    toast(`Controle conectado: ${padName(gp.id)} · Start abre as configurações (a aba Controle troca os botões)`);
   }
   const down = gp.buttons.map((b) => b.pressed);
   const hit = (b: number) => !!down[b] && !prev[b];
+  if (padCapture) {
+    const b = down.findIndex((d, i) => d && !prev[i]);
+    prev = down;
+    if (b >= 0) {
+      const f = padCapture;
+      padCapture = null;
+      f(b);
+    }
+    return;
+  }
   const mv = stick(gp.axes[0] ?? 0, gp.axes[1] ?? 0);
   const aimS = stick(gp.axes[2] ?? 0, gp.axes[3] ?? 0);
   if (down.some(Boolean) || mv.x || mv.y || aimS.x || aimS.y) setMode(true);
@@ -315,8 +327,9 @@ function tick(toast: (msg: string) => void) {
     }
     menu(hit);
   }
-  // View/Select segurado: placar (nos dois modos)
-  if (!!down[BTN.VIEW] !== !!prev[BTN.VIEW]) key(down[BTN.VIEW] ? 'keydown' : 'keyup', 'Tab');
+  // placar segurado (View/Select no padrão), nos dois modos
+  const board = padButtonOf('board');
+  if (!!down[board] !== !!prev[board]) key(down[board] ? 'keydown' : 'keyup', keyOf('board'));
   prev = down;
 }
 

@@ -37,7 +37,8 @@ export const SOURCE_ICON = named({ lava: ['volcano', '🌋'], pillar: ['menhir',
 // botões e colunas da interface
 export const UI_ICON = named({ board: ['histogram', '📊'], sheet: ['scroll-unfurled', '📜'], taunt: ['talk', '💬'], vote: ['vote', '🗳️'], sound: ['speaker', '🔊'], mute: ['speaker-off', '🔇'],
   help: ['help', '❓'], keys: ['keyboard', '⌨️'], kills: ['skull-crossed-bones', '☠'], dmg: ['spiky-explosion', '💥'], wins: ['trophy', '🏆'], aim: ['archery-target', '🎯'],
-  gold: ['two-coins', '🪙'], tip: ['light-bulb', '💡'], bot: ['robot-antennas', '🤖'], person: ['character', '👤'], info: ['info', 'ℹ️'], shop: ['shop', '🏪'] });
+  gold: ['two-coins', '🪙'], tip: ['light-bulb', '💡'], bot: ['robot-antennas', '🤖'], person: ['character', '👤'], info: ['info', 'ℹ️'], shop: ['shop', '🏪'],
+  gear: ['cog', '⚙️'], pad: ['gamepad', '🎮'], video: ['tv', '📺'] });
 // efeitos em cima do mago (bits do snapshot, ver shared/snapshot.ts); negativos primeiro. Também listados na ficha do mago
 const fx = named({ stun: ['star-swirl', '💫'], vuln: ['broken-shield', '⚠️'], invuln: ['sunbeams', '🌟'], locked: ['padlock', '🔒'], slow: ['snail', '🐌'], burn: ['small-fire', '🔥'],
   repel: ['magnet-blast', '🌬️'], invis: ['ghost', '👻'], fast: ['run', '🏃'] });

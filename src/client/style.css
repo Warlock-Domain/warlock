@@ -319,7 +319,6 @@ body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: no
 .buy-row > button:first-child { flex: 1; }
 button.undo { min-height: 38px; width: 38px; padding: 0; font-size: 1rem; }
 button.sell { min-height: 38px; padding: 0 8px; font-size: .8rem; white-space: nowrap; opacity: .8; }
-.keys-panel { width: 280px; }
 .slot-row { display: flex; gap: 8px; align-items: center; font-size: .85rem; margin: 4px 0 8px; cursor: pointer; }
 .keys-list { display: flex; flex-direction: column; gap: 6px; }
 .keys-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .9rem; }
@@ -429,8 +428,6 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
 }
 @media (hover: none) and (pointer: coarse) {
   .tab-toggle { display: inline-flex; }
-  /* trocar teclas não serve sem teclado */
-  .vol:has(> .keys-panel) { display: none; }
   /* dica de magia em cima da arena atrapalha a mira; na loja ela continua */
   body:has(.barwrap:not([hidden])) .tip { display: none !important; }
 }
@@ -487,7 +484,6 @@ button:not(:disabled):active, .button:active { transform: translateY(1px) scale(
 /* últimos 5 s da loja: o Pronto pulsa em vermelho */
 button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infinite alternate; }
 @keyframes urgent { from { box-shadow: 0 0 0 0 rgba(255, 106, 77, 0); } to { box-shadow: 0 0 0 3px var(--red), 0 0 22px rgba(255, 106, 77, .7); } }
-.fx-row { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
 /* avisos com ícone e cor por tipo; sobem um pouco ao aparecer */
 #toast { display: flex; align-items: center; gap: 10px; border-left: 4px solid var(--gold-line); transform: translate(-50%, 8px); transition: opacity .2s, transform .2s; }
 #toast.show { transform: translateX(-50%); }
@@ -664,4 +660,52 @@ button.train small { font-weight: 400; }
   .g-page table.lv { font-size: .76rem; }
   .lv tr > th:first-child { min-width: 78px; }
   .g-medal { width: 60px; height: 60px; font-size: 2.1rem; }
+}
+/* configurações (settings.ts): pergaminho escuro com abas à esquerda no PC; no celular a lista de abas e, tocando, a aba */
+.settings-overlay { z-index: 15; }
+.settings { display: grid; grid-template-columns: 200px 1fr; grid-template-rows: auto 1fr; width: min(860px, 100%); height: min(640px, calc(100dvh - 32px)); background: var(--plate); border: 1px solid var(--gold-line); border-radius: var(--r-lg); box-shadow: var(--plate-edge), var(--shadow-lg); overflow: hidden; animation: panel-in .18s ease-out; }
+.settings-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 12px 14px 10px 18px; border-bottom: 1px solid var(--line); background: radial-gradient(ellipse at 20% 0%, rgba(255, 106, 26, .14), transparent 70%); }
+.settings-head .title { flex: 1; margin: 0; }
+.settings-back { display: none; }
+.settings-tabs { display: flex; flex-direction: column; gap: 4px; padding: 12px 10px; border-right: 1px solid var(--line); overflow-y: auto; background: rgba(0, 0, 0, .18); }
+.settings-tabs button { justify-content: flex-start; gap: 10px; background: transparent; border-color: transparent; text-align: left; }
+.settings-tabs button .gi { font-size: 1.25rem; color: var(--ember); flex: none; }
+.settings-tabs button:hover { background: var(--tint); }
+.settings-tabs button.on { border-color: var(--ember); background: var(--sel-bg); box-shadow: inset 3px 0 0 var(--ember); }
+.settings-body { padding: 14px 20px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.settings-body h3 { margin: 8px 0 0; font-family: var(--display); font-size: 1.15rem; color: var(--gold); }
+.settings-body > .settings-page-title { margin: 0; font-size: 1.5rem; color: var(--fg); }
+.settings-body p { margin: 0; }
+.settings-body > * { flex-shrink: 0; }
+.settings-body > button { align-self: flex-start; }
+.settings-body .keys-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px 18px; }
+.settings-body .vol-row { grid-template-columns: 80px 1fr 48px; max-width: 460px; }
+.settings-body .slot-row { margin: 0; }
+/* desenho do controle: corpo bronze, botões clicáveis, linha até o nome da ação */
+.pad-svg { width: 100%; max-width: 920px; height: auto; align-self: center; }
+.pad-body { fill: var(--panel2); stroke: var(--bronze); stroke-width: 3; }
+.pad-btn { cursor: pointer; outline: none; }
+.pad-btn rect, .pad-btn circle { fill: var(--bg); stroke: var(--gold-line); stroke-width: 2; }
+.pad-btn:hover rect, .pad-btn:hover circle, .pad-btn:focus-visible rect, .pad-btn:focus-visible circle { stroke: var(--ember); }
+.pad-btn.wait rect, .pad-btn.wait circle { stroke: var(--ember); fill: var(--sel-bg); stroke-width: 3; }
+.pad-line { fill: none; stroke: var(--gold-line); stroke-width: 1.5; }
+.pad-btn:hover .pad-line, .pad-btn.wait .pad-line { stroke: var(--ember); }
+.pad-glyph { fill: var(--fg); font: 700 13px ui-monospace, Consolas, monospace; text-anchor: middle; pointer-events: none; }
+.pad-label { fill: var(--fg); font-size: 15px; }
+.pad-key { fill: var(--gold); font-weight: 700; }
+.pad-btn.free .pad-label { fill: var(--muted); }
+.pad-btn.wait .pad-label { fill: var(--ember); }
+@media (max-width: 600px) {
+  .settings-overlay { padding: 0; }
+  .settings { grid-template-columns: 1fr; width: 100%; height: 100dvh; border-radius: 0; padding-top: var(--safe-t); padding-bottom: var(--safe-b); }
+  .settings[data-view="list"] .settings-body, .settings[data-view="page"] .settings-tabs { display: none; }
+  .settings[data-view="page"] .settings-back { display: inline-flex; }
+  .settings-tabs { border-right: 0; padding: 10px 14px; }
+  .settings-tabs button { min-height: 52px; font-size: 1.05rem; border-color: var(--line); background: var(--panel2); }
+  .settings-tabs button.on { box-shadow: none; border-color: var(--line); background: var(--panel2); }
+  .settings-tabs button::after { content: "›"; margin-left: auto; color: var(--muted); font-size: 1.3rem; }
+  .settings-body { padding: 12px 14px 20px; }
+  .settings-body .keys-list { grid-template-columns: 1fr; }
+  /* no celular o desenho fica só com os botões; os nomes vão na lista logo abaixo */
+  .pad-callout { display: none; }
 }

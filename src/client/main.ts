@@ -11,7 +11,8 @@ import { coachTip } from './coach.ts';
 import { reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
-import { isPadMode, labelOf } from './keys.ts';
+import { isPadMode, labelOf, onFreeEsc } from './keys.ts';
+import { openSettings } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
 import { createInterp } from './interp.ts';
 import { connect } from './net.ts';
@@ -68,6 +69,8 @@ async function main() {
   const id = location.hash.slice(1).toUpperCase();
   if (/^[A-Z]{4}$/.test(id)) startRoom(id, name);
   else startLobby(name);
+  // Esc sem nada para cancelar ou fechar abre as configurações (pedido do Fernando, 18/10); por último, depois dos ouvintes da sala
+  onFreeEsc(() => !document.querySelector('.overlay, .rules-overlay') && openSettings());
 }
 
 function startLobby(name: string) {
@@ -103,6 +106,7 @@ function startLobby(name: string) {
 }
 
 function startRoom(code: string, name: string) {
+  let myName = name;
   document.body.className = 'in-room';
   // volumes guardados no navegador (0 a 1); quem tinha deixado mudo na versão antiga começa em zero
   const readVol = (k: string, fallback: number) => {
@@ -182,6 +186,13 @@ function startRoom(code: string, name: string) {
     },
     spellReady: () => sound.play('ready', 0.8),
     watch: (step) => (watchStep = step),
+    name: () => myName,
+    // o servidor atualiza o apelido de quem já está na sala quando o hello chega de novo (addPlayer)
+    rename: async () => {
+      myName = await askName(document.body, myName);
+      store.set(NAME, myName);
+      net.send({ t: 'hello', playerId, name: myName });
+    },
   });
   addEventListener('keydown', (e) => {
     // ← → já trocam o período do placar quando ele está aberto (ui.ts marca o evento; por isso este ouvinte vem depois do createRoomUi)
@@ -257,7 +268,7 @@ function startRoom(code: string, name: string) {
   // o personagem escolhido fica salvo e é reenviado ao entrar em qualquer sala
   const saved = store.get(CHAR);
   const net = connect('/ws/room/' + code, onMsg, () => {
-    net.send({ t: 'hello', playerId, name });
+    net.send({ t: 'hello', playerId, name: myName });
     if (isCharacter(saved)) net.send({ t: 'pick', character: saved });
   }, (on) => {
     online = on;

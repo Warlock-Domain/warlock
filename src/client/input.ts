@@ -3,7 +3,7 @@
 // No celular: tocar no chão anda; tocar no botão da magia e depois no chão lança.
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
 import type { SpellId } from '../shared/spells.ts';
-import { actionFor, getCastMode } from './keys.ts';
+import { actionFor, getCastMode, isUiKey } from './keys.ts';
 import { setPadGame } from './gamepad.ts';
 import type { Vec } from '../shared/vec.ts';
 
@@ -140,8 +140,10 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       if (p) (isItem(action) ? h.useItem(action, p) : h.cast(action as SpellId, p));
       return;
     }
-    if (e.code === 'KeyS') h.stop();
+    if (isUiKey(e.code, 'stop')) h.stop();
     else if (e.code === 'Escape') {
+      // só consome o Esc se havia magia escolhida ou segurada; senão ele segue para abrir as configurações
+      if (armed || held) e.preventDefault();
       cancel();
       arm(null);
     }

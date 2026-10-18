@@ -17,6 +17,8 @@ const ICONS = [
   // interface
   'delapouite/histogram', 'lorc/scroll-unfurled', 'skoll/talk', 'delapouite/vote', 'delapouite/speaker', 'delapouite/speaker-off', 'sbed/help', 'delapouite/keyboard',
   'lorc/skull-crossed-bones', 'lorc/spiky-explosion', 'lorc/trophy', 'lorc/archery-target', 'delapouite/two-coins', 'lorc/light-bulb', 'delapouite/robot-antennas', 'delapouite/character', 'delapouite/info', 'delapouite/shop',
+  // configurações: engrenagem, controle e vídeo
+  'lorc/cog', 'delapouite/gamepad', 'delapouite/tv',
 ];
 
 const symbols = [];
