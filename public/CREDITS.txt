@@ -1,4 +1,4 @@
-CRÉDITOS DOS ASSETS (todos CC0 / domínio público; créditos por cortesia, não obrigatórios)
+CRÉDITOS DOS ASSETS (os ícones são CC BY 3.0, com crédito obrigatório, ver "Ícones"; o resto é CC0 / domínio público, créditos por cortesia)
 
 == Modelos 3D ==
 models/decor.glb
@@ -58,3 +58,86 @@ music/battle.mp3
   "Evil Laugh" (CC0) - https://opengameart.org/content/evil-laugh
 
   "Ultra kill": voz sintética gerada com o Microsoft Speech (voz Zira) e efeito em ffmpeg, feita para este jogo
+
+== Ícones (public/icons.svg) ==
+  game-icons.net - https://game-icons.net - repositório oficial https://github.com/game-icons/icons
+  Licença lida no license.txt do repositório: "Icons provided under the Creative Commons 3.0 BY" - https://creativecommons.org/licenses/by/3.0/
+  Icons made by Lorc, Delapouite, Skoll, Sbed e Caro Asercion. Alteração: fundo preto removido e cor trocada pela do tema (currentColor);
+  montados num sprite por scripts/assets/build-icons.mjs. Cada ícone (uso no jogo: arquivo no repositório, autor):
+  Magias:
+    Bola de fogo: lorc/fire-ray.svg, Lorc (http://lorcblog.blogspot.com)
+    Raio: lorc/focused-lightning.svg, Lorc (http://lorcblog.blogspot.com)
+    Míssil teleguiado: lorc/on-target.svg, Lorc (http://lorcblog.blogspot.com)
+    Escudo: lorc/shield-reflect.svg, Lorc (http://lorcblog.blogspot.com)
+    Teleporte: lorc/teleport.svg, Lorc (http://lorcblog.blogspot.com)
+    Troca: lorc/body-swapping.svg, Lorc (http://lorcblog.blogspot.com)
+    Agarrar: lorc/grab.svg, Lorc (http://lorcblog.blogspot.com)
+    Meteoro: lorc/meteor-impact.svg, Lorc (http://lorcblog.blogspot.com)
+    Investida: lorc/sprint.svg, Lorc (http://lorcblog.blogspot.com)
+    Rajada: lorc/striking-splinter.svg, Lorc (http://lorcblog.blogspot.com)
+    Bumerangue: delapouite/boomerang.svg, Delapouite (http://delapouite.com)
+    Estocada: lorc/knife-thrust.svg, Lorc (http://lorcblog.blogspot.com)
+    Gravidade: lorc/vortex.svg, Lorc (http://lorcblog.blogspot.com)
+    Pilar de pedra (e a causa "pilar" no placar): delapouite/menhir.svg, Delapouite (http://delapouite.com)
+    Ricochete: caro-asercion/ricochet.svg, Caro Asercion
+    Drenar: lorc/life-tap.svg, Lorc (http://lorcblog.blogspot.com)
+    Bola de neve: lorc/frozen-orb.svg, Lorc (http://lorcblog.blogspot.com)
+    Gêmeos: delapouite/gemini.svg, Delapouite (http://delapouite.com)
+    Magnetizar: lorc/magnet.svg, Lorc (http://lorcblog.blogspot.com)
+    Recarga: lorc/cycle.svg, Lorc (http://lorcblog.blogspot.com)
+    Alteração: delapouite/card-exchange.svg, Delapouite (http://delapouite.com)
+    Elo: lorc/harpoon-chain.svg, Lorc (http://lorcblog.blogspot.com)
+    Caminhada no vento: lorc/wind-slap.svg, Lorc (http://lorcblog.blogspot.com)
+    Divisor: delapouite/split-arrows.svg, Delapouite (http://delapouite.com)
+    Zona de dobra: lorc/time-trap.svg, Lorc (http://lorcblog.blogspot.com)
+  Itens:
+    Anel de vida: delapouite/diamond-ring.svg, Delapouite (http://delapouite.com)
+    Anel amaldiçoado: lorc/skull-ring.svg, Lorc (http://lorcblog.blogspot.com)
+    Capa: delapouite/cape.svg, Delapouite (http://delapouite.com)
+    Armadura: lorc/breastplate.svg, Lorc (http://lorcblog.blogspot.com)
+    Botas: lorc/leather-boot.svg, Lorc (http://lorcblog.blogspot.com)
+    Relógio de bolso: skoll/pocket-watch.svg, Skoll
+    Roubo de vida: delapouite/bat.svg, Delapouite (http://delapouite.com)
+    Flagelo: delapouite/flail.svg, Delapouite (http://delapouite.com)
+    Redirecionador: lorc/divert.svg, Lorc (http://lorcblog.blogspot.com)
+    Pacto: lorc/chalice-drops.svg, Lorc (http://lorcblog.blogspot.com)
+    Botas de lava: delapouite/metal-boot.svg, Delapouite (http://delapouite.com)
+    Guardião: delapouite/stone-bust.svg, Delapouite (http://delapouite.com)
+    Elmo: delapouite/spartan-helmet.svg, Delapouite (http://delapouite.com)
+    Botas de choque: lorc/winged-leg.svg, Lorc (http://lorcblog.blogspot.com)
+    Égide: lorc/angel-wings.svg, Lorc (http://lorcblog.blogspot.com)
+  Runas:
+    Pressa: delapouite/rabbit.svg, Delapouite (http://delapouite.com)
+    Fúria: delapouite/enrage.svg, Delapouite (http://delapouite.com)
+    Escudo: lorc/checked-shield.svg, Lorc (http://lorcblog.blogspot.com)
+    Recarga: lorc/energise.svg, Lorc (http://lorcblog.blogspot.com)
+  Efeitos em cima do mago e causas de morte:
+    atordoado: lorc/star-swirl.svg, Lorc (http://lorcblog.blogspot.com)
+    vulnerável: lorc/broken-shield.svg, Lorc (http://lorcblog.blogspot.com)
+    invulnerável: lorc/sunbeams.svg, Lorc (http://lorcblog.blogspot.com)
+    preso: lorc/padlock.svg, Lorc (http://lorcblog.blogspot.com)
+    lento: lorc/snail.svg, Lorc (http://lorcblog.blogspot.com)
+    queimando: lorc/small-fire.svg, Lorc (http://lorcblog.blogspot.com)
+    magnetizado: afasta: lorc/magnet-blast.svg, Lorc (http://lorcblog.blogspot.com)
+    invisível: lorc/ghost.svg, Lorc (http://lorcblog.blogspot.com)
+    acelerado: lorc/run.svg, Lorc (http://lorcblog.blogspot.com)
+    lava (feed, placar, morte súbita): lorc/volcano.svg, Lorc (http://lorcblog.blogspot.com)
+    choque: skoll/knockout.svg, Skoll
+    causa desconhecida: lorc/uncertainty.svg, Lorc (http://lorcblog.blogspot.com)
+  Interface:
+    placar: delapouite/histogram.svg, Delapouite (http://delapouite.com)
+    ficha do mago: lorc/scroll-unfurled.svg, Lorc (http://lorcblog.blogspot.com)
+    provocações: skoll/talk.svg, Skoll
+    votar: delapouite/vote.svg, Delapouite (http://delapouite.com)
+    som ligado: delapouite/speaker.svg, Delapouite (http://delapouite.com)
+    som desligado: delapouite/speaker-off.svg, Delapouite (http://delapouite.com)
+    ajuda: sbed/help.svg, Sbed (http://opengameart.org/content/95-game-icons)
+    trocar teclas: delapouite/keyboard.svg, Delapouite (http://delapouite.com)
+    abates: lorc/skull-crossed-bones.svg, Lorc (http://lorcblog.blogspot.com)
+    dano: lorc/spiky-explosion.svg, Lorc (http://lorcblog.blogspot.com)
+    vitórias e pódio: lorc/trophy.svg, Lorc (http://lorcblog.blogspot.com)
+    precisão e treino: lorc/archery-target.svg, Lorc (http://lorcblog.blogspot.com)
+    ouro: delapouite/two-coins.svg, Delapouite (http://delapouite.com)
+    dica do treino: lorc/light-bulb.svg, Lorc (http://lorcblog.blogspot.com)
+    bot: delapouite/robot-antennas.svg, Delapouite (http://delapouite.com)
+    pessoas na sala: delapouite/character.svg, Delapouite (http://delapouite.com)

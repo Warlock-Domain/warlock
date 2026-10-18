@@ -10,7 +10,7 @@ import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { isRumbleOn, setRumble } from './gamepad.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
 import { RULES, RULES_SHORT, SPELL_GROUPS, SPELL_USE } from './rules-text.ts';
-import { ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS } from './icons.ts';
+import { ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, icon } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
@@ -74,7 +74,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
             el('li', { class: 'room-card' + (r.phase === 'lobby' ? ' open' : '') },
               el('div', { class: 'room-info' },
                 el('div', { class: 'room-top' }, el('span', { class: 'code' }, r.id), r.mode && r.mode in MODE_NAME ? el('span', { class: 'room-mode' }, MODE_NAME[r.mode as Mode]) : null),
-                el('span', {}, r.players ? `👤 ${r.players} ${r.players === 1 ? 'pessoa' : 'pessoas'}${r.bots ? ` + 🤖 ${r.bots} ${r.bots === 1 ? 'bot' : 'bots'}` : ''}` : 'Vazia (fecha sozinha daqui a pouco)'),
+                r.players ? el('span', {}, icon(UI_ICON.person), ` ${r.players} ${r.players === 1 ? 'pessoa' : 'pessoas'}`, r.bots ? ' + ' : null, r.bots ? icon(UI_ICON.bot) : null, r.bots ? ` ${r.bots} ${r.bots === 1 ? 'bot' : 'bots'}` : null) : el('span', {}, 'Vazia (fecha sozinha daqui a pouco)'),
                 el('small', {}, roomPhase(r))),
               el('a', { class: 'button', href: '#' + r.id, 'aria-label': `Entrar na sala ${r.id}` }, 'Entrar'),
             ),
@@ -101,11 +101,11 @@ export function showRules() {
       ...RULES.flatMap(([title, items]) => [el('section', {}, el('h2', {}, title), el('ul', {}, ...items.map((i) => el('li', {}, i)))),
         // depois dos controles do PC: as teclas de agora (trocadas ou não) e o que cada magia faz, por grupo
         title === 'Controles no PC' ? el('section', {}, el('h2', {}, isSlotMode() ? 'Suas teclas (Q W E R D F pela ordem da barra)' : 'Suas teclas'),
-          el('div', { class: 'keys-grid' }, ...ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, keyLabel(keyOf(a))), ' ', a in SPELLS ? ICON[a as SpellId] : ITEM_ICON[a as ItemId], ' ', a in SPELLS ? SPELLS[a as SpellId].name : ITEMS[a as ItemId].name)))) : null,
+          el('div', { class: 'keys-grid' }, ...ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, keyLabel(keyOf(a))), ' ', icon(a in SPELLS ? ICON[a as SpellId] : ITEM_ICON[a as ItemId]), ' ', a in SPELLS ? SPELLS[a as SpellId].name : ITEMS[a as ItemId].name)))) : null,
         title === 'Loja' ? el('section', {}, el('h2', {}, 'Magias'), ...SPELL_GROUPS.map(([name, hint, ids]) => el('div', {}, el('h3', {}, name, ' ', el('small', {}, hint)),
-          el('ul', {}, ...ids.map((s) => el('li', {}, ICON[s], ' ', el('b', {}, SPELLS[s].name), ' · ', RULES_SHORT[s])))))) : null,
+          el('ul', {}, ...ids.map((s) => el('li', {}, icon(ICON[s]), ' ', el('b', {}, SPELLS[s].name), ' · ', RULES_SHORT[s])))))) : null,
         title === 'Loja' ? el('section', {}, el('h2', {}, 'Itens'), ...([['Passivos', false], ['Ativos (com tecla)', true]] as const).map(([name, active]) => el('div', {}, el('h3', {}, name),
-          el('ul', {}, ...ITEM_IDS.filter((i) => !!ITEMS[i].key === active).map((i) => el('li', {}, ITEM_ICON[i], ' ', el('b', {}, ITEMS[i].name), ' · ', ITEMS[i].text)))))) : null]),
+          el('ul', {}, ...ITEM_IDS.filter((i) => !!ITEMS[i].key === active).map((i) => el('li', {}, icon(ITEM_ICON[i]), ' ', el('b', {}, ITEMS[i].name), ' · ', ITEMS[i].text)))))) : null]),
       el('button', { type: 'button', class: 'primary', onclick: () => overlay.remove() }, 'Entendi'),
     ),
   );
@@ -115,10 +115,11 @@ export function showRules() {
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 // tipo do aviso: muda a cor da borda e o ícone (style.css, #toast[data-kind])
 export type ToastKind = 'info' | 'good' | 'bad' | 'gold';
-export function toast(msg: string, kind: ToastKind = 'info') {
+// msg pode vir com ícones (lista de textos e nós); o de ouro ganha a moeda na frente
+export function toast(msg: string | (string | Node)[], kind: ToastKind = 'info') {
   let t = document.getElementById('toast');
   if (!t) document.body.append((t = el('div', { id: 'toast', role: 'status' })));
-  t.textContent = msg;
+  t.replaceChildren(...(kind === 'gold' ? [icon(UI_ICON.gold)] : []), el('span', {}, ...[msg].flat()));
   t.dataset.kind = kind;
   t.classList.add('show');
   clearTimeout(toastTimer);
@@ -126,9 +127,9 @@ export function toast(msg: string, kind: ToastKind = 'info') {
 }
 
 // 'win': faixa grande dourada com confete, para quem venceu a rodada ou a partida
-export function banner(text: string, kind: '' | 'good' | 'bad' | 'win' = '') {
+export function banner(text: string | (string | Node)[], kind: '' | 'good' | 'bad' | 'win' = '') {
   document.querySelectorAll('.banner').forEach((b) => b.remove());
-  const b = el('div', { class: `banner ${kind}`, role: 'status', 'aria-live': 'polite' }, text);
+  const b = el('div', { class: `banner ${kind}`, role: 'status', 'aria-live': 'polite' }, ...[text].flat());
   if (kind === 'win') b.append(...Array.from({ length: 22 }, (_, i) => el('i', { class: 'confetti', style: `--x:${Math.round(Math.cos(i * 2.4) * (90 + (i % 5) * 40))}px;--y:${Math.round(-60 - (i % 7) * 22)}px;--r:${i * 47}deg;--d:${(i % 4) * 0.05}s` })));
   document.body.append(b);
   setTimeout(() => b.remove(), kind === 'win' ? 2600 : 1700);
@@ -201,7 +202,7 @@ const dot = (color: number) => el('span', { class: 'dot', style: `background:${C
 const teamTag = (room: PublicRoom, p: PublicPlayer) =>
   room.mode === 'teams' && p.team !== null ? el('span', { class: 'dot', title: 'Time ' + TEAM_NAMES[p.team], style: `background:${TEAM_COLORS[p.team]};border-radius:2px` }) : null;
 const byTeam = (room: PublicRoom, a: PublicPlayer, b: PublicPlayer) => (room.mode === 'teams' ? (a.team ?? 2) - (b.team ?? 2) : 0) || b.score - a.score;
-const nameOf = (p: PublicPlayer, me: string) => p.name + (p.id === me ? ' (você)' : '') + (p.bot ? ' 🤖' : '');
+const nameOf = (p: PublicPlayer, me: string) => el('span', {}, p.name + (p.id === me ? ' (você)' : ''), p.bot ? ' ' : null, p.bot ? icon(UI_ICON.bot) : null);
 
 // placar de estatísticas: ouro ganho, dano causado e precisão de cada magia de dano (acertos / lançamentos)
 type Scope = 'round' | 'match' | 'room';
@@ -209,7 +210,8 @@ const SCOPES: [Scope, string][] = [['round', 'Rodada'], ['match', 'Partida'], ['
 const n0 = (x: number) => Math.round(x).toLocaleString('pt-BR');
 // magias de utilidade: mostra quantas vezes usou (não têm "acerto"); as outras mostram precisão
 const UTILITY = new Set(['teleport', 'shield', 'rush', 'pact', 'redirector', 'thrust', 'rockpillar', 'magnetize', 'alteration', 'warpzone']);
-const srcIcon = (k: string) => (k === 'lava' ? SOURCE_ICON.lava : k in ICON ? ICON[k as SpellId] : k in ITEM_ICON ? ITEM_ICON[k as ItemId] : k.startsWith('choque') ? SOURCE_ICON.shock : k === 'pillar' ? SOURCE_ICON.pillar : SOURCE_ICON.unknown);
+const srcIcon = (k: string) => icon(k === 'lava' ? SOURCE_ICON.lava : k in ICON ? ICON[k as SpellId] : k in ITEM_ICON ? ITEM_ICON[k as ItemId] : k.startsWith('choque') ? SOURCE_ICON.shock : k === 'pillar' ? SOURCE_ICON.pillar : SOURCE_ICON.unknown);
+const gold = (n: number) => el('span', {}, icon(UI_ICON.gold), ' ' + n);
 const srcName = (k: string) => (k === 'lava' ? 'lava' : k in SPELLS ? SPELLS[k as SpellId].name : k in ITEMS ? ITEMS[k as ItemId].name : k);
 
 // placar (pedido do Fernando, 17/10; refeito em 18/10): abas Resumo e Magias, destaques com retrato e o melhor de cada coluna em dourado
@@ -255,14 +257,14 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
     if (vals.every((n) => n === b)) return null;
     return c.best === 'max' && b <= 0 ? null : b;
   });
-  const who = (p: PublicPlayer) => el('span', { class: 'who' }, portrait(p), teamTag(room, p), el('span', { class: 'who-name' }, p.name, p.id === me ? el('small', {}, ' (você)') : null, p.bot ? el('small', {}, ' 🤖') : null));
+  const who = (p: PublicPlayer) => el('span', { class: 'who' }, portrait(p), teamTag(room, p), el('span', { class: 'who-name' }, p.name, p.id === me ? el('small', {}, ' (você)') : null, p.bot ? el('small', {}, ' ', icon(UI_ICON.bot)) : null));
   // destaques: quem foi o melhor em cada coisa (só com valor acima de zero)
   const leader = (c: (p: PublicPlayer) => number) => {
     const top = [...rows].sort((a, b) => c(b) - c(a))[0];
     return top && c(top) > 0 ? top : null;
   };
   const card = (ico: string, label: string, p: PublicPlayer | null, value: string) =>
-    el('div', { class: 'stat-card' }, p ? portrait(p) : el('span', { class: 'stat-ico' }, ico), el('small', {}, ico, ' ', label), el('b', {}, p ? p.name : '–'), el('span', { class: 'stat-val' }, p ? value : ''));
+    el('div', { class: 'stat-card' }, p ? portrait(p) : el('span', { class: 'stat-ico' }, icon(ico)), el('small', {}, icon(ico), ' ', label), el('b', {}, p ? p.name : '–'), el('span', { class: 'stat-val' }, p ? value : ''));
   const mostDmg = leader((p) => st(p).dmg);
   const mostKills = leader((p) => st(p).kills ?? 0);
   const sharp = leader((p) => (shots(p) >= 5 ? aim(p) : -1));
@@ -301,10 +303,10 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
   return el('div', { class: 'stats' },
     el('div', { class: 'stats-bar' }, tabs('Vista do placar', VIEWS, view, setView), tabs('Período', SCOPES, scope, setScope)),
     el('div', { class: 'stat-cards' },
-      card('💥', 'Mais dano', mostDmg, mostDmg ? n0(st(mostDmg).dmg) : ''),
-      card('☠', 'Mais abates', mostKills, mostKills ? String(st(mostKills).kills) : ''),
-      card('🎯', 'Mais preciso', sharp, sharp ? pct(aim(sharp)) : ''),
-      card('🪙', 'Mais ouro', rich, rich ? n0(st(rich).gold) : ''),
+      card(UI_ICON.dmg, 'Mais dano', mostDmg, mostDmg ? n0(st(mostDmg).dmg) : ''),
+      card(UI_ICON.kills, 'Mais abates', mostKills, mostKills ? String(st(mostKills).kills) : ''),
+      card(UI_ICON.aim, 'Mais preciso', sharp, sharp ? pct(aim(sharp)) : ''),
+      card(UI_ICON.gold, 'Mais ouro', rich, rich ? n0(st(rich).gold) : ''),
     ),
     teamHead,
     el('div', { class: 'stats-wrap' }, view === 'summary' ? summary() : spells()),
@@ -317,7 +319,7 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
 // quadro da loja: de onde vem o ouro (regras do Warlock Brawl) e quanto você já ganhou
 // os valores seguem as opções da sala: toda renda é multiplicada pela economia (shared/match.ts, earn)
 function goldInfo(p: PublicPlayer, opts: MatchOpts, open: boolean, onToggle: (open: boolean) => void) {
-  const row = (label: string, value: string, cls = '') => el('div', { class: 'gold-row ' + cls }, el('span', {}, label), el('b', {}, value));
+  const row = (label: string, value: Child, cls = '') => el('div', { class: 'gold-row ' + cls }, el('span', {}, label), el('b', {}, value));
   const g = (n: number) => Math.round(n * opts.economy);
   const rule = (n: number) => (n > 0 ? `+${g(n)}` : 'não dá ouro');
   // recolhido por padrão: o Pronto fica logo abaixo do ouro
@@ -334,9 +336,9 @@ function goldInfo(p: PublicPlayer, opts: MatchOpts, open: boolean, onToggle: (op
     row('Assistência (mais dano em quem morreu)', `+${g(ASSIST_GOLD)}`),
     row('Baú: em cima do ouro', opts.chests ? `+${g(1)} a cada ${CHEST.goldEvery} s` : 'desligado nesta sala', opts.chests ? '' : 'muted'),
     el('hr', {}),
-    row('Ganho na última rodada', `🪙 ${p.stats.round.gold}`),
-    row('Ganho na partida', `🪙 ${p.stats.match.gold}`),
-    row('Ganho na sala (todas as partidas)', `🪙 ${p.stats.room.gold}`),
+    row('Ganho na última rodada', gold(p.stats.round.gold)),
+    row('Ganho na partida', gold(p.stats.match.gold)),
+    row('Ganho na sala (todas as partidas)', gold(p.stats.room.gold)),
     el('small', { class: 'muted' }, 'Todo mundo ganha a rodada; vencer, abater e causar mais dano dão ouro extra. Desfazer (↩) devolve o ouro do que foi comprado nesta loja; Vender devolve 100% na loja em que comprou e 5% a menos por rodada com o item, até 75%.'),
   );
 }
@@ -346,11 +348,11 @@ const kickBtn = (p: PublicPlayer, kick?: (id: string) => void) =>
   kick && (p.bot || !p.connected) ? el('button', { type: 'button', class: 'kick', title: `Expulsar ${p.name}`, 'aria-label': `Expulsar ${p.name}`, onclick: () => kick(p.id) }, '✕') : null;
 
 // fim da partida: com times fixos vence o time; sorteados a cada rodada, todos que chegaram à meta juntos
-export function winTitle(r: PublicRoom): string {
-  if (r.winnerTeam !== null) return `🏆 Time ${TEAM_NAMES[r.winnerTeam]} venceu!`;
+export function winTitle(r: PublicRoom): Child[] {
+  if (r.winnerTeam !== null) return [icon(UI_ICON.wins), ` Time ${TEAM_NAMES[r.winnerTeam]} venceu!`];
   const champs = r.mode === 'teams' ? r.players.filter((p) => p.score >= r.goal) : [];
-  if (champs.length > 1) return `🏆 ${champs.map((p) => p.name).join(', ').replace(/, ([^,]*)$/, ' e $1')} venceram!`;
-  return r.winner ? `🏆 ${r.players.find((p) => p.id === r.winner)?.name ?? '?'} venceu!` : 'Partida encerrada';
+  if (champs.length > 1) return [icon(UI_ICON.wins), ` ${champs.map((p) => p.name).join(', ').replace(/, ([^,]*)$/, ' e $1')} venceram!`];
+  return r.winner ? [icon(UI_ICON.wins), ` ${r.players.find((p) => p.id === r.winner)?.name ?? '?'} venceu!`] : ['Partida encerrada'];
 }
 
 // pódio do fim da partida: 2º, 1º e 3º lado a lado, com o retrato; empate nos pontos desempata pelo dano da partida
@@ -362,7 +364,7 @@ function podium(room: PublicRoom, me: string) {
   const step = (p: PublicPlayer, place: number) => el('div', { class: `podium-step p${place}` + (p.id === me ? ' me' : '') },
     el('img', { class: 'podium-face', src: `/chars/${p.character}.webp`, alt: '', width: 64, height: 64 }),
     el('b', {}, p.name), el('small', {}, `${p.score} ${unit[p.score === 1 ? 0 : 1]}`),
-    el('span', { class: 'podium-block' }, ['🥇', '🥈', '🥉'][place - 1]));
+    el('span', { class: 'podium-block', 'aria-label': `${place}º lugar` }, icon(UI_ICON.wins)));
   return el('div', { class: 'podium', 'aria-label': 'Pódio' }, step(top[1], 2), step(top[0], 1), top[2] ? step(top[2], 3) : null);
 }
 
@@ -404,7 +406,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     input.addEventListener('input', () => {
       out.textContent = input.value + '%';
       act.setVolume(kind, Number(input.value) / 100);
-      volBtn.textContent = act.volumes().sfx + act.volumes().music === 0 ? '🔇' : '🔊';
+      volBtn.replaceChildren(icon(act.volumes().sfx + act.volumes().music === 0 ? UI_ICON.mute : UI_ICON.sound));
     });
     return el('label', { class: 'vol-row', for: 'vol-' + kind }, el('span', {}, label), input, out);
   };
@@ -419,7 +421,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const volPanel = el('div', { class: 'vol-panel', hidden: true }, slider('sfx', 'Efeitos'), slider('music', 'Música'), fxRow);
   // teclas: clique na tecla de uma ação e aperte a nova
   const ACTION_NAME = (a: Action) => (a in SPELLS ? SPELLS[a as SpellId].name : ITEMS[a as ItemId].name);
-  const ACTION_ICON = (a: Action) => (a in SPELLS ? ICON[a as SpellId] : ITEM_ICON[a as ItemId]);
+  const ACTION_ICON = (a: Action) => icon(a in SPELLS ? ICON[a as SpellId] : ITEM_ICON[a as ItemId]);
   let waiting: Action | null = null;
   const keysList = el('div', { class: 'keys-list' });
   function drawKeys() {
@@ -452,7 +454,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const keysBtn = el('button', { type: 'button', class: 'icon', title: 'Trocar teclas', 'aria-label': 'Trocar teclas', onclick: () => {
     keysPanel.hidden = !keysPanel.hidden;
     if (!keysPanel.hidden) drawKeys();
-  } }, '⌨️');
+  } }, icon(UI_ICON.keys));
   onKeysChange(() => {
     drawKeys();
     bar.querySelectorAll<HTMLElement>('[data-action]').forEach((k) => (k.textContent = labelOf(k.dataset.action as Action)));
@@ -461,13 +463,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const volBtn = el('button', { type: 'button', class: 'icon', title: 'Volume', 'aria-label': 'Volume', 'aria-expanded': 'false', onclick: () => {
     volPanel.hidden = !volPanel.hidden;
     volBtn.setAttribute('aria-expanded', String(!volPanel.hidden));
-  } }, act.volumes().sfx + act.volumes().music === 0 ? '🔇' : '🔊');
+  } }, icon(act.volumes().sfx + act.volumes().music === 0 ? UI_ICON.mute : UI_ICON.sound));
   // votação na partida: o botão abre as opções; a faixa no topo mostra a votação aberta para todos
   const votePanel = el('div', { class: 'vol-panel', hidden: true });
-  const voteBtn = el('button', { type: 'button', title: 'Trocar o modo ou expulsar alguém', 'aria-expanded': 'false', onclick: () => {
+  const voteBtn = el('button', { type: 'button', class: 'vote-btn', title: 'Votar: trocar o modo ou expulsar alguém', 'aria-label': 'Votar', 'aria-expanded': 'false', onclick: () => {
     votePanel.hidden = !votePanel.hidden;
     voteBtn.setAttribute('aria-expanded', String(!votePanel.hidden));
-  } }, 'Votar');
+  } }, icon(UI_ICON.vote), el('span', { class: 'vote-label' }, ' Votar'));
   const voteWrap = el('div', { class: 'vol' }, voteBtn, votePanel);
   // provocações (taunts): Y abre a lista e o número escolhe (ou clique); vale na loja e no jogo
   const sendTaunt = (i: number) => {
@@ -476,8 +478,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   };
   const tauntPanel = el('div', { class: 'vol-panel', hidden: true }, el('b', {}, 'Provocações (Y)'),
     el('div', { class: 'taunt-list' }, ...TAUNTS.map((t, i) => el('button', { type: 'button', onclick: () => sendTaunt(i) }, `${(i + 1) % 10} · ${t.text}`))));
-  const sheetBtn = el('button', { type: 'button', class: 'icon', title: "Ficha do mago (tecla ')", 'aria-label': 'Ficha do mago', 'aria-expanded': 'false', onclick: () => toggleSheet() }, '📜');
-  const tauntBtn = el('button', { type: 'button', class: 'icon', title: 'Provocações (Y)', 'aria-label': 'Provocações (Y)', onclick: () => (tauntPanel.hidden = !tauntPanel.hidden) }, '💬');
+  const sheetBtn = el('button', { type: 'button', class: 'icon', title: "Ficha do mago (tecla ')", 'aria-label': 'Ficha do mago', 'aria-expanded': 'false', onclick: () => toggleSheet() }, icon(UI_ICON.sheet));
+  const tauntBtn = el('button', { type: 'button', class: 'icon', title: 'Provocações (Y)', 'aria-label': 'Provocações (Y)', onclick: () => (tauntPanel.hidden = !tauntPanel.hidden) }, icon(UI_ICON.taunt));
   addEventListener('keydown', (e) => {
     if (e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT') return;
     if (e.code === 'KeyY') {
@@ -495,11 +497,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const voteLeft = el('span', { class: 'muted' });
   let voteEndsAt = 0;
   // celular: sem Tab, este botão (só aparece em tela de toque) abre e fecha o placar
-  const tabBtn = el('button', { type: 'button', class: 'icon tab-toggle', title: 'Placar', 'aria-label': 'Placar', hidden: true, onclick: () => pinTab(!!tabOverlay.hidden) }, '📊');
+  const tabBtn = el('button', { type: 'button', class: 'icon tab-toggle', title: 'Placar', 'aria-label': 'Placar', hidden: true, onclick: () => pinTab(!!tabOverlay.hidden) }, icon(UI_ICON.board));
   const top = el('div', { class: 'hud-top' },
     el('button', { type: 'button', class: 'code', title: 'Copiar link da sala', onclick: () => copyLink() }, status, ' ', code, ping),
     roundEl,
-    el('div', { class: 'hud-right' }, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', 'aria-label': 'Como jogar', onclick: showRules }, '?')),
+    el('div', { class: 'hud-right' }, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', 'aria-label': 'Como jogar', onclick: showRules }, icon(UI_ICON.help))),
   );
   const center = el('div', { class: 'center' });
   const timer = el('div', { class: 'timer' });
@@ -510,7 +512,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const cd = el('span', { class: 'cd' });
     const pips = el('span', { class: 'pips' });
     const b = withTip(el('button', { type: 'button', class: 'spell', 'aria-label': SPELLS[s].name, onclick: () => act.spell(s) },
-      el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, ICON[s]), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0));
+      el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0));
     buttons.set(s, { b, cd, pips });
     return b;
   }));
@@ -519,7 +521,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   for (const i of ACTIVE_ITEMS) {
     const cd = el('span', { class: 'cd' });
     const b = withTip(el('button', { type: 'button', class: 'spell item', 'aria-label': ITEMS[i].name, onclick: () => act.useItem(i) },
-      el('span', { class: 'key', 'data-action': i }, labelOf(i)), el('span', { class: 'ico' }, ITEM_ICON[i]), cd), () => itemTip(i, mine?.items[i] ?? 0));
+      el('span', { class: 'key', 'data-action': i }, labelOf(i)), el('span', { class: 'ico' }, icon(ITEM_ICON[i])), cd), () => itemTip(i, mine?.items[i] ?? 0));
     b.hidden = true;
     itemButtons.set(i, { b, cd });
     bar.append(b);
@@ -583,7 +585,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       sheetEl(sheet(mine.spells, mine.items),
         el('section', {}, el('h4', {}, 'Agora'), el('dl', {},
           el('dt', {}, 'Dano levado na rodada'), el('dd', {}, `${Math.round(taken)} · empurrão ×${(1 + (KNOCK_HP_SCALE * taken) / HP_MAX).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`), el('small', { class: 'from' }, 'Cada ponto de dano levado faz você voar mais longe até o fim da rodada (a lava conta pela metade e não entra nesta conta).'),
-          el('dt', {}, 'Efeitos'), el('dd', {}, effects.length ? effects.map(([, ico, name]) => `${ico} ${name}`).join(' · ') : 'nenhum')))),
+          el('dt', {}, 'Efeitos'), el('dd', {}, ...(effects.length ? effects.flatMap(([, ico, name], i) => [i ? ' · ' : '', icon(ico), ' ' + name]) : ['nenhum']))))),
     );
   }
   function toggleSheet(open = sheetPanel.hidden) {
@@ -601,7 +603,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // borda vermelha: vida baixa (fixa) e pé na lava (pulsando); fica atrás do resto da HUD
   const danger = el('div', { class: 'danger', 'aria-hidden': 'true' });
   // dica do modo treino, uma por vez
-  const coach = el('div', { class: 'coach', role: 'status', hidden: true });
+  const coachText = el('span', {});
+  const coach = el('div', { class: 'coach', role: 'status', hidden: true }, icon(UI_ICON.tip), ' ', coachText);
   // espectador: selo "Assistindo X" com setas para trocar (← → no teclado)
   const watchName = el('b', {});
   const watchBadge = el('div', { class: 'watching', role: 'status', hidden: true },
@@ -712,7 +715,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('div', {}, el('h2', { class: 'title' }, 'Sala ' + r.id), el('p', { class: 'muted' }, 'Mande o link para os amigos entrarem. Até 8 magos.'),
         el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), kickBtn(p, act.kick))))),
       // sozinho na sala: treino com 3 bots e dicas curtas nas primeiras rodadas, logo à vista
-      humans === 1 && r.phase === 'lobby' ? el('button', { type: 'button', class: 'train', onclick: act.train }, '🎯 Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')) : null,
+      humans === 1 && r.phase === 'lobby' ? el('button', { type: 'button', class: 'train', onclick: act.train }, icon(UI_ICON.aim), ' Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')) : null,
       picker(r),
       modePicker,
       optsBlock,
@@ -728,7 +731,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const humans = r.players.filter((p) => !p.bot && p.connected).length;
     const again = el('button', { type: 'button', class: 'primary big', disabled: humans + roomBots < 2, onclick: () => act.start(roomBots, r.mode, r.teamShuffle, r.opts) }, 'Jogar de novo');
     return el('div', { class: 'card' },
-      el('h2', { class: 'title' }, winTitle(r)), r.winner || r.winnerTeam !== null ? null : el('p', { class: 'muted' }, 'Partida encerrada sem vencedor (empate ou ninguém fez ponto).'),
+      el('h2', { class: 'title' }, ...winTitle(r)), r.winner || r.winnerTeam !== null ? null : el('p', { class: 'muted' }, 'Partida encerrada sem vencedor (empate ou ninguém fez ponto).'),
       podium(r, me),
       el('div', { class: 'end-actions' }, again, el('button', { type: 'button', class: 'big', onclick: () => {
         // a sala de espera começa com as opções da partida que acabou
@@ -793,7 +796,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const need = open && !can ? o.price! - mine.gold : 0;
       const label = o.blocked ?? (o.lvl === 0 ? `Comprar · ${o.price}` : `Nível ${o.lvl + 1} · ${o.price}`);
       return withTip(el('div', { class: 'shop-item' + (o.lvl ? ' owned' : '') + (can ? ' can' : '') + (o.blocked && !o.lvl ? ' locked' : '') },
-        el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, o.ico), el('b', {}, o.name), o.hotkey !== null ? el('span', { class: 'key' }, o.hotkey) : null),
+        el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, icon(o.ico)), el('b', {}, o.name), o.hotkey !== null ? el('span', { class: 'key' }, o.hotkey) : null),
         el('small', {}, o.use),
         el('div', { class: 'shop-meta' }, el('span', { class: 'pips' }, ...Array.from({ length: o.max }, (_, n) => el('i', { class: n < o.lvl ? 'on' : '' }))),
           o.lvl ? el('small', { class: 'have' }, 'tenho') : null, need ? el('small', { class: 'need' }, `faltam ${need}`) : null),
@@ -837,9 +840,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       group('Itens ativos', 'cada um com a sua tecla', ITEM_IDS.filter((i) => ITEMS[i].key).map(itemOffer)),
       ),
       el('aside', { class: 'shop-side' },
-        el('span', { class: 'gold big' }, `🪙 ${mine.gold}`),
+        el('span', { class: 'gold big' }, gold(mine.gold)),
         readyBtn,
-        el('button', { type: 'button', 'data-key': 'placar', onclick: () => pinTab(true) }, '📊 Placar'),
+        el('button', { type: 'button', 'data-key': 'placar', onclick: () => pinTab(true) }, icon(UI_ICON.board), ' Placar'),
         el('details', { class: 'sheet-box', open: sheetOpen, ontoggle: (e: Event) => (sheetOpen = (e.target as HTMLDetailsElement).open) },
           el('summary', {}, 'Ficha do mago'), sheetEl(now, el('small', { class: 'muted' }, 'Passe o mouse num item para ver o que muda.'))),
         goldInfo(mine, r.opts, goldOpen, (open) => (goldOpen = open)),
@@ -949,7 +952,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
   function drawPlayers() {
     if (!room) return;
-    const head = el('li', { class: 'head' }, el('span', {}), el('span', {}), el('small', { title: 'Abates na rodada' }, '☠'), el('small', { title: 'Dano na rodada' }, '💥'), el('small', { title: room.mode === 'deathmatch' ? 'Pontos' : 'Vitórias' }, '🏆'));
+    const head = el('li', { class: 'head' }, el('span', {}), el('span', {}), el('small', { title: 'Abates na rodada' }, icon(UI_ICON.kills)), el('small', { title: 'Dano na rodada' }, icon(UI_ICON.dmg)), el('small', { title: room.mode === 'deathmatch' ? 'Pontos' : 'Vitórias' }, icon(UI_ICON.wins)));
     // modo Times: agrupada por time, com uma faixa da cor do time à esquerda
     const r = room;
     players.replaceChildren(head, ...[...r.players].sort((a, b) => byTeam(r, a, b)).map((p) =>
@@ -966,7 +969,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       };
       const killer = by && by !== id ? by : null;
       const li = el('li', { class: killer === me || id === me ? 'me' : '' }, killer ? who(killer) : null,
-        el('span', { class: 'feed-ico', title: killer ? srcName(src) : 'lava' }, killer ? srcIcon(src) : SOURCE_ICON.lava), who(id), killer ? null : el('small', {}, 'caiu na lava'));
+        el('span', { class: 'feed-ico', title: killer ? srcName(src) : 'lava' }, srcIcon(killer ? src : 'lava')), who(id), killer ? null : el('small', {}, 'caiu na lava'));
       feed.append(li);
       while (feed.children.length > 5) feed.firstElementChild!.remove();
       setTimeout(() => li.remove(), 5000);
@@ -976,8 +979,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (name && watchName.textContent !== name) watchName.textContent = name;
     },
     coach(text: string | null) {
-      coach.hidden = !text;
-      if (text && coach.textContent !== text) coach.textContent = text;
+      // primeira loja: o cartão "Primeira vez?" já diz o que fazer; a dica do treino espera ele sair
+      coach.hidden = !text || !!center.querySelector('.first-tip');
+      if (text && coachText.textContent !== text) coachText.textContent = text;
     },
     danger(low: boolean, lava: boolean) {
       danger.classList.toggle('low', low);
@@ -1016,7 +1020,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       for (const i of ACTIVE_ITEMS) itemButtons.get(i)!.b.hidden = !mine?.items[i];
       // barra da partida: só magias e itens equipados; passivos viram selos pequenos acima dela
       passives.replaceChildren(...ITEM_IDS.filter((i) => !ITEMS[i].key && (mine?.items[i] ?? 0) > 0).map((i) =>
-        withTip(el('span', { class: 'passive', tabindex: 0, 'aria-label': ITEMS[i].name }, ITEM_ICON[i], el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0)),
+        withTip(el('span', { class: 'passive', tabindex: 0, 'aria-label': ITEMS[i].name }, icon(ITEM_ICON[i]), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0)),
       ));
       setSlots(SPELL_IDS.filter((s) => (mine?.spells[s] ?? 0) > 0));
       for (const s of SPELL_IDS) {

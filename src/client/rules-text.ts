@@ -26,7 +26,7 @@ export const RULES: [string, string[]][] = [
   ]],
   ['Runas e morte súbita', [
     `Runas: aparece uma por vez num ponto livre da arena, a primeira aos ${RUNE.first} s e a próxima ${RUNE.every} s depois que alguém pega (ou a lava engole). Encoste para pegar; o efeito dura ${RUNE.secs} s.`,
-    `🐇 Pressa: +${pct(RUNE.haste)} de velocidade · 😡 Fúria: +${pct(RUNE.fury)} de dano · 🔰 Escudo: absorve ${RUNE.shield} de dano (o empurrão continua) · 🔋 Recarga: zera as recargas na hora.`,
+    `Pressa: +${pct(RUNE.haste)} de velocidade · Fúria: +${pct(RUNE.fury)} de dano · Escudo: absorve ${RUNE.shield} de dano (o empurrão continua) · Recarga: zera as recargas na hora.`,
     `Morte súbita (Rodadas e Times): passados ${SUDDEN.at} s de rodada, a arena encolhe a cada ${SUDDEN.every} s em vez de ${SHRINK_EVERY}.`,
   ]],
   ['Sequências de abate', [
@@ -44,23 +44,24 @@ export const RULES: [string, string[]][] = [
     'Tecla da magia: lança na direção do cursor (as suas teclas estão logo abaixo). Clicar no botão da magia e depois no chão também lança.',
     'Roda do mouse: zoom. Espaço + arrastar com o botão esquerdo: mover a câmera; Espaço sozinho volta ao centro.',
     'Tab (segurar): placar; com ele aberto, ← → troca entre Rodada, Partida e Sala. Na loja o Tab anda pelos botões e o placar fica no botão Placar.',
-    'Y: provocações (frase com som em cima do seu mago); o número escolhe. Também no botão 💬.',
-    "Tecla à esquerda do 1 (' no teclado brasileiro): ficha do mago, com vida, velocidade, empurrão, magias, itens e efeitos de agora. Também no botão 📜.",
+    'Y: provocações (frase com som em cima do seu mago); o número escolhe. Também no botão do balão de fala, no topo.',
+    "Tecla à esquerda do 1 (' no teclado brasileiro): ficha do mago, com vida, velocidade, empurrão, magias, itens e efeitos de agora. Também no botão do pergaminho, no topo.",
     'Votar, no topo: abre as votações da partida (a lista está em "Opções da partida e votações").',
-    'Dá para trocar a tecla de cada magia e item no botão ⌨️, ou usar Q W E R D F pela ordem da barra (fica salvo no navegador).',
+    'Dá para trocar a tecla de cada magia e item no botão do teclado, no topo, ou usar Q W E R D F pela ordem da barra (fica salvo no navegador).',
   ]],
   ['Controle (Xbox ou PlayStation)', [
     'Ligue o controle e aperte qualquer botão: aparece "Controle conectado" e a barra passa a mostrar os botões do controle. Tecla ou mouse voltam a mostrar as teclas.',
     'Analógico esquerdo: andar (soltar para). Analógico direito: mirar; o anel dourado no chão mostra onde, mais longe quanto mais inclinado. Sem mirar, a magia vai para onde você anda.',
     'A, B, X e Y (no PlayStation ✕, ○, □ e △), LB e RB (L1 e R1): as magias pela ordem da barra, da 1ª à 6ª. LT e RT (L2 e R2): itens ativos 1 e 2; D-pad ↑: item 3.',
     'Start (Options): ficha do mago na partida, Pronto na loja e esta ajuda nas outras telas. View ou Select (Share), segurado: placar. Apertar o analógico direito (R3): centraliza a câmera.',
+    'Morto ou só assistindo: D-pad ← → troca quem a câmera segue (com o placar aberto, troca o período).',
     'Menus e loja: D-pad ou analógico esquerdo anda entre os botões (anel dourado), A confirma, B volta ou fecha, X desfaz a compra ou vende o item focado, Y mostra ou esconde a dica, LB e RB pulam entre os grupos da loja (com o placar aberto, trocam o período).',
-    'Vibra ao levar golpe forte e ao morrer; dá para desligar no botão ⌨️. Um controle por navegador (vale o primeiro conectado).',
+    'Vibra ao levar golpe forte e ao morrer; dá para desligar no botão do teclado, no topo. Um controle por navegador (vale o primeiro conectado).',
   ]],
   ['Controles no celular', [
     'Toque no chão para andar.',
     'Toque no botão da magia e depois no chão para lançar; o ✕ do aviso cancela.',
-    '📊 no topo abre o placar, 📜 abre a ficha do mago, 💬 manda provocações e Votar troca o modo ou expulsa alguém.',
+    'No topo: o gráfico de barras abre o placar, o pergaminho abre a ficha do mago, o balão de fala manda provocações e a urna (Votar) troca o modo ou expulsa alguém.',
   ]],
   ['Loja', [
     'Você começa com 30 de ouro (nas opções padrão), a Bola de fogo e o Flagelo (tecla 1), e ganha 10 de ouro a cada rodada, como no Warlock original. A loja dura 30 s (dá para mudar nas opções).',
@@ -69,7 +70,7 @@ export const RULES: [string, string[]][] = [
     'As magias vêm agrupadas por função (Ataque, Mobilidade, Defesa, Controle). Passe o mouse ou toque numa magia para ver os números do nível atual e do próximo.',
   ]],
   ['Créditos', [
-    'Personagens e decoração: KayKit, de Kay Lousberg (kaylousberg.com). Texturas: ambientCG e Poly Haven. Partículas e sons: Kenney e OpenGameArt. Música: "Determined Pursuit", de Emma_MA. Tudo em domínio público (CC0).',
+    'Personagens e decoração: KayKit, de Kay Lousberg (kaylousberg.com). Texturas: ambientCG e Poly Haven. Partículas e sons: Kenney e OpenGameArt. Música: "Determined Pursuit", de Emma_MA. Tudo em domínio público (CC0). Ícones: game-icons.net, de Lorc, Delapouite, Skoll, Sbed e Caro Asercion (CC BY 3.0; lista em CREDITS.txt).',
     'Inspirado no Warlock do Warcraft 3 e no Warlock Brawl para Dota 2.',
   ]],
 ];

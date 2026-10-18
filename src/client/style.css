@@ -4,7 +4,7 @@
   --line: #4a2418; --bronze: #8a4a20; --fg: #f7ecdf; --muted: #c4a693; --hero-fg: #f3dccb;
   --lava: #ff6a1a; --lava-hi: #ff8a3a; --lava-deep: #d9480f; --lava-dark: #8a2408; --lava-night: #2a0c06; --lava-edge: #6a2410; --ember: #ffb347;
   --gold: #ffd666; --gold-pale: #fff2a0; --red: #ff6a4d; --red-ink: #2a0800; --ok: #6fdc8c; --item: #5a4a9a; --stone: #d9c3a5;
-  --cream: #fff4dc; --cream-ink: #2a1206; --on-lava: #fff8f0; --ink: #000; --white: #fff;
+  --silver: #d6d3cf; --copper: #d98a4e; --cream: #fff4dc; --cream-ink: #2a1206; --on-lava: #fff8f0; --ink: #000; --white: #fff;
   /* desabilitado com cor própria: #9c8b80 sobre #241814 dá 5,3:1 (a opacidade .45 de antes dava 4,0:1) */
   --off-bg: #241814; --off-fg: #9c8b80;
   /* fundos de painel: sólido (cartões, menus) e vidro (por cima da arena) */
@@ -35,6 +35,12 @@ button.big { font-size: 1.1rem; min-height: 52px; }
 button.link { background: none; border: 0; color: var(--muted); padding: 6px 8px; min-height: 0; }
 button.icon { width: 40px; min-height: 40px; padding: 0; }
 button.icon.off { opacity: .4; text-decoration: line-through; }
+/* ícones desenhados (game-icons.net, sprite em public/icons.svg): do tamanho da fonte e na cor do texto */
+.gi { width: 1em; height: 1em; flex: none; fill: currentColor; vertical-align: -.14em; }
+button.icon .gi { font-size: 1.3rem; vertical-align: middle; }
+.spell .ico, .shop-title .ico { display: flex; color: var(--ember); }
+.shop-title .ico { font-size: 1.3rem; }
+.spell.item .ico { color: var(--gold-pale); }
 .vol { position: relative; }
 .vol-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 6; background: var(--plate); border: 1px solid var(--gold-line); border-radius: var(--r-md); padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 240px; box-shadow: var(--plate-edge), var(--shadow-md); max-height: calc(100vh - 64px - var(--safe-t) - var(--safe-b)); max-height: calc(100dvh - 64px - var(--safe-t) - var(--safe-b)); overflow-y: auto; }
 .vol-row { display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 8px; font-size: .9rem; }
@@ -161,7 +167,8 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .dmg.gold { color: var(--gold); font-size: 1.5rem; }
 .hp { position: relative; width: 64px; height: 14px; border-radius: var(--r-xs); background: rgba(0, 0, 0, .7); overflow: hidden; border: 1px solid rgba(0, 0, 0, .7); }
 .status-icons { display: flex; gap: 2px; min-height: 0; font-size: .85rem; line-height: 1; }
-.status-icons i { font-style: normal; filter: drop-shadow(0 1px 2px var(--ink)); }
+.status-icons i { display: flex; font-size: 1rem; color: var(--gold-pale); filter: drop-shadow(0 1px 2px var(--ink)) drop-shadow(0 0 1px var(--ink)); }
+.status-icons i.bad { color: var(--red); }
 .status-icons i.bad { animation: pulse-bad 0.8s ease-in-out infinite alternate; }
 @keyframes pulse-bad { from { transform: scale(1); } to { transform: scale(1.18); } }
 @media (prefers-reduced-motion: reduce) { .status-icons i.bad { animation: none; } }
@@ -338,6 +345,10 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
 }
 @media (max-width: 600px) {
   .round { order: 1; flex: 1 1 100%; font-size: 1rem; line-height: 1.25; }
+  /* Votar só com o ícone da urna: o topo cabe numa linha em 393 px */
+  .vote-label { display: none; }
+  .vote-btn { width: 40px; min-height: 40px; padding: 0; }
+  .vote-btn .gi { font-size: 1.3rem; vertical-align: middle; }
   .timer.countdown { top: 46%; }
   .vol-panel { left: max(10px, var(--safe-l)); width: auto; }
   .spellbar { gap: 6px; }
@@ -422,7 +433,8 @@ button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infini
 #toast[data-kind="bad"] { border-left-color: var(--red); }
 #toast[data-kind="bad"]::before { content: '!'; background: rgba(255, 106, 77, .18); color: var(--red); }
 #toast[data-kind="gold"] { border-left-color: var(--gold); }
-#toast[data-kind="gold"]::before { content: '🪙'; background: none; font-size: 1.1rem; }
+#toast[data-kind="gold"]::before { content: none; }
+#toast[data-kind="gold"] > .gi { flex: none; font-size: 1.3rem; color: var(--gold); }
 /* golpe crítico: número claro com brilho de brasa */
 .dmg.crit { color: var(--gold-pale); -webkit-text-stroke: 1px var(--lava-dark); text-shadow: 0 0 12px rgba(255, 170, 40, .9), var(--text-shadow); }
 /* VITÓRIA: dourado em degradê, maior, com confete saindo do centro */
@@ -444,6 +456,8 @@ button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infini
 .p1 .podium-block { height: 86px; background: linear-gradient(180deg, rgba(255, 214, 102, .28), var(--panel-bot)); }
 .p2 .podium-block { height: 62px; }
 .p3 .podium-block { height: 44px; }
+/* troféu do pódio nas cores das medalhas */
+.p1 .podium-block { color: var(--gold); } .p2 .podium-block { color: var(--silver); } .p3 .podium-block { color: var(--copper); }
 .center.enter .podium-step { animation: podium-up .5s cubic-bezier(.2, .9, .3, 1.2) both; }
 .center.enter .podium-step.p2 { animation-delay: .15s; }
 .center.enter .podium-step.p1 { animation-delay: .3s; }
@@ -465,7 +479,12 @@ html.pad .shop-item:focus-within { border-color: #ffd166; }
 .feed li.me { border-color: var(--ember); background: var(--panel-solid); box-shadow: 0 0 10px rgba(255, 179, 71, .35); }
 .feed-ico { flex: none; }
 @keyframes feed-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
-@media (max-width: 600px) { .feed { top: calc(104px + var(--safe-t)); max-width: 48%; } .feed li { font-size: .8rem; padding: 2px 8px; } }
+/* celular: o feed entra na coluna do topo, abaixo da linha da rodada, do relógio e da lista de jogadores (a linha da rodada muda de altura); com altura zero
+   as linhas descem por cima da arena sem empurrar nada */
+@media (max-width: 600px) {
+  .feed { position: relative; top: auto; right: auto; order: 5; align-self: flex-end; height: 0; max-width: 60%; }
+  .feed li { font-size: .8rem; padding: 2px 8px; }
+}
 @media (prefers-reduced-motion: reduce) { .feed li { animation: none; } }
 /* perigo: borda vermelha fixa com vida abaixo de 25%, pulsando com o pé na lava; seta na borda do lado de quem bateu */
 /* carmim escuro com filete vivo: some contra o laranja da lava se for da mesma cor; z-index -1 deixa a HUD por cima */
@@ -498,7 +517,6 @@ html.pad .shop-item:focus-within { border-color: #ffd166; }
 button.train { flex-direction: column; gap: 0; border-style: dashed; border-color: var(--bronze); }
 button.train small { font-weight: 400; }
 .hud > .coach { position: absolute; left: 50%; top: calc(48px + var(--safe-t)); transform: translateX(-50%); z-index: 4; max-width: min(520px, calc(100% - 24px)); padding: 8px 16px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--ember); box-shadow: 0 0 16px rgba(255, 179, 71, .35); font-weight: 700; text-align: center; pointer-events: none; animation: fade-in .2s ease-out; }
-.hud > .coach::before { content: '💡 '; }
 @media (max-width: 600px) { .hud > .coach { top: auto; bottom: calc(130px + var(--safe-b)); font-size: .9rem; border-radius: var(--r-md); } }
 @media (prefers-reduced-motion: reduce) { .hud > .coach { animation: none; } }
 /* na loja o cartão ocupa o meio: a dica desce para o rodapé livre */

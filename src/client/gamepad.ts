@@ -110,8 +110,8 @@ function setMode(on: boolean) {
   if (!on) game?.aim(null);
 }
 
-// reaproveita os atalhos de teclado que a interface já escuta (placar, ficha, Esc)
-const key = (type: 'keydown' | 'keyup', code: string) => dispatchEvent(new KeyboardEvent(type, { code, bubbles: true }));
+// reaproveita os atalhos de teclado que a interface já escuta (placar, ficha, Esc, espectador); cancelável para o placar aberto ficar com as setas
+const key = (type: 'keydown' | 'keyup', code: string) => dispatchEvent(new KeyboardEvent(type, { code, bubbles: true, cancelable: true }));
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector<T>(sel);
 
 // botões navegáveis da camada de cima (ajuda, placar fixo ou a tela toda); cartão da loja sem botão ativo também entra, para ver a dica
@@ -256,6 +256,11 @@ function play(g: PadGame, hit: (b: number) => boolean, mv: Vec, aimS: Vec) {
   }
   if (hit(BTN.R3)) g.center();
   if (hit(BTN.START)) start();
+  // morto ou só assistindo: ← → do D-pad trocam quem a câmera segue (com o placar aberto, trocam o período, como no teclado)
+  if ($('.watching:not([hidden])')) {
+    if (hit(BTN.LEFT)) key('keydown', 'ArrowLeft');
+    if (hit(BTN.RIGHT)) key('keydown', 'ArrowRight');
+  }
 }
 
 let prev: boolean[] = [];

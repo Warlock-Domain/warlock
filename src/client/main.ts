@@ -7,6 +7,7 @@ import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../sha
 import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { dist, len, type Vec } from '../shared/vec.ts';
 import { coachTip } from './coach.ts';
+import { ITEM_ICON, RUNE_ICON, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { isPadMode, labelOf } from './keys.ts';
 import { rumble, startPad } from './gamepad.ts';
@@ -259,7 +260,8 @@ function startRoom(code: string, name: string) {
     return new Map(room?.players.map((p) => [p.id, p.name]) ?? []);
   }
 
-  const RUNE_TEXT: Record<RuneKind, string> = { haste: '🐇 Runa da Pressa', fury: '😡 Runa da Fúria', shield: '🔰 Runa do Escudo', recharge: '🔋 Runa da Recarga' };
+  const RUNE_NAME: Record<RuneKind, string> = { haste: 'Runa da Pressa', fury: 'Runa da Fúria', shield: 'Runa do Escudo', recharge: 'Runa da Recarga' };
+  const RUNE_TEXT = (k: RuneKind) => [icon(RUNE_ICON[k]), ' ' + RUNE_NAME[k]];
   const MULTI_TEXT = ['', '', 'Abate duplo!', 'Abate triplo!', 'Massacre!'];
   const SPREE_TEXT: Record<number, string> = { 3: 'Matança', 5: 'Fúria assassina', 7: 'sequência Imparável', 10: 'sequência Lendária' };
   let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
@@ -309,11 +311,11 @@ function startRoom(code: string, name: string) {
       else if (e.k === 'loot') sound.play('go', near(e.x, e.y));
       else if (e.k === 'sudden') {
         sound.play('shrink');
-        banner('⏰ Morte súbita! A arena encolhe a cada 5 s', 'bad');
-      } else if (e.k === 'rune') toast(`${RUNE_TEXT[e.kind]} apareceu na arena!`, 'info');
+        banner([icon(SOURCE_ICON.lava), ' Morte súbita! A arena encolhe a cada 5 s'], 'bad');
+      } else if (e.k === 'rune') toast([...RUNE_TEXT(e.kind), ' apareceu na arena!'], 'info');
       else if (e.k === 'runeTake') {
         sound.play('shield', e.id === me ? 1 : 0.5);
-        toast(`${e.id === me ? 'Você pegou' : (who.get(e.id) ?? '?') + ' pegou'} ${RUNE_TEXT[e.kind]}`, e.id === me ? 'good' : 'info');
+        toast([`${e.id === me ? 'Você pegou' : (who.get(e.id) ?? '?') + ' pegou'} `, ...RUNE_TEXT(e.kind)], e.id === me ? 'good' : 'info');
       } else if (e.k === 'streak') {
         const name = e.id === me ? 'Você' : (who.get(e.id) ?? '?');
         // uma voz por lote de eventos: o Quebra-combo vem primeiro, depois o multi e por último a Matança
@@ -332,7 +334,7 @@ function startRoom(code: string, name: string) {
         }
       } else if (e.k === 'aegis') {
         sound.play('shield');
-        banner(e.id === me ? '👼 A Égide te tirou da lava e quebrou' : `👼 A Égide tirou ${who.get(e.id) ?? '?'} da lava`, e.id === me ? 'good' : '');
+        banner([icon(ITEM_ICON.aegis), e.id === me ? ' A Égide te tirou da lava e quebrou' : ` A Égide tirou ${who.get(e.id) ?? '?'} da lava`], e.id === me ? 'good' : '');
       }
       else if (e.k === 'death') {
         // fora da pedra: mergulho na lava (chiado e bolhas) em vez da explosão

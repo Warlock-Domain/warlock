@@ -12,7 +12,7 @@ import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView } from '../shared/snapshot.ts';
 import { v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
-import { BAD_STATUS, STATUS_ICONS } from './icons.ts';
+import { BAD_STATUS, STATUS_ICONS, UI_ICON, icon } from './icons.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
 export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#12c7c7', '#f76b15', '#e93d82'];
@@ -639,7 +639,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   function goldNumber(at: Vec, n: number) {
     const el = document.createElement('div');
     el.className = 'dmg gold';
-    el.textContent = `+${n} 🪙`;
+    el.append(`+${n} `, icon(UI_ICON.gold));
     labels.append(el);
     numbers.push({ el, at: w3(at, 2.1), born: performance.now() / 1000 });
   }
@@ -1083,7 +1083,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // ícones de efeito em cima do mago (negativos primeiro)
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
-        m.statusEl.replaceChildren(...STATUS_ICONS.filter(([bit]) => d.status & bit).map(([bit, ico, name]) => Object.assign(document.createElement('i'), { textContent: ico, title: name, className: BAD_STATUS.includes(bit) ? 'bad' : 'good' })));
+        m.statusEl.replaceChildren(...STATUS_ICONS.filter(([bit]) => d.status & bit).map(([bit, ico, name]) => {
+          const i = Object.assign(document.createElement('i'), { title: name, className: BAD_STATUS.includes(bit) ? 'bad' : 'good' });
+          i.append(icon(ico));
+          return i;
+        }));
       }
       m.hpFill.style.width = `${Math.max(0, Math.min(100, (d.hp / d.hpMax) * 100))}%`;
       m.hpText.textContent = `${Math.max(0, Math.ceil(d.hp))}/${d.hpMax}`;

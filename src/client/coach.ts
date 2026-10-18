@@ -26,6 +26,6 @@ export function coachTip(s: CoachState): string | null {
   if (s.shrinkIn !== null && s.shrinkIn <= 5) return 'A borda vermelha vai afundar: corra para o meio';
   if (s.low) return 'Vida baixa: quanto mais dano você leva, mais longe voa';
   if (s.playingFor < 6) return s.touch ? 'Toque no chão para andar' : 'Clique com o botão direito no chão para andar';
-  if (s.playingFor < 14) return s.touch ? 'Toque na 🔥 e depois no chão para atirar' : `Use ${s.fireKey} para atirar a Bola de fogo na direção do mouse`;
+  if (s.playingFor < 14) return s.touch ? 'Toque na Bola de fogo e depois no chão para atirar' : `Use ${s.fireKey} para atirar a Bola de fogo na direção do mouse`;
   return null;
 }
