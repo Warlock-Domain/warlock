@@ -47,7 +47,8 @@ export const WINS_TO_WIN = 5; // original: 1 ponto por rodada vencida (lá o pad
 export const START_GOLD = 30;
 export const ROUND_GOLD = 10;
 export const KILL_GOLD = 5; // 0 no original; +5 a pedido do Fernando (17/10)
-export const WIN_GOLD = 0;
+export const WIN_GOLD = 10; // 0 no original; +10 a pedido do Fernando (17/10)
+export const TOP_DMG_GOLD = 10; // quem causou mais dano na rodada (empate: todos); pedido do Fernando (17/10)
 export const SHOP_MS = 30_000; // Mode.SHOP_TIME do original
 export const INVULN_TIME = 2; // invulnerável nos 2 primeiros segundos da rodada (mode.lua)
 // Deathmatch (modo do Warlock Brawl original): rodada de 60 s, volta em 10 s, 1 ponto por abate

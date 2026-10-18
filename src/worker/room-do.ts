@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
-import { addPlayer, buy, buyItem, buyMastery, endIdle, kick, newMatch, undoBuy, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../shared/match.ts';
+import { addPlayer, buy, buyItem, buyMastery, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sell, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
@@ -138,6 +138,9 @@ export class Room extends DurableObject<Env> {
         return;
       case 'undo':
         if (undoBuy(m, id, msg.key)) await this.changed();
+        return;
+      case 'sell':
+        if (sell(m, id, msg.key)) await this.changed();
         return;
       case 'kick': {
         // o cliente só conhece o id público: acha o jogador correspondente

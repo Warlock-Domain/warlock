@@ -495,17 +495,21 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
   }
 
+  // acerto: clarão branco, bola de fogo, onda no chão e faíscas; durava 0,3 s e quase não se via (relato do Fernando, 17/10)
   function explosion(at: Vec) {
-    burst(at, '#ffb347', 2.6, 0.4, 0.8, FX.fire);
-    burst(at, '#ff6a10', 3.2, 0.3, 0.8, FX.light);
-    for (let i = 0; i < 3; i++) burst(v(at.x + (Math.random() - 0.5) * 0.6, at.y + (Math.random() - 0.5) * 0.6), '#ffd27a', 0.9, 0.45, 0.9, FX.spark, 1.2);
-    smoke(at, 1.8, 1.1);
+    burst(at, '#ffffff', 2.2, 0.18, 0.9, FX.light);
+    burst(at, '#ffb347', 4, 0.6, 0.8, FX.fire);
+    burst(at, '#ff6a10', 4.8, 0.45, 0.8, FX.light);
+    burst(at, '#ff8a3a', 3.6, 0.55, 0.15, FX.circle);
+    for (let i = 0; i < 6; i++) burst(v(at.x + (Math.random() - 0.5) * 0.9, at.y + (Math.random() - 0.5) * 0.9), '#ffd27a', 1.1, 0.6, 0.9, FX.spark, 1.6);
+    smoke(at, 2.2, 1.3);
   }
 
   function zap(at: Vec) {
-    burst(at, '#9fd0ff', 3.4, 0.45, 1, FX.light);
-    burst(at, '#e6f4ff', 2.2, 0.4, 1, FX.spark);
-    burst(at, '#6fb6ff', 2.8, 0.5, 0.9, FX.circle);
+    burst(at, '#ffffff', 2.2, 0.18, 1, FX.light);
+    burst(at, '#9fd0ff', 4.4, 0.6, 1, FX.light);
+    burst(at, '#e6f4ff', 2.8, 0.5, 1, FX.spark);
+    burst(at, '#6fb6ff', 3.8, 0.6, 0.15, FX.circle);
   }
 
   function bolt(from: Vec, to: Vec) {
@@ -817,7 +821,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // números de dano: sobem 1,2 m em 0,9 s e somem
       for (let i = numbers.length - 1; i >= 0; i--) {
         const d = numbers[i];
-        const k = (now - d.born) / 0.9;
+        const k = (now - d.born) / 1.2;
         if (k >= 1) {
           d.el.remove();
           numbers.splice(i, 1);

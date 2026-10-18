@@ -114,6 +114,7 @@ function startRoom(code: string, name: string) {
     buyMastery: (mastery) => net.send({ t: 'buyMastery', mastery }),
     kick: (target) => net.send({ t: 'kick', target }),
     undo: (key) => net.send({ t: 'undo', key }),
+    sell: (key) => net.send({ t: 'sell', key }),
     useItem: (item) => input.itemButton(item),
     pick: (character) => {
       store.set(CHAR, character);
@@ -158,7 +159,8 @@ function startRoom(code: string, name: string) {
       const i = SPELL_IDS.indexOf(spell);
       const mine = room?.players.find((p) => p.id === me);
       if (!mine?.spells[spell]) return toast('Você ainda não tem essa magia. Compre na loja.');
-      if ((lastSnap?.cd[i] ?? 0) > 0.1 || performance.now() < (justCast.get(spell) ?? 0) || performance.now() < scourgeUntil) return;
+      if ((lastSnap?.cd[i] ?? 0) > 0.1 || performance.now() < (justCast.get(spell) ?? 0) || (performance.now() < scourgeUntil && spell !== 'teleport')) return;
+      if (spell === 'teleport') scourgeUntil = 0; // o Teleporte cancela o Flagelo em preparo
       // até a recarga chegar do servidor, não repete a mesma magia (senão a animação e o som tocam sem sair nada)
       justCast.set(spell, performance.now() + 120 + CAST_POINT[spell] * 1000 + predict.rtt() * 1000);
       command({ t: 'cast', spell, x: at.x, y: at.y });

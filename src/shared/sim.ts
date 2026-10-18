@@ -451,8 +451,11 @@ function usePact(w: World, wz: Wizard): number {
 function beginCast(w: World, wz: Wizard, what: { spell?: SpellId; item?: ItemId }, at: Vec) {
   // a mesma magia já sendo conjurada: ignora a tecla repetida (a recarga só começa quando ela sai)
   if (wz.casting && wz.casting.spell === what.spell && wz.casting.item === what.item) return;
-  // Flagelo em preparo: nada mais sai até ele explodir (pedido do Fernando, 17/10)
-  if (wz.casting?.item === 'scourge') return;
+  // Flagelo em preparo: nada mais sai até ele explodir, menos o Teleporte, que cancela a explosão (pedidos do Fernando, 17/10)
+  if (wz.casting?.item === 'scourge') {
+    if (what.spell !== 'teleport') return;
+    wz.casting = null;
+  }
   if (what.spell) {
     if (!wz.spells[what.spell] || w.t < wz.cd[what.spell]) return;
   } else if (what.item) {

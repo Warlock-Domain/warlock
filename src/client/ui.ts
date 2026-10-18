@@ -1,7 +1,7 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
-import { DM_KILLS_TO_WIN, KILL_GOLD, MAX_PLAYERS, ROUND_GOLD, START_GOLD, WIN_GOLD, WINS_TO_WIN } from '../shared/constants.ts';
+import { DM_KILLS_TO_WIN, KILL_GOLD, MAX_PLAYERS, ROUND_GOLD, START_GOLD, TOP_DMG_GOLD, WIN_GOLD, WINS_TO_WIN } from '../shared/constants.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
-import type { Mode } from '../shared/match.ts';
+import { sellValue, type Mode } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
 import { MASTERIES, MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, type MasteryId } from '../shared/masteries.ts';
@@ -122,6 +122,7 @@ export type RoomActions = {
   buyMastery: (m: MasteryId | 'all') => void;
   kick: (id: string) => void;
   undo: (key: string) => void;
+  sell: (key: string) => void;
   useItem: (i: ItemId) => void;
   pick: (c: CharacterId) => void;
   ready: () => void;
@@ -171,11 +172,12 @@ function goldInfo(p: PublicPlayer) {
     row('Cada rodada que você jogou', `+${ROUND_GOLD}`),
     row('Vencer a rodada', rule(WIN_GOLD), WIN_GOLD ? '' : 'muted'),
     row('Abate', rule(KILL_GOLD), KILL_GOLD ? '' : 'muted'),
+    row('Mais dano na rodada', rule(TOP_DMG_GOLD), TOP_DMG_GOLD ? '' : 'muted'),
     el('hr', {}),
     row('Ganho na última rodada', `🪙 ${p.stats.round.gold}`),
     row('Ganho na partida', `🪙 ${p.stats.match.gold}`),
     row('Ganho na sala (todas as partidas)', `🪙 ${p.stats.room.gold}`),
-    el('small', { class: 'muted' }, 'Como no Warlock original, todo mundo ganha igual por rodada: o que muda é como você gasta. Desfazer (↩) devolve o ouro do que foi comprado nesta loja.'),
+    el('small', { class: 'muted' }, 'Todo mundo ganha a rodada; vencer, abater e causar mais dano dão ouro extra. Desfazer (↩) devolve o ouro do que foi comprado nesta loja; Vender devolve o que foi comprado nesta loja inteiro e o de rodadas anteriores pela metade.'),
   );
 }
 
@@ -372,6 +374,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // desfazer: só o que foi comprado nesta loja (devolve o ouro)
     const undoBtn = (key: string) => (mine?.bought.includes(key) ? el('button', { type: 'button', class: 'undo', title: 'Desfazer a compra (devolve o ouro)', 'aria-label': 'Desfazer a compra', 'data-key': 'undo-' + key, onclick: () => act.undo(key) }, '↩') : null);
     if (!mine) return el('div', { class: 'card' }, el('p', {}, 'Você está assistindo. Entra na próxima partida.'));
+    // vender: magia ou item inteiro; o comprado nesta loja volta inteiro, o de antes pela metade
+    const sellBtn = (key: string) => {
+      const value = sellValue(mine, mine.bought, key);
+      return value > 0 ? el('button', { type: 'button', class: 'sell', title: 'Vende tudo; o comprado em rodadas anteriores volta pela metade', 'data-key': 'sell-' + key, onclick: () => act.sell(key) }, `Vender · ${value}`) : null;
+    };
     // duas colunas: compras à esquerda; ouro, Pronto, placar e personagem à direita (pedido do Fernando: loja mais larga)
     return el('div', { class: 'card shop' }, el('div', { class: 'shop-main' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? 'Loja' : `Loja · depois da rodada ${r.round}`), el('small', {}, `${spellCount(mine.spells)} de ${MAX_SPELLS} magias`)),
@@ -384,7 +391,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, ICON[s]), el('b', {}, SPELLS[s].name), el('span', { class: 'key' }, labelOf(s))),
           el('small', {}, RULES_SHORT[s]),
           el('span', { class: 'pips' }, ...Array.from({ length: MAX_SPELL_LEVEL }, (_, n) => el('i', { class: n < lvl ? 'on' : '' }))),
-          el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'spell-' + s, disabled: price === null || full || mine.gold < price, onclick: () => act.buy(s) }, label), undoBtn('spell:' + s)),
+          el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'spell-' + s, disabled: price === null || full || mine.gold < price, onclick: () => act.buy(s) }, label), undoBtn('spell:' + s), sellBtn('spell:' + s)),
         ), () => spellTip(s, lvl));
       })),
       el('div', { class: 'shop-head' }, el('h3', {}, 'Itens'), el('small', {}, `${ITEM_IDS.filter((i) => mine.items[i] > 0).length} de ${MAX_ITEMS}`)),
@@ -397,7 +404,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, ITEM_ICON[i]), el('b', {}, ITEMS[i].name), ITEMS[i].key ? el('span', { class: 'key' }, labelOf(i)) : null),
           el('small', {}, ITEMS[i].text),
           el('span', { class: 'pips' }, ...ITEMS[i].levels.map((_, n) => el('i', { class: n < lvl ? 'on' : '' }))),
-          el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'item-' + i, disabled: price === null || mine.gold < price, onclick: () => act.buyItem(i) }, label), undoBtn('item:' + i)),
+          el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'item-' + i, disabled: price === null || mine.gold < price, onclick: () => act.buyItem(i) }, label), undoBtn('item:' + i), sellBtn('item:' + i)),
         ), () => itemTip(i, lvl));
       })),
       el('div', { class: 'shop-head' }, el('h3', {}, 'Maestrias'), el('small', {}, `${MASTERY_COST} de ouro por nível · as três por ${MASTERY_ALL_COST}`)),

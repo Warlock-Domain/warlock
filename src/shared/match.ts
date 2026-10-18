@@ -2,22 +2,24 @@
 import { botBuy, botCmds } from './bots.ts';
 import { PILLAR } from './constants.ts';
 import { CHARACTERS, type CharacterId } from './characters.ts';
-import { itemPrice, noItems, type ItemId } from './items.ts';
+import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
 import { MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, noMasteries, type MasteryId } from './masteries.ts';
 
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
 const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
 import {
-  COUNTDOWN_MS, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, WIN_GOLD, WINS_TO_WIN,
+  COUNTDOWN_MS, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, TOP_DMG_GOLD, WIN_GOLD, WINS_TO_WIN,
 } from './constants.ts';
 import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.ts';
-import { MAX_SPELLS, noSpells, priceOf, spellCount, type SpellId } from './spells.ts';
+import { MAX_SPELLS, SPELL_IDS, noSpells, priceOf, spellCount, type SpellId } from './spells.ts';
 
 // estatísticas do placar: ouro ganho, dano causado e precisão (lançadas e acertadas) por magia
 export type Stat = { gold: number; dmg: number; kills: number; dmgBy: Record<string, number>; fired: Record<string, number>; landed: Record<string, number> };
 export type Stats = { round: Stat; match: Stat; room: Stat };
 const newStat = (): Stat => ({ gold: 0, dmg: 0, kills: 0, dmgBy: {}, fired: {}, landed: {} });
 const newStats = (): Stats => ({ round: newStat(), match: newStat(), room: newStat() });
+// salas gravadas antes de um campo existir (ex.: a precisão): sem isso a soma quebrava o passo inteiro e os efeitos daquele instante sumiam
+const fillStats = (s?: Partial<Record<keyof Stats, Partial<Stat>>>): Stats => ({ round: { ...newStat(), ...s?.round }, match: { ...newStat(), ...s?.match }, room: { ...newStat(), ...s?.room } });
 function addStat(p: Player, f: (s: Stat) => void) {
   f(p.stats.round);
   f(p.stats.match);
@@ -101,12 +103,8 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   if (m.players.length < 2) return false;
   for (const p of m.players) {
     Object.assign(p, { score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries() });
-    p.stats ??= newStats();
+    p.stats = fillStats(p.stats);
     p.bought ??= [];
-    p.stats.round.kills ??= 0;
-    for (const st of [p.stats.round, p.stats.match, p.stats.room]) st.dmgBy ??= {};
-    p.stats.match.kills ??= 0;
-    p.stats.room.kills ??= 0;
     p.stats.match = newStat();
     p.stats.round = newStat();
   }
@@ -174,6 +172,41 @@ export function undoBuy(m: Match, id: string, key: string): boolean {
   return true;
 }
 
+// quanto a loja devolve por vender a magia/item inteiro ('spell:<id>' ou 'item:<id>'): o comprado nesta loja volta inteiro
+// (os últimos N níveis, N = vezes que a key aparece em boughtKeys) e o de rodadas anteriores volta pela metade; o nível inicial é grátis
+export function sellValue(p: { spells: Record<SpellId, number>; items: Record<ItemId, number> }, boughtKeys: string[], key: string): number {
+  const [kind, what] = key.split(':');
+  const spell = kind === 'spell';
+  if (!spell && kind !== 'item') return 0; // maestria não se vende
+  if (!(spell ? (SPELL_IDS as string[]) : (ITEM_IDS as string[])).includes(what)) return 0;
+  const now = spell ? p.spells[what as SpellId] : p.items[what as ItemId];
+  const first = spell ? noSpells()[what as SpellId] : startItems()[what as ItemId];
+  if (now <= first) return 0;
+  const fresh = Math.min(boughtKeys.filter((k) => k === key).length, now - first);
+  let before = 0;
+  let after = 0;
+  for (let l = first; l < now; l++) {
+    const price = (spell ? priceOf(what as SpellId, l) : ITEMS[what as ItemId].cost) ?? 0;
+    if (l < now - fresh) before += price;
+    else after += price;
+  }
+  return after + Math.floor(before / 2);
+}
+
+// vende a magia ou o item inteiro (todos os níveis, volta ao nível inicial); não é ganho de ouro, então fora das estatísticas
+export function sell(m: Match, id: string, key: string): boolean {
+  const p = m.players.find((q) => q.id === id);
+  if (m.phase !== 'shop' || !p) return false;
+  const value = sellValue(p, p.bought.map((b) => b.key), key);
+  if (value === 0) return false;
+  const [kind, what] = key.split(':');
+  if (kind === 'spell') p.spells[what as SpellId] = noSpells()[what as SpellId];
+  else p.items[what as ItemId] = startItems()[what as ItemId];
+  p.gold += value;
+  p.bought = p.bought.filter((b) => b.key !== key);
+  return true;
+}
+
 export function setReady(m: Match, id: string): boolean {
   const p = m.players.find((q) => q.id === id);
   if (m.phase !== 'shop' || !p || p.ready) return false;
@@ -191,7 +224,7 @@ export function resume(m: Match, now: number) {
     p.spells = { ...noSpells(), ...p.spells }; // salas gravadas antes das magias novas
     p.items ??= noItems();
     p.masteries ??= noMasteries();
-    p.stats ??= newStats();
+    p.stats = fillStats(p.stats);
   }
   if (m.phase === 'countdown' || m.phase === 'playing') {
     m.round--;
@@ -243,15 +276,25 @@ function enterCountdown(m: Match, now: number) {
   m.phaseEnds = now + COUNTDOWN_MS;
 }
 
+// prêmio de fim de rodada: soma o ouro e sobe o "+N" em cima do mago (o mundo ainda existe até a loja)
+function bonus(m: Match, p: Player, gold: number) {
+  if (!gold) return;
+  earn(p, gold);
+  const z = m.world?.wizards.find((q) => q.id === p.id);
+  if (z) m.world!.events.push({ k: 'gold', id: p.id, n: gold, x: z.pos.x, y: z.pos.y });
+}
+
 function endRound(m: Match, now: number, winner: string | null) {
   const dm = m.mode === 'deathmatch';
   const p = m.players.find((q) => q.id === winner);
   // no deathmatch os pontos já vieram dos abates; aqui o vencedor é só quem fez mais abates na rodada
   if (p && !dm) {
     p.score++;
-    earn(p, WIN_GOLD);
+    bonus(m, p, WIN_GOLD);
   }
   const played = new Set(m.world?.wizards.map((z) => z.id));
+  const top = Math.max(0, ...m.players.filter((q) => played.has(q.id)).map((q) => q.stats.round.dmg));
+  for (const q of m.players) if (top > 0 && played.has(q.id) && q.stats.round.dmg === top) bonus(m, q, TOP_DMG_GOLD);
   for (const q of m.players) if (played.has(q.id)) earn(q, ROUND_GOLD);
   m.lastRoundWinner = winner;
   m.emptyRounds = winner || dm ? 0 : m.emptyRounds + 1;

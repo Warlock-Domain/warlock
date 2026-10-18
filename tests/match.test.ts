@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { botBuy, botCmds } from '../src/shared/bots.ts';
-import { ARENA_R0, COUNTDOWN_MS, DT, KILL_GOLD, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
+import { ARENA_R0, COUNTDOWN_MS, DT, KILL_GOLD, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, TOP_DMG_GOLD, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
-import { addPlayer, buy, endIdle, kick, newMatch, removePlayer, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
+import { addPlayer, buy, endIdle, kick, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, tickMatch, type Match, type Stat } from '../src/shared/match.ts';
 import { newWorld } from '../src/shared/sim.ts';
 import { noItems } from '../src/shared/items.ts';
 import { noSpells } from '../src/shared/spells.ts';
@@ -78,6 +78,25 @@ describe('partida', () => {
     for (let i = 0; i < 600 && !ev; i++) ev = tickMatch(m, (now += STEP_MS), [], () => 0.5).find((e) => e.k === 'gold');
     expect(ev).toMatchObject({ k: 'gold', id: 'a', n: KILL_GOLD });
     expect(m.players.find((p) => p.id === 'a')!.gold).toBe(before + KILL_GOLD);
+  });
+
+  it('a room saved before accuracy stats existed still counts hits without breaking the step', () => {
+    const m = twoPlayers();
+    for (const p of m.players) {
+      delete (p.stats.room as Partial<Stat>).fired;
+      delete (p.stats.room as Partial<Stat>).landed;
+    }
+    resume(m, 0);
+    let now = toPlaying(m, 0);
+    const w = m.world!;
+    w.pillars = [];
+    w.wizards[0].pos = v(0, 0);
+    w.wizards[1].pos = v(3, 0);
+    for (const z of w.wizards) z.invulnUntil = 0;
+    const kinds: string[] = [];
+    for (let i = 0; i < 60; i++) kinds.push(...tickMatch(m, (now += STEP_MS), i === 0 ? [{ id: 'a', kind: 'cast', spell: 'fireball', at: v(3, 0) }] : [], () => 0.5).map((e) => e.k));
+    expect(kinds).toContain('hit');
+    expect(m.players[0].stats.room.landed.fireball).toBe(1);
   });
 
   it('if the last ones die together, the one with more hp wins', () => {
@@ -197,6 +216,19 @@ describe('partida', () => {
     expect(m.players[0].gold).toBe(START_GOLD + ROUND_GOLD + WIN_GOLD);
     expect(m.players[1].gold).toBe(START_GOLD + ROUND_GOLD);
     expect(ROUND_END_MS).toBeGreaterThan(0);
+  });
+
+  it('whoever dealt the most damage in the round gets extra gold, with a live event', () => {
+    const m = twoPlayers();
+    const now = toPlaying(m, 0);
+    m.players[1].stats.round.dmg = 30;
+    m.players[0].stats.round.dmg = 12;
+    kill(m, 'b', null);
+    let evs: { k: string; id?: string; n?: number }[] = [];
+    for (let t = now; m.phase !== 'roundEnd'; ) evs = tickMatch(m, (t += STEP_MS), [], () => 0.5);
+    expect(m.players[0].gold).toBe(START_GOLD + ROUND_GOLD + WIN_GOLD);
+    expect(m.players[1].gold).toBe(START_GOLD + ROUND_GOLD + TOP_DMG_GOLD);
+    expect(evs.filter((e) => e.k === 'gold').map((e) => [e.id, e.n])).toEqual([['a', WIN_GOLD], ['b', TOP_DMG_GOLD]]);
   });
 
   it('character can change in lobby and shop, not during a round', () => {

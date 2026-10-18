@@ -19,6 +19,7 @@ export type ClientMsg =
   | { t: 'buyMastery'; mastery: MasteryId | 'all' }
   | { t: 'kick'; target: string }
   | { t: 'undo'; key: string }
+  | { t: 'sell'; key: string }
   | { t: 'item'; item: ItemId; x: number; y: number; seq: number }
   | { t: 'ready' }
   | { t: 'alive' };
@@ -94,6 +95,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return spell(m.spell) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'cast', spell: m.spell, x: m.x, y: m.y, seq: m.seq } : null;
     case 'buy':
       return spell(m.spell) ? { t: 'buy', spell: m.spell } : null;
+    case 'sell':
+      return typeof m.key === 'string' && /^(spell|item):[a-z_]{2,20}$/.test(m.key) ? { t: 'sell', key: m.key } : null;
     case 'undo':
       return typeof m.key === 'string' && /^(spell|item|mastery):[a-z_]{2,20}$/.test(m.key) ? { t: 'undo', key: m.key } : null;
     case 'kick':

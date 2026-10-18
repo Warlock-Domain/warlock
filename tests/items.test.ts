@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DT, HP_MAX, WIZ_SPEED } from '../src/shared/constants.ts';
 import { ITEMS, MAX_ITEMS, PACT, SCOURGE, itemPrice, noItems, type ItemId } from '../src/shared/items.ts';
-import { addPlayer, buy, buyItem, buyMastery, newMatch, startMatch, undoBuy } from '../src/shared/match.ts';
+import { addPlayer, buy, buyItem, buyMastery, newMatch, sell, sellValue, startMatch, undoBuy } from '../src/shared/match.ts';
 import { newWorld, stepWorld, type World } from '../src/shared/sim.ts';
 import { SPELLS, noSpells, type SpellId } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
@@ -78,6 +78,18 @@ describe('itens ativos', () => {
     expect(HP_MAX - w.wizards[1].hp).toBeGreaterThan(SPELLS.lightning.levels[0].dmg * PACT.mult - 0.2);
     steps(w, 2);
     expect(w.wizards[0].speed).toBe(WIZ_SPEED);
+  });
+
+  it('teleport during the scourge windup cancels the blast', () => {
+    const w = world([[0, 0], [1, 0]], [{ scourge: 1 }]);
+    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
+    steps(w, 5);
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'teleport', at: v(-3, 0) }]);
+    expect(w.wizards[0].casting).toBeNull();
+    expect(w.wizards[0].pos.x).toBeLessThan(-1);
+    steps(w, 40);
+    expect(w.wizards[1].hp).toBe(HP_MAX);
+    expect(w.wizards[0].itemCd.scourge).toBe(0); // não saiu: sem recarga
   });
 
   it('no spell goes out while the scourge is winding up', () => {
@@ -164,6 +176,91 @@ describe('desfazer compra', () => {
     expect(undoBuy(m, 'a', 'spell:lightning')).toBe(false);
     // o Flagelo grátis do começo não pode ser "desfeito" para ganhar ouro
     expect(undoBuy(m, 'a', 'item:scourge')).toBe(false);
+  });
+});
+
+describe('vender na loja', () => {
+  // loja nova: o que já foi comprado fica "de rodadas anteriores"
+  const shop = () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'Ana');
+    addPlayer(m, 'b', 'Bia');
+    startMatch(m, 0, 0);
+    m.players[0].gold = 100;
+    return { m, p: m.players[0] };
+  };
+
+  it('spell bought in an earlier shop sells for half and goes back to 0', () => {
+    const { m, p } = shop();
+    buy(m, 'a', 'lightning'); // 11
+    p.bought = [];
+    const gold = p.gold;
+    expect(sell(m, 'a', 'spell:lightning')).toBe(true);
+    expect(p.spells.lightning).toBe(0);
+    expect(p.gold).toBe(gold + Math.floor(11 / 2));
+  });
+
+  it('spell bought in this shop is refunded in full', () => {
+    const { m, p } = shop();
+    buy(m, 'a', 'lightning');
+    buy(m, 'a', 'lightning'); // 11 + 8
+    expect(sell(m, 'a', 'spell:lightning')).toBe(true);
+    expect(p.gold).toBe(100);
+    expect(p.spells.lightning).toBe(0);
+    expect(p.bought).toEqual([]);
+  });
+
+  it('mixes: level 1 from before + level 2 from this shop = price2 + half of price1', () => {
+    const { m, p } = shop();
+    buy(m, 'a', 'lightning');
+    p.bought = [];
+    buy(m, 'a', 'lightning');
+    const gold = p.gold;
+    expect(sell(m, 'a', 'spell:lightning')).toBe(true);
+    expect(p.gold).toBe(gold + 8 + Math.floor(11 / 2));
+  });
+
+  it('items sell the same way and the free ones do not sell', () => {
+    const { m, p } = shop();
+    buyItem(m, 'a', 'armor');
+    p.bought = [];
+    buyItem(m, 'a', 'armor'); // 6 + 6
+    expect(sellValue(p, p.bought.map((b) => b.key), 'item:armor')).toBe(6 + 3);
+    expect(sell(m, 'a', 'item:armor')).toBe(true);
+    expect(p.items.armor).toBe(0);
+    expect(sell(m, 'a', 'item:scourge')).toBe(false); // nível 1 grátis
+    expect(p.items.scourge).toBe(1);
+    expect(sell(m, 'a', 'spell:fireball')).toBe(false); // nível 1 grátis
+    expect(p.spells.fireball).toBe(1);
+  });
+
+  it('scourge and fireball at level 3 sell only the upgrades and go back to 1', () => {
+    const { m, p } = shop();
+    p.spells.fireball = 3;
+    p.items.scourge = 3;
+    const gold = p.gold;
+    expect(sell(m, 'a', 'spell:fireball')).toBe(true);
+    expect(p.spells.fireball).toBe(1);
+    expect(p.gold).toBe(gold + Math.floor((7 + 7) / 2));
+    expect(sell(m, 'a', 'item:scourge')).toBe(true);
+    expect(p.items.scourge).toBe(1);
+    expect(p.gold).toBe(gold + 7 + 7); // 7 da bola de fogo + metade de 2 níveis de 7 do Flagelo
+  });
+
+  it('masteries cannot be sold', () => {
+    const { m, p } = shop();
+    buyMastery(m, 'a', 'range');
+    p.bought = [];
+    expect(sell(m, 'a', 'mastery:range')).toBe(false);
+    expect(p.masteries.range).toBe(1);
+  });
+
+  it('does not sell outside the shop', () => {
+    const { m, p } = shop();
+    buy(m, 'a', 'lightning');
+    m.phase = 'playing';
+    expect(sell(m, 'a', 'spell:lightning')).toBe(false);
+    expect(p.spells.lightning).toBe(1);
   });
 });
 

@@ -44,6 +44,8 @@ export function createPredict() {
       // o servidor também esquece o destino ao teleportar
       me.pos = to;
       me.target = null;
+      holdUntil = 0; // o Teleporte cancela o Flagelo em preparo: pode andar de novo
+      queued = undefined;
     },
     // server = o estado mais novo do próprio mago que chegou (cerca de meia ida e volta atrás)
     frame(server: WizView, dt: number): Vec {
