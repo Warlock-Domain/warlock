@@ -12,6 +12,11 @@ export const RULES: [string, string[]][] = [
     'Cada rodada dura 60 segundos e a arena não encolhe. Quem cai volta 10 segundos depois, num ponto sorteado na pedra longe dos inimigos, com vida cheia e 2 segundos sem levar dano; magias, itens e maestrias continuam.',
     'Cada abate vale 1 ponto (cair sozinho na lava não vale). Entre as rodadas tem a loja de sempre. A partida acaba no fim da rodada em que alguém chega a 15 pontos, e vence quem tiver mais (empate joga mais uma rodada).',
   ]],
+  ['Times', [
+    'Azul contra Vermelho, com times do mesmo tamanho (com número ímpar, um time tem 1 a mais). Na sala dá para escolher se os times são sorteados a cada rodada ou fixos na partida; isso também muda por votação.',
+    'A rodada acaba quando só sobra gente de um time, e todos desse time ganham 1 ponto e o ouro da vitória. Com times fixos, quem chegar à meta leva a vitória para o time.',
+    'Magia que acerta aliado só empurra: não tira vida nem dá abate. Míssil, Ricochete, Gravidade e Agarrar só pegam inimigos; a Troca com aliado vale.',
+  ]],
   ['Controles no PC', [
     'Botão direito no chão: andar (segure para arrastar o destino). S: parar.',
     'Q bola de fogo · W raio · E míssil teleguiado · R escudo · F teleporte: saem na direção do cursor.',

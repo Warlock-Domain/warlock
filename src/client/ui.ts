@@ -1,13 +1,13 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
 import { ASSIST_GOLD, BOUNTY, DM_KILLS_TO_WIN, KILL_GOLD, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, START_GOLD, TOP_DMG_GOLD, WIN_GOLD, WINS_TO_WIN } from '../shared/constants.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
-import { VOTE_PHASES, sellValue, type Mode } from '../shared/match.ts';
+import { MODES, VOTE_PHASES, sellValue, type Mode } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { ACTIONS, RESERVED, isSlotMode, keyLabel, keyOf, labelOf, onKeysChange, resetKeys, setKey, setSlotMode, setSlots, type Action } from './keys.ts';
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
-import { COLORS } from './scene.ts';
+import { COLORS, TEAM_COLORS } from './scene.ts';
 import { RULES } from './rules-text.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
@@ -116,11 +116,11 @@ export function screen(root: HTMLElement, title: string, text: string, button: s
 }
 
 export type RoomActions = {
-  start: (bots: number, mode: Mode) => void;
+  start: (bots: number, mode: Mode, shuffle: boolean) => void;
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
   kick: (id: string) => void;
-  vote: (kind: 'mode' | 'kick', target?: string) => void;
+  vote: (kind: 'mode' | 'kick' | 'shuffle', target?: string) => void;
   ballot: (yes: boolean) => void;
   undo: (key: string) => void;
   sell: (key: string) => void;
@@ -134,34 +134,101 @@ export type RoomActions = {
   click: () => void;
 };
 
-const MODE_NAME: Record<Mode, string> = { rounds: 'Rodadas', deathmatch: 'Deathmatch' };
+const MODE_NAME: Record<Mode, string> = { rounds: 'Rodadas', deathmatch: 'Deathmatch', teams: 'Times' };
+export const TEAM_NAMES = ['Azul', 'Vermelho'];
+const SHUFFLE_NAME = (shuffle: boolean) => (shuffle ? 'sorteados a cada rodada' : 'fixos na partida');
 const dot = (color: number) => el('span', { class: 'dot', style: `background:${COLORS[color]}` });
+// modo Times: quadradinho com a cor do time antes do nome; a lista fica agrupada por time
+const teamTag = (room: PublicRoom, p: PublicPlayer) =>
+  room.mode === 'teams' && p.team !== null ? el('span', { class: 'dot', title: 'Time ' + TEAM_NAMES[p.team], style: `background:${TEAM_COLORS[p.team]};border-radius:2px` }) : null;
+const byTeam = (room: PublicRoom, a: PublicPlayer, b: PublicPlayer) => (room.mode === 'teams' ? (a.team ?? 2) - (b.team ?? 2) : 0) || b.score - a.score;
 const nameOf = (p: PublicPlayer, me: string) => p.name + (p.id === me ? ' (você)' : '') + (p.bot ? ' 🤖' : '');
 
 // placar de estatísticas: ouro ganho, dano causado e precisão de cada magia de dano (acertos / lançamentos)
 type Scope = 'round' | 'match' | 'room';
 const SCOPES: [Scope, string][] = [['round', 'Rodada'], ['match', 'Partida'], ['room', 'Sala']];
-const AIM: [string, string, string][] = [['fireball', '🔥', 'Bola de fogo'], ['lightning', '⚡', 'Raio'], ['homing', '🎯', 'Míssil'], ['meteor', '☄️', 'Meteoro'], ['cluster', '🔱', 'Rajada'], ['scourge', '💥', 'Flagelo']];
 const n0 = (x: number) => Math.round(x).toLocaleString('pt-BR');
+// magias de utilidade: mostra quantas vezes usou (não têm "acerto"); as outras mostram precisão
+const UTILITY = new Set(['teleport', 'shield', 'rush', 'pact', 'redirector', 'thrust', 'rockpillar']);
+const srcIcon = (k: string) => (k === 'lava' ? '🌋' : k in ICON ? ICON[k as SpellId] : k in ITEM_ICON ? ITEM_ICON[k as ItemId] : k.startsWith('choque') ? '💫' : k === 'pillar' ? '🪨' : '❔');
+const srcName = (k: string) => (k === 'lava' ? 'lava' : k in SPELLS ? SPELLS[k as SpellId].name : k in ITEMS ? ITEMS[k as ItemId].name : k);
 
+// placar completo (pedido do Fernando, 17/10): resumo por jogador + uma coluna por magia que alguém usou; o melhor de cada coluna em destaque
 function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Scope) => void) {
-  const rows = [...room.players].sort((a, b) => b.stats[scope].dmg - a.stats[scope].dmg);
-  const aimCell = (p: PublicPlayer, k: string) => {
-    const f = p.stats[scope].fired[k] ?? 0;
-    const l = p.stats[scope].landed[k] ?? 0;
-    return el('td', { class: 'num', title: f ? `${l} acertos em ${f} lançamentos` : 'não usou' }, f ? `${Math.round((l / f) * 100)}%` : '–', f ? el('small', {}, ` ${l}/${f}`) : null);
+  const st = (p: PublicPlayer) => p.stats[scope];
+  const rows = [...room.players].sort((a, b) => b.score - a.score || st(b).dmg - st(a).dmg);
+  const used = [...new Set(rows.flatMap((p) => Object.keys(st(p).fired ?? {})))].sort((a, b) => Number(UTILITY.has(a)) - Number(UTILITY.has(b)));
+  const aim = (p: PublicPlayer) => {
+    let f = 0, l = 0;
+    for (const k of Object.keys(st(p).fired ?? {})) if (!UTILITY.has(k)) {
+      f += st(p).fired[k] ?? 0;
+      l += st(p).landed[k] ?? 0;
+    }
+    return f ? l / f : -1;
   };
+  const cols: { head: string; title: string; value: (p: PublicPlayer) => number; show: (n: number, p: PublicPlayer) => string; best?: 'max' | 'min' }[] = [
+    { head: room.mode === 'deathmatch' ? 'Pontos' : 'Vitórias', title: 'Pontos da partida', value: (p) => p.score, show: (n) => String(n), best: 'max' },
+    { head: '☠ Abates', title: 'Abates', value: (p) => st(p).kills ?? 0, show: (n) => String(n), best: 'max' },
+    { head: '💀 Mortes', title: 'Mortes', value: (p) => st(p).deaths ?? 0, show: (n) => String(n), best: 'min' },
+    { head: '💥 Dano', title: 'Dano causado', value: (p) => st(p).dmg, show: (n) => n0(n), best: 'max' },
+    { head: '🎯 Precisão', title: 'Acertos ÷ lançamentos das magias de dano', value: aim, show: (n) => (n < 0 ? '–' : `${Math.round(n * 100)}%`), best: 'max' },
+    { head: '🪙 Ouro', title: 'Ouro ganho', value: (p) => st(p).gold, show: (n) => n0(n), best: 'max' },
+    ...(room.mode === 'deathmatch' ? [] : [{ head: '⏱ Vivo', title: 'Segundos vivo (rodadas)', value: (p: PublicPlayer) => st(p).alive ?? 0, show: (n: number) => (n ? `${Math.round(n)} s` : '–'), best: 'max' as const }]),
+  ];
+  const bestOf = cols.map((c) => {
+    const vals = rows.map(c.value).filter((n) => n >= 0);
+    if (!c.best || !vals.length) return null;
+    const b = c.best === 'max' ? Math.max(...vals) : Math.min(...vals);
+    // todos iguais (ex.: ninguém morreu): sem destaque
+    if (vals.every((n) => n === b)) return null;
+    return c.best === 'max' && b <= 0 ? null : b;
+  });
+  const deathCause = (p: PublicPlayer) => {
+    const by = Object.entries(st(p).deathBy ?? {}).sort((a, b) => b[1] - a[1])[0];
+    return by ? el('span', { title: `Morreu mais por: ${srcName(by[0])} (${by[1]}×)` }, srcIcon(by[0])) : '–';
+  };
+  const spellCell = (p: PublicPlayer, k: string) => {
+    const f = st(p).fired?.[k] ?? 0;
+    if (!f) return el('td', { class: 'num muted' }, '–');
+    if (UTILITY.has(k)) return el('td', { class: 'num', title: `${srcName(k)}: usou ${f}×` }, `${f}×`);
+    const l = st(p).landed?.[k] ?? 0;
+    const d = st(p).dmgBy?.[k] ?? 0;
+    return el('td', { class: 'num', title: `${srcName(k)}: ${l} acertos em ${f} · ${n0(d)} de dano` }, `${Math.round((l / f) * 100)}%`, el('small', {}, ` ${n0(d)}`));
+  };
+  // destaques: quem foi o melhor em cada coisa
+  const leader = (c: (p: PublicPlayer) => number, min = 0) => {
+    const top = [...rows].sort((a, b) => c(b) - c(a))[0];
+    return top && c(top) > min ? top : null;
+  };
+  const card = (ico: string, label: string, p: PublicPlayer | null, value: string) =>
+    el('div', { class: 'stat-card' }, el('span', { class: 'stat-ico' }, ico), el('small', {}, label), el('b', {}, p ? p.name : '–'), el('span', { class: 'muted' }, p ? value : ''));
+  const mostDmg = leader((p) => st(p).dmg);
+  const mostKills = leader((p) => st(p).kills ?? 0);
+  const sharp = leader((p) => ((st(p).fired && Object.values(st(p).fired).reduce((a, b) => a + b, 0)) >= 5 ? aim(p) : -1), -0.5);
+  const rich = leader((p) => st(p).gold);
   return el('div', { class: 'stats' },
+    el('div', { class: 'stat-cards' },
+      card('💥', 'Mais dano', mostDmg, mostDmg ? n0(st(mostDmg).dmg) : ''),
+      card('☠', 'Mais abates', mostKills, mostKills ? String(st(mostKills).kills) : ''),
+      card('🎯', 'Mais preciso', sharp, sharp ? `${Math.round(aim(sharp) * 100)}%` : ''),
+      card('🪙', 'Mais ouro', rich, rich ? n0(st(rich).gold) : ''),
+    ),
     el('div', { class: 'stats-tabs', role: 'tablist' }, ...SCOPES.map(([k, label]) =>
       el('button', { type: 'button', role: 'tab', 'aria-selected': String(k === scope), class: k === scope ? 'on' : '', onclick: () => setScope(k) }, label))),
     el('div', { class: 'stats-wrap' }, el('table', { class: 'stats-table' },
-      el('thead', {}, el('tr', {}, el('th', {}, 'Jogador'), el('th', { class: 'num' }, room.mode === 'deathmatch' ? 'Pontos' : 'Vitórias'), el('th', { class: 'num' }, 'Abates'), el('th', { class: 'num' }, 'Ouro'), el('th', { class: 'num' }, 'Dano'), ...AIM.map(([, ico, name]) => el('th', { class: 'num', title: 'Precisão: ' + name }, ico)))),
+      el('thead', {}, el('tr', {}, el('th', {}, 'Jogador'), ...cols.map((c) => el('th', { class: 'num', title: c.title }, c.head)), el('th', { title: 'O que mais matou' }, 'Caiu por'),
+        ...used.map((k) => el('th', { class: 'num', title: UTILITY.has(k) ? `${srcName(k)}: usos` : `${srcName(k)}: precisão e dano` }, srcIcon(k))))),
       el('tbody', {}, ...rows.map((p) => el('tr', { class: p.id === me ? 'me' : '' },
-        el('td', {}, dot(p.color), ' ', p.name), el('td', { class: 'num' }, String(p.score)), el('td', { class: 'num' }, String(p.stats[scope].kills ?? 0)),
-        el('td', { class: 'num' }, n0(p.stats[scope].gold)), el('td', { class: 'num' }, n0(p.stats[scope].dmg)),
-        ...AIM.map(([k]) => aimCell(p, k)),
+        el('td', {}, dot(p.color), ' ', p.name),
+        ...cols.map((c, ci) => {
+          const n = c.value(p);
+          return el('td', { class: 'num' + (bestOf[ci] !== null && n === bestOf[ci] ? ' best' : '') }, c.show(n, p));
+        }),
+        el('td', {}, deathCause(p)),
+        ...used.map((k) => spellCell(p, k)),
       ))),
     )),
+    scope === 'round' ? el('small', { class: 'muted' }, 'Ao vivo durante a rodada. Passe o mouse nas células para ver acertos, dano e usos.') : null,
   );
 }
 
@@ -192,10 +259,18 @@ function goldInfo(p: PublicPlayer) {
 const kickBtn = (p: PublicPlayer, kick?: (id: string) => void) =>
   kick && (p.bot || !p.connected) ? el('button', { type: 'button', class: 'kick', title: `Expulsar ${p.name}`, 'aria-label': `Expulsar ${p.name}`, onclick: () => kick(p.id) }, '✕') : null;
 
+// fim da partida: com times fixos vence o time; sorteados a cada rodada, todos que chegaram à meta juntos
+export function winTitle(r: PublicRoom): string {
+  if (r.winnerTeam !== null) return `🏆 Time ${TEAM_NAMES[r.winnerTeam]} venceu!`;
+  const champs = r.mode === 'teams' ? r.players.filter((p) => p.score >= WINS_TO_WIN) : [];
+  if (champs.length > 1) return `🏆 ${champs.map((p) => p.name).join(', ').replace(/, ([^,]*)$/, ' e $1')} venceram!`;
+  return r.winner ? `🏆 ${r.players.find((p) => p.id === r.winner)?.name ?? '?'} venceu!` : 'Partida encerrada';
+}
+
 function board(room: PublicRoom, me: string, kick?: (id: string) => void) {
-  const sorted = [...room.players].sort((a, b) => b.score - a.score);
+  const sorted = [...room.players].sort((a, b) => byTeam(room, a, b));
   return el('ol', { class: 'board' }, ...sorted.map((p) =>
-    el('li', { class: p.id === room.winner ? 'win' : '' }, el('span', {}, dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), el('span', { class: 'board-right' }, el('b', {}, room.mode === 'deathmatch' ? `${p.score} ${p.score === 1 ? 'ponto' : 'pontos'}` : `${p.score} ${p.score === 1 ? 'vitória' : 'vitórias'}`), kickBtn(p, kick))),
+    el('li', { class: p.id === room.winner || (room.winnerTeam !== null && p.team === room.winnerTeam) ? 'win' : '' }, el('span', {}, teamTag(room, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), el('span', { class: 'board-right' }, el('b', {}, room.mode === 'deathmatch' ? `${p.score} ${p.score === 1 ? 'ponto' : 'pontos'}` : `${p.score} ${p.score === 1 ? 'vitória' : 'vitórias'}`), kickBtn(p, kick))),
   ));
 }
 
@@ -332,7 +407,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (on && room) tabOverlay.replaceChildren(el('div', { class: 'card' }, el('h2', { class: 'title' }, 'Placar'), statsBoard(room, me, scope, setScope)));
   }
   addEventListener('keydown', (e) => {
-    if (e.code !== 'Tab' || !room || (room.phase !== 'playing' && room.phase !== 'countdown' && room.phase !== 'roundEnd')) return;
+    // placar só pelo Tab (pedido do Fernando, 17/10), também na loja
+    if (e.code !== 'Tab' || !room || (room.phase !== 'playing' && room.phase !== 'countdown' && room.phase !== 'roundEnd' && room.phase !== 'shop')) return;
     e.preventDefault();
     if (!e.repeat) showTab(true);
   });
@@ -357,6 +433,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   };
   let phaseEndsAt = 0;
   let mode: Mode = 'rounds';
+  let shuffle = true; // Times: sorteados a cada rodada ou fixos na partida
 
   // grade com o retrato de cada personagem; o escolhido fica marcado
   function picker(r: PublicRoom) {
@@ -386,24 +463,31 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       count.textContent = String(bots);
       startBtn.toggleAttribute('disabled', humans + bots < 2);
     };
-    const startBtn = el('button', { type: 'button', class: 'primary big', onclick: () => act.start(bots, mode) }, r.phase === 'end' ? 'Jogar de novo' : 'Começar partida');
+    const startBtn = el('button', { type: 'button', class: 'primary big', onclick: () => act.start(bots, mode, shuffle) }, r.phase === 'end' ? 'Jogar de novo' : 'Começar partida');
     if (humans + bots < 2) startBtn.setAttribute('disabled', '');
     const modes: [Mode, string, string][] = [
       ['rounds', 'Rodadas', `O último vivo ganha a rodada. Vence quem fizer ${WINS_TO_WIN} rodadas.`],
       ['deathmatch', 'Deathmatch', `Rodadas de 60 s, quem cai volta em 10 s. Cada abate vale 1 ponto; vence quem chegar a ${DM_KILLS_TO_WIN}.`],
+      ['teams', 'Times', `Azul contra Vermelho. A rodada acaba quando só sobra um time, e todos dele ganham 1 ponto; vence quem fizer ${WINS_TO_WIN}. Magia em aliado só empurra.`],
     ];
+    // Times: o grupo escolhe se os times mudam a cada rodada ou ficam até o fim
+    const shufflePicker = mode !== 'teams' ? null : el('div', { class: 'stats-tabs', role: 'group', 'aria-label': 'Sorteio dos times' }, ...[true, false].map((k) =>
+      el('button', { type: 'button', 'aria-pressed': String(k === shuffle), class: k === shuffle ? 'on' : '', onclick: () => {
+        shuffle = k;
+        drawCenter();
+      } }, k ? 'Sorteados a cada rodada' : 'Fixos na partida')));
     const modePicker = el('div', { class: 'mode' },
       el('div', { class: 'stats-tabs', role: 'group', 'aria-label': 'Modo de jogo' }, ...modes.map(([k, label]) =>
         el('button', { type: 'button', 'aria-pressed': String(k === mode), class: k === mode ? 'on' : '', onclick: () => {
           mode = k;
           drawCenter();
         } }, label))),
-      el('small', { class: 'muted' }, modes.find(([k]) => k === mode)![2]));
+      el('small', { class: 'muted' }, modes.find(([k]) => k === mode)![2]), shufflePicker);
     return el('div', { class: 'card' },
       r.phase === 'end'
-        ? el('div', {}, el('h2', { class: 'title' }, r.winner ? `🏆 ${r.players.find((p) => p.id === r.winner)?.name ?? '?'} venceu!` : 'Partida encerrada'), r.winner ? null : el('p', { class: 'muted' }, 'Ninguém jogou por um tempo e a partida foi encerrada.'), board(r, me, act.kick), statsBoard(r, me, scope, setScope))
+        ? el('div', {}, el('h2', { class: 'title' }, winTitle(r)), r.winner ? null : el('p', { class: 'muted' }, 'Ninguém jogou por um tempo e a partida foi encerrada.'), board(r, me, act.kick), statsBoard(r, me, scope, setScope))
         : el('div', {}, el('h2', { class: 'title' }, 'Sala ' + r.id), el('p', { class: 'muted' }, 'Mande o link para os amigos entrarem. Até 8 magos.'),
-            el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), kickBtn(p, act.kick))))),
+            el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), kickBtn(p, act.kick))))),
       picker(r),
       modePicker,
       el('div', { class: 'bots' }, el('span', {}, 'Bots'), el('button', { type: 'button', onclick: () => set(bots - 1) }, '−'), count, el('button', { type: 'button', onclick: () => set(bots + 1) }, '+')),
@@ -451,16 +535,27 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         ), () => itemTip(i, lvl));
       })),
       ),
-      // placar numa coluna ao lado da loja (pedido do Fernando, 17/10: "do lado, não lá embaixo")
-      el('section', { class: 'shop-stats' }, el('h3', {}, 'Placar'), statsBoard(r, me, scope, setScope)),
       el('aside', { class: 'shop-side' },
         el('span', { class: 'gold big' }, `🪙 ${mine.gold}`),
         goldInfo(mine),
+        nextModePicker(r),
         el('button', { type: 'button', class: 'primary big', disabled: mine.ready, onclick: act.ready }, mine.ready ? 'Esperando os outros…' : 'Pronto'),
         board(r, me, act.kick),
         picker(r),
       ),
     );
+  }
+
+  // loja: modo da próxima rodada à vista; clicar abre a votação (sozinho com bots passa na hora)
+  function nextModePicker(r: PublicRoom) {
+    const next = r.pendingMode ?? r.mode;
+    return el('div', { class: 'mode' },
+      el('small', { class: 'muted' }, 'Modo da próxima rodada'),
+      el('div', { class: 'stats-tabs', role: 'group', 'aria-label': 'Modo da próxima rodada' }, ...MODES.map((k) =>
+        el('button', { type: 'button', 'aria-pressed': String(k === next), class: k === next ? 'on' : '', disabled: !!r.vote && k !== next, onclick: () => k !== next && act.vote('mode', k) }, MODE_NAME[k]))),
+      next === 'teams' ? el('button', { type: 'button', disabled: !!r.vote, onclick: () => act.vote('shuffle') }, `Times ${SHUFFLE_NAME(r.pendingShuffle ?? r.teamShuffle)} · trocar`) : null,
+      r.pendingMode ? el('small', {}, `Próxima rodada: ${MODE_NAME[r.pendingMode]} (os pontos zeram)`) : null,
+      r.vote ? el('small', { class: 'muted' }, 'Votação aberta no topo da tela.') : null);
   }
 
   function drawVote(r: PublicRoom, prev: PublicRoom | null) {
@@ -472,23 +567,24 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       voteBtn.setAttribute('aria-expanded', 'false');
       f();
     };
-    const next: Mode = r.mode === 'rounds' ? 'deathmatch' : 'rounds';
+    const next = r.pendingMode ?? r.mode;
     votePanel.replaceChildren(el('b', {}, 'Votação'),
       v ? el('small', { class: 'muted' }, 'Já tem uma votação aberta.') : '',
-      r.pendingMode ? '' : el('button', { type: 'button', disabled: !!v, onclick: close(() => act.vote('mode')) }, `Trocar para ${MODE_NAME[next]}`),
+      ...MODES.filter((k) => k !== next).map((k) => el('button', { type: 'button', disabled: !!v, onclick: close(() => act.vote('mode', k)) }, `Trocar para ${MODE_NAME[k]}`)),
+      next === 'teams' ? el('button', { type: 'button', disabled: !!v, onclick: close(() => act.vote('shuffle')) }, `Times ${SHUFFLE_NAME(!(r.pendingShuffle ?? r.teamShuffle))}`) : '',
       ...r.players.filter((p) => !p.bot && p.id !== me).map((p) =>
         el('button', { type: 'button', disabled: !!v, onclick: close(() => act.vote('kick', p.id)) }, `Expulsar ${p.name}`)),
       el('small', { class: 'muted' }, 'Passa com mais da metade dos jogadores. O modo novo vale na próxima rodada e zera os pontos; o ouro fica.'));
     // fim da votação: aprovada se o modo da próxima rodada mudou ou se o alvo saiu da sala
     const was = prev?.vote;
-    if (was && !v) toast((was.kind === 'mode' ? r.pendingMode !== prev.pendingMode : !r.players.some((p) => p.id === was.target)) ? 'Votação aprovada.' : 'Votação recusada.');
+    if (was && !v) toast((was.kind === 'mode' ? r.pendingMode !== prev.pendingMode : was.kind === 'shuffle' ? r.pendingShuffle !== prev.pendingShuffle : !r.players.some((p) => p.id === was.target)) ? 'Votação aprovada.' : 'Votação recusada.');
     voteBar.hidden = !v;
     if (!v) return;
     voteEndsAt = performance.now() + v.left;
     const name = (id: string) => r.players.find((p) => p.id === id)?.name ?? '?';
     const can = human && !v.yes.includes(me) && !v.no.includes(me);
     voteBar.replaceChildren(
-      el('span', {}, `${name(v.by)} quer ${v.kind === 'mode' ? 'trocar para ' + MODE_NAME[v.target as Mode] : 'expulsar ' + name(v.target)} · SIM ${v.yes.length} / precisa ${v.need}`),
+      el('span', {}, `${name(v.by)} quer ${v.kind === 'mode' ? 'trocar para ' + MODE_NAME[v.target as Mode] : v.kind === 'shuffle' ? 'times ' + SHUFFLE_NAME(v.target === 'round') : 'expulsar ' + name(v.target)} · SIM ${v.yes.length} / precisa ${v.need}`),
       can ? el('button', { type: 'button', class: 'primary', onclick: () => act.ballot(true) }, 'Sim') : '',
       can ? el('button', { type: 'button', onclick: () => act.ballot(false) }, 'Não') : '',
       voteLeft,
@@ -511,8 +607,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   function drawPlayers() {
     if (!room) return;
     const head = el('li', { class: 'head' }, el('span', {}), el('span', {}), el('small', { title: 'Abates na rodada' }, '☠'), el('small', { title: 'Dano na rodada' }, '💥'), el('small', { title: room.mode === 'deathmatch' ? 'Pontos' : 'Vitórias' }, '🏆'));
-    players.replaceChildren(head, ...[...room.players].sort((a, b) => b.score - a.score).map((p) =>
-      el('li', { class: p.id === me ? 'me' : '' }, dot(p.color), el('span', {}, nameOf(p, me)), el('span', { class: 'live' }, String(live[p.id]?.kills ?? 0)), el('span', { class: 'live' }, String(Math.round(live[p.id]?.dmg ?? 0))), el('b', {}, String(p.score))),
+    // modo Times: agrupada por time, com uma faixa da cor do time à esquerda
+    const r = room;
+    players.replaceChildren(head, ...[...r.players].sort((a, b) => byTeam(r, a, b)).map((p) =>
+      el('li', { class: p.id === me ? 'me' : '', style: r.mode === 'teams' && p.team !== null ? `box-shadow:inset 3px 0 0 ${TEAM_COLORS[p.team]}` : '' }, dot(p.color), el('span', {}, nameOf(p, me)), el('span', { class: 'live' }, String(live[p.id]?.kills ?? 0)), el('span', { class: 'live' }, String(Math.round(live[p.id]?.dmg ?? 0))), el('b', {}, String(p.score))),
     ));
   }
 
@@ -530,8 +628,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       phaseEndsAt = performance.now() + r.phaseLeft;
       status.className = 'dot ' + (online ? 'on' : 'off');
       roundEl.textContent = [
-        r.round > 0 && r.phase !== 'lobby' ? (r.mode === 'deathmatch' ? `Deathmatch · rodada ${r.round} · ${DM_KILLS_TO_WIN} abates para vencer` : `Rodada ${r.round} · vence quem fizer ${WINS_TO_WIN}`) : '',
+        r.round > 0 && r.phase !== 'lobby' ? (r.mode === 'deathmatch' ? `Deathmatch · rodada ${r.round} · ${DM_KILLS_TO_WIN} abates para vencer` : `${r.mode === 'teams' ? 'Times · ' : ''}Rodada ${r.round} · vence quem fizer ${WINS_TO_WIN}`) : '',
         r.pendingMode && r.phase !== 'end' ? `Próxima rodada: ${MODE_NAME[r.pendingMode]}` : '',
+        r.pendingShuffle !== null && r.phase !== 'end' ? `Próxima rodada: times ${SHUFFLE_NAME(r.pendingShuffle)}` : '',
       ].filter(Boolean).join(' · ');
       drawPlayers();
       mine = r.players.find((p) => p.id === you);

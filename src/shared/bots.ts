@@ -48,7 +48,8 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
   }
 
   let enemy = null;
-  for (const z of w.wizards) if (z.alive && z.id !== id && (!enemy || dist(z.pos, me.pos) < dist(enemy.pos, me.pos))) enemy = z;
+  // nos Times, só mira quem é do outro time
+  for (const z of w.wizards) if (z.alive && z.id !== id && (me.team === null || z.team !== me.team) && (!enemy || dist(z.pos, me.pos) < dist(enemy.pos, me.pos))) enemy = z;
   if (!enemy) return cmds;
   const d = dist(enemy.pos, me.pos);
   // mira onde o alvo vai estar quando a bola de fogo chegar

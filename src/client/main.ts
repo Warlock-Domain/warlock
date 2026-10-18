@@ -12,7 +12,7 @@ import { connect } from './net.ts';
 import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
-import { askName, banner, createRoomUi, renderLobby, screen, toast, type RoomInfo } from './ui.ts';
+import { TEAM_NAMES, askName, banner, createRoomUi, renderLobby, screen, toast, winTitle, type RoomInfo } from './ui.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
 // som de cada magia: as novas reaproveitam os sons que já existem
@@ -110,7 +110,7 @@ function startRoom(code: string, name: string) {
   let follow = true;
 
   const view = createRoomUi(ui, code, {
-    start: (bots, mode) => net.send({ t: 'start', bots, mode }),
+    start: (bots, mode, shuffle) => net.send({ t: 'start', bots, mode, shuffle }),
     buy: (spell) => net.send({ t: 'buy', spell }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),
     kick: (target) => net.send({ t: 'kick', target }),
@@ -301,17 +301,21 @@ function startRoom(code: string, name: string) {
       interp.reset();
       predict.reset();
       follow = true;
-      banner(`Rodada ${room.round}`);
+      // modo Times: avisa em que time a pessoa está nesta rodada
+      const team = room.mode === 'teams' ? room.players.find((p) => p.id === me)?.team : null;
+      banner(team != null ? `Rodada ${room.round} · Você está no time ${TEAM_NAMES[team]}` : `Rodada ${room.round}`);
       [3, 2, 1].forEach((_, i) => setTimeout(() => sound.play('beep'), i * 1000));
     } else if (room.phase === 'playing') {
       banner('Já!', 'good');
       sound.play('go');
     } else if (room.phase === 'roundEnd') {
       const w = room.players.find((p) => p.id === room!.lastRoundWinner);
-      banner(!w ? (room.mode === 'deathmatch' ? 'Fim da rodada' : 'Ninguém sobrou!') : room.mode === 'deathmatch' ? (w.id === me ? 'Você fez mais abates!' : `${w.name} fez mais abates!`) : w.id === me ? 'Você venceu a rodada!' : `${w.name} venceu a rodada!`, w?.id === me ? 'good' : '');
+      const myTeam = room.players.find((p) => p.id === me)?.team;
+      if (room.mode === 'teams' && w && w.team !== null) banner(w.team === myTeam ? `Seu time (${TEAM_NAMES[w.team]}) venceu a rodada!` : `Time ${TEAM_NAMES[w.team]} venceu a rodada!`, w.team === myTeam ? 'good' : '');
+      else banner(!w ? (room.mode === 'deathmatch' ? 'Fim da rodada' : 'Ninguém sobrou!') : room.mode === 'deathmatch' ? (w.id === me ? 'Você fez mais abates!' : `${w.name} fez mais abates!`) : w.id === me ? 'Você venceu a rodada!' : `${w.name} venceu a rodada!`, w?.id === me ? 'good' : '');
     } else if (room.phase === 'end' && prev) {
       const w = room.players.find((p) => p.id === room!.winner);
-      banner(!w ? 'Partida encerrada' : w.id === me ? 'Você venceu a partida!' : `${w.name} venceu!`, 'good');
+      banner(room.mode === 'teams' && w ? winTitle(room).replace('🏆 ', '') : !w ? 'Partida encerrada' : w.id === me ? 'Você venceu a partida!' : `${w.name} venceu!`, 'good');
     }
   }
 
@@ -325,6 +329,9 @@ function startRoom(code: string, name: string) {
     const latest = interp.latest();
     const playing = room && (room.phase === 'countdown' || room.phase === 'playing' || room.phase === 'roundEnd');
     const colorOf = new Map(room?.players.map((p) => [p.id, p]) ?? []);
+    // modo Times: cor do time no anel e na barra; no fim da rodada o time vencedor inteiro comemora
+    const teams = room?.mode === 'teams';
+    const winTeam = teams ? colorOf.get(room!.lastRoundWinner ?? '')?.team : null;
     const wizards: WizDraw[] = [];
     let myPos: Vec | null = null;
     if (playing && s) {
@@ -340,7 +347,7 @@ function startRoom(code: string, name: string) {
         const prevDraw = drawn.get(w.id);
         if (prevDraw) moving = moving && dist(prevDraw, pos) > 0.004;
         drawn.set(w.id, pos);
-        wizards.push({ ...w, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), color: p?.color ?? 0, character: p?.character ?? 'mage', name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0, moving, cheer: room?.phase === 'roundEnd' && room.lastRoundWinner === w.id });
+        wizards.push({ ...w, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), color: p?.color ?? 0, character: p?.character ?? 'mage', name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0, moving, cheer: room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null });
       }
     }
     const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' ? s.shrinkAt - s.time : null;

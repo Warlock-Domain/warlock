@@ -15,10 +15,12 @@ import { createDecor } from './decor.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
 export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#12c7c7', '#f76b15', '#e93d82'];
+// modo Times: Azul e Vermelho (anel no chão e barra de vida)
+export const TEAM_COLORS = ['#3b82f6', '#ef4444'];
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; loot?: number; color: number; character: string; name: string; moving: boolean; cheer: boolean };
+export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; loot?: number; color: number; character: string; name: string; moving: boolean; cheer: boolean; team?: number | null };
 
 const w3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, p.y);
 
@@ -35,6 +37,8 @@ type Mage = {
   label: HTMLDivElement;
   hpFill: HTMLDivElement;
   hpText: HTMLSpanElement;
+  nameEl: HTMLSpanElement;
+  tint: string; // cor do anel e da barra (do jogador, ou do time no modo Times)
   statusEl: HTMLSpanElement;
   statusKey: number;
   dead: boolean;
@@ -415,7 +419,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     lootBar.append(lootFill);
     label.append(statusEl, nameEl, bar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, label, hpFill, hpText, lootBar, lootFill, statusEl, statusKey: -1, dead: false, color: d.color, character: d.character };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, label, hpFill, hpText, nameEl, tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, dead: false, color: d.color, character: d.character };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -802,6 +806,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         mages.set(d.id, (m = made));
       }
       seen.add(d.id);
+      // modo Times: anel e barra na cor do time (pode mudar a cada rodada); o nome fica com a cor do jogador
+      const tint = d.team != null ? TEAM_COLORS[d.team] : COLORS[d.color];
+      if (m.tint !== tint) {
+        m.tint = tint;
+        (m.ring.material as THREE.MeshBasicMaterial).color.set(tint);
+        m.hpFill.style.background = tint;
+        m.nameEl.style.color = d.team != null ? COLORS[d.color] : '';
+      }
       m.root.visible = true;
       m.root.position.copy(w3(d.pos));
       m.root.rotation.y = Math.PI / 2 - d.facing;

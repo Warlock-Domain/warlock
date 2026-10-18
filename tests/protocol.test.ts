@@ -14,7 +14,8 @@ describe('protocolo', () => {
     expect(p({ t: 'cast', spell: 'homing', x: 0, y: 0, seq: 9 })).toEqual({ t: 'cast', spell: 'homing', x: 0, y: 0, seq: 9 });
     expect(p({ t: 'start', bots: 7 })).toEqual({ t: 'start', bots: 7 });
     expect(p({ t: 'pick', character: 'skeleton_warrior' })).toEqual({ t: 'pick', character: 'skeleton_warrior' });
-    expect(p({ t: 'vote', kind: 'mode', target: 'x' })).toEqual({ t: 'vote', kind: 'mode' });
+    expect(p({ t: 'vote', kind: 'mode', target: 'teams' })).toEqual({ t: 'vote', kind: 'mode', target: 'teams' });
+    expect(p({ t: 'vote', kind: 'shuffle', target: 'x' })).toEqual({ t: 'vote', kind: 'shuffle' });
     expect(p({ t: 'vote', kind: 'kick', target: 'p1a2b3' })).toEqual({ t: 'vote', kind: 'kick', target: 'p1a2b3' });
     expect(p({ t: 'ballot', yes: false })).toEqual({ t: 'ballot', yes: false });
   });
@@ -31,6 +32,8 @@ describe('protocolo', () => {
     expect(p({ t: 'vote', kind: 'kick' })).toBeNull();
     expect(p({ t: 'vote', kind: 'kick', target: 'raw-player-id-123' })).toBeNull();
     expect(p({ t: 'vote', kind: 'ban', target: 'p1' })).toBeNull();
+    expect(p({ t: 'vote', kind: 'mode', target: 'x' })).toBeNull();
+    expect(p({ t: 'vote', kind: 'mode' })).toBeNull();
     expect(p({ t: 'ballot', yes: 'sim' })).toBeNull();
     expect(parseClientMessage('nada')).toBeNull();
     expect(p([1, 2])).toBeNull();

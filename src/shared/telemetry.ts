@@ -1,16 +1,18 @@
 // Dados de balanceamento: um resumo por rodada (quem tinha o quê, quanto dano cada fonte causou, precisão, abates,
 // quem venceu) e a soma de todas as rodadas. Guardado no objeto do lobby; leitura em /api/telemetry.
-import type { Match } from './match.ts';
+import type { Match, Mode } from './match.ts';
 import { publicId } from './protocol.ts';
 
 export type RoundRecord = {
   at: number;
   humans: number;
+  mode?: Mode;
   players: {
     pid?: string; // código anônimo e estável do jogador (hash do id secreto), para separar habilidade de item
     bot: boolean;
     character: string;
     won: boolean;
+    team?: number | null; // modo Times: 0 Azul, 1 Vermelho
     spells: Record<string, number>;
     items: Record<string, number>;
     dmg: number;
@@ -34,14 +36,19 @@ export type Totals = {
 export const RECENT_MAX = 300;
 
 export function roundRecord(m: Match, now: number): RoundRecord {
+  // nos Times vence o time inteiro de quem ficou de pé
+  const teams = m.mode === 'teams';
+  const winTeam = teams ? (m.players.find((p) => p.id === m.lastRoundWinner)?.team ?? null) : null;
   return {
     at: now,
     humans: m.players.filter((p) => !p.bot).length,
+    mode: m.mode,
     players: m.players.map((p) => ({
       pid: publicId('telemetria', p.id),
       bot: p.bot,
       character: p.character,
-      won: p.id === m.lastRoundWinner,
+      won: teams ? winTeam !== null && p.team === winTeam : p.id === m.lastRoundWinner,
+      team: teams ? p.team : undefined,
       spells: p.spells,
       items: p.items,
       dmg: Math.round(p.stats.round.dmg * 10) / 10,

@@ -50,6 +50,7 @@ export type Wizard = {
   durF: number; // maestria de duração (multiplica escudo e pacto)
   rangeF: number; // maestria de alcance
   lifesteal: number; // fração do dano causado que volta como vida
+  team: number | null; // modo Times: 0 ou 1; fora dele null (ninguém é aliado)
   // magia ou item sendo conjurado: sai em fireAt e o mago fica parado até lá (pedido do Fernando, 17/10:
   // clicar para andar não cancela); o clique de andar fica guardado em `then` e vale quando a magia sai
   casting: { spell?: SpellId; item?: ItemId; at: Vec; fireAt: number; then?: Vec | null } | null;
@@ -139,6 +140,7 @@ export function newWorld(
   pillarCount = 0,
   rand: () => number = Math.random,
   dm = false,
+  teams: Record<string, number> = {}, // modo Times: id → time
 ): World {
   const arenaR = arenaRadius(ids.length);
   const r = arenaR - SPAWN_INSET;
@@ -189,6 +191,7 @@ export function newWorld(
       durF: 1, // maestrias de Duração e Alcance tiradas (17/10); os multiplicadores ficam em 1
       rangeF: 1,
       lifesteal: st.lifesteal,
+      team: teams[id] ?? null,
       casting: null,
     };
   });
@@ -239,6 +242,8 @@ export function moveWizard(wz: Wizard, dt: number) {
 
 const byId = (w: World, id: string | null) => w.wizards.find((z) => z.id === id && z.alive);
 const shielded = (w: World, wz: Wizard) => w.t < wz.shieldUntil;
+// modo Times: do mesmo time e não é a própria pessoa
+const allies = (a: Wizard | undefined, b: Wizard) => !!a && a !== b && a.team !== null && a.team === b.team;
 
 // src: o que causou o dano (magia, item, choque ou pilar), para o placar e os dados de balanceamento
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src = 'outro') {
@@ -249,6 +254,11 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   // como no mod de Dota 2 (pawn.lua): acima de 10 de dano por golpe o empurrão cresce pela raiz, não em linha reta
   const big = dmg > KB_SOFT_CAP ? Math.sqrt(KB_SOFT_CAP * dmg) / dmg : 1;
   const mult = big * (1 + (KNOCK_HP_SCALE * target.dmgTaken) / HP_MAX) * Math.max(0, 1 - target.kbResist + penalty - gripped);
+  // fogo amigo: só empurra; sem dano, sem roubo de vida e sem crédito de abate para o aliado
+  if (allies(w.wizards.find((z) => z.id === by), target)) {
+    target.vel = add(target.vel, scale(norm(dir), knock * mult));
+    return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
+  }
   // Investida: depois do empurrão, absorve metade do golpe (de outro mago) e converte em velocidade
   if (w.t < target.rushUntil && by !== target.id && target.rushLeft > 0) {
     const absorbed = Math.min(target.rushLeft, dmg * RUSH.share);
@@ -397,10 +407,12 @@ function blockPillars(w: World) {
   }
 }
 
-function nearestEnemy(w: World, to: Vec, skip: string): Wizard | null {
+// o mais perto, fora skip; nos Times, também fora o time do dono (só inimigos)
+function nearestEnemy(w: World, to: Vec, skip: string, owner = skip): Wizard | null {
+  const team = w.wizards.find((z) => z.id === owner)?.team ?? null;
   let best: Wizard | null = null;
   for (const wz of w.wizards) {
-    if (!wz.alive || wz.id === skip) continue;
+    if (!wz.alive || wz.id === skip || (team !== null && wz.team === team)) continue;
     if (!best || dist(wz.pos, to) < dist(best.pos, to)) best = wz;
   }
   return best;
@@ -670,8 +682,9 @@ function bounceOff(p: Projectile, center: Vec, r: number, speed = len(p.vel)) {
 // quem está perto a cada 0,2 s, sem empurrão
 function gravityPull(w: World, g: Projectile) {
   const L = spellLevel('gravity', g.level);
+  const owner = w.wizards.find((z) => z.id === g.owner);
   for (const o of w.wizards) {
-    if (!o.alive || o.id === g.owner) continue;
+    if (!o.alive || o.id === g.owner || allies(owner, o)) continue; // aliado não é puxado nem queimado
     const d = dist(g.pos, o.pos);
     // no original é aceleração na velocidade; aqui o mago parado zera velocidade abaixo de 0,05 m/s (moveWizard), então o puxão
     // vira deslocamento na velocidade de equilíbrio (puxão ÷ atrito), sem deixar o mago atordoado: ele ainda anda contra, como lá
@@ -685,7 +698,7 @@ function gravityPull(w: World, g: Projectile) {
   if (w.t < (g.tick ?? 0)) return;
   g.tick = w.t + GRAVITY.tick;
   for (const o of w.wizards) {
-    if (!o.alive || o.id === g.owner || dist(g.pos, o.pos) > L.radius) continue;
+    if (!o.alive || o.id === g.owner || allies(owner, o) || dist(g.pos, o.pos) > L.radius) continue;
     hit(w, o, g.owner, L.dmg * GRAVITY.tick * g.dmgMult, 0, sub(o.pos, g.pos), 'gravity');
     if (!g.landed && g.owner === g.caster) w.events.push({ k: 'land', id: g.caster, src: 'gravity' });
     g.landed = true;
@@ -773,6 +786,8 @@ function stepProjectiles(w: World) {
       if (p.kind === 'gravity' || p.kind === 'bouncer' || p.kind === 'boomerang') {
         bounceOff(p, q.pos, OBSTACLES[q.kind].r, p.kind === 'boomerang' ? BOOMERANG.bounceWall : undefined);
         if (p.kind === 'boomerang') [p.curve, p.back] = [undefined, true];
+        // o Bumerangue também quebra o baú (pedido do Fernando, 17/10; no original não batia em obstáculo)
+        if (p.kind === 'boomerang' && q.kind === 'chest') damagePillar(w, pil.i, spellLevel('boomerang', p.level).dmg * p.dmgMult, p.owner);
         keep.push(p);
         continue;
       }
@@ -802,7 +817,7 @@ function stepProjectiles(w: World) {
         const shooter = byId(w, p.owner);
         const back = shooter ? norm(sub(shooter.pos, p.pos)) : scale(norm(p.vel), -1);
         p.vel = scale(back, len(p.vel));
-        p.target = p.kind === 'homing' ? (shooter?.id ?? nearestEnemy(w, p.pos, wz.id)?.id ?? null) : null;
+        p.target = p.kind === 'homing' ? ((shooter && !allies(shooter, wz) ? shooter.id : null) ?? nearestEnemy(w, p.pos, wz.id)?.id ?? null) : null;
         p.owner = wz.id;
         p.until = w.t + (p.kind === 'homing' ? L.duration : L.range / L.speed);
         w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
@@ -813,7 +828,8 @@ function stepProjectiles(w: World) {
         swapPlaces(w, p, wz);
         w.events.push({ k: 'land', id: p.caster, src: 'swap' });
       } else if (p.kind === 'grip') {
-        if (w.t >= wz.invulnUntil) {
+        // aliado não fica preso
+        if (w.t >= wz.invulnUntil && !allies(w.wizards.find((z) => z.id === p.owner), wz)) {
           w.events.push({ k: 'land', id: p.caster, src: 'grip' });
           wz.gripUntil = w.t + L.duration * wz.debuffMult;
           wz.target = null;
@@ -840,7 +856,7 @@ function stepProjectiles(w: World) {
         if (L.dmg * p.dmgMult < BOUNCER.minDmg) continue;
         p.prev = wz.id;
         p.pos = add(p.pos, scale(p.vel, DT * found.t));
-        const nextTo = nearestEnemy(w, p.pos, wz.id);
+        const nextTo = nearestEnemy(w, p.pos, wz.id, p.owner);
         if (nextTo) p.vel = scale(norm(sub(nextTo.pos, p.pos)), L.speed);
         p.until = w.t + (L.range / L.speed) * (byId(w, p.caster)?.rangeF ?? 1);
         keep.push(p);

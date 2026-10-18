@@ -413,3 +413,12 @@ describe('Ricochete', () => {
     expect(w.projectiles).toHaveLength(0);
   });
 });
+
+describe('Bumerangue e baú', () => {
+  it('the boomerang damages the chest', () => {
+    const w = world([[0, 0], [9, 9]], ['boomerang']);
+    w.pillars = [{ pos: v(2.5, 0), hp: 25, alive: true, kind: 'chest' }];
+    run(w, 1.5, [cast('p0', 'boomerang', 4, 0)]);
+    expect(w.pillars[0].hp).toBeLessThan(25);
+  });
+});

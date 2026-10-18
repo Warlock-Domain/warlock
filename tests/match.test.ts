@@ -313,7 +313,7 @@ describe('votação', () => {
 
   it('passes with a majority; a mode change voted in the shop is the round about to start', () => {
     const m = threePlayers();
-    expect(startVote(m, 'a', 'mode', '', 0)).toBe(true);
+    expect(startVote(m, 'a', 'mode', 'deathmatch', 0)).toBe(true);
     expect(m.vote).toMatchObject({ kind: 'mode', target: 'deathmatch', by: 'a', yes: ['a'], no: [] });
     expect(castBallot(m, 'b', true, 1)).toBe(true);
     expect(m.vote).toBeNull();
@@ -328,14 +328,14 @@ describe('votação', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     startMatch(m, 0, 2);
-    expect(startVote(m, 'a', 'mode', '', 0)).toBe(true);
+    expect(startVote(m, 'a', 'mode', 'deathmatch', 0)).toBe(true);
     expect(m.vote).toBeNull();
     expect(m.pendingMode).toBe('deathmatch');
   });
 
   it('without a majority it stays open, then expires after 20 s', () => {
     const m = threePlayers();
-    startVote(m, 'a', 'mode', '', 0);
+    startVote(m, 'a', 'mode', 'deathmatch', 0);
     expect(castBallot(m, 'b', false, 1)).toBe(true);
     expect(castBallot(m, 'b', true, 2)).toBe(false); // um voto por pessoa
     tickMatch(m, VOTE_MS - 1, []);
@@ -367,7 +367,7 @@ describe('votação', () => {
 
   it('only one vote at a time', () => {
     const m = threePlayers();
-    expect(startVote(m, 'a', 'mode', '', 0)).toBe(true);
+    expect(startVote(m, 'a', 'mode', 'deathmatch', 0)).toBe(true);
     expect(startVote(m, 'b', 'kick', 'c', 1)).toBe(false);
     expect(m.vote!.by).toBe('a');
   });
@@ -377,10 +377,10 @@ describe('votação', () => {
     let now = toPlaying(m, 0);
     const a = m.players.find((p) => p.id === 'a')!;
     a.score = 1;
-    startVote(m, 'a', 'mode', '', now);
+    startVote(m, 'a', 'mode', 'deathmatch', now);
     castBallot(m, 'b', true, now);
     expect(m.pendingMode).toBe('deathmatch');
-    expect(startVote(m, 'b', 'mode', '', now)).toBe(false); // já está votado
+    expect(startVote(m, 'b', 'mode', 'deathmatch', now)).toBe(false); // já está votado
     // a rodada atual segue nas regras de antes
     kill(m, 'b', null);
     now = until(m, now, () => m.phase === 'roundEnd');
@@ -423,7 +423,7 @@ describe('votação', () => {
     expect(startVote(m, 'a', 'kick', 'a', 0)).toBe(false);
     expect(startVote(m, 'a', 'kick', 'bot-1', 0)).toBe(false);
     expect(startVote(m, 'a', 'kick', 'zé', 0)).toBe(false);
-    expect(startVote(m, 'bot-1', 'mode', '', 0)).toBe(false);
+    expect(startVote(m, 'bot-1', 'mode', 'deathmatch', 0)).toBe(false);
     expect(m.vote).toBeNull();
   });
 
@@ -431,13 +431,13 @@ describe('votação', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     addPlayer(m, 'b', 'Bia');
-    expect(startVote(m, 'a', 'mode', '', 0)).toBe(false);
+    expect(startVote(m, 'a', 'mode', 'deathmatch', 0)).toBe(false);
     startMatch(m, 0, 0);
-    startVote(m, 'a', 'mode', '', 0);
+    startVote(m, 'a', 'mode', 'deathmatch', 0);
     expect(m.vote).not.toBeNull();
     endIdle(m);
     expect(m.vote).toBeNull();
-    expect(startVote(m, 'a', 'mode', '', 0)).toBe(false);
+    expect(startVote(m, 'a', 'mode', 'deathmatch', 0)).toBe(false);
     expect(castBallot(m, 'b', true, 0)).toBe(false);
   });
 

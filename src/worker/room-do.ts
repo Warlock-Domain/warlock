@@ -28,6 +28,7 @@ export class Room extends DurableObject<Env> {
   private acks = new Map<string, number>();
   private events: SimEvent[] = [];
   private lastCmdAt = Date.now();
+  private roomSentAt = 0;
   private taunted = new Map<string, number>();
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -129,7 +130,7 @@ export class Room extends DurableObject<Env> {
         this.acks.set(id, msg.seq);
         return;
       case 'start':
-        if (startMatch(m, now, msg.bots, msg.mode)) await this.changed();
+        if (startMatch(m, now, msg.bots, msg.mode, msg.shuffle ?? true)) await this.changed();
         return;
       case 'buy':
         if (buy(m, id, msg.spell)) await this.changed();
@@ -152,8 +153,8 @@ export class Room extends DurableObject<Env> {
         return;
       }
       case 'vote': {
-        // expulsão: o alvo chega como id público, como no 'kick'
-        const target = msg.kind === 'kick' ? m.players.find((p) => publicId(s.id, p.id) === msg.target)?.id : '';
+        // expulsão: o alvo chega como id público, como no 'kick'; troca de modo: o modo alvo
+        const target = msg.kind === 'kick' ? m.players.find((p) => publicId(s.id, p.id) === msg.target)?.id : (msg.target ?? '');
         if (target !== undefined && startVote(m, id, msg.kind, target, now)) await this.changed();
         return;
       }
@@ -274,10 +275,15 @@ export class Room extends DurableObject<Env> {
     if (!s) return this.stopLoop();
     const m = s.match;
     const now = Date.now();
+    // placar ao vivo: durante a rodada a sala manda o estado dos jogadores (estatísticas) uma vez por segundo
+    if (m.phase === 'playing' && now - this.roomSentAt > 1000) {
+      this.roomSentAt = now;
+      this.broadcastRoom();
+    }
     this.acc = Math.min(this.acc + now - this.last, STEP_MS * MAX_CATCHUP);
     this.last = now;
     // a votação entra na conta para o fim por tempo (e a troca de modo) chegar aos clientes
-    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}`;
+    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}`;
     const before = sig();
     while (this.acc >= STEP_MS) {
       this.acc -= STEP_MS;
