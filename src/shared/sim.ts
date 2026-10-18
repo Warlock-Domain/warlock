@@ -4,7 +4,7 @@ import {
   WIZ_R, WIZ_SPEED, arenaRadius,
 } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, itemStats, noItems, type ItemId } from './items.ts';
-import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, GRAVITY, GRIP, HOMING_TURN, METEOR_DELAY, RUSH, SPELL_IDS, THRUST, spellLevel, type SpellId } from './spells.ts';
+import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, TWIN, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export type Wizard = {
@@ -45,6 +45,17 @@ export type Wizard = {
   thrustUntil: number; // Estocada em curso até este instante (0 = nenhuma)
   thrustAcc: Vec; // aceleração da Estocada (m/s²)
   thrustMult: number; // Pacto na Estocada
+  slowUntil: number; // lento (Drenar, Bola de neve) até este instante
+  slow: number; // m/s a menos enquanto lento
+  hasteUntil: number; // acelerado (Drenar num aliado) até este instante
+  haste: number; // m/s a mais enquanto acelerado
+  snow: { until: number; by: string; dmg: number } | null; // Bola de neve encostou: dano quando acabar
+  magnetUntil: number; // Magnetizar até este instante
+  magnet: number; // 1 atrai, −1 repele os projéteis inimigos
+  alterUntil: number; // Alteração ativa até este instante
+  windUntil: number; // Caminhada no vento (invisível) até este instante
+  windMult: number; // Pacto na Caminhada no vento
+  streak: number; // Recarga: acertos seguidos
   invulnUntil: number;
   respawnAt: number; // deathmatch: instante (w.t) em que o morto volta
   durF: number; // maestria de duração (multiplica escudo e pacto)
@@ -58,7 +69,10 @@ export type Wizard = {
 
 // meteor fica parado no ponto de impacto até `until` e então explode; swap e grip não causam dano
 // boomerang curva e volta ao dono; gravity não bate em mago, só puxa; bouncer pula de mago em mago
-export const PROJ_KINDS = ['fireball', 'homing', 'swap', 'grip', 'meteor', 'cluster', 'boomerang', 'gravity', 'bouncer'] as const;
+// drain e recharge com back voltam a quem lançou (cura, recarga); link fica preso a um mago ou obstáculo; splitter vira lançador de shard;
+// warpzone não anda (zona de tempo lento)
+export const PROJ_KINDS = ['fireball', 'homing', 'swap', 'grip', 'meteor', 'cluster', 'boomerang', 'gravity', 'bouncer',
+  'drain', 'snowball', 'twin', 'magnetize', 'recharge', 'link', 'splitter', 'shard', 'warpzone'] as const;
 export type ProjKind = (typeof PROJ_KINDS)[number];
 
 export type Projectile = {
@@ -78,6 +92,11 @@ export type Projectile = {
   prev?: string; // Ricochete: último mago tocado (não bate nele de novo em seguida)
   tick?: number; // Gravidade: próximo dano
   landed?: boolean; // já contou 'land' (Bumerangue e Ricochete acertam mais de uma vez)
+  turnAt?: number; // Drenar: quando vira para o mago mais perto; Elo: quando recolhe
+  ell?: { c: Vec; a: number; b: number; dir: Vec; sign: number; t: number }; // Gêmeos: meia elipse (centro, semieixos, eixo, lado, ângulo)
+  bonus?: number; // Recarga: dano a mais pelos acertos seguidos
+  waves?: number; // Divisor: ondas de filhotes que faltam (lançador)
+  pillar?: number; // Elo preso a este obstáculo
 };
 
 export type Cmd =
@@ -109,10 +128,11 @@ export type SimEvent =
 
 // as de utilidade (teleport, shield, swap, grip, rush, pact, redirector) contam uso em 'fire' e, quando pegam alguém, 'land'
 export type AimSrc = 'fireball' | 'lightning' | 'homing' | 'scourge' | 'meteor' | 'cluster' | 'teleport' | 'shield' | 'swap' | 'grip' | 'rush' | 'pact' | 'redirector'
-  | 'boomerang' | 'thrust' | 'gravity' | 'rockpillar' | 'bouncer';
+  | 'boomerang' | 'thrust' | 'gravity' | 'rockpillar' | 'bouncer'
+  | 'drain' | 'snowball' | 'twin' | 'magnetize' | 'recharge' | 'alteration' | 'link' | 'windwalk' | 'splitter' | 'warpzone';
 
 // choque de magias: fogo×fogo, fogo×míssil, míssil×míssil, e o raio detonando uma bola de fogo
-export type Combo = 'fire' | 'arcane' | 'pulse' | 'detonate' | 'pillar';
+export type Combo = 'fire' | 'arcane' | 'pulse' | 'detonate' | 'pillar' | 'snow'; // snow: explosão da Bola de neve
 
 export type Pillar = { pos: Vec; hp: number; alive: boolean; kind: ObstacleKind; until?: number }; // until: some sozinho (Pilar de pedra)
 
@@ -186,6 +206,17 @@ export function newWorld(
       thrustUntil: 0,
       thrustAcc: v(0, 0),
       thrustMult: 1,
+      slowUntil: 0,
+      slow: 0,
+      hasteUntil: 0,
+      haste: 0,
+      snow: null,
+      magnetUntil: 0,
+      magnet: 0,
+      alterUntil: 0,
+      windUntil: 0,
+      windMult: 1,
+      streak: 0,
       invulnUntil: INVULN_TIME,
       respawnAt: 0,
       durF: 1, // maestrias de Duração e Alcance tiradas (17/10); os multiplicadores ficam em 1
@@ -420,11 +451,26 @@ function nearestEnemy(w: World, to: Vec, skip: string, owner = skip): Wizard | n
   return best;
 }
 
+// cura (Drenar): como no original, tira do dano acumulado metade do que curou (pawn.lua)
+function heal(wz: Wizard, amount: number) {
+  wz.hp = Math.min(wz.hpMax, wz.hp + amount);
+  wz.dmgTaken = Math.max(0, wz.dmgTaken - amount * 0.5);
+}
+
+// ponytail: duas lentidões juntas valem a maior (no original somavam); somar pede uma lista de efeitos por mago
+function slowDown(w: World, wz: Wizard, amount: number, secs: number) {
+  wz.slow = w.t < wz.slowUntil ? Math.max(wz.slow, amount) : amount;
+  wz.slowUntil = Math.max(wz.slowUntil, w.t + secs);
+}
+
 function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   const level = wz.spells[spell];
   if (!level || w.t < wz.cd[spell]) return;
   const L = spellLevel(spell, level);
   wz.cd[spell] = w.t + L.cd;
+  wz.windUntil = 0; // qualquer magia acaba com a Caminhada no vento (windwalkmodifier.lua)
+  // Elo: teleportar ou trocar para fora da arena solta o mago ligado (linkmodifier.lua)
+  if ((spell === 'teleport' || spell === 'swap') && len(at) > w.arenaR) w.projectiles = w.projectiles.filter((p) => !(p.kind === 'link' && p.owner === wz.id && p.target));
   if (w.t < wz.gripUntil) wz.dmgTaken += GRIP.castPenalty; // preso, cada magia custa mais empurrão
   const dmgMult = L.dmg > 0 ? usePact(w, wz) : 1;
   const dir = norm(sub(at, wz.pos));
@@ -501,6 +547,52 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     w.events.push({ k: 'fire', id: wz.id, src: 'rockpillar' });
     const pos = add(wz.pos, clampLen(sub(at, wz.pos), L.range));
     w.pillars.push({ pos, hp: OBSTACLES.rockpillar.hp, alive: true, kind: 'rockpillar', until: w.t + L.duration * wz.durF });
+  } else if (spell === 'drain') {
+    // drain.lua: reto até o ponto (no máximo o alcance), depois vira para o mago mais perto e voa mais 1,2 s
+    w.events.push({ k: 'fire', id: wz.id, src: 'drain' });
+    const turn = Math.min(len(sub(at, wz.pos)), L.range * wz.rangeF) / L.speed;
+    launch('drain', dir, turn + DRAIN.extra * wz.rangeF);
+    w.projectiles[w.projectiles.length - 1].turnAt = w.t + turn;
+  } else if (spell === 'snowball') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'snowball' });
+    launch('snowball', dir, (L.range / L.speed) * wz.rangeF);
+  } else if (spell === 'twin') {
+    // twin.lua: duas meias elipses do mago até o ponto (distância mínima para a elipse não passar do alcance de lado)
+    const range = L.range * wz.rangeF;
+    const d = Math.min(Math.max(len(sub(at, wz.pos)), TWIN.minDist, (2 * TWIN.area) / (Math.PI * range)), range);
+    const a = d / 2;
+    for (const sign of [1, -1]) {
+      w.events.push({ k: 'fire', id: wz.id, src: 'twin' });
+      launch('twin', dir, TWIN.life, null, wz.pos);
+      w.projectiles[w.projectiles.length - 1].ell = { c: add(wz.pos, scale(dir, a)), a, b: TWIN.area / (Math.PI * a), dir: scale(dir, -1), sign, t: 0 };
+    }
+  } else if (spell === 'magnetize') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'magnetize' });
+    launch('magnetize', dir, (L.range / L.speed) * wz.rangeF);
+  } else if (spell === 'recharge') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'recharge' });
+    launch('recharge', dir, (L.range / L.speed) * wz.rangeF);
+    w.projectiles[w.projectiles.length - 1].bonus = RECHARGE.perHit * wz.streak;
+  } else if (spell === 'alteration') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'alteration' });
+    wz.alterUntil = w.t + L.duration * wz.durF;
+  } else if (spell === 'link') {
+    // link.lua: voa o alcance e recolhe; preso a alguém ou a um obstáculo, fica até soltar (linkHold)
+    w.events.push({ k: 'fire', id: wz.id, src: 'link' });
+    launch('link', dir, LINK.life);
+    w.projectiles[w.projectiles.length - 1].turnAt = w.t + (L.range * wz.rangeF) / L.speed;
+  } else if (spell === 'windwalk') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'windwalk' });
+    wz.windUntil = w.t + L.duration * wz.durF;
+    wz.windMult = dmgMult;
+  } else if (spell === 'splitter') {
+    // splitter.lua: estoura no ponto se ele estiver mais perto que 1 s de voo; os 8 filhotes contam como 8 tiros
+    for (let i = 0; i < 2 * SPLITTER.waves; i++) w.events.push({ k: 'fire', id: wz.id, src: 'splitter' });
+    launch('splitter', dir, Math.min(L.range * wz.rangeF, len(sub(at, wz.pos))) / L.speed);
+  } else if (spell === 'warpzone') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'warpzone' });
+    const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range));
+    w.projectiles.push({ id: w.nextId++, kind: 'warpzone', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + L.duration * wz.durF, target: null, dmgMult, caster: wz.id });
   } else if (spell === 'lightning') {
     w.events.push({ k: 'fire', id: wz.id, src: 'lightning' });
     const end = add(wz.pos, scale(dir, L.range * wz.rangeF));
@@ -597,7 +689,7 @@ function useItem(w: World, wz: Wizard, item: ItemId, at: Vec) {
     wz.itemCd.redirector = w.t + REDIRECTOR.cd;
     wz.kbPenaltyUntil = w.t + REDIRECTOR.penaltyTime * wz.debuffMult;
     let best: Projectile | null = null;
-    for (const p of w.projectiles) if (p.owner === wz.id && p.kind !== 'meteor' && (!best || dist(p.pos, at) < dist(best.pos, at))) best = p;
+    for (const p of w.projectiles) if (p.owner === wz.id && !fixed(p) && !returning(p) && p.kind !== 'link' && (!best || dist(p.pos, at) < dist(best.pos, at))) best = p;
     if (!best) return;
     best.vel = scale(norm(sub(at, best.pos)), len(best.vel));
     best.until += REDIRECTOR.extraLife;
@@ -627,7 +719,7 @@ function scourge(w: World, wz: Wizard) {
     if (q.alive && dist(q.pos, wz.pos) <= SCOURGE.radius + OBSTACLES[q.kind].r) damagePillar(w, i, dmg, wz.id);
   });
   // também destrói bolas de fogo e mísseis inimigos dentro da explosão (pedido do Fernando, 17/10)
-  const caught = w.projectiles.filter((p) => p.owner !== wz.id && p.kind !== 'meteor' && dist(p.pos, wz.pos) <= SCOURGE.radius + PROJ_R);
+  const caught = w.projectiles.filter((p) => p.owner !== wz.id && !fixed(p) && p.kind !== 'snowball' && dist(p.pos, wz.pos) <= SCOURGE.radius + PROJ_R);
   if (caught.length) {
     w.projectiles = w.projectiles.filter((p) => !caught.includes(p));
     for (const p of caught) w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pulse', r: 0.6 });
@@ -709,18 +801,18 @@ function gravityPull(w: World, g: Projectile) {
 
 // Bumerangue (boomerangprojectile.lua): indo, segue as acelerações da curva; voltando, vira até 1000 u/s² rumo ao dono
 // a 1000 u/s e some ao encostar nele. Devolve false quando acabou
-function steerBoomerang(w: World, p: Projectile): boolean {
+function steerBoomerang(w: World, p: Projectile, dt: number): boolean {
   const owner = byId(w, p.owner);
   if (!owner) return false;
   if (p.curve) {
-    p.vel = add(p.vel, scale(p.curve.acc, DT));
+    p.vel = add(p.vel, scale(p.curve.acc, dt));
     if (w.t >= p.curve.flipAt) [p.curve.acc, p.curve.flipAt] = [p.curve.next, Infinity];
     if (w.t >= p.curve.stopAt) [p.curve, p.back] = [undefined, true];
     return true;
   }
   if (dist(owner.pos, p.pos) < WIZ_R + PROJ_R) return false;
   const want = sub(scale(norm(sub(owner.pos, p.pos)), BOOMERANG.back), p.vel);
-  p.vel = add(p.vel, scale(norm(want), Math.min(len(want), BOOMERANG.turn * DT)));
+  p.vel = add(p.vel, scale(norm(want), Math.min(len(want), BOOMERANG.turn * dt)));
   return true;
 }
 
@@ -756,41 +848,297 @@ function stepThrust(w: World, wz: Wizard) {
   }
 }
 
+// Caminhada no vento (windwalkmodifier.lua): o primeiro inimigo que encosta leva o dano e o efeito acaba (aliado atravessa)
+function windTouch(w: World, wz: Wizard) {
+  const L = spellLevel('windwalk', wz.spells.windwalk);
+  for (const o of w.wizards) {
+    if (!o.alive || o === wz || allies(wz, o) || dist(o.pos, wz.pos) > 2 * WIZ_R + WINDWALK.reach) continue;
+    wz.windUntil = 0;
+    hit(w, o, wz.id, L.dmg * wz.windMult, L.knock * wz.windMult, sub(o.pos, wz.pos), 'windwalk');
+    w.events.push({ k: 'land', id: wz.id, src: 'windwalk' });
+    return;
+  }
+}
+
+const fixed = (p: Projectile) => p.kind === 'meteor' || p.kind === 'warpzone'; // não andam
+const returning = (p: Projectile) => !!p.back && (p.kind === 'drain' || p.kind === 'recharge'); // bolinha voltando a quem lançou
+const spellOf = (k: ProjKind): SpellId => (k === 'shard' ? 'splitter' : k); // os filhotes são do Divisor
+
+// Zona de dobra (warpzone.lua): projétil de inimigo de quem a criou anda e vive mais devagar dentro dela (zonas juntas multiplicam)
+function timeScale(w: World, p: Projectile): number {
+  const owner = w.wizards.find((z) => z.id === p.owner);
+  let ts = 1;
+  for (const z of w.projectiles) {
+    if (z.kind !== 'warpzone' || z.owner === p.owner) continue;
+    const zo = w.wizards.find((o) => o.id === z.owner);
+    const L = spellLevel('warpzone', z.level);
+    if ((!zo || !allies(owner, zo)) && dist(z.pos, p.pos) <= L.radius) ts *= L.scale;
+  }
+  return ts;
+}
+
+// tempo lento: todos os prazos do projétil andam junto
+function delay(p: Projectile, d: number) {
+  p.until += d;
+  if (p.curve) [p.curve.flipAt, p.curve.stopAt] = [p.curve.flipAt + d, p.curve.stopAt + d];
+  if (p.tick !== undefined) p.tick += d;
+  if (p.turnAt !== undefined) p.turnAt += d;
+}
+
+// Magnetizar (magnetizemodifier.lua): projéteis de inimigos do magnetizado a até 300 u viram para ele (atrai) ou para longe (repele)
+function magnetPull(w: World) {
+  for (const z of w.wizards) {
+    if (!z.alive || w.t >= z.magnetUntil) continue;
+    for (const q of w.projectiles) {
+      if (fixed(q) || q.owner === z.id || allies(w.wizards.find((o) => o.id === q.owner), z)) continue;
+      const d = dist(q.pos, z.pos);
+      if (d > MAGNETIZE.r) continue;
+      // o original vira f por tique de 0,035 s; aqui a mesma curva por segundo com passos de 1/60 s
+      const f = 1 - (1 - MAGNETIZE.f * (1 - (d * d) / (MAGNETIZE.r * MAGNETIZE.r))) ** (DT / MAGNETIZE.tick);
+      q.vel = add(scale(q.vel, 1 - f), scale(norm(sub(z.pos, q.pos)), f * len(q.vel) * z.magnet));
+    }
+  }
+}
+
+// Alteração (alterationmodifier.lua): o primeiro projétil inimigo que entra na bolha indo para o mago troca de lugar com ele
+function alter(w: World, p: Projectile, next: Vec): boolean {
+  if (p.kind === 'gravity') return false;
+  const owner = w.wizards.find((z) => z.id === p.owner);
+  for (const z of w.wizards) {
+    if (!z.alive || w.t >= z.alterUntil || z.id === p.owner || allies(owner, z)) continue;
+    if (dist(next, z.pos) > spellLevel('alteration', z.spells.alteration).radius + PROJ_R || dot(p.vel, sub(z.pos, p.pos)) <= 0) continue;
+    const from = z.pos;
+    [z.pos, p.pos] = [p.pos, from];
+    z.alterUntil = 0;
+    // Gêmeos trocado sai da elipse e segue reto (senão voltaria para a curva, onde o mago agora está)
+    if (p.ell) [p.ell, p.until] = [undefined, w.t + spellLevel('twin', p.level).range / spellLevel('twin', p.level).speed];
+    w.events.push({ k: 'teleport', id: z.id, from, to: z.pos }, { k: 'land', id: z.id, src: 'alteration' });
+    return true;
+  }
+  return false;
+}
+
+// bolinha voltando a quem lançou: a do Drenar cura, a da Recarga zera a recarga (drainhealprojectile.lua, rechargerefreshprojectile.lua)
+function flyBack(w: World, p: Projectile, dt: number): boolean {
+  const to = byId(w, p.target);
+  if (!to || w.t >= p.until) return false;
+  const drain = p.kind === 'drain';
+  if (dist(to.pos, p.pos) < (drain ? DRAIN.reach : RECHARGE.reach)) {
+    if (drain) heal(to, spellLevel('drain', p.level).dmg * p.dmgMult);
+    else to.cd.recharge = w.t;
+    return false;
+  }
+  p.vel = scale(norm(sub(to.pos, p.pos)), drain ? DRAIN.back : RECHARGE.back);
+  p.pos = add(p.pos, scale(p.vel, dt));
+  return true;
+}
+
+// Drenar: no inimigo, dano (empurrão 0,2), lentidão e uma bolinha de cura que volta a quem lançou; no aliado, cura e pressa
+function drainHit(w: World, p: Projectile, wz: Wizard, L: Level) {
+  const owner = w.wizards.find((z) => z.id === p.owner);
+  const amount = L.dmg * p.dmgMult;
+  if (allies(owner, wz)) {
+    heal(wz, amount);
+    wz.haste = DRAIN.haste;
+    wz.hasteUntil = w.t + L.duration * (owner?.durF ?? 1);
+    return;
+  }
+  hit(w, wz, p.owner, amount, L.knock * p.dmgMult, p.vel, 'drain');
+  slowDown(w, wz, DRAIN.slow, L.duration * wz.debuffMult);
+  if (p.owner === p.caster) w.events.push({ k: 'land', id: p.caster, src: 'drain' });
+  w.projectiles.push({ id: w.nextId++, kind: 'drain', owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + DRAIN.life, target: p.owner, dmgMult: p.dmgMult, caster: p.caster, back: true });
+}
+
+const snowR = (level: number) => SNOWBALL.coll + SNOWBALL.perLevel * (level - 1);
+
+// Bola de neve rolando: arrasta quem encosta e, a cada 0,5 s de contato, deixa lento e marca o dano (só inimigos, como no original)
+function snowRoll(w: World, p: Projectile, at: Vec) {
+  const L = spellLevel('snowball', p.level);
+  const owner = w.wizards.find((z) => z.id === p.owner);
+  const dir = norm(p.vel);
+  for (const o of w.wizards) {
+    if (!o.alive || o.id === p.owner || allies(owner, o) || dist(at, o.pos) > WIZ_R + snowR(p.level)) continue;
+    const c = SNOWBALL.drag - dot(dir, o.vel);
+    if (c > 0) o.vel = add(o.vel, scale(dir, c));
+    if (o.snow) continue;
+    o.snow = { until: w.t + SNOWBALL.period, by: p.owner, dmg: L.dot * SNOWBALL.period * p.dmgMult };
+    slowDown(w, o, SNOWBALL.slow, SNOWBALL.period);
+    if (!p.landed && p.owner === p.caster) w.events.push({ k: 'land', id: p.caster, src: 'snowball' });
+    p.landed = true;
+  }
+}
+
+// a Bola de neve explode (fim do voo ou obstáculo): 0 na borda até dmg no centro, em todos menos quem lançou (como o Meteoro)
+function snowBlast(w: World, p: Projectile) {
+  const L = spellLevel('snowball', p.level);
+  let landed = false;
+  for (const o of w.wizards) {
+    const k = 1 - dist(o.pos, p.pos) / L.radius;
+    if (!o.alive || o.id === p.owner || k <= 0) continue;
+    hit(w, o, p.owner, L.dmg * k * p.dmgMult, L.knock * k * p.dmgMult, sub(o.pos, p.pos), 'snowball');
+    landed = true;
+  }
+  if (landed && !p.landed && p.owner === p.caster) w.events.push({ k: 'land', id: p.caster, src: 'snowball' });
+  w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'snow', r: L.radius });
+}
+
+// Gêmeos (twinprojectile.lua): anda na meia elipse com velocidade constante e acaba no ponto
+function twinStep(w: World, p: Projectile, speed: number, dt: number) {
+  const e = p.ell!;
+  e.t = Math.min(Math.PI, e.t + Math.max(0.001, (dt * speed) / Math.hypot(e.a * Math.sin(e.t), e.b * Math.cos(e.t))));
+  const x = e.a * Math.cos(e.t);
+  const y = e.sign * e.b * Math.sin(e.t);
+  p.vel = scale(sub(add(e.c, v(e.dir.x * x - e.dir.y * y, e.dir.y * x + e.dir.x * y)), p.pos), 1 / dt);
+  if (e.t >= Math.PI) p.until = w.t;
+}
+
+// Divisor: o projétil vira o lançador de filhotes (sem colisão), que anda devagar e solta 4 ondas de 2
+function split(w: World, p: Projectile) {
+  p.vel = scale(norm(p.vel), SPLITTER.spawnSpeed);
+  p.waves = SPLITTER.waves;
+  p.tick = w.t + SPLITTER.spawnLife / SPLITTER.waves;
+  p.until = Infinity; // acaba na última onda
+}
+
+// splitterspawnerprojectile.lua: filhotes simétricos que abrem menos a cada onda (a conta do original, sem normalizar)
+function spawnShards(w: World, p: Projectile, dt: number): boolean {
+  p.pos = add(p.pos, scale(p.vel, dt));
+  if (w.t < (p.tick ?? 0)) return true;
+  const d = norm(p.vel);
+  const a = SPLITTER.spawnLife * (p.waves! / SPLITTER.waves);
+  for (const s of [-1, 1]) {
+    const dir = v((d.x - s * d.y * a) / (1 + a), (d.y + s * d.x * a) / (1 + a));
+    w.projectiles.push({ id: w.nextId++, kind: 'shard', owner: p.owner, pos: p.pos, vel: scale(dir, SPLITTER.childSpeed), level: p.level, until: w.t + SPLITTER.childLife, target: null, dmgMult: p.dmgMult, caster: p.caster });
+  }
+  p.tick = (p.tick ?? 0) + SPLITTER.spawnLife / SPLITTER.waves;
+  return --p.waves! > 0;
+}
+
+// Elo preso (linkmodifier.lua): puxa o mago ligado até quem lançou (ou quem lançou até o obstáculo), com dano a cada 0,2 s no inimigo;
+// solta perto, com escudo ou Investida no ligado, ou se alguém morreu. Devolve false quando acabou
+function linkHold(w: World, p: Projectile): boolean {
+  const owner = byId(w, p.owner);
+  if (!owner) return false;
+  const L = spellLevel('link', p.level);
+  if (p.pillar !== undefined) {
+    const q = w.pillars[p.pillar];
+    if (!q.alive || dist(owner.pos, q.pos) < OBSTACLES[q.kind].r + WIZ_R + LINK.pillarGap) return false;
+    owner.vel = add(owner.vel, scale(norm(sub(q.pos, owner.pos)), L.pull * DT));
+    return true;
+  }
+  const o = byId(w, p.target);
+  if (!o || shielded(w, o) || w.t < o.rushUntil || dist(owner.pos, o.pos) < 2 * WIZ_R + LINK.wizGap) return false;
+  o.vel = add(o.vel, scale(norm(sub(owner.pos, o.pos)), L.pull * DT));
+  p.pos = o.pos;
+  if (w.t >= (p.tick ?? 0)) {
+    p.tick = w.t + LINK.tick;
+    if (!allies(owner, o)) hit(w, o, p.owner, L.dmg * LINK.tick * p.dmgMult, 0, v(0, 0), 'link');
+  }
+  return true;
+}
+
 function stepProjectiles(w: World) {
   for (const g of w.projectiles) if (g.kind === 'gravity') gravityPull(w, g);
+  magnetPull(w);
   const keep: Projectile[] = [];
+  // projéteis criados durante o passo (cura do Drenar, filhotes do Divisor) entram no fim da lista e já andam neste passo
   for (const p of w.projectiles) {
     if (p.kind === 'meteor') {
       if (w.t >= p.until) meteorLand(w, p);
       else keep.push(p);
       continue;
     }
-    const L = spellLevel(p.kind, p.level);
-    if (p.kind === 'boomerang' && (w.t >= p.until || !steerBoomerang(w, p))) continue;
+    if (p.kind === 'warpzone') {
+      if (w.t < p.until) keep.push(p);
+      continue;
+    }
+    if (p.kind === 'link' && (p.target || p.pillar !== undefined)) {
+      if (linkHold(w, p)) keep.push(p);
+      continue;
+    }
+    const ts = timeScale(w, p);
+    const dt = DT * ts;
+    if (ts < 1) delay(p, DT - dt);
+    if (returning(p)) {
+      if (flyBack(w, p, dt)) keep.push(p);
+      continue;
+    }
+    if (p.waves !== undefined) {
+      if (spawnShards(w, p, dt)) keep.push(p);
+      continue;
+    }
+    const L = spellLevel(spellOf(p.kind), p.level);
+    if (p.kind === 'boomerang' && (w.t >= p.until || !steerBoomerang(w, p, dt))) continue;
+    if (p.kind === 'link' && w.t >= (p.turnAt ?? Infinity)) {
+      // o Elo recolhe: volta a quem lançou e some perto dele (linkprojectile.lua)
+      const owner = byId(w, p.owner);
+      if (!owner || dist(owner.pos, p.pos) < LINK.gone) continue;
+      p.back = true;
+      p.vel = scale(norm(sub(owner.pos, p.pos)), L.speed);
+    }
+    if (p.kind === 'drain' && w.t >= (p.turnAt ?? Infinity)) {
+      // o Drenar vira para o mago mais perto, aliado ou inimigo (drainprojectile.lua)
+      p.turnAt = undefined;
+      let to: Wizard | null = null;
+      for (const z of w.wizards) if (z.alive && z.id !== p.owner && (!to || dist(z.pos, p.pos) < dist(to.pos, p.pos))) to = z;
+      p.vel = scale(to ? norm(sub(to.pos, p.pos)) : norm(p.vel), DRAIN.turnSpeed);
+    }
+    if (p.ell) twinStep(w, p, L.speed, dt);
     const target = p.kind === 'homing' ? byId(w, p.target) : undefined;
     if (target) {
       // gira no máximo HOMING_TURN rad/s em direção ao alvo: o atraso faz o míssil rodear antes de acertar
       const cur = Math.atan2(p.vel.y, p.vel.x);
       const want = Math.atan2(target.pos.y - p.pos.y, target.pos.x - p.pos.x);
       const diff = Math.atan2(Math.sin(want - cur), Math.cos(want - cur));
-      const a = cur + Math.max(-HOMING_TURN * DT, Math.min(HOMING_TURN * DT, diff));
+      const a = cur + Math.max(-HOMING_TURN * dt, Math.min(HOMING_TURN * dt, diff));
       const speed = len(p.vel);
       p.vel = v(Math.cos(a) * speed, Math.sin(a) * speed);
     }
-    // a Troca anda só o que falta no último passo, para parar exatamente no ponto da mira
-    const next = add(p.pos, scale(p.vel, p.kind === 'swap' ? Math.min(DT, Math.max(0, p.until - w.t)) : DT));
-    // a Gravidade não bate em mago; o Ricochete não repete o último mago tocado (pode voltar em quem lançou)
-    const found = p.kind === 'gravity' ? null : firstOnSegment(w, p.pos, next, WIZ_R + PROJ_R, p.kind === 'bouncer' ? (p.prev ?? p.owner) : p.owner);
-    const pil = firstPillarOnSegment(w, p.pos, next, PROJ_R);
+    // a Troca anda só o que falta no último passo, para parar exatamente no ponto da mira (até - agora = tempo de voo que falta)
+    const next = add(p.pos, scale(p.vel, p.kind === 'swap' ? Math.min(dt, Math.max(0, p.until - w.t - DT + dt)) : dt));
+    if (alter(w, p, next)) {
+      keep.push(p);
+      continue;
+    }
+    // a Gravidade não bate em mago; o Ricochete não repete o último mago tocado (pode voltar em quem lançou);
+    // o Magnetizar só pega quem lançou depois de quicar; a Bola de neve é grande
+    const r = p.kind === 'snowball' ? snowR(p.level) : PROJ_R;
+    let found = p.kind === 'gravity' ? null : firstOnSegment(w, p.pos, next, WIZ_R + r, p.kind === 'bouncer' || p.kind === 'magnetize' ? (p.prev ?? p.owner) : p.owner);
+    const pil = firstPillarOnSegment(w, p.pos, next, r);
+    // a Bola de neve atravessa magos (arrastando) e só para em obstáculo ou escudo
+    if (p.kind === 'snowball' && found && !shielded(w, found.wz) && (!pil || found.t <= pil.t)) {
+      snowRoll(w, p, next);
+      found = null;
+    }
     if (pil && (!found || pil.t < found.t)) {
       const q = w.pillars[pil.i];
-      // Gravidade e Ricochete quicam no obstáculo; o Bumerangue quica mais forte e volta ao dono
-      if (p.kind === 'gravity' || p.kind === 'bouncer' || p.kind === 'boomerang') {
+      // Gravidade, Ricochete, Drenar, Magnetizar e Recarga quicam no obstáculo; o Bumerangue quica mais forte e volta ao dono
+      if (p.kind === 'gravity' || p.kind === 'bouncer' || p.kind === 'boomerang' || p.kind === 'drain' || p.kind === 'magnetize' || p.kind === 'recharge') {
         bounceOff(p, q.pos, OBSTACLES[q.kind].r, p.kind === 'boomerang' ? BOOMERANG.bounceWall : undefined);
         if (p.kind === 'boomerang') [p.curve, p.back] = [undefined, true];
+        if (p.kind === 'magnetize') p.prev = ''; // depois de quicar pode pegar quem lançou (repele)
         // o Bumerangue também quebra o baú (pedido do Fernando, 17/10; no original não batia em obstáculo)
         if (p.kind === 'boomerang' && q.kind === 'chest') damagePillar(w, pil.i, spellLevel('boomerang', p.level).dmg * p.dmgMult, p.owner);
         keep.push(p);
+        continue;
+      }
+      if (p.kind === 'link') {
+        // Elo no obstáculo: quem lançou é que é puxado até ele
+        [p.pillar, p.pos, p.vel] = [pil.i, q.pos, v(0, 0)];
+        keep.push(p);
+        continue;
+      }
+      if (p.kind === 'splitter') {
+        // splitterprojectile.lua: volta pelo caminho, fora do obstáculo, e solta os filhotes para trás
+        p.pos = add(q.pos, scale(norm(sub(p.pos, q.pos)), OBSTACLES[q.kind].r + PROJ_R + BOOMERANG.gap));
+        p.vel = scale(p.vel, -1);
+        split(w, p);
+        keep.push(p);
+        continue;
+      }
+      if (p.kind === 'snowball') {
+        damagePillar(w, pil.i, L.dmg * p.dmgMult, p.owner);
+        snowBlast(w, p);
         continue;
       }
       if (p.kind === 'swap') swapEnd(w, p);
@@ -805,15 +1153,17 @@ function stepProjectiles(w: World) {
           w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
           continue;
         }
-        // o Bumerangue quica no escudo sem trocar de dono e volta (shieldmodifier.lua)
-        if (p.kind === 'boomerang') {
+        // o Bumerangue e o Elo quicam no escudo sem trocar de dono e voltam (shieldmodifier.lua)
+        if (p.kind === 'boomerang' || p.kind === 'link') {
           bounceOff(p, wz.pos, Math.max(WIZ_R, wz.shieldR));
           [p.curve, p.back] = [undefined, true];
+          if (p.kind === 'link') p.turnAt = w.t;
           w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
           keep.push(p);
           continue;
         }
         if (p.kind === 'bouncer') p.prev = wz.id;
+        p.ell = undefined; // Gêmeos refletido segue reto (no original a elipse espelhava)
         // devolve mirando onde quem atirou está agora (pedido do Fernando, 17/10: deixa o escudo mais forte);
         // se ele já morreu, volta pelo mesmo caminho. O projétil passa a ser de quem refletiu.
         const shooter = byId(w, p.owner);
@@ -857,20 +1207,54 @@ function stepProjectiles(w: World) {
         }
         if (L.dmg * p.dmgMult < BOUNCER.minDmg) continue;
         p.prev = wz.id;
-        p.pos = add(p.pos, scale(p.vel, DT * found.t));
+        p.pos = add(p.pos, scale(p.vel, dt * found.t));
         const nextTo = nearestEnemy(w, p.pos, wz.id, p.owner);
         if (nextTo) p.vel = scale(norm(sub(nextTo.pos, p.pos)), L.speed);
         p.until = w.t + (L.range / L.speed) * (byId(w, p.caster)?.rangeF ?? 1);
         keep.push(p);
+      } else if (p.kind === 'drain') {
+        drainHit(w, p, wz, L);
+      } else if (p.kind === 'magnetize') {
+        // inimigo: atrai os projéteis dos inimigos dele; aliado ou quem lançou (depois de quicar): repele
+        const enemy = wz.id !== p.owner && !allies(w.wizards.find((z) => z.id === p.owner), wz);
+        wz.magnet = enemy ? 1 : -1;
+        wz.magnetUntil = w.t + L.duration * (enemy ? wz.debuffMult : wz.durF);
+        if (enemy && p.owner === p.caster) w.events.push({ k: 'land', id: p.caster, src: 'magnetize' });
+      } else if (p.kind === 'recharge') {
+        // dano + 1 por acerto seguido; acerto sem reflexo soma, o resto zera; a recarga volta para quem a lançou por último
+        const dmg = L.dmg + (p.bonus ?? 0);
+        hit(w, wz, p.owner, dmg * p.dmgMult, L.knock * (dmg / L.dmg) * p.dmgMult, p.vel, 'recharge');
+        const caster = w.wizards.find((z) => z.id === p.caster);
+        const enemy = !allies(w.wizards.find((z) => z.id === p.owner), wz);
+        if (caster) caster.streak = p.owner === p.caster && enemy ? caster.streak + 1 : 0;
+        if (p.owner === p.caster && enemy) w.events.push({ k: 'land', id: p.caster, src: 'recharge' });
+        if (enemy) w.projectiles.push({ id: w.nextId++, kind: 'recharge', owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + RECHARGE.life, target: p.owner, dmgMult: 1, caster: p.caster, back: true });
+      } else if (p.kind === 'link') {
+        // preso: fica no mago até soltar (linkHold)
+        [p.target, p.pos, p.vel, p.tick] = [wz.id, wz.pos, v(0, 0), w.t + LINK.tick];
+        if (p.owner === p.caster && !allies(w.wizards.find((z) => z.id === p.owner), wz)) w.events.push({ k: 'land', id: p.caster, src: 'link' });
+        keep.push(p);
+      } else if (p.kind === 'splitter') {
+        split(w, p); // não causa dano: só estoura em filhotes
+        keep.push(p);
       } else {
-        hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel, p.kind);
-        if (p.owner === p.caster) w.events.push({ k: 'land', id: p.caster, src: p.kind as AimSrc });
+        const src = spellOf(p.kind);
+        hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel, src);
+        if (p.owner === p.caster) w.events.push({ k: 'land', id: p.caster, src: src as AimSrc });
       }
       continue;
     }
     p.pos = next;
     if (p.kind === 'swap' ? w.t + DT < p.until : w.t < p.until) keep.push(p);
     else if (p.kind === 'swap') swapEnd(w, p);
+    else if (p.kind === 'snowball') snowBlast(w, p);
+    else if (p.kind === 'splitter') {
+      split(w, p);
+      keep.push(p);
+    } else if (p.kind === 'recharge') {
+      const caster = w.wizards.find((z) => z.id === p.caster);
+      if (caster) caster.streak = 0; // errou: zera os acertos seguidos
+    }
   }
   w.projectiles = keep;
 }
@@ -883,6 +1267,7 @@ function separate(w: World) {
     for (let j = i + 1; j < alive.length; j++) {
       const a = alive[i];
       const b = alive[j];
+      if (w.t < a.windUntil || w.t < b.windUntil) continue; // Caminhada no vento atravessa magos
       const d = sub(b.pos, a.pos);
       const l = len(d);
       const overlap = 2 * WIZ_R - l;
@@ -919,6 +1304,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
   Object.assign(wz, {
     alive: true, pos: best, vel: v(0, 0), target: null, casting: null, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
     shieldUntil: 0, kbPenaltyUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
+    slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0,
   });
 }
 
@@ -951,7 +1337,14 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     wz.zone = 0;
     for (const z of w.zones) if (dist(z.pos, wz.pos) < z.r + WIZ_R * 0.5) wz.zone |= z.kind === 'slow' ? 1 : z.kind === 'burn' ? 2 : 0;
     if (wz.zone & 2 && w.t >= wz.invulnUntil) wz.hp -= ZONES.burn.dps * DT;
-    wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + (w.t < wz.rushUntil ? wz.rushBonus : 0)) * (wz.zone & 1 ? ZONES.slow.mult : 1));
+    // Bola de neve: o efeito de 0,5 s acaba e o dano marcado sai, sem empurrão (snowballmodifier.lua)
+    if (wz.snow && w.t >= wz.snow.until) {
+      const s = wz.snow;
+      wz.snow = null;
+      hit(w, wz, s.by, s.dmg, 0, v(0, 0), 'snowball');
+    }
+    const extra = (w.t < wz.rushUntil ? wz.rushBonus : 0) + (w.t < wz.hasteUntil ? wz.haste : 0) + (w.t < wz.windUntil ? WINDWALK.speed : 0) - (w.t < wz.slowUntil ? wz.slow : 0);
+    wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1));
     if (rooted) wz.target = null;
   }
 
@@ -1006,6 +1399,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       }
     }
     stepThrust(w, wz);
+    if (w.t < wz.windUntil) windTouch(w, wz);
     // redemoinho do choque de pulso: puxa devagar para o centro
     for (const z of w.zones) {
       const d = sub(z.pos, wz.pos);

@@ -1,21 +1,24 @@
-export type SpellId = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'swap' | 'grip' | 'meteor' | 'rush' | 'cluster' | 'boomerang' | 'thrust' | 'gravity' | 'rockpillar' | 'bouncer';
-export const SPELL_IDS: SpellId[] = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap', 'grip', 'meteor', 'rush', 'cluster', 'boomerang', 'thrust', 'gravity', 'rockpillar', 'bouncer'];
+export type SpellId = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'swap' | 'grip' | 'meteor' | 'rush' | 'cluster' | 'boomerang' | 'thrust' | 'gravity' | 'rockpillar' | 'bouncer'
+  | 'drain' | 'snowball' | 'twin' | 'magnetize' | 'recharge' | 'alteration' | 'link' | 'windwalk' | 'splitter' | 'warpzone';
+export const SPELL_IDS: SpellId[] = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap', 'grip', 'meteor', 'rush', 'cluster', 'boomerang', 'thrust', 'gravity', 'rockpillar', 'bouncer',
+  'drain', 'snowball', 'twin', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone'];
 // decisão do Fernando (17/10): no máximo 6 magias por mago (a Bola de fogo conta)
 export const MAX_SPELLS = 6;
 
 import { FRICTION, KB_PER_DMG, UNIT } from './constants.ts';
 
 // radius: raio da explosão do Meteoro (e do dano da Gravidade); dmgMin: dano na borda dele; absorb: dano que a Investida converte em velocidade;
-// pull: puxão da Gravidade nos magos (m/s²)
-export type Level = { cd: number; dmg: number; knock: number; speed: number; range: number; duration: number; radius: number; dmgMin: number; absorb: number; pull: number };
+// pull: puxão da Gravidade nos magos (m/s²); scale: tempo dos projéteis inimigos na Zona de dobra; dot: dano por segundo da Bola de neve encostada
+export type Level = { cd: number; dmg: number; knock: number; speed: number; range: number; duration: number; radius: number; dmgMin: number; absorb: number; pull: number; scale: number; dot: number };
 type Spell = { key: string; name: string; cost: number; up: number[]; levels: Level[] };
 
 export const MAX_SPELL_LEVEL = 7;
 
 // os 7 níveis do original (npc_abilities_custom.txt e npc_items_custom.txt); dano na escala de vida 100, distâncias em metros (UNIT)
 // kbf = fator de empurrão da magia no original (o raio empurra 0,92 do normal)
-const L = ({ kbf = 1, ...l }: Partial<Level> & { kbf?: number }): Level => ({ cd: 0, dmg: 0, speed: 0, range: 0, duration: 0, radius: 0, dmgMin: 0, absorb: 0, pull: 0, ...l, knock: (l.dmg ?? 0) * KB_PER_DMG * kbf });
+const L = ({ kbf = 1, ...l }: Partial<Level> & { kbf?: number }): Level => ({ cd: 0, dmg: 0, speed: 0, range: 0, duration: 0, radius: 0, dmgMin: 0, absorb: 0, pull: 0, scale: 0, dot: 0, ...l, knock: (l.dmg ?? 0) * KB_PER_DMG * kbf });
 const zip = (a: number[], b: number[]) => a.map((x, i) => [x, b[i]]);
+const steps = (from: number, by: number) => Array.from({ length: MAX_SPELL_LEVEL }, (_, i) => Math.round((from + by * i) * 100) / 100);
 
 export const SPELLS: Record<SpellId, Spell> = {
   fireball: { key: 'Q', name: 'Bola de fogo', cost: 0, up: [7, 7, 7, 7, 7, 7], levels: [70, 77, 84, 91, 98, 105, 112].map((d) => L({ cd: 4.8, dmg: d / 10, speed: 1000 * UNIT, range: 1000 * UNIT })) },
@@ -46,6 +49,28 @@ export const SPELLS: Record<SpellId, Spell> = {
   rockpillar: { key: 'Z', name: 'Pilar de pedra', cost: 13, up: [5, 6, 7, 8, 9, 10], levels: zip([26, 24, 22, 20, 18, 16, 14], [650, 725, 800, 875, 950, 1025, 1100]).map(([cd, r]) => L({ cd, duration: 4, range: r * UNIT })) },
   // ricochete: 900 u/s, vive 1 s e renova a cada mago tocado; perde 30% a cada inimigo acertado; empurrão 1,2
   bouncer: { key: 'A', name: 'Ricochete', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([19, 18, 17, 16, 15, 14, 13], [54, 62, 70, 78, 86, 94, 102]).map(([cd, d]) => L({ cd, dmg: d / 10, kbf: 1.2, speed: 900 * UNIT, range: 900 * UNIT })) },
+  // as dez restantes do Warlock Brawl (dono do jogo, 17/10): npc_abilities_custom.txt, base/shop.lua, spells/, projectiles/ e modifiers/
+  // drenar: 700 u/s até o ponto (máx. 850 u), depois vira para o mago mais perto; duration = lentidão no inimigo e pressa no aliado; empurrão 0,2
+  drain: { key: 'N', name: 'Drenar', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(22, -1).map((cd, i) => L({ cd, dmg: (60 + 10 * i) / 10, kbf: 0.2, speed: 700 * UNIT, range: 850 * UNIT, duration: 4 + i })) },
+  // bola de neve: 400 u/s por 575 u; dmg = explosão no centro (damage_max; 0 na borda do raio de 200 u; empurrão 0,8); dot = damage, por segundo encostado
+  snowball: { key: 'O', name: 'Bola de neve', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(19, -1).map((cd, i) => L({ cd, dmg: (45 + 15 * i) / 10, kbf: 0.8, dot: (30 + 5 * i) / 10, speed: 400 * UNIT, range: 575 * UNIT, radius: 200 * UNIT })) },
+  // gêmeos: dois projéteis de 1000 u/s em meia elipse até o ponto (máx. 800 u)
+  twin: { key: 'J', name: 'Gêmeos', cost: 12, up: [7, 8, 9, 10, 11, 12], levels: zip([16, 13.9, 12.5, 11.7, 11, 10.3, 9.6], [44, 48, 52, 56, 62, 66, 72]).map(([cd, d]) => L({ cd, dmg: d / 10, speed: 1000 * UNIT, range: 800 * UNIT })) },
+  // magnetizar: projétil de 800 u/s por 1,2 s (960 u); duration = tempo magnetizado
+  magnetize: { key: 'M', name: 'Magnetizar', cost: 14, up: [5, 6, 7, 8, 9, 10], levels: steps(22, -1).map((cd, i) => L({ cd, duration: 3.5 + 0.5 * i, speed: 800 * UNIT, range: 960 * UNIT })) },
+  // recarga: 900 u/s por 1 s; +1 de dano por acerto seguido (RECHARGE)
+  recharge: { key: 'K', name: 'Recarga', cost: 13, up: [6, 7, 8, 9, 10, 11], levels: zip([23.5, 22, 21, 20.5, 20, 19.5, 19], [60, 67, 74, 81, 88, 95, 102]).map(([cd, d]) => L({ cd, dmg: d / 10, speed: 900 * UNIT, range: 900 * UNIT })) },
+  // alteração: por 2 s, troca de lugar com o primeiro projétil inimigo que entrar na bolha de 120 u indo para o mago
+  alteration: { key: 'L', name: 'Alteração', cost: 11, up: [5, 6, 7, 8, 9, 10], levels: steps(19, -1.5).map((cd) => L({ cd, duration: 2, radius: 120 * UNIT })) },
+  // elo: 950 u/s por 860 u e volta; preso, puxa a 1550 u/s²; dmg = dano por segundo no inimigo (sem empurrão).
+  // AbilityCooldown do original tem só 6 valores (17 a 7): o nível 7 repete o 7, como o Dota faz
+  link: { key: 'U', name: 'Elo', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([17, 15, 13, 11, 9, 7, 7], [12, 20, 28, 36, 44, 52, 60]).map(([cd, d]) => L({ cd, dmg: d / 10, kbf: 0, speed: 950 * UNIT, range: 860 * UNIT, pull: 1550 * UNIT })) },
+  // caminhada no vento: 2,6 s invisível e +200 u/s; o primeiro inimigo encostado leva o dano (empurrão normal)
+  windwalk: { key: 'I', name: 'Caminhada no vento', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([29, 26, 23.5, 21, 19.5, 18.5, 17.5], [54, 60, 66, 72, 78, 84, 90]).map(([cd, d]) => L({ cd, dmg: d / 10, duration: 2.6 })) },
+  // divisor: 700 u/s por até 1 s (ou até o ponto); dmg = dano de cada um dos 8 filhotes
+  splitter: { key: 'P', name: 'Divisor', cost: 15, up: [7, 8, 9, 10, 11, 12], levels: steps(24, -1).map((cd, i) => L({ cd, dmg: (30 + 5 * i) / 10, speed: 700 * UNIT, range: 700 * UNIT })) },
+  // zona de dobra: esfera de 4,5 s a até 700 u; scale = tempo dos projéteis inimigos dentro dela
+  warpzone: { key: '', name: 'Zona de dobra', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([23, 21, 20, 19, 18, 17, 16], steps(0.4, -0.04)).map(([cd, scale], i) => L({ cd, duration: 4.5, scale, radius: (200 + 10 * i) * UNIT, range: 700 * UNIT })) },
 };
 
 // agarrar: empurrão recebido −67% e cada magia lançada preso soma 5 (0,5 aqui) ao dano acumulado (gripmodifier.lua)
@@ -70,9 +95,31 @@ export const THRUST = { start: 0.77, accel: FRICTION, extra: 0.09, endSlow: 0.2,
 export const GRAVITY = { wizR: 550 * UNIT, projR: 600 * UNIT, projPull: 1650 * UNIT, tick: 0.2 };
 // ricochete (bouncerprojectile.lua): cada inimigo acertado tira 30% do dano; abaixo de 10 (1 aqui) some
 export const BOUNCER = { decay: 0.7, minDmg: 1 };
+// drenar (drain.lua, drainprojectile.lua, drainhealprojectile.lua): depois do ponto voa mais 1,2 s a 600 u/s rumo ao mago mais perto
+// (aliado ou inimigo); no inimigo −50 u/s, no aliado +50 u/s; a cura volta a 650 u/s e chega a 64 u de quem lançou; life: teto da volta
+export const DRAIN = { extra: 1.2, turnSpeed: 600 * UNIT, slow: 50 * UNIT, haste: 50 * UNIT, back: 650 * UNIT, reach: 64 * UNIT, life: 10 };
+// bola de neve (snowballprojectile.lua, snowballmodifier.lua): rola atravessando magos e os arrasta a 425 u/s; quem encosta fica −100 u/s
+// por 0,5 s e leva dot × 0,5 no fim (sem empurrão); bolha de 75 u + 2 u por nível
+export const SNOWBALL = { drag: 425 * UNIT, slow: 100 * UNIT, period: 0.5, coll: 75 * UNIT, perLevel: 2 * UNIT };
+// gêmeos (twin.lua, twinprojectile.lua): elipse de área 450² u² (a = metade da distância, b = área ÷ (π a)); life: teto de segurança
+export const TWIN = { area: 450 * 450 * UNIT * UNIT, minDist: 10 * UNIT, life: 4 };
+// magnetizar (magnetizemodifier.lua): projéteis inimigos do magnetizado até 300 u viram 20%·(1 − d²/300²) por tique de 0,035 s
+export const MAGNETIZE = { r: 300 * UNIT, f: 0.2, tick: 0.035 };
+// recarga (recharge.lua, rechargerefreshprojectile.lua): +10 (1 aqui) por acerto seguido; a volta anda 400 u/s e zera a recarga a 64 u
+export const RECHARGE = { perHit: 1, back: 400 * UNIT, reach: 64 * UNIT, life: 10 };
+// elo (link.lua, linkprojectile.lua, linkmodifier.lua): recolhe e some a 75 u do dono; preso, solta a 100 u entre os centros (40 u além
+// do contato de 60 u) ou a 120 u do obstáculo (30 u além); dano a cada 0,2 s; life: teto de segurança do voo
+export const LINK = { gone: 75 * UNIT, wizGap: 40 * UNIT, pillarGap: 30 * UNIT, tick: 0.2, life: 6 };
+// caminhada no vento (windwalkmodifier.lua): +200 u/s; bolha de 60 u em volta do mago de 30 u: encosta 30 u antes do contato
+export const WINDWALK = { speed: 200 * UNIT, reach: 30 * UNIT };
+// divisor (splitter.lua, splitterspawnerprojectile.lua, splitterchildprojectile.lua): o lançador anda 250 u/s por 0,48 s e solta 4 ondas
+// de 2 filhotes; filhotes a 600 u/s por 1,2 s
+export const SPLITTER = { spawnSpeed: 250 * UNIT, spawnLife: 0.48, waves: 4, childSpeed: 600 * UNIT, childLife: 1.2 };
+
 
 // tempo de conjuração: a magia sai esse tempo depois da tecla (AbilityCastPoint do original era 0,2 s)
-export const CAST_POINT: Record<SpellId, number> = { fireball: 0.1, lightning: 0.1, homing: 0.1, shield: 0, teleport: 0, swap: 0, grip: 0.1, meteor: 0.1, rush: 0, cluster: 0.1, boomerang: 0.1, thrust: 0, gravity: 0.1, rockpillar: 0, bouncer: 0.1 }; // original 0,2 s (Estocada 0); 0,1 s a pedido do Fernando (17/10)
+export const CAST_POINT: Record<SpellId, number> = { fireball: 0.1, lightning: 0.1, homing: 0.1, shield: 0, teleport: 0, swap: 0, grip: 0.1, meteor: 0.1, rush: 0, cluster: 0.1, boomerang: 0.1, thrust: 0, gravity: 0.1, rockpillar: 0, bouncer: 0.1,
+  drain: 0.1, snowball: 0.1, twin: 0.1, magnetize: 0.1, recharge: 0.1, alteration: 0, link: 0.1, windwalk: 0, splitter: 0, warpzone: 0.1 }; // Alteração, Caminhada e Divisor: 0 no original // original 0,2 s (Estocada 0); 0,1 s a pedido do Fernando (17/10)
 
 export const spellLevel = (id: SpellId, level: number): Level => SPELLS[id].levels[Math.max(1, Math.min(MAX_SPELL_LEVEL, level)) - 1];
 
@@ -82,6 +129,7 @@ export function priceOf(id: SpellId, level: number): number | null {
   return level === 0 ? SPELLS[id].cost : SPELLS[id].up[level - 1];
 }
 
-export const noSpells = (): Record<SpellId, number> => ({ fireball: 1, lightning: 0, homing: 0, shield: 0, teleport: 0, swap: 0, grip: 0, meteor: 0, rush: 0, cluster: 0, boomerang: 0, thrust: 0, gravity: 0, rockpillar: 0, bouncer: 0 });
+export const noSpells = (): Record<SpellId, number> => ({ fireball: 1, lightning: 0, homing: 0, shield: 0, teleport: 0, swap: 0, grip: 0, meteor: 0, rush: 0, cluster: 0, boomerang: 0, thrust: 0, gravity: 0, rockpillar: 0, bouncer: 0,
+  drain: 0, snowball: 0, twin: 0, magnetize: 0, recharge: 0, alteration: 0, link: 0, windwalk: 0, splitter: 0, warpzone: 0 });
 
 export const spellCount = (spells: Record<SpellId, number>) => SPELL_IDS.filter((s) => spells[s] > 0).length;

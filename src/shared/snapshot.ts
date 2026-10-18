@@ -20,22 +20,32 @@ export function publicEvents(events: SimEvent[], pub: (id: string) => string): S
 
 export function encodeSnap(w: World, forId: string, ack: number, events: SimEvent[]): Snap {
   const wz: number[] = [];
+  const me = w.wizards.find((z) => z.id === forId);
+  const linked = new Set(w.projectiles.filter((p) => p.kind === 'link' && p.target).map((p) => p.target));
   for (const z of w.wizards) {
-    // bits: 1 vivo, 2 escudo, 4 lento (chão arcano), 512 queimando (chão de fogo), 8 vulnerável (Redirecionador), 16 atordoado (arremessado), 32 invulnerável, 64 Pacto armado, 128 preso (Agarrar), 256 Investida
+    // bits: 1 vivo, 2 escudo, 4 lento (chão arcano, Drenar, Bola de neve), 512 queimando (chão de fogo), 8 vulnerável (Redirecionador), 16 atordoado (arremessado), 32 invulnerável, 64 Pacto armado, 128 preso (Agarrar), 256 Investida,
+    // 1024 Caminhada no vento (quem anda e os aliados veem), 2048 invisível para quem recebe (o cliente esconde), 4096 acelerado (Drenar),
+    // 8192 magnetizado atraindo, 16384 magnetizado repelindo, 32768 Alteração, 65536 preso pelo Elo
+    const hidden = z.id !== forId && !(me && me.team !== null && me.team === z.team);
     const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0) | (w.t < z.kbPenaltyUntil ? 8 : 0)
       | (Math.hypot(z.vel.x, z.vel.y) > STUN_SPEED ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
-      | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 ? 4 : 0) | (z.zone & 2 ? 512 : 0);
+      | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 || w.t < z.slowUntil ? 4 : 0) | (z.zone & 2 ? 512 : 0)
+      | (w.t < z.windUntil ? (hidden ? 2048 : 1024) : 0) | (w.t < z.hasteUntil ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)
+      | (w.t < z.alterUntil ? 32768 : 0) | (linked.has(z.id) ? 65536 : 0);
     // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão
     const dash = w.t < z.dashUntil ? z.dashVel : { x: 0, y: 0 };
     wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x + dash.x), r2(z.vel.y + dash.y), Math.ceil(z.hp), r2(z.facing), bits);
   }
   const p: number[] = [];
-  // o meteoro não anda: no lugar da velocidade vão o raio da explosão e os segundos que faltam para cair
+  // o meteoro e a Zona de dobra não andam: no lugar da velocidade vão o raio e os segundos que faltam;
+  // o Elo manda a posição de quem lançou (o cliente desenha o fio até ela)
   for (const q of w.projectiles) {
-    const meteor = q.kind === 'meteor';
-    p.push(q.id, PROJ_KINDS.indexOf(q.kind), r2(q.pos.x), r2(q.pos.y), r2(meteor ? spellLevel('meteor', q.level).radius : q.vel.x), r2(meteor ? Math.max(0, q.until - w.t) : q.vel.y));
+    const still = q.kind === 'meteor' || q.kind === 'warpzone' ? q.kind : null;
+    const tail = q.kind === 'link' ? w.wizards.find((z) => z.id === q.owner)?.pos : undefined;
+    const a = still ? spellLevel(still, q.level).radius : (tail ?? q.vel).x;
+    const b = still ? Math.max(0, q.until - w.t) : (tail ?? q.vel).y;
+    p.push(q.id, PROJ_KINDS.indexOf(q.kind), r2(q.pos.x), r2(q.pos.y), r2(a), r2(b));
   }
-  const me = w.wizards.find((z) => z.id === forId);
   const cd = SPELL_IDS.map((s) => (me ? r2(Math.max(0, me.cd[s] - w.t)) : 0));
   const icd = ACTIVE_ITEMS.map((i) => (me ? r2(Math.max(0, me.itemCd[i] - w.t)) : 0));
   const snap: Snap = { t: 'snap', time: r2(w.t * 1000) / 1000, r: r2(w.arenaR), s: r2(w.shrinkAt), w: wz, p, cd, icd, sp: r2(me?.speed ?? 0), pl: w.pillars.flatMap((q) => [r2(q.pos.x), r2(q.pos.y), q.alive ? (Number.isFinite(q.hp) ? Math.ceil((q.hp / OBSTACLES[q.kind].hp) * 100) : 100) : 0, OBSTACLE_KINDS.indexOf(q.kind)]), ack };
@@ -50,7 +60,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
 }
 
 export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number };
-// meteor: vel = (raio, segundos até cair)
+// meteor e warpzone: vel = (raio, segundos que faltam); link: vel = posição de quem lançou
 export type ProjView = { id: number; kind: ProjKind; pos: Vec; vel: Vec };
 export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
 export type SnapView = { time: number; arenaR: number; shrinkAt: number; wizards: WizView[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[] };

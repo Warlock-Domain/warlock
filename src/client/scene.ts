@@ -225,6 +225,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     boomerang: { mat: swapMat, halo: '#7dff5a', trail: '#5ad040', tex: FX.spark, size: 0.85 },
     gravity: { mat: homingMat, halo: '#3b2bff', trail: '#6a3cff', tex: FX.magic, size: 1.5 },
     bouncer: { mat: gripMat, halo: '#3cff9a', trail: '#20d080', tex: FX.magic, size: 0.8 },
+    drain: { mat: gripMat, halo: '#9aff4a', trail: '#5ac020', tex: FX.magic, size: 0.9 },
+    snowball: { mat: swapMat, halo: '#cfefff', trail: '#e8f6ff', tex: FX.smoke, size: 1.2 },
+    twin: { mat: homingMat, halo: '#ff5ad0', trail: '#e040b0', tex: FX.spark, size: 0.8 },
+    magnetize: { mat: gripMat, halo: '#ff4040', trail: '#c0c0d0', tex: FX.spark, size: 1 },
+    recharge: { mat: swapMat, halo: '#3aa8ff', trail: '#5ac8ff', tex: FX.spark, size: 0.9 },
+    link: { mat: swapMat, halo: '#6aa8ff', trail: '#4a88ff', tex: FX.magic, size: 0.8 },
+    splitter: { mat: swapMat, halo: '#40c8ff', trail: '#30a0ff', tex: FX.magic, size: 1 },
+    shard: { mat: swapMat, halo: '#8fd8ff', trail: '#60b8ff', tex: FX.spark, size: 0.6 },
+    warpzone: { mat: swapMat, halo: '#7ad8ff', trail: '#7ad8ff', tex: FX.magic, size: 1 },
   };
   // corpo de cada projétil: formas low-poly próprias em vez da mesma bola de luz (pedido do Fernando, 17/10;
   // não há modelos CC0 prontos para magias, então são feitas aqui com as geometrias do Three.js)
@@ -292,6 +301,43 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       return g;
     },
     bouncer: () => new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), flat('#7dffb8', '#10c070', 1.2)),
+    drain: () => {
+      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.18), flat('#c8ff9a', '#3a9a10', 1.2));
+      m.scale.set(0.7, 0.7, 1.7); // espinho verde apontando para onde voa
+      return m;
+    },
+    snowball: () => new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.42, 1), 0.15), flat('#f4fbff', '#9ad8ff', 0.35)),
+    twin: () => new THREE.Mesh(new THREE.OctahedronGeometry(0.16), flat('#ffd0f0', '#ff40c0', 1.3)),
+    magnetize: () => {
+      // ímã em U: arco vermelho com pontas prateadas
+      const g = new THREE.Group();
+      const arc = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.06, 6, 16, Math.PI), flat('#ff4a4a', '#a00000', 0.8));
+      arc.rotation.x = -Math.PI / 2;
+      g.add(arc);
+      for (const x of [-0.2, 0.2]) {
+        const tip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.12), flat('#e0e0e8', '#404050', 0.4));
+        tip.position.set(x, 0, 0.04);
+        g.add(tip);
+      }
+      return g;
+    },
+    recharge: () => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.36, 8), flat('#9ae6ff', '#1a90ff', 1.3));
+      m.rotation.x = Math.PI / 2; // pilha deitada apontando para a frente
+      return m;
+    },
+    link: () => new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.04, 6, 16), flat('#bfe6ff', '#2a7aff', 1.2)),
+    splitter: () => new THREE.Mesh(new THREE.DodecahedronGeometry(0.22, 0), flat('#a0f0ff', '#2080ff', 1.2)),
+    shard: () => new THREE.Mesh(new THREE.TetrahedronGeometry(0.13), flat('#d0f4ff', '#40a0ff', 1.4)),
+    warpzone: () => {
+      // cúpula de vidro com borda no chão; raio 1 aqui, o tamanho real vem do servidor
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#7ad8ff', transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide })));
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.02, 4, 48), new THREE.MeshBasicMaterial({ color: '#bfefff', transparent: true, opacity: 0.6 }));
+      rim.rotation.x = -Math.PI / 2;
+      g.add(rim);
+      return g;
+    },
   };
   const projs = new Map<number, THREE.Group>();
   const fx: Fx[] = [];
@@ -497,6 +543,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     pulse: { map: FX.circle, color: '#9f7bff', secs: 3, spin: 0.8 },
     detonate: { map: FX.spark, color: '#8fd3ff', secs: 3.5, spin: 0.5 },
     pillar: { map: FX.scorch, color: '#ffb066', secs: 4, spin: 0 },
+    snow: { map: FX.circle, color: '#dff4ff', secs: 3, spin: 0.4 },
   };
   function groundMark(at: Vec, combo: string, radius: number) {
     const m = MARK[combo] ?? MARK.fire;
@@ -695,7 +742,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       } else if (e.k === 'clash') {
         const at = v(e.x, e.y);
         groundMark(at, e.combo, e.r);
-        if (e.combo !== 'pillar') {
+        if (e.combo !== 'pillar' && e.combo !== 'snow') {
           shake = Math.min(0.6, shake + e.r * 0.15);
           burst(at, '#fff1d0', e.r * 2.2, 0.25, 0.9, FX.light);
           burst(at, '#ffb347', e.r * 1.8, 0.5, 0.9, FX.fire);
@@ -714,6 +761,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           burst(at, '#c46bff', 3.6, 0.5, 0.9, FX.magic);
           burst(at, '#ffd27a', 2.8, 0.4, 0.9, FX.fire);
           smoke(at, 2, 1.2);
+        } else if (e.combo === 'snow') {
+          shockwave(at, e.r, '#e8f8ff');
+          burst(at, '#ffffff', e.r * 2, 0.4, 0.8, FX.smoke);
+          burst(at, '#bfe8ff', e.r * 1.4, 0.35, 0.9, FX.spark);
         } else if (e.combo === 'detonate') {
           shockwave(at, e.r, '#9fd0ff');
           burst(at, '#e6f4ff', 2.6, 0.35, 0.9, FX.spark);
@@ -751,6 +802,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         halo.scale.setScalar(1.2 * look.size);
         halo.material.opacity = 0.7;
         g.add(core, halo);
+        if (p.kind === 'warpzone') {
+          core.scale.setScalar(p.vel.x); // vel.x = raio
+          halo.visible = false;
+        }
+        if (p.kind === 'link') {
+          // fio do Elo até quem lançou (vel = posição dele)
+          const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1, 6).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#7ab8ff', transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+          g.add(beam);
+        }
         if (p.kind === 'meteor') {
           // aviso no chão: círculo do tamanho da explosão, que pulsa até a pedra cair
           const warn = new THREE.Mesh(scorchGeo, new THREE.MeshBasicMaterial({ map: FX.circle, color: '#ff3a1a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -766,19 +826,28 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         g.position.copy(w3(p.pos, y));
         g.children[2].position.y = 0.04 - y;
         ((g.children[2] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.sin(performance.now() / 70);
-      } else g.position.copy(w3(p.pos, 0.9));
+      } else if (p.kind === 'warpzone') g.position.copy(w3(p.pos, 0));
+      else g.position.copy(w3(p.pos, 0.9));
+      if (p.kind === 'link') {
+        const dx = p.vel.x - p.pos.x, dz = p.vel.y - p.pos.y;
+        const beam = g.children[2];
+        beam.position.set(dx / 2, 0, dz / 2);
+        beam.rotation.y = Math.atan2(dx, dz);
+        beam.scale.set(1, 1, Math.hypot(dx, dz));
+      }
       // giro e direção: aponta para onde voa; anéis, bumerangue e pedras giram
       const body = g.children[0];
       const t = performance.now() / 1000;
-      if (p.kind !== 'meteor' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
+      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
       if (p.kind === 'boomerang') body.rotation.y = t * 18;
-      else if (p.kind === 'fireball' || p.kind === 'meteor' || p.kind === 'cluster' || p.kind === 'bouncer') body.rotation.set(t * 3, t * 4, 0);
+      else if (p.kind === 'fireball' || p.kind === 'meteor' || p.kind === 'cluster' || p.kind === 'bouncer' || p.kind === 'snowball' || p.kind === 'splitter' || p.kind === 'shard') body.rotation.set(t * 3, t * 4, 0);
+      else if (p.kind === 'link') body.rotation.y = t * 6;
       body.traverse((o) => {
         if (o !== body && o.name === 'spin') o.rotation.y = t * 6; // anel simétrico: girar no próprio eixo não aparece
       });
       // rastro: brasas que ficam para trás e somem
       const look = LOOK[p.kind];
-      if (Math.random() < 0.7) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, look.tex);
+      if (p.kind !== 'warpzone' && Math.random() < 0.7) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
@@ -814,7 +883,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.hpFill.style.background = tint;
         m.nameEl.style.color = d.team != null ? COLORS[d.color] : '';
       }
-      m.root.visible = true;
+      const hidden = (d.status & 2048) > 0; // Caminhada no vento de um inimigo
+      m.root.visible = !hidden;
       m.root.position.copy(w3(d.pos));
       m.root.rotation.y = Math.PI / 2 - d.facing;
       m.shield.visible = d.shield && d.alive;
@@ -834,12 +904,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         }
         if (now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.moving ? 'Running_A' : 'Idle');
       }
-      m.label.hidden = !d.alive;
+      m.label.hidden = !d.alive || hidden;
       // ícones de efeito em cima do mago (negativos primeiro)
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
-        const icons: [number, string, string][] = [[16, '💫', 'atordoado'], [8, '⚠️', 'vulnerável'], [32, '✨', 'invulnerável'], [64, '🩸', 'Pacto armado'], [128, '⛓️', 'preso'], [256, '💨', 'Investida'], [4, '🐌', 'lento (chão arcano)'], [512, '🔥', 'queimando']];
-        m.statusEl.replaceChildren(...icons.filter(([bit]) => d.status & bit).map(([bit, ico, name]) => Object.assign(document.createElement('i'), { textContent: ico, title: name, className: [16, 4, 8, 128].includes(bit) ? 'bad' : 'good' })));
+        const icons: [number, string, string][] = [[16, '💫', 'atordoado'], [8, '⚠️', 'vulnerável'], [32, '✨', 'invulnerável'], [64, '🩸', 'Pacto armado'], [128, '⛓️', 'preso'], [256, '💨', 'Investida'], [4, '🐌', 'lento'], [512, '🔥', 'queimando'],
+          [65536, '🔗', 'preso pelo Elo'], [8192, '🧲', 'magnetizado: atrai projéteis'], [16384, '🧲', 'magnetizado: afasta projéteis'], [1024, '👻', 'invisível (Caminhada no vento)'], [4096, '🏃', 'acelerado'], [32768, '🔀', 'Alteração']];
+        m.statusEl.replaceChildren(...icons.filter(([bit]) => d.status & bit).map(([bit, ico, name]) => Object.assign(document.createElement('i'), { textContent: ico, title: name, className: [16, 4, 8, 128, 65536, 8192].includes(bit) ? 'bad' : 'good' })));
       }
       m.hpFill.style.width = `${Math.max(0, Math.min(100, (d.hp / d.hpMax) * 100))}%`;
       m.hpText.textContent = `${Math.max(0, Math.ceil(d.hp))}/${d.hpMax}`;

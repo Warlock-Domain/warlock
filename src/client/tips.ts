@@ -1,7 +1,7 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
 import { ITEMS, PACT, REDIRECTOR, SCOURGE, type ItemId } from '../shared/items.ts';
 import { labelOf } from './keys.ts';
-import { MAX_SPELL_LEVEL, RUSH, SPELLS, type Level, type SpellId } from '../shared/spells.ts';
+import { MAX_SPELL_LEVEL, RECHARGE, RUSH, SPELLS, type Level, type SpellId } from '../shared/spells.ts';
 
 const n1 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const m = (x: number) => `${n1(x)} m`;
@@ -24,6 +24,16 @@ const SPELL_ROWS: Record<SpellId, Row[]> = {
   gravity: [['Dano por segundo', (l) => n1(l.dmg)], ['Puxão', (l) => `${n1(l.pull)} m/s²`], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   rockpillar: [['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   bouncer: [['Dano no 1º', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance por salto', (l) => m(l.range)]],
+  drain: [['Dano e cura', (l) => n1(l.dmg)], ['Lentidão ou pressa', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance até virar', (l) => m(l.range)]],
+  snowball: [['Dano por segundo encostado', (l) => n1(l.dot)], ['Explosão no centro', (l) => n1(l.dmg)], ['Raio', (l) => m(l.radius)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  twin: [['Dano de cada', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  magnetize: [['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  recharge: [['Dano', (l) => n1(l.dmg)], ['Por acerto seguido', () => '+' + n1(RECHARGE.perHit)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  alteration: [['Duração', (l) => s(l.duration)], ['Raio', (l) => m(l.radius)], ['Recarga', (l) => s(l.cd)]],
+  link: [['Dano por segundo', (l) => n1(l.dmg)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  windwalk: [['Dano', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)]],
+  splitter: [['Dano por filhote (8)', (l) => n1(l.dmg)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  warpzone: [['Tempo dos projéteis', (l) => `${n1(l.scale * 100)}%`], ['Raio', (l) => m(l.radius)], ['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
 };
 
 function table(rows: [string, string, string | null][]): string {

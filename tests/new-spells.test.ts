@@ -422,3 +422,183 @@ describe('Bumerangue e baú', () => {
     expect(w.pillars[0].hp).toBeLessThan(25);
   });
 });
+
+// as dez restantes do Warlock Brawl (17/10)
+describe('Drenar', () => {
+  it('on an enemy: damage, slow and a healing orb that flies back to the caster', () => {
+    const w = world([[0, 0], [3, 0]], ['drain']);
+    const L = spellLevel('drain', 1);
+    w.wizards[0].hp = 80;
+    const ev = runEvents(w, 0.6, [cast('p0', 'drain', 3, 0)]);
+    expect(hitsOf(ev, 'drain')[0].dmg).toBeCloseTo(L.dmg, 5);
+    expect(w.wizards[1].speed).toBeLessThan(WIZ_SPEED);
+    expect(w.projectiles.some((p) => p.kind === 'drain' && p.back)).toBe(true);
+    run(w, 1.5);
+    expect(w.projectiles).toHaveLength(0);
+    expect(w.wizards[0].hp).toBeGreaterThan(80 + L.dmg - 0.1); // cura + regeneração
+  });
+
+  it('on an ally (Times): heals and hastes instead of hurting', () => {
+    const own = { ...noSpells(), drain: 1 };
+    const w = newWorld(['a', 'b'], { a: own, b: own }, {}, 0, Math.random, false, { a: 0, b: 0 });
+    [w.wizards[0].pos, w.wizards[1].pos] = [v(0, 0), v(3, 0)];
+    for (const z of w.wizards) z.invulnUntil = 0;
+    w.wizards[1].hp = 70;
+    run(w, 0.8, [cast('a', 'drain', 3, 0)]);
+    expect(w.wizards[1].hp).toBeGreaterThan(70 + spellLevel('drain', 1).dmg - 0.1);
+    expect(w.wizards[1].speed).toBeGreaterThan(WIZ_SPEED);
+  });
+});
+
+describe('Bola de neve', () => {
+  it('rolls through the target dragging it along, hurts while touching and explodes at the end', () => {
+    const w = world([[0, 0], [2, 0]], ['snowball']);
+    const L = spellLevel('snowball', 1);
+    const ev = runEvents(w, 2.5, [cast('p0', 'snowball', 5, 0)]);
+    const hits = hitsOf(ev, 'snowball');
+    expect(w.wizards[1].pos.x).toBeGreaterThan(3); // arrastado
+    expect(hits.filter((h) => h.dmg === L.dot * 0.5).length).toBeGreaterThanOrEqual(1); // dano de quem encostou
+    expect(hits.length).toBeGreaterThanOrEqual(2); // e a explosão
+    expect(ev.some((e) => e.k === 'clash' && e.combo === 'snow')).toBe(true);
+    expect(w.wizards[0].hp).toBe(100);
+    expect(w.projectiles).toHaveLength(0);
+  });
+});
+
+describe('Gêmeos', () => {
+  it('two projectiles curve out on opposite sides and both hit at the click point', () => {
+    const w = world([[0, 0], [4, 0]], ['twin']);
+    let up = false, down = false;
+    const ev = runEvents(w, 1.5, [cast('p0', 'twin', 4, 0)], () => {
+      for (const p of w.projectiles) {
+        up ||= p.pos.y > 0.4;
+        down ||= p.pos.y < -0.4;
+      }
+    });
+    expect(up && down).toBe(true);
+    const hits = hitsOf(ev, 'twin');
+    expect(hits).toHaveLength(2);
+    hits.forEach((h) => expect(h.dmg).toBeCloseTo(spellLevel('twin', 1).dmg, 5));
+  });
+});
+
+describe('Magnetizar', () => {
+  it('a magnetized enemy pulls in a shot that would have missed', () => {
+    const shotHits = (magnet: boolean) => {
+      const w = world([[0, 0], [4, 0]], ['magnetize']);
+      if (magnet) {
+        run(w, 1, [cast('p0', 'magnetize', 4, 0)]);
+        expect(w.wizards[1].magnetUntil).toBeGreaterThan(w.t);
+      }
+      w.wizards[1].pos = v(4, 0);
+      w.wizards[1].vel = v(0, 0);
+      const ev = runEvents(w, 1.2, [cast('p0', 'fireball', 4, 1.1)]);
+      return hitsOf(ev, 'fireball').length;
+    };
+    expect(shotHits(false)).toBe(0);
+    expect(shotHits(true)).toBe(1);
+  });
+});
+
+describe('Recarga', () => {
+  it('a hit sends back an orb that resets the cooldown, and the next hit deals +1', () => {
+    const w = world([[0, 0], [3, 0]], ['recharge']);
+    w.wizards[1].kbResist = 1;
+    const L = spellLevel('recharge', 1);
+    const first = hitsOf(runEvents(w, 2, [cast('p0', 'recharge', 3, 0)]), 'recharge');
+    expect(first[0].dmg).toBeCloseTo(L.dmg, 5);
+    expect(w.wizards[0].cd.recharge).toBeLessThanOrEqual(w.t); // recarga zerada pela volta
+    expect(w.wizards[0].streak).toBe(1);
+    const second = hitsOf(runEvents(w, 1, [cast('p0', 'recharge', 3, 0)]), 'recharge');
+    expect(second[0].dmg).toBeCloseTo(L.dmg + 1, 5);
+    // errou: zera
+    runEvents(w, 2.5);
+    w.wizards[0].cd.recharge = 0;
+    runEvents(w, 1.5, [cast('p0', 'recharge', 0, 5)]);
+    expect(w.wizards[0].streak).toBe(0);
+  });
+});
+
+describe('Alteração', () => {
+  it('swaps places with the first enemy projectile that gets close, unharmed', () => {
+    const w = world([[0, 0], [4, 0]], ['alteration']);
+    runEvents(w, 0.6, [cast('p1', 'alteration', 4, 0), cast('p0', 'fireball', 4, 0)]);
+    expect(w.wizards[1].pos.x).toBeLessThan(3.4); // foi para onde o projétil estava
+    expect(w.wizards[1].alterUntil).toBe(0);
+    const fb = w.projectiles.find((p) => p.kind === 'fireball')!;
+    expect(fb.pos.x).toBeGreaterThan(w.wizards[1].pos.x); // segue em frente, para longe
+    run(w, 1);
+    expect(w.wizards[1].hp).toBe(100);
+  });
+});
+
+describe('Elo', () => {
+  it('latches onto an enemy, pulls it to the caster with damage, then lets go', () => {
+    const w = world([[0, 0], [5, 0]], ['link']);
+    let linkedBit = false;
+    let closest = Infinity;
+    const ev = runEvents(w, 3, [cast('p0', 'link', 5, 0)], () => {
+      linkedBit ||= (decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']).wizards[1].status & 65536) > 0;
+      closest = Math.min(closest, dist(w.wizards[0].pos, w.wizards[1].pos));
+    });
+    expect(linkedBit).toBe(true);
+    expect(closest).toBeLessThan(1.2);
+    expect(hitsOf(ev, 'link').length).toBeGreaterThan(1);
+    expect(w.projectiles).toHaveLength(0);
+  });
+
+  it('on an obstacle pulls the caster to it', () => {
+    const w = world([[0, 0], [0, -8]], ['link']);
+    w.pillars = [{ pos: v(4, 0), hp: 40, alive: true, kind: 'pillar' }];
+    let far = 0;
+    runEvents(w, 2, [cast('p0', 'link', 4, 0)], () => (far = Math.max(far, w.wizards[0].pos.x)));
+    expect(far).toBeGreaterThan(2.5); // chega no obstáculo (e quica nele)
+  });
+});
+
+describe('Caminhada no vento', () => {
+  it('invisible to enemies and faster; the first enemy touched takes the hit and it ends', () => {
+    const w = world([[0, 0], [3, 0]], ['windwalk']);
+    run(w, 0.1, [cast('p0', 'windwalk', 0, 0), { id: 'p0', kind: 'move', to: v(6, 0) }]);
+    expect(w.wizards[0].speed).toBeGreaterThan(WIZ_SPEED * 1.5);
+    const ids = ['p0', 'p1'];
+    expect(decodeSnap(encodeSnap(w, 'p1', 0, []), ids).wizards[0].status & 2048).toBe(2048); // o inimigo não vê
+    expect(decodeSnap(encodeSnap(w, 'p0', 0, []), ids).wizards[0].status & 1024).toBe(1024); // quem anda vê o efeito
+    const ev = runEvents(w, 1.5);
+    expect(hitsOf(ev, 'windwalk')[0]?.dmg).toBeCloseTo(spellLevel('windwalk', 1).dmg, 5);
+    expect(w.wizards[1].vel.x).toBeGreaterThan(0);
+    expect(w.wizards[0].windUntil).toBe(0);
+  });
+});
+
+describe('Divisor', () => {
+  it('splits at the click point into 8 shards that fan out and hit whoever is ahead', () => {
+    const w = world([[0, 0], [5, 0]], ['splitter']);
+    const shards = new Set<number>();
+    const ev = runEvents(w, 2.5, [cast('p0', 'splitter', 3, 0)], () => w.projectiles.filter((p) => p.kind === 'shard').forEach((p) => shards.add(p.id)));
+    expect(shards.size).toBe(8);
+    const hits = hitsOf(ev, 'splitter');
+    expect(hits.length).toBeGreaterThanOrEqual(2);
+    hits.forEach((h) => expect(h.dmg).toBeCloseTo(spellLevel('splitter', 1).dmg, 5));
+    expect(w.projectiles).toHaveLength(0);
+  });
+});
+
+describe('Zona de dobra', () => {
+  it('slows enemy projectiles inside it, not the caster own', () => {
+    const fireballX = (zone: boolean, shooter: string) => {
+      const w = world([[0, -3], [6, 0]], ['warpzone']);
+      const at = shooter === 'p1' ? v(0, 0) : v(9, 0);
+      if (shooter === 'p0') w.wizards[0].pos = v(-1, 0);
+      run(w, 0.8, [...(zone ? [cast('p0', 'warpzone', 3, 0)] : []), { id: shooter, kind: 'cast', spell: 'fireball', at }]);
+      return w.projectiles.find((p) => p.kind === 'fireball')!.pos.x;
+    };
+    expect(fireballX(true, 'p1')).toBeGreaterThan(fireballX(false, 'p1') + 1); // inimigo: anda menos
+    expect(fireballX(true, 'p0')).toBeCloseTo(fireballX(false, 'p0'), 5); // o próprio: igual
+    const w = world([[0, 0], [9, 9]], ['warpzone']);
+    run(w, 0.2, [cast('p0', 'warpzone', 3, 0)]);
+    const view = decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']);
+    expect(view.projectiles[0].kind).toBe('warpzone');
+    expect(view.projectiles[0].vel.x).toBeCloseTo(spellLevel('warpzone', 1).radius, 1);
+  });
+});

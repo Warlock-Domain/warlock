@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { botBuy, botCmds } from '../src/shared/bots.ts';
+import { CLASSIC_PLAN, botBuy, botCmds } from '../src/shared/bots.ts';
 import { ARENA_R0, ASSIST_GOLD, COUNTDOWN_MS, DM_ROUND_MS, DT, KILL_GOLD, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
 import { addPlayer, buy, castBallot, endIdle, kick, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, startVote, tickMatch, type Match, type Stat } from '../src/shared/match.ts';
@@ -278,11 +278,10 @@ describe('partida', () => {
 });
 
 describe('bots', () => {
-  it('bot buys cheapest missing spell', () => {
-    expect(botBuy({ gold: 11, spells: noSpells(), items: noItems() })).toEqual({ kind: 'spell', id: 'lightning' });
-    // sem dinheiro para magia nova: compra armadura (6) antes de melhorar a bola de fogo (7)
-    expect(botBuy({ gold: 10, spells: noSpells(), items: noItems() })).toEqual({ kind: 'item', id: 'armor' });
-    expect(botBuy({ gold: 2, spells: noSpells(), items: noItems() })).toBeNull();
+  it('bot buys the next spell of its plan, saving gold for it', () => {
+    expect(botBuy({ gold: 11, spells: noSpells(), items: noItems(), plan: CLASSIC_PLAN })).toEqual({ kind: 'spell', id: 'lightning' });
+    // sem dinheiro para o próximo do plano: guarda (não gasta em outra coisa)
+    expect(botBuy({ gold: 10, spells: noSpells(), items: noItems(), plan: CLASSIC_PLAN })).toBeNull();
   });
 
   it('bot walks inward when near edge', () => {

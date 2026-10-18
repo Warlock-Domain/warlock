@@ -21,7 +21,7 @@ button.link { background: none; border: 0; color: var(--muted); padding: 6px 8px
 button.icon { width: 40px; min-height: 40px; padding: 0; }
 button.icon.off { opacity: .4; text-decoration: line-through; }
 .vol { position: relative; }
-.vol-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 6; background: rgba(34, 17, 12, .97); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 240px; box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
+.vol-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 6; background: rgba(34, 17, 12, .97); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 240px; box-shadow: 0 10px 30px rgba(0, 0, 0, .5); max-height: calc(100vh - 64px - var(--safe-t) - var(--safe-b)); max-height: calc(100dvh - 64px - var(--safe-t) - var(--safe-b)); overflow-y: auto; }
 .vol-row { display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 8px; font-size: .9rem; }
 .vol-row input { width: 100%; accent-color: var(--lava); }
 .vol-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
@@ -96,7 +96,8 @@ button.kick:hover { background: rgba(255, 122, 106, .15); }
 .pips i { width: 14px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .15); }
 .pips i.on { background: var(--ember); }
 
-.barwrap { position: absolute; left: 50%; bottom: calc(10px + var(--safe-b)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: calc(100% - 20px); }
+.barwrap { position: absolute; left: max(10px, var(--safe-l)); right: max(10px, var(--safe-r)); bottom: calc(10px + var(--safe-b)); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+.barwrap > * { pointer-events: auto; }
 .spellbar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .passives { display: flex; gap: 6px; }
 .passives:empty { display: none; }
@@ -111,8 +112,6 @@ button.kick:hover { background: rgba(255, 122, 106, .15); }
 .spell.cooling .cd { background: rgba(0, 0, 0, .6); }
 .spell.locked { opacity: .35; filter: grayscale(1); }
 .spell.armed { border-color: var(--ember); box-shadow: 0 0 0 2px var(--ember), 0 0 18px rgba(255, 179, 71, .6); }
-@media (max-width: 600px) { .timer:not(.countdown) { top: calc(58px + var(--safe-t)); font-size: .9rem; } .players { margin-top: 30px; } .vote-bar { top: calc(82px + var(--safe-t)); } }
-@media (max-width: 420px) { .spell { width: 56px; height: 56px; } .spellbar { gap: 6px; } }
 
 .labels { position: fixed; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; }
 .wiz-label { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .78rem; font-weight: 700; text-shadow: 0 1px 3px #000, 0 0 2px #000; white-space: nowrap; will-change: transform; }
@@ -168,7 +167,13 @@ body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: no
 .shop-side .gold.big { font-size: 1.6rem; text-align: center; }
 .shop .shop-grid { grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); }
 .shop .shop-item small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-@media (max-width: 860px) { .shop { grid-template-columns: minmax(0, 1fr); } .shop-side { position: static; } }
+@media (max-width: 860px) {
+  .shop { grid-template-columns: minmax(0, 1fr); }
+  /* uma coluna: ouro grudado no topo e Pronto no rodapé enquanto rola as magias */
+  .shop-side { display: contents; }
+  .shop-side > .gold.big { order: -1; position: sticky; top: 0; z-index: 1; margin: -18px -18px 0; padding: 10px; border-radius: 14px 14px 0 0; background: rgba(34, 17, 12, .98); border-bottom: 1px solid var(--line); }
+  .shop-side > button.primary { position: sticky; bottom: 0; z-index: 1; box-shadow: 0 -10px 18px rgba(20, 8, 6, .85); }
+}
 .stats { display: flex; flex-direction: column; gap: 8px; }
 .stats-tabs { display: flex; gap: 6px; }
 .stats-tabs button { min-height: 32px; padding: 4px 12px; font-size: .85rem; border-radius: 999px; }
@@ -211,3 +216,61 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
 .rules ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; line-height: 1.45; }
 .rules-overlay { z-index: 20; }
 @media (prefers-reduced-motion: reduce) { #toast { transition: none; } .banner { animation: none; } }
+
+/* celular em pé (e deitado com pouca altura): o topo da HUD vira uma coluna em fluxo, assim relógio, votação, lista e painéis
+   nunca se sobrepõem, qualquer que seja a altura do texto da rodada */
+@media (max-width: 600px), (max-height: 500px) {
+  .hud { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+  .hud-top { align-self: stretch; flex-wrap: wrap; row-gap: 4px; }
+  .hud-right { gap: 4px; }
+  .round:empty, .timer:empty { display: none; }
+  .timer:not(.countdown) { position: static; transform: none; align-self: center; order: 1; font-size: .95rem; }
+  .vote-bar { position: static; transform: none; align-self: center; order: 2; max-width: 100%; }
+  .players { order: 3; margin: 0; }
+  .center { position: static; transform: none; order: 4; align-self: center; width: min(560px, 100%); max-height: none; min-height: 0; }
+  .center.wide { width: min(1240px, 100%); }
+  /* sala, loja e fim já mostram os jogadores no cartão */
+  .hud:has(.center:not(:empty)) .players { display: none; }
+  .vol-panel { position: fixed; left: auto; right: max(10px, var(--safe-r)); top: calc(56px + var(--safe-t)); max-width: calc(100% - 20px); }
+  .tab-overlay { top: calc(56px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 64px - var(--safe-t) - var(--safe-b)); }
+}
+@media (max-width: 600px) {
+  .round { order: 1; flex: 1 1 100%; font-size: 1rem; line-height: 1.25; }
+  .timer.countdown { top: 46%; }
+  .vol-panel { left: max(10px, var(--safe-l)); width: auto; }
+  .spellbar { gap: 6px; }
+  .spell { width: 56px; height: 56px; }
+  #toast { bottom: calc(172px + var(--safe-b)); }
+}
+/* 6 magias numa linha até em 360 px */
+@media (max-width: 390px) { .spell { width: 52px; height: 52px; } .spellbar { gap: 4px; } }
+@media (max-height: 500px) {
+  .spell { width: 52px; height: 52px; }
+  .spell .ico { font-size: 1.35rem; }
+  .players { font-size: .8rem; }
+  .shop-side > .gold.big { padding: 4px; font-size: 1.25rem; }
+  .shop-side > button.primary.big { min-height: 44px; }
+  #toast { bottom: calc(104px + var(--safe-b)); }
+}
+
+/* placar no celular: não há Tab, então um botão abre e fecha */
+.tab-toggle { display: none; }
+.tab-overlay.pinned { pointer-events: auto; top: calc(56px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 64px - var(--safe-t) - var(--safe-b)); }
+
+/* toque: alvos de pelo menos 40 px e texto de pelo menos 12 px */
+@media (pointer: coarse) {
+  button.link, .stats-tabs button, .vote-bar button, .shop-item button, button.undo, button.sell, button.keycap { min-height: 44px; }
+  button.undo { width: 44px; flex: none; }
+  button.kick { min-height: 40px; width: 40px; font-size: .9rem; }
+  .slot-row { min-height: 44px; }
+  .slot-row input { width: 20px; height: 20px; }
+  small, .spell .key, .passive small, .pick small, .stats-table td small, .gold-info small, .players li.head small { font-size: max(.8em, .75rem); }
+  .spell .key, .pick small, .stats-table td small { font-size: .75rem; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .tab-toggle { display: inline-flex; }
+  /* trocar teclas não serve sem teclado */
+  .vol:has(> .keys-panel) { display: none; }
+  /* dica de magia em cima da arena atrapalha a mira; na loja ela continua */
+  body:has(.barwrap:not([hidden])) .tip { display: none !important; }
+}

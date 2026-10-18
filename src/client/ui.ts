@@ -25,7 +25,8 @@ export function el(tag: string, props: Record<string, any> = {}, ...children: Ch
   return e;
 }
 
-export const ICON: Record<SpellId, string> = { fireball: '🔥', lightning: '⚡', homing: '🎯', shield: '🛡️', teleport: '✨', swap: '🔄', grip: '⛓️', meteor: '☄️', rush: '💨', cluster: '🔱', boomerang: '🪃', thrust: '🗡️', gravity: '🌀', rockpillar: '🪨', bouncer: '🏓' };
+export const ICON: Record<SpellId, string> = { fireball: '🔥', lightning: '⚡', homing: '🎯', shield: '🛡️', teleport: '✨', swap: '🔄', grip: '⛓️', meteor: '☄️', rush: '💨', cluster: '🔱', boomerang: '🪃', thrust: '🗡️', gravity: '🌀', rockpillar: '🪨', bouncer: '🏓',
+  drain: '🧛', snowball: '❄️', twin: '♊', magnetize: '🧲', recharge: '🔋', alteration: '🔀', link: '🔗', windwalk: '👻', splitter: '💠', warpzone: '⏳' };
 export const ITEM_ICON: Record<ItemId, string> = { ring: '💍', cursed_ring: '🧿', cape: '🧣', armor: '⛓️', boots: '👢', watch: '⏱️', vampire: '🧛', scourge: '💥', redirector: '↪️', pact: '🩸' };
 const TITLE = 'Warlock';
 
@@ -149,7 +150,7 @@ type Scope = 'round' | 'match' | 'room';
 const SCOPES: [Scope, string][] = [['round', 'Rodada'], ['match', 'Partida'], ['room', 'Sala']];
 const n0 = (x: number) => Math.round(x).toLocaleString('pt-BR');
 // magias de utilidade: mostra quantas vezes usou (não têm "acerto"); as outras mostram precisão
-const UTILITY = new Set(['teleport', 'shield', 'rush', 'pact', 'redirector', 'thrust', 'rockpillar']);
+const UTILITY = new Set(['teleport', 'shield', 'rush', 'pact', 'redirector', 'thrust', 'rockpillar', 'magnetize', 'alteration', 'warpzone']);
 const srcIcon = (k: string) => (k === 'lava' ? '🌋' : k in ICON ? ICON[k as SpellId] : k in ITEM_ICON ? ITEM_ICON[k as ItemId] : k.startsWith('choque') ? '💫' : k === 'pillar' ? '🪨' : '❔');
 const srcName = (k: string) => (k === 'lava' ? 'lava' : k in SPELLS ? SPELLS[k as SpellId].name : k in ITEMS ? ITEMS[k as ItemId].name : k);
 
@@ -371,10 +372,16 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const voteBar = el('div', { class: 'vote-bar', role: 'status', hidden: true });
   const voteLeft = el('span', { class: 'muted' });
   let voteEndsAt = 0;
+  // celular: sem Tab, este botão (só aparece em tela de toque) abre e fecha o placar
+  const tabBtn = el('button', { type: 'button', class: 'icon tab-toggle', title: 'Placar', 'aria-label': 'Placar', hidden: true, onclick: () => {
+    const open = !!tabOverlay.hidden;
+    showTab(open);
+    tabOverlay.classList.toggle('pinned', open);
+  } }, '📊');
   const top = el('div', { class: 'hud-top' },
     el('button', { type: 'button', class: 'code', title: 'Copiar link da sala', onclick: copyLink }, status, ' ', code),
     roundEl,
-    el('div', { class: 'hud-right' }, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', onclick: showRules }, '?')),
+    el('div', { class: 'hud-right' }, tabBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', onclick: showRules }, '?')),
   );
   const center = el('div', { class: 'center' });
   const timer = el('div', { class: 'timer' });
@@ -404,6 +411,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const tabOverlay = el('div', { class: 'tab-overlay', hidden: true });
   function showTab(on: boolean) {
     tabOverlay.hidden = !on || !room;
+    if (tabOverlay.hidden) tabOverlay.classList.remove('pinned');
     if (on && room) tabOverlay.replaceChildren(el('div', { class: 'card' }, el('h2', { class: 'title' }, 'Placar'), statsBoard(room, me, scope, setScope)));
   }
   addEventListener('keydown', (e) => {
@@ -647,6 +655,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         pips.replaceChildren(...Array.from({ length: MAX_SPELL_LEVEL }, (_, n) => el('i', { class: n < lvl ? 'on' : '' })));
       }
       barWrap.hidden = r.phase === 'lobby' || r.phase === 'end' || r.phase === 'shop' || !mine;
+      const tabPhase = r.phase === 'playing' || r.phase === 'countdown' || r.phase === 'roundEnd' || r.phase === 'shop';
+      tabBtn.hidden = !tabPhase;
+      if (!tabOverlay.hidden) showTab(tabPhase);
       drawVote(r, prev);
       drawCenter();
     },
@@ -699,4 +710,14 @@ const RULES_SHORT: Record<SpellId, string> = {
   gravity: 'Orbe lento que puxa magos inimigos e projéteis e queima quem fica perto.',
   rockpillar: 'Ergue um pilar de pedra no ponto por 4 s: bloqueia magos e projéteis.',
   bouncer: 'Acerta e pula para o mago mais perto, perdendo 30% do dano a cada inimigo.',
+  drain: 'Vai até o ponto e vira para o mago mais perto: no inimigo, dano, lentidão e a vida volta para você; no aliado, cura e acelera.',
+  snowball: 'Bola lenta que atravessa e arrasta quem encosta, com dano, e explode no fim do caminho.',
+  twin: 'Dois projéteis em curva, um de cada lado, que se encontram no ponto.',
+  magnetize: 'No inimigo, puxa para ele os projéteis dos outros; num aliado ou em você (depois de quicar), afasta.',
+  recharge: 'Se acertar, volta e zera a própria recarga; cada acerto seguido soma dano.',
+  alteration: 'Por 2 s, troca de lugar com o primeiro projétil inimigo que chegar perto.',
+  link: 'Prende num mago e o puxa até você (com dano no inimigo); num obstáculo, puxa você até ele.',
+  windwalk: 'Invisível e mais rápido por 2,6 s; o primeiro inimigo em que encostar leva dano. Lançar magia desfaz.',
+  splitter: 'Estoura no ponto (ou no primeiro que tocar) em 8 projéteis que se abrem em leque.',
+  warpzone: 'Esfera que deixa lentos os projéteis inimigos que passam por ela.',
 };
