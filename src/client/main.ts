@@ -19,6 +19,7 @@ import { TAUNTS } from '../shared/taunts.ts';
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
   fireball: 'fireball', lightning: 'lightning', homing: 'homing', shield: 'shield', teleport: 'teleport',
   swap: 'teleport', grip: 'lightning', meteor: 'fireball', rush: 'shield', cluster: 'fireball',
+  boomerang: 'homing', thrust: 'teleport', gravity: 'homing', rockpillar: 'shield', bouncer: 'lightning',
 };
 
 // localStorage pode falhar (aba anônima, dados bloqueados): cai para a memória
@@ -350,7 +351,7 @@ function startRoom(code: string, name: string) {
       wizards,
       projectiles: playing && s ? s.projectiles : [],
       pillars: playing && s ? s.pillars : [],
-      loot: playing && s ? s.loot : null,
+      loots: playing && s ? s.loots : [],
       follow: follow ? myPos : null,
     });
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;

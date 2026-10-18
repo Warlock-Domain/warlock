@@ -8,7 +8,7 @@ import { MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, noMasteries, 
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
 const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
 import {
-  COUNTDOWN_MS, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN,
+  ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN,
 } from './constants.ts';
 import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.ts';
 import { MAX_SPELLS, SPELL_IDS, noSpells, priceOf, spellCount, type SpellId } from './spells.ts';
@@ -67,6 +67,7 @@ export type Match = {
   emptyRounds: number; // rodadas seguidas sem vencedor
   steps: number;
   vote: Vote | null;
+  dmgOn?: Record<string, Record<string, number>>; // dano de cada atacante em cada vítima desde que ela entrou viva (para a assistência)
   pendingMode: Mode | null; // modo votado: vale quando a próxima rodada começar
   banned: string[]; // expulsos por votação não voltam a esta sala
 };
@@ -337,6 +338,7 @@ function enterShop(m: Match, now: number) {
 }
 
 function enterCountdown(m: Match, now: number) {
+  m.dmgOn = {};
   // troca de modo votada: antes de criar o mundo (que depende do modo); os pontos zeram porque as metas são outras
   if (m.pendingMode) {
     m.mode = m.pendingMode;
@@ -354,7 +356,7 @@ function enterCountdown(m: Match, now: number) {
 
 // prêmio de fim de rodada: soma o ouro e sobe o "+N" em cima do mago (o mundo ainda existe até a loja)
 function bonus(m: Match, p: Player, gold: number) {
-  if (!gold) return;
+  if (gold <= 0) return;
   earn(p, gold);
   const z = m.world?.wizards.find((q) => q.id === p.id);
   if (z) m.world!.events.push({ k: 'gold', id: p.id, n: gold, x: z.pos.x, y: z.pos.y });
@@ -365,8 +367,10 @@ function endRound(m: Match, now: number, winner: string | null) {
   const p = m.players.find((q) => q.id === winner);
   // no deathmatch os pontos já vieram dos abates; aqui o vencedor é só quem fez mais abates na rodada
   if (p && !dm) {
+    // quem já liderava sozinho o placar ganha menos pela vitória (freia a bola de neve)
+    const leader = m.players.every((q) => q === p || q.score < p.score) && p.score > 0;
     p.score++;
-    bonus(m, p, WIN_GOLD);
+    bonus(m, p, leader ? LEADER_WIN_GOLD : WIN_GOLD);
   }
   const played = new Set(m.world?.wizards.map((z) => z.id));
   // quem sobreviveu ficou vivo a rodada inteira
@@ -377,6 +381,10 @@ function endRound(m: Match, now: number, winner: string | null) {
   const top = Math.max(0, ...m.players.filter((q) => played.has(q.id)).map((q) => q.stats.round.dmg));
   for (const q of m.players) if (top > 0 && played.has(q.id) && q.stats.round.dmg === top) bonus(m, q, TOP_DMG_GOLD);
   for (const q of m.players) if (played.has(q.id)) earn(q, ROUND_GOLD);
+  // recuperação: quem ganhou menos ouro na partida que a média recebe metade da diferença
+  const inRound = m.players.filter((q) => played.has(q.id));
+  const avg = inRound.reduce((sum, q) => sum + q.stats.match.gold, 0) / Math.max(1, inRound.length);
+  for (const q of inRound) bonus(m, q, Math.min(RECOVERY.max, Math.floor((avg - q.stats.match.gold) * RECOVERY.share)));
   m.lastRoundWinner = winner;
   m.emptyRounds = winner || dm ? 0 : m.emptyRounds + 1;
   m.phase = 'roundEnd';
@@ -449,6 +457,8 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   stepWorld(w, all, rand);
   for (const e of w.events) {
     if (e.k === 'hit' && e.by !== e.id) {
+      const on = ((m.dmgOn ??= {})[e.id] ??= {});
+      on[e.by] = (on[e.by] ?? 0) + e.dmg;
       const p = m.players.find((q) => q.id === e.by);
       if (p) addStat(p, (s) => {
         s.dmg += e.dmg;
@@ -475,15 +485,33 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
         w.events.push({ k: 'gold', id: p.id, n: 1, x: z?.pos.x ?? e.x, y: z?.pos.y ?? e.y });
       }
     }
+    if (e.k === 'death') {
+      // assistência: quem mais bateu na vítima, sem ser quem matou, ganha um pouco de ouro
+      const on = m.dmgOn?.[e.id] ?? {};
+      const [helper, dmg] = Object.entries(on).filter(([id]) => id !== e.by && id !== e.id).sort((a, b) => b[1] - a[1])[0] ?? [];
+      const hp = helper && dmg >= ASSIST_MIN_DMG ? m.players.find((q) => q.id === helper) : undefined;
+      const hz = hp && w.wizards.find((z) => z.id === hp.id);
+      if (hp) {
+        earn(hp, ASSIST_GOLD);
+        if (hz) w.events.push({ k: 'gold', id: hp.id, n: ASSIST_GOLD, x: hz.pos.x, y: hz.pos.y });
+      }
+      if (m.dmgOn) delete m.dmgOn[e.id];
+    }
     if (e.k === 'death' && e.by && e.by !== e.id) {
       // nas rodadas o abate não vale ponto (como no original), só ouro; no deathmatch vale 1 ponto
       const killer = m.players.find((p) => p.id === e.by);
       if (killer) addStat(killer, (s) => (s.kills += 1));
       if (killer && m.mode === 'deathmatch') killer.score++;
-      if (killer && KILL_GOLD) {
-        earn(killer, KILL_GOLD);
+      // cabeça do líder: abater quem lidera o placar vale mais, conforme a vantagem dele sobre a média
+      const victim = m.players.find((q) => q.id === e.id);
+      const avgScore = m.players.reduce((sum, q) => sum + q.score, 0) / m.players.length;
+      const top = Math.max(...m.players.map((q) => q.score));
+      const head = victim && m.mode === 'rounds' && victim.score === top ? Math.min(BOUNTY.max, Math.round(BOUNTY.perWin * (victim.score - avgScore))) : 0;
+      const prize = KILL_GOLD + Math.max(0, head);
+      if (killer && prize) {
+        earn(killer, prize);
         const kz = w.wizards.find((z) => z.id === killer.id);
-        if (kz) w.events.push({ k: 'gold', id: killer.id, n: KILL_GOLD, x: kz.pos.x, y: kz.pos.y });
+        if (kz) w.events.push({ k: 'gold', id: killer.id, n: prize, x: kz.pos.x, y: kz.pos.y });
       }
     }
   }

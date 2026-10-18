@@ -41,8 +41,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   const snap: Snap = { t: 'snap', time: r2(w.t * 1000) / 1000, r: r2(w.arenaR), s: r2(w.shrinkAt), w: wz, p, cd, icd, sp: r2(me?.speed ?? 0), pl: w.pillars.flatMap((q) => [r2(q.pos.x), r2(q.pos.y), q.alive ? (Number.isFinite(q.hp) ? Math.ceil((q.hp / OBSTACLES[q.kind].hp) * 100) : 100) : 0, OBSTACLE_KINDS.indexOf(q.kind)]), ack };
   // deathmatch: segundos até cada mago voltar (0 = vivo), na ordem de room.ids; o limite cobre o expulso, que não volta
   if (w.dm) snap.rs = w.wizards.map((z) => (z.alive ? 0 : r2(Math.min(99, Math.max(0, z.respawnAt - w.t)))));
-  if (w.loot) {
-    snap.ch = [r2(w.loot.pos.x), r2(w.loot.pos.y), w.loot.left];
+  if (w.loots.length) {
+    snap.ch = w.loots.flatMap((l) => [r2(l.pos.x), r2(l.pos.y), l.left]);
     snap.lp = w.wizards.map((z) => r2(z.lootProg / CHEST.goldEvery));
   }
   if (events.length) snap.e = events;
@@ -53,7 +53,7 @@ export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: numb
 // meteor: vel = (raio, segundos até cair)
 export type ProjView = { id: number; kind: ProjKind; pos: Vec; vel: Vec };
 export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
-export type SnapView = { time: number; arenaR: number; shrinkAt: number; wizards: WizView[]; projectiles: ProjView[]; pillars: PillarView[]; loot: { pos: Vec; left: number } | null };
+export type SnapView = { time: number; arenaR: number; shrinkAt: number; wizards: WizView[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[] };
 
 export function decodeSnap(s: Snap, ids: string[]): SnapView {
   const wizards: WizView[] = [];
@@ -68,5 +68,5 @@ export function decodeSnap(s: Snap, ids: string[]): SnapView {
   }
   const pillars: PillarView[] = [];
   for (let i = 0; i + 3 < (s.pl?.length ?? 0); i += 4) pillars.push({ pos: v(s.pl[i], s.pl[i + 1]), hp: s.pl[i + 2], kind: OBSTACLE_KINDS[s.pl[i + 3]] ?? 'pillar' });
-  return { time: s.time, arenaR: s.r, shrinkAt: s.s, wizards, projectiles, pillars, loot: s.ch ? { pos: v(s.ch[0], s.ch[1]), left: s.ch[2] } : null };
+  return { time: s.time, arenaR: s.r, shrinkAt: s.s, wizards, projectiles, pillars, loots: Array.from({ length: Math.floor((s.ch?.length ?? 0) / 3) }, (_, i) => ({ pos: v(s.ch![i * 3], s.ch![i * 3 + 1]), left: s.ch![i * 3 + 2] })) };
 }

@@ -59,6 +59,14 @@ describe('itens ativos', () => {
     expect(w.wizards[0].hp).toBe(HP_MAX);
   });
 
+  it('scourge also damages obstacles and the chest in the blast', () => {
+    const w = world([[0, 0]], [{ scourge: 1 }]);
+    w.pillars = [{ pos: v(1.2, 0), hp: 25, alive: true, kind: 'chest' }];
+    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
+    steps(w, 40);
+    expect(w.pillars[0].hp).toBeLessThan(25);
+  });
+
   it('scourge never kills its caster', () => {
     const w = world([[0, 0]], [{ scourge: 3 }]);
     w.wizards[0].hp = 3;

@@ -218,6 +218,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     swap: { mat: swapMat, halo: '#00fff0', trail: '#2fe0d0', tex: FX.magic, size: 1 },
     grip: { mat: gripMat, halo: '#ff1f4f', trail: '#e0103a', tex: FX.magic, size: 1 },
     meteor: { mat: fireMat, halo: '#ff5a1a', trail: '#ff7a20', tex: FX.fire, size: 3 },
+    boomerang: { mat: swapMat, halo: '#7dff5a', trail: '#5ad040', tex: FX.spark, size: 0.85 },
+    gravity: { mat: homingMat, halo: '#3b2bff', trail: '#6a3cff', tex: FX.magic, size: 1.5 },
+    bouncer: { mat: gripMat, halo: '#3cff9a', trail: '#20d080', tex: FX.magic, size: 0.8 },
   };
   const projs = new Map<number, THREE.Group>();
   const fx: Fx[] = [];
@@ -441,7 +444,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
 
   // obstáculos da rodada: modelo KayKit de cada tipo, treme quando apanha e afunda ao quebrar
-  const OBSTACLE_MODEL: Record<string, string> = { pillar: 'pillar_decorated', rock: 'rubble_large', tree: 'tree_dead_large', shrine: 'shrine_candles' };
+  const OBSTACLE_MODEL: Record<string, string> = { pillar: 'pillar_decorated', rock: 'rubble_large', tree: 'tree_dead_large', shrine: 'shrine_candles', rockpillar: 'pillar' };
   const pillarMeshes: { obj: THREE.Object3D; pos: Vec; dead: boolean; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number }[] = [];
   // baú: caixa simples com tampa dourada e brilho (é um obstáculo: as magias quebram)
   const chestWood = new THREE.MeshStandardMaterial({ color: '#7a4a22', roughness: 0.7 });
@@ -474,9 +477,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     shine.scale.setScalar(1.8);
     shine.position.y = 0.3;
     pile.add(ring, shine);
-    pile.visible = false;
-    scene.add(pile);
   }
+  const piles: THREE.Group[] = [];
 
   function syncPillars(list: PillarView[]) {
     const changed = list.length !== pillarMeshes.length || list.some((p, i) => p.pos.x !== pillarMeshes[i].pos.x || p.pos.y !== pillarMeshes[i].pos.y);
@@ -507,6 +509,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         }
         const height = new THREE.Box3().setFromObject(obj).max.y;
         pillarMeshes.push({ obj, pos: p.pos, dead: false, bar, fill, height });
+        // a lista muda no meio da rodada (baú, Pilar de pedra): o que já tinha quebrado não afunda de novo
+        if (p.hp <= 0) obj.position.y = -3;
       }
     }
     list.forEach((p, i) => {
@@ -843,7 +847,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     castLocal(id: string, spell: string) {
       oneShot(id, spell === 'shield' || spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
     },
-    render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loot: { pos: Vec; left: number } | null; follow: Vec | null }) {
+    render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; follow: Vec | null }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
@@ -866,12 +870,20 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       syncProjectiles(state.projectiles);
       syncPillars(state.pillars);
       // baú de ouro: caixa simples com tampa dourada, brilho e balanço
-      pile.visible = !!state.loot;
-      if (state.loot) {
-        pile.position.copy(w3(state.loot.pos, 0));
-        pile.scale.setScalar(0.6 + 0.4 * (state.loot.left / CHEST.pile));
-        pile.rotation.y = now * 0.6;
+      // montes de ouro: um clone do monte por baú quebrado
+      while (piles.length < state.loots.length) {
+        const c = pile.clone();
+        scene.add(c);
+        piles.push(c);
       }
+      piles.forEach((g, i) => {
+        const l = state.loots[i];
+        g.visible = !!l;
+        if (!l) return;
+        g.position.copy(w3(l.pos, 0));
+        g.scale.setScalar(0.6 + 0.4 * (l.left / CHEST.pile));
+        g.rotation.y = now * 0.6;
+      });
       for (const m of mages.values()) m.mixer.update(dt);
       decor.update(shownR, now);
       for (let i = fx.length - 1; i >= 0; i--) {

@@ -371,7 +371,7 @@ describe('baú e chão do choque', () => {
   it('a chest appears after 15 s, spells break it and standing on the gold pays 1 every 2 s', () => {
     const w = world([[0, 0], [6, 6]]);
     w.pillars = [];
-    run(w, CHEST.every + 0.1);
+    run(w, CHEST.first + 0.1);
     const i = w.pillars.findIndex((q) => q.kind === 'chest' && q.alive);
     expect(i).toBeGreaterThanOrEqual(0);
     const at = w.pillars[i].pos;
@@ -382,7 +382,7 @@ describe('baú e chão do choque', () => {
       run(w, 0.4, [{ id: 'p0', kind: 'cast', spell: 'fireball', at }]);
     }
     expect(w.pillars[i].alive).toBe(false);
-    expect(w.loot?.left).toBe(CHEST.pile);
+    expect(w.loots[0]?.left).toBe(CHEST.pile);
     w.wizards[0].pos = v(at.x, at.y);
     w.wizards[0].vel = v(0, 0);
     let gold = 0;
@@ -432,5 +432,14 @@ describe('mecânicas do original', () => {
       if (e && e.k === 'reflect') reflectedAt = e.x;
     }
     expect(reflectedAt).toBeLessThan(5 - 1.2);
+  });
+});
+
+describe('baús ao longo da rodada', () => {
+  it('a new chest comes every 12 s even if nobody broke the last one, up to 2 standing', () => {
+    const w = world([[0, 0], [6, 6]]);
+    w.pillars = [];
+    run(w, CHEST.first + CHEST.every * 3 + 0.5);
+    expect(w.pillars.filter((q) => q.kind === 'chest' && q.alive).length).toBe(CHEST.maxUp);
   });
 });

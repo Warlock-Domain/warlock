@@ -3,7 +3,7 @@ import { DT, WIZ_R, WIZ_SPEED } from '../src/shared/constants.ts';
 import { botBuy, botCmds } from '../src/shared/bots.ts';
 import { addPlayer, buy, newMatch, startMatch, undoBuy } from '../src/shared/match.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
-import { newWorld, stepWorld, type Cmd, type World } from '../src/shared/sim.ts';
+import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from '../src/shared/sim.ts';
 import { GRIP, MAX_SPELLS, RUSH, SPELLS, noSpells, spellLevel, type SpellId } from '../src/shared/spells.ts';
 import { dist, len, v } from '../src/shared/vec.ts';
 
@@ -273,5 +273,143 @@ describe('bots com as magias novas', () => {
   it('cast meteor and cluster at the nearest enemy', () => {
     expect(botCmds(duel({ meteor: 1 }), 'bot', () => 0.3).some((c) => c.kind === 'cast' && c.spell === 'meteor')).toBe(true);
     expect(botCmds(duel({ cluster: 1 }), 'bot', () => 0.3).some((c) => c.kind === 'cast' && c.spell === 'cluster')).toBe(true);
+  });
+});
+
+// as cinco do Warlock Brawl (17/10): Bumerangue, Estocada, Gravidade, Pilar de pedra e Ricochete
+function runEvents(w: World, seconds: number, cmds: Cmd[] = [], each?: () => void) {
+  const out: SimEvent[] = [];
+  for (let i = 0; i < Math.round(seconds / DT); i++) {
+    stepWorld(w, i === 0 ? cmds : []);
+    out.push(...w.events);
+    each?.();
+  }
+  return out;
+}
+const hitsOf = (ev: SimEvent[], src: string) => ev.filter((e): e is Extract<SimEvent, { k: 'hit' }> => e.k === 'hit' && e.src === src);
+
+describe('Bumerangue', () => {
+  // voo livre até (4, 0): guarda a trajetória e se o bumerangue já estava voltando
+  function freeFlight() {
+    const w = world([[0, 0], [0, -8]], ['boomerang']);
+    const path: { x: number; y: number; back: boolean }[] = [];
+    runEvents(w, 4, [cast('p0', 'boomerang', 4, 0)], () => {
+      const p = w.projectiles.find((q) => q.kind === 'boomerang');
+      if (p) path.push({ ...p.pos, back: !!p.back });
+    });
+    return { w, path };
+  }
+
+  it('curves out to the click point and comes back to the caster, where it disappears', () => {
+    const { w, path } = freeFlight();
+    const far = Math.max(...path.map((q) => q.x));
+    expect(far).toBeGreaterThan(3.5);
+    expect(far).toBeLessThan(4.7); // o passo de 1/60 s passa um pouco do ponto
+    expect(path.some((q) => q.y > 0.2)).toBe(true); // ida curva para um lado
+    expect(path.some((q) => q.y < -0.2)).toBe(true); // volta pelo outro
+    expect(w.projectiles).toHaveLength(0);
+    expect(dist(path[path.length - 1], w.wizards[0].pos)).toBeLessThan(1);
+  });
+
+  it('hits on the way out, bounces and still returns to the caster', () => {
+    const out = freeFlight().path.find((q) => !q.back && q.x > 2)!;
+    const w = world([[0, 0], [out.x, out.y]], ['boomerang']);
+    const ev = runEvents(w, 4, [cast('p0', 'boomerang', 4, 0)]);
+    const hits = hitsOf(ev, 'boomerang');
+    expect(hits.length).toBeGreaterThanOrEqual(1);
+    expect(hits[0].id).toBe('p1');
+    expect(hits[0].dmg).toBeCloseTo(SPELLS.boomerang.levels[0].dmg, 5);
+    expect(w.projectiles).toHaveLength(0); // voltou e sumiu no dono
+    expect(ev.filter((e) => e.k === 'land')).toHaveLength(1);
+  });
+
+  it('hits someone standing on the way back', () => {
+    const back = freeFlight().path.find((q) => q.back && q.x < 2.5)!;
+    const w = world([[0, 0], [back.x, back.y]], ['boomerang']);
+    let backAtHit: boolean | null = null;
+    runEvents(w, 4, [cast('p0', 'boomerang', 4, 0)], () => {
+      const p = w.projectiles.find((q) => q.kind === 'boomerang');
+      if (backAtHit === null && w.events.some((e) => e.k === 'hit' && e.src === 'boomerang')) backAtHit = !!p?.back;
+    });
+    expect(backAtHit).toBe(true);
+  });
+});
+
+describe('Estocada', () => {
+  const thrustHit = (gap: number) => {
+    const w = world([[0, 0], [gap, 0]], ['thrust']);
+    const ev = runEvents(w, 1, [cast('p0', 'thrust', gap, 0)]);
+    return { w, hit: hitsOf(ev, 'thrust')[0] };
+  };
+
+  it('moves the caster and deals more damage the faster it is going', () => {
+    const near = thrustHit(2);
+    const far = thrustHit(5.5);
+    expect(near.hit.id).toBe('p1');
+    expect(near.w.wizards[0].pos.x).toBeGreaterThan(1);
+    expect(far.w.wizards[0].pos.x).toBeGreaterThan(4);
+    expect(near.hit.dmg).toBeLessThan(far.hit.dmg);
+    expect(far.hit.dmg).toBeLessThanOrEqual(SPELLS.thrust.levels[0].dmg);
+    expect(far.w.wizards[1].vel.x).toBeGreaterThan(0); // empurrou o alvo
+    expect(len(far.w.wizards[0].vel)).toBe(0); // quem estocou para no golpe
+  });
+
+  it('without a hit it stops near the click point and slows down', () => {
+    const w = world([[0, 0], [0, -8]], ['thrust']);
+    run(w, 0.5, [cast('p0', 'thrust', 3, 0)]);
+    expect(w.wizards[0].pos.x).toBeGreaterThan(2.3);
+    expect(w.wizards[0].pos.x).toBeLessThan(3.7);
+    expect(len(w.wizards[0].vel)).toBeLessThan(2);
+  });
+});
+
+describe('Gravidade', () => {
+  it('pulls a nearby enemy and burns it', () => {
+    const w = world([[0, 0], [2, 1.5]], ['gravity']);
+    run(w, 1, [cast('p0', 'gravity', 5, 0)]);
+    expect(w.wizards[1].pos.y).toBeLessThan(1.4);
+    expect(w.wizards[1].hp).toBeLessThan(w.wizards[1].hpMax);
+    expect(w.wizards[0].pos).toEqual(v(0, 0)); // quem lançou não é puxado
+  });
+
+  it('bends a passing projectile', () => {
+    const fireballY = (gravity: boolean) => {
+      const w = world([[0, -1], [-1, 2]], ['gravity']);
+      run(w, 0.6, [cast('p1', 'fireball', 9, 2), ...(gravity ? [cast('p0', 'gravity', 5, -1)] : [])]);
+      return w.projectiles.find((p) => p.kind === 'fireball')!.pos.y;
+    };
+    expect(fireballY(false)).toBeCloseTo(2, 5);
+    expect(fireballY(true)).toBeLessThan(1.8);
+  });
+});
+
+describe('Pilar de pedra', () => {
+  it('raises an obstacle at the click point (up to its range) that vanishes after 4 s', () => {
+    const w = world([[0, 0], [0, -8]], ['rockpillar']);
+    run(w, 0.1, [cast('p0', 'rockpillar', 3, 0)]);
+    const p = w.pillars.find((q) => q.kind === 'rockpillar')!;
+    expect(p.alive).toBe(true);
+    expect(dist(p.pos, v(3, 0))).toBeLessThan(1e-9);
+    const view = decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']);
+    expect(view.pillars.some((q) => q.kind === 'rockpillar' && q.hp > 0)).toBe(true);
+    run(w, 4);
+    expect(p.alive).toBe(false);
+    w.wizards[0].cd.rockpillar = 0;
+    run(w, 0.1, [cast('p0', 'rockpillar', 50, 0)]);
+    expect(len(w.pillars[w.pillars.length - 1].pos)).toBeCloseTo(SPELLS.rockpillar.levels[0].range, 5);
+  });
+});
+
+describe('Ricochete', () => {
+  it('jumps to the next wizard with 70% of the damage and stops once it would drop below 1', () => {
+    const w = world([[-2, 0], [2, 0], [2, 2]], ['bouncer']);
+    for (const z of w.wizards) z.kbResist = 1; // sem empurrão: os alvos ficam no lugar
+    const ev = runEvents(w, 3, [cast('p0', 'bouncer', 2, 0)]);
+    const hits = hitsOf(ev, 'bouncer');
+    const d0 = SPELLS.bouncer.levels[0].dmg;
+    expect(hits.map((h) => h.id)).toEqual(['p1', 'p2', 'p1', 'p2', 'p1']);
+    hits.forEach((h, i) => expect(h.dmg).toBeCloseTo(Math.round(d0 * 0.7 ** i * 10) / 10, 5));
+    expect(d0 * 0.7 ** 5).toBeLessThan(1);
+    expect(w.projectiles).toHaveLength(0);
   });
 });

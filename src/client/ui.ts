@@ -1,5 +1,5 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
-import { DM_KILLS_TO_WIN, KILL_GOLD, MAX_PLAYERS, ROUND_GOLD, START_GOLD, TOP_DMG_GOLD, WIN_GOLD, WINS_TO_WIN } from '../shared/constants.ts';
+import { ASSIST_GOLD, BOUNTY, DM_KILLS_TO_WIN, KILL_GOLD, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, START_GOLD, TOP_DMG_GOLD, WIN_GOLD, WINS_TO_WIN } from '../shared/constants.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import { VOTE_PHASES, sellValue, type Mode } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
@@ -26,7 +26,7 @@ export function el(tag: string, props: Record<string, any> = {}, ...children: Ch
   return e;
 }
 
-export const ICON: Record<SpellId, string> = { fireball: '🔥', lightning: '⚡', homing: '🎯', shield: '🛡️', teleport: '✨', swap: '🔄', grip: '⛓️', meteor: '☄️', rush: '💨', cluster: '🔱' };
+export const ICON: Record<SpellId, string> = { fireball: '🔥', lightning: '⚡', homing: '🎯', shield: '🛡️', teleport: '✨', swap: '🔄', grip: '⛓️', meteor: '☄️', rush: '💨', cluster: '🔱', boomerang: '🪃', thrust: '🗡️', gravity: '🌀', rockpillar: '🪨', bouncer: '🏓' };
 export const ITEM_ICON: Record<ItemId, string> = { ring: '💍', cursed_ring: '🧿', cape: '🧣', armor: '⛓️', boots: '👢', watch: '⏱️', scourge: '💥', redirector: '↪️', pact: '🩸' };
 const TITLE = 'Warlock';
 
@@ -175,9 +175,13 @@ function goldInfo(p: PublicPlayer) {
     el('b', { class: 'gold-title' }, 'Como ganho ouro'),
     row('Começo da partida', `+${START_GOLD}`),
     row('Cada rodada que você jogou', `+${ROUND_GOLD}`),
-    row('Vencer a rodada', rule(WIN_GOLD), WIN_GOLD ? '' : 'muted'),
-    row('Abate', rule(KILL_GOLD), KILL_GOLD ? '' : 'muted'),
+    row('Vencer a rodada', `+${WIN_GOLD} (líder: +${LEADER_WIN_GOLD})`),
+    row('Abate', `+${KILL_GOLD}`),
+    row('Abater o líder', `até +${BOUNTY.max} extra`),
+    row('Atrás da média da partida', `até +${RECOVERY.max} por rodada`),
     row('Mais dano na rodada', rule(TOP_DMG_GOLD), TOP_DMG_GOLD ? '' : 'muted'),
+    row('Assistência (mais dano em quem morreu)', `+${ASSIST_GOLD}`),
+    row('Baú: em cima do ouro', '+1 a cada 2 s'),
     el('hr', {}),
     row('Ganho na última rodada', `🪙 ${p.stats.round.gold}`),
     row('Ganho na partida', `🪙 ${p.stats.match.gold}`),
@@ -601,4 +605,9 @@ const RULES_SHORT: Record<SpellId, string> = {
   meteor: 'Cai em área no ponto marcado, após 1 s.',
   rush: 'Avança 3 m na direção do mouse e fica mais rápido; dano levado vira mais velocidade.',
   cluster: 'Quatro projéteis em leque, curto alcance.',
+  boomerang: 'Vai em curva até o ponto e volta para você; acerta na ida e na volta.',
+  thrust: 'Você dispara até o ponto; o primeiro inimigo que tocar leva dano conforme a sua velocidade.',
+  gravity: 'Orbe lento que puxa magos inimigos e projéteis e queima quem fica perto.',
+  rockpillar: 'Ergue um pilar de pedra no ponto por 4 s: bloqueia magos e projéteis.',
+  bouncer: 'Acerta e pula para o mago mais perto, perdendo 30% do dano a cada inimigo.',
 };

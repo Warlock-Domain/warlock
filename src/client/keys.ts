@@ -7,6 +7,7 @@ export const ACTIONS: Action[] = [...SPELL_IDS, ...ACTIVE_ITEMS];
 const DEFAULTS: Record<string, string> = {
   fireball: 'KeyQ', lightning: 'KeyW', homing: 'KeyE', shield: 'KeyR', teleport: 'KeyF',
   cluster: 'KeyT', swap: 'KeyD', grip: 'KeyG', rush: 'KeyC', meteor: 'KeyV',
+  boomerang: 'KeyB', thrust: 'KeyX', gravity: 'KeyH', rockpillar: 'KeyZ', bouncer: 'KeyA',
   scourge: 'Digit1', redirector: 'Digit2', pact: 'Digit3',
 };
 // teclas com outra função no jogo: não podem virar atalho de magia

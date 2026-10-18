@@ -5,7 +5,7 @@ import {
 } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, itemStats, noItems, type ItemId } from './items.ts';
 import { masteryValue, noMasteries, type MasteryId } from './masteries.ts';
-import { CAST_POINT, CLUSTER_FAN, GRIP, HOMING_TURN, METEOR_DELAY, RUSH, SPELL_IDS, spellLevel, type SpellId } from './spells.ts';
+import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, GRAVITY, GRIP, HOMING_TURN, METEOR_DELAY, RUSH, SPELL_IDS, THRUST, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export type Wizard = {
@@ -43,6 +43,9 @@ export type Wizard = {
   dashUntil: number; // avanço da Investida em curso até este instante
   dashVel: Vec; // velocidade do avanço (m/s)
   dashHit: string[]; // quem este avanço já acertou
+  thrustUntil: number; // Estocada em curso até este instante (0 = nenhuma)
+  thrustAcc: Vec; // aceleração da Estocada (m/s²)
+  thrustMult: number; // Pacto na Estocada
   invulnUntil: number;
   respawnAt: number; // deathmatch: instante (w.t) em que o morto volta
   durF: number; // maestria de duração (multiplica escudo e pacto)
@@ -54,7 +57,8 @@ export type Wizard = {
 };
 
 // meteor fica parado no ponto de impacto até `until` e então explode; swap e grip não causam dano
-export const PROJ_KINDS = ['fireball', 'homing', 'swap', 'grip', 'meteor', 'cluster'] as const;
+// boomerang curva e volta ao dono; gravity não bate em mago, só puxa; bouncer pula de mago em mago
+export const PROJ_KINDS = ['fireball', 'homing', 'swap', 'grip', 'meteor', 'cluster', 'boomerang', 'gravity', 'bouncer'] as const;
 export type ProjKind = (typeof PROJ_KINDS)[number];
 
 export type Projectile = {
@@ -69,6 +73,11 @@ export type Projectile = {
   dmgMult: number; // Pacto
   caster: string; // quem lançou (o dono muda quando um escudo reflete)
   dest?: Vec; // Troca: aonde o mago vai se ela não tocar ninguém (o ponto da mira)
+  curve?: { acc: Vec; next: Vec; flipAt: number; stopAt: number }; // Bumerangue indo: aceleração agora, a da volta e quando trocam
+  back?: boolean; // Bumerangue voltando ao dono
+  prev?: string; // Ricochete: último mago tocado (não bate nele de novo em seguida)
+  tick?: number; // Gravidade: próximo dano
+  landed?: boolean; // já contou 'land' (Bumerangue e Ricochete acertam mais de uma vez)
 };
 
 export type Cmd =
@@ -99,12 +108,13 @@ export type SimEvent =
   | { k: 'land'; id: string; src: AimSrc };
 
 // as de utilidade (teleport, shield, swap, grip, rush, pact, redirector) contam uso em 'fire' e, quando pegam alguém, 'land'
-export type AimSrc = 'fireball' | 'lightning' | 'homing' | 'scourge' | 'meteor' | 'cluster' | 'teleport' | 'shield' | 'swap' | 'grip' | 'rush' | 'pact' | 'redirector';
+export type AimSrc = 'fireball' | 'lightning' | 'homing' | 'scourge' | 'meteor' | 'cluster' | 'teleport' | 'shield' | 'swap' | 'grip' | 'rush' | 'pact' | 'redirector'
+  | 'boomerang' | 'thrust' | 'gravity' | 'rockpillar' | 'bouncer';
 
 // choque de magias: fogo×fogo, fogo×míssil, míssil×míssil, e o raio detonando uma bola de fogo
 export type Combo = 'fire' | 'arcane' | 'pulse' | 'detonate' | 'pillar';
 
-export type Pillar = { pos: Vec; hp: number; alive: boolean; kind: ObstacleKind };
+export type Pillar = { pos: Vec; hp: number; alive: boolean; kind: ObstacleKind; until?: number }; // until: some sozinho (Pilar de pedra)
 
 export type Zone = { pos: Vec; r: number; kind: 'burn' | 'slow' | 'pull'; until: number };
 
@@ -116,7 +126,7 @@ export type World = {
   projectiles: Projectile[];
   pillars: Pillar[];
   zones: Zone[]; // chão com efeito deixado pelos choques
-  loot: { pos: Vec; left: number; until: number } | null; // monte de ouro do baú quebrado
+  loots: { pos: Vec; left: number; until: number }[]; // montes de ouro dos baús quebrados
   chestAt: number; // quando o próximo baú aparece
   events: SimEvent[];
   nextId: number;
@@ -174,6 +184,9 @@ export function newWorld(
       dashUntil: 0,
       dashVel: v(0, 0),
       dashHit: [],
+      thrustUntil: 0,
+      thrustAcc: v(0, 0),
+      thrustMult: 1,
       invulnUntil: INVULN_TIME,
       respawnAt: 0,
       durF: 1 + masteryValue('duration', ms.duration),
@@ -182,7 +195,7 @@ export function newWorld(
       casting: null,
     };
   });
-  return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars: placePillars(pillarCount, wizards.map((z) => z.pos), rand), zones: [], loot: null, chestAt: CHEST.every, events: [], nextId: 1, dm };
+  return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars: placePillars(pillarCount, wizards.map((z) => z.pos), rand), zones: [], loots: [], chestAt: CHEST.first, events: [], nextId: 1, dm };
 }
 
 // sorteia pilares longe de onde os magos nascem e longe uns dos outros
@@ -359,7 +372,7 @@ function damagePillar(w: World, i: number, dmg: number, by: string | null) {
   if (p.hp > 0) return;
   p.alive = false;
   const o = OBSTACLES[p.kind];
-  if (p.kind === 'chest') w.loot = { pos: p.pos, left: CHEST.pile, until: w.t + CHEST.pileSecs };
+  if (p.kind === 'chest') w.loots.push({ pos: p.pos, left: CHEST.pile, until: w.t + CHEST.pileSecs });
   if (o.blastR > 0) area(w, p.pos, o.blastR, o.blastDmg, 1, by, true, 'pillar');
   else w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pillar', r: o.r * 1.5 });
 }
@@ -367,6 +380,11 @@ function damagePillar(w: World, i: number, dmg: number, by: string | null) {
 // magos não atravessam pilares: empurra para fora e corta o deslize na direção do pilar
 function blockPillars(w: World) {
   for (const p of w.pillars) {
+    if (p.alive && p.until !== undefined && w.t >= p.until) {
+      // o Pilar de pedra acaba: some sem explodir (removeObstacle do original)
+      p.alive = false;
+      w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pillar', r: OBSTACLES[p.kind].r * 1.5 });
+    }
     if (!p.alive) continue;
     for (const wz of w.wizards) {
       if (!wz.alive) continue;
@@ -438,6 +456,40 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     wz.dashVel = scale(dir, RUSH.dash / RUSH.dashTime);
     wz.dashHit = [];
     wz.target = null;
+  } else if (spell === 'boomerang') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'boomerang' });
+    // boomerang.lua e boomerangprojectile.lua: velocidade e acelerações que levam ao ponto (300 a 800 u) em curva e trazem de volta
+    const d = Math.min(Math.max(len(sub(at, wz.pos)), BOOMERANG.minDist), L.range * wz.rangeF);
+    const perp = v(-dir.y, dir.x);
+    const par = -(L.speed * L.speed) / (2 * d);
+    const side = (2 * par * BOOMERANG.side) / L.speed;
+    const flip = -L.speed / par;
+    launch('boomerang', dir, BOOMERANG.life);
+    const p = w.projectiles[w.projectiles.length - 1];
+    p.vel = add(scale(dir, L.speed), scale(perp, BOOMERANG.side));
+    p.curve = { acc: add(scale(dir, par), scale(perp, side)), next: sub(scale(dir, par), scale(perp, side)), flipAt: w.t + flip, stopAt: w.t + 2 * flip - 0.15 };
+  } else if (spell === 'gravity') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'gravity' });
+    launch('gravity', dir, (L.range / L.speed) * wz.rangeF);
+    w.projectiles[w.projectiles.length - 1].tick = w.t + GRAVITY.tick;
+  } else if (spell === 'bouncer') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'bouncer' });
+    launch('bouncer', dir, (L.range / L.speed) * wz.rangeF);
+    w.projectiles[w.projectiles.length - 1].prev = wz.id;
+  } else if (spell === 'thrust') {
+    // thrust.lua: sai a 77% da velocidade rumo ao ponto (até 900 u) e acelera; dura o caminho + 0,09 s
+    w.events.push({ k: 'fire', id: wz.id, src: 'thrust' });
+    const d = Math.min(len(sub(at, wz.pos)), L.range);
+    wz.vel = scale(dir, THRUST.start * L.speed);
+    wz.thrustAcc = scale(dir, L.speed * THRUST.accel);
+    wz.thrustUntil = w.t + THRUST.extra + d / L.speed;
+    wz.thrustMult = dmgMult;
+    wz.target = null;
+  } else if (spell === 'rockpillar') {
+    // rockpillar.lua: obstáculo no ponto (até o alcance) que some depois da duração (com a maestria de duração)
+    w.events.push({ k: 'fire', id: wz.id, src: 'rockpillar' });
+    const pos = add(wz.pos, clampLen(sub(at, wz.pos), L.range));
+    w.pillars.push({ pos, hp: OBSTACLES.rockpillar.hp, alive: true, kind: 'rockpillar', until: w.t + L.duration * wz.durF });
   } else if (spell === 'lightning') {
     w.events.push({ k: 'fire', id: wz.id, src: 'lightning' });
     const end = add(wz.pos, scale(dir, L.range * wz.rangeF));
@@ -559,6 +611,10 @@ function scourge(w: World, wz: Wizard) {
     landed = true;
   }
   if (landed) w.events.push({ k: 'land', id: wz.id, src: 'scourge' });
+  // também bate nos obstáculos e no baú dentro da explosão (pedido do Fernando, 17/10)
+  w.pillars.forEach((q, i) => {
+    if (q.alive && dist(q.pos, wz.pos) <= SCOURGE.radius + OBSTACLES[q.kind].r) damagePillar(w, i, dmg, wz.id);
+  });
   // também destrói bolas de fogo e mísseis inimigos dentro da explosão (pedido do Fernando, 17/10)
   const caught = w.projectiles.filter((p) => p.owner !== wz.id && p.kind !== 'meteor' && dist(p.pos, wz.pos) <= SCOURGE.radius + PROJ_R);
   if (caught.length) {
@@ -604,7 +660,92 @@ function swapPlaces(w: World, p: Projectile, other: Wizard) {
   w.events.push({ k: 'teleport', id: wz.id, from: a, to: b }, { k: 'teleport', id: other.id, from: b, to: a });
 }
 
+// projétil quica num círculo (mago ou obstáculo): reflete se estava indo para ele e sai de dentro
+function bounceOff(p: Projectile, center: Vec, r: number, speed = len(p.vel)) {
+  const n = norm(sub(p.pos, center));
+  const into = dot(p.vel, n);
+  if (into < 0) p.vel = sub(p.vel, scale(n, 2 * into));
+  p.vel = scale(norm(p.vel), speed);
+  p.pos = add(center, scale(n, r + PROJ_R + BOOMERANG.gap));
+}
+
+// Gravidade (gravityprojectile.lua): puxa magos inimigos e todos os projéteis (menos meteoro e outra gravidade) e queima
+// quem está perto a cada 0,2 s, sem empurrão
+function gravityPull(w: World, g: Projectile) {
+  const L = spellLevel('gravity', g.level);
+  for (const o of w.wizards) {
+    if (!o.alive || o.id === g.owner) continue;
+    const d = dist(g.pos, o.pos);
+    // no original é aceleração na velocidade; aqui o mago parado zera velocidade abaixo de 0,05 m/s (moveWizard), então o puxão
+    // vira deslocamento na velocidade de equilíbrio (puxão ÷ atrito), sem deixar o mago atordoado: ele ainda anda contra, como lá
+    if (d <= GRAVITY.wizR) o.pos = add(o.pos, scale(norm(sub(g.pos, o.pos)), (L.pull / FRICTION) * (1 - (d * d) / (GRAVITY.wizR * GRAVITY.wizR)) * DT));
+  }
+  for (const q of w.projectiles) {
+    if (q.kind === 'meteor' || q.kind === 'gravity') continue;
+    const d = dist(g.pos, q.pos);
+    if (d <= GRAVITY.projR) q.vel = add(q.vel, scale(norm(sub(g.pos, q.pos)), GRAVITY.projPull * (1.5 - (d * d) / (GRAVITY.projR * GRAVITY.projR)) * DT));
+  }
+  if (w.t < (g.tick ?? 0)) return;
+  g.tick = w.t + GRAVITY.tick;
+  for (const o of w.wizards) {
+    if (!o.alive || o.id === g.owner || dist(g.pos, o.pos) > L.radius) continue;
+    hit(w, o, g.owner, L.dmg * GRAVITY.tick * g.dmgMult, 0, sub(o.pos, g.pos), 'gravity');
+    if (!g.landed && g.owner === g.caster) w.events.push({ k: 'land', id: g.caster, src: 'gravity' });
+    g.landed = true;
+  }
+}
+
+// Bumerangue (boomerangprojectile.lua): indo, segue as acelerações da curva; voltando, vira até 1000 u/s² rumo ao dono
+// a 1000 u/s e some ao encostar nele. Devolve false quando acabou
+function steerBoomerang(w: World, p: Projectile): boolean {
+  const owner = byId(w, p.owner);
+  if (!owner) return false;
+  if (p.curve) {
+    p.vel = add(p.vel, scale(p.curve.acc, DT));
+    if (w.t >= p.curve.flipAt) [p.curve.acc, p.curve.flipAt] = [p.curve.next, Infinity];
+    if (w.t >= p.curve.stopAt) [p.curve, p.back] = [undefined, true];
+    return true;
+  }
+  if (dist(owner.pos, p.pos) < WIZ_R + PROJ_R) return false;
+  const want = sub(scale(norm(sub(owner.pos, p.pos)), BOOMERANG.back), p.vel);
+  p.vel = add(p.vel, scale(norm(want), Math.min(len(want), BOOMERANG.turn * DT)));
+  return true;
+}
+
+// Estocada (thrustmodifier.lua): acelera e, ao encostar num inimigo, para e causa dano proporcional ao quadrado da
+// velocidade (cheio a partir de 80% dele); escudo faz o mago quicar; sem acertar, freia para 20% no fim
+function stepThrust(w: World, wz: Wizard) {
+  if (wz.thrustUntil <= 0) return;
+  if (w.t >= wz.thrustUntil) {
+    wz.thrustUntil = 0;
+    wz.vel = scale(wz.vel, THRUST.endSlow);
+    return;
+  }
+  wz.vel = add(wz.vel, scale(wz.thrustAcc, DT));
+  const L = spellLevel('thrust', wz.spells.thrust);
+  for (const o of w.wizards) {
+    if (!o.alive || o === wz) continue;
+    const n = norm(sub(o.pos, wz.pos));
+    if (dist(o.pos, wz.pos) > 2 * WIZ_R + THRUST.reach + (shielded(w, o) ? Math.max(0, o.shieldR - WIZ_R) : 0)) continue;
+    if (shielded(w, o)) {
+      const into = dot(wz.vel, n);
+      if (into > 0) {
+        wz.vel = sub(wz.vel, scale(n, 2 * into));
+        w.events.push({ k: 'reflect', id: o.id, x: o.pos.x, y: o.pos.y });
+      }
+      continue;
+    }
+    const k = Math.min(1, dot(wz.vel, wz.vel) / (L.speed * L.speed) / THRUST.full);
+    wz.vel = v(0, 0);
+    wz.thrustUntil = 0;
+    hit(w, o, wz.id, L.dmg * k * wz.thrustMult, L.knock * k * wz.thrustMult, n, 'thrust');
+    w.events.push({ k: 'land', id: wz.id, src: 'thrust' });
+    return;
+  }
+}
+
 function stepProjectiles(w: World) {
+  for (const g of w.projectiles) if (g.kind === 'gravity') gravityPull(w, g);
   const keep: Projectile[] = [];
   for (const p of w.projectiles) {
     if (p.kind === 'meteor') {
@@ -613,6 +754,7 @@ function stepProjectiles(w: World) {
       continue;
     }
     const L = spellLevel(p.kind, p.level);
+    if (p.kind === 'boomerang' && (w.t >= p.until || !steerBoomerang(w, p))) continue;
     const target = p.kind === 'homing' ? byId(w, p.target) : undefined;
     if (target) {
       // gira no máximo HOMING_TURN rad/s em direção ao alvo: o atraso faz o míssil rodear antes de acertar
@@ -625,9 +767,18 @@ function stepProjectiles(w: World) {
     }
     // a Troca anda só o que falta no último passo, para parar exatamente no ponto da mira
     const next = add(p.pos, scale(p.vel, p.kind === 'swap' ? Math.min(DT, Math.max(0, p.until - w.t)) : DT));
-    const found = firstOnSegment(w, p.pos, next, WIZ_R + PROJ_R, p.owner);
+    // a Gravidade não bate em mago; o Ricochete não repete o último mago tocado (pode voltar em quem lançou)
+    const found = p.kind === 'gravity' ? null : firstOnSegment(w, p.pos, next, WIZ_R + PROJ_R, p.kind === 'bouncer' ? (p.prev ?? p.owner) : p.owner);
     const pil = firstPillarOnSegment(w, p.pos, next, PROJ_R);
     if (pil && (!found || pil.t < found.t)) {
+      const q = w.pillars[pil.i];
+      // Gravidade e Ricochete quicam no obstáculo; o Bumerangue quica mais forte e volta ao dono
+      if (p.kind === 'gravity' || p.kind === 'bouncer' || p.kind === 'boomerang') {
+        bounceOff(p, q.pos, OBSTACLES[q.kind].r, p.kind === 'boomerang' ? BOOMERANG.bounceWall : undefined);
+        if (p.kind === 'boomerang') [p.curve, p.back] = [undefined, true];
+        keep.push(p);
+        continue;
+      }
       if (p.kind === 'swap') swapEnd(w, p);
       else if (L.dmg > 0) damagePillar(w, pil.i, L.dmg * p.dmgMult, p.owner);
       continue;
@@ -640,6 +791,15 @@ function stepProjectiles(w: World) {
           w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
           continue;
         }
+        // o Bumerangue quica no escudo sem trocar de dono e volta (shieldmodifier.lua)
+        if (p.kind === 'boomerang') {
+          bounceOff(p, wz.pos, Math.max(WIZ_R, wz.shieldR));
+          [p.curve, p.back] = [undefined, true];
+          w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
+          keep.push(p);
+          continue;
+        }
+        if (p.kind === 'bouncer') p.prev = wz.id;
         // devolve mirando onde quem atirou está agora (pedido do Fernando, 17/10: deixa o escudo mais forte);
         // se ele já morreu, volta pelo mesmo caminho. O projétil passa a ser de quem refletiu.
         const shooter = byId(w, p.owner);
@@ -663,6 +823,30 @@ function stepProjectiles(w: World) {
           wz.casting = null;
           w.events.push({ k: 'grip', id: wz.id, x: wz.pos.x, y: wz.pos.y });
         }
+      } else if (p.kind === 'boomerang') {
+        // bate, quica a 500 u/s e volta ao dono; pode acertar de novo na volta
+        hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, sub(wz.pos, p.pos), 'boomerang');
+        if (!p.landed && p.owner === p.caster) w.events.push({ k: 'land', id: p.caster, src: 'boomerang' });
+        p.landed = true;
+        bounceOff(p, wz.pos, WIZ_R, BOOMERANG.bounce);
+        [p.curve, p.back] = [undefined, true];
+        keep.push(p);
+      } else if (p.kind === 'bouncer') {
+        // bouncerprojectile.lua: dano só em inimigo (e −30% a cada um); quem lançou só desvia; segue ao mago mais perto
+        // com 1 s de vida renovada, até o dano ficar abaixo de 1
+        if (wz.id !== p.owner) {
+          hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel, 'bouncer');
+          if (!p.landed && p.owner === p.caster) w.events.push({ k: 'land', id: p.caster, src: 'bouncer' });
+          p.landed = true;
+          p.dmgMult *= BOUNCER.decay;
+        }
+        if (L.dmg * p.dmgMult < BOUNCER.minDmg) continue;
+        p.prev = wz.id;
+        p.pos = add(p.pos, scale(p.vel, DT * found.t));
+        const nextTo = nearestEnemy(w, p.pos, wz.id);
+        if (nextTo) p.vel = scale(norm(sub(nextTo.pos, p.pos)), L.speed);
+        p.until = w.t + (L.range / L.speed) * (byId(w, p.caster)?.rangeF ?? 1);
+        keep.push(p);
       } else {
         hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel, p.kind);
         if (p.owner === p.caster) w.events.push({ k: 'land', id: p.caster, src: p.kind as AimSrc });
@@ -719,7 +903,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
   }
   Object.assign(wz, {
     alive: true, pos: best, vel: v(0, 0), target: null, casting: null, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
-    shieldUntil: 0, kbPenaltyUntil: 0, pactUntil: 0, dashUntil: 0, invulnUntil: w.t + INVULN_TIME,
+    shieldUntil: 0, kbPenaltyUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
   });
 }
 
@@ -764,8 +948,8 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
 
   w.zones = w.zones.filter((z) => z.until > w.t);
   // baú: aparece num ponto sorteado longe dos obstáculos; as magias quebram e ele vira um monte de ouro
-  const chestUp = w.pillars.some((q) => q.kind === 'chest' && q.alive);
-  if (!chestUp && !w.loot && w.t >= w.chestAt) {
+  const chestsUp = w.pillars.filter((q) => q.kind === 'chest' && q.alive).length;
+  if (chestsUp < CHEST.maxUp && w.t >= w.chestAt) {
     let at: Vec | null = null;
     for (let i = 0; i < 20 && !at; i++) {
       const a = rand() * Math.PI * 2;
@@ -776,26 +960,24 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     if (at) {
       w.pillars.push({ pos: at, hp: OBSTACLES.chest.hp, alive: true, kind: 'chest' });
       w.events.push({ k: 'chest', x: at.x, y: at.y });
+      w.chestAt = w.t + CHEST.every;
     } else w.chestAt = w.t + 1;
   }
   // monte de ouro: cada mago em cima enche a própria barra e ganha 1 a cada 2 s; quem sai perde o progresso
-  const loot = w.loot;
   for (const z of w.wizards) {
-    if (!loot || !z.alive || dist(z.pos, loot.pos) > CHEST.reach) {
+    const loot = z.alive ? w.loots.find((l) => l.left > 0 && dist(z.pos, l.pos) <= CHEST.reach) : undefined;
+    if (!loot) {
       z.lootProg = 0;
       continue;
     }
     z.lootProg += DT;
-    if (z.lootProg >= CHEST.goldEvery && loot.left > 0) {
+    if (z.lootProg >= CHEST.goldEvery) {
       z.lootProg = 0;
       loot.left--;
       w.events.push({ k: 'loot', id: z.id, x: loot.pos.x, y: loot.pos.y });
     }
   }
-  if (loot && (loot.left <= 0 || w.t >= loot.until)) {
-    w.loot = null;
-    w.chestAt = w.t + CHEST.every;
-  }
+  w.loots = w.loots.filter((l) => l.left > 0 && w.t < l.until);
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
     if (w.t < wz.dashUntil) {
@@ -808,6 +990,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
         w.events.push({ k: 'land', id: wz.id, src: 'rush' });
       }
     }
+    stepThrust(w, wz);
     // redemoinho do choque de pulso: puxa devagar para o centro
     for (const z of w.zones) {
       const d = sub(z.pos, wz.pos);

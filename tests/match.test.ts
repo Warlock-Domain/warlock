@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { botBuy, botCmds } from '../src/shared/bots.ts';
-import { ARENA_R0, COUNTDOWN_MS, DM_ROUND_MS, DT, KILL_GOLD, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
+import { ARENA_R0, ASSIST_GOLD, COUNTDOWN_MS, DM_ROUND_MS, DT, KILL_GOLD, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
 import { addPlayer, buy, castBallot, endIdle, kick, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, startVote, tickMatch, type Match, type Stat } from '../src/shared/match.ts';
 import { newWorld } from '../src/shared/sim.ts';
@@ -97,6 +97,17 @@ describe('partida', () => {
     for (let i = 0; i < 60; i++) kinds.push(...tickMatch(m, (now += STEP_MS), i === 0 ? [{ id: 'a', kind: 'cast', spell: 'fireball', at: v(3, 0) }] : [], () => 0.5).map((e) => e.k));
     expect(kinds).toContain('hit');
     expect(m.players[0].stats.room.landed.fireball).toBe(1);
+  });
+
+  it('assist: whoever hit the victim the most, other than the killer, gets 2 gold', () => {
+    const m = twoPlayers();
+    addPlayer(m, 'c', 'Caio');
+    let now = toPlaying(m, 0);
+    m.dmgOn = { b: { c: 8, a: 2 } };
+    const before = m.players.find((p) => p.id === 'c')!.gold;
+    kill(m, 'b', 'a');
+    for (let i = 0; i < 600 && m.world!.wizards[1].alive; i++) tickMatch(m, (now += STEP_MS), [], () => 0.5);
+    expect(m.players.find((p) => p.id === 'c')!.gold).toBe(before + ASSIST_GOLD);
   });
 
   it('if the last ones die together, the one with more hp wins', () => {
@@ -214,8 +225,21 @@ describe('partida', () => {
     kill(m, 'b', null);
     until(m, now, () => m.phase === 'roundEnd');
     expect(m.players[0].gold).toBe(START_GOLD + ROUND_GOLD + WIN_GOLD);
-    expect(m.players[1].gold).toBe(START_GOLD + ROUND_GOLD);
+    // b ficou atrás da média da partida: recebe metade da diferença (recuperação)
+    const avg = (ROUND_GOLD + WIN_GOLD + ROUND_GOLD) / 2;
+    expect(m.players[1].gold).toBe(START_GOLD + ROUND_GOLD + Math.floor((avg - ROUND_GOLD) / 2));
     expect(ROUND_END_MS).toBeGreaterThan(0);
+  });
+
+  it('killing the leader pays a bounty and the leader wins less', () => {
+    const m = twoPlayers();
+    addPlayer(m, 'c', 'Caio');
+    let now = toPlaying(m, 0);
+    m.players.find((p) => p.id === 'b')!.score = 3; // b lidera: média 1, vantagem 2 → +6
+    const before = m.players.find((p) => p.id === 'a')!.gold;
+    kill(m, 'b', 'a');
+    for (let i = 0; i < 600 && m.world!.wizards[1].alive; i++) tickMatch(m, (now += STEP_MS), [], () => 0.5);
+    expect(m.players.find((p) => p.id === 'a')!.gold).toBe(before + KILL_GOLD + 6);
   });
 
   it('whoever dealt the most damage in the round gets extra gold, with a live event', () => {

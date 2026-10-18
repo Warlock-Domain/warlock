@@ -20,6 +20,11 @@ const SPELL_ROWS: Record<SpellId, Row[]> = {
   meteor: [['Dano no centro', (l) => n1(l.dmg)], ['Dano na borda', (l) => n1(l.dmgMin)], ['Raio', (l) => m(l.radius)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   rush: [['Avanço', () => m(RUSH.dash)], ['Duração', (l) => s(l.duration)], ['Dano absorvido', (l) => n1(l.absorb)], ['Recarga', (l) => s(l.cd)]],
   cluster: [['Dano por projétil', (l) => n1(l.dmg)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  boomerang: [['Dano', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  thrust: [['Dano máximo', (l) => n1(l.dmg)], ['Empurrão máximo', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  gravity: [['Dano por segundo', (l) => n1(l.dmg)], ['Puxão', (l) => `${n1(l.pull)} m/s²`], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  rockpillar: [['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  bouncer: [['Dano no 1º', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance por salto', (l) => m(l.range)]],
 };
 
 function table(rows: [string, string, string | null][]): string {
