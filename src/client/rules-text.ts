@@ -30,7 +30,7 @@ export const RULES: [string, string[]][] = [
     `Morte súbita (Rodadas e Times): passados ${SUDDEN.at} s de rodada, a arena encolhe a cada ${SUDDEN.every} s em vez de ${SHRINK_EVERY}.`,
   ]],
   ['Sequências de abate', [
-    `Abates com até ${STREAK.window} s entre eles viram Double kill, Multi kill e ULTRA KILL.`,
+    `Abates com até ${STREAK.window} s entre eles viram Abate duplo, Abate triplo e Massacre (o locutor grita em inglês).`,
     `Abates sem morrer (contam de uma rodada para a outra): ${STREAK.spree[0]} é Matança, ${STREAK.spree[1]} Fúria assassina, ${STREAK.spree[2]} Imparável e ${STREAK.spree[3]} Lendária.`,
     `Quebra-combo: quem derruba alguém com ${STREAK.breakAt} ou mais abates seguidos ganha +${STREAK.breakGold} de ouro (vezes o multiplicador de ouro da sala).`,
   ]],
@@ -44,7 +44,7 @@ export const RULES: [string, string[]][] = [
     'Tecla da magia: lança na direção do cursor (as suas teclas estão logo abaixo). Clicar no botão da magia e depois no chão também lança.',
     'Roda do mouse: zoom. Espaço + arrastar com o botão esquerdo: mover a câmera; Espaço sozinho volta ao centro.',
     'Tab (segurar): placar; com ele aberto, ← → troca entre Rodada, Partida e Sala. Na loja o Tab anda pelos botões e o placar fica no botão Placar.',
-    'Y: taunts (frase com som em cima do seu mago); o número escolhe. Também no botão 💬.',
+    'Y: provocações (frase com som em cima do seu mago); o número escolhe. Também no botão 💬.',
     "Tecla à esquerda do 1 (' no teclado brasileiro): ficha do mago, com vida, velocidade, empurrão, magias, itens e efeitos de agora. Também no botão 📜.",
     'Votar, no topo: abre as votações da partida (a lista está em "Opções da partida e votações").',
     'Dá para trocar a tecla de cada magia e item no botão ⌨️, ou usar Q W E R D F pela ordem da barra (fica salvo no navegador).',
@@ -60,7 +60,7 @@ export const RULES: [string, string[]][] = [
   ['Controles no celular', [
     'Toque no chão para andar.',
     'Toque no botão da magia e depois no chão para lançar; o ✕ do aviso cancela.',
-    '📊 no topo abre o placar, 📜 abre a ficha do mago, 💬 manda taunts e Votar troca o modo ou expulsa alguém.',
+    '📊 no topo abre o placar, 📜 abre a ficha do mago, 💬 manda provocações e Votar troca o modo ou expulsa alguém.',
   ]],
   ['Loja', [
     'Você começa com 30 de ouro (nas opções padrão), a Bola de fogo e o Flagelo (tecla 1), e ganha 10 de ouro a cada rodada, como no Warlock original. A loja dura 30 s (dá para mudar nas opções).',

@@ -457,3 +457,57 @@ button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infini
 /* controle (gamepad): foco bem visível, anel dourado, em quem navega pelo D-pad */
 html.pad :focus { outline: 3px solid #ffd166 !important; outline-offset: 2px; box-shadow: 0 0 0 6px rgba(255, 209, 102, .35), 0 0 18px rgba(255, 209, 102, .55) !important; }
 html.pad .shop-item:focus-within { border-color: #ffd166; }
+
+/* feed de abates no canto direito: matador, ícone da causa e quem caiu; a linha com você ganha borda de brasa */
+.feed { position: absolute; right: max(10px, var(--safe-r)); top: calc(58px + var(--safe-t)); z-index: 2; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; pointer-events: none; max-width: min(320px, 55%); }
+.feed li { display: flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--r-sm); background: var(--panel-glass); border: 1px solid var(--line); font-size: .9rem; white-space: nowrap; max-width: 100%; animation: feed-in .18s ease-out; }
+.feed li b { overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px var(--ink); }
+.feed li.me { border-color: var(--ember); background: var(--panel-solid); box-shadow: 0 0 10px rgba(255, 179, 71, .35); }
+.feed-ico { flex: none; }
+@keyframes feed-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+@media (max-width: 600px) { .feed { top: calc(104px + var(--safe-t)); max-width: 48%; } .feed li { font-size: .8rem; padding: 2px 8px; } }
+@media (prefers-reduced-motion: reduce) { .feed li { animation: none; } }
+/* perigo: borda vermelha fixa com vida abaixo de 25%, pulsando com o pé na lava; seta na borda do lado de quem bateu */
+/* carmim escuro com filete vivo: some contra o laranja da lava se for da mesma cor; z-index -1 deixa a HUD por cima */
+.hud > .danger { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0; transition: opacity .25s; box-shadow: inset 0 0 0 3px #ff2a4a, inset 0 0 70px 12px rgba(230, 0, 40, .75); background: radial-gradient(ellipse at 50% 50%, transparent 45%, rgba(70, 0, 10, .8) 100%); }
+.danger.low { opacity: .75; }
+.danger.lava { opacity: 1; animation: danger-pulse .45s ease-in-out infinite alternate; }
+@keyframes danger-pulse { from { opacity: .5; } to { opacity: 1; } }
+.hud > .hit-arrow { position: fixed; width: 0; height: 0; pointer-events: none; transform: translate(-50%, -50%) rotate(var(--a)); border-top: 18px solid transparent; border-bottom: 18px solid transparent; border-left: 30px solid #ff2a4a; filter: drop-shadow(0 0 1px var(--white)) drop-shadow(0 0 6px rgba(0, 0, 0, .8)); animation: hit-arrow .9s ease-out forwards; }
+@keyframes hit-arrow { 0% { opacity: 0; scale: .6; } 15% { opacity: 1; scale: 1.15; } 100% { opacity: 0; scale: 1; } }
+@media (prefers-reduced-motion: reduce) { .danger.lava { animation: none; } .hud > .hit-arrow { animation: none; } }
+/* latência ao lado do ponto de conexão */
+.ping { margin-left: 4px; font-family: ui-monospace, Consolas, monospace; font-size: .75rem; font-weight: 700; letter-spacing: 0; }
+.ping[data-q="good"] { color: var(--ok); } .ping[data-q="ok"] { color: var(--gold); } .ping[data-q="bad"] { color: var(--red); }
+/* lista de salas: um cartão por sala, com modo, gente, fase e o Entrar à direita; sala esperando ganha borda de brasa */
+.rooms li.room-card { grid-template-columns: 1fr auto; padding: 10px 10px 10px 14px; gap: 12px; }
+.room-card.open { border-color: var(--bronze); }
+.room-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.room-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.room-top .code { font-size: 1.1rem; }
+.room-mode { font-size: .8rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--gold-faint); color: var(--gold); border: 1px solid var(--gold-line); }
+.room-card .button { min-width: 96px; }
+/* sala de espera: Começar e Convidar no rodapé do cartão enquanto rola as opções */
+.card-go { position: sticky; bottom: -18px; z-index: 1; display: grid; grid-template-columns: 1fr auto; gap: 8px; margin: 0 -18px -18px; padding: 12px 18px 18px; background: var(--panel-solid); border-top: 1px solid var(--line); border-radius: 0 0 var(--r-lg) var(--r-lg); }
+@media (max-width: 420px) { .card-go { grid-template-columns: 1fr; } }
+/* fim da partida: Jogar de novo e Voltar à sala logo abaixo do pódio */
+.end-actions { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }
+.end-hint { text-align: center; }
+@media (max-width: 420px) { .end-actions { grid-template-columns: 1fr; } }
+/* modo treino: botão na sala de espera e a dica do momento no alto da tela */
+button.train { flex-direction: column; gap: 0; border-style: dashed; border-color: var(--bronze); }
+button.train small { font-weight: 400; }
+.hud > .coach { position: absolute; left: 50%; top: calc(48px + var(--safe-t)); transform: translateX(-50%); z-index: 4; max-width: min(520px, calc(100% - 24px)); padding: 8px 16px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--ember); box-shadow: 0 0 16px rgba(255, 179, 71, .35); font-weight: 700; text-align: center; pointer-events: none; animation: fade-in .2s ease-out; }
+.hud > .coach::before { content: '💡 '; }
+@media (max-width: 600px) { .hud > .coach { top: auto; bottom: calc(130px + var(--safe-b)); font-size: .9rem; border-radius: var(--r-md); } }
+@media (prefers-reduced-motion: reduce) { .hud > .coach { animation: none; } }
+/* na loja o cartão ocupa o meio: a dica desce para o rodapé livre */
+@media (min-width: 601px) { .hud:has(.center .shop) > .coach { top: auto; bottom: calc(16px + var(--safe-b)); } }
+/* celular: acima do Pronto, que fica grudado no rodapé */
+@media (max-width: 600px) { .hud:has(.center .shop) > .coach { bottom: calc(80px + var(--safe-b)); } }
+/* espectador: selo "Assistindo X" com setas, abaixo do relógio */
+.hud > .watching { position: absolute; left: 50%; top: calc(96px + var(--safe-t)); transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 6px; padding: 2px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--gold-line); font-size: .95rem; white-space: nowrap; }
+.watching b { color: var(--gold); }
+.watching button.icon { width: 36px; min-height: 36px; border-radius: 999px; font-size: 1.3rem; line-height: 1; }
+@media (max-width: 600px) { .hud > .watching { top: auto; bottom: calc(76px + var(--safe-b)); } }
+@media (pointer: coarse) { .watching button.icon { width: 44px; min-height: 44px; } }

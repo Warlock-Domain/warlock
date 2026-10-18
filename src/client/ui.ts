@@ -55,8 +55,10 @@ export function askName(root: HTMLElement, current: string): Promise<string> {
   });
 }
 
-export type RoomInfo = { id: string; players: number; phase: string };
-const PHASE: Record<string, string> = { lobby: 'esperando', end: 'fim de jogo' };
+export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
+// o que a sala está fazendo, em palavras de quem vai entrar
+const roomPhase = (r: RoomInfo) => r.phase === 'lobby' ? 'esperando começar' : r.phase === 'end' ? 'partida acabou, dá para começar outra'
+  : `jogando${r.round ? ` a rodada ${r.round}` : ''} · você entra na próxima rodada`;
 
 export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onRename: () => void) {
   const retry = el('button', { type: 'button', onclick: () => location.reload() }, 'Tentar de novo');
@@ -67,11 +69,14 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
       ? el('p', { class: 'muted' }, 'Carregando salas…')
       : rooms.length === 0
         ? el('p', { class: 'muted' }, 'Nenhuma sala aberta. Crie uma e mande o link no grupo.')
+        // um cartão por sala: código e modo, quem está lá, o que está acontecendo e o Entrar
         : el('ul', { class: 'rooms' }, ...rooms.map((r) =>
-            el('li', {},
-              el('span', { class: 'code' }, r.id),
-              el('span', { class: 'muted' }, `${r.players} ${r.players === 1 ? 'pessoa' : 'pessoas'} · ${PHASE[r.phase] ?? 'jogando'}`),
-              el('a', { class: 'button', href: '#' + r.id }, r.phase === 'lobby' ? 'Entrar' : 'Assistir'),
+            el('li', { class: 'room-card' + (r.phase === 'lobby' ? ' open' : '') },
+              el('div', { class: 'room-info' },
+                el('div', { class: 'room-top' }, el('span', { class: 'code' }, r.id), r.mode && r.mode in MODE_NAME ? el('span', { class: 'room-mode' }, MODE_NAME[r.mode as Mode]) : null),
+                el('span', {}, r.players ? `👤 ${r.players} ${r.players === 1 ? 'pessoa' : 'pessoas'}${r.bots ? ` + 🤖 ${r.bots} ${r.bots === 1 ? 'bot' : 'bots'}` : ''}` : 'Vazia (fecha sozinha daqui a pouco)'),
+                el('small', {}, roomPhase(r))),
+              el('a', { class: 'button', href: '#' + r.id, 'aria-label': `Entrar na sala ${r.id}` }, 'Entrar'),
             ),
           ));
   root.replaceChildren(
@@ -135,6 +140,7 @@ export function screen(root: HTMLElement, title: string, text: string, button: s
 
 export type RoomActions = {
   start: (bots: number, mode: Mode, shuffle: boolean, opts: MatchOpts) => void;
+  train: () => void; // partida de treino: 3 bots, modo Rodadas e dicas nas primeiras rodadas
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
   kick: (id: string) => void;
@@ -154,6 +160,7 @@ export type RoomActions = {
   fxLite: () => boolean;
   setFxLite: (lite: boolean) => void;
   spellReady: () => void; // uma magia acabou de recarregar
+  watch: (step: number) => void; // espectador: +1 próximo vivo, −1 anterior
 };
 
 const MODE_NAME: Record<Mode, string> = { rounds: 'Rodadas', deathmatch: 'Deathmatch', teams: 'Times' };
@@ -349,7 +356,8 @@ export function winTitle(r: PublicRoom): string {
 // pódio do fim da partida: 2º, 1º e 3º lado a lado, com o retrato; empate nos pontos desempata pelo dano da partida
 function podium(room: PublicRoom, me: string) {
   const top = [...room.players].sort((a, b) => b.score - a.score || b.stats.match.dmg - a.stats.match.dmg).slice(0, 3);
-  if (top.length < 2) return null;
+  // ninguém pontuou (encerrada cedo): pódio de zeros não diz nada
+  if (top.length < 2 || top[0].score === 0) return null;
   const unit = room.mode === 'deathmatch' ? ['ponto', 'pontos'] : ['vitória', 'vitórias'];
   const step = (p: PublicPlayer, place: number) => el('div', { class: `podium-step p${place}` + (p.id === me ? ' me' : '') },
     el('img', { class: 'podium-face', src: `/chars/${p.character}.webp`, alt: '', width: 64, height: 64 }),
@@ -384,6 +392,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // armazenamento bloqueado: fica o padrão
   }
   const status = el('span', { class: 'dot off', title: 'conexão' });
+  // latência (ida e volta até a sala) ao lado do ponto de conexão, só na partida
+  const ping = el('small', { class: 'ping', title: 'Latência: tempo de ida e volta até a sala', hidden: true });
+  let pingAt = 0;
   const roundEl = el('span', { class: 'round' });
   const players = el('ul', { class: 'players' });
   // volume: um botão abre dois controles, efeitos e música
@@ -424,7 +435,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     e.preventDefault();
     e.stopImmediatePropagation();
     if (e.code !== 'Escape') {
-      if (RESERVED.has(e.code)) return toast('Essa tecla já tem outra função (S para, Espaço centraliza, Tab mostra o placar, Y abre os taunts, a tecla à esquerda do 1 abre a ficha).');
+      if (RESERVED.has(e.code)) return toast('Essa tecla já tem outra função (S para, Espaço centraliza, Tab mostra o placar, Y abre as provocações, a tecla à esquerda do 1 abre a ficha).');
       setKey(waiting, e.code);
     }
     waiting = null;
@@ -458,15 +469,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     voteBtn.setAttribute('aria-expanded', String(!votePanel.hidden));
   } }, 'Votar');
   const voteWrap = el('div', { class: 'vol' }, voteBtn, votePanel);
-  // taunts: Y abre a lista e o número escolhe (ou clique); vale na loja e no jogo
+  // provocações (taunts): Y abre a lista e o número escolhe (ou clique); vale na loja e no jogo
   const sendTaunt = (i: number) => {
     act.taunt(i);
     tauntPanel.hidden = true;
   };
-  const tauntPanel = el('div', { class: 'vol-panel', hidden: true }, el('b', {}, 'Taunts (Y)'),
+  const tauntPanel = el('div', { class: 'vol-panel', hidden: true }, el('b', {}, 'Provocações (Y)'),
     el('div', { class: 'taunt-list' }, ...TAUNTS.map((t, i) => el('button', { type: 'button', onclick: () => sendTaunt(i) }, `${(i + 1) % 10} · ${t.text}`))));
   const sheetBtn = el('button', { type: 'button', class: 'icon', title: "Ficha do mago (tecla ')", 'aria-label': 'Ficha do mago', 'aria-expanded': 'false', onclick: () => toggleSheet() }, '📜');
-  const tauntBtn = el('button', { type: 'button', class: 'icon', title: 'Taunts (Y)', 'aria-label': 'Taunts (Y)', onclick: () => (tauntPanel.hidden = !tauntPanel.hidden) }, '💬');
+  const tauntBtn = el('button', { type: 'button', class: 'icon', title: 'Provocações (Y)', 'aria-label': 'Provocações (Y)', onclick: () => (tauntPanel.hidden = !tauntPanel.hidden) }, '💬');
   addEventListener('keydown', (e) => {
     if (e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT') return;
     if (e.code === 'KeyY') {
@@ -486,7 +497,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // celular: sem Tab, este botão (só aparece em tela de toque) abre e fecha o placar
   const tabBtn = el('button', { type: 'button', class: 'icon tab-toggle', title: 'Placar', 'aria-label': 'Placar', hidden: true, onclick: () => pinTab(!!tabOverlay.hidden) }, '📊');
   const top = el('div', { class: 'hud-top' },
-    el('button', { type: 'button', class: 'code', title: 'Copiar link da sala', onclick: copyLink }, status, ' ', code),
+    el('button', { type: 'button', class: 'code', title: 'Copiar link da sala', onclick: () => copyLink() }, status, ' ', code, ping),
     roundEl,
     el('div', { class: 'hud-right' }, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', 'aria-label': 'Como jogar', onclick: showRules }, '?')),
   );
@@ -585,14 +596,38 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     e.preventDefault();
     toggleSheet();
   });
-  root.replaceChildren(el('div', { class: 'hud' }, top, offline, players, timer, respawn, center, voteBar, barWrap, sheetPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
+  // feed de abates no canto: quem derrubou quem e com o quê; cada linha some em 5 s
+  const feed = el('ol', { class: 'feed', 'aria-live': 'polite' });
+  // borda vermelha: vida baixa (fixa) e pé na lava (pulsando); fica atrás do resto da HUD
+  const danger = el('div', { class: 'danger', 'aria-hidden': 'true' });
+  // dica do modo treino, uma por vez
+  const coach = el('div', { class: 'coach', role: 'status', hidden: true });
+  // espectador: selo "Assistindo X" com setas para trocar (← → no teclado)
+  const watchName = el('b', {});
+  const watchBadge = el('div', { class: 'watching', role: 'status', hidden: true },
+    el('button', { type: 'button', class: 'icon', title: 'Anterior (←)', 'aria-label': 'Assistir o anterior', onclick: () => act.watch(-1) }, '‹'),
+    el('span', {}, 'Assistindo ', watchName, TOUCH ? null : el('small', {}, ' · ← → troca')),
+    el('button', { type: 'button', class: 'icon', title: 'Próximo (→)', 'aria-label': 'Assistir o próximo', onclick: () => act.watch(1) }, '›'));
+  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, players, timer, respawn, feed, coach, watchBadge, center, voteBar, barWrap, sheetPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
-  function copyLink() {
+  // convite: no celular abre o compartilhar do sistema (WhatsApp etc.); no PC copia o link e confirma no botão
+  const SHARE = TOUCH && !!navigator.share;
+  function copyLink(btn?: HTMLElement) {
     const url = location.href;
-    navigator.clipboard?.writeText(url).then(() => toast('Link copiado. Mande no grupo!'), () => toast(url));
+    if (SHARE) return void navigator.share({ title: TITLE, text: 'Bora jogar Warlock?', url }).catch(() => {});
+    navigator.clipboard?.writeText(url).then(() => {
+      toast('Link copiado. Mande no grupo!', 'good');
+      if (!btn) return;
+      btn.textContent = '✓ Link copiado';
+      setTimeout(() => (btn.textContent = 'Copiar link da sala'), 2000);
+    }, () => toast(url));
   }
+  const inviteBtn = () => {
+    const b: HTMLElement = el('button', { type: 'button', onclick: () => copyLink(b) }, SHARE ? 'Convidar amigos' : 'Copiar link da sala');
+    return b;
+  };
 
   let room: PublicRoom | null = null;
   let me = '';
@@ -612,6 +647,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let mode: Mode = 'rounds';
   let shuffle = true; // Times: sorteados a cada rodada ou fixos na partida
   let opts: MatchOpts | null = null; // opções da partida escolhidas aqui; começa com as da sala
+  let optsOpen = true;
+  let setup = false; // fim da partida: true depois do "Voltar à sala"
 
   // grade com o retrato de cada personagem; o escolhido fica marcado
   function picker(r: PublicRoom) {
@@ -642,7 +679,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       startBtn.toggleAttribute('disabled', humans + bots < 2);
     };
     const o = (opts ??= { ...DEFAULT_OPTS, ...r.opts });
-    const startBtn = el('button', { type: 'button', class: 'primary big', onclick: () => act.start(bots, mode, shuffle, o) }, r.phase === 'end' ? 'Jogar de novo' : 'Começar partida');
+    const startBtn = el('button', { type: 'button', class: 'primary big', onclick: () => act.start(bots, mode, shuffle, o) }, 'Começar partida');
     if (humans + bots < 2) startBtn.setAttribute('disabled', '');
     const modes: [Mode, string, string][] = [
       ['rounds', 'Rodadas', `O último vivo ganha a rodada. Vence quem fizer ${o.goal} rodadas.`],
@@ -663,26 +700,48 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         } }, label))),
       el('small', { class: 'muted' }, modes.find(([k]) => k === mode)![2]), shufflePicker);
     // opções da partida: uma fileira de botões por opção, como o seletor de modo; vão junto com o "Começar"
-    const optsBlock = el('details', { class: 'match-opts' }, el('summary', {}, 'Opções da partida · ', el('small', { class: 'muted' }, optsLine(o, mode))),
+    // abertas por padrão: quem cria a sala vê as opções sem procurar (fechar fica guardado até sair da sala)
+    const optsBlock = el('details', { class: 'match-opts', open: optsOpen, ontoggle: (e: Event) => (optsOpen = (e.target as HTMLDetailsElement).open) }, el('summary', {}, 'Opções da partida · ', el('small', { class: 'muted' }, optsLine(o, mode))),
       ...OPT_KEYS.map((k) => el('div', { class: 'opt-row' }, el('small', {}, OPT_NAME[k]),
         el('div', { class: 'stats-tabs', role: 'group', 'aria-label': OPT_NAME[k] }, ...(OPTION_CHOICES[k] as readonly MatchOpts[OptKey][]).map((val) =>
           el('button', { type: 'button', 'aria-pressed': String(o[k] === val), class: o[k] === val ? 'on' : '', onclick: () => {
             Object.assign(o, { [k]: val });
             drawCenter();
-            (center.querySelector('.match-opts') as HTMLDetailsElement | null)?.setAttribute('open', '');
           } }, optText(k, val, mode)))))));
     return el('div', { class: 'card' },
-      r.phase === 'end'
-        ? el('div', {}, el('h2', { class: 'title' }, winTitle(r)), r.winner ? null : el('p', { class: 'muted' }, 'Ninguém jogou por um tempo e a partida foi encerrada.'), podium(r, me), board(r, me, act.kick), statsBoard(r, me, scope, setScope, view, setView))
-        : el('div', {}, el('h2', { class: 'title' }, 'Sala ' + r.id), el('p', { class: 'muted' }, 'Mande o link para os amigos entrarem. Até 8 magos.'),
-            el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), kickBtn(p, act.kick))))),
+      el('div', {}, el('h2', { class: 'title' }, 'Sala ' + r.id), el('p', { class: 'muted' }, 'Mande o link para os amigos entrarem. Até 8 magos.'),
+        el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), kickBtn(p, act.kick))))),
+      // sozinho na sala: treino com 3 bots e dicas curtas nas primeiras rodadas, logo à vista
+      humans === 1 && r.phase === 'lobby' ? el('button', { type: 'button', class: 'train', onclick: act.train }, '🎯 Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')) : null,
       picker(r),
       modePicker,
       optsBlock,
       el('div', { class: 'bots' }, el('span', {}, 'Bots'), el('button', { type: 'button', 'aria-label': 'Menos um bot', onclick: () => set(bots - 1) }, '−'), count, el('button', { type: 'button', 'aria-label': 'Mais um bot', onclick: () => set(bots + 1) }, '+')),
-      startBtn,
-      el('button', { type: 'button', onclick: copyLink }, 'Copiar link da sala'),
+      // Começar e Convidar grudados no rodapé enquanto rola as opções
+      el('div', { class: 'card-go' }, startBtn, inviteBtn()),
     );
+  }
+
+  // fim da partida: resultado e as duas saídas rápidas no topo; "Voltar à sala" mostra a sala de espera para trocar modo e opções
+  function endPanel(r: PublicRoom) {
+    const roomBots = r.players.filter((p) => p.bot).length;
+    const humans = r.players.filter((p) => !p.bot && p.connected).length;
+    const again = el('button', { type: 'button', class: 'primary big', disabled: humans + roomBots < 2, onclick: () => act.start(roomBots, r.mode, r.teamShuffle, r.opts) }, 'Jogar de novo');
+    return el('div', { class: 'card' },
+      el('h2', { class: 'title' }, winTitle(r)), r.winner || r.winnerTeam !== null ? null : el('p', { class: 'muted' }, 'Partida encerrada sem vencedor (empate ou ninguém fez ponto).'),
+      podium(r, me),
+      el('div', { class: 'end-actions' }, again, el('button', { type: 'button', class: 'big', onclick: () => {
+        // a sala de espera começa com as opções da partida que acabou
+        setup = true;
+        mode = r.mode;
+        shuffle = r.teamShuffle;
+        opts = { ...r.opts };
+        bots = roomBots;
+        drawCenter();
+        center.scrollTop = 0;
+      } }, 'Voltar à sala')),
+      el('small', { class: 'muted end-hint' }, `Jogar de novo repete tudo: ${MODE_NAME[r.mode]}, ${roomBots} ${roomBots === 1 ? 'bot' : 'bots'}, ${optsLine(r.opts, r.mode)}.`),
+      board(r, me, act.kick), statsBoard(r, me, scope, setScope, view, setView));
   }
 
   // estado da loja que sobrevive ao redesenho (a sala manda o estado a cada compra de qualquer jogador)
@@ -879,7 +938,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const entering = r.phase !== centerPhase;
     center.classList.toggle('enter', entering);
     centerPhase = r.phase;
-    center.replaceChildren(r.phase === 'lobby' || r.phase === 'end' ? lobbyPanel(r) : r.phase === 'shop' ? shopPanel(r) : '');
+    center.replaceChildren(r.phase === 'lobby' || (r.phase === 'end' && setup) ? lobbyPanel(r) : r.phase === 'end' ? endPanel(r) : r.phase === 'shop' ? shopPanel(r) : '');
     // painel novo começa do topo (o fim da partida herdava a rolagem da loja e escondia o título e o pódio)
     if (entering) center.scrollTop = 0;
     if (!online) center.querySelectorAll('button').forEach((b) => b.setAttribute('disabled', ''));
@@ -899,6 +958,38 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   }
 
   return {
+    // abate no feed: by null = caiu sozinho na lava; destacado quando envolve você
+    kill(by: string | null, id: string, src: string) {
+      const who = (pid: string) => {
+        const p = room?.players.find((q) => q.id === pid);
+        return el('b', { style: `color:${COLORS[p?.color ?? 0]}` }, pid === me ? 'Você' : (p?.name ?? '?'));
+      };
+      const killer = by && by !== id ? by : null;
+      const li = el('li', { class: killer === me || id === me ? 'me' : '' }, killer ? who(killer) : null,
+        el('span', { class: 'feed-ico', title: killer ? srcName(src) : 'lava' }, killer ? srcIcon(src) : SOURCE_ICON.lava), who(id), killer ? null : el('small', {}, 'caiu na lava'));
+      feed.append(li);
+      while (feed.children.length > 5) feed.firstElementChild!.remove();
+      setTimeout(() => li.remove(), 5000);
+    },
+    watching(name: string | null) {
+      watchBadge.hidden = !name;
+      if (name && watchName.textContent !== name) watchName.textContent = name;
+    },
+    coach(text: string | null) {
+      coach.hidden = !text;
+      if (text && coach.textContent !== text) coach.textContent = text;
+    },
+    danger(low: boolean, lava: boolean) {
+      danger.classList.toggle('low', low);
+      danger.classList.toggle('lava', lava);
+      document.body.classList.toggle('in-lava', lava);
+    },
+    // seta na borda da tela apontando para quem bateu (ângulo em radianos, 0 = direita, cresce para baixo)
+    hitFrom(angle: number) {
+      const a = el('div', { class: 'hit-arrow', 'aria-hidden': 'true', style: `left:calc(50% + ${(Math.cos(angle) * 44).toFixed(1)}vw);top:calc(50% + ${(Math.sin(angle) * 40).toFixed(1)}vh);--a:${angle.toFixed(3)}rad` });
+      danger.after(a);
+      setTimeout(() => a.remove(), 900);
+    },
     live(stats: Record<string, { dmg: number; kills: number; taken?: number }>) {
       live = stats;
       drawPlayers();
@@ -906,7 +997,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     },
     update(r: PublicRoom, you: string, isOnline: boolean) {
       // a loja abre mostrando a rodada que acabou; o fim mostra a partida inteira
-      if (room && room.phase !== r.phase) scope = r.phase === 'end' ? 'match' : 'round';
+      if (room && room.phase !== r.phase) {
+        scope = r.phase === 'end' ? 'match' : 'round';
+        setup = false;
+      }
       const prev = room;
       room = r;
       me = you;
@@ -947,7 +1041,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (changed) drawCenter();
     },
     // a cada quadro: recargas, magia escolhida e o relógio da fase
-    frame(cd: number[], icd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0) {
+    frame(cd: number[], icd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null) {
       if (status !== myStatus) {
         myStatus = status;
         drawSheet();
@@ -967,6 +1061,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         b.classList.toggle('armed', armed === s);
       });
       if (!room) return;
+      // ping: atualiza 2 vezes por segundo; verde até 80 ms, dourado até 150, vermelho acima
+      if (performance.now() - pingAt > 500) {
+        pingAt = performance.now();
+        ping.hidden = rttMs === null || !online || !TAB_PHASES.includes(room.phase);
+        if (rttMs !== null) {
+          ping.textContent = `${Math.round(rttMs)} ms`;
+          ping.dataset.q = rttMs < 80 ? 'good' : rttMs < 150 ? 'ok' : 'bad';
+        }
+      }
       const left = Math.max(0, (phaseEndsAt - performance.now()) / 1000);
       timer.textContent =
         room.phase === 'shop' ? `Rodada começa em ${Math.ceil(left)} s`

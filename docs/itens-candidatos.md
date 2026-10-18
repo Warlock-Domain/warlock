@@ -1,6 +1,6 @@
 # Itens candidatos (catálogo para quando os dados pedirem)
 
-Levantado em 18/10/2026. Números do changelog do Warlock CE (Community Edition) para Warcraft 3, versões 1.04 a 1.10G: https://docs.google.com/document/d/1gYwl02ACVCnCz6l9h4oEru1usK-y9VG3SEEibOI-04A/edit. Descrições do handbook: https://github.com/warlockbrawl/warlockbrawl.com/tree/master/articles. Os números do CE já estão na escala do nosso jogo (vida 100); velocidade × UNIT (0,00647 m). "?" = não confirmado.
+Levantado em 18/10/2026. Números do changelog do Warlock CE (Community Edition) para Warcraft 3, versões 1.04 a 1.10G: https://docs.google.com/document/d/1gYwl02ACVCnCz6l9h4oEru1usK-y9VG3SEEibOI-04A/edit. Descrições do handbook: https://github.com/warlockbrawl/warlockbrawl.com/tree/master/articles. Os números do CE estão na escala de vida 100; no jogo (vida 1000 desde 18/10) dano e vida valem ×10; velocidade × UNIT (0,00647 m). "?" = não confirmado.
 
 | Original | Nome | Efeito | Preço / níveis | Problema que resolve |
 |---|---|---|---|---|

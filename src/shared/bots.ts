@@ -94,8 +94,8 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
     const meteor = threat.kind === 'meteor';
     const side = meteor ? norm(sub(me.pos, threat.pos)) : norm(v(-threat.vel.y, threat.vel.x));
     const away = meteor || dot(side, me.pos) < 0 ? side : scale(side, -1); // de lado, para o lado do centro
-    // reação humana: o escudo não sobe sempre nem no último instante (o bot perfeito inflava o Escudo para 1,89× nas simulações)
-    if (!meteor && !winding && ready('shield') && tHit > 0.15 && tHit < 0.5 && rand() < 0.35) return cast('shield', me.pos);
+    // reação humana: o escudo não sobe sempre nem no último instante (o bot perfeito inflava o Escudo para 1,89×; 15% deixa perto dos amigos, 1,12×)
+    if (!meteor && !winding && ready('shield') && tHit > 0.15 && tHit < 0.5 && rand() < 0.15) return cast('shield', me.pos);
     // Alteração: troca de lugar com o projétil quando ele estiver quase chegando
     if (!meteor && !winding && ready('alteration') && tHit < 0.35) return cast('alteration', me.pos);
     if (ready('teleport') && rand() < 0.5 && inside(add(me.pos, scale(away, 4)), 1.5)) return cast('teleport', add(me.pos, scale(away, 4)));
@@ -111,6 +111,12 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
   let enemy: Wizard | null = null;
   // quem está na Caminhada no vento é invisível: o bot também não o vê
   for (const z of w.wizards) if (z.alive && !ally(z) && w.t >= z.windUntil && (!enemy || dist(z.pos, me.pos) < dist(enemy.pos, me.pos))) enemy = z;
+  // inimigo sem reação (preso, ligado pelo meu Elo, lento, magnetizado, na minha Gravidade ou Zona): é a hora de emendar o dano
+  const opened = (z: Wizard) =>
+    w.t < z.gripUntil || w.t < z.slowUntil || (w.t < z.magnetUntil && z.magnet > 0) ||
+    w.projectiles.some((p) => p.owner === id && ((p.kind === 'link' && p.target === z.id) || ((p.kind === 'gravity' || p.kind === 'warpzone') && dist(p.pos, z.pos) < 2.5)));
+  const prey = w.wizards.find((z) => z.alive && !ally(z) && w.t >= z.windUntil && opened(z) && dist(z.pos, me.pos) < 10);
+  if (prey) enemy = prey;
 
   // perto da borda (ou na lava): volta para o centro, com Teleporte, Investida, Estocada ou Troca se tiver
   if (!inside(me.pos, 1.2)) {
@@ -162,6 +168,7 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
   const incoming = w.projectiles.some((p) => p.owner === id && p.kind !== 'meteor' && p.kind !== 'warpzone' && dist(p.pos, E.pos) < 4 && dot(p.vel, sub(E.pos, p.pos)) > 0);
   // candidatos: cada magia pronta com o alvo no alcance; sorteia uma
   const options: (() => Cmd[])[] = [];
+  const dmgOpt: boolean[] = [];
   let damage = false;
   for (const s of SPELL_IDS) {
     if (!ready(s) || s === 'shield' || s === 'swap') continue; // Escudo e Troca só na defesa e na borda
@@ -198,11 +205,18 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
     if (!at) continue;
     const to = at;
     options.push(s === 'windwalk' ? () => (cast(s, to), cmds.push({ id, kind: 'move', to: E.pos }), cmds) : () => cast(s, to));
+    dmgOpt.push(L.dmg > 0);
     if (L.dmg > 0) damage = true;
   }
   if (itemReady('scourge') && d < SCOURGE.radius * 0.8) {
     options.push(() => use('scourge', me.pos));
+    dmgOpt.push(true);
     damage = true;
+  }
+  // combo: com o alvo aberto, só dano e sem hesitar (antes os bots prendiam e não aproveitavam, e o controle rendia 0,75 a 0,86×)
+  if (prey && damage) {
+    const hits = options.filter((_, i) => dmgOpt[i]);
+    return hits[Math.floor(rand() * hits.length)]();
   }
   if (!options.length || rand() >= 0.7) return cmds;
   // Pacto antes de uma magia de dano: ela sai no próximo comando (as duas juntas perderiam o Pacto)

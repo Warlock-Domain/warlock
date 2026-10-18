@@ -163,53 +163,41 @@ figcaption { font-size: 14.5px; color: var(--muted); max-width: 68ch; }
   <h2>Agora estamos decidindo</h2>
   <div class="decide">
     <div class="q">
-      <div class="ask">Como ajudar quem ficou para trás na partida (recuperação)?</div>
-      <p class="why"><b>Contexto (medido em /api/telemetry, 48 rodadas com 2 ou mais humanos):</b> no começo da partida, a diferença de níveis comprados entre o mais equipado e o menos equipado é de 2; no fim, chega a 15 a 19 (últimas 10 rodadas: 15, 14, 19, 2, 2, 2, 6, 9, 17, 19). As vitórias concentram: 2 jogadores com 9 vitórias cada em 37 a 46 rodadas, outros com 2 em 24 a 37. Hoje quem lidera pode ganhar até +27 por rodada além dos +10 de todos (vitória, top dano, abate, assistência).</p>
-      <div class="tbl"><table><thead><tr><th>Sugestão</th><th>Como funciona</th><th>Prós</th><th>Contras</th></tr></thead><tbody>
-        <tr><td><b>Ouro de recuperação</b></td><td>No fim da rodada, quem ganhou menos ouro na partida que a média recebe metade da diferença, até +8</td><td>Fecha a distância sem tirar nada de quem lidera</td><td>Perder custa um pouco menos</td></tr>
-        <tr><td><b>Recompensa pela cabeça do líder</b></td><td>Abater quem tem mais vitórias dá +3 por vitória de vantagem dele sobre a média (até +10)</td><td>Incentiva todo mundo a ir no líder; é treta</td><td>O líder vira alvo</td></tr>
-        <tr><td>Prêmio de vitória menor para o líder</td><td>Quem já lidera o placar ganha +5 ao vencer, em vez de +10</td><td>Freia a bola de neve</td><td>Diminui o prêmio de quem joga bem</td></tr>
-        <tr><td>Consolação do primeiro a cair</td><td>O primeiro a morrer na rodada ganha +3</td><td>Simples</td><td>Pode premiar quem se joga na lava (pouco provável por +3)</td></tr>
+      <div class="ask">Como balancear as magias daqui para frente?</div>
+      <p class="why"><b>Contexto (medido nesta madrugada, 6 ciclos de simulação, cerca de 1,4 milhão de rodadas só de bots; relatórios em <code>balance/ciclo2</code> a <code>ciclo6</code>):</b> mudar dano e recarga das magias quase não muda quem vence entre bots. Exemplos: Elo com dano ×1,5 e recarga ×0,8 foi de 0,75 para 0,76; Míssil teleguiado com dano ×0,72 ficou em 1,34 → 1,39; Raio com recarga 14% maior foi de 1,31 para 1,29; Investida com avanço 60 → 40 foi de 1,30 para 1,37. Conferi que o código novo estava valendo (dano por lançamento do Elo subiu ×14,8, igual a ×10 da escala × 1,5). O que mexeu foi o jeito de jogar do bot: o Escudo caiu de 1,89 para 1,27 só mudando a reação do bot. Já os itens respondem aos números (Botas de lava nível 2: 1,35 → 1,22).</p>
+      <p class="why"><b>Por que importa:</b> o simulador mede a "inteligência" de cada bot com cada magia, não só a força da magia. Exemplo do dia a dia: um carro mais rápido não ganha a corrida se o piloto não sabe fazer a curva. Ajustar o carro pelo piloto ruim deixa o carro errado para o piloto bom (vocês).</p>
+      <p class="why"><b>Sinais de que bot e gente diferem:</b> Raio acerta 69% nos bots e 13% nas partidas de vocês (/api/telemetry, só 77 rodadas reais, 320 lançamentos: amostra pequena); você pediu para enfraquecer o Agarrar (17/10), e para os bots ele é fraco (0,83).</p>
+      <div class="tbl"><table><thead><tr><th>Opção</th><th>Como funciona</th><th>Prós</th><th>Contras</th></tr></thead><tbody>
+        <tr><td><b>Ensinar os bots e confirmar com partidas reais (recomendada)</b></td><td>Melhorar o jogo de cada bot onde ele é fraco (desviar do Míssil, combos de Elo e Agarrar com Teleporte e Bola de fogo) e mudar números só quando as partidas de vocês confirmarem</td><td>Não estraga o jogo de verdade; bots melhores também deixam o modo treino mais divertido</td><td>Mais lento; precisa de mais partidas reais (hoje 77 rodadas)</td></tr>
+        <tr><td>Mudanças grandes nos números até o simulador fechar a faixa</td><td>Ex.: Raio com recarga ×2, Elo com dano ×3, até tudo ficar entre 0,85 e 1,15 nos bots</td><td>Rápido: cada teste leva 10 minutos</td><td>Para gente, Raio e Míssil ficariam fracos demais e Agarrar forte demais</td></tr>
+        <tr><td>Deixar as magias como estão</td><td>Fica o original do Warlock Brawl com os ajustes do ciclo 1; só os itens seguem sendo balanceados</td><td>Fiel ao original, que já foi testado por anos</td><td>Investida, Míssil e Raio podem dominar entre jogadores fracos</td></tr>
       </tbody></table></div>
-      <p class="why"><b>Recomendação:</b> ouro de recuperação + recompensa pela cabeça do líder: um ajuda quem está atrás, o outro cria treta em volta de quem está na frente.</p>
+      <p class="why"><b>Recomendação:</b> ensinar os bots e confirmar com partidas reais. Os números do original são de um jogo testado por anos; o desvio que vemos vem principalmente dos bots.</p>
     </div>
   </div>
 </section>
 
 <section id="fazendo">
-  <div class="eyebrow">Quadro da frente</div>
+  <div class="eyebrow">Relatório da madrugada de 18/10</div>
   <h2>O que estou fazendo</h2>
   <div class="board">
-    <div class="col done"><h3>Feito</h3><ul>
-      <li>Li como a sinuca foi feita (Three.js, Cloudflare, salas)</li>
-      <li>Suas 5 escolhas: 3D de cima, controles do Dota, 5 magias + loja, todos contra todos, 60 cálculo / 30 envio</li>
-      <li>Medi o atraso até o servidor: ~99 ms</li>
-      <li>Desenho escrito e revisado</li>
-      <li>Li o manual do Warlock Brawl e corrigi o desenho</li>
-      <li>Suas 4 decisões: teclas próprias, desenho aprovado, publicar e commitar sozinho</li>
-      <li>Plano de construção escrito</li>
-      <li>Modelo do mago escolhido (KayKit)</li>
-      <li>Simulação, magias, loja e bots com 45 testes automáticos</li>
-      <li>Servidor das salas (30 envios por segundo, reconexão)</li>
-      <li>Cliente 3D com lava, magos, previsão do seu mago, loja e sons</li>
-      <li>Testado com 3 pessoas na mesma sala (uma em tela de celular)</li>
-      <li><b>Publicado em warlock.fernandorffdev.com</b> e conferido no ar</li>
-      <li>Partida longa testada: mortes, fim de rodada, loja e rodada 2</li>
-      <li>Números do Warlock Brawl original no ar</li>
-      <li>Pontuação do original (1 por rodada, vence quem fizer 5)</li>
-      <li>Assets grátis no ar: decoração, lava e pedra, partículas, sons e música</li>
-      <li>9 personagens para escolher na sala</li>
-      <li>Revisão independente: 14 achados, corrigidos (exceto assistir com a sala cheia)</li>
-      <li>Itens, dicas no mouse, choque de magias e números de dano no ar</li>
+    <div class="col done"><h3>Feito e no ar</h3><ul>
+      <li><b>Leva 2 de experiência:</b> feed de abates no canto, borda vermelha com vida baixa e na lava, seta de onde veio o golpe, ping em ms, "Jogar de novo" e "Voltar à sala" no fim, cartões de sala com "Entrar", convite com compartilhar no celular</li>
+      <li><b>Modo treino:</b> "Treinar sozinho com bots" com dicas nas primeiras rodadas</li>
+      <li><b>Espectador:</b> morto na rodada, a câmera segue quem está vivo (← → troca)</li>
+      <li>Textos: "Taunts" → "Provocações"; "Ultra kill" → "Massacre"</li>
+      <li><b>Itens:</b> Botas de lava nível 2 corta 50% (era 60%) e não reduz mais o empurrão acumulado: 1,35 → 1,22. Égide virou consumível (quebra ao salvar, compra de novo): 1,20 → 1,11 (medido contando quem tinha a Égide no começo da rodada)</li>
+      <li><b>Bots:</b> emendam dano em quem está preso ou lento; escudo com reação mais humana (Escudo 1,89 → 1,27)</li>
+      <li>Simulador mede as runas: as 4 equilibradas entre si (1,45 a 1,53; todas acima de 1 porque só pega runa quem fica vivo)</li>
+      <li>Antes, nesta noite: interface fantasia sombria, escala ×10, 5 itens novos, runas, morte súbita, sensação de jogo, gamepad, rodada nunca sem fim</li>
     </ul></div>
     <div class="col now"><h3>Fazendo agora</h3><ul>
-      <li>Deathmatch</li>
+      <li>Esperando sua escolha de método para as magias (seção acima)</li>
     </ul></div>
     <div class="col next"><h3>Falta</h3><ul>
-      <li>Música de fundo</li>
-      <li>Raio mais grosso e efeitos mais caprichados</li>
-      <li>Você ouvir os sons e testar no celular de verdade (testei só em tela de celular simulada)</li>
-      
+      <li>Você jogar e contar o que achou da leva 2 (navegador sem janela não testa compartilhar, "Link copiado", espectador em Times)</li>
+      <li>Trocar o jogador assistido pelo controle</li>
+      <li>Ícones desenhados no lugar dos emojis</li>
     </ul></div>
   </div>
 </section>

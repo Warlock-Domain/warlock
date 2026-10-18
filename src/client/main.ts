@@ -6,7 +6,9 @@ import { decodeSnap, type SnapView } from '../shared/snapshot.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { dist, len, type Vec } from '../shared/vec.ts';
+import { coachTip } from './coach.ts';
 import { createInput } from './input.ts';
+import { isPadMode, labelOf } from './keys.ts';
 import { rumble, startPad } from './gamepad.ts';
 import { createInterp } from './interp.ts';
 import { connect } from './net.ts';
@@ -114,15 +116,31 @@ function startRoom(code: string, name: string) {
   let seq = 0;
   const sentAt = new Map<number, number>();
   let lastSnap: Snap | null = null;
+  // a latência só existe depois do primeiro comando confirmado (antes, predict.rtt() é um chute)
+  let rttSeen = false;
+  // modo treino (só para quem apertou o botão): dicas nas primeiras rodadas; playingAt marca o "Já!"
+  let training = false;
+  let playingAt = 0;
+  const touch = matchMedia('(hover: none) and (pointer: coarse)').matches;
   const justCast = new Map<string, number>();
   let scourgeUntil = 0;
   let follow = true;
+  // espectador: quem a câmera segue e o pedido de troca (+1 próximo, −1 anterior) do quadro seguinte
+  let watchId: string | null = null;
+  let watchStep = 0;
   // efeitos visuais Completo/Leve guardados no navegador; sem escolha, quem pede menos movimento ao sistema começa no Leve
   let fxLite = (store.get('warlock:fx') ?? (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'lite' : 'full')) === 'lite';
   document.body.classList.toggle('fx-lite', fxLite);
 
   const view = createRoomUi(ui, code, {
-    start: (bots, mode, shuffle, opts) => net.send({ t: 'start', bots, mode, shuffle, opts }),
+    start: (bots, mode, shuffle, opts) => {
+      training = false; // partida normal depois de um treino: sem dicas
+      net.send({ t: 'start', bots, mode, shuffle, opts });
+    },
+    train: () => {
+      training = true;
+      net.send({ t: 'start', bots: 3, mode: 'rounds', shuffle: true });
+    },
     buy: (spell) => net.send({ t: 'buy', spell }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),
     kick: (target) => net.send({ t: 'kick', target }),
@@ -154,6 +172,13 @@ function startRoom(code: string, name: string) {
       scene.setFx(lite);
     },
     spellReady: () => sound.play('ready', 0.8),
+    watch: (step) => (watchStep = step),
+  });
+  addEventListener('keydown', (e) => {
+    // ← → já trocam o período do placar quando ele está aberto (ui.ts marca o evento; por isso este ouvinte vem depois do createRoomUi)
+    if (!watchId || e.defaultPrevented || (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight')) return;
+    watchStep = e.code === 'ArrowLeft' ? -1 : 1;
+    e.preventDefault();
   });
   const scene = createScene(canvas, document.getElementById('labels')!);
   scene.setFx(fxLite);
@@ -235,7 +260,7 @@ function startRoom(code: string, name: string) {
   }
 
   const RUNE_TEXT: Record<RuneKind, string> = { haste: '🐇 Runa da Pressa', fury: '😡 Runa da Fúria', shield: '🔰 Runa do Escudo', recharge: '🔋 Runa da Recarga' };
-  const MULTI_TEXT = ['', '', 'Double kill!', 'Multi kill!', 'ULTRA KILL!'];
+  const MULTI_TEXT = ['', '', 'Abate duplo!', 'Abate triplo!', 'Massacre!'];
   const SPREE_TEXT: Record<number, string> = { 3: 'Matança', 5: 'Fúria assassina', 7: 'sequência Imparável', 10: 'sequência Lendária' };
   let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
   function onEvents(events: SimEvent[]) {
@@ -262,6 +287,11 @@ function startRoom(code: string, name: string) {
         liveChanged = true;
       }
       // controle: vibra ao levar golpe forte e ao morrer
+      // golpe recebido: seta na borda da tela do lado de quem bateu (a câmera não gira, então o ângulo do chão vale na tela)
+      if (e.k === 'hit' && e.id === me && e.dmg > 0 && e.by !== me) {
+        const from = interp.latest()?.wizards.find((z) => z.id === e.by)?.pos;
+        if (from && dist(from, { x: e.x, y: e.y }) > 0.5) view.hitFrom(Math.atan2(from.y - e.y, from.x - e.x));
+      }
       if (e.k === 'hit' && e.id === me && e.dmg >= 60) rumble(Math.min(1, e.dmg / 160), 200);
       else if (e.k === 'death' && e.id === me) rumble(1, 500);
       if (e.k === 'cast' && e.id !== me) {
@@ -302,7 +332,7 @@ function startRoom(code: string, name: string) {
         }
       } else if (e.k === 'aegis') {
         sound.play('shield');
-        banner(e.id === me ? '👼 A Égide te tirou da lava!' : `👼 A Égide tirou ${who.get(e.id) ?? '?'} da lava`, e.id === me ? 'good' : '');
+        banner(e.id === me ? '👼 A Égide te tirou da lava e quebrou' : `👼 A Égide tirou ${who.get(e.id) ?? '?'} da lava`, e.id === me ? 'good' : '');
       }
       else if (e.k === 'death') {
         // fora da pedra: mergulho na lava (chiado e bolhas) em vez da explosão
@@ -310,8 +340,10 @@ function startRoom(code: string, name: string) {
         const w = snap?.wizards.find((z) => z.id === e.id);
         sound.play(w && snap && Math.hypot(w.pos.x, w.pos.y) > snap.arenaR - 0.3 ? 'splash' : 'death', w ? near(w.pos.x, w.pos.y) : 1);
         const dead = who.get(e.id) ?? '?';
-        if (e.by) banner(e.by === me ? `Você derrubou ${dead}!` : e.id === me ? `${who.get(e.by)} te derrubou!` : `${who.get(e.by)} derrubou ${dead}!`, e.by === me ? 'good' : e.id === me ? 'bad' : '');
-        else banner(e.id === me ? 'Você caiu na lava!' : `${dead} caiu na lava!`, e.id === me ? 'bad' : '');
+        // todo abate vai para o feed do canto; a faixa grande fica só para o que envolve você
+        view.kill(e.by, e.id, e.src);
+        if (e.by === me && e.id !== me) banner(`Você derrubou ${dead}!`, 'good');
+        else if (e.id === me) banner(e.by && e.by !== me ? `${who.get(e.by)} te derrubou!` : 'Você caiu na lava!', 'bad');
       }
     }
     if (shout) banner(shout, 'good');
@@ -360,6 +392,7 @@ function startRoom(code: string, name: string) {
     const acked = sentAt.get(m.ack);
     if (acked !== undefined) {
       predict.setRtt(performance.now() - acked);
+      rttSeen = true;
       sentAt.delete(m.ack);
     }
     if (!room) return;
@@ -379,11 +412,13 @@ function startRoom(code: string, name: string) {
       interp.reset();
       predict.reset();
       follow = true;
+      watchId = null;
       // modo Times: avisa em que time a pessoa está nesta rodada
       const team = room.mode === 'teams' ? room.players.find((p) => p.id === me)?.team : null;
       banner(team != null ? `Rodada ${room.round} · Você está no time ${TEAM_NAMES[team]}` : `Rodada ${room.round}`);
       [3, 2, 1].forEach((_, i) => setTimeout(() => sound.play('beep'), i * 1000));
     } else if (room.phase === 'playing') {
+      playingAt = performance.now();
       banner('Já!', 'good');
       sound.play('go');
     } else if (room.phase === 'roundEnd') {
@@ -436,7 +471,22 @@ function startRoom(code: string, name: string) {
         wizards.push({ ...w, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), color: p?.color ?? 0, character: p?.character ?? 'mage', name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0, moving, cheer: room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null });
       }
     }
+    // perigo: vida abaixo de 25% e pé na lava (mesma regra da simulação: fora do raio da arena)
+    const meW = room?.phase === 'playing' ? myWizard(latest) : null;
+    const meP = colorOf.get(me);
+    const low = !!meW?.alive && !!meP && meW.hp < 0.25 * (HP_MAX + itemStats(meP.items).hp);
+    const lava = !!meW?.alive && !!latest && len(meW.pos) > latest.arenaR;
+    view.danger(low, lava);
     const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' ? s.shrinkAt - s.time : null;
+    // espectador: morto na rodada (ou só assistindo), a câmera segue o vivo com mais vida; ← → ou os botões trocam
+    const alive = room?.phase === 'playing' && s && !meW?.alive ? wizards.filter((w) => w.alive && w.id !== me && !(w.status & 2048)) : [];
+    let watched = alive.find((w) => w.id === watchId);
+    if (!watched && alive.length) watched = alive.reduce((a, w) => (w.hp > a.hp ? w : a));
+    if (watchStep && watched) watched = alive[(alive.indexOf(watched) + watchStep + alive.length) % alive.length];
+    watchStep = 0;
+    watchId = watched?.id ?? null;
+    view.watching(watched?.name ?? null);
+    if (training && room) view.coach(meP ? coachTip({ phase: room.phase, round: room.round, playingFor: (nowMs - playingAt) / 1000, shrinkIn, low, lava, alive: !!meW?.alive, touch, fireKey: isPadMode() ? 'A' : labelOf('fireball') }) : null);
     scene.render({
       arenaR: s?.arenaR ?? 11,
       shrinkIn: shrinkIn ?? SHRINK_EVERY,
@@ -445,11 +495,12 @@ function startRoom(code: string, name: string) {
       pillars: playing && s ? s.pillars : [],
       loots: playing && s ? s.loots : [],
       runes: playing && s ? s.runes : [],
-      follow: follow ? myPos : null,
+      follow: watched ? watched.pos : follow ? myPos : null,
+      lock: !!watched,
     });
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena não encolhe mais: o aviso some
-    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && s.arenaR > ARENA_MIN + 0.01 ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0);
+    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && s.arenaR > ARENA_MIN + 0.01 ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null);
   }
   const drawn = new Map<string, Vec>();
   void scene.ready.then(() => requestAnimationFrame(frame), () => toast('Não deu para carregar o mago. Recarregue a página.'));

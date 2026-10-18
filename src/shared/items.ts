@@ -29,12 +29,13 @@ export const ITEMS: Record<ItemId, Item> = {
   redirector: { name: 'Redirecionador', cost: 8, key: '2', text: 'Desvia seu projétil mais perto do cursor; 8 s voando mais longe.', levels: [{}] },
   pact: { name: 'Pacto', cost: 10, key: '3', text: 'Próxima magia de dano em 5 s faz 2× de dano e empurrão.', levels: [{}] },
   // itens novos de 18/10, do catálogo docs/itens-candidatos.md (Warlock CE); números conservadores até a simulação dizer
-  lava_boots: { name: 'Botas de lava', cost: 4, text: 'A lava machuca menos.', levels: [{ lava: 0.35 }, { lava: 0.6 }] },
+  lava_boots: { name: 'Botas de lava', cost: 4, text: 'A lava machuca menos.', levels: [{ lava: 0.35 }, { lava: 0.5 }] }, // ciclo 2: nv 2 0,6 → 0,5 (1,35× no nv 2)
   // Guardião do CE: −0,1 por nível; aqui os golpes são maiores (−0,4 por nível na escala antiga de vida 100, −4 na de 1000), mas nunca corta mais que metade do golpe
   warden: { name: 'Guardião', cost: 4, text: 'Cada golpe tira um pouco menos de vida (até metade dele), mas você voa um pouco mais.', levels: [1, 2, 3].map((n) => ({ ward: 4 * n, kb: -0.01 * n })) },
   helmet: { name: 'Elmo', cost: 5, text: 'Menos empurrão, mas suas magias alcançam menos.', levels: [{ kb: 0.15, range: -0.1 }] },
   shock_boots: { name: 'Botas de choque', cost: 5, text: 'Ao levar um golpe, anda mais rápido por 3 s (não soma com as Botas: vale a maior).', levels: [{}] },
-  aegis: { name: 'Égide', cost: 7, text: 'Uma vez por rodada, na lava com pouca vida, volta para a pedra.', levels: [{}] },
+  // consumível desde o ciclo 4: preço, vida e distância não a tiravam de 1,20× (a vida extra é o poder); some ao salvar
+  aegis: { name: 'Égide', cost: 7, text: 'Na lava com pouca vida, volta para a pedra. Quebra ao salvar você (compre de novo).', levels: [{}] },
 };
 
 // Botas de choque: Shock boots do CE (+25 por 3 s); aqui +30 unidades (+14% do passo), contra "quem apanha não consegue fugir"

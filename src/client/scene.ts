@@ -1219,7 +1219,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; follow: Vec | null }) {
+    render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; follow: Vec | null; lock?: boolean }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
@@ -1312,7 +1312,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
       // câmera inclinada estilo Dota, seguindo de leve o próprio mago
       // em pé a arena não cabe na largura: a câmera acompanha mais o próprio mago
-      let target = (state.follow ? w3(state.follow).multiplyScalar(camera.aspect < 1 ? 0.65 : 0.3) : new THREE.Vector3()).add(pan);
+      // assistindo outro mago (lock): centra nele
+      let target = (state.follow ? w3(state.follow).multiplyScalar(state.lock ? 1 : camera.aspect < 1 ? 0.65 : 0.3) : new THREE.Vector3()).add(pan);
       // fim da rodada: a câmera vai devagar até quem comemora (no modo Times, o meio do time) e aproxima um pouco
       const champs = state.wizards.filter((w) => w.cheer && w.alive);
       celebrate += ((champs.length ? 1 : 0) - celebrate) * Math.min(1, dt * 1.5);

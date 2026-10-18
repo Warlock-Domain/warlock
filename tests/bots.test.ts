@@ -37,7 +37,7 @@ describe('bots usam tudo', () => {
     const w = duel({ shield: 1 });
     w.wizards[1].cd.fireball = 99;
     w.projectiles.push({ id: 1, kind: 'fireball', owner: 'x', caster: 'x', pos: v(1.5, 0), vel: v(-6.47, 0), level: 1, until: 9, target: null, dmgMult: 1 });
-    const c = casts(botCmds(w, 'bot', () => 0.3));
+    const c = casts(botCmds(w, 'bot', () => 0.1));
     expect(c).toEqual([{ id: 'bot', kind: 'cast', spell: 'shield', at: w.wizards[0].pos }]);
   });
 

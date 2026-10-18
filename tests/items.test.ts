@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DT, HP_MAX, LAVA_DPS, WIZ_SPEED } from '../src/shared/constants.ts';
 import { AEGIS, ITEMS, ITEM_IDS, MAX_ITEMS, PACT, SCOURGE, SHOCK_BOOTS, itemPrice, noItems, type ItemId } from '../src/shared/items.ts';
-import { addPlayer, buy, buyItem, newMatch, resume, sell, sellValue, startMatch, undoBuy } from '../src/shared/match.ts';
+import { addPlayer, buy, buyItem, newMatch, resume, sell, sellValue, startMatch, tickMatch, undoBuy } from '../src/shared/match.ts';
 import { randomPlan } from '../src/shared/bots.ts';
 import { itemTip } from '../src/client/tips.ts';
 import { len } from '../src/shared/vec.ts';
@@ -293,13 +293,16 @@ describe('itens novos (18/10)', () => {
     return out;
   };
 
-  it('lava boots cut lava damage by 35% and 60%', () => {
-    for (const [lvl, cut] of [[0, 0], [1, 0.35], [2, 0.6]]) {
+  it('lava boots cut lava damage by 35% and 50%, but not the knockback the lava builds up', () => {
+    const built: number[] = [];
+    for (const [lvl, cut] of [[0, 0], [1, 0.35], [2, 0.5]]) {
       const w = world([[0, 0]], [{ lava_boots: lvl }]);
       w.wizards[0].pos = v(w.arenaR + 1, 0);
       steps(w, 60);
       expect(HP_MAX - w.wizards[0].hp).toBeCloseTo(LAVA_DPS * (1 - cut), 1);
+      built.push(w.wizards[0].dmgTaken);
     }
+    expect(built[2]).toBeCloseTo(built[0], 5);
   });
 
   it('warden takes a flat amount off each hit and you fly a bit more', () => {
@@ -375,6 +378,26 @@ describe('itens novos (18/10)', () => {
     const planned = new Set<string>();
     for (let i = 0; i < 400; i++) for (const b of randomPlan(rand).buys) if (b.kind === 'item') planned.add(b.id);
     for (const id of ['lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis']) expect(planned.has(id)).toBe(true);
+  });
+
+  it('aegis breaks after saving you: the item leaves the inventory', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'A');
+    addPlayer(m, 'b', 'B');
+    startMatch(m, 0, 0);
+    m.players[0].items.aegis = 1;
+    m.players[0].held['item:aegis'] = [0];
+    resume(m, 0);
+    let now = 0;
+    while (m.phase !== 'playing') tickMatch(m, (now = Math.max(now + 17, m.phaseEnds)), []);
+    const z = m.world!.wizards.find((q) => q.id === 'a')!;
+    expect(z.aegis).toBe(true);
+    z.pos = v(0, m.world!.arenaR + 1);
+    z.hp = AEGIS.hp + 5;
+    for (let i = 0; i < 300 && m.players[0].items.aegis; i++) tickMatch(m, (now += 17), []);
+    expect(z.alive).toBe(true);
+    expect(m.players[0].items.aegis).toBe(0);
+    expect(m.players[0].held['item:aegis']).toBeUndefined();
   });
 
   it('rooms saved before the new items get them at level 0', () => {

@@ -68,7 +68,7 @@ export const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string]
   warden: (l) => [['Dano por golpe', `−${n1(ITEMS.warden.levels[l].ward!)} (no máximo metade do golpe)`], ['Empurrão recebido', `+${n1(-ITEMS.warden.levels[l].kb! * 100)}%`]],
   helmet: () => [['Empurrão recebido', `−${n1(ITEMS.helmet.levels[0].kb! * 100)}%`], ['Alcance das magias', `−${n1(-ITEMS.helmet.levels[0].range! * 100)}%`]],
   shock_boots: () => [['Ao levar um golpe', `+${n1(SHOCK_BOOTS.speed * 100)} cm/s por ${s(SHOCK_BOOTS.secs)}`], ['Com Botas', 'vale a maior velocidade, não soma']],
-  aegis: () => [['Quando', `na lava com ${AEGIS.hp} de vida ou menos`], ['Efeito', `volta parado para ${n1(AEGIS.back * 100)}% do raio da arena`], ['Usos', '1 por rodada (por vida no Deathmatch)']],
+  aegis: () => [['Quando', `na lava com ${AEGIS.hp} de vida ou menos`], ['Efeito', `volta parado para ${n1(AEGIS.back * 100)}% do raio da arena`], ['Usos', '1: quebra ao salvar você (compre de novo na loja)']],
 };
 
 export function itemTip(id: ItemId, level: number): string {

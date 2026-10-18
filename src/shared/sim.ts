@@ -1507,7 +1507,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     if (len(wz.pos) > w.arenaR) {
       if (w.t < wz.invulnUntil) continue;
       wz.hp -= LAVA_DPS * DT * (1 - wz.lavaCut);
-      wz.dmgTaken += LAVA_DPS * DT * LAVA_KB_FACTOR * (1 - wz.lavaCut);
+      wz.dmgTaken += LAVA_DPS * DT * LAVA_KB_FACTOR; // as Botas de lava poupam a vida, não o empurrão acumulado (ciclo 2)
       // Égide: com pouca vida na lava, volta parado para dentro da pedra na mesma direção (uma vez)
       if (wz.aegis && wz.hp > 0 && wz.hp <= AEGIS.hp) {
         const from = wz.pos;

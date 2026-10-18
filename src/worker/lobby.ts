@@ -1,7 +1,8 @@
 import { DurableObject } from 'cloudflare:workers';
 import { addRecord, emptyTotals, type RoundRecord, type Totals } from '../shared/telemetry.ts';
 
-export type RoomInfo = { id: string; players: number; phase: string };
+// mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
+export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
 
 // Lista de salas abertas: um único objeto ('lobby') que todo navegador na tela inicial escuta.
 export class Lobby extends DurableObject<Env> {

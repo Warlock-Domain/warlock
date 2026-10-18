@@ -606,6 +606,14 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
         if (!w.dm) s.alive += w.t; // no deathmatch volta e morre várias vezes: tempo vivo só nas rodadas
       });
     }
+    // a Égide quebra ao salvar (consumível): sai do inventário sem valor de venda
+    if (e.k === 'aegis') {
+      const p = m.players.find((q) => q.id === e.id);
+      if (p) {
+        p.items.aegis = 0;
+        delete p.held['item:aegis'];
+      }
+    }
     if (e.k === 'loot') {
       const p = m.players.find((q) => q.id === e.id);
       if (p) {

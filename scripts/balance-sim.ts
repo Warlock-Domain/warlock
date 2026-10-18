@@ -54,6 +54,9 @@ const S = {
   deathBy: {} as Record<string, number>,
 };
 const t0 = Date.now();
+// runas pegas nesta rodada: 'idDoMago:tipo'
+const runes = new Set<string>();
+const RUNE_NAMES: Record<string, string> = { haste: 'Runa de pressa', fury: 'Runa de fúria', shield: 'Runa de escudo', recharge: 'Runa de recarga' };
 
 function record(m: Match, now: number) {
   const r = roundRecord(m, now);
@@ -72,10 +75,12 @@ function record(m: Match, now: number) {
     const gold = m.players[i].gold;
     const plan = (m.players[i] as { plan?: BotPlan }).plan;
     const spells = Object.keys(p.spells).filter((k) => p.spells[k] > 0);
-    const items = Object.keys(p.items).filter((k) => p.items[k] > 0);
+    // a Égide quebra ao salvar: quem a usou nesta rodada conta como dono (senão só sobrariam os que nunca precisaram)
+    const items = Object.keys(p.items).filter((k) => p.items[k] > 0 || (k === 'aegis' && runes.has(`${m.players[i].id}:aegis`)));
     const keys = ['all', `nspells:${spells.length}`, `nitems:${items.length}`, `upgrade:${plan?.upgrade ?? '?'}`];
     for (const k of spells) keys.push(`spell:${k}`, `spell:${k}@${p.spells[k]}`);
-    for (const k of items) keys.push(`item:${k}`, `item:${k}@${p.items[k]}`);
+    for (const k of items) keys.push(`item:${k}`, `item:${k}@${p.items[k] || 1}`);
+    for (const k of Object.keys(RUNE_NAMES)) if (runes.has(`${m.players[i].id}:${k}`)) keys.push(`rune:${k}`);
     const extra = spells.filter((k) => k !== 'fireball').sort();
     for (let x = 0; x < extra.length; x++) for (let y = x + 1; y < extra.length; y++) keys.push(`pair:${extra[x]}+${extra[y]}`);
     for (const k of keys) {
@@ -112,8 +117,9 @@ const pct = (x: number) => f(100 * x, 1) + '%';
 const label = (k: string) => {
   const kind = k.slice(0, k.indexOf(':'));
   const [id, lvl] = k.slice(kind.length + 1).split('@');
-  const name = (x: string) => SPELLS[x as SpellId]?.name ?? ITEMS[x as ItemId]?.name ?? x;
+  const name = (x: string) => SPELLS[x as SpellId]?.name ?? ITEMS[x as ItemId]?.name ?? RUNE_NAMES[x] ?? x;
   if (kind === 'pair') return id.split('+').map(name).join(' + ');
+  if (kind === 'rune') return RUNE_NAMES[id];
   return name(id) + (lvl ? ` nv ${lvl}` : '');
 };
 
@@ -167,6 +173,11 @@ ${table('item:', (k) => !k.includes('@'))}
 
 ## Itens por nível
 ${table('item:', (k) => k.includes('@'))}
+
+## Runas (quem pegou na rodada)
+Pegar runa exige estar vivo mais tempo, então todas saem acima de 1; compare as runas entre si.
+
+${table('rune:', () => true)}
 
 ## Pares de magias (os 40 mais comuns, sem a Bola de fogo)
 ${table('pair:', () => true, 40, true)}
@@ -243,8 +254,11 @@ while (Date.now() < deadline && S.rounds < maxRounds) {
     // sem humanos a loja fecha no primeiro passo; contagem e fim de rodada pulam direto para o fim da espera
     now = was === 'playing' || was === 'shop' ? now + DT * 1000 : Math.max(now + DT * 1000, m.phaseEnds);
     tickMatch(m, now, [], rng);
+    for (const e of m.world?.events ?? []) if (e.k === 'runeTake') runes.add(`${e.id}:${e.kind}`);
+    else if (e.k === 'aegis') runes.add(`${e.id}:aegis`);
     if (was === 'playing' && m.phase === 'roundEnd') {
       record(m, now);
+      runes.clear();
       if (S.rounds % every === 0) {
         save();
         console.log(`${S.rounds} rodadas, ${f(S.roundsPerMin, 0)}/min`);

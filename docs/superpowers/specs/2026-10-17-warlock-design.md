@@ -137,7 +137,7 @@ Diferente da sinuca (por turnos, quem tacou simulava), aqui **a sala (Durable Ob
 Todos os números de jogo (velocidades, dano, empurrão, recargas, preços, ouro, raio e ritmo do encolhimento); formato exato das mensagens; aparência dos magos e efeitos; layout da loja e da barra de magias; comportamento fino dos bots; tempo de lugar reservado e de limpeza da sala.
 
 ## 9. Números do original (17/10, pedido do Fernando: "qual o mais original?")
-Valores tirados do código do Warlock Brawl para Dota 2 (github.com/warlockbrawl/warlock: `config.lua`, `arena.lua`, `pawn.lua`, `gamesetup.lua`, `npc_abilities_custom.txt`, `npc_items_custom.txt`, `shop.lua`), convertidos com a arena de 4 magos = 11 m (1 unidade = 0,00647 m) e vida 1000 = 100. Fonte da verdade: `src/shared/constants.ts` e `src/shared/spells.ts`.
+Valores tirados do código do Warlock Brawl para Dota 2 (github.com/warlockbrawl/warlock: `config.lua`, `arena.lua`, `pawn.lua`, `gamesetup.lua`, `npc_abilities_custom.txt`, `npc_items_custom.txt`, `shop.lua`), convertidos com a arena de 4 magos = 11 m (1 unidade = 0,00647 m) e vida 1000 = 1000 (desde 18/10 a escala é a original: dano e vida ×10 em relação à primeira versão). Fonte da verdade: `src/shared/constants.ts` e `src/shared/spells.ts`.
 - Arena: raio (13 + nº de magos) camadas de 100 unidades; perde uma camada a cada 10 s. Lava 10 de vida/s. Vida volta 0,5/s na pedra.
 - Andar 1,36 m/s. Empurrão = dano × 0,647 m/s × (1 + dano acumulado/100); a lava conta metade. Atrito 0,96 por tique de 0,035 s.
 - Bola de fogo: dano 7 (7,7 / 8,4), recarga 4,8 s, 6,5 m/s, alcance 6,5 m. Raio: dano 7, alcance 3,9 m, recarga 16,5 s. Míssil: dano 7, recarga 16,5 s, 4,5 s de voo. Escudo: 1,2 s, recarga 14 s. Teleporte: 5 m, recarga 16 s.
