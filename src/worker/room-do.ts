@@ -6,6 +6,7 @@ import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
 import { roundRecord } from '../shared/telemetry.ts';
 import { v } from '../shared/vec.ts';
+import { TAUNT_COOLDOWN_MS } from '../shared/taunts.ts';
 
 const STEP_MS = DT * 1000;
 const MAX_CATCHUP = 5; // passos por chamada do laço; atraso maior que isso é descartado
@@ -27,6 +28,7 @@ export class Room extends DurableObject<Env> {
   private acks = new Map<string, number>();
   private events: SimEvent[] = [];
   private lastCmdAt = Date.now();
+  private taunted = new Map<string, number>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -158,6 +160,14 @@ export class Room extends DurableObject<Env> {
       case 'ballot':
         if (castBallot(m, id, msg.yes, now)) await this.changed();
         return;
+      case 'taunt': {
+        // taunt vale em qualquer fase, para todos na sala; no máximo um a cada 2,5 s por jogador
+        if (!m.players.some((p) => p.id === id) || now - (this.taunted.get(id) ?? 0) < TAUNT_COOLDOWN_MS) return;
+        this.taunted.set(id, now);
+        const out = { t: 'taunt' as const, id: publicId(this.saved!.id, id), i: msg.i };
+        for (const ws of this.live()) send(ws, out);
+        return;
+      }
       case 'buyMastery':
         if (buyMastery(m, id, msg.mastery)) await this.changed();
         return;

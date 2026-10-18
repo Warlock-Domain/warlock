@@ -6,6 +6,7 @@ import { MASTERY_IDS, type MasteryId } from './masteries.ts';
 import { votesNeeded, type Match, type Mode, type Phase, type Stats, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { SPELL_IDS, type SpellId } from './spells.ts';
+import { TAUNTS } from './taunts.ts';
 
 export type ClientMsg =
   | { t: 'hello'; playerId: string; name: string }
@@ -23,6 +24,7 @@ export type ClientMsg =
   | { t: 'item'; item: ItemId; x: number; y: number; seq: number }
   | { t: 'vote'; kind: Vote['kind']; target?: string }
   | { t: 'ballot'; yes: boolean }
+  | { t: 'taunt'; i: number }
   | { t: 'ready' }
   | { t: 'alive' };
 
@@ -60,7 +62,8 @@ export type ErrorCode = 'not_found' | 'other_tab' | 'full' | 'bad_msg' | 'kicked
 export type ServerMsg =
   | { t: 'room'; room: PublicRoom; you: string }
   | Snap
-  | { t: 'error'; code: ErrorCode; msg: string };
+  | { t: 'error'; code: ErrorCode; msg: string }
+  | { t: 'taunt'; id: string; i: number };
 
 export const MAX_COORD = 30;
 const MAX_MSG = 1024;
@@ -111,6 +114,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return m.kind === 'kick' && typeof m.target === 'string' && /^p[0-9a-z]{1,8}$/.test(m.target) ? { t: 'vote', kind: 'kick', target: m.target } : null;
     case 'ballot':
       return typeof m.yes === 'boolean' ? { t: 'ballot', yes: m.yes } : null;
+    case 'taunt':
+      return Number.isInteger(m.i) && (m.i as number) >= 0 && (m.i as number) < TAUNTS.length ? { t: 'taunt', i: m.i as number } : null;
     case 'buyMastery':
       return m.mastery === 'all' || MASTERY_IDS.includes(m.mastery as MasteryId) ? { t: 'buyMastery', mastery: m.mastery as MasteryId | 'all' } : null;
     case 'buyItem':

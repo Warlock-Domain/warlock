@@ -10,7 +10,7 @@ const DEFAULTS: Record<string, string> = {
   scourge: 'Digit1', redirector: 'Digit2', pact: 'Digit3',
 };
 // teclas com outra função no jogo: não podem virar atalho de magia
-export const RESERVED = new Set(['KeyS', 'Space', 'Escape', 'Tab', 'Enter']);
+export const RESERVED = new Set(['KeyS', 'Space', 'Escape', 'Tab', 'Enter', 'KeyY']);
 const STORE = 'warlock:keys';
 
 let map: Record<string, string> = { ...DEFAULTS };

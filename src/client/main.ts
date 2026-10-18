@@ -13,6 +13,7 @@ import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
 import { askName, banner, createRoomUi, renderLobby, screen, toast, type RoomInfo } from './ui.ts';
+import { TAUNTS } from '../shared/taunts.ts';
 
 // som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
@@ -117,6 +118,7 @@ function startRoom(code: string, name: string) {
     ballot: (yes) => net.send({ t: 'ballot', yes }),
     undo: (key) => net.send({ t: 'undo', key }),
     sell: (key) => net.send({ t: 'sell', key }),
+    taunt: (i) => net.send({ t: 'taunt', i }),
     useItem: (item) => input.itemButton(item),
     pick: (character) => {
       store.set(CHAR, character);
@@ -265,6 +267,13 @@ function startRoom(code: string, name: string) {
       scene.preload(room.players.map((p) => p.character));
       if (room.phase !== lastPhase) onPhase(prev);
       lastPhase = room.phase;
+      return;
+    }
+    if (m.t === 'taunt') {
+      const t = TAUNTS[m.i];
+      if (!t) return;
+      void sound.taunt(t.id);
+      if (!scene.bubble(m.id, t.text)) toast(`${room?.players.find((p) => p.id === m.id)?.name ?? '?'}: ${t.text}`);
       return;
     }
     lastSnap = m;

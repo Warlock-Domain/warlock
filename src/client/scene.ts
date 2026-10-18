@@ -769,6 +769,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         (ring.material as THREE.MeshBasicMaterial).opacity = 1 - k;
       });
     },
+    // balão do taunt em cima do mago por 2,5 s
+    bubble(id: string, text: string) {
+      const m = mages.get(id);
+      if (!m) return false;
+      m.label.querySelector('.bubble')?.remove();
+      const b = document.createElement('div');
+      b.className = 'bubble';
+      b.textContent = text;
+      m.label.prepend(b);
+      setTimeout(() => b.remove(), 2500);
+      return true;
+    },
     zoomBy(deltaY: number) {
       zoom = Math.min(1.7, Math.max(0.45, zoom * Math.exp(deltaY * 0.0012)));
     },

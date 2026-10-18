@@ -10,6 +10,7 @@ import { ACTIONS, RESERVED, keyLabel, keyOf, labelOf, onKeysChange, resetKeys, s
 import { hideTip, itemTip, masteryTip, spellTip, withTip } from './tips.ts';
 import { COLORS } from './scene.ts';
 import { RULES } from './rules-text.ts';
+import { TAUNTS } from '../shared/taunts.ts';
 
 type Child = Node | string | null | undefined | false;
 export function el(tag: string, props: Record<string, any> = {}, ...children: Child[]): HTMLElement {
@@ -125,6 +126,7 @@ export type RoomActions = {
   ballot: (yes: boolean) => void;
   undo: (key: string) => void;
   sell: (key: string) => void;
+  taunt: (i: number) => void;
   useItem: (i: ItemId) => void;
   pick: (c: CharacterId) => void;
   ready: () => void;
@@ -263,13 +265,34 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     voteBtn.setAttribute('aria-expanded', String(!votePanel.hidden));
   } }, 'Votar');
   const voteWrap = el('div', { class: 'vol' }, voteBtn, votePanel);
+  // taunts: Y abre a lista e o número escolhe (ou clique); vale na loja e no jogo
+  const sendTaunt = (i: number) => {
+    act.taunt(i);
+    tauntPanel.hidden = true;
+  };
+  const tauntPanel = el('div', { class: 'vol-panel', hidden: true }, el('b', {}, 'Taunts (Y)'),
+    el('div', { class: 'taunt-list' }, ...TAUNTS.map((t, i) => el('button', { type: 'button', onclick: () => sendTaunt(i) }, `${i + 1} · ${t.text}`))));
+  const tauntBtn = el('button', { type: 'button', class: 'icon', title: 'Taunts (Y)', onclick: () => (tauntPanel.hidden = !tauntPanel.hidden) }, '💬');
+  addEventListener('keydown', (e) => {
+    if (e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+    if (e.code === 'KeyY') {
+      tauntPanel.hidden = !tauntPanel.hidden;
+      e.preventDefault();
+    } else if (!tauntPanel.hidden && /^(Digit|Numpad)[1-9]$/.test(e.code)) {
+      const i = Number(e.code.slice(-1)) - 1;
+      if (i < TAUNTS.length) sendTaunt(i);
+      // o número não pode também usar o item da mesma tecla
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    } else if (e.code === 'Escape') tauntPanel.hidden = true;
+  });
   const voteBar = el('div', { class: 'vote-bar', role: 'status', hidden: true });
   const voteLeft = el('span', { class: 'muted' });
   let voteEndsAt = 0;
   const top = el('div', { class: 'hud-top' },
     el('button', { type: 'button', class: 'code', title: 'Copiar link da sala', onclick: copyLink }, status, ' ', code),
     roundEl,
-    el('div', { class: 'hud-right' }, voteWrap, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', onclick: showRules }, '?')),
+    el('div', { class: 'hud-right' }, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', onclick: showRules }, '?')),
   );
   const center = el('div', { class: 'center' });
   const timer = el('div', { class: 'timer' });

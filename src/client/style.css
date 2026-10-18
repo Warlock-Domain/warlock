@@ -118,6 +118,10 @@ button.kick:hover { background: rgba(255, 122, 106, .15); }
 .wiz-label { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .78rem; font-weight: 700; text-shadow: 0 1px 3px #000, 0 0 2px #000; white-space: nowrap; will-change: transform; }
 .dmg { position: absolute; left: 0; top: 0; font-family: var(--display); font-size: 1.7rem; font-weight: 800; color: #ff6a4d; -webkit-text-stroke: 1px #2a0800; text-shadow: 0 2px 6px #000, 0 0 3px #000; pointer-events: none; will-change: transform, opacity; }
 .dmg.big { color: #ffd23f; font-size: 2.2rem; }
+.wiz-label .bubble { background: #fff4dc; color: #2a1206; font-weight: 700; font-size: .85rem; padding: 3px 9px; border-radius: 12px; margin-bottom: 4px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,.5); animation: pop .18s ease-out; }
+@keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.taunt-list { display: flex; flex-direction: column; gap: 4px; min-width: 210px; }
+.taunt-list button { text-align: left; }
 .dmg.gold { color: #ffd84a; font-size: 1.5rem; }
 .hp { position: relative; width: 64px; height: 12px; border-radius: 4px; background: rgba(0, 0, 0, .7); overflow: hidden; border: 1px solid rgba(0, 0, 0, .7); }
 .status-icons { display: flex; gap: 2px; min-height: 0; font-size: .85rem; line-height: 1; }

@@ -128,6 +128,13 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
       syncAmbience();
     },
     refresh: syncAmbience,
+    // taunt: public/sfx/taunt/<nome>.mp3, carregado na primeira vez que alguém usa
+    async taunt(name: string) {
+      if (!ctx || volumes().sfx === 0 || ctx.state !== 'running') return;
+      const key = 'taunt/' + name;
+      if (!buffers.has(key)) await load(key);
+      file(key, 1);
+    },
     play(kind: SoundKind, volume = 1) {
       if (!ctx || !noise || volumes().sfx === 0 || ctx.state !== 'running') return;
       const v = Math.max(0.05, Math.min(1, volume));
