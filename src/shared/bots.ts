@@ -1,5 +1,5 @@
 // Bots: usam qualquer magia e item ativo que tiverem e compram seguindo um plano sorteado no começo da partida.
-import { FRICTION, PROJ_R, WIZ_R } from './constants.ts';
+import { FRICTION, OBSTACLES, PROJ_R, WIZ_R } from './constants.ts';
 import type { Cmd, Projectile, Wizard, World } from './sim.ts';
 import { ITEM_IDS, SCOURGE, itemPrice, type ItemId } from './items.ts';
 import { CAST_POINT, MAX_SPELLS, METEOR_DELAY, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
@@ -83,6 +83,11 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
       continue;
     }
     const rel = sub(me.pos, p.pos);
+    // Míssil teleguiado em mim faz curva: a previsão em linha reta não serve, reage pela distância
+    if (p.kind === 'homing' && p.target === id && dot(p.vel, rel) > 0) {
+      const t = len(rel) / Math.max(1, len(p.vel));
+      if (t < 0.5 && t < tHit) [threat, tHit] = [p, t];
+    }
     const vv = dot(p.vel, p.vel);
     const t = vv > 1e-6 ? dot(rel, p.vel) / vv : -1;
     if (t < 0 || t > 0.6 || t >= tHit || len(sub(rel, scale(p.vel, t))) > WIZ_R + PROJ_R + 0.25) continue;
@@ -98,6 +103,12 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
     if (!meteor && !winding && ready('shield') && tHit > 0.15 && tHit < 0.5 && rand() < 0.15) return cast('shield', me.pos);
     // Alteração: troca de lugar com o projétil quando ele estiver quase chegando
     if (!meteor && !winding && ready('alteration') && tHit < 0.35) return cast('alteration', me.pos);
+    // Raio derruba o míssil no caminho (metade das vezes: precisa de mira)
+    if (threat.kind === 'homing' && !winding && ready('lightning') && dist(threat.pos, me.pos) > 1 && rand() < 0.5) return cast('lightning', add(threat.pos, scale(threat.vel, 0.1)));
+    // Magnetizar num obstáculo perto volta em mim: repele os projéteis inimigos por alguns segundos
+    const post = !meteor && !winding && ready('magnetize') && w.t >= me.magnetUntil && rand() < 0.5 &&
+      w.pillars.find((q) => q.alive && dist(q.pos, me.pos) - OBSTACLES[q.kind].r > 0.7 && dist(q.pos, me.pos) - OBSTACLES[q.kind].r < 2.4);
+    if (post) return cast('magnetize', post.pos);
     if (ready('teleport') && rand() < 0.5 && inside(add(me.pos, scale(away, 4)), 1.5)) return cast('teleport', add(me.pos, scale(away, 4)));
     // Zona de dobra no caminho: o projétil inimigo atravessa a esfera em câmera lenta
     if (!meteor && !winding && ready('warpzone') && dist(threat.pos, me.pos) > 1.2) return cast('warpzone', add(me.pos, scale(norm(sub(threat.pos, me.pos)), Math.min(1.5, dist(threat.pos, me.pos) / 2))));
@@ -107,6 +118,9 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
     if (!winding && ready('windwalk') && rand() < 0.4) return (cast('windwalk', me.pos), cmds.push({ id, kind: 'move', to: add(me.pos, scale(away, 3)) }), cmds);
     if (rand() < 0.7) cmds.push({ id, kind: 'move', to: add(me.pos, scale(away, 2)) });
   }
+  // Bola de fogo no Míssil teleguiado que ainda vem longe: o choque estoura longe do bot (às vezes: precisa de mira)
+  const far = !threat && ready('fireball') && w.projectiles.find((p) => p.kind === 'homing' && p.target === id && dot(p.vel, sub(me.pos, p.pos)) > 0 && dist(p.pos, me.pos) > 4 && dist(p.pos, me.pos) < 6.5);
+  if (far && rand() < 0.3) return cast('fireball', add(far.pos, scale(far.vel, 0.35)));
 
   let enemy: Wizard | null = null;
   // quem está na Caminhada no vento é invisível: o bot também não o vê
@@ -117,6 +131,21 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
     w.projectiles.some((p) => p.owner === id && ((p.kind === 'link' && p.target === z.id) || ((p.kind === 'gravity' || p.kind === 'warpzone') && dist(p.pos, z.pos) < 2.5)));
   const prey = w.wizards.find((z) => z.alive && !ally(z) && w.t >= z.windUntil && opened(z) && dist(z.pos, me.pos) < 10);
   if (prey) enemy = prey;
+
+  // sai de lado da linha da puxada do Elo: o puxado passa direto com o embalo (parado, o choque jogaria o bot longe, até na lava)
+  // a linha é o embalo dele (já puxado) ou a reta até o bot; sai para o lado em que já está (senão o do centro), para não ficar rodando
+  const aside = (z: Wizard): Cmd => {
+    const moving = len(z.vel) > 1;
+    const ax = moving ? norm(z.vel) : norm(sub(me.pos, z.pos));
+    const off = dot(v(-ax.y, ax.x), sub(me.pos, z.pos));
+    const side = scale(v(-ax.y, ax.x), moving && Math.abs(off) > 0.2 ? Math.sign(off) : dot(v(-ax.y, ax.x), me.pos) > 0 ? -1 : 1);
+    return { id, kind: 'move', to: add(me.pos, add(scale(side, 3), scale(norm(me.pos), -0.6))) };
+  };
+  const held = w.projectiles.find((p) => p.owner === id && p.kind === 'link' && p.target);
+  const pulled = held && w.wizards.find((z) => z.id === held.target && z.alive);
+  if (pulled) return [aside(pulled)];
+  // deslizando para a lava: Pilar de pedra logo à frente segura o bot
+  if (ready('rockpillar') && len(me.vel) > 2 && !inside(add(me.pos, scale(me.vel, 1 / FRICTION)), 0.3)) return cast('rockpillar', add(me.pos, scale(norm(me.vel), 1.15)));
 
   // perto da borda (ou na lava): volta para o centro, com Teleporte, Investida, Estocada ou Troca se tiver
   if (!inside(me.pos, 1.2)) {
@@ -130,6 +159,8 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
     const L = spellLevel('link', me.spells.link || 1);
     const post = w.pillars.find((q) => q.alive && len(q.pos) < len(me.pos) - 1 && dist(q.pos, me.pos) < L.range * 0.9 && dist(q.pos, me.pos) > 1.2);
     if (ready('link') && post) return cast('link', post.pos);
+    // ou no inimigo bem mais para dentro: o bot sai de lado e ele passa direto para a lava
+    if (enemy && ready('link') && len(enemy.pos) < len(me.pos) - 1.5 && dist(enemy.pos, me.pos) > 2 && dist(enemy.pos, me.pos) < L.range * 0.9) return (cast('link', enemy.pos), cmds.push(aside(enemy)), cmds);
     if (ready('windwalk')) return cast('windwalk', home);
     // Troca: só vale com o inimigo bem mais para dentro (ele vai para a borda no lugar do bot)
     if (enemy && ready('swap') && len(enemy.pos) < len(me.pos) - 1.5 && dist(enemy.pos, me.pos) < spellLevel('swap', me.spells.swap).range) return cast('swap', enemy.pos);
@@ -166,19 +197,38 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
   }
   // projétil próprio a caminho do alvo (para Magnetizar e Zona de dobra)
   const incoming = w.projectiles.some((p) => p.owner === id && p.kind !== 'meteor' && p.kind !== 'warpzone' && dist(p.pos, E.pos) < 4 && dot(p.vel, sub(E.pos, p.pos)) > 0);
-  // candidatos: cada magia pronta com o alvo no alcance; sorteia uma
+  // a lava a até k metros atrás do alvo, na linha do bot até ele
+  const lavaBehind = (k: number) => !inside(add(E.pos, scale(dir, k)), 0);
+  const slideEnd = add(E.pos, scale(E.vel, 1 / FRICTION));
+  // magia de dano pronta (ou em até 1 s) para emendar no controle
+  const loaded = SPELL_IDS.some((x) => me.spells[x] > 0 && spellLevel(x, me.spells[x]).dmg > 0 && w.t + 1 >= me.cd[x]);
+  // candidatos: cada magia pronta com o alvo no alcance; sorteia uma (a jogada certa da vez, `now`, sai sem sorteio)
   const options: (() => Cmd[])[] = [];
   const dmgOpt: boolean[] = [];
+  // obstáculo vivo no caminho do bot até o ponto
+  const blocked = (to: Vec) => w.pillars.some((q) => {
+    if (!q.alive) return false;
+    const ab = sub(to, me.pos);
+    const t = Math.max(0, Math.min(1, dot(sub(q.pos, me.pos), ab) / Math.max(1e-6, dot(ab, ab))));
+    return dist(add(me.pos, scale(ab, t)), q.pos) < OBSTACLES[q.kind].r + PROJ_R + 0.1;
+  });
   let damage = false;
+  let now: (() => Cmd[]) | null = null;
+  let meteor: (() => Cmd[]) | null = null;
   for (const s of SPELL_IDS) {
     if (!ready(s) || s === 'shield' || s === 'swap') continue; // Escudo e Troca só na defesa e na borda
     const L = spellLevel(s, me.spells[s]);
     const cp = CAST_POINT[s] ?? 0.1;
     let at: Vec | null = null;
+    let prio = false;
     if (s === 'fireball') at = d < L.range + 1 && d > WIZ_R * 3 ? lead(L.speed, cp) : null;
     else if (s === 'homing') at = d < 12 ? E.pos : null;
     else if (s === 'meteor') at = d < L.range ? lead(0, cp + METEOR_DELAY) : null;
-    else if (s === 'grip') at = d < L.range * 0.85 ? lead(L.speed, cp) : null;
+    else if (s === 'grip') {
+      // só com dano pronto para emendar; preso na lava (ou deslizando para ela) não volta andando; e o Agarrar corta o Flagelo em preparo
+      prio = !inside(E.pos, 0.6) || !inside(slideEnd, 0.3) || (E.casting?.item === 'scourge' && d < 3);
+      at = d < L.range * 0.85 && (loaded || prio) ? lead(L.speed, cp) : null;
+    }
     else if (s === 'thrust') at = d > 1.5 && d < L.range && inside(add(me.pos, scale(dir, Math.min(d, L.range))), 1.5) ? lead(L.speed, cp) : null;
     else if (s === 'rush') at = d < 3.2 && inside(add(me.pos, scale(dir, 3)), 1) ? E.pos : null;
     else if (s === 'teleport') {
@@ -186,17 +236,34 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
       at = d > 7.5 && inside(to, 2) && rand() < 0.3 ? to : null;
     } else if (s === 'rockpillar') at = d > 3 && d < 7 && rand() < 0.25 ? add(me.pos, scale(dir, 1.3)) : null;
     // Magnetizar no inimigo: os projéteis do bot (já voando ou os próximos) curvam para ele
-    else if (s === 'magnetize') at = d < L.range * 0.8 && (incoming || SPELL_IDS.some((x) => x !== s && spellLevel(x, me.spells[x]).dmg > 0 && me.spells[x] > 0 && w.t + 1 >= me.cd[x])) ? lead(L.speed, cp) : null;
+    else if (s === 'magnetize') {
+      at = d < L.range * 0.8 && (incoming || loaded) ? lead(L.speed, cp) : null;
+      prio = true;
+    }
     // Zona de dobra em cima do inimigo: os tiros dele saem em câmera lenta enquanto os do bot chegam
     else if (s === 'warpzone') at = d < L.range && (incoming || rand() < 0.15) ? E.pos : null;
     // Caminhada no vento: invisível e mais rápido para encostar (o dano sai no toque)
     else if (s === 'windwalk') at = d > 1.2 && d < 5 && inside(E.pos, 1) ? E.pos : null;
-    // Elo: com o bot mais perto da lava que o inimigo, a puxada o leva para a borda; senão de vez em quando, pelo dano e para trazê-lo ao Flagelo
-    else if (s === 'link') at = d > 2 && d < L.range * 0.9 && (len(me.pos) > len(E.pos) + 1 || rand() < 0.3) ? lead(L.speed, cp) : null;
+    // Elo com a lava atrás do bot: o bot sai de lado e o puxado passa direto para a lava; de vez em quando pelo dano,
+    // mas nunca com o inimigo mais perto da lava (a puxada o salvaria)
+    else if (s === 'link') {
+      // de perto não dá tempo de sair da frente; obstáculo no caminho puxaria o próprio bot até ele
+      const to = lead(L.speed, cp);
+      prio = !inside(add(me.pos, scale(dir, -3)), 0);
+      at = d > 3.5 && d < L.range * 0.9 && (prio || (loaded && len(E.pos) < len(me.pos) + 0.5 && rand() < 0.3)) && !blocked(to) ? to : null;
+    }
     // Gêmeos: as duas curvas encontram-se no ponto, mas o caminho é mais longo que a reta
     else if (s === 'twin') at = d < L.range ? lead(L.speed * 0.7, cp) : null;
     // Bola de neve: lenta, só de perto
-    else if (s === 'snowball') at = d < L.range ? lead(L.speed, cp) : null;
+    else if (s === 'snowball') {
+      at = d < L.range ? lead(L.speed, cp) : null;
+      prio = lavaBehind(3.5); // arrasta o alvo até a lava e explode lá
+    }
+    // Gravidade passando pelo alvo rumo à lava: de perto ele não consegue andar contra o puxão
+    else if (s === 'gravity') {
+      at = d < L.range ? lead(L.speed, cp) : null;
+      prio = d < 2.8 && lavaBehind(2);
+    }
     // Divisor: estoura no ponto e os filhotes seguem mais 4,6 m
     else if (s === 'splitter') at = d < L.range + 3 ? add(me.pos, clampLen(sub(lead(L.speed, cp), me.pos), Math.max(1, d - 2))) : null;
     else if (s === 'alteration') continue; // só na defesa
@@ -204,7 +271,13 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
     else if (L.dmg > 0) at = d < (L.range || 6) ? lead(L.speed, cp) : null;
     if (!at) continue;
     const to = at;
-    options.push(s === 'windwalk' ? () => (cast(s, to), cmds.push({ id, kind: 'move', to: E.pos }), cmds) : () => cast(s, to));
+    const opt =
+      s === 'windwalk' ? () => (cast(s, to), cmds.push({ id, kind: 'move', to: E.pos }), cmds)
+      : s === 'link' ? () => (cast(s, to), cmds.push(aside(E)), cmds) // já sai de lado enquanto o Elo voa
+      : () => cast(s, to);
+    if (prio) now ??= opt;
+    if (s === 'meteor') meteor = opt;
+    options.push(opt);
     dmgOpt.push(L.dmg > 0);
     if (L.dmg > 0) damage = true;
   }
@@ -213,9 +286,12 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
     dmgOpt.push(true);
     damage = true;
   }
+  if (now) return now();
   // combo: com o alvo aberto, só dano e sem hesitar (antes os bots prendiam e não aproveitavam, e o controle rendia 0,75 a 0,86×)
   if (prey && damage) {
     const hits = options.filter((_, i) => dmgOpt[i]);
+    // preso não sai do Meteoro a tempo: é o golpe mais forte
+    if (meteor && w.t < E.gripUntil) return meteor();
     return hits[Math.floor(rand() * hits.length)]();
   }
   if (!options.length || rand() >= 0.7) return cmds;

@@ -95,6 +95,95 @@ describe('bots usam tudo', () => {
     expect(casts(botCmds(w, 'bot', () => 0.3))[0]).toMatchObject({ kind: 'cast', spell: 'link', at: { x: w.arenaR - 3, y: 0 } });
   });
 
+  it('reacts to a homing missile by distance, even off a straight course', () => {
+    const missile = (own: Partial<Record<SpellId, number>>, r: number) => {
+      const w = duel(own);
+      // curvando: a reta passa a 2 m do bot, mas ele está a 2,5 m e chegando
+      w.projectiles.push({ id: 1, kind: 'homing', owner: 'x', caster: 'x', pos: v(2.5, 0), vel: v(-3, 5.7), level: 1, until: 9, target: 'bot', dmgMult: 1 });
+      return casts(botCmds(w, 'bot', () => r))[0];
+    };
+    expect(missile({ shield: 1 }, 0.1)).toMatchObject({ kind: 'cast', spell: 'shield' });
+    const z = missile({ lightning: 1 }, 0.3);
+    expect(z?.kind === 'cast' && z.spell === 'lightning' && Math.abs(z.at.x - 2.2) < 0.1).toBe(true);
+  });
+
+  it('shoots a far homing missile down with the Fireball', () => {
+    const w = duel({});
+    w.wizards[0].cd.fireball = 0;
+    w.projectiles.push({ id: 1, kind: 'homing', owner: 'x', caster: 'x', pos: v(0, 5), vel: v(0, -6.47), level: 1, until: 9, target: 'bot', dmgMult: 1 });
+    const c = casts(botCmds(w, 'bot', () => 0.1))[0];
+    expect(c?.kind === 'cast' && c.spell === 'fireball' && c.at.y > 2 && Math.abs(c.at.x) < 0.1).toBe(true);
+  });
+
+  it('grips only with damage ready to follow, and drops the Meteor on the gripped enemy', () => {
+    const w = duel({ grip: 1 });
+    expect(casts(botCmds(w, 'bot', () => 0.3))).toHaveLength(0); // nada para emendar: não prende
+    w.wizards[0].cd.fireball = 0.5; // a Bola de fogo volta em 0,5 s
+    expect(casts(botCmds(w, 'bot', () => 0.3))[0]).toMatchObject({ kind: 'cast', spell: 'grip' });
+    const g = duel({ meteor: 1, lightning: 1 });
+    g.wizards[1].gripUntil = 2;
+    expect(casts(botCmds(g, 'bot', () => 0.1))[0]).toMatchObject({ kind: 'cast', spell: 'meteor' });
+  });
+
+  it('does not link through an obstacle (it would pull the bot itself)', () => {
+    const w = duel({ link: 1 });
+    const R = w.arenaR;
+    w.wizards[0].pos = v(R - 2, 0);
+    w.wizards[1].pos = v(R - 6, 0);
+    w.pillars.push({ pos: v(R - 4, 0), hp: 400, alive: true, kind: 'pillar' });
+    expect(casts(botCmds(w, 'bot', () => 0.9))).toHaveLength(0);
+  });
+
+  it('under fire, magnetizes a nearby obstacle so the bounce repels enemy shots', () => {
+    const w = duel({ magnetize: 1 });
+    w.pillars.push({ pos: v(0, 2), hp: 400, alive: true, kind: 'pillar' });
+    w.projectiles.push({ id: 1, kind: 'fireball', owner: 'x', caster: 'x', pos: v(3, 0), vel: v(-6.47, 0), level: 1, until: 9, target: null, dmgMult: 1 });
+    expect(casts(botCmds(w, 'bot', () => 0.3))[0]).toMatchObject({ kind: 'cast', spell: 'magnetize', at: { x: 0, y: 2 } });
+  });
+
+  it('links with the lava behind it and steps aside; never pulls an enemy back from the edge', () => {
+    const w = duel({ link: 1 });
+    const R = w.arenaR;
+    w.wizards[0].pos = v(R - 2, 0);
+    w.wizards[1].pos = v(R - 6, 0);
+    const cmds = botCmds(w, 'bot', () => 0.9);
+    expect(casts(cmds)[0]).toMatchObject({ kind: 'cast', spell: 'link' });
+    expect(cmds.some((c) => c.kind === 'move' && Math.abs(c.to.y) > 2)).toBe(true);
+    // preso: só sai de lado
+    w.projectiles.push({ id: 1, kind: 'link', owner: 'bot', caster: 'bot', pos: w.wizards[1].pos, vel: v(0, 0), level: 1, until: 9, target: 'x', dmgMult: 1 });
+    const held = botCmds(w, 'bot', () => 0.3);
+    expect(held).toHaveLength(1);
+    expect(held[0].kind === 'move' && Math.abs(held[0].to.y) > 2 && held[0].to.x < R - 2).toBe(true);
+    // inimigo mais perto da lava: nada de Elo
+    const w2 = duel({ link: 1 });
+    w2.wizards[0].pos = v(R - 6, 0);
+    w2.wizards[1].pos = v(R - 2, 0);
+    expect(casts(botCmds(w2, 'bot', () => 0.1))).toHaveLength(0);
+  });
+
+  it('grips an enemy in the lava, and drags with Snowball or Gravity toward the lava, without the random skip', () => {
+    const R = duel({}).arenaR;
+    const edge = (own: Partial<Record<SpellId, number>>, enemyAt: number, d: number) => {
+      const w = duel(own);
+      w.wizards[0].pos = v(enemyAt - d, 0);
+      w.wizards[1].pos = v(enemyAt, 0);
+      return casts(botCmds(w, 'bot', () => 0.9))[0];
+    };
+    expect(edge({ grip: 1 }, R + 0.3, 4)).toMatchObject({ kind: 'cast', spell: 'grip' });
+    expect(edge({ snowball: 1 }, R - 1.5, 3)).toMatchObject({ kind: 'cast', spell: 'snowball' });
+    expect(edge({ gravity: 1 }, R - 1, 2.2)).toMatchObject({ kind: 'cast', spell: 'gravity' });
+    // longe da lava, o sorteio de 0,9 deixa passar
+    expect(edge({ snowball: 1 }, 0, 3)).toBeUndefined();
+  });
+
+  it('sliding toward the lava, drops a Rock pillar right in front of itself', () => {
+    const w = duel({ rockpillar: 1 });
+    w.wizards[0].pos = v(w.arenaR - 2, 0);
+    w.wizards[0].vel = v(6, 0);
+    const c = casts(botCmds(w, 'bot', () => 0.9))[0];
+    expect(c?.kind === 'cast' && c.spell === 'rockpillar' && Math.abs(c.at.x - (w.arenaR - 0.85)) < 0.01).toBe(true);
+  });
+
   it('drains when hurt even with other spells ready', () => {
     const w = duel({ drain: 1, lightning: 1 });
     w.wizards[0].hp = 400;
