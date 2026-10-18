@@ -101,8 +101,9 @@ export function withTip<T extends HTMLElement>(target: T, html: () => string): T
   const hide = () => tipEl && (tipEl.hidden = true);
   target.addEventListener('mouseenter', show);
   target.addEventListener('mouseleave', hide);
-  target.addEventListener('focus', show);
-  target.addEventListener('blur', hide);
+  // focusin/focusout sobem do botão para o cartão: focar "Comprar" pelo teclado mostra a dica do cartão
+  target.addEventListener('focusin', show);
+  target.addEventListener('focusout', hide);
   return target;
 }
 

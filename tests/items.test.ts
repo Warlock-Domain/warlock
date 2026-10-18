@@ -26,8 +26,8 @@ const steps = (w: World, n: number) => {
 describe('itens passivos', () => {
   it('ring raises max hp', () => {
     const w = world([[0, 0]], [{ ring: 2 }]);
-    expect(w.wizards[0].hpMax).toBe(HP_MAX + 19);
-    expect(w.wizards[0].hp).toBe(HP_MAX + 19);
+    expect(w.wizards[0].hpMax).toBe(HP_MAX + 190);
+    expect(w.wizards[0].hp).toBe(HP_MAX + 190);
   });
 
   it('armor reduces knockback', () => {
@@ -64,19 +64,19 @@ describe('itens ativos', () => {
 
   it('scourge also damages obstacles and the chest in the blast', () => {
     const w = world([[0, 0]], [{ scourge: 1 }]);
-    w.pillars = [{ pos: v(1.2, 0), hp: 25, alive: true, kind: 'chest' }];
+    w.pillars = [{ pos: v(1.2, 0), hp: 250, alive: true, kind: 'chest' }];
     stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
     steps(w, 40);
-    expect(w.pillars[0].hp).toBeLessThan(25);
+    expect(w.pillars[0].hp).toBeLessThan(250);
   });
 
   it('scourge never kills its caster', () => {
     const w = world([[0, 0]], [{ scourge: 3 }]);
-    w.wizards[0].hp = 3;
+    w.wizards[0].hp = 30;
     stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
     steps(w, 70);
     expect(w.wizards[0].alive).toBe(true);
-    expect(w.wizards[0].hp).toBeGreaterThanOrEqual(1);
+    expect(w.wizards[0].hp).toBeGreaterThanOrEqual(10);
   });
 
   it('pact makes the next damaging spell stronger and does not slow', () => {
@@ -86,7 +86,7 @@ describe('itens ativos', () => {
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(2, 0) }]);
     steps(w, 15);
     // a vida volta um pouco (regeneração) entre o acerto e a conferência
-    expect(HP_MAX - w.wizards[1].hp).toBeGreaterThan(SPELLS.lightning.levels[0].dmg * PACT.mult - 0.2);
+    expect(HP_MAX - w.wizards[1].hp).toBeGreaterThan(SPELLS.lightning.levels[0].dmg * PACT.mult - 2);
     steps(w, 2);
     expect(w.wizards[0].speed).toBe(WIZ_SPEED);
   });
@@ -275,10 +275,10 @@ describe('roubo de vida (item)', () => {
     w.wizards[0].pos = v(0, 0);
     w.wizards[1].pos = v(2, 0);
     for (const z of w.wizards) z.invulnUntil = 0;
-    w.wizards[0].hp = 50;
+    w.wizards[0].hp = 500;
     stepWorld(w, [{ id: 'a', kind: 'cast', spell: 'lightning', at: v(2, 0) }]);
     steps(w, 10);
-    expect(w.wizards[0].hp).toBeGreaterThan(52);
+    expect(w.wizards[0].hp).toBeGreaterThan(520);
   });
 });
 
@@ -309,13 +309,13 @@ describe('itens novos (18/10)', () => {
     fireballAt(warded, 3);
     const [a] = hits(plain, 30);
     const [b] = hits(warded, 30);
-    expect(a - b).toBeCloseTo(1.2, 1);
+    expect(a - b).toBeCloseTo(12, 0);
     expect(warded.wizards[1].vel.x / plain.wizards[1].vel.x).toBeCloseTo(1.03, 2);
   });
 
   it('warden never cuts more than half a hit (damage over time still works)', () => {
     const w = world([[0, 0], [3, 0]], [{}, { warden: 3 }]);
-    w.wizards[1].ward = 100;
+    w.wizards[1].ward = 1000;
     fireballAt(w, 3);
     expect(hits(w, 30)[0]).toBeCloseTo(SPELLS.fireball.levels[0].dmg / 2, 1);
   });
@@ -351,7 +351,7 @@ describe('itens novos (18/10)', () => {
     z.vel = v(0, 5);
     steps(w, 30);
     expect(z.pos.y).toBeGreaterThan(w.arenaR); // vida alta: a Égide espera
-    z.hp = AEGIS.hp + 0.05;
+    z.hp = AEGIS.hp + 0.5;
     let saved = false;
     for (let i = 0; i < 5; i++) {
       stepWorld(w, []);

@@ -7,6 +7,7 @@ export type RoundRecord = {
   at: number;
   humans: number;
   mode?: Mode;
+  scale?: number; // 10: vida 1000 e dano na escala do original (desde 18/10); sem o campo, vida 100 (dano ÷10)
   players: {
     pid?: string; // código anônimo e estável do jogador (hash do id secreto), para separar habilidade de item
     bot: boolean;
@@ -43,6 +44,7 @@ export function roundRecord(m: Match, now: number): RoundRecord {
     at: now,
     humans: m.players.filter((p) => !p.bot).length,
     mode: m.mode,
+    scale: 10,
     players: m.players.map((p) => ({
       pid: publicId('telemetria', p.id),
       bot: p.bot,

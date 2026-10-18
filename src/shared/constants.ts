@@ -1,6 +1,6 @@
 // Números do jogo, em metros e segundos, convertidos do Warlock Brawl para Dota 2 (github.com/warlockbrawl/warlock,
 // scripts/vscripts/base/config.lua, arena.lua, pawn.lua e npc_abilities_custom.txt). Escala: a arena com 4 magos
-// (1700 unidades de raio no original) vira 11 m, ou seja, 1 unidade = 0,00647 m. Vida 1000 do original = 100 aqui.
+// (1700 unidades de raio no original) vira 11 m, ou seja, 1 unidade = 0,00647 m. Vida e dano na escala do original (vida 1000).
 export const DT = 1 / 60;
 export const SEND_EVERY = 2; // envia o estado a cada 2 passos (30 por segundo)
 
@@ -16,12 +16,12 @@ export const SHRINK_WARN = 2;
 
 export const WIZ_R = 0.35; // original 30 unidades (0,19 m); maior aqui porque o modelo 3D é mais largo
 export const WIZ_SPEED = 210 * UNIT;
-export const HP_MAX = 100;
-export const HP_REGEN = 0.5; // 5 por segundo no original
-export const LAVA_DPS = 10;
+export const HP_MAX = 1000;
+export const HP_REGEN = 5; // 5 por segundo, como no original
+export const LAVA_DPS = 100;
 export const FRICTION = -Math.log(0.96) / 0.035; // 0,96 por tique de 0,035 s: a velocidade do empurrão cai e^(-FRICTION·t)
-export const KB_SOFT_CAP = 10; // golpe acima disso empurra pela raiz (100 no original, pawn.lua do mod de Dota 2)
-export const KB_PER_DMG = 10 * UNIT * 10; // empurrão (m/s) por ponto de dano: 10 unidades/s por dano do original
+export const KB_SOFT_CAP = 100; // golpe acima disso empurra pela raiz (como no original, pawn.lua do mod de Dota 2)
+export const KB_PER_DMG = 10 * UNIT; // empurrão (m/s) por ponto de dano: 10 unidades/s por dano, como no original
 export const STUN_SPEED = 1.5; // deslizando mais rápido que isso, o mago não anda
 export const KNOCK_HP_SCALE = 1; // empurrão × (1 + KNOCK_HP_SCALE·danoRecebido/HP_MAX); a lava conta pela metade
 export const LAVA_KB_FACTOR = 0.5;
@@ -29,22 +29,22 @@ export const CREDIT_WINDOW = 5; // o abate vai para quem acertou nos últimos 5 
 export const PROJ_R = 0.2;
 
 // pilares do original (mode.lua e obstacles.lua): 2 a 8 por rodada, sorteados até 1000 unidades do centro,
-// 400 de vida (40 aqui); ao quebrar explodem em 300 unidades com 5 a 10 de dano (0,5 a 1 aqui)
-export const PILLAR = { r: 0.5, hp: 40, spread: 1000 * UNIT, blastR: 300 * UNIT, blastDmg: 1, min: 2, max: 8 };
+// 400 de vida; ao quebrar explodem em 300 unidades com 5 a 10 de dano (aqui 10)
+export const PILLAR = { r: 0.5, hp: 400, spread: 1000 * UNIT, blastR: 300 * UNIT, blastDmg: 10, min: 2, max: 8 };
 
 // tipos de obstáculo (pedido do Fernando, 17/10: "não só esses pilares"); o pilar segue o original, os outros são meus:
 // rocha grande que não quebra, árvore morta frágil e altar de velas que explode em fogo. weight = chance relativa no sorteio
 export type ObstacleKind = 'pillar' | 'rock' | 'tree' | 'shrine' | 'chest' | 'rockpillar';
 export const OBSTACLE_KINDS: ObstacleKind[] = ['pillar', 'rock', 'tree', 'shrine', 'chest', 'rockpillar'];
 export const OBSTACLES: Record<ObstacleKind, { r: number; hp: number; blastR: number; blastDmg: number; weight: number }> = {
-  pillar: { r: 0.5, hp: 40, blastR: 300 * UNIT, blastDmg: 1, weight: 4 },
+  pillar: { r: 0.5, hp: 400, blastR: 300 * UNIT, blastDmg: 10, weight: 4 },
   rock: { r: 0.85, hp: Infinity, blastR: 0, blastDmg: 0, weight: 2 },
-  tree: { r: 0.35, hp: 15, blastR: 0, blastDmg: 0, weight: 2 },
-  shrine: { r: 0.45, hp: 10, blastR: 1.6, blastDmg: 6, weight: 1 },
-  chest: { r: 0.4, hp: 25, blastR: 0, blastDmg: 0, weight: 0 }, // baú de ouro: não sai no sorteio, aparece no meio da rodada
+  tree: { r: 0.35, hp: 150, blastR: 0, blastDmg: 0, weight: 2 },
+  shrine: { r: 0.45, hp: 100, blastR: 1.6, blastDmg: 60, weight: 1 },
+  chest: { r: 0.4, hp: 250, blastR: 0, blastDmg: 0, weight: 0 }, // baú de ouro: não sai no sorteio, aparece no meio da rodada
   // Pilar de pedra (magia): obstáculo comum do original (400 de vida, explode igual ao pilar) com raio 90 u, 1,5× o pilar
   // de 60 u; aqui 1,5× o nosso pilar, que já é maior que o original. Some sozinho (Pillar.until)
-  rockpillar: { r: 0.75, hp: 40, blastR: 300 * UNIT, blastDmg: 1, weight: 0 },
+  rockpillar: { r: 0.75, hp: 400, blastR: 300 * UNIT, blastDmg: 10, weight: 0 },
 };
 
 export const MAX_PLAYERS = 8;
@@ -59,10 +59,10 @@ export const SELL_FLOOR = 0.75;
 // primeiro aos 8 s, depois um a cada 12 s mesmo que o anterior não tenha sido quebrado, até 2 baús de pé (Fernando, 17/10: "não aparece mais baú")
 export const CHEST = { first: 8, every: 12, maxUp: 2, pile: 10, goldEvery: 2, reach: 0.75, pileSecs: 45, spread: 0.6 };
 // chão depois do choque de projéteis (pedido do Fernando, 17/10): fogo queima, arcano deixa lento, pulso puxa para o centro
-export const ZONES = { burn: { dps: 2, secs: 4.5 }, slow: { mult: 0.6, secs: 4.5 }, pull: { speed: 2.2, secs: 3 }, size: 0.75 };
+export const ZONES = { burn: { dps: 20, secs: 4.5 }, slow: { mult: 0.6, secs: 4.5 }, pull: { speed: 2.2, secs: 3 }, size: 0.75 };
 // assistência: quem causou mais dano em quem morreu, sem ser quem matou (anti-roubo de abate do Warlock original, versão 082)
 export const ASSIST_GOLD = 2;
-export const ASSIST_MIN_DMG = 3;
+export const ASSIST_MIN_DMG = 30;
 // recuperação (pedido do Fernando, 17/10: "evitar a galera ficar muito atrás"):
 // quem ganhou menos ouro na partida que a média recebe metade da diferença no fim da rodada (até 8);
 // abater o líder do placar vale +3 por vitória de vantagem dele sobre a média (até 10); o líder que vence ganha só 5
@@ -86,10 +86,10 @@ export const VOTE_MS = 20_000; // votação na partida (trocar o modo, expulsar 
 // morte súbita nas Rodadas e nos Times: passados 90 s, a arena encolhe a cada 5 s em vez de 10 (as rodadas duram ~97 s na simulação)
 export const SUDDEN = { at: 90, every: 5 };
 // runas: uma por vez num ponto livre, a primeira aos 15 s e a próxima 20 s depois de alguém pegar (ou de a lava engolir);
-// quem pega ganha 8 s de Pressa (+40% de velocidade), Fúria (+30% de dano), Escudo de runa (absorve 10 de dano) ou Recarga (zera as recargas na hora)
+// quem pega ganha 8 s de Pressa (+40% de velocidade), Fúria (+30% de dano), Escudo de runa (absorve 100 de dano) ou Recarga (zera as recargas na hora)
 export type RuneKind = 'haste' | 'fury' | 'shield' | 'recharge';
 export const RUNE_KINDS: RuneKind[] = ['haste', 'fury', 'shield', 'recharge'];
-export const RUNE = { first: 15, every: 20, secs: 8, reach: 0.6, spread: 0.6, haste: 0.4, fury: 0.3, shield: 10 };
+export const RUNE = { first: 15, every: 20, secs: 8, reach: 0.6, spread: 0.6, haste: 0.4, fury: 0.3, shield: 100 };
 // sequências de abate (anúncio estilo Dota): abates com até 4 s entre eles; Matança e cia. contam abates sem morrer (atravessam as rodadas);
 // quem derruba alguém com 3 ou mais abates seguidos ganha o Quebra-combo
 export const STREAK = { window: 4, spree: [3, 5, 7, 10], breakAt: 3, breakGold: 3 };

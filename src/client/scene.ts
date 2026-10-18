@@ -538,10 +538,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // número de dano que sobe e some em cima de quem levou
   const numbers: { el: HTMLDivElement; at: THREE.Vector3; born: number }[] = [];
   function damageNumber(at: Vec, dmg: number) {
-    if (dmg < 0.5) return;
+    if (dmg < 5) return;
     const el = document.createElement('div');
-    el.className = 'dmg' + (dmg >= 9 ? ' big' : '');
-    el.textContent = '-' + (dmg >= 10 ? Math.round(dmg) : dmg.toLocaleString('pt-BR', { maximumFractionDigits: 1 }));
+    el.className = 'dmg' + (dmg >= 90 ? ' big' : '');
+    el.textContent = '-' + Math.round(dmg);
     labels.append(el);
     numbers.push({ el, at: w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0)), born: performance.now() / 1000 });
   }

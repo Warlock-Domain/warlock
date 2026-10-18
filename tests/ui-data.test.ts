@@ -3,7 +3,7 @@ import { ITEM_IDS } from '../src/shared/items.ts';
 import { SPELLS, SPELL_IDS, type Level } from '../src/shared/spells.ts';
 import { RULES_SHORT, SPELL_GROUPS, SPELL_USE } from '../src/client/rules-text.ts';
 import { ITEM_ROWS, SPELL_ROWS } from '../src/client/tips.ts';
-import { ICON, ITEM_ICON } from '../src/client/icons.ts';
+import { ICON, ITEM_ICON, STATUS_ICONS } from '../src/client/icons.ts';
 
 describe('loja: dados para decidir', () => {
   it('puts every spell in exactly one group, with a purpose and a description', () => {
@@ -36,5 +36,10 @@ describe('loja: dados para decidir', () => {
   it('gives every spell and item its own icon', () => {
     const all = [...Object.values(ICON), ...Object.values(ITEM_ICON)];
     expect(new Set(all).size).toBe(all.length);
+  });
+
+  it('gives every status effect its own icon', () => {
+    const icons = STATUS_ICONS.map(([, ico]) => ico);
+    expect(new Set(icons).size).toBe(icons.length);
   });
 });

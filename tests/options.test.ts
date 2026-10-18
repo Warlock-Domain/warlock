@@ -70,7 +70,7 @@ describe('opções da partida', () => {
     const eco = 2.5;
     const g = game(['a', 'b', 'c'], 0, { economy: eco });
     toPlaying(g);
-    g.m.dmgOn = { c: { b: 5 } }; // b ajudou a derrubar c
+    g.m.dmgOn = { c: { b: 50 } }; // b ajudou a derrubar c
     const ev = kill(g, 'c', 'a');
     expect(goldEvents(ev, 'a')).toEqual([Math.round(KILL_GOLD * eco)]);
     expect(goldEvents(ev, 'b')).toEqual([Math.round(ASSIST_GOLD * eco)]);
@@ -200,7 +200,8 @@ describe('votações novas', () => {
     expect(added.bot).toBe(true);
     expect(new Set(g.m.players.map((p) => p.id)).size).toBe(4);
     kill(g, 'a', null);
-    until(g, () => g.m.phase === 'shop');
+    until(g, () => g.m.phase === 'shop', 60 * 1200); // 3 bots podem levar mais de 300 s para fechar a rodada
+    expect(g.m.phase).toBe('shop');
     expect(startVote(g.m, 'a', 'removeBot', '', g.now)).toBe(true);
     toPlaying(g);
     expect(g.m.players.length).toBe(3);

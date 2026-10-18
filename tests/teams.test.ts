@@ -184,7 +184,7 @@ describe('modo Times: fogo amigo', () => {
     const victim = w.wizards.find((z) => z.id === blue[0].id)!;
     victim.lastHitBy = red.id;
     victim.lastHitAt = w.t;
-    victim.hp = 1;
+    victim.hp = 10;
     const shooter = w.wizards.find((z) => z.id === blue[1].id)!;
     shooter.pos = v(victim.pos.x - 1.5 * Math.sign(victim.pos.x || 1), victim.pos.y);
     const goldBlue = blue[1].gold;

@@ -314,7 +314,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   if (w.t < target.invulnUntil) return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
   const penalty = w.t < target.kbPenaltyUntil ? REDIRECTOR.kbPenalty : 0;
   const gripped = w.t < target.gripUntil ? GRIP.kbCut : 0;
-  // como no mod de Dota 2 (pawn.lua): acima de 10 de dano por golpe o empurrão cresce pela raiz, não em linha reta
+  // como no mod de Dota 2 (pawn.lua): acima de 100 de dano por golpe o empurrão cresce pela raiz, não em linha reta
   const big = dmg > KB_SOFT_CAP ? Math.sqrt(KB_SOFT_CAP * dmg) / dmg : 1;
   const mult = big * (1 + (KNOCK_HP_SCALE * target.dmgTaken) / HP_MAX) * Math.max(0, 1 - target.kbResist + penalty - gripped);
   // fogo amigo: só empurra; sem dano, sem roubo de vida e sem crédito de abate para o aliado
@@ -354,7 +354,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
     att.hp = Math.min(att.hpMax, att.hp + heal);
     att.dmgTaken = Math.max(0, att.dmgTaken - heal * 0.5);
   }
-  w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg * 10) / 10, src });
+  w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg), src });
 }
 
 // primeiro mago (fora os excluídos) que o segmento a→b toca; t em [0,1] ao longo do segmento
@@ -397,7 +397,7 @@ function area(w: World, at: Vec, radius: number, dmg: number, kbFactor: number, 
     if (d > radius + WIZ_R) continue;
     const k = falloff ? Math.max(0, 1 - d / (radius + WIZ_R)) : 1;
     const amount = dmg * k;
-    if (amount <= 0.05) continue;
+    if (amount <= 0.5) continue;
     hit(w, o, by && by !== o.id ? by : (o.lastHitBy ?? by ?? o.id), amount, amount * KB_PER_DMG * kbFactor, sub(o.pos, at), 'choque:' + combo);
   }
   w.events.push({ k: 'clash', x: at.x, y: at.y, combo, r: radius });
@@ -408,9 +408,9 @@ function area(w: World, at: Vec, radius: number, dmg: number, kbFactor: number, 
 // combinações quando dois projéteis de donos diferentes se encontram (minha decisão; no original os dois só somem)
 // (mais fortes e maiores a pedido do Fernando, 17/10)
 export const CLASH = {
-  fire: { r: 2.0, dmg: 7, kb: 1.3 },
-  arcane: { r: 2.6, dmg: 9, kb: 1.6 },
-  pulse: { r: 1.6, dmg: 5, kb: 1.1 },
+  fire: { r: 2.0, dmg: 70, kb: 1.3 },
+  arcane: { r: 2.6, dmg: 90, kb: 1.6 },
+  pulse: { r: 1.6, dmg: 50, kb: 1.1 },
   detonate: { r: 2.0 }, // original 225 unidades (1,46 m)
 };
 
@@ -652,8 +652,8 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     if (proj && (!found || proj.t < found.t)) {
       w.events.push({ k: 'lightning', from: wz.pos, to: proj.p.pos });
       w.projectiles = w.projectiles.filter((q) => q !== proj.p);
-      // como no original: dano máximo 2/3 de (dano do raio + 7), caindo até zero na borda, empurrão 1,35×
-      if (proj.p.kind === 'fireball') area(w, proj.p.pos, CLASH.detonate.r, (2 / 3) * (L.dmg * dmgMult + 7), 1.35, wz.id, true, 'detonate');
+      // como no original: dano máximo 2/3 de (dano do raio + 70), caindo até zero na borda, empurrão 1,35×
+      if (proj.p.kind === 'fireball') area(w, proj.p.pos, CLASH.detonate.r, (2 / 3) * (L.dmg * dmgMult + 70), 1.35, wz.id, true, 'detonate');
       else w.events.push({ k: 'clash', x: proj.p.pos.x, y: proj.p.pos.y, combo: 'pulse', r: 0.6 });
       return;
     }
@@ -1242,7 +1242,7 @@ function stepProjectiles(w: World) {
         keep.push(p);
       } else if (p.kind === 'bouncer') {
         // bouncerprojectile.lua: dano só em inimigo (e −30% a cada um); quem lançou só desvia; segue ao mago mais perto
-        // com 1 s de vida renovada, até o dano ficar abaixo de 1
+        // com 1 s de vida renovada, até o dano ficar abaixo de 10
         if (wz.id !== p.owner) {
           hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel, 'bouncer');
           if (!p.landed && p.owner === p.caster) w.events.push({ k: 'land', id: p.caster, src: 'bouncer' });

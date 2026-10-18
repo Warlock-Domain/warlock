@@ -94,7 +94,8 @@ export function botCmds(w: World, id: string, rand: () => number): Cmd[] {
     const meteor = threat.kind === 'meteor';
     const side = meteor ? norm(sub(me.pos, threat.pos)) : norm(v(-threat.vel.y, threat.vel.x));
     const away = meteor || dot(side, me.pos) < 0 ? side : scale(side, -1); // de lado, para o lado do centro
-    if (!meteor && !winding && ready('shield') && tHit < 0.5) return cast('shield', me.pos);
+    // reação humana: o escudo não sobe sempre nem no último instante (o bot perfeito inflava o Escudo para 1,89× nas simulações)
+    if (!meteor && !winding && ready('shield') && tHit > 0.15 && tHit < 0.5 && rand() < 0.35) return cast('shield', me.pos);
     // Alteração: troca de lugar com o projétil quando ele estiver quase chegando
     if (!meteor && !winding && ready('alteration') && tHit < 0.35) return cast('alteration', me.pos);
     if (ready('teleport') && rand() < 0.5 && inside(add(me.pos, scale(away, 4)), 1.5)) return cast('teleport', add(me.pos, scale(away, 4)));

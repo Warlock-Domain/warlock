@@ -219,10 +219,10 @@ function startRoom(code: string, name: string) {
     return new Map(room?.players.map((p) => [p.id, p.name]) ?? []);
   }
 
-  const RUNE_TEXT: Record<RuneKind, string> = { haste: '🏃 Runa da Pressa', fury: '😡 Runa da Fúria', shield: '🔰 Runa do Escudo', recharge: '🔋 Runa da Recarga' };
+  const RUNE_TEXT: Record<RuneKind, string> = { haste: '🐇 Runa da Pressa', fury: '😡 Runa da Fúria', shield: '🔰 Runa do Escudo', recharge: '🔋 Runa da Recarga' };
   const MULTI_TEXT = ['', '', 'Double kill!', 'Multi kill!', 'ULTRA KILL!'];
   const SPREE_TEXT: Record<number, string> = { 3: 'Matança', 5: 'Fúria assassina', 7: 'sequência Imparável', 10: 'sequência Lendária' };
-  let live: Record<string, { dmg: number; kills: number }> = {};
+  let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
   function onEvents(events: SimEvent[]) {
     const pos = myWizard(interp.latest())?.pos;
     const near = (x: number, y: number) => (pos ? Math.max(0.25, 1 - dist(pos, { x, y }) / 20) : 0.6);
@@ -238,6 +238,12 @@ function startRoom(code: string, name: string) {
         liveChanged = true;
       } else if (e.k === 'death' && e.by && e.by !== e.id) {
         (live[e.by] ??= { dmg: 0, kills: 0 }).kills++;
+        liveChanged = true;
+      }
+      // dano levado por mim na rodada (sem a lava): a ficha mostra quanto o empurrão já cresceu
+      if (e.k === 'hit' && e.id === me && e.dmg > 0) {
+        const mine = (live[me] ??= { dmg: 0, kills: 0 });
+        mine.taken = (mine.taken ?? 0) + e.dmg;
         liveChanged = true;
       }
       if (e.k === 'cast' && e.id !== me) {
@@ -407,7 +413,7 @@ function startRoom(code: string, name: string) {
     });
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena não encolhe mais: o aviso some
-    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && s.arenaR > ARENA_MIN + 0.01 ? shrinkIn : null, respawnIn);
+    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && s.arenaR > ARENA_MIN + 0.01 ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0);
   }
   const drawn = new Map<string, Vec>();
   void scene.ready.then(() => requestAnimationFrame(frame), () => toast('Não deu para carregar o mago. Recarregue a página.'));

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { noItems } from '../src/shared/items.ts';
+import { HP_MAX } from '../src/shared/constants.ts';
+import { ITEMS, noItems } from '../src/shared/items.ts';
 import { SPELL_IDS, type SpellId } from '../src/shared/spells.ts';
 import { BASE, diff, sheet } from '../src/client/sheet.ts';
 
@@ -9,8 +10,9 @@ describe('ficha do mago', () => {
   it('shows totals with the item that gives each part', () => {
     const rows = sheet(spells(), { ...noItems(), ring: 2 });
     const hp = rows.find((r) => r.group === BASE && r.label === 'Vida máxima')!;
-    expect(hp.value).toBe('119');
-    expect(hp.from).toBe('+19 de Anel de vida nível 2');
+    const ring = ITEMS.ring.levels[1].hp!;
+    expect(hp.value).toBe((HP_MAX + ring).toLocaleString('pt-BR'));
+    expect(hp.from).toBe(`+${ring.toLocaleString('pt-BR')} de Anel de vida nível 2`);
     expect(rows.some((r) => r.group === 'Bola de fogo' && r.label === 'Recarga')).toBe(true);
   });
 

@@ -42,15 +42,15 @@ describe('movimento, lava e arena', () => {
 
   it('regenerates slowly on stone', () => {
     const w = world([[0, 0]]);
-    wz(w, 0).hp = 50;
+    wz(w, 0).hp = 500;
     run(w, 2);
-    expect(wz(w, 0).hp).toBeCloseTo(51, 1);
+    expect(wz(w, 0).hp).toBeCloseTo(510, 0);
   });
 
-  it('lava drains 10 hp per second', () => {
+  it('lava drains 100 hp per second', () => {
     const w = world([[ARENA_R0 + 1, 0]]);
     run(w, 1);
-    expect(wz(w, 0).hp).toBeCloseTo(HP_MAX - 10, 1);
+    expect(wz(w, 0).hp).toBeCloseTo(HP_MAX - 100, 0);
   });
 
   it('arena stops shrinking at the minimum size', () => {
@@ -87,7 +87,7 @@ describe('magias', () => {
     run(w, 1.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(4, 0) }]);
     // a regeneração devolve um pouco da vida depois do acerto
     expect(wz(w, 1).hp).toBeGreaterThanOrEqual(HP_MAX - SPELLS.fireball.levels[0].dmg);
-    expect(wz(w, 1).hp).toBeLessThan(HP_MAX - SPELLS.fireball.levels[0].dmg + 1);
+    expect(wz(w, 1).hp).toBeLessThan(HP_MAX - SPELLS.fireball.levels[0].dmg + 10);
     expect(wz(w, 1).pos.x).toBeGreaterThan(5);
     expect(wz(w, 1).lastHitBy).toBe('p0');
   });
@@ -174,14 +174,14 @@ describe('magias', () => {
   it('knockback grows as hp drops', () => {
     const fresh = world([[0, 0], [3, 0]]);
     const hurt = world([[0, 0], [3, 0]]);
-    wz(hurt, 1).dmgTaken = 80;
+    wz(hurt, 1).dmgTaken = 800;
     for (const w of [fresh, hurt]) run(w, 2.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
     expect(wz(hurt, 1).pos.x - 3).toBeGreaterThan((wz(fresh, 1).pos.x - 3) * 1.5);
   });
 
   it('death credits last hitter within 5s', () => {
     const w = world([[0, 0], [3, 0]]);
-    wz(w, 1).hp = 5;
+    wz(w, 1).hp = 50;
     const deaths: { id: string; by: string | null }[] = [];
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
     for (let i = 0; i < 120; i++) {
@@ -194,7 +194,7 @@ describe('magias', () => {
 
   it('lava death long after the hit has no killer', () => {
     const w = world([[ARENA_R0 + 2, 0]]);
-    wz(w, 0).hp = 1;
+    wz(w, 0).hp = 10;
     wz(w, 0).lastHitBy = 'x';
     wz(w, 0).lastHitAt = -10;
     run(w, 0.5);
@@ -311,7 +311,7 @@ describe('pilares', () => {
 
   it('a broken pillar explodes and stops blocking', () => {
     const w = withPillar([[0, 0], [5, 0]], [2.5, 0]);
-    w.pillars[0].hp = 1;
+    w.pillars[0].hp = 10;
     const seen: string[] = [];
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(5, 0) }]);
     for (let i = 0; i < 60; i++) {
@@ -328,7 +328,7 @@ describe('pilares', () => {
     run(w, 1.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(5, 0) }]);
     expect(w.pillars[0].alive).toBe(true);
     const w2 = world([[0, 0], [9, 0], [4, 0.9]]);
-    w2.pillars = [{ pos: v(4, 0), hp: 1, alive: true, kind: 'shrine' }];
+    w2.pillars = [{ pos: v(4, 0), hp: 10, alive: true, kind: 'shrine' }];
     run(w2, 1.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(9, 0) }]);
     expect(w2.pillars[0].alive).toBe(false);
     expect(wz(w2, 2).hp).toBeLessThan(HP_MAX);

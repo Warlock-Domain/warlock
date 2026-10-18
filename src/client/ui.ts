@@ -1,15 +1,16 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
-import { ASSIST_GOLD, BOUNTY, KILL_GOLD, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, START_GOLD, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
+import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import { DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, sellValue, type MatchOpts, type Mode, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
-import { ACTIONS, RESERVED, isSlotMode, keyLabel, keyOf, labelOf, onKeysChange, resetKeys, setKey, setSlotMode, setSlots, type Action } from './keys.ts';
+import { ACTIONS, RESERVED, SHEET_KEY, isSlotMode, keyLabel, keyOf, labelOf, onKeysChange, resetKeys, setKey, setSlotMode, setSlots, type Action } from './keys.ts';
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
 import { RULES, RULES_SHORT, SPELL_GROUPS, SPELL_USE } from './rules-text.ts';
-import { ICON, ITEM_ICON, SOURCE_ICON } from './icons.ts';
+import { ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS } from './icons.ts';
+import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
 type Child = Node | string | null | undefined | false;
@@ -96,7 +97,9 @@ export function showRules() {
         title === 'Controles no PC' ? el('section', {}, el('h2', {}, isSlotMode() ? 'Suas teclas (Q W E R D F pela ordem da barra)' : 'Suas teclas'),
           el('div', { class: 'keys-grid' }, ...ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, labelOf(a)), ' ', a in SPELLS ? ICON[a as SpellId] : ITEM_ICON[a as ItemId], ' ', a in SPELLS ? SPELLS[a as SpellId].name : ITEMS[a as ItemId].name)))) : null,
         title === 'Loja' ? el('section', {}, el('h2', {}, 'Magias'), ...SPELL_GROUPS.map(([name, hint, ids]) => el('div', {}, el('h3', {}, name, ' ', el('small', {}, hint)),
-          el('ul', {}, ...ids.map((s) => el('li', {}, ICON[s], ' ', el('b', {}, SPELLS[s].name), ' · ', RULES_SHORT[s])))))) : null]),
+          el('ul', {}, ...ids.map((s) => el('li', {}, ICON[s], ' ', el('b', {}, SPELLS[s].name), ' · ', RULES_SHORT[s])))))) : null,
+        title === 'Loja' ? el('section', {}, el('h2', {}, 'Itens'), ...([['Passivos', false], ['Ativos (com tecla)', true]] as const).map(([name, active]) => el('div', {}, el('h3', {}, name),
+          el('ul', {}, ...ITEM_IDS.filter((i) => !!ITEMS[i].key === active).map((i) => el('li', {}, ITEM_ICON[i], ' ', el('b', {}, ITEMS[i].name), ' · ', ITEMS[i].text)))))) : null]),
       el('button', { type: 'button', class: 'primary', onclick: () => overlay.remove() }, 'Entendi'),
     ),
   );
@@ -295,21 +298,24 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
 }
 
 // quadro da loja: de onde vem o ouro (regras do Warlock Brawl) e quanto você já ganhou
-function goldInfo(p: PublicPlayer, open: boolean, onToggle: (open: boolean) => void) {
+// os valores seguem as opções da sala: toda renda é multiplicada pela economia (shared/match.ts, earn)
+function goldInfo(p: PublicPlayer, opts: MatchOpts, open: boolean, onToggle: (open: boolean) => void) {
   const row = (label: string, value: string, cls = '') => el('div', { class: 'gold-row ' + cls }, el('span', {}, label), el('b', {}, value));
-  const rule = (n: number) => (n > 0 ? `+${n}` : 'não dá ouro');
+  const g = (n: number) => Math.round(n * opts.economy);
+  const rule = (n: number) => (n > 0 ? `+${g(n)}` : 'não dá ouro');
   // recolhido por padrão: o Pronto fica logo abaixo do ouro
   return el('details', { class: 'gold-info', open, ontoggle: (e: Event) => onToggle((e.target as HTMLDetailsElement).open) },
-    el('summary', { class: 'gold-title' }, 'Como ganho ouro'),
-    row('Começo da partida', `+${START_GOLD}`),
-    row('Cada rodada que você jogou', `+${ROUND_GOLD}`),
-    row('Vencer a rodada', `+${WIN_GOLD} (líder: +${LEADER_WIN_GOLD})`),
-    row('Abate', `+${KILL_GOLD}`),
-    row('Abater o líder', `até +${BOUNTY.max} extra`),
-    row('Atrás da média da partida', `até +${RECOVERY.max} por rodada`),
+    el('summary', { class: 'gold-title' }, 'Como ganho ouro', opts.economy !== 1 ? el('small', {}, ` · ouro ×${opts.economy.toLocaleString('pt-BR')} nesta sala`) : null),
+    row('Começo da partida', `+${g(opts.startGold)}`),
+    row('Cada rodada que você jogou', `+${g(ROUND_GOLD)}`),
+    row('Vencer a rodada', `+${g(WIN_GOLD)} (líder: +${g(LEADER_WIN_GOLD)})`),
+    row('Abate', `+${g(KILL_GOLD)}`),
+    row('Abater o líder', `até +${g(BOUNTY.max)} extra`),
+    row('Quebra-combo (derrubar quem tem 3+ abates seguidos)', `+${g(STREAK.breakGold)}`),
+    row('Atrás da média da partida', `até +${g(RECOVERY.max)} por rodada`),
     row('Mais dano na rodada', rule(TOP_DMG_GOLD), TOP_DMG_GOLD ? '' : 'muted'),
-    row('Assistência (mais dano em quem morreu)', `+${ASSIST_GOLD}`),
-    row('Baú: em cima do ouro', '+1 a cada 2 s'),
+    row('Assistência (mais dano em quem morreu)', `+${g(ASSIST_GOLD)}`),
+    row('Baú: em cima do ouro', opts.chests ? `+${g(1)} a cada ${CHEST.goldEvery} s` : 'desligado nesta sala', opts.chests ? '' : 'muted'),
     el('hr', {}),
     row('Ganho na última rodada', `🪙 ${p.stats.round.gold}`),
     row('Ganho na partida', `🪙 ${p.stats.match.gold}`),
@@ -336,6 +342,17 @@ function board(room: PublicRoom, me: string, kick?: (id: string) => void) {
     el('li', { class: p.id === room.winner || (room.winnerTeam !== null && p.team === room.winnerTeam) ? 'win' : '' }, el('span', {}, teamTag(room, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), el('span', { class: 'board-right' }, el('b', {}, room.mode === 'deathmatch' ? `${p.score} ${p.score === 1 ? 'ponto' : 'pontos'}` : `${p.score} ${p.score === 1 ? 'vitória' : 'vitórias'}`), kickBtn(p, kick))),
   ));
 }
+
+// ficha do mago: atributos com a origem de cada número, magias equipadas e itens ativos
+function sheetEl(rows: SheetRow[], ...extra: Child[]) {
+  const groups = [...new Set(rows.map((r) => r.group))];
+  return el('div', { class: 'sheet' }, ...extra, ...groups.map((g) => el('section', {},
+    el('h4', {}, g === BASE ? 'Atributos' : g),
+    el('dl', {}, ...rows.filter((r) => r.group === g).flatMap((r) => [el('dt', {}, r.label), el('dd', {}, r.value), r.from ? el('small', { class: 'from' }, r.from) : null])))));
+}
+// prévia na dica da loja: o que muda na ficha, melhor em verde e pior em vermelho
+const previewHtml = (title: string, ch: Change[], extra = '') =>
+  `<div class="preview"><b>${title}</b>${ch.length ? `<table>${ch.map((c) => `<tr class="${c.worse ? 'worse' : 'better'}"><th>${c.label}</th><td>${c.before ?? '—'} → ${c.after ?? '—'}</td></tr>`).join('')}</table>` : '<small>Nada muda na ficha.</small>'}${extra}</div>`;
 
 export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) {
   let bots = 3;
@@ -377,7 +394,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     e.preventDefault();
     e.stopImmediatePropagation();
     if (e.code !== 'Escape') {
-      if (RESERVED.has(e.code)) return toast('Essa tecla já tem outra função (S para, Espaço centraliza, Tab mostra o placar).');
+      if (RESERVED.has(e.code)) return toast('Essa tecla já tem outra função (S para, Espaço centraliza, Tab mostra o placar, Y abre os taunts, a tecla à esquerda do 1 abre a ficha).');
       setKey(waiting, e.code);
     }
     waiting = null;
@@ -417,6 +434,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   };
   const tauntPanel = el('div', { class: 'vol-panel', hidden: true }, el('b', {}, 'Taunts (Y)'),
     el('div', { class: 'taunt-list' }, ...TAUNTS.map((t, i) => el('button', { type: 'button', onclick: () => sendTaunt(i) }, `${(i + 1) % 10} · ${t.text}`))));
+  const sheetBtn = el('button', { type: 'button', class: 'icon', title: "Ficha do mago (tecla ')", 'aria-label': 'Ficha do mago', 'aria-expanded': 'false', onclick: () => toggleSheet() }, '📜');
   const tauntBtn = el('button', { type: 'button', class: 'icon', title: 'Taunts (Y)', 'aria-label': 'Taunts (Y)', onclick: () => (tauntPanel.hidden = !tauntPanel.hidden) }, '💬');
   addEventListener('keydown', (e) => {
     if (e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT') return;
@@ -439,7 +457,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const top = el('div', { class: 'hud-top' },
     el('button', { type: 'button', class: 'code', title: 'Copiar link da sala', onclick: copyLink }, status, ' ', code),
     roundEl,
-    el('div', { class: 'hud-right' }, tabBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', 'aria-label': 'Como jogar', onclick: showRules }, '?')),
+    el('div', { class: 'hud-right' }, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, el('div', { class: 'vol' }, keysBtn, keysPanel), el('div', { class: 'vol' }, volBtn, volPanel), el('button', { type: 'button', class: 'icon', title: 'Como jogar', 'aria-label': 'Como jogar', onclick: showRules }, '?')),
   );
   const center = el('div', { class: 'center' });
   const timer = el('div', { class: 'timer' });
@@ -511,7 +529,32 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     offline.hidden = on;
   }
   const offline = el('div', { class: 'offline', role: 'alert', hidden: true }, 'Sem conexão, tentando de novo…');
-  root.replaceChildren(el('div', { class: 'hud' }, top, offline, players, timer, respawn, center, voteBar, barWrap, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
+  // ficha do mago na partida: tecla ' (à esquerda do 1) ou o botão 📜; no celular vira gaveta de baixo para cima
+  const sheetPanel = el('div', { class: 'sheet-panel', role: 'dialog', 'aria-label': 'Ficha do mago', hidden: true });
+  let myStatus = 0;
+  function drawSheet() {
+    if (sheetPanel.hidden || !mine) return;
+    const taken = live[me]?.taken ?? 0;
+    const effects = STATUS_ICONS.filter(([bit]) => myStatus & bit && bit !== 1);
+    sheetPanel.replaceChildren(
+      el('div', { class: 'stats-head' }, el('h2', { class: 'title' }, 'Ficha do mago'), el('button', { type: 'button', class: 'icon', title: 'Fechar a ficha', 'aria-label': 'Fechar a ficha', onclick: () => toggleSheet(false) }, '✕')),
+      sheetEl(sheet(mine.spells, mine.items),
+        el('section', {}, el('h4', {}, 'Agora'), el('dl', {},
+          el('dt', {}, 'Dano levado na rodada'), el('dd', {}, `${Math.round(taken)} · empurrão ×${(1 + (KNOCK_HP_SCALE * taken) / HP_MAX).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`), el('small', { class: 'from' }, 'Cada ponto de dano levado faz você voar mais longe até o fim da rodada (a lava conta pela metade e não entra nesta conta).'),
+          el('dt', {}, 'Efeitos'), el('dd', {}, effects.length ? effects.map(([, ico, name]) => `${ico} ${name}`).join(' · ') : 'nenhum')))),
+    );
+  }
+  function toggleSheet(open = sheetPanel.hidden) {
+    sheetPanel.hidden = !open;
+    sheetBtn.setAttribute('aria-expanded', String(open));
+    drawSheet();
+  }
+  addEventListener('keydown', (e) => {
+    if (e.code !== SHEET_KEY || e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT' || !room || room.phase === 'lobby') return;
+    e.preventDefault();
+    toggleSheet();
+  });
+  root.replaceChildren(el('div', { class: 'hud' }, top, offline, players, timer, respawn, center, voteBar, barWrap, sheetPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
@@ -613,6 +656,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   // estado da loja que sobrevive ao redesenho (a sala manda o estado a cada compra de qualquer jogador)
   let goldOpen = false;
+  let sheetOpen = true;
   let readyBtn: HTMLElement | null = null;
   // cartão de primeira vez na loja da rodada 0: some ao fechar ou ao apertar Pronto, e fica guardado no navegador
   const FIRST = 'warlock:firstshop';
@@ -648,7 +692,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       return value > 0 ? el('button', { type: 'button', class: 'sell', title: 'Vende tudo: volta 100% na loja em que comprou e 5% a menos por rodada com ele, até 75%', 'data-key': 'sell-' + key, onclick: () => act.sell(key) }, `Vender · ${value}`) : null;
     };
     // um cartão por magia ou item: "dá para comprar" e "já tenho" à vista, e quanto falta quando o ouro não dá
-    type Offer = { key: string; ico: string; name: string; hotkey: string | null; use: string; lvl: number; max: number; price: number | null; blocked: string | null; buy: () => void; tip: () => string };
+    type Offer = { key: string; ico: string; name: string; hotkey: string | null; use: string; lvl: number; max: number; price: number | null; blocked: string | null; buy: () => void; tip: () => string;
+      // a ficha depois de comprar mais um nível e depois de vender tudo (prévia na dica)
+      bought: () => SheetRow[]; sold: () => SheetRow[] };
+    const now = sheet(mine.spells, mine.items);
     const offer = (o: Offer) => {
       const open = o.price !== null && !o.blocked;
       const can = open && mine.gold >= o.price!;
@@ -660,20 +707,28 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         el('div', { class: 'shop-meta' }, el('span', { class: 'pips' }, ...Array.from({ length: o.max }, (_, n) => el('i', { class: n < o.lvl ? 'on' : '' }))),
           o.lvl ? el('small', { class: 'have' }, 'tenho') : null, need ? el('small', { class: 'need' }, `faltam ${need}`) : null),
         el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': o.key, disabled: !can, onclick: o.buy }, label), undoBtn(o.key.replace('-', ':')), sellBtn(o.key.replace('-', ':'))),
-      ), o.tip);
+      ), () => {
+        const sell = sellValue(mine, r.round, o.key.replace('-', ':'));
+        return o.tip()
+          // magia: a própria dica já mostra o nível atual → o próximo
+          + (o.key.startsWith('spell') || o.blocked ? '' : previewHtml(o.lvl ? 'Se subir de nível' : 'Se comprar', diff(now, o.bought())))
+          + (sell > 0 ? previewHtml('Se vender', diff(now, o.sold()), `<small>Volta ${sell} de ouro.</small>`) : '');
+      });
     };
     const spellOffer = (s: SpellId) => {
       const lvl = mine.spells[s];
       const price = priceOf(s, lvl);
       const full = lvl === 0 && spellCount(mine.spells) >= MAX_SPELLS;
       return offer({ key: 'spell-' + s, ico: ICON[s], name: SPELLS[s].name, hotkey: labelOf(s), use: SPELL_USE[s], lvl, max: MAX_SPELL_LEVEL, price,
-        blocked: price === null ? 'Máximo' : full ? `Limite de ${MAX_SPELLS} magias` : null, buy: () => act.buy(s), tip: () => spellTip(s, lvl) });
+        blocked: price === null ? 'Máximo' : full ? `Limite de ${MAX_SPELLS} magias` : null, buy: () => act.buy(s), tip: () => spellTip(s, lvl),
+        bought: () => sheet({ ...mine.spells, [s]: lvl + 1 }, mine.items), sold: () => sheet({ ...mine.spells, [s]: 0 }, mine.items) });
     };
     const itemOffer = (i: ItemId) => {
       const lvl = mine.items[i];
       const price = itemPrice(mine.items, i);
       return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: ITEMS[i].name, hotkey: ITEMS[i].key ? labelOf(i) : null, use: ITEMS[i].text, lvl, max: ITEMS[i].levels.length, price,
-        blocked: lvl >= ITEMS[i].levels.length ? 'Máximo' : price === null ? 'Sem espaço' : null, buy: () => act.buyItem(i), tip: () => itemTip(i, lvl) });
+        blocked: lvl >= ITEMS[i].levels.length ? 'Máximo' : price === null ? 'Sem espaço' : null, buy: () => act.buyItem(i), tip: () => itemTip(i, lvl),
+        bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }) });
     };
     const group = (title: string, hint: string, cards: HTMLElement[]) =>
       el('section', { class: 'shop-group' }, el('div', { class: 'shop-head' }, el('h3', {}, title), el('small', {}, hint)), el('div', { class: 'shop-grid' }, ...cards));
@@ -694,7 +749,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         el('span', { class: 'gold big' }, `🪙 ${mine.gold}`),
         readyBtn,
         el('button', { type: 'button', 'data-key': 'placar', onclick: () => pinTab(true) }, '📊 Placar'),
-        goldInfo(mine, goldOpen, (open) => (goldOpen = open)),
+        el('details', { class: 'sheet-box', open: sheetOpen, ontoggle: (e: Event) => (sheetOpen = (e.target as HTMLDetailsElement).open) },
+          el('summary', {}, 'Ficha do mago'), sheetEl(now, el('small', { class: 'muted' }, 'Passe o mouse num item para ver o que muda.'))),
+        goldInfo(mine, r.opts, goldOpen, (open) => (goldOpen = open)),
         nextModePicker(r),
         board(r, me, act.kick),
         picker(r),
@@ -780,7 +837,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   }
 
   // lista do canto: pontos da partida e, ao vivo, abates e dano da rodada (somados no cliente a partir dos acertos)
-  let live: Record<string, { dmg: number; kills: number }> = {};
+  let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
   function drawPlayers() {
     if (!room) return;
     const head = el('li', { class: 'head' }, el('span', {}), el('span', {}), el('small', { title: 'Abates na rodada' }, '☠'), el('small', { title: 'Dano na rodada' }, '💥'), el('small', { title: room.mode === 'deathmatch' ? 'Pontos' : 'Vitórias' }, '🏆'));
@@ -792,9 +849,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   }
 
   return {
-    live(stats: Record<string, { dmg: number; kills: number }>) {
+    live(stats: Record<string, { dmg: number; kills: number; taken?: number }>) {
       live = stats;
       drawPlayers();
+      drawSheet();
     },
     update(r: PublicRoom, you: string, isOnline: boolean) {
       // a loja abre mostrando a rodada que acabou; o fim mostra a partida inteira
@@ -829,6 +887,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (!tabOverlay.hidden) showTab(tabPhase);
       drawVote(r, prev);
       drawCenter();
+      sheetBtn.hidden = r.phase === 'lobby' || r.phase === 'end' || !mine;
+      if (sheetBtn.hidden) sheetPanel.hidden = true;
+      drawSheet();
     },
     setOnline(on: boolean) {
       const changed = on !== online;
@@ -836,7 +897,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (changed) drawCenter();
     },
     // a cada quadro: recargas, magia escolhida e o relógio da fase
-    frame(cd: number[], icd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number) {
+    frame(cd: number[], icd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0) {
+      if (status !== myStatus) {
+        myStatus = status;
+        drawSheet();
+      }
       ACTIVE_ITEMS.forEach((i, k) => {
         const { b, cd: c } = itemButtons.get(i)!;
         const left = icd[k] ?? 0;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DT, WIZ_R, WIZ_SPEED } from '../src/shared/constants.ts';
+import { DT, HP_MAX, WIZ_R, WIZ_SPEED } from '../src/shared/constants.ts';
 import { botBuy, botCmds } from '../src/shared/bots.ts';
 import { addPlayer, buy, newMatch, startMatch, undoBuy } from '../src/shared/match.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
@@ -71,7 +71,7 @@ describe('escudo contra as magias novas', () => {
       landed ||= w.events.some((e) => e.k === 'land');
     }
     expect(w.projectiles.some((p) => p.kind === 'cluster' && p.owner === 'p1')).toBe(true);
-    expect(w.wizards[1].hp).toBe(100);
+    expect(w.wizards[1].hp).toBe(HP_MAX);
     expect(landed).toBe(false);
   });
 });
@@ -111,12 +111,12 @@ describe('Meteoro', () => {
     const w = world([[0, 0], [4, 0], [4, L.radius + WIZ_R + 1]], ['meteor']);
     run(w, 0.5, [cast('p0', 'meteor', 4, 0)]);
     expect(w.projectiles.map((p) => p.kind)).toEqual(['meteor']);
-    expect(w.wizards[1].hp).toBe(100);
+    expect(w.wizards[1].hp).toBe(HP_MAX);
     run(w, 1, []);
     expect(w.projectiles).toHaveLength(0);
-    expect(w.wizards[1].hp).toBeCloseTo(100 - L.dmg, 0); // no centro: dano máximo
-    expect(w.wizards[2].hp).toBe(100); // fora do raio
-    expect(w.wizards[0].hp).toBe(100); // quem lança não leva
+    expect(w.wizards[1].hp).toBeCloseTo(HP_MAX - L.dmg, -1); // no centro: dano máximo
+    expect(w.wizards[2].hp).toBe(HP_MAX); // fora do raio
+    expect(w.wizards[0].hp).toBe(HP_MAX); // quem lança não leva
     expect(len(w.wizards[1].vel)).toBeGreaterThan(0);
   });
 
@@ -124,9 +124,9 @@ describe('Meteoro', () => {
     const L = spellLevel('meteor', 1);
     const w = world([[0, 0], [4 + L.radius * 0.9, 0]], ['meteor']);
     run(w, 1.7, [cast('p0', 'meteor', 4, 0)]);
-    const lost = 100 - w.wizards[1].hp;
-    expect(lost).toBeGreaterThan(L.dmgMin - 0.2);
-    expect(lost).toBeLessThan(L.dmg * 0.7); // borda 6 desde 17/10 (era 4)
+    const lost = HP_MAX - w.wizards[1].hp;
+    expect(lost).toBeGreaterThan(L.dmgMin - 2);
+    expect(lost).toBeLessThan(L.dmg * 0.7); // borda 60 desde 17/10 (era 40)
   });
 });
 
@@ -140,13 +140,13 @@ describe('Investida', () => {
     const fb = spellLevel('fireball', 1);
     run(w, 1.2, [cast('p0', 'fireball', z.pos.x, z.pos.y)]);
     expect(z.speed).toBeGreaterThan(WIZ_SPEED + RUSH.bonus);
-    expect(100 - z.hp).toBeCloseTo(fb.dmg * (1 - RUSH.share), 0); // absorveu metade do golpe
+    expect(HP_MAX - z.hp).toBeCloseTo(fb.dmg * (1 - RUSH.share), -1); // absorveu metade do golpe
   });
 
   it('the dash damages whoever it touches, once', () => {
     const w = world([[0, 0], [0, -1.5]], ['rush']);
     run(w, 0.5, [cast('p0', 'rush', 0, -10)]);
-    expect(w.wizards[1].hp).toBeCloseTo(100 - RUSH.dashDmg, 0);
+    expect(w.wizards[1].hp).toBeCloseTo(HP_MAX - RUSH.dashDmg, -1);
   });
 
   it('scourge can start during the dash', () => {
@@ -156,7 +156,7 @@ describe('Investida', () => {
     stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, -10) }]);
     expect(w.wizards[0].casting?.item).toBe('scourge');
     run(w, 0.8);
-    expect(w.wizards[1].hp).toBeLessThan(100);
+    expect(w.wizards[1].hp).toBeLessThan(HP_MAX);
   });
 
   it('dashes 3 m toward the cursor', () => {
@@ -182,8 +182,8 @@ describe('Rajada', () => {
     const dirs = new Set(w.projectiles.map((p) => Math.round(Math.atan2(p.vel.y, p.vel.x) * 100)));
     expect(dirs.size).toBe(4);
     run(w, 1);
-    expect(w.wizards[1].hp).toBeLessThan(100);
-    expect(w.wizards[1].hp).toBeGreaterThan(100 - 4 * spellLevel('cluster', 1).dmg - 1);
+    expect(w.wizards[1].hp).toBeLessThan(HP_MAX);
+    expect(w.wizards[1].hp).toBeGreaterThan(HP_MAX - 4 * spellLevel('cluster', 1).dmg - 10);
   });
 
   it('passes through enemy fireballs instead of clashing', () => {
@@ -384,7 +384,7 @@ describe('Gravidade', () => {
 });
 
 describe('Pilar de pedra', () => {
-  it('raises an obstacle at the click point (up to its range) that vanishes after 4 s', () => {
+  it('raises an obstacle at the click point (up to its range) that vanishes after 5 s', () => {
     const w = world([[0, 0], [0, -8]], ['rockpillar']);
     run(w, 0.1, [cast('p0', 'rockpillar', 3, 0)]);
     const p = w.pillars.find((q) => q.kind === 'rockpillar')!;
@@ -392,7 +392,7 @@ describe('Pilar de pedra', () => {
     expect(dist(p.pos, v(3, 0))).toBeLessThan(1e-9);
     const view = decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']);
     expect(view.pillars.some((q) => q.kind === 'rockpillar' && q.hp > 0)).toBe(true);
-    run(w, 4);
+    run(w, 5); // 4 → 5 s no ciclo 1 de balanceamento
     expect(p.alive).toBe(false);
     w.wizards[0].cd.rockpillar = 0;
     run(w, 0.1, [cast('p0', 'rockpillar', 50, 0)]);
@@ -401,15 +401,15 @@ describe('Pilar de pedra', () => {
 });
 
 describe('Ricochete', () => {
-  it('jumps to the next wizard with 70% of the damage and stops once it would drop below 1', () => {
+  it('jumps to the next wizard with 70% of the damage and stops once it would drop below 10', () => {
     const w = world([[-2, 0], [2, 0], [2, 2]], ['bouncer']);
     for (const z of w.wizards) z.kbResist = 1; // sem empurrão: os alvos ficam no lugar
     const ev = runEvents(w, 3, [cast('p0', 'bouncer', 2, 0)]);
     const hits = hitsOf(ev, 'bouncer');
     const d0 = SPELLS.bouncer.levels[0].dmg;
     expect(hits.map((h) => h.id)).toEqual(['p1', 'p2', 'p1', 'p2', 'p1']);
-    hits.forEach((h, i) => expect(h.dmg).toBeCloseTo(Math.round(d0 * 0.7 ** i * 10) / 10, 5));
-    expect(d0 * 0.7 ** 5).toBeLessThan(1);
+    hits.forEach((h, i) => expect(h.dmg).toBeCloseTo(Math.round(d0 * 0.7 ** i), 5));
+    expect(d0 * 0.7 ** 5).toBeLessThan(10);
     expect(w.projectiles).toHaveLength(0);
   });
 });
@@ -417,9 +417,9 @@ describe('Ricochete', () => {
 describe('Bumerangue e baú', () => {
   it('the boomerang damages the chest', () => {
     const w = world([[0, 0], [9, 9]], ['boomerang']);
-    w.pillars = [{ pos: v(2.5, 0), hp: 25, alive: true, kind: 'chest' }];
+    w.pillars = [{ pos: v(2.5, 0), hp: 250, alive: true, kind: 'chest' }];
     run(w, 1.5, [cast('p0', 'boomerang', 4, 0)]);
-    expect(w.pillars[0].hp).toBeLessThan(25);
+    expect(w.pillars[0].hp).toBeLessThan(250);
   });
 });
 
@@ -428,14 +428,14 @@ describe('Drenar', () => {
   it('on an enemy: damage, slow and a healing orb that flies back to the caster', () => {
     const w = world([[0, 0], [3, 0]], ['drain']);
     const L = spellLevel('drain', 1);
-    w.wizards[0].hp = 80;
+    w.wizards[0].hp = 800;
     const ev = runEvents(w, 0.6, [cast('p0', 'drain', 3, 0)]);
     expect(hitsOf(ev, 'drain')[0].dmg).toBeCloseTo(L.dmg, 5);
     expect(w.wizards[1].speed).toBeLessThan(WIZ_SPEED);
     expect(w.projectiles.some((p) => p.kind === 'drain' && p.back)).toBe(true);
     run(w, 1.5);
     expect(w.projectiles).toHaveLength(0);
-    expect(w.wizards[0].hp).toBeGreaterThan(80 + L.dmg - 0.1); // cura + regeneração
+    expect(w.wizards[0].hp).toBeGreaterThan(800 + L.dmg - 1); // cura + regeneração
   });
 
   it('on an ally (Times): heals and hastes instead of hurting', () => {
@@ -443,9 +443,9 @@ describe('Drenar', () => {
     const w = newWorld(['a', 'b'], { a: own, b: own }, {}, 0, Math.random, false, { a: 0, b: 0 });
     [w.wizards[0].pos, w.wizards[1].pos] = [v(0, 0), v(3, 0)];
     for (const z of w.wizards) z.invulnUntil = 0;
-    w.wizards[1].hp = 70;
+    w.wizards[1].hp = 700;
     run(w, 0.8, [cast('a', 'drain', 3, 0)]);
-    expect(w.wizards[1].hp).toBeGreaterThan(70 + spellLevel('drain', 1).dmg - 0.1);
+    expect(w.wizards[1].hp).toBeGreaterThan(700 + spellLevel('drain', 1).dmg - 1);
     expect(w.wizards[1].speed).toBeGreaterThan(WIZ_SPEED);
   });
 });
@@ -460,7 +460,7 @@ describe('Bola de neve', () => {
     expect(hits.filter((h) => h.dmg === L.dot * 0.5).length).toBeGreaterThanOrEqual(1); // dano de quem encostou
     expect(hits.length).toBeGreaterThanOrEqual(2); // e a explosão
     expect(ev.some((e) => e.k === 'clash' && e.combo === 'snow')).toBe(true);
-    expect(w.wizards[0].hp).toBe(100);
+    expect(w.wizards[0].hp).toBe(HP_MAX);
     expect(w.projectiles).toHaveLength(0);
   });
 });
@@ -478,7 +478,7 @@ describe('Gêmeos', () => {
     expect(up && down).toBe(true);
     const hits = hitsOf(ev, 'twin');
     expect(hits).toHaveLength(2);
-    hits.forEach((h) => expect(h.dmg).toBeCloseTo(spellLevel('twin', 1).dmg, 5));
+    hits.forEach((h) => expect(h.dmg).toBe(Math.round(spellLevel('twin', 1).dmg))); // o evento de acerto leva o dano inteiro
   });
 });
 
@@ -501,7 +501,7 @@ describe('Magnetizar', () => {
 });
 
 describe('Recarga', () => {
-  it('a hit sends back an orb that resets the cooldown, and the next hit deals +1', () => {
+  it('a hit sends back an orb that resets the cooldown, and the next hit deals +10', () => {
     const w = world([[0, 0], [3, 0]], ['recharge']);
     w.wizards[1].kbResist = 1;
     const L = spellLevel('recharge', 1);
@@ -510,7 +510,7 @@ describe('Recarga', () => {
     expect(w.wizards[0].cd.recharge).toBeLessThanOrEqual(w.t); // recarga zerada pela volta
     expect(w.wizards[0].streak).toBe(1);
     const second = hitsOf(runEvents(w, 1, [cast('p0', 'recharge', 3, 0)]), 'recharge');
-    expect(second[0].dmg).toBeCloseTo(L.dmg + 1, 5);
+    expect(second[0].dmg).toBeCloseTo(L.dmg + 10, 5);
     // errou: zera
     runEvents(w, 2.5);
     w.wizards[0].cd.recharge = 0;
@@ -528,7 +528,7 @@ describe('Alteração', () => {
     const fb = w.projectiles.find((p) => p.kind === 'fireball')!;
     expect(fb.pos.x).toBeGreaterThan(w.wizards[1].pos.x); // segue em frente, para longe
     run(w, 1);
-    expect(w.wizards[1].hp).toBe(100);
+    expect(w.wizards[1].hp).toBe(HP_MAX);
   });
 });
 
@@ -549,7 +549,7 @@ describe('Elo', () => {
 
   it('on an obstacle pulls the caster to it', () => {
     const w = world([[0, 0], [0, -8]], ['link']);
-    w.pillars = [{ pos: v(4, 0), hp: 40, alive: true, kind: 'pillar' }];
+    w.pillars = [{ pos: v(4, 0), hp: 400, alive: true, kind: 'pillar' }];
     let far = 0;
     runEvents(w, 2, [cast('p0', 'link', 4, 0)], () => (far = Math.max(far, w.wizards[0].pos.x)));
     expect(far).toBeGreaterThan(2.5); // chega no obstáculo (e quica nele)

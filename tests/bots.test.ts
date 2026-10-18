@@ -91,13 +91,13 @@ describe('bots usam tudo', () => {
   it('at the edge, links to an obstacle further inside', () => {
     const w = duel({ link: 1 });
     w.wizards[0].pos = v(w.arenaR - 0.5, 0);
-    w.pillars.push({ pos: v(w.arenaR - 3, 0), hp: 40, alive: true, kind: 'pillar' });
+    w.pillars.push({ pos: v(w.arenaR - 3, 0), hp: 400, alive: true, kind: 'pillar' });
     expect(casts(botCmds(w, 'bot', () => 0.3))[0]).toMatchObject({ kind: 'cast', spell: 'link', at: { x: w.arenaR - 3, y: 0 } });
   });
 
   it('drains when hurt even with other spells ready', () => {
     const w = duel({ drain: 1, lightning: 1 });
-    w.wizards[0].hp = 40;
+    w.wizards[0].hp = 400;
     expect(casts(botCmds(w, 'bot', () => 0.9))[0]).toMatchObject({ kind: 'cast', spell: 'drain' });
   });
 

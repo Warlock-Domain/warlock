@@ -103,7 +103,7 @@ describe('partida', () => {
     const m = twoPlayers();
     addPlayer(m, 'c', 'Caio');
     let now = toPlaying(m, 0);
-    m.dmgOn = { b: { c: 8, a: 2 } };
+    m.dmgOn = { b: { c: 80, a: 20 } };
     const before = m.players.find((p) => p.id === 'c')!.gold;
     kill(m, 'b', 'a');
     for (let i = 0; i < 600 && m.world!.wizards[1].alive; i++) tickMatch(m, (now += STEP_MS), [], () => 0.5);
@@ -115,7 +115,7 @@ describe('partida', () => {
     const now = toPlaying(m, 0);
     kill(m, 'a', null);
     kill(m, 'b', null);
-    m.world!.wizards[1].hp = 0.05;
+    m.world!.wizards[1].hp = 0.5;
     until(m, now, () => m.phase === 'roundEnd');
     expect(m.lastRoundWinner).toBe('b');
   });
@@ -245,8 +245,8 @@ describe('partida', () => {
   it('whoever dealt the most damage in the round gets extra gold, with a live event', () => {
     const m = twoPlayers();
     const now = toPlaying(m, 0);
-    m.players[1].stats.round.dmg = 30;
-    m.players[0].stats.round.dmg = 12;
+    m.players[1].stats.round.dmg = 300;
+    m.players[0].stats.round.dmg = 120;
     kill(m, 'b', null);
     let evs: { k: string; id?: string; n?: number }[] = [];
     for (let t = now; m.phase !== 'roundEnd'; ) evs = tickMatch(m, (t += STEP_MS), [], () => 0.5);

@@ -87,7 +87,7 @@ describe('deathmatch', () => {
     const rand = cycle(0.1, 0.25, 0.9, 0.3, 0.8, 0.6);
     let now = toPlaying(m, 0);
     // obstáculos fixos: os sorteados (até 8) às vezes não deixavam lugar a 2 m de tudo e o teste falhava 1 em 3
-    m.world!.pillars = [{ pos: v(3, 3), hp: 40, alive: true, kind: 'pillar' }];
+    m.world!.pillars = [{ pos: v(3, 3), hp: 400, alive: true, kind: 'pillar' }];
     wiz(m, 'a').pos = v(0, 0);
     kill(m, 'b', 'a');
     now = until(m, now, () => !wiz(m, 'b').alive, 60 * 5, rand);

@@ -17,9 +17,9 @@ export type ItemLevel = { hp?: number; regen?: number; kb?: number; speed?: numb
 type Item = { name: string; cost: number; key?: string; text: string; levels: ItemLevel[] };
 
 export const ITEMS: Record<ItemId, Item> = {
-  ring: { name: 'Anel de vida', cost: 4, text: 'Mais vida máxima.', levels: [{ hp: 10 }, { hp: 19 }, { hp: 27 }, { hp: 34 }, { hp: 40 }] },
-  cursed_ring: { name: 'Anel amaldiçoado', cost: 4, text: 'Vida e menos empurrão, mas lentidões duram mais.', levels: [{ hp: 10, kb: 0.15, debuff: 0.25 }, { hp: 20, kb: 0.15, debuff: 0.3 }] },
-  cape: { name: 'Capa', cost: 3, text: 'A vida volta mais rápido.', levels: [{ regen: 0.25 }, { regen: 0.4 }, { regen: 0.55 }] }, // 0,15/0,25/0,35 no original; +60% em 17/10
+  ring: { name: 'Anel de vida', cost: 4, text: 'Mais vida máxima.', levels: [{ hp: 100 }, { hp: 190 }, { hp: 270 }, { hp: 340 }, { hp: 400 }] },
+  cursed_ring: { name: 'Anel amaldiçoado', cost: 4, text: 'Vida e menos empurrão, mas lentidões duram mais.', levels: [{ hp: 100, kb: 0.1, debuff: 0.25 }, { hp: 200, kb: 0.1, debuff: 0.3 }] }, // ciclo 1 (18/10): empurrão −15% → −10% (1,19×; o Warlock CE fez o mesmo)
+  cape: { name: 'Capa', cost: 3, text: 'A vida volta mais rápido.', levels: [{ regen: 2.5 }, { regen: 4 }, { regen: 5.5 }] }, // 1,5/2,5/3,5 no original; +60% em 17/10
   armor: { name: 'Armadura', cost: 6, text: 'Menos empurrão.', levels: [{ kb: 0.12 }, { kb: 0.18 }, { kb: 0.22 }] },
   boots: { name: 'Botas', cost: 5, text: 'Anda mais rápido.', levels: [{ speed: 18 * UNIT }, { speed: 29 * UNIT }, { speed: 40 * UNIT }] },
   watch: { name: 'Relógio de bolso', cost: 2, text: 'Lentidões e penalidades duram menos.', levels: [{ debuff: -0.35 }, { debuff: -0.45 }] },
@@ -30,8 +30,8 @@ export const ITEMS: Record<ItemId, Item> = {
   pact: { name: 'Pacto', cost: 10, key: '3', text: 'Próxima magia de dano em 5 s faz 2× de dano e empurrão.', levels: [{}] },
   // itens novos de 18/10, do catálogo docs/itens-candidatos.md (Warlock CE); números conservadores até a simulação dizer
   lava_boots: { name: 'Botas de lava', cost: 4, text: 'A lava machuca menos.', levels: [{ lava: 0.35 }, { lava: 0.6 }] },
-  // Guardião do CE: −0,1 por nível; aqui os golpes são maiores (−0,4 por nível), mas nunca corta mais que metade do golpe
-  warden: { name: 'Guardião', cost: 4, text: 'Cada golpe tira um pouco menos de vida (até metade dele), mas você voa um pouco mais.', levels: [1, 2, 3].map((n) => ({ ward: 0.4 * n, kb: -0.01 * n })) },
+  // Guardião do CE: −0,1 por nível; aqui os golpes são maiores (−0,4 por nível na escala antiga de vida 100, −4 na de 1000), mas nunca corta mais que metade do golpe
+  warden: { name: 'Guardião', cost: 4, text: 'Cada golpe tira um pouco menos de vida (até metade dele), mas você voa um pouco mais.', levels: [1, 2, 3].map((n) => ({ ward: 4 * n, kb: -0.01 * n })) },
   helmet: { name: 'Elmo', cost: 5, text: 'Menos empurrão, mas suas magias alcançam menos.', levels: [{ kb: 0.15, range: -0.1 }] },
   shock_boots: { name: 'Botas de choque', cost: 5, text: 'Ao levar um golpe, anda mais rápido por 3 s (não soma com as Botas: vale a maior).', levels: [{}] },
   aegis: { name: 'Égide', cost: 7, text: 'Uma vez por rodada, na lava com pouca vida, volta para a pedra.', levels: [{}] },
@@ -39,14 +39,14 @@ export const ITEMS: Record<ItemId, Item> = {
 
 // Botas de choque: Shock boots do CE (+25 por 3 s); aqui +30 unidades (+14% do passo), contra "quem apanha não consegue fugir"
 export const SHOCK_BOOTS = { speed: 30 * UNIT, secs: 3 };
-// Égide: na lava com até 25 de vida volta para 60% do raio da arena, na mesma direção, parado; uma vez por rodada (por vida no deathmatch)
-export const AEGIS = { hp: 25, back: 0.6 };
+// Égide: na lava com até 250 de vida volta para 60% do raio da arena, na mesma direção, parado; uma vez por rodada (por vida no deathmatch)
+export const AEGIS = { hp: 250, back: 0.6 };
 
 // ativos (originais): Flagelo dano 100/110/120 de 1000 em 250 unidades, 0,9 s de preparo, recarga 3 s;
 // Redirecionador recarga 24 s, +30% de empurrão por 8 s; Pacto no original: recarga 30 s, 5 s para usar, 1,5×, lentidão de 66 por 6 s
-// dano 10/11/12 no original; 10/13/16 no balanceamento de 17/10 (quase ninguém evoluía: nível médio 1,01)
-// 17/10 (pedido do Fernando): área 250 → 325 e dano 10/13/16 → 8/10/12
-export const SCOURGE = { dmg: [8, 10, 12], radius: 325 * UNIT, windup: 0.5, cd: 5 }; // recarga 3 s no original; 5 s no balanceamento de 17/10 // preparo: 0,9 s no original, 0,5 s a pedido do Fernando (17/10)
+// dano 100/110/120 no original; 100/130/160 no balanceamento de 17/10 (quase ninguém evoluía: nível médio 1,01)
+// 17/10 (pedido do Fernando): área 250 → 325 e dano 100/130/160 → 80/100/120
+export const SCOURGE = { dmg: [80, 100, 120], radius: 325 * UNIT, windup: 0.5, cd: 5 }; // recarga 3 s no original; 5 s no balanceamento de 17/10 // preparo: 0,9 s no original, 0,5 s a pedido do Fernando (17/10)
 // tempo de conjuração dos ativos (o do Flagelo é o preparo de 0,9 s)
 export const ITEM_CAST: Partial<Record<ItemId, number>> = { scourge: SCOURGE.windup, redirector: 0.1, pact: 0.1 };
 export const REDIRECTOR = { cd: 24, kbPenalty: 0.3, penaltyTime: 8, extraLife: 0.5 };

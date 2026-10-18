@@ -13,5 +13,5 @@ export const SOURCE_ICON = { lava: '🌋', pillar: '🪨', shock: '💫', unknow
 // efeitos em cima do mago (bits do snapshot, ver shared/snapshot.ts); negativos primeiro. Também listados na ficha do mago
 export const STATUS_ICONS: [bit: number, icon: string, name: string][] = [[16, '💫', 'atordoado'], [8, '⚠️', 'vulnerável'], [32, '🌟', 'invulnerável'], [64, '🩸', 'Pacto armado'], [128, '🔒', 'preso'], [256, '⏩', 'Investida'], [4, '🐌', 'lento'], [512, '🔥', 'queimando'],
   [65536, '🔗', 'preso pelo Elo'], [8192, '🧲', 'magnetizado: atrai projéteis'], [16384, '🌬️', 'magnetizado: afasta projéteis'], [1024, '👻', 'invisível (Caminhada no vento)'], [4096, '🏃', 'acelerado'], [32768, '🔀', 'Alteração'], [131072, '👼', 'Égide pronta'],
-  [262144, '🏃', 'Runa da Pressa'], [524288, '😡', 'Runa da Fúria'], [1048576, '🔰', 'Runa do Escudo']];
+  [262144, '🐇', 'Runa da Pressa'], [524288, '😡', 'Runa da Fúria'], [1048576, '🔰', 'Runa do Escudo']];
 export const BAD_STATUS = [16, 4, 8, 128, 65536, 8192];

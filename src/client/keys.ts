@@ -13,7 +13,9 @@ const DEFAULTS: Record<string, string> = {
   scourge: 'Digit1', redirector: 'Digit2', pact: 'Digit3',
 };
 // teclas com outra função no jogo: não podem virar atalho de magia
-export const RESERVED = new Set(['KeyS', 'Space', 'Escape', 'Tab', 'Enter', 'KeyY']);
+// ficha do mago: a tecla à esquerda do 1 (' no ABNT2, ` no americano); as letras já são todas de magias
+export const SHEET_KEY = 'Backquote';
+export const RESERVED = new Set(['KeyS', 'Space', 'Escape', 'Tab', 'Enter', 'KeyY', SHEET_KEY]);
 const STORE = 'warlock:keys';
 
 let map: Record<string, string> = { ...DEFAULTS };
@@ -75,6 +77,7 @@ export const onKeysChange = (f: () => void) => listeners.push(f);
 // rótulo curto para mostrar: KeyQ → Q, Digit1 → 1, Numpad4 → Num 4
 export function keyLabel(code: string): string {
   if (!code) return '—'; // sem tecla (a Zona de dobra começa assim)
+  if (code === SHEET_KEY) return "'";
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
   if (code.startsWith('Numpad')) return 'Num ' + code.slice(6);
