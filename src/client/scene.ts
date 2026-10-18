@@ -45,7 +45,18 @@ type Mage = {
   dead: boolean;
   color: number;
   character: string;
+  // materiais próprios deste boneco (o clone do SkeletonUtils divide os do modelo) e a cor de brilho original de cada um
+  mats: { m: THREE.MeshStandardMaterial; c: THREE.Color; i: number }[];
+  flash: number; // clarão branco do golpe: 1 no acerto, cai até 0
+  freezeUntil: number; // hit-stop: animação parada até este instante
+  cheering: boolean;
 };
+
+// limiares de golpe (dano por acerto vai de ~30 a ~170): grande e crítico
+const BIG_HIT = 100;
+const CRIT_HIT = 130;
+const FX_CAP = 320; // teto de efeitos vivos: acima disso, partículas novas são puladas
+const SHAKE_MAX = 0.55;
 
 type Fx = { obj: THREE.Object3D; until: number; born: number; update?: (k: number) => void };
 
@@ -73,6 +84,15 @@ void main(){
     vec3 tex = pow(max(a, b * 0.85), vec3(2.2));
     col = tex * (0.45 + 0.55 * veins) + hot * core * 0.2;
   }
+  // bolhas: uma em cada ~10 células (de ~1,8 m) incha devagar como um domo aceso e estoura num clarão; mais nos veios quentes
+  vec2 bp = vPos.xz * 0.55; vec2 bi = floor(bp);
+  float bh = hash(bi);
+  float ph = fract(uTime * (0.1 + 0.15 * bh) + bh * 7.0);
+  float br = ph * ph * 0.26 * step(0.9, bh) + 0.001;
+  float bd = length(fract(bp) - 0.5 - (vec2(hash(bi + 3.1), hash(bi + 7.7)) - 0.5) * 0.4);
+  float dome = (1.0 - smoothstep(br * 0.2, br, bd)) * ph * 0.55;
+  float pop = smoothstep(0.94, 1.0, ph) * (1.0 - smoothstep(0.0, br * 1.6, bd)) * 1.6;
+  col += vec3(1.0, 0.5, 0.12) * (dome + pop) * (0.2 + 0.8 * veins) * step(0.9, bh);
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -133,8 +153,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   scene.fog = new THREE.Fog('#1a0603', 30, 70);
   const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 200);
 
-  scene.add(new THREE.HemisphereLight('#ffd2b0', '#ff4a10', 0.55));
-  const sun = new THREE.DirectionalLight('#fff1e0', 1.5);
+  // luz um pouco mais dramática: menos preenchimento, sol mais quente e a lava mais forte por baixo
+  scene.add(new THREE.HemisphereLight('#ffd2b0', '#ff4a10', 0.45));
+  const sun = new THREE.DirectionalLight('#ffe6c8', 1.7);
   sun.position.set(-8, 20, 6);
   sun.castShadow = true;
   sun.shadow.mapSize.set(mobile ? 1024 : 2048, mobile ? 1024 : 2048);
@@ -212,8 +233,20 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   let shownR = 11;
   let shake = 0; // tremor da câmera nos choques
   let warnR = -1;
+  // Efeitos "Leve": sem tremor, sem hit-stop e sem partículas extras (PC fraco ou quem enjoa)
+  let lite = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let celebrate = 0; // 0..1: zoom da câmera no vencedor no fim da rodada
 
   const glow = glowTexture();
+  // brasas que sobem da lava em volta da arena: 28 sprites fixos com um só material, reciclados (nada alocado por quadro)
+  const emberMat = new THREE.SpriteMaterial({ map: glow, color: '#ff8a2a', transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+  const embers = Array.from({ length: 28 }, () => {
+    const s = new THREE.Sprite(emberMat);
+    s.userData = { a: 0, r: 0, vy: 0, size: 0, wait: Math.random() * 4 }; // wait: segundos escondida antes de subir
+    s.visible = false;
+    scene.add(s);
+    return s;
+  });
   // núcleo quase branco e brilho saturado: destaca do chão marrom e da lava laranja (legibilidade, ideia do Spellsworn)
   const fireMat = new THREE.MeshBasicMaterial({ color: '#fff2b0' });
   const homingMat = new THREE.MeshBasicMaterial({ color: '#f3d4ff' });
@@ -420,15 +453,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     if (!src) return null;
     const model = cloneSkinned(src.scene) as THREE.Group;
     model.scale.setScalar(mageScale);
+    const mats: Mage['mats'] = [];
     model.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       mesh.castShadow = true;
-      if (d.character === 'mage' && (/Hat|Body|Cape/.test(mesh.name) || /Hat|Body|Cape/.test(mesh.parent?.name ?? ''))) {
-        const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
-        if (mat.map) mat.map = tintFor(d.color, mat.map);
-        mesh.material = mat;
-      }
+      // material próprio de cada boneco: o clarão do golpe não pode acender os outros magos do mesmo modelo
+      if (Array.isArray(mesh.material)) return;
+      const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
+      if (d.character === 'mage' && (/Hat|Body|Cape/.test(mesh.name) || /Hat|Body|Cape/.test(mesh.parent?.name ?? '')) && mat.map) mat.map = tintFor(d.color, mat.map);
+      mesh.material = mat;
+      if (mat.emissive) mats.push({ m: mat, c: mat.emissive.clone(), i: mat.emissiveIntensity });
     });
     const root = new THREE.Group();
     root.add(model);
@@ -471,7 +506,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     lootBar.append(lootFill);
     label.append(statusEl, nameEl, bar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, label, hpFill, hpText, nameEl, tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, dead: false, color: d.color, character: d.character };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, label, hpFill, hpText, nameEl, tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, dead: false, color: d.color, character: d.character, mats, flash: 0, freezeUntil: 0, cheering: false };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -495,6 +530,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
 
   function burst(at: Vec, color: string, size: number, secs: number, y = 0.8, map: THREE.Texture = glow, rise = 0) {
+    if (fx.length > FX_CAP) return; // limite de partículas: no caos, o que passa do teto não nasce
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, rotation: Math.random() * Math.PI * 2 }));
     s.position.copy(w3(at, y));
     addFx(s, secs, (k) => {
@@ -536,14 +572,68 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
 
   // número de dano que sobe e some em cima de quem levou
-  const numbers: { el: HTMLDivElement; at: THREE.Vector3; born: number }[] = [];
+  const numbers: { el: HTMLDivElement; at: THREE.Vector3; born: number; pop?: number }[] = [];
   function damageNumber(at: Vec, dmg: number) {
     if (dmg < 5) return;
     const el = document.createElement('div');
-    el.className = 'dmg' + (dmg >= 90 ? ' big' : '');
-    el.textContent = '-' + Math.round(dmg);
+    const crit = dmg >= CRIT_HIT;
+    el.className = 'dmg' + (crit ? ' crit' : dmg >= BIG_HIT ? ' big' : '');
+    // tamanho cresce com o golpe: 30 de dano ≈ 1,3rem, 170 ≈ 2,9rem
+    el.style.fontSize = `${Math.min(3, 0.95 + dmg / 90).toFixed(2)}rem`;
+    el.textContent = '-' + Math.round(dmg) + (crit ? '!' : '');
     labels.append(el);
-    numbers.push({ el, at: w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0)), born: performance.now() / 1000 });
+    numbers.push({ el, at: w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0)), born: performance.now() / 1000, pop: crit ? 0.9 : dmg >= BIG_HIT ? 0.55 : 0.3 });
+  }
+
+  // impacto no mago: clarão branco, hit-stop curto, tremor pela força (mais perto da câmera, mais forte) e anel no golpe forte
+  function impact(id: string, at: Vec, dmg: number) {
+    const m = mages.get(id);
+    if (m) {
+      m.flash = 1;
+      if (!lite) m.freezeUntil = performance.now() / 1000 + 0.06;
+    }
+    if (!lite) {
+      const near = Math.max(0.3, 1 - Math.hypot(at.x - focus.x, at.y - focus.z) / 14);
+      shake = Math.min(SHAKE_MAX, shake + dmg * 0.0028 * near);
+    }
+    if (dmg >= BIG_HIT) shockwave(at, dmg >= CRIT_HIT ? 2.2 : 1.5, dmg >= CRIT_HIT ? '#ffe9a8' : '#ffb347');
+    if (dmg >= CRIT_HIT && !lite) {
+      burst(at, '#fff6d8', 3.2, 0.22, 1, FX.star);
+      for (let i = 0; i < 5; i++) burst(v(at.x + (Math.random() - 0.5) * 1.2, at.y + (Math.random() - 0.5) * 1.2), '#ffe27a', 0.9, 0.7, 1, FX.star, 1.8);
+    }
+  }
+
+  // queda na lava: coroa de respingos que sobem e caem, clarão laranja e fumaça
+  function lavaSplash(at: Vec) {
+    burst(at, '#ffb347', 3.6, 0.5, -0.3, FX.light);
+    burst(at, '#ff6a10', 4.2, 0.7, -0.45, FX.circle);
+    flameBurst(at, 2.8, 0.6);
+    smoke(at, 2.8, 1.8);
+    const drops = lite ? 4 : 10;
+    for (let i = 0; i < drops && fx.length < FX_CAP; i++) {
+      const a = (i / drops) * Math.PI * 2 + Math.random() * 0.5;
+      const sp = 1.2 + Math.random() * 1.6, up = 3.5 + Math.random() * 2.5;
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: i % 2 ? '#ffd27a' : '#ff6a1a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const size = 0.35 + Math.random() * 0.3;
+      s.scale.setScalar(size);
+      addFx(s, 0.9, (k) => {
+        const t = k * 0.9;
+        s.position.set(at.x + Math.cos(a) * sp * t, -0.5 + up * t - 9 * t * t, at.y + Math.sin(a) * sp * t);
+        s.material.opacity = 1 - k * k;
+      });
+    }
+    if (!lite) smoke(v(at.x + 0.4, at.y - 0.3), 2, 2.2);
+  }
+
+  // vencedor da rodada: faíscas douradas em volta e anel de ouro no chão
+  function victoryBurst(at: Vec) {
+    shockwave(at, 2.6, '#ffd84a');
+    burst(at, '#fff2a0', 3, 0.5, 1, FX.light);
+    if (lite) return;
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      burst(v(at.x + Math.cos(a) * 0.9, at.y + Math.sin(a) * 0.9), i % 2 ? '#ffd84a' : '#fff2a0', 0.8, 1.1, 0.6, FX.star, 2.4);
+    }
   }
   // ouro ganho no abate: sobe dourado em cima de quem matou
   function goldNumber(at: Vec, n: number) {
@@ -745,6 +835,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         else explosion(v(e.x, e.y));
         scorch(v(e.x, e.y));
         damageNumber(v(e.x, e.y), e.dmg);
+        // dano 0 (invulnerável, aliado) não sacode nem acende
+        if (e.dmg > 0) impact(e.id, v(e.x, e.y), e.dmg);
       } else if (e.k === 'gold') goldNumber(v(e.x, e.y), e.n);
       else if (e.k === 'reflect') {
         burst(v(e.x, e.y), '#8fd3ff', 2.4, 0.3, 0.8, FX.circle);
@@ -819,8 +911,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const m = mages.get(e.id);
         if (m) {
           const at = v(m.root.position.x, m.root.position.z);
-          burst(at, '#ffcf5a', 4, 0.6, 0.3, FX.fire);
-          smoke(at, 2.6, 1.6);
+          // fora da pedra: caiu na lava (respingo); em cima dela: estoura em fogo
+          if (Math.hypot(at.x, at.y) > shownR - 0.3) lavaSplash(at);
+          else {
+            burst(at, '#ffcf5a', 4, 0.6, 0.3, FX.fire);
+            smoke(at, 2.6, 1.6);
+          }
         }
       }
     }
@@ -908,7 +1004,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (swirl) swirl.material.rotation = -t * 4;
       // rastro: brasas que ficam para trás e somem
       const look = LOOK[p.kind];
-      if (p.kind !== 'warpzone' && Math.random() < 0.7) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
+      if (p.kind !== 'warpzone' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
@@ -926,6 +1022,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         scene.remove(m.root);
         m.ring.material instanceof THREE.Material && m.ring.material.dispose();
         m.shield.material instanceof THREE.Material && m.shield.material.dispose();
+        for (const x of m.mats) x.m.dispose();
         m.label.remove();
         mages.delete(d.id);
         m = undefined;
@@ -964,6 +1061,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           m.root.position.y = 0;
         }
         if (now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.moving ? 'Running_A' : 'Idle');
+        // vencedor: estouro dourado ao começar a comemorar e faíscas subindo enquanto dura
+        if (d.cheer && !m.cheering) victoryBurst(d.pos);
+        if (d.cheer && !lite && Math.random() < 0.2) burst(v(d.pos.x + (Math.random() - 0.5) * 1.4, d.pos.y + (Math.random() - 0.5) * 1.4), Math.random() < 0.5 ? '#ffd84a' : '#fff2a0', 0.7, 1.2, 0.4, FX.star, 2.6);
+      }
+      m.cheering = d.cheer && d.alive;
+      // clarão branco do golpe: some em ~0,15 s
+      if (m.flash > 0) {
+        m.flash = Math.max(0, m.flash - 0.12);
+        for (const x of m.mats) {
+          if (m.flash > 0) {
+            x.m.emissive.setRGB(1, 0.95, 0.85);
+            x.m.emissiveIntensity = m.flash * 1.6;
+          } else {
+            x.m.emissive.copy(x.c);
+            x.m.emissiveIntensity = x.i;
+          }
+        }
       }
       m.label.hidden = !d.alive || hidden;
       // ícones de efeito em cima do mago (negativos primeiro)
@@ -1013,10 +1127,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   resize();
 
   let lastFrame = performance.now() / 1000;
+  // retículo do controle: anel dourado com um ponto no meio, no chão onde o analógico direito mira (desenhado por cima de tudo)
+  const aimMat = new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.95, depthTest: false, depthWrite: false });
+  const aimRing = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.62, 40), aimMat);
+  aimRing.add(new THREE.Mesh(new THREE.CircleGeometry(0.12, 16), aimMat));
+  aimRing.rotation.x = -Math.PI / 2;
+  aimRing.renderOrder = 10;
+  aimRing.visible = false;
+  scene.add(aimRing);
 
   return {
     ready,
     onEvents,
+    aim(at: Vec | null) {
+      aimRing.visible = !!at;
+      if (at) aimRing.position.copy(w3(at, 0.05));
+      aimRing.scale.setScalar(1 + 0.08 * Math.sin(performance.now() / 120));
+    },
     // baixa antes os personagens de quem está na sala, para ninguém aparecer invisível na rodada
     preload(ids: string[]) {
       for (const id of ids) preload(id);
@@ -1036,6 +1163,21 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         ring.scale.setScalar(1 + k * 2);
         (ring.material as THREE.MeshBasicMaterial).opacity = 1 - k;
       });
+      // segundo anel que fecha sobre o ponto ("travou aqui") e um pingo de luz no centro
+      const lock = new THREE.Mesh(markerGeo, new THREE.MeshBasicMaterial({ color: cast ? '#ffe0a0' : '#c8ffd4', transparent: true, depthWrite: false }));
+      lock.rotation.x = -Math.PI / 2;
+      lock.position.copy(w3(at, 0.045));
+      addFx(lock, 0.3, (k) => {
+        lock.scale.setScalar(2.6 - k * 1.8);
+        (lock.material as THREE.MeshBasicMaterial).opacity = Math.min(1, k * 4) * (1 - k);
+      });
+      burst(at, cast ? '#ffb347' : '#7dff9a', 0.7, 0.25, 0.08, FX.light);
+    },
+    // Efeitos: true = Leve (sem tremor, hit-stop e partículas extras)
+    setFx(on: boolean) {
+      lite = on;
+      if (lite) shake = 0;
+      for (const s of embers) s.visible = false;
     },
     // balão do taunt em cima do mago por 2,5 s
     bubble(id: string, text: string) {
@@ -1062,8 +1204,20 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     resetCamera() {
       pan.set(0, 0, 0);
     },
-    castLocal(id: string, spell: string) {
+    castLocal(id: string, spell: string, at?: Vec) {
       oneShot(id, spell === 'shield' || spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
+      const m = mages.get(id);
+      if (!m || m.dead) return;
+      // brilho na mão (um pouco à frente do mago, na cor da magia) e linha de mira fraca até o ponto
+      const color = LOOK[spell as ProjKind]?.halo ?? '#ffb347';
+      const from = v(m.root.position.x, m.root.position.z);
+      const dir = at ? Math.atan2(at.y - from.y, at.x - from.x) : Math.PI / 2 - m.root.rotation.y;
+      const hand = v(from.x + Math.cos(dir) * 0.45, from.y + Math.sin(dir) * 0.45);
+      burst(hand, color, 1.3, 0.35, 1.15, FX.light);
+      burst(hand, '#ffffff', 0.6, 0.2, 1.15, FX.light);
+      if (!at || Math.hypot(at.x - from.x, at.y - from.y) < 0.8) return;
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
+      addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
     render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; follow: Vec | null }) {
       const now = performance.now() / 1000;
@@ -1074,9 +1228,35 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       shownR += (state.arenaR - shownR) * Math.min(1, dt * 4);
       arena.scale.set(shownR, 1, shownR);
       rim.scale.setScalar(Math.max(0.001, shownR));
-      under.intensity = 40 + Math.sin(now * 2) * 8;
+      under.intensity = 52 + Math.sin(now * 2) * 9 + Math.sin(now * 7.3) * 3;
       const warning = state.shrinkIn > 0 && state.shrinkIn < SHRINK_WARN && state.arenaR > 0;
       warnMat.opacity = warning ? 0.25 + 0.25 * Math.sin(now * 14) : 0;
+      // borda pulsa mais forte e mais vermelha quando a arena vai encolher; respira devagar no resto do tempo
+      const pulse = warning ? 0.5 + 0.5 * Math.sin(now * 14) : 0.5 + 0.5 * Math.sin(now * 1.6);
+      (rim.material as THREE.MeshBasicMaterial).opacity = warning ? 0.75 + 0.25 * pulse : 0.72 + 0.13 * pulse;
+      (rim.material as THREE.MeshBasicMaterial).color.set(warning ? '#ff3a10' : '#ff7a1a');
+      (arena.material as THREE.MeshStandardMaterial[])[0].emissiveIntensity = warning ? 0.6 + 1.2 * pulse : 0.6;
+      // brasas: sobem da lava em volta da pedra, cada uma com seu ritmo
+      if (!lite) for (const s of embers) {
+        const u = s.userData as { a: number; r: number; vy: number; size: number; wait: number };
+        if (!s.visible) {
+          u.wait -= dt;
+          if (u.wait > 0) continue;
+          u.a = Math.random() * Math.PI * 2;
+          u.r = shownR + 0.8 + Math.random() * 7;
+          u.vy = 0.5 + Math.random() * 0.9;
+          u.size = 0.12 + Math.random() * 0.16;
+          s.position.set(Math.cos(u.a) * u.r, -0.5, Math.sin(u.a) * u.r);
+          s.visible = true;
+        }
+        s.position.y += u.vy * dt;
+        s.position.x += Math.sin(now * 1.3 + u.a * 5) * 0.25 * dt;
+        s.scale.setScalar(u.size * Math.max(0, 1 - (s.position.y + 0.5) / 4));
+        if (s.position.y > 3.5) {
+          s.visible = false;
+          u.wait = Math.random() * 3;
+        }
+      }
       if (warning && warnR !== state.arenaR) {
         warnR = state.arenaR;
         const inner = Math.max(0.01, state.arenaR - ARENA_STEP);
@@ -1117,7 +1297,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         gem.position.y = 0.7 + Math.sin(now * 3) * 0.1;
         gem.rotation.y = now * 2;
       });
-      for (const m of mages.values()) m.mixer.update(dt);
+      // hit-stop: quem acabou de apanhar fica com a animação parada por ~60 ms
+      for (const m of mages.values()) if (now >= m.freezeUntil) m.mixer.update(dt);
       decor.update(shownR, now);
       for (let i = fx.length - 1; i >= 0; i--) {
         const f = fx[i];
@@ -1131,16 +1312,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
       // câmera inclinada estilo Dota, seguindo de leve o próprio mago
       // em pé a arena não cabe na largura: a câmera acompanha mais o próprio mago
-      const target = (state.follow ? w3(state.follow).multiplyScalar(camera.aspect < 1 ? 0.65 : 0.3) : new THREE.Vector3()).add(pan);
+      let target = (state.follow ? w3(state.follow).multiplyScalar(camera.aspect < 1 ? 0.65 : 0.3) : new THREE.Vector3()).add(pan);
+      // fim da rodada: a câmera vai devagar até quem comemora (no modo Times, o meio do time) e aproxima um pouco
+      const champs = state.wizards.filter((w) => w.cheer && w.alive);
+      celebrate += ((champs.length ? 1 : 0) - celebrate) * Math.min(1, dt * 1.5);
+      if (champs.length) {
+        const c = champs.reduce((a, w) => a.add(w3(w.pos)), new THREE.Vector3()).multiplyScalar(1 / champs.length);
+        target = target.lerp(c, celebrate);
+      }
       focus.lerp(target, Math.min(1, dt * 3));
       // aproxima conforme a arena encolhe
-      const dist = Math.min(44, Math.max(13, shownR * 2.1 + 2) * (camera.userData.fit as number)) * zoom;
+      const dist = Math.min(44, Math.max(13, shownR * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
       lastDist = dist;
       // olha um pouco à frente do centro para a borda de baixo não ficar atrás da barra de magias
       const lookZ = focus.z + dist * 0.06;
       camera.position.set(focus.x, dist * 0.74, lookZ + dist * 0.67);
       camera.lookAt(focus.x, 0, lookZ);
-      if (shake > 0.01 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      if (shake > 0.01 && !lite) {
         camera.position.x += (Math.random() - 0.5) * shake;
         camera.position.z += (Math.random() - 0.5) * shake;
       }
@@ -1156,7 +1344,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           continue;
         }
         const p = d.at.clone().setY(d.at.y + k * 1.2).project(camera);
-        d.el.style.transform = `translate(${(p.x * innerWidth) / 2 + innerWidth / 2}px, ${(-p.y * innerHeight) / 2 + innerHeight / 2}px) translate(-50%, -50%) scale(${1 + 0.3 * Math.max(0, 0.2 - k) * 5})`;
+        d.el.style.transform = `translate(${(p.x * innerWidth) / 2 + innerWidth / 2}px, ${(-p.y * innerHeight) / 2 + innerHeight / 2}px) translate(-50%, -50%) scale(${1 + (d.pop ?? 0.3) * Math.max(0, 0.2 - k) * 5})`;
         d.el.style.opacity = String(Math.min(1, (1 - k) * 2.5));
       }
 

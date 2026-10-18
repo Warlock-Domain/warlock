@@ -49,6 +49,14 @@ export const RULES: [string, string[]][] = [
     'Votar, no topo: abre as votações da partida (a lista está em "Opções da partida e votações").',
     'Dá para trocar a tecla de cada magia e item no botão ⌨️, ou usar Q W E R D F pela ordem da barra (fica salvo no navegador).',
   ]],
+  ['Controle (Xbox ou PlayStation)', [
+    'Ligue o controle e aperte qualquer botão: aparece "Controle conectado" e a barra passa a mostrar os botões do controle. Tecla ou mouse voltam a mostrar as teclas.',
+    'Analógico esquerdo: andar (soltar para). Analógico direito: mirar; o anel dourado no chão mostra onde, mais longe quanto mais inclinado. Sem mirar, a magia vai para onde você anda.',
+    'A, B, X e Y (no PlayStation ✕, ○, □ e △), LB e RB (L1 e R1): as magias pela ordem da barra, da 1ª à 6ª. LT e RT (L2 e R2): itens ativos 1 e 2; D-pad ↑: item 3.',
+    'Start (Options): ficha do mago na partida, Pronto na loja e esta ajuda nas outras telas. View ou Select (Share), segurado: placar. Apertar o analógico direito (R3): centraliza a câmera.',
+    'Menus e loja: D-pad ou analógico esquerdo anda entre os botões (anel dourado), A confirma, B volta ou fecha, X desfaz a compra ou vende o item focado, Y mostra ou esconde a dica, LB e RB pulam entre os grupos da loja (com o placar aberto, trocam o período).',
+    'Vibra ao levar golpe forte e ao morrer; dá para desligar no botão ⌨️. Um controle por navegador (vale o primeiro conectado).',
+  ]],
   ['Controles no celular', [
     'Toque no chão para andar.',
     'Toque no botão da magia e depois no chão para lançar; o ✕ do aviso cancela.',

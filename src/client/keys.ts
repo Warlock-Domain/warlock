@@ -62,8 +62,22 @@ export function setSlotMode(on: boolean) {
 export function setSlots(next: SpellId[]) {
   if (next.join() === slots.join()) return;
   slots = next;
-  if (slotMode) listeners.forEach((f) => f());
+  if (slotMode || pad) listeners.forEach((f) => f());
 }
+export const slotSpell = (i: number): SpellId | undefined => slots[i];
+
+// controle (gamepad): A B X Y LB RB pela ordem da barra; LT, RT e ↑ para os itens ativos 1 a 3.
+// Com o controle em uso, a barra e a loja mostram esses rótulos; tecla ou mouse de novo voltam às teclas.
+export const PAD_SLOTS = ['A', 'B', 'X', 'Y', 'LB', 'RB'];
+export const PAD_ITEMS = ['LT', 'RT', '↑'];
+let pad = false;
+export const isPadMode = () => pad;
+export function setPadMode(on: boolean) {
+  if (on === pad) return;
+  pad = on;
+  listeners.forEach((f) => f());
+}
+const padLabel = (a: Action) => (isSpell(a) ? PAD_SLOTS[slots.indexOf(a as SpellId)] : PAD_ITEMS[ACTIVE_ITEMS.indexOf(a as ItemId)]) ?? '—';
 
 export const keyOf = (a: Action) => (slotMode && isSpell(a) ? (SLOT_KEYS[slots.indexOf(a as SpellId)] ?? '') : map[a]);
 export const actionFor = (code: string): Action | undefined => {
@@ -83,7 +97,7 @@ export function keyLabel(code: string): string {
   if (code.startsWith('Numpad')) return 'Num ' + code.slice(6);
   return code.replace('Left', '').replace('Right', '');
 }
-export const labelOf = (a: Action) => keyLabel(keyOf(a));
+export const labelOf = (a: Action) => (pad ? padLabel(a) : keyLabel(keyOf(a)));
 
 // troca a tecla; se outra ação já usava essa tecla, as duas trocam entre si
 export function setKey(a: Action, code: string): boolean {

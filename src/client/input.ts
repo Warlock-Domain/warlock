@@ -3,6 +3,7 @@
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
 import type { SpellId } from '../shared/spells.ts';
 import { actionFor } from './keys.ts';
+import { setPadGame } from './gamepad.ts';
 import type { Vec } from '../shared/vec.ts';
 
 export type InputHandlers = {
@@ -15,6 +16,9 @@ export type InputHandlers = {
   zoom: (deltaY: number) => void;
   pan: (dx: number, dy: number) => void;
   armedChanged: (armed: SpellId | ItemId | null) => void;
+  // controle: posição do próprio mago (para andar e mirar) e o retículo no chão
+  me: () => Vec | null;
+  aim: (at: Vec | null) => void;
 };
 
 const isItem = (x: string): x is ItemId => (ACTIVE_ITEMS as string[]).includes(x);
@@ -35,6 +39,9 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     armed = s;
     h.armedChanged(s);
   };
+
+  // o controle usa os mesmos comandos, liberados só durante a rodada
+  setPadGame({ ...h, enabled: () => enabled });
 
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('wheel', (e) => {

@@ -7,6 +7,7 @@ import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../sha
 import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { dist, len, type Vec } from '../shared/vec.ts';
 import { createInput } from './input.ts';
+import { rumble, startPad } from './gamepad.ts';
 import { createInterp } from './interp.ts';
 import { connect } from './net.ts';
 import { createPredict } from './predict.ts';
@@ -116,6 +117,9 @@ function startRoom(code: string, name: string) {
   const justCast = new Map<string, number>();
   let scourgeUntil = 0;
   let follow = true;
+  // efeitos visuais Completo/Leve guardados no navegador; sem escolha, quem pede menos movimento ao sistema começa no Leve
+  let fxLite = (store.get('warlock:fx') ?? (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'lite' : 'full')) === 'lite';
+  document.body.classList.toggle('fx-lite', fxLite);
 
   const view = createRoomUi(ui, code, {
     start: (bots, mode, shuffle, opts) => net.send({ t: 'start', bots, mode, shuffle, opts }),
@@ -142,8 +146,17 @@ function startRoom(code: string, name: string) {
       if (kind === 'sfx') sound.play('click');
     },
     click: () => sound.play('click'),
+    fxLite: () => fxLite,
+    setFxLite: (lite) => {
+      fxLite = lite;
+      store.set('warlock:fx', lite ? 'lite' : 'full');
+      document.body.classList.toggle('fx-lite', lite);
+      scene.setFx(lite);
+    },
+    spellReady: () => sound.play('ready', 0.8),
   });
   const scene = createScene(canvas, document.getElementById('labels')!);
+  scene.setFx(fxLite);
   const interp = createInterp();
   const predict = createPredict();
 
@@ -179,7 +192,7 @@ function startRoom(code: string, name: string) {
       command({ t: 'cast', spell, x: at.x, y: at.y });
       // conjurando, o mago fica parado e o clique de andar espera a magia sair (o servidor faz o mesmo)
       predict.hold(CAST_POINT[spell]);
-      scene.castLocal(me, spell);
+      scene.castLocal(me, spell, at);
       scene.clickMarker(at, true);
       sound.play(SPELL_SOUND[spell]);
     },
@@ -201,6 +214,8 @@ function startRoom(code: string, name: string) {
     zoom: (d) => scene.zoomBy(d),
     pan: (dx, dy) => scene.panBy(dx, dy),
     armedChanged: (s) => (armed = s),
+    me: () => (myWizard(interp.latest())?.alive ? (drawn.get(me) ?? null) : null),
+    aim: (at) => scene.aim(at),
   });
 
   // o personagem escolhido fica salvo e é reenviado ao entrar em qualquer sala
@@ -246,10 +261,13 @@ function startRoom(code: string, name: string) {
         mine.taken = (mine.taken ?? 0) + e.dmg;
         liveChanged = true;
       }
+      // controle: vibra ao levar golpe forte e ao morrer
+      if (e.k === 'hit' && e.id === me && e.dmg >= 60) rumble(Math.min(1, e.dmg / 160), 200);
+      else if (e.k === 'death' && e.id === me) rumble(1, 500);
       if (e.k === 'cast' && e.id !== me) {
         const w = interp.latest()?.wizards.find((z) => z.id === e.id);
         sound.play(SPELL_SOUND[e.spell], w ? near(w.pos.x, w.pos.y) : 0.5);
-      } else if (e.k === 'hit') sound.play('hit', near(e.x, e.y));
+      } else if (e.k === 'hit') sound.play(e.dmg >= 100 ? 'hitHeavy' : e.dmg < 50 ? 'hitLight' : 'hit', near(e.x, e.y));
       else if (e.k === 'pillar') sound.play('hit', near(e.x, e.y) * 0.6);
       else if (e.k === 'grip') sound.play('hit', near(e.x, e.y));
       else if (e.k === 'reflect') sound.play('reflect', near(e.x, e.y));
@@ -257,15 +275,15 @@ function startRoom(code: string, name: string) {
       else if (e.k === 'item') sound.play(e.item === 'redirector' ? 'teleport' : e.item === 'pact' ? 'shield' : 'homing', 0.7);
       else if (e.k === 'scourge') sound.play('death', near(e.x, e.y));
       else if (e.k === 'shrink') sound.play('shrink');
-      else if (e.k === 'chest') toast('💰 Baú de ouro na arena! Quebre e fique em cima do ouro');
+      else if (e.k === 'chest') toast('Baú de ouro na arena! Quebre e fique em cima do ouro', 'gold');
       else if (e.k === 'loot') sound.play('go', near(e.x, e.y));
       else if (e.k === 'sudden') {
         sound.play('shrink');
         banner('⏰ Morte súbita! A arena encolhe a cada 5 s', 'bad');
-      } else if (e.k === 'rune') toast(`${RUNE_TEXT[e.kind]} apareceu na arena!`);
+      } else if (e.k === 'rune') toast(`${RUNE_TEXT[e.kind]} apareceu na arena!`, 'info');
       else if (e.k === 'runeTake') {
         sound.play('shield', e.id === me ? 1 : 0.5);
-        toast(`${e.id === me ? 'Você pegou' : (who.get(e.id) ?? '?') + ' pegou'} ${RUNE_TEXT[e.kind]}`);
+        toast(`${e.id === me ? 'Você pegou' : (who.get(e.id) ?? '?') + ' pegou'} ${RUNE_TEXT[e.kind]}`, e.id === me ? 'good' : 'info');
       } else if (e.k === 'streak') {
         const name = e.id === me ? 'Você' : (who.get(e.id) ?? '?');
         // uma voz por lote de eventos: o Quebra-combo vem primeiro, depois o multi e por último a Matança
@@ -287,7 +305,10 @@ function startRoom(code: string, name: string) {
         banner(e.id === me ? '👼 A Égide te tirou da lava!' : `👼 A Égide tirou ${who.get(e.id) ?? '?'} da lava`, e.id === me ? 'good' : '');
       }
       else if (e.k === 'death') {
-        sound.play('death');
+        // fora da pedra: mergulho na lava (chiado e bolhas) em vez da explosão
+        const snap = interp.latest();
+        const w = snap?.wizards.find((z) => z.id === e.id);
+        sound.play(w && snap && Math.hypot(w.pos.x, w.pos.y) > snap.arenaR - 0.3 ? 'splash' : 'death', w ? near(w.pos.x, w.pos.y) : 1);
         const dead = who.get(e.id) ?? '?';
         if (e.by) banner(e.by === me ? `Você derrubou ${dead}!` : e.id === me ? `${who.get(e.by)} te derrubou!` : `${who.get(e.by)} derrubou ${dead}!`, e.by === me ? 'good' : e.id === me ? 'bad' : '');
         else banner(e.id === me ? 'Você caiu na lava!' : `${dead} caiu na lava!`, e.id === me ? 'bad' : '');
@@ -309,13 +330,19 @@ function startRoom(code: string, name: string) {
       if (m.code === 'kicked') return screen(ui, 'Você foi removido da sala por votação', 'Não dá para voltar a esta sala. Entre em outra ou crie uma.', 'Ver salas', () => (location.hash = ''));
       if (m.code === 'other_tab') return screen(ui, 'Sala aberta em outra aba', 'Continue por lá ou recarregue esta.', 'Recarregar', () => location.reload());
       if (m.code === 'full') return screen(ui, 'Sala cheia', 'Já tem 8 magos nesta sala.', 'Ver salas', () => (location.hash = ''));
-      return toast(m.msg);
+      sound.play('error');
+      return toast(m.msg, 'bad');
     }
     if (m.t === 'room') {
       const prev = room;
       room = m.room;
       me = m.you;
       view.update(room, me, online);
+      // compra na loja: o ouro caiu → som de moedas
+      if (prev?.phase === 'shop' && room.phase === 'shop') {
+        const was = prev.players.find((p) => p.id === me)?.gold, now = room.players.find((p) => p.id === me)?.gold;
+        if (was !== undefined && now !== undefined && now < was) sound.play('buy');
+      }
       scene.preload(room.players.map((p) => p.character));
       if (room.phase !== lastPhase) onPhase(prev);
       lastPhase = room.phase;
@@ -345,6 +372,7 @@ function startRoom(code: string, name: string) {
     // na contagem o servidor ainda não aceita comandos: liberar só quando a rodada começa
     input.setEnabled(room.phase === 'playing');
     sound.setAmbience(room.phase !== 'lobby' && room.phase !== 'end');
+    sound.duck(room.phase === 'shop');
     if (room.phase === 'countdown') {
       live = {};
       view.live(live);
@@ -361,11 +389,19 @@ function startRoom(code: string, name: string) {
     } else if (room.phase === 'roundEnd') {
       const w = room.players.find((p) => p.id === room!.lastRoundWinner);
       const myTeam = room.players.find((p) => p.id === me)?.team;
-      if (room.mode === 'teams' && w && w.team !== null) banner(w.team === myTeam ? `Seu time (${TEAM_NAMES[w.team]}) venceu a rodada!` : `Time ${TEAM_NAMES[w.team]} venceu a rodada!`, w.team === myTeam ? 'good' : '');
+      // vencedor (ou o time dele) vê a faixa VITÓRIA com confete e ouve o arpejo; quem jogou e perdeu ouve o arpejo descendo
+      const won = !!w && (room.mode === 'teams' && w.team !== null ? w.team === myTeam : w.id === me);
+      if (w && room.players.some((p) => p.id === me)) sound.play(won ? 'winRound' : 'loseRound');
+      if (won) banner(room.mode === 'teams' && w!.team !== null ? `Vitória do time ${TEAM_NAMES[w!.team]}!` : room.mode === 'deathmatch' ? 'Vitória! Mais abates' : 'Vitória!', 'win');
+      else if (room.mode === 'teams' && w && w.team !== null) banner(`Time ${TEAM_NAMES[w.team]} venceu a rodada!`);
       else banner(!w ? (room.mode === 'deathmatch' ? 'Fim da rodada' : 'Ninguém sobrou!') : room.mode === 'deathmatch' ? (w.id === me ? 'Você fez mais abates!' : `${w.name} fez mais abates!`) : w.id === me ? 'Você venceu a rodada!' : `${w.name} venceu a rodada!`, w?.id === me ? 'good' : '');
     } else if (room.phase === 'end' && prev) {
       const w = room.players.find((p) => p.id === room!.winner);
-      banner(room.mode === 'teams' && w ? winTitle(room).replace('🏆 ', '') : !w ? 'Partida encerrada' : w.id === me ? 'Você venceu a partida!' : `${w.name} venceu!`, 'good');
+      const myTeam = room.players.find((p) => p.id === me)?.team;
+      const won = !!w && (room.winnerTeam !== null ? myTeam === room.winnerTeam : w.id === me);
+      if (w) sound.play(won ? 'winRound' : 'loseRound');
+      if (won) banner('Vitória na partida!', 'win');
+      else banner(room.mode === 'teams' && w ? winTitle(room).replace('🏆 ', '') : !w ? 'Partida encerrada' : `${w.name} venceu!`, 'good');
     }
   }
 
@@ -419,4 +455,5 @@ function startRoom(code: string, name: string) {
   void scene.ready.then(() => requestAnimationFrame(frame), () => toast('Não deu para carregar o mago. Recarregue a página.'));
 }
 
+startPad(toast);
 void main();

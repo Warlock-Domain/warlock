@@ -1,11 +1,14 @@
 // Sons: arquivos gravados (CC0, public/sfx, créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
 // sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
-export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'reflect' | 'death' | 'shrink' | 'beep' | 'go' | 'click';
+export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
+  | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready';
 
 const FILES: Partial<Record<SoundKind, string[]>> = {
   fireball: ['fireball'], lightning: ['lightning'], homing: ['homing'], shield: ['shield'], teleport: ['teleport'],
-  hit: ['hit', 'explode'], reflect: ['shield'], death: ['explode'], click: ['click'], go: ['confirm'],
+  hit: ['hit', 'explode'], hitLight: ['hit'], hitHeavy: ['hit', 'explode'], reflect: ['shield'], death: ['explode'], click: ['click'], go: ['confirm'],
 };
+// golpe fraco mais agudo, golpe forte mais grave
+const RATE: Partial<Record<SoundKind, number>> = { hitLight: 1.25, hitHeavy: 0.78 };
 
 // volumes de 0 a 1, separados para efeitos e música
 export function createSound(volumes: () => { sfx: number; music: number }) {
@@ -18,6 +21,7 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
   music.volume = 0.3;
   let lava: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
   let wantAmbience = false;
+  let duck = 1; // na loja a música abaixa um pouco
 
   async function load(name: string) {
     try {
@@ -56,7 +60,7 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
   function syncAmbience() {
     const vol = volumes();
     if (master) master.gain.value = 0.6 * vol.sfx;
-    music.volume = Math.min(1, 0.35 * vol.music);
+    music.volume = Math.min(1, 0.35 * vol.music * duck);
     const on = wantAmbience && !!ctx && ctx.state === 'running';
     if (on && vol.music > 0) void music.play().catch(() => {});
     else music.pause();
@@ -76,12 +80,12 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
     }
   }
 
-  function file(name: string, volume: number) {
+  function file(name: string, volume: number, rate = 1) {
     const buf = buffers.get(name);
     if (!buf) return false;
     const src = ctx!.createBufferSource();
     src.buffer = buf;
-    src.playbackRate.value = 0.94 + Math.random() * 0.12; // variação leve para não cansar
+    src.playbackRate.value = rate * (0.94 + Math.random() * 0.12); // variação leve para não cansar
     const g = ctx!.createGain();
     g.gain.value = volume;
     src.connect(g).connect(master!);
@@ -139,7 +143,10 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
       if (!ctx || !noise || volumes().sfx === 0 || ctx.state !== 'running') return;
       const v = Math.max(0.05, Math.min(1, volume));
       const names = FILES[kind];
-      if (names && names.map((n) => file(n, v * 0.8)).some(Boolean)) return;
+      const played = !!names && names.map((n) => file(n, v * (kind === 'hitLight' ? 0.6 : 0.8), RATE[kind])).some(Boolean);
+      // camada sintetizada por cima do arquivo: o baque grave do golpe forte
+      if (kind === 'hitHeavy') tone('sine', 110, 36, 0.4, 0.5 * v);
+      if (played) return;
       switch (kind) {
         case 'fireball': hiss('lowpass', 2400, 300, 0.45, 0.5 * v); tone('sawtooth', 160, 60, 0.3, 0.08 * v); break;
         case 'lightning': hiss('highpass', 3000, 800, 0.25, 0.7 * v); tone('square', 900, 120, 0.18, 0.08 * v); break;
@@ -153,7 +160,24 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
         case 'beep': tone('square', 660, 660, 0.12, 0.08 * v); break;
         case 'go': tone('square', 990, 990, 0.3, 0.1 * v); break;
         case 'click': tone('triangle', 900, 700, 0.05, 0.05 * v); break;
+        case 'hitLight': hiss('lowpass', 1400, 300, 0.18, 0.6 * v); tone('sine', 200, 90, 0.15, 0.2 * v); break;
+        case 'hitHeavy': hiss('lowpass', 700, 80, 0.45, 1 * v); break;
+        // mergulho na lava: chiado agudo longo e duas bolhas graves
+        case 'splash': hiss('highpass', 5000, 1200, 0.9, 0.3 * v); hiss('lowpass', 600, 90, 0.6, 0.6 * v); tone('sine', 230, 70, 0.22, 0.25 * v, 0.08); tone('sine', 170, 55, 0.25, 0.2 * v, 0.32); break;
+        // arpejo maior subindo (vitória) e menor descendo (derrota)
+        case 'winRound': [523, 659, 784, 1047].forEach((f, i) => tone('triangle', f, f, 0.32, 0.14 * v, i * 0.09)); break;
+        case 'loseRound': [392, 311, 262].forEach((f, i) => tone('triangle', f, f * 0.98, 0.35, 0.11 * v, i * 0.14)); break;
+        // moedas: dois tilintares agudos
+        case 'buy': tone('sine', 1320, 1320, 0.09, 0.12 * v); tone('sine', 1980, 1980, 0.16, 0.1 * v, 0.06); break;
+        case 'error': tone('square', 170, 120, 0.18, 0.06 * v); tone('square', 150, 110, 0.18, 0.05 * v, 0.12); break;
+        // recarga pronta: plim suave
+        case 'ready': tone('sine', 880, 1320, 0.12, 0.05 * v); break;
       }
+    },
+    // na loja a música fica a 45%
+    duck(on: boolean) {
+      duck = on ? 0.45 : 1;
+      syncAmbience();
     },
   };
 }
