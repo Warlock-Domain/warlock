@@ -225,5 +225,5 @@ describe('bots usam tudo', () => {
     botConfig.planner = null;
     expect(m.phase).toBe('end');
     expect(used.size).toBeGreaterThanOrEqual(6);
-  });
+  }, 30_000); // partida inteira com bots que planejam caminho: passa de 5 s com o processador ocupado
 });

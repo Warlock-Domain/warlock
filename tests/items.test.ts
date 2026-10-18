@@ -138,6 +138,15 @@ describe('itens ativos', () => {
     expect(w.wizards[0].itemCd.redirector).toBeGreaterThan(w.t);
   });
 
+  it('a chest swallowed by the lava breaks on its own and the gold lands on the stone', () => {
+    const w = world([[0, 0]], [{}]);
+    w.pillars = [{ pos: v(w.arenaR + 0.3, 0), hp: 1, alive: true, kind: 'chest' }];
+    stepWorld(w, []);
+    expect(w.pillars[0].alive).toBe(false);
+    expect(w.loots).toHaveLength(1);
+    expect(len(w.loots[0].pos)).toBeLessThan(w.arenaR);
+  });
+
   it('scourge destroys enemy projectiles in the blast', () => {
     // a bola de fogo chega na área no meio do preparo de 0,5 s
     const w = world([[0, 0], [5.5, 0]], [{ scourge: 1 }]);
@@ -305,9 +314,9 @@ describe('itens novos (18/10)', () => {
     return out;
   };
 
-  it('lava boots cut lava damage by 25% and 40%, but not the knockback the lava builds up', () => {
+  it('lava boots cut lava damage by 18% and 30%, but not the knockback the lava builds up', () => {
     const built: number[] = [];
-    for (const [lvl, cut] of [[0, 0], [1, 0.25], [2, 0.4]]) {
+    for (const [lvl, cut] of [[0, 0], [1, 0.18], [2, 0.3]]) {
       const w = world([[0, 0]], [{ lava_boots: lvl }]);
       w.wizards[0].pos = v(w.arenaR + 1, 0);
       steps(w, 60);

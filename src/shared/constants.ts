@@ -36,15 +36,16 @@ export const PILLAR = { r: 0.5, hp: 400, spread: 1000 * UNIT, blastR: 300 * UNIT
 // rocha grande que não quebra, árvore morta frágil e altar de velas que explode em fogo. weight = chance relativa no sorteio
 export type ObstacleKind = 'pillar' | 'rock' | 'tree' | 'shrine' | 'chest' | 'rockpillar';
 export const OBSTACLE_KINDS: ObstacleKind[] = ['pillar', 'rock', 'tree', 'shrine', 'chest', 'rockpillar'];
+// vida pela metade em 18/10 (pedido do Fernando: obstáculos com menos vida)
 export const OBSTACLES: Record<ObstacleKind, { r: number; hp: number; blastR: number; blastDmg: number; weight: number }> = {
-  pillar: { r: 0.5, hp: 400, blastR: 300 * UNIT, blastDmg: 10, weight: 4 },
+  pillar: { r: 0.5, hp: 200, blastR: 300 * UNIT, blastDmg: 10, weight: 4 },
   rock: { r: 0.85, hp: Infinity, blastR: 0, blastDmg: 0, weight: 2 },
-  tree: { r: 0.35, hp: 150, blastR: 0, blastDmg: 0, weight: 2 },
-  shrine: { r: 0.45, hp: 100, blastR: 1.6, blastDmg: 60, weight: 1 },
-  chest: { r: 0.4, hp: 250, blastR: 0, blastDmg: 0, weight: 0 }, // baú de ouro: não sai no sorteio, aparece no meio da rodada
+  tree: { r: 0.35, hp: 75, blastR: 0, blastDmg: 0, weight: 2 },
+  shrine: { r: 0.45, hp: 50, blastR: 1.6, blastDmg: 60, weight: 1 },
+  chest: { r: 0.4, hp: 1, blastR: 0, blastDmg: 0, weight: 0 }, // baú de ouro: não sai no sorteio, aparece no meio da rodada; abre com 1 golpe (Fernando, 18/10)
   // Pilar de pedra (magia): obstáculo comum do original (400 de vida, explode igual ao pilar) com raio 90 u, 1,5× o pilar
   // de 60 u; aqui 1,5× o nosso pilar, que já é maior que o original. Some sozinho (Pillar.until)
-  rockpillar: { r: 0.75, hp: 400, blastR: 300 * UNIT, blastDmg: 10, weight: 0 },
+  rockpillar: { r: 0.75, hp: 200, blastR: 300 * UNIT, blastDmg: 10, weight: 0 },
 };
 
 export const MAX_PLAYERS = 8;

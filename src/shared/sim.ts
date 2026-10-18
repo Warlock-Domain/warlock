@@ -482,7 +482,8 @@ function damagePillar(w: World, i: number, dmg: number, by: string | null) {
   if (p.hp > 0) return;
   p.alive = false;
   const o = OBSTACLES[p.kind];
-  if (p.kind === 'chest') w.loots.push({ pos: p.pos, left: CHEST.pile, until: w.t + CHEST.pileSecs });
+  // o ouro cai na pedra: baú que a lava pegou espalha o monte na beira de dentro
+  if (p.kind === 'chest') w.loots.push({ pos: safeInside(w, p.pos, 0.6), left: CHEST.pile, until: w.t + CHEST.pileSecs });
   if (o.blastR > 0) area(w, p.pos, o.blastR, o.blastDmg, 1, by, true, 'pillar');
   else w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pillar', r: o.r * 1.5 });
 }
@@ -496,6 +497,11 @@ function blockPillars(w: World) {
       w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pillar', r: OBSTACLES[p.kind].r * 1.5 });
     }
     if (!p.alive) continue;
+    // baú na lava quebra sozinho (Fernando, 18/10)
+    if (p.kind === 'chest' && edge(w, p.pos) < 0) {
+      damagePillar(w, w.pillars.indexOf(p), p.hp, null);
+      continue;
+    }
     for (const wz of w.wizards) {
       if (!wz.alive) continue;
       const d = sub(wz.pos, p.pos);
