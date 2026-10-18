@@ -1,38 +1,41 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
-import { ITEMS, PACT, REDIRECTOR, SCOURGE, type ItemId } from '../shared/items.ts';
+import { AEGIS, ITEMS, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, type ItemId } from '../shared/items.ts';
+import { LAVA_DPS } from '../shared/constants.ts';
 import { labelOf } from './keys.ts';
 import { MAX_SPELL_LEVEL, RECHARGE, RUSH, SPELLS, type Level, type SpellId } from '../shared/spells.ts';
+import { RULES_SHORT } from './rules-text.ts';
 
 const n1 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const m = (x: number) => `${n1(x)} m`;
 const s = (x: number) => `${n1(x)} s`;
 
 type Row = [label: string, value: (l: Level) => string];
-const SPELL_ROWS: Record<SpellId, Row[]> = {
+// todo campo do nível que muda o jogo tem uma linha (o teste confere)
+export const SPELL_ROWS: Record<SpellId, Row[]> = {
   fireball: [['Dano', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   lightning: [['Dano', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   homing: [['Dano', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Tempo de voo', (l) => s(l.duration)]],
-  shield: [['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)]],
+  shield: [['Duração', (l) => s(l.duration)], ['Raio da bolha', (l) => m(l.radius)], ['Recarga', (l) => s(l.cd)]],
   teleport: [['Alcance', (l) => m(l.range)], ['Recarga', (l) => s(l.cd)]],
   swap: [['Alcance', (l) => m(l.range)], ['Recarga', (l) => s(l.cd)]],
   grip: [['Tempo preso', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
-  meteor: [['Dano no centro', (l) => n1(l.dmg)], ['Dano na borda', (l) => n1(l.dmgMin)], ['Raio', (l) => m(l.radius)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  meteor: [['Dano no centro', (l) => n1(l.dmg)], ['Dano na borda', (l) => n1(l.dmgMin)], ['Empurrão no centro', (l) => m(l.knock / 1.166)], ['Raio', (l) => m(l.radius)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   rush: [['Avanço', () => m(RUSH.dash)], ['Duração', (l) => s(l.duration)], ['Dano absorvido', (l) => n1(l.absorb)], ['Recarga', (l) => s(l.cd)]],
-  cluster: [['Dano por projétil', (l) => n1(l.dmg)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  cluster: [['Dano por projétil', (l) => n1(l.dmg)], ['Empurrão por projétil', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   boomerang: [['Dano', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   thrust: [['Dano máximo', (l) => n1(l.dmg)], ['Empurrão máximo', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
-  gravity: [['Dano por segundo', (l) => n1(l.dmg)], ['Puxão', (l) => `${n1(l.pull)} m/s²`], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  gravity: [['Dano por segundo', (l) => n1(l.dmg)], ['Puxão', (l) => `${n1(l.pull)} m/s²`], ['Raio', (l) => m(l.radius)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   rockpillar: [['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   bouncer: [['Dano no 1º', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance por salto', (l) => m(l.range)]],
-  drain: [['Dano e cura', (l) => n1(l.dmg)], ['Lentidão ou pressa', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance até virar', (l) => m(l.range)]],
-  snowball: [['Dano por segundo encostado', (l) => n1(l.dot)], ['Explosão no centro', (l) => n1(l.dmg)], ['Raio', (l) => m(l.radius)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  drain: [['Dano e cura', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Lentidão ou pressa', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance até virar', (l) => m(l.range)]],
+  snowball: [['Dano por segundo encostado', (l) => n1(l.dot)], ['Explosão no centro', (l) => n1(l.dmg)], ['Empurrão da explosão', (l) => m(l.knock / 1.166)], ['Raio', (l) => m(l.radius)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   twin: [['Dano de cada', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   magnetize: [['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
-  recharge: [['Dano', (l) => n1(l.dmg)], ['Por acerto seguido', () => '+' + n1(RECHARGE.perHit)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  recharge: [['Dano', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Por acerto seguido', () => '+' + n1(RECHARGE.perHit)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   alteration: [['Duração', (l) => s(l.duration)], ['Raio', (l) => m(l.radius)], ['Recarga', (l) => s(l.cd)]],
-  link: [['Dano por segundo', (l) => n1(l.dmg)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  link: [['Dano por segundo', (l) => n1(l.dmg)], ['Puxão', (l) => `${n1(l.pull)} m/s²`], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   windwalk: [['Dano', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)]],
-  splitter: [['Dano por filhote (8)', (l) => n1(l.dmg)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  splitter: [['Dano por filhote (8)', (l) => n1(l.dmg)], ['Empurrão por filhote', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   warpzone: [['Tempo dos projéteis', (l) => `${n1(l.scale * 100)}%`], ['Raio', (l) => m(l.radius)], ['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
 };
 
@@ -47,10 +50,10 @@ export function spellTip(id: SpellId, level: number): string {
   const head = `<b>${sp.name}</b> <span class="k">${labelOf(id)}</span><br><small>${level ? `Nível ${level} de ${MAX_SPELL_LEVEL}` : 'Ainda não comprada · preço ' + sp.cost}</small>`;
   const rows = SPELL_ROWS[id].map(([k, f]): [string, string, string | null] => [k, f(cur), next ? f(next) : null]);
   const foot = next ? `<small class="up">Próximo nível (${sp.up[level - 1]} de ouro): o que está à direita</small>` : level >= MAX_SPELL_LEVEL ? '<small>Nível máximo</small>' : '';
-  return `${head}${table(rows)}${foot}<small class="muted">Empurrão: distância que um mago sem dano acumulado desliza.</small>`;
+  return `${head}<p>${RULES_SHORT[id]}</p>${table(rows)}${foot}<small class="muted">Empurrão: distância que um mago sem dano acumulado desliza.</small>`;
 }
 
-const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string][]>> = {
+export const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string][]>> = {
   ring: (l) => [['Vida máxima', '+' + n1(ITEMS.ring.levels[l].hp!)]],
   cursed_ring: (l) => [['Vida máxima', '+' + n1(ITEMS.cursed_ring.levels[l].hp!)], ['Empurrão recebido', `−${n1(ITEMS.cursed_ring.levels[l].kb! * 100)}%`], ['Lentidões', `+${n1(ITEMS.cursed_ring.levels[l].debuff! * 100)}% de duração`]],
   cape: (l) => [['Vida por segundo', '+' + n1(ITEMS.cape.levels[l].regen!)]],
@@ -61,6 +64,11 @@ const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string][]>> = 
   scourge: (l) => [['Dano em volta', n1(SCOURGE.dmg[l])], ['Raio', m(SCOURGE.radius)], ['Preparo', s(SCOURGE.windup)], ['Recarga', s(SCOURGE.cd)]],
   redirector: () => [['Recarga', s(REDIRECTOR.cd)], ['Penalidade', `+${REDIRECTOR.kbPenalty * 100}% de empurrão por ${s(REDIRECTOR.penaltyTime)}`]],
   pact: () => [['Próxima magia de dano', `${n1(PACT.mult)}× dano e empurrão`], ['Janela', s(PACT.window)], ['Recarga', s(PACT.cd)]],
+  lava_boots: (l) => [['Dano da lava', `−${n1(ITEMS.lava_boots.levels[l].lava! * 100)}% (${n1(LAVA_DPS * (1 - ITEMS.lava_boots.levels[l].lava!))} por segundo)`]],
+  warden: (l) => [['Dano por golpe', `−${n1(ITEMS.warden.levels[l].ward!)} (no máximo metade do golpe)`], ['Empurrão recebido', `+${n1(-ITEMS.warden.levels[l].kb! * 100)}%`]],
+  helmet: () => [['Empurrão recebido', `−${n1(ITEMS.helmet.levels[0].kb! * 100)}%`], ['Alcance das magias', `−${n1(-ITEMS.helmet.levels[0].range! * 100)}%`]],
+  shock_boots: () => [['Ao levar um golpe', `+${n1(SHOCK_BOOTS.speed * 100)} cm/s por ${s(SHOCK_BOOTS.secs)}`], ['Com Botas', 'vale a maior velocidade, não soma']],
+  aegis: () => [['Quando', `na lava com ${AEGIS.hp} de vida ou menos`], ['Efeito', `volta parado para ${n1(AEGIS.back * 100)}% do raio da arena`], ['Usos', '1 por rodada (por vida no Deathmatch)']],
 };
 
 export function itemTip(id: ItemId, level: number): string {

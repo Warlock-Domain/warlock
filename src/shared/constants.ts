@@ -82,3 +82,14 @@ export const DM_SPAWN_GAP = 2; // ao voltar, pelo menos 2 m de inimigos vivos e 
 export const COUNTDOWN_MS = 3_000;
 export const ROUND_END_MS = 2_500;
 export const VOTE_MS = 20_000; // votação na partida (trocar o modo, expulsar alguém) fecha em 20 s; pedido do Fernando (17/10)
+// mecânicas novas de 18/10 (o Fernando liberou "novas mecânicas legais"):
+// morte súbita nas Rodadas e nos Times: passados 90 s, a arena encolhe a cada 5 s em vez de 10 (as rodadas duram ~97 s na simulação)
+export const SUDDEN = { at: 90, every: 5 };
+// runas: uma por vez num ponto livre, a primeira aos 15 s e a próxima 20 s depois de alguém pegar (ou de a lava engolir);
+// quem pega ganha 8 s de Pressa (+40% de velocidade), Fúria (+30% de dano), Escudo de runa (absorve 10 de dano) ou Recarga (zera as recargas na hora)
+export type RuneKind = 'haste' | 'fury' | 'shield' | 'recharge';
+export const RUNE_KINDS: RuneKind[] = ['haste', 'fury', 'shield', 'recharge'];
+export const RUNE = { first: 15, every: 20, secs: 8, reach: 0.6, spread: 0.6, haste: 0.4, fury: 0.3, shield: 10 };
+// sequências de abate (anúncio estilo Dota): abates com até 4 s entre eles; Matança e cia. contam abates sem morrer (atravessam as rodadas);
+// quem derruba alguém com 3 ou mais abates seguidos ganha o Quebra-combo
+export const STREAK = { window: 4, spree: [3, 5, 7, 10], breakAt: 3, breakGold: 3 };

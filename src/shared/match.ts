@@ -7,7 +7,7 @@ import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
 const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
 import {
-  ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN,
+  ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD,
 } from './constants.ts';
 import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.ts';
 import { MAX_SPELLS, SPELL_IDS, noSpells, priceOf, spellCount, type SpellId } from './spells.ts';
@@ -24,9 +24,12 @@ function addStat(p: Player, f: (s: Stat) => void) {
   f(p.stats.match);
   f(p.stats.room);
 }
-function earn(p: Player, gold: number) {
-  p.gold += gold;
-  addStat(p, (s) => (s.gold += gold));
+// toda renda passa por aqui e é multiplicada pela economia da sala (scaled = false: o valor já vem na escala dela); devolve o ganho
+function earn(m: Match, p: Player, gold: number, scaled = true): number {
+  const n = scaled ? Math.round(gold * m.opts.economy) : gold;
+  p.gold += n;
+  addStat(p, (s) => (s.gold += n));
+  return n;
 }
 
 // rounds: último vivo ganha a rodada; deathmatch: rodadas de 60 s, quem morre volta e cada abate vale 1 ponto;
@@ -34,9 +37,41 @@ function earn(p: Player, gold: number) {
 export const MODES = ['rounds', 'deathmatch', 'teams'] as const;
 export type Mode = (typeof MODES)[number];
 export type Phase = 'lobby' | 'shop' | 'countdown' | 'playing' | 'roundEnd' | 'end';
-// votação na partida: trocar o modo (target = modo novo), expulsar um humano (target = id dele)
-// ou trocar o sorteio dos times (target = 'round' sorteados a cada rodada, 'match' fixos na partida)
-export type Vote = { kind: 'mode' | 'kick' | 'shuffle'; target: string; by: string; yes: string[]; no: string[]; ends: number };
+// votação na partida: trocar o modo (target = modo novo), expulsar um humano (target = id dele),
+// trocar o sorteio dos times (target = 'round' sorteados a cada rodada, 'match' fixos na partida),
+// mudar uma opção da partida (target = 'chave:valor', ex.: 'shop:60', 'runes:false'; vale na próxima rodada),
+// reiniciar, encerrar agora, pôr ou tirar um bot (na próxima rodada) e pular a loja (target vazio)
+export const VOTE_KINDS = ['mode', 'kick', 'shuffle', 'opt', 'restart', 'end', 'addBot', 'removeBot', 'skipShop'] as const;
+export type Vote = { kind: (typeof VOTE_KINDS)[number]; target: string; by: string; yes: string[]; no: string[]; ends: number };
+
+// opções da partida (pedido do Fernando, 18/10: "o jogo fluir com mais itens ou menos por rodada"), escolhidas na sala de espera
+// por quem começa a partida: segundos de loja, ritmo da contagem e do fim de rodada, multiplicador de toda renda de ouro,
+// ouro inicial (também multiplicado) e rodadas para vencer (no Deathmatch vira DM_GOALS abates)
+export const OPTION_CHOICES = {
+  shop: [30, 45, 60, 90, 120], // a loja ainda acaba antes quando todos clicam Pronto
+  pace: ['short', 'normal', 'long'],
+  economy: [0.6, 1, 1.6, 2.5],
+  startGold: [30, 60, 100],
+  goal: [3, 5, 7],
+  // mecânicas que dá para desligar: runas, morte súbita e baús de ouro
+  runes: [true, false],
+  sudden: [true, false],
+  chests: [true, false],
+} as const;
+export type MatchOpts = { [K in keyof typeof OPTION_CHOICES]: (typeof OPTION_CHOICES)[K][number] };
+// os padrões são os números de sempre (SHOP_MS, START_GOLD, WINS_TO_WIN), para o simulador e as salas antigas
+export const DEFAULT_OPTS: MatchOpts = { shop: 30, pace: 'normal', economy: 1, startGold: 30, goal: 5, runes: true, sudden: true, chests: true };
+// 'chave:valor' de um voto de opção → [chave, valor] válidos, ou null
+export function parseOpt(target: string): [keyof MatchOpts, MatchOpts[keyof MatchOpts]] | null {
+  const [k, raw] = target.split(':');
+  if (!(k in OPTION_CHOICES) || raw === undefined) return null;
+  const val = (OPTION_CHOICES[k as keyof MatchOpts] as readonly (string | number | boolean)[]).find((c) => String(c) === raw);
+  return val === undefined ? null : [k as keyof MatchOpts, val as MatchOpts[keyof MatchOpts]];
+}
+export const PACE = { short: 0.6, normal: 1, long: 1.6 }; // multiplica COUNTDOWN_MS e ROUND_END_MS
+export const DM_GOALS = { 3: 10, 5: 15, 7: 25 }; // 15 = DM_KILLS_TO_WIN
+export const goalOf = (m: Pick<Match, 'mode' | 'opts'>) => (m.mode === 'deathmatch' ? DM_GOALS[m.opts.goal] : m.opts.goal);
+const startGold = (m: Match) => Math.round(m.opts.startGold * m.opts.economy);
 
 export type Player = {
   id: string;
@@ -70,16 +105,21 @@ export type Match = {
   steps: number;
   vote: Vote | null;
   dmgOn?: Record<string, Record<string, number>>; // dano de cada atacante em cada vítima desde que ela entrou viva (para a assistência)
+  // sequências de abate: kills = abates sem morrer (atravessa as rodadas), multi = abates seguidos rápidos, at = w.t do último abate
+  streaks?: Record<string, { kills: number; multi: number; at: number }>;
   pendingMode: Mode | null; // modo votado: vale quando a próxima rodada começar
   banned: string[]; // expulsos por votação não voltam a esta sala
   teamShuffle: boolean; // Times: sorteados a cada rodada (true) ou fixos na partida
   pendingShuffle: boolean | null; // sorteio votado: vale quando a próxima rodada começar
   winnerTeam: number | null; // Times fixos: o time campeão
+  opts: MatchOpts;
+  pendingOpts: Partial<MatchOpts>; // opções votadas: valem quando a próxima rodada começar
+  botDelta: number; // bots votados para entrar (+) ou sair (−) quando a próxima rodada começar
 };
 
 export const newMatch = (): Match => ({
   phase: 'lobby', mode: 'rounds', round: 0, phaseEnds: 0, players: [], world: null, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0, vote: null, pendingMode: null, banned: [],
-  teamShuffle: true, pendingShuffle: null, winnerTeam: null,
+  teamShuffle: true, pendingShuffle: null, winnerTeam: null, opts: { ...DEFAULT_OPTS }, pendingOpts: {}, botDelta: 0,
 });
 
 const BOT_NAMES = ['Gul’dan', 'Merlim', 'Morgana', 'Rasputin', 'Zatanna', 'Mandrake', 'Gandalfo'];
@@ -97,7 +137,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false): bool
   const color = [0, 1, 2, 3, 4, 5, 6, 7].find((c) => !used.has(c)) ?? 0;
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
-  m.players.push({ id, name, bot, color, character, score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null });
+  m.players.push({ id, name, bot, color, character, score: 0, gold: startGold(m), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null });
   return true;
 }
 
@@ -110,13 +150,21 @@ export function removePlayer(m: Match, id: string) {
   }
 }
 
-export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'rounds', teamShuffle = true, rand: () => number = Math.random): boolean {
+// opts: só as opções que mudam (sem elas fica o que a sala já tinha)
+export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'rounds', teamShuffle = true, rand: () => number = Math.random, opts: Partial<MatchOpts> = {}): boolean {
   if (m.phase !== 'lobby' && m.phase !== 'end') return false;
+  m.opts = { ...m.opts, ...opts };
   m.players = m.players.filter((p) => !p.bot && p.connected);
   for (let i = 0; m.players.length < MAX_PLAYERS && i < bots; i++) addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true);
   if (m.players.length < 2) return false;
+  fresh(m, now, mode, teamShuffle, rand);
+  return true;
+}
+
+// zera a partida e abre a loja da rodada 1 (começar, ou reiniciar por votação com os mesmos jogadores)
+function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: () => number) {
   for (const p of m.players) {
-    Object.assign(p, { score: 0, gold: START_GOLD, spells: noSpells(), items: startItems() });
+    Object.assign(p, { score: 0, gold: startGold(m), spells: noSpells(), items: startItems() });
     p.stats = fillStats(p.stats);
     p.bought ??= [];
     p.held = {};
@@ -124,11 +172,10 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
     p.stats.round = newStat();
     p.team = null;
   }
-  Object.assign(m, { mode, round: 0, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0, vote: null, pendingMode: null, teamShuffle, pendingShuffle: null, winnerTeam: null });
+  Object.assign(m, { streaks: {}, mode, round: 0, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0, vote: null, pendingMode: null, teamShuffle, pendingShuffle: null, winnerTeam: null, pendingOpts: {}, botDelta: 0 });
   // já sorteia na loja para cada um ver o time; com sorteio a cada rodada, a contagem sorteia de novo
   if (mode === 'teams') shuffleTeams(m, rand);
   enterShop(m, now);
-  return true;
 }
 
 export function buy(m: Match, id: string, spell: SpellId): boolean {
@@ -234,11 +281,14 @@ export function resume(m: Match, now: number) {
   m.teamShuffle ??= true;
   m.pendingShuffle ??= null;
   m.winnerTeam ??= null;
+  m.opts = { ...DEFAULT_OPTS, ...m.opts }; // salas gravadas antes das opções da partida e das votações novas
+  m.pendingOpts ??= {};
+  m.botDelta ??= 0;
   m.vote = null; // o prazo de uma votação gravada já passou
   for (const p of m.players) {
     p.character ??= 'mage';
     p.spells = { ...noSpells(), ...p.spells }; // salas gravadas antes das magias novas
-    p.items ??= noItems();
+    p.items = { ...noItems(), ...p.items }; // salas gravadas antes dos itens novos
     // salas gravadas com a maestria Roubo de vida: vira o item (sem passar do nível máximo)
     const old = (p as { masteries?: { lifesteal?: number } }).masteries?.lifesteal ?? 0;
     if (old && !p.items.vampire) p.items.vampire = Math.min(6, old);
@@ -286,7 +336,17 @@ export function startVote(m: Match, id: string, kind: Vote['kind'], target: stri
   } else if (kind === 'mode') {
     // qualquer um dos modos, menos o que já vale na próxima rodada
     if (!(MODES as readonly string[]).includes(target) || target === (m.pendingMode ?? m.mode)) return false;
-  } else target = (m.pendingShuffle ?? m.teamShuffle) ? 'match' : 'round'; // alterna o que valeria na próxima rodada
+  } else if (kind === 'shuffle') target = (m.pendingShuffle ?? m.teamShuffle) ? 'match' : 'round'; // alterna o que valeria na próxima rodada
+  else if (kind === 'opt') {
+    // uma opção, com valor diferente do que já vale na próxima rodada
+    const o = parseOpt(target);
+    if (!o || { ...m.opts, ...m.pendingOpts }[o[0]] === o[1]) return false;
+  } else {
+    if (kind === 'addBot' && m.players.length + Math.max(0, m.botDelta) >= MAX_PLAYERS) return false;
+    if (kind === 'removeBot' && m.players.filter((p) => p.bot).length + m.botDelta <= 0) return false;
+    if (kind === 'skipShop' && m.phase !== 'shop') return false;
+    target = '';
+  }
   m.vote = { kind, target, by: id, yes: [id], no: [], ends: now + VOTE_MS };
   settleVote(m, now);
   return true;
@@ -314,6 +374,22 @@ function settleVote(m: Match, now: number) {
     // voltar ao que já vale agora só cancela o pendente
     if (v.kind === 'mode') m.pendingMode = v.target === m.mode ? null : (v.target as Mode);
     else if (v.kind === 'shuffle') m.pendingShuffle = (v.target === 'round') === m.teamShuffle ? null : v.target === 'round';
+    else if (v.kind === 'opt') {
+      const [k, val] = parseOpt(v.target)!;
+      if (m.opts[k] === val) delete m.pendingOpts[k];
+      else Object.assign(m.pendingOpts, { [k]: val });
+    } else if (v.kind === 'restart') fresh(m, now, m.mode, m.teamShuffle, Math.random);
+    else if (v.kind === 'end') {
+      // vence quem tem mais pontos; empate no topo = ninguém
+      const best = Math.max(0, ...m.players.map((p) => p.score));
+      const top = m.players.filter((p) => p.score === best);
+      m.winner = best > 0 && top.length === 1 ? top[0].id : null;
+      m.winnerTeam = m.mode === 'teams' && !m.teamShuffle && best > 0 && new Set(top.map((p) => p.team)).size === 1 ? top[0].team : null;
+      m.phase = 'end';
+      m.world = null;
+    } else if (v.kind === 'addBot') m.botDelta++;
+    else if (v.kind === 'removeBot') m.botDelta--;
+    else if (v.kind === 'skipShop') m.phaseEnds = now; // a loja fecha no próximo passo
     else {
       drop(m, v.target);
       m.banned.push(v.target);
@@ -335,7 +411,7 @@ export const shouldRun = (m: Match, humansConnected: number) => humansConnected 
 function enterShop(m: Match, now: number) {
   m.phase = 'shop';
   for (const p of m.players) p.bought = [];
-  m.phaseEnds = now + SHOP_MS;
+  m.phaseEnds = now + m.opts.shop * 1000;
   m.world = null;
   for (const p of m.players) {
     p.ready = p.bot;
@@ -358,6 +434,7 @@ const teamSize = (m: Match, t: number) => m.players.filter((p) => p.team === t).
 
 function enterCountdown(m: Match, now: number, rand: () => number) {
   m.dmgOn = {};
+  for (const s of Object.values(m.streaks ?? {})) s.at = -1e9; // o relógio do mundo volta a zero: abate rápido não atravessa rodadas
   // troca de modo votada: antes de criar o mundo (que depende do modo); os pontos zeram porque as metas são outras
   if (m.pendingMode) {
     m.mode = m.pendingMode;
@@ -369,6 +446,20 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
     m.teamShuffle = m.pendingShuffle;
     m.pendingShuffle = null;
   }
+  m.opts = { ...m.opts, ...m.pendingOpts };
+  m.pendingOpts = {};
+  // bots votados (a fase ainda é a loja): o novo entra com o ouro inicial e já compra; sai o último bot da lista
+  for (; m.botDelta > 0; m.botDelta--) {
+    const n = [1, 2, 3, 4, 5, 6, 7, 8].find((k) => !m.players.some((p) => p.id === 'bot-' + k)) ?? 0;
+    if (!n || !addPlayer(m, 'bot-' + n, BOT_NAMES[(n - 1) % BOT_NAMES.length], true)) break;
+    const p = m.players[m.players.length - 1];
+    for (let b = botBuy(p); b && (b.kind === 'spell' ? buy(m, p.id, b.id) : buyItem(m, p.id, b.id)); b = botBuy(p));
+  }
+  for (; m.botDelta < 0; m.botDelta++) {
+    const bot = m.players.filter((p) => p.bot).pop();
+    if (bot) m.players = m.players.filter((p) => p !== bot);
+  }
+  m.botDelta = 0;
   if (m.mode === 'teams') {
     // a cada rodada: sorteia de novo; fixos: mantém, e quem entrou depois vai para o time menor
     if (m.teamShuffle || m.players.every((p) => p.team === null)) shuffleTeams(m, rand);
@@ -380,17 +471,17 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   for (const p of m.players) p.stats.round = newStat();
   const ids = m.players.map((p) => p.id);
   const teams = m.mode === 'teams' ? Object.fromEntries(m.players.map((p) => [p.id, p.team ?? 0])) : {};
-  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), PILLAR.min + Math.floor(Math.random() * (PILLAR.max - PILLAR.min + 1)), Math.random, m.mode === 'deathmatch', teams);
+  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), PILLAR.min + Math.floor(Math.random() * (PILLAR.max - PILLAR.min + 1)), Math.random, m.mode === 'deathmatch', teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests });
   m.phase = 'countdown';
-  m.phaseEnds = now + COUNTDOWN_MS;
+  m.phaseEnds = now + COUNTDOWN_MS * PACE[m.opts.pace];
 }
 
 // prêmio de fim de rodada: soma o ouro e sobe o "+N" em cima do mago (o mundo ainda existe até a loja)
-function bonus(m: Match, p: Player, gold: number) {
+function bonus(m: Match, p: Player, gold: number, scaled = true) {
   if (gold <= 0) return;
-  earn(p, gold);
+  const n = earn(m, p, gold, scaled);
   const z = m.world?.wizards.find((q) => q.id === p.id);
-  if (z) m.world!.events.push({ k: 'gold', id: p.id, n: gold, x: z.pos.x, y: z.pos.y });
+  if (z) m.world!.events.push({ k: 'gold', id: p.id, n, x: z.pos.x, y: z.pos.y });
 }
 
 function endRound(m: Match, now: number, winner: string | null) {
@@ -414,30 +505,31 @@ function endRound(m: Match, now: number, winner: string | null) {
   }
   const top = Math.max(0, ...m.players.filter((q) => played.has(q.id)).map((q) => q.stats.round.dmg));
   for (const q of m.players) if (top > 0 && played.has(q.id) && q.stats.round.dmg === top) bonus(m, q, TOP_DMG_GOLD);
-  for (const q of m.players) if (played.has(q.id)) earn(q, ROUND_GOLD);
+  for (const q of m.players) if (played.has(q.id)) earn(m, q, ROUND_GOLD);
   // recuperação: quem ganhou menos ouro na partida que a média recebe metade da diferença
   const inRound = m.players.filter((q) => played.has(q.id));
   const avg = inRound.reduce((sum, q) => sum + q.stats.match.gold, 0) / Math.max(1, inRound.length);
-  for (const q of inRound) bonus(m, q, Math.min(RECOVERY.max, Math.floor((avg - q.stats.match.gold) * RECOVERY.share)));
+  // o ouro da partida já está na escala da economia: só o teto é multiplicado
+  for (const q of inRound) bonus(m, q, Math.min(Math.round(RECOVERY.max * m.opts.economy), Math.floor((avg - q.stats.match.gold) * RECOVERY.share)), false);
   m.lastRoundWinner = winner;
   m.emptyRounds = winner || dm ? 0 : m.emptyRounds + 1;
   m.phase = 'roundEnd';
-  m.phaseEnds = now + ROUND_END_MS;
+  m.phaseEnds = now + ROUND_END_MS * PACE[m.opts.pace];
 }
 
-// como no original: ganha quem vencer WINS_TO_WIN rodadas primeiro
+// como no original: ganha quem vencer goalOf(m) rodadas primeiro (padrão WINS_TO_WIN)
 function afterRound(m: Match, now: number) {
   if (m.mode === 'deathmatch') {
     // a meta só vale no fim da rodada (a rodada sempre dura os 60 s); empate no topo joga mais uma rodada
     const best = Math.max(...m.players.map((p) => p.score));
     const top = m.players.filter((p) => p.score === best);
-    if (best < DM_KILLS_TO_WIN || top.length > 1) return enterShop(m, now);
+    if (best < goalOf(m) || top.length > 1) return enterShop(m, now);
     m.phase = 'end';
     m.winner = top[0].id;
     m.world = null;
     return;
   }
-  const champion = m.players.find((p) => p.score >= WINS_TO_WIN);
+  const champion = m.players.find((p) => p.score >= goalOf(m));
   // 3 rodadas seguidas sem ninguém sobrar: todo mundo parado, a partida acaba (e o laço da sala para)
   if (!champion && m.emptyRounds < EMPTY_ROUNDS_END) return enterShop(m, now);
   m.phase = 'end';
@@ -517,9 +609,9 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
     if (e.k === 'loot') {
       const p = m.players.find((q) => q.id === e.id);
       if (p) {
-        earn(p, 1);
+        const n = earn(m, p, 1);
         const z = w.wizards.find((q) => q.id === p.id);
-        w.events.push({ k: 'gold', id: p.id, n: 1, x: z?.pos.x ?? e.x, y: z?.pos.y ?? e.y });
+        w.events.push({ k: 'gold', id: p.id, n, x: z?.pos.x ?? e.x, y: z?.pos.y ?? e.y });
       }
     }
     if (e.k === 'death') {
@@ -529,10 +621,32 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
       const hp = helper && dmg >= ASSIST_MIN_DMG ? m.players.find((q) => q.id === helper) : undefined;
       const hz = hp && w.wizards.find((z) => z.id === hp.id);
       if (hp) {
-        earn(hp, ASSIST_GOLD);
-        if (hz) w.events.push({ k: 'gold', id: hp.id, n: ASSIST_GOLD, x: hz.pos.x, y: hz.pos.y });
+        const n = earn(m, hp, ASSIST_GOLD);
+        if (hz) w.events.push({ k: 'gold', id: hp.id, n, x: hz.pos.x, y: hz.pos.y });
       }
       if (m.dmgOn) delete m.dmgOn[e.id];
+    }
+    if (e.k === 'death') {
+      // sequências de abate: qualquer morte (até na lava) zera a de quem morreu
+      const sk = (m.streaks ??= {});
+      const broken = sk[e.id]?.kills ?? 0;
+      if (sk[e.id]) sk[e.id].kills = 0;
+      const killer = e.by && e.by !== e.id ? m.players.find((p) => p.id === e.by) : undefined;
+      if (killer) {
+        const s = (sk[killer.id] ??= { kills: 0, multi: 0, at: -1e9 });
+        s.multi = w.t - s.at <= STREAK.window ? s.multi + 1 : 1;
+        s.at = w.t;
+        s.kills++;
+        // Quebra-combo primeiro: o cliente toca uma voz só por vez
+        if (broken >= STREAK.breakAt) {
+          const n = earn(m, killer, STREAK.breakGold);
+          const kz = w.wizards.find((z) => z.id === killer.id);
+          w.events.push({ k: 'streak', id: killer.id, kind: 'breaker', n: broken, victim: e.id });
+          if (kz) w.events.push({ k: 'gold', id: killer.id, n, x: kz.pos.x, y: kz.pos.y });
+        }
+        if (s.multi >= 2) w.events.push({ k: 'streak', id: killer.id, kind: 'multi', n: s.multi });
+        if (STREAK.spree.includes(s.kills)) w.events.push({ k: 'streak', id: killer.id, kind: 'spree', n: s.kills });
+      }
     }
     if (e.k === 'death' && e.by && e.by !== e.id) {
       // nas rodadas o abate não vale ponto (como no original), só ouro; no deathmatch vale 1 ponto
@@ -546,9 +660,9 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
       const head = victim && m.mode !== 'deathmatch' && victim.score === top ? Math.min(BOUNTY.max, Math.round(BOUNTY.perWin * (victim.score - avgScore))) : 0;
       const prize = KILL_GOLD + Math.max(0, head);
       if (killer && prize) {
-        earn(killer, prize);
+        const n = earn(m, killer, prize);
         const kz = w.wizards.find((z) => z.id === killer.id);
-        if (kz) w.events.push({ k: 'gold', id: killer.id, n: prize, x: kz.pos.x, y: kz.pos.y });
+        if (kz) w.events.push({ k: 'gold', id: killer.id, n, x: kz.pos.x, y: kz.pos.y });
       }
     }
   }

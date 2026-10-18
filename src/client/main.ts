@@ -1,4 +1,4 @@
-import { HP_MAX, SHRINK_EVERY, STUN_SPEED } from '../shared/constants.ts';
+import { ARENA_MIN, HP_MAX, SHRINK_EVERY, STUN_SPEED, type RuneKind } from '../shared/constants.ts';
 import { isCharacter } from '../shared/characters.ts';
 import type { PublicRoom, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { SimEvent } from '../shared/sim.ts';
@@ -67,8 +67,9 @@ async function main() {
 function startLobby(name: string) {
   document.body.className = 'in-lobby';
   let rooms: RoomInfo[] | null = null;
+  let offline = false;
   const draw = () =>
-    renderLobby(ui, name, rooms, create, async () => {
+    renderLobby(ui, name, rooms, offline, create, async () => {
       name = await askName(document.body, name);
       store.set(NAME, name);
       draw();
@@ -86,7 +87,12 @@ function startLobby(name: string) {
     if (m.t !== 'rooms') return;
     rooms = (m.rooms as RoomInfo[]).sort((a, b) => Number(b.phase === 'lobby') - Number(a.phase === 'lobby'));
     draw();
-  }, () => {});
+  }, () => {}, (on) => {
+    // sem a conexão da lista, o lobby mostra o erro em vez de "Carregando salas…" para sempre
+    if (offline === !on) return;
+    offline = !on;
+    draw();
+  });
   draw();
 }
 
@@ -112,7 +118,7 @@ function startRoom(code: string, name: string) {
   let follow = true;
 
   const view = createRoomUi(ui, code, {
-    start: (bots, mode, shuffle) => net.send({ t: 'start', bots, mode, shuffle }),
+    start: (bots, mode, shuffle, opts) => net.send({ t: 'start', bots, mode, shuffle, opts }),
     buy: (spell) => net.send({ t: 'buy', spell }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),
     kick: (target) => net.send({ t: 'kick', target }),
@@ -213,12 +219,18 @@ function startRoom(code: string, name: string) {
     return new Map(room?.players.map((p) => [p.id, p.name]) ?? []);
   }
 
+  const RUNE_TEXT: Record<RuneKind, string> = { haste: '🏃 Runa da Pressa', fury: '😡 Runa da Fúria', shield: '🔰 Runa do Escudo', recharge: '🔋 Runa da Recarga' };
+  const MULTI_TEXT = ['', '', 'Double kill!', 'Multi kill!', 'ULTRA KILL!'];
+  const SPREE_TEXT: Record<number, string> = { 3: 'Matança', 5: 'Fúria assassina', 7: 'sequência Imparável', 10: 'sequência Lendária' };
   let live: Record<string, { dmg: number; kills: number }> = {};
   function onEvents(events: SimEvent[]) {
     const pos = myWizard(interp.latest())?.pos;
     const near = (x: number, y: number) => (pos ? Math.max(0.25, 1 - dist(pos, { x, y }) / 20) : 0.6);
     const who = names();
     let liveChanged = false;
+    let shout = '';
+    let voice: string | undefined;
+    const notes: string[] = [];
     for (const e of events) {
       // dano e abates da rodada ao vivo na lista do canto
       if (e.k === 'hit' && e.by !== e.id && e.dmg > 0) {
@@ -241,6 +253,33 @@ function startRoom(code: string, name: string) {
       else if (e.k === 'shrink') sound.play('shrink');
       else if (e.k === 'chest') toast('💰 Baú de ouro na arena! Quebre e fique em cima do ouro');
       else if (e.k === 'loot') sound.play('go', near(e.x, e.y));
+      else if (e.k === 'sudden') {
+        sound.play('shrink');
+        banner('⏰ Morte súbita! A arena encolhe a cada 5 s', 'bad');
+      } else if (e.k === 'rune') toast(`${RUNE_TEXT[e.kind]} apareceu na arena!`);
+      else if (e.k === 'runeTake') {
+        sound.play('shield', e.id === me ? 1 : 0.5);
+        toast(`${e.id === me ? 'Você pegou' : (who.get(e.id) ?? '?') + ' pegou'} ${RUNE_TEXT[e.kind]}`);
+      } else if (e.k === 'streak') {
+        const name = e.id === me ? 'Você' : (who.get(e.id) ?? '?');
+        // uma voz por lote de eventos: o Quebra-combo vem primeiro, depois o multi e por último a Matança
+        const say = (file: string) => voice ??= file;
+        if (e.kind === 'multi') {
+          shout = `${name}: ${MULTI_TEXT[Math.min(e.n, 4)]}`;
+          if (e.n >= 4) say('ultra_kill');
+          else if (e.n === 3) say('multi_kill');
+          else sound.play('go');
+        } else if (e.kind === 'spree') {
+          notes.push(`${name} está numa ${SPREE_TEXT[e.n] ?? 'sequência'} (${e.n} abates sem morrer)`);
+          say('laugh');
+        } else {
+          notes.push(`${name} quebrou a sequência de ${e.victim === me ? 'você' : (who.get(e.victim ?? '') ?? '?')} (Quebra-combo: ouro extra)`);
+          say('combo_breaker');
+        }
+      } else if (e.k === 'aegis') {
+        sound.play('shield');
+        banner(e.id === me ? '👼 A Égide te tirou da lava!' : `👼 A Égide tirou ${who.get(e.id) ?? '?'} da lava`, e.id === me ? 'good' : '');
+      }
       else if (e.k === 'death') {
         sound.play('death');
         const dead = who.get(e.id) ?? '?';
@@ -248,6 +287,9 @@ function startRoom(code: string, name: string) {
         else banner(e.id === me ? 'Você caiu na lava!' : `${dead} caiu na lava!`, e.id === me ? 'bad' : '');
       }
     }
+    if (shout) banner(shout, 'good');
+    if (notes.length) toast(notes.join(' · '));
+    if (voice) void sound.taunt(voice);
     if (liveChanged) view.live(live);
     scene.onEvents(events, who);
   }
@@ -360,10 +402,12 @@ function startRoom(code: string, name: string) {
       projectiles: playing && s ? s.projectiles : [],
       pillars: playing && s ? s.pillars : [],
       loots: playing && s ? s.loots : [],
+      runes: playing && s ? s.runes : [],
       follow: follow ? myPos : null,
     });
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
-    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, shrinkIn, respawnIn);
+    // no tamanho mínimo a arena não encolhe mais: o aviso some
+    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && s.arenaR > ARENA_MIN + 0.01 ? shrinkIn : null, respawnIn);
   }
   const drawn = new Map<string, Vec>();
   void scene.ready.then(() => requestAnimationFrame(frame), () => toast('Não deu para carregar o mago. Recarregue a página.'));

@@ -2,14 +2,17 @@
 // Passivos mudam os números do mago; os 3 ativos usam as teclas 1, 2 e 3. Até MAX_ITEMS itens por jogador.
 import { UNIT } from './constants.ts';
 
-export type ItemId = 'ring' | 'cursed_ring' | 'cape' | 'armor' | 'boots' | 'watch' | 'vampire' | 'scourge' | 'redirector' | 'pact';
-export const ITEM_IDS: ItemId[] = ['ring', 'cursed_ring', 'cape', 'armor', 'boots', 'watch', 'vampire', 'scourge', 'redirector', 'pact'];
+export type ItemId = 'ring' | 'cursed_ring' | 'cape' | 'armor' | 'boots' | 'watch' | 'vampire' | 'scourge' | 'redirector' | 'pact'
+  | 'lava_boots' | 'warden' | 'helmet' | 'shock_boots' | 'aegis';
+export const ITEM_IDS: ItemId[] = ['ring', 'cursed_ring', 'cape', 'armor', 'boots', 'watch', 'vampire', 'scourge', 'redirector', 'pact',
+  'lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis'];
 export const ACTIVE_ITEMS: ItemId[] = ['scourge', 'redirector', 'pact'];
 export const MAX_ITEMS = 6;
 
 // hp: vida máxima a mais; regen: vida por segundo a mais; kb: fração de empurrão a menos; speed: m/s a mais;
-// debuff: fração a mais (ou a menos) na duração de lentidões e penalidades; lifesteal: fração do dano causado que volta como vida
-export type ItemLevel = { hp?: number; regen?: number; kb?: number; speed?: number; debuff?: number; lifesteal?: number };
+// debuff: fração a mais (ou a menos) na duração de lentidões e penalidades; lifesteal: fração do dano causado que volta como vida;
+// lava: fração de dano da lava a menos; ward: dano a menos por golpe; range: fração a mais (ou a menos) no alcance das magias
+export type ItemLevel = { hp?: number; regen?: number; kb?: number; speed?: number; debuff?: number; lifesteal?: number; lava?: number; ward?: number; range?: number };
 
 type Item = { name: string; cost: number; key?: string; text: string; levels: ItemLevel[] };
 
@@ -25,7 +28,19 @@ export const ITEMS: Record<ItemId, Item> = {
   scourge: { name: 'Flagelo', cost: 7, key: '1', text: 'Explode em volta depois de 0,5 s e empurra quem estiver perto.', levels: [{}, {}, {}] },
   redirector: { name: 'Redirecionador', cost: 8, key: '2', text: 'Desvia seu projétil mais perto do cursor; 8 s voando mais longe.', levels: [{}] },
   pact: { name: 'Pacto', cost: 10, key: '3', text: 'Próxima magia de dano em 5 s faz 2× de dano e empurrão.', levels: [{}] },
+  // itens novos de 18/10, do catálogo docs/itens-candidatos.md (Warlock CE); números conservadores até a simulação dizer
+  lava_boots: { name: 'Botas de lava', cost: 4, text: 'A lava machuca menos.', levels: [{ lava: 0.35 }, { lava: 0.6 }] },
+  // Guardião do CE: −0,1 por nível; aqui os golpes são maiores (−0,4 por nível), mas nunca corta mais que metade do golpe
+  warden: { name: 'Guardião', cost: 4, text: 'Cada golpe tira um pouco menos de vida (até metade dele), mas você voa um pouco mais.', levels: [1, 2, 3].map((n) => ({ ward: 0.4 * n, kb: -0.01 * n })) },
+  helmet: { name: 'Elmo', cost: 5, text: 'Menos empurrão, mas suas magias alcançam menos.', levels: [{ kb: 0.15, range: -0.1 }] },
+  shock_boots: { name: 'Botas de choque', cost: 5, text: 'Ao levar um golpe, anda mais rápido por 3 s (não soma com as Botas: vale a maior).', levels: [{}] },
+  aegis: { name: 'Égide', cost: 7, text: 'Uma vez por rodada, na lava com pouca vida, volta para a pedra.', levels: [{}] },
 };
+
+// Botas de choque: Shock boots do CE (+25 por 3 s); aqui +30 unidades (+14% do passo), contra "quem apanha não consegue fugir"
+export const SHOCK_BOOTS = { speed: 30 * UNIT, secs: 3 };
+// Égide: na lava com até 25 de vida volta para 60% do raio da arena, na mesma direção, parado; uma vez por rodada (por vida no deathmatch)
+export const AEGIS = { hp: 25, back: 0.6 };
 
 // ativos (originais): Flagelo dano 100/110/120 de 1000 em 250 unidades, 0,9 s de preparo, recarga 3 s;
 // Redirecionador recarga 24 s, +30% de empurrão por 8 s; Pacto no original: recarga 30 s, 5 s para usar, 1,5×, lentidão de 66 por 6 s
@@ -50,7 +65,7 @@ export function itemPrice(items: Record<ItemId, number>, id: ItemId): number | n
 
 // soma dos passivos
 export function itemStats(items: Record<ItemId, number>) {
-  const s = { hp: 0, regen: 0, kb: 0, speed: 0, debuff: 0, lifesteal: 0 };
+  const s = { hp: 0, regen: 0, kb: 0, speed: 0, debuff: 0, lifesteal: 0, lava: 0, ward: 0, range: 0 };
   for (const id of ITEM_IDS) {
     const lvl = items[id];
     if (!lvl) continue;
@@ -61,6 +76,9 @@ export function itemStats(items: Record<ItemId, number>) {
     s.speed += L.speed ?? 0;
     s.debuff += L.debuff ?? 0;
     s.lifesteal += L.lifesteal ?? 0;
+    s.lava += L.lava ?? 0;
+    s.ward += L.ward ?? 0;
+    s.range += L.range ?? 0;
   }
   return s;
 }

@@ -7,11 +7,12 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { ARENA_STEP, CHEST, OBSTACLES, SHRINK_WARN, WIZ_R } from '../shared/constants.ts';
+import { ARENA_STEP, CHEST, OBSTACLES, SHRINK_WARN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
-import type { PillarView, ProjView } from '../shared/snapshot.ts';
+import type { PillarView, ProjView, RuneView } from '../shared/snapshot.ts';
 import { v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
+import { BAD_STATUS, STATUS_ICONS } from './icons.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
 export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#12c7c7', '#f76b15', '#e93d82'];
@@ -614,6 +615,26 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     pile.add(ring, shine);
   }
   const piles: THREE.Group[] = [];
+  // runa: octaedro low-poly girando e flutuando, com brilho e anel no chão na cor do efeito
+  const RUNE_COLOR: Record<RuneKind, string> = { haste: '#4ade80', fury: '#f43f5e', shield: '#60a5fa', recharge: '#facc15' };
+  const runeMeshes: { g: THREE.Group; mat: THREE.MeshStandardMaterial; glow: THREE.SpriteMaterial; ring: THREE.MeshBasicMaterial }[] = [];
+  function runeMesh() {
+    const mat = new THREE.MeshStandardMaterial({ flatShading: true, emissiveIntensity: 1.2, roughness: 0.4 });
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.28, 0), mat);
+    gem.name = 'gem';
+    const glowMat = new THREE.SpriteMaterial({ map: glow, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    const shine = new THREE.Sprite(glowMat);
+    shine.scale.setScalar(1.6);
+    shine.position.y = 0.7;
+    const ringMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.58, 32), ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.03;
+    const g = new THREE.Group();
+    g.add(gem, shine, ring);
+    scene.add(g);
+    return { g, mat, glow: glowMat, ring: ringMat };
+  }
 
   function syncPillars(list: PillarView[]) {
     const changed = list.length !== pillarMeshes.length || list.some((p, i) => p.pos.x !== pillarMeshes[i].pos.x || p.pos.y !== pillarMeshes[i].pos.y);
@@ -948,9 +969,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // ícones de efeito em cima do mago (negativos primeiro)
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
-        const icons: [number, string, string][] = [[16, '💫', 'atordoado'], [8, '⚠️', 'vulnerável'], [32, '✨', 'invulnerável'], [64, '🩸', 'Pacto armado'], [128, '⛓️', 'preso'], [256, '💨', 'Investida'], [4, '🐌', 'lento'], [512, '🔥', 'queimando'],
-          [65536, '🔗', 'preso pelo Elo'], [8192, '🧲', 'magnetizado: atrai projéteis'], [16384, '🧲', 'magnetizado: afasta projéteis'], [1024, '👻', 'invisível (Caminhada no vento)'], [4096, '🏃', 'acelerado'], [32768, '🔀', 'Alteração']];
-        m.statusEl.replaceChildren(...icons.filter(([bit]) => d.status & bit).map(([bit, ico, name]) => Object.assign(document.createElement('i'), { textContent: ico, title: name, className: [16, 4, 8, 128, 65536, 8192].includes(bit) ? 'bad' : 'good' })));
+        m.statusEl.replaceChildren(...STATUS_ICONS.filter(([bit]) => d.status & bit).map(([bit, ico, name]) => Object.assign(document.createElement('i'), { textContent: ico, title: name, className: BAD_STATUS.includes(bit) ? 'bad' : 'good' })));
       }
       m.hpFill.style.width = `${Math.max(0, Math.min(100, (d.hp / d.hpMax) * 100))}%`;
       m.hpText.textContent = `${Math.max(0, Math.ceil(d.hp))}/${d.hpMax}`;
@@ -1046,7 +1065,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     castLocal(id: string, spell: string) {
       oneShot(id, spell === 'shield' || spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
     },
-    render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; follow: Vec | null }) {
+    render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; follow: Vec | null }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
@@ -1082,6 +1101,21 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         g.position.copy(w3(l.pos, 0));
         g.scale.setScalar(0.6 + 0.4 * (l.left / CHEST.pile));
         g.rotation.y = now * 0.6;
+      });
+      while (runeMeshes.length < state.runes.length) runeMeshes.push(runeMesh());
+      runeMeshes.forEach((r, i) => {
+        const rune = state.runes[i];
+        r.g.visible = !!rune;
+        if (!rune) return;
+        const c = RUNE_COLOR[rune.kind];
+        r.mat.color.set(c);
+        r.mat.emissive.set(c);
+        r.glow.color.set(c);
+        r.ring.color.set(c);
+        r.g.position.copy(w3(rune.pos, 0));
+        const gem = r.g.getObjectByName('gem')!;
+        gem.position.y = 0.7 + Math.sin(now * 3) * 0.1;
+        gem.rotation.y = now * 2;
       });
       for (const m of mages.values()) m.mixer.update(dt);
       decor.update(shownR, now);

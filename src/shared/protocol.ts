@@ -2,14 +2,14 @@
 import { isCharacter, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_IDS, type ItemId } from './items.ts';
-import { MODES, votesNeeded, type Match, type Mode, type Phase, type Stats, type Vote } from './match.ts';
+import { MODES, OPTION_CHOICES, goalOf, parseOpt, votesNeeded, type Match, type MatchOpts, type Mode, type Phase, type Stats, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { SPELL_IDS, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
 
 export type ClientMsg =
   | { t: 'hello'; playerId: string; name: string }
-  | { t: 'start'; bots: number; mode?: Mode; shuffle?: boolean } // shuffle: Times sorteados a cada rodada (padrão) ou fixos
+  | { t: 'start'; bots: number; mode?: Mode; shuffle?: boolean; opts?: Partial<MatchOpts> } // shuffle: Times sorteados a cada rodada (padrão) ou fixos; opts: opções da partida
   | { t: 'move'; x: number; y: number; seq: number }
   | { t: 'stop'; seq: number }
   | { t: 'cast'; spell: SpellId; x: number; y: number; seq: number }
@@ -47,6 +47,10 @@ export type PublicRoom = {
   teamShuffle: boolean;
   pendingShuffle: boolean | null;
   winnerTeam: number | null;
+  opts: MatchOpts; // opções da partida
+  pendingOpts: Partial<MatchOpts>; // opções votadas para a próxima rodada
+  botDelta: number; // bots votados para entrar (+) ou sair (−) na próxima rodada
+  goal: number; // pontos para vencer no modo atual (rodadas; abates no Deathmatch)
 };
 
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits de estado (ver encodeSnap)
@@ -57,7 +61,7 @@ export type PublicRoom = {
 // rs: só no deathmatch, 1 número por mago na ordem de room.ids: segundos até voltar (0 = vivo)
 // sp: velocidade de andar dele agora (botas, lentidão), para a previsão; ack: último seq aplicado dele
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
-export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; pl: number[]; rs?: number[]; ch?: number[]; lp?: number[]; ack: number; e?: SimEvent[] };
+export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; pl: number[]; rs?: number[]; ch?: number[]; lp?: number[]; ru?: number[]; ack: number; e?: SimEvent[] };
 
 export type ErrorCode = 'not_found' | 'other_tab' | 'full' | 'bad_msg' | 'kicked';
 
@@ -81,6 +85,13 @@ export function cleanName(raw: unknown): string {
   return name || 'Mago';
 }
 
+// opções da partida: só chaves conhecidas e só os valores da lista de cada uma
+function parseOpts(x: unknown): Partial<MatchOpts> | null {
+  if (!isObj(x)) return null;
+  for (const [k, val] of Object.entries(x)) if (!(k in OPTION_CHOICES) || !(OPTION_CHOICES[k as keyof MatchOpts] as readonly unknown[]).includes(val)) return null;
+  return x as Partial<MatchOpts>;
+}
+
 export function parseClientMessage(raw: string): ClientMsg | null {
   if (raw.length > MAX_MSG) return null;
   let m: unknown;
@@ -94,10 +105,15 @@ export function parseClientMessage(raw: string): ClientMsg | null {
     case 'hello':
       if (typeof m.playerId !== 'string' || !/^[\w-]{8,64}$/.test(m.playerId)) return null;
       return { t: 'hello', playerId: m.playerId, name: cleanName(m.name) };
-    case 'start':
+    case 'start': {
       if (m.mode !== undefined && !MODES.includes(m.mode as Mode)) return null;
       if (m.shuffle !== undefined && typeof m.shuffle !== 'boolean') return null;
-      return Number.isInteger(m.bots) && (m.bots as number) >= 0 && (m.bots as number) < MAX_PLAYERS ? { t: 'start', bots: m.bots as number, mode: m.mode as Mode | undefined, shuffle: m.shuffle } : null;
+      const opts = m.opts === undefined ? undefined : parseOpts(m.opts);
+      if (opts === null) return null;
+      if (!Number.isInteger(m.bots) || (m.bots as number) < 0 || (m.bots as number) >= MAX_PLAYERS) return null;
+      // sem opções, a mensagem fica como era antes delas
+      return { t: 'start', bots: m.bots as number, mode: m.mode as Mode | undefined, shuffle: m.shuffle, ...(opts && { opts }) };
+    }
     case 'move':
       return coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'move', x: m.x, y: m.y, seq: m.seq } : null;
     case 'stop':
@@ -116,6 +132,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       // troca de modo leva o modo alvo; a do sorteio dos times só alterna
       if (m.kind === 'mode') return MODES.includes(m.target as Mode) ? { t: 'vote', kind: 'mode', target: m.target as Mode } : null;
       if (m.kind === 'shuffle') return { t: 'vote', kind: 'shuffle' };
+      if (m.kind === 'opt') return typeof m.target === 'string' && m.target.length < 30 && parseOpt(m.target) ? { t: 'vote', kind: 'opt', target: m.target } : null;
+      if (m.kind === 'restart' || m.kind === 'end' || m.kind === 'addBot' || m.kind === 'removeBot' || m.kind === 'skipShop') return { t: 'vote', kind: m.kind };
       return m.kind === 'kick' && typeof m.target === 'string' && /^p[0-9a-z]{1,8}$/.test(m.target) ? { t: 'vote', kind: 'kick', target: m.target } : null;
     case 'ballot':
       return typeof m.yes === 'boolean' ? { t: 'ballot', yes: m.yes } : null;
@@ -168,5 +186,9 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     teamShuffle: m.teamShuffle,
     pendingShuffle: m.pendingShuffle,
     winnerTeam: m.winnerTeam,
+    opts: m.opts,
+    pendingOpts: m.pendingOpts,
+    botDelta: m.botDelta,
+    goal: goalOf(m),
   };
 }

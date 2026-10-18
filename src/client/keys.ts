@@ -74,6 +74,7 @@ export const onKeysChange = (f: () => void) => listeners.push(f);
 
 // rótulo curto para mostrar: KeyQ → Q, Digit1 → 1, Numpad4 → Num 4
 export function keyLabel(code: string): string {
+  if (!code) return '—'; // sem tecla (a Zona de dobra começa assim)
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
   if (code.startsWith('Numpad')) return 'Num ' + code.slice(6);

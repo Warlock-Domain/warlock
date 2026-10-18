@@ -1,9 +1,9 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
   ARENA_MIN, ARENA_STEP, CHEST, CREDIT_WINDOW, ZONES, DM_RESPAWN, DM_SPAWN_GAP, OBSTACLES, OBSTACLE_KINDS, PILLAR, type ObstacleKind, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KB_SOFT_CAP, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
-  WIZ_R, WIZ_SPEED, arenaRadius,
+  RUNE, RUNE_KINDS, SUDDEN, WIZ_R, WIZ_SPEED, arenaRadius, type RuneKind,
 } from './constants.ts';
-import { ACTIVE_ITEMS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, itemStats, noItems, type ItemId } from './items.ts';
+import { ACTIVE_ITEMS, AEGIS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, TWIN, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
@@ -61,6 +61,14 @@ export type Wizard = {
   durF: number; // maestria de duração (multiplica escudo e pacto)
   rangeF: number; // maestria de alcance
   lifesteal: number; // fração do dano causado que volta como vida
+  lavaCut: number; // Botas de lava: fração do dano da lava a menos
+  ward: number; // Guardião: dano a menos por golpe (até metade do golpe)
+  shockBonus: number; // Botas de choque: velocidade a mais depois de levar um golpe (já descontadas as Botas)
+  shockUntil: number;
+  aegis: boolean; // Égide ainda não usada nesta rodada (nesta vida, no deathmatch)
+  rune: RuneKind | null; // runa ativa até runeUntil (pegar outra troca)
+  runeUntil: number;
+  runeShield: number; // Escudo de runa: dano que ainda absorve
   team: number | null; // modo Times: 0 ou 1; fora dele null (ninguém é aliado)
   // magia ou item sendo conjurado: sai em fireAt e o mago fica parado até lá (pedido do Fernando, 17/10:
   // clicar para andar não cancela); o clique de andar fica guardado em `then` e vale quando a magia sai
@@ -116,6 +124,12 @@ export type SimEvent =
   | { k: 'gold'; id: string; n: number; x: number; y: number }
   | { k: 'shrink'; r: number }
   | { k: 'item'; id: string; item: ItemId }
+  | { k: 'aegis'; id: string } // a Égide tirou o mago da lava (junto vem um 'teleport')
+  | { k: 'rune'; kind: RuneKind; x: number; y: number } // runa apareceu
+  | { k: 'runeTake'; id: string; kind: RuneKind } // alguém pegou a runa
+  | { k: 'sudden' } // morte súbita: a arena passa a encolher mais rápido
+  // sequência de abate (vem da partida): multi = abates seguidos rápidos, spree = abates sem morrer, breaker = acabou com a sequência de victim
+  | { k: 'streak'; id: string; kind: 'multi' | 'spree' | 'breaker'; n: number; victim?: string }
   | { k: 'scourge'; id: string; x: number; y: number; r: number }
   | { k: 'redirect'; x: number; y: number }
   | { k: 'clash'; x: number; y: number; combo: Combo; r: number }
@@ -148,10 +162,18 @@ export type World = {
   zones: Zone[]; // chão com efeito deixado pelos choques
   loots: { pos: Vec; left: number; until: number }[]; // montes de ouro dos baús quebrados
   chestAt: number; // quando o próximo baú aparece
+  runes: { pos: Vec; kind: RuneKind }[]; // no máximo uma
+  runeAt: number; // quando a próxima runa aparece
+  sudden: boolean; // morte súbita já começou
+  rules: Rules; // mecânicas ligadas nesta rodada (opções da partida)
   events: SimEvent[];
   nextId: number;
   dm: boolean; // deathmatch: a arena não encolhe e quem morre volta depois de DM_RESPAWN s
 };
+
+// mecânicas que a sala pode desligar (opções da partida)
+export type Rules = { runes: boolean; sudden: boolean; chests: boolean };
+export const ALL_RULES: Rules = { runes: true, sudden: true, chests: true };
 
 export function newWorld(
   ids: string[],
@@ -161,6 +183,7 @@ export function newWorld(
   rand: () => number = Math.random,
   dm = false,
   teams: Record<string, number> = {}, // modo Times: id → time
+  rules: Rules = ALL_RULES,
 ): World {
   const arenaR = arenaRadius(ids.length);
   const r = arenaR - SPAWN_INSET;
@@ -220,13 +243,22 @@ export function newWorld(
       invulnUntil: INVULN_TIME,
       respawnAt: 0,
       durF: 1, // maestrias de Duração e Alcance tiradas (17/10); os multiplicadores ficam em 1
-      rangeF: 1,
+      rangeF: 1 + st.range, // Elmo: −10%
       lifesteal: st.lifesteal,
+      lavaCut: st.lava,
+      ward: st.ward,
+      // não soma com as Botas: vale a maior das duas (as Botas são o único item de velocidade)
+      shockBonus: own.shock_boots ? Math.max(0, SHOCK_BOOTS.speed - st.speed) : 0,
+      shockUntil: 0,
+      aegis: own.aegis > 0,
+      rune: null,
+      runeUntil: 0,
+      runeShield: 0,
       team: teams[id] ?? null,
       casting: null,
     };
   });
-  return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars: placePillars(pillarCount, wizards.map((z) => z.pos), rand), zones: [], loots: [], chestAt: CHEST.first, events: [], nextId: 1, dm };
+  return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars: placePillars(pillarCount, wizards.map((z) => z.pos), rand), zones: [], loots: [], chestAt: CHEST.first, runes: [], runeAt: RUNE.first, sudden: false, rules: { ...rules }, events: [], nextId: 1, dm };
 }
 
 // sorteia pilares longe de onde os magos nascem e longe uns dos outros
@@ -290,6 +322,19 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
     target.vel = add(target.vel, scale(norm(dir), knock * mult));
     return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
   }
+  // runa da Fúria de quem bateu
+  const att = by !== target.id ? byId(w, by) : undefined;
+  if (att && att.rune === 'fury' && w.t < att.runeUntil) dmg *= 1 + RUNE.fury;
+  // Guardião: tira um pouco de cada golpe, nunca mais que metade dele (senão zerava os tiques da Gravidade e do Elo)
+  dmg = Math.max(dmg * 0.5, dmg - target.ward);
+  // Escudo de runa: absorve o dano (o empurrão continua)
+  if (target.rune === 'shield' && w.t < target.runeUntil && target.runeShield > 0) {
+    const soak = Math.min(target.runeShield, dmg);
+    target.runeShield -= soak;
+    dmg -= soak;
+  }
+  // Botas de choque: golpe de outro mago dá velocidade por alguns segundos
+  if (target.shockBonus > 0 && by !== target.id && dmg > 0) target.shockUntil = w.t + SHOCK_BOOTS.secs;
   // Investida: depois do empurrão, absorve metade do golpe (de outro mago) e converte em velocidade
   if (w.t < target.rushUntil && by !== target.id && target.rushLeft > 0) {
     const absorbed = Math.min(target.rushLeft, dmg * RUSH.share);
@@ -304,11 +349,10 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   target.lastHitSrc = src;
   target.lastHitAt = w.t;
   // roubo de vida: quem acertou recupera parte do dano (e, como no original, a cura reduz o dano acumulado pela metade dela)
-  const thief = by !== target.id ? byId(w, by) : undefined;
-  if (thief && thief.lifesteal > 0) {
-    const heal = dmg * thief.lifesteal;
-    thief.hp = Math.min(thief.hpMax, thief.hp + heal);
-    thief.dmgTaken = Math.max(0, thief.dmgTaken - heal * 0.5);
+  if (att && att.lifesteal > 0) {
+    const heal = dmg * att.lifesteal;
+    att.hp = Math.min(att.hpMax, att.hp + heal);
+    att.dmgTaken = Math.max(0, att.dmgTaken - heal * 0.5);
   }
   w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg * 10) / 10, src });
 }
@@ -536,7 +580,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   } else if (spell === 'thrust') {
     // thrust.lua: sai a 77% da velocidade rumo ao ponto (até 900 u) e acelera; dura o caminho + 0,09 s
     w.events.push({ k: 'fire', id: wz.id, src: 'thrust' });
-    const d = Math.min(len(sub(at, wz.pos)), L.range);
+    const d = Math.min(len(sub(at, wz.pos)), L.range * wz.rangeF);
     wz.vel = scale(dir, THRUST.start * L.speed);
     wz.thrustAcc = scale(dir, L.speed * THRUST.accel);
     wz.thrustUntil = w.t + THRUST.extra + d / L.speed;
@@ -545,7 +589,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   } else if (spell === 'rockpillar') {
     // rockpillar.lua: obstáculo no ponto (até o alcance) que some depois da duração (com a maestria de duração)
     w.events.push({ k: 'fire', id: wz.id, src: 'rockpillar' });
-    const pos = add(wz.pos, clampLen(sub(at, wz.pos), L.range));
+    const pos = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
     w.pillars.push({ pos, hp: OBSTACLES.rockpillar.hp, alive: true, kind: 'rockpillar', until: w.t + L.duration * wz.durF });
   } else if (spell === 'drain') {
     // drain.lua: reto até o ponto (no máximo o alcance), depois vira para o mago mais perto e voa mais 1,2 s
@@ -591,7 +635,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     launch('splitter', dir, Math.min(L.range * wz.rangeF, len(sub(at, wz.pos))) / L.speed);
   } else if (spell === 'warpzone') {
     w.events.push({ k: 'fire', id: wz.id, src: 'warpzone' });
-    const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range));
+    const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
     w.projectiles.push({ id: w.nextId++, kind: 'warpzone', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + L.duration * wz.durF, target: null, dmgMult, caster: wz.id });
   } else if (spell === 'lightning') {
     w.events.push({ k: 'fire', id: wz.id, src: 'lightning' });
@@ -1304,8 +1348,48 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
   Object.assign(wz, {
     alive: true, pos: best, vel: v(0, 0), target: null, casting: null, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
     shieldUntil: 0, kbPenaltyUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
-    slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0,
+    slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
+    rune: null, runeUntil: 0, runeShield: 0,
   });
+}
+
+// ponto sorteado na pedra longe dos obstáculos e dos magos (baú e runa); null se 20 sorteios não acharem
+function freeSpot(w: World, rand: () => number, spread: number): Vec | null {
+  for (let i = 0; i < 20; i++) {
+    const a = rand() * Math.PI * 2;
+    const r = Math.sqrt(rand()) * w.arenaR * spread;
+    const p = v(Math.cos(a) * r, Math.sin(a) * r);
+    if (w.pillars.every((q) => !q.alive || dist(q.pos, p) > 1.2) && w.wizards.every((z) => !z.alive || dist(z.pos, p) > 1)) return p;
+  }
+  return null;
+}
+
+// runa: aparece (uma por vez), some se a lava engolir e dá o efeito a quem encostar primeiro
+function stepRunes(w: World, rand: () => number) {
+  const kept = w.runes.filter((r) => len(r.pos) < w.arenaR);
+  if (kept.length < w.runes.length) w.runeAt = w.t + RUNE.every;
+  w.runes = kept;
+  if (!w.runes.length && w.t >= w.runeAt) {
+    const at = freeSpot(w, rand, RUNE.spread);
+    if (at) {
+      const kind = RUNE_KINDS[Math.floor(rand() * RUNE_KINDS.length)];
+      w.runes.push({ pos: at, kind });
+      w.events.push({ k: 'rune', kind, x: at.x, y: at.y });
+    } else w.runeAt = w.t + 1;
+  }
+  for (const r of w.runes) {
+    const z = w.wizards.find((q) => q.alive && dist(q.pos, r.pos) <= RUNE.reach);
+    if (!z) continue;
+    w.runes = w.runes.filter((q) => q !== r);
+    w.runeAt = w.t + RUNE.every;
+    w.events.push({ k: 'runeTake', id: z.id, kind: r.kind });
+    if (r.kind === 'recharge') {
+      for (const s of SPELL_IDS) z.cd[s] = 0;
+      for (const i of ACTIVE_ITEMS) z.itemCd[i] = 0;
+      continue;
+    }
+    Object.assign(z, { rune: r.kind, runeUntil: w.t + RUNE.secs, runeShield: r.kind === 'shield' ? RUNE.shield : 0 });
+  }
 }
 
 export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.random) {
@@ -1343,28 +1427,29 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       wz.snow = null;
       hit(w, wz, s.by, s.dmg, 0, v(0, 0), 'snowball');
     }
-    const extra = (w.t < wz.rushUntil ? wz.rushBonus : 0) + (w.t < wz.hasteUntil ? wz.haste : 0) + (w.t < wz.windUntil ? WINDWALK.speed : 0) - (w.t < wz.slowUntil ? wz.slow : 0);
-    wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1));
+    const extra = (w.t < wz.rushUntil ? wz.rushBonus : 0) + (w.t < wz.hasteUntil ? wz.haste : 0) + (w.t < wz.windUntil ? WINDWALK.speed : 0) + (w.t < wz.shockUntil ? wz.shockBonus : 0) - (w.t < wz.slowUntil ? wz.slow : 0);
+    const haste = wz.rune === 'haste' && w.t < wz.runeUntil ? 1 + RUNE.haste : 1;
+    wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1) * haste);
     if (rooted) wz.target = null;
   }
 
+  // morte súbita: rodada longa passa a encolher mais rápido (o próximo encolhimento vem em no máximo 5 s)
+  if (!w.dm && w.rules.sudden && !w.sudden && w.t >= SUDDEN.at) {
+    w.sudden = true;
+    w.shrinkAt = Math.min(w.shrinkAt, w.t + SUDDEN.every);
+    w.events.push({ k: 'sudden' });
+  }
   if (!w.dm && w.t >= w.shrinkAt && w.arenaR > ARENA_MIN) {
     w.arenaR = Math.max(ARENA_MIN, w.arenaR - ARENA_STEP);
-    w.shrinkAt += SHRINK_EVERY;
+    w.shrinkAt += w.sudden ? SUDDEN.every : SHRINK_EVERY;
     w.events.push({ k: 'shrink', r: w.arenaR });
   }
 
   w.zones = w.zones.filter((z) => z.until > w.t);
   // baú: aparece num ponto sorteado longe dos obstáculos; as magias quebram e ele vira um monte de ouro
   const chestsUp = w.pillars.filter((q) => q.kind === 'chest' && q.alive).length;
-  if (chestsUp < CHEST.maxUp && w.t >= w.chestAt) {
-    let at: Vec | null = null;
-    for (let i = 0; i < 20 && !at; i++) {
-      const a = rand() * Math.PI * 2;
-      const r = Math.sqrt(rand()) * w.arenaR * CHEST.spread;
-      const p = v(Math.cos(a) * r, Math.sin(a) * r);
-      if (w.pillars.every((q) => !q.alive || dist(q.pos, p) > 1.2) && w.wizards.every((z) => !z.alive || dist(z.pos, p) > 1)) at = p;
-    }
+  if (w.rules.chests && chestsUp < CHEST.maxUp && w.t >= w.chestAt) {
+    const at = freeSpot(w, rand, CHEST.spread);
     if (at) {
       w.pillars.push({ pos: at, hp: OBSTACLES.chest.hp, alive: true, kind: 'chest' });
       w.events.push({ k: 'chest', x: at.x, y: at.y });
@@ -1386,6 +1471,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     }
   }
   w.loots = w.loots.filter((l) => l.left > 0 && w.t < l.until);
+  if (w.rules.runes) stepRunes(w, rand);
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
     if (w.t < wz.dashUntil) {
@@ -1416,8 +1502,14 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     if (!wz.alive) continue;
     if (len(wz.pos) > w.arenaR) {
       if (w.t < wz.invulnUntil) continue;
-      wz.hp -= LAVA_DPS * DT;
-      wz.dmgTaken += LAVA_DPS * DT * LAVA_KB_FACTOR;
+      wz.hp -= LAVA_DPS * DT * (1 - wz.lavaCut);
+      wz.dmgTaken += LAVA_DPS * DT * LAVA_KB_FACTOR * (1 - wz.lavaCut);
+      // Égide: com pouca vida na lava, volta parado para dentro da pedra na mesma direção (uma vez)
+      if (wz.aegis && wz.hp > 0 && wz.hp <= AEGIS.hp) {
+        const from = wz.pos;
+        Object.assign(wz, { aegis: false, pos: scale(norm(wz.pos), w.arenaR * AEGIS.back), vel: v(0, 0), target: null, dashUntil: 0, thrustUntil: 0 });
+        w.events.push({ k: 'teleport', id: wz.id, from, to: wz.pos }, { k: 'aegis', id: wz.id });
+      }
     } else wz.hp = Math.min(wz.hpMax, wz.hp + wz.regen * DT);
     if (wz.hp > 0) continue;
     wz.hp = 0;

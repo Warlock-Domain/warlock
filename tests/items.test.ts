@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DT, HP_MAX, WIZ_SPEED } from '../src/shared/constants.ts';
-import { ITEMS, MAX_ITEMS, PACT, SCOURGE, itemPrice, noItems, type ItemId } from '../src/shared/items.ts';
-import { addPlayer, buy, buyItem, newMatch, sell, sellValue, startMatch, undoBuy } from '../src/shared/match.ts';
+import { DT, HP_MAX, LAVA_DPS, WIZ_SPEED } from '../src/shared/constants.ts';
+import { AEGIS, ITEMS, ITEM_IDS, MAX_ITEMS, PACT, SCOURGE, SHOCK_BOOTS, itemPrice, noItems, type ItemId } from '../src/shared/items.ts';
+import { addPlayer, buy, buyItem, newMatch, resume, sell, sellValue, startMatch, undoBuy } from '../src/shared/match.ts';
+import { randomPlan } from '../src/shared/bots.ts';
+import { itemTip } from '../src/client/tips.ts';
+import { len } from '../src/shared/vec.ts';
 import { newWorld, stepWorld, type World } from '../src/shared/sim.ts';
 import { SPELLS, noSpells, type SpellId } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
@@ -276,5 +279,113 @@ describe('roubo de vida (item)', () => {
     stepWorld(w, [{ id: 'a', kind: 'cast', spell: 'lightning', at: v(2, 0) }]);
     steps(w, 10);
     expect(w.wizards[0].hp).toBeGreaterThan(52);
+  });
+});
+
+describe('itens novos (18/10)', () => {
+  const fireballAt = (w: World, x: number) => stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(x, 0) }]);
+  const hits = (w: World, n: number) => {
+    const out: number[] = [];
+    for (let i = 0; i < n; i++) {
+      stepWorld(w, []);
+      for (const e of w.events) if (e.k === 'hit') out.push(e.dmg);
+    }
+    return out;
+  };
+
+  it('lava boots cut lava damage by 35% and 60%', () => {
+    for (const [lvl, cut] of [[0, 0], [1, 0.35], [2, 0.6]]) {
+      const w = world([[0, 0]], [{ lava_boots: lvl }]);
+      w.wizards[0].pos = v(w.arenaR + 1, 0);
+      steps(w, 60);
+      expect(HP_MAX - w.wizards[0].hp).toBeCloseTo(LAVA_DPS * (1 - cut), 1);
+    }
+  });
+
+  it('warden takes a flat amount off each hit and you fly a bit more', () => {
+    const plain = world([[0, 0], [3, 0]]);
+    const warded = world([[0, 0], [3, 0]], [{}, { warden: 3 }]);
+    fireballAt(plain, 3);
+    fireballAt(warded, 3);
+    const [a] = hits(plain, 30);
+    const [b] = hits(warded, 30);
+    expect(a - b).toBeCloseTo(1.2, 1);
+    expect(warded.wizards[1].vel.x / plain.wizards[1].vel.x).toBeCloseTo(1.03, 2);
+  });
+
+  it('warden never cuts more than half a hit (damage over time still works)', () => {
+    const w = world([[0, 0], [3, 0]], [{}, { warden: 3 }]);
+    w.wizards[1].ward = 100;
+    fireballAt(w, 3);
+    expect(hits(w, 30)[0]).toBeCloseTo(SPELLS.fireball.levels[0].dmg / 2, 1);
+  });
+
+  it('helmet resists knockback but shortens spell range', () => {
+    const plain = world([[0, 0], [9, 9]]);
+    const helmed = world([[0, 0], [9, 9]], [{ helmet: 1 }]);
+    expect(helmed.wizards[0].kbResist).toBeCloseTo(0.15);
+    fireballAt(plain, 3);
+    fireballAt(helmed, 3);
+    steps(plain, 10);
+    steps(helmed, 10);
+    expect(helmed.projectiles[0].until / plain.projectiles[0].until).toBeCloseTo(0.9, 1);
+  });
+
+  it('shock boots speed you up for 3 s after a hit, and only above the regular boots', () => {
+    const w = world([[0, 0], [3, 0]], [{}, { shock_boots: 1 }]);
+    const base = w.wizards[1].baseSpeed;
+    fireballAt(w, 3);
+    steps(w, 30);
+    expect(w.wizards[1].speed).toBeCloseTo(base + SHOCK_BOOTS.speed, 5);
+    steps(w, Math.round(SHOCK_BOOTS.secs / DT));
+    expect(w.wizards[1].speed).toBeCloseTo(base, 5);
+    // as Botas nível 3 (+40) já passam das de choque (+30): nada a mais
+    expect(world([[0, 0]], [{ shock_boots: 1, boots: 3 }]).wizards[0].shockBonus).toBe(0);
+    expect(world([[0, 0]], [{ shock_boots: 1, boots: 1 }]).wizards[0].shockBonus).toBeCloseTo(SHOCK_BOOTS.speed - ITEMS.boots.levels[0].speed!);
+  });
+
+  it('aegis pulls you out of the lava once, when your life is low', () => {
+    const w = world([[0, 0]], [{ aegis: 1 }]);
+    const z = w.wizards[0];
+    z.pos = v(0, w.arenaR + 1);
+    z.vel = v(0, 5);
+    steps(w, 30);
+    expect(z.pos.y).toBeGreaterThan(w.arenaR); // vida alta: a Égide espera
+    z.hp = AEGIS.hp + 0.05;
+    let saved = false;
+    for (let i = 0; i < 5; i++) {
+      stepWorld(w, []);
+      saved ||= w.events.some((e) => e.k === 'aegis' && e.id === 'p0');
+    }
+    expect(saved).toBe(true);
+    expect(len(z.pos)).toBeCloseTo(w.arenaR * AEGIS.back, 1);
+    expect(z.pos.y).toBeGreaterThan(0);
+    expect(len(z.vel)).toBe(0);
+    expect(z.aegis).toBe(false);
+    // segunda vez na lava: não salva de novo
+    z.pos = v(0, w.arenaR + 1);
+    steps(w, 600);
+    expect(z.alive).toBe(false);
+  });
+
+  it('every item has a tooltip and bots can plan any passive item', () => {
+    for (const id of ITEM_IDS) for (let l = 0; l <= ITEMS[id].levels.length; l++) expect(itemTip(id, l)).toContain(ITEMS[id].name);
+    let seed = 1;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    const planned = new Set<string>();
+    for (let i = 0; i < 400; i++) for (const b of randomPlan(rand).buys) if (b.kind === 'item') planned.add(b.id);
+    for (const id of ['lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis']) expect(planned.has(id)).toBe(true);
+  });
+
+  it('rooms saved before the new items get them at level 0', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'A');
+    addPlayer(m, 'b', 'B');
+    startMatch(m, 0, 0);
+    delete (m.players[0].items as Partial<Record<ItemId, number>>).aegis;
+    resume(m, 0);
+    expect(m.players[0].items.aegis).toBe(0);
+    expect(buyItem(m, 'a', 'aegis')).toBe(true);
+    expect(m.players[0].items.aegis).toBe(1);
   });
 });
