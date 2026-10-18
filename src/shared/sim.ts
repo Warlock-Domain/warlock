@@ -22,6 +22,7 @@ export type Wizard = {
   lastHitAt: number;
   lastHitSrc: string; // fonte do último golpe, para a causa da morte nos dados
   shieldR: number; // raio da bolha do escudo (cresce com o nível)
+  lootProg: number; // segundos em cima do monte de ouro desde o último ouro
   zone: number; // 1 = no chão lento, 2 = no chão queimando (recalculado a cada passo)
   spells: Record<SpellId, number>; // nível; 0 = não tem
   cd: Record<SpellId, number>; // instante (w.t) em que fica pronta
@@ -92,7 +93,7 @@ export type SimEvent =
   | { k: 'clash'; x: number; y: number; combo: Combo; r: number }
   | { k: 'pillar'; i: number; x: number; y: number }
   | { k: 'chest'; x: number; y: number } // baú apareceu
-  | { k: 'loot'; id: string; x: number; y: number } // alguém pegou o baú
+  | { k: 'loot'; id: string; x: number; y: number } // alguém ganhou 1 de ouro em cima do monte
   // estatística de precisão: 'fire' quando uma magia de dano sai, 'land' quando ela acerta um inimigo (uma vez por projétil; a Rajada conta os 4)
   | { k: 'fire'; id: string; src: AimSrc }
   | { k: 'land'; id: string; src: AimSrc };
@@ -115,7 +116,7 @@ export type World = {
   projectiles: Projectile[];
   pillars: Pillar[];
   zones: Zone[]; // chão com efeito deixado pelos choques
-  chest: Vec | null; // baú de ouro no chão
+  loot: { pos: Vec; left: number; until: number } | null; // monte de ouro do baú quebrado
   chestAt: number; // quando o próximo baú aparece
   events: SimEvent[];
   nextId: number;
@@ -152,6 +153,7 @@ export function newWorld(
       lastHitSrc: '',
       zone: 0,
       shieldR: 0,
+      lootProg: 0,
       lastHitAt: -1e9,
       spells: { ...spells[id] },
       cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])) as Record<SpellId, number>,
@@ -180,7 +182,7 @@ export function newWorld(
       casting: null,
     };
   });
-  return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars: placePillars(pillarCount, wizards.map((z) => z.pos), rand), zones: [], chest: null, chestAt: CHEST.every, events: [], nextId: 1, dm };
+  return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars: placePillars(pillarCount, wizards.map((z) => z.pos), rand), zones: [], loot: null, chestAt: CHEST.every, events: [], nextId: 1, dm };
 }
 
 // sorteia pilares longe de onde os magos nascem e longe uns dos outros
@@ -357,6 +359,7 @@ function damagePillar(w: World, i: number, dmg: number, by: string | null) {
   if (p.hp > 0) return;
   p.alive = false;
   const o = OBSTACLES[p.kind];
+  if (p.kind === 'chest') w.loot = { pos: p.pos, left: CHEST.pile, until: w.t + CHEST.pileSecs };
   if (o.blastR > 0) area(w, p.pos, o.blastR, o.blastDmg, 1, by, true, 'pillar');
   else w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pillar', r: o.r * 1.5 });
 }
@@ -760,22 +763,37 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   }
 
   w.zones = w.zones.filter((z) => z.until > w.t);
-  // baú: aparece num ponto sorteado longe dos obstáculos; quem encostar primeiro leva
-  if (!w.chest && w.t >= w.chestAt) {
-    for (let i = 0; i < 20 && !w.chest; i++) {
+  // baú: aparece num ponto sorteado longe dos obstáculos; as magias quebram e ele vira um monte de ouro
+  const chestUp = w.pillars.some((q) => q.kind === 'chest' && q.alive);
+  if (!chestUp && !w.loot && w.t >= w.chestAt) {
+    let at: Vec | null = null;
+    for (let i = 0; i < 20 && !at; i++) {
       const a = rand() * Math.PI * 2;
       const r = Math.sqrt(rand()) * w.arenaR * CHEST.spread;
       const p = v(Math.cos(a) * r, Math.sin(a) * r);
-      if (w.pillars.every((q) => !q.alive || dist(q.pos, p) > 1.2)) w.chest = p;
+      if (w.pillars.every((q) => !q.alive || dist(q.pos, p) > 1.2) && w.wizards.every((z) => !z.alive || dist(z.pos, p) > 1)) at = p;
     }
-    if (w.chest) w.events.push({ k: 'chest', x: w.chest.x, y: w.chest.y });
-    else w.chestAt = w.t + 1;
+    if (at) {
+      w.pillars.push({ pos: at, hp: OBSTACLES.chest.hp, alive: true, kind: 'chest' });
+      w.events.push({ k: 'chest', x: at.x, y: at.y });
+    } else w.chestAt = w.t + 1;
   }
-  const chest = w.chest;
-  const taker = chest ? w.wizards.find((z) => z.alive && dist(z.pos, chest) < WIZ_R + CHEST.reach) : undefined;
-  if (chest && taker) {
-    w.events.push({ k: 'loot', id: taker.id, x: chest.x, y: chest.y });
-    w.chest = null;
+  // monte de ouro: cada mago em cima enche a própria barra e ganha 1 a cada 2 s; quem sai perde o progresso
+  const loot = w.loot;
+  for (const z of w.wizards) {
+    if (!loot || !z.alive || dist(z.pos, loot.pos) > CHEST.reach) {
+      z.lootProg = 0;
+      continue;
+    }
+    z.lootProg += DT;
+    if (z.lootProg >= CHEST.goldEvery && loot.left > 0) {
+      z.lootProg = 0;
+      loot.left--;
+      w.events.push({ k: 'loot', id: z.id, x: loot.pos.x, y: loot.pos.y });
+    }
+  }
+  if (loot && (loot.left <= 0 || w.t >= loot.until)) {
+    w.loot = null;
     w.chestAt = w.t + CHEST.every;
   }
   for (const wz of w.wizards) {

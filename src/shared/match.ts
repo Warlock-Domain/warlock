@@ -8,7 +8,7 @@ import { MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, noMasteries, 
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
 const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
 import {
-  CHEST, COUNTDOWN_MS, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN,
+  COUNTDOWN_MS, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN,
 } from './constants.ts';
 import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.ts';
 import { MAX_SPELLS, SPELL_IDS, noSpells, priceOf, spellCount, type SpellId } from './spells.ts';
@@ -470,8 +470,9 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
     if (e.k === 'loot') {
       const p = m.players.find((q) => q.id === e.id);
       if (p) {
-        earn(p, CHEST.gold);
-        w.events.push({ k: 'gold', id: p.id, n: CHEST.gold, x: e.x, y: e.y });
+        earn(p, 1);
+        const z = w.wizards.find((q) => q.id === p.id);
+        w.events.push({ k: 'gold', id: p.id, n: 1, x: z?.pos.x ?? e.x, y: z?.pos.y ?? e.y });
       }
     }
     if (e.k === 'death' && e.by && e.by !== e.id) {

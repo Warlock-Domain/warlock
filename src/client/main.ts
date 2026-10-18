@@ -237,7 +237,7 @@ function startRoom(code: string, name: string) {
       else if (e.k === 'item') sound.play(e.item === 'redirector' ? 'teleport' : e.item === 'pact' ? 'shield' : 'homing', 0.7);
       else if (e.k === 'scourge') sound.play('death', near(e.x, e.y));
       else if (e.k === 'shrink') sound.play('shrink');
-      else if (e.k === 'chest') toast('💰 Baú de ouro na arena!');
+      else if (e.k === 'chest') toast('💰 Baú de ouro na arena! Quebre e fique em cima do ouro');
       else if (e.k === 'loot') sound.play('go', near(e.x, e.y));
       else if (e.k === 'death') {
         sound.play('death');
@@ -340,7 +340,7 @@ function startRoom(code: string, name: string) {
         const prevDraw = drawn.get(w.id);
         if (prevDraw) moving = moving && dist(prevDraw, pos) > 0.004;
         drawn.set(w.id, pos);
-        wizards.push({ ...w, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), color: p?.color ?? 0, character: p?.character ?? 'mage', name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, moving, cheer: room?.phase === 'roundEnd' && room.lastRoundWinner === w.id });
+        wizards.push({ ...w, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), color: p?.color ?? 0, character: p?.character ?? 'mage', name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0, moving, cheer: room?.phase === 'roundEnd' && room.lastRoundWinner === w.id });
       }
     }
     const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' ? s.shrinkAt - s.time : null;
@@ -350,7 +350,7 @@ function startRoom(code: string, name: string) {
       wizards,
       projectiles: playing && s ? s.projectiles : [],
       pillars: playing && s ? s.pillars : [],
-      chest: playing && s ? s.chest : null,
+      loot: playing && s ? s.loot : null,
       follow: follow ? myPos : null,
     });
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;

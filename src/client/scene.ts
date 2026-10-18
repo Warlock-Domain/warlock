@@ -7,7 +7,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { ARENA_STEP, OBSTACLES, SHRINK_WARN, WIZ_R } from '../shared/constants.ts';
+import { ARENA_STEP, CHEST, OBSTACLES, SHRINK_WARN, WIZ_R } from '../shared/constants.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView } from '../shared/snapshot.ts';
 import { v, type Vec } from '../shared/vec.ts';
@@ -18,7 +18,7 @@ export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; color: number; character: string; name: string; moving: boolean; cheer: boolean };
+export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; loot?: number; color: number; character: string; name: string; moving: boolean; cheer: boolean };
 
 const w3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, p.y);
 
@@ -30,6 +30,8 @@ type Mage = {
   oneShotUntil: number;
   ring: THREE.Mesh;
   shield: THREE.Mesh;
+  lootBar: HTMLDivElement;
+  lootFill: HTMLDivElement;
   label: HTMLDivElement;
   hpFill: HTMLDivElement;
   hpText: HTMLSpanElement;
@@ -202,18 +204,19 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   let warnR = -1;
 
   const glow = glowTexture();
-  const fireMat = new THREE.MeshBasicMaterial({ color: '#ffb347' });
-  const homingMat = new THREE.MeshBasicMaterial({ color: '#d58bff' });
+  // núcleo quase branco e brilho saturado: destaca do chão marrom e da lava laranja (legibilidade, ideia do Spellsworn)
+  const fireMat = new THREE.MeshBasicMaterial({ color: '#fff2b0' });
+  const homingMat = new THREE.MeshBasicMaterial({ color: '#f3d4ff' });
   const ballGeo = new THREE.SphereGeometry(0.28, 16, 12);
-  const swapMat = new THREE.MeshBasicMaterial({ color: '#8ffff2' });
-  const gripMat = new THREE.MeshBasicMaterial({ color: '#ff8a9a' });
+  const swapMat = new THREE.MeshBasicMaterial({ color: '#dcfffb' });
+  const gripMat = new THREE.MeshBasicMaterial({ color: '#ffd6de' });
   // aparência de cada projétil: corpo, cor do brilho e do rastro, textura do rastro e tamanho
   const LOOK: Record<ProjKind, { mat: THREE.Material; halo: string; trail: string; tex: THREE.Texture; size: number }> = {
-    fireball: { mat: fireMat, halo: '#ff7a1a', trail: '#ff7a20', tex: FX.flame, size: 1 },
-    homing: { mat: homingMat, halo: '#b05cff', trail: '#a050ff', tex: FX.magic, size: 1 },
-    cluster: { mat: fireMat, halo: '#ffd23a', trail: '#ffb347', tex: FX.spark, size: 0.55 },
-    swap: { mat: swapMat, halo: '#2fe0d0', trail: '#2fe0d0', tex: FX.magic, size: 0.9 },
-    grip: { mat: gripMat, halo: '#e0203a', trail: '#c2122a', tex: FX.magic, size: 0.9 },
+    fireball: { mat: fireMat, halo: '#ffb000', trail: '#ff8a00', tex: FX.flame, size: 1.15 },
+    homing: { mat: homingMat, halo: '#c23cff', trail: '#b040ff', tex: FX.magic, size: 1.1 },
+    cluster: { mat: fireMat, halo: '#fff066', trail: '#ffd23a', tex: FX.spark, size: 0.65 },
+    swap: { mat: swapMat, halo: '#00fff0', trail: '#2fe0d0', tex: FX.magic, size: 1 },
+    grip: { mat: gripMat, halo: '#ff1f4f', trail: '#e0103a', tex: FX.magic, size: 1 },
     meteor: { mat: fireMat, halo: '#ff5a1a', trail: '#ff7a20', tex: FX.fire, size: 3 },
   };
   const projs = new Map<number, THREE.Group>();
@@ -334,9 +337,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     bar.append(hpFill, hpText);
     const statusEl = document.createElement('span');
     statusEl.className = 'status-icons';
-    label.append(statusEl, nameEl, bar);
+    // barrinha dourada do monte de ouro: enche a cada 2 s em cima dele
+    const lootBar = document.createElement('div');
+    lootBar.className = 'loot-bar';
+    lootBar.hidden = true;
+    const lootFill = document.createElement('div');
+    lootBar.append(lootFill);
+    label.append(statusEl, nameEl, bar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, label, hpFill, hpText, statusEl, statusKey: -1, dead: false, color: d.color, character: d.character };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, label, hpFill, hpText, lootBar, lootFill, statusEl, statusKey: -1, dead: false, color: d.color, character: d.character };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -434,18 +443,39 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // obstáculos da rodada: modelo KayKit de cada tipo, treme quando apanha e afunda ao quebrar
   const OBSTACLE_MODEL: Record<string, string> = { pillar: 'pillar_decorated', rock: 'rubble_large', tree: 'tree_dead_large', shrine: 'shrine_candles' };
   const pillarMeshes: { obj: THREE.Object3D; pos: Vec; dead: boolean; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number }[] = [];
-  const chest = new THREE.Group();
-  {
-    const wood = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.32, 0.38), new THREE.MeshStandardMaterial({ color: '#7a4a22', roughness: 0.7 }));
+  // baú: caixa simples com tampa dourada e brilho (é um obstáculo: as magias quebram)
+  const chestWood = new THREE.MeshStandardMaterial({ color: '#7a4a22', roughness: 0.7 });
+  const chestGold = new THREE.MeshStandardMaterial({ color: '#ffcc33', emissive: '#a06a00', metalness: 0.6, roughness: 0.3 });
+  function makeChest() {
+    const g = new THREE.Group();
+    const wood = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.32, 0.38), chestWood);
     wood.position.y = 0.16;
-    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.12, 0.4), new THREE.MeshStandardMaterial({ color: '#ffcc33', emissive: '#a06a00', metalness: 0.6, roughness: 0.3 }));
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.12, 0.4), chestGold);
     lid.position.y = 0.38;
     const glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: '#ffd84a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-    glowSprite.scale.setScalar(1.6);
+    glowSprite.scale.setScalar(1.2);
     glowSprite.position.y = 0.3;
-    chest.add(wood, lid, glowSprite);
-    chest.visible = false;
-    scene.add(chest);
+    g.add(wood, lid, glowSprite);
+    return g;
+  }
+  // monte de ouro do baú quebrado: moedas no chão com brilho que pulsa
+  const pile = new THREE.Group();
+  {
+    for (let k = 0; k < 9; k++) {
+      const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.04, 12), chestGold);
+      coin.position.set((Math.random() - 0.5) * 0.6, 0.03 + Math.random() * 0.12, (Math.random() - 0.5) * 0.6);
+      coin.rotation.set(Math.random(), Math.random(), Math.random());
+      pile.add(coin);
+    }
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.78, 40), new THREE.MeshBasicMaterial({ color: '#ffd84a', transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.03;
+    const shine = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: '#ffd84a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    shine.scale.setScalar(1.8);
+    shine.position.y = 0.3;
+    pile.add(ring, shine);
+    pile.visible = false;
+    scene.add(pile);
   }
 
   function syncPillars(list: PillarView[]) {
@@ -458,7 +488,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       pillarMeshes.length = 0;
       for (const p of list) {
-        const obj = decor.clone(OBSTACLE_MODEL[p.kind]) ?? new THREE.Mesh(new THREE.CylinderGeometry(radius(p), radius(p), 2.2, 12), new THREE.MeshStandardMaterial({ color: '#6b625c' }));
+        const obj = (p.kind === 'chest' ? makeChest() : decor.clone(OBSTACLE_MODEL[p.kind])) ?? new THREE.Mesh(new THREE.CylinderGeometry(radius(p), radius(p), 2.2, 12), new THREE.MeshStandardMaterial({ color: '#6b625c' }));
         // ajusta a largura do modelo ao raio de colisão do pilar
         const box = new THREE.Box3().setFromObject(obj);
         const width = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) || 1;
@@ -466,12 +496,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         obj.scale.multiplyScalar((radius(p) * (p.kind === 'tree' ? 6 : 2.3)) / width);
         obj.position.copy(w3(p.pos, 0));
         scene.add(obj);
-        // barra de vida discreta: só para o que quebra, e só aparece depois do primeiro dano
+        // barra de vida em tudo que quebra (pedido do Fernando, 17/10: sempre visível)
         let bar: HTMLDivElement | null = null, fill: HTMLDivElement | null = null;
         if (Number.isFinite(OBSTACLES[p.kind].hp)) {
           bar = document.createElement('div');
-          bar.className = 'obstacle-hp';
-          bar.hidden = true;
+          bar.className = 'obstacle-hp' + (p.kind === 'chest' ? ' chest' : '');
           fill = document.createElement('div');
           bar.append(fill);
           labels.append(bar);
@@ -486,11 +515,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.dead = true;
         m.obj.position.y = Math.max(-3, m.obj.position.y - 0.05);
         m.obj.visible = m.obj.position.y > -2.9;
+        if (m.bar) m.bar.hidden = true;
       } else {
         // tremida curta quando apanha
         const shake = p.hp < 100 ? (100 - p.hp) / 100 : 0;
         if (m.bar && m.fill) {
-          m.bar.hidden = p.hp >= 100;
           m.fill.style.width = `${p.hp}%`;
         }
         m.obj.rotation.z = Math.sin(performance.now() / 40) * 0.02 * shake;
@@ -722,6 +751,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       m.hpFill.style.width = `${Math.max(0, Math.min(100, (d.hp / d.hpMax) * 100))}%`;
       m.hpText.textContent = `${Math.max(0, Math.ceil(d.hp))}/${d.hpMax}`;
+      m.lootBar.hidden = !d.loot;
+      if (d.loot) m.lootFill.style.width = `${Math.min(100, d.loot * 100)}%`;
     }
     for (const [id, m] of mages) if (!seen.has(id)) {
       m.root.visible = false;
@@ -812,7 +843,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     castLocal(id: string, spell: string) {
       oneShot(id, spell === 'shield' || spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
     },
-    render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; chest: Vec | null; follow: Vec | null }) {
+    render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loot: { pos: Vec; left: number } | null; follow: Vec | null }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
@@ -835,10 +866,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       syncProjectiles(state.projectiles);
       syncPillars(state.pillars);
       // baú de ouro: caixa simples com tampa dourada, brilho e balanço
-      chest.visible = !!state.chest;
-      if (state.chest) {
-        chest.position.copy(w3(state.chest, 0.05 + Math.abs(Math.sin(now * 3)) * 0.12));
-        chest.rotation.y = now * 1.2;
+      pile.visible = !!state.loot;
+      if (state.loot) {
+        pile.position.copy(w3(state.loot.pos, 0));
+        pile.scale.setScalar(0.6 + 0.4 * (state.loot.left / CHEST.pile));
+        pile.rotation.y = now * 0.6;
       }
       for (const m of mages.values()) m.mixer.update(dt);
       decor.update(shownR, now);

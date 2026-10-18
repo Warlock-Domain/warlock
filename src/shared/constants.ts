@@ -34,13 +34,17 @@ export const PILLAR = { r: 0.5, hp: 40, spread: 1000 * UNIT, blastR: 300 * UNIT,
 
 // tipos de obstáculo (pedido do Fernando, 17/10: "não só esses pilares"); o pilar segue o original, os outros são meus:
 // rocha grande que não quebra, árvore morta frágil e altar de velas que explode em fogo. weight = chance relativa no sorteio
-export type ObstacleKind = 'pillar' | 'rock' | 'tree' | 'shrine';
-export const OBSTACLE_KINDS: ObstacleKind[] = ['pillar', 'rock', 'tree', 'shrine'];
+export type ObstacleKind = 'pillar' | 'rock' | 'tree' | 'shrine' | 'chest' | 'rockpillar';
+export const OBSTACLE_KINDS: ObstacleKind[] = ['pillar', 'rock', 'tree', 'shrine', 'chest', 'rockpillar'];
 export const OBSTACLES: Record<ObstacleKind, { r: number; hp: number; blastR: number; blastDmg: number; weight: number }> = {
   pillar: { r: 0.5, hp: 40, blastR: 300 * UNIT, blastDmg: 1, weight: 4 },
   rock: { r: 0.85, hp: Infinity, blastR: 0, blastDmg: 0, weight: 2 },
   tree: { r: 0.35, hp: 15, blastR: 0, blastDmg: 0, weight: 2 },
   shrine: { r: 0.45, hp: 10, blastR: 1.6, blastDmg: 6, weight: 1 },
+  chest: { r: 0.4, hp: 25, blastR: 0, blastDmg: 0, weight: 0 }, // baú de ouro: não sai no sorteio, aparece no meio da rodada
+  // Pilar de pedra (magia): obstáculo comum do original (400 de vida, explode igual ao pilar) com raio 90 u, 1,5× o pilar
+  // de 60 u; aqui 1,5× o nosso pilar, que já é maior que o original. Some sozinho (Pillar.until)
+  rockpillar: { r: 0.75, hp: 40, blastR: 300 * UNIT, blastDmg: 1, weight: 0 },
 };
 
 export const MAX_PLAYERS = 8;
@@ -50,10 +54,14 @@ export const ROUND_GOLD = 10;
 // venda: cada nível volta 100% na loja em que foi comprado e perde 5% por rodada com ele, até 75% (Fernando, 17/10)
 export const SELL_DECAY = 0.05;
 export const SELL_FLOOR = 0.75;
-// baú de ouro no meio da rodada (pedido do Fernando, 17/10: "incentivar a treta"): um por vez, a cada 15 s, +5 para quem encostar
-export const CHEST = { every: 15, gold: 5, reach: 0.45, spread: 0.6 };
+// baú de ouro no meio da rodada (pedidos do Fernando, 17/10: "incentivar a treta"): aparece a cada 15 s, as magias quebram
+// (vida em OBSTACLES.chest) e ele vira um monte de ouro; quem fica em cima ganha 1 a cada 2 s até o monte (10) acabar; sair zera o progresso
+export const CHEST = { every: 15, pile: 10, goldEvery: 2, reach: 0.75, pileSecs: 45, spread: 0.6 };
 // chão depois do choque de projéteis (pedido do Fernando, 17/10): fogo queima, arcano deixa lento, pulso puxa para o centro
 export const ZONES = { burn: { dps: 2, secs: 4.5 }, slow: { mult: 0.6, secs: 4.5 }, pull: { speed: 2.2, secs: 3 }, size: 0.75 };
+// assistência: quem causou mais dano em quem morreu, sem ser quem matou (anti-roubo de abate do Warlock original, versão 082)
+export const ASSIST_GOLD = 2;
+export const ASSIST_MIN_DMG = 3;
 export const KILL_GOLD = 5; // 0 no original; +5 a pedido do Fernando (17/10)
 export const WIN_GOLD = 10; // 0 no original; +10 a pedido do Fernando (17/10)
 export const TOP_DMG_GOLD = 10; // quem causou mais dano na rodada (empate: todos); pedido do Fernando (17/10)

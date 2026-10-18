@@ -131,6 +131,10 @@ button.kick:hover { background: rgba(255, 122, 106, .15); }
 @media (prefers-reduced-motion: reduce) { .status-icons i.bad { animation: none; } }
 .obstacle-hp { position: absolute; left: 0; top: 0; width: 34px; height: 3px; border-radius: 2px; background: rgba(0, 0, 0, .55); overflow: hidden; opacity: .75; pointer-events: none; }
 .obstacle-hp > div { height: 100%; background: #d9c3a5; }
+.obstacle-hp { opacity: .95; height: 4px; width: 40px; }
+.obstacle-hp.chest > div { background: #ffcc33; }
+.wiz-label .loot-bar { width: 46px; height: 5px; margin-top: 3px; border-radius: 3px; background: rgba(0, 0, 0, .6); overflow: hidden; }
+.wiz-label .loot-bar > div { height: 100%; background: linear-gradient(90deg, #ffcc33, #fff2a0); }
 .hp-text { position: absolute; inset: 0; display: grid; place-items: center; font-size: .62rem; font-weight: 800; line-height: 1; color: #fff; text-shadow: 0 1px 2px #000, 0 0 2px #000; font-variant-numeric: tabular-nums; }
 .hp-fill { height: 100%; width: 100%; }
 

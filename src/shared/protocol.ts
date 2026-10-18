@@ -51,11 +51,12 @@ export type PublicRoom = {
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits de estado (ver encodeSnap)
 // p: 6 números por projétil: id, tipo (índice em PROJ_KINDS), x, y, vx, vy (no meteoro: raio e segundos até cair)
 // cd: recarga restante das magias de quem recebe, na ordem de SPELL_IDS; icd: dos 3 itens ativos (ACTIVE_ITEMS);
+// ch: monte de ouro do baú (x, y, quanto falta); lp: progresso de cada mago (0 a 1) até o próximo ouro do monte, na ordem de room.ids
 // pl: 4 números por obstáculo: x, y, vida em % (0 = quebrado), tipo (índice em OBSTACLE_KINDS)
 // rs: só no deathmatch, 1 número por mago na ordem de room.ids: segundos até voltar (0 = vivo)
 // sp: velocidade de andar dele agora (botas, lentidão), para a previsão; ack: último seq aplicado dele
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
-export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; pl: number[]; rs?: number[]; ch?: number[]; ack: number; e?: SimEvent[] };
+export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; pl: number[]; rs?: number[]; ch?: number[]; lp?: number[]; ack: number; e?: SimEvent[] };
 
 export type ErrorCode = 'not_found' | 'other_tab' | 'full' | 'bad_msg' | 'kicked';
 

@@ -368,20 +368,29 @@ describe('tecla repetida', () => {
 });
 
 describe('baú e chão do choque', () => {
-  it('a chest appears after 15 s and the first wizard to touch it takes it', () => {
+  it('a chest appears after 15 s, spells break it and standing on the gold pays 1 every 2 s', () => {
     const w = world([[0, 0], [6, 6]]);
     w.pillars = [];
     run(w, CHEST.every + 0.1);
-    expect(w.chest).not.toBeNull();
-    const at = w.chest!;
-    w.wizards[0].pos = v(at.x + 0.2, at.y);
-    let looted = false;
-    for (let i = 0; i < 3; i++) {
-      stepWorld(w, []);
-      looted ||= w.events.some((e) => e.k === 'loot' && e.id === 'p0');
+    const i = w.pillars.findIndex((q) => q.kind === 'chest' && q.alive);
+    expect(i).toBeGreaterThanOrEqual(0);
+    const at = w.pillars[i].pos;
+    // quebra com bolas de fogo de perto
+    w.wizards[0].pos = v(at.x - 1.5, at.y);
+    for (let k = 0; k < 8 && w.pillars[i].alive; k++) {
+      w.wizards[0].cd.fireball = 0;
+      run(w, 0.4, [{ id: 'p0', kind: 'cast', spell: 'fireball', at }]);
     }
-    expect(looted).toBe(true);
-    expect(w.chest).toBeNull();
+    expect(w.pillars[i].alive).toBe(false);
+    expect(w.loot?.left).toBe(CHEST.pile);
+    w.wizards[0].pos = v(at.x, at.y);
+    w.wizards[0].vel = v(0, 0);
+    let gold = 0;
+    for (let k = 0; k < Math.round(4.2 / DT); k++) {
+      stepWorld(w, []);
+      gold += w.events.filter((e) => e.k === 'loot' && e.id === 'p0').length;
+    }
+    expect(gold).toBe(2);
   });
 
   it('fire clash leaves burning ground, arcane slows, pulse pulls inward', () => {
