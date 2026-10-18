@@ -10,7 +10,7 @@ import { ACTIONS, RESERVED, keyLabel, keyOf, labelOf, onKeysChange, resetKeys, s
 import { hideTip, itemTip, masteryTip, spellTip, withTip } from './tips.ts';
 import { COLORS } from './scene.ts';
 import { RULES } from './rules-text.ts';
-import { TAUNTS } from '../shared/taunts.ts';
+import { OWN_TAUNT, TAUNTS, VOICE_MAX_B64, VOICE_MAX_MS, VOICE_MIME, VOICE_TEXT_MAX, type Voice } from '../shared/taunts.ts';
 
 type Child = Node | string | null | undefined | false;
 export function el(tag: string, props: Record<string, any> = {}, ...children: Child[]): HTMLElement {
@@ -127,6 +127,9 @@ export type RoomActions = {
   undo: (key: string) => void;
   sell: (key: string) => void;
   taunt: (i: number) => void;
+  myVoices: () => (Voice | null)[];
+  saveVoice: (slot: number, v: Voice | null) => void;
+  hearVoice: (data: string) => void;
   useItem: (i: ItemId) => void;
   pick: (c: CharacterId) => void;
   ready: () => void;
@@ -270,17 +273,77 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     act.taunt(i);
     tauntPanel.hidden = true;
   };
-  const tauntPanel = el('div', { class: 'vol-panel', hidden: true }, el('b', {}, 'Taunts (Y)'),
-    el('div', { class: 'taunt-list' }, ...TAUNTS.map((t, i) => el('button', { type: 'button', onclick: () => sendTaunt(i) }, `${i + 1} · ${t.text}`))));
+  // taunts próprios depois dos 9 fixos (o primeiro na tecla 0); "Meus taunts" grava, ouve e apaga cada slot
+  const ownList = el('div', { class: 'taunt-list' });
+  const ownRows = el('div', { class: 'taunt-list' });
+  const captionOf = (input: HTMLInputElement) => input.value.replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim().slice(0, VOICE_TEXT_MAX);
+  let recording: (() => void) | null = null;
+  const drawList = () =>
+    ownList.replaceChildren(...act.myVoices().flatMap((v, slot) => (v ? [el('button', { type: 'button', onclick: () => sendTaunt(OWN_TAUNT + slot) }, `${slot === 0 ? '0' : '🎙️'} · ${v.text || '🎙️'}`)] : [])));
+  const drawOwn = () => {
+    const mine = act.myVoices();
+    drawList();
+    ownRows.replaceChildren(...mine.map((v, slot) => {
+      const caption = el('input', { maxlength: VOICE_TEXT_MAX, placeholder: `Legenda ${slot + 1}`, value: v?.text ?? '', 'aria-label': `Legenda do taunt ${slot + 1}`, onchange: () => {
+        const cur = act.myVoices()[slot];
+        if (cur) act.saveVoice(slot, { ...cur, text: captionOf(caption) });
+        drawList();
+      } }) as HTMLInputElement;
+      const rec: HTMLElement = el('button', { type: 'button', class: 'icon', title: 'Gravar (até 3 s)', onclick: () => void record(slot, caption, rec) }, '🎙️');
+      return el('div', { class: 'taunt-row' }, caption, rec,
+        el('button', { type: 'button', class: 'icon', title: 'Ouvir', disabled: !v, onclick: () => v && act.hearVoice(v.data) }, '▶️'),
+        el('button', { type: 'button', class: 'icon', title: 'Apagar', disabled: !v, onclick: () => {
+          act.saveVoice(slot, null);
+          drawOwn();
+        } }, '🗑️'));
+    }));
+  };
+  // o microfone só é pedido aqui; para sozinho em 3 s ou no segundo clique
+  async function record(slot: number, caption: HTMLInputElement, btn: HTMLElement) {
+    if (recording) return recording();
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      return toast('Sem acesso ao microfone.');
+    }
+    const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'].find((t) => MediaRecorder.isTypeSupported(t));
+    const rec = new MediaRecorder(stream, { mimeType: type, audioBitsPerSecond: 32_000 });
+    const chunks: Blob[] = [];
+    rec.ondataavailable = (e) => chunks.push(e.data);
+    rec.onstop = async () => {
+      clearTimeout(timer);
+      stream.getTracks().forEach((t) => t.stop());
+      recording = null;
+      const mime = (rec.mimeType || type || '').toLowerCase();
+      let bin = '';
+      for (const b of new Uint8Array(await new Blob(chunks).arrayBuffer())) bin += String.fromCharCode(b);
+      const data = btoa(bin);
+      if (!data || !VOICE_MIME.test(mime)) toast('Não deu para gravar neste navegador.');
+      else if (data.length > VOICE_MAX_B64) toast('A gravação ficou grande demais. Tente de novo.');
+      else act.saveVoice(slot, { text: captionOf(caption), mime, data });
+      drawOwn();
+    };
+    const stop = () => rec.state !== 'inactive' && rec.stop();
+    const timer = setTimeout(stop, VOICE_MAX_MS);
+    recording = stop;
+    rec.start();
+    btn.textContent = '⏹️';
+    btn.title = 'Parar';
+  }
+  drawOwn();
+  const tauntPanel = el('div', { class: 'vol-panel taunt-panel', hidden: true }, el('b', {}, 'Taunts (Y)'),
+    el('div', { class: 'taunt-list' }, ...TAUNTS.map((t, i) => el('button', { type: 'button', onclick: () => sendTaunt(i) }, `${i + 1} · ${t.text}`))), ownList,
+    el('b', {}, 'Meus taunts'), ownRows);
   const tauntBtn = el('button', { type: 'button', class: 'icon', title: 'Taunts (Y)', onclick: () => (tauntPanel.hidden = !tauntPanel.hidden) }, '💬');
   addEventListener('keydown', (e) => {
     if (e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT') return;
     if (e.code === 'KeyY') {
       tauntPanel.hidden = !tauntPanel.hidden;
       e.preventDefault();
-    } else if (!tauntPanel.hidden && /^(Digit|Numpad)[1-9]$/.test(e.code)) {
+    } else if (!tauntPanel.hidden && /^(Digit|Numpad)[0-9]$/.test(e.code)) {
       const i = Number(e.code.slice(-1)) - 1;
-      if (i < TAUNTS.length) sendTaunt(i);
+      if (i < 0 ? act.myVoices()[0] : i < TAUNTS.length) sendTaunt(i < 0 ? OWN_TAUNT : i);
       // o número não pode também usar o item da mesma tecla
       e.preventDefault();
       e.stopImmediatePropagation();

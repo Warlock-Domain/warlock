@@ -18,9 +18,9 @@ const zip = (a: number[], b: number[]) => a.map((x, i) => [x, b[i]]);
 
 export const SPELLS: Record<SpellId, Spell> = {
   fireball: { key: 'Q', name: 'Bola de fogo', cost: 0, up: [7, 7, 7, 7, 7, 7], levels: [70, 77, 84, 91, 98, 105, 112].map((d) => L({ cd: 4.8, dmg: d / 10, speed: 1000 * UNIT, range: 1000 * UNIT })) },
-  lightning: { key: 'W', name: 'Raio', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 15.5, 15, 14.5, 14, 13.5, 13], [70, 78, 86, 94, 102, 110, 118]).map(([cd, d]) => L({ cd: Math.round(cd * 7) / 10, dmg: d / 10, kbf: 0.92, range: 600 * UNIT })) },
+  lightning: { key: 'W', name: 'Raio', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 15.5, 15, 14.5, 14, 13.5, 13], [70, 78, 86, 94, 102, 110, 118]).map(([cd, d]) => L({ cd: Math.round(cd * 7) / 10, dmg: d / 10, kbf: 0.92, range: 800 * UNIT })) }, // balanceamento de 17/10: recarga ×0,7 e alcance 600 → 800 (acertava 21%)
   homing: { key: 'E', name: 'Míssil teleguiado', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [70, 80, 90, 100, 110, 120, 130]).map(([cd, d]) => L({ cd, dmg: (d / 10) * 0.8, speed: 1000 * UNIT, duration: 4.5 })) },
-  shield: { key: 'R', name: 'Escudo', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [14, 13, 12, 11, 10, 9, 8].map((cd) => L({ cd, duration: 1.2 })) },
+  shield: { key: 'R', name: 'Escudo', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [14, 13, 12, 11, 10, 9, 8].map((cd, i) => L({ cd, duration: 1.2, radius: (200 + 10 * i) * UNIT })) }, // bolha de 200 a 260 (abil.txt do original)
   teleport: { key: 'F', name: 'Teleporte', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([16, 13.5, 11.5, 10, 9, 8, 7], [770, 840, 910, 980, 1050, 1120, 1190]).map(([cd, r]) => L({ cd, range: r * UNIT })) },
   // as cinco magias seguintes: npc_abilities_custom.txt, spells/*.lua e shop/warlock_shop_data.js do Warlock Brawl
   // troca: projétil de 1983 u/s que vive 0,4706 s (alcance 933 u)
@@ -29,7 +29,7 @@ export const SPELLS: Record<SpellId, Spell> = {
   // Agarrar prende metade do tempo do original (nerf pedido pelo Fernando, 17/10)
   grip: { key: 'G', name: 'Agarrar', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([24, 20, 17, 15, 13, 12, 10.5], [4.5, 4.75, 5, 5.25, 5.5, 5.75, 6]).map(([cd, duration]) => L({ cd, duration: duration / 2, speed: 1000 * UNIT, range: 1100 * UNIT })) },
   // meteoro: dano de 40 (4) na borda até o máximo no centro; empurrão 0,66
-  meteor: { key: 'V', name: 'Meteoro', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([20, 19.5, 19, 18.5, 18, 17.5, 17], [110, 120, 130, 140, 150, 160, 170]).map(([cd, d], i) => L({ cd, dmg: d / 10, dmgMin: 4, kbf: 0.66, radius: [225, 240, 255, 269, 282, 294, 304][i] * UNIT, range: 1000 * UNIT })) },
+  meteor: { key: 'V', name: 'Meteoro', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([20, 19.5, 19, 18.5, 18, 17.5, 17], [110, 120, 130, 140, 150, 160, 170]).map(([cd, d], i) => L({ cd, dmg: d / 10, dmgMin: 6, kbf: 0.66, /* borda 4 → 6 em 17/10 */ radius: [225, 240, 255, 269, 282, 294, 304][i] * UNIT, range: 1000 * UNIT })) },
   // investida: absorve até `absorb` de dano (metade de cada golpe) e vira velocidade
   rush: { key: 'C', name: 'Investida', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([21, 20, 19, 18, 17, 16, 15], [6, 6.5, 7, 7.5, 8, 8.5, 9]).map(([cd, duration], i) => L({ cd, duration, absorb: (50 + 20 * i) / 10 })) },
   // rajada: 4 projéteis em leque de 844 u/s e 672 u de alcance; empurrão 0,65
@@ -42,7 +42,7 @@ export const GRIP = { kbCut: 0.67, castPenalty: 0.5 };
 export const METEOR_DELAY = 1.15;
 // investida: +35 u/s ao ativar; cada ponto absorvido soma 1,5 u/s (rushmodifier.lua; vida ×10 em unidades do original)
 // avanço: 3 m em 0,2 s na direção do mouse (não existe no original; pedido do Fernando, 17/10: "dash não funciona")
-export const RUSH = { bonus: 35 * UNIT, perHp: 15 * UNIT, share: 0.5, dash: 3, dashTime: 0.2 };
+export const RUSH = { bonus: 35 * UNIT, perHp: 15 * UNIT, share: 0.5, dash: 3, dashTime: 0.2, dashDmg: 6 }; // dashDmg: dano em quem o avanço encostar (pedido do Fernando, 17/10)
 // rajada: ângulos do leque em radianos (cluster.lua)
 export const CLUSTER_FAN = [-0.18, -0.06, 0.06, 0.18];
 

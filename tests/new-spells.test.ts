@@ -43,11 +43,11 @@ describe('Troca', () => {
   it('with no hit the caster ends where the projectile stopped, up to max range', () => {
     const w = world([[0, 0], [0, -8]], ['swap']);
     run(w, 0.6, [cast('p0', 'swap', 3, 0)]);
-    expect(w.wizards[0].pos.x).toBeCloseTo(3, 3); // voou o alcance todo sem tocar ninguém: vai ao ponto da mira
+    expect(w.wizards[0].pos.x).toBeCloseTo(1.5, 3); // errou: vai até a metade do caminho até a mira
     w.wizards[0].cd.swap = 0;
     w.wizards[0].pos = v(0, 0);
     run(w, 1, [cast('p0', 'swap', 50, 0)]);
-    expect(dist(w.wizards[0].pos, v(0, 0))).toBeCloseTo(SPELLS.swap.levels[0].range, 3);
+    expect(dist(w.wizards[0].pos, v(0, 0))).toBeCloseTo(SPELLS.swap.levels[0].range / 2, 3);
   });
 });
 
@@ -126,7 +126,7 @@ describe('Meteoro', () => {
     run(w, 1.7, [cast('p0', 'meteor', 4, 0)]);
     const lost = 100 - w.wizards[1].hp;
     expect(lost).toBeGreaterThan(L.dmgMin - 0.2);
-    expect(lost).toBeLessThan(L.dmg * 0.5);
+    expect(lost).toBeLessThan(L.dmg * 0.7); // borda 6 desde 17/10 (era 4)
   });
 });
 
@@ -141,6 +141,22 @@ describe('Investida', () => {
     run(w, 1.2, [cast('p0', 'fireball', z.pos.x, z.pos.y)]);
     expect(z.speed).toBeGreaterThan(WIZ_SPEED + RUSH.bonus);
     expect(100 - z.hp).toBeCloseTo(fb.dmg * (1 - RUSH.share), 0); // absorveu metade do golpe
+  });
+
+  it('the dash damages whoever it touches, once', () => {
+    const w = world([[0, 0], [0, -1.5]], ['rush']);
+    run(w, 0.5, [cast('p0', 'rush', 0, -10)]);
+    expect(w.wizards[1].hp).toBeCloseTo(100 - RUSH.dashDmg, 0);
+  });
+
+  it('scourge can start during the dash', () => {
+    const w = world([[0, 0], [0, -4]], ['rush']);
+    w.wizards[0].items.scourge = 1;
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'rush', at: v(0, -10) }]);
+    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, -10) }]);
+    expect(w.wizards[0].casting?.item).toBe('scourge');
+    run(w, 0.8);
+    expect(w.wizards[1].hp).toBeLessThan(100);
   });
 
   it('dashes 3 m toward the cursor', () => {

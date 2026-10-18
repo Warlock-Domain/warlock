@@ -16,7 +16,7 @@ type Item = { name: string; cost: number; key?: string; text: string; levels: It
 export const ITEMS: Record<ItemId, Item> = {
   ring: { name: 'Anel de vida', cost: 4, text: 'Mais vida máxima.', levels: [{ hp: 10 }, { hp: 19 }, { hp: 27 }, { hp: 34 }, { hp: 40 }] },
   cursed_ring: { name: 'Anel amaldiçoado', cost: 4, text: 'Vida e menos empurrão, mas lentidões duram mais.', levels: [{ hp: 10, kb: 0.15, debuff: 0.25 }, { hp: 20, kb: 0.15, debuff: 0.3 }] },
-  cape: { name: 'Capa', cost: 3, text: 'A vida volta mais rápido.', levels: [{ regen: 0.15 }, { regen: 0.25 }, { regen: 0.35 }] },
+  cape: { name: 'Capa', cost: 3, text: 'A vida volta mais rápido.', levels: [{ regen: 0.25 }, { regen: 0.4 }, { regen: 0.55 }] }, // 0,15/0,25/0,35 no original; +60% em 17/10
   armor: { name: 'Armadura', cost: 6, text: 'Menos empurrão.', levels: [{ kb: 0.12 }, { kb: 0.18 }, { kb: 0.22 }] },
   boots: { name: 'Botas', cost: 5, text: 'Anda mais rápido.', levels: [{ speed: 18 * UNIT }, { speed: 29 * UNIT }, { speed: 40 * UNIT }] },
   watch: { name: 'Relógio de bolso', cost: 2, text: 'Lentidões e penalidades duram menos.', levels: [{ debuff: -0.35 }, { debuff: -0.45 }] },
@@ -27,7 +27,8 @@ export const ITEMS: Record<ItemId, Item> = {
 
 // ativos (originais): Flagelo dano 100/110/120 de 1000 em 250 unidades, 0,9 s de preparo, recarga 3 s;
 // Redirecionador recarga 24 s, +30% de empurrão por 8 s; Pacto no original: recarga 30 s, 5 s para usar, 1,5×, lentidão de 66 por 6 s
-export const SCOURGE = { dmg: [10, 11, 12], radius: 250 * UNIT, windup: 0.5, cd: 5 }; // recarga 3 s no original; 5 s no balanceamento de 17/10 // preparo: 0,9 s no original, 0,5 s a pedido do Fernando (17/10)
+// dano 10/11/12 no original; 10/13/16 no balanceamento de 17/10 (quase ninguém evoluía: nível médio 1,01)
+export const SCOURGE = { dmg: [10, 13, 16], radius: 250 * UNIT, windup: 0.5, cd: 5 }; // recarga 3 s no original; 5 s no balanceamento de 17/10 // preparo: 0,9 s no original, 0,5 s a pedido do Fernando (17/10)
 // tempo de conjuração dos ativos (o do Flagelo é o preparo de 0,9 s)
 export const ITEM_CAST: Partial<Record<ItemId, number>> = { scourge: SCOURGE.windup, redirector: 0.1, pact: 0.1 };
 export const REDIRECTOR = { cd: 24, kbPenalty: 0.3, penaltyTime: 8, extraLife: 0.5 };

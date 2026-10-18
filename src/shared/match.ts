@@ -8,15 +8,15 @@ import { MASTERY_ALL_COST, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, noMasteries, 
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
 const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
 import {
-  COUNTDOWN_MS, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN,
+  CHEST, COUNTDOWN_MS, DM_KILLS_TO_WIN, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN,
 } from './constants.ts';
 import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.ts';
 import { MAX_SPELLS, SPELL_IDS, noSpells, priceOf, spellCount, type SpellId } from './spells.ts';
 
 // estatísticas do placar: ouro ganho, dano causado e precisão (lançadas e acertadas) por magia
-export type Stat = { gold: number; dmg: number; kills: number; dmgBy: Record<string, number>; fired: Record<string, number>; landed: Record<string, number> };
+export type Stat = { gold: number; dmg: number; kills: number; dmgBy: Record<string, number>; fired: Record<string, number>; landed: Record<string, number>; deaths: number; deathBy: Record<string, number>; alive: number };
 export type Stats = { round: Stat; match: Stat; room: Stat };
-const newStat = (): Stat => ({ gold: 0, dmg: 0, kills: 0, dmgBy: {}, fired: {}, landed: {} });
+const newStat = (): Stat => ({ gold: 0, dmg: 0, kills: 0, dmgBy: {}, fired: {}, landed: {}, deaths: 0, deathBy: {}, alive: 0 }); // alive: segundos vivo
 const newStats = (): Stats => ({ round: newStat(), match: newStat(), room: newStat() });
 // salas gravadas antes de um campo existir (ex.: a precisão): sem isso a soma quebrava o passo inteiro e os efeitos daquele instante sumiam
 const fillStats = (s?: Partial<Record<keyof Stats, Partial<Stat>>>): Stats => ({ round: { ...newStat(), ...s?.round }, match: { ...newStat(), ...s?.match }, room: { ...newStat(), ...s?.room } });
@@ -369,6 +369,11 @@ function endRound(m: Match, now: number, winner: string | null) {
     bonus(m, p, WIN_GOLD);
   }
   const played = new Set(m.world?.wizards.map((z) => z.id));
+  // quem sobreviveu ficou vivo a rodada inteira
+  for (const z of m.world?.wizards ?? []) {
+    const q = m.players.find((p) => p.id === z.id);
+    if (q && z.alive && !dm) addStat(q, (s) => (s.alive += m.world!.t));
+  }
   const top = Math.max(0, ...m.players.filter((q) => played.has(q.id)).map((q) => q.stats.round.dmg));
   for (const q of m.players) if (top > 0 && played.has(q.id) && q.stats.round.dmg === top) bonus(m, q, TOP_DMG_GOLD);
   for (const q of m.players) if (played.has(q.id)) earn(q, ROUND_GOLD);
@@ -436,7 +441,8 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   m.steps++;
   const all = [...cmds];
   m.players.forEach((p, i) => {
-    if (p.bot && m.steps % 10 === i % 10) all.push(...botCmds(w, p.id, rand));
+    // quem caiu vira bot até voltar, como no original (gamesetup.lua: bot assume o desconectado)
+    if ((p.bot || !p.connected) && m.steps % 10 === i % 10) all.push(...botCmds(w, p.id, rand));
   });
   // a rodada só acaba quando sobra 1: se os últimos morrerem no mesmo passo, vence quem tinha mais vida
   const before = w.wizards.filter((z) => z.alive).map((z) => ({ id: z.id, hp: z.hp }));
@@ -452,7 +458,23 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
       const p = m.players.find((q) => q.id === e.id);
       const bucket = e.k === 'fire' ? 'fired' : 'landed';
       if (p) addStat(p, (s) => (s[bucket][e.src] = (s[bucket][e.src] ?? 0) + 1));
-    } else if (e.k === 'death' && e.by && e.by !== e.id) {
+    } else if (e.k === 'death') {
+      // causa da morte e tempo vivo, para os dados de balanceamento
+      const dead = m.players.find((p) => p.id === e.id);
+      if (dead) addStat(dead, (s) => {
+        s.deaths++;
+        s.deathBy[e.src] = (s.deathBy[e.src] ?? 0) + 1;
+        if (!w.dm) s.alive += w.t; // no deathmatch volta e morre várias vezes: tempo vivo só nas rodadas
+      });
+    }
+    if (e.k === 'loot') {
+      const p = m.players.find((q) => q.id === e.id);
+      if (p) {
+        earn(p, CHEST.gold);
+        w.events.push({ k: 'gold', id: p.id, n: CHEST.gold, x: e.x, y: e.y });
+      }
+    }
+    if (e.k === 'death' && e.by && e.by !== e.id) {
       // nas rodadas o abate não vale ponto (como no original), só ouro; no deathmatch vale 1 ponto
       const killer = m.players.find((p) => p.id === e.by);
       if (killer) addStat(killer, (s) => (s.kills += 1));

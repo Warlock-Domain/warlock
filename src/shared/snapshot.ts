@@ -21,10 +21,10 @@ export function publicEvents(events: SimEvent[], pub: (id: string) => string): S
 export function encodeSnap(w: World, forId: string, ack: number, events: SimEvent[]): Snap {
   const wz: number[] = [];
   for (const z of w.wizards) {
-    // bits: 1 vivo, 2 escudo, 4 livre (era a lentidão do Pacto), 8 vulnerável (Redirecionador), 16 atordoado (arremessado), 32 invulnerável, 64 Pacto armado, 128 preso (Agarrar), 256 Investida
+    // bits: 1 vivo, 2 escudo, 4 lento (chão arcano), 512 queimando (chão de fogo), 8 vulnerável (Redirecionador), 16 atordoado (arremessado), 32 invulnerável, 64 Pacto armado, 128 preso (Agarrar), 256 Investida
     const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0) | (w.t < z.kbPenaltyUntil ? 8 : 0)
       | (Math.hypot(z.vel.x, z.vel.y) > STUN_SPEED ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
-      | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0);
+      | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 ? 4 : 0) | (z.zone & 2 ? 512 : 0);
     // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão
     const dash = w.t < z.dashUntil ? z.dashVel : { x: 0, y: 0 };
     wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x + dash.x), r2(z.vel.y + dash.y), Math.ceil(z.hp), r2(z.facing), bits);
@@ -41,6 +41,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   const snap: Snap = { t: 'snap', time: r2(w.t * 1000) / 1000, r: r2(w.arenaR), s: r2(w.shrinkAt), w: wz, p, cd, icd, sp: r2(me?.speed ?? 0), pl: w.pillars.flatMap((q) => [r2(q.pos.x), r2(q.pos.y), q.alive ? (Number.isFinite(q.hp) ? Math.ceil((q.hp / OBSTACLES[q.kind].hp) * 100) : 100) : 0, OBSTACLE_KINDS.indexOf(q.kind)]), ack };
   // deathmatch: segundos até cada mago voltar (0 = vivo), na ordem de room.ids; o limite cobre o expulso, que não volta
   if (w.dm) snap.rs = w.wizards.map((z) => (z.alive ? 0 : r2(Math.min(99, Math.max(0, z.respawnAt - w.t)))));
+  if (w.chest) snap.ch = [r2(w.chest.x), r2(w.chest.y)];
   if (events.length) snap.e = events;
   return snap;
 }
@@ -49,7 +50,7 @@ export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: numb
 // meteor: vel = (raio, segundos até cair)
 export type ProjView = { id: number; kind: ProjKind; pos: Vec; vel: Vec };
 export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
-export type SnapView = { time: number; arenaR: number; shrinkAt: number; wizards: WizView[]; projectiles: ProjView[]; pillars: PillarView[] };
+export type SnapView = { time: number; arenaR: number; shrinkAt: number; wizards: WizView[]; projectiles: ProjView[]; pillars: PillarView[]; chest: Vec | null };
 
 export function decodeSnap(s: Snap, ids: string[]): SnapView {
   const wizards: WizView[] = [];
@@ -64,5 +65,5 @@ export function decodeSnap(s: Snap, ids: string[]): SnapView {
   }
   const pillars: PillarView[] = [];
   for (let i = 0; i + 3 < (s.pl?.length ?? 0); i += 4) pillars.push({ pos: v(s.pl[i], s.pl[i + 1]), hp: s.pl[i + 2], kind: OBSTACLE_KINDS[s.pl[i + 3]] ?? 'pillar' });
-  return { time: s.time, arenaR: s.r, shrinkAt: s.s, wizards, projectiles, pillars };
+  return { time: s.time, arenaR: s.r, shrinkAt: s.s, wizards, projectiles, pillars, chest: s.ch ? v(s.ch[0], s.ch[1]) : null };
 }

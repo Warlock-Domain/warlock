@@ -18,7 +18,7 @@ export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; color: number; character: string; name: string; moving: boolean; cheer: boolean };
+export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; color: number; character: string; name: string; moving: boolean; cheer: boolean };
 
 const w3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, p.y);
 
@@ -434,6 +434,20 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // obstáculos da rodada: modelo KayKit de cada tipo, treme quando apanha e afunda ao quebrar
   const OBSTACLE_MODEL: Record<string, string> = { pillar: 'pillar_decorated', rock: 'rubble_large', tree: 'tree_dead_large', shrine: 'shrine_candles' };
   const pillarMeshes: { obj: THREE.Object3D; pos: Vec; dead: boolean; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number }[] = [];
+  const chest = new THREE.Group();
+  {
+    const wood = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.32, 0.38), new THREE.MeshStandardMaterial({ color: '#7a4a22', roughness: 0.7 }));
+    wood.position.y = 0.16;
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.12, 0.4), new THREE.MeshStandardMaterial({ color: '#ffcc33', emissive: '#a06a00', metalness: 0.6, roughness: 0.3 }));
+    lid.position.y = 0.38;
+    const glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: '#ffd84a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    glowSprite.scale.setScalar(1.6);
+    glowSprite.position.y = 0.3;
+    chest.add(wood, lid, glowSprite);
+    chest.visible = false;
+    scene.add(chest);
+  }
+
   function syncPillars(list: PillarView[]) {
     const changed = list.length !== pillarMeshes.length || list.some((p, i) => p.pos.x !== pillarMeshes[i].pos.x || p.pos.y !== pillarMeshes[i].pos.y);
     const radius = (p: PillarView) => OBSTACLES[p.kind].r;
@@ -683,6 +697,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.root.position.copy(w3(d.pos));
       m.root.rotation.y = Math.PI / 2 - d.facing;
       m.shield.visible = d.shield && d.alive;
+      if (d.shieldR) m.shield.scale.setScalar(d.shieldR / 0.85);
       m.ring.visible = d.alive;
       if (!d.alive) {
         if (!m.dead) {
@@ -702,7 +717,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // ícones de efeito em cima do mago (negativos primeiro)
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
-        const icons: [number, string, string][] = [[16, '💫', 'atordoado'], [8, '⚠️', 'vulnerável'], [32, '✨', 'invulnerável'], [64, '🩸', 'Pacto armado'], [128, '⛓️', 'preso'], [256, '💨', 'Investida']];
+        const icons: [number, string, string][] = [[16, '💫', 'atordoado'], [8, '⚠️', 'vulnerável'], [32, '✨', 'invulnerável'], [64, '🩸', 'Pacto armado'], [128, '⛓️', 'preso'], [256, '💨', 'Investida'], [4, '🐌', 'lento (chão arcano)'], [512, '🔥', 'queimando']];
         m.statusEl.replaceChildren(...icons.filter(([bit]) => d.status & bit).map(([bit, ico, name]) => Object.assign(document.createElement('i'), { textContent: ico, title: name, className: [16, 4, 8, 128].includes(bit) ? 'bad' : 'good' })));
       }
       m.hpFill.style.width = `${Math.max(0, Math.min(100, (d.hp / d.hpMax) * 100))}%`;
@@ -797,7 +812,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     castLocal(id: string, spell: string) {
       oneShot(id, spell === 'shield' || spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
     },
-    render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; follow: Vec | null }) {
+    render(state: { arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; chest: Vec | null; follow: Vec | null }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
@@ -819,6 +834,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       syncWizards(state.wizards, now);
       syncProjectiles(state.projectiles);
       syncPillars(state.pillars);
+      // baú de ouro: caixa simples com tampa dourada, brilho e balanço
+      chest.visible = !!state.chest;
+      if (state.chest) {
+        chest.position.copy(w3(state.chest, 0.05 + Math.abs(Math.sin(now * 3)) * 0.12));
+        chest.rotation.y = now * 1.2;
+      }
       for (const m of mages.values()) m.mixer.update(dt);
       decor.update(shownR, now);
       for (let i = fx.length - 1; i >= 0; i--) {

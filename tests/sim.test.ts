@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ARENA_MIN, ARENA_R0, ARENA_STEP, DT, HP_MAX, PILLAR, SHRINK_EVERY, WIZ_R } from '../src/shared/constants.ts';
+import { ARENA_MIN, ARENA_R0, ARENA_STEP, CHEST, DT, HP_MAX, PILLAR, SHRINK_EVERY, WIZ_R } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
 import { newWorld, stepWorld, type Cmd, type World } from '../src/shared/sim.ts';
 import { noSpells, type SpellId } from '../src/shared/spells.ts';
@@ -188,7 +188,7 @@ describe('magias', () => {
       stepWorld(w, []);
       for (const e of w.events) if (e.k === 'death') deaths.push(e);
     }
-    expect(deaths).toEqual([{ k: 'death', id: 'p1', by: 'p0' }]);
+    expect(deaths).toMatchObject([{ k: 'death', id: 'p1', by: 'p0', src: 'fireball' }]);
     expect(wz(w, 1).alive).toBe(false);
   });
 
@@ -364,5 +364,64 @@ describe('tecla repetida', () => {
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(9, 0) }]);
     for (let i = 0; i < 2; i++) stepWorld(w, []);
     expect(w.projectiles.length).toBe(1);
+  });
+});
+
+describe('baú e chão do choque', () => {
+  it('a chest appears after 15 s and the first wizard to touch it takes it', () => {
+    const w = world([[0, 0], [6, 6]]);
+    w.pillars = [];
+    run(w, CHEST.every + 0.1);
+    expect(w.chest).not.toBeNull();
+    const at = w.chest!;
+    w.wizards[0].pos = v(at.x + 0.2, at.y);
+    let looted = false;
+    for (let i = 0; i < 3; i++) {
+      stepWorld(w, []);
+      looted ||= w.events.some((e) => e.k === 'loot' && e.id === 'p0');
+    }
+    expect(looted).toBe(true);
+    expect(w.chest).toBeNull();
+  });
+
+  it('fire clash leaves burning ground, arcane slows, pulse pulls inward', () => {
+    const w = world([[0, 0], [9, 0]]);
+    w.pillars = [];
+    w.zones = [
+      { pos: v(0, 0), r: 1, kind: 'burn', until: 99 },
+      { pos: v(9, 0), r: 1, kind: 'slow', until: 99 },
+      { pos: v(4, 4), r: 2, kind: 'pull', until: 99 },
+    ];
+    const z = w.wizards;
+    z.push({ ...z[0], id: 'p2', pos: v(5.5, 4), hp: HP_MAX });
+    run(w, 1);
+    expect(z[0].hp).toBeLessThan(HP_MAX);
+    expect(z[1].speed).toBeLessThan(z[1].baseSpeed);
+    expect(z[2].pos.x).toBeLessThan(5.5);
+  });
+});
+
+describe('mecânicas do original', () => {
+  it('a pushed wizard passes momentum to the one it bumps (elastic)', () => {
+    const w = world([[0, 0], [1, 0]]);
+    w.pillars = [];
+    w.wizards[0].vel = v(6, 0);
+    run(w, 0.3);
+    expect(w.wizards[1].vel.x).toBeGreaterThan(1);
+  });
+
+  it('a shield bubble blocks a fireball before it reaches the body', () => {
+    const w = world([[0, 0], [5, 0]]);
+    w.pillars = [];
+    w.wizards[1].shieldUntil = 99;
+    w.wizards[1].shieldR = 1.5;
+    run(w, 0.05, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(5, 0) }]);
+    let reflectedAt = 0;
+    for (let i = 0; i < 60 && !reflectedAt; i++) {
+      stepWorld(w, []);
+      const e = w.events.find((x) => x.k === 'reflect');
+      if (e && e.k === 'reflect') reflectedAt = e.x;
+    }
+    expect(reflectedAt).toBeLessThan(5 - 1.2);
   });
 });

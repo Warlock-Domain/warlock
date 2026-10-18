@@ -1,6 +1,6 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
-  ARENA_MIN, ARENA_STEP, CREDIT_WINDOW, DM_RESPAWN, DM_SPAWN_GAP, OBSTACLES, OBSTACLE_KINDS, PILLAR, type ObstacleKind, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KB_SOFT_CAP, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
+  ARENA_MIN, ARENA_STEP, CHEST, CREDIT_WINDOW, ZONES, DM_RESPAWN, DM_SPAWN_GAP, OBSTACLES, OBSTACLE_KINDS, PILLAR, type ObstacleKind, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KB_SOFT_CAP, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
   WIZ_R, WIZ_SPEED, arenaRadius,
 } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, itemStats, noItems, type ItemId } from './items.ts';
@@ -20,6 +20,9 @@ export type Wizard = {
   shieldUntil: number;
   lastHitBy: string | null;
   lastHitAt: number;
+  lastHitSrc: string; // fonte do último golpe, para a causa da morte nos dados
+  shieldR: number; // raio da bolha do escudo (cresce com o nível)
+  zone: number; // 1 = no chão lento, 2 = no chão queimando (recalculado a cada passo)
   spells: Record<SpellId, number>; // nível; 0 = não tem
   cd: Record<SpellId, number>; // instante (w.t) em que fica pronta
   items: Record<ItemId, number>;
@@ -38,6 +41,7 @@ export type Wizard = {
   rushBonus: number; // velocidade extra da Investida agora (m/s)
   dashUntil: number; // avanço da Investida em curso até este instante
   dashVel: Vec; // velocidade do avanço (m/s)
+  dashHit: string[]; // quem este avanço já acertou
   invulnUntil: number;
   respawnAt: number; // deathmatch: instante (w.t) em que o morto volta
   durF: number; // maestria de duração (multiplica escudo e pacto)
@@ -79,7 +83,7 @@ export type SimEvent =
   | { k: 'lightning'; from: Vec; to: Vec }
   | { k: 'teleport'; id: string; from: Vec; to: Vec }
   | { k: 'grip'; id: string; x: number; y: number }
-  | { k: 'death'; id: string; by: string | null }
+  | { k: 'death'; id: string; by: string | null; src: string } // src: o que empurrou por último (dentro da janela de crédito) ou 'lava'
   | { k: 'gold'; id: string; n: number; x: number; y: number }
   | { k: 'shrink'; r: number }
   | { k: 'item'; id: string; item: ItemId }
@@ -87,16 +91,21 @@ export type SimEvent =
   | { k: 'redirect'; x: number; y: number }
   | { k: 'clash'; x: number; y: number; combo: Combo; r: number }
   | { k: 'pillar'; i: number; x: number; y: number }
+  | { k: 'chest'; x: number; y: number } // baú apareceu
+  | { k: 'loot'; id: string; x: number; y: number } // alguém pegou o baú
   // estatística de precisão: 'fire' quando uma magia de dano sai, 'land' quando ela acerta um inimigo (uma vez por projétil; a Rajada conta os 4)
   | { k: 'fire'; id: string; src: AimSrc }
   | { k: 'land'; id: string; src: AimSrc };
 
-export type AimSrc = 'fireball' | 'lightning' | 'homing' | 'scourge' | 'meteor' | 'cluster';
+// as de utilidade (teleport, shield, swap, grip, rush, pact, redirector) contam uso em 'fire' e, quando pegam alguém, 'land'
+export type AimSrc = 'fireball' | 'lightning' | 'homing' | 'scourge' | 'meteor' | 'cluster' | 'teleport' | 'shield' | 'swap' | 'grip' | 'rush' | 'pact' | 'redirector';
 
 // choque de magias: fogo×fogo, fogo×míssil, míssil×míssil, e o raio detonando uma bola de fogo
 export type Combo = 'fire' | 'arcane' | 'pulse' | 'detonate' | 'pillar';
 
 export type Pillar = { pos: Vec; hp: number; alive: boolean; kind: ObstacleKind };
+
+export type Zone = { pos: Vec; r: number; kind: 'burn' | 'slow' | 'pull'; until: number };
 
 export type World = {
   t: number;
@@ -105,6 +114,9 @@ export type World = {
   wizards: Wizard[];
   projectiles: Projectile[];
   pillars: Pillar[];
+  zones: Zone[]; // chão com efeito deixado pelos choques
+  chest: Vec | null; // baú de ouro no chão
+  chestAt: number; // quando o próximo baú aparece
   events: SimEvent[];
   nextId: number;
   dm: boolean; // deathmatch: a arena não encolhe e quem morre volta depois de DM_RESPAWN s
@@ -137,6 +149,9 @@ export function newWorld(
       alive: true,
       shieldUntil: 0,
       lastHitBy: null,
+      lastHitSrc: '',
+      zone: 0,
+      shieldR: 0,
       lastHitAt: -1e9,
       spells: { ...spells[id] },
       cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])) as Record<SpellId, number>,
@@ -156,6 +171,7 @@ export function newWorld(
       rushBonus: 0,
       dashUntil: 0,
       dashVel: v(0, 0),
+      dashHit: [],
       invulnUntil: INVULN_TIME,
       respawnAt: 0,
       durF: 1 + masteryValue('duration', ms.duration),
@@ -164,7 +180,7 @@ export function newWorld(
       casting: null,
     };
   });
-  return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars: placePillars(pillarCount, wizards.map((z) => z.pos), rand), events: [], nextId: 1, dm };
+  return { t: 0, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars: placePillars(pillarCount, wizards.map((z) => z.pos), rand), zones: [], chest: null, chestAt: CHEST.every, events: [], nextId: 1, dm };
 }
 
 // sorteia pilares longe de onde os magos nascem e longe uns dos outros
@@ -232,6 +248,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   target.dmgTaken += dmg;
   target.vel = add(target.vel, scale(norm(dir), knock * mult));
   target.lastHitBy = by;
+  target.lastHitSrc = src;
   target.lastHitAt = w.t;
   // roubo de vida: quem acertou recupera parte do dano (e, como no original, a cura reduz o dano acumulado pela metade dela)
   const thief = by !== target.id ? byId(w, by) : undefined;
@@ -251,7 +268,8 @@ function firstOnSegment(w: World, a: Vec, b: Vec, radius: number, skip: string):
   for (const wz of w.wizards) {
     if (!wz.alive || wz.id === skip) continue;
     const t = dd > 0 ? Math.max(0, Math.min(1, dot(sub(wz.pos, a), d) / dd)) : 0;
-    if (dist(add(a, scale(d, t)), wz.pos) > radius) continue;
+    // com escudo, a bolha (maior que o mago) é que encosta
+    if (dist(add(a, scale(d, t)), wz.pos) > radius + (w.t < wz.shieldUntil ? Math.max(0, wz.shieldR - WIZ_R) : 0)) continue;
     if (!best || t < best.t) best = { wz, t };
   }
   return best;
@@ -286,6 +304,8 @@ function area(w: World, at: Vec, radius: number, dmg: number, kbFactor: number, 
     hit(w, o, by && by !== o.id ? by : (o.lastHitBy ?? by ?? o.id), amount, amount * KB_PER_DMG * kbFactor, sub(o.pos, at), 'choque:' + combo);
   }
   w.events.push({ k: 'clash', x: at.x, y: at.y, combo, r: radius });
+  const kind = combo === 'fire' || combo === 'detonate' ? 'burn' : combo === 'arcane' ? 'slow' : combo === 'pulse' ? 'pull' : null;
+  if (kind) w.zones.push({ pos: at, r: radius * ZONES.size, kind, until: w.t + (combo === 'detonate' ? 3.5 : ZONES[kind].secs) });
 }
 
 // combinações quando dois projéteis de donos diferentes se encontram (minha decisão; no original os dois só somem)
@@ -393,22 +413,27 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
       w.events.push({ k: 'fire', id: wz.id, src: 'cluster' });
     }
   } else if (spell === 'grip') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'grip' });
     launch('grip', dir, (L.range / L.speed) * wz.rangeF);
   } else if (spell === 'swap') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'swap' });
     // voa o alcance todo e troca com o primeiro mago que tocar; sem ninguém, o mago vai ao ponto da mira
     // (no original parava no clique e errava quem se mexia; mudança a pedido do Fernando, 17/10)
     launch('swap', dir, (L.range * wz.rangeF) / L.speed, null, wz.pos);
-    w.projectiles[w.projectiles.length - 1].dest = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
+    // errou: vai só até a metade do caminho até a mira (pedido do Fernando, 17/10)
+    w.projectiles[w.projectiles.length - 1].dest = add(wz.pos, scale(clampLen(sub(at, wz.pos), L.range * wz.rangeF), 0.5));
   } else if (spell === 'meteor') {
     const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
     w.projectiles.push({ id: w.nextId++, kind: 'meteor', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + METEOR_DELAY, target: null, dmgMult, caster: wz.id });
     w.events.push({ k: 'fire', id: wz.id, src: 'meteor' });
   } else if (spell === 'rush') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'rush' });
     wz.rushUntil = w.t + L.duration * wz.durF;
     wz.rushLeft = L.absorb;
     wz.rushBonus = RUSH.bonus;
     wz.dashUntil = w.t + RUSH.dashTime - DT / 2; // meio passo de folga: o arredondamento daria um passo a mais
     wz.dashVel = scale(dir, RUSH.dash / RUSH.dashTime);
+    wz.dashHit = [];
     wz.target = null;
   } else if (spell === 'lightning') {
     w.events.push({ k: 'fire', id: wz.id, src: 'lightning' });
@@ -442,9 +467,12 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
       w.events.push({ k: 'land', id: wz.id, src: 'lightning' });
     }
   } else if (spell === 'shield') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'shield' });
     wz.shieldUntil = w.t + L.duration * wz.durF;
+    wz.shieldR = L.radius;
   } else {
     // teleport
+    w.events.push({ k: 'fire', id: wz.id, src: 'teleport' });
     const from = wz.pos;
     wz.pos = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
     wz.target = null;
@@ -495,9 +523,11 @@ function useItem(w: World, wz: Wizard, item: ItemId, at: Vec) {
     wz.itemCd.scourge = w.t + SCOURGE.cd;
     scourge(w, wz);
   } else if (item === 'pact') {
+    w.events.push({ k: 'fire', id: wz.id, src: 'pact' });
     wz.itemCd.pact = w.t + PACT.cd;
     wz.pactUntil = w.t + PACT.window * wz.durF;
   } else {
+    w.events.push({ k: 'fire', id: wz.id, src: 'redirector' });
     wz.itemCd.redirector = w.t + REDIRECTOR.cd;
     wz.kbPenaltyUntil = w.t + REDIRECTOR.penaltyTime * wz.debuffMult;
     let best: Projectile | null = null;
@@ -619,9 +649,12 @@ function stepProjectiles(w: World) {
         keep.push(p);
         continue;
       }
-      if (p.kind === 'swap') swapPlaces(w, p, wz);
-      else if (p.kind === 'grip') {
+      if (p.kind === 'swap') {
+        swapPlaces(w, p, wz);
+        w.events.push({ k: 'land', id: p.caster, src: 'swap' });
+      } else if (p.kind === 'grip') {
         if (w.t >= wz.invulnUntil) {
+          w.events.push({ k: 'land', id: p.caster, src: 'grip' });
           wz.gripUntil = w.t + L.duration * wz.debuffMult;
           wz.target = null;
           wz.casting = null;
@@ -640,6 +673,8 @@ function stepProjectiles(w: World) {
   w.projectiles = keep;
 }
 
+const ELASTICITY = 0.5;
+
 function separate(w: World) {
   const alive = w.wizards.filter((z) => z.alive);
   for (let i = 0; i < alive.length; i++) {
@@ -650,9 +685,17 @@ function separate(w: World) {
       const l = len(d);
       const overlap = 2 * WIZ_R - l;
       if (overlap <= 0) continue;
-      const push = scale(l > 1e-6 ? scale(d, 1 / l) : v(1, 0), overlap / 2);
+      const n = l > 1e-6 ? scale(d, 1 / l) : v(1, 0);
+      const push = scale(n, overlap / 2);
       a.pos = sub(a.pos, push);
       b.pos = add(b.pos, push);
+      // choque elástico como no original (physics.lua, elasticidade 0,5, massas iguais): o empurrado passa o embalo adiante
+      const vn = dot(sub(b.vel, a.vel), n);
+      if (vn < 0) {
+        const j = (-(1 + ELASTICITY) * vn) / 2;
+        a.vel = sub(a.vel, scale(n, j));
+        b.vel = add(b.vel, scale(n, j));
+      }
     }
   }
 }
@@ -702,7 +745,11 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     }
     // preso: velocidade zero e o destino de andar some; a Investida soma velocidade
     const rooted = w.t < wz.gripUntil;
-    wz.speed = rooted ? 0 : Math.max(0.2, wz.baseSpeed + (w.t < wz.rushUntil ? wz.rushBonus : 0));
+    // chão do choque: lento no arcano, queima no fogo (como a lava, mas fraco)
+    wz.zone = 0;
+    for (const z of w.zones) if (dist(z.pos, wz.pos) < z.r + WIZ_R * 0.5) wz.zone |= z.kind === 'slow' ? 1 : z.kind === 'burn' ? 2 : 0;
+    if (wz.zone & 2 && w.t >= wz.invulnUntil) wz.hp -= ZONES.burn.dps * DT;
+    wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + (w.t < wz.rushUntil ? wz.rushBonus : 0)) * (wz.zone & 1 ? ZONES.slow.mult : 1));
     if (rooted) wz.target = null;
   }
 
@@ -712,9 +759,42 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     w.events.push({ k: 'shrink', r: w.arenaR });
   }
 
+  w.zones = w.zones.filter((z) => z.until > w.t);
+  // baú: aparece num ponto sorteado longe dos obstáculos; quem encostar primeiro leva
+  if (!w.chest && w.t >= w.chestAt) {
+    for (let i = 0; i < 20 && !w.chest; i++) {
+      const a = rand() * Math.PI * 2;
+      const r = Math.sqrt(rand()) * w.arenaR * CHEST.spread;
+      const p = v(Math.cos(a) * r, Math.sin(a) * r);
+      if (w.pillars.every((q) => !q.alive || dist(q.pos, p) > 1.2)) w.chest = p;
+    }
+    if (w.chest) w.events.push({ k: 'chest', x: w.chest.x, y: w.chest.y });
+    else w.chestAt = w.t + 1;
+  }
+  const chest = w.chest;
+  const taker = chest ? w.wizards.find((z) => z.alive && dist(z.pos, chest) < WIZ_R + CHEST.reach) : undefined;
+  if (chest && taker) {
+    w.events.push({ k: 'loot', id: taker.id, x: chest.x, y: chest.y });
+    w.chest = null;
+    w.chestAt = w.t + CHEST.every;
+  }
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
-    if (w.t < wz.dashUntil) wz.pos = add(wz.pos, scale(wz.dashVel, DT)); // avançando: não anda, mas o empurrão ainda soma
+    if (w.t < wz.dashUntil) {
+      wz.pos = add(wz.pos, scale(wz.dashVel, DT)); // avançando: não anda, mas o empurrão ainda soma
+      // quem o avanço encostar leva dano e é empurrado na direção do avanço (uma vez por avanço)
+      for (const o of w.wizards) {
+        if (!o.alive || o === wz || wz.dashHit.includes(o.id) || dist(o.pos, wz.pos) > 2 * WIZ_R + 0.1) continue;
+        wz.dashHit.push(o.id);
+        hit(w, o, wz.id, RUSH.dashDmg, RUSH.dashDmg * KB_PER_DMG, wz.dashVel, 'rush');
+        w.events.push({ k: 'land', id: wz.id, src: 'rush' });
+      }
+    }
+    // redemoinho do choque de pulso: puxa devagar para o centro
+    for (const z of w.zones) {
+      const d = sub(z.pos, wz.pos);
+      if (z.kind === 'pull' && len(d) < z.r + WIZ_R && len(d) > 0.15) wz.pos = add(wz.pos, scale(norm(d), ZONES.pull.speed * DT));
+    }
     moveWizard(wz, DT);
   }
   separate(w);
@@ -734,8 +814,9 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     wz.alive = false;
     wz.target = null;
     wz.respawnAt = w.t + DM_RESPAWN;
-    const by = wz.lastHitBy !== null && w.t - wz.lastHitAt <= CREDIT_WINDOW ? wz.lastHitBy : null;
-    w.events.push({ k: 'death', id: wz.id, by });
+    const credited = wz.lastHitBy !== null && w.t - wz.lastHitAt <= CREDIT_WINDOW;
+    const by = credited ? wz.lastHitBy : null;
+    w.events.push({ k: 'death', id: wz.id, by, src: credited ? wz.lastHitSrc : 'lava' });
   }
   w.t += DT;
 }

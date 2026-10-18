@@ -50,6 +50,10 @@ export const ROUND_GOLD = 10;
 // venda: cada nível volta 100% na loja em que foi comprado e perde 5% por rodada com ele, até 75% (Fernando, 17/10)
 export const SELL_DECAY = 0.05;
 export const SELL_FLOOR = 0.75;
+// baú de ouro no meio da rodada (pedido do Fernando, 17/10: "incentivar a treta"): um por vez, a cada 15 s, +5 para quem encostar
+export const CHEST = { every: 15, gold: 5, reach: 0.45, spread: 0.6 };
+// chão depois do choque de projéteis (pedido do Fernando, 17/10): fogo queima, arcano deixa lento, pulso puxa para o centro
+export const ZONES = { burn: { dps: 2, secs: 4.5 }, slow: { mult: 0.6, secs: 4.5 }, pull: { speed: 2.2, secs: 3 }, size: 0.75 };
 export const KILL_GOLD = 5; // 0 no original; +5 a pedido do Fernando (17/10)
 export const WIN_GOLD = 10; // 0 no original; +10 a pedido do Fernando (17/10)
 export const TOP_DMG_GOLD = 10; // quem causou mais dano na rodada (empate: todos); pedido do Fernando (17/10)

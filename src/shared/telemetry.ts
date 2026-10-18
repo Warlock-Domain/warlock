@@ -1,11 +1,13 @@
 // Dados de balanceamento: um resumo por rodada (quem tinha o quê, quanto dano cada fonte causou, precisão, abates,
 // quem venceu) e a soma de todas as rodadas. Guardado no objeto do lobby; leitura em /api/telemetry.
 import type { Match } from './match.ts';
+import { publicId } from './protocol.ts';
 
 export type RoundRecord = {
   at: number;
   humans: number;
   players: {
+    pid?: string; // código anônimo e estável do jogador (hash do id secreto), para separar habilidade de item
     bot: boolean;
     character: string;
     won: boolean;
@@ -17,6 +19,9 @@ export type RoundRecord = {
     fired: Record<string, number>;
     landed: Record<string, number>;
     kills: number;
+    deaths?: number;
+    deathBy?: Record<string, number>; // 'lava' ou a fonte do último empurrão
+    alive?: number; // segundos vivo na rodada
   }[];
 };
 
@@ -34,6 +39,7 @@ export function roundRecord(m: Match, now: number): RoundRecord {
     at: now,
     humans: m.players.filter((p) => !p.bot).length,
     players: m.players.map((p) => ({
+      pid: publicId('telemetria', p.id),
       bot: p.bot,
       character: p.character,
       won: p.id === m.lastRoundWinner,
@@ -45,6 +51,9 @@ export function roundRecord(m: Match, now: number): RoundRecord {
       fired: p.stats.round.fired,
       landed: p.stats.round.landed,
       kills: p.stats.round.kills,
+      deaths: p.stats.round.deaths,
+      deathBy: p.stats.round.deathBy,
+      alive: Math.round(p.stats.round.alive * 10) / 10,
     })),
   };
 }
