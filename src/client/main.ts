@@ -13,7 +13,7 @@ import { connect } from './net.ts';
 import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
-import { TEAM_NAMES, askName, banner, createRoomUi, renderLobby, screen, toast, winTitle, type RoomInfo } from './ui.ts';
+import { TEAM_NAMES, askName, banner, createRoomUi, renderLobby, screen, toast, type RoomInfo } from './ui.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
 // som de cada magia: as novas reaproveitam os sons que já existem
@@ -400,8 +400,8 @@ function startRoom(code: string, name: string) {
       const myTeam = room.players.find((p) => p.id === me)?.team;
       const won = !!w && (room.winnerTeam !== null ? myTeam === room.winnerTeam : w.id === me);
       if (w) sound.play(won ? 'winRound' : 'loseRound');
+      // o cartão do fim já mostra o vencedor e o pódio: a faixa grande só para quem venceu (antes cobria o pódio)
       if (won) banner('Vitória na partida!', 'win');
-      else banner(room.mode === 'teams' && w ? winTitle(room).replace('🏆 ', '') : !w ? 'Partida encerrada' : `${w.name} venceu!`, 'good');
     }
   }
 

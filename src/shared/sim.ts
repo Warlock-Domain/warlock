@@ -1439,9 +1439,13 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     w.shrinkAt = Math.min(w.shrinkAt, w.t + SUDDEN.every);
     w.events.push({ k: 'sudden' });
   }
-  if (!w.dm && w.t >= w.shrinkAt && w.arenaR > ARENA_MIN) {
-    w.arenaR = Math.max(ARENA_MIN, w.arenaR - ARENA_STEP);
-    w.shrinkAt += w.sudden ? SUDDEN.every : SHRINK_EVERY;
+  // passou de SUDDEN.collapse: o tamanho mínimo deixa de valer e a arena some aos poucos (vale mesmo com a morte súbita desligada)
+  const collapsing = w.t >= SUDDEN.collapse;
+  const minR = collapsing ? 0 : ARENA_MIN;
+  if (!w.dm && collapsing && w.shrinkAt > w.t + SUDDEN.every) w.shrinkAt = w.t + SUDDEN.every;
+  if (!w.dm && w.t >= w.shrinkAt && w.arenaR > minR) {
+    w.arenaR = Math.max(minR, w.arenaR - ARENA_STEP);
+    w.shrinkAt += w.sudden || collapsing ? SUDDEN.every : SHRINK_EVERY;
     w.events.push({ k: 'shrink', r: w.arenaR });
   }
 

@@ -193,3 +193,14 @@ describe('sequências de abate', () => {
     expect(g.m.streaks!.a.kills).toBe(0);
   });
 });
+
+describe('rodada sem fim', () => {
+  it('after the collapse time the arena keeps shrinking to nothing, so a round always ends', () => {
+    const w = newWorld(['a', 'b'], { a: noSpells(), b: noSpells() });
+    w.pillars = [];
+    w.wizards[0].pos = v(0, 0.2);
+    w.wizards[1].pos = v(0, -0.2);
+    for (let i = 0; i < Math.round(260 / DT) && w.wizards.every((z) => z.alive); i++) stepWorld(w, []);
+    expect(w.wizards.some((z) => !z.alive)).toBe(true);
+  });
+});

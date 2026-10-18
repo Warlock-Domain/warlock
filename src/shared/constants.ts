@@ -84,7 +84,8 @@ export const ROUND_END_MS = 2_500;
 export const VOTE_MS = 20_000; // votação na partida (trocar o modo, expulsar alguém) fecha em 20 s; pedido do Fernando (17/10)
 // mecânicas novas de 18/10 (o Fernando liberou "novas mecânicas legais"):
 // morte súbita nas Rodadas e nos Times: passados 90 s, a arena encolhe a cada 5 s em vez de 10 (as rodadas duram ~97 s na simulação)
-export const SUDDEN = { at: 90, every: 5 };
+// collapse: depois disso a arena continua encolhendo até sumir (nenhuma rodada fica sem fim; antes ~1 em 2.000 partidas de bots travava)
+export const SUDDEN = { at: 90, every: 5, collapse: 150 };
 // runas: uma por vez num ponto livre, a primeira aos 15 s e a próxima 20 s depois de alguém pegar (ou de a lava engolir);
 // quem pega ganha 8 s de Pressa (+40% de velocidade), Fúria (+30% de dano), Escudo de runa (absorve 100 de dano) ou Recarga (zera as recargas na hora)
 export type RuneKind = 'haste' | 'fury' | 'shield' | 'recharge';
