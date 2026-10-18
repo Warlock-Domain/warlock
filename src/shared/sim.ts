@@ -4,7 +4,6 @@ import {
   WIZ_R, WIZ_SPEED, arenaRadius,
 } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, itemStats, noItems, type ItemId } from './items.ts';
-import { masteryValue, noMasteries, type MasteryId } from './masteries.ts';
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, GRAVITY, GRIP, HOMING_TURN, METEOR_DELAY, RUSH, SPELL_IDS, THRUST, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
@@ -137,7 +136,6 @@ export function newWorld(
   ids: string[],
   spells: Record<string, Record<SpellId, number>>,
   items: Record<string, Record<ItemId, number>> = {},
-  masteries: Record<string, Record<MasteryId, number>> = {},
   pillarCount = 0,
   rand: () => number = Math.random,
   dm = false,
@@ -148,7 +146,6 @@ export function newWorld(
     const a = (i / ids.length) * Math.PI * 2;
     const own = { ...noItems(), ...items[id] };
     const st = itemStats(own);
-    const ms = { ...noMasteries(), ...masteries[id] };
     return {
       id,
       pos: v(Math.cos(a) * r, Math.sin(a) * r),
@@ -191,7 +188,7 @@ export function newWorld(
       respawnAt: 0,
       durF: 1, // maestrias de Duração e Alcance tiradas (17/10); os multiplicadores ficam em 1
       rangeF: 1,
-      lifesteal: masteryValue('lifesteal', ms.lifesteal),
+      lifesteal: st.lifesteal,
       casting: null,
     };
   });

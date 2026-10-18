@@ -335,7 +335,7 @@ describe('pilares', () => {
   });
 
   it('pillars spawn away from wizards', () => {
-    const w = newWorld(['a', 'b', 'c', 'd'], { a: all(), b: all(), c: all(), d: all() }, {}, {}, 8);
+    const w = newWorld(['a', 'b', 'c', 'd'], { a: all(), b: all(), c: all(), d: all() }, {}, 8);
     expect(w.pillars.length).toBeGreaterThanOrEqual(2);
     for (const p of w.pillars) for (const z of w.wizards) expect(dist(p.pos, z.pos)).toBeGreaterThanOrEqual(2);
   });

@@ -4,10 +4,9 @@ import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import { VOTE_PHASES, sellValue, type Mode } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
-import { MASTERIES, MASTERY_COST, MASTERY_IDS, MASTERY_MAX, type MasteryId } from '../shared/masteries.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { ACTIONS, RESERVED, isSlotMode, keyLabel, keyOf, labelOf, onKeysChange, resetKeys, setKey, setSlotMode, setSlots, type Action } from './keys.ts';
-import { hideTip, itemTip, masteryTip, spellTip, withTip } from './tips.ts';
+import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { COLORS } from './scene.ts';
 import { RULES } from './rules-text.ts';
 import { TAUNTS } from '../shared/taunts.ts';
@@ -27,7 +26,7 @@ export function el(tag: string, props: Record<string, any> = {}, ...children: Ch
 }
 
 export const ICON: Record<SpellId, string> = { fireball: '🔥', lightning: '⚡', homing: '🎯', shield: '🛡️', teleport: '✨', swap: '🔄', grip: '⛓️', meteor: '☄️', rush: '💨', cluster: '🔱', boomerang: '🪃', thrust: '🗡️', gravity: '🌀', rockpillar: '🪨', bouncer: '🏓' };
-export const ITEM_ICON: Record<ItemId, string> = { ring: '💍', cursed_ring: '🧿', cape: '🧣', armor: '⛓️', boots: '👢', watch: '⏱️', scourge: '💥', redirector: '↪️', pact: '🩸' };
+export const ITEM_ICON: Record<ItemId, string> = { ring: '💍', cursed_ring: '🧿', cape: '🧣', armor: '⛓️', boots: '👢', watch: '⏱️', vampire: '🧛', scourge: '💥', redirector: '↪️', pact: '🩸' };
 const TITLE = 'Warlock';
 
 export function askName(root: HTMLElement, current: string): Promise<string> {
@@ -120,7 +119,6 @@ export type RoomActions = {
   start: (bots: number, mode: Mode) => void;
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
-  buyMastery: (m: MasteryId) => void;
   kick: (id: string) => void;
   vote: (kind: 'mode' | 'kick', target?: string) => void;
   ballot: (yes: boolean) => void;
@@ -451,16 +449,6 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           el('span', { class: 'pips' }, ...ITEMS[i].levels.map((_, n) => el('i', { class: n < lvl ? 'on' : '' }))),
           el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'item-' + i, disabled: price === null || mine.gold < price, onclick: () => act.buyItem(i) }, label), undoBtn('item:' + i), sellBtn('item:' + i)),
         ), () => itemTip(i, lvl));
-      })),
-      el('div', { class: 'shop-head' }, el('h3', {}, 'Maestria'), el('small', {}, `${MASTERY_COST} de ouro por nível`)),
-      el('div', { class: 'shop-grid' }, ...MASTERY_IDS.map((k) => {
-        const lvl = mine.masteries[k];
-        return withTip(el('div', { class: 'shop-item' + (lvl ? ' owned' : '') },
-          el('div', { class: 'shop-title' }, el('b', {}, MASTERIES[k].name)),
-          el('small', {}, MASTERIES[k].text),
-          el('span', { class: 'pips' }, ...Array.from({ length: MASTERY_MAX }, (_, n) => el('i', { class: n < lvl ? 'on' : '' }))),
-          el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': 'mastery-' + k, disabled: lvl >= MASTERY_MAX || mine.gold < MASTERY_COST, onclick: () => act.buyMastery(k) }, lvl >= MASTERY_MAX ? 'Máximo' : `Nível ${lvl + 1} · ${MASTERY_COST}`), undoBtn('mastery:' + k)),
-        ), () => masteryTip(k, lvl));
       })),
       ),
       // placar numa coluna ao lado da loja (pedido do Fernando, 17/10: "do lado, não lá embaixo")

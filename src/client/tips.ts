@@ -1,6 +1,5 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
 import { ITEMS, PACT, REDIRECTOR, SCOURGE, type ItemId } from '../shared/items.ts';
-import { MASTERIES, MASTERY_COST, MASTERY_MAX, masteryValue, type MasteryId } from '../shared/masteries.ts';
 import { labelOf } from './keys.ts';
 import { MAX_SPELL_LEVEL, RUSH, SPELLS, type Level, type SpellId } from '../shared/spells.ts';
 
@@ -48,6 +47,7 @@ const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string][]>> = 
   armor: (l) => [['Empurrão recebido', `−${n1(ITEMS.armor.levels[l].kb! * 100)}%`]],
   boots: (l) => [['Velocidade', `+${n1(ITEMS.boots.levels[l].speed! * 100) } cm/s`]],
   watch: (l) => [['Lentidões', `−${n1(-ITEMS.watch.levels[l].debuff! * 100)}% de duração`]],
+  vampire: (l) => [['Vida de volta', `${n1(ITEMS.vampire.levels[l].lifesteal! * 100)}% do dano causado`]],
   scourge: (l) => [['Dano em volta', n1(SCOURGE.dmg[l])], ['Raio', m(SCOURGE.radius)], ['Preparo', s(SCOURGE.windup)], ['Recarga', s(SCOURGE.cd)]],
   redirector: () => [['Recarga', s(REDIRECTOR.cd)], ['Penalidade', `+${REDIRECTOR.kbPenalty * 100}% de empurrão por ${s(REDIRECTOR.penaltyTime)}`]],
   pact: () => [['Próxima magia de dano', `${n1(PACT.mult)}× dano e empurrão`], ['Janela', s(PACT.window)], ['Recarga', s(PACT.cd)]],
@@ -64,13 +64,6 @@ export function itemTip(id: ItemId, level: number): string {
   return `${head}<p>${it.text}</p>${body}${next ? '<small class="up">Próximo nível: o que está à direita</small>' : level >= max ? '<small>Nível máximo</small>' : ''}`;
 }
 
-export function masteryTip(id: MasteryId, level: number): string {
-  const ms = MASTERIES[id];
-  const pct = (l: number) => `+${n1(masteryValue(id, l) * 100)}%`;
-  const label = 'Vida de volta';
-  const next = level < MASTERY_MAX ? pct(level + 1) : null;
-  return `<b>${ms.name}</b><br><small>Nível ${level} de ${MASTERY_MAX} · ${MASTERY_COST} de ouro por nível</small><p>${ms.text}</p>${table([[label, pct(level), next]])}${next ? '<small class="up">Próximo nível: o que está à direita</small>' : '<small>Nível máximo</small>'}`;
-}
 
 let tipEl: HTMLDivElement | null = null;
 

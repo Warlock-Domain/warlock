@@ -2,7 +2,6 @@
 import { isCharacter, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_IDS, type ItemId } from './items.ts';
-import { MASTERY_IDS, type MasteryId } from './masteries.ts';
 import { votesNeeded, type Match, type Mode, type Phase, type Stats, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { SPELL_IDS, type SpellId } from './spells.ts';
@@ -17,7 +16,6 @@ export type ClientMsg =
   | { t: 'buy'; spell: SpellId }
   | { t: 'pick'; character: CharacterId }
   | { t: 'buyItem'; item: ItemId }
-  | { t: 'buyMastery'; mastery: MasteryId }
   | { t: 'kick'; target: string }
   | { t: 'undo'; key: string }
   | { t: 'sell'; key: string }
@@ -30,7 +28,7 @@ export type ClientMsg =
 
 export type PublicPlayer = {
   id: string; name: string; bot: boolean; color: number; character: CharacterId; score: number; gold: number;
-  spells: Record<SpellId, number>; items: Record<ItemId, number>; masteries: Record<MasteryId, number>; stats: Stats; bought: string[]; held: Record<string, number[]>; ready: boolean; connected: boolean;
+  spells: Record<SpellId, number>; items: Record<ItemId, number>; stats: Stats; bought: string[]; held: Record<string, number[]>; ready: boolean; connected: boolean;
 };
 
 export type PublicRoom = {
@@ -107,7 +105,7 @@ export function parseClientMessage(raw: string): ClientMsg | null {
     case 'sell':
       return typeof m.key === 'string' && /^(spell|item):[a-z_]{2,20}$/.test(m.key) ? { t: 'sell', key: m.key } : null;
     case 'undo':
-      return typeof m.key === 'string' && /^(spell|item|mastery):[a-z_]{2,20}$/.test(m.key) ? { t: 'undo', key: m.key } : null;
+      return typeof m.key === 'string' && /^(spell|item):[a-z_]{2,20}$/.test(m.key) ? { t: 'undo', key: m.key } : null;
     case 'kick':
       return typeof m.target === 'string' && /^p[0-9a-z]{1,8}$/.test(m.target) ? { t: 'kick', target: m.target } : null;
     case 'vote':
@@ -117,8 +115,6 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return typeof m.yes === 'boolean' ? { t: 'ballot', yes: m.yes } : null;
     case 'taunt':
       return Number.isInteger(m.i) && (m.i as number) >= 0 && (m.i as number) < TAUNTS.length ? { t: 'taunt', i: m.i as number } : null;
-    case 'buyMastery':
-      return MASTERY_IDS.includes(m.mastery as MasteryId) ? { t: 'buyMastery', mastery: m.mastery as MasteryId } : null;
     case 'buyItem':
       return ITEM_IDS.includes(m.item as ItemId) ? { t: 'buyItem', item: m.item as ItemId } : null;
     case 'item':
@@ -149,7 +145,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     mode: m.mode,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, score, gold, spells, items, masteries, stats, bought, held, ready, connected }) => ({ id: pub(id), name, bot, color, character, score, gold, spells, items, masteries, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected })),
+    players: m.players.map(({ id, name, bot, color, character, score, gold, spells, items, stats, bought, held, ready, connected }) => ({ id: pub(id), name, bot, color, character, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected })),
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),

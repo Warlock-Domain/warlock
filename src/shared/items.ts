@@ -2,14 +2,14 @@
 // Passivos mudam os números do mago; os 3 ativos usam as teclas 1, 2 e 3. Até MAX_ITEMS itens por jogador.
 import { UNIT } from './constants.ts';
 
-export type ItemId = 'ring' | 'cursed_ring' | 'cape' | 'armor' | 'boots' | 'watch' | 'scourge' | 'redirector' | 'pact';
-export const ITEM_IDS: ItemId[] = ['ring', 'cursed_ring', 'cape', 'armor', 'boots', 'watch', 'scourge', 'redirector', 'pact'];
+export type ItemId = 'ring' | 'cursed_ring' | 'cape' | 'armor' | 'boots' | 'watch' | 'vampire' | 'scourge' | 'redirector' | 'pact';
+export const ITEM_IDS: ItemId[] = ['ring', 'cursed_ring', 'cape', 'armor', 'boots', 'watch', 'vampire', 'scourge', 'redirector', 'pact'];
 export const ACTIVE_ITEMS: ItemId[] = ['scourge', 'redirector', 'pact'];
 export const MAX_ITEMS = 6;
 
 // hp: vida máxima a mais; regen: vida por segundo a mais; kb: fração de empurrão a menos; speed: m/s a mais;
-// debuff: fração a mais (ou a menos) na duração de lentidões e penalidades
-export type ItemLevel = { hp?: number; regen?: number; kb?: number; speed?: number; debuff?: number };
+// debuff: fração a mais (ou a menos) na duração de lentidões e penalidades; lifesteal: fração do dano causado que volta como vida
+export type ItemLevel = { hp?: number; regen?: number; kb?: number; speed?: number; debuff?: number; lifesteal?: number };
 
 type Item = { name: string; cost: number; key?: string; text: string; levels: ItemLevel[] };
 
@@ -20,6 +20,8 @@ export const ITEMS: Record<ItemId, Item> = {
   armor: { name: 'Armadura', cost: 6, text: 'Menos empurrão.', levels: [{ kb: 0.12 }, { kb: 0.18 }, { kb: 0.22 }] },
   boots: { name: 'Botas', cost: 5, text: 'Anda mais rápido.', levels: [{ speed: 18 * UNIT }, { speed: 29 * UNIT }, { speed: 40 * UNIT }] },
   watch: { name: 'Relógio de bolso', cost: 2, text: 'Lentidões e penalidades duram menos.', levels: [{ debuff: -0.35 }, { debuff: -0.45 }] },
+  // era a maestria Roubo de vida do original (shop.lua MASTERY_GAIN: +9/8/7/6/5/4% por nível, 5 de ouro cada); virou item em 17/10
+  vampire: { name: 'Roubo de vida', cost: 5, text: 'Recupera parte do dano que você causa.', levels: [0.09, 0.17, 0.24, 0.3, 0.35, 0.39].map((lifesteal) => ({ lifesteal })) },
   scourge: { name: 'Flagelo', cost: 7, key: '1', text: 'Explode em volta depois de 0,5 s e empurra quem estiver perto.', levels: [{}, {}, {}] },
   redirector: { name: 'Redirecionador', cost: 8, key: '2', text: 'Desvia seu projétil mais perto do cursor; 8 s voando mais longe.', levels: [{}] },
   pact: { name: 'Pacto', cost: 10, key: '3', text: 'Próxima magia de dano em 5 s faz 2× de dano e empurrão.', levels: [{}] },
@@ -48,7 +50,7 @@ export function itemPrice(items: Record<ItemId, number>, id: ItemId): number | n
 
 // soma dos passivos
 export function itemStats(items: Record<ItemId, number>) {
-  const s = { hp: 0, regen: 0, kb: 0, speed: 0, debuff: 0 };
+  const s = { hp: 0, regen: 0, kb: 0, speed: 0, debuff: 0, lifesteal: 0 };
   for (const id of ITEM_IDS) {
     const lvl = items[id];
     if (!lvl) continue;
@@ -58,6 +60,7 @@ export function itemStats(items: Record<ItemId, number>) {
     s.kb += L.kb ?? 0;
     s.speed += L.speed ?? 0;
     s.debuff += L.debuff ?? 0;
+    s.lifesteal += L.lifesteal ?? 0;
   }
   return s;
 }

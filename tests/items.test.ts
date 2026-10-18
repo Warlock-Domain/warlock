@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DT, HP_MAX, WIZ_SPEED } from '../src/shared/constants.ts';
 import { ITEMS, MAX_ITEMS, PACT, SCOURGE, itemPrice, noItems, type ItemId } from '../src/shared/items.ts';
-import { addPlayer, buy, buyItem, buyMastery, newMatch, sell, sellValue, startMatch, undoBuy } from '../src/shared/match.ts';
+import { addPlayer, buy, buyItem, newMatch, sell, sellValue, startMatch, undoBuy } from '../src/shared/match.ts';
 import { newWorld, stepWorld, type World } from '../src/shared/sim.ts';
 import { SPELLS, noSpells, type SpellId } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
@@ -174,12 +174,12 @@ describe('desfazer compra', () => {
     p.gold = 50;
     buy(m, 'a', 'lightning');
     buyItem(m, 'a', 'armor');
-    buyMastery(m, 'a', 'lifesteal');
+    buyItem(m, 'a', 'vampire');
     expect(p.gold).toBe(50 - 11 - 6 - 5);
     expect(undoBuy(m, 'a', 'spell:lightning')).toBe(true);
-    expect(undoBuy(m, 'a', 'mastery:lifesteal')).toBe(true);
+    expect(undoBuy(m, 'a', 'item:vampire')).toBe(true);
     expect(p.spells.lightning).toBe(0);
-    expect(p.masteries).toEqual({ lifesteal: 0 });
+    expect(p.items.vampire).toBe(0);
     expect(p.gold).toBe(50 - 6);
     expect(undoBuy(m, 'a', 'spell:lightning')).toBe(false);
     // o Flagelo grátis do começo não pode ser "desfeito" para ganhar ouro
@@ -243,14 +243,6 @@ describe('vender na loja', () => {
     expect(p.spells.fireball).toBe(1);
   });
 
-  it('masteries cannot be sold', () => {
-    const { m, p } = shop();
-    buyMastery(m, 'a', 'lifesteal');
-    p.bought = [];
-    expect(sell(m, 'a', 'mastery:lifesteal')).toBe(false);
-    expect(p.masteries.lifesteal).toBe(1);
-  });
-
   it('does not sell outside the shop', () => {
     const { m, p } = shop();
     buy(m, 'a', 'lightning');
@@ -260,23 +252,23 @@ describe('vender na loja', () => {
   });
 });
 
-describe('maestrias', () => {
-  it('only lifesteal: 5 per level, max 6 levels', () => {
+describe('roubo de vida (item)', () => {
+  it('costs 5 per level, 6 levels, and takes an item slot', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     addPlayer(m, 'b', 'Bia');
     startMatch(m, 0, 0);
     const p = m.players[0];
     p.gold = 100;
-    expect(buyMastery(m, 'a', 'lifesteal')).toBe(true);
+    expect(buyItem(m, 'a', 'vampire')).toBe(true);
     expect(p.gold).toBe(95);
-    for (let i = 0; i < 5; i++) buyMastery(m, 'a', 'lifesteal');
-    expect(p.masteries.lifesteal).toBe(6);
-    expect(buyMastery(m, 'a', 'lifesteal')).toBe(false);
+    for (let i = 0; i < 5; i++) buyItem(m, 'a', 'vampire');
+    expect(p.items.vampire).toBe(6);
+    expect(buyItem(m, 'a', 'vampire')).toBe(false);
   });
 
   it('lifesteal heals the attacker', () => {
-    const w = newWorld(['a', 'b'], { a: allSpells(), b: allSpells() }, {}, { a: { lifesteal: 6 } });
+    const w = newWorld(['a', 'b'], { a: allSpells(), b: allSpells() }, { a: with_({ vampire: 6 }) });
     w.wizards[0].pos = v(0, 0);
     w.wizards[1].pos = v(2, 0);
     for (const z of w.wizards) z.invulnUntil = 0;

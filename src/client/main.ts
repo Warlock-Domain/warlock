@@ -113,7 +113,6 @@ function startRoom(code: string, name: string) {
     start: (bots, mode) => net.send({ t: 'start', bots, mode }),
     buy: (spell) => net.send({ t: 'buy', spell }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),
-    buyMastery: (mastery) => net.send({ t: 'buyMastery', mastery }),
     kick: (target) => net.send({ t: 'kick', target }),
     vote: (kind, target) => net.send({ t: 'vote', kind, target }),
     ballot: (yes) => net.send({ t: 'ballot', yes }),

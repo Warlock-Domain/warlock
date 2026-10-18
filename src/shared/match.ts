@@ -3,7 +3,6 @@ import { botBuy, botCmds } from './bots.ts';
 import { PILLAR } from './constants.ts';
 import { CHARACTERS, type CharacterId } from './characters.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
-import { MASTERY_COST, MASTERY_MAX, noMasteries, type MasteryId } from './masteries.ts';
 
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
 const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
@@ -46,7 +45,6 @@ export type Player = {
   gold: number;
   spells: Record<SpellId, number>;
   items: Record<ItemId, number>;
-  masteries: Record<MasteryId, number>;
   stats: Stats;
   // compras feitas nesta loja (mais recente por último), para poder desfazer e trocar
   bought: { key: string; price: number }[];
@@ -91,7 +89,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false): bool
   const color = [0, 1, 2, 3, 4, 5, 6, 7].find((c) => !used.has(c)) ?? 0;
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
-  m.players.push({ id, name, bot, color, character, score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true });
+  m.players.push({ id, name, bot, color, character, score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true });
   return true;
 }
 
@@ -110,7 +108,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   for (let i = 0; m.players.length < MAX_PLAYERS && i < bots; i++) addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true);
   if (m.players.length < 2) return false;
   for (const p of m.players) {
-    Object.assign(p, { score: 0, gold: START_GOLD, spells: noSpells(), items: startItems(), masteries: noMasteries() });
+    Object.assign(p, { score: 0, gold: START_GOLD, spells: noSpells(), items: startItems() });
     p.stats = fillStats(p.stats);
     p.bought ??= [];
     p.held = {};
@@ -156,18 +154,6 @@ export function buyItem(m: Match, id: string, item: ItemId): boolean {
 }
 
 // uma maestria (5 de ouro) ou as três de uma vez (13); máximo 6 níveis cada
-export function buyMastery(m: Match, id: string, which: MasteryId): boolean {
-  const p = m.players.find((q) => q.id === id);
-  if (m.phase !== 'shop' || !p) return false;
-  const targets = [which];
-  const cost = MASTERY_COST;
-  if (p.gold < cost || targets.some((t) => p.masteries[t] >= MASTERY_MAX)) return false;
-  p.gold -= cost;
-  for (const t of targets) p.masteries[t]++;
-  p.bought.push({ key: 'mastery:' + which, price: cost });
-  return true;
-}
-
 // desfaz a compra mais recente daquele tipo feita nesta loja: devolve o ouro e baixa o nível
 export function undoBuy(m: Match, id: string, key: string): boolean {
   const p = m.players.find((q) => q.id === id);
@@ -177,7 +163,6 @@ export function undoBuy(m: Match, id: string, key: string): boolean {
   const [kind, what] = key.split(':');
   if (kind === 'spell') p.spells[what as SpellId]--;
   else if (kind === 'item') p.items[what as ItemId]--;
-  else p.masteries[what as MasteryId]--;
   p.gold += p.bought[i].price;
   p.bought.splice(i, 1);
   p.held[key]?.pop();
@@ -239,7 +224,10 @@ export function resume(m: Match, now: number) {
     p.character ??= 'mage';
     p.spells = { ...noSpells(), ...p.spells }; // salas gravadas antes das magias novas
     p.items ??= noItems();
-    p.masteries = { lifesteal: p.masteries?.lifesteal ?? 0 }; // salas gravadas com Duração e Alcance
+    // salas gravadas com a maestria Roubo de vida: vira o item (sem passar do nível máximo)
+    const old = (p as { masteries?: { lifesteal?: number } }).masteries?.lifesteal ?? 0;
+    if (old && !p.items.vampire) p.items.vampire = Math.min(6, old);
+    delete (p as { masteries?: unknown }).masteries;
     p.held ??= {}; // salas gravadas antes da venda por rodada
     p.stats = fillStats(p.stats);
   }
@@ -349,7 +337,7 @@ function enterCountdown(m: Match, now: number) {
   m.round++;
   for (const p of m.players) p.stats.round = newStat();
   const ids = m.players.map((p) => p.id);
-  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), Object.fromEntries(m.players.map((p) => [p.id, p.masteries])), PILLAR.min + Math.floor(Math.random() * (PILLAR.max - PILLAR.min + 1)), Math.random, m.mode === 'deathmatch');
+  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), PILLAR.min + Math.floor(Math.random() * (PILLAR.max - PILLAR.min + 1)), Math.random, m.mode === 'deathmatch');
   m.phase = 'countdown';
   m.phaseEnds = now + COUNTDOWN_MS;
 }

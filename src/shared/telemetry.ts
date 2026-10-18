@@ -13,7 +13,6 @@ export type RoundRecord = {
     won: boolean;
     spells: Record<string, number>;
     items: Record<string, number>;
-    masteries: Record<string, number>;
     dmg: number;
     dmgBy: Record<string, number>;
     fired: Record<string, number>;
@@ -28,7 +27,7 @@ export type RoundRecord = {
 export type Totals = {
   rounds: number;
   sources: Record<string, { fired: number; landed: number; dmg: number }>; // por magia/item/choque
-  owned: Record<string, { rounds: number; wins: number }>; // 'spell:raio', 'item:armor', 'mastery:range', 'char:knight'
+  owned: Record<string, { rounds: number; wins: number }>; // 'spell:raio', 'item:armor', 'char:knight'
   recent: RoundRecord[]; // últimas rodadas, para análise fina
 };
 
@@ -45,7 +44,6 @@ export function roundRecord(m: Match, now: number): RoundRecord {
       won: p.id === m.lastRoundWinner,
       spells: p.spells,
       items: p.items,
-      masteries: p.masteries,
       dmg: Math.round(p.stats.round.dmg * 10) / 10,
       dmgBy: p.stats.round.dmgBy,
       fired: p.stats.round.fired,
@@ -71,7 +69,6 @@ export function addRecord(t: Totals, r: RoundRecord): Totals {
     for (const [src, n] of Object.entries(p.dmgBy)) (t.sources[src] ??= { fired: 0, landed: 0, dmg: 0 }).dmg += n;
     for (const [s, lvl] of Object.entries(p.spells)) if (lvl) bump('spell:' + s, p.won);
     for (const [i, lvl] of Object.entries(p.items)) if (lvl) bump('item:' + i, p.won);
-    for (const [k, lvl] of Object.entries(p.masteries)) if (lvl) bump('mastery:' + k, p.won);
     bump('char:' + p.character, p.won);
   }
   t.recent.push(r);
