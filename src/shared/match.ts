@@ -183,9 +183,15 @@ function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: ()
   enterShop(m, now);
 }
 
+// loja aberta: na fase da loja ou, nas Rodadas e nos Times, para quem já caiu na rodada (sugestão do Reinaldo, 18/10: montar a build morto)
+export function canShop(m: Match, id: string): boolean {
+  if (m.phase === 'shop') return true;
+  return m.phase === 'playing' && m.mode !== 'deathmatch' && m.world?.wizards.find((z) => z.id === id)?.alive === false;
+}
+
 export function buy(m: Match, id: string, spell: SpellId): boolean {
   const p = m.players.find((q) => q.id === id);
-  if (m.phase !== 'shop' || !p) return false;
+  if (!p || !canShop(m, id)) return false;
   const price = priceOf(spell, p.spells[spell]);
   if (price === null || p.gold < price) return false;
   if (p.spells[spell] === 0 && spellCount(p.spells) >= MAX_SPELLS) return false;
@@ -206,7 +212,7 @@ export function setCharacter(m: Match, id: string, character: CharacterId): bool
 
 export function buyItem(m: Match, id: string, item: ItemId): boolean {
   const p = m.players.find((q) => q.id === id);
-  if (m.phase !== 'shop' || !p) return false;
+  if (!p || !canShop(m, id)) return false;
   const price = itemPrice(p.items, item);
   if (price === null || p.gold < price) return false;
   p.gold -= price;
@@ -220,7 +226,7 @@ export function buyItem(m: Match, id: string, item: ItemId): boolean {
 // desfaz a compra mais recente daquele tipo feita nesta loja: devolve o ouro e baixa o nível
 export function undoBuy(m: Match, id: string, key: string): boolean {
   const p = m.players.find((q) => q.id === id);
-  if (m.phase !== 'shop' || !p) return false;
+  if (!p || !canShop(m, id)) return false;
   const i = p.bought.map((b) => b.key).lastIndexOf(key);
   if (i < 0) return false;
   const [kind, what] = key.split(':');
@@ -261,7 +267,7 @@ export const canSell = (p: Parameters<typeof sellValue>[0], round: number, key: 
 // vende a magia ou o item inteiro (magia vai a 0, item volta ao nível inicial); não é ganho de ouro, então fora das estatísticas
 export function sell(m: Match, id: string, key: string): boolean {
   const p = m.players.find((q) => q.id === id);
-  if (m.phase !== 'shop' || !p || !canSell(p, m.round, key)) return false;
+  if (!p || !canShop(m, id) || !canSell(p, m.round, key)) return false;
   const value = sellValue(p, m.round, key);
   const [kind, what] = key.split(':');
   if (kind === 'spell') p.spells[what as SpellId] = 0;

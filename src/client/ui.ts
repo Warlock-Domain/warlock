@@ -484,6 +484,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const PEEK_PHASES = ['countdown', 'playing', 'roundEnd'];
   const peekPanel = el('div', { class: 'peek-shop', role: 'dialog', 'aria-label': 'Loja (só para ver)', hidden: true });
   const peekBtn = el('button', { type: 'button', class: 'icon', 'aria-expanded': 'false', hidden: true, onclick: () => togglePeek() }, icon(UI_ICON.shop));
+  let deadShop = false; // caiu na rodada (Rodadas/Times): a loja do meio da rodada compra e vende
   function drawPeek() {
     if (peekPanel.hidden || !room) return;
     hideTip(peekPanel); // a atualização de 1 s não pode deixar a dica órfã
@@ -806,8 +807,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('button', { type: 'button', class: 'link', onclick: () => { seeFirst(); drawCenter(); } }, 'Entendi'));
   const readyText = (ready: boolean) => `${ready ? 'Esperando os outros' : 'Pronto'} · ${Math.ceil(Math.max(0, (phaseEndsAt - performance.now()) / 1000))} s`;
 
-  // peek: a loja só para ver no meio da rodada (sem comprar, vender nem Pronto)
-  function shopPanel(r: PublicRoom, peek = false) {
+  // peek: a loja só para ver no meio da rodada (sem comprar, vender nem Pronto); morto nas Rodadas e nos Times ela vale de verdade
+  function shopPanel(r: PublicRoom, look = false) {
+    const peek = look && !deadShop;
     const mine = r.players.find((p) => p.id === me);
     // desfazer: só o que foi comprado nesta loja (devolve o ouro)
     const undoBtn = (key: string) => (!peek && mine?.bought.includes(key) ? el('button', { type: 'button', class: 'undo', title: 'Desfazer a compra (devolve o ouro)', 'aria-label': 'Desfazer a compra', 'data-key': 'undo-' + key, onclick: () => act.undo(key) }, '↩') : null);
@@ -867,8 +869,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const grid = [...SPELL_GROUPS.map(([title, hint, ids]) => group(title, hint, ids.map(spellOffer))),
       group('Itens passivos', itemCount, ITEM_IDS.filter((i) => !ITEMS[i].key).map(itemOffer)),
       group('Itens ativos', 'cada um com a sua tecla', ITEM_IDS.filter((i) => ITEMS[i].key).map(itemOffer))];
-    if (peek) return el('div', { class: 'card shop' }, el('div', { class: 'shop-main' },
-      el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, 'Loja · só para ver'), el('small', {}, `${spellCount(mine.spells)} de ${MAX_SPELLS} magias · a compra abre entre as rodadas`),
+    if (look) return el('div', { class: 'card shop' }, el('div', { class: 'shop-main' },
+      el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, deadShop ? 'Loja · você caiu: monte a build' : 'Loja · só para ver'), el('small', {}, `${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`),
         el('button', { type: 'button', class: 'icon peek-close', title: 'Fechar (4 ou Esc)', 'aria-label': 'Fechar a loja', onclick: () => togglePeek(false) }, '✕')),
       ...grid),
       el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)),
@@ -1030,6 +1032,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       feed.append(li);
       while (feed.children.length > 5) feed.firstElementChild!.remove();
       setTimeout(() => li.remove(), 5000);
+    },
+    // morto nas Rodadas e nos Times: a loja abre sozinha uma vez e passa a comprar e vender
+    deadShopping(on: boolean) {
+      if (on === deadShop) return;
+      deadShop = on;
+      if (on && peekPanel.hidden) togglePeek(true);
+      else drawPeek();
     },
     watching(name: string | null) {
       watchBadge.hidden = !name;

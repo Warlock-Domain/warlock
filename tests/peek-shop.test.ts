@@ -33,3 +33,24 @@ describe('loja só para ver no meio da rodada', () => {
     resetKeys();
   });
 });
+
+describe('quem caiu já compra (sugestão do Reinaldo, 18/10)', () => {
+  it('dead in Rounds can buy and sell mid-round; alive or in Deathmatch cannot', async () => {
+    const { addPlayer, buy, canShop, newMatch, startMatch, tickMatch } = await import('../src/shared/match.ts');
+    const m = newMatch();
+    addPlayer(m, 'a', 'A');
+    addPlayer(m, 'b', 'B');
+    startMatch(m, 0, 0);
+    let now = 0;
+    while (m.phase !== 'playing') tickMatch(m, (now = Math.max(now + 17, m.phaseEnds)), []);
+    m.players[0].gold = 50;
+    expect(canShop(m, 'a')).toBe(false);
+    expect(buy(m, 'a', 'lightning')).toBe(false);
+    m.world!.wizards.find((z) => z.id === 'a')!.alive = false;
+    expect(canShop(m, 'a')).toBe(true);
+    expect(buy(m, 'a', 'lightning')).toBe(true);
+    expect(m.players[0].spells.lightning).toBe(1);
+    m.mode = 'deathmatch';
+    expect(canShop(m, 'a')).toBe(false);
+  });
+});
