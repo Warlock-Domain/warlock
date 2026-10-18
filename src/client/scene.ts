@@ -158,7 +158,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const FX = {
     flame: fxTex('flame_01'), fire: fxTex('fire_01'), smoke: fxTex('smoke_01'), spark: fxTex('spark_01'),
     magic: fxTex('magic_02'), light: fxTex('light_01'), circle: fxTex('circle_05'), scorch: fxTex('scorch_02'),
+    twirl: fxTex('twirl_01'), twirl2: fxTex('twirl_02'), star: fxTex('star_04'),
   };
+  // quadros de chama e de fumaça (Kenney Particle Pack, CC0): o fogo anima trocando o quadro, a fumaça varia
+  const FLAMES = ['flame_01', 'flame_02', 'flame_03', 'flame_04', 'flame_05', 'flame_06'].map(fxTex);
+  const SMOKES = ['smoke_01', 'smoke_03', 'smoke_05', 'smoke_07'].map(fxTex);
+  const FIRE_KINDS = new Set<ProjKind>(['fireball', 'cluster', 'meteor']);
   const lavaMat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uMap: { value: null }, uHas: { value: 0 } }, vertexShader: LAVA_VERT, fragmentShader: LAVA_FRAG });
   loader.load('/tex/lava_emit.jpg', (t) => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -499,8 +504,20 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
 
   // fumaça escura que sobe (mistura normal, não soma luz)
+  // labareda animada: troca o quadro da chama enquanto cresce, sobe e some
+  function flameBurst(at: Vec, size: number, secs: number) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: FLAMES[0], color: '#ffd080', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, rotation: Math.random() * Math.PI * 2 }));
+    s.position.copy(w3(at, 0.9));
+    addFx(s, secs, (k) => {
+      s.material.map = FLAMES[Math.min(FLAMES.length - 1, Math.floor(k * FLAMES.length))];
+      s.scale.setScalar(size * (0.5 + k * 0.8));
+      s.position.y = 0.9 + k * 0.8;
+      s.material.opacity = 1 - k * k;
+    });
+  }
+
   function smoke(at: Vec, size: number, secs: number) {
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: FX.smoke, color: '#3a2a22', transparent: true, opacity: 0.55, depthWrite: false, rotation: Math.random() * Math.PI * 2 }));
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: SMOKES[Math.floor(Math.random() * SMOKES.length)], color: '#3a2a22', transparent: true, opacity: 0.55, depthWrite: false, rotation: Math.random() * Math.PI * 2 }));
     s.position.copy(w3(at, 0.9));
     addFx(s, secs, (k) => {
       s.scale.setScalar(size * (0.6 + k));
@@ -663,7 +680,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // acerto: clarão branco, bola de fogo, onda no chão e faíscas; durava 0,3 s e quase não se via (relato do Fernando, 17/10)
   function explosion(at: Vec) {
     burst(at, '#ffffff', 2.2, 0.18, 0.9, FX.light);
-    burst(at, '#ffb347', 4, 0.6, 0.8, FX.fire);
+    flameBurst(at, 3.6, 0.55);
+    burst(at, '#ffb347', 3, 0.5, 0.8, FX.fire);
     burst(at, '#ff6a10', 4.8, 0.45, 0.8, FX.light);
     burst(at, '#ff8a3a', 3.6, 0.55, 0.15, FX.circle);
     for (let i = 0; i < 6; i++) burst(v(at.x + (Math.random() - 0.5) * 0.9, at.y + (Math.random() - 0.5) * 0.9), '#ffd27a', 1.1, 0.6, 0.9, FX.spark, 1.6);
@@ -806,6 +824,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           core.scale.setScalar(p.vel.x); // vel.x = raio
           halo.visible = false;
         }
+        // fogo de verdade: chama animada em volta dos projéteis de fogo; redemoinho na Gravidade e na Zona de dobra
+        if (FIRE_KINDS.has(p.kind)) {
+          const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: FLAMES[0], color: '#ffc060', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+          flame.name = 'flame';
+          flame.scale.setScalar(1.3 * look.size);
+          g.add(flame);
+        } else if (p.kind === 'gravity' || p.kind === 'warpzone') {
+          const swirl = new THREE.Sprite(new THREE.SpriteMaterial({ map: p.kind === 'gravity' ? FX.twirl : FX.twirl2, color: p.kind === 'gravity' ? '#7a5cff' : '#5ab0ff', transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+          swirl.name = 'swirl';
+          swirl.scale.setScalar(p.kind === 'gravity' ? 1.6 * look.size : p.vel.x * 2.2);
+          g.add(swirl);
+        }
         if (p.kind === 'link') {
           // fio do Elo até quem lançou (vel = posição dele)
           const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1, 6).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#7ab8ff', transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -816,6 +846,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           const warn = new THREE.Mesh(scorchGeo, new THREE.MeshBasicMaterial({ map: FX.circle, color: '#ff3a1a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
           warn.rotation.x = -Math.PI / 2;
           warn.scale.setScalar((p.vel.x * 2) / 1.6);
+          warn.name = 'warn';
           g.add(warn);
         }
         scene.add(g);
@@ -824,8 +855,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (p.kind === 'meteor') {
         const y = 0.9 + p.vel.y * 8; // vel.y = segundos até cair
         g.position.copy(w3(p.pos, y));
-        g.children[2].position.y = 0.04 - y;
-        ((g.children[2] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.sin(performance.now() / 70);
+        const warn = g.getObjectByName('warn') as THREE.Mesh;
+        warn.position.y = 0.04 - y;
+        (warn.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.sin(performance.now() / 70);
       } else if (p.kind === 'warpzone') g.position.copy(w3(p.pos, 0));
       else g.position.copy(w3(p.pos, 0.9));
       if (p.kind === 'link') {
@@ -845,9 +877,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       body.traverse((o) => {
         if (o !== body && o.name === 'spin') o.rotation.y = t * 6; // anel simétrico: girar no próprio eixo não aparece
       });
+      const flame = g.getObjectByName('flame') as THREE.Sprite | undefined;
+      if (flame) {
+        flame.material.map = FLAMES[Math.floor(t * 16 + p.id) % FLAMES.length];
+        flame.material.rotation = Math.atan2(-p.vel.x, p.vel.y) + Math.PI; // a chama "puxa" para trás
+        flame.scale.setScalar(LOOK[p.kind].size * (1.2 + 0.15 * Math.sin(t * 30 + p.id)));
+      }
+      const swirl = g.getObjectByName('swirl') as THREE.Sprite | undefined;
+      if (swirl) swirl.material.rotation = -t * 4;
       // rastro: brasas que ficam para trás e somem
       const look = LOOK[p.kind];
-      if (p.kind !== 'warpzone' && Math.random() < 0.7) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, look.tex);
+      if (p.kind !== 'warpzone' && Math.random() < 0.7) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
