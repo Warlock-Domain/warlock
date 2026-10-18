@@ -163,16 +163,15 @@ figcaption { font-size: 14.5px; color: var(--muted); max-width: 68ch; }
   <h2>Agora estamos decidindo</h2>
   <div class="decide">
     <div class="q">
-      <div class="ask">Ajustes de balanceamento (primeira rodada de sugestões)</div>
-      <p class="why"><b>Contexto:</b> você pediu sugestões e disse que o Pacto está fraco. Dados de 6 rodadas com 7 pessoas, lidos em /api/telemetry (medido; amostra pequena, então são pistas). A precisão das 3 primeiras rodadas veio incompleta, por isso comparo <b>dano por lançamento</b>, que está certo desde o começo.</p>
-      <div class="tbl"><table><thead><tr><th>O quê</th><th>Dado</th><th>Leitura</th></tr></thead><tbody>
-        <tr><td>Míssil teleguiado</td><td class="num">6,5 de dano por lançamento (136 lançamentos)</td><td>O dobro da Bola de fogo: forte</td></tr>
-        <tr><td>Bola de fogo</td><td class="num">3,3 por lançamento (407)</td><td>Referência</td></tr>
-        <tr><td>Flagelo</td><td class="num">5,4 por lançamento (95); grátis, recarga 3 s, sem custo de vida</td><td>Forte</td></tr>
-        <tr><td>Raio</td><td class="num">2,3 por lançamento (68), recarga 16,5 s</td><td>Fraco</td></tr>
-        <tr><td>Pacto</td><td class="num">5 rodadas com ele, 0 vitórias</td><td>Fraco (bate com o que você sentiu)</td></tr>
+      <div class="ask">Como ajudar quem ficou para trás na partida (recuperação)?</div>
+      <p class="why"><b>Contexto (medido em /api/telemetry, 48 rodadas com 2 ou mais humanos):</b> no começo da partida, a diferença de níveis comprados entre o mais equipado e o menos equipado é de 2; no fim, chega a 15 a 19 (últimas 10 rodadas: 15, 14, 19, 2, 2, 2, 6, 9, 17, 19). As vitórias concentram: 2 jogadores com 9 vitórias cada em 37 a 46 rodadas, outros com 2 em 24 a 37. Hoje quem lidera pode ganhar até +27 por rodada além dos +10 de todos (vitória, top dano, abate, assistência).</p>
+      <div class="tbl"><table><thead><tr><th>Sugestão</th><th>Como funciona</th><th>Prós</th><th>Contras</th></tr></thead><tbody>
+        <tr><td><b>Ouro de recuperação</b></td><td>No fim da rodada, quem ganhou menos ouro na partida que a média recebe metade da diferença, até +8</td><td>Fecha a distância sem tirar nada de quem lidera</td><td>Perder custa um pouco menos</td></tr>
+        <tr><td><b>Recompensa pela cabeça do líder</b></td><td>Abater quem tem mais vitórias dá +3 por vitória de vantagem dele sobre a média (até +10)</td><td>Incentiva todo mundo a ir no líder; é treta</td><td>O líder vira alvo</td></tr>
+        <tr><td>Prêmio de vitória menor para o líder</td><td>Quem já lidera o placar ganha +5 ao vencer, em vez de +10</td><td>Freia a bola de neve</td><td>Diminui o prêmio de quem joga bem</td></tr>
+        <tr><td>Consolação do primeiro a cair</td><td>O primeiro a morrer na rodada ganha +3</td><td>Simples</td><td>Pode premiar quem se joga na lava (pouco provável por +3)</td></tr>
       </tbody></table></div>
-      <p class="why"><b>Recomendação:</b> Pacto mais forte (dano e empurrão 2× na próxima magia, sem lentidão, recarga 20 s), Raio com recarga 30% menor, Míssil com 20% menos dano e Flagelo com recarga de 5 s. Depois de mais partidas eu comparo de novo.</p>
+      <p class="why"><b>Recomendação:</b> ouro de recuperação + recompensa pela cabeça do líder: um ajuda quem está atrás, o outro cria treta em volta de quem está na frente.</p>
     </div>
   </div>
 </section>

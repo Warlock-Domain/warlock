@@ -6,10 +6,10 @@ Remake web do mod de arena **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): m
 
 ## O que tem
 
-- 15 magias do Warlock Brawl (números tirados do código original do mod de Dota 2; as outras 10 estão a caminho) e 10 itens, loja entre rodadas com venda e desfazer
+- 25 magias do Warlock Brawl (números tirados do código original do mod de Dota 2) e 10 itens, loja entre rodadas com venda e desfazer
 - Modos Rodadas, Deathmatch e Times (fogo amigo só empurra), troca de modo por votação
 - Baús de ouro no meio da rodada, chão com efeito quando magias se chocam, obstáculos quebráveis
-- Bots, taunts com voz, placar completo ao vivo (Tab), telemetria de balanceamento
+- Bots que usam todas as magias, taunts com voz, placar completo ao vivo (Tab ou 📊 no celular), telemetria e simulador de balanceamento (scripts/balance-sim.ts)
 
 ## Stack
 
