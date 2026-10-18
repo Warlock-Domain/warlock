@@ -13,7 +13,7 @@ import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
 import { askName, banner, createRoomUi, renderLobby, screen, toast, type RoomInfo } from './ui.ts';
-import { OWN_TAUNT, TAUNTS, VOICE_SLOTS, type Voice } from '../shared/taunts.ts';
+import { TAUNTS } from '../shared/taunts.ts';
 
 // som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
@@ -46,7 +46,6 @@ const as = new URLSearchParams(location.search).get('as')?.replace(/[^a-z0-9]/gi
 const PID = 'warlock:pid' + (as && ':' + as);
 const NAME = 'warlock:name' + (as && ':' + as);
 const CHAR = 'warlock:char' + (as && ':' + as);
-const VOICES = 'warlock:voices' + (as && ':' + as);
 const playerId = store.get(PID) ?? crypto.randomUUID();
 store.set(PID, playerId);
 
@@ -108,32 +107,6 @@ function startRoom(code: string, name: string) {
   const justCast = new Map<string, number>();
   let scourgeUntil = 0;
   let follow = true;
-  // taunts gravados: os meus (guardados no navegador) e os recebidos de cada jogador (id público → slots)
-  let mine: (Voice | null)[] = Array(VOICE_SLOTS).fill(null);
-  try {
-    const parsed = JSON.parse(store.get(VOICES) ?? 'null');
-    if (Array.isArray(parsed)) mine = mine.map((_, i) => parsed[i] ?? null);
-  } catch {
-    // guardado estragado: começa vazio
-  }
-  const voices = new Map<string, (Voice | null)[]>();
-  // o servidor aceita uma 'voice' por segundo: a fila manda um slot por vez
-  const voiceQueue = new Set<number>();
-  let voiceTimer: ReturnType<typeof setTimeout> | undefined;
-  function flushVoice() {
-    voiceTimer = undefined;
-    const slot = voiceQueue.values().next().value;
-    if (slot === undefined) return;
-    voiceQueue.delete(slot);
-    const v = mine[slot];
-    net.send({ t: 'voice', slot, text: v?.text ?? '', mime: v?.mime ?? '', data: v?.data ?? '' });
-    voiceTimer = setTimeout(flushVoice, 1100);
-  }
-  function queueVoice(slot: number) {
-    voiceQueue.add(slot);
-    if (!voiceTimer) flushVoice();
-  }
-  let voicesSent = false;
 
   const view = createRoomUi(ui, code, {
     start: (bots, mode) => net.send({ t: 'start', bots, mode }),
@@ -146,13 +119,6 @@ function startRoom(code: string, name: string) {
     undo: (key) => net.send({ t: 'undo', key }),
     sell: (key) => net.send({ t: 'sell', key }),
     taunt: (i) => net.send({ t: 'taunt', i }),
-    myVoices: () => mine,
-    saveVoice: (slot, v) => {
-      mine[slot] = v;
-      store.set(VOICES, JSON.stringify(mine));
-      queueVoice(slot);
-    },
-    hearVoice: (data) => void sound.voice(data),
     useItem: (item) => input.itemButton(item),
     pick: (character) => {
       store.set(CHAR, character);
@@ -234,9 +200,6 @@ function startRoom(code: string, name: string) {
   const net = connect('/ws/room/' + code, onMsg, () => {
     net.send({ t: 'hello', playerId, name });
     if (isCharacter(saved)) net.send({ t: 'pick', character: saved });
-    // reconectou: a sala manda de novo as vozes dos outros, e as minhas vão depois do hello aceito
-    voices.clear();
-    voicesSent = false;
   }, (on) => {
     online = on;
     view.setOnline(on);
@@ -303,28 +266,15 @@ function startRoom(code: string, name: string) {
       room = m.room;
       me = m.you;
       view.update(room, me, online);
-      if (!voicesSent) {
-        voicesSent = true;
-        mine.forEach((v, slot) => v && queueVoice(slot));
-      }
       scene.preload(room.players.map((p) => p.character));
       if (room.phase !== lastPhase) onPhase(prev);
       lastPhase = room.phase;
       return;
     }
-    if (m.t === 'voice') {
-      const slots = voices.get(m.id) ?? Array(VOICE_SLOTS).fill(null);
-      slots[m.slot] = m.data ? { text: m.text, mime: m.mime, data: m.data } : null;
-      voices.set(m.id, slots);
-      return;
-    }
     if (m.t === 'taunt') {
-      // taunt próprio (100+slot): voz e legenda de quem mandou, texto de outro jogador só via textContent
-      const own = m.i >= OWN_TAUNT ? (m.id === me ? mine : voices.get(m.id))?.[m.i - OWN_TAUNT] : null;
-      const t = own ? { text: own.text || '🎙️' } : TAUNTS[m.i];
+      const t = TAUNTS[m.i];
       if (!t) return;
-      if (own) void sound.voice(own.data);
-      else void sound.taunt(TAUNTS[m.i].id);
+      void sound.taunt(t.id);
       if (!scene.bubble(m.id, t.text)) toast(`${room?.players.find((p) => p.id === m.id)?.name ?? '?'}: ${t.text}`);
       return;
     }

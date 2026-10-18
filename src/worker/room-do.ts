@@ -6,7 +6,7 @@ import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
 import { roundRecord } from '../shared/telemetry.ts';
 import { v } from '../shared/vec.ts';
-import { OWN_TAUNT, TAUNT_COOLDOWN_MS, type Voice } from '../shared/taunts.ts';
+import { TAUNT_COOLDOWN_MS } from '../shared/taunts.ts';
 
 const STEP_MS = DT * 1000;
 const MAX_CATCHUP = 5; // passos por chamada do laço; atraso maior que isso é descartado
@@ -29,9 +29,6 @@ export class Room extends DurableObject<Env> {
   private events: SimEvent[] = [];
   private lastCmdAt = Date.now();
   private taunted = new Map<string, number>();
-  // taunts gravados por cada jogador (playerId → até 3 slots), só na memória: somem quando ele sai
-  private voices = new Map<string, (Voice | undefined)[]>();
-  private voiced = new Map<string, number>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -105,11 +102,6 @@ export class Room extends DurableObject<Env> {
       if (m.banned.includes(msg.playerId)) return send(ws, { t: 'error', code: 'kicked', msg: 'Você foi removido da sala por votação.' });
       if (!addPlayer(m, msg.playerId, msg.name)) return send(ws, { t: 'error', code: 'full', msg: 'Sala cheia.' });
       ws.serializeAttachment({ playerId: msg.playerId } satisfies Attachment);
-      // quem chega recebe as vozes que já existem na sala
-      for (const [pid, slots] of this.voices) {
-        if (pid === msg.playerId) continue;
-        slots.forEach((v, slot) => v && send(ws, { t: 'voice', id: publicId(s.id, pid), slot, ...v }));
-      }
       return this.changed();
     }
 
@@ -171,21 +163,9 @@ export class Room extends DurableObject<Env> {
       case 'taunt': {
         // taunt vale em qualquer fase, para todos na sala; no máximo um a cada 2,5 s por jogador
         if (!m.players.some((p) => p.id === id) || now - (this.taunted.get(id) ?? 0) < TAUNT_COOLDOWN_MS) return;
-        if (msg.i >= OWN_TAUNT && !this.voices.get(id)?.[msg.i - OWN_TAUNT]) return;
         this.taunted.set(id, now);
         const out = { t: 'taunt' as const, id: publicId(this.saved!.id, id), i: msg.i };
         for (const ws of this.live()) send(ws, out);
-        return;
-      }
-      case 'voice': {
-        // no máximo uma voz por segundo por jogador; repassa aos outros ('' apaga)
-        if (!m.players.some((p) => p.id === id) || now - (this.voiced.get(id) ?? 0) < 1000) return;
-        this.voiced.set(id, now);
-        const slots = this.voices.get(id) ?? [];
-        slots[msg.slot] = msg.data ? { text: msg.text, mime: msg.mime, data: msg.data } : undefined;
-        this.voices.set(id, slots);
-        const out = { t: 'voice' as const, id: publicId(s.id, id), slot: msg.slot, text: msg.text, mime: msg.mime, data: msg.data };
-        for (const other of this.live(ws)) send(other, out);
         return;
       }
       case 'buyMastery':
@@ -244,15 +224,6 @@ export class Room extends DurableObject<Env> {
       if (!s.match.banned.includes(this.playerOf(ws)!)) continue;
       send(ws, { t: 'error', code: 'kicked', msg: 'Você foi removido da sala por votação.' });
       forget(ws, 'kicked');
-    }
-    // saiu, caiu ou foi expulso: as vozes dele somem para todos
-    for (const [pid, slots] of this.voices) {
-      if (s.match.players.some((p) => p.id === pid && p.connected)) continue;
-      this.voices.delete(pid);
-      const id = publicId(s.id, pid);
-      slots.forEach((v, slot) => {
-        if (v) for (const ws of this.live(closing)) send(ws, { t: 'voice', id, slot, text: '', mime: '', data: '' });
-      });
     }
     this.broadcastRoom(closing);
     // laço e alarme antes do disco e do lobby: se o lobby falhar, a sala não congela

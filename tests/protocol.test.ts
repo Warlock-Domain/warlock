@@ -36,34 +36,13 @@ describe('protocolo', () => {
     expect(p([1, 2])).toBeNull();
   });
 
-  it('voice: accepts own recording within limits, only it above 1024 chars', () => {
-    const data = 'A'.repeat(48_000);
-    const ok = { t: 'voice', slot: 2, text: ' Toma! ', mime: 'audio/webm;codecs=opus', data };
-    expect(p(ok)).toEqual({ ...ok, text: 'Toma!' });
-    expect(p({ t: 'voice', slot: 0, text: 'x', mime: 'audio/mp4', data: 'GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYEC' })).not.toBeNull();
-    expect(p({ t: 'voice', slot: 1, text: 'ignorado', mime: 'qualquer', data: '' })).toEqual({ t: 'voice', slot: 1, text: '', mime: '', data: '' });
-    expect(p({ ...ok, data: data + 'AAAA' })).toBeNull();
-    expect(p({ ...ok, data: 'não é base64' })).toBeNull();
-    expect(p({ ...ok, mime: 'video/webm' })).toBeNull();
-    expect(p({ ...ok, mime: 'audio/<script>' })).toBeNull();
-    expect(p({ ...ok, mime: 'AUDIO/WEBM' })).toBeNull();
-    expect(p({ ...ok, slot: 3 })).toBeNull();
-    expect(p({ ...ok, slot: -1 })).toBeNull();
-    expect(p({ ...ok, slot: 1.5 })).toBeNull();
-    expect(p({ ...ok, text: 'x'.repeat(25) })).toBeNull();
-    expect(p({ ...ok, text: 'linha\nquebrada' })).toBeNull();
-    expect(p({ ...ok, text: 7 })).toBeNull();
-    // o limite maior vale só para a voz
-    expect(p({ t: 'taunt', i: 0, extra: 'x'.repeat(2000) })).toBeNull();
-  });
-
-  it('taunt: fixed 0..8 and own 100..102', () => {
+  it('taunt: only the 9 fixed ones (0..8)', () => {
+    expect(p({ t: 'taunt', i: 0 })).toEqual({ t: 'taunt', i: 0 });
     expect(p({ t: 'taunt', i: 8 })).toEqual({ t: 'taunt', i: 8 });
-    expect(p({ t: 'taunt', i: 100 })).toEqual({ t: 'taunt', i: 100 });
-    expect(p({ t: 'taunt', i: 102 })).toEqual({ t: 'taunt', i: 102 });
     expect(p({ t: 'taunt', i: 9 })).toBeNull();
     expect(p({ t: 'taunt', i: 99 })).toBeNull();
-    expect(p({ t: 'taunt', i: 103 })).toBeNull();
+    expect(p({ t: 'taunt', i: 100 })).toBeNull();
+    expect(p({ t: 'taunt', i: -1 })).toBeNull();
   });
 
   it('cleans name', () => {

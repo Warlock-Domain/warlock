@@ -122,10 +122,6 @@ button.kick:hover { background: rgba(255, 122, 106, .15); }
 @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .taunt-list { display: flex; flex-direction: column; gap: 4px; min-width: 210px; }
 .taunt-list button { text-align: left; }
-.taunt-row { display: flex; gap: 4px; align-items: center; }
-.taunt-row input { flex: 1; min-width: 0; font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
-.taunt-row button.icon { width: 34px; }
-.taunt-panel { max-height: calc(100vh - 90px); overflow-y: auto; }
 .dmg.gold { color: #ffd84a; font-size: 1.5rem; }
 .hp { position: relative; width: 64px; height: 12px; border-radius: 4px; background: rgba(0, 0, 0, .7); overflow: hidden; border: 1px solid rgba(0, 0, 0, .7); }
 .status-icons { display: flex; gap: 2px; min-height: 0; font-size: .85rem; line-height: 1; }

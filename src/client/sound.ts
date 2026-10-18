@@ -135,20 +135,6 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
       if (!buffers.has(key)) await load(key);
       file(key, 1);
     },
-    // taunt gravado por um jogador (base64); false se o navegador não conseguir decodificar
-    async voice(b64: string): Promise<boolean> {
-      if (!ctx || volumes().sfx === 0 || ctx.state !== 'running') return false;
-      try {
-        const buf = await ctx.decodeAudioData(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer);
-        const src = ctx.createBufferSource();
-        src.buffer = buf;
-        src.connect(master!);
-        src.start();
-        return true;
-      } catch {
-        return false;
-      }
-    },
     play(kind: SoundKind, volume = 1) {
       if (!ctx || !noise || volumes().sfx === 0 || ctx.state !== 'running') return;
       const v = Math.max(0.05, Math.min(1, volume));

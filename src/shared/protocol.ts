@@ -6,7 +6,7 @@ import { MASTERY_IDS, type MasteryId } from './masteries.ts';
 import { votesNeeded, type Match, type Mode, type Phase, type Stats, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { SPELL_IDS, type SpellId } from './spells.ts';
-import { OWN_TAUNT, TAUNTS, VOICE_MAX_B64, VOICE_MIME, VOICE_SLOTS, VOICE_TEXT_MAX } from './taunts.ts';
+import { TAUNTS } from './taunts.ts';
 
 export type ClientMsg =
   | { t: 'hello'; playerId: string; name: string }
@@ -25,7 +25,6 @@ export type ClientMsg =
   | { t: 'vote'; kind: Vote['kind']; target?: string }
   | { t: 'ballot'; yes: boolean }
   | { t: 'taunt'; i: number }
-  | { t: 'voice'; slot: number; text: string; mime: string; data: string } // data em base64; '' apaga o slot
   | { t: 'ready' }
   | { t: 'alive' };
 
@@ -64,12 +63,10 @@ export type ServerMsg =
   | { t: 'room'; room: PublicRoom; you: string }
   | Snap
   | { t: 'error'; code: ErrorCode; msg: string }
-  | { t: 'taunt'; id: string; i: number }
-  | { t: 'voice'; id: string; slot: number; text: string; mime: string; data: string };
+  | { t: 'taunt'; id: string; i: number };
 
 export const MAX_COORD = 30;
 const MAX_MSG = 1024;
-const MAX_VOICE_MSG = VOICE_MAX_B64 + 512; // só a 'voice' passa de MAX_MSG
 
 type Obj = Record<string, unknown>;
 const isObj = (x: unknown): x is Obj => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -83,14 +80,14 @@ export function cleanName(raw: unknown): string {
 }
 
 export function parseClientMessage(raw: string): ClientMsg | null {
-  if (raw.length > MAX_VOICE_MSG) return null;
+  if (raw.length > MAX_MSG) return null;
   let m: unknown;
   try {
     m = JSON.parse(raw);
   } catch {
     return null;
   }
-  if (!isObj(m) || (m.t !== 'voice' && raw.length > MAX_MSG)) return null;
+  if (!isObj(m)) return null;
   switch (m.t) {
     case 'hello':
       if (typeof m.playerId !== 'string' || !/^[\w-]{8,64}$/.test(m.playerId)) return null;
@@ -117,21 +114,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return m.kind === 'kick' && typeof m.target === 'string' && /^p[0-9a-z]{1,8}$/.test(m.target) ? { t: 'vote', kind: 'kick', target: m.target } : null;
     case 'ballot':
       return typeof m.yes === 'boolean' ? { t: 'ballot', yes: m.yes } : null;
-    case 'taunt': {
-      // 0..8: taunts fixos; 100..102: os gravados pelo próprio jogador
-      const i = m.i as number;
-      return Number.isInteger(i) && ((i >= 0 && i < TAUNTS.length) || (i >= OWN_TAUNT && i < OWN_TAUNT + VOICE_SLOTS)) ? { t: 'taunt', i } : null;
-    }
-    case 'voice': {
-      // voz gravada por um jogador e repassada aos outros: só formato e tamanho, o conteúdo não é confiável
-      const { slot, text, mime, data } = m;
-      if (!Number.isInteger(slot) || (slot as number) < 0 || (slot as number) >= VOICE_SLOTS) return null;
-      if (data === '') return { t: 'voice', slot: slot as number, text: '', mime: '', data: '' };
-      if (typeof data !== 'string' || data.length > VOICE_MAX_B64 || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) return null;
-      if (typeof mime !== 'string' || !VOICE_MIME.test(mime)) return null;
-      if (typeof text !== 'string' || text.length > VOICE_TEXT_MAX || /[\u0000-\u001f\u007f-\u009f]/.test(text)) return null;
-      return { t: 'voice', slot: slot as number, text: text.trim(), mime, data };
-    }
+    case 'taunt':
+      return Number.isInteger(m.i) && (m.i as number) >= 0 && (m.i as number) < TAUNTS.length ? { t: 'taunt', i: m.i as number } : null;
     case 'buyMastery':
       return m.mastery === 'all' || MASTERY_IDS.includes(m.mastery as MasteryId) ? { t: 'buyMastery', mastery: m.mastery as MasteryId | 'all' } : null;
     case 'buyItem':
