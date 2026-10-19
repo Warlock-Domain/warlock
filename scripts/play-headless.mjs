@@ -1,12 +1,9 @@
 // Joga uma rodada sem janela e tira fotos: node play.mjs <base> <pasta-fotos> [largura altura]
-import { chromium } from 'file:///C:/nvm4w/nodejs/node_modules/@playwright/mcp/node_modules/playwright-core/index.mjs';
+import { openChrome } from './lib/browser.mjs';
 
 const [base, out, w = '1280', h = '720'] = process.argv.slice(2);
 const mobile = Number(w) < 700;
-const ctx = await chromium.launchPersistentContext('C:/Users/ferna/AppData/Local/ms-playwright/mcp-chrome-7a379eb', {
-  channel: 'chrome', headless: true, viewport: { width: Number(w), height: Number(h) }, hasTouch: mobile, isMobile: mobile,
-  args: ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
-});
+const ctx = await openChrome({ viewport: { width: Number(w), height: Number(h) }, hasTouch: mobile, isMobile: mobile });
 const page = await ctx.newPage();
 const logs = [];
 page.on('console', (m) => (m.type() === 'error' || m.type() === 'warning') && logs.push(m.type() + ': ' + m.text()));

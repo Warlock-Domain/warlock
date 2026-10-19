@@ -3,9 +3,8 @@ import { AEGIS, ITEMS, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, type 
 import { LAVA_DPS } from '../shared/constants.ts';
 import { labelOf } from './keys.ts';
 import { MAX_SPELL_LEVEL, RECHARGE, RUSH, SPELLS, WARPZONE, type Level, type SpellId } from '../shared/spells.ts';
-import { RULES_SHORT } from './rules-text.ts';
+import { RULES_SHORT, n1 } from './rules-text.ts';
 
-const n1 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const m = (x: number) => `${n1(x)} m`;
 const s = (x: number) => `${n1(x)} s`;
 

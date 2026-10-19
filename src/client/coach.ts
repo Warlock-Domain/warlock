@@ -1,7 +1,7 @@
 // Modo treino: uma dica curta por vez nas primeiras rodadas, escolhida pelo que está acontecendo agora.
 import type { Phase } from '../shared/match.ts';
 
-export const COACH_ROUNDS = 3;
+const COACH_ROUNDS = 3;
 
 export type CoachState = {
   phase: Phase;

@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { v, type Vec } from '../shared/vec.ts';
 
-type Prop = { obj: THREE.Object3D; pos: Vec; baseY: number };
+type Prop = { obj: THREE.Object3D; pos: Vec };
 // distância até a borda da arena (positiva na pedra), da forma desta rodada
 type EdgeOf = (p: Vec) => number;
 
@@ -27,6 +27,10 @@ const FLOOR: [string, number, number][] = [
 // entulho do Dungeon tem 4 a 8 unidades de largura: reduzido para caber como detalhe
 const SCALE: Record<string, number> = { rubble_large: 0.35, rubble_half: 0.4 };
 const FLAME_ON = new Set(['torch_lit', 'lantern_standing', 'skull_candle', 'shrine_candles', 'candle_triple']);
+// sombra em toda malha do modelo
+const shadows = (o: THREE.Object3D) => o.traverse((m) => {
+  if ((m as THREE.Mesh).isMesh) m.castShadow = m.receiveShadow = true;
+});
 
 // unitScale: escala do mago (os pacotes KayKit usam a mesma medida), conhecida depois que o mago carrega
 export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow: THREE.Texture) {
@@ -45,7 +49,7 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
       it.g.position.set(Math.cos(it.a) * r, 0.1, Math.sin(it.a) * r);
     }
     for (const p of props) {
-      p.obj.position.y = edgeOf(p.pos) < 0.2 ? -1.5 : p.baseY;
+      p.obj.position.y = edgeOf(p.pos) < 0.2 ? -1.5 : 0;
       p.obj.visible = p.obj.position.y > -1.4;
     }
   };
@@ -67,9 +71,7 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
       o.position.set(x, 0, z);
       o.rotation.y = rot;
       o.scale.setScalar(k * (SCALE[name] ?? 1));
-      o.traverse((m) => {
-        if ((m as THREE.Mesh).isMesh) m.castShadow = m.receiveShadow = true;
-      });
+      shadows(o);
       // alguns modelos têm a origem no meio: apoia o fundo no chão (medido antes de entrar no pai, em coordenadas locais)
       o.position.y -= new THREE.Box3().setFromObject(o).min.y;
       parent.add(o);
@@ -102,7 +104,7 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
       const holder = new THREE.Group();
       scene.add(holder);
       const o = place(name, Math.cos(a) * r, Math.sin(a) * r, deg, holder);
-      if (o) props.push({ obj: holder, pos: v(Math.cos(a) * r, Math.sin(a) * r), baseY: 0 });
+      if (o) props.push({ obj: holder, pos: v(Math.cos(a) * r, Math.sin(a) * r) });
     }
     arrange();
   }).catch(() => console.warn('decoração não carregou; a arena segue sem ela'));
@@ -115,9 +117,7 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
       if (!src) return null;
       const o = src.clone(true);
       o.scale.setScalar(unit);
-      o.traverse((m) => {
-        if ((m as THREE.Mesh).isMesh) m.castShadow = m.receiveShadow = true;
-      });
+      shadows(o);
       return o;
     },
     // arena nova (ou rodada nova): arruma a decoração para a forma dela
@@ -128,7 +128,7 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
     // ossos e entulho fora da pedra afundam na lava; as chamas tremulam
     update(edge: EdgeOf, now: number) {
       for (const p of props) {
-        const target = edge(p.pos) < 0.2 ? -1.5 : p.baseY;
+        const target = edge(p.pos) < 0.2 ? -1.5 : 0;
         p.obj.position.y += (target - p.obj.position.y) * 0.04;
         p.obj.visible = p.obj.position.y > -1.4;
       }

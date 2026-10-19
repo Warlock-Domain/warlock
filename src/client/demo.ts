@@ -10,7 +10,7 @@ import { add, scale, v, type Vec } from '../shared/vec.ts';
 // alvo do passo: ponto fixo ou a posição atual do mago com esse índice
 type At = Vec | number;
 type Step = [t: number, who: number, what: SpellId | ItemId | 'move', at: At];
-export type Script = { pos?: Vec[]; end: number; steps: Step[]; prep?: (w: World) => void };
+type Script = { pos?: Vec[]; end: number; steps: Step[]; prep?: (w: World) => void };
 export type DemoId = SpellId | ItemId | 'clash';
 
 const A = 0, B = 1, C = 2;
@@ -52,7 +52,7 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   clash: { pos: [v(-3, 0), v(2, 0), v(1, 2.4)], end: 3.8, steps: [[0.3, A, 'fireball', B], [0.3, B, 'fireball', A], [0.9, C, 'move', v(-0.5, 0)]] },
 };
 
-export type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
+type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 
 export function demoWorld(id: DemoId): DemoState {
   const script = SCRIPTS[id]!;

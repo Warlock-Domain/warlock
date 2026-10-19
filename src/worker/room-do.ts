@@ -14,6 +14,7 @@ const EMPTY_MS = 5 * 60_000;
 const IDLE_MS = 3 * 60_000; // partida sem nenhum comando de gente por 3 min é encerrada
 
 type Saved = { id: string; match: Match };
+const KICKED: ServerMsg = { t: 'error', code: 'kicked', msg: 'Você foi removido da sala por votação.' };
 type Attachment = { playerId: string | null };
 
 // Uma sala: guarda a partida na memória e roda a simulação enquanto houver alguém conectado.
@@ -100,7 +101,7 @@ export class Room extends DurableObject<Env> {
         send(other, { t: 'error', code: 'other_tab', msg: 'Sala aberta em outra aba.' });
         forget(other);
       }
-      if (m.banned.includes(msg.playerId)) return send(ws, { t: 'error', code: 'kicked', msg: 'Você foi removido da sala por votação.' });
+      if (m.banned.includes(msg.playerId)) return send(ws, KICKED);
       if (!addPlayer(m, msg.playerId, msg.name)) return send(ws, { t: 'error', code: 'full', msg: 'Sala cheia.' });
       ws.serializeAttachment({ playerId: msg.playerId } satisfies Attachment);
       return this.changed();
@@ -109,24 +110,19 @@ export class Room extends DurableObject<Env> {
     const id = this.playerOf(ws);
     if (!id) return send(ws, { t: 'error', code: 'bad_msg', msg: 'Envie hello primeiro.' });
     if (msg.t !== 'alive') this.lastCmdAt = now;
-    // comandos de jogo só valem com a rodada rolando (fora dela a fila cresceria sem limite)
-    const playing = m.phase === 'playing';
+    // o cliente só conhece o id público: acha o jogador correspondente
+    const byPublic = (pub?: string) => m.players.find((p) => publicId(s.id, p.id) === pub);
     switch (msg.t) {
       case 'alive':
         return;
       case 'move':
-        if (!playing) return;
-        this.cmds.push({ id, kind: 'move', to: v(msg.x, msg.y) });
-        this.acks.set(id, msg.seq);
-        return;
       case 'stop':
-        if (!playing) return;
-        this.cmds.push({ id, kind: 'stop' });
-        this.acks.set(id, msg.seq);
-        return;
       case 'cast':
-        if (!playing) return;
-        this.cmds.push({ id, kind: 'cast', spell: msg.spell, at: v(msg.x, msg.y) });
+      case 'item':
+        // comandos de jogo só valem com a rodada rolando (fora dela a fila cresceria sem limite)
+        if (m.phase !== 'playing') return;
+        this.cmds.push(msg.t === 'move' ? { id, kind: 'move', to: v(msg.x, msg.y) } : msg.t === 'stop' ? { id, kind: 'stop' }
+          : msg.t === 'cast' ? { id, kind: 'cast', spell: msg.spell, at: v(msg.x, msg.y) } : { id, kind: 'item', item: msg.item, at: v(msg.x, msg.y) });
         this.acks.set(id, msg.seq);
         return;
       case 'start':
@@ -135,11 +131,6 @@ export class Room extends DurableObject<Env> {
       case 'buy':
         if (buy(m, id, msg.spell)) await this.changed();
         return;
-      case 'item':
-        if (!playing) return;
-        this.cmds.push({ id, kind: 'item', item: msg.item, at: v(msg.x, msg.y) });
-        this.acks.set(id, msg.seq);
-        return;
       case 'undo':
         if (undoBuy(m, id, msg.key)) await this.changed();
         return;
@@ -147,14 +138,13 @@ export class Room extends DurableObject<Env> {
         if (sell(m, id, msg.key)) await this.changed();
         return;
       case 'kick': {
-        // o cliente só conhece o id público: acha o jogador correspondente
-        const target = m.players.find((p) => publicId(s.id, p.id) === msg.target);
+        const target = byPublic(msg.target);
         if (target && kick(m, target.id)) await this.changed();
         return;
       }
       case 'vote': {
         // expulsão: o alvo chega como id público, como no 'kick'; troca de modo: o modo alvo
-        const target = msg.kind === 'kick' ? m.players.find((p) => publicId(s.id, p.id) === msg.target)?.id : (msg.target ?? '');
+        const target = msg.kind === 'kick' ? byPublic(msg.target)?.id : (msg.target ?? '');
         if (target !== undefined && startVote(m, id, msg.kind, target, now)) await this.changed();
         return;
       }
@@ -220,7 +210,7 @@ export class Room extends DurableObject<Env> {
     // expulso por votação: avisa e fecha o socket dele (antes de contar quem está na sala)
     for (const ws of this.live(closing)) {
       if (!s.match.banned.includes(this.playerOf(ws)!)) continue;
-      send(ws, { t: 'error', code: 'kicked', msg: 'Você foi removido da sala por votação.' });
+      send(ws, KICKED);
       forget(ws, 'kicked');
     }
     this.broadcastRoom(closing);

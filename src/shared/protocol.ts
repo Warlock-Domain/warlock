@@ -65,7 +65,10 @@ export type PublicRoom = {
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
 export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; pl: number[]; rs?: number[]; ch?: number[]; lp?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; ack: number; e?: SimEvent[] };
 
-export type ErrorCode = 'not_found' | 'other_tab' | 'full' | 'bad_msg' | 'kicked';
+// lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
+export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
+
+type ErrorCode = 'not_found' | 'other_tab' | 'full' | 'bad_msg' | 'kicked';
 
 export type ServerMsg =
   | { t: 'room'; room: PublicRoom; you: string }
@@ -73,7 +76,7 @@ export type ServerMsg =
   | { t: 'error'; code: ErrorCode; msg: string }
   | { t: 'taunt'; id: string; i: number };
 
-export const MAX_COORD = 30;
+const MAX_COORD = 30;
 const MAX_MSG = 1024;
 
 type Obj = Record<string, unknown>;
@@ -81,6 +84,7 @@ const isObj = (x: unknown): x is Obj => typeof x === 'object' && x !== null && !
 const coord = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= MAX_COORD;
 const seq = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 0 && (x as number) < 2 ** 31;
 const spell = (x: unknown): x is SpellId => SPELL_IDS.includes(x as SpellId);
+const pubId = (x: unknown): x is string => typeof x === 'string' && /^p[0-9a-z]{1,8}$/.test(x);
 
 export function cleanName(raw: unknown): string {
   const name = String(raw ?? '').replace(/[<>]/g, '').trim().slice(0, 20);
@@ -125,18 +129,17 @@ export function parseClientMessage(raw: string): ClientMsg | null {
     case 'buy':
       return spell(m.spell) ? { t: 'buy', spell: m.spell } : null;
     case 'sell':
-      return typeof m.key === 'string' && /^(spell|item):[a-z_]{2,20}$/.test(m.key) ? { t: 'sell', key: m.key } : null;
     case 'undo':
-      return typeof m.key === 'string' && /^(spell|item):[a-z_]{2,20}$/.test(m.key) ? { t: 'undo', key: m.key } : null;
+      return typeof m.key === 'string' && /^(spell|item):[a-z_]{2,20}$/.test(m.key) ? { t: m.t, key: m.key } : null;
     case 'kick':
-      return typeof m.target === 'string' && /^p[0-9a-z]{1,8}$/.test(m.target) ? { t: 'kick', target: m.target } : null;
+      return pubId(m.target) ? { t: 'kick', target: m.target } : null;
     case 'vote':
       // troca de modo leva o modo alvo; a do sorteio dos times só alterna
       if (m.kind === 'mode') return MODES.includes(m.target as Mode) ? { t: 'vote', kind: 'mode', target: m.target as Mode } : null;
       if (m.kind === 'shuffle') return { t: 'vote', kind: 'shuffle' };
       if (m.kind === 'opt') return typeof m.target === 'string' && m.target.length < 30 && parseOpt(m.target) ? { t: 'vote', kind: 'opt', target: m.target } : null;
       if (m.kind === 'restart' || m.kind === 'end' || m.kind === 'addBot' || m.kind === 'removeBot' || m.kind === 'skipShop') return { t: 'vote', kind: m.kind };
-      return m.kind === 'kick' && typeof m.target === 'string' && /^p[0-9a-z]{1,8}$/.test(m.target) ? { t: 'vote', kind: 'kick', target: m.target } : null;
+      return m.kind === 'kick' && pubId(m.target) ? { t: 'vote', kind: 'kick', target: m.target } : null;
     case 'ballot':
       return typeof m.yes === 'boolean' ? { t: 'ballot', yes: m.yes } : null;
     case 'taunt':

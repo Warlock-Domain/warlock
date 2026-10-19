@@ -8,8 +8,9 @@ import { ITEMS, MAX_ITEMS, SCOURGE } from '../shared/items.ts';
 import { PAD_NAMES, PAD_NAMES_PS, keyLabel, keyOf, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
 import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, RECHARGE, RUSH, SPELLS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
 
-const pct = (x: number) => `${Math.round(x * 100)}%`;
-const n1 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+// formatação dos números nos textos (também usada pela loja, ficha, dicas e opções)
+export const pct = (x: number) => `${Math.round(x * 100)}%`;
+export const n1 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const list = (xs: readonly (string | number)[]) => xs.map(String).join(', ').replace(/, ([^,]*)$/, ' ou $1');
 const L1 = (id: SpellId) => SPELLS[id].levels[0];
 // magias que saem na hora (sem tempo de conjuração), lidas de CAST_POINT

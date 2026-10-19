@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ARENA_MIN, ARENA_R0, ARENA_STEP, CHEST, SUDDEN, DT, HP_MAX, PILLAR, SHRINK_EVERY, WIZ_R } from '../src/shared/constants.ts';
+import { ARENA_MIN, ARENA_R0, ARENA_STEP, CHEST, SUDDEN, DT, HP_MAX, OBSTACLES, SHRINK_EVERY, WIZ_R } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
 import { newWorld, stepWorld, type Cmd, type World } from '../src/shared/sim.ts';
 import { noSpells, type SpellId } from '../src/shared/spells.ts';
@@ -294,7 +294,7 @@ describe('choque de magias', () => {
 describe('pilares', () => {
   const withPillar = (spots: [number, number][], pillar: [number, number]) => {
     const w = world(spots);
-    w.pillars = [{ pos: v(pillar[0], pillar[1]), hp: PILLAR.hp, alive: true, kind: 'pillar' }];
+    w.pillars = [{ pos: v(pillar[0], pillar[1]), hp: OBSTACLES.pillar.hp, alive: true, kind: 'pillar' }];
     return w;
   };
 
@@ -302,13 +302,13 @@ describe('pilares', () => {
     const w = withPillar([[0, 0], [5, 0]], [2.5, 0]);
     run(w, 1.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(5, 0) }]);
     expect(wz(w, 1).hp).toBe(HP_MAX);
-    expect(w.pillars[0].hp).toBeLessThan(PILLAR.hp);
+    expect(w.pillars[0].hp).toBeLessThan(OBSTACLES.pillar.hp);
   });
 
   it('wizards cannot walk through a pillar', () => {
     const w = withPillar([[0, 0]], [1.5, 0]);
     run(w, 3, [{ id: 'p0', kind: 'move', to: v(3, 0) }]);
-    expect(dist(wz(w, 0).pos, v(1.5, 0))).toBeGreaterThanOrEqual(PILLAR.r + WIZ_R - 0.01);
+    expect(dist(wz(w, 0).pos, v(1.5, 0))).toBeGreaterThanOrEqual(OBSTACLES.pillar.r + WIZ_R - 0.01);
   });
 
   it('a broken pillar explodes and stops blocking', () => {

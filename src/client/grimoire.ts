@@ -6,18 +6,18 @@ import { ARENA_R0, HP_MAX, RUNE_KINDS } from '../shared/constants.ts';
 import { ITEMS, ITEM_IDS, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import { SCRIPTS, createDemo, type DemoId } from './demo.ts';
-import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, icon } from './icons.ts';
+import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, icon } from './icons.ts';
 import { ACTIONS, UI_ACTIONS, UI_NAMES, isPadMode, isSlotMode, labelOf, uiLabel } from './keys.ts';
 import { MODE_INFO, OPT_INFO } from './opt-info.ts';
-import { ITEM_DEMO, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE } from './rules-text.ts';
+import { ITEM_DEMO, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, n1 } from './rules-text.ts';
 import { COLORS } from './scene.ts';
+import { store } from './store.ts';
 import { itemLevels, spellLevels } from './tips.ts';
 import { el } from './ui.ts';
 
 type Page = { chapter: string; title: string; body: () => (Node | string | null)[]; demo?: DemoId };
 
 const STORE = 'warlock:grimoire';
-const n1 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const html = (s: string) => Object.assign(document.createElement('div'), { className: 'g-html', innerHTML: s });
 const ul = (xs: string[]) => el('ul', {}, ...xs.map((x) => el('li', {}, x)));
 const LEGEND = `Dano: vida que tira (cada mago tem ${HP_MAX}). Empurrão: metros que um mago sem dano acumulado desliza (+10% a cada 100 de dano já levado). Recarga: segundos até lançar de novo. Alcance e raio em metros (a arena de 4 magos tem ${n1(ARENA_R0)} m de raio).`;
@@ -87,7 +87,7 @@ const PAGES: Page[] = [
   {
     chapter: 'Controles', title: 'Suas teclas',
     body: () => [el('h2', {}, isSlotMode() ? 'Suas teclas (Q W E R D F pela ordem da barra)' : 'Suas teclas'),
-      el('div', { class: 'keys-grid' }, ...ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, labelOf(a)), ' ', icon(a in SPELLS ? ICON[a as SpellId] : ITEM_ICON[a as ItemId]), ' ', a in SPELLS ? SPELLS[a as SpellId].name : ITEMS[a as ItemId].name))),
+      el('div', { class: 'keys-grid' }, ...ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, labelOf(a)), ' ', icon(actionIcon(a)), ' ', actionName(a)))),
       el('h3', {}, 'Atalhos'),
       el('div', { class: 'keys-grid' }, ...UI_ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, uiLabel(a)), ' ', UI_NAMES[a])), el('span', {}, el('span', { class: 'key' }, 'Esc'), ' Configurações')),
       el('small', {}, 'Troque em Configurações > Teclas (Esc ou a engrenagem no topo).')],
@@ -113,12 +113,7 @@ const pageOf = (pred: (p: Page) => boolean) => PAGES.findIndex(pred);
 
 export function openGrimoire() {
   document.querySelector('.rules-overlay')?.remove();
-  let at = 0;
-  try {
-    at = Math.min(PAGES.length - 1, Math.max(0, Number(localStorage.getItem(STORE)) || 0));
-  } catch {
-    // sem armazenamento: abre no sumário
-  }
+  let at = Math.min(PAGES.length - 1, Math.max(0, Number(store.get(STORE)) || 0));
   const wide = matchMedia('(min-width: 900px)');
   const ac = new AbortController();
   let live: { tick: (now: number) => void }[] = [];
@@ -193,11 +188,7 @@ export function openGrimoire() {
       void spread.offsetWidth; // reinicia a animação
       spread.classList.add(dir > 0 ? 'turn-next' : 'turn-prev');
     }
-    try {
-      localStorage.setItem(STORE, String(at));
-    } catch {
-      // só nesta aba
-    }
+    store.set(STORE, String(at));
     if (live.length && !raf) raf = requestAnimationFrame(loop);
   }
   function go(i: number) {

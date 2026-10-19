@@ -42,7 +42,7 @@ export type Phase = 'lobby' | 'shop' | 'countdown' | 'playing' | 'roundEnd' | 'e
 // trocar o sorteio dos times (target = 'round' sorteados a cada rodada, 'match' fixos na partida),
 // mudar uma opção da partida (target = 'chave:valor', ex.: 'shop:60', 'runes:false'; vale na próxima rodada),
 // reiniciar, encerrar agora, pôr ou tirar um bot (na próxima rodada) e pular a loja (target vazio)
-export const VOTE_KINDS = ['mode', 'kick', 'shuffle', 'opt', 'restart', 'end', 'addBot', 'removeBot', 'skipShop'] as const;
+const VOTE_KINDS = ['mode', 'kick', 'shuffle', 'opt', 'restart', 'end', 'addBot', 'removeBot', 'skipShop'] as const;
 export type Vote = { kind: (typeof VOTE_KINDS)[number]; target: string; by: string; yes: string[]; no: string[]; ends: number };
 
 // opções da partida (pedido do Fernando, 18/10: "o jogo fluir com mais itens ou menos por rodada"), escolhidas na sala de espera
@@ -240,12 +240,12 @@ export function undoBuy(m: Match, id: string, key: string): boolean {
 
 // quanto volta ao vender a magia/item inteiro ('spell:<id>' ou 'item:<id>'): cada nível volta 100% na loja em que foi comprado
 // e perde 5% por rodada que a pessoa ficou com ele, até 75%; o nível inicial grátis não se vende. Nível sem registro (sala antiga) conta desde a rodada 0
-export const sellRate = (rounds: number) => Math.max(SELL_FLOOR, 1 - SELL_DECAY * Math.max(0, rounds));
+const sellRate = (rounds: number) => Math.max(SELL_FLOOR, 1 - SELL_DECAY * Math.max(0, rounds));
 export function sellValue(p: { spells: Record<SpellId, number>; items: Record<ItemId, number>; held?: Record<string, number[]> }, round: number, key: string): number {
   const [kind, what] = key.split(':');
   const spell = kind === 'spell';
   if (!spell && kind !== 'item') return 0; // maestria não se vende
-  if (!(spell ? (SPELL_IDS as string[]) : (ITEM_IDS as string[])).includes(what)) return 0;
+  if (!(spell ? (SPELL_IDS as readonly string[]) : (ITEM_IDS as readonly string[])).includes(what)) return 0;
   const now = spell ? p.spells[what as SpellId] : p.items[what as ItemId];
   const first = spell ? noSpells()[what as SpellId] : startItems()[what as ItemId];
   if (now <= first) return 0;
@@ -566,7 +566,7 @@ function afterRound(m: Match, now: number) {
   m.world = null;
 }
 
-export const EMPTY_ROUNDS_END = 3;
+const EMPTY_ROUNDS_END = 3;
 
 // quem fez mais abates na rodada; empate ou zero abates = ninguém
 function topKiller(m: Match): string | null {

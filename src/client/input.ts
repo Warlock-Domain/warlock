@@ -38,6 +38,8 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   let panned = false;
   let panFrom = { x: 0, y: 0 };
 
+  // lança a magia ou usa o item no ponto
+  const fire = (a: SpellId | ItemId, p: Vec) => (isItem(a) ? h.useItem(a, p) : h.cast(a, p));
   const arm = (s: SpellId | ItemId | null) => {
     armed = s;
     h.armedChanged(s);
@@ -52,7 +54,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     const a = held?.action;
     cancel();
     const p = a && enabled ? h.pick(cursor.x, cursor.y) : null;
-    if (a && p) (isItem(a) ? h.useItem(a, p) : h.cast(a as SpellId, p));
+    if (a && p) fire(a, p);
   };
   addEventListener('blur', cancel);
 
@@ -92,8 +94,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     const touch = e.pointerType === 'touch';
     if (armed && (e.button === 0 || touch)) {
       // fora do alcance a magia sai na direção do clique, até a borda do alcance (o servidor limita)
-      if (isItem(armed)) h.useItem(armed, p);
-      else h.cast(armed, p);
+      fire(armed, p);
       arm(null);
     } else if (e.button === 2 || touch) {
       if (armed) arm(null); // botão direito cancela a magia escolhida (e anda, como no Dota)
@@ -137,7 +138,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
         return h.preview(action);
       }
       const p = h.pick(cursor.x, cursor.y);
-      if (p) (isItem(action) ? h.useItem(action, p) : h.cast(action as SpellId, p));
+      if (p) fire(action, p);
       return;
     }
     if (isUiKey(e.code, 'stop')) h.stop();
@@ -158,12 +159,9 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
         arm(null);
       }
     },
-    // botão da barra: escolhe a magia e o próximo clique (ou toque) no chão lança
-    button(spell: SpellId) {
-      if (enabled) arm(armed === spell ? null : spell);
-    },
-    itemButton(item: ItemId) {
-      if (enabled) arm(armed === item ? null : item);
+    // botão da barra (magia ou item): escolhe e o próximo clique (ou toque) no chão lança
+    button(a: SpellId | ItemId) {
+      if (enabled) arm(armed === a ? null : a);
     },
   };
 }

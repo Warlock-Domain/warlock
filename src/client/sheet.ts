@@ -4,14 +4,13 @@ import { HP_MAX, HP_REGEN, LAVA_DPS, WIZ_SPEED } from '../shared/constants.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, itemStats, noItems, type ItemId } from '../shared/items.ts';
 import { SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { labelOf } from './keys.ts';
+import { n1, pct } from './rules-text.ts';
 import { ITEM_ROWS, SPELL_ROWS } from './tips.ts';
 
 export type SheetRow = { group: string; label: string; value: string; from?: string };
 export const BASE = 'Mago';
 
-const n1 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const n2 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
-const pct = (x: number) => `${Math.round(x * 100)}%`;
 const signed = (x: number, f: (y: number) => string) => (x < 0 ? '−' : '+') + f(Math.abs(x));
 
 // como mostrar cada campo de itemStats (total e parte de cada item); campo novo sem entrada aparece cru, para nada ficar escondido

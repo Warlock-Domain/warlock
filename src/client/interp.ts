@@ -2,7 +2,7 @@
 import type { ProjView, SnapView, WizView } from '../shared/snapshot.ts';
 import { v } from '../shared/vec.ts';
 
-export const DELAY = 0.066; // desenha 66 ms no passado: dá tempo de ter sempre dois estados para interpolar
+const DELAY = 0.066; // desenha 66 ms no passado: dá tempo de ter sempre dois estados para interpolar
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const lerpAngle = (a: number, b: number, t: number) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;

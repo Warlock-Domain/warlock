@@ -1,6 +1,7 @@
 // Teclas de cada magia, item ativo e atalho da interface, trocáveis pelo jogador (guardadas no navegador), e os botões do controle.
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
 import { SPELL_IDS, type SpellId } from '../shared/spells.ts';
+import { store } from './store.ts';
 
 export type Action = SpellId | ItemId;
 export const ACTIONS: Action[] = [...SPELL_IDS, ...ACTIVE_ITEMS];
@@ -26,50 +27,33 @@ export const RESERVED = new Set(['Escape', 'Enter', 'Space', 'ArrowLeft', 'Arrow
 const STORE = 'warlock:keys';
 
 let map: Record<string, string> = { ...DEFAULTS };
-try {
-  const saved = JSON.parse(localStorage.getItem(STORE) ?? '{}') as Record<string, string>;
-  for (const [a, code] of Object.entries(saved)) if (a in DEFAULTS && typeof code === 'string' && !RESERVED.has(code)) map[a] = code;
-} catch {
-  // sem armazenamento: ficam as teclas padrão
-}
+for (const [a, code] of Object.entries(store.json<Record<string, string>>(STORE) ?? {})) if (a in DEFAULTS && typeof code === 'string' && !RESERVED.has(code)) map[a] = code;
 
 const listeners: (() => void)[] = [];
+const notify = () => listeners.forEach((f) => f());
 const save = () => {
-  try {
-    localStorage.setItem(STORE, JSON.stringify(map));
-  } catch {
-    // só nesta aba
-  }
-  listeners.forEach((f) => f());
+  store.set(STORE, JSON.stringify(map));
+  notify();
 };
 
 // modo Q W E R D F (como no Dota; pedido do Fernando, 17/10): as magias equipadas, na ordem da barra, usam essas teclas;
 // os itens ativos seguem nas teclas deles. Escolha guardada no navegador.
-export const SLOT_KEYS = ['KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyD', 'KeyF'];
+const SLOT_KEYS = ['KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyD', 'KeyF'];
 const SLOT_STORE = 'warlock:slotkeys';
-let slotMode = false;
-try {
-  slotMode = localStorage.getItem(SLOT_STORE) === '1';
-} catch {
-  // sem armazenamento: modo por magia
-}
+let slotMode = store.get(SLOT_STORE) === '1';
 let slots: SpellId[] = [];
-const isSpell = (a: AnyAction) => (SPELL_IDS as string[]).includes(a);
+const isSpell = (a: AnyAction) => (SPELL_IDS as readonly string[]).includes(a);
 export const isSlotMode = () => slotMode;
 export function setSlotMode(on: boolean) {
   slotMode = on;
-  try {
-    localStorage.setItem(SLOT_STORE, on ? '1' : '0');
-  } catch {
-    // só nesta aba
-  }
-  listeners.forEach((f) => f());
+  store.set(SLOT_STORE, on ? '1' : '0');
+  notify();
 }
 // magias equipadas na ordem da barra (a interface avisa quando muda)
 export function setSlots(next: SpellId[]) {
   if (next.join() === slots.join()) return;
   slots = next;
-  if (slotMode || pad) listeners.forEach((f) => f());
+  if (slotMode || pad) notify();
 }
 export const slotSpell = (i: number): SpellId | undefined => slots[i];
 
@@ -79,22 +63,13 @@ export const slotSpell = (i: number): SpellId | undefined => slots[i];
 export const CAST_MODES = ['quick', 'release', 'click'] as const;
 export type CastMode = (typeof CAST_MODES)[number];
 const CAST_STORE = 'warlock:castmode';
-let castMode: CastMode = 'quick';
-try {
-  const saved = localStorage.getItem(CAST_STORE);
-  if ((CAST_MODES as readonly string[]).includes(saved ?? '')) castMode = saved as CastMode;
-} catch {
-  // sem armazenamento: lança na hora
-}
+const savedCast = store.get(CAST_STORE);
+let castMode: CastMode = (CAST_MODES as readonly string[]).includes(savedCast ?? '') ? (savedCast as CastMode) : 'quick';
 export const getCastMode = () => castMode;
 export function setCastMode(m: CastMode) {
   castMode = m;
-  try {
-    localStorage.setItem(CAST_STORE, m);
-  } catch {
-    // só nesta aba
-  }
-  listeners.forEach((f) => f());
+  store.set(CAST_STORE, m);
+  notify();
 }
 
 // controle (gamepad): botão de cada ação, trocável na aba Controle das configurações (pedido do Fernando, 18/10).
@@ -110,12 +85,7 @@ export const PAD_ACTION_NAMES: Record<PadAction, string> = { slot1: 'Magia 1', s
   item1: 'Item 1', item2: 'Item 2', item3: 'Item 3', sheet: 'Ficha do mago', board: 'Placar (segurar)', shop: 'Loja só para ver', center: 'Centralizar a câmera' };
 const PAD_STORE = 'warlock:pad';
 let padMap: Record<PadAction, number> = { ...PAD_DEFAULTS };
-try {
-  const saved = JSON.parse(localStorage.getItem(PAD_STORE) ?? '{}') as Record<string, number>;
-  for (const [a, b] of Object.entries(saved)) if (a in PAD_DEFAULTS && Number.isInteger(b) && b >= 0 && b < PAD_NAMES.length && b !== PAD_START) padMap[a as PadAction] = b;
-} catch {
-  // sem armazenamento: botões padrão
-}
+for (const [a, b] of Object.entries(store.json<Record<string, number>>(PAD_STORE) ?? {})) if (a in PAD_DEFAULTS && Number.isInteger(b) && b >= 0 && b < PAD_NAMES.length && b !== PAD_START) padMap[a as PadAction] = b;
 export const padButtonOf = (a: PadAction) => padMap[a];
 export const padActionAt = (btn: number): PadAction | undefined => PAD_ACTIONS.find((a) => padMap[a] === btn);
 // troca o botão; quem já usava esse botão fica com o antigo desta ação. Start não entra (é o Esc do controle)
@@ -132,12 +102,8 @@ export function resetPad() {
   savePad();
 }
 function savePad() {
-  try {
-    localStorage.setItem(PAD_STORE, JSON.stringify(padMap));
-  } catch {
-    // só nesta aba
-  }
-  listeners.forEach((f) => f());
+  store.set(PAD_STORE, JSON.stringify(padMap));
+  notify();
 }
 
 // Com o controle em uso, a barra e a loja mostram os botões; tecla ou mouse de novo voltam às teclas.
@@ -146,7 +112,7 @@ export const isPadMode = () => pad;
 export function setPadMode(on: boolean) {
   if (on === pad) return;
   pad = on;
-  listeners.forEach((f) => f());
+  notify();
 }
 const padLabel = (a: Action) => {
   const i = isSpell(a) ? slots.indexOf(a as SpellId) : ACTIVE_ITEMS.indexOf(a as ItemId);

@@ -8,7 +8,7 @@ export const UNIT = 0.00647; // metros por unidade do original
 export const ARENA_STEP = 100 * UNIT; // uma camada de ladrilhos
 export const arenaRadius = (wizards: number) => (13 + wizards) * ARENA_STEP; // 13 camadas + 1 por mago
 export const ARENA_R0 = arenaRadius(4);
-// a arena para de encolher aqui (no original o mínimo é 1 camada): nunca some, a rodada só acaba quando sobra 1
+// a arena para de encolher aqui (no original o mínimo é 1 camada) até SUDDEN.collapse; depois some aos poucos
 export const ARENA_MIN = 2 * ARENA_STEP;
 export const SPAWN_INSET = 600 * UNIT;
 export const SHRINK_EVERY = 10;
@@ -28,14 +28,14 @@ export const LAVA_KB_FACTOR = 0.5;
 export const CREDIT_WINDOW = 5; // o abate vai para quem acertou nos últimos 5 s
 export const PROJ_R = 0.2;
 
-// pilares do original (mode.lua e obstacles.lua): 2 a 8 por rodada, sorteados até 1000 unidades do centro,
-// 400 de vida; ao quebrar explodem em 300 unidades com 5 a 10 de dano (aqui 10)
-export const PILLAR = { r: 0.5, hp: 400, spread: 1000 * UNIT, blastR: 300 * UNIT, blastDmg: 10, min: 2, max: 8 };
+// pilares do original (mode.lua e obstacles.lua): 2 a 8 por rodada, sorteados até 1000 unidades do centro
+// (raio, vida e explosão em OBSTACLES.pillar)
+export const PILLAR = { spread: 1000 * UNIT, min: 2, max: 8 };
 
 // tipos de obstáculo (pedido do Fernando, 17/10: "não só esses pilares"); o pilar segue o original, os outros são meus:
 // rocha grande que não quebra, árvore morta frágil e altar de velas que explode em fogo. weight = chance relativa no sorteio
-export type ObstacleKind = 'pillar' | 'rock' | 'tree' | 'shrine' | 'chest' | 'rockpillar';
-export const OBSTACLE_KINDS: ObstacleKind[] = ['pillar', 'rock', 'tree', 'shrine', 'chest', 'rockpillar'];
+export const OBSTACLE_KINDS = ['pillar', 'rock', 'tree', 'shrine', 'chest', 'rockpillar'] as const;
+export type ObstacleKind = (typeof OBSTACLE_KINDS)[number];
 // vida pela metade em 18/10 (pedido do Fernando: obstáculos com menos vida)
 export const OBSTACLES: Record<ObstacleKind, { r: number; hp: number; blastR: number; blastDmg: number; weight: number }> = {
   pillar: { r: 0.5, hp: 200, blastR: 300 * UNIT, blastDmg: 10, weight: 4 },
@@ -92,8 +92,8 @@ export const VOTE_MS = 20_000; // votação na partida (trocar o modo, expulsar 
 export const SUDDEN = { at: 90, every: 5, collapse: 150 };
 // runas: uma por vez num ponto livre, a primeira aos 15 s e a próxima 20 s depois de alguém pegar (ou de a lava engolir);
 // quem pega ganha 8 s de Pressa (+40% de velocidade), Fúria (+30% de dano), Escudo de runa (absorve 100 de dano) ou Recarga (zera as recargas na hora)
-export type RuneKind = 'haste' | 'fury' | 'shield' | 'recharge';
-export const RUNE_KINDS: RuneKind[] = ['haste', 'fury', 'shield', 'recharge'];
+export const RUNE_KINDS = ['haste', 'fury', 'shield', 'recharge'] as const;
+export type RuneKind = (typeof RUNE_KINDS)[number];
 // efeitos por 8 s (Fernando, 18/10): Pressa +50% de velocidade, Fúria +30% de dano, Escudo −30% de dano levado, Recarga recargas 30% mais rápidas
 export const RUNE = { first: 15, every: 20, secs: 8, reach: 0.6, spread: 0.6, haste: 0.5, fury: 0.3, armor: 0.3, cdr: 0.3 };
 // sequências de abate (anúncio estilo Dota): abates com até 4 s entre eles; Matança e cia. contam abates sem morrer (atravessam as rodadas);

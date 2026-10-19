@@ -5,10 +5,9 @@ import { ARENA_IDS, ARENA_NAMES } from '../shared/arena.ts';
 import { ASSIST_GOLD, CHEST, COUNTDOWN_MS, DM_RESPAWN, DM_ROUND_MS, KILL_GOLD, RECOVERY, ROUND_END_MS, ROUND_GOLD, RUNE, SUDDEN, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
 import { DM_GOALS, OPTION_CHOICES, PACE, type MatchOpts, type Mode } from '../shared/match.ts';
 import { UI_ICON, icon } from './icons.ts';
+import { n1, pct } from './rules-text.ts';
 
-const n1 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const s = (ms: number) => `${n1(ms / 1000)} s`;
-const pct = (x: number) => `${Math.round(x * 100)}%`;
 const list = (rows: string[]) => `<ul>${rows.map((r) => `<li>${r}</li>`).join('')}</ul>`;
 
 const ARENA_TEXT: Record<(typeof ARENA_IDS)[number], string> = {
@@ -17,13 +16,15 @@ const ARENA_TEXT: Record<(typeof ARENA_IDS)[number], string> = {
   islands: 'duas ilhas ligadas por uma ponte estreita',
   cross: 'cruz de quatro braços: os cantos são lava',
 };
-const SKILL_NAME = { easy: 'Fácil', normal: 'Normal', hard: 'Difícil' } as const;
+// nomes do ritmo e da dificuldade (aqui e nas opções da sala)
+export const PACE_NAME: Record<MatchOpts['pace'], string> = { short: 'Curto', normal: 'Normal', long: 'Longo' };
+export const SKILL_NAME: Record<MatchOpts['difficulty'], string> = { easy: 'Fácil', normal: 'Normal', hard: 'Difícil', auto: 'Automático' };
 
 // explicação de cada opção (HTML curto); a meta depende do modo
 export const OPT_INFO: Record<keyof MatchOpts, (mode: Mode) => string> = {
   shop: () => `<p>Tempo da loja entre as rodadas. A loja fecha antes quando todos clicam Pronto.</p>${list(OPTION_CHOICES.shop.map((v) => `${v >= 120 ? '2 min' : `${v} s`}`))}`,
   pace: () => `<p>Espera antes de cada rodada (contagem) e depois dela (fim de rodada).</p>${list((['short', 'normal', 'long'] as const).map((k) =>
-    `${{ short: 'Curto', normal: 'Normal', long: 'Longo' }[k]}: contagem ${s(COUNTDOWN_MS * PACE[k])}, fim de rodada ${s(ROUND_END_MS * PACE[k])}`))}`,
+    `${PACE_NAME[k]}: contagem ${s(COUNTDOWN_MS * PACE[k])}, fim de rodada ${s(ROUND_END_MS * PACE[k])}`))}`,
   economy: () => `<p>Multiplica todo ouro ganho na partida: por rodada ${ROUND_GOLD}, vitória ${WIN_GOLD}, abate ${KILL_GOLD}, top dano ${TOP_DMG_GOLD}, assistência ${ASSIST_GOLD}, baú 1 a cada ${CHEST.goldEvery} s, recuperação até ${RECOVERY.max} (e o ouro inicial).</p>${list(OPTION_CHOICES.economy.map((v) =>
     `×${n1(v)}: rodada ${Math.round(ROUND_GOLD * v)}, vitória ${Math.round(WIN_GOLD * v)}, abate ${Math.round(KILL_GOLD * v)}${v === 1 ? ' (o normal)' : v > 1 ? ` (${pct(v - 1)} a mais)` : ` (${pct(1 - v)} a menos)`}`))}`,
   startGold: () => `<p>Ouro de cada um no começo da partida (também multiplicado pelo Ouro ganho).</p>${list(OPTION_CHOICES.startGold.map((v) => `${v} de ouro`))}`,

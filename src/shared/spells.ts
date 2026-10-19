@@ -1,11 +1,10 @@
-export type SpellId = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'swap' | 'grip' | 'meteor' | 'rush' | 'cluster' | 'boomerang' | 'thrust' | 'gravity' | 'rockpillar' | 'bouncer'
-  | 'drain' | 'snowball' | 'twin' | 'magnetize' | 'recharge' | 'alteration' | 'link' | 'windwalk' | 'splitter' | 'warpzone';
-export const SPELL_IDS: SpellId[] = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap', 'grip', 'meteor', 'rush', 'cluster', 'boomerang', 'thrust', 'gravity', 'rockpillar', 'bouncer',
-  'drain', 'snowball', 'twin', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone'];
+import { FRICTION, KB_PER_DMG, UNIT } from './constants.ts';
+
+export const SPELL_IDS = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap', 'grip', 'meteor', 'rush', 'cluster', 'boomerang', 'thrust', 'gravity', 'rockpillar', 'bouncer',
+  'drain', 'snowball', 'twin', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone'] as const;
+export type SpellId = (typeof SPELL_IDS)[number];
 // decisão do Fernando (17/10): no máximo 6 magias por mago (a Bola de fogo conta)
 export const MAX_SPELLS = 6;
-
-import { FRICTION, KB_PER_DMG, UNIT } from './constants.ts';
 
 // radius: raio da explosão do Meteoro (e do dano da Gravidade); dmgMin: dano na borda dele; absorb: dano que a Investida converte em velocidade;
 // pull: puxão da Gravidade nos magos (m/s²); scale: tempo dos projéteis inimigos na Zona de dobra; dot: dano por segundo da Bola de neve encostada
@@ -132,7 +131,6 @@ export function priceOf(id: SpellId, level: number): number | null {
   return level === 0 ? SPELLS[id].cost : SPELLS[id].up[level - 1];
 }
 
-export const noSpells = (): Record<SpellId, number> => ({ fireball: 1, lightning: 0, homing: 0, shield: 0, teleport: 0, swap: 0, grip: 0, meteor: 0, rush: 0, cluster: 0, boomerang: 0, thrust: 0, gravity: 0, rockpillar: 0, bouncer: 0,
-  drain: 0, snowball: 0, twin: 0, magnetize: 0, recharge: 0, alteration: 0, link: 0, windwalk: 0, splitter: 0, warpzone: 0 });
+export const noSpells = (): Record<SpellId, number> => ({ ...Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), fireball: 1 }) as Record<SpellId, number>;
 
 export const spellCount = (spells: Record<SpellId, number>) => SPELL_IDS.filter((s) => spells[s] > 0).length;

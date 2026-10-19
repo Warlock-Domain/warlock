@@ -1,7 +1,7 @@
 import { edgeAt, onIsle, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, type RuneKind } from '../shared/constants.ts';
 import { isCharacter } from '../shared/characters.ts';
-import type { PublicRoom, ServerMsg, Snap } from '../shared/protocol.ts';
+import type { PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView } from '../shared/snapshot.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
@@ -19,7 +19,8 @@ import { connect } from './net.ts';
 import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
-import { TEAM_NAMES, askName, banner, createRoomUi, renderLobby, screen, toast, type RoomInfo } from './ui.ts';
+import { store } from './store.ts';
+import { TEAM_NAMES, TOUCH, askName, banner, createRoomUi, renderLobby, screen, toast } from './ui.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
 // som de cada magia: as novas reaproveitam os sons que já existem
@@ -29,26 +30,6 @@ const SPELL_SOUND: Record<SpellId, SoundKind> = {
   boomerang: 'homing', thrust: 'teleport', gravity: 'homing', rockpillar: 'shield', bouncer: 'lightning',
   drain: 'homing', snowball: 'fireball', twin: 'homing', magnetize: 'lightning', recharge: 'homing',
   alteration: 'teleport', link: 'lightning', windwalk: 'shield', splitter: 'fireball', warpzone: 'shield',
-};
-
-// localStorage pode falhar (aba anônima, dados bloqueados): cai para a memória
-const memory = new Map<string, string>();
-const store = {
-  get(k: string): string | null {
-    try {
-      return localStorage.getItem(k) ?? memory.get(k) ?? null;
-    } catch {
-      return memory.get(k) ?? null;
-    }
-  },
-  set(k: string, v: string) {
-    memory.set(k, v);
-    try {
-      localStorage.setItem(k, v);
-    } catch {
-      // só na memória
-    }
-  },
 };
 
 // ?as=nome dá outra identidade na mesma máquina (testar com várias abas)
@@ -133,7 +114,6 @@ function startRoom(code: string, name: string) {
   let training = false;
   let arenaId: ArenaId = 'circle'; // formato da arena da rodada (vem na mensagem 'room')
   let playingAt = 0;
-  const touch = matchMedia('(hover: none) and (pointer: coarse)').matches;
   const justCast = new Map<string, number>();
   let scourgeUntil = 0;
   let follow = true;
@@ -161,7 +141,7 @@ function startRoom(code: string, name: string) {
     undo: (key) => net.send({ t: 'undo', key }),
     sell: (key) => net.send({ t: 'sell', key }),
     taunt: (i) => net.send({ t: 'taunt', i }),
-    useItem: (item) => input.itemButton(item),
+    useItem: (item) => input.button(item),
     pick: (character) => {
       store.set(CHAR, character);
       net.send({ t: 'pick', character });
@@ -380,7 +360,7 @@ function startRoom(code: string, name: string) {
     if (notes.length) toast(notes.join(' · '));
     if (voice) void sound.taunt(voice);
     if (liveChanged) view.live(live);
-    scene.onEvents(events, who);
+    scene.onEvents(events);
   }
 
   let lastPhase = '';
@@ -518,7 +498,7 @@ function startRoom(code: string, name: string) {
     watchId = watched?.id ?? null;
     view.watching(watched?.name ?? null);
     view.deadShopping(room?.phase === 'playing' && room.mode !== 'deathmatch' && !!meP && !!meW && !meW.alive);
-    if (training && room) view.coach(meP ? coachTip({ phase: room.phase, round: room.round, playingFor: (nowMs - playingAt) / 1000, shrinkIn, low, lava, alive: !!meW?.alive, touch, fireKey: isPadMode() ? 'A' : labelOf('fireball'), fire: meP.spells.fireball > 0 }) : null);
+    if (training && room) view.coach(meP ? coachTip({ phase: room.phase, round: room.round, playingFor: (nowMs - playingAt) / 1000, shrinkIn, low, lava, alive: !!meW?.alive, touch: TOUCH, fireKey: isPadMode() ? 'A' : labelOf('fireball'), fire: meP.spells.fireball > 0 }) : null);
     scene.render({
       arena: arenaId,
       arenaR: s?.arenaR ?? 11,

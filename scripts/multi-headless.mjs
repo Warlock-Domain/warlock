@@ -1,10 +1,8 @@
 // 3 pessoas na mesma sala, sem janela: node multi.mjs <base> <pasta-fotos>
-import { chromium } from 'file:///C:/nvm4w/nodejs/node_modules/@playwright/mcp/node_modules/playwright-core/index.mjs';
+import { openChrome } from './lib/browser.mjs';
 
 const [base, out] = process.argv.slice(2);
-const ctx = await chromium.launchPersistentContext('C:/Users/ferna/AppData/Local/ms-playwright/mcp-chrome-7a379eb', {
-  channel: 'chrome', headless: true, viewport: { width: 1000, height: 640 }, args: ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
-});
+const ctx = await openChrome({ viewport: { width: 1000, height: 640 } });
 const logs = [];
 try {
   const { id } = await (await fetch(base + '/api/rooms', { method: 'POST' })).json();

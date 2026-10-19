@@ -3,17 +3,18 @@ import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, 
 import { ARENA_NAMES, type ArenaId } from '../shared/arena.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import { DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Vote } from '../shared/match.ts';
-import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
+import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { isPadMode, isUiKey, labelOf, onKeysChange, setSlots, uiLabel, type Action, type UiAction } from './keys.ts';
 import { openSettings, setSettingsCtx } from './settings.ts';
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
-import { MODE_INFO, OPT_INFO, infoButton } from './opt-info.ts';
+import { MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, infoButton } from './opt-info.ts';
 import { BOT_LEVEL, COLORS, TEAM_COLORS } from './scene.ts';
-import { SPELL_GROUPS, SPELL_USE } from './rules-text.ts';
-import { ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, icon } from './icons.ts';
+import { SPELL_GROUPS, SPELL_USE, n1, pct } from './rules-text.ts';
+import { ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, icon } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
+import { store } from './store.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
 type Child = Node | string | null | undefined | false;
@@ -32,7 +33,7 @@ export function el(tag: string, props: Record<string, any> = {}, ...children: Ch
 
 const TITLE = 'Warlock';
 // tela de toque sem mouse: os textos de ajuda falam de tocar, não de clicar
-const TOUCH = matchMedia('(hover: none) and (pointer: coarse)').matches;
+export const TOUCH = matchMedia('(hover: none) and (pointer: coarse)').matches;
 
 export function askName(root: HTMLElement, current: string): Promise<string> {
   return new Promise((resolve) => {
@@ -63,7 +64,6 @@ export function askName(root: HTMLElement, current: string): Promise<string> {
   });
 }
 
-export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
 // o que a sala está fazendo, em palavras de quem vai entrar
 const roomPhase = (r: RoomInfo) => r.phase === 'lobby' ? 'esperando começar' : r.phase === 'end' ? 'partida acabou, dá para começar outra'
   : `jogando${r.round ? ` a rodada ${r.round}` : ''} · você entra na próxima rodada`;
@@ -117,7 +117,7 @@ addEventListener('keydown', (e) => {
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 // tipo do aviso: muda a cor da borda e o ícone (style.css, #toast[data-kind])
-export type ToastKind = 'info' | 'good' | 'bad' | 'gold';
+type ToastKind = 'info' | 'good' | 'bad' | 'gold';
 // msg pode vir com ícones (lista de textos e nós); o de ouro ganha a moeda na frente
 export function toast(msg: string | (string | Node)[], kind: ToastKind = 'info') {
   let t = document.getElementById('toast');
@@ -142,7 +142,7 @@ export function screen(root: HTMLElement, title: string, text: string, button: s
   root.replaceChildren(el('div', { class: 'overlay' }, el('div', { class: 'panel' }, el('h1', {}, title), el('p', {}, text), el('button', { type: 'button', class: 'primary', onclick: onClick }, button))));
 }
 
-export type RoomActions = {
+type RoomActions = {
   start: (bots: number, mode: Mode, shuffle: boolean, opts: MatchOpts) => void;
   hover: (a: SpellId | ItemId | null) => void; // mouse em cima da magia ou item na barra (círculo de alcance)
   train: (opts: Partial<MatchOpts>) => void; // partida de treino: 3 bots, modo Rodadas e dicas nas primeiras rodadas (com a dificuldade escolhida)
@@ -177,13 +177,12 @@ const SHUFFLE_NAME = (shuffle: boolean) => (shuffle ? 'sorteados a cada rodada' 
 type OptKey = keyof MatchOpts;
 const OPT_KEYS = Object.keys(OPTION_CHOICES) as OptKey[];
 const OPT_NAME: Record<OptKey, string> = { shop: 'Tempo de loja', pace: 'Contagem e fim de rodada', economy: 'Ouro ganho', startGold: 'Ouro inicial', goal: 'Vence com', runes: 'Runas', sudden: 'Morte súbita', chests: 'Baús de ouro', difficulty: 'Dificuldade dos bots', arena: 'Arena' };
-const n1 = (x: number) => x.toLocaleString('pt-BR');
 function optText(k: OptKey, val: MatchOpts[OptKey], mode: Mode): string {
   if (k === 'shop') return (val as number) >= 120 ? '2 min' : `${val} s`;
-  if (k === 'pace') return { short: 'Curto', normal: 'Normal', long: 'Longo' }[val as MatchOpts['pace']];
+  if (k === 'pace') return PACE_NAME[val as MatchOpts['pace']];
   if (k === 'economy') return { 0.6: 'Pouco ×0,6', 1: 'Normal', 1.6: 'Muito ×1,6', 2.5: 'Festa ×2,5' }[val as MatchOpts['economy']];
   if (k === 'arena') return val === 'random' ? 'Sortear' : ARENA_NAMES[val as ArenaId];
-  if (k === 'difficulty') return { easy: 'Fácil', normal: 'Normal', hard: 'Difícil', auto: 'Automático' }[val as MatchOpts['difficulty']];
+  if (k === 'difficulty') return SKILL_NAME[val as MatchOpts['difficulty']];
   if (k === 'goal') return mode === 'deathmatch' ? `${DM_GOALS[val as MatchOpts['goal']]} abates` : `${val} rodadas`;
   if (typeof val === 'boolean') return val ? 'Ligado' : 'Desligado';
   return String(val);
@@ -214,6 +213,8 @@ const dot = (color: number) => el('span', { class: 'dot', style: `background:${C
 const teamTag = (room: PublicRoom, p: PublicPlayer) =>
   room.mode === 'teams' && p.team !== null ? el('span', { class: 'dot', title: 'Time ' + TEAM_NAMES[p.team], style: `background:${TEAM_COLORS[p.team]};border-radius:2px` }) : null;
 const byTeam = (room: PublicRoom, a: PublicPlayer, b: PublicPlayer) => (room.mode === 'teams' ? (a.team ?? 2) - (b.team ?? 2) : 0) || b.score - a.score;
+// bolinhas de nível: as primeiras lvl acesas, de max
+const pipsOf = (lvl: number, max: number) => Array.from({ length: max }, (_, n) => el('i', { class: n < lvl ? 'on' : '' }));
 const nameOf = (p: PublicPlayer, me: string) => el('span', {}, p.name + (p.id === me ? ' (você)' : ''), p.bot ? ' ' : null, p.bot ? icon(UI_ICON.bot) : null);
 
 // placar de estatísticas: ouro ganho, dano causado e precisão de cada magia de dano (acertos / lançamentos)
@@ -245,7 +246,6 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
     const f = shots(p);
     return f ? l / f : -1;
   };
-  const pct = (n: number) => `${Math.round(n * 100)}%`;
   const deathCause = (p: PublicPlayer) => {
     const by = Object.entries(st(p).deathBy ?? {}).sort((a, b) => b[1] - a[1])[0];
     return by ? el('span', { class: 'cause', title: `Morreu mais por: ${srcName(by[0])} (${by[1]}×)` }, srcIcon(by[0]), ' ', el('small', {}, srcName(by[0]))) : '–';
@@ -333,7 +333,6 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
 function goldInfo(p: PublicPlayer, opts: MatchOpts, open: boolean, onToggle: (open: boolean) => void) {
   const row = (label: string, value: Child, cls = '') => el('div', { class: 'gold-row ' + cls }, el('span', {}, label), el('b', {}, value));
   const g = (n: number) => Math.round(n * opts.economy);
-  const rule = (n: number) => (n > 0 ? `+${g(n)}` : 'não dá ouro');
   // recolhido por padrão: o Pronto fica logo abaixo do ouro
   return el('details', { class: 'gold-info', open, ontoggle: (e: Event) => onToggle((e.target as HTMLDetailsElement).open) },
     el('summary', { class: 'gold-title' }, 'Como ganho ouro', opts.economy !== 1 ? el('small', {}, ` · ouro ×${opts.economy.toLocaleString('pt-BR')} nesta sala`) : null),
@@ -344,7 +343,7 @@ function goldInfo(p: PublicPlayer, opts: MatchOpts, open: boolean, onToggle: (op
     row('Abater o líder', `até +${g(BOUNTY.max)} extra`),
     row('Quebra-combo (derrubar quem tem 3+ abates seguidos)', `+${g(STREAK.breakGold)}`),
     row('Atrás da média da partida', `até +${g(RECOVERY.max)} por rodada`),
-    row('Mais dano na rodada', rule(TOP_DMG_GOLD), TOP_DMG_GOLD ? '' : 'muted'),
+    row('Mais dano na rodada', `+${g(TOP_DMG_GOLD)}`),
     row('Assistência (mais dano em quem morreu)', `+${g(ASSIST_GOLD)}`),
     row('Baú: em cima do ouro', opts.chests ? `+${g(1)} a cada ${CHEST.goldEvery} s` : 'desligado nesta sala', opts.chests ? '' : 'muted'),
     el('hr', {}),
@@ -360,7 +359,7 @@ const kickBtn = (p: PublicPlayer, kick?: (id: string) => void) =>
   kick && (p.bot || !p.connected) ? el('button', { type: 'button', class: 'kick', title: `Expulsar ${p.name}`, 'aria-label': `Expulsar ${p.name}`, onclick: () => kick(p.id) }, '✕') : null;
 
 // fim da partida: com times fixos vence o time; sorteados a cada rodada, todos que chegaram à meta juntos
-export function winTitle(r: PublicRoom): Child[] {
+function winTitle(r: PublicRoom): Child[] {
   if (r.winnerTeam !== null) return [icon(UI_ICON.wins), ` Time ${TEAM_NAMES[r.winnerTeam]} venceu!`];
   const champs = r.mode === 'teams' ? r.players.filter((p) => p.score >= r.goal) : [];
   if (champs.length > 1) return [icon(UI_ICON.wins), ` ${champs.map((p) => p.name).join(', ').replace(/, ([^,]*)$/, ' e $1')} venceram!`];
@@ -420,6 +419,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       b?.setAttribute('aria-expanded', 'false');
     }
   }
+  // abre ou fecha um painel do topo (fecha os outros) e marca o botão dele
+  function toggle(p: HTMLElement, b: HTMLElement | null, open = p.hidden) {
+    p.hidden = !open;
+    solo(p);
+    b?.setAttribute('aria-expanded', String(open));
+  }
   // teclas, volume e efeitos moraram em painéis aqui; agora são abas do menu de configurações (settings.ts) e os botões abrem a aba
   const volIcon = () => volBtn.replaceChildren(icon(act.volumes().sfx + act.volumes().music === 0 ? UI_ICON.mute : UI_ICON.sound));
   setSettingsCtx({
@@ -438,11 +443,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const volBtn = el('button', { type: 'button', class: 'icon', title: 'Som', 'aria-label': 'Som', onclick: () => openSettings('som') }, icon(act.volumes().sfx + act.volumes().music === 0 ? UI_ICON.mute : UI_ICON.sound));
   // votação na partida: o botão abre as opções; a faixa no topo mostra a votação aberta para todos
   const votePanel = el('div', { class: 'vol-panel', hidden: true });
-  const voteBtn = el('button', { type: 'button', class: 'vote-btn', title: 'Votar: trocar o modo ou expulsar alguém', 'aria-label': 'Votar', 'aria-expanded': 'false', onclick: () => {
-    votePanel.hidden = !votePanel.hidden;
-    solo(votePanel);
-    voteBtn.setAttribute('aria-expanded', String(!votePanel.hidden));
-  } }, icon(UI_ICON.vote), el('span', { class: 'vote-label' }, ' Votar'));
+  const voteBtn = el('button', { type: 'button', class: 'vote-btn', title: 'Votar: trocar o modo ou expulsar alguém', 'aria-label': 'Votar', 'aria-expanded': 'false', onclick: () => toggle(votePanel, voteBtn) },
+    icon(UI_ICON.vote), el('span', { class: 'vote-label' }, ' Votar'));
   const voteWrap = el('div', { class: 'vol' }, voteBtn, votePanel);
   // provocações (taunts): a tecla (Y no padrão) abre a lista e o número escolhe (ou clique); vale na loja e no jogo
   const sendTaunt = (i: number) => {
@@ -453,15 +455,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const tauntPanel = el('div', { class: 'vol-panel', hidden: true }, tauntTitle,
     el('div', { class: 'taunt-list' }, ...TAUNTS.map((t, i) => el('button', { type: 'button', onclick: () => sendTaunt(i) }, `${(i + 1) % 10} · ${t.text}`))));
   const sheetBtn = el('button', { type: 'button', class: 'icon', 'aria-label': 'Ficha do mago', 'aria-expanded': 'false', onclick: () => toggleSheet() }, icon(UI_ICON.sheet));
-  const tauntBtn = el('button', { type: 'button', class: 'icon', onclick: () => ((tauntPanel.hidden = !tauntPanel.hidden), solo(tauntPanel)) }, icon(UI_ICON.taunt));
+  const tauntBtn = el('button', { type: 'button', class: 'icon', onclick: () => toggle(tauntPanel, null) }, icon(UI_ICON.taunt));
   addEventListener('keydown', (e) => {
     if (e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT') return;
     if (isUiKey(e.code, 'vote') && voteBtn.checkVisibility()) {
       e.preventDefault();
       voteBtn.click();
     } else if (isUiKey(e.code, 'taunt')) {
-      tauntPanel.hidden = !tauntPanel.hidden;
-      solo(tauntPanel);
+      toggle(tauntPanel, null);
       e.preventDefault();
     } else if (!tauntPanel.hidden && /^(Digit|Numpad)[0-9]$/.test(e.code)) {
       const i = (Number(e.code.slice(-1)) + 9) % 10; // 1..9 e o 0 para o 10º
@@ -492,9 +493,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   }
   function togglePeek(open = peekPanel.hidden) {
     open &&= !!room && PEEK_PHASES.includes(room.phase);
-    peekPanel.hidden = !open;
-    solo(peekPanel);
-    peekBtn.setAttribute('aria-expanded', String(open));
+    toggle(peekPanel, peekBtn, open);
     if (!open) hideTip(peekPanel);
     drawPeek();
   }
@@ -530,7 +529,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const SHOP_SIZE = 'warlock:shopSize';
   new ResizeObserver(() => {
     if (!center.classList.contains('shop-open') || !center.style.width) return;
-    try { localStorage.setItem(SHOP_SIZE, JSON.stringify([center.style.width, center.style.height])); } catch { /* sem armazenamento: vale só nesta visita */ }
+    store.set(SHOP_SIZE, JSON.stringify([center.style.width, center.style.height]));
   }).observe(center);
   const timer = el('div', { class: 'timer' });
   const respawn = el('div', { class: 'respawn' });
@@ -610,7 +609,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   function drawSheet() {
     if (sheetPanel.hidden || !mine) return;
     const taken = live[me]?.taken ?? 0;
-    const effects = STATUS_ICONS.filter(([bit]) => myStatus & bit && bit !== 1);
+    const effects = STATUS_ICONS.filter(([bit]) => myStatus & bit);
     sheetPanel.replaceChildren(
       el('div', { class: 'stats-head' }, el('h2', { class: 'title' }, 'Ficha do mago'), el('button', { type: 'button', class: 'icon', title: 'Fechar a ficha', 'aria-label': 'Fechar a ficha', onclick: () => toggleSheet(false) }, '✕')),
       sheetEl(sheet(mine.spells, mine.items),
@@ -620,9 +619,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     );
   }
   function toggleSheet(open = sheetPanel.hidden) {
-    sheetPanel.hidden = !open;
-    solo(sheetPanel);
-    sheetBtn.setAttribute('aria-expanded', String(open));
+    toggle(sheetPanel, sheetBtn, open);
     drawSheet();
   }
   addEventListener('keydown', (e) => {
@@ -785,19 +782,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let readyBtn: HTMLElement | null = null;
   // cartão de primeira vez na loja da rodada 0: some ao fechar ou ao apertar Pronto, e fica guardado no navegador
   const FIRST = 'warlock:firstshop';
-  let firstSeen = false;
-  try {
-    firstSeen = localStorage.getItem(FIRST) === '1';
-  } catch {
-    // sem armazenamento: aparece em toda partida
-  }
+  let firstSeen = store.get(FIRST) === '1';
   const seeFirst = () => {
     firstSeen = true;
-    try {
-      localStorage.setItem(FIRST, '1');
-    } catch {
-      // só nesta aba
-    }
+    store.set(FIRST, '1');
   };
   const firstCard = () => el('div', { class: 'first-tip', role: 'note' },
     el('p', {}, el('b', {}, 'Primeira vez? '), TOUCH
@@ -826,6 +814,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       // a ficha depois de comprar mais um nível e depois de vender tudo (prévia na dica)
       bought: () => SheetRow[]; sold: () => SheetRow[] };
     const now = sheet(mine.spells, mine.items);
+    const sheetBox = () => el('details', { class: 'sheet-box', open: sheetOpen, ontoggle: (e: Event) => (sheetOpen = (e.target as HTMLDetailsElement).open) },
+      el('summary', {}, 'Ficha do mago'), sheetEl(now, el('small', { class: 'muted' }, 'Passe o mouse num item para ver o que muda.')));
     const offer = (o: Offer) => {
       const open = o.price !== null && !o.blocked;
       const can = open && mine.gold >= o.price!;
@@ -836,7 +826,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       return withTip(el('div', { class: 'shop-item' + (o.lvl ? ' owned' : '') + (can && !peek ? ' can' : '') + (o.blocked && !o.lvl ? ' locked' : '') },
         el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, icon(o.ico)), el('b', {}, o.name), o.hotkey !== null ? el('span', { class: 'key' }, o.hotkey) : null),
         el('small', {}, o.use),
-        el('div', { class: 'shop-meta' }, el('span', { class: 'pips' }, ...Array.from({ length: o.max }, (_, n) => el('i', { class: n < o.lvl ? 'on' : '' }))),
+        el('div', { class: 'shop-meta' }, el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
           o.lvl ? el('small', { class: 'have' }, 'tenho') : null, need ? el('small', { class: 'need' }, `faltam ${need}`) : null),
         later ? el('small', { class: can ? 'later can' : 'later' }, later) : null,
         el('div', { class: 'buy-row' }, el('button', { type: 'button', 'data-key': o.key, disabled: peek || !can, onclick: o.buy }, label), undoBtn(o.key.replace('-', ':')), sellBtn(o.key.replace('-', ':'))),
@@ -873,9 +863,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, deadShop ? 'Loja · você caiu: monte a build' : 'Loja · só para ver'), el('small', {}, `${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`),
         el('button', { type: 'button', class: 'icon peek-close', title: 'Fechar (4 ou Esc)', 'aria-label': 'Fechar a loja', onclick: () => togglePeek(false) }, '✕')),
       ...grid),
-      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)),
-        el('details', { class: 'sheet-box', open: sheetOpen, ontoggle: (e: Event) => (sheetOpen = (e.target as HTMLDetailsElement).open) },
-          el('summary', {}, 'Ficha do mago'), sheetEl(now, el('small', { class: 'muted' }, 'Passe o mouse num item para ver o que muda.')))));
+      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), sheetBox()));
     readyBtn = el('button', { type: 'button', class: 'primary big', 'data-key': 'ready', disabled: mine.ready, onclick: () => {
       if (r.round === 0) seeFirst();
       act.ready();
@@ -890,8 +878,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         el('span', { class: 'gold big' }, gold(mine.gold)),
         readyBtn,
         el('button', { type: 'button', 'data-key': 'placar', onclick: () => pinTab(true) }, icon(UI_ICON.board), ' Placar'),
-        el('details', { class: 'sheet-box', open: sheetOpen, ontoggle: (e: Event) => (sheetOpen = (e.target as HTMLDetailsElement).open) },
-          el('summary', {}, 'Ficha do mago'), sheetEl(now, el('small', { class: 'muted' }, 'Passe o mouse num item para ver o que muda.'))),
+        sheetBox(),
         goldInfo(mine, r.opts, goldOpen, (open) => (goldOpen = open)),
         nextModePicker(r),
         board(r, me, act.kick),
@@ -918,8 +905,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const human = !!mine && !mine.bot;
     voteWrap.hidden = !human || !VOTE_PHASES.includes(r.phase);
     const close = (f: () => void) => () => {
-      votePanel.hidden = true;
-      voteBtn.setAttribute('aria-expanded', 'false');
+      toggle(votePanel, voteBtn, false);
       f();
     };
     const next = r.pendingMode ?? r.mode;
@@ -996,8 +982,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const shopOpen = r.phase === 'shop';
     if (shopOpen !== center.classList.contains('shop-open')) {
       center.classList.toggle('shop-open', shopOpen);
-      let size: [string, string] | null = null;
-      try { size = shopOpen ? JSON.parse(localStorage.getItem(SHOP_SIZE) ?? 'null') : null; } catch { /* idem */ }
+      const size = shopOpen ? store.json<[string, string]>(SHOP_SIZE) : null;
       center.style.width = size?.[0] ?? '';
       center.style.height = size?.[1] ?? '';
     }
@@ -1105,7 +1090,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         const { b, pips } = buttons.get(s)!;
         const lvl = mine?.spells[s] ?? 0;
         b.hidden = lvl === 0;
-        pips.replaceChildren(...Array.from({ length: MAX_SPELL_LEVEL }, (_, n) => el('i', { class: n < lvl ? 'on' : '' })));
+        pips.replaceChildren(...pipsOf(lvl, MAX_SPELL_LEVEL));
       }
       barWrap.hidden = r.phase === 'lobby' || r.phase === 'end' || r.phase === 'shop' || !mine;
       const tabPhase = r.phase === 'playing' || r.phase === 'countdown' || r.phase === 'roundEnd' || r.phase === 'shop';
@@ -1128,20 +1113,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         myStatus = status;
         drawSheet();
       }
-      ACTIVE_ITEMS.forEach((i, k) => {
-        const { b, cd: c } = itemButtons.get(i)!;
-        const left = icd[k] ?? 0;
+      // recarga de cada botão (itens ativos e magias) e a marca da escolhida
+      const tick = (a: string, { b, cd: c }: { b: HTMLElement; cd: HTMLElement }, left = 0) => {
         c.textContent = left > 0.05 ? left.toFixed(left < 1 ? 1 : 0) : '';
         cooled(b, left);
-        b.classList.toggle('armed', armed === i);
-      });
-      SPELL_IDS.forEach((s, i) => {
-        const { b, cd: c } = buttons.get(s)!;
-        const left = cd[i] ?? 0;
-        c.textContent = left > 0.05 ? left.toFixed(left < 1 ? 1 : 0) : '';
-        cooled(b, left);
-        b.classList.toggle('armed', armed === s);
-      });
+        b.classList.toggle('armed', armed === a);
+      };
+      ACTIVE_ITEMS.forEach((i, k) => tick(i, itemButtons.get(i)!, icd[k]));
+      SPELL_IDS.forEach((s, i) => tick(s, buttons.get(s)!, cd[i]));
       if (!room) return;
       // ping: atualiza 2 vezes por segundo; verde até 80 ms, dourado até 150, vermelho acima
       if (performance.now() - pingAt > 500) {
@@ -1172,7 +1151,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (armed !== shownArmed) {
         shownArmed = armed;
         armedHint.hidden = !armed;
-        if (armed) armedText.textContent = `${TOUCH ? 'Toque' : 'Clique'} no chão para lançar ${armed in SPELLS ? SPELLS[armed as SpellId].name : ITEMS[armed as ItemId].name}`;
+        if (armed) armedText.textContent = `${TOUCH ? 'Toque' : 'Clique'} no chão para lançar ${actionName(armed as Action)}`;
       }
     },
   };

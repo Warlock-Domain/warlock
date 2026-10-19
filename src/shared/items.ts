@@ -2,17 +2,16 @@
 // Passivos mudam os números do mago; os 3 ativos usam as teclas 1, 2 e 3. Até MAX_ITEMS itens por jogador.
 import { UNIT } from './constants.ts';
 
-export type ItemId = 'ring' | 'cursed_ring' | 'cape' | 'armor' | 'boots' | 'watch' | 'vampire' | 'scourge' | 'redirector' | 'pact'
-  | 'lava_boots' | 'warden' | 'helmet' | 'shock_boots' | 'aegis' | 'wind_boots';
-export const ITEM_IDS: ItemId[] = ['ring', 'cursed_ring', 'cape', 'armor', 'boots', 'watch', 'vampire', 'scourge', 'redirector', 'pact',
-  'lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis', 'wind_boots'];
+export const ITEM_IDS = ['ring', 'cursed_ring', 'cape', 'armor', 'boots', 'watch', 'vampire', 'scourge', 'redirector', 'pact',
+  'lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis', 'wind_boots'] as const;
+export type ItemId = (typeof ITEM_IDS)[number];
 export const ACTIVE_ITEMS: ItemId[] = ['scourge', 'redirector', 'pact'];
 export const MAX_ITEMS = 6;
 
 // hp: vida máxima a mais; regen: vida por segundo a mais; kb: fração de empurrão a menos; speed: m/s a mais;
 // debuff: fração a mais (ou a menos) na duração de lentidões e penalidades; lifesteal: fração do dano causado que volta como vida;
 // lava: fração de dano da lava a menos; ward: dano a menos por golpe; range: fração a mais (ou a menos) no alcance das magias
-export type ItemLevel = { hp?: number; regen?: number; kb?: number; speed?: number; debuff?: number; lifesteal?: number; lava?: number; ward?: number; range?: number };
+type ItemLevel = { hp?: number; regen?: number; kb?: number; speed?: number; debuff?: number; lifesteal?: number; lava?: number; ward?: number; range?: number };
 
 type Item = { name: string; cost: number; key?: string; text: string; levels: ItemLevel[] };
 
@@ -34,9 +33,9 @@ export const ITEMS: Record<ItemId, Item> = {
   warden: { name: 'Guardião', cost: 4, text: 'Cada golpe tira um pouco menos de vida (até metade dele), mas você voa um pouco mais.', levels: [1, 2, 3].map((n) => ({ ward: 4 * n, kb: -0.01 * n })) },
   helmet: { name: 'Elmo', cost: 5, text: 'Menos empurrão, mas suas magias alcançam menos.', levels: [{ kb: 0.15, range: -0.1 }] },
   shock_boots: { name: 'Botas de choque', cost: 5, text: 'Ao levar um golpe, anda mais rápido por 3 s (não soma com as Botas: vale a maior).', levels: [{}] },
-  // consumível desde o ciclo 4: preço, vida e distância não a tiravam de 1,20× (a vida extra é o poder); some ao salvar
   // Wind boots do catálogo (docs/itens-candidatos.md); pedido do Fernando, 18/10: item que serve a qualquer jeito de jogar
   wind_boots: { name: 'Botas de vento', cost: 7, text: 'Depois de 5 s sem causar nem levar dano, anda mais rápido até o próximo golpe (não soma com outras botas: vale a maior).', levels: [{}] },
+  // consumível desde o ciclo 4: preço, vida e distância não a tiravam de 1,20× (a vida extra é o poder); some ao salvar
   aegis: { name: 'Égide', cost: 7, text: 'Na lava com pouca vida, volta para a pedra. Quebra ao salvar você (compre de novo).', levels: [{}] },
 };
 
@@ -76,15 +75,7 @@ export function itemStats(items: Record<ItemId, number>) {
     const lvl = items[id];
     if (!lvl) continue;
     const L = ITEMS[id].levels[lvl - 1];
-    s.hp += L.hp ?? 0;
-    s.regen += L.regen ?? 0;
-    s.kb += L.kb ?? 0;
-    s.speed += L.speed ?? 0;
-    s.debuff += L.debuff ?? 0;
-    s.lifesteal += L.lifesteal ?? 0;
-    s.lava += L.lava ?? 0;
-    s.ward += L.ward ?? 0;
-    s.range += L.range ?? 0;
+    for (const k of Object.keys(s) as (keyof ItemLevel)[]) s[k] += L[k] ?? 0;
   }
   return s;
 }

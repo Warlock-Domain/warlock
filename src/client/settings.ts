@@ -1,21 +1,21 @@
 // Configurações (pedido do Fernando, 18/10): um diálogo só, aberto de qualquer tela, que junta teclas, lançamento, som, vídeo,
 // controle, jogador e sobre. Abas à esquerda no PC, lista no celular. Abre pelo Esc quando nada mais está aberto (main.ts),
 // pela engrenagem do topo ou pelo Start do controle; não pausa o jogo. Aba nova = um item em SECTIONS.
-import { ITEMS, type ItemId } from '../shared/items.ts';
-import { SPELLS, type SpellId } from '../shared/spells.ts';
+import { SPELLS } from '../shared/spells.ts';
 import { isRumbleOn, setPadCapture, setRumble } from './gamepad.ts';
-import { ICON, ITEM_ICON, UI_ICON, icon } from './icons.ts';
+import { UI_ICON, actionIcon, actionName, icon } from './icons.ts';
 import {
   ACTIONS, CAST_MODES, PAD_ACTIONS, PAD_ACTION_NAMES, PAD_NAMES, PAD_NAMES_PS, PAD_START, RESERVED, UI_ACTIONS, UI_NAMES, getCastMode, isSlotMode, keyLabel, keyOf,
-  onKeysChange, padActionAt, padButtonOf, resetKeys, resetPad, setCastMode, setKey, setPadButton, setSlotMode, slotSpell, whoUses, type AnyAction, type CastMode, type PadAction, type UiAction,
+  onKeysChange, padActionAt, padButtonOf, resetKeys, resetPad, setCastMode, setKey, setPadButton, setSlotMode, slotSpell, whoUses, type Action, type AnyAction, type CastMode, type PadAction, type UiAction,
 } from './keys.ts';
 import { RULES } from './rules-text.ts';
+import { store } from './store.ts';
 import { el, showRules, toast } from './ui.ts';
 
 declare const __BUILD__: string;
 
 // o que a tela atual oferece: som e vídeo só existem dentro da sala; trocar o apelido vale no lobby e na sala
-export type SettingsCtx = {
+type SettingsCtx = {
   name: () => string;
   rename: () => void;
   volumes?: () => { sfx: number; music: number };
@@ -30,7 +30,7 @@ export function setSettingsCtx(c: SettingsCtx) {
   if (overlay) draw();
 }
 
-const nameOf = (a: AnyAction) => (a in UI_NAMES ? UI_NAMES[a as UiAction] : a in SPELLS ? SPELLS[a as SpellId].name : ITEMS[a as ItemId].name);
+const nameOf = (a: AnyAction) => (a in UI_NAMES ? UI_NAMES[a as UiAction] : actionName(a as Action));
 const padName = (b: number) => (PAD_NAMES[b] === PAD_NAMES_PS[b] ? PAD_NAMES[b] : `${PAD_NAMES[b]} / ${PAD_NAMES_PS[b]}`);
 const padActionName = (p: PadAction) => {
   const s = p.startsWith('slot') ? slotSpell(Number(p.slice(4)) - 1) : undefined;
@@ -73,7 +73,7 @@ function keysSection(): Node[] {
   return [
     el('p', { class: 'muted' }, 'Clique na tecla de uma ação e aperte a nova. Se outra ação já usava essa tecla, as duas trocam. Fica salvo neste navegador.'),
     el('h3', {}, 'Magias e itens'),
-    el('div', { class: 'keys-list' }, ...ACTIONS.map((a) => keyRow(a, [icon(a in SPELLS ? ICON[a as SpellId] : ITEM_ICON[a as ItemId]), ' ', nameOf(a)]))),
+    el('div', { class: 'keys-list' }, ...ACTIONS.map((a) => keyRow(a, [icon(actionIcon(a)), ' ', nameOf(a)]))),
     el('h3', {}, 'Interface'),
     el('div', { class: 'keys-list' }, ...UI_ACTIONS.map((a) => keyRow(a, [UI_NAMES[a]]))),
     el('small', { class: 'muted' }, 'Fixas: Esc cancela a magia, fecha o que estiver aberto e abre este menu; Espaço segurado arrasta a câmera e sozinho volta ao centro; ← → trocam o período do placar e quem você assiste.'),
@@ -249,12 +249,7 @@ const SECTIONS: Section[] = [
 ];
 
 const TAB_STORE = 'warlock:settingsTab';
-let tab = 'teclas';
-try {
-  tab = localStorage.getItem(TAB_STORE) ?? tab;
-} catch {
-  // sem armazenamento: começa em Teclas
-}
+let tab = store.get(TAB_STORE) ?? 'teclas';
 let overlay: HTMLElement | null = null;
 let page = false; // celular: false mostra a lista de abas, true a aba escolhida
 let ac: AbortController | null = null;
@@ -283,11 +278,7 @@ function go(id: string) {
   }
   tab = id;
   page = true;
-  try {
-    localStorage.setItem(TAB_STORE, id);
-  } catch {
-    // só nesta visita
-  }
+  store.set(TAB_STORE, id);
   draw();
   document.getElementById('set-tab-' + id)?.focus();
 }
@@ -325,7 +316,7 @@ export function openSettings(id?: string) {
     }
   }, { capture: true, signal: ac.signal });
 }
-export function closeSettings() {
+function closeSettings() {
   if (!overlay) return;
   waiting = null;
   if (padWaiting) waitPad(null);

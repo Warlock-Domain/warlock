@@ -731,6 +731,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     m.current = name;
   }
 
+  // animação de conjurar: Escudo e Investida erguem as mãos, o resto atira
+  const castAnim = (spell: string) => (spell === 'shield' || spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot');
   function oneShot(id: string, name: string, secs: number) {
     const m = mages.get(id);
     if (!m || m.dead) return;
@@ -755,7 +757,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
   }
 
-  // fumaça escura que sobe (mistura normal, não soma luz)
   // labareda animada: troca o quadro da chama enquanto cresce, sobe e some
   function flameBurst(at: Vec, size: number, secs: number) {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: FLAMES[0], color: '#ffd080', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, rotation: Math.random() * Math.PI * 2 }));
@@ -768,6 +769,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
   }
 
+  // fumaça escura que sobe (mistura normal, não soma luz)
   function smoke(at: Vec, size: number, secs: number) {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: SMOKES[Math.floor(Math.random() * SMOKES.length)], color: '#3a2a22', transparent: true, opacity: 0.55, depthWrite: false, rotation: Math.random() * Math.PI * 2 }));
     s.position.copy(w3(at, 0.9));
@@ -786,29 +788,28 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     addFx(m, 7, (k) => ((m.material as THREE.MeshBasicMaterial).opacity = 0.7 * Math.min(1, (1 - k) * 3)));
   }
 
-  // número de dano que sobe e some em cima de quem levou
+  // texto que sobe e some (dano, cura, ouro); pop = quanto ele pula ao nascer
   const numbers: { el: HTMLDivElement; at: THREE.Vector3; born: number; pop?: number }[] = [];
+  function floatText(cls: string, at: THREE.Vector3, size: string, pop: number | undefined, ...body: (string | Node)[]) {
+    const el = document.createElement('div');
+    el.className = cls;
+    if (size) el.style.fontSize = size;
+    el.append(...body);
+    labels.append(el);
+    numbers.push({ el, at, born: performance.now() / 1000, pop });
+  }
+  // em cima de quem levou ou se curou, com um pouco de espalhamento de lado
+  const overHead = (at: Vec) => w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0));
+
+  // número de dano: o tamanho cresce com o golpe (30 de dano ≈ 1,3rem, 170 ≈ 2,9rem)
   function damageNumber(at: Vec, dmg: number) {
     if (dmg < 5) return;
-    const el = document.createElement('div');
     const crit = dmg >= CRIT_HIT;
-    el.className = 'dmg' + (crit ? ' crit' : dmg >= BIG_HIT ? ' big' : '');
-    // tamanho cresce com o golpe: 30 de dano ≈ 1,3rem, 170 ≈ 2,9rem
-    el.style.fontSize = `${Math.min(3, 0.95 + dmg / 90).toFixed(2)}rem`;
-    el.textContent = '-' + Math.round(dmg) + (crit ? '!' : '');
-    labels.append(el);
-    numbers.push({ el, at: w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0)), born: performance.now() / 1000, pop: crit ? 0.9 : dmg >= BIG_HIT ? 0.55 : 0.3 });
+    floatText('dmg' + (crit ? ' crit' : dmg >= BIG_HIT ? ' big' : ''), overHead(at), `${Math.min(3, 0.95 + dmg / 90).toFixed(2)}rem`, crit ? 0.9 : dmg >= BIG_HIT ? 0.55 : 0.3, '-' + Math.round(dmg) + (crit ? '!' : ''));
   }
 
   // cura que sobe em verde em cima de quem se curou
-  function healNumber(at: Vec, n: number) {
-    const el = document.createElement('div');
-    el.className = 'dmg heal';
-    el.style.fontSize = `${Math.min(2.2, 0.95 + n / 90).toFixed(2)}rem`;
-    el.textContent = '+' + Math.round(n);
-    labels.append(el);
-    numbers.push({ el, at: w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0)), born: performance.now() / 1000 });
-  }
+  const healNumber = (at: Vec, n: number) => floatText('dmg heal', overHead(at), `${Math.min(2.2, 0.95 + n / 90).toFixed(2)}rem`, undefined, '+' + Math.round(n));
 
   // impacto no mago: clarão branco, hit-stop curto, tremor pela força (mais perto da câmera, mais forte) e anel no golpe forte
   function impact(id: string, at: Vec, dmg: number) {
@@ -861,13 +862,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     }
   }
   // ouro ganho no abate: sobe dourado em cima de quem matou
-  function goldNumber(at: Vec, n: number) {
-    const el = document.createElement('div');
-    el.className = 'dmg gold';
-    el.append(`+${n} `, icon(UI_ICON.gold));
-    labels.append(el);
-    numbers.push({ el, at: w3(at, 2.1), born: performance.now() / 1000 });
-  }
+  const goldNumber = (at: Vec, n: number) => floatText('dmg gold', w3(at, 2.1), '', undefined, `+${n} `, icon(UI_ICON.gold));
 
   // marca que fica no chão alguns segundos onde houve choque de magias (só visual)
   // (os choques que deixam chão com efeito desenham a zona do servidor, ver syncZones)
@@ -1350,9 +1345,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     burst(from, '#9fd0ff', 1.2, 0.2, 1, FX.light);
   }
 
-  function onEvents(events: SimEvent[], names: Map<string, string>) {
+  function onEvents(events: SimEvent[]) {
     for (const e of events) {
-      if (e.k === 'cast') oneShot(e.id, e.spell === 'shield' || e.spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
+      if (e.k === 'cast') oneShot(e.id, castAnim(e.spell), 0.55);
       else if (e.k === 'hit') {
         oneShot(e.id, 'Hit_A', 0.45);
         // o acerto do raio tem impacto elétrico próprio: a explosão de fogo cobria o raio e parecia que ele não tinha saído
@@ -1445,7 +1440,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         }
       }
     }
-    void names;
   }
 
   function syncProjectiles(list: ProjView[]) {
@@ -1687,7 +1681,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     for (const [id, m] of mages) if (!seen.has(id)) {
       m.root.visible = false;
       m.label.hidden = true;
-      void id;
     }
   }
 
@@ -1712,7 +1705,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     renderer.setSize(w, h, false);
     composer?.setSize(w, h);
     camera.aspect = w / h;
-    // retrato (celular em pé) precisa de mais distância para caber a arena
     // distância para caber a arena inteira; retrato (celular em pé) precisa de mais
     camera.userData.fit = camera.aspect < 1 ? 1 / Math.max(0.5, camera.aspect) : 1;
     camera.updateProjectionMatrix();
@@ -1812,7 +1804,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       pan.set(0, 0, 0);
     },
     castLocal(id: string, spell: string, at?: Vec) {
-      oneShot(id, spell === 'shield' || spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot', 0.55);
+      oneShot(id, castAnim(spell), 0.55);
       const m = mages.get(id);
       if (!m || m.dead) return;
       // brilho na mão (um pouco à frente do mago, na cor da magia) e linha de mira fraca até o ponto
@@ -1895,7 +1887,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       syncWizards(state.wizards, now);
       syncProjectiles(state.projectiles);
       syncPillars(state.pillars);
-      // baú de ouro: caixa simples com tampa dourada, brilho e balanço
       // montes de ouro: um clone do monte por baú quebrado
       while (piles.length < state.loots.length) {
         const c = pile.clone();
@@ -1962,6 +1953,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       shake *= 0.9;
 
+      // ponto 3D → pixels na tela
+      const toScreen = (p: THREE.Vector3) => {
+        const q = p.project(camera);
+        return [(q.x * innerWidth) / 2 + innerWidth / 2, (-q.y * innerHeight) / 2 + innerHeight / 2];
+      };
       // números de dano: sobem 1,2 m em 0,9 s e somem
       for (let i = numbers.length - 1; i >= 0; i--) {
         const d = numbers[i];
@@ -1971,8 +1967,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           numbers.splice(i, 1);
           continue;
         }
-        const p = d.at.clone().setY(d.at.y + k * 1.2).project(camera);
-        d.el.style.transform = `translate(${(p.x * innerWidth) / 2 + innerWidth / 2}px, ${(-p.y * innerHeight) / 2 + innerHeight / 2}px) translate(-50%, -50%) scale(${1 + (d.pop ?? 0.3) * Math.max(0, 0.2 - k) * 5})`;
+        const [x, y] = toScreen(d.at.clone().setY(d.at.y + k * 1.2));
+        d.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${1 + (d.pop ?? 0.3) * Math.max(0, 0.2 - k) * 5})`;
         d.el.style.opacity = String(Math.min(1, (1 - k) * 2.5));
       }
 
@@ -1983,16 +1979,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           p.bar.hidden = true;
           continue;
         }
-        const q = p.obj.position.clone().setY(p.height + 0.15).project(camera);
-        p.bar.style.transform = `translate(${(q.x * innerWidth) / 2 + innerWidth / 2}px, ${(-q.y * innerHeight) / 2 + innerHeight / 2}px) translate(-50%, -100%)`;
+        const [x, y] = toScreen(p.obj.position.clone().setY(p.height + 0.15));
+        p.bar.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
       }
 
       // nome e vida em cima de cada mago
-      const half = new THREE.Vector2(innerWidth / 2, innerHeight / 2);
       for (const m of mages.values()) {
         if (m.label.hidden) continue;
-        const p = m.root.position.clone().setY(2.1).project(camera);
-        m.label.style.transform = `translate(${(p.x * half.x + half.x).toFixed(1)}px, ${(-p.y * half.y + half.y).toFixed(1)}px) translate(-50%, -100%)`;
+        const [x, y] = toScreen(m.root.position.clone().setY(2.1));
+        m.label.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
       }
 
       if (composer) composer.render();
@@ -2000,5 +1995,3 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     },
   };
 }
-
-export type GameScene = ReturnType<typeof createScene>;

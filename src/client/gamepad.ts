@@ -5,10 +5,11 @@ import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import type { Vec } from '../shared/vec.ts';
 import { PAD_NAMES, keyOf, padActionAt, padButtonOf, setPadMode, slotSpell } from './keys.ts';
+import { store } from './store.ts';
 
 // índices do mapeamento padrão (Xbox: A B X Y; PlayStation: ✕ ○ □ △ nas mesmas posições)
 export const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 } as const;
-export type Dir = 'up' | 'down' | 'left' | 'right';
+type Dir = 'up' | 'down' | 'left' | 'right';
 export type Rect = { left: number; top: number; right: number; bottom: number };
 
 // zona morta redonda e curva: parado não anda, e o começo do curso dá precisão na mira
@@ -68,20 +69,11 @@ export const padName = (id: string) => id.replace(/\s*\(.*$/, '').trim() || 'con
 
 // vibração ao levar golpe forte e ao morrer; desliga no painel de teclas (guardado no navegador)
 const RUMBLE = 'warlock:rumble';
-let rumbleOn = true;
-try {
-  rumbleOn = localStorage.getItem(RUMBLE) !== '0';
-} catch {
-  // sem armazenamento: ligada
-}
+let rumbleOn = store.get(RUMBLE) !== '0';
 export const isRumbleOn = () => rumbleOn;
 export function setRumble(on: boolean) {
   rumbleOn = on;
-  try {
-    localStorage.setItem(RUMBLE, on ? '1' : '0');
-  } catch {
-    // só nesta aba
-  }
+  store.set(RUMBLE, on ? '1' : '0');
 }
 
 const firstPad = () => [...(navigator.getGamepads?.() ?? [])].find((g) => g?.connected) ?? null;
@@ -92,7 +84,7 @@ export function rumble(strong: number, ms: number) {
 }
 
 // a partida: quem cuida de andar, lançar e da câmera (input.ts registra ao entrar na sala)
-export type PadGame = {
+type PadGame = {
   enabled: () => boolean;
   me: () => Vec | null;
   move: (to: Vec) => void;

@@ -1,11 +1,9 @@
 // Partida longa sem janela: rodada 1 até o fim, loja e começo da rodada 2, com fotos de cada fase.
 // node scripts/long-headless.mjs <base> <pasta-fotos>
-import { chromium } from 'file:///C:/nvm4w/nodejs/node_modules/@playwright/mcp/node_modules/playwright-core/index.mjs';
+import { openChrome } from './lib/browser.mjs';
 
 const [base, out] = process.argv.slice(2);
-const ctx = await chromium.launchPersistentContext('C:/Users/ferna/AppData/Local/ms-playwright/mcp-chrome-7a379eb', {
-  channel: 'chrome', headless: true, viewport: { width: 1280, height: 720 }, args: ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
-});
+const ctx = await openChrome({ viewport: { width: 1280, height: 720 } });
 const page = await ctx.newPage();
 const logs = [];
 page.on('pageerror', (e) => logs.push('pageerror: ' + e.message));

@@ -1,8 +1,8 @@
 // Previsão do próprio mago: anda na hora do clique com o mesmo código do servidor e é corrigido de leve.
-import { STUN_SPEED, WIZ_SPEED } from '../shared/constants.ts';
-import { moveWizard, type Wizard } from '../shared/sim.ts';
+import { WIZ_SPEED } from '../shared/constants.ts';
+import { isSliding, moveWizard, type Wizard } from '../shared/sim.ts';
 import type { WizView } from '../shared/snapshot.ts';
-import { add, dist, len, scale, sub, v, type Vec } from '../shared/vec.ts';
+import { add, dist, scale, sub, v, type Vec } from '../shared/vec.ts';
 
 export function createPredict() {
   let me: Wizard | null = null;
@@ -59,7 +59,7 @@ export function createPredict() {
         me.pos = server.pos;
         me.target = null;
       }
-      if (!server.alive || len(server.vel) > STUN_SPEED) {
+      if (!server.alive || isSliding(server)) {
         // empurrado ou morto: quem manda é o servidor
         me.pos = add(me.pos, scale(sub(server.pos, me.pos), 0.35));
         me.vel = v(0, 0);

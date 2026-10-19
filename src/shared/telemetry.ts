@@ -34,7 +34,7 @@ export type Totals = {
   recent: RoundRecord[]; // últimas rodadas, para análise fina
 };
 
-export const RECENT_MAX = 300;
+const RECENT_MAX = 300;
 
 export function roundRecord(m: Match, now: number): RoundRecord {
   // nos Times vence o time inteiro de quem ficou de pé
@@ -73,9 +73,7 @@ export function addRecord(t: Totals, r: RoundRecord): Totals {
     if (won) o.wins++;
   };
   for (const p of r.players) {
-    for (const [src, n] of Object.entries(p.fired)) (t.sources[src] ??= { fired: 0, landed: 0, dmg: 0 }).fired += n;
-    for (const [src, n] of Object.entries(p.landed)) (t.sources[src] ??= { fired: 0, landed: 0, dmg: 0 }).landed += n;
-    for (const [src, n] of Object.entries(p.dmgBy)) (t.sources[src] ??= { fired: 0, landed: 0, dmg: 0 }).dmg += n;
+    for (const [k, from] of [['fired', p.fired], ['landed', p.landed], ['dmg', p.dmgBy]] as const) for (const [src, n] of Object.entries(from)) (t.sources[src] ??= { fired: 0, landed: 0, dmg: 0 })[k] += n;
     for (const [s, lvl] of Object.entries(p.spells)) if (lvl) bump('spell:' + s, p.won);
     for (const [i, lvl] of Object.entries(p.items)) if (lvl) bump('item:' + i, p.won);
     bump('char:' + p.character, p.won);
