@@ -56,6 +56,10 @@ npx vite build                      # build do cliente (dist/)
 
 Prints com Playwright headless contra `npx wrangler dev`; confira PC (1280×720 e 1920×1080) e celular (390×844) e as duas línguas (`localStorage.warlock:lang = 'pt' | 'en'`). `node scripts/smoke.mjs <url>` faz o teste rápido de uma sala de verdade.
 
+## Git
+
+Fluxo completo em [CONTRIBUTING.md](CONTRIBUTING.md): uma branch por tarefa a partir do `master` (`feat/`, `fix/`, `balance/`, `style/`, `docs/`, `refactor/`), commits em português com o tipo na frente (`feat: …`), pull request com o modelo de `.github/`, CI verde (`.github/workflows/ci.yml`: os dois `tsc`, `vitest`, `vite build`) e *squash and merge*. Agente: nunca dê push direto no `master` sem o dono pedir; abra PR.
+
 ## Publicar
 
 Só quem tem a conta Cloudflare do projeto publica: `npx vite build && npx wrangler deploy`, depois confira que o `index-*.js` servido é o do `dist/` e rode o smoke no domínio. Contribuições de fora chegam por pull request.
