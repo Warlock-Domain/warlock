@@ -11,6 +11,7 @@ const commit = (() => {
 })();
 
 export default defineConfig({
+  test: { setupFiles: ['tests/setup.ts'] }, // idioma pt nos testes
   define: { __BUILD__: JSON.stringify(new Date().toISOString().slice(0, 10) + (commit ? ` · ${commit}` : '')) },
   server: {
     proxy: {

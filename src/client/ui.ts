@@ -6,9 +6,9 @@ import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import { DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Vote } from '../shared/match.ts';
 import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
-import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
+import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { isPadMode, isUiKey, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
-import { openSettings, setSettingsCtx } from './settings.ts';
+import { langChoice, openSettings, setSettingsCtx } from './settings.ts';
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, infoButton } from './opt-info.ts';
 import { BOT_LEVEL, COLORS, TEAM_COLORS } from './scene.ts';
@@ -21,6 +21,7 @@ import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { endResult, roomGroups } from './screen-data.ts';
+import { LOCALE, itemName, itemText, spellName } from './i18n.ts';
 
 const TITLE = 'Warlock';
 // tela de toque sem mouse: os textos de ajuda falam de tocar, não de clicar
@@ -91,6 +92,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
         el('button', { type: 'button', class: 'primary big', onclick: onCreate }, 'Criar sala'),
         el('button', { type: 'button', onclick: showRules }, 'Como jogar'),
         el('button', { type: 'button', onclick: () => openSettings() }, icon(UI_ICON.gear), ' Configurações'),
+        langChoice(),
       ),
       el('section', {}, el('h2', {}, 'Salas abertas'), rooms !== null && offline ? el('p', { class: 'lobby-error', role: 'status' }, 'Sem conexão: a lista pode estar velha. Tentando de novo…') : null, list),
     ),
@@ -223,12 +225,12 @@ const nameOf = (p: PublicPlayer, me: string) => el('span', {}, p.name + (p.id ==
 // placar de estatísticas: ouro ganho, dano causado e precisão de cada magia de dano (acertos / lançamentos)
 type Scope = 'round' | 'match' | 'room';
 const SCOPES: [Scope, string][] = [['round', 'Rodada'], ['match', 'Partida'], ['room', 'Sala']];
-const n0 = (x: number) => Math.round(x).toLocaleString('pt-BR');
+const n0 = (x: number) => Math.round(x).toLocaleString(LOCALE);
 // magias de utilidade: mostra quantas vezes usou (não têm "acerto"); as outras mostram precisão
 const UTILITY = new Set(['teleport', 'shield', 'rush', 'pact', 'redirector', 'thrust', 'rockpillar', 'magnetize', 'alteration', 'warpzone']);
 const srcIcon = (k: string) => icon(k === 'lava' ? SOURCE_ICON.lava : k in ICON ? ICON[k as SpellId] : k in ITEM_ICON ? ITEM_ICON[k as ItemId] : k.startsWith('choque') ? SOURCE_ICON.shock : k === 'pillar' ? SOURCE_ICON.pillar : SOURCE_ICON.unknown);
 const gold = (n: number) => el('span', {}, icon(UI_ICON.gold), ' ' + n);
-export const srcName = (k: string) => (k === 'lava' ? 'lava' : isSpell(k) ? SPELLS[k].name : k in ITEMS ? ITEMS[k as ItemId].name : k);
+export const srcName = (k: string) => (k === 'lava' ? 'lava' : isSpell(k) ? spellName(k) : k in ITEMS ? itemName(k as ItemId) : k);
 
 // placar (pedido do Fernando, 17/10; refeito em 18/10): abas Resumo e Magias, destaques com retrato e o melhor de cada coluna em dourado
 type View = 'summary' | 'spells';
@@ -342,7 +344,7 @@ function goldInfo(p: PublicPlayer, opts: MatchOpts, open: boolean, onToggle: (op
   const g = (n: number) => Math.round(n * opts.economy);
   // recolhido por padrão: o Pronto fica logo abaixo do ouro
   return el('details', { class: 'gold-info', open, ontoggle: (e: Event) => onToggle((e.target as HTMLDetailsElement).open) },
-    el('summary', { class: 'gold-title' }, 'Como ganho ouro', opts.economy !== 1 ? el('small', {}, ` · ouro ×${opts.economy.toLocaleString('pt-BR')} nesta sala`) : null),
+    el('summary', { class: 'gold-title' }, 'Como ganho ouro', opts.economy !== 1 ? el('small', {}, ` · ouro ×${opts.economy.toLocaleString(LOCALE)} nesta sala`) : null),
     row('Começo da partida', `+${g(opts.startGold)}`),
     row('Cada rodada que você jogou', `+${g(ROUND_GOLD)}`),
     row('Vencer a rodada', `+${g(WIN_GOLD)} (líder: +${g(LEADER_WIN_GOLD)})`),
@@ -557,7 +559,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const bar = el('div', { class: 'spellbar' }, ...SPELL_IDS.map((s) => {
     const cd = el('span', { class: 'cd' });
     const pips = el('span', { class: 'pips' });
-    const b = withTip(el('button', { type: 'button', class: 'spell ' + spellClass(s), 'aria-label': SPELLS[s].name, onclick: () => act.spell(s), onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(s), onpointerleave: () => act.hover(null) },
+    const b = withTip(el('button', { type: 'button', class: 'spell ' + spellClass(s), 'aria-label': spellName(s), onclick: () => act.spell(s), onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(s), onpointerleave: () => act.hover(null) },
       el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0));
     buttons.set(s, { b, cd, pips });
     return b;
@@ -566,7 +568,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const itemButtons = new Map<ItemId, { b: HTMLElement; cd: HTMLElement }>();
   for (const i of ACTIVE_ITEMS) {
     const cd = el('span', { class: 'cd' });
-    const b = withTip(el('button', { type: 'button', class: 'spell item', 'aria-label': ITEMS[i].name, onclick: () => act.useItem(i), onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(i), onpointerleave: () => act.hover(null) },
+    const b = withTip(el('button', { type: 'button', class: 'spell item', 'aria-label': itemName(i), onclick: () => act.useItem(i), onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(i), onpointerleave: () => act.hover(null) },
       el('span', { class: 'key', 'data-action': i }, labelOf(i)), el('span', { class: 'ico' }, icon(ITEM_ICON[i])), cd), () => itemTip(i, mine?.items[i] ?? 0));
     b.hidden = true;
     itemButtons.set(i, { b, cd });
@@ -646,7 +648,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('div', { class: 'stats-head' }, el('h2', { class: 'title' }, 'Ficha do mago'), el('button', { type: 'button', class: 'icon', title: 'Fechar a ficha', 'aria-label': 'Fechar a ficha', onclick: () => toggleSheet(false) }, '✕')),
       sheetEl(sheet(mine.spells, mine.items),
         el('section', {}, el('h4', {}, 'Agora'), el('dl', {},
-          el('dt', {}, 'Dano levado na rodada'), el('dd', {}, `${Math.round(taken)} · empurrão ×${(1 + (KNOCK_HP_SCALE * taken) / HP_MAX).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`), el('small', { class: 'from' }, 'Cada ponto de dano levado faz você voar mais longe até o fim da rodada (a lava conta pela metade e não entra nesta conta).'),
+          el('dt', {}, 'Dano levado na rodada'), el('dd', {}, `${Math.round(taken)} · empurrão ×${(1 + (KNOCK_HP_SCALE * taken) / HP_MAX).toLocaleString(LOCALE, { maximumFractionDigits: 2 })}`), el('small', { class: 'from' }, 'Cada ponto de dano levado faz você voar mais longe até o fim da rodada (a lava conta pela metade e não entra nesta conta).'),
           el('dt', {}, 'Efeitos'), el('dd', {}, ...(effects.length ? effects.flatMap(([, ico, name], i) => [i ? ' · ' : '', icon(ico), ' ' + name]) : ['nenhum']))))),
     );
   }
@@ -911,14 +913,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const lvl = mine.spells[s];
       const price = priceOf(s, lvl);
       const full = lvl === 0 && spellCount(mine.spells) >= MAX_SPELLS;
-      return offer({ key: 'spell-' + s, ico: ICON[s], name: SPELLS[s].name, hotkey: labelOf(s), use: SPELL_USE[s], lvl, max: MAX_SPELL_LEVEL, price,
+      return offer({ key: 'spell-' + s, ico: ICON[s], name: spellName(s), hotkey: labelOf(s), use: SPELL_USE[s], lvl, max: MAX_SPELL_LEVEL, price,
         blocked: price === null ? 'Máximo' : full ? `Limite de ${MAX_SPELLS} magias` : null, buy: () => act.buy(s), tip: () => spellTip(s, lvl),
         bought: () => sheet({ ...mine.spells, [s]: lvl + 1 }, mine.items), sold: () => sheet({ ...mine.spells, [s]: 0 }, mine.items) });
     };
     const itemOffer = (i: ItemId) => {
       const lvl = mine.items[i];
       const price = itemPrice(mine.items, i);
-      return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: ITEMS[i].name, hotkey: isActive(i) ? labelOf(i) : null, use: ITEMS[i].text, lvl, max: ITEMS[i].levels.length, price,
+      return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: itemName(i), hotkey: isActive(i) ? labelOf(i) : null, use: itemText(i), lvl, max: ITEMS[i].levels.length, price,
         blocked: lvl >= ITEMS[i].levels.length ? 'Máximo' : price === null ? 'Sem espaço' : null, buy: () => act.buyItem(i), tip: () => itemTip(i, lvl),
         bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }) });
     };
@@ -1177,7 +1179,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (sig !== passives.dataset.sig) {
         passives.dataset.sig = sig;
         passives.replaceChildren(...owned.map((i) =>
-          withTip(el('span', { class: 'passive', tabindex: 0, 'aria-label': ITEMS[i].name }, icon(ITEM_ICON[i]), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0)),
+          withTip(el('span', { class: 'passive', tabindex: 0, 'aria-label': itemName(i) }, icon(ITEM_ICON[i]), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0)),
         ));
         hideTip(passives);
       }

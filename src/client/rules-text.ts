@@ -7,14 +7,15 @@ import { CLASH } from '../shared/sim.ts';
 import { ITEMS, MAX_ITEMS, SCOURGE } from '../shared/items.ts';
 import { keyLabel, keyOf, padButtonName, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
 import { BOUNCER, CAST_POINT, GRAVITY, GRIP, ILLUSION, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, RECHARGE, RUSH, SPELLS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
+import { LOCALE, spellName } from './i18n.ts';
 
 // formatação dos números nos textos (também usada pela loja, ficha, dicas e opções)
 export const pct = (x: number) => `${Math.round(x * 100)}%`;
-export const n1 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+export const n1 = (x: number) => x.toLocaleString(LOCALE, { maximumFractionDigits: 1 });
 const list = (xs: readonly (string | number)[]) => xs.map(String).join(', ').replace(/, ([^,]*)$/, ' ou $1');
 const L1 = (id: SpellId) => SPELLS[id].levels[0];
 // magias que saem na hora (sem tempo de conjuração), lidas de CAST_POINT
-const INSTANT = list(SPELL_IDS.filter((s) => CAST_POINT[s] === 0).map((s) => SPELLS[s].name)).replace(/ ou ([^,]*)$/, ' e $1');
+const INSTANT = list(SPELL_IDS.filter((s) => CAST_POINT[s] === 0).map((s) => spellName(s))).replace(/ ou ([^,]*)$/, ' e $1');
 
 // textos do grimório (Como jogar), por página; os números vêm do código
 export const RULES = {
@@ -144,7 +145,7 @@ export const SPELL_TIPS: Record<SpellId, [use: string, vs: string]> = {
   teleport: ['Volte da lava para a pedra ou saia da frente de um projétil. É a única magia que sai durante o preparo do seu Flagelo (e o cancela).', `Quem lê o salto atira no ponto de chegada. Recarga longa no começo (${n1(L1('teleport').cd)} s).`],
   swap: ['Fique perto da lava e troque: o inimigo vai para o seu lugar ruim. Errou? Você vai até a metade do caminho da mira, que também serve de fuga.', 'O Escudo barra a Troca: ninguém sai do lugar.'],
   grip: [`Prenda e acerte com a magia mais forte: o golpe que solta empurra mais (+${pct(L1('grip').scale)} no nível 1). Cada magia que o preso lança soma ${GRIP.castPenalty} de dano acumulado.`, 'Não prende aliados. O Escudo devolve e quem prende é ele.'],
-  meteor: [`Mire onde o inimigo vai estar daqui a ${METEOR_DELAY.toLocaleString('pt-BR')} s, ou em quem está preso ou conjurando. O dano é maior no centro.`, 'Dá para sair andando da marca. O Escudo não segura.'],
+  meteor: [`Mire onde o inimigo vai estar daqui a ${METEOR_DELAY.toLocaleString(LOCALE)} s, ou em quem está preso ou conjurando. O dano é maior no centro.`, 'Dá para sair andando da marca. O Escudo não segura.'],
   rush: [`O avanço de ${n1(RUSH.dash)} m sai na hora e quem você encostar leva ${RUSH.dashDmg} de dano. Durante a Investida, metade de cada golpe vira velocidade (até o limite do nível).`, 'Só o dano é absorvido: o empurrão continua valendo.'],
   cluster: ['De perto os 4 projéteis acertam juntos: muito dano e empurrão.', `Alcance curto (${n1(L1('cluster').range)} m): de longe erra.`],
   boomerang: ['Acerta na ida e na volta: deixe o inimigo entre você e o ponto. Quica em obstáculos.', 'No Escudo ele quica e volta sem trocar de dono.'],
@@ -220,7 +221,7 @@ export const RULES_SHORT: Record<SpellId, string> = {
   teleport: 'Salta até o cursor (alcance curto).',
   swap: 'Voa até o alcance e troca de lugar com o primeiro mago que tocar; sem ninguém, leva você até a metade do caminho da mira.',
   grip: 'Prende o alvo no lugar até o primeiro golpe, que o solta e empurra mais longe.',
-  meteor: `Cai em área no ponto marcado, ${METEOR_DELAY.toLocaleString('pt-BR')} s depois.`,
+  meteor: `Cai em área no ponto marcado, ${METEOR_DELAY.toLocaleString(LOCALE)} s depois.`,
   rush: `Avança ${n1(RUSH.dash)} m na direção da mira e fica mais rápido; parte do dano levado vira mais velocidade.`,
   cluster: 'Quatro projéteis em leque, curto alcance.',
   boomerang: 'Vai em curva até o ponto e volta para você; acerta na ida e na volta.',

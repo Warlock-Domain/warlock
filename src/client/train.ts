@@ -1,8 +1,9 @@
 // Treino: escolher as magias de cada bot (decisão do Fernando, 18/10). Sorteio = o bot compra sozinho, como sempre.
 import type { BotSetup } from '../shared/protocol.ts';
-import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
+import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { ICON, el, icon } from './icons.ts';
 import { store } from './store.ts';
+import { spellName } from './i18n.ts';
 
 const KEY = 'warlock:botsetup';
 // magia que saiu do jogo (o Gêmeos, 19/10) fica de fora: o servidor recusaria o treino inteiro
@@ -43,8 +44,8 @@ export function botSetupPanel(n: number, saved: BotSetup[], onChange: (s: BotSet
         const lvl = spells?.[s] ?? 0;
         return el('label', { class: 'bs-spell' + (lvl ? ' on' : '') },
           el('input', { type: 'checkbox', checked: lvl > 0, disabled: !lvl && picked.length >= MAX_SPELLS, onchange: () => pick(s, lvl ? 0 : 1, true) }),
-          icon(ICON[s]), ' ', SPELLS[s].name,
-          lvl ? el('input', { type: 'number', min: 1, max: MAX_SPELL_LEVEL, value: lvl, 'aria-label': `Nível de ${SPELLS[s].name}`, onchange: (e: Event) => {
+          icon(ICON[s]), ' ', spellName(s),
+          lvl ? el('input', { type: 'number', min: 1, max: MAX_SPELL_LEVEL, value: lvl, 'aria-label': `Nível de ${spellName(s)}`, onchange: (e: Event) => {
             const t = e.target as HTMLInputElement;
             t.value = String(Math.max(1, Math.min(MAX_SPELL_LEVEL, Math.round(Number(t.value)) || 1)));
             pick(s, Number(t.value), false);

@@ -1,16 +1,17 @@
 // Ficha do mago: os números de agora (vida, velocidade, empurrão, magias e itens) e de onde vem cada um.
 // Sem DOM: a loja e a partida desenham a partir daqui, e a prévia de compra ou venda compara duas fichas.
 import { HP_MAX, HP_REGEN, LAVA_DPS, WIZ_SPEED } from '../shared/constants.ts';
-import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, itemStats, noItems, type ItemId } from '../shared/items.ts';
+import { ACTIVE_ITEMS, ITEM_IDS, itemStats, noItems, type ItemId } from '../shared/items.ts';
 import { SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { labelOf } from './keys.ts';
 import { n1, pct } from './rules-text.ts';
 import { ITEM_ROWS, SPELL_ROWS } from './tips.ts';
+import { LOCALE, itemName, spellName } from './i18n.ts';
 
 export type SheetRow = { group: string; label: string; value: string; from?: string };
 export const BASE = 'Mago';
 
-const n2 = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+const n2 = (x: number) => x.toLocaleString(LOCALE, { maximumFractionDigits: 2 });
 const signed = (x: number, f: (y: number) => string) => (x < 0 ? '−' : '+') + f(Math.abs(x));
 
 // como mostrar cada campo de itemStats (total e parte de cada item); campo novo sem entrada aparece cru, para nada ficar escondido
@@ -32,7 +33,7 @@ export function sheet(spells: Record<SpellId, number>, items: Record<ItemId, num
     const [label, total, part] = FIELDS[k] ?? [k, (x: number) => n2(x), (x: number) => signed(x, n2)];
     // origem: a parte de cada item que mexe neste campo
     const from = ITEM_IDS.filter((i) => items[i] > 0).map((i) => [i, (itemStats({ ...noItems(), [i]: items[i] }) as Record<string, number>)[k]] as const)
-      .filter(([, x]) => x).map(([i, x]) => `${part(x)} de ${ITEMS[i].name} nível ${items[i]}`).join(' · ');
+      .filter(([, x]) => x).map(([i, x]) => `${part(x)} de ${itemName(i)} nível ${items[i]}`).join(' · ');
     return { group: BASE, label, value: total(st[k]), from: from || undefined };
   });
   const rangeF = 1 + (st.range ?? 0);
@@ -41,14 +42,14 @@ export function sheet(spells: Record<SpellId, number>, items: Record<ItemId, num
     if (!lvl) continue;
     const L = SPELLS[s].levels[lvl - 1];
     const shown = { ...L, range: L.range * rangeF }; // o Elmo encurta o alcance de todas as magias
-    rows.push({ group: SPELLS[s].name, label: 'Nível', value: `${lvl} · tecla ${labelOf(s)}` });
-    for (const [label, f] of SPELL_ROWS[s]) rows.push({ group: SPELLS[s].name, label, value: f(shown) });
+    rows.push({ group: spellName(s), label: 'Nível', value: `${lvl} · tecla ${labelOf(s)}` });
+    for (const [label, f] of SPELL_ROWS[s]) rows.push({ group: spellName(s), label, value: f(shown) });
   }
   for (const i of ACTIVE_ITEMS) {
     const lvl = items[i];
     if (!lvl) continue;
-    rows.push({ group: ITEMS[i].name, label: 'Nível', value: `${lvl} · tecla ${labelOf(i)}` });
-    for (const [label, value] of ITEM_ROWS[i]?.(lvl - 1) ?? []) rows.push({ group: ITEMS[i].name, label, value });
+    rows.push({ group: itemName(i), label: 'Nível', value: `${lvl} · tecla ${labelOf(i)}` });
+    for (const [label, value] of ITEM_ROWS[i]?.(lvl - 1) ?? []) rows.push({ group: itemName(i), label, value });
   }
   return rows;
 }

@@ -1,8 +1,9 @@
 // Ícones de magias, itens, runas, efeitos e interface num lugar só: desenhos do game-icons.net (CC BY 3.0, créditos em
 // public/CREDITS.txt) num sprite só (public/icons.svg, montado por scripts/assets/build-icons.mjs). Cor pelo tema (currentColor).
 import type { RuneKind } from '../shared/constants.ts';
-import { ITEMS, type ItemId } from '../shared/items.ts';
-import { SPELLS, isSpell, type SpellId } from '../shared/spells.ts';
+import type { ItemId } from '../shared/items.ts';
+import { isSpell, type SpellId } from '../shared/spells.ts';
+import { itemName, spellName } from './i18n.ts';
 
 // elemento do DOM com atributos (on* viram ouvintes) e filhos; mora aqui porque scene.ts e opt-info.ts não podem importar ui.ts (ciclo)
 export type Child = Node | string | null | undefined | false;
@@ -56,7 +57,7 @@ export const UI_ICON = named({ board: ['histogram', '📊'], sheet: ['scroll-unf
   gear: ['cog', '⚙️'], pad: ['gamepad', '🎮'], video: ['tv', '📺'] });
 // ícone e nome de uma magia ou item ativo (teclas, grimório, magia escolhida)
 export const actionIcon = (a: SpellId | ItemId) => (isSpell(a) ? ICON[a] : ITEM_ICON[a]);
-export const actionName = (a: SpellId | ItemId) => (isSpell(a) ? SPELLS[a].name : ITEMS[a].name);
+export const actionName = (a: SpellId | ItemId) => (isSpell(a) ? spellName(a) : itemName(a));
 // efeitos em cima do mago (bits do snapshot, ver shared/snapshot.ts); negativos primeiro. Também listados na ficha do mago
 const fx = named({ stun: ['star-swirl', '💫'], invuln: ['sunbeams', '🌟'], locked: ['padlock', '🔒'], slow: ['snail', '🐌'], burn: ['small-fire', '🔥'],
   repel: ['magnet-blast', '🌬️'], invis: ['ghost', '👻'], fast: ['run', '🏃'] });

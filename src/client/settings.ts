@@ -1,7 +1,6 @@
 // Configurações (pedido do Fernando, 18/10): um diálogo só, aberto de qualquer tela, que junta teclas, lançamento, som, vídeo,
 // controle, jogador e sobre. Abas à esquerda no PC, lista no celular. Abre pelo Esc quando nada mais está aberto (main.ts),
 // pela engrenagem do topo ou pelo Start do controle; não pausa o jogo. Aba nova = um item em SECTIONS.
-import { SPELLS } from '../shared/spells.ts';
 import { isRumbleOn, setPadCapture, setRumble } from './gamepad.ts';
 import { UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
 import {
@@ -11,6 +10,7 @@ import {
 import { RULES } from './rules-text.ts';
 import { store } from './store.ts';
 import { choice, showRules, toast } from './ui.ts';
+import { LANG, setLang, spellName, type Lang } from './i18n.ts';
 
 declare const __BUILD__: string;
 
@@ -33,7 +33,7 @@ export function setSettingsCtx(c: SettingsCtx) {
 const nameOf = (a: AnyAction) => (a in UI_NAMES ? UI_NAMES[a as UiAction] : actionName(a as Action));
 const padActionName = (p: PadAction) => {
   const s = p.startsWith('slot') ? slotSpell(Number(p.slice(4)) - 1) : undefined;
-  return s ? `${PAD_ACTION_NAMES[p]} · ${SPELLS[s].name}` : PAD_ACTION_NAMES[p];
+  return s ? `${PAD_ACTION_NAMES[p]} · ${spellName(s)}` : PAD_ACTION_NAMES[p];
 };
 
 // esperando a tecla (ou o botão do controle) nova
@@ -212,6 +212,10 @@ function padSection(): Node[] {
   ];
 }
 
+// Idioma: Português / English; trocar recarrega a página (no meio da partida, volta para a sala pelo link)
+export const langChoice = () => el('div', { class: 'keys-row' }, el('span', {}, 'Idioma / Language'),
+  choice('Idioma / Language', [['pt', 'Português'], ['en', 'English']] as [Lang, string][], LANG, setLang));
+
 function playerSection(): Node[] {
   return [
     el('div', { class: 'keys-row' }, el('span', {}, 'Apelido: ', el('b', {}, ctx.name())), el('button', { type: 'button', onclick: () => {
@@ -219,6 +223,7 @@ function playerSection(): Node[] {
       ctx.rename();
     } }, 'Trocar')),
     el('p', { class: 'muted' }, 'O personagem você escolhe na sala de espera, antes da partida. Os dois ficam salvos neste navegador.'),
+    langChoice(),
   ];
 }
 

@@ -13,6 +13,7 @@ import { ITEM_DEMO, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, gro
 import { COLORS } from './scene.ts';
 import { store } from './store.ts';
 import { itemLevels, spellLevels } from './tips.ts';
+import { itemName, spellName } from './i18n.ts';
 
 type Page = { chapter: string; title: string; body: () => (Node | string | null)[]; demo?: DemoId };
 
@@ -134,9 +135,9 @@ export function openGrimoire() {
     return [
       el('h2', {}, 'Magias e itens'),
       ...SPELL_GROUPS.map(([g, hint, ids]) => el('div', { class: 'g-sub ' + groupClass(g) }, el('small', {}, `${g} · ${hint}`),
-        el('div', { class: 'g-chips' }, ...ids.map((id) => chip(pageOf((p) => p.chapter === 'Magias' && p.demo === id), ICON[id], SPELLS[id].name))))),
+        el('div', { class: 'g-chips' }, ...ids.map((id) => chip(pageOf((p) => p.chapter === 'Magias' && p.demo === id), ICON[id], spellName(id)))))),
       el('div', { class: 'g-sub' }, el('small', {}, 'Itens'),
-        el('div', { class: 'g-chips' }, ...ITEM_IDS.map((id) => chip(pageOf((p) => p.chapter === 'Itens' && p.title === ITEMS[id].name), ITEM_ICON[id], ITEMS[id].name)))),
+        el('div', { class: 'g-chips' }, ...ITEM_IDS.map((id) => chip(pageOf((p) => p.chapter === 'Itens' && p.title === itemName(id)), ITEM_ICON[id], itemName(id))))),
     ];
   }
 

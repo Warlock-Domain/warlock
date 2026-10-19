@@ -8,6 +8,7 @@ import { add, dist, len, norm, scale, sub, v, type Vec } from './vec.ts';
 export const ARENA_IDS = ['circle', 'ring', 'islands', 'cross'] as const;
 export type ArenaId = (typeof ARENA_IDS)[number];
 export const ARENA_NAMES: Record<ArenaId, string> = { circle: 'Círculo', ring: 'Anel', islands: 'Ilhas', cross: 'Cruz' };
+export const ARENA_EN: Record<ArenaId, string> = { circle: 'Circle', ring: 'Ring', islands: 'Islands', cross: 'Cross' };
 
 type Shape = {
   sdf: (x: number, y: number) => number; // distância com sinal até a borda, em escala 1 (negativa dentro da pedra)
