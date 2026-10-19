@@ -983,8 +983,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const cost = o.price === 0 ? t('de graça', 'for free') : t(`por ${o.price} de ouro`, `for ${o.price} gold`);
       const full = o.blocked ?? (o.lvl ? t(`Subir para o nível ${o.lvl + 1} ${cost}`, `Upgrade to level ${o.lvl + 1} ${cost}`) : t(`Comprar ${cost}`, `Buy ${cost}`));
       // ícone quadrado como na loja do Dota (decisão do Fernando, 19/10): tecla no canto, nível em pips e embaixo a moeda e o preço
-      // (vermelho quando o ouro não dá); o nome vai embaixo e o que faz fica na dica
-      const face = [o.hotkey !== null ? el('span', { class: 'key' }, o.hotkey) : null, el('span', { class: 'ico' }, icon(o.ico)), el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
+      // (vermelho quando o ouro não dá); o nome vai dentro do cartão (Fernando, 19/10) e o que faz fica na dica
+      const face = [o.hotkey !== null ? el('span', { class: 'key' }, o.hotkey) : null, el('span', { class: 'ico' }, icon(o.ico)), el('span', { class: 'tile-name' }, o.name), el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
         el('span', { class: 'tile-price' + (o.blocked ? ' off' : can ? ' can' : ' cant') }, ...(o.blocked ? [o.blocked] : [o.lvl ? t(`Nv ${o.lvl + 1} `, `Lv ${o.lvl + 1} `) : '', icon(UI_ICON.gold), o.price === 0 ? t(' grátis', ' free') : ` ${o.price}`]))];
       // clique compra; clique direito também (como no Dota); só ver: o ícone não compra
       return withTip(el('div', { class: 'shop-item' + (o.key.startsWith('item') ? ' is-item' : '') + (o.lvl ? ' owned' : '') + (can && !peek ? ' can' : '') + (o.blocked && !o.lvl ? ' locked' : ''), 'data-name': norm(o.name),
@@ -994,7 +994,6 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         } },
         peek ? el('div', { class: 'shop-tile', role: 'img', 'aria-label': `${o.name}: ${full}` }, ...face)
           : el('button', { type: 'button', class: 'shop-tile', 'data-key': o.key, disabled: !can, 'aria-label': `${o.name}: ${full}`, onclick: o.buy }, ...face),
-        el('span', { class: 'tile-name' }, o.name), // nome embaixo do ícone (Fernando, 19/10: "ainda precisa ter os nomes")
         el('div', { class: 'tile-acts' }, undoBtn(key), sellBtn(key)),
       ), () => {
         const sell = peek ? 0 : sellValue(mine, r.round, key);
