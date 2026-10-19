@@ -2011,7 +2011,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // câmera inclinada estilo Dota, seguindo de leve o próprio mago
       // em pé a arena não cabe na largura: a câmera acompanha mais o próprio mago
       // assistindo outro mago (lock): centra nele
-      let target = (state.follow ? w3(state.follow).multiplyScalar(state.lock ? 1 : camera.aspect < 1 ? 0.65 : 0.3) : new THREE.Vector3()).add(pan);
+      // no mapa, sem ninguém para seguir (todos caíram), a câmera fica onde estava em vez de ir para a quina (0, 0)
+      let target = (state.follow ? w3(state.follow).multiplyScalar(state.lock ? 1 : camera.aspect < 1 ? 0.65 : 0.3) : onMap ? focus.clone().sub(pan) : new THREE.Vector3()).add(pan);
       // fim da rodada: a câmera vai devagar até quem comemora (no modo Times, o meio do time) e aproxima um pouco
       const champs = state.wizards.filter((w) => w.cheer && w.alive);
       celebrate += ((champs.length ? 1 : 0) - celebrate) * Math.min(1, dt * 1.5);
@@ -2024,6 +2025,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const dist = Math.min(44, (onMap ? 15 : Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2)) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
       // no mapa a sombra do sol acompanha a câmera (a janela de sombra é de 28 m)
       if (onMap) {
+        voidPlane.position.set(focus.x, -0.8, focus.z); // o fundo do abismo acompanha a câmera: nunca acaba antes do mapa
         sun.position.set(focus.x - 8, 20, focus.z + 6);
         sun.target.position.set(focus.x, 0, focus.z);
         sun.target.updateMatrixWorld();

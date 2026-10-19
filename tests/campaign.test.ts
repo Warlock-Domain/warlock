@@ -275,6 +275,16 @@ describe('Campanha: partida no mapa', () => {
     expect(room.players.filter((p) => p.servo).every((p) => p.hpMax !== undefined)).toBe(true);
   });
 
+  it('moving and casting anywhere on the night map passes the message check (bug: the door of the first room)', () => {
+    for (let seed = 0; seed < 300; seed++) {
+      const n = nightMap(seed * 7919 + 1, 0);
+      for (const [x, y] of [[n.w - 0.5, n.h - 0.5], [0.5, 0.5], [n.w / 2, n.h - 0.5]]) {
+        expect(parseClientMessage(JSON.stringify({ t: 'move', x, y, seq: 1 })), `${seed}: ${x},${y}`).not.toBeNull();
+        expect(parseClientMessage(JSON.stringify({ t: 'cast', spell: 'fireball', x, y, seq: 1 })), `${seed}: ${x},${y}`).not.toBeNull();
+      }
+    }
+  });
+
   it('start message accepts the campaign, not in the sandbox', () => {
     expect(parseClientMessage(JSON.stringify({ t: 'start', bots: 0, mode: 'campaign' }))).toMatchObject({ mode: 'campaign' });
     const m = newMatch();
