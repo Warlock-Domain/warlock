@@ -1005,3 +1005,29 @@ body.replaying .peek-shop { display: none; }
 div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: var(--fg); box-sizing: border-box; }
 /* loja só para ver termina acima da barra da partida (que ficou mais alta no estilo Dota) */
 @media (min-width: 601px) { .peek-shop:not(.drawer) { max-height: calc(100% - 215px - var(--safe-t) - var(--safe-b)); } }
+
+/* loja revista (Fernando, 19/10: "toda feia e mal diagramada"): cartas ocupam a coluna do meio até 200 px,
+   Vender/Desfazer no canto da carta (sem abrir buraco entre as fileiras), itens mais baixos com a coluna rolando sozinha */
+@media (min-width: 861px) {
+  .shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(118px, 200px)); }
+  .shop .shop-main .shop-item { width: auto; }
+  .shop .shop-main .shop-tile { width: 100%; }
+  .shop-items { max-height: calc(100dvh - 48px - var(--safe-t) - var(--safe-b)); overflow-y: auto; scrollbar-width: thin; padding-right: 4px; }
+  .shop-items .shop-tile { height: 98px; padding-top: 14px; }
+}
+/* Vender/Desfazer no canto da carta em toda tela; no toque o alvo fica com 36 px para caber na carta */
+@media all {
+  .shop-item { position: relative; }
+  .tile-acts { position: absolute; top: 4px; right: 4px; min-height: 0; z-index: 1; }
+  .tile-acts button.sell, .tile-acts button.undo { min-height: 22px; font-size: .68rem; padding: 0 6px; background: var(--panel-solid); }
+  .tile-acts button.undo { width: 24px; padding: 0; }
+}
+.tile-acts button.sell { display: inline-flex; align-items: center; gap: 3px; }
+.tile-acts button.sell svg { width: 11px; height: 11px; color: var(--gold); }
+/* no toque: só a moeda, num quadrado no canto, para não cobrir o ícone da carta */
+@media (pointer: coarse) {
+  .tile-acts { top: 2px; right: 2px; }
+  .tile-acts button.sell, .tile-acts button.undo { min-height: 30px; width: 30px; min-width: 30px; padding: 0; justify-content: center; }
+  .tile-acts button.sell .sell-txt { display: none; }
+  .tile-acts button.sell svg { width: 15px; height: 15px; }
+}

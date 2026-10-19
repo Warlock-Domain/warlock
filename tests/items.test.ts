@@ -216,19 +216,19 @@ describe('vender na loja', () => {
     return { m, p: m.players[0] };
   };
 
-  it('sells for 100% in the shop where it was bought, minus 5% per round held, down to 75%', () => {
+  // desde 19/10 (Fernando): vender devolve sempre 100% do que pagou, em qualquer rodada
+  it('sells for 100% of what was paid, in any round', () => {
     const { m, p } = shop();
     buy(m, 'a', 'lightning'); // 11
     buy(m, 'a', 'lightning'); // 8
     expect(sellValue(p, m.round, 'spell:lightning')).toBe(19);
-    expect(sellValue(p, m.round + 1, 'spell:lightning')).toBe(Math.floor(19 * 0.95));
-    expect(sellValue(p, m.round + 3, 'spell:lightning')).toBe(Math.floor(19 * 0.85));
-    expect(sellValue(p, m.round + 20, 'spell:lightning')).toBe(Math.floor(19 * 0.75));
+    expect(sellValue(p, m.round + 1, 'spell:lightning')).toBe(19);
+    expect(sellValue(p, m.round + 20, 'spell:lightning')).toBe(19);
     m.round += 2;
     const gold = p.gold;
     expect(sell(m, 'a', 'spell:lightning')).toBe(true);
     expect(p.spells.lightning).toBe(0);
-    expect(p.gold).toBe(gold + Math.floor(19 * 0.9));
+    expect(p.gold).toBe(gold + 19);
     expect(p.held['spell:lightning']).toBeUndefined();
   });
 
@@ -237,7 +237,7 @@ describe('vender na loja', () => {
     buy(m, 'a', 'lightning'); // 11 na rodada 0
     m.round = 4;
     buy(m, 'a', 'lightning'); // 8 na rodada 4
-    expect(sellValue(p, 4, 'spell:lightning')).toBe(Math.floor(11 * 0.8 + 8));
+    expect(sellValue(p, 4, 'spell:lightning')).toBe(11 + 8);
     expect(undoBuy(m, 'a', 'spell:lightning')).toBe(true);
     expect(p.held['spell:lightning']).toEqual([0]);
   });
@@ -245,14 +245,14 @@ describe('vender na loja', () => {
   it('a room saved before this rule counts unrecorded levels from round 0', () => {
     const { m, p } = shop();
     p.spells.lightning = 1;
-    expect(sellValue(p, 2, 'spell:lightning')).toBe(Math.floor(11 * 0.9));
+    expect(sellValue(p, 2, 'spell:lightning')).toBe(11);
   });
 
   it('items sell the same way and the free Scourge level does not sell (the free Fireball does since 18/10)', () => {
     const { m, p } = shop();
     buyItem(m, 'a', 'armor');
     buyItem(m, 'a', 'armor'); // 6 + 6
-    expect(sellValue(p, m.round + 1, 'item:armor')).toBe(Math.floor(12 * 0.95));
+    expect(sellValue(p, m.round + 1, 'item:armor')).toBe(12);
     expect(sell(m, 'a', 'item:armor')).toBe(true);
     expect(p.items.armor).toBe(0);
     expect(sell(m, 'a', 'item:scourge')).toBe(false); // nível 1 grátis
