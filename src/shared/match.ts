@@ -662,7 +662,7 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number): boolean {
     if (cmd.dummy) b.dummy = true;
     if (Object.keys(rest).length) b.setup = rest;
     if (rest.spells || rest.items) Object.assign(b, { spells: { ...noSpells(), ...rest.spells }, items: { ...startItems(), ...rest.items } });
-    else botShop(m, b);
+    else if (!cmd.dummy) botShop(m, b); // o boneco fica sem compras: dano e empurrão de referência
     refit(m, b);
     return true;
   }

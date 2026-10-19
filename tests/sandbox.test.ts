@@ -90,6 +90,7 @@ describe('sandbox', () => {
     const { events } = steps(d.m, d.now, 60 * 4);
     expect(dist(wiz(d.m, 'bot-1').pos, at)).toBeLessThan(1e-9);
     expect(events.some((e) => (e.k === 'fire' || e.k === 'cast') && e.id === 'bot-1')).toBe(false);
+    expect([d.m.players[1].items, d.m.players[1].spells]).toEqual([d.m.players[0].items, d.m.players[0].spells]); // sem compras: só o que todo mundo começa
     // tirar: sai da sala e do mundo; o próximo bot reaproveita o id
     expect(kick(m, 'bot-2')).toBe(true);
     expect(m.world!.wizards.some((z) => z.id === 'bot-2')).toBe(false);
