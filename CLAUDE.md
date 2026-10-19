@@ -44,6 +44,20 @@ npx vite build                      # build do cliente (dist/)
 - **Protocolo é fronteira de confiança:** toda mensagem nova é validada em `parseClientMessage` (tipos, limites, chaves conhecidas).
 - **Celular continua usável:** confira as media queries (≤ 600 px e `pointer: coarse`) a cada mudança de interface.
 
+## Decisões de produto (não desfazer sem combinar numa issue)
+
+- Menu principal com 5 abas: Jogar · Magias e itens · Aprender · Personagem · Configurações. Menus enxutos.
+- Loja em grade com o nome dentro do ícone e preço com moeda; cores por grupo (Ataque vermelho-laranja, Mobilidade verde, Defesa azul, Controle roxo, Itens prateado); 10 magias de ataque e 5 de cada outro grupo.
+- Sala sem opção de ritmo nem de morte súbita (sempre ligada); dificuldade escolhida bot a bot.
+- Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3. Escudo com recarga de 16 s. Drenar só muda depois de partidas reais. Ataques fortes e raros (não encurtar recargas).
+- Recusados: ranking/perfil e itens que só ajudam uma magia específica.
+
+## Fluxo com agente
+
+Skills (plugins `superpowers@claude-plugins-official` e `ponytail@ponytail`): brainstorming antes de coisa nova → writing-plans para vários passos → TDD em `src/shared` → systematic-debugging antes de corrigir bug → verification-before-completion antes de dizer pronto → `/ponytail-review` no diff antes do PR. Guia completo do colaborador (máquina, prompts, testes, problemas comuns): [docs/GUIA-COLABORADOR.md](docs/GUIA-COLABORADOR.md).
+
+Armadilhas: depois de `vite build`, reinicie o `wrangler dev` (senão página branca/404); trabalhe em branch deste repositório, não em fork (em fork o CI espera aprovação manual e a revisão automática não roda); push em `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffdev.com`.
+
 ## Balanceamento (como se decide número de magia e item)
 
 - Os números vêm do simulador, não de opinião: `node scripts/balance-sim.ts --minutes 30 --seed 1 --difficulty normal --out balance/<pasta>` (vários processos com sementes diferentes; junte com `--merge`).
