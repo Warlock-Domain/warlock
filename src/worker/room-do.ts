@@ -32,6 +32,7 @@ export class Room extends DurableObject<Env> {
   private lastCmdAt = Date.now();
   private roomSentAt = 0;
   private taunted = new Map<string, number>();
+  private looked = new Map<string, number>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -167,6 +168,9 @@ export class Room extends DurableObject<Env> {
         if (setLook(m, id, lookOf(msg.character))) await this.changed();
         return;
       case 'look':
+        // no máximo uma troca a cada 100 ms por jogador: cada troca grava a sala (o navegador junta os cliques)
+        if (now - (this.looked.get(id) ?? 0) < 100) return;
+        this.looked.set(id, now);
         if (setLook(m, id, msg.look)) await this.changed();
         return;
       case 'ready':

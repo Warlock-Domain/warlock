@@ -21,9 +21,12 @@ export function savedLook(): string {
   const c = store.get(CHAR_KEY);
   return lookOf(isCharacter(c) ? c : 'mage');
 }
+// cliques seguidos nas setas: guarda na hora e manda ao servidor só o último, 250 ms depois do último clique
+let sendTimer: ReturnType<typeof setTimeout> | undefined;
 export function saveLook(look: string) {
   store.set(LOOK_KEY, look);
-  dispatchEvent(new CustomEvent(LOOK_EVENT, { detail: look }));
+  clearTimeout(sendTimer);
+  sendTimer = setTimeout(() => dispatchEvent(new CustomEvent(LOOK_EVENT, { detail: look })), 250);
 }
 
 const optName = (o: Piece, part: string) => {
