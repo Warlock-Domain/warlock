@@ -11,7 +11,7 @@ import { isPadMode, isUiKey, labelOf, onKeysChange, setSlots, typing, uiLabel, t
 import { langChoice, openSettings, setSettingsCtx, settingsLinks } from './settings.ts';
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, infoButton } from './opt-info.ts';
-import { BOT_LEVEL, COLORS, TEAM_COLORS } from './scene.ts';
+import { COLORS, TEAM_COLORS } from './scene.ts';
 import { SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, icon, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
@@ -492,7 +492,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const ping = el('small', { class: 'ping', title: t('Latência: tempo de ida e volta até a sala', 'Latency: round-trip time to the room'), hidden: true });
   let pingAt = 0;
   const roundEl = el('span', { class: 'round' });
-  const players = el('ul', { class: 'players' });
+  // topo como o do Dota (decisão do Fernando, 19/10): retratos dos jogadores no lugar da lista do canto, só durante a rodada
+  const tops = el('div', { class: 'tops', role: 'group', 'aria-label': t('Jogadores', 'Players'), hidden: true });
   // painéis do topo: abrir um fecha os outros (pedido do Fernando, 18/10); solo(null) fecha todos (Esc, menu de configurações)
   function solo(p: HTMLElement | null) {
     if (p?.hidden) return;
@@ -779,7 +780,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     e.preventDefault();
     act.replay();
   });
-  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, players, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
+  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
@@ -1160,16 +1161,34 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     refocus(center, focused);
   }
 
-  // lista do canto: pontos da partida e, ao vivo, abates e dano da rodada (somados no cliente a partir dos acertos)
+  // abates e dano da rodada somados no cliente a partir dos acertos (a ficha usa o dano levado)
   let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
-  function drawPlayers() {
+  // retrato de cada jogador com as vitórias embaixo, na moldura da cor dele; nos Times um time de cada lado
+  // a sala manda o estado a cada segundo: só redesenha quando algo do topo muda (o apagado de quem caiu vem do frame)
+  const topCells = new Map<string, { c: HTMLElement; img: HTMLImageElement; name: string }>();
+  let shownDead: string | null = null;
+  function drawTops() {
     if (!room) return;
-    const head = el('li', { class: 'head' }, el('span', {}), el('span', {}), el('small', { title: t('Abates na rodada', 'Kills this round') }, icon(UI_ICON.kills)), el('small', { title: t('Dano na rodada', 'Damage this round') }, icon(UI_ICON.dmg)), el('small', { title: room.mode === 'deathmatch' ? t('Pontos', 'Points') : t('Vitórias', 'Wins') }, icon(UI_ICON.wins)));
-    // modo Times: agrupada por time, com uma faixa da cor do time à esquerda
     const r = room;
-    players.replaceChildren(head, ...[...r.players].sort((a, b) => byTeam(r, a, b)).map((p) =>
-      el('li', { class: p.id === me ? 'me' : '', style: r.mode === 'teams' && p.team !== null ? `box-shadow:inset 3px 0 0 ${TEAM_COLORS[p.team]}` : '' }, dot(p.color), el('span', {}, nameOf(p, me), p.bot ? el('small', { class: 'bot-tag' }, BOT_LEVEL[p.difficulty ?? r.opts.difficulty]) : null), el('span', { class: 'live' }, String(live[p.id]?.kills ?? 0)), el('span', { class: 'live' }, String(Math.round(live[p.id]?.dmg ?? 0))), el('b', {}, String(p.score))),
-    ));
+    const sig = [me, r.mode, ...r.players.map((p) => [p.id, p.name, p.character, p.color, p.team, p.score].join(':'))].join();
+    if (sig === tops.dataset.sig) return;
+    tops.dataset.sig = sig;
+    topCells.clear();
+    shownDead = null; // o próximo frame reaplica quem está caído
+    const unit = (n: number) => r.mode === 'deathmatch' ? (n === 1 ? t('ponto', 'point') : t('pontos', 'points')) : n === 1 ? t('vitória', 'win') : t('vitórias', 'wins');
+    const cell = (p: PublicPlayer) => {
+      // o texto alternativo diz nome e vitórias (o número embaixo fica só para a vista)
+      const name = `${p.name}${p.id === me ? t(' (você)', ' (you)') : ''}: ${p.score} ${unit(p.score)}`;
+      const img = el('img', { src: `/chars/${p.character}.webp`, alt: name, width: 40, height: 40 });
+      const c = el('li', { class: 'top-p' + (p.id === me ? ' me' : ''), style: `--pc:${COLORS[p.color]}`, title: name },
+        img, el('span', { class: 'top-dead', 'aria-hidden': 'true' }, icon(UI_ICON.kills)), el('b', { 'aria-hidden': 'true' }, String(p.score)));
+      topCells.set(p.id, { c, img, name });
+      return c;
+    };
+    const row = (list: PublicPlayer[], team?: number) => el('ul', team === undefined ? {} : { class: 'team', style: `--tc:${TEAM_COLORS[team]}`, 'aria-label': teamLabel(team) }, ...list.map(cell));
+    tops.replaceChildren(...(r.mode === 'teams'
+      ? [row(r.players.filter((p) => p.team === 0), 0), el('span', { class: 'vs', 'aria-hidden': 'true' }, '×'), row(r.players.filter((p) => p.team !== 0), 1)]
+      : [row(r.players)]));
   }
 
   return {
@@ -1240,7 +1259,6 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     },
     live(stats: Record<string, { dmg: number; kills: number; taken?: number }>) {
       live = stats;
-      drawPlayers();
       drawSheet();
     },
     update(r: PublicRoom, you: string, isOnline: boolean) {
@@ -1264,7 +1282,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         r.pendingMode && r.phase !== 'end' ? t(`Próxima rodada: ${MODE_NAME[r.pendingMode]}`, `Next round: ${MODE_NAME[r.pendingMode]}`) : '',
         r.pendingShuffle !== null && r.phase !== 'end' ? t(`Próxima rodada: times ${SHUFFLE_NAME(r.pendingShuffle)}`, `Next round: teams ${SHUFFLE_NAME(r.pendingShuffle)}`) : '',
       ].filter(Boolean).join(' · ');
-      drawPlayers();
+      tops.hidden = !PEEK_PHASES.includes(r.phase); // contagem, rodada e fim da rodada
+      drawTops();
       mine = r.players.find((p) => p.id === you);
       for (const i of ACTIVE_ITEMS) itemButtons.get(i)!.b.hidden = !mine?.items[i];
       // meu retrato na barra: só troca quando muda o personagem ou o nome
@@ -1308,8 +1327,16 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (changed) drawCenter();
     },
     // a cada quadro: recargas, magia escolhida e o relógio da fase
-    // hp: minha vida e o máximo, só jogando e vivo (null esconde a barra grande)
-    frame(cd: number[], icd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null) {
+    // hp: minha vida e o máximo, só jogando e vivo (null esconde a barra grande); dead: ids caídos na rodada, separados por vírgula
+    frame(cd: number[], icd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '') {
+      if (dead !== shownDead) {
+        shownDead = dead;
+        const down = new Set(dead.split(','));
+        for (const [id, { c, img, name }] of topCells) {
+          c.classList.toggle('dead', down.has(id));
+          img.alt = down.has(id) ? t(`${name}, caído`, `${name}, down`) : name;
+        }
+      }
       if (status !== myStatus) {
         myStatus = status;
         drawSheet();

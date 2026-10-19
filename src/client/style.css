@@ -102,15 +102,38 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 .round { font-family: var(--display); font-size: 1.15rem; text-shadow: var(--text-shadow); }
 .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
 .dot.on { background: var(--ok); } .dot.off { background: var(--red); }
-.players { list-style: none; margin: 8px 0 0; padding: 6px; display: flex; flex-direction: column; gap: 2px; width: fit-content; min-width: 150px; background: var(--panel-glass); border: 1px solid var(--line); border-radius: var(--r-sm); font-size: .9rem; }
-.players li { display: grid; grid-template-columns: auto 1fr 2ch 4ch 2ch; align-items: center; gap: 8px; padding: 2px 6px; border-radius: var(--r-xs); }
-.players li.head { padding-bottom: 0; opacity: .7; }
-.players li.head small, .players .live { text-align: right; font-variant-numeric: tabular-nums; }
-.players .live { opacity: .85; }
-.players li.me { background: var(--sel-bg); }
-.players b { font-variant-numeric: tabular-nums; }
-.timer { position: absolute; left: 50%; top: calc(14px + var(--safe-t)); transform: translateX(-50%); font-weight: 700; text-shadow: var(--text-shadow); pointer-events: none; white-space: nowrap; }
-.vote-bar { position: absolute; left: 50%; top: calc(44px + var(--safe-t)); transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 20px); padding: 6px 10px; border-radius: var(--r-sm); background: var(--panel-solid); border: 1px solid var(--line); font-size: .9rem; }
+/* topo como o do Dota (ui.ts, tops): retrato na moldura da cor do jogador, vitórias embaixo; nos Times um time de cada lado.
+   Abaixo da fileira de botões; em tela larga sobe para o meio dela. --tops-h desce o relógio e as faixas do meio */
+.tops { position: absolute; left: 50%; top: calc(56px + var(--safe-t)); transform: translateX(-50%); display: flex; align-items: flex-start; gap: 12px; }
+.hud:has(> .tops:not([hidden])) { --tops-h: 110px; }
+@media (min-width: 1280px) {
+  .tops { top: calc(6px + var(--safe-t)); }
+  .hud:has(> .tops:not([hidden])) { --tops-h: 62px; }
+}
+.tops ul { list-style: none; margin: 0; padding: 0 0 3px; display: flex; gap: 4px; }
+.tops ul.team { border-bottom: 3px solid var(--tc); }
+.tops .vs { align-self: center; font-family: var(--display); font-size: 1.2rem; color: var(--muted); text-shadow: var(--text-shadow); }
+.top-p { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.top-p img, .top-dead { width: 40px; height: 40px; }
+.top-p img { display: block; object-fit: cover; object-position: top; border-radius: var(--r-xs); border: 2px solid var(--pc); background: var(--panel-bot); box-shadow: var(--shadow-sm); }
+.top-p.me img { box-shadow: 0 0 0 2px var(--gold), var(--shadow-sm); }
+.top-p b { font-size: .85rem; line-height: 1.1; font-variant-numeric: tabular-nums; text-shadow: var(--text-shadow); }
+/* caído na rodada: retrato cinza com a caveira por cima */
+.top-dead { position: absolute; left: 0; top: 0; display: none; place-items: center; font-size: 1.4rem; color: var(--fg); filter: drop-shadow(0 1px 2px var(--ink)); }
+.top-p.dead img { filter: grayscale(1) brightness(.5); }
+.top-p.dead .top-dead { display: grid; }
+/* celular: retratos menores numa linha só, que rola se não couber (as margens automáticas centralizam quando cabe) */
+@media (max-width: 600px), (max-height: 500px) {
+  .tops { position: static; transform: none; order: 1; align-self: stretch; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+  .tops > :first-child { margin-left: auto; }
+  .tops > :last-child { margin-right: auto; }
+  .top-p img, .top-dead { width: 32px; height: 32px; }
+  .top-dead { font-size: 1.1rem; }
+  .top-p b { font-size: .75rem; }
+  .hud:has(> .tops:not([hidden])) { --tops-h: 52px; }
+}
+.timer { position: absolute; left: 50%; top: calc(14px + var(--safe-t) + var(--tops-h, 0px)); transform: translateX(-50%); font-weight: 700; text-shadow: var(--text-shadow); pointer-events: none; white-space: nowrap; }
+.vote-bar { position: absolute; left: 50%; top: calc(44px + var(--safe-t) + var(--tops-h, 0px)); transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 20px); padding: 6px 10px; border-radius: var(--r-sm); background: var(--panel-solid); border: 1px solid var(--line); font-size: .9rem; }
 .vote-bar button { min-height: 32px; padding: 4px 12px; }
 .respawn { position: absolute; left: 50%; top: 38%; transform: translateX(-50%); font-family: var(--display); font-size: clamp(1.6rem, 5vw, 2.8rem); color: var(--ember); text-shadow: 0 2px 8px var(--ink); pointer-events: none; white-space: nowrap; }
 .mode { display: grid; gap: 6px; }
@@ -119,7 +142,7 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 .timer.soon { color: var(--red); animation: pulse-bad .5s ease-in-out infinite alternate; }
 @media (prefers-reduced-motion: reduce) { .timer.soon { animation: none; } }
 /* faixa de queda de conexão: só aparece se a queda durar mais de 1,5 s */
-.offline { position: absolute; left: 50%; top: calc(56px + var(--safe-t)); transform: translateX(-50%); z-index: 6; padding: 8px 14px; border-radius: var(--r-sm); background: var(--panel-solid); border: 1px solid var(--red); color: var(--fg); font-weight: 700; white-space: nowrap; animation: fade-in .2s 1.5s both; pointer-events: none; }
+.offline { position: absolute; left: 50%; top: calc(56px + var(--safe-t) + var(--tops-h, 0px)); transform: translateX(-50%); z-index: 6; padding: 8px 14px; border-radius: var(--r-sm); background: var(--panel-solid); border: 1px solid var(--red); color: var(--fg); font-weight: 700; white-space: nowrap; animation: fade-in .2s 1.5s both; pointer-events: none; }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 .armed-hint { display: flex; align-items: center; gap: 8px; padding: 2px 2px 2px 12px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--ember); font-size: .9rem; font-weight: 700; }
 .armed-hint button.icon { width: 36px; min-height: 36px; border-radius: 999px; }
@@ -399,7 +422,6 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
   .round:empty, .timer:empty { display: none; }
   .timer:not(.countdown) { position: static; transform: none; align-self: center; order: 1; font-size: .95rem; }
   .vote-bar { position: static; transform: none; align-self: center; order: 2; max-width: 100%; }
-  .players { order: 3; margin: 0; }
   /* sem conexão: entra na coluna logo abaixo do topo, em vez de cobrir o título do cartão; só ocupa espaço quando aparece */
   .offline { position: static; transform: none; align-self: center; white-space: normal; text-align: center; animation: offline-in .2s 1.5s both; }
   .center { position: static; transform: none; order: 4; align-self: center; width: min(560px, 100%); max-height: none; min-height: 0; }
@@ -416,8 +438,6 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
   .skills:has(.passive)::before { content: ''; flex-basis: 100%; height: 0; order: -1; }
 }
 @keyframes offline-in { from { opacity: 0; max-height: 0; padding-block: 0; border-width: 0; } to { opacity: 1; max-height: 80px; } }
-/* sala, loja e fim já mostram os jogadores no cartão (no PC a lista aparecia atrás do cartão) */
-.hud:has(.center:not(:empty)) .players { display: none; }
 /* o feed de abates também: na loja ele caía em cima do ouro e do Pronto */
 .hud:has(.center:not(:empty)) .feed { display: none; }
 @media (max-width: 600px) {
@@ -463,7 +483,6 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
 @media (max-height: 500px) {
   .spell { width: 52px; height: 52px; }
   .spell .ico { font-size: 1.35rem; }
-  .players { font-size: .8rem; }
   .shop-side > .gold.big { padding: 4px; font-size: 1.25rem; }
   .shop-side > button.primary.big { min-height: 44px; }
   #toast { bottom: calc(104px + var(--safe-b)); }
@@ -487,7 +506,7 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
   .vol-row input { height: 44px; }
   .slot-row { min-height: 44px; }
   .slot-row input { width: 20px; height: 20px; }
-  small, .spell .key, .passive small, .pick small, .stats-table td small, .gold-info small, .players li.head small { font-size: max(.8em, .75rem); }
+  small, .spell .key, .passive small, .pick small, .stats-table td small, .gold-info small { font-size: max(.8em, .75rem); }
   .spell .key, .pick small, .stats-table td small { font-size: .75rem; }
 }
 @media (hover: none) and (pointer: coarse) {
@@ -680,7 +699,7 @@ button.train small { font-weight: 400; }
 .train-home { display: flex; flex-direction: column; gap: 8px; }
 .train-home h2 { margin: 0; }
 .train-btns { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
-.hud > .coach { position: absolute; left: 50%; top: calc(48px + var(--safe-t)); transform: translateX(-50%); z-index: 4; max-width: min(520px, calc(100% - 24px)); padding: 8px 16px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--ember); box-shadow: 0 0 16px rgba(255, 179, 71, .35); font-weight: 700; text-align: center; pointer-events: none; animation: fade-in .2s ease-out; }
+.hud > .coach { position: absolute; left: 50%; top: calc(48px + var(--safe-t) + var(--tops-h, 0px)); transform: translateX(-50%); z-index: 4; max-width: min(520px, calc(100% - 24px)); padding: 8px 16px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--ember); box-shadow: 0 0 16px rgba(255, 179, 71, .35); font-weight: 700; text-align: center; pointer-events: none; animation: fade-in .2s ease-out; }
 /* Repetir do desafio: o único clicável da dica */
 .hud > .coach button { pointer-events: auto; margin-left: 10px; }
 @media (max-width: 600px) { .hud > .coach { top: auto; bottom: calc(130px + var(--safe-b)); font-size: .9rem; border-radius: var(--r-md); } }
@@ -692,7 +711,7 @@ button.train small { font-weight: 400; }
 /* celular: acima do Pronto, que fica grudado no rodapé */
 @media (max-width: 600px) { .hud:has(.center .shop) > .coach { bottom: calc(80px + var(--safe-b)); } }
 /* espectador: selo "Assistindo X" com setas, abaixo do relógio */
-.hud > .watching { position: absolute; left: 50%; top: calc(96px + var(--safe-t)); transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 6px; padding: 2px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--gold-line); font-size: .95rem; white-space: nowrap; }
+.hud > .watching { position: absolute; left: 50%; top: calc(96px + var(--safe-t) + var(--tops-h, 0px)); transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 6px; padding: 2px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--gold-line); font-size: .95rem; white-space: nowrap; }
 .watching b { color: var(--gold); }
 /* caiu: botão Loja no selo, pulsando enquanto a loja está fechada */
 .watching .shop-nudge { min-height: 36px; padding: 2px 12px; border-radius: 999px; border-color: var(--ember); color: var(--gold); font-weight: 700; animation: nudge .9s ease-in-out infinite alternate; }
@@ -701,7 +720,7 @@ button.train small { font-weight: 400; }
 .watching button.icon { width: 36px; min-height: 36px; border-radius: 999px; font-size: 1.3rem; line-height: 1; }
 @media (max-width: 600px) { .hud > .watching { top: auto; bottom: calc(76px + var(--safe-b)); } }
 /* replay da queda: pílula logo abaixo do "Assistindo" */
-.hud > .replay { position: absolute; left: 50%; top: calc(144px + var(--safe-t)); transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 10px; padding: 2px 2px 2px 12px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--gold-line); white-space: nowrap; }
+.hud > .replay { position: absolute; left: 50%; top: calc(144px + var(--safe-t) + var(--tops-h, 0px)); transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 10px; padding: 2px 2px 2px 12px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--gold-line); white-space: nowrap; }
 .hud > .replay:has(> span[hidden]) { padding-left: 2px; }
 .replay button { min-height: 36px; padding: 2px 12px; border-radius: 999px; }
 @media (max-width: 600px) { .hud > .replay { top: auto; bottom: calc(124px + var(--safe-b)); } }
@@ -825,13 +844,7 @@ button.train small { font-weight: 400; }
   .pad-callout { display: none; }
 }
 
-/* celular em pé: a lista de jogadores vira uma faixa de pílulas (nome e placar) para o topo não comer a arena */
 @media (max-width: 600px) {
-  .players { flex-direction: row; flex-wrap: wrap; gap: 4px; width: auto; max-width: 100%; min-width: 0; padding: 0; background: none; border: 0; font-size: .78rem; }
-  .players li { display: flex; gap: 5px; padding: 2px 9px; border-radius: 999px; background: var(--panel-glass); border: 1px solid var(--line); }
-  .players li.me { border-color: var(--ember); }
-  .players li.head, .players .live, .players .bot-tag { display: none; }
-  .players li > span:nth-child(2) { max-width: 11ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .round { font-size: .85rem; }
   .shop-head { flex-wrap: wrap; row-gap: 2px; }
   /* provocações abrem embaixo, acima da barra de magias: no topo cobriam o botão que as fecha */
