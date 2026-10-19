@@ -780,28 +780,33 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // opções da partida: uma fileira de botões por opção, como o seletor de modo; vão junto com o "Começar"
     // abertas por padrão: quem cria a sala vê as opções sem procurar (fechar fica guardado até sair da sala)
     const optsBlock = el('details', { class: 'match-opts', open: optsOpen, ontoggle: (e: Event) => (optsOpen = (e.target as HTMLDetailsElement).open) }, el('summary', {}, 'Opções da partida · ', el('small', { class: 'muted' }, optsLine(o, mode))),
-      ...OPT_KEYS.map((k) => el('div', { class: 'opt-row' }, optLabel(k, mode),
-        choice(OPT_NAME[k], (OPTION_CHOICES[k] as readonly MatchOpts[OptKey][]).map((val): [MatchOpts[OptKey], string] => [val, optText(k, val, mode)]), o[k], (val) => (Object.assign(o, { [k]: val }), drawCenter())))));
-    return el('div', { class: 'card' },
+      el('div', { class: 'opt-grid' }, ...OPT_KEYS.map((k) => el('div', { class: 'opt-row' }, optLabel(k, mode),
+        choice(OPT_NAME[k], (OPTION_CHOICES[k] as readonly MatchOpts[OptKey][]).map((val): [MatchOpts[OptKey], string] => [val, optText(k, val, mode)]), o[k], (val) => (Object.assign(o, { [k]: val }), drawCenter()))))));
+    return el('div', { class: 'card room-wait' },
       el('div', {}, el('h2', { class: 'title' }, 'Sala ' + r.id), el('p', { class: 'muted' }, 'Mande o link para os amigos entrarem. Até 8 magos.'),
         el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), kickBtn(p, act.kick))))),
-      // sozinho na sala: treino com 3 bots e dicas curtas nas primeiras rodadas, logo à vista
-      // treino com as regras-padrão (depois de um desafio a sala fica sem runas, morte súbita e baús); também depois do "Voltar à sala"
-      humans === 1 ? el('button', { type: 'button', class: 'train', onclick: () => act.train({ ...DEFAULT_OPTS, difficulty: o.difficulty, arena: o.arena }, hasBotSetup(botCfg) ? botCfg : undefined) }, icon(UI_ICON.aim), ' Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')) : null,
-      humans === 1 ? botSetupPanel(3, botCfg, (s) => (botCfg = s)) : null,
-      humans === 1 ? shadowBtn(o) : null,
-      // desafios curtos (só sozinho; também depois do "Voltar à sala", para trocar de desafio): cada um com o recorde deste navegador
-      humans === 1 ? el('details', { class: 'match-opts', open: challengesOpen, ontoggle: (e: Event) => (challengesOpen = (e.target as HTMLDetailsElement).open) },
-        el('summary', {}, 'Desafios · ', el('small', { class: 'muted' }, 'tarefas curtas de até 90 s')),
-        el('div', { class: 'bs-spells' }, ...CHALLENGES.map((c) => {
-          const best = bestOf(c.id);
-          return el('button', { type: 'button', class: 'train', onclick: () => act.challenge(c.id) }, c.name,
-            el('small', {}, goalText(c)), el('small', { class: 'muted' }, best === null ? 'sem recorde' : `recorde: ${n1(best)} s${c.survive ? ' vivo' : ''}`));
-        }))) : null,
-      picker(r),
-      modePicker,
-      optsBlock,
-      el('div', { class: 'bots' }, el('span', {}, 'Bots'), el('button', { type: 'button', 'aria-label': 'Menos um bot', onclick: () => set(bots - 1) }, '−'), count, el('button', { type: 'button', 'aria-label': 'Mais um bot', onclick: () => set(bots + 1) }, '+')),
+      // no PC em colunas, lado a lado (Fernando, 19/10: "tá muito vertical"); no celular uma embaixo da outra
+      el('div', { class: 'lobby-cols' },
+        humans === 1 ? el('div', { class: 'lobby-col' },
+        // sozinho na sala: treino com 3 bots e dicas curtas nas primeiras rodadas, logo à vista
+        // treino com as regras-padrão (depois de um desafio a sala fica sem runas, morte súbita e baús); também depois do "Voltar à sala"
+        el('button', { type: 'button', class: 'train', onclick: () => act.train({ ...DEFAULT_OPTS, difficulty: o.difficulty, arena: o.arena }, hasBotSetup(botCfg) ? botCfg : undefined) }, icon(UI_ICON.aim), ' Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')),
+        botSetupPanel(3, botCfg, (s) => (botCfg = s)),
+        shadowBtn(o),
+        // desafios curtos (só sozinho; também depois do "Voltar à sala", para trocar de desafio): cada um com o recorde deste navegador
+        el('details', { class: 'match-opts', open: challengesOpen, ontoggle: (e: Event) => (challengesOpen = (e.target as HTMLDetailsElement).open) },
+          el('summary', {}, 'Desafios · ', el('small', { class: 'muted' }, 'tarefas curtas de até 90 s')),
+          el('div', { class: 'bs-spells' }, ...CHALLENGES.map((c) => {
+            const best = bestOf(c.id);
+            return el('button', { type: 'button', class: 'train', onclick: () => act.challenge(c.id) }, c.name,
+              el('small', {}, goalText(c)), el('small', { class: 'muted' }, best === null ? 'sem recorde' : `recorde: ${n1(best)} s${c.survive ? ' vivo' : ''}`));
+          }))),
+        ) : null,
+        el('div', { class: 'lobby-col' }, picker(r),
+          el('div', { class: 'bots' }, el('span', {}, 'Bots'), el('button', { type: 'button', 'aria-label': 'Menos um bot', onclick: () => set(bots - 1) }, '−'), count, el('button', { type: 'button', 'aria-label': 'Mais um bot', onclick: () => set(bots + 1) }, '+')),
+        ),
+        el('div', { class: 'lobby-col' }, modePicker, optsBlock),
+      ),
       // Começar e Convidar grudados no rodapé enquanto rola as opções
       el('div', { class: 'card-go' }, startBtn, inviteBtn()),
     );
@@ -1037,7 +1042,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const focused = (document.activeElement as HTMLElement | null)?.dataset?.key;
     hideTip(center);
     // "Voltar à sala" mostra a sala de espera: mesma largura dela, não a do fim
-    center.classList.toggle('wide', r.phase === 'shop' || (r.phase === 'end' && !setup));
+    center.classList.toggle('wide', r.phase === 'shop' || r.phase === 'lobby' || r.phase === 'end'); // a sala também, em colunas
     // o painel entra animado só quando a fase muda (a loja redesenha a cada compra e não pode ficar "pulando")
     const entering = r.phase !== centerPhase;
     center.classList.toggle('enter', entering);
