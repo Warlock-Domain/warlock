@@ -14,7 +14,7 @@ describe('protocolo', () => {
     expect(p({ t: 'cast', spell: 'homing', x: 0, y: 0, seq: 9 })).toEqual({ t: 'cast', spell: 'homing', x: 0, y: 0, seq: 9 });
     expect(p({ t: 'start', bots: 7 })).toEqual({ t: 'start', bots: 7 });
     expect(p({ t: 'pick', character: 'skeleton_warrior' })).toEqual({ t: 'pick', character: 'skeleton_warrior' });
-    expect(p({ t: 'look', look: '8687874' })).toEqual({ t: 'look', look: '8687874' }); // o maior índice de cada peça
+    expect(p({ t: 'look', look: '8688874' })).toEqual({ t: 'look', look: '8688874' }); // o maior índice de cada peça
     expect(p({ t: 'vote', kind: 'mode', target: 'teams' })).toEqual({ t: 'vote', kind: 'mode', target: 'teams' });
     expect(p({ t: 'vote', kind: 'shuffle', target: 'x' })).toEqual({ t: 'vote', kind: 'shuffle' });
     expect(p({ t: 'vote', kind: 'kick', target: 'p1a2b3' })).toEqual({ t: 'vote', kind: 'kick', target: 'p1a2b3' });
