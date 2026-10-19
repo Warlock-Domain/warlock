@@ -666,7 +666,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // dica do modo treino, uma por vez
   const coachText = el('span', {});
   const coachAgain = el('button', { type: 'button', hidden: true }, 'Repetir'); // fim do desafio
-  const coach = el('div', { class: 'coach', role: 'status', hidden: true }, icon(UI_ICON.tip), ' ', coachText, coachAgain);
+  const coachQuit = el('button', { type: 'button', hidden: true }, 'Sair do desafio');
+  const coach = el('div', { class: 'coach', role: 'status', hidden: true }, icon(UI_ICON.tip), ' ', coachText, coachAgain, coachQuit);
   // espectador: selo "Assistindo X" com setas para trocar (← → no teclado)
   const watchName = el('b', {});
   const watchBadge = el('div', { class: 'watching', role: 'status', hidden: true },
@@ -785,13 +786,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('div', {}, el('h2', { class: 'title' }, 'Sala ' + r.id), el('p', { class: 'muted' }, 'Mande o link para os amigos entrarem. Até 8 magos.'),
         el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), kickBtn(p, act.kick))))),
       // sozinho na sala: treino com 3 bots e dicas curtas nas primeiras rodadas, logo à vista
-      // treino com as regras-padrão (depois de um desafio a sala fica sem runas, morte súbita e baús)
-      humans === 1 && r.phase === 'lobby' ? el('button', { type: 'button', class: 'train', onclick: () => act.train({ ...DEFAULT_OPTS, difficulty: o.difficulty, arena: o.arena }, hasBotSetup(botCfg) ? botCfg : undefined) }, icon(UI_ICON.aim), ' Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')) : null,
-      humans === 1 && r.phase === 'lobby' ? botSetupPanel(3, botCfg, (s) => (botCfg = s)) : null,
-      humans === 1 && r.phase === 'lobby' ? shadowBtn(o) : null,
+      // treino com as regras-padrão (depois de um desafio a sala fica sem runas, morte súbita e baús); também depois do "Voltar à sala"
+      humans === 1 ? el('button', { type: 'button', class: 'train', onclick: () => act.train({ ...DEFAULT_OPTS, difficulty: o.difficulty, arena: o.arena }, hasBotSetup(botCfg) ? botCfg : undefined) }, icon(UI_ICON.aim), ' Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')) : null,
+      humans === 1 ? botSetupPanel(3, botCfg, (s) => (botCfg = s)) : null,
+      humans === 1 ? shadowBtn(o) : null,
       // desafios curtos (só sozinho; também depois do "Voltar à sala", para trocar de desafio): cada um com o recorde deste navegador
       humans === 1 ? el('details', { class: 'match-opts', open: challengesOpen, ontoggle: (e: Event) => (challengesOpen = (e.target as HTMLDetailsElement).open) },
-        el('summary', {}, 'Desafios · ', el('small', { class: 'muted' }, 'tarefas curtas de até 1 min')),
+        el('summary', {}, 'Desafios · ', el('small', { class: 'muted' }, 'tarefas curtas de até 90 s')),
         el('div', { class: 'bs-spells' }, ...CHALLENGES.map((c) => {
           const best = bestOf(c.id);
           return el('button', { type: 'button', class: 'train', onclick: () => act.challenge(c.id) }, c.name,
@@ -804,6 +805,17 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       // Começar e Convidar grudados no rodapé enquanto rola as opções
       el('div', { class: 'card-go' }, startBtn, inviteBtn()),
     );
+  }
+
+  // "Voltar à sala" e "Sair do desafio": a sala de espera começa com as opções da partida que acabou
+  function toRoom(r: PublicRoom) {
+    setup = true;
+    mode = r.mode;
+    shuffle = r.teamShuffle;
+    opts = { ...r.opts };
+    bots = r.players.filter((p) => p.bot).length;
+    drawCenter();
+    center.scrollTop = 0;
   }
 
   // fim da partida: resultado e as duas saídas rápidas no topo; "Voltar à sala" mostra a sala de espera para trocar modo e opções
@@ -820,15 +832,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         el('p', { class: 'end-winner' }, ...(noWinner ? ['Partida encerrada sem vencedor (empate ou ninguém fez ponto).'] : winTitle(r)))),
       podium(r, me),
       el('div', { class: 'end-actions' }, again, el('button', { type: 'button', class: 'big', onclick: () => {
-        // a sala de espera começa com as opções da partida que acabou
-        setup = true;
-        mode = r.mode;
-        shuffle = r.teamShuffle;
-        opts = { ...r.opts };
-        bots = roomBots;
         curtain();
-        drawCenter();
-        center.scrollTop = 0;
+        toRoom(r);
       } }, 'Voltar à sala')),
       el('small', { class: 'muted end-hint' }, `Jogar de novo repete tudo: ${MODE_NAME[r.mode]}, ${roomBots} ${roomBots === 1 ? 'bot' : 'bots'}, ${optsLine(r.opts, r.mode)}.`),
       statsBoard(r, me, scope, setScope, view, setView, act.kick));
@@ -1104,13 +1109,19 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const label = text ? (TOUCH ? 'Sair' : 'Sair (Esc)') : TOUCH || k === '—' ? 'Rever a queda' : `Rever a queda (${k})`;
       if (replayBtn.textContent !== label) replayBtn.textContent = label;
     },
-    // again: botão Repetir no fim de um desafio
-    coach(text: string | null, again?: () => void) {
+    // again: botão Repetir no fim de um desafio; quit: botão Sair do desafio (durante e depois dele)
+    coach(text: string | null, again?: () => void, quit?: () => void) {
       // primeira loja: o cartão "Primeira vez?" já diz o que fazer; a dica do treino espera ele sair
       coach.hidden = !text || !!center.querySelector('.first-tip');
       if (text && coachText.textContent !== text) coachText.textContent = text;
       coachAgain.hidden = !again;
       coachAgain.onclick = again ?? null;
+      coachQuit.hidden = !quit;
+      coachQuit.onclick = quit ?? null;
+    },
+    // fim da partida direto na sala de espera (Sair do desafio)
+    toRoom() {
+      if (room) toRoom(room);
     },
     danger(low: boolean, lava: boolean) {
       danger.classList.toggle('low', low);

@@ -144,6 +144,7 @@ function startRoom(code: string, name: string) {
   let pending: Challenge | null = null;
   let run: Run | null = null;
   let runRound = -1;
+  let quitting = false; // Sair do desafio: o fim da partida que vem abre direto na sala, sem faixa nem som
   let arenaId: ArenaId = 'circle'; // formato da arena da rodada (vem na mensagem 'room')
   let playingAt = 0;
   const justCast = new Map<string, number>();
@@ -340,6 +341,13 @@ function startRoom(code: string, name: string) {
     pending = run.c;
     net.send({ t: 'vote', kind: 'restart' });
   }
+  // Sair do desafio: encerra a partida pela votação "Encerrar agora" (sozinho passa na hora) e volta para a sala
+  function quit() {
+    run = pending = null;
+    if (room?.phase === 'end') return view.toRoom();
+    quitting = true;
+    net.send({ t: 'vote', kind: 'end' });
+  }
   // fim do desafio: faixa, som e recorde (uma vez só)
   function finishRun(next: Run) {
     const was = run;
@@ -528,6 +536,8 @@ function startRoom(code: string, name: string) {
   function onPhase(prev: PublicRoom | null) {
     if (!room) return;
     rp = null; // troca de fase encerra o replay
+    const left = quitting;
+    quitting = false;
     // desafio: a rodada acabou antes da meta (a queda que decide o Duelo pode chegar depois do fim da rodada)
     if (run && prev?.phase === 'playing') finishRun(endRun(run, room.lastRoundWinner === me));
     // a sombra aprende com as rodadas jogadas fora dos desafios (alive > 0: fora o deathmatch, que não conta o tempo vivo)
@@ -566,7 +576,8 @@ function startRoom(code: string, name: string) {
       if (won) banner(room.mode === 'teams' && w!.team !== null ? `Vitória do time ${TEAM_NAMES[w!.team]}!` : room.mode === 'deathmatch' ? 'Vitória! Mais abates' : 'Vitória!', 'win');
       else if (room.mode === 'teams' && w && w.team !== null) banner(`Time ${TEAM_NAMES[w.team]} venceu a rodada!`);
       else banner(!w ? (room.mode === 'deathmatch' ? 'Fim da rodada' : 'Ninguém sobrou!') : room.mode === 'deathmatch' ? (w.id === me ? 'Você fez mais abates!' : `${w.name} fez mais abates!`) : w.id === me ? 'Você venceu a rodada!' : `${w.name} venceu a rodada!`, w?.id === me ? 'good' : '');
-    } else if (room.phase === 'end' && prev) {
+    } else if (room.phase === 'end' && left) view.toRoom();
+    else if (room.phase === 'end' && prev) {
       // mesmo resultado do cabeçalho do cartão (Vitória, Derrota ou Fim de jogo); quem só assistia não ouve nada
       const res = endResult(room, me);
       if (res !== 'none') sound.play(res === 'win' ? 'winRound' : 'loseRound');
@@ -625,7 +636,7 @@ function startRoom(code: string, name: string) {
     });
     // o desafio conta o tempo só com a rodada rolando; o progresso dele fica no lugar da dica do treino
     if (run?.state === 'on' && room?.phase === 'playing') finishRun(stepRun(run, dt, [], me, meW?.alive !== false));
-    if (run) view.coach(runText(run), run.state === 'on' ? undefined : again);
+    if (run) view.coach(runText(run), run.state === 'on' ? undefined : again, quit);
     else if (training && room) view.coach(meP ? coachTip({ phase: room.phase, round: room.round, playingFor: (nowMs - playingAt) / 1000, shrinkIn, low, lava, alive: !!meW?.alive, touch: TOUCH, fireKey: isPadMode() ? 'A' : labelOf('fireball'), fire: meP.spells.fireball > 0 }) : null);
     else view.coach(null);
     scene.render({

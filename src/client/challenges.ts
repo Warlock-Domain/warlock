@@ -18,12 +18,14 @@ export const PASSIVE: Partial<BotSkill> = { cast: 0, combo: 0, react: 0, shield:
 const bots = (n: number, b: BotSetup = {}): BotSetup[] => Array.from({ length: n }, () => b);
 
 export const CHALLENGES: Challenge[] = [
-  { id: 'alvo', name: 'Alvo', secs: 60, goal: 5, bots: 3, opts: { ...BASE, difficulty: 'normal' }, setup: bots(3, { spells: { fireball: 0 }, skill: PASSIVE }),
+  // Égide nos alvos (decisão do Fernando, 19/10): o alvo que cai na lava volta uma vez, e a meta não some antes dos 5 acertos
+  { id: 'alvo', name: 'Alvo', secs: 60, goal: 5, bots: 3, opts: { ...BASE, difficulty: 'normal' }, setup: bots(3, { spells: { fireball: 0 }, items: { aegis: 1 }, skill: PASSIVE }),
     counts: (e, me) => e.k === 'land' && e.id === me && e.src === 'fireball' },
   { id: 'sobreviva', name: 'Sobreviva', secs: 30, goal: 30, bots: 3, opts: { ...BASE, difficulty: 'hard' }, setup: bots(3), survive: true },
   { id: 'lava', name: 'Lava', secs: 60, goal: 1, bots: 2, opts: { ...BASE, difficulty: 'normal' }, setup: bots(2, { spells: { fireball: 0 } }), buy: ['thrust'],
     counts: (e, me) => e.k === 'death' && e.by === me && e.id !== me && e.src === 'thrust' },
-  { id: 'escudo', name: 'Escudo', secs: 60, goal: 3, bots: 2, opts: { ...BASE, difficulty: 'hard' }, setup: bots(2, { spells: { fireball: 1 } }), buy: ['shield'],
+  // Escudo: 60 → 90 s (decisão do Fernando, 19/10)
+  { id: 'escudo', name: 'Escudo', secs: 90, goal: 3, bots: 2, opts: { ...BASE, difficulty: 'hard' }, setup: bots(2, { spells: { fireball: 1 } }), buy: ['shield'],
     counts: (e, me) => e.k === 'reflect' && e.id === me },
   { id: 'duelo', name: 'Duelo', secs: 60, goal: 1, bots: 1, opts: { ...BASE, difficulty: 'hard' }, setup: bots(1),
     counts: (e, me) => e.k === 'death' && e.id !== me },

@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CHALLENGES, bestOf, endRun, saveBest, scoreOf, stepRun, type Run } from '../src/client/challenges.ts';
 import { addPlayer, newMatch, startMatch, tickMatch } from '../src/shared/match.ts';
 import { parseClientMessage } from '../src/shared/protocol.ts';
-import type { SimEvent } from '../src/shared/sim.ts';
+import type { Cmd, SimEvent, Wizard } from '../src/shared/sim.ts';
+import { SPELLS } from '../src/shared/spells.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
+import { add, dist, norm, scale, sub } from '../src/shared/vec.ts';
 import { STEP_MS, kill, toPlaying, until } from './helpers.ts';
 
 const C = (id: string) => CHALLENGES.find((c) => c.id === id)!;
@@ -27,8 +29,10 @@ describe('desafios curtos', () => {
     expect(stepRun(start('alvo'), 0.1, [], 'eu', false).state).toBe('lost');
   });
 
-  it('passar do tempo perde', () => {
-    const r = stepRun({ ...start('escudo'), n: 2, t: 59.9 }, 0.2, [], 'eu', true);
+  it('passar do tempo perde (o Escudo tem 90 s)', () => {
+    expect(C('escudo').secs).toBe(90);
+    expect(stepRun({ ...start('escudo'), n: 2, t: 60 }, 1, [], 'eu', true).state).toBe('on');
+    const r = stepRun({ ...start('escudo'), n: 2, t: 89.9 }, 0.2, [], 'eu', true);
     expect(r.state).toBe('lost');
     expect(scoreOf(r)).toBeNull(); // derrota não vira recorde
   });
@@ -87,6 +91,46 @@ describe('desafios curtos', () => {
     }
     expect(steps).toBe(N);
     expect(fires).toBe(0);
+  });
+
+  // mago que acerta: mira onde o alvo vai estar, sempre no mais machucado, do lado de dentro (empurra para a lava)
+  it('Alvo: com a Égide os alvos duram até os 5 acertos', () => {
+    const real = Math.random;
+    const alvo = C('alvo');
+    const fly = SPELLS.fireball.levels[0].speed;
+    let saves = 0;
+    try {
+      for (let seed = 1; seed <= 20; seed++) {
+        let x = seed;
+        Math.random = () => (x = (x * 1103515245 + 12345) % 2147483648) / 2147483648;
+        const m = newMatch();
+        addPlayer(m, 'a', 'Ana');
+        startMatch(m, 0, alvo.bots, 'rounds', true, Math.random, alvo.opts, alvo.setup);
+        let now = toPlaying(m, 0, Math.random);
+        expect(m.world!.wizards.filter((z) => z.id !== 'a').every((z) => z.aegis)).toBe(true);
+        let n = 0;
+        for (let i = 0; i < alvo.secs * 1000 / STEP_MS && m.phase === 'playing' && n < alvo.goal; i++) {
+          const w = m.world!;
+          const me = w.wizards.find((z) => z.id === 'a')!;
+          const t = w.wizards.filter((z) => z.alive && z.id !== 'a').reduce<Wizard | null>((a, b) => (a && a.dmgTaken >= b.dmgTaken ? a : b), null);
+          const cmds: Cmd[] = [];
+          if (t && !me.casting) {
+            const walk = t.target && dist(t.target, t.pos) > 0.05 ? scale(norm(sub(t.target, t.pos)), t.speed) : t.vel;
+            const spot = sub(t.pos, scale(norm(t.pos), 3));
+            if (dist(me.pos, t.pos) < 4 && w.t >= me.cd.fireball) cmds.push({ id: 'a', kind: 'cast', spell: 'fireball', at: add(t.pos, scale(walk, dist(me.pos, t.pos) / fly + 0.1)) });
+            else if (dist(spot, me.pos) > 0.5) cmds.push({ id: 'a', kind: 'move', to: spot });
+          }
+          now += STEP_MS;
+          const ev = tickMatch(m, now, cmds, Math.random);
+          n += ev.filter((e) => alvo.counts!(e, 'a')).length;
+          saves += ev.filter((e) => e.k === 'aegis').length;
+        }
+        expect(n, `semente ${seed}`).toBe(alvo.goal);
+      }
+    } finally {
+      Math.random = real;
+    }
+    expect(saves).toBeGreaterThan(0); // é a Égide que segura os alvos
   });
 
   it('toda rodada de desafio sai marcada na telemetria, até sem magias escolhidas (Duelo)', () => {
