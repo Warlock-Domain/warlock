@@ -540,6 +540,7 @@ function startRoom(code: string, name: string) {
     const rt = rp ? clip[0].s.time + (nowMs - rp.at) / 1000 : 0;
     if (rp && (!canReplay || rt > clip[clip.length - 1].s.time + 1)) rp = null;
     const rs = rp ? rp.it.sample(rt + DELAY) : null;
+    document.body.classList.toggle('replaying', !!rs); // a loja de quem caiu sai da frente enquanto o replay passa
     if (rp && rs) for (; rp.next < clip.length && clip[rp.next].s.time <= rt; rp.next++) replayEvents(clip[rp.next].e, rs);
     const killer = rs && fall.by && fall.by !== me ? fall.by : null;
     view.replay(canReplay && !rp, rs ? (killer ? `Replay · ${names().get(killer) ?? '?'} te derrubou com ${srcName(fall.src)}` : 'Replay · Você caiu na lava sozinho') : null);
