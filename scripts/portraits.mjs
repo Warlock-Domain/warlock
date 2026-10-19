@@ -1,7 +1,7 @@
 // Gera public/chars/<id>.png renderizando cada personagem (pose Idle) num navegador sem janela.
 // Precisa do servidor local rodando (wrangler dev) para servir /models: node scripts/portraits.mjs http://localhost:8797
 import { writeFileSync } from 'node:fs';
-import { chromium } from 'file:///C:/nvm4w/nodejs/node_modules/@playwright/mcp/node_modules/playwright-core/index.mjs';
+import { chromium } from './lib/browser.mjs';
 
 const base = process.argv[2];
 const IDS = ['mage', 'knight', 'barbarian', 'rogue', 'rogue_hooded', 'skeleton_mage', 'skeleton_minion', 'skeleton_rogue', 'skeleton_warrior'];
@@ -29,7 +29,7 @@ window.shot = async (url) => {
 window.ready = true;
 </script></body></html>`;
 
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch({ channel: process.env.PW_CHANNEL ?? 'chrome', headless: true, args: ['--enable-unsafe-swiftshader'] });
 const page = await browser.newPage();
 await page.route(base + '/_portraits', (route) => route.fulfill({ contentType: 'text/html', body: page_html }));
 await page.goto(base + '/_portraits');

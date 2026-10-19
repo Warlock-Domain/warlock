@@ -75,6 +75,7 @@ export type Wizard = {
   // magia ou item sendo conjurado: sai em fireAt e o mago fica parado até lá (pedido do Fernando, 17/10:
   // clicar para andar não cancela); o clique de andar fica guardado em `then` e vale quando a magia sai
   casting: { spell?: SpellId; item?: ItemId; at: Vec; fireAt: number; then?: Vec | null } | null;
+  god?: boolean; // sandbox: vida infinita (não morre; da lava volta para a pedra)
 };
 
 // meteor fica parado no ponto de impacto até `until` e então explode; swap e grip não causam dano
@@ -164,6 +165,7 @@ export type World = {
   zones: Zone[]; // chão com efeito deixado pelos choques
   loots: { pos: Vec; left: number; until: number }[]; // montes de ouro dos baús quebrados
   chestAt: number; // quando o próximo baú aparece
+  chestsLeft: number; // baús que ainda podem aparecer nesta rodada
   runes: { pos: Vec; kind: RuneKind }[]; // no máximo uma
   runeAt: number; // quando a próxima runa aparece
   isles: (Isle & { a: number; d: number })[]; // ilhas de refúgio: rumo a do centro e distância d da borda (a posição segue o encolhimento)
@@ -174,11 +176,34 @@ export type World = {
   lavaCredit: Record<string, Record<string, number>>;
   nextId: number;
   dm: boolean; // deathmatch: a arena não encolhe e quem morre volta depois de DM_RESPAWN s
+  shrink?: boolean; // sandbox (mundo de deathmatch): a arena encolhe mesmo assim
 };
 
 // mecânicas que a sala pode desligar (opções da partida)
 type Rules = { runes: boolean; sudden: boolean; chests: boolean };
 const ALL_RULES: Rules = { runes: true, sudden: true, chests: true };
+
+// o que os itens dão ao mago: no começo da rodada e, na sandbox, ao comprar no meio dela
+export function gearOf(items: Partial<Record<ItemId, number>> = {}) {
+  const own = { ...noItems(), ...items };
+  const st = itemStats(own);
+  return {
+    items: own,
+    hpMax: HP_MAX + st.hp,
+    regen: HP_REGEN + st.regen,
+    kbResist: st.kb,
+    baseSpeed: WIZ_SPEED + st.speed,
+    debuffMult: Math.max(0, 1 + st.debuff),
+    windBonus: own.wind_boots ? Math.max(0, WIND_BOOTS.speed - st.speed) : 0, // como as de choque: vale a maior das botas
+    rangeF: 1 + st.range, // Elmo: −10%
+    lifesteal: st.lifesteal,
+    lavaCut: st.lava,
+    ward: st.ward,
+    // não soma com as Botas: vale a maior das duas (as Botas são o único item de velocidade)
+    shockBonus: own.shock_boots ? Math.max(0, SHOCK_BOOTS.speed - st.speed) : 0,
+    aegis: own.aegis > 0,
+  } satisfies Partial<Wizard>;
+}
 
 export function newWorld(
   ids: string[],
@@ -194,15 +219,14 @@ export function newWorld(
   const arenaR = arenaRadius(ids.length);
   const wizards = ids.map((id, i): Wizard => {
     const pos = SHAPES[arena].spawn(i, ids.length, arenaR);
-    const own = { ...noItems(), ...items[id] };
-    const st = itemStats(own);
+    const gear = gearOf(items[id]);
     return {
       id,
       pos,
       vel: v(0, 0),
       target: null,
       facing: Math.atan2(-pos.y, -pos.x), // olhando para o centro
-      hp: HP_MAX + st.hp,
+      hp: gear.hpMax,
       dmgTaken: 0,
       alive: true,
       shieldUntil: 0,
@@ -214,18 +238,11 @@ export function newWorld(
       lastHitAt: -1e9,
       spells: { ...spells[id] },
       cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])) as Record<SpellId, number>,
-      items: own,
       itemCd: noItems(),
-      hpMax: HP_MAX + st.hp,
-      regen: HP_REGEN + st.regen,
-      kbResist: st.kb,
-      baseSpeed: WIZ_SPEED + st.speed,
-      speed: WIZ_SPEED + st.speed,
-      debuffMult: Math.max(0, 1 + st.debuff),
+      speed: gear.baseSpeed,
       pactUntil: 0,
       gripUntil: 0,
       gripBonus: 0,
-      windBonus: own.wind_boots ? Math.max(0, WIND_BOOTS.speed - st.speed) : 0, // como as de choque: vale a maior das botas
       calmSince: 0,
       rushUntil: 0,
       rushLeft: 0,
@@ -250,18 +267,12 @@ export function newWorld(
       streak: 0,
       invulnUntil: INVULN_TIME,
       respawnAt: 0,
-      rangeF: 1 + st.range, // Elmo: −10%
-      lifesteal: st.lifesteal,
-      lavaCut: st.lava,
-      ward: st.ward,
-      // não soma com as Botas: vale a maior das duas (as Botas são o único item de velocidade)
-      shockBonus: own.shock_boots ? Math.max(0, SHOCK_BOOTS.speed - st.speed) : 0,
       shockUntil: 0,
-      aegis: own.aegis > 0,
       rune: null,
       runeUntil: 0,
       team: teams[id] ?? null,
       casting: null,
+      ...gear,
     };
   });
   const pillars = placePillars(arena, arenaR, pillarCount, wizards.map((z) => z.pos), rand);
@@ -271,7 +282,7 @@ export function newWorld(
     const d = ISLAND.near + rand() * (ISLAND.far - ISLAND.near);
     return { a, d, r: ISLAND.r, pos: isleSpot({ arena, arenaR }, a, d) };
   });
-  return { t: 0, arena, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars, zones: [], loots: [], chestAt: CHEST.first, runes: [], runeAt: RUNE.first, isles, sudden: false, rules: { ...rules }, events: [], lavaCredit: {}, nextId: 1, dm };
+  return { t: 0, arena, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars, zones: [], loots: [], chestAt: CHEST.first, chestsLeft: Math.min(CHEST.perRound, Math.floor(ids.length / 2) + 1), runes: [], runeAt: RUNE.first, isles, sudden: false, rules: { ...rules }, events: [], lavaCredit: {}, nextId: 1, dm };
 }
 
 export const inLava = (w: World, p: Vec) => inLavaAt(w.arena, w.arenaR, w.isles, p);
@@ -1447,6 +1458,13 @@ function stepRunes(w: World, rand: () => number) {
   }
 }
 
+// volta parado para dentro da pedra, na mesma direção (Égide; na sandbox, quem tem vida infinita e cai na lava)
+function toStone(w: World, wz: Wizard) {
+  const from = wz.pos;
+  Object.assign(wz, { pos: safeInside(w, wz.pos, w.arenaR * (1 - AEGIS.back)), vel: v(0, 0), target: null, dashUntil: 0, thrustUntil: 0 });
+  w.events.push({ k: 'teleport', id: wz.id, from, to: wz.pos });
+}
+
 export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.random) {
   w.events = [];
   w.lavaCredit = {};
@@ -1506,9 +1524,9 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   }
   // passou de SUDDEN.collapse: o tamanho mínimo deixa de valer e a arena some aos poucos (vale mesmo com a morte súbita desligada)
   const collapsing = w.t >= SUDDEN.collapse;
-  const minR = collapsing ? 0 : ARENA_MIN;
+  const minR = collapsing && !w.dm ? 0 : ARENA_MIN; // a sandbox encolhe até o mínimo, sem sumir
   if (!w.dm && collapsing && w.shrinkAt > w.t + SUDDEN.every) w.shrinkAt = w.t + SUDDEN.every;
-  if (!w.dm && w.t >= w.shrinkAt && w.arenaR > minR) {
+  if ((!w.dm || w.shrink) && w.t >= w.shrinkAt && w.arenaR > minR) {
     w.arenaR = Math.max(minR, w.arenaR - ARENA_STEP);
     // as ilhas chegam junto com a borda e levam quem está em cima
     for (const i of w.isles) {
@@ -1524,12 +1542,13 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   stepIsles(w);
   // baú: aparece num ponto sorteado longe dos obstáculos; as magias quebram e ele vira um monte de ouro
   const chestsUp = w.pillars.filter((q) => q.kind === 'chest' && q.alive).length;
-  if (w.rules.chests && chestsUp < CHEST.maxUp && w.t >= w.chestAt) {
+  if (w.rules.chests && chestsUp < CHEST.maxUp && w.chestsLeft > 0 && w.t >= w.chestAt) {
     const at = freeSpot(w, rand, CHEST.spread);
     if (at) {
       w.pillars.push({ pos: at, hp: OBSTACLES.chest.hp, alive: true, kind: 'chest' });
       w.events.push({ k: 'chest', x: at.x, y: at.y });
       w.chestAt = w.t + CHEST.every;
+      w.chestsLeft--;
     } else w.chestAt = w.t + 1;
   }
   // monte de ouro: cada mago em cima enche a própria barra e ganha 1 a cada 2 s; quem sai perde o progresso
@@ -1576,6 +1595,12 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
 
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
+    // sandbox: vida infinita não morre e, na lava, volta para a pedra
+    if (wz.god) {
+      if (inLava(w, wz.pos)) toStone(w, wz);
+      wz.hp = wz.hpMax;
+      continue;
+    }
     if (inLava(w, wz.pos)) {
       if (w.t < wz.invulnUntil) continue;
       const dmg = LAVA_DPS * DT * (1 - wz.lavaCut), burn = Math.min(Math.max(0, wz.hp), dmg);
@@ -1589,9 +1614,9 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       wz.dmgTaken += LAVA_DPS * DT * LAVA_KB_FACTOR; // as Botas de lava poupam a vida, não o empurrão acumulado (ciclo 2)
       // Égide: com pouca vida na lava, volta parado para dentro da pedra na mesma direção (uma vez)
       if (wz.aegis && wz.hp > 0 && wz.hp <= AEGIS.hp) {
-        const from = wz.pos;
-        Object.assign(wz, { aegis: false, pos: safeInside(w, wz.pos, w.arenaR * (1 - AEGIS.back)), vel: v(0, 0), target: null, dashUntil: 0, thrustUntil: 0 });
-        w.events.push({ k: 'teleport', id: wz.id, from, to: wz.pos }, { k: 'aegis', id: wz.id });
+        wz.aegis = false;
+        toStone(w, wz);
+        w.events.push({ k: 'aegis', id: wz.id });
       }
     } else wz.hp = Math.min(wz.hpMax, wz.hp + wz.regen * DT);
     if (wz.hp > 0) continue;

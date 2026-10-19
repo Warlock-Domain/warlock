@@ -228,6 +228,13 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .taunt-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
 .taunt-list button { justify-content: flex-start; text-align: left; min-height: 36px; padding: 4px 10px; font-size: .88rem; }
 .vol-panel:has(.taunt-list) { width: 340px; }
+/* painel da sandbox: regras, bots e arena; no celular cabe na largura da tela */
+.sandbox-panel { width: min(300px, calc(100vw - 24px)); }
+.sandbox-check, .sandbox-row { display: flex; align-items: center; gap: 8px; }
+.sandbox-row select { flex: 1; min-width: 0; }
+.sandbox-bots { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.sandbox-bots li { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.sandbox-panel .bs-spells { max-height: 40vh; overflow-y: auto; }
 .dmg.gold { color: var(--gold); font-size: 1.5rem; }
 .hp { position: relative; width: 64px; height: 14px; border-radius: var(--r-xs); background: rgba(0, 0, 0, .7); overflow: hidden; border: 1px solid rgba(0, 0, 0, .7); }
 .status-icons { display: flex; gap: 2px; min-height: 0; font-size: .85rem; line-height: 1; }
@@ -847,8 +854,8 @@ button.train small { font-weight: 400; }
 @media (max-width: 600px) {
   .round { font-size: .85rem; }
   .shop-head { flex-wrap: wrap; row-gap: 2px; }
-  /* provocações abrem embaixo, acima da barra de magias: no topo cobriam o botão que as fecha */
-  .vol-panel:has(.taunt-list) { top: auto; bottom: calc(84px + var(--safe-b)); width: auto; max-height: calc(100dvh - 160px - var(--safe-t) - var(--safe-b)); }
+  /* provocações e sandbox abrem embaixo, acima da barra de magias: no topo cobriam o botão que as fecha */
+  .vol-panel:has(.taunt-list), .vol-panel.sandbox-panel { top: auto; bottom: calc(84px + var(--safe-b)); width: auto; max-height: calc(100dvh - 160px - var(--safe-t) - var(--safe-b)); }
 }
 /* toque: sem as letras do teclado; alvos de 44 px nas provocações */
 @media (pointer: coarse) {
@@ -978,3 +985,31 @@ body.replaying .peek-shop { display: none; }
 .shop .shop-main .shop-grid { grid-template-columns: repeat(5, 76px); }
 /* menu principal largo como o do Dota (antes 640 px) */
 .lobby { max-width: 1200px; }
+/* cartão da loja mais largo com o nome dentro: ícone em cima, nome, nível e preço; o Vender ocupa um espaço fixo embaixo para as fileiras não desalinharem */
+.shop-item { width: 118px; }
+.shop-tile { width: 118px; height: 104px; justify-content: flex-start; padding: 16px 4px 5px; gap: 2px; }
+.shop-tile .ico { font-size: 1.7rem; }
+.shop-tile .tile-name { font-size: .76rem; line-height: 1.1; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.2em; max-width: 100%; }
+.shop-item:not(.can):not(.owned) .shop-tile .tile-name { color: var(--muted); }
+.shop-tile .pips { margin-top: auto; }
+.tile-acts { min-height: 26px; }
+@media (min-width: 861px) {
+  .shop .shop-main .shop-grid { grid-template-columns: repeat(5, 118px); column-gap: 10px; }
+  .shop-items .shop-grid { grid-template-columns: repeat(2, 118px); column-gap: 8px; }
+  .shop { grid-template-columns: 262px minmax(0, 1fr) 270px; }
+}
+/* tela estreita (celular, gaveta): cartões ocupam a largura em colunas iguais */
+@media (max-width: 860px) {
+  .shop .shop-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+  .shop-item { width: auto; }
+  .shop-tile { width: 100%; }
+}
+.peek-shop.drawer .shop .shop-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+.peek-shop.drawer .shop-item { width: auto; }
+.peek-shop.drawer .shop-tile { width: 100%; }
+@media (min-width: 1500px) { .shop { grid-template-columns: 262px minmax(0, 1fr) 290px; } .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); } }
+/* loja só para ver: o ícone é um div, não botão; recebe o mesmo arranjo e a mesma moldura do botão */
+.shop-tile { display: flex; align-items: center; }
+div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: var(--fg); box-sizing: border-box; }
+/* loja só para ver termina acima da barra da partida (que ficou mais alta no estilo Dota) */
+@media (min-width: 601px) { .peek-shop:not(.drawer) { max-height: calc(100% - 215px - var(--safe-t) - var(--safe-b)); } }

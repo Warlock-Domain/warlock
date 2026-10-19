@@ -1,6 +1,9 @@
-// Chrome sem janela dos scripts headless: perfil fixo do Playwright (com os logins) e WebGL por software.
-import { chromium } from 'file:///C:/nvm4w/nodejs/node_modules/@playwright/mcp/node_modules/playwright-core/index.mjs';
+// Chrome sem janela dos scripts headless, com WebGL por software.
+// PW_PROFILE: pasta de perfil persistente (opcional; sem ela, um perfil temporário). PW_CHANNEL: 'chrome' (padrão) ou 'chromium'
+// (precisa de `npx playwright-core install chromium`).
+import { chromium } from 'playwright-core';
 
-export const openChrome = (opts) => chromium.launchPersistentContext('C:/Users/ferna/AppData/Local/ms-playwright/mcp-chrome-7a379eb', {
-  channel: 'chrome', headless: true, args: ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'], ...opts,
+export { chromium };
+export const openChrome = (opts) => chromium.launchPersistentContext(process.env.PW_PROFILE ?? '', {
+  channel: process.env.PW_CHANNEL ?? 'chrome', headless: true, args: ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'], ...opts,
 });

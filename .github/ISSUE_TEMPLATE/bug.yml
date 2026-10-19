@@ -1,0 +1,34 @@
+name: Bug
+description: Algo no jogo não funciona como deveria
+labels: [bug]
+body:
+  - type: textarea
+    id: oque
+    attributes:
+      label: O que aconteceu
+      description: E o que você esperava que acontecesse.
+    validations:
+      required: true
+  - type: textarea
+    id: repetir
+    attributes:
+      label: Como repetir
+      description: Passo a passo (modo, arena, magia, número de bots…).
+      placeholder: |
+        1. Criei uma sala com 3 bots
+        2. Comprei o Raio
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: onde
+    attributes:
+      label: Onde
+      description: Navegador e aparelho (ex.: Chrome no PC, Safari no iPhone).
+    validations:
+      required: true
+  - type: textarea
+    id: prints
+    attributes:
+      label: Prints ou vídeo
+      description: Arraste as imagens aqui.

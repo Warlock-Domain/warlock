@@ -1,9 +1,9 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
 import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
-import type { ArenaId } from '../shared/arena.ts';
+import { ARENA_IDS, type ArenaId } from '../shared/arena.ts';
 import { type CharacterId } from '../shared/characters.ts';
-import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Vote } from '../shared/match.ts';
+import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Sandbox, type SandboxCmd, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
@@ -16,7 +16,7 @@ import { SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rule
 import { BAD_STATUS, ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, icon, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
-import { botSetupPanel, savedBotSetup } from './train.ts';
+import { SANDBOX_BOT, botSetupPanel, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
@@ -73,7 +73,10 @@ function trainBlock(onTrain: (kind: string) => void) {
     el('div', { class: 'train-btns' },
       el('button', { type: 'button', class: 'train', onclick: () => onTrain('train') }, icon(UI_ICON.aim), ' ' + t('Treinar sozinho com bots', 'Practice solo with bots'), el('small', {}, t('3 bots e dicas nas primeiras rodadas', '3 bots and tips in the first rounds'))),
       el('button', { type: 'button', class: 'train', disabled: !skill, onclick: () => skill && onTrain('shadow') },
-        icon(UI_ICON.person), ' ' + t('Treinar contra a sua sombra', 'Practice against your shadow'), el('small', {}, skill ? t('1 bot que joga como você', '1 bot that plays like you') : t('jogue 3 rodadas para a sombra aprender', 'play 3 rounds for the shadow to learn')))),
+        icon(UI_ICON.person), ' ' + t('Treinar contra a sua sombra', 'Practice against your shadow'), el('small', {}, skill ? t('1 bot que joga como você', '1 bot that plays like you') : t('jogue 3 rodadas para a sombra aprender', 'play 3 rounds for the shadow to learn'))),
+      // sandbox (pedido do Fernando, 19/10): para testar todas as magias e interações; quem tiver o link entra junto
+      el('button', { type: 'button', class: 'train', onclick: () => onTrain('sandbox') }, icon(UI_ICON.bot), ' ' + t('Sandbox (testar tudo)', 'Sandbox (test everything)'),
+        el('small', {}, t('vida e ouro sem fim, loja a qualquer hora, bots no painel', 'endless health and gold, shop any time, bots in the panel')))),
     botSetupPanel(3, savedBotSetup(), () => {}),
     // desafios curtos: cada um com o recorde deste navegador
     el('details', { class: 'match-opts', open: challengesOpen, ontoggle: (e: Event) => (challengesOpen = (e.target as HTMLDetailsElement).open) },
@@ -236,6 +239,8 @@ type RoomActions = {
   replay: () => void; // liga ou desliga o replay da queda
   name: () => string; // apelido atual e a troca (aba Jogador das configurações)
   rename: () => void;
+  sandbox: (cmd: SandboxCmd) => void; // painel da sandbox
+  seeInvis: (on: boolean) => void; // sandbox: invisíveis meio transparentes (só nesta tela)
 };
 
 type Level = MatchOpts['difficulty'];
@@ -497,7 +502,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // painéis do topo: abrir um fecha os outros (pedido do Fernando, 18/10); solo(null) fecha todos (Esc, menu de configurações)
   function solo(p: HTMLElement | null) {
     if (p?.hidden) return;
-    for (const [q, b] of [[votePanel, voteBtn], [tauntPanel, null], [sheetPanel, sheetBtn], [peekPanel, peekBtn], [morePanel, moreBtn]] as [HTMLElement, HTMLElement | null][]) {
+    for (const [q, b] of [[votePanel, voteBtn], [tauntPanel, null], [sheetPanel, sheetBtn], [peekPanel, peekBtn], [morePanel, moreBtn], [sbPanel, sbBtn]] as [HTMLElement, HTMLElement | null][]) {
       if (q === p || q.hidden) continue;
       q.hidden = true;
       b?.setAttribute('aria-expanded', 'false');
@@ -554,7 +559,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       // o número não pode também usar o item da mesma tecla
       e.preventDefault();
       e.stopImmediatePropagation();
-    } else if (e.code === 'Escape' && [votePanel, tauntPanel, sheetPanel, morePanel].some((p) => !p.hidden)) {
+    } else if (e.code === 'Escape' && [votePanel, tauntPanel, sheetPanel, morePanel, sbPanel].some((p) => !p.hidden)) {
       // fechou um painel: este Esc não abre as configurações
       e.preventDefault();
       solo(null);
@@ -601,6 +606,62 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       togglePeek(false);
     }
   });
+  // sandbox: painel só nas salas sandbox, aberto pelo botão no topo (no celular também); montado uma vez, a sala só acerta o estado
+  const sbPanel = el('div', { class: 'vol-panel sandbox-panel', hidden: true });
+  const sbBtn = el('button', { type: 'button', class: 'vote-btn', hidden: true, 'aria-expanded': 'false', title: t('Painel da sandbox', 'Sandbox panel'), 'aria-label': t('Painel da sandbox', 'Sandbox panel'), onclick: () => toggle(sbPanel, sbBtn) },
+    icon(UI_ICON.bot), el('span', { class: 'vote-label' }, ' Sandbox'));
+  const sbChecks = new Map<keyof Sandbox, HTMLInputElement>();
+  const check = (label: string, on: boolean, change: (on: boolean) => void) => {
+    const box = el('input', { type: 'checkbox', checked: on, onchange: (e: Event) => change((e.target as HTMLInputElement).checked) }) as HTMLInputElement;
+    return { row: el('label', { class: 'sandbox-check' }, box, ' ' + label), box };
+  };
+  const rule = (key: keyof Sandbox, label: string) => {
+    const { row, box } = check(label, false, (on) => act.sandbox({ op: 'set', key, on }));
+    sbChecks.set(key, box);
+    return row;
+  };
+  let sbLevel: Level = 'normal';
+  // bot com a dificuldade escolhida e as magias marcadas abaixo (sem nenhuma, compra sozinho)
+  const addBot = (dummy: boolean) => {
+    const spells = savedBotSetup(SANDBOX_BOT)[0]?.spells;
+    act.sandbox({ op: 'bot', bot: { difficulty: sbLevel, ...(spells && { spells }) }, ...(dummy && { dummy: true }) });
+  };
+  const sbBots = el('ul', { class: 'sandbox-bots' });
+  const sbArena = el('select', { 'aria-label': t('Arena', 'Arena'), onchange: (e: Event) => act.sandbox({ op: 'arena', arena: (e.target as HTMLSelectElement).value as ArenaId }) },
+    ...ARENA_IDS.map((a) => el('option', { value: a }, arenaName(a)))) as HTMLSelectElement;
+  sbPanel.append(
+    el('b', {}, 'Sandbox'),
+    el('small', { class: 'muted' }, t('Nada daqui conta nos dados do jogo.', 'Nothing here counts toward the game data.')),
+    rule('god', t('Vida infinita', 'Infinite health')),
+    rule('noCd', t('Sem recarga', 'No cooldowns')),
+    rule('shrink', t('Encolher a arena', 'Shrink the arena')),
+    check(t('Ver invisíveis', 'See invisible wizards'), true, act.seeInvis).row,
+    el('div', { class: 'sandbox-row' },
+      el('select', { 'aria-label': t('Dificuldade do bot', 'Bot difficulty'), onchange: (e: Event) => (sbLevel = (e.target as HTMLSelectElement).value as Level) },
+        ...(['easy', 'normal', 'hard'] as const).map((k) => el('option', { value: k, selected: k === sbLevel }, SKILL_NAME[k]))),
+      el('button', { type: 'button', onclick: () => addBot(false) }, t('+ Bot', '+ Bot'))),
+    el('button', { type: 'button', title: t('Bot que não anda nem atira: bom para testar dano e empurrão', 'A bot that neither moves nor shoots: good for testing damage and knockback'), onclick: () => addBot(true) }, t('+ Boneco parado', '+ Training dummy')),
+    botSetupPanel(1, savedBotSetup(SANDBOX_BOT), () => {}, SANDBOX_BOT),
+    sbBots,
+    el('label', { class: 'sandbox-row' }, t('Arena', 'Arena'), sbArena),
+    el('button', { type: 'button', onclick: () => act.sandbox({ op: 'restart' }) }, t('Reiniciar a rodada', 'Restart the round')));
+  let sbSig = '';
+  function drawSandbox(r: PublicRoom) {
+    sbBtn.hidden = !r.sandbox || !PEEK_PHASES.includes(r.phase);
+    if (!r.sandbox || sbBtn.hidden) {
+      if (!sbPanel.hidden) toggle(sbPanel, sbBtn, false);
+      return;
+    }
+    for (const [k, box] of sbChecks) box.checked = r.sandbox[k];
+    if (r.arena && document.activeElement !== sbArena) sbArena.value = r.arena;
+    // lista dos bots com o ✕ (tirar): só redesenha quando muda
+    const bots = r.players.filter((p) => p.bot);
+    const sig = bots.map((p) => `${p.id}:${p.name}:${p.difficulty}:${p.dummy}`).join();
+    if (sig === sbSig) return;
+    sbSig = sig;
+    sbBots.replaceChildren(...bots.map((p) => el('li', {}, el('span', {}, `${p.name} · ${p.dummy ? t('boneco', 'dummy') : SKILL_NAME[p.difficulty ?? 'normal']}`),
+      el('button', { type: 'button', class: 'icon', title: t(`Tirar ${p.name}`, `Remove ${p.name}`), 'aria-label': t(`Tirar ${p.name}`, `Remove ${p.name}`), onclick: () => act.kick(p.id) }, '✕'))));
+  }
   const helpBtn = el('button', { type: 'button', class: 'icon wide-only', onclick: showRules }, icon(UI_ICON.help));
   // celular: configurações, som, provocações e ajuda moram no "⋯" (style.css, .wide-only); ficam à vista loja, placar, ficha e votar
   const morePanel = el('div', { class: 'vol-panel more-panel', hidden: true },
@@ -630,7 +691,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const top = el('div', { class: 'hud-top' },
     el('button', { type: 'button', class: 'code', title: t('Copiar link da sala', 'Copy room link'), 'aria-label': t(`Sala ${code}: copiar link`, `Room ${code}: copy link`), onclick: () => copyLink() }, status, ' ', code, ping),
     roundEl,
-    el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, volBtn, gearBtn, helpBtn, el('div', { class: 'vol more-wrap' }, moreBtn, morePanel)),
+    el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, volBtn, gearBtn, helpBtn, el('div', { class: 'vol more-wrap' }, moreBtn, morePanel), el('div', { class: 'vol' }, sbBtn, sbPanel)),
   );
   const center = el('div', { class: 'center' });
   // a janela da loja pode ser alargada pela alça do canto (PC); o tamanho fica salvo neste navegador (pedido do Fernando, 18/10)
@@ -957,7 +1018,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   // peek: a loja só para ver no meio da rodada (sem comprar, vender nem Pronto); morto nas Rodadas e nos Times ela vale de verdade
   function shopPanel(r: PublicRoom, look = false) {
-    const peek = look && !deadShop;
+    const peek = look && !deadShop && !r.sandbox;
     const mine = r.players.find((p) => p.id === me);
     // desfazer: só o que foi comprado nesta loja (devolve o ouro)
     const undoBtn = (key: string) => (!peek && mine?.bought.includes(key) ? el('button', { type: 'button', class: 'undo', title: t('Desfazer a compra (devolve o ouro)', 'Undo the purchase (refunds the gold)'), 'aria-label': t('Desfazer a compra', 'Undo the purchase'), 'data-key': 'undo-' + key, onclick: () => act.undo(key) }, '↩') : null);
@@ -983,8 +1044,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const cost = o.price === 0 ? t('de graça', 'for free') : t(`por ${o.price} de ouro`, `for ${o.price} gold`);
       const full = o.blocked ?? (o.lvl ? t(`Subir para o nível ${o.lvl + 1} ${cost}`, `Upgrade to level ${o.lvl + 1} ${cost}`) : t(`Comprar ${cost}`, `Buy ${cost}`));
       // ícone quadrado como na loja do Dota (decisão do Fernando, 19/10): tecla no canto, nível em pips e embaixo a moeda e o preço
-      // (vermelho quando o ouro não dá); nome e o que faz ficam na dica
-      const face = [o.hotkey !== null ? el('span', { class: 'key' }, o.hotkey) : null, el('span', { class: 'ico' }, icon(o.ico)), el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
+      // (vermelho quando o ouro não dá); o nome vai dentro do cartão (Fernando, 19/10) e o que faz fica na dica
+      const face = [o.hotkey !== null ? el('span', { class: 'key' }, o.hotkey) : null, el('span', { class: 'ico' }, icon(o.ico)), el('span', { class: 'tile-name' }, o.name), el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
         el('span', { class: 'tile-price' + (o.blocked ? ' off' : can ? ' can' : ' cant') }, ...(o.blocked ? [o.blocked] : [o.lvl ? t(`Nv ${o.lvl + 1} `, `Lv ${o.lvl + 1} `) : '', icon(UI_ICON.gold), o.price === 0 ? t(' grátis', ' free') : ` ${o.price}`]))];
       // clique compra; clique direito também (como no Dota); só ver: o ícone não compra
       return withTip(el('div', { class: 'shop-item' + (o.key.startsWith('item') ? ' is-item' : '') + (o.lvl ? ' owned' : '') + (can && !peek ? ' can' : '') + (o.blocked && !o.lvl ? ' locked' : ''), 'data-name': norm(o.name),
@@ -1028,7 +1089,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       group(t('Itens passivos', 'Passive items'), itemCount, ITEM_IDS.filter((i): boolean => !isActive(i)).map(itemOffer)),
       group(t('Itens ativos', 'Active items'), t('cada um com a sua tecla', 'each with its own key'), ACTIVE_ITEMS.map(itemOffer)));
     if (look) return filterShop(el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
-      el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
+      el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.sandbox ? t('Loja · sandbox', 'Shop · sandbox') : deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${r.sandbox ? 'ouro sem fim: compre e venda, vale na hora' : deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${r.sandbox ? 'endless gold: buy and sell, it applies right away' : deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
         el('button', { type: 'button', class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`), 'aria-label': t('Fechar a loja', 'Close the shop'), onclick: () => togglePeek(false) }, '✕')),
       shopSearch(),
       ...grid),
@@ -1276,9 +1337,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       peekBtn.hidden = !PEEK_PHASES.includes(r.phase);
       if (!peekPanel.hidden && !PEEK_PHASES.includes(r.phase)) togglePeek(false);
       else drawPeek();
+      drawSandbox(r);
       roundEl.textContent = [
         // sala de espera e fim da partida: a rodada já não diz nada
-        r.round > 0 && r.phase !== 'lobby' && r.phase !== 'end' ? (r.mode === 'deathmatch' ? t(`Deathmatch · rodada ${r.round} · ${r.goal} abates para vencer`, `Deathmatch · round ${r.round} · ${r.goal} kills to win`) : t(`${r.mode === 'teams' ? 'Times · ' : ''}Rodada ${r.round} · vence quem fizer ${r.goal}`, `${r.mode === 'teams' ? 'Teams · ' : ''}Round ${r.round} · first to ${r.goal} wins`)) : '',
+        r.sandbox && r.phase !== 'lobby' && r.phase !== 'end' ? t('Sandbox · vida e ouro sem fim', 'Sandbox · endless health and gold')
+          : r.round > 0 && r.phase !== 'lobby' && r.phase !== 'end' ? (r.mode === 'deathmatch' ? t(`Deathmatch · rodada ${r.round} · ${r.goal} abates para vencer`, `Deathmatch · round ${r.round} · ${r.goal} kills to win`) : t(`${r.mode === 'teams' ? 'Times · ' : ''}Rodada ${r.round} · vence quem fizer ${r.goal}`, `${r.mode === 'teams' ? 'Teams · ' : ''}Round ${r.round} · first to ${r.goal} wins`)) : '',
         r.pendingMode && r.phase !== 'end' ? t(`Próxima rodada: ${MODE_NAME[r.pendingMode]}`, `Next round: ${MODE_NAME[r.pendingMode]}`) : '',
         r.pendingShuffle !== null && r.phase !== 'end' ? t(`Próxima rodada: times ${SHUFFLE_NAME(r.pendingShuffle)}`, `Next round: teams ${SHUFFLE_NAME(r.pendingShuffle)}`) : '',
       ].filter(Boolean).join(' · ');

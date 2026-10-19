@@ -61,7 +61,8 @@ export const SELL_FLOOR = 0.75;
 // baú de ouro no meio da rodada (pedidos do Fernando, 17/10: "incentivar a treta"): aparece a cada 15 s, as magias quebram
 // (vida em OBSTACLES.chest) e ele vira um monte de ouro; quem fica em cima ganha 1 a cada 2 s até o monte (10) acabar; sair zera o progresso
 // primeiro aos 8 s, depois um a cada 12 s mesmo que o anterior não tenha sido quebrado, até 2 baús de pé (Fernando, 17/10: "não aparece mais baú")
-export const CHEST = { first: 8, every: 12, maxUp: 2, pile: 10, goldEvery: 2, reach: 0.75, pileSecs: 45, spread: 0.6 };
+// perRound: no máximo metade dos magos + 1 baús por rodada, nunca mais que 3 (Fernando, 19/10: "muitos baús nos rounds")
+export const CHEST = { first: 8, every: 12, maxUp: 2, perRound: 3, pile: 10, goldEvery: 2, reach: 0.75, pileSecs: 45, spread: 0.6 };
 // chão depois do choque de projéteis (pedido do Fernando, 17/10): fogo queima, arcano deixa lento, pulso puxa para o centro
 export const ZONES = { burn: { dps: 20, secs: 4.5 }, slow: { mult: 0.6, secs: 4.5 }, pull: { speed: 2.2, secs: 3 }, size: 0.75 };
 // assistência: quem causou mais dano em quem morreu, sem ser quem matou (anti-roubo de abate do Warlock original, versão 082)

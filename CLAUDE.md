@@ -44,15 +44,43 @@ npx vite build                      # build do cliente (dist/)
 - **Protocolo é fronteira de confiança:** toda mensagem nova é validada em `parseClientMessage` (tipos, limites, chaves conhecidas).
 - **Celular continua usável:** confira as media queries (≤ 600 px e `pointer: coarse`) a cada mudança de interface.
 
-## Fluxo de contribuição
+## Decisões de produto (não desfazer sem combinar numa issue)
 
-- Guia completo do colaborador: [Warlock Wars: guia do colaborador](https://claude.ai/artifact/KojJ4UEYu1Esg5RHxETkkM). Esta seção resume as regras que afetam o trabalho diário.
-- Para funcionalidade nova, primeiro descreva a ideia numa issue e combine o escopo com Fernando. Prefira uma tarefa pequena; peça alinhamento antes de mudanças grandes em `ui.ts`, `sim.ts` ou na loja.
-- Trabalhe numa branch focada criada a partir de `master`, com nome `tipo/assunto` (por exemplo, `fix/loja-celular`). Não faça push direto em `master` nem force push.
-- Commits e títulos de PR seguem `tipo: descrição em português` (`feat`, `fix`, `balance`, `style`, `refactor`, `docs`, `ci` ou `test`). O título do PR deve corresponder a um commit.
-- A descrição do PR informa por quê, o que mudou, como foi testado e inclui prints antes/depois para alterações visuais e medições para balanceamento; vincule a issue quando houver.
-- Antes de pedir revisão, rode os dois typechecks, a suíte Vitest e o build. O CI deve ficar verde e uma pessoa mantenedora aprova e faz o merge. Depois que a revisão começar, acrescente commits em vez de reescrever o histórico.
-- Para o fluxo deste trabalho com Codex, publique a branch e abra a PR para revisão; a aprovação e o merge ficam a cargo de Fernando.
+- Menu principal com 5 abas: Jogar · Magias e itens · Aprender · Personagem · Configurações. Menus enxutos.
+- Loja em grade com o nome dentro do ícone e preço com moeda; cores por grupo (Ataque vermelho-laranja, Mobilidade verde, Defesa azul, Controle roxo, Itens prateado); 10 magias de ataque e 5 de cada outro grupo.
+- Sala sem opção de ritmo nem de morte súbita (sempre ligada); dificuldade escolhida bot a bot.
+- Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3. Escudo com recarga de 16 s. Drenar só muda depois de partidas reais. Ataques fortes e raros (não encurtar recargas).
+- Recusados: ranking/perfil e itens que só ajudam uma magia específica.
+
+## Registro de decisões do Fernando
+
+Toda decisão nova entra aqui (data, decisão, porquê) e, se mudar o jeito de codar, no `CLAUDE.md` da pasta afetada, no mesmo PR da mudança. Cada pasta principal tem o seu (`src/shared`, `src/client`, `src/worker`, `scripts`, `tests`) com os padrões de código daquela área; o `AGENTS.md` de cada pasta aponta para ele.
+
+| Data | Decisão | Por quê |
+|---|---|---|
+| 17/10 | Câmera de cima em 3D, controles do Dota (botão direito anda); 1 ponto por rodada, vence quem fizer 5 | igual ao Warlock original, público de Dota |
+| 18/10 | Repositório público | amigos contribuírem |
+| 18/10 | Recusados: ranking/perfil e itens que só ajudam uma magia (ex.: Cajado de fogo) | foco no jogo, build livre |
+| 18/10 | Número de magia/item só muda depois de medido no simulador; justo no Normal **e** no Difícil (0,85 a 1,15); metas de rodada 60–120 s e ≥ 60% das mortes por golpe | balanceamento por dado, não por opinião |
+| 18/10 | Bots em 3 dificuldades | jogar sozinho em qualquer nível |
+| 19/10 | Sai Gêmeos, entra Ilusão: 10 magias de ataque, 5 de mobilidade, 5 de defesa, 5 de controle | grupos equilibrados |
+| 19/10 | Escudo com recarga 16 s; Drenar espera partidas reais; Ilusão fica como está | resultado do torneio de compras |
+| 19/10 | Balanceamento continua tendo a Bola de fogo como referência | todos têm de graça |
+| 19/10 | Menu inicial com 5 abas; menus enxutos; loja em grade estilo Dota com cor por grupo; magias e itens numa tela de consulta (F2) | público de Dota, menos coisa na tela |
+| 19/10 | Sala sem opção de ritmo (sempre Normal) nem de morte súbita (sempre ligada); dificuldade escolhida bot a bot | menos opção que ninguém entendia |
+| 19/10 | Criador de personagem de 7 peças, com os 9 bonecos originais como atalho; troca até no meio da partida | visual próprio sem poluir a sala |
+| 19/10 | Rocha vira **Barricada** | nome mais claro |
+| 19/10 | Jogo em português e inglês | amigos de fora |
+| 19/10 | Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3 | baú demais por rodada |
+| 19/10 | Sandbox no Treino (vida e ouro sem fim, bots e boneco pelo painel) | testar magias e interações |
+| 19/10 | `master` protegido (PR + CI + aprovação); revisão automática do Claude em todo PR; ambiente `<nome>-dev` por colaborador; guia do colaborador no repositório | entrada de colaboradores |
+| 19/10 | Os `CLAUDE.md` (raiz e pastas) são atualizados a cada decisão nova | todo dev com o mesmo contexto do dono |
+
+## Fluxo com agente
+
+Skills (plugins `superpowers@claude-plugins-official` e `ponytail@ponytail`): brainstorming antes de coisa nova → writing-plans para vários passos → TDD em `src/shared` → systematic-debugging antes de corrigir bug → verification-before-completion antes de dizer pronto → `/ponytail-review` no diff antes do PR. Guia completo do colaborador (máquina, prompts, testes, problemas comuns): [docs/GUIA-COLABORADOR.md](docs/GUIA-COLABORADOR.md).
+
+Armadilhas: depois de `vite build`, reinicie o `wrangler dev` (senão página branca/404); trabalhe em branch deste repositório, não em fork (em fork o CI espera aprovação manual e a revisão automática não roda); push em `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffdev.com`.
 
 ## Balanceamento (como se decide número de magia e item)
 
@@ -64,7 +92,11 @@ npx vite build                      # build do cliente (dist/)
 
 ## Testar no navegador
 
-Prints com Playwright headless contra `npx wrangler dev`; confira PC (1280×720 e 1920×1080) e celular (390×844) e as duas línguas (`localStorage.warlock:lang = 'pt' | 'en'`). `node scripts/smoke.mjs <url>` faz o teste rápido de uma sala de verdade.
+Prints com Playwright headless contra `npx wrangler dev`; confira PC (1280×720 e 1920×1080) e celular (390×844) e as duas línguas (`localStorage.warlock:lang = 'pt' | 'en'`). `node scripts/smoke.mjs <url>` faz o teste rápido de uma sala de verdade. Scripts prontos: `node scripts/play-headless.mjs <url> <pasta-prints>` (uma rodada com prints), `long-headless.mjs`, `multi-headless.mjs` (3 pessoas). Usam o Chrome instalado (`PW_CHANNEL=chromium` para o Chromium do Playwright, depois de `npx playwright-core install chromium`) e um perfil temporário (`PW_PROFILE=<pasta>` para um fixo).
+
+## Git
+
+Fluxo completo em [CONTRIBUTING.md](CONTRIBUTING.md): uma branch por tarefa a partir do `master` (`feat/`, `fix/`, `balance/`, `style/`, `docs/`, `refactor/`), commits em português com o tipo na frente (`feat: …`), pull request com o modelo de `.github/`, CI verde (`.github/workflows/ci.yml`: os dois `tsc`, `vitest`, `vite build`) e *squash and merge*. Agente: nunca dê push direto no `master` sem o dono pedir; abra PR.
 
 ## Publicar
 

@@ -10,10 +10,10 @@ page.on('pageerror', (e) => logs.push('pageerror: ' + e.message));
 page.on('console', (m) => m.type() === 'error' && logs.push(m.text()));
 try {
   const { id } = await (await fetch(base + '/api/rooms', { method: 'POST' })).json();
-  await page.addInitScript(() => localStorage.setItem('warlock:name:pw', 'Fernando'));
+  await page.addInitScript(() => { localStorage.setItem('warlock:lang', 'pt'); localStorage.setItem('warlock:name:pw', 'Fernando'); });
   await page.goto(base + '/?as=pw#' + id);
   await page.getByRole('button', { name: 'Começar partida' }).click();
-  await page.getByRole('button', { name: 'Pronto' }).click();
+  await page.getByRole('button', { name: /^Pronto/ }).click();
   const seen = new Set();
   const t0 = Date.now();
   while (Date.now() - t0 < 170_000) {
@@ -31,7 +31,7 @@ try {
       console.log(((Date.now() - t0) / 1000).toFixed(0) + 's loja depois da rodada 1:', (await page.locator('.shop-head').first().innerText()).replace(/\n/g, ' '));
       await page.screenshot({ path: `${out}/long-loja.png` });
       console.log('placar:', (await page.locator('.stats-table').first().innerText()).split('\n').join(' | '));
-      await page.getByRole('button', { name: 'Pronto' }).click();
+      await page.getByRole('button', { name: /^Pronto/ }).click();
     }
     if (round.includes('Rodada 2') && timer.startsWith('A arena')) {
       await page.waitForTimeout(1500);

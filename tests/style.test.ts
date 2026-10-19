@@ -36,7 +36,7 @@ describe('jeito de jogar', () => {
   // Muda (e se grava de novo) só quando a jogabilidade muda
   it('a medição não muda a partida: mesma semente, mesmos eventos de antes', () => {
     const { m, hash } = botMatch(7, 4000);
-    expect(hash).toBe(1749302879);
+    expect(hash).toBe(3654448480);
     // e mediu de verdade nessa mesma partida
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);
@@ -84,7 +84,7 @@ describe('jeito de jogar', () => {
 
   it('Difícil reage mais rápido e a mais ameaças que o Fácil', () => {
     const style = (difficulty: 'easy' | 'hard') => {
-      const { m } = botMatch(11, 60 * 180, { difficulty });
+      const { m } = botMatch(11, 60 * 600, { difficulty });
       const s = (k: 'threats' | 'reactSum' | 'reactN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
       return { react: s('reactSum') / s('reactN'), reacted: s('reactN') / s('threats') };
     };

@@ -10,20 +10,19 @@ page.on('console', (m) => (m.type() === 'error' || m.type() === 'warning') && lo
 page.on('pageerror', (e) => logs.push('pageerror: ' + e.message));
 try {
   const { id } = await (await fetch(base + '/api/rooms', { method: 'POST' })).json();
-  await page.addInitScript(() => localStorage.setItem('warlock:name:pw', 'Fernando'));
+  await page.addInitScript(() => { localStorage.setItem('warlock:lang', 'pt'); localStorage.setItem('warlock:name:pw', 'Fernando'); });
   await page.goto(base + '/?as=pw#' + id);
-  await page.getByRole('button', { name: 'Esqueleto guerreiro' }).click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: out + '/0-sala.png' });
   await page.getByRole('button', { name: 'Começar partida' }).click();
-  await page.getByRole('button', { name: /^Comprar/ }).first().click();
+  await page.locator('.shop-main .shop-item').nth(1).click(); // compra a segunda magia da grade
   await page.waitForTimeout(400);
-  await page.getByRole('button', { name: /^Comprar/ }).nth(3).click().catch(() => {});
+  await page.locator('.shop-main .shop-item').nth(3).click().catch(() => {});
   await page.waitForTimeout(300);
   await page.locator('.shop-item').first().hover();
   await page.waitForTimeout(200);
   await page.screenshot({ path: out + '/1-loja.png' });
-  await page.getByRole('button', { name: 'Pronto' }).click();
+  await page.getByRole('button', { name: /^Pronto/ }).click();
   await page.waitForTimeout(1500);
   await page.screenshot({ path: out + '/2-contagem.png' });
   await page.waitForTimeout(2200);
