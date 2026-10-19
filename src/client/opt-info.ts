@@ -52,6 +52,7 @@ export const MODE_INFO = () => list([
   t('Rodadas: o último vivo ganha a rodada e 1 ponto.', 'Rounds: the last one alive wins the round and 1 point.'),
   t(`Deathmatch: rodadas de ${s(DM_ROUND_MS)}, quem cai volta em ${DM_RESPAWN} s; cada abate vale 1 ponto.`, `Deathmatch: ${s(DM_ROUND_MS)} rounds, whoever falls comes back after ${DM_RESPAWN} s; each kill is worth 1 point.`),
   t('Times: Azul contra Vermelho; a rodada acaba quando só sobra um time e todos dele pontuam. Magia em aliado só empurra.', 'Teams: Blue vs. Red; the round ends when only one team is left and all of them score. Spells on allies only knock back.'),
+  t('Campanha: de 1 a 4 jogadores juntos contra os servos do Fumo, clareira a clareira, sem ouro. Se todos caírem, a noite recomeça com outro mapa.', 'Campaign: 1 to 4 players together against the servants of the Smoke, clearing by clearing, with no gold. If everyone falls, the night starts over on another map.'),
 ]);
 
 // um balão aberto por vez

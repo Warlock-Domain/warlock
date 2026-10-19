@@ -1,6 +1,7 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
+import { generateStage, type Night, type ServoKind } from './campaign.ts';
 import { isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS } from './constants.ts';
 import { ITEM_IDS, isActive, type ItemId } from './items.ts';
@@ -40,6 +41,8 @@ export type PublicPlayer = {
   spells: Record<SpellId, number>; items: Record<ItemId, number>; stats: Stats; bought: string[]; held: Record<string, number[]>; ready: boolean; connected: boolean; team: number | null;
   difficulty?: MatchOpts['difficulty']; // só bots: a dificuldade dele
   dummy?: true; // sandbox: boneco parado
+  servo?: ServoKind; // Campanha: vaga do Fumo e o tipo de servo da onda
+  hpMax?: number; // vida máxima quando não é a de sempre (servos)
 };
 
 export type PublicRoom = {
@@ -64,6 +67,8 @@ export type PublicRoom = {
   goal: number; // pontos para vencer no modo atual (rodadas; abates no Deathmatch)
   arena: ArenaId | null; // formato da arena desta rodada (null sem rodada)
   sandbox?: Sandbox; // só nas salas sandbox: as regras ligadas
+  // só na Campanha: estágio, clareira e onda atuais (contando de 0), quantas existem e como a noite acabou
+  night?: { stage: number; clearing: number; clearings: number; wave: number; waves: number; result: Night['result'] };
 };
 
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits de estado (ver encodeSnap)
@@ -231,7 +236,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     mode: m.mode,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }) })),
+    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy, servo, hpMax }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }), ...(servo && { servo }), ...(hpMax && { hpMax }) })),
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),
@@ -254,5 +259,13 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     goal: goalOf(m),
     arena: m.world?.arena ?? null,
     ...(m.sandbox && { sandbox: m.sandbox }),
+    ...(m.night && { night: publicNight(m.night) }),
   };
+}
+
+function publicNight(n: Night): NonNullable<PublicRoom['night']> {
+  const stage = generateStage(n.seed, n.stage);
+  // depois da última clareira (noite vencida) o índice passa do fim: mostra a última
+  const c = stage[Math.min(n.clearing, stage.length - 1)];
+  return { stage: n.stage, clearing: n.clearing, clearings: stage.length, wave: n.wave, waves: c.waves.length, result: n.result };
 }

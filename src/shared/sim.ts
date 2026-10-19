@@ -1400,8 +1400,12 @@ function separate(w: World) {
 }
 
 // volta ao jogo no deathmatch: sorteia um ponto na pedra longe dos inimigos vivos e dos pilares (se nenhum
-// sorteio chega a DM_SPAWN_GAP, fica o melhor); vida cheia, parado e invulnerável; magias, itens e recargas ficam
+// sorteio chega a DM_SPAWN_GAP, fica o melhor)
 function respawn(w: World, wz: Wizard, rand: () => number) {
+  revive(w, wz, spawnSpot(w, wz, rand));
+}
+
+function spawnSpot(w: World, wz: Wizard, rand: () => number): Vec {
   const reach = w.arenaR * SHAPES[w.arena].reach - SPAWN_INSET;
   const gap = (p: Vec) => Math.min(...w.wizards.filter((z) => z.alive).map((z) => dist(z.pos, p)), ...w.pillars.filter((q) => q.alive).map((q) => dist(q.pos, p)));
   // sem sorteio bom (fora da pedra), volta onde nasceu
@@ -1415,8 +1419,13 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
     const g = gap(p);
     if (g > bestGap) [best, bestGap] = [p, g];
   }
+  return best;
+}
+
+// volta vivo em pos (deathmatch e as ondas da Campanha): vida cheia, parado e invulnerável; magias, itens e recargas ficam
+export function revive(w: World, wz: Wizard, pos: Vec) {
   Object.assign(wz, {
-    alive: true, pos: best, vel: v(0, 0), target: null, casting: null, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
+    alive: true, pos, vel: v(0, 0), target: null, casting: null, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
     rune: null, runeUntil: 0,
