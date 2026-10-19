@@ -6,7 +6,9 @@ import { store } from './store.ts';
 import { el } from './ui.ts';
 
 const KEY = 'warlock:botsetup';
-export const savedBotSetup = (): BotSetup[] => store.json<BotSetup[]>(KEY) ?? [];
+// magia que saiu do jogo (o Gêmeos, 19/10) fica de fora: o servidor recusaria o treino inteiro
+export const savedBotSetup = (): BotSetup[] =>
+  (store.json<BotSetup[]>(KEY) ?? []).map((b) => (b?.spells ? { ...b, spells: Object.fromEntries(Object.entries(b.spells).filter(([id]) => (SPELL_IDS as readonly string[]).includes(id))) } : b));
 // algum bot com magias escolhidas; senão o treino vai sem configuração
 export const hasBotSetup = (s: BotSetup[]) => s.some((b) => b?.spells);
 let open = false; // aberto ou fechado sobrevive ao redesenho da sala
