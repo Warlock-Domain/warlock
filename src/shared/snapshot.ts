@@ -31,7 +31,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     // bits: 1 vivo, 2 escudo, 4 lento (chão arcano, Drenar, Bola de neve), 512 queimando (chão de fogo), 8 vulnerável (Redirecionador), 16 atordoado (arremessado), 32 invulnerável, 64 Pacto armado, 128 preso (Agarrar), 256 Investida,
     // 1024 Caminhada no vento (quem anda e os aliados veem), 2048 invisível para quem recebe (o cliente esconde), 4096 acelerado (Drenar, Botas de choque ou de vento),
     // 8192 magnetizado atraindo, 16384 magnetizado repelindo, 32768 Alteração, 65536 preso pelo Elo, 131072 Égide pronta,
-    // runas: 262144 Pressa, 524288 Fúria, 1048576 Escudo de runa (com dano ainda a absorver); 2097152 no redemoinho (mesma conta do puxão em sim.ts)
+    // runas: 262144 Pressa, 524288 Fúria, 1048576 Escudo de runa (com dano ainda a absorver); 2097152 no redemoinho (mesma conta do puxão em sim.ts);
+    // 8388608 velado pela Ilusão (só quem lançou e os aliados veem: para os outros, os dois magos são iguais)
     const hidden = z.id !== forId && !(me && me.team !== null && me.team === z.team);
     const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0)
       | (isSliding(z) ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
@@ -39,7 +40,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
       | (w.t < z.windUntil ? (hidden ? 2048 : 1024) : 0) | (w.t < z.hasteUntil || bootsBonus(w, z) > 0 ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)
       | (w.t < z.alterUntil ? 32768 : 0) | (linked.has(z.id) ? 65536 : 0) | (z.aegis ? 131072 : 0)
       | (w.t < z.runeUntil ? (z.rune === 'haste' ? 262144 : z.rune === 'fury' ? 524288 : z.rune === 'shield' ? 1048576 : z.rune === 'recharge' ? 4194304 : 0) : 0)
-      | (z.alive && w.zones.some((q) => q.kind === 'pull' && dist(q.pos, z.pos) < q.r + WIZ_R) ? 2097152 : 0);
+      | (z.alive && w.zones.some((q) => q.kind === 'pull' && dist(q.pos, z.pos) < q.r + WIZ_R) ? 2097152 : 0)
+      | (w.t < z.veilUntil && !hidden ? 8388608 : 0);
     // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão
     const dash = w.t < z.dashUntil ? z.dashVel : { x: 0, y: 0 };
     wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x + dash.x), r2(z.vel.y + dash.y), Math.ceil(z.hp), r2(z.facing), bits);
@@ -48,10 +50,10 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   }
   const p: number[] = [];
   // o meteoro e a Zona de dobra não andam: no lugar da velocidade vão o raio e os segundos que faltam;
-  // o Elo manda a posição de quem lançou (o cliente desenha o fio até ela)
+  // o Elo manda a posição de quem lançou (o cliente desenha o fio até ela); a cópia da Ilusão, o índice do dono e para onde olha
   for (const q of w.projectiles) {
     const still = q.kind === 'meteor' || q.kind === 'warpzone' ? q.kind : null;
-    const tail = q.kind === 'link' ? w.wizards.find((z) => z.id === q.owner)?.pos : undefined;
+    const tail = q.kind === 'link' ? w.wizards.find((z) => z.id === q.owner)?.pos : q.kind === 'illusion' ? v(w.wizards.findIndex((z) => z.id === q.owner), Math.atan2(q.vel.y, q.vel.x)) : undefined;
     const a = still ? spellLevel(still, q.level).radius : (tail ?? q.vel).x;
     const b = still ? Math.max(0, q.until - w.t) : (tail ?? q.vel).y;
     p.push(q.id, PROJ_KINDS.indexOf(q.kind), r2(q.pos.x), r2(q.pos.y), r2(a), r2(b));
@@ -76,7 +78,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
 }
 
 export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number; rushLeft?: number };
-// meteor e warpzone: vel = (raio, segundos que faltam); link: vel = posição de quem lançou
+// meteor e warpzone: vel = (raio, segundos que faltam); link: vel = posição de quem lançou; illusion: vel = (índice do dono, para onde olha)
 export type ProjView = { id: number; kind: ProjKind; pos: Vec; vel: Vec };
 export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
 export type RuneView = { pos: Vec; kind: RuneKind };

@@ -39,8 +39,8 @@ export function randomPlan(rand: () => number): BotPlan {
 
 // combinação que funciona (Normal e Difícil, 18/10): 1 ou 2 magias de dano, 1 de fuga ou defesa, às vezes 1 de controle,
 // e 1 ou 2 itens úteis; tudo sorteado dentro de cada grupo para os bots não ficarem iguais
-const DAMAGE: SpellId[] = ['lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'twin', 'snowball', 'drain', 'splitter', 'gravity', 'thrust'];
-const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration', 'warpzone', 'rockpillar'];
+const DAMAGE: SpellId[] = ['lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'snowball', 'drain', 'splitter', 'gravity', 'thrust'];
+const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration', 'warpzone', 'rockpillar', 'illusion'];
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize'];
 const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden', 'pact'];
 export function smartPlan(rand: () => number): BotPlan {
@@ -125,14 +125,18 @@ type Mind = {
 const minds = new WeakMap<World, Mind>();
 const mind = (w: World): Mind =>
   minds.get(w) ?? minds.set(w, { seen: new Map(), opened: new Map(), usable: new Map(), frozen: new Map(), idle: new Map(), last: new Map(), route: new Map() }).get(w)!;
+// a cópia da Ilusão vista pelos bots: um mago com id próprio (a mira segue o caminho dela, não o do dono)
+const decoyId = (p: Projectile) => p.owner + '~' + p.id;
 // a cada passo da partida: o que os bots enxergam (a mira usa onde o alvo estava um instante atrás)
 export function botWatch(w: World) {
   const seen = mind(w).seen;
-  for (const z of w.wizards) {
-    const h = seen.get(z.id) ?? seen.set(z.id, []).get(z.id)!;
-    h.push({ t: w.t, pos: v(z.pos.x, z.pos.y) });
+  const keep = (id: string, pos: Vec) => {
+    const h = seen.get(id) ?? seen.set(id, []).get(id)!;
+    h.push({ t: w.t, pos: v(pos.x, pos.y) });
     while (h[0].t < w.t - 1) h.shift();
-  }
+  };
+  for (const z of w.wizards) keep(z.id, z.pos);
+  for (const p of w.projectiles) if (p.kind === 'illusion') keep(decoyId(p), p.pos);
 }
 
 export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = BOT_SKILL.normal, scores: Record<string, number> = {}): Cmd[] {
@@ -185,8 +189,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   for (const p of w.projectiles) {
     if (!seen(p)) continue;
     const owner = w.wizards.find((z) => z.id === p.owner);
-    // não ameaçam: Gravidade (só puxa), Zona de dobra (parada), cura do Drenar e volta da Recarga, Elo já preso
-    if ((owner && ally(owner)) || p.kind === 'gravity' || p.kind === 'warpzone' || (p.back && (p.kind === 'drain' || p.kind === 'recharge'))) continue;
+    // não ameaçam: Gravidade (só puxa), Zona de dobra (parada), cópia da Ilusão, cura do Drenar e volta da Recarga, Elo já preso
+    if ((owner && ally(owner)) || p.kind === 'gravity' || p.kind === 'warpzone' || p.kind === 'illusion' || (p.back && (p.kind === 'drain' || p.kind === 'recharge'))) continue;
     if (p.kind === 'link' && (p.target || p.pillar !== undefined)) continue;
     if (p.kind === 'meteor') {
       if (dist(p.pos, me.pos) < spellLevel('meteor', p.level).radius + WIZ_R && p.until - w.t < tHit) [threat, tHit] = [p, p.until - w.t];
@@ -212,6 +216,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     // reação humana: o escudo não sobe sempre nem no último instante (o bot perfeito inflava o Escudo para 1,89×); com o tempo de reação
     // (18/10) o tiro de perto já passa sem ser visto, então a chance volta a 35% (era 15% sem o tempo de reação)
     if (!meteor && !winding && ready('shield') && tHit > 0.15 && tHit < 0.5 && rand() < D.shield) return cast('shield', me.pos);
+    // Ilusão (mesma chance do Escudo): a cópia anda para o tiro e o pega no lugar do bot, que sai de lado
+    if (!meteor && !winding && ready('illusion') && tHit > 0.15 && tHit < 0.5 && rand() < D.shield) return (cast('illusion', threat.pos), cmds.push({ id, kind: 'move', to: add(me.pos, scale(away, 2)) }), cmds);
     // Alteração: troca de lugar com o projétil quando ele estiver quase chegando
     if (!meteor && !winding && ready('alteration') && tHit < 0.35 && reacts(1)) return cast('alteration', me.pos);
     // Raio derruba o míssil no caminho (metade das vezes: precisa de mira)
@@ -233,8 +239,13 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   const far = !threat && ready('fireball') && w.projectiles.find((p) => p.kind === 'homing' && seen(p) && p.target === id && dot(p.vel, sub(me.pos, p.pos)) > 0 && dist(p.pos, me.pos) > 4 && dist(p.pos, me.pos) < 6.5);
   if (far && reacts(0.3)) return cast('fireball', add(far.pos, scale(far.vel, 0.35)));
 
-  // só vê inimigos a até D.vision; quem está na Caminhada no vento é invisível
-  const foes = w.wizards.filter((z) => z.alive && !ally(z) && w.t >= z.windUntil && dist(z.pos, me.pos) <= D.vision);
+  // só vê inimigos a até D.vision; quem está na Caminhada no vento é invisível e quem lançou a Ilusão some no véu;
+  // a cópia parece o dono (mesma vida e efeitos): o bot não sabe qual é a falsa e fica com a mais perto
+  const decoys = w.projectiles.flatMap((p) => {
+    const o = p.kind === 'illusion' && p.until > w.t ? w.wizards.find((z) => z.id === p.owner && z.alive && !ally(z)) : undefined;
+    return o && dist(p.pos, me.pos) <= D.vision ? [{ ...o, id: decoyId(p), pos: p.pos, vel: v(0, 0) }] : [];
+  });
+  const foes = [...w.wizards.filter((z) => z.alive && !ally(z) && w.t >= z.windUntil && w.t >= z.veilUntil && dist(z.pos, me.pos) <= D.vision), ...decoys];
   const nearest = (zs: Wizard[]) => zs.reduce<Wizard | null>((a, z) => (!a || dist(z.pos, me.pos) < dist(a.pos, me.pos) ? z : a), null);
   // o Difícil caça: quem está fraco, perto da lava ou na frente do placar (a até 8 m); senão, o mais perto
   const top = Math.max(0, ...Object.values(scores));
@@ -347,7 +358,11 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     else if (hitBy && w.t - me.lastHitAt < D.flee) cmds.push({ id, kind: 'move', to: safeInside(w, add(me.pos, scale(norm(sub(me.pos, hitBy.pos)), 3)), D.edge + 0.5) });
     // distância preferida: chega (pelo caminho) ou recua
     else if (enemy && ed > D.range + 1) go(enemy.pos, D.range);
-    else if (enemy && ed < D.range - 1) cmds.push({ id, kind: 'move', to: safeInside(w, add(me.pos, scale(norm(sub(me.pos, enemy.pos)), D.range - ed)), D.edge + 0.5) });
+    else if (enemy && ed < D.range - 1) {
+      cmds.push({ id, kind: 'move', to: safeInside(w, add(me.pos, scale(norm(sub(me.pos, enemy.pos)), D.range - ed)), D.edge + 0.5) });
+      // às vezes foge de quem chega perto com a Ilusão: a cópia vai na direção dele enquanto o bot recua
+      if (!winding && ready('illusion') && reacts(0.3)) return cast('illusion', enemy.pos);
+    }
     else if (!enemy) {
       // ninguém à vista: vai procurar onde viu um inimigo por último (até 5 s), senão o inimigo vivo mais perto
       const far = nearest(w.wizards.filter((z) => z.alive && !ally(z)));
@@ -385,7 +400,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
 
   // Redirecionador: projétil próprio passando perto do alvo sem ir na direção dele
   if (itemReady('redirector')) {
-    const mine = w.projectiles.find((p) => p.owner === id && p.kind !== 'meteor' && dist(p.pos, E.pos) < 3.5 && dist(p.pos, E.pos) > 0.5 && dot(norm(p.vel), norm(sub(E.pos, p.pos))) < 0.9);
+    const mine = w.projectiles.find((p) => p.owner === id && p.kind !== 'meteor' && p.kind !== 'illusion' && dist(p.pos, E.pos) < 3.5 && dist(p.pos, E.pos) > 0.5 && dot(norm(p.vel), norm(sub(E.pos, p.pos))) < 0.9);
     if (mine) return use('redirector', seenNow);
   }
 
@@ -395,7 +410,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     if (d < L.range) return cast('drain', lead(L.speed, CAST_POINT.drain));
   }
   // projétil próprio a caminho do alvo (para Magnetizar e Zona de dobra)
-  const incoming = w.projectiles.some((p) => p.owner === id && p.kind !== 'meteor' && p.kind !== 'warpzone' && dist(p.pos, E.pos) < 4 && dot(p.vel, sub(E.pos, p.pos)) > 0);
+  const incoming = w.projectiles.some((p) => p.owner === id && p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'illusion' && dist(p.pos, E.pos) < 4 && dot(p.vel, sub(E.pos, p.pos)) > 0);
   // a lava a até k metros atrás do alvo, na linha do bot até ele
   const lavaBehind = (k: number) => !inside(add(E.pos, scale(dir, k)), 0);
   const slideEnd = add(E.pos, scale(E.vel, 1 / FRICTION));
@@ -451,8 +466,6 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
       prio = !inside(add(me.pos, scale(dir, -3)), 0);
       at = d > 3.5 && d < L.range * 0.9 && (prio || (loaded && edge(w, E.pos) > edge(w, me.pos) - 0.5 && rand() < 0.3)) && !blocked(to) ? to : null;
     }
-    // Gêmeos: as duas curvas encontram-se no ponto, mas o caminho é mais longo que a reta
-    else if (s === 'twin') at = d < L.range ? lead(L.speed * 0.7, cp) : null;
     // Bola de neve: lenta, só de perto
     else if (s === 'snowball') {
       at = d < L.range ? lead(L.speed, cp) : null;

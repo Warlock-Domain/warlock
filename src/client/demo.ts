@@ -37,7 +37,7 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   bouncer: { pos: [v(-3, 0), v(1.5, 0), v(2.5, 1.8)], end: 3, steps: [[0.4, A, 'bouncer', B]] },
   drain: { pos: [v(-3, 0), v(2, 0.6), v(2.6, -1.8)], end: 3.6, steps: [[0.4, A, 'drain', v(1.5, 0)]], prep: (w) => (w.wizards[A].hp = 700) },
   snowball: { pos: [v(-3, 0), v(-0.6, 0.1), v(0.3, -0.5)], end: 3, steps: [[0.4, A, 'snowball', v(1, 0)]] },
-  twin: { end: 3, steps: [[0.4, A, 'twin', B]] },
+  illusion: { end: 2.6, steps: [[0.3, B, 'fireball', A], [0.5, A, 'illusion', B]] }, // a cópia anda para a bola de fogo e some com ela
   magnetize: { end: 3.4, steps: [[0.3, A, 'magnetize', B], [1.4, A, 'fireball', v(2, 1.3)]] },
   recharge: { end: 4.6, steps: [[0.4, A, 'recharge', B], ...[2.4, 2.7, 3, 3.3].map((t): Step => [t, A, 'recharge', B])] },
   alteration: { end: 2.6, steps: [[0.3, B, 'fireball', A], [0.5, A, 'alteration', B]] },
@@ -86,7 +86,7 @@ export function demoStep(s: DemoState) {
 type Fx = { e: SimEvent; until: number };
 const PROJ_COLOR: Record<string, string> = {
   fireball: '#ff7a1a', homing: '#c38bff', cluster: '#ff9a3c', boomerang: '#ffd666', bouncer: '#7fe3ff', drain: '#ff4d6d', snowball: '#e8f6ff',
-  twin: '#ffb0e0', magnetize: '#ff5ad1', recharge: '#7dff9a', link: '#d6d3cf', splitter: '#9ad0ff', shard: '#9ad0ff', grip: '#b8a07a', swap: '#9be7ff',
+  magnetize: '#ff5ad1', recharge: '#7dff9a', link: '#d6d3cf', splitter: '#9ad0ff', shard: '#9ad0ff', grip: '#b8a07a', swap: '#9be7ff',
   gravity: '#a06bff', meteor: '#ff5a1a', warpzone: '#8a7bff',
 };
 const ZONE_COLOR = { burn: 'rgba(255,106,26,.35)', slow: 'rgba(120,170,255,.32)', pull: 'rgba(170,110,255,.32)' };
@@ -146,7 +146,12 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
         circle(p.pos, L.radius, 'rgba(255,90,26,.18)', col, true);
         circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / 1.15), 'rgba(255,90,26,.35)');
       } else if (p.kind === 'warpzone') circle(p.pos, L.radius, 'rgba(138,123,255,.25)', col);
-      else if (p.kind === 'gravity') {
+      else if (p.kind === 'illusion') {
+        // a cópia: um mago meio apagado na cor do dono
+        ctx.globalAlpha = 0.5;
+        circle(p.pos, WIZ_R, colors[w.wizards.findIndex((z) => z.id === p.owner) % colors.length], '#1a0c08');
+        ctx.globalAlpha = 1;
+      } else if (p.kind === 'gravity') {
         circle(p.pos, L.radius, 'rgba(160,107,255,.15)', col, true);
         circle(p.pos, PROJ_R * 1.4, col);
       } else {
@@ -156,7 +161,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     }
     w.wizards.forEach((z, i) => {
       if (!z.alive) return;
-      ctx.globalAlpha = w.t < z.windUntil ? 0.35 : 1;
+      ctx.globalAlpha = w.t < z.windUntil ? 0.35 : w.t < z.veilUntil ? 0.5 : 1;
       if (w.t < z.shieldUntil) circle(z.pos, z.shieldR, 'rgba(255,214,102,.15)', '#ffd666');
       if (w.t < z.alterUntil) circle(z.pos, spellLevel('alteration', z.spells.alteration || 1).radius, 'rgba(110,230,255,.12)', '#6ee6ff', true);
       if (w.t < z.gripUntil) circle(z.pos, WIZ_R + 0.15, null, '#b8a07a', true);

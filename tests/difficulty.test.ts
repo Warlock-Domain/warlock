@@ -254,7 +254,7 @@ describe('dificuldade dos bots', () => {
   });
 
   it('compras: Normal e Difícil montam combinação com dano e fuga; o simulador pode fixar o plano', () => {
-    const escape: string[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration', 'warpzone', 'rockpillar'];
+    const escape: string[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration', 'warpzone', 'rockpillar', 'illusion'];
     const rand = seeded(5);
     const plans = Array.from({ length: 50 }, () => smartPlan(rand));
     for (const p of plans) {

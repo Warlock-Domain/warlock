@@ -80,6 +80,14 @@ describe('teclas e botões guardados no navegador', () => {
     const c = await import('../src/client/keys.ts');
     expect([c.keyOf('shop'), c.keyOf('taunt'), c.padButtonOf('shop'), c.padButtonOf('center')]).toEqual(['Digit4', 'KeyP', BTN.DOWN, BTN.RIGHT]);
   });
+
+  it('tecla salva de magia que saiu do jogo (os Gêmeos) é ignorada: o J fica com a Ilusão', async () => {
+    Object.assign(globalThis, { localStorage: fake });
+    store.set('warlock:keys', JSON.stringify({ twin: 'KeyZ', taunt: 'KeyP' }));
+    vi.resetModules();
+    const k = await import('../src/client/keys.ts');
+    expect([k.actionFor('KeyJ'), k.keyOf('rockpillar'), k.keyOf('taunt'), k.whoUses('KeyZ')]).toEqual(['illusion', 'KeyZ', 'KeyP', 'rockpillar']);
+  });
 });
 
 describe('botões do controle trocáveis', () => {

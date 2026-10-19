@@ -5,7 +5,7 @@ import {
 } from './constants.ts';
 import { SHAPES, edge, inArena, isleSpot, onIsle, safeInside, type ArenaId, type Isle } from './arena.ts';
 import { ACTIVE_ITEMS, AEGIS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
-import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, TWIN, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
+import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, ILLUSION, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export type Wizard = {
@@ -58,6 +58,7 @@ export type Wizard = {
   alterUntil: number; // Alteração ativa até este instante
   windUntil: number; // Caminhada no vento (invisível) até este instante
   windMult: number; // Pacto na Caminhada no vento
+  veilUntil: number; // Ilusão: velado (os bots não o enxergam) até este instante
   streak: number; // Recarga: acertos seguidos
   invulnUntil: number;
   respawnAt: number; // deathmatch: instante (w.t) em que o morto volta
@@ -79,9 +80,9 @@ export type Wizard = {
 // meteor fica parado no ponto de impacto até `until` e então explode; swap e grip não causam dano
 // boomerang curva e volta ao dono; gravity não bate em mago, só puxa; bouncer pula de mago em mago
 // drain e recharge com back voltam a quem lançou (cura, recarga); link fica preso a um mago ou obstáculo; splitter vira lançador de shard;
-// warpzone não anda (zona de tempo lento)
+// warpzone não anda (zona de tempo lento); illusion é a cópia do mago (anda reto e some com o primeiro projétil inimigo)
 export const PROJ_KINDS = ['fireball', 'homing', 'swap', 'grip', 'meteor', 'cluster', 'boomerang', 'gravity', 'bouncer',
-  'drain', 'snowball', 'twin', 'magnetize', 'recharge', 'link', 'splitter', 'shard', 'warpzone'] as const;
+  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'link', 'splitter', 'shard', 'warpzone'] as const;
 export type ProjKind = (typeof PROJ_KINDS)[number];
 
 export type Projectile = {
@@ -103,7 +104,6 @@ export type Projectile = {
   tick?: number; // Gravidade: próximo dano
   landed?: boolean; // já contou 'land' (Bumerangue e Ricochete acertam mais de uma vez)
   turnAt?: number; // Drenar: quando vira para o mago mais perto; Elo: quando recolhe
-  ell?: { c: Vec; a: number; b: number; dir: Vec; sign: number; t: number }; // Gêmeos: meia elipse (centro, semieixos, eixo, lado, ângulo)
   bonus?: number; // Recarga: dano a mais pelos acertos seguidos
   waves?: number; // Divisor: ondas de filhotes que faltam (lançador)
   pillar?: number; // Elo preso a este obstáculo
@@ -246,6 +246,7 @@ export function newWorld(
       alterUntil: 0,
       windUntil: 0,
       windMult: 1,
+      veilUntil: 0,
       streak: 0,
       invulnUntil: INVULN_TIME,
       respawnAt: 0,
@@ -562,8 +563,8 @@ function slowDown(w: World, wz: Wizard, amount: number, secs: number) {
   wz.slowUntil = Math.max(wz.slowUntil, w.t + secs);
 }
 
-// quantos 'fire' cada lançamento conta (a Rajada sai com 4, os Gêmeos com 2 e o Divisor com 8 filhotes); as outras, 1
-const SHOTS: Partial<Record<SpellId, number>> = { cluster: CLUSTER_FAN.length, twin: 2, splitter: 2 * SPLITTER.waves };
+// quantos 'fire' cada lançamento conta (a Rajada sai com 4 e o Divisor com 8 filhotes); as outras, 1
+const SHOTS: Partial<Record<SpellId, number>> = { cluster: CLUSTER_FAN.length, splitter: 2 * SPLITTER.waves };
 
 function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   const level = wz.spells[spell];
@@ -645,12 +646,10 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     launch('drain', dir, turn + DRAIN.extra * wz.rangeF).turnAt = w.t + turn;
   } else if (spell === 'snowball') {
     launch('snowball', dir, (L.range / L.speed) * wz.rangeF);
-  } else if (spell === 'twin') {
-    // twin.lua: duas meias elipses do mago até o ponto (distância mínima para a elipse não passar do alcance de lado)
-    const range = L.range * wz.rangeF;
-    const d = Math.min(Math.max(len(sub(at, wz.pos)), TWIN.minDist, (2 * TWIN.area) / (Math.PI * range)), range);
-    const a = d / 2;
-    for (const sign of [1, -1]) launch('twin', dir, TWIN.life, null, wz.pos).ell = { c: add(wz.pos, scale(dir, a)), a, b: TWIN.area / (Math.PI * a), dir: scale(dir, -1), sign, t: 0 };
+  } else if (spell === 'illusion') {
+    // a cópia sai de dentro do mago e anda reto para a mira; o dono fica velado um instante
+    launch('illusion', dir, L.duration, null, wz.pos);
+    wz.veilUntil = w.t + ILLUSION.veil;
   } else if (spell === 'magnetize') {
     launch('magnetize', dir, (L.range / L.speed) * wz.rangeF);
   } else if (spell === 'recharge') {
@@ -863,7 +862,7 @@ function gravityPull(w: World, g: Projectile) {
     if (d <= GRAVITY.wizR) o.pos = add(o.pos, scale(norm(sub(g.pos, o.pos)), (L.pull / FRICTION) * (1 - (d * d) / (GRAVITY.wizR * GRAVITY.wizR)) * DT));
   }
   for (const q of w.projectiles) {
-    if (q.kind === 'meteor' || q.kind === 'gravity') continue;
+    if (fixed(q) || q.kind === 'gravity') continue;
     const d = dist(g.pos, q.pos);
     if (d <= GRAVITY.projR) q.vel = add(q.vel, scale(norm(sub(g.pos, q.pos)), GRAVITY.projPull * (1.5 - (d * d) / (GRAVITY.projR * GRAVITY.projR)) * DT));
   }
@@ -938,7 +937,8 @@ function windTouch(w: World, wz: Wizard) {
   }
 }
 
-const fixed = (p: Projectile) => p.kind === 'meteor' || p.kind === 'warpzone'; // não andam
+// não andam, ou andam sozinhos (a cópia da Ilusão): nada os puxa, desvia ou redireciona
+const fixed = (p: Projectile) => p.kind === 'meteor' || p.kind === 'warpzone' || p.kind === 'illusion';
 const returning = (p: Projectile) => !!p.back && (p.kind === 'drain' || p.kind === 'recharge'); // bolinha voltando a quem lançou
 const spellOf = (k: ProjKind): SpellId => (k === 'shard' ? 'splitter' : k); // os filhotes são do Divisor
 
@@ -995,8 +995,6 @@ function alter(w: World, p: Projectile, next: Vec): boolean {
     const from = z.pos;
     [z.pos, p.pos] = [p.pos, from];
     z.alterUntil = 0;
-    // Gêmeos trocado sai da elipse e segue reto (senão voltaria para a curva, onde o mago agora está)
-    if (p.ell) [p.ell, p.until] = [undefined, w.t + spellLevel('twin', p.level).range / spellLevel('twin', p.level).speed];
     w.events.push({ k: 'teleport', id: z.id, from, to: z.pos }, { k: 'land', id: z.id, src: 'alteration' });
     return true;
   }
@@ -1067,14 +1065,18 @@ function snowBlast(w: World, p: Projectile) {
   w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'snow', r: L.radius });
 }
 
-// Gêmeos (twinprojectile.lua): anda na meia elipse com velocidade constante e acaba no ponto
-function twinStep(w: World, p: Projectile, speed: number, dt: number) {
-  const e = p.ell!;
-  e.t = Math.min(Math.PI, e.t + Math.max(0.001, (dt * speed) / Math.hypot(e.a * Math.sin(e.t), e.b * Math.cos(e.t))));
-  const x = e.a * Math.cos(e.t);
-  const y = e.sign * e.b * Math.sin(e.t);
-  p.vel = scale(sub(add(e.c, v(e.dir.x * x - e.dir.y * y, e.dir.y * x + e.dir.x * y)), p.pos), 1 / dt);
-  if (e.t >= Math.PI) p.until = w.t;
+// cópia da Ilusão de um inimigo do dono de p que o segmento p.pos→b toca (a mais perto do começo); t em [0,1]
+function decoyOnSegment(w: World, p: Projectile, b: Vec, radius: number): { q: Projectile; t: number } | null {
+  const owner = anyById(w, p.owner);
+  const d = sub(b, p.pos);
+  let best: { q: Projectile; t: number } | null = null;
+  for (const q of w.projectiles) {
+    const qo = q.kind === 'illusion' && q.until > w.t && q.owner !== p.owner ? anyById(w, q.owner) : undefined;
+    if (!qo || allies(owner, qo)) continue;
+    const [t, gap] = segT(p.pos, d, q.pos);
+    if (gap <= radius && (!best || t < best.t)) best = { q, t };
+  }
+  return best;
 }
 
 // Divisor: o projétil vira o lançador de filhotes (sem colisão), que anda devagar e solta 4 ondas de 2
@@ -1148,6 +1150,13 @@ function stepProjectiles(w: World) {
       if (flyBack(w, p, dt)) keep.push(p);
       continue;
     }
+    if (p.kind === 'illusion') {
+      // a cópia anda reto (para no obstáculo, como um mago) e some no fim do tempo, se o dono cair ou se um projétil inimigo a pegar
+      const next = add(p.pos, scale(p.vel, dt));
+      if (!firstPillarOnSegment(w, p.pos, next, WIZ_R)) p.pos = next;
+      if (w.t < p.until && byId(w, p.owner)) keep.push(p);
+      continue;
+    }
     if (p.waves !== undefined) {
       if (spawnShards(w, p, dt)) keep.push(p);
       continue;
@@ -1168,8 +1177,9 @@ function stepProjectiles(w: World) {
       for (const z of w.wizards) if (z.alive && z.id !== p.owner && (!to || dist(z.pos, p.pos) < dist(to.pos, p.pos))) to = z;
       p.vel = scale(to ? norm(sub(to.pos, p.pos)) : norm(p.vel), DRAIN.turnSpeed);
     }
-    if (p.ell) twinStep(w, p, L.speed, dt);
-    const target = p.kind === 'homing' ? byId(w, p.target) : undefined;
+    // Ilusão: o míssil que perseguia o dono persegue a cópia enquanto ela existir
+    const chase = p.kind === 'homing' ? byId(w, p.target) : undefined;
+    const target = chase && (w.projectiles.find((q) => q.kind === 'illusion' && q.owner === chase.id && q.until > w.t) ?? chase);
     if (target) {
       // gira no máximo HOMING_TURN rad/s em direção ao alvo: o atraso faz o míssil rodear antes de acertar
       const cur = Math.atan2(p.vel.y, p.vel.x);
@@ -1190,6 +1200,12 @@ function stepProjectiles(w: World) {
     const r = p.kind === 'snowball' ? snowR(p.level) : PROJ_R;
     let found = p.kind === 'gravity' ? null : firstOnSegment(w, p.pos, next, WIZ_R + r, p.kind === 'bouncer' || p.kind === 'magnetize' ? (p.prev ?? p.owner) : p.owner);
     const pil = firstPillarOnSegment(w, p.pos, next, r);
+    // Ilusão: a cópia inimiga no caminho some junto com o projétil (sem dano, sem empurrão, sem choque)
+    const fake = p.kind === 'gravity' ? null : decoyOnSegment(w, p, next, WIZ_R + r);
+    if (fake && (!found || fake.t <= found.t) && (!pil || fake.t < pil.t)) {
+      fake.q.until = 0;
+      continue;
+    }
     // a Bola de neve atravessa magos (arrastando) e só para em obstáculo ou escudo
     if (p.kind === 'snowball' && found && !shielded(w, found.wz) && (!pil || found.t <= pil.t)) {
       snowRoll(w, p, next);
@@ -1253,7 +1269,6 @@ function stepProjectiles(w: World) {
           continue;
         }
         if (p.kind === 'bouncer') p.prev = wz.id;
-        p.ell = undefined; // Gêmeos refletido segue reto (no original a elipse espelhava)
         // devolve mirando onde quem atirou está agora (pedido do Fernando, 17/10: deixa o escudo mais forte);
         // se ele já morreu, volta pelo mesmo caminho. O projétil passa a ser de quem refletiu.
         const shooter = byId(w, p.owner);
@@ -1397,7 +1412,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
   Object.assign(wz, {
     alive: true, pos: best, vel: v(0, 0), target: null, casting: null, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
-    slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
+    slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
     rune: null, runeUntil: 0,
   });
 }

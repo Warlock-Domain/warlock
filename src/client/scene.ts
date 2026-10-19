@@ -27,7 +27,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: 'Fáci
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; name: string; moving: boolean; cheer: boolean; team?: number | null };
+export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; name: string; moving: boolean; cheer: boolean; team?: number | null; ghost?: boolean }; // ghost: meio transparente (a cópia da Ilusão vista pelo dono)
 
 const w3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, p.y);
 // deita no chão (plano xz) na altura y
@@ -118,6 +118,7 @@ type Mage = {
   tint: string; // cor do anel e da barra (do jogador, ou do time no modo Times)
   statusEl: HTMLSpanElement;
   statusKey: number;
+  ghost: boolean; // desenhado meio transparente agora (Ilusão)
   dead: boolean;
   color: number;
   character: string;
@@ -364,7 +365,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const swapMat = new THREE.MeshBasicMaterial({ color: '#dcfffb' });
   const gripMat = new THREE.MeshBasicMaterial({ color: '#ffd6de' });
   // aparência de cada projétil: corpo, cor do brilho e do rastro, textura do rastro e tamanho
-  const LOOK: Record<ProjKind, { mat: THREE.Material; halo: string; trail: string; tex: THREE.Texture; size: number }> = {
+  // a cópia da Ilusão não entra: é desenhada como mago (main.ts)
+  const LOOK: Record<Exclude<ProjKind, 'illusion'>, { mat: THREE.Material; halo: string; trail: string; tex: THREE.Texture; size: number }> = {
     fireball: { mat: fireMat, halo: '#ffb000', trail: '#ff8a00', tex: FX.flame, size: 1.15 },
     homing: { mat: homingMat, halo: '#c23cff', trail: '#b040ff', tex: FX.magic, size: 1.1 },
     cluster: { mat: fireMat, halo: '#fff066', trail: '#ffd23a', tex: FX.spark, size: 0.65 },
@@ -376,7 +378,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     bouncer: { mat: gripMat, halo: '#3cff9a', trail: '#20d080', tex: FX.magic, size: 0.8 },
     drain: { mat: gripMat, halo: '#9aff4a', trail: '#5ac020', tex: FX.magic, size: 0.9 },
     snowball: { mat: swapMat, halo: '#cfefff', trail: '#e8f6ff', tex: FX.smoke, size: 1.2 },
-    twin: { mat: homingMat, halo: '#ff5ad0', trail: '#e040b0', tex: FX.spark, size: 0.8 },
     magnetize: { mat: gripMat, halo: '#ff4040', trail: '#c0c0d0', tex: FX.spark, size: 1 },
     recharge: { mat: swapMat, halo: '#3aa8ff', trail: '#5ac8ff', tex: FX.spark, size: 0.9 },
     link: { mat: swapMat, halo: '#6aa8ff', trail: '#4a88ff', tex: FX.magic, size: 0.8 },
@@ -456,7 +457,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       return m;
     },
     snowball: () => new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.42, 1), 0.15), flat('#f4fbff', '#9ad8ff', 0.35)),
-    twin: () => new THREE.Mesh(new THREE.OctahedronGeometry(0.16), flat('#ffd0f0', '#ff40c0', 1.3)),
     magnetize: () => {
       // ímã em U: arco vermelho com pontas prateadas
       const g = new THREE.Group();
@@ -724,7 +724,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     lootBar.append(lootFill);
     label.append(statusEl, nameEl, hpRow, shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, dead: false, color: d.color, character: d.character, mats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, ghost: false, dead: false, color: d.color, character: d.character, mats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -1439,6 +1439,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   function syncProjectiles(list: ProjView[]) {
     const seen = new Set<number>();
     for (const p of list) {
+      if (p.kind === 'illusion') continue;
       seen.add(p.id);
       let g = projs.get(p.id);
       if (!g) {
@@ -1557,6 +1558,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       const hidden = (d.status & 2048) > 0; // Caminhada no vento de um inimigo
       m.root.visible = !hidden;
+      // Ilusão: o próprio mago velado (bit 8388608) e a cópia vista pelo dono ficam meio transparentes
+      const ghost = !!d.ghost || (d.status & 8388608) > 0;
+      if (m.ghost !== ghost) {
+        m.ghost = ghost;
+        for (const x of m.mats) Object.assign(x.m, { transparent: ghost, opacity: ghost ? 0.45 : 1, needsUpdate: true });
+        m.label.style.opacity = ghost ? '0.6' : '';
+      }
       m.root.position.copy(w3(d.pos));
       m.root.rotation.y = Math.PI / 2 - d.facing;
       // Escudo: bolha no raio real que vai apagando, e a barrinha do tempo que falta
@@ -1802,7 +1810,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const m = mages.get(id);
       if (!m || m.dead) return;
       // brilho na mão (um pouco à frente do mago, na cor da magia) e linha de mira fraca até o ponto
-      const color = LOOK[spell as ProjKind]?.halo ?? '#ffb347';
+      const color = LOOK[spell as keyof typeof LOOK]?.halo ?? '#ffb347';
       const from = v(m.root.position.x, m.root.position.z);
       const dir = at ? Math.atan2(at.y - from.y, at.x - from.x) : Math.PI / 2 - m.root.rotation.y;
       const hand = v(from.x + Math.cos(dir) * 0.45, from.y + Math.sin(dir) * 0.45);

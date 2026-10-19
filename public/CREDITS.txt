@@ -96,7 +96,7 @@ music/battle.mp3
     Ricochete: caro-asercion/ricochet.svg, Caro Asercion
     Drenar: lorc/life-tap.svg, Lorc (http://lorcblog.blogspot.com)
     Bola de neve: lorc/frozen-orb.svg, Lorc (http://lorcblog.blogspot.com)
-    Gêmeos: delapouite/gemini.svg, Delapouite (http://delapouite.com)
+    Ilusão: lorc/two-shadows.svg, Lorc (http://lorcblog.blogspot.com)
     Magnetizar: lorc/magnet.svg, Lorc (http://lorcblog.blogspot.com)
     Recarga: lorc/cycle.svg, Lorc (http://lorcblog.blogspot.com)
     Alteração: delapouite/card-exchange.svg, Delapouite (http://delapouite.com)

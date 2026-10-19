@@ -2,7 +2,7 @@
 import { AEGIS, ITEMS, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, type ItemId } from '../shared/items.ts';
 import { LAVA_DPS } from '../shared/constants.ts';
 import { labelOf } from './keys.ts';
-import { MAX_SPELL_LEVEL, RECHARGE, RUSH, SPELLS, WARPZONE, type Level, type SpellId } from '../shared/spells.ts';
+import { ILLUSION, MAX_SPELL_LEVEL, RECHARGE, RUSH, SPELLS, WARPZONE, type Level, type SpellId } from '../shared/spells.ts';
 import { RULES_SHORT, n1 } from './rules-text.ts';
 
 const m = (x: number) => `${n1(x)} m`;
@@ -28,7 +28,7 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   bouncer: [['Dano no 1º', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance por salto', (l) => m(l.range)]],
   drain: [['Dano e cura', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Lentidão ou pressa', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance até virar', (l) => m(l.range)]],
   snowball: [['Dano por segundo encostado', (l) => n1(l.dot)], ['Explosão no centro', (l) => n1(l.dmg)], ['Empurrão da explosão', (l) => m(l.knock / 1.166)], ['Raio', (l) => m(l.radius)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
-  twin: [['Dano de cada', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
+  illusion: [['Duração da cópia', (l) => s(l.duration)], ['Véu', () => s(ILLUSION.veil)], ['Recarga', (l) => s(l.cd)]],
   magnetize: [['Duração', (l) => s(l.duration)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   recharge: [['Dano', (l) => n1(l.dmg)], ['Empurrão', (l) => m(l.knock / 1.166)], ['Por acerto seguido', () => '+' + n1(RECHARGE.perHit)], ['Recarga', (l) => s(l.cd)], ['Alcance', (l) => m(l.range)]],
   alteration: [['Duração', (l) => s(l.duration)], ['Raio', (l) => m(l.radius)], ['Recarga', (l) => s(l.cd)]],

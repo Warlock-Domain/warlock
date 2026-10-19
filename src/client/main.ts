@@ -28,7 +28,7 @@ const SPELL_SOUND: Record<SpellId, SoundKind> = {
   fireball: 'fireball', lightning: 'lightning', homing: 'homing', shield: 'shield', teleport: 'teleport',
   swap: 'teleport', grip: 'lightning', meteor: 'fireball', rush: 'shield', cluster: 'fireball',
   boomerang: 'homing', thrust: 'teleport', gravity: 'homing', rockpillar: 'shield', bouncer: 'lightning',
-  drain: 'homing', snowball: 'fireball', twin: 'homing', magnetize: 'lightning', recharge: 'homing',
+  drain: 'homing', snowball: 'fireball', illusion: 'teleport', magnetize: 'lightning', recharge: 'homing',
   alteration: 'teleport', link: 'lightning', windwalk: 'shield', splitter: 'fireball', warpzone: 'shield',
 };
 
@@ -498,12 +498,18 @@ function startRoom(code: string, name: string) {
     watchId = watched?.id ?? null;
     view.watching(watched?.name ?? null);
     view.deadShopping(room?.phase === 'playing' && room.mode !== 'deathmatch' && !!meP && !!meW && !meW.alive);
+    // Ilusão: a cópia é desenhada como o dono (mesmo boneco, cor, nome e vida), meio transparente só para quem a lançou
+    const copies: WizDraw[] = (playing && s ? s.projectiles : []).flatMap((q) => {
+      const ownerId = q.kind === 'illusion' ? room?.ids[q.vel.x] : undefined;
+      const o = wizards.find((d) => d.id === ownerId);
+      return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~8388608, moving: true, cheer: false, ghost: ownerId === me }] : [];
+    });
     if (training && room) view.coach(meP ? coachTip({ phase: room.phase, round: room.round, playingFor: (nowMs - playingAt) / 1000, shrinkIn, low, lava, alive: !!meW?.alive, touch: TOUCH, fireKey: isPadMode() ? 'A' : labelOf('fireball'), fire: meP.spells.fireball > 0 }) : null);
     scene.render({
       arena: arenaId,
       arenaR: s?.arenaR ?? 11,
       shrinkIn: shrinkIn ?? SHRINK_EVERY,
-      wizards,
+      wizards: [...wizards, ...copies],
       projectiles: playing && s ? s.projectiles : [],
       pillars: playing && s ? s.pillars : [],
       loots: playing && s ? s.loots : [],

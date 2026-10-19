@@ -1,6 +1,6 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS } from './arena.ts';
-import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, type BotSkill } from './bots.ts';
+import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, type BotPlan, type BotSkill } from './bots.ts';
 import { CHARACTERS, type CharacterId } from './characters.ts';
 import {
   ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD,
@@ -302,7 +302,10 @@ export function resume(m: Match, now: number) {
   m.vote = null; // o prazo de uma votação gravada já passou
   for (const p of m.players) {
     p.character ??= 'mage';
-    p.spells = { ...noSpells(), ...p.spells }; // salas gravadas antes das magias novas
+    // salas gravadas antes das magias novas, ou com uma que saiu do jogo (os Gêmeos, 19/10): fica só o que existe
+    p.spells = Object.fromEntries(SPELL_IDS.map((s) => [s, p.spells[s] ?? noSpells()[s]])) as Record<SpellId, number>;
+    const plan = (p as { plan?: BotPlan }).plan;
+    if (plan) plan.buys = plan.buys.filter((b) => b.kind === 'item' || SPELL_IDS.includes(b.id));
     p.items = { ...noItems(), ...p.items }; // salas gravadas antes dos itens novos
     // salas gravadas com a maestria Roubo de vida: vira o item (sem passar do nível máximo)
     const old = (p as { masteries?: { lifesteal?: number } }).masteries?.lifesteal ?? 0;

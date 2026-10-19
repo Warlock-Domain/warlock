@@ -6,7 +6,7 @@ import { DEFAULT_OPTS, DM_GOALS, OPTION_CHOICES } from '../shared/match.ts';
 import { CLASH } from '../shared/sim.ts';
 import { ITEMS, MAX_ITEMS, SCOURGE } from '../shared/items.ts';
 import { PAD_NAMES, PAD_NAMES_PS, keyLabel, keyOf, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
-import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, RECHARGE, RUSH, SPELLS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
+import { BOUNCER, CAST_POINT, GRAVITY, GRIP, ILLUSION, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, RECHARGE, RUSH, SPELLS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
 
 // formatação dos números nos textos (também usada pela loja, ficha, dicas e opções)
 export const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -158,7 +158,7 @@ export const SPELL_TIPS: Record<SpellId, [use: string, vs: string]> = {
   bouncer: [`Melhor com inimigos juntos: pula para o mago mais perto, perdendo ${pct(1 - BOUNCER.decay)} do dano por inimigo.`, 'Contra um inimigo sozinho é só um acerto.'],
   drain: ['Mire perto do grupo: depois do ponto, vira para o mago mais perto. No inimigo, dano, lentidão e a vida volta para você; no aliado, cura e pressa.', `É lento (${n1(L1('drain').speed)} m/s) e o Escudo devolve.`],
   snowball: ['Quem encosta é arrastado junto: role na direção da lava. No fim do caminho ela explode.', `Muito lenta (${n1(L1('snowball').speed)} m/s) e de alcance curto: dá para sair da frente.`],
-  twin: ['Dois projéteis em curva se encontram no ponto: fecham a fuga para os lados.', 'O Escudo devolve os dois em linha reta.'],
+  illusion: ['Lance na direção do tiro que vem: a cópia o pega no seu lugar e os dois somem, sem dano. Ou para o lado, para despistar quem persegue: o Míssil teleguiado vai atrás da cópia.', 'Não segura Raio, Meteoro, Flagelo nem explosões. A cópia só anda reto: quem presta atenção percebe.'],
   magnetize: ['Magnetize o inimigo e atire perto dele: os seus projéteis curvam até ele. Em você ou num aliado, afasta os projéteis inimigos.', 'Só curva projéteis que passam perto (menos de 2 m).'],
   recharge: [`Se acertar, ela volta até você e zera a recarga: lance de novo, com +${RECHARGE.perHit} de dano por acerto seguido.`, `Errar zera a sequência e a recarga é longa (${n1(L1('recharge').cd)} s no nível 1).`],
   alteration: [`Ligue quando um projétil estiver chegando: por ${n1(L1('alteration').duration)} s você troca de lugar com o primeiro que entrar na bolha.`, 'Não serve contra Raio, Meteoro, Flagelo e explosões, que não são projéteis.'],
@@ -178,9 +178,9 @@ export const ITEM_DEMO: Partial<Record<keyof typeof ITEMS, string>> = {
 
 // loja e ajuda: magias agrupadas pelo efeito principal (o que cada uma faz está em RULES_SHORT)
 export const SPELL_GROUPS: [name: string, hint: string, spells: SpellId[]][] = [
-  ['Ataque', 'dano e empurrão', ['fireball', 'lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'twin', 'recharge', 'splitter', 'snowball']],
+  ['Ataque', 'dano e empurrão', ['fireball', 'lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball']],
   ['Mobilidade', 'sair do lugar', ['teleport', 'swap', 'rush', 'thrust', 'windwalk']],
-  ['Defesa', 'parar o que vem', ['shield', 'alteration', 'warpzone', 'rockpillar']],
+  ['Defesa', 'parar o que vem', ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion']],
   ['Controle', 'prender, puxar, atrasar', ['grip', 'gravity', 'link', 'magnetize', 'drain']],
 ];
 
@@ -193,7 +193,6 @@ export const SPELL_USE: Record<SpellId, string> = {
   cluster: 'Muito dano de perto.',
   boomerang: 'Acerta na ida e na volta.',
   bouncer: 'Bom com os inimigos juntos.',
-  twin: 'Fecha a fuga pelos dois lados.',
   recharge: 'Repete logo se você acertar.',
   splitter: 'Enche uma área de projéteis.',
   snowball: 'Arrasta inimigos para a lava.',
@@ -204,6 +203,7 @@ export const SPELL_USE: Record<SpellId, string> = {
   windwalk: 'Sumir, reposicionar e surpreender.',
   shield: 'Devolve projéteis para quem lançou.',
   alteration: 'Escapa trocando de lugar com um projétil.',
+  illusion: 'Uma cópia sua engana mísseis e bots.',
   warpzone: 'Freia projéteis e inimigos para dar tempo de desviar.',
   rockpillar: 'Parede de pedra contra magos e projéteis.',
   grip: 'Segura o alvo para os outros acertarem.',
@@ -231,7 +231,7 @@ export const RULES_SHORT: Record<SpellId, string> = {
   bouncer: `Acerta e pula para o mago mais perto, perdendo ${pct(1 - BOUNCER.decay)} do dano a cada inimigo.`,
   drain: 'Vai até o ponto e vira para o mago mais perto: no inimigo, dano, lentidão e a vida volta para você; no aliado, cura e acelera.',
   snowball: 'Bola lenta que atravessa e arrasta quem encosta, com dano, e explode no fim do caminho.',
-  twin: 'Dois projéteis em curva, um de cada lado, que se encontram no ponto.',
+  illusion: `Uma cópia anda reto por ${n1(L1('illusion').duration)} s; o Míssil teleguiado e os bots miram nela; você fica meio transparente por ${n1(ILLUSION.veil)} s. Recarga ${n1(L1('illusion').cd)} s.`,
   magnetize: 'No inimigo, puxa para ele os projéteis dos outros; num aliado ou em você (depois de quicar), afasta.',
   recharge: 'Se acertar, volta e zera a própria recarga; cada acerto seguido soma dano.',
   alteration: `Por ${n1(L1('alteration').duration)} s, troca de lugar com o primeiro projétil inimigo que chegar perto.`,

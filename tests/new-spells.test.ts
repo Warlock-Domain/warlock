@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { DT, HP_MAX, OBSTACLES, WIZ_R, WIZ_SPEED } from '../src/shared/constants.ts';
-import { botBuy, botCmds } from '../src/shared/bots.ts';
-import { addPlayer, buy, newMatch, startMatch, undoBuy } from '../src/shared/match.ts';
+import { botBuy, botCmds, botWatch, type BotPlan } from '../src/shared/bots.ts';
+import { addPlayer, buy, newMatch, resume, startMatch, undoBuy } from '../src/shared/match.ts';
+import { parseClientMessage } from '../src/shared/protocol.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
-import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from '../src/shared/sim.ts';
-import { MAX_SPELLS, RUSH, SPELLS, WARPZONE, noSpells, spellLevel, type SpellId } from '../src/shared/spells.ts';
+import { PROJ_KINDS, newWorld, stepWorld, type Cmd, type SimEvent, type World } from '../src/shared/sim.ts';
+import { ILLUSION, MAX_SPELLS, RUSH, SPELLS, SPELL_IDS, WARPZONE, noSpells, spellLevel, type SpellId } from '../src/shared/spells.ts';
 import { dist, len, v } from '../src/shared/vec.ts';
 import { run, world as spotsWorld } from './helpers.ts';
 
@@ -513,20 +514,91 @@ describe('Bola de neve', () => {
   });
 });
 
-describe('Gêmeos', () => {
-  it('two projectiles curve out on opposite sides and both hit at the click point', () => {
-    const w = world([[0, 0], [4, 0]], ['twin']);
-    let up = false, down = false;
-    const ev = runEvents(w, 1.5, [cast('p0', 'twin', 4, 0)], () => {
-      for (const p of w.projectiles) {
-        up ||= p.pos.y > 0.4;
-        down ||= p.pos.y < -0.4;
+describe('Ilusão', () => {
+  const L = spellLevel('illusion', 1);
+  const copy = (w: World) => w.projectiles.find((p) => p.kind === 'illusion');
+
+  it('números: 2 a 2,6 s de cópia, recarga 14 a 11 s, custo 12, tecla J', () => {
+    expect(SPELLS.illusion.levels.map((l) => [l.duration, l.cd])).toEqual([[2, 14], [2.1, 13.5], [2.2, 13], [2.3, 12.5], [2.4, 12], [2.5, 11.5], [2.6, 11]]);
+    expect([SPELLS.illusion.cost, SPELLS.illusion.up, SPELLS.illusion.key]).toEqual([12, [6, 7, 8, 9, 10, 11], 'J']);
+  });
+
+  it('a cópia anda reto para a mira na velocidade de andar, o dono fica velado 0,5 s e ela some no fim da duração', () => {
+    const w = world([[0, 0], [0, -8]], ['illusion']);
+    run(w, 1, [cast('p0', 'illusion', 5, 0)]);
+    expect(copy(w)!.pos.x).toBeCloseTo(WIZ_SPEED, 2);
+    expect(copy(w)!.pos.y).toBeCloseTo(0, 6);
+    expect(dist(w.wizards[0].pos, v(0, 0))).toBeLessThan(1e-6); // o dono fica onde estava
+    expect(w.wizards[0].veilUntil).toBeCloseTo(ILLUSION.veil, 6);
+    run(w, L.duration - 1 - 3 * DT);
+    expect(copy(w)).toBeTruthy();
+    run(w, 6 * DT);
+    expect(copy(w)).toBeUndefined();
+  });
+
+  it('um projétil inimigo some ao acertar a cópia: sem dano, sem empurrão e sem choque no dono', () => {
+    const shot = (illusion: boolean) => {
+      const w = world([[0, 0], [5, 0]], ['illusion']);
+      const ev = runEvents(w, 1.5, [cast('p1', 'fireball', 0, 0), ...(illusion ? [cast('p0', 'illusion', 5, 0)] : [])]);
+      return { w, ev };
+    };
+    expect(shot(false).ev.some((e) => e.k === 'hit' && e.id === 'p0')).toBe(true); // sem a Ilusão a bola de fogo acerta
+    const { w, ev } = shot(true);
+    expect(ev.some((e) => e.k === 'hit' || e.k === 'clash')).toBe(false);
+    expect(w.wizards[0].hp).toBe(HP_MAX);
+    expect(len(w.wizards[0].vel)).toBe(0);
+    expect(w.projectiles).toHaveLength(0); // a bola de fogo e a cópia sumiram (bem antes dos 2 s da cópia)
+  });
+
+  it('o Míssil teleguiado inimigo que mirava o dono persegue a cópia enquanto ela existir', () => {
+    const w = world([[0, 0], [5, 0]], ['illusion', 'homing']);
+    stepWorld(w, [cast('p0', 'illusion', 0, 5)]); // a cópia sobe; o dono fica
+    stepWorld(w, [cast('p1', 'homing', 0, 0)]); // o míssil escolhe o dono, o mais perto da mira
+    run(w, 0.5);
+    const missile = () => w.projectiles.find((p) => p.kind === 'homing')!;
+    expect(missile().target).toBe('p0');
+    expect(missile().vel.y).toBeGreaterThan(0.2 * len(missile().vel)); // virou para a cópia, que está acima do dono
+    expect(w.wizards[0].hp).toBe(HP_MAX);
+    copy(w)!.until = 0; // a cópia acaba: o míssil volta para o dono e o acerta
+    expect(hitsOf(runEvents(w, 1.5), 'homing').some((h) => h.id === 'p0')).toBe(true);
+  });
+
+  it('o bot inimigo não enxerga o dono velado e mira a cópia; depois do véu fica com o mais perto', () => {
+    const w = world([[0, 0], [4, 0]], ['illusion']);
+    const aim = () => botCmds(w, 'p1', () => 0.5).find((c) => c.kind === 'cast');
+    const step = (secs: number, cmds: Cmd[] = []) => {
+      for (let i = 0; i < Math.round(secs / DT); i++) {
+        stepWorld(w, i === 0 ? cmds : []);
+        botWatch(w);
       }
-    });
-    expect(up && down).toBe(true);
-    const hits = hitsOf(ev, 'twin');
-    expect(hits).toHaveLength(2);
-    hits.forEach((h) => expect(h.dmg).toBe(Math.round(spellLevel('twin', 1).dmg))); // o evento de acerto leva o dano inteiro
+    };
+    step(0.3);
+    expect(aim()).toMatchObject({ spell: 'fireball', at: { y: expect.closeTo(0, 0) } }); // antes: no dono, parado
+    step(0.45, [cast('p0', 'illusion', 0, 5)]);
+    const veiled = aim();
+    expect(w.t).toBeLessThan(0.3 + ILLUSION.veil);
+    expect(veiled?.kind === 'cast' && veiled.at.y).toBeGreaterThan(0.45); // na cópia, que sobe (o dono está em y = 0)
+    step(0.9); // véu acabou: o dono está a 4 m e a cópia mais longe
+    const after = aim();
+    expect(after?.kind === 'cast' && Math.abs(after.at.y)).toBeLessThan(0.3);
+  });
+
+  it('os Gêmeos saíram de tudo; magia desconhecida (salas, mensagens e planos de bot antigos) não quebra', () => {
+    expect(SPELL_IDS).not.toContain('twin');
+    expect(PROJ_KINDS).not.toContain('twin');
+    expect('twin' in SPELLS).toBe(false);
+    expect(parseClientMessage(JSON.stringify({ t: 'cast', spell: 'twin', x: 1, y: 1, seq: 1 }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ t: 'buy', spell: 'twin' }))).toBeNull();
+    // sala gravada com os Gêmeos comprados e um bot que planejava comprá-los
+    const m = newMatch();
+    addPlayer(m, 'b', 'Bot', true);
+    const p = m.players[0] as (typeof m.players)[number] & { plan?: BotPlan };
+    (p.spells as Record<string, number>).twin = 2;
+    p.plan = { buys: [{ kind: 'spell', id: 'twin' as SpellId }, { kind: 'spell', id: 'illusion' }], upgrade: 'lowest' };
+    resume(m, 0);
+    expect('twin' in p.spells).toBe(false);
+    p.gold = 100;
+    expect(botBuy(p)).toEqual({ kind: 'spell', id: 'illusion' });
   });
 });
 

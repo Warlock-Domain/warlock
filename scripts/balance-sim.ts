@@ -227,7 +227,7 @@ ${table('arena:', (k) => !k.includes('/'))}
 ${ARENA_IDS.filter((a) => S.owned[`arena:${a}`]).map((a) => `### Magias: ${ARENA_NAMES[a]}\n${table(`arena:${a}/spell:`, () => true)}`).join('\n\n')}
 
 ## Uso por magia (compradas e lançadas)
-Lançamentos contam cada projétil (Rajada 4, Gêmeos 2, Divisor 8 filhotes). n = jogadores-rodada com a magia.
+Lançamentos contam cada projétil (Rajada 4, Divisor 8 filhotes). n = jogadores-rodada com a magia.
 
 | magia | n | lançamentos | por jogador-rodada |
 |---|--:|--:|--:|

@@ -16,7 +16,7 @@ const DEFAULTS: Record<string, string> = {
   cluster: 'KeyT', swap: 'KeyD', grip: 'KeyG', rush: 'KeyC', meteor: 'KeyV',
   boomerang: 'KeyB', thrust: 'KeyX', gravity: 'KeyH', rockpillar: 'KeyZ', bouncer: 'KeyA',
   // as dez últimas: sobraram 9 letras livres; a Zona de dobra fica sem tecla padrão (modo Q W E R D F ou painel de teclas)
-  drain: 'KeyN', snowball: 'KeyO', twin: 'KeyJ', magnetize: 'KeyM', recharge: 'KeyK', alteration: 'KeyL', link: 'KeyU', windwalk: 'KeyI', splitter: 'KeyP', warpzone: '',
+  drain: 'KeyN', snowball: 'KeyO', illusion: 'KeyJ', magnetize: 'KeyM', recharge: 'KeyK', alteration: 'KeyL', link: 'KeyU', windwalk: 'KeyI', splitter: 'KeyP', warpzone: '',
   scourge: 'Digit1', redirector: 'Digit2', pact: 'Digit3',
   // loja: o B do Dota é do Bumerangue e as 26 letras já têm dono, então o 4; ficha: a tecla à esquerda do 1 (' no ABNT2);
   // grimório no F1 (o H é da Gravidade)
