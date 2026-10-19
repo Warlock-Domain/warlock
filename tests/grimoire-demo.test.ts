@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { SCRIPTS, demoStep, demoWorld, type DemoId } from '../src/client/demo.ts';
+import { describe, expect, it, vi } from 'vitest';
+import { SCRIPTS, demoStep, demoWorld, runDemo, type DemoId } from '../src/client/demo.ts';
 import { ACTIVE_ITEMS } from '../src/shared/items.ts';
 import { SPELLS, SPELL_IDS, type SpellId } from '../src/shared/spells.ts';
 import type { SimEvent } from '../src/shared/sim.ts';
@@ -42,5 +42,39 @@ describe('grimório: demonstrações com a simulação de verdade', () => {
     expect(run('redirector').some((e) => e.k === 'hit' && e.by === 'a' && e.dmg > 0)).toBe(true);
     expect(run('aegis').some((e) => e.k === 'aegis' && e.id === 'b')).toBe(true);
     expect(run('clash').some((e) => e.k === 'clash' && e.combo === 'fire')).toBe(true);
+  });
+});
+
+// requestAnimationFrame de mentira: os quadros pedidos ficam numa fila e rodam quando o teste manda
+function fakeRaf() {
+  const queue: ((now: number) => void)[] = [];
+  const raf = (f: (now: number) => void) => queue.push(f);
+  const frame = (now: number) => queue.splice(0).forEach((f) => f(now));
+  return { queue, raf, frame };
+}
+
+describe('dica: demonstração liga ao abrir e desliga ao fechar', () => {
+  it('anima enquanto a dica está aberta e não deixa laço vivo depois de fechar', () => {
+    const { queue, raf, frame } = fakeRaf();
+    const tick = vi.fn();
+    let open = true;
+    runDemo(tick, () => open, false, raf);
+    frame(16);
+    frame(32);
+    expect(tick).toHaveBeenCalledTimes(2);
+    expect(queue.length).toBe(1); // próximo quadro já pedido
+    open = false; // fechou a dica (ou trocou: o canvas saiu da página)
+    frame(48);
+    expect(tick).toHaveBeenCalledTimes(2);
+    expect(queue.length).toBe(0);
+  });
+
+  it('com movimento reduzido desenha só o primeiro quadro', () => {
+    const { queue, raf, frame } = fakeRaf();
+    const tick = vi.fn();
+    runDemo(tick, () => true, true, raf);
+    frame(16);
+    expect(tick).toHaveBeenCalledTimes(1);
+    expect(queue.length).toBe(0);
   });
 });

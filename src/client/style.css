@@ -257,6 +257,8 @@ body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: no
 .tip .up { color: var(--ok); }
 .tip small { display: block; color: var(--muted); }
 .tip .k { font-family: ui-monospace, Consolas, monospace; font-size: .75rem; border: 1px solid var(--line); border-radius: var(--r-xs); padding: 0 4px; }
+/* demonstração do grimório no topo da dica (tips.ts); tamanho fixo: a dica se ajusta ao conteúdo */
+.tip .tip-demo { display: block; width: 240px; height: 140px; margin: 0 auto 8px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--lava-night); }
 .center.wide { width: min(1240px, calc(100% - 24px)); }
 .shop { display: grid; grid-template-columns: 250px minmax(0, 1fr) 270px; gap: 16px; align-items: start; }
 .shop-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
@@ -838,6 +840,7 @@ button.train small { font-weight: 400; }
 /* toque sem mouse: a dica vira faixa fixa acima do Pronto em vez de flutuar sobre os cartões (tips.ts posiciona por transform) */
 @media (hover: none) and (pointer: coarse) {
   .tip { transform: none !important; top: auto; left: max(10px, var(--safe-l)); right: max(10px, var(--safe-r)); bottom: calc(80px + var(--safe-b)); max-width: 560px; max-height: 45vh; margin-inline: auto; overflow: hidden; }
+  .tip .tip-demo { display: none; } /* faixa apertada: sem demonstração */
 }
 
 /* replay da queda: a loja de quem caiu some enquanto ele passa (volta sozinha no fim) */

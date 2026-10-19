@@ -83,6 +83,17 @@ export function demoStep(s: DemoState) {
   s.events = w.events;
 }
 
+// laço da demo: anima enquanto alive() for verdadeiro e para sozinho depois (página virada, dica fechada ou trocada);
+// still: só o primeiro quadro, parado (movimento reduzido)
+export function runDemo(tick: (now: number) => void, alive: () => boolean, still = false, raf: (f: (now: number) => void) => unknown = requestAnimationFrame) {
+  const loop = (now: number) => {
+    if (!alive()) return;
+    tick(now);
+    if (!still) raf(loop);
+  };
+  raf(loop);
+}
+
 // ---- desenho ----
 type Fx = { e: SimEvent; until: number };
 const PROJ_COLOR: Record<string, string> = {

@@ -5,7 +5,7 @@ import { ARENA_IDS, SHAPES, type ArenaId } from '../shared/arena.ts';
 import { ARENA_R0, HP_MAX, RUNE_KINDS } from '../shared/constants.ts';
 import { ITEMS, ITEM_IDS, isActive, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
-import { SCRIPTS, createDemo, drawStone, type DemoId } from './demo.ts';
+import { SCRIPTS, createDemo, drawStone, runDemo, type DemoId } from './demo.ts';
 import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
 import { ACTIONS, UI_ACTIONS, UI_NAMES, isPadMode, isSlotMode, labelOf, uiLabel } from './keys.ts';
 import { MODE_INFO, OPT_INFO } from './opt-info.ts';
@@ -114,8 +114,7 @@ export function openGrimoire() {
   let at = Math.min(PAGES.length - 1, Math.max(0, Number(store.get(STORE)) || 0));
   const wide = matchMedia('(min-width: 900px)');
   const ac = new AbortController();
-  let live: { tick: (now: number) => void }[] = [];
-  let raf = 0;
+  let live: object[] = []; // demos da vista atual
 
   const spread = el('div', { class: 'g-spread' });
   const where = el('span', { class: 'g-where' });
@@ -158,17 +157,13 @@ export function openGrimoire() {
       const slot = body.indexOf(null);
       if (slot >= 0) body[slot] = fig;
       else body.push(fig);
-      live.push(createDemo(canvas, p.demo, [COLORS[0], COLORS[1], COLORS[2]]));
+      const d = createDemo(canvas, p.demo, [COLORS[0], COLORS[1], COLORS[2]]);
+      live.push(d);
+      // fechou (✕, Esc ou o B do controle tira o overlay) ou virou a página: para
+      runDemo(d.tick, () => overlay.isConnected && live.includes(d));
     }
     return el('article', { class: 'g-page', 'aria-label': t(`Página ${i + 1}: ${p.title}`, `Page ${i + 1}: ${p.title}`) },
       p.chapter !== CH.toc ? el('small', { class: 'g-chapter' }, p.chapter) : null, ...body, el('span', { class: 'g-num' }, String(i + 1)));
-  }
-
-  function loop(now: number) {
-    // fechou (✕, Esc ou o B do controle tira o overlay) ou virou para página sem demo: para
-    if (!overlay.isConnected || !live.length) return void (raf = 0);
-    for (const d of live) d.tick(now);
-    raf = requestAnimationFrame(loop);
   }
 
   const view = () => { const per = wide.matches ? 2 : 1; return [per, at - (at % per)]; }; // páginas na vista e a primeira dela
@@ -187,7 +182,6 @@ export function openGrimoire() {
       spread.classList.add(dir > 0 ? 'turn-next' : 'turn-prev');
     }
     store.set(STORE, String(at));
-    if (live.length && !raf) raf = requestAnimationFrame(loop);
   }
   function go(i: number) {
     const to = Math.min(PAGES.length - 1, Math.max(0, i));

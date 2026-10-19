@@ -1,13 +1,17 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
 import { AEGIS, ITEMS, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, isActive, type ItemId } from '../shared/items.ts';
 import { LAVA_DPS } from '../shared/constants.ts';
+import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { labelOf } from './keys.ts';
 import { ILLUSION, MAX_SPELL_LEVEL, RECHARGE, RUSH, SPELLS, WARPZONE, type Level, type SpellId } from '../shared/spells.ts';
 import { RULES_SHORT, n1 } from './rules-text.ts';
+import { COLORS } from './scene.ts';
 
 const m = (x: number) => `${n1(x)} m`;
 const s = (x: number) => `${n1(x)} s`;
+// lugar da demonstração do grimório no topo da dica (withTip liga a animação quando a dica abre)
+const demo = (id: DemoId) => (SCRIPTS[id] ? `<canvas class="tip-demo" data-demo="${id}" aria-hidden="true"></canvas>` : '');
 
 // rótulos que se repetem em muitas magias
 const DMG = t('Dano', 'Damage');
@@ -60,7 +64,7 @@ export function spellTip(id: SpellId, level: number): string {
   const head = `<b>${spellName(id)}</b> <span class="k">${labelOf(id)}</span><br><small>${level ? t(`Nível ${level} de ${MAX_SPELL_LEVEL}`, `Level ${level} of ${MAX_SPELL_LEVEL}`) : t('Ainda não comprada · preço ', 'Not bought yet · price ') + sp.cost}</small>`;
   const rows = SPELL_ROWS[id].map(([k, f]): [string, string, string | null] => [k, f(cur), next ? f(next) : null]);
   const foot = next ? `<small class="up">${t(`Próximo nível (${sp.up[level - 1]} de ouro): o que está à direita`, `Next level (${sp.up[level - 1]} gold): shown on the right`)}</small>` : level >= MAX_SPELL_LEVEL ? `<small>${t('Nível máximo', 'Max level')}</small>` : '';
-  return `${head}<p>${RULES_SHORT[id]}</p>${table(rows)}${foot}<small class="muted">${t('Empurrão: distância que um mago sem dano acumulado desliza.', 'Knockback: distance a wizard with no accumulated damage slides.')}</small>`;
+  return `${demo(id)}${head}<p>${RULES_SHORT[id]}</p>${table(rows)}${foot}<small class="muted">${t('Empurrão: distância que um mago sem dano acumulado desliza.', 'Knockback: distance a wizard with no accumulated damage slides.')}</small>`;
 }
 
 // grimório: todos os níveis lado a lado; linha igual em todos os níveis vira uma célula só
@@ -109,7 +113,7 @@ export function itemTip(id: ItemId, level: number): string {
   const cur = rows(Math.max(0, level - 1));
   const next = level >= 1 && level < max ? rows(level) : null;
   const body = table(cur.map(([k, v], i): [string, string, string | null] => [k, v, next ? next[i][1] : null]));
-  return `${head}<p>${itemText(id)}</p>${body}${next ? `<small class="up">${t('Próximo nível: o que está à direita', 'Next level: shown on the right')}</small>` : level >= max ? `<small>${t('Nível máximo', 'Max level')}</small>` : ''}`;
+  return `${demo(id)}${head}<p>${itemText(id)}</p>${body}${next ? `<small class="up">${t('Próximo nível: o que está à direita', 'Next level: shown on the right')}</small>` : level >= max ? `<small>${t('Nível máximo', 'Max level')}</small>` : ''}`;
 }
 
 
@@ -129,6 +133,9 @@ export function withTip<T extends HTMLElement>(target: T, html: () => string): T
     const x = Math.min(innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2));
     const y = r.top - h - 10 > 8 ? r.top - h - 10 : r.bottom + 10;
     tipEl.style.transform = `translate(${x}px, ${y}px)`;
+    // uma demo por vez: a próxima dica troca o innerHTML e desliga o canvas desta; no toque o CSS esconde o canvas (largura 0) e ela nem começa
+    const c = tipEl.querySelector<HTMLCanvasElement>('canvas[data-demo]');
+    if (c?.clientWidth) runDemo(createDemo(c, c.dataset.demo as DemoId, COLORS.slice(0, 3)).tick, () => c.isConnected && !tipEl!.hidden, matchMedia('(prefers-reduced-motion: reduce)').matches);
   };
   const hide = () => tipEl && (tipEl.hidden = true);
   target.addEventListener('mouseenter', show);
