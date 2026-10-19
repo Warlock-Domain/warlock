@@ -52,6 +52,30 @@ npx vite build                      # build do cliente (dist/)
 - Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3. Escudo com recarga de 16 s. Drenar só muda depois de partidas reais. Ataques fortes e raros (não encurtar recargas).
 - Recusados: ranking/perfil e itens que só ajudam uma magia específica.
 
+## Registro de decisões do Fernando
+
+Toda decisão nova entra aqui (data, decisão, porquê) e, se mudar o jeito de codar, no `CLAUDE.md` da pasta afetada, no mesmo PR da mudança. Cada pasta principal tem o seu (`src/shared`, `src/client`, `src/worker`, `scripts`, `tests`) com os padrões de código daquela área; o `AGENTS.md` de cada pasta aponta para ele.
+
+| Data | Decisão | Por quê |
+|---|---|---|
+| 17/10 | Câmera de cima em 3D, controles do Dota (botão direito anda); 1 ponto por rodada, vence quem fizer 5 | igual ao Warlock original, público de Dota |
+| 18/10 | Repositório público | amigos contribuírem |
+| 18/10 | Recusados: ranking/perfil e itens que só ajudam uma magia (ex.: Cajado de fogo) | foco no jogo, build livre |
+| 18/10 | Número de magia/item só muda depois de medido no simulador; justo no Normal **e** no Difícil (0,85 a 1,15); metas de rodada 60–120 s e ≥ 60% das mortes por golpe | balanceamento por dado, não por opinião |
+| 18/10 | Bots em 3 dificuldades | jogar sozinho em qualquer nível |
+| 19/10 | Sai Gêmeos, entra Ilusão: 10 magias de ataque, 5 de mobilidade, 5 de defesa, 5 de controle | grupos equilibrados |
+| 19/10 | Escudo com recarga 16 s; Drenar espera partidas reais; Ilusão fica como está | resultado do torneio de compras |
+| 19/10 | Balanceamento continua tendo a Bola de fogo como referência | todos têm de graça |
+| 19/10 | Menu inicial com 5 abas; menus enxutos; loja em grade estilo Dota com cor por grupo; magias e itens numa tela de consulta (F2) | público de Dota, menos coisa na tela |
+| 19/10 | Sala sem opção de ritmo (sempre Normal) nem de morte súbita (sempre ligada); dificuldade escolhida bot a bot | menos opção que ninguém entendia |
+| 19/10 | Criador de personagem de 7 peças, com os 9 bonecos originais como atalho; troca até no meio da partida | visual próprio sem poluir a sala |
+| 19/10 | Rocha vira **Barricada** | nome mais claro |
+| 19/10 | Jogo em português e inglês | amigos de fora |
+| 19/10 | Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3 | baú demais por rodada |
+| 19/10 | Sandbox no Treino (vida e ouro sem fim, bots e boneco pelo painel) | testar magias e interações |
+| 19/10 | `master` protegido (PR + CI + aprovação); revisão automática do Claude em todo PR; ambiente `<nome>-dev` por colaborador; guia do colaborador no repositório | entrada de colaboradores |
+| 19/10 | Os `CLAUDE.md` (raiz e pastas) são atualizados a cada decisão nova | todo dev com o mesmo contexto do dono |
+
 ## Fluxo com agente
 
 Skills (plugins `superpowers@claude-plugins-official` e `ponytail@ponytail`): brainstorming antes de coisa nova → writing-plans para vários passos → TDD em `src/shared` → systematic-debugging antes de corrigir bug → verification-before-completion antes de dizer pronto → `/ponytail-review` no diff antes do PR. Guia completo do colaborador (máquina, prompts, testes, problemas comuns): [docs/GUIA-COLABORADOR.md](docs/GUIA-COLABORADOR.md).
