@@ -688,7 +688,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     tauntTitle.textContent = uiLabel('taunt') === '—' ? t('Provocações', 'Taunts') : `${t('Provocações', 'Taunts')} (${uiLabel('taunt')})`;
   }
   drawHints();
+  // sair da sala: volta ao menu inicial (main.ts recarrega no hashchange); no meio da partida pergunta antes
+  const exitBtn = el('button', { type: 'button', class: 'icon', title: t('Sair da sala', 'Leave room'), 'aria-label': t('Sair da sala e voltar ao início', 'Leave the room and go back to the start'), onclick: () => {
+    const mid = room && room.phase !== 'lobby' && room.phase !== 'end';
+    if (!mid || confirm(t('Sair da partida e voltar ao início?', 'Leave the match and go back to the start?'))) location.hash = '';
+  } }, icon(UI_ICON.exit));
   const top = el('div', { class: 'hud-top' },
+    exitBtn,
     el('button', { type: 'button', class: 'code', title: t('Copiar link da sala', 'Copy room link'), 'aria-label': t(`Sala ${code}: copiar link`, `Room ${code}: copy link`), onclick: () => copyLink() }, status, ' ', code, ping),
     roundEl,
     el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, volBtn, gearBtn, helpBtn, el('div', { class: 'vol more-wrap' }, moreBtn, morePanel), el('div', { class: 'vol' }, sbBtn, sbPanel)),
