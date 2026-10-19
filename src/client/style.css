@@ -986,10 +986,21 @@ body.replaying .peek-shop { display: none; }
 .shop-item:not(.can):not(.owned) .shop-tile .tile-name { color: var(--muted); }
 .shop-tile .pips { margin-top: auto; }
 .tile-acts { min-height: 26px; }
-.shop .shop-main .shop-grid { grid-template-columns: repeat(5, 118px); column-gap: 10px; }
-.shop-items .shop-grid { grid-template-columns: repeat(2, 118px); column-gap: 8px; }
-.shop { grid-template-columns: 262px minmax(0, 1fr) 270px; }
-@media (min-width: 1500px) { .shop { grid-template-columns: 262px minmax(0, 1fr) 290px; } }
+@media (min-width: 861px) {
+  .shop .shop-main .shop-grid { grid-template-columns: repeat(5, 118px); column-gap: 10px; }
+  .shop-items .shop-grid { grid-template-columns: repeat(2, 118px); column-gap: 8px; }
+  .shop { grid-template-columns: 262px minmax(0, 1fr) 270px; }
+}
+/* tela estreita (celular, gaveta): cartões ocupam a largura em colunas iguais */
+@media (max-width: 860px) {
+  .shop .shop-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+  .shop-item { width: auto; }
+  .shop-tile { width: 100%; }
+}
+.peek-shop.drawer .shop .shop-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+.peek-shop.drawer .shop-item { width: auto; }
+.peek-shop.drawer .shop-tile { width: 100%; }
+@media (min-width: 1500px) { .shop { grid-template-columns: 262px minmax(0, 1fr) 290px; } .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); } }
 /* loja só para ver: o ícone é um div, não botão; recebe o mesmo arranjo e a mesma moldura do botão */
 .shop-tile { display: flex; align-items: center; }
 div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: var(--fg); box-sizing: border-box; }
