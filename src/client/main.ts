@@ -20,7 +20,8 @@ import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
-import { TEAM_NAMES, TOUCH, askName, banner, createRoomUi, renderLobby, screen, toast } from './ui.ts';
+import { TEAM_NAMES, TOUCH, askName, banner, createRoomUi, curtain, renderLobby, screen, toast } from './ui.ts';
+import { endResult } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
 // som de cada magia: as novas reaproveitam os sons que já existem
@@ -44,6 +45,27 @@ const ui = document.getElementById('ui')!;
 const canvas = document.getElementById('c') as HTMLCanvasElement;
 addEventListener('hashchange', () => location.reload());
 
+// volumes guardados no navegador (0 a 1); quem tinha deixado mudo na versão antiga começa em zero
+function loadVolumes() {
+  const readVol = (k: string, fallback: number) => {
+    const n = Number(store.get(k));
+    return Number.isFinite(n) && store.get(k) !== null ? Math.max(0, Math.min(1, n)) : fallback;
+  };
+  const oldMute = store.get('warlock:mute') === '1';
+  return { sfx: readVol('warlock:vol-sfx', oldMute ? 0 : 1), music: readVol('warlock:vol-music', oldMute || store.get('warlock:music') === '0' ? 0 : 0.7) };
+}
+
+// som curto ao passar o mouse num botão, no máximo 1 a cada 60 ms (o toque não tem hover; o clique tem som próprio)
+function hoverSound(sound: ReturnType<typeof createSound>) {
+  let at = 0;
+  addEventListener('pointerover', (e) => {
+    const b = (e.target as Element).closest?.('button:not(:disabled), .button');
+    if (e.pointerType !== 'mouse' || !b || b === (e.relatedTarget as Element | null)?.closest?.('button, .button') || performance.now() - at < 60) return;
+    at = performance.now();
+    sound.play('hover');
+  });
+}
+
 async function main() {
   const name = store.get(NAME) || (await askName(ui, as));
   store.set(NAME, name);
@@ -56,6 +78,11 @@ async function main() {
 
 function startLobby(name: string) {
   document.body.className = 'in-lobby';
+  curtain();
+  // no lobby também: hover e clique dos botões (sem música nem lava, que só existem na partida)
+  const sound = createSound(loadVolumes);
+  hoverSound(sound);
+  ui.addEventListener('click', (e) => (e.target as Element).closest('button, .button') && sound.play('click'));
   let rooms: RoomInfo[] | null = null;
   let offline = false;
   const draw = () =>
@@ -75,7 +102,7 @@ function startLobby(name: string) {
   }
   connect('/ws/lobby', (m) => {
     if (m.t !== 'rooms') return;
-    rooms = (m.rooms as RoomInfo[]).sort((a, b) => Number(b.phase === 'lobby') - Number(a.phase === 'lobby'));
+    rooms = m.rooms as RoomInfo[]; // a ordem e as vazias recolhidas ficam com renderLobby (screen-data.ts)
     draw();
   }, () => {}, (on) => {
     // sem a conexão da lista, o lobby mostra o erro em vez de "Carregando salas…" para sempre
@@ -89,14 +116,10 @@ function startLobby(name: string) {
 function startRoom(code: string, name: string) {
   let myName = name;
   document.body.className = 'in-room';
-  // volumes guardados no navegador (0 a 1); quem tinha deixado mudo na versão antiga começa em zero
-  const readVol = (k: string, fallback: number) => {
-    const n = Number(store.get(k));
-    return Number.isFinite(n) && store.get(k) !== null ? Math.max(0, Math.min(1, n)) : fallback;
-  };
-  const oldMute = store.get('warlock:mute') === '1';
-  const vol = { sfx: readVol('warlock:vol-sfx', oldMute ? 0 : 1), music: readVol('warlock:vol-music', oldMute || store.get('warlock:music') === '0' ? 0 : 0.7) };
+  curtain();
+  const vol = loadVolumes();
   const sound = createSound(() => vol);
+  hoverSound(sound);
   let room: PublicRoom | null = null;
   let me = playerId;
   let online = false;
@@ -413,6 +436,9 @@ function startRoom(code: string, name: string) {
 
   function onPhase(prev: PublicRoom | null) {
     if (!room) return;
+    // cortina ao entrar na partida ou voltar para a sala (sala e fim são telas de menu; o resto é a arena)
+    const menu = (p: string) => p === 'lobby' || p === 'end';
+    if (prev && menu(prev.phase) !== menu(room.phase)) curtain();
     // na contagem o servidor ainda não aceita comandos: liberar só quando a rodada começa
     input.setEnabled(room.phase === 'playing');
     sound.setAmbience(room.phase !== 'lobby' && room.phase !== 'end');
@@ -442,12 +468,11 @@ function startRoom(code: string, name: string) {
       else if (room.mode === 'teams' && w && w.team !== null) banner(`Time ${TEAM_NAMES[w.team]} venceu a rodada!`);
       else banner(!w ? (room.mode === 'deathmatch' ? 'Fim da rodada' : 'Ninguém sobrou!') : room.mode === 'deathmatch' ? (w.id === me ? 'Você fez mais abates!' : `${w.name} fez mais abates!`) : w.id === me ? 'Você venceu a rodada!' : `${w.name} venceu a rodada!`, w?.id === me ? 'good' : '');
     } else if (room.phase === 'end' && prev) {
-      const w = room.players.find((p) => p.id === room!.winner);
-      const myTeam = room.players.find((p) => p.id === me)?.team;
-      const won = !!w && (room.winnerTeam !== null ? myTeam === room.winnerTeam : w.id === me);
-      if (w) sound.play(won ? 'winRound' : 'loseRound');
+      // mesmo resultado do cabeçalho do cartão (Vitória, Derrota ou Fim de jogo); quem só assistia não ouve nada
+      const res = endResult(room, me);
+      if (res !== 'none') sound.play(res === 'win' ? 'winRound' : 'loseRound');
       // o cartão do fim já mostra o vencedor e o pódio: a faixa grande só para quem venceu (antes cobria o pódio)
-      if (won) banner('Vitória na partida!', 'win');
+      if (res === 'win') banner('Vitória na partida!', 'win');
     }
   }
 
@@ -485,7 +510,8 @@ function startRoom(code: string, name: string) {
     // perigo: vida abaixo de 25% e pé na lava (mesma regra da simulação: fora do raio da arena)
     const meW = room?.phase === 'playing' ? myWizard(latest) : null;
     const meP = colorOf.get(me);
-    const low = !!meW?.alive && !!meP && meW.hp < 0.25 * (HP_MAX + itemStats(meP.items).hp);
+    const meMax = HP_MAX + (meP ? itemStats(meP.items).hp : 0);
+    const low = !!meW?.alive && !!meP && meW.hp < 0.25 * meMax;
     const lava = !!meW?.alive && !!latest && edgeAt(arenaId, latest.arenaR, meW.pos) < 0 && !onIsle(latest.isles, meW.pos);
     view.danger(low, lava);
     const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' ? s.shrinkAt - s.time : null;
@@ -524,7 +550,7 @@ function startRoom(code: string, name: string) {
     scene.range(showing && myPos ? myPos : null, showing && meP ? reachOf(showing, meP.spells, meP.items) : 0);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
-    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null);
+    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null);
   }
   const drawn = new Map<string, Vec>();
   void scene.ready.then(() => requestAnimationFrame(frame), () => toast('Não deu para carregar o mago. Recarregue a página.'));

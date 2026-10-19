@@ -1,7 +1,7 @@
 // Sons: arquivos gravados (CC0, public/sfx, créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
 // sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
-  | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready';
+  | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover';
 
 const FILES: Partial<Record<SoundKind, string[]>> = {
   fireball: ['fireball'], lightning: ['lightning'], homing: ['homing'], shield: ['shield'], teleport: ['teleport'],
@@ -18,6 +18,7 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
   const buffers = new Map<string, AudioBuffer>();
   const music = new Audio('/music/battle.mp3');
   music.loop = true;
+  music.preload = 'none'; // só baixa quando a partida toca (o lobby também cria o som, para o hover e o clique)
   music.volume = 0.3;
   let lava: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
   let wantAmbience = false;
@@ -160,6 +161,8 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
         case 'beep': tone('square', 660, 660, 0.12, 0.08 * v); break;
         case 'go': tone('square', 990, 990, 0.3, 0.1 * v); break;
         case 'click': tone('triangle', 900, 700, 0.05, 0.05 * v); break;
+        // mouse em cima de um botão: tique mais curto e baixo que o clique
+        case 'hover': tone('sine', 1500, 1300, 0.03, 0.02 * v); break;
         case 'hitLight': hiss('lowpass', 1400, 300, 0.18, 0.6 * v); tone('sine', 200, 90, 0.15, 0.2 * v); break;
         case 'hitHeavy': hiss('lowpass', 700, 80, 0.45, 1 * v); break;
         // mergulho na lava: chiado agudo longo e duas bolhas graves

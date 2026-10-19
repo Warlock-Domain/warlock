@@ -4,6 +4,8 @@ import { SPELLS, SPELL_IDS, type Level } from '../src/shared/spells.ts';
 import { RULES_SHORT, SPELL_GROUPS, SPELL_USE } from '../src/client/rules-text.ts';
 import { ITEM_ROWS, SPELL_ROWS } from '../src/client/tips.ts';
 import { ICON, ITEM_ICON, STATUS_ICONS } from '../src/client/icons.ts';
+import { endResult, roomGroups } from '../src/client/screen-data.ts';
+import type { PublicPlayer, PublicRoom, RoomInfo } from '../src/shared/protocol.ts';
 
 describe('loja: dados para decidir', () => {
   it('puts every spell in exactly one group, with a purpose and a description', () => {
@@ -41,5 +43,32 @@ describe('loja: dados para decidir', () => {
   it('gives every status effect its own icon', () => {
     const icons = STATUS_ICONS.map(([, ico]) => ico);
     expect(new Set(icons).size).toBe(icons.length);
+  });
+});
+
+describe('telas: fim da partida e lista de salas', () => {
+  const p = (id: string, score = 0, team: number | null = null) => ({ id, score, team }) as PublicPlayer;
+  const room = (over: Partial<PublicRoom>) => ({ players: [p('a', 5), p('b', 2)], winner: 'a', winnerTeam: null, mode: 'rounds', goal: 5, ...over }) as PublicRoom;
+
+  it('says Vitória to the winner, Derrota to the others and nothing to spectators', () => {
+    expect(endResult(room({}), 'a')).toBe('win');
+    expect(endResult(room({}), 'b')).toBe('loss');
+    expect(endResult(room({}), 'x')).toBe('none');
+    expect(endResult(room({ winner: null }), 'a')).toBe('none');
+  });
+
+  it('counts the whole team and every champion of shuffled teams', () => {
+    const players = [p('a', 5, 0), p('b', 5, 0), p('c', 3, 1)];
+    expect(endResult(room({ mode: 'teams', players, winnerTeam: 0 }), 'b')).toBe('win');
+    expect(endResult(room({ mode: 'teams', players, winnerTeam: 0 }), 'c')).toBe('loss');
+    // sorteados: dois chegaram à meta juntos; o servidor marca só um como winner
+    expect(endResult(room({ mode: 'teams', players, winner: 'a' }), 'b')).toBe('win');
+  });
+
+  it('lists waiting rooms first and keeps empty rooms apart', () => {
+    const r = (id: string, phase: string, players = 1) => ({ id, phase, players }) as RoomInfo;
+    const { live, empty } = roomGroups([r('PLAY', 'playing'), r('VAZI', 'lobby', 0), r('ENDD', 'end'), r('WAIT', 'lobby'), r('SHOP', 'shop')]);
+    expect(live.map((x) => x.id)).toEqual(['WAIT', 'ENDD', 'PLAY', 'SHOP']);
+    expect(empty.map((x) => x.id)).toEqual(['VAZI']);
   });
 });
