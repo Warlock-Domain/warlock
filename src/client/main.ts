@@ -7,7 +7,9 @@ import { decodeSnap, type SnapView } from '../shared/snapshot.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
+import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
 import { coachTip } from './coach.ts';
+import { n1 } from './rules-text.ts';
 import { reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
@@ -136,6 +138,10 @@ function startRoom(code: string, name: string) {
   // modo treino (só para quem apertou o botão): dicas nas primeiras rodadas; playingAt marca o "Já!"
   let training = false;
   let trainSetup: BotSetup[] | undefined; // magias dos bots do último treino
+  // desafio curto: pending espera a loja da rodada 0 (começo ou Repetir); run conta a tarefa; runRound = rodada em que ela acabou
+  let pending: Challenge | null = null;
+  let run: Run | null = null;
+  let runRound = -1;
   let arenaId: ArenaId = 'circle'; // formato da arena da rodada (vem na mensagem 'room')
   let playingAt = 0;
   const justCast = new Map<string, number>();
@@ -163,13 +169,19 @@ function startRoom(code: string, name: string) {
   const view = createRoomUi(ui, code, {
     start: (bots, mode, shuffle, opts, again) => {
       training = false; // partida normal depois de um treino: sem dicas
+      run = pending = null;
       if (!again) trainSetup = undefined; // o "Jogar de novo" repete as magias dos bots do treino; começar pela sala, não
       net.send({ t: 'start', bots, mode, shuffle, opts, ...(trainSetup && { setup: trainSetup }) });
     },
     train: (opts, setup) => {
       training = true;
+      run = pending = null;
       trainSetup = setup;
       net.send({ t: 'start', bots: 3, mode: 'rounds', shuffle: true, opts, ...(setup && { setup }) });
+    },
+    challenge: (id) => {
+      const c = CHALLENGES.find((x) => x.id === id);
+      if (c) startChallenge(c);
     },
     buy: (spell) => net.send({ t: 'buy', spell }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),
@@ -302,6 +314,32 @@ function startRoom(code: string, name: string) {
   // a sala conta a CPU entre mensagens; o "estou aqui" a cada 5 s mantém a conta zerada durante a partida
   setInterval(() => room && room.phase !== 'lobby' && room.phase !== 'end' && net.send({ t: 'alive' }), 5000);
 
+  function startChallenge(c: Challenge) {
+    training = false;
+    run = null;
+    pending = c;
+    net.send({ t: 'start', bots: c.bots, mode: 'rounds', shuffle: true, opts: c.opts, setup: c.setup });
+  }
+  // Repetir: com a partida rolando, reinicia por votação (sozinho passa na hora) e a loja da rodada 0 recomeça o desafio
+  function again() {
+    if (!run || !room) return;
+    if (room.phase === 'end') return startChallenge(run.c);
+    pending = run.c;
+    net.send({ t: 'vote', kind: 'restart' });
+  }
+  // fim do desafio: faixa, som e recorde (uma vez só)
+  function finishRun(next: Run) {
+    const was = run;
+    run = next;
+    if (was?.state !== 'on' || next.state === 'on' || !room) return;
+    runRound = room.round;
+    const won = next.state === 'won';
+    sound.play(won ? 'winRound' : 'loseRound');
+    banner(won ? `Desafio ${next.c.name} cumprido!` : `Desafio ${next.c.name}: não deu`, won ? 'win' : 'bad');
+    const score = scoreOf(next);
+    if (score !== null && saveBest(next.c.id, score, !!next.c.survive)) toast(`Recorde novo no ${next.c.name}: ${n1(score)} s`, 'good');
+  }
+
   function names() {
     return new Map(room?.players.map((p) => [p.id, p.name]) ?? []);
   }
@@ -405,6 +443,7 @@ function startRoom(code: string, name: string) {
     if (notes.length) toast(notes.join(' · '));
     if (voice) void sound.taunt(voice);
     if (liveChanged) view.live(live);
+    if (run?.state === 'on' && room?.phase === 'playing') finishRun(stepRun(run, 0, events, me, true));
     if (!rp) scene.onEvents(events); // durante o replay a cena mostra os efeitos do trecho gravado
   }
 
@@ -441,6 +480,13 @@ function startRoom(code: string, name: string) {
       scene.preload(room.players.map((p) => p.character));
       if (room.phase !== lastPhase) onPhase(prev);
       lastPhase = room.phase;
+      // desafio: na loja da rodada 0 compra o que ele pede e já fica Pronto (os bots já estão, a loja fecha na hora)
+      if (pending && room.phase === 'shop' && room.round === 0) {
+        run = { c: pending, n: 0, t: 0, state: 'on' };
+        for (const spell of pending.buy ?? []) net.send({ t: 'buy', spell });
+        net.send({ t: 'ready' });
+        pending = null;
+      }
       return;
     }
     if (m.t === 'taunt') {
@@ -468,6 +514,8 @@ function startRoom(code: string, name: string) {
   function onPhase(prev: PublicRoom | null) {
     if (!room) return;
     rp = null; // troca de fase encerra o replay
+    // desafio: a rodada acabou antes da meta (a queda que decide o Duelo pode chegar depois do fim da rodada)
+    if (run && prev?.phase === 'playing') finishRun(endRun(run, room.lastRoundWinner === me));
     // cortina ao entrar na partida ou voltar para a sala (sala e fim são telas de menu; o resto é a arena)
     const menu = (p: string) => p === 'lobby' || p === 'end';
     if (prev && menu(prev.phase) !== menu(room.phase)) curtain();
@@ -492,7 +540,7 @@ function startRoom(code: string, name: string) {
       playingAt = performance.now();
       banner('Já!', 'good');
       sound.play('go');
-    } else if (room.phase === 'roundEnd') {
+    } else if (room.phase === 'roundEnd' && !(run && runRound === room.round)) { // a rodada em que o desafio acabou fica com a faixa dele
       const w = room.players.find((p) => p.id === room!.lastRoundWinner);
       const myTeam = room.players.find((p) => p.id === me)?.team;
       // vencedor (ou o time dele) vê a faixa VITÓRIA com confete e ouve o arpejo; quem jogou e perdeu ouve o arpejo descendo
@@ -558,7 +606,11 @@ function startRoom(code: string, name: string) {
       const o = drawWiz.find((d) => d.id === ownerId);
       return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~8388608, moving: true, cheer: false, ghost: ownerId === me }] : [];
     });
-    if (training && room) view.coach(meP ? coachTip({ phase: room.phase, round: room.round, playingFor: (nowMs - playingAt) / 1000, shrinkIn, low, lava, alive: !!meW?.alive, touch: TOUCH, fireKey: isPadMode() ? 'A' : labelOf('fireball'), fire: meP.spells.fireball > 0 }) : null);
+    // o desafio conta o tempo só com a rodada rolando; o progresso dele fica no lugar da dica do treino
+    if (run?.state === 'on' && room?.phase === 'playing') finishRun(stepRun(run, dt, [], me, meW?.alive !== false));
+    if (run) view.coach(runText(run), run.state === 'on' ? undefined : again);
+    else if (training && room) view.coach(meP ? coachTip({ phase: room.phase, round: room.round, playingFor: (nowMs - playingAt) / 1000, shrinkIn, low, lava, alive: !!meW?.alive, touch: TOUCH, fireKey: isPadMode() ? 'A' : labelOf('fireball'), fire: meP.spells.fireball > 0 }) : null);
+    else view.coach(null);
     scene.render({
       arena: arenaId,
       arenaR: (rs ?? s)?.arenaR ?? 11,

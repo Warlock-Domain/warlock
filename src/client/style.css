@@ -664,6 +664,8 @@ html.pad .shop-item:focus-within { border-color: #ffd166; }
 button.train { flex-direction: column; gap: 0; border-style: dashed; border-color: var(--bronze); }
 button.train small { font-weight: 400; }
 .hud > .coach { position: absolute; left: 50%; top: calc(48px + var(--safe-t)); transform: translateX(-50%); z-index: 4; max-width: min(520px, calc(100% - 24px)); padding: 8px 16px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--ember); box-shadow: 0 0 16px rgba(255, 179, 71, .35); font-weight: 700; text-align: center; pointer-events: none; animation: fade-in .2s ease-out; }
+/* Repetir do desafio: o único clicável da dica */
+.hud > .coach button { pointer-events: auto; margin-left: 10px; }
 @media (max-width: 600px) { .hud > .coach { top: auto; bottom: calc(130px + var(--safe-b)); font-size: .9rem; border-radius: var(--r-md); } }
 /* celular: com a dica do treino na tela, o aviso sobe para não cobri-la */
 @media (max-width: 600px) { body:has(.hud > .coach:not([hidden])) #toast { bottom: calc(214px + var(--safe-b)); } }

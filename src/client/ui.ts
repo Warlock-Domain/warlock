@@ -16,6 +16,7 @@ import { ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, icon }
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
 import { botSetupPanel, hasBotSetup, savedBotSetup } from './train.ts';
+import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { endResult, roomGroups } from './screen-data.ts';
 
@@ -157,6 +158,7 @@ type RoomActions = {
   start: (bots: number, mode: Mode, shuffle: boolean, opts: MatchOpts, again?: boolean) => void; // again: "Jogar de novo" (repete a configuração do treino)
   hover: (a: SpellId | ItemId | null) => void; // mouse em cima da magia ou item na barra (círculo de alcance)
   train: (opts: Partial<MatchOpts>, setup?: BotSetup[]) => void; // partida de treino: 3 bots, modo Rodadas e dicas nas primeiras rodadas (com a dificuldade e as magias dos bots escolhidas)
+  challenge: (id: string) => void; // desafio curto do treino (challenges.ts)
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
   kick: (id: string) => void;
@@ -671,7 +673,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const danger = el('div', { class: 'danger', 'aria-hidden': 'true' });
   // dica do modo treino, uma por vez
   const coachText = el('span', {});
-  const coach = el('div', { class: 'coach', role: 'status', hidden: true }, icon(UI_ICON.tip), ' ', coachText);
+  const coachAgain = el('button', { type: 'button', hidden: true }, 'Repetir'); // fim do desafio
+  const coach = el('div', { class: 'coach', role: 'status', hidden: true }, icon(UI_ICON.tip), ' ', coachText, coachAgain);
   // espectador: selo "Assistindo X" com setas para trocar (← → no teclado)
   const watchName = el('b', {});
   const watchBadge = el('div', { class: 'watching', role: 'status', hidden: true },
@@ -730,6 +733,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let shuffle = true; // Times: sorteados a cada rodada ou fixos na partida
   let opts: MatchOpts | null = null; // opções da partida escolhidas aqui; começa com as da sala
   let optsOpen = true;
+  let challengesOpen = false;
   let setup = false; // fim da partida: true depois do "Voltar à sala"
   let botCfg = savedBotSetup(); // treino: magias escolhidas para cada bot
 
@@ -797,6 +801,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       // sozinho na sala: treino com 3 bots e dicas curtas nas primeiras rodadas, logo à vista
       humans === 1 && r.phase === 'lobby' ? el('button', { type: 'button', class: 'train', onclick: () => act.train({ difficulty: o.difficulty, arena: o.arena }, hasBotSetup(botCfg) ? botCfg : undefined) }, icon(UI_ICON.aim), ' Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')) : null,
       humans === 1 && r.phase === 'lobby' ? botSetupPanel(3, botCfg, (s) => (botCfg = s)) : null,
+      // desafios curtos (só sozinho; também depois do "Voltar à sala", para trocar de desafio): cada um com o recorde deste navegador
+      humans === 1 ? el('details', { class: 'match-opts', open: challengesOpen, ontoggle: (e: Event) => (challengesOpen = (e.target as HTMLDetailsElement).open) },
+        el('summary', {}, 'Desafios · ', el('small', { class: 'muted' }, 'tarefas curtas de até 1 min')),
+        el('div', { class: 'bs-spells' }, ...CHALLENGES.map((c) => {
+          const best = bestOf(c.id);
+          return el('button', { type: 'button', class: 'train', onclick: () => act.challenge(c.id) }, c.name,
+            el('small', {}, goalText(c)), el('small', { class: 'muted' }, best === null ? 'sem recorde' : `recorde: ${n1(best)} s${c.survive ? ' vivo' : ''}`));
+        }))) : null,
       picker(r),
       modePicker,
       optsBlock,
@@ -1104,10 +1116,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const label = text ? (TOUCH ? 'Sair' : 'Sair (Esc)') : TOUCH || k === '—' ? 'Rever a queda' : `Rever a queda (${k})`;
       if (replayBtn.textContent !== label) replayBtn.textContent = label;
     },
-    coach(text: string | null) {
+    // again: botão Repetir no fim de um desafio
+    coach(text: string | null, again?: () => void) {
       // primeira loja: o cartão "Primeira vez?" já diz o que fazer; a dica do treino espera ele sair
       coach.hidden = !text || !!center.querySelector('.first-tip');
       if (text && coachText.textContent !== text) coachText.textContent = text;
+      coachAgain.hidden = !again;
+      coachAgain.onclick = again ?? null;
     },
     danger(low: boolean, lava: boolean) {
       danger.classList.toggle('low', low);
