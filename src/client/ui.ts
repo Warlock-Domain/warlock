@@ -1,6 +1,7 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
 import { ARENA_NAMES, type ArenaId } from '../shared/arena.ts';
+import type { BotSkill } from '../shared/bots.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import { DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Vote } from '../shared/match.ts';
 import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
@@ -17,6 +18,7 @@ import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
 import { botSetupPanel, hasBotSetup, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
+import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { endResult, roomGroups } from './screen-data.ts';
 
@@ -159,6 +161,7 @@ type RoomActions = {
   hover: (a: SpellId | ItemId | null) => void; // mouse em cima da magia ou item na barra (círculo de alcance)
   train: (opts: Partial<MatchOpts>, setup?: BotSetup[]) => void; // partida de treino: 3 bots, modo Rodadas e dicas nas primeiras rodadas (com a dificuldade e as magias dos bots escolhidas)
   challenge: (id: string) => void; // desafio curto do treino (challenges.ts)
+  shadow: (opts: Partial<MatchOpts>, skill: Partial<BotSkill>) => void; // treino contra 1 bot que joga como você (mimic.ts)
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
   kick: (id: string) => void;
@@ -750,6 +753,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     );
   }
 
+  // sombra: 1 bot com o jeito de jogar das suas últimas rodadas; o que não foi medido fica no Normal (por isso a dificuldade vai Normal)
+  function shadowBtn(o: MatchOpts) {
+    const skill = toSkill(store.json<Profile>(PROFILE_KEY));
+    return el('button', { type: 'button', class: 'train', disabled: !skill, onclick: () => skill && act.shadow({ ...DEFAULT_OPTS, arena: o.arena }, skill) },
+      icon(UI_ICON.person), ' Treinar contra a sua sombra', el('small', {}, skill ? '1 bot que joga como você' : 'jogue 3 rodadas para a sombra aprender'));
+  }
+
   function lobbyPanel(r: PublicRoom) {
     const humans = r.players.filter((p) => !p.bot).length;
     const maxBots = MAX_PLAYERS - humans;
@@ -802,6 +812,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       // treino com as regras-padrão (depois de um desafio a sala fica sem runas, morte súbita e baús)
       humans === 1 && r.phase === 'lobby' ? el('button', { type: 'button', class: 'train', onclick: () => act.train({ ...DEFAULT_OPTS, difficulty: o.difficulty, arena: o.arena }, hasBotSetup(botCfg) ? botCfg : undefined) }, icon(UI_ICON.aim), ' Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')) : null,
       humans === 1 && r.phase === 'lobby' ? botSetupPanel(3, botCfg, (s) => (botCfg = s)) : null,
+      humans === 1 && r.phase === 'lobby' ? shadowBtn(o) : null,
       // desafios curtos (só sozinho; também depois do "Voltar à sala", para trocar de desafio): cada um com o recorde deste navegador
       humans === 1 ? el('details', { class: 'match-opts', open: challengesOpen, ontoggle: (e: Event) => (challengesOpen = (e.target as HTMLDetailsElement).open) },
         el('summary', {}, 'Desafios · ', el('small', { class: 'muted' }, 'tarefas curtas de até 1 min')),

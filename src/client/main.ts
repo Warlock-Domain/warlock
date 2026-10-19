@@ -9,6 +9,7 @@ import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
 import { coachTip } from './coach.ts';
+import { PROFILE_KEY, addRound, type Profile } from './mimic.ts';
 import { n1 } from './rules-text.ts';
 import { reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, SOURCE_ICON, icon } from './icons.ts';
@@ -138,6 +139,7 @@ function startRoom(code: string, name: string) {
   // modo treino (só para quem apertou o botão): dicas nas primeiras rodadas; playingAt marca o "Já!"
   let training = false;
   let trainSetup: BotSetup[] | undefined; // magias dos bots do último treino
+  let shadow = false; // treino contra a sombra: o bot aparece como "Sombra" (só nesta tela)
   // desafio curto: pending espera a loja da rodada 0 (começo ou Repetir); run conta a tarefa; runRound = rodada em que ela acabou
   let pending: Challenge | null = null;
   let run: Run | null = null;
@@ -170,14 +172,25 @@ function startRoom(code: string, name: string) {
     start: (bots, mode, shuffle, opts, again) => {
       training = false; // partida normal depois de um treino: sem dicas
       run = pending = null;
-      if (!again) trainSetup = undefined; // o "Jogar de novo" repete as magias dos bots do treino; começar pela sala, não
+      if (!again) {
+        trainSetup = undefined; // o "Jogar de novo" repete as magias dos bots do treino; começar pela sala, não
+        shadow = false;
+      }
       net.send({ t: 'start', bots, mode, shuffle, opts, ...(trainSetup && { setup: trainSetup }) });
     },
     train: (opts, setup) => {
       training = true;
       run = pending = null;
       trainSetup = setup;
+      shadow = false;
       net.send({ t: 'start', bots: 3, mode: 'rounds', shuffle: true, opts, ...(setup && { setup }) });
+    },
+    shadow: (opts, skill) => {
+      training = true;
+      run = pending = null;
+      trainSetup = [{ skill }];
+      shadow = true;
+      net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts, setup: trainSetup });
     },
     challenge: (id) => {
       const c = CHALLENGES.find((x) => x.id === id);
@@ -315,7 +328,7 @@ function startRoom(code: string, name: string) {
   setInterval(() => room && room.phase !== 'lobby' && room.phase !== 'end' && net.send({ t: 'alive' }), 5000);
 
   function startChallenge(c: Challenge) {
-    training = false;
+    training = shadow = false;
     run = null;
     pending = c;
     net.send({ t: 'start', bots: c.bots, mode: 'rounds', shuffle: true, opts: c.opts, setup: c.setup });
@@ -468,6 +481,7 @@ function startRoom(code: string, name: string) {
     }
     if (m.t === 'room') {
       const prev = room;
+      if (shadow) for (const p of m.room.players) if (p.bot) p.name = 'Sombra';
       room = m.room;
       me = m.you;
       arenaId = room.arena ?? arenaId; // na loja não há rodada: fica a última arena
@@ -516,6 +530,9 @@ function startRoom(code: string, name: string) {
     rp = null; // troca de fase encerra o replay
     // desafio: a rodada acabou antes da meta (a queda que decide o Duelo pode chegar depois do fim da rodada)
     if (run && prev?.phase === 'playing') finishRun(endRun(run, room.lastRoundWinner === me));
+    // a sombra aprende com as rodadas jogadas fora dos desafios (alive > 0: fora o deathmatch, que não conta o tempo vivo)
+    const mine = room.players.find((p) => p.id === me)?.stats.round;
+    if (room.phase === 'roundEnd' && prev?.phase === 'playing' && !run && !pending && mine && mine.alive > 0) store.set(PROFILE_KEY, JSON.stringify(addRound(store.json<Profile>(PROFILE_KEY), mine, rttSeen ? predict.rtt() : 0)));
     // cortina ao entrar na partida ou voltar para a sala (sala e fim são telas de menu; o resto é a arena)
     const menu = (p: string) => p === 'lobby' || p === 'end';
     if (prev && menu(prev.phase) !== menu(room.phase)) curtain();
