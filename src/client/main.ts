@@ -2,6 +2,8 @@ import { inLavaAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, SUDDEN, type RuneKind } from '../shared/constants.ts';
 import { isCharacter } from '../shared/characters.ts';
 import type { BotSetup, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
+import type { BotSkill } from '../shared/bots.ts';
+import { DEFAULT_OPTS } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView } from '../shared/snapshot.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
@@ -9,7 +11,7 @@ import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
 import { coachTip } from './coach.ts';
-import { PROFILE_KEY, addRound, type Profile } from './mimic.ts';
+import { PROFILE_KEY, addRound, toSkill, type Profile } from './mimic.ts';
 import { n1 } from './rules-text.ts';
 import { reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, SOURCE_ICON, icon } from './icons.ts';
@@ -24,6 +26,7 @@ import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
+import { hasBotSetup, savedBotSetup } from './train.ts';
 import { TEAM_NAMES, TOUCH, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
 import { endResult } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
@@ -47,6 +50,18 @@ const SERVER_EN: Record<string, string> = {
   'Sala cheia.': 'Room full.',
   'Você foi removido da sala por votação.': 'You were removed from the room by vote.',
 };
+
+// treino escolhido na tela inicial ('train', 'shadow' ou o id do desafio): atravessa o recarregar da página ao entrar na sala nova
+const AUTOSTART = 'warlock:autostart';
+function takeAutostart(): string | null {
+  try {
+    const k = sessionStorage.getItem(AUTOSTART);
+    sessionStorage.removeItem(AUTOSTART);
+    return k;
+  } catch {
+    return null;
+  }
+}
 
 // ?as=nome dá outra identidade na mesma máquina (testar com várias abas)
 const as = new URLSearchParams(location.search).get('as')?.replace(/[^a-z0-9]/gi, '').slice(0, 12) ?? '';
@@ -101,16 +116,23 @@ function startLobby(name: string) {
   let rooms: RoomInfo[] | null = null;
   let offline = false;
   const draw = () =>
-    renderLobby(ui, name, rooms, offline, create, async () => {
+    renderLobby(ui, name, rooms, offline, () => create(), async () => {
       name = await askName(document.body, name);
       store.set(NAME, name);
       draw();
-    });
-  async function create() {
+    }, create);
+  // train: o treino que começa sozinho na sala nova (sem armazenamento, entra só na sala)
+  async function create(train?: string) {
     try {
       const res = await fetch('/api/rooms', { method: 'POST' });
       if (!res.ok) throw new Error(String(res.status));
-      location.hash = (await res.json()).id;
+      const { id } = await res.json();
+      try {
+        if (train) sessionStorage.setItem(AUTOSTART, train);
+      } catch {
+        // só a sala
+      }
+      location.hash = id;
     } catch {
       toast(t('Não deu para criar a sala. Tente de novo.', 'Couldn’t create the room. Try again.'));
     }
@@ -190,24 +212,6 @@ function startRoom(code: string, name: string) {
         shadow = false;
       }
       net.send({ t: 'start', bots, mode, shuffle, opts, ...(trainSetup && { setup: trainSetup }) });
-    },
-    train: (opts, setup) => {
-      training = true;
-      run = pending = null;
-      trainSetup = setup;
-      shadow = false;
-      net.send({ t: 'start', bots: 3, mode: 'rounds', shuffle: true, opts, ...(setup && { setup }) });
-    },
-    shadow: (opts, skill) => {
-      training = true;
-      run = pending = null;
-      trainSetup = [{ skill }];
-      shadow = true;
-      net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts, setup: trainSetup });
-    },
-    challenge: (id) => {
-      const c = CHALLENGES.find((x) => x.id === id);
-      if (c) startChallenge(c);
     },
     buy: (spell) => net.send({ t: 'buy', spell }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),
@@ -339,6 +343,37 @@ function startRoom(code: string, name: string) {
   });
   // a sala conta a CPU entre mensagens; o "estou aqui" a cada 5 s mantém a conta zerada durante a partida
   setInterval(() => room && room.phase !== 'lobby' && room.phase !== 'end' && net.send({ t: 'alive' }), 5000);
+
+  // treino: 3 bots, modo Rodadas, regras-padrão e dicas nas primeiras rodadas (com as magias dos bots escolhidas)
+  function train(setup?: BotSetup[]) {
+    training = true;
+    run = pending = null;
+    trainSetup = setup;
+    shadow = false;
+    net.send({ t: 'start', bots: 3, mode: 'rounds', shuffle: true, opts: DEFAULT_OPTS, ...(setup && { setup }) });
+  }
+  // sombra: 1 bot que joga como você; o que não foi medido fica no Normal (mimic.ts)
+  function startShadow(skill: Partial<BotSkill>) {
+    training = true;
+    run = pending = null;
+    trainSetup = [{ skill }];
+    shadow = true;
+    net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts: DEFAULT_OPTS, setup: trainSetup });
+  }
+  // treino escolhido na tela inicial: só sozinho e com a sala em espera (uma vez, na primeira mensagem que já tem você)
+  let autostart = takeAutostart();
+  function begin(r: PublicRoom) {
+    const k = autostart;
+    if (!k || !r.players.some((p) => p.id === me)) return;
+    autostart = null;
+    if (r.phase !== 'lobby' || r.players.some((p) => !p.bot && p.id !== me)) return;
+    const c = CHALLENGES.find((x) => x.id === k);
+    const skill = toSkill(store.json<Profile>(PROFILE_KEY));
+    const cfg = savedBotSetup();
+    if (c) startChallenge(c);
+    else if (k === 'shadow' && skill) startShadow(skill);
+    else if (k === 'train') train(hasBotSetup(cfg) ? cfg : undefined);
+  }
 
   function startChallenge(c: Challenge) {
     training = shadow = false;
@@ -506,6 +541,7 @@ function startRoom(code: string, name: string) {
       me = m.you;
       arenaId = room.arena ?? arenaId; // na loja não há rodada: fica a última arena
       view.update(room, me, online);
+      begin(room);
       // compra na loja: o ouro caiu → som de moedas
       if (prev?.phase === 'shop' && room.phase === 'shop') {
         const was = prev.players.find((p) => p.id === me)?.gold, now = room.players.find((p) => p.id === me)?.gold;

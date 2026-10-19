@@ -667,6 +667,10 @@ html.pad .shop-item:focus-within { border-color: #ffd166; }
 /* modo treino: botão na sala de espera e a dica do momento no alto da tela */
 button.train { flex-direction: column; gap: 0; border-style: dashed; border-color: var(--bronze); }
 button.train small { font-weight: 400; }
+/* bloco Treino da tela inicial: os dois botões lado a lado, magias dos bots e desafios recolhidos embaixo */
+.train-home { display: flex; flex-direction: column; gap: 8px; }
+.train-home h2 { margin: 0; }
+.train-btns { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
 .hud > .coach { position: absolute; left: 50%; top: calc(48px + var(--safe-t)); transform: translateX(-50%); z-index: 4; max-width: min(520px, calc(100% - 24px)); padding: 8px 16px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--ember); box-shadow: 0 0 16px rgba(255, 179, 71, .35); font-weight: 700; text-align: center; pointer-events: none; animation: fade-in .2s ease-out; }
 /* Repetir do desafio: o único clicável da dica */
 .hud > .coach button { pointer-events: auto; margin-left: 10px; }
@@ -846,11 +850,11 @@ button.train small { font-weight: 400; }
 /* replay da queda: a loja de quem caiu some enquanto ele passa (volta sozinha no fim) */
 body.replaying .peek-shop { display: none; }
 
-/* sala de espera em colunas no PC (treino e desafios · personagem e bots · modo e opções); estreita, uma embaixo da outra */
+/* sala de espera em colunas no PC (personagem e bots · modo e opções); estreita, uma embaixo da outra */
 .lobby-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px 22px; align-items: start; }
 .lobby-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .opt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 2px 16px; align-items: start; }
-@media (min-width: 1100px) { .lobby-cols { grid-template-columns: 1fr 1fr 1.6fr; } } /* as opções ficam em duas colunas */
+@media (min-width: 1100px) { .lobby-cols { grid-template-columns: 1fr 1.6fr; } } /* as opções ficam em duas colunas */
 
 /* loja: itens numa coluna à esquerda, prateados (cada grupo de magia tem a sua cor), ícone num círculo; cartões de magia mais baixos */
 :root { --item: #c9d4e0; --item-line: rgba(201, 212, 224, .35); --item-faint: rgba(201, 212, 224, .09); }

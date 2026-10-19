@@ -1,10 +1,9 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
 import type { ArenaId } from '../shared/arena.ts';
-import type { BotSkill } from '../shared/bots.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import { DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Vote } from '../shared/match.ts';
-import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
+import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { isPadMode, isUiKey, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
@@ -16,7 +15,7 @@ import { SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rule
 import { ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, icon, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
-import { botSetupPanel, hasBotSetup, savedBotSetup } from './train.ts';
+import { botSetupPanel, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
@@ -60,7 +59,30 @@ export function askName(root: HTMLElement, current: string): Promise<string> {
 const roomPhase = (r: RoomInfo) => r.phase === 'lobby' ? t('esperando começar', 'waiting to start') : r.phase === 'end' ? t('partida acabou, dá para começar outra', 'match over, you can start another')
   : t(`jogando${r.round ? ` a rodada ${r.round}` : ''} · você entra na próxima rodada`, `playing${r.round ? ` round ${r.round}` : ''} · you join next round`);
 
-export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onRename: () => void) {
+let challengesOpen = false; // lista de desafios aberta ou fechada sobrevive ao redesenho do lobby
+
+// treino na tela inicial (escolha do Fernando, 19/10): cada botão cria uma sala sozinho e começa ali (main.ts, autostart);
+// kind = 'train', 'shadow' ou o id do desafio
+function trainBlock(onTrain: (kind: string) => void) {
+  // sombra: 1 bot com o jeito de jogar das suas últimas rodadas (mimic.ts)
+  const skill = toSkill(store.json<Profile>(PROFILE_KEY));
+  return el('section', { class: 'train-home' }, el('h2', {}, t('Treino', 'Practice')),
+    el('div', { class: 'train-btns' },
+      el('button', { type: 'button', class: 'train', onclick: () => onTrain('train') }, icon(UI_ICON.aim), ' ' + t('Treinar sozinho com bots', 'Practice solo with bots'), el('small', {}, t('3 bots e dicas nas primeiras rodadas', '3 bots and tips in the first rounds'))),
+      el('button', { type: 'button', class: 'train', disabled: !skill, onclick: () => skill && onTrain('shadow') },
+        icon(UI_ICON.person), ' ' + t('Treinar contra a sua sombra', 'Practice against your shadow'), el('small', {}, skill ? t('1 bot que joga como você', '1 bot that plays like you') : t('jogue 3 rodadas para a sombra aprender', 'play 3 rounds for the shadow to learn')))),
+    botSetupPanel(3, savedBotSetup(), () => {}),
+    // desafios curtos: cada um com o recorde deste navegador
+    el('details', { class: 'match-opts', open: challengesOpen, ontoggle: (e: Event) => (challengesOpen = (e.target as HTMLDetailsElement).open) },
+      el('summary', {}, t('Desafios', 'Challenges') + ' · ', el('small', { class: 'muted' }, t('tarefas curtas de até 90 s', 'short tasks of up to 90 s'))),
+      el('div', { class: 'bs-spells' }, ...CHALLENGES.map((c) => {
+        const best = bestOf(c.id);
+        return el('button', { type: 'button', class: 'train', onclick: () => onTrain(c.id) }, c.name,
+          el('small', {}, goalText(c)), el('small', { class: 'muted' }, best === null ? t('sem recorde', 'no record') : t(`recorde: ${n1(best)} s${c.survive ? ' vivo' : ''}`, `record: ${n1(best)} s${c.survive ? ' alive' : ''}`)));
+      }))));
+}
+
+export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onRename: () => void, onTrain: (kind: string) => void) {
   setSettingsCtx({ name: () => name, rename: onRename }); // no lobby: sem som nem vídeo (só existem na sala)
   const retry = el('button', { type: 'button', onclick: () => location.reload() }, t('Tentar de novo', 'Try again'));
   // um cartão por sala: código e modo, quem está lá, o que está acontecendo e o Entrar (secundário em sala no meio da partida)
@@ -82,8 +104,12 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
           groups.live.length ? cards(groups.live) : el('p', { class: 'muted' }, `${groups.empty.length ? t('Nenhuma sala com gente', 'No rooms with people') : t('Nenhuma sala aberta', 'No open rooms')}. ${t('Crie uma e mande o link no grupo.', 'Create one and send the link to your group.')}`),
           // salas vazias recolhidas: fecham sozinhas daqui a pouco
           groups.empty.length ? el('details', { class: 'empty-rooms' }, el('summary', {}, `${groups.empty.length} ${groups.empty.length === 1 ? t('sala vazia', 'empty room') : t('salas vazias', 'empty rooms')}`), cards(groups.empty)) : null);
+  const roomList = el('section', { class: 'lobby-rooms' }, el('h2', {}, t('Salas abertas', 'Open rooms')), rooms !== null && offline ? el('p', { class: 'lobby-error', role: 'status' }, t('Sem conexão: a lista pode estar velha. Tentando de novo…', 'No connection: the list may be stale. Retrying…')) : null, list);
+  // a lista chega de novo a cada mudança numa sala: só ela é redesenhada (o bloco Treino fica como está, com o foco)
+  const old = root.querySelector<HTMLElement>('.lobby');
+  if (old?.dataset.name === name) return old.querySelector('.lobby-rooms')!.replaceWith(roomList);
   root.replaceChildren(
-    el('div', { class: 'lobby' },
+    el('div', { class: 'lobby', 'data-name': name },
       el('header', { class: 'hero' },
         el('div', {}, el('h1', {}, TITLE), el('p', {}, t('Empurre os amigos para a lava com bola de fogo, raio e companhia. O último de pé vence a rodada.', 'Knock your friends into the lava with fireballs, lightning and more. The last one standing wins the round.'))),
         el('button', { type: 'button', class: 'link', onclick: onRename }, `${name} · ${t('trocar', 'change')}`),
@@ -94,7 +120,8 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
         el('button', { type: 'button', onclick: () => openSettings() }, icon(UI_ICON.gear), ' ' + t('Configurações', 'Settings')),
         langChoice(),
       ),
-      el('section', {}, el('h2', {}, t('Salas abertas', 'Open rooms')), rooms !== null && offline ? el('p', { class: 'lobby-error', role: 'status' }, t('Sem conexão: a lista pode estar velha. Tentando de novo…', 'No connection: the list may be stale. Retrying…')) : null, list),
+      trainBlock(onTrain),
+      roomList,
     ),
   );
 }
@@ -147,9 +174,6 @@ export function screen(root: HTMLElement, title: string, text: string, button: s
 type RoomActions = {
   start: (bots: number, mode: Mode, shuffle: boolean, opts: MatchOpts, again?: boolean) => void; // again: "Jogar de novo" (repete a configuração do treino)
   hover: (a: SpellId | ItemId | null) => void; // mouse em cima da magia ou item na barra (círculo de alcance)
-  train: (opts: Partial<MatchOpts>, setup?: BotSetup[]) => void; // partida de treino: 3 bots, modo Rodadas e dicas nas primeiras rodadas (com a dificuldade e as magias dos bots escolhidas)
-  challenge: (id: string) => void; // desafio curto do treino (challenges.ts)
-  shadow: (opts: Partial<MatchOpts>, skill: Partial<BotSkill>) => void; // treino contra 1 bot que joga como você (mimic.ts)
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
   kick: (id: string) => void;
@@ -733,9 +757,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let shuffle = true; // Times: sorteados a cada rodada ou fixos na partida
   let opts: MatchOpts | null = null; // opções da partida escolhidas aqui; começa com as da sala
   let optsOpen = true;
-  let challengesOpen = false;
   let setup = false; // fim da partida: true depois do "Voltar à sala"
-  let botCfg = savedBotSetup(); // treino: magias escolhidas para cada bot
 
   // grade com o retrato de cada personagem; o escolhido fica marcado
   function picker(r: PublicRoom) {
@@ -748,13 +770,6 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           el('img', { src: `/chars/${c.id}.webp`, alt: '', width: 60, height: 80 }), el('small', {}, t(c.name, c.en))),
       )),
     );
-  }
-
-  // sombra: 1 bot com o jeito de jogar das suas últimas rodadas; o que não foi medido fica no Normal (por isso a dificuldade vai Normal)
-  function shadowBtn(o: MatchOpts) {
-    const skill = toSkill(store.json<Profile>(PROFILE_KEY));
-    return el('button', { type: 'button', class: 'train', disabled: !skill, onclick: () => skill && act.shadow({ ...DEFAULT_OPTS, arena: o.arena }, skill) },
-      icon(UI_ICON.person), ' ' + t('Treinar contra a sua sombra', 'Practice against your shadow'), el('small', {}, skill ? t('1 bot que joga como você', '1 bot that plays like you') : t('jogue 3 rodadas para a sombra aprender', 'play 3 rounds for the shadow to learn')));
   }
 
   function lobbyPanel(r: PublicRoom) {
@@ -794,21 +809,6 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : t(' · caiu', ' · dropped')), kickBtn(p, act.kick))))),
       // no PC em colunas, lado a lado (Fernando, 19/10: "tá muito vertical"); no celular uma embaixo da outra
       el('div', { class: 'lobby-cols' },
-        humans === 1 ? el('div', { class: 'lobby-col' },
-        // sozinho na sala: treino com 3 bots e dicas curtas nas primeiras rodadas, logo à vista
-        // treino com as regras-padrão (depois de um desafio a sala fica sem runas, morte súbita e baús); também depois do "Voltar à sala"
-        el('button', { type: 'button', class: 'train', onclick: () => act.train({ ...DEFAULT_OPTS, difficulty: o.difficulty, arena: o.arena }, hasBotSetup(botCfg) ? botCfg : undefined) }, icon(UI_ICON.aim), ' ' + t('Treinar sozinho com bots', 'Practice solo with bots'), el('small', {}, t('3 bots e dicas nas primeiras rodadas', '3 bots and tips in the first rounds'))),
-        botSetupPanel(3, botCfg, (s) => (botCfg = s)),
-        shadowBtn(o),
-        // desafios curtos (só sozinho; também depois do "Voltar à sala", para trocar de desafio): cada um com o recorde deste navegador
-        el('details', { class: 'match-opts', open: challengesOpen, ontoggle: (e: Event) => (challengesOpen = (e.target as HTMLDetailsElement).open) },
-          el('summary', {}, t('Desafios', 'Challenges') + ' · ', el('small', { class: 'muted' }, t('tarefas curtas de até 90 s', 'short tasks of up to 90 s'))),
-          el('div', { class: 'bs-spells' }, ...CHALLENGES.map((c) => {
-            const best = bestOf(c.id);
-            return el('button', { type: 'button', class: 'train', onclick: () => act.challenge(c.id) }, c.name,
-              el('small', {}, goalText(c)), el('small', { class: 'muted' }, best === null ? t('sem recorde', 'no record') : t(`recorde: ${n1(best)} s${c.survive ? ' vivo' : ''}`, `record: ${n1(best)} s${c.survive ? ' alive' : ''}`)));
-          }))),
-        ) : null,
         el('div', { class: 'lobby-col' }, picker(r),
           el('div', { class: 'bots' }, el('span', {}, 'Bots'), el('button', { type: 'button', 'aria-label': t('Menos um bot', 'One less bot'), onclick: () => set(bots - 1) }, '−'), count, el('button', { type: 'button', 'aria-label': t('Mais um bot', 'One more bot'), onclick: () => set(bots + 1) }, '+')),
         ),
