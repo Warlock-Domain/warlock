@@ -465,10 +465,13 @@ function podium(room: PublicRoom, me: string) {
   return el('div', { class: 'podium', 'aria-label': t('Pódio', 'Podium') }, step(top[1], 2), step(top[0], 1), top[2] ? step(top[2], 3) : null);
 }
 
+// na loja: quem já clicou em Pronto (bots ficam prontos sozinhos)
+const readyTag = (p: PublicPlayer) => el('span', { class: 'ready-tag' + (p.ready ? ' on' : '') }, p.ready ? t('✓ Pronto', '✓ Ready') : t('Na loja', 'Shopping'));
+
 function board(room: PublicRoom, me: string, kick?: (id: string) => void) {
   const sorted = [...room.players].sort((a, b) => byTeam(room, a, b));
   return el('ol', { class: 'board' }, ...sorted.map((p) =>
-    el('li', { class: p.id === room.winner || (room.winnerTeam !== null && p.team === room.winnerTeam) ? 'win' : '' }, el('span', {}, teamTag(room, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : t(' · caiu', ' · dropped')), el('span', { class: 'board-right' }, el('b', {}, room.mode === 'deathmatch' ? `${p.score} ${p.score === 1 ? t('ponto', 'point') : t('pontos', 'points')}` : `${p.score} ${p.score === 1 ? t('vitória', 'win') : t('vitórias', 'wins')}`), kickBtn(p, kick))),
+    el('li', { class: p.id === room.winner || (room.winnerTeam !== null && p.team === room.winnerTeam) ? 'win' : '' }, el('span', {}, teamTag(room, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : t(' · caiu', ' · dropped')), el('span', { class: 'board-right' }, room.phase === 'shop' ? readyTag(p) : null, el('b', {}, room.mode === 'deathmatch' ? `${p.score} ${p.score === 1 ? t('ponto', 'point') : t('pontos', 'points')}` : `${p.score} ${p.score === 1 ? t('vitória', 'win') : t('vitórias', 'wins')}`), kickBtn(p, kick))),
   ));
 }
 
@@ -1230,9 +1233,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   // abates e dano da rodada somados no cliente a partir dos acertos (a ficha usa o dano levado)
   let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
-  // retrato de cada jogador com as vitórias embaixo, na moldura da cor dele; nos Times um time de cada lado
-  // a sala manda o estado a cada segundo: só redesenha quando algo do topo muda (o apagado de quem caiu vem do frame)
-  const topCells = new Map<string, { c: HTMLElement; img: HTMLImageElement; name: string }>();
+  // lista à esquerda (Fernando, 19/10: "não dá pra saber pelo rosto"): nome na cor do jogador, vitórias e dano/abates da rodada; nos Times, um bloco por time
+  // a sala manda o estado a cada segundo: só redesenha quando algo da lista muda (o apagado de quem caiu vem do frame, os números da rodada de live())
+  const topCells = new Map<string, { c: HTMLElement; name: string; dmg: HTMLElement; kills: HTMLElement }>();
   let shownDead: string | null = null;
   function drawTops() {
     if (!room) return;
@@ -1244,12 +1247,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     shownDead = null; // o próximo frame reaplica quem está caído
     const unit = (n: number) => r.mode === 'deathmatch' ? (n === 1 ? t('ponto', 'point') : t('pontos', 'points')) : n === 1 ? t('vitória', 'win') : t('vitórias', 'wins');
     const cell = (p: PublicPlayer) => {
-      // o texto alternativo diz nome e vitórias (o número embaixo fica só para a vista)
       const name = `${p.name}${p.id === me ? t(' (você)', ' (you)') : ''}: ${p.score} ${unit(p.score)}`;
-      const img = el('img', { src: `/chars/${p.character}.webp`, alt: name, width: 40, height: 40 });
-      const c = el('li', { class: 'top-p' + (p.id === me ? ' me' : ''), style: `--pc:${COLORS[p.color]}`, title: name },
-        img, el('span', { class: 'top-dead', 'aria-hidden': 'true' }, icon(UI_ICON.kills)), el('b', { 'aria-hidden': 'true' }, String(p.score)));
-      topCells.set(p.id, { c, img, name });
+      const dmg = el('span', {}, String(Math.round(live[p.id]?.dmg ?? 0)));
+      const kills = el('span', {}, String(live[p.id]?.kills ?? 0));
+      const c = el('li', { class: 'top-p' + (p.id === me ? ' me' : ''), style: `--pc:${COLORS[p.color]}`, title: name, 'aria-label': name },
+        el('span', { class: 'top-name' }, p.name), el('b', { class: 'top-wins', title: unit(p.score) }, String(p.score)),
+        el('span', { class: 'top-stat', title: t('Dano na rodada', 'Damage this round') }, icon(UI_ICON.dmg), dmg),
+        el('span', { class: 'top-stat', title: t('Abates na rodada', 'Kills this round') }, icon(UI_ICON.kills), kills));
+      topCells.set(p.id, { c, name, dmg, kills });
       return c;
     };
     const row = (list: PublicPlayer[], team?: number) => el('ul', team === undefined ? {} : { class: 'team', style: `--tc:${TEAM_COLORS[team]}`, 'aria-label': teamLabel(team) }, ...list.map(cell));
@@ -1326,6 +1331,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     },
     live(stats: Record<string, { dmg: number; kills: number; taken?: number }>) {
       live = stats;
+      for (const [id, { dmg, kills }] of topCells) {
+        dmg.textContent = String(Math.round(stats[id]?.dmg ?? 0));
+        kills.textContent = String(stats[id]?.kills ?? 0);
+      }
       drawSheet();
     },
     update(r: PublicRoom, you: string, isOnline: boolean) {
@@ -1401,9 +1410,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (dead !== shownDead) {
         shownDead = dead;
         const down = new Set(dead.split(','));
-        for (const [id, { c, img, name }] of topCells) {
+        for (const [id, { c, name }] of topCells) {
           c.classList.toggle('dead', down.has(id));
-          img.alt = down.has(id) ? t(`${name}, caído`, `${name}, down`) : name;
+          c.setAttribute('aria-label', down.has(id) ? t(`${name}, caído`, `${name}, down`) : name);
         }
       }
       if (status !== myStatus) {
