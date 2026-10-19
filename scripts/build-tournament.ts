@@ -11,7 +11,7 @@ import { ITEMS, ITEM_IDS, MAX_ITEMS } from '../src/shared/items.ts';
 import { type MatchOpts } from '../src/shared/match.ts';
 import { MAX_SPELLS, SPELLS, SPELL_IDS } from '../src/shared/spells.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
-import { addCell, adjusted, goldBand, playMatch, seedRandom, writeAtomic, type Bands } from './sim-lib.ts';
+import { addCell, adjusted, f, goldBand, pct, playMatch, seedRandom, writeAtomic, type Bands } from './sim-lib.ts';
 
 const { values: arg } = parseArgs({
   options: {
@@ -89,8 +89,6 @@ function cross(a: BotPlan, b: BotPlan): BotPlan {
 }
 
 const name = (b: BotPick) => (b.kind === 'spell' ? SPELLS[b.id].name : ITEMS[b.id].name);
-const f = (x: number, dec = 2) => (Number.isFinite(x) ? x.toFixed(dec).replace('.', ',') : '–');
-const pct = (x: number) => f(100 * x, 1) + '%';
 const history: { gen: number; rounds: number; best: number; keepMean: number; top: string }[] = [];
 const t0 = Date.now();
 let generation = 0;

@@ -4,7 +4,8 @@ import { renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DT } from '../src/shared/constants.ts';
 import { ITEMS, ITEM_IDS } from '../src/shared/items.ts';
-import { newMatch, startMatch, tickMatch, type Match, type MatchOpts } from '../src/shared/match.ts';
+import { newMatch, startMatch, tickMatch, type Match, type MatchOpts, type Player } from '../src/shared/match.ts';
+import type { SimEvent } from '../src/shared/sim.ts';
 import { SPELLS, SPELL_IDS } from '../src/shared/spells.ts';
 
 // mulberry32; a partida usa Math.random direto (pilares, mundo, plano dos bots), então ele também vira o sorteio com semente
@@ -20,8 +21,6 @@ export function seedRandom(seed: number): () => number {
   return rng;
 }
 
-type Player = Match['players'][number];
-type SimEvent = NonNullable<Match['world']>['events'][number];
 
 // ouro gasto no que o jogador tem (preço de cada nível; a Bola de fogo nv 1 e o Flagelo nv 1 vêm de graça)
 export function spent(p: Player): number {
@@ -31,9 +30,12 @@ export function spent(p: Player): number {
   return g;
 }
 export const goldBand = (p: Player) => String(Math.floor(spent(p) / 10) * 10);
+// números dos relatórios: vírgula decimal, '–' sem valor
+export const f = (x: number, dec = 2) => (Number.isFinite(x) ? x.toFixed(dec).replace('.', ',') : '–');
+export const pct = (x: number) => f(100 * x, 1) + '%';
 
 // por faixa de ouro gasto: jogadores-rodada, vitórias e vitórias esperadas
-export type Cell = { n: number; w: number; e: number };
+type Cell = { n: number; w: number; e: number };
 export type Bands = Record<string, Cell>;
 export function addCell(b: Bands, band: string, won: boolean, exp: number) {
   const c = (b[band] ??= { n: 0, w: 0, e: 0 });

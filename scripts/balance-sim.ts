@@ -11,7 +11,7 @@ import { ITEMS, ITEM_IDS, type ItemId } from '../src/shared/items.ts';
 import { type Match, type MatchOpts } from '../src/shared/match.ts';
 import { SPELLS, SPELL_IDS, type SpellId } from '../src/shared/spells.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
-import { addCell, adjusted, goldBand, playMatch, seedRandom, simNow, writeAtomic, type Bands } from './sim-lib.ts';
+import { addCell, adjusted, f, goldBand, pct, playMatch, seedRandom, simNow, writeAtomic, type Bands } from './sim-lib.ts';
 
 const { values: arg, positionals } = parseArgs({
   allowPositionals: true,
@@ -126,8 +126,6 @@ function wilson(k: number, n: number, z = 1.96): [number, number] {
   return [c - h, c + h];
 }
 
-const f = (x: number, dec = 2) => (Number.isFinite(x) ? x.toFixed(dec).replace('.', ',') : '–');
-const pct = (x: number) => f(100 * x, 1) + '%';
 const label = (k: string): string => {
   if (k.startsWith('arena:')) {
     const [a, rest] = k.slice(6).split('/');
