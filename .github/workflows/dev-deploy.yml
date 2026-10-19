@@ -47,4 +47,5 @@ jobs:
       # domínio novo leva alguns segundos para responder na primeira publicação
       - name: Esperar o domínio responder
         run: for i in $(seq 1 30); do curl -sf "https://${BRANCH}-warlock.fernandorffdev.com/api/health" && exit 0; sleep 5; done; exit 1
-      - run: node scripts/smoke.mjs "https://${BRANCH}-warlock.fernandorffdev.com"
+      # na primeira publicação o domínio novo ainda oscila por alguns segundos: até 3 tentativas
+      - run: for i in 1 2 3; do node scripts/smoke.mjs "https://${BRANCH}-warlock.fernandorffdev.com" && exit 0; sleep 20; done; exit 1
