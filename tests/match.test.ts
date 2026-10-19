@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { BOT_SKILL, CLASSIC_PLAN, botBuy, botCmds } from '../src/shared/bots.ts';
+import { BOT_SKILL, CLASSIC_PLAN, botBuy, botCmds, skillAt } from '../src/shared/bots.ts';
 import { ARENA_R0, ASSIST_GOLD, COUNTDOWN_MS, DM_ROUND_MS, KILL_GOLD, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
-import { addPlayer, botSkill, buy, castBallot, endIdle, kick, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, startVote, tickMatch, type Match, type Stat } from '../src/shared/match.ts';
+import { BOT_NAMES, addPlayer, botSkill, buy, castBallot, endIdle, kick, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, startVote, tickMatch, type Match, type Stat } from '../src/shared/match.ts';
 import { newWorld } from '../src/shared/sim.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
+import { publicRoom } from '../src/shared/protocol.ts';
 import { noItems } from '../src/shared/items.ts';
 import { noSpells } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
@@ -325,6 +326,55 @@ describe('treino: magias dos bots', () => {
     const bot = (n: number) => m.players.find((p) => p.id === 'bot-' + n)!;
     expect(botSkill(m, bot(3))).toEqual({ ...BOT_SKILL.hard, aim: 0.2 });
     expect(botSkill(m, bot(1))).toBe(BOT_SKILL.hard);
+  });
+});
+
+describe('dificuldade por bot', () => {
+  it('vale em qualquer sala: cada bot com a sua, sem ela a da partida; com duas pessoas as magias do treino seguem ignoradas', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'Ana');
+    addPlayer(m, 'b', 'Bia');
+    startMatch(m, 0, 3, 'rounds', true, Math.random, { difficulty: 'hard' }, [{ difficulty: 'easy', spells: { lightning: 7 } }, { difficulty: 'normal' }]);
+    const bot = (n: number) => m.players.find((p) => p.id === 'bot-' + n)!;
+    expect([1, 2, 3].map((n) => botSkill(m, bot(n)))).toEqual([BOT_SKILL.easy, BOT_SKILL.normal, BOT_SKILL.hard]);
+    expect([1, 2, 3].map((n) => bot(n).name)).toEqual(BOT_NAMES.slice(0, 3));
+    expect(m.players.some((p) => p.setup)).toBe(false);
+    expect(bot(1).spells.lightning).toBeLessThan(7);
+    // a sala mostra a dificuldade de cada bot (a da partida quando ele não tem a sua); humano não leva o campo
+    expect(publicRoom('ABCD', m, 0).players.map((p) => p.difficulty)).toEqual([undefined, undefined, 'easy', 'normal', 'hard']);
+  });
+
+  it('sozinho, só a dificuldade não é treino: a rodada não sai marcada', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'Ana');
+    startMatch(m, 0, 2, 'rounds', true, Math.random, {}, [{ difficulty: 'hard' }, { difficulty: 'easy' }]);
+    expect(m.players.some((p) => p.setup)).toBe(false);
+    const now = toPlaying(m, 0);
+    for (const id of ['bot-1', 'bot-2']) kill(m, id, 'a');
+    const r = roundRecord(m, until(m, now, () => m.phase === 'roundEnd'));
+    expect(r.setup).toBeUndefined();
+    expect(r.players.map((p) => p.difficulty)).toEqual([undefined, 'hard', 'easy']);
+  });
+
+  it('Automático por bot: só o bot no Automático acompanha o placar', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'Ana');
+    startMatch(m, 0, 2, 'rounds', true, Math.random, {}, [{ difficulty: 'auto' }, { difficulty: 'hard' }]);
+    const [h, b1, b2] = m.players;
+    h.score = 3;
+    expect(botSkill(m, b1)).toEqual(skillAt(Math.min(1, 3 / m.opts.goal)));
+    expect(botSkill(m, b2)).toBe(BOT_SKILL.hard);
+  });
+
+  it('bot votado no meio da partida entra Normal, mesmo com a partida em outra dificuldade', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'Ana');
+    startMatch(m, 0, 1, 'rounds', true, Math.random, { difficulty: 'hard' }, [{ difficulty: 'easy' }]);
+    expect(startVote(m, 'a', 'addBot', '', 0)).toBe(true);
+    toPlaying(m, 0);
+    const added = m.players.find((p) => p.id === 'bot-2')!;
+    expect(added.difficulty).toBe('normal');
+    expect(botSkill(m, added)).toBe(BOT_SKILL.normal);
   });
 });
 

@@ -2,7 +2,7 @@
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
 import type { ArenaId } from '../shared/arena.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
-import { DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Vote } from '../shared/match.ts';
+import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
@@ -172,7 +172,7 @@ export function screen(root: HTMLElement, title: string, text: string, button: s
 }
 
 type RoomActions = {
-  start: (bots: number, mode: Mode, shuffle: boolean, opts: MatchOpts, again?: boolean) => void; // again: "Jogar de novo" (repete a configuração do treino)
+  start: (bots: Level[], mode: Mode, shuffle: boolean, opts: MatchOpts, again?: boolean) => void; // bots: a dificuldade de cada um; again: "Jogar de novo" (repete a configuração do treino)
   hover: (a: SpellId | ItemId | null) => void; // mouse em cima da magia ou item na barra (círculo de alcance)
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
@@ -199,14 +199,16 @@ type RoomActions = {
   rename: () => void;
 };
 
+type Level = MatchOpts['difficulty'];
 const MODE_NAME: Record<Mode, string> = { rounds: t('Rodadas', 'Rounds'), deathmatch: 'Deathmatch', teams: t('Times', 'Teams') };
 export const TEAM_NAMES = [t('Azul', 'Blue'), t('Vermelho', 'Red')];
 const teamLabel = (i: number) => t(`Time ${TEAM_NAMES[i]}`, `${TEAM_NAMES[i]} team`);
 const SHUFFLE_NAME =(shuffle: boolean) => (shuffle ? t('sorteados a cada rodada', 'shuffled every round') : t('fixos na partida', 'fixed for the match'));
 // opções da partida: nome de cada uma e o texto de cada valor (a meta depende do modo)
 type OptKey = keyof MatchOpts;
-// fora da sala e da votação (pedidos do Fernando, 19/10): ritmo e morte súbita ficam no padrão; o servidor ainda aceita, para salas antigas
-const FIXED: Partial<MatchOpts> = { pace: DEFAULT_OPTS.pace, sudden: DEFAULT_OPTS.sudden };
+// fora da sala e da votação (pedidos do Fernando, 19/10): ritmo e morte súbita ficam no padrão e a dificuldade vai bot a bot (lista da sala);
+// o servidor ainda aceita, para salas antigas
+const FIXED: Partial<MatchOpts> = { pace: DEFAULT_OPTS.pace, sudden: DEFAULT_OPTS.sudden, difficulty: DEFAULT_OPTS.difficulty };
 const OPT_KEYS = (Object.keys(OPTION_CHOICES) as OptKey[]).filter((k) => !(k in FIXED));
 const OPT_NAME: Record<OptKey, string> = { shop: t('Tempo de loja', 'Shop time'), pace: t('Contagem e fim de rodada', 'Countdown and round end'), economy: t('Ouro ganho', 'Gold earned'), startGold: t('Ouro inicial', 'Starting gold'), goal: t('Vence com', 'Wins with'), runes: t('Runas', 'Runes'), sudden: t('Morte súbita', 'Sudden death'), chests: t('Baús de ouro', 'Gold chests'), difficulty: t('Dificuldade dos bots', 'Bot difficulty'), arena: 'Arena' };
 function optText(k: OptKey, val: MatchOpts[OptKey], mode: Mode): string {
@@ -438,9 +440,11 @@ const previewHtml = (title: string, ch: Change[], extra = '') =>
   `<div class="preview"><b>${title}</b>${ch.length ? `<table>${ch.map((c) => `<tr class="${c.worse ? 'worse' : 'better'}"><th>${c.label}</th><td>${c.before ?? '—'} → ${c.after ?? '—'}</td></tr>`).join('')}</table>` : `<small>${t('Nada muda na ficha.', 'Nothing changes on the sheet.')}</small>`}${extra}</div>`;
 
 export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) {
-  let bots = 3;
+  // uma dificuldade por bot (pedido do Fernando, 19/10); guardada nesta aba (o número de bots de antes vira 3 Normal)
+  let bots: Level[] = ['normal', 'normal', 'normal'];
   try {
-    bots = Number(sessionStorage.getItem('warlock:bots') ?? 3) || 0;
+    const saved: unknown = JSON.parse(sessionStorage.getItem('warlock:bots') ?? 'null');
+    if (Array.isArray(saved) && saved.every((d) => OPTION_CHOICES.difficulty.includes(d))) bots = saved;
   } catch {
     // armazenamento bloqueado: fica o padrão
   }
@@ -777,20 +781,29 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   function lobbyPanel(r: PublicRoom) {
     const humans = r.players.filter((p) => !p.bot).length;
     const maxBots = MAX_PLAYERS - humans;
-    bots = Math.min(bots, maxBots);
-    const count = el('b', { class: 'count' }, String(bots));
-    const set = (n: number) => {
-      bots = Math.max(0, Math.min(maxBots, n));
+    bots = bots.slice(0, maxBots);
+    const count = el('b', { class: 'count' }, String(bots.length));
+    // uma linha por bot, com o nome que o servidor vai dar (BOT_NAMES, na ordem) e a dificuldade dele
+    const rows = () => bots.map((d, i) => {
+      const name = BOT_NAMES[i % BOT_NAMES.length];
+      return el('label', { class: 'bot-row' }, el('span', {}, icon(UI_ICON.bot), ' ' + name),
+        el('select', { 'aria-label': t(`Dificuldade de ${name}`, `${name}'s difficulty`), onchange: (e: Event) => set(bots.map((x, j) => (j === i ? ((e.target as HTMLSelectElement).value as Level) : x))) },
+          ...OPTION_CHOICES.difficulty.map((k) => el('option', { value: k, selected: k === d }, SKILL_NAME[k]))));
+    });
+    const list = el('div', { class: 'bot-list' }, ...rows());
+    const set = (next: Level[]) => {
+      bots = next.slice(0, maxBots);
       try {
-        sessionStorage.setItem('warlock:bots', String(bots));
+        sessionStorage.setItem('warlock:bots', JSON.stringify(bots));
       } catch {
         // só nesta tela
       }
-      count.textContent = String(bots);
-      startBtn.toggleAttribute('disabled', humans + bots < 2);
+      count.textContent = String(bots.length);
+      list.replaceChildren(...rows());
+      startBtn.toggleAttribute('disabled', humans + bots.length < 2);
     };
     const o = (opts ??= { ...DEFAULT_OPTS, ...r.opts, ...FIXED }); // o que a sala não mostra volta ao padrão (um desafio deixa a morte súbita desligada)
-    const startBtn = el('button', { type: 'button', class: 'primary big', disabled: humans + bots < 2, onclick: () => act.start(bots, mode, shuffle, o) }, t('Começar partida', 'Start match'));
+    const startBtn = el('button', { type: 'button', class: 'primary big', disabled: humans + bots.length < 2, onclick: () => act.start(bots, mode, shuffle, o) }, t('Começar partida', 'Start match'));
     const modes: [Mode, string, string][] = [
       ['rounds', MODE_NAME.rounds, t(`O último vivo ganha a rodada. Vence quem fizer ${o.goal} rodadas.`, `The last one alive wins the round. First to win ${o.goal} rounds wins.`)],
       ['deathmatch', MODE_NAME.deathmatch, t(`Rodadas de 60 s, quem cai volta em 10 s. Cada abate vale 1 ponto; vence quem chegar a ${DM_GOALS[o.goal]}.`, `60 s rounds, whoever falls comes back after 10 s. Each kill is worth 1 point; first to ${DM_GOALS[o.goal]} wins.`)],
@@ -812,7 +825,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       // no PC em colunas, lado a lado (Fernando, 19/10: "tá muito vertical"); no celular uma embaixo da outra
       el('div', { class: 'lobby-cols' },
         el('div', { class: 'lobby-col' }, picker(r),
-          el('div', { class: 'bots' }, el('span', {}, 'Bots'), el('button', { type: 'button', 'aria-label': t('Menos um bot', 'One less bot'), onclick: () => set(bots - 1) }, '−'), count, el('button', { type: 'button', 'aria-label': t('Mais um bot', 'One more bot'), onclick: () => set(bots + 1) }, '+')),
+          el('div', { class: 'bots' }, el('span', {}, 'Bots ', infoButton(t('Dificuldade dos bots', 'Bot difficulty'), () => OPT_INFO.difficulty(mode))),
+            el('button', { type: 'button', 'aria-label': t('Menos um bot', 'One less bot'), onclick: () => set(bots.slice(0, -1)) }, '−'), count, el('button', { type: 'button', 'aria-label': t('Mais um bot', 'One more bot'), onclick: () => set([...bots, 'normal']) }, '+')),
+          list,
         ),
         el('div', { class: 'lobby-col' }, modePicker, optsBlock),
       ),
@@ -827,16 +842,17 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     mode = r.mode;
     shuffle = r.teamShuffle;
     opts = { ...r.opts, ...FIXED };
-    bots = r.players.filter((p) => p.bot).length;
+    bots = r.players.filter((p) => p.bot).map((p) => p.difficulty ?? 'normal');
     drawCenter();
     center.scrollTop = 0;
   }
 
   // fim da partida: resultado e as duas saídas rápidas no topo; "Voltar à sala" mostra a sala de espera para trocar modo e opções
   function endPanel(r: PublicRoom) {
-    const roomBots = r.players.filter((p) => p.bot).length;
+    const levels = r.players.filter((p) => p.bot).map((p) => p.difficulty ?? r.opts.difficulty);
+    const roomBots = levels.length;
     const humans = r.players.filter((p) => !p.bot && p.connected).length;
-    const again = el('button', { type: 'button', class: 'primary big', disabled: humans + roomBots < 2, onclick: () => act.start(roomBots, r.mode, r.teamShuffle, r.opts, true) }, t('Jogar de novo', 'Play again'));
+    const again = el('button', { type: 'button', class: 'primary big', disabled: humans + roomBots < 2, onclick: () => act.start(levels, r.mode, r.teamShuffle, r.opts, true) }, t('Jogar de novo', 'Play again'));
     // cabeçalho grande: Vitória (eu ou meu time), Derrota (outro venceu) ou Fim de jogo (sem vencedor ou só assistindo)
     const res = endResult(r, me);
     const noWinner = !r.winner && r.winnerTeam === null;
@@ -1080,7 +1096,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // modo Times: agrupada por time, com uma faixa da cor do time à esquerda
     const r = room;
     players.replaceChildren(head, ...[...r.players].sort((a, b) => byTeam(r, a, b)).map((p) =>
-      el('li', { class: p.id === me ? 'me' : '', style: r.mode === 'teams' && p.team !== null ? `box-shadow:inset 3px 0 0 ${TEAM_COLORS[p.team]}` : '' }, dot(p.color), el('span', {}, nameOf(p, me), p.bot ? el('small', { class: 'bot-tag' }, BOT_LEVEL[r.opts.difficulty]) : null), el('span', { class: 'live' }, String(live[p.id]?.kills ?? 0)), el('span', { class: 'live' }, String(Math.round(live[p.id]?.dmg ?? 0))), el('b', {}, String(p.score))),
+      el('li', { class: p.id === me ? 'me' : '', style: r.mode === 'teams' && p.team !== null ? `box-shadow:inset 3px 0 0 ${TEAM_COLORS[p.team]}` : '' }, dot(p.color), el('span', {}, nameOf(p, me), p.bot ? el('small', { class: 'bot-tag' }, BOT_LEVEL[p.difficulty ?? r.opts.difficulty]) : null), el('span', { class: 'live' }, String(live[p.id]?.kills ?? 0)), el('span', { class: 'live' }, String(Math.round(live[p.id]?.dmg ?? 0))), el('b', {}, String(p.score))),
     ));
   }
 

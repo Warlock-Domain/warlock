@@ -132,6 +132,10 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 .bots { display: flex; align-items: center; gap: 10px; }
 .bots > span { flex: 1; color: var(--muted); }
 .bots button { width: 44px; padding: 0; }
+/* lista de bots da sala: nome e dificuldade de cada um */
+.bot-list { display: flex; flex-direction: column; gap: 4px; }
+.bot-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.bot-row select { font: inherit; color: var(--fg); background: var(--panel2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 6px 8px; min-height: 36px; min-width: 9em; }
 .count { min-width: 2ch; text-align: center; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
 .board { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .board li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 10px; border-radius: var(--r-sm); background: var(--tint); }

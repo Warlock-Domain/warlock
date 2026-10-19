@@ -9,12 +9,13 @@ import type { SimEvent } from './sim.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
 
-// treino: magias, itens e jeito de jogar escolhidos para um bot (só vale com um humano na sala; ver startMatch)
-export type BotSetup = { spells?: Partial<Record<SpellId, number>>; items?: Partial<Record<ItemId, number>>; skill?: Partial<BotSkill> };
+// treino: magias, itens e jeito de jogar escolhidos para um bot (só vale com um humano na sala; ver startMatch);
+// difficulty: a dificuldade deste bot, escolhida na sala (vale em qualquer sala)
+export type BotSetup = { spells?: Partial<Record<SpellId, number>>; items?: Partial<Record<ItemId, number>>; skill?: Partial<BotSkill>; difficulty?: MatchOpts['difficulty'] };
 
 export type ClientMsg =
   | { t: 'hello'; playerId: string; name: string }
-  // shuffle: Times sorteados a cada rodada (padrão) ou fixos; opts: opções da partida; setup[i]: configuração do bot i+1 no treino
+  // shuffle: Times sorteados a cada rodada (padrão) ou fixos; opts: opções da partida; setup[i]: dificuldade do bot i+1 e a configuração dele no treino
   | { t: 'start'; bots: number; mode?: Mode; shuffle?: boolean; opts?: Partial<MatchOpts>; setup?: BotSetup[] }
   | { t: 'move'; x: number; y: number; seq: number }
   | { t: 'stop'; seq: number }
@@ -35,6 +36,7 @@ export type ClientMsg =
 export type PublicPlayer = {
   id: string; name: string; bot: boolean; color: number; character: CharacterId; score: number; gold: number;
   spells: Record<SpellId, number>; items: Record<ItemId, number>; stats: Stats; bought: string[]; held: Record<string, number[]>; ready: boolean; connected: boolean; team: number | null;
+  difficulty?: MatchOpts['difficulty']; // só bots: a dificuldade dele
 };
 
 export type PublicRoom = {
@@ -111,7 +113,8 @@ function parseSetup(x: unknown): BotSetup[] | null {
   const out: BotSetup[] = [];
   for (const b of x) {
     if (!isObj(b)) return null;
-    const { spells, items, skill } = b;
+    const { spells, items, skill, difficulty } = b;
+    if (difficulty !== undefined && !OPTION_CHOICES.difficulty.includes(difficulty as MatchOpts['difficulty'])) return null;
     if (spells !== undefined && (!isObj(spells) || !Object.entries(spells).every(([k, n]) => isSpell(k) && level(n, MAX_SPELL_LEVEL)) || spellCount({ ...noSpells(), ...spells }) > MAX_SPELLS)) return null;
     if (items !== undefined && (!isObj(items) || !Object.entries(items).every(([k, n]) => ITEM_IDS.includes(k as ItemId) && level(n, 6)))) return null;
     if (skill !== undefined && (!isObj(skill) || !Object.entries(skill).every(([k, n]) => SKILL_KEYS.includes(k as keyof BotSkill) && typeof n === 'number' && Number.isFinite(n)))) return null;
@@ -120,6 +123,7 @@ function parseSetup(x: unknown): BotSetup[] | null {
       ...(spells && { spells: spells as BotSetup['spells'] }),
       ...(items && { items: items as BotSetup['items'] }),
       ...(skill && { skill: Object.fromEntries(Object.entries(skill).map(([k, n]) => [k, clamp(k as keyof BotSkill, n as number)])) }),
+      ...(difficulty !== undefined && { difficulty: difficulty as MatchOpts['difficulty'] }),
     });
   }
   return out;
@@ -203,7 +207,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     mode: m.mode,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, score, gold, spells, items, stats, bought, held, ready, connected, team }) => ({ id: pub(id), name, bot, color, character, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null })),
+    players: m.players.map(({ id, name, bot, color, character, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty }) => ({ id: pub(id), name, bot, color, character, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }) })),
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),

@@ -101,6 +101,7 @@ export type Player = {
   connected: boolean;
   team: number | null; // modo Times: 0 = Azul, 1 = Vermelho
   setup?: BotSetup; // treino: magias, itens e jeito de jogar escolhidos para este bot
+  difficulty?: MatchOpts['difficulty']; // bot: a dificuldade dele, escolhida na sala (sem ela, a da partida)
 };
 
 export type Match = {
@@ -135,7 +136,8 @@ export const newMatch = (): Match => ({
 
 const player = (m: Match, id: string | null) => m.players.find((p) => p.id === id);
 
-const BOT_NAMES = ['Gul’dan', 'Merlim', 'Morgana', 'Rasputin', 'Zatanna', 'Mandrake', 'Gandalfo'];
+// o bot i+1 da partida recebe BOT_NAMES[i] (a sala mostra a lista nesta ordem)
+export const BOT_NAMES = ['Gul’dan', 'Merlim', 'Morgana', 'Rasputin', 'Zatanna', 'Mandrake', 'Gandalfo'];
 
 export function addPlayer(m: Match, id: string, name: string, bot = false): boolean {
   if (m.banned.includes(id)) return false;
@@ -164,7 +166,7 @@ export function removePlayer(m: Match, id: string) {
 }
 
 // opts: só as opções que mudam (sem elas fica o que a sala já tinha); setup[i]: configuração do bot i+1, só com uma pessoa
-// na sala (ninguém dá magias aos bots numa partida com outras pessoas)
+// na sala (ninguém dá magias aos bots numa partida com outras pessoas); a dificuldade de cada bot vale em qualquer sala
 export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'rounds', teamShuffle = true, rand: () => number = Math.random, opts: Partial<MatchOpts> = {}, setup: BotSetup[] = []): boolean {
   if (m.phase !== 'lobby' && m.phase !== 'end') return false;
   m.opts = { ...m.opts, ...opts };
@@ -172,7 +174,11 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   const solo = m.players.length === 1;
   for (let i = 0; m.players.length < MAX_PLAYERS && i < bots; i++) {
     addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true);
-    if (solo && setup[i]) m.players[m.players.length - 1].setup = setup[i];
+    const bot = m.players[m.players.length - 1];
+    const { difficulty, ...rest } = setup[i] ?? {};
+    if (difficulty) bot.difficulty = difficulty;
+    // só a dificuldade não é treino (a rodada não sai marcada na telemetria)
+    if (solo && setup[i] && (!difficulty || Object.keys(rest).length)) bot.setup = rest;
   }
   if (m.players.length < 2) return false;
   fresh(m, now, mode, teamShuffle, rand);
@@ -464,7 +470,7 @@ function shuffleTeams(m: Match, rand: () => number) {
   order.forEach((p, i) => (p.team = (i + first) % 2));
 }
 
-// força do bot pela dificuldade; no treino, o skill configurado vai por cima
+// força do bot pela dificuldade (a dele ou a da partida); no treino, o skill configurado vai por cima
 export function botSkill(m: Match, bot: Player): BotSkill {
   const base = difficultySkill(m, bot);
   return bot.setup?.skill ? { ...base, ...bot.setup.skill } : base;
@@ -472,7 +478,7 @@ export function botSkill(m: Match, bot: Player): BotSkill {
 
 // Automático: humanos à frente deste bot no placar → bot mais forte; atrás → mais fraco (contínuo, em fração da meta)
 function difficultySkill(m: Match, bot: Player): BotSkill {
-  const d = m.opts.difficulty;
+  const d = bot.difficulty ?? m.opts.difficulty;
   if (d !== 'auto') return BOT_SKILL[d];
   const humans = m.players.filter((p) => !p.bot);
   if (!humans.length) return BOT_SKILL.normal;
@@ -498,10 +504,11 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   }
   m.opts = { ...m.opts, ...m.pendingOpts };
   m.pendingOpts = {};
-  // bots votados (a fase ainda é a loja): o novo entra com o ouro inicial e já compra; sai o último bot da lista
+  // bots votados (a fase ainda é a loja): o novo entra Normal, com o ouro inicial, e já compra; sai o último bot da lista
   for (; m.botDelta > 0; m.botDelta--) {
     const n = [1, 2, 3, 4, 5, 6, 7, 8].find((k) => !m.players.some((p) => p.id === 'bot-' + k)) ?? 0;
     if (!n || !addPlayer(m, 'bot-' + n, BOT_NAMES[(n - 1) % BOT_NAMES.length], true)) break;
+    m.players[m.players.length - 1].difficulty = 'normal';
     botShop(m, m.players[m.players.length - 1]);
   }
   for (; m.botDelta < 0; m.botDelta++) {

@@ -12,12 +12,13 @@ export type RoundRecord = {
   humans: number;
   mode?: Mode;
   scale?: number; // 10: vida 1000 e dano na escala do original (desde 18/10); sem o campo, vida 100 (dano ÷10)
-  difficulty?: MatchOpts['difficulty']; // dos bots (desde 19/10, junto com o jeito de jogar)
+  difficulty?: MatchOpts['difficulty']; // da partida (desde 19/10, junto com o jeito de jogar); cada bot pode ter a sua (players[].difficulty)
   setup?: true; // rodada com configuração de treino: fica fora da leitura do jeito de jogar
   players: ({
     pid?: string; // código anônimo e estável do jogador (hash do id secreto), para separar habilidade de item
     name?: string; // apelido que a pessoa escolheu (só humanos)
     bot: boolean;
+    difficulty?: MatchOpts['difficulty']; // só bots: a dele (desde 19/10, dificuldade por bot)
     character: string;
     won: boolean;
     team?: number | null; // modo Times: 0 Azul, 1 Vermelho
@@ -59,6 +60,7 @@ export function roundRecord(m: Match, now: number): RoundRecord {
       pid: publicId('telemetria', p.id),
       name: p.bot ? undefined : p.name,
       bot: p.bot,
+      ...(p.bot && { difficulty: p.difficulty ?? m.opts.difficulty }),
       character: p.character,
       won: teams ? winTeam !== null && p.team === winTeam : p.id === m.lastRoundWinner,
       team: teams ? p.team : undefined,
@@ -106,8 +108,9 @@ export function styleRows(t: Totals): StyleRow[] {
   for (const r of t.recent) {
     if (r.setup || !r.difficulty) continue;
     for (const p of r.players) {
-      if (p.threats === undefined || (p.bot && r.difficulty === 'auto')) continue;
-      const key = p.bot ? 'bots ' + r.difficulty : (p.pid ?? '?');
+      const d = p.difficulty ?? r.difficulty;
+      if (p.threats === undefined || (p.bot && d === 'auto')) continue;
+      const key = p.bot ? 'bots ' + d : (p.pid ?? '?');
       const s = sums.get(key) ?? sums.set(key, { who: key, pid: p.bot ? undefined : p.pid, rounds: 0, ...(Object.fromEntries(STYLE_KEYS.map((k) => [k, 0])) as Record<StyleKey, number>) }).get(key)!;
       if (p.name) s.who = p.name;
       s.rounds++;

@@ -64,6 +64,16 @@ describe('protocolo', () => {
       .toEqual({ t: 'start', bots: 1, setup: [{ skill: { rate: 4, dodge: 0 } }, { skill: { rate: 1.5 } }] });
   });
 
+  it('start: dificuldade de cada bot (só os valores da lista)', () => {
+    expect(p({ t: 'start', bots: 2, setup: [{ difficulty: 'easy' }, { difficulty: 'auto', spells: { lightning: 1 } }] }))
+      .toEqual({ t: 'start', bots: 2, setup: [{ difficulty: 'easy' }, { spells: { lightning: 1 }, difficulty: 'auto' }] });
+    for (const difficulty of ['insane', 1, null, '']) expect(p({ t: 'start', bots: 1, setup: [{ difficulty }] })).toBeNull();
+    // 7 bots com magias, itens e dificuldade: ainda cabe na mensagem
+    const spells = { fireball: 0, rockpillar: 7, magnetize: 7, alteration: 7, boomerang: 7, windwalk: 7, splitter: 7 };
+    const items = { ring: 6, cursed_ring: 6, shock_boots: 6, lava_boots: 6, redirector: 6, wind_boots: 6 };
+    expect(p({ t: 'start', bots: 7, mode: 'deathmatch', opts: { shop: 120, economy: 2.5, startGold: 100, goal: 7, difficulty: 'normal', arena: 'random' }, setup: Array(7).fill({ spells, items, difficulty: 'normal' }) })).not.toBeNull();
+  });
+
   it('taunt: only the fixed ones (0..9)', () => {
     expect(p({ t: 'taunt', i: 0 })).toEqual({ t: 'taunt', i: 0 });
     expect(p({ t: 'taunt', i: 8 })).toEqual({ t: 'taunt', i: 8 });
