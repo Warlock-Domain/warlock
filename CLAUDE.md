@@ -52,7 +52,7 @@ npx vite build                      # build do cliente (dist/)
 - Commits e títulos de PR seguem `tipo: descrição em português` (`feat`, `fix`, `balance`, `style`, `refactor`, `docs`, `ci` ou `test`). O título do PR deve corresponder a um commit.
 - A descrição do PR informa por quê, o que mudou, como foi testado e inclui prints antes/depois para alterações visuais e medições para balanceamento; vincule a issue quando houver.
 - Antes de pedir revisão, rode os dois typechecks, a suíte Vitest e o build. O CI deve ficar verde e uma pessoa mantenedora aprova e faz o merge. Depois que a revisão começar, acrescente commits em vez de reescrever o histórico.
-- Para o fluxo deste trabalho com Codex, mantenha as alterações locais até outro colaborador revisar o diff; só então publique a branch ou o PR.
+- Para o fluxo deste trabalho com Codex, publique a branch e abra a PR para revisão; a aprovação e o merge ficam a cargo de Fernando.
 
 ## Balanceamento (como se decide número de magia e item)
 
