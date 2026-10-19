@@ -18,6 +18,7 @@ src/shared/   lógica do jogo, roda igual no servidor e no navegador
 src/worker/   Cloudflare Workers + Durable Objects (uma sala por objeto; lobby.ts guarda a telemetria)
 src/client/   navegador: main.ts (laço), scene.ts (Three.js), ui.ts (HUD, menus, loja), i18n.ts, grimoire.ts…
 scripts/      balance-sim.ts (simulador de balanceamento), build-tournament.ts (torneio de compras), smoke.mjs
+              assets/ff7-style.py: versão estilo FF7 de PS1 de um boneco KayKit, no Blender (instruções no topo do arquivo)
 tests/        Vitest (lógica e funções puras do cliente)
 docs/         auditorias, revisões de código e catálogos
 ```
