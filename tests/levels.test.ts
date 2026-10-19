@@ -57,6 +57,11 @@ describe('Campanha: salas da Charneca', () => {
     expect(room('arena-odran-01').exits).toEqual([{ letter: 'X', edge: 'left', from: 6, to: 8 }]);
   });
 
+  it('ignores spaces left at the end of a grid line', () => {
+    const r = parseRooms('sala: a   estágio: x   pool: meio\nsaídas: L\n\n####  \n#..L\n####\n')[0];
+    expect([r.w, r.h]).toEqual([4, 3]);
+  });
+
   it('points out drawing mistakes with the room name', () => {
     expect(() => parseRooms('sala: torta   estágio: x   pool: meio\nsaídas: L\n\n####\n#..L\n###\n')).toThrow(/torta.*tamanhos/);
     expect(() => parseRooms('sala: q   estágio: x   pool: meio\nsaídas: L\n\n####\n#Q.L\n####\n')).toThrow(/"Q" desconhecido/);

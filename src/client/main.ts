@@ -424,7 +424,7 @@ function startRoom(code: string, name: string) {
   }
 
   function names() {
-    return new Map(room?.players.map((p) => [p.id, p.name]) ?? []);
+    return new Map(room?.players.map((p) => [p.id, playerName(p)]) ?? []);
   }
 
   const RUNE_NAME: Record<RuneKind, string> = { haste: t('Runa da Pressa', 'Haste Rune'), fury: t('Runa da Fúria', 'Fury Rune'), shield: t('Runa do Escudo', 'Shield Rune'), recharge: t('Runa da Recarga', 'Recharge Rune') };
@@ -625,12 +625,18 @@ function startRoom(code: string, name: string) {
       watchId = null;
       // modo Times: avisa em que time a pessoa está nesta rodada
       const team = room.mode === 'teams' ? room.players.find((p) => p.id === me)?.team : null;
-      banner(team != null ? t(`Rodada ${room.round} · Você está no time ${TEAM_NAMES[team]}`, `Round ${room.round} · You are on the ${TEAM_NAMES[team]} team`) : t(`Rodada ${room.round}`, `Round ${room.round}`));
+      banner(room.night ? t(`Clareira ${room.night.clearing + 1} de ${room.night.clearings}`, `Clearing ${room.night.clearing + 1} of ${room.night.clearings}`)
+        : team != null ? t(`Rodada ${room.round} · Você está no time ${TEAM_NAMES[team]}`, `Round ${room.round} · You are on the ${TEAM_NAMES[team]} team`) : t(`Rodada ${room.round}`, `Round ${room.round}`));
       [3, 2, 1].forEach((_, i) => setTimeout(() => sound.play('beep'), i * 1000));
     } else if (room.phase === 'playing') {
       playingAt = performance.now();
       banner(t('Já!', 'Go!'), 'good');
       sound.play('go');
+    } else if (room.phase === 'roundEnd' && room.night) {
+      // Campanha: o grupo inteiro limpou a clareira ou caiu
+      const lost = room.night.result === 'lost';
+      if (room.players.some((p) => p.id === me)) sound.play(lost ? 'loseRound' : 'winRound'); // quem só assiste não ouve
+      banner(lost ? t('O Fumo venceu esta noite', 'The Smoke won this night') : t('Clareira limpa!', 'Clearing cleared!'), lost ? '' : 'win');
     } else if (room.phase === 'roundEnd' && !(run && runRound === room.round)) { // a rodada em que o desafio acabou fica com a faixa dele
       const w = room.players.find((p) => p.id === room!.lastRoundWinner);
       const myTeam = room.players.find((p) => p.id === me)?.team;

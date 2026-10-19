@@ -1402,10 +1402,6 @@ function separate(w: World) {
 // volta ao jogo no deathmatch: sorteia um ponto na pedra longe dos inimigos vivos e dos pilares (se nenhum
 // sorteio chega a DM_SPAWN_GAP, fica o melhor)
 function respawn(w: World, wz: Wizard, rand: () => number) {
-  revive(w, wz, spawnSpot(w, wz, rand));
-}
-
-function spawnSpot(w: World, wz: Wizard, rand: () => number): Vec {
   const reach = w.arenaR * SHAPES[w.arena].reach - SPAWN_INSET;
   const gap = (p: Vec) => Math.min(...w.wizards.filter((z) => z.alive).map((z) => dist(z.pos, p)), ...w.pillars.filter((q) => q.alive).map((q) => dist(q.pos, p)));
   // sem sorteio bom (fora da pedra), volta onde nasceu
@@ -1419,7 +1415,7 @@ function spawnSpot(w: World, wz: Wizard, rand: () => number): Vec {
     const g = gap(p);
     if (g > bestGap) [best, bestGap] = [p, g];
   }
-  return best;
+  revive(w, wz, best);
 }
 
 // volta vivo em pos (deathmatch e as ondas da Campanha): vida cheia, parado e invulnerável; magias, itens e recargas ficam

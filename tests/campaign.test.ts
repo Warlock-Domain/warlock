@@ -159,6 +159,27 @@ describe('Campanha: partida', () => {
     expect(idle.players.some((p) => p.servo)).toBe(false);
   });
 
+  it('a match after the night starts with the usual gold', () => {
+    const m = night(['a', 'b']);
+    endIdle(m);
+    expect(m.phase).toBe('end');
+    startMatch(m, 0, 1, 'rounds');
+    expect(m.players.filter((p) => !p.bot).map((p) => p.gold)).toEqual([30, 30]);
+  });
+
+  it('someone who joins mid-night fights on the Acesos side, without gold', () => {
+    const m = night(['a']);
+    let now = toPlaying(m, 0);
+    addPlayer(m, 'late', 'late');
+    expect(m.players.find((p) => p.id === 'late')!.gold).toBe(0);
+    shelter(m);
+    now = clearClearing(m, now);
+    now = until(m, now, () => m.phase === 'shop');
+    toPlaying(m, now);
+    expect(m.players.find((p) => p.id === 'late')!.team).toBe(0);
+    expect(m.world!.wizards.find((z) => z.id === 'late')!.team).toBe(0);
+  });
+
   it('resume mid-night goes back to the interval of the same clearing', () => {
     const m = night();
     toPlaying(m, 0);

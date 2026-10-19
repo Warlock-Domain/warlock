@@ -83,7 +83,7 @@ export function parseOpt(target: string): [keyof MatchOpts, MatchOpts[keyof Matc
 export const PACE = { short: 0.6, normal: 1, long: 1.6 }; // multiplica COUNTDOWN_MS e ROUND_END_MS
 export const DM_GOALS = { 3: 10, 5: 15, 7: 25 }; // 15 = DM_KILLS_TO_WIN
 export const goalOf = (m: Pick<Match, 'mode' | 'opts'>) => (m.mode === 'deathmatch' ? DM_GOALS[m.opts.goal] : m.opts.goal);
-const startGold = (m: Match) => (m.mode === 'campaign' ? 0 : Math.round(m.opts.startGold * m.opts.economy));
+const startGold = (m: Match) => Math.round(m.opts.startGold * m.opts.economy);
 
 export type Player = {
   id: string;
@@ -170,7 +170,8 @@ export function addPlayer(m: Match, id: string, name: string, bot = false): bool
   const color = [0, 1, 2, 3, 4, 5, 6, 7].find((c) => !used.has(c)) ?? 0;
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
-  m.players.push({ id, name, bot, color, character, look: lookOf(character), score: 0, gold: startGold(m), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null });
+  // a Campanha não tem ouro (nem para quem entra no meio da noite)
+  m.players.push({ id, name, bot, color, character, look: lookOf(character), score: 0, gold: m.night ? 0 : startGold(m), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null });
   enter(m, m.players[m.players.length - 1]);
   return true;
 }
@@ -694,6 +695,7 @@ function enterClearing(m: Match, now: number, rand: () => number) {
   const n = m.night!;
   const c = clearingOf(n);
   n.wave = 0;
+  for (const p of m.players) if (!p.servo) p.team = 0; // quem entrou no meio da noite também é Aceso
   const ids = m.players.map((p) => p.id);
   const teams = Object.fromEntries(m.players.map((p) => [p.id, p.servo ? 1 : 0]));
   m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), c.pillars, rand, false, teams, { runes: m.opts.runes, sudden: false, chests: false }, c.arena);
