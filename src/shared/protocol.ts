@@ -94,7 +94,9 @@ export type ServerMsg =
   | { t: 'error'; code: ErrorCode; msg: string }
   | { t: 'taunt'; id: string; i: number };
 
-const MAX_COORD = 30;
+// a arena cabe em ±30 m; o mapa da Campanha vai de (0, 0) até a sala mais longe (hoje até 190 × 24 m): folga para salas
+// maiores sem deixar passar número absurdo (tests/campaign.test.ts confere 300 noites)
+const MAX_COORD = 400;
 const MAX_MSG = 2048; // 'start' com 7 bots configurados: ~1,0 KB só com magias, ~1,7 KB com magias e itens (medido em 19/10)
 
 type Obj = Record<string, unknown>;
