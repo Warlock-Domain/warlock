@@ -76,7 +76,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 19/10 | `master` protegido (PR + CI + aprovação); revisão automática do Claude em todo PR; ambiente `<nome>-dev` por colaborador; guia do colaborador no repositório | entrada de colaboradores |
 | 19/10 | Os `CLAUDE.md` (raiz e pastas) são atualizados a cada decisão nova | todo dev com o mesmo contexto do dono |
 | 19/10 | PR passa pela revisão automática do Claude (comentário com veredito) e pode ser ajustado e mesclado pelo agente do dono, inclusive PR de colaborador; comente `@claude` num PR ou issue para pedir ajuda | mesclar rápido sem o dono revisar à mão |
-| 19/10 | Cada colaborador tem um ambiente dev próprio (`<nome>-dev`, primeiro nome em minúsculas) publicado sozinho a cada push | testar com outras pessoas antes do PR, sem tocar no jogo no ar |
+| 19/10 | Cada colaborador tem um ambiente dev próprio (`<usuário do GitHub>-dev`, em minúsculas) publicado sozinho a cada push | testar com outras pessoas antes do PR, sem tocar no jogo no ar |
 
 ## Fluxo com agente
 
@@ -86,13 +86,13 @@ Armadilhas: depois de `vite build`, reinicie o `wrangler dev` (senão página br
 
 ## Ambientes dev
 
-Push na branch `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffdev.com` (`.github/workflows/dev-deploy.yml`, Worker e salas próprios, teste rápido no fim). Trabalhe na sua branch de tarefa e traga para a sua `-dev` quando quiser testar com outras pessoas (`git push origin HEAD:<nome>-dev`, ou merge). Colaborador novo ganha a branch dele aqui.
+Push na branch `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffdev.com` (`.github/workflows/dev-deploy.yml`, Worker e salas próprios, teste rápido no fim). Trabalhe na sua branch de tarefa e traga para a sua `-dev` quando quiser testar com outras pessoas (`git push origin HEAD:<nome>-dev`, ou merge). O nome é o usuário do GitHub, em minúsculas. Colaborador novo ganha a branch dele aqui.
 
 | Colaborador | GitHub | Branch | Link |
 |---|---|---|---|
-| Leonard | lboesmans | `leonard-dev` | https://leonard-dev-warlock.fernandorffdev.com |
-| Branco | breakie33 | `branco-dev` | https://branco-dev-warlock.fernandorffdev.com |
-| Lucas | lucascvalle | `lucas-dev` | https://lucas-dev-warlock.fernandorffdev.com |
+| Leonard | lboesmans | `lboesmans-dev` | https://lboesmans-dev-warlock.fernandorffdev.com |
+| Branco | breakie33 | `breakie33-dev` | https://breakie33-dev-warlock.fernandorffdev.com |
+| Lucas | lucascvalle | `lucascvalle-dev` | https://lucascvalle-dev-warlock.fernandorffdev.com |
 
 ## Balanceamento (como se decide número de magia e item)
 
