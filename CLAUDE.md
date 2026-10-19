@@ -106,7 +106,7 @@ A branch `-dev` é sua: pode substituir pelo estado da tarefa (`git push --force
 
 1. Branch da tarefa (`feat/…`, `fix/…`) a partir de `dev`; para testar com outras pessoas, publique no seu `<usuário>-dev`.
 2. PR da tarefa para **`dev`** (a branch padrão). Ao mesclar, publica no **dev geral**: https://dev-warlock.fernandorffdev.com.
-3. Quando o dev geral está bom, o agente do dono abre o PR **`dev` → `master`**. Ao mesclar, a pipeline **Produção** publica em https://warlock.fernandorffdev.com.
+3. Quando o dev geral está bom, o agente do dono abre o PR **`dev` → `master`**. Ao mesclar, a pipeline **Produção** publica em https://warlock.fernandorffdev.com. A promoção `dev` → `master` usa **merge normal (não squash)** e não apaga a `dev`, para os dois seguirem com o mesmo histórico; os PRs de tarefa para `dev` continuam em squash.
 
 ### Pipelines
 
