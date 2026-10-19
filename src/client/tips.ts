@@ -1,5 +1,5 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
-import { AEGIS, ITEMS, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, type ItemId } from '../shared/items.ts';
+import { AEGIS, ITEMS, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, isActive, type ItemId } from '../shared/items.ts';
 import { LAVA_DPS } from '../shared/constants.ts';
 import { labelOf } from './keys.ts';
 import { ILLUSION, MAX_SPELL_LEVEL, RECHARGE, RUSH, SPELLS, WARPZONE, type Level, type SpellId } from '../shared/spells.ts';
@@ -89,7 +89,7 @@ export const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string]
 export function itemTip(id: ItemId, level: number): string {
   const it = ITEMS[id];
   const max = it.levels.length;
-  const head = `<b>${it.name}</b>${it.key ? ` <span class="k">${labelOf(id)}</span>` : ''}<br><small>${level ? `Nível ${level} de ${max}` : 'Ainda não comprado'} · ${it.key ? 'ativo' : 'passivo'} · ${it.cost} de ouro por nível</small>`;
+  const head = `<b>${it.name}</b>${isActive(id) ? ` <span class="k">${labelOf(id)}</span>` : ''}<br><small>${level ? `Nível ${level} de ${max}` : 'Ainda não comprado'} · ${isActive(id) ? 'ativo' : 'passivo'} · ${it.cost} de ouro por nível</small>`;
   const rows = ITEM_ROWS[id]!;
   const cur = rows(Math.max(0, level - 1));
   const next = level >= 1 && level < max ? rows(level) : null;

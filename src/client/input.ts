@@ -1,7 +1,7 @@
 // Controles do Dota: botão direito anda, Q W E R F lançam na direção do cursor, S para.
 // Três jeitos de lançar pela tecla (keys.ts, getCastMode): na hora, ao soltar (segurar mostra o alcance) ou com clique.
 // No celular: tocar no chão anda; tocar no botão da magia e depois no chão lança.
-import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
+import { isActive, type ItemId } from '../shared/items.ts';
 import type { SpellId } from '../shared/spells.ts';
 import { actionFor, getCastMode, isUiKey } from './keys.ts';
 import { setPadGame } from './gamepad.ts';
@@ -24,8 +24,6 @@ export type InputHandlers = {
   aim: (at: Vec | null) => void;
 };
 
-const isItem = (x: string): x is ItemId => (ACTIVE_ITEMS as string[]).includes(x);
-
 export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   let cursor = { x: innerWidth / 2, y: innerHeight / 2 };
   let armed: SpellId | ItemId | null = null;
@@ -39,7 +37,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   let panFrom = { x: 0, y: 0 };
 
   // lança a magia ou usa o item no ponto
-  const fire = (a: SpellId | ItemId, p: Vec) => (isItem(a) ? h.useItem(a, p) : h.cast(a, p));
+  const fire = (a: SpellId | ItemId, p: Vec) => (isActive(a) ? h.useItem(a, p) : h.cast(a, p));
   const arm = (s: SpellId | ItemId | null) => {
     armed = s;
     h.armedChanged(s);

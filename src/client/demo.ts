@@ -3,8 +3,8 @@
 import { SHAPES } from '../shared/arena.ts';
 import { DT, OBSTACLES, PROJ_R, WIZ_R } from '../shared/constants.ts';
 import { ITEMS, noItems, type ItemId } from '../shared/items.ts';
-import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from '../shared/sim.ts';
-import { SNOWBALL, SPELLS, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
+import { newWorld, snowR, spellOf, stepWorld, type Cmd, type SimEvent, type World } from '../shared/sim.ts';
+import { isSpell, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, scale, v, type Vec } from '../shared/vec.ts';
 
 // alvo do passo: ponto fixo ou a posição atual do mago com esse índice
@@ -58,7 +58,7 @@ export function demoWorld(id: DemoId): DemoState {
   const script = SCRIPTS[id]!;
   const pos = script.pos ?? [v(-3, 0), v(2, 0), v(2.6, 1.6)];
   const ids = pos.map((_, i) => 'abc'[i]);
-  const spell = id in SPELLS ? { [id]: 1 } : {};
+  const spell = isSpell(id) ? { [id]: 1 } : {};
   const item = id in ITEMS ? { [id]: 1 } : {};
   const w = newWorld(ids, Object.fromEntries(ids.map((k, i) => [k, { ...noSpells(), ...(i === A ? spell : {}) }])), { a: { ...noItems(), ...item } }, 0, () => 0.5, false, {}, RULES, 'circle');
   w.arenaR = DEMO_R;
@@ -76,7 +76,7 @@ export function demoStep(s: DemoState) {
     const [, who, what, at] = script.steps[s.next];
     const id = w.wizards[who].id;
     const to = typeof at === 'number' ? { ...w.wizards[at].pos } : at;
-    cmds.push(what === 'move' ? { id, kind: 'move', to } : what in SPELLS ? { id, kind: 'cast', spell: what as SpellId, at: to } : { id, kind: 'item', item: what as ItemId, at: to });
+    cmds.push(what === 'move' ? { id, kind: 'move', to } : isSpell(what) ? { id, kind: 'cast', spell: what, at: to } : { id, kind: 'item', item: what, at: to });
   }
   stepWorld(w, cmds, () => 0.5);
   s.events = w.events;
@@ -140,7 +140,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     for (const z of w.zones) circle(z.pos, z.r, ZONE_COLOR[z.kind]);
     for (const p of w.pillars) if (p.alive) circle(p.pos, OBSTACLES[p.kind].r, '#8a7a6a', '#d9c3a5');
     for (const p of w.projectiles) {
-      const L = spellLevel(p.kind === 'shard' ? 'splitter' : p.kind, p.level);
+      const L = spellLevel(spellOf(p.kind), p.level);
       const col = PROJ_COLOR[p.kind] ?? '#fff';
       if (p.kind === 'meteor') {
         circle(p.pos, L.radius, 'rgba(255,90,26,.18)', col, true);
@@ -156,7 +156,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
         circle(p.pos, PROJ_R * 1.4, col);
       } else {
         if (p.kind === 'link') line(w.wizards.find((z) => z.id === p.owner)?.pos ?? p.pos, p.pos, col, 0.05);
-        circle(p.pos, p.kind === 'snowball' ? SNOWBALL.coll + SNOWBALL.perLevel * p.level : p.kind === 'shard' ? PROJ_R * 0.7 : PROJ_R, col);
+        circle(p.pos, p.kind === 'snowball' ? snowR(p.level) : p.kind === 'shard' ? PROJ_R * 0.7 : PROJ_R, col);
       }
     }
     w.wizards.forEach((z, i) => {
@@ -185,7 +185,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       else if (e.k === 'reflect' || e.k === 'redirect') circle(v(e.x, e.y), 0.5, null, '#ffd666');
       else if (e.k === 'scourge' || e.k === 'clash') circle(v(e.x, e.y), e.r, null, e.k === 'clash' ? CLASH_COLOR[e.combo] : '#ff6a4d');
       else if (e.k === 'hit' && e.dmg > 0.5) text('−' + Math.round(e.dmg), v(e.x, e.y - 1.1 - (0.8 - life) * 0.8), '#fff2a0', 0.42);
-      else if (e.k === 'death') text('✕', v(w.wizards.find((z) => z.id === e.id)?.pos.x ?? 0, w.wizards.find((z) => z.id === e.id)?.pos.y ?? 0), '#ff6a4d', 0.6);
+      else if (e.k === 'death') text('✕', w.wizards.find((z) => z.id === e.id)?.pos ?? v(0, 0), '#ff6a4d', 0.6);
     }
   }
 

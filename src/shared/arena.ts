@@ -182,6 +182,8 @@ export function pathStep(w: Arena, a: Vec, b: Vec, want: number, avoid: { pos: V
 // ilhas de refúgio (sim.ts): a pedra de cada uma é um disco; fora da arena E fora de toda ilha = lava
 export type Isle = { pos: Vec; r: number };
 export const onIsle = (isles: Isle[] | undefined, p: Vec) => !!isles?.some((i) => dist(p, i.pos) < i.r);
+// lava: a menos de margin m da borda da pedra (fora dela com 0) e fora de toda ilha
+export const inLavaAt = (id: ArenaId, R: number, isles: Isle[] | undefined, p: Vec, margin = 0) => edgeAt(id, R, p) < margin && !onIsle(isles, p);
 // ponto no rumo a (radianos, do centro) a d m da pedra: vem de fora para dentro até a distância até a borda chegar a d
 export function isleSpot(w: Arena, a: number, d: number): Vec {
   const dir = v(Math.cos(a), Math.sin(a));

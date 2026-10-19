@@ -1,6 +1,6 @@
 // Teclas de cada magia, item ativo e atalho da interface, trocáveis pelo jogador (guardadas no navegador), e os botões do controle.
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
-import { SPELL_IDS, type SpellId } from '../shared/spells.ts';
+import { SPELL_IDS, isSpell, type SpellId } from '../shared/spells.ts';
 import { store } from './store.ts';
 
 export type Action = SpellId | ItemId;
@@ -42,7 +42,6 @@ const SLOT_KEYS = ['KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyD', 'KeyF'];
 const SLOT_STORE = 'warlock:slotkeys';
 let slotMode = store.get(SLOT_STORE) === '1';
 let slots: SpellId[] = [];
-const isSpell = (a: AnyAction) => (SPELL_IDS as readonly string[]).includes(a);
 export const isSlotMode = () => slotMode;
 export function setSlotMode(on: boolean) {
   slotMode = on;
@@ -115,11 +114,11 @@ export function setPadMode(on: boolean) {
   notify();
 }
 const padLabel = (a: Action) => {
-  const i = isSpell(a) ? slots.indexOf(a as SpellId) : ACTIVE_ITEMS.indexOf(a as ItemId);
+  const i = isSpell(a) ? slots.indexOf(a) : ACTIVE_ITEMS.indexOf(a);
   return i < 0 ? '—' : PAD_NAMES[padMap[`${isSpell(a) ? 'slot' : 'item'}${i + 1}` as PadAction]];
 };
 
-export const keyOf = (a: AnyAction) => (slotMode && isSpell(a) ? (SLOT_KEYS[slots.indexOf(a as SpellId)] ?? '') : map[a]);
+export const keyOf = (a: AnyAction) => (slotMode && isSpell(a) ? (SLOT_KEYS[slots.indexOf(a)] ?? '') : map[a]);
 // a tecla apertada é a do atalho da interface? (sem tecla nunca casa)
 export const isUiKey = (code: string, a: UiAction) => !!code && map[a] === code;
 // só magias e itens: os atalhos da interface nunca lançam nada
@@ -145,11 +144,12 @@ export const labelOf = (a: Action) => (pad ? padLabel(a) : keyLabel(keyOf(a)));
 // rótulo do atalho da interface, para dicas e textos de ajuda
 export const uiLabel = (a: UiAction) => keyLabel(map[a]);
 
-// quem usa a tecla agora; no modo Q W E R D F as seis letras são das posições da barra (magia fora da barra não conta)
+// quem usa a tecla agora; no modo Q W E R D F as seis letras são das posições da barra e, nas outras, a tecla guardada
+// das magias também conta (setKey troca com ela, então a interface avisa)
 export function whoUses(code: string): AnyAction | undefined {
   if (!code) return undefined;
   if (slotMode && SLOT_KEYS.includes(code)) return slots[SLOT_KEYS.indexOf(code)];
-  return ALL.find((a) => map[a] === code && !(slotMode && isSpell(a)));
+  return ALL.find((a) => map[a] === code);
 }
 
 // troca a tecla; se outra ação já usava essa tecla, as duas trocam entre si (a interface avisa quem trocou).

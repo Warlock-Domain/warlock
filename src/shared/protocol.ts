@@ -3,10 +3,10 @@ import type { ArenaId } from './arena.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
 import { isCharacter, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS } from './constants.ts';
-import { ACTIVE_ITEMS, ITEM_IDS, type ItemId } from './items.ts';
+import { ITEM_IDS, isActive, type ItemId } from './items.ts';
 import { MODES, OPTION_CHOICES, goalOf, parseOpt, votesNeeded, type Match, type MatchOpts, type Mode, type Phase, type Stats, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
-import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, noSpells, spellCount, type SpellId } from './spells.ts';
+import { MAX_SPELLS, MAX_SPELL_LEVEL, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
 
 // treino: magias, itens e jeito de jogar escolhidos para um bot (só vale com um humano na sala; ver startMatch)
@@ -88,7 +88,6 @@ type Obj = Record<string, unknown>;
 const isObj = (x: unknown): x is Obj => typeof x === 'object' && x !== null && !Array.isArray(x);
 const coord = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= MAX_COORD;
 const seq = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 0 && (x as number) < 2 ** 31;
-const spell = (x: unknown): x is SpellId => SPELL_IDS.includes(x as SpellId);
 const pubId = (x: unknown): x is string => typeof x === 'string' && /^p[0-9a-z]{1,8}$/.test(x);
 
 export function cleanName(raw: unknown): string {
@@ -113,7 +112,7 @@ function parseSetup(x: unknown): BotSetup[] | null {
   for (const b of x) {
     if (!isObj(b)) return null;
     const { spells, items, skill } = b;
-    if (spells !== undefined && (!isObj(spells) || !Object.entries(spells).every(([k, n]) => spell(k) && level(n, MAX_SPELL_LEVEL)) || spellCount({ ...noSpells(), ...spells }) > MAX_SPELLS)) return null;
+    if (spells !== undefined && (!isObj(spells) || !Object.entries(spells).every(([k, n]) => isSpell(k) && level(n, MAX_SPELL_LEVEL)) || spellCount({ ...noSpells(), ...spells }) > MAX_SPELLS)) return null;
     if (items !== undefined && (!isObj(items) || !Object.entries(items).every(([k, n]) => ITEM_IDS.includes(k as ItemId) && level(n, 6)))) return null;
     if (skill !== undefined && (!isObj(skill) || !Object.entries(skill).every(([k, n]) => SKILL_KEYS.includes(k as keyof BotSkill) && typeof n === 'number' && Number.isFinite(n)))) return null;
     const clamp = (k: keyof BotSkill, n: number) => Math.min(Math.max(...Object.values(BOT_SKILL).map((s) => s[k])), Math.max(k === 'rate' ? BOT_SKILL.easy.rate : 0, n));
@@ -155,9 +154,9 @@ export function parseClientMessage(raw: string): ClientMsg | null {
     case 'stop':
       return seq(m.seq) ? { t: 'stop', seq: m.seq } : null;
     case 'cast':
-      return spell(m.spell) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'cast', spell: m.spell, x: m.x, y: m.y, seq: m.seq } : null;
+      return isSpell(m.spell) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'cast', spell: m.spell, x: m.x, y: m.y, seq: m.seq } : null;
     case 'buy':
-      return spell(m.spell) ? { t: 'buy', spell: m.spell } : null;
+      return isSpell(m.spell) ? { t: 'buy', spell: m.spell } : null;
     case 'sell':
     case 'undo':
       return typeof m.key === 'string' && /^(spell|item):[a-z_]{2,20}$/.test(m.key) ? { t: m.t, key: m.key } : null;
@@ -177,7 +176,7 @@ export function parseClientMessage(raw: string): ClientMsg | null {
     case 'buyItem':
       return ITEM_IDS.includes(m.item as ItemId) ? { t: 'buyItem', item: m.item as ItemId } : null;
     case 'item':
-      return ACTIVE_ITEMS.includes(m.item as ItemId) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'item', item: m.item as ItemId, x: m.x, y: m.y, seq: m.seq } : null;
+      return isActive(m.item) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'item', item: m.item, x: m.x, y: m.y, seq: m.seq } : null;
     case 'pick':
       return isCharacter(m.character) ? { t: 'pick', character: m.character } : null;
     case 'ready':

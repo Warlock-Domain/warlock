@@ -2,7 +2,7 @@
 // public/CREDITS.txt) num sprite só (public/icons.svg, montado por scripts/assets/build-icons.mjs). Cor pelo tema (currentColor).
 import type { RuneKind } from '../shared/constants.ts';
 import { ITEMS, type ItemId } from '../shared/items.ts';
-import { SPELLS, type SpellId } from '../shared/spells.ts';
+import { SPELLS, isSpell, type SpellId } from '../shared/spells.ts';
 
 // símbolo do sprite → <svg> do tamanho da fonte; o emoji antigo fica como texto alternativo
 const ALT: Record<string, string> = {};
@@ -40,10 +40,10 @@ export const UI_ICON = named({ board: ['histogram', '📊'], sheet: ['scroll-unf
   gold: ['two-coins', '🪙'], tip: ['light-bulb', '💡'], bot: ['robot-antennas', '🤖'], person: ['character', '👤'], info: ['info', 'ℹ️'], shop: ['shop', '🏪'],
   gear: ['cog', '⚙️'], pad: ['gamepad', '🎮'], video: ['tv', '📺'] });
 // ícone e nome de uma magia ou item ativo (teclas, grimório, magia escolhida)
-export const actionIcon = (a: SpellId | ItemId) => (a in SPELLS ? ICON[a as SpellId] : ITEM_ICON[a as ItemId]);
-export const actionName = (a: SpellId | ItemId) => (a in SPELLS ? SPELLS[a as SpellId].name : ITEMS[a as ItemId].name);
+export const actionIcon = (a: SpellId | ItemId) => (isSpell(a) ? ICON[a] : ITEM_ICON[a]);
+export const actionName = (a: SpellId | ItemId) => (isSpell(a) ? SPELLS[a].name : ITEMS[a].name);
 // efeitos em cima do mago (bits do snapshot, ver shared/snapshot.ts); negativos primeiro. Também listados na ficha do mago
-const fx = named({ stun: ['star-swirl', '💫'], vuln: ['broken-shield', '⚠️'], invuln: ['sunbeams', '🌟'], locked: ['padlock', '🔒'], slow: ['snail', '🐌'], burn: ['small-fire', '🔥'],
+const fx = named({ stun: ['star-swirl', '💫'], invuln: ['sunbeams', '🌟'], locked: ['padlock', '🔒'], slow: ['snail', '🐌'], burn: ['small-fire', '🔥'],
   repel: ['magnet-blast', '🌬️'], invis: ['ghost', '👻'], fast: ['run', '🏃'] });
 export const STATUS_ICONS: [bit: number, icon: string, name: string][] = [[16, fx.stun, 'atordoado'], [32, fx.invuln, 'invulnerável'], [64, ITEM_ICON.pact, 'Pacto armado'],
   [128, fx.locked, 'preso'], [256, ICON.rush, 'Investida'], [4, fx.slow, 'lento'], [512, fx.burn, 'queimando'], [65536, ICON.link, 'preso pelo Elo'], [8192, ICON.magnetize, 'magnetizado: atrai projéteis'],

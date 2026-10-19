@@ -1,7 +1,7 @@
 // Controle de Xbox/PlayStation (Gamepad API): analógico esquerdo anda, direito mira, botões lançam pela posição na barra.
 // Fora da rodada (sala, loja, ajuda) o D-pad ou o analógico esquerdo andam entre os botões da tela.
 // Um jogador por navegador: vale o primeiro controle conectado.
-import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
+import { ACTIVE_ITEMS, isActive, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import type { Vec } from '../shared/vec.ts';
 import { PAD_NAMES, keyOf, padActionAt, padButtonOf, setPadMode, slotSpell } from './keys.ts';
@@ -256,7 +256,7 @@ function play(g: PadGame, hit: (b: number) => boolean, mv: Vec, aimS: Vec) {
     const a = padAction(b);
     if (!a || !at) continue;
     lastCast = a;
-    if ((ACTIVE_ITEMS as string[]).includes(a)) g.useItem(a as ItemId, at);
+    if (isActive(a)) g.useItem(a, at);
     else g.cast(a as SpellId, at);
   }
   if (hit(BTN.START)) start();

@@ -6,6 +6,7 @@ export const ITEM_IDS = ['ring', 'cursed_ring', 'cape', 'armor', 'boots', 'watch
   'lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis', 'wind_boots'] as const;
 export type ItemId = (typeof ITEM_IDS)[number];
 export const ACTIVE_ITEMS: ItemId[] = ['scourge', 'redirector', 'pact'];
+export const isActive = (x: unknown): x is ItemId => ACTIVE_ITEMS.includes(x as ItemId);
 export const MAX_ITEMS = 6;
 
 // hp: vida máxima a mais; regen: vida por segundo a mais; kb: fração de empurrão a menos; speed: m/s a mais;
@@ -13,7 +14,7 @@ export const MAX_ITEMS = 6;
 // lava: fração de dano da lava a menos; ward: dano a menos por golpe; range: fração a mais (ou a menos) no alcance das magias
 type ItemLevel = { hp?: number; regen?: number; kb?: number; speed?: number; debuff?: number; lifesteal?: number; lava?: number; ward?: number; range?: number };
 
-type Item = { name: string; cost: number; key?: string; text: string; levels: ItemLevel[] };
+type Item = { name: string; cost: number; text: string; levels: ItemLevel[] };
 
 export const ITEMS: Record<ItemId, Item> = {
   ring: { name: 'Anel de vida', cost: 4, text: 'Mais vida máxima.', levels: [{ hp: 100 }, { hp: 190 }, { hp: 270 }, { hp: 340 }, { hp: 400 }] },
@@ -24,9 +25,9 @@ export const ITEMS: Record<ItemId, Item> = {
   watch: { name: 'Relógio de bolso', cost: 2, text: 'Lentidões e penalidades duram menos.', levels: [{ debuff: -0.35 }, { debuff: -0.45 }] },
   // era a maestria Roubo de vida do original (shop.lua MASTERY_GAIN: +9/8/7/6/5/4% por nível, 5 de ouro cada); virou item em 17/10
   vampire: { name: 'Roubo de vida', cost: 5, text: 'Recupera parte do dano que você causa.', levels: [0.09, 0.17, 0.24, 0.3, 0.35, 0.39].map((lifesteal) => ({ lifesteal })) },
-  scourge: { name: 'Flagelo', cost: 7, key: '1', text: 'Explode em volta depois de 0,5 s e empurra quem estiver perto.', levels: [{}, {}, {}] },
-  redirector: { name: 'Redirecionador', cost: 8, key: '2', text: 'Desvia todos os seus projéteis voando para o cursor.', levels: [{}] },
-  pact: { name: 'Pacto', cost: 10, key: '3', text: 'Próxima magia de dano em 5 s faz 2× de dano e empurrão.', levels: [{}] },
+  scourge: { name: 'Flagelo', cost: 7, text: 'Explode em volta depois de 0,5 s e empurra quem estiver perto.', levels: [{}, {}, {}] },
+  redirector: { name: 'Redirecionador', cost: 8, text: 'Desvia todos os seus projéteis voando para o cursor.', levels: [{}] },
+  pact: { name: 'Pacto', cost: 10, text: 'Próxima magia de dano em 5 s faz 2× de dano e empurrão.', levels: [{}] },
   // itens novos de 18/10, do catálogo docs/itens-candidatos.md (Warlock CE); números conservadores até a simulação dizer
   lava_boots: { name: 'Botas de lava', cost: 4, text: 'A lava machuca menos.', levels: [{ lava: 0.18 }, { lava: 0.3 }] }, // ciclo 2: nv 2 0,6 → 0,5; 18/10 bots humanos: 0,35/0,5 → 0,25/0,4 → 0,18/0,3 (26% e 22% acima do justo)
   // Guardião do CE: −0,1 por nível; aqui os golpes são maiores (−0,4 por nível na escala antiga de vida 100, −4 na de 1000), mas nunca corta mais que metade do golpe
@@ -48,12 +49,11 @@ export const AEGIS = { hp: 250, back: 0.6 };
 
 // ativos (originais): Flagelo dano 100/110/120 de 1000 em 250 unidades, 0,9 s de preparo, recarga 3 s;
 // Redirecionador recarga 24 s, +30% de empurrão por 8 s; Pacto no original: recarga 30 s, 5 s para usar, 1,5×, lentidão de 66 por 6 s
-// dano 100/110/120 no original; 100/130/160 no balanceamento de 17/10 (quase ninguém evoluía: nível médio 1,01)
 // 17/10 (pedido do Fernando): área 250 → 325 e dano 100/130/160 → 80/100/120
 export const SCOURGE = { dmg: [80, 100, 120], radius: 325 * UNIT, windup: 0.5, cd: 5 }; // recarga 3 s no original; 5 s no balanceamento de 17/10 // preparo: 0,9 s no original, 0,5 s a pedido do Fernando (17/10)
-// tempo de conjuração dos ativos (o do Flagelo é o preparo de 0,9 s)
+// tempo de conjuração dos ativos (o do Flagelo é o preparo)
 export const ITEM_CAST: Partial<Record<ItemId, number>> = { scourge: SCOURGE.windup, redirector: 0.1, pact: 0.1 };
-// consertado em 18/10 (pedido do Fernando): sem a penalidade de +30% de empurrão por 8 s, recarga 24 → 12 s, desvia todos e não gasta sem projétil
+// consertado em 18/10 (pedido do Fernando): sem a penalidade de +30% de empurrão por 8 s, desvia todos e não gasta sem projétil
 export const REDIRECTOR = { cd: 20, extraLife: 0.5 }; // 12 → 16 → 20 s: com bots humanos vencia 23% e depois 20% acima do justo
 // balanceamento de 17/10 (5 rodadas com ele, 0 vitórias): 2×, sem lentidão, recarga 20 s
 export const PACT = { cd: 20, window: 5, mult: 2 };

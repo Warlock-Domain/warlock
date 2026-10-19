@@ -5,8 +5,8 @@ import type { BotSkill } from '../shared/bots.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import { DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Vote } from '../shared/match.ts';
 import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
-import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
-import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
+import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
+import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { isPadMode, isUiKey, labelOf, onKeysChange, setSlots, uiLabel, type Action, type UiAction } from './keys.ts';
 import { openSettings, setSettingsCtx } from './settings.ts';
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
@@ -242,7 +242,7 @@ const n0 = (x: number) => Math.round(x).toLocaleString('pt-BR');
 const UTILITY = new Set(['teleport', 'shield', 'rush', 'pact', 'redirector', 'thrust', 'rockpillar', 'magnetize', 'alteration', 'warpzone']);
 const srcIcon = (k: string) => icon(k === 'lava' ? SOURCE_ICON.lava : k in ICON ? ICON[k as SpellId] : k in ITEM_ICON ? ITEM_ICON[k as ItemId] : k.startsWith('choque') ? SOURCE_ICON.shock : k === 'pillar' ? SOURCE_ICON.pillar : SOURCE_ICON.unknown);
 const gold = (n: number) => el('span', {}, icon(UI_ICON.gold), ' ' + n);
-export const srcName = (k: string) => (k === 'lava' ? 'lava' : k in SPELLS ? SPELLS[k as SpellId].name : k in ITEMS ? ITEMS[k as ItemId].name : k);
+export const srcName = (k: string) => (k === 'lava' ? 'lava' : isSpell(k) ? SPELLS[k].name : k in ITEMS ? ITEMS[k as ItemId].name : k);
 
 // placar (pedido do Fernando, 17/10; refeito em 18/10): abas Resumo e Magias, destaques com retrato e o melhor de cada coluna em dourado
 type View = 'summary' | 'spells';
@@ -621,7 +621,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const armedText = el('span', {});
   const armedHint = el('div', { class: 'armed-hint', role: 'status', hidden: true }, armedText,
     el('button', { type: 'button', class: 'icon', title: 'Cancelar', 'aria-label': 'Cancelar a magia escolhida', onclick: () => {
-      if (shownArmed && shownArmed in SPELLS) act.spell(shownArmed as SpellId);
+      if (isSpell(shownArmed)) act.spell(shownArmed);
       else if (shownArmed) act.useItem(shownArmed as ItemId);
     } }, '✕'));
   // vida grande e ouro logo acima da barra de magias (só jogando e vivo)
@@ -931,7 +931,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const itemOffer = (i: ItemId) => {
       const lvl = mine.items[i];
       const price = itemPrice(mine.items, i);
-      return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: ITEMS[i].name, hotkey: ITEMS[i].key ? labelOf(i) : null, use: ITEMS[i].text, lvl, max: ITEMS[i].levels.length, price,
+      return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: ITEMS[i].name, hotkey: isActive(i) ? labelOf(i) : null, use: ITEMS[i].text, lvl, max: ITEMS[i].levels.length, price,
         blocked: lvl >= ITEMS[i].levels.length ? 'Máximo' : price === null ? 'Sem espaço' : null, buy: () => act.buyItem(i), tip: () => itemTip(i, lvl),
         bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }) });
     };
@@ -939,8 +939,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('section', { class: 'shop-group' }, el('div', { class: 'shop-head' }, el('h3', {}, title), el('small', {}, hint)), el('div', { class: 'shop-grid' }, ...cards));
     const itemCount = `${ITEM_IDS.filter((i) => mine.items[i] > 0).length} de ${MAX_ITEMS} itens`;
     const grid = [...SPELL_GROUPS.map(([title, hint, ids]) => group(title, hint, ids.map(spellOffer))),
-      group('Itens passivos', itemCount, ITEM_IDS.filter((i) => !ITEMS[i].key).map(itemOffer)),
-      group('Itens ativos', 'cada um com a sua tecla', ITEM_IDS.filter((i) => ITEMS[i].key).map(itemOffer))];
+      group('Itens passivos', itemCount, ITEM_IDS.filter((i): boolean => !isActive(i)).map(itemOffer)),
+      group('Itens ativos', 'cada um com a sua tecla', ACTIVE_ITEMS.map(itemOffer))];
     if (look) return el('div', { class: 'card shop' }, el('div', { class: 'shop-main' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, deadShop ? 'Loja · você caiu: monte a build' : 'Loja · só para ver'), el('small', {}, `${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`),
         el('button', { type: 'button', class: 'icon peek-close', title: 'Fechar (4 ou Esc)', 'aria-label': 'Fechar a loja', onclick: () => togglePeek(false) }, '✕')),
@@ -1178,7 +1178,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       for (const i of ACTIVE_ITEMS) itemButtons.get(i)!.b.hidden = !mine?.items[i];
       // barra da partida: só magias e itens equipados; passivos viram selos pequenos acima dela
       // a sala manda atualização a cada segundo: recriar os selos sem mudança fecharia a dica aberta neles
-      const owned = ITEM_IDS.filter((i) => !ITEMS[i].key && (mine?.items[i] ?? 0) > 0);
+      const owned = ITEM_IDS.filter((i): boolean => !isActive(i) && (mine?.items[i] ?? 0) > 0);
       const sig = owned.map((i) => i + mine!.items[i]).join();
       if (sig !== passives.dataset.sig) {
         passives.dataset.sig = sig;

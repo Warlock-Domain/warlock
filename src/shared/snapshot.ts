@@ -28,10 +28,10 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   const me = w.wizards.find((z) => z.id === forId);
   const linked = new Set(w.projectiles.filter((p) => p.kind === 'link' && p.target).map((p) => p.target));
   for (const z of w.wizards) {
-    // bits: 1 vivo, 2 escudo, 4 lento (chão arcano, Drenar, Bola de neve), 512 queimando (chão de fogo), 8 vulnerável (Redirecionador), 16 atordoado (arremessado), 32 invulnerável, 64 Pacto armado, 128 preso (Agarrar), 256 Investida,
+    // bits: 1 vivo, 2 escudo, 4 lento (chão arcano, Drenar, Bola de neve), 512 queimando (chão de fogo), 16 atordoado (arremessado), 32 invulnerável, 64 Pacto armado, 128 preso (Agarrar), 256 Investida,
     // 1024 Caminhada no vento (quem anda e os aliados veem), 2048 invisível para quem recebe (o cliente esconde), 4096 acelerado (Drenar, Botas de choque ou de vento),
     // 8192 magnetizado atraindo, 16384 magnetizado repelindo, 32768 Alteração, 65536 preso pelo Elo, 131072 Égide pronta,
-    // runas: 262144 Pressa, 524288 Fúria, 1048576 Escudo de runa (com dano ainda a absorver); 2097152 no redemoinho (mesma conta do puxão em sim.ts);
+    // runas: 262144 Pressa, 524288 Fúria, 1048576 Escudo de runa (−30% de dano); 2097152 no redemoinho (mesma conta do puxão em sim.ts);
     // 8388608 velado pela Ilusão (só quem lançou e os aliados veem: para os outros, os dois magos são iguais)
     const hidden = z.id !== forId && !(me && me.team !== null && me.team === z.team);
     const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0)
@@ -85,24 +85,17 @@ export type RuneView = { pos: Vec; kind: RuneKind };
 export type ZoneView = { pos: Vec; r: number; kind: ZoneKind; left: number };
 export type SnapView = { time: number; arenaR: number; shrinkAt: number; wizards: WizView[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[] };
 
+// lista achatada → linhas de n números
+const rows = (a: number[] | undefined, n: number) => Array.from({ length: Math.floor((a?.length ?? 0) / n) }, (_, i) => a!.slice(i * n, i * n + n));
+
 export function decodeSnap(s: Snap, ids: string[]): SnapView {
-  const wizards: WizView[] = [];
-  for (let i = 0; i * 7 < s.w.length && i < ids.length; i++) {
-    const [x, y, vx, vy, hp, facing, bits] = s.w.slice(i * 7, i * 7 + 7);
-    wizards.push({ id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0, status: bits, rushLeft: s.ab?.[i] ?? 0 });
-  }
-  const projectiles: ProjView[] = [];
-  for (let i = 0; i < s.p.length; i += 6) {
-    const [id, kind, x, y, vx, vy] = s.p.slice(i, i + 6);
-    projectiles.push({ id, kind: PROJ_KINDS[kind] ?? 'fireball', pos: v(x, y), vel: v(vx, vy) });
-  }
-  const pillars: PillarView[] = [];
-  for (let i = 0; i + 3 < (s.pl?.length ?? 0); i += 4) pillars.push({ pos: v(s.pl[i], s.pl[i + 1]), hp: s.pl[i + 2], kind: OBSTACLE_KINDS[s.pl[i + 3]] ?? 'pillar' });
-  const runes: RuneView[] = [];
-  for (let i = 0; i + 2 < (s.ru?.length ?? 0); i += 3) runes.push({ pos: v(s.ru![i], s.ru![i + 1]), kind: RUNE_KINDS[s.ru![i + 2]] ?? 'haste' });
-  const zones: ZoneView[] = [];
-  for (let i = 0; i + 4 < (s.zn?.length ?? 0); i += 5) zones.push({ pos: v(s.zn![i], s.zn![i + 1]), r: s.zn![i + 2], kind: ZONE_KINDS[s.zn![i + 3]] ?? 'burn', left: s.zn![i + 4] });
-  const isles: Isle[] = [];
-  for (let i = 0; i + 2 < (s.il?.length ?? 0); i += 3) isles.push({ pos: v(s.il![i], s.il![i + 1]), r: s.il![i + 2] });
-  return { time: s.time, arenaR: s.r, shrinkAt: s.s, wizards, projectiles, pillars, runes, zones, isles, loots: Array.from({ length: Math.floor((s.ch?.length ?? 0) / 3) }, (_, i) => ({ pos: v(s.ch![i * 3], s.ch![i * 3 + 1]), left: s.ch![i * 3 + 2] })) };
+  const wizards = rows(s.w, 7).slice(0, ids.length).map(([x, y, vx, vy, hp, facing, bits], i): WizView =>
+    ({ id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0, status: bits, rushLeft: s.ab?.[i] ?? 0 }));
+  const projectiles = rows(s.p, 6).map(([id, kind, x, y, vx, vy]): ProjView => ({ id, kind: PROJ_KINDS[kind] ?? 'fireball', pos: v(x, y), vel: v(vx, vy) }));
+  const pillars = rows(s.pl, 4).map(([x, y, hp, k]): PillarView => ({ pos: v(x, y), hp, kind: OBSTACLE_KINDS[k] ?? 'pillar' }));
+  const runes = rows(s.ru, 3).map(([x, y, k]): RuneView => ({ pos: v(x, y), kind: RUNE_KINDS[k] ?? 'haste' }));
+  const zones = rows(s.zn, 5).map(([x, y, r, k, left]): ZoneView => ({ pos: v(x, y), r, kind: ZONE_KINDS[k] ?? 'burn', left }));
+  const isles = rows(s.il, 3).map(([x, y, r]): Isle => ({ pos: v(x, y), r }));
+  const loots = rows(s.ch, 3).map(([x, y, left]) => ({ pos: v(x, y), left }));
+  return { time: s.time, arenaR: s.r, shrinkAt: s.s, wizards, projectiles, pillars, runes, zones, isles, loots };
 }

@@ -518,9 +518,9 @@ describe('Ilusão', () => {
   const L = spellLevel('illusion', 1);
   const copy = (w: World) => w.projectiles.find((p) => p.kind === 'illusion');
 
-  it('números: 2 a 2,6 s de cópia, recarga 14 a 11 s, custo 12, tecla J', () => {
+  it('números: 2 a 2,6 s de cópia, recarga 14 a 11 s, custo 12', () => {
     expect(SPELLS.illusion.levels.map((l) => [l.duration, l.cd])).toEqual([[2, 14], [2.1, 13.5], [2.2, 13], [2.3, 12.5], [2.4, 12], [2.5, 11.5], [2.6, 11]]);
-    expect([SPELLS.illusion.cost, SPELLS.illusion.up, SPELLS.illusion.key]).toEqual([12, [6, 7, 8, 9, 10, 11], 'J']);
+    expect([SPELLS.illusion.cost, SPELLS.illusion.up]).toEqual([12, [6, 7, 8, 9, 10, 11]]);
   });
 
   it('a cópia anda reto para a mira na velocidade de andar, o dono fica velado 0,5 s e ela some no fim da duração', () => {

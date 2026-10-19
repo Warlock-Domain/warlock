@@ -8,7 +8,7 @@ import {
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
 import type { BotSetup } from './protocol.ts';
 import { newWorld, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
-import { MAX_SPELLS, SPELL_IDS, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
+import { MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { dist, len, type Vec } from './vec.ts';
 
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
@@ -183,8 +183,6 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
 function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: () => number) {
   for (const p of m.players) {
     Object.assign(p, { score: 0, gold: startGold(m), spells: noSpells(), items: startItems() });
-    p.stats = fillStats(p.stats);
-    p.bought ??= [];
     p.held = {};
     p.stats.match = newStat();
     p.stats.round = newStat();
@@ -202,17 +200,22 @@ export function canShop(m: Match, id: string): boolean {
   return m.phase === 'playing' && m.mode !== 'deathmatch' && m.world?.wizards.find((z) => z.id === id)?.alive === false;
 }
 
-export function buy(m: Match, id: string, spell: SpellId): boolean {
+// compra: confere a loja, o preço (null = no máximo), o ouro e o resto (can); cobra e anota para desfazer e vender
+function pay(m: Match, id: string, key: string, price: (p: Player) => number | null, can = (_: Player) => true): Player | null {
   const p = player(m, id);
-  if (!p || !canShop(m, id)) return false;
-  const price = priceOf(spell, p.spells[spell]);
-  if (price === null || p.gold < price) return false;
-  if (p.spells[spell] === 0 && spellCount(p.spells) >= MAX_SPELLS) return false;
-  p.gold -= price;
-  p.spells[spell]++;
-  p.bought.push({ key: 'spell:' + spell, price });
-  (p.held['spell:' + spell] ??= []).push(m.round);
-  return true;
+  if (!p || !canShop(m, id)) return null;
+  const cost = price(p);
+  if (cost === null || p.gold < cost || !can(p)) return null;
+  p.gold -= cost;
+  p.bought.push({ key, price: cost });
+  (p.held[key] ??= []).push(m.round);
+  return p;
+}
+
+export function buy(m: Match, id: string, spell: SpellId): boolean {
+  const p = pay(m, id, 'spell:' + spell, (p) => priceOf(spell, p.spells[spell]), (p) => p.spells[spell] > 0 || spellCount(p.spells) < MAX_SPELLS);
+  if (p) p.spells[spell]++;
+  return !!p;
 }
 
 // troca de personagem fora da rodada (sala, loja ou fim), para o boneco não mudar no meio da luta
@@ -224,15 +227,9 @@ export function setCharacter(m: Match, id: string, character: CharacterId): bool
 }
 
 export function buyItem(m: Match, id: string, item: ItemId): boolean {
-  const p = player(m, id);
-  if (!p || !canShop(m, id)) return false;
-  const price = itemPrice(p.items, item);
-  if (price === null || p.gold < price) return false;
-  p.gold -= price;
-  p.items[item]++;
-  p.bought.push({ key: 'item:' + item, price });
-  (p.held['item:' + item] ??= []).push(m.round);
-  return true;
+  const p = pay(m, id, 'item:' + item, (p) => itemPrice(p.items, item));
+  if (p) p.items[item]++;
+  return !!p;
 }
 
 // desfaz a compra mais recente daquele tipo feita nesta loja: devolve o ouro e baixa o nível
@@ -317,7 +314,7 @@ export function resume(m: Match, now: number) {
     // salas gravadas antes das magias novas, ou com uma que saiu do jogo (os Gêmeos, 19/10): fica só o que existe
     p.spells = Object.fromEntries(SPELL_IDS.map((s) => [s, p.spells[s] ?? noSpells()[s]])) as Record<SpellId, number>;
     const plan = (p as { plan?: BotPlan }).plan;
-    if (plan) plan.buys = plan.buys.filter((b) => b.kind === 'item' || SPELL_IDS.includes(b.id));
+    if (plan) plan.buys = plan.buys.filter((b) => b.kind === 'item' || isSpell(b.id));
     p.items = { ...noItems(), ...p.items }; // salas gravadas antes dos itens novos
     // salas gravadas com a maestria Roubo de vida: vira o item (sem passar do nível máximo)
     const old = (p as { masteries?: { lifesteal?: number } }).masteries?.lifesteal ?? 0;
@@ -545,7 +542,8 @@ function endRound(m: Match, now: number, winner: string | null) {
   const played = new Set(m.world?.wizards.map((z) => z.id));
   // nos Times, todos do time de quem venceu (vivos ou não) pontuam e ganham o ouro da vitória
   const teams = m.mode === 'teams';
-  const won = !p || dm ? [] : teams ? m.players.filter((q) => q.team === p.team && played.has(q.id)) : [p];
+  const inRound = m.players.filter((q) => played.has(q.id));
+  const won = !p || dm ? [] : teams ? inRound.filter((q) => q.team === p.team) : [p];
   // quem já liderava sozinho o placar ganha menos pela vitória (freia a bola de neve); nos Times, à frente de todos os inimigos
   const leaders = won.filter((q) => q.score > 0 && m.players.every((o) => o === q || (teams && o.team === q.team) || o.score < q.score));
   for (const q of won) {
@@ -557,11 +555,10 @@ function endRound(m: Match, now: number, winner: string | null) {
     const q = player(m, z.id);
     if (q && z.alive && !dm) addStat(q, (s) => (s.alive += m.world!.t));
   }
-  const top = Math.max(0, ...m.players.filter((q) => played.has(q.id)).map((q) => q.stats.round.dmg));
-  for (const q of m.players) if (top > 0 && played.has(q.id) && q.stats.round.dmg === top) bonus(m, q, TOP_DMG_GOLD);
-  for (const q of m.players) if (played.has(q.id)) earn(m, q, ROUND_GOLD);
+  const top = Math.max(0, ...inRound.map((q) => q.stats.round.dmg));
+  for (const q of inRound) if (top > 0 && q.stats.round.dmg === top) bonus(m, q, TOP_DMG_GOLD);
+  for (const q of inRound) earn(m, q, ROUND_GOLD);
   // recuperação: quem ganhou menos ouro na partida que a média recebe metade da diferença
-  const inRound = m.players.filter((q) => played.has(q.id));
   const avg = inRound.reduce((sum, q) => sum + q.stats.match.gold, 0) / Math.max(1, inRound.length);
   // o ouro da partida já está na escala da economia: só o teto é multiplicado
   for (const q of inRound) bonus(m, q, Math.min(Math.round(RECOVERY.max * m.opts.economy), Math.floor((avg - q.stats.match.gold) * RECOVERY.share)), false);

@@ -300,6 +300,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     if (here && soon < here.r / ISLAND.sink - 0.5) return [{ id, kind: 'move', to: here.pos }];
     if (!here && isle && soon < isle.r / ISLAND.sink && dist(isle.pos, me.pos) - isle.r < -edge(w, me.pos)) return [{ id, kind: 'move', to: isle.pos }];
   }
+  // obstáculos vivos com a folga do mago, para os caminhos
+  const avoid = w.pillars.filter((q) => q.alive).map((q) => ({ pos: q.pos, r: OBSTACLES[q.kind].r + WIZ_R }));
   // perto da borda (ou na lava): volta para dentro (no círculo, o centro; no anel, o meio da faixa; na ponte, o meio dela),
   // com Teleporte, Investida, Estocada ou Troca se tiver
   let edgeBack = false;
@@ -310,7 +312,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     const home = near(safeInside(w, me.pos, w.arenaR * 0.7));
     // pelo caminho dentro da pedra: em linha reta, no Anel e na Cruz a volta cortava a lava
     const back = near(safeInside(w, me.pos, w.arenaR * 0.6));
-    cmds.push({ id, kind: 'move', to: pathStep(w, me.pos, back, 0.5, w.pillars.filter((q) => q.alive).map((q) => ({ pos: q.pos, r: OBSTACLES[q.kind].r + WIZ_R }))) ?? back });
+    cmds.push({ id, kind: 'move', to: pathStep(w, me.pos, back, 0.5, avoid) ?? back });
     if (ready('teleport')) return cast('teleport', home);
     if (winding) return cmds;
     if (ready('rush')) return cast('rush', home);
@@ -331,7 +333,6 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   }
   // anda pelo caminho dentro da pedra (nas Ilhas pela ponte, no Anel em volta do buraco, desviando dos obstáculos);
   // short: com o caminho livre, para a essa distância do ponto
-  const avoid = w.pillars.filter((q) => q.alive).map((q) => ({ pos: q.pos, r: OBSTACLES[q.kind].r + WIZ_R }));
   // sem caminho com a folga que quer (ponte estreita, arena pequena), aceita menos e lembra para não voltar no meio
   const go = (to: Vec, short = 0) => {
     for (const want of [D.edge, 1, 0.5, 0.2]) {
@@ -426,8 +427,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // magia de dano pronta (ou em até 1 s) para emendar no controle
   const loaded = SPELL_IDS.some((x) => me.spells[x] > 0 && spellLevel(x, me.spells[x]).dmg > 0 && w.t + 1 >= usableAt(x));
   // candidatos: cada magia pronta com o alvo no alcance; sorteia uma (a jogada certa da vez, `now`, sai sem sorteio)
-  const options: (() => Cmd[])[] = [];
-  const dmgOpt: boolean[] = [];
+  const options: { run: () => Cmd[]; dmg: boolean }[] = [];
   // obstáculo vivo no caminho do bot até o ponto
   const blocked = (to: Vec) => w.pillars.some((q) => {
     if (!q.alive) return false;
@@ -439,7 +439,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   let now: (() => Cmd[]) | null = null;
   let meteor: (() => Cmd[]) | null = null;
   for (const s of SPELL_IDS) {
-    if (!ready(s) || s === 'shield' || s === 'swap') continue; // Escudo e Troca só na defesa e na borda
+    if (!ready(s) || s === 'shield' || s === 'swap' || s === 'alteration') continue; // Escudo, Troca e Alteração só na defesa (e na borda)
     const L = spellLevel(s, me.spells[s]);
     const cp = CAST_POINT[s] ?? 0.1;
     let at: Vec | null = null;
@@ -487,7 +487,6 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     }
     // Divisor: estoura no ponto e os filhotes seguem mais 4,6 m
     else if (s === 'splitter') at = d < L.range + 3 ? add(me.pos, clampLen(sub(lead(L.speed, cp), me.pos), Math.max(1, d - 2))) : null;
-    else if (s === 'alteration') continue; // só na defesa
     // Raio, Rajada, Bumerangue, Ricochete, Gravidade e qualquer magia nova de dano: no alcance, mirando à frente do alvo
     else if (L.dmg > 0) at = d < (L.range || 6) ? lead(L.speed, cp) : null;
     if (!at) continue;
@@ -498,26 +497,24 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
       : () => cast(s, to);
     if (prio) now ??= opt;
     if (s === 'meteor') meteor = opt;
-    options.push(opt);
-    dmgOpt.push(L.dmg > 0);
+    options.push({ run: opt, dmg: L.dmg > 0 });
     if (L.dmg > 0) damage = true;
   }
   if (itemReady('scourge') && d < SCOURGE.radius * 0.8) {
-    options.push(() => use('scourge', me.pos));
-    dmgOpt.push(true);
+    options.push({ run: () => use('scourge', me.pos), dmg: true });
     damage = true;
   }
   if (now) return now();
   // combo: com o alvo aberto, só dano e sem hesitar (antes os bots prendiam e não aproveitavam, e o controle rendia 0,75 a 0,86×)
   // chance D.combo (18/10: 30% / 60% / 90%)
   if (prey && damage && rand() < D.combo) {
-    const hits = options.filter((_, i) => dmgOpt[i]);
+    const hits = options.filter((o) => o.dmg);
     // preso não sai do Meteoro a tempo: é o golpe mais forte
     if (meteor && w.t < E.gripUntil) return meteor();
-    return hits[Math.floor(rand() * hits.length)]();
+    return hits[Math.floor(rand() * hits.length)].run();
   }
   if (!options.length || rand() >= D.cast) return cmds;
   // Pacto antes de uma magia de dano: ela sai no próximo comando (as duas juntas perderiam o Pacto)
   if (damage && itemReady('pact') && w.t >= me.pactUntil && rand() < 0.5) return use('pact', me.pos);
-  return options[Math.floor(rand() * options.length)]();
+  return options[Math.floor(rand() * options.length)].run();
 }

@@ -8,7 +8,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { SHAPES as ARENAS, edgeAt, onIsle, type ArenaId, type Isle } from '../shared/arena.ts';
+import { SHAPES as ARENAS, edgeAt, inLavaAt, type ArenaId, type Isle } from '../shared/arena.ts';
 import { ARENA_STEP, CHEST, ISLAND, OBSTACLES, RUNE, SHRINK_WARN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
@@ -1426,7 +1426,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (m) {
           const at = v(m.root.position.x, m.root.position.z);
           // fora da pedra: caiu na lava (respingo); em cima dela: estoura em fogo
-          if (edgeAt(shownArena, shownR, at) < 0.3 && !onIsle(shownIsles, at)) lavaSplash(at);
+          if (inLavaAt(shownArena, shownR, shownIsles, at, 0.3)) lavaSplash(at);
           else {
             burst(at, '#ffcf5a', 4, 0.6, 0.3, FX.fire);
             smoke(at, 2.6, 1.6);
@@ -1589,7 +1589,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           m.dead = true;
           play(m, 'Death_A', 0.1);
           // caiu na lava (fora da pedra e fora das ilhas): o corpo queima
-          if (edgeAt(shownArena, shownR, d.pos) < 0 && !onIsle(shownIsles, d.pos)) {
+          if (inLavaAt(shownArena, shownR, shownIsles, d.pos)) {
             m.burnAt = now;
             preload(BONES);
           }

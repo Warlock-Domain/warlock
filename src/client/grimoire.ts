@@ -3,7 +3,7 @@
 // Carregado sob demanda pelo botão "?" (import dinâmico em ui.ts), para não pesar o começo do jogo.
 import { ARENA_IDS, ARENA_NAMES, SHAPES, type ArenaId } from '../shared/arena.ts';
 import { ARENA_R0, HP_MAX, RUNE_KINDS } from '../shared/constants.ts';
-import { ITEMS, ITEM_IDS, type ItemId } from '../shared/items.ts';
+import { ITEMS, ITEM_IDS, isActive, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import { SCRIPTS, createDemo, type DemoId } from './demo.ts';
 import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, icon } from './icons.ts';
@@ -65,7 +65,7 @@ function itemPage(id: ItemId): Page {
     chapter: 'Itens', title: it.name, demo: SCRIPTS[id] ? id : undefined,
     body: () => [
       el('div', { class: 'g-head' }, el('span', { class: 'g-medal item' }, icon(ITEM_ICON[id])),
-        el('div', {}, el('h2', {}, it.name), el('small', {}, `${it.key ? `ativo · ${keyText(id)}` : 'passivo'} · ${it.cost} de ouro por nível`))),
+        el('div', {}, el('h2', {}, it.name), el('small', {}, `${isActive(id) ? `ativo · ${keyText(id)}` : 'passivo'} · ${it.cost} de ouro por nível`))),
       el('p', { class: 'g-lead' }, it.text),
       ITEM_DEMO[id] ? el('p', { class: 'muted' }, ITEM_DEMO[id]) : null,
       null,

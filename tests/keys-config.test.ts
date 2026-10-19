@@ -46,6 +46,8 @@ describe('teclas da interface no mesmo painel das magias', () => {
     expect(actionFor('KeyW')).toBe('lightning');
     expect(setKey('stop', 'KeyT')).toBe(true); // letra fora das seis vale
     expect(isUiKey('KeyT', 'stop')).toBe(true);
+    // a tecla guardada da Rajada (T) trocou com a do Parar (S): o aviso de troca tem de citá-la
+    expect(whoUses('KeyS')).toBe('cluster');
   });
 
   it('Rever a queda começa no 5 e é trocável como os outros atalhos', () => {

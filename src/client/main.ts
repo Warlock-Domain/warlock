@@ -1,4 +1,4 @@
-import { edgeAt, onIsle, type ArenaId } from '../shared/arena.ts';
+import { inLavaAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, SUDDEN, type RuneKind } from '../shared/constants.ts';
 import { isCharacter } from '../shared/characters.ts';
 import type { BotSetup, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
@@ -440,7 +440,7 @@ function startRoom(code: string, name: string) {
         // fora da pedra: mergulho na lava (chiado e bolhas) em vez da explosão
         const snap = interp.latest();
         const w = snap?.wizards.find((z) => z.id === e.id);
-        sound.play(w && snap && edgeAt(arenaId, snap.arenaR, w.pos) < 0.3 && !onIsle(snap.isles, w.pos) ? 'splash' : 'death', w ? near(w.pos.x, w.pos.y) : 1);
+        sound.play(w && snap && inLavaAt(arenaId, snap.arenaR, snap.isles, w.pos, 0.3) ? 'splash' : 'death', w ? near(w.pos.x, w.pos.y) : 1);
         const dead = who.get(e.id) ?? '?';
         if (e.id === me) {
           clip = ring.slice();
@@ -591,7 +591,7 @@ function startRoom(code: string, name: string) {
     const meP = room?.players.find((p) => p.id === me);
     const meMax = HP_MAX + (meP ? itemStats(meP.items).hp : 0);
     const low = !!meW?.alive && !!meP && meW.hp < 0.25 * meMax;
-    const lava = !!meW?.alive && !!latest && edgeAt(arenaId, latest.arenaR, meW.pos) < 0 && !onIsle(latest.isles, meW.pos);
+    const lava = !!meW?.alive && !!latest && inLavaAt(arenaId, latest.arenaR, latest.isles, meW.pos);
     view.danger(low, lava);
     const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' ? s.shrinkAt - s.time : null;
     // espectador: morto na rodada (ou só assistindo), a câmera segue o vivo com mais vida; ← → ou os botões trocam
