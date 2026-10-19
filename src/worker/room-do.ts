@@ -240,7 +240,7 @@ export class Room extends DurableObject<Env> {
     if (!s) return;
     await this.ctx.storage.put('room', { id: s.id, match: { ...s.match, world: null } });
     // o lobby é um objeto só para o site todo: só avisa quando muda o que a lista mostra
-    const info = { id: s.id, players: s.match.players.filter((p) => !p.bot && p.connected).length, phase: s.match.phase, mode: s.match.mode, round: s.match.round, bots: s.match.players.filter((p) => p.bot).length };
+    const info = { id: s.id, players: s.match.players.filter((p) => !p.bot && p.connected).length, phase: s.match.phase, mode: s.match.mode, round: s.match.round, bots: s.match.players.filter((p) => p.bot && !p.servo).length }; // as vagas do Fumo não são bots da sala
     const key = `${info.players}:${info.phase}:${info.mode}:${info.round}:${info.bots}`;
     if (key === this.lobbyKey) return;
     try {
@@ -284,7 +284,8 @@ export class Room extends DurableObject<Env> {
     this.acc = Math.min(this.acc + now - this.last, STEP_MS * MAX_CATCHUP);
     this.last = now;
     // a votação entra na conta para o fim por tempo (e a troca de modo) chegar aos clientes
-    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}`;
+    // na Campanha, a onda nova troca o tipo (aparência, vida) das vagas do Fumo: avisa na hora
+    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}:${m.night?.wave ?? ''}`;
     const before = sig();
     while (this.acc >= STEP_MS) {
       this.acc -= STEP_MS;
@@ -293,8 +294,8 @@ export class Room extends DurableObject<Env> {
       this.events.push(...tickMatch(m, now, cmds));
       if (++this.steps % SEND_EVERY === 0) this.sendSnaps();
     }
-    // a sandbox não grava telemetria (e a rodada dela nem acaba)
-    if (m.phase === 'roundEnd' && before.startsWith('playing') && !m.sandbox) this.lobby().record(roundRecord(m, now)).catch(() => {});
+    // a sandbox não grava telemetria (e a rodada dela nem acaba); a Campanha também não (PvE, outros números)
+    if (m.phase === 'roundEnd' && before.startsWith('playing') && !m.sandbox && !m.night) this.lobby().record(roundRecord(m, now)).catch(() => {});
     if (now - this.lastCmdAt > IDLE_MS) endIdle(m);
     if (sig() !== before) void this.changed();
   }

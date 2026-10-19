@@ -1,5 +1,6 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
-import { ARENA_IDS, type ArenaId } from './arena.ts';
+import { ARENA_IDS, SHAPES, type ArenaId } from './arena.ts';
+import { CAMPAIGN, SERVOS, generateStage, type Night, type ServoKind } from './campaign.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
 import { CHARACTERS, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
@@ -7,7 +8,7 @@ import {
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
 import type { BotSetup } from './protocol.ts';
-import { gearOf, newWorld, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
+import { gearOf, newWorld, revive, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
 import { MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { dist, len, type Vec } from './vec.ts';
 
@@ -40,7 +41,8 @@ function earn(m: Match, p: Player, gold: number, scaled = true): number {
 
 // rounds: último vivo ganha a rodada; deathmatch: rodadas de 60 s, quem morre volta e cada abate vale 1 ponto;
 // teams: 2 times, a rodada acaba quando só sobra um time e todos dele pontuam
-export const MODES = ['rounds', 'deathmatch', 'teams'] as const;
+// campaign: 1 a 4 humanos contra os servos do Fumo (campaign.ts); clareira = rodada, intervalo = loja
+export const MODES = ['rounds', 'deathmatch', 'teams', 'campaign'] as const;
 export type Mode = (typeof MODES)[number];
 export type Phase = 'lobby' | 'shop' | 'countdown' | 'playing' | 'roundEnd' | 'end';
 // votação na partida: trocar o modo (target = modo novo), expulsar um humano (target = id dele),
@@ -81,7 +83,7 @@ export function parseOpt(target: string): [keyof MatchOpts, MatchOpts[keyof Matc
 export const PACE = { short: 0.6, normal: 1, long: 1.6 }; // multiplica COUNTDOWN_MS e ROUND_END_MS
 export const DM_GOALS = { 3: 10, 5: 15, 7: 25 }; // 15 = DM_KILLS_TO_WIN
 export const goalOf = (m: Pick<Match, 'mode' | 'opts'>) => (m.mode === 'deathmatch' ? DM_GOALS[m.opts.goal] : m.opts.goal);
-const startGold = (m: Match) => Math.round(m.opts.startGold * m.opts.economy);
+const startGold = (m: Match) => (m.mode === 'campaign' ? 0 : Math.round(m.opts.startGold * m.opts.economy));
 
 export type Player = {
   id: string;
@@ -104,6 +106,8 @@ export type Player = {
   setup?: BotSetup; // treino: magias, itens e jeito de jogar escolhidos para este bot
   difficulty?: MatchOpts['difficulty']; // bot: a dificuldade dele, escolhida na sala (sem ela, a da partida)
   dummy?: boolean; // sandbox: boneco parado (bot que não anda nem atira)
+  servo?: ServoKind; // Campanha: vaga do Fumo (bot do time 1) e o tipo de servo da onda atual
+  hpMax?: number; // vida máxima quando não é a de sempre (servos), para a barra no navegador
 };
 
 // Sandbox (pedido do Fernando, 19/10): sala para testar magias e interações, sem fim de rodada nem telemetria.
@@ -140,6 +144,7 @@ export type Match = {
   pendingOpts: Partial<MatchOpts>; // opções votadas: valem quando a próxima rodada começar
   botDelta: number; // bots votados para entrar (+) ou sair (−) quando a próxima rodada começar
   sandbox?: Sandbox; // só nas salas sandbox (escolhido no começo da partida)
+  night?: Night; // só na Campanha
 };
 
 export const newMatch = (): Match => ({
@@ -204,11 +209,14 @@ export function removePlayer(m: Match, id: string) {
 // sandbox: a sala vira sandbox (começa até sozinho, os bots entram pelo painel)
 export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'rounds', teamShuffle = true, rand: () => number = Math.random, opts: Partial<MatchOpts> = {}, setup: BotSetup[] = [], sandbox = false): boolean {
   if (m.phase !== 'lobby' && m.phase !== 'end') return false;
+  const campaign = mode === 'campaign';
+  // Campanha: de 1 a 4 humanos, sem bots aliados nem sandbox; as vagas do Fumo entram depois
+  if (campaign && (sandbox || m.players.filter((p) => !p.bot && p.connected).length > CAMPAIGN.humans)) return false;
   m.opts = { ...m.opts, ...opts };
   m.sandbox = sandbox ? { god: true, noCd: false, shrink: false } : undefined;
   m.players = m.players.filter((p) => !p.bot && p.connected);
   const solo = m.players.length === 1;
-  for (let i = 0; m.players.length < MAX_PLAYERS && i < bots; i++) {
+  for (let i = 0; m.players.length < MAX_PLAYERS && i < (campaign ? 0 : bots); i++) {
     addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true);
     const bot = m.players[m.players.length - 1];
     const { difficulty, ...rest } = setup[i] ?? {};
@@ -216,6 +224,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
     // só a dificuldade não é treino (a rodada não sai marcada na telemetria)
     if (solo && setup[i] && (!difficulty || Object.keys(rest).length)) bot.setup = rest;
   }
+  if (campaign && m.players.length) for (let k = 1; k <= CAMPAIGN.slots; k++) if (addPlayer(m, 'fumo-' + k, '', true)) dress(m, m.players[m.players.length - 1], 'ash');
   if (m.players.length < (sandbox ? 1 : 2)) return false;
   fresh(m, now, mode, teamShuffle, rand);
   return true;
@@ -233,6 +242,9 @@ function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: ()
   Object.assign(m, { streaks: {}, mode, round: 0, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0, vote: null, pendingMode: null, teamShuffle, pendingShuffle: null, winnerTeam: null, pendingOpts: {}, botDelta: 0 });
   // já sorteia na loja para cada um ver o time; com sorteio a cada rodada, a contagem sorteia de novo
   if (mode === 'teams') shuffleTeams(m, rand);
+  // Campanha: noite nova (semente nova a cada tentativa); humanos no time 0, o Fumo no 1, ninguém com ouro
+  m.night = mode === 'campaign' ? { seed: Math.floor(rand() * 2 ** 31), stage: 0, clearing: 0, wave: 0, result: null } : undefined;
+  if (m.night) for (const p of m.players) Object.assign(p, { gold: 0, team: p.servo ? 1 : 0 });
   enterShop(m, now);
 }
 
@@ -381,7 +393,7 @@ export function resume(m: Match, now: number) {
 // expulsa um bot ou alguém que caiu e não voltou (gente conectada não pode ser expulsa por outro)
 export function kick(m: Match, id: string): boolean {
   const p = player(m, id);
-  if (!p || (!p.bot && p.connected)) return false;
+  if (!p || (!p.bot && p.connected) || p.servo) return false;
   drop(m, id);
   return true;
 }
@@ -407,6 +419,8 @@ export const votesNeeded = (humans: number) => Math.floor(humans / 2) + 1;
 // abre uma votação (uma por vez, só com a partida rolando); quem abre já conta como SIM
 export function startVote(m: Match, id: string, kind: Vote['kind'], target: string, now: number): boolean {
   if (m.vote || !VOTE_PHASES.includes(m.phase) || !voters(m).includes(id)) return false;
+  // a Campanha começa e termina pela sala: sem troca de modo para dentro ou para fora dela, e sem bots aliados
+  if ((kind === 'mode' && (target === 'campaign' || m.mode === 'campaign')) || (m.night && (kind === 'addBot' || kind === 'removeBot' || kind === 'shuffle'))) return false;
   if (kind === 'kick') {
     const t = player(m, target);
     if (!t || t.bot || t.id === id) return false; // bot já tem o ✕ direto
@@ -463,6 +477,7 @@ function settleVote(m: Match, now: number) {
       m.winnerTeam = m.mode === 'teams' && !m.teamShuffle && best > 0 && new Set(top.map((p) => p.team)).size === 1 ? top[0].team : null;
       m.phase = 'end';
       m.world = null;
+      closeNight(m);
     } else if (v.kind === 'addBot') m.botDelta++;
     else if (v.kind === 'removeBot') m.botDelta--;
     else if (v.kind === 'skipShop') m.phaseEnds = now; // a loja fecha no próximo passo
@@ -480,6 +495,7 @@ export function endIdle(m: Match) {
   m.phase = 'end';
   m.world = null;
   m.vote = null;
+  closeNight(m);
 }
 
 export const shouldRun = (m: Match, humansConnected: number) => humansConnected > 0 && m.phase !== 'lobby' && m.phase !== 'end';
@@ -500,6 +516,7 @@ function enterShop(m: Match, now: number) {
 
 // o bot compra o que o plano dele pede enquanto o ouro der (botBuy roda mesmo para gente, como sempre rodou: gasta o sorteio)
 function botShop(m: Match, p: Player) {
+  if (p.servo) return;
   for (let b = botBuy(p, Math.random, botSkill(m, p)); p.bot && b && (b.kind === 'spell' ? buy(m, p.id, b.id) : buyItem(m, p.id, b.id)); b = botBuy(p, Math.random, botSkill(m, p)));
 }
 
@@ -569,6 +586,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   }
   m.round++;
   for (const p of m.players) p.stats.round = newStat();
+  if (m.night) return enterClearing(m, now, rand);
   const ids = m.players.map((p) => p.id);
   const teams = m.mode === 'teams' ? Object.fromEntries(m.players.map((p) => [p.id, p.team ?? 0])) : {};
   // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
@@ -581,13 +599,19 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
 
 // ganho de ouro com o "+N" subindo em cima do mago: prêmios do fim da rodada (o mundo ainda existe até a loja), abate, assistência e monte de ouro
 function bonus(m: Match, p: Player, gold: number, scaled = true) {
-  if (gold <= 0) return;
+  if (gold <= 0 || m.night) return; // a Campanha não tem ouro
   const n = earn(m, p, gold, scaled);
   const z = m.world?.wizards.find((q) => q.id === p.id);
   if (z) m.world!.events.push({ k: 'gold', id: p.id, n, x: z.pos.x, y: z.pos.y });
 }
 
 function endRound(m: Match, now: number, winner: string | null) {
+  if (m.night) {
+    m.lastRoundWinner = null;
+    m.phase = 'roundEnd';
+    m.phaseEnds = now + ROUND_END_MS * PACE[m.opts.pace];
+    return;
+  }
   const dm = m.mode === 'deathmatch';
   const p = player(m, winner);
   // no deathmatch os pontos já vieram dos abates; aqui o vencedor é só quem fez mais abates na rodada
@@ -622,6 +646,16 @@ function endRound(m: Match, now: number, winner: string | null) {
 
 // como no original: ganha quem vencer goalOf(m) rodadas primeiro (padrão WINS_TO_WIN)
 function afterRound(m: Match, now: number) {
+  const n = m.night;
+  if (n) {
+    // clareira vencida: próxima, ou a noite acabou (nesta versão, o estágio 1 é a noite inteira)
+    if (!n.result && ++n.clearing >= generateStage(n.seed, n.stage).length) n.result = 'won';
+    if (!n.result) return enterShop(m, now);
+    m.phase = 'end';
+    m.winner = null;
+    m.world = null;
+    return closeNight(m);
+  }
   if (m.mode === 'deathmatch') {
     // a meta só vale no fim da rodada (a rodada sempre dura os 60 s); empate no topo joga mais uma rodada
     const [best, top] = atTop(m.players, (p) => p.score);
@@ -642,6 +676,63 @@ function afterRound(m: Match, now: number) {
 }
 
 const EMPTY_ROUNDS_END = 3;
+
+// Campanha ---------------------------------------------------------------------------------------------------------
+
+const clearingOf = (n: Night) => generateStage(n.seed, n.stage)[n.clearing];
+// servos jogam um degrau abaixo da dificuldade da sala (o chefe, quando houver, usa a dela)
+const EASIER = { easy: 'easy', normal: 'easy', hard: 'normal', auto: 'easy' } as const;
+
+// veste a vaga do Fumo com um tipo de servo: aparência, vida e magias (sem itens, sem ouro)
+function dress(m: Match, p: Player, kind: ServoKind) {
+  const S = SERVOS[kind];
+  Object.assign(p, { servo: kind, name: S.name, character: S.look, look: lookOf(S.look), hpMax: S.hp, spells: { ...noSpells(), fireball: 0, ...S.spells }, items: noItems(), gold: 0, team: 1, difficulty: EASIER[m.opts.difficulty] });
+}
+
+// clareira nova: arena e pilares sorteados pela noite (o resto do mundo usa o rand da sala, como nos outros modos)
+function enterClearing(m: Match, now: number, rand: () => number) {
+  const n = m.night!;
+  const c = clearingOf(n);
+  n.wave = 0;
+  const ids = m.players.map((p) => p.id);
+  const teams = Object.fromEntries(m.players.map((p) => [p.id, p.servo ? 1 : 0]));
+  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), c.pillars, rand, false, teams, { runes: m.opts.runes, sudden: false, chests: false }, c.arena);
+  sendWave(m, m.world, c.waves[0]);
+  m.phase = 'countdown';
+  m.phaseEnds = now + COUNTDOWN_MS * PACE[m.opts.pace];
+}
+
+// onda: as vagas do Fumo voltam na borda (onde cada uma nasce) com o tipo sorteado; as que sobram ficam de fora
+function sendWave(m: Match, w: World, kinds: ServoKind[]) {
+  m.players.filter((p) => p.servo).forEach((p, i) => {
+    const z = w.wizards.find((q) => q.id === p.id);
+    if (!z) return;
+    if (i >= kinds.length) return void Object.assign(z, { alive: false, hp: 0 });
+    dress(m, p, kinds[i]);
+    Object.assign(z, { spells: { ...p.spells }, cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), hpMax: p.hpMax });
+    revive(w, z, SHAPES[w.arena].spawn(w.wizards.indexOf(z), w.wizards.length, w.arenaR));
+  });
+}
+
+// a noite acabou (vencida, perdida, encerrada por votação ou por ninguém jogar): sem desfecho conta como perdida; o Fumo sai da sala
+function closeNight(m: Match) {
+  if (!m.night) return;
+  m.night.result ??= 'lost';
+  m.players = m.players.filter((p) => !p.servo);
+}
+
+// fim da onda, da clareira ou da noite: todos os humanos caídos perdem a noite; onda limpa chama a próxima
+function stepNight(m: Match, now: number, w: World) {
+  const n = m.night!;
+  if (!w.wizards.some((z) => z.alive && z.team === 0)) {
+    n.result = 'lost';
+    return endRound(m, now, null);
+  }
+  if (w.wizards.some((z) => z.alive && z.team === 1)) return;
+  const c = clearingOf(n);
+  if (n.wave + 1 < c.waves.length) return sendWave(m, w, c.waves[++n.wave]);
+  endRound(m, now, null);
+}
 
 // painel da sandbox: ligar/desligar regras, pôr bot (tirar é o 'kick'), trocar a arena e reiniciar a rodada; fora da sandbox não faz nada
 export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number): boolean {
@@ -872,6 +963,10 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
     }
   }
   if (sb) return w.events; // a rodada da sandbox não acaba
+  if (m.night) {
+    stepNight(m, now, w);
+    return w.events;
+  }
   if (m.mode === 'deathmatch') {
     if (now >= m.phaseEnds) endRound(m, now, topKiller(m));
     return w.events;

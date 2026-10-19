@@ -154,7 +154,7 @@ navegador ──WebSocket──▶ Durable Object (uma sala)
 
 ## Mapa do código
 
-`src/shared`: `sim.ts` (simulação), `spells.ts` (25 magias), `items.ts` (16 itens), `constants.ts` (arena, lava, baús, runas), `match.ts` (fases, loja, ouro, votações), `bots.ts` (`BOT_SKILL` por dificuldade), `protocol.ts` (mensagens e validação), `arena.ts`, `snapshot.ts`, `characters.ts` (9 bonecos e o look de 7 peças), `telemetry.ts`.
+`src/shared`: `sim.ts` (simulação), `spells.ts` (25 magias), `items.ts` (16 itens), `constants.ts` (arena, lava, baús, runas), `match.ts` (fases, loja, ouro, votações), `bots.ts` (`BOT_SKILL` por dificuldade), `protocol.ts` (mensagens e validação), `arena.ts`, `snapshot.ts`, `characters.ts` (9 bonecos e o look de 7 peças), `telemetry.ts`, `campaign.ts` (Campanha: estágios, servos, noite gerada por semente), `rng.ts` (sorteio com semente).
 
 `src/client`: `main.ts` (laço), `ui.ts` (menus, sala, loja, barra da partida, placar), `scene.ts` (3D), `style.css`, `i18n.ts`, `rules-text.ts`, `grimoire.ts` e `demo.ts` (grimório e demonstrações), `tips.ts`, `sheet.ts`, `settings.ts`, `keys.ts`, `gamepad.ts`, `avatar.ts` (criador de personagem), `train.ts`, `challenges.ts`, `mimic.ts`, `coach.ts`, `predict.ts`, `interp.ts`, `net.ts`.
 
@@ -244,7 +244,7 @@ Não desfaça sem combinar numa issue.
 - **Controle (5):** Agarrar, Gravidade, Elo, Magnetizar, Drenar
 - **Itens (16):** Anel de vida, Anel amaldiçoado, Capa, Armadura, Botas, Relógio de bolso, Roubo de vida, Botas de lava, Guardião, Elmo, Botas de choque, Égide, Botas de vento, Flagelo (ativo), Redirecionador (ativo), Pacto (ativo)
 
-Modos: Rodadas (vence quem fizer 5), Deathmatch (volta em 10 s), Times (Azul × Vermelho). Arenas: Círculo, Anel, Ilhas, Cruz. Atalhos: <kbd>F1</kbd> grimório, <kbd>F2</kbd> biblioteca, <kbd>Tab</kbd> placar, <kbd>4</kbd> loja, <kbd>5</kbd> replay da queda, <kbd>Esc</kbd> configurações.
+Modos: Rodadas (vence quem fizer 5), Deathmatch (volta em 10 s), Times (Azul × Vermelho), Campanha (1 a 4 jogadores contra o Fumo, clareira a clareira; em construção, desenho em `docs/superpowers/specs/2026-10-19-campanha-design.md`). Arenas: Círculo, Anel, Ilhas, Cruz. Atalhos: <kbd>F1</kbd> grimório, <kbd>F2</kbd> biblioteca, <kbd>Tab</kbd> placar, <kbd>4</kbd> loja, <kbd>5</kbd> replay da queda, <kbd>Esc</kbd> configurações.
 
 ## Problemas comuns
 
