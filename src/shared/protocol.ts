@@ -73,8 +73,9 @@ export type PublicRoom = {
 // pl: 4 números por obstáculo: x, y, vida em % (0 = quebrado), tipo (índice em OBSTACLE_KINDS)
 // rs: só no deathmatch, 1 número por mago na ordem de room.ids: segundos até voltar (0 = vivo)
 // sp: velocidade de andar dele agora (botas, lentidão), para a previsão; ack: último seq aplicado dele
+// fx: efeitos com prazo de quem recebe, 2 números por efeito: bit de estado (como em w) e segundos que faltam
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
-export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; pl: number[]; rs?: number[]; ch?: number[]; lp?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; ack: number; e?: SimEvent[] };
+export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; pl: number[]; rs?: number[]; ch?: number[]; lp?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
 
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
 export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };

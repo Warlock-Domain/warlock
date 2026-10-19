@@ -735,6 +735,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   }
   // efeitos ativos em mim, numa fileira pequena acima da barra
   const statusRow = el('div', { class: 'status-icons hud-status', role: 'group', 'aria-label': t('Efeitos', 'Effects') });
+  const fxCells = new Map<number, HTMLElement>(); // bit → número de segundos embaixo do ícone
   // segurar Tab durante a partida mostra o placar; o 📊 (toque) e o botão Placar da loja deixam aberto até fechar
   const tabOverlay = el('div', { class: 'tab-overlay', hidden: true });
   function showTab(on: boolean) {
@@ -1406,7 +1407,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     },
     // a cada quadro: recargas, magia escolhida e o relógio da fase
     // hp: minha vida e o máximo, só jogando e vivo (null esconde a barra grande); dead: ids caídos na rodada, separados por vírgula
-    frame(cd: number[], icd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '') {
+    // fx: pares [bit, segundos que faltam] dos meus efeitos com prazo (snap.fx)
+    frame(cd: number[], icd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '', fx: number[] = []) {
       if (dead !== shownDead) {
         shownDead = dead;
         const down = new Set(dead.split(','));
@@ -1419,8 +1421,22 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         myStatus = status;
         drawSheet();
         // como em cima do mago (scene.ts), com o nome no rótulo; a Égide pronta também aparece aqui
-        statusRow.replaceChildren(...STATUS_ICONS.filter(([bit]) => status & bit).map(([bit, ico, name]) =>
-          el('i', { class: BAD_STATUS.includes(bit) ? 'bad' : 'good', title: name, role: 'img', 'aria-label': name }, icon(ico))));
+        fxCells.clear();
+        statusRow.replaceChildren(...STATUS_ICONS.filter(([bit]) => status & bit).map(([bit, ico, name]) => {
+          const s = el('small', { 'aria-hidden': 'true' });
+          fxCells.set(bit, s);
+          return el('i', { class: BAD_STATUS.includes(bit) ? 'bad' : 'good', title: name, role: 'img', 'aria-label': name }, icon(ico), s);
+        }));
+      }
+      // segundos que faltam de cada efeito com prazo e o filete que esvazia (--left: fração que falta, como a recarga)
+      for (const [bit, s] of fxCells) {
+        const k = 'fx' + bit;
+        const i = fx.findIndex((b, n) => n % 2 === 0 && b === bit);
+        const left = i < 0 ? 0 : fx[i + 1];
+        if (left > (cdLeft.get(k) ?? 0) + 0.05) cdTotal.set(k, left);
+        cdLeft.set(k, left);
+        s.textContent = left > 0.05 ? left.toFixed(left < 1 ? 1 : 0) : '';
+        s.parentElement!.style.setProperty('--left', left > 0.05 ? Math.min(1, left / (cdTotal.get(k) ?? left)).toFixed(3) : '0');
       }
       vitals.hidden = !hp;
       const hpLabel = hp ? `${Math.max(0, Math.ceil(hp.now))}/${hp.max}` : '';
