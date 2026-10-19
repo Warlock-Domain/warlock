@@ -47,7 +47,7 @@ npx vite build
 
 ## Ambiente dev próprio
 
-Push numa branch `<nome>-dev` (minúsculas) publica em `https://<nome>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Exemplo: `leonard-dev` → https://leonard-dev-warlock.fernandorffdev.com. Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
+Push numa branch `<nome>-dev` (minúsculas) publica em `https://<nome>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Branches de hoje: `leonard-dev`, `branco-dev` e `lucas-dev` (tabela completa no `CLAUDE.md`, seção "Ambientes dev"). Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
 
 ## Claude Code e as skills
 
