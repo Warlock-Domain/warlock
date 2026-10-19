@@ -120,16 +120,20 @@ function build(): HTMLElement {
       el('button', { type: 'button', class: 'icon', 'aria-label': t(`${p.name}: anterior`, `${p.en}: previous`), onclick: () => step(i, -1) }, '‹'),
       names[i],
       el('button', { type: 'button', class: 'icon', 'aria-label': t(`${p.name}: próxima`, `${p.en}: next`), onclick: () => step(i, 1) }, '›'))));
+  // os 9 bonecos originais como atalho: um clique monta o boneco inteiro (Fernando, 19/10)
+  const presets = CHARACTERS.map((c) => el('button', { type: 'button', class: 'avatar-preset', title: t(c.name, c.en), 'aria-label': t(c.name, c.en), onclick: () => set(lookOf(c.id)) },
+    el('img', { src: `/chars/${c.id}.webp`, alt: '', width: 48, height: 64 })));
   sync = () => {
     const now = look;
     look = savedLook();
     LOOK_PARTS.forEach((p, i) => (names[i].textContent = optName(p.opts[Number(look[i])], p.id)));
+    presets.forEach((b, i) => b.setAttribute('aria-pressed', String(look === lookOf(CHARACTERS[i].id))));
     if (look !== now || !shown) show(look);
   };
   return el('div', { class: 'avatar' },
-    el('style', {}, `.avatar{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}.avatar canvas{width:${W}px;height:${H}px;border-radius:12px;background:radial-gradient(circle at 50% 40%,#3a2a40,#15101a)}.avatar-parts{flex:1;min-width:220px;display:flex;flex-direction:column;gap:4px}.avatar-pick{display:flex;align-items:center;gap:6px}.avatar-name{min-width:9em;text-align:center}`),
+    el('style', {}, `.avatar{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}.avatar canvas{width:${W}px;height:${H}px;border-radius:12px;background:radial-gradient(circle at 50% 40%,#3a2a40,#15101a)}.avatar-parts{flex:1;min-width:220px;display:flex;flex-direction:column;gap:4px}.avatar-pick{display:flex;align-items:center;gap:6px}.avatar-name{min-width:9em;text-align:center}.avatar-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}.avatar-preset{padding:2px;min-height:0;border-radius:8px}.avatar-preset[aria-pressed=true]{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}`),
     renderer.domElement,
-    el('div', { class: 'avatar-parts' }, ...rows,
+    el('div', { class: 'avatar-parts' }, el('small', { class: 'muted' }, t('Prontos', 'Presets')), el('div', { class: 'avatar-presets' }, ...presets), ...rows,
       el('button', { type: 'button', onclick: () => set(randomLook()) }, t('Aleatório', 'Random')),
       el('small', { class: 'muted' }, t('Vale na hora, até no meio da partida, e os outros jogadores veem. Fica salvo neste navegador.', 'Applies right away, even mid-match, and the other players see it. Saved in this browser.'))));
 }
