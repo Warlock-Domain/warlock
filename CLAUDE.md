@@ -44,6 +44,16 @@ npx vite build                      # build do cliente (dist/)
 - **Protocolo é fronteira de confiança:** toda mensagem nova é validada em `parseClientMessage` (tipos, limites, chaves conhecidas).
 - **Celular continua usável:** confira as media queries (≤ 600 px e `pointer: coarse`) a cada mudança de interface.
 
+## Fluxo de contribuição
+
+- Guia completo do colaborador: [Warlock Wars: guia do colaborador](https://claude.ai/artifact/KojJ4UEYu1Esg5RHxETkkM). Esta seção resume as regras que afetam o trabalho diário.
+- Para funcionalidade nova, primeiro descreva a ideia numa issue e combine o escopo com Fernando. Prefira uma tarefa pequena; peça alinhamento antes de mudanças grandes em `ui.ts`, `sim.ts` ou na loja.
+- Trabalhe numa branch focada criada a partir de `master`, com nome `tipo/assunto` (por exemplo, `fix/loja-celular`). Não faça push direto em `master` nem force push.
+- Commits e títulos de PR seguem `tipo: descrição em português` (`feat`, `fix`, `balance`, `style`, `refactor`, `docs`, `ci` ou `test`). O título do PR deve corresponder a um commit.
+- A descrição do PR informa por quê, o que mudou, como foi testado e inclui prints antes/depois para alterações visuais e medições para balanceamento; vincule a issue quando houver.
+- Antes de pedir revisão, rode os dois typechecks, a suíte Vitest e o build. O CI deve ficar verde e uma pessoa mantenedora aprova e faz o merge. Depois que a revisão começar, acrescente commits em vez de reescrever o histórico.
+- Para o fluxo deste trabalho com Codex, mantenha as alterações locais até outro colaborador revisar o diff; só então publique a branch ou o PR.
+
 ## Balanceamento (como se decide número de magia e item)
 
 - Os números vêm do simulador, não de opinião: `node scripts/balance-sim.ts --minutes 30 --seed 1 --difficulty normal --out balance/<pasta>` (vários processos com sementes diferentes; junte com `--merge`).
