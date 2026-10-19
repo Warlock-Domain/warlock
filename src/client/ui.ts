@@ -833,19 +833,6 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let optsOpen = true;
   let setup = false; // fim da partida: true depois do "Voltar à sala"
 
-  // grade com o retrato de cada personagem; o escolhido fica marcado
-  function picker(r: PublicRoom) {
-    const mine = r.players.find((p) => p.id === me);
-    if (!mine) return null;
-    return el('div', { class: 'picker' },
-      el('span', { class: 'muted' }, t('Seu personagem', 'Your character')),
-      el('div', { class: 'picker-grid' }, ...CHARACTERS.map((c) =>
-        el('button', { type: 'button', class: 'pick' + (mine.character === c.id ? ' on' : ''), title: t(c.name, c.en), 'aria-pressed': mine.character === c.id ? 'true' : 'false', onclick: () => act.pick(c.id) },
-          el('img', { src: `/chars/${c.id}.webp`, alt: '', width: 60, height: 80 }), el('small', {}, t(c.name, c.en))),
-      )),
-    );
-  }
-
   function lobbyPanel(r: PublicRoom) {
     const humans = r.players.filter((p) => !p.bot).length;
     const maxBots = MAX_PLAYERS - humans;
@@ -899,7 +886,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : t(' · caiu', ' · dropped')), kickBtn(p, act.kick))))),
       // no PC em colunas, lado a lado (Fernando, 19/10: "tá muito vertical"); no celular uma embaixo da outra
       el('div', { class: 'lobby-cols' },
-        el('div', { class: 'lobby-col' }, picker(r),
+        el('div', { class: 'lobby-col' },
           el('div', { class: 'bots' }, el('span', {}, 'Bots ', infoButton(t('Dificuldade dos bots', 'Bot difficulty'), () => OPT_INFO.difficulty(mode))),
             el('button', { type: 'button', 'aria-label': t('Menos um bot', 'One less bot'), onclick: () => set(bots.slice(0, -1)) }, '−'), count, el('button', { type: 'button', 'aria-label': t('Mais um bot', 'One more bot'), onclick: () => set([...bots, 'normal']) }, '+')),
           list,
@@ -1061,7 +1048,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (r.round === 0) seeFirst();
       act.ready();
     } }, readyText(mine.ready));
-    // duas colunas: compras à esquerda; ouro, Pronto, placar e personagem à direita (pedido do Fernando: loja mais larga)
+    // compras no meio; ouro, Pronto e placar à direita (pedido do Fernando: loja mais larga; o personagem saiu para o menu principal e as Configurações)
     return filterShop(el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? t('Loja', 'Shop') : t(`Loja · depois da rodada ${r.round}`, `Shop · after round ${r.round}`)), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells`))),
       shopSearch(),
@@ -1076,7 +1063,6 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         goldInfo(mine, r.opts, goldOpen, (open) => (goldOpen = open)),
         nextModePicker(r),
         board(r, me, act.kick),
-        picker(r),
       ),
     ));
   }
