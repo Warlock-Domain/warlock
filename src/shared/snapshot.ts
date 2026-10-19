@@ -22,7 +22,8 @@ export function publicEvents(events: SimEvent[], pub: (id: string) => string): S
   });
 }
 
-export function encodeSnap(w: World, forId: string, ack: number, events: SimEvent[]): Snap {
+// seeAll (sandbox): ninguém fica escondido para quem recebe; o navegador decide mostrar meio transparente ("Ver invisíveis")
+export function encodeSnap(w: World, forId: string, ack: number, events: SimEvent[], seeAll = false): Snap {
   const wz: number[] = [];
   const ab: number[] = []; // por mago: dano que a Investida ainda absorve
   const me = w.wizards.find((z) => z.id === forId);
@@ -33,7 +34,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     // 8192 magnetizado atraindo, 16384 magnetizado repelindo, 32768 Alteração, 65536 preso pelo Elo, 131072 Égide pronta,
     // runas: 262144 Pressa, 524288 Fúria, 1048576 Escudo de runa (−30% de dano); 2097152 no redemoinho (mesma conta do puxão em sim.ts);
     // 8388608 velado pela Ilusão (só quem lançou e os aliados veem: para os outros, os dois magos são iguais)
-    const hidden = z.id !== forId && !(me && me.team !== null && me.team === z.team);
+    const hidden = !seeAll && z.id !== forId && !(me && me.team !== null && me.team === z.team);
     const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0)
       | (isSliding(z) ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
       | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 || w.t < z.slowUntil ? 4 : 0) | (z.zone & 2 ? 512 : 0)

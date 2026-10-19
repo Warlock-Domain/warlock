@@ -1,7 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
-import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sell, setLook, setReady, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
+import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
@@ -128,7 +128,10 @@ export class Room extends DurableObject<Env> {
         this.acks.set(id, msg.seq);
         return;
       case 'start':
-        if (startMatch(m, now, msg.bots, msg.mode, msg.shuffle ?? true, Math.random, msg.opts, msg.setup)) await this.changed();
+        if (startMatch(m, now, msg.bots, msg.mode, msg.shuffle ?? true, Math.random, msg.opts, msg.setup, msg.sandbox)) await this.changed();
+        return;
+      case 'sandbox':
+        if (sandboxCmd(m, msg.cmd, now)) await this.changed();
         return;
       case 'buy':
         if (buy(m, id, msg.spell)) await this.changed();
@@ -290,7 +293,8 @@ export class Room extends DurableObject<Env> {
       this.events.push(...tickMatch(m, now, cmds));
       if (++this.steps % SEND_EVERY === 0) this.sendSnaps();
     }
-    if (m.phase === 'roundEnd' && before.startsWith('playing')) this.lobby().record(roundRecord(m, now)).catch(() => {});
+    // a sandbox não grava telemetria (e a rodada dela nem acaba)
+    if (m.phase === 'roundEnd' && before.startsWith('playing') && !m.sandbox) this.lobby().record(roundRecord(m, now)).catch(() => {});
     if (now - this.lastCmdAt > IDLE_MS) endIdle(m);
     if (sig() !== before) void this.changed();
   }
@@ -304,7 +308,7 @@ export class Room extends DurableObject<Env> {
     if (!w) return;
     for (const ws of this.live()) {
       const id = this.playerOf(ws)!;
-      send(ws, encodeSnap(w, id, this.acks.get(id) ?? 0, events));
+      send(ws, encodeSnap(w, id, this.acks.get(id) ?? 0, events, !!s!.match.sandbox));
     }
   }
 }
