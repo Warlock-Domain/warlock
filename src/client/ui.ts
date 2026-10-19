@@ -1175,7 +1175,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       v ? el('small', { class: 'muted' }, t('Já tem uma votação aberta.', 'A vote is already open.')) : '',
       group(t('Partida', 'Match'),
         btn(t('Reiniciar a partida', 'Restart the match'), 'restart'),
-        btn(t('Encerrar agora (vence quem tem mais pontos)', 'End now (whoever has the most points wins)'), 'end'),
+        btn(r.night ? t('Encerrar a noite (conta como derrota)', 'End the night (counts as a defeat)') : t('Encerrar agora (vence quem tem mais pontos)', 'End now (whoever has the most points wins)'), 'end'),
         r.phase === 'shop' ? btn(t('Pular a loja', 'Skip the shop'), 'skipShop') : '',
         ...MODES.filter((k) => k !== next && k !== 'campaign' && !r.night).map((k) => btn(t(`Trocar para ${MODE_NAME[k]}`, `Switch to ${MODE_NAME[k]}`), 'mode', k)),
         next === 'teams' ? btn(t(`Times ${SHUFFLE_NAME(!(r.pendingShuffle ?? r.teamShuffle))}`, `Teams ${SHUFFLE_NAME(!(r.pendingShuffle ?? r.teamShuffle))}`), 'shuffle') : ''),
@@ -1187,7 +1187,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         !r.night && r.players.length + Math.max(0, r.botDelta) < MAX_PLAYERS ? btn(t('Pôr um bot', 'Add a bot'), 'addBot') : '',
         !r.night && bots > 0 ? btn(t('Tirar um bot', 'Remove a bot'), 'removeBot') : '',
         ...r.players.filter((p) => !p.bot && p.id !== me).map((p) => btn(t(`Expulsar ${p.name}`, `Kick ${p.name}`), 'kick', p.id))),
-      el('small', { class: 'muted' }, t('Passa com mais da metade dos jogadores. Modo, regras e bots valem na próxima rodada; o modo novo zera os pontos, o ouro fica.', 'Passes with more than half of the players. Mode, rules and bots apply next round; a new mode resets the points, gold stays.')));
+      el('small', { class: 'muted' }, r.night ? t('Passa com mais da metade dos jogadores.', 'Passes with more than half of the players.') : t('Passa com mais da metade dos jogadores. Modo, regras e bots valem na próxima rodada; o modo novo zera os pontos, o ouro fica.', 'Passes with more than half of the players. Mode, rules and bots apply next round; a new mode resets the points, gold stays.')));
     // fim da votação: aprovada se o que ela muda mudou
     const was = prev?.vote;
     const passed = (k: Vote['kind']) => k === 'mode' ? r.pendingMode !== prev!.pendingMode : k === 'shuffle' ? r.pendingShuffle !== prev!.pendingShuffle

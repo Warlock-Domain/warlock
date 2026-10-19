@@ -32,7 +32,7 @@ export function parseRooms(text: string): Room[] {
 }
 
 function parseRoom(block: string): Room {
-  const lines = block.split('\n');
+  const lines = block.split('\n').map((l) => l.trimEnd());
   const head = Object.assign({}, ...lines.filter((l) => /^\S+:/.test(l) && !GRID_LINE.test(l)).slice(0, 3).map(pairs)) as Record<string, string>;
   const id = head['sala'];
   const fail = (msg: string) => { throw new Error(`sala ${id}: ${msg}`); };
