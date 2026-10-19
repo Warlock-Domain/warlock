@@ -1,17 +1,16 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS } from './arena.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, type BotSkill } from './bots.ts';
-import { PILLAR } from './constants.ts';
 import { CHARACTERS, type CharacterId } from './characters.ts';
+import {
+  ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD,
+} from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
+import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.ts';
+import { MAX_SPELLS, SPELL_IDS, noSpells, priceOf, spellCount, type SpellId } from './spells.ts';
 
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
 const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
-import {
-  ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD,
-} from './constants.ts';
-import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.ts';
-import { MAX_SPELLS, SPELL_IDS, noSpells, priceOf, spellCount, type SpellId } from './spells.ts';
 
 // estatísticas do placar: ouro ganho, dano causado e precisão (lançadas e acertadas) por magia
 export type Stat = { gold: number; dmg: number; kills: number; dmgBy: Record<string, number>; fired: Record<string, number>; landed: Record<string, number>; deaths: number; deathBy: Record<string, number>; alive: number };
@@ -127,11 +126,13 @@ export const newMatch = (): Match => ({
   teamShuffle: true, pendingShuffle: null, winnerTeam: null, opts: { ...DEFAULT_OPTS }, pendingOpts: {}, botDelta: 0,
 });
 
+const player = (m: Match, id: string | null) => m.players.find((p) => p.id === id);
+
 const BOT_NAMES = ['Gul’dan', 'Merlim', 'Morgana', 'Rasputin', 'Zatanna', 'Mandrake', 'Gandalfo'];
 
 export function addPlayer(m: Match, id: string, name: string, bot = false): boolean {
   if (m.banned.includes(id)) return false;
-  const known = m.players.find((p) => p.id === id);
+  const known = player(m, id);
   if (known) {
     known.name = name;
     known.connected = true;
@@ -150,7 +151,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false): bool
 export function removePlayer(m: Match, id: string) {
   if (m.phase === 'lobby' || m.phase === 'end') m.players = m.players.filter((p) => p.id !== id);
   else {
-    const p = m.players.find((q) => q.id === id);
+    const p = player(m, id);
     if (p) p.connected = false;
   }
 }
@@ -190,7 +191,7 @@ export function canShop(m: Match, id: string): boolean {
 }
 
 export function buy(m: Match, id: string, spell: SpellId): boolean {
-  const p = m.players.find((q) => q.id === id);
+  const p = player(m, id);
   if (!p || !canShop(m, id)) return false;
   const price = priceOf(spell, p.spells[spell]);
   if (price === null || p.gold < price) return false;
@@ -204,14 +205,14 @@ export function buy(m: Match, id: string, spell: SpellId): boolean {
 
 // troca de personagem fora da rodada (sala, loja ou fim), para o boneco não mudar no meio da luta
 export function setCharacter(m: Match, id: string, character: CharacterId): boolean {
-  const p = m.players.find((q) => q.id === id);
+  const p = player(m, id);
   if (!p || p.character === character || !['lobby', 'shop', 'end'].includes(m.phase)) return false;
   p.character = character;
   return true;
 }
 
 export function buyItem(m: Match, id: string, item: ItemId): boolean {
-  const p = m.players.find((q) => q.id === id);
+  const p = player(m, id);
   if (!p || !canShop(m, id)) return false;
   const price = itemPrice(p.items, item);
   if (price === null || p.gold < price) return false;
@@ -222,10 +223,9 @@ export function buyItem(m: Match, id: string, item: ItemId): boolean {
   return true;
 }
 
-// uma maestria (5 de ouro) ou as três de uma vez (13); máximo 6 níveis cada
 // desfaz a compra mais recente daquele tipo feita nesta loja: devolve o ouro e baixa o nível
 export function undoBuy(m: Match, id: string, key: string): boolean {
-  const p = m.players.find((q) => q.id === id);
+  const p = player(m, id);
   if (!p || !canShop(m, id)) return false;
   const i = p.bought.map((b) => b.key).lastIndexOf(key);
   if (i < 0) return false;
@@ -244,7 +244,7 @@ const sellRate = (rounds: number) => Math.max(SELL_FLOOR, 1 - SELL_DECAY * Math.
 export function sellValue(p: { spells: Record<SpellId, number>; items: Record<ItemId, number>; held?: Record<string, number[]> }, round: number, key: string): number {
   const [kind, what] = key.split(':');
   const spell = kind === 'spell';
-  if (!spell && kind !== 'item') return 0; // maestria não se vende
+  if (!spell && kind !== 'item') return 0; // só magia e item se vendem
   if (!(spell ? (SPELL_IDS as readonly string[]) : (ITEM_IDS as readonly string[])).includes(what)) return 0;
   const now = spell ? p.spells[what as SpellId] : p.items[what as ItemId];
   const first = spell ? noSpells()[what as SpellId] : startItems()[what as ItemId];
@@ -266,7 +266,7 @@ export const canSell = (p: Parameters<typeof sellValue>[0], round: number, key: 
 
 // vende a magia ou o item inteiro (magia vai a 0, item volta ao nível inicial); não é ganho de ouro, então fora das estatísticas
 export function sell(m: Match, id: string, key: string): boolean {
-  const p = m.players.find((q) => q.id === id);
+  const p = player(m, id);
   if (!p || !canShop(m, id) || !canSell(p, m.round, key)) return false;
   const value = sellValue(p, m.round, key);
   const [kind, what] = key.split(':');
@@ -279,7 +279,7 @@ export function sell(m: Match, id: string, key: string): boolean {
 }
 
 export function setReady(m: Match, id: string): boolean {
-  const p = m.players.find((q) => q.id === id);
+  const p = player(m, id);
   if (m.phase !== 'shop' || !p || p.ready) return false;
   p.ready = true;
   return true;
@@ -320,7 +320,7 @@ export function resume(m: Match, now: number) {
 
 // expulsa um bot ou alguém que caiu e não voltou (gente conectada não pode ser expulsa por outro)
 export function kick(m: Match, id: string): boolean {
-  const p = m.players.find((q) => q.id === id);
+  const p = player(m, id);
   if (!p || (!p.bot && p.connected)) return false;
   drop(m, id);
   return true;
@@ -346,7 +346,7 @@ export const votesNeeded = (humans: number) => Math.floor(humans / 2) + 1;
 export function startVote(m: Match, id: string, kind: Vote['kind'], target: string, now: number): boolean {
   if (m.vote || !VOTE_PHASES.includes(m.phase) || !voters(m).includes(id)) return false;
   if (kind === 'kick') {
-    const t = m.players.find((p) => p.id === target);
+    const t = player(m, target);
     if (!t || t.bot || t.id === id) return false; // bot já tem o ✕ direto
   } else if (kind === 'mode') {
     // qualquer um dos modos, menos o que já vale na próxima rodada
@@ -396,8 +396,7 @@ function settleVote(m: Match, now: number) {
     } else if (v.kind === 'restart') fresh(m, now, m.mode, m.teamShuffle, Math.random);
     else if (v.kind === 'end') {
       // vence quem tem mais pontos; empate no topo = ninguém
-      const best = Math.max(0, ...m.players.map((p) => p.score));
-      const top = m.players.filter((p) => p.score === best);
+      const [best, top] = atTop(m.players, (p) => p.score);
       m.winner = best > 0 && top.length === 1 ? top[0].id : null;
       m.winnerTeam = m.mode === 'teams' && !m.teamShuffle && best > 0 && new Set(top.map((p) => p.team)).size === 1 ? top[0].team : null;
       m.phase = 'end';
@@ -430,8 +429,13 @@ function enterShop(m: Match, now: number) {
   m.world = null;
   for (const p of m.players) {
     p.ready = p.bot;
-    for (let b = botBuy(p, Math.random, botSkill(m, p)); p.bot && b && (b.kind === 'spell' ? buy(m, p.id, b.id) : buyItem(m, p.id, b.id)); b = botBuy(p, Math.random, botSkill(m, p)));
+    botShop(m, p);
   }
+}
+
+// o bot compra o que o plano dele pede enquanto o ouro der (botBuy roda mesmo para gente, como sempre rodou: gasta o sorteio)
+function botShop(m: Match, p: Player) {
+  for (let b = botBuy(p, Math.random, botSkill(m, p)); p.bot && b && (b.kind === 'spell' ? buy(m, p.id, b.id) : buyItem(m, p.id, b.id)); b = botBuy(p, Math.random, botSkill(m, p)));
 }
 
 // 2 times de tamanhos iguais (com número ímpar, um tem 1 a mais; qual deles também é sorteado)
@@ -477,8 +481,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   for (; m.botDelta > 0; m.botDelta--) {
     const n = [1, 2, 3, 4, 5, 6, 7, 8].find((k) => !m.players.some((p) => p.id === 'bot-' + k)) ?? 0;
     if (!n || !addPlayer(m, 'bot-' + n, BOT_NAMES[(n - 1) % BOT_NAMES.length], true)) break;
-    const p = m.players[m.players.length - 1];
-    for (let b = botBuy(p, Math.random, botSkill(m, p)); b && (b.kind === 'spell' ? buy(m, p.id, b.id) : buyItem(m, p.id, b.id)); b = botBuy(p, Math.random, botSkill(m, p)));
+    botShop(m, m.players[m.players.length - 1]);
   }
   for (; m.botDelta < 0; m.botDelta++) {
     const bot = m.players.filter((p) => p.bot).pop();
@@ -503,7 +506,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   m.phaseEnds = now + COUNTDOWN_MS * PACE[m.opts.pace];
 }
 
-// prêmio de fim de rodada: soma o ouro e sobe o "+N" em cima do mago (o mundo ainda existe até a loja)
+// ganho de ouro com o "+N" subindo em cima do mago: prêmios do fim da rodada (o mundo ainda existe até a loja), abate, assistência e monte de ouro
 function bonus(m: Match, p: Player, gold: number, scaled = true) {
   if (gold <= 0) return;
   const n = earn(m, p, gold, scaled);
@@ -513,7 +516,7 @@ function bonus(m: Match, p: Player, gold: number, scaled = true) {
 
 function endRound(m: Match, now: number, winner: string | null) {
   const dm = m.mode === 'deathmatch';
-  const p = m.players.find((q) => q.id === winner);
+  const p = player(m, winner);
   // no deathmatch os pontos já vieram dos abates; aqui o vencedor é só quem fez mais abates na rodada
   const played = new Set(m.world?.wizards.map((z) => z.id));
   // nos Times, todos do time de quem venceu (vivos ou não) pontuam e ganham o ouro da vitória
@@ -527,7 +530,7 @@ function endRound(m: Match, now: number, winner: string | null) {
   }
   // quem sobreviveu ficou vivo a rodada inteira
   for (const z of m.world?.wizards ?? []) {
-    const q = m.players.find((p) => p.id === z.id);
+    const q = player(m, z.id);
     if (q && z.alive && !dm) addStat(q, (s) => (s.alive += m.world!.t));
   }
   const top = Math.max(0, ...m.players.filter((q) => played.has(q.id)).map((q) => q.stats.round.dmg));
@@ -548,8 +551,7 @@ function endRound(m: Match, now: number, winner: string | null) {
 function afterRound(m: Match, now: number) {
   if (m.mode === 'deathmatch') {
     // a meta só vale no fim da rodada (a rodada sempre dura os 60 s); empate no topo joga mais uma rodada
-    const best = Math.max(...m.players.map((p) => p.score));
-    const top = m.players.filter((p) => p.score === best);
+    const [best, top] = atTop(m.players, (p) => p.score);
     if (best < goalOf(m) || top.length > 1) return enterShop(m, now);
     m.phase = 'end';
     m.winner = top[0].id;
@@ -568,10 +570,15 @@ function afterRound(m: Match, now: number) {
 
 const EMPTY_ROUNDS_END = 3;
 
+// o maior valor entre os jogadores e quem o tem
+function atTop(players: Player[], f: (p: Player) => number): [number, Player[]] {
+  const best = Math.max(...players.map(f));
+  return [best, players.filter((p) => f(p) === best)];
+}
+
 // quem fez mais abates na rodada; empate ou zero abates = ninguém
 function topKiller(m: Match): string | null {
-  const best = Math.max(...m.players.map((p) => p.stats.round.kills));
-  const top = m.players.filter((p) => p.stats.round.kills === best);
+  const [best, top] = atTop(m.players, (p) => p.stats.round.kills);
   return best > 0 && top.length === 1 ? top[0].id : null;
 }
 
@@ -618,7 +625,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   stepWorld(w, all, rand);
   // metade da vida tirada pela lava vira dano de quem empurrou (fonte 'lava'): placar, top dano e assistência; antes das mortes
   for (const [by, on] of Object.entries(w.lavaCredit)) for (const [id, dmg] of Object.entries(on)) {
-    const p = m.players.find((q) => q.id === by);
+    const p = player(m, by);
     if (!p) continue;
     const mine = ((m.dmgOn ??= {})[id] ??= {});
     mine[by] = (mine[by] ?? 0) + dmg;
@@ -632,58 +639,34 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
     if (e.k === 'hit' && e.by !== e.id && e.dmg > 0) {
       const on = ((m.dmgOn ??= {})[e.id] ??= {});
       on[e.by] = (on[e.by] ?? 0) + e.dmg;
-      const p = m.players.find((q) => q.id === e.by);
+      const p = player(m, e.by);
       if (p) addStat(p, (s) => {
         s.dmg += e.dmg;
         s.dmgBy[e.src] = (s.dmgBy[e.src] ?? 0) + e.dmg;
       });
     } else if (e.k === 'fire' || e.k === 'land') {
-      const p = m.players.find((q) => q.id === e.id);
+      const p = player(m, e.id);
       const bucket = e.k === 'fire' ? 'fired' : 'landed';
       if (p) addStat(p, (s) => (s[bucket][e.src] = (s[bucket][e.src] ?? 0) + 1));
     } else if (e.k === 'death') {
       // causa da morte e tempo vivo, para os dados de balanceamento
-      const dead = m.players.find((p) => p.id === e.id);
+      const dead = player(m, e.id);
       if (dead) addStat(dead, (s) => {
         s.deaths++;
         s.deathBy[e.src] = (s.deathBy[e.src] ?? 0) + 1;
         if (!w.dm) s.alive += w.t; // no deathmatch volta e morre várias vezes: tempo vivo só nas rodadas
       });
-    }
-    // a Égide quebra ao salvar (consumível): sai do inventário sem valor de venda
-    if (e.k === 'aegis') {
-      const p = m.players.find((q) => q.id === e.id);
-      if (p) {
-        p.items.aegis = 0;
-        delete p.held['item:aegis'];
-      }
-    }
-    if (e.k === 'loot') {
-      const p = m.players.find((q) => q.id === e.id);
-      if (p) {
-        const n = earn(m, p, 1);
-        const z = w.wizards.find((q) => q.id === p.id);
-        w.events.push({ k: 'gold', id: p.id, n, x: z?.pos.x ?? e.x, y: z?.pos.y ?? e.y });
-      }
-    }
-    if (e.k === 'death') {
       // assistência: quem mais bateu na vítima, sem ser quem matou, ganha um pouco de ouro
       const on = m.dmgOn?.[e.id] ?? {};
       const [helper, dmg] = Object.entries(on).filter(([id]) => id !== e.by && id !== e.id).sort((a, b) => b[1] - a[1])[0] ?? [];
-      const hp = helper && dmg >= ASSIST_MIN_DMG ? m.players.find((q) => q.id === helper) : undefined;
-      const hz = hp && w.wizards.find((z) => z.id === hp.id);
-      if (hp) {
-        const n = earn(m, hp, ASSIST_GOLD);
-        if (hz) w.events.push({ k: 'gold', id: hp.id, n, x: hz.pos.x, y: hz.pos.y });
-      }
+      const hp = helper && dmg >= ASSIST_MIN_DMG ? player(m, helper) : undefined;
+      if (hp) bonus(m, hp, ASSIST_GOLD);
       if (m.dmgOn) delete m.dmgOn[e.id];
-    }
-    if (e.k === 'death') {
       // sequências de abate: qualquer morte (até na lava) zera a de quem morreu
       const sk = (m.streaks ??= {});
       const broken = sk[e.id]?.kills ?? 0;
       if (sk[e.id]) sk[e.id].kills = 0;
-      const killer = e.by && e.by !== e.id ? m.players.find((p) => p.id === e.by) : undefined;
+      const killer = e.by && e.by !== e.id ? player(m, e.by) : undefined;
       if (killer) {
         const s = (sk[killer.id] ??= { kills: 0, multi: 0, at: -1e9 });
         s.multi = w.t - s.at <= STREAK.window ? s.multi + 1 : 1;
@@ -691,31 +674,33 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
         s.kills++;
         // Quebra-combo primeiro: o cliente toca uma voz só por vez
         if (broken >= STREAK.breakAt) {
-          const n = earn(m, killer, STREAK.breakGold);
-          const kz = w.wizards.find((z) => z.id === killer.id);
           w.events.push({ k: 'streak', id: killer.id, kind: 'breaker', n: broken, victim: e.id });
-          if (kz) w.events.push({ k: 'gold', id: killer.id, n, x: kz.pos.x, y: kz.pos.y });
+          bonus(m, killer, STREAK.breakGold);
         }
         if (s.multi >= 2) w.events.push({ k: 'streak', id: killer.id, kind: 'multi', n: s.multi });
         if (STREAK.spree.includes(s.kills)) w.events.push({ k: 'streak', id: killer.id, kind: 'spree', n: s.kills });
+        // nas rodadas o abate não vale ponto (como no original), só ouro; no deathmatch vale 1 ponto
+        addStat(killer, (s) => (s.kills += 1));
+        if (m.mode === 'deathmatch') killer.score++;
+        // cabeça do líder: abater quem lidera o placar vale mais, conforme a vantagem dele sobre a média
+        const victim = player(m, e.id);
+        const avgScore = m.players.reduce((sum, q) => sum + q.score, 0) / m.players.length;
+        const top = Math.max(...m.players.map((q) => q.score));
+        const head = victim && m.mode !== 'deathmatch' && victim.score === top ? Math.min(BOUNTY.max, Math.round(BOUNTY.perWin * (victim.score - avgScore))) : 0;
+        bonus(m, killer, KILL_GOLD + Math.max(0, head));
       }
     }
-    if (e.k === 'death' && e.by && e.by !== e.id) {
-      // nas rodadas o abate não vale ponto (como no original), só ouro; no deathmatch vale 1 ponto
-      const killer = m.players.find((p) => p.id === e.by);
-      if (killer) addStat(killer, (s) => (s.kills += 1));
-      if (killer && m.mode === 'deathmatch') killer.score++;
-      // cabeça do líder: abater quem lidera o placar vale mais, conforme a vantagem dele sobre a média
-      const victim = m.players.find((q) => q.id === e.id);
-      const avgScore = m.players.reduce((sum, q) => sum + q.score, 0) / m.players.length;
-      const top = Math.max(...m.players.map((q) => q.score));
-      const head = victim && m.mode !== 'deathmatch' && victim.score === top ? Math.min(BOUNTY.max, Math.round(BOUNTY.perWin * (victim.score - avgScore))) : 0;
-      const prize = KILL_GOLD + Math.max(0, head);
-      if (killer && prize) {
-        const n = earn(m, killer, prize);
-        const kz = w.wizards.find((z) => z.id === killer.id);
-        if (kz) w.events.push({ k: 'gold', id: killer.id, n, x: kz.pos.x, y: kz.pos.y });
+    // a Égide quebra ao salvar (consumível): sai do inventário sem valor de venda
+    if (e.k === 'aegis') {
+      const p = player(m, e.id);
+      if (p) {
+        p.items.aegis = 0;
+        delete p.held['item:aegis'];
       }
+    }
+    if (e.k === 'loot') {
+      const p = player(m, e.id);
+      if (p) bonus(m, p, 1);
     }
   }
   if (m.mode === 'deathmatch') {
