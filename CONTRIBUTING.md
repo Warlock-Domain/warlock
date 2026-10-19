@@ -11,13 +11,17 @@ Bem-vindo! Este guia diz como uma mudança sai da sua máquina e chega ao jogo. 
    - `balance/<assunto>` números de magia, item ou bot
    - `style/<assunto>` visual e interface
    - `docs/<assunto>`, `refactor/<assunto>`
-   Quem não tem acesso de escrita faz um fork e trabalha na branch do fork.
+   Colaborador trabalha em branch deste repositório. Fork só para quem não é colaborador: nele o CI espera aprovação manual, a revisão automática não roda e o ambiente dev não publica.
 3. **Commits pequenos, em português**, começando pelo tipo: `feat: …`, `fix: …`, `balance: …`, `style: …`, `refactor: …`, `docs: …`. A mensagem diz o que mudou para o jogador e, em balanceamento, os números medidos.
-4. **Antes de abrir o PR**, rode os gates (os dois `tsc`, `vitest run`, `vite build`) e jogue no navegador. Mantenha a branch em dia com o `master` (`git pull --rebase origin master` ou merge).
+4. **Antes de abrir o PR**, rode os gates (os dois `tsc`, `vitest run`, `vite build`) e jogue no navegador. Para testar com outras pessoas, publique no seu ambiente dev: `git push --force origin HEAD:<usuário do GitHub>-dev` vira `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com`. Mantenha a branch em dia com o `master` (`git pull --rebase origin master` ou merge).
 5. **Abra o pull request para o `master`** preenchendo o modelo (Por quê, O que muda, Prints antes e depois se mudou algo na tela, Como testei, Balanceamento) e com `Fecha #n` para ligar a issue. **Título no formato do commit** (`feat: …`, `fix: …`): uma checagem do GitHub barra título fora do padrão. O GitHub Actions roda as mesmas checagens dos gates; o PR só entra com tudo verde.
-6. **Revisão:** pelo menos uma aprovação do dono do projeto. Responda os comentários com commits novos na mesma branch (sem reescrever o histórico depois que a revisão começou).
+6. **Revisão:** o Claude comenta sozinho em todo PR (veredito, checagens, pontos); comente `@claude` para pedir ajuda. O agente do dono pode ajustar e mesclar o PR. Responda os comentários com commits novos na mesma branch (sem reescrever o histórico depois que a revisão começou).
 7. **Merge:** *squash and merge*, com o título do PR no formato de commit (`feat: …`). A branch é apagada depois.
 8. **Publicação no site** é feita pelo dono do projeto (conta Cloudflare), depois do merge.
+
+## Pipelines
+
+Tabela completa no [CLAUDE.md](CLAUDE.md#pipelines): CI, título do PR, revisão do Claude, `@claude` e ambiente dev. Logs em https://github.com/fernandorff/warlock/actions.
 
 ## Etiquetas
 
