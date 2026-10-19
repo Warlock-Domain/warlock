@@ -27,6 +27,6 @@ Bem-vindo! Este guia diz como uma mudança sai da sua máquina e chega ao jogo. 
 - Nada de segredo no repositório (chaves, tokens, senhas). O repositório é público.
 - Asset novo só com licença livre e crédito em `public/CREDITS.txt`.
 
-## Enquanto o time é pequeno
+## Master protegido
 
-O dono do projeto ainda envia direto para o `master`. Quando houver mais colaboradores, o `master` passa a ser protegido (só entra por PR aprovado e com o CI verde).
+Desde 19/10 o `master` é protegido: só entra por pull request com o CI verde e uma aprovação, sem force push. O dono do projeto pode mesclar os próprios PRs passando por cima da aprovação (administrador).
