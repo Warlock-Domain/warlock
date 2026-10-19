@@ -46,7 +46,7 @@ export const SPELLS: Record<SpellId, Spell> = {
   // gravidade: orbe de 450 u/s por 900 u; dmg = dano por segundo em quem está a 250 u; pull = força em 550 u (sem empurrão)
   gravity: { name: 'Gravidade', en: 'Gravity', cost: 12, up: [7, 8, 9, 10, 11, 12], levels: zip([21, 20.5, 20, 19.5, 19, 18.5, 18], [20, 33.33, 46.67, 60, 73.33, 86.67, 100]).map(([cd, d], i) => L({ cd, dmg: d * 2, kbf: 0, speed: 450 * UNIT, range: 900 * UNIT, radius: 250 * UNIT, /* 18/10: dano por segundo ×2 (0,89 → 0,97) */ pull: (500 + 30 * i) * UNIT })) },
   // pilar de pedra: obstáculo de 4 s no original a até 650..1100 u; recarga = AbilityCooldown (o cooldown2 do mesmo arquivo diz 24..12 e só aparece na dica)
-  rockpillar: { name: 'Pilar de pedra', en: 'Rock Pillar', cost: 13, up: [5, 6, 7, 8, 9, 10], levels: zip([26, 24, 22, 20, 18, 16, 14], [650, 725, 800, 875, 950, 1025, 1100]).map(([cd, r]) => L({ cd: cd * 0.7, duration: 5, range: r * UNIT })) /* 18/10: recarga ×0,7 e 5 s (0,86 → 0,97) */ },
+  rockpillar: { name: 'Barricada', en: 'Barricade', cost: 13, up: [5, 6, 7, 8, 9, 10], levels: zip([26, 24, 22, 20, 18, 16, 14], [650, 725, 800, 875, 950, 1025, 1100]).map(([cd, r]) => L({ cd: cd * 0.7, duration: 5, range: r * UNIT })) /* 18/10: recarga ×0,7 e 5 s (0,86 → 0,97) */ },
   // ricochete: 900 u/s, vive 1 s e renova a cada mago tocado; perde 30% a cada inimigo acertado; empurrão 1,2
   bouncer: { name: 'Ricochete', en: 'Bouncer', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([19, 18, 17, 16, 15, 14, 13], [54, 62, 70, 78, 86, 94, 102]).map(([cd, d]) => L({ cd, dmg: d, kbf: 1.2, speed: 900 * UNIT, range: 900 * UNIT })) },
   // as dez restantes do Warlock Brawl (dono do jogo, 17/10): npc_abilities_custom.txt, base/shop.lua, spells/, projectiles/ e modifiers/
