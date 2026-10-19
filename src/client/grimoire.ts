@@ -3,16 +3,17 @@
 // Carregado sob demanda pelo botão "?" (import dinâmico em ui.ts), para não pesar o começo do jogo.
 import { ARENA_IDS, SHAPES, type ArenaId } from '../shared/arena.ts';
 import { ARENA_R0, HP_MAX, RUNE_KINDS } from '../shared/constants.ts';
-import { ITEMS, ITEM_IDS, isActive, type ItemId } from '../shared/items.ts';
+import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, isActive, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import { SCRIPTS, createDemo, drawStone, runDemo, type DemoId } from './demo.ts';
 import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
-import { ACTIONS, UI_ACTIONS, UI_NAMES, isPadMode, isSlotMode, labelOf, uiLabel } from './keys.ts';
+import { ACTIONS, UI_ACTIONS, UI_NAMES, isPadMode, isSlotMode, isUiKey, labelOf, uiLabel } from './keys.ts';
 import { MODE_INFO, OPT_INFO } from './opt-info.ts';
 import { ITEM_DEMO, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, groupClass, n1 } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 import { store } from './store.ts';
-import { itemLevels, spellLevels } from './tips.ts';
+import { hideTip, itemLevels, itemTip, spellLevels, spellTip, withTip } from './tips.ts';
+import { choice } from './ui.ts';
 import { arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
 type Page = { chapter: string; title: string; body: () => (Node | string | null)[]; demo?: DemoId };
@@ -109,9 +110,12 @@ const PAGES: Page[] = [
 const CHAPTERS = [...new Set(PAGES.map((p) => p.chapter))].slice(1);
 const pageOf = (pred: (p: Page) => boolean) => PAGES.findIndex(pred);
 
-export function openGrimoire() {
+// to: abre direto na página daquela magia ou item (biblioteca)
+export function openGrimoire(to?: SpellId | ItemId) {
   document.querySelector('.rules-overlay')?.remove();
   let at = Math.min(PAGES.length - 1, Math.max(0, Number(store.get(STORE)) || 0));
+  const page = to ? pageOf((p) => (p.chapter === CH.spells || p.chapter === CH.items) && p.title === actionName(to)) : -1;
+  if (page >= 0) at = page;
   const wide = matchMedia('(min-width: 900px)');
   const ac = new AbortController();
   let live: object[] = []; // demos da vista atual
@@ -222,4 +226,67 @@ export function openGrimoire() {
   document.body.append(overlay);
   show(0);
   closeBtn.focus();
+}
+
+// Biblioteca "Magias e itens" (decisão do Fernando, 19/10; como a de heróis e itens do Dota): grade de ícones por grupo,
+// busca pelo nome e filtro por grupo; o mouse em cima mostra a dica da loja e o clique abre a página no grimório.
+// Mora na aba do menu principal e no overlay da tecla (F2 no padrão); onOpen fecha o overlay antes de abrir o grimório
+const norm = (x: string) => x.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+export function library(onOpen?: () => void): HTMLElement {
+  const tile = (id: SpellId | ItemId, ico: string, tip: () => string) => withTip(el('button', { type: 'button', class: 'lib-tile', 'data-name': norm(actionName(id)), onclick: () => {
+    hideTip();
+    onOpen?.();
+    openGrimoire(id);
+  } }, el('span', { class: 'ico' }, icon(ico)), el('small', {}, actionName(id))), tip);
+  const section = (key: string, title: string, cls: string, tiles: HTMLElement[]) =>
+    el('section', { class: 'lib-group ' + cls, 'data-filter': key }, el('h3', {}, title), el('div', { class: 'lib-grid' }, ...tiles));
+  const items = (ids: ItemId[]) => ids.map((i) => tile(i, ITEM_ICON[i], () => itemTip(i, 0)));
+  const groups = [
+    ...SPELL_GROUPS.map(([g, , ids]) => section(g, g, groupClass(g), ids.map((s) => tile(s, ICON[s], () => spellTip(s, 0))))),
+    section('items', t('Itens passivos', 'Passive items'), 'lib-items', items(ITEM_IDS.filter((i) => !isActive(i)))),
+    section('items', t('Itens ativos', 'Active items'), 'lib-items', items(ACTIVE_ITEMS)),
+  ];
+  let query = '';
+  let only = 'all';
+  const none = el('p', { class: 'muted', hidden: true }, t('Nada com esse nome.', 'Nothing with that name.'));
+  const search = el('input', { type: 'search', class: 'lib-search', placeholder: t('Buscar pelo nome', 'Search by name'), 'aria-label': t('Buscar magia ou item pelo nome', 'Search spell or item by name'),
+    oninput: () => ((query = norm(search.value.trim())), apply()) }) as HTMLInputElement;
+  const filters = el('div', {});
+  function apply() {
+    filters.replaceChildren(choice(t('Grupo', 'Group'), [['all', t('Todos', 'All')], ...SPELL_GROUPS.map(([g]): [string, string] => [g, g]), ['items', CH.items]], only, (k) => ((only = k), apply())));
+    for (const g of groups) {
+      const tiles = [...g.querySelectorAll<HTMLElement>('.lib-tile')];
+      for (const b of tiles) b.hidden = !b.dataset.name!.includes(query);
+      g.hidden = tiles.every((b) => b.hidden) || (only !== 'all' && g.dataset.filter !== only);
+    }
+    none.hidden = groups.some((g) => !g.hidden);
+  }
+  apply();
+  return el('div', { class: 'library' }, el('div', { class: 'lib-tools' }, search, filters), none, ...groups);
+}
+
+// a mesma biblioteca por cima de qualquer tela, só para consultar (no meio da partida também); Esc ou a mesma tecla fecham
+export function openLibrary() {
+  if (document.querySelector('.library-overlay')) return;
+  const ac = new AbortController();
+  const close = () => {
+    overlay.remove();
+    hideTip();
+    ac.abort();
+  };
+  const body = library(close);
+  const overlay = el('div', { class: 'overlay library-overlay', onclick: (e: Event) => e.target === overlay && close() },
+    el('div', { class: 'library-box', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('Magias e itens', 'Spells and items') },
+      el('div', { class: 'stats-head' }, el('h2', { class: 'title' }, t('Magias e itens', 'Spells and items')),
+        el('button', { type: 'button', class: 'icon', title: t('Fechar (Esc)', 'Close (Esc)'), 'aria-label': t('Fechar', 'Close'), onclick: close }, '✕')),
+      body));
+  // na captura: com a biblioteca aberta as teclas não chegam ao jogo (digitar na busca continua)
+  addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.code !== 'Escape' && !isUiKey(e.code, 'library')) return;
+    e.preventDefault();
+    close();
+  }, { capture: true, signal: ac.signal });
+  document.body.append(overlay);
+  if (matchMedia('(pointer: fine)').matches) body.querySelector('input')!.focus(); // no toque o teclado da tela não sobe sozinho
 }

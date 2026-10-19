@@ -144,7 +144,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
       el('header', { class: 'hero' }, el('p', {}, t('Empurre os amigos para a lava com bola de fogo, raio e companhia. O último de pé vence a rodada.', 'Knock your friends into the lava with fireballs, lightning and more. The last one standing wins the round.'))),
       el('div', { class: 'lobby-actions' }, el('button', { type: 'button', class: 'primary big', onclick: onCreate }, t('Criar sala', 'Create room'))),
       roomList),
-    library: panel('library', el('button', { type: 'button', onclick: showRules }, icon(UI_ICON.help), ' ' + t('Abrir o grimório', 'Open the grimoire'))),
+    library: panel('library'),
     learn: panel('learn',
       el('section', { class: 'home-learn' }, el('h2', {}, t('Como jogar', 'How to play')),
         el('p', { class: 'muted' }, t('O grimório explica o jogo, os controles, os modos, a loja e cada magia e item, com demonstração.', 'The grimoire explains the game, the controls, the modes, the shop and every spell and item, with demos.')),
@@ -170,6 +170,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
       ...Object.values(panels)),
   );
   show(HOME_TABS.some(([k]) => k === saved) ? saved! : 'play');
+  void import('./grimoire.ts').then((m) => panels.library.append(m.library()));
 }
 
 // grimório (Como jogar): módulo carregado só quando abre, para não pesar o começo do jogo
@@ -181,6 +182,13 @@ addEventListener('keydown', (e) => {
   if (!isUiKey(e.code, 'rules') || e.repeat || (e.target as HTMLElement)?.tagName === 'INPUT') return;
   e.preventDefault(); // F1: não abre a ajuda do navegador
   if (!document.querySelector('.rules-overlay')) showRules();
+});
+// biblioteca de magias e itens por cima de qualquer tela (F2 no padrão); aberta, a própria tecla ou o Esc fecham
+const showLibrary = () => void import('./grimoire.ts').then((m) => m.openLibrary());
+addEventListener('keydown', (e) => {
+  if (!isUiKey(e.code, 'library') || e.repeat || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+  e.preventDefault();
+  showLibrary();
 });
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -608,7 +616,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('button', { type: 'button', onclick: () => {
       toggle(morePanel, moreBtn, false);
       showRules();
-    } }, icon(UI_ICON.help), ' ' + t('Como jogar', 'How to play')));
+    } }, icon(UI_ICON.help), ' ' + t('Como jogar', 'How to play')),
+    el('button', { type: 'button', onclick: () => {
+      toggle(morePanel, moreBtn, false);
+      showLibrary();
+    } }, icon(ICON.fireball), ' ' + t('Magias e itens', 'Spells and items')));
   const moreBtn = el('button', { type: 'button', class: 'icon', title: t('Mais opções', 'More options'), 'aria-label': t('Mais opções', 'More options'), 'aria-expanded': 'false', onclick: () => toggle(morePanel, moreBtn) }, '⋯');
   // dicas (title e aria-label) com a tecla atual de cada atalho
   const HINTS: [HTMLElement, string, UiAction][] = [[peekBtn, t('Ver a loja', 'View the shop'), 'shop'], [sheetBtn, t('Ficha do mago', 'Wizard sheet'), 'sheet'], [tauntBtn, t('Provocações', 'Taunts'), 'taunt'], [helpBtn, t('Como jogar', 'How to play'), 'rules'], [voteBtn, t('Votar: trocar o modo ou expulsar alguém', 'Vote: change the mode or kick someone'), 'vote']];
