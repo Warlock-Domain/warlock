@@ -978,3 +978,11 @@ body.replaying .peek-shop { display: none; }
 .shop .shop-main .shop-grid { grid-template-columns: repeat(5, 76px); }
 /* menu principal largo como o do Dota (antes 640 px) */
 .lobby { max-width: 1200px; }
+/* nome embaixo do ícone na loja (2 linhas no máximo); cartões mais largos para caber */
+.shop-item { width: 92px; }
+.tile-name { font-size: .78rem; line-height: 1.15; text-align: center; color: var(--fg); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.3em; }
+.shop-item:not(.can):not(.owned) .tile-name { color: var(--muted); }
+.shop .shop-main .shop-grid { grid-template-columns: repeat(5, 92px); }
+.shop-items .shop-grid { grid-template-columns: repeat(3, 92px); }
+.shop { grid-template-columns: 310px minmax(0, 1fr) 270px; }
+@media (min-width: 1500px) { .shop { grid-template-columns: 320px minmax(0, 1fr) 290px; } }
