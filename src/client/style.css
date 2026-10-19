@@ -929,3 +929,9 @@ body.replaying .peek-shop { display: none; }
 .shop-tile:disabled .ico { opacity: .55; }
 .tile-acts { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
 .tile-acts:empty { display: none; }
+/* a busca na coluna da loja não cresce na altura (flex-basis de 220 px valia como altura) */
+.shop-main > .lib-search { flex: none; }
+/* Ataque em 2 fileiras de 5, cada outro grupo em 1 (Fernando, 19/10) */
+.shop .shop-main .shop-grid { grid-template-columns: repeat(5, 76px); }
+/* menu principal largo como o do Dota (antes 640 px) */
+.lobby { max-width: 1200px; }

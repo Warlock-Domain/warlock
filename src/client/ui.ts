@@ -1,7 +1,8 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
+import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
 import type { ArenaId } from '../shared/arena.ts';
-import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
+import { type CharacterId } from '../shared/characters.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
@@ -84,36 +85,18 @@ function trainBlock(onTrain: (kind: string) => void) {
       }))));
 }
 
-// grade com o retrato de cada personagem; o escolhido fica marcado na hora (a sala confirma depois)
-export function charPicker(on: string, pick: (c: CharacterId) => void) {
-  const grid = el('div', { class: 'picker-grid' }, ...CHARACTERS.map((c) =>
-    el('button', { type: 'button', class: 'pick' + (on === c.id ? ' on' : ''), title: t(c.name, c.en), 'aria-pressed': String(on === c.id), onclick: (e: Event) => {
-      for (const b of grid.children) {
-        b.classList.toggle('on', b === e.currentTarget);
-        b.setAttribute('aria-pressed', String(b === e.currentTarget));
-      }
-      pick(c.id);
-    } }, el('img', { src: `/chars/${c.id}.webp`, alt: '', width: 60, height: 80 }), el('small', {}, t(c.name, c.en)))));
-  return el('div', { class: 'picker' }, el('span', { class: 'muted' }, t('Seu personagem', 'Your character')), grid);
-}
-
 // menu principal com abas no topo, como o do Dota (decisão do Fernando, 19/10); a aba aberta fica guardada
 type HomeTab = 'play' | 'library' | 'learn' | 'char' | 'settings';
 const HOME_TAB = 'warlock:homeTab';
 const HOME_TABS: [HomeTab, string, string][] = [['play', t('Jogar', 'Play'), UI_ICON.aim], ['library', t('Magias e itens', 'Spells and items'), ICON.fireball],
   ['learn', t('Aprender', 'Learn'), UI_ICON.help], ['char', t('Personagem', 'Character'), UI_ICON.person], ['settings', t('Configurações', 'Settings'), UI_ICON.gear]];
-let homeChar = { char: () => 'mage', pick: (_c: CharacterId) => {} };
 
-// aba Personagem: por enquanto a grade dos 9 personagens. Ponto de troca do criador de personagem:
-// importar { avatarPanel } de './avatar.ts' e devolver avatarPanel() aqui
+// aba Personagem: o criador com as 7 peças (avatar.ts)
 function personagemTab(): HTMLElement {
-  return el('section', { class: 'home-char' }, el('h2', {}, t('Personagem', 'Character')), charPicker(homeChar.char(), homeChar.pick));
+  return el('section', { class: 'home-char' }, el('h2', {}, t('Personagem', 'Character')), avatarPanel());
 }
 
-// char e pick: o personagem guardado no navegador (main.ts manda para a sala ao entrar)
-export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onRename: () => void, onTrain: (kind: string) => void,
-  char: () => string, pick: (c: CharacterId) => void) {
-  homeChar = { char, pick };
+export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onRename: () => void, onTrain: (kind: string) => void) {
   setSettingsCtx({ name: () => name, rename: onRename }); // no lobby: sem som nem vídeo (só existem na sala)
   const retry = el('button', { type: 'button', onclick: () => location.reload() }, t('Tentar de novo', 'Try again'));
   // um cartão por sala: código e modo, quem está lá, o que está acontecendo e o Entrar (secundário em sala no meio da partida)
