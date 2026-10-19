@@ -205,8 +205,8 @@ const teamLabel = (i: number) => t(`Time ${TEAM_NAMES[i]}`, `${TEAM_NAMES[i]} te
 const SHUFFLE_NAME =(shuffle: boolean) => (shuffle ? t('sorteados a cada rodada', 'shuffled every round') : t('fixos na partida', 'fixed for the match'));
 // opções da partida: nome de cada uma e o texto de cada valor (a meta depende do modo)
 type OptKey = keyof MatchOpts;
-// fora da sala e da votação (pedidos do Fernando, 19/10): o ritmo fica no padrão; o servidor ainda aceita, para salas antigas
-const FIXED: Partial<MatchOpts> = { pace: DEFAULT_OPTS.pace };
+// fora da sala e da votação (pedidos do Fernando, 19/10): ritmo e morte súbita ficam no padrão; o servidor ainda aceita, para salas antigas
+const FIXED: Partial<MatchOpts> = { pace: DEFAULT_OPTS.pace, sudden: DEFAULT_OPTS.sudden };
 const OPT_KEYS = (Object.keys(OPTION_CHOICES) as OptKey[]).filter((k) => !(k in FIXED));
 const OPT_NAME: Record<OptKey, string> = { shop: t('Tempo de loja', 'Shop time'), pace: t('Contagem e fim de rodada', 'Countdown and round end'), economy: t('Ouro ganho', 'Gold earned'), startGold: t('Ouro inicial', 'Starting gold'), goal: t('Vence com', 'Wins with'), runes: t('Runas', 'Runes'), sudden: t('Morte súbita', 'Sudden death'), chests: t('Baús de ouro', 'Gold chests'), difficulty: t('Dificuldade dos bots', 'Bot difficulty'), arena: 'Arena' };
 function optText(k: OptKey, val: MatchOpts[OptKey], mode: Mode): string {
@@ -789,7 +789,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       count.textContent = String(bots);
       startBtn.toggleAttribute('disabled', humans + bots < 2);
     };
-    const o = (opts ??= { ...DEFAULT_OPTS, ...r.opts, ...FIXED }); // o que a sala não mostra volta ao padrão (um desafio deixa outro ritmo)
+    const o = (opts ??= { ...DEFAULT_OPTS, ...r.opts, ...FIXED }); // o que a sala não mostra volta ao padrão (um desafio deixa a morte súbita desligada)
     const startBtn = el('button', { type: 'button', class: 'primary big', disabled: humans + bots < 2, onclick: () => act.start(bots, mode, shuffle, o) }, t('Começar partida', 'Start match'));
     const modes: [Mode, string, string][] = [
       ['rounds', MODE_NAME.rounds, t(`O último vivo ganha a rodada. Vence quem fizer ${o.goal} rodadas.`, `The last one alive wins the round. First to win ${o.goal} rounds wins.`)],
