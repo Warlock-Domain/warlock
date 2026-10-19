@@ -408,7 +408,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   };
 
   // Redirecionador: projétil próprio passando perto do alvo sem ir na direção dele
-  if (itemReady('redirector')) {
+  if (itemReady('redirector') && reacts(0.5)) { // gente nem sempre percebe a chance (19/10: com reação perfeita vencia 18% acima do justo no Normal e a recarga não mudava isso; assim 1,13)
     const mine = w.projectiles.find((p) => p.owner === id && p.kind !== 'meteor' && p.kind !== 'illusion' && dist(p.pos, E.pos) < 3.5 && dist(p.pos, E.pos) > 0.5 && dot(norm(p.vel), norm(sub(E.pos, p.pos))) < 0.9);
     if (mine) return use('redirector', seenNow);
   }
