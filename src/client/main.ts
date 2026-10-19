@@ -481,7 +481,7 @@ function startRoom(code: string, name: string) {
     }
     if (m.t === 'room') {
       const prev = room;
-      if (shadow) for (const p of m.room.players) if (p.bot) p.name = 'Sombra';
+      if (shadow && m.room.players.filter((p) => p.bot).length === 1 && m.room.players.filter((p) => !p.bot).length === 1) for (const p of m.room.players) if (p.bot) p.name = 'Sombra'; // só no duelo contra a sombra
       room = m.room;
       me = m.you;
       arenaId = room.arena ?? arenaId; // na loja não há rodada: fica a última arena
