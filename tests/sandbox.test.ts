@@ -4,7 +4,7 @@ import { addPlayer, buy, buyItem, kick, newMatch, sandboxCmd, sell, startMatch, 
 import { parseClientMessage } from '../src/shared/protocol.ts';
 import { inLava, type Cmd, type SimEvent } from '../src/shared/sim.ts';
 import { kill, STEP_MS, toPlaying, until } from './helpers.ts';
-import { v } from '../src/shared/vec.ts';
+import { dist, v } from '../src/shared/vec.ts';
 
 // sala sandbox com uma pessoa ('a') já na rodada, mais os bots pedidos pelo painel
 function sandbox(bots: Parameters<typeof sandboxCmd>[1][] = []): { m: Match; now: number } {
@@ -84,11 +84,12 @@ describe('sandbox', () => {
     expect(sandboxCmd(m, { op: 'bot', bot: { difficulty: 'easy' } }, t0)).toBe(true);
     let { now } = steps(m, t0, 2);
     expect(wiz(m, 'bot-3').alive).toBe(true);
-    // boneco: não anda nem atira
-    const at = { ...wiz(m, 'bot-2').pos };
-    const { events } = steps(m, now, 60 * 4);
-    expect(wiz(m, 'bot-2').pos).toEqual(at);
-    expect(events.some((e) => (e.k === 'fire' || e.k === 'cast') && e.id === 'bot-2')).toBe(false);
+    // boneco (sozinho com a pessoa, sem bot para empurrá-lo): não anda nem atira
+    const d = sandbox([{ op: 'bot', dummy: true }]);
+    const at = { ...wiz(d.m, 'bot-1').pos };
+    const { events } = steps(d.m, d.now, 60 * 4);
+    expect(dist(wiz(d.m, 'bot-1').pos, at)).toBeLessThan(1e-9);
+    expect(events.some((e) => (e.k === 'fire' || e.k === 'cast') && e.id === 'bot-1')).toBe(false);
     // tirar: sai da sala e do mundo; o próximo bot reaproveita o id
     expect(kick(m, 'bot-2')).toBe(true);
     expect(m.world!.wizards.some((z) => z.id === 'bot-2')).toBe(false);

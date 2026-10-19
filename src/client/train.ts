@@ -7,17 +7,19 @@ import { spellName, t } from './i18n.ts';
 
 const KEY = 'warlock:botsetup';
 // magia que saiu do jogo (o Gêmeos, 19/10) fica de fora: o servidor recusaria o treino inteiro
-export const savedBotSetup = (): BotSetup[] =>
-  (store.json<BotSetup[]>(KEY) ?? []).map((b) => (b?.spells ? { ...b, spells: Object.fromEntries(Object.entries(b.spells).filter(([id]) => (SPELL_IDS as readonly string[]).includes(id))) } : b));
+// key: o treino guarda os 3 bots aqui; a sandbox guarda o dela à parte (SANDBOX_BOT)
+export const SANDBOX_BOT = 'warlock:sandboxbot';
+export const savedBotSetup = (key = KEY): BotSetup[] =>
+  (store.json<BotSetup[]>(key) ?? []).map((b) => (b?.spells ? { ...b, spells: Object.fromEntries(Object.entries(b.spells).filter(([id]) => (SPELL_IDS as readonly string[]).includes(id))) } : b));
 // algum bot com magias escolhidas; senão o treino vai sem configuração
 export const hasBotSetup = (s: BotSetup[]) => s.some((b) => b?.spells);
 let open = false; // aberto ou fechado sobrevive ao redesenho da sala
 
 // uma linha por bot: Sorteio ou as magias marcadas (até MAX_SPELLS, a Bola de fogo conta), cada uma com o nível
-export function botSetupPanel(n: number, saved: BotSetup[], onChange: (s: BotSetup[]) => void): HTMLElement {
+export function botSetupPanel(n: number, saved: BotSetup[], onChange: (s: BotSetup[]) => void, key = KEY): HTMLElement {
   const setup = Array.from({ length: n }, (_, i): BotSetup => saved[i] ?? {});
   const save = () => {
-    store.set(KEY, JSON.stringify(setup));
+    store.set(key, JSON.stringify(setup));
     onChange(setup);
   };
   const rows = setup.map((_, i) => row(i));
