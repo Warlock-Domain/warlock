@@ -17,7 +17,7 @@ Bem-vindo! Este guia diz como uma mudança sai da sua máquina e chega ao jogo. 
 5. **Abra o pull request para o `dev`** preenchendo o modelo (Por quê, O que muda, Prints antes e depois se mudou algo na tela, Como testei, Balanceamento) e com `Fecha #n` para ligar a issue. **Título no formato do commit** (`feat: …`, `fix: …`): uma checagem do GitHub barra título fora do padrão. O GitHub Actions roda as mesmas checagens dos gates; o PR só entra com tudo verde.
 6. **Revisão:** o Claude comenta sozinho em todo PR (veredito, checagens, pontos); comente `@claude` para pedir ajuda. O agente do dono pode ajustar e mesclar o PR. Responda os comentários com commits novos na mesma branch (sem reescrever o histórico depois que a revisão começou).
 7. **Merge:** PR de tarefa para `dev` em *squash and merge*; a promoção `dev` → `master` em merge normal, com o título do PR no formato de commit (`feat: …`). A branch é apagada depois.
-8. **Publicação é automática:** o merge em `dev` publica no dev geral (https://dev-warlock.fernandorffdev.com); quando ele está bom, o PR `dev` → `master` publica o jogo no ar.
+8. **Publicação é automática:** o merge em `dev` publica no dev geral (https://dev-warlock.fernandorffdev.com); quando o Fernando libera, o PR `dev` → `master` publica o jogo no ar.
 
 ## Pipelines
 
