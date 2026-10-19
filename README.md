@@ -33,9 +33,9 @@ npx vitest run     # testes
 
 - Guia completo: [docs/GUIA-COLABORADOR.md](docs/GUIA-COLABORADOR.md) (máquina, Claude Code e skills, fluxo, testes, balanceamento, decisões já tomadas)
 - Regras do código para gente e para agentes de IA (Claude Code, Codex, Cursor): [CLAUDE.md](CLAUDE.md), também lido via [AGENTS.md](AGENTS.md); cada pasta principal tem o seu `CLAUDE.md`
-- Fluxo de Git: [CONTRIBUTING.md](CONTRIBUTING.md). O `master` é protegido: branch no próprio repositório (não fork), PR com o modelo, CI verde. Todo PR recebe a revisão automática do Claude; comente `@claude` num PR ou issue para pedir ajuda
+- Fluxo de Git: [CONTRIBUTING.md](CONTRIBUTING.md). Fluxo dev do usuário → dev geral (`dev`, https://dev-warlock.fernandorffdev.com) → `master` (jogo no ar, publicado sozinho): branch no próprio repositório (não fork), PR para `dev` com o modelo, CI verde. Todo PR recebe a revisão automática do Claude; comente `@claude` num PR ou issue para pedir ajuda
 - Ambiente dev de cada colaborador: push na branch `<usuário do GitHub>-dev` publica em `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com` (lista no `CLAUDE.md`, seção "Ambientes dev")
-- O jogo no ar é publicado pelo dono do projeto depois do merge
+- O jogo no ar é publicado sozinho quando o PR `dev` → `master` entra
 
 ## Créditos
 

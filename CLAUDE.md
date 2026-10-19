@@ -77,6 +77,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 19/10 | Os `CLAUDE.md` (raiz e pastas) são atualizados a cada decisão nova | todo dev com o mesmo contexto do dono |
 | 19/10 | PR passa pela revisão automática do Claude (comentário com veredito) e pode ser ajustado e mesclado pelo agente do dono, inclusive PR de colaborador; comente `@claude` num PR ou issue para pedir ajuda | mesclar rápido sem o dono revisar à mão |
 | 19/10 | Cada colaborador tem um ambiente dev próprio (`<usuário do GitHub>-dev`, em minúsculas) publicado sozinho a cada push | testar com outras pessoas antes do PR, sem tocar no jogo no ar |
+| 19/10 | Fluxo dev do usuário → dev geral (`dev`, https://dev-warlock.fernandorffdev.com) → `master` (jogo no ar, publicado sozinho pela pipeline Produção) | testar junto antes de ir ao ar, sem publicar à mão |
 | 19/10 | Modo novo **Ascensão** (roguelike, estilo ARAM com cartas): XP do mago, a cada nível escolhe 1 entre 3 cartas (magia nova, subir magia, item) no intervalo; sem ouro, loja nem baús; Flagelo continua de graça; 9 rodadas com pontos por colocação; 4 mecanismos de recuperação; aumentos ficam para a 2ª leva. Desenho em `docs/superpowers/specs/2026-10-19-ascensao-design.md` | progressão dentro da partida sem decidir o jogo cedo |
 
 ## Fluxo com agente
@@ -92,22 +93,33 @@ Push na branch `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffde
 | Colaborador | GitHub | Branch | Link |
 |---|---|---|---|
 | Leonard | lboesmans | `lboesmans-dev` | https://lboesmans-dev-warlock.fernandorffdev.com |
-| Branco | breakie33 | `breakie33-dev` | https://breakie33-dev-warlock.fernandorffdev.com |
+| Sky | breakie33 | `breakie33-dev` | https://breakie33-dev-warlock.fernandorffdev.com |
 | Lucas | lucascvalle | `lucascvalle-dev` | https://lucascvalle-dev-warlock.fernandorffdev.com |
+| Fernando | fernandorff | `fernandorff-dev` | https://fernandorff-dev-warlock.fernandorffdev.com |
+| dev geral | — | `dev` | https://dev-warlock.fernandorffdev.com |
 
-A branch `-dev` é sua: pode substituir pelo estado da tarefa (`git push --force origin HEAD:<usuário>-dev`) ou atualizar com o master (`git merge origin/master` nela). Não abra PR a partir da `-dev`; o PR sai da branch da tarefa.
+A branch `-dev` é sua: pode substituir pelo estado da tarefa (`git push --force origin HEAD:<usuário>-dev`) ou atualizar com o dev geral (`git merge origin/dev` nela). Não abra PR a partir da `-dev`; o PR sai da branch da tarefa.
+
+### Fluxo dos ambientes
+
+**dev do usuário → dev geral → master** (decisão do Fernando, 19/10):
+
+1. Branch da tarefa (`feat/…`, `fix/…`) a partir de `dev`; para testar com outras pessoas, publique no seu `<usuário>-dev`.
+2. PR da tarefa para **`dev`** (a branch padrão). Ao mesclar, publica no **dev geral**: https://dev-warlock.fernandorffdev.com.
+3. Quando o dev geral está bom, o agente do dono abre o PR **`dev` → `master`**. Ao mesclar, a pipeline **Produção** publica em https://warlock.fernandorffdev.com.
 
 ### Pipelines
 
 | Pipeline | Arquivo | Quando roda | O que faz | Se der errado |
 |---|---|---|---|---|
-| CI | `ci.yml` | todo PR e todo push no `master` | os dois `tsc`, `vitest run`, `vite build` | o PR não entra; abra o log em Actions e corrija na mesma branch |
+| CI | `ci.yml` | todo PR e todo push no `dev` e no `master` | os dois `tsc`, `vitest run`, `vite build` | o PR não entra; abra o log em Actions e corrija na mesma branch |
 | Título do PR | `pr-title.yml` | ao abrir ou editar o PR | confere o formato `tipo: o que muda` | edite o título; roda de novo sozinho |
 | Revisão do Claude | `claude-review.yml` | PR aberto, commit novo, saiu de rascunho | comenta veredito, checagens e pontos (não aprova nem mescla) | não bloqueia; não roda em fork nem no PR que altera o próprio workflow |
 | `@claude` | `claude.yml` | comentário com `@claude` num PR ou issue | responde e ajuda no próprio PR/issue | — |
-| Ambiente dev | `dev-deploy.yml` | push na branch `<usuário do GitHub>-dev` | build, publica um Worker só seu, espera o domínio responder e roda o teste rápido | build quebrado: nada é publicado e o site anterior continua; teste rápido falhou: a versão nova já foi publicada e está com problema, veja o log |
+| Ambiente dev | `dev-deploy.yml` | push na branch `<usuário do GitHub>-dev` ou `dev` (dev geral) | build, publica um Worker só seu, espera o domínio responder e roda o teste rápido | build quebrado: nada é publicado e o site anterior continua; teste rápido falhou: a versão nova já foi publicada e está com problema, veja o log |
+| Produção | `deploy.yml` | push no `master` (merge do PR `dev` → `master`) | gates, publica o jogo no ar, confere se o site serve o build novo e roda o teste rápido | falhou antes do deploy: nada muda no ar; falhou depois: o jogo no ar está com a versão nova, veja o log |
 
-Logs: https://github.com/fernandorff/warlock/actions. O jogo no ar (`warlock.fernandorffdev.com`) não tem pipeline: só o dono publica, depois do merge.
+Logs: https://github.com/fernandorff/warlock/actions.
 
 ## Balanceamento (como se decide número de magia e item)
 
@@ -123,11 +135,11 @@ Prints com Playwright headless contra `npx wrangler dev`; confira PC (1280×720 
 
 ## Git
 
-Fluxo completo em [CONTRIBUTING.md](CONTRIBUTING.md): uma branch por tarefa a partir do `master` (`feat/`, `fix/`, `balance/`, `style/`, `docs/`, `refactor/`), commits em português com o tipo na frente (`feat: …`), pull request com o modelo de `.github/`, CI verde (`.github/workflows/ci.yml`: os dois `tsc`, `vitest`, `vite build`) e *squash and merge*. Agente: nunca dê push direto no `master` sem o dono pedir; abra PR.
+Fluxo completo em [CONTRIBUTING.md](CONTRIBUTING.md): uma branch por tarefa a partir do `dev` (`feat/`, `fix/`, `balance/`, `style/`, `docs/`, `refactor/`), commits em português com o tipo na frente (`feat: …`), pull request com o modelo de `.github/`, CI verde (`.github/workflows/ci.yml`: os dois `tsc`, `vitest`, `vite build`) e *squash and merge*. PR da tarefa vai para `dev`; o `master` só recebe o PR `dev` → `master`. Agente: nunca dê push direto em `dev` nem no `master`; abra PR.
 
 ## Publicar
 
-Só quem tem a conta Cloudflare do projeto publica: `npx vite build && npx wrangler deploy`, depois confira que o `index-*.js` servido é o do `dist/` e rode o smoke no domínio. Contribuições de fora chegam por pull request.
+Automático: o merge no `master` publica o jogo no ar pela pipeline **Produção** (`deploy.yml`), com gates, conferência do `index-*.js` servido e teste rápido. Publicar à mão (`npx vite build && npx wrangler deploy`) só em emergência, por quem tem a conta Cloudflare.
 
 ## Créditos e licenças
 
