@@ -59,7 +59,7 @@ function loadVolumes() {
 function hoverSound(sound: ReturnType<typeof createSound>) {
   let at = 0;
   addEventListener('pointerover', (e) => {
-    const b = (e.target as Element).closest?.('button:not(:disabled), .button');
+    const b = (e.target as Element).closest?.('button:not(:disabled):not(.spell), .button'); // na barra de magias, no meio da luta, não
     if (e.pointerType !== 'mouse' || !b || b === (e.relatedTarget as Element | null)?.closest?.('button, .button') || performance.now() - at < 60) return;
     at = performance.now();
     sound.play('hover');
