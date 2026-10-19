@@ -6,9 +6,9 @@ import { store } from './store.ts';
 export type Action = SpellId | ItemId;
 export const ACTIONS: Action[] = [...SPELL_IDS, ...ACTIVE_ITEMS];
 // atalhos da interface (pedido do Fernando, 18/10): trocáveis no mesmo painel das magias; o Votar começa sem tecla
-export const UI_ACTIONS = ['shop', 'board', 'sheet', 'taunt', 'rules', 'stop', 'vote'] as const;
+export const UI_ACTIONS = ['shop', 'board', 'sheet', 'taunt', 'rules', 'stop', 'vote', 'replay'] as const;
 export type UiAction = (typeof UI_ACTIONS)[number];
-export const UI_NAMES: Record<UiAction, string> = { shop: 'Loja só para ver', board: 'Placar (segurar)', sheet: 'Ficha do mago', taunt: 'Provocações', rules: 'Grimório (como jogar)', stop: 'Parar', vote: 'Votar' };
+export const UI_NAMES: Record<UiAction, string> = { shop: 'Loja só para ver', board: 'Placar (segurar)', sheet: 'Ficha do mago', taunt: 'Provocações', rules: 'Grimório (como jogar)', stop: 'Parar', vote: 'Votar', replay: 'Rever a queda' };
 export type AnyAction = Action | UiAction;
 const ALL: AnyAction[] = [...ACTIONS, ...UI_ACTIONS];
 const DEFAULTS: Record<string, string> = {
@@ -20,7 +20,7 @@ const DEFAULTS: Record<string, string> = {
   scourge: 'Digit1', redirector: 'Digit2', pact: 'Digit3',
   // loja: o B do Dota é do Bumerangue e as 26 letras já têm dono, então o 4; ficha: a tecla à esquerda do 1 (' no ABNT2);
   // grimório no F1 (o H é da Gravidade)
-  shop: 'Digit4', board: 'Tab', sheet: 'Backquote', taunt: 'KeyY', rules: 'F1', stop: 'KeyS', vote: '',
+  shop: 'Digit4', board: 'Tab', sheet: 'Backquote', taunt: 'KeyY', rules: 'F1', stop: 'KeyS', vote: '', replay: 'Digit5',
 };
 // fixas: Esc (cancela, fecha e abre as configurações), Enter, Espaço (segurar arrasta a câmera, soltar centraliza) e ← → (placar e espectador)
 export const RESERVED = new Set(['Escape', 'Enter', 'Space', 'ArrowLeft', 'ArrowRight']);

@@ -48,6 +48,13 @@ describe('teclas da interface no mesmo painel das magias', () => {
     expect(isUiKey('KeyT', 'stop')).toBe(true);
   });
 
+  it('Rever a queda começa no 5 e é trocável como os outros atalhos', () => {
+    expect(isUiKey('Digit5', 'replay')).toBe(true);
+    expect(actionFor('Digit5')).toBeUndefined();
+    expect(setKey('replay', 'Digit9')).toBe(true);
+    expect([isUiKey('Digit9', 'replay'), isUiKey('Digit5', 'replay')]).toEqual([true, false]);
+  });
+
   it('depois de muitas trocas nenhuma tecla aparece em duas ações', () => {
     const all = [...ACTIONS, ...UI_ACTIONS];
     const codes = ['KeyQ', 'KeyS', 'Tab', 'Digit4', 'F1', 'Backquote', 'KeyY', 'Digit1', 'KeyZ', 'F2'];

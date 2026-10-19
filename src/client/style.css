@@ -673,6 +673,11 @@ button.train small { font-weight: 400; }
 @keyframes nudge { from { box-shadow: 0 0 0 0 rgba(255, 179, 71, 0); } to { box-shadow: 0 0 0 3px var(--ember), 0 0 16px rgba(255, 179, 71, .6); } }
 .watching button.icon { width: 36px; min-height: 36px; border-radius: 999px; font-size: 1.3rem; line-height: 1; }
 @media (max-width: 600px) { .hud > .watching { top: auto; bottom: calc(76px + var(--safe-b)); } }
+/* replay da queda: pílula logo abaixo do "Assistindo" */
+.hud > .replay { position: absolute; left: 50%; top: calc(144px + var(--safe-t)); transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 10px; padding: 2px 2px 2px 12px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--gold-line); white-space: nowrap; }
+.hud > .replay:has(> span[hidden]) { padding-left: 2px; }
+.replay button { min-height: 36px; padding: 2px 12px; border-radius: 999px; }
+@media (max-width: 600px) { .hud > .replay { top: auto; bottom: calc(124px + var(--safe-b)); } }
 @media (pointer: coarse) { .watching button.icon { width: 44px; min-height: 44px; } .watching .shop-nudge { min-height: 44px; } }
 
 /* loja com alça de arrastar no canto (só PC): o tamanho escolhido fica salvo; no celular ela já ocupa a tela */

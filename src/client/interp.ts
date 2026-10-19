@@ -1,13 +1,22 @@
 // Guarda os últimos estados do servidor e devolve o mundo num instante entre dois deles (outros magos e projéteis).
 import type { ProjView, SnapView, WizView } from '../shared/snapshot.ts';
+import { CREDIT_WINDOW, DT, SEND_EVERY } from '../shared/constants.ts';
 import { v } from '../shared/vec.ts';
 
-const DELAY = 0.066; // desenha 66 ms no passado: dá tempo de ter sempre dois estados para interpolar
+export const DELAY = 0.066; // desenha 66 ms no passado: dá tempo de ter sempre dois estados para interpolar
+// replay da queda: a janela do abate mais 1 s, em estados do servidor (30 por segundo → 180)
+export const REPLAY_MAX = Math.round((CREDIT_WINDOW + 1) / (DT * SEND_EVERY));
+
+// guarda só os últimos max itens
+export function keepLast<T>(arr: T[], item: T, max: number) {
+  arr.push(item);
+  if (arr.length > max) arr.shift();
+}
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const lerpAngle = (a: number, b: number, t: number) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
 
-export function createInterp() {
+export function createInterp(max = 30) {
   let buf: SnapView[] = [];
   let offset: number | null = null; // tempo do servidor − relógio local, em segundos
 
@@ -22,8 +31,7 @@ export function createInterp() {
       const sample = s.time - localSec;
       // média lenta para não tremer com a oscilação da rede; salto grande recomeça
       offset = offset === null || Math.abs(sample - offset) > 0.5 ? sample : offset + (sample - offset) * 0.05;
-      buf.push(s);
-      if (buf.length > 30) buf.shift();
+      keepLast(buf, s, max);
     },
     latest: (): SnapView | null => buf[buf.length - 1] ?? null,
     reset() {

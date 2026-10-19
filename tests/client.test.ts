@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createInterp } from '../src/client/interp.ts';
+import { DELAY, REPLAY_MAX, createInterp, keepLast } from '../src/client/interp.ts';
 import { createPredict } from '../src/client/predict.ts';
 import type { SnapView, WizView } from '../src/shared/snapshot.ts';
 import { WIZ_SPEED } from '../src/shared/constants.ts';
@@ -24,6 +24,25 @@ describe('interpolação', () => {
     it.push(snap(0, 0), 10.1);
     expect(it.latest()!.time).toBe(0);
     expect(it.sample(10.2)!.wizards[0].pos.x).toBe(0);
+  });
+});
+
+describe('replay da queda', () => {
+  it('o trecho guarda 180 estados (6 s) e interpola no meio, no tempo do servidor', () => {
+    expect(REPLAY_MAX).toBe(180);
+    const it = createInterp(REPLAY_MAX);
+    for (let i = 0; i <= 200; i++) it.push(snap(i / 30, i), i / 30);
+    // o estado 0 saiu (201 entraram): pedir o começo devolve o mais antigo que ficou, o 21
+    expect(it.sample(0 + DELAY)!.wizards[0].pos.x).toBe(21);
+    expect(it.sample(100.5 / 30 + DELAY)!.wizards[0].pos.x).toBeCloseTo(100.5, 5);
+  });
+
+  it('o buffer da partida fica só com os últimos 6 s', () => {
+    const ring: SnapView[] = [];
+    for (let i = 0; i < 600; i++) keepLast(ring, snap(i / 30, 0), REPLAY_MAX);
+    expect(ring.length).toBe(180);
+    expect(ring[ring.length - 1].time - ring[0].time).toBeCloseTo(179 / 30, 5);
+    expect(ring[0].time).toBeCloseTo(420 / 30, 5);
   });
 });
 

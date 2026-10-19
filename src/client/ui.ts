@@ -176,6 +176,7 @@ type RoomActions = {
   setFxLite: (lite: boolean) => void;
   spellReady: () => void; // uma magia acabou de recarregar
   watch: (step: number) => void; // espectador: +1 próximo vivo, −1 anterior
+  replay: () => void; // liga ou desliga o replay da queda
   name: () => string; // apelido atual e a troca (aba Jogador das configurações)
   rename: () => void;
 };
@@ -235,7 +236,7 @@ const n0 = (x: number) => Math.round(x).toLocaleString('pt-BR');
 const UTILITY = new Set(['teleport', 'shield', 'rush', 'pact', 'redirector', 'thrust', 'rockpillar', 'magnetize', 'alteration', 'warpzone']);
 const srcIcon = (k: string) => icon(k === 'lava' ? SOURCE_ICON.lava : k in ICON ? ICON[k as SpellId] : k in ITEM_ICON ? ITEM_ICON[k as ItemId] : k.startsWith('choque') ? SOURCE_ICON.shock : k === 'pillar' ? SOURCE_ICON.pillar : SOURCE_ICON.unknown);
 const gold = (n: number) => el('span', {}, icon(UI_ICON.gold), ' ' + n);
-const srcName = (k: string) => (k === 'lava' ? 'lava' : k in SPELLS ? SPELLS[k as SpellId].name : k in ITEMS ? ITEMS[k as ItemId].name : k);
+export const srcName = (k: string) => (k === 'lava' ? 'lava' : k in SPELLS ? SPELLS[k as SpellId].name : k in ITEMS ? ITEMS[k as ItemId].name : k);
 
 // placar (pedido do Fernando, 17/10; refeito em 18/10): abas Resumo e Magias, destaques com retrato e o melhor de cada coluna em dourado
 type View = 'summary' | 'spells';
@@ -679,7 +680,16 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // caiu nas Rodadas ou nos Times: botão Loja pulsando no selo (no celular a loja não abre sozinha)
   const shopNudge = el('button', { type: 'button', class: 'shop-nudge', hidden: true, onclick: () => togglePeek() }, icon(UI_ICON.shop), ' Loja');
   watchBadge.append(shopNudge);
-  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, players, timer, respawn, feed, coach, watchBadge, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
+  // replay da queda: botão depois de cair; durante o replay, a faixa com quem derrubou e o botão de sair
+  const replayText = el('span', {});
+  const replayBtn = el('button', { type: 'button', onclick: () => act.replay() });
+  const replayBar = el('div', { class: 'replay', role: 'status', hidden: true }, replayText, replayBtn);
+  addEventListener('keydown', (e) => {
+    if (!isUiKey(e.code, 'replay') || e.repeat || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+    e.preventDefault();
+    act.replay();
+  });
+  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, players, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
@@ -1081,6 +1091,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         syncBar();
       }
       if (name && watchName.textContent !== name) watchName.textContent = name;
+    },
+    // ready: dá para rever a queda; text: o replay está passando (quem derrubou e com o quê)
+    replay(ready: boolean, text: string | null) {
+      replayBar.hidden = !ready && !text;
+      replayText.hidden = !text;
+      if (text && replayText.textContent !== text) replayText.textContent = text;
+      const k = uiLabel('replay');
+      const label = text ? (TOUCH ? 'Sair' : 'Sair (Esc)') : TOUCH || k === '—' ? 'Rever a queda' : `Rever a queda (${k})`;
+      if (replayBtn.textContent !== label) replayBtn.textContent = label;
     },
     coach(text: string | null) {
       // primeira loja: o cartão "Primeira vez?" já diz o que fazer; a dica do treino espera ele sair
