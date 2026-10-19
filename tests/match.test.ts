@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { BOT_SKILL, CLASSIC_PLAN, botBuy, botCmds, skillAt } from '../src/shared/bots.ts';
 import { ARENA_R0, ASSIST_GOLD, COUNTDOWN_MS, DM_ROUND_MS, KILL_GOLD, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
-import { BOT_NAMES, addPlayer, botSkill, buy, castBallot, endIdle, kick, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, startVote, tickMatch, type Match, type Stat } from '../src/shared/match.ts';
+import { lookOf } from '../src/shared/characters.ts';
+import { BOT_NAMES, addPlayer, botSkill, buy, castBallot, endIdle, kick, newMatch, removePlayer, resume, setLook, setReady, shouldRun, startMatch, startVote, tickMatch, type Match, type Stat } from '../src/shared/match.ts';
 import { newWorld } from '../src/shared/sim.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
 import { publicRoom } from '../src/shared/protocol.ts';
@@ -234,18 +235,30 @@ describe('partida', () => {
     expect(evs.filter((e) => e.k === 'gold').map((e) => [e.id, e.n])).toEqual([['a', WIN_GOLD], ['b', TOP_DMG_GOLD]]);
   });
 
-  it('character can change in lobby and shop, not during a round', () => {
+  it('aparência troca em qualquer fase, até no meio da rodada; o personagem vira o da cabeça', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
-    expect(m.players[0].character).toBe('mage');
-    expect(setCharacter(m, 'a', 'knight')).toBe(true);
+    expect(m.players[0]).toMatchObject({ character: 'mage', look: lookOf('mage') });
+    expect(setLook(m, 'a', lookOf('knight'))).toBe(true);
     startMatch(m, 0, 2);
-    expect(setCharacter(m, 'a', 'skeleton_mage')).toBe(true);
-    const bots = m.players.filter((p) => p.bot).map((p) => p.character);
-    expect(new Set(bots).size).toBe(bots.length);
+    const bots = m.players.filter((p) => p.bot);
+    expect(new Set(bots.map((p) => p.look)).size).toBe(bots.length);
+    for (const b of bots) expect(b.look).toBe(lookOf(b.character));
     toPlaying(m, 0);
-    expect(setCharacter(m, 'a', 'rogue')).toBe(false);
-    expect(m.players[0].character).toBe('skeleton_mage');
+    expect(setLook(m, 'a', '5000000')).toBe(true); // cabeça do esqueleto mago no corpo do mago
+    expect(m.players[0]).toMatchObject({ character: 'skeleton_mage', look: '5000000' });
+    expect(setLook(m, 'a', '5000000')).toBe(false); // igual: nada a repassar
+    expect(setLook(m, 'zz', '5000000')).toBe(false);
+    expect(publicRoom('r', m, 0).players[0]).toMatchObject({ character: 'skeleton_mage', look: '5000000' });
+  });
+
+  it('sala gravada antes da aparência ganha a do personagem', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'Ana');
+    m.players[0].character = 'rogue_hooded';
+    delete (m.players[0] as { look?: string }).look;
+    resume(m, 0);
+    expect(m.players[0].look).toBe(lookOf('rogue_hooded'));
   });
 
   it('loop stops without humans', () => {

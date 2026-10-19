@@ -1,7 +1,7 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS } from './arena.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
-import { CHARACTERS, type CharacterId } from './characters.ts';
+import { CHARACTERS, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
   ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
 } from './constants.ts';
@@ -88,7 +88,8 @@ export type Player = {
   name: string;
   bot: boolean;
   color: number; // 0..7
-  character: CharacterId;
+  character: CharacterId; // o da cabeça da aparência (retrato 2D)
+  look: string; // aparência montada (7 dígitos, ver LOOK_PARTS)
   score: number; // rodadas vencidas (deathmatch: abates)
   gold: number;
   spells: Record<SpellId, number>;
@@ -152,7 +153,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false): bool
   const color = [0, 1, 2, 3, 4, 5, 6, 7].find((c) => !used.has(c)) ?? 0;
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
-  m.players.push({ id, name, bot, color, character, score: 0, gold: startGold(m), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null });
+  m.players.push({ id, name, bot, color, character, look: lookOf(character), score: 0, gold: startGold(m), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null });
   return true;
 }
 
@@ -224,11 +225,12 @@ export function buy(m: Match, id: string, spell: SpellId): boolean {
   return !!p;
 }
 
-// troca de personagem fora da rodada (sala, loja ou fim), para o boneco não mudar no meio da luta
-export function setCharacter(m: Match, id: string, character: CharacterId): boolean {
+// troca de aparência em qualquer fase, até no meio da luta (pedido do Fernando, 19/10); o personagem vira o da cabeça
+export function setLook(m: Match, id: string, look: string): boolean {
   const p = player(m, id);
-  if (!p || p.character === character || !['lobby', 'shop', 'end'].includes(m.phase)) return false;
-  p.character = character;
+  if (!p || p.look === look) return false;
+  p.look = look;
+  p.character = lookHead(look);
   return true;
 }
 
@@ -317,6 +319,7 @@ export function resume(m: Match, now: number) {
   m.vote = null; // o prazo de uma votação gravada já passou
   for (const p of m.players) {
     p.character ??= 'mage';
+    p.look ??= lookOf(p.character); // salas gravadas antes da aparência montada
     // salas gravadas antes das magias novas, ou com uma que saiu do jogo (os Gêmeos, 19/10): fica só o que existe
     p.spells = Object.fromEntries(SPELL_IDS.map((s) => [s, p.spells[s] ?? noSpells()[s]])) as Record<SpellId, number>;
     const plan = (p as { plan?: BotPlan }).plan;
