@@ -215,9 +215,11 @@ describe('dificuldade dos bots', () => {
     expect(moveTo(botCmds(w, 'bot', noSlip(0.9), BOT_SKILL.normal))).toEqual(v(1.5, 0));
   });
 
-  it('ouro: Fácil ignora; Normal vai sem inimigo a < 4 m; Difícil vai mesmo com inimigo perto', () => {
-    const goes = (k: Kind, enemyAt: number) => {
+  it('ouro: Fácil ignora; Normal vai sem inimigo a < 4 m; Difícil vai mesmo com inimigo perto; no duelo final, ninguém', () => {
+    const goes = (k: Kind, enemyAt: number, last = false) => {
       const w = duel({}, v(enemyAt, 0));
+      // um terceiro mago vivo, longe: ainda não é o duelo final
+      if (!last) w.wizards.push({ ...w.wizards[1], id: 'y', pos: v(-30, -30) });
       w.loots.push({ pos: v(0, 3), left: 10, until: 99 });
       return botCmds(w, 'bot', noSlip(0.9), BOT_SKILL[k]).some((c) => c.kind === 'move' && c.to.x === 0 && c.to.y === 3);
     };
@@ -225,6 +227,8 @@ describe('dificuldade dos bots', () => {
     expect(goes('normal', 9)).toBe(true);
     expect(goes('normal', 3)).toBe(false);
     expect(goes('hard', 3)).toBe(true);
+    expect(goes('normal', 9, true)).toBe(false);
+    expect(goes('hard', 3, true)).toBe(false);
   });
 
   it('erro humano: o Fácil fica parado bem mais vezes que o Difícil, e parado não decide por 0,5 s', () => {

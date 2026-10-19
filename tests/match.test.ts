@@ -266,7 +266,7 @@ describe('bots', () => {
     w.wizards[0].pos = v(ARENA_R0 - 0.5, 0);
     w.wizards[0].cd.fireball = 99;
     const move = botCmds(w, 'bot', () => 0.5).find((c) => c.kind === 'move');
-    expect(move && move.kind === 'move' && move.to.x < ARENA_R0 - 2).toBe(true);
+    expect(move && move.kind === 'move' && move.to.x < ARENA_R0 - 1.5).toBe(true); // para dentro (o primeiro ponto do caminho, ao menos 1 m)
   });
 
   it('bot casts fireball at nearest enemy', () => {

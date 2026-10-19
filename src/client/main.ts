@@ -1,5 +1,5 @@
 import { edgeAt, onIsle, type ArenaId } from '../shared/arena.ts';
-import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, type RuneKind } from '../shared/constants.ts';
+import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, SUDDEN, type RuneKind } from '../shared/constants.ts';
 import { isCharacter } from '../shared/characters.ts';
 import type { PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { SimEvent } from '../shared/sim.ts';
@@ -517,8 +517,8 @@ function startRoom(code: string, name: string) {
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
     scene.range(showing && myPos ? myPos : null, showing && meP ? reachOf(showing, meP.spells, meP.items) : 0);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
-    // no tamanho mínimo a arena não encolhe mais: o aviso some
-    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && s.arenaR > ARENA_MIN + 0.01 ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null);
+    // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
+    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null);
   }
   const drawn = new Map<string, Vec>();
   void scene.ready.then(() => requestAnimationFrame(frame), () => toast('Não deu para carregar o mago. Recarregue a página.'));

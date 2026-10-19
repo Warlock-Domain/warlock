@@ -27,6 +27,14 @@ function duel(own: Partial<Record<SpellId, number>>, items: Partial<Record<strin
 }
 
 describe('bots usam tudo', () => {
+  it('perto da borda, ainda na pedra, volta para dentro atirando (19/10: no duelo final só voltava)', () => {
+    const w = newWorld(['bot', 'x'], { bot: noSpells(), x: noSpells() });
+    w.wizards[0].pos = v(w.arenaR - 1, 0);
+    w.wizards[1].pos = v(w.arenaR - 5, 0);
+    const cmds = botCmds(w, 'bot', () => 0.3);
+    expect(cmds.some((c) => c.kind === 'cast' && c.spell === 'fireball')).toBe(true);
+    expect(cmds.some((c) => c.kind === 'move' && c.to.x < w.arenaR - 1.5)).toBe(true);
+  });
   it('casts lightning when it is the only spell ready and the target is in range', () => {
     const c = casts(botCmds(duel({ lightning: 1 }), 'bot', () => 0.3));
     expect(c).toHaveLength(1);
