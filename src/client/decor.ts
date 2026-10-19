@@ -1,5 +1,5 @@
-// Decoração KayKit (CC0): ilhas de pedra com ruínas na lava em volta da arena e ossos espalhados no chão
-// que afundam quando a camada deles cai. Só visual: nada aqui entra na simulação.
+// Decoração KayKit (CC0): ossos e entulho no chão que afundam quando a camada deles cai.
+// As únicas ilhas de pedra são as de refúgio, desenhadas pela cena a partir da simulação.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { v, type Vec } from '../shared/vec.ts';
@@ -8,17 +8,6 @@ type Prop = { obj: THREE.Object3D; pos: Vec };
 // distância até a borda da arena (positiva na pedra), da forma desta rodada
 type EdgeOf = (p: Vec) => number;
 
-// [modelos da ilha, raio, ângulo em graus]
-const ISLANDS: [string[], number, number][] = [
-  [['tree_dead_large', 'skull'], 17.3, 20],
-  [['pillar_decorated', 'torch_lit'], 16.6, 62],
-  [['arch'], 18, 105],
-  [['post_skull', 'rubble_large'], 16.4, 148],
-  [['tree_dead_medium', 'lantern_standing'], 17.6, 190],
-  [['column', 'torch_lit'], 16.5, 232],
-  [['shrine_candles', 'ribcage'], 17.2, 275],
-  [['pillar', 'skull_candle'], 16.7, 318],
-];
 const FLOOR: [string, number, number][] = [
   // dentro da menor arena (2 magos, 9,7 m) para nenhum começar afundado
   ['bone_A', 8.9, 35], ['skull', 8.4, 80], ['rubble_half', 9.2, 128], ['bone_B', 7.7, 170],
@@ -38,16 +27,10 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
   const models = new Map<string, THREE.Object3D>();
   let unit = 1;
   const flames: THREE.Sprite[] = [];
-  const islands: { g: THREE.Group; r: number; a: number }[] = [];
   let edgeOf: EdgeOf | null = null;
-  // ilhas de decoração afastadas da pedra (as arenas novas são mais compridas que o círculo) e das ilhas de refúgio (até 5,4 m da borda, mais o raio de 1,7 m destas); ossos fora da pedra já afundados
+  // ossos fora da pedra já afundados
   const arrange = () => {
     if (!edgeOf) return;
-    for (const it of islands) {
-      let r = it.r;
-      while (r < 40 && edgeOf(v(Math.cos(it.a) * r, Math.sin(it.a) * r)) > -7.5) r += 0.5;
-      it.g.position.set(Math.cos(it.a) * r, 0.1, Math.sin(it.a) * r);
-    }
     settle(edgeOf, 1);
   };
   // ossos e entulho fora da pedra afundam na lava; k: fração do caminho até a altura certa feita agora
@@ -57,13 +40,6 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
       p.obj.visible = p.obj.position.y > -1.4;
     }
   };
-  const islandMat = new THREE.MeshStandardMaterial({ color: '#b8aaa0', roughness: 1, emissive: '#3a0c02', emissiveIntensity: 0.4 });
-  new THREE.TextureLoader().load('/tex/stone.jpg', (t) => {
-    t.colorSpace = THREE.SRGBColorSpace;
-    islandMat.map = t;
-    islandMat.needsUpdate = true;
-  });
-
   Promise.all([new GLTFLoader().loadAsync('/models/decor.glb'), unitScale]).then(([g, k]) => {
     for (const child of g.scene.children) models.set(child.name.replace(/\.gltf$/, ''), child);
     unit = k;
@@ -90,18 +66,6 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
       return o;
     };
 
-    for (const [names, r, deg] of ISLANDS) {
-      const a = (deg * Math.PI) / 180;
-      const island = new THREE.Group();
-      island.position.set(Math.cos(a) * r, 0.1, Math.sin(a) * r);
-      const rock = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.3, 1.2, 9), islandMat);
-      rock.position.y = -0.6;
-      rock.receiveShadow = true;
-      island.add(rock);
-      names.forEach((n, i) => place(n, i === 0 ? 0 : 0.8, i === 0 ? 0 : 0.6, a + Math.PI / 2, island));
-      scene.add(island);
-      islands.push({ g: island, r, a });
-    }
     for (const [name, r, deg] of FLOOR) {
       const a = (deg * Math.PI) / 180;
       const holder = new THREE.Group();
