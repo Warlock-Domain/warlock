@@ -1,0 +1,29 @@
+name: Ideia
+description: Magia, item, modo, mudança de interface ou de balanceamento
+labels: [ideia]
+body:
+  - type: textarea
+    id: oque
+    attributes:
+      label: O que
+      description: A ideia em poucas frases.
+    validations:
+      required: true
+  - type: textarea
+    id: porque
+    attributes:
+      label: Por quê
+      description: Que problema resolve ou o que deixa mais divertido.
+    validations:
+      required: true
+  - type: textarea
+    id: como
+    attributes:
+      label: Como imagino
+      description: Números, desenho, referência de outro jogo (Dota, Warcraft 3…). Opcional.
+  - type: checkboxes
+    id: fazer
+    attributes:
+      label: Quem faz
+      options:
+        - label: Quero fazer o pull request desta ideia
