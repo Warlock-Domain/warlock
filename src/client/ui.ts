@@ -13,7 +13,7 @@ import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, infoButton } from './opt-info.ts';
 import { BOT_LEVEL, COLORS, TEAM_COLORS } from './scene.ts';
 import { SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
-import { ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, icon, type Child } from './icons.ts';
+import { BAD_STATUS, ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, icon, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
 import { botSetupPanel, savedBotSetup } from './train.ts';
@@ -519,7 +519,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   });
   const gearBtn = el('button', { type: 'button', class: 'icon wide-only', title: t('Configurações (Esc)', 'Settings (Esc)'), 'aria-label': t('Configurações', 'Settings'), onclick: () => openSettings() }, icon(UI_ICON.gear));
   onKeysChange(() => {
-    bar.querySelectorAll<HTMLElement>('[data-action]').forEach((k) => (k.textContent = labelOf(k.dataset.action as Action)));
+    barWrap.querySelectorAll<HTMLElement>('[data-action]').forEach((k) => (k.textContent = labelOf(k.dataset.action as Action)));
     drawCenter();
     drawHints();
   });
@@ -650,7 +650,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     buttons.set(s, { b, cd, pips });
     return b;
   }));
-  // itens ativos (teclas 1, 2 e 3) ao lado das magias; só aparecem se comprados
+  // itens ativos (teclas 1, 2 e 3) na grade de itens à direita da barra; só aparecem se comprados
+  // grade 3×2 como a do Dota (MAX_ITEMS = 6): ativos com a tecla, passivos apagados e o resto vazio
+  const itemGrid = el('div', { class: 'item-grid', role: 'group', 'aria-label': t('Itens', 'Items') });
   const itemButtons = new Map<ItemId, { b: HTMLElement; cd: HTMLElement }>();
   for (const i of ACTIVE_ITEMS) {
     const cd = el('span', { class: 'cd' });
@@ -658,9 +660,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('span', { class: 'key', 'data-action': i }, labelOf(i)), el('span', { class: 'ico' }, icon(ITEM_ICON[i])), cd), () => itemTip(i, mine?.items[i] ?? 0));
     b.hidden = true;
     itemButtons.set(i, { b, cd });
-    bar.append(b);
+    itemGrid.append(b);
   }
-  const passives = el('div', { class: 'passives' });
+  // efeitos ativos em mim, numa fileira pequena acima da barra
+  const statusRow = el('div', { class: 'status-icons hud-status', role: 'group', 'aria-label': t('Efeitos', 'Effects') });
   // segurar Tab durante a partida mostra o placar; o 📊 (toque) e o botão Placar da loja deixam aberto até fechar
   const tabOverlay = el('div', { class: 'tab-overlay', hidden: true });
   function showTab(on: boolean) {
@@ -701,13 +704,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (isSpell(shownArmed)) act.spell(shownArmed);
       else if (shownArmed) act.useItem(shownArmed as ItemId);
     } }, '✕'));
-  // vida grande e ouro logo acima da barra de magias (só jogando e vivo)
+  // barra da partida estilo Dota (decisão do Fernando, 19/10): retrato com vida e ouro à esquerda, magias no meio, itens à direita
   const hpFill = el('i', {});
   const hpText = el('span', { class: 'hp-text' });
   const hpBar = el('div', { class: 'hpbar', role: 'img' }, hpFill, hpText);
   const goldNow = el('span', { class: 'gold' });
-  const vitals = el('div', { class: 'vitals', hidden: true }, hpBar, goldNow);
-  const barWrap = el('div', { class: 'barwrap' }, armedHint, vitals, passives, bar);
+  const vitals = el('div', { class: 'vitals', hidden: true }, hpBar, goldNow); // vida só jogando e vivo
+  const heroFace = el('img', { class: 'hero-face', alt: '', width: 72, height: 84 });
+  const hero = el('div', { class: 'hero-box' }, heroFace, vitals);
+  const barWrap = el('div', { class: 'barwrap' }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, bar, itemGrid)));
   // a barra some na sala, na loja e no fim (update, a cada segundo) e enquanto eu assisto morto (watching, a cada quadro): uma conta só, sem piscar
   let barOff = true;
   let watchingNow = false;
@@ -1262,16 +1267,21 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       drawPlayers();
       mine = r.players.find((p) => p.id === you);
       for (const i of ACTIVE_ITEMS) itemButtons.get(i)!.b.hidden = !mine?.items[i];
-      // barra da partida: só magias e itens equipados; passivos viram selos pequenos acima dela
-      // a sala manda atualização a cada segundo: recriar os selos sem mudança fecharia a dica aberta neles
-      const owned = ITEM_IDS.filter((i): boolean => !isActive(i) && (mine?.items[i] ?? 0) > 0);
+      // meu retrato na barra: só troca quando muda o personagem ou o nome
+      const face = mine ? `/chars/${mine.character}.webp` : '';
+      if (mine && heroFace.getAttribute('src') !== face) heroFace.src = face;
+      if (mine && heroFace.alt !== mine.name) heroFace.alt = mine.name;
+      // grade de itens: ativos comprados, depois os passivos (com o nível) e as vagas vazias
+      // a sala manda atualização a cada segundo: recriar sem mudança fecharia a dica aberta nos itens
+      const owned = ITEM_IDS.filter((i): boolean => (mine?.items[i] ?? 0) > 0);
       const sig = owned.map((i) => i + mine!.items[i]).join();
-      if (sig !== passives.dataset.sig) {
-        passives.dataset.sig = sig;
-        passives.replaceChildren(...owned.map((i) =>
-          withTip(el('span', { class: 'passive', tabindex: 0, 'aria-label': itemName(i) }, icon(ITEM_ICON[i]), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0)),
-        ));
-        hideTip(passives);
+      if (sig !== itemGrid.dataset.sig) {
+        itemGrid.dataset.sig = sig;
+        const passive = owned.filter((i) => !isActive(i));
+        itemGrid.replaceChildren(...ACTIVE_ITEMS.map((i) => itemButtons.get(i)!.b), ...passive.map((i) =>
+          withTip(el('span', { class: 'spell passive', tabindex: 0, 'aria-label': t(`${itemName(i)} (passivo) nível ${mine!.items[i]}`, `${itemName(i)} (passive) level ${mine!.items[i]}`) }, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0)),
+        ), ...Array.from({ length: Math.max(0, MAX_ITEMS - owned.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
+        hideTip(itemGrid);
       }
       setSlots(SPELL_IDS.filter((s) => (mine?.spells[s] ?? 0) > 0));
       for (const s of SPELL_IDS) {
@@ -1303,6 +1313,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (status !== myStatus) {
         myStatus = status;
         drawSheet();
+        // como em cima do mago (scene.ts), com o nome no rótulo; a Égide pronta também aparece aqui
+        statusRow.replaceChildren(...STATUS_ICONS.filter(([bit]) => status & bit).map(([bit, ico, name]) =>
+          el('i', { class: BAD_STATUS.includes(bit) ? 'bad' : 'good', title: name, role: 'img', 'aria-label': name }, icon(ico))));
       }
       vitals.hidden = !hp;
       const hpLabel = hp ? `${Math.max(0, Math.ceil(hp.now))}/${hp.max}` : '';

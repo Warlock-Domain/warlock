@@ -155,16 +155,37 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .barwrap { position: absolute; left: max(10px, var(--safe-l)); right: max(10px, var(--safe-r)); bottom: calc(10px + var(--safe-b)); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
 .barwrap > * { pointer-events: auto; }
 .spellbar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-.passives { display: flex; gap: 6px; }
-.passives:empty { display: none; }
-.passive { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 999px; background: var(--panel-solid); border: 1px solid var(--line); font-size: .95rem; cursor: default; }
-.passive small { font-size: .75rem; color: var(--ember); font-weight: 800; }
+/* barra da partida estilo Dota (ui.ts): painel com rebites; retrato com vida e ouro, magias no meio e grade de itens 3×2 */
+.dota-bar, .skills { display: flex; align-items: center; gap: 14px; }
+.dota-bar { padding: 10px 16px; border-radius: var(--r-frame); background: var(--frame), var(--plate); border: 2px solid var(--bronze); box-shadow: var(--plate-edge), var(--shadow-md); }
+.hero-box { display: flex; align-items: center; gap: 10px; }
+.hero-face { width: 72px; height: 84px; object-fit: cover; object-position: top; border-radius: var(--r-sm); border: 2px solid var(--bronze); background: var(--panel-bot); }
+.item-grid { display: grid; grid-template-columns: repeat(3, 42px); grid-auto-rows: 42px; gap: 4px; }
+.item-grid .passive { display: flex; align-items: center; justify-content: center; opacity: .6; border-color: var(--line); cursor: default; }
+.item-grid .passive .ico { color: var(--gold-pale); font-size: 1.1rem; }
+.item-grid .passive small { position: absolute; right: 3px; bottom: 1px; font-size: .7rem; color: var(--ember); font-weight: 800; }
+.slot-empty { border-radius: var(--r-sm); background: rgba(0, 0, 0, .35); border: 1px dashed var(--line); }
+/* efeitos em mim acima da barra (mesmos ícones de cima do mago) */
+.barwrap .hud-status { gap: 4px; padding: 3px 10px; border-radius: 999px; background: var(--panel-glass); }
+.hud-status:empty { display: none; }
+.barwrap .hud-status i { font-size: 1.3rem; }
+@media (min-width: 601px) and (min-height: 501px) {
+  /* a vida some na contagem e morto: o lugar fica, para a barra não pular */
+  .hero-box .vitals[hidden] { display: flex !important; visibility: hidden; }
+  .hero-box .vitals { flex-direction: column; align-items: stretch; gap: 6px; }
+  .hero-box .hpbar { width: 190px; height: 22px; }
+  .hero-box .hpbar .hp-text { font-size: .85rem; }
+  .item-grid .spell { width: 42px; height: 42px; border-radius: var(--r-sm); }
+  .item-grid .spell .ico { font-size: 1.25rem; }
+  .item-grid .spell .key { left: 2px; top: 1px; padding: 0 3px; font-size: .65rem; }
+  .item-grid .spell .cd { font-size: .95rem; }
+}
 .spell { position: relative; width: 64px; height: 64px; min-height: 0; padding: 0; flex-direction: column; gap: 0; border-radius: var(--r-md); background: var(--plate); border: 2px solid var(--bronze); box-shadow: inset 0 0 0 2px var(--panel-bot), inset 0 0 0 3px var(--gold-faint); overflow: hidden; touch-action: manipulation; }
 .spell .ico { font-size: 1.6rem; line-height: 1; }
 /* ícone aceso na barra (dourado com brilho de brasa) e apagado enquanto recarrega */
 .spellbar .spell:not(.item) .ico { color: var(--gold); }
-.spellbar .spell .ico { filter: drop-shadow(0 0 4px rgba(255, 140, 40, .65)) drop-shadow(0 1px 1px var(--ink)); }
-.spellbar .spell.cooling .ico { filter: grayscale(1) brightness(.6); }
+.spellbar .spell .ico, .item-grid .spell .ico { filter: drop-shadow(0 0 4px rgba(255, 140, 40, .65)) drop-shadow(0 1px 1px var(--ink)); }
+.spellbar .spell.cooling .ico, .item-grid .spell.cooling .ico { filter: grayscale(1) brightness(.6); }
 .spell .key { position: absolute; left: 4px; top: 3px; padding: 0 4px; font-size: .75rem; }
 .spell .pips { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); }
 .spell .pips i { width: 9px; height: 3px; }
@@ -221,7 +242,7 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .wiz-label .hp-extra .rune { color: #93c5fd; }
 .wiz-label .hp-extra .rush { color: #ff9640; }
 
-#toast { position: fixed; left: 50%; bottom: calc(96px + var(--safe-b)); transform: translateX(-50%); background: var(--plate); border: 1px solid var(--gold-line); padding: 10px 14px; border-radius: var(--r-sm); opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
+#toast { position: fixed; left: 50%; bottom: calc(150px + var(--safe-b)); transform: translateX(-50%); background: var(--plate); border: 1px solid var(--gold-line); padding: 10px 14px; border-radius: var(--r-sm); opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
 #toast.show { opacity: 1; pointer-events: auto; }
 body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, .55) 100%); z-index: 1; }
 .banner { position: fixed; left: 50%; top: 24%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none; font-family: var(--display); font-size: clamp(1.8rem, 6vw, 3.6rem); color: var(--fg); text-shadow: 0 4px 24px rgba(0, 0, 0, .8), 0 0 2px var(--ink); animation: banner-pop 1.6s ease-out forwards; white-space: nowrap; }
@@ -386,6 +407,14 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
   .vol-panel { position: fixed; left: auto; right: max(10px, var(--safe-r)); top: calc(56px + var(--safe-t)); max-width: calc(100% - 20px); }
   .tab-overlay { top: calc(56px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 64px - var(--safe-t) - var(--safe-b)); }
 }
+/* celular: sem painel nem retrato, como antes: vida em cima, passivos pequenos numa fileira e magias e ativos juntos para o polegar */
+@media (max-width: 600px), (max-height: 500px) {
+  .dota-bar, .hero-box, .spellbar, .item-grid { display: contents; }
+  .hero-face, .slot-empty { display: none; }
+  .skills { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+  .item-grid .passive { order: -2; width: 34px; height: 34px; }
+  .skills:has(.passive)::before { content: ''; flex-basis: 100%; height: 0; order: -1; }
+}
 @keyframes offline-in { from { opacity: 0; max-height: 0; padding-block: 0; border-width: 0; } to { opacity: 1; max-height: 80px; } }
 /* sala, loja e fim já mostram os jogadores no cartão (no PC a lista aparecia atrás do cartão) */
 .hud:has(.center:not(:empty)) .players { display: none; }
@@ -415,7 +444,7 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
 @keyframes drawer-up { from { transform: translateY(100%); } to { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .sheet-panel { animation: none; } }
 /* 6 magias numa linha até em 360 px */
-@media (max-width: 390px) { .spell { width: 52px; height: 52px; } .spellbar { gap: 4px; } }
+@media (max-width: 390px) { .spell { width: 52px; height: 52px; } .spellbar, .skills { gap: 4px; } }
 /* vida grande e ouro acima da barra de magias: moldura de bronze e "936/1000" no meio */
 .vitals { display: flex; align-items: center; gap: 10px; }
 .hpbar { position: relative; width: min(280px, 62vw); height: 18px; border-radius: var(--r-xs); background: rgba(0, 0, 0, .75); border: 2px solid var(--bronze); box-shadow: inset 0 0 0 1px var(--panel-bot), 0 0 0 1px var(--gold-faint), var(--shadow-sm); overflow: hidden; }
@@ -817,6 +846,7 @@ button.train small { font-weight: 400; }
 @media (pointer: coarse) and (min-height: 501px) {
   .barwrap { align-items: flex-end; }
   .spellbar { width: 196px; gap: 8px; justify-content: flex-end; }
+  @media (max-width: 600px) { .skills { width: 196px; gap: 8px; justify-content: flex-end; } }
   .spell { width: 60px; height: 60px; }
   /* aviso acima das 3 fileiras: no meio delas ele cobria e roubava o toque das magias */
   #toast { bottom: calc(216px + var(--safe-b)); }
