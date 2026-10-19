@@ -787,17 +787,24 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const rows = () => bots.map((d, i) => {
       const name = BOT_NAMES[i % BOT_NAMES.length];
       return el('label', { class: 'bot-row' }, el('span', {}, icon(UI_ICON.bot), ' ' + name),
-        el('select', { 'aria-label': t(`Dificuldade de ${name}`, `${name}'s difficulty`), onchange: (e: Event) => set(bots.map((x, j) => (j === i ? ((e.target as HTMLSelectElement).value as Level) : x))) },
+        el('select', { 'aria-label': t(`Dificuldade de ${name}`, `${name}'s difficulty`), onchange: (e: Event) => {
+          // sem redesenhar a lista: a seta do teclado no seletor continua nele
+          bots[i] = (e.target as HTMLSelectElement).value as Level;
+          save();
+        } },
           ...OPTION_CHOICES.difficulty.map((k) => el('option', { value: k, selected: k === d }, SKILL_NAME[k]))));
     });
     const list = el('div', { class: 'bot-list' }, ...rows());
-    const set = (next: Level[]) => {
-      bots = next.slice(0, maxBots);
+    const save = () => {
       try {
         sessionStorage.setItem('warlock:bots', JSON.stringify(bots));
       } catch {
         // só nesta tela
       }
+    };
+    const set = (next: Level[]) => {
+      bots = next.slice(0, maxBots);
+      save();
       count.textContent = String(bots.length);
       list.replaceChildren(...rows());
       startBtn.toggleAttribute('disabled', humans + bots.length < 2);
