@@ -28,6 +28,8 @@ npx vitest run     # testes
 
 Publicar: `npx vite build && npx wrangler deploy`.
 
+**Desenvolver com IA (Claude Code, Codex, Cursor):** as instruções do projeto estão em [CLAUDE.md](CLAUDE.md) (também lidas via [AGENTS.md](AGENTS.md)): mapa do código, gates, regras de código, como o balanceamento é decidido e como testar.
+
 ## Créditos
 
 Modelos, texturas, efeitos, sons e música de uso livre (KayKit, Kenney, ambientCG, Poly Haven, OpenGameArt); lista completa em `public/CREDITS.txt`. Baseado no Warlock de Zymoran e Adynathos e no Warlock Brawl (github.com/warlockbrawl/warlock).
