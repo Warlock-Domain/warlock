@@ -23,6 +23,8 @@ import { endResult, roomGroups } from './screen-data.ts';
 import { LOCALE, arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
 const TITLE = 'Warlock';
+// busca pelo nome sem acento nem maiúscula (loja e biblioteca)
+export const norm = (x: string) => x.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 // tela de toque sem mouse: os textos de ajuda falam de tocar, não de clicar
 export const TOUCH = matchMedia('(hover: none) and (pointer: coarse)').matches;
 
@@ -588,7 +590,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   function drawPeek() {
     if (peekPanel.hidden || !room) return;
     hideTip(peekPanel); // a atualização de 1 s não pode deixar a dica órfã
+    const focused = (document.activeElement as HTMLElement | null)?.dataset?.key;
     peekPanel.replaceChildren(shopPanel(room, true));
+    refocus(peekPanel, focused);
+  }
+  // redesenhar a loja não tira o foco de quem usa o teclado; na busca, o cursor volta para o fim do texto
+  function refocus(box: HTMLElement, key?: string) {
+    const f = key ? box.querySelector<HTMLElement>(`[data-key="${key}"]`) : null;
+    f?.focus();
+    if (f instanceof HTMLInputElement) f.setSelectionRange(f.value.length, f.value.length);
   }
   function togglePeek(open = peekPanel.hidden) {
     open &&= !!room && PEEK_PHASES.includes(room.phase);
@@ -937,6 +947,22 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // estado da loja que sobrevive ao redesenho (a sala manda o estado a cada compra de qualquer jogador)
   let goldOpen = false;
   let sheetOpen = true;
+  let shopQuery = ''; // busca da loja: fica ao redesenhar (a sala manda o estado a cada segundo)
+  const shopSearch = () => el('input', { type: 'search', class: 'lib-search', 'data-key': 'shop-search', value: shopQuery, placeholder: t('Buscar pelo nome', 'Search by name'), 'aria-label': t('Buscar na loja pelo nome', 'Search the shop by name'),
+    oninput: (e: Event) => {
+      shopQuery = (e.target as HTMLInputElement).value;
+      filterShop((e.target as HTMLElement).closest('.shop')!);
+    } });
+  // esconde os ícones que não batem com a busca e os grupos que ficaram vazios
+  function filterShop(box: HTMLElement) {
+    const q = norm(shopQuery.trim());
+    for (const g of box.querySelectorAll<HTMLElement>('.shop-group')) {
+      const cards = [...g.querySelectorAll<HTMLElement>('.shop-item')];
+      for (const c of cards) c.hidden = !c.dataset.name!.includes(q);
+      g.hidden = cards.every((c) => c.hidden);
+    }
+    return box;
+  }
   let readyBtn: HTMLElement | null = null;
   // cartão de primeira vez na loja da rodada 0: some ao fechar ou ao apertar Pronto, e fica guardado no navegador
   const FIRST = 'warlock:firstshop';
@@ -965,7 +991,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const value = sellValue(mine, r.round, key);
       // a Bola de fogo vende mesmo valendo 0 (o nível 1 é grátis): libera a vaga e a tecla
       const title = value > 0 ? t('Vende tudo: volta 100% na loja em que comprou e 5% a menos por rodada com ele, até 75%', 'Sells everything: refunds 100% in the shop you bought it in and 5% less per round with it, down to 75%') : t('O nível 1 é grátis e volta 0 de ouro; vender libera a vaga de magia (compra de volta de graça)', 'Level 1 is free and refunds 0 gold; selling frees the spell slot (buy it back for free)');
-      return !peek && canSell(mine, r.round, key) ? el('button', { type: 'button', class: 'sell', title, 'data-key': 'sell-' + key, onclick: () => act.sell(key) }, t(`Vender · ${value}`, `Sell · ${value}`)) : null;
+      return !peek && canSell(mine, r.round, key) ? el('button', { type: 'button', class: 'sell', title, 'data-key': 'sell-' + key, onclick: () => act.sell(key) }, t(`Vender ${value}`, `Sell ${value}`)) : null;
     };
     // um cartão por magia ou item: "dá para comprar" e "já tenho" à vista, e quanto falta quando o ouro não dá
     type Offer = { key: string; ico: string; name: string; hotkey: string | null; use: string; lvl: number; max: number; price: number | null; blocked: string | null; buy: () => void; tip: () => string;
@@ -977,24 +1003,26 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const offer = (o: Offer) => {
       const open = o.price !== null && !o.blocked;
       const can = open && mine.gold >= o.price!;
-      const need = open && !can ? o.price! - mine.gold : 0;
       const key = o.key.replace('-', ':'); // spell:x ou item:y, como na compra
-      // botão só com a moeda e o preço (pedido do Fernando, 19/10): "Nv 2" na frente quando sobe de nível; o texto inteiro fica para o leitor de tela
       const cost = o.price === 0 ? t('de graça', 'for free') : t(`por ${o.price} de ouro`, `for ${o.price} gold`);
-      const label = o.blocked ? [o.blocked] : [o.lvl ? t(`Nv ${o.lvl + 1} `, `Lv ${o.lvl + 1} `) : '', icon(UI_ICON.gold), o.price === 0 ? t(' grátis', ' free') : ` ${o.price}`];
       const full = o.blocked ?? (o.lvl ? t(`Subir para o nível ${o.lvl + 1} ${cost}`, `Upgrade to level ${o.lvl + 1} ${cost}`) : t(`Comprar ${cost}`, `Buy ${cost}`));
-      // só ver: no lugar do botão, só o preço (verde se o ouro de agora dá, vermelho se não); "a compra abre entre as rodadas" fica no cabeçalho
-      const price = el('span', { class: 'peek-price' + (o.blocked ? '' : can ? ' can' : ' cant') },
-        ...(o.blocked ? [o.blocked] : [o.lvl ? t(`Nível ${o.lvl + 1} · `, `Level ${o.lvl + 1} · `) : '', icon(UI_ICON.gold), o.price === 0 ? t(' grátis', ' free') : ` ${o.price}`]));
-      return withTip(el('div', { class: 'shop-item' + (o.key.startsWith('item') ? ' is-item' : '') + (o.lvl ? ' owned' : '') + (can && !peek ? ' can' : '') + (o.blocked && !o.lvl ? ' locked' : '') },
-        el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, icon(o.ico)), el('b', {}, o.name), o.hotkey !== null ? el('span', { class: 'key' }, o.hotkey) : null),
-        el('small', {}, o.use),
-        el('div', { class: 'shop-meta' }, el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
-          o.lvl ? el('small', { class: 'have' }, t('tenho', 'owned')) : null, need ? el('small', { class: 'need' }, t(`faltam ${need}`, `${need} short`)) : null),
-        el('div', { class: 'buy-row' }, peek ? price : el('button', { type: 'button', 'data-key': o.key, disabled: !can, 'aria-label': full, onclick: o.buy }, ...label), undoBtn(key), sellBtn(key)),
+      // ícone quadrado como na loja do Dota (decisão do Fernando, 19/10): tecla no canto, nível em pips e embaixo a moeda e o preço
+      // (vermelho quando o ouro não dá); nome e o que faz ficam na dica
+      const face = [o.hotkey !== null ? el('span', { class: 'key' }, o.hotkey) : null, el('span', { class: 'ico' }, icon(o.ico)), el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
+        el('span', { class: 'tile-price' + (o.blocked ? '' : can ? ' can' : ' cant') }, ...(o.blocked ? [o.blocked] : [o.lvl ? t(`Nv ${o.lvl + 1} `, `Lv ${o.lvl + 1} `) : '', icon(UI_ICON.gold), o.price === 0 ? t(' grátis', ' free') : ` ${o.price}`]))];
+      // clique compra; clique direito também (como no Dota); só ver: o ícone não compra
+      return withTip(el('div', { class: 'shop-item' + (o.key.startsWith('item') ? ' is-item' : '') + (o.lvl ? ' owned' : '') + (can && !peek ? ' can' : '') + (o.blocked && !o.lvl ? ' locked' : ''), 'data-name': norm(o.name),
+        oncontextmenu: (e: Event) => {
+          e.preventDefault();
+          if (can && !peek) o.buy();
+        } },
+        peek ? el('div', { class: 'shop-tile', role: 'img', 'aria-label': `${o.name}: ${full}` }, ...face)
+          : el('button', { type: 'button', class: 'shop-tile', 'data-key': o.key, disabled: !can, 'aria-label': `${o.name}: ${full}`, onclick: o.buy }, ...face),
+        el('div', { class: 'tile-acts' }, undoBtn(key), sellBtn(key)),
       ), () => {
         const sell = peek ? 0 : sellValue(mine, r.round, key);
-        return o.tip() + (peek && can ? `<p class="up">${t('Você pode comprar isto na próxima loja.', 'You can buy this in the next shop.')}</p>` : '')
+        return o.tip() + (o.key.startsWith('spell') ? `<p><i>${o.use}</i></p>` : '')
+          + (peek && can ? `<p class="up">${t('Você pode comprar isto na próxima loja.', 'You can buy this in the next shop.')}</p>` : '')
           // magia: a própria dica já mostra o nível atual → o próximo
           + (o.key.startsWith('spell') || o.blocked ? '' : previewHtml(o.lvl ? t('Se subir de nível', 'If you level up') : t('Se comprar', 'If you buy'), diff(now, o.bought())))
           + (sell > 0 ? previewHtml(t('Se vender', 'If you sell'), diff(now, o.sold()), `<small>${t(`Volta ${sell} de ouro.`, `Refunds ${sell} gold.`)}</small>`) : '');
@@ -1023,18 +1051,20 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const items = () => el('div', { class: 'shop-items' },
       group(t('Itens passivos', 'Passive items'), itemCount, ITEM_IDS.filter((i): boolean => !isActive(i)).map(itemOffer)),
       group(t('Itens ativos', 'Active items'), t('cada um com a sua tecla', 'each with its own key'), ACTIVE_ITEMS.map(itemOffer)));
-    if (look) return el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
+    if (look) return filterShop(el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
         el('button', { type: 'button', class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`), 'aria-label': t('Fechar a loja', 'Close the shop'), onclick: () => togglePeek(false) }, '✕')),
+      shopSearch(),
       ...grid),
-      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), sheetBox()));
+      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), sheetBox())));
     readyBtn = el('button', { type: 'button', class: 'primary big', 'data-key': 'ready', disabled: mine.ready, onclick: () => {
       if (r.round === 0) seeFirst();
       act.ready();
     } }, readyText(mine.ready));
     // duas colunas: compras à esquerda; ouro, Pronto, placar e personagem à direita (pedido do Fernando: loja mais larga)
-    return el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
+    return filterShop(el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? t('Loja', 'Shop') : t(`Loja · depois da rodada ${r.round}`, `Shop · after round ${r.round}`)), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells`))),
+      shopSearch(),
       r.round === 0 && !firstSeen ? firstCard() : null,
       ...grid,
       ),
@@ -1048,7 +1078,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         board(r, me, act.kick),
         picker(r),
       ),
-    );
+    ));
   }
 
   // loja: modo da próxima rodada à vista; clicar abre a votação (sozinho com bots passa na hora)
@@ -1153,7 +1183,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // painel novo começa do topo (o fim da partida herdava a rolagem da loja e escondia o título e o pódio)
     if (entering) center.scrollTop = 0;
     if (!online) center.querySelectorAll('button').forEach((b) => b.setAttribute('disabled', ''));
-    if (focused) (center.querySelector(`[data-key="${focused}"]`) as HTMLElement | null)?.focus();
+    refocus(center, focused);
   }
 
   // lista do canto: pontos da partida e, ao vivo, abates e dano da rodada (somados no cliente a partir dos acertos)

@@ -13,7 +13,7 @@ import { ITEM_DEMO, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, gro
 import { COLORS } from './scene.ts';
 import { store } from './store.ts';
 import { hideTip, itemLevels, itemTip, spellLevels, spellTip, withTip } from './tips.ts';
-import { choice } from './ui.ts';
+import { choice, norm } from './ui.ts';
 import { arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
 type Page = { chapter: string; title: string; body: () => (Node | string | null)[]; demo?: DemoId };
@@ -231,7 +231,6 @@ export function openGrimoire(to?: SpellId | ItemId) {
 // Biblioteca "Magias e itens" (decisão do Fernando, 19/10; como a de heróis e itens do Dota): grade de ícones por grupo,
 // busca pelo nome e filtro por grupo; o mouse em cima mostra a dica da loja e o clique abre a página no grimório.
 // Mora na aba do menu principal e no overlay da tecla (F2 no padrão); onOpen fecha o overlay antes de abrir o grimório
-const norm = (x: string) => x.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 export function library(onOpen?: () => void): HTMLElement {
   const tile = (id: SpellId | ItemId, ico: string, tip: () => string) => withTip(el('button', { type: 'button', class: 'lib-tile', 'data-name': norm(actionName(id)), onclick: () => {
     hideTip();

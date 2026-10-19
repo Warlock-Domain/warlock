@@ -41,7 +41,7 @@ button, .button { font: inherit; color: var(--fg); background: var(--panel2); bo
 button.primary, .button { background: linear-gradient(var(--lava-btn), var(--lava-dark)); border-color: var(--lava-hi); font-weight: 700; color: var(--on-lava); text-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
 /* peso de jogo: primário com fonte de título e relevo (luz em cima, degrau embaixo, brilho de lava); secundários com relevo leve */
 button.primary, .button { font-family: var(--display); letter-spacing: .02em; box-shadow: inset 0 1px 0 rgba(255, 220, 180, .35), inset 0 -2px 0 rgba(0, 0, 0, .3), 0 3px 0 var(--lava-night), 0 0 16px rgba(255, 106, 26, .3); }
-.lobby-actions button:not(.primary), .end-actions button:not(.primary), .card-go button:not(.primary), .shop-item button, .shop-side > button:not(.primary), .stats-tabs button, .bots button { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07), 0 2px 0 rgba(0, 0, 0, .45); }
+.lobby-actions button:not(.primary), .end-actions button:not(.primary), .card-go button:not(.primary), .tile-acts button, .shop-side > button:not(.primary), .stats-tabs button, .bots button { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07), 0 2px 0 rgba(0, 0, 0, .45); }
 button:disabled, button.primary:disabled { background: var(--off-bg); border-color: var(--line); color: var(--off-fg); text-shadow: none; cursor: default; box-shadow: none; }
 button.big { font-size: 1.1rem; min-height: 52px; }
 button.link { background: none; border: 0; color: var(--muted); padding: 6px 8px; min-height: 0; }
@@ -50,8 +50,7 @@ button.icon.off { opacity: .4; text-decoration: line-through; }
 /* ícones desenhados (game-icons.net, sprite em public/icons.svg): do tamanho da fonte e na cor do texto */
 .gi { width: 1em; height: 1em; flex: none; fill: currentColor; vertical-align: -.14em; }
 button.icon .gi { font-size: 1.3rem; vertical-align: middle; }
-.spell .ico, .shop-title .ico { display: flex; color: var(--ember); }
-.shop-title .ico { font-size: 1.3rem; }
+.spell .ico { display: flex; color: var(--ember); }
 .spell.item .ico { color: var(--gold-pale); }
 .vol { position: relative; }
 .vol-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 6; background: var(--plate); border: 1px solid var(--gold-line); border-radius: var(--r-md); padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 240px; box-shadow: var(--plate-edge), var(--shadow-md); max-height: calc(100vh - 64px - var(--safe-t) - var(--safe-b)); max-height: calc(100dvh - 64px - var(--safe-t) - var(--safe-b)); overflow-y: auto; }
@@ -145,23 +144,9 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .board li.win { background: var(--gold-faint); font-weight: 700; }
 .shop-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .gold { font-family: var(--display); font-weight: 700; font-size: 1.2rem; color: var(--gold); font-variant-numeric: tabular-nums; }
-.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-.shop-item { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: var(--r-sm); background: rgba(255, 255, 255, .04); border: 1px solid var(--line); }
-/* loja: "já tenho" com borda de bronze e fundo dourado; "dá para comprar" com o botão aceso; sem ouro, o que falta em vermelho */
-.shop-item.owned { border-color: var(--bronze); background: var(--gold-faint); }
-.shop-item:not(.can):not(.owned) .shop-title b { color: var(--muted); }
-.shop-item.can .buy-row > button:first-child { border-color: var(--ember); color: var(--gold); font-weight: 700; }
-.shop-item.locked { border-style: dashed; }
-.shop-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-height: 16px; }
-.shop-meta small { white-space: nowrap; }
-.shop-meta .pips i { width: 9px; }
-.shop-meta .have { color: var(--gold); }
-.shop-meta .need { margin-left: auto; color: var(--red); font-weight: 700; }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, 76px); gap: 8px; }
 .shop-group { display: flex; flex-direction: column; gap: 6px; }
 .shop-group .shop-head { justify-content: flex-start; align-items: baseline; border-bottom: 1px solid var(--gold-line); padding-bottom: 2px; }
-.shop-item button { min-height: 38px; padding: 6px 8px; font-size: .9rem; }
-.shop-title { display: flex; align-items: center; gap: 6px; }
-.shop-title b { flex: 1; font-size: .95rem; }
 .key { font-family: ui-monospace, Consolas, monospace; font-size: .75rem; font-weight: 700; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: var(--r-xs); padding: 0 5px; background: var(--bg); color: var(--fg); }
 .pips { display: flex; gap: 3px; }
 .pips i { width: 14px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .15); }
@@ -268,8 +253,6 @@ body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: no
 .shop-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .shop-side { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; }
 .shop-side .gold.big { font-size: 1.6rem; text-align: center; }
-.shop .shop-grid { grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); }
-.shop .shop-item > small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 @media (max-width: 860px) {
   .shop { grid-template-columns: minmax(0, 1fr); }
   .shop-items { order: 50; }
@@ -351,12 +334,9 @@ body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: no
 .gold-row.muted b { color: var(--muted); font-weight: 600; }
 .gold-info hr { border: 0; border-top: 1px solid rgba(255, 255, 255, .08); margin: 4px 0; width: 100%; }
 .gold-info small { line-height: 1.35; margin-top: 2px; }
-.buy-row { display: flex; gap: 6px; }
-.buy-row > button:first-child { flex: 1; }
 /* "Nível 2 · 8" e "Vender · 10" numa linha só (na loja de só olhar o texto é longo e pode quebrar) */
-.buy-row > button { white-space: nowrap; }
-button.undo { min-height: 38px; width: 38px; padding: 0; font-size: 1rem; }
-button.sell { min-height: 38px; padding: 0 8px; font-size: .8rem; white-space: nowrap; opacity: .8; }
+button.undo { min-height: 26px; width: 30px; padding: 0; font-size: .9rem; }
+button.sell { min-height: 26px; padding: 0 6px; font-size: .72rem; white-space: nowrap; opacity: .85; }
 .slot-row { display: flex; gap: 8px; align-items: center; font-size: .85rem; margin: 4px 0 8px; cursor: pointer; }
 .keys-list { display: flex; flex-direction: column; gap: 6px; }
 .keys-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .9rem; }
@@ -468,7 +448,7 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
 .match-opts > summary, .vote-group > summary { min-height: 24px; }
 /* toque: alvos de pelo menos 44 px e texto de pelo menos 12 px */
 @media (pointer: coarse) {
-  button.link, .stats-tabs button, .vote-bar button, .shop-item button, button.undo, button.sell, button.keycap { min-height: 44px; }
+  button.link, .stats-tabs button, .vote-bar button, button.undo, button.sell, button.keycap { min-height: 44px; }
   button.undo { width: 44px; flex: none; }
   .armed-hint button.icon { width: 44px; min-height: 44px; }
   button.kick { min-height: 44px; width: 44px; font-size: .9rem; }
@@ -515,9 +495,6 @@ button.info .gi { width: 16px; height: 16px; }
 .peek-shop .shop-main > .shop-head { align-items: center; }
 .peek-close { margin-left: auto; }
 /* só ver: no lugar do botão, o preço em verde (o ouro de agora dá) ou vermelho (não dá) */
-.peek-price { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 38px; border-radius: var(--r-sm); background: var(--tint); font-family: var(--display); font-weight: 700; color: var(--muted); white-space: nowrap; }
-.peek-price.can { color: var(--ok); }
-.peek-price.cant { color: var(--red); }
 /* quem caiu, no PC: a loja vira gaveta à direita em 2 colunas e a partida continua à vista */
 @media (min-width: 861px) and (min-height: 501px) {
   .peek-shop.drawer { left: auto; right: max(10px, var(--safe-r)); transform: none; width: min(46vw, 560px); max-height: calc(100% - 70px - var(--safe-t) - var(--safe-b)); animation: drawer-in .2s ease-out; }
@@ -526,7 +503,6 @@ button.info .gi { width: 16px; height: 16px; }
   .peek-shop.drawer .shop-head { flex-wrap: wrap; row-gap: 2px; }
   .peek-shop.drawer .shop-side { display: contents; }
   .peek-shop.drawer .shop-side > .gold.big { order: -1; position: sticky; top: 0; z-index: 1; margin: -18px -18px 0; padding: 10px; border-radius: var(--r-frame) var(--r-frame) 0 0; background: var(--panel-solid); border-bottom: 1px solid var(--line); }
-  .peek-shop.drawer .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @keyframes drawer-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
 @media (max-width: 600px), (pointer: coarse) and (max-height: 500px) {
@@ -545,9 +521,9 @@ button, .button { transition: transform .08s ease-out, filter .12s, background-c
 @media (hover: hover) {
   button:not(:disabled):hover, .button:hover { filter: brightness(1.15); }
   .spell:not(.cooling):not(:disabled):hover { box-shadow: inset 0 0 0 2px var(--panel-bot), inset 0 0 0 3px var(--gold-line), 0 0 14px rgba(255, 179, 71, .35); }
-  .shop-item.can:hover { border-color: var(--ember); transform: translateY(-1px); }
+  .shop-item.can .shop-tile:hover { border-color: var(--g, var(--ember)); transform: translateY(-1px); }
 }
-.shop-item { transition: border-color .15s, transform .15s; }
+.shop-tile { transition: border-color .15s, transform .15s; }
 button:not(:disabled):active, .button:active { transform: translateY(1px) scale(.97); filter: brightness(.92); }
 /* primário afunda: o degrau some e a luz vira sombra por dentro */
 button.primary:not(:disabled):active, .button:active { transform: translateY(2px); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .45), 0 1px 0 var(--lava-night); }
@@ -603,7 +579,7 @@ button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infini
 .center.enter .podium-step.p1 { animation-delay: .3s; }
 @keyframes podium-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
-  button, .button, .shop-item, #toast { transition: none; }
+  button, .button, .shop-tile, #toast { transition: none; }
   .spell.ready-flash, .center.enter > .card, .vol-panel, .tab-overlay.pinned > .card, .sheet-panel, button.primary.urgent:not(:disabled), .banner.win, .center.enter .podium-step, .peek-shop.drawer, .watching .shop-nudge { animation: none; }
   .banner .confetti, .curtain { display: none; }
   .hpbar > i { transition: none; }
@@ -611,7 +587,7 @@ button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infini
 
 /* controle (gamepad): foco bem visível, anel dourado, em quem navega pelo D-pad */
 html.pad :focus { outline: 3px solid #ffd166 !important; outline-offset: 2px; box-shadow: 0 0 0 6px rgba(255, 209, 102, .35), 0 0 18px rgba(255, 209, 102, .55) !important; }
-html.pad .shop-item:focus-within { border-color: #ffd166; }
+html.pad .shop-item:focus-within .shop-tile { border-color: #ffd166; }
 
 /* feed de abates no canto direito: matador, ícone da causa e quem caiu; a linha com você ganha borda de brasa */
 .feed { position: absolute; right: max(10px, var(--safe-r)); top: calc(58px + var(--safe-t)); z-index: 2; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; pointer-events: none; max-width: min(320px, 55%); }
@@ -864,19 +840,8 @@ body.replaying .peek-shop { display: none; }
 :root { --item: #c9d4e0; --item-line: rgba(201, 212, 224, .35); --item-faint: rgba(201, 212, 224, .09); }
 @media (min-width: 861px) { .shop-items { position: sticky; top: 0; } }
 .shop-items { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.shop-items .shop-grid { grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .shop-items .shop-head h3 { color: var(--item); }
 .shop-items .shop-group .shop-head { border-bottom-color: var(--item-line); }
-.shop-item.is-item { padding: 7px 9px; gap: 4px; border-color: var(--item-line); background: linear-gradient(90deg, var(--item-faint), transparent 70%); }
-.shop-item.is-item > small { -webkit-line-clamp: 1; }
-.shop-item.is-item.owned { border-color: var(--item); background: rgba(201, 212, 224, .14); }
-.shop-item.is-item .shop-title .ico { color: var(--item); border: 1px solid var(--item-line); border-radius: 50%; padding: 3px; background: rgba(201, 212, 224, .07); }
-.shop-item.is-item .shop-meta .have { color: var(--item); }
-.shop-item.is-item.can .buy-row > button:first-child { border-color: var(--item); color: var(--item); }
-.shop-item.is-item .buy-row button { min-height: 32px; padding: 4px 8px; }
-.shop .shop-main .shop-item { padding: 8px; gap: 4px; }
-.shop .shop-main .shop-item > small { -webkit-line-clamp: 1; }
-.shop .shop-main .shop-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
 /* na barra da partida, os itens também prateados */
 .spellbar .spell.item { border-color: var(--item-line); }
 .spellbar .spell.item .ico { color: var(--item); filter: drop-shadow(0 0 4px rgba(201, 212, 224, .4)); }
@@ -885,24 +850,15 @@ body.replaying .peek-shop { display: none; }
 .g-ataque { --g: #ff6b4a; } .g-mobilidade { --g: #8be36a; } .g-defesa { --g: #5fb0ff; } .g-controle { --g: #c58bff; }
 .shop-group[class*="g-"] .shop-head h3 { color: var(--g); }
 .shop-group[class*="g-"] .shop-head { border-bottom-color: color-mix(in srgb, var(--g) 45%, transparent); }
-.shop-group[class*="g-"] .shop-item { border-left: 3px solid color-mix(in srgb, var(--g) 70%, transparent); }
-.shop-group[class*="g-"] .shop-title .ico { color: var(--g); }
-.shop-group[class*="g-"] .shop-item.owned { border-color: color-mix(in srgb, var(--g) 70%, transparent); background: color-mix(in srgb, var(--g) 12%, transparent); }
-.shop-group[class*="g-"] .shop-item.can .buy-row > button:first-child { border-color: var(--g); color: var(--g); }
-.shop-group[class*="g-"] .shop-meta .have { color: var(--g); }
 .spellbar .spell[class*="g-"] { border-color: color-mix(in srgb, var(--g) 55%, transparent); }
 .spellbar .spell[class*="g-"] .ico { color: var(--g); filter: drop-shadow(0 0 5px color-mix(in srgb, var(--g) 55%, transparent)); }
 .g-sub[class*="g-"] > small { color: var(--g); }
 .g-sub[class*="g-"] .g-chips button .ico, .g-sub[class*="g-"] .g-chips .ico { color: var(--g); }
 /* Começar partida sem ocupar a largura toda (Fernando, 19/10: "muito grande") */
 @media (min-width: 421px) { .card-go { grid-template-columns: minmax(200px, 300px) auto; justify-content: center; } .card-go button.big { min-height: 44px; font-size: 1rem; } }
-/* item em uma linha: nome e nível à esquerda, compra à direita (o que ele faz fica na dica) */
-.shop-item.is-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title buy' 'meta buy'; align-items: center; column-gap: 8px; row-gap: 2px; }
-.shop-item.is-item > .shop-title { grid-area: title; } .shop-item.is-item > .shop-meta { grid-area: meta; min-height: 0; } .shop-item.is-item > .buy-row { grid-area: buy; flex-wrap: nowrap; } .shop-item.is-item > small { display: none; }
-.shop-item.is-item .buy-row button { min-width: 0; }
-/* loja larga e magias em 5 colunas: Ataque em 2 fileiras de 5, cada outro grupo em 1 (Fernando, 19/10) */
+/* loja larga (Fernando, 19/10) */
 .center.wide:has(.shop) { width: min(1860px, calc(100% - 24px)); }
-@media (min-width: 1500px) { .shop { grid-template-columns: 280px minmax(0, 1fr) 290px; gap: 20px; } .shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@media (min-width: 1500px) { .shop { grid-template-columns: 280px minmax(0, 1fr) 290px; gap: 20px; } }
 
 /* menu principal (Fernando, 19/10, como o do Dota): faixa do topo com o logo, as abas em caixa alta (a aberta sublinhada em dourado) e o apelido */
 .home-bar { display: flex; align-items: center; gap: 6px 18px; border-bottom: 1px solid var(--gold-line); }
@@ -946,3 +902,27 @@ body.replaying .peek-shop { display: none; }
   .lib-grid { grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 6px; }
   .lib-tile { width: auto; height: 72px; }
 }
+
+/* loja em grade de ícones (Fernando, 19/10, como a do Dota): ícone quadrado na cor do grupo (itens prateados), tecla no canto,
+   nível em pips e o preço embaixo; desfazer e vender em botões pequenos logo abaixo do ícone */
+.shop-items { --g: var(--item); }
+.shop-item { display: flex; flex-direction: column; gap: 4px; width: 76px; }
+.shop-tile { position: relative; width: 76px; height: 76px; min-height: 0; padding: 6px 2px 4px; flex-direction: column; justify-content: flex-end; gap: 3px; border-radius: var(--r-md);
+  background: var(--plate); border: 2px solid color-mix(in srgb, var(--g, var(--ember)) 45%, transparent); box-shadow: inset 0 0 0 2px var(--panel-bot), inset 0 0 0 3px var(--gold-faint); color: var(--fg); }
+.shop-tile .ico { display: flex; font-size: 1.9rem; color: var(--g, var(--ember)); }
+.shop-tile .key { position: absolute; top: 2px; left: 4px; font-family: ui-monospace, Consolas, monospace; font-size: .68rem; color: var(--muted); }
+.shop-tile .pips i { width: 9px; height: 3px; }
+.shop-tile .pips i.on { background: var(--g, var(--ember)); }
+.tile-price { display: inline-flex; align-items: center; gap: 2px; font-family: var(--display); font-weight: 700; font-size: .8rem; line-height: 1; white-space: nowrap; color: var(--muted); }
+.shop-tile .tile-price { max-width: 100%; white-space: normal; text-align: center; justify-content: center; }
+.tile-price.can { color: var(--gold); }
+.tile-price.cant { color: var(--red); }
+.shop-item.can .shop-tile { border-color: var(--g, var(--ember)); box-shadow: inset 0 0 0 2px var(--panel-bot), 0 0 10px color-mix(in srgb, var(--g, var(--ember)) 35%, transparent); }
+.shop-item.owned .shop-tile { background: color-mix(in srgb, var(--g, var(--ember)) 16%, var(--panel-bot)); }
+.shop-item.locked .shop-tile { border-style: dashed; }
+/* o ouro não dá (ou já está no máximo): ícone apagado, preço ainda legível */
+.shop-tile:disabled { background: var(--plate); border-color: var(--line); color: var(--fg); }
+.shop-item.owned .shop-tile:disabled { background: color-mix(in srgb, var(--g, var(--ember)) 10%, var(--panel-bot)); border-color: color-mix(in srgb, var(--g, var(--ember)) 45%, transparent); }
+.shop-tile:disabled .ico { opacity: .55; }
+.tile-acts { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
+.tile-acts:empty { display: none; }
