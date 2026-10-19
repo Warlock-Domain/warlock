@@ -33,6 +33,6 @@ export const playerName = (p: Pick<PublicPlayer, 'name' | 'servo'>) => (p.servo 
 // vida máxima: a do servo, ou a de sempre com os itens
 export const maxHp = (p: Pick<PublicPlayer, 'hpMax' | 'items'> | undefined) => p?.hpMax ?? HP_MAX + (p ? itemStats(p.items).hp : 0);
 export function nightLine(n: NonNullable<PublicRoom['night']>, playing: boolean): string {
-  const where = t(`Campanha · ${STAGE_NAME[n.stage]} · clareira ${n.clearing + 1} de ${n.clearings}`, `Campaign · ${STAGE_NAME[n.stage]} · clearing ${n.clearing + 1} of ${n.clearings}`);
-  return playing ? where + t(` · onda ${n.wave + 1} de ${n.waves}`, ` · wave ${n.wave + 1} of ${n.waves}`) : where;
+  const where = t(`Campanha · ${STAGE_NAME[n.stage]}`, `Campaign · ${STAGE_NAME[n.stage]}`);
+  return playing && n.fight !== null ? where + t(` · encontro · onda ${n.wave + 1} de ${n.waves}`, ` · encounter · wave ${n.wave + 1} of ${n.waves}`) : where;
 }

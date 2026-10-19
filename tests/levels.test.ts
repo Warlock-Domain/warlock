@@ -34,6 +34,8 @@ describe('Campanha: salas da Charneca', () => {
     const kinds = (id: string) => room(id).marks.map((m) => m.kind);
     expect(kinds('charneca-entrada-01')).toEqual(expect.arrayContaining(['start', 'checkpoint', 'entry']));
     for (const id of ['moinho-caido-01', 'vilarejo-queimado-02', 'cemiterio-dos-vigias-01', 'ponte-dos-enforcados-01']) expect(kinds(id), id).toContain('checkpoint');
+    // todo encontro precisa de onde o Fumo entrar: E nas salas com ponto de controle, B na arena do chefe
+    for (const r of rooms) if (r.pool === 'chefe' || r.marks.some((m) => m.kind === 'checkpoint')) expect(r.marks.some((m) => m.kind === (r.pool === 'chefe' ? 'boss' : 'entry')), r.id).toBe(true);
     expect(kinds('charneca-portao-01')).toContain('candle');
     expect(kinds('arena-odran-01')).toContain('boss');
     const pillars = room('arena-odran-01').marks.filter((m) => m.kind === 'statue');

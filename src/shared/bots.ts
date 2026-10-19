@@ -1,5 +1,5 @@
 // Bots: usam qualquer magia e item ativo que tiverem e compram seguindo um plano sorteado no começo da partida.
-import { edge, inArena, inward, pathStep, roomAt, safeInside } from './arena.ts';
+import { edge, inArena, inward, middle, pathStep, roomAt, safeInside } from './arena.ts';
 import { DT, FRICTION, ISLAND, OBSTACLES, PROJ_R, WIZ_R } from './constants.ts';
 import type { Cmd, Projectile, Wizard, World } from './sim.ts';
 import { ITEM_IDS, SCOURGE, itemPrice, type ItemId } from './items.ts';
@@ -381,7 +381,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     }
     if (!cmds.length && !me.target && (rand() < 0.25 || idle >= 1.5)) {
       // sem muito o que fazer, passeia em volta do meio do mapa (Fernando, 19/10)
-      go(safeInside(w, jitter(3), D.edge + 0.5));
+      go(safeInside(w, add(middle(w), jitter(3)), D.edge + 0.5));
     }
   }
   // na Caminhada no vento qualquer magia a encerra: só corre para encostar no inimigo

@@ -1,7 +1,8 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
-import { generateStage, type Night, type ServoKind } from './campaign.ts';
+import { roomWaves, type Night, type ServoKind } from './campaign.ts';
+import { nightMap } from './levels.ts';
 import { isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS } from './constants.ts';
 import { ITEM_IDS, isActive, type ItemId } from './items.ts';
@@ -67,8 +68,9 @@ export type PublicRoom = {
   goal: number; // pontos para vencer no modo atual (rodadas; abates no Deathmatch)
   arena: ArenaId | null; // formato da arena desta rodada (null sem rodada)
   sandbox?: Sandbox; // só nas salas sandbox: as regras ligadas
-  // só na Campanha: estágio, clareira e onda atuais (contando de 0), quantas existem e como a noite acabou
-  night?: { stage: number; clearing: number; clearings: number; wave: number; waves: number; result: Night['result'] };
+  // só na Campanha: semente (o navegador monta o mesmo mapa), sala do encontro aberto e a onda dele (contando de 0), salas com
+  // o encontro vencido e como a noite acabou
+  night?: { stage: number; seed: number; fight: number | null; wave: number; waves: number; done: number[]; result: Night['result'] };
 };
 
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits de estado (ver encodeSnap)
@@ -264,8 +266,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
 }
 
 function publicNight(n: Night): NonNullable<PublicRoom['night']> {
-  const stage = generateStage(n.seed, n.stage);
-  // depois da última clareira (noite vencida) o índice passa do fim: mostra a última
-  const c = stage[Math.min(n.clearing, stage.length - 1)];
-  return { stage: n.stage, clearing: n.clearing, clearings: stage.length, wave: n.wave, waves: c.waves.length, result: n.result };
+  const boss = n.fight !== null && nightMap(n.seed, n.stage).rooms[n.fight].room.pool === 'chefe';
+  const waves = n.fight === null ? 0 : roomWaves(n.seed, n.stage, n.fight, n.fight, boss).length;
+  return { stage: n.stage, seed: n.seed, fight: n.fight, wave: n.wave, waves, done: n.done, result: n.result };
 }

@@ -1,16 +1,17 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
-import { ARENA_IDS, SHAPES, type ArenaId } from './arena.ts';
-import { CAMPAIGN, SERVOS, generateStage, type Night, type ServoKind } from './campaign.ts';
+import { ARENA_IDS, type ArenaId } from './arena.ts';
+import { CAMPAIGN, SERVOS, roomWaves, type Night, type ServoKind } from './campaign.ts';
+import { nightMap, obstaclesOf, roomRect, terrainOf, type NightMap } from './levels.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
 import { CHARACTERS, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
-  ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
+  ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, INVULN_TIME, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
 import type { BotSetup } from './protocol.ts';
 import { gearOf, newWorld, revive, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
 import { MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
-import { dist, len, type Vec } from './vec.ts';
+import { dist, len, v, type Vec } from './vec.ts';
 
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
 const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
@@ -176,12 +177,15 @@ export function addPlayer(m: Match, id: string, name: string, bot = false): bool
   return true;
 }
 
-// sandbox: quem entra no meio da rodada ganha um mago, que nasce no próximo passo (como quem volta no deathmatch)
+// sandbox: quem entra no meio da rodada ganha um mago, que nasce no próximo passo (como quem volta no deathmatch);
+// Campanha: o estágio é um mundo só, então quem chega entra na hora, como Aceso, onde o grupo está
 function enter(m: Match, p: Player) {
-  const w = m.sandbox && m.world;
+  const w = (m.sandbox || m.night) && m.world;
   if (!w || w.wizards.some((z) => z.id === p.id)) return;
   const z = newWorld([p.id], { [p.id]: p.spells }, { [p.id]: p.items }).wizards[0];
-  w.wizards.push(Object.assign(z, { alive: false, respawnAt: 0 }));
+  if (!m.night) return void w.wizards.push(Object.assign(z, { alive: false, respawnAt: 0 }));
+  p.team = 0;
+  w.wizards.push(Object.assign(z, { team: 0, pos: w.map!.home, invulnUntil: w.t + INVULN_TIME }));
 }
 
 // sandbox: compra e venda valem na hora, no mago da rodada
@@ -244,7 +248,7 @@ function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: ()
   // já sorteia na loja para cada um ver o time; com sorteio a cada rodada, a contagem sorteia de novo
   if (mode === 'teams') shuffleTeams(m, rand);
   // Campanha: noite nova (semente nova a cada tentativa); humanos no time 0, o Fumo no 1, ninguém com ouro
-  m.night = mode === 'campaign' ? { seed: Math.floor(rand() * 2 ** 31), stage: 0, clearing: 0, wave: 0, result: null } : undefined;
+  m.night = mode === 'campaign' ? { seed: Math.floor(rand() * 2 ** 31), stage: 0, fight: null, wave: 0, done: [], result: null } : undefined;
   if (m.night) for (const p of m.players) Object.assign(p, { gold: 0, team: p.servo ? 1 : 0 });
   enterShop(m, now);
 }
@@ -369,6 +373,7 @@ export function resume(m: Match, now: number) {
   m.pendingOpts ??= {};
   m.botDelta ??= 0;
   m.vote = null; // o prazo de uma votação gravada já passou
+  if (m.night) Object.assign(m.night, { fight: m.night.fight ?? null, done: m.night.done ?? [] }); // noites gravadas antes do mapa explorável
   for (const p of m.players) {
     p.character ??= 'mage';
     p.look ??= lookOf(p.character); // salas gravadas antes da aparência montada
@@ -587,7 +592,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   }
   m.round++;
   for (const p of m.players) p.stats.round = newStat();
-  if (m.night) return enterClearing(m, now, rand);
+  if (m.night) return enterStage(m, now, rand);
   const ids = m.players.map((p) => p.id);
   const teams = m.mode === 'teams' ? Object.fromEntries(m.players.map((p) => [p.id, p.team ?? 0])) : {};
   // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
@@ -649,8 +654,7 @@ function endRound(m: Match, now: number, winner: string | null) {
 function afterRound(m: Match, now: number) {
   const n = m.night;
   if (n) {
-    // clareira vencida: próxima, ou a noite acabou (nesta versão, o estágio 1 é a noite inteira)
-    if (!n.result && ++n.clearing >= generateStage(n.seed, n.stage).length) n.result = 'won';
+    // nesta versão o estágio 1 é a noite inteira: a rodada só acaba com a noite vencida ou perdida
     if (!n.result) return enterShop(m, now);
     m.phase = 'end';
     m.winner = null;
@@ -680,7 +684,6 @@ const EMPTY_ROUNDS_END = 3;
 
 // Campanha ---------------------------------------------------------------------------------------------------------
 
-const clearingOf = (n: Night) => generateStage(n.seed, n.stage)[n.clearing];
 // servos jogam um degrau abaixo da dificuldade da sala (o chefe, quando houver, usa a dela)
 const EASIER = { easy: 'easy', normal: 'easy', hard: 'normal', auto: 'easy' } as const;
 
@@ -690,30 +693,74 @@ function dress(m: Match, p: Player, kind: ServoKind) {
   Object.assign(p, { servo: kind, name: S.name, character: S.look, look: lookOf(S.look), hpMax: S.hp, spells: { ...noSpells(), fireball: 0, ...S.spells }, items: noItems(), gold: 0, team: 1, difficulty: EASIER[m.opts.difficulty] });
 }
 
-// clareira nova: arena e pilares sorteados pela noite (o resto do mundo usa o rand da sala, como nos outros modos)
-function enterClearing(m: Match, now: number, rand: () => number) {
-  const n = m.night!;
-  const c = clearingOf(n);
-  n.wave = 0;
+const mapOf = (n: Night) => nightMap(n.seed, n.stage);
+const center = (x: number, y: number) => v(x + 0.5, y + 0.5);
+// ponto de controle da sala (a marca fica no "C"; o centro é entre o C e o número) e onde o Fumo entra
+const checkpointOf = (map: NightMap, i: number) => map.marks.filter((q) => q.room === i && q.kind === 'checkpoint').map((q) => v(q.x + 1, q.y + 0.5))[0];
+const spawnsOf = (map: NightMap, i: number) => map.marks.filter((q) => q.room === i && (q.kind === 'entry' || q.kind === 'boss')).map((q) => center(q.x, q.y));
+const isBoss = (map: NightMap, i: number) => map.rooms[i].room.pool === 'chefe';
+const wavesOf = (n: Night, map: NightMap, i: number) => roomWaves(n.seed, n.stage, i, i, isBoss(map, i));
+// magos em roda em volta de p (no mapa, keepOut tira de dentro da parede no passo seguinte)
+const around = (p: Vec, i: number, n: number) => (n === 1 ? p : v(p.x + Math.cos((i / n) * 2 * Math.PI) * 1.2, p.y + Math.sin((i / n) * 2 * Math.PI) * 1.2));
+
+// estágio novo: o mapa inteiro da noite num mundo só; o grupo no início, as vagas do Fumo fora até um encontro
+function enterStage(m: Match, now: number, rand: () => number) {
+  const n = m.night!, map = mapOf(n);
+  Object.assign(n, { fight: null, wave: 0 });
   for (const p of m.players) if (!p.servo) p.team = 0; // quem entrou no meio da noite também é Aceso
   const ids = m.players.map((p) => p.id);
   const teams = Object.fromEntries(m.players.map((p) => [p.id, p.servo ? 1 : 0]));
-  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), c.pillars, rand, false, teams, { runes: m.opts.runes, sudden: false, chests: false }, c.arena);
-  sendWave(m, m.world, c.waves[0]);
+  const w = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), 0, rand, false, teams, { runes: false, sudden: false, chests: false });
+  // arenaR pequeno: os bots usam frações dele como folga das paredes
+  Object.assign(w, { map: terrainOf(map), arenaR: 3, isles: [], pillars: obstaclesOf(map) });
+  const acesos = w.wizards.filter((z) => z.team === 0);
+  acesos.forEach((z, i) => (z.pos = around(w.map!.home, i, acesos.length)));
+  for (const z of w.wizards) if (z.team === 1) Object.assign(z, { alive: false, hp: 0, pos: v(-50, -50) }); // fora do mapa até a primeira onda
+  m.world = w;
   m.phase = 'countdown';
   m.phaseEnds = now + COUNTDOWN_MS * PACE[m.opts.pace];
 }
 
-// onda: as vagas do Fumo voltam na borda (onde cada uma nasce) com o tipo sorteado; as que sobram ficam de fora
-function sendWave(m: Match, w: World, kinds: ServoKind[]) {
+// onda: as vagas do Fumo voltam nos pontos de entrada da sala com o tipo sorteado; as que sobram ficam de fora
+function sendWave(m: Match, w: World, kinds: ServoKind[], spots: Vec[]) {
   m.players.filter((p) => p.servo).forEach((p, i) => {
     const z = w.wizards.find((q) => q.id === p.id);
     if (!z) return;
     if (i >= kinds.length) return void Object.assign(z, { alive: false, hp: 0 });
     dress(m, p, kinds[i]);
-    Object.assign(z, { spells: { ...p.spells }, cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), hpMax: p.hpMax });
-    revive(w, z, SHAPES[w.arena].spawn(w.wizards.indexOf(z), w.wizards.length, w.arenaR));
+    Object.assign(z, { spells: { ...p.spells }, cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), hpMax: p.hpMax, regen: 0 });
+    // servo não regenera (sem lava, só o dano derruba; com os 5/s de sempre o encontro se arrastava: medido em
+    // 19/10, número inicial a confirmar com o Lucas); mais servos que pontos de entrada: o segundo do mesmo ponto nasce ao lado
+    const at = spots[i % spots.length];
+    revive(w, z, i < spots.length ? at : around(at, i, kinds.length));
   });
+}
+
+// alguém pisou no ponto de controle (ou entrou na arena do chefe): puxa todos os Acesos vivos para lá, tranca a sala e
+// solta a primeira onda
+function startFight(m: Match, w: World, map: NightMap, i: number, at: Vec) {
+  const n = m.night!;
+  Object.assign(n, { fight: i, wave: 0 });
+  w.lock = roomRect(map, i);
+  w.map!.home = at;
+  const acesos = w.wizards.filter((z) => z.alive && z.team === 0);
+  acesos.forEach((z, k) => {
+    const from = z.pos;
+    Object.assign(z, { pos: around(at, k, acesos.length), vel: v(0, 0), target: null });
+    w.events.push({ k: 'teleport', id: z.id, from, to: z.pos });
+  });
+  sendWave(m, w, wavesOf(n, map, i)[0], spawnsOf(map, i));
+}
+
+// sala que este Aceso ativa agora: em cima do ponto de controle de uma sala ainda não vencida, ou já dentro da arena do chefe
+function trigger(map: NightMap, done: number[], p: Vec): { i: number; at: Vec } | null {
+  for (const [i, r] of map.rooms.entries()) {
+    if (done.includes(i) || p.x < r.x + 2 || p.y < r.y + 1 || p.x > r.x + r.room.w - 2 || p.y > r.y + r.room.h - 1) continue;
+    const cp = checkpointOf(map, i);
+    if (cp && dist(cp, p) < 1.2) return { i, at: cp };
+    if (isBoss(map, i)) return { i, at: p };
+  }
+  return null;
 }
 
 // a noite acabou (vencida, perdida, encerrada por votação ou por ninguém jogar): sem desfecho conta como perdida; o Fumo sai da sala
@@ -723,17 +770,31 @@ function closeNight(m: Match) {
   m.players = m.players.filter((p) => !p.servo);
 }
 
-// fim da onda, da clareira ou da noite: todos os humanos caídos perdem a noite; onda limpa chama a próxima
+// a cada passo: todos os humanos caídos perdem a noite; encontro aberto solta a próxima onda e, limpo, destranca a sala
+// (o do chefe vence a noite); sem encontro, procura quem pisou num ponto de controle
 function stepNight(m: Match, now: number, w: World) {
-  const n = m.night!;
+  const n = m.night!, map = mapOf(n);
   if (!w.wizards.some((z) => z.alive && z.team === 0)) {
     n.result = 'lost';
     return endRound(m, now, null);
   }
-  if (w.wizards.some((z) => z.alive && z.team === 1)) return;
-  const c = clearingOf(n);
-  if (n.wave + 1 < c.waves.length) return sendWave(m, w, c.waves[++n.wave]);
-  endRound(m, now, null);
+  if (n.fight !== null) {
+    if (w.wizards.some((z) => z.alive && z.team === 1)) return;
+    const waves = wavesOf(n, map, n.fight);
+    if (n.wave + 1 < waves.length) return sendWave(m, w, waves[++n.wave], spawnsOf(map, n.fight));
+    n.done.push(n.fight);
+    w.lock = undefined;
+    if (isBoss(map, n.fight)) {
+      n.result = 'won';
+      return endRound(m, now, null);
+    }
+    n.fight = null;
+    return;
+  }
+  for (const z of w.wizards) {
+    const hit = z.alive && z.team === 0 ? trigger(map, n.done, z.pos) : null;
+    if (hit) return startFight(m, w, map, hit.i, hit.at);
+  }
 }
 
 // painel da sandbox: ligar/desligar regras, pôr bot (tirar é o 'kick'), trocar a arena e reiniciar a rodada; fora da sandbox não faz nada

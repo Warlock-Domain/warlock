@@ -1,9 +1,9 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
   ARENA_MIN, ARENA_STEP, CHEST, CREDIT_WINDOW, ZONES, DM_RESPAWN, DM_SPAWN_GAP, OBSTACLES, OBSTACLE_KINDS, PILLAR, type ObstacleKind, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KB_SOFT_CAP, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
-  ISLAND, RUNE, RUNE_KINDS, SUDDEN, WALL_GAP, WIZ_R, WIZ_SPEED, arenaRadius, type RuneKind,
+  ISLAND, PIT, RUNE, RUNE_KINDS, SUDDEN, WALL_GAP, WAX, WIZ_R, WIZ_SPEED, arenaRadius, type RuneKind,
 } from './constants.ts';
-import { SHAPES, edge, inArena, inLavaAt, isleSpot, safeInside, type ArenaId, type Isle } from './arena.ts';
+import { CELL, SHAPES, cellAt, edge, inArena, inLavaAt, isleSpot, safeInside, type ArenaId, type Isle, type Terrain } from './arena.ts';
 import { ACTIVE_ITEMS, AEGIS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, isActive, itemStats, noItems, type ItemId } from './items.ts';
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, ILLUSION, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
@@ -76,6 +76,7 @@ export type Wizard = {
   // clicar para andar não cancela); o clique de andar fica guardado em `then` e vale quando a magia sai
   casting: { spell?: SpellId; item?: ItemId; at: Vec; fireAt: number; then?: Vec | null } | null;
   god?: boolean; // sandbox: vida infinita (não morre; da lava volta para a pedra)
+  safe?: Vec; // mapa: último ponto em chão firme (quem cai no abismo volta aqui)
 };
 
 // meteor fica parado no ponto de impacto até `until` e então explode; swap e grip não causam dano
@@ -128,6 +129,7 @@ export type SimEvent =
   | { k: 'shrink'; r: number }
   | { k: 'item'; id: string; item: ItemId }
   | { k: 'aegis'; id: string } // a Égide tirou o mago da lava (junto vem um 'teleport')
+  | { k: 'fall'; id: string; x: number; y: number } // mapa: caiu no abismo em (x, y) e voltou à beira (junto vem um 'teleport')
   | { k: 'rune'; kind: RuneKind; x: number; y: number } // runa apareceu
   | { k: 'runeTake'; id: string; kind: RuneKind } // alguém pegou a runa
   | { k: 'sudden' } // morte súbita: a arena passa a encolher mais rápido
@@ -177,7 +179,11 @@ export type World = {
   nextId: number;
   dm: boolean; // deathmatch: a arena não encolhe e quem morre volta depois de DM_RESPAWN s
   shrink?: boolean; // sandbox (mundo de deathmatch): a arena encolhe mesmo assim
+  map?: Terrain; // Campanha: mapa explorável no lugar da arena (sem lava nem encolhimento)
+  lock?: Room; // Campanha: sala trancada durante o encontro (ninguém sai dela)
 };
+
+export type Room = { x: number; y: number; w: number; h: number };
 
 // mecânicas que a sala pode desligar (opções da partida)
 type Rules = { runes: boolean; sudden: boolean; chests: boolean };
@@ -285,7 +291,7 @@ export function newWorld(
   return { t: 0, arena, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars, zones: [], loots: [], chestAt: CHEST.first, chestsLeft: Math.min(CHEST.perRound, Math.floor(ids.length / 2) + 1), runes: [], runeAt: RUNE.first, isles, sudden: false, rules: { ...rules }, events: [], lavaCredit: {}, nextId: 1, dm };
 }
 
-export const inLava = (w: World, p: Vec) => inLavaAt(w.arena, w.arenaR, w.isles, p);
+export const inLava = (w: World, p: Vec) => !w.map && inLavaAt(w.arena, w.arenaR, w.isles, p);
 
 // ilhas: com alguém em cima a lava come a borda; vazia, a pedra volta a crescer (menos quando a arena já está sumindo: a rodada tem de acabar)
 function stepIsles(w: World) {
@@ -674,7 +680,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
     w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'warpzone', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + L.duration, target: null, dmgMult, caster: wz.id });
   } else if (spell === 'lightning') {
-    const end = add(wz.pos, scale(dir, L.range * wz.rangeF));
+    const end = wallClip(w, wz.pos, add(wz.pos, scale(dir, L.range * wz.rangeF)));
     const found = firstOnSegment(w, wz.pos, end, WIZ_R, wz.id);
     const proj = firstProjectileOnSegment(w, wz.pos, end, wz.id);
     const pil = firstPillarOnSegment(w, wz.pos, end, 0.1);
@@ -1470,6 +1476,68 @@ function toStone(w: World, wz: Wizard) {
   w.events.push({ k: 'teleport', id: wz.id, from, to: wz.pos });
 }
 
+// --- mapa da Campanha ---------------------------------------------------------------------------------------------
+
+// tira o mago de dentro da parede e da mureta (e do abismo, se ele foi andando: só cai quem é empurrado); com a sala
+// trancada, ninguém sai dela. Também roda na previsão do próprio mago no navegador
+export function keepOut(t: Terrain, wz: Pick<Wizard, 'pos' | 'vel' | 'safe'>, lock?: Room) {
+  const sliding = isSliding(wz);
+  const blocked = (x: number, y: number) => {
+    const c = cellAt(t, x, y);
+    return c === CELL.wall || c === CELL.low || (c === CELL.pit && !sliding);
+  };
+  if (lock) wz.pos = v(Math.min(lock.x + lock.w - 1 - WIZ_R, Math.max(lock.x + 1 + WIZ_R, wz.pos.x)), Math.min(lock.y + lock.h - 1 - WIZ_R, Math.max(lock.y + 1 + WIZ_R, wz.pos.y)));
+  const cx = Math.floor(wz.pos.x), cy = Math.floor(wz.pos.y);
+  if (blocked(cx, cy)) {
+    // dentro (teleporte, troca): vai para o meio da casa livre mais perto
+    let best: Vec | null = null;
+    for (let r = 1; r <= 6 && !best; r++) for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) {
+      const c = v(x + 0.5, y + 0.5);
+      if (!blocked(x, y) && (!best || dist(c, wz.pos) < dist(best, wz.pos))) best = c;
+    }
+    // longe de tudo (teleporte para fora do mapa): volta ao último chão firme
+    if (best ?? wz.safe) wz.pos = (best ?? wz.safe)!;
+    return;
+  }
+  // encostado: empurra para fora das casas vizinhas e corta a velocidade que entra nelas
+  for (let y = cy - 1; y <= cy + 1; y++) for (let x = cx - 1; x <= cx + 1; x++) {
+    if (!blocked(x, y)) continue;
+    const q = v(Math.min(x + 1, Math.max(x, wz.pos.x)), Math.min(y + 1, Math.max(y, wz.pos.y)));
+    const d = dist(q, wz.pos);
+    if (d >= WIZ_R || d === 0) continue;
+    const n = scale(sub(wz.pos, q), 1 / d);
+    wz.pos = add(wz.pos, scale(n, WIZ_R - d));
+    const into = dot(wz.vel, n);
+    if (into < 0) wz.vel = sub(wz.vel, scale(n, into));
+  }
+}
+
+// abismo: perde PIT.hit da vida máxima e volta parado à beira de onde caiu (o crédito fica com quem empurrou, como na lava)
+function fall(w: World, wz: Wizard) {
+  const from = wz.pos;
+  Object.assign(wz, { pos: wz.safe ?? from, vel: v(0, 0), target: null, dashUntil: 0, thrustUntil: 0 });
+  if (w.t >= wz.invulnUntil) wz.hp -= wz.hpMax * PIT.hit;
+  wz.calmSince = w.t;
+  w.events.push({ k: 'teleport', id: wz.id, from, to: wz.pos }, { k: 'fall', id: wz.id, x: from.x, y: from.y });
+}
+
+// tiro que entra na parede acaba ali (a mureta é baixa: passa por cima); o meteoro cai do céu e a Zona de dobra não anda
+function dropWalled(w: World) {
+  w.projectiles = w.projectiles.filter((p) => {
+    const hit = p.kind !== 'meteor' && p.kind !== 'warpzone' && cellAt(w.map!, p.pos.x, p.pos.y) === CELL.wall;
+    if (hit) w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pulse', r: 0.3 });
+    return !hit;
+  });
+}
+
+// o Raio para na primeira parede do caminho
+function wallClip(w: World, a: Vec, b: Vec): Vec {
+  if (!w.map) return b;
+  const n = Math.ceil(dist(a, b) / 0.25);
+  for (let i = 1; i <= n; i++) if (cellAt(w.map, a.x + ((b.x - a.x) * i) / n, a.y + ((b.y - a.y) * i) / n) === CELL.wall) return add(a, scale(sub(b, a), (i - 1) / n));
+  return b;
+}
+
 export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.random) {
   w.events = [];
   w.lavaCredit = {};
@@ -1517,7 +1585,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       for (const s of SPELL_IDS) if (wz.cd[s] > w.t) wz.cd[s] -= extraT;
       for (const i of ACTIVE_ITEMS) if (wz.itemCd[i] > w.t) wz.itemCd[i] -= extraT;
     }
-    wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1) * (inWarp(w, wz) ? WARPZONE.wizMult : 1) * haste);
+    wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1) * (w.map && cellAt(w.map, wz.pos.x, wz.pos.y) === CELL.wax ? WAX.mult : 1) * (inWarp(w, wz) ? WARPZONE.wizMult : 1) * haste);
     if (rooted) wz.target = null;
   }
 
@@ -1531,7 +1599,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   const collapsing = w.t >= SUDDEN.collapse;
   const minR = collapsing && !w.dm ? 0 : ARENA_MIN; // a sandbox encolhe até o mínimo, sem sumir
   if (!w.dm && collapsing && w.shrinkAt > w.t + SUDDEN.every) w.shrinkAt = w.t + SUDDEN.every;
-  if ((!w.dm || w.shrink) && w.t >= w.shrinkAt && w.arenaR > minR) {
+  if (!w.map && (!w.dm || w.shrink) && w.t >= w.shrinkAt && w.arenaR > minR) {
     w.arenaR = Math.max(minR, w.arenaR - ARENA_STEP);
     // as ilhas chegam junto com a borda e levam quem está em cima
     for (const i of w.isles) {
@@ -1595,7 +1663,9 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   }
   separate(w);
   blockPillars(w);
+  if (w.map) for (const z of w.wizards) if (z.alive) keepOut(w.map, z, w.lock);
   stepProjectiles(w);
+  if (w.map) dropWalled(w);
   clashProjectiles(w);
 
   for (const wz of w.wizards) {
@@ -1605,6 +1675,10 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       if (inLava(w, wz.pos)) toStone(w, wz);
       wz.hp = wz.hpMax;
       continue;
+    }
+    if (w.map) {
+      if (cellAt(w.map, wz.pos.x, wz.pos.y) === CELL.pit) fall(w, wz);
+      else wz.safe = wz.pos;
     }
     if (inLava(w, wz.pos)) {
       if (w.t < wz.invulnUntil) continue;

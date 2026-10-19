@@ -11,6 +11,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SHAPES as ARENAS, edgeAt, inLavaAt, type ArenaId, type Isle } from '../shared/arena.ts';
 import { ARENA_STEP, CHEST, ISLAND, OBSTACLES, RUNE, SHRINK_WARN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import { lookBody, lookOf, lookPieces, type CharacterId } from '../shared/characters.ts';
+import type { NightMap } from '../shared/levels.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
@@ -582,6 +583,59 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   const mages = new Map<string, Mage>();
   const decor = createDecor(scene, ready.then(() => mageScale), FX.flame);
+
+  // mapa explorável da Campanha (levels.ts): ladrilhos de ardósia, paredes, muretas e cera em malhas instanciadas, sobre um
+  // vazio escuro (o abismo). Montado uma vez por noite; os pontos de controle acendem até o encontro deles ser vencido
+  const mapGroup = new THREE.Group();
+  mapGroup.visible = false;
+  scene.add(mapGroup);
+  const voidPlane = ground(new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshBasicMaterial({ color: '#07080b' })), -0.8);
+  voidPlane.visible = false;
+  scene.add(voidPlane);
+  const mapMats = {
+    floor: new THREE.MeshStandardMaterial({ map: tex('/tex/stone.jpg'), color: '#e6ddd6', roughness: 0.95 }),
+    wall: new THREE.MeshStandardMaterial({ color: '#6a5d56', roughness: 1 }),
+    low: new THREE.MeshStandardMaterial({ color: '#a08a72', roughness: 1 }),
+    wax: new THREE.MeshStandardMaterial({ color: '#d9b866', roughness: 0.6, emissive: '#3a2a08', transparent: true, opacity: 0.85 }),
+  };
+  let mapKey = '';
+  let cpMarks: { room: number; mat: THREE.MeshBasicMaterial }[] = [];
+  function buildMap(n: NightMap) {
+    for (const c of [...mapGroup.children]) {
+      mapGroup.remove(c);
+      if (c instanceof THREE.Mesh) c.geometry.dispose();
+    }
+    for (const c of cpMarks) c.mat.dispose();
+    const at = (test: (g: string, x: number, y: number) => boolean) => n.ground.flatMap((row, y) => row.flatMap((g, x) => (test(g, x, y) ? [[x, y] as const] : [])));
+    const inst = (geo: THREE.BufferGeometry, mat: THREE.Material, cells: (readonly [number, number])[], y: number, cast = false) => {
+      const m = new THREE.InstancedMesh(geo, mat, Math.max(1, cells.length));
+      m.count = cells.length;
+      const o = new THREE.Object3D();
+      cells.forEach(([x, z], i) => {
+        o.position.set(x + 0.5, y, z + 0.5);
+        o.updateMatrix();
+        m.setMatrixAt(i, o.matrix);
+      });
+      m.receiveShadow = true;
+      m.castShadow = cast;
+      mapGroup.add(m);
+    };
+    const wall = (x: number, y: number) => (n.ground[y]?.[x] ?? 'wall') === 'wall';
+    // da parede só a casca (casas de parede encostadas em algo que não é parede): o miolo nunca aparece
+    inst(new THREE.BoxGeometry(1, 0.1, 1), mapMats.floor, at((g) => g !== 'wall' && g !== 'pit'), -0.05);
+    inst(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mapMats.wax, at((g) => g === 'wax'), 0.01);
+    // 1 m de altura: a câmera olha do sul e uma parede mais alta esconderia quem está logo atrás dela
+    inst(new THREE.BoxGeometry(1, 1, 1), mapMats.wall, at((g, x, y) => g === 'wall' && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => !wall(x + dx, y + dy))), 0.5, true);
+    inst(new THREE.BoxGeometry(1, 0.5, 1), mapMats.low, at((g) => g === 'low'), 0.25, true);
+    cpMarks = n.marks.filter((m) => m.kind === 'checkpoint').map((m) => {
+      const mat = new THREE.MeshBasicMaterial({ map: FX.circle, color: '#5dff9a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+      const ring = ground(new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), mat), 0.03);
+      ring.position.x = m.x + 1;
+      ring.position.z = m.y + 0.5;
+      mapGroup.add(ring);
+      return { room: m.room, mat };
+    });
+  }
 
   // geometrias de efeito compartilhadas: criar uma por efeito vazava memória de vídeo
   const ringGeo = new THREE.RingGeometry(WIZ_R * 0.9, WIZ_R * 1.25, 40);
@@ -1831,11 +1885,20 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean }) {
+    render(state: { arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; map?: { night: NightMap; key: string; done: number[] } | null }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
       lavaMat.uniforms.uTime.value = now;
+      // Campanha: o mapa no lugar da arena e da lava
+      const onMap = !!state.map;
+      if (state.map && state.map.key !== mapKey) {
+        mapKey = state.map.key;
+        buildMap(state.map.night);
+      }
+      mapGroup.visible = voidPlane.visible = onMap;
+      lava.visible = arena.visible = warn.visible = !onMap;
+      for (const c of cpMarks) c.mat.opacity = state.map?.done.includes(c.room) ? 0.15 : 0.55 + 0.35 * Math.sin(now * 3);
 
       // arena nova (sorteada a cada rodada): troca o chão e a borda
       if (state.arena !== shownArena) {
@@ -1848,7 +1911,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         warnR = -1;
       }
       // a decoração em volta se afasta da pedra quando a arena muda ou cresce (rodada nova); no encolhimento fica
-      if (state.arena !== decorArena || state.arenaR > decorR + 0.3) decor.layout((p) => edgeAt(state.arena, state.arenaR, p));
+      if (state.arena !== decorArena || state.arenaR > decorR + 0.3) decor.layout((p) => (onMap ? -1 : edgeAt(state.arena, state.arenaR, p)));
       decorR = state.arena !== decorArena || state.arenaR > decorR + 0.3 ? state.arenaR : Math.min(decorR, state.arenaR);
       decorArena = state.arena;
       shownR += (state.arenaR - shownR) * Math.min(1, dt * 4);
@@ -1856,13 +1919,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       shoreU.uR.value = Math.max(0.01, shownR);
       shoreU.uShoreTime.value = now;
       shoreU.uLick.value = lite ? 0 : 1;
-      under.intensity = 52 + Math.sin(now * 2) * 9 + Math.sin(now * 7.3) * 3;
+      under.intensity = onMap ? 0 : 52 + Math.sin(now * 2) * 9 + Math.sin(now * 7.3) * 3;
       const warning = state.shrinkIn > 0 && state.shrinkIn < SHRINK_WARN && state.arenaR > 0;
       warnMat.opacity = warning ? 0.25 + 0.25 * Math.sin(now * 14) : 0;
       // borda derretida puxa para o vermelho e pulsa quando a arena vai encolher
       shoreU.uWarn.value = warning ? 0.5 + 0.5 * Math.sin(now * 14) : 0;
       // brasas: sobem da lava em volta da pedra, cada uma com seu ritmo
       if (!lite) for (const s of embers) {
+        if (onMap) {
+          s.visible = false; // no mapa não há lava
+          continue;
+        }
         const u = s.userData as { a: number; r: number; vy: number; size: number; wait: number };
         if (!s.visible) {
           u.wait -= dt;
@@ -1930,7 +1997,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       syncIsles(shownIsles, now, dt);
       // hit-stop: quem acabou de apanhar fica com a animação parada por ~60 ms
       for (const m of mages.values()) if (now >= m.freezeUntil) m.mixer.update(dt);
-      decor.update((p) => edgeAt(shownArena, shownR, p), now);
+      decor.update((p) => (onMap ? -1 : edgeAt(shownArena, shownR, p)), now); // no mapa a decoração da arena afunda
       for (let i = fx.length - 1; i >= 0; i--) {
         const f = fx[i];
         const k = (now - f.born) / (f.until - f.born);
@@ -1954,7 +2021,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       focus.lerp(target, Math.min(1, dt * 3));
       // aproxima conforme a arena encolhe
-      const dist = Math.min(44, Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
+      const dist = Math.min(44, (onMap ? 15 : Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2)) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
+      // no mapa a sombra do sol acompanha a câmera (a janela de sombra é de 28 m)
+      if (onMap) {
+        sun.position.set(focus.x - 8, 20, focus.z + 6);
+        sun.target.position.set(focus.x, 0, focus.z);
+        sun.target.updateMatrixWorld();
+      } else if (sun.target.position.x || sun.target.position.z) {
+        sun.position.set(-8, 20, 6);
+        sun.target.position.set(0, 0, 0);
+        sun.target.updateMatrixWorld();
+      }
       lastDist = dist;
       // olha um pouco à frente do centro para a borda de baixo não ficar atrás da barra de magias
       const lookZ = focus.z + dist * 0.06;
