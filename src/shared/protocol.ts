@@ -1,10 +1,10 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
-import type { ArenaId } from './arena.ts';
+import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
 import { isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS } from './constants.ts';
 import { ITEM_IDS, isActive, type ItemId } from './items.ts';
-import { MODES, OPTION_CHOICES, goalOf, parseOpt, votesNeeded, type Match, type MatchOpts, type Mode, type Phase, type Stats, type Vote } from './match.ts';
+import { MODES, OPTION_CHOICES, goalOf, parseOpt, votesNeeded, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
@@ -16,7 +16,8 @@ export type BotSetup = { spells?: Partial<Record<SpellId, number>>; items?: Part
 export type ClientMsg =
   | { t: 'hello'; playerId: string; name: string }
   // shuffle: Times sorteados a cada rodada (padrão) ou fixos; opts: opções da partida; setup[i]: dificuldade do bot i+1 e a configuração dele no treino
-  | { t: 'start'; bots: number; mode?: Mode; shuffle?: boolean; opts?: Partial<MatchOpts>; setup?: BotSetup[] }
+  | { t: 'start'; bots: number; mode?: Mode; shuffle?: boolean; opts?: Partial<MatchOpts>; setup?: BotSetup[]; sandbox?: true }
+  | { t: 'sandbox'; cmd: SandboxCmd } // painel da sandbox (o servidor ignora numa sala normal)
   | { t: 'move'; x: number; y: number; seq: number }
   | { t: 'stop'; seq: number }
   | { t: 'cast'; spell: SpellId; x: number; y: number; seq: number }
@@ -38,6 +39,7 @@ export type PublicPlayer = {
   id: string; name: string; bot: boolean; color: number; character: CharacterId; look: string; score: number; gold: number;
   spells: Record<SpellId, number>; items: Record<ItemId, number>; stats: Stats; bought: string[]; held: Record<string, number[]>; ready: boolean; connected: boolean; team: number | null;
   difficulty?: MatchOpts['difficulty']; // só bots: a dificuldade dele
+  dummy?: true; // sandbox: boneco parado
 };
 
 export type PublicRoom = {
@@ -61,6 +63,7 @@ export type PublicRoom = {
   botDelta: number; // bots votados para entrar (+) ou sair (−) na próxima rodada
   goal: number; // pontos para vencer no modo atual (rodadas; abates no Deathmatch)
   arena: ArenaId | null; // formato da arena desta rodada (null sem rodada)
+  sandbox?: Sandbox; // só nas salas sandbox: as regras ligadas
 };
 
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits de estado (ver encodeSnap)
@@ -130,6 +133,19 @@ function parseSetup(x: unknown): BotSetup[] | null {
   return out;
 }
 
+// comando do painel da sandbox: só as operações e os valores conhecidos (o bot passa pela mesma checagem do treino)
+const SANDBOX_KEYS: (keyof Sandbox)[] = ['god', 'noCd', 'shrink'];
+function parseSandbox(c: unknown): SandboxCmd | null {
+  if (!isObj(c)) return null;
+  if (c.op === 'set') return SANDBOX_KEYS.includes(c.key as keyof Sandbox) && typeof c.on === 'boolean' ? { op: 'set', key: c.key as keyof Sandbox, on: c.on } : null;
+  if (c.op === 'arena') return ARENA_IDS.includes(c.arena as ArenaId) ? { op: 'arena', arena: c.arena as ArenaId } : null;
+  if (c.op === 'restart') return { op: 'restart' };
+  if (c.op !== 'bot' || (c.dummy !== undefined && typeof c.dummy !== 'boolean')) return null;
+  const bot = c.bot === undefined ? undefined : parseSetup([c.bot])?.[0];
+  if (bot === undefined && c.bot !== undefined) return null;
+  return { op: 'bot', ...(bot && { bot }), ...(c.dummy && { dummy: true }) };
+}
+
 export function parseClientMessage(raw: string): ClientMsg | null {
   if (raw.length > MAX_MSG) return null;
   let m: unknown;
@@ -151,8 +167,13 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       const setup = m.setup === undefined ? undefined : parseSetup(m.setup);
       if (setup === null) return null;
       if (!Number.isInteger(m.bots) || (m.bots as number) < 0 || (m.bots as number) >= MAX_PLAYERS) return null;
+      if (m.sandbox !== undefined && typeof m.sandbox !== 'boolean') return null;
       // sem opções nem configuração, a mensagem fica como era antes delas
-      return { t: 'start', bots: m.bots as number, mode: m.mode as Mode | undefined, shuffle: m.shuffle, ...(opts && { opts }), ...(setup && { setup }) };
+      return { t: 'start', bots: m.bots as number, mode: m.mode as Mode | undefined, shuffle: m.shuffle, ...(opts && { opts }), ...(setup && { setup }), ...(m.sandbox === true && { sandbox: true as const }) };
+    }
+    case 'sandbox': {
+      const cmd = parseSandbox(m.cmd);
+      return cmd ? { t: 'sandbox', cmd } : null;
     }
     case 'move':
       return coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'move', x: m.x, y: m.y, seq: m.seq } : null;
@@ -210,7 +231,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     mode: m.mode,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }) })),
+    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }) })),
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),
@@ -232,5 +253,6 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     botDelta: m.botDelta,
     goal: goalOf(m),
     arena: m.world?.arena ?? null,
+    ...(m.sandbox && { sandbox: m.sandbox }),
   };
 }

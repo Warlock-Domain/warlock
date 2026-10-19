@@ -5,7 +5,7 @@ import type { BotSetup, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/
 import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
-import { decodeSnap, type SnapView } from '../shared/snapshot.ts';
+import { decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
@@ -175,6 +175,7 @@ function startRoom(code: string, name: string) {
   let training = false;
   let trainSetup: BotSetup[] | undefined; // magias dos bots do último treino
   let shadow = false; // treino contra a sombra: o bot aparece como "Sombra" (só nesta tela)
+  let seeInvis = true; // sandbox: "Ver invisíveis" do painel
   // desafio curto: pending espera a loja da rodada 0 (começo ou Repetir); run conta a tarefa; runRound = rodada em que ela acabou
   let pending: Challenge | null = null;
   let run: Run | null = null;
@@ -230,6 +231,8 @@ function startRoom(code: string, name: string) {
       saveLook(lookOf(character));
     },
     ready: () => net.send({ t: 'ready' }),
+    sandbox: (cmd) => net.send({ t: 'sandbox', cmd }),
+    seeInvis: (on) => (seeInvis = on),
     spell: (s) => input.button(s),
     hover: (a) => (hovered = a),
     volumes: () => vol,
@@ -376,6 +379,15 @@ function startRoom(code: string, name: string) {
     if (c) startChallenge(c);
     else if (k === 'shadow' && skill) startShadow(skill);
     else if (k === 'train') train(hasBotSetup(cfg) ? cfg : undefined);
+    else if (k === 'sandbox') startSandbox();
+  }
+  // sandbox: começa com você e um boneco parado; o resto vem pelo painel
+  function startSandbox() {
+    training = shadow = false;
+    run = pending = null;
+    trainSetup = undefined;
+    net.send({ t: 'start', bots: 0, mode: 'rounds', shuffle: true, opts: DEFAULT_OPTS, sandbox: true });
+    net.send({ t: 'sandbox', cmd: { op: 'bot', dummy: true } });
   }
 
   function startChallenge(c: Challenge) {
@@ -594,7 +606,7 @@ function startRoom(code: string, name: string) {
     if (run && prev?.phase === 'playing') finishRun(endRun(run, room.lastRoundWinner === me));
     // a sombra aprende com as rodadas jogadas fora dos desafios (alive > 0: fora o deathmatch, que não conta o tempo vivo)
     const mine = room.players.find((p) => p.id === me)?.stats.round;
-    if (room.phase === 'roundEnd' && prev?.phase === 'playing' && !run && !pending && mine && mine.alive > 0) store.set(PROFILE_KEY, JSON.stringify(addRound(store.json<Profile>(PROFILE_KEY), mine, rttSeen ? predict.rtt() : 0)));
+    if (room.phase === 'roundEnd' && prev?.phase === 'playing' && !run && !pending && !room.sandbox && mine && mine.alive > 0) store.set(PROFILE_KEY, JSON.stringify(addRound(store.json<Profile>(PROFILE_KEY), mine, rttSeen ? predict.rtt() : 0)));
     // cortina ao entrar na partida ou voltar para a sala (sala e fim são telas de menu; o resto é a arena)
     const menu = (p: string) => p === 'lobby' || p === 'end';
     if (prev && menu(prev.phase) !== menu(room.phase)) curtain();
@@ -656,7 +668,7 @@ function startRoom(code: string, name: string) {
     const low = !!meW?.alive && !!meP && meW.hp < 0.25 * meMax;
     const lava = !!meW?.alive && !!latest && inLavaAt(arenaId, latest.arenaR, latest.isles, meW.pos);
     view.danger(low, lava);
-    const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' ? s.shrinkAt - s.time : null;
+    const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' && (!room.sandbox || room.sandbox.shrink) ? s.shrinkAt - s.time : null;
     // espectador: morto na rodada (ou só assistindo), a câmera segue o vivo com mais vida; ← → ou os botões trocam
     const alive = room?.phase === 'playing' && s && !meW?.alive ? wizards.filter((w) => w.alive && w.id !== me && !(w.status & 2048)) : [];
     let watched = alive.find((w) => w.id === watchId);
@@ -729,8 +741,16 @@ function startRoom(code: string, name: string) {
       const prevDraw = prev.get(w.id);
       const moving = len(w.vel) < STUN_SPEED && w.alive && (!prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
-      return { ...w, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null };
+      return { ...w, status: seen(w), pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null };
     });
+  }
+  // sandbox: o servidor manda todos visíveis; "Ver invisíveis" deixa os outros na Caminhada no vento ou no véu da Ilusão
+  // meio transparentes (o bit do véu); desligado, esconde como numa sala normal
+  function seen(w: WizView): number {
+    const s = w.status;
+    if (!room?.sandbox || w.id === me) return s;
+    if (seeInvis) return s & (1024 | 8388608) ? s | 8388608 : s;
+    return (s & 1024 ? (s & ~1024) | 2048 : s) & ~8388608;
   }
   // eventos do replay: só a cena (clarão, explosão) e a seta do golpe que eu levei
   function replayEvents(events: SimEvent[], rs: SnapView) {
