@@ -56,7 +56,8 @@ export const WINS_TO_WIN = 5; // original: 1 ponto por rodada vencida (lá o pad
 export const START_GOLD = 30;
 export const ROUND_GOLD = 10;
 // venda: cada nível volta 100% na loja em que foi comprado e perde 5% por rodada com ele, até 75% (Fernando, 17/10)
-export const SELL_DECAY = 0.05;
+// vender devolve sempre 100% do que pagou (Fernando, 19/10); antes perdia 5% por rodada até 75%
+export const SELL_DECAY = 0;
 export const SELL_FLOOR = 0.75;
 // baú de ouro no meio da rodada (pedidos do Fernando, 17/10: "incentivar a treta"): aparece a cada 15 s, as magias quebram
 // (vida em OBSTACLES.chest) e ele vira um monte de ouro; quem fica em cima ganha 1 a cada 2 s até o monte (10) acabar; sair zera o progresso
