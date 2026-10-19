@@ -43,10 +43,13 @@ export const OBSTACLES: Record<ObstacleKind, { r: number; hp: number; blastR: nu
   tree: { r: 0.35, hp: 75, blastR: 0, blastDmg: 0, weight: 2 },
   shrine: { r: 0.45, hp: 50, blastR: 1.6, blastDmg: 60, weight: 1 },
   chest: { r: 0.4, hp: 1, blastR: 0, blastDmg: 0, weight: 0 }, // baú de ouro: não sai no sorteio, aparece no meio da rodada; abre com 1 golpe (Fernando, 18/10)
-  // Pilar de pedra (magia): obstáculo comum do original (400 de vida, explode igual ao pilar) com raio 90 u, 1,5× o pilar
-  // de 60 u; aqui 1,5× o nosso pilar, que já é maior que o original. Some sozinho (Pillar.until)
-  rockpillar: { r: 0.75, hp: 200, blastR: 300 * UNIT, blastDmg: 10, weight: 0 },
+  // Pilar de pedra (magia): vida e explosão do pilar do original; desde 18/10 (Fernando) é uma parede baixa de 2 m atravessada
+  // no caminho do lançamento: 3 círculos de raio r em linha, a WALL_GAP um do outro, com vida compartilhada (os 200 valem para a parede toda: dano em um pedaço tira dos 3).
+  // Some sozinho (Pillar.until)
+  rockpillar: { r: 0.35, hp: 200, blastR: 300 * UNIT, blastDmg: 10, weight: 0 },
 };
+
+export const WALL_GAP = 0.65; // centro a centro dos 3 pedaços da parede: 2 × 0,65 + 2 × 0,35 = 2 m, a largura do modelo
 
 export const MAX_PLAYERS = 8;
 export const WINS_TO_WIN = 5; // original: 1 ponto por rodada vencida (lá o padrão é 11; aqui 5, decisão do Fernando)
@@ -96,3 +99,6 @@ export const RUNE = { first: 15, every: 20, secs: 8, reach: 0.6, spread: 0.6, ha
 // sequências de abate (anúncio estilo Dota): abates com até 4 s entre eles; Matança e cia. contam abates sem morrer (atravessam as rodadas);
 // quem derruba alguém com 3 ou mais abates seguidos ganha o Quebra-combo
 export const STREAK = { window: 4, spree: [3, 5, 7, 10], breakAt: 3, breakGold: 3 };
+// ilhas de refúgio na lava (Fernando, 18/10): 4 por arena, centro a 2–4 m da borda de agora (acompanham o encolhimento), raio 1,4 m;
+// em cima não queima; com alguém em cima a lava avança 0,18 m/s (some em ~8 s), vazia volta a crescer (cheia em 30 s)
+export const ISLAND = { n: 4, r: 1.4, near: 2, far: 4, sink: 0.18, regrow: 30 };

@@ -4,6 +4,7 @@ import { PROJ_KINDS, bootsBonus, type ProjKind, type SimEvent, type World } from
 import { CHEST, OBSTACLES, OBSTACLE_KINDS, RUNE_KINDS, STUN_SPEED, WIZ_R, type ObstacleKind, type RuneKind } from './constants.ts';
 import { ACTIVE_ITEMS } from './items.ts';
 import { SPELL_IDS, spellLevel } from './spells.ts';
+import type { Isle } from './arena.ts';
 import { dist, v, type Vec } from './vec.ts';
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -67,6 +68,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   if (ab.some((x) => x > 0)) snap.ab = ab;
   // chão dos choques: x, y, raio, tipo, segundos que faltam
   if (w.zones.length) snap.zn = w.zones.flatMap((z) => [r2(z.pos.x), r2(z.pos.y), r2(z.r), ZONE_KINDS.indexOf(z.kind), r2(Math.max(0, z.until - w.t))]);
+  // ilhas de refúgio: x, y, raio (raio 0 = afundada)
+  if (w.isles?.length) snap.il = w.isles.flatMap((i) => [r2(i.pos.x), r2(i.pos.y), r2(i.r)]);
   if (w.runes.length) snap.ru = w.runes.flatMap((r) => [r2(r.pos.x), r2(r.pos.y), RUNE_KINDS.indexOf(r.kind)]);
   if (events.length) snap.e = events;
   return snap;
@@ -78,7 +81,7 @@ export type ProjView = { id: number; kind: ProjKind; pos: Vec; vel: Vec };
 export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
 export type RuneView = { pos: Vec; kind: RuneKind };
 export type ZoneView = { pos: Vec; r: number; kind: ZoneKind; left: number };
-export type SnapView = { time: number; arenaR: number; shrinkAt: number; wizards: WizView[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[] };
+export type SnapView = { time: number; arenaR: number; shrinkAt: number; wizards: WizView[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[] };
 
 export function decodeSnap(s: Snap, ids: string[]): SnapView {
   const wizards: WizView[] = [];
@@ -97,5 +100,7 @@ export function decodeSnap(s: Snap, ids: string[]): SnapView {
   for (let i = 0; i + 2 < (s.ru?.length ?? 0); i += 3) runes.push({ pos: v(s.ru![i], s.ru![i + 1]), kind: RUNE_KINDS[s.ru![i + 2]] ?? 'haste' });
   const zones: ZoneView[] = [];
   for (let i = 0; i + 4 < (s.zn?.length ?? 0); i += 5) zones.push({ pos: v(s.zn![i], s.zn![i + 1]), r: s.zn![i + 2], kind: ZONE_KINDS[s.zn![i + 3]] ?? 'burn', left: s.zn![i + 4] });
-  return { time: s.time, arenaR: s.r, shrinkAt: s.s, wizards, projectiles, pillars, runes, zones, loots: Array.from({ length: Math.floor((s.ch?.length ?? 0) / 3) }, (_, i) => ({ pos: v(s.ch![i * 3], s.ch![i * 3 + 1]), left: s.ch![i * 3 + 2] })) };
+  const isles: Isle[] = [];
+  for (let i = 0; i + 2 < (s.il?.length ?? 0); i += 3) isles.push({ pos: v(s.il![i], s.il![i + 1]), r: s.il![i + 2] });
+  return { time: s.time, arenaR: s.r, shrinkAt: s.s, wizards, projectiles, pillars, runes, zones, isles, loots: Array.from({ length: Math.floor((s.ch?.length ?? 0) / 3) }, (_, i) => ({ pos: v(s.ch![i * 3], s.ch![i * 3 + 1]), left: s.ch![i * 3 + 2] })) };
 }

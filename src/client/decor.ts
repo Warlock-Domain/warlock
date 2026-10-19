@@ -36,12 +36,12 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
   const flames: THREE.Sprite[] = [];
   const islands: { g: THREE.Group; r: number; a: number }[] = [];
   let edgeOf: EdgeOf | null = null;
-  // ilhas de decoração afastadas da pedra (as arenas novas são mais compridas que o círculo); ossos fora da pedra já afundados
+  // ilhas de decoração afastadas da pedra (as arenas novas são mais compridas que o círculo) e das ilhas de refúgio (até 5,4 m da borda, mais o raio de 1,7 m destas); ossos fora da pedra já afundados
   const arrange = () => {
     if (!edgeOf) return;
     for (const it of islands) {
       let r = it.r;
-      while (r < 40 && edgeOf(v(Math.cos(it.a) * r, Math.sin(it.a) * r)) > -3) r += 0.5;
+      while (r < 40 && edgeOf(v(Math.cos(it.a) * r, Math.sin(it.a) * r)) > -7.5) r += 0.5;
       it.g.position.set(Math.cos(it.a) * r, 0.1, Math.sin(it.a) * r);
     }
     for (const p of props) {

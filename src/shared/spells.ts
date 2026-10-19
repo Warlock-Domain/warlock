@@ -25,7 +25,7 @@ export const SPELLS: Record<SpellId, Spell> = {
   lightning: { key: 'W', name: 'Raio', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 15.5, 15, 14.5, 14, 13.5, 13], [70, 78, 86, 94, 102, 110, 118]).map(([cd, d]) => L({ cd: Math.round(cd * 14) / 10, dmg: d, kbf: 0.92, range: 800 * UNIT })) /* números pelo simulador (18/10, escolha do Fernando): recarga ×1,4 (1,32 → 1,13) */ }, // balanceamento de 17/10: recarga ×0,7 e alcance 600 → 800 (acertava 21%)
   homing: { key: 'E', name: 'Míssil teleguiado', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [70, 80, 90, 100, 110, 120, 130]).map(([cd, d]) => L({ cd, dmg: d * 0.34, speed: 1000 * UNIT, duration: 4.5 })) /* números pelo simulador (18/10): dano ×0,34 e curva 3 → 2,5 rad/s (1,34 → 1,13) */ },
   shield: { key: 'R', name: 'Escudo', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [14, 13, 12, 11, 10, 9, 8].map((cd, i) => L({ cd, duration: 1.2, radius: (200 + 10 * i) * UNIT })) }, // original (Fernando, 18/10: volta ao original até ter partidas reais; nos bots vence 46% acima do justo, eles reagem melhor que gente) // bolha de 200 a 260 (abil.txt do original)
-  teleport: { key: 'F', name: 'Teleporte', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([16, 13.5, 11.5, 10, 9, 8, 7], [770, 840, 910, 980, 1050, 1120, 1190]).map(([cd, r]) => L({ cd, range: r * UNIT })) },
+  teleport: { key: 'F', name: 'Teleporte', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([16, 13.5, 11.5, 10, 9, 8, 7], [770, 840, 910, 980, 1050, 1120, 1190]).map(([cd, r]) => L({ cd: cd * 1.1, range: r * UNIT })) }, // 18/10 com as ilhas de refúgio: recarga ×1,1 (18% acima do justo no Normal)
   // as cinco magias seguintes: npc_abilities_custom.txt, spells/*.lua e shop/warlock_shop_data.js do Warlock Brawl
   // troca: projétil de 1983 u/s que vive 0,4706 s (alcance 933 u)
   swap: { key: 'D', name: 'Troca', cost: 11, up: [6, 7, 8, 9, 10, 11], levels: [15.8, 13.3, 11.3, 9.8, 8.8, 7.8, 7].map((cd) => L({ cd: cd * 1.3, speed: 1983 * UNIT, range: 933 * UNIT })) }, // 18/10 bots humanos: recarga ×1,3 (26% / 29% acima do justo no Normal / Difícil)
@@ -42,7 +42,7 @@ export const SPELLS: Record<SpellId, Spell> = {
   // bumerangue: curva até o ponto (300 a 800 u) e volta ao dono; empurrão 0,95
   boomerang: { key: 'B', name: 'Bumerangue', cost: 11, up: [7, 8, 9, 10, 11, 12], levels: zip([16, 13.9, 12.5, 11.7, 11, 10.3, 9.6], [70, 76, 82, 88, 94, 100, 106]).map(([cd, d]) => L({ cd, dmg: d, kbf: 0.95, speed: 1500 * UNIT, range: 800 * UNIT })) },
   // estocada: o mago dispara até 900 u a 1300 u/s; dano cheio só a 89% da velocidade máxima ou mais; empurrão 1,2
-  thrust: { key: 'X', name: 'Estocada', cost: 11, up: [6, 7, 8, 9, 10, 11], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [50, 55, 60, 65, 70, 75, 80]).map(([cd, d]) => L({ cd: cd * 1.15 /* 18/10: 1,16 → 1,12 */, dmg: d, kbf: 1.2, speed: 1300 * UNIT, range: 900 * UNIT })) },
+  thrust: { key: 'X', name: 'Estocada', cost: 11, up: [6, 7, 8, 9, 10, 11], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [50, 55, 60, 65, 70, 75, 80]).map(([cd, d]) => L({ cd: cd * 1.25 /* 18/10: ×1,15 e depois ×1,25 (17% acima com as ilhas) */, dmg: d, kbf: 1.2, speed: 1300 * UNIT, range: 900 * UNIT })) },
   // gravidade: orbe de 450 u/s por 900 u; dmg = dano por segundo em quem está a 250 u; pull = força em 550 u (sem empurrão)
   gravity: { key: 'H', name: 'Gravidade', cost: 12, up: [7, 8, 9, 10, 11, 12], levels: zip([21, 20.5, 20, 19.5, 19, 18.5, 18], [20, 33.33, 46.67, 60, 73.33, 86.67, 100]).map(([cd, d], i) => L({ cd, dmg: d * 2, kbf: 0, speed: 450 * UNIT, range: 900 * UNIT, radius: 250 * UNIT, /* 18/10: dano por segundo ×2 (0,89 → 0,97) */ pull: (500 + 30 * i) * UNIT })) },
   // pilar de pedra: obstáculo de 4 s a até 650..1100 u; recarga = AbilityCooldown (o cooldown2 do mesmo arquivo diz 24..12 e só aparece na dica)
@@ -70,7 +70,7 @@ export const SPELLS: Record<SpellId, Spell> = {
   // divisor: 700 u/s por até 1 s (ou até o ponto); dmg = dano de cada um dos 8 filhotes
   splitter: { key: 'P', name: 'Divisor', cost: 15, up: [7, 8, 9, 10, 11, 12], levels: steps(24, -1).map((cd, i) => L({ cd, dmg: 30 + 5 * i, speed: 700 * UNIT, range: 700 * UNIT })) },
   // zona de dobra: esfera de 4,5 s a até 700 u; scale = tempo dos projéteis inimigos dentro dela
-  warpzone: { key: '', name: 'Zona de dobra', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([23, 21, 20, 19, 18, 17, 16], steps(0.4, -0.04)).map(([cd, scale], i) => L({ cd: cd * 0.7, duration: 4.5, scale, /* 18/10: recarga ×0,7 e raio +20 por nível (0,90 → 0,95) */ radius: (200 + 20 * i) * UNIT, range: 700 * UNIT })) },
+  warpzone: { key: '', name: 'Zona de dobra', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([23, 21, 20, 19, 18, 17, 16], steps(0.4, -0.04)).map(([cd, scale], i) => L({ cd: cd * 0.6, duration: 4.5, scale, /* 18/10: recarga ×0,7 → ×0,6 (19% abaixo com bots humanos) e raio +20 por nível */ radius: (200 + 20 * i) * UNIT, range: 700 * UNIT })) },
 };
 
 // agarrar (ideia do Fernando, 18/10): o preso fica no lugar até o primeiro golpe com dano (ou o fim do tempo), e esse golpe

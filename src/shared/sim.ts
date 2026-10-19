@@ -1,9 +1,9 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
   ARENA_MIN, ARENA_STEP, CHEST, CREDIT_WINDOW, ZONES, DM_RESPAWN, DM_SPAWN_GAP, OBSTACLES, OBSTACLE_KINDS, PILLAR, type ObstacleKind, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KB_SOFT_CAP, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
-  RUNE, RUNE_KINDS, SUDDEN, WIZ_R, WIZ_SPEED, arenaRadius, type RuneKind,
+  ISLAND, RUNE, RUNE_KINDS, SUDDEN, WALL_GAP, WIZ_R, WIZ_SPEED, arenaRadius, type RuneKind,
 } from './constants.ts';
-import { SHAPES, edge, inArena, safeInside, type ArenaId } from './arena.ts';
+import { SHAPES, edge, inArena, isleSpot, onIsle, safeInside, type ArenaId, type Isle } from './arena.ts';
 import { ACTIVE_ITEMS, AEGIS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, TWIN, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
@@ -151,7 +151,8 @@ export type AimSrc = 'fireball' | 'lightning' | 'homing' | 'scourge' | 'meteor' 
 // choque de magias: fogo×fogo, fogo×míssil, míssil×míssil, e o raio detonando uma bola de fogo
 export type Combo = 'fire' | 'arcane' | 'pulse' | 'detonate' | 'pillar' | 'snow'; // snow: explosão da Bola de neve
 
-export type Pillar = { pos: Vec; hp: number; alive: boolean; kind: ObstacleKind; until?: number }; // until: some sozinho (Pilar de pedra)
+// until: some sozinho (Pilar de pedra); wall: índice do pedaço do meio da parede do Pilar de pedra (os 3 dividem a vida)
+export type Pillar = { pos: Vec; hp: number; alive: boolean; kind: ObstacleKind; until?: number; wall?: number };
 
 export type Zone = { pos: Vec; r: number; kind: 'burn' | 'slow' | 'pull'; until: number };
 
@@ -168,6 +169,7 @@ export type World = {
   chestAt: number; // quando o próximo baú aparece
   runes: { pos: Vec; kind: RuneKind }[]; // no máximo uma
   runeAt: number; // quando a próxima runa aparece
+  isles: (Isle & { a: number; d: number })[]; // ilhas de refúgio: rumo a do centro e distância d da borda (a posição segue o encolhimento)
   sudden: boolean; // morte súbita já começou
   rules: Rules; // mecânicas ligadas nesta rodada (opções da partida)
   events: SimEvent[];
@@ -265,7 +267,27 @@ export function newWorld(
       casting: null,
     };
   });
-  return { t: 0, arena, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars: placePillars(arena, arenaR, pillarCount, wizards.map((z) => z.pos), rand), zones: [], loots: [], chestAt: CHEST.first, runes: [], runeAt: RUNE.first, sudden: false, rules: { ...rules }, events: [], lavaCredit: {}, nextId: 1, dm };
+  const pillars = placePillars(arena, arenaR, pillarCount, wizards.map((z) => z.pos), rand);
+  // ilhas nas diagonais (±15°), longe dos eixos onde os magos nascem e caem mais
+  const isles = Array.from({ length: ISLAND.n }, (_, i) => {
+    const a = Math.PI / 4 + (i * Math.PI * 2) / ISLAND.n + (rand() - 0.5) * (Math.PI / 6);
+    const d = ISLAND.near + rand() * (ISLAND.far - ISLAND.near);
+    return { a, d, r: ISLAND.r, pos: isleSpot({ arena, arenaR }, a, d) };
+  });
+  return { t: 0, arena, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars, zones: [], loots: [], chestAt: CHEST.first, runes: [], runeAt: RUNE.first, isles, sudden: false, rules: { ...rules }, events: [], lavaCredit: {}, nextId: 1, dm };
+}
+
+// lava: fora da pedra da arena e fora de toda ilha
+export const inLava = (w: World, p: Vec) => edge(w, p) < 0 && !onIsle(w.isles, p);
+
+// ilhas: com alguém em cima a lava come a borda; vazia, a pedra volta a crescer (menos quando a arena já está sumindo: a rodada tem de acabar)
+function stepIsles(w: World) {
+  const grow = w.t < SUDDEN.collapse ? (ISLAND.r / ISLAND.regrow) * DT : 0;
+  for (const i of w.isles) {
+    // em cima = com o pé na ilha (centro a até o raio do mago da beira): afundada, quem está ali não a deixa voltar
+    const busy = w.wizards.some((z) => z.alive && dist(z.pos, i.pos) < i.r + WIZ_R);
+    i.r = busy ? Math.max(0, i.r - ISLAND.sink * DT) : Math.min(ISLAND.r, i.r + grow);
+  }
 }
 
 // sorteia pilares longe de onde os magos nascem e longe uns dos outros
@@ -477,24 +499,28 @@ function firstPillarOnSegment(w: World, a: Vec, b: Vec, radius: number): { i: nu
 
 function damagePillar(w: World, i: number, dmg: number, by: string | null) {
   const p = w.pillars[i];
-  p.hp -= dmg;
+  // parede: os 3 pedaços compartilham a vida, quebram juntos e explodem uma vez só, no meio
+  const mates = p.wall === undefined ? [p] : w.pillars.filter((q) => q.wall === p.wall && q.alive);
+  for (const q of mates) q.hp -= dmg;
   w.events.push({ k: 'pillar', i, x: p.pos.x, y: p.pos.y });
   if (p.hp > 0) return;
-  p.alive = false;
+  for (const q of mates) q.alive = false;
+  const at = p.wall === undefined ? p.pos : w.pillars[p.wall].pos;
   const o = OBSTACLES[p.kind];
   // o ouro cai na pedra: baú que a lava pegou espalha o monte na beira de dentro
   if (p.kind === 'chest') w.loots.push({ pos: safeInside(w, p.pos, 0.6), left: CHEST.pile, until: w.t + CHEST.pileSecs });
-  if (o.blastR > 0) area(w, p.pos, o.blastR, o.blastDmg, 1, by, true, 'pillar');
-  else w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pillar', r: o.r * 1.5 });
+  if (o.blastR > 0) area(w, at, o.blastR, o.blastDmg, 1, by, true, 'pillar');
+  else w.events.push({ k: 'clash', x: at.x, y: at.y, combo: 'pillar', r: o.r * 1.5 });
 }
 
 // magos não atravessam pilares: empurra para fora e corta o deslize na direção do pilar
 function blockPillars(w: World) {
   for (const p of w.pillars) {
     if (p.alive && p.until !== undefined && w.t >= p.until) {
-      // o Pilar de pedra acaba: some sem explodir (removeObstacle do original)
+      // o Pilar de pedra acaba: some sem explodir (removeObstacle do original); a parede some com uma nuvem só, no meio, do tamanho dela
       p.alive = false;
-      w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pillar', r: OBSTACLES[p.kind].r * 1.5 });
+      if (p.wall === undefined) w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pillar', r: OBSTACLES[p.kind].r * 1.5 });
+      else if (w.pillars[p.wall] === p) w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pillar', r: 1.1 });
     }
     if (!p.alive) continue;
     // baú na lava quebra sozinho (Fernando, 18/10)
@@ -622,7 +648,10 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     // rockpillar.lua: obstáculo no ponto (até o alcance) que some depois da duração (com a maestria de duração)
     w.events.push({ k: 'fire', id: wz.id, src: 'rockpillar' });
     const pos = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
-    w.pillars.push({ pos, hp: OBSTACLES.rockpillar.hp, alive: true, kind: 'rockpillar', until: w.t + L.duration * wz.durF });
+    // parede atravessada no caminho mago → ponto: o do meio no ponto, os outros dois para os lados
+    const way = len(sub(at, wz.pos)) > 1e-6 ? norm(sub(at, wz.pos)) : v(Math.cos(wz.facing), Math.sin(wz.facing));
+    const side = v(-way.y, way.x), mid = w.pillars.length;
+    for (const k of [0, -1, 1]) w.pillars.push({ pos: add(pos, scale(side, k * WALL_GAP)), hp: OBSTACLES.rockpillar.hp, alive: true, kind: 'rockpillar', until: w.t + L.duration * wz.durF, wall: mid });
   } else if (spell === 'drain') {
     // drain.lua: reto até o ponto (no máximo o alcance), depois vira para o mago mais perto e voa mais 1,2 s
     w.events.push({ k: 'fire', id: wz.id, src: 'drain' });
@@ -792,8 +821,12 @@ function scourge(w: World, wz: Wizard) {
   }
   if (landed) w.events.push({ k: 'land', id: wz.id, src: 'scourge' });
   // também bate nos obstáculos e no baú dentro da explosão (pedido do Fernando, 17/10)
+  // a parede apanha uma vez, mesmo com mais de um pedaço dentro
+  const walls = new Set<number>();
   w.pillars.forEach((q, i) => {
-    if (q.alive && dist(q.pos, wz.pos) <= SCOURGE.radius + OBSTACLES[q.kind].r) damagePillar(w, i, dmg, wz.id);
+    if (!q.alive || dist(q.pos, wz.pos) > SCOURGE.radius + OBSTACLES[q.kind].r || (q.wall !== undefined && walls.has(q.wall))) return;
+    if (q.wall !== undefined) walls.add(q.wall);
+    damagePillar(w, i, dmg, wz.id);
   });
   // também destrói bolas de fogo e mísseis inimigos dentro da explosão (pedido do Fernando, 17/10)
   const caught = w.projectiles.filter((p) => p.owner !== wz.id && !fixed(p) && p.kind !== 'snowball' && dist(p.pos, wz.pos) <= SCOURGE.radius + PROJ_R);
@@ -1501,11 +1534,18 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   if (!w.dm && collapsing && w.shrinkAt > w.t + SUDDEN.every) w.shrinkAt = w.t + SUDDEN.every;
   if (!w.dm && w.t >= w.shrinkAt && w.arenaR > minR) {
     w.arenaR = Math.max(minR, w.arenaR - ARENA_STEP);
+    // as ilhas chegam junto com a borda e levam quem está em cima
+    for (const i of w.isles) {
+      const to = isleSpot(w, i.a, i.d);
+      for (const z of w.wizards) if (z.alive && dist(z.pos, i.pos) < i.r) z.pos = add(z.pos, sub(to, i.pos));
+      i.pos = to;
+    }
     w.shrinkAt += w.sudden || collapsing ? SUDDEN.every : SHRINK_EVERY;
     w.events.push({ k: 'shrink', r: w.arenaR });
   }
 
   w.zones = w.zones.filter((z) => z.until > w.t);
+  stepIsles(w);
   // baú: aparece num ponto sorteado longe dos obstáculos; as magias quebram e ele vira um monte de ouro
   const chestsUp = w.pillars.filter((q) => q.kind === 'chest' && q.alive).length;
   if (w.rules.chests && chestsUp < CHEST.maxUp && w.t >= w.chestAt) {
@@ -1560,7 +1600,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
 
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
-    if (edge(w, wz.pos) < 0) {
+    if (inLava(w, wz.pos)) {
       if (w.t < wz.invulnUntil) continue;
       const burn = Math.min(Math.max(0, wz.hp), LAVA_DPS * DT * (1 - wz.lavaCut));
       wz.hp -= LAVA_DPS * DT * (1 - wz.lavaCut);

@@ -11,6 +11,14 @@ models/decor.glb
     nós: torch_lit, pillar_decorated, column, rubble_large, rubble_half, candle_triple
   Licença lida no LICENSE.txt de cada repositório: "License: (Creative Commons Zero, CC0)".
 models/mage.glb, models/KAYKIT-LICENSE.txt: já existiam (KayKit, CC0), não alterados.
+models/hex/rock_single_A..E.gltf (+ .bin e hexagons_medieval.png), pedras na beira das ilhas de refúgio
+  KayKit Medieval Hexagon Pack 1.0, por Kay Lousberg (www.kaylousberg.com), CC0
+  https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0 (arquivos copiados sem alteração)
+  Licença lida no LICENSE.txt do pacote: "License: (Creative Commons Zero, CC0)".
+models/barrier_half.glb (barrier_half.gltf.glb), a parede do Pilar de pedra
+  KayKit Dungeon Remastered 1.0, por Kay Lousberg (www.kaylousberg.com), CC0
+  https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0 (arquivo copiado sem alteração)
+  Licença lida no LICENSE.txt do repositório: "License: (Creative Commons Zero, CC0)".
 
 == Texturas ==
 tex/lava.jpg, tex/lava_emit.jpg
@@ -19,8 +27,14 @@ tex/lava.jpg, tex/lava_emit.jpg
 tex/stone.jpg, tex/stone_nor.jpg
   Poly Haven, "slate_floor_02" (diff e nor_gl, 1K reduzido a 512x512) - https://polyhaven.com/a/slate_floor_02
   Licença lida na página: "CC0 1.0 Universal - public domain dedication, no attribution required" (https://polyhaven.com/license).
+tex/lava005.jpg (beira derretida das ilhas de refúgio)
+  ambientCG, "Lava005" (Color, 1K reduzido a 512x512) - https://ambientcg.com/a/Lava005
+  Licença lida na página: "CC0 license, making them free to use without attribution".
 
 == Partículas (fx/, reduzidas a 128x128) ==
+fx/puff_0.png fx/puff_1.png fx/puff_2.png (whitePuff00, 04 e 08: vapor das ilhas e dos corpos na lava)
+  Kenney, "Smoke Particles" - https://kenney.nl/assets/smoke-particles
+  Licença lida na página e no License.txt do zip: "Creative Commons CC0".
 fx/flame_01.png fx/fire_01.png fx/smoke_01.png fx/spark_01.png fx/magic_02.png fx/light_01.png fx/circle_05.png fx/scorch_02.png
   Kenney (Kenney Vleugels), "Particle Pack 1.1" - https://kenney.nl/assets/particle-pack
   Licença lida no License.txt do zip: "License (Creative Commons Zero, CC0)".

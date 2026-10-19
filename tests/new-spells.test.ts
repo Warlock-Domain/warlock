@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DT, HP_MAX, WIZ_R, WIZ_SPEED } from '../src/shared/constants.ts';
+import { DT, HP_MAX, OBSTACLES, WIZ_R, WIZ_SPEED } from '../src/shared/constants.ts';
 import { botBuy, botCmds } from '../src/shared/bots.ts';
 import { addPlayer, buy, newMatch, startMatch, undoBuy } from '../src/shared/match.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
@@ -406,7 +406,43 @@ describe('Pilar de pedra', () => {
     expect(p.alive).toBe(false);
     w.wizards[0].cd.rockpillar = 0;
     run(w, 0.1, [cast('p0', 'rockpillar', 50, 0)]);
-    expect(len(w.pillars[w.pillars.length - 1].pos)).toBeCloseTo(SPELLS.rockpillar.levels[0].range, 5);
+    expect(len(w.pillars[w.pillars.length - 3].pos)).toBeCloseTo(SPELLS.rockpillar.levels[0].range, 5);
+  });
+
+  it('is a 2 m low wall across the cast line (3 pieces in a row), sharing one 200 hp and exploding once', () => {
+    const w = world([[0, 0], [6, 0.3]], ['rockpillar']);
+    run(w, 0.1, [cast('p0', 'rockpillar', 3, 0)]);
+    const parts = w.pillars.filter((q) => q.kind === 'rockpillar');
+    expect(parts).toHaveLength(3);
+    // atravessada: os pedaços em x = 3, espalhados no eixo y (perpendicular ao caminho mago → ponto)
+    for (const q of parts) expect(q.pos.x).toBeCloseTo(3, 9);
+    const ys = parts.map((q) => q.pos.y).sort((a, b) => a - b);
+    expect(ys[2] - ys[0] + 2 * OBSTACLES.rockpillar.r).toBeCloseTo(2, 5);
+    // a Bola de fogo pega um pedaço só: a vida cai nos 3
+    const ev = runEvents(w, 1, [cast('p1', 'fireball', 3, 0.3)]);
+    expect(ev.some((e) => e.k === 'pillar')).toBe(true);
+    expect(new Set(parts.map((q) => q.hp)).size).toBe(1);
+    expect(parts[0].hp).toBeLessThan(OBSTACLES.rockpillar.hp);
+    // quebra junto e explode uma vez
+    w.wizards[1].cd.fireball = 0;
+    const blasts: SimEvent[] = [];
+    for (let k = 0; k < 6 && parts[0].alive; k++) {
+      w.wizards[1].cd.fireball = 0;
+      blasts.push(...runEvents(w, 0.6, [cast('p1', 'fireball', 3, 0.3)]).filter((e) => e.k === 'clash' && e.combo === 'pillar'));
+    }
+    expect(parts.every((q) => !q.alive)).toBe(true);
+    expect(blasts).toHaveLength(1);
+  });
+
+  it('a wizard walking into the wall stops at it (no gap between the pieces)', () => {
+    const w = world([[0, 0], [0, -8]], ['rockpillar']);
+    run(w, 0.1, [cast('p0', 'rockpillar', 2, 0)]);
+    // 4 tentativas de 1,1 s cabem nos 5 s da parede
+    for (const y of [0, 0.33, -0.33, 0.66]) {
+      w.wizards[0].pos = v(0.5, y);
+      run(w, 1.1, [{ id: 'p0', kind: 'move', to: v(4, y) }]);
+      expect(w.wizards[0].pos.x).toBeLessThan(1.45); // entre dois pedaços a face da parede fica 6 cm mais funda; ninguém passa
+    }
   });
 });
 

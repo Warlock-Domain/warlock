@@ -1,6 +1,6 @@
 // Bots: usam qualquer magia e item ativo que tiverem e compram seguindo um plano sorteado no começo da partida.
 import { edge, inArena, inward, pathStep, roomAt, safeInside } from './arena.ts';
-import { DT, FRICTION, OBSTACLES, PROJ_R, WIZ_R } from './constants.ts';
+import { DT, FRICTION, ISLAND, OBSTACLES, PROJ_R, WIZ_R } from './constants.ts';
 import type { Cmd, Projectile, Wizard, World } from './sim.ts';
 import { ITEM_IDS, SCOURGE, itemPrice, type ItemId } from './items.ts';
 import { CAST_POINT, MAX_SPELLS, METEOR_DELAY, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
@@ -271,6 +271,16 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // deslizando para a lava: Pilar de pedra logo à frente segura o bot
   if (ready('rockpillar') && len(me.vel) > 2 && !inside(add(me.pos, scale(me.vel, 1 / FRICTION)), 0.3) && reacts(1)) return cast('rockpillar', add(me.pos, scale(norm(me.vel), 1.15)));
 
+  // na lava sem magia de fuga pronta (Fernando, 18/10): espera numa ilha se ela estiver mais perto que a pedra e a magia voltar
+  // antes de a ilha afundar; com a magia pronta, o bloco de baixo leva de volta. Sem magia de fuga nenhuma, volta andando
+  const escapes = (['teleport', 'rush', 'thrust', 'windwalk'] as SpellId[]).filter((s) => me.spells[s] > 0);
+  if (edge(w, me.pos) < 0 && !winding && escapes.length && !escapes.some(ready)) {
+    const soon = Math.min(...escapes.map((s) => Math.max(me.cd[s], usableAt(s)) - w.t));
+    const here = w.isles.find((i) => dist(me.pos, i.pos) < i.r);
+    const isle = w.isles.filter((i) => i.r > 0.5).sort((a, b) => dist(a.pos, me.pos) - a.r - (dist(b.pos, me.pos) - b.r))[0];
+    if (here && soon < here.r / ISLAND.sink - 0.5) return [{ id, kind: 'move', to: here.pos }];
+    if (!here && isle && soon < isle.r / ISLAND.sink && dist(isle.pos, me.pos) - isle.r < -edge(w, me.pos)) return [{ id, kind: 'move', to: isle.pos }];
+  }
   // perto da borda (ou na lava): volta para dentro (no círculo, o centro; no anel, o meio da faixa; na ponte, o meio dela),
   // com Teleporte, Investida, Estocada ou Troca se tiver
   if (!inside(me.pos, fear)) {
