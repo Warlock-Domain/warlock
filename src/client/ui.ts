@@ -7,7 +7,7 @@ import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { isPadMode, isUiKey, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
-import { langChoice, openSettings, setSettingsCtx } from './settings.ts';
+import { langChoice, openSettings, setSettingsCtx, settingsLinks } from './settings.ts';
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, infoButton } from './opt-info.ts';
 import { BOT_LEVEL, COLORS, TEAM_COLORS } from './scene.ts';
@@ -82,7 +82,36 @@ function trainBlock(onTrain: (kind: string) => void) {
       }))));
 }
 
-export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onRename: () => void, onTrain: (kind: string) => void) {
+// grade com o retrato de cada personagem; o escolhido fica marcado na hora (a sala confirma depois)
+export function charPicker(on: string, pick: (c: CharacterId) => void) {
+  const grid = el('div', { class: 'picker-grid' }, ...CHARACTERS.map((c) =>
+    el('button', { type: 'button', class: 'pick' + (on === c.id ? ' on' : ''), title: t(c.name, c.en), 'aria-pressed': String(on === c.id), onclick: (e: Event) => {
+      for (const b of grid.children) {
+        b.classList.toggle('on', b === e.currentTarget);
+        b.setAttribute('aria-pressed', String(b === e.currentTarget));
+      }
+      pick(c.id);
+    } }, el('img', { src: `/chars/${c.id}.webp`, alt: '', width: 60, height: 80 }), el('small', {}, t(c.name, c.en)))));
+  return el('div', { class: 'picker' }, el('span', { class: 'muted' }, t('Seu personagem', 'Your character')), grid);
+}
+
+// menu principal com abas no topo, como o do Dota (decisão do Fernando, 19/10); a aba aberta fica guardada
+type HomeTab = 'play' | 'library' | 'learn' | 'char' | 'settings';
+const HOME_TAB = 'warlock:homeTab';
+const HOME_TABS: [HomeTab, string, string][] = [['play', t('Jogar', 'Play'), UI_ICON.aim], ['library', t('Magias e itens', 'Spells and items'), ICON.fireball],
+  ['learn', t('Aprender', 'Learn'), UI_ICON.help], ['char', t('Personagem', 'Character'), UI_ICON.person], ['settings', t('Configurações', 'Settings'), UI_ICON.gear]];
+let homeChar = { char: () => 'mage', pick: (_c: CharacterId) => {} };
+
+// aba Personagem: por enquanto a grade dos 9 personagens. Ponto de troca do criador de personagem:
+// importar { avatarPanel } de './avatar.ts' e devolver avatarPanel() aqui
+function personagemTab(): HTMLElement {
+  return el('section', { class: 'home-char' }, el('h2', {}, t('Personagem', 'Character')), charPicker(homeChar.char(), homeChar.pick));
+}
+
+// char e pick: o personagem guardado no navegador (main.ts manda para a sala ao entrar)
+export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onRename: () => void, onTrain: (kind: string) => void,
+  char: () => string, pick: (c: CharacterId) => void) {
+  homeChar = { char, pick };
   setSettingsCtx({ name: () => name, rename: onRename }); // no lobby: sem som nem vídeo (só existem na sala)
   const retry = el('button', { type: 'button', onclick: () => location.reload() }, t('Tentar de novo', 'Try again'));
   // um cartão por sala: código e modo, quem está lá, o que está acontecendo e o Entrar (secundário em sala no meio da partida)
@@ -105,25 +134,42 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
           // salas vazias recolhidas: fecham sozinhas daqui a pouco
           groups.empty.length ? el('details', { class: 'empty-rooms' }, el('summary', {}, `${groups.empty.length} ${groups.empty.length === 1 ? t('sala vazia', 'empty room') : t('salas vazias', 'empty rooms')}`), cards(groups.empty)) : null);
   const roomList = el('section', { class: 'lobby-rooms' }, el('h2', {}, t('Salas abertas', 'Open rooms')), rooms !== null && offline ? el('p', { class: 'lobby-error', role: 'status' }, t('Sem conexão: a lista pode estar velha. Tentando de novo…', 'No connection: the list may be stale. Retrying…')) : null, list);
-  // a lista chega de novo a cada mudança numa sala: só ela é redesenhada (o bloco Treino fica como está, com o foco)
+  // a lista chega de novo a cada mudança numa sala: só ela é redesenhada (as abas ficam como estão, com o foco)
   const old = root.querySelector<HTMLElement>('.lobby');
   if (old?.dataset.name === name) return old.querySelector('.lobby-rooms')!.replaceWith(roomList);
+  const saved = store.get(HOME_TAB) as HomeTab | null;
+  const panel = (k: HomeTab, ...kids: Child[]) => el('div', { class: 'home-panel', id: 'home-' + k, role: 'tabpanel', 'aria-labelledby': 'home-tab-' + k }, ...kids);
+  const panels: Record<HomeTab, HTMLElement> = {
+    play: panel('play',
+      el('header', { class: 'hero' }, el('p', {}, t('Empurre os amigos para a lava com bola de fogo, raio e companhia. O último de pé vence a rodada.', 'Knock your friends into the lava with fireballs, lightning and more. The last one standing wins the round.'))),
+      el('div', { class: 'lobby-actions' }, el('button', { type: 'button', class: 'primary big', onclick: onCreate }, t('Criar sala', 'Create room'))),
+      roomList),
+    library: panel('library', el('button', { type: 'button', onclick: showRules }, icon(UI_ICON.help), ' ' + t('Abrir o grimório', 'Open the grimoire'))),
+    learn: panel('learn',
+      el('section', { class: 'home-learn' }, el('h2', {}, t('Como jogar', 'How to play')),
+        el('p', { class: 'muted' }, t('O grimório explica o jogo, os controles, os modos, a loja e cada magia e item, com demonstração.', 'The grimoire explains the game, the controls, the modes, the shop and every spell and item, with demos.')),
+        el('button', { type: 'button', onclick: showRules }, icon(UI_ICON.help), ' ' + t('Abrir o grimório', 'Open the grimoire'))),
+      trainBlock(onTrain)),
+    char: panel('char', personagemTab()),
+    settings: panel('settings', el('section', { class: 'home-settings' }, el('h2', {}, t('Configurações', 'Settings')), settingsLinks(), langChoice())),
+  };
+  const btns = HOME_TABS.map(([k, label, ico]) => el('button', { type: 'button', role: 'tab', id: 'home-tab-' + k, 'aria-controls': 'home-' + k, onclick: () => show(k) }, icon(ico), el('span', {}, label)));
+  function show(k: HomeTab) {
+    store.set(HOME_TAB, k);
+    HOME_TABS.forEach(([id], i) => {
+      btns[i].classList.toggle('on', id === k);
+      btns[i].setAttribute('aria-selected', String(id === k));
+      panels[id].hidden = id !== k;
+    });
+  }
   root.replaceChildren(
     el('div', { class: 'lobby', 'data-name': name },
-      el('header', { class: 'hero' },
-        el('div', {}, el('h1', {}, TITLE), el('p', {}, t('Empurre os amigos para a lava com bola de fogo, raio e companhia. O último de pé vence a rodada.', 'Knock your friends into the lava with fireballs, lightning and more. The last one standing wins the round.'))),
-        el('button', { type: 'button', class: 'link', onclick: onRename }, `${name} · ${t('trocar', 'change')}`),
-      ),
-      el('div', { class: 'lobby-actions' },
-        el('button', { type: 'button', class: 'primary big', onclick: onCreate }, t('Criar sala', 'Create room')),
-        el('button', { type: 'button', onclick: showRules }, t('Como jogar', 'How to play')),
-        el('button', { type: 'button', onclick: () => openSettings() }, icon(UI_ICON.gear), ' ' + t('Configurações', 'Settings')),
-        langChoice(),
-      ),
-      trainBlock(onTrain),
-      roomList,
-    ),
+      el('nav', { class: 'home-bar' }, el('b', { class: 'home-logo' }, TITLE),
+        el('div', { class: 'home-tabs', role: 'tablist', 'aria-label': t('Menu principal', 'Main menu') }, ...btns),
+        el('button', { type: 'button', class: 'link home-name', onclick: onRename }, icon(UI_ICON.person), ` ${name} · ${t('trocar', 'change')}`)),
+      ...Object.values(panels)),
   );
+  show(HOME_TABS.some(([k]) => k === saved) ? saved! : 'play');
 }
 
 // grimório (Como jogar): módulo carregado só quando abre, para não pesar o começo do jogo

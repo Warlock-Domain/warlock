@@ -120,7 +120,7 @@ function startLobby(name: string) {
       name = await askName(document.body, name);
       store.set(NAME, name);
       draw();
-    }, create);
+    }, create, () => store.get(CHAR) ?? 'mage', (c) => store.set(CHAR, c));
   // train: o treino que começa sozinho na sala nova (sem armazenamento, entra só na sala)
   async function create(train?: string) {
     try {
