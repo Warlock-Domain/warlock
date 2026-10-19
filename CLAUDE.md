@@ -79,6 +79,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 19/10 | Cada colaborador tem um ambiente dev próprio (`<usuário do GitHub>-dev`, em minúsculas) publicado sozinho a cada push | testar com outras pessoas antes do PR, sem tocar no jogo no ar |
 | 19/10 | Fluxo dev do usuário → dev geral (`dev`, https://dev-warlock.fernandorffdev.com) → `master` (jogo no ar, publicado sozinho pela pipeline Produção) | testar junto antes de ir ao ar, sem publicar à mão |
 | 19/10 | Modo novo **Ascensão** (roguelike, estilo ARAM com cartas): XP do mago, a cada nível escolhe 1 entre 3 cartas (magia nova, subir magia, item) no intervalo; sem ouro, loja nem baús; Flagelo continua de graça; 9 rodadas com pontos por colocação; 4 mecanismos de recuperação; aumentos ficam para a 2ª leva. Desenho em `docs/superpowers/specs/2026-10-19-ascensao-design.md` | progressão dentro da partida sem decidir o jogo cedo |
+| 19/10 | Modo novo **Campanha** (co-op PvE roguelike, proposta do Lucas): 1 a 4 Acesos contra o Fumo numa noite de 30 a 45 min (3 estágios + chefe final), mapa gerado por semente no padrão Diablo 2 (objetivo fixo, noite nova a cada tentativa), 6 classes com passiva e árvore de cartas (Guerreiro, Arqueiro, Mago, Warlock, Ladino e Errante, que aprende tudo), XP e cartas do Ascensão, servos do Fumo (esqueletos com IA de bot), chefes pesados que voltam da lava com dano, reacender aliado caído. 1ª campanha: Última Vela; fatia 1 = Charneca Cinzenta + Sir Odran. Desenho em `docs/superpowers/specs/2026-10-19-campanha-design.md`. Dono do modo: Lucas (decide os detalhes da Campanha); o motor de cartas vem do Ascensão (Fernando, 19/10) | jogar junto contra o jogo, com história, sem mudar os modos atuais |
 
 ## Fluxo com agente
 
@@ -106,7 +107,7 @@ A branch `-dev` é sua: pode substituir pelo estado da tarefa (`git push --force
 
 1. Branch da tarefa (`feat/…`, `fix/…`) a partir de `dev`; para testar com outras pessoas, publique no seu `<usuário>-dev`.
 2. PR da tarefa para **`dev`** (a branch padrão). Ao mesclar, publica no **dev geral**: https://dev-warlock.fernandorffdev.com.
-3. Quando o dev geral está bom, o agente do dono abre o PR **`dev` → `master`**. Ao mesclar, a pipeline **Produção** publica em https://warlock.fernandorffdev.com.
+3. Quando o dev geral está bom, o agente do dono abre o PR **`dev` → `master`**. Ao mesclar, a pipeline **Produção** publica em https://warlock.fernandorffdev.com. A promoção `dev` → `master` usa **merge normal (não squash)** e não apaga a `dev`, para os dois seguirem com o mesmo histórico; os PRs de tarefa para `dev` continuam em squash.
 
 ### Pipelines
 
