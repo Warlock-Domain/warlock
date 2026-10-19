@@ -47,7 +47,25 @@ npx vite build
 
 ## Ambiente dev próprio
 
-Push numa branch `<nome>-dev` (minúsculas) publica em `https://<nome>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Branches de hoje: `lboesmans-dev`, `breakie33-dev` e `lucascvalle-dev` (o nome é o usuário do GitHub) (tabela completa no `CLAUDE.md`, seção "Ambientes dev"). Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
+Push na branch `<usuário do GitHub>-dev` publica em `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Branches de hoje: `lboesmans-dev`, `breakie33-dev` e `lucascvalle-dev`. Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
+
+```bash
+git push --force origin HEAD:lboesmans-dev   # publica o estado da sua branch de tarefa
+```
+
+A branch `-dev` é sua (pode substituir à vontade); o PR sai sempre da branch da tarefa.
+
+## Pipelines
+
+| Pipeline | Arquivo | Quando roda | O que faz | Se der errado |
+|---|---|---|---|---|
+| CI | `ci.yml` | todo PR e todo push no `master` | os dois `tsc`, `vitest run`, `vite build` | o PR não entra; abra o log em Actions e corrija na mesma branch |
+| Título do PR | `pr-title.yml` | ao abrir ou editar o PR | confere o formato `tipo: o que muda` | edite o título; roda de novo sozinho |
+| Revisão do Claude | `claude-review.yml` | PR aberto, commit novo, saiu de rascunho | comenta veredito, checagens e pontos (não aprova nem mescla) | não bloqueia; não roda em fork nem no PR que altera o próprio workflow |
+| `@claude` | `claude.yml` | comentário com `@claude` num PR ou issue | responde e ajuda no próprio PR/issue | — |
+| Ambiente dev | `dev-deploy.yml` | push na branch `<usuário do GitHub>-dev` | build, publica um Worker só seu, espera o domínio responder e roda o teste rápido | build quebrado: nada é publicado e o site anterior continua; teste rápido falhou: a versão nova já foi publicada e está com problema, veja o log |
+
+Logs: https://github.com/fernandorff/warlock/actions. O jogo no ar (`warlock.fernandorffdev.com`) não tem pipeline: só o dono publica, depois do merge.
 
 ## Claude Code e as skills
 

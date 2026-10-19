@@ -95,6 +95,20 @@ Push na branch `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffde
 | Branco | breakie33 | `breakie33-dev` | https://breakie33-dev-warlock.fernandorffdev.com |
 | Lucas | lucascvalle | `lucascvalle-dev` | https://lucascvalle-dev-warlock.fernandorffdev.com |
 
+A branch `-dev` é sua: pode substituir pelo estado da tarefa (`git push --force origin HEAD:<usuário>-dev`) ou atualizar com o master (`git merge origin/master` nela). Não abra PR a partir da `-dev`; o PR sai da branch da tarefa.
+
+### Pipelines
+
+| Pipeline | Arquivo | Quando roda | O que faz | Se der errado |
+|---|---|---|---|---|
+| CI | `ci.yml` | todo PR e todo push no `master` | os dois `tsc`, `vitest run`, `vite build` | o PR não entra; abra o log em Actions e corrija na mesma branch |
+| Título do PR | `pr-title.yml` | ao abrir ou editar o PR | confere o formato `tipo: o que muda` | edite o título; roda de novo sozinho |
+| Revisão do Claude | `claude-review.yml` | PR aberto, commit novo, saiu de rascunho | comenta veredito, checagens e pontos (não aprova nem mescla) | não bloqueia; não roda em fork nem no PR que altera o próprio workflow |
+| `@claude` | `claude.yml` | comentário com `@claude` num PR ou issue | responde e ajuda no próprio PR/issue | — |
+| Ambiente dev | `dev-deploy.yml` | push na branch `<usuário do GitHub>-dev` | build, publica um Worker só seu, espera o domínio responder e roda o teste rápido | build quebrado: nada é publicado e o site anterior continua; teste rápido falhou: a versão nova já foi publicada e está com problema, veja o log |
+
+Logs: https://github.com/fernandorff/warlock/actions. O jogo no ar (`warlock.fernandorffdev.com`) não tem pipeline: só o dono publica, depois do merge.
+
 ## Balanceamento (como se decide número de magia e item)
 
 - Os números vêm do simulador, não de opinião: `node scripts/balance-sim.ts --minutes 30 --seed 1 --difficulty normal --out balance/<pasta>` (vários processos com sementes diferentes; junte com `--merge`).
