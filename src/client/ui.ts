@@ -914,7 +914,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const can = open && mine.gold >= o.price!;
       const need = open && !can ? o.price! - mine.gold : 0;
       const key = o.key.replace('-', ':'); // spell:x ou item:y, como na compra
-      const label = o.blocked ?? (o.lvl === 0 ? (o.price === 0 ? t('Comprar · grátis', 'Buy · free') : t(`Comprar · ${o.price}`, `Buy · ${o.price}`)) : t(`Nível ${o.lvl + 1} · ${o.price}`, `Level ${o.lvl + 1} · ${o.price}`));
+      // botão só com a moeda e o preço (pedido do Fernando, 19/10): "Nv 2" na frente quando sobe de nível; o texto inteiro fica para o leitor de tela
+      const cost = o.price === 0 ? t('de graça', 'for free') : t(`por ${o.price} de ouro`, `for ${o.price} gold`);
+      const label = o.blocked ? [o.blocked] : [o.lvl ? t(`Nv ${o.lvl + 1} `, `Lv ${o.lvl + 1} `) : '', icon(UI_ICON.gold), o.price === 0 ? t(' grátis', ' free') : ` ${o.price}`];
+      const full = o.blocked ?? (o.lvl ? t(`Subir para o nível ${o.lvl + 1} ${cost}`, `Upgrade to level ${o.lvl + 1} ${cost}`) : t(`Comprar ${cost}`, `Buy ${cost}`));
       // só ver: no lugar do botão, só o preço (verde se o ouro de agora dá, vermelho se não); "a compra abre entre as rodadas" fica no cabeçalho
       const price = el('span', { class: 'peek-price' + (o.blocked ? '' : can ? ' can' : ' cant') },
         ...(o.blocked ? [o.blocked] : [o.lvl ? t(`Nível ${o.lvl + 1} · `, `Level ${o.lvl + 1} · `) : '', icon(UI_ICON.gold), o.price === 0 ? t(' grátis', ' free') : ` ${o.price}`]));
@@ -923,7 +926,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         el('small', {}, o.use),
         el('div', { class: 'shop-meta' }, el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
           o.lvl ? el('small', { class: 'have' }, t('tenho', 'owned')) : null, need ? el('small', { class: 'need' }, t(`faltam ${need}`, `${need} short`)) : null),
-        el('div', { class: 'buy-row' }, peek ? price : el('button', { type: 'button', 'data-key': o.key, disabled: !can, onclick: o.buy }, label), undoBtn(key), sellBtn(key)),
+        el('div', { class: 'buy-row' }, peek ? price : el('button', { type: 'button', 'data-key': o.key, disabled: !can, 'aria-label': full, onclick: o.buy }, ...label), undoBtn(key), sellBtn(key)),
       ), () => {
         const sell = peek ? 0 : sellValue(mine, r.round, key);
         return o.tip() + (peek && can ? `<p class="up">${t('Você pode comprar isto na próxima loja.', 'You can buy this in the next shop.')}</p>` : '')
