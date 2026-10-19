@@ -4,6 +4,21 @@ import type { RuneKind } from '../shared/constants.ts';
 import { ITEMS, type ItemId } from '../shared/items.ts';
 import { SPELLS, isSpell, type SpellId } from '../shared/spells.ts';
 
+// elemento do DOM com atributos (on* viram ouvintes) e filhos; mora aqui porque scene.ts e opt-info.ts não podem importar ui.ts (ciclo)
+export type Child = Node | string | null | undefined | false;
+export function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<string, any> = {}, ...children: Child[]): HTMLElementTagNameMap[K] {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (k === 'class') e.className = v;
+    else if (k === 'style') e.setAttribute('style', v);
+    else if (v === true) e.setAttribute(k, '');
+    else if (v !== false && v != null) e.setAttribute(k, String(v));
+  }
+  for (const c of children) if (c) e.append(c);
+  return e;
+}
+
 // símbolo do sprite → <svg> do tamanho da fonte; o emoji antigo fica como texto alternativo
 const ALT: Record<string, string> = {};
 export function icon(id: string): SVGSVGElement {

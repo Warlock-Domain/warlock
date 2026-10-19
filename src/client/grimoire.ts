@@ -5,15 +5,14 @@ import { ARENA_IDS, ARENA_NAMES, SHAPES, type ArenaId } from '../shared/arena.ts
 import { ARENA_R0, HP_MAX, RUNE_KINDS } from '../shared/constants.ts';
 import { ITEMS, ITEM_IDS, isActive, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
-import { SCRIPTS, createDemo, type DemoId } from './demo.ts';
-import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, icon } from './icons.ts';
+import { SCRIPTS, createDemo, drawStone, type DemoId } from './demo.ts';
+import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
 import { ACTIONS, UI_ACTIONS, UI_NAMES, isPadMode, isSlotMode, labelOf, uiLabel } from './keys.ts';
 import { MODE_INFO, OPT_INFO } from './opt-info.ts';
 import { ITEM_DEMO, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, n1 } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 import { store } from './store.ts';
 import { itemLevels, spellLevels } from './tips.ts';
-import { el } from './ui.ts';
 
 type Page = { chapter: string; title: string; body: () => (Node | string | null)[]; demo?: DemoId };
 
@@ -30,16 +29,7 @@ function arenaThumb(id: ArenaId): HTMLElement {
   const g = c.getContext('2d')!;
   const k = 54 / SHAPES[id].reach;
   g.setTransform(k, 0, 0, k, 60, 60);
-  g.fillStyle = '#2a0c06';
-  g.fillRect(-9, -9, 18, 18);
-  g.beginPath();
-  for (const ring of SHAPES[id].outline) ring.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)));
-  g.closePath();
-  g.fillStyle = '#4a3a30';
-  g.fill('evenodd');
-  g.strokeStyle = '#ff6a1a';
-  g.lineWidth = 0.04;
-  g.stroke();
+  drawStone(g, id, 1, 0.04);
   return el('figure', { class: 'g-arena' }, c, el('figcaption', {}, ARENA_NAMES[id]));
 }
 
@@ -173,9 +163,9 @@ export function openGrimoire() {
     raf = requestAnimationFrame(loop);
   }
 
+  const view = () => { const per = wide.matches ? 2 : 1; return [per, at - (at % per)]; }; // páginas na vista e a primeira dela
   function show(dir: number) {
-    const per = wide.matches ? 2 : 1;
-    const first = at - (at % per);
+    const [per, first] = view();
     live = [];
     spread.replaceChildren(...Array.from({ length: per }, (_, k) => render(first + k)));
     spread.scrollTop = 0;
@@ -198,8 +188,7 @@ export function openGrimoire() {
     show(dir);
   }
   function turn(step: number) {
-    const per = wide.matches ? 2 : 1;
-    const first = at - (at % per);
+    const [per, first] = view();
     if (first + step * per < 0 || first + step * per >= PAGES.length) return;
     go(first + step * per);
   }

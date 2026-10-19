@@ -3,7 +3,7 @@
 // Um jogador por navegador: vale o primeiro controle conectado.
 import { ACTIVE_ITEMS, isActive, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
-import type { Vec } from '../shared/vec.ts';
+import { add, len, norm, scale, type Vec } from '../shared/vec.ts';
 import { PAD_NAMES, keyOf, padActionAt, padButtonOf, setPadMode, slotSpell } from './keys.ts';
 import { store } from './store.ts';
 
@@ -24,10 +24,8 @@ export function stick(x: number, y: number, dead = 0.2, curve = 1.6): Vec {
 export const AIM_RANGE = SPELLS.fireball.levels[0].range;
 export const AIM_MIN = 1;
 export function aimPoint(me: Vec, s: Vec, range = AIM_RANGE): Vec {
-  const m = Math.hypot(s.x, s.y);
-  if (!m) return me;
-  const d = AIM_MIN + (range - AIM_MIN) * Math.min(1, m);
-  return { x: me.x + (s.x / m) * d, y: me.y + (s.y / m) * d };
+  const m = len(s);
+  return m ? add(me, scale(norm(s), AIM_MIN + (range - AIM_MIN) * Math.min(1, m))) : me;
 }
 
 // magia ou item do botão, pelo mapeamento da aba Controle (padrão: A B X Y LB RB = magias 1 a 6 da barra; LT, RT e ↑ = itens 1 a 3)
@@ -67,7 +65,7 @@ export function nextFocus(from: Rect, rects: Rect[], dir: Dir): number {
 // nome curto do controle: "Xbox 360 Controller (XInput STANDARD GAMEPAD …)" → "Xbox 360 Controller"
 export const padName = (id: string) => id.replace(/\s*\(.*$/, '').trim() || 'controle';
 
-// vibração ao levar golpe forte e ao morrer; desliga no painel de teclas (guardado no navegador)
+// vibração ao levar golpe forte e ao morrer; desliga em Configurações, aba Controle (guardado no navegador)
 const RUMBLE = 'warlock:rumble';
 let rumbleOn = store.get(RUMBLE) !== '0';
 export const isRumbleOn = () => rumbleOn;
@@ -212,7 +210,6 @@ function menu(hit: (b: number) => boolean) {
   }
   if (hit(BTN.LB)) group(-1);
   if (hit(BTN.RB)) group(1);
-  if (hit(BTN.START)) start();
 }
 
 const MOVE_AHEAD = 2; // metros à frente do mago: o destino anda junto enquanto o analógico está inclinado
@@ -234,9 +231,9 @@ function play(g: PadGame, hit: (b: number) => boolean, mv: Vec, aimS: Vec) {
   } else if (!moving && wasMoving) g.stop();
   wasMoving = moving;
   // soltando o analógico direito a mira fica onde estava; sem mirar, mira para onde anda
-  const m = Math.hypot(aimS.x, aimS.y);
+  const m = len(aimS);
   if (m > 0 && (m >= 0.5 || m >= prevAim)) lastAim = aimS;
-  else if (!m && moving) lastAim = { x: (mv.x / Math.hypot(mv.x, mv.y)) * 0.7, y: (mv.y / Math.hypot(mv.x, mv.y)) * 0.7 };
+  else if (!m && moving) lastAim = scale(norm(mv), 0.7);
   prevAim = m;
   const at = me ? aimPoint(me, lastAim) : null;
   g.aim(padMode ? at : null);
@@ -259,7 +256,6 @@ function play(g: PadGame, hit: (b: number) => boolean, mv: Vec, aimS: Vec) {
     if (isActive(a)) g.useItem(a, at);
     else g.cast(a as SpellId, at);
   }
-  if (hit(BTN.START)) start();
 }
 
 let prev: boolean[] = [];
@@ -284,7 +280,10 @@ function tick(toast: (msg: string) => void) {
   }
   const down = gp.buttons.map((b) => b.pressed);
   const hit = (b: number) => !!down[b] && !prev[b];
+  // placar segurado (View/Select no padrão), nos dois modos; na captura de botão ele ainda solta (senão ficava aberto)
+  const board = padButtonOf('board');
   if (padCapture) {
+    if (prev[board] && !down[board]) key('keyup', keyOf('board'));
     const b = down.findIndex((d, i) => d && !prev[i]);
     prev = down;
     if (b >= 0) {
@@ -319,8 +318,7 @@ function tick(toast: (msg: string) => void) {
     }
     menu(hit);
   }
-  // placar segurado (View/Select no padrão), nos dois modos
-  const board = padButtonOf('board');
+  if (hit(BTN.START)) start();
   if (!!down[board] !== !!prev[board]) key(down[board] ? 'keydown' : 'keyup', keyOf('board'));
   prev = down;
 }

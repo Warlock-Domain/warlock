@@ -5,7 +5,7 @@ import {
 import { DEFAULT_OPTS, DM_GOALS, OPTION_CHOICES } from '../shared/match.ts';
 import { CLASH } from '../shared/sim.ts';
 import { ITEMS, MAX_ITEMS, SCOURGE } from '../shared/items.ts';
-import { PAD_NAMES, PAD_NAMES_PS, keyLabel, keyOf, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
+import { keyLabel, keyOf, padButtonName, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
 import { BOUNCER, CAST_POINT, GRAVITY, GRIP, ILLUSION, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, RECHARGE, RUSH, SPELLS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
 
 // formatação dos números nos textos (também usada pela loja, ficha, dicas e opções)
@@ -51,11 +51,7 @@ export const RULES = {
     ];
   },
   get controle() {
-    // nome do botão nas duas famílias: "A (✕)"; L3, R3 e o D-pad são iguais
-    const b = (p: PadAction) => {
-      const i = padButtonOf(p);
-      return PAD_NAMES[i] === PAD_NAMES_PS[i] ? PAD_NAMES[i] : `${PAD_NAMES[i]} (${PAD_NAMES_PS[i]})`;
-    };
+    const b = (p: PadAction) => padButtonName(padButtonOf(p), ' (', ')'); // "A (✕)"
     return [
       'Ligue o controle (Xbox ou PlayStation) e aperte qualquer botão: aparece "Controle conectado" e a barra mostra os botões do controle.',
       'Analógico esquerdo: andar. Analógico direito: mirar (o anel dourado no chão mostra onde). Sem mirar, a magia vai para onde você anda.',

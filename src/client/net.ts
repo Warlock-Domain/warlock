@@ -64,7 +64,6 @@ export function connect(path: string, onMsg: (m: any) => void, onOpen: () => voi
     send(m: ClientMsg) {
       if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m));
     },
-    status: (): 'on' | 'off' => (ws?.readyState === WebSocket.OPEN ? 'on' : 'off'),
     stop() {
       stopped = true;
       clearTimeout(timer);

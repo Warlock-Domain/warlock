@@ -1,9 +1,8 @@
 // Treino: escolher as magias de cada bot (decisão do Fernando, 18/10). Sorteio = o bot compra sozinho, como sempre.
 import type { BotSetup } from '../shared/protocol.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
-import { ICON, icon } from './icons.ts';
+import { ICON, el, icon } from './icons.ts';
 import { store } from './store.ts';
-import { el } from './ui.ts';
 
 const KEY = 'warlock:botsetup';
 // magia que saiu do jogo (o Gêmeos, 19/10) fica de fora: o servidor recusaria o treino inteiro

@@ -3,14 +3,14 @@
 // pela engrenagem do topo ou pelo Start do controle; não pausa o jogo. Aba nova = um item em SECTIONS.
 import { SPELLS } from '../shared/spells.ts';
 import { isRumbleOn, setPadCapture, setRumble } from './gamepad.ts';
-import { UI_ICON, actionIcon, actionName, icon } from './icons.ts';
+import { UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
 import {
-  ACTIONS, CAST_MODES, PAD_ACTIONS, PAD_ACTION_NAMES, PAD_NAMES, PAD_NAMES_PS, PAD_START, RESERVED, UI_ACTIONS, UI_NAMES, getCastMode, isSlotMode, keyLabel, keyOf,
+  ACTIONS, CAST_MODES, PAD_ACTIONS, PAD_ACTION_NAMES, PAD_NAMES, PAD_START, RESERVED, UI_ACTIONS, UI_NAMES, getCastMode, isSlotMode, keyLabel, keyOf, padButtonName,
   onKeysChange, padActionAt, padButtonOf, resetKeys, resetPad, setCastMode, setKey, setPadButton, setSlotMode, slotSpell, whoUses, type Action, type AnyAction, type CastMode, type PadAction, type UiAction,
 } from './keys.ts';
 import { RULES } from './rules-text.ts';
 import { store } from './store.ts';
-import { el, showRules, toast } from './ui.ts';
+import { choice, showRules, toast } from './ui.ts';
 
 declare const __BUILD__: string;
 
@@ -31,7 +31,6 @@ export function setSettingsCtx(c: SettingsCtx) {
 }
 
 const nameOf = (a: AnyAction) => (a in UI_NAMES ? UI_NAMES[a as UiAction] : actionName(a as Action));
-const padName = (b: number) => (PAD_NAMES[b] === PAD_NAMES_PS[b] ? PAD_NAMES[b] : `${PAD_NAMES[b]} / ${PAD_NAMES_PS[b]}`);
 const padActionName = (p: PadAction) => {
   const s = p.startsWith('slot') ? slotSpell(Number(p.slice(4)) - 1) : undefined;
   return s ? `${PAD_ACTION_NAMES[p]} · ${SPELLS[s].name}` : PAD_ACTION_NAMES[p];
@@ -51,7 +50,7 @@ function bindPad(a: PadAction, btn: number) {
   if (btn === PAD_START) return toast('Start é o Esc do controle e não muda.');
   const other = padActionAt(btn);
   setPadButton(a, btn);
-  if (other && other !== a) toast(`Botão já usado por ${PAD_ACTION_NAMES[other]}: os dois trocaram (${PAD_ACTION_NAMES[other]} ficou com ${padName(padButtonOf(other))}).`);
+  if (other && other !== a) toast(`Botão já usado por ${PAD_ACTION_NAMES[other]}: os dois trocaram (${PAD_ACTION_NAMES[other]} ficou com ${padButtonName(padButtonOf(other))}).`);
 }
 function waitPad(a: PadAction | null) {
   padWaiting = a;
@@ -87,8 +86,6 @@ const CAST_TEXT: Record<CastMode, [string, string]> = {
   release: ['Ao soltar', 'Segure a tecla para ver o círculo de alcance; ao soltar, a magia sai. Esc cancela.'],
   click: ['Com clique', 'A tecla escolhe a magia e mostra o alcance; o clique esquerdo lança (fora do alcance, vai até a borda). Botão direito ou Esc cancelam.'],
 };
-const choice = <T>(label: string, items: [T, string][], on: T, pick: (v: T) => void) => el('div', { class: 'stats-tabs', role: 'group', 'aria-label': label },
-  ...items.map(([v, text]) => el('button', { type: 'button', 'aria-pressed': String(v === on), class: v === on ? 'on' : '', onclick: () => pick(v) }, text)));
 const check = (id: string, on: boolean, text: string, change: (on: boolean) => void) => el('label', { class: 'slot-row', for: id },
   el('input', { type: 'checkbox', id, checked: on, onchange: (e: Event) => change((e.target as HTMLInputElement).checked) }), el('span', {}, text));
 
@@ -174,12 +171,12 @@ function padDrawing(): Element {
       : svg('circle', { cx: s.x, cy: s.y, r: 13 });
     const sel = (padWaiting && padButtonOf(padWaiting) === s.b) || false;
     const g = svg('g', { class: 'pad-btn' + (sel ? ' wait' : '') + (p ? '' : ' free'), 'data-btn': s.b, tabindex: 0, role: 'button',
-      'aria-label': `${padName(s.b)}: ${p ? padActionName(p) : s.b === PAD_START ? 'Esc do controle (configurações)' : 'livre'}` },
+      'aria-label': `${padButtonName(s.b)}: ${p ? padActionName(p) : s.b === PAD_START ? 'Esc do controle (configurações)' : 'livre'}` },
       svg('polyline', { class: 'pad-callout pad-line', points: `${s.x},${s.y} ${s.side === 'l' ? lx + 22 : lx - 22},${ly} ${lx},${ly}` }),
       shape,
       svg('text', { class: 'pad-glyph', x: s.x, y: s.y + 4 }, PAD_NAMES[s.b].length > 2 ? '' : PAD_NAMES[s.b]),
       svg('text', { class: 'pad-callout pad-label', x: s.side === 'l' ? lx - 4 : lx + 4, y: ly + 5, 'text-anchor': s.side === 'l' ? 'end' : 'start' },
-        svg('tspan', { class: 'pad-key' }, padName(s.b) + ' '), sel ? 'aperte…' : p ? padActionName(p) : s.b === PAD_START ? 'Esc / menu' : 'livre'));
+        svg('tspan', { class: 'pad-key' }, padButtonName(s.b) + ' '), sel ? 'aperte…' : p ? padActionName(p) : s.b === PAD_START ? 'Esc / menu' : 'livre'));
     g.addEventListener('click', () => clickSpot(s.b));
     g.addEventListener('keydown', (e) => (e as KeyboardEvent).key === 'Enter' && clickSpot(s.b));
     return g;
@@ -209,7 +206,7 @@ function padSection(): Node[] {
     padDrawing(),
     el('div', { class: 'keys-list' }, ...PAD_ACTIONS.map((p) => el('div', { class: 'keys-row' }, el('span', {}, padActionName(p)),
       el('button', { type: 'button', class: 'keycap' + (padWaiting === p ? ' wait' : ''), onclick: () => waitPad(padWaiting === p ? null : p) },
-        padWaiting === p ? 'aperte…' : padName(padButtonOf(p)))))),
+        padWaiting === p ? 'aperte…' : padButtonName(padButtonOf(p)))))),
     el('small', { class: 'muted' }, 'Nos menus o controle não muda: D-pad anda, A confirma, B volta, X desfaz ou vende, Y mostra a dica, LB e RB pulam grupos.'),
     el('button', { type: 'button', onclick: () => resetPad() }, 'Voltar ao padrão'),
   ];
@@ -283,7 +280,6 @@ function go(id: string) {
   document.getElementById('set-tab-' + id)?.focus();
 }
 
-export const isSettingsOpen = () => !!overlay;
 // sem aba: no PC a última vista, no celular a lista; com aba (atalho do volume, por exemplo) já abre nela
 export function openSettings(id?: string) {
   if (overlay) return id ? go(id) : undefined;
@@ -316,7 +312,7 @@ export function openSettings(id?: string) {
     }
   }, { capture: true, signal: ac.signal });
 }
-function closeSettings() {
+function close() {
   if (!overlay) return;
   waiting = null;
   if (padWaiting) waitPad(null);
@@ -324,6 +320,4 @@ function closeSettings() {
   overlay.remove();
   overlay = null;
 }
-const close = closeSettings;
-export const toggleSettings = () => (overlay ? closeSettings() : openSettings());
 onKeysChange(draw);

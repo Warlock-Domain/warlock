@@ -4,7 +4,7 @@ import { BOT_SKILL } from '../shared/bots.ts';
 import { ARENA_IDS, ARENA_NAMES } from '../shared/arena.ts';
 import { ASSIST_GOLD, CHEST, COUNTDOWN_MS, DM_RESPAWN, DM_ROUND_MS, KILL_GOLD, RECOVERY, ROUND_END_MS, ROUND_GOLD, RUNE, SUDDEN, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
 import { DM_GOALS, OPTION_CHOICES, PACE, type MatchOpts, type Mode } from '../shared/match.ts';
-import { UI_ICON, icon } from './icons.ts';
+import { UI_ICON, el, icon } from './icons.ts';
 import { n1, pct } from './rules-text.ts';
 
 const s = (ms: number) => `${n1(ms / 1000)} s`;
@@ -65,27 +65,14 @@ addEventListener('pointerdown', (e) => {
 }, true);
 
 export function infoButton(title: string, html: () => string): HTMLButtonElement {
-  const b = document.createElement('button');
-  Object.assign(b, { type: 'button', className: 'info' });
-  b.setAttribute('aria-label', 'Sobre: ' + title);
-  b.setAttribute('aria-expanded', 'false');
-  b.append(icon(UI_ICON.info));
+  const b = el('button', { type: 'button', class: 'info', 'aria-label': 'Sobre: ' + title, 'aria-expanded': 'false' }, icon(UI_ICON.info));
   const open = () => {
     if (owner === b) return;
     close();
-    pop = document.createElement('div');
-    pop.className = 'info-pop';
-    pop.setAttribute('role', 'dialog');
-    pop.setAttribute('aria-label', title);
-    const x = document.createElement('button');
-    Object.assign(x, { type: 'button', className: 'info-close', textContent: '✕' });
-    x.setAttribute('aria-label', 'Fechar');
-    x.addEventListener('click', close);
-    const head = document.createElement('b');
-    head.textContent = title;
-    const body = document.createElement('div');
+    const body = el('div');
     body.innerHTML = html();
-    pop.append(x, head, body);
+    pop = el('div', { class: 'info-pop', role: 'dialog', 'aria-label': title },
+      el('button', { type: 'button', class: 'info-close', 'aria-label': 'Fechar', onclick: close }, '✕'), el('b', {}, title), body);
     document.body.append(pop);
     owner = b;
     b.setAttribute('aria-expanded', 'true');

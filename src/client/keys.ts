@@ -77,6 +77,8 @@ export function setCastMode(m: CastMode) {
 export const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Start', 'L3', 'R3', '↑', '↓', '←', '→'];
 export const PAD_NAMES_PS = ['✕', '○', '□', '△', 'L1', 'R1', 'L2', 'R2', 'Share', 'Options', 'L3', 'R3', '↑', '↓', '←', '→'];
 export const PAD_START = 9;
+// nome do botão nas duas famílias ("A / ✕"); L3, R3 e o D-pad são iguais
+export const padButtonName = (b: number, open = ' / ', close = '') => (PAD_NAMES[b] === PAD_NAMES_PS[b] ? PAD_NAMES[b] : PAD_NAMES[b] + open + PAD_NAMES_PS[b] + close);
 export const PAD_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'item1', 'item2', 'item3', 'sheet', 'board', 'shop', 'center'] as const;
 export type PadAction = (typeof PAD_ACTIONS)[number];
 const PAD_DEFAULTS: Record<PadAction, number> = { slot1: 0, slot2: 1, slot3: 2, slot4: 3, slot5: 4, slot6: 5, item1: 6, item2: 7, item3: 12, sheet: 10, board: 8, shop: 13, center: 11 };
@@ -168,6 +170,9 @@ export function resetKeys() {
   map = { ...DEFAULTS };
   save();
 }
+
+// tecla repetida, com Ctrl ou Cmd, ou digitando num campo: os atalhos não respondem
+export const typing = (e: KeyboardEvent) => e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT';
 
 // Esc que ninguém usou: quem cancela ou fecha algo com o Esc chama preventDefault; o que sobra abre as configurações.
 // Registrar por último (main.ts), para correr depois dos outros ouvintes do mesmo Esc.

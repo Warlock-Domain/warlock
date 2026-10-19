@@ -35,7 +35,7 @@ const shadows = (o: THREE.Object3D) => o.traverse((m) => {
 // unitScale: escala do mago (os pacotes KayKit usam a mesma medida), conhecida depois que o mago carrega
 export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow: THREE.Texture) {
   const props: Prop[] = [];
-  let models = new Map<string, THREE.Object3D>();
+  const models = new Map<string, THREE.Object3D>();
   let unit = 1;
   const flames: THREE.Sprite[] = [];
   const islands: { g: THREE.Group; r: number; a: number }[] = [];
@@ -48,8 +48,12 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
       while (r < 40 && edgeOf(v(Math.cos(it.a) * r, Math.sin(it.a) * r)) > -7.5) r += 0.5;
       it.g.position.set(Math.cos(it.a) * r, 0.1, Math.sin(it.a) * r);
     }
+    settle(edgeOf, 1);
+  };
+  // ossos e entulho fora da pedra afundam na lava; k: fração do caminho até a altura certa feita agora
+  const settle = (edge: EdgeOf, k: number) => {
     for (const p of props) {
-      p.obj.position.y = edgeOf(p.pos) < 0.2 ? -1.5 : 0;
+      p.obj.position.y += ((edge(p.pos) < 0.2 ? -1.5 : 0) - p.obj.position.y) * k;
       p.obj.visible = p.obj.position.y > -1.4;
     }
   };
@@ -60,8 +64,7 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
     islandMat.needsUpdate = true;
   });
 
-  const ready = Promise.all([new GLTFLoader().loadAsync('/models/decor.glb'), unitScale]).then(([g, k]) => {
-    models = new Map<string, THREE.Object3D>();
+  Promise.all([new GLTFLoader().loadAsync('/models/decor.glb'), unitScale]).then(([g, k]) => {
     for (const child of g.scene.children) models.set(child.name.replace(/\.gltf$/, ''), child);
     unit = k;
     const place = (name: string, x: number, z: number, rot: number, parent: THREE.Object3D) => {
@@ -110,7 +113,6 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
   }).catch(() => console.warn('decoração não carregou; a arena segue sem ela'));
 
   return {
-    ready,
     // cópia de um modelo da decoração (para os pilares da arena), já na escala do jogo; null se ainda não carregou
     clone(name: string): THREE.Object3D | null {
       const src = models.get(name);
@@ -125,13 +127,9 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
       edgeOf = edge;
       arrange();
     },
-    // ossos e entulho fora da pedra afundam na lava; as chamas tremulam
+    // a decoração vai afundando aos poucos; as chamas tremulam
     update(edge: EdgeOf, now: number) {
-      for (const p of props) {
-        const target = edge(p.pos) < 0.2 ? -1.5 : 0;
-        p.obj.position.y += (target - p.obj.position.y) * 0.04;
-        p.obj.visible = p.obj.position.y > -1.4;
-      }
+      settle(edge, 0.04);
       flames.forEach((f, i) => f.scale.setScalar(0.75 + 0.18 * Math.sin(now * 9 + i * 1.7) + 0.08 * Math.sin(now * 23 + i)));
     },
   };

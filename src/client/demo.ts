@@ -1,6 +1,6 @@
 // Demonstração animada do grimório: um canvas 2D visto de cima rodando a simulação de verdade (newWorld/stepWorld)
 // com magos de treino e um roteiro fixo em loop. Como usa os números do jogo, a demo acompanha qualquer balanceamento.
-import { SHAPES } from '../shared/arena.ts';
+import { SHAPES, type ArenaId } from '../shared/arena.ts';
 import { DT, OBSTACLES, PROJ_R, WIZ_R } from '../shared/constants.ts';
 import { ITEMS, noItems, type ItemId } from '../shared/items.ts';
 import { newWorld, snowR, spellOf, stepWorld, type Cmd, type SimEvent, type World } from '../shared/sim.ts';
@@ -92,6 +92,20 @@ const PROJ_COLOR: Record<string, string> = {
 const ZONE_COLOR = { burn: 'rgba(255,106,26,.35)', slow: 'rgba(120,170,255,.32)', pull: 'rgba(170,110,255,.32)' };
 const CLASH_COLOR: Record<string, string> = { fire: '#ff7a1a', arcane: '#78aaff', pulse: '#aa6eff', detonate: '#ffb347', pillar: '#d9c3a5', snow: '#e8f6ff' };
 
+// lava em volta e a pedra: contorno da forma esticado pelo raio R (aqui e na página das arenas do grimório)
+export function drawStone(ctx: CanvasRenderingContext2D, id: ArenaId, R: number, lineWidth: number) {
+  ctx.fillStyle = '#2a0c06';
+  ctx.fillRect(-50, -50, 100, 100);
+  ctx.beginPath();
+  for (const ring of SHAPES[id].outline) ring.forEach((p, i) => (i ? ctx.lineTo(p.x * R, p.y * R) : ctx.moveTo(p.x * R, p.y * R)));
+  ctx.closePath();
+  ctx.fillStyle = '#4a3a30';
+  ctx.fill('evenodd');
+  ctx.strokeStyle = '#ff6a1a';
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+}
+
 export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string[]) {
   const ctx = canvas.getContext('2d')!;
   let s = demoWorld(id);
@@ -126,17 +140,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     if (canvas.width !== Math.round(cw * dpr) || canvas.height !== Math.round(ch * dpr)) [canvas.width, canvas.height] = [Math.round(cw * dpr), Math.round(ch * dpr)];
     const k = (Math.min(cw, ch) / 13) * dpr; // pixels por metro: a arena de 6 m inteira no quadro
     ctx.setTransform(k, 0, 0, k, canvas.width / 2, canvas.height / 2);
-    ctx.fillStyle = '#2a0c06';
-    ctx.fillRect(-50, -50, 100, 100);
-    // pedra: contorno da forma esticado pelo raio atual
-    ctx.beginPath();
-    for (const ring of SHAPES[w.arena].outline) ring.forEach((p, i) => (i ? ctx.lineTo(p.x * w.arenaR, p.y * w.arenaR) : ctx.moveTo(p.x * w.arenaR, p.y * w.arenaR)));
-    ctx.closePath();
-    ctx.fillStyle = '#4a3a30';
-    ctx.fill('evenodd');
-    ctx.strokeStyle = '#ff6a1a';
-    ctx.lineWidth = 0.08;
-    ctx.stroke();
+    drawStone(ctx, w.arena, w.arenaR, 0.08);
     for (const z of w.zones) circle(z.pos, z.r, ZONE_COLOR[z.kind]);
     for (const p of w.pillars) if (p.alive) circle(p.pos, OBSTACLES[p.kind].r, '#8a7a6a', '#d9c3a5');
     for (const p of w.projectiles) {

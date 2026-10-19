@@ -34,8 +34,7 @@ export class Lobby extends DurableObject<Env> {
 
   // dados de balanceamento: soma de todas as rodadas jogadas no site
   async record(r: RoundRecord) {
-    const t = (await this.ctx.storage.get<Totals>('telemetry')) ?? emptyTotals();
-    await this.ctx.storage.put('telemetry', addRecord(t, r));
+    await this.ctx.storage.put('telemetry', addRecord(await this.telemetry(), r));
   }
 
   async telemetry(): Promise<Totals> {

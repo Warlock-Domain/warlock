@@ -15,7 +15,7 @@ import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
 import { add, scale, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
-import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, icon } from './icons.ts';
+import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, icon } from './icons.ts';
 import { SPELLS } from '../shared/spells.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
@@ -271,14 +271,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     return t;
   };
   const fxTex = (name: string) => tex(`/fx/${name}.png`);
-  const FX = {
-    flame: fxTex('flame_01'), fire: fxTex('fire_01'), smoke: fxTex('smoke_01'), spark: fxTex('spark_01'),
-    magic: fxTex('magic_02'), light: fxTex('light_01'), circle: fxTex('circle_05'), scorch: fxTex('scorch_02'),
-    twirl: fxTex('twirl_01'), twirl2: fxTex('twirl_02'), star: fxTex('star_04'),
-  };
   // quadros de chama e de fumaça (Kenney Particle Pack, CC0): o fogo anima trocando o quadro, a fumaça varia
   const FLAMES = ['flame_01', 'flame_02', 'flame_03', 'flame_04', 'flame_05', 'flame_06'].map(fxTex);
   const SMOKES = ['smoke_01', 'smoke_03', 'smoke_05', 'smoke_07'].map(fxTex);
+  const FX = {
+    flame: FLAMES[0], fire: fxTex('fire_01'), smoke: SMOKES[0], spark: fxTex('spark_01'),
+    magic: fxTex('magic_02'), light: fxTex('light_01'), circle: fxTex('circle_05'), scorch: fxTex('scorch_02'),
+    twirl: fxTex('twirl_01'), twirl2: fxTex('twirl_02'), star: fxTex('star_04'),
+  };
   const FIRE_KINDS = new Set<ProjKind>(['fireball', 'cluster', 'meteor']);
   // distância até a borda e relógio da borda derretida, divididos pela lava e pela pedra
   const shoreU = { uSdf: { value: sdfTexture('circle') }, uSpan: { value: sdfSpan('circle') }, uR: { value: 11 }, uShoreTime: { value: 0 }, uLick: { value: 1 }, uWarn: { value: 0 } };
@@ -497,8 +497,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const models = new Map<string, Model | null>(); // null = carregando
   let mageScale = 1;
   const tinted = new Map<number, THREE.Texture>();
+  const gltf = new GLTFLoader();
   const loadModel = (id: string) =>
-    new GLTFLoader().loadAsync(`/models/${id}.glb`).then((g) => {
+    gltf.loadAsync(`/models/${id}.glb`).then((g) => {
       models.set(id, { scene: g.scene, clips: g.animations });
       return g;
     });
@@ -540,6 +541,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   // geometrias de efeito compartilhadas: criar uma por efeito vazava memória de vídeo
   const ringGeo = new THREE.RingGeometry(WIZ_R * 0.9, WIZ_R * 1.25, 40);
+  const discGeo = new THREE.CircleGeometry(1, 48);
   const shieldGeo = new THREE.SphereGeometry(0.85, 24, 16);
   const markerGeo = new THREE.RingGeometry(0.15, 0.25, 24);
   const scorchGeo = new THREE.PlaneGeometry(1.6, 1.6);
@@ -690,39 +692,22 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (actions[n]) actions[n].clampWhenFinished = true;
     }
     actions.Idle?.play();
-    const hpFill = document.createElement('div');
-    hpFill.className = 'hp-fill';
-    hpFill.style.background = COLORS[d.color];
-    const label = document.createElement('div');
-    label.className = 'wiz-label';
-    const nameEl = document.createElement('span');
-    nameEl.textContent = d.name;
-    const botEl = Object.assign(document.createElement('small'), { className: 'bot-tag', hidden: true });
-    nameEl.append(botEl);
-    const bar = document.createElement('div');
-    bar.className = 'hp';
-    const hpText = document.createElement('span');
-    hpText.className = 'hp-text';
-    const absRush = Object.assign(document.createElement('div'), { className: 'hp-abs rush' });
-    bar.append(hpFill, absRush, hpText);
+    const hpFill = el('div', { class: 'hp-fill', style: `background: ${COLORS[d.color]}` });
+    const botEl = el('small', { class: 'bot-tag', hidden: true });
+    const nameEl = el('span', {}, d.name, botEl);
+    const hpText = el('span', { class: 'hp-text' });
+    const absRush = el('div', { class: 'hp-abs rush' });
+    const bar = el('div', { class: 'hp' }, hpFill, absRush, hpText);
     // selo da Égide ao lado da barra, enquanto não usada
-    const aegisEl = Object.assign(document.createElement('i'), { className: 'aegis', title: 'Égide pronta', hidden: true });
-    aegisEl.append(icon(ITEM_ICON.aegis));
-    const extraEl = Object.assign(document.createElement('span'), { className: 'hp-extra' });
-    const hpRow = Object.assign(document.createElement('div'), { className: 'hp-row' });
-    hpRow.append(aegisEl, bar, extraEl);
-    const shieldBar = Object.assign(document.createElement('div'), { className: 'shield-bar', hidden: true });
-    const shieldFill = document.createElement('div');
-    shieldBar.append(shieldFill);
-    const statusEl = document.createElement('span');
-    statusEl.className = 'status-icons';
+    const aegisEl = el('i', { class: 'aegis', title: 'Égide pronta', hidden: true }, icon(ITEM_ICON.aegis));
+    const extraEl = el('span', { class: 'hp-extra' });
+    const shieldFill = el('div');
+    const shieldBar = el('div', { class: 'shield-bar', hidden: true }, shieldFill);
+    const statusEl = el('span', { class: 'status-icons' });
     // barrinha dourada do monte de ouro: enche a cada 2 s em cima dele
-    const lootBar = document.createElement('div');
-    lootBar.className = 'loot-bar';
-    lootBar.hidden = true;
-    const lootFill = document.createElement('div');
-    lootBar.append(lootFill);
-    label.append(statusEl, nameEl, hpRow, shieldBar, lootBar);
+    const lootFill = el('div');
+    const lootBar = el('div', { class: 'loot-bar', hidden: true }, lootFill);
+    const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), shieldBar, lootBar);
     labels.append(label);
     return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, ghost: false, dead: false, color: d.color, character: d.character, mats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false };
   }
@@ -794,12 +779,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // texto que sobe e some (dano, cura, ouro); pop = quanto ele pula ao nascer
   const numbers: { el: HTMLDivElement; at: THREE.Vector3; born: number; pop?: number }[] = [];
   function floatText(cls: string, at: THREE.Vector3, size: string, pop: number | undefined, ...body: (string | Node)[]) {
-    const el = document.createElement('div');
-    el.className = cls;
-    if (size) el.style.fontSize = size;
-    el.append(...body);
-    labels.append(el);
-    numbers.push({ el, at, born: performance.now() / 1000, pop });
+    const e = el('div', { class: cls, style: size && `font-size: ${size}` }, ...body);
+    labels.append(e);
+    numbers.push({ el: e, at, born: performance.now() / 1000, pop });
   }
   // em cima de quem levou ou se curou, com um pouco de espalhamento de lado
   const overHead = (at: Vec) => w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0));
@@ -894,7 +876,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const OBSTACLE_MODEL: Record<string, string> = { pillar: 'pillar_decorated', rock: 'rubble_large', tree: 'tree_dead_large', shrine: 'shrine_candles' };
   // parede do Pilar de pedra (KayKit Dungeon barrier_half): um modelo no pedaço do meio, atravessado como os 3 círculos da simulação
   let wallModel: THREE.Object3D | null = null;
-  new GLTFLoader().loadAsync('/models/barrier_half.glb').then((g) => (wallModel = g.scene)).catch(() => {});
+  loadModel('barrier_half').then((g) => (wallModel = g.scene)).catch(() => {});
   function makeWall(along: Vec) {
     const o = wallModel?.clone(true) ?? new THREE.Mesh(new THREE.BoxGeometry(2, 1.1, 0.5), new THREE.MeshStandardMaterial({ color: '#6b625c' }));
     o.traverse((m) => {
@@ -910,7 +892,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     g.rotation.y = -Math.atan2(along.y, along.x); // o comprimento (x do modelo) no rumo dos pedaços
     return g;
   }
-  const pillarMeshes: { obj: THREE.Object3D; pos: Vec; dead: boolean; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number }[] = [];
+  const pillarMeshes: { obj: THREE.Object3D; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number }[] = [];
   // baú: caixa simples com tampa dourada e brilho (é um obstáculo: as magias quebram)
   const chestWood = new THREE.MeshStandardMaterial({ color: '#7a4a22', roughness: 0.7 });
   const chestGold = new THREE.MeshStandardMaterial({ color: '#ffcc33', emissive: '#a06a00', metalness: 0.6, roughness: 0.3 });
@@ -1060,7 +1042,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     slow: { fill: '#2f8cff', edge: '#e2f4ff', tex: FX.smoke, texColor: '#7cc4ff', icon: STATUS_ICONS.find(([b]) => b === 4)![1], mark: '#0b2a4a', add: false },
     pull: { fill: '#6a2cff', edge: '#c9a8ff', tex: FX.twirl, texColor: '#b48cff', icon: STATUS_ICONS.find(([b]) => b === 2097152)![1], mark: '#f0e6ff', add: true },
   };
-  const discGeo = new THREE.CircleGeometry(1, 48);
   const edgeGeo = new THREE.RingGeometry(0.93, 1, 64);
   const dashGeo = mergeGeometries(Array.from({ length: 20 }, (_, i) => new THREE.RingGeometry(0.92, 1, 3, 1, (i / 20) * Math.PI * 2, ((Math.PI * 2) / 20) * 0.55)));
   const texGeo = new THREE.PlaneGeometry(2, 2);
@@ -1161,7 +1142,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const isleBaseGeo = new THREE.CylinderGeometry(1, 1.15, 0.6, 28);
   const isleTopGeo = new THREE.CylinderGeometry(1, 1, 0.06, 28);
   const rockModels: THREE.Object3D[] = [];
-  for (const k of ['A', 'B', 'C', 'D', 'E']) new GLTFLoader().loadAsync(`/models/hex/rock_single_${k}.gltf`).then((g) => rockModels.push(g.scene)).catch(() => {});
+  for (const k of ['A', 'B', 'C', 'D', 'E']) gltf.loadAsync(`/models/hex/rock_single_${k}.gltf`).then((g) => rockModels.push(g.scene)).catch(() => {});
   type IsleDraw = { g: THREE.Group; top: THREE.Mesh; rocks: THREE.Group; r: number; seen: number; shrinkAt: number };
   const isleDraws: IsleDraw[] = [];
   function isleDraw(i: number): IsleDraw {
@@ -1261,14 +1242,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         // barra de vida em tudo que quebra (pedido do Fernando, 17/10: sempre visível)
         let bar: HTMLDivElement | null = null, fill: HTMLDivElement | null = null;
         if (Number.isFinite(OBSTACLES[p.kind].hp) && !side) {
-          bar = document.createElement('div');
-          bar.className = 'obstacle-hp' + (p.kind === 'chest' ? ' chest' : '');
-          fill = document.createElement('div');
-          bar.append(fill);
+          fill = el('div');
+          bar = el('div', { class: 'obstacle-hp' + (p.kind === 'chest' ? ' chest' : '') }, fill);
           labels.append(bar);
         }
         const height = new THREE.Box3().setFromObject(obj).max.y;
-        pillarMeshes.push({ obj, pos: p.pos, dead: false, bar, fill, height });
+        pillarMeshes.push({ obj, pos: p.pos, bar, fill, height });
         // a lista muda no meio da rodada (baú, Pilar de pedra): o que já tinha quebrado não afunda de novo
         if (p.hp <= 0) obj.position.y = -3;
       });
@@ -1276,16 +1255,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     list.forEach((p, i) => {
       const m = pillarMeshes[i];
       if (p.hp <= 0) {
-        m.dead = true;
         m.obj.position.y = Math.max(-3, m.obj.position.y - 0.05);
         m.obj.visible = m.obj.position.y > -2.9;
         if (m.bar) m.bar.hidden = true;
       } else {
         // tremida curta quando apanha
         const shake = p.hp < 100 ? (100 - p.hp) / 100 : 0;
-        if (m.bar && m.fill) {
-          m.fill.style.width = `${p.hp}%`;
-        }
+        if (m.fill) m.fill.style.width = `${p.hp}%`;
         m.obj.rotation.z = Math.sin(performance.now() / 40) * 0.02 * shake;
       }
     });
@@ -1534,9 +1510,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // trocou de personagem na loja: refaz o boneco
       if (m && m.character !== d.character) {
         scene.remove(m.root);
-        m.ring.material instanceof THREE.Material && m.ring.material.dispose();
-        m.shield.material instanceof THREE.Material && m.shield.material.dispose();
-        m.aura.material instanceof THREE.Material && m.aura.material.dispose();
+        for (const o of [m.ring, m.shield, m.aura]) (o.material as THREE.Material).dispose();
         for (const x of m.mats) x.m.dispose();
         m.label.remove();
         mages.delete(d.id);
@@ -1576,8 +1550,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.shieldBar.hidden = !m.shield.visible;
       if (m.shield.visible) m.shieldFill.style.width = `${shieldLeft * 100}%`;
       // anel no chão: dourado pulsando invulnerável (começo da rodada), azul da runa com Escudo de runa
-      const invuln = (d.status & 32) > 0;
-      m.aura.visible = d.alive && (invuln || (d.status & 1048576) > 0);
+      const invuln = (d.status & 32) > 0, armor = (d.status & 1048576) > 0; // runa do Escudo: −30% de dano
+      m.aura.visible = d.alive && (invuln || armor);
       if (m.aura.visible) {
         const mat = m.aura.material as THREE.MeshBasicMaterial;
         mat.color.set(invuln ? '#ffd36a' : RUNE_COLOR.shield);
@@ -1624,13 +1598,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
         m.statusEl.replaceChildren(...STATUS_ICONS.filter(([bit]) => d.status & bit && bit !== 131072).map(([bit, ico, name]) => {
-          const i = Object.assign(document.createElement('i'), { title: name, className: BAD_STATUS.includes(bit) ? 'bad' : 'good' });
-          i.append(icon(ico));
-          return i;
+          return el('i', { title: name, class: BAD_STATUS.includes(bit) ? 'bad' : 'good' }, icon(ico));
         }));
       }
       // Investida na barra (estilo Overwatch): o que ainda absorve vem depois da vida; passando do máximo, a barra inteira encolhe
-      const rush = d.rushLeft ?? 0, armor = (d.status & 1048576) > 0; // runa do Escudo: −30% de dano
+      const rush = d.rushLeft ?? 0;
       const total = Math.max(d.hpMax, d.hp + rush);
       m.hpFill.style.width = `${Math.max(0, Math.min(100, (d.hp / total) * 100))}%`;
       m.absRush.hidden = !rush;
@@ -1658,10 +1630,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (m.extraKey !== key) {
         m.extraKey = key;
         const part = (cls: string, text: string, ico?: string) => {
-          const e = Object.assign(document.createElement('span'), { className: cls });
-          if (ico) e.append(icon(ico));
-          e.append(text);
-          return e;
+          return el('span', { class: cls }, ico && icon(ico), text);
         };
         m.extraEl.replaceChildren(...[
           regen ? part('regen', `+${Math.round(regen * 10) / 10}/s`) : null,
@@ -1785,9 +1754,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const m = mages.get(id);
       if (!m) return false;
       m.label.querySelector('.bubble')?.remove();
-      const b = document.createElement('div');
-      b.className = 'bubble';
-      b.textContent = text;
+      const b = el('div', { class: 'bubble' }, text);
       m.label.prepend(b);
       setTimeout(() => b.remove(), 2500);
       return true;
@@ -1977,10 +1944,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // barras dos obstáculos, logo acima de cada um
       for (const p of pillarMeshes) {
         if (!p.bar || p.bar.hidden) continue;
-        if (p.dead) {
-          p.bar.hidden = true;
-          continue;
-        }
         const [x, y] = toScreen(p.obj.position.clone().setY(p.height + 0.15));
         p.bar.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
       }

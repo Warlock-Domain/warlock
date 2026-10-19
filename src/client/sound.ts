@@ -19,8 +19,7 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
   const music = new Audio('/music/battle.mp3');
   music.loop = true;
   music.preload = 'none'; // só baixa quando a partida toca (o lobby também cria o som, para o hover e o clique)
-  music.volume = 0.3;
-  let lava: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+  let lava: AudioBufferSourceNode | null = null;
   let wantAmbience = false;
   let duck = 1; // na loja a música abaixa um pouco
 
@@ -74,9 +73,9 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
       gain.gain.value = 0.12;
       src.connect(gain).connect(master!);
       src.start();
-      lava = { src, gain };
+      lava = src;
     } else if ((!on || vol.sfx === 0) && lava) {
-      lava.src.stop();
+      lava.stop();
       lava = null;
     }
   }

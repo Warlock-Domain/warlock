@@ -3,7 +3,7 @@
 // No celular: tocar no chão anda; tocar no botão da magia e depois no chão lança.
 import { isActive, type ItemId } from '../shared/items.ts';
 import type { SpellId } from '../shared/spells.ts';
-import { actionFor, getCastMode, isUiKey } from './keys.ts';
+import { actionFor, getCastMode, isUiKey, typing } from './keys.ts';
 import { setPadGame } from './gamepad.ts';
 import type { Vec } from '../shared/vec.ts';
 
@@ -123,7 +123,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       }
       return;
     }
-    if (!enabled || e.repeat || e.ctrlKey || e.metaKey || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+    if (!enabled || typing(e)) return;
     // teclas trocáveis pelo jogador (keys.ts)
     const action = actionFor(e.code);
     if (action) {
