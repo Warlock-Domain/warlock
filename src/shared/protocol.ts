@@ -1,16 +1,21 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
 import type { ArenaId } from './arena.ts';
+import { BOT_SKILL, type BotSkill } from './bots.ts';
 import { isCharacter, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS } from './constants.ts';
 import { ACTIVE_ITEMS, ITEM_IDS, type ItemId } from './items.ts';
 import { MODES, OPTION_CHOICES, goalOf, parseOpt, votesNeeded, type Match, type MatchOpts, type Mode, type Phase, type Stats, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
-import { SPELL_IDS, type SpellId } from './spells.ts';
+import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
+
+// treino: magias, itens e jeito de jogar escolhidos para um bot (só vale com um humano na sala; ver startMatch)
+export type BotSetup = { spells?: Partial<Record<SpellId, number>>; items?: Partial<Record<ItemId, number>>; skill?: Partial<BotSkill> };
 
 export type ClientMsg =
   | { t: 'hello'; playerId: string; name: string }
-  | { t: 'start'; bots: number; mode?: Mode; shuffle?: boolean; opts?: Partial<MatchOpts> } // shuffle: Times sorteados a cada rodada (padrão) ou fixos; opts: opções da partida
+  // shuffle: Times sorteados a cada rodada (padrão) ou fixos; opts: opções da partida; setup[i]: configuração do bot i+1 no treino
+  | { t: 'start'; bots: number; mode?: Mode; shuffle?: boolean; opts?: Partial<MatchOpts>; setup?: BotSetup[] }
   | { t: 'move'; x: number; y: number; seq: number }
   | { t: 'stop'; seq: number }
   | { t: 'cast'; spell: SpellId; x: number; y: number; seq: number }
@@ -77,7 +82,7 @@ export type ServerMsg =
   | { t: 'taunt'; id: string; i: number };
 
 const MAX_COORD = 30;
-const MAX_MSG = 1024;
+const MAX_MSG = 2048; // 'start' com 7 bots configurados: ~1,0 KB só com magias, ~1,7 KB com magias e itens (medido em 19/10)
 
 type Obj = Record<string, unknown>;
 const isObj = (x: unknown): x is Obj => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -98,6 +103,29 @@ function parseOpts(x: unknown): Partial<MatchOpts> | null {
   return x as Partial<MatchOpts>;
 }
 
+// configuração dos bots: níveis válidos (até MAX_SPELLS magias, contando a Bola de fogo que já vem) e skill dentro do que os bots
+// já usam (cada chave até o maior entre Fácil, Normal e Difícil; rate pelo menos o do Fácil, para ninguém pedir 999 decisões por segundo)
+const SKILL_KEYS = Object.keys(BOT_SKILL.normal) as (keyof BotSkill)[];
+const level = (x: unknown, max: number) => Number.isInteger(x) && (x as number) >= 0 && (x as number) <= max;
+function parseSetup(x: unknown): BotSetup[] | null {
+  if (!Array.isArray(x) || x.length > MAX_PLAYERS - 1) return null;
+  const out: BotSetup[] = [];
+  for (const b of x) {
+    if (!isObj(b)) return null;
+    const { spells, items, skill } = b;
+    if (spells !== undefined && (!isObj(spells) || !Object.entries(spells).every(([k, n]) => spell(k) && level(n, MAX_SPELL_LEVEL)) || spellCount({ ...noSpells(), ...spells }) > MAX_SPELLS)) return null;
+    if (items !== undefined && (!isObj(items) || !Object.entries(items).every(([k, n]) => ITEM_IDS.includes(k as ItemId) && level(n, 6)))) return null;
+    if (skill !== undefined && (!isObj(skill) || !Object.entries(skill).every(([k, n]) => SKILL_KEYS.includes(k as keyof BotSkill) && typeof n === 'number' && Number.isFinite(n)))) return null;
+    const clamp = (k: keyof BotSkill, n: number) => Math.min(Math.max(...Object.values(BOT_SKILL).map((s) => s[k])), Math.max(k === 'rate' ? BOT_SKILL.easy.rate : 0, n));
+    out.push({
+      ...(spells && { spells: spells as BotSetup['spells'] }),
+      ...(items && { items: items as BotSetup['items'] }),
+      ...(skill && { skill: Object.fromEntries(Object.entries(skill).map(([k, n]) => [k, clamp(k as keyof BotSkill, n as number)])) }),
+    });
+  }
+  return out;
+}
+
 export function parseClientMessage(raw: string): ClientMsg | null {
   if (raw.length > MAX_MSG) return null;
   let m: unknown;
@@ -116,9 +144,11 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       if (m.shuffle !== undefined && typeof m.shuffle !== 'boolean') return null;
       const opts = m.opts === undefined ? undefined : parseOpts(m.opts);
       if (opts === null) return null;
+      const setup = m.setup === undefined ? undefined : parseSetup(m.setup);
+      if (setup === null) return null;
       if (!Number.isInteger(m.bots) || (m.bots as number) < 0 || (m.bots as number) >= MAX_PLAYERS) return null;
-      // sem opções, a mensagem fica como era antes delas
-      return { t: 'start', bots: m.bots as number, mode: m.mode as Mode | undefined, shuffle: m.shuffle, ...(opts && { opts }) };
+      // sem opções nem configuração, a mensagem fica como era antes delas
+      return { t: 'start', bots: m.bots as number, mode: m.mode as Mode | undefined, shuffle: m.shuffle, ...(opts && { opts }), ...(setup && { setup }) };
     }
     case 'move':
       return coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'move', x: m.x, y: m.y, seq: m.seq } : null;

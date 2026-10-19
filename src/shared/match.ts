@@ -6,6 +6,7 @@ import {
   ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
+import type { BotSetup } from './protocol.ts';
 import { newWorld, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
 import { MAX_SPELLS, SPELL_IDS, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { dist, len, type Vec } from './vec.ts';
@@ -99,6 +100,7 @@ export type Player = {
   ready: boolean;
   connected: boolean;
   team: number | null; // modo Times: 0 = Azul, 1 = Vermelho
+  setup?: BotSetup; // treino: magias, itens e jeito de jogar escolhidos para este bot
 };
 
 export type Match = {
@@ -161,12 +163,17 @@ export function removePlayer(m: Match, id: string) {
   }
 }
 
-// opts: só as opções que mudam (sem elas fica o que a sala já tinha)
-export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'rounds', teamShuffle = true, rand: () => number = Math.random, opts: Partial<MatchOpts> = {}): boolean {
+// opts: só as opções que mudam (sem elas fica o que a sala já tinha); setup[i]: configuração do bot i+1, só com uma pessoa
+// na sala (ninguém dá magias aos bots numa partida com outras pessoas)
+export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'rounds', teamShuffle = true, rand: () => number = Math.random, opts: Partial<MatchOpts> = {}, setup: BotSetup[] = []): boolean {
   if (m.phase !== 'lobby' && m.phase !== 'end') return false;
   m.opts = { ...m.opts, ...opts };
   m.players = m.players.filter((p) => !p.bot && p.connected);
-  for (let i = 0; m.players.length < MAX_PLAYERS && i < bots; i++) addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true);
+  const solo = m.players.length === 1;
+  for (let i = 0; m.players.length < MAX_PLAYERS && i < bots; i++) {
+    addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true);
+    if (solo && setup[i]) m.players[m.players.length - 1].setup = setup[i];
+  }
   if (m.players.length < 2) return false;
   fresh(m, now, mode, teamShuffle, rand);
   return true;
@@ -437,7 +444,10 @@ function enterShop(m: Match, now: number) {
   m.world = null;
   for (const p of m.players) {
     p.ready = p.bot;
-    botShop(m, p);
+    // treino: bot configurado entra exatamente com as magias e itens pedidos, sem compra automática
+    const s = p.setup;
+    if (s?.spells || s?.items) Object.assign(p, { spells: { ...noSpells(), ...s.spells }, items: { ...startItems(), ...s.items } });
+    else botShop(m, p);
   }
 }
 
@@ -457,8 +467,14 @@ function shuffleTeams(m: Match, rand: () => number) {
   order.forEach((p, i) => (p.team = (i + first) % 2));
 }
 
-// Automático: humanos à frente deste bot no placar → bot mais forte; atrás → mais fraco (contínuo, em fração da meta)
+// força do bot pela dificuldade; no treino, o skill configurado vai por cima
 export function botSkill(m: Match, bot: Player): BotSkill {
+  const base = difficultySkill(m, bot);
+  return bot.setup?.skill ? { ...base, ...bot.setup.skill } : base;
+}
+
+// Automático: humanos à frente deste bot no placar → bot mais forte; atrás → mais fraco (contínuo, em fração da meta)
+function difficultySkill(m: Match, bot: Player): BotSkill {
   const d = m.opts.difficulty;
   if (d !== 'auto') return BOT_SKILL[d];
   const humans = m.players.filter((p) => !p.bot);

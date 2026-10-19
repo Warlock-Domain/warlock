@@ -1,7 +1,7 @@
 import { edgeAt, onIsle, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, SUDDEN, type RuneKind } from '../shared/constants.ts';
 import { isCharacter } from '../shared/characters.ts';
-import type { PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
+import type { BotSetup, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView } from '../shared/snapshot.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
@@ -135,6 +135,7 @@ function startRoom(code: string, name: string) {
   let rttSeen = false;
   // modo treino (só para quem apertou o botão): dicas nas primeiras rodadas; playingAt marca o "Já!"
   let training = false;
+  let trainSetup: BotSetup[] | undefined; // magias dos bots do último treino
   let arenaId: ArenaId = 'circle'; // formato da arena da rodada (vem na mensagem 'room')
   let playingAt = 0;
   const justCast = new Map<string, number>();
@@ -160,13 +161,15 @@ function startRoom(code: string, name: string) {
   document.body.classList.toggle('fx-lite', fxLite);
 
   const view = createRoomUi(ui, code, {
-    start: (bots, mode, shuffle, opts) => {
+    start: (bots, mode, shuffle, opts, again) => {
       training = false; // partida normal depois de um treino: sem dicas
-      net.send({ t: 'start', bots, mode, shuffle, opts });
+      if (!again) trainSetup = undefined; // o "Jogar de novo" repete as magias dos bots do treino; começar pela sala, não
+      net.send({ t: 'start', bots, mode, shuffle, opts, ...(trainSetup && { setup: trainSetup }) });
     },
-    train: (opts) => {
+    train: (opts, setup) => {
       training = true;
-      net.send({ t: 'start', bots: 3, mode: 'rounds', shuffle: true, opts });
+      trainSetup = setup;
+      net.send({ t: 'start', bots: 3, mode: 'rounds', shuffle: true, opts, ...(setup && { setup }) });
     },
     buy: (spell) => net.send({ t: 'buy', spell }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),

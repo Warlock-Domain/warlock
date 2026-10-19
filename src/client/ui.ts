@@ -3,7 +3,7 @@ import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, 
 import { ARENA_NAMES, type ArenaId } from '../shared/arena.ts';
 import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import { DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Vote } from '../shared/match.ts';
-import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
+import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELLS, SPELL_IDS, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { isPadMode, isUiKey, labelOf, onKeysChange, setSlots, uiLabel, type Action, type UiAction } from './keys.ts';
@@ -15,6 +15,7 @@ import { SPELL_GROUPS, SPELL_USE, n1, pct } from './rules-text.ts';
 import { ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, icon } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
+import { botSetupPanel, hasBotSetup, savedBotSetup } from './train.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { endResult, roomGroups } from './screen-data.ts';
 
@@ -153,9 +154,9 @@ export function screen(root: HTMLElement, title: string, text: string, button: s
 }
 
 type RoomActions = {
-  start: (bots: number, mode: Mode, shuffle: boolean, opts: MatchOpts) => void;
+  start: (bots: number, mode: Mode, shuffle: boolean, opts: MatchOpts, again?: boolean) => void; // again: "Jogar de novo" (repete a configuração do treino)
   hover: (a: SpellId | ItemId | null) => void; // mouse em cima da magia ou item na barra (círculo de alcance)
-  train: (opts: Partial<MatchOpts>) => void; // partida de treino: 3 bots, modo Rodadas e dicas nas primeiras rodadas (com a dificuldade escolhida)
+  train: (opts: Partial<MatchOpts>, setup?: BotSetup[]) => void; // partida de treino: 3 bots, modo Rodadas e dicas nas primeiras rodadas (com a dificuldade e as magias dos bots escolhidas)
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
   kick: (id: string) => void;
@@ -730,6 +731,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let opts: MatchOpts | null = null; // opções da partida escolhidas aqui; começa com as da sala
   let optsOpen = true;
   let setup = false; // fim da partida: true depois do "Voltar à sala"
+  let botCfg = savedBotSetup(); // treino: magias escolhidas para cada bot
 
   // grade com o retrato de cada personagem; o escolhido fica marcado
   function picker(r: PublicRoom) {
@@ -793,7 +795,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('div', {}, el('h2', { class: 'title' }, 'Sala ' + r.id), el('p', { class: 'muted' }, 'Mande o link para os amigos entrarem. Até 8 magos.'),
         el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), kickBtn(p, act.kick))))),
       // sozinho na sala: treino com 3 bots e dicas curtas nas primeiras rodadas, logo à vista
-      humans === 1 && r.phase === 'lobby' ? el('button', { type: 'button', class: 'train', onclick: () => act.train({ difficulty: o.difficulty, arena: o.arena }) }, icon(UI_ICON.aim), ' Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')) : null,
+      humans === 1 && r.phase === 'lobby' ? el('button', { type: 'button', class: 'train', onclick: () => act.train({ difficulty: o.difficulty, arena: o.arena }, hasBotSetup(botCfg) ? botCfg : undefined) }, icon(UI_ICON.aim), ' Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')) : null,
+      humans === 1 && r.phase === 'lobby' ? botSetupPanel(3, botCfg, (s) => (botCfg = s)) : null,
       picker(r),
       modePicker,
       optsBlock,
@@ -807,7 +810,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   function endPanel(r: PublicRoom) {
     const roomBots = r.players.filter((p) => p.bot).length;
     const humans = r.players.filter((p) => !p.bot && p.connected).length;
-    const again = el('button', { type: 'button', class: 'primary big', disabled: humans + roomBots < 2, onclick: () => act.start(roomBots, r.mode, r.teamShuffle, r.opts) }, 'Jogar de novo');
+    const again = el('button', { type: 'button', class: 'primary big', disabled: humans + roomBots < 2, onclick: () => act.start(roomBots, r.mode, r.teamShuffle, r.opts, true) }, 'Jogar de novo');
     // cabeçalho grande: Vitória (eu ou meu time), Derrota (outro venceu) ou Fim de jogo (sem vencedor ou só assistindo)
     const res = endResult(r, me);
     const noWinner = !r.winner && r.winnerTeam === null;

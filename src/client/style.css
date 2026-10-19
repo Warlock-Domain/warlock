@@ -484,6 +484,14 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
 .match-opts > summary, .vote-group > summary { cursor: pointer; font-weight: 600; }
 .opt-row { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
 .opt-row .stats-tabs { flex-wrap: wrap; }
+/* magias dos bots no treino (train.ts): grade de magias marcáveis, cada uma com o nível */
+.bot-setup .opt-label { flex-wrap: wrap; }
+.bs-spells { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px; }
+.bs-spell { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 2px 6px; border: 1px solid var(--line); border-radius: var(--r-sm); font-size: .85rem; cursor: pointer; }
+.bs-spell.on { border-color: var(--bronze); background: var(--sel-bg); }
+.bs-spell:has(input:disabled) { opacity: .5; cursor: default; }
+.bs-spell input[type="number"] { width: 3.2em; margin-left: auto; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 2px 4px; }
+@media (pointer: coarse) { .bs-spell { min-height: 44px; } }
 /* botão "i" das opções e o balão com a explicação (opt-info.ts) */
 .opt-label { display: flex; align-items: center; gap: 6px; }
 button.info { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; min-height: 0; padding: 0; flex: none; border-radius: 50%; color: var(--muted); background: transparent; border: 1px solid var(--line); }

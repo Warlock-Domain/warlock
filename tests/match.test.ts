@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { CLASSIC_PLAN, botBuy, botCmds } from '../src/shared/bots.ts';
+import { BOT_SKILL, CLASSIC_PLAN, botBuy, botCmds } from '../src/shared/bots.ts';
 import { ARENA_R0, ASSIST_GOLD, COUNTDOWN_MS, DM_ROUND_MS, KILL_GOLD, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
-import { addPlayer, buy, castBallot, endIdle, kick, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, startVote, tickMatch, type Match, type Stat } from '../src/shared/match.ts';
+import { addPlayer, botSkill, buy, castBallot, endIdle, kick, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, startVote, tickMatch, type Match, type Stat } from '../src/shared/match.ts';
 import { newWorld } from '../src/shared/sim.ts';
+import { roundRecord } from '../src/shared/telemetry.ts';
 import { noItems } from '../src/shared/items.ts';
 import { noSpells } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
@@ -276,6 +277,54 @@ describe('bots', () => {
     w.wizards[2].pos = v(-6, 0);
     const cast = botCmds(w, 'bot', () => 0.3).find((c) => c.kind === 'cast');
     expect(cast && cast.kind === 'cast' && cast.spell === 'fireball' && cast.at.x > 2).toBe(true);
+  });
+});
+
+describe('treino: magias dos bots', () => {
+  const cfg = [{ spells: { fireball: 0, lightning: 3, shield: 7 } }, {}, { items: { armor: 2 }, skill: { aim: 0.2 } }];
+
+  it('sala com uma pessoa: o bot entra exatamente com o que foi pedido, em toda rodada, sem comprar', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'Ana');
+    expect(startMatch(m, 0, 3, 'rounds', true, Math.random, {}, cfg)).toBe(true);
+    const bot = (n: number) => m.players.find((p) => p.id === 'bot-' + n)!;
+    const want = { ...noSpells(), fireball: 0, lightning: 3, shield: 7 };
+    expect(bot(1).spells).toEqual(want);
+    expect(bot(1).items).toEqual({ ...noItems(), scourge: 1 });
+    expect(bot(1).gold).toBe(START_GOLD); // não gastou nada
+    expect(bot(3).spells).toEqual(noSpells());
+    expect(bot(3).items).toEqual({ ...noItems(), scourge: 1, armor: 2 });
+    let now = toPlaying(m, 0);
+    expect(m.world!.wizards.find((z) => z.id === 'bot-1')!.spells).toEqual(want);
+    // a rodada sai marcada na telemetria
+    for (const id of ['a', 'bot-2', 'bot-3']) kill(m, id, 'bot-1');
+    now = until(m, now, () => m.phase === 'roundEnd');
+    expect(roundRecord(m, now).setup).toBe(true);
+    now = until(m, now, () => m.phase === 'shop');
+    expect(m.round).toBe(1);
+    expect(bot(1).spells).toEqual(want);
+    expect(bot(1).gold).toBeGreaterThan(START_GOLD);
+  });
+
+  it('com duas pessoas a configuração é ignorada', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'Ana');
+    addPlayer(m, 'b', 'Bia');
+    startMatch(m, 0, 3, 'rounds', true, Math.random, {}, cfg);
+    expect(m.players.some((p) => p.setup)).toBe(false);
+    expect(m.players.find((p) => p.id === 'bot-1')!.spells.shield).toBeLessThan(7);
+    const now = toPlaying(m, 0);
+    for (const id of ['b', 'bot-1', 'bot-2', 'bot-3']) kill(m, id, 'a');
+    expect(roundRecord(m, until(m, now, () => m.phase === 'roundEnd')).setup).toBeUndefined();
+  });
+
+  it('botSkill: o skill parcial vai por cima da dificuldade', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'Ana');
+    startMatch(m, 0, 3, 'rounds', true, Math.random, { difficulty: 'hard' }, cfg);
+    const bot = (n: number) => m.players.find((p) => p.id === 'bot-' + n)!;
+    expect(botSkill(m, bot(3))).toEqual({ ...BOT_SKILL.hard, aim: 0.2 });
+    expect(botSkill(m, bot(1))).toBe(BOT_SKILL.hard);
   });
 });
 

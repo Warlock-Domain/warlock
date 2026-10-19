@@ -54,6 +54,7 @@ export function roundRecord(m: Match, now: number): RoundRecord {
     mode: m.mode,
     scale: 10,
     difficulty: m.opts.difficulty,
+    ...(m.players.some((p) => p.setup) && { setup: true as const }),
     players: m.players.map((p) => ({
       pid: publicId('telemetria', p.id),
       name: p.bot ? undefined : p.name,

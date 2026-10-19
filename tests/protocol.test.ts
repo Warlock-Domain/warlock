@@ -27,7 +27,7 @@ describe('protocolo', () => {
     expect(p({ t: 'cast', spell: 'invisibility', x: 0, y: 0, seq: 1 })).toBeNull();
     expect(p({ t: 'start', bots: 8 })).toBeNull();
     expect(p({ t: 'hello', playerId: 'x', name: 'a' })).toBeNull();
-    expect(p({ t: 'buy', spell: 'shield', extra: 'x'.repeat(2000) })).toBeNull();
+    expect(p({ t: 'buy', spell: 'shield', extra: 'x'.repeat(3000) })).toBeNull();
     expect(p({ t: 'pick', character: 'dragon' })).toBeNull();
     expect(p({ t: 'vote', kind: 'kick' })).toBeNull();
     expect(p({ t: 'vote', kind: 'kick', target: 'raw-player-id-123' })).toBeNull();
@@ -37,6 +37,31 @@ describe('protocolo', () => {
     expect(p({ t: 'ballot', yes: 'sim' })).toBeNull();
     expect(parseClientMessage('nada')).toBeNull();
     expect(p([1, 2])).toBeNull();
+  });
+
+  it('start: configuração dos bots do treino', () => {
+    const spells = { fireball: 0, rockpillar: 7, magnetize: 7, alteration: 7, boomerang: 7, windwalk: 7, splitter: 7 };
+    const items = { ring: 6, cursed_ring: 6, shock_boots: 6, lava_boots: 6, redirector: 6, wind_boots: 6 };
+    expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 3 } }, {}, { items: { armor: 2 }, skill: { aim: 0.8 } }] }))
+      .toEqual({ t: 'start', bots: 3, setup: [{ spells: { lightning: 3 } }, {}, { items: { armor: 2 }, skill: { aim: 0.8 } }] });
+    // 7 bots com 6 magias no nível 7 e 6 itens no 6, e todas as opções: cabe na mensagem
+    const full = { t: 'start', bots: 7, mode: 'deathmatch', opts: { shop: 120, economy: 2.5, startGold: 100, goal: 7, difficulty: 'normal', arena: 'random' }, setup: Array(7).fill({ spells, items }) };
+    expect(JSON.stringify(full).length).toBeGreaterThan(1024);
+    expect(p(full)).not.toBeNull();
+    // 7 magias (a Bola de fogo já vem e conta), nível 8, item com nível 7, chave de skill desconhecida, 8 bots
+    expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 1, grip: 1 } }] })).toBeNull();
+    expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 8 } }] })).toBeNull();
+    expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 1.5 } }] })).toBeNull();
+    expect(p({ t: 'start', bots: 3, setup: [{ items: { armor: 7 } }] })).toBeNull();
+    expect(p({ t: 'start', bots: 3, setup: [{ items: { sword: 1 } }] })).toBeNull();
+    expect(p({ t: 'start', bots: 3, setup: [{ skill: { wallhack: 1 } }] })).toBeNull();
+    expect(p({ t: 'start', bots: 3, setup: [{ skill: { toString: 1 } }] })).toBeNull();
+    expect(p({ t: 'start', bots: 3, setup: [{ skill: { aim: 'x' } }] })).toBeNull();
+    expect(p({ t: 'start', bots: 3, setup: Array(8).fill({}) })).toBeNull();
+    expect(p({ t: 'start', bots: 3, setup: {} })).toBeNull();
+    // skill fora da faixa é limitado: rate 999 vira o do Difícil, rate 0 vira o do Fácil, negativo vira 0
+    expect(p({ t: 'start', bots: 1, setup: [{ skill: { rate: 999, dodge: -1 } }, { skill: { rate: 0 } }] }))
+      .toEqual({ t: 'start', bots: 1, setup: [{ skill: { rate: 4, dodge: 0 } }, { skill: { rate: 1.5 } }] });
   });
 
   it('taunt: only the fixed ones (0..9)', () => {
