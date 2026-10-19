@@ -4,7 +4,7 @@ Bem-vindo! Este guia diz como uma mudança sai da sua máquina e chega ao jogo. 
 
 ## Fluxo
 
-1. **Combine antes** o que vai fazer: abra uma issue (ou comente numa existente) dizendo a ideia. Evita duas pessoas no mesmo trabalho.
+1. **Combine antes** o que vai fazer: abra uma issue pelos modelos **Bug** ou **Ideia** (ou comente numa existente). Evita duas pessoas no mesmo trabalho. Issues com a etiqueta `bom primeiro PR` são boas para começar.
 2. **Crie uma branch a partir do `master` atualizado**, uma por tarefa:
    - `feat/<assunto>` coisa nova (`feat/runa-de-gelo`)
    - `fix/<assunto>` conserto (`fix/loja-trava-no-celular`)
@@ -14,10 +14,14 @@ Bem-vindo! Este guia diz como uma mudança sai da sua máquina e chega ao jogo. 
    Quem não tem acesso de escrita faz um fork e trabalha na branch do fork.
 3. **Commits pequenos, em português**, começando pelo tipo: `feat: …`, `fix: …`, `balance: …`, `style: …`, `refactor: …`, `docs: …`. A mensagem diz o que mudou para o jogador e, em balanceamento, os números medidos.
 4. **Antes de abrir o PR**, rode os gates (os dois `tsc`, `vitest run`, `vite build`) e jogue no navegador. Mantenha a branch em dia com o `master` (`git pull --rebase origin master` ou merge).
-5. **Abra o pull request para o `master`** preenchendo o modelo. O GitHub Actions roda as mesmas checagens; o PR só entra com tudo verde.
+5. **Abra o pull request para o `master`** preenchendo o modelo (Por quê, O que muda, Prints antes e depois se mudou algo na tela, Como testei, Balanceamento) e com `Fecha #n` para ligar a issue. **Título no formato do commit** (`feat: …`, `fix: …`): uma checagem do GitHub barra título fora do padrão. O GitHub Actions roda as mesmas checagens dos gates; o PR só entra com tudo verde.
 6. **Revisão:** pelo menos uma aprovação do dono do projeto. Responda os comentários com commits novos na mesma branch (sem reescrever o histórico depois que a revisão começou).
 7. **Merge:** *squash and merge*, com o título do PR no formato de commit (`feat: …`). A branch é apagada depois.
 8. **Publicação no site** é feita pelo dono do projeto (conta Cloudflare), depois do merge.
+
+## Etiquetas
+
+`bug`, `ideia`, `balanceamento`, `visual`, `bom primeiro PR`, `precisa de decisão` (espera o dono do projeto decidir).
 
 ## Regras que valem para todo PR
 
