@@ -164,6 +164,7 @@ export type World = {
   zones: Zone[]; // chão com efeito deixado pelos choques
   loots: { pos: Vec; left: number; until: number }[]; // montes de ouro dos baús quebrados
   chestAt: number; // quando o próximo baú aparece
+  chestsLeft: number; // baús que ainda podem aparecer nesta rodada
   runes: { pos: Vec; kind: RuneKind }[]; // no máximo uma
   runeAt: number; // quando a próxima runa aparece
   isles: (Isle & { a: number; d: number })[]; // ilhas de refúgio: rumo a do centro e distância d da borda (a posição segue o encolhimento)
@@ -271,7 +272,7 @@ export function newWorld(
     const d = ISLAND.near + rand() * (ISLAND.far - ISLAND.near);
     return { a, d, r: ISLAND.r, pos: isleSpot({ arena, arenaR }, a, d) };
   });
-  return { t: 0, arena, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars, zones: [], loots: [], chestAt: CHEST.first, runes: [], runeAt: RUNE.first, isles, sudden: false, rules: { ...rules }, events: [], lavaCredit: {}, nextId: 1, dm };
+  return { t: 0, arena, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars, zones: [], loots: [], chestAt: CHEST.first, chestsLeft: Math.min(CHEST.perRound, Math.floor(ids.length / 2) + 1), runes: [], runeAt: RUNE.first, isles, sudden: false, rules: { ...rules }, events: [], lavaCredit: {}, nextId: 1, dm };
 }
 
 export const inLava = (w: World, p: Vec) => inLavaAt(w.arena, w.arenaR, w.isles, p);
@@ -1524,12 +1525,13 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   stepIsles(w);
   // baú: aparece num ponto sorteado longe dos obstáculos; as magias quebram e ele vira um monte de ouro
   const chestsUp = w.pillars.filter((q) => q.kind === 'chest' && q.alive).length;
-  if (w.rules.chests && chestsUp < CHEST.maxUp && w.t >= w.chestAt) {
+  if (w.rules.chests && chestsUp < CHEST.maxUp && w.chestsLeft > 0 && w.t >= w.chestAt) {
     const at = freeSpot(w, rand, CHEST.spread);
     if (at) {
       w.pillars.push({ pos: at, hp: OBSTACLES.chest.hp, alive: true, kind: 'chest' });
       w.events.push({ k: 'chest', x: at.x, y: at.y });
       w.chestAt = w.t + CHEST.every;
+      w.chestsLeft--;
     } else w.chestAt = w.t + 1;
   }
   // monte de ouro: cada mago em cima enche a própria barra e ganha 1 a cada 2 s; quem sai perde o progresso
