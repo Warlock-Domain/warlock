@@ -1037,7 +1037,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const value = sellValue(mine, r.round, key);
       // a Bola de fogo vende mesmo valendo 0 (o nível 1 é grátis): libera a vaga e a tecla
       const title = value > 0 ? t('Vende tudo e devolve 100% do que você pagou', 'Sells everything and refunds 100% of what you paid') : t('O nível 1 é grátis e volta 0 de ouro; vender libera a vaga de magia (compra de volta de graça)', 'Level 1 is free and refunds 0 gold; selling frees the spell slot (buy it back for free)');
-      return !peek && canSell(mine, r.round, key) ? el('button', { type: 'button', class: 'sell', title, 'data-key': 'sell-' + key, onclick: () => act.sell(key) }, value > 0 ? t(`Vender ${value}`, `Sell ${value}`) : t('Vender', 'Sell')) : null;
+      return !peek && canSell(mine, r.round, key) ? el('button', { type: 'button', class: 'sell', title, 'aria-label': value > 0 ? t(`Vender por ${value} de ouro`, `Sell for ${value} gold`) : t('Vender', 'Sell'), 'data-key': 'sell-' + key, onclick: () => act.sell(key) }, icon(UI_ICON.gold), el('span', { class: 'sell-txt' }, value > 0 ? t(`Vender ${value}`, `Sell ${value}`) : t('Vender', 'Sell'))) : null;
     };
     // um cartão por magia ou item: "dá para comprar" e "já tenho" à vista, e quanto falta quando o ouro não dá
     type Offer = { key: string; ico: string; name: string; hotkey: string | null; use: string; lvl: number; max: number; price: number | null; blocked: string | null; buy: () => void; tip: () => string;
