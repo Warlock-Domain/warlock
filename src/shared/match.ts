@@ -573,7 +573,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   const teams = m.mode === 'teams' ? Object.fromEntries(m.players.map((p) => [p.id, p.team ?? 0])) : {};
   // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
   const arena = m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
-  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), PILLAR.min + Math.floor(Math.random() * (PILLAR.max - PILLAR.min + 1)), Math.random, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests }, arena);
+  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests }, arena);
   if (m.sandbox) m.world.shrink = m.sandbox.shrink; // a sandbox usa o mundo do deathmatch: não encolhe (a não ser que peçam) e quem morre volta
   m.phase = 'countdown';
   m.phaseEnds = now + COUNTDOWN_MS * PACE[m.opts.pace];
