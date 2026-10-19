@@ -8,17 +8,11 @@ import { len } from '../src/shared/vec.ts';
 import { newWorld, stepWorld, type World } from '../src/shared/sim.ts';
 import { SPELLS, noSpells, type SpellId } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
+import { world as spotsWorld } from './helpers.ts';
 
 const allSpells = (): Record<SpellId, number> => ({ ...noSpells(), lightning: 1, homing: 1, shield: 1, teleport: 1 });
 const with_ = (it: Partial<Record<ItemId, number>>) => ({ ...noItems(), ...it });
-
-function world(spots: [number, number][], items: Partial<Record<ItemId, number>>[] = []): World {
-  const ids = spots.map((_, i) => 'p' + i);
-  const w = newWorld(ids, Object.fromEntries(ids.map((id) => [id, allSpells()])), Object.fromEntries(ids.map((id, i) => [id, with_(items[i] ?? {})])));
-  spots.forEach(([x, y], i) => (w.wizards[i].pos = v(x, y)));
-  for (const z of w.wizards) z.invulnUntil = 0;
-  return w;
-}
+const world = (spots: [number, number][], items: Partial<Record<ItemId, number>>[] = []) => spotsWorld(spots, allSpells(), items);
 const steps = (w: World, n: number) => {
   for (let i = 0; i < n; i++) stepWorld(w, []);
 };

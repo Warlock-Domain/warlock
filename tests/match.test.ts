@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { CLASSIC_PLAN, botBuy, botCmds } from '../src/shared/bots.ts';
-import { ARENA_R0, ASSIST_GOLD, COUNTDOWN_MS, DM_ROUND_MS, DT, KILL_GOLD, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
+import { ARENA_R0, ASSIST_GOLD, COUNTDOWN_MS, DM_ROUND_MS, KILL_GOLD, ROUND_END_MS, ROUND_GOLD, SHOP_MS, START_GOLD, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WINS_TO_WIN } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
 import { addPlayer, buy, castBallot, endIdle, kick, newMatch, removePlayer, resume, setCharacter, setReady, shouldRun, startMatch, startVote, tickMatch, type Match, type Stat } from '../src/shared/match.ts';
 import { newWorld } from '../src/shared/sim.ts';
 import { noItems } from '../src/shared/items.ts';
 import { noSpells } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
-
-const STEP_MS = DT * 1000;
+import { STEP_MS, kill, toPlaying, until } from './helpers.ts';
 
 function twoPlayers(): Match {
   const m = newMatch();
@@ -18,28 +17,6 @@ function twoPlayers(): Match {
   return m;
 }
 
-// avança a partida em passos de simulação até a condição, com um limite de segurança
-function until(m: Match, now: number, cond: () => boolean, limit = 60 * 600): number {
-  for (let i = 0; i < limit && !cond(); i++) {
-    now += STEP_MS;
-    tickMatch(m, now, [], () => 0.5);
-  }
-  return now;
-}
-
-function toPlaying(m: Match, now: number): number {
-  for (const p of m.players) setReady(m, p.id);
-  now = until(m, now, () => m.phase === 'countdown');
-  return until(m, now, () => m.phase === 'playing');
-}
-
-const kill = (m: Match, id: string, by: string | null) => {
-  const wz = m.world!.wizards.find((z) => z.id === id)!;
-  wz.hp = 0.01;
-  wz.lastHitBy = by;
-  wz.lastHitAt = m.world!.t;
-  wz.pos = v(ARENA_R0 * 3, 0);
-};
 
 describe('partida', () => {
   it('needs two players to start', () => {

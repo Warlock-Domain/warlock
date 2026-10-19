@@ -6,21 +6,10 @@ import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
 import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from '../src/shared/sim.ts';
 import { MAX_SPELLS, RUSH, SPELLS, WARPZONE, noSpells, spellLevel, type SpellId } from '../src/shared/spells.ts';
 import { dist, len, v } from '../src/shared/vec.ts';
+import { run, world as spotsWorld } from './helpers.ts';
 
 // mundo sem invulnerabilidade inicial; todos os magos com as magias dadas no nível 1
-function world(spots: [number, number][], spells: SpellId[]): World {
-  const ids = spots.map((_, i) => 'p' + i);
-  const own = { ...noSpells(), ...Object.fromEntries(spells.map((s) => [s, 1])) };
-  const w = newWorld(ids, Object.fromEntries(ids.map((id) => [id, own])));
-  spots.forEach(([x, y], i) => (w.wizards[i].pos = v(x, y)));
-  for (const z of w.wizards) z.invulnUntil = 0;
-  return w;
-}
-
-function run(w: World, seconds: number, cmds: Cmd[] = []) {
-  stepWorld(w, cmds);
-  for (let i = 1; i < Math.round(seconds / DT); i++) stepWorld(w, []);
-}
+const world = (spots: [number, number][], spells: SpellId[]) => spotsWorld(spots, { ...noSpells(), ...Object.fromEntries(spells.map((s) => [s, 1])) });
 
 const cast = (id: string, spell: SpellId, x: number, y: number): Cmd => ({ id, kind: 'cast', spell, at: v(x, y) });
 

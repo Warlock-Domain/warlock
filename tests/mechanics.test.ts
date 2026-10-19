@@ -3,19 +3,13 @@ import { ARENA_R0, DT, RUNE, STREAK, SHRINK_EVERY, SUDDEN, type RuneKind } from 
 import { addPlayer, newMatch, setReady, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { newWorld, stepWorld, type SimEvent, type World } from '../src/shared/sim.ts';
 import { encodeSnap, decodeSnap, publicEvents } from '../src/shared/snapshot.ts';
-import { noItems } from '../src/shared/items.ts';
 import { SPELLS, noSpells } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
+import { world as spotsWorld } from './helpers.ts';
 
 const half = () => 0.5;
 
-function world(spots: [number, number][], dm = false): World {
-  const ids = spots.map((_, i) => 'p' + i);
-  const w = newWorld(ids, Object.fromEntries(ids.map((id) => [id, { ...noSpells(), lightning: 1 }])), Object.fromEntries(ids.map((id) => [id, noItems()])), 0, half, dm);
-  spots.forEach(([x, y], i) => (w.wizards[i].pos = v(x, y)));
-  for (const z of w.wizards) z.invulnUntil = 0;
-  return w;
-}
+const world = (spots: [number, number][], dm = false) => spotsWorld(spots, { ...noSpells(), lightning: 1 }, [], half, dm);
 const run = (w: World, n: number) => {
   const out: SimEvent[] = [];
   for (let i = 0; i < n; i++) {

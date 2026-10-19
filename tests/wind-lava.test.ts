@@ -2,13 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { DT, LAVA_DPS, UNIT, WIZ_SPEED } from '../src/shared/constants.ts';
 import { ITEMS, WIND_BOOTS, noItems } from '../src/shared/items.ts';
 import { addPlayer, newMatch, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
-import { newWorld, stepWorld, type World } from '../src/shared/sim.ts';
+import { newWorld, stepWorld } from '../src/shared/sim.ts';
 import { noSpells } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
+import { run } from './helpers.ts';
 
-const run = (w: World, secs: number) => {
-  for (let i = 0; i < Math.round(secs / DT); i++) stepWorld(w, []);
-};
 const duo = (items: Partial<Record<keyof typeof ITEMS, number>>) => {
   const w = newWorld(['a', 'b'], { a: noSpells(), b: { ...noSpells(), fireball: 1 } }, { a: { ...noItems(), ...items } }, 0, Math.random, false, {}, undefined, 'circle');
   w.wizards[0].pos = v(0, 0);

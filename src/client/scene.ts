@@ -30,6 +30,12 @@ const MAGE_HUE = 255;
 export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; name: string; moving: boolean; cheer: boolean; team?: number | null };
 
 const w3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, p.y);
+// deita no chão (plano xz) na altura y
+const ground = <T extends THREE.Object3D>(o: T, y: number) => {
+  o.rotation.x = -Math.PI / 2;
+  o.position.y = y;
+  return o;
+};
 
 // chão da arena: o contorno da forma (arena.ts, escala 1) com 4 cm de espessura, quase rente à lava (a borda derretida
 // é desenhada pelos shaders, ver SHORE_GLSL); a malha é escalada pelo raio atual
@@ -282,8 +288,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     lavaMat.uniforms.uHas.value = 1;
   });
   const lava = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), lavaMat);
-  lava.rotation.x = -Math.PI / 2;
-  lava.position.y = -0.02; // a pedra fica só 2 cm acima
+  ground(lava, -0.02); // a pedra fica só 2 cm acima
   scene.add(lava);
 
   // arena: a forma em escala 1 escalada pelo raio; o topo de pedra, a lateral brilha com a lava
@@ -665,16 +670,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const root = new THREE.Group();
     root.add(model);
     const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: COLORS[d.color], transparent: true, opacity: 0.85, depthWrite: false }));
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.03;
+    ground(ring, 0.03);
     root.add(ring);
     const shield = new THREE.Mesh(shieldGeo, new THREE.MeshBasicMaterial({ color: '#8fd3ff', transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending }));
     shield.position.y = 0.8;
     shield.visible = false;
     root.add(shield);
     const aura = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-    aura.rotation.x = -Math.PI / 2;
-    aura.position.y = 0.045;
+    ground(aura, 0.045);
     aura.scale.setScalar(1.45);
     aura.visible = false;
     root.add(aura);
@@ -934,8 +937,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       pile.add(coin);
     }
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.73, 40), new THREE.MeshBasicMaterial({ color: '#ffd84a', transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }));
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.03;
+    ground(ring, 0.03);
     const shine = new THREE.Sprite(pileShine);
     shine.scale.setScalar(0.8);
     shine.position.y = 0.12;
@@ -956,11 +958,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     gem.add(core);
     // base: anel fino e disco bem fraco no chão
     const base = new THREE.Mesh(new THREE.RingGeometry(0.46, 0.5, 40), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
-    base.rotation.x = -Math.PI / 2;
-    base.position.y = 0.03;
+    ground(base, 0.03);
     const disc = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.07, depthWrite: false }));
-    disc.rotation.x = -Math.PI / 2;
-    disc.position.y = 0.028;
+    ground(disc, 0.028);
     disc.scale.setScalar(0.46);
     // ícone em cima, sem somar luz (só a cor)
     const ico = new THREE.Sprite(new THREE.SpriteMaterial({ map: groundIcon(RUNE_ICON[kind]), color: c, transparent: true, opacity: 0.95, depthWrite: false }));
@@ -1034,8 +1034,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       pivot.add(hand);
       const marks = mergeGeometries(Array.from({ length: 12 }, (_, k) => new THREE.RingGeometry(0.38, 0.44, 1, 1, (k / 12) * Math.PI * 2 - 0.04, 0.08)));
       const dial = new THREE.Mesh(marks, new THREE.MeshBasicMaterial({ color: '#c084fc', transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false }));
-      dial.rotation.x = -Math.PI / 2;
-      dial.position.y = 0.032;
+      ground(dial, 0.032);
       g.add(pivot, dial);
       tick = (now) => {
         r1.rotation.set(now * 1.7, now * 0.6, 0);
@@ -1088,12 +1087,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     return tex;
   }
   function zoneDraw(): ZoneDraw {
-    const flat = (geo: THREE.BufferGeometry, mat: THREE.Material, y: number) => {
-      const m = new THREE.Mesh(geo, mat);
-      m.rotation.x = -Math.PI / 2;
-      m.position.y = y;
-      return m;
-    };
+    const flat = (geo: THREE.BufferGeometry, mat: THREE.Material, y: number) => ground(new THREE.Mesh(geo, mat), y);
     const fill = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
     const edgeMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
     const texMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
@@ -1690,7 +1684,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const pan = new THREE.Vector3();
   let lastDist = 20;
   const raycaster = new THREE.Raycaster();
-  const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
   let composer: EffectComposer | null = null;
   if (!mobile) {
@@ -1752,7 +1746,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const ndc = new THREE.Vector2((clientX / innerWidth) * 2 - 1, -(clientY / innerHeight) * 2 + 1);
       raycaster.setFromCamera(ndc, camera);
       const hit = new THREE.Vector3();
-      return raycaster.ray.intersectPlane(ground, hit) ? v(hit.x, hit.z) : null;
+      return raycaster.ray.intersectPlane(floorPlane, hit) ? v(hit.x, hit.z) : null;
     },
     clickMarker(at: Vec, cast: boolean) {
       const ring = new THREE.Mesh(markerGeo, new THREE.MeshBasicMaterial({ color: cast ? '#ffb347' : '#7dff9a', transparent: true, depthWrite: false }));

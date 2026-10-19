@@ -1,26 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { ARENA_MIN, ARENA_R0, ARENA_STEP, CHEST, SUDDEN, DT, HP_MAX, OBSTACLES, SHRINK_EVERY, WIZ_R } from '../src/shared/constants.ts';
 import { SPELLS } from '../src/shared/spells.ts';
-import { newWorld, stepWorld, type Cmd, type World } from '../src/shared/sim.ts';
+import { newWorld, stepWorld, type World } from '../src/shared/sim.ts';
 import { noSpells, type SpellId } from '../src/shared/spells.ts';
 import { dist, v } from '../src/shared/vec.ts';
+import { run, world as spotsWorld } from './helpers.ts';
 
 const all = (): Record<SpellId, number> => ({ ...noSpells(), lightning: 1, homing: 1, shield: 1, teleport: 1 });
 
 // mundo com magos em posições escolhidas, todos com as 5 magias no nível 1
-function world(spots: [number, number][]): World {
-  const ids = spots.map((_, i) => 'p' + i);
-  const w = newWorld(ids, Object.fromEntries(ids.map((id) => [id, all()])));
-  spots.forEach(([x, y], i) => (w.wizards[i].pos = v(x, y)));
-  // os testes de mecânica não querem os 2 s de invulnerabilidade do começo da rodada
-  for (const z of w.wizards) z.invulnUntil = 0;
-  return w;
-}
-
-function run(w: World, seconds: number, cmds: Cmd[] = []) {
-  stepWorld(w, cmds);
-  for (let i = 1; i < Math.round(seconds / DT); i++) stepWorld(w, []);
-}
+const world = (spots: [number, number][]) => spotsWorld(spots, all());
 
 const wz = (w: World, i: number) => w.wizards[i];
 

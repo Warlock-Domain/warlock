@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { botCmds } from '../src/shared/bots.ts';
-import { DT, HP_MAX, ISLAND } from '../src/shared/constants.ts';
+import { HP_MAX, ISLAND } from '../src/shared/constants.ts';
 import { edge } from '../src/shared/arena.ts';
 import { inLava, newWorld, stepWorld, type World } from '../src/shared/sim.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
 import { noSpells } from '../src/shared/spells.ts';
 import { dist, v } from '../src/shared/vec.ts';
+import { run } from './helpers.ts';
 
 const NO_RULES = { runes: false, sudden: false, chests: false };
 function world(arena: 'circle' | 'ring' | 'islands' | 'cross' = 'circle', seed = 3): World {
@@ -16,9 +17,6 @@ function world(arena: 'circle' | 'ring' | 'islands' | 'cross' = 'circle', seed =
   w.shrinkAt = 1e9;
   return w;
 }
-const run = (w: World, secs: number) => {
-  for (let i = 0; i < Math.round(secs / DT); i++) stepWorld(w, []);
-};
 
 describe('Ilhas de refúgio', () => {
   it('4 por arena, raio 1,4 m, centro a 2–4 m da borda, em todas as formas', () => {

@@ -6,8 +6,8 @@ import { newWorld, stepWorld, type SimEvent } from '../src/shared/sim.ts';
 import { noItems } from '../src/shared/items.ts';
 import { noSpells } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
+import { STEP_MS } from './helpers.ts';
 
-const STEP_MS = DT * 1000;
 const half = () => 0.5;
 type G = { m: Match; now: number };
 

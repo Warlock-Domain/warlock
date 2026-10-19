@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { botCmds } from '../src/shared/bots.ts';
-import { DT, HP_MAX, WIN_GOLD } from '../src/shared/constants.ts';
-import { addPlayer, castBallot, newMatch, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
+import { HP_MAX, WIN_GOLD } from '../src/shared/constants.ts';
+import { addPlayer, castBallot, newMatch, resume, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { publicRoom } from '../src/shared/protocol.ts';
-import { newWorld, stepWorld, type Cmd, type World } from '../src/shared/sim.ts';
+import { newWorld, stepWorld } from '../src/shared/sim.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
 import { noSpells, type SpellId } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
-
-const STEP_MS = DT * 1000;
+import { STEP_MS, run, toPlaying, until, world as spotsWorld } from './helpers.ts';
 
 // sorteio previsível que muda a cada chamada
 function seeded(seed = 1) {
@@ -23,24 +22,10 @@ function game(n: number, shuffle = true, rand = seeded()): Match {
   return m;
 }
 
-function until(m: Match, now: number, cond: () => boolean, rand: () => number = () => 0.5, limit = 60 * 600): number {
-  for (let i = 0; i < limit && !cond(); i++) {
-    now += STEP_MS;
-    tickMatch(m, now, [], rand);
-  }
-  return now;
-}
-
-function toPlaying(m: Match, now: number, rand?: () => number): number {
-  for (const p of m.players) setReady(m, p.id);
-  now = until(m, now, () => m.phase === 'countdown', rand);
-  return until(m, now, () => m.phase === 'playing', rand);
-}
-
 // derruba todo mundo de um time de uma vez (sem crédito) e espera o fim da rodada
 function wipe(m: Match, now: number, team: number, rand?: () => number): number {
   for (const z of m.world!.wizards) if (m.players.find((p) => p.id === z.id)?.team === team) z.hp = 0.01, z.pos = v(50, 0);
-  return until(m, now, () => m.phase === 'roundEnd', rand);
+  return until(m, now, () => m.phase === 'roundEnd', undefined, rand);
 }
 
 const teamsOf = (m: Match) => m.players.map((p) => p.team).join('');
@@ -69,7 +54,7 @@ describe('modo Times: sorteio', () => {
       expect(sizes(m)).toEqual([3, 3]);
       seen.add(teamsOf(m));
       now = wipe(m, now, 1, rand);
-      now = until(m, now, () => m.phase === 'shop' || m.phase === 'end', rand);
+      now = until(m, now, () => m.phase === 'shop' || m.phase === 'end', undefined, rand);
       if (m.phase === 'end') break;
     }
     expect(seen.size).toBeGreaterThan(1);
@@ -82,7 +67,7 @@ describe('modo Times: sorteio', () => {
     let now = toPlaying(m, 0, rand);
     expect(teamsOf(m)).toBe(first);
     now = wipe(m, now, m.players[0].team!, rand);
-    now = until(m, now, () => m.phase === 'shop', rand);
+    now = until(m, now, () => m.phase === 'shop', undefined, rand);
     addPlayer(m, 'late', 'Atrasado');
     const small = sizes(m)[0] === 1 ? ([0, 1].find((t) => m.players.filter((p) => p.team === t).length === 1) as number) : -1;
     now = toPlaying(m, now, rand);
@@ -139,17 +124,7 @@ describe('modo Times: rodada e partida', () => {
 
 describe('modo Times: fogo amigo', () => {
   const kit = (): Record<SpellId, number> => ({ ...noSpells(), homing: 1, grip: 1 });
-  function world(spots: [number, number][], teams: number[]): World {
-    const ids = spots.map((_, i) => 'p' + i);
-    const w = newWorld(ids, Object.fromEntries(ids.map((id) => [id, kit()])), {}, 0, Math.random, false, Object.fromEntries(ids.map((id, i) => [id, teams[i]])));
-    spots.forEach(([x, y], i) => (w.wizards[i].pos = v(x, y)));
-    for (const z of w.wizards) z.invulnUntil = 0;
-    return w;
-  }
-  const run = (w: World, secs: number, cmds: Cmd[] = []) => {
-    stepWorld(w, cmds);
-    for (let i = 1; i < Math.round(secs / DT); i++) stepWorld(w, []);
-  };
+  const world = (spots: [number, number][], teams: number[]) => spotsWorld(spots, kit(), [], Math.random, false, teams);
 
   it('an ally hit pushes without damage and without kill credit', () => {
     const w = world([[0, 0], [2, 0], [0, 3]], [0, 0, 1]);
@@ -201,7 +176,7 @@ describe('modo Times: fogo amigo', () => {
     // cai na lava logo depois: o abate (e o ouro) vão para o inimigo, não para o aliado
     victim.hp = 0.01;
     victim.pos = v(50, 0);
-    until(m, now, () => !victim.alive, undefined, 10);
+    until(m, now, () => !victim.alive, 10);
     expect(red.stats.round.kills).toBe(1);
     expect(blue[1].stats.round.kills).toBe(0);
     expect(blue[1].gold).toBe(goldBlue);

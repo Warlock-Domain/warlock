@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { edge } from '../src/shared/arena.ts';
-import { ARENA_R0, DM_KILLS_TO_WIN, DM_RESPAWN, DM_ROUND_MS, DT, INVULN_TIME, SHRINK_EVERY } from '../src/shared/constants.ts';
-import { addPlayer, kick, newMatch, setReady, startMatch, tickMatch, type Match, type Mode } from '../src/shared/match.ts';
+import { DM_KILLS_TO_WIN, DM_RESPAWN, DM_ROUND_MS, INVULN_TIME, SHRINK_EVERY } from '../src/shared/constants.ts';
+import { addPlayer, kick, newMatch, startMatch, type Match, type Mode } from '../src/shared/match.ts';
 import { parseClientMessage } from '../src/shared/protocol.ts';
 import { encodeSnap } from '../src/shared/snapshot.ts';
 import { dist, v } from '../src/shared/vec.ts';
+import { kill, toPlaying, until } from './helpers.ts';
 
-const STEP_MS = DT * 1000;
 // sorteio repetível, mas variado (com 0.5 fixo todo sorteio cairia no mesmo ponto)
 const cycle = (...xs: number[]) => {
   let i = 0;
@@ -20,28 +20,7 @@ function game(mode: Mode, players = ['a', 'b']): Match {
   return m;
 }
 
-function until(m: Match, now: number, cond: () => boolean, limit = 60 * 600, rand: () => number = () => 0.5): number {
-  for (let i = 0; i < limit && !cond(); i++) {
-    now += STEP_MS;
-    tickMatch(m, now, [], rand);
-  }
-  return now;
-}
-
-function toPlaying(m: Match, now: number): number {
-  for (const p of m.players) setReady(m, p.id);
-  now = until(m, now, () => m.phase === 'countdown');
-  return until(m, now, () => m.phase === 'playing');
-}
-
 const wiz = (m: Match, id: string) => m.world!.wizards.find((z) => z.id === id)!;
-const kill = (m: Match, id: string, by: string | null) => {
-  const wz = wiz(m, id);
-  wz.hp = 0.01;
-  wz.lastHitBy = by;
-  wz.lastHitAt = m.world!.t;
-  wz.pos = v(ARENA_R0 * 3, 0); // na lava: morre no passo seguinte
-};
 
 describe('deathmatch', () => {
   it('rounds is the default mode', () => {
