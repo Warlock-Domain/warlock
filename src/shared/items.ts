@@ -18,7 +18,7 @@ type Item = { name: string; cost: number; key?: string; text: string; levels: It
 export const ITEMS: Record<ItemId, Item> = {
   ring: { name: 'Anel de vida', cost: 4, text: 'Mais vida máxima.', levels: [{ hp: 100 }, { hp: 190 }, { hp: 270 }, { hp: 340 }, { hp: 400 }] },
   cursed_ring: { name: 'Anel amaldiçoado', cost: 4, text: 'Vida e menos empurrão, mas lentidões duram mais.', levels: [{ hp: 100, kb: 0.07, debuff: 0.25 }, { hp: 200, kb: 0.07, debuff: 0.3 }] } /* 18/10 bots humanos: empurrão 10% → 7% (19% acima) */, // ciclo 1 (18/10): empurrão −15% → −10% (1,19×; o Warlock CE fez o mesmo)
-  cape: { name: 'Capa', cost: 3, text: 'A vida volta mais rápido.', levels: [{ regen: 2.5 }, { regen: 4 }, { regen: 5.5 }] }, // 1,5/2,5/3,5 no original; +60% em 17/10
+  cape: { name: 'Capa', cost: 3, text: 'A vida volta mais rápido.', levels: [{ regen: 2.2 }, { regen: 3.5 }, { regen: 4.8 }] }, // 1,5/2,5/3,5 no original; +60% em 17/10; −12% em 19/10 (1,14 a 1,16 no Normal em 3 medições)
   armor: { name: 'Armadura', cost: 6, text: 'Menos empurrão.', levels: [{ kb: 0.12 }, { kb: 0.18 }, { kb: 0.22 }] },
   boots: { name: 'Botas', cost: 5, text: 'Anda mais rápido.', levels: [{ speed: 18 * UNIT }, { speed: 29 * UNIT }, { speed: 40 * UNIT }] },
   watch: { name: 'Relógio de bolso', cost: 2, text: 'Lentidões e penalidades duram menos.', levels: [{ debuff: -0.35 }, { debuff: -0.45 }] },
