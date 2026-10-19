@@ -92,5 +92,5 @@ describe('jeito de jogar', () => {
     const hard = style('hard');
     expect(hard.react).toBeLessThan(easy.react);
     expect(hard.reacted).toBeGreaterThan(easy.reacted);
-  });
+  }, 30_000); // duas partidas de 10 min simuladas: ~5,5 s no runner do GitHub
 });
