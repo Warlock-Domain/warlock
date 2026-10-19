@@ -799,7 +799,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('div', {}, el('h2', { class: 'title' }, 'Sala ' + r.id), el('p', { class: 'muted' }, 'Mande o link para os amigos entrarem. Até 8 magos.'),
         el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : ' · caiu'), kickBtn(p, act.kick))))),
       // sozinho na sala: treino com 3 bots e dicas curtas nas primeiras rodadas, logo à vista
-      humans === 1 && r.phase === 'lobby' ? el('button', { type: 'button', class: 'train', onclick: () => act.train({ difficulty: o.difficulty, arena: o.arena }, hasBotSetup(botCfg) ? botCfg : undefined) }, icon(UI_ICON.aim), ' Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')) : null,
+      // treino com as regras-padrão (depois de um desafio a sala fica sem runas, morte súbita e baús)
+      humans === 1 && r.phase === 'lobby' ? el('button', { type: 'button', class: 'train', onclick: () => act.train({ ...DEFAULT_OPTS, difficulty: o.difficulty, arena: o.arena }, hasBotSetup(botCfg) ? botCfg : undefined) }, icon(UI_ICON.aim), ' Treinar sozinho com bots', el('small', {}, '3 bots e dicas nas primeiras rodadas')) : null,
       humans === 1 && r.phase === 'lobby' ? botSetupPanel(3, botCfg, (s) => (botCfg = s)) : null,
       // desafios curtos (só sozinho; também depois do "Voltar à sala", para trocar de desafio): cada um com o recorde deste navegador
       humans === 1 ? el('details', { class: 'match-opts', open: challengesOpen, ontoggle: (e: Event) => (challengesOpen = (e.target as HTMLDetailsElement).open) },
