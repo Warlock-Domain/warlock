@@ -10,6 +10,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SHAPES as ARENAS, edgeAt, inLavaAt, type ArenaId, type Isle } from '../shared/arena.ts';
 import { ARENA_STEP, CHEST, ISLAND, OBSTACLES, RUNE, SHRINK_WARN, WIZ_R, type RuneKind } from '../shared/constants.ts';
+import { lookBody, lookOf, lookPieces, type CharacterId } from '../shared/characters.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
@@ -28,7 +29,67 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; name: string; moving: boolean; cheer: boolean; team?: number | null; ghost?: boolean }; // ghost: meio transparente (a cópia da Ilusão vista pelo dono)
+export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; ghost?: boolean }; // ghost: meio transparente (a cópia da Ilusão vista pelo dono)
+
+// personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
+export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
+const files = new Map<string, Model>();
+const loading = new Map<string, Promise<Model | null>>();
+const failed = new Set<string>();
+const gltf = new GLTFLoader();
+export function loadFile(id: string): Promise<Model | null> {
+  let p = loading.get(id);
+  if (!p) {
+    p = gltf.loadAsync(`/models/${id}.glb`).then((g) => {
+      const m = { scene: g.scene, clips: g.animations };
+      files.set(id, m);
+      return m;
+    }, () => (failed.add(id), null)); // não tenta de novo a cada quadro; a aparência cai para o mago padrão
+    loading.set(id, p);
+  }
+  return p;
+}
+const lookFiles = (look: string) => [...new Set([lookBody(look), ...lookPieces(look).map((x) => x.from)])];
+export const loadLook = (look: string) => Promise.all(lookFiles(look).map(loadFile)).then(() => {});
+
+// aparência montada: o esqueleto (e as animações) vêm do arquivo do Tronco; as malhas skinadas das outras peças são religadas a
+// esses ossos pelo nome e as rígidas (chapéu, capa do mago, armas) presas ao osso de mesmo nome. Monta uma vez por aparência;
+// cada mago clona a montagem (geometria e material ficam divididos com os GLB: não descartar)
+const prefabs = new Map<string, Model>();
+export function lookModel(look: string): Model | null {
+  const hit = prefabs.get(look);
+  if (hit) return hit;
+  const ids = lookFiles(look);
+  ids.forEach(loadFile);
+  if (ids.some((id) => failed.has(id))) return look === lookOf('mage') ? null : lookModel(lookOf('mage'));
+  if (!ids.every((id) => files.has(id))) return null;
+  const m = assemble(look, (id) => files.get(id)!);
+  prefabs.set(look, m);
+  return m;
+}
+export function assemble(look: string, file: (id: CharacterId) => Model): Model {
+  const base = file(lookBody(look));
+  const root = base.scene.clone();
+  const meshes: THREE.Object3D[] = [];
+  root.traverse((o) => (o as THREE.Mesh).isMesh && meshes.push(o));
+  for (const o of meshes) o.removeFromParent();
+  const byName = new Map<string, THREE.Object3D>();
+  root.traverse((o) => byName.set(o.name, o));
+  for (const piece of lookPieces(look)) {
+    for (const name of piece.nodes) {
+      const src = file(piece.from).scene.getObjectByName(name);
+      if (!src?.parent) continue;
+      const part = src.clone();
+      if ((part as THREE.SkinnedMesh).isSkinnedMesh) {
+        const sk = part as THREE.SkinnedMesh;
+        sk.bind(new THREE.Skeleton(sk.skeleton.bones.map((b) => byName.get(b.name) as THREE.Bone), sk.skeleton.boneInverses), sk.bindMatrix);
+      }
+      byName.get(src.parent.name)?.add(part);
+    }
+  }
+  root.updateMatrixWorld(true);
+  return { scene: root, clips: base.clips };
+}
 
 const w3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, p.y);
 // deita no chão (plano xz) na altura y
@@ -122,7 +183,7 @@ type Mage = {
   ghost: boolean; // desenhado meio transparente agora (Ilusão)
   dead: boolean;
   color: number;
-  character: string;
+  look: string;
   // materiais próprios deste boneco (o clone do SkeletonUtils divide os do modelo) e a cor de brilho original de cada um
   mats: { m: THREE.MeshStandardMaterial; c: THREE.Color; i: number; col: THREE.Color; rough: number }[];
   model: THREE.Object3D; // o boneco (some no fim da queima, quando fica só o esqueleto)
@@ -492,23 +553,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const projs = new Map<number, THREE.Group>();
   const fx: Fx[] = [];
 
-  // personagens KayKit: cada modelo carrega na primeira vez que alguém o usa e cada jogador ganha um clone.
-  // O mago define a escala (os pacotes KayKit usam a mesma medida) e tem as roupas tingidas na cor do jogador.
-  type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
-  const models = new Map<string, Model | null>(); // null = carregando
+  // cada jogador ganha um clone da aparência dele. O mago define a escala (os pacotes KayKit usam a mesma medida) e as peças
+  // do mago (chapéu, tronco, capa) são tingidas na cor do jogador
   let mageScale = 1;
   const tinted = new Map<number, THREE.Texture>();
-  const gltf = new GLTFLoader();
-  const loadModel = (id: string) =>
-    gltf.loadAsync(`/models/${id}.glb`).then((g) => {
-      models.set(id, { scene: g.scene, clips: g.animations });
-      return g;
-    });
-  const ready = loadModel('mage').then((g) => {
+  const ready = loadFile('mage').then((g) => {
+    if (!g) return;
     const box = new THREE.Box3().setFromObject(g.scene);
     mageScale = 1.9 / (box.max.y - box.min.y);
   });
-  models.set('mage', null);
 
   function tintFor(color: number, base: THREE.Texture): THREE.Texture {
     const hit = tinted.get(color);
@@ -529,16 +582,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   const mages = new Map<string, Mage>();
   const decor = createDecor(scene, ready.then(() => mageScale), FX.flame);
-
-  const failed = new Set<string>();
-  function preload(id: string) {
-    if (models.has(id) || failed.has(id)) return;
-    models.set(id, null);
-    loadModel(id).catch(() => {
-      models.delete(id);
-      failed.add(id); // não tenta de novo a cada quadro; usa o mago padrão
-    });
-  }
 
   // geometrias de efeito compartilhadas: criar uma por efeito vazava memória de vídeo
   const ringGeo = new THREE.RingGeometry(WIZ_R * 0.9, WIZ_R * 1.25, 40);
@@ -599,8 +642,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
   // esqueleto deitado na pose final da morte, com os materiais carbonizados; se o modelo ainda não chegou (ou já é um esqueleto), o próprio corpo carbonizado
   function makeBones(m: Mage): THREE.Object3D | null {
-    const src = models.get(BONES);
-    if (!src || m.character.startsWith('skeleton')) return null;
+    const src = files.get(BONES);
+    if (!src || lookBody(m.look).startsWith('skeleton')) return null;
     const b = cloneSkinned(src.scene) as THREE.Group;
     b.scale.setScalar(mageScale);
     b.rotation.copy(m.model.rotation);
@@ -652,9 +695,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     }
   }
 
-  function makeMage(d: WizDraw): Mage | null {
-    preload(d.character);
-    const src = models.get(d.character) ?? (failed.has(d.character) ? models.get('mage') : null);
+  function makeMage(d: WizDraw, look: string): Mage | null {
+    const src = lookModel(look);
     if (!src) return null;
     const model = cloneSkinned(src.scene) as THREE.Group;
     model.scale.setScalar(mageScale);
@@ -666,7 +708,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // material próprio de cada boneco: o clarão do golpe não pode acender os outros magos do mesmo modelo
       if (Array.isArray(mesh.material)) return;
       const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
-      if (d.character === 'mage' && (/Hat|Body|Cape/.test(mesh.name) || /Hat|Body|Cape/.test(mesh.parent?.name ?? '')) && mat.map) mat.map = tintFor(d.color, mat.map);
+      if (/^Mage_(Hat|Body|Cape)$/.test(mesh.name) && mat.map) mat.map = tintFor(d.color, mat.map);
       mesh.material = mat;
       if (mat.emissive) mats.push({ m: mat, c: mat.emissive.clone(), i: mat.emissiveIntensity, col: mat.color.clone(), rough: mat.roughness });
     });
@@ -710,7 +752,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const lootBar = el('div', { class: 'loot-bar', hidden: true }, lootFill);
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, ghost: false, dead: false, color: d.color, character: d.character, mats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, ghost: false, dead: false, color: d.color, look, mats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -877,7 +919,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const OBSTACLE_MODEL: Record<string, string> = { pillar: 'pillar_decorated', rock: 'rubble_large', tree: 'tree_dead_large', shrine: 'shrine_candles' };
   // parede do Pilar de pedra (KayKit Dungeon barrier_half): um modelo no pedaço do meio, atravessado como os 3 círculos da simulação
   let wallModel: THREE.Object3D | null = null;
-  loadModel('barrier_half').then((g) => (wallModel = g.scene)).catch(() => {});
+  void loadFile('barrier_half').then((g) => (wallModel = g?.scene ?? null));
   function makeWall(along: Vec) {
     const o = wallModel?.clone(true) ?? new THREE.Mesh(new THREE.BoxGeometry(2, 1.1, 0.5), new THREE.MeshStandardMaterial({ color: '#6b625c' }));
     o.traverse((m) => {
@@ -1508,20 +1550,21 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const seen = new Set<string>();
     for (const d of list) {
       let m = mages.get(d.id);
-      // trocou de personagem na loja: refaz o boneco
-      if (m && m.character !== d.character) {
-        scene.remove(m.root);
-        for (const o of [m.ring, m.shield, m.aura]) (o.material as THREE.Material).dispose();
-        for (const x of m.mats) x.m.dispose();
-        m.label.remove();
-        mages.delete(d.id);
-        m = undefined;
+      const look = d.look ?? lookOf(d.character as CharacterId);
+      // trocou de aparência (vale até no meio da luta): o boneco novo entra quando estiver montado, e só então o antigo sai
+      if (!m || m.look !== look) {
+        const made = makeMage(d, look);
+        if (!made && !m) continue;
+        if (made && m) {
+          unburn(m);
+          scene.remove(m.root);
+          for (const o of [m.ring, m.shield, m.aura]) (o.material as THREE.Material).dispose();
+          for (const x of m.mats) x.m.dispose();
+          m.label.remove();
+        }
+        if (made) mages.set(d.id, (m = made));
       }
-      if (!m) {
-        const made = makeMage(d);
-        if (!made) continue;
-        mages.set(d.id, (m = made));
-      }
+      if (!m) continue;
       seen.add(d.id);
       // modo Times: anel e barra na cor do time (pode mudar a cada rodada); o nome fica com a cor do jogador
       const tint = d.team != null ? TEAM_COLORS[d.team] : COLORS[d.color];
@@ -1566,7 +1609,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           // caiu na lava (fora da pedra e fora das ilhas): o corpo queima
           if (inLavaAt(shownArena, shownR, shownIsles, d.pos)) {
             m.burnAt = now;
-            preload(BONES);
+            loadFile(BONES);
           }
         }
         if (m.burnAt >= 0) burnCorpse(m, now - m.burnAt, d.pos);
@@ -1715,9 +1758,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (at) aimRing.position.copy(w3(at, 0.05));
       aimRing.scale.setScalar(1 + 0.08 * Math.sin(performance.now() / 120));
     },
-    // baixa antes os personagens de quem está na sala, para ninguém aparecer invisível na rodada
-    preload(ids: string[]) {
-      for (const id of ids) preload(id);
+    // baixa antes as peças de quem está na sala, para ninguém aparecer invisível na rodada
+    preload(looks: string[]) {
+      for (const look of looks) void loadLook(look);
     },
     // ponto do chão sob o cursor, em coordenadas da simulação
     pick(clientX: number, clientY: number): Vec | null {

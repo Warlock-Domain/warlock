@@ -1,6 +1,6 @@
 import { inLavaAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, SUDDEN, type RuneKind } from '../shared/constants.ts';
-import { isCharacter } from '../shared/characters.ts';
+import { lookOf } from '../shared/characters.ts';
 import type { BotSetup, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS } from '../shared/match.ts';
@@ -10,6 +10,7 @@ import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../sha
 import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
+import { LOOK_EVENT, saveLook, savedLook } from './avatar.ts';
 import { coachTip } from './coach.ts';
 import { PROFILE_KEY, addRound, toSkill, type Profile } from './mimic.ts';
 import { n1 } from './rules-text.ts';
@@ -120,7 +121,7 @@ function startLobby(name: string) {
       name = await askName(document.body, name);
       store.set(NAME, name);
       draw();
-    }, create, () => store.get(CHAR) ?? 'mage', (c) => store.set(CHAR, c));
+    }, create, () => store.get(CHAR) ?? 'mage', (c) => (store.set(CHAR, c), saveLook(lookOf(c))));
   // train: o treino que começa sozinho na sala nova (sem armazenamento, entra só na sala)
   async function create(train?: string) {
     try {
@@ -223,9 +224,10 @@ function startRoom(code: string, name: string) {
     sell: (key) => net.send({ t: 'sell', key }),
     taunt: (i) => net.send({ t: 'taunt', i }),
     useItem: (item) => input.button(item),
+    // personagem pronto da sala: vira a aparência equivalente (o evento abaixo manda ao servidor)
     pick: (character) => {
       store.set(CHAR, character);
-      net.send({ t: 'pick', character });
+      saveLook(lookOf(character));
     },
     ready: () => net.send({ t: 'ready' }),
     spell: (s) => input.button(s),
@@ -333,15 +335,15 @@ function startRoom(code: string, name: string) {
     aim: (at) => scene.aim(at),
   });
 
-  // o personagem escolhido fica salvo e é reenviado ao entrar em qualquer sala
-  const saved = store.get(CHAR);
+  // a aparência escolhida fica salva e é reenviada ao entrar em qualquer sala; trocada nas Configurações, vale na hora
   const net = connect('/ws/room/' + code, onMsg, () => {
     net.send({ t: 'hello', playerId, name: myName });
-    if (isCharacter(saved)) net.send({ t: 'pick', character: saved });
+    net.send({ t: 'look', look: savedLook() });
   }, (on) => {
     online = on;
     view.setOnline(on);
   });
+  addEventListener(LOOK_EVENT, (e) => net.send({ t: 'look', look: (e as CustomEvent<string>).detail }));
   // a sala conta a CPU entre mensagens; o "estou aqui" a cada 5 s mantém a conta zerada durante a partida
   setInterval(() => room && room.phase !== 'lobby' && room.phase !== 'end' && net.send({ t: 'alive' }), 5000);
 
@@ -548,7 +550,7 @@ function startRoom(code: string, name: string) {
         const was = prev.players.find((p) => p.id === me)?.gold, now = room.players.find((p) => p.id === me)?.gold;
         if (was !== undefined && now !== undefined && now < was) sound.play('buy');
       }
-      scene.preload(room.players.map((p) => p.character));
+      scene.preload(room.players.map((p) => p.look));
       if (room.phase !== lastPhase) onPhase(prev);
       lastPhase = room.phase;
       // desafio: na loja da rodada 0 compra o que ele pede e já fica Pronto (os bots já estão, a loja fecha na hora)
@@ -726,7 +728,7 @@ function startRoom(code: string, name: string) {
       const prevDraw = prev.get(w.id);
       const moving = len(w.vel) < STUN_SPEED && w.alive && (!prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
-      return { ...w, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null };
+      return { ...w, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null };
     });
   }
   // eventos do replay: só a cena (clarão, explosão) e a seta do golpe que eu levei

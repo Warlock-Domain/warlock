@@ -7,6 +7,7 @@ import {
   ACTIONS, CAST_MODES, PAD_ACTIONS, PAD_ACTION_NAMES, PAD_NAMES, PAD_START, RESERVED, UI_ACTIONS, UI_NAMES, getCastMode, isSlotMode, keyLabel, keyOf, padButtonName,
   onKeysChange, padActionAt, padButtonOf, resetKeys, resetPad, setCastMode, setKey, setPadButton, setSlotMode, slotSpell, whoUses, type Action, type AnyAction, type CastMode, type PadAction, type UiAction,
 } from './keys.ts';
+import { avatarPanel } from './avatar.ts';
 import { RULES } from './rules-text.ts';
 import { store } from './store.ts';
 import { choice, showRules, toast } from './ui.ts';
@@ -222,7 +223,6 @@ function playerSection(): Node[] {
       close();
       ctx.rename();
     } }, t('Trocar', 'Change'))),
-    el('p', { class: 'muted' }, t('O personagem você escolhe na sala de espera, antes da partida. Os dois ficam salvos neste navegador.', 'You pick your character in the lobby, before the match. Both are saved in this browser.')),
     langChoice(),
   ];
 }
@@ -247,6 +247,7 @@ const SECTIONS: Section[] = [
   { id: 'video', title: t('Vídeo e efeitos', 'Video & effects'), icon: UI_ICON.video, render: videoSection },
   { id: 'controle', title: t('Controle', 'Controller'), icon: UI_ICON.pad, render: padSection },
   { id: 'jogador', title: t('Jogador', 'Player'), icon: UI_ICON.person, render: playerSection },
+  { id: 'personagem', title: t('Personagem', 'Character'), icon: UI_ICON.person, render: () => [avatarPanel()] },
   { id: 'sobre', title: t('Sobre', 'About'), icon: UI_ICON.info, render: aboutSection },
 ];
 
