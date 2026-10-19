@@ -231,6 +231,18 @@ describe('dificuldade dos bots', () => {
     expect(goes('hard', 3, true)).toBe(false);
   });
 
+  it('ouro colado na borda fica para lá (senão o bot ia e voltava sem parar)', () => {
+    const goes = (gx: number) => {
+      const w = duel({}, v(-9, 0));
+      w.wizards.push({ ...w.wizards[1], id: 'y', pos: v(-30, -30) });
+      w.wizards[0].pos = v(w.arenaR - 4.5, 0);
+      w.loots.push({ pos: v(w.arenaR - gx, 0), left: 10, until: 99 });
+      return botCmds(w, 'bot', noSlip(0.9), BOT_SKILL.normal).some((c) => c.kind === 'move' && c.to.x === w.arenaR - gx);
+    };
+    expect(goes(2.5)).toBe(true);
+    expect(goes(0.3)).toBe(false);
+  });
+
   it('erro humano: o Fácil fica parado bem mais vezes que o Difícil, e parado não decide por 0,5 s', () => {
     const stops = (k: Kind) => count(() => duel({}), BOT_SKILL[k], (c) => c.some((x) => x.kind === 'stop'));
     expect(stops('easy')).toBeGreaterThan(20); // ~10% (metade dos erros de 20%)

@@ -346,7 +346,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     // no duelo final, ouro e baú esperam e a runa só vale com o inimigo fora de vista (19/10: os dois iam atrás de ouro e não se encontravam)
     const duel = w.wizards.filter((z) => z.alive && !ally(z)).length === 1;
     const pool = !duel ? [...w.loots.map((l) => l.pos), ...w.runes.map((r) => r.pos), ...chests] : closest ? [] : w.runes.map((r) => r.pos).filter((p) => dist(p, me.pos) < 4);
-    const goal = calm ? pool.filter((p) => dist(p, me.pos) < D.loot).sort((a, b) => dist(a, me.pos) - dist(b, me.pos))[0] : undefined;
+    // ouro colado na borda fica para lá (19/10: ia até ele, entrava na folga da borda, voltava e repetia; viradas de 180° do Difícil 13 → 9,5 por minuto)
+    const goal = calm ? pool.filter((p) => dist(p, me.pos) < D.loot && edge(w, p) >= fear).sort((a, b) => dist(a, me.pos) - dist(b, me.pos))[0] : undefined;
     const hitBy = w.wizards.find((z) => z.id === me.lastHitBy && z.alive && !ally(z));
     const lost = M.last.get(id);
     const ed = enemy ? dist(enemy.pos, me.pos) : 0;
