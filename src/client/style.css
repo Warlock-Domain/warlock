@@ -917,6 +917,9 @@ body.replaying .peek-shop { display: none; }
 .shop-tile .tile-price { max-width: 100%; white-space: normal; text-align: center; justify-content: center; }
 .tile-price.can { color: var(--gold); }
 .tile-price.cant { color: var(--red); }
+/* Máximo, Sem espaço, Limite de 6 magias: menor, em até duas linhas sem empurrar o ícone para fora */
+.shop-tile { overflow: hidden; }
+.shop-tile .tile-price.off { font-size: .66rem; font-weight: 600; }
 .shop-item.can .shop-tile { border-color: var(--g, var(--ember)); box-shadow: inset 0 0 0 2px var(--panel-bot), 0 0 10px color-mix(in srgb, var(--g, var(--ember)) 35%, transparent); }
 .shop-item.owned .shop-tile { background: color-mix(in srgb, var(--g, var(--ember)) 16%, var(--panel-bot)); }
 .shop-item.locked .shop-tile { border-style: dashed; }

@@ -251,8 +251,9 @@ const SECTIONS: Section[] = [
   { id: 'sobre', title: t('Sobre', 'About'), icon: UI_ICON.info, render: aboutSection },
 ];
 
-// aba Configurações do menu principal: um botão por aba deste menu (abre o menu já nela)
-export const settingsLinks = () => el('div', { class: 'settings-links' }, ...SECTIONS.filter((s) => s.render()).map((s) =>
+// aba Configurações do menu principal: um botão por aba deste menu (abre o menu já nela); som e vídeo só existem na sala.
+// Sem chamar render(): a aba Personagem montaria a prévia 3D só para conferir
+export const settingsLinks = () => el('div', { class: 'settings-links' }, ...SECTIONS.filter((s) => !(s.id === 'som' && !ctx.volumes) && !(s.id === 'video' && !ctx.fxLite)).map((s) =>
   el('button', { type: 'button', onclick: () => openSettings(s.id) }, icon(s.icon), ' ' + s.title)));
 
 const TAB_STORE = 'warlock:settingsTab';
