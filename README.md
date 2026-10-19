@@ -1,15 +1,18 @@
 # Warlock Wars
 
-Remake web do mod de arena **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): magos numa arena que encolhe sobre lava, magias de empurrão, loja entre rodadas e quem sobrar vence. Feito para jogar em salas com os amigos, direto no navegador.
+Remake web do mod de arena **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): magos numa arena que encolhe sobre lava, magias de empurrão, loja entre rodadas e quem sobrar vence. Feito para jogar em salas com os amigos, direto no navegador, em português ou inglês.
 
 **Jogar:** https://warlock.fernandorffdev.com
 
 ## O que tem
 
-- 25 magias do Warlock Brawl (números tirados do código original do mod de Dota 2) e 10 itens, loja entre rodadas com venda e desfazer
-- Modos Rodadas, Deathmatch e Times (fogo amigo só empurra), troca de modo por votação
-- Baús de ouro no meio da rodada, chão com efeito quando magias se chocam, obstáculos quebráveis
-- Bots que usam todas as magias, taunts com voz, placar completo ao vivo (Tab ou 📊 no celular), telemetria e simulador de balanceamento (scripts/balance-sim.ts)
+- 25 magias do Warlock Brawl (números do código original do mod de Dota 2, ajustados pelo simulador): 10 de ataque, 5 de mobilidade, 5 de defesa e 5 de controle
+- 16 itens (passivos e ativos), loja em grade no estilo do Dota com venda e desfazer
+- Modos Rodadas, Deathmatch e Times; arenas Círculo, Anel, Ilhas e Cruz, que encolhem até a morte súbita
+- Bots em 3 dificuldades (escolhida bot a bot), que jogam "como gente": mira com erro, tempo de reação, hesitação
+- Aba Aprender: treino com bots, desafios, Sombra (bot que joga como você) e sandbox com vida e ouro sem fim
+- Criador de personagem de 7 peças, grimório (F1), consulta de magias e itens (F2), replay da queda (5), placar (Tab)
+- Telemetria do jeito de jogar e simulador de balanceamento (`scripts/balance-sim.ts`)
 
 ## Stack
 
@@ -21,14 +24,18 @@ Remake web do mod de arena **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): m
 ## Rodar
 
 ```bash
-npm install
+npm ci
 npx wrangler dev   # servidor + cliente em http://localhost:8787
 npx vitest run     # testes
 ```
 
-Publicar: `npx vite build && npx wrangler deploy`.
+## Contribuir
 
-**Desenvolver com IA (Claude Code, Codex, Cursor):** as instruções do projeto estão em [CLAUDE.md](CLAUDE.md) (também lidas via [AGENTS.md](AGENTS.md)): mapa do código, gates, regras de código, como o balanceamento é decidido e como testar.
+- Guia completo: [docs/GUIA-COLABORADOR.md](docs/GUIA-COLABORADOR.md) (máquina, Claude Code e skills, fluxo, testes, balanceamento, decisões já tomadas)
+- Regras do código para gente e para agentes de IA (Claude Code, Codex, Cursor): [CLAUDE.md](CLAUDE.md), também lido via [AGENTS.md](AGENTS.md); cada pasta principal tem o seu `CLAUDE.md`
+- Fluxo de Git: [CONTRIBUTING.md](CONTRIBUTING.md). O `master` é protegido: branch no próprio repositório (não fork), PR com o modelo, CI verde. Todo PR recebe a revisão automática do Claude; comente `@claude` num PR ou issue para pedir ajuda
+- Ambiente dev de cada colaborador: push na branch `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffdev.com` (lista no `CLAUDE.md`, seção "Ambientes dev")
+- O jogo no ar é publicado pelo dono do projeto depois do merge
 
 ## Créditos
 

@@ -54,7 +54,7 @@ npx vite build                      # build do cliente (dist/)
 
 ## Registro de decisões do Fernando
 
-Toda decisão nova entra aqui (data, decisão, porquê) e, se mudar o jeito de codar, no `CLAUDE.md` da pasta afetada, no mesmo PR da mudança. Cada pasta principal tem o seu (`src/shared`, `src/client`, `src/worker`, `scripts`, `tests`) com os padrões de código daquela área; o `AGENTS.md` de cada pasta aponta para ele.
+Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de codar, também no `CLAUDE.md` da pasta afetada; se mudar o que o jogo tem ou como contribuir, também no `README.md` e no `docs/GUIA-COLABORADOR.md`. Tudo no mesmo PR da mudança. Cada pasta principal tem o seu (`src/shared`, `src/client`, `src/worker`, `scripts`, `tests`) com os padrões de código daquela área; o `AGENTS.md` de cada pasta aponta para ele.
 
 | Data | Decisão | Por quê |
 |---|---|---|
@@ -76,12 +76,23 @@ Toda decisão nova entra aqui (data, decisão, porquê) e, se mudar o jeito de c
 | 19/10 | `master` protegido (PR + CI + aprovação); revisão automática do Claude em todo PR; ambiente `<nome>-dev` por colaborador; guia do colaborador no repositório | entrada de colaboradores |
 | 19/10 | Os `CLAUDE.md` (raiz e pastas) são atualizados a cada decisão nova | todo dev com o mesmo contexto do dono |
 | 19/10 | PR passa pela revisão automática do Claude (comentário com veredito) e pode ser ajustado e mesclado pelo agente do dono, inclusive PR de colaborador; comente `@claude` num PR ou issue para pedir ajuda | mesclar rápido sem o dono revisar à mão |
+| 19/10 | Cada colaborador tem um ambiente dev próprio (`<nome>-dev`, primeiro nome em minúsculas) publicado sozinho a cada push | testar com outras pessoas antes do PR, sem tocar no jogo no ar |
 
 ## Fluxo com agente
 
 Skills (plugins `superpowers@claude-plugins-official` e `ponytail@ponytail`): brainstorming antes de coisa nova → writing-plans para vários passos → TDD em `src/shared` → systematic-debugging antes de corrigir bug → verification-before-completion antes de dizer pronto → `/ponytail-review` no diff antes do PR. Guia completo do colaborador (máquina, prompts, testes, problemas comuns): [docs/GUIA-COLABORADOR.md](docs/GUIA-COLABORADOR.md).
 
 Armadilhas: depois de `vite build`, reinicie o `wrangler dev` (senão página branca/404); trabalhe em branch deste repositório, não em fork (em fork o CI espera aprovação manual e a revisão automática não roda); push em `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffdev.com`.
+
+## Ambientes dev
+
+Push na branch `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffdev.com` (`.github/workflows/dev-deploy.yml`, Worker e salas próprios, teste rápido no fim). Trabalhe na sua branch de tarefa e traga para a sua `-dev` quando quiser testar com outras pessoas (`git push origin HEAD:<nome>-dev`, ou merge). Colaborador novo ganha a branch dele aqui.
+
+| Colaborador | GitHub | Branch | Link |
+|---|---|---|---|
+| Leonard | lboesmans | `leonard-dev` | https://leonard-dev-warlock.fernandorffdev.com |
+| Branco | breakie33 | `branco-dev` | https://branco-dev-warlock.fernandorffdev.com |
+| Lucas | lucascvalle | `lucas-dev` | https://lucas-dev-warlock.fernandorffdev.com |
 
 ## Balanceamento (como se decide número de magia e item)
 
