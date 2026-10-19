@@ -284,8 +284,8 @@ export class Room extends DurableObject<Env> {
     this.acc = Math.min(this.acc + now - this.last, STEP_MS * MAX_CATCHUP);
     this.last = now;
     // a votação entra na conta para o fim por tempo (e a troca de modo) chegar aos clientes
-    // na Campanha, a onda nova troca o tipo (aparência, vida) das vagas do Fumo: avisa na hora
-    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}:${m.night?.wave ?? ''}`;
+    // na Campanha, encontro e onda novos trocam o tipo (aparência, vida) das vagas do Fumo: avisa na hora
+    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}:${m.night?.fight ?? ''}:${m.night?.wave ?? ''}`;
     const before = sig();
     while (this.acc >= STEP_MS) {
       this.acc -= STEP_MS;

@@ -6,6 +6,7 @@ import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
+import { nightMap, roomRect } from '../shared/levels.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
@@ -29,7 +30,7 @@ import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
 import { hasBotSetup, savedBotSetup } from './train.ts';
 import { TEAM_NAMES, TOUCH, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
-import { endResult, maxHp, playerName } from './screen-data.ts';
+import { STAGE_NAME, endResult, maxHp, playerName } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
 // som de cada magia: as novas reaproveitam os sons que já existem
@@ -502,6 +503,10 @@ function startRoom(code: string, name: string) {
           notes.push(t(`${name} quebrou a sequência de ${e.victim === me ? 'você' : (who.get(e.victim ?? '') ?? '?')} (Quebra-combo: ouro extra)`, `${name} broke ${e.victim === me ? 'your' : (who.get(e.victim ?? '') ?? '?') + '’s'} streak (Combo breaker: extra gold)`));
           say('combo_breaker');
         }
+      } else if (e.k === 'fall') {
+        // Campanha: caiu no abismo e voltou à beira
+        sound.play('splash', near(e.x, e.y));
+        if (e.id === me) banner(t('Você caiu no abismo!', 'You fell into the abyss!'));
       } else if (e.k === 'aegis') {
         sound.play('shield');
         banner([icon(ITEM_ICON.aegis), e.id === me ? t(' A Égide te tirou da lava e quebrou', ' The Aegis pulled you out of the lava and broke') : t(` A Égide tirou ${who.get(e.id) ?? '?'} da lava`, ` The Aegis pulled ${who.get(e.id) ?? '?'} out of the lava`)], e.id === me ? 'good' : '');
@@ -510,7 +515,7 @@ function startRoom(code: string, name: string) {
         // fora da pedra: mergulho na lava (chiado e bolhas) em vez da explosão
         const snap = interp.latest();
         const w = snap?.wizards.find((z) => z.id === e.id);
-        sound.play(w && snap && inLavaAt(arenaId, snap.arenaR, snap.isles, w.pos, 0.3) ? 'splash' : 'death', w ? near(w.pos.x, w.pos.y) : 1);
+        sound.play(w && snap && !room?.night && inLavaAt(arenaId, snap.arenaR, snap.isles, w.pos, 0.3) ? 'splash' : 'death', w ? near(w.pos.x, w.pos.y) : 1);
         const dead = who.get(e.id) ?? '?';
         if (e.id === me) {
           clip = ring.slice();
@@ -565,6 +570,11 @@ function startRoom(code: string, name: string) {
       scene.preload(room.players.map((p) => p.look));
       if (room.phase !== lastPhase) onPhase(prev);
       lastPhase = room.phase;
+      // Campanha: encontro abriu (alguém pisou no ponto de controle) ou acabou
+      if (room.phase === 'playing' && room.night && prev?.night && room.night.fight !== prev.night.fight) {
+        if (room.night.fight !== null) banner(t('A sala se fechou!', 'The room is sealed!'));
+        else banner(t('Sala limpa!', 'Room cleared!'), 'good');
+      }
       // desafio: na loja da rodada 0 compra o que ele pede e já fica Pronto (os bots já estão, a loja fecha na hora)
       if (pending && room.phase === 'shop' && room.round === 0) {
         run = { c: pending, n: 0, t: 0, state: 'on' };
@@ -625,7 +635,7 @@ function startRoom(code: string, name: string) {
       watchId = null;
       // modo Times: avisa em que time a pessoa está nesta rodada
       const team = room.mode === 'teams' ? room.players.find((p) => p.id === me)?.team : null;
-      banner(room.night ? t(`Clareira ${room.night.clearing + 1} de ${room.night.clearings}`, `Clearing ${room.night.clearing + 1} of ${room.night.clearings}`)
+      banner(room.night ? STAGE_NAME[room.night.stage]
         : team != null ? t(`Rodada ${room.round} · Você está no time ${TEAM_NAMES[team]}`, `Round ${room.round} · You are on the ${TEAM_NAMES[team]} team`) : t(`Rodada ${room.round}`, `Round ${room.round}`));
       [3, 2, 1].forEach((_, i) => setTimeout(() => sound.play('beep'), i * 1000));
     } else if (room.phase === 'playing') {
@@ -636,7 +646,7 @@ function startRoom(code: string, name: string) {
       // Campanha: o grupo inteiro limpou a clareira ou caiu
       const lost = room.night.result === 'lost';
       if (room.players.some((p) => p.id === me)) sound.play(lost ? 'loseRound' : 'winRound'); // quem só assiste não ouve
-      banner(lost ? t('O Fumo venceu esta noite', 'The Smoke won this night') : t('Clareira limpa!', 'Clearing cleared!'), lost ? '' : 'win');
+      banner(lost ? t('O Fumo venceu esta noite', 'The Smoke won this night') : t('A Charneca respira', 'The Moor breathes'), lost ? '' : 'win');
     } else if (room.phase === 'roundEnd' && !(run && runRound === room.round)) { // a rodada em que o desafio acabou fica com a faixa dele
       const w = room.players.find((p) => p.id === room!.lastRoundWinner);
       const myTeam = room.players.find((p) => p.id === me)?.team;
@@ -665,6 +675,9 @@ function startRoom(code: string, name: string) {
     const s = interp.sample(nowMs / 1000);
     const latest = interp.latest();
     const playing = room && (room.phase === 'countdown' || room.phase === 'playing' || room.phase === 'roundEnd');
+    // Campanha: o mesmo mapa que o servidor montou (pela semente); a previsão do próprio mago também esbarra nas paredes
+    const nm = room?.night ? nightMap(room.night.seed, room.night.stage) : null;
+    predict.setMap(nm, nm && room!.night!.fight !== null ? roomRect(nm, room!.night!.fight) : undefined);
     const wizards = playing && s ? wizardsOf(s, true, dt) : [];
     const myPos = wizards.find((w) => w.id === me)?.pos ?? null;
     // perigo: vida abaixo de 25% e pé na lava (mesma regra da simulação: fora do raio da arena)
@@ -672,9 +685,9 @@ function startRoom(code: string, name: string) {
     const meP = room?.players.find((p) => p.id === me);
     const meMax = maxHp(meP);
     const low = !!meW?.alive && !!meP && meW.hp < 0.25 * meMax;
-    const lava = !!meW?.alive && !!latest && inLavaAt(arenaId, latest.arenaR, latest.isles, meW.pos);
+    const lava = !!meW?.alive && !!latest && !room?.night && inLavaAt(arenaId, latest.arenaR, latest.isles, meW.pos);
     view.danger(low, lava);
-    const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' && (!room.sandbox || room.sandbox.shrink) ? s.shrinkAt - s.time : null;
+    const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' && !room.night && (!room.sandbox || room.sandbox.shrink) ? s.shrinkAt - s.time : null;
     // espectador: morto na rodada (ou só assistindo), a câmera segue o vivo com mais vida; ← → ou os botões trocam
     const alive = room?.phase === 'playing' && s && !meW?.alive ? wizards.filter((w) => w.alive && w.id !== me && !(w.status & 2048)) : [];
     let watched = alive.find((w) => w.id === watchId);
@@ -721,7 +734,8 @@ function startRoom(code: string, name: string) {
       zones: shown ? shown.zones : [],
       isles: shown ? shown.isles : [],
       follow: rs ? (rMe && rBy ? scale(add(rMe, rBy), 0.5) : (rMe ?? rBy ?? null)) : watched ? watched.pos : follow ? myPos : null,
-      lock: !!rs || !!watched,
+      lock: !!rs || !!watched || !!nm, // no mapa a câmera segue de perto: ele é maior que a tela
+      map: nm && playing ? { night: nm, key: `${room!.night!.seed}:${room!.night!.stage}`, done: room!.night!.done } : null,
     });
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;

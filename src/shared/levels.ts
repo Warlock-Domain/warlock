@@ -1,8 +1,12 @@
 // Mapa explorável da Campanha: lê as salas desenhadas em ASCII (levels/*.ts, 1 caractere = 1 casa) e monta a noite no
 // padrão Diablo 2: objetivo fixo (entrada → salas do meio → portão → arena do chefe), salas sorteadas pela semente e,
 // nas saídas que sobram, salas laterais opcionais.
+import { CELL, type Terrain } from './arena.ts';
+import { OBSTACLES, type ObstacleKind } from './constants.ts';
 import { CHARNECA } from './levels/charneca.ts';
 import { nightRand } from './rng.ts';
+import type { Pillar, Room as Rect } from './sim.ts';
+import { v } from './vec.ts';
 
 // chão de cada casa: parede bloqueia tudo; mureta (low) bloqueia o passo e deixa a magia passar; destroço bloqueia os dois
 // até quebrar; cera deixa lento; abismo (pit) derruba quem é empurrado para dentro
@@ -201,4 +205,41 @@ export function buildNight(seed: number, stage: number): NightMap {
     for (const m of p.room.marks) marks.push({ ...m, x: m.x + p.x, y: m.y + p.y, room: i });
   });
   return { w, h, ground, marks, rooms };
+}
+
+// --- do mapa da noite para a simulação ------------------------------------------------------------------------------
+
+const CODE: Record<Ground, number> = { floor: CELL.floor, debris: CELL.floor, wax: CELL.wax, low: CELL.low, wall: CELL.wall, pit: CELL.pit };
+// grade da simulação (o destroço é chão: quem bloqueia é o obstáculo em cima dele); home começa no início do grupo
+export function terrainOf(n: NightMap): Terrain {
+  const start = n.marks.find((m) => m.kind === 'start')!;
+  return { w: n.w, h: n.h, cells: Uint8Array.from(n.ground.flat(), (g) => CODE[g]), home: v(start.x + 0.5, start.y + 0.5) };
+}
+
+// obstáculos que já existem no jogo: árvore queimada vira árvore; estátua ou lápide de uma casa vira pilar de pedra (quebra,
+// como as lápides que racham); bloco maior (os pilares 2×2 da arena) vira Barricada, que não quebra; cada casa de destroço
+// vira um pilar que quebra
+export function obstaclesOf(n: NightMap): Pillar[] {
+  const put = (kind: ObstacleKind, x: number, y: number): Pillar => ({ pos: v(x, y), hp: OBSTACLES[kind].hp, alive: true, kind });
+  const out = n.marks.filter((m) => m.kind === 'tree' || m.kind === 'statue').map((m) => {
+    const w = m.w ?? 1, h = m.h ?? 1;
+    return m.kind === 'tree' ? put('tree', m.x + 0.5, m.y + 0.5) : put(w * h > 1 ? 'rock' : 'pillar', m.x + w / 2, m.y + h / 2);
+  });
+  n.ground.forEach((row, y) => row.forEach((g, x) => g === 'debris' && out.push(put('pillar', x + 0.5, y + 0.5))));
+  return out;
+}
+
+// retângulo da sala i no mapa (para trancar durante o encontro)
+export const roomRect = (n: NightMap, i: number): Rect => ({ x: n.rooms[i].x, y: n.rooms[i].y, w: n.rooms[i].room.w, h: n.rooms[i].room.h });
+
+// o mapa sai de novo da semente sempre que alguém precisa (servidor a cada passo, navegador a cada quadro): guarda os últimos
+const built = new Map<string, NightMap>();
+export function nightMap(seed: number, stage: number): NightMap {
+  const key = seed + ':' + stage;
+  let n = built.get(key);
+  if (!n) {
+    if (built.size >= 8) built.delete(built.keys().next().value!);
+    built.set(key, (n = buildNight(seed, stage)));
+  }
+  return n;
 }

@@ -1,6 +1,8 @@
 // Previsão do próprio mago: anda na hora do clique com o mesmo código do servidor e é corrigido de leve.
+import type { Terrain } from '../shared/arena.ts';
 import { WIZ_SPEED } from '../shared/constants.ts';
-import { isSliding, moveWizard, type Wizard } from '../shared/sim.ts';
+import { terrainOf, type NightMap } from '../shared/levels.ts';
+import { isSliding, keepOut, moveWizard, type Room, type Wizard } from '../shared/sim.ts';
 import type { WizView } from '../shared/snapshot.ts';
 import { add, dist, scale, sub, v, type Vec } from '../shared/vec.ts';
 
@@ -12,12 +14,21 @@ export function createPredict() {
   let dead = false;
   let queued: Vec | null | undefined;
   const now = () => performance.now() / 1000;
+  // Campanha: paredes do mapa da noite e a sala trancada no encontro (montado só quando o mapa muda)
+  let shownMap: NightMap | null = null;
+  let terrain: Terrain | null = null;
+  let lock: Room | undefined;
 
   return {
     setRtt(ms: number) {
       rttSec = rttSec * 0.8 + (ms / 1000) * 0.2;
     },
     rtt: () => rttSec,
+    setMap(n: NightMap | null, room?: Room) {
+      if (n !== shownMap) terrain = n && terrainOf(n);
+      shownMap = n;
+      lock = room;
+    },
     reset() {
       me = null;
     },
@@ -71,6 +82,7 @@ export function createPredict() {
       }
       if (server.status & 128) me.target = null; // preso (Agarrar): não anda
       moveWizard(me, dt);
+      if (terrain) keepOut(terrain, me, lock);
       const slack = WIZ_SPEED * (rttSec / 2) + 0.3;
       if (dist(me.pos, server.pos) > slack) me.pos = add(me.pos, scale(sub(server.pos, me.pos), 0.15));
       return me.pos;

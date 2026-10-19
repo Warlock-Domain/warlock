@@ -1,6 +1,5 @@
 // Modo Campanha (desenho em docs/superpowers/specs/2026-10-19-campanha-design.md): 1 a 4 Acesos contra o Fumo.
-// Uma noite = estágios; um estágio = clareiras (rodadas) com ondas de servos, sorteadas pela semente da noite.
-import type { ArenaId } from './arena.ts';
+// Uma noite = estágios; um estágio = um mapa de salas (levels.ts) com encontros nos pontos de controle.
 import type { CharacterId } from './characters.ts';
 import { nightRand } from './rng.ts';
 import type { SpellId } from './spells.ts';
@@ -16,16 +15,11 @@ export const SERVOS: Record<ServoKind, { name: string; look: CharacterId; hp: nu
   archer: { name: 'Arqueiro oco', look: 'skeleton_rogue', hp: 300, spells: { lightning: 1 } },
 };
 
-export type Clearing = { arena: ArenaId; pillars: number; waves: ServoKind[][] };
-
-// padrão de cada estágio (estilo Diablo 2: objetivo fixo, mapa sorteado); ondas da mais fácil para a mais difícil
-type StagePattern = { id: string; clearings: [number, number]; arenas: ArenaId[]; pillars: [number, number]; waves: [number, number]; pool: ServoKind[][] };
+// padrão de cada estágio: ondas dos encontros, da mais fácil para a mais difícil (o mapa vem das salas, levels.ts)
+type StagePattern = { id: string; waves: [number, number]; pool: ServoKind[][] };
 export const STAGES: StagePattern[] = [
   {
     id: 'charneca', // Charneca Cinzenta: introdução, inimigos lentos
-    clearings: [2, 3],
-    arenas: ['circle', 'cross', 'ring'],
-    pillars: [2, 5],
     waves: [2, 3],
     pool: [['ash', 'ash'], ['ash', 'archer'], ['ash', 'ash', 'ash'], ['archer', 'archer'], ['ash', 'ash', 'archer'], ['ash', 'archer', 'archer'], ['ash', 'ash', 'archer', 'archer']],
   },
@@ -33,19 +27,14 @@ export const STAGES: StagePattern[] = [
 
 const between = (rand: () => number, [a, b]: [number, number]) => a + Math.floor(rand() * (b - a + 1));
 
-// a mesma semente gera sempre o mesmo estágio; a clareira c sorteia ondas só entre as 3 + 2c primeiras do padrão
-export function generateStage(seed: number, stage: number): Clearing[] {
-  const S = STAGES[stage];
-  const n = between(nightRand(seed, stage, -1), S.clearings);
-  return Array.from({ length: n }, (_, c) => {
-    const rand = nightRand(seed, stage, c);
-    const arena = S.arenas[Math.floor(rand() * S.arenas.length)];
-    const pillars = between(rand, S.pillars);
-    const pool = S.pool.slice(0, 3 + 2 * c);
-    const waves = Array.from({ length: between(rand, S.waves) }, () => pool[Math.floor(rand() * pool.length)]);
-    return { arena, pillars, waves };
-  });
+// ondas do encontro da sala `room` (sorteadas pela noite): quanto mais fundo no caminho (depth), mais ondas difíceis entram
+// no sorteio; a arena do chefe tem uma onda a mais. Até os encontros desenhados do Lucas entrarem no lugar
+export function roomWaves(seed: number, stage: number, room: number, depth: number, boss: boolean): ServoKind[][] {
+  const S = STAGES[stage], rand = nightRand(seed, stage, room);
+  const pool = S.pool.slice(0, 3 + 2 * Math.min(depth, 2));
+  return Array.from({ length: between(rand, S.waves) + (boss ? 1 : 0) }, () => pool[Math.floor(rand() * pool.length)]);
 }
 
-// estado da noite guardado na partida (o plano sai de generateStage, não é gravado)
-export type Night = { seed: number; stage: number; clearing: number; wave: number; result: 'won' | 'lost' | null };
+// estado da noite guardado na partida (o mapa sai de buildNight pela semente, não é gravado): fight = sala do encontro
+// aberto, wave = onda atual dele, done = salas com o encontro vencido
+export type Night = { seed: number; stage: number; fight: number | null; wave: number; done: number[]; result: 'won' | 'lost' | null };

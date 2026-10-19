@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPAIGN, SERVOS, generateStage } from '../src/shared/campaign.ts';
+import { CAMPAIGN, SERVOS, roomWaves } from '../src/shared/campaign.ts';
+import { nightMap, type NightMap } from '../src/shared/levels.ts';
 import { addPlayer, endIdle, kick, newMatch, removePlayer, resume, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
 import { mulberry32 } from '../src/shared/rng.ts';
+import { dist, v } from '../src/shared/vec.ts';
 import { endResult, maxHp, nightLine, playerName } from '../src/client/screen-data.ts';
-import { STEP_MS, kill, toPlaying, until } from './helpers.ts';
+import { STEP_MS, toPlaying, until } from './helpers.ts';
 
 // noite de Campanha com os humanos dados e semente fixa
 function night(humans = ['a'], seed = 1): Match {
@@ -14,12 +16,30 @@ function night(humans = ['a'], seed = 1): Match {
   return m;
 }
 
+const mapOf = (m: Match): NightMap => nightMap(m.night!.seed, m.night!.stage);
+const wiz = (m: Match, id: string) => m.world!.wizards.find((z) => z.id === id)!;
 const foes = (m: Match) => m.world!.wizards.filter((z) => z.team === 1);
-const plan = (m: Match) => generateStage(m.night!.seed, m.night!.stage);
 const step = (m: Match, now: number, n = 1) => {
   for (let i = 0; i < n; i++) tickMatch(m, (now += STEP_MS), [], () => 0.5);
   return now;
 };
+// centro do ponto de controle da sala i (entre o "C" e o número)
+const checkpoint = (n: NightMap, i: number) => {
+  const c = n.marks.find((q) => q.room === i && q.kind === 'checkpoint')!;
+  return v(c.x + 1, c.y + 0.5);
+};
+const inside = (n: NightMap, i: number, p: { x: number; y: number }) => {
+  const r = n.rooms[i];
+  return p.x > r.x && p.y > r.y && p.x < r.x + r.room.w && p.y < r.y + r.room.h;
+};
+const bossRoom = (n: NightMap) => n.rooms.findIndex((r) => r.room.pool === 'chefe');
+// leva o humano para o ponto e espera o passo em que o encontro abre
+function stepOn(m: Match, now: number, id: string, at: { x: number; y: number }): number {
+  wiz(m, id).pos = v(at.x, at.y);
+  return step(m, now);
+}
+// no mapa não há lava: derruba direto, com o crédito para `by` (morre no passo seguinte)
+const kill = (m: Match, id: string, by: string | null) => Object.assign(wiz(m, id), { hp: -1, lastHitBy: by, lastHitAt: m.world!.t });
 // derruba todos os servos vivos (crédito para o primeiro humano; sem os 2 s de invulnerabilidade de quem acabou de entrar)
 function clearWave(m: Match, now: number): number {
   for (const z of foes(m)) if (z.alive) {
@@ -28,43 +48,33 @@ function clearWave(m: Match, now: number): number {
   }
   return step(m, now);
 }
-// derruba ondas até a clareira acabar
-function clearClearing(m: Match, now: number): number {
-  for (let i = 0; i < 10 && m.phase === 'playing'; i++) now = clearWave(m, now);
+function clearFight(m: Match, now: number): number {
+  for (let i = 0; i < 10 && m.night!.fight !== null && m.phase === 'playing'; i++) now = clearWave(m, now);
   return now;
 }
-// humanos ficam parados no meio e invulneráveis enquanto o teste avança (os servos atiram)
+// humanos invulneráveis enquanto o teste avança (os servos atiram)
 const shelter = (m: Match) => {
   for (const z of m.world!.wizards) if (z.team === 0) z.invulnUntil = 1e9;
 };
 
-describe('Campanha: geração da noite', () => {
-  it('same seed same night, other seeds vary', () => {
-    expect(generateStage(42, 0)).toEqual(generateStage(42, 0));
-    const others = [1, 2, 3, 4, 5, 6].map((s) => JSON.stringify(generateStage(s, 0)));
-    expect(new Set(others).size).toBeGreaterThan(1);
-  });
-
-  it('stage has 2 to 3 clearings with 2 to 3 waves that fit the slots', () => {
+describe('Campanha: ondas', () => {
+  it('waves of a room come from the seed, fit the slots, and the boss arena has one more', () => {
+    expect(roomWaves(42, 0, 2, 2, false)).toEqual(roomWaves(42, 0, 2, 2, false));
     for (let s = 0; s < 50; s++) {
-      const st = generateStage(s, 0);
-      expect(st.length, String(s)).toBeGreaterThanOrEqual(2);
-      expect(st.length, String(s)).toBeLessThanOrEqual(3);
-      for (const c of st) {
-        expect(c.waves.length).toBeGreaterThanOrEqual(2);
-        expect(c.waves.length).toBeLessThanOrEqual(3);
-        for (const w of c.waves) expect(w.length).toBeLessThanOrEqual(CAMPAIGN.slots);
-      }
+      const w = roomWaves(s, 0, 1, 1, false), b = roomWaves(s, 0, 1, 1, true);
+      expect(w.length, String(s)).toBeGreaterThanOrEqual(2);
+      expect(b.length, String(s)).toBe(w.length + 1);
+      for (const wave of b) expect(wave.length).toBeLessThanOrEqual(CAMPAIGN.slots);
     }
   });
 });
 
-describe('Campanha: partida', () => {
+describe('Campanha: partida no mapa', () => {
   it('starts with one human and the Smoke slots on team 1, without gold', () => {
     const m = night();
     expect(m.mode).toBe('campaign');
     expect(m.phase).toBe('shop');
-    expect(m.night).toMatchObject({ stage: 0, clearing: 0, result: null });
+    expect(m.night).toMatchObject({ stage: 0, fight: null, done: [], result: null });
     const slots = m.players.filter((p) => p.servo);
     expect(slots.length).toBe(CAMPAIGN.slots);
     expect(slots.every((p) => p.bot && p.team === 1)).toBe(true);
@@ -81,56 +91,88 @@ describe('Campanha: partida', () => {
     expect(startMatch(crowd, 0, 0, 'campaign', true, mulberry32(1))).toBe(false);
   });
 
-  it('first wave alive with its kind, the other slots wait', () => {
-    const m = night();
-    toPlaying(m, 0);
-    const wave = plan(m)[0].waves[0];
+  it('the stage is the whole night map: the group at the start, the Smoke out, nothing shrinks', () => {
+    const m = night(['a', 'b']);
+    let now = toPlaying(m, 0);
+    const n = mapOf(m), w = m.world!;
+    expect([w.map!.w, w.map!.h]).toEqual([n.w, n.h]);
+    const start = n.marks.find((q) => q.kind === 'start')!;
+    for (const id of ['a', 'b']) expect(dist(wiz(m, id).pos, v(start.x + 0.5, start.y + 0.5))).toBeLessThan(1.5);
+    expect(foes(m).some((z) => z.alive)).toBe(false);
+    expect(w.pillars.length).toBeGreaterThan(0); // árvores, estátuas e destroços do desenho
+    now = step(m, now, 60 * 20);
+    expect(m.world!.arenaR).toBe(3);
+    expect(m.phase).toBe('playing');
+  });
+
+  it('stepping on the checkpoint pulls every Aceso in, seals the room and the first wave enters at the E points', () => {
+    const m = night(['a', 'b']);
+    let now = toPlaying(m, 0);
+    const n = mapOf(m);
+    const room = n.rooms.findIndex((r) => r.room.pool === 'entrada');
+    now = stepOn(m, now, 'a', checkpoint(n, room));
+    expect(m.night!.fight).toBe(room);
+    expect(m.world!.lock).toBeDefined();
+    for (const id of ['a', 'b']) expect(inside(n, room, wiz(m, id).pos), id).toBe(true);
+    const wave = roomWaves(m.night!.seed, 0, room, room, false)[0];
     const alive = foes(m).filter((z) => z.alive);
     expect(alive.length).toBe(wave.length);
-    alive.forEach((z, i) => {
-      const p = m.players.find((q) => q.id === z.id)!;
-      expect(p.servo).toBe(wave[i]);
-      expect(z.hpMax).toBe(SERVOS[wave[i]].hp);
-      expect(p.hpMax).toBe(SERVOS[wave[i]].hp);
-    });
-    expect(m.world!.arena).toBe(plan(m)[0].arena);
+    const entries = n.marks.filter((q) => q.room === room && q.kind === 'entry').map((q) => v(q.x + 0.5, q.y + 0.5));
+    for (const z of alive) {
+      expect(z.hpMax).toBe(SERVOS[m.players.find((p) => p.id === z.id)!.servo!].hp);
+      expect(z.regen).toBe(0); // servo não regenera
+      expect(Math.min(...entries.map((e) => dist(e, z.pos)))).toBeLessThan(1.5);
+    }
+  });
+
+  it('nobody leaves the sealed room', () => {
+    const m = night();
+    let now = toPlaying(m, 0);
+    const n = mapOf(m);
+    now = stepOn(m, now, 'a', checkpoint(n, 0));
+    shelter(m);
+    wiz(m, 'a').pos = v(n.rooms[0].x + n.rooms[0].room.w + 5, wiz(m, 'a').pos.y);
+    step(m, now);
+    expect(inside(n, 0, wiz(m, 'a').pos)).toBe(true);
   });
 
   it('next wave enters when the wave is cleared, and gives no gold', () => {
     const m = night();
     let now = toPlaying(m, 0);
+    now = stepOn(m, now, 'a', checkpoint(mapOf(m), 0));
     shelter(m);
     now = clearWave(m, now);
     expect(m.night!.wave).toBe(1);
-    expect(foes(m).filter((z) => z.alive).length).toBe(plan(m)[0].waves[1].length);
+    expect(foes(m).filter((z) => z.alive).length).toBe(roomWaves(m.night!.seed, 0, 0, 0, false)[1].length);
     expect(m.players.find((p) => p.id === 'a')!.gold).toBe(0);
     expect(m.players.find((p) => p.id === 'a')!.stats.round.kills).toBeGreaterThan(0);
   });
 
-  it('clearing ends when the last wave is cleared and the next opens after the interval', () => {
+  it('the cleared room opens again and its checkpoint does not fire twice', () => {
     const m = night();
     let now = toPlaying(m, 0);
+    const n = mapOf(m);
+    now = stepOn(m, now, 'a', checkpoint(n, 0));
     shelter(m);
-    now = clearClearing(m, now);
-    expect(m.phase).toBe('roundEnd');
-    now = until(m, now, () => m.phase !== 'roundEnd');
-    expect(m.phase).toBe('shop');
-    expect(m.night!.clearing).toBe(1);
-    toPlaying(m, now);
-    expect(m.world!.arena).toBe(plan(m)[1].arena);
+    now = clearFight(m, now);
+    expect(m.night).toMatchObject({ fight: null, done: [0] });
+    expect(m.world!.lock).toBeUndefined();
+    now = stepOn(m, now, 'a', checkpoint(n, 0));
+    expect(m.night!.fight).toBeNull();
   });
 
-  it('clearing every clearing wins the night and drops the slots', () => {
+  it('entering the boss arena starts the last fight; winning it wins the night and drops the slots', () => {
     const m = night();
-    let now = 0;
-    for (let c = 0; c < plan(m).length; c++) {
-      now = toPlaying(m, now);
-      shelter(m);
-      now = clearClearing(m, now);
-      now = until(m, now, () => m.phase !== 'roundEnd');
-    }
-    expect(m.phase).toBe('end');
+    let now = toPlaying(m, 0);
+    const n = mapOf(m), b = bossRoom(n), r = n.rooms[b];
+    now = stepOn(m, now, 'a', v(r.x + r.room.w / 2, r.y + r.room.h / 2));
+    expect(m.night!.fight).toBe(b);
+    shelter(m);
+    now = clearFight(m, now);
+    expect(m.phase).toBe('roundEnd');
     expect(m.night!.result).toBe('won');
+    until(m, now, () => m.phase !== 'roundEnd');
+    expect(m.phase).toBe('end');
     expect(m.players.some((p) => p.servo)).toBe(false);
   });
 
@@ -167,27 +209,39 @@ describe('Campanha: partida', () => {
     expect(m.players.filter((p) => !p.bot).map((p) => p.gold)).toEqual([30, 30]);
   });
 
-  it('someone who joins mid-night fights on the Acesos side, without gold', () => {
+  it('someone who joins mid-night enters the map on the Acesos side, without gold', () => {
     const m = night(['a']);
-    let now = toPlaying(m, 0);
+    toPlaying(m, 0);
     addPlayer(m, 'late', 'late');
-    expect(m.players.find((p) => p.id === 'late')!.gold).toBe(0);
-    shelter(m);
-    now = clearClearing(m, now);
-    now = until(m, now, () => m.phase === 'shop');
-    toPlaying(m, now);
-    expect(m.players.find((p) => p.id === 'late')!.team).toBe(0);
-    expect(m.world!.wizards.find((z) => z.id === 'late')!.team).toBe(0);
+    const late = m.players.find((p) => p.id === 'late')!;
+    expect(late).toMatchObject({ gold: 0, team: 0 });
+    const z = wiz(m, 'late');
+    expect(z).toMatchObject({ alive: true, team: 0 });
+    expect(dist(z.pos, m.world!.map!.home)).toBeLessThan(1.5);
   });
 
-  it('resume mid-night goes back to the interval of the same clearing', () => {
+  it('resume mid-night goes back to the interval and keeps the rooms already won', () => {
     const m = night();
-    toPlaying(m, 0);
+    let now = toPlaying(m, 0);
+    now = stepOn(m, now, 'a', checkpoint(mapOf(m), 0));
+    shelter(m);
+    now = clearFight(m, now);
     const round = m.round;
-    resume(m, 1000);
+    resume(m, now);
     expect(m.phase).toBe('shop');
     expect(m.round).toBe(round - 1);
-    expect(m.night!.clearing).toBe(0);
+    expect(m.night).toMatchObject({ done: [0], fight: null });
+  });
+
+  it('a night saved before the explorable map comes back without breaking', () => {
+    const m = night();
+    toPlaying(m, 0);
+    const old = m.night as unknown as Record<string, unknown>;
+    delete old.fight;
+    delete old.done;
+    resume(m, 1000);
+    expect(m.night).toMatchObject({ fight: null, done: [] });
+    expect(() => toPlaying(m, 1000)).not.toThrow();
   });
 
   it('a human who drops stays on the Acesos side', () => {
@@ -197,7 +251,7 @@ describe('Campanha: partida', () => {
     const b = m.players.find((p) => p.id === 'b')!;
     expect(b.connected).toBe(false);
     expect(b.servo).toBeUndefined();
-    expect(m.world!.wizards.find((z) => z.id === 'b')!.team).toBe(0);
+    expect(wiz(m, 'b').team).toBe(0);
   });
 
   it('no mode, bot or kick votes against the Smoke; switching into the campaign is not voted', () => {
@@ -211,11 +265,13 @@ describe('Campanha: partida', () => {
     expect(startVote(r, 'a', 'mode', 'campaign', 0)).toBe(false);
   });
 
-  it('room shows the night and the max health of each wizard', () => {
+  it('room shows the seed, the open fight and its waves, and the max health of the servants', () => {
     const m = night();
-    toPlaying(m, 0);
+    let now = toPlaying(m, 0);
+    expect(publicRoom('ABCD', m, 0).night).toEqual({ stage: 0, seed: m.night!.seed, fight: null, wave: 0, waves: 0, done: [], result: null });
+    now = stepOn(m, now, 'a', checkpoint(mapOf(m), 0));
     const room = publicRoom('ABCD', m, 0);
-    expect(room.night).toEqual({ stage: 0, clearing: 0, clearings: plan(m).length, wave: 0, waves: plan(m)[0].waves.length, result: null });
+    expect(room.night).toMatchObject({ fight: 0, wave: 0, waves: roomWaves(m.night!.seed, 0, 0, 0, false).length });
     expect(room.players.filter((p) => p.servo).every((p) => p.hpMax !== undefined)).toBe(true);
   });
 
@@ -236,17 +292,19 @@ describe('Campanha: tela', () => {
 
   it('health bar uses the servant max health', () => {
     const m = night();
-    toPlaying(m, 0);
+    let now = toPlaying(m, 0);
+    now = stepOn(m, now, 'a', checkpoint(mapOf(m), 0));
     const room = publicRoom('ABCD', m, 0);
     const servo = room.players.find((p) => p.servo)!;
     expect(maxHp(servo)).toBe(SERVOS[servo.servo!].hp);
     expect(maxHp(room.players.find((p) => !p.servo))).toBe(1000);
   });
 
-  it('night line says stage, clearing and, during the clearing, the wave', () => {
-    const n = { stage: 0, clearing: 1, clearings: 3, wave: 0, waves: 2, result: null };
-    expect(nightLine(n, false)).toBe('Campanha · Charneca Cinzenta · clareira 2 de 3');
-    expect(nightLine(n, true)).toBe('Campanha · Charneca Cinzenta · clareira 2 de 3 · onda 1 de 2');
+  it('night line says the stage and, during an encounter, the wave', () => {
+    const n = { stage: 0, seed: 1, fight: null, wave: 0, waves: 0, done: [], result: null };
+    expect(nightLine(n, true)).toBe('Campanha · Charneca Cinzenta');
+    expect(nightLine({ ...n, fight: 2, waves: 3 }, true)).toBe('Campanha · Charneca Cinzenta · encontro · onda 1 de 3');
+    expect(nightLine({ ...n, fight: 2, waves: 3 }, false)).toBe('Campanha · Charneca Cinzenta');
   });
 
   it('the Acesos win or lose together', () => {
