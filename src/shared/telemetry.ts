@@ -1,15 +1,22 @@
 // Dados de balanceamento: um resumo por rodada (quem tinha o quê, quanto dano cada fonte causou, precisão, abates,
-// quem venceu) e a soma de todas as rodadas. Guardado no objeto do lobby; leitura em /api/telemetry.
-import type { Match, Mode } from './match.ts';
+// quem venceu) e a soma de todas as rodadas. Guardado no objeto do lobby; leitura em /api/telemetry e, o jeito de jogar, em /api/telemetry/style.
+import type { Match, MatchOpts, Mode, Stat } from './match.ts';
 import { publicId } from './protocol.ts';
+
+// jeito de jogar (match.ts watchStyle): somas e contagens da rodada
+const STYLE_KEYS = ['threats', 'struck', 'shieldable', 'shielded', 'reactSum', 'reactN', 'nearSum', 'nearN'] as const;
+type StyleKey = (typeof STYLE_KEYS)[number];
 
 export type RoundRecord = {
   at: number;
   humans: number;
   mode?: Mode;
   scale?: number; // 10: vida 1000 e dano na escala do original (desde 18/10); sem o campo, vida 100 (dano ÷10)
-  players: {
+  difficulty?: MatchOpts['difficulty']; // dos bots (desde 19/10, junto com o jeito de jogar)
+  setup?: true; // rodada com configuração de treino: fica fora da leitura do jeito de jogar
+  players: ({
     pid?: string; // código anônimo e estável do jogador (hash do id secreto), para separar habilidade de item
+    name?: string; // apelido que a pessoa escolheu (só humanos)
     bot: boolean;
     character: string;
     won: boolean;
@@ -24,7 +31,7 @@ export type RoundRecord = {
     deaths?: number;
     deathBy?: Record<string, number>; // 'lava' ou a fonte do último empurrão
     alive?: number; // segundos vivo na rodada
-  }[];
+  } & Partial<Pick<Stat, StyleKey>>)[];
 };
 
 export type Totals = {
@@ -34,7 +41,8 @@ export type Totals = {
   recent: RoundRecord[]; // últimas rodadas, para análise fina
 };
 
-const RECENT_MAX = 300;
+// cada rodada ocupa ~3,8 KB com 4 jogadores e ~7,9 KB com 8 (medido em 19/10); 200 fica em ~0,8 a 1,6 MB, abaixo do limite de 2 MB da chave do DO
+const RECENT_MAX = 200;
 
 export function roundRecord(m: Match, now: number): RoundRecord {
   // nos Times vence o time inteiro de quem ficou de pé
@@ -45,8 +53,10 @@ export function roundRecord(m: Match, now: number): RoundRecord {
     humans: m.players.filter((p) => !p.bot).length,
     mode: m.mode,
     scale: 10,
+    difficulty: m.opts.difficulty,
     players: m.players.map((p) => ({
       pid: publicId('telemetria', p.id),
+      name: p.bot ? undefined : p.name,
       bot: p.bot,
       character: p.character,
       won: teams ? winTeam !== null && p.team === winTeam : p.id === m.lastRoundWinner,
@@ -61,6 +71,7 @@ export function roundRecord(m: Match, now: number): RoundRecord {
       deaths: p.stats.round.deaths,
       deathBy: p.stats.round.deathBy,
       alive: Math.round(p.stats.round.alive * 10) / 10,
+      ...Object.fromEntries(STYLE_KEYS.map((k) => [k, Math.round(p.stats.round[k] * 100) / 100])),
     })),
   };
 }
@@ -84,3 +95,27 @@ export function addRecord(t: Totals, r: RoundRecord): Totals {
 }
 
 export const emptyTotals = (): Totals => ({ rounds: 0, sources: {}, owned: {}, recent: [] });
+
+// uma linha por humano (pelo código anônimo, com o último apelido) e por dificuldade dos bots ('bots normal'): rodadas, ameaças,
+// fração a que reagiu e em quanto tempo (média, s), fração que o atingiu, Escudo usado por Escudo pronto e distância média do inimigo (m).
+// Fora: rodadas de antes da medição, com configuração de treino e bots no Automático (a força muda com o placar)
+export type StyleRow = { who: string; pid?: string; rounds: number; threats: number; reacted: number | null; react: number | null; struck: number | null; shield: number | null; near: number | null };
+export function styleRows(t: Totals): StyleRow[] {
+  const sums = new Map<string, { who: string; pid?: string; rounds: number } & Record<StyleKey, number>>();
+  for (const r of t.recent) {
+    if (r.setup || !r.difficulty) continue;
+    for (const p of r.players) {
+      if (p.threats === undefined || (p.bot && r.difficulty === 'auto')) continue;
+      const key = p.bot ? 'bots ' + r.difficulty : (p.pid ?? '?');
+      const s = sums.get(key) ?? sums.set(key, { who: key, pid: p.bot ? undefined : p.pid, rounds: 0, ...(Object.fromEntries(STYLE_KEYS.map((k) => [k, 0])) as Record<StyleKey, number>) }).get(key)!;
+      if (p.name) s.who = p.name;
+      s.rounds++;
+      for (const k of STYLE_KEYS) s[k] += p[k] ?? 0;
+    }
+  }
+  const ratio = (a: number, b: number) => (b ? Math.round((a / b) * 100) / 100 : null);
+  return [...sums.values()].map((s) => ({
+    who: s.who, pid: s.pid, rounds: s.rounds, threats: s.threats,
+    reacted: ratio(s.reactN, s.threats), react: ratio(s.reactSum, s.reactN), struck: ratio(s.struck, s.threats), shield: ratio(s.shielded, s.shieldable), near: ratio(s.nearSum, s.nearN),
+  }));
+}

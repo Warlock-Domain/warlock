@@ -139,6 +139,35 @@ export function botWatch(w: World) {
   for (const p of w.projectiles) if (p.kind === 'illusion') keep(decoyId(p), p.pos);
 }
 
+// projétil inimigo que vai passar perto de `me` em até 0,6 s (ou meteoro caindo em cima) e em quanto tempo;
+// visible: o que este observador enxerga (o bot, com tempo de reação e alcance; a medição do jeito de jogar, tudo)
+export function threatTo(w: World, me: Wizard, visible: (p: Projectile) => boolean): { p: Projectile; t: number } | null {
+  let threat: Projectile | null = null;
+  let tHit = Infinity;
+  for (const p of w.projectiles) {
+    if (!visible(p)) continue;
+    const owner = w.wizards.find((z) => z.id === p.owner);
+    // não ameaçam: Gravidade (só puxa), Zona de dobra (parada), cópia da Ilusão, cura do Drenar e volta da Recarga, Elo já preso
+    if ((owner && (owner === me || (me.team !== null && owner.team === me.team))) || p.kind === 'gravity' || p.kind === 'warpzone' || p.kind === 'illusion' || (p.back && (p.kind === 'drain' || p.kind === 'recharge'))) continue;
+    if (p.kind === 'link' && (p.target || p.pillar !== undefined)) continue;
+    if (p.kind === 'meteor') {
+      if (dist(p.pos, me.pos) < spellLevel('meteor', p.level).radius + WIZ_R && p.until - w.t < tHit) [threat, tHit] = [p, p.until - w.t];
+      continue;
+    }
+    const rel = sub(me.pos, p.pos);
+    // Míssil teleguiado em mim faz curva: a previsão em linha reta não serve, reage pela distância
+    if (p.kind === 'homing' && p.target === me.id && dot(p.vel, rel) > 0) {
+      const t = len(rel) / Math.max(1, len(p.vel));
+      if (t < 0.5 && t < tHit) [threat, tHit] = [p, t];
+    }
+    const vv = dot(p.vel, p.vel);
+    const t = vv > 1e-6 ? dot(rel, p.vel) / vv : -1;
+    if (t < 0 || t > 0.6 || t >= tHit || len(sub(rel, scale(p.vel, t))) > WIZ_R + PROJ_R + 0.25) continue;
+    [threat, tHit] = [p, t];
+  }
+  return threat ? { p: threat, t: tHit } : null;
+}
+
 export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = BOT_SKILL.normal, scores: Record<string, number> = {}): Cmd[] {
   const me = w.wizards.find((z) => z.id === id && z.alive);
   if (!me) return [];
@@ -181,32 +210,11 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     return [{ id, kind: 'stop' }];
   }
 
-  // projétil inimigo que vai passar perto em até 0,6 s (ou meteoro caindo em cima)
-  let threat: Projectile | null = null;
-  let tHit = Infinity;
   // projétil que acabou de surgir ainda não deu tempo de ver; longe demais, o bot não enxerga
   const seen = (p: Projectile) => w.t - (p.born ?? -Infinity) >= D.delay && dist(p.pos, me.pos) <= D.vision;
-  for (const p of w.projectiles) {
-    if (!seen(p)) continue;
-    const owner = w.wizards.find((z) => z.id === p.owner);
-    // não ameaçam: Gravidade (só puxa), Zona de dobra (parada), cópia da Ilusão, cura do Drenar e volta da Recarga, Elo já preso
-    if ((owner && ally(owner)) || p.kind === 'gravity' || p.kind === 'warpzone' || p.kind === 'illusion' || (p.back && (p.kind === 'drain' || p.kind === 'recharge'))) continue;
-    if (p.kind === 'link' && (p.target || p.pillar !== undefined)) continue;
-    if (p.kind === 'meteor') {
-      if (dist(p.pos, me.pos) < spellLevel('meteor', p.level).radius + WIZ_R && p.until - w.t < tHit) [threat, tHit] = [p, p.until - w.t];
-      continue;
-    }
-    const rel = sub(me.pos, p.pos);
-    // Míssil teleguiado em mim faz curva: a previsão em linha reta não serve, reage pela distância
-    if (p.kind === 'homing' && p.target === id && dot(p.vel, rel) > 0) {
-      const t = len(rel) / Math.max(1, len(p.vel));
-      if (t < 0.5 && t < tHit) [threat, tHit] = [p, t];
-    }
-    const vv = dot(p.vel, p.vel);
-    const t = vv > 1e-6 ? dot(rel, p.vel) / vv : -1;
-    if (t < 0 || t > 0.6 || t >= tHit || len(sub(rel, scale(p.vel, t))) > WIZ_R + PROJ_R + 0.25) continue;
-    [threat, tHit] = [p, t];
-  }
+  const th = threatTo(w, me, seen);
+  const threat = th?.p ?? null;
+  const tHit = th?.t ?? Infinity;
   // o Flagelo em preparo não deixa sair nada além do Teleporte
   const winding = me.casting?.item === 'scourge';
   if (threat) {

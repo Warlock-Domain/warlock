@@ -1,21 +1,26 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS } from './arena.ts';
-import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, type BotPlan, type BotSkill } from './bots.ts';
+import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
 import { CHARACTERS, type CharacterId } from './characters.ts';
 import {
-  ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD,
+  ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
-import { newWorld, stepWorld, type Cmd, type SimEvent, type World } from './sim.ts';
-import { MAX_SPELLS, SPELL_IDS, noSpells, priceOf, spellCount, type SpellId } from './spells.ts';
+import { newWorld, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
+import { MAX_SPELLS, SPELL_IDS, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
+import { dist, len, type Vec } from './vec.ts';
 
 // como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
 const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
 
-// estatísticas do placar: ouro ganho, dano causado e precisão (lançadas e acertadas) por magia
-export type Stat = { gold: number; dmg: number; kills: number; dmgBy: Record<string, number>; fired: Record<string, number>; landed: Record<string, number>; deaths: number; deathBy: Record<string, number>; alive: number };
+// estatísticas do placar: ouro ganho, dano causado e precisão (lançadas e acertadas) por magia;
+// jeito de jogar (watchStyle): ameaças, atingido por elas, Escudo pronto e usado, tempo de reação e distância do inimigo (somas e contagens)
+export type Stat = {
+  gold: number; dmg: number; kills: number; dmgBy: Record<string, number>; fired: Record<string, number>; landed: Record<string, number>; deaths: number; deathBy: Record<string, number>; alive: number;
+  threats: number; struck: number; shieldable: number; shielded: number; reactSum: number; reactN: number; nearSum: number; nearN: number;
+};
 export type Stats = { round: Stat; match: Stat; room: Stat };
-const newStat = (): Stat => ({ gold: 0, dmg: 0, kills: 0, dmgBy: {}, fired: {}, landed: {}, deaths: 0, deathBy: {}, alive: 0 }); // alive: segundos vivo
+const newStat = (): Stat => ({ gold: 0, dmg: 0, kills: 0, dmgBy: {}, fired: {}, landed: {}, deaths: 0, deathBy: {}, alive: 0, threats: 0, struck: 0, shieldable: 0, shielded: 0, reactSum: 0, reactN: 0, nearSum: 0, nearN: 0 }); // alive: segundos vivo
 const newStats = (): Stats => ({ round: newStat(), match: newStat(), room: newStat() });
 // salas gravadas antes de um campo existir (ex.: a precisão): sem isso a soma quebrava o passo inteiro e os efeitos daquele instante sumiam
 const fillStats = (s?: Partial<Record<keyof Stats, Partial<Stat>>>): Stats => ({ round: { ...newStat(), ...s?.round }, match: { ...newStat(), ...s?.match }, room: { ...newStat(), ...s?.room } });
@@ -591,6 +596,61 @@ export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number
   return events;
 }
 
+// jeito de jogar (só mede, sem sorteio: a partida segue igual): ameaça = projétil inimigo que vai passar perto em até 0,6 s (o mesmo
+// critério dos bots, vendo tudo); reação = primeira defesa em até 1 s (magia de defesa ou andar para fora da linha do tiro);
+// atingido = levou dano do dono do projétil em até 1 s. Chave 'projétil>vítima'; sai quando o projétil some
+const DEFENSE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration', 'warpzone', 'rockpillar', 'illusion'];
+type Threat = { at: number; p: Projectile; owner: string; reacted: boolean; struck: boolean };
+const watched = new WeakMap<World, Map<string, Threat>>();
+function watchStyle(m: Match, w: World, all: Cmd[]) {
+  const open = watched.get(w) ?? watched.set(w, new Map()).get(w)!;
+  // humano que caiu é jogado pelo bot até voltar: fica fora, para não misturar o jeito do bot no dele
+  const self = (id: string) => [player(m, id)].find((p) => p && (p.bot || p.connected));
+  for (const [key, th] of open) {
+    if (!w.projectiles.includes(th.p)) open.delete(key); // o golpe deste passo ainda conta
+    const id = key.slice(key.indexOf('>') + 1);
+    const p = self(id);
+    if (!p || w.t - th.at > 1) continue;
+    // fora da linha do tiro (do meteoro: fora do raio)
+    const out = (to: Vec) => th.p.kind === 'meteor' ? dist(to, th.p.pos) >= spellLevel('meteor', th.p.level).radius + WIZ_R
+      : Math.abs((to.x - th.p.pos.x) * th.p.vel.y - (to.y - th.p.pos.y) * th.p.vel.x) / Math.max(1e-6, len(th.p.vel)) > WIZ_R + PROJ_R + 0.25;
+    const cast = w.events.find((e) => e.k === 'cast' && e.id === id && DEFENSE.includes(e.spell));
+    if (!th.reacted && (cast || all.some((c) => c.id === id && c.kind === 'move' && out(c.to)))) {
+      th.reacted = true;
+      addStat(p, (s) => {
+        s.reactSum += w.t - th.at;
+        s.reactN++;
+        if (cast?.k === 'cast' && cast.spell === 'shield') s.shielded++;
+      });
+    }
+    if (!th.struck && w.events.some((e) => e.k === 'hit' && e.id === id && e.by === th.owner && e.dmg > 0)) {
+      th.struck = true;
+      addStat(p, (s) => s.struck++);
+    }
+  }
+  for (const z of w.wizards) {
+    const p = z.alive ? self(z.id) : undefined;
+    const hit = p && threatTo(w, z, () => true);
+    if (!p || !hit || open.has(hit.p.id + '>' + z.id)) continue;
+    open.set(hit.p.id + '>' + z.id, { at: w.t, p: hit.p, owner: hit.p.owner, reacted: false, struck: false });
+    const ready = z.spells.shield > 0 && w.t >= z.cd.shield;
+    addStat(p, (s) => {
+      s.threats++;
+      if (ready) s.shieldable++;
+    });
+  }
+  // distância até o inimigo vivo mais perto, a cada 6 passos
+  if (m.steps % 6) return;
+  for (const z of w.wizards) {
+    const p = z.alive ? self(z.id) : undefined;
+    const d = Math.min(...w.wizards.filter((q) => q.alive && q !== z && (z.team === null || q.team !== z.team)).map((q) => dist(q.pos, z.pos)));
+    if (p && d < Infinity) addStat(p, (s) => {
+      s.nearSum += d;
+      s.nearN++;
+    });
+  }
+}
+
 function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimEvent[] {
   if (m.phase === 'shop') {
     const humans = m.players.filter((p) => !p.bot && p.connected);
@@ -626,6 +686,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   // a rodada só acaba quando sobra 1: se os últimos morrerem no mesmo passo, vence quem tinha mais vida
   const before = w.wizards.filter((z) => z.alive).map((z) => ({ id: z.id, hp: z.hp }));
   stepWorld(w, all, rand);
+  watchStyle(m, w, all);
   // metade da vida tirada pela lava vira dano de quem empurrou (fonte 'lava'): placar, top dano e assistência; antes das mortes
   for (const [by, on] of Object.entries(w.lavaCredit)) for (const [id, dmg] of Object.entries(on)) {
     const p = player(m, by);
