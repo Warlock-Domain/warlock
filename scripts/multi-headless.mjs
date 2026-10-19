@@ -7,6 +7,7 @@ const logs = [];
 try {
   const { id } = await (await fetch(base + '/api/rooms', { method: 'POST' })).json();
   await ctx.addInitScript(() => {
+    localStorage.setItem('warlock:lang', 'pt');
     for (const [k, n] of [['ana', 'Ana'], ['bia', 'Bia'], ['caio', 'Caio']]) localStorage.setItem('warlock:name:' + k, n);
   });
   const pages = [];
@@ -25,7 +26,7 @@ try {
   // sem bots: só os 3
   for (let i = 0; i < 3; i++) await a.getByRole('button', { name: '−' }).click();
   await a.getByRole('button', { name: 'Começar partida' }).click();
-  for (const p of pages) await p.getByRole('button', { name: 'Pronto' }).click();
+  for (const p of pages) await p.getByRole('button', { name: /^Pronto/ }).click();
   await a.waitForTimeout(3600);
   await a.mouse.click(500, 320, { button: 'right' });
   await a.mouse.move(600, 250);
