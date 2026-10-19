@@ -258,7 +258,7 @@ body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: no
 .tip small { display: block; color: var(--muted); }
 .tip .k { font-family: ui-monospace, Consolas, monospace; font-size: .75rem; border: 1px solid var(--line); border-radius: var(--r-xs); padding: 0 4px; }
 .center.wide { width: min(1240px, calc(100% - 24px)); }
-.shop { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px; align-items: start; }
+.shop { display: grid; grid-template-columns: 250px minmax(0, 1fr) 270px; gap: 16px; align-items: start; }
 .shop-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .shop-side { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; }
 .shop-side .gold.big { font-size: 1.6rem; text-align: center; }
@@ -266,6 +266,7 @@ body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: no
 .shop .shop-item > small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 @media (max-width: 860px) {
   .shop { grid-template-columns: minmax(0, 1fr); }
+  .shop-items { order: 50; }
   /* uma coluna: ouro grudado no topo e Pronto no rodapé enquanto rola as magias */
   .shop-side { display: contents; }
   .shop-side > .gold.big { order: -1; position: sticky; top: 0; z-index: 1; margin: -18px -18px 0; padding: 10px; border-radius: var(--r-frame) var(--r-frame) 0 0; background: var(--rivet) left 5px top 5px / 10px 10px no-repeat, var(--rivet) right 5px top 5px / 10px 10px no-repeat, var(--panel-solid); border-bottom: 1px solid var(--line); }
@@ -515,6 +516,7 @@ button.info .gi { width: 16px; height: 16px; }
 @media (min-width: 861px) and (min-height: 501px) {
   .peek-shop.drawer { left: auto; right: max(10px, var(--safe-r)); transform: none; width: min(46vw, 560px); max-height: calc(100% - 70px - var(--safe-t) - var(--safe-b)); animation: drawer-in .2s ease-out; }
   .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); }
+  .peek-shop.drawer .shop-items { order: 50; }
   .peek-shop.drawer .shop-head { flex-wrap: wrap; row-gap: 2px; }
   .peek-shop.drawer .shop-side { display: contents; }
   .peek-shop.drawer .shop-side > .gold.big { order: -1; position: sticky; top: 0; z-index: 1; margin: -18px -18px 0; padding: 10px; border-radius: var(--r-frame) var(--r-frame) 0 0; background: var(--panel-solid); border-bottom: 1px solid var(--line); }
@@ -846,3 +848,44 @@ body.replaying .peek-shop { display: none; }
 .lobby-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .opt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 2px 16px; align-items: start; }
 @media (min-width: 1100px) { .lobby-cols { grid-template-columns: 1fr 1fr 1.6fr; } } /* as opções ficam em duas colunas */
+
+/* loja: itens numa coluna à esquerda, prateados (cada grupo de magia tem a sua cor), ícone num círculo; cartões de magia mais baixos */
+:root { --item: #c9d4e0; --item-line: rgba(201, 212, 224, .35); --item-faint: rgba(201, 212, 224, .09); }
+@media (min-width: 861px) { .shop-items { position: sticky; top: 0; } }
+.shop-items { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.shop-items .shop-grid { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.shop-items .shop-head h3 { color: var(--item); }
+.shop-items .shop-group .shop-head { border-bottom-color: var(--item-line); }
+.shop-item.is-item { padding: 7px 9px; gap: 4px; border-color: var(--item-line); background: linear-gradient(90deg, var(--item-faint), transparent 70%); }
+.shop-item.is-item > small { -webkit-line-clamp: 1; }
+.shop-item.is-item.owned { border-color: var(--item); background: rgba(201, 212, 224, .14); }
+.shop-item.is-item .shop-title .ico { color: var(--item); border: 1px solid var(--item-line); border-radius: 50%; padding: 3px; background: rgba(201, 212, 224, .07); }
+.shop-item.is-item .shop-meta .have { color: var(--item); }
+.shop-item.is-item.can .buy-row > button:first-child { border-color: var(--item); color: var(--item); }
+.shop-item.is-item .buy-row button { min-height: 32px; padding: 4px 8px; }
+.shop .shop-main .shop-item { padding: 8px; gap: 4px; }
+.shop .shop-main .shop-item > small { -webkit-line-clamp: 1; }
+.shop .shop-main .shop-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+/* na barra da partida, os itens também prateados */
+.spellbar .spell.item { border-color: var(--item-line); }
+.spellbar .spell.item .ico { color: var(--item); filter: drop-shadow(0 0 4px rgba(201, 212, 224, .4)); }
+
+/* uma cor por grupo de magia (Fernando, 19/10): Ataque vermelho-laranja, Mobilidade verde, Defesa azul, Controle roxo */
+.g-ataque { --g: #ff6b4a; } .g-mobilidade { --g: #8be36a; } .g-defesa { --g: #5fb0ff; } .g-controle { --g: #c58bff; }
+.shop-group[class*="g-"] .shop-head h3 { color: var(--g); }
+.shop-group[class*="g-"] .shop-head { border-bottom-color: color-mix(in srgb, var(--g) 45%, transparent); }
+.shop-group[class*="g-"] .shop-item { border-left: 3px solid color-mix(in srgb, var(--g) 70%, transparent); }
+.shop-group[class*="g-"] .shop-title .ico { color: var(--g); }
+.shop-group[class*="g-"] .shop-item.owned { border-color: color-mix(in srgb, var(--g) 70%, transparent); background: color-mix(in srgb, var(--g) 12%, transparent); }
+.shop-group[class*="g-"] .shop-item.can .buy-row > button:first-child { border-color: var(--g); color: var(--g); }
+.shop-group[class*="g-"] .shop-meta .have { color: var(--g); }
+.spellbar .spell[class*="g-"] { border-color: color-mix(in srgb, var(--g) 55%, transparent); }
+.spellbar .spell[class*="g-"] .ico { color: var(--g); filter: drop-shadow(0 0 5px color-mix(in srgb, var(--g) 55%, transparent)); }
+.g-sub[class*="g-"] > small { color: var(--g); }
+.g-sub[class*="g-"] .g-chips button .ico, .g-sub[class*="g-"] .g-chips .ico { color: var(--g); }
+/* Começar partida sem ocupar a largura toda (Fernando, 19/10: "muito grande") */
+@media (min-width: 421px) { .card-go { grid-template-columns: minmax(200px, 300px) auto; justify-content: center; } .card-go button.big { min-height: 44px; font-size: 1rem; } }
+/* item em uma linha: nome e nível à esquerda, compra à direita (o que ele faz fica na dica) */
+.shop-item.is-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title buy' 'meta buy'; align-items: center; column-gap: 8px; row-gap: 2px; }
+.shop-item.is-item > .shop-title { grid-area: title; } .shop-item.is-item > .shop-meta { grid-area: meta; min-height: 0; } .shop-item.is-item > .buy-row { grid-area: buy; flex-wrap: nowrap; } .shop-item.is-item > small { display: none; }
+.shop-item.is-item .buy-row button { min-width: 0; }

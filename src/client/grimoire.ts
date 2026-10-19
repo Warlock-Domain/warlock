@@ -9,7 +9,7 @@ import { SCRIPTS, createDemo, drawStone, type DemoId } from './demo.ts';
 import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
 import { ACTIONS, UI_ACTIONS, UI_NAMES, isPadMode, isSlotMode, labelOf, uiLabel } from './keys.ts';
 import { MODE_INFO, OPT_INFO } from './opt-info.ts';
-import { ITEM_DEMO, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, n1 } from './rules-text.ts';
+import { ITEM_DEMO, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, groupClass, n1 } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 import { store } from './store.ts';
 import { itemLevels, spellLevels } from './tips.ts';
@@ -133,7 +133,7 @@ export function openGrimoire() {
     if (i === 0) return [el('h2', {}, 'Sumário'), el('ol', { class: 'g-toc' }, ...CHAPTERS.map((c) => el('li', {}, link(pageOf((p) => p.chapter === c), c))))];
     return [
       el('h2', {}, 'Magias e itens'),
-      ...SPELL_GROUPS.map(([g, hint, ids]) => el('div', { class: 'g-sub' }, el('small', {}, `${g} · ${hint}`),
+      ...SPELL_GROUPS.map(([g, hint, ids]) => el('div', { class: 'g-sub ' + groupClass(g) }, el('small', {}, `${g} · ${hint}`),
         el('div', { class: 'g-chips' }, ...ids.map((id) => chip(pageOf((p) => p.chapter === 'Magias' && p.demo === id), ICON[id], SPELLS[id].name))))),
       el('div', { class: 'g-sub' }, el('small', {}, 'Itens'),
         el('div', { class: 'g-chips' }, ...ITEM_IDS.map((id) => chip(pageOf((p) => p.chapter === 'Itens' && p.title === ITEMS[id].name), ITEM_ICON[id], ITEMS[id].name)))),

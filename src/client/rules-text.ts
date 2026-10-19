@@ -179,6 +179,9 @@ export const SPELL_GROUPS: [name: string, hint: string, spells: SpellId[]][] = [
   ['Defesa', 'parar o que vem', ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion']],
   ['Controle', 'prender, puxar, atrasar', ['grip', 'gravity', 'link', 'magnetize', 'drain']],
 ];
+// classe de cor do grupo (Fernando, 19/10: uma cor por setor): g-ataque, g-mobilidade, g-defesa, g-controle
+export const groupClass = (name: string) => 'g-' + name.toLowerCase();
+export const spellClass = (s: SpellId) => groupClass(SPELL_GROUPS.find(([, , ids]) => ids.includes(s))?.[0] ?? '');
 
 // para que serve, em uma linha (cartão da loja)
 export const SPELL_USE: Record<SpellId, string> = {

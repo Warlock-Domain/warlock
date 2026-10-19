@@ -12,7 +12,7 @@ import { openSettings, setSettingsCtx } from './settings.ts';
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, infoButton } from './opt-info.ts';
 import { BOT_LEVEL, COLORS, TEAM_COLORS } from './scene.ts';
-import { SPELL_GROUPS, SPELL_USE, n1, pct } from './rules-text.ts';
+import { SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
 import { ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, icon, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
@@ -557,7 +557,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const bar = el('div', { class: 'spellbar' }, ...SPELL_IDS.map((s) => {
     const cd = el('span', { class: 'cd' });
     const pips = el('span', { class: 'pips' });
-    const b = withTip(el('button', { type: 'button', class: 'spell', 'aria-label': SPELLS[s].name, onclick: () => act.spell(s), onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(s), onpointerleave: () => act.hover(null) },
+    const b = withTip(el('button', { type: 'button', class: 'spell ' + spellClass(s), 'aria-label': SPELLS[s].name, onclick: () => act.spell(s), onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(s), onpointerleave: () => act.hover(null) },
       el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0));
     buttons.set(s, { b, cd, pips });
     return b;
@@ -599,8 +599,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       e.preventDefault(); // fechou o placar fixo: este Esc não abre as configurações
       return pinTab(false);
     }
-    // placar pelo Tab (pedido do Fernando, 17/10; trocável); na loja o Tab é do teclado e o placar fica no botão ao lado do Pronto
-    if (!isUiKey(e.code, 'board') || !room || !TAB_PHASES.includes(room.phase) || room.phase === 'shop' || (e.target as HTMLElement).closest?.('.center')) return;
+    // placar pelo Tab (pedido do Fernando, 17/10; trocável), também na loja (19/10: "na hora de compra o tab não está abrindo o placar")
+    if (!isUiKey(e.code, 'board') || !room || !TAB_PHASES.includes(room.phase)) return;
     e.preventDefault();
     if (!e.repeat) showTab(true);
   });
@@ -893,7 +893,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       // só ver: no lugar do botão, só o preço (verde se o ouro de agora dá, vermelho se não); "a compra abre entre as rodadas" fica no cabeçalho
       const price = el('span', { class: 'peek-price' + (o.blocked ? '' : can ? ' can' : ' cant') },
         ...(o.blocked ? [o.blocked] : [o.lvl ? `Nível ${o.lvl + 1} · ` : '', icon(UI_ICON.gold), o.price === 0 ? ' grátis' : ` ${o.price}`]));
-      return withTip(el('div', { class: 'shop-item' + (o.lvl ? ' owned' : '') + (can && !peek ? ' can' : '') + (o.blocked && !o.lvl ? ' locked' : '') },
+      return withTip(el('div', { class: 'shop-item' + (o.key.startsWith('item') ? ' is-item' : '') + (o.lvl ? ' owned' : '') + (can && !peek ? ' can' : '') + (o.blocked && !o.lvl ? ' locked' : '') },
         el('div', { class: 'shop-title' }, el('span', { class: 'ico' }, icon(o.ico)), el('b', {}, o.name), o.hotkey !== null ? el('span', { class: 'key' }, o.hotkey) : null),
         el('small', {}, o.use),
         el('div', { class: 'shop-meta' }, el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
@@ -923,12 +923,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }) });
     };
     const group = (title: string, hint: string, cards: HTMLElement[]) =>
-      el('section', { class: 'shop-group' }, el('div', { class: 'shop-head' }, el('h3', {}, title), el('small', {}, hint)), el('div', { class: 'shop-grid' }, ...cards));
+      el('section', { class: 'shop-group ' + groupClass(title) }, el('div', { class: 'shop-head' }, el('h3', {}, title), el('small', {}, hint)), el('div', { class: 'shop-grid' }, ...cards));
     const itemCount = `${ITEM_IDS.filter((i) => mine.items[i] > 0).length} de ${MAX_ITEMS} itens`;
-    const grid = [...SPELL_GROUPS.map(([title, hint, ids]) => group(title, hint, ids.map(spellOffer))),
+    const grid = SPELL_GROUPS.map(([title, hint, ids]) => group(title, hint, ids.map(spellOffer)));
+    // itens numa coluna à esquerda, com cor própria (Fernando, 19/10: distintos das magias e loja mais horizontal)
+    const items = () => el('div', { class: 'shop-items' },
       group('Itens passivos', itemCount, ITEM_IDS.filter((i): boolean => !isActive(i)).map(itemOffer)),
-      group('Itens ativos', 'cada um com a sua tecla', ACTIVE_ITEMS.map(itemOffer))];
-    if (look) return el('div', { class: 'card shop' }, el('div', { class: 'shop-main' },
+      group('Itens ativos', 'cada um com a sua tecla', ACTIVE_ITEMS.map(itemOffer)));
+    if (look) return el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, deadShop ? 'Loja · você caiu: monte a build' : 'Loja · só para ver'), el('small', {}, `${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`),
         el('button', { type: 'button', class: 'icon peek-close', title: `Fechar (${uiLabel('shop')} ou Esc)`, 'aria-label': 'Fechar a loja', onclick: () => togglePeek(false) }, '✕')),
       ...grid),
@@ -938,7 +940,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       act.ready();
     } }, readyText(mine.ready));
     // duas colunas: compras à esquerda; ouro, Pronto, placar e personagem à direita (pedido do Fernando: loja mais larga)
-    return el('div', { class: 'card shop' }, el('div', { class: 'shop-main' },
+    return el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? 'Loja' : `Loja · depois da rodada ${r.round}`), el('small', {}, `${spellCount(mine.spells)} de ${MAX_SPELLS} magias`)),
       r.round === 0 && !firstSeen ? firstCard() : null,
       ...grid,
