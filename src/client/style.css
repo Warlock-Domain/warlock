@@ -889,3 +889,6 @@ body.replaying .peek-shop { display: none; }
 .shop-item.is-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title buy' 'meta buy'; align-items: center; column-gap: 8px; row-gap: 2px; }
 .shop-item.is-item > .shop-title { grid-area: title; } .shop-item.is-item > .shop-meta { grid-area: meta; min-height: 0; } .shop-item.is-item > .buy-row { grid-area: buy; flex-wrap: nowrap; } .shop-item.is-item > small { display: none; }
 .shop-item.is-item .buy-row button { min-width: 0; }
+/* loja larga e magias em 5 colunas: Ataque em 2 fileiras de 5, cada outro grupo em 1 (Fernando, 19/10) */
+.center.wide:has(.shop) { width: min(1860px, calc(100% - 24px)); }
+@media (min-width: 1500px) { .shop { grid-template-columns: 280px minmax(0, 1fr) 290px; gap: 20px; } .shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }

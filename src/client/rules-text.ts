@@ -7,18 +7,19 @@ import { CLASH } from '../shared/sim.ts';
 import { ITEMS, MAX_ITEMS, SCOURGE } from '../shared/items.ts';
 import { keyLabel, keyOf, padButtonName, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
 import { BOUNCER, CAST_POINT, GRAVITY, GRIP, ILLUSION, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, RECHARGE, RUSH, SPELLS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
-import { LOCALE, spellName } from './i18n.ts';
+import { LANG, LOCALE, spellName, t } from './i18n.ts';
 
 // formatação dos números nos textos (também usada pela loja, ficha, dicas e opções)
 export const pct = (x: number) => `${Math.round(x * 100)}%`;
 export const n1 = (x: number) => x.toLocaleString(LOCALE, { maximumFractionDigits: 1 });
-const list = (xs: readonly (string | number)[]) => xs.map(String).join(', ').replace(/, ([^,]*)$/, ' ou $1');
+const join = (xs: readonly (string | number)[], last: string) => xs.map(String).join(', ').replace(/, ([^,]*)$/, ` ${last} $1`);
+const list = (xs: readonly (string | number)[]) => join(xs, t('ou', 'or'));
 const L1 = (id: SpellId) => SPELLS[id].levels[0];
 // magias que saem na hora (sem tempo de conjuração), lidas de CAST_POINT
-const INSTANT = list(SPELL_IDS.filter((s) => CAST_POINT[s] === 0).map((s) => spellName(s))).replace(/ ou ([^,]*)$/, ' e $1');
+const INSTANT = join(SPELL_IDS.filter((s) => CAST_POINT[s] === 0).map((s) => spellName(s)), t('e', 'and'));
 
 // textos do grimório (Como jogar), por página; os números vêm do código
-export const RULES = {
+const RULES_PT = {
   objetivo: [
     `Empurre os outros magos para fora da pedra. Na lava a vida cai ${LAVA_DPS} por segundo; na pedra ela volta ${HP_REGEN} por segundo. Cada mago tem ${HP_MAX} de vida.`,
     `A arena encolhe uma faixa a cada ${SHRINK_EVERY} s até ${n1(ARENA_MIN)} m de raio; a faixa que vai afundar pisca em vermelho antes. Ela é maior quanto mais magos tiver (com 4, ${n1(ARENA_R0)} m de raio).`,
@@ -56,7 +57,7 @@ export const RULES = {
     return [
       'Ligue o controle (Xbox ou PlayStation) e aperte qualquer botão: aparece "Controle conectado" e a barra mostra os botões do controle.',
       'Analógico esquerdo: andar. Analógico direito: mirar (o anel dourado no chão mostra onde). Sem mirar, a magia vai para onde você anda.',
-      `${list((['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6'] as const).map(b)).replace(/ ou ([^,]*)$/, ' e $1')}: as magias pela ordem da barra. ${b('item1')}, ${b('item2')} e ${b('item3')}: itens ativos 1, 2 e 3.`,
+      `${join((['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6'] as const).map(b), 'e')}: as magias pela ordem da barra. ${b('item1')}, ${b('item2')} e ${b('item3')}: itens ativos 1, 2 e 3.`,
       `Start (Options): o Esc do controle (fecha o que estiver aberto; sem nada aberto, abre e fecha as configurações). ${b('board')} segurado: placar. ${b('sheet')}: ficha do mago. ${b('center')}: centraliza a câmera. ${b('shop')}: loja só para ver.`,
       'Os botões da partida se trocam em Configurações > Controle (desenho do controle: clique no botão e aperte o novo).',
       'Menus e loja: D-pad ou analógico esquerdo anda entre os botões, A confirma (o Pronto da loja começa focado), B volta ou fecha, X desfaz ou vende, Y mostra a dica, LB e RB pulam entre os grupos.',
@@ -136,8 +137,128 @@ export const RULES = {
   ],
 };
 
+const RULES_EN: typeof RULES_PT = {
+  objetivo: [
+    `Knock the other wizards off the rock. In the lava, health drops ${LAVA_DPS} per second; on the rock it comes back ${HP_REGEN} per second. Each wizard has ${HP_MAX} health.`,
+    `The arena shrinks one ring every ${SHRINK_EVERY} s down to a radius of ${n1(ARENA_MIN)} m; the ring about to sink flashes red first. It is bigger the more wizards there are (with 4, a radius of ${n1(ARENA_R0)} m).`,
+    `At ${SUDDEN.collapse} s into the round, the minimum size no longer applies and the arena crumbles away (no round goes on forever).`,
+    `The last one alive wins the round and gets 1 point. First to ${DEFAULT_OPTS.goal} rounds wins the match (default; change it in the options). If the last ones fall together, whoever had more health wins.`,
+    `For the first ${INVULN_TIME} seconds of each round nobody takes damage.`,
+    `Spells go off 0.1 s after the key and the wizard stands still while casting; these go off instantly: ${INSTANT}. A walk click made during casting takes effect as soon as the spell goes off.`,
+  ],
+  empurrao: [
+    "Each hit knocks back in the direction it travels. A spell's knockback number is the distance, in meters, that a wizard with no accumulated damage slides.",
+    `The more damage you have taken in the round, the farther you fly: +10% knockback for every 100 damage taken. Lava adds too, at half rate (${pct(LAVA_KB_FACTOR)} of what it takes).`,
+    'While sliding fast you cannot walk: wait until you stop or use a movement spell.',
+    `The kill goes to whoever hit you last in the ${CREDIT_WINDOW} s before the death. Falling into the lava on your own gives no kill to anyone.`,
+    `Lava counts as damage from whoever knocked you in: half of the health the lava takes from someone you hit in the last ${CREDIT_WINDOW} s is added to your damage (scoreboard, top damage and assists).`,
+    `Kills within ${STREAK.window} s of each other become a Double kill, Triple kill and Ultra kill. Kills without dying (carried over from one round to the next): ${STREAK.spree[0]} is a Killing spree, ${STREAK.spree[1]} a Rampage, ${STREAK.spree[2]} Unstoppable and ${STREAK.spree[3]} Godlike.`,
+    `Combo breaker: taking down someone with ${STREAK.breakAt} or more kills in a row gives +${STREAK.breakGold} gold.`,
+  ],
+  get pc() {
+    const k = (a: UiAction) => uiLabel(a);
+    const sheet = keyOf('sheet') === 'Backquote' ? 'Key left of the 1 (` on a US keyboard)' : k('sheet');
+    return [
+      `Right-click the ground: walk (hold to drag the destination). ${k('stop')}: stop. Esc: cancels the chosen spell, closes whatever is open and, with nothing open, opens the settings.`,
+      'Spell key: three ways to cast, chosen in Settings > Casting. Quick (default): casts instantly toward the mouse; the range circle shows when you hover the spell on the bar.',
+      'On release: holding the key shows the range circle; when you release, the spell goes off (Esc cancels). With click: the key picks the spell and shows the range, left click casts (out of range, it goes to the edge); right click or Esc cancel.',
+      'Clicking the spell button and then the ground also casts.',
+      'Mouse wheel: zoom. Space + drag with the left button: move the camera; Space alone recenters.',
+      `${k('board')} (hold): scoreboard; with it open, ← → switches between Round, Match and Room.`,
+      `${k('taunt')}: taunts. ${sheet}: wizard sheet. ${k('shop')}: view-only shop during the round (the game does not pause; ${k('shop')}, Esc or ✕ close it). ${k('rules')}: this grimoire.${keyOf('vote') ? ` ${k('vote')}: vote.` : ''}`,
+      'You can rebind the key of each spell, item and shortcut in Settings > Keys (Esc or the gear at the top), or use Q W E R D F in bar order (saved in the browser).',
+    ];
+  },
+  get controle() {
+    const b = (p: PadAction) => padButtonName(padButtonOf(p), ' (', ')'); // "A (✕)"
+    return [
+      'Plug in the controller (Xbox or PlayStation) and press any button: "Controller connected" appears and the bar shows the controller buttons.',
+      'Left stick: walk. Right stick: aim (the golden ring on the ground shows where). Without aiming, the spell goes where you walk.',
+      `${join((['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6'] as const).map(b), 'and')}: the spells in bar order. ${b('item1')}, ${b('item2')} and ${b('item3')}: active items 1, 2 and 3.`,
+      `Start (Options): the controller's Esc (closes whatever is open; with nothing open, opens and closes the settings). ${b('board')} held: scoreboard. ${b('sheet')}: wizard sheet. ${b('center')}: centers the camera. ${b('shop')}: view-only shop.`,
+      'The in-match buttons are changed in Settings > Controller (controller drawing: click the button and press the new one).',
+      "Menus and shop: D-pad or left stick moves between buttons, A confirms (the shop's Ready starts focused), B goes back or closes, X undoes or sells, Y shows the tip, LB and RB jump between groups.",
+      'Rumbles on a strong hit and on death (can be turned off in Settings > Controller).',
+    ];
+  },
+  celular: [
+    'Tap the ground to walk.',
+    'Tap the spell button and then the ground to cast; the ✕ on the notice cancels.',
+    'At the top: the bar chart opens the scoreboard, the scroll opens the wizard sheet, the speech bubble sends taunts, the ballot box (Vote) changes the mode or kicks someone and the gear opens the settings.',
+    'In this grimoire: swipe sideways to turn the page.',
+  ],
+  rodadas: [
+    `The last one alive wins the round and 1 point. Default goal: ${DEFAULT_OPTS.goal} rounds (${list(OPTION_CHOICES.goal)} in the options).`,
+    `Sudden death: after ${SUDDEN.at} s of the round, the arena shrinks every ${SUDDEN.every} s instead of ${SHRINK_EVERY} (can be turned off).`,
+  ],
+  deathmatch: [
+    `Rounds of ${DM_ROUND_MS / 1000} s and the arena does not shrink. Whoever falls comes back ${DM_RESPAWN} s later, away from the other wizards (tries ${DM_SPAWN_GAP} m or more), with full health and ${INVULN_TIME} s without taking damage; spells and items stay.`,
+    `Each kill is worth 1 point (falling on your own does not count). The match ends at the end of the round in which someone reaches the goal (${list(Object.values(DM_GOALS))} kills; default ${DM_GOALS[DEFAULT_OPTS.goal]}); a tie plays one more round.`,
+  ],
+  times: [
+    'Blue against Red, teams of the same size (with an odd number, one has 1 more). Shuffled every round or fixed for the match (room choice, or vote).',
+    'The round ends when only one team has anyone left; all of them get 1 point and the victory gold.',
+    'Spells on an ally only knock back: no damage and no kill. Homing Missile, Bouncer, Gravity and Grip only hit enemies; Swap with an ally works.',
+  ],
+  opcoes: [
+    `Whoever starts the match picks the mode and options in the lobby: shop time (${list(OPTION_CHOICES.shop)} s), pace, gold earned (×${list(OPTION_CHOICES.economy.map(n1))}), starting gold (${list(OPTION_CHOICES.startGold)}), goal, arena and bot difficulty. Runes, sudden death and chests can be turned off.`,
+    `Vote, at the top: change the mode, change an option, shuffle or fix the teams, add or remove a bot, skip the shop, restart, end or kick someone. Passes with more than half; closes in ${VOTE_MS / 1000} s and takes effect next round.`,
+  ],
+  arenas: [
+    `Obstacles: pillar (${OBSTACLES.pillar.hp} health, explodes for ${OBSTACLES.pillar.blastDmg} damage when broken), boulder (unbreakable), dead tree (${OBSTACLES.tree.hp} health) and candle shrine (${OBSTACLES.shrine.hp} health, explodes for ${OBSTACLES.shrine.blastDmg} damage in ${n1(OBSTACLES.shrine.blastR)} m). They block wizards, projectiles and Lightning.`,
+    `Gold chest (can be turned off): the first at ${CHEST.first} s, then one every ${CHEST.every} s (up to ${CHEST.maxUp} standing). Break it with spells and stand on the pile: 1 gold every ${CHEST.goldEvery} s, up to ${CHEST.pile}.`,
+  ],
+  get loja() {
+    return [
+      `You start with ${START_GOLD} gold (default), the Fireball and the Scourge (key ${keyLabel(keyOf('scourge'))}). The shop opens between rounds and lasts ${DEFAULT_OPTS.shop} s (default); it closes early when everyone clicks Ready.`,
+      `Spells go up to level ${MAX_SPELL_LEVEL} (more damage and knockback, less cooldown). At most ${MAX_SPELLS} spells and ${MAX_ITEMS} items per wizard.`,
+      `Undo: refunds the gold of a purchase made in this shop. Sell: each level returns 100% in the shop where it was bought and loses ${pct(SELL_DECAY)} per round, down to ${pct(SELL_FLOOR)}.`,
+      'The Fireball can also be sold (worth 0 at level 1, but it frees the slot and the key); buying it back costs the normal price.',
+      `During the round, the ${uiLabel('shop')} key (or the shop button at the top) shows the shop view-only: prices and what your gold already buys in the next one.`,
+    ];
+  },
+  ouro: [
+    `Per round: ${ROUND_GOLD}. Victory: ${WIN_GOLD} (the scoreboard leader who wins gets only ${LEADER_WIN_GOLD}). Kill: ${KILL_GOLD}. Most damage in the round: ${TOP_DMG_GOLD}. Assist (most damage on the one who died, other than the killer, with at least ${ASSIST_MIN_DMG}): ${ASSIST_GOLD}.`,
+    `Catch-up: whoever earned less gold than the average gets half the difference at the end of the round (up to ${RECOVERY.max}). Killing the leader is worth +${BOUNTY.perWin} per win of lead over the average (up to ${BOUNTY.max}).`,
+    'All of this is multiplied by the "Gold earned" option.',
+  ],
+  runas: [
+    `One appears at a time at a free spot on the arena: the first at ${RUNE.first} s and the next ${RUNE.every} s after someone picks it up (or the lava swallows it). Touch it to pick it up; the effect lasts ${RUNE.secs} s. Picking up another swaps the rune.`,
+  ],
+  runa: {
+    haste: `Haste: +${pct(RUNE.haste)} walking speed.`,
+    fury: `Fury: +${pct(RUNE.fury)} damage on everything you hit.`,
+    shield: `Rune shield: you take ${pct(RUNE.armor)} less damage (knockback still applies).`,
+    recharge: `Recharge: your cooldowns take ${pct(RUNE.cdr)} less time.`,
+  },
+  choques: [
+    'Fireball and Homing Missile from different wizards cancel each other out when they meet and explode, leaving an effect on the ground:',
+    `Fire with fire: ${CLASH.fire.dmg} explosion in ${n1(CLASH.fire.r)} m and burning ground (${ZONES.burn.dps} damage per second for ${n1(ZONES.burn.secs)} s).`,
+    `Fire with missile (arcane): ${CLASH.arcane.dmg} explosion in ${n1(CLASH.arcane.r)} m and slow ground (move at ${pct(ZONES.slow.mult)} for ${n1(ZONES.slow.secs)} s).`,
+    `Missile with missile (pulse): ${CLASH.pulse.dmg} explosion in ${n1(CLASH.pulse.r)} m and a whirlpool that pulls toward the center for ${ZONES.pull.secs} s.`,
+    `Lightning passing through a Fireball: detonates the ball (2/3 of the lightning damage + 70, falling off to the edge at ${n1(CLASH.detonate.r)} m) and leaves burning ground for 3.5 s.`,
+    'Explosion damage falls off from the center to the edge. The Shield does not stop explosions.',
+  ],
+  dicas: [
+    'Stay away from the edge: with accumulated damage, an average hit already throws you into the lava.',
+    'Keep moving: projectiles go straight, and anyone who stops walking becomes an easy target for the Meteor.',
+    `Keep an escape spell (Teleport, Rush, Swap) for when you fall into the lava: that is ${LAVA_DPS} health per second.`,
+    'Pin them down (Grip, Link, Snowball) and follow up with your strongest spell: the hit that releases the Grip knocks back farther.',
+    'Combine: Magnetize + projectiles, Gravity + Meteor, Pact + Fireball near the edge.',
+    `Scourge: ${n1(SCOURGE.windup)} s of windup and ${n1(SCOURGE.cd)} s of cooldown; use it when someone gets on top of you. The blast also destroys enemy Fireballs and Missiles around you. Teleport cancels the windup.`,
+    'In the shop, hover (or tap) a spell to see the numbers for the current and the next level.',
+  ],
+  creditos: [
+    'Characters and decoration: KayKit, by Kay Lousberg (kaylousberg.com). Textures: ambientCG and Poly Haven. Particles and sounds: Kenney and OpenGameArt. Music: "Determined Pursuit", by Emma_MA. All public domain (CC0). Icons: game-icons.net, by Lorc, Delapouite, Skoll, Sbed and Caro Asercion (CC BY 3.0; list in CREDITS.txt).',
+    'Inspired by Warlock from Warcraft 3 and Warlock Brawl for Dota 2.',
+  ],
+};
+export { RULES_EN, RULES_PT };
+export const RULES = LANG === 'en' ? RULES_EN : RULES_PT;
+
 // grimório: como usar cada magia e contra o quê ela funciona (lido do comportamento em shared/sim.ts)
-export const SPELL_TIPS: Record<SpellId, [use: string, vs: string]> = {
+type SpellTips = Record<SpellId, [use: string, vs: string]>;
+const SPELL_TIPS_PT: SpellTips = {
   fireball: ['Mire um pouco à frente de quem anda. Perto da borda, um acerto já joga na lava.', 'O Escudo devolve; Teleporte e Troca escapam. O Raio detona a bola no ar e duas bolas que se chocam viram chão em chamas.'],
   lightning: ['Não dá tempo de desviar: bom em quem está preso, conjurando ou na borda. Passar pela sua Bola de fogo a detona.', `Obstáculos bloqueiam; o Escudo devolve o raio para você. Alcance curto (${n1(L1('lightning').range)} m no nível 1).`],
   homing: ['Bom contra quem foge e desvia: mire perto do alvo, ele persegue o inimigo mais perto da mira.', 'O Escudo devolve e ele passa a perseguir você; obstáculos o param. Com uma Bola de fogo inimiga, vira chão lento.'],
@@ -165,27 +286,76 @@ export const SPELL_TIPS: Record<SpellId, [use: string, vs: string]> = {
   warpzone: [`Ponha entre você e os projéteis: dentro dela os projéteis inimigos andam a ${pct(L1('warpzone').scale)} (nível 1) e os inimigos a ${pct(WARPZONE.wizMult)} da velocidade.`, 'Não para o Raio nem áreas.'],
 };
 
+const SPELL_TIPS_EN: SpellTips = {
+  fireball: ['Aim a little ahead of anyone who is moving. Near the edge, one hit already sends them into the lava.', 'The Shield reflects it; Teleport and Swap escape it. Lightning detonates the ball in the air and two balls that collide become burning ground.'],
+  lightning: ['No time to dodge: good against anyone gripped, casting or at the edge. Passing through your Fireball detonates it.', `Obstacles block it; the Shield sends the bolt back at you. Short range (${n1(L1('lightning').range)} m at level 1).`],
+  homing: ['Good against anyone who runs and dodges: aim near the target, it chases the enemy closest to your aim.', 'The Shield reflects it and it starts chasing you; obstacles stop it. With an enemy Fireball, it becomes slow ground.'],
+  shield: [`Turn it on when the projectile is about to arrive: it lasts only ${n1(L1('shield').duration)} s. It sends it back aimed at whoever cast it.`, 'Reflects projectiles and Lightning; blocks Swap; Boomerang and Link bounce off. Does not hold areas: Meteor, Scourge, clash explosions and lava.'],
+  teleport: ['Get back from the lava to the rock or get out of a projectile\'s path. It is the only spell that goes off during your Scourge windup (and cancels it).', `Whoever reads the jump shoots at the landing point. Long cooldown at the start (${n1(L1('teleport').cd)} s).`],
+  swap: ['Stand near the lava and swap: the enemy goes to your bad spot. Missed? You go halfway along your aim, which also works as an escape.', 'The Shield blocks Swap: nobody moves.'],
+  grip: [`Pin them and hit with your strongest spell: the hit that releases them knocks back farther (+${pct(L1('grip').scale)} at level 1). Each spell the gripped one casts adds ${GRIP.castPenalty} accumulated damage.`, 'Does not grip allies. The Shield reflects it and the gripper becomes the one gripped.'],
+  meteor: [`Aim where the enemy will be in ${METEOR_DELAY.toLocaleString(LOCALE)} s, or at someone gripped or casting. Damage is greater at the center.`, 'You can walk out of the mark. The Shield does not stop it.'],
+  rush: [`The ${n1(RUSH.dash)} m dash goes off instantly and anyone you touch takes ${RUSH.dashDmg} damage. During Rush, half of each hit becomes speed (up to the level cap).`, 'Only the damage is absorbed: knockback still applies.'],
+  cluster: ['Up close all 4 projectiles hit together: lots of damage and knockback.', `Short range (${n1(L1('cluster').range)} m): misses from afar.`],
+  boomerang: ['Hits on the way out and on the way back: leave the enemy between you and the point. Bounces off obstacles.', 'On the Shield it bounces and comes back without changing owner.'],
+  thrust: ['Full damage comes with speed: start from afar. You stop at the first enemy you touch.', 'On the Shield you bounce off. If you miss, you brake at the end of the path.'],
+  gravity: [`Throw it into the middle of a group: it pulls enemies within ${n1(GRAVITY.wizR)} m and burns anyone within ${n1(L1('gravity').radius)} m. It also pulls projectiles from any owner.`, `It is slow (${n1(L1('gravity').speed)} m/s): you can walk away.`],
+  rockpillar: [`Raise it between you and a projectile: the wall (2 m, across the path) holds wizards and projectiles for ${n1(L1('rockpillar').duration)} s.`, `Spells break the wall (${OBSTACLES.rockpillar.hp} health for the whole thing), and it explodes when broken.`],
+  bouncer: [`Best with enemies grouped: it jumps to the nearest wizard, losing ${pct(1 - BOUNCER.decay)} of the damage per enemy.`, 'Against a lone enemy it is just one hit.'],
+  drain: ['Aim near the group: after the point, it turns to the nearest wizard. On an enemy, damage, slow and the health comes back to you; on an ally, heal and haste.', `It is slow (${n1(L1('drain').speed)} m/s) and the Shield reflects it.`],
+  snowball: ['Anyone it touches is dragged along: roll toward the lava. At the end of the path it explodes.', `Very slow (${n1(L1('snowball').speed)} m/s) and short range: you can step out of the way.`],
+  illusion: ['Cast toward the incoming shot: the copy takes it in your place and both vanish, no damage. Or to the side, to shake off a chaser: the Homing Missile goes after the copy.', 'Does not stop Lightning, Meteor, Scourge or explosions. The copy only walks straight: anyone paying attention will notice.'],
+  magnetize: ['Magnetize the enemy and fire near them: your projectiles curve toward them. On yourself or an ally, it repels enemy projectiles.', 'Only curves projectiles that pass close by (under 2 m).'],
+  recharge: [`If it hits, it comes back to you and resets the cooldown: cast again, with +${RECHARGE.perHit} damage per consecutive hit.`, `A miss resets the streak and the cooldown is long (${n1(L1('recharge').cd)} s at level 1).`],
+  alteration: [`Turn it on when a projectile is about to arrive: for ${n1(L1('alteration').duration)} s you swap places with the first one that enters the bubble.`, 'Useless against Lightning, Meteor, Scourge and explosions, which are not projectiles.'],
+  link: ['Pull the enemy close (and into your Meteor), or latch onto an obstacle and pull yourself to it to escape.', 'The Shield makes the Link bounce and come back.'],
+  windwalk: ['Turn invisible, get close and touch: the first enemy takes damage. Also works to flee unseen.', `Casting any spell cancels it; lasts ${n1(L1('windwalk').duration)} s.`],
+  splitter: ['Bursts at the point (or at the first thing it touches) into 8 projectiles in a fan: covers an area or hits someone behind an obstacle.', 'Each fragment is weak; from afar they spread out.'],
+  warpzone: [`Place it between you and the projectiles: inside it enemy projectiles move at ${pct(L1('warpzone').scale)} (level 1) and enemies at ${pct(WARPZONE.wizMult)} of their speed.`, 'Does not stop Lightning or areas.'],
+};
+export { SPELL_TIPS_EN, SPELL_TIPS_PT };
+export const SPELL_TIPS = LANG === 'en' ? SPELL_TIPS_EN : SPELL_TIPS_PT;
+
 // grimório: o que a demonstração do item mostra (itens sem demonstração não aparecem aqui)
-export const ITEM_DEMO: Partial<Record<keyof typeof ITEMS, string>> = {
+type ItemDemo = Partial<Record<keyof typeof ITEMS, string>>;
+const ITEM_DEMO_PT: ItemDemo = {
   scourge: 'Você explode em volta e empurra os dois magos de treino.',
   redirector: 'A Bola de fogo sai para o lado e o Redirecionador a desvia para o mago de treino.',
   pact: 'Pacto e depois Bola de fogo: dano e empurrão dobrados.',
   aegis: 'O mago de treino tem a Égide: cai na lava com pouca vida e volta para a pedra.',
 };
+const ITEM_DEMO_EN: ItemDemo = {
+  scourge: 'You blast outward and knock back both practice wizards.',
+  redirector: 'The Fireball goes off to the side and the Redirector bends it toward the practice wizard.',
+  pact: 'Pact, then Fireball: double damage and knockback.',
+  aegis: 'The practice wizard has the Aegis: falls into the lava with low health and returns to the rock.',
+};
+export { ITEM_DEMO_EN, ITEM_DEMO_PT };
+export const ITEM_DEMO = LANG === 'en' ? ITEM_DEMO_EN : ITEM_DEMO_PT;
 
 // loja e ajuda: magias agrupadas pelo efeito principal (o que cada uma faz está em RULES_SHORT)
-export const SPELL_GROUPS: [name: string, hint: string, spells: SpellId[]][] = [
+type SpellGroups = [name: string, hint: string, spells: SpellId[]][];
+const SPELL_GROUPS_PT: SpellGroups = [
   ['Ataque', 'dano e empurrão', ['fireball', 'lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball']],
   ['Mobilidade', 'sair do lugar', ['teleport', 'swap', 'rush', 'thrust', 'windwalk']],
   ['Defesa', 'parar o que vem', ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion']],
   ['Controle', 'prender, puxar, atrasar', ['grip', 'gravity', 'link', 'magnetize', 'drain']],
 ];
-// classe de cor do grupo (Fernando, 19/10: uma cor por setor): g-ataque, g-mobilidade, g-defesa, g-controle
-export const groupClass = (name: string) => 'g-' + name.toLowerCase();
+const SPELL_GROUPS_EN: SpellGroups = [
+  ['Attack', 'damage and knockback', ['fireball', 'lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball']],
+  ['Mobility', 'get out of the way', ['teleport', 'swap', 'rush', 'thrust', 'windwalk']],
+  ['Defense', 'stop what is coming', ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion']],
+  ['Control', 'grip, pull, slow', ['grip', 'gravity', 'link', 'magnetize', 'drain']],
+];
+export { SPELL_GROUPS_EN, SPELL_GROUPS_PT };
+export const SPELL_GROUPS = LANG === 'en' ? SPELL_GROUPS_EN : SPELL_GROUPS_PT;
+// classe de cor do grupo (Fernando, 19/10: uma cor por setor): g-ataque, g-mobilidade, g-defesa, g-controle (o rótulo em inglês cai na mesma classe)
+const GROUP_CLASS_EN: Record<string, string> = { attack: 'ataque', mobility: 'mobilidade', defense: 'defesa', control: 'controle' };
+export const groupClass = (name: string) => 'g-' + (GROUP_CLASS_EN[name.toLowerCase()] ?? name.toLowerCase());
 export const spellClass = (s: SpellId) => groupClass(SPELL_GROUPS.find(([, , ids]) => ids.includes(s))?.[0] ?? '');
 
 // para que serve, em uma linha (cartão da loja)
-export const SPELL_USE: Record<SpellId, string> = {
+const SPELL_USE_PT: Record<SpellId, string> = {
   fireball: 'Ataque básico: empurra de longe.',
   lightning: 'Acerta na hora, sem tempo de desviar.',
   homing: 'Persegue quem foge ou desvia.',
@@ -212,8 +382,37 @@ export const SPELL_USE: Record<SpellId, string> = {
   magnetize: 'Atrai para o alvo os projéteis dos outros.',
   drain: 'Deixa lento e devolve vida a você.',
 };
+const SPELL_USE_EN: Record<SpellId, string> = {
+  fireball: 'Basic attack: knocks back from afar.',
+  lightning: 'Hits instantly, no time to dodge.',
+  homing: 'Chases anyone who flees or dodges.',
+  meteor: 'Punishes groups and anyone standing still.',
+  cluster: 'Lots of damage up close.',
+  boomerang: 'Hits on the way out and on the way back.',
+  bouncer: 'Good with enemies grouped.',
+  recharge: 'Repeats soon if you hit.',
+  splitter: 'Fills an area with projectiles.',
+  snowball: 'Drags enemies into the lava.',
+  teleport: 'Escape the lava or an attack.',
+  swap: 'Puts the enemy in your bad spot.',
+  rush: 'Run and shrug off damage for a while.',
+  thrust: 'Dash and hit whoever is in the way.',
+  windwalk: 'Vanish, reposition and surprise.',
+  shield: 'Sends projectiles back at whoever cast them.',
+  alteration: 'Escape by swapping places with a projectile.',
+  illusion: 'A copy of you fools missiles and bots.',
+  warpzone: 'Slows projectiles and enemies to give you time to dodge.',
+  rockpillar: 'Stone wall against wizards and projectiles.',
+  grip: 'Holds the target so others can hit it.',
+  gravity: 'Pulls enemies and diverts projectiles.',
+  link: 'Pulls the enemy, or you to an obstacle.',
+  magnetize: "Draws other casters' projectiles to the target.",
+  drain: 'Slows enemies and gives health back to you.',
+};
+export { SPELL_USE_EN, SPELL_USE_PT };
+export const SPELL_USE = LANG === 'en' ? SPELL_USE_EN : SPELL_USE_PT;
 
-export const RULES_SHORT: Record<SpellId, string> = {
+const RULES_SHORT_PT: Record<SpellId, string> = {
   fireball: 'Projétil reto. Dano e empurrão médios.',
   lightning: 'Instantâneo. Acerta o primeiro na linha.',
   homing: `Persegue por ${n1(L1('homing').duration)} s o inimigo mais perto da mira, virando devagar.`,
@@ -240,3 +439,32 @@ export const RULES_SHORT: Record<SpellId, string> = {
   splitter: 'Estoura no ponto (ou no primeiro que tocar) em 8 projéteis que se abrem em leque.',
   warpzone: 'Esfera que deixa lentos os projéteis inimigos que passam por ela e os inimigos que andam dentro dela.',
 };
+const RULES_SHORT_EN: Record<SpellId, string> = {
+  fireball: 'Straight projectile. Medium damage and knockback.',
+  lightning: 'Instant. Hits the first one in line.',
+  homing: `Chases the enemy closest to your aim for ${n1(L1('homing').duration)} s, turning slowly.`,
+  shield: `For ${n1(L1('shield').duration)} s, sends projectiles and Lightning back at whoever cast them.`,
+  teleport: 'Jumps to the cursor (short range).',
+  swap: 'Flies to its range and swaps places with the first wizard it touches; with no one, takes you halfway along your aim.',
+  grip: 'Pins the target in place until the first hit, which releases them and knocks them back farther.',
+  meteor: `Falls over an area at the marked point, ${METEOR_DELAY.toLocaleString(LOCALE)} s later.`,
+  rush: `Dashes ${n1(RUSH.dash)} m toward your aim and makes you faster; part of the damage you take becomes more speed.`,
+  cluster: 'Four projectiles in a fan, short range.',
+  boomerang: 'Curves to the point and comes back to you; hits on the way out and on the way back.',
+  thrust: 'You dash to the point; the first enemy you touch takes damage based on your speed.',
+  gravity: 'Slow orb that pulls enemy wizards and projectiles and burns anyone close.',
+  rockpillar: `Raises a low stone wall (2 m) across the path for ${n1(L1('rockpillar').duration)} s: blocks wizards and projectiles.`,
+  bouncer: `Hits and jumps to the nearest wizard, losing ${pct(1 - BOUNCER.decay)} of the damage per enemy.`,
+  drain: 'Goes to the point and turns to the nearest wizard: on an enemy, damage, slow and the health comes back to you; on an ally, heal and haste.',
+  snowball: 'Slow ball that passes through and drags anyone it touches, with damage, and explodes at the end of the path.',
+  illusion: `A copy walks straight for ${n1(L1('illusion').duration)} s; the Homing Missile and bots aim at it; you become half transparent for ${n1(ILLUSION.veil)} s. Cooldown ${n1(L1('illusion').cd)} s.`,
+  magnetize: "On an enemy, pulls other casters' projectiles toward them; on an ally or on you (after a bounce), repels them.",
+  recharge: 'If it hits, it comes back and resets its own cooldown; each consecutive hit adds damage.',
+  alteration: `For ${n1(L1('alteration').duration)} s, swaps places with the first enemy projectile that comes close.`,
+  link: 'Latches onto a wizard and pulls them to you (damaging the enemy); on an obstacle, pulls you to it.',
+  windwalk: `Invisible and faster for ${n1(L1('windwalk').duration)} s; the first enemy you touch takes damage. Casting a spell cancels it.`,
+  splitter: 'Bursts at the point (or at the first thing it touches) into 8 projectiles that fan out.',
+  warpzone: 'Sphere that slows enemy projectiles passing through it and enemies walking inside it.',
+};
+export { RULES_SHORT_EN, RULES_SHORT_PT };
+export const RULES_SHORT = LANG === 'en' ? RULES_SHORT_EN : RULES_SHORT_PT;

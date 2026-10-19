@@ -6,6 +6,7 @@ import { ITEMS, noItems, type ItemId } from '../shared/items.ts';
 import { newWorld, snowR, spellOf, stepWorld, type Cmd, type SimEvent, type World } from '../shared/sim.ts';
 import { isSpell, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, scale, v, type Vec } from '../shared/vec.ts';
+import { t } from './i18n.ts';
 
 // alvo do passo: ponto fixo ou a posição atual do mago com esse índice
 type At = Vec | number;
@@ -180,7 +181,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       ctx.fillStyle = z.hp / z.hpMax > 0.35 ? '#6fdc8c' : '#ff6a4d';
       ctx.fillRect(z.pos.x - 0.45, z.pos.y - 0.7, 0.9 * Math.max(0, z.hp / z.hpMax), 0.12);
       ctx.globalAlpha = 1;
-      text(i === A ? 'você' : 'treino', v(z.pos.x, z.pos.y - 0.85), i === A ? '#ffd666' : '#c4a693', 0.32);
+      text(i === A ? t('você', 'you') : t('treino', 'practice'), v(z.pos.x, z.pos.y - 0.85), i === A ? '#ffd666' : '#c4a693', 0.32);
     });
     for (const { e, until } of fx) {
       const life = until - w.t;

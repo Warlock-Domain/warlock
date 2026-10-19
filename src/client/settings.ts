@@ -10,7 +10,7 @@ import {
 import { RULES } from './rules-text.ts';
 import { store } from './store.ts';
 import { choice, showRules, toast } from './ui.ts';
-import { LANG, setLang, spellName, type Lang } from './i18n.ts';
+import { LANG, setLang, spellName, t, type Lang } from './i18n.ts';
 
 declare const __BUILD__: string;
 
@@ -41,16 +41,16 @@ let waiting: AnyAction | null = null;
 let padWaiting: PadAction | null = null;
 
 function bindKey(a: AnyAction, code: string) {
-  if (RESERVED.has(code)) return toast('Esc, Enter, Espaço e as setas ← → são fixas.');
+  if (RESERVED.has(code)) return toast(t('Esc, Enter, Espaço e as setas ← → são fixas.', 'Esc, Enter, Space and the ← → arrows are fixed.'));
   const other = whoUses(code);
-  if (!setKey(a, code)) return toast('No modo Q W E R D F essas seis letras são das magias da barra.');
-  if (other && other !== a) toast(`Tecla já usada por ${nameOf(other)}: as duas trocaram (${nameOf(other)} ficou com ${keyLabel(keyOf(other))}).`);
+  if (!setKey(a, code)) return toast(t('No modo Q W E R D F essas seis letras são das magias da barra.', 'In Q W E R D F mode these six letters belong to the spells on the bar.'));
+  if (other && other !== a) toast(t(`Tecla já usada por ${nameOf(other)}: as duas trocaram (${nameOf(other)} ficou com ${keyLabel(keyOf(other))}).`, `Key already used by ${nameOf(other)}: the two swapped (${nameOf(other)} now has ${keyLabel(keyOf(other))}).`));
 }
 function bindPad(a: PadAction, btn: number) {
-  if (btn === PAD_START) return toast('Start é o Esc do controle e não muda.');
+  if (btn === PAD_START) return toast(t('Start é o Esc do controle e não muda.', 'Start is the controller\'s Esc and cannot be changed.'));
   const other = padActionAt(btn);
   setPadButton(a, btn);
-  if (other && other !== a) toast(`Botão já usado por ${PAD_ACTION_NAMES[other]}: os dois trocaram (${PAD_ACTION_NAMES[other]} ficou com ${padButtonName(padButtonOf(other))}).`);
+  if (other && other !== a) toast(t(`Botão já usado por ${PAD_ACTION_NAMES[other]}: os dois trocaram (${PAD_ACTION_NAMES[other]} ficou com ${padButtonName(padButtonOf(other))}).`, `Button already used by ${PAD_ACTION_NAMES[other]}: the two swapped (${PAD_ACTION_NAMES[other]} now has ${padButtonName(padButtonOf(other))}).`));
 }
 function waitPad(a: PadAction | null) {
   padWaiting = a;
@@ -63,40 +63,40 @@ function waitPad(a: PadAction | null) {
 }
 
 const keyRow = (a: AnyAction, label: (Node | string)[]) => el('div', { class: 'keys-row' }, el('span', {}, ...label),
-  el('button', { type: 'button', class: 'keycap' + (waiting === a ? ' wait' : ''), 'aria-label': `Tecla de ${nameOf(a)}: ${keyLabel(keyOf(a))}`, onclick: () => {
+  el('button', { type: 'button', class: 'keycap' + (waiting === a ? ' wait' : ''), 'aria-label': t(`Tecla de ${nameOf(a)}: ${keyLabel(keyOf(a))}`, `Key for ${nameOf(a)}: ${keyLabel(keyOf(a))}`), onclick: () => {
     waiting = waiting === a ? null : a;
     draw();
-  } }, waiting === a ? 'aperte…' : keyLabel(keyOf(a))));
+  } }, waiting === a ? t('aperte…', 'press…') : keyLabel(keyOf(a))));
 
 function keysSection(): Node[] {
   return [
-    el('p', { class: 'muted' }, 'Clique na tecla de uma ação e aperte a nova. Se outra ação já usava essa tecla, as duas trocam. Fica salvo neste navegador.'),
-    el('h3', {}, 'Magias e itens'),
+    el('p', { class: 'muted' }, t('Clique na tecla de uma ação e aperte a nova. Se outra ação já usava essa tecla, as duas trocam. Fica salvo neste navegador.', 'Click an action\'s key and press the new one. If another action already used that key, the two swap. Saved in this browser.')),
+    el('h3', {}, t('Magias e itens', 'Spells and items')),
     el('div', { class: 'keys-list' }, ...ACTIONS.map((a) => keyRow(a, [icon(actionIcon(a)), ' ', nameOf(a)]))),
     el('h3', {}, 'Interface'),
     el('div', { class: 'keys-list' }, ...UI_ACTIONS.map((a) => keyRow(a, [UI_NAMES[a]]))),
-    el('small', { class: 'muted' }, 'Fixas: Esc cancela a magia, fecha o que estiver aberto e abre este menu; Espaço segurado arrasta a câmera e sozinho volta ao centro; ← → trocam o período do placar e quem você assiste.'),
-    el('button', { type: 'button', onclick: () => resetKeys() }, 'Voltar ao padrão'),
+    el('small', { class: 'muted' }, t('Fixas: Esc cancela a magia, fecha o que estiver aberto e abre este menu; Espaço segurado arrasta a câmera e sozinho volta ao centro; ← → trocam o período do placar e quem você assiste.', 'Fixed: Esc cancels the spell, closes whatever is open and opens this menu; holding Space drags the camera and tapping it recenters; ← → switch the scoreboard period and who you are watching.')),
+    el('button', { type: 'button', onclick: () => resetKeys() }, t('Voltar ao padrão', 'Reset to default')),
   ];
 }
 
 // jeito de lançar pela tecla (os três do Dota) e o modo Q W E R D F
 const CAST_TEXT: Record<CastMode, [string, string]> = {
-  quick: ['Rápido', 'A tecla lança na hora na direção do mouse. Passe o mouse na magia da barra para ver o alcance.'],
-  release: ['Ao soltar', 'Segure a tecla para ver o círculo de alcance; ao soltar, a magia sai. Esc cancela.'],
-  click: ['Com clique', 'A tecla escolhe a magia e mostra o alcance; o clique esquerdo lança (fora do alcance, vai até a borda). Botão direito ou Esc cancelam.'],
+  quick: [t('Rápido', 'Quick'), t('A tecla lança na hora na direção do mouse. Passe o mouse na magia da barra para ver o alcance.', 'The key casts instantly toward the mouse. Hover a spell on the bar to see its range.')],
+  release: [t('Ao soltar', 'On release'), t('Segure a tecla para ver o círculo de alcance; ao soltar, a magia sai. Esc cancela.', 'Hold the key to see the range circle; on release, the spell is cast. Esc cancels.')],
+  click: [t('Com clique', 'With click'), t('A tecla escolhe a magia e mostra o alcance; o clique esquerdo lança (fora do alcance, vai até a borda). Botão direito ou Esc cancelam.', 'The key selects the spell and shows its range; left click casts (out of range, it goes to the edge). Right click or Esc cancels.')],
 };
 const check = (id: string, on: boolean, text: string, change: (on: boolean) => void) => el('label', { class: 'slot-row', for: id },
   el('input', { type: 'checkbox', id, checked: on, onchange: (e: Event) => change((e.target as HTMLInputElement).checked) }), el('span', {}, text));
 
 function castSection(): Node[] {
   return [
-    el('h3', {}, 'Lançar pela tecla'),
-    choice('Jeito de lançar', CAST_MODES.map((k) => [k, CAST_TEXT[k][0]] as [CastMode, string]), getCastMode(), (k) => (setCastMode(k), draw())),
+    el('h3', {}, t('Lançar pela tecla', 'Casting with the key')),
+    choice(t('Jeito de lançar', 'Casting mode'), CAST_MODES.map((k) => [k, CAST_TEXT[k][0]] as [CastMode, string]), getCastMode(), (k) => (setCastMode(k), draw())),
     el('p', { class: 'muted' }, CAST_TEXT[getCastMode()][1]),
-    el('h3', {}, 'Teclas das magias'),
-    check('slot-keys', isSlotMode(), 'Q W E R D F pela ordem da barra (como no Dota)', (on) => (setSlotMode(on), draw())),
-    el('p', { class: 'muted' }, 'Ligado, as seis primeiras magias da barra usam Q W E R D F, na ordem; os itens continuam nas teclas deles.'),
+    el('h3', {}, t('Teclas das magias', 'Spell keys')),
+    check('slot-keys', isSlotMode(), t('Q W E R D F pela ordem da barra (como no Dota)', 'Q W E R D F in bar order (like in Dota)'), (on) => (setSlotMode(on), draw())),
+    el('p', { class: 'muted' }, t('Ligado, as seis primeiras magias da barra usam Q W E R D F, na ordem; os itens continuam nas teclas deles.', 'When on, the first six spells on the bar use Q W E R D F, in order; items keep their own keys.')),
   ];
 }
 
@@ -116,7 +116,7 @@ function soundSection(): Node[] | null {
     return el('label', { class: 'vol-row', for: 'vol-' + kind }, el('span', {}, label), input, out);
   };
   const muted = () => volumes().sfx + volumes().music === 0;
-  const muteText = () => (muted() ? 'Ligar o som' : 'Silenciar tudo');
+  const muteText = () => (muted() ? t('Ligar o som', 'Turn sound on') : t('Silenciar tudo', 'Mute all'));
   const muteBtn = el('button', { type: 'button', onclick: () => {
     const next = muted() ? beforeMute : { sfx: 0, music: 0 };
     if (!muted()) beforeMute = { ...volumes() };
@@ -124,16 +124,16 @@ function soundSection(): Node[] | null {
     setVolume('music', next.music);
     draw();
   } }, muteText());
-  return [slider('sfx', 'Efeitos'), slider('music', 'Música'), muteBtn];
+  return [slider('sfx', t('Efeitos', 'Effects')), slider('music', t('Música', 'Music')), muteBtn];
 }
 
 function videoSection(): Node[] | null {
   const { fxLite, setFxLite } = ctx;
   if (!fxLite || !setFxLite) return null;
   return [
-    el('h3', {}, 'Efeitos visuais'),
-    choice('Efeitos visuais', [[false, 'Completo'], [true, 'Leve']], fxLite(), (lite) => (setFxLite(lite), draw())),
-    el('p', { class: 'muted' }, 'Leve desliga o tremor da tela, a pausa no golpe forte e as partículas extras (bom para PC fraco e para quem enjoa). Começa no Leve quando o sistema pede menos movimento.'),
+    el('h3', {}, t('Efeitos visuais', 'Visual effects')),
+    choice(t('Efeitos visuais', 'Visual effects'), [[false, t('Completo', 'Full')], [true, t('Leve', 'Light')]], fxLite(), (lite) => (setFxLite(lite), draw())),
+    el('p', { class: 'muted' }, t('Leve desliga o tremor da tela, a pausa no golpe forte e as partículas extras (bom para PC fraco e para quem enjoa). Começa no Leve quando o sistema pede menos movimento.', 'Light turns off the screen shake, the hit pause on heavy blows and the extra particles (good for weak PCs and for anyone who gets motion sick). It starts on Light when the system asks for less motion.')),
   ];
 }
 
@@ -171,19 +171,19 @@ function padDrawing(): Element {
       : svg('circle', { cx: s.x, cy: s.y, r: 13 });
     const sel = (padWaiting && padButtonOf(padWaiting) === s.b) || false;
     const g = svg('g', { class: 'pad-btn' + (sel ? ' wait' : '') + (p ? '' : ' free'), 'data-btn': s.b, tabindex: 0, role: 'button',
-      'aria-label': `${padButtonName(s.b)}: ${p ? padActionName(p) : s.b === PAD_START ? 'Esc do controle (configurações)' : 'livre'}` },
+      'aria-label': `${padButtonName(s.b)}: ${p ? padActionName(p) : s.b === PAD_START ? t('Esc do controle (configurações)', 'controller Esc (settings)') : t('livre', 'free')}` },
       svg('polyline', { class: 'pad-callout pad-line', points: `${s.x},${s.y} ${s.side === 'l' ? lx + 22 : lx - 22},${ly} ${lx},${ly}` }),
       shape,
       svg('text', { class: 'pad-glyph', x: s.x, y: s.y + 4 }, PAD_NAMES[s.b].length > 2 ? '' : PAD_NAMES[s.b]),
       svg('text', { class: 'pad-callout pad-label', x: s.side === 'l' ? lx - 4 : lx + 4, y: ly + 5, 'text-anchor': s.side === 'l' ? 'end' : 'start' },
-        svg('tspan', { class: 'pad-key' }, padButtonName(s.b) + ' '), sel ? 'aperte…' : p ? padActionName(p) : s.b === PAD_START ? 'Esc / menu' : 'livre'));
+        svg('tspan', { class: 'pad-key' }, padButtonName(s.b) + ' '), sel ? t('aperte…', 'press…') : p ? padActionName(p) : s.b === PAD_START ? 'Esc / menu' : t('livre', 'free')));
     g.addEventListener('click', () => clickSpot(s.b));
     g.addEventListener('keydown', (e) => (e as KeyboardEvent).key === 'Enter' && clickSpot(s.b));
     return g;
   });
   // no celular os nomes ficam na lista abaixo: o desenho corta as margens dos nomes e cresce
   const narrow = matchMedia('(max-width: 600px)').matches;
-  return svg('svg', { class: 'pad-svg', viewBox: narrow ? '140 50 480 310' : '-80 0 920 380', role: 'group', 'aria-label': 'Botões do controle' }, body, ...spots);
+  return svg('svg', { class: 'pad-svg', viewBox: narrow ? '140 50 480 310' : '-80 0 920 380', role: 'group', 'aria-label': t('Botões do controle', 'Controller buttons') }, body, ...spots);
 }
 function clickSpot(b: number) {
   // esperando um botão: clicar em outro no desenho também vale (dá para trocar sem o controle na mão)
@@ -195,20 +195,20 @@ function clickSpot(b: number) {
   }
   const p = padActionAt(b);
   if (p) return waitPad(p);
-  toast(b === PAD_START ? 'Start é o Esc do controle e não muda.' : 'Esse botão está livre: escolha uma ação na lista e aperte este botão.');
+  toast(b === PAD_START ? t('Start é o Esc do controle e não muda.', 'Start is the controller\'s Esc and cannot be changed.') : t('Esse botão está livre: escolha uma ação na lista e aperte este botão.', 'That button is free: pick an action in the list and press this button.'));
 }
 
 function padSection(): Node[] {
   return [
-    check('pad-rumble', isRumbleOn(), 'Vibração do controle (golpe forte e morte)', (on) => setRumble(on)),
-    el('p', { class: 'muted' }, padWaiting ? `Aperte no controle o botão novo de ${PAD_ACTION_NAMES[padWaiting]} (ou clique nele no desenho). Esc cancela.`
-      : 'Clique num botão do desenho ou da lista e aperte o botão novo no controle. Se outro já usava, os dois trocam. Start é o Esc do controle.'),
+    check('pad-rumble', isRumbleOn(), t('Vibração do controle (golpe forte e morte)', 'Controller vibration (heavy hit and death)'), (on) => setRumble(on)),
+    el('p', { class: 'muted' }, padWaiting ? t(`Aperte no controle o botão novo de ${PAD_ACTION_NAMES[padWaiting]} (ou clique nele no desenho). Esc cancela.`, `Press the new button for ${PAD_ACTION_NAMES[padWaiting]} on the controller (or click it in the drawing). Esc cancels.`)
+      : t('Clique num botão do desenho ou da lista e aperte o botão novo no controle. Se outro já usava, os dois trocam. Start é o Esc do controle.', 'Click a button in the drawing or the list and press the new button on the controller. If another already used it, the two swap. Start is the controller\'s Esc.')),
     padDrawing(),
     el('div', { class: 'keys-list' }, ...PAD_ACTIONS.map((p) => el('div', { class: 'keys-row' }, el('span', {}, padActionName(p)),
       el('button', { type: 'button', class: 'keycap' + (padWaiting === p ? ' wait' : ''), onclick: () => waitPad(padWaiting === p ? null : p) },
-        padWaiting === p ? 'aperte…' : padButtonName(padButtonOf(p)))))),
-    el('small', { class: 'muted' }, 'Nos menus o controle não muda: D-pad anda, A confirma, B volta, X desfaz ou vende, Y mostra a dica, LB e RB pulam grupos.'),
-    el('button', { type: 'button', onclick: () => resetPad() }, 'Voltar ao padrão'),
+        padWaiting === p ? t('aperte…', 'press…') : padButtonName(padButtonOf(p)))))),
+    el('small', { class: 'muted' }, t('Nos menus o controle não muda: D-pad anda, A confirma, B volta, X desfaz ou vende, Y mostra a dica, LB e RB pulam grupos.', 'In menus the controller layout does not change: D-pad moves, A confirms, B goes back, X undoes or sells, Y shows the tip, LB and RB skip groups.')),
+    el('button', { type: 'button', onclick: () => resetPad() }, t('Voltar ao padrão', 'Reset to default')),
   ];
 }
 
@@ -218,36 +218,36 @@ export const langChoice = () => el('div', { class: 'keys-row' }, el('span', {}, 
 
 function playerSection(): Node[] {
   return [
-    el('div', { class: 'keys-row' }, el('span', {}, 'Apelido: ', el('b', {}, ctx.name())), el('button', { type: 'button', onclick: () => {
+    el('div', { class: 'keys-row' }, el('span', {}, t('Apelido: ', 'Nickname: '), el('b', {}, ctx.name())), el('button', { type: 'button', onclick: () => {
       close();
       ctx.rename();
-    } }, 'Trocar')),
-    el('p', { class: 'muted' }, 'O personagem você escolhe na sala de espera, antes da partida. Os dois ficam salvos neste navegador.'),
+    } }, t('Trocar', 'Change'))),
+    el('p', { class: 'muted' }, t('O personagem você escolhe na sala de espera, antes da partida. Os dois ficam salvos neste navegador.', 'You pick your character in the lobby, before the match. Both are saved in this browser.')),
     langChoice(),
   ];
 }
 
 function aboutSection(): Node[] {
   return [
-    el('p', {}, el('b', {}, 'Warlock'), ` · versão ${typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'}`),
+    el('p', {}, el('b', {}, 'Warlock'), ` · ${t('versão', 'version')} ${typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'}`),
     el('button', { type: 'button', onclick: () => {
       close();
       showRules();
-    } }, icon(UI_ICON.help), ' Abrir o grimório (como jogar)'),
-    el('h3', {}, 'Créditos'),
+    } }, icon(UI_ICON.help), ' ', t('Abrir o grimório (como jogar)', 'Open the grimoire (how to play)')),
+    el('h3', {}, t('Créditos', 'Credits')),
     ...RULES.creditos.map((t) => el('p', { class: 'muted' }, t)),
   ];
 }
 
 type Section = { id: string; title: string; icon: string; render: () => Node[] | null }; // null: a aba não aparece nesta tela
 const SECTIONS: Section[] = [
-  { id: 'teclas', title: 'Teclas', icon: UI_ICON.keys, render: keysSection },
-  { id: 'lancamento', title: 'Lançamento', icon: UI_ICON.aim, render: castSection },
-  { id: 'som', title: 'Som', icon: UI_ICON.sound, render: soundSection },
-  { id: 'video', title: 'Vídeo e efeitos', icon: UI_ICON.video, render: videoSection },
-  { id: 'controle', title: 'Controle', icon: UI_ICON.pad, render: padSection },
-  { id: 'jogador', title: 'Jogador', icon: UI_ICON.person, render: playerSection },
-  { id: 'sobre', title: 'Sobre', icon: UI_ICON.info, render: aboutSection },
+  { id: 'teclas', title: t('Teclas', 'Keys'), icon: UI_ICON.keys, render: keysSection },
+  { id: 'lancamento', title: t('Lançamento', 'Casting'), icon: UI_ICON.aim, render: castSection },
+  { id: 'som', title: t('Som', 'Sound'), icon: UI_ICON.sound, render: soundSection },
+  { id: 'video', title: t('Vídeo e efeitos', 'Video & effects'), icon: UI_ICON.video, render: videoSection },
+  { id: 'controle', title: t('Controle', 'Controller'), icon: UI_ICON.pad, render: padSection },
+  { id: 'jogador', title: t('Jogador', 'Player'), icon: UI_ICON.person, render: playerSection },
+  { id: 'sobre', title: t('Sobre', 'About'), icon: UI_ICON.info, render: aboutSection },
 ];
 
 const TAB_STORE = 'warlock:settingsTab';
@@ -264,10 +264,10 @@ function draw() {
   const focusId = (document.activeElement as HTMLElement | null)?.id;
   overlay.firstElementChild!.replaceWith(el('div', { class: 'settings', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'settings-title', 'data-view': page ? 'page' : 'list' },
     el('header', { class: 'settings-head' },
-      el('button', { type: 'button', class: 'icon settings-back', title: 'Voltar à lista', 'aria-label': 'Voltar à lista', onclick: () => ((page = false), draw()) }, '‹'),
-      el('h2', { class: 'title', id: 'settings-title' }, 'Configurações'),
-      el('button', { type: 'button', class: 'icon', title: 'Fechar (Esc)', 'aria-label': 'Fechar as configurações', onclick: close }, '✕')),
-    el('nav', { class: 'settings-tabs', role: 'tablist', 'aria-label': 'Seções' }, ...shown.map(([s]) => el('button', {
+      el('button', { type: 'button', class: 'icon settings-back', title: t('Voltar à lista', 'Back to list'), 'aria-label': t('Voltar à lista', 'Back to list'), onclick: () => ((page = false), draw()) }, '‹'),
+      el('h2', { class: 'title', id: 'settings-title' }, t('Configurações', 'Settings')),
+      el('button', { type: 'button', class: 'icon', title: t('Fechar (Esc)', 'Close (Esc)'), 'aria-label': t('Fechar as configurações', 'Close settings'), onclick: close }, '✕')),
+    el('nav', { class: 'settings-tabs', role: 'tablist', 'aria-label': t('Seções', 'Sections') }, ...shown.map(([s]) => el('button', {
       type: 'button', role: 'tab', id: 'set-tab-' + s.id, 'aria-selected': String(s.id === tab), class: s.id === tab ? 'on' : '', onclick: () => go(s.id),
     }, icon(s.icon), el('span', {}, s.title)))),
     el('section', { class: 'settings-body', role: 'tabpanel', 'aria-labelledby': 'set-tab-' + tab }, el('h3', { class: 'settings-page-title' }, cur.title), ...body!)));

@@ -4,6 +4,7 @@ import { DEFAULT_OPTS, type MatchOpts } from '../shared/match.ts';
 import type { BotSetup } from '../shared/protocol.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import type { SpellId } from '../shared/spells.ts';
+import { t } from './i18n.ts';
 import { store } from './store.ts';
 
 // bots: quantos; setup: um por bot (mesmo vazio, para a rodada sair marcada na telemetria e não somar no perfil);
@@ -19,22 +20,24 @@ const bots = (n: number, b: BotSetup = {}): BotSetup[] => Array.from({ length: n
 
 export const CHALLENGES: Challenge[] = [
   // Égide nos alvos (decisão do Fernando, 19/10): o alvo que cai na lava volta uma vez, e a meta não some antes dos 5 acertos
-  { id: 'alvo', name: 'Alvo', secs: 60, goal: 5, bots: 3, opts: { ...BASE, difficulty: 'normal' }, setup: bots(3, { spells: { fireball: 0 }, items: { aegis: 1 }, skill: PASSIVE }),
+  { id: 'alvo', name: t('Alvo', 'Target'), secs: 60, goal: 5, bots: 3, opts: { ...BASE, difficulty: 'normal' }, setup: bots(3, { spells: { fireball: 0 }, items: { aegis: 1 }, skill: PASSIVE }),
     counts: (e, me) => e.k === 'land' && e.id === me && e.src === 'fireball' },
-  { id: 'sobreviva', name: 'Sobreviva', secs: 30, goal: 30, bots: 3, opts: { ...BASE, difficulty: 'hard' }, setup: bots(3), survive: true },
-  { id: 'lava', name: 'Lava', secs: 60, goal: 1, bots: 2, opts: { ...BASE, difficulty: 'normal' }, setup: bots(2, { spells: { fireball: 0 } }), buy: ['thrust'],
+  { id: 'sobreviva', name: t('Sobreviva', 'Survive'), secs: 30, goal: 30, bots: 3, opts: { ...BASE, difficulty: 'hard' }, setup: bots(3), survive: true },
+  { id: 'lava', name: t('Lava', 'Lava'), secs: 60, goal: 1, bots: 2, opts: { ...BASE, difficulty: 'normal' }, setup: bots(2, { spells: { fireball: 0 } }), buy: ['thrust'],
     counts: (e, me) => e.k === 'death' && e.by === me && e.id !== me && e.src === 'thrust' },
   // Escudo: 60 → 90 s (decisão do Fernando, 19/10)
-  { id: 'escudo', name: 'Escudo', secs: 90, goal: 3, bots: 2, opts: { ...BASE, difficulty: 'hard' }, setup: bots(2, { spells: { fireball: 1 } }), buy: ['shield'],
+  { id: 'escudo', name: t('Escudo', 'Shield'), secs: 90, goal: 3, bots: 2, opts: { ...BASE, difficulty: 'hard' }, setup: bots(2, { spells: { fireball: 1 } }), buy: ['shield'],
     counts: (e, me) => e.k === 'reflect' && e.id === me },
-  { id: 'duelo', name: 'Duelo', secs: 60, goal: 1, bots: 1, opts: { ...BASE, difficulty: 'hard' }, setup: bots(1),
+  { id: 'duelo', name: t('Duelo', 'Duel'), secs: 60, goal: 1, bots: 1, opts: { ...BASE, difficulty: 'hard' }, setup: bots(1),
     counts: (e, me) => e.k === 'death' && e.id !== me },
 ];
 
 // o que fazer, para a lista da sala
 export const goalText = (c: Challenge) =>
-  ({ alvo: `Acerte ${c.goal} Bolas de fogo em bots que só andam`, sobreviva: `Sobreviva ${c.secs} s contra ${c.bots} bots Difícil`, lava: 'Derrube 1 bot na lava com a Estocada',
-    escudo: `Rebata ${c.goal} tiros com o Escudo`, duelo: 'Vença 1 bot Difícil' })[c.id] + (c.survive ? '' : ` em ${c.secs} s`);
+  ({ alvo: t(`Acerte ${c.goal} Bolas de fogo em bots que só andam`, `Land ${c.goal} Fireballs on bots that only walk`),
+    sobreviva: t(`Sobreviva ${c.secs} s contra ${c.bots} bots Difícil`, `Survive ${c.secs} s against ${c.bots} Hard bots`),
+    lava: t('Derrube 1 bot na lava com a Estocada', 'Knock 1 bot into the lava with Thrust'),
+    escudo: t(`Rebata ${c.goal} tiros com o Escudo`, `Reflect ${c.goal} shots with Shield`), duelo: t('Vença 1 bot Difícil', 'Beat 1 Hard bot') })[c.id] + (c.survive ? '' : t(` em ${c.secs} s`, ` in ${c.secs} s`));
 
 // um passo: a minha queda perde antes de contar o resto do lote; depois a meta e o tempo
 export function stepRun(r: Run, dt: number, events: SimEvent[], me: string, alive: boolean): Run {
@@ -58,8 +61,8 @@ export const scoreOf = (r: Run): number | null => (r.c.survive ? Math.round(Math
 // texto no lugar da dica do treino: "Alvo 3/5 · 21 s" (faltam 21 s)
 export function runText(r: Run): string {
   const left = Math.max(0, Math.ceil(r.c.secs - r.t));
-  if (r.state === 'won') return `${r.c.name}: desafio cumprido em ${Math.round(r.t)} s`;
-  if (r.state === 'lost') return r.c.survive ? `${r.c.name}: ${Math.floor(r.t)} s vivo` : `${r.c.name}: não deu (${r.n}/${r.c.goal})`;
+  if (r.state === 'won') return t(`${r.c.name}: desafio cumprido em ${Math.round(r.t)} s`, `${r.c.name}: challenge completed in ${Math.round(r.t)} s`);
+  if (r.state === 'lost') return r.c.survive ? t(`${r.c.name}: ${Math.floor(r.t)} s vivo`, `${r.c.name}: ${Math.floor(r.t)} s alive`) : t(`${r.c.name}: não deu (${r.n}/${r.c.goal})`, `${r.c.name}: failed (${r.n}/${r.c.goal})`);
   return r.c.survive ? `${r.c.name} · ${left} s` : `${r.c.name} ${r.n}/${r.c.goal} · ${left} s`;
 }
 

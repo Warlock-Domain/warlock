@@ -1,7 +1,7 @@
 // Grimório (pedido do Fernando, 18/10): o "Como jogar" virou um livro aberto com sumário, uma página por magia e por item
 // e demonstração animada rodando a simulação de verdade (demo.ts). Duas páginas no PC, uma no celular; ← → ou deslizar viram.
 // Carregado sob demanda pelo botão "?" (import dinâmico em ui.ts), para não pesar o começo do jogo.
-import { ARENA_IDS, ARENA_NAMES, SHAPES, type ArenaId } from '../shared/arena.ts';
+import { ARENA_IDS, SHAPES, type ArenaId } from '../shared/arena.ts';
 import { ARENA_R0, HP_MAX, RUNE_KINDS } from '../shared/constants.ts';
 import { ITEMS, ITEM_IDS, isActive, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
@@ -13,16 +13,23 @@ import { ITEM_DEMO, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, gro
 import { COLORS } from './scene.ts';
 import { store } from './store.ts';
 import { itemLevels, spellLevels } from './tips.ts';
-import { itemName, spellName } from './i18n.ts';
+import { arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
 type Page = { chapter: string; title: string; body: () => (Node | string | null)[]; demo?: DemoId };
 
 const STORE = 'warlock:grimoire';
 const html = (s: string) => Object.assign(document.createElement('div'), { className: 'g-html', innerHTML: s });
 const ul = (xs: string[]) => el('ul', {}, ...xs.map((x) => el('li', {}, x)));
-const LEGEND = `Dano: vida que tira (cada mago tem ${HP_MAX}). Empurrão: metros que um mago sem dano acumulado desliza (+10% a cada 100 de dano já levado). Recarga: segundos até lançar de novo. Alcance e raio em metros (a arena de 4 magos tem ${n1(ARENA_R0)} m de raio).`;
+const LEGEND = t(
+  `Dano: vida que tira (cada mago tem ${HP_MAX}). Empurrão: metros que um mago sem dano acumulado desliza (+10% a cada 100 de dano já levado). Recarga: segundos até lançar de novo. Alcance e raio em metros (a arena de 4 magos tem ${n1(ARENA_R0)} m de raio).`,
+  `Damage: health it takes away (each wizard has ${HP_MAX}). Knockback: meters a wizard with no accumulated damage slides (+10% per 100 damage already taken). Cooldown: seconds until you can cast again. Range and radius in meters (the 4-wizard arena has a ${n1(ARENA_R0)} m radius).`,
+);
+// capítulos: o texto mostrado também serve de chave nas comparações abaixo
+const CH = {
+  toc: t('Sumário', 'Contents'), spells: t('Magias', 'Spells'), items: t('Itens', 'Items'),
+};
 // magia fora da barra não tem tecla no modo Q W E R D F nem no controle (vale a posição na barra)
-const keyText = (a: SpellId | ItemId) => labelOf(a) !== '—' ? `tecla ${labelOf(a)}` : isSlotMode() || isPadMode() ? 'tecla pela posição na barra' : 'sem tecla (escolha em Configurações > Teclas)';
+const keyText = (a: SpellId | ItemId) => labelOf(a) !== '—' ? t(`tecla ${labelOf(a)}`, `key ${labelOf(a)}`) : isSlotMode() || isPadMode() ? t('tecla pela posição na barra', 'key by position in the bar') : t('sem tecla (escolha em Configurações > Teclas)', 'no key (pick one in Settings > Keys)');
 
 // contorno da arena num canvas pequeno (página das arenas)
 function arenaThumb(id: ArenaId): HTMLElement {
@@ -31,21 +38,21 @@ function arenaThumb(id: ArenaId): HTMLElement {
   const k = 54 / SHAPES[id].reach;
   g.setTransform(k, 0, 0, k, 60, 60);
   drawStone(g, id, 1, 0.04);
-  return el('figure', { class: 'g-arena' }, c, el('figcaption', {}, ARENA_NAMES[id]));
+  return el('figure', { class: 'g-arena' }, c, el('figcaption', {}, arenaName(id)));
 }
 
 function spellPage(id: SpellId, group: string): Page {
   const sp = SPELLS[id];
   return {
-    chapter: 'Magias', title: sp.name, demo: id,
+    chapter: CH.spells, title: spellName(id), demo: id,
     body: () => [
       el('div', { class: 'g-head' }, el('span', { class: 'g-medal' }, icon(ICON[id])),
-        el('div', {}, el('h2', {}, sp.name), el('small', {}, `${group} · ${keyText(id)} · ${sp.cost ? `${sp.cost} de ouro` : 'grátis no começo'}`))),
+        el('div', {}, el('h2', {}, spellName(id)), el('small', {}, `${group} · ${keyText(id)} · ${sp.cost ? t(`${sp.cost} de ouro`, `${sp.cost} gold`) : t('grátis no começo', 'free at the start')}`))),
       el('p', { class: 'g-lead' }, RULES_SHORT[id], ' ', el('i', {}, SPELL_USE[id])),
       null, // lugar da demonstração
-      el('h3', {}, 'Números por nível'), html(spellLevels(id)), el('small', { class: 'g-legend' }, LEGEND),
-      el('h3', {}, 'Como usar'), el('p', {}, SPELL_TIPS[id][0]),
-      el('h3', {}, 'Contra o quê'), el('p', {}, SPELL_TIPS[id][1]),
+      el('h3', {}, t('Números por nível', 'Numbers by level')), html(spellLevels(id)), el('small', { class: 'g-legend' }, LEGEND),
+      el('h3', {}, t('Como usar', 'How to use')), el('p', {}, SPELL_TIPS[id][0]),
+      el('h3', {}, t('Contra o quê', 'Best against')), el('p', {}, SPELL_TIPS[id][1]),
     ],
   };
 }
@@ -53,14 +60,14 @@ function spellPage(id: SpellId, group: string): Page {
 function itemPage(id: ItemId): Page {
   const it = ITEMS[id];
   return {
-    chapter: 'Itens', title: it.name, demo: SCRIPTS[id] ? id : undefined,
+    chapter: CH.items, title: itemName(id), demo: SCRIPTS[id] ? id : undefined,
     body: () => [
       el('div', { class: 'g-head' }, el('span', { class: 'g-medal item' }, icon(ITEM_ICON[id])),
-        el('div', {}, el('h2', {}, it.name), el('small', {}, `${isActive(id) ? `ativo · ${keyText(id)}` : 'passivo'} · ${it.cost} de ouro por nível`))),
-      el('p', { class: 'g-lead' }, it.text),
+        el('div', {}, el('h2', {}, itemName(id)), el('small', {}, `${isActive(id) ? t(`ativo · ${keyText(id)}`, `active · ${keyText(id)}`) : t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}`))),
+      el('p', { class: 'g-lead' }, itemText(id)),
       ITEM_DEMO[id] ? el('p', { class: 'muted' }, ITEM_DEMO[id]) : null,
       null,
-      el('h3', {}, 'Números por nível'), html(itemLevels(id)),
+      el('h3', {}, t('Números por nível', 'Numbers by level')), html(itemLevels(id)),
     ],
   };
 }
@@ -70,34 +77,34 @@ const text = (chapter: string, title: string, items: string[] | (() => string[])
 
 const PAGES: Page[] = [
   // as duas primeiras páginas são o sumário (montado em toc(), que precisa do go)
-  { chapter: 'Sumário', title: 'Sumário', body: () => [] },
-  { chapter: 'Sumário', title: 'Magias e itens', body: () => [] },
-  text('Como jogar', 'Objetivo', RULES.objetivo),
-  text('Como jogar', 'Empurrão, lava e abates', RULES.empurrao),
-  text('Controles', 'No PC', () => RULES.pc),
+  { chapter: CH.toc, title: CH.toc, body: () => [] },
+  { chapter: CH.toc, title: t('Magias e itens', 'Spells and items'), body: () => [] },
+  text(t('Como jogar', 'How to play'), t('Objetivo', 'Goal'), RULES.objetivo),
+  text(t('Como jogar', 'How to play'), t('Empurrão, lava e abates', 'Knockback, lava and kills'), RULES.empurrao),
+  text(t('Controles', 'Controls'), t('No PC', 'On PC'), () => RULES.pc),
   {
-    chapter: 'Controles', title: 'Suas teclas',
-    body: () => [el('h2', {}, isSlotMode() ? 'Suas teclas (Q W E R D F pela ordem da barra)' : 'Suas teclas'),
+    chapter: t('Controles', 'Controls'), title: t('Suas teclas', 'Your keys'),
+    body: () => [el('h2', {}, isSlotMode() ? t('Suas teclas (Q W E R D F pela ordem da barra)', 'Your keys (Q W E R D F in bar order)') : t('Suas teclas', 'Your keys')),
       el('div', { class: 'keys-grid' }, ...ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, labelOf(a)), ' ', icon(actionIcon(a)), ' ', actionName(a)))),
-      el('h3', {}, 'Atalhos'),
-      el('div', { class: 'keys-grid' }, ...UI_ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, uiLabel(a)), ' ', UI_NAMES[a])), el('span', {}, el('span', { class: 'key' }, 'Esc'), ' Configurações')),
-      el('small', {}, 'Troque em Configurações > Teclas (Esc ou a engrenagem no topo).')],
+      el('h3', {}, t('Atalhos', 'Shortcuts')),
+      el('div', { class: 'keys-grid' }, ...UI_ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, uiLabel(a)), ' ', UI_NAMES[a])), el('span', {}, el('span', { class: 'key' }, 'Esc'), ' ', t('Configurações', 'Settings'))),
+      el('small', {}, t('Troque em Configurações > Teclas (Esc ou a engrenagem no topo).', 'Change them in Settings > Keys (Esc or the gear at the top).'))],
   },
-  text('Controles', 'No celular', RULES.celular),
-  text('Controles', 'Com controle', () => RULES.controle),
-  text('Modos', 'Rodadas', RULES.rodadas, () => [html(MODE_INFO())]),
-  text('Modos', 'Deathmatch', RULES.deathmatch),
-  text('Modos', 'Times', RULES.times),
-  text('Modos', 'Opções, votações e bots', RULES.opcoes, () => [el('h3', {}, 'Dificuldade dos bots'), html(OPT_INFO.difficulty('rounds'))]),
-  text('Arenas', 'Arenas e obstáculos', RULES.arenas, () => [el('div', { class: 'g-arenas' }, ...ARENA_IDS.map(arenaThumb)), html(OPT_INFO.arena('rounds'))]),
-  text('Loja e ouro', 'Loja', () => RULES.loja),
-  text('Loja e ouro', 'Ouro', RULES.ouro),
+  text(t('Controles', 'Controls'), t('No celular', 'On mobile'), RULES.celular),
+  text(t('Controles', 'Controls'), t('Com controle', 'With a controller'), () => RULES.controle),
+  text(t('Modos', 'Modes'), t('Rodadas', 'Rounds'), RULES.rodadas, () => [html(MODE_INFO())]),
+  text(t('Modos', 'Modes'), 'Deathmatch', RULES.deathmatch),
+  text(t('Modos', 'Modes'), t('Times', 'Teams'), RULES.times),
+  text(t('Modos', 'Modes'), t('Opções, votações e bots', 'Options, votes and bots'), RULES.opcoes, () => [el('h3', {}, t('Dificuldade dos bots', 'Bot difficulty')), html(OPT_INFO.difficulty('rounds'))]),
+  text('Arenas', t('Arenas e obstáculos', 'Arenas and obstacles'), RULES.arenas, () => [el('div', { class: 'g-arenas' }, ...ARENA_IDS.map(arenaThumb)), html(OPT_INFO.arena('rounds'))]),
+  text(t('Loja e ouro', 'Shop and gold'), t('Loja', 'Shop'), () => RULES.loja),
+  text(t('Loja e ouro', 'Shop and gold'), t('Ouro', 'Gold'), RULES.ouro),
   ...SPELL_GROUPS.flatMap(([group, , ids]) => ids.map((id) => spellPage(id, group))),
   ...ITEM_IDS.map(itemPage),
-  text('Runas', 'Runas', RULES.runas, () => [el('ul', { class: 'g-runes' }, ...RUNE_KINDS.map((k) => el('li', {}, icon(RUNE_ICON[k]), ' ', RULES.runa[k])))]),
-  { ...text('Chão dos choques', 'Chão dos choques', RULES.choques), demo: 'clash' },
-  text('Dicas', 'Dicas', RULES.dicas),
-  text('Dicas', 'Créditos', RULES.creditos),
+  text(t('Runas', 'Runes'), t('Runas', 'Runes'), RULES.runas, () => [el('ul', { class: 'g-runes' }, ...RUNE_KINDS.map((k) => el('li', {}, icon(RUNE_ICON[k]), ' ', RULES.runa[k])))]),
+  { ...text(t('Chão dos choques', 'Clash zones'), t('Chão dos choques', 'Clash zones'), RULES.choques), demo: 'clash' },
+  text(t('Dicas', 'Tips'), t('Dicas', 'Tips'), RULES.dicas),
+  text(t('Dicas', 'Tips'), t('Créditos', 'Credits'), RULES.creditos),
 ];
 const CHAPTERS = [...new Set(PAGES.map((p) => p.chapter))].slice(1);
 const pageOf = (pred: (p: Page) => boolean) => PAGES.findIndex(pred);
@@ -112,13 +119,13 @@ export function openGrimoire() {
 
   const spread = el('div', { class: 'g-spread' });
   const where = el('span', { class: 'g-where' });
-  const prev = el('button', { type: 'button', class: 'g-turn', 'aria-label': 'Página anterior', onclick: () => turn(-1) }, '‹') as HTMLButtonElement;
-  const next = el('button', { type: 'button', class: 'g-turn', 'aria-label': 'Próxima página', onclick: () => turn(1) }, '›') as HTMLButtonElement;
-  const closeBtn = el('button', { type: 'button', class: 'g-close icon', 'aria-label': 'Fechar', onclick: () => close() }, '✕');
-  const book = el('div', { class: 'grimoire', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Grimório: como jogar' },
-    el('header', { class: 'g-top' }, el('b', { class: 'g-title' }, icon(UI_ICON.help), ' Grimório'), closeBtn),
+  const prev = el('button', { type: 'button', class: 'g-turn', 'aria-label': t('Página anterior', 'Previous page'), onclick: () => turn(-1) }, '‹') as HTMLButtonElement;
+  const next = el('button', { type: 'button', class: 'g-turn', 'aria-label': t('Próxima página', 'Next page'), onclick: () => turn(1) }, '›') as HTMLButtonElement;
+  const closeBtn = el('button', { type: 'button', class: 'g-close icon', 'aria-label': t('Fechar', 'Close'), onclick: () => close() }, '✕');
+  const book = el('div', { class: 'grimoire', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('Grimório: como jogar', 'Grimoire: how to play') },
+    el('header', { class: 'g-top' }, el('b', { class: 'g-title' }, icon(UI_ICON.help), ' ', t('Grimório', 'Grimoire')), closeBtn),
     spread,
-    el('nav', { class: 'g-nav' }, prev, el('button', { type: 'button', class: 'g-toc-btn', onclick: () => go(0) }, 'Sumário'), where, next),
+    el('nav', { class: 'g-nav' }, prev, el('button', { type: 'button', class: 'g-toc-btn', onclick: () => go(0) }, CH.toc), where, next),
   );
   const overlay = el('div', { class: 'overlay rules-overlay g-overlay', onclick: (e: Event) => e.target === overlay && close() }, book);
 
@@ -131,30 +138,30 @@ export function openGrimoire() {
   function toc(i: number): (Node | string)[] {
     const link = (to: number, label: string) => el('button', { type: 'button', class: 'g-link', onclick: () => go(to) }, label, el('span', { class: 'g-pg' }, String(to + 1)));
     const chip = (to: number, ico: string, name: string) => el('button', { type: 'button', class: 'g-chip', onclick: () => go(to) }, icon(ico), ' ', name);
-    if (i === 0) return [el('h2', {}, 'Sumário'), el('ol', { class: 'g-toc' }, ...CHAPTERS.map((c) => el('li', {}, link(pageOf((p) => p.chapter === c), c))))];
+    if (i === 0) return [el('h2', {}, CH.toc), el('ol', { class: 'g-toc' }, ...CHAPTERS.map((c) => el('li', {}, link(pageOf((p) => p.chapter === c), c))))];
     return [
-      el('h2', {}, 'Magias e itens'),
+      el('h2', {}, t('Magias e itens', 'Spells and items')),
       ...SPELL_GROUPS.map(([g, hint, ids]) => el('div', { class: 'g-sub ' + groupClass(g) }, el('small', {}, `${g} · ${hint}`),
-        el('div', { class: 'g-chips' }, ...ids.map((id) => chip(pageOf((p) => p.chapter === 'Magias' && p.demo === id), ICON[id], spellName(id)))))),
-      el('div', { class: 'g-sub' }, el('small', {}, 'Itens'),
-        el('div', { class: 'g-chips' }, ...ITEM_IDS.map((id) => chip(pageOf((p) => p.chapter === 'Itens' && p.title === itemName(id)), ITEM_ICON[id], itemName(id))))),
+        el('div', { class: 'g-chips' }, ...ids.map((id) => chip(pageOf((p) => p.chapter === CH.spells && p.demo === id), ICON[id], spellName(id)))))),
+      el('div', { class: 'g-sub' }, el('small', {}, CH.items),
+        el('div', { class: 'g-chips' }, ...ITEM_IDS.map((id) => chip(pageOf((p) => p.chapter === CH.items && p.title === itemName(id)), ITEM_ICON[id], itemName(id))))),
     ];
   }
 
   function render(i: number): HTMLElement {
     const p = PAGES[i];
     if (!p) return el('article', { class: 'g-page blank' });
-    const body = p.chapter === 'Sumário' ? toc(i) : p.body();
+    const body = p.chapter === CH.toc ? toc(i) : p.body();
     if (p.demo) {
-      const canvas = el('canvas', { class: 'g-demo', role: 'img', 'aria-label': `Demonstração: ${p.title}` }) as HTMLCanvasElement;
-      const fig = el('figure', { class: 'g-fig' }, canvas, el('figcaption', {}, 'Simulação do jogo com os números de agora (nível 1); recomeça sozinha.'));
+      const canvas = el('canvas', { class: 'g-demo', role: 'img', 'aria-label': t(`Demonstração: ${p.title}`, `Demo: ${p.title}`) }) as HTMLCanvasElement;
+      const fig = el('figure', { class: 'g-fig' }, canvas, el('figcaption', {}, t('Simulação do jogo com os números de agora (nível 1); recomeça sozinha.', 'Game simulation with the current numbers (level 1); it restarts on its own.')));
       const slot = body.indexOf(null);
       if (slot >= 0) body[slot] = fig;
       else body.push(fig);
       live.push(createDemo(canvas, p.demo, [COLORS[0], COLORS[1], COLORS[2]]));
     }
-    return el('article', { class: 'g-page', 'aria-label': `Página ${i + 1}: ${p.title}` },
-      p.chapter !== 'Sumário' ? el('small', { class: 'g-chapter' }, p.chapter) : null, ...body, el('span', { class: 'g-num' }, String(i + 1)));
+    return el('article', { class: 'g-page', 'aria-label': t(`Página ${i + 1}: ${p.title}`, `Page ${i + 1}: ${p.title}`) },
+      p.chapter !== CH.toc ? el('small', { class: 'g-chapter' }, p.chapter) : null, ...body, el('span', { class: 'g-num' }, String(i + 1)));
   }
 
   function loop(now: number) {
@@ -173,7 +180,7 @@ export function openGrimoire() {
     spread.querySelectorAll('.g-page').forEach((p) => (p.scrollTop = 0));
     prev.disabled = first === 0;
     next.disabled = first + per >= PAGES.length;
-    where.textContent = per === 2 && first + 1 < PAGES.length ? `${first + 1}–${first + 2} de ${PAGES.length}` : `${first + 1} de ${PAGES.length}`;
+    where.textContent = per === 2 && first + 1 < PAGES.length ? t(`${first + 1}–${first + 2} de ${PAGES.length}`, `${first + 1}–${first + 2} of ${PAGES.length}`) : t(`${first + 1} de ${PAGES.length}`, `${first + 1} of ${PAGES.length}`);
     if (dir) {
       spread.classList.remove('turn-next', 'turn-prev');
       void spread.offsetWidth; // reinicia a animação

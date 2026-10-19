@@ -1,6 +1,7 @@
 // Teclas de cada magia, item ativo e atalho da interface, trocáveis pelo jogador (guardadas no navegador), e os botões do controle.
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
 import { SPELL_IDS, isSpell, type SpellId } from '../shared/spells.ts';
+import { t } from './i18n.ts';
 import { store } from './store.ts';
 
 export type Action = SpellId | ItemId;
@@ -8,7 +9,7 @@ export const ACTIONS: Action[] = [...SPELL_IDS, ...ACTIVE_ITEMS];
 // atalhos da interface (pedido do Fernando, 18/10): trocáveis no mesmo painel das magias; o Votar começa sem tecla
 export const UI_ACTIONS = ['shop', 'board', 'sheet', 'taunt', 'rules', 'stop', 'vote', 'replay'] as const;
 export type UiAction = (typeof UI_ACTIONS)[number];
-export const UI_NAMES: Record<UiAction, string> = { shop: 'Loja só para ver', board: 'Placar (segurar)', sheet: 'Ficha do mago', taunt: 'Provocações', rules: 'Grimório (como jogar)', stop: 'Parar', vote: 'Votar', replay: 'Rever a queda' };
+export const UI_NAMES: Record<UiAction, string> = { shop: t('Loja só para ver', 'Shop (view only)'), board: t('Placar (segurar)', 'Scoreboard (hold)'), sheet: t('Ficha do mago', 'Wizard sheet'), taunt: t('Provocações', 'Taunts'), rules: t('Grimório (como jogar)', 'Grimoire (how to play)'), stop: t('Parar', 'Stop'), vote: t('Votar', 'Vote'), replay: t('Rever a queda', 'Replay the fall') };
 export type AnyAction = Action | UiAction;
 const ALL: AnyAction[] = [...ACTIONS, ...UI_ACTIONS];
 const DEFAULTS: Record<string, string> = {
@@ -82,8 +83,8 @@ export const padButtonName = (b: number, open = ' / ', close = '') => (PAD_NAMES
 export const PAD_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'item1', 'item2', 'item3', 'sheet', 'board', 'shop', 'center'] as const;
 export type PadAction = (typeof PAD_ACTIONS)[number];
 const PAD_DEFAULTS: Record<PadAction, number> = { slot1: 0, slot2: 1, slot3: 2, slot4: 3, slot5: 4, slot6: 5, item1: 6, item2: 7, item3: 12, sheet: 10, board: 8, shop: 13, center: 11 };
-export const PAD_ACTION_NAMES: Record<PadAction, string> = { slot1: 'Magia 1', slot2: 'Magia 2', slot3: 'Magia 3', slot4: 'Magia 4', slot5: 'Magia 5', slot6: 'Magia 6',
-  item1: 'Item 1', item2: 'Item 2', item3: 'Item 3', sheet: 'Ficha do mago', board: 'Placar (segurar)', shop: 'Loja só para ver', center: 'Centralizar a câmera' };
+export const PAD_ACTION_NAMES: Record<PadAction, string> = { slot1: t('Magia 1', 'Spell 1'), slot2: t('Magia 2', 'Spell 2'), slot3: t('Magia 3', 'Spell 3'), slot4: t('Magia 4', 'Spell 4'), slot5: t('Magia 5', 'Spell 5'), slot6: t('Magia 6', 'Spell 6'),
+  item1: 'Item 1', item2: 'Item 2', item3: 'Item 3', sheet: t('Ficha do mago', 'Wizard sheet'), board: t('Placar (segurar)', 'Scoreboard (hold)'), shop: t('Loja só para ver', 'Shop (view only)'), center: t('Centralizar a câmera', 'Center the camera') };
 const PAD_STORE = 'warlock:pad';
 let padMap: Record<PadAction, number> = { ...PAD_DEFAULTS };
 for (const [a, b] of Object.entries(store.json<Record<string, number>>(PAD_STORE) ?? {})) if (a in PAD_DEFAULTS && Number.isInteger(b) && b >= 0 && b < PAD_NAMES.length && b !== PAD_START) padMap[a as PadAction] = b;
@@ -136,7 +137,7 @@ export const onKeysChange = (f: () => void) => listeners.push(f);
 export function keyLabel(code: string): string {
   if (!code) return '—'; // sem tecla (a Zona de dobra começa assim)
   if (code === 'Backquote') return "'";
-  if (code === 'Space') return 'Espaço';
+  if (code === 'Space') return t('Espaço', 'Space');
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
   if (code.startsWith('Numpad')) return 'Num ' + code.slice(6);

@@ -3,7 +3,7 @@ import type { BotSetup } from '../shared/protocol.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { ICON, el, icon } from './icons.ts';
 import { store } from './store.ts';
-import { spellName } from './i18n.ts';
+import { spellName, t } from './i18n.ts';
 
 const KEY = 'warlock:botsetup';
 // magia que saiu do jogo (o Gêmeos, 19/10) fica de fora: o servidor recusaria o treino inteiro
@@ -38,14 +38,14 @@ export function botSetupPanel(n: number, saved: BotSetup[], onChange: (s: BotSet
     };
     return el('div', { class: 'opt-row bot-setup' },
       el('div', { class: 'opt-label' }, el('b', {}, `Bot ${i + 1}`),
-        el('div', { class: 'stats-tabs' }, el('button', { type: 'button', 'aria-pressed': String(!picked.length), class: picked.length ? '' : 'on', onclick: random }, 'Sorteio')),
-        el('small', { class: 'muted' }, picked.length ? `${picked.length} de ${MAX_SPELLS} magias` : 'compra sozinho na loja')),
+        el('div', { class: 'stats-tabs' }, el('button', { type: 'button', 'aria-pressed': String(!picked.length), class: picked.length ? '' : 'on', onclick: random }, t('Sorteio', 'Random'))),
+        el('small', { class: 'muted' }, picked.length ? t(`${picked.length} de ${MAX_SPELLS} magias`, `${picked.length} of ${MAX_SPELLS} spells`) : t('compra sozinho na loja', 'buys on its own in the shop'))),
       el('div', { class: 'bs-spells' }, ...SPELL_IDS.map((s) => {
         const lvl = spells?.[s] ?? 0;
         return el('label', { class: 'bs-spell' + (lvl ? ' on' : '') },
           el('input', { type: 'checkbox', checked: lvl > 0, disabled: !lvl && picked.length >= MAX_SPELLS, onchange: () => pick(s, lvl ? 0 : 1, true) }),
           icon(ICON[s]), ' ', spellName(s),
-          lvl ? el('input', { type: 'number', min: 1, max: MAX_SPELL_LEVEL, value: lvl, 'aria-label': `Nível de ${spellName(s)}`, onchange: (e: Event) => {
+          lvl ? el('input', { type: 'number', min: 1, max: MAX_SPELL_LEVEL, value: lvl, 'aria-label': t(`Nível de ${spellName(s)}`, `${spellName(s)} level`), onchange: (e: Event) => {
             const t = e.target as HTMLInputElement;
             t.value = String(Math.max(1, Math.min(MAX_SPELL_LEVEL, Math.round(Number(t.value)) || 1)));
             pick(s, Number(t.value), false);
@@ -53,5 +53,5 @@ export function botSetupPanel(n: number, saved: BotSetup[], onChange: (s: BotSet
       })));
   }
   return el('details', { class: 'match-opts', open, ontoggle: (e: Event) => (open = (e.target as HTMLDetailsElement).open) },
-    el('summary', {}, 'Magias dos bots · ', el('small', { class: 'muted' }, 'Sorteio ou as que você escolher')), ...rows);
+    el('summary', {}, t('Magias dos bots · ', 'Bot spells · '), el('small', { class: 'muted' }, t('Sorteio ou as que você escolher', 'Random or the ones you pick'))), ...rows);
 }

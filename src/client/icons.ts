@@ -3,7 +3,7 @@
 import type { RuneKind } from '../shared/constants.ts';
 import type { ItemId } from '../shared/items.ts';
 import { isSpell, type SpellId } from '../shared/spells.ts';
-import { itemName, spellName } from './i18n.ts';
+import { itemName, spellName, t } from './i18n.ts';
 
 // elemento do DOM com atributos (on* viram ouvintes) e filhos; mora aqui porque scene.ts e opt-info.ts não podem importar ui.ts (ciclo)
 export type Child = Node | string | null | undefined | false;
@@ -61,8 +61,8 @@ export const actionName = (a: SpellId | ItemId) => (isSpell(a) ? spellName(a) : 
 // efeitos em cima do mago (bits do snapshot, ver shared/snapshot.ts); negativos primeiro. Também listados na ficha do mago
 const fx = named({ stun: ['star-swirl', '💫'], invuln: ['sunbeams', '🌟'], locked: ['padlock', '🔒'], slow: ['snail', '🐌'], burn: ['small-fire', '🔥'],
   repel: ['magnet-blast', '🌬️'], invis: ['ghost', '👻'], fast: ['run', '🏃'] });
-export const STATUS_ICONS: [bit: number, icon: string, name: string][] = [[16, fx.stun, 'atordoado'], [32, fx.invuln, 'invulnerável'], [64, ITEM_ICON.pact, 'Pacto armado'],
-  [128, fx.locked, 'preso'], [256, ICON.rush, 'Investida'], [4, fx.slow, 'lento'], [512, fx.burn, 'queimando'], [65536, ICON.link, 'preso pelo Elo'], [8192, ICON.magnetize, 'magnetizado: atrai projéteis'],
-  [16384, fx.repel, 'magnetizado: afasta projéteis'], [1024, fx.invis, 'invisível (Caminhada no vento)'], [4096, fx.fast, 'acelerado'], [32768, ICON.alteration, 'Alteração'], [131072, ITEM_ICON.aegis, 'Égide pronta'],
-  [262144, RUNE_ICON.haste, 'Runa da Pressa'], [524288, RUNE_ICON.fury, 'Runa da Fúria'], [1048576, RUNE_ICON.shield, 'Runa do Escudo'], [4194304, RUNE_ICON.recharge, 'Runa da Recarga'], [2097152, ICON.gravity, 'no redemoinho']];
+export const STATUS_ICONS: [bit: number, icon: string, name: string][] = [[16, fx.stun, t('atordoado', 'stunned')], [32, fx.invuln, t('invulnerável', 'invulnerable')], [64, ITEM_ICON.pact, t('Pacto armado', 'Pact armed')],
+  [128, fx.locked, t('preso', 'gripped')], [256, ICON.rush, t('Investida', 'Rush')], [4, fx.slow, t('lento', 'slowed')], [512, fx.burn, t('queimando', 'burning')], [65536, ICON.link, t('preso pelo Elo', 'held by Link')], [8192, ICON.magnetize, t('magnetizado: atrai projéteis', 'magnetized: attracts projectiles')],
+  [16384, fx.repel, t('magnetizado: afasta projéteis', 'magnetized: repels projectiles')], [1024, fx.invis, t('invisível (Caminhada no vento)', 'invisible (Windwalk)')], [4096, fx.fast, t('acelerado', 'hasted')], [32768, ICON.alteration, t('Alteração', 'Alteration')], [131072, ITEM_ICON.aegis, t('Égide pronta', 'Aegis ready')],
+  [262144, RUNE_ICON.haste, t('Runa da Pressa', 'Haste Rune')], [524288, RUNE_ICON.fury, t('Runa da Fúria', 'Fury Rune')], [1048576, RUNE_ICON.shield, t('Runa do Escudo', 'Shield Rune')], [4194304, RUNE_ICON.recharge, t('Runa da Recarga', 'Recharge Rune')], [2097152, ICON.gravity, t('no redemoinho', 'in the vortex')]];
 export const BAD_STATUS = [16, 4, 128, 65536, 8192, 512, 2097152];

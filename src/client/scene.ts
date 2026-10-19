@@ -15,6 +15,7 @@ import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
 import { add, scale, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
+import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, icon } from './icons.ts';
 import { SPELLS } from '../shared/spells.ts';
 
@@ -23,7 +24,7 @@ export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#
 // modo Times: Azul e Vermelho (anel no chão e barra de vida)
 export const TEAM_COLORS = ['#3b82f6', '#ef4444'];
 // dificuldade dos bots, curta (rótulo em cima do mago e placar do canto)
-export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: 'Fácil', normal: 'Normal', hard: 'Difícil', auto: 'Auto' };
+export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), normal: 'Normal', hard: t('Difícil', 'Hard'), auto: 'Auto' };
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
@@ -699,7 +700,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const absRush = el('div', { class: 'hp-abs rush' });
     const bar = el('div', { class: 'hp' }, hpFill, absRush, hpText);
     // selo da Égide ao lado da barra, enquanto não usada
-    const aegisEl = el('i', { class: 'aegis', title: 'Égide pronta', hidden: true }, icon(ITEM_ICON.aegis));
+    const aegisEl = el('i', { class: 'aegis', title: t('Égide pronta', 'Aegis ready'), hidden: true }, icon(ITEM_ICON.aegis));
     const extraEl = el('span', { class: 'hp-extra' });
     const shieldFill = el('div');
     const shieldBar = el('div', { class: 'shield-bar', hidden: true }, shieldFill);

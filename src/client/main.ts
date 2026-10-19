@@ -14,6 +14,7 @@ import { n1 } from './rules-text.ts';
 import { reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
+import { t } from './i18n.ts';
 import { isPadMode, labelOf, onFreeEsc } from './keys.ts';
 import { openSettings } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
@@ -34,6 +35,17 @@ const SPELL_SOUND: Record<SpellId, SoundKind> = {
   boomerang: 'homing', thrust: 'teleport', gravity: 'homing', rockpillar: 'shield', bouncer: 'lightning',
   drain: 'homing', snowball: 'fireball', illusion: 'teleport', magnetize: 'lightning', recharge: 'homing',
   alteration: 'teleport', link: 'lightning', windwalk: 'shield', splitter: 'fireball', warpzone: 'shield',
+};
+
+// mensagens de erro do servidor (em português, protocolo inalterado) -> inglês
+const SERVER_EN: Record<string, string> = {
+  'Mensagem inválida.': 'Invalid message.',
+  'Esta conexão já é de outro jogador.': 'This connection already belongs to another player.',
+  'Envie hello primeiro.': 'Send hello first.',
+  'Sala não encontrada.': 'Room not found.',
+  'Sala aberta em outra aba.': 'Room open in another tab.',
+  'Sala cheia.': 'Room full.',
+  'Você foi removido da sala por votação.': 'You were removed from the room by vote.',
 };
 
 // ?as=nome dá outra identidade na mesma máquina (testar com várias abas)
@@ -100,7 +112,7 @@ function startLobby(name: string) {
       if (!res.ok) throw new Error(String(res.status));
       location.hash = (await res.json()).id;
     } catch {
-      toast('Não deu para criar a sala. Tente de novo.');
+      toast(t('Não deu para criar a sala. Tente de novo.', 'Couldn’t create the room. Try again.'));
     }
   }
   connect('/ws/lobby', (m) => {
@@ -279,7 +291,7 @@ function startRoom(code: string, name: string) {
     cast(spell, at) {
       const i = SPELL_IDS.indexOf(spell);
       const mine = room?.players.find((p) => p.id === me);
-      if (!mine?.spells[spell]) return toast('Você ainda não tem essa magia. Compre na loja.');
+      if (!mine?.spells[spell]) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
       if ((lastSnap?.cd[i] ?? 0) > 0.1 || performance.now() < (justCast.get(spell) ?? 0) || (performance.now() < scourgeUntil && spell !== 'teleport')) return;
       if (spell === 'teleport') scourgeUntil = 0; // o Teleporte cancela o Flagelo em preparo
       if (spell === 'rush') predict.stop(); // o avanço esquece o destino de andar, como no servidor
@@ -294,7 +306,7 @@ function startRoom(code: string, name: string) {
     },
     useItem(item, at) {
       const mine = room?.players.find((p) => p.id === me);
-      if (!mine?.items[item]) return toast('Você ainda não tem esse item. Compre na loja.');
+      if (!mine?.items[item]) return toast(t('Você ainda não tem esse item. Compre na loja.', 'You don’t have that item yet. Buy it in the shop.'));
       if ((lastSnap?.icd[ACTIVE_ITEMS.indexOf(item)] ?? 0) > 0.1 || performance.now() < (justCast.get(item) ?? 0) || performance.now() < scourgeUntil) return;
       // Flagelo em preparo: o servidor ignora outras magias até ele explodir
       if (item === 'scourge') scourgeUntil = performance.now() + SCOURGE.windup * 1000;
@@ -356,26 +368,26 @@ function startRoom(code: string, name: string) {
     runRound = room.round;
     const won = next.state === 'won';
     sound.play(won ? 'winRound' : 'loseRound');
-    banner(won ? `Desafio ${next.c.name} cumprido!` : `Desafio ${next.c.name}: não deu`, won ? 'win' : 'bad');
+    banner(won ? t(`Desafio ${next.c.name} cumprido!`, `Challenge ${next.c.name} complete!`) : t(`Desafio ${next.c.name}: não deu`, `Challenge ${next.c.name}: failed`), won ? 'win' : 'bad');
     const score = scoreOf(next);
-    if (score !== null && saveBest(next.c.id, score, !!next.c.survive)) toast(`Recorde novo no ${next.c.name}: ${n1(score)} s`, 'good');
+    if (score !== null && saveBest(next.c.id, score, !!next.c.survive)) toast(t(`Recorde novo no ${next.c.name}: ${n1(score)} s`, `New record in ${next.c.name}: ${n1(score)} s`), 'good');
   }
 
   function names() {
     return new Map(room?.players.map((p) => [p.id, p.name]) ?? []);
   }
 
-  const RUNE_NAME: Record<RuneKind, string> = { haste: 'Runa da Pressa', fury: 'Runa da Fúria', shield: 'Runa do Escudo', recharge: 'Runa da Recarga' };
+  const RUNE_NAME: Record<RuneKind, string> = { haste: t('Runa da Pressa', 'Haste Rune'), fury: t('Runa da Fúria', 'Fury Rune'), shield: t('Runa do Escudo', 'Shield Rune'), recharge: t('Runa da Recarga', 'Recharge Rune') };
   const RUNE_TEXT = (k: RuneKind) => [icon(RUNE_ICON[k]), ' ' + RUNE_NAME[k]];
   // o que cada runa faz, com os números do código (pedido do Fernando, 18/10: dizer ao pegar)
   const RUNE_EFFECT: Record<RuneKind, string> = {
-    haste: `anda ${Math.round(RUNE.haste * 100)}% mais rápido por ${RUNE.secs} s`,
-    fury: `magias causam ${Math.round(RUNE.fury * 100)}% mais dano por ${RUNE.secs} s`,
-    shield: `leva ${Math.round(RUNE.armor * 100)}% menos dano por ${RUNE.secs} s`,
-    recharge: `recargas ${Math.round(RUNE.cdr * 100)}% mais rápidas por ${RUNE.secs} s`,
+    haste: t(`anda ${Math.round(RUNE.haste * 100)}% mais rápido por ${RUNE.secs} s`, `moves ${Math.round(RUNE.haste * 100)}% faster for ${RUNE.secs} s`),
+    fury: t(`magias causam ${Math.round(RUNE.fury * 100)}% mais dano por ${RUNE.secs} s`, `spells deal ${Math.round(RUNE.fury * 100)}% more damage for ${RUNE.secs} s`),
+    shield: t(`leva ${Math.round(RUNE.armor * 100)}% menos dano por ${RUNE.secs} s`, `takes ${Math.round(RUNE.armor * 100)}% less damage for ${RUNE.secs} s`),
+    recharge: t(`recargas ${Math.round(RUNE.cdr * 100)}% mais rápidas por ${RUNE.secs} s`, `cooldowns ${Math.round(RUNE.cdr * 100)}% shorter for ${RUNE.secs} s`),
   };
-  const MULTI_TEXT = ['', '', 'Abate duplo!', 'Abate triplo!', 'Massacre!'];
-  const SPREE_TEXT: Record<number, string> = { 3: 'Matança', 5: 'Fúria assassina', 7: 'sequência Imparável', 10: 'sequência Lendária' };
+  const MULTI_TEXT = ['', '', t('Abate duplo!', 'Double kill!'), t('Abate triplo!', 'Triple kill!'), t('Massacre!', 'Ultra kill!')];
+  const SPREE_TEXT: Record<number, string> = { 3: t('Matança', 'Killing Spree'), 5: t('Fúria assassina', 'Rampage'), 7: t('sequência Imparável', 'Unstoppable streak'), 10: t('sequência Lendária', 'Legendary streak') };
   let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
   function onEvents(events: SimEvent[]) {
     const pos = myWizard(interp.latest())?.pos;
@@ -415,17 +427,17 @@ function startRoom(code: string, name: string) {
       else if (e.k === 'item') sound.play(e.item === 'redirector' ? 'teleport' : e.item === 'pact' ? 'shield' : 'homing', 0.7);
       else if (e.k === 'scourge') sound.play('death', near(e.x, e.y));
       else if (e.k === 'shrink') sound.play('shrink');
-      else if (e.k === 'chest') toast('Baú de ouro na arena! Quebre e fique em cima do ouro', 'gold');
+      else if (e.k === 'chest') toast(t('Baú de ouro na arena! Quebre e fique em cima do ouro', 'Gold chest in the arena! Break it and stand on the gold'), 'gold');
       else if (e.k === 'loot') sound.play('go', near(e.x, e.y));
       else if (e.k === 'sudden') {
         sound.play('shrink');
-        banner([icon(SOURCE_ICON.lava), ' Morte súbita! A arena encolhe a cada 5 s'], 'bad');
-      } else if (e.k === 'rune') toast([...RUNE_TEXT(e.kind), ` apareceu na arena (${RUNE_EFFECT[e.kind]})`], 'info');
+        banner([icon(SOURCE_ICON.lava), t(' Morte súbita! A arena encolhe a cada 5 s', ' Sudden death! The arena shrinks every 5 s')], 'bad');
+      } else if (e.k === 'rune') toast([...RUNE_TEXT(e.kind), t(` apareceu na arena (${RUNE_EFFECT[e.kind]})`, ` appeared in the arena (${RUNE_EFFECT[e.kind]})`)], 'info');
       else if (e.k === 'runeTake') {
         sound.play('shield', e.id === me ? 1 : 0.5);
-        toast([`${e.id === me ? 'Você pegou' : (who.get(e.id) ?? '?') + ' pegou'} `, ...RUNE_TEXT(e.kind), `: ${RUNE_EFFECT[e.kind]}`], e.id === me ? 'good' : 'info');
+        toast([e.id === me ? t('Você pegou ', 'You picked up ') : (who.get(e.id) ?? '?') + t(' pegou ', ' picked up '), ...RUNE_TEXT(e.kind), `: ${RUNE_EFFECT[e.kind]}`], e.id === me ? 'good' : 'info');
       } else if (e.k === 'streak') {
-        const name = e.id === me ? 'Você' : (who.get(e.id) ?? '?');
+        const name = e.id === me ? t('Você', 'You') : (who.get(e.id) ?? '?');
         // uma voz por lote de eventos: o Quebra-combo vem primeiro, depois o multi e por último a Matança
         const say = (file: string) => voice ??= file;
         if (e.kind === 'multi') {
@@ -434,15 +446,15 @@ function startRoom(code: string, name: string) {
           else if (e.n === 3) say('multi_kill');
           else sound.play('go');
         } else if (e.kind === 'spree') {
-          notes.push(`${name} está numa ${SPREE_TEXT[e.n] ?? 'sequência'} (${e.n} abates sem morrer)`);
+          notes.push(t(`${name} está numa ${SPREE_TEXT[e.n] ?? 'sequência'} (${e.n} abates sem morrer)`, `${name} is on a ${SPREE_TEXT[e.n] ?? 'streak'} (${e.n} kills without dying)`));
           say('laugh');
         } else {
-          notes.push(`${name} quebrou a sequência de ${e.victim === me ? 'você' : (who.get(e.victim ?? '') ?? '?')} (Quebra-combo: ouro extra)`);
+          notes.push(t(`${name} quebrou a sequência de ${e.victim === me ? 'você' : (who.get(e.victim ?? '') ?? '?')} (Quebra-combo: ouro extra)`, `${name} broke ${e.victim === me ? 'your' : (who.get(e.victim ?? '') ?? '?') + '’s'} streak (Combo breaker: extra gold)`));
           say('combo_breaker');
         }
       } else if (e.k === 'aegis') {
         sound.play('shield');
-        banner([icon(ITEM_ICON.aegis), e.id === me ? ' A Égide te tirou da lava e quebrou' : ` A Égide tirou ${who.get(e.id) ?? '?'} da lava`], e.id === me ? 'good' : '');
+        banner([icon(ITEM_ICON.aegis), e.id === me ? t(' A Égide te tirou da lava e quebrou', ' The Aegis pulled you out of the lava and broke') : t(` A Égide tirou ${who.get(e.id) ?? '?'} da lava`, ` The Aegis pulled ${who.get(e.id) ?? '?'} out of the lava`)], e.id === me ? 'good' : '');
       }
       else if (e.k === 'death') {
         // fora da pedra: mergulho na lava (chiado e bolhas) em vez da explosão
@@ -456,8 +468,8 @@ function startRoom(code: string, name: string) {
         }
         // todo abate vai para o feed do canto; a faixa grande fica só para o que envolve você
         view.kill(e.by, e.id, e.src);
-        if (e.by === me && e.id !== me) banner(`Você derrubou ${dead}!`, 'good');
-        else if (e.id === me) banner(e.by && e.by !== me ? `${who.get(e.by)} te derrubou!` : 'Você caiu na lava!', 'bad');
+        if (e.by === me && e.id !== me) banner(t(`Você derrubou ${dead}!`, `You took down ${dead}!`), 'good');
+        else if (e.id === me) banner(e.by && e.by !== me ? t(`${who.get(e.by)} te derrubou!`, `${who.get(e.by)} took you down!`) : t('Você caiu na lava!', 'You fell into the lava!'), 'bad');
       }
     }
     if (shout) banner(shout, 'good');
@@ -478,18 +490,18 @@ function startRoom(code: string, name: string) {
   let lastPhase = '';
   function onMsg(m: ServerMsg) {
     if (m.t === 'error') {
-      if (m.code === 'not_found') return screen(ui, 'Sala não encontrada', 'Ela pode ter fechado por ficar vazia.', 'Ver salas', () => (location.hash = ''));
+      if (m.code === 'not_found') return screen(ui, t('Sala não encontrada', 'Room not found'), t('Ela pode ter fechado por ficar vazia.', 'It may have closed for being empty.'), t('Ver salas', 'View rooms'), () => (location.hash = ''));
       // sem parar a conexão, ela se reconectaria sozinha e derrubaria a outra aba, num vaivém sem fim
       if (m.code === 'other_tab' || m.code === 'full' || m.code === 'kicked') net.stop();
-      if (m.code === 'kicked') return screen(ui, 'Você foi removido da sala por votação', 'Não dá para voltar a esta sala. Entre em outra ou crie uma.', 'Ver salas', () => (location.hash = ''));
-      if (m.code === 'other_tab') return screen(ui, 'Sala aberta em outra aba', 'Continue por lá ou recarregue esta.', 'Recarregar', () => location.reload());
-      if (m.code === 'full') return screen(ui, 'Sala cheia', 'Já tem 8 magos nesta sala.', 'Ver salas', () => (location.hash = ''));
+      if (m.code === 'kicked') return screen(ui, t('Você foi removido da sala por votação', 'You were removed from the room by vote'), t('Não dá para voltar a esta sala. Entre em outra ou crie uma.', 'You can’t return to this room. Join another or create one.'), t('Ver salas', 'View rooms'), () => (location.hash = ''));
+      if (m.code === 'other_tab') return screen(ui, t('Sala aberta em outra aba', 'Room open in another tab'), t('Continue por lá ou recarregue esta.', 'Continue there or reload this one.'), t('Recarregar', 'Reload'), () => location.reload());
+      if (m.code === 'full') return screen(ui, t('Sala cheia', 'Room full'), t('Já tem 8 magos nesta sala.', 'There are already 8 wizards in this room.'), t('Ver salas', 'View rooms'), () => (location.hash = ''));
       sound.play('error');
-      return toast(m.msg, 'bad');
+      return toast(t(m.msg, SERVER_EN[m.msg] ?? m.msg), 'bad');
     }
     if (m.t === 'room') {
       const prev = room;
-      if (shadow && m.room.players.filter((p) => p.bot).length === 1 && m.room.players.filter((p) => !p.bot).length === 1) for (const p of m.room.players) if (p.bot) p.name = 'Sombra'; // só no duelo contra a sombra
+      if (shadow && m.room.players.filter((p) => p.bot).length === 1 && m.room.players.filter((p) => !p.bot).length === 1) for (const p of m.room.players) if (p.bot) p.name = t('Sombra', 'Shadow'); // só no duelo contra a sombra
       room = m.room;
       me = m.you;
       arenaId = room.arena ?? arenaId; // na loja não há rodada: fica a última arena
@@ -512,10 +524,11 @@ function startRoom(code: string, name: string) {
       return;
     }
     if (m.t === 'taunt') {
-      const t = TAUNTS[m.i];
-      if (!t) return;
-      void sound.taunt(t.id);
-      if (!scene.bubble(m.id, t.text)) toast(`${room?.players.find((p) => p.id === m.id)?.name ?? '?'}: ${t.text}`);
+      const taunt = TAUNTS[m.i];
+      if (!taunt) return;
+      const text = t(taunt.text, taunt.en);
+      void sound.taunt(taunt.id);
+      if (!scene.bubble(m.id, text)) toast(`${room?.players.find((p) => p.id === m.id)?.name ?? '?'}: ${text}`);
       return;
     }
     lastSnap = m;
@@ -561,11 +574,11 @@ function startRoom(code: string, name: string) {
       watchId = null;
       // modo Times: avisa em que time a pessoa está nesta rodada
       const team = room.mode === 'teams' ? room.players.find((p) => p.id === me)?.team : null;
-      banner(team != null ? `Rodada ${room.round} · Você está no time ${TEAM_NAMES[team]}` : `Rodada ${room.round}`);
+      banner(team != null ? t(`Rodada ${room.round} · Você está no time ${TEAM_NAMES[team]}`, `Round ${room.round} · You are on the ${TEAM_NAMES[team]} team`) : t(`Rodada ${room.round}`, `Round ${room.round}`));
       [3, 2, 1].forEach((_, i) => setTimeout(() => sound.play('beep'), i * 1000));
     } else if (room.phase === 'playing') {
       playingAt = performance.now();
-      banner('Já!', 'good');
+      banner(t('Já!', 'Go!'), 'good');
       sound.play('go');
     } else if (room.phase === 'roundEnd' && !(run && runRound === room.round)) { // a rodada em que o desafio acabou fica com a faixa dele
       const w = room.players.find((p) => p.id === room!.lastRoundWinner);
@@ -573,16 +586,16 @@ function startRoom(code: string, name: string) {
       // vencedor (ou o time dele) vê a faixa VITÓRIA com confete e ouve o arpejo; quem jogou e perdeu ouve o arpejo descendo
       const won = !!w && (room.mode === 'teams' && w.team !== null ? w.team === myTeam : w.id === me);
       if (w && room.players.some((p) => p.id === me)) sound.play(won ? 'winRound' : 'loseRound');
-      if (won) banner(room.mode === 'teams' && w!.team !== null ? `Vitória do time ${TEAM_NAMES[w!.team]}!` : room.mode === 'deathmatch' ? 'Vitória! Mais abates' : 'Vitória!', 'win');
-      else if (room.mode === 'teams' && w && w.team !== null) banner(`Time ${TEAM_NAMES[w.team]} venceu a rodada!`);
-      else banner(!w ? (room.mode === 'deathmatch' ? 'Fim da rodada' : 'Ninguém sobrou!') : room.mode === 'deathmatch' ? (w.id === me ? 'Você fez mais abates!' : `${w.name} fez mais abates!`) : w.id === me ? 'Você venceu a rodada!' : `${w.name} venceu a rodada!`, w?.id === me ? 'good' : '');
+      if (won) banner(room.mode === 'teams' && w!.team !== null ? t(`Vitória do time ${TEAM_NAMES[w!.team]}!`, `${TEAM_NAMES[w!.team]} team wins!`) : room.mode === 'deathmatch' ? t('Vitória! Mais abates', 'Victory! Most kills') : t('Vitória!', 'Victory!'), 'win');
+      else if (room.mode === 'teams' && w && w.team !== null) banner(t(`Time ${TEAM_NAMES[w.team]} venceu a rodada!`, `${TEAM_NAMES[w.team]} team won the round!`));
+      else banner(!w ? (room.mode === 'deathmatch' ? t('Fim da rodada', 'Round over') : t('Ninguém sobrou!', 'Nobody is left!')) : room.mode === 'deathmatch' ? (w.id === me ? t('Você fez mais abates!', 'You got the most kills!') : t(`${w.name} fez mais abates!`, `${w.name} got the most kills!`)) : w.id === me ? t('Você venceu a rodada!', 'You won the round!') : t(`${w.name} venceu a rodada!`, `${w.name} won the round!`), w?.id === me ? 'good' : '');
     } else if (room.phase === 'end' && left) view.toRoom();
     else if (room.phase === 'end' && prev) {
       // mesmo resultado do cabeçalho do cartão (Vitória, Derrota ou Fim de jogo); quem só assistia não ouve nada
       const res = endResult(room, me);
       if (res !== 'none') sound.play(res === 'win' ? 'winRound' : 'loseRound');
       // o cartão do fim já mostra o vencedor e o pódio: a faixa grande só para quem venceu (antes cobria o pódio)
-      if (res === 'win') banner('Vitória na partida!', 'win');
+      if (res === 'win') banner(t('Vitória na partida!', 'Match victory!'), 'win');
     }
   }
 
@@ -622,7 +635,7 @@ function startRoom(code: string, name: string) {
     document.body.classList.toggle('replaying', !!rs); // a loja de quem caiu sai da frente enquanto o replay passa
     if (rp && rs) for (; rp.next < clip.length && clip[rp.next].s.time <= rt; rp.next++) replayEvents(clip[rp.next].e, rs);
     const killer = rs && fall.by && fall.by !== me ? fall.by : null;
-    view.replay(canReplay && !rp, rs ? (killer ? `Replay · ${names().get(killer) ?? '?'} te derrubou com ${srcName(fall.src)}` : 'Replay · Você caiu na lava sozinho') : null);
+    view.replay(canReplay && !rp, rs ? (killer ? t(`Replay · ${names().get(killer) ?? '?'} te derrubou com ${srcName(fall.src)}`, `Replay · ${names().get(killer) ?? '?'} took you down with ${srcName(fall.src)}`) : t('Replay · Você caiu na lava sozinho', 'Replay · You fell into the lava on your own')) : null);
     const shown = rs ?? (playing ? s : null);
     const drawWiz = rs ? wizardsOf(rs, false, dt) : wizards;
     // replay: câmera travada no meio entre mim e quem me derrubou
@@ -684,7 +697,7 @@ function startRoom(code: string, name: string) {
     scene.onEvents(events);
     for (const e of events) hitArrow(e, rs);
   }
-  void scene.ready.then(() => requestAnimationFrame(frame), () => toast('Não deu para carregar o mago. Recarregue a página.'));
+  void scene.ready.then(() => requestAnimationFrame(frame), () => toast(t('Não deu para carregar o mago. Recarregue a página.', 'Couldn’t load the wizard. Reload the page.')));
 }
 
 startPad(toast);

@@ -4,6 +4,7 @@
 import { ACTIVE_ITEMS, isActive, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import { add, len, norm, scale, type Vec } from '../shared/vec.ts';
+import { t } from './i18n.ts';
 import { PAD_NAMES, keyOf, padActionAt, padButtonOf, setPadMode, slotSpell } from './keys.ts';
 import { store } from './store.ts';
 
@@ -63,7 +64,7 @@ export function nextFocus(from: Rect, rects: Rect[], dir: Dir): number {
 }
 
 // nome curto do controle: "Xbox 360 Controller (XInput STANDARD GAMEPAD …)" → "Xbox 360 Controller"
-export const padName = (id: string) => id.replace(/\s*\(.*$/, '').trim() || 'controle';
+export const padName = (id: string) => id.replace(/\s*\(.*$/, '').trim() || t('controle', 'controller');
 
 // vibração ao levar golpe forte e ao morrer; desliga em Configurações, aba Controle (guardado no navegador)
 const RUMBLE = 'warlock:rumble';
@@ -270,13 +271,13 @@ function tick(toast: (msg: string) => void) {
       seen = '';
       prev = [];
       setMode(false);
-      toast('Controle desconectado');
+      toast(t('Controle desconectado', 'Controller disconnected'));
     }
     return;
   }
   if (gp.id !== seen) {
     seen = gp.id;
-    toast(`Controle conectado: ${padName(gp.id)} · Start abre as configurações (a aba Controle troca os botões)`);
+    toast(t(`Controle conectado: ${padName(gp.id)} · Start abre as configurações (a aba Controle troca os botões)`, `Controller connected: ${padName(gp.id)} · Start opens settings (the Controller tab remaps the buttons)`));
   }
   const down = gp.buttons.map((b) => b.pressed);
   const hit = (b: number) => !!down[b] && !prev[b];
