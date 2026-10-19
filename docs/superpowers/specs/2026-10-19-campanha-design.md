@@ -169,7 +169,12 @@ Deve sair em mais de um PR (um assunto por PR): (1) modo + classes + servos + ge
 - Layout do seletor de classe, da barra do chefe e da caixa de fala, seguindo `src/client/CLAUDE.md` (DOM com `el`, `choice`, `withTip`; celular em 390×844).
 - Como a brasa aparece na cena 3D (reaproveitar o `puff`/`flame` de `public/fx`).
 
-## Perguntas para o Fernando (etiqueta `precisa de decisão`)
+## Respostas do Fernando (19/10, no chat)
+
+- **Motor de cartas:** nasce no **Ascensão** primeiro (`src/shared/ascension.ts`, desenho aprovado em `2026-10-19-ascensao-design.md`); a Campanha reaproveita. Nada de um segundo motor.
+- **As demais perguntas** (progresso no navegador, onde o modo aparece, dano em aliado, bots aliados, dificuldade da sala): o Lucas decide, como dono do modo Campanha. As propostas abaixo valem como decisão dele até ele mudar.
+
+## Perguntas que estavam abertas
 
 1. Progresso entre noites só no navegador (`store`), sem conta: ok, dado que perfil foi recusado?
 2. Quem constrói o motor de cartas (`cards.ts`): o Ascensão primeiro, ou a Campanha faz e o Ascensão reaproveita?

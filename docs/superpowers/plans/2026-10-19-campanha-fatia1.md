@@ -1,5 +1,7 @@
 # Campanha — plano da fatia 1 (Charneca Cinzenta + Sir Odran)
 
+> **Ajuste de 19/10 (Fernando):** o motor de cartas nasce no Ascensão. A Task 2 deve **usar** o motor do Ascensão em vez de criar `src/shared/cards.ts`; se ela começar antes do motor existir, combinar a interface na mesma época com quem estiver fazendo o Ascensão.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** modo Campanha jogável na `lucascvalle-dev`: 1 a 4 Acesos, classe com passiva e árvore, cartas no intervalo, Estágio 1 gerado por semente (clareiras com ondas de servos) e Sir Odran no fim; reacender aliado; noite perdida ou vencida.
