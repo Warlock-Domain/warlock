@@ -16,6 +16,7 @@ src/shared/   lógica do jogo, roda igual no servidor e no navegador
   arena.ts      formatos de arena, borda, caminho dentro da pedra
   characters.ts personagens e o "look" de 7 peças (criador de personagem)
   campaign.ts   modo Campanha: estágios, servos do Fumo, noite gerada por semente (rng.ts)
+  bosses.ts     chefes da Campanha: perfil e cérebro próprio (Sir Odran)
   levels.ts     salas da Campanha em ASCII (levels/*.ts) e a montagem do mapa da noite (formato em docs/campanha/)
 src/worker/   Cloudflare Workers + Durable Objects (uma sala por objeto; lobby.ts guarda a telemetria)
 src/client/   navegador: main.ts (laço), scene.ts (Three.js), ui.ts (HUD, menus, loja), i18n.ts, grimoire.ts…
@@ -83,6 +84,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 19/10 | Modo novo **Ascensão** (roguelike, estilo ARAM com cartas): XP do mago, a cada nível escolhe 1 entre 3 cartas (magia nova, subir magia, item) no intervalo; sem ouro, loja nem baús; Flagelo continua de graça; 9 rodadas com pontos por colocação; 4 mecanismos de recuperação; aumentos ficam para a 2ª leva. Desenho em `docs/superpowers/specs/2026-10-19-ascensao-design.md` | progressão dentro da partida sem decidir o jogo cedo |
 | 19/10 | Modo novo **Campanha** (co-op PvE roguelike, proposta do Lucas): 1 a 4 Acesos contra o Fumo numa noite de 30 a 45 min (3 estágios + chefe final), mapa gerado por semente no padrão Diablo 2 (objetivo fixo, noite nova a cada tentativa), 6 classes com passiva e árvore de cartas (Guerreiro, Arqueiro, Mago, Warlock, Ladino e Errante, que aprende tudo), XP e cartas do Ascensão, servos do Fumo (esqueletos com IA de bot), chefes pesados que voltam da lava com dano, reacender aliado caído. 1ª campanha: Última Vela; fatia 1 = Charneca Cinzenta + Sir Odran. Desenho em `docs/superpowers/specs/2026-10-19-campanha-design.md`. Dono do modo: Lucas (decide os detalhes da Campanha); o motor de cartas vem do Ascensão (Fernando, 19/10) | jogar junto contra o jogo, com história, sem mudar os modos atuais |
 | 20/10 | Campanha com números de magia próprios (`CAMPAIGN_BOOK` em `src/shared/campaign.ts`): mudança de magia na Campanha não mexe nos outros modos; o que ela não muda segue a tabela de todos; por ora cobre os números por nível, constantes de mecânica e itens pedem estender o livro antes (Lucas, dono do modo) | balancear o PvE sem desbalancear o PvP |
+| 20/10 | Campanha (Lucas): Sir Odran com Investida cega (pilar derruba e atordoa 3 s), Pisão e Varredura, 3000 de vida +50% por Aceso, dano normal fora da janela do pilar, 2 Cinzentos e cera na fase 2; explosão neutra (choque de magias dos dois lados) pega todo mundo, aliados inclusive; passivas das classes como no desenho, e o Errante tem recarga menor no lugar de mais magias; reacender, baú, assets livres como propostos; servos novos depois; Times continua com magia em aliado só empurrando | decisões do dono do modo |
 
 ## Fluxo com agente
 

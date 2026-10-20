@@ -1,5 +1,6 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
+import { afterBoss, bossCmds, bossHp, newBoss, ODRAN } from './bosses.ts';
 import { CAMPAIGN, CAMPAIGN_BOOK, SERVOS, type Night, type ServoKind } from './campaign.ts';
 import { fightOf, nightMap, obstaclesOf, roomRect, terrainOf, type NightMap, type Spawn } from './levels.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
@@ -707,7 +708,7 @@ const around = (p: Vec, i: number, n: number) => (n === 1 ? p : v(p.x + Math.cos
 // estágio novo: o mapa inteiro da noite num mundo só; o grupo no início, as vagas do Fumo fora até um encontro
 function enterStage(m: Match, now: number, rand: () => number) {
   const n = m.night!, map = mapOf(n);
-  Object.assign(n, { fight: null, wave: 0 });
+  Object.assign(n, { fight: null, wave: 0, boss: undefined });
   for (const p of m.players) if (!p.servo) p.team = 0; // quem entrou no meio da noite também é Aceso
   const ids = m.players.map((p) => p.id);
   const teams = Object.fromEntries(m.players.map((p) => [p.id, p.servo ? 1 : 0]));
@@ -728,8 +729,15 @@ function summon(m: Match, w: World, p: Player, kind: ServoKind, at: Vec) {
   const z = w.wizards.find((q) => q.id === p.id);
   if (!z) return;
   dress(m, p, kind);
-  Object.assign(z, { spells: { ...p.spells }, cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), hpMax: p.hpMax, regen: 0, baseSpeed: WIZ_SPEED * (SERVOS[kind].speed ?? 1) });
+  // chefe: vida pelo tamanho do grupo e pesado (empurrão a menos); a vaga volta ao normal quando vira servo de novo
+  const boss = !!SERVOS[kind].boss;
+  if (boss) p.hpMax = bossHp(SERVOS[kind].hp, w.wizards.filter((q) => q.team === 0 && q.alive).length); // Acesos em pé ao entrar
+  Object.assign(z, { spells: { ...p.spells }, cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), hpMax: p.hpMax, regen: 0, baseSpeed: WIZ_SPEED * (SERVOS[kind].speed ?? 1), kbResist: boss ? ODRAN.kbResist : 0, dashDmg: undefined });
   revive(w, z, at);
+  if (boss) {
+    m.night!.boss = newBoss(w.t);
+    w.events.push({ k: 'boss', id: z.id, what: 'start', x: at.x, y: at.y });
+  }
 }
 
 // onda: cada servo entra pelo E que a sala pede (vários pelo mesmo E nascem lado a lado); as vagas que sobram ficam de fora
@@ -758,11 +766,24 @@ function crack(m: Match, w: World, map: NightMap, i: number) {
   summon(m, w, slot, t.kind, q.pos);
 }
 
+// depois do passo, na arena: pilar derrubado pela investida, cera, e a fase 2 (os Cinzentos entram onde os pilares caíram)
+function bossStep(m: Match, w: World, map: NightMap, i: number, s: NonNullable<Night['boss']>) {
+  const slot = m.players.find((p) => p.servo && SERVOS[p.servo].boss);
+  const z = slot && w.wizards.find((q) => q.id === slot.id);
+  if (!z) return;
+  const r = roomRect(map, i);
+  const inside = (q: Vec) => q.x > r.x && q.y > r.y && q.x < r.x + r.w && q.y < r.y + r.h;
+  const pillars = w.pillars.map((q, k) => (q.kind === 'rock' && inside(q.pos) ? k : -1)).filter((k) => k >= 0);
+  if (afterBoss(w, z, s, pillars) !== 'phase2') return;
+  const free = m.players.filter((p) => p.servo && p !== slot && !w.wizards.find((q) => q.id === p.id)?.alive).slice(0, ODRAN.adds);
+  free.forEach((p, k) => summon(m, w, p, 'ash', w.pillars[pillars[k % pillars.length]].pos));
+}
+
 // alguém pisou no ponto de controle (ou entrou na arena do chefe): puxa todos os Acesos vivos para lá, tranca a sala e
 // solta a primeira onda
 function startFight(m: Match, w: World, map: NightMap, i: number, at: Vec) {
   const n = m.night!;
-  Object.assign(n, { fight: i, wave: 0, since: w.t, cracked: 0 });
+  Object.assign(n, { fight: i, wave: 0, since: w.t, cracked: 0, boss: undefined });
   w.lock = roomRect(map, i);
   w.map!.home = at;
   const acesos = w.wizards.filter((z) => z.alive && z.team === 0);
@@ -802,6 +823,7 @@ function stepNight(m: Match, now: number, w: World) {
   }
   if (n.fight !== null) {
     crack(m, w, map, n.fight);
+    if (n.boss) bossStep(m, w, map, n.fight, n.boss);
     if (w.wizards.some((z) => z.alive && z.team === 1)) return;
     const f = fight(n, map, n.fight);
     if (n.wave + 1 < f.waves.length) return sendWave(m, w, f.waves[++n.wave], spawnsOf(map, n.fight));
@@ -953,6 +975,13 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   const scores = Object.fromEntries(m.players.map((p) => [p.id, p.score]));
   m.players.forEach((p, i) => {
     // quem caiu vira bot até voltar, como no original (gamesetup.lua: bot assume o desconectado)
+    // o chefe da Campanha tem cérebro próprio (bosses.ts), a cada passo
+    const boss = p.servo && SERVOS[p.servo].boss && m.night?.boss;
+    if (boss) {
+      const z = w.wizards.find((q) => q.id === p.id);
+      if (z) all.push(...bossCmds(w, z, boss));
+      return;
+    }
     if ((p.bot || !p.connected) && !p.dummy) {
       const D = botSkill(m, p);
       if (botThinks(m.steps, i, D)) all.push(...botCmds(w, p.id, rand, D, scores));

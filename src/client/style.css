@@ -139,6 +139,9 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 .mode { display: grid; gap: 6px; }
 /* relógio com fundo de vidro: sem ele o vermelho dos últimos 3 s some na lava (1,8:1) */
 .timer:not(.countdown):not(:empty) { padding: 2px 12px; border-radius: 999px; background: var(--panel-glass); }
+.boss-bar { position: absolute; left: 50%; top: calc(46px + var(--safe-t) + var(--tops-h, 0px)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; }
+.boss-bar .boss-name { font-family: var(--display); font-size: .95rem; color: var(--ember); text-shadow: var(--text-shadow); white-space: nowrap; }
+.boss-bar .hpbar { width: min(420px, 80vw); height: 16px; }
 .timer.soon { color: var(--red); animation: pulse-bad .5s ease-in-out infinite alternate; }
 @media (prefers-reduced-motion: reduce) { .timer.soon { animation: none; } }
 /* faixa de queda de conexão: só aparece se a queda durar mais de 1,5 s */

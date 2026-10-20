@@ -27,7 +27,7 @@ export type Pool = 'entrada' | 'meio' | 'portão' | 'chefe';
 // rachem de tempos em tempos e soltam mais um servo
 export type Spawn = { kind: ServoKind; e: number };
 export type Fight = { waves: Spawn[][]; tombs?: { kind: ServoKind; every: number; max: number } };
-export type Room = { id: string; stage: string; pool: Pool; w: number; h: number; ground: Ground[][]; marks: Mark[]; exits: Exit[]; notes: string; fight?: Fight };
+export type Room = { id: string; stage: string; pool: Pool; w: number; h: number; ground: Ground[][]; marks: Mark[]; exits: Exit[]; notes: string; fight?: Fight; boss?: ServoKind }; // boss: o chefe do cabeçalho "chefe:" (arena)
 
 // linha de grade: sem espaço (o texto das notas e o cabeçalho têm espaços)
 const GRID_LINE = /^\S{3,}$/;
@@ -88,7 +88,9 @@ function parseRoom(block: string): Room {
   const pool = head['pool'] as Pool;
   if (!['entrada', 'meio', 'portão', 'chefe'].includes(pool)) fail(`pool "${pool}" desconhecido`);
   const notes = lines.slice(end);
-  return { id, stage: head['estágio'], pool, w, h, ground, marks: blocks(marks), exits, notes: notes.join('\n').trim(), fight: parseFight(notes, marks.filter((m) => m.kind === 'entry').length, marks.some((m) => m.kind === 'statue'), fail) };
+  const boss = head['chefe'] ? kindOf(head['chefe']) : undefined;
+  if (head['chefe'] && !(boss && SERVOS[boss].boss)) fail(`chefe "${head['chefe']}" desconhecido`);
+  return { id, stage: head['estágio'], pool, w, h, ground, marks: blocks(marks), exits, notes: notes.join('\n').trim(), fight: parseFight(notes, marks.filter((m) => m.kind === 'entry').length, marks.some((m) => m.kind === 'statue'), fail), ...(boss && { boss }) };
 }
 
 // "Cinzento" ou "Cinzentos" → ash
@@ -284,8 +286,9 @@ export function nightMap(seed: number, stage: number): NightMap {
   return n;
 }
 
-// encontro da sala i: o desenhado (linhas "onda"), ou o sorteado pela noite (hoje só a arena do chefe, até o Sir Odran)
+// encontro da sala i: o desenhado (linhas "onda"), o chefe do cabeçalho (entra pelo B) ou, sem nenhum dos dois, o sorteado pela noite
 export function fightOf(n: NightMap, i: number, seed: number, stage: number): Fight {
   const r = n.rooms[i].room;
+  if (!r.fight && r.boss) return { waves: [[{ kind: r.boss, e: 0 }]] };
   return r.fight ?? { waves: roomWaves(seed, stage, i, i, r.pool === 'chefe').map((w) => w.map((kind, e) => ({ kind, e }))) };
 }

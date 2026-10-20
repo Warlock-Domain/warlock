@@ -696,6 +696,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, volBtn, gearBtn, helpBtn, el('div', { class: 'vol more-wrap' }, moreBtn, morePanel), el('div', { class: 'vol' }, sbBtn, sbPanel)),
   );
   const center = el('div', { class: 'center' });
+  // barra do chefe da Campanha, no topo enquanto ele está em pé
+  const bossName = el('span', { class: 'boss-name' });
+  const bossFill = el('i', {});
+  const bossText = el('span', { class: 'hp-text' });
+  const bossBar = el('div', { class: 'boss-bar', hidden: true }, bossName, el('div', { class: 'hpbar', role: 'img' }, bossFill, bossText));
   // a janela da loja pode ser alargada pela alça do canto (PC); o tamanho fica salvo neste navegador (pedido do Fernando, 18/10)
   const SHOP_SIZE = 'warlock:shopSize';
   new ResizeObserver(() => {
@@ -843,7 +848,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     e.preventDefault();
     act.replay();
   });
-  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
+  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, bossBar, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
@@ -1413,6 +1418,17 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const changed = on !== online;
       setOnline(on);
       if (changed) drawCenter();
+    },
+    // a cada quadro: vida do chefe da Campanha (null esconde)
+    boss(b: { name: string; now: number; max: number } | null) {
+      bossBar.hidden = !b;
+      if (!b) return;
+      const label = `${Math.max(0, Math.ceil(b.now)).toLocaleString(LOCALE)}/${Math.round(b.max).toLocaleString(LOCALE)}`;
+      if (bossText.textContent === label && bossName.textContent === b.name) return;
+      bossName.textContent = b.name;
+      bossText.textContent = label;
+      bossBar.lastElementChild!.setAttribute('aria-label', t(`Vida de ${b.name}: ${label}`, `${b.name} health: ${label}`));
+      bossFill.style.width = `${Math.max(0, Math.min(100, (b.now / b.max) * 100))}%`;
     },
     // a cada quadro: recargas, magia escolhida e o relógio da fase
     // hp: minha vida e o máximo, só jogando e vivo (null esconde a barra grande); dead: ids caídos na rodada, separados por vírgula
