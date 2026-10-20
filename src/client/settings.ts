@@ -1,5 +1,5 @@
 // Configurações (pedido do Fernando, 18/10): um diálogo só, aberto de qualquer tela, que junta teclas, lançamento, som, vídeo,
-// controle, jogador e sobre. Abas à esquerda no PC, lista no celular. Abre pelo Esc quando nada mais está aberto (main.ts),
+// controle, jogador e sobre. Seções empilhadas com sumário (stackedPage). Abre pelo Esc quando nada mais está aberto (main.ts),
 // pela engrenagem do topo ou pelo Start do controle; não pausa o jogo. Aba nova = um item em SECTIONS.
 import { isRumbleOn, setPadCapture, setRumble } from './gamepad.ts';
 import { UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
@@ -9,7 +9,6 @@ import {
 } from './keys.ts';
 import { avatarPanel } from './avatar.ts';
 import { RULES } from './rules-text.ts';
-import { store } from './store.ts';
 import { choice, showRules, toast } from './ui.ts';
 import { LANG, setLang, spellName, t, type Lang } from './i18n.ts';
 
@@ -251,90 +250,79 @@ const SECTIONS: Section[] = [
   { id: 'sobre', title: t('Sobre', 'About'), icon: UI_ICON.info, render: aboutSection },
 ];
 
-// aba Configurações do menu principal (issue #59, como as opções do Dota 2): todas as seções empilhadas numa página, com o sumário
-// fixo à esquerda e a seção visível destacada; no celular o sumário recolhe no topo. Personagem vira atalho para a aba dele:
+// as seções empilhadas numa página, com o sumário fixo à esquerda e a seção visível destacada, como as opções do Dota 2 (issue #59 no
+// menu inicial, #70 na partida); no celular o sumário recolhe no topo. No menu inicial Personagem vira atalho para a aba dele:
 // a prévia 3D é uma só (avatarPanel) e sairia de lá
-let homeBody: HTMLElement | null = null;
-let homeSpy: IntersectionObserver | null = null;
+type Page = { body: HTMLElement; grid: HTMLElement; fill: () => void; jump: (id: string) => void };
+let home: Page | null = null;
+let dialog: Page | null = null;
 const charLink = () => [el('p', { class: 'muted' }, t('O visual do seu mago fica na aba Personagem.', 'Your wizard\'s look is in the Character tab.')),
   el('button', { type: 'button', onclick: () => document.getElementById('home-tab-char')?.click() }, icon(UI_ICON.person), ' ', t('Abrir a aba Personagem', 'Open the Character tab'))];
-function drawHome(force = false) {
-  if (!homeBody || (!force && !homeBody.isConnected)) return; // fora do menu inicial não há página para redesenhar
-  const shown = SECTIONS.map((s) => [s, s.id === 'personagem' ? charLink() : s.render()] as const).filter(([, body]) => body);
-  const focusId = (document.activeElement as HTMLElement | null)?.id;
-  homeBody.replaceChildren(...shown.map(([s, body]) => el('section', { class: 'settings-body', id: 'set-' + s.id, 'aria-labelledby': 'set-h-' + s.id },
-    el('h3', { class: 'settings-page-title', id: 'set-h-' + s.id }, icon(s.icon), ' ', s.title), ...body!)));
-  homeSpy?.disconnect();
-  for (const sec of homeBody.children) homeSpy?.observe(sec);
-  if (focusId) document.getElementById(focusId)?.focus();
-}
-export function settingsPage(): HTMLElement {
-  homeBody = el('div', { class: 'home-sections' });
+// scroller: quem rola a página (null = a janela, no menu inicial)
+function stackedPage(scroller: HTMLElement | null, lobby: boolean): Page {
+  const body = el('div', { class: 'settings-sections' });
   const narrow = matchMedia('(max-width: 600px)');
-  const toc = el('details', { class: 'home-toc', open: !narrow.matches }, el('summary', {}, t('Sumário', 'Contents')));
+  const toc = el('details', { class: 'settings-toc', open: !narrow.matches }, el('summary', {}, t('Sumário', 'Contents')));
   narrow.addEventListener('change', (e) => (toc.open = !e.matches)); // girar o celular: no PC o sumário fica sempre aberto
   const mark = (id: string) => toc.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
-  // a seção que passa pela faixa de cima da tela é a destacada; depois de um clique no sumário, o destaque fica na escolhida
+  // a seção que passa pela faixa de cima é a destacada; depois de um clique no sumário, o destaque fica na escolhida
   // enquanto a página rola (as últimas seções nem sempre chegam ao topo)
   let hold = 0;
-  homeSpy?.disconnect();
-  homeSpy = new IntersectionObserver((entries) => Date.now() > hold && entries.forEach((e) => e.isIntersecting && mark(e.target.id.slice(4))), { rootMargin: '0px 0px -70% 0px' });
-  drawHome(true);
-  toc.append(...SECTIONS.filter((s) => homeBody!.querySelector('#set-' + s.id)).map((s) => el('button', { type: 'button', 'data-id': s.id, onclick: () => {
+  const spy = new IntersectionObserver((entries) => Date.now() > hold && entries.forEach((e) => e.isIntersecting && mark(e.target.id.slice(4))), { root: scroller, rootMargin: '0px 0px -70% 0px' });
+  const fill = () => {
+    const shown = SECTIONS.map((s) => [s, lobby && s.id === 'personagem' ? charLink() : s.render()] as const).filter(([, b]) => b);
+    const focusId = (document.activeElement as HTMLElement | null)?.id;
+    body.replaceChildren(...shown.map(([s, b]) => el('section', { class: 'settings-body', id: 'set-' + s.id, 'aria-labelledby': 'set-h-' + s.id },
+      el('h3', { class: 'settings-page-title', id: 'set-h-' + s.id }, icon(s.icon), ' ', s.title), ...b!)));
+    spy.disconnect();
+    for (const sec of body.children) spy.observe(sec);
+    if (focusId) document.getElementById(focusId)?.focus();
+  };
+  const jump = (id: string) => {
     hold = Date.now() + 1000;
-    homeBody!.querySelector('#set-' + s.id)!.scrollIntoView({ block: 'start' });
-    mark(s.id);
+    body.querySelector('#set-' + id)?.scrollIntoView({ block: 'start' });
+    mark(id);
     if (narrow.matches) toc.open = false;
-  } }, icon(s.icon), el('span', {}, s.title))));
-  return el('div', { class: 'home-settings' }, el('h2', {}, t('Configurações', 'Settings')), el('div', { class: 'home-settings-grid' }, toc, homeBody));
+  };
+  fill();
+  toc.append(...SECTIONS.filter((s) => body.querySelector('#set-' + s.id)).map((s) => el('button', { type: 'button', 'data-id': s.id, onclick: () => jump(s.id) }, icon(s.icon), el('span', {}, s.title))));
+  return { body, grid: el('div', { class: 'settings-grid' }, toc, body), fill, jump };
+}
+export function settingsPage(): HTMLElement {
+  home = stackedPage(null, true);
+  return el('div', { class: 'home-settings' }, el('h2', {}, t('Configurações', 'Settings')), home.grid);
 }
 
-const TAB_STORE = 'warlock:settingsTab';
-let tab = store.get(TAB_STORE) ?? 'teclas';
 let overlay: HTMLElement | null = null;
-let page = false; // celular: false mostra a lista de abas, true a aba escolhida
 let ac: AbortController | null = null;
 
 function draw() {
-  drawHome();
-  if (!overlay) return;
-  const shown = SECTIONS.map((s) => [s, s.render()] as const).filter(([, body]) => body);
-  const [cur, body] = shown.find(([s]) => s.id === tab) ?? shown[0];
-  tab = cur.id;
-  const focusId = (document.activeElement as HTMLElement | null)?.id;
-  overlay.firstElementChild!.replaceWith(el('div', { class: 'settings', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'settings-title', 'data-view': page ? 'page' : 'list' },
-    el('header', { class: 'settings-head' },
-      el('button', { type: 'button', class: 'icon settings-back', title: t('Voltar à lista', 'Back to list'), 'aria-label': t('Voltar à lista', 'Back to list'), onclick: () => ((page = false), draw()) }, '‹'),
-      el('h2', { class: 'title', id: 'settings-title' }, t('Configurações', 'Settings')),
-      el('button', { type: 'button', class: 'icon', title: t('Fechar (Esc)', 'Close (Esc)'), 'aria-label': t('Fechar as configurações', 'Close settings'), onclick: close }, '✕')),
-    el('nav', { class: 'settings-tabs', role: 'tablist', 'aria-label': t('Seções', 'Sections') }, ...shown.map(([s]) => el('button', {
-      type: 'button', role: 'tab', id: 'set-tab-' + s.id, 'aria-selected': String(s.id === tab), class: s.id === tab ? 'on' : '', onclick: () => go(s.id),
-    }, icon(s.icon), el('span', {}, s.title)))),
-    el('section', { class: 'settings-body', role: 'tabpanel', 'aria-labelledby': 'set-tab-' + tab }, el('h3', { class: 'settings-page-title' }, cur.title), ...body!)));
-  if (focusId) document.getElementById(focusId)?.focus();
-}
-function go(id: string) {
-  if (waiting || padWaiting) {
-    waiting = null;
-    waitPad(null);
-  }
-  tab = id;
-  page = true;
-  store.set(TAB_STORE, id);
-  draw();
-  document.getElementById('set-tab-' + id)?.focus();
+  if (home?.body.isConnected) home.fill();
+  if (overlay) dialog?.fill();
 }
 
-// sem aba: no PC a última vista, no celular a lista; com aba (atalho do volume, por exemplo) já abre nela
+// abre na seção pedida (o atalho do volume abre em Som). No menu inicial as configurações já são uma aba: Esc e Start abrem ela
+// (duas cópias da página repetiriam os ids dos campos)
 export function openSettings(id?: string) {
-  if (overlay) return id ? go(id) : undefined;
+  if (home?.body.isConnected) {
+    document.getElementById('home-tab-settings')?.click();
+    if (id) home.jump(id);
+    return;
+  }
+  if (overlay) return id ? dialog?.jump(id) : undefined;
   ctx.closePanels?.();
-  overlay = el('div', { class: 'overlay settings-overlay', onclick: (e: Event) => e.target === overlay && close() }, el('div', {}));
-  page = !!id;
-  if (id) tab = id;
+  const scroller = el('div', { class: 'settings-scroll' });
+  dialog = stackedPage(scroller, false);
+  scroller.append(dialog.grid);
+  overlay = el('div', { class: 'overlay settings-overlay', onclick: (e: Event) => e.target === overlay && close() },
+    el('div', { class: 'settings', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'settings-title' },
+      el('header', { class: 'settings-head' },
+        el('h2', { class: 'title', id: 'settings-title' }, t('Configurações', 'Settings')),
+        el('button', { type: 'button', class: 'icon', title: t('Fechar (Esc)', 'Close (Esc)'), 'aria-label': t('Fechar as configurações', 'Close settings'), onclick: close }, '✕')),
+      scroller));
   document.body.append(overlay);
-  draw();
-  document.getElementById('set-tab-' + tab)?.focus();
+  if (id) dialog.jump(id);
+  overlay.querySelector<HTMLElement>('.settings-toc button')?.focus({ preventScroll: true }); // focar rolando cortaria o pulo para a seção
   ac = new AbortController();
   // na captura: com o menu aberto o jogo não recebe teclas (o que o navegador faz com Tab, Enter e setas continua)
   addEventListener('keydown', onKey, { capture: true, signal: ac.signal });
@@ -359,7 +347,7 @@ function onKey(e: KeyboardEvent) {
   }
 }
 // página do menu inicial esperando tecla ou botão: a próxima tecla é dela (com o diálogo aberto, vale o ouvinte dele)
-addEventListener('keydown', (e) => !overlay && homeBody?.isConnected && (waiting || padWaiting) && onKey(e), { capture: true });
+addEventListener('keydown', (e) => !overlay && home?.body.isConnected && (waiting || padWaiting) && onKey(e), { capture: true });
 function close() {
   if (!overlay) return;
   waiting = null;
@@ -367,5 +355,6 @@ function close() {
   ac?.abort();
   overlay.remove();
   overlay = null;
+  dialog = null;
 }
 onKeysChange(draw);
