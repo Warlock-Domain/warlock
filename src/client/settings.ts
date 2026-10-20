@@ -12,6 +12,7 @@ import { RULES } from './rules-text.ts';
 import { store } from './store.ts';
 import { choice, showRules, toast } from './ui.ts';
 import { LANG, setLang, spellName, t, type Lang } from './i18n.ts';
+import { isSpell } from '../shared/spells.ts';
 
 declare const __BUILD__: string;
 
@@ -72,8 +73,6 @@ const keyRow = (a: AnyAction, label: (Node | string)[]) => el('div', { class: 'k
 function keysSection(): Node[] {
   return [
     el('p', { class: 'muted' }, t('Clique na tecla de uma ação e aperte a nova. Se outra ação já usava essa tecla, as duas trocam. Fica salvo neste navegador.', 'Click an action\'s key and press the new one. If another action already used that key, the two swap. Saved in this browser.')),
-    el('h3', {}, t('Magias e itens', 'Spells and items')),
-    el('div', { class: 'keys-list' }, ...ACTIONS.map((a) => keyRow(a, [icon(actionIcon(a)), ' ', nameOf(a)]))),
     el('h3', {}, 'Interface'),
     el('div', { class: 'keys-list' }, ...UI_ACTIONS.map((a) => keyRow(a, [UI_NAMES[a]]))),
     el('small', { class: 'muted' }, t('Fixas: Esc cancela a magia, fecha o que estiver aberto e abre este menu; Espaço segurado arrasta a câmera e sozinho volta ao centro; ← → trocam o período do placar e quem você assiste.', 'Fixed: Esc cancels the spell, closes whatever is open and opens this menu; holding Space drags the camera and tapping it recenters; ← → switch the scoreboard period and who you are watching.')),
@@ -90,6 +89,10 @@ const CAST_TEXT: Record<CastMode, [string, string]> = {
 const check = (id: string, on: boolean, text: string, change: (on: boolean) => void) => el('label', { class: 'slot-row', for: id },
   el('input', { type: 'checkbox', id, checked: on, onchange: (e: Event) => change((e.target as HTMLInputElement).checked) }), el('span', {}, text));
 
+// magias e itens moram em Lançamento, junto da caixa Q W E R D F (Fernando, 20/10): com ela desligada, o botão "Teclas de cada
+// magia" abre a lista (fica aberto quando o menu redesenha); ligada, as magias seguem a barra e só os itens têm tecla própria
+let spellKeysOpen = false;
+const actionRow = (a: Action) => keyRow(a, [icon(actionIcon(a)), ' ', nameOf(a)]);
 function castSection(): Node[] {
   return [
     el('h3', {}, t('Lançar pela tecla', 'Casting with the key')),
@@ -98,6 +101,11 @@ function castSection(): Node[] {
     el('h3', {}, t('Teclas das magias', 'Spell keys')),
     check('slot-keys', isSlotMode(), t('Q W E R D F pela ordem da barra (como no Dota)', 'Q W E R D F in bar order (like in Dota)'), (on) => (setSlotMode(on), draw())),
     el('p', { class: 'muted' }, t('Ligado, as seis primeiras magias da barra usam Q W E R D F, na ordem; os itens continuam nas teclas deles.', 'When on, the first six spells on the bar use Q W E R D F, in order; items keep their own keys.')),
+    ...(isSlotMode() ? [] : [el('details', { class: 'spell-keys', open: spellKeysOpen, ontoggle: (e: Event) => (spellKeysOpen = (e.target as HTMLDetailsElement).open) },
+      el('summary', {}, t('Teclas de cada magia', 'Key for each spell')),
+      el('div', { class: 'keys-list' }, ...ACTIONS.filter((a) => isSpell(a)).map(actionRow)))]),
+    el('h3', {}, t('Teclas dos itens', 'Item keys')),
+    el('div', { class: 'keys-list' }, ...ACTIONS.filter((a) => !isSpell(a)).map(actionRow)),
   ];
 }
 

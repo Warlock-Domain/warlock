@@ -829,6 +829,11 @@ button.train small { font-weight: 400; }
 .settings-body .keys-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px 18px; }
 .settings-body .vol-row { grid-template-columns: 80px 1fr 48px; max-width: 460px; }
 .settings-body .slot-row { margin: 0; }
+/* "Teclas de cada magia" em Lançamento (Q W E R D F desligado): botão que abre a lista ali mesmo */
+.spell-keys > summary { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel2); cursor: pointer; }
+.spell-keys > summary::after { content: "▾"; color: var(--muted); }
+.spell-keys[open] > summary { margin-bottom: 10px; }
+.spell-keys[open] > summary::after { content: "▴"; }
 /* desenho do controle: corpo bronze, botões clicáveis, linha até o nome da ação */
 .pad-svg { width: 100%; max-width: 920px; height: auto; align-self: center; }
 .pad-body { fill: var(--panel2); stroke: var(--bronze); stroke-width: 3; }
