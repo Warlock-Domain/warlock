@@ -23,6 +23,41 @@ function steps(m: Match, now: number, n: number, cmds: Cmd[] = []): { now: numbe
 }
 
 describe('sandbox', () => {
+  it('Sandbox sempre começa redondo mesmo com arena aleatória ou outra forma', () => {
+    for (const arena of ['random', 'cross', 'islands', 'ring'] as const) {
+      const m = newMatch();
+      addPlayer(m, 'a', 'Ana');
+      startMatch(m, 0, 0, 'rounds', true, () => 0.75, { arena }, [], true);
+      toPlaying(m, 0);
+      expect(m.opts.arena).toBe('circle');
+      expect(m.world!.arena).toBe('circle');
+    }
+  });
+  it('torreta fica fixa, não recebe dano e dispara só para a direção escolhida', () => {
+    const { m, now: t0 } = sandbox([{ op: 'turret', direction: 'east' }]);
+    const { now } = steps(m, t0, 2); // a unidade entra e fixa a posição nos primeiros passos
+    const z = wiz(m, 'bot-1');
+    const at = { ...z.pos };
+    m.world!.wizards.find((q) => q.id === 'a')!.pos = v(-5, -5);
+    z.invulnUntil = 0;
+    m.world!.projectiles.push({ id: m.world!.nextId++, kind: 'fireball', owner: 'a', caster: 'a', pos: v(at.x, at.y - 0.4), vel: v(0, 20), level: 7, until: m.world!.t + 2, target: null, dmgMult: 1 });
+    const result = steps(m, now, 60 * 8);
+    expect(z.pos).toEqual(at);
+    expect(z.vel).toEqual(v(0, 0));
+    expect(z.hp).toBe(z.hpMax);
+    expect(z.dmgTaken).toBe(0);
+    const shots = result.events.filter((e) => e.k === 'fire' && e.id === z.id);
+    expect(shots.length).toBeGreaterThanOrEqual(2);
+    expect(m.world!.projectiles.filter((p) => p.owner === z.id).every((p) => p.kind === 'fireball' && p.vel.x > 0 && p.vel.y === 0)).toBe(true);
+    expect(kick(m, z.id)).toBe(true);
+  });
+
+  it('protocolo aceita só as quatro direções da torreta', () => {
+    for (const direction of ['north', 'east', 'south', 'west']) expect(parseClientMessage(JSON.stringify({ t: 'sandbox', cmd: { op: 'turret', direction } }))).toEqual({ t: 'sandbox', cmd: { op: 'turret', direction } });
+    for (const direction of [null, 'diagonal', 1, {}, undefined]) expect(parseClientMessage(JSON.stringify({ t: 'sandbox', cmd: { op: 'turret', direction } }))).toBeNull();
+    const m = newMatch();
+    expect(sandboxCmd(m, { op: 'turret', direction: 'east' }, 0)).toBe(false);
+  });
   it('começa sozinho, pula a loja e a rodada não acaba nem com um mago só', () => {
     const { m, now } = sandbox();
     expect([m.phase, m.world!.wizards.length, m.world!.dm]).toEqual(['playing', 1, true]);
@@ -99,12 +134,12 @@ describe('sandbox', () => {
     expect(m.world!.wizards.filter((z) => z.id === 'bot-2').length).toBe(1);
   });
 
-  it('reiniciar e trocar a arena: mundo novo com a vida cheia; encolher liga e desliga', () => {
+  it('reiniciar mantém o círculo mesmo com pedido de outra arena; encolher liga e desliga', () => {
     const { m, now: t0 } = sandbox();
     wiz(m, 'a').hp = 1;
     expect(sandboxCmd(m, { op: 'arena', arena: 'cross' }, t0)).toBe(true);
     const now = toPlaying(m, t0);
-    expect([m.world!.arena, wiz(m, 'a').hp]).toEqual(['cross', wiz(m, 'a').hpMax]);
+    expect([m.world!.arena, wiz(m, 'a').hp]).toEqual(['circle', wiz(m, 'a').hpMax]);
     const r = m.world!.arenaR;
     steps(m, now, 60 * 30);
     expect(m.world!.arenaR).toBe(r);

@@ -9,6 +9,7 @@ import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMI
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export type Wizard = {
+  turretAnchor?: Vec; // Sandbox: posição fixa da torreta nesta rodada.
   id: string;
   pos: Vec;
   vel: Vec; // só o empurrão; andar não entra aqui
