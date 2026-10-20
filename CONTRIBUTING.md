@@ -79,11 +79,21 @@ Toda issue sai de um dos dois modelos (a issue em branco está desligada): https
 - **Antes de começar a fazer, atribua-se** na issue (Assignees, ou comente "vou fazer") e só pegue issue sem dono. Assim duas pessoas não fazem o mesmo trabalho. Desistiu? Tire o seu nome.
 - Ideia só é pega depois de decidida (a etiqueta `precisa de decisão` saiu).
 - O PR que resolve a issue leva `Closes #n` na descrição: ao mesclar, a issue fecha sozinha. Tem de ser em inglês (`Closes`, `Fixes` ou `Resolves`); "Fecha #n" o GitHub não entende.
-- **Quadro (kanban):** https://github.com/users/fernandorff/projects/3. Colunas: **Precisa de decisão** → **A fazer** → **Fazendo** → **Em revisão** → **Feito**. Ao se atribuir, mova o cartão para Fazendo; com o PR aberto, para Em revisão. Issue fechada ou PR mesclado vai para Feito sozinho.
+- **Quadros (kanban):** um geral com tudo e um por tema. A issue entra no quadro do tema pela etiqueta:
+
+  | Quadro | Etiqueta | O que entra |
+  |---|---|---|
+  | [Warlock (geral)](https://github.com/users/fernandorff/projects/3) | todas | todas as issues |
+  | [Balanceamento](https://github.com/users/fernandorff/projects/4) | `balanceamento` | números de magia, item, bot, ouro e opções da sala |
+  | [Jogabilidade](https://github.com/users/fernandorff/projects/5) | `jogabilidade` | modos, classes, mecânicas e magias novas |
+  | [Interface](https://github.com/users/fernandorff/projects/6) | `visual` | telas, menus, HUD, teclas e efeitos visuais |
+  | [Bugfix](https://github.com/users/fernandorff/projects/7) | `bug` | o que não funciona como deveria |
+
+  Colunas iguais em todos: **Precisa de decisão** → **A fazer** → **Fazendo** → **Em revisão** → **Feito**. Ao se atribuir, mova o cartão para Fazendo; com o PR aberto, para Em revisão. Issue fechada ou PR mesclado vai para Feito sozinho. Issue nova: ponha a etiqueta do tema e adicione ao quadro do tema (campo Projects da issue).
 
 ## Etiquetas
 
-`bug`, `ideia`, `balanceamento`, `visual`, `bom primeiro PR`, `precisa de decisão` (espera o dono do projeto decidir).
+`bug`, `ideia`, `balanceamento`, `jogabilidade`, `visual`, `bom primeiro PR`, `precisa de decisão` (espera o dono do projeto decidir). `bug`, `balanceamento`, `jogabilidade` e `visual` também dizem em qual quadro a issue entra.
 
 ## Regras que valem para todo PR
 

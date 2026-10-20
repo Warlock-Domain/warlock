@@ -19,7 +19,7 @@ Sugestão de ambiente de desenvolvimento, usada pelo dono do projeto desde 20/10
 - **Decisão com contexto.** A pergunta sobre o anel de alcance é feita na sessão do anel, que tem os prints e os números na mão. A orquestradora só aponta onde há decisão esperando você.
 - **Revisão independente.** Quem revisa e mescla (a orquestradora) não é quem escreveu o código (a filha), como numa equipe.
 - **Retomar sem perder o fio.** O estado fica no HANDOFF e nas issues; uma orquestradora nova lê o HANDOFF e continua de onde a outra parou.
-- **Histórico visível.** Cada tarefa vira issue → PR com `Closes #n` → cartão no [quadro](https://github.com/users/fernandorff/projects/3), e a barra lateral mostra as sessões filhas embaixo da orquestradora.
+- **Histórico visível.** Cada tarefa vira issue → PR com `Closes #n` → cartão no [quadro geral](https://github.com/users/fernandorff/projects/3) e no quadro do tema (Balanceamento, Jogabilidade, Interface ou Bugfix), e a barra lateral mostra as sessões filhas embaixo da orquestradora.
 
 ## Passo a passo
 

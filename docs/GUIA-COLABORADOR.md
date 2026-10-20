@@ -138,7 +138,7 @@ Fluxo: **branch da tarefa → PR para o `master` → no ar** (decisão de 20/10:
 
 Um PR, um assunto. Mantenha a branch em dia (`git pull --rebase origin master`) antes de pedir revisão; depois que a revisão começou, responda com commits novos.
 
-Issues: modelos **Bug** e **Ideia**. Etiquetas: `bug`, `ideia`, `balanceamento`, `visual`, `bom primeiro PR`, `precisa de decisão`.
+Issues: modelos **Bug** e **Ideia**. Etiquetas: `bug`, `ideia`, `balanceamento`, `jogabilidade`, `visual`, `bom primeiro PR`, `precisa de decisão`. Quadros kanban: um geral e um por tema (Balanceamento, Jogabilidade, Interface, Bugfix); lista e links no [CONTRIBUTING](../CONTRIBUTING.md#issues).
 
 ## Como o jogo funciona por dentro
 
