@@ -64,6 +64,31 @@ describe('Campanha: salas da Charneca', () => {
     expect([r.w, r.h]).toEqual([4, 3]);
   });
 
+  it('reads the encounter lines of each room', () => {
+    expect(room('charneca-entrada-01').fight).toEqual({ waves: [[{ kind: 'ash', e: 0 }, { kind: 'ash', e: 0 }, { kind: 'ash', e: 0 }]] });
+    expect(room('moinho-caido-01').fight!.waves.map((w) => w.map((s) => `${s.kind}@E${s.e + 1}`))).toEqual([
+      ['ash@E1', 'ash@E1', 'ash@E2', 'ash@E2'], ['archer@E1', 'archer@E2'],
+    ]);
+    expect(room('vilarejo-queimado-02').fight!.waves[0]).toContainEqual({ kind: 'hound', e: 0 });
+    expect(room('cemiterio-dos-vigias-01').fight!.tombs).toEqual({ kind: 'watcher', every: 10, max: 3 });
+    expect(room('ponte-dos-enforcados-01').fight!.waves).toEqual([[{ kind: 'archer', e: 0 }, { kind: 'archer', e: 1 }]]); // só o que a nota diz
+    expect(room('charneca-portao-01').fight).toBeUndefined();
+    expect(room('arena-odran-01').fight).toBeUndefined(); // até o Sir Odran, a arena usa ondas sorteadas
+  });
+
+  it('points out encounter mistakes with the room name', () => {
+    const base = 'sala: e   estágio: x   pool: meio\nsaídas: L\n\n#####\n#E.EL\n#####\n\n';
+    expect(() => parseRooms(base + 'onda 1: 2 Esqueletos @E1\n')).toThrow(/sala e: .*"Esqueletos" desconhecido/);
+    expect(() => parseRooms(base + 'onda 1: 1 Cinzento @E3\n')).toThrow(/@E3 mas a sala tem 2 E/);
+    expect(() => parseRooms(base + 'onda 2: 1 Cinzento @E1\n')).toThrow(/fora de ordem/);
+    expect(() => parseRooms(base + 'onda 1: 5 Cinzentos @E1\n')).toThrow(/mais de 4 servos/);
+    expect(() => parseRooms(base + 'onda 1: dois Cinzentos @E1\n')).toThrow(/não entendi "dois Cinzentos @E1"/);
+    expect(() => parseRooms(base + 'lápides: 1 Vigia Oco a cada 10 s, até 3\n')).toThrow(/sem lápide/);
+    expect(() => parseRooms(base + 'Onda 1 - 1 Cinzento @E1\n')).toThrow(/não entendi a linha/);
+    // maiúscula e espaço no começo valem igual
+    expect(parseRooms(base + '  Onda 1: 1 Cinzento @E1\n')[0].fight).toEqual({ waves: [[{ kind: 'ash', e: 0 }]] });
+  });
+
   it('points out drawing mistakes with the room name', () => {
     expect(() => parseRooms('sala: torta   estágio: x   pool: meio\nsaídas: L\n\n####\n#..L\n###\n')).toThrow(/torta.*tamanhos/);
     expect(() => parseRooms('sala: q   estágio: x   pool: meio\nsaídas: L\n\n####\n#Q.L\n####\n')).toThrow(/"Q" desconhecido/);

@@ -2,6 +2,7 @@
 // padrão Diablo 2: objetivo fixo (entrada → salas do meio → portão → arena do chefe), salas sorteadas pela semente e,
 // nas saídas que sobram, salas laterais opcionais.
 import { CELL, type Terrain } from './arena.ts';
+import { CAMPAIGN, SERVOS, SERVO_KINDS, roomWaves, type ServoKind } from './campaign.ts';
 import { OBSTACLES, type ObstacleKind } from './constants.ts';
 import { CHARNECA } from './levels/charneca.ts';
 import { nightRand } from './rng.ts';
@@ -22,7 +23,11 @@ export type Mark = { kind: MarkKind; x: number; y: number; w?: number; h?: numbe
 type Edge = 'top' | 'bottom' | 'left' | 'right';
 export type Exit = { letter: string; edge: Edge; from: number; to: number }; // casas da borda ocupadas pela abertura
 export type Pool = 'entrada' | 'meio' | 'portão' | 'chefe';
-export type Room = { id: string; stage: string; pool: Pool; w: number; h: number; ground: Ground[][]; marks: Mark[]; exits: Exit[]; notes: string };
+// encontro desenhado: cada onda diz quem entra por qual E (e = índice do E na ordem de leitura, 0 = E1); tombs: lápides que
+// rachem de tempos em tempos e soltam mais um servo
+export type Spawn = { kind: ServoKind; e: number };
+export type Fight = { waves: Spawn[][]; tombs?: { kind: ServoKind; every: number; max: number } };
+export type Room = { id: string; stage: string; pool: Pool; w: number; h: number; ground: Ground[][]; marks: Mark[]; exits: Exit[]; notes: string; fight?: Fight };
 
 // linha de grade: sem espaço (o texto das notas e o cabeçalho têm espaços)
 const GRID_LINE = /^\S{3,}$/;
@@ -82,7 +87,42 @@ function parseRoom(block: string): Room {
   if (declared !== found) fail(`saídas do cabeçalho (${declared}) diferentes das da grade (${found})`);
   const pool = head['pool'] as Pool;
   if (!['entrada', 'meio', 'portão', 'chefe'].includes(pool)) fail(`pool "${pool}" desconhecido`);
-  return { id, stage: head['estágio'], pool, w, h, ground, marks: blocks(marks), exits, notes: lines.slice(end).join('\n').trim() };
+  const notes = lines.slice(end);
+  return { id, stage: head['estágio'], pool, w, h, ground, marks: blocks(marks), exits, notes: notes.join('\n').trim(), fight: parseFight(notes, marks.filter((m) => m.kind === 'entry').length, marks.some((m) => m.kind === 'statue'), fail) };
+}
+
+// "Cinzento" ou "Cinzentos" → ash
+const kindOf = (name: string) => SERVO_KINDS.find((k) => SERVOS[k].name === name || SERVOS[k].plural === name);
+
+// linhas do encontro nas notas da sala: "onda 1: 2 Cinzentos @E1, 1 Cão de Brasa @E2" e "lápides: 1 Vigia Oco a cada 10 s, até 3"
+function parseFight(notes: string[], entries: number, statues: boolean, fail: (msg: string) => never): Fight | undefined {
+  const waves: Spawn[][] = [];
+  let tombs: Fight['tombs'];
+  for (const raw of notes) {
+    // "Onda 1:" ou com espaço no começo vale igual (senão a sala ficaria sem o encontro, sem aviso)
+    const line = raw.trim();
+    const wave = /^onda (\d+):\s*(.+)$/i.exec(line);
+    const tomb = /^lápides:\s*1 (.+?) a cada (\d+) s, até (\d+)$/i.exec(line);
+    if (wave) {
+      if (Number(wave[1]) !== waves.length + 1) fail(`"onda ${wave[1]}" fora de ordem (esperava a onda ${waves.length + 1})`);
+      waves.push(wave[2].split(',').flatMap((part) => {
+        const m = /^\s*(\d+) (.+?) @E(\d+)\s*$/.exec(part);
+        if (!m) fail(`na onda ${wave[1]}, não entendi "${part.trim()}" (formato: 2 Cinzentos @E1)`);
+        const kind = kindOf(m![2]);
+        if (!kind) fail(`na onda ${wave[1]}, servo "${m![2]}" desconhecido (${SERVO_KINDS.map((k) => SERVOS[k].name).join(', ')})`);
+        if (Number(m![3]) < 1 || Number(m![3]) > entries) fail(`na onda ${wave[1]}, @E${m![3]} mas a sala tem ${entries} E`);
+        return Array.from({ length: Number(m![1]) }, () => ({ kind: kind!, e: Number(m![3]) - 1 }));
+      }));
+      if (waves[waves.length - 1].length > CAMPAIGN.slots) fail(`a onda ${wave[1]} tem mais de ${CAMPAIGN.slots} servos ao mesmo tempo`);
+    } else if (tomb) {
+      const kind = kindOf(tomb[1]);
+      if (!kind) fail(`em "lápides", servo "${tomb[1]}" desconhecido`);
+      if (!statues) fail('"lápides" numa sala sem lápide (I)');
+      if (Number(tomb[2]) < 1) fail('"lápides" precisa de pelo menos 1 s entre uma e outra');
+      tombs = { kind: kind!, every: Number(tomb[2]), max: Number(tomb[3]) };
+    } else if (/^(onda|lápides)/i.test(line)) fail(`não entendi a linha "${line}"`);
+  }
+  return waves.length ? { waves, ...(tombs && { tombs }) } : undefined;
 }
 
 // estátuas vizinhas (lado a lado ou em cima) formam um bloco retangular
@@ -242,4 +282,10 @@ export function nightMap(seed: number, stage: number): NightMap {
     built.set(key, (n = buildNight(seed, stage)));
   }
   return n;
+}
+
+// encontro da sala i: o desenhado (linhas "onda"), ou o sorteado pela noite (hoje só a arena do chefe, até o Sir Odran)
+export function fightOf(n: NightMap, i: number, seed: number, stage: number): Fight {
+  const r = n.rooms[i].room;
+  return r.fight ?? { waves: roomWaves(seed, stage, i, i, r.pool === 'chefe').map((w) => w.map((kind, e) => ({ kind, e }))) };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CAMPAIGN, SERVOS, roomWaves } from '../src/shared/campaign.ts';
-import { nightMap, type NightMap } from '../src/shared/levels.ts';
+import { fightOf, nightMap, type NightMap } from '../src/shared/levels.ts';
+import { WIZ_SPEED } from '../src/shared/constants.ts';
 import { addPlayer, endIdle, kick, newMatch, removePlayer, resume, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
 import { mulberry32 } from '../src/shared/rng.ts';
@@ -51,6 +52,15 @@ function clearWave(m: Match, now: number): number {
 function clearFight(m: Match, now: number): number {
   for (let i = 0; i < 10 && m.night!.fight !== null && m.phase === 'playing'; i++) now = clearWave(m, now);
   return now;
+}
+const fightIn = (m: Match, i: number) => fightOf(mapOf(m), i, m.night!.seed, 0);
+// noite (semente fixa) cujo mapa tem a sala `id`, e o índice dela
+function nightWith(id: string, humans = ['a']): { m: Match; i: number } {
+  for (let seed = 1; ; seed++) {
+    const m = night(humans, seed);
+    const i = mapOf(m).rooms.findIndex((r) => r.room.id === id);
+    if (i >= 0) return { m, i };
+  }
 }
 // humanos invulneráveis enquanto o teste avança (os servos atiram)
 const shelter = (m: Match) => {
@@ -114,7 +124,7 @@ describe('Campanha: partida no mapa', () => {
     expect(m.night!.fight).toBe(room);
     expect(m.world!.lock).toBeDefined();
     for (const id of ['a', 'b']) expect(inside(n, room, wiz(m, id).pos), id).toBe(true);
-    const wave = roomWaves(m.night!.seed, 0, room, room, false)[0];
+    const wave = fightIn(m, room).waves[0];
     const alive = foes(m).filter((z) => z.alive);
     expect(alive.length).toBe(wave.length);
     const entries = n.marks.filter((q) => q.room === room && q.kind === 'entry').map((q) => v(q.x + 0.5, q.y + 0.5));
@@ -123,6 +133,59 @@ describe('Campanha: partida no mapa', () => {
       expect(z.regen).toBe(0); // servo não regenera
       expect(Math.min(...entries.map((e) => dist(e, z.pos)))).toBeLessThan(1.5);
     }
+  });
+
+  it('the mill sends 2 Cinzentos through each E, then a Soot Archer through each (the encounter Lucas wrote)', () => {
+    const { m, i } = nightWith('moinho-caido-01');
+    let now = toPlaying(m, 0);
+    const n = mapOf(m);
+    now = stepOn(m, now, 'a', checkpoint(n, i));
+    shelter(m);
+    const [e1, e2] = n.marks.filter((q) => q.room === i && q.kind === 'entry').map((q) => v(q.x + 0.5, q.y + 0.5));
+    const kindOf = (id: string) => m.players.find((p) => p.id === id)!.servo;
+    const alive = () => foes(m).filter((z) => z.alive);
+    expect(alive().map((z) => kindOf(z.id))).toEqual(['ash', 'ash', 'ash', 'ash']);
+    expect(alive().filter((z) => dist(z.pos, e1) < 1.5).length).toBe(2);
+    expect(alive().filter((z) => dist(z.pos, e2) < 1.5).length).toBe(2);
+    now = clearWave(m, now);
+    expect(alive().map((z) => kindOf(z.id))).toEqual(['archer', 'archer']);
+  });
+
+  it('in the village the Ember Hound comes out of the house on the right, faster', () => {
+    const { m, i } = nightWith('vilarejo-queimado-02');
+    let now = toPlaying(m, 0);
+    const n = mapOf(m);
+    now = stepOn(m, now, 'a', checkpoint(n, i));
+    const house = n.marks.filter((q) => q.room === i && q.kind === 'entry')[0];
+    const hound = foes(m).find((z) => z.alive && m.players.find((p) => p.id === z.id)!.servo === 'hound')!;
+    expect(dist(hound.pos, v(house.x + 0.5, house.y + 0.5))).toBeLessThan(0.01);
+    expect(hound.baseSpeed).toBeCloseTo(WIZ_SPEED * SERVOS.hound.speed!, 5);
+    expect(hound.hpMax).toBe(SERVOS.hound.hp);
+  });
+
+  it('in the cemetery a tombstone cracks every 10 s and lets out one more Hollow Watcher, up to 3', () => {
+    const { m, i } = nightWith('cemiterio-dos-vigias-01');
+    let now = toPlaying(m, 0);
+    const n = mapOf(m);
+    now = stepOn(m, now, 'a', checkpoint(n, i));
+    shelter(m);
+    const standing = () => m.world!.pillars.filter((q) => q.alive && inside(n, i, q.pos)).length;
+    const before = standing();
+    now = clearWave(m, now); // a primeira onda cai na hora: o encontro continua pelas lápides
+    expect(m.night!.fight).toBe(i);
+    expect(foes(m).some((z) => z.alive)).toBe(false);
+    now = step(m, now, 60 * 10);
+    expect(m.night!.cracked).toBe(1);
+    expect(standing()).toBe(before - 1);
+    const out = foes(m).find((z) => z.alive)!;
+    expect(m.players.find((p) => p.id === out.id)!.servo).toBe('watcher');
+    for (let k = 0; k < 4; k++) {
+      now = clearWave(m, now);
+      now = step(m, now, 60 * 10);
+    }
+    expect(m.night!.cracked).toBe(3);
+    expect(standing()).toBe(before - 3);
+    expect(m.night!.done).toContain(i); // as 3 lápides racharam e o último vigia caiu: sala vencida
   });
 
   it('nobody leaves the sealed room', () => {
@@ -137,13 +200,13 @@ describe('Campanha: partida no mapa', () => {
   });
 
   it('next wave enters when the wave is cleared, and gives no gold', () => {
-    const m = night();
+    const { m, i } = nightWith('moinho-caido-01');
     let now = toPlaying(m, 0);
-    now = stepOn(m, now, 'a', checkpoint(mapOf(m), 0));
+    now = stepOn(m, now, 'a', checkpoint(mapOf(m), i));
     shelter(m);
     now = clearWave(m, now);
     expect(m.night!.wave).toBe(1);
-    expect(foes(m).filter((z) => z.alive).length).toBe(roomWaves(m.night!.seed, 0, 0, 0, false)[1].length);
+    expect(foes(m).filter((z) => z.alive).length).toBe(fightIn(m, i).waves[1].length);
     expect(m.players.find((p) => p.id === 'a')!.gold).toBe(0);
     expect(m.players.find((p) => p.id === 'a')!.stats.round.kills).toBeGreaterThan(0);
   });
@@ -271,7 +334,7 @@ describe('Campanha: partida no mapa', () => {
     expect(publicRoom('ABCD', m, 0).night).toEqual({ stage: 0, seed: m.night!.seed, fight: null, wave: 0, waves: 0, done: [], result: null });
     now = stepOn(m, now, 'a', checkpoint(mapOf(m), 0));
     const room = publicRoom('ABCD', m, 0);
-    expect(room.night).toMatchObject({ fight: 0, wave: 0, waves: roomWaves(m.night!.seed, 0, 0, 0, false).length });
+    expect(room.night).toMatchObject({ fight: 0, wave: 0, waves: fightIn(m, 0).waves.length });
     expect(room.players.filter((p) => p.servo).every((p) => p.hpMax !== undefined)).toBe(true);
   });
 
@@ -296,7 +359,7 @@ describe('Campanha: partida no mapa', () => {
 describe('Campanha: tela', () => {
   it('servants are named in the player language, people keep their nickname', () => {
     expect(playerName({ name: 'Cinzento', servo: 'ash' })).toBe('Cinzento');
-    expect(playerName({ name: 'Arqueiro oco', servo: 'archer' })).toBe('Arqueiro oco');
+    expect(playerName({ name: 'Arqueiro de Fuligem', servo: 'archer' })).toBe('Arqueiro de Fuligem');
     expect(playerName({ name: 'Lucas' })).toBe('Lucas');
   });
 
