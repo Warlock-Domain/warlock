@@ -79,6 +79,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 19/10 | Cada colaborador tem um ambiente dev próprio (`<usuário do GitHub>-dev`, em minúsculas) publicado sozinho a cada push | testar com outras pessoas antes do PR, sem tocar no jogo no ar |
 | 19/10 | Fluxo dev do usuário → dev geral (`dev`, https://dev-warlock.fernandorffdev.com) → `master` (jogo no ar, publicado sozinho pela pipeline Produção) | testar junto antes de ir ao ar, sem publicar à mão |
 | 19/10 | Promoção `dev` → `master` só quando o Fernando mandar | as promoções estavam rápidas demais; o dev geral serve para jogar antes |
+| 20/10 | Print de celular só quando a mudança mexe no layout e precisa conferir a responsividade; nos outros casos basta o PC | prints de celular em toda mudança atrasavam PR sem ganho |
 | 20/10 | Issue só pelos modelos Bug e Ideia (issue em branco desligada), título de uma frase sem prefixo, um assunto por issue, quem vai fazer se atribui antes de começar e só pega issue sem dono | evitar duas pessoas no mesmo trabalho |
 | 20/10 | Mudança grande (como o jogo se joga, balanceamento, tirar algo, mais de um dia de trabalho) só começa depois de decidida: issue **Ideia** com `precisa de decisão`, cerca de 2 dias de discussão, o Fernando dá a palavra final ouvindo o grupo, decisão escrita na issue e aqui; PR grande sem decisão espera. Bug e alinhamento de interface vão direto em PR | preocupação do grupo (Branco): cada um atacando o que dá na telha sem combinar |
 | 20/10 | O dev geral continua, mas todo PR mesclado em `dev` (inclusive de colaborador) é promovido para o `master` logo em seguida, sem esperar a palavra do Fernando; balanceamento continua só depois da simulação aprovada. Substitui as duas linhas de 19/10 sobre promoção | ninguém jogava no dev geral antes de liberar; esperar só atrasava |
@@ -139,7 +140,7 @@ Logs: https://github.com/fernandorff/warlock/actions.
 
 ## Testar no navegador
 
-Prints com Playwright headless contra `npx wrangler dev`; confira PC (1280×720 e 1920×1080) e celular (390×844) e as duas línguas (`localStorage.warlock:lang = 'pt' | 'en'`). `node scripts/smoke.mjs <url>` faz o teste rápido de uma sala de verdade. Scripts prontos: `node scripts/play-headless.mjs <url> <pasta-prints>` (uma rodada com prints), `long-headless.mjs`, `multi-headless.mjs` (3 pessoas). Usam o Chrome instalado (`PW_CHANNEL=chromium` para o Chromium do Playwright, depois de `npx playwright-core install chromium`) e um perfil temporário (`PW_PROFILE=<pasta>` para um fixo).
+Prints com Playwright headless contra `npx wrangler dev`; confira no PC (1280×720 e 1920×1080), celular (390×844) só quando a mudança mexe no layout e precisa conferir se ele se adapta à tela pequena (decisão de 20/10), e as duas línguas (`localStorage.warlock:lang = 'pt' | 'en'`). `node scripts/smoke.mjs <url>` faz o teste rápido de uma sala de verdade. Scripts prontos: `node scripts/play-headless.mjs <url> <pasta-prints>` (uma rodada com prints), `long-headless.mjs`, `multi-headless.mjs` (3 pessoas). Usam o Chrome instalado (`PW_CHANNEL=chromium` para o Chromium do Playwright, depois de `npx playwright-core install chromium`) e um perfil temporário (`PW_PROFILE=<pasta>` para um fixo).
 
 ## Git
 

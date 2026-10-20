@@ -15,7 +15,7 @@ Fecha #<!-- número da issue, se houver -->
 
 ## Prints
 
-<!-- Obrigatório se mudou algo na tela: antes e depois, no PC e no celular. Arraste as imagens aqui. -->
+<!-- Obrigatório se mudou algo na tela: antes e depois, no PC. Celular só se a mudança mexe no layout (responsividade). Arraste as imagens aqui. -->
 
 | Antes | Depois |
 |---|---|
