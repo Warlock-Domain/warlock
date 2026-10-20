@@ -8,11 +8,17 @@ import type { SpellId } from './spells.ts';
 export const CAMPAIGN = { humans: 4, slots: 4 };
 
 // servos do Fumo: magos fracos com a IA de bot (vida 200 nos esqueletos: Lucas, 20/10; o resto são números iniciais, a medir)
-export const SERVO_KINDS = ['ash', 'archer'] as const;
+export const SERVO_KINDS = ['ash', 'archer', 'watcher', 'hound'] as const;
 export type ServoKind = (typeof SERVO_KINDS)[number];
-export const SERVOS: Record<ServoKind, { name: string; look: CharacterId; hp: number; spells: Partial<Record<SpellId, number>> }> = {
-  ash: { name: 'Cinzento', look: 'skeleton_minion', hp: 200, spells: { fireball: 1 } },
-  archer: { name: 'Arqueiro oco', look: 'skeleton_rogue', hp: 200, spells: { lightning: 1 } },
+// name e plural: como as salas escrevem o servo nas linhas de onda (levels/*.ts); speed: multiplica a velocidade de andar
+export const SERVOS: Record<ServoKind, { name: string; plural: string; look: CharacterId; hp: number; spells: Partial<Record<SpellId, number>>; speed?: number }> = {
+  ash: { name: 'Cinzento', plural: 'Cinzentos', look: 'skeleton_minion', hp: 200, spells: { fireball: 1 } },
+  // o Raio passa por cima da mureta: atira de longe por trás da cobertura baixa
+  archer: { name: 'Arqueiro de Fuligem', plural: 'Arqueiros de Fuligem', look: 'skeleton_rogue', hp: 200, spells: { lightning: 1 } },
+  // arqueiro morto que sai das lápides do cemitério: Míssil teleguiado, pouca vida
+  watcher: { name: 'Vigia Oco', plural: 'Vigias Ocos', look: 'skeleton_mage', hp: 150, spells: { homing: 1 } },
+  // rápido e de perto: Investida (sem modelo de cão ainda; o esqueleto guerreiro faz o papel)
+  hound: { name: 'Cão de Brasa', plural: 'Cães de Brasa', look: 'skeleton_warrior', hp: 250, spells: { rush: 1 }, speed: 1.4 },
 };
 
 // padrão de cada estágio: ondas dos encontros, da mais fácil para a mais difícil (o mapa vem das salas, levels.ts)
@@ -36,5 +42,6 @@ export function roomWaves(seed: number, stage: number, room: number, depth: numb
 }
 
 // estado da noite guardado na partida (o mapa sai de buildNight pela semente, não é gravado): fight = sala do encontro
-// aberto, wave = onda atual dele, done = salas com o encontro vencido
-export type Night = { seed: number; stage: number; fight: number | null; wave: number; done: number[]; result: 'won' | 'lost' | null };
+// aberto, wave = onda atual dele, since = w.t em que ele abriu, cracked = lápides que já racharam nele, done = salas com o
+// encontro vencido
+export type Night = { seed: number; stage: number; fight: number | null; wave: number; since: number; cracked: number; done: number[]; result: 'won' | 'lost' | null };

@@ -1,8 +1,8 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
-import { roomWaves, type Night, type ServoKind } from './campaign.ts';
-import { nightMap } from './levels.ts';
+import type { Night, ServoKind } from './campaign.ts';
+import { fightOf, nightMap } from './levels.ts';
 import { isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS } from './constants.ts';
 import { ITEM_IDS, isActive, type ItemId } from './items.ts';
@@ -268,7 +268,6 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
 }
 
 function publicNight(n: Night): NonNullable<PublicRoom['night']> {
-  const boss = n.fight !== null && nightMap(n.seed, n.stage).rooms[n.fight].room.pool === 'chefe';
-  const waves = n.fight === null ? 0 : roomWaves(n.seed, n.stage, n.fight, n.fight, boss).length;
+  const waves = n.fight === null ? 0 : fightOf(nightMap(n.seed, n.stage), n.fight, n.seed, n.stage).waves.length;
   return { stage: n.stage, seed: n.seed, fight: n.fight, wave: n.wave, waves, done: n.done, result: n.result };
 }

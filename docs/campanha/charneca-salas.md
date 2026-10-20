@@ -20,6 +20,32 @@ C1: notas do encontro (texto livre, depois da grade)
 - 1 caractere = 1 casa (1 m, a ajustar jogando). Todas as linhas da grade com o mesmo tamanho.
 - Saídas: a mesma letra repetida na borda forma a abertura (`LLL`, `NNNN`). Liga O com L, N com S e X com X (a passagem para a arena do chefe); as aberturas se alinham pelo meio.
 
+## Encontro da sala
+
+Nas notas (depois da grade), as linhas abaixo são lidas pelo jogo; o resto é texto livre:
+
+```
+onda 1: 2 Cinzentos @E1, 2 Cinzentos @E2
+onda 2: 1 Arqueiro de Fuligem @E1, 1 Arqueiro de Fuligem @E2
+lápides: 1 Vigia Oco a cada 10 s, até 3
+```
+
+- Os `E` são numerados na ordem de leitura da grade (de cima para baixo, da esquerda para a direita): o primeiro é `E1`.
+- Cada onda entra quando a anterior cai; no máximo 4 servos por onda (as vagas da sala). Vários pelo mesmo `E` nascem lado a lado.
+- `lápides`: durante o encontro, a cada tantos segundos uma lápide (`I`) da sala racha e solta mais um servo, até o número dado; a sala só é vencida depois disso.
+- Sala sem linha `onda` usa ondas sorteadas pela noite (hoje só a arena do chefe, até o Sir Odran).
+
+Servos (nome no singular ou no plural):
+
+| Servo | Plural | Vida | Ataque | Observação |
+|---|---|---|---|---|
+| Cinzento | Cinzentos | 200 | Bola de fogo | o básico |
+| Arqueiro de Fuligem | Arqueiros de Fuligem | 200 | Raio | atira por cima da mureta |
+| Vigia Oco | Vigias Ocos | 150 | Míssil teleguiado | sai das lápides |
+| Cão de Brasa | Cães de Brasa | 250 | Investida | 1,4× mais rápido (ainda com o modelo de esqueleto guerreiro) |
+
+Nenhum servo regenera vida.
+
 ## Legenda
 
 | Símbolo | O que é |

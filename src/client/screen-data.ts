@@ -27,7 +27,7 @@ export function roomGroups(rooms: RoomInfo[]) {
 }
 
 // Campanha: nome dos servos (o servidor manda em português), nome do estágio e a linha de onde a noite está
-const SERVO_NAME: Record<ServoKind, string> = { ash: t('Cinzento', 'Ashen'), archer: t('Arqueiro oco', 'Hollow archer') };
+const SERVO_NAME: Record<ServoKind, string> = { ash: t('Cinzento', 'Ashen'), archer: t('Arqueiro de Fuligem', 'Soot Archer'), watcher: t('Vigia Oco', 'Hollow Watcher'), hound: t('Cão de Brasa', 'Ember Hound') };
 export const STAGE_NAME = [t('Charneca Cinzenta', 'Ashen Moor')];
 export const playerName = (p: Pick<PublicPlayer, 'name' | 'servo'>) => (p.servo ? SERVO_NAME[p.servo] : p.name);
 // vida máxima: a do servo, ou a de sempre com os itens

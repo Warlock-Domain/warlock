@@ -1,14 +1,15 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
-import { CAMPAIGN, SERVOS, roomWaves, type Night, type ServoKind } from './campaign.ts';
-import { nightMap, obstaclesOf, roomRect, terrainOf, type NightMap } from './levels.ts';
+import { CAMPAIGN, SERVOS, type Night, type ServoKind } from './campaign.ts';
+import { fightOf, nightMap, obstaclesOf, roomRect, terrainOf, type NightMap, type Spawn } from './levels.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
 import { CHARACTERS, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
-  ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, INVULN_TIME, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
+  ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, INVULN_TIME, WIZ_SPEED, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
 import type { BotSetup } from './protocol.ts';
+import { nightRand } from './rng.ts';
 import { gearOf, newWorld, revive, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
 import { MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { dist, len, v, type Vec } from './vec.ts';
@@ -248,7 +249,7 @@ function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: ()
   // já sorteia na loja para cada um ver o time; com sorteio a cada rodada, a contagem sorteia de novo
   if (mode === 'teams') shuffleTeams(m, rand);
   // Campanha: noite nova (semente nova a cada tentativa); humanos no time 0, o Fumo no 1, ninguém com ouro
-  m.night = mode === 'campaign' ? { seed: Math.floor(rand() * 2 ** 31), stage: 0, fight: null, wave: 0, done: [], result: null } : undefined;
+  m.night = mode === 'campaign' ? { seed: Math.floor(rand() * 2 ** 31), stage: 0, fight: null, wave: 0, since: 0, cracked: 0, done: [], result: null } : undefined;
   if (m.night) for (const p of m.players) Object.assign(p, { gold: 0, team: p.servo ? 1 : 0 });
   enterShop(m, now);
 }
@@ -373,7 +374,7 @@ export function resume(m: Match, now: number) {
   m.pendingOpts ??= {};
   m.botDelta ??= 0;
   m.vote = null; // o prazo de uma votação gravada já passou
-  if (m.night) Object.assign(m.night, { fight: m.night.fight ?? null, done: m.night.done ?? [] }); // noites gravadas antes do mapa explorável
+  if (m.night) Object.assign(m.night, { fight: m.night.fight ?? null, done: m.night.done ?? [], since: m.night.since ?? 0, cracked: m.night.cracked ?? 0 }); // noites gravadas antes do mapa explorável e das lápides
   for (const p of m.players) {
     p.character ??= 'mage';
     p.look ??= lookOf(p.character); // salas gravadas antes da aparência montada
@@ -699,7 +700,7 @@ const center = (x: number, y: number) => v(x + 0.5, y + 0.5);
 const checkpointOf = (map: NightMap, i: number) => map.marks.filter((q) => q.room === i && q.kind === 'checkpoint').map((q) => v(q.x + 1, q.y + 0.5))[0];
 const spawnsOf = (map: NightMap, i: number) => map.marks.filter((q) => q.room === i && (q.kind === 'entry' || q.kind === 'boss')).map((q) => center(q.x, q.y));
 const isBoss = (map: NightMap, i: number) => map.rooms[i].room.pool === 'chefe';
-const wavesOf = (n: Night, map: NightMap, i: number) => roomWaves(n.seed, n.stage, i, i, isBoss(map, i));
+const fight = (n: Night, map: NightMap, i: number) => fightOf(map, i, n.seed, n.stage);
 // magos em roda em volta de p (no mapa, keepOut tira de dentro da parede no passo seguinte)
 const around = (p: Vec, i: number, n: number) => (n === 1 ? p : v(p.x + Math.cos((i / n) * 2 * Math.PI) * 1.2, p.y + Math.sin((i / n) * 2 * Math.PI) * 1.2));
 
@@ -721,26 +722,47 @@ function enterStage(m: Match, now: number, rand: () => number) {
   m.phaseEnds = now + COUNTDOWN_MS * PACE[m.opts.pace];
 }
 
-// onda: as vagas do Fumo voltam nos pontos de entrada da sala com o tipo sorteado; as que sobram ficam de fora
-function sendWave(m: Match, w: World, kinds: ServoKind[], spots: Vec[]) {
+// põe a vaga do Fumo em jogo como este tipo de servo, em `at` (onda ou lápide). Servo não regenera (sem lava, só o dano
+// derruba; com os 5/s de sempre o encontro se arrastava: medido em 19/10, número inicial a confirmar com o Lucas)
+function summon(m: Match, w: World, p: Player, kind: ServoKind, at: Vec) {
+  const z = w.wizards.find((q) => q.id === p.id);
+  if (!z) return;
+  dress(m, p, kind);
+  Object.assign(z, { spells: { ...p.spells }, cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), hpMax: p.hpMax, regen: 0, baseSpeed: WIZ_SPEED * (SERVOS[kind].speed ?? 1) });
+  revive(w, z, at);
+}
+
+// onda: cada servo entra pelo E que a sala pede (vários pelo mesmo E nascem lado a lado); as vagas que sobram ficam de fora
+function sendWave(m: Match, w: World, wave: Spawn[], spots: Vec[]) {
   m.players.filter((p) => p.servo).forEach((p, i) => {
-    const z = w.wizards.find((q) => q.id === p.id);
-    if (!z) return;
-    if (i >= kinds.length) return void Object.assign(z, { alive: false, hp: 0 });
-    dress(m, p, kinds[i]);
-    Object.assign(z, { spells: { ...p.spells }, cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), hpMax: p.hpMax, regen: 0 });
-    // servo não regenera (sem lava, só o dano derruba; com os 5/s de sempre o encontro se arrastava: medido em
-    // 19/10, número inicial a confirmar com o Lucas); mais servos que pontos de entrada: o segundo do mesmo ponto nasce ao lado
-    const at = spots[i % spots.length];
-    revive(w, z, i < spots.length ? at : around(at, i, kinds.length));
+    if (i >= wave.length) return void Object.assign(w.wizards.find((q) => q.id === p.id) ?? {}, { alive: false, hp: 0 });
+    const e = wave[i].e % spots.length, same = wave.filter((s) => s.e % spots.length === e);
+    summon(m, w, p, wave[i].kind, around(spots[e], same.indexOf(wave[i]), same.length));
   });
+}
+
+// lápides (cemitério): a cada `every` s do encontro uma lápide da sala racha e solta um servo, se houver vaga, até `max`;
+// sem lápide de pé, não sobra nenhuma para rachar
+function crack(m: Match, w: World, map: NightMap, i: number) {
+  const n = m.night!, t = fight(n, map, i).tombs;
+  if (!t || n.cracked >= t.max || w.t < n.since + t.every * (n.cracked + 1)) return;
+  const tombs = map.marks.filter((q) => q.room === i && q.kind === 'statue').map((q) => v(q.x + (q.w ?? 1) / 2, q.y + (q.h ?? 1) / 2));
+  const standing = w.pillars.map((q, k) => ({ q, k })).filter(({ q }) => q.alive && tombs.some((s) => dist(s, q.pos) < 0.01));
+  if (!standing.length) return void (n.cracked = t.max);
+  const slot = m.players.find((p) => p.servo && !w.wizards.find((z) => z.id === p.id)?.alive);
+  if (!slot) return; // sem vaga: racha quando um servo cair
+  const { q, k } = standing[Math.floor(nightRand(n.seed, n.stage, 1000 + i * 16 + n.cracked)() * standing.length)];
+  q.alive = false;
+  w.events.push({ k: 'pillar', i: k, x: q.pos.x, y: q.pos.y }, { k: 'clash', x: q.pos.x, y: q.pos.y, combo: 'pillar', r: 0.8 });
+  n.cracked++;
+  summon(m, w, slot, t.kind, q.pos);
 }
 
 // alguém pisou no ponto de controle (ou entrou na arena do chefe): puxa todos os Acesos vivos para lá, tranca a sala e
 // solta a primeira onda
 function startFight(m: Match, w: World, map: NightMap, i: number, at: Vec) {
   const n = m.night!;
-  Object.assign(n, { fight: i, wave: 0 });
+  Object.assign(n, { fight: i, wave: 0, since: w.t, cracked: 0 });
   w.lock = roomRect(map, i);
   w.map!.home = at;
   const acesos = w.wizards.filter((z) => z.alive && z.team === 0);
@@ -749,7 +771,7 @@ function startFight(m: Match, w: World, map: NightMap, i: number, at: Vec) {
     Object.assign(z, { pos: around(at, k, acesos.length), vel: v(0, 0), target: null });
     w.events.push({ k: 'teleport', id: z.id, from, to: z.pos });
   });
-  sendWave(m, w, wavesOf(n, map, i)[0], spawnsOf(map, i));
+  sendWave(m, w, fight(n, map, i).waves[0], spawnsOf(map, i));
 }
 
 // sala que este Aceso ativa agora: em cima do ponto de controle de uma sala ainda não vencida, ou já dentro da arena do chefe
@@ -779,9 +801,11 @@ function stepNight(m: Match, now: number, w: World) {
     return endRound(m, now, null);
   }
   if (n.fight !== null) {
+    crack(m, w, map, n.fight);
     if (w.wizards.some((z) => z.alive && z.team === 1)) return;
-    const waves = wavesOf(n, map, n.fight);
-    if (n.wave + 1 < waves.length) return sendWave(m, w, waves[++n.wave], spawnsOf(map, n.fight));
+    const f = fight(n, map, n.fight);
+    if (n.wave + 1 < f.waves.length) return sendWave(m, w, f.waves[++n.wave], spawnsOf(map, n.fight));
+    if (f.tombs && n.cracked < f.tombs.max) return; // ainda vai rachar lápide: o encontro continua
     n.done.push(n.fight);
     w.lock = undefined;
     if (isBoss(map, n.fight)) {
