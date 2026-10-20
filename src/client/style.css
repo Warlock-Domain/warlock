@@ -918,10 +918,9 @@ body.replaying .peek-shop { display: none; }
 /* Barra local inspirada na referência: emblema e placas metálicas inclinadas. */
 .lobby:has(.home-bar) { padding-top: var(--safe-t); }
 .home-bar { display: flex; align-items: stretch; gap: 0; width: 100vw; margin-left: calc(50% - 50vw); padding: 0 max(20px, var(--safe-r)) 0 max(20px, var(--safe-l)); min-height: 88px; background: linear-gradient(115deg, var(--panel2), var(--bg) 55%, var(--panel-bot)); border-bottom: 2px solid var(--bronze); box-shadow: var(--shadow-md); }
-.home-logo { flex: 0 0 auto; min-width: 132px; display: grid; place-items: center; padding: 8px; border: 0; border-radius: 0; background: radial-gradient(ellipse at 50% 100%, var(--lava-dark), transparent 75%); border-inline: 1px solid var(--gold-line); }
-.home-logo:focus-visible { outline-offset: -4px; }
-.home-logo[aria-selected="true"] { background-color: var(--sel-bg); box-shadow: inset 0 -3px var(--gold); }
-@media (hover: hover) { .home-logo:hover { background-color: var(--sel-bg); } }
+/* o W é uma placa inclinada igual às abas (::before compartilhado mais abaixo; issue #117): mesma borda, altura e destaque de selecionado/hover */
+.home-logo { position: relative; isolation: isolate; flex: 0 0 auto; min-width: 104px; display: grid; place-items: center; padding: 8px; border: 0; border-radius: 0; background: none; }
+.home-logo:focus-visible { z-index: 1; outline-offset: -4px; }
 /* logo na barra = o mesmo SVG do ícone da aba (public/warlock-wars.svg; pedido do Fernando, 20/10) */
 .home-logo img { display: block; width: 64px; height: 64px; filter: drop-shadow(0 2px 8px rgba(255, 120, 30, .45)); }
 .home-tool { flex: 0 0 64px; border: 0; border-right: 1px solid var(--line); border-radius: 0; background: none; padding: 10px; }
@@ -930,11 +929,11 @@ body.replaying .peek-shop { display: none; }
 @media (hover: hover) { .home-tool:hover { background: var(--sel-bg); } }
 .home-tabs { display: flex; flex: 1; min-width: 0; padding: 0 12px; }
 .home-tabs button { position: relative; isolation: isolate; flex: 1; min-width: 0; background: none; border: 0; border-radius: 0; padding: 12px 14px; font-family: var(--display); font-size: clamp(.95rem, 1.3vw, 1.3rem); font-weight: 700; line-height: 1.15; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); text-shadow: var(--text-shadow); }
-.home-tabs button::before { content: ''; position: absolute; inset: 0; z-index: -1; transform: skewX(-12deg); background: linear-gradient(180deg, var(--panel-top), var(--bg)); border-inline: 1px solid var(--line); border-bottom: 3px solid transparent; box-shadow: inset 0 1px var(--gold-faint); }
+.home-tabs button::before, .home-logo::before { content: ''; position: absolute; inset: 0; z-index: -1; transform: skewX(-12deg); background: linear-gradient(180deg, var(--panel-top), var(--bg)); border-inline: 1px solid var(--line); border-bottom: 3px solid transparent; box-shadow: inset 0 1px var(--gold-faint); }
 .home-tabs button.on { color: var(--gold-pale); }
-.home-tabs button.on::before { border-bottom-color: var(--gold); background: linear-gradient(180deg, var(--panel2), var(--lava-night)); }
+.home-tabs button.on::before, .home-logo[aria-selected="true"]::before { border-bottom-color: var(--gold); background: linear-gradient(180deg, var(--panel2), var(--lava-night)); }
 .home-tabs button:focus-visible { z-index: 1; outline-offset: -5px; }
-@media (hover: hover) { .home-tabs button:hover { color: var(--fg); } .home-tabs button:hover::before { border-bottom-color: var(--bronze); background: var(--plate); } }
+@media (hover: hover) { .home-tabs button:hover { color: var(--fg); } .home-tabs button:hover::before, .home-logo:hover::before { border-bottom-color: var(--bronze); background: var(--plate); } }
 .home-tabs button .gi { display: none; }
 .home-tabs .home-exit { flex: 0 0 64px; padding: 10px; border-right: 1px solid var(--line); }
 .home-tabs .home-exit::before { display: none; }
@@ -985,7 +984,7 @@ body.replaying .peek-shop { display: none; }
   .home-tool { flex-basis: 48px; }
   .home-tabs { flex-wrap: wrap; padding: 0; }
   .home-tabs button { flex: 1 1 30%; min-height: 48px; font-size: .95rem; letter-spacing: .02em; }
-  .home-tabs button::before { transform: none; }
+  .home-tabs button::before, .home-logo::before { transform: none; }
   /* celular: o sumário vira "Sumário" recolhível, colado no topo enquanto rola */
   .settings-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .settings-toc, .home-settings .settings-toc { top: 0; z-index: 3; padding: 0 10px; background: var(--panel-solid); }
