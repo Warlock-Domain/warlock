@@ -1,7 +1,7 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
 import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
-import { ARENA_IDS, type ArenaId } from '../shared/arena.ts';
+import type { ArenaId } from '../shared/arena.ts';
 import { type CharacterId } from '../shared/characters.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Sandbox, type SandboxCmd, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
@@ -639,8 +639,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     act.sandbox({ op: 'bot', bot: { difficulty: sbLevel, ...(spells && { spells }) }, ...(dummy && { dummy: true }) });
   };
   const sbBots = el('ul', { class: 'sandbox-bots' });
-  const sbArena = el('select', { 'aria-label': t('Arena', 'Arena'), onchange: (e: Event) => act.sandbox({ op: 'arena', arena: (e.target as HTMLSelectElement).value as ArenaId }) },
-    ...ARENA_IDS.map((a) => el('option', { value: a }, arenaName(a)))) as HTMLSelectElement;
+  const sbTurretDirection = el('select', { 'aria-label': t('Direção da torreta', 'Turret direction') },
+    ...([['east', t('Direita', 'Right')], ['west', t('Esquerda', 'Left')], ['north', t('Cima', 'Up')], ['south', t('Baixo', 'Down')]] as const)
+      .map(([value, label]) => el('option', { value }, label))) as HTMLSelectElement;
   sbPanel.append(
     el('b', {}, 'Sandbox'),
     el('small', { class: 'muted' }, t('Nada daqui conta nos dados do jogo.', 'Nothing here counts toward the game data.')),
@@ -653,13 +654,18 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         ...(['easy', 'normal', 'hard'] as const).map((k) => el('option', { value: k, selected: k === sbLevel }, SKILL_NAME[k]))),
       el('button', { type: 'button', onclick: () => addBot(false) }, t('+ Bot', '+ Bot'))),
     el('button', { type: 'button', title: t('Bot que não anda nem atira: bom para testar dano e empurrão', 'A bot that neither moves nor shoots: good for testing damage and knockback'), onclick: () => addBot(true) }, t('+ Boneco parado', '+ Training dummy')),
+    el('div', { class: 'sandbox-row' }, sbTurretDirection,
+      el('button', { type: 'button', title: t('Dispara bolas de fogo numa direção fixa. Não recebe dano nem empurrão.', 'Fires fireballs in a fixed direction. Takes no damage or knockback.'), onclick: () => act.sandbox({ op: 'turret', direction: sbTurretDirection.value as 'north' | 'east' | 'south' | 'west' }) }, t('+ Torreta', '+ Turret'))),
     botSetupPanel(1, savedBotSetup(SANDBOX_BOT), () => {}, SANDBOX_BOT),
     sbBots,
-    el('label', { class: 'sandbox-row' }, t('Arena', 'Arena'), sbArena),
+    el('p', { class: 'muted' }, t('Arena: círculo fixo. A torreta inicial dispara da esquerda para a direita.', 'Arena: fixed circle. The initial turret fires from left to right.')),
     // runa escolhida: nasce ao lado do seu mago, no lugar da que estiver na arena
     el('div', { class: 'sandbox-row', role: 'group', 'aria-label': t('Pôr runa', 'Place rune') }, t('Runa', 'Rune'),
       ...RUNE_KINDS.map((k) => el('button', { type: 'button', class: 'icon', title: RUNE_NAME[k], 'aria-label': t(`Pôr a ${RUNE_NAME[k]} ao seu lado`, `Place the ${RUNE_NAME[k]} next to you`), onclick: () => act.sandbox({ op: 'rune', kind: k }) }, icon(RUNE_ICON[k])))),
-    el('button', { type: 'button', onclick: () => act.sandbox({ op: 'restart' }) }, t('Reiniciar a rodada', 'Restart the round')));
+    el('button', { type: 'button', title: t('Recomeça a rodada; sem torreta na arena, põe uma de novo', 'Restarts the round; with no turret in the arena, adds one back'), onclick: () => {
+      if (!room?.players.some((p) => p.turret)) act.sandbox({ op: 'turret', direction: 'east' });
+      act.sandbox({ op: 'restart' });
+    } }, t('Reiniciar a rodada', 'Restart the round')));
   let sbSig = '';
   function drawSandbox(r: PublicRoom) {
     sbBtn.hidden = !r.sandbox || !PEEK_PHASES.includes(r.phase);
@@ -668,13 +674,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       return;
     }
     for (const [k, box] of sbChecks) box.checked = r.sandbox[k];
-    if (r.arena && document.activeElement !== sbArena) sbArena.value = r.arena;
     // lista dos bots com o ✕ (tirar): só redesenha quando muda
     const bots = r.players.filter((p) => p.bot);
-    const sig = bots.map((p) => `${p.id}:${p.name}:${p.difficulty}:${p.dummy}`).join();
+    const sig = bots.map((p) => `${p.id}:${p.name}:${p.difficulty}:${p.dummy}:${p.turret}`).join();
     if (sig === sbSig) return;
     sbSig = sig;
-    sbBots.replaceChildren(...bots.map((p) => el('li', {}, el('span', {}, `${p.name} · ${p.dummy ? t('boneco', 'dummy') : SKILL_NAME[p.difficulty ?? 'normal']}`),
+    sbBots.replaceChildren(...bots.map((p) => el('li', {}, el('span', {}, p.turret ? t('Torreta · direção fixa', 'Turret · fixed direction') : `${p.name} · ${p.dummy ? t('boneco', 'dummy') : SKILL_NAME[p.difficulty ?? 'normal']}`),
       el('button', { type: 'button', class: 'icon', title: t(`Tirar ${p.name}`, `Remove ${p.name}`), 'aria-label': t(`Tirar ${p.name}`, `Remove ${p.name}`), onclick: () => act.kick(p.id) }, '✕'))));
   }
   const helpBtn = el('button', { type: 'button', class: 'icon wide-only', onclick: showRules }, icon(UI_ICON.help));
