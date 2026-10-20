@@ -130,6 +130,7 @@ Push na branch `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffde
 | Sky | breakie33 | `breakie33-dev` | https://breakie33-dev-warlock.fernandorffdev.com |
 | Lucas | lucascvalle | `lucascvalle-dev` | https://lucascvalle-dev-warlock.fernandorffdev.com |
 | Arthur | arthurbaquit | `arthurbaquit-dev` | https://arthurbaquit-dev-warlock.fernandorffdev.com |
+| Reinaldo | reirag | `reirag-dev` | https://reirag-dev-warlock.fernandorffdev.com |
 | Fernando | fernandorff | `fernandorff-dev` | https://fernandorff-dev-warlock.fernandorffdev.com |
 
 A branch `-dev` é sua: pode substituir pelo estado da tarefa (`git push --force origin HEAD:<usuário>-dev`) ou atualizar com o jogo no ar (`git merge origin/master` nela). Não abra PR a partir da `-dev`; o PR sai da branch da tarefa.
