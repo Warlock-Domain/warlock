@@ -3,7 +3,8 @@
 import { NodeIO } from '@gltf-transform/core';
 import { dedup, prune, resample } from '@gltf-transform/functions';
 
-const KEEP = ['Idle', 'Running_A', 'Spellcast_Shoot', 'Spellcast_Raise', 'Hit_A', 'Death_A', 'Cheer'];
+// gestos: Dodge_Forward (Teleporte), Throw (Agarrar), Hit_B (preso pelo Agarrar), Jump_Idle (arremessado), Death_B (morte fora da lava)
+const KEEP = ['Idle', 'Running_A', 'Spellcast_Shoot', 'Spellcast_Raise', 'Hit_A', 'Death_A', 'Cheer', 'Dodge_Forward', 'Throw', 'Hit_B', 'Jump_Idle', 'Death_B'];
 const [src, out, drop = 'Spellbook,Spellbook_open,1H_Wand'] = process.argv.slice(2);
 const DROP_NODES = drop.split(',');
 const io = new NodeIO();

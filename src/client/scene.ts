@@ -743,7 +743,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const mixer = new THREE.AnimationMixer(model);
     const actions: Record<string, THREE.AnimationAction> = {};
     for (const c of src.clips) actions[c.name] = mixer.clipAction(c);
-    for (const n of ['Spellcast_Shoot', 'Hit_A', 'Death_A', 'Spellcast_Raise']) {
+    for (const n of ['Spellcast_Shoot', 'Hit_A', 'Death_A', 'Spellcast_Raise', 'Dodge_Forward', 'Throw', 'Hit_B', 'Death_B']) {
       actions[n]?.setLoop(THREE.LoopOnce, 1);
       if (actions[n]) actions[n].clampWhenFinished = true;
     }
@@ -775,12 +775,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     m.current = name;
   }
 
-  // animação de conjurar: Escudo e Investida erguem as mãos, o resto atira
-  const castAnim = (spell: string) => (spell === 'shield' || spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot');
-  function oneShot(id: string, name: string, secs: number) {
+  // animação de conjurar [clip, segundos, início no clip]: Escudo e Investida erguem as mãos, Teleporte esquiva para a frente,
+  // Agarrar arremessa (o Throw só desce o braço aos ~0,6 s e a magia sai aos 0,1 s: começa no meio), o resto atira
+  const CAST_ANIM: Record<string, [string, number, number?]> = { shield: ['Spellcast_Raise', 0.55], rush: ['Spellcast_Raise', 0.55], teleport: ['Dodge_Forward', 0.4], grip: ['Throw', 0.6, 0.45] };
+  const castAnim = (spell: string) => CAST_ANIM[spell] ?? (['Spellcast_Shoot', 0.55] as const);
+  function oneShot(id: string, name: string, secs: number, from = 0) {
     const m = mages.get(id);
     if (!m || m.dead) return;
+    // a magia chama duas vezes (castLocal e o 'cast' do servidor): só a primeira pula para o início
+    const fresh = m.current !== name;
     play(m, name, 0.08);
+    if (fresh && from && m.actions[name]) m.actions[name].time = from;
     m.oneShotUntil = performance.now() / 1000 + secs;
   }
 
@@ -1373,7 +1378,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   function onEvents(events: SimEvent[]) {
     for (const e of events) {
-      if (e.k === 'cast') oneShot(e.id, castAnim(e.spell), 0.55);
+      if (e.k === 'cast') oneShot(e.id, ...castAnim(e.spell));
       else if (e.k === 'hit') {
         oneShot(e.id, 'Hit_A', 0.45);
         // o acerto do raio tem impacto elétrico próprio: a explosão de fogo cobria o raio e parecia que ele não tinha saído
@@ -1390,6 +1395,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       else if (e.k === 'lightning') bolt(e.from, e.to);
       else if (e.k === 'grip') {
+        oneShot(e.id, 'Hit_B', 0.85); // quem foi preso cambaleia para trás
         burst(v(e.x, e.y), '#e0203a', 2.4, 0.5, 0.8, FX.magic);
         burst(v(e.x, e.y), '#ffd0d8', 1.6, 0.3, 0.8, FX.light);
         shockwave(v(e.x, e.y), 1.2, '#e0203a');
@@ -1618,9 +1624,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!d.alive) {
         if (!m.dead) {
           m.dead = true;
-          play(m, 'Death_A', 0.1);
-          // caiu na lava (fora da pedra e fora das ilhas): o corpo queima
-          if (inLavaAt(shownArena, shownR, shownIsles, d.pos)) {
+          // caiu na lava (fora da pedra e fora das ilhas): Death_A, que é a pose dos ossos, e o corpo queima; na pedra, Death_B (cai de costas)
+          const lava = inLavaAt(shownArena, shownR, shownIsles, d.pos);
+          play(m, lava ? 'Death_A' : 'Death_B', 0.1);
+          if (lava) {
             m.burnAt = now;
             loadFile(BONES);
           }
@@ -1631,7 +1638,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           m.dead = false;
           unburn(m);
         }
-        if (now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.moving ? 'Running_A' : 'Idle');
+        // atordoado (16: arremessado por um golpe) voa de braços abertos
+        if (now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
         // vencedor: estouro dourado ao começar a comemorar e faíscas subindo enquanto dura
         if (d.cheer && !m.cheering) victoryBurst(d.pos);
         if (d.cheer && !lite && Math.random() < 0.2) burst(v(d.pos.x + (Math.random() - 0.5) * 1.4, d.pos.y + (Math.random() - 0.5) * 1.4), Math.random() < 0.5 ? '#ffd84a' : '#fff2a0', 0.7, 1.2, 0.4, FX.star, 2.6);
@@ -1884,7 +1892,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       pan.set(0, 0, 0);
     },
     castLocal(id: string, spell: string, at?: Vec) {
-      oneShot(id, castAnim(spell), 0.55);
+      oneShot(id, ...castAnim(spell));
       const m = mages.get(id);
       if (!m || m.dead) return;
       // brilho na mão (um pouco à frente do mago, na cor da magia) e linha de mira fraca até o ponto
