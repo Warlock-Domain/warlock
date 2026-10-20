@@ -35,9 +35,17 @@ declare const __BRANCH__: string;
 
 // aba de teste diz qual é o teste (pedido do Fernando, 20/10): várias sessões abrem localhost e todas as abas tinham o mesmo
 // título. Em localhost vira "🧪 <branch> · Warlock Wars"; ?aba=<nome> na URL troca o nome. No ar nada muda.
-if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+const LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+if (LOCAL) {
   document.title = `🧪 ${new URLSearchParams(location.search).get('aba') || __BRANCH__ || 'teste'} · Warlock Wars`;
 }
+
+// ?ir=<lugar> (issue #140): em localhost a aba de teste já abre no ponto a testar (pedido do Fernando, 20/10); no ar nada muda.
+// Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, controle, jogador,
+// personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando) e partida:loja (contra 1 bot, na loja da rodada 1, com 120 s).
+// Sala e seção juntas, com vírgula: sandbox,config:som (Som só existe dentro da sala)
+const IR = (LOCAL && new URLSearchParams(location.search).get('ir')?.split(',')) || [];
+const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 
 // som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
@@ -163,6 +171,16 @@ function startLobby(name: string) {
     draw();
   });
   draw();
+  const k = IR[0];
+  if (k === 'sandbox' || k?.startsWith('partida')) {
+    // a sala sai da URL (só a seção fica): ao voltar ao menu (location.hash = '') a página não cria outra sala
+    const url = new URL(location.href);
+    if (IR.length > 1) url.searchParams.set('ir', IR.slice(1).join(','));
+    else url.searchParams.delete('ir');
+    history.replaceState(null, '', url);
+    void create(k);
+  } else if (IR_CONFIG) openSettings(IR_CONFIG);
+  else if (k) document.getElementById('home-tab-' + k)?.click();
 }
 
 function startRoom(code: string, name: string) {
@@ -397,12 +415,18 @@ function startRoom(code: string, name: string) {
     const k = autostart;
     if (!k || !r.players.some((p) => p.id === me)) return;
     autostart = null;
+    if (IR_CONFIG) openSettings(IR_CONFIG); // ?ir=sandbox,config:som (só localhost)
     if (r.phase !== 'lobby' || r.players.some((p) => !p.bot && p.id !== me)) return;
     const c = CHALLENGES.find((x) => x.id === k);
     const skill = toSkill(store.json<Profile>(PROFILE_KEY));
     if (c) startChallenge(c);
     else if (k === 'shadow' && skill) startShadow(skill);
     else if (k === 'sandbox') startSandbox();
+    else if (k === 'partida' || k === 'partida:loja') {
+      // ?ir= (só localhost): partida contra 1 bot já começada; 'partida' ainda clica Pronto e pula a loja
+      net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
+      if (k === 'partida') net.send({ t: 'ready' });
+    }
   }
   // sandbox: começa com você e um boneco parado; o resto vem pelo painel
   function startSandbox() {
