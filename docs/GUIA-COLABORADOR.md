@@ -101,7 +101,7 @@ Os padrões do projeto (`CLAUDE.md`) vencem as skills.
 3. **Planejar:** mais de um arquivo → plano; leia antes de deixar implementar.
 4. **Branch:** `git checkout -b feat/minha-ideia` a partir do `dev` atualizado.
 5. **Implementar com teste:** lógica em `src/shared` com teste em `tests/`; tela conferida no navegador.
-6. **Gates** verdes; mudou tela → prints PC e celular, português e inglês.
+6. **Gates** verdes; mudou tela → prints no PC, português e inglês; celular (390×844) só quando a mudança mexe no layout e precisa conferir se ele se adapta à tela pequena.
 7. **Revisar:** `/ponytail-review` e uma segunda leitura tentando derrubar a mudança.
 8. **PR** pelo modelo, título `tipo: o que muda`. A revisão automática comenta no PR; o dono aprova e mescla.
 
@@ -193,7 +193,7 @@ node scripts/smoke.mjs http://localhost:8787                          # teste r�
 
 Os scripts usam o Chrome instalado e um perfil temporário. `PW_CHANNEL=chromium` usa o Chromium do Playwright (`npx playwright-core install chromium` antes); `PW_PROFILE=<pasta>` usa um perfil fixo.
 
-Atalhos: aba **Aprender** (treino com bots, desafios, Sombra e a sandbox com ouro e vida infinitos), `?as=nome` no endereço, `localStorage['warlock:lang'] = 'pt' | 'en'`. Mudança de tela: PC 1280×720 e 1920×1080, celular 390×844, português e inglês, sem erro no console.
+Atalhos: aba **Aprender** (treino com bots, desafios, Sombra e a sandbox com ouro e vida infinitos), `?as=nome` no endereço, `localStorage['warlock:lang'] = 'pt' | 'en'`. Mudança de tela: PC 1280×720 e 1920×1080, português e inglês, sem erro no console; celular (390×844) só quando a mudança mexe no layout e precisa conferir se ele se adapta à tela pequena.
 
 ## Balanceamento
 
@@ -232,7 +232,7 @@ Não desfaça sem combinar numa issue.
 | Drenar | domina combinações no Normal, mas espera partidas reais antes de mexer |
 | Ataques | Bola de fogo frequente; as outras são golpes fortes e raros (não encurtar recargas) |
 | Bots | jogam "como gente": mira com erro, reação de 0,25 a 0,6 s, hesitação; no duelo final vão atrás do inimigo |
-| Personagem | criador de 7 peças com os 9 bonecos originais como atalho |
+| Personagem | criador de 7 peças com os 9 bonecos originais como atalho; prévia 3D orbitável (arraste para girar e role para aproximar) |
 | Recusados | ranking; itens que só ajudam uma magia específica |
 | Publicação | automática: merge em `dev` → dev geral; merge `dev` → `master` → jogo no ar |
 
@@ -266,7 +266,7 @@ Modos: Rodadas (vence quem fizer 5), Deathmatch (volta em 10 s), Times (Azul × 
 - Branch `tipo/assunto`, título `tipo: o que muda`, `Fecha #n` se houver issue.
 - Os 4 gates verdes.
 - Teste novo para lógica nova, falhando sem a mudança.
-- Tela mexida: prints antes e depois, PC e celular, português e inglês.
+- Tela mexida: prints antes e depois no PC, português e inglês; celular (390×844) só quando a mudança mexe no layout e precisa conferir se ele se adapta à tela pequena.
 - Número mexido: medição do simulador (antes → depois, Normal e Difícil).
 - Todo texto com `t()`; sem segredo; asset com licença e crédito.
 - `/ponytail-review` no diff.
