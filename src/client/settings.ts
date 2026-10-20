@@ -12,6 +12,7 @@ import { RULES } from './rules-text.ts';
 import { choice, showRules, toast } from './ui.ts';
 import { LANG, setLang, spellName, t, type Lang } from './i18n.ts';
 import { isSpell } from '../shared/spells.ts';
+import { store } from './store.ts';
 
 declare const __BUILD__: string;
 
@@ -23,8 +24,8 @@ type SettingsCtx = {
   setVolume?: (kind: 'sfx' | 'music', value: number) => void;
   fxLite?: () => boolean;
   setFxLite?: (lite: boolean) => void;
-  pixel?: () => boolean;
-  setPixel?: (on: boolean) => void;
+  pixel?: () => number;
+  setPixel?: (size: number) => void;
   closePanels?: () => void; // um painel por vez: abrir o menu fecha os do topo
 };
 let ctx: SettingsCtx = { name: () => '', rename: () => {} };
@@ -32,6 +33,12 @@ export function setSettingsCtx(c: SettingsCtx) {
   ctx = c;
   if (overlay) draw();
 }
+
+// pixel art guardado: '0' desligado, '2' ou '3' px ('1' era o Ligado da primeira versão, de 2 px)
+export const savedPixel = () => {
+  const n = Number(store.get('warlock:pixel'));
+  return n === 1 ? 2 : n === 2 || n === 3 ? n : 0;
+};
 
 const nameOf = (a: AnyAction) => (isPos(a) ? PAD_ACTION_NAMES[a] : a in UI_NAMES ? UI_NAMES[a as UiAction] : actionName(a as Action));
 const padActionName = (p: PadAction) => {
@@ -141,18 +148,16 @@ function soundSection(): Node[] | null {
 
 function videoSection(): Node[] | null {
   const { fxLite, setFxLite, pixel, setPixel } = ctx;
-  if (!(fxLite && setFxLite) && !(pixel && setPixel)) return null;
   const pixelArt = pixel && setPixel ? [
     el('h3', {}, 'Pixel art'),
-    choice('Pixel art', [[false, t('Desligado', 'Off')], [true, t('Ligado', 'On')]], pixel(), (on) => (setPixel(on), draw())),
-    el('p', { class: 'muted' }, t('Desenha a arena e os magos em blocos de pixels, com contorno escuro nas bordas, como num jogo retrô. Nomes, vida e menus continuam iguais.', 'Draws the arena and the wizards in blocks of pixels, with a dark outline on the edges, like a retro game. Names, health and menus stay the same.')),
+    choice('Pixel art', [[0, t('Desligado', 'Off')], [2, '2 px'], [3, '3 px']], pixel(), (size) => (setPixel(size), draw())),
+    el('p', { class: 'muted' }, t('Desenha a arena e os magos em blocos de pixels, com contorno escuro nas bordas, como num jogo retrô: 2 px tem mais detalhe, 3 px é mais retrô. Nomes, vida e menus continuam iguais.', 'Draws the arena and the wizards in blocks of pixels, with a dark outline on the edges, like a retro game: 2 px has more detail, 3 px is more retro. Names, health and menus stay the same.')),
   ] : [];
+  if (!fxLite || !setFxLite) return pixelArt.length ? pixelArt : null;
   return [
-    ...(fxLite && setFxLite ? [
     el('h3', {}, t('Efeitos visuais', 'Visual effects')),
     choice(t('Efeitos visuais', 'Visual effects'), [[false, t('Completo', 'Full')], [true, t('Leve', 'Light')]], fxLite(), (lite) => (setFxLite(lite), draw())),
     el('p', { class: 'muted' }, t('Leve desliga o tremor da tela, a pausa no golpe forte e as partículas extras (bom para PC fraco e para quem enjoa). Começa no Leve quando o sistema pede menos movimento.', 'Light turns off the screen shake, the hit pause on heavy blows and the extra particles (good for weak PCs and for anyone who gets motion sick). It starts on Light when the system asks for less motion.')),
-    ] : []),
     ...pixelArt,
   ];
 }

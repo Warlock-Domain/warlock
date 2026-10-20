@@ -8,7 +8,7 @@ import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { isPadMode, isUiKey, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
-import { openSettings, setSettingsCtx, settingsPage } from './settings.ts';
+import { openSettings, savedPixel, setSettingsCtx, settingsPage } from './settings.ts';
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
@@ -102,7 +102,7 @@ function personagemTab(): HTMLElement {
 export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onRename: () => void, onTrain: (kind: string) => void) {
   // no lobby: sem som nem efeitos (só existem na sala); o pixel art fica guardado e vale ao entrar numa sala (só PC)
   const pixelOk = !matchMedia('(pointer: coarse)').matches;
-  setSettingsCtx({ name: () => name, rename: onRename, pixel: pixelOk ? () => store.get('warlock:pixel') === '1' : undefined, setPixel: (on) => store.set('warlock:pixel', on ? '1' : '0') });
+  setSettingsCtx({ name: () => name, rename: onRename, pixel: pixelOk ? savedPixel : undefined, setPixel: (size) => store.set('warlock:pixel', String(size)) });
   const retry = el('button', { type: 'button', onclick: () => location.reload() }, t('Tentar de novo', 'Try again'));
   // um cartão por sala: código e modo, quem está lá, o que está acontecendo e o Entrar (secundário em sala no meio da partida)
   const cards = (list: RoomInfo[]) => el('ul', { class: 'rooms' }, ...list.map((r) =>
@@ -237,8 +237,8 @@ type RoomActions = {
   fxLite: () => boolean;
   setFxLite: (lite: boolean) => void;
   // pixel art: ausente no celular
-  pixel?: () => boolean;
-  setPixel: (on: boolean) => void;
+  pixel?: () => number; // 0 desligado, 2 ou 3 px
+  setPixel: (size: number) => void;
   spellReady: () => void; // uma magia acabou de recarregar
   watch: (step: number) => void; // espectador: +1 próximo vivo, −1 anterior
   replay: () => void; // liga ou desliga o replay da queda
