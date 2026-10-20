@@ -11,7 +11,7 @@ Remake web do mod de arena **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): m
 - Modos Rodadas, Deathmatch e Times; arenas Círculo, Anel, Ilhas e Cruz, que encolhem até a morte súbita
 - Bots em 3 dificuldades (escolhida bot a bot), que jogam "como gente": mira com erro, tempo de reação, hesitação
 - Aba Aprender: treino com bots, desafios, Sombra (bot que joga como você) e sandbox com vida e ouro sem fim
-- Criador de personagem de 7 peças, grimório (F1), consulta de magias e itens (F2), replay da queda (5), placar (Tab)
+- Criador de personagem de 7 peças com prévia 3D orbitável (arraste para girar, role para aproximar), grimório (F1), consulta de magias e itens (F2), replay da queda (5), placar (Tab)
 - Telemetria do jeito de jogar e simulador de balanceamento (`scripts/balance-sim.ts`)
 
 ## Stack
