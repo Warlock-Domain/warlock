@@ -13,6 +13,7 @@ Remake web do mod de arena **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): m
 - Aba Aprender: treino com bots, desafios, Sombra (bot que joga como você) e sandbox com vida e ouro sem fim
 - Criador de personagem de 7 peças, grimório (F1), consulta de magias e itens (F2), replay da queda (5), placar (Tab)
 - Telemetria do jeito de jogar e simulador de balanceamento (`scripts/balance-sim.ts`)
+- Ilusão: uma cópia visível segue em frente por 2 s enquanto o jogador fica invisível e pode se mover; outra magia revela o jogador, mas a cópia continua até o prazo. Ambos podem ser atingidos; a cópia pode ser empurrada, mas não destruída.
 
 ## Stack
 
