@@ -100,9 +100,9 @@ export type Projectile = {
   caster: string; // quem lançou (o dono muda quando um escudo reflete)
   dest?: Vec; // Troca: aonde o mago vai se ela não tocar ninguém (o ponto da mira)
   decoy?: number; // Ilusão: id da cópia que este projétil já empurrou (empurra uma vez só ao atravessar)
-  pushVel?: Vec; // Ilusão: empurrão separado da caminhada e da direção visual.
-  decoyDamage?: number; // Dano acumulado da cópia, sem permitir que morra.
-  decoyResist?: number; // Resistência copiada ao lançar Ilusão.
+  pushVel?: Vec; // Ilusão: empurrão da cópia, separado da caminhada e de para onde ela olha
+  decoyDamage?: number; // Ilusão: dano que a cópia já levou (só aumenta o empurrão; ela não morre)
+  decoyResist?: number; // Ilusão: resistência a empurrão do dono no momento do lançamento
   curve?: { acc: Vec; next: Vec; flipAt: number; stopAt: number }; // Bumerangue indo: aceleração agora, a da volta e quando trocam
   back?: boolean; // Bumerangue voltando ao dono
   prev?: string; // Ricochete: último mago tocado (não bate nele de novo em seguida)
@@ -1112,13 +1112,14 @@ function snowBlast(w: World, p: Projectile) {
   w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'snow', r: L.radius });
 }
 
-// cópia da Ilusão de um inimigo do dono de p que o segmento p.pos→b toca (a mais perto do começo); t em [0,1]
+// empurra a cópia da Ilusão com a mesma escala do mago (dano acumulado, teto e resistência do dono); ela nunca morre
 function pushDecoy(q: Projectile, impulse: Vec, dmg: number) {
   const taken = q.decoyDamage ?? 0;
   q.pushVel = add(q.pushVel ?? v(0, 0), scale(impulse, knockScale(dmg, taken, q.decoyResist ?? 0)));
   q.decoyDamage = taken + dmg;
 }
 
+// cópia da Ilusão de um inimigo do dono de p que o segmento p.pos→b toca (a mais perto do começo); t em [0,1]
 function decoyOnSegment(w: World, p: Projectile, b: Vec, radius: number): { q: Projectile; t: number } | null {
   const owner = anyById(w, p.owner);
   const d = sub(b, p.pos);
