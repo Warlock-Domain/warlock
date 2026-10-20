@@ -101,6 +101,8 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 
 ## Fluxo com agente
 
+Ambiente sugerido: uma sessão orquestradora e uma sessão filha por issue, cada uma no seu worktree; explicação, vantagens (economia de tokens, paralelismo) e passo a passo em [docs/SESSOES-COM-ORQUESTRADOR.md](docs/SESSOES-COM-ORQUESTRADOR.md).
+
 Skills (plugins `superpowers@claude-plugins-official` e `ponytail@ponytail`): brainstorming antes de coisa nova → writing-plans para vários passos → TDD em `src/shared` → systematic-debugging antes de corrigir bug → verification-before-completion antes de dizer pronto → `/ponytail-review` no diff antes do PR. Guia completo do colaborador (máquina, prompts, testes, problemas comuns): [docs/GUIA-COLABORADOR.md](docs/GUIA-COLABORADOR.md).
 
 Armadilhas: depois de `vite build`, reinicie o `wrangler dev` (senão página branca/404); trabalhe em branch deste repositório, não em fork (em fork o CI espera aprovação manual e a revisão automática não roda); push em `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffdev.com`.
