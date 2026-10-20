@@ -28,6 +28,7 @@ Closes #<!-- número da issue, se houver; a palavra tem de ser em inglês (Close
 - [ ] `npx vite build`
 - [ ] Joguei no navegador (`npx wrangler dev`) no PC
 - [ ] Textos novos em português e inglês (`t('pt', 'en')`)
+- [ ] Decisão não óbvia com 1 linha de comentário explicando o porquê
 
 ## Balanceamento
 

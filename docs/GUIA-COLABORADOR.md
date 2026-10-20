@@ -177,7 +177,7 @@ navegador ──WebSocket──▶ Durable Object (uma sala)
 9. Sem segredo: o repositório é público.
 10. Asset só com licença livre e crédito em `public/CREDITS.txt`.
 
-Estilo: comentários curtos em português onde ajudam a entender o porquê; imports no topo; siga o estilo do arquivo. O `ui.ts` não carrega no Vitest: decisão de tela testável vai para função pura.
+Estilo: decisão não óbvia leva 1 linha de comentário com o porquê (tempo, número, ordem, contorno de bug), para outra pessoa ou IA não desfazer sem querer; o óbvio não se comenta; mudou a decisão, mude o comentário; imports no topo; siga o estilo do arquivo. O `ui.ts` não carrega no Vitest: decisão de tela testável vai para função pura.
 
 ## Testar
 
