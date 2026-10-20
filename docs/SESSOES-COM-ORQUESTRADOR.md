@@ -36,6 +36,7 @@ Sugestão de ambiente de desenvolvimento, usada pelo dono do projeto desde 20/10
 - **Um dono por recurso.** Worktree, branch, porta do `wrangler dev` e aba aberta pertencem a quem os abriu. Antes de usar porta ou serviço, confira se outra sessão já usa (porta, PID, linha de comando). Cada filha usa a sua porta (8811, 8812, 8815…).
 - **Mensagem entre sessões só para evento:** PR pronto, decisão tomada, pedido de recurso. Nada de "já terminou?".
 - **Segurança não se repassa.** Se uma sessão foi barrada numa ação, outra não faz por ela; a ação volta para você decidir.
+- **Branch local em dia com o `master`.** A cada merge no `master`, a orquestradora avisa as filhas com branch ativa; cada uma faz `git fetch` + `git merge origin/master` (sem rebase nem force num PR já aberto; conflito em 2 commits, o mecânico e o manual), roda os gates e reinicia o servidor local. A filha também faz isso antes de cada bloco de trabalho. Assim o PR não acumula conflito e a aba de teste mostra o jogo atual.
 - **Navegador do app sem som.** Ao abrir o jogo no painel de navegador, deixe o som mudo e feche a aba no fim (já aconteceu de duas abas esquecidas tocarem a música).
 - **Aba de teste diz qual é o teste.** Toda aba aberta para o Fernando testar mostra no título o que está em teste: em localhost é automático (`🧪 <branch> · Warlock Wars`); para dar outro nome, abra com `?aba=<nome>` na URL.
 - **Prints só no PC** por enquanto (decisão de 20/10).
