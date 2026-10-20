@@ -1081,8 +1081,11 @@ body.replaying .peek-shop { display: none; }
 .tile-acts { min-height: 26px; }
 @media (min-width: 861px) {
   .shop .shop-main .shop-grid { grid-template-columns: repeat(5, 118px); column-gap: 10px; }
-  .shop-items .shop-grid { grid-template-columns: repeat(2, 118px); column-gap: 8px; }
-  .shop { grid-template-columns: 262px minmax(0, 1fr) 270px; }
+  /* 3 colunas de itens (issue #121, Fernando): a lista de 2 ficava comprida na vertical. Cartão de 96 px (não 118) para a coluna
+     caber em 316 px = 3×96 + 2×6 + folga da barra de rolagem; mais larga que isso o meio (567 px em 1280) perde a 5ª coluna de magia */
+  .shop-items .shop-grid { grid-template-columns: repeat(3, 96px); column-gap: 6px; }
+  .shop-items .shop-item, .shop-items .shop-tile { width: 96px; }
+  .shop { grid-template-columns: 316px minmax(0, 1fr) 270px; }
 }
 /* tela estreita (celular, gaveta): cartões ocupam a largura em colunas iguais */
 @media (max-width: 860px) {
@@ -1093,7 +1096,7 @@ body.replaying .peek-shop { display: none; }
 .peek-shop.drawer .shop .shop-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
 .peek-shop.drawer .shop-item { width: auto; }
 .peek-shop.drawer .shop-tile { width: 100%; }
-@media (min-width: 1500px) { .shop { grid-template-columns: 262px minmax(0, 1fr) 290px; } .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 1500px) { .shop { grid-template-columns: 316px minmax(0, 1fr) 290px; } .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); } }
 /* loja só para ver: o ícone é um div, não botão; recebe o mesmo arranjo e a mesma moldura do botão */
 .shop-tile { display: flex; align-items: center; }
 div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: var(--fg); box-sizing: border-box; }
