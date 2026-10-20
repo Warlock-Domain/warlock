@@ -47,7 +47,7 @@ npx vite build
 
 ## Ambiente dev próprio
 
-Push na branch `<usuário do GitHub>-dev` publica em `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Branches de hoje: `lboesmans-dev`, `breakie33-dev`, `lucascvalle-dev` e `fernandorff-dev`; o dev geral é a branch `dev` (https://dev-warlock.fernandorffdev.com). Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
+Push na branch `<usuário do GitHub>-dev` publica em `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Branches de hoje: `lboesmans-dev`, `breakie33-dev`, `lucascvalle-dev`, `arthurbaquit-dev` e `fernandorff-dev`; o dev geral é a branch `dev` (https://dev-warlock.fernandorffdev.com). Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
 
 ```bash
 git push --force origin HEAD:lboesmans-dev   # publica o estado da sua branch de tarefa
