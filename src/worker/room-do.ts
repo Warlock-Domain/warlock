@@ -11,7 +11,7 @@ import { TAUNT_COOLDOWN_MS } from '../shared/taunts.ts';
 
 const STEP_MS = DT * 1000;
 const MAX_CATCHUP = 5; // passos por chamada do laço; atraso maior que isso é descartado
-const EMPTY_MS = 5 * 60_000;
+const EMPTY_MS = 5 * 60_000; // sala sem ninguém conectado é apagada depois disso (alarm)
 const IDLE_MS = 3 * 60_000; // partida sem nenhum comando de gente por 3 min é encerrada
 // sem 'ping' por esse tempo, a conexão morreu sem avisar (o cliente pinga a cada 10 s; numa aba escondida o Chrome segura a 1 por minuto)
 const DEAD_MS = 90_000;
@@ -38,6 +38,8 @@ export class Room extends DurableObject<Env> {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+    // o 'ping' é respondido pelo runtime sem chegar a webSocketMessage (não acorda socket hibernado); a hora do último fica
+    // em getWebSocketAutoResponseTimestamp, que o alarm() usa para achar conexão-fantasma
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
   }
 
@@ -113,6 +115,7 @@ export class Room extends DurableObject<Env> {
 
     const id = this.playerOf(ws);
     if (!id) return send(ws, { t: 'error', code: 'bad_msg', msg: 'Envie hello primeiro.' });
+    // 'alive' é só o pulso do cliente (main.ts): se contasse como comando, partida com todos parados nunca acabaria por IDLE_MS
     if (msg.t !== 'alive') this.lastCmdAt = now;
     // o cliente só conhece o id público: acha o jogador correspondente
     const byPublic = (pub?: string) => m.players.find((p) => publicId(s.id, p.id) === pub);
@@ -194,6 +197,7 @@ export class Room extends DurableObject<Env> {
 
   private async dropped(ws: WebSocket) {
     const id = this.playerOf(ws);
+    // o mesmo jogador ainda tem outro socket vivo (reconectou antes do fechamento deste chegar): continua na sala
     if (!id || this.live(ws).some((o) => this.playerOf(o) === id)) return;
     const s = await this.load();
     if (!s) return;
@@ -209,7 +213,7 @@ export class Room extends DurableObject<Env> {
     for (const ws of this.live()) {
       const seen = Math.max(this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0, (ws.deserializeAttachment() as Attachment).at ?? 0);
       if (now - seen < DEAD_MS) continue;
-      await this.dropped(ws);
+      await this.dropped(ws); // antes do forget, que apaga o playerId do attachment
       forget(ws, 'dead');
     }
     if (this.humans() > 0) return void (await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS));
@@ -273,7 +277,7 @@ export class Room extends DurableObject<Env> {
     this.last = Date.now();
     this.acc = 0;
     this.lastCmdAt = Date.now();
-    this.loop = setInterval(() => this.tick(), 16);
+    this.loop = setInterval(() => this.tick(), 16); // o intervalo real oscila; quem conta os passos de DT é o acumulador (acc)
   }
 
   private stopLoop() {
@@ -298,6 +302,7 @@ export class Room extends DurableObject<Env> {
     const before = sig();
     while (this.acc >= STEP_MS) {
       this.acc -= STEP_MS;
+      // o que chegou desde o último tique entra no primeiro passo; nos passos de recuperação a fila já está vazia
       const cmds = this.cmds;
       this.cmds = [];
       this.events.push(...tickMatch(m, now, cmds));
@@ -316,6 +321,7 @@ export class Room extends DurableObject<Env> {
     const events = publicEvents(this.events, pub);
     this.events = [];
     if (!w) return;
+    // um snapshot por jogador: leva o ack e as recargas dele e os bits de visibilidade do ponto de vista dele
     for (const ws of this.live()) {
       const id = this.playerOf(ws)!;
       send(ws, encodeSnap(w, id, this.acks.get(id) ?? 0, events, !!s!.match.sandbox));
