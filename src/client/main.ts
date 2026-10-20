@@ -6,7 +6,7 @@ import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
-import { CAMPAIGN_BOOK } from '../shared/campaign.ts';
+import { CAMPAIGN_BOOK, SERVOS } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
 import { CAST_POINT, SPELL_IDS, spellLevel, type SpellId } from '../shared/spells.ts';
@@ -504,6 +504,16 @@ function startRoom(code: string, name: string) {
           notes.push(t(`${name} quebrou a sequência de ${e.victim === me ? 'você' : (who.get(e.victim ?? '') ?? '?')} (Quebra-combo: ouro extra)`, `${name} broke ${e.victim === me ? 'your' : (who.get(e.victim ?? '') ?? '?') + '’s'} streak (Combo breaker: extra gold)`));
           say('combo_breaker');
         }
+      } else if (e.k === 'boss') {
+        // falas do chefe (desenho da Campanha) e os momentos da luta
+        const line = e.what === 'start' ? t('Mais um. Eles sempre mandam mais um.', 'One more. They always send one more.')
+          : e.what === 'down' ? t('Enfim... silêncio.', 'At last... silence.') : null;
+        if (line && !scene.bubble(e.id, line)) toast(`${who.get(e.id) ?? '?'}: ${line}`);
+        if (e.what === 'start') banner(who.get(e.id) ?? '?', 'bad');
+        else if (e.what === 'stun') {
+          sound.play('hitHeavy', near(e.x, e.y));
+          banner(t('O pilar caiu: ele está atordoado!', 'The pillar fell: he is stunned!'), 'good');
+        } else if (e.what === 'phase2') banner(t('Os pilares caíram: a cera se espalha a cada investida', 'The pillars fell: wax spreads with every charge'), 'bad');
       } else if (e.k === 'fall') {
         // Campanha: caiu no abismo e voltou à beira
         sound.play('splash', near(e.x, e.y));
@@ -742,6 +752,10 @@ function startRoom(code: string, name: string) {
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
     scene.range(showing && myPos ? myPos : null, showing && meP ? reachOf(showing, meP.spells, meP.items, room?.night ? CAMPAIGN_BOOK : undefined) : 0);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
+    // Campanha: barra do chefe enquanto ele está em pé
+    const bossP = room?.night ? room.players.find((p) => p.servo && SERVOS[p.servo].boss) : undefined;
+    const bossW = bossP && playing ? s?.wizards.find((w) => w.id === bossP.id && w.alive) : undefined;
+    view.boss(bossP && bossW ? { name: playerName(bossP), now: bossW.hp, max: maxHp(bossP) } : null);
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
     view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
       wizards.filter((w) => !w.alive).map((w) => w.id).join()); // caídos na rodada: retrato apagado no topo

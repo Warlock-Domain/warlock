@@ -16,7 +16,7 @@ O......E.....#####.....E.....L
 C1: notas do encontro (texto livre, depois da grade)
 ```
 
-- Cabeçalho com `chave: valor` separados por 2 ou mais espaços. Pools: `entrada`, `meio`, `portão`, `chefe`. Na arena do chefe, `entrada: X` no lugar de `saídas`.
+- Cabeçalho com `chave: valor` separados por 2 ou mais espaços. Pools: `entrada`, `meio`, `portão`, `chefe`. Na arena do chefe, `entrada: X` no lugar de `saídas` e `chefe: <nome>` diz quem é o chefe (hoje `Sir Odran, o Elmo Vazio`; o comportamento dele fica em `src/shared/bosses.ts`). Nome desconhecido é erro.
 - 1 caractere = 1 casa (1 m, a ajustar jogando). Todas as linhas da grade com o mesmo tamanho.
 - Saídas: a mesma letra repetida na borda forma a abertura (`LLL`, `NNNN`). Liga O com L, N com S e X com X (a passagem para a arena do chefe); as aberturas se alinham pelo meio.
 
@@ -33,7 +33,7 @@ lápides: 1 Vigia Oco a cada 10 s, até 3
 - Os `E` são numerados na ordem de leitura da grade (de cima para baixo, da esquerda para a direita): o primeiro é `E1`.
 - Cada onda entra quando a anterior cai; no máximo 4 servos por onda (as vagas da sala). Vários pelo mesmo `E` nascem lado a lado.
 - `lápides`: durante o encontro, a cada tantos segundos uma lápide (`I`) da sala racha e solta mais um servo, até o número dado; a sala só é vencida depois disso.
-- Sala sem linha `onda` usa ondas sorteadas pela noite (hoje só a arena do chefe, até o Sir Odran).
+- A arena com `chefe:` tem o chefe como encontro, entrando pelo `B`. Sala sem linha `onda` e sem chefe usa ondas sorteadas pela noite.
 
 Servos (nome no singular ou no plural):
 

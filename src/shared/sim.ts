@@ -45,6 +45,7 @@ export type Wizard = {
   dashUntil: number; // avanço da Investida em curso até este instante
   dashVel: Vec; // velocidade do avanço (m/s)
   dashHit: string[]; // quem este avanço já acertou
+  dashDmg?: number; // dano deste avanço quando não é o da Investida (a investida do chefe, bosses.ts)
   thrustUntil: number; // Estocada em curso até este instante (0 = nenhuma)
   thrustAcc: Vec; // aceleração da Estocada (m/s²)
   thrustMult: number; // Pacto na Estocada
@@ -133,6 +134,8 @@ export type SimEvent =
   | { k: 'fall'; id: string; x: number; y: number } // mapa: caiu no abismo em (x, y) e voltou à beira (junto vem um 'teleport')
   | { k: 'rune'; kind: RuneKind; x: number; y: number } // runa apareceu
   | { k: 'runeTake'; id: string; kind: RuneKind } // alguém pegou a runa
+  // chefe da Campanha (bosses.ts): aim = parou e mira a investida até (tx, ty); stun = derrubou um pilar; phase2; down = caiu
+  | { k: 'boss'; id: string; what: 'aim' | 'stun' | 'phase2' | 'start' | 'down'; x: number; y: number; tx?: number; ty?: number }
   | { k: 'sudden' } // morte súbita: a arena passa a encolher mais rápido
   // sequência de abate (vem da partida): multi = abates seguidos rápidos, spree = abates sem morrer, breaker = acabou com a sequência de victim
   | { k: 'streak'; id: string; kind: 'multi' | 'spree' | 'breaker'; n: number; victim?: string }
@@ -1676,7 +1679,8 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       for (const o of w.wizards) {
         if (!o.alive || o === wz || spares(w, wz, o) || wz.dashHit.includes(o.id) || dist(o.pos, wz.pos) > 2 * WIZ_R + 0.1) continue;
         wz.dashHit.push(o.id);
-        hit(w, o, wz.id, RUSH.dashDmg, RUSH.dashDmg * KB_PER_DMG, wz.dashVel, 'rush');
+        const dmg = wz.dashDmg ?? RUSH.dashDmg;
+        hit(w, o, wz.id, dmg, dmg * KB_PER_DMG, wz.dashVel, 'rush');
         w.events.push({ k: 'land', id: wz.id, src: 'rush' });
       }
     }

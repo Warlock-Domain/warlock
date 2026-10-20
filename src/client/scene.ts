@@ -1412,9 +1412,27 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     burst(from, '#9fd0ff', 1.2, 0.2, 1, FX.light);
   }
 
+  // chefe da Campanha: a faixa vermelha no chão é o caminho da investida enquanto ele mira; pilar derrubado = atordoado
+  const chargeGeo = new THREE.PlaneGeometry(1, 1);
+  function bossFx(e: Extract<SimEvent, { k: 'boss' }>) {
+    const at = v(e.x, e.y);
+    if (e.what === 'aim' && e.tx !== undefined && e.ty !== undefined) {
+      const to = v(e.tx, e.ty), len = Math.hypot(to.x - at.x, to.y - at.y);
+      const strip = new THREE.Mesh(chargeGeo, new THREE.MeshBasicMaterial({ color: '#ff3b2f', transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+      strip.rotation.set(-Math.PI / 2, 0, -Math.atan2(to.y - at.y, to.x - at.x));
+      strip.scale.set(len, 1.3, 1);
+      strip.position.copy(w3(v((at.x + to.x) / 2, (at.y + to.y) / 2), 0.05));
+      addFx(strip, 0.95, (k) => ((strip.material as THREE.MeshBasicMaterial).opacity = 0.15 + 0.35 * k));
+    } else if (e.what === 'stun') {
+      shockwave(at, 2.2, '#ffd36b');
+      for (let i = 0; i < 6; i++) burst(v(at.x + Math.cos(i) * 0.5, at.y + Math.sin(i) * 0.5), '#ffe9a8', 0.9, 1.2, 1.9, FX.star, 0.4);
+    } else if (e.what === 'phase2') shockwave(at, 5, '#ffb347');
+  }
+
   function onEvents(events: SimEvent[]) {
     for (const e of events) {
-      if (e.k === 'cast') oneShot(e.id, castAnim(e.spell), 0.55);
+      if (e.k === 'boss') bossFx(e);
+      else if (e.k === 'cast') oneShot(e.id, castAnim(e.spell), 0.55);
       else if (e.k === 'hit') {
         oneShot(e.id, 'Hit_A', 0.45);
         // o acerto do raio tem impacto elétrico próprio: a explosão de fogo cobria o raio e parecia que ele não tinha saído
