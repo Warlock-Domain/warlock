@@ -73,6 +73,11 @@ music/battle.mp3
 
   "Ultra kill": voz sintética gerada com o Microsoft Speech (voz Zira) e efeito em ffmpeg, feita para este jogo
 
+== Ícone do site (favicon.ico, apple-touch-icon.png) ==
+favicon.ico (16, 32 e 48 px) e apple-touch-icon.png (180 px): arte própria, a mesma da foto do grupo do Telegram, gerada por scripts/assets/favicon.py.
+  O W usa a fonte Grenze Gotisch Bold, "Copyright 2020 The Grenze Gotisch Project Authors" (https://github.com/Omnibus-Type/Grenze-Gotisch),
+  SIL Open Font License 1.1 (http://scripts.sil.org/OFL), lida na tabela de nomes do arquivo da fonte (Google Fonts). A fonte não vai no site; só a letra desenhada.
+
 == Ícones (public/icons.svg) ==
   game-icons.net - https://game-icons.net - repositório oficial https://github.com/game-icons/icons
   Licença lida no license.txt do repositório: "Icons provided under the Creative Commons 3.0 BY" - https://creativecommons.org/licenses/by/3.0/
