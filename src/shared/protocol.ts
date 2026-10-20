@@ -1,5 +1,5 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
-import { ARENA_IDS, type ArenaId } from './arena.ts';
+import type { ArenaId } from './arena.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
 import { isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, RUNE_KINDS, type RuneKind } from './constants.ts';
@@ -40,6 +40,7 @@ export type PublicPlayer = {
   spells: Record<SpellId, number>; items: Record<ItemId, number>; stats: Stats; bought: string[]; held: Record<string, number[]>; ready: boolean; connected: boolean; team: number | null;
   difficulty?: MatchOpts['difficulty']; // só bots: a dificuldade dele
   dummy?: true; // sandbox: boneco parado
+  turret?: true; // Sandbox: torreta de direção fixa.
 };
 
 export type PublicRoom = {
@@ -140,9 +141,9 @@ const SANDBOX_KEYS: (keyof Sandbox)[] = ['god', 'noCd', 'shrink'];
 function parseSandbox(c: unknown): SandboxCmd | null {
   if (!isObj(c)) return null;
   if (c.op === 'set') return SANDBOX_KEYS.includes(c.key as keyof Sandbox) && typeof c.on === 'boolean' ? { op: 'set', key: c.key as keyof Sandbox, on: c.on } : null;
-  if (c.op === 'arena') return ARENA_IDS.includes(c.arena as ArenaId) ? { op: 'arena', arena: c.arena as ArenaId } : null;
   if (c.op === 'rune') return RUNE_KINDS.includes(c.kind as RuneKind) ? { op: 'rune', kind: c.kind as RuneKind } : null;
   if (c.op === 'restart') return { op: 'restart' };
+  if (c.op === 'turret') return ['north', 'east', 'south', 'west'].includes(c.direction as string) ? { op: 'turret', direction: c.direction as 'north' | 'east' | 'south' | 'west' } : null;
   if (c.op !== 'bot' || (c.dummy !== undefined && typeof c.dummy !== 'boolean')) return null;
   const bot = c.bot === undefined ? undefined : parseSetup([c.bot])?.[0];
   if (bot === undefined && c.bot !== undefined) return null;
@@ -235,7 +236,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     mode: m.mode,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }) })),
+    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy, turret }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }), ...(turret && { turret: true as const }) })),
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),

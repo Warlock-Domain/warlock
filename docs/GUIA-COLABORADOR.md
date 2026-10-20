@@ -195,7 +195,7 @@ node scripts/smoke.mjs http://localhost:8787                          # teste r�
 
 Os scripts usam o Chrome instalado e um perfil temporário. `PW_CHANNEL=chromium` usa o Chromium do Playwright (`npx playwright-core install chromium` antes); `PW_PROFILE=<pasta>` usa um perfil fixo.
 
-Atalhos: aba **Aprender** (treino com bots, desafios, Sombra e a sandbox com ouro e vida infinitos), `?as=nome` no endereço, `localStorage['warlock:lang'] = 'pt' | 'en'`. Mudança de tela: PC 1280×720 e 1920×1080, português e inglês, sem erro no console; sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10).
+Atalhos: aba **Aprender** (treino com bots, desafios, Sombra e a sandbox com ouro e vida infinitos, arena redonda e torreta de treino), `?as=nome` no endereço, `localStorage['warlock:lang'] = 'pt' | 'en'`. Mudança de tela: PC 1280×720 e 1920×1080, português e inglês, sem erro no console; sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10).
 
 ## Balanceamento
 
