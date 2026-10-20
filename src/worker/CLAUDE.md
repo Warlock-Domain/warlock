@@ -12,4 +12,4 @@ Vale junto com o `CLAUDE.md` da raiz. Tipos à parte: `npx tsc --noEmit -p src/w
 - **Gravar só em `changed()` → `persist()`**, nunca no laço de 16 ms. `persist` grava a partida sem o `World`. Em `changed()`: avisa clientes, liga ou desliga o laço, arma o alarme, só então grava disco e lobby (falha do lobby não congela a sala). Chamada que pode falhar vai em `try/catch` com comentário.
 - **Telemetria:** fim de rodada fora da sandbox chama `lobby().record(roundRecord(...))` com `.catch(() => {})`. A agregação mora em `src/shared/telemetry.ts`, não aqui. Sandbox não grava telemetria.
 - **Rotas** (`index.ts`): fila de `if` por `url.pathname`. Leitura nova segue `GET /api/telemetry` (JSON com `cache-control: no-store`). Resto devolve 404.
-- Cada branch `<usuário>-dev` publica um Worker separado (`warlock-<branch>`, `.github/workflows/dev-deploy.yml`): o `wrangler.jsonc` não muda por ambiente; a pipeline troca só nome e rota.
+- Cada PR publica um Worker separado (`warlock-pr-<n>`, `.github/workflows/pr-env.yml`): o `wrangler.jsonc` não muda por ambiente; a pipeline troca só nome e rota.
