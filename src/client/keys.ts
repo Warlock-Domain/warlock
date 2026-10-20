@@ -41,7 +41,7 @@ const save = () => {
 // os itens ativos seguem nas teclas deles. Escolha guardada no navegador.
 const SLOT_KEYS = ['KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyD', 'KeyF'];
 const SLOT_STORE = 'warlock:slotkeys';
-let slotMode = store.get(SLOT_STORE) === '1';
+let slotMode = store.get(SLOT_STORE) !== '0'; // ligado por padrão (Fernando, 20/10); só quem desmarcou fica sem
 let slots: SpellId[] = [];
 export const isSlotMode = () => slotMode;
 export function setSlotMode(on: boolean) {

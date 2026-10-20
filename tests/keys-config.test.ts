@@ -75,6 +75,7 @@ describe('teclas e botões guardados no navegador', () => {
 
   it('a troca sobrevive a recarregar a página; tecla fixa ou botão Start salvos à mão são ignorados', async () => {
     Object.assign(globalThis, { localStorage: fake });
+    store.set('warlock:slotkeys', '0'); // teclas por ação: o Q W E R D F vem ligado por padrão e prende essas seis letras
     vi.resetModules();
     const a = await import('../src/client/keys.ts');
     a.setKey('sheet', 'F2');
@@ -146,5 +147,15 @@ describe('Esc que sobra abre as configurações', () => {
     expect(opened).toBe(0);
     fire('Escape', false);
     expect(opened).toBe(1);
+  });
+});
+
+describe('modo Q W E R D F', () => {
+  it('vem ligado para quem nunca mexeu; quem desmarcou continua desligado (issue #65)', async () => {
+    vi.resetModules();
+    expect((await import('../src/client/keys.ts')).isSlotMode()).toBe(true);
+    vi.resetModules();
+    (await import('../src/client/store.ts')).store.set('warlock:slotkeys', '0');
+    expect((await import('../src/client/keys.ts')).isSlotMode()).toBe(false);
   });
 });

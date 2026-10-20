@@ -79,6 +79,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 19/10 | Cada colaborador tem um ambiente dev próprio (`<usuário do GitHub>-dev`, em minúsculas) publicado sozinho a cada push | testar com outras pessoas antes do PR, sem tocar no jogo no ar |
 | 19/10 | Fluxo dev do usuário → dev geral (`dev`, https://dev-warlock.fernandorffdev.com) → `master` (jogo no ar, publicado sozinho pela pipeline Produção) | testar junto antes de ir ao ar, sem publicar à mão |
 | 19/10 | Promoção `dev` → `master` só quando o Fernando mandar | as promoções estavam rápidas demais; o dev geral serve para jogar antes |
+| 20/10 | Teclas **Q W E R D F pela ordem da barra** ligadas por padrão; quem desmarcou continua sem (issue #65) | público de Dota já joga assim |
 | 20/10 | **Ilusão** nova (issue #49): a cópia anda reto 2 s na direção do movimento, leva empurrão mas só some no prazo; quem lança fica invisível 2 s para todos (inclusive aliados) e outra magia o revela. Aprovada **sem passar pelo simulador** (exceção decidida pelo dono) | ideia do Leonard no estilo do Phantom Lancer do Dota |
 | 20/10 | No lançamento **Rápido** o anel de alcance pisca por 0,4 s quando a magia ou o item sai de verdade (issue #61) | no Rápido o jogador nunca via o alcance; mostra sem atrasar o lançamento |
 | 20/10 | Print de celular só quando a mudança mexe no layout e precisa conferir a responsividade; nos outros casos basta o PC | prints de celular em toda mudança atrasavam PR sem ganho |
