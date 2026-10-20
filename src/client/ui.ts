@@ -962,7 +962,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         el('div', { class: 'lobby-col' }, modePicker, optsBlock),
       ),
       // Começar e Convidar grudados no rodapé enquanto rola as opções
-      el('div', { class: 'card-go' }, startBtn, inviteBtn()),
+      el('div', { class: 'card-go' },
+        el('div', { class: 'card-go-main' }, startBtn, el('button', { type: 'button', class: 'room-back secondary', onclick: () => exitBtn.click() }, '← ', t('Menu principal', 'Main menu'))),
+        inviteBtn()),
     );
   }
 
