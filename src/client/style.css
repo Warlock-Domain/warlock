@@ -661,7 +661,9 @@ html.pad .shop-item:focus-within .shop-tile { border-color: #ffd166; }
 @media (prefers-reduced-motion: reduce) { .danger.lava { animation: none; } .hud > .hit-arrow { animation: none; } }
 /* latência ao lado do ponto de conexão */
 .ping { margin-left: 4px; font-family: ui-monospace, Consolas, monospace; font-size: .75rem; font-weight: 700; letter-spacing: 0; }
-.ping[data-q="good"] { color: var(--ok); } .ping[data-q="ok"] { color: var(--gold); } .ping[data-q="bad"] { color: var(--red); }
+.ping { color: var(--muted); white-space: nowrap; }
+.ping span:not([hidden]) + span:not([hidden])::before { content: ' · '; color: var(--muted); }
+.ping [data-q="good"] { color: var(--ok); } .ping [data-q="ok"] { color: var(--gold); } .ping [data-q="bad"] { color: var(--red); }
 /* lista de salas: um cartão por sala, com modo, gente, fase e o Entrar à direita; sala esperando ganha borda de brasa */
 .rooms li.room-card { grid-template-columns: 1fr auto; padding: 10px 10px 10px 14px; gap: 12px; }
 .room-card.open { border-color: var(--bronze); }
