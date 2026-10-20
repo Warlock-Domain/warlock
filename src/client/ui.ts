@@ -1290,7 +1290,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       };
       const killer = by && by !== id ? by : null;
       const li = el('li', { class: killer === me || id === me ? 'me' : '' }, killer ? who(killer) : null,
-        el('span', { class: 'feed-ico', title: killer ? srcName(src) : 'lava' }, srcIcon(killer ? src : 'lava')), who(id), killer ? null : el('small', {}, t('caiu na lava', 'fell into the lava')));
+        el('span', { class: 'feed-ico', title: killer ? srcName(src) : 'lava' }, srcIcon(killer ? src : 'lava')), who(id), killer ? null : el('small', {}, room?.night ? t('caiu', 'fell') : t('caiu na lava', 'fell into the lava')));
       feed.append(li);
       while (feed.children.length > 5) feed.firstElementChild!.remove();
       setTimeout(() => li.remove(), 5000);

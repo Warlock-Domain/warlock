@@ -1,12 +1,12 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { afterBoss, bossCmds, bossHp, newBoss, ODRAN } from './bosses.ts';
-import { CAMPAIGN, CAMPAIGN_BOOK, SERVOS, type Night, type ServoKind } from './campaign.ts';
+import { CAMPAIGN, CAMPAIGN_BOOK, EMBER, SERVOS, type Night, type ServoKind } from './campaign.ts';
 import { fightOf, nightMap, obstaclesOf, roomRect, terrainOf, type NightMap, type Spawn } from './levels.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
 import { CHARACTERS, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
-  ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, INVULN_TIME, WIZ_SPEED, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
+  ASSIST_GOLD, DT, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, INVULN_TIME, WIZ_SPEED, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
 import type { BotSetup } from './protocol.ts';
@@ -783,7 +783,7 @@ function bossStep(m: Match, w: World, map: NightMap, i: number, s: NonNullable<N
 // solta a primeira onda
 function startFight(m: Match, w: World, map: NightMap, i: number, at: Vec) {
   const n = m.night!;
-  Object.assign(n, { fight: i, wave: 0, since: w.t, cracked: 0, boss: undefined });
+  Object.assign(n, { fight: i, wave: 0, since: w.t, cracked: 0, boss: undefined, falls: {} });
   w.lock = roomRect(map, i);
   w.map!.home = at;
   const acesos = w.wizards.filter((z) => z.alive && z.team === 0);
@@ -813,10 +813,45 @@ function closeNight(m: Match) {
   m.players = m.players.filter((p) => !p.servo);
 }
 
+// Aceso caído vira brasa onde caiu; aliado vivo perto dela por `need` s o traz de volta (afastar zera). Cada queda no mesmo
+// encontro custa EMBER.perFall s a mais; na arena do chefe a brasa que está lá dentro apaga em EMBER.out s
+function stepEmbers(m: Match, w: World, map: NightMap) {
+  const n = m.night!, arena = n.fight !== null && isBoss(map, n.fight) ? roomRect(map, n.fight) : null;
+  for (const z of w.wizards) {
+    if (z.team !== 0) continue;
+    if (z.alive) {
+      z.ember = undefined;
+      continue;
+    }
+    if (!z.ember) {
+      const falls = (n.falls ??= {}), k = n.fight !== null ? (falls[z.id] ?? 0) : 0;
+      if (n.fight !== null) falls[z.id] = k + 1; // só a queda dentro de um encontro encarece a próxima
+      z.ember = { prog: 0, need: EMBER.base + EMBER.perFall * k, since: w.t };
+      continue;
+    }
+    const e = z.ember;
+    if (e.out) continue;
+    const inArena = arena && z.pos.x > arena.x && z.pos.y > arena.y && z.pos.x < arena.x + arena.w && z.pos.y < arena.y + arena.h;
+    if (inArena && w.t - Math.max(e.since, n.since) >= EMBER.out) {
+      e.out = true;
+      w.events.push({ k: 'ember', id: z.id, what: 'out', x: z.pos.x, y: z.pos.y });
+      continue;
+    }
+    const near = w.wizards.some((o) => o.alive && o.team === 0 && dist(o.pos, z.pos) <= EMBER.reach);
+    e.prog = near ? e.prog + DT : 0;
+    if (e.prog < e.need) continue;
+    revive(w, z, z.pos);
+    z.hp = z.hpMax * EMBER.hp;
+    z.ember = undefined;
+    w.events.push({ k: 'ember', id: z.id, what: 'lit', x: z.pos.x, y: z.pos.y });
+  }
+}
+
 // a cada passo: todos os humanos caídos perdem a noite; encontro aberto solta a próxima onda e, limpo, destranca a sala
 // (o do chefe vence a noite); sem encontro, procura quem pisou num ponto de controle
 function stepNight(m: Match, now: number, w: World) {
   const n = m.night!, map = mapOf(n);
+  stepEmbers(m, w, map);
   if (!w.wizards.some((z) => z.alive && z.team === 0)) {
     n.result = 'lost';
     return endRound(m, now, null);
