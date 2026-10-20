@@ -207,7 +207,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
     el('div', { class: 'lobby', 'data-name': name },
       el('nav', { class: 'home-bar', role: 'tablist', 'aria-label': t('Menu principal', 'Main menu') }, settingsBtn,
         el('button', { type: 'button', class: 'home-logo', id: 'home-tab-home', role: 'tab', 'aria-controls': 'home-home', title: t('Início', 'Home'), 'aria-label': t('Voltar ao menu principal', 'Back to home'), onclick: () => show('home') },
-          el('span', {}, TITLE)),
+          el('img', { src: '/warlock-wars.svg', alt: 'Warlock Wars' })),
         el('div', { class: 'home-tabs' }, ...btns.filter((b) => b !== settingsBtn),
           el('button', { type: 'button', class: 'home-tool home-exit', title: t('Sair do jogo', 'Exit game'), 'aria-label': t('Sair do jogo', 'Exit game'), onclick: onExit }, icon(UI_ICON.exit)))),
       stage),

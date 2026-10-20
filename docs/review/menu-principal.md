@@ -2,7 +2,7 @@
 
 Proposta do Leonard, decidida pelo Fernando em 20/10 (comentários na issue #83 e linha no `CLAUDE.md`).
 
-- Barra: logo Warlock (leva ao Início) · Jogar · Aprender · Guarda-roupas · Loja · Perfil; Configurações e Sair como ícones.
+- Barra: logo W de `warlock-wars.svg`, o mesmo do ícone da aba (leva ao Início) · Jogar · Aprender · Guarda-roupas · Loja · Perfil; Configurações e Sair como ícones.
 - Início com a foto do gato; as outras abas e a preparação da sala usam a mesma imagem desfocada no fundo.
 - Jogar: online, contra bots, sandbox e desafios à direita. Contra bots abre uma sala de preparação com as magias dos bots, enviadas no campo `setup` que já existia.
 - Aprender reúne o grimório e a biblioteca. Guarda-roupas mantém o editor de acessórios; Magias, Mundo e Provocações são categorias provisórias.

@@ -922,8 +922,8 @@ body.replaying .peek-shop { display: none; }
 .home-logo:focus-visible { outline-offset: -4px; }
 .home-logo[aria-selected="true"] { background-color: var(--sel-bg); box-shadow: inset 0 -3px var(--gold); }
 @media (hover: hover) { .home-logo:hover { background-color: var(--sel-bg); } }
-/* a logo Warlock volta na barra (decisão do Fernando na issue #83): mesma letra e degradê do título do jogo no ar */
-.home-logo span { font-family: var(--gothic); font-size: 2.2rem; line-height: 1; padding-inline: 8px; background: linear-gradient(180deg, var(--gold-pale), var(--gold) 45%, var(--lava-hi)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 2px 8px rgba(255, 120, 30, .5)); }
+/* logo na barra = o mesmo SVG do ícone da aba (public/warlock-wars.svg; pedido do Fernando, 20/10) */
+.home-logo img { display: block; width: 64px; height: 64px; filter: drop-shadow(0 2px 8px rgba(255, 120, 30, .45)); }
 .home-tool { flex: 0 0 64px; border: 0; border-right: 1px solid var(--line); border-radius: 0; background: none; padding: 10px; }
 .home-tool img { display: block; }
 .home-tool.on { background: var(--sel-bg); box-shadow: inset 0 -3px var(--gold); }
@@ -997,7 +997,7 @@ body.replaying .peek-shop { display: none; }
 @media (max-width: 860px) {
   .home-bar { flex-wrap: wrap; padding-inline: max(12px, var(--safe-l)) max(12px, var(--safe-r)); }
   .home-logo { flex-basis: 92px; min-height: 72px; }
-  .home-logo span { font-size: 1.7rem; }
+  .home-logo img { width: 52px; height: 52px; }
   .home-tabs { order: 3; flex-basis: 100%; min-height: 64px; padding-inline: 4px; }
   .home-tabs button { padding: 10px 8px; font-size: 1rem; letter-spacing: .04em; }
 }
