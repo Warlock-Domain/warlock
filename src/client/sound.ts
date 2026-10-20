@@ -1,5 +1,7 @@
 // Sons: arquivos gravados (CC0, public/sfx, créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
 // sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
+import { store } from './store.ts';
+
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'frost' | 'swap' | 'grip' | 'meteor' | 'rush' | 'cluster' | 'boomerang' | 'thrust' | 'gravity'
   | 'rockpillar' | 'bouncer' | 'drain' | 'illusion' | 'magnetize' | 'recharge' | 'alteration' | 'link' | 'windwalk' | 'splitter' | 'warpzone' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
   | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover';
@@ -14,13 +16,26 @@ const FILES: Partial<Record<SoundKind, string[]>> = {
 // golpe fraco mais agudo, golpe forte mais grave
 const RATE: Partial<Record<SoundKind, number>> = { hitLight: 1.25, hitHeavy: 0.78 };
 
+// música da partida escolhida em Configurações → Som (pedido do Fernando, 20/10); troca na hora
+export const MUSIC_TRACKS = { battle: 'Epic Boss Battle', pursuit: 'Determined Pursuit' } as const;
+export type MusicTrack = keyof typeof MUSIC_TRACKS;
+export const musicTrack = (): MusicTrack => (store.get('warlock:music-track') === 'pursuit' ? 'pursuit' : 'battle');
+let musicEl: HTMLAudioElement | null = null;
+export function setMusicTrack(k: MusicTrack) {
+  store.set('warlock:music-track', k);
+  if (!musicEl) return;
+  const playing = !musicEl.paused;
+  musicEl.src = `/music/${k}.mp3`;
+  if (playing) void musicEl.play().catch(() => {});
+}
+
 // volumes de 0 a 1, separados para efeitos e música
 export function createSound(volumes: () => { sfx: number; music: number }) {
   let ctx: AudioContext | null = null;
   let noise: AudioBuffer | null = null;
   let master: GainNode | null = null;
   const buffers = new Map<string, AudioBuffer>();
-  const music = new Audio('/music/battle.mp3');
+  const music = (musicEl = new Audio(`/music/${musicTrack()}.mp3`));
   music.loop = true;
   music.preload = 'none'; // só baixa quando a partida toca (o lobby também cria o som, para o hover e o clique)
   let lava: AudioBufferSourceNode | null = null;

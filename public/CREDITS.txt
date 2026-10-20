@@ -77,6 +77,9 @@ sfx/lava_loop.mp3 (fire-1.ogg, com crossfade para laço)
 music/battle.mp3
   Juhani Junkala (SubspaceAudio), "Epic Boss Battle [Seamlessly Looping]" - https://opengameart.org/content/boss-battle-music
   Licença lida na página: CC0 ("License(s): CC0"; "Loops seamlessly!").
+music/pursuit.mp3 (opção "Determined Pursuit" em Configurações → Som)
+  Emma_MA, "Determined Pursuit (epic orchestra loop)" - https://opengameart.org/content/determined-pursuit-epic-orchestra-loop
+  Licença lida na página: CC0 ("This track is in the public domain as of January 2017. No attribution necessary.").
 
   Kenney, "Voiceover Pack" e "Voiceover Pack: Fighter" (CC0) - https://kenney.nl/assets/voiceover-pack | https://kenney.nl/assets/voiceover-pack-fighter
   AntumDeluge, "Kitten Mew" (CC0) - https://opengameart.org/content/kitten-mew
