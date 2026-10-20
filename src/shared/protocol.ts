@@ -2,7 +2,7 @@
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
 import { isCharacter, isLook, type CharacterId } from './characters.ts';
-import { MAX_PLAYERS } from './constants.ts';
+import { MAX_PLAYERS, RUNE_KINDS, type RuneKind } from './constants.ts';
 import { ITEM_IDS, isActive, type ItemId } from './items.ts';
 import { MODES, OPTION_CHOICES, goalOf, parseOpt, votesNeeded, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
@@ -139,6 +139,7 @@ function parseSandbox(c: unknown): SandboxCmd | null {
   if (!isObj(c)) return null;
   if (c.op === 'set') return SANDBOX_KEYS.includes(c.key as keyof Sandbox) && typeof c.on === 'boolean' ? { op: 'set', key: c.key as keyof Sandbox, on: c.on } : null;
   if (c.op === 'arena') return ARENA_IDS.includes(c.arena as ArenaId) ? { op: 'arena', arena: c.arena as ArenaId } : null;
+  if (c.op === 'rune') return RUNE_KINDS.includes(c.kind as RuneKind) ? { op: 'rune', kind: c.kind as RuneKind } : null;
   if (c.op === 'restart') return { op: 'restart' };
   if (c.op !== 'bot' || (c.dummy !== undefined && typeof c.dummy !== 'boolean')) return null;
   const bot = c.bot === undefined ? undefined : parseSetup([c.bot])?.[0];
