@@ -918,11 +918,12 @@ body.replaying .peek-shop { display: none; }
 /* Barra local inspirada na referência: emblema e placas metálicas inclinadas. */
 .lobby:has(.home-bar) { padding-top: var(--safe-t); }
 .home-bar { display: flex; align-items: stretch; gap: 0; width: 100vw; margin-left: calc(50% - 50vw); padding: 0 max(20px, var(--safe-r)) 0 max(20px, var(--safe-l)); min-height: 88px; background: linear-gradient(115deg, var(--panel2), var(--bg) 55%, var(--panel-bot)); border-bottom: 2px solid var(--bronze); box-shadow: var(--shadow-md); }
-.home-logo { flex: 0 0 132px; display: grid; place-items: center; padding: 8px; border: 0; border-radius: 0; background: radial-gradient(ellipse at 50% 100%, var(--lava-dark), transparent 75%); border-inline: 1px solid var(--gold-line); }
+.home-logo { flex: 0 0 auto; min-width: 132px; display: grid; place-items: center; padding: 8px; border: 0; border-radius: 0; background: radial-gradient(ellipse at 50% 100%, var(--lava-dark), transparent 75%); border-inline: 1px solid var(--gold-line); }
 .home-logo:focus-visible { outline-offset: -4px; }
 .home-logo[aria-selected="true"] { background-color: var(--sel-bg); box-shadow: inset 0 -3px var(--gold); }
 @media (hover: hover) { .home-logo:hover { background-color: var(--sel-bg); } }
-.home-logo span { font-family: var(--display); font-size: 1.2rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--gold-pale); }
+/* a logo Warlock volta na barra (decisão do Fernando na issue #83): mesma letra e degradê do título do jogo no ar */
+.home-logo span { font-family: var(--gothic); font-size: 2.2rem; line-height: 1; padding-inline: 8px; background: linear-gradient(180deg, var(--gold-pale), var(--gold) 45%, var(--lava-hi)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 2px 8px rgba(255, 120, 30, .5)); }
 .home-tool { flex: 0 0 64px; border: 0; border-right: 1px solid var(--line); border-radius: 0; background: none; padding: 10px; }
 .home-tool img { display: block; }
 .home-tool.on { background: var(--sel-bg); box-shadow: inset 0 -3px var(--gold); }
@@ -996,6 +997,7 @@ body.replaying .peek-shop { display: none; }
 @media (max-width: 860px) {
   .home-bar { flex-wrap: wrap; padding-inline: max(12px, var(--safe-l)) max(12px, var(--safe-r)); }
   .home-logo { flex-basis: 92px; min-height: 72px; }
+  .home-logo span { font-size: 1.7rem; }
   .home-tabs { order: 3; flex-basis: 100%; min-height: 64px; padding-inline: 4px; }
   .home-tabs button { padding: 10px 8px; font-size: 1rem; letter-spacing: .04em; }
 }
