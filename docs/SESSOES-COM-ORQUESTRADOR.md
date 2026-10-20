@@ -37,6 +37,7 @@ Sugestão de ambiente de desenvolvimento, usada pelo dono do projeto desde 20/10
 - **Mensagem entre sessões só para evento:** PR pronto, decisão tomada, pedido de recurso. Nada de "já terminou?".
 - **Segurança não se repassa.** Se uma sessão foi barrada numa ação, outra não faz por ela; a ação volta para você decidir.
 - **Navegador do app sem som.** Ao abrir o jogo no painel de navegador, deixe o som mudo e feche a aba no fim (já aconteceu de duas abas esquecidas tocarem a música).
+- **Aba de teste diz qual é o teste.** Toda aba aberta para o Fernando testar mostra no título o que está em teste: em localhost é automático (`🧪 <branch> · Warlock Wars`); para dar outro nome, abra com `?aba=<nome>` na URL.
 - **Prints só no PC** por enquanto (decisão de 20/10).
 - **Commits em português, sem `Co-Authored-By`**; nada vai para o `master` sem PR.
 

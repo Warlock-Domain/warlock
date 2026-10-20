@@ -32,6 +32,14 @@ import { TEAM_NAMES, TOUCH, askName, banner, createRoomUi, curtain, renderLobby,
 import { endResult } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
+declare const __BRANCH__: string;
+
+// aba de teste diz qual é o teste (pedido do Fernando, 20/10): várias sessões abrem localhost e todas as abas tinham o mesmo
+// título. Em localhost vira "🧪 <branch> · Warlock Wars"; ?aba=<nome> na URL troca o nome. No ar nada muda.
+if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+  document.title = `🧪 ${new URLSearchParams(location.search).get('aba') || __BRANCH__ || 'teste'} · Warlock Wars`;
+}
+
 // som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
   fireball: 'fireball', lightning: 'lightning', homing: 'homing', shield: 'shield', teleport: 'teleport',
