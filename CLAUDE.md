@@ -109,6 +109,8 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 20/10 | **Uma Ladina só** nos prontos do criador; o capuz da Ladina encapuzada vira o chapéu **Capuz**, que serve em qualquer cabeça (malha `Rogue_Hood` no `rogue.glb`, 20% maior que o original para cobrir o cabelo das outras, gerada por `scripts/assets/hood.mjs`); códigos salvos com a encapuzada abrem como Ladina + Capuz (issue #107) | duas ladinas quase iguais confundiam; o capuz funciona melhor como acessório |
 | 20/10 | Aba de teste diz qual é o teste: em `localhost`/`127.0.0.1` o título vira `🧪 <branch> · Warlock Wars` (branch gravada no build; refazer o build ao trocar de branch) e `?aba=<nome>` na URL troca o nome; no ar nada muda (issue #113) | várias sessões abrem abas de localhost para o Fernando testar e todas tinham o mesmo título |
 | 20/10 | Branch local de teste sempre em dia com o `master`: a cada merge no `master`, toda branch com tarefa aberta recebe `git merge origin/master` (sem rebase nem force num PR já aberto), roda os gates e reinicia o servidor local; a orquestradora avisa as sessões filhas | evitar conflito no PR e o Fernando testar sempre a versão atual do jogo |
+| 20/10 | O **W da barra do menu principal** fica solto, sem placa, moldura nem fundo: só ganha brilho atrás com o mouse em cima; placa inclinada igual às abas e quadrado igual à chave foram recusados (issue #117) | o W é o emblema do jogo, não mais uma aba; a caixa em volta destoava das vizinhas |
+| 20/10 | PR de **design** (visual) só é mesclado depois que o Fernando aprova o visual pelos prints | quem decide o visual é ele |
 
 ## Fluxo com agente
 
