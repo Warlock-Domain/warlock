@@ -223,7 +223,6 @@ function playerSection(): Node[] {
       close();
       ctx.rename();
     } }, t('Trocar', 'Change'))),
-    langChoice(),
   ];
 }
 
@@ -248,13 +247,47 @@ const SECTIONS: Section[] = [
   { id: 'controle', title: t('Controle', 'Controller'), icon: UI_ICON.pad, render: padSection },
   { id: 'jogador', title: t('Jogador', 'Player'), icon: UI_ICON.person, render: playerSection },
   { id: 'personagem', title: t('Personagem', 'Character'), icon: UI_ICON.person, render: () => [avatarPanel()] },
+  { id: 'idioma', title: t('Idioma', 'Language'), icon: UI_ICON.taunt, render: () => [langChoice()] },
   { id: 'sobre', title: t('Sobre', 'About'), icon: UI_ICON.info, render: aboutSection },
 ];
 
-// aba Configurações do menu principal: um botão por aba deste menu (abre o menu já nela); som e vídeo só existem na sala.
-// Sem chamar render(): a aba Personagem montaria a prévia 3D só para conferir
-export const settingsLinks = () => el('div', { class: 'settings-links' }, ...SECTIONS.filter((s) => !(s.id === 'som' && !ctx.volumes) && !(s.id === 'video' && !ctx.fxLite)).map((s) =>
-  el('button', { type: 'button', onclick: () => openSettings(s.id) }, icon(s.icon), ' ' + s.title)));
+// aba Configurações do menu principal (issue #59, como as opções do Dota 2): todas as seções empilhadas numa página, com o sumário
+// fixo à esquerda e a seção visível destacada; no celular o sumário recolhe no topo. Personagem vira atalho para a aba dele:
+// a prévia 3D é uma só (avatarPanel) e sairia de lá
+let homeBody: HTMLElement | null = null;
+let homeSpy: IntersectionObserver | null = null;
+const charLink = () => [el('p', { class: 'muted' }, t('O visual do seu mago fica na aba Personagem.', 'Your wizard\'s look is in the Character tab.')),
+  el('button', { type: 'button', onclick: () => document.getElementById('home-tab-char')?.click() }, icon(UI_ICON.person), ' ', t('Abrir a aba Personagem', 'Open the Character tab'))];
+function drawHome(force = false) {
+  if (!homeBody || (!force && !homeBody.isConnected)) return; // fora do menu inicial não há página para redesenhar
+  const shown = SECTIONS.map((s) => [s, s.id === 'personagem' ? charLink() : s.render()] as const).filter(([, body]) => body);
+  const focusId = (document.activeElement as HTMLElement | null)?.id;
+  homeBody.replaceChildren(...shown.map(([s, body]) => el('section', { class: 'settings-body', id: 'set-' + s.id, 'aria-labelledby': 'set-h-' + s.id },
+    el('h3', { class: 'settings-page-title', id: 'set-h-' + s.id }, icon(s.icon), ' ', s.title), ...body!)));
+  homeSpy?.disconnect();
+  for (const sec of homeBody.children) homeSpy?.observe(sec);
+  if (focusId) document.getElementById(focusId)?.focus();
+}
+export function settingsPage(): HTMLElement {
+  homeBody = el('div', { class: 'home-sections' });
+  const narrow = matchMedia('(max-width: 600px)');
+  const toc = el('details', { class: 'home-toc', open: !narrow.matches }, el('summary', {}, t('Sumário', 'Contents')));
+  narrow.addEventListener('change', (e) => (toc.open = !e.matches)); // girar o celular: no PC o sumário fica sempre aberto
+  const mark = (id: string) => toc.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
+  // a seção que passa pela faixa de cima da tela é a destacada; depois de um clique no sumário, o destaque fica na escolhida
+  // enquanto a página rola (as últimas seções nem sempre chegam ao topo)
+  let hold = 0;
+  homeSpy?.disconnect();
+  homeSpy = new IntersectionObserver((entries) => Date.now() > hold && entries.forEach((e) => e.isIntersecting && mark(e.target.id.slice(4))), { rootMargin: '0px 0px -70% 0px' });
+  drawHome(true);
+  toc.append(...SECTIONS.filter((s) => homeBody!.querySelector('#set-' + s.id)).map((s) => el('button', { type: 'button', 'data-id': s.id, onclick: () => {
+    hold = Date.now() + 1000;
+    homeBody!.querySelector('#set-' + s.id)!.scrollIntoView({ block: 'start' });
+    mark(s.id);
+    if (narrow.matches) toc.open = false;
+  } }, icon(s.icon), el('span', {}, s.title))));
+  return el('div', { class: 'home-settings' }, el('h2', {}, t('Configurações', 'Settings')), el('div', { class: 'home-settings-grid' }, toc, homeBody));
+}
 
 const TAB_STORE = 'warlock:settingsTab';
 let tab = store.get(TAB_STORE) ?? 'teclas';
@@ -263,6 +296,7 @@ let page = false; // celular: false mostra a lista de abas, true a aba escolhida
 let ac: AbortController | null = null;
 
 function draw() {
+  drawHome();
   if (!overlay) return;
   const shown = SECTIONS.map((s) => [s, s.render()] as const).filter(([, body]) => body);
   const [cur, body] = shown.find(([s]) => s.id === tab) ?? shown[0];
@@ -303,26 +337,29 @@ export function openSettings(id?: string) {
   document.getElementById('set-tab-' + tab)?.focus();
   ac = new AbortController();
   // na captura: com o menu aberto o jogo não recebe teclas (o que o navegador faz com Tab, Enter e setas continua)
-  addEventListener('keydown', (e) => {
-    if (e.code === 'F1') e.preventDefault(); // não abre a ajuda do navegador
-    e.stopImmediatePropagation();
-    if (padWaiting && e.code === 'Escape') {
-      e.preventDefault();
-      return waitPad(null);
-    }
-    if (waiting) {
-      e.preventDefault();
-      const a = waiting;
-      waiting = null;
-      if (e.code !== 'Escape') bindKey(a, e.code);
-      return draw();
-    }
-    if (e.code === 'Escape') {
-      e.preventDefault();
-      close();
-    }
-  }, { capture: true, signal: ac.signal });
+  addEventListener('keydown', onKey, { capture: true, signal: ac.signal });
 }
+function onKey(e: KeyboardEvent) {
+  if (e.code === 'F1') e.preventDefault(); // não abre a ajuda do navegador
+  e.stopImmediatePropagation();
+  if (padWaiting && e.code === 'Escape') {
+    e.preventDefault();
+    return waitPad(null);
+  }
+  if (waiting) {
+    e.preventDefault();
+    const a = waiting;
+    waiting = null;
+    if (e.code !== 'Escape') bindKey(a, e.code);
+    return draw();
+  }
+  if (e.code === 'Escape') {
+    e.preventDefault();
+    close();
+  }
+}
+// página do menu inicial esperando tecla ou botão: a próxima tecla é dela (com o diálogo aberto, vale o ouvinte dele)
+addEventListener('keydown', (e) => !overlay && homeBody?.isConnected && (waiting || padWaiting) && onKey(e), { capture: true });
 function close() {
   if (!overlay) return;
   waiting = null;
