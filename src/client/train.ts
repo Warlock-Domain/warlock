@@ -12,8 +12,6 @@ const KEY = 'warlock:botsetup';
 export const SANDBOX_BOT = 'warlock:sandboxbot';
 export const savedBotSetup = (key = KEY): BotSetup[] =>
   (store.json<BotSetup[]>(key) ?? []).map((b) => (b?.spells ? { ...b, spells: Object.fromEntries(Object.entries(b.spells).filter(([id]) => (SPELL_IDS as readonly string[]).includes(id))) } : b));
-// algum bot com magias escolhidas; senão o treino vai sem configuração
-export const hasBotSetup = (s: BotSetup[]) => s.some((b) => b?.spells);
 let open = false; // aberto ou fechado sobrevive ao redesenho da sala
 
 // uma linha por bot: Sorteio ou as magias marcadas (até MAX_SPELLS, a Bola de fogo conta), cada uma com o nível
