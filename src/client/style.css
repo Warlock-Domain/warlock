@@ -239,6 +239,12 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .status-icons i.bad { animation: pulse-bad 0.8s ease-in-out infinite alternate; }
 @keyframes pulse-bad { from { transform: scale(1); } to { transform: scale(1.18); } }
 @media (prefers-reduced-motion: reduce) { .status-icons i.bad { animation: none; } }
+/* reloginho em cima do efeito (só no meu mago): relógio de pizza que esvazia (--left: fração que falta) e os segundos, os mesmos da barra de baixo */
+.wiz-label .status-icons { gap: 4px; }
+.wiz-label .status-icons i { flex-direction: column; align-items: center; }
+.wiz-label .fx-clock { display: flex; align-items: center; gap: 2px; margin-bottom: 1px; font-size: .62rem; font-weight: 800; line-height: 1; color: var(--fg); font-variant-numeric: tabular-nums; }
+.wiz-label .fx-clock:empty { display: none; }
+.wiz-label .fx-clock::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: conic-gradient(currentColor calc(var(--left, 0) * 360deg), rgba(0, 0, 0, .55) 0); box-shadow: 0 0 0 1px rgba(0, 0, 0, .6); }
 .obstacle-hp { position: absolute; left: 0; top: 0; width: 34px; height: 3px; border-radius: 2px; background: rgba(0, 0, 0, .55); overflow: hidden; opacity: .75; pointer-events: none; }
 .obstacle-hp > div { height: 100%; background: var(--stone); }
 .obstacle-hp { opacity: .95; height: 4px; width: 40px; }
