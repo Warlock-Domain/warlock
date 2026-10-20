@@ -1,7 +1,7 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
-import { CHARACTERS, lookHead, lookOf, type CharacterId } from './characters.ts';
+import { CHARACTERS, fixLook, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
   ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
   type RuneKind,
@@ -112,6 +112,7 @@ export type Player = {
   setup?: BotSetup; // treino: magias, itens e jeito de jogar escolhidos para este bot
   difficulty?: MatchOpts['difficulty']; // bot: a dificuldade dele, escolhida na sala (sem ela, a da partida)
   dummy?: boolean; // sandbox: boneco parado (bot que não anda nem atira)
+  turret?: 'north' | 'east' | 'south' | 'west'; // Sandbox: tiro fixo, sem dano nem deslocamento.
 };
 
 // Sandbox (pedido do Fernando, 19/10): sala para testar magias e interações, sem fim de rodada nem telemetria.
@@ -120,7 +121,7 @@ export type Sandbox = { god: boolean; noCd: boolean; shrink: boolean };
 export type SandboxCmd =
   | { op: 'set'; key: keyof Sandbox; on: boolean }
   | { op: 'bot'; bot?: BotSetup; dummy?: boolean }
-  | { op: 'arena'; arena: ArenaId }
+  | { op: 'turret'; direction: NonNullable<Player['turret']> }
   | { op: 'rune'; kind: RuneKind } // runa escolhida ao lado de quem pediu (pedido do Sky, 20/10)
   | { op: 'restart' };
 const SANDBOX_GOLD = 9999;
@@ -216,6 +217,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   if (m.phase !== 'lobby' && m.phase !== 'end') return false;
   m.opts = { ...m.opts, ...opts };
   m.sandbox = sandbox ? { god: true, noCd: false, shrink: false } : undefined;
+  if (sandbox) m.opts = { ...m.opts, arena: 'circle' };
   m.players = m.players.filter((p) => !p.bot && p.connected);
   const solo = m.players.length === 1;
   for (let i = 0; m.players.length < MAX_PLAYERS && i < bots; i++) {
@@ -368,7 +370,7 @@ export function resume(m: Match, now: number) {
   m.vote = null; // o prazo de uma votação gravada já passou
   for (const p of m.players) {
     p.character ??= 'mage';
-    p.look ??= lookOf(p.character); // salas gravadas antes da aparência montada
+    p.look = fixLook(p.look ?? lookOf(p.character)); // salas gravadas antes da aparência montada ou com peça da Ladina encapuzada (#107)
     // salas gravadas antes das magias novas, ou com uma que saiu do jogo (os Gêmeos, 19/10): fica só o que existe
     p.spells = Object.fromEntries(SPELL_IDS.map((s) => [s, p.spells[s] ?? noSpells()[s]])) as Record<SpellId, number>;
     const plan = (p as { plan?: BotPlan }).plan;
@@ -583,7 +585,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   const ids = m.players.map((p) => p.id);
   const teams = m.mode === 'teams' ? Object.fromEntries(m.players.map((p) => [p.id, p.team ?? 0])) : {};
   // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
-  const arena = m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
+  const arena = m.sandbox ? 'circle' : m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
   m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests }, arena);
   if (m.sandbox) m.world.shrink = m.sandbox.shrink; // a sandbox usa o mundo do deathmatch: não encolhe (a não ser que peçam) e quem morre volta
   m.phase = 'countdown';
@@ -670,6 +672,17 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boo
     if (m.world) m.world.shrink = sb.shrink;
     return true;
   }
+  if (cmd.op === 'turret') {
+    const b = newBot(m);
+    if (!b) return false;
+    b.turret = cmd.direction;
+    b.dummy = true;
+    b.name = 'Totem'; // igual em português e inglês (o nome aparece no placar e no "Tirar …")
+    b.spells = { ...noSpells(), fireball: 1 };
+    b.items = noItems();
+    refit(m, b);
+    return true;
+  }
   if (cmd.op === 'bot') {
     const b = newBot(m);
     if (!b) return false;
@@ -683,8 +696,7 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boo
     refit(m, b);
     return true;
   }
-  if (cmd.op === 'arena') m.opts = { ...m.opts, arena: cmd.arena };
-  // reiniciar (e trocar a arena): mundo novo com todos no ponto de partida e vida cheia, depois da contagem
+  // reiniciar: mundo novo com todos no ponto de partida e vida cheia, depois da contagem
   enterCountdown(m, now, Math.random);
   return true;
 }
@@ -787,6 +799,33 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   const w = m.world;
   m.steps++;
   const all = [...cmds];
+  const turrets = sb ? m.players.filter((p) => p.turret) : [];
+  const pinTurrets = () => {
+    const zs = turrets.map((p) => w.wizards.find((q) => q.id === p.id && q.alive));
+    for (const z of zs) {
+      if (!z || z.turretAnchor) continue;
+      // em diagonal (0, +1, -1, +2…), na primeira vaga livre: cada torreta numa linha e numa coluna só dela, o tiro de uma não cruza outra
+      for (let i = 0; !z.turretAnchor; i++) {
+        const k = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 1.2;
+        if (!zs.some((o) => o?.turretAnchor?.y === k)) z.turretAnchor = { x: -w.arenaR * 0.35 + k, y: k };
+      }
+    }
+    for (const z of zs) {
+      if (!z?.turretAnchor) continue;
+      z.pos = { ...z.turretAnchor };
+      z.vel = { x: 0, y: 0 };
+      z.target = null;
+      z.invulnUntil = Infinity;
+      z.hp = z.hpMax;
+    }
+  };
+  pinTurrets();
+  for (const p of turrets) {
+    const z = w.wizards.find((q) => q.id === p.id && q.alive);
+    if (!z) continue;
+    const [x, y] = { north: [0, -1], east: [1, 0], south: [0, 1], west: [-1, 0] }[p.turret!];
+    all.push({ id: p.id, kind: 'cast', spell: 'fireball', at: { x: z.pos.x + x, y: z.pos.y + y } });
+  }
   // os bots enxergam a cada passo e pensam D.rate vezes por segundo; o placar serve para o Difícil caçar o líder
   botWatch(w);
   const scores = Object.fromEntries(m.players.map((p) => [p.id, p.score]));
@@ -803,6 +842,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   const human = (id: string) => player(m, id)?.bot === false;
   if (sb) for (const z of w.wizards) z.god = sb.god && human(z.id);
   stepWorld(w, all, rand);
+  pinTurrets();
   if (sb?.noCd) for (const z of w.wizards.filter((q) => human(q.id))) {
     for (const s of SPELL_IDS) z.cd[s] = 0;
     for (const i of ITEM_IDS) z.itemCd[i] = 0;

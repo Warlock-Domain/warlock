@@ -15,9 +15,9 @@ Vai trabalhar com agentes de IA? Veja a sugestão de ambiente em [Sessões com o
    - `docs/<assunto>`, `refactor/<assunto>`
    Colaborador trabalha em branch deste repositório. Fork só para quem não é colaborador: nele o CI espera aprovação manual, a revisão automática não roda e o ambiente dev não publica.
 3. **Commits pequenos, em português**, começando pelo tipo: `feat: …`, `fix: …`, `balance: …`, `style: …`, `refactor: …`, `docs: …`. A mensagem diz o que mudou para o jogador e, em balanceamento, os números medidos.
-4. **Antes de abrir o PR**, rode os gates (os dois `tsc`, `vitest run`, `vite build`) e jogue no navegador. Para testar com outras pessoas, publique no seu ambiente dev (veja [Ambiente de cada dev](#ambiente-de-cada-dev)). Mantenha a branch em dia com o `master` (`git pull --rebase origin master` ou merge).
+4. **Antes de abrir o PR**, rode os gates (os dois `tsc`, `vitest run`, `vite build`) e jogue no navegador. Para testar com outras pessoas, publique no seu ambiente dev (veja [Ambiente de cada dev](#ambiente-de-cada-dev)). Mantenha a branch em dia com o `master` (`git fetch` + `git merge origin/master`).
 5. **Abra o pull request para o `master`** preenchendo o modelo (Por quê, O que muda, Prints antes e depois se mudou algo na tela, Como testei, Balanceamento) e com `Closes #n` para ligar a issue. **Título no formato do commit** (`feat: …`, `fix: …`): uma checagem do GitHub barra título fora do padrão. O GitHub Actions roda as mesmas checagens dos gates; o PR só entra com tudo verde.
-6. **Revisão:** o Claude comenta sozinho em todo PR (veredito, checagens, pontos); comente `@claude` para pedir ajuda. O agente do dono pode ajustar e mesclar o PR. Responda os comentários com commits novos na mesma branch (sem reescrever o histórico depois que a revisão começou).
+6. **Revisão:** o Claude comenta sozinho em todo PR (veredito, checagens, pontos); comente `@claude` para pedir ajuda. O agente do dono pode ajustar e mesclar o PR. PR de código do dono (sessões do Fernando) só é mesclado depois que ele aprova o teste em `localhost`: a sessão abre a aba, lista o que testar e põe à mão notas na tela apontando o que mudou (só em `localhost`, fora do PR). PR de colaborador e PR só de docs/CI não passam por essa aprovação. Responda os comentários com commits novos na mesma branch (sem reescrever o histórico depois que a revisão começou). **A cada merge no `master`** enquanto o PR estiver aberto, faça `git fetch` + `git merge origin/master` (sem rebase nem force), rode os gates e reinicie o servidor local, para não acumular conflito e testar sempre a versão atual.
 7. **Merge:** *squash and merge* no `master`; o título do PR vira o commit. A branch é apagada depois.
 8. **Publicação é automática:** o merge no `master` publica o jogo no ar pela pipeline Produção (decisão de 20/10: sem dev geral, PR direto para o `master`).
 
@@ -33,6 +33,7 @@ Projeto de grupo: o que muda o jogo para todo mundo é combinado antes de virar 
   3. A decisão fica escrita na issue (o que foi decidido e por quê), a etiqueta sai e a linha entra na tabela de decisões do [CLAUDE.md](CLAUDE.md). Coisa grande ganha um desenho em `docs/` (como o Ascensão e a Campanha).
   4. Só então alguém pega para fazer, e o PR cita a issue (`Closes #n`).
 - **PR grande sem decisão** recebe `precisa de decisão` e espera, sem mesclar, até a issue ser decidida.
+- **Prova de conceito não tem issue.** Testar algo localmente (um pacote de assets, um efeito, uma ideia) se faz direto numa branch `poc/<assunto>`, com prints, sem PR. A issue e o PR só nascem quando o Fernando decide que vale a pena.
 
 ## Ambiente de cada dev
 
@@ -79,11 +80,22 @@ Toda issue sai de um dos dois modelos (a issue em branco está desligada): https
 - **Antes de começar a fazer, atribua-se** na issue (Assignees, ou comente "vou fazer") e só pegue issue sem dono. Assim duas pessoas não fazem o mesmo trabalho. Desistiu? Tire o seu nome.
 - Ideia só é pega depois de decidida (a etiqueta `precisa de decisão` saiu).
 - O PR que resolve a issue leva `Closes #n` na descrição: ao mesclar, a issue fecha sozinha. Tem de ser em inglês (`Closes`, `Fixes` ou `Resolves`); "Fecha #n" o GitHub não entende.
-- **Quadro (kanban):** https://github.com/users/fernandorff/projects/3. Colunas: **Precisa de decisão** → **A fazer** → **Fazendo** → **Em revisão** → **Feito**. Ao se atribuir, mova o cartão para Fazendo; com o PR aberto, para Em revisão. Issue fechada ou PR mesclado vai para Feito sozinho.
+- **Quadros (kanban):** um geral com tudo e um por tema. A issue entra no quadro do tema pela etiqueta:
+
+  | Quadro | Etiqueta | O que entra |
+  |---|---|---|
+  | [Warlock (geral)](https://github.com/users/fernandorff/projects/3) | todas | todas as issues |
+  | [Balanceamento](https://github.com/users/fernandorff/projects/4) | `balanceamento` | números de magia, item, bot, ouro e opções da sala |
+  | [Jogabilidade](https://github.com/users/fernandorff/projects/5) | `jogabilidade` | modos, classes, mecânicas e magias novas |
+  | [Interface](https://github.com/users/fernandorff/projects/6) | `visual` | telas, menus, HUD, teclas e efeitos visuais |
+  | [Bugfix](https://github.com/users/fernandorff/projects/7) | `bug` | o que não funciona como deveria |
+  | [Documentação e fluxos](https://github.com/users/fernandorff/projects/8) | `documentação` | documentos, regras do projeto e fluxo de trabalho (Git, PR, pipelines) |
+
+  Colunas iguais em todos: **Precisa de decisão** → **A fazer** → **Fazendo** → **Em revisão** → **Feito**. Ao se atribuir, mova o cartão para Fazendo; com o PR aberto, para Em revisão. Issue fechada ou PR mesclado vai para Feito sozinho. Issue nova: ponha a etiqueta do tema e adicione ao quadro do tema (campo Projects da issue).
 
 ## Etiquetas
 
-`bug`, `ideia`, `balanceamento`, `visual`, `bom primeiro PR`, `precisa de decisão` (espera o dono do projeto decidir).
+`bug`, `ideia`, `balanceamento`, `jogabilidade`, `visual`, `documentação`, `bom primeiro PR`, `precisa de decisão` (espera o dono do projeto decidir). `bug`, `balanceamento`, `jogabilidade`, `visual` e `documentação` também dizem em qual quadro a issue entra.
 
 ## Regras que valem para todo PR
 
