@@ -30,7 +30,7 @@ const CH = {
   toc: t('Sumário', 'Contents'), spells: t('Magias', 'Spells'), items: t('Itens', 'Items'),
 };
 // magia fora da barra não tem tecla no modo Q W E R D F nem no controle (vale a posição na barra)
-const keyText = (a: SpellId | ItemId) => labelOf(a) !== '—' ? t(`tecla ${labelOf(a)}`, `key ${labelOf(a)}`) : isSlotMode() || isPadMode() ? t('tecla pela posição na barra', 'key by position in the bar') : t('sem tecla (escolha em Configurações > Teclas)', 'no key (pick one in Settings > Keys)');
+const keyText = (a: SpellId | ItemId) => labelOf(a) !== '—' ? t(`tecla ${labelOf(a)}`, `key ${labelOf(a)}`) : isSlotMode() || isPadMode() ? t('tecla pela posição na barra', 'key by position in the bar') : t('sem tecla (escolha em Configurações > Lançamento)', 'no key (pick one in Settings > Casting)');
 
 // contorno da arena num canvas pequeno (página das arenas)
 function arenaThumb(id: ArenaId): HTMLElement {
@@ -89,7 +89,7 @@ const PAGES: Page[] = [
       el('div', { class: 'keys-grid' }, ...ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, labelOf(a)), ' ', icon(actionIcon(a)), ' ', actionName(a)))),
       el('h3', {}, t('Atalhos', 'Shortcuts')),
       el('div', { class: 'keys-grid' }, ...UI_ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, uiLabel(a)), ' ', UI_NAMES[a])), el('span', {}, el('span', { class: 'key' }, 'Esc'), ' ', t('Configurações', 'Settings'))),
-      el('small', {}, t('Troque em Configurações > Teclas (Esc ou a engrenagem no topo).', 'Change them in Settings > Keys (Esc or the gear at the top).'))],
+      el('small', {}, t('Troque as de magias e itens em Configurações > Lançamento e as dos atalhos em Configurações > Teclas (Esc ou a engrenagem no topo).', 'Change spell and item keys in Settings > Casting and shortcut keys in Settings > Keys (Esc or the gear at the top).'))],
   },
   text(t('Controles', 'Controls'), t('No celular', 'On mobile'), RULES.celular),
   text(t('Controles', 'Controls'), t('Com controle', 'With a controller'), () => RULES.controle),
