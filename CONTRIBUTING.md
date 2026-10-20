@@ -78,6 +78,7 @@ Toda issue sai de um dos dois modelos (a issue em branco está desligada): https
 - **Antes de começar a fazer, atribua-se** na issue (Assignees, ou comente "vou fazer") e só pegue issue sem dono. Assim duas pessoas não fazem o mesmo trabalho. Desistiu? Tire o seu nome.
 - Ideia só é pega depois de decidida (a etiqueta `precisa de decisão` saiu).
 - O PR que resolve a issue leva `Fecha #n` na descrição: ao mesclar, a issue fecha sozinha.
+- **Quadro (kanban):** https://github.com/users/fernandorff/projects/3. Colunas: **Precisa de decisão** → **A fazer** → **Fazendo** → **Em revisão** → **Feito**. Ao se atribuir, mova o cartão para Fazendo; com o PR aberto, para Em revisão. Issue fechada ou PR mesclado vai para Feito sozinho.
 
 ## Etiquetas
 
