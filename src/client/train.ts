@@ -3,6 +3,7 @@ import type { BotSetup } from '../shared/protocol.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { ICON, el, icon } from './icons.ts';
 import { store } from './store.ts';
+import { choice } from './ui.ts';
 import { spellName, t } from './i18n.ts';
 
 const KEY = 'warlock:botsetup';
@@ -40,7 +41,7 @@ export function botSetupPanel(n: number, saved: BotSetup[], onChange: (s: BotSet
     };
     return el('div', { class: 'opt-row bot-setup' },
       el('div', { class: 'opt-label' }, el('b', {}, `Bot ${i + 1}`),
-        el('div', { class: 'stats-tabs' }, el('button', { type: 'button', 'aria-pressed': String(!picked.length), class: picked.length ? '' : 'on', onclick: random }, t('Sorteio', 'Random'))),
+        choice(t(`Magias do bot ${i + 1}`, `Bot ${i + 1} spells`), [[true, t('Sorteio', 'Random')]], !picked.length, random),
         el('small', { class: 'muted' }, picked.length ? t(`${picked.length} de ${MAX_SPELLS} magias`, `${picked.length} of ${MAX_SPELLS} spells`) : t('compra sozinho na loja', 'buys on its own in the shop'))),
       el('div', { class: 'bs-spells' }, ...SPELL_IDS.map((s) => {
         const lvl = spells?.[s] ?? 0;

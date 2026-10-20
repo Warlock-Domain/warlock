@@ -143,23 +143,19 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
     char: panel('char', personagemTab()),
     settings: panel('settings', settingsPage()),
   };
-  const btns = HOME_TABS.map(([k, label, ico]) => el('button', { type: 'button', role: 'tab', id: 'home-tab-' + k, 'aria-controls': 'home-' + k, onclick: () => show(k) }, icon(ico), el('span', {}, label)));
   function show(k: HomeTab) {
     store.set(HOME_TAB, k);
-    HOME_TABS.forEach(([id], i) => {
-      btns[i].classList.toggle('on', id === k);
-      btns[i].setAttribute('aria-selected', String(id === k));
-      panels[id].hidden = id !== k;
-    });
+    for (const [id] of HOME_TABS) panels[id].hidden = id !== k;
   }
+  const first = HOME_TABS.some(([k]) => k === saved) ? saved! : 'play';
   root.replaceChildren(
     el('div', { class: 'lobby', 'data-name': name },
       el('nav', { class: 'home-bar' }, el('b', { class: 'home-logo' }, TITLE),
-        el('div', { class: 'home-tabs', role: 'tablist', 'aria-label': t('Menu principal', 'Main menu') }, ...btns),
+        tabs(t('Menu principal', 'Main menu'), HOME_TABS.map(([k, label, ico]): [HomeTab, ...Child[]] => [k, icon(ico), el('span', {}, label)]), first, show, { id: 'home', cls: 'home-tabs' }),
         el('button', { type: 'button', class: 'link home-name', onclick: onRename }, icon(UI_ICON.person), ` ${name} · ${t('trocar', 'change')}`)),
       ...Object.values(panels)),
   );
-  show(HOME_TABS.some(([k]) => k === saved) ? saved! : 'play');
+  show(first);
   void import('./grimoire.ts').then((m) => panels.library.append(m.library()));
 }
 
@@ -320,9 +316,20 @@ const portrait = (p: PublicPlayer) => el('img', { class: 'face', src: `/chars/${
 // fileira de botões com um marcado (opções da partida, modo, jeito de lançar); off: botão desligado
 export const choice = <T>(label: string, items: [T, string][], on: T, pick: (v: T) => void, off?: (v: T) => boolean) => el('div', { class: 'stats-tabs', role: 'group', 'aria-label': label },
   ...items.map(([v, text]) => el('button', { type: 'button', 'aria-pressed': String(v === on), class: v === on ? 'on' : '', disabled: off?.(v), onclick: () => pick(v) }, text)));
-const tabs = <T extends string>(label: string, list: [T, string][], on: T, set: (k: T) => void) =>
-  el('div', { class: 'stats-tabs', role: 'tablist', 'aria-label': label }, ...list.map(([k, text]) =>
-    el('button', { type: 'button', role: 'tab', 'aria-selected': String(k === on), class: k === on ? 'on' : '', onclick: () => set(k) }, text)));
+// abas (role=tab; placar e menu inicial): o clique marca a aba na hora e chama set. Cada item: chave e o que vai no botão.
+// id: prefixo que liga aba e painel (aba <id>-tab-<k>, aria-controls <id>-<k>); cls: visual da fileira
+function tabs<T extends string>(label: string, list: [T, ...Child[]][], on: T, set: (k: T) => void, o: { id?: string; cls?: string } = {}) {
+  const pick = (k: T) => {
+    btns.forEach((b, i) => {
+      b.classList.toggle('on', list[i][0] === k);
+      b.setAttribute('aria-selected', String(list[i][0] === k));
+    });
+    set(k);
+  };
+  const btns = list.map(([k, ...kids]) => el('button', { type: 'button', role: 'tab', id: o.id && `${o.id}-tab-${k}`, 'aria-controls': o.id && `${o.id}-${k}`,
+    'aria-selected': String(k === on), class: k === on ? 'on' : '', onclick: () => pick(k) }, ...kids));
+  return el('div', { class: o.cls ?? 'stats-tabs', role: 'tablist', 'aria-label': label }, ...btns);
+}
 
 // diálogo por cima de qualquer tela (Configurações, Grimório, Biblioteca): fundo, título e ✕; ✕, clique fora e Esc fecham.
 // O fundo leva a classe <cls>-overlay (camada e celular no style.css). Teclas na captura e sem repassar: com ele aberto
