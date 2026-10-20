@@ -6,6 +6,7 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { RenderPixelatedPass } from 'three/examples/jsm/postprocessing/RenderPixelatedPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SHAPES as ARENAS, edgeAt, inLavaAt, type ArenaId, type Isle } from '../shared/arena.ts';
@@ -1729,12 +1730,29 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
   let composer: EffectComposer | null = null;
+  const renderPass = new RenderPass(scene, camera);
   if (!mobile) {
     composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(renderPass);
     composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.4, 0.45, 0.85));
     composer.addPass(new OutputPass());
   }
+  let pixelSize = 0; // tamanho do bloco em pixels da tela (0 = desligado); 2 ou 3 escolhidos nas Configurações
+  // pixel art (issue #79): cena em blocos de pixelSize×pixelSize px com contorno, no lugar do RenderPass; só existe com o composer (PC)
+  let pixelPass: RenderPixelatedPass | null = null;
+  let pixelShift = ''; // deslize da imagem que completa a câmera presa à grade
+  let camK = 1; // quantas vezes mais longe fica a câmera do pixel art (ângulo menor, mesmo enquadramento)
+  const makePixelPass = () => {
+    const pass = new RenderPixelatedPass(pixelSize * renderer.getPixelRatio(), scene, camera, { depthEdgeStrength: 0.4, normalEdgeStrength: 0.3 });
+    // o passe compara a profundidade crua, feita para câmera ortográfica; na nossa perspectiva a diferença some.
+    // Em metros (×0,04), o contorno aparece quando a borda tem ~0,25 a 0,5 m de degrau
+    const m = pass.pixelatedMaterial;
+    Object.assign(m.uniforms, { cameraNear: { value: camera.near }, cameraFar: { value: camera.far } });
+    m.fragmentShader = '#include <packing>\nuniform float cameraNear;\nuniform float cameraFar;\n' + m.fragmentShader.replace(/return texture2D\( tDepth, ([^;]+) \)\.r;/, 'return -perspectiveDepthToViewZ(texture2D( tDepth, $1 ).r, cameraNear, cameraFar) * 0.04;');
+    // a troca é no texto do shader do three 0.186: se uma versão nova mudar o trecho, o contorno escuro some e o aviso mostra
+    if (!m.fragmentShader.includes('perspectiveDepthToViewZ')) console.warn('pixel art: o shader do RenderPixelatedPass mudou; contorno por profundidade desligado');
+    return pass;
+  };
 
   function resize() {
     const w = innerWidth, h = innerHeight;
@@ -1815,6 +1833,26 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         (lock.material as THREE.MeshBasicMaterial).opacity = Math.min(1, k * 4) * (1 - k);
       });
       burst(at, cast ? '#ffb347' : '#7dff9a', 0.7, 0.25, 0.08, FX.light);
+    },
+    // pixel art (issue #79): só no PC, onde há composer
+    setPixel(size: number) {
+      if (!composer || size === pixelSize) return;
+      const on = size > 0;
+      pixelSize = size;
+      if (on && pixelPass) pixelPass.setPixelSize(size * renderer.getPixelRatio());
+      const want = on ? (pixelPass ??= makePixelPass()) : renderPass;
+      if (composer.passes[0] !== want) {
+        composer.removePass(composer.passes[0]);
+        composer.insertPass(want, 0);
+      }
+      // câmera quase sem perspectiva: 1 bloco mede o mesmo no chão da tela toda, e a grade presa não balança nas bordas
+      camera.fov = on ? 12 : 40;
+      camK = Math.tan(THREE.MathUtils.degToRad(20)) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+      camera.near = on ? 2 : 0.5;
+      camera.far = on ? 400 : 200;
+      camera.updateProjectionMatrix();
+      Object.assign(pixelPass!.pixelatedMaterial.uniforms.cameraNear, { value: camera.near });
+      Object.assign(pixelPass!.pixelatedMaterial.uniforms.cameraFar, { value: camera.far });
     },
     // Efeitos: true = Leve (sem tremor, hit-stop e partículas extras)
     setFx(on: boolean) {
@@ -1986,9 +2024,25 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const dist = Math.min(44, Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
       lastDist = dist;
       // olha um pouco à frente do centro para a borda de baixo não ficar atrás da barra de magias
-      const lookZ = focus.z + dist * 0.06;
-      camera.position.set(focus.x, dist * 0.74, lookZ + dist * 0.67);
-      camera.lookAt(focus.x, 0, lookZ);
+      let lookX = focus.x, lookZ = focus.z + dist * 0.06;
+      // pixel art: a câmera desenha de bloco em bloco (pixelSize px medidos no chão do meio da tela); solta, o chão "ferve" a cada quadro.
+      // A sobra (menos de um bloco) desliza a imagem pronta e os nomes, e o movimento continua suave.
+      // No eixo z o chão inclinado aparece encurtado (×0,74), então o passo no chão é maior
+      let shift = '';
+      if (pixelPass && composer?.passes[0] === pixelPass) {
+        const block = (2 * dist * camK * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / (innerHeight / pixelSize);
+        const stepZ = block / 0.74;
+        const sx = Math.round(lookX / block) * block, sz = Math.round(lookZ / stepZ) * stepZ;
+        const px = (v: number) => Math.round(v * pixelSize * devicePixelRatio) / devicePixelRatio; // pixel inteiro da tela: sem borrar os blocos
+        shift = `translate(${px((sx - lookX) / block)}px, ${px((sz - lookZ) / stepZ)}px)`;
+        lookX = sx;
+        lookZ = sz;
+      }
+      if (shift !== pixelShift) canvas.style.transform = labels.style.transform = pixelShift = shift;
+      camera.position.set(lookX, dist * 0.74 * camK, lookZ + dist * 0.67 * camK);
+      // a névoa conta da câmera: com ela mais longe, empurra junto
+      Object.assign(scene.fog!, { near: 30 + (camK - 1) * dist, far: 70 + (camK - 1) * dist });
+      camera.lookAt(lookX, 0, lookZ);
       if (shake > 0.01 && !lite) {
         camera.position.x += (Math.random() - 0.5) * shake;
         camera.position.z += (Math.random() - 0.5) * shake;

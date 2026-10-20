@@ -19,7 +19,7 @@ import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t } from './i18n.ts';
 import { isPadMode, labelOf, onFreeEsc } from './keys.ts';
-import { openSettings } from './settings.ts';
+import { openSettings, savedPixel } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
 import { DELAY, REPLAY_MAX, createInterp, keepLast } from './interp.ts';
 import { connect } from './net.ts';
@@ -205,6 +205,9 @@ function startRoom(code: string, name: string) {
   // efeitos visuais Completo/Leve guardados no navegador; sem escolha, quem pede menos movimento ao sistema começa no Leve
   let fxLite = (store.get('warlock:fx') ?? (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'lite' : 'full')) === 'lite';
   document.body.classList.toggle('fx-lite', fxLite);
+  // pixel art (issue #79): desligado por padrão; só no PC, onde há pós-processamento
+  let pixel = savedPixel();
+  const pixelOk = !matchMedia('(pointer: coarse)').matches;
 
   const view = createRoomUi(ui, code, {
     start: (bots, mode, shuffle, opts, again) => {
@@ -251,6 +254,12 @@ function startRoom(code: string, name: string) {
       document.body.classList.toggle('fx-lite', lite);
       scene.setFx(lite);
     },
+    pixel: pixelOk ? () => pixel : undefined,
+    setPixel: (size) => {
+      pixel = size;
+      store.set('warlock:pixel', String(size));
+      scene.setPixel(size);
+    },
     spellReady: () => sound.play('ready', 0.8),
     watch: (step) => (watchStep = step),
     replay: toggleReplay,
@@ -276,6 +285,7 @@ function startRoom(code: string, name: string) {
   });
   const scene = createScene(canvas, document.getElementById('labels')!);
   scene.setFx(fxLite);
+  scene.setPixel(pixel);
   const interp = createInterp();
   const predict = createPredict();
 

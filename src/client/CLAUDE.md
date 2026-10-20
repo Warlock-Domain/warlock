@@ -28,6 +28,10 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 Modo Q W E R D F (padrão): magias e itens ativos usam a tecla da **posição** na barra (`POS_ACTIONS`: Magia 1 a 6 e Item 1 a 3, guardadas em `warlock:poskeys`); `keyOf`/`actionFor`/`whoUses` já resolvem o modo. Posições e atalhos da interface nunca repetem tecla (`setKey` troca). Trocar qualquer tecla fixa o modo em uso no navegador.
 
+## Cena (`scene.ts`)
+
+- **Pixel art** (`setPixel`, issue #79): troca o `RenderPass` pelo `RenderPixelatedPass` (blocos de `pixelSize` px: 2 ou 3, 0 desliga). Nesse modo a câmera fica mais longe com ângulo menor (`camK`) e é presa à grade; a sobra desliza o canvas e os nomes (`pixelShift`). Quem mexer no posicionamento da câmera mantém os dois, senão o chão volta a tremer.
+
 ## O que não vai para `ui.ts`
 
 `ui.ts` usa `document`/`matchMedia` ao carregar e não roda no Vitest. Decisão de tela que precisa de teste vai para função pura em `screen-data.ts` (ou `rules-text.ts`, `tips.ts`, `icons.ts`, `keys.ts`, `sheet.ts`, `reach.ts`, que não mexem no DOM ao carregar).
