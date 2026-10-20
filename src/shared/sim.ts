@@ -77,6 +77,7 @@ export type Wizard = {
   casting: { spell?: SpellId; item?: ItemId; at: Vec; fireAt: number; then?: Vec | null } | null;
   god?: boolean; // sandbox: vida infinita (não morre; da lava volta para a pedra)
   safe?: Vec; // mapa: último ponto em chão firme (quem cai no abismo volta aqui)
+  moveAt?: number; // começo da última Investida ou Estocada (o embalo depois dela ainda é movimento da própria magia)
 };
 
 // meteor fica parado no ponto de impacto até `until` e então explode; swap e grip não causam dano
@@ -154,7 +155,7 @@ type Combo = 'fire' | 'arcane' | 'pulse' | 'detonate' | 'pillar' | 'snow'; // sn
 // until: some sozinho (Pilar de pedra); wall: índice do pedaço do meio da parede do Pilar de pedra (os 3 dividem a vida)
 export type Pillar = { pos: Vec; hp: number; alive: boolean; kind: ObstacleKind; until?: number; wall?: number };
 
-type Zone = { pos: Vec; r: number; kind: 'burn' | 'slow' | 'pull'; until: number };
+export type Zone = { pos: Vec; r: number; kind: 'burn' | 'slow' | 'pull'; until: number; by?: string | null }; // by: quem causou (fogo amigo)
 
 export type World = {
   t: number;
@@ -180,6 +181,7 @@ export type World = {
   dm: boolean; // deathmatch: a arena não encolhe e quem morre volta depois de DM_RESPAWN s
   shrink?: boolean; // sandbox (mundo de deathmatch): a arena encolhe mesmo assim
   map?: Terrain; // Campanha: mapa explorável no lugar da arena (sem lava nem encolhimento)
+  friendly?: 'none'; // fogo amigo: 'none' = magia não pega aliado (Campanha); sem o campo, só empurra (Times). Ver spares
   lock?: Room; // Campanha: sala trancada durante o encontro (ninguém sai dela)
 };
 
@@ -364,11 +366,20 @@ const byId = (w: World, id: string | null) => w.wizards.find((z) => z.id === id 
 const anyById = (w: World, id: string | null) => w.wizards.find((z) => z.id === id); // vivo ou morto
 const shielded = (w: World, wz: Wizard) => w.t < wz.shieldUntil;
 const bubble = (w: World, wz: Wizard) => (shielded(w, wz) ? Math.max(0, wz.shieldR - WIZ_R) : 0); // quanto a bolha do escudo passa do mago
-// modo Times: do mesmo time e não é a própria pessoa
+// aliados: do mesmo time e não é a própria pessoa (fora dos modos com time, ninguém é aliado)
 const allies = (a: Wizard | undefined, b: Wizard) => !!a && a !== b && a.team !== null && a.team === b.team;
+// fogo amigo, uma regra por mundo (World.friendly):
+//   sem o campo (modo Times, decisão do Fernando, 19/10): magia em aliado só empurra, sem dano
+//   'none' (Campanha, pedido do Lucas, 20/10): dano e empurrão não pegam aliado; projéteis e Raio atravessam o aliado
+// as magias de ajuda (HELP) valem no aliado nos dois casos: Drenar cura e acelera, Magnetizar repele, Troca troca, Elo prende
+const HELP = new Set<ProjKind>(['drain', 'magnetize', 'swap', 'link']);
+const spares = (w: World, a: Wizard | undefined, b: Wizard) => w.friendly === 'none' && allies(a, b);
+// zona no chão (fogo, lentidão, puxão): pega quem não é poupado por quem a causou (sem dono, pega todo mundo); o snapshot usa a mesma conta
+export const zoneReaches = (w: World, z: Zone, wz: Wizard) => !spares(w, anyById(w, z.by ?? null), wz);
 
 // src: o que causou o dano (magia, item, choque ou pilar), para o placar e os dados de balanceamento
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string) {
+  if (spares(w, anyById(w, by), target)) return; // aliado não é atingido (nem empurrado)
   // invulnerável: sem dano nem empurrão, mas o acerto aparece (explosão e som), senão o projétil sumiria sem efeito
   if (w.t < target.invulnUntil) return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
   // como no mod de Dota 2 (pawn.lua): acima de 100 de dano por golpe o empurrão cresce pela raiz, não em linha reta
@@ -422,11 +433,12 @@ function segT(a: Vec, d: Vec, p: Vec): [t: number, gap: number] {
 }
 
 // primeiro mago (fora os excluídos) que o segmento a→b toca; t em [0,1] ao longo do segmento
-function firstOnSegment(w: World, a: Vec, b: Vec, radius: number, skip: string): { wz: Wizard; t: number } | null {
+// through: quem atira; os aliados dele não estão no caminho quando o fogo amigo não pega (spares)
+function firstOnSegment(w: World, a: Vec, b: Vec, radius: number, skip: string, through?: Wizard): { wz: Wizard; t: number } | null {
   const d = sub(b, a);
   let best: { wz: Wizard; t: number } | null = null;
   for (const wz of w.wizards) {
-    if (!wz.alive || wz.id === skip) continue;
+    if (!wz.alive || wz.id === skip || spares(w, through, wz)) continue;
     const [t, gap] = segT(a, d, wz.pos);
     // com escudo, a bolha (maior que o mago) é que encosta
     if (gap > radius + bubble(w, wz)) continue;
@@ -444,6 +456,8 @@ function firstProjectileOnSegment(w: World, a: Vec, b: Vec, caster: string): { p
   let best: { p: Projectile; t: number } | null = null;
   for (const p of w.projectiles) {
     if (!clashes(p) || (p.kind === 'homing' && p.owner === caster)) continue;
+    const owner = anyById(w, p.owner);
+    if (owner && spares(w, anyById(w, caster), owner)) continue; // o Raio não detona projétil de aliado
     const [t, gap] = segT(a, d, p.pos);
     if (gap > PROJ_R + 0.15) continue;
     if (!best || t < best.t) best = { p, t };
@@ -464,7 +478,7 @@ function area(w: World, at: Vec, radius: number, dmg: number, kbFactor: number, 
   }
   w.events.push({ k: 'clash', x: at.x, y: at.y, combo, r: radius });
   const kind = combo === 'fire' || combo === 'detonate' ? 'burn' : combo === 'arcane' ? 'slow' : combo === 'pulse' ? 'pull' : null;
-  if (kind) w.zones.push({ pos: at, r: radius * ZONES.size, kind, until: w.t + (combo === 'detonate' ? 3.5 : ZONES[kind].secs) });
+  if (kind) w.zones.push({ pos: at, r: radius * ZONES.size, kind, until: w.t + (combo === 'detonate' ? 3.5 : ZONES[kind].secs), by });
 }
 
 // combinações quando dois projéteis de donos diferentes se encontram (minha decisão; no original os dois só somem)
@@ -623,6 +637,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     wz.rushLeft = L.absorb;
     wz.rushBonus = RUSH.bonus;
     wz.dashUntil = w.t + RUSH.dashTime - DT / 2; // meio passo de folga: o arredondamento daria um passo a mais
+    wz.moveAt = w.t;
     wz.dashVel = scale(dir, RUSH.dash / RUSH.dashTime);
     wz.dashHit = [];
     wz.target = null;
@@ -646,6 +661,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     wz.vel = scale(dir, THRUST.start * L.speed);
     wz.thrustAcc = scale(dir, L.speed * THRUST.accel);
     wz.thrustUntil = w.t + THRUST.extra + d / L.speed;
+    wz.moveAt = w.t;
     wz.thrustMult = dmgMult;
     wz.target = null;
   } else if (spell === 'rockpillar') {
@@ -681,7 +697,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'warpzone', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + L.duration, target: null, dmgMult, caster: wz.id });
   } else if (spell === 'lightning') {
     const end = wallClip(w, wz.pos, add(wz.pos, scale(dir, L.range * wz.rangeF)));
-    const found = firstOnSegment(w, wz.pos, end, WIZ_R, wz.id);
+    const found = firstOnSegment(w, wz.pos, end, WIZ_R, wz.id, wz);
     const proj = firstProjectileOnSegment(w, wz.pos, end, wz.id);
     const pil = firstPillarOnSegment(w, wz.pos, end, 0.1);
     if (pil && (!found || pil.t < found.t) && (!proj || pil.t < proj.t)) {
@@ -915,7 +931,7 @@ function stepThrust(w: World, wz: Wizard) {
   wz.vel = add(wz.vel, scale(wz.thrustAcc, DT));
   const L = spellLevel('thrust', wz.spells.thrust);
   for (const o of w.wizards) {
-    if (!o.alive || o === wz) continue;
+    if (!o.alive || o === wz || spares(w, wz, o)) continue; // passa pelo aliado sem parar
     const n = norm(sub(o.pos, wz.pos));
     if (dist(o.pos, wz.pos) > 2 * WIZ_R + THRUST.reach + bubble(w, o)) continue;
     if (shielded(w, o)) {
@@ -1212,7 +1228,7 @@ function stepProjectiles(w: World) {
     // a Gravidade não bate em mago; o Ricochete não repete o último mago tocado (pode voltar em quem lançou);
     // o Magnetizar só pega quem lançou depois de quicar; a Bola de neve é grande
     const r = p.kind === 'snowball' ? snowR(p.level) : PROJ_R;
-    let found = p.kind === 'gravity' ? null : firstOnSegment(w, p.pos, next, WIZ_R + r, p.kind === 'bouncer' || p.kind === 'magnetize' ? (p.prev ?? p.owner) : p.owner);
+    let found = p.kind === 'gravity' ? null : firstOnSegment(w, p.pos, next, WIZ_R + r, p.kind === 'bouncer' || p.kind === 'magnetize' ? (p.prev ?? p.owner) : p.owner, HELP.has(p.kind) ? undefined : anyById(w, p.owner));
     const pil = firstPillarOnSegment(w, p.pos, next, r);
     // Ilusão: a cópia inimiga no caminho some junto com o projétil (sem dano, sem empurrão, sem choque)
     const fake = p.kind === 'gravity' ? null : decoyOnSegment(w, p, next, WIZ_R + r);
@@ -1378,6 +1394,10 @@ function stepProjectiles(w: World) {
 }
 
 const ELASTICITY = 0.5;
+// fogo amigo nos corpos (spares): o movimento da própria magia (Investida, Estocada e o embalo que ela deixa) atravessa o
+// companheiro, sem empurrar nem passar embalo; o empurrão de um inimigo, dado depois disso, passa adiante (é a magia dele)
+const foePushed = (w: World, z: Wizard) => z.lastHitBy !== null && z.lastHitAt >= (z.moveAt ?? -Infinity) && !allies(anyById(w, z.lastHitBy), z);
+const ownMove = (w: World, z: Wizard) => w.t < z.dashUntil || w.t < z.thrustUntil || (isSliding(z) && !foePushed(w, z));
 
 function separate(w: World) {
   const alive = w.wizards.filter((z) => z.alive);
@@ -1386,6 +1406,7 @@ function separate(w: World) {
       const a = alive[i];
       const b = alive[j];
       if (w.t < a.windUntil || w.t < b.windUntil) continue; // Caminhada no vento atravessa magos
+      if (spares(w, a, b) && (ownMove(w, a) || ownMove(w, b))) continue;
       const d = sub(b.pos, a.pos);
       const l = len(d);
       const overlap = 2 * WIZ_R - l;
@@ -1397,9 +1418,15 @@ function separate(w: World) {
       // choque elástico como no original (physics.lua, elasticidade 0,5, massas iguais): o empurrado passa o embalo adiante
       const vn = dot(sub(b.vel, a.vel), n);
       if (vn < 0) {
+        // entre aliados poupados, o embalo de um empurrão de inimigo leva junto quem empurrou: a cadeia segue até o fim da fila
+        // (quem desliza é visto antes da troca de embalo)
+        const pass = spares(w, a, b) ? [[a, b], [b, a]].filter(([from]) => isSliding(from) && foePushed(w, from)) : [];
         const j = (-(1 + ELASTICITY) * vn) / 2;
         a.vel = sub(a.vel, scale(n, j));
         b.vel = add(b.vel, scale(n, j));
+        // lê os dois antes de gravar: se os dois deslizam, cada um leva o crédito do outro
+        const credit = pass.map(([from, to]) => [to, { lastHitBy: from.lastHitBy, lastHitAt: from.lastHitAt }] as const);
+        for (const [to, c] of credit) Object.assign(to, c);
       }
     }
   }
@@ -1566,7 +1593,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     const rooted = w.t < wz.gripUntil;
     // chão do choque: lento no arcano, queima no fogo (como a lava, mas fraco)
     wz.zone = 0;
-    for (const z of w.zones) if (dist(z.pos, wz.pos) < z.r + WIZ_R * 0.5) wz.zone |= z.kind === 'slow' ? 1 : z.kind === 'burn' ? 2 : 0;
+    for (const z of w.zones) if (dist(z.pos, wz.pos) < z.r + WIZ_R * 0.5 && zoneReaches(w, z, wz)) wz.zone |= z.kind === 'slow' ? 1 : z.kind === 'burn' ? 2 : 0;
     if (wz.zone & 2 && w.t >= wz.invulnUntil) {
       wz.hp -= ZONES.burn.dps * DT;
       wz.calmSince = w.t;
@@ -1646,7 +1673,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       wz.pos = add(wz.pos, scale(wz.dashVel, DT)); // avançando: não anda, mas o empurrão ainda soma
       // quem o avanço encostar leva dano e é empurrado na direção do avanço (uma vez por avanço)
       for (const o of w.wizards) {
-        if (!o.alive || o === wz || wz.dashHit.includes(o.id) || dist(o.pos, wz.pos) > 2 * WIZ_R + 0.1) continue;
+        if (!o.alive || o === wz || spares(w, wz, o) || wz.dashHit.includes(o.id) || dist(o.pos, wz.pos) > 2 * WIZ_R + 0.1) continue;
         wz.dashHit.push(o.id);
         hit(w, o, wz.id, RUSH.dashDmg, RUSH.dashDmg * KB_PER_DMG, wz.dashVel, 'rush');
         w.events.push({ k: 'land', id: wz.id, src: 'rush' });
@@ -1657,7 +1684,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     // redemoinho do choque de pulso: puxa devagar para o centro
     for (const z of w.zones) {
       const d = sub(z.pos, wz.pos);
-      if (z.kind === 'pull' && len(d) < z.r + WIZ_R && len(d) > 0.15) wz.pos = add(wz.pos, scale(norm(d), ZONES.pull.speed * DT));
+      if (z.kind === 'pull' && len(d) < z.r + WIZ_R && len(d) > 0.15 && zoneReaches(w, z, wz)) wz.pos = add(wz.pos, scale(norm(d), ZONES.pull.speed * DT));
     }
     moveWizard(wz, DT);
   }

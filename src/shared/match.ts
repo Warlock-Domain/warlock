@@ -713,7 +713,7 @@ function enterStage(m: Match, now: number, rand: () => number) {
   const teams = Object.fromEntries(m.players.map((p) => [p.id, p.servo ? 1 : 0]));
   const w = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), 0, rand, false, teams, { runes: false, sudden: false, chests: false });
   // arenaR pequeno: os bots usam frações dele como folga das paredes
-  Object.assign(w, { map: terrainOf(map), arenaR: 3, isles: [], pillars: obstaclesOf(map) });
+  Object.assign(w, { map: terrainOf(map), arenaR: 3, isles: [], pillars: obstaclesOf(map), friendly: 'none' }); // magia não pega aliado (Lucas, 20/10)
   const acesos = w.wizards.filter((z) => z.team === 0);
   acesos.forEach((z, i) => (z.pos = around(w.map!.home, i, acesos.length)));
   for (const z of w.wizards) if (z.team === 1) Object.assign(z, { alive: false, hp: 0, pos: v(-50, -50) }); // fora do mapa até a primeira onda
