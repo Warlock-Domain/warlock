@@ -435,7 +435,7 @@ function goldInfo(p: PublicPlayer, opts: MatchOpts, open: boolean, onToggle: (op
     row(t('Ganho na última rodada', 'Earned last round'), gold(p.stats.round.gold)),
     row(t('Ganho na partida', 'Earned this match'), gold(p.stats.match.gold)),
     row(t('Ganho na sala (todas as partidas)', 'Earned in this room (all matches)'), gold(p.stats.room.gold)),
-    el('small', { class: 'muted' }, t('Todo mundo ganha a rodada; vencer, abater e causar mais dano dão ouro extra. Desfazer (↩) devolve o ouro do que foi comprado nesta loja; Vender devolve 100% na loja em que comprou e 5% a menos por rodada com o item, até 75%.', 'Everyone earns gold each round; winning, kills and dealing the most damage give extra gold. Undo (↩) refunds what you bought in this shop; Sell refunds 100% in the shop you bought it in and 5% less per round with the item, down to 75%.')),
+    el('small', { class: 'muted' }, t('Todo mundo ganha a rodada; vencer, abater e causar mais dano dão ouro extra. Desfazer (↩) devolve o ouro do que foi comprado nesta loja; Vender devolve 100% do que você pagou, em qualquer rodada.', 'Everyone earns gold each round; winning, kills and dealing the most damage give extra gold. Undo (↩) refunds what you bought in this shop; Sell refunds 100% of what you paid, in any round.')),
   );
 }
 
@@ -497,7 +497,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   }
   const status = el('span', { class: 'dot off', title: t('conexão', 'connection') });
   // latência (ida e volta até a sala) ao lado do ponto de conexão, só na partida
-  const ping = el('small', { class: 'ping', title: t('Latência: tempo de ida e volta até a sala', 'Latency: round-trip time to the room'), hidden: true });
+  // desempenho (Fernando, 19/10: "medidor de fps e lag"): quadros por segundo e ida e volta até a sala
+  const fpsEl = el('span', { title: t('Quadros por segundo', 'Frames per second') });
+  const msEl = el('span', { title: t('Latência: tempo de ida e volta até a sala', 'Latency: round-trip time to the room') });
+  const ping = el('small', { class: 'ping', hidden: true }, fpsEl, msEl);
+  let frames = 0;
   let pingAt = 0;
   const roundEl = el('span', { class: 'round' });
   // topo como o do Dota (decisão do Fernando, 19/10): retratos dos jogadores no lugar da lista do canto, só durante a rodada
@@ -1036,8 +1040,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const sellBtn = (key: string) => {
       const value = sellValue(mine, r.round, key);
       // a Bola de fogo vende mesmo valendo 0 (o nível 1 é grátis): libera a vaga e a tecla
-      const title = value > 0 ? t('Vende tudo: volta 100% na loja em que comprou e 5% a menos por rodada com ele, até 75%', 'Sells everything: refunds 100% in the shop you bought it in and 5% less per round with it, down to 75%') : t('O nível 1 é grátis e volta 0 de ouro; vender libera a vaga de magia (compra de volta de graça)', 'Level 1 is free and refunds 0 gold; selling frees the spell slot (buy it back for free)');
-      return !peek && canSell(mine, r.round, key) ? el('button', { type: 'button', class: 'sell', title, 'data-key': 'sell-' + key, onclick: () => act.sell(key) }, t(`Vender ${value}`, `Sell ${value}`)) : null;
+      const title = value > 0 ? t('Vende tudo e devolve 100% do que você pagou', 'Sells everything and refunds 100% of what you paid') : t('O nível 1 é grátis e volta 0 de ouro; vender libera a vaga de magia (compra de volta de graça)', 'Level 1 is free and refunds 0 gold; selling frees the spell slot (buy it back for free)');
+      return !peek && canSell(mine, r.round, key) ? el('button', { type: 'button', class: 'sell', title, 'aria-label': value > 0 ? t(`Vender por ${value} de ouro`, `Sell for ${value} gold`) : t('Vender', 'Sell'), 'data-key': 'sell-' + key, onclick: () => act.sell(key) }, icon(UI_ICON.gold), el('span', { class: 'sell-txt' }, value > 0 ? t(`Vender ${value}`, `Sell ${value}`) : t('Vender', 'Sell'))) : null;
     };
     // um cartão por magia ou item: "dá para comprar" e "já tenho" à vista, e quanto falta quando o ouro não dá
     type Offer = { key: string; ico: string; name: string; hotkey: string | null; use: string; lvl: number; max: number; price: number | null; blocked: string | null; buy: () => void; tip: () => string;
@@ -1442,13 +1446,20 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       ACTIVE_ITEMS.forEach((i, k) => tick(i, itemButtons.get(i)!, icd[k]));
       SPELL_IDS.forEach((s, i) => tick(s, buttons.get(s)!, cd[i]));
       if (!room) return;
-      // ping: atualiza 2 vezes por segundo; verde até 80 ms, dourado até 150, vermelho acima
-      if (performance.now() - pingAt > 500) {
+      // fps e ping: atualizam 2 vezes por segundo; fps verde a partir de 50, dourado a partir de 30; ping verde até 80 ms, dourado até 150, vermelho acima
+      frames++;
+      const since = performance.now() - pingAt;
+      if (since > 500) {
+        const fps = Math.round((frames * 1000) / since);
+        frames = 0;
         pingAt = performance.now();
-        ping.hidden = rttMs === null || !online || !TAB_PHASES.includes(room.phase);
+        ping.hidden = !TAB_PHASES.includes(room.phase);
+        fpsEl.textContent = `${fps} fps`;
+        fpsEl.dataset.q = fps >= 50 ? 'good' : fps >= 30 ? 'ok' : 'bad';
+        msEl.hidden = rttMs === null || !online;
         if (rttMs !== null) {
-          ping.textContent = `${Math.round(rttMs)} ms`;
-          ping.dataset.q = rttMs < 80 ? 'good' : rttMs < 150 ? 'ok' : 'bad';
+          msEl.textContent = `${Math.round(rttMs)} ms`;
+          msEl.dataset.q = rttMs < 80 ? 'good' : rttMs < 150 ? 'ok' : 'bad';
         }
       }
       const left = Math.max(0, (phaseEndsAt - performance.now()) / 1000);

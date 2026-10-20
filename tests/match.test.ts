@@ -51,6 +51,24 @@ describe('partida', () => {
     expect(m.lastRoundWinner).toBe('a');
   });
 
+  // Fernando, 19/10: o ouro garantido da rodada chega na hora da queda (para comprar enquanto assiste), uma vez só
+  it('pays the round gold when you fall, not again at the end of the round', () => {
+    const m = twoPlayers();
+    addPlayer(m, 'c', 'Caio');
+    let now = toPlaying(m, 0);
+    const c = m.players.find((p) => p.id === 'c')!;
+    const before = c.gold;
+    kill(m, 'c', null);
+    now = until(m, now, () => !m.world!.wizards.find((z) => z.id === 'c')!.alive);
+    expect(c.gold).toBe(before + ROUND_GOLD);
+    const afterFall = c.stats.round.gold;
+    kill(m, 'b', null);
+    until(m, now, () => m.phase === 'roundEnd');
+    expect(m.roundPaid).toContain('c');
+    // no fim da rodada o Caio só pode receber a recuperação, nunca outro ROUND_GOLD
+    expect(c.stats.round.gold - afterFall).toBeLessThan(ROUND_GOLD);
+  });
+
   it('kill gives no points', () => {
     const m = twoPlayers();
     addPlayer(m, 'c', 'Caio');

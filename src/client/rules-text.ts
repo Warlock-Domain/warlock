@@ -1,6 +1,6 @@
 import {
   ARENA_MIN, ARENA_R0, ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, CHEST, CREDIT_WINDOW, DM_RESPAWN, DM_ROUND_MS, DM_SPAWN_GAP, HP_MAX, HP_REGEN, INVULN_TIME, KILL_GOLD, LAVA_DPS, LAVA_KB_FACTOR,
-  LEADER_WIN_GOLD, OBSTACLES, RECOVERY, ROUND_GOLD, RUNE, SELL_DECAY, SELL_FLOOR, SHRINK_EVERY, START_GOLD, STREAK, SUDDEN, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, ZONES,
+  LEADER_WIN_GOLD, OBSTACLES, RECOVERY, ROUND_GOLD, RUNE, SHRINK_EVERY, START_GOLD, STREAK, SUDDEN, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, ZONES,
 } from '../shared/constants.ts';
 import { DEFAULT_OPTS, DM_GOALS, OPTION_CHOICES } from '../shared/match.ts';
 import { CLASH } from '../shared/sim.ts';
@@ -95,7 +95,7 @@ const RULES_PT = {
     return [
       `Você começa com ${START_GOLD} de ouro (padrão), a Bola de fogo e o Flagelo (tecla ${keyLabel(keyOf('scourge'))}). A loja abre entre as rodadas e dura ${DEFAULT_OPTS.shop} s (padrão); fecha antes quando todos clicam Pronto.`,
       `Magias sobem até o nível ${MAX_SPELL_LEVEL} (mais dano e empurrão, menos recarga). No máximo ${MAX_SPELLS} magias e ${MAX_ITEMS} itens por mago.`,
-      `Desfazer: devolve o ouro de uma compra feita nesta loja. Vender: cada nível volta 100% na loja em que foi comprado e perde ${pct(SELL_DECAY)} por rodada, até ${pct(SELL_FLOOR)}.`,
+      `Desfazer: devolve o ouro de uma compra feita nesta loja. Vender: devolve 100% do que você pagou, em qualquer rodada.`,
       'A Bola de fogo também se vende (vale 0 no nível 1, mas libera a vaga e a tecla); comprar de volta custa o preço normal.',
       `Durante a rodada, a tecla ${uiLabel('shop')} (ou o botão da loja, no topo) mostra a loja só para ver: preços e o que o seu ouro já compra na próxima.`,
     ];
@@ -212,7 +212,7 @@ const RULES_EN: typeof RULES_PT = {
     return [
       `You start with ${START_GOLD} gold (default), the Fireball and the Scourge (key ${keyLabel(keyOf('scourge'))}). The shop opens between rounds and lasts ${DEFAULT_OPTS.shop} s (default); it closes early when everyone clicks Ready.`,
       `Spells go up to level ${MAX_SPELL_LEVEL} (more damage and knockback, less cooldown). At most ${MAX_SPELLS} spells and ${MAX_ITEMS} items per wizard.`,
-      `Undo: refunds the gold of a purchase made in this shop. Sell: each level returns 100% in the shop where it was bought and loses ${pct(SELL_DECAY)} per round, down to ${pct(SELL_FLOOR)}.`,
+      `Undo: refunds the gold of a purchase made in this shop. Sell: refunds 100% of what you paid, in any round.`,
       'The Fireball can also be sold (worth 0 at level 1, but it frees the slot and the key); buying it back costs the normal price.',
       `During the round, the ${uiLabel('shop')} key (or the shop button at the top) shows the shop view-only: prices and what your gold already buys in the next one.`,
     ];
