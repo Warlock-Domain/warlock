@@ -25,7 +25,7 @@ Sugestão de ambiente de desenvolvimento, usada pelo dono do projeto desde 20/10
 
 1. **Abra a orquestradora** na pasta do projeto e dê a ela o contexto fixo: o `CLAUDE.md`, o `CONTRIBUTING.md` e um arquivo de HANDOFF (estado atual, pendências, links). Peça que ela atualize o HANDOFF ao fechar cada bloco.
 2. **Faça os pedidos só para a orquestradora.** Ela decide: coisa rápida (doc, ajuste de uma linha, revisão de PR) faz ali mesmo; tarefa de código vira **issue + sessão filha**.
-3. **Issue antes de codar.** Mudança grande segue [Mudança grande: decidir antes de fazer](../CONTRIBUTING.md#mudança-grande-decidir-antes-de-fazer).
+3. **Issue antes de codar** (prova de conceito não tem issue: testa, mostra e só vira issue se o Fernando decidir que vale). Mudança grande segue [Mudança grande: decidir antes de fazer](../CONTRIBUTING.md#mudança-grande-decidir-antes-de-fazer).
 4. **Brief da filha** (a orquestradora escreve): link da issue; arquivos e área; o worktree e a branch (`git worktree add -b feat/<assunto> ../warlock-<nome> origin/master`); os gates; os prints esperados (PC); "PR para o master com `Closes #n`, sem mesclar"; e o contexto que ela precisa saber (decisões, regras). Título no formato `🧙🧩 Warlock #<n> · <assunto>`.
 5. **A filha trabalha e pergunta.** Dúvida de produto vai para você em múltipla escolha, dentro da filha.
 6. **PR aberto → a orquestradora revisa e mescla** (squash no master); a pipeline Produção publica o jogo no ar. A issue fecha sozinha pelo `Closes #n`.

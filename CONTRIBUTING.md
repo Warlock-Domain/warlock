@@ -33,6 +33,7 @@ Projeto de grupo: o que muda o jogo para todo mundo é combinado antes de virar 
   3. A decisão fica escrita na issue (o que foi decidido e por quê), a etiqueta sai e a linha entra na tabela de decisões do [CLAUDE.md](CLAUDE.md). Coisa grande ganha um desenho em `docs/` (como o Ascensão e a Campanha).
   4. Só então alguém pega para fazer, e o PR cita a issue (`Closes #n`).
 - **PR grande sem decisão** recebe `precisa de decisão` e espera, sem mesclar, até a issue ser decidida.
+- **Prova de conceito não tem issue.** Testar algo localmente (um pacote de assets, um efeito, uma ideia) se faz direto numa branch `poc/<assunto>`, com prints, sem PR. A issue e o PR só nascem quando o Fernando decide que vale a pena.
 
 ## Ambiente de cada dev
 
