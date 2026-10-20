@@ -1,6 +1,6 @@
 <!--
 Título no formato do commit: `tipo: o que muda, em português` (tipos: feat, fix, balance, style, refactor, docs, ci, test).
-Ex.: `feat: runa de gelo que deixa o inimigo lento por 3 s`. O título vira o commit em `dev`.
+Ex.: `feat: runa de gelo que deixa o inimigo lento por 3 s`. O título vira o commit no `master`.
 -->
 
 Fecha #<!-- número da issue, se houver -->

@@ -7,7 +7,7 @@ Tudo para contribuir com o jogo usando um agente de IA (Claude Code, Codex, Curs
 Warlock Wars é um remake web do mod **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): magos numa arena de pedra cercada de lava que encolhe. Ninguém morre de dano: você empurra os outros para a lava com magias. O último de pé vence a rodada; entre rodadas, uma loja vende magias e itens. O público são jogadores de Dota, então a interface segue o jeito do Dota.
 
 - Jogar: https://warlock.fernandorffdev.com (jogue algumas partidas antes de mexer no código)
-- Código: https://github.com/fernandorff/warlock; tarefas saem de `dev` (dev geral), o jogo no ar é o `master`
+- Código: https://github.com/fernandorff/warlock; tarefas saem do `master` e voltam para ele por PR; o `master` é o jogo no ar
 
 Primeiro dia:
 
@@ -47,7 +47,7 @@ npx vite build
 
 ## Ambiente dev próprio
 
-Push na branch `<usuário do GitHub>-dev` publica em `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Branches de hoje: `lboesmans-dev`, `breakie33-dev`, `lucascvalle-dev`, `arthurbaquit-dev` e `fernandorff-dev`; o dev geral é a branch `dev` (https://dev-warlock.fernandorffdev.com). Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
+Push na branch `<usuário do GitHub>-dev` publica em `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Branches de hoje: `lboesmans-dev`, `breakie33-dev`, `lucascvalle-dev`, `arthurbaquit-dev` e `fernandorff-dev`. Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
 
 ```bash
 git push --force origin HEAD:lboesmans-dev   # publica o estado da sua branch de tarefa
@@ -59,12 +59,12 @@ A branch `-dev` é sua (pode substituir à vontade); o PR sai sempre da branch d
 
 | Pipeline | Arquivo | Quando roda | O que faz | Se der errado |
 |---|---|---|---|---|
-| CI | `ci.yml` | todo PR e todo push no `dev` e no `master` | os dois `tsc`, `vitest run`, `vite build` | o PR não entra; abra o log em Actions e corrija na mesma branch |
+| CI | `ci.yml` | todo PR e todo push no `master` | os dois `tsc`, `vitest run`, `vite build` | o PR não entra; abra o log em Actions e corrija na mesma branch |
 | Título do PR | `pr-title.yml` | ao abrir ou editar o PR | confere o formato `tipo: o que muda` | edite o título; roda de novo sozinho |
 | Revisão do Claude | `claude-review.yml` | PR aberto, commit novo, saiu de rascunho | comenta veredito, checagens e pontos (não aprova nem mescla) | não bloqueia; não roda em fork nem no PR que altera o próprio workflow |
 | `@claude` | `claude.yml` | comentário com `@claude` num PR ou issue | responde e ajuda no próprio PR/issue | — |
-| Ambiente dev | `dev-deploy.yml` | push na branch `<usuário do GitHub>-dev` ou `dev` (dev geral) | build, publica um Worker só seu, espera o domínio responder e roda o teste rápido | build quebrado: nada é publicado e o site anterior continua; teste rápido falhou: a versão nova já foi publicada e está com problema, veja o log |
-| Produção | `deploy.yml` | push no `master` (merge do PR `dev` → `master`) | gates, publica o jogo no ar, confere se o site serve o build novo e roda o teste rápido | falhou antes do deploy: nada muda no ar; falhou depois: o jogo no ar está com a versão nova, veja o log |
+| Ambiente dev | `dev-deploy.yml` | push na branch `<usuário do GitHub>-dev` | build, publica um Worker só seu, espera o domínio responder e roda o teste rápido | build quebrado: nada é publicado e o site anterior continua; teste rápido falhou: a versão nova já foi publicada e está com problema, veja o log |
+| Produção | `deploy.yml` | push no `master` (merge do PR da tarefa) | gates, publica o jogo no ar, confere se o site serve o build novo e roda o teste rápido | falhou antes do deploy: nada muda no ar; falhou depois: o jogo no ar está com a versão nova, veja o log |
 
 Logs: https://github.com/fernandorff/warlock/actions.
 
@@ -99,7 +99,7 @@ Os padrões do projeto (`CLAUDE.md`) vencem as skills.
 1. **Entender:** o agente lê o `CLAUDE.md` e os arquivos da área antes de tudo.
 2. **Combinar:** coisa nova vira issue (diga também o que *não* quer).
 3. **Planejar:** mais de um arquivo → plano; leia antes de deixar implementar.
-4. **Branch:** `git checkout -b feat/minha-ideia` a partir do `dev` atualizado.
+4. **Branch:** `git checkout -b feat/minha-ideia` a partir do `master` atualizado.
 5. **Implementar com teste:** lógica em `src/shared` com teste em `tests/`; tela conferida no navegador.
 6. **Gates** verdes; mudou tela → prints no PC, português e inglês; celular (390×844) só quando a mudança mexe no layout e precisa conferir se ele se adapta à tela pequena.
 7. **Revisar:** `/ponytail-review` e uma segunda leitura tentando derrubar a mudança.
@@ -119,22 +119,22 @@ teste que falha, ache a causa e só então corrija. Rode os 4 gates no fim.
 
 ```text
 Faça a mudança numa branch feat/..., commits em português com o tipo na frente, e abra o PR
-pelo modelo de .github/ (para a branch dev) com prints antes e depois. Não dê push em dev nem no master.
+pelo modelo de .github/ (para o master) com prints antes e depois. Não dê push direto no master.
 ```
 
 ## Fluxo do Git e PR
 
-Fluxo: **dev do usuário → dev geral (`dev`) → `master`**. O PR da tarefa vai para `dev` (o merge publica em https://dev-warlock.fernandorffdev.com); logo em seguida o agente do dono abre o PR `dev` → `master`, que publica o jogo no ar (decisão de 20/10: toda mescla em `dev` vai ao ar na hora). `dev` e `master` são protegidos: só entram por PR com o CI verde (`checks`) e a checagem do título (`titulo`). Sem force push.
+Fluxo: **branch da tarefa → PR para o `master` → no ar** (decisão de 20/10: o dev geral saiu do fluxo). O merge do PR publica o jogo no ar pela pipeline Produção. O `master` é protegido: só entra por PR com o CI verde (`checks`) e a checagem do título (`titulo`). Sem force push.
 
 | Item | Padrão | Exemplo |
 |---|---|---|
-| Branch | `tipo/assunto` a partir de `dev` | `feat/runa-de-gelo`, `fix/loja-celular`, `balance/raio` |
+| Branch | `tipo/assunto` a partir do `master` | `feat/runa-de-gelo`, `fix/loja-celular`, `balance/raio` |
 | Commit | português, tipo na frente | `fix: loja não trava mais no celular` |
 | Tipos | `feat` · `fix` · `balance` · `style` · `refactor` · `docs` · `ci` · `test` | |
-| Título do PR | igual a um commit (vira o commit em `dev`) | `feat: runa de gelo que deixa lento por 3 s` |
+| Título do PR | igual a um commit (vira o commit no `master`) | `feat: runa de gelo que deixa lento por 3 s` |
 | Merge | squash and merge pelo dono | a branch é apagada depois |
 
-Um PR, um assunto. Mantenha a branch em dia (`git pull --rebase origin dev`) antes de pedir revisão; depois que a revisão começou, responda com commits novos.
+Um PR, um assunto. Mantenha a branch em dia (`git pull --rebase origin master`) antes de pedir revisão; depois que a revisão começou, responda com commits novos.
 
 Issues: modelos **Bug** e **Ideia**. Etiquetas: `bug`, `ideia`, `balanceamento`, `visual`, `bom primeiro PR`, `precisa de decisão`.
 
@@ -234,7 +234,7 @@ Não desfaça sem combinar numa issue.
 | Bots | jogam "como gente": mira com erro, reação de 0,25 a 0,6 s, hesitação; no duelo final vão atrás do inimigo |
 | Personagem | criador de 7 peças com os 9 bonecos originais como atalho; prévia 3D orbitável (arraste para girar e role para aproximar) |
 | Recusados | ranking; itens que só ajudam uma magia específica |
-| Publicação | automática: merge em `dev` → dev geral; merge `dev` → `master` → jogo no ar |
+| Publicação | automática: merge do PR no `master` → jogo no ar |
 
 ## Magias e itens
 
@@ -256,7 +256,7 @@ Modos: Rodadas (vence quem fizer 5), Deathmatch (volta em 10 s), Times (Azul × 
 | `tests/style.test.ts` falha no hash | a jogabilidade mudou; se foi de propósito, regrave e explique no PR |
 | Teste de bot falha às vezes | amostra pequena: aumente a duração da partida do teste em vez de afrouxar a conta |
 | "Título fora do padrão" no CI | edite o título do PR para `tipo: o que muda` |
-| Push em `dev` ou no `master` recusado | é a proteção: branch + PR para `dev` |
+| Push no `master` recusado | é a proteção: branch + PR para o `master` |
 | CI parado em "aguardando aprovação" | PR veio de fork: use branch neste repositório |
 | Aviso LF/CRLF no Windows | normal |
 | Texto em português com o jogo em inglês | faltou `t('pt', 'en')` |
