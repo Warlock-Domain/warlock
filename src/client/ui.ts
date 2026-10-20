@@ -497,7 +497,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   }
   const status = el('span', { class: 'dot off', title: t('conexão', 'connection') });
   // latência (ida e volta até a sala) ao lado do ponto de conexão, só na partida
-  const ping = el('small', { class: 'ping', title: t('Latência: tempo de ida e volta até a sala', 'Latency: round-trip time to the room'), hidden: true });
+  // desempenho (Fernando, 19/10: "medidor de fps e lag"): quadros por segundo e ida e volta até a sala
+  const fpsEl = el('span', { title: t('Quadros por segundo', 'Frames per second') });
+  const msEl = el('span', { title: t('Latência: tempo de ida e volta até a sala', 'Latency: round-trip time to the room') });
+  const ping = el('small', { class: 'ping', hidden: true }, fpsEl, msEl);
+  let frames = 0;
   let pingAt = 0;
   const roundEl = el('span', { class: 'round' });
   // topo como o do Dota (decisão do Fernando, 19/10): retratos dos jogadores no lugar da lista do canto, só durante a rodada
@@ -1455,13 +1459,20 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       ACTIVE_ITEMS.forEach((i, k) => tick(i, itemButtons.get(i)!, icd[k]));
       SPELL_IDS.forEach((s, i) => tick(s, buttons.get(s)!, cd[i]));
       if (!room) return;
-      // ping: atualiza 2 vezes por segundo; verde até 80 ms, dourado até 150, vermelho acima
-      if (performance.now() - pingAt > 500) {
+      // fps e ping: atualizam 2 vezes por segundo; fps verde a partir de 50, dourado a partir de 30; ping verde até 80 ms, dourado até 150, vermelho acima
+      frames++;
+      const since = performance.now() - pingAt;
+      if (since > 500) {
+        const fps = Math.round((frames * 1000) / since);
+        frames = 0;
         pingAt = performance.now();
-        ping.hidden = rttMs === null || !online || !TAB_PHASES.includes(room.phase);
+        ping.hidden = !TAB_PHASES.includes(room.phase);
+        fpsEl.textContent = `${fps} fps`;
+        fpsEl.dataset.q = fps >= 50 ? 'good' : fps >= 30 ? 'ok' : 'bad';
+        msEl.hidden = rttMs === null || !online;
         if (rttMs !== null) {
-          ping.textContent = `${Math.round(rttMs)} ms`;
-          ping.dataset.q = rttMs < 80 ? 'good' : rttMs < 150 ? 'ok' : 'bad';
+          msEl.textContent = `${Math.round(rttMs)} ms`;
+          msEl.dataset.q = rttMs < 80 ? 'good' : rttMs < 150 ? 'ok' : 'bad';
         }
       }
       const left = Math.max(0, (phaseEndsAt - performance.now()) / 1000);
