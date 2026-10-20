@@ -5,7 +5,7 @@ import {
 } from './constants.ts';
 import { CELL, SHAPES, cellAt, edge, inArena, inLavaAt, isleSpot, safeInside, type ArenaId, type Isle, type Terrain } from './arena.ts';
 import { ACTIVE_ITEMS, AEGIS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, isActive, itemStats, noItems, type ItemId } from './items.ts';
-import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, ILLUSION, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
+import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, ILLUSION, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellBook, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export type Wizard = {
@@ -181,6 +181,7 @@ export type World = {
   dm: boolean; // deathmatch: a arena não encolhe e quem morre volta depois de DM_RESPAWN s
   shrink?: boolean; // sandbox (mundo de deathmatch): a arena encolhe mesmo assim
   map?: Terrain; // Campanha: mapa explorável no lugar da arena (sem lava nem encolhimento)
+  book?: SpellBook; // números de magia próprios do modo (Campanha); sem o campo, os de SPELLS
   friendly?: 'none'; // fogo amigo: 'none' = magia não pega aliado (Campanha); sem o campo, só empurra (Times). Ver spares
   lock?: Room; // Campanha: sala trancada durante o encontro (ninguém sai dela)
 };
@@ -598,7 +599,7 @@ const SHOTS: Partial<Record<SpellId, number>> = { cluster: CLUSTER_FAN.length, s
 function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   const level = wz.spells[spell];
   if (!level || w.t < wz.cd[spell]) return;
-  const L = spellLevel(spell, level);
+  const L = spellLevel(spell, level, w.book);
   wz.cd[spell] = w.t + L.cd;
   for (let i = 0; i < (SHOTS[spell] ?? 1); i++) w.events.push({ k: 'fire', id: wz.id, src: spell });
   wz.windUntil = 0; // qualquer magia acaba com a Caminhada no vento (windwalkmodifier.lua)
@@ -833,7 +834,7 @@ function scourge(w: World, wz: Wizard) {
 
 // o meteoro cai: dano de dmgMin na borda até o máximo no centro, em todos menos quem lançou
 function meteorLand(w: World, p: Projectile) {
-  const L = spellLevel('meteor', p.level);
+  const L = spellLevel('meteor', p.level, w.book);
   let landed = false;
   for (const o of w.wizards) {
     if (!o.alive || o.id === p.owner) continue;
@@ -879,7 +880,7 @@ function bounceOff(p: Projectile, center: Vec, r: number, speed = len(p.vel)) {
 // Gravidade (gravityprojectile.lua): puxa magos inimigos e todos os projéteis (menos meteoro e outra gravidade) e queima
 // quem está perto a cada 0,2 s, sem empurrão
 function gravityPull(w: World, g: Projectile) {
-  const L = spellLevel('gravity', g.level);
+  const L = spellLevel('gravity', g.level, w.book);
   const owner = anyById(w, g.owner);
   for (const o of w.wizards) {
     if (!o.alive || o.id === g.owner || allies(owner, o)) continue; // aliado não é puxado nem queimado
@@ -929,7 +930,7 @@ function stepThrust(w: World, wz: Wizard) {
     return;
   }
   wz.vel = add(wz.vel, scale(wz.thrustAcc, DT));
-  const L = spellLevel('thrust', wz.spells.thrust);
+  const L = spellLevel('thrust', wz.spells.thrust, w.book);
   for (const o of w.wizards) {
     if (!o.alive || o === wz || spares(w, wz, o)) continue; // passa pelo aliado sem parar
     const n = norm(sub(o.pos, wz.pos));
@@ -953,7 +954,7 @@ function stepThrust(w: World, wz: Wizard) {
 
 // Caminhada no vento (windwalkmodifier.lua): o primeiro inimigo que encosta leva o dano e o efeito acaba (aliado atravessa)
 function windTouch(w: World, wz: Wizard) {
-  const L = spellLevel('windwalk', wz.spells.windwalk);
+  const L = spellLevel('windwalk', wz.spells.windwalk, w.book);
   for (const o of w.wizards) {
     if (!o.alive || o === wz || allies(wz, o) || dist(o.pos, wz.pos) > 2 * WIZ_R + WINDWALK.reach) continue;
     wz.windUntil = 0;
@@ -979,14 +980,14 @@ function enemyWarps(w: World, id: string, p: Vec): Projectile[] {
   return w.projectiles.filter((z) => {
     if (z.kind !== 'warpzone' || z.owner === id) return false;
     const zo = anyById(w, z.owner);
-    return (!zo || !allies(me, zo)) && dist(z.pos, p) <= spellLevel('warpzone', z.level).radius;
+    return (!zo || !allies(me, zo)) && dist(z.pos, p) <= spellLevel('warpzone', z.level, w.book).radius;
   });
 }
 
 // projétil anda e vive mais devagar dentro da zona de um inimigo do dono (zonas juntas multiplicam)
 function timeScale(w: World, p: Projectile): number {
   let ts = 1;
-  for (const z of enemyWarps(w, p.owner, p.pos)) ts *= spellLevel('warpzone', z.level).scale;
+  for (const z of enemyWarps(w, p.owner, p.pos)) ts *= spellLevel('warpzone', z.level, w.book).scale;
   return ts;
 }
 
@@ -1022,7 +1023,7 @@ function alter(w: World, p: Projectile, next: Vec): boolean {
   const owner = anyById(w, p.owner);
   for (const z of w.wizards) {
     if (!z.alive || w.t >= z.alterUntil || z.id === p.owner || allies(owner, z)) continue;
-    if (dist(next, z.pos) > spellLevel('alteration', z.spells.alteration).radius + PROJ_R || dot(p.vel, sub(z.pos, p.pos)) <= 0) continue;
+    if (dist(next, z.pos) > spellLevel('alteration', z.spells.alteration, w.book).radius + PROJ_R || dot(p.vel, sub(z.pos, p.pos)) <= 0) continue;
     const from = z.pos;
     [z.pos, p.pos] = [p.pos, from];
     z.alterUntil = 0;
@@ -1038,7 +1039,7 @@ function flyBack(w: World, p: Projectile, dt: number): boolean {
   if (!to || w.t >= p.until) return false;
   const drain = p.kind === 'drain';
   if (dist(to.pos, p.pos) < (drain ? DRAIN.reach : RECHARGE.reach)) {
-    if (drain) heal(to, spellLevel('drain', p.level).dmg * p.dmgMult);
+    if (drain) heal(to, spellLevel('drain', p.level, w.book).dmg * p.dmgMult);
     else to.cd.recharge = w.t;
     return false;
   }
@@ -1067,7 +1068,7 @@ export const snowR = (level: number) => SNOWBALL.coll + SNOWBALL.perLevel * (lev
 
 // Bola de neve rolando: arrasta quem encosta e, a cada 0,5 s de contato, deixa lento e marca o dano (só inimigos, como no original)
 function snowRoll(w: World, p: Projectile, at: Vec) {
-  const L = spellLevel('snowball', p.level);
+  const L = spellLevel('snowball', p.level, w.book);
   const owner = anyById(w, p.owner);
   const dir = norm(p.vel);
   for (const o of w.wizards) {
@@ -1083,7 +1084,7 @@ function snowRoll(w: World, p: Projectile, at: Vec) {
 
 // a Bola de neve explode (fim do voo ou obstáculo): 0 na borda até dmg no centro, em todos menos quem lançou (como o Meteoro)
 function snowBlast(w: World, p: Projectile) {
-  const L = spellLevel('snowball', p.level);
+  const L = spellLevel('snowball', p.level, w.book);
   let landed = false;
   for (const o of w.wizards) {
     const k = 1 - dist(o.pos, p.pos) / L.radius;
@@ -1136,7 +1137,7 @@ function spawnShards(w: World, p: Projectile, dt: number): boolean {
 function linkHold(w: World, p: Projectile): boolean {
   const owner = byId(w, p.owner);
   if (!owner) return false;
-  const L = spellLevel('link', p.level);
+  const L = spellLevel('link', p.level, w.book);
   if (p.pillar !== undefined) {
     const q = w.pillars[p.pillar];
     if (!q.alive || dist(owner.pos, q.pos) < OBSTACLES[q.kind].r + WIZ_R + LINK.pillarGap) return false;
@@ -1191,7 +1192,7 @@ function stepProjectiles(w: World) {
       if (spawnShards(w, p, dt)) keep.push(p);
       continue;
     }
-    const L = spellLevel(spellOf(p.kind), p.level);
+    const L = spellLevel(spellOf(p.kind), p.level, w.book);
     if (p.kind === 'boomerang' && (w.t >= p.until || !steerBoomerang(w, p, dt))) continue;
     if (p.kind === 'link' && w.t >= (p.turnAt ?? Infinity)) {
       // o Elo recolhe: volta a quem lançou e some perto dele (linkprojectile.lua)
@@ -1254,7 +1255,7 @@ function stepProjectiles(w: World) {
           if (nextTo) p.vel = scale(norm(sub(nextTo.pos, p.pos)), len(p.vel));
         }
         // o Bumerangue também quebra o baú (pedido do Fernando, 17/10; no original não batia em obstáculo)
-        if (p.kind === 'boomerang' && q.kind === 'chest') damagePillar(w, pil.i, spellLevel('boomerang', p.level).dmg * p.dmgMult, p.owner);
+        if (p.kind === 'boomerang' && q.kind === 'chest') damagePillar(w, pil.i, spellLevel('boomerang', p.level, w.book).dmg * p.dmgMult, p.owner);
         keep.push(p);
         continue;
       }

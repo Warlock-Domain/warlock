@@ -55,7 +55,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   for (const q of w.projectiles) {
     const still = q.kind === 'meteor' || q.kind === 'warpzone' ? q.kind : null;
     const tail = q.kind === 'link' ? w.wizards.find((z) => z.id === q.owner)?.pos : q.kind === 'illusion' ? v(w.wizards.findIndex((z) => z.id === q.owner), Math.atan2(q.vel.y, q.vel.x)) : undefined;
-    const a = still ? spellLevel(still, q.level).radius : (tail ?? q.vel).x;
+    const a = still ? spellLevel(still, q.level, w.book).radius : (tail ?? q.vel).x;
     const b = still ? Math.max(0, q.until - w.t) : (tail ?? q.vel).y;
     p.push(q.id, PROJ_KINDS.indexOf(q.kind), r2(q.pos.x), r2(q.pos.y), r2(a), r2(b));
   }
