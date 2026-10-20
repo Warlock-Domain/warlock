@@ -47,7 +47,7 @@ npx vite build
 
 ## Ambiente dev próprio
 
-Push na branch `<usuário do GitHub>-dev` publica em `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Branches de hoje: `lboesmans-dev`, `breakie33-dev`, `lucascvalle-dev` e `fernandorff-dev`; o dev geral é a branch `dev` (https://dev-warlock.fernandorffdev.com). Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
+Push na branch `<usuário do GitHub>-dev` publica em `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Branches de hoje: `lboesmans-dev`, `breakie33-dev`, `lucascvalle-dev`, `arthurbaquit-dev` e `fernandorff-dev`; o dev geral é a branch `dev` (https://dev-warlock.fernandorffdev.com). Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
 
 ```bash
 git push --force origin HEAD:lboesmans-dev   # publica o estado da sua branch de tarefa
@@ -124,7 +124,7 @@ pelo modelo de .github/ (para a branch dev) com prints antes e depois. Não dê 
 
 ## Fluxo do Git e PR
 
-Fluxo: **dev do usuário → dev geral (`dev`) → `master`**. O PR da tarefa vai para `dev` (o merge publica em https://dev-warlock.fernandorffdev.com); depois o PR `dev` → `master` publica o jogo no ar. `dev` e `master` são protegidos: só entram por PR com o CI verde (`checks`) e a checagem do título (`titulo`). Sem force push.
+Fluxo: **dev do usuário → dev geral (`dev`) → `master`**. O PR da tarefa vai para `dev` (o merge publica em https://dev-warlock.fernandorffdev.com); logo em seguida o agente do dono abre o PR `dev` → `master`, que publica o jogo no ar (decisão de 20/10: toda mescla em `dev` vai ao ar na hora). `dev` e `master` são protegidos: só entram por PR com o CI verde (`checks`) e a checagem do título (`titulo`). Sem force push.
 
 | Item | Padrão | Exemplo |
 |---|---|---|
