@@ -131,7 +131,7 @@ export class Room extends DurableObject<Env> {
         if (startMatch(m, now, msg.bots, msg.mode, msg.shuffle ?? true, Math.random, msg.opts, msg.setup, msg.sandbox)) await this.changed();
         return;
       case 'sandbox':
-        if (sandboxCmd(m, msg.cmd, now)) await this.changed();
+        if (sandboxCmd(m, msg.cmd, now, id)) await this.changed();
         return;
       case 'buy':
         if (buy(m, id, msg.spell)) await this.changed();

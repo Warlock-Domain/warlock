@@ -113,14 +113,32 @@ describe('sandbox', () => {
     expect(m.world!.arenaR).toBeLessThan(r);
   });
 
+  it('pôr runa: a escolhida nasce ao lado de quem pediu, troca a que estava e dá o efeito ao encostar', () => {
+    const { m, now } = sandbox();
+    const me = wiz(m, 'a');
+    // não grava a sala (devolve false): a runa vai no snapshot
+    expect(sandboxCmd(m, { op: 'rune', kind: 'fury' }, now, 'a')).toBe(false);
+    expect(m.world!.runes.map((r) => r.kind)).toEqual(['fury']);
+    expect(dist(m.world!.runes[0].pos, me.pos)).toBeCloseTo(1.5, 5);
+    sandboxCmd(m, { op: 'rune', kind: 'shield' }, now, 'a');
+    expect(m.world!.runes.map((r) => r.kind)).toEqual(['shield']);
+    const { events } = steps(m, now, 60 * 2, [{ kind: 'move', id: 'a', to: m.world!.runes[0].pos }]);
+    expect(events).toContainEqual({ k: 'runeTake', id: 'a', kind: 'shield' });
+    expect(me.rune).toBe('shield');
+    // sem quem pediu (ou morto), vai para um lugar livre da arena
+    sandboxCmd(m, { op: 'rune', kind: 'haste' }, now, '?');
+    expect(m.world!.runes.map((r) => r.kind)).toEqual(['haste']);
+  });
+
   it('numa sala normal os comandos da sandbox não fazem nada e o resto continua como era', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     startMatch(m, 0, 1);
     toPlaying(m, 0);
     const before = JSON.stringify(m.players);
-    for (const c of [{ op: 'bot' }, { op: 'set', key: 'god', on: false }, { op: 'restart' }, { op: 'arena', arena: 'cross' }] as const) expect(sandboxCmd(m, c, 0)).toBe(false);
+    for (const c of [{ op: 'bot' }, { op: 'set', key: 'god', on: false }, { op: 'restart' }, { op: 'arena', arena: 'cross' }, { op: 'rune', kind: 'fury' }] as const) expect(sandboxCmd(m, c, 0, 'a')).toBe(false);
     expect(JSON.stringify(m.players)).toBe(before);
+    expect(m.world!.runes).toEqual([]);
     expect([m.sandbox, m.world!.dm, buy(m, 'a', 'lightning')]).toEqual([undefined, false, false]);
     // sozinho, sem bots, uma partida normal não começa
     const solo = newMatch();
@@ -133,8 +151,9 @@ describe('sandbox', () => {
     expect(p({ t: 'sandbox', cmd: { op: 'set', key: 'noCd', on: true } })).toEqual({ t: 'sandbox', cmd: { op: 'set', key: 'noCd', on: true } });
     expect(p({ t: 'sandbox', cmd: { op: 'bot', bot: { difficulty: 'hard', spells: { homing: 2 } }, dummy: true } })).toEqual({ t: 'sandbox', cmd: { op: 'bot', bot: { difficulty: 'hard', spells: { homing: 2 } }, dummy: true } });
     expect(p({ t: 'sandbox', cmd: { op: 'arena', arena: 'cross' } })).toEqual({ t: 'sandbox', cmd: { op: 'arena', arena: 'cross' } });
+    expect(p({ t: 'sandbox', cmd: { op: 'rune', kind: 'recharge', x: 9 } })).toEqual({ t: 'sandbox', cmd: { op: 'rune', kind: 'recharge' } });
     expect(p({ t: 'start', bots: 0, sandbox: true })).toMatchObject({ t: 'start', bots: 0, sandbox: true });
-    for (const bad of [{ op: 'set', key: 'gold', on: true }, { op: 'set', key: 'god', on: 1 }, { op: 'arena', arena: 'random' }, { op: 'bot', bot: { spells: { homing: 99 } } }, { op: 'bot', dummy: 'sim' }, { op: 'nuke' }, null])
+    for (const bad of [{ op: 'set', key: 'gold', on: true }, { op: 'set', key: 'god', on: 1 }, { op: 'arena', arena: 'random' }, { op: 'bot', bot: { spells: { homing: 99 } } }, { op: 'bot', dummy: 'sim' }, { op: 'nuke' }, { op: 'rune', kind: 'gold' }, { op: 'rune' }, null])
       expect(p({ t: 'sandbox', cmd: bad })).toBeNull();
     expect(p({ t: 'start', bots: 0, sandbox: 'sim' })).toBeNull();
   });

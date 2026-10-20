@@ -48,6 +48,7 @@ export const ITEM_ICON: Record<ItemId, string> = named<ItemId>({ ring: ['diamond
   boots: ['leather-boot', '👢'], watch: ['pocket-watch', '⏱️'], vampire: ['bat', '🦇'], scourge: ['flail', '💥'], redirector: ['divert', '↪️'], pact: ['chalice-drops', '🩸'],
   lava_boots: ['metal-boot', '🥾'], warden: ['stone-bust', '🗿'], helmet: ['spartan-helmet', '🪖'], shock_boots: ['winged-leg', '🌩️'], aegis: ['angel-wings', '👼'], wind_boots: ['feather', '🪶'] });
 export const RUNE_ICON: Record<RuneKind, string> = named<RuneKind>({ haste: ['rabbit', '🐇'], fury: ['enrage', '😡'], shield: ['checked-shield', '🔰'], recharge: ['energise', '🔋'] });
+export const RUNE_NAME: Record<RuneKind, string> = { haste: t('Runa da Pressa', 'Haste Rune'), fury: t('Runa da Fúria', 'Fury Rune'), shield: t('Runa do Escudo', 'Shield Rune'), recharge: t('Runa da Recarga', 'Recharge Rune') };
 // o que derrubou alguém, além de magias e itens (placar)
 export const SOURCE_ICON = named({ lava: ['volcano', '🌋'], pillar: ['menhir', '🪨'], shock: ['knockout', '💫'], unknown: ['uncertainty', '❔'] });
 // botões e colunas da interface
@@ -66,3 +67,16 @@ export const STATUS_ICONS: [bit: number, icon: string, name: string][] = [[16, f
   [16384, fx.repel, t('magnetizado: afasta projéteis', 'magnetized: repels projectiles')], [1024, fx.invis, t('invisível (Caminhada no vento)', 'invisible (Windwalk)')], [4096, fx.fast, t('acelerado', 'hasted')], [32768, ICON.alteration, t('Alteração', 'Alteration')], [131072, ITEM_ICON.aegis, t('Égide pronta', 'Aegis ready')],
   [262144, RUNE_ICON.haste, t('Runa da Pressa', 'Haste Rune')], [524288, RUNE_ICON.fury, t('Runa da Fúria', 'Fury Rune')], [1048576, RUNE_ICON.shield, t('Runa do Escudo', 'Shield Rune')], [4194304, RUNE_ICON.recharge, t('Runa da Recarga', 'Recharge Rune')], [2097152, ICON.gravity, t('no redemoinho', 'in the vortex')]];
 export const BAD_STATUS = [16, 4, 128, 65536, 8192, 512, 2097152];
+// relógio de um efeito com prazo (snap.fx: pares bit, segundos): texto dos segundos e fração que falta (o total é o maior tempo
+// visto desde que começou ou renovou). Um por lugar que mostra (barra de baixo, em cima do mago): a mesma conta dá os mesmos números
+export function fxClock() {
+  const last = new Map<number, number>();
+  const total = new Map<number, number>();
+  return (fx: number[], bit: number) => {
+    const i = fx.findIndex((b, n) => n % 2 === 0 && b === bit);
+    const left = i < 0 ? 0 : fx[i + 1];
+    if (left > (last.get(bit) ?? 0) + 0.05) total.set(bit, left);
+    last.set(bit, left);
+    return left > 0.05 ? { text: left.toFixed(left < 1 ? 1 : 0), frac: Math.min(1, left / (total.get(bit) ?? left)) } : null;
+  };
+}

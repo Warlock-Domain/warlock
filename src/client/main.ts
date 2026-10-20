@@ -15,7 +15,7 @@ import { coachTip } from './coach.ts';
 import { PROFILE_KEY, addRound, toSkill, type Profile } from './mimic.ts';
 import { n1 } from './rules-text.ts';
 import { reachOf } from './reach.ts';
-import { ITEM_ICON, RUNE_ICON, SOURCE_ICON, icon } from './icons.ts';
+import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t } from './i18n.ts';
 import { isPadMode, labelOf, onFreeEsc } from './keys.ts';
@@ -427,7 +427,6 @@ function startRoom(code: string, name: string) {
     return new Map(room?.players.map((p) => [p.id, p.name]) ?? []);
   }
 
-  const RUNE_NAME: Record<RuneKind, string> = { haste: t('Runa da Pressa', 'Haste Rune'), fury: t('Runa da Fúria', 'Fury Rune'), shield: t('Runa do Escudo', 'Shield Rune'), recharge: t('Runa da Recarga', 'Recharge Rune') };
   const RUNE_TEXT = (k: RuneKind) => [icon(RUNE_ICON[k]), ' ' + RUNE_NAME[k]];
   // o que cada runa faz, com os números do código (pedido do Fernando, 18/10: dizer ao pegar)
   const RUNE_EFFECT: Record<RuneKind, string> = {
@@ -723,7 +722,7 @@ function startRoom(code: string, name: string) {
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
     view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
-      wizards.filter((w) => !w.alive).map((w) => w.id).join()); // caídos na rodada: retrato apagado no topo
+      wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx); // caídos na rodada: retrato apagado no topo
   }
   const drawn = new Map<string, Vec>();
   const replayDrawn = new Map<string, Vec>();
@@ -741,7 +740,7 @@ function startRoom(code: string, name: string) {
       const prevDraw = prev.get(w.id);
       const moving = len(w.vel) < STUN_SPEED && w.alive && (!prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
-      return { ...w, status: seen(w), pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null };
+      return { ...w, status: seen(w), pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
     });
   }
   // sandbox: o servidor manda todos visíveis; "Ver invisíveis" deixa os outros na Caminhada no vento ou no véu da Ilusão

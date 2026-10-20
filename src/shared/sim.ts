@@ -1458,6 +1458,18 @@ function stepRunes(w: World, rand: () => number) {
   }
 }
 
+// sandbox: a runa escolhida a 1,5 m de quem pediu, para o lado do centro (troca a que estiver na arena);
+// fora da pedra ali, vai para um ponto livre sorteado; sem lugar, não aparece
+export function placeRune(w: World, kind: RuneKind, near: Vec | null, rand: () => number = Math.random): boolean {
+  const side = near && len(near) > 1.5 ? scale(norm(near), -1.5) : v(1.5, 0);
+  const close = near && add(near, side);
+  const at = close && inArena(w, close, 0.3) ? close : freeSpot(w, rand, RUNE.spread);
+  if (!at) return false;
+  w.runes = [{ pos: at, kind }];
+  w.events.push({ k: 'rune', kind, x: at.x, y: at.y });
+  return true;
+}
+
 // volta parado para dentro da pedra, na mesma direção (Égide; na sandbox, quem tem vida infinita e cai na lava)
 function toStone(w: World, wz: Wizard) {
   const from = wz.pos;

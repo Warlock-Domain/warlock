@@ -4,10 +4,11 @@ import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, typ
 import { CHARACTERS, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
   ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
+  type RuneKind,
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
 import type { BotSetup } from './protocol.ts';
-import { gearOf, newWorld, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
+import { gearOf, newWorld, placeRune, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
 import { MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { dist, len, type Vec } from './vec.ts';
 
@@ -113,6 +114,7 @@ export type SandboxCmd =
   | { op: 'set'; key: keyof Sandbox; on: boolean }
   | { op: 'bot'; bot?: BotSetup; dummy?: boolean }
   | { op: 'arena'; arena: ArenaId }
+  | { op: 'rune'; kind: RuneKind } // runa escolhida ao lado de quem pediu (pedido do Sky, 20/10)
   | { op: 'restart' };
 const SANDBOX_GOLD = 9999;
 
@@ -645,10 +647,16 @@ function afterRound(m: Match, now: number) {
 
 const EMPTY_ROUNDS_END = 3;
 
-// painel da sandbox: ligar/desligar regras, pôr bot (tirar é o 'kick'), trocar a arena e reiniciar a rodada; fora da sandbox não faz nada
-export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number): boolean {
+// painel da sandbox: ligar/desligar regras, pôr bot (tirar é o 'kick'), pôr runa, trocar a arena e reiniciar a rodada; fora da sandbox não faz nada
+// id: quem mandou (a runa nasce ao lado dele)
+export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boolean {
   const sb = m.sandbox;
   if (!sb || m.phase === 'lobby' || m.phase === 'end') return false;
+  // runa: só o mundo muda (vai no snapshot, não é gravado), então devolve false para a sala não gravar a cada clique
+  if (cmd.op === 'rune') {
+    if (m.world) placeRune(m.world, cmd.kind, m.world.wizards.find((z) => z.id === id && z.alive)?.pos ?? null);
+    return false;
+  }
   if (cmd.op === 'set') {
     if (sb[cmd.key] === cmd.on) return false;
     sb[cmd.key] = cmd.on;
