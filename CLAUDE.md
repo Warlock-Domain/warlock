@@ -89,6 +89,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 20/10 | O dev geral continua, mas todo PR mesclado em `dev` (inclusive de colaborador) é promovido para o `master` logo em seguida, sem esperar a palavra do Fernando; balanceamento continua só depois da simulação aprovada. Substitui as duas linhas de 19/10 sobre promoção | ninguém jogava no dev geral antes de liberar; esperar só atrasava |
 | 20/10 | Aba Configurações do menu inicial em página única (issue #59): seções empilhadas com sumário lateral fixo e a seção visível destacada, como as opções do Dota 2; no celular o sumário recolhe no topo. Personagem vira atalho para a aba dele e Idioma vira seção própria (também no diálogo) | público de Dota; achar e mudar uma opção sem abrir e fechar painéis; usar a largura do PC |
 | 19/10 | O que o Fernando pede vai direto para o `master`: PR para `dev`, mescla e promoção `dev` → `master` em seguida | pedido dele ("pode colocar as minhas coisas direto para master sempre"); o que vem dos colaboradores segue esperando a palavra dele no dev geral |
+| 20/10 | O dev geral (`dev`) sai do fluxo: a branch da tarefa sai do `master` e o PR vai direto para o `master` (squash), que publica o jogo no ar pela pipeline Produção; sem promoção `dev` → `master`; a `dev` fica parada (sem apagar) e o dev-warlock deixa de ser atualizado; os ambientes `<usuário>-dev` continuam (issue #72). Substitui as linhas de 19/10 e 20/10 sobre o dev geral e a promoção | toda mescla já ia ao ar na hora: o `dev` só dobrava PR e deploy |
 | 19/10 | Vender devolve sempre 100% do que pagou; o ouro garantido da rodada (`ROUND_GOLD`) chega na hora da queda, para comprar enquanto assiste; loja: cartas ocupam a coluna, Vender no canto da carta (moeda no toque) | pedidos do Fernando |
 | 19/10 | Modo novo **Ascensão** (roguelike, estilo ARAM com cartas): XP do mago, a cada nível escolhe 1 entre 3 cartas (magia nova, subir magia, item) no intervalo; sem ouro, loja nem baús; Flagelo continua de graça; 9 rodadas com pontos por colocação; 4 mecanismos de recuperação; aumentos ficam para a 2ª leva. Desenho em `docs/superpowers/specs/2026-10-19-ascensao-design.md` | progressão dentro da partida sem decidir o jogo cedo |
 | 19/10 | Modo novo **Campanha** (co-op PvE roguelike, proposta do Lucas): 1 a 4 Acesos contra o Fumo numa noite de 30 a 45 min (3 estágios + chefe final), mapa gerado por semente no padrão Diablo 2 (objetivo fixo, noite nova a cada tentativa), 6 classes com passiva e árvore de cartas (Guerreiro, Arqueiro, Mago, Warlock, Ladino e Errante, que aprende tudo), XP e cartas do Ascensão, servos do Fumo (esqueletos com IA de bot), chefes pesados que voltam da lava com dano, reacender aliado caído. 1ª campanha: Última Vela; fatia 1 = Charneca Cinzenta + Sir Odran. Desenho em `docs/superpowers/specs/2026-10-19-campanha-design.md`. Dono do modo: Lucas (decide os detalhes da Campanha); o motor de cartas vem do Ascensão (Fernando, 19/10) | jogar junto contra o jogo, com história, sem mudar os modos atuais |
@@ -110,28 +111,27 @@ Push na branch `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffde
 | Lucas | lucascvalle | `lucascvalle-dev` | https://lucascvalle-dev-warlock.fernandorffdev.com |
 | Arthur | arthurbaquit | `arthurbaquit-dev` | https://arthurbaquit-dev-warlock.fernandorffdev.com |
 | Fernando | fernandorff | `fernandorff-dev` | https://fernandorff-dev-warlock.fernandorffdev.com |
-| dev geral | — | `dev` | https://dev-warlock.fernandorffdev.com |
 
-A branch `-dev` é sua: pode substituir pelo estado da tarefa (`git push --force origin HEAD:<usuário>-dev`) ou atualizar com o dev geral (`git merge origin/dev` nela). Não abra PR a partir da `-dev`; o PR sai da branch da tarefa.
+A branch `-dev` é sua: pode substituir pelo estado da tarefa (`git push --force origin HEAD:<usuário>-dev`) ou atualizar com o jogo no ar (`git merge origin/master` nela). Não abra PR a partir da `-dev`; o PR sai da branch da tarefa.
 
 ### Fluxo dos ambientes
 
-**dev do usuário → dev geral → master** (decisão do Fernando, 19/10):
+**branch da tarefa → PR para o `master` → no ar** (decisão do Fernando, 20/10; o dev geral saiu do fluxo):
 
-1. Branch da tarefa (`feat/…`, `fix/…`) a partir de `dev`; para testar com outras pessoas, publique no seu `<usuário>-dev`.
-2. PR da tarefa para **`dev`** (a branch padrão). Ao mesclar, publica no **dev geral**: https://dev-warlock.fernandorffdev.com.
-3. **Logo depois de cada mescla em `dev`** (decisão do Fernando, 20/10), o agente do dono abre e mescla o PR **`dev` → `master`**, venha o PR de quem vier; o dev geral continua para testar junto durante a revisão. Mudança de balanceamento só depois da simulação aprovada. Ao mesclar, a pipeline **Produção** publica em https://warlock.fernandorffdev.com. A promoção `dev` → `master` usa **merge normal (não squash)** e não apaga a `dev`, para os dois seguirem com o mesmo histórico; os PRs de tarefa para `dev` continuam em squash.
+1. Branch da tarefa (`feat/…`, `fix/…`) a partir do `master`; para testar com outras pessoas, publique no seu `<usuário>-dev`.
+2. PR da tarefa para o **`master`** (a branch padrão), em *squash and merge*. Mudança de balanceamento só depois da simulação aprovada.
+3. Ao mesclar, a pipeline **Produção** publica em https://warlock.fernandorffdev.com. Sem promoção e sem dev geral.
 
 ### Pipelines
 
 | Pipeline | Arquivo | Quando roda | O que faz | Se der errado |
 |---|---|---|---|---|
-| CI | `ci.yml` | todo PR e todo push no `dev` e no `master` | os dois `tsc`, `vitest run`, `vite build` | o PR não entra; abra o log em Actions e corrija na mesma branch |
+| CI | `ci.yml` | todo PR e todo push no `master` | os dois `tsc`, `vitest run`, `vite build` | o PR não entra; abra o log em Actions e corrija na mesma branch |
 | Título do PR | `pr-title.yml` | ao abrir ou editar o PR | confere o formato `tipo: o que muda` | edite o título; roda de novo sozinho |
 | Revisão do Claude | `claude-review.yml` | PR aberto, commit novo, saiu de rascunho | comenta veredito, checagens e pontos (não aprova nem mescla) | não bloqueia; não roda em fork nem no PR que altera o próprio workflow |
 | `@claude` | `claude.yml` | comentário com `@claude` num PR ou issue | responde e ajuda no próprio PR/issue | — |
-| Ambiente dev | `dev-deploy.yml` | push na branch `<usuário do GitHub>-dev` ou `dev` (dev geral) | build, publica um Worker só seu, espera o domínio responder e roda o teste rápido | build quebrado: nada é publicado e o site anterior continua; teste rápido falhou: a versão nova já foi publicada e está com problema, veja o log |
-| Produção | `deploy.yml` | push no `master` (merge do PR `dev` → `master`) | gates, publica o jogo no ar, confere se o site serve o build novo e roda o teste rápido | falhou antes do deploy: nada muda no ar; falhou depois: o jogo no ar está com a versão nova, veja o log |
+| Ambiente dev | `dev-deploy.yml` | push na branch `<usuário do GitHub>-dev` | build, publica um Worker só seu, espera o domínio responder e roda o teste rápido | build quebrado: nada é publicado e o site anterior continua; teste rápido falhou: a versão nova já foi publicada e está com problema, veja o log |
+| Produção | `deploy.yml` | push no `master` (merge do PR da tarefa) | gates, publica o jogo no ar, confere se o site serve o build novo e roda o teste rápido | falhou antes do deploy: nada muda no ar; falhou depois: o jogo no ar está com a versão nova, veja o log |
 
 Logs: https://github.com/fernandorff/warlock/actions.
 
@@ -149,7 +149,7 @@ Prints com Playwright headless contra `npx wrangler dev`; confira no PC (1280×7
 
 ## Git
 
-Fluxo completo em [CONTRIBUTING.md](CONTRIBUTING.md): uma branch por tarefa a partir do `dev` (`feat/`, `fix/`, `balance/`, `style/`, `docs/`, `refactor/`), commits em português com o tipo na frente (`feat: …`), pull request com o modelo de `.github/`, CI verde (`.github/workflows/ci.yml`: os dois `tsc`, `vitest`, `vite build`) e *squash and merge*. PR da tarefa vai para `dev`; o `master` só recebe o PR `dev` → `master`. Agente: nunca dê push direto em `dev` nem no `master`; abra PR.
+Fluxo completo em [CONTRIBUTING.md](CONTRIBUTING.md): uma branch por tarefa a partir do `master` (`feat/`, `fix/`, `balance/`, `style/`, `docs/`, `refactor/`), commits em português com o tipo na frente (`feat: …`), pull request com o modelo de `.github/`, CI verde (`.github/workflows/ci.yml`: os dois `tsc`, `vitest`, `vite build`) e *squash and merge*. PR da tarefa vai direto para o `master`. Agente: nunca dê push direto no `master`; abra PR.
 
 ## Publicar
 

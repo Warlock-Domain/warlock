@@ -1,10 +1,10 @@
-# Ambientes de teste: push na branch <usuário>-dev publica em https://<usuário>-dev-warlock.fernandorffdev.com;
-# push na branch dev (dev geral) publica em https://dev-warlock.fernandorffdev.com. Worker e salas próprios; o jogo no ar não é tocado.
+# Ambientes de teste: push na branch <usuário>-dev publica em https://<usuário>-dev-warlock.fernandorffdev.com.
+# Worker e salas próprios; o jogo no ar não é tocado.
 name: Ambiente dev
 
 on:
   push:
-    branches: ['*-dev', 'dev']
+    branches: ['*-dev']
   workflow_dispatch:
 
 concurrency:
@@ -33,7 +33,7 @@ jobs:
           node -e '
             const fs = require("fs");
             const b = process.env.BRANCH;
-            if (!/^([a-z0-9]+-)?dev$/.test(b)) { console.error("branch deve ser dev ou <usuário>-dev em minúsculas: " + b); process.exit(1); }
+            if (!/^[a-z0-9]+-dev$/.test(b)) { console.error("branch deve ser <usuário>-dev em minúsculas: " + b); process.exit(1); }
             const c = JSON.parse(fs.readFileSync("wrangler.jsonc", "utf8"));
             c.name = "warlock-" + b;
             c.routes = [{ pattern: b + "-warlock.fernandorffdev.com", custom_domain: true }];
