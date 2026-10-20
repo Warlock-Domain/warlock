@@ -8,7 +8,7 @@ import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { isPadMode, isUiKey, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
-import { langChoice, openSettings, setSettingsCtx, settingsLinks } from './settings.ts';
+import { openSettings, setSettingsCtx, settingsPage } from './settings.ts';
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
@@ -139,7 +139,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
         el('button', { type: 'button', onclick: showRules }, icon(UI_ICON.help), ' ' + t('Abrir o grimório', 'Open the grimoire'))),
       trainBlock(onTrain)),
     char: panel('char', personagemTab()),
-    settings: panel('settings', el('section', { class: 'home-settings' }, el('h2', {}, t('Configurações', 'Settings')), settingsLinks(), langChoice())),
+    settings: panel('settings', settingsPage()),
   };
   const btns = HOME_TABS.map(([k, label, ico]) => el('button', { type: 'button', role: 'tab', id: 'home-tab-' + k, 'aria-controls': 'home-' + k, onclick: () => show(k) }, icon(ico), el('span', {}, label)));
   function show(k: HomeTab) {
