@@ -14,7 +14,7 @@ Bem-vindo! Este guia diz como uma mudança sai da sua máquina e chega ao jogo. 
    Colaborador trabalha em branch deste repositório. Fork só para quem não é colaborador: nele o CI espera aprovação manual, a revisão automática não roda e o ambiente dev não publica.
 3. **Commits pequenos, em português**, começando pelo tipo: `feat: …`, `fix: …`, `balance: …`, `style: …`, `refactor: …`, `docs: …`. A mensagem diz o que mudou para o jogador e, em balanceamento, os números medidos.
 4. **Antes de abrir o PR**, rode os gates (os dois `tsc`, `vitest run`, `vite build`) e jogue no navegador. Para testar com outras pessoas, publique no seu ambiente dev (veja [Ambiente de cada dev](#ambiente-de-cada-dev)). Mantenha a branch em dia com o `master` (`git pull --rebase origin master` ou merge).
-5. **Abra o pull request para o `master`** preenchendo o modelo (Por quê, O que muda, Prints antes e depois se mudou algo na tela, Como testei, Balanceamento) e com `Fecha #n` para ligar a issue. **Título no formato do commit** (`feat: …`, `fix: …`): uma checagem do GitHub barra título fora do padrão. O GitHub Actions roda as mesmas checagens dos gates; o PR só entra com tudo verde.
+5. **Abra o pull request para o `master`** preenchendo o modelo (Por quê, O que muda, Prints antes e depois se mudou algo na tela, Como testei, Balanceamento) e com `Closes #n` para ligar a issue. **Título no formato do commit** (`feat: …`, `fix: …`): uma checagem do GitHub barra título fora do padrão. O GitHub Actions roda as mesmas checagens dos gates; o PR só entra com tudo verde.
 6. **Revisão:** o Claude comenta sozinho em todo PR (veredito, checagens, pontos); comente `@claude` para pedir ajuda. O agente do dono pode ajustar e mesclar o PR. Responda os comentários com commits novos na mesma branch (sem reescrever o histórico depois que a revisão começou).
 7. **Merge:** *squash and merge* no `master`; o título do PR vira o commit. A branch é apagada depois.
 8. **Publicação é automática:** o merge no `master` publica o jogo no ar pela pipeline Produção (decisão de 20/10: sem dev geral, PR direto para o `master`).
@@ -29,7 +29,7 @@ Projeto de grupo: o que muda o jogo para todo mundo é combinado antes de virar 
   1. Abra a issue pelo modelo **Ideia**: ela já nasce com a etiqueta `precisa de decisão`. Avise no grupo do Telegram com o link; a conversa fica na issue, para não se perder.
   2. Cerca de 2 dias de discussão na issue. Depois o Fernando dá a palavra final, ouvindo o que foi dito.
   3. A decisão fica escrita na issue (o que foi decidido e por quê), a etiqueta sai e a linha entra na tabela de decisões do [CLAUDE.md](CLAUDE.md). Coisa grande ganha um desenho em `docs/` (como o Ascensão e a Campanha).
-  4. Só então alguém pega para fazer, e o PR cita a issue (`Fecha #n`).
+  4. Só então alguém pega para fazer, e o PR cita a issue (`Closes #n`).
 - **PR grande sem decisão** recebe `precisa de decisão` e espera, sem mesclar, até a issue ser decidida.
 
 ## Ambiente de cada dev
@@ -76,7 +76,7 @@ Toda issue sai de um dos dois modelos (a issue em branco está desligada): https
 - **Um assunto por issue.** Duas coisas viram duas issues.
 - **Antes de começar a fazer, atribua-se** na issue (Assignees, ou comente "vou fazer") e só pegue issue sem dono. Assim duas pessoas não fazem o mesmo trabalho. Desistiu? Tire o seu nome.
 - Ideia só é pega depois de decidida (a etiqueta `precisa de decisão` saiu).
-- O PR que resolve a issue leva `Fecha #n` na descrição: ao mesclar, a issue fecha sozinha.
+- O PR que resolve a issue leva `Closes #n` na descrição: ao mesclar, a issue fecha sozinha. Tem de ser em inglês (`Closes`, `Fixes` ou `Resolves`); "Fecha #n" o GitHub não entende.
 - **Quadro (kanban):** https://github.com/users/fernandorff/projects/3. Colunas: **Precisa de decisão** → **A fazer** → **Fazendo** → **Em revisão** → **Feito**. Ao se atribuir, mova o cartão para Fazendo; com o PR aberto, para Em revisão. Issue fechada ou PR mesclado vai para Feito sozinho.
 
 ## Etiquetas

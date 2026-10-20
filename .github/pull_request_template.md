@@ -3,7 +3,7 @@ Título no formato do commit: `tipo: o que muda, em português` (tipos: feat, fi
 Ex.: `feat: runa de gelo que deixa o inimigo lento por 3 s`. O título vira o commit no `master`.
 -->
 
-Fecha #<!-- número da issue, se houver -->
+Closes #<!-- número da issue, se houver; a palavra tem de ser em inglês (Closes, Fixes ou Resolves) para o GitHub fechar a issue sozinho -->
 
 ## Por quê
 
