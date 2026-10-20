@@ -234,7 +234,7 @@ Não desfaça sem combinar numa issue.
 | Drenar | domina combinações no Normal, mas espera partidas reais antes de mexer |
 | Ataques | Bola de fogo frequente; as outras são golpes fortes e raros (não encurtar recargas) |
 | Bots | jogam "como gente": mira com erro, reação de 0,25 a 0,6 s, hesitação; no duelo final vão atrás do inimigo |
-| Personagem | criador de 7 peças com 8 bonecos originais como atalho (uma Ladina só; o capuz é um chapéu); prévia 3D orbitável (arraste para girar e role para aproximar) |
+| Personagem | criador de 7 peças com 8 bonecos originais como atalho (uma Ladina só; o capuz é um chapéu) e 10 cores para Chapéu, Tronco, Braços, Pernas, Capa e Cabelo; prévia 3D orbitável (arraste para girar e role para aproximar) |
 | Recusados | ranking; itens que só ajudam uma magia específica |
 | Publicação | automática: merge do PR no `master` → jogo no ar |
 

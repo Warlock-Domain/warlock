@@ -35,6 +35,8 @@ Uma página só, de seções empilhadas com sumário (`stackedPage`), usada na a
 
 ## Cena (`scene.ts`)
 
+- **Cor das peças** (issue #109): `assemble` clona o material da peça com cor e guarda `userData.tint` (quadrado da textura e cor); `tint(mat)` injeta o shader que troca só aquele quadrado da grade 8×4 da textura KayKit. Clonar material não copia o `onBeforeCompile`: quem clona material de boneco (`makeMage`) chama `tint()` de novo. A cor principal é o quadrado de maior área da peça (`mainCell`), fora a pele (0) e o osso dos esqueletos (9); o cabelo é sempre o quadrado 1.
+
 - **Pixel art** (`setPixel`, issue #79): troca o `RenderPass` pelo `RenderPixelatedPass` (blocos de `pixelSize` px: 2 ou 3, 0 desliga). Nesse modo a câmera fica mais longe com ângulo menor (`camK`) e é presa à grade; a sobra desliza o canvas e os nomes (`pixelShift`). Quem mexer no posicionamento da câmera mantém os dois, senão o chão volta a tremer. Só existe no PC (precisa do `EffectComposer`, que o celular não cria); a escolha fica em `warlock:pixel` (`savedPixel`).
 
 ## O que não vai para `ui.ts`

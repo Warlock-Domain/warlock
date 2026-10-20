@@ -161,13 +161,14 @@ function build(): HTMLElement {
   const tintName = (part: number) => (part ? LOOK_PARTS[part] : { name: 'Cabelo', en: 'Hair' });
   const dots = TINTS.map((part, j) => PALETTE.map((c, k) => el('button', { type: 'button', class: 'avatar-dot', ...(c.hex && { style: `background:${c.hex}` }), title: t(c.name, c.en),
     'aria-label': t(`${tintName(part).name}: ${c.name}`, `${tintName(part).en}: ${c.en}`), onclick: () => set(withTint(look, j, k)) })));
-  const dotsOf = (part: number) => TINTS.includes(part) && el('span', { class: 'avatar-dots' }, ...dots[TINTS.indexOf(part)]);
+  // peça sem cor (Cabeça, Nas mãos) leva a coluna vazia: as setas de todas as linhas ficam alinhadas
+  const dotsOf = (part: number) => el('span', { class: 'avatar-dots' }, ...(dots[TINTS.indexOf(part)] ?? []));
   const rows = LOOK_PARTS.map((p, i) => el('div', { class: 'keys-row' }, el('span', {}, t(p.name, p.en)),
     el('span', { class: 'avatar-pick' },
       el('button', { type: 'button', class: 'icon', 'aria-label': t(`${p.name}: anterior`, `${p.en}: previous`), onclick: () => step(i, -1) }, '‹'),
       names[i],
       el('button', { type: 'button', class: 'icon', 'aria-label': t(`${p.name}: próxima`, `${p.en}: next`), onclick: () => step(i, 1) }, '›'),
-      i > 0 && dotsOf(i))));
+      dotsOf(i > 0 ? i : -1))));
   rows.splice(1, 0, el('div', { class: 'keys-row' }, el('span', {}, t('Cabelo', 'Hair')), el('span', { class: 'avatar-pick' }, dotsOf(0))));
   // os bonecos originais como atalho: um clique monta o boneco inteiro (Fernando, 19/10); uma Ladina só, o capuz é chapéu (#107)
   const presets = PRESETS.map((c) => el('button', { type: 'button', class: 'avatar-preset', title: t(c.name, c.en), 'aria-label': t(c.name, c.en), onclick: () => set(lookOf(c.id)) },
@@ -182,7 +183,7 @@ function build(): HTMLElement {
     if (look !== now || !shown) show(look);
   };
   return el('div', { class: 'avatar' },
-    el('style', {}, `.avatar{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}.avatar-view{width:${W}px;max-width:100%;display:flex;flex-direction:column;gap:4px}.avatar canvas{width:${W}px;height:${H}px;max-width:100%;border-radius:12px;background:radial-gradient(circle at 50% 40%,#3a2a40,#15101a);touch-action:none;cursor:grab}.avatar-parts{flex:1;min-width:220px;display:flex;flex-direction:column;gap:4px}.avatar-pick{display:flex;align-items:center;gap:6px}.avatar-name{min-width:9em;text-align:center}.avatar-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}.avatar-preset{padding:2px;min-height:0;border-radius:8px}.avatar-preset[aria-pressed=true]{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}.avatar-dots{display:flex;gap:3px;margin-left:6px}.avatar-dot{width:16px;height:16px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--bronze);background:linear-gradient(135deg,transparent 44%,var(--fg) 44% 56%,transparent 56%)}.avatar-dot[aria-pressed=true]{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold)}`),
+    el('style', {}, `.avatar{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}.avatar-view{width:${W}px;max-width:100%;display:flex;flex-direction:column;gap:4px}.avatar canvas{width:${W}px;height:${H}px;max-width:100%;border-radius:12px;background:radial-gradient(circle at 50% 40%,#3a2a40,#15101a);touch-action:none;cursor:grab}.avatar-parts{flex:1;min-width:220px;display:flex;flex-direction:column;gap:4px}.avatar-pick{display:flex;align-items:center;gap:6px}.avatar-name{min-width:9em;text-align:center}.avatar-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}.avatar-preset{padding:2px;min-height:0;border-radius:8px}.avatar-preset[aria-pressed=true]{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}.avatar-dots{display:flex;gap:3px;margin-left:6px;width:187px}.avatar-dot{width:16px;height:16px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--bronze);background:linear-gradient(135deg,transparent 44%,var(--fg) 44% 56%,transparent 56%)}.avatar-dot[aria-pressed=true]{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold)}`),
     el('div', { class: 'avatar-view' }, renderer.domElement, el('small', { class: 'muted' }, t('Arraste para orbitar · role para aproximar', 'Drag to orbit · scroll to zoom'))),
     el('div', { class: 'avatar-parts' }, el('small', { class: 'muted' }, t('Prontos', 'Presets')), el('div', { class: 'avatar-presets' }, ...presets), ...rows,
       el('button', { type: 'button', onclick: () => set(randomLook()) }, t('Aleatório', 'Random')),
