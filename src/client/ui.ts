@@ -662,7 +662,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // runa escolhida: nasce ao lado do seu mago, no lugar da que estiver na arena
     el('div', { class: 'sandbox-row', role: 'group', 'aria-label': t('Pôr runa', 'Place rune') }, t('Runa', 'Rune'),
       ...RUNE_KINDS.map((k) => el('button', { type: 'button', class: 'icon', title: RUNE_NAME[k], 'aria-label': t(`Pôr a ${RUNE_NAME[k]} ao seu lado`, `Place the ${RUNE_NAME[k]} next to you`), onclick: () => act.sandbox({ op: 'rune', kind: k }) }, icon(RUNE_ICON[k])))),
-    el('button', { type: 'button', onclick: () => {
+    el('button', { type: 'button', title: t('Recomeça a rodada; sem torreta na arena, põe uma de novo', 'Restarts the round; with no turret in the arena, adds one back'), onclick: () => {
       if (!room?.players.some((p) => p.turret)) act.sandbox({ op: 'turret', direction: 'east' });
       act.sandbox({ op: 'restart' });
     } }, t('Reiniciar a rodada', 'Restart the round')));

@@ -9,7 +9,6 @@ import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMI
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export type Wizard = {
-  turretAnchor?: Vec; // Sandbox: posição fixa da torreta nesta rodada.
   id: string;
   pos: Vec;
   vel: Vec; // só o empurrão; andar não entra aqui
@@ -77,6 +76,7 @@ export type Wizard = {
   // clicar para andar não cancela); o clique de andar fica guardado em `then` e vale quando a magia sai
   casting: { spell?: SpellId; item?: ItemId; at: Vec; fireAt: number; then?: Vec | null } | null;
   god?: boolean; // sandbox: vida infinita (não morre; da lava volta para a pedra)
+  turretAnchor?: Vec; // sandbox: ponto fixo da torreta nesta rodada
 };
 
 // meteor fica parado no ponto de impacto até `until` e então explode; swap e grip não causam dano
