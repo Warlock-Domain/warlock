@@ -151,7 +151,7 @@ export function threatTo(w: World, me: Wizard, visible: (p: Projectile) => boole
     if ((owner && (owner === me || (me.team !== null && owner.team === me.team))) || p.kind === 'gravity' || p.kind === 'warpzone' || p.kind === 'illusion' || (p.back && (p.kind === 'drain' || p.kind === 'recharge'))) continue;
     if (p.kind === 'link' && (p.target || p.pillar !== undefined)) continue;
     if (p.kind === 'meteor') {
-      if (dist(p.pos, me.pos) < spellLevel('meteor', p.level).radius + WIZ_R && p.until - w.t < tHit) [threat, tHit] = [p, p.until - w.t];
+      if (dist(p.pos, me.pos) < spellLevel('meteor', p.level, w.book).radius + WIZ_R && p.until - w.t < tHit) [threat, tHit] = [p, p.until - w.t];
       continue;
     }
     const rel = sub(me.pos, p.pos);
@@ -318,14 +318,14 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     if (ready('rush')) return cast('rush', home);
     if (ready('thrust')) return cast('thrust', home);
     // Elo num obstáculo mais para dentro: puxa o bot até ele
-    const L = spellLevel('link', me.spells.link || 1);
+    const L = spellLevel('link', me.spells.link || 1, w.book);
     const post = w.pillars.find((q) => q.alive && edge(w, q.pos) > mine + 1 && dist(q.pos, me.pos) < L.range * 0.9 && dist(q.pos, me.pos) > 1.2);
     if (ready('link') && post) return cast('link', post.pos);
     // ou no inimigo bem mais para dentro: o bot sai de lado e ele passa direto para a lava
     if (enemy && ready('link') && edge(w, enemy.pos) > mine + 1.5 && dist(enemy.pos, me.pos) > 2 && dist(enemy.pos, me.pos) < L.range * 0.9) return (cast('link', enemy.pos), cmds.push(aside(enemy)), cmds);
     if (ready('windwalk')) return cast('windwalk', home);
     // Troca: só vale com o inimigo bem mais para dentro (ele vai para a borda no lugar do bot)
-    if (enemy && ready('swap') && edge(w, enemy.pos) > mine + 1.5 && dist(enemy.pos, me.pos) < spellLevel('swap', me.spells.swap).range) return cast('swap', enemy.pos);
+    if (enemy && ready('swap') && edge(w, enemy.pos) > mine + 1.5 && dist(enemy.pos, me.pos) < spellLevel('swap', me.spells.swap, w.book).range) return cast('swap', enemy.pos);
     // ainda na pedra com folga (numa arena pequena, metade da que cabe): volta para dentro atirando, como gente
     // (19/10: no duelo final ~30% dos pensamentos eram só voltar, e numa arena mínima o bot nunca mais atirava)
     if (!enemy || mine < Math.min(0.5, fear / 2)) return cmds;
@@ -416,7 +416,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
 
   // Drenar ferido: cura com o dano que causar
   if (ready('drain') && me.hp < me.hpMax * 0.7) {
-    const L = spellLevel('drain', me.spells.drain);
+    const L = spellLevel('drain', me.spells.drain, w.book);
     if (d < L.range) return cast('drain', lead(L.speed, CAST_POINT.drain));
   }
   // projétil próprio a caminho do alvo (para Magnetizar e Zona de dobra)
@@ -425,7 +425,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   const lavaBehind = (k: number) => !inside(add(E.pos, scale(dir, k)), 0);
   const slideEnd = add(E.pos, scale(E.vel, 1 / FRICTION));
   // magia de dano pronta (ou em até 1 s) para emendar no controle
-  const loaded = SPELL_IDS.some((x) => me.spells[x] > 0 && spellLevel(x, me.spells[x]).dmg > 0 && w.t + 1 >= usableAt(x));
+  const loaded = SPELL_IDS.some((x) => me.spells[x] > 0 && spellLevel(x, me.spells[x], w.book).dmg > 0 && w.t + 1 >= usableAt(x));
   // candidatos: cada magia pronta com o alvo no alcance; sorteia uma (a jogada certa da vez, `now`, sai sem sorteio)
   const options: { run: () => Cmd[]; dmg: boolean }[] = [];
   // obstáculo vivo no caminho do bot até o ponto
@@ -440,7 +440,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   let meteor: (() => Cmd[]) | null = null;
   for (const s of SPELL_IDS) {
     if (!ready(s) || s === 'shield' || s === 'swap' || s === 'alteration') continue; // Escudo, Troca e Alteração só na defesa (e na borda)
-    const L = spellLevel(s, me.spells[s]);
+    const L = spellLevel(s, me.spells[s], w.book);
     const cp = CAST_POINT[s] ?? 0.1;
     let at: Vec | null = null;
     let prio = false;

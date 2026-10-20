@@ -2,7 +2,7 @@
 // Uma noite = estágios; um estágio = um mapa de salas (levels.ts) com encontros nos pontos de controle.
 import type { CharacterId } from './characters.ts';
 import { nightRand } from './rng.ts';
-import type { SpellId } from './spells.ts';
+import { SPELLS, type Level, type SpellBook, type SpellId } from './spells.ts';
 
 // humanos no máximo; as outras vagas da sala (MAX_PLAYERS) são dos servos
 export const CAMPAIGN = { humans: 4, slots: 4 };
@@ -20,6 +20,13 @@ export const SERVOS: Record<ServoKind, { name: string; plural: string; look: Cha
   // rápido e de perto: Investida (sem modelo de cão ainda; o esqueleto guerreiro faz o papel)
   hound: { name: 'Cão de Brasa', plural: 'Cães de Brasa', look: 'skeleton_warrior', hp: 250, spells: { rush: 1 }, speed: 1.4 },
 };
+
+// magias na Campanha: o que muda aqui vale só na Campanha (World.book); o que não está aqui segue SPELLS, inclusive
+// os ajustes de balanceamento dos outros modos. Nunca mude spells.ts por causa da Campanha: mude aqui. Exemplo:
+//   fireball: retune('fireball', (l) => ({ ...l, cd: 3.5 })),
+// (o empurrão é o campo knock; mudar dmg não muda knock sozinho)
+export const retune = (id: SpellId, f: (l: Level, i: number) => Level): Level[] => SPELLS[id].levels.map((l, i) => f({ ...l }, i)); // cópia: mexer no nível recebido não muda SPELLS
+export const CAMPAIGN_BOOK: SpellBook = {};
 
 // padrão de cada estágio: ondas dos encontros, da mais fácil para a mais difícil (o mapa vem das salas, levels.ts)
 type StagePattern = { id: string; waves: [number, number]; pool: ServoKind[][] };

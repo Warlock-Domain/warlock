@@ -2,7 +2,7 @@
 // Sem DOM: a loja e a partida desenham a partir daqui, e a prévia de compra ou venda compara duas fichas.
 import { HP_MAX, HP_REGEN, LAVA_DPS, WIZ_SPEED } from '../shared/constants.ts';
 import { ACTIVE_ITEMS, ITEM_IDS, itemStats, noItems, type ItemId } from '../shared/items.ts';
-import { SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
+import { SPELL_IDS, spellLevel, type SpellBook, type SpellId } from '../shared/spells.ts';
 import { labelOf } from './keys.ts';
 import { n1, pct } from './rules-text.ts';
 import { ITEM_ROWS, SPELL_ROWS } from './tips.ts';
@@ -27,7 +27,7 @@ const FIELDS: Record<string, [label: string, total: (x: number) => string, part:
   range: [t('Alcance das magias', 'Spell range'), (x) => pct(1 + x), (x) => signed(x, pct)],
 };
 
-export function sheet(spells: Record<SpellId, number>, items: Record<ItemId, number>): SheetRow[] {
+export function sheet(spells: Record<SpellId, number>, items: Record<ItemId, number>, book?: SpellBook): SheetRow[] {
   const st = itemStats(items) as Record<string, number>;
   const rows: SheetRow[] = Object.keys(st).map((k) => {
     const [label, total, part] = FIELDS[k] ?? [k, (x: number) => n2(x), (x: number) => signed(x, n2)];
@@ -40,7 +40,7 @@ export function sheet(spells: Record<SpellId, number>, items: Record<ItemId, num
   for (const s of SPELL_IDS) {
     const lvl = spells[s];
     if (!lvl) continue;
-    const L = SPELLS[s].levels[lvl - 1];
+    const L = spellLevel(s, lvl, book);
     const shown = { ...L, range: L.range * rangeF }; // o Elmo encurta o alcance de todas as magias
     rows.push({ group: spellName(s), label: t('Nível', 'Level'), value: t(`${lvl} · tecla ${labelOf(s)}`, `${lvl} · key ${labelOf(s)}`) });
     for (const [label, f] of SPELL_ROWS[s]) rows.push({ group: spellName(s), label, value: f(shown) });

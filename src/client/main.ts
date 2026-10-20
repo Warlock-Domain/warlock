@@ -6,9 +6,10 @@ import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
+import { CAMPAIGN_BOOK } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
-import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
+import { CAST_POINT, SPELL_IDS, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
 import { LOOK_EVENT, saveLook, savedLook } from './avatar.ts';
@@ -739,7 +740,7 @@ function startRoom(code: string, name: string) {
     });
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
-    scene.range(showing && myPos ? myPos : null, showing && meP ? reachOf(showing, meP.spells, meP.items) : 0);
+    scene.range(showing && myPos ? myPos : null, showing && meP ? reachOf(showing, meP.spells, meP.items, room?.night ? CAMPAIGN_BOOK : undefined) : 0);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
     view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
@@ -762,7 +763,7 @@ function startRoom(code: string, name: string) {
       const prevDraw = prev.get(w.id);
       const moving = len(w.vel) < STUN_SPEED && w.alive && (!prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
-      return { ...w, status: seen(w), pos, hpMax: maxHp(p), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p ? playerName(p) : '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null };
+      return { ...w, status: seen(w), pos, hpMax: maxHp(p), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p ? playerName(p) : '?', shieldR: p?.spells.shield ? spellLevel('shield', p.spells.shield, room?.night ? CAMPAIGN_BOOK : undefined).radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null };
     });
   }
   // sandbox: o servidor manda todos visíveis; "Ver invisíveis" deixa os outros na Caminhada no vento ou no véu da Ilusão
