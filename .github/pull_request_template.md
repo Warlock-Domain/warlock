@@ -15,7 +15,7 @@ Closes #<!-- número da issue, se houver; a palavra tem de ser em inglês (Close
 
 ## Prints
 
-<!-- Obrigatório se mudou algo na tela: antes e depois, no PC. Celular só se a mudança mexe no layout (responsividade). Arraste as imagens aqui. -->
+<!-- Obrigatório se mudou algo na tela: antes e depois, no PC. Sem print de celular por enquanto. Arraste as imagens aqui. -->
 
 | Antes | Depois |
 |---|---|
@@ -26,7 +26,7 @@ Closes #<!-- número da issue, se houver; a palavra tem de ser em inglês (Close
 - [ ] `npx tsc --noEmit -p .` e `npx tsc --noEmit -p src/worker`
 - [ ] `npx vitest run`
 - [ ] `npx vite build`
-- [ ] Joguei no navegador (`npx wrangler dev`) no PC e no celular
+- [ ] Joguei no navegador (`npx wrangler dev`) no PC
 - [ ] Textos novos em português e inglês (`t('pt', 'en')`)
 
 ## Balanceamento
