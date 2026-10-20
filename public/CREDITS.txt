@@ -165,9 +165,10 @@ warlock-wars.svg (vetorial, o W em <path>), favicon.ico (16, 32 e 48 px) e apple
     pessoas na sala: delapouite/character.svg, Delapouite (http://delapouite.com)
     sair da sala: delapouite/exit-door.svg, Delapouite (http://delapouite.com)
 
-Protótipo de menu (issue #83, aguardando revisão):
+Menu principal (issue #83, PR #85):
   home-cat.jpg: imagem gato2.jpg fornecida por Leonard (lboesmans), que declarou
-    autoria e solicitou sua inclusão nesta contribuição. A licença formal de
-    redistribuição deve ser confirmada antes do merge. Não presumir CC0.
+    autoria e pediu a inclusão. Sem licença livre declarada: entra por autorização
+    do dono do projeto (Fernando, 20/10). Não presumir CC0 nem reutilizar fora do jogo;
+    sai do repositório se o autor ou quem tiver os direitos pedir.
   wrench.svg: desenho vetorial original criado para esta contribuição por Codex.
-  O antigo logo W não faz parte desta contribuição.
+  A logo da barra é o texto "Warlock" na fonte Grenze Gotisch (já creditada acima).

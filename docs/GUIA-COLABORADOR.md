@@ -195,7 +195,7 @@ node scripts/smoke.mjs http://localhost:8787                          # teste r�
 
 Os scripts usam o Chrome instalado e um perfil temporário. `PW_CHANNEL=chromium` usa o Chromium do Playwright (`npx playwright-core install chromium` antes); `PW_PROFILE=<pasta>` usa um perfil fixo.
 
-Atalhos: aba **Aprender** (treino com bots, desafios, Sombra e a sandbox com ouro e vida infinitos, arena redonda e torreta de treino), `?as=nome` no endereço, `localStorage['warlock:lang'] = 'pt' | 'en'`. Mudança de tela: PC 1280×720 e 1920×1080, português e inglês, sem erro no console; sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10).
+Atalhos: aba **Jogar** (partida contra bots, desafios, Sombra e a sandbox com ouro e vida infinitos, arena redonda e torreta de treino), `?as=nome` no endereço, `localStorage['warlock:lang'] = 'pt' | 'en'`. Mudança de tela: PC 1280×720 e 1920×1080, português e inglês, sem erro no console; sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10).
 
 ## Balanceamento
 
@@ -224,7 +224,7 @@ Não desfaça sem combinar numa issue.
 | Assunto | Decisão |
 |---|---|
 | Público e estilo | jogadores de Dota; menus, loja e barra no jeito do Dota; menus enxutos |
-| Menu principal | 5 abas: Jogar · Magias e itens · Aprender · Personagem · Configurações |
+| Menu principal | barra: logo Warlock (Início) · Jogar · Aprender · Guarda-roupas · Loja (vitrine) · Perfil; Configurações e Sair como ícones (issue #83) |
 | Loja | grade de ícones com nome dentro, preço com moeda, busca; itens prateados numa coluna à esquerda; Ataque em 2 fileiras de 5, os outros grupos em 1 |
 | Cores por grupo | Ataque vermelho-laranja, Mobilidade verde, Defesa azul, Controle roxo, Itens prateado |
 | Grupos de magia | 10 ataque, 5 mobilidade, 5 defesa, 5 controle |
