@@ -7,7 +7,7 @@ import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, 
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
-import { isPadMode, isUiKey, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
+import { POS_ACTIONS, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
 import { openSettings, savedPixel, setSettingsCtx, settingsPage } from './settings.ts';
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, infoButton } from './opt-info.ts';
@@ -20,7 +20,7 @@ import { SANDBOX_BOT, botSetupPanel, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
-import { endResult, roomGroups } from './screen-data.ts';
+import { endResult, loadoutSlots, moveLoadout, roomGroups, type LoadoutOrder } from './screen-data.ts';
 import { LOCALE, arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
 const TITLE = 'Warlock';
@@ -538,6 +538,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const gearBtn = el('button', { type: 'button', class: 'icon wide-only', title: t('Configurações (Esc)', 'Settings (Esc)'), 'aria-label': t('Configurações', 'Settings'), onclick: () => openSettings() }, icon(UI_ICON.gear));
   onKeysChange(() => {
     barWrap.querySelectorAll<HTMLElement>('[data-action]').forEach((k) => (k.textContent = labelOf(k.dataset.action as Action)));
+    barWrap.querySelectorAll<HTMLElement>('[data-position]').forEach((k) => (k.textContent = keyLabel(keyOf(POS_ACTIONS[Number(k.dataset.position)]))));
     drawCenter();
     drawHints();
   });
@@ -589,6 +590,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let deadShop = false; // caiu na rodada (Rodadas/Times): a loja do meio da rodada compra e vende
   const DRAWER = matchMedia('(min-width: 861px) and (min-height: 501px)'); // largura em que a loja de quem caiu vira gaveta (style.css, .peek-shop.drawer)
   function drawPeek() {
+    if (slotDrag) return;
     if (peekPanel.hidden || !room) return;
     hideTip(peekPanel); // a atualização de 1 s não pode deixar a dica órfã
     const focused = (document.activeElement as HTMLElement | null)?.dataset?.key;
@@ -730,12 +732,72 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const respawn = el('div', { class: 'respawn' });
   const buttons = new Map<SpellId, { b: HTMLElement; cd: HTMLElement; pips: HTMLElement }>();
   let mine: PublicPlayer | undefined;
+  const ORDER_KEY = 'warlock:loadout-order';
+  let loadoutOrder = store.json<LoadoutOrder>(ORDER_KEY) ?? undefined;
+  let slotDrag: { pointer: number; from: number; x: number; y: number; moved: boolean } | null = null;
+  const equipment = (p: PublicPlayer) => loadoutSlots(p.spells, p.items, loadoutOrder);
+  function changeSlot(from: number, to: number) {
+    if (!mine) return false;
+    const current = equipment(mine), next = moveLoadout(current, from, to);
+    if (next === current) return false;
+    loadoutOrder = next;
+    store.set(ORDER_KEY, JSON.stringify(next));
+    refreshEquipment();
+    drawCenter();
+    drawPeek();
+    return true;
+  }
+  function draggableSlot(node: HTMLElement, index: number, occupied: boolean) {
+    node.dataset.loadoutSlot = String(index);
+    if (!occupied) return node;
+    node.classList.add('reorder-slot');
+    node.setAttribute('aria-description', t('Arraste para trocar de posição. Alt + seta esquerda ou direita também troca.', 'Drag to swap slots. Alt + left or right arrow also swaps.'));
+    let blockClick = false;
+    node.addEventListener('click', (e) => { if (blockClick) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+    node.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      slotDrag = { pointer: e.pointerId, from: Number(node.dataset.loadoutSlot), x: e.clientX, y: e.clientY, moved: false };
+      node.setPointerCapture(e.pointerId);
+    });
+    node.addEventListener('pointermove', (e) => {
+      if (!slotDrag || slotDrag.pointer !== e.pointerId) return;
+      if (Math.hypot(e.clientX - slotDrag.x, e.clientY - slotDrag.y) > 6) slotDrag.moved = true;
+      if (slotDrag.moved) { e.preventDefault(); node.classList.add('dragging-slot'); }
+    });
+    const finish = (e: PointerEvent) => {
+      if (!slotDrag || slotDrag.pointer !== e.pointerId) return;
+      const drag = slotDrag;
+      slotDrag = null;
+      node.classList.remove('dragging-slot');
+      blockClick = drag.moved;
+      setTimeout(() => { blockClick = false; }, 0);
+      if (drag.moved && e.type === 'pointerup') {
+        const target = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-loadout-slot]');
+        if (target) changeSlot(drag.from, Number(target.dataset.loadoutSlot));
+      }
+    };
+    node.addEventListener('pointerup', finish);
+    node.addEventListener('pointercancel', finish);
+    node.addEventListener('lostpointercapture', finish);
+    node.addEventListener('dragstart', (e) => e.preventDefault());
+    node.addEventListener('keydown', (e) => {
+      if (!e.altKey || !['ArrowLeft', 'ArrowRight'].includes(e.code)) return;
+      e.preventDefault(); e.stopPropagation();
+      const from = Number(node.dataset.loadoutSlot), to = from + (e.code === 'ArrowLeft' ? -1 : 1);
+      // a loja é redesenhada na troca: o foco vai para a vaga nova da loja (os botões da barra são os mesmos nós)
+      const inShop = !!node.closest('.shop-loadout');
+      if (changeSlot(from, to) && inShop) document.querySelector<HTMLElement>(`.shop-loadout [data-loadout-slot="${to}"]`)?.focus();
+      else node.focus();
+    });
+    return node;
+  }
   const bar = el('div', { class: 'spellbar' }, ...SPELL_IDS.map((s) => {
     const cd = el('span', { class: 'cd' });
     const pips = el('span', { class: 'pips' });
     const b = withTip(el('button', { type: 'button', class: 'spell ' + spellClass(s), 'aria-label': spellName(s), onclick: () => act.spell(s), onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(s), onpointerleave: () => act.hover(null) },
       el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0));
     buttons.set(s, { b, cd, pips });
+    draggableSlot(b, 0, true);
     return b;
   }));
   // itens ativos (teclas 1, 2 e 3) na grade de itens à direita da barra; só aparecem se comprados
@@ -748,7 +810,34 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('span', { class: 'key', 'data-action': i }, labelOf(i)), el('span', { class: 'ico' }, icon(ITEM_ICON[i])), cd), () => itemTip(i, mine?.items[i] ?? 0));
     b.hidden = true;
     itemButtons.set(i, { b, cd });
+    draggableSlot(b, 6, true);
     itemGrid.append(b);
+  }
+  function refreshEquipment() {
+    if (!mine) return setSlots([], []); // espectador: teclas e controle não ficam com a ordem de antes
+    if (slotDrag) return;
+    const order = equipment(mine);
+    const passive = ITEM_IDS.filter((i) => !isActive(i) && mine!.items[i] > 0);
+    const sig = JSON.stringify([order, passive.map((i) => [i, mine!.items[i]])]);
+    if (bar.dataset.order !== sig) {
+      bar.dataset.order = sig;
+      const empty = (index: number, item: boolean) => draggableSlot(el('span', { class: item ? 'slot-empty' : 'spell slot-empty', 'aria-label': t('Posição vazia', 'Empty slot') }, el('span', { class: 'key', 'data-position': index }, keyLabel(keyOf(POS_ACTIONS[index])))), index, false);
+      bar.replaceChildren(...order.spells.map((s, i) => {
+        if (!s) return empty(i, false);
+        const node = buttons.get(s)!.b;
+        node.dataset.loadoutSlot = String(i);
+        return node;
+      }));
+      itemGrid.replaceChildren(...order.items.map((id, i) => {
+        if (!id) return empty(i + 6, true);
+        const node = itemButtons.get(id)!.b;
+        node.dataset.loadoutSlot = String(i + 6);
+        return node;
+      }), ...passive.map((i) => withTip(el('span', { class: 'spell passive', tabindex: 0, 'aria-label': t(`${itemName(i)} (passivo) nível ${mine!.items[i]}`, `${itemName(i)} (passive) level ${mine!.items[i]}`) }, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0))),
+      ...Array.from({ length: Math.max(0, MAX_ITEMS - 3 - passive.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
+      hideTip(bar); hideTip(itemGrid);
+    }
+    setSlots(order.spells, order.items);
   }
   // efeitos ativos em mim, numa fileira pequena acima da barra
   const statusRow = el('div', { class: 'status-icons hud-status', role: 'group', 'aria-label': t('Efeitos', 'Effects') });
@@ -1015,6 +1104,22 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let goldOpen = false;
   let sheetOpen = true;
   let shopQuery = ''; // busca da loja: fica ao redesenhar (a sala manda o estado a cada segundo)
+  const shopLoadout = (p: PublicPlayer) => {
+    const slots = equipment(p);
+    const slot = (id: SpellId | ItemId | null, index: number, item: boolean) => {
+      const key = id ? labelOf(id) : keyLabel(keyOf(POS_ACTIONS[index]));
+      const name = id ? item ? itemName(id as ItemId) : spellName(id as SpellId) : t('Vazio', 'Empty');
+      const level = id ? item ? p.items[id as ItemId] : p.spells[id as SpellId] : 0;
+      const box = el('span', { class: 'shop-loadout-slot' + (id ? item ? ' loadout-item' : ' ' + spellClass(id as SpellId) : ' empty'), tabindex: id ? 0 : undefined, 'aria-label': `${key}: ${name}${level ? ' · ' + t(`nível ${level}`, `level ${level}`) : ''}` },
+        el('kbd', {}, key), id ? icon(item ? ITEM_ICON[id as ItemId] : ICON[id as SpellId]) : el('span', { class: 'loadout-empty', 'aria-hidden': 'true' }, '—'),
+        el('small', {}, name), level ? el('b', { class: 'loadout-level' }, String(level)) : null);
+      draggableSlot(box, index, !!id);
+      return id ? withTip(box, () => item ? itemTip(id as ItemId, level) : spellTip(id as SpellId, level)) : box;
+    };
+    return el('div', { class: 'shop-loadout' },
+      el('div', { class: 'loadout-spells', role: 'group', 'aria-label': t('Seis posições de magias', 'Six spell slots') }, ...slots.spells.map((s, i) => slot(s, i, false))),
+      el('div', { class: 'loadout-items', role: 'group', 'aria-label': t('Três posições de itens ativos', 'Three active item slots') }, ...slots.items.map((s, i) => slot(s, i + 6, true))));
+  };
   const shopSearch = () => el('input', { type: 'search', class: 'lib-search', 'data-key': 'shop-search', value: shopQuery, placeholder: t('Buscar pelo nome', 'Search by name'), 'aria-label': t('Buscar na loja pelo nome', 'Search the shop by name'),
     oninput: (e: Event) => {
       shopQuery = (e.target as HTMLInputElement).value;
@@ -1119,6 +1224,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       group(t('Itens passivos', 'Passive items'), itemCount, ITEM_IDS.filter((i): boolean => !isActive(i)).map(itemOffer)),
       group(t('Itens ativos', 'Active items'), t('cada um com a sua tecla', 'each with its own key'), ACTIVE_ITEMS.map(itemOffer)));
     if (look) return filterShop(el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
+      shopLoadout(mine),
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.sandbox ? t('Loja · sandbox', 'Shop · sandbox') : deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${r.sandbox ? 'ouro sem fim: compre e venda, vale na hora' : deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${r.sandbox ? 'endless gold: buy and sell, it applies right away' : deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
         el('button', { type: 'button', class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`), 'aria-label': t('Fechar a loja', 'Close the shop'), onclick: () => togglePeek(false) }, '✕')),
       shopSearch(),
@@ -1130,6 +1236,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     } }, readyText(mine.ready));
     // compras no meio; ouro, Pronto e placar à direita (pedido do Fernando: loja mais larga; o personagem saiu para o menu principal e as Configurações)
     return filterShop(el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
+      shopLoadout(mine),
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? t('Loja', 'Shop') : t(`Loja · depois da rodada ${r.round}`, `Shop · after round ${r.round}`)), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells`))),
       shopSearch(),
       r.round === 0 && !firstSeen ? firstCard() : null,
@@ -1227,6 +1334,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   let centerPhase = '';
   function drawCenter() {
+    if (slotDrag) return;
     if (!room) return;
     const r = room;
     // redesenhar a loja não pode tirar o foco de quem usa o teclado
@@ -1389,19 +1497,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const face = mine ? `/chars/${mine.character}.webp` : '';
       if (mine && heroFace.getAttribute('src') !== face) heroFace.src = face;
       if (mine && heroFace.alt !== mine.name) heroFace.alt = mine.name;
-      // grade de itens: ativos comprados, depois os passivos (com o nível) e as vagas vazias
-      // a sala manda atualização a cada segundo: recriar sem mudança fecharia a dica aberta nos itens
-      const owned = ITEM_IDS.filter((i): boolean => (mine?.items[i] ?? 0) > 0);
-      const sig = owned.map((i) => i + mine!.items[i]).join();
-      if (sig !== itemGrid.dataset.sig) {
-        itemGrid.dataset.sig = sig;
-        const passive = owned.filter((i) => !isActive(i));
-        itemGrid.replaceChildren(...ACTIVE_ITEMS.map((i) => itemButtons.get(i)!.b), ...passive.map((i) =>
-          withTip(el('span', { class: 'spell passive', tabindex: 0, 'aria-label': t(`${itemName(i)} (passivo) nível ${mine!.items[i]}`, `${itemName(i)} (passive) level ${mine!.items[i]}`) }, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0)),
-        ), ...Array.from({ length: Math.max(0, MAX_ITEMS - owned.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
-        hideTip(itemGrid);
-      }
-      setSlots(SPELL_IDS.filter((s) => (mine?.spells[s] ?? 0) > 0), ACTIVE_ITEMS.filter((i) => (mine?.items[i] ?? 0) > 0));
+      refreshEquipment();
       for (const s of SPELL_IDS) {
         const { b, pips } = buttons.get(s)!;
         const lvl = mine?.spells[s] ?? 0;

@@ -1003,6 +1003,24 @@ body.replaying .peek-shop { display: none; }
 .tile-acts:empty { display: none; }
 /* a busca na coluna da loja não cresce na altura (flex-basis de 220 px valia como altura) */
 .shop-main > .lib-search { flex: none; }
+.shop-loadout { display: flex; gap: 20px; align-items: start; margin-bottom: 12px; }
+.loadout-spells, .loadout-items { display: grid; gap: 6px; min-width: 0; }
+.loadout-spells { flex: 2; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.loadout-items { flex: 1; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.shop-loadout-slot { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-width: 0; min-height: 90px; padding: 22px 4px 8px; border: 1px solid var(--g, var(--gold-line)); background: var(--panel-glass); border-radius: var(--r-sm); text-align: center; }
+.shop-loadout-slot.empty { border-style: dashed; color: var(--muted); }
+.reorder-slot { touch-action: none; cursor: grab; user-select: none; }
+.dragging-slot { cursor: grabbing; outline: 2px solid var(--gold); opacity: .65; }
+.spellbar .slot-empty { position: relative; display: flex; }
+.item-grid .slot-empty[data-loadout-slot] { display: block; position: relative; width: 42px; height: 42px; }
+.item-grid .slot-empty .key { position: absolute; top: 2px; left: 4px; font-size: .65rem; color: var(--muted); }
+.shop-loadout-slot > .gi { width: 28px; height: 28px; color: var(--g, var(--gold)); }
+.shop-loadout-slot kbd { position: absolute; top: 3px; left: 5px; font: inherit; font-size: .75rem; color: var(--gold-pale); }
+.shop-loadout-slot small { font-size: .7rem; line-height: 1.1; overflow-wrap: anywhere; }
+.loadout-item { --g: var(--silver); }
+.loadout-level { position: absolute; right: 5px; top: 3px; color: var(--muted); font-size: .7rem; }
+@media (max-width: 860px) { .shop-loadout { flex-wrap: wrap; gap: 12px; } .loadout-spells { flex-basis: 100%; } .loadout-items { flex: 0 1 50%; } }
+
 /* Ataque em 2 fileiras de 5, cada outro grupo em 1 (Fernando, 19/10) */
 .shop .shop-main .shop-grid { grid-template-columns: repeat(5, 76px); }
 /* menu principal largo como o do Dota (antes 640 px) */
@@ -1039,13 +1057,38 @@ div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: 
 /* loja revista (Fernando, 19/10: "toda feia e mal diagramada"): cartas ocupam a coluna do meio até 200 px,
    Vender/Desfazer no canto da carta (sem abrir buraco entre as fileiras), itens mais baixos com a coluna rolando sozinha */
 @media (min-width: 861px) {
-  .shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(118px, 200px)); }
+  .shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .shop .shop-main .shop-item { width: auto; }
   .shop .shop-main .shop-tile { width: 100%; }
   .shop-items { max-height: calc(100dvh - 48px - var(--safe-t) - var(--safe-b)); overflow-y: auto; scrollbar-width: thin; padding-right: 4px; }
   .shop-items .shop-tile { height: 98px; padding-top: 14px; }
 }
 /* Vender/Desfazer no canto da carta em toda tela; no toque o alvo fica com 36 px para caber na carta */
+/* A loja também pode ser redimensionada: adaptar pela largura do painel, não só da tela. */
+.center:has(.shop), .peek-shop { container: shop-window / inline-size; }
+.shop-main { container: shop-content / inline-size; }
+.shop-side { min-width: 0; overflow-wrap: anywhere; }
+.shop-main > .shop-head { flex-wrap: wrap; }
+.shop-main > .lib-search { width: 100%; min-width: 0; }
+.shop .shop-main .shop-item { min-width: 0; }
+@container shop-window (max-width: 1050px) {
+  .shop { grid-template-columns: minmax(0, 1fr); }
+  .shop-items { order: 50; position: static; max-height: none; overflow: visible; }
+  .shop-items .shop-grid { grid-template-columns: repeat(auto-fit, minmax(min(104px, 100%), 1fr)); }
+  .shop-items .shop-item { width: auto; }
+  .shop-items .shop-tile { width: 100%; }
+  .shop-side { position: static; }
+}
+@container shop-content (max-width: 640px) {
+  .shop .shop-main .shop-grid { grid-template-columns: repeat(auto-fit, minmax(min(104px, 100%), 1fr)); }
+  .shop-loadout { flex-wrap: wrap; gap: 10px; margin-bottom: 0; }
+  .loadout-spells { flex: 1 0 100%; }
+  .loadout-items { flex: 0 1 50%; }
+}
+@container shop-content (max-width: 380px) {
+  .loadout-spells { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .loadout-items { flex-basis: 100%; }
+}
 @media all {
   .shop-item { position: relative; }
   .tile-acts { position: absolute; top: 4px; right: 4px; min-height: 0; z-index: 1; }
