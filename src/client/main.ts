@@ -117,12 +117,18 @@ function startLobby(name: string) {
   ui.addEventListener('click', (e) => (e.target as Element).closest('button, .button') && sound.play('click'));
   let rooms: RoomInfo[] | null = null;
   let offline = false;
+  let exited = false;
   const draw = () =>
-    renderLobby(ui, name, rooms, offline, () => create(), async () => {
+    !exited && renderLobby(ui, name, rooms, offline, () => create(), async () => {
       name = await askName(document.body, name);
       store.set(NAME, name);
       draw();
-    }, create);
+    }, create, () => {
+      exited = true;
+      lobbyNet.stop();
+      screen(ui, t('Até a próxima!', 'See you soon!'), t('Você saiu do jogo. Pode fechar esta aba.', 'You left the game. You can close this tab.'), t('Voltar ao jogo', 'Return to game'), () => location.reload());
+      window.close();
+    });
   // train: o treino que começa sozinho na sala nova (sem armazenamento, entra só na sala)
   async function create(train?: string) {
     try {
@@ -139,7 +145,7 @@ function startLobby(name: string) {
       toast(t('Não deu para criar a sala. Tente de novo.', 'Couldn’t create the room. Try again.'));
     }
   }
-  connect('/ws/lobby', (m) => {
+  const lobbyNet = connect('/ws/lobby', (m) => {
     if (m.t !== 'rooms') return;
     rooms = m.rooms as RoomInfo[]; // a ordem e as vazias recolhidas ficam com renderLobby (screen-data.ts)
     draw();
@@ -210,15 +216,21 @@ function startRoom(code: string, name: string) {
   let pixel = savedPixel();
   const pixelOk = !matchMedia('(pointer: coarse)').matches;
 
+  let autostart = takeAutostart();
+  if (autostart === 'bots') {
+    store.set('warlock:bot-room:' + code, '1');
+    autostart = null;
+  }
+  const botsRoom = store.get('warlock:bot-room:' + code) === '1';
   const view = createRoomUi(ui, code, {
-    start: (bots, mode, shuffle, opts, again) => {
+    start: (bots, mode, shuffle, opts, again, botSetup) => {
       training = false; // partida normal depois de um treino: sem dicas
       run = pending = null;
       if (!again) {
-        trainSetup = undefined; // o "Jogar de novo" repete as magias dos bots do treino; começar pela sala, não
+        trainSetup = botSetup;
         shadow = false;
       }
-      // a dificuldade de cada bot vai sempre; as magias do treino só no "Jogar de novo"
+      // Dificuldade e magias escolhidas na preparação; Jogar de novo repete a configuração.
       net.send({ t: 'start', bots: bots.length, mode, shuffle, opts, setup: bots.map((difficulty, i) => ({ ...trainSetup?.[i], difficulty })) });
     },
     buy: (spell) => net.send({ t: 'buy', spell }),
@@ -271,7 +283,7 @@ function startRoom(code: string, name: string) {
       store.set(NAME, myName);
       net.send({ t: 'hello', playerId, name: myName });
     },
-  });
+  }, botsRoom);
   addEventListener('keydown', (e) => {
     // ← → já trocam o período do placar quando ele está aberto (ui.ts marca o evento; por isso este ouvinte vem depois do createRoomUi)
     if (!watchId || e.defaultPrevented || (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight')) return;
@@ -382,7 +394,6 @@ function startRoom(code: string, name: string) {
     net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts: DEFAULT_OPTS, setup: trainSetup });
   }
   // treino escolhido na tela inicial: só sozinho e com a sala em espera (uma vez, na primeira mensagem que já tem você)
-  let autostart = takeAutostart();
   function begin(r: PublicRoom) {
     const k = autostart;
     if (!k || !r.players.some((p) => p.id === me)) return;
@@ -403,6 +414,7 @@ function startRoom(code: string, name: string) {
     trainSetup = undefined;
     net.send({ t: 'start', bots: 0, mode: 'rounds', shuffle: true, opts: DEFAULT_OPTS, sandbox: true });
     net.send({ t: 'sandbox', cmd: { op: 'bot', dummy: true } });
+    net.send({ t: 'sandbox', cmd: { op: 'turret', direction: 'east' } });
   }
 
   function startChallenge(c: Challenge) {
