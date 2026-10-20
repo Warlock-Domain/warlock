@@ -82,7 +82,6 @@ jobs:
           API: https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/workers
         shell: bash # com pipefail: falha da API para o passo em vez de seguir com a lista vazia
         run: |
-          case "$NOME" in warlock-pr-[0-9]*) ;; *) echo "nome inesperado: $NOME"; exit 1 ;; esac
           auth="Authorization: Bearer $CF_TOKEN"
           ids=$(curl -sf -H "$auth" "$API/domains?service=$NOME" | jq -r '.result[].id')
           for id in $ids; do
