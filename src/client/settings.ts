@@ -4,7 +4,7 @@
 import { isRumbleOn, setPadCapture, setRumble } from './gamepad.ts';
 import { UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
 import {
-  ACTIONS, CAST_MODES, PAD_ACTIONS, PAD_ACTION_NAMES, PAD_NAMES, PAD_START, RESERVED, UI_ACTIONS, UI_NAMES, getCastMode, isSlotMode, keyLabel, keyOf, padButtonName,
+  ACTIONS, CAST_MODES, PAD_ACTIONS, PAD_ACTION_NAMES, PAD_NAMES, PAD_START, POS_ACTIONS, RESERVED, UI_ACTIONS, UI_NAMES, getCastMode, isPos, isSlotMode, keyLabel, keyOf, padButtonName,
   onKeysChange, padActionAt, padButtonOf, resetKeys, resetPad, setCastMode, setKey, setPadButton, setSlotMode, slotSpell, whoUses, type Action, type AnyAction, type CastMode, type PadAction, type UiAction,
 } from './keys.ts';
 import { avatarPanel } from './avatar.ts';
@@ -31,7 +31,7 @@ export function setSettingsCtx(c: SettingsCtx) {
   if (overlay) draw();
 }
 
-const nameOf = (a: AnyAction) => (a in UI_NAMES ? UI_NAMES[a as UiAction] : actionName(a as Action));
+const nameOf = (a: AnyAction) => (isPos(a) ? PAD_ACTION_NAMES[a] : a in UI_NAMES ? UI_NAMES[a as UiAction] : actionName(a as Action));
 const padActionName = (p: PadAction) => {
   const s = p.startsWith('slot') ? slotSpell(Number(p.slice(4)) - 1) : undefined;
   return s ? `${PAD_ACTION_NAMES[p]} · ${spellName(s)}` : PAD_ACTION_NAMES[p];
@@ -44,7 +44,7 @@ let padWaiting: PadAction | null = null;
 function bindKey(a: AnyAction, code: string) {
   if (RESERVED.has(code)) return toast(t('Esc, Enter, Espaço e as setas ← → são fixas.', 'Esc, Enter, Space and the ← → arrows are fixed.'));
   const other = whoUses(code);
-  if (!setKey(a, code)) return toast(t('No modo Q W E R D F essas seis letras são das magias da barra.', 'In Q W E R D F mode these six letters belong to the spells on the bar.'));
+  setKey(a, code);
   if (other && other !== a) toast(t(`Tecla já usada por ${nameOf(other)}: as duas trocaram (${nameOf(other)} ficou com ${keyLabel(keyOf(other))}).`, `Key already used by ${nameOf(other)}: the two swapped (${nameOf(other)} now has ${keyLabel(keyOf(other))}).`));
 }
 function bindPad(a: PadAction, btn: number) {
@@ -99,12 +99,14 @@ function castSection(): Node[] {
     el('p', { class: 'muted' }, CAST_TEXT[getCastMode()][1]),
     el('h3', {}, t('Teclas das magias', 'Spell keys')),
     check('slot-keys', isSlotMode(), t('Q W E R D F pela ordem da barra (como no Dota)', 'Q W E R D F in bar order (like in Dota)'), (on) => (setSlotMode(on), draw())),
-    el('p', { class: 'muted' }, t('Ligado, as seis primeiras magias da barra usam Q W E R D F, na ordem; os itens continuam nas teclas deles.', 'When on, the first six spells on the bar use Q W E R D F, in order; items keep their own keys.')),
-    ...(isSlotMode() ? [] : [el('details', { class: 'spell-keys', open: spellKeysOpen, ontoggle: (e: Event) => (spellKeysOpen = (e.target as HTMLDetailsElement).open) },
-      el('summary', {}, t('Teclas de cada magia', 'Key for each spell')),
-      el('div', { class: 'keys-list' }, ...ACTIONS.filter((a) => isSpell(a)).map(actionRow)))]),
-    el('h3', {}, t('Teclas dos itens', 'Item keys')),
-    el('div', { class: 'keys-list' }, ...ACTIONS.filter((a) => !isSpell(a)).map(actionRow)),
+    el('p', { class: 'muted' }, t('Ligado, magias e itens usam a tecla da posição na barra (troque abaixo); desligado, cada magia e cada item tem a sua tecla.', 'When on, spells and items use the key of their position on the bar (change them below); when off, each spell and each item has its own key.')),
+    ...(isSlotMode()
+      ? [el('h3', {}, t('Teclas das posições', 'Position keys')), el('div', { class: 'keys-list' }, ...POS_ACTIONS.map((p) => keyRow(p, [padActionName(p)])))]
+      : [el('details', { class: 'spell-keys', open: spellKeysOpen, ontoggle: (e: Event) => (spellKeysOpen = (e.target as HTMLDetailsElement).open) },
+        el('summary', {}, t('Teclas de cada magia', 'Key for each spell')),
+        el('div', { class: 'keys-list' }, ...ACTIONS.filter((a) => isSpell(a)).map(actionRow))),
+      el('h3', {}, t('Teclas dos itens', 'Item keys')),
+      el('div', { class: 'keys-list' }, ...ACTIONS.filter((a) => !isSpell(a)).map(actionRow))]),
   ];
 }
 

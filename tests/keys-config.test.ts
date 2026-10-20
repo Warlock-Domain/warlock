@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BTN, padAction } from '../src/client/gamepad.ts';
 import {
-  ACTIONS, PAD_START, UI_ACTIONS, actionFor, isUiKey, keyOf, labelOf, onFreeEsc, padActionAt, padButtonOf, resetKeys, resetPad, setKey, setPadButton, setPadMode, setSlotMode, setSlots, whoUses,
+  ACTIONS, PAD_START, POS_ACTIONS, UI_ACTIONS, actionFor, isUiKey, keyOf, labelOf, onFreeEsc, padActionAt, padButtonOf, resetKeys, resetPad, setKey, setPadButton, setPadMode, setSlotMode, setSlots, whoUses,
 } from '../src/client/keys.ts';
 import { RULES } from '../src/client/rules-text.ts';
 
@@ -37,17 +37,28 @@ describe('teclas da interface no mesmo painel das magias', () => {
     expect([keyOf('fireball'), keyOf('board')]).toEqual(['KeyQ', 'Tab']);
   });
 
-  it('modo Q W E R D F: as seis letras são das posições da barra; atalho e item não ficam com elas', () => {
-    setSlots(['fireball', 'lightning']);
+  it('modo Q W E R D F: as teclas são das posições da barra (Magia 1 a 6, Item 1 a 3), trocáveis; posição e atalho trocam entre si (issue #76)', () => {
+    setSlots(['fireball', 'lightning'], ['pact']);
     setSlotMode(true);
-    expect(setKey('shop', 'KeyQ')).toBe(false);
-    expect(setKey('scourge', 'KeyW')).toBe(false);
-    expect(whoUses('KeyQ')).toBe('fireball');
-    expect(actionFor('KeyW')).toBe('lightning');
-    expect(setKey('stop', 'KeyT')).toBe(true); // letra fora das seis vale
-    expect(isUiKey('KeyT', 'stop')).toBe(true);
-    // a tecla guardada da Rajada (T) trocou com a do Parar (S): o aviso de troca tem de citá-la
-    expect(whoUses('KeyS')).toBe('cluster');
+    expect([whoUses('KeyQ'), actionFor('KeyW'), actionFor('Digit1'), keyOf('pact')]).toEqual(['slot1', 'lightning', 'pact', 'Digit1']);
+    // Magia 1 no Espaço não (fixa); Magia 1 no T: Bola de fogo vai para o T
+    expect(setKey('slot1', 'Space')).toBe(false);
+    setKey('slot1', 'KeyT');
+    expect([actionFor('KeyT'), actionFor('KeyQ'), keyOf('fireball')]).toEqual(['fireball', undefined, 'KeyT']);
+    // Magia 2 no T: as duas posições trocam (Magia 1 fica com o W)
+    setKey('slot2', 'KeyT');
+    expect([keyOf('slot1'), keyOf('slot2')]).toEqual(['KeyW', 'KeyT']);
+    // atalho no W da Magia 1: a posição fica com a tecla antiga do atalho (4)
+    setKey('shop', 'KeyW');
+    expect([isUiKey('KeyW', 'shop'), keyOf('slot1'), actionFor('KeyW'), actionFor('Digit4')]).toEqual([true, 'Digit4', undefined, 'fireball']);
+    // posição na tecla do Parar (S): o Parar fica com a tecla antiga da posição
+    setKey('item1', 'KeyS');
+    expect([actionFor('KeyS'), keyOf('stop')]).toEqual(['pact', 'Digit1']);
+    // nenhuma tecla em duas ações do modo; Voltar ao padrão volta as posições também
+    const used = [...POS_ACTIONS, ...UI_ACTIONS].map(keyOf).filter(Boolean);
+    expect(new Set(used).size).toBe(used.length);
+    resetKeys();
+    expect([keyOf('slot1'), keyOf('item1'), keyOf('shop')]).toEqual(['KeyQ', 'Digit1', 'Digit4']);
   });
 
   it('Rever a queda começa no 5 e é trocável como os outros atalhos', () => {
