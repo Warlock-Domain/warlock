@@ -89,7 +89,7 @@ const RULES_PT = {
   ],
   arenas: [
     `Obstáculos: pilar (${OBSTACLES.pillar.hp} de vida, explode com ${OBSTACLES.pillar.blastDmg} de dano ao quebrar), rocha (não quebra), árvore morta (${OBSTACLES.tree.hp} de vida) e altar de velas (${OBSTACLES.shrine.hp} de vida, explode com ${OBSTACLES.shrine.blastDmg} de dano em ${n1(OBSTACLES.shrine.blastR)} m). Bloqueiam magos, projéteis e o Raio.`,
-    `Baú de ouro (pode desligar): o primeiro aos ${CHEST.first} s, depois um a cada ${CHEST.every} s (até ${CHEST.maxUp} de pé). Quebre com magias e fique em cima do monte: 1 de ouro a cada ${CHEST.goldEvery} s, até ${CHEST.pile}.`,
+    `Baú de ouro (pode desligar): o primeiro aos ${CHEST.first} s, depois um a cada ${CHEST.every} s (até ${CHEST.maxUp} de pé). Quebre com magias e fique em cima do monte: 1 de ouro a cada ${CHEST.goldEvery} s; o monte tem de ${CHEST.pile[0]} a ${CHEST.pile[1]} de ouro.`,
   ],
   get loja() {
     return [
@@ -206,7 +206,7 @@ const RULES_EN: typeof RULES_PT = {
   ],
   arenas: [
     `Obstacles: pillar (${OBSTACLES.pillar.hp} health, explodes for ${OBSTACLES.pillar.blastDmg} damage when broken), boulder (unbreakable), dead tree (${OBSTACLES.tree.hp} health) and candle shrine (${OBSTACLES.shrine.hp} health, explodes for ${OBSTACLES.shrine.blastDmg} damage in ${n1(OBSTACLES.shrine.blastR)} m). They block wizards, projectiles and Lightning.`,
-    `Gold chest (can be turned off): the first at ${CHEST.first} s, then one every ${CHEST.every} s (up to ${CHEST.maxUp} standing). Break it with spells and stand on the pile: 1 gold every ${CHEST.goldEvery} s, up to ${CHEST.pile}.`,
+    `Gold chest (can be turned off): the first at ${CHEST.first} s, then one every ${CHEST.every} s (up to ${CHEST.maxUp} standing). Break it with spells and stand on the pile: 1 gold every ${CHEST.goldEvery} s; the pile holds ${CHEST.pile[0]} to ${CHEST.pile[1]}.`,
   ],
   get loja() {
     return [
