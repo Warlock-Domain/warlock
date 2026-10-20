@@ -30,7 +30,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; ghost?: boolean }; // ghost: meio transparente (a cópia da Ilusão vista pelo dono)
+export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; ghost?: boolean; ember?: number }; // ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa); ghost: meio transparente (a cópia da Ilusão vista pelo dono)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -1709,7 +1709,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           }
         }
       }
-      m.label.hidden = !d.alive || hidden;
+      // Campanha: o caído com brasa mostra o rótulo só com a barra do reacender, e solta brasas
+      const ember = !d.alive && d.ember !== undefined && d.ember >= 0;
+      m.label.hidden = (!d.alive && !ember) || hidden;
+      m.label.classList.toggle('ember', ember);
+      if (ember && !lite && Math.random() < 0.08) burst(v(d.pos.x + (Math.random() - 0.5) * 0.5, d.pos.y + (Math.random() - 0.5) * 0.5), Math.random() < 0.5 ? '#ffb347' : '#ff7a2f', 0.5, 0.9, 0.2, FX.light, 0.9);
       // ícones de efeito em cima do mago (negativos primeiro)
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
@@ -1762,8 +1766,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.botEl.hidden = !d.bot;
         m.botEl.replaceChildren(icon(UI_ICON.bot), d.bot ? BOT_LEVEL[d.bot] : '');
       }
-      m.lootBar.hidden = !d.loot;
-      if (d.loot) m.lootFill.style.width = `${Math.min(100, d.loot * 100)}%`;
+      const prog = ember ? d.ember! : d.loot;
+      m.lootBar.hidden = !ember && !d.loot;
+      if (prog !== undefined) m.lootFill.style.width = `${Math.min(100, prog * 100)}%`;
     }
     for (const [id, m] of mages) if (!seen.has(id)) {
       m.root.visible = false;

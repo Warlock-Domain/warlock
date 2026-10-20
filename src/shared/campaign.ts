@@ -32,6 +32,10 @@ export const SERVOS: Record<ServoKind, { name: string; plural: string; look: Cha
 export const retune = (id: SpellId, f: (l: Level, i: number) => Level): Level[] => SPELLS[id].levels.map((l, i) => f({ ...l }, i)); // cópia: mexer no nível recebido não muda SPELLS
 export const CAMPAIGN_BOOK: SpellBook = {};
 
+// reacender (Lucas, 20/10): aliado a até reach m da brasa por need s (base + perFall por queda anterior na mesma sala)
+// traz o Aceso de volta com hp da vida e os 2 s de invulnerável de sempre; afastar zera; na arena do chefe a brasa apaga em out s
+export const EMBER = { base: 3, perFall: 1, reach: 1, hp: 0.5, out: 20 };
+
 // padrão de cada estágio: ondas dos encontros, da mais fácil para a mais difícil (o mapa vem das salas, levels.ts)
 type StagePattern = { id: string; waves: [number, number]; pool: ServoKind[][] };
 export const STAGES: StagePattern[] = [
@@ -55,5 +59,5 @@ export function roomWaves(seed: number, stage: number, room: number, depth: numb
 // estado da noite guardado na partida (o mapa sai de buildNight pela semente, não é gravado): fight = sala do encontro
 // aberto, wave = onda atual dele, since = w.t em que ele abriu, cracked = lápides que já racharam nele, done = salas com o
 // encontro vencido
-// boss: estado do chefe na luta aberta (bosses.ts; só existe na arena dele)
-export type Night = { seed: number; stage: number; fight: number | null; wave: number; since: number; cracked: number; done: number[]; result: 'won' | 'lost' | null; boss?: BossState };
+// boss: estado do chefe na luta aberta (bosses.ts; só existe na arena dele); falls: quedas de cada Aceso no encontro aberto
+export type Night = { seed: number; stage: number; fight: number | null; wave: number; since: number; cracked: number; done: number[]; result: 'won' | 'lost' | null; boss?: BossState; falls?: Record<string, number> };

@@ -252,6 +252,9 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .obstacle-hp.chest > div { background: var(--gold); }
 .wiz-label .loot-bar { width: 46px; height: 5px; margin-top: 3px; border-radius: 2px; background: rgba(0, 0, 0, .6); overflow: hidden; }
 .wiz-label .loot-bar > div { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-pale)); }
+.wiz-label.ember .hp-row, .wiz-label.ember .shield-bar { display: none; }
+.wiz-label.ember .loot-bar { width: 60px; height: 7px; box-shadow: 0 0 6px var(--ember); }
+.wiz-label.ember .loot-bar > div { background: var(--ember); }
 .hp-text { position: absolute; inset: 0; display: grid; place-items: center; font-size: .7rem; font-weight: 800; line-height: 1; color: var(--white); text-shadow: 0 1px 2px var(--ink), 0 0 2px var(--ink); font-variant-numeric: tabular-nums; }
 .hp-fill { height: 100%; width: 100%; }
 .wiz-label .hp { display: flex; transition: box-shadow .2s, border-color .2s; }

@@ -78,6 +78,8 @@ export type Wizard = {
   casting: { spell?: SpellId; item?: ItemId; at: Vec; fireAt: number; then?: Vec | null } | null;
   god?: boolean; // sandbox: vida infinita (não morre; da lava volta para a pedra)
   safe?: Vec; // mapa: último ponto em chão firme (quem cai no abismo volta aqui)
+  // Campanha: brasa do Aceso caído (match.ts): prog s com aliado perto, need s para voltar; out = apagou (arena do chefe)
+  ember?: { prog: number; need: number; since: number; out?: boolean };
   moveAt?: number; // começo da última Investida ou Estocada (o embalo depois dela ainda é movimento da própria magia)
 };
 
@@ -136,6 +138,7 @@ export type SimEvent =
   | { k: 'runeTake'; id: string; kind: RuneKind } // alguém pegou a runa
   // chefe da Campanha (bosses.ts): aim = parou e mira a investida até (tx, ty); stun = derrubou um pilar; phase2; down = caiu
   | { k: 'boss'; id: string; what: 'aim' | 'stun' | 'phase2' | 'start' | 'down'; x: number; y: number; tx?: number; ty?: number }
+  | { k: 'ember'; id: string; what: 'lit' | 'out'; x: number; y: number } // Campanha: reacendido pelo grupo, ou a brasa apagou
   | { k: 'sudden' } // morte súbita: a arena passa a encolher mais rápido
   // sequência de abate (vem da partida): multi = abates seguidos rápidos, spree = abates sem morrer, breaker = acabou com a sequência de victim
   | { k: 'streak'; id: string; kind: 'multi' | 'spree' | 'breaker'; n: number; victim?: string }
