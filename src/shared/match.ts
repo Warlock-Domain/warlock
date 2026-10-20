@@ -32,8 +32,14 @@ function addStat(p: Player, f: (s: Stat) => void) {
   f(p.stats.room);
 }
 // toda renda passa por aqui e é multiplicada pela economia da sala (scaled = false: o valor já vem na escala dela); devolve o ganho
+// a parte quebrada fica guardada no jogador (Fernando, 20/10, issue #88: no ×1,5 o monte paga 1, 2, 1, 2…); o 1e-9 segura o erro das contas com decimal
 function earn(m: Match, p: Player, gold: number, scaled = true): number {
-  const n = scaled ? Math.round(gold * m.opts.economy) : gold;
+  let n = gold;
+  if (scaled) {
+    const total = gold * m.opts.economy + (p.goldCarry ?? 0);
+    n = Math.floor(total + 1e-9);
+    p.goldCarry = total - n;
+  }
   p.gold += n;
   addStat(p, (s) => (s.gold += n));
   return n;
@@ -57,7 +63,7 @@ export type Vote = { kind: (typeof VOTE_KINDS)[number]; target: string; by: stri
 export const OPTION_CHOICES = {
   shop: [30, 45, 60, 90, 120], // a loja ainda acaba antes quando todos clicam Pronto
   pace: ['short', 'normal', 'long'],
-  economy: [0.6, 1, 1.6, 2.5],
+  economy: [0.6, 1, 1.5, 2], // Fernando, 20/10 (issue #88): antes ×1,6 e ×2,5
   startGold: [30, 60, 100],
   goal: [3, 5, 7],
   // mecânicas que dá para desligar: runas, morte súbita e baús de ouro
@@ -93,6 +99,7 @@ export type Player = {
   look: string; // aparência montada (7 dígitos, ver LOOK_PARTS)
   score: number; // rodadas vencidas (deathmatch: abates)
   gold: number;
+  goldCarry?: number; // fração de ouro ainda não paga (ver earn)
   spells: Record<SpellId, number>;
   items: Record<ItemId, number>;
   stats: Stats;
@@ -227,7 +234,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
 // zera a partida e abre a loja da rodada 1 (começar, ou reiniciar por votação com os mesmos jogadores)
 function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: () => number) {
   for (const p of m.players) {
-    Object.assign(p, { score: 0, gold: startGold(m), spells: noSpells(), items: startItems() });
+    Object.assign(p, { score: 0, gold: startGold(m), goldCarry: 0, spells: noSpells(), items: startItems() });
     p.held = {};
     p.stats.match = newStat();
     p.stats.round = newStat();
@@ -588,7 +595,7 @@ function bonus(m: Match, p: Player, gold: number, scaled = true) {
   if (gold <= 0) return;
   const n = earn(m, p, gold, scaled);
   const z = m.world?.wizards.find((q) => q.id === p.id);
-  if (z) m.world!.events.push({ k: 'gold', id: p.id, n, x: z.pos.x, y: z.pos.y });
+  if (z && n > 0) m.world!.events.push({ k: 'gold', id: p.id, n, x: z.pos.x, y: z.pos.y });
 }
 
 function endRound(m: Match, now: number, winner: string | null) {
