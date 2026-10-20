@@ -1,6 +1,6 @@
 name: Ideia
 description: Magia, item, modo, mudança de interface ou de balanceamento
-labels: [ideia]
+labels: [ideia, precisa de decisão]
 body:
   - type: textarea
     id: oque

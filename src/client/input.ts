@@ -11,8 +11,8 @@ export type InputHandlers = {
   pick: (x: number, y: number) => Vec | null;
   move: (to: Vec) => void;
   stop: () => void;
-  cast: (spell: SpellId, at: Vec) => void;
-  useItem: (item: ItemId, at: Vec) => void;
+  cast: (spell: SpellId, at: Vec) => boolean | void; // true quando saiu de verdade (sem recarga, com a magia)
+  useItem: (item: ItemId, at: Vec) => boolean | void;
   center: () => void;
   zoom: (deltaY: number) => void;
   pan: (dx: number, dy: number) => void;
@@ -44,6 +44,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   };
   // tecla de magia segurada: lança ao soltar, no ponto do cursor naquela hora
   let held: { action: SpellId | ItemId; code: string } | null = null;
+  let flash: ReturnType<typeof setTimeout> | undefined;
   const cancel = () => {
     held = null;
     h.preview(null);
@@ -136,7 +137,12 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
         return h.preview(action);
       }
       const p = h.pick(cursor.x, cursor.y);
-      if (p) fire(action, p);
+      // Rápido: o anel de alcance pisca por um instante quando a magia sai (issue #61)
+      if (p && fire(action, p)) {
+        h.preview(action);
+        clearTimeout(flash);
+        flash = setTimeout(() => !held && h.preview(null), 400);
+      }
       return;
     }
     if (isUiKey(e.code, 'stop')) h.stop();

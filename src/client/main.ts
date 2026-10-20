@@ -15,7 +15,7 @@ import { coachTip } from './coach.ts';
 import { PROFILE_KEY, addRound, toSkill, type Profile } from './mimic.ts';
 import { n1 } from './rules-text.ts';
 import { reachOf } from './reach.ts';
-import { ITEM_ICON, RUNE_ICON, SOURCE_ICON, icon } from './icons.ts';
+import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t } from './i18n.ts';
 import { isPadMode, labelOf, onFreeEsc } from './keys.ts';
@@ -204,6 +204,9 @@ function startRoom(code: string, name: string) {
   // efeitos visuais Completo/Leve guardados no navegador; sem escolha, quem pede menos movimento ao sistema começa no Leve
   let fxLite = (store.get('warlock:fx') ?? (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'lite' : 'full')) === 'lite';
   document.body.classList.toggle('fx-lite', fxLite);
+  // pixel art (issue #79): desligado por padrão; só no PC, onde há pós-processamento
+  let pixel = store.get('warlock:pixel') === '1';
+  const pixelOk = !matchMedia('(pointer: coarse)').matches;
 
   const view = createRoomUi(ui, code, {
     start: (bots, mode, shuffle, opts, again) => {
@@ -250,6 +253,12 @@ function startRoom(code: string, name: string) {
       document.body.classList.toggle('fx-lite', lite);
       scene.setFx(lite);
     },
+    pixel: pixelOk ? () => pixel : undefined,
+    setPixel: (on) => {
+      pixel = on;
+      store.set('warlock:pixel', on ? '1' : '0');
+      scene.setPixel(on);
+    },
     spellReady: () => sound.play('ready', 0.8),
     watch: (step) => (watchStep = step),
     replay: toggleReplay,
@@ -275,6 +284,7 @@ function startRoom(code: string, name: string) {
   });
   const scene = createScene(canvas, document.getElementById('labels')!);
   scene.setFx(fxLite);
+  scene.setPixel(pixel);
   const interp = createInterp();
   const predict = createPredict();
 
@@ -313,6 +323,7 @@ function startRoom(code: string, name: string) {
       scene.castLocal(me, spell, at);
       scene.clickMarker(at, true);
       sound.play(SPELL_SOUND[spell]);
+      return true;
     },
     useItem(item, at) {
       const mine = room?.players.find((p) => p.id === me);
@@ -324,6 +335,7 @@ function startRoom(code: string, name: string) {
       command({ t: 'item', item, x: at.x, y: at.y });
       predict.hold(ITEM_CAST[item] ?? 0);
       scene.clickMarker(at, true);
+      return true;
     },
     center: () => {
       follow = true;
@@ -427,7 +439,6 @@ function startRoom(code: string, name: string) {
     return new Map(room?.players.map((p) => [p.id, p.name]) ?? []);
   }
 
-  const RUNE_NAME: Record<RuneKind, string> = { haste: t('Runa da Pressa', 'Haste Rune'), fury: t('Runa da Fúria', 'Fury Rune'), shield: t('Runa do Escudo', 'Shield Rune'), recharge: t('Runa da Recarga', 'Recharge Rune') };
   const RUNE_TEXT = (k: RuneKind) => [icon(RUNE_ICON[k]), ' ' + RUNE_NAME[k]];
   // o que cada runa faz, com os números do código (pedido do Fernando, 18/10: dizer ao pegar)
   const RUNE_EFFECT: Record<RuneKind, string> = {
@@ -692,11 +703,11 @@ function startRoom(code: string, name: string) {
     // replay: câmera travada no meio entre mim e quem me derrubou
     const rMe = rs ? drawWiz.find((w) => w.id === me)?.pos : undefined;
     const rBy = killer ? drawWiz.find((w) => w.id === killer)?.pos : undefined;
-    // Ilusão: a cópia é desenhada como o dono (mesmo boneco, cor, nome e vida), meio transparente só para quem a lançou
+    // Ilusão: a cópia usa o visual do dono, mas tem identidade visual própria: sempre visível e sólida.
     const copies: WizDraw[] = (shown ? shown.projectiles : []).flatMap((q) => {
       const ownerId = q.kind === 'illusion' ? room?.ids[q.vel.x] : undefined;
       const o = drawWiz.find((d) => d.id === ownerId);
-      return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~8388608, moving: true, cheer: false, ghost: ownerId === me }] : [];
+      return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(1024 | 2048 | 8388608), moving: true, cheer: false, illusion: true, ghost: false }] : [];
     });
     // o desafio conta o tempo só com a rodada rolando; o progresso dele fica no lugar da dica do treino
     if (run?.state === 'on' && room?.phase === 'playing') finishRun(stepRun(run, dt, [], me, meW?.alive !== false));
@@ -723,7 +734,7 @@ function startRoom(code: string, name: string) {
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
     view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
-      wizards.filter((w) => !w.alive).map((w) => w.id).join()); // caídos na rodada: retrato apagado no topo
+      wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx); // caídos na rodada: retrato apagado no topo
   }
   const drawn = new Map<string, Vec>();
   const replayDrawn = new Map<string, Vec>();
@@ -737,11 +748,14 @@ function startRoom(code: string, name: string) {
     const prev = live ? drawn : replayDrawn;
     return s.wizards.map((w) => {
       const p = byId.get(w.id);
+      // o meu véu usa o estado mais recente do servidor, sem atraso da interpolação; andar não pode fazê-lo piscar
+      const visibilityBits = 1024 | 2048 | 8388608;
+      const status = w.id === me && server ? (w.status & ~visibilityBits) | (server.status & visibilityBits) : seen(w);
       const pos = w.id === me && server ? predict.frame(server, dt) : w.pos;
       const prevDraw = prev.get(w.id);
       const moving = len(w.vel) < STUN_SPEED && w.alive && (!prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
-      return { ...w, status: seen(w), pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null };
+      return { ...w, status, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
     });
   }
   // sandbox: o servidor manda todos visíveis; "Ver invisíveis" deixa os outros na Caminhada no vento ou no véu da Ilusão

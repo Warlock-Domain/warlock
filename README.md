@@ -11,8 +11,9 @@ Remake web do mod de arena **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): m
 - Modos Rodadas, Deathmatch e Times; arenas Círculo, Anel, Ilhas e Cruz, que encolhem até a morte súbita
 - Bots em 3 dificuldades (escolhida bot a bot), que jogam "como gente": mira com erro, tempo de reação, hesitação
 - Aba Aprender: treino com bots, desafios, Sombra (bot que joga como você) e sandbox com vida e ouro sem fim
-- Criador de personagem de 7 peças, grimório (F1), consulta de magias e itens (F2), replay da queda (5), placar (Tab)
+- Criador de personagem de 7 peças com prévia 3D orbitável (arraste para girar, role para aproximar), grimório (F1), consulta de magias e itens (F2), replay da queda (5), placar (Tab)
 - Telemetria do jeito de jogar e simulador de balanceamento (`scripts/balance-sim.ts`)
+- Ilusão: uma cópia visível segue em frente por 2 s enquanto o jogador fica invisível e pode se mover; outra magia revela o jogador, mas a cópia continua até o prazo. Ambos podem ser atingidos; a cópia pode ser empurrada, mas não destruída.
 
 ## Stack
 
@@ -33,9 +34,9 @@ npx vitest run     # testes
 
 - Guia completo: [docs/GUIA-COLABORADOR.md](docs/GUIA-COLABORADOR.md) (máquina, Claude Code e skills, fluxo, testes, balanceamento, decisões já tomadas)
 - Regras do código para gente e para agentes de IA (Claude Code, Codex, Cursor): [CLAUDE.md](CLAUDE.md), também lido via [AGENTS.md](AGENTS.md); cada pasta principal tem o seu `CLAUDE.md`
-- Fluxo de Git: [CONTRIBUTING.md](CONTRIBUTING.md). O `master` é protegido: branch no próprio repositório (não fork), PR com o modelo, CI verde. Todo PR recebe a revisão automática do Claude; comente `@claude` num PR ou issue para pedir ajuda
+- Fluxo de Git: [CONTRIBUTING.md](CONTRIBUTING.md). Fluxo: branch da tarefa no próprio repositório (não fork) a partir do `master` → PR para o `master` com o modelo, CI verde → jogo no ar, publicado sozinho. Todo PR recebe a revisão automática do Claude; comente `@claude` num PR ou issue para pedir ajuda
 - Ambiente dev de cada colaborador: push na branch `<usuário do GitHub>-dev` publica em `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com` (lista no `CLAUDE.md`, seção "Ambientes dev")
-- O jogo no ar é publicado pelo dono do projeto depois do merge
+- O jogo no ar é publicado sozinho quando o PR entra no `master`
 
 ## Créditos
 

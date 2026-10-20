@@ -18,7 +18,6 @@ src/shared/   lógica do jogo, roda igual no servidor e no navegador
 src/worker/   Cloudflare Workers + Durable Objects (uma sala por objeto; lobby.ts guarda a telemetria)
 src/client/   navegador: main.ts (laço), scene.ts (Three.js), ui.ts (HUD, menus, loja), i18n.ts, grimoire.ts…
 scripts/      balance-sim.ts (simulador de balanceamento), build-tournament.ts (torneio de compras), smoke.mjs
-              assets/ff7-style.py: versão estilo FF7 de PS1 de um boneco KayKit, no Blender (instruções no topo do arquivo)
 tests/        Vitest (lógica e funções puras do cliente)
 docs/         auditorias, revisões de código e catálogos
 ```
@@ -78,7 +77,24 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 19/10 | Os `CLAUDE.md` (raiz e pastas) são atualizados a cada decisão nova | todo dev com o mesmo contexto do dono |
 | 19/10 | PR passa pela revisão automática do Claude (comentário com veredito) e pode ser ajustado e mesclado pelo agente do dono, inclusive PR de colaborador; comente `@claude` num PR ou issue para pedir ajuda | mesclar rápido sem o dono revisar à mão |
 | 19/10 | Cada colaborador tem um ambiente dev próprio (`<usuário do GitHub>-dev`, em minúsculas) publicado sozinho a cada push | testar com outras pessoas antes do PR, sem tocar no jogo no ar |
+| 19/10 | Fluxo dev do usuário → dev geral (`dev`, https://dev-warlock.fernandorffdev.com) → `master` (jogo no ar, publicado sozinho pela pipeline Produção) | testar junto antes de ir ao ar, sem publicar à mão |
+| 19/10 | Promoção `dev` → `master` só quando o Fernando mandar | as promoções estavam rápidas demais; o dev geral serve para jogar antes |
+| 20/10 | Teclas **Q W E R D F pela ordem da barra** ligadas por padrão; quem desmarcou continua sem (issue #65) | público de Dota já joga assim |
+| 20/10 | No modo Q W E R D F as teclas das **posições** são trocáveis em Lançamento: Magia 1 a 6 e Item 1 a 3 (itens também por posição na barra; só 3 posições de item por enquanto) (issue #76) | configurar as teclas do Q W E R D F como no Dota; posição de item deixa trocar a ordem e receber itens ativáveis novos |
+| 20/10 | **Ilusão** nova (issue #49): a cópia anda reto 2 s na direção do movimento, leva empurrão mas só some no prazo; quem lança fica invisível 2 s para todos (inclusive aliados) e outra magia o revela. Aprovada **sem passar pelo simulador** (exceção decidida pelo dono) | ideia do Leonard no estilo do Phantom Lancer do Dota |
+| 20/10 | No lançamento **Rápido** o anel de alcance pisca por 0,4 s quando a magia ou o item sai de verdade (issue #61) | no Rápido o jogador nunca via o alcance; mostra sem atrasar o lançamento |
+| 20/10 | Print de celular só quando a mudança mexe no layout e precisa conferir a responsividade; nos outros casos basta o PC | prints de celular em toda mudança atrasavam PR sem ganho |
+| 20/10 | Teclas de magias e itens ficam em Configurações → **Lançamento**, junto da caixa Q W E R D F: desligada, o botão "Teclas de cada magia" abre a lista; itens sempre ali; a seção Teclas fica só com os atalhos (issue #68) | a tecla de cada magia só importa sem o Q W E R D F; escolhido entre botão, lista sempre aberta e atalho |
+| 20/10 | Issue só pelos modelos Bug e Ideia (issue em branco desligada), título de uma frase sem prefixo, um assunto por issue, quem vai fazer se atribui antes de começar e só pega issue sem dono | evitar duas pessoas no mesmo trabalho |
+| 20/10 | Mudança grande (como o jogo se joga, balanceamento, tirar algo, mais de um dia de trabalho) só começa depois de decidida: issue **Ideia** com `precisa de decisão`, cerca de 2 dias de discussão, o Fernando dá a palavra final ouvindo o grupo, decisão escrita na issue e aqui; PR grande sem decisão espera. Bug e alinhamento de interface vão direto em PR | preocupação do grupo (Branco): cada um atacando o que dá na telha sem combinar |
+| 20/10 | O menu de Configurações de dentro da partida usa a mesma página do menu inicial: seções empilhadas com rolagem e sumário (issue #70); no menu inicial, Esc e Start abrem a aba Configurações em vez do diálogo | mesmo estilo nos dois lugares, como pedido; evita duas cópias da página na tela |
+| 20/10 | O dev geral continua, mas todo PR mesclado em `dev` (inclusive de colaborador) é promovido para o `master` logo em seguida, sem esperar a palavra do Fernando; balanceamento continua só depois da simulação aprovada. Substitui as duas linhas de 19/10 sobre promoção | ninguém jogava no dev geral antes de liberar; esperar só atrasava |
+| 20/10 | Aba Configurações do menu inicial em página única (issue #59): seções empilhadas com sumário lateral fixo e a seção visível destacada, como as opções do Dota 2; no celular o sumário recolhe no topo. Personagem vira atalho para a aba dele e Idioma vira seção própria (também no diálogo) | público de Dota; achar e mudar uma opção sem abrir e fechar painéis; usar a largura do PC |
+| 19/10 | O que o Fernando pede vai direto para o `master`: PR para `dev`, mescla e promoção `dev` → `master` em seguida | pedido dele ("pode colocar as minhas coisas direto para master sempre"); o que vem dos colaboradores segue esperando a palavra dele no dev geral |
+| 20/10 | O dev geral (`dev`) sai do fluxo: a branch da tarefa sai do `master` e o PR vai direto para o `master` (squash), que publica o jogo no ar pela pipeline Produção; sem promoção `dev` → `master`; a `dev` fica parada (sem apagar) e o dev-warlock deixa de ser atualizado; os ambientes `<usuário>-dev` continuam (issue #72). Substitui as linhas de 19/10 e 20/10 sobre o dev geral e a promoção | toda mescla já ia ao ar na hora: o `dev` só dobrava PR e deploy |
+| 19/10 | Vender devolve sempre 100% do que pagou; o ouro garantido da rodada (`ROUND_GOLD`) chega na hora da queda, para comprar enquanto assiste; loja: cartas ocupam a coluna, Vender no canto da carta (moeda no toque) | pedidos do Fernando |
 | 19/10 | Modo novo **Ascensão** (roguelike, estilo ARAM com cartas): XP do mago, a cada nível escolhe 1 entre 3 cartas (magia nova, subir magia, item) no intervalo; sem ouro, loja nem baús; Flagelo continua de graça; 9 rodadas com pontos por colocação; 4 mecanismos de recuperação; aumentos ficam para a 2ª leva. Desenho em `docs/superpowers/specs/2026-10-19-ascensao-design.md` | progressão dentro da partida sem decidir o jogo cedo |
+| 19/10 | Modo novo **Campanha** (co-op PvE roguelike, proposta do Lucas): 1 a 4 Acesos contra o Fumo numa noite de 30 a 45 min (3 estágios + chefe final), mapa gerado por semente no padrão Diablo 2 (objetivo fixo, noite nova a cada tentativa), 6 classes com passiva e árvore de cartas (Guerreiro, Arqueiro, Mago, Warlock, Ladino e Errante, que aprende tudo), XP e cartas do Ascensão, servos do Fumo (esqueletos com IA de bot), chefes pesados que voltam da lava com dano, reacender aliado caído. 1ª campanha: Última Vela; fatia 1 = Charneca Cinzenta + Sir Odran. Desenho em `docs/superpowers/specs/2026-10-19-campanha-design.md`. Dono do modo: Lucas (decide os detalhes da Campanha); o motor de cartas vem do Ascensão (Fernando, 19/10) | jogar junto contra o jogo, com história, sem mudar os modos atuais |
 
 ## Fluxo com agente
 
@@ -93,8 +109,33 @@ Push na branch `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffde
 | Colaborador | GitHub | Branch | Link |
 |---|---|---|---|
 | Leonard | lboesmans | `lboesmans-dev` | https://lboesmans-dev-warlock.fernandorffdev.com |
-| Branco | breakie33 | `breakie33-dev` | https://breakie33-dev-warlock.fernandorffdev.com |
+| Sky | breakie33 | `breakie33-dev` | https://breakie33-dev-warlock.fernandorffdev.com |
 | Lucas | lucascvalle | `lucascvalle-dev` | https://lucascvalle-dev-warlock.fernandorffdev.com |
+| Arthur | arthurbaquit | `arthurbaquit-dev` | https://arthurbaquit-dev-warlock.fernandorffdev.com |
+| Fernando | fernandorff | `fernandorff-dev` | https://fernandorff-dev-warlock.fernandorffdev.com |
+
+A branch `-dev` é sua: pode substituir pelo estado da tarefa (`git push --force origin HEAD:<usuário>-dev`) ou atualizar com o jogo no ar (`git merge origin/master` nela). Não abra PR a partir da `-dev`; o PR sai da branch da tarefa.
+
+### Fluxo dos ambientes
+
+**branch da tarefa → PR para o `master` → no ar** (decisão do Fernando, 20/10; o dev geral saiu do fluxo):
+
+1. Branch da tarefa (`feat/…`, `fix/…`) a partir do `master`; para testar com outras pessoas, publique no seu `<usuário>-dev`.
+2. PR da tarefa para o **`master`** (a branch padrão), em *squash and merge*. Mudança de balanceamento só depois da simulação aprovada.
+3. Ao mesclar, a pipeline **Produção** publica em https://warlock.fernandorffdev.com. Sem promoção e sem dev geral.
+
+### Pipelines
+
+| Pipeline | Arquivo | Quando roda | O que faz | Se der errado |
+|---|---|---|---|---|
+| CI | `ci.yml` | todo PR e todo push no `master` | os dois `tsc`, `vitest run`, `vite build` | o PR não entra; abra o log em Actions e corrija na mesma branch |
+| Título do PR | `pr-title.yml` | ao abrir ou editar o PR | confere o formato `tipo: o que muda` | edite o título; roda de novo sozinho |
+| Revisão do Claude | `claude-review.yml` | PR aberto, commit novo, saiu de rascunho | comenta veredito, checagens e pontos (não aprova nem mescla) | não bloqueia; não roda em fork nem no PR que altera o próprio workflow |
+| `@claude` | `claude.yml` | comentário com `@claude` num PR ou issue | responde e ajuda no próprio PR/issue | — |
+| Ambiente dev | `dev-deploy.yml` | push na branch `<usuário do GitHub>-dev` | build, publica um Worker só seu, espera o domínio responder e roda o teste rápido | build quebrado: nada é publicado e o site anterior continua; teste rápido falhou: a versão nova já foi publicada e está com problema, veja o log |
+| Produção | `deploy.yml` | push no `master` (merge do PR da tarefa) | gates, publica o jogo no ar, confere se o site serve o build novo e roda o teste rápido | falhou antes do deploy: nada muda no ar; falhou depois: o jogo no ar está com a versão nova, veja o log |
+
+Logs: https://github.com/fernandorff/warlock/actions.
 
 ## Balanceamento (como se decide número de magia e item)
 
@@ -106,15 +147,15 @@ Push na branch `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffde
 
 ## Testar no navegador
 
-Prints com Playwright headless contra `npx wrangler dev`; confira PC (1280×720 e 1920×1080) e celular (390×844) e as duas línguas (`localStorage.warlock:lang = 'pt' | 'en'`). `node scripts/smoke.mjs <url>` faz o teste rápido de uma sala de verdade. Scripts prontos: `node scripts/play-headless.mjs <url> <pasta-prints>` (uma rodada com prints), `long-headless.mjs`, `multi-headless.mjs` (3 pessoas). Usam o Chrome instalado (`PW_CHANNEL=chromium` para o Chromium do Playwright, depois de `npx playwright-core install chromium`) e um perfil temporário (`PW_PROFILE=<pasta>` para um fixo).
+Prints com Playwright headless contra `npx wrangler dev`; confira no PC (1280×720 e 1920×1080), celular (390×844) só quando a mudança mexe no layout e precisa conferir se ele se adapta à tela pequena (decisão de 20/10), e as duas línguas (`localStorage.warlock:lang = 'pt' | 'en'`). `node scripts/smoke.mjs <url>` faz o teste rápido de uma sala de verdade. Scripts prontos: `node scripts/play-headless.mjs <url> <pasta-prints>` (uma rodada com prints), `long-headless.mjs`, `multi-headless.mjs` (3 pessoas), `ghost-socket.mjs` (conexão que some sem fechar; sem navegador, ~6 min). Usam o Chrome instalado (`PW_CHANNEL=chromium` para o Chromium do Playwright, depois de `npx playwright-core install chromium`) e um perfil temporário (`PW_PROFILE=<pasta>` para um fixo).
 
 ## Git
 
-Fluxo completo em [CONTRIBUTING.md](CONTRIBUTING.md): uma branch por tarefa a partir do `master` (`feat/`, `fix/`, `balance/`, `style/`, `docs/`, `refactor/`), commits em português com o tipo na frente (`feat: …`), pull request com o modelo de `.github/`, CI verde (`.github/workflows/ci.yml`: os dois `tsc`, `vitest`, `vite build`) e *squash and merge*. Agente: nunca dê push direto no `master` sem o dono pedir; abra PR.
+Fluxo completo em [CONTRIBUTING.md](CONTRIBUTING.md): uma branch por tarefa a partir do `master` (`feat/`, `fix/`, `balance/`, `style/`, `docs/`, `refactor/`), commits em português com o tipo na frente (`feat: …`), pull request com o modelo de `.github/`, CI verde (`.github/workflows/ci.yml`: os dois `tsc`, `vitest`, `vite build`) e *squash and merge*. PR da tarefa vai direto para o `master`. Agente: nunca dê push direto no `master`; abra PR.
 
 ## Publicar
 
-Só quem tem a conta Cloudflare do projeto publica: `npx vite build && npx wrangler deploy`, depois confira que o `index-*.js` servido é o do `dist/` e rode o smoke no domínio. Contribuições de fora chegam por pull request.
+Automático: o merge no `master` publica o jogo no ar pela pipeline **Produção** (`deploy.yml`), com gates, conferência do `index-*.js` servido e teste rápido. Publicar à mão (`npx vite build && npx wrangler deploy`) só em emergência, por quem tem a conta Cloudflare.
 
 ## Créditos e licenças
 

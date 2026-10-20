@@ -4,10 +4,11 @@ import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, typ
 import { CHARACTERS, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
   ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
+  type RuneKind,
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
 import type { BotSetup } from './protocol.ts';
-import { gearOf, newWorld, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
+import { gearOf, newWorld, placeRune, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
 import { MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { dist, len, type Vec } from './vec.ts';
 
@@ -113,6 +114,7 @@ export type SandboxCmd =
   | { op: 'set'; key: keyof Sandbox; on: boolean }
   | { op: 'bot'; bot?: BotSetup; dummy?: boolean }
   | { op: 'arena'; arena: ArenaId }
+  | { op: 'rune'; kind: RuneKind } // runa escolhida ao lado de quem pediu (pedido do Sky, 20/10)
   | { op: 'restart' };
 const SANDBOX_GOLD = 9999;
 
@@ -140,6 +142,7 @@ export type Match = {
   pendingOpts: Partial<MatchOpts>; // opções votadas: valem quando a próxima rodada começar
   botDelta: number; // bots votados para entrar (+) ou sair (−) quando a próxima rodada começar
   sandbox?: Sandbox; // só nas salas sandbox (escolhido no começo da partida)
+  roundPaid?: string[]; // quem já recebeu o ouro garantido desta rodada (paga na queda)
 };
 
 export const newMatch = (): Match => ({
@@ -569,6 +572,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   }
   m.round++;
   for (const p of m.players) p.stats.round = newStat();
+  m.roundPaid = [];
   const ids = m.players.map((p) => p.id);
   const teams = m.mode === 'teams' ? Object.fromEntries(m.players.map((p) => [p.id, p.team ?? 0])) : {};
   // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
@@ -609,7 +613,7 @@ function endRound(m: Match, now: number, winner: string | null) {
   }
   const top = Math.max(0, ...inRound.map((q) => q.stats.round.dmg));
   for (const q of inRound) if (top > 0 && q.stats.round.dmg === top) bonus(m, q, TOP_DMG_GOLD);
-  for (const q of inRound) earn(m, q, ROUND_GOLD);
+  for (const q of inRound) if (!m.roundPaid?.includes(q.id)) earn(m, q, ROUND_GOLD);
   // recuperação: quem ganhou menos ouro na partida que a média recebe metade da diferença
   const avg = inRound.reduce((sum, q) => sum + q.stats.match.gold, 0) / Math.max(1, inRound.length);
   // o ouro da partida já está na escala da economia: só o teto é multiplicado
@@ -643,10 +647,16 @@ function afterRound(m: Match, now: number) {
 
 const EMPTY_ROUNDS_END = 3;
 
-// painel da sandbox: ligar/desligar regras, pôr bot (tirar é o 'kick'), trocar a arena e reiniciar a rodada; fora da sandbox não faz nada
-export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number): boolean {
+// painel da sandbox: ligar/desligar regras, pôr bot (tirar é o 'kick'), pôr runa, trocar a arena e reiniciar a rodada; fora da sandbox não faz nada
+// id: quem mandou (a runa nasce ao lado dele)
+export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boolean {
   const sb = m.sandbox;
   if (!sb || m.phase === 'lobby' || m.phase === 'end') return false;
+  // runa: só o mundo muda (vai no snapshot, não é gravado), então devolve false para a sala não gravar a cada clique
+  if (cmd.op === 'rune') {
+    if (m.world) placeRune(m.world, cmd.kind, m.world.wizards.find((z) => z.id === id && z.alive)?.pos ?? null);
+    return false;
+  }
   if (cmd.op === 'set') {
     if (sb[cmd.key] === cmd.on) return false;
     sb[cmd.key] = cmd.on;
@@ -824,6 +834,11 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
         s.deathBy[e.src] = (s.deathBy[e.src] ?? 0) + 1;
         if (!w.dm) s.alive += w.t; // no deathmatch volta e morre várias vezes: tempo vivo só nas rodadas
       });
+      // o ouro garantido da rodada já chega na queda, para ir comprando enquanto assiste (Fernando, 19/10)
+      if (dead && !w.dm && !(m.roundPaid ??= []).includes(dead.id)) {
+        m.roundPaid.push(dead.id);
+        earn(m, dead, ROUND_GOLD);
+      }
       // assistência: quem mais bateu na vítima, sem ser quem matou, ganha um pouco de ouro
       const on = m.dmgOn?.[e.id] ?? {};
       const [helper, dmg] = Object.entries(on).filter(([id]) => id !== e.by && id !== e.id).sort((a, b) => b[1] - a[1])[0] ?? [];

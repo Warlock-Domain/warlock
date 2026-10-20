@@ -158,3 +158,4 @@ music/battle.mp3
     dica do treino: lorc/light-bulb.svg, Lorc (http://lorcblog.blogspot.com)
     bot: delapouite/robot-antennas.svg, Delapouite (http://delapouite.com)
     pessoas na sala: delapouite/character.svg, Delapouite (http://delapouite.com)
+    sair da sala: delapouite/exit-door.svg, Delapouite (http://delapouite.com)

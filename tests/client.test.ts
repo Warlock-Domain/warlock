@@ -5,6 +5,7 @@ import type { SnapView, WizView } from '../src/shared/snapshot.ts';
 import { WIZ_SPEED } from '../src/shared/constants.ts';
 import { v } from '../src/shared/vec.ts';
 import { actionFor, labelOf, setSlotMode, setSlots } from '../src/client/keys.ts';
+import { fxClock } from '../src/client/icons.ts';
 
 const wiz = (x: number, extra: Partial<WizView> = {}): WizView => ({ id: 'a', pos: v(x, 0), vel: v(0, 0), hp: 100, facing: 0, alive: true, shield: false, status: 1, ...extra });
 const snap = (time: number, x: number): SnapView => ({ time, arenaR: 11, shrinkAt: 15, wizards: [wiz(x)], projectiles: [], pillars: [], loots: [], runes: [] });
@@ -24,6 +25,20 @@ describe('interpolação', () => {
     it.push(snap(0, 0), 10.1);
     expect(it.latest()!.time).toBe(0);
     expect(it.sample(10.2)!.wizards[0].pos.x).toBe(0);
+  });
+});
+
+describe('relógio dos efeitos', () => {
+  it('shows the seconds left and the fraction of the longest time seen; renewing restarts it', () => {
+    const clock = fxClock();
+    expect(clock([4, 6], 4)).toEqual({ text: '6', frac: 1 });
+    expect(clock([4, 3], 4)).toEqual({ text: '3', frac: 0.5 });
+    expect(clock([4, 0.4], 4)).toEqual({ text: '0.4', frac: 0.4 / 6 });
+    expect(clock([], 4)).toBeNull(); // acabou (ou efeito sem prazo)
+    expect(clock([4, 2], 4)).toEqual({ text: '2', frac: 1 }); // renovou: novo total
+    // dois relógios com os mesmos dados dão os mesmos números (barra de baixo e em cima do mago)
+    const a = fxClock(), b = fxClock();
+    for (const fx of [[1024, 3], [1024, 1.5], [1024, 0.2]]) expect(a(fx, 1024)).toEqual(b(fx, 1024));
   });
 });
 
@@ -73,14 +88,15 @@ describe('previsão', () => {
 });
 
 describe('teclas Q W E R D F', () => {
-  it('in slot mode the equipped spells follow the bar order and items keep their keys', () => {
+  it('in slot mode the equipped spells and active items follow the bar order', () => {
     setSlotMode(true);
-    setSlots(['fireball', 'gravity', 'swap']);
+    setSlots(['fireball', 'gravity', 'swap'], ['redirector', 'pact']);
     expect(actionFor('KeyQ')).toBe('fireball');
     expect(actionFor('KeyW')).toBe('gravity');
     expect(actionFor('KeyE')).toBe('swap');
     expect(actionFor('KeyR')).toBeUndefined();
-    expect(actionFor('Digit1')).toBe('scourge');
+    expect([actionFor('Digit1'), actionFor('Digit2'), actionFor('Digit3')]).toEqual(['redirector', 'pact', undefined]);
+    expect(labelOf('pact')).toBe('2');
     expect(labelOf('gravity')).toBe('W');
     setSlotMode(false);
     expect(actionFor('KeyW')).toBe('lightning');

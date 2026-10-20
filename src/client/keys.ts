@@ -10,7 +10,7 @@ export const ACTIONS: Action[] = [...SPELL_IDS, ...ACTIVE_ITEMS];
 export const UI_ACTIONS = ['shop', 'board', 'sheet', 'taunt', 'rules', 'library', 'stop', 'vote', 'replay'] as const;
 export type UiAction = (typeof UI_ACTIONS)[number];
 export const UI_NAMES: Record<UiAction, string> = { shop: t('Loja só para ver', 'Shop (view only)'), board: t('Placar (segurar)', 'Scoreboard (hold)'), sheet: t('Ficha do mago', 'Wizard sheet'), taunt: t('Provocações', 'Taunts'), rules: t('Grimório (como jogar)', 'Grimoire (how to play)'), library: t('Magias e itens (consulta)', 'Spells and items (lookup)'), stop: t('Parar', 'Stop'), vote: t('Votar', 'Vote'), replay: t('Rever a queda', 'Replay the fall') };
-export type AnyAction = Action | UiAction;
+export type AnyAction = Action | UiAction | PosAction;
 const ALL: AnyAction[] = [...ACTIONS, ...UI_ACTIONS];
 const DEFAULTS: Record<string, string> = {
   fireball: 'KeyQ', lightning: 'KeyW', homing: 'KeyE', shield: 'KeyR', teleport: 'KeyF',
@@ -32,27 +32,39 @@ for (const [a, code] of Object.entries(store.json<Record<string, string>>(STORE)
 
 const listeners: (() => void)[] = [];
 const notify = () => listeners.forEach((f) => f());
+// trocar uma tecla fixa o modo em uso (Q W E R D F ou não): quem personalizou não muda de modo sozinho ao recarregar
 const save = () => {
   store.set(STORE, JSON.stringify(map));
+  store.set(POS_STORE, JSON.stringify(posMap));
+  store.set(SLOT_STORE, slotMode ? '1' : '0');
   notify();
 };
 
-// modo Q W E R D F (como no Dota; pedido do Fernando, 17/10): as magias equipadas, na ordem da barra, usam essas teclas;
-// os itens ativos seguem nas teclas deles. Escolha guardada no navegador.
-const SLOT_KEYS = ['KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyD', 'KeyF'];
+// modo Q W E R D F (como no Dota; pedido do Fernando, 17/10): as magias e os itens ativos usam a tecla da posição na barra.
+// As posições são trocáveis (Fernando, 20/10): Magia 1 a 6 (Q W E R D F) e Item 1 a 3 (1 2 3), com os nomes das do controle.
+export const POS_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'item1', 'item2', 'item3'] as const;
+export type PosAction = (typeof POS_ACTIONS)[number];
+const POS_DEFAULTS: Record<PosAction, string> = { slot1: 'KeyQ', slot2: 'KeyW', slot3: 'KeyE', slot4: 'KeyR', slot5: 'KeyD', slot6: 'KeyF', item1: 'Digit1', item2: 'Digit2', item3: 'Digit3' };
+export const isPos = (a: AnyAction): a is PosAction => a in POS_DEFAULTS;
+const POS_STORE = 'warlock:poskeys';
+let posMap: Record<PosAction, string> = { ...POS_DEFAULTS };
+for (const [a, code] of Object.entries(store.json<Record<string, string>>(POS_STORE) ?? {})) if (a in POS_DEFAULTS && typeof code === 'string' && !RESERVED.has(code)) posMap[a as PosAction] = code;
 const SLOT_STORE = 'warlock:slotkeys';
-let slotMode = store.get(SLOT_STORE) === '1';
+// ligado por padrão (Fernando, 20/10), menos para quem já tem teclas salvas: o modo ignoraria as teclas das magias e prenderia Q W E R D F
+let slotMode = (store.get(SLOT_STORE) ?? (store.get(STORE) ? '0' : '1')) === '1';
 let slots: SpellId[] = [];
+let itemSlots: ItemId[] = [];
 export const isSlotMode = () => slotMode;
 export function setSlotMode(on: boolean) {
   slotMode = on;
   store.set(SLOT_STORE, on ? '1' : '0');
   notify();
 }
-// magias equipadas na ordem da barra (a interface avisa quando muda)
-export function setSlots(next: SpellId[]) {
-  if (next.join() === slots.join()) return;
+// magias e itens ativos na ordem da barra (a interface avisa quando muda)
+export function setSlots(next: SpellId[], items: ItemId[] = []) {
+  if (next.join() === slots.join() && items.join() === itemSlots.join()) return;
   slots = next;
+  itemSlots = items;
   if (slotMode || pad) notify();
 }
 export const slotSpell = (i: number): SpellId | undefined => slots[i];
@@ -121,15 +133,28 @@ const padLabel = (a: Action) => {
   return i < 0 ? '—' : PAD_NAMES[padMap[`${isSpell(a) ? 'slot' : 'item'}${i + 1}` as PadAction]];
 };
 
-export const keyOf = (a: AnyAction) => (slotMode && isSpell(a) ? (SLOT_KEYS[slots.indexOf(a)] ?? '') : map[a]);
+const isUi = (a: AnyAction): a is UiAction => (UI_ACTIONS as readonly string[]).includes(a);
+// posição da magia ou do item na barra (sem posição: ainda não comprou, ou passou das posições que existem)
+const posOf = (a: Action): PosAction | undefined => {
+  const i = isSpell(a) ? slots.indexOf(a) : itemSlots.indexOf(a);
+  const p = `${isSpell(a) ? 'slot' : 'item'}${i + 1}`;
+  return i >= 0 && p in POS_DEFAULTS ? (p as PosAction) : undefined;
+};
+export const keyOf = (a: AnyAction): string => {
+  if (isPos(a)) return posMap[a];
+  if (!slotMode || isUi(a)) return map[a];
+  const p = posOf(a);
+  return p ? posMap[p] : '';
+};
 // a tecla apertada é a do atalho da interface? (sem tecla nunca casa)
 export const isUiKey = (code: string, a: UiAction) => !!code && map[a] === code;
 // só magias e itens: os atalhos da interface nunca lançam nada
 export const actionFor = (code: string): Action | undefined => {
   if (!slotMode) return ACTIONS.find((a) => map[a] === code) as Action | undefined;
-  const i = SLOT_KEYS.indexOf(code);
-  if (i >= 0) return slots[i];
-  return ACTIVE_ITEMS.find((a) => map[a] === code);
+  const p = code ? POS_ACTIONS.find((q) => posMap[q] === code) : undefined;
+  if (!p) return undefined;
+  const i = Number(p.slice(4)) - 1;
+  return p.startsWith('slot') ? slots[i] : itemSlots[i];
 };
 export const onKeysChange = (f: () => void) => listeners.push(f);
 
@@ -147,28 +172,41 @@ export const labelOf = (a: Action) => (pad ? padLabel(a) : keyLabel(keyOf(a)));
 // rótulo do atalho da interface, para dicas e textos de ajuda
 export const uiLabel = (a: UiAction) => keyLabel(map[a]);
 
-// quem usa a tecla agora; no modo Q W E R D F as seis letras são das posições da barra e, nas outras, a tecla guardada
-// das magias também conta (setKey troca com ela, então a interface avisa)
+// quem usa a tecla agora: no modo Q W E R D F, as posições e os atalhos; fora dele, as magias, os itens e os atalhos
 export function whoUses(code: string): AnyAction | undefined {
   if (!code) return undefined;
-  if (slotMode && SLOT_KEYS.includes(code)) return slots[SLOT_KEYS.indexOf(code)];
+  if (slotMode) return POS_ACTIONS.find((p) => posMap[p] === code) ?? UI_ACTIONS.find((u) => map[u] === code);
   return ALL.find((a) => map[a] === code);
 }
 
-// troca a tecla; se outra ação já usava essa tecla, as duas trocam entre si (a interface avisa quem trocou).
-// Recusa as fixas e, no modo Q W E R D F, as seis letras das posições para quem não é magia.
-export function setKey(a: AnyAction, code: string): boolean {
-  if (RESERVED.has(code)) return false;
-  if (slotMode && !isSpell(a) && SLOT_KEYS.includes(code)) return false;
+// troca a tecla; se outra ação já usava essa tecla, as duas trocam entre si (a interface avisa quem trocou). Recusa as fixas.
+// Posições e atalhos nunca repetem tecla: quem perde a tecla fica com a antiga de quem a tomou
+const assign = (a: Action | UiAction, code: string) => {
   const other = ALL.find((o) => map[o] === code);
   if (other && other !== a) map[other] = map[a];
   map[a] = code;
+};
+export function setKey(a: AnyAction, code: string): boolean {
+  if (RESERVED.has(code)) return false;
+  if (isPos(a)) {
+    const other = POS_ACTIONS.find((p) => posMap[p] === code);
+    if (other && other !== a) posMap[other] = posMap[a];
+    const ui = UI_ACTIONS.find((u) => map[u] === code);
+    if (ui) assign(ui, posMap[a]);
+    posMap[a] = code;
+  } else {
+    const before = map[a];
+    assign(a, code);
+    const pos = isUi(a) && POS_ACTIONS.find((p) => posMap[p] === code);
+    if (pos) posMap[pos] = before;
+  }
   save();
   return true;
 }
 
 export function resetKeys() {
   map = { ...DEFAULTS };
+  posMap = { ...POS_DEFAULTS };
   save();
 }
 

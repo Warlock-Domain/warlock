@@ -26,6 +26,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 `DEFAULTS` usa `event.code` (`'KeyQ'`, `'Digit1'`, `'F1'`), nunca `event.key`. Ação de interface nova entra em `UI_ACTIONS` e `UI_NAMES` (`''` = sem tecla). Esc, Enter, Espaço e ← → são reservadas. As 26 letras já têm dono.
 
+Modo Q W E R D F (padrão): magias e itens ativos usam a tecla da **posição** na barra (`POS_ACTIONS`: Magia 1 a 6 e Item 1 a 3, guardadas em `warlock:poskeys`); `keyOf`/`actionFor`/`whoUses` já resolvem o modo. Posições e atalhos da interface nunca repetem tecla (`setKey` troca). Trocar qualquer tecla fixa o modo em uso no navegador.
+
 ## O que não vai para `ui.ts`
 
 `ui.ts` usa `document`/`matchMedia` ao carregar e não roda no Vitest. Decisão de tela que precisa de teste vai para função pura em `screen-data.ts` (ou `rules-text.ts`, `tips.ts`, `icons.ts`, `keys.ts`, `sheet.ts`, `reach.ts`, que não mexem no DOM ao carregar).
