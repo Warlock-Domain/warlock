@@ -39,7 +39,7 @@ if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
   document.title = `🧪 ${new URLSearchParams(location.search).get('aba') || __BRANCH__ || 'teste'} · Warlock Wars`;
 }
 
-// som de cada magia: as novas reaproveitam os sons que já existem
+// som de cada magia: um arquivo para cada, nenhum repetido (a Bola de neve é o 'frost')
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
   fireball: 'fireball', lightning: 'lightning', homing: 'homing', shield: 'shield', teleport: 'teleport',
   swap: 'swap', grip: 'grip', meteor: 'meteor', rush: 'rush', cluster: 'cluster',
