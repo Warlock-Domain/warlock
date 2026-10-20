@@ -272,6 +272,7 @@ export function settingsPage(): HTMLElement {
   homeBody = el('div', { class: 'home-sections' });
   const narrow = matchMedia('(max-width: 600px)');
   const toc = el('details', { class: 'home-toc', open: !narrow.matches }, el('summary', {}, t('Sumário', 'Contents')));
+  narrow.addEventListener('change', (e) => (toc.open = !e.matches)); // girar o celular: no PC o sumário fica sempre aberto
   const mark = (id: string) => toc.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
   // a seção que passa pela faixa de cima da tela é a destacada; depois de um clique no sumário, o destaque fica na escolhida
   // enquanto a página rola (as últimas seções nem sempre chegam ao topo)
@@ -358,7 +359,7 @@ function onKey(e: KeyboardEvent) {
   }
 }
 // página do menu inicial esperando tecla ou botão: a próxima tecla é dela (com o diálogo aberto, vale o ouvinte dele)
-addEventListener('keydown', (e) => !overlay && (waiting || padWaiting) && onKey(e), { capture: true });
+addEventListener('keydown', (e) => !overlay && homeBody?.isConnected && (waiting || padWaiting) && onKey(e), { capture: true });
 function close() {
   if (!overlay) return;
   waiting = null;

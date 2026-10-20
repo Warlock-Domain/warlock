@@ -934,8 +934,9 @@ body.replaying .peek-shop { display: none; }
 /* Configurações em página única (issue #59, como as opções do Dota 2): sumário fixo à esquerda, seções empilhadas com o CSS do diálogo */
 .home-settings { align-items: stretch; }
 .home-settings-grid { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 28px; align-items: start; }
-.home-toc { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: rgba(0, 0, 0, .18); }
+.home-toc { position: sticky; top: 16px; padding: 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: rgba(0, 0, 0, .18); }
 .home-toc summary { display: none; }
+.home-toc button { display: flex; width: 100%; margin-bottom: 4px; }
 .home-sections { display: flex; flex-direction: column; gap: 32px; }
 .home-sections .settings-body { overflow: visible; padding: 0; scroll-margin-top: 16px; }
 .home-sections .settings-page-title { padding-bottom: 6px; border-bottom: 1px solid var(--gold-line); }
@@ -948,9 +949,9 @@ body.replaying .peek-shop { display: none; }
   .home-tabs button { padding: 8px 9px 6px; font-size: .9rem; letter-spacing: .04em; }
   /* celular: o sumário vira "Sumário" recolhível, colado no topo enquanto rola */
   .home-settings-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
-  .home-toc { top: 0; z-index: 3; display: block; padding: 0 10px; background: var(--panel-solid); }
+  .home-toc { top: 0; z-index: 3; padding: 0 10px; background: var(--panel-solid); }
   .home-toc summary { display: list-item; min-height: 44px; padding: 11px 4px; font-family: var(--display); color: var(--gold); cursor: pointer; }
-  .home-toc button { display: flex; width: 100%; min-height: 44px; margin-bottom: 4px; }
+  .home-toc button { min-height: 44px; }
   .home-sections .settings-body { scroll-margin-top: 60px; }
 }
 
