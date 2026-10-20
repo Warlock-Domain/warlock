@@ -1,0 +1,101 @@
+# Ambiente de teste por PR: cada PR (rascunho também) publica em https://pr-<n>-warlock.fernandorffdev.com,
+# com Worker e salas próprios; ao fechar o PR (mesclado ou não) o Worker e o domínio são apagados.
+# Um comentário fixo no PR traz o link e é editado a cada push. PR de fork não recebe segredos: fica sem ambiente.
+name: Ambiente do PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+# mesmo grupo para publicar e apagar: fechar o PR cancela um deploy ainda em andamento
+concurrency:
+  group: ambiente-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  PR: ${{ github.event.pull_request.number }}
+  NOME: warlock-pr-${{ github.event.pull_request.number }}
+  HOST: pr-${{ github.event.pull_request.number }}-warlock.fernandorffdev.com
+  GH_TOKEN: ${{ github.token }}
+  MARCA: '<!-- ambiente-pr -->'
+
+jobs:
+  publicar:
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # tsc e vitest já rodam no CI do mesmo PR
+      - run: npx vite build
+      # Cópia do wrangler.jsonc só com nome e domínio trocados: a rota do jogo no ar nunca vai junto
+      - name: Configuração do ambiente
+        run: |
+          node -e '
+            const fs = require("fs");
+            const c = JSON.parse(fs.readFileSync("wrangler.jsonc", "utf8"));
+            c.name = process.env.NOME;
+            c.routes = [{ pattern: process.env.HOST, custom_domain: true }];
+            fs.writeFileSync("wrangler.pr.json", JSON.stringify(c, null, 2));
+          '
+      - run: npx wrangler deploy -c wrangler.pr.json
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # domínio novo leva alguns segundos para responder na primeira publicação
+      - name: Esperar o domínio responder
+        run: for i in $(seq 1 30); do curl -sf "https://$HOST/api/health" && exit 0; sleep 5; done; exit 1
+      # na primeira publicação o domínio novo ainda oscila por alguns segundos: até 3 tentativas
+      - run: for i in 1 2 3; do node scripts/smoke.mjs "https://$HOST" && exit 0; sleep 20; done; exit 1
+      - name: Comentário com o link
+        env:
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          corpo="$MARCA
+          **Ambiente deste PR:** https://$HOST
+          - Versão no ar: commit ${SHA:0:7}; atualiza a cada push no PR.
+          - Salas separadas do jogo no ar. Apagado sozinho quando o PR fecha."
+          id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --jq ".[] | select(.body | startswith(\"$MARCA\")) | .id" | head -1)
+          if [ -n "$id" ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$corpo" > /dev/null
+          else gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "$corpo"; fi
+
+  apagar:
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      # API direta, sem checkout (o ref de um PR fechado pode não existir mais): é a mesma chamada do `wrangler delete`.
+      # O domínio sai antes do Worker porque a documentação não garante que apagar o Worker solta o domínio.
+      - name: Soltar o domínio e apagar o Worker
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          API: https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/workers
+        shell: bash # com pipefail: falha da API para o passo em vez de seguir com a lista vazia
+        run: |
+          case "$NOME" in warlock-pr-[0-9]*) ;; *) echo "nome inesperado: $NOME"; exit 1 ;; esac
+          auth="Authorization: Bearer $CF_TOKEN"
+          ids=$(curl -sf -H "$auth" "$API/domains?service=$NOME" | jq -r '.result[].id')
+          for id in $ids; do
+            curl -sf -X DELETE -H "$auth" "$API/domains/$id" > /dev/null
+            echo "domínio solto: $id"
+          done
+          # 404 = o Worker nunca chegou a ser publicado (build quebrou ou PR fechado antes)
+          code=$(curl -s -o resposta.json -w '%{http_code}' -X DELETE -H "$auth" "$API/services/$NOME?force=true")
+          [ "$code" = 200 ] || [ "$code" = 404 ] || { cat resposta.json; exit 1; }
+          echo "Worker $NOME: HTTP $code"
+      - name: Comentário de ambiente apagado
+        run: |
+          corpo="$MARCA
+          **Ambiente deste PR:** apagado (PR fechado). Reabrir o PR publica de novo."
+          id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --jq ".[] | select(.body | startswith(\"$MARCA\")) | .id" | head -1)
+          [ -n "$id" ] && gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$corpo" > /dev/null || true
