@@ -732,14 +732,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let slotDrag: { pointer: number; from: number; x: number; y: number; moved: boolean } | null = null;
   const equipment = (p: PublicPlayer) => loadoutSlots(p.spells, p.items, loadoutOrder);
   function changeSlot(from: number, to: number) {
-    if (!mine) return;
+    if (!mine) return false;
     const current = equipment(mine), next = moveLoadout(current, from, to);
-    if (next === current) return;
+    if (next === current) return false;
     loadoutOrder = next;
     store.set(ORDER_KEY, JSON.stringify(next));
     refreshEquipment();
     drawCenter();
     drawPeek();
+    return true;
   }
   function draggableSlot(node: HTMLElement, index: number, occupied: boolean) {
     node.dataset.loadoutSlot = String(index);
@@ -777,9 +778,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     node.addEventListener('keydown', (e) => {
       if (!e.altKey || !['ArrowLeft', 'ArrowRight'].includes(e.code)) return;
       e.preventDefault(); e.stopPropagation();
-      const from = Number(node.dataset.loadoutSlot);
-      changeSlot(from, from + (e.code === 'ArrowLeft' ? -1 : 1));
-      node.focus();
+      const from = Number(node.dataset.loadoutSlot), to = from + (e.code === 'ArrowLeft' ? -1 : 1);
+      // a loja é redesenhada na troca: o foco vai para a vaga nova da loja (os botões da barra são os mesmos nós)
+      const inShop = !!node.closest('.shop-loadout');
+      if (changeSlot(from, to) && inShop) document.querySelector<HTMLElement>(`.shop-loadout [data-loadout-slot="${to}"]`)?.focus();
+      else node.focus();
     });
     return node;
   }
@@ -806,7 +809,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     itemGrid.append(b);
   }
   function refreshEquipment() {
-    if (!mine || slotDrag) return;
+    if (!mine) return setSlots([], []); // espectador: teclas e controle não ficam com a ordem de antes
+    if (slotDrag) return;
     const order = equipment(mine);
     const passive = ITEM_IDS.filter((i) => !isActive(i) && mine!.items[i] > 0);
     const sig = JSON.stringify([order, passive.map((i) => [i, mine!.items[i]])]);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadoutSlots, moveLoadout } from '../src/client/screen-data.ts';
+import { loadoutSlots, moveLoadout, type LoadoutOrder } from '../src/client/screen-data.ts';
 import { actionFor, labelOf, setPadMode, setSlotMode, setSlots } from '../src/client/keys.ts';
 import { BTN, padAction } from '../src/client/gamepad.ts';
 import { noSpells, SPELL_IDS } from '../src/shared/spells.ts';
@@ -23,7 +23,7 @@ describe('posições de equipamento na loja', () => {
     for (const [from, to] of [[0, 6], [6, 0], [-1, 0], [0, 9], [0, 1.5], [2, 3]]) expect(moveLoadout(order, from, to)).toBe(order);
   });
   it('reconcilia compras e vendas sem duplicar ou manter habilidades não compradas', () => {
-    const order = { spells: ['illusion', 'illusion', 'shield', null, null, 'fireball'], items: ['ring', 'pact', 'pact'] } as any;
+    const order = { spells: ['illusion', 'illusion', 'shield', null, null, 'fireball'], items: ['ring', 'pact', 'pact'] } as unknown as LoadoutOrder; // ids repetidos e 'ring' (passivo) de propósito
     const next = loadoutSlots({ ...noSpells(), fireball: 1, illusion: 1, teleport: 1 }, { ...noItems(), pact: 1 }, order);
     expect(next.spells).toEqual(['illusion', 'teleport', null, null, null, 'fireball']);
     expect(next.items).toEqual([null, 'pact', null]);
