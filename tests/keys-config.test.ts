@@ -127,7 +127,7 @@ describe('botões do controle trocáveis', () => {
   });
 
   it('o controle lança e a barra mostra os rótulos pelo mapeamento novo', () => {
-    setSlots(['fireball', 'homing']);
+    setSlots(['fireball', 'homing'], ['scourge', 'redirector', 'pact']);
     setPadButton('slot1', BTN.RT); // o item 2 vai para o A
     expect([padAction(BTN.RT), padAction(BTN.A)]).toEqual(['fireball', 'redirector']);
     setPadMode(true);

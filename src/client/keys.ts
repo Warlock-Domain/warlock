@@ -52,8 +52,8 @@ for (const [a, code] of Object.entries(store.json<Record<string, string>>(POS_ST
 const SLOT_STORE = 'warlock:slotkeys';
 // ligado por padrão (Fernando, 20/10), menos para quem já tem teclas salvas: o modo ignoraria as teclas das magias e prenderia Q W E R D F
 let slotMode = (store.get(SLOT_STORE) ?? (store.get(STORE) ? '0' : '1')) === '1';
-let slots: SpellId[] = [];
-let itemSlots: ItemId[] = [];
+let slots: (SpellId | null)[] = [];
+let itemSlots: (ItemId | null)[] = [];
 export const isSlotMode = () => slotMode;
 export function setSlotMode(on: boolean) {
   slotMode = on;
@@ -61,13 +61,14 @@ export function setSlotMode(on: boolean) {
   notify();
 }
 // magias e itens ativos na ordem da barra (a interface avisa quando muda)
-export function setSlots(next: SpellId[], items: ItemId[] = []) {
+export function setSlots(next: (SpellId | null)[], items: (ItemId | null)[] = []) {
   if (next.join() === slots.join() && items.join() === itemSlots.join()) return;
   slots = next;
   itemSlots = items;
   if (slotMode || pad) notify();
 }
-export const slotSpell = (i: number): SpellId | undefined => slots[i];
+export const slotSpell = (i: number): SpellId | undefined => slots[i] ?? undefined;
+export const slotItem = (i: number): ItemId | undefined => itemSlots[i] ?? undefined;
 
 // jeito de lançar pela tecla no PC (decisão do Fernando, 18/10; os três do Dota), guardado no navegador:
 // quick = lança na hora (padrão, como sempre foi); release = segurar mostra o alcance, soltar lança;
@@ -129,7 +130,7 @@ export function setPadMode(on: boolean) {
   notify();
 }
 const padLabel = (a: Action) => {
-  const i = isSpell(a) ? slots.indexOf(a) : ACTIVE_ITEMS.indexOf(a);
+  const i = isSpell(a) ? slots.indexOf(a) : itemSlots.indexOf(a);
   return i < 0 ? '—' : PAD_NAMES[padMap[`${isSpell(a) ? 'slot' : 'item'}${i + 1}` as PadAction]];
 };
 
@@ -154,7 +155,7 @@ export const actionFor = (code: string): Action | undefined => {
   const p = code ? POS_ACTIONS.find((q) => posMap[q] === code) : undefined;
   if (!p) return undefined;
   const i = Number(p.slice(4)) - 1;
-  return p.startsWith('slot') ? slots[i] : itemSlots[i];
+  return (p.startsWith('slot') ? slots[i] : itemSlots[i]) ?? undefined;
 };
 export const onKeysChange = (f: () => void) => listeners.push(f);
 

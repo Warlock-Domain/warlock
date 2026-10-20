@@ -1,11 +1,11 @@
 // Controle de Xbox/PlayStation (Gamepad API): analógico esquerdo anda, direito mira, botões lançam pela posição na barra.
 // Fora da rodada (sala, loja, ajuda) o D-pad ou o analógico esquerdo andam entre os botões da tela.
 // Um jogador por navegador: vale o primeiro controle conectado.
-import { ACTIVE_ITEMS, isActive, type ItemId } from '../shared/items.ts';
+import { isActive, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import { add, len, norm, scale, type Vec } from '../shared/vec.ts';
 import { t } from './i18n.ts';
-import { PAD_NAMES, keyOf, padActionAt, padButtonOf, setPadMode, slotSpell } from './keys.ts';
+import { PAD_NAMES, keyOf, padActionAt, padButtonOf, setPadMode, slotSpell, slotItem } from './keys.ts';
 import { store } from './store.ts';
 
 // índices do mapeamento padrão (Xbox: A B X Y; PlayStation: ✕ ○ □ △ nas mesmas posições)
@@ -33,7 +33,7 @@ export function aimPoint(me: Vec, s: Vec, range = AIM_RANGE): Vec {
 export function padAction(btn: number): SpellId | ItemId | undefined {
   const p = padActionAt(btn);
   if (p?.startsWith('slot')) return slotSpell(Number(p.slice(4)) - 1);
-  if (p?.startsWith('item')) return ACTIVE_ITEMS[Number(p.slice(4)) - 1];
+  if (p?.startsWith('item')) return slotItem(Number(p.slice(4)) - 1);
   return undefined;
 }
 

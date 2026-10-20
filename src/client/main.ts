@@ -27,12 +27,19 @@ import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
-import { hasBotSetup, savedBotSetup } from './train.ts';
 import { TEAM_NAMES, TOUCH, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
 import { endResult } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
-// som de cada magia: um arquivo para cada, nenhum repetido (a Bola de neve é o 'frost')
+declare const __BRANCH__: string;
+
+// aba de teste diz qual é o teste (pedido do Fernando, 20/10): várias sessões abrem localhost e todas as abas tinham o mesmo
+// título. Em localhost vira "🧪 <branch> · Warlock Wars"; ?aba=<nome> na URL troca o nome. No ar nada muda.
+if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+  document.title = `🧪 ${new URLSearchParams(location.search).get('aba') || __BRANCH__ || 'teste'} · Warlock Wars`;
+}
+
+// som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
   fireball: 'fireball', lightning: 'lightning', homing: 'homing', shield: 'shield', teleport: 'teleport',
   swap: 'swap', grip: 'grip', meteor: 'meteor', rush: 'rush', cluster: 'cluster',
@@ -52,7 +59,7 @@ const SERVER_EN: Record<string, string> = {
   'Você foi removido da sala por votação.': 'You were removed from the room by vote.',
 };
 
-// treino escolhido na tela inicial ('train', 'shadow' ou o id do desafio): atravessa o recarregar da página ao entrar na sala nova
+// treino escolhido na tela inicial ('bots', 'shadow', 'sandbox' ou o id do desafio): atravessa o recarregar da página ao entrar na sala nova
 const AUTOSTART = 'warlock:autostart';
 function takeAutostart(): string | null {
   try {
@@ -74,6 +81,7 @@ store.set(PID, playerId);
 
 const ui = document.getElementById('ui')!;
 const canvas = document.getElementById('c') as HTMLCanvasElement;
+// trocar de sala recarrega a página: startRoom deixa laço, socket e ouvintes ligados e não tem desmontagem
 addEventListener('hashchange', () => location.reload());
 
 // volumes guardados no navegador (0 a 1); quem tinha deixado mudo na versão antiga começa em zero
@@ -116,12 +124,18 @@ function startLobby(name: string) {
   ui.addEventListener('click', (e) => (e.target as Element).closest('button, .button') && sound.play('click'));
   let rooms: RoomInfo[] | null = null;
   let offline = false;
+  let exited = false;
   const draw = () =>
-    renderLobby(ui, name, rooms, offline, () => create(), async () => {
+    !exited && renderLobby(ui, name, rooms, offline, () => create(), async () => {
       name = await askName(document.body, name);
       store.set(NAME, name);
       draw();
-    }, create);
+    }, create, () => {
+      exited = true;
+      lobbyNet.stop();
+      screen(ui, t('Até a próxima!', 'See you soon!'), t('Você saiu do jogo. Pode fechar esta aba.', 'You left the game. You can close this tab.'), t('Voltar ao jogo', 'Return to game'), () => location.reload());
+      window.close();
+    });
   // train: o treino que começa sozinho na sala nova (sem armazenamento, entra só na sala)
   async function create(train?: string) {
     try {
@@ -138,7 +152,7 @@ function startLobby(name: string) {
       toast(t('Não deu para criar a sala. Tente de novo.', 'Couldn’t create the room. Try again.'));
     }
   }
-  connect('/ws/lobby', (m) => {
+  const lobbyNet = connect('/ws/lobby', (m) => {
     if (m.t !== 'rooms') return;
     rooms = m.rooms as RoomInfo[]; // a ordem e as vazias recolhidas ficam com renderLobby (screen-data.ts)
     draw();
@@ -209,15 +223,21 @@ function startRoom(code: string, name: string) {
   let pixel = savedPixel();
   const pixelOk = !matchMedia('(pointer: coarse)').matches;
 
+  let autostart = takeAutostart();
+  if (autostart === 'bots') {
+    store.set('warlock:bot-room:' + code, '1');
+    autostart = null;
+  }
+  const botsRoom = store.get('warlock:bot-room:' + code) === '1';
   const view = createRoomUi(ui, code, {
-    start: (bots, mode, shuffle, opts, again) => {
+    start: (bots, mode, shuffle, opts, again, botSetup) => {
       training = false; // partida normal depois de um treino: sem dicas
       run = pending = null;
       if (!again) {
-        trainSetup = undefined; // o "Jogar de novo" repete as magias dos bots do treino; começar pela sala, não
+        trainSetup = botSetup;
         shadow = false;
       }
-      // a dificuldade de cada bot vai sempre; as magias do treino só no "Jogar de novo"
+      // Dificuldade e magias escolhidas na preparação; Jogar de novo repete a configuração.
       net.send({ t: 'start', bots: bots.length, mode, shuffle, opts, setup: bots.map((difficulty, i) => ({ ...trainSetup?.[i], difficulty })) });
     },
     buy: (spell) => net.send({ t: 'buy', spell }),
@@ -270,7 +290,7 @@ function startRoom(code: string, name: string) {
       store.set(NAME, myName);
       net.send({ t: 'hello', playerId, name: myName });
     },
-  });
+  }, botsRoom);
   addEventListener('keydown', (e) => {
     // ← → já trocam o período do placar quando ele está aberto (ui.ts marca o evento; por isso este ouvinte vem depois do createRoomUi)
     if (!watchId || e.defaultPrevented || (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight')) return;
@@ -294,6 +314,7 @@ function startRoom(code: string, name: string) {
   function command(msg: { t: 'move'; x: number; y: number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number } | { t: 'item'; item: ItemId; x: number; y: number }) {
     seq++;
     sentAt.set(seq, performance.now());
+    // teto do mapa de latência: o snapshot só confirma o último seq (e nada fora da rodada), então muito comando nunca tem ack
     if (sentAt.size > 50) sentAt.delete(sentAt.keys().next().value!);
     net.send({ ...msg, seq });
   }
@@ -363,14 +384,6 @@ function startRoom(code: string, name: string) {
   // a sala conta a CPU entre mensagens; o "estou aqui" a cada 5 s mantém a conta zerada durante a partida
   setInterval(() => room && room.phase !== 'lobby' && room.phase !== 'end' && net.send({ t: 'alive' }), 5000);
 
-  // treino: 3 bots, modo Rodadas, regras-padrão e dicas nas primeiras rodadas (com as magias dos bots escolhidas)
-  function train(setup?: BotSetup[]) {
-    training = true;
-    run = pending = null;
-    trainSetup = setup;
-    shadow = false;
-    net.send({ t: 'start', bots: 3, mode: 'rounds', shuffle: true, opts: DEFAULT_OPTS, ...(setup && { setup }) });
-  }
   // sombra: 1 bot que joga como você; o que não foi medido fica no Normal (mimic.ts)
   function startShadow(skill: Partial<BotSkill>) {
     training = true;
@@ -380,7 +393,6 @@ function startRoom(code: string, name: string) {
     net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts: DEFAULT_OPTS, setup: trainSetup });
   }
   // treino escolhido na tela inicial: só sozinho e com a sala em espera (uma vez, na primeira mensagem que já tem você)
-  let autostart = takeAutostart();
   function begin(r: PublicRoom) {
     const k = autostart;
     if (!k || !r.players.some((p) => p.id === me)) return;
@@ -388,10 +400,8 @@ function startRoom(code: string, name: string) {
     if (r.phase !== 'lobby' || r.players.some((p) => !p.bot && p.id !== me)) return;
     const c = CHALLENGES.find((x) => x.id === k);
     const skill = toSkill(store.json<Profile>(PROFILE_KEY));
-    const cfg = savedBotSetup();
     if (c) startChallenge(c);
     else if (k === 'shadow' && skill) startShadow(skill);
-    else if (k === 'train') train(hasBotSetup(cfg) ? cfg : undefined);
     else if (k === 'sandbox') startSandbox();
   }
   // sandbox: começa com você e um boneco parado; o resto vem pelo painel
@@ -401,6 +411,7 @@ function startRoom(code: string, name: string) {
     trainSetup = undefined;
     net.send({ t: 'start', bots: 0, mode: 'rounds', shuffle: true, opts: DEFAULT_OPTS, sandbox: true });
     net.send({ t: 'sandbox', cmd: { op: 'bot', dummy: true } });
+    net.send({ t: 'sandbox', cmd: { op: 'turret', direction: 'east' } });
   }
 
   function startChallenge(c: Challenge) {
@@ -666,7 +677,7 @@ function startRoom(code: string, name: string) {
   function frame() {
     requestAnimationFrame(frame);
     const nowMs = performance.now();
-    const dt = Math.min(0.05, (nowMs - lastFrame) / 1000);
+    const dt = Math.min(0.05, (nowMs - lastFrame) / 1000); // aba que volta do segundo plano não dá salto na previsão nem nas animações
     lastFrame = nowMs;
     const s = interp.sample(nowMs / 1000);
     const latest = interp.latest();
@@ -681,7 +692,8 @@ function startRoom(code: string, name: string) {
     const lava = !!meW?.alive && !!latest && inLavaAt(arenaId, latest.arenaR, latest.isles, meW.pos);
     view.danger(low, lava);
     const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' && (!room.sandbox || room.sandbox.shrink) ? s.shrinkAt - s.time : null;
-    // espectador: morto na rodada (ou só assistindo), a câmera segue o vivo com mais vida; ← → ou os botões trocam
+    // espectador: morto na rodada (ou só assistindo), a câmera segue o vivo com mais vida; ← → ou os botões trocam.
+    // Quem está invisível para mim (2048) fica de fora: a câmera entregaria onde ele está
     const alive = room?.phase === 'playing' && s && !meW?.alive ? wizards.filter((w) => w.alive && w.id !== me && !(w.status & 2048)) : [];
     let watched = alive.find((w) => w.id === watchId);
     if (!watched && alive.length) watched = alive.reduce((a, w) => (w.hp > a.hp ? w : a));

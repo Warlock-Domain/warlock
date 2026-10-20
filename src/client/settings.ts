@@ -164,6 +164,7 @@ function videoSection(): Node[] | null {
 
 // desenho do controle: cada botão com a linha até o nome da ação; clicar escolhe a ação daquele botão e o próximo botão
 // apertado no controle (ou clicado no desenho) fica com ela. No celular só o desenho e a lista abaixo.
+// b: índice do botão no Gamepad API (o mesmo de PAD_NAMES: 0 = A, 9 = Start); x, y no desenho; row: linha do nome naquele lado
 type PadSpot = { b: number; x: number; y: number; shape: 'round' | 'trigger' | 'bumper' | 'stick' | 'dpad' | 'pill'; side: 'l' | 'r'; row: number };
 const SPOTS: PadSpot[] = [
   { b: 6, x: 270, y: 70, shape: 'trigger', side: 'l', row: 0 }, { b: 4, x: 270, y: 100, shape: 'bumper', side: 'l', row: 1 },
@@ -296,6 +297,7 @@ function stackedPage(scroller: HTMLElement | null, lobby: boolean): Page {
   const spy = new IntersectionObserver((entries) => Date.now() > hold && entries.forEach((e) => e.isIntersecting && mark(e.target.id.slice(4))), { root: scroller, rootMargin: '0px 0px -70% 0px' });
   const fill = () => {
     const shown = SECTIONS.map((s) => [s, lobby && s.id === 'personagem' ? charLink() : s.render()] as const).filter(([, b]) => b);
+    // fill troca a página inteira: devolve o foco ao campo pelo id (quem usa teclado não perde o lugar), por isso campo novo leva id fixo
     const focusId = (document.activeElement as HTMLElement | null)?.id;
     body.replaceChildren(...shown.map(([s, b]) => el('section', { class: 'settings-body', id: 'set-' + s.id, 'aria-labelledby': 'set-h-' + s.id },
       el('h3', { class: 'settings-page-title', id: 'set-h-' + s.id }, icon(s.icon), ' ', s.title), ...b!)));
