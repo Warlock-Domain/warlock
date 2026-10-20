@@ -5,7 +5,7 @@ Vale junto com o `CLAUDE.md` da raiz.
 ## Interface
 
 - **DOM sempre com `el(tag, props, ...filhos)`** de `icons.ts` (`on*` vira listener, `class` vira `className`, filho `null`/`false` some). Não crie outro helper de DOM. Ícones: `icon(id)` com `ICON`, `ITEM_ICON`, `UI_ICON`.
-- Reuse `choice(...)` (fileira de botões com `aria-pressed`), `tabs(...)` (`role=tab`; marca a aba no clique, `id` liga aba e painel, como no menu inicial) e `withTip(elemento, () => html)` (dica no hover e no foco).
+- Reuse `choice(...)` (fileira de botões com `aria-pressed`), `tabs(...)` (`role=tab`) e `withTip(elemento, () => html)` (dica no hover e no foco).
 - **Botão só de ícone (✕, ⋯, ‹ ›, engrenagem) só com `iconButton(filho, nome, onclick, props?)`** (`icons.ts`): o nome vira `title` e `aria-label`; `props` sobrescreve (`class: 'icon wide-only'`, `title` com a tecla, `aria-expanded`, `hidden`). Visual diferente do ✕ só pela classe: `kick` (pequeno e vermelho) e `info-close` (canto do ⓘ).
 - **Diálogo por cima da tela só com `dialog(cls, título, corpo, { ico, onKey, onClose })`** (`ui.ts`, issue #110): fundo `<cls>-overlay` (camada e celular no CSS), cabeçalho `.dialog-head` com título e ✕; ✕, clique fora, Esc e o B do controle fecham. Segura todas as teclas na captura (nada chega ao jogo); `onKey` vê cada tecla antes e, com `preventDefault`, o Esc não fecha. Devolve `{ overlay, close }`; foco inicial no ✕ (quem chama pode mudar). Padronização da interface com funções no DOM puro, uma por PR (decisão de 20/10, issue #91).
 - **Preferência do jogador só por `store`** (`store.ts`): `store.get`/`set`/`json` já têm try/catch e caem para memória. Nunca `localStorage` direto. Chaves com prefixo `warlock:`.
