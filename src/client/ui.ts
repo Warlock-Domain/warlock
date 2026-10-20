@@ -1391,7 +1391,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         ), ...Array.from({ length: Math.max(0, MAX_ITEMS - owned.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
         hideTip(itemGrid);
       }
-      setSlots(SPELL_IDS.filter((s) => (mine?.spells[s] ?? 0) > 0));
+      setSlots(SPELL_IDS.filter((s) => (mine?.spells[s] ?? 0) > 0), ACTIVE_ITEMS.filter((i) => (mine?.items[i] ?? 0) > 0));
       for (const s of SPELL_IDS) {
         const { b, pips } = buttons.get(s)!;
         const lvl = mine?.spells[s] ?? 0;
