@@ -4,7 +4,7 @@ Bem-vindo! Este guia diz como uma mudança sai da sua máquina e chega ao jogo. 
 
 ## Fluxo
 
-1. **Combine antes** o que vai fazer: abra uma issue pelos modelos **Bug** ou **Ideia** (ou comente numa existente). Evita duas pessoas no mesmo trabalho. Issues com a etiqueta `bom primeiro PR` são boas para começar.
+1. **Combine antes** o que vai fazer: abra uma issue pelos modelos **Bug** ou **Ideia** (ou comente numa existente). Mudança grande só começa depois de decidida (veja [Mudança grande: decidir antes de fazer](#mudança-grande-decidir-antes-de-fazer)). Evita duas pessoas no mesmo trabalho. Issues com a etiqueta `bom primeiro PR` são boas para começar.
 2. **Crie uma branch a partir do `dev` atualizado** (dev geral), uma por tarefa:
    - `feat/<assunto>` coisa nova (`feat/runa-de-gelo`)
    - `fix/<assunto>` conserto (`fix/loja-trava-no-celular`)
@@ -18,6 +18,19 @@ Bem-vindo! Este guia diz como uma mudança sai da sua máquina e chega ao jogo. 
 6. **Revisão:** o Claude comenta sozinho em todo PR (veredito, checagens, pontos); comente `@claude` para pedir ajuda. O agente do dono pode ajustar e mesclar o PR. Responda os comentários com commits novos na mesma branch (sem reescrever o histórico depois que a revisão começou).
 7. **Merge:** PR de tarefa para `dev` em *squash and merge*; a promoção `dev` → `master` em merge normal, com o título do PR no formato de commit (`feat: …`). A branch é apagada depois.
 8. **Publicação é automática:** o merge em `dev` publica no dev geral (https://dev-warlock.fernandorffdev.com); logo em seguida o agente do dono promove com o PR `dev` → `master`, que publica o jogo no ar (decisão de 20/10).
+
+## Mudança grande: decidir antes de fazer
+
+Projeto de grupo: o que muda o jogo para todo mundo é combinado antes de virar código (decisão do Fernando, 20/10).
+
+- **Pequeno vai direto em PR:** correção de bug, alinhamento de interface, texto, ajuste visual pontual. Na dúvida se é pequeno, pergunte no grupo.
+- **Grande passa por decisão:** mudar como o jogo se joga (magia, item, regra, modo, controle), mexer em número de balanceamento, tirar algo que existe, ou trabalho de mais de um dia.
+- **Como decidir:**
+  1. Abra a issue pelo modelo **Ideia**: ela já nasce com a etiqueta `precisa de decisão`. Avise no grupo do Telegram com o link; a conversa fica na issue, para não se perder.
+  2. Cerca de 2 dias de discussão na issue. Depois o Fernando dá a palavra final, ouvindo o que foi dito.
+  3. A decisão fica escrita na issue (o que foi decidido e por quê), a etiqueta sai e a linha entra na tabela de decisões do [CLAUDE.md](CLAUDE.md). Coisa grande ganha um desenho em `docs/` (como o Ascensão e a Campanha).
+  4. Só então alguém pega para fazer, e o PR cita a issue (`Fecha #n`).
+- **PR grande sem decisão** recebe `precisa de decisão` e espera, sem mesclar, até a issue ser decidida.
 
 ## Ambiente de cada dev
 
