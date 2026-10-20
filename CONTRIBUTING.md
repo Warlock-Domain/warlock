@@ -45,6 +45,7 @@ Cada colaborador tem um jogo só seu na internet, para testar a tarefa com outra
 | Sky | breakie33 | `breakie33-dev` | https://breakie33-dev-warlock.fernandorffdev.com |
 | Lucas | lucascvalle | `lucascvalle-dev` | https://lucascvalle-dev-warlock.fernandorffdev.com |
 | Arthur | arthurbaquit | `arthurbaquit-dev` | https://arthurbaquit-dev-warlock.fernandorffdev.com |
+| Reinaldo | reirag | `reirag-dev` | https://reirag-dev-warlock.fernandorffdev.com |
 | Fernando | fernandorff | `fernandorff-dev` | https://fernandorff-dev-warlock.fernandorffdev.com |
 
 **Como subir:** todo push na branch `<seu usuário do GitHub>-dev` (em minúsculas) publica sozinho no seu link. A branch é sua: pode substituir à vontade.
