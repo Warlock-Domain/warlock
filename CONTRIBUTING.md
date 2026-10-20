@@ -88,12 +88,13 @@ Toda issue sai de um dos dois modelos (a issue em branco está desligada): https
   | [Jogabilidade](https://github.com/users/fernandorff/projects/5) | `jogabilidade` | modos, classes, mecânicas e magias novas |
   | [Interface](https://github.com/users/fernandorff/projects/6) | `visual` | telas, menus, HUD, teclas e efeitos visuais |
   | [Bugfix](https://github.com/users/fernandorff/projects/7) | `bug` | o que não funciona como deveria |
+  | [Documentação e fluxos](https://github.com/users/fernandorff/projects/8) | `documentação` | documentos, regras do projeto e fluxo de trabalho (Git, PR, pipelines) |
 
   Colunas iguais em todos: **Precisa de decisão** → **A fazer** → **Fazendo** → **Em revisão** → **Feito**. Ao se atribuir, mova o cartão para Fazendo; com o PR aberto, para Em revisão. Issue fechada ou PR mesclado vai para Feito sozinho. Issue nova: ponha a etiqueta do tema e adicione ao quadro do tema (campo Projects da issue).
 
 ## Etiquetas
 
-`bug`, `ideia`, `balanceamento`, `jogabilidade`, `visual`, `bom primeiro PR`, `precisa de decisão` (espera o dono do projeto decidir). `bug`, `balanceamento`, `jogabilidade` e `visual` também dizem em qual quadro a issue entra.
+`bug`, `ideia`, `balanceamento`, `jogabilidade`, `visual`, `documentação`, `bom primeiro PR`, `precisa de decisão` (espera o dono do projeto decidir). `bug`, `balanceamento`, `jogabilidade`, `visual` e `documentação` também dizem em qual quadro a issue entra.
 
 ## Regras que valem para todo PR
 
