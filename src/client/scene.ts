@@ -1978,7 +1978,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         g.visible = !!l;
         if (!l) return;
         g.position.copy(w3(l.pos, 0));
-        g.scale.setScalar(0.6 + 0.4 * (l.left / CHEST.pile));
+        g.scale.setScalar(0.6 + 0.4 * (l.left / CHEST.pile[1]));
         g.rotation.y = now * 0.6;
       });
       pileShine.opacity = 0.22 + 0.1 * Math.sin(now * 3);

@@ -49,7 +49,7 @@ npx vite build                      # build do cliente (dist/)
 - Menu principal com 5 abas: Jogar · Magias e itens · Aprender · Personagem · Configurações. Menus enxutos.
 - Loja em grade com o nome dentro do ícone e preço com moeda; cores por grupo (Ataque vermelho-laranja, Mobilidade verde, Defesa azul, Controle roxo, Itens prateado); 10 magias de ataque e 5 de cada outro grupo.
 - Sala sem opção de ritmo nem de morte súbita (sempre ligada); dificuldade escolhida bot a bot.
-- Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3. Escudo com recarga de 16 s. Drenar só muda depois de partidas reais. Ataques fortes e raros (não encurtar recargas).
+- Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3; o monte dá 3 a 5 de ouro. Escudo com recarga de 16 s. Drenar só muda depois de partidas reais. Ataques fortes e raros (não encurtar recargas).
 - Recusados: ranking/perfil e itens que só ajudam uma magia específica.
 
 ## Registro de decisões do Fernando
@@ -82,6 +82,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 20/10 | Teclas **Q W E R D F pela ordem da barra** ligadas por padrão; quem desmarcou continua sem (issue #65) | público de Dota já joga assim |
 | 20/10 | No modo Q W E R D F as teclas das **posições** são trocáveis em Lançamento: Magia 1 a 6 e Item 1 a 3 (itens também por posição na barra; só 3 posições de item por enquanto) (issue #76) | configurar as teclas do Q W E R D F como no Dota; posição de item deixa trocar a ordem e receber itens ativáveis novos |
 | 20/10 | Anel de alcance dos projéteis marca até onde a **ponta** chega (inimigo que encosta no anel é atingido); o Meteoro mostra também o círculo da explosão no ponto onde cai (issue #82) | o anel ficava 0,8 m curto (11 a 18%) e não mostrava a explosão; escolhido entre ponta + explosão, só projéteis e até o centro do inimigo |
+| 20/10 | Monte de ouro do baú dá **3 a 5** (sorteado quando o baú nasce; antes 10) (issue #80). Aplicado **sem passar pelo simulador** (exceção decidida pelo dono, como a Ilusão) | 10 de ouro por monte era demais; o baú dá o mesmo ouro a qualquer build, então não muda qual magia ou item vence |
 | 20/10 | **Ilusão** nova (issue #49): a cópia anda reto 2 s na direção do movimento, leva empurrão mas só some no prazo; quem lança fica invisível 2 s para todos (inclusive aliados) e outra magia o revela. Aprovada **sem passar pelo simulador** (exceção decidida pelo dono) | ideia do Leonard no estilo do Phantom Lancer do Dota |
 | 20/10 | No lançamento **Rápido** o anel de alcance pisca por 0,4 s quando a magia ou o item sai de verdade (issue #61) | no Rápido o jogador nunca via o alcance; mostra sem atrasar o lançamento |
 | 20/10 | Opção **Pixel art** em Configurações → Vídeo e efeitos, desligada por padrão e só no PC (issue #79): Desligado, 2 px ou 3 px; cena em blocos com contorno (`RenderPixelatedPass` do Three.js), câmera presa à grade de pixels e quase sem perspectiva para não tremer | pedido do Fernando a partir do vídeo "3D PixelArt Tutorial - Godot"; testado por ele no local e no fernandorff-dev |
