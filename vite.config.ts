@@ -10,7 +10,9 @@ const commit = (() => {
   }
 })();
 
-// branch do dev server: dá nome à aba de teste em localhost (main.ts)
+// branch que dá nome à aba de teste em localhost (main.ts). Lida uma vez e gravada no bundle: com `vite build` + `wrangler dev`,
+// trocar de branch sem refazer o build mostra o nome antigo. Fica também no build de produção (o filtro de hostname a esconde no ar)
+// porque o `wrangler dev` das sessões serve esse mesmo `dist`.
 const branch = (() => {
   try {
     return execSync('git rev-parse --abbrev-ref HEAD').toString().trim();
