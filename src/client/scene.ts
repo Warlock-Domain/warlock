@@ -264,7 +264,7 @@ function stoneTexture(): THREE.CanvasTexture {
   const g = c.getContext('2d')!;
   g.fillStyle = '#3b3633';
   g.fillRect(0, 0, 1024, 1024);
-  // lajes irregulares com rejunte escuro
+  // lajes irregulares com rejunte escuro (Math.random aqui e nos enfeites desta cena é só visual: não entra na simulação nem no hash)
   for (let i = 0; i < 2600; i++) {
     const x = Math.random() * 1024, y = Math.random() * 1024, r = 8 + Math.random() * 30;
     const l = 24 + Math.random() * 18;
@@ -301,6 +301,7 @@ function glowTexture(): THREE.CanvasTexture {
 }
 
 export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
+  // celular: sem antialias, densidade até 1,5× e sombra menor, para caber na GPU dele
   const mobile = matchMedia('(pointer: coarse)').matches;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: !mobile, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.5 : 2));
@@ -1525,7 +1526,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       else g.position.copy(w3(p.pos, 0.9));
       if (p.kind === 'link') {
         const dx = p.vel.x - p.pos.x, dz = p.vel.y - p.pos.y;
-        const beam = g.children[2];
+        const beam = g.children[2]; // filhos do Elo: corpo, halo e fio (ele não ganha chama nem redemoinho)
         beam.position.set(dx / 2, 0, dz / 2);
         beam.rotation.y = Math.atan2(dx, dz);
         beam.scale.set(1, 1, Math.hypot(dx, dz));
@@ -1655,6 +1656,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
         m.statusClocks.clear();
+        // Égide pronta (131072) não vira ícone: tem o selo próprio ao lado da barra (aegisEl)
         m.statusEl.replaceChildren(...STATUS_ICONS.filter(([bit]) => d.status & bit && bit !== 131072).map(([bit, ico, name]) => {
           const c = el('b', { class: 'fx-clock', 'aria-hidden': 'true' });
           m.statusClocks.set(bit, c);
@@ -1731,6 +1733,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   let composer: EffectComposer | null = null;
   const renderPass = new RenderPass(scene, camera);
+  // pós-processamento (bloom e o pixel art, que depende dele) só no PC; no celular a cena vai direto ao renderer
   if (!mobile) {
     composer = new EffectComposer(renderer);
     composer.addPass(renderPass);
@@ -1847,6 +1850,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       // câmera quase sem perspectiva: 1 bloco mede o mesmo no chão da tela toda, e a grade presa não balança nas bordas
       camera.fov = on ? 12 : 40;
+      // 20° = metade do campo de visão normal (40°): com o ângulo menor, a câmera recua camK vezes para enquadrar a mesma arena
       camK = Math.tan(THREE.MathUtils.degToRad(20)) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
       camera.near = on ? 2 : 0.5;
       camera.far = on ? 400 : 200;

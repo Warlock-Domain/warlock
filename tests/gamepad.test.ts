@@ -35,7 +35,7 @@ describe('controle: analógico', () => {
 
 describe('controle: botões', () => {
   it('maps A B X Y LB RB to the bar slots and LT RT ↑ to the active items', () => {
-    setSlots(['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap']);
+    setSlots(['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap'], ['scourge', 'redirector', 'pact']);
     const p = pad([0, 0, 0, 0], [BTN.X]);
     expect(padAction(p.buttons.findIndex((b) => b.pressed))).toBe('homing');
     expect([BTN.A, BTN.B, BTN.Y, BTN.LB, BTN.RB].map(padAction)).toEqual(['fireball', 'lightning', 'shield', 'teleport', 'swap']);
@@ -46,7 +46,7 @@ describe('controle: botões', () => {
   });
 
   it('shows the pad labels on the bar while the pad is in use', () => {
-    setSlots(['fireball', 'homing']);
+    setSlots(['fireball', 'homing'], ['scourge', 'redirector', 'pact']);
     setPadMode(true);
     expect([labelOf('fireball'), labelOf('homing'), labelOf('lightning'), labelOf('scourge'), labelOf('pact')]).toEqual(['A', 'B', '—', 'LT', '↑']);
     setPadMode(false);

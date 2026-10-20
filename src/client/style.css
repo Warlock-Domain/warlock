@@ -915,20 +915,59 @@ body.replaying .peek-shop { display: none; }
 .center.wide:has(.shop) { width: min(1860px, calc(100% - 24px)); }
 @media (min-width: 1500px) { .shop { grid-template-columns: 280px minmax(0, 1fr) 290px; gap: 20px; } }
 
-/* menu principal (Fernando, 19/10, como o do Dota): faixa do topo com o logo, as abas em caixa alta (a aberta sublinhada em dourado) e o apelido */
-.home-bar { display: flex; align-items: center; gap: 6px 18px; border-bottom: 1px solid var(--gold-line); }
-.home-logo { flex: none; font-family: var(--gothic); font-size: 2.2rem; line-height: 1; background: linear-gradient(180deg, var(--gold-pale), var(--gold) 45%, var(--lava-hi)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 2px 8px rgba(255, 120, 30, .5)); }
-.home-tabs { display: flex; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.home-tabs::-webkit-scrollbar { display: none; }
-.home-tabs button { flex: none; background: none; border: 0; border-bottom: 3px solid transparent; border-radius: 0; padding: 10px 12px 7px; font-family: var(--display); font-size: 1rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.home-tabs button:hover, .home-tabs button.on { color: var(--fg); }
-.home-tabs button.on { border-bottom-color: var(--gold); }
-.home-tabs button .gi { font-size: 1.1rem; }
-.home-name { flex: none; }
+/* Barra local inspirada na referência: emblema e placas metálicas inclinadas. */
+.lobby:has(.home-bar) { padding-top: var(--safe-t); }
+.home-bar { display: flex; align-items: stretch; gap: 0; width: 100vw; margin-left: calc(50% - 50vw); padding: 0 max(20px, var(--safe-r)) 0 max(20px, var(--safe-l)); min-height: 88px; background: linear-gradient(115deg, var(--panel2), var(--bg) 55%, var(--panel-bot)); border-bottom: 2px solid var(--bronze); box-shadow: var(--shadow-md); }
+.home-logo { flex: 0 0 auto; min-width: 132px; display: grid; place-items: center; padding: 8px; border: 0; border-radius: 0; background: radial-gradient(ellipse at 50% 100%, var(--lava-dark), transparent 75%); border-inline: 1px solid var(--gold-line); }
+.home-logo:focus-visible { outline-offset: -4px; }
+.home-logo[aria-selected="true"] { background-color: var(--sel-bg); box-shadow: inset 0 -3px var(--gold); }
+@media (hover: hover) { .home-logo:hover { background-color: var(--sel-bg); } }
+/* logo na barra = o mesmo SVG do ícone da aba (public/warlock-wars.svg; pedido do Fernando, 20/10) */
+.home-logo img { display: block; width: 64px; height: 64px; filter: drop-shadow(0 2px 8px rgba(255, 120, 30, .45)); }
+.home-tool { flex: 0 0 64px; border: 0; border-right: 1px solid var(--line); border-radius: 0; background: none; padding: 10px; }
+.home-tool img { display: block; }
+.home-tool.on { background: var(--sel-bg); box-shadow: inset 0 -3px var(--gold); }
+@media (hover: hover) { .home-tool:hover { background: var(--sel-bg); } }
+.home-tabs { display: flex; flex: 1; min-width: 0; padding: 0 12px; }
+.home-tabs button { position: relative; isolation: isolate; flex: 1; min-width: 0; background: none; border: 0; border-radius: 0; padding: 12px 14px; font-family: var(--display); font-size: clamp(.95rem, 1.3vw, 1.3rem); font-weight: 700; line-height: 1.15; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); text-shadow: var(--text-shadow); }
+.home-tabs button::before { content: ''; position: absolute; inset: 0; z-index: -1; transform: skewX(-12deg); background: linear-gradient(180deg, var(--panel-top), var(--bg)); border-inline: 1px solid var(--line); border-bottom: 3px solid transparent; box-shadow: inset 0 1px var(--gold-faint); }
+.home-tabs button.on { color: var(--gold-pale); }
+.home-tabs button.on::before { border-bottom-color: var(--gold); background: linear-gradient(180deg, var(--panel2), var(--lava-night)); }
+.home-tabs button:focus-visible { z-index: 1; outline-offset: -5px; }
+@media (hover: hover) { .home-tabs button:hover { color: var(--fg); } .home-tabs button:hover::before { border-bottom-color: var(--bronze); background: var(--plate); } }
+.home-tabs button .gi { display: none; }
+.home-tabs .home-exit { flex: 0 0 64px; padding: 10px; border-right: 1px solid var(--line); }
+.home-tabs .home-exit::before { display: none; }
+.home-tabs .home-exit .gi { display: block; width: 28px; height: 28px; color: var(--muted); }
+@media (max-width: 600px) { .home-tabs .home-exit { flex-basis: 48px; } }
 .home-panel { display: flex; flex-direction: column; gap: 24px; }
+.play-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 32px; align-items: start; }
+.play-content { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.play-content > p { margin: 0; }
+.play-options { display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--panel-glass); border: 1px solid var(--gold-line); }
+.play-options button { justify-content: flex-start; text-align: left; min-height: 56px; border-radius: 0; font-family: var(--display); letter-spacing: .06em; text-transform: uppercase; }
+.play-options button.on { border-color: var(--gold); background: var(--sel-bg); box-shadow: inset 4px 0 var(--gold); color: var(--gold-pale); }
+@media (max-width: 860px) { .play-layout { grid-template-columns: minmax(0, 1fr) 240px; gap: 16px; } }
+@media (max-width: 600px) { .play-layout { grid-template-columns: minmax(0, 1fr); } .play-options { grid-row: 1; } }
+.home-art { display: block; align-self: center; margin-inline: auto; max-width: 100%; width: min(858.176px, 100%, 81.62vh); height: auto; object-fit: contain; border-radius: var(--r-md); }
+.home-stage { position: relative; isolation: isolate; min-height: min(858.176px, 81.62vh, calc(100vw - 32px)); }
+.home-backdrop { position: absolute; inset: 0; pointer-events: none; z-index: -1; }
+.home-stage.is-subpage .home-backdrop { filter: blur(12px) brightness(.5); }
+.hud:has(.room-wait)::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--bg) url('/home-cat.jpg') center / min(858.176px, 100vw, 81.62vh) auto no-repeat; filter: blur(12px) brightness(.5); }
+.card.room-wait { background: var(--frame), var(--panel-glass); }
+.home-stage > .home-panel { position: relative; min-width: 0; }
+.home-stage.is-subpage > .home-panel { min-height: min(858.176px, 81.62vh, calc(100vw - 32px)); padding: 24px; background: var(--panel-glass); border: 1px solid var(--gold-faint); border-radius: var(--r-md); }
+@media (max-width: 600px) { .home-stage.is-subpage > .home-panel { padding: 16px 12px; } }
+.home-library { display: flex; flex-direction: column; gap: 14px; }
+.home-cosmetics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+.cosmetic-card { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px 12px; text-align: center; background: var(--plate); border: 1px solid var(--gold-line); border-radius: var(--r-md); }
+.cosmetic-card img { object-fit: contain; }
+.cosmetic-card h3 { margin: 0; font-family: var(--display); color: var(--gold-pale); }
 .home-panel h2, .home-panel > section > p { margin: 0; }
 .home-learn, .home-char, .home-settings { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .home-char .picker { align-self: stretch; }
+.wardrobe-options-title { margin: 4px 0 12px; font-family: var(--display); color: var(--muted); }
+@media (max-width: 600px) { .wardrobe-options-title { display: none; } }
 /* Configurações em página única (issue #59 no menu inicial, #70 na partida; como as opções do Dota 2): sumário fixo à esquerda, seções empilhadas */
 .home-settings { align-items: stretch; }
 .settings-grid { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 28px; align-items: start; }
@@ -943,10 +982,10 @@ body.replaying .peek-shop { display: none; }
 .settings-sections .settings-page-title .gi { color: var(--ember); }
 @media (prefers-reduced-motion: no-preference) { body.in-lobby, .settings-scroll { scroll-behavior: smooth; } }
 @media (max-width: 600px) {
-  .home-bar { flex-wrap: wrap; justify-content: space-between; }
-  .home-logo { font-size: 1.8rem; }
-  .home-tabs { order: 3; flex-basis: 100%; }
-  .home-tabs button { padding: 8px 9px 6px; font-size: .9rem; letter-spacing: .04em; }
+  .home-tool { flex-basis: 48px; }
+  .home-tabs { flex-wrap: wrap; padding: 0; }
+  .home-tabs button { flex: 1 1 30%; min-height: 48px; font-size: .95rem; letter-spacing: .02em; }
+  .home-tabs button::before { transform: none; }
   /* celular: o sumário vira "Sumário" recolhível, colado no topo enquanto rola */
   .settings-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .settings-toc, .home-settings .settings-toc { top: 0; z-index: 3; padding: 0 10px; background: var(--panel-solid); }
@@ -955,6 +994,13 @@ body.replaying .peek-shop { display: none; }
   .settings-sections .settings-body, .settings-scroll .settings-body { scroll-margin-top: 60px; }
 }
 
+@media (max-width: 860px) {
+  .home-bar { flex-wrap: wrap; padding-inline: max(12px, var(--safe-l)) max(12px, var(--safe-r)); }
+  .home-logo { flex-basis: 92px; min-height: 72px; }
+  .home-logo img { width: 52px; height: 52px; }
+  .home-tabs { order: 3; flex-basis: 100%; min-height: 64px; padding-inline: 4px; }
+  .home-tabs button { padding: 10px 8px; font-size: 1rem; letter-spacing: .04em; }
+}
 /* biblioteca Magias e itens (Fernando, 19/10, como a do Dota): ícones quadrados por grupo, na cor do grupo; itens prateados */
 .library { display: flex; flex-direction: column; gap: 14px; }
 .lib-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
@@ -1003,6 +1049,24 @@ body.replaying .peek-shop { display: none; }
 .tile-acts:empty { display: none; }
 /* a busca na coluna da loja não cresce na altura (flex-basis de 220 px valia como altura) */
 .shop-main > .lib-search { flex: none; }
+.shop-loadout { display: flex; gap: 20px; align-items: start; margin-bottom: 12px; }
+.loadout-spells, .loadout-items { display: grid; gap: 6px; min-width: 0; }
+.loadout-spells { flex: 2; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.loadout-items { flex: 1; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.shop-loadout-slot { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-width: 0; min-height: 90px; padding: 22px 4px 8px; border: 1px solid var(--g, var(--gold-line)); background: var(--panel-glass); border-radius: var(--r-sm); text-align: center; }
+.shop-loadout-slot.empty { border-style: dashed; color: var(--muted); }
+.reorder-slot { touch-action: none; cursor: grab; user-select: none; }
+.dragging-slot { cursor: grabbing; outline: 2px solid var(--gold); opacity: .65; }
+.spellbar .slot-empty { position: relative; display: flex; }
+.item-grid .slot-empty[data-loadout-slot] { display: block; position: relative; width: 42px; height: 42px; }
+.item-grid .slot-empty .key { position: absolute; top: 2px; left: 4px; font-size: .65rem; color: var(--muted); }
+.shop-loadout-slot > .gi { width: 28px; height: 28px; color: var(--g, var(--gold)); }
+.shop-loadout-slot kbd { position: absolute; top: 3px; left: 5px; font: inherit; font-size: .75rem; color: var(--gold-pale); }
+.shop-loadout-slot small { font-size: .7rem; line-height: 1.1; overflow-wrap: anywhere; }
+.loadout-item { --g: var(--silver); }
+.loadout-level { position: absolute; right: 5px; top: 3px; color: var(--muted); font-size: .7rem; }
+@media (max-width: 860px) { .shop-loadout { flex-wrap: wrap; gap: 12px; } .loadout-spells { flex-basis: 100%; } .loadout-items { flex: 0 1 50%; } }
+
 /* Ataque em 2 fileiras de 5, cada outro grupo em 1 (Fernando, 19/10) */
 .shop .shop-main .shop-grid { grid-template-columns: repeat(5, 76px); }
 /* menu principal largo como o do Dota (antes 640 px) */
@@ -1039,13 +1103,38 @@ div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: 
 /* loja revista (Fernando, 19/10: "toda feia e mal diagramada"): cartas ocupam a coluna do meio até 200 px,
    Vender/Desfazer no canto da carta (sem abrir buraco entre as fileiras), itens mais baixos com a coluna rolando sozinha */
 @media (min-width: 861px) {
-  .shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(118px, 200px)); }
+  .shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .shop .shop-main .shop-item { width: auto; }
   .shop .shop-main .shop-tile { width: 100%; }
   .shop-items { max-height: calc(100dvh - 48px - var(--safe-t) - var(--safe-b)); overflow-y: auto; scrollbar-width: thin; padding-right: 4px; }
   .shop-items .shop-tile { height: 98px; padding-top: 14px; }
 }
 /* Vender/Desfazer no canto da carta em toda tela; no toque o alvo fica com 36 px para caber na carta */
+/* A loja também pode ser redimensionada: adaptar pela largura do painel, não só da tela. */
+.center:has(.shop), .peek-shop { container: shop-window / inline-size; }
+.shop-main { container: shop-content / inline-size; }
+.shop-side { min-width: 0; overflow-wrap: anywhere; }
+.shop-main > .shop-head { flex-wrap: wrap; }
+.shop-main > .lib-search { width: 100%; min-width: 0; }
+.shop .shop-main .shop-item { min-width: 0; }
+@container shop-window (max-width: 1050px) {
+  .shop { grid-template-columns: minmax(0, 1fr); }
+  .shop-items { order: 50; position: static; max-height: none; overflow: visible; }
+  .shop-items .shop-grid { grid-template-columns: repeat(auto-fit, minmax(min(104px, 100%), 1fr)); }
+  .shop-items .shop-item { width: auto; }
+  .shop-items .shop-tile { width: 100%; }
+  .shop-side { position: static; }
+}
+@container shop-content (max-width: 640px) {
+  .shop .shop-main .shop-grid { grid-template-columns: repeat(auto-fit, minmax(min(104px, 100%), 1fr)); }
+  .shop-loadout { flex-wrap: wrap; gap: 10px; margin-bottom: 0; }
+  .loadout-spells { flex: 1 0 100%; }
+  .loadout-items { flex: 0 1 50%; }
+}
+@container shop-content (max-width: 380px) {
+  .loadout-spells { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .loadout-items { flex-basis: 100%; }
+}
 @media all {
   .shop-item { position: relative; }
   .tile-acts { position: absolute; top: 4px; right: 4px; min-height: 0; z-index: 1; }

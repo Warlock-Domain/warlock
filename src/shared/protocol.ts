@@ -1,7 +1,7 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
-import { ARENA_IDS, type ArenaId } from './arena.ts';
+import type { ArenaId } from './arena.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
-import { isCharacter, isLook, type CharacterId } from './characters.ts';
+import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, RUNE_KINDS, type RuneKind } from './constants.ts';
 import { ITEM_IDS, isActive, type ItemId } from './items.ts';
 import { MODES, OPTION_CHOICES, goalOf, parseOpt, votesNeeded, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type Vote } from './match.ts';
@@ -40,6 +40,7 @@ export type PublicPlayer = {
   spells: Record<SpellId, number>; items: Record<ItemId, number>; stats: Stats; bought: string[]; held: Record<string, number[]>; ready: boolean; connected: boolean; team: number | null;
   difficulty?: MatchOpts['difficulty']; // só bots: a dificuldade dele
   dummy?: true; // sandbox: boneco parado
+  turret?: true; // Sandbox: torreta de direção fixa.
 };
 
 export type PublicRoom = {
@@ -88,13 +89,14 @@ export type ServerMsg =
   | { t: 'error'; code: ErrorCode; msg: string }
   | { t: 'taunt'; id: string; i: number };
 
-const MAX_COORD = 30;
+const MAX_COORD = 30; // a maior arena (8 magos, forma mais larga: 1,63 × 13,6 m) chega a ~22 m do centro; o resto é folga para clique na lava
 const MAX_MSG = 2048; // 'start' com 7 bots configurados: ~1,0 KB só com magias, ~1,7 KB com magias e itens (medido em 19/10)
 
 type Obj = Record<string, unknown>;
 const isObj = (x: unknown): x is Obj => typeof x === 'object' && x !== null && !Array.isArray(x);
 const coord = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= MAX_COORD;
 const seq = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 0 && (x as number) < 2 ** 31;
+// publicId: hash de 32 bits em base 36 cabe em 7 caracteres
 const pubId = (x: unknown): x is string => typeof x === 'string' && /^p[0-9a-z]{1,8}$/.test(x);
 
 export function cleanName(raw: unknown): string {
@@ -114,7 +116,7 @@ function parseOpts(x: unknown): Partial<MatchOpts> | null {
 const SKILL_KEYS = Object.keys(BOT_SKILL.normal) as (keyof BotSkill)[];
 const level = (x: unknown, max: number) => Number.isInteger(x) && (x as number) >= 0 && (x as number) <= max;
 function parseSetup(x: unknown): BotSetup[] | null {
-  if (!Array.isArray(x) || x.length > MAX_PLAYERS - 1) return null;
+  if (!Array.isArray(x) || x.length > MAX_PLAYERS - 1) return null; // sempre sobra o lugar de quem pediu
   const out: BotSetup[] = [];
   for (const b of x) {
     if (!isObj(b)) return null;
@@ -139,9 +141,9 @@ const SANDBOX_KEYS: (keyof Sandbox)[] = ['god', 'noCd', 'shrink'];
 function parseSandbox(c: unknown): SandboxCmd | null {
   if (!isObj(c)) return null;
   if (c.op === 'set') return SANDBOX_KEYS.includes(c.key as keyof Sandbox) && typeof c.on === 'boolean' ? { op: 'set', key: c.key as keyof Sandbox, on: c.on } : null;
-  if (c.op === 'arena') return ARENA_IDS.includes(c.arena as ArenaId) ? { op: 'arena', arena: c.arena as ArenaId } : null;
   if (c.op === 'rune') return RUNE_KINDS.includes(c.kind as RuneKind) ? { op: 'rune', kind: c.kind as RuneKind } : null;
   if (c.op === 'restart') return { op: 'restart' };
+  if (c.op === 'turret') return ['north', 'east', 'south', 'west'].includes(c.direction as string) ? { op: 'turret', direction: c.direction as 'north' | 'east' | 'south' | 'west' } : null;
   if (c.op !== 'bot' || (c.dummy !== undefined && typeof c.dummy !== 'boolean')) return null;
   const bot = c.bot === undefined ? undefined : parseSetup([c.bot])?.[0];
   if (bot === undefined && c.bot !== undefined) return null;
@@ -159,6 +161,7 @@ export function parseClientMessage(raw: string): ClientMsg | null {
   if (!isObj(m)) return null;
   switch (m.t) {
     case 'hello':
+      // o cliente gera com crypto.randomUUID (36 caracteres); o id é o segredo de reconexão, então só formato fechado
       if (typeof m.playerId !== 'string' || !/^[\w-]{8,64}$/.test(m.playerId)) return null;
       return { t: 'hello', playerId: m.playerId, name: cleanName(m.name) };
     case 'start': {
@@ -208,7 +211,7 @@ export function parseClientMessage(raw: string): ClientMsg | null {
     case 'pick':
       return isCharacter(m.character) ? { t: 'pick', character: m.character } : null;
     case 'look':
-      return isLook(m.look) ? { t: 'look', look: m.look } : null;
+      return isLook(m.look) ? { t: 'look', look: fixLook(m.look) } : null;
     case 'ready':
     case 'alive':
       return { t: m.t };
@@ -233,7 +236,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     mode: m.mode,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }) })),
+    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy, turret }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }), ...(turret && { turret: true as const }) })),
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),
