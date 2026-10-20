@@ -19,13 +19,13 @@ Sugestão de ambiente de desenvolvimento, usada pelo dono do projeto desde 20/10
 - **Decisão com contexto.** A pergunta sobre o anel de alcance é feita na sessão do anel, que tem os prints e os números na mão. A orquestradora só aponta onde há decisão esperando você.
 - **Revisão independente.** Quem revisa e mescla (a orquestradora) não é quem escreveu o código (a filha), como numa equipe.
 - **Retomar sem perder o fio.** O estado fica no HANDOFF e nas issues; uma orquestradora nova lê o HANDOFF e continua de onde a outra parou.
-- **Histórico visível.** Cada tarefa vira issue → PR com `Closes #n` → cartão no [quadro](https://github.com/users/fernandorff/projects/3), e a barra lateral mostra as sessões filhas embaixo da orquestradora.
+- **Histórico visível.** Cada tarefa vira issue → PR com `Closes #n` → cartão no [quadro geral](https://github.com/users/fernandorff/projects/3) e no quadro do tema (Balanceamento, Jogabilidade, Interface, Bugfix ou Documentação e fluxos), e a barra lateral mostra as sessões filhas embaixo da orquestradora.
 
 ## Passo a passo
 
 1. **Abra a orquestradora** na pasta do projeto e dê a ela o contexto fixo: o `CLAUDE.md`, o `CONTRIBUTING.md` e um arquivo de HANDOFF (estado atual, pendências, links). Peça que ela atualize o HANDOFF ao fechar cada bloco.
 2. **Faça os pedidos só para a orquestradora.** Ela decide: coisa rápida (doc, ajuste de uma linha, revisão de PR) faz ali mesmo; tarefa de código vira **issue + sessão filha**.
-3. **Issue antes de codar.** Mudança grande segue [Mudança grande: decidir antes de fazer](../CONTRIBUTING.md#mudança-grande-decidir-antes-de-fazer).
+3. **Issue antes de codar** (prova de conceito não tem issue: testa, mostra e só vira issue se o Fernando decidir que vale). Mudança grande segue [Mudança grande: decidir antes de fazer](../CONTRIBUTING.md#mudança-grande-decidir-antes-de-fazer).
 4. **Brief da filha** (a orquestradora escreve): link da issue; arquivos e área; o worktree e a branch (`git worktree add -b feat/<assunto> ../warlock-<nome> origin/master`); os gates; os prints esperados (PC); "PR para o master com `Closes #n`, sem mesclar"; e o contexto que ela precisa saber (decisões, regras). Título no formato `🧙🧩 Warlock #<n> · <assunto>`.
 5. **A filha trabalha e pergunta.** Dúvida de produto vai para você em múltipla escolha, dentro da filha.
 6. **PR aberto → a orquestradora revisa e mescla** (squash no master); a pipeline Produção publica o jogo no ar. A issue fecha sozinha pelo `Closes #n`.
