@@ -197,7 +197,7 @@ export class Room extends DurableObject<Env> {
 
   private async dropped(ws: WebSocket) {
     const id = this.playerOf(ws);
-    // o mesmo jogador ainda tem outro socket vivo (reconectou antes do fechamento deste chegar): continua na sala
+    // outro socket vivo com o mesmo playerId: não remove (o hello já solta a aba antiga com forget; isto é só segurança)
     if (!id || this.live(ws).some((o) => this.playerOf(o) === id)) return;
     const s = await this.load();
     if (!s) return;
