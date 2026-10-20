@@ -15,6 +15,7 @@ describe('protocolo', () => {
     expect(p({ t: 'start', bots: 7 })).toEqual({ t: 'start', bots: 7 });
     expect(p({ t: 'pick', character: 'skeleton_warrior' })).toEqual({ t: 'pick', character: 'skeleton_warrior' });
     expect(p({ t: 'look', look: '8788874' })).toEqual({ t: 'look', look: '8788874' }); // o maior índice de cada peça
+    expect(p({ t: 'look', look: '8788874999999' })).toEqual({ t: 'look', look: '8788874999999' }); // e a última cor de cada uma (#109)
     expect(p({ t: 'look', look: '4044444' })).toEqual({ t: 'look', look: '3733344' }); // cliente antigo com a Ladina encapuzada: Ladina + Capuz (#107)
     expect(p({ t: 'vote', kind: 'mode', target: 'teams' })).toEqual({ t: 'vote', kind: 'mode', target: 'teams' });
     expect(p({ t: 'vote', kind: 'shuffle', target: 'x' })).toEqual({ t: 'vote', kind: 'shuffle' });
@@ -31,7 +32,7 @@ describe('protocolo', () => {
     expect(p({ t: 'hello', playerId: 'x', name: 'a' })).toBeNull();
     expect(p({ t: 'buy', spell: 'shield', extra: 'x'.repeat(3000) })).toBeNull();
     expect(p({ t: 'pick', character: 'dragon' })).toBeNull();
-    for (const look of ['9000000', '0800000', '0000080', '0000005', '010001', '01000110', 'a100011', 100011, null]) expect(p({ t: 'look', look })).toBeNull();
+    for (const look of ['9000000', '0800000', '0000080', '0000005', '010001', '01000110', '01000110000', '0100011a00000', 'a100011', 100011, null]) expect(p({ t: 'look', look })).toBeNull();
     expect(p({ t: 'vote', kind: 'kick' })).toBeNull();
     expect(p({ t: 'vote', kind: 'kick', target: 'raw-player-id-123' })).toBeNull();
     expect(p({ t: 'vote', kind: 'ban', target: 'p1' })).toBeNull();

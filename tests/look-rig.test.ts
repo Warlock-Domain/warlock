@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { CHARACTERS, encodeLook, type CharacterId } from '../src/shared/characters.ts';
-import { assemble, type Model } from '../src/client/scene.ts';
+import { CHARACTERS, PALETTE, encodeLook, type CharacterId } from '../src/shared/characters.ts';
+import { assemble, mainCell, type Model } from '../src/client/scene.ts';
 
 // o projeto não tem @types/node: só o tipo do que o teste usa
 const { readFileSync } = (await import('node:fs' as string)) as { readFileSync(p: string): Uint8Array };
@@ -76,5 +76,28 @@ describe('montagem da aparência (scene.ts)', () => {
     expect(Math.max(...a2.map((x, i) => Math.abs(x - b2[i])))).toBeLessThan(1e-4);
     expect(names.sort()).toEqual(['1H_Sword', 'Barbarian_ArmLeft', 'Barbarian_ArmRight', 'Mage_Body', 'Rogue_LegLeft', 'Rogue_LegRight', 'Round_Shield', 'Skeleton_Minion_Cloak',
       'Skeleton_Warrior_Eyes', 'Skeleton_Warrior_Head', 'Skeleton_Warrior_Helmet', 'Skeleton_Warrior_Jaw']);
+  });
+
+  it('cor escolhida pinta só a peça, no quadrado da cor principal; o cabelo é o quadrado 1 (#109)', async () => {
+    const files = new Map<CharacterId, Model>();
+    for (const c of CHARACTERS) files.set(c.id, await load(c.id));
+    const mesh = (m: Model, name: string) => m.scene.getObjectByName(name) as THREE.Mesh;
+    // cor principal medida na textura de cada boneco (quadrado = fileira × 8 + coluna): tecido roxo do Mago, armadura do Cavaleiro, verde da Ladina
+    expect(mainCell([mesh(files.get('mage')!, 'Mage_Body')])).toBe(8);
+    expect(mainCell([mesh(files.get('knight')!, 'Knight_Body')])).toBe(3);
+    expect(mainCell([mesh(files.get('rogue')!, 'Rogue_ArmLeft'), mesh(files.get('rogue')!, 'Rogue_ArmRight')])).toBe(8);
+    // esqueleto: o osso (9) nunca muda de cor; braço do lacaio é só osso
+    expect(mainCell([mesh(files.get('skeleton_minion')!, 'Skeleton_Minion_Body')], 9)).toBe(7);
+    expect(mainCell([mesh(files.get('skeleton_minion')!, 'Skeleton_Minion_ArmLeft')], 9)).toBe(-1);
+    // Ladina com tronco azul (5) e cabelo preto (9); o resto na original
+    const m = assemble('3033344' + '050009', (id) => files.get(id)!);
+    const tint = (name: string) => (mesh(m, name).material as THREE.Material).userData.tint;
+    expect(tint('Rogue_Body')).toEqual({ cell: 8, hex: PALETTE[5].hex });
+    expect(tint('Rogue_Head')).toEqual({ cell: 1, hex: PALETTE[9].hex });
+    expect(tint('Rogue_ArmLeft')).toBeUndefined();
+    expect(mesh(m, 'Rogue_ArmLeft').material).toBe(mesh(files.get('rogue')!, 'Rogue_ArmLeft').material); // sem cor: material dividido com o GLB
+    // esqueleto não tem cabelo: a cor do cabelo não mexe na caveira
+    const sk = assemble('8000000' + '000009', (id) => files.get(id)!);
+    expect((mesh(sk, 'Skeleton_Warrior_Head').material as THREE.Material).userData.tint).toBeUndefined();
   });
 });

@@ -11,7 +11,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SHAPES as ARENAS, edgeAt, inLavaAt, type ArenaId, type Isle } from '../shared/arena.ts';
 import { ARENA_STEP, CHEST, ISLAND, OBSTACLES, RUNE, SHRINK_WARN, WIZ_R, type RuneKind } from '../shared/constants.ts';
-import { lookBody, lookOf, lookPieces, type CharacterId } from '../shared/characters.ts';
+import { LOOK_PARTS, lookBody, lookOf, lookPieces, lookTint, type CharacterId } from '../shared/characters.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
@@ -76,20 +76,76 @@ export function assemble(look: string, file: (id: CharacterId) => Model): Model 
   for (const o of meshes) o.removeFromParent();
   const byName = new Map<string, THREE.Object3D>();
   root.traverse((o) => byName.set(o.name, o));
-  for (const piece of lookPieces(look)) {
+  LOOK_PARTS.forEach(({ opts }, i) => {
+    const piece = opts[Number(look[i])];
+    if (!piece) return;
+    const parts: THREE.Mesh[] = [];
     for (const name of piece.nodes) {
       const src = file(piece.from).scene.getObjectByName(name);
       if (!src?.parent) continue;
-      const part = src.clone();
+      const part = src.clone() as THREE.Mesh;
       if ((part as THREE.SkinnedMesh).isSkinnedMesh) {
         const sk = part as THREE.SkinnedMesh;
         sk.bind(new THREE.Skeleton(sk.skeleton.bones.map((b) => byName.get(b.name) as THREE.Bone), sk.skeleton.boneInverses), sk.bindMatrix);
       }
       byName.get(src.parent.name)?.add(part);
+      parts.push(part);
     }
-  }
+    // cor escolhida (issue #109); na cabeça é a do cabelo, que esqueleto não tem
+    const hex = lookTint(look, i);
+    if (!hex || (i === 0 && piece.from.startsWith('skeleton'))) return;
+    const cell = i === 0 ? HAIR : mainCell(parts, piece.from.startsWith('skeleton') ? BONE : SKIN);
+    if (cell < 0) return; // só osso (braços do esqueleto lacaio): nada de roupa para pintar
+    for (const p of parts) {
+      if (Array.isArray(p.material)) continue;
+      p.material = p.material.clone();
+      p.material.userData.tint = { cell, hex };
+      tint(p.material);
+    }
+  });
   root.updateMatrixWorld(true);
   return { scene: root, clips: base.clips };
+}
+
+// a textura KayKit é uma grade de 8×4 cores (degradê em cada quadrado); quadrado = fileira × 8 + coluna, com uv como no GLB.
+// O cabelo (e as sobrancelhas) de toda cabeça humana é o quadrado 1, separado da pele (0); nos esqueletos o osso é o 9
+const HAIR = 1, SKIN = 0, BONE = 9;
+// cor principal da peça: o quadrado que cobre mais área nas malhas dela, fora a pele ou o osso (bare); -1 se só houver ele
+export function mainCell(meshes: THREE.Mesh[], bare = SKIN): number {
+  const area = new Map<number, number>();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (const { geometry: g } of meshes) {
+    const pos = g.attributes.position, uv = g.attributes.uv;
+    for (let i = 0; i < g.index!.count; i += 3) {
+      const [i0, i1, i2] = [0, 1, 2].map((k) => g.index!.getX(i + k));
+      a.fromBufferAttribute(pos, i0);
+      const s = b.fromBufferAttribute(pos, i1).sub(a).cross(c.fromBufferAttribute(pos, i2).sub(a)).length();
+      const u = (uv.getX(i0) + uv.getX(i1) + uv.getX(i2)) / 3, v = (uv.getY(i0) + uv.getY(i1) + uv.getY(i2)) / 3;
+      const k = Math.floor(v * 4) * 8 + Math.floor(u * 8);
+      area.set(k, (area.get(k) ?? 0) + s);
+    }
+  }
+  area.delete(bare);
+  return [...area].reduce((x, y) => (y[1] > x[1] ? y : x), [-1, 0])[0];
+}
+// troca, na textura da peça, só o quadrado userData.tint.cell pela cor userData.tint.hex, guardando o degradê (brilho do texel em
+// relação ao meio do quadrado). Clonar material não copia o onBeforeCompile: quem clona chama tint() de novo
+export function tint(mat: THREE.Material) {
+  const t = mat.userData.tint as { cell: number; hex: string } | undefined;
+  if (!t) return;
+  const cell = new THREE.Vector2(t.cell % 8, Math.floor(t.cell / 8)), color = new THREE.Color(t.hex);
+  mat.onBeforeCompile = (sh) => {
+    if (!(mat as THREE.MeshStandardMaterial).map) return; // sem textura (brilho dos olhos do esqueleto): nada a trocar
+    sh.uniforms.uCell = { value: cell };
+    sh.uniforms.uTint = { value: color };
+    sh.fragmentShader = 'uniform vec2 uCell;\nuniform vec3 uTint;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+  if (floor(vMapUv * vec2(8.0, 4.0)) == uCell) {
+    vec3 lum = vec3(0.2126, 0.7152, 0.0722);
+    float mid = dot(texture2D(map, (uCell + 0.5) / vec2(8.0, 4.0)).rgb, lum);
+    diffuseColor.rgb = min(uTint * dot(diffuseColor.rgb, lum) / max(mid, 0.01), vec3(1.0));
+  }`);
+  };
+  mat.customProgramCacheKey = () => 'tint';
 }
 
 const w3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, p.y);
@@ -721,6 +777,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         return;
       }
       const mat = mesh.material.clone();
+      tint(mat);
       if (mat instanceof THREE.MeshStandardMaterial && /^Mage_(Hat|Body|Cape)$/.test(mesh.name) && mat.map) mat.map = tintFor(d.color, mat.map);
       mesh.material = mat;
       ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });

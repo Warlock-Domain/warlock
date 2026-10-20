@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHARACTERS, LOOK_PARTS, PRESETS, decodeLook, encodeLook, fixLook, isLook, isRetired, lookHead, lookOf, lookPieces, randomLook } from '../src/shared/characters.ts';
+import { CHARACTERS, LOOK_PARTS, PALETTE, PRESETS, TINTS, decodeLook, encodeLook, fixLook, isLook, isRetired, lookHead, lookOf, lookPieces, lookTint, randomLook, withTint } from '../src/shared/characters.ts';
 
 // o projeto não tem @types/node: só o tipo do que o teste usa
 const { readFileSync } = (await import('node:fs' as string)) as { readFileSync(p: string): Uint8Array };
@@ -48,13 +48,31 @@ describe('aparência montada', () => {
     let x = 0;
     for (let i = 0; i < 200; i++) {
       const l = decodeLook(randomLook(() => (x = (x * 7 + 0.37) % 1)))!;
-      expect(l.some((n, k) => isRetired(LOOK_PARTS[k].opts[n]))).toBe(false);
+      expect(l.slice(0, LOOK_PARTS.length).some((n, k) => isRetired(LOOK_PARTS[k].opts[n]))).toBe(false);
     }
-    expect(randomLook(() => 4.5 / 9)).toBe(fixLook('4444442')); // cabeça, tronco, braços e pernas sorteados na encapuzada
+    expect(randomLook(() => 4.5 / 9)).toBe(fixLook('4444442') + '555555'); // cabeça, tronco, braços e pernas sorteados na encapuzada; cores no meio da paleta
+  });
+
+  it('cores: 6 dígitos depois das peças, e sem cor o código continua com 7 (#109)', () => {
+    expect(TINTS).toHaveLength(6);
+    expect(PALETTE).toHaveLength(10); // um dígito por cor
+    expect(decodeLook('0100011')).toEqual([0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0]);
+    expect(encodeLook(decodeLook('0100011')!)).toBe('0100011');
+    const azul = PALETTE.findIndex((c) => c.name === 'Azul');
+    const tronco = withTint('0100011', TINTS.indexOf(2), azul); // tronco azul
+    expect(tronco).toBe('0100011' + '0' + azul + '0000');
+    expect(lookTint(tronco, 2)).toBe(PALETTE[azul].hex);
+    expect(lookTint(tronco, 3)).toBeNull(); // braços na original
+    expect(lookTint(tronco, 6)).toBeNull(); // Nas mãos não tem cor
+    expect(lookTint(withTint(tronco, TINTS.indexOf(0), 9), 0)).toBe(PALETTE[9].hex); // cabelo preto
+    expect(withTint(tronco, TINTS.indexOf(2), 0)).toBe('0100011'); // voltou à original: 7 dígitos de novo
+    expect(lookPieces(tronco)).toEqual(lookPieces('0100011'));
+    expect(fixLook('4044444123456')).toBe(lookOf('rogue_hooded') + '123456'); // a encapuzada antiga com cores guarda as cores
+    for (const bad of ['01000110', '010001100000', '01000110000000', '0100011a00000']) expect(isLook(bad)).toBe(false);
   });
 
   it('codifica em 7 dígitos e o sorteio sai sempre válido', () => {
-    expect(decodeLook(encodeLook([5, 0, 1, 2, 3, 0, 4]))).toEqual([5, 0, 1, 2, 3, 0, 4]);
+    expect(decodeLook(encodeLook([5, 0, 1, 2, 3, 0, 4]))).toEqual([5, 0, 1, 2, 3, 0, 4, 0, 0, 0, 0, 0, 0]);
     let x = 0;
     for (let i = 0; i < 50; i++) expect(isLook(randomLook(() => (x = (x * 7 + 0.37) % 1)))).toBe(true);
     expect(isLook(randomLook(() => 0.9999))).toBe(true);
