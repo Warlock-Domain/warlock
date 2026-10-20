@@ -1,19 +1,18 @@
-# Protótipo de navegação — issue #83
+# Menu principal — issue #83
 
-Proposta do Leonard; não é registro de decisão do Fernando.
+Proposta do Leonard, decidida pelo Fernando em 20/10 (comentários na issue #83 e linha no `CLAUDE.md`).
 
-- Home no botão Início, fundo nítido; demais abas e preparação da sala com o mesmo fundo desfocado.
-- Aprender reúne instruções e biblioteca. Guarda-roupas mantém editor e câmera em Acessórios; Magias, Mundo e Provocações são categorias provisórias.
-- Loja somente apresenta uma prévia dos modelos existentes; sem moeda, preços, compras ou bloqueios.
-- Perfil reaproveita a troca de nome. Sair fecha a conexão do lobby e tenta fechar a aba; caso bloqueado, mostra despedida com retorno.
-- Jogar organiza online, bots, sandbox e desafios à direita. Magias dos bots são escolhidas na sala de preparação contra bots e enviadas no campo setup já existente.
-- Logo W excluído. Gato substituído por gato2.jpg, com autoria declarada pelo usuário. Licença formal de redistribuição pendente, documentada nos créditos.
+- Barra: logo Warlock (leva ao Início) · Jogar · Aprender · Guarda-roupas · Loja · Perfil; Configurações e Sair como ícones.
+- Início com a foto do gato; as outras abas e a preparação da sala usam a mesma imagem desfocada no fundo.
+- Jogar: online, contra bots, sandbox e desafios à direita. Contra bots abre uma sala de preparação com as magias dos bots, enviadas no campo `setup` que já existia.
+- Aprender reúne o grimório e a biblioteca. Guarda-roupas mantém o editor de acessórios; Magias, Mundo e Provocações são categorias provisórias.
+- Loja é só vitrine dos modelos atuais: sem moeda, preço, compra ou bloqueio.
+- Perfil reaproveita a troca de nome. Sair fecha a conexão do lobby e tenta fechar a aba; se o navegador bloquear, mostra a despedida com o botão de voltar.
+- Foto do gato sem licença livre: entra por autorização do Fernando (crédito em `public/CREDITS.txt`).
 
-## Pendências para sair de rascunho
+## Prints (PC)
 
-- Decisão de escopo do Fernando na issue #83, incluindo as categorias e a loja provisórias.
-- Licença de redistribuição da imagem documentada.
-- Inspeção visual e prints antes/depois em PC e celular, português e inglês.
-- Testes de cliques para troca de nome e preparação dos bots; os testes por protocolo não substituem o navegador.
+Em `menu-principal/`: antes (jogo no ar) e depois (branch com o master), 1280×720 e 1920×1080, português e inglês.
 
-O acesso ao navegador local foi bloqueado anteriormente e não foi contornado. Não há prints novos nesta contribuição.
+- Antes: `antes-1280-play.jpg`, `antes-1280-learn.jpg`, `antes-1280-char.jpg`, `antes-1920-play.jpg`.
+- Depois: `depois-1280-home.jpg`, `depois-1280-play.jpg`, `depois-1280-library.jpg`, `depois-1280-char.jpg`, `depois-1280-shop.jpg`, `depois-1280-profile.jpg`, `depois-1920-home.jpg`, `depois-1920-play.jpg`, `depois-1280-en-home.jpg`, `depois-1280-en-play.jpg`, `depois-1280-sala-bots.jpg` (sala de preparação contra bots).
