@@ -64,6 +64,21 @@ git checkout <seu-usuario>-dev && git pull && git merge origin/dev && git push
 
 Tabela completa no [CLAUDE.md](CLAUDE.md#pipelines): CI, título do PR, revisão do Claude, `@claude` e ambiente dev. Logs em https://github.com/fernandorff/warlock/actions.
 
+## Issues
+
+Toda issue sai de um dos dois modelos (a issue em branco está desligada): https://github.com/fernandorff/warlock/issues/new/choose
+
+| Modelo | Quando | O que pede |
+|---|---|---|
+| **Bug** | algo no jogo não funciona como deveria | o que aconteceu (e o que esperava), como repetir passo a passo, onde (navegador e aparelho), prints ou vídeo |
+| **Ideia** | magia, item, modo, interface ou balanceamento novo | o que, por quê, como imagina (números, desenho, referência), se quer fazer o PR. Já nasce com `precisa de decisão` |
+
+- **Título:** uma frase que diga o problema ou a ideia, sem prefixo (`Loja trava ao vender no celular`, `Runa de gelo que deixa lento`). O prefixo `tipo:` é do PR, não da issue.
+- **Um assunto por issue.** Duas coisas viram duas issues.
+- **Antes de começar a fazer, atribua-se** na issue (Assignees, ou comente "vou fazer") e só pegue issue sem dono. Assim duas pessoas não fazem o mesmo trabalho. Desistiu? Tire o seu nome.
+- Ideia só é pega depois de decidida (a etiqueta `precisa de decisão` saiu).
+- O PR que resolve a issue leva `Fecha #n` na descrição: ao mesclar, a issue fecha sozinha.
+
 ## Etiquetas
 
 `bug`, `ideia`, `balanceamento`, `visual`, `bom primeiro PR`, `precisa de decisão` (espera o dono do projeto decidir).
