@@ -289,6 +289,10 @@ describe('partida', () => {
     delete (m.players[0] as { look?: string }).look;
     resume(m, 0);
     expect(m.players[0].look).toBe(lookOf('rogue_hooded'));
+    // sala gravada com o código antigo da Ladina encapuzada: volta como Ladina + Capuz (#107)
+    m.players[0].look = '4044444';
+    resume(m, 0);
+    expect(m.players[0].look).toBe(lookOf('rogue_hooded'));
   });
 
   it('loop stops without humans', () => {

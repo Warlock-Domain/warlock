@@ -70,6 +70,10 @@ describe('montagem da aparência (scene.ts)', () => {
     // só as peças do look: nada do mago sobrou além do tronco
     const names: string[] = [];
     mixed.scene.traverse((o) => (o as THREE.Mesh).isMesh && names.push(o.name));
+    // o capuz (Rogue_Hood, do rogue.glb) acompanha a cabeça do boneco de outro arquivo como no original
+    const hood = assemble(encodeLook([0, 7, 0, 0, 0, 0, 0]), (id) => files.get(id)!);
+    const a2 = sample(hood, 'Rogue_Hood', 0.37), b2 = sample(files.get('rogue')!, 'Rogue_Hood', 0.37);
+    expect(Math.max(...a2.map((x, i) => Math.abs(x - b2[i])))).toBeLessThan(1e-4);
     expect(names.sort()).toEqual(['1H_Sword', 'Barbarian_ArmLeft', 'Barbarian_ArmRight', 'Mage_Body', 'Rogue_LegLeft', 'Rogue_LegRight', 'Round_Shield', 'Skeleton_Minion_Cloak',
       'Skeleton_Warrior_Eyes', 'Skeleton_Warrior_Head', 'Skeleton_Warrior_Helmet', 'Skeleton_Warrior_Jaw']);
   });
