@@ -124,7 +124,7 @@ pelo modelo de .github/ (para a branch dev) com prints antes e depois. Não dê 
 
 ## Fluxo do Git e PR
 
-Fluxo: **dev do usuário → dev geral (`dev`) → `master`**. O PR da tarefa vai para `dev` (o merge publica em https://dev-warlock.fernandorffdev.com); depois o PR `dev` → `master` publica o jogo no ar. `dev` e `master` são protegidos: só entram por PR com o CI verde (`checks`) e a checagem do título (`titulo`). Sem force push.
+Fluxo: **dev do usuário → dev geral (`dev`) → `master`**. O PR da tarefa vai para `dev` (o merge publica em https://dev-warlock.fernandorffdev.com); logo em seguida o agente do dono abre o PR `dev` → `master`, que publica o jogo no ar (decisão de 20/10: toda mescla em `dev` vai ao ar na hora). `dev` e `master` são protegidos: só entram por PR com o CI verde (`checks`) e a checagem do título (`titulo`). Sem force push.
 
 | Item | Padrão | Exemplo |
 |---|---|---|
