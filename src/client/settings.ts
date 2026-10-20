@@ -83,7 +83,7 @@ function keysSection(): Node[] {
 
 // jeito de lançar pela tecla (os três do Dota) e o modo Q W E R D F
 const CAST_TEXT: Record<CastMode, [string, string]> = {
-  quick: [t('Rápido', 'Quick'), t('A tecla lança na hora na direção do mouse. Passe o mouse na magia da barra para ver o alcance.', 'The key casts instantly toward the mouse. Hover a spell on the bar to see its range.')],
+  quick: [t('Rápido', 'Quick'), t('A tecla lança na hora na direção do mouse, e o anel de alcance pisca ao lançar. Passe o mouse na magia da barra para ver o alcance antes.', 'The key casts instantly toward the mouse, and the range ring flashes as it casts. Hover a spell on the bar to see its range beforehand.')],
   release: [t('Ao soltar', 'On release'), t('Segure a tecla para ver o círculo de alcance; ao soltar, a magia sai. Esc cancela.', 'Hold the key to see the range circle; on release, the spell is cast. Esc cancels.')],
   click: [t('Com clique', 'With click'), t('A tecla escolhe a magia e mostra o alcance; o clique esquerdo lança (fora do alcance, vai até a borda). Botão direito ou Esc cancelam.', 'The key selects the spell and shows its range; left click casts (out of range, it goes to the edge). Right click or Esc cancels.')],
 };

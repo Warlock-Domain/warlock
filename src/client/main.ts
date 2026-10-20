@@ -313,6 +313,7 @@ function startRoom(code: string, name: string) {
       scene.castLocal(me, spell, at);
       scene.clickMarker(at, true);
       sound.play(SPELL_SOUND[spell]);
+      return true;
     },
     useItem(item, at) {
       const mine = room?.players.find((p) => p.id === me);
@@ -324,6 +325,7 @@ function startRoom(code: string, name: string) {
       command({ t: 'item', item, x: at.x, y: at.y });
       predict.hold(ITEM_CAST[item] ?? 0);
       scene.clickMarker(at, true);
+      return true;
     },
     center: () => {
       follow = true;

@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InputHandlers } from '../src/client/input.ts';
 import { setCastMode, setSlotMode } from '../src/client/keys.ts';
 import type { Vec } from '../src/shared/vec.ts';
@@ -13,6 +13,7 @@ const key = (t: 'keydown' | 'keyup', code: string) => fire(win, t, { code, repea
 const click = (button: number, x = 10, y = 20) => fire(cnv, 'pointerdown', { button, clientX: x, clientY: y, pointerType: 'mouse' });
 
 let log: string[] = [];
+let ok = true; // false: a magia não sai (recarga ou sem a magia)
 let preview: string | null = null;
 let armed: string | null = null;
 let input: { setEnabled: (on: boolean) => void };
@@ -24,8 +25,8 @@ beforeAll(async () => {
     pick: (x, y): Vec => ({ x, y }),
     move: (to) => log.push(`move ${to.x},${to.y}`),
     stop: () => log.push('stop'),
-    cast: (s, at) => log.push(`cast ${s} ${at.x},${at.y}`),
-    useItem: (i, at) => log.push(`item ${i} ${at.x},${at.y}`),
+    cast: (s, at) => (log.push(`cast ${s} ${at.x},${at.y}`), ok),
+    useItem: (i, at) => (log.push(`item ${i} ${at.x},${at.y}`), ok),
     center: () => {},
     zoom: () => {},
     pan: () => {},
@@ -66,13 +67,21 @@ describe('jeitos de lançar no PC', () => {
     setCastMode('quick');
   });
 
-  it('Rápido (padrão): a tecla lança na hora no cursor, sem círculo', () => {
+  it('Rápido (padrão): a tecla lança na hora no cursor e o anel de alcance pisca por um instante (issue #61)', () => {
+    vi.useFakeTimers();
     setCastMode('quick');
     key('keydown', 'KeyQ');
     expect(log).toEqual(['cast fireball 300,200']);
-    expect(preview).toBeNull();
+    expect(preview).toBe('fireball');
     key('keyup', 'KeyQ');
     expect(log).toHaveLength(1);
+    vi.advanceTimersByTime(400);
+    expect(preview).toBeNull();
+    ok = false; // não saiu: sem anel
+    key('keydown', 'KeyQ');
+    expect(preview).toBeNull();
+    ok = true;
+    vi.useRealTimers();
   });
 
   it('Ao soltar: segurar mostra o alcance, soltar lança onde o cursor está; Esc cancela', () => {
