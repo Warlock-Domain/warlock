@@ -143,7 +143,7 @@ Logs: https://github.com/fernandorff/warlock/actions.
 
 ## Testar no navegador
 
-Prints com Playwright headless contra `npx wrangler dev`; confira no PC (1280×720 e 1920×1080), celular (390×844) só quando a mudança mexe no layout e precisa conferir se ele se adapta à tela pequena (decisão de 20/10), e as duas línguas (`localStorage.warlock:lang = 'pt' | 'en'`). `node scripts/smoke.mjs <url>` faz o teste rápido de uma sala de verdade. Scripts prontos: `node scripts/play-headless.mjs <url> <pasta-prints>` (uma rodada com prints), `long-headless.mjs`, `multi-headless.mjs` (3 pessoas). Usam o Chrome instalado (`PW_CHANNEL=chromium` para o Chromium do Playwright, depois de `npx playwright-core install chromium`) e um perfil temporário (`PW_PROFILE=<pasta>` para um fixo).
+Prints com Playwright headless contra `npx wrangler dev`; confira no PC (1280×720 e 1920×1080), celular (390×844) só quando a mudança mexe no layout e precisa conferir se ele se adapta à tela pequena (decisão de 20/10), e as duas línguas (`localStorage.warlock:lang = 'pt' | 'en'`). `node scripts/smoke.mjs <url>` faz o teste rápido de uma sala de verdade. Scripts prontos: `node scripts/play-headless.mjs <url> <pasta-prints>` (uma rodada com prints), `long-headless.mjs`, `multi-headless.mjs` (3 pessoas), `ghost-socket.mjs` (conexão que some sem fechar; sem navegador, ~6 min). Usam o Chrome instalado (`PW_CHANNEL=chromium` para o Chromium do Playwright, depois de `npx playwright-core install chromium`) e um perfil temporário (`PW_PROFILE=<pasta>` para um fixo).
 
 ## Git
 

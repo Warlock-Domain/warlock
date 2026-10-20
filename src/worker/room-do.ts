@@ -13,10 +13,12 @@ const STEP_MS = DT * 1000;
 const MAX_CATCHUP = 5; // passos por chamada do laço; atraso maior que isso é descartado
 const EMPTY_MS = 5 * 60_000;
 const IDLE_MS = 3 * 60_000; // partida sem nenhum comando de gente por 3 min é encerrada
+// sem 'ping' por esse tempo, a conexão morreu sem avisar (o cliente pinga a cada 10 s; numa aba escondida o Chrome segura a 1 por minuto)
+const DEAD_MS = 90_000;
 
 type Saved = { id: string; match: Match };
 const KICKED: ServerMsg = { t: 'error', code: 'kicked', msg: 'Você foi removido da sala por votação.' };
-type Attachment = { playerId: string | null };
+type Attachment = { playerId: string | null; at?: number }; // at: hora do hello
 
 // Uma sala: guarda a partida na memória e roda a simulação enquanto houver alguém conectado.
 // Só grava no disco quando muda a fase ou a lista de jogadores (o mundo da rodada não é gravado).
@@ -105,7 +107,7 @@ export class Room extends DurableObject<Env> {
       }
       if (m.banned.includes(msg.playerId)) return send(ws, KICKED);
       if (!addPlayer(m, msg.playerId, msg.name)) return send(ws, { t: 'error', code: 'full', msg: 'Sala cheia.' });
-      ws.serializeAttachment({ playerId: msg.playerId } satisfies Attachment);
+      ws.serializeAttachment({ playerId: msg.playerId, at: now } satisfies Attachment);
       return this.changed();
     }
 
@@ -202,6 +204,14 @@ export class Room extends DurableObject<Env> {
   async alarm() {
     const s = await this.load();
     if (!s) return;
+    // conexão que sumiu sem o fechamento chegar (20/10: sala presa para sempre com "1 pessoa"): solta o jogador
+    const now = Date.now();
+    for (const ws of this.live()) {
+      const seen = Math.max(this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0, (ws.deserializeAttachment() as Attachment).at ?? 0);
+      if (now - seen < DEAD_MS) continue;
+      await this.dropped(ws);
+      forget(ws, 'dead');
+    }
     if (this.humans() > 0) return void (await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS));
     this.stopLoop();
     // tira do lobby primeiro; se falhar, tenta de novo daqui a 1 minuto (antes a sala sumia do disco e ficava na lista)
