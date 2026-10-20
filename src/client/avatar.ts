@@ -96,7 +96,7 @@ function show(want: string) {
 }
 
 function build(): HTMLElement {
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); // fundo transparente: o degradê vem do CSS do canvas
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(W, H);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -142,7 +142,7 @@ function build(): HTMLElement {
     orbitDistance = Math.max(2.8, Math.min(8, orbitDistance * Math.exp(e.deltaY * 0.001)));
     cameraTouched = true;
     aimCamera();
-  }, { passive: false });
+  }, { passive: false }); // sem passive: false o preventDefault não segura a rolagem da página enquanto aproxima
 
   const names = LOOK_PARTS.map(() => el('b', { class: 'avatar-name' }));
   const set = (next: string) => {
