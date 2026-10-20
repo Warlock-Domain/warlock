@@ -41,7 +41,8 @@ const save = () => {
 // os itens ativos seguem nas teclas deles. Escolha guardada no navegador.
 const SLOT_KEYS = ['KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyD', 'KeyF'];
 const SLOT_STORE = 'warlock:slotkeys';
-let slotMode = store.get(SLOT_STORE) === '1';
+// ligado por padrão (Fernando, 20/10), menos para quem já tem teclas salvas: o modo ignoraria as teclas das magias e prenderia Q W E R D F
+let slotMode = (store.get(SLOT_STORE) ?? (store.get(STORE) ? '0' : '1')) === '1';
 let slots: SpellId[] = [];
 export const isSlotMode = () => slotMode;
 export function setSlotMode(on: boolean) {
