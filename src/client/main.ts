@@ -27,7 +27,6 @@ import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
-import { hasBotSetup, savedBotSetup } from './train.ts';
 import { TEAM_NAMES, TOUCH, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
 import { endResult } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
@@ -52,7 +51,7 @@ const SERVER_EN: Record<string, string> = {
   'Você foi removido da sala por votação.': 'You were removed from the room by vote.',
 };
 
-// treino escolhido na tela inicial ('train', 'shadow' ou o id do desafio): atravessa o recarregar da página ao entrar na sala nova
+// treino escolhido na tela inicial ('bots', 'shadow', 'sandbox' ou o id do desafio): atravessa o recarregar da página ao entrar na sala nova
 const AUTOSTART = 'warlock:autostart';
 function takeAutostart(): string | null {
   try {
@@ -377,14 +376,6 @@ function startRoom(code: string, name: string) {
   // a sala conta a CPU entre mensagens; o "estou aqui" a cada 5 s mantém a conta zerada durante a partida
   setInterval(() => room && room.phase !== 'lobby' && room.phase !== 'end' && net.send({ t: 'alive' }), 5000);
 
-  // treino: 3 bots, modo Rodadas, regras-padrão e dicas nas primeiras rodadas (com as magias dos bots escolhidas)
-  function train(setup?: BotSetup[]) {
-    training = true;
-    run = pending = null;
-    trainSetup = setup;
-    shadow = false;
-    net.send({ t: 'start', bots: 3, mode: 'rounds', shuffle: true, opts: DEFAULT_OPTS, ...(setup && { setup }) });
-  }
   // sombra: 1 bot que joga como você; o que não foi medido fica no Normal (mimic.ts)
   function startShadow(skill: Partial<BotSkill>) {
     training = true;
@@ -401,10 +392,8 @@ function startRoom(code: string, name: string) {
     if (r.phase !== 'lobby' || r.players.some((p) => !p.bot && p.id !== me)) return;
     const c = CHALLENGES.find((x) => x.id === k);
     const skill = toSkill(store.json<Profile>(PROFILE_KEY));
-    const cfg = savedBotSetup();
     if (c) startChallenge(c);
     else if (k === 'shadow' && skill) startShadow(skill);
-    else if (k === 'train') train(hasBotSetup(cfg) ? cfg : undefined);
     else if (k === 'sandbox') startSandbox();
   }
   // sandbox: começa com você e um boneco parado; o resto vem pelo painel
