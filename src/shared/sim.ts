@@ -75,7 +75,7 @@ export type Wizard = {
   // magia ou item sendo conjurado: sai em fireAt e o mago fica parado até lá (pedido do Fernando, 17/10:
   // clicar para andar não cancela); o clique de andar fica guardado em `then` e vale quando a magia sai
   casting: { spell?: SpellId; item?: ItemId; at: Vec; fireAt: number; then?: Vec | null } | null;
-  god?: boolean; // sandbox: vida infinita (não morre; da lava volta para a pedra)
+  god?: boolean; // sandbox: vida infinita (não morre; fica na lava com a vida cheia, sem voltar para a pedra: pedido do Fernando, 20/10)
   turretAnchor?: Vec; // sandbox: ponto fixo da torreta nesta rodada
 };
 
@@ -1521,7 +1521,18 @@ export function placeRune(w: World, kind: RuneKind, near: Vec | null, rand: () =
   return true;
 }
 
-// volta parado para dentro da pedra, na mesma direção (Égide; na sandbox, quem tem vida infinita e cai na lava)
+// raio novo da pedra (encolhimento e painel da sandbox): as ilhas chegam junto com a borda e levam quem está em cima
+export function resizeArena(w: World, r: number) {
+  w.arenaR = r;
+  for (const i of w.isles) {
+    const to = isleSpot(w, i.a, i.d);
+    for (const z of w.wizards) if (z.alive && dist(z.pos, i.pos) < i.r) z.pos = add(z.pos, sub(to, i.pos));
+    i.pos = to;
+  }
+  w.events.push({ k: 'shrink', r });
+}
+
+// volta parado para dentro da pedra, na mesma direção (Égide)
 function toStone(w: World, wz: Wizard) {
   const from = wz.pos;
   Object.assign(wz, { pos: safeInside(w, wz.pos, w.arenaR * (1 - AEGIS.back)), vel: v(0, 0), target: null, dashUntil: 0, thrustUntil: 0 });
@@ -1590,15 +1601,8 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   const minR = collapsing && !w.dm ? 0 : ARENA_MIN; // a sandbox encolhe até o mínimo, sem sumir
   if (!w.dm && collapsing && w.shrinkAt > w.t + SUDDEN.every) w.shrinkAt = w.t + SUDDEN.every;
   if ((!w.dm || w.shrink) && w.t >= w.shrinkAt && w.arenaR > minR) {
-    w.arenaR = Math.max(minR, w.arenaR - ARENA_STEP);
-    // as ilhas chegam junto com a borda e levam quem está em cima
-    for (const i of w.isles) {
-      const to = isleSpot(w, i.a, i.d);
-      for (const z of w.wizards) if (z.alive && dist(z.pos, i.pos) < i.r) z.pos = add(z.pos, sub(to, i.pos));
-      i.pos = to;
-    }
+    resizeArena(w, Math.max(minR, w.arenaR - ARENA_STEP));
     w.shrinkAt += w.sudden || collapsing ? SUDDEN.every : SHRINK_EVERY;
-    w.events.push({ k: 'shrink', r: w.arenaR });
   }
 
   w.zones = w.zones.filter((z) => z.until > w.t);
@@ -1659,9 +1663,8 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
 
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
-    // sandbox: vida infinita não morre e, na lava, volta para a pedra
+    // sandbox: vida infinita não morre; na lava fica onde está (sem voltar para a pedra), só com a vida cheia
     if (wz.god) {
-      if (inLava(w, wz.pos)) toStone(w, wz);
       wz.hp = wz.hpMax;
       continue;
     }
