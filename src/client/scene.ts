@@ -6,6 +6,7 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { RenderPixelatedPass } from 'three/examples/jsm/postprocessing/RenderPixelatedPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SHAPES as ARENAS, edgeAt, inLavaAt, type ArenaId, type Isle } from '../shared/arena.ts';
@@ -1729,12 +1730,24 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
   let composer: EffectComposer | null = null;
+  const renderPass = new RenderPass(scene, camera);
   if (!mobile) {
     composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(renderPass);
     composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.4, 0.45, 0.85));
     composer.addPass(new OutputPass());
   }
+  // pixel art (issue #79): cena em blocos de 3×3 px com contorno, no lugar do RenderPass; só existe com o composer (PC)
+  let pixelPass: RenderPixelatedPass | null = null;
+  const makePixelPass = () => {
+    const pass = new RenderPixelatedPass(3 * renderer.getPixelRatio(), scene, camera, { depthEdgeStrength: 0.4, normalEdgeStrength: 0.3 });
+    // o passe compara a profundidade crua, feita para câmera ortográfica; na nossa perspectiva a diferença some.
+    // Em metros (×0,04), o contorno aparece quando a borda tem ~0,25 a 0,5 m de degrau
+    const m = pass.pixelatedMaterial;
+    Object.assign(m.uniforms, { cameraNear: { value: camera.near }, cameraFar: { value: camera.far } });
+    m.fragmentShader = '#include <packing>\nuniform float cameraNear;\nuniform float cameraFar;\n' + m.fragmentShader.replace(/return texture2D\( tDepth, ([^;]+) \)\.r;/, 'return -perspectiveDepthToViewZ(texture2D( tDepth, $1 ).r, cameraNear, cameraFar) * 0.04;');
+    return pass;
+  };
 
   function resize() {
     const w = innerWidth, h = innerHeight;
@@ -1809,6 +1822,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       burst(at, cast ? '#ffb347' : '#7dff9a', 0.7, 0.25, 0.08, FX.light);
     },
     // Efeitos: true = Leve (sem tremor, hit-stop e partículas extras)
+    setPixel(on: boolean) {
+      if (!composer) return;
+      const want = on ? (pixelPass ??= makePixelPass()) : renderPass;
+      if (composer.passes[0] === want) return;
+      composer.removePass(composer.passes[0]);
+      composer.insertPass(want, 0);
+    },
     setFx(on: boolean) {
       lite = on;
       if (lite) shake = 0;

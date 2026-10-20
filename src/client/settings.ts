@@ -23,6 +23,8 @@ type SettingsCtx = {
   setVolume?: (kind: 'sfx' | 'music', value: number) => void;
   fxLite?: () => boolean;
   setFxLite?: (lite: boolean) => void;
+  pixel?: () => boolean;
+  setPixel?: (on: boolean) => void;
   closePanels?: () => void; // um painel por vez: abrir o menu fecha os do topo
 };
 let ctx: SettingsCtx = { name: () => '', rename: () => {} };
@@ -138,12 +140,20 @@ function soundSection(): Node[] | null {
 }
 
 function videoSection(): Node[] | null {
-  const { fxLite, setFxLite } = ctx;
-  if (!fxLite || !setFxLite) return null;
+  const { fxLite, setFxLite, pixel, setPixel } = ctx;
+  if (!(fxLite && setFxLite) && !(pixel && setPixel)) return null;
+  const pixelArt = pixel && setPixel ? [
+    el('h3', {}, 'Pixel art'),
+    choice('Pixel art', [[false, t('Desligado', 'Off')], [true, t('Ligado', 'On')]], pixel(), (on) => (setPixel(on), draw())),
+    el('p', { class: 'muted' }, t('Desenha a arena e os magos em blocos de pixels, com contorno escuro nas bordas, como num jogo retrô. Nomes, vida e menus continuam iguais.', 'Draws the arena and the wizards in blocks of pixels, with a dark outline on the edges, like a retro game. Names, health and menus stay the same.')),
+  ] : [];
   return [
+    ...(fxLite && setFxLite ? [
     el('h3', {}, t('Efeitos visuais', 'Visual effects')),
     choice(t('Efeitos visuais', 'Visual effects'), [[false, t('Completo', 'Full')], [true, t('Leve', 'Light')]], fxLite(), (lite) => (setFxLite(lite), draw())),
     el('p', { class: 'muted' }, t('Leve desliga o tremor da tela, a pausa no golpe forte e as partículas extras (bom para PC fraco e para quem enjoa). Começa no Leve quando o sistema pede menos movimento.', 'Light turns off the screen shake, the hit pause on heavy blows and the extra particles (good for weak PCs and for anyone who gets motion sick). It starts on Light when the system asks for less motion.')),
+    ] : []),
+    ...pixelArt,
   ];
 }
 
