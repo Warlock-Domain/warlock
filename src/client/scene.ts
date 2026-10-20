@@ -17,7 +17,7 @@ import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shar
 import { add, scale, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 import { t } from './i18n.ts';
-import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, icon } from './icons.ts';
+import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
 import { SPELLS } from '../shared/spells.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
@@ -29,7 +29,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; ghost?: boolean }; // ghost: meio transparente (a cópia da Ilusão vista pelo dono)
+export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; ghost?: boolean; fx?: number[] }; // ghost: meio transparente (a cópia da Ilusão vista pelo dono); fx: tempo dos meus efeitos (snap.fx), só no meu mago
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -180,6 +180,8 @@ type Mage = {
   tint: string; // cor do anel e da barra (do jogador, ou do time no modo Times)
   statusEl: HTMLSpanElement;
   statusKey: number;
+  statusClocks: Map<number, HTMLElement>; // bit → reloginho em cima do ícone (só o meu mago tem tempo: d.fx)
+  clock: ReturnType<typeof fxClock>;
   ghost: boolean; // desenhado meio transparente agora (Ilusão)
   dead: boolean;
   color: number;
@@ -752,7 +754,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const lootBar = el('div', { class: 'loot-bar', hidden: true }, lootFill);
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, ghost: false, dead: false, color: d.color, look, mats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -1641,9 +1643,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // ícones de efeito em cima do mago (negativos primeiro)
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
+        m.statusClocks.clear();
         m.statusEl.replaceChildren(...STATUS_ICONS.filter(([bit]) => d.status & bit && bit !== 131072).map(([bit, ico, name]) => {
-          return el('i', { title: name, class: BAD_STATUS.includes(bit) ? 'bad' : 'good' }, icon(ico));
+          const c = el('b', { class: 'fx-clock', 'aria-hidden': 'true' });
+          m.statusClocks.set(bit, c);
+          return el('i', { title: name, class: BAD_STATUS.includes(bit) ? 'bad' : 'good' }, c, icon(ico));
         }));
+      }
+      // reloginho em cima de cada efeito com prazo: os mesmos segundos da fileira acima da barra (mesma conta, fxClock)
+      for (const [bit, c] of m.statusClocks) {
+        const left = d.fx ? m.clock(d.fx, bit) : null;
+        c.textContent = left?.text ?? '';
+        c.style.setProperty('--left', left ? left.frac.toFixed(3) : '0');
       }
       // Investida na barra (estilo Overwatch): o que ainda absorve vem depois da vida; passando do máximo, a barra inteira encolhe
       const rush = d.rushLeft ?? 0;
@@ -1678,7 +1689,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         };
         m.extraEl.replaceChildren(...[
           regen ? part('regen', `+${Math.round(regen * 10) / 10}/s`) : null,
-          armor ? part('rune', `−${Math.round(RUNE.armor * 100)}%`, RUNE_ICON.shield) : null,
+          armor ? part('rune', `+${Math.round(RUNE.armor * 100)}%`, RUNE_ICON.shield) : null, // + como bônus de defesa (pedido do Sky, 19/10); o dano levado cai 30%
           rush ? part('rush', String(Math.ceil(rush)), ICON.rush) : null,
         ].filter((e) => e !== null));
       }

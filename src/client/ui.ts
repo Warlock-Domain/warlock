@@ -13,7 +13,7 @@ import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
 import { SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
-import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, icon, type Child } from './icons.ts';
+import { BAD_STATUS, ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
 import { SANDBOX_BOT, botSetupPanel, savedBotSetup } from './train.ts';
@@ -742,6 +742,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   }
   // efeitos ativos em mim, numa fileira pequena acima da barra
   const statusRow = el('div', { class: 'status-icons hud-status', role: 'group', 'aria-label': t('Efeitos', 'Effects') });
+  const fxCells = new Map<number, HTMLElement>(); // bit → número de segundos embaixo do ícone
+  const clock = fxClock();
   // segurar Tab durante a partida mostra o placar; o 📊 (toque) e o botão Placar da loja deixam aberto até fechar
   const tabOverlay = el('div', { class: 'tab-overlay', hidden: true });
   function showTab(on: boolean) {
@@ -1413,7 +1415,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     },
     // a cada quadro: recargas, magia escolhida e o relógio da fase
     // hp: minha vida e o máximo, só jogando e vivo (null esconde a barra grande); dead: ids caídos na rodada, separados por vírgula
-    frame(cd: number[], icd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '') {
+    // fx: pares [bit, segundos que faltam] dos meus efeitos com prazo (snap.fx)
+    frame(cd: number[], icd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '', fx: number[] = []) {
       if (dead !== shownDead) {
         shownDead = dead;
         const down = new Set(dead.split(','));
@@ -1426,8 +1429,18 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         myStatus = status;
         drawSheet();
         // como em cima do mago (scene.ts), com o nome no rótulo; a Égide pronta também aparece aqui
-        statusRow.replaceChildren(...STATUS_ICONS.filter(([bit]) => status & bit).map(([bit, ico, name]) =>
-          el('i', { class: BAD_STATUS.includes(bit) ? 'bad' : 'good', title: name, role: 'img', 'aria-label': name }, icon(ico))));
+        fxCells.clear();
+        statusRow.replaceChildren(...STATUS_ICONS.filter(([bit]) => status & bit).map(([bit, ico, name]) => {
+          const s = el('small', { 'aria-hidden': 'true' });
+          fxCells.set(bit, s);
+          return el('i', { class: BAD_STATUS.includes(bit) ? 'bad' : 'good', title: name, role: 'img', 'aria-label': name }, icon(ico), s);
+        }));
+      }
+      // segundos que faltam de cada efeito com prazo e o filete que esvazia (--left: fração que falta, como a recarga)
+      for (const [bit, s] of fxCells) {
+        const c = clock(fx, bit);
+        s.textContent = c?.text ?? '';
+        s.parentElement!.style.setProperty('--left', c ? c.frac.toFixed(3) : '0');
       }
       vitals.hidden = !hp;
       const hpLabel = hp ? `${Math.max(0, Math.ceil(hp.now))}/${hp.max}` : '';
