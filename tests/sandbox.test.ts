@@ -61,6 +61,17 @@ describe('sandbox', () => {
     for (const id of ['bot-1', 'bot-2']) expect(events.some((e) => e.k === 'hit' && e.id === id)).toBe(false);
   });
 
+  it('tirar a torreta do meio e criar outra não põe duas no mesmo lugar', () => {
+    const { m, now: t0 } = sandbox([{ op: 'turret', direction: 'east' }, { op: 'turret', direction: 'east' }, { op: 'turret', direction: 'east' }]);
+    let { now } = steps(m, t0, 2);
+    expect(kick(m, 'bot-2')).toBe(true);
+    expect(sandboxCmd(m, { op: 'turret', direction: 'west' }, now)).toBe(true);
+    ({ now } = steps(m, now, 2));
+    const pos = m.world!.wizards.filter((z) => z.id !== 'a').map((z) => `${z.pos.x},${z.pos.y}`);
+    expect(pos.length).toBe(3);
+    expect(new Set(pos).size).toBe(3);
+  });
+
   it('protocolo aceita só as quatro direções da torreta', () => {
     for (const direction of ['north', 'east', 'south', 'west']) expect(parseClientMessage(JSON.stringify({ t: 'sandbox', cmd: { op: 'turret', direction } }))).toEqual({ t: 'sandbox', cmd: { op: 'turret', direction } });
     for (const direction of [null, 'diagonal', 1, {}, undefined]) expect(parseClientMessage(JSON.stringify({ t: 'sandbox', cmd: { op: 'turret', direction } }))).toBeNull();
@@ -143,10 +154,10 @@ describe('sandbox', () => {
     expect(m.world!.wizards.filter((z) => z.id === 'bot-2').length).toBe(1);
   });
 
-  it('reiniciar mantém o círculo mesmo com pedido de outra arena; encolher liga e desliga', () => {
+  it('reiniciar mantém o círculo; encolher liga e desliga', () => {
     const { m, now: t0 } = sandbox();
     wiz(m, 'a').hp = 1;
-    expect(sandboxCmd(m, { op: 'arena', arena: 'cross' }, t0)).toBe(true);
+    expect(sandboxCmd(m, { op: 'restart' }, t0)).toBe(true);
     const now = toPlaying(m, t0);
     expect([m.world!.arena, wiz(m, 'a').hp]).toEqual(['circle', wiz(m, 'a').hpMax]);
     const r = m.world!.arenaR;
@@ -180,7 +191,7 @@ describe('sandbox', () => {
     startMatch(m, 0, 1);
     toPlaying(m, 0);
     const before = JSON.stringify(m.players);
-    for (const c of [{ op: 'bot' }, { op: 'set', key: 'god', on: false }, { op: 'restart' }, { op: 'arena', arena: 'cross' }, { op: 'rune', kind: 'fury' }] as const) expect(sandboxCmd(m, c, 0, 'a')).toBe(false);
+    for (const c of [{ op: 'bot' }, { op: 'set', key: 'god', on: false }, { op: 'restart' }, { op: 'rune', kind: 'fury' }] as const) expect(sandboxCmd(m, c, 0, 'a')).toBe(false);
     expect(JSON.stringify(m.players)).toBe(before);
     expect(m.world!.runes).toEqual([]);
     expect([m.sandbox, m.world!.dm, buy(m, 'a', 'lightning')]).toEqual([undefined, false, false]);
@@ -194,10 +205,9 @@ describe('sandbox', () => {
     const p = (o: unknown) => parseClientMessage(JSON.stringify(o));
     expect(p({ t: 'sandbox', cmd: { op: 'set', key: 'noCd', on: true } })).toEqual({ t: 'sandbox', cmd: { op: 'set', key: 'noCd', on: true } });
     expect(p({ t: 'sandbox', cmd: { op: 'bot', bot: { difficulty: 'hard', spells: { homing: 2 } }, dummy: true } })).toEqual({ t: 'sandbox', cmd: { op: 'bot', bot: { difficulty: 'hard', spells: { homing: 2 } }, dummy: true } });
-    expect(p({ t: 'sandbox', cmd: { op: 'arena', arena: 'cross' } })).toEqual({ t: 'sandbox', cmd: { op: 'arena', arena: 'cross' } });
     expect(p({ t: 'sandbox', cmd: { op: 'rune', kind: 'recharge', x: 9 } })).toEqual({ t: 'sandbox', cmd: { op: 'rune', kind: 'recharge' } });
     expect(p({ t: 'start', bots: 0, sandbox: true })).toMatchObject({ t: 'start', bots: 0, sandbox: true });
-    for (const bad of [{ op: 'set', key: 'gold', on: true }, { op: 'set', key: 'god', on: 1 }, { op: 'arena', arena: 'random' }, { op: 'bot', bot: { spells: { homing: 99 } } }, { op: 'bot', dummy: 'sim' }, { op: 'nuke' }, { op: 'rune', kind: 'gold' }, { op: 'rune' }, null])
+    for (const bad of [{ op: 'set', key: 'gold', on: true }, { op: 'set', key: 'god', on: 1 }, { op: 'arena', arena: 'cross' }, { op: 'bot', bot: { spells: { homing: 99 } } }, { op: 'bot', dummy: 'sim' }, { op: 'nuke' }, { op: 'rune', kind: 'gold' }, { op: 'rune' }, null])
       expect(p({ t: 'sandbox', cmd: bad })).toBeNull();
     expect(p({ t: 'start', bots: 0, sandbox: 'sim' })).toBeNull();
   });

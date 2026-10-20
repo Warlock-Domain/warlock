@@ -122,7 +122,6 @@ export type SandboxCmd =
   | { op: 'set'; key: keyof Sandbox; on: boolean }
   | { op: 'bot'; bot?: BotSetup; dummy?: boolean }
   | { op: 'turret'; direction: NonNullable<Player['turret']> }
-  | { op: 'arena'; arena: ArenaId }
   | { op: 'rune'; kind: RuneKind } // runa escolhida ao lado de quem pediu (pedido do Sky, 20/10)
   | { op: 'restart' };
 const SANDBOX_GOLD = 9999;
@@ -678,7 +677,7 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boo
     if (!b) return false;
     b.turret = cmd.direction;
     b.dummy = true;
-    b.name = 'Turret';
+    b.name = 'Totem'; // igual em português e inglês (o nome aparece no placar e no "Tirar …")
     b.spells = { ...noSpells(), fireball: 1 };
     b.items = noItems();
     refit(m, b);
@@ -697,8 +696,7 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boo
     refit(m, b);
     return true;
   }
-  if (cmd.op === 'arena') m.opts = { ...m.opts, arena: 'circle' };
-  // reiniciar (e trocar a arena): mundo novo com todos no ponto de partida e vida cheia, depois da contagem
+  // reiniciar: mundo novo com todos no ponto de partida e vida cheia, depois da contagem
   enterCountdown(m, now, Math.random);
   return true;
 }
@@ -803,18 +801,23 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   const all = [...cmds];
   const turrets = sb ? m.players.filter((p) => p.turret) : [];
   const pinTurrets = () => {
-    turrets.forEach((p, i) => {
-      const z = w.wizards.find((q) => q.id === p.id && q.alive);
-      if (!z) return;
-      // em diagonal (0, +1, -1, +2…): cada torreta numa linha e numa coluna só dela, o tiro de uma não cruza outra
-      const k = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 1.2;
-      z.turretAnchor ??= { x: -w.arenaR * 0.35 + k, y: k };
+    const zs = turrets.map((p) => w.wizards.find((q) => q.id === p.id && q.alive));
+    for (const z of zs) {
+      if (!z || z.turretAnchor) continue;
+      // em diagonal (0, +1, -1, +2…), na primeira vaga livre: cada torreta numa linha e numa coluna só dela, o tiro de uma não cruza outra
+      for (let i = 0; !z.turretAnchor; i++) {
+        const k = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 1.2;
+        if (!zs.some((o) => o?.turretAnchor?.y === k)) z.turretAnchor = { x: -w.arenaR * 0.35 + k, y: k };
+      }
+    }
+    for (const z of zs) {
+      if (!z?.turretAnchor) continue;
       z.pos = { ...z.turretAnchor };
       z.vel = { x: 0, y: 0 };
       z.target = null;
       z.invulnUntil = Infinity;
       z.hp = z.hpMax;
-    });
+    }
   };
   pinTurrets();
   for (const p of turrets) {
