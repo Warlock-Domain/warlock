@@ -1678,7 +1678,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         };
         m.extraEl.replaceChildren(...[
           regen ? part('regen', `+${Math.round(regen * 10) / 10}/s`) : null,
-          armor ? part('rune', `−${Math.round(RUNE.armor * 100)}%`, RUNE_ICON.shield) : null,
+          armor ? part('rune', `+${Math.round(RUNE.armor * 100)}%`, RUNE_ICON.shield) : null, // + como bônus de defesa (pedido do Sky, 19/10); o dano levado cai 30%
           rush ? part('rush', String(Math.ceil(rush)), ICON.rush) : null,
         ].filter((e) => e !== null));
       }
