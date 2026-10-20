@@ -52,6 +52,15 @@ describe('sandbox', () => {
     expect(kick(m, z.id)).toBe(true);
   });
 
+  it('duas torretas ficam em lugares diferentes e o tiro de uma não bate na outra', () => {
+    const { m, now: t0 } = sandbox([{ op: 'turret', direction: 'east' }, { op: 'turret', direction: 'west' }]);
+    const { now } = steps(m, t0, 2);
+    expect(dist(wiz(m, 'bot-1').pos, wiz(m, 'bot-2').pos)).toBeGreaterThan(1);
+    m.world!.wizards.find((q) => q.id === 'a')!.pos = v(-5, -5);
+    const { events } = steps(m, now, 60 * 4);
+    for (const id of ['bot-1', 'bot-2']) expect(events.some((e) => e.k === 'hit' && e.id === id)).toBe(false);
+  });
+
   it('protocolo aceita só as quatro direções da torreta', () => {
     for (const direction of ['north', 'east', 'south', 'west']) expect(parseClientMessage(JSON.stringify({ t: 'sandbox', cmd: { op: 'turret', direction } }))).toEqual({ t: 'sandbox', cmd: { op: 'turret', direction } });
     for (const direction of [null, 'diagonal', 1, {}, undefined]) expect(parseClientMessage(JSON.stringify({ t: 'sandbox', cmd: { op: 'turret', direction } }))).toBeNull();

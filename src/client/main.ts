@@ -401,7 +401,7 @@ function startRoom(code: string, name: string) {
     trainSetup = undefined;
     net.send({ t: 'start', bots: 0, mode: 'rounds', shuffle: true, opts: DEFAULT_OPTS, sandbox: true });
     net.send({ t: 'sandbox', cmd: { op: 'bot', dummy: true } });
-      net.send({ t: 'sandbox', cmd: { op: 'turret', direction: 'east' } });
+    net.send({ t: 'sandbox', cmd: { op: 'turret', direction: 'east' } });
   }
 
   function startChallenge(c: Challenge) {

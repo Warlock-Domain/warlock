@@ -803,16 +803,18 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   const all = [...cmds];
   const turrets = sb ? m.players.filter((p) => p.turret) : [];
   const pinTurrets = () => {
-    for (const p of turrets) {
+    turrets.forEach((p, i) => {
       const z = w.wizards.find((q) => q.id === p.id && q.alive);
-      if (!z) continue;
-      z.turretAnchor ??= { x: -w.arenaR * 0.35, y: 0 };
+      if (!z) return;
+      // em diagonal (0, +1, -1, +2…): cada torreta numa linha e numa coluna só dela, o tiro de uma não cruza outra
+      const k = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 1.2;
+      z.turretAnchor ??= { x: -w.arenaR * 0.35 + k, y: k };
       z.pos = { ...z.turretAnchor };
       z.vel = { x: 0, y: 0 };
       z.target = null;
       z.invulnUntil = Infinity;
       z.hp = z.hpMax;
-    }
+    });
   };
   pinTurrets();
   for (const p of turrets) {
