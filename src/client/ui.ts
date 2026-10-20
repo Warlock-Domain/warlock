@@ -13,7 +13,7 @@ import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
 import { SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
-import { BAD_STATUS, ICON, ITEM_ICON, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, type Child } from './icons.ts';
+import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
 import { SANDBOX_BOT, botSetupPanel, savedBotSetup } from './train.ts';
