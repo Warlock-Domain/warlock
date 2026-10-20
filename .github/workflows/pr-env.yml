@@ -75,21 +75,14 @@ jobs:
       pull-requests: write
     steps:
       # API direta, sem checkout (o ref de um PR fechado pode não existir mais): é a mesma chamada do `wrangler delete`.
-      # O domínio sai antes do Worker porque a documentação não garante que apagar o Worker solta o domínio.
-      - name: Soltar o domínio e apagar o Worker
+      # O domínio próprio sai junto com o Worker (a doc não diz; medido em 20/10 no PR #134: lista de domínios 12 → 11).
+      - name: Apagar o Worker
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           API: https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/workers
-        shell: bash # com pipefail: falha da API para o passo em vez de seguir com a lista vazia
         run: |
-          auth="Authorization: Bearer $CF_TOKEN"
-          ids=$(curl -sf -H "$auth" "$API/domains?service=$NOME" | jq -r '.result[].id')
-          for id in $ids; do
-            curl -sf -X DELETE -H "$auth" "$API/domains/$id" > /dev/null
-            echo "domínio solto: $id"
-          done
           # 404 = o Worker nunca chegou a ser publicado (build quebrou ou PR fechado antes)
-          code=$(curl -s -o resposta.json -w '%{http_code}' -X DELETE -H "$auth" "$API/services/$NOME?force=true")
+          code=$(curl -s -o resposta.json -w '%{http_code}' -X DELETE -H "Authorization: Bearer $CF_TOKEN" "$API/services/$NOME?force=true")
           [ "$code" = 200 ] || [ "$code" = 404 ] || { cat resposta.json; exit 1; }
           echo "Worker $NOME: HTTP $code"
       - name: Comentário de ambiente apagado
