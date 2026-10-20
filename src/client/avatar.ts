@@ -1,8 +1,8 @@
-// Criação de personagem (pedido do Fernando, 19/10): 7 peças misturando os 9 bonecos, com prévia 3D girando. Salva neste navegador
+// Criação de personagem (pedido do Fernando, 19/10): 7 peças misturando os bonecos KayKit, com prévia 3D girando. Salva neste navegador
 // e avisa a sala pelo evento 'warlock:look' (main.ts manda ao servidor, que vale até no meio da partida).
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { CHARACTERS, LOOK_PARTS, isCharacter, isLook, lookOf, randomLook, type Piece } from '../shared/characters.ts';
+import { CHARACTERS, LOOK_PARTS, PRESETS, fixLook, isCharacter, isLook, isRetired, lookOf, randomLook, type Piece } from '../shared/characters.ts';
 import { t } from './i18n.ts';
 import { el } from './icons.ts';
 import { loadFile, loadLook, lookModel } from './scene.ts';
@@ -17,7 +17,7 @@ export const LOOK_EVENT = 'warlock:look';
 // a salva; sem ela, a do personagem pronto escolhido antes; sem nada, o mago
 export function savedLook(): string {
   const look = store.get(LOOK_KEY);
-  if (isLook(look)) return look;
+  if (isLook(look)) return fixLook(look);
   const c = store.get(CHAR_KEY);
   return lookOf(isCharacter(c) ? c : 'mage');
 }
@@ -151,22 +151,25 @@ function build(): HTMLElement {
     sync();
   };
   const step = (i: number, d: number) => {
-    const n = LOOK_PARTS[i].opts.length;
-    set(look.slice(0, i) + ((Number(look[i]) + d + n) % n) + look.slice(i + 1));
+    const { opts } = LOOK_PARTS[i];
+    let k = Number(look[i]);
+    do k = (k + d + opts.length) % opts.length;
+    while (isRetired(opts[k]));
+    set(look.slice(0, i) + k + look.slice(i + 1));
   };
   const rows = LOOK_PARTS.map((p, i) => el('div', { class: 'keys-row' }, el('span', {}, t(p.name, p.en)),
     el('span', { class: 'avatar-pick' },
       el('button', { type: 'button', class: 'icon', 'aria-label': t(`${p.name}: anterior`, `${p.en}: previous`), onclick: () => step(i, -1) }, '‹'),
       names[i],
       el('button', { type: 'button', class: 'icon', 'aria-label': t(`${p.name}: próxima`, `${p.en}: next`), onclick: () => step(i, 1) }, '›'))));
-  // os 9 bonecos originais como atalho: um clique monta o boneco inteiro (Fernando, 19/10)
-  const presets = CHARACTERS.map((c) => el('button', { type: 'button', class: 'avatar-preset', title: t(c.name, c.en), 'aria-label': t(c.name, c.en), onclick: () => set(lookOf(c.id)) },
+  // os bonecos originais como atalho: um clique monta o boneco inteiro (Fernando, 19/10); uma Ladina só, o capuz é chapéu (#107)
+  const presets = PRESETS.map((c) => el('button', { type: 'button', class: 'avatar-preset', title: t(c.name, c.en), 'aria-label': t(c.name, c.en), onclick: () => set(lookOf(c.id)) },
     el('img', { src: `/chars/${c.id}.webp`, alt: '', width: 48, height: 64 })));
   sync = () => {
     const now = look;
     look = savedLook();
     LOOK_PARTS.forEach((p, i) => (names[i].textContent = optName(p.opts[Number(look[i])], p.id)));
-    presets.forEach((b, i) => b.setAttribute('aria-pressed', String(look === lookOf(CHARACTERS[i].id))));
+    presets.forEach((b, i) => b.setAttribute('aria-pressed', String(look === lookOf(PRESETS[i].id))));
     if (look !== now || !shown) show(look);
   };
   return el('div', { class: 'avatar' },

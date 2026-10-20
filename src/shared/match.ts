@@ -1,7 +1,7 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
-import { CHARACTERS, lookHead, lookOf, type CharacterId } from './characters.ts';
+import { CHARACTERS, fixLook, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
   ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
   type RuneKind,
@@ -368,7 +368,7 @@ export function resume(m: Match, now: number) {
   m.vote = null; // o prazo de uma votação gravada já passou
   for (const p of m.players) {
     p.character ??= 'mage';
-    p.look ??= lookOf(p.character); // salas gravadas antes da aparência montada
+    p.look = fixLook(p.look ?? lookOf(p.character)); // salas gravadas antes da aparência montada ou com peça da Ladina encapuzada (#107)
     // salas gravadas antes das magias novas, ou com uma que saiu do jogo (os Gêmeos, 19/10): fica só o que existe
     p.spells = Object.fromEntries(SPELL_IDS.map((s) => [s, p.spells[s] ?? noSpells()[s]])) as Record<SpellId, number>;
     const plan = (p as { plan?: BotPlan }).plan;

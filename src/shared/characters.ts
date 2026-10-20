@@ -1,4 +1,5 @@
-// Personagens KayKit (CC0) que cada jogador escolhe na sala. Só visual: todos têm as mesmas magias.
+// Personagens KayKit (CC0) que cada jogador escolhe na sala. Só visual: todos têm as mesmas magias. A Ladina encapuzada saiu dos
+// prontos (issue #107: virou Ladina + Capuz) mas fica aqui: o código da aparência guarda posições e os bots ainda a usam.
 export const CHARACTERS = [
   { id: 'mage', name: 'Mago', en: 'Mage' },
   { id: 'knight', name: 'Cavaleiro', en: 'Knight' },
@@ -28,7 +29,8 @@ export const LOOK_PARTS: { id: string; name: string; en: string; opts: Piece[] }
     P('mage', 'Mage_Head'), P('knight', 'Knight_Head'), P('barbarian', 'Barbarian_Head'), P('rogue', 'Rogue_Head'), P('rogue_hooded', 'Rogue_Head_Hooded'),
     P('skeleton_mage', ...skull('Skeleton_Mage', 'Skeleton_Mage_Skull')), P('skeleton_minion', ...skull('Skeleton_Minion')), P('skeleton_rogue', ...skull('Skeleton_Rogue')), P('skeleton_warrior', ...skull('Skeleton_Warrior')),
   ] },
-  { id: 'hat', name: 'Chapéu', en: 'Hat', opts: [null, P('mage', 'Mage_Hat'), P('knight', 'Knight_Helmet'), P('barbarian', 'Barbarian_Hat'), P('skeleton_mage', 'Skeleton_Mage_Hat'), P('skeleton_warrior', 'Skeleton_Warrior_Helmet'), P('skeleton_rogue', 'Skeleton_Rogue_Hood')] },
+  { id: 'hat', name: 'Chapéu', en: 'Hat', opts: [null, P('mage', 'Mage_Hat'), P('knight', 'Knight_Helmet'), P('barbarian', 'Barbarian_Hat'), P('skeleton_mage', 'Skeleton_Mage_Hat'), P('skeleton_warrior', 'Skeleton_Warrior_Helmet'), P('skeleton_rogue', 'Skeleton_Rogue_Hood'),
+    { from: 'rogue', nodes: ['Rogue_Hood'], name: 'Capuz', en: 'Hood' }] },
   { id: 'body', name: 'Tronco', en: 'Torso', opts: each('_Body') },
   { id: 'arms', name: 'Braços', en: 'Arms', opts: each('_ArmLeft', '_ArmRight') },
   { id: 'legs', name: 'Pernas', en: 'Legs', opts: each('_LegLeft', '_LegRight') },
@@ -41,22 +43,40 @@ export const LOOK_PARTS: { id: string; name: string; en: string; opts: Piece[] }
   ] },
 ];
 const BODY = 2;
+const HAT = 1;
+const HOOD = LOOK_PARTS[HAT].opts.findIndex((o) => o?.nodes[0] === 'Rogue_Hood');
+
+// peças da Ladina encapuzada (cabeça, tronco, braços e pernas) ficam no lugar só para os códigos antigos: viram as da Ladina, e a
+// cabeça encapuzada ganha o Capuz quando não há outro chapéu (issue #107). O criador pula esses lugares (isRetired)
+export const isRetired = (o: Piece) => o?.from === 'rogue_hooded';
+function retire(l: Look): Look {
+  const out = l.map((n, i) => (isRetired(LOOK_PARTS[i].opts[n]) ? LOOK_PARTS[i].opts.findIndex((o) => o?.from === 'rogue') : n));
+  if (isRetired(LOOK_PARTS[0].opts[l[0]]) && !out[HAT]) out[HAT] = HOOD;
+  return out;
+}
 
 export const encodeLook = (l: Look) => l.join('');
-// null se não for uma aparência válida (formato e índice de cada peça)
+// null se não for uma aparência válida (formato e índice de cada peça); a válida já sai sem as peças aposentadas
 export function decodeLook(s: unknown): Look | null {
   if (typeof s !== 'string' || !/^\d{7}$/.test(s)) return null;
   const l = [...s].map(Number);
-  return l.every((n, i) => n < LOOK_PARTS[i].opts.length) ? l : null;
+  return l.every((n, i) => n < LOOK_PARTS[i].opts.length) ? retire(l) : null;
 }
 export const isLook = (s: unknown): s is string => decodeLook(s) !== null;
-// os 9 personagens prontos viram a aparência equivalente (a encapuzada usa a capa e as facas da Ladina)
-export const lookOf = (c: CharacterId) => encodeLook(LOOK_PARTS.map(({ opts }) => {
-  const i = opts.findIndex((o) => o?.from === c);
+// código de quem já tem uma aparência válida, sem as peças aposentadas (salas gravadas, navegador, mensagem de cliente antigo)
+export const fixLook = (s: string) => {
+  const l = decodeLook(s);
+  return l ? encodeLook(l) : s;
+};
+// os personagens prontos viram a aparência equivalente (a encapuzada vira a Ladina com o Capuz; a Ladina pronta vem sem ele)
+export const lookOf = (c: CharacterId) => fixLook(encodeLook(LOOK_PARTS.map(({ opts }) => {
+  const i = opts.findIndex((o, k) => o?.from === c && !(opts === LOOK_PARTS[HAT].opts && k === HOOD));
   return i >= 0 ? i : c === 'rogue_hooded' ? Math.max(0, opts.findIndex((o) => o?.from === 'rogue')) : 0;
-}));
+})));
+// atalhos do criador: uma Ladina só (issue #107)
+export const PRESETS = CHARACTERS.filter((c) => c.id !== 'rogue_hooded');
 // retrato 2D (placar, pódio): o da cabeça
 export const lookHead = (s: string): CharacterId => LOOK_PARTS[0].opts[Number(s[0])]!.from;
 export const lookBody = (s: string): CharacterId => LOOK_PARTS[BODY].opts[Number(s[BODY])]!.from;
 export const lookPieces = (s: string) => [...s].map((n, i) => LOOK_PARTS[i].opts[Number(n)]).filter((p): p is NonNullable<Piece> => !!p);
-export const randomLook = (rand = Math.random) => encodeLook(LOOK_PARTS.map(({ opts }) => Math.floor(rand() * opts.length)));
+export const randomLook = (rand = Math.random) => encodeLook(retire(LOOK_PARTS.map(({ opts }) => Math.floor(rand() * opts.length))));

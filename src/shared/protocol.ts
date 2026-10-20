@@ -1,7 +1,7 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
-import { isCharacter, isLook, type CharacterId } from './characters.ts';
+import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, RUNE_KINDS, type RuneKind } from './constants.ts';
 import { ITEM_IDS, isActive, type ItemId } from './items.ts';
 import { MODES, OPTION_CHOICES, goalOf, parseOpt, votesNeeded, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type Vote } from './match.ts';
@@ -210,7 +210,7 @@ export function parseClientMessage(raw: string): ClientMsg | null {
     case 'pick':
       return isCharacter(m.character) ? { t: 'pick', character: m.character } : null;
     case 'look':
-      return isLook(m.look) ? { t: 'look', look: m.look } : null;
+      return isLook(m.look) ? { t: 'look', look: fixLook(m.look) } : null;
     case 'ready':
     case 'alive':
       return { t: m.t };
