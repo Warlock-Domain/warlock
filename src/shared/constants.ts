@@ -2,7 +2,7 @@
 // scripts/vscripts/base/config.lua, arena.lua, pawn.lua e npc_abilities_custom.txt). Escala: a arena com 4 magos
 // (1700 unidades de raio no original) vira 11 m, ou seja, 1 unidade = 0,00647 m. Vida e dano na escala do original (vida 1000).
 export const DT = 1 / 60;
-export const SEND_EVERY = 2; // envia o estado a cada 2 passos (30 por segundo)
+export const SEND_EVERY = 1; // teste de lag (20/10): estado a cada passo (60 por segundo); só no ambiente lag-dev
 
 export const UNIT = 0.00647; // metros por unidade do original
 export const ARENA_STEP = 100 * UNIT; // uma camada de ladrilhos
