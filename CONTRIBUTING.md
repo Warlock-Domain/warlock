@@ -2,6 +2,8 @@
 
 Bem-vindo! Este guia diz como uma mudança sai da sua máquina e chega ao jogo. As regras de código, os comandos e o método de balanceamento estão em [CLAUDE.md](CLAUDE.md) (vale para gente e para agentes de IA).
 
+Vai trabalhar com agentes de IA? Veja a sugestão de ambiente em [Sessões com orquestrador](docs/SESSOES-COM-ORQUESTRADOR.md): uma sessão que coordena e uma por tarefa, com economia de tokens e trabalho em paralelo.
+
 ## Fluxo
 
 1. **Combine antes** o que vai fazer: abra uma issue pelos modelos **Bug** ou **Ideia** (ou comente numa existente). Mudança grande só começa depois de decidida (veja [Mudança grande: decidir antes de fazer](#mudança-grande-decidir-antes-de-fazer)). Evita duas pessoas no mesmo trabalho. Issues com a etiqueta `bom primeiro PR` são boas para começar.

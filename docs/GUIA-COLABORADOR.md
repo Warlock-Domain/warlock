@@ -70,6 +70,8 @@ Logs: https://github.com/fernandorff/warlock/actions.
 
 ## Claude Code e as skills
 
+Sugestão de organização: uma sessão orquestradora e uma sessão filha por issue, cada uma no seu worktree. Como montar, por que economiza tokens e as regras para as sessões não se atrapalharem: [Sessões com orquestrador](SESSOES-COM-ORQUESTRADOR.md).
+
 Dentro do Claude Code:
 
 ```text
