@@ -76,6 +76,7 @@ export type Wizard = {
   // clicar para andar não cancela); o clique de andar fica guardado em `then` e vale quando a magia sai
   casting: { spell?: SpellId; item?: ItemId; at: Vec; fireAt: number; then?: Vec | null } | null;
   god?: boolean; // sandbox: vida infinita (não morre; da lava volta para a pedra)
+  turretAnchor?: Vec; // sandbox: ponto fixo da torreta nesta rodada
 };
 
 // meteor fica parado no ponto de impacto até `until` e então explode; swap e grip não causam dano
