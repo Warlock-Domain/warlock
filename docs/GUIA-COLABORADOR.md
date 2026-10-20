@@ -47,7 +47,7 @@ npx vite build
 
 ## Ambiente dev próprio
 
-Push na branch `<usuário do GitHub>-dev` publica em `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Branches de hoje: `lboesmans-dev`, `breakie33-dev`, `lucascvalle-dev`, `arthurbaquit-dev` e `fernandorff-dev`. Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
+Push na branch `<usuário do GitHub>-dev` publica em `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Branches de hoje: `lboesmans-dev`, `breakie33-dev`, `lucascvalle-dev`, `arthurbaquit-dev`, `reirag-dev` e `fernandorff-dev`. Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
 
 ```bash
 git push --force origin HEAD:lboesmans-dev   # publica o estado da sua branch de tarefa
@@ -105,7 +105,7 @@ Os padrões do projeto (`CLAUDE.md`) vencem as skills.
 5. **Implementar com teste:** lógica em `src/shared` com teste em `tests/`; tela conferida no navegador.
 6. **Gates** verdes; mudou tela → prints no PC, português e inglês; sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10).
 7. **Revisar:** `/ponytail-review` e uma segunda leitura tentando derrubar a mudança.
-8. **PR** pelo modelo, título `tipo: o que muda`. A revisão automática comenta no PR; o dono aprova e mescla.
+8. **PR** pelo modelo, título `tipo: o que muda`. A revisão automática comenta no PR; o dono aprova e mescla. (O teste em `localhost` aprovado pelo Fernando antes do merge vale só para os PRs de código das sessões dele; o seu PR segue a revisão normal.)
 
 ### Prompts que funcionam
 
@@ -136,7 +136,7 @@ Fluxo: **branch da tarefa → PR para o `master` → no ar** (decisão de 20/10:
 | Título do PR | igual a um commit (vira o commit no `master`) | `feat: runa de gelo que deixa lento por 3 s` |
 | Merge | squash and merge pelo dono | a branch é apagada depois |
 
-Um PR, um assunto. Mantenha a branch em dia (`git pull --rebase origin master`) antes de pedir revisão; depois que a revisão começou, responda com commits novos.
+Um PR, um assunto. Mantenha a branch em dia com o `master` **a cada merge nele** (`git fetch` + `git merge origin/master`, sem rebase nem force), rode os gates e reinicie o servidor local; depois que a revisão começou, responda com commits novos.
 
 Issues: modelos **Bug** e **Ideia**. Etiquetas: `bug`, `ideia`, `balanceamento`, `jogabilidade`, `visual`, `documentação`, `bom primeiro PR`, `precisa de decisão`. Quadros kanban: um geral e um por tema (Balanceamento, Jogabilidade, Interface, Bugfix, Documentação e fluxos); lista e links no [CONTRIBUTING](../CONTRIBUTING.md#issues).
 
@@ -177,7 +177,7 @@ navegador ──WebSocket──▶ Durable Object (uma sala)
 9. Sem segredo: o repositório é público.
 10. Asset só com licença livre e crédito em `public/CREDITS.txt`.
 
-Estilo: comentários curtos em português onde ajudam a entender o porquê; imports no topo; siga o estilo do arquivo. O `ui.ts` não carrega no Vitest: decisão de tela testável vai para função pura.
+Estilo: decisão não óbvia leva 1 linha de comentário com o porquê (tempo, número, ordem, contorno de bug), para outra pessoa ou IA não desfazer sem querer; o óbvio não se comenta; mudou a decisão, mude o comentário; imports no topo; siga o estilo do arquivo. O `ui.ts` não carrega no Vitest: decisão de tela testável vai para função pura.
 
 ## Testar
 
@@ -195,7 +195,7 @@ node scripts/smoke.mjs http://localhost:8787                          # teste r�
 
 Os scripts usam o Chrome instalado e um perfil temporário. `PW_CHANNEL=chromium` usa o Chromium do Playwright (`npx playwright-core install chromium` antes); `PW_PROFILE=<pasta>` usa um perfil fixo.
 
-Atalhos: aba **Aprender** (treino com bots, desafios, Sombra e a sandbox com ouro e vida infinitos, arena redonda e torreta de treino), `?as=nome` no endereço, `localStorage['warlock:lang'] = 'pt' | 'en'`. Mudança de tela: PC 1280×720 e 1920×1080, português e inglês, sem erro no console; sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10).
+Atalhos: aba **Jogar** (partida contra bots, desafios, Sombra e a sandbox com ouro e vida infinitos, arena redonda e torreta de treino), `?as=nome` no endereço, `localStorage['warlock:lang'] = 'pt' | 'en'`. Mudança de tela: PC 1280×720 e 1920×1080, português e inglês, sem erro no console; sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10).
 
 ## Balanceamento
 
@@ -224,7 +224,7 @@ Não desfaça sem combinar numa issue.
 | Assunto | Decisão |
 |---|---|
 | Público e estilo | jogadores de Dota; menus, loja e barra no jeito do Dota; menus enxutos |
-| Menu principal | 5 abas: Jogar · Magias e itens · Aprender · Personagem · Configurações |
+| Menu principal | barra: logo W do ícone da aba (Início) · Jogar · Aprender · Guarda-roupas · Loja (vitrine) · Perfil; Configurações e Sair como ícones (issue #83) |
 | Loja | grade de ícones com nome dentro, preço com moeda, busca; itens prateados numa coluna à esquerda; Ataque em 2 fileiras de 5, os outros grupos em 1 |
 | Cores por grupo | Ataque vermelho-laranja, Mobilidade verde, Defesa azul, Controle roxo, Itens prateado |
 | Grupos de magia | 10 ataque, 5 mobilidade, 5 defesa, 5 controle |
@@ -234,7 +234,7 @@ Não desfaça sem combinar numa issue.
 | Drenar | domina combinações no Normal, mas espera partidas reais antes de mexer |
 | Ataques | Bola de fogo frequente; as outras são golpes fortes e raros (não encurtar recargas) |
 | Bots | jogam "como gente": mira com erro, reação de 0,25 a 0,6 s, hesitação; no duelo final vão atrás do inimigo |
-| Personagem | criador de 7 peças com os 9 bonecos originais como atalho; prévia 3D orbitável (arraste para girar e role para aproximar) |
+| Personagem | criador de 7 peças com 8 bonecos originais como atalho (uma Ladina só; o capuz é um chapéu); prévia 3D orbitável (arraste para girar e role para aproximar) |
 | Recusados | ranking; itens que só ajudam uma magia específica |
 | Publicação | automática: merge do PR no `master` → jogo no ar |
 

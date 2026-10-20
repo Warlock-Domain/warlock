@@ -28,15 +28,18 @@ Sugestão de ambiente de desenvolvimento, usada pelo dono do projeto desde 20/10
 3. **Issue antes de codar** (prova de conceito não tem issue: testa, mostra e só vira issue se o Fernando decidir que vale). Mudança grande segue [Mudança grande: decidir antes de fazer](../CONTRIBUTING.md#mudança-grande-decidir-antes-de-fazer).
 4. **Brief da filha** (a orquestradora escreve): link da issue; arquivos e área; o worktree e a branch (`git worktree add -b feat/<assunto> ../warlock-<nome> origin/master`); os gates; os prints esperados (PC); "PR para o master com `Closes #n`, sem mesclar"; e o contexto que ela precisa saber (decisões, regras). Título no formato `🧙🧩 Warlock #<n> · <assunto>`.
 5. **A filha trabalha e pergunta.** Dúvida de produto vai para você em múltipla escolha, dentro da filha.
-6. **PR aberto → a orquestradora revisa e mescla** (squash no master); a pipeline Produção publica o jogo no ar. A issue fecha sozinha pelo `Closes #n`.
-7. **Feche o ciclo.** A orquestradora confere o deploy, anota no HANDOFF e libera o worktree (move para a pasta de lixo; nunca apaga direto).
+6. **Teste aprovado por você.** Antes do merge, a filha deixa o servidor local em dia com o `master`, abre a aba no seu navegador (`?aba=<nome do teste>`), lista no chat o que testar e o que esperar, e põe notas na tela (só em `localhost`) apontando o que mudou; as notas são um passo manual da sessão, feito para o teste e fora do PR. Você aprova em múltipla escolha; sem aprovação, nada é mesclado. PR só de docs/CI e PR de colaborador não passam por esse passo.
+7. **PR aberto e aprovado → a revisora revisa e mescla** (squash no master); a pipeline Produção publica o jogo no ar. A issue fecha sozinha pelo `Closes #n`.
+8. **Feche o ciclo.** A orquestradora confere o deploy, anota no HANDOFF e libera o worktree (move para a pasta de lixo; nunca apaga direto).
 
 ## Regras que evitam problema
 
 - **Um dono por recurso.** Worktree, branch, porta do `wrangler dev` e aba aberta pertencem a quem os abriu. Antes de usar porta ou serviço, confira se outra sessão já usa (porta, PID, linha de comando). Cada filha usa a sua porta (8811, 8812, 8815…).
 - **Mensagem entre sessões só para evento:** PR pronto, decisão tomada, pedido de recurso. Nada de "já terminou?".
 - **Segurança não se repassa.** Se uma sessão foi barrada numa ação, outra não faz por ela; a ação volta para você decidir.
+- **Branch local em dia com o `master`.** A cada merge no `master`, a orquestradora avisa as filhas com branch ativa; cada uma faz `git fetch` + `git merge origin/master` (sem rebase nem force num PR já aberto; conflito em 2 commits, o mecânico e o manual), roda os gates e reinicia o servidor local. A filha também faz isso antes de cada bloco de trabalho. Assim o PR não acumula conflito e a aba de teste mostra o jogo atual.
 - **Navegador do app sem som.** Ao abrir o jogo no painel de navegador, deixe o som mudo e feche a aba no fim (já aconteceu de duas abas esquecidas tocarem a música).
+- **Aba de teste diz qual é o teste.** Toda aba aberta para o Fernando testar mostra no título o que está em teste: em localhost é automático (`🧪 <branch> · Warlock Wars`); para dar outro nome, abra com `?aba=<nome>` na URL.
 - **Prints só no PC** por enquanto (decisão de 20/10).
 - **Commits em português, sem `Co-Authored-By`**; nada vai para o `master` sem PR.
 
