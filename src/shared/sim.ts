@@ -101,6 +101,9 @@ export type Projectile = {
   caster: string; // quem lançou (o dono muda quando um escudo reflete)
   dest?: Vec; // Troca: aonde o mago vai se ela não tocar ninguém (o ponto da mira)
   decoy?: number; // Ilusão: id da cópia que este projétil já empurrou (empurra uma vez só ao atravessar)
+  pushVel?: Vec; // Ilusão: empurrão da cópia, separado da caminhada e de para onde ela olha
+  decoyDamage?: number; // Ilusão: dano que a cópia já levou (só aumenta o empurrão; ela não morre)
+  decoyResist?: number; // Ilusão: resistência a empurrão do dono no momento do lançamento
   curve?: { acc: Vec; next: Vec; flipAt: number; stopAt: number }; // Bumerangue indo: aceleração agora, a da volta e quando trocam
   back?: boolean; // Bumerangue voltando ao dono
   prev?: string; // Ricochete: último mago tocado (não bate nele de novo em seguida)
@@ -364,12 +367,16 @@ const bubble = (w: World, wz: Wizard) => (shielded(w, wz) ? Math.max(0, wz.shiel
 const allies = (a: Wizard | undefined, b: Wizard) => !!a && a !== b && a.team !== null && a.team === b.team;
 
 // src: o que causou o dano (magia, item, choque ou pilar), para o placar e os dados de balanceamento
+function knockScale(dmg: number, taken: number, resist: number) {
+  const big = dmg > KB_SOFT_CAP ? Math.sqrt(KB_SOFT_CAP * dmg) / dmg : 1;
+  return big * (1 + (KNOCK_HP_SCALE * taken) / HP_MAX) * Math.max(0, 1 - resist);
+}
+
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string) {
   // invulnerável: sem dano nem empurrão, mas o acerto aparece (explosão e som), senão o projétil sumiria sem efeito
   if (w.t < target.invulnUntil) return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
   // como no mod de Dota 2 (pawn.lua): acima de 100 de dano por golpe o empurrão cresce pela raiz, não em linha reta
-  const big = dmg > KB_SOFT_CAP ? Math.sqrt(KB_SOFT_CAP * dmg) / dmg : 1;
-  const mult = big * (1 + (KNOCK_HP_SCALE * target.dmgTaken) / HP_MAX) * Math.max(0, 1 - target.kbResist);
+  const mult = knockScale(dmg, target.dmgTaken, target.kbResist);
   // fogo amigo: só empurra; sem dano, sem roubo de vida e sem crédito de abate para o aliado
   if (allies(anyById(w, by), target)) {
     target.vel = add(target.vel, scale(norm(dir), knock * mult));
@@ -465,7 +472,7 @@ function area(w: World, at: Vec, radius: number, dmg: number, kbFactor: number, 
     const d = dist(q.pos, at);
     if (d > radius + WIZ_R) continue;
     const amount = dmg * Math.max(0, 1 - d / (radius + WIZ_R));
-    if (amount > 0.5) q.vel = add(q.vel, scale(norm(sub(q.pos, at)), amount * KB_PER_DMG * kbFactor));
+    if (amount > 0.5) pushDecoy(q, scale(norm(sub(q.pos, at)), amount * KB_PER_DMG * kbFactor), amount);
   }
   w.events.push({ k: 'clash', x: at.x, y: at.y, combo, r: radius });
   const kind = combo === 'fire' || combo === 'detonate' ? 'burn' : combo === 'arcane' ? 'slow' : combo === 'pulse' ? 'pull' : null;
@@ -667,7 +674,9 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   } else if (spell === 'illusion') {
     // a cópia segue o movimento atual (ou o destino recém-ordenado); parada, usa a direção da magia
     const moveDir = len(wz.vel) > 0.5 ? norm(wz.vel) : wz.target && dist(wz.target, wz.pos) > 0.1 ? norm(sub(wz.target, wz.pos)) : dir;
-    launch('illusion', moveDir, L.duration, null, wz.pos);
+    const copy = launch('illusion', moveDir, L.duration, null, wz.pos);
+    copy.decoyDamage = wz.dmgTaken;
+    copy.decoyResist = wz.kbResist;
     wz.veilUntil = w.t + L.duration;
   } else if (spell === 'recharge') {
     launch('recharge', dir, flight).bonus = RECHARGE.perHit * wz.streak;
@@ -811,7 +820,7 @@ function scourge(w: World, wz: Wizard) {
     const d = dist(q.pos, wz.pos);
     if (d <= SCOURGE.radius + WIZ_R) {
       const factor = 0.75 + 0.25 * Math.max(0, 1 - d / SCOURGE.radius);
-      q.vel = add(q.vel, scale(norm(sub(q.pos, wz.pos)), dmg * KB_PER_DMG * factor));
+      pushDecoy(q, scale(norm(sub(q.pos, wz.pos)), dmg * KB_PER_DMG * factor), dmg);
     }
   }
   // também bate nos obstáculos e no baú dentro da explosão (pedido do Fernando, 17/10)
@@ -850,7 +859,7 @@ function meteorLand(w: World, p: Projectile) {
     const d = dist(q.pos, p.pos);
     if (d > L.radius + WIZ_R) continue;
     const amount = (L.dmgMin + (L.dmg - L.dmgMin) * Math.max(0, 1 - d / L.radius)) * p.dmgMult;
-    q.vel = add(q.vel, scale(norm(sub(q.pos, p.pos)), amount * (L.knock / L.dmg) * KB_PER_DMG));
+    pushDecoy(q, scale(norm(sub(q.pos, p.pos)), amount * (L.knock / L.dmg)), amount);
   }
   w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'fire', r: L.radius });
   if (landed) land(w, p, 'meteor');
@@ -1104,6 +1113,13 @@ function snowBlast(w: World, p: Projectile) {
   w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'snow', r: L.radius });
 }
 
+// empurra a cópia da Ilusão com a mesma escala do mago (dano acumulado, teto e resistência do dono); ela nunca morre
+function pushDecoy(q: Projectile, impulse: Vec, dmg: number) {
+  const taken = q.decoyDamage ?? 0;
+  q.pushVel = add(q.pushVel ?? v(0, 0), scale(impulse, knockScale(dmg, taken, q.decoyResist ?? 0)));
+  q.decoyDamage = taken + dmg;
+}
+
 // cópia da Ilusão de um inimigo do dono de p que o segmento p.pos→b toca (a mais perto do começo); t em [0,1]
 function decoyOnSegment(w: World, p: Projectile, b: Vec, radius: number): { q: Projectile; t: number } | null {
   const owner = anyById(w, p.owner);
@@ -1190,9 +1206,13 @@ function stepProjectiles(w: World) {
       continue;
     }
     if (p.kind === 'illusion') {
-      // cópia autônoma: segue o vetor de movimento e só desaparece no prazo; projéteis podem empurrá-la, nunca destruí-la
-      const next = add(p.pos, scale(p.vel, dt));
+      // Mesmo deslizamento do mago: empurrão não muda a caminhada nem para onde olha.
+      const push = p.pushVel ?? v(0, 0);
+      const walk = isSliding({ vel: push }) ? v(0, 0) : p.vel;
+      const next = add(p.pos, scale(add(walk, push), dt));
       if (!firstPillarOnSegment(w, p.pos, next, WIZ_R)) p.pos = next;
+      p.pushVel = scale(push, Math.exp(-FRICTION * dt));
+      if (len(p.pushVel) < 0.05) p.pushVel = undefined;
       if (w.t < p.until) keep.push(p);
       continue;
     }
@@ -1242,7 +1262,7 @@ function stepProjectiles(w: World) {
     // Ilusão: projéteis não a destroem; ao acertá-la, transferem o empurrão e continuam o trajeto
     const fake = p.kind === 'gravity' ? null : decoyOnSegment(w, p, next, WIZ_R + r);
     if (fake && (!found || fake.t <= found.t) && (!pil || fake.t < pil.t)) {
-      fake.q.vel = add(fake.q.vel, scale(norm(p.vel), L.knock * p.dmgMult));
+      pushDecoy(fake.q, scale(norm(p.vel), L.knock * p.dmgMult), L.dmg * p.dmgMult);
       p.decoy = fake.q.id;
     }
     // a Bola de neve atravessa magos (arrastando) e só para em obstáculo ou escudo
