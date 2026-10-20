@@ -1,10 +1,14 @@
 // Sons: arquivos gravados (CC0, public/sfx, créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
 // sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
-export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'frost' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
+export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'frost' | 'swap' | 'grip' | 'meteor' | 'rush' | 'cluster' | 'boomerang' | 'thrust' | 'gravity'
+  | 'rockpillar' | 'bouncer' | 'drain' | 'illusion' | 'magnetize' | 'recharge' | 'alteration' | 'link' | 'windwalk' | 'splitter' | 'warpzone' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
   | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover';
 
 const FILES: Partial<Record<SoundKind, string[]>> = {
   fireball: ['fireball'], lightning: ['lightning'], homing: ['homing'], shield: ['shield'], teleport: ['teleport'], frost: ['frost'],
+  swap: ['swap'], grip: ['grip'], meteor: ['meteor'], rush: ['rush'], cluster: ['cluster'], boomerang: ['boomerang'], thrust: ['thrust'], gravity: ['gravity'], rockpillar: ['rockpillar'],
+  bouncer: ['bouncer'], drain: ['drain'], illusion: ['illusion'], magnetize: ['magnetize'], recharge: ['recharge'], alteration: ['alteration'], link: ['link'], windwalk: ['windwalk'],
+  splitter: ['splitter'], warpzone: ['warpzone'],
   hit: ['hit', 'explode'], hitLight: ['hit'], hitHeavy: ['hit', 'explode'], reflect: ['shield'], death: ['explode'], click: ['click'], go: ['confirm'],
 };
 // golpe fraco mais agudo, golpe forte mais grave

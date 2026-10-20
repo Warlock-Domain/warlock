@@ -5,20 +5,21 @@ set -euo pipefail
 A=/d/Projetos/warlock-assets; P="$(cd "$(dirname "$0")/../.." && pwd)/public"; T=${1:?scratch dir}
 mkdir -p "$P/sfx" "$P/music" "$T"
 
-# sfx <fonte> <saida> <inicio> <duracao|0> <fade-out> [bitrate]
-# corta o silêncio inicial, limita a duração, aplica fade-out e normaliza o pico para -1 dBFS
+# sfx <fonte> <saida> <inicio> <duracao|0> <fade-out> [bitrate] [ganho-dB]
+# corta o silêncio inicial, limita a duração, aplica fade-out e normaliza o pico para -1 dBFS;
+# ganho-dB (negativo) abaixa o som depois disso, para igualar o volume dos sons contínuos aos de impacto
 sfx() {
-  local src=$1 out=$2 ss=$3 dur=$4 fade=$5 br=${6:-80k} wav="$T/$2.wav" f
+  local src=$1 out=$2 ss=$3 dur=$4 fade=$5 br=${6:-80k} trim=${7:-0} wav="$T/$2.wav" f
   f="silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.02"
   [ "$dur" != 0 ] && f="$f,atrim=0:$dur,asetpts=PTS-STARTPTS"
   [ "$dur" != 0 ] && f="$f,afade=t=out:st=$(python -I -c "print(max(0,$dur-$fade))"):d=$fade"
   ffmpeg -v error -y -ss "$ss" -i "$src" -ac 1 -ar 44100 -af "$f" "$wav"
-  norm_encode "$wav" "$P/sfx/$out.mp3" "$br"
+  norm_encode "$wav" "$P/sfx/$out.mp3" "$br" "$trim"
 }
 norm_encode() {
-  local wav=$1 out=$2 br=$3 mx gain
+  local wav=$1 out=$2 br=$3 trim=${4:-0} mx gain
   mx=$(ffmpeg -hide_banner -i "$wav" -af volumedetect -f null - 2>&1 | sed -n 's/.*max_volume: \(-\?[0-9.]*\) dB/\1/p')
-  gain=$(python -I -c "print(round(-1-($mx),2))")
+  gain=$(python -I -c "print(round(-1-($mx)+($trim),2))")
   ffmpeg -v error -y -i "$wav" -af "volume=${gain}dB" -ac 1 -ar 44100 -c:a libmp3lame -b:a "$br" "$out"
   echo "$(basename "$out"): max_in=${mx}dB gain=${gain}dB"
 }
@@ -33,6 +34,28 @@ sfx "$A/lentikula-spell-impacts/extracted/Ice Spell Impacts/Ice Spell Impact 5.w
 sfx "$A/kenney-impact/x/Audio/impactPunch_heavy_000.ogg" hit 0 0 0
 sfx "$A/kenney-interface/x/Audio/click_001.ogg" click 0 0 0
 sfx "$A/kenney-interface/x/Audio/confirmation_001.ogg" confirm 0 0 0
+
+# um som próprio por magia (cada arquivo tem o nome do id; a Bola de neve usa frost, acima). O último número abaixa os sons contínuos (dB)
+L="$A/lentikula-spell-impacts/extracted"; K="$A/kenney-scifi/x/Audio"; M="$A/oga-magicspell"; B="$A/oga-breaking75/extracted"
+sfx "$M/magical_2.ogg" swap 0 1.2 0.2                                   # Troca
+sfx "$B/bfh1_metal_hit_02.ogg" grip 0 0 0                               # Agarrar
+sfx "$L/Fire Spell Impacts/Fire Spell Impact 4.wav" meteor 0.05 1.3 0.25 # Meteoro (o mais grave dos 5 de fogo)
+sfx "$K/thrusterFire_001.ogg" rush 0 0.9 0.3                            # Investida
+sfx "$L/Fire Spell Impacts/Fire Spell Impact 5.wav" cluster 0.05 1.1 0.25 # Rajada
+sfx "$K/engineCircular_002.ogg" boomerang 0 1.1 0.3 80k -2              # Bumerangue
+sfx "$B/bfh1_metal_hit_04.ogg" thrust 0 0 0                             # Estocada
+sfx "$K/spaceEngineLow_000.ogg" gravity 0.2 1.4 0.4 80k -6              # Gravidade (zumbido grave contínuo)
+sfx "$A/oga-boulder/boulder_drop_0.ogg" rockpillar 0 0 0                # Barricada
+sfx "$L/Lightning Spell Impacts/Lightning Spell Impact 3.wav" bouncer 0.35 1.2 0.25 # Ricochete
+sfx "$L/Water Spell Impacts/Water Spell Impact 1.wav" drain 0.15 1.2 0.25 # Drenar
+sfx "$M/magical_3.ogg" illusion 0 1.3 0.3 80k -3                        # Ilusão
+sfx "$M/magical_1_0.ogg" magnetize 0 1.3 0.3 80k -1                     # Magnetizar
+sfx "$M/magical_4.ogg" recharge 0 1.4 0.4                               # Recarga
+sfx "$M/magical_5.ogg" alteration 0 1.2 0.3 80k -2                      # Alteração
+sfx "$K/laserLarge_001.ogg" link 0 0 0                                  # Elo
+sfx "$K/doorOpen_000.ogg" windwalk 0 0 0                                # Caminhada no vento
+sfx "$L/Fire Spell Impacts/Fire Spell Impact 1.wav" splitter 0.35 1.2 0.3 # Divisor
+sfx "$K/spaceEngine_000.ogg" warpzone 0 1.4 0.3                         # Zona de dobra (zumbido que pulsa)
 
 # lava_loop: crossfade de 0.4 s entre o fim e o início, para o laço não estalar
 X=0.4; SRC="$A/oga-firecrackle/fire-1_0.ogg"
