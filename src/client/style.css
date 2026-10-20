@@ -809,17 +809,16 @@ button.train small { font-weight: 400; }
   .lv tr > th:first-child { min-width: 78px; }
   .g-medal { width: 60px; height: 60px; font-size: 2.1rem; }
 }
-/* configurações (settings.ts): pergaminho escuro com abas à esquerda no PC; no celular a lista de abas e, tocando, a aba */
+/* configurações (settings.ts): pergaminho escuro com as seções empilhadas e o sumário à esquerda, como a aba do menu inicial */
 .settings-overlay { z-index: 15; }
-.settings { display: grid; grid-template-columns: 200px 1fr; grid-template-rows: auto 1fr; width: min(860px, 100%); height: min(640px, calc(100dvh - 32px)); background: var(--frame), var(--plate); border: 2px solid var(--bronze); border-radius: var(--r-frame); box-shadow: var(--plate-edge), var(--shadow-lg); overflow: hidden; animation: panel-in .18s ease-out; }
+.settings { display: flex; flex-direction: column; width: min(1100px, 100%); height: min(800px, calc(100dvh - 32px)); background: var(--frame), var(--plate); border: 2px solid var(--bronze); border-radius: var(--r-frame); box-shadow: var(--plate-edge), var(--shadow-lg); overflow: hidden; animation: panel-in .18s ease-out; }
 .settings-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 12px 14px 10px 18px; border-bottom: 1px solid var(--line); background: radial-gradient(ellipse at 20% 0%, rgba(255, 106, 26, .14), transparent 70%); }
 .settings-head .title { flex: 1; margin: 0; }
-.settings-back { display: none; }
-.settings-tabs { display: flex; flex-direction: column; gap: 4px; padding: 12px 10px; border-right: 1px solid var(--line); overflow-y: auto; background: rgba(0, 0, 0, .18); }
-.settings-tabs button, .home-toc button { justify-content: flex-start; gap: 10px; background: transparent; border-color: transparent; text-align: left; }
-.settings-tabs button .gi, .home-toc button .gi { font-size: 1.25rem; color: var(--ember); flex: none; }
-.settings-tabs button:hover, .home-toc button:hover { background: var(--tint); }
-.settings-tabs button.on, .home-toc button.on { border-color: var(--ember); background: var(--sel-bg); box-shadow: inset 3px 0 0 var(--ember); }
+.settings-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 24px; }
+.settings-toc button { justify-content: flex-start; gap: 10px; background: transparent; border-color: transparent; text-align: left; }
+.settings-toc button .gi { font-size: 1.25rem; color: var(--ember); flex: none; }
+.settings-toc button:hover { background: var(--tint); }
+.settings-toc button.on { border-color: var(--ember); background: var(--sel-bg); box-shadow: inset 3px 0 0 var(--ember); }
 .settings-body { padding: 14px 20px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
 .settings-body h3 { margin: 8px 0 0; font-family: var(--display); font-size: 1.15rem; color: var(--gold); }
 .settings-body > .settings-page-title { margin: 0; font-size: 1.5rem; color: var(--fg); }
@@ -829,6 +828,11 @@ button.train small { font-weight: 400; }
 .settings-body .keys-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px 18px; }
 .settings-body .vol-row { grid-template-columns: 80px 1fr 48px; max-width: 460px; }
 .settings-body .slot-row { margin: 0; }
+/* "Teclas de cada magia" em Lançamento (Q W E R D F desligado): botão que abre a lista ali mesmo */
+.spell-keys > summary { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel2); cursor: pointer; }
+.spell-keys > summary::after { content: "▾"; color: var(--muted); }
+.spell-keys[open] > summary { margin-bottom: 10px; }
+.spell-keys[open] > summary::after { content: "▴"; }
 /* desenho do controle: corpo bronze, botões clicáveis, linha até o nome da ação */
 .pad-svg { width: 100%; max-width: 920px; height: auto; align-self: center; }
 .pad-body { fill: var(--panel2); stroke: var(--bronze); stroke-width: 3; }
@@ -845,14 +849,8 @@ button.train small { font-weight: 400; }
 .pad-btn.wait .pad-label { fill: var(--ember); }
 @media (max-width: 600px) {
   .settings-overlay { padding: 0; }
-  .settings { grid-template-columns: 1fr; width: 100%; height: 100dvh; border-radius: 0; padding-top: var(--safe-t); padding-bottom: var(--safe-b); }
-  .settings[data-view="list"] .settings-body, .settings[data-view="page"] .settings-tabs { display: none; }
-  .settings[data-view="page"] .settings-back { display: inline-flex; }
-  .settings-tabs { border-right: 0; padding: 10px 14px; }
-  .settings-tabs button { min-height: 52px; font-size: 1.05rem; border-color: var(--line); background: var(--panel2); }
-  .settings-tabs button.on { box-shadow: none; border-color: var(--line); background: var(--panel2); }
-  .settings-tabs button::after { content: "›"; margin-left: auto; color: var(--muted); font-size: 1.3rem; }
-  .settings-body { padding: 12px 14px 20px; }
+  .settings { width: 100%; height: 100dvh; border-radius: 0; padding-top: var(--safe-t); padding-bottom: var(--safe-b); }
+  .settings-scroll { padding: 0 12px 20px; }
   .settings-body .keys-list { grid-template-columns: 1fr; }
   /* no celular o desenho fica só com os botões; os nomes vão na lista logo abaixo */
   .pad-callout { display: none; }
@@ -931,28 +929,30 @@ body.replaying .peek-shop { display: none; }
 .home-panel h2, .home-panel > section > p { margin: 0; }
 .home-learn, .home-char, .home-settings { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .home-char .picker { align-self: stretch; }
-/* Configurações em página única (issue #59, como as opções do Dota 2): sumário fixo à esquerda, seções empilhadas com o CSS do diálogo */
+/* Configurações em página única (issue #59 no menu inicial, #70 na partida; como as opções do Dota 2): sumário fixo à esquerda, seções empilhadas */
 .home-settings { align-items: stretch; }
-.home-settings-grid { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 28px; align-items: start; }
-.home-toc { position: sticky; top: 16px; padding: 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: rgba(0, 0, 0, .18); }
-.home-toc summary { display: none; }
-.home-toc button { display: flex; width: 100%; margin-bottom: 4px; }
-.home-sections { display: flex; flex-direction: column; gap: 32px; }
-.home-sections .settings-body { overflow: visible; padding: 0; scroll-margin-top: 16px; }
-.home-sections .settings-page-title { padding-bottom: 6px; border-bottom: 1px solid var(--gold-line); }
-.home-sections .settings-page-title .gi { color: var(--ember); }
-@media (prefers-reduced-motion: no-preference) { body.in-lobby { scroll-behavior: smooth; } }
+.settings-grid { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 28px; align-items: start; }
+.settings-toc { position: sticky; top: 0; padding: 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: rgba(0, 0, 0, .18); }
+.home-settings .settings-toc { top: 16px; }
+.settings-toc summary { display: none; }
+.settings-toc button { display: flex; width: 100%; margin-bottom: 4px; }
+.settings-sections { display: flex; flex-direction: column; gap: 32px; }
+.settings-sections .settings-body { overflow: visible; padding: 0; scroll-margin-top: 16px; }
+.settings-scroll .settings-body { scroll-margin-top: 0; }
+.settings-sections .settings-page-title { padding-bottom: 6px; border-bottom: 1px solid var(--gold-line); }
+.settings-sections .settings-page-title .gi { color: var(--ember); }
+@media (prefers-reduced-motion: no-preference) { body.in-lobby, .settings-scroll { scroll-behavior: smooth; } }
 @media (max-width: 600px) {
   .home-bar { flex-wrap: wrap; justify-content: space-between; }
   .home-logo { font-size: 1.8rem; }
   .home-tabs { order: 3; flex-basis: 100%; }
   .home-tabs button { padding: 8px 9px 6px; font-size: .9rem; letter-spacing: .04em; }
   /* celular: o sumário vira "Sumário" recolhível, colado no topo enquanto rola */
-  .home-settings-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
-  .home-toc { top: 0; z-index: 3; padding: 0 10px; background: var(--panel-solid); }
-  .home-toc summary { display: list-item; min-height: 44px; padding: 11px 4px; font-family: var(--display); color: var(--gold); cursor: pointer; }
-  .home-toc button { min-height: 44px; }
-  .home-sections .settings-body { scroll-margin-top: 60px; }
+  .settings-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .settings-toc, .home-settings .settings-toc { top: 0; z-index: 3; padding: 0 10px; background: var(--panel-solid); }
+  .settings-toc summary { display: list-item; min-height: 44px; padding: 11px 4px; font-family: var(--display); color: var(--gold); cursor: pointer; }
+  .settings-toc button { min-height: 44px; }
+  .settings-sections .settings-body, .settings-scroll .settings-body { scroll-margin-top: 60px; }
 }
 
 /* biblioteca Magias e itens (Fernando, 19/10, como a do Dota): ícones quadrados por grupo, na cor do grupo; itens prateados */
