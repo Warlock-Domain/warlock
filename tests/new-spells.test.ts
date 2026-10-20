@@ -612,6 +612,18 @@ describe('Ilusão', () => {
     expect(w.wizards[0].hp).toBe(HP_MAX);
   });
 
+  it('o projétil que atravessa a cópia a empurra uma vez só', () => {
+    const w = world([[0, 0], [5, 0]], ['illusion']);
+    stepWorld(w, [cast('p0', 'illusion', 0, 5)]);
+    const q = copy(w)!;
+    q.pos = v(0, 0);
+    q.vel = v(0, 0);
+    // na velocidade real: a bola de fogo passa vários passos dentro da cópia
+    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'fireball', owner: 'p1', caster: 'p1', pos: v(0, -0.6), vel: v(0, spellLevel('fireball', 1).speed), level: 1, until: w.t + 2, target: null, dmgMult: 1 });
+    run(w, 0.5);
+    expect(q.vel.y).toBeCloseTo(spellLevel('fireball', 1).knock, 5);
+  });
+
   it('o Míssil teleguiado inimigo que mirava o dono persegue a cópia enquanto ela existir', () => {
     const w = world([[0, 0], [5, 0]], ['illusion', 'homing']);
     stepWorld(w, [cast('p0', 'illusion', 0, 5)]); // a cópia sobe; o dono fica
