@@ -2,9 +2,9 @@
 import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
 import type { ArenaId } from '../shared/arena.ts';
-import { type CharacterId } from '../shared/characters.ts';
+import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Sandbox, type SandboxCmd, type Vote } from '../shared/match.ts';
-import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
+import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { POS_ACTIONS, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
@@ -62,44 +62,80 @@ export function askName(root: HTMLElement, current: string): Promise<string> {
 const roomPhase = (r: RoomInfo) => r.phase === 'lobby' ? t('esperando começar', 'waiting to start') : r.phase === 'end' ? t('partida acabou, dá para começar outra', 'match over, you can start another')
   : t(`jogando${r.round ? ` a rodada ${r.round}` : ''} · você entra na próxima rodada`, `playing${r.round ? ` round ${r.round}` : ''} · you join next round`);
 
-let challengesOpen = false; // lista de desafios aberta ou fechada sobrevive ao redesenho do lobby
-
-// treino na tela inicial (escolha do Fernando, 19/10): cada botão cria uma sala sozinho e começa ali (main.ts, autostart);
-// kind = 'train', 'shadow' ou o id do desafio
-function trainBlock(onTrain: (kind: string) => void) {
-  // sombra: 1 bot com o jeito de jogar das suas últimas rodadas (mimic.ts)
+// Opções de partida à direita, com o conteúdo da escolha ao lado.
+function playMenu(roomList: HTMLElement, onCreate: () => void, onTrain: (kind: string) => void): HTMLElement {
   const skill = toSkill(store.json<Profile>(PROFILE_KEY));
-  return el('section', { class: 'train-home' }, el('h2', {}, t('Treino', 'Practice')),
-    el('div', { class: 'train-btns' },
-      el('button', { type: 'button', class: 'train', onclick: () => onTrain('train') }, icon(UI_ICON.aim), ' ' + t('Treinar sozinho com bots', 'Practice solo with bots'), el('small', {}, t('3 bots e dicas nas primeiras rodadas', '3 bots and tips in the first rounds'))),
-      el('button', { type: 'button', class: 'train', disabled: !skill, onclick: () => skill && onTrain('shadow') },
-        icon(UI_ICON.person), ' ' + t('Treinar contra a sua sombra', 'Practice against your shadow'), el('small', {}, skill ? t('1 bot que joga como você', '1 bot that plays like you') : t('jogue 3 rodadas para a sombra aprender', 'play 3 rounds for the shadow to learn'))),
-      // sandbox (pedido do Fernando, 19/10): para testar todas as magias e interações; quem tiver o link entra junto
-      el('button', { type: 'button', class: 'train', onclick: () => onTrain('sandbox') }, icon(UI_ICON.bot), ' ' + t('Sandbox (testar tudo)', 'Sandbox (test everything)'),
-        el('small', {}, t('vida e ouro sem fim, loja a qualquer hora, bots no painel', 'endless health and gold, shop any time, bots in the panel')))),
-    botSetupPanel(3, savedBotSetup(), () => {}),
-    // desafios curtos: cada um com o recorde deste navegador
-    el('details', { class: 'match-opts', open: challengesOpen, ontoggle: (e: Event) => (challengesOpen = (e.target as HTMLDetailsElement).open) },
-      el('summary', {}, t('Desafios', 'Challenges') + ' · ', el('small', { class: 'muted' }, t('tarefas curtas de até 90 s', 'short tasks of up to 90 s'))),
-      el('div', { class: 'bs-spells' }, ...CHALLENGES.map((c) => {
+  const labels = [t('Jogar online', 'Play online'), t('Jogar contra bots', 'Play against bots'), 'Sandbox', t('Desafios', 'Challenges')];
+  const sections = [
+    el('section', { class: 'play-content' }, el('h2', {}, labels[0]),
+      el('button', { type: 'button', class: 'primary big', onclick: onCreate }, t('Criar sala', 'Create room')), roomList),
+    el('section', { class: 'play-content' }, el('h2', {}, labels[1]),
+      el('p', { class: 'muted' }, t('Prepare a partida: escolha os bots, a dificuldade e as magias antes de começar.', 'Set up the match: choose bots, difficulty and spells before starting.')),
+      el('button', { type: 'button', class: 'primary big', onclick: () => onTrain('bots') }, t('Criar partida contra bots', 'Create bot match')),
+      el('button', { type: 'button', disabled: !skill, onclick: () => skill && onTrain('shadow') }, t('Treinar contra a sua sombra', 'Practice against your shadow')),
+      !skill ? el('small', {}, t('Jogue 3 rodadas para a sombra aprender.', 'Play 3 rounds for the shadow to learn.')) : null),
+    el('section', { class: 'play-content' }, el('h2', {}, 'Sandbox'),
+      el('p', { class: 'muted' }, t('Vida e ouro sem fim, loja a qualquer hora e bots no painel.', 'Endless health and gold, shop any time and bots in the panel.')),
+      el('button', { type: 'button', class: 'primary big', onclick: () => onTrain('sandbox') }, t('Abrir sandbox', 'Open sandbox'))),
+    el('section', { class: 'play-content' }, el('h2', {}, labels[3]),
+      ...CHALLENGES.map((c) => {
         const best = bestOf(c.id);
         return el('button', { type: 'button', class: 'train', onclick: () => onTrain(c.id) }, c.name,
           el('small', {}, goalText(c)), el('small', { class: 'muted' }, best === null ? t('sem recorde', 'no record') : t(`recorde: ${n1(best)} s${c.survive ? ' vivo' : ''}`, `record: ${n1(best)} s${c.survive ? ' alive' : ''}`)));
-      }))));
+      })),
+  ];
+  const buttons = labels.map((label, i) => el('button', { type: 'button', 'aria-controls': 'play-option-' + i, onclick: () => select(i) }, label));
+  function select(index: number) {
+    sections.forEach((section, i) => { section.hidden = i !== index; });
+    buttons.forEach((button, i) => {
+      button.classList.toggle('on', i === index);
+      button.setAttribute('aria-pressed', String(i === index));
+    });
+  }
+  sections.forEach((section, i) => { section.id = 'play-option-' + i; });
+  select(0);
+  return el('div', { class: 'play-layout' }, el('div', {}, ...sections),
+    el('nav', { class: 'play-options', 'aria-label': t('Opções de jogo', 'Play options') }, ...buttons));
 }
 
-// menu principal com abas no topo, como o do Dota (decisão do Fernando, 19/10); a aba aberta fica guardada
-type HomeTab = 'play' | 'library' | 'learn' | 'char' | 'settings';
-const HOME_TAB = 'warlock:homeTab';
-const HOME_TABS: [HomeTab, string, string][] = [['play', t('Jogar', 'Play'), UI_ICON.aim], ['library', t('Magias e itens', 'Spells and items'), ICON.fireball],
-  ['learn', t('Aprender', 'Learn'), UI_ICON.help], ['char', t('Personagem', 'Character'), UI_ICON.person], ['settings', t('Configurações', 'Settings'), UI_ICON.gear]];
+// Protótipo de navegação da issue #83; Home abre ao entrar no menu.
+type HomeTab = 'home' | 'play' | 'library' | 'char' | 'shop' | 'profile' | 'settings';
+const HOME_TABS: [HomeTab, string, string][] = [['play', t('Jogar', 'Play'), UI_ICON.aim], ['library', t('Aprender', 'Learn'), ICON.fireball],
+  ['char', t('Guarda-roupas', 'Wardrobe'), UI_ICON.person], ['shop', t('Loja', 'Shop'), UI_ICON.gold],
+  ['profile', t('Perfil', 'Profile'), UI_ICON.person], ['settings', t('Configurações', 'Settings'), UI_ICON.gear]];
 
-// aba Personagem: o criador com as 7 peças (avatar.ts)
+// Categorias do Guarda-roupas; o editor existente permanece em Acessórios.
 function personagemTab(): HTMLElement {
-  return el('section', { class: 'home-char' }, el('h2', {}, t('Personagem', 'Character')), avatarPanel());
+  const narrow = matchMedia('(max-width: 600px)');
+  const categories = [
+    { id: 'accessories', title: t('Acessórios', 'Accessories'), ico: UI_ICON.person, content: avatarPanel() },
+    { id: 'spells', title: t('Magias', 'Spells'), ico: ICON.fireball },
+    { id: 'world', title: t('Mundo', 'World'), ico: UI_ICON.gear },
+    { id: 'taunts', title: t('Provocações', 'Taunts'), ico: UI_ICON.help },
+  ];
+  const sections = categories.map((c) => el('section', { class: 'settings-body', id: 'wardrobe-' + c.id, 'aria-labelledby': 'wardrobe-title-' + c.id },
+    el('h3', { class: 'settings-page-title', id: 'wardrobe-title-' + c.id }, icon(c.ico), ' ', c.title),
+    c.content ?? el('p', { class: 'muted' }, t('As opções desta categoria ainda serão definidas.', 'Options for this category have not been defined yet.'))));
+  const options = el('details', { class: 'settings-toc', open: !narrow.matches }, el('summary', {}, t('Opções', 'Options')),
+    el('h3', { class: 'wardrobe-options-title' }, t('Opções', 'Options')));
+  const buttons = categories.map((c, i) => el('button', { type: 'button', 'aria-controls': 'wardrobe-' + c.id, onclick: () => {
+    select(i);
+    if (narrow.matches) options.open = false;
+  } }, icon(c.ico), ' ', c.title));
+  function select(index: number) {
+    sections.forEach((section, i) => { section.hidden = i !== index; });
+    buttons.forEach((button, i) => {
+      button.classList.toggle('on', i === index);
+      button.setAttribute('aria-pressed', String(i === index));
+    });
+  }
+  options.append(...buttons);
+  select(0);
+  return el('section', { class: 'home-char home-settings' }, el('h2', {}, t('Guarda-roupas', 'Wardrobe')),
+    el('div', { class: 'settings-grid' }, options, el('div', { class: 'settings-sections' }, ...sections)));
 }
 
-export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onRename: () => void, onTrain: (kind: string) => void) {
+export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onRename: () => void, onTrain: (kind: string) => void, onExit: () => void) {
   // no lobby: sem som nem efeitos (só existem na sala); o pixel art fica guardado e vale ao entrar numa sala (só PC)
   const pixelOk = !matchMedia('(pointer: coarse)').matches;
   setSettingsCtx({ name: () => name, rename: onRename, pixel: pixelOk ? savedPixel : undefined, setPixel: (size) => store.set('warlock:pixel', String(size)) });
@@ -127,25 +163,40 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   // a lista chega de novo a cada mudança numa sala: só ela é redesenhada (as abas ficam como estão, com o foco)
   const old = root.querySelector<HTMLElement>('.lobby');
   if (old?.dataset.name === name) return old.querySelector('.lobby-rooms')!.replaceWith(roomList);
-  const saved = store.get(HOME_TAB) as HomeTab | null;
+  const libraryContent = el('section', { class: 'home-library' }, el('h2', {}, t('Magias e itens', 'Spells and items')));
   const panel = (k: HomeTab, ...kids: Child[]) => el('div', { class: 'home-panel', id: 'home-' + k, role: 'tabpanel', 'aria-labelledby': 'home-tab-' + k }, ...kids);
   const panels: Record<HomeTab, HTMLElement> = {
-    play: panel('play',
-      el('header', { class: 'hero' }, el('p', {}, t('Empurre os amigos para a lava com bola de fogo, raio e companhia. O último de pé vence a rodada.', 'Knock your friends into the lava with fireballs, lightning and more. The last one standing wins the round.'))),
-      el('div', { class: 'lobby-actions' }, el('button', { type: 'button', class: 'primary big', onclick: onCreate }, t('Criar sala', 'Create room'))),
-      roomList),
-    library: panel('library'),
-    learn: panel('learn',
+    home: panel('home'),
+    play: panel('play', playMenu(roomList, onCreate, onTrain)),
+    library: panel('library',
       el('section', { class: 'home-learn' }, el('h2', {}, t('Como jogar', 'How to play')),
         el('p', { class: 'muted' }, t('O grimório explica o jogo, os controles, os modos, a loja e cada magia e item, com demonstração.', 'The grimoire explains the game, the controls, the modes, the shop and every spell and item, with demos.')),
         el('button', { type: 'button', onclick: showRules }, icon(UI_ICON.help), ' ' + t('Abrir o grimório', 'Open the grimoire'))),
-      trainBlock(onTrain)),
+      libraryContent),
     char: panel('char', personagemTab()),
+    shop: panel('shop', el('section', { class: 'home-learn' }, el('h2', {}, t('Loja', 'Shop')),
+      el('p', { class: 'muted' }, t('Roupas e visuais para o seu personagem. Prévia do catálogo com os modelos atuais; moeda, preços e compras ainda não foram definidos. Os visuais existentes continuam disponíveis no Guarda-roupas.', 'Outfits and looks for your character. Catalog preview using current models; currency, prices and purchases have not been defined yet. Existing looks remain available in the Wardrobe.'))),
+      el('div', { class: 'home-cosmetics' }, ...CHARACTERS.map((c) => el('article', { class: 'cosmetic-card' },
+        el('img', { src: `/chars/${c.id}.webp`, alt: '', width: 96, height: 128, loading: 'lazy' }),
+        el('h3', {}, t(c.name, c.en)), el('small', {}, t('Prévia de visual · sem compra', 'Look preview · not for sale')))))),
+    profile: panel('profile', el('section', { class: 'home-learn' }, el('h2', {}, t('Perfil', 'Profile')),
+      el('p', {}, t('Seu apelido: ', 'Your nickname: '), el('strong', {}, name)),
+      el('button', { type: 'button', onclick: onRename }, icon(UI_ICON.person), ' ', t('Trocar de nome', 'Change name')))),
     settings: panel('settings', settingsPage()),
   };
+  const stage = el('div', { class: 'home-stage' },
+    el('div', { class: 'home-backdrop', 'aria-hidden': 'true' }, el('img', { class: 'home-art', src: '/home-cat.jpg', alt: '', width: 736, height: 736 })),
+    ...Object.values(panels));
   const btns = HOME_TABS.map(([k, label, ico]) => el('button', { type: 'button', role: 'tab', id: 'home-tab-' + k, 'aria-controls': 'home-' + k, onclick: () => show(k) }, icon(ico), el('span', {}, label)));
+  const settingsBtn = btns[HOME_TABS.findIndex(([k]) => k === 'settings')];
+  settingsBtn.classList.add('home-tool');
+  settingsBtn.title = t('Configurações', 'Settings');
+  settingsBtn.setAttribute('aria-label', t('Configurações', 'Settings'));
+  settingsBtn.replaceChildren(el('img', { src: '/wrench.svg', alt: '', width: 28, height: 28 }));
   function show(k: HomeTab) {
-    store.set(HOME_TAB, k);
+    stage.classList.toggle('is-subpage', k !== 'home');
+    panels.home.hidden = k !== 'home';
+    root.querySelector('#home-tab-home')?.setAttribute('aria-selected', String(k === 'home'));
     HOME_TABS.forEach(([id], i) => {
       btns[i].classList.toggle('on', id === k);
       btns[i].setAttribute('aria-selected', String(id === k));
@@ -154,13 +205,15 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   }
   root.replaceChildren(
     el('div', { class: 'lobby', 'data-name': name },
-      el('nav', { class: 'home-bar' }, el('b', { class: 'home-logo' }, TITLE),
-        el('div', { class: 'home-tabs', role: 'tablist', 'aria-label': t('Menu principal', 'Main menu') }, ...btns),
-        el('button', { type: 'button', class: 'link home-name', onclick: onRename }, icon(UI_ICON.person), ` ${name} · ${t('trocar', 'change')}`)),
-      ...Object.values(panels)),
+      el('nav', { class: 'home-bar', role: 'tablist', 'aria-label': t('Menu principal', 'Main menu') }, settingsBtn,
+        el('button', { type: 'button', class: 'home-logo', id: 'home-tab-home', role: 'tab', 'aria-controls': 'home-home', title: t('Início', 'Home'), 'aria-label': t('Voltar ao menu principal', 'Back to home'), onclick: () => show('home') },
+          el('img', { src: '/warlock-wars.svg', alt: 'Warlock Wars' })),
+        el('div', { class: 'home-tabs' }, ...btns.filter((b) => b !== settingsBtn),
+          el('button', { type: 'button', class: 'home-tool home-exit', title: t('Sair do jogo', 'Exit game'), 'aria-label': t('Sair do jogo', 'Exit game'), onclick: onExit }, icon(UI_ICON.exit)))),
+      stage),
   );
-  show(HOME_TABS.some(([k]) => k === saved) ? saved! : 'play');
-  void import('./grimoire.ts').then((m) => panels.library.append(m.library()));
+  show('home');
+  void import('./grimoire.ts').then((m) => libraryContent.append(m.library()));
 }
 
 // grimório (Como jogar): módulo carregado só quando abre, para não pesar o começo do jogo
@@ -216,7 +269,7 @@ export function screen(root: HTMLElement, title: string, text: string, button: s
 }
 
 type RoomActions = {
-  start: (bots: Level[], mode: Mode, shuffle: boolean, opts: MatchOpts, again?: boolean) => void; // bots: a dificuldade de cada um; again: "Jogar de novo" (repete a configuração do treino)
+  start: (bots: Level[], mode: Mode, shuffle: boolean, opts: MatchOpts, again?: boolean, botSetup?: BotSetup[]) => void; // bots: a dificuldade de cada um; again: repete o treino
   hover: (a: SpellId | ItemId | null) => void; // mouse em cima da magia ou item na barra (círculo de alcance)
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
@@ -491,7 +544,7 @@ function sheetEl(rows: SheetRow[], ...extra: Child[]) {
 const previewHtml = (title: string, ch: Change[], extra = '') =>
   `<div class="preview"><b>${title}</b>${ch.length ? `<table>${ch.map((c) => `<tr class="${c.worse ? 'worse' : 'better'}"><th>${c.label}</th><td>${c.before ?? '—'} → ${c.after ?? '—'}</td></tr>`).join('')}</table>` : `<small>${t('Nada muda na ficha.', 'Nothing changes on the sheet.')}</small>`}${extra}</div>`;
 
-export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) {
+export function createRoomUi(root: HTMLElement, code: string, act: RoomActions, botsRoom = false) {
   // uma dificuldade por bot (pedido do Fernando, 19/10); guardada nesta aba (o número de bots de antes vira 3 Normal)
   let bots: Level[] = ['normal', 'normal', 'normal'];
   try {
@@ -1029,10 +1082,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       save();
       count.textContent = String(bots.length);
       list.replaceChildren(...rows());
+      botSpells?.replaceChildren(botSetupPanel(bots.length, savedBotSetup(), () => {}));
       startBtn.toggleAttribute('disabled', humans + bots.length < 2);
     };
     const o = (opts ??= { ...DEFAULT_OPTS, ...r.opts, ...FIXED }); // o que a sala não mostra volta ao padrão (um desafio deixa a morte súbita desligada)
-    const startBtn = el('button', { type: 'button', class: 'primary big', disabled: humans + bots.length < 2, onclick: () => act.start(bots, mode, shuffle, o) }, t('Começar partida', 'Start match'));
+    const botSpells = botsRoom ? el('div', {}, botSetupPanel(bots.length, savedBotSetup(), () => {})) : null;
+    const startBtn = el('button', { type: 'button', class: 'primary big', disabled: humans + bots.length < 2, onclick: () => act.start(bots, mode, shuffle, o, false, botsRoom ? savedBotSetup().slice(0, bots.length) : undefined) }, t('Começar partida', 'Start match'));
     const modes: [Mode, string, string][] = [
       ['rounds', MODE_NAME.rounds, t(`O último vivo ganha a rodada. Vence quem fizer ${o.goal} rodadas.`, `The last one alive wins the round. First to win ${o.goal} rounds wins.`)],
       ['deathmatch', MODE_NAME.deathmatch, t(`Rodadas de 60 s, quem cai volta em 10 s. Cada abate vale 1 ponto; vence quem chegar a ${DM_GOALS[o.goal]}.`, `60 s rounds, whoever falls comes back after 10 s. Each kill is worth 1 point; first to ${DM_GOALS[o.goal]} wins.`)],
@@ -1056,7 +1111,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         el('div', { class: 'lobby-col' },
           el('div', { class: 'bots' }, el('span', {}, 'Bots ', infoButton(t('Dificuldade dos bots', 'Bot difficulty'), () => OPT_INFO.difficulty(mode))),
             el('button', { type: 'button', 'aria-label': t('Menos um bot', 'One less bot'), onclick: () => set(bots.slice(0, -1)) }, '−'), count, el('button', { type: 'button', 'aria-label': t('Mais um bot', 'One more bot'), onclick: () => set([...bots, 'normal']) }, '+')),
-          list,
+          list, botSpells,
         ),
         el('div', { class: 'lobby-col' }, modePicker, optsBlock),
       ),
