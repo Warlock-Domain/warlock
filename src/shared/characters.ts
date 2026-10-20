@@ -75,8 +75,11 @@ export const lookOf = (c: CharacterId) => fixLook(encodeLook(LOOK_PARTS.map(({ o
 })));
 // atalhos do criador: uma Ladina só (issue #107)
 export const PRESETS = CHARACTERS.filter((c) => c.id !== 'rogue_hooded');
-// retrato 2D (placar, pódio): o da cabeça
-export const lookHead = (s: string): CharacterId => LOOK_PARTS[0].opts[Number(s[0])]!.from;
+// retrato 2D (placar, pódio): o da cabeça; Ladina com o Capuz usa o retrato da encapuzada
+export const lookHead = (s: string): CharacterId => {
+  const head = LOOK_PARTS[0].opts[Number(s[0])]!.from;
+  return head === 'rogue' && Number(s[HAT]) === HOOD ? 'rogue_hooded' : head;
+};
 export const lookBody = (s: string): CharacterId => LOOK_PARTS[BODY].opts[Number(s[BODY])]!.from;
 export const lookPieces = (s: string) => [...s].map((n, i) => LOOK_PARTS[i].opts[Number(n)]).filter((p): p is NonNullable<Piece> => !!p);
 export const randomLook = (rand = Math.random) => encodeLook(retire(LOOK_PARTS.map(({ opts }) => Math.floor(rand() * opts.length))));

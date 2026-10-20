@@ -35,6 +35,8 @@ describe('aparência montada', () => {
     expect(lookOf('rogue')).toBe('3033344');
     expect(lookOf('rogue_hooded')).toBe('3' + hood + '33344');
     expect(lookPieces(lookOf('rogue_hooded')).flatMap((p) => p.nodes)).toContain('Rogue_Hood');
+    expect(lookHead(lookOf('rogue_hooded'))).toBe('rogue_hooded'); // retrato do placar continua o da encapuzada
+    expect(lookHead('1' + hood + '11122')).toBe('knight');
     expect(fixLook('4044444')).toBe(lookOf('rogue_hooded')); // código antigo da encapuzada pronta
     expect(fixLook('4144444')).toBe('3133344'); // já tinha chapéu (o do mago): fica com ele
     expect(fixLook('0040000')).toBe('0030000'); // só o tronco dela
