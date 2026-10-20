@@ -105,7 +105,7 @@ Os padrões do projeto (`CLAUDE.md`) vencem as skills.
 5. **Implementar com teste:** lógica em `src/shared` com teste em `tests/`; tela conferida no navegador.
 6. **Gates** verdes; mudou tela → prints no PC, português e inglês; sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10).
 7. **Revisar:** `/ponytail-review` e uma segunda leitura tentando derrubar a mudança.
-8. **PR** pelo modelo, título `tipo: o que muda`. A revisão automática comenta no PR; o dono aprova e mescla.
+8. **PR** pelo modelo, título `tipo: o que muda`. A revisão automática comenta no PR; o dono aprova e mescla. (O teste em `localhost` aprovado pelo Fernando antes do merge vale só para os PRs de código das sessões dele; o seu PR segue a revisão normal.)
 
 ### Prompts que funcionam
 
@@ -136,7 +136,7 @@ Fluxo: **branch da tarefa → PR para o `master` → no ar** (decisão de 20/10:
 | Título do PR | igual a um commit (vira o commit no `master`) | `feat: runa de gelo que deixa lento por 3 s` |
 | Merge | squash and merge pelo dono | a branch é apagada depois |
 
-Um PR, um assunto. Mantenha a branch em dia (`git pull --rebase origin master`) antes de pedir revisão; depois que a revisão começou, responda com commits novos.
+Um PR, um assunto. Mantenha a branch em dia com o `master` **a cada merge nele** (`git fetch` + `git merge origin/master`, sem rebase nem force), rode os gates e reinicie o servidor local; depois que a revisão começou, responda com commits novos.
 
 Issues: modelos **Bug** e **Ideia**. Etiquetas: `bug`, `ideia`, `balanceamento`, `jogabilidade`, `visual`, `documentação`, `bom primeiro PR`, `precisa de decisão`. Quadros kanban: um geral e um por tema (Balanceamento, Jogabilidade, Interface, Bugfix, Documentação e fluxos); lista e links no [CONTRIBUTING](../CONTRIBUTING.md#issues).
 
