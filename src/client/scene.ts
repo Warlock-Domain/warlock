@@ -130,6 +130,7 @@ export function mainCell(meshes: THREE.Mesh[], bare = SKIN): number {
 }
 // troca, na textura da peça, só o quadrado userData.tint.cell pela cor userData.tint.hex, guardando o degradê (brilho do texel em
 // relação ao meio do quadrado). Clonar material não copia o onBeforeCompile: quem clona chama tint() de novo
+// Um programa de shader só para todas as cores: a chave de cache do three é o texto do onBeforeCompile (igual em todos) e a cor vai por uniform
 export function tint(mat: THREE.Material) {
   const t = mat.userData.tint as { cell: number; hex: string } | undefined;
   if (!t) return;
@@ -145,7 +146,6 @@ export function tint(mat: THREE.Material) {
     diffuseColor.rgb = min(uTint * dot(diffuseColor.rgb, lum) / max(mid, 0.01), vec3(1.0));
   }`);
   };
-  mat.customProgramCacheKey = () => 'tint';
 }
 
 const w3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, p.y);
