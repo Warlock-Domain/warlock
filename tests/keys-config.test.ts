@@ -158,4 +158,20 @@ describe('modo Q W E R D F', () => {
     (await import('../src/client/store.ts')).store.set('warlock:slotkeys', '0');
     expect((await import('../src/client/keys.ts')).isSlotMode()).toBe(false);
   });
+
+  it('quem já tem teclas salvas fica sem o modo: magia em outra tecla e atalho da interface no Q continuam valendo', async () => {
+    vi.resetModules();
+    (await import('../src/client/store.ts')).store.set('warlock:keys', JSON.stringify({ fireball: 'KeyZ', rockpillar: 'KeyQ' }));
+    let k = await import('../src/client/keys.ts');
+    expect([k.isSlotMode(), k.keyOf('fireball'), k.actionFor('KeyQ')]).toEqual([false, 'KeyZ', 'rockpillar']);
+    vi.resetModules();
+    (await import('../src/client/store.ts')).store.set('warlock:keys', JSON.stringify({ taunt: 'KeyQ', fireball: 'KeyY' }));
+    k = await import('../src/client/keys.ts');
+    expect([k.isSlotMode(), k.keyOf('taunt'), k.actionFor('KeyQ')]).toEqual([false, 'KeyQ', undefined]);
+    vi.resetModules();
+    const s = (await import('../src/client/store.ts')).store;
+    s.set('warlock:keys', JSON.stringify({ fireball: 'KeyZ' }));
+    s.set('warlock:slotkeys', '1'); // marcou à mão: vale a escolha
+    expect((await import('../src/client/keys.ts')).isSlotMode()).toBe(true);
+  });
 });
