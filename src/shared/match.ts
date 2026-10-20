@@ -127,7 +127,7 @@ export type SandboxCmd =
   | { op: 'rune'; kind: RuneKind } // runa escolhida ao lado de quem pediu (pedido do Sky, 20/10)
   | { op: 'restart' };
 const SANDBOX_GOLD = 9999;
-// teto da pedra na sandbox: o raio com 10 magos (14,9 m), uma faixa de folga acima da maior arena real (8 magos, 13,6 m);
+// teto da pedra na sandbox: o raio com 10 magos (14,9 m), duas faixas de folga acima da maior arena real (8 magos, 13,6 m);
 // na forma mais larga (Ilhas, 1,63 × raio) fica em 24 m, dentro do MAX_COORD (30 m) do protocolo, então o clique ainda alcança a pedra
 const SANDBOX_R_MAX = arenaRadius(10);
 
