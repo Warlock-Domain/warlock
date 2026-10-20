@@ -99,6 +99,7 @@ export type Projectile = {
   dmgMult: number; // Pacto
   caster: string; // quem lançou (o dono muda quando um escudo reflete)
   dest?: Vec; // Troca: aonde o mago vai se ela não tocar ninguém (o ponto da mira)
+  decoy?: number; // Ilusão: id da cópia que este projétil já empurrou (empurra uma vez só ao atravessar)
   curve?: { acc: Vec; next: Vec; flipAt: number; stopAt: number }; // Bumerangue indo: aceleração agora, a da volta e quando trocam
   back?: boolean; // Bumerangue voltando ao dono
   prev?: string; // Ricochete: último mago tocado (não bate nele de novo em seguida)
@@ -1108,7 +1109,7 @@ function decoyOnSegment(w: World, p: Projectile, b: Vec, radius: number): { q: P
   const d = sub(b, p.pos);
   let best: { q: Projectile; t: number } | null = null;
   for (const q of w.projectiles) {
-    const qo = q.kind === 'illusion' && q.until > w.t && q.owner !== p.owner ? anyById(w, q.owner) : undefined;
+    const qo = q.kind === 'illusion' && q.until > w.t && q.owner !== p.owner && q.id !== p.decoy ? anyById(w, q.owner) : undefined;
     if (!qo || allies(owner, qo)) continue;
     const [t, gap] = segT(p.pos, d, q.pos);
     if (gap <= radius && (!best || t < best.t)) best = { q, t };
@@ -1241,6 +1242,7 @@ function stepProjectiles(w: World) {
     const fake = p.kind === 'gravity' ? null : decoyOnSegment(w, p, next, WIZ_R + r);
     if (fake && (!found || fake.t <= found.t) && (!pil || fake.t < pil.t)) {
       fake.q.vel = add(fake.q.vel, scale(norm(p.vel), L.knock * p.dmgMult));
+      p.decoy = fake.q.id;
     }
     // a Bola de neve atravessa magos (arrastando) e só para em obstáculo ou escudo
     if (p.kind === 'snowball' && found && !shielded(w, found.wz) && (!pil || found.t <= pil.t)) {
