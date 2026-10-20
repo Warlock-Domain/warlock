@@ -105,7 +105,7 @@ Os padrões do projeto (`CLAUDE.md`) vencem as skills.
 5. **Implementar com teste:** lógica em `src/shared` com teste em `tests/`; tela conferida no navegador.
 6. **Gates** verdes; mudou tela → prints no PC, português e inglês; sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10).
 7. **Revisar:** `/ponytail-review` e uma segunda leitura tentando derrubar a mudança.
-8. **PR** pelo modelo, título `tipo: o que muda`. A revisão automática comenta no PR; o dono aprova e mescla.
+8. **PR** pelo modelo, título `tipo: o que muda`. A revisão automática comenta no PR; o dono aprova e mescla. (O teste em `localhost` aprovado pelo Fernando antes do merge vale só para os PRs de código das sessões dele; o seu PR segue a revisão normal.)
 
 ### Prompts que funcionam
 

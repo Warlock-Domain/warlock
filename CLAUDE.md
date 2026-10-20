@@ -110,6 +110,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 20/10 | Aba de teste diz qual é o teste: em `localhost`/`127.0.0.1` o título vira `🧪 <branch> · Warlock Wars` (branch gravada no build; refazer o build ao trocar de branch) e `?aba=<nome>` na URL troca o nome; no ar nada muda (issue #113) | várias sessões abrem abas de localhost para o Fernando testar e todas tinham o mesmo título |
 | 20/10 | A **Ladina pronta já vem com o Capuz** (o atalho do Guarda-roupas e os bots; quem quiser sem capuz troca o Chapéu para Nenhum) e a **Loja** mostra os mesmos 8 prontos, sem a Ladina encapuzada | pedidos do Fernando depois do #108 |
 | 20/10 | Branch local de teste sempre em dia com o `master`: a cada merge no `master`, toda branch com tarefa aberta recebe `git merge origin/master` (sem rebase nem force num PR já aberto), roda os gates e reinicia o servidor local; a orquestradora avisa as sessões filhas | evitar conflito no PR e o Fernando testar sempre a versão atual do jogo |
+| 20/10 | PR de código do Fernando só é mesclado depois que ele aprova o teste em `localhost`: a sessão dona abre a aba no navegador dele (`?aba=<nome do teste>`), lista o que testar e o que esperar, e põe notas na tela (só em `localhost`) apontando o que mudou; aprovação em múltipla escolha, citada à revisora. PR só de docs/CI e PR de colaborador seguem como antes | ele quer ver e entender cada mudança no jogo antes de ir ao ar |
 
 ## Fluxo com agente
 
