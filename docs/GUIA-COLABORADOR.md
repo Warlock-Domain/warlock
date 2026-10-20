@@ -263,7 +263,7 @@ Modos: Rodadas (vence quem fizer 5), Deathmatch (volta em 10 s), Times (Azul × 
 
 ## Checklist do PR
 
-- Branch `tipo/assunto`, título `tipo: o que muda`, `Fecha #n` se houver issue.
+- Branch `tipo/assunto`, título `tipo: o que muda`, `Closes #n` se houver issue (em inglês, para o GitHub fechar a issue sozinho).
 - Os 4 gates verdes.
 - Teste novo para lógica nova, falhando sem a mudança.
 - Tela mexida: prints antes e depois no PC, português e inglês; celular (390×844) só quando a mudança mexe no layout e precisa conferir se ele se adapta à tela pequena.
