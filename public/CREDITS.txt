@@ -13,8 +13,12 @@ models/decor.glb
 models/mage.glb, knight, barbarian, rogue, rogue_hooded e skeleton_*.glb (os 9 bonecos), models/KAYKIT-LICENSE.txt e KAYKIT-SKELETONS-LICENSE.txt
   KayKit Adventurers Character Pack 1.0 e KayKit Character Pack: Skeletons 1.0, por Kay Lousberg (www.kaylousberg.com), CC0
   Cortados por scripts/slim-character.mjs: 12 animações dos próprios originais (Idle, Running_A, Spellcast_Shoot, Spellcast_Raise, Hit_A,
-  Death_A, Cheer e, desde 20/10, Dodge_Forward, Throw, Hit_B, Jump_Idle e Death_B) e sem as armas extras.
+  Death_A, Cheer e, desde 20/10, Dodge_Forward, Throw, Hit_B, Jump_Idle, Death_B, Block, Spellcast_Long, Dodge_Backward,
+  Unarmed_Melee_Attack_Kick e 2H_Melee_Attack_Spinning) e sem as armas extras.
   Licença lida nas cópias models/KAYKIT-LICENSE.txt e KAYKIT-SKELETONS-LICENSE.txt: "License: (Creative Commons Zero, CC0)".
+  Mais 4 animações copiadas osso a osso para os 9 bonecos (Ranged_Magic_Summon, Waving, Skeletons_Taunt, Spawn_Ground) de:
+  KayKit Character Animations 1.1 (Free), por Kay Lousberg (www.kaylousberg.com), CC0 - https://kaylousberg.itch.io/kaykit-character-animations
+  (Animations/gltf/Rig_Medium; mesmos ossos e mesma pose de repouso dos bonecos). Licença lida no License.txt do zip: "License: (Creative Commons Zero, CC0)".
 models/hex/rock_single_A..E.gltf (+ .bin e hexagons_medieval.png), pedras na beira das ilhas de refúgio
   KayKit Medieval Hexagon Pack 1.0, por Kay Lousberg (www.kaylousberg.com), CC0
   https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0 (arquivos copiados sem alteração)

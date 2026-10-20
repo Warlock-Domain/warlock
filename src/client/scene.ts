@@ -20,6 +20,7 @@ import { createDecor } from './decor.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
 import { SPELLS } from '../shared/spells.ts';
+import type { TAUNTS } from '../shared/taunts.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
 export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#12c7c7', '#f76b15', '#e93d82'];
@@ -148,6 +149,17 @@ function bandGeo(pairs: [Vec[], Vec[]][], keep: (m: Vec) => boolean = () => true
   return g;
 }
 
+// clips que repetem (o resto toca uma vez e para no último quadro)
+const LOOPS = ['Idle', 'Running_A', 'Jump_Idle', 'Cheer', 'Waving'];
+// gesto da provocação pelo tom: deboche, festa ou aviso [clip, segundos]
+const TEASE: [string, number] = ['Skeletons_Taunt', 1.03], PARTY: [string, number] = ['Cheer', 1.67], CALL: [string, number] = ['Waving', 2.1];
+const TAUNT_ANIM: Record<(typeof TAUNTS)[number]['id'], [string, number]> = {
+  loser: TEASE, laugh: TEASE, meow: TEASE, flawless: PARTY, combo_breaker: PARTY, multi_kill: PARTY, ultra_kill: PARTY, congrats: PARTY,
+  fire_in_the_hole: CALL, look_out: CALL,
+};
+// Teleporte (só visual): some em TP s deslizando TP_SLIDE m rumo ao destino e reaparece em TP s chegando na mesma direção
+const TP = 0.12, TP_SLIDE = 0.6;
+
 type Mage = {
   root: THREE.Group;
   mixer: THREE.AnimationMixer;
@@ -196,6 +208,12 @@ type Mage = {
   flash: number; // clarão branco do golpe: 1 no acerto, cai até 0
   freezeUntil: number; // hit-stop: animação parada até este instante
   cheering: boolean;
+  invuln: boolean; // invulnerável no quadro anterior: ligar de novo é nascer (começo da rodada ou volta no deathmatch)
+  faded: boolean; // materiais mexidos pelo fade do Teleporte
+  tpAt: number; // Teleporte: quando saiu, de onde, para onde e a direção (só visual)
+  tpFrom: Vec;
+  tpTo: Vec;
+  tpDir: Vec;
 };
 
 // limiares de golpe (dano por acerto vai de ~30 a ~170): grande e crítico
@@ -743,9 +761,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const mixer = new THREE.AnimationMixer(model);
     const actions: Record<string, THREE.AnimationAction> = {};
     for (const c of src.clips) actions[c.name] = mixer.clipAction(c);
-    for (const n of ['Spellcast_Shoot', 'Hit_A', 'Death_A', 'Spellcast_Raise', 'Dodge_Forward', 'Throw', 'Hit_B', 'Death_B']) {
-      actions[n]?.setLoop(THREE.LoopOnce, 1);
-      if (actions[n]) actions[n].clampWhenFinished = true;
+    // tudo toca uma vez e para no último quadro, menos o que repete
+    for (const [n, a] of Object.entries(actions)) if (!LOOPS.includes(n)) {
+      a.setLoop(THREE.LoopOnce, 1);
+      a.clampWhenFinished = true;
     }
     actions.Idle?.play();
     const hpFill = el('div', { class: 'hp-fill', style: `background: ${COLORS[d.color]}` });
@@ -765,7 +784,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const lootBar = el('div', { class: 'loot-bar', hidden: true }, lootFill);
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -775,9 +794,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     m.current = name;
   }
 
-  // animação de conjurar [clip, segundos, início no clip]: Escudo e Investida erguem as mãos, Teleporte esquiva para a frente,
-  // Agarrar arremessa (o Throw só desce o braço aos ~0,6 s e a magia sai aos 0,1 s: começa no meio), o resto atira
-  const CAST_ANIM: Record<string, [string, number, number?]> = { shield: ['Spellcast_Raise', 0.55], rush: ['Spellcast_Raise', 0.55], teleport: ['Dodge_Forward', 0.4], grip: ['Throw', 0.6, 0.45] };
+  // animação de conjurar [clip, segundos, início no clip]; o resto atira (Spellcast_Shoot). Quando o gesto forte vem no meio
+  // do clip, começa ali: o Throw desce o braço aos ~0,6 s, o Summon bate o cajado aos ~3,3 s, o chute sai aos ~0,3 s
+  const SUMMON: [string, number, number] = ['Ranged_Magic_Summon', 0.8, 3.1];
+  const SPIN: [string, number] = ['2H_Melee_Attack_Spinning', 0.67];
+  const CAST_ANIM: Record<string, [string, number, number?]> = {
+    shield: ['Block', 0.6], rush: ['Dodge_Forward', 0.4], teleport: ['Dodge_Forward', 0.4], windwalk: ['Dodge_Backward', 0.4], grip: ['Throw', 0.6, 0.45],
+    meteor: SUMMON, rockpillar: SUMMON, warpzone: SUMMON, drain: ['Spellcast_Long', 0.9, 0.3], thrust: ['Unarmed_Melee_Attack_Kick', 0.5, 0.2],
+    gravity: SPIN, cluster: SPIN,
+  };
   const castAnim = (spell: string) => CAST_ANIM[spell] ?? (['Spellcast_Shoot', 0.55] as const);
   function oneShot(id: string, name: string, secs: number, from = 0) {
     const m = mages.get(id);
@@ -1401,6 +1426,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         shockwave(v(e.x, e.y), 1.2, '#e0203a');
       }
       else if (e.k === 'teleport') {
+        // só o Teleporte lançado (não Troca, Égide nem Alteração) ganha o fade com deslize
+        const m = mages.get(e.id);
+        if (m && events.some((x) => x.k === 'cast' && x.id === e.id && x.spell === 'teleport')) {
+          const dx = e.to.x - e.from.x, dy = e.to.y - e.from.y, n = Math.hypot(dx, dy) || 1;
+          Object.assign(m, { tpAt: performance.now() / 1000, tpFrom: e.from, tpTo: e.to, tpDir: v(dx / n, dy / n) });
+        }
         burst(e.from, '#c49bff', 2.4, 0.45, 0.8, FX.magic);
         burst(e.to, '#c49bff', 2.6, 0.45, 0.8, FX.magic);
         burst(e.to, '#e9d8ff', 1.6, 0.3, 0.8, FX.light);
@@ -1597,12 +1628,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.root.visible = !hidden;
       // A cópia é sólida e visível; a invisibilidade vale somente para o jogador real.
       const ghost = !!d.ghost || (d.status & (1024 | 8388608)) > 0; // Caminhada no vento e o véu visto por si ou pela visão de teste da sandbox
-      if (m.ghost !== ghost) {
+      // Teleporte: tk de 0 a 1 sumindo e deslizando rumo ao destino, de 1 a 2 chegando de um pouco atrás; 2 = sem efeito
+      const tk = Math.min(2, (now - m.tpAt) / TP), fade = tk < 1 ? 1 - tk : tk - 1, faded = fade < 1;
+      if (m.ghost !== ghost || faded || m.faded) {
         m.ghost = ghost;
-        for (const x of m.ghostMats) Object.assign(x.m, { transparent: ghost || x.transparent, opacity: ghost ? x.opacity * (d.ghost ? 0.45 : 0.35) : x.opacity, needsUpdate: true });
+        m.faded = faded;
+        for (const x of m.ghostMats) Object.assign(x.m, { transparent: ghost || faded || x.transparent, opacity: x.opacity * (ghost ? (d.ghost ? 0.45 : 0.35) : 1) * fade, needsUpdate: true });
         m.label.style.opacity = ghost ? '0.6' : '';
       }
-      m.root.position.copy(w3(d.pos));
+      m.root.position.copy(w3(tk < 1 ? add(m.tpFrom, scale(m.tpDir, tk * TP_SLIDE)) : tk < 2 ? add(m.tpTo, scale(m.tpDir, (tk - 2) * TP_SLIDE)) : d.pos));
       m.root.rotation.y = Math.PI / 2 - d.facing;
       // Escudo: bolha no raio real que vai apagando, e a barrinha do tempo que falta
       if (d.shield && !m.shield.visible) m.shieldSince = now;
@@ -1638,6 +1672,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           m.dead = false;
           unburn(m);
         }
+        // nasceu (começo da rodada ou volta no deathmatch): a invulnerabilidade do começo acabou de ligar
+        if (invuln && !m.invuln) oneShot(d.id, 'Spawn_Ground', 1.3);
         // atordoado (16: arremessado por um golpe) voa de braços abertos
         if (now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
         // vencedor: estouro dourado ao começar a comemorar e faíscas subindo enquanto dura
@@ -1645,6 +1681,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (d.cheer && !lite && Math.random() < 0.2) burst(v(d.pos.x + (Math.random() - 0.5) * 1.4, d.pos.y + (Math.random() - 0.5) * 1.4), Math.random() < 0.5 ? '#ffd84a' : '#fff2a0', 0.7, 1.2, 0.4, FX.star, 2.6);
       }
       m.cheering = d.cheer && d.alive;
+      m.invuln = invuln;
       // clarão branco do golpe: some em ~0,15 s
       if (m.flash > 0) {
         m.flash = Math.max(0, m.flash - 0.12);
@@ -1868,10 +1905,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (lite) shake = 0;
       for (const s of embers) s.visible = false;
     },
-    // balão do taunt em cima do mago por 2,5 s
-    bubble(id: string, text: string) {
+    // balão do taunt em cima do mago por 2,5 s, com o gesto do tom (TAUNT_ANIM)
+    bubble(id: string, text: string, taunt?: keyof typeof TAUNT_ANIM) {
       const m = mages.get(id);
       if (!m) return false;
+      if (taunt) oneShot(id, ...TAUNT_ANIM[taunt]);
       m.label.querySelector('.bubble')?.remove();
       const b = el('div', { class: 'bubble' }, text);
       m.label.prepend(b);

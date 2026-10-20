@@ -591,7 +591,7 @@ function startRoom(code: string, name: string) {
       if (!taunt) return;
       const text = t(taunt.text, taunt.en);
       void sound.taunt(taunt.id);
-      if (!scene.bubble(m.id, text)) toast(`${room?.players.find((p) => p.id === m.id)?.name ?? '?'}: ${text}`);
+      if (!scene.bubble(m.id, text, taunt.id)) toast(`${room?.players.find((p) => p.id === m.id)?.name ?? '?'}: ${text}`);
       return;
     }
     lastSnap = m;
