@@ -88,13 +88,14 @@ export type ServerMsg =
   | { t: 'error'; code: ErrorCode; msg: string }
   | { t: 'taunt'; id: string; i: number };
 
-const MAX_COORD = 30;
+const MAX_COORD = 30; // a maior arena (8 magos, forma mais larga: 1,63 × 13,6 m) chega a ~22 m do centro; o resto é folga para clique na lava
 const MAX_MSG = 2048; // 'start' com 7 bots configurados: ~1,0 KB só com magias, ~1,7 KB com magias e itens (medido em 19/10)
 
 type Obj = Record<string, unknown>;
 const isObj = (x: unknown): x is Obj => typeof x === 'object' && x !== null && !Array.isArray(x);
 const coord = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= MAX_COORD;
 const seq = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 0 && (x as number) < 2 ** 31;
+// publicId: hash de 32 bits em base 36 cabe em 7 caracteres
 const pubId = (x: unknown): x is string => typeof x === 'string' && /^p[0-9a-z]{1,8}$/.test(x);
 
 export function cleanName(raw: unknown): string {
@@ -114,7 +115,7 @@ function parseOpts(x: unknown): Partial<MatchOpts> | null {
 const SKILL_KEYS = Object.keys(BOT_SKILL.normal) as (keyof BotSkill)[];
 const level = (x: unknown, max: number) => Number.isInteger(x) && (x as number) >= 0 && (x as number) <= max;
 function parseSetup(x: unknown): BotSetup[] | null {
-  if (!Array.isArray(x) || x.length > MAX_PLAYERS - 1) return null;
+  if (!Array.isArray(x) || x.length > MAX_PLAYERS - 1) return null; // sempre sobra o lugar de quem pediu
   const out: BotSetup[] = [];
   for (const b of x) {
     if (!isObj(b)) return null;
@@ -159,6 +160,7 @@ export function parseClientMessage(raw: string): ClientMsg | null {
   if (!isObj(m)) return null;
   switch (m.t) {
     case 'hello':
+      // o cliente gera com crypto.randomUUID (36 caracteres); o id é o segredo de reconexão, então só formato fechado
       if (typeof m.playerId !== 'string' || !/^[\w-]{8,64}$/.test(m.playerId)) return null;
       return { t: 'hello', playerId: m.playerId, name: cleanName(m.name) };
     case 'start': {

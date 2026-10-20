@@ -150,8 +150,8 @@ type AimSrc = SpellId | 'scourge' | 'pact' | 'redirector';
 // choque de magias: fogo×fogo, fogo×míssil, míssil×míssil, e o raio detonando uma bola de fogo
 type Combo = 'fire' | 'arcane' | 'pulse' | 'detonate' | 'pillar' | 'snow'; // snow: explosão da Bola de neve
 
-// until: some sozinho (Pilar de pedra); wall: índice do pedaço do meio da parede do Pilar de pedra (os 3 dividem a vida)
-export type Pillar = { pos: Vec; hp: number; alive: boolean; kind: ObstacleKind; until?: number; wall?: number };
+// until: some sozinho (Pilar de pedra); wall: índice do pedaço do meio da parede do Pilar de pedra (os 3 dividem a vida); gold: ouro do monte do baú
+export type Pillar = { pos: Vec; hp: number; alive: boolean; kind: ObstacleKind; until?: number; wall?: number; gold?: number };
 
 type Zone = { pos: Vec; r: number; kind: 'burn' | 'slow' | 'pull'; until: number };
 
@@ -525,7 +525,7 @@ function damagePillar(w: World, i: number, dmg: number, by: string | null) {
   const at = p.wall === undefined ? p.pos : w.pillars[p.wall].pos;
   const o = OBSTACLES[p.kind];
   // o ouro cai na pedra: baú que a lava pegou espalha o monte na beira de dentro
-  if (p.kind === 'chest') w.loots.push({ pos: safeInside(w, p.pos, 0.6), left: CHEST.pile, until: w.t + CHEST.pileSecs });
+  if (p.kind === 'chest') w.loots.push({ pos: safeInside(w, p.pos, 0.6), left: p.gold ?? CHEST.pile[1], until: w.t + CHEST.pileSecs });
   if (o.blastR > 0) area(w, at, o.blastR, o.blastDmg, 1, by, 'pillar');
   else w.events.push({ k: 'clash', x: at.x, y: at.y, combo: 'pillar', r: o.r * 1.5 });
 }
@@ -1587,7 +1587,8 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   if (w.rules.chests && chestsUp < CHEST.maxUp && w.chestsLeft > 0 && w.t >= w.chestAt) {
     const at = freeSpot(w, rand, CHEST.spread);
     if (at) {
-      w.pillars.push({ pos: at, hp: OBSTACLES.chest.hp, alive: true, kind: 'chest' });
+      const gold = CHEST.pile[0] + Math.floor(rand() * (CHEST.pile[1] - CHEST.pile[0] + 1));
+      w.pillars.push({ pos: at, hp: OBSTACLES.chest.hp, alive: true, kind: 'chest', gold });
       w.events.push({ k: 'chest', x: at.x, y: at.y });
       w.chestAt = w.t + CHEST.every;
       w.chestsLeft--;

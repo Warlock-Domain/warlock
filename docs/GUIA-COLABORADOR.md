@@ -70,6 +70,8 @@ Logs: https://github.com/fernandorff/warlock/actions.
 
 ## Claude Code e as skills
 
+Sugestão de organização: uma sessão orquestradora e uma sessão filha por issue, cada uma no seu worktree. Como montar, por que economiza tokens e as regras para as sessões não se atrapalharem: [Sessões com orquestrador](SESSOES-COM-ORQUESTRADOR.md).
+
 Dentro do Claude Code:
 
 ```text
@@ -101,7 +103,7 @@ Os padrões do projeto (`CLAUDE.md`) vencem as skills.
 3. **Planejar:** mais de um arquivo → plano; leia antes de deixar implementar.
 4. **Branch:** `git checkout -b feat/minha-ideia` a partir do `master` atualizado.
 5. **Implementar com teste:** lógica em `src/shared` com teste em `tests/`; tela conferida no navegador.
-6. **Gates** verdes; mudou tela → prints no PC, português e inglês; celular (390×844) só quando a mudança mexe no layout e precisa conferir se ele se adapta à tela pequena.
+6. **Gates** verdes; mudou tela → prints no PC, português e inglês; sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10).
 7. **Revisar:** `/ponytail-review` e uma segunda leitura tentando derrubar a mudança.
 8. **PR** pelo modelo, título `tipo: o que muda`. A revisão automática comenta no PR; o dono aprova e mescla.
 
@@ -136,7 +138,7 @@ Fluxo: **branch da tarefa → PR para o `master` → no ar** (decisão de 20/10:
 
 Um PR, um assunto. Mantenha a branch em dia (`git pull --rebase origin master`) antes de pedir revisão; depois que a revisão começou, responda com commits novos.
 
-Issues: modelos **Bug** e **Ideia**. Etiquetas: `bug`, `ideia`, `balanceamento`, `visual`, `bom primeiro PR`, `precisa de decisão`.
+Issues: modelos **Bug** e **Ideia**. Etiquetas: `bug`, `ideia`, `balanceamento`, `jogabilidade`, `visual`, `documentação`, `bom primeiro PR`, `precisa de decisão`. Quadros kanban: um geral e um por tema (Balanceamento, Jogabilidade, Interface, Bugfix, Documentação e fluxos); lista e links no [CONTRIBUTING](../CONTRIBUTING.md#issues).
 
 ## Como o jogo funciona por dentro
 
@@ -169,7 +171,7 @@ navegador ──WebSocket──▶ Durable Object (uma sala)
 3. Determinismo: `tests/style.test.ts` guarda o hash de uma partida com semente. Mudou = você mudou o jogo; regrave só se for de propósito e explique no PR.
 4. Nada de `Math.random` solto na simulação: use o `rand` recebido.
 5. Mensagem nova do navegador validada em `parseClientMessage`.
-6. Celular usável: 390×844 e toque (`pointer: coarse`).
+6. Celular: fora de foco por enquanto (decisão de 20/10); só não apague as regras de celular que já existem.
 7. Número de magia, item ou bot só com medição do simulador no PR.
 8. Menos código: reaproveite `el()`, `choice()`, `withTip`, `store`, `t()`; mudança cirúrgica.
 9. Sem segredo: o repositório é público.
@@ -193,7 +195,7 @@ node scripts/smoke.mjs http://localhost:8787                          # teste r�
 
 Os scripts usam o Chrome instalado e um perfil temporário. `PW_CHANNEL=chromium` usa o Chromium do Playwright (`npx playwright-core install chromium` antes); `PW_PROFILE=<pasta>` usa um perfil fixo.
 
-Atalhos: aba **Aprender** (treino com bots, desafios, Sombra e a sandbox com ouro e vida infinitos), `?as=nome` no endereço, `localStorage['warlock:lang'] = 'pt' | 'en'`. Mudança de tela: PC 1280×720 e 1920×1080, português e inglês, sem erro no console; celular (390×844) só quando a mudança mexe no layout e precisa conferir se ele se adapta à tela pequena.
+Atalhos: aba **Aprender** (treino com bots, desafios, Sombra e a sandbox com ouro e vida infinitos), `?as=nome` no endereço, `localStorage['warlock:lang'] = 'pt' | 'en'`. Mudança de tela: PC 1280×720 e 1920×1080, português e inglês, sem erro no console; sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10).
 
 ## Balanceamento
 
@@ -266,7 +268,7 @@ Modos: Rodadas (vence quem fizer 5), Deathmatch (volta em 10 s), Times (Azul × 
 - Branch `tipo/assunto`, título `tipo: o que muda`, `Closes #n` se houver issue (em inglês, para o GitHub fechar a issue sozinho).
 - Os 4 gates verdes.
 - Teste novo para lógica nova, falhando sem a mudança.
-- Tela mexida: prints antes e depois no PC, português e inglês; celular (390×844) só quando a mudança mexe no layout e precisa conferir se ele se adapta à tela pequena.
+- Tela mexida: prints antes e depois no PC, português e inglês; sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10).
 - Número mexido: medição do simulador (antes → depois, Normal e Difícil).
 - Todo texto com `t()`; sem segredo; asset com licença e crédito.
 - `/ponytail-review` no diff.

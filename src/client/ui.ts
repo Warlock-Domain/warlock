@@ -316,7 +316,7 @@ const OPT_NAME: Record<OptKey, string> = { shop: t('Tempo de loja', 'Shop time')
 function optText(k: OptKey, val: MatchOpts[OptKey], mode: Mode): string {
   if (k === 'shop') return (val as number) >= 120 ? '2 min' : `${val} s`;
   if (k === 'pace') return PACE_NAME[val as MatchOpts['pace']];
-  if (k === 'economy') return { 0.6: t('Pouco ×0,6', 'Low ×0.6'), 1: 'Normal', 1.6: t('Muito ×1,6', 'High ×1.6'), 2.5: t('Festa ×2,5', 'Party ×2.5') }[val as MatchOpts['economy']];
+  if (k === 'economy') return { 0.6: t('Pouco ×0,6', 'Low ×0.6'), 1: 'Normal', 1.5: t('Muito ×1,5', 'High ×1.5'), 2: t('Festa ×2', 'Party ×2') }[val as MatchOpts['economy']];
   if (k === 'arena') return val === 'random' ? t('Sortear', 'Random') : arenaName(val as ArenaId);
   if (k === 'difficulty') return SKILL_NAME[val as MatchOpts['difficulty']];
   if (k === 'goal') return mode === 'deathmatch' ? `${DM_GOALS[val as MatchOpts['goal']]} ${t('abates', 'kills')}` : `${val} ${t('rodadas', 'rounds')}`;
@@ -475,7 +475,7 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
 // os valores seguem as opções da sala: toda renda é multiplicada pela economia (shared/match.ts, earn)
 function goldInfo(p: PublicPlayer, opts: MatchOpts, open: boolean, onToggle: (open: boolean) => void) {
   const row = (label: string, value: Child, cls = '') => el('div', { class: 'gold-row ' + cls }, el('span', {}, label), el('b', {}, value));
-  const g = (n: number) => Math.round(n * opts.economy);
+  const g = (n: number) => n1(n * opts.economy); // exato: a parte quebrada é paga aos poucos (×1,5: abate 7 ou 8, média 7,5)
   // recolhido por padrão: o Pronto fica logo abaixo do ouro
   return el('details', { class: 'gold-info', open, ontoggle: (e: Event) => onToggle((e.target as HTMLDetailsElement).open) },
     el('summary', { class: 'gold-title' }, t('Como ganho ouro', 'How I earn gold'), opts.economy !== 1 ? el('small', {}, t(` · ouro ×${opts.economy.toLocaleString(LOCALE)} nesta sala`, ` · gold ×${opts.economy.toLocaleString(LOCALE)} in this room`)) : null),

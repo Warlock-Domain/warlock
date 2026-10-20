@@ -42,14 +42,14 @@ npx vite build                      # build do cliente (dist/)
 - **Todo texto que o jogador vê sai nas duas línguas** com `t('português', 'English')` de `src/client/i18n.ts`. Nomes de magia/item/arena pelos helpers `spellName`, `itemName`, `arenaName`. Números com `LOCALE`.
 - **Determinismo:** a simulação não pode usar `Math.random` solto nem mudar a ordem dos sorteios sem querer. `tests/style.test.ts` guarda um hash dos eventos de uma partida com semente: se ele mudar, você mudou o jogo. Só regrave o valor quando a mudança de jogabilidade for intencional.
 - **Protocolo é fronteira de confiança:** toda mensagem nova é validada em `parseClientMessage` (tipos, limites, chaves conhecidas).
-- **Celular continua usável:** confira as media queries (≤ 600 px e `pointer: coarse`) a cada mudança de interface.
+- **Celular fora de foco por enquanto** (decisão de 20/10): não é preciso conferir nem otimizar para celular; só não apague as media queries que já existem (≤ 600 px e `pointer: coarse`).
 
 ## Decisões de produto (não desfazer sem combinar numa issue)
 
 - Menu principal com 5 abas: Jogar · Magias e itens · Aprender · Personagem · Configurações. Menus enxutos.
 - Loja em grade com o nome dentro do ícone e preço com moeda; cores por grupo (Ataque vermelho-laranja, Mobilidade verde, Defesa azul, Controle roxo, Itens prateado); 10 magias de ataque e 5 de cada outro grupo.
 - Sala sem opção de ritmo nem de morte súbita (sempre ligada); dificuldade escolhida bot a bot.
-- Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3. Escudo com recarga de 16 s. Drenar só muda depois de partidas reais. Ataques fortes e raros (não encurtar recargas).
+- Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3; o monte dá 3 a 5 de ouro. Escudo com recarga de 16 s. Drenar só muda depois de partidas reais. Ataques fortes e raros (não encurtar recargas).
 - Recusados: ranking/perfil e itens que só ajudam uma magia específica.
 
 ## Registro de decisões do Fernando
@@ -82,10 +82,14 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 20/10 | Teclas **Q W E R D F pela ordem da barra** ligadas por padrão; quem desmarcou continua sem (issue #65) | público de Dota já joga assim |
 | 20/10 | No modo Q W E R D F as teclas das **posições** são trocáveis em Lançamento: Magia 1 a 6 e Item 1 a 3 (itens também por posição na barra; só 3 posições de item por enquanto) (issue #76) | configurar as teclas do Q W E R D F como no Dota; posição de item deixa trocar a ordem e receber itens ativáveis novos |
 | 20/10 | Anel de alcance dos projéteis marca até onde a **ponta** chega (inimigo que encosta no anel é atingido); o Meteoro mostra também o círculo da explosão no ponto onde cai (issue #82) | o anel ficava 0,8 m curto (11 a 18%) e não mostrava a explosão; escolhido entre ponta + explosão, só projéteis e até o centro do inimigo |
+| 20/10 | Monte de ouro do baú dá **3 a 5** (sorteado quando o baú nasce; antes 10) (issue #80). Aplicado **sem passar pelo simulador** (exceção decidida pelo dono, como a Ilusão) | 10 de ouro por monte era demais; o baú dá o mesmo ouro a qualquer build, então não muda qual magia ou item vence |
+| 20/10 | Opção **Ouro ganho** com ×0,6 · ×1 · ×1,5 · ×2 (antes ×1,6 e ×2,5); a parte quebrada do ouro fica guardada por jogador e é paga aos poucos (no ×1,5 o monte do baú paga 1, 2, 1, 2…; abate de 5 vira 7 ou 8) (issue #88) | no ×1,6 o monte pagava 2 por tique (o arredondamento virava ×2); pedido do Fernando depois de jogar |
 | 20/10 | **Ilusão** nova (issue #49): a cópia anda reto 2 s na direção do movimento, leva empurrão mas só some no prazo; quem lança fica invisível 2 s para todos (inclusive aliados) e outra magia o revela. Aprovada **sem passar pelo simulador** (exceção decidida pelo dono) | ideia do Leonard no estilo do Phantom Lancer do Dota |
 | 20/10 | No lançamento **Rápido** o anel de alcance pisca por 0,4 s quando a magia ou o item sai de verdade (issue #61) | no Rápido o jogador nunca via o alcance; mostra sem atrasar o lançamento |
 | 20/10 | Opção **Pixel art** em Configurações → Vídeo e efeitos, desligada por padrão e só no PC (issue #79): Desligado, 2 px ou 3 px; cena em blocos com contorno (`RenderPixelatedPass` do Three.js), câmera presa à grade de pixels e quase sem perspectiva para não tremer | pedido do Fernando a partir do vídeo "3D PixelArt Tutorial - Godot"; testado por ele no local e no fernandorff-dev |
-| 20/10 | Print de celular só quando a mudança mexe no layout e precisa conferir a responsividade; nos outros casos basta o PC | prints de celular em toda mudança atrasavam PR sem ganho |
+| 20/10 | Prova de conceito (teste local, branch `poc/<assunto>`) não tem issue nem PR; a issue nasce só quando o Fernando decide que vale a pena | não encher os quadros com testes |
+| 20/10 | Quadros kanban por tema além do geral: Balanceamento, Jogabilidade, Interface, Bugfix e Documentação e fluxos; a etiqueta da issue (`balanceamento`, `jogabilidade`, `visual`, `bug`, `documentação`) diz em qual quadro ela entra (lista no CONTRIBUTING, seção Issues) | acompanhar cada frente separada |
+| 20/10 | Sem print de celular e sem otimizar para celular por enquanto; prints só no PC (substitui a regra de print de celular para mudança de layout) | foco no PC agora |
 | 20/10 | Teclas de magias e itens ficam em Configurações → **Lançamento**, junto da caixa Q W E R D F: desligada, o botão "Teclas de cada magia" abre a lista; itens sempre ali; a seção Teclas fica só com os atalhos (issue #68) | a tecla de cada magia só importa sem o Q W E R D F; escolhido entre botão, lista sempre aberta e atalho |
 | 20/10 | Issue só pelos modelos Bug e Ideia (issue em branco desligada), título de uma frase sem prefixo, um assunto por issue, quem vai fazer se atribui antes de começar e só pega issue sem dono | evitar duas pessoas no mesmo trabalho |
 | 20/10 | Mudança grande (como o jogo se joga, balanceamento, tirar algo, mais de um dia de trabalho) só começa depois de decidida: issue **Ideia** com `precisa de decisão`, cerca de 2 dias de discussão, o Fernando dá a palavra final ouvindo o grupo, decisão escrita na issue e aqui; PR grande sem decisão espera. Bug e alinhamento de interface vão direto em PR | preocupação do grupo (Branco): cada um atacando o que dá na telha sem combinar |
@@ -97,8 +101,11 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 19/10 | Vender devolve sempre 100% do que pagou; o ouro garantido da rodada (`ROUND_GOLD`) chega na hora da queda, para comprar enquanto assiste; loja: cartas ocupam a coluna, Vender no canto da carta (moeda no toque) | pedidos do Fernando |
 | 19/10 | Modo novo **Ascensão** (roguelike, estilo ARAM com cartas): XP do mago, a cada nível escolhe 1 entre 3 cartas (magia nova, subir magia, item) no intervalo; sem ouro, loja nem baús; Flagelo continua de graça; 9 rodadas com pontos por colocação; 4 mecanismos de recuperação; aumentos ficam para a 2ª leva. Desenho em `docs/superpowers/specs/2026-10-19-ascensao-design.md` | progressão dentro da partida sem decidir o jogo cedo |
 | 19/10 | Modo novo **Campanha** (co-op PvE roguelike, proposta do Lucas): 1 a 4 Acesos contra o Fumo numa noite de 30 a 45 min (3 estágios + chefe final), mapa gerado por semente no padrão Diablo 2 (objetivo fixo, noite nova a cada tentativa), 6 classes com passiva e árvore de cartas (Guerreiro, Arqueiro, Mago, Warlock, Ladino e Errante, que aprende tudo), XP e cartas do Ascensão, servos do Fumo (esqueletos com IA de bot), chefes pesados que voltam da lava com dano, reacender aliado caído. 1ª campanha: Última Vela; fatia 1 = Charneca Cinzenta + Sir Odran. Desenho em `docs/superpowers/specs/2026-10-19-campanha-design.md`. Dono do modo: Lucas (decide os detalhes da Campanha); o motor de cartas vem do Ascensão (Fernando, 19/10) | jogar junto contra o jogo, com história, sem mudar os modos atuais |
+| 20/10 | Ícone da aba = o **W da foto do grupo do Telegram** (fonte Grenze Gotisch, degradê ouro → lava, moldura dourada redonda, fundo lava/escuro) e nome da aba e do cartão de compartilhamento **Warlock Wars** (o nome dentro do jogo não mudou); o ícone também existe em SVG vetorial em `public/warlock-wars.svg` para usar na interface (`<img src="/warlock-wars.svg">`), gerado por `scripts/assets/favicon.py` (issue #99) | identidade igual à do grupo e o nome completo do jogo na aba |
 
 ## Fluxo com agente
+
+Ambiente sugerido: uma sessão orquestradora e uma sessão filha por issue, cada uma no seu worktree; explicação, vantagens (economia de tokens, paralelismo) e passo a passo em [docs/SESSOES-COM-ORQUESTRADOR.md](docs/SESSOES-COM-ORQUESTRADOR.md).
 
 Skills (plugins `superpowers@claude-plugins-official` e `ponytail@ponytail`): brainstorming antes de coisa nova → writing-plans para vários passos → TDD em `src/shared` → systematic-debugging antes de corrigir bug → verification-before-completion antes de dizer pronto → `/ponytail-review` no diff antes do PR. Guia completo do colaborador (máquina, prompts, testes, problemas comuns): [docs/GUIA-COLABORADOR.md](docs/GUIA-COLABORADOR.md).
 
@@ -149,7 +156,7 @@ Logs: https://github.com/fernandorff/warlock/actions.
 
 ## Testar no navegador
 
-Prints com Playwright headless contra `npx wrangler dev`; confira no PC (1280×720 e 1920×1080), celular (390×844) só quando a mudança mexe no layout e precisa conferir se ele se adapta à tela pequena (decisão de 20/10), e as duas línguas (`localStorage.warlock:lang = 'pt' | 'en'`). `node scripts/smoke.mjs <url>` faz o teste rápido de uma sala de verdade. Scripts prontos: `node scripts/play-headless.mjs <url> <pasta-prints>` (uma rodada com prints), `long-headless.mjs`, `multi-headless.mjs` (3 pessoas), `ghost-socket.mjs` (conexão que some sem fechar; sem navegador, ~6 min). Usam o Chrome instalado (`PW_CHANNEL=chromium` para o Chromium do Playwright, depois de `npx playwright-core install chromium`) e um perfil temporário (`PW_PROFILE=<pasta>` para um fixo).
+Prints com Playwright headless contra `npx wrangler dev`; confira no PC (1280×720 e 1920×1080), sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10), e as duas línguas (`localStorage.warlock:lang = 'pt' | 'en'`). `node scripts/smoke.mjs <url>` faz o teste rápido de uma sala de verdade. Scripts prontos: `node scripts/play-headless.mjs <url> <pasta-prints>` (uma rodada com prints), `long-headless.mjs`, `multi-headless.mjs` (3 pessoas), `ghost-socket.mjs` (conexão que some sem fechar; sem navegador, ~6 min). Usam o Chrome instalado (`PW_CHANNEL=chromium` para o Chromium do Playwright, depois de `npx playwright-core install chromium`) e um perfil temporário (`PW_PROFILE=<pasta>` para um fixo).
 
 ## Git
 
