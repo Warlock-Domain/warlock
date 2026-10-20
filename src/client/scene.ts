@@ -1737,10 +1737,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.4, 0.45, 0.85));
     composer.addPass(new OutputPass());
   }
-  // pixel art (issue #79): cena em blocos de 3×3 px com contorno, no lugar do RenderPass; só existe com o composer (PC)
+  const PIXEL = 2; // tamanho do bloco em pixels da tela (Fernando, 20/10: 2 dá mais detalhe que 3)
+  // pixel art (issue #79): cena em blocos de PIXEL×PIXEL px com contorno, no lugar do RenderPass; só existe com o composer (PC)
   let pixelPass: RenderPixelatedPass | null = null;
+  let pixelShift = ''; // deslize da imagem que completa a câmera presa à grade
+  let camK = 1; // quantas vezes mais longe fica a câmera do pixel art (ângulo menor, mesmo enquadramento)
   const makePixelPass = () => {
-    const pass = new RenderPixelatedPass(3 * renderer.getPixelRatio(), scene, camera, { depthEdgeStrength: 0.4, normalEdgeStrength: 0.3 });
+    const pass = new RenderPixelatedPass(PIXEL * renderer.getPixelRatio(), scene, camera, { depthEdgeStrength: 0.4, normalEdgeStrength: 0.3 });
     // o passe compara a profundidade crua, feita para câmera ortográfica; na nossa perspectiva a diferença some.
     // Em metros (×0,04), o contorno aparece quando a borda tem ~0,25 a 0,5 m de degrau
     const m = pass.pixelatedMaterial;
@@ -1828,6 +1831,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (composer.passes[0] === want) return;
       composer.removePass(composer.passes[0]);
       composer.insertPass(want, 0);
+      // câmera quase sem perspectiva: 1 bloco mede o mesmo no chão da tela toda, e a grade presa não balança nas bordas
+      camera.fov = on ? 12 : 40;
+      camK = Math.tan(THREE.MathUtils.degToRad(20)) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+      camera.near = on ? 2 : 0.5;
+      camera.far = on ? 400 : 200;
+      camera.updateProjectionMatrix();
+      Object.assign(pixelPass!.pixelatedMaterial.uniforms.cameraNear, { value: camera.near });
+      Object.assign(pixelPass!.pixelatedMaterial.uniforms.cameraFar, { value: camera.far });
     },
     setFx(on: boolean) {
       lite = on;
@@ -1998,9 +2009,25 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const dist = Math.min(44, Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
       lastDist = dist;
       // olha um pouco à frente do centro para a borda de baixo não ficar atrás da barra de magias
-      const lookZ = focus.z + dist * 0.06;
-      camera.position.set(focus.x, dist * 0.74, lookZ + dist * 0.67);
-      camera.lookAt(focus.x, 0, lookZ);
+      let lookX = focus.x, lookZ = focus.z + dist * 0.06;
+      // pixel art: a câmera desenha de bloco em bloco (PIXEL px medidos no chão do meio da tela); solta, o chão "ferve" a cada quadro.
+      // A sobra (menos de um bloco) desliza a imagem pronta e os nomes, e o movimento continua suave.
+      // No eixo z o chão inclinado aparece encurtado (×0,74), então o passo no chão é maior
+      let shift = '';
+      if (pixelPass && composer?.passes[0] === pixelPass) {
+        const block = (2 * dist * camK * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / (innerHeight / PIXEL);
+        const stepZ = block / 0.74;
+        const sx = Math.round(lookX / block) * block, sz = Math.round(lookZ / stepZ) * stepZ;
+        const px = (v: number) => Math.round(v * PIXEL * devicePixelRatio) / devicePixelRatio; // pixel inteiro da tela: sem borrar os blocos
+        shift = `translate(${px((sx - lookX) / block)}px, ${px((sz - lookZ) / stepZ)}px)`;
+        lookX = sx;
+        lookZ = sz;
+      }
+      if (shift !== pixelShift) canvas.style.transform = labels.style.transform = pixelShift = shift;
+      camera.position.set(lookX, dist * 0.74 * camK, lookZ + dist * 0.67 * camK);
+      // a névoa conta da câmera: com ela mais longe, empurra junto
+      Object.assign(scene.fog!, { near: 30 + (camK - 1) * dist, far: 70 + (camK - 1) * dist });
+      camera.lookAt(lookX, 0, lookZ);
       if (shake > 0.01 && !lite) {
         camera.position.x += (Math.random() - 0.5) * shake;
         camera.position.z += (Math.random() - 0.5) * shake;
