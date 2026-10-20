@@ -7,12 +7,12 @@ import type { SpellId } from './spells.ts';
 // humanos no máximo; as outras vagas da sala (MAX_PLAYERS) são dos servos
 export const CAMPAIGN = { humans: 4, slots: 4 };
 
-// servos do Fumo: magos fracos com a IA de bot (números iniciais, a medir)
+// servos do Fumo: magos fracos com a IA de bot (vida 200 nos esqueletos: Lucas, 20/10; o resto são números iniciais, a medir)
 export const SERVO_KINDS = ['ash', 'archer'] as const;
 export type ServoKind = (typeof SERVO_KINDS)[number];
 export const SERVOS: Record<ServoKind, { name: string; look: CharacterId; hp: number; spells: Partial<Record<SpellId, number>> }> = {
-  ash: { name: 'Cinzento', look: 'skeleton_minion', hp: 350, spells: { fireball: 1 } },
-  archer: { name: 'Arqueiro oco', look: 'skeleton_rogue', hp: 300, spells: { lightning: 1 } },
+  ash: { name: 'Cinzento', look: 'skeleton_minion', hp: 200, spells: { fireball: 1 } },
+  archer: { name: 'Arqueiro oco', look: 'skeleton_rogue', hp: 200, spells: { lightning: 1 } },
 };
 
 // padrão de cada estágio: ondas dos encontros, da mais fácil para a mais difícil (o mapa vem das salas, levels.ts)
