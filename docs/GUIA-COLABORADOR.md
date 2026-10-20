@@ -47,7 +47,7 @@ npx vite build
 
 ## Ambiente dev próprio
 
-Push na branch `<usuário do GitHub>-dev` publica em `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Branches de hoje: `lboesmans-dev`, `breakie33-dev`, `lucascvalle-dev`, `arthurbaquit-dev` e `fernandorff-dev`. Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
+Push na branch `<usuário do GitHub>-dev` publica em `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Branches de hoje: `lboesmans-dev`, `breakie33-dev`, `lucascvalle-dev`, `arthurbaquit-dev`, `reirag-dev` e `fernandorff-dev`. Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
 
 ```bash
 git push --force origin HEAD:lboesmans-dev   # publica o estado da sua branch de tarefa
@@ -105,7 +105,7 @@ Os padrões do projeto (`CLAUDE.md`) vencem as skills.
 5. **Implementar com teste:** lógica em `src/shared` com teste em `tests/`; tela conferida no navegador.
 6. **Gates** verdes; mudou tela → prints no PC, português e inglês; sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10).
 7. **Revisar:** `/ponytail-review` e uma segunda leitura tentando derrubar a mudança.
-8. **PR** pelo modelo, título `tipo: o que muda`. A revisão automática comenta no PR; o dono aprova e mescla.
+8. **PR** pelo modelo, título `tipo: o que muda`. A revisão automática comenta no PR; o dono aprova e mescla. (O teste em `localhost` aprovado pelo Fernando antes do merge vale só para os PRs de código das sessões dele; o seu PR segue a revisão normal.)
 
 ### Prompts que funcionam
 

@@ -17,7 +17,7 @@ Vai trabalhar com agentes de IA? Veja a sugestão de ambiente em [Sessões com o
 3. **Commits pequenos, em português**, começando pelo tipo: `feat: …`, `fix: …`, `balance: …`, `style: …`, `refactor: …`, `docs: …`. A mensagem diz o que mudou para o jogador e, em balanceamento, os números medidos.
 4. **Antes de abrir o PR**, rode os gates (os dois `tsc`, `vitest run`, `vite build`) e jogue no navegador. Para testar com outras pessoas, publique no seu ambiente dev (veja [Ambiente de cada dev](#ambiente-de-cada-dev)). Mantenha a branch em dia com o `master` (`git fetch` + `git merge origin/master`).
 5. **Abra o pull request para o `master`** preenchendo o modelo (Por quê, O que muda, Prints antes e depois se mudou algo na tela, Como testei, Balanceamento) e com `Closes #n` para ligar a issue. **Título no formato do commit** (`feat: …`, `fix: …`): uma checagem do GitHub barra título fora do padrão. O GitHub Actions roda as mesmas checagens dos gates; o PR só entra com tudo verde.
-6. **Revisão:** o Claude comenta sozinho em todo PR (veredito, checagens, pontos); comente `@claude` para pedir ajuda. O agente do dono pode ajustar e mesclar o PR. Responda os comentários com commits novos na mesma branch (sem reescrever o histórico depois que a revisão começou). **A cada merge no `master`** enquanto o PR estiver aberto, faça `git fetch` + `git merge origin/master` (sem rebase nem force), rode os gates e reinicie o servidor local, para não acumular conflito e testar sempre a versão atual.
+6. **Revisão:** o Claude comenta sozinho em todo PR (veredito, checagens, pontos); comente `@claude` para pedir ajuda. O agente do dono pode ajustar e mesclar o PR. PR de código do dono (sessões do Fernando) só é mesclado depois que ele aprova o teste em `localhost`: a sessão abre a aba, lista o que testar e põe à mão notas na tela apontando o que mudou (só em `localhost`, fora do PR). PR de colaborador e PR só de docs/CI não passam por essa aprovação. Responda os comentários com commits novos na mesma branch (sem reescrever o histórico depois que a revisão começou). **A cada merge no `master`** enquanto o PR estiver aberto, faça `git fetch` + `git merge origin/master` (sem rebase nem force), rode os gates e reinicie o servidor local, para não acumular conflito e testar sempre a versão atual.
 7. **Merge:** *squash and merge* no `master`; o título do PR vira o commit. A branch é apagada depois.
 8. **Publicação é automática:** o merge no `master` publica o jogo no ar pela pipeline Produção (decisão de 20/10: sem dev geral, PR direto para o `master`).
 
@@ -45,6 +45,7 @@ Cada colaborador tem um jogo só seu na internet, para testar a tarefa com outra
 | Sky | breakie33 | `breakie33-dev` | https://breakie33-dev-warlock.fernandorffdev.com |
 | Lucas | lucascvalle | `lucascvalle-dev` | https://lucascvalle-dev-warlock.fernandorffdev.com |
 | Arthur | arthurbaquit | `arthurbaquit-dev` | https://arthurbaquit-dev-warlock.fernandorffdev.com |
+| Reinaldo | reirag | `reirag-dev` | https://reirag-dev-warlock.fernandorffdev.com |
 | Fernando | fernandorff | `fernandorff-dev` | https://fernandorff-dev-warlock.fernandorffdev.com |
 
 **Como subir:** todo push na branch `<seu usuário do GitHub>-dev` (em minúsculas) publica sozinho no seu link. A branch é sua: pode substituir à vontade.
