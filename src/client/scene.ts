@@ -1763,12 +1763,20 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   rangeRing.renderOrder = 9;
   rangeRing.visible = false;
   scene.add(rangeRing);
+  // explosão do Meteoro no ponto onde ele cai: o mesmo anel, do tamanho da explosão
+  const blastRing = rangeRing.clone();
+  scene.add(blastRing);
 
   return {
     ready,
     onEvents,
-    // centro no mago e raio em metros; null (ou raio 0) esconde
-    range(at: Vec | null, r: number) {
+    // centro no mago e raio em metros; null (ou raio 0) esconde. blastAt/blastR: o círculo da explosão no ponto mirado
+    range(at: Vec | null, r: number, blastAt: Vec | null = null, blastR = 0) {
+      blastRing.visible = !!blastAt && blastR > 0;
+      if (blastAt && blastR > 0) {
+        blastRing.position.copy(w3(blastAt, 0.04));
+        blastRing.scale.setScalar(blastR);
+      }
       rangeRing.visible = !!at && r > 0;
       if (!at || r <= 0) return;
       rangeRing.position.copy(w3(at, 0.04));

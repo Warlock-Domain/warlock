@@ -163,6 +163,8 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
         arm(null);
       }
     },
+    // ponto do chão sob o mouse (o Meteoro desenha a explosão ali)
+    aimPoint: () => h.pick(cursor.x, cursor.y),
     // botão da barra (magia ou item): escolhe e o próximo clique (ou toque) no chão lança
     button(a: SpellId | ItemId) {
       if (enabled) arm(armed === a ? null : a);

@@ -1,7 +1,7 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
   ARENA_MIN, ARENA_STEP, CHEST, CREDIT_WINDOW, ZONES, DM_RESPAWN, DM_SPAWN_GAP, OBSTACLES, OBSTACLE_KINDS, PILLAR, type ObstacleKind, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KB_SOFT_CAP, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
-  ISLAND, RUNE, RUNE_KINDS, SUDDEN, WALL_GAP, WIZ_R, WIZ_SPEED, arenaRadius, type RuneKind,
+  ISLAND, PROJ_SPAWN, RUNE, RUNE_KINDS, SUDDEN, WALL_GAP, WIZ_R, WIZ_SPEED, arenaRadius, type RuneKind,
 } from './constants.ts';
 import { SHAPES, edge, inArena, inLavaAt, isleSpot, safeInside, type ArenaId, type Isle } from './arena.ts';
 import { ACTIVE_ITEMS, AEGIS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, isActive, itemStats, noItems, type ItemId } from './items.ts';
@@ -601,7 +601,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   const flight = (L.range / L.speed) * wz.rangeF; // segundos de voo do alcance todo
 
   // projétil reto saindo do mago; life em segundos (já com o alcance do Elmo)
-  const launch = (kind: ProjKind, d: Vec, life: number, target: string | null = null, from = add(wz.pos, scale(d, WIZ_R + PROJ_R + 0.05))) => {
+  const launch = (kind: ProjKind, d: Vec, life: number, target: string | null = null, from = add(wz.pos, scale(d, PROJ_SPAWN))) => {
     const p: Projectile = { id: w.nextId++, born: w.t, kind, owner: wz.id, pos: from, vel: scale(d, L.speed), level, until: w.t + life, target, dmgMult, caster: wz.id };
     w.projectiles.push(p);
     return p;

@@ -27,6 +27,8 @@ export const KNOCK_HP_SCALE = 1; // empurrão × (1 + KNOCK_HP_SCALE·danoRecebi
 export const LAVA_KB_FACTOR = 0.5;
 export const CREDIT_WINDOW = 5; // o abate vai para quem acertou nos últimos 5 s
 export const PROJ_R = 0.2;
+// o projétil nasce na frente do mago, com o centro a esta distância do centro dele
+export const PROJ_SPAWN = WIZ_R + PROJ_R + 0.05;
 
 // pilares do original (mode.lua e obstacles.lua): 2 a 8 por rodada, sorteados até 1000 unidades do centro
 // (raio, vida e explosão em OBSTACLES.pillar)
