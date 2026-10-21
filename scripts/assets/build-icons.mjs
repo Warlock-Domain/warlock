@@ -19,6 +19,8 @@ const ICONS = [
   'lorc/skull-crossed-bones', 'lorc/spiky-explosion', 'lorc/trophy', 'lorc/archery-target', 'delapouite/two-coins', 'lorc/light-bulb', 'delapouite/robot-antennas', 'delapouite/character', 'delapouite/info', 'delapouite/shop',
   // configurações: engrenagem, controle e vídeo; sair da sala; assistir (espectador)
   'lorc/cog', 'delapouite/gamepad', 'delapouite/tv', 'delapouite/exit-door', 'lorc/eyeball',
+  // botões do cartão da loja: comprar, subir de nível e desfazer (vender usa a moeda)
+  'delapouite/shopping-cart', 'delapouite/upgrade', 'delapouite/anticlockwise-rotation',
 ];
 
 const symbols = [];

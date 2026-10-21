@@ -260,7 +260,7 @@ export function removePlayer(m: Match, id: string) {
 export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'rounds', teamShuffle = true, rand: () => number = Math.random, opts: Partial<MatchOpts> = {}, setup: BotSetup[] = [], sandbox = false): boolean {
   if (m.phase !== 'lobby' && m.phase !== 'end') return false;
   m.opts = { ...m.opts, ...opts };
-  m.sandbox = sandbox ? { god: true, noCd: false, shrink: false } : undefined;
+  m.sandbox = sandbox ? { god: true, noCd: true, shrink: false } : undefined; // sem recarga ligado de início (Fernando, 21/10)
   // começa redonda; a forma escolhida no painel fica em m.opts.arena e a sandbox nunca sorteia
   if (sandbox) m.opts = { ...m.opts, arena: 'circle' };
   m.players = m.players.filter((p) => !p.bot && p.connected);
