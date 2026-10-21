@@ -5,7 +5,7 @@ import { ARENA_IDS } from '../shared/arena.ts';
 import { ASSIST_GOLD, CHEST, COUNTDOWN_MS, DM_RESPAWN, DM_ROUND_MS, KILL_GOLD, RECOVERY, ROUND_END_MS, ROUND_GOLD, RUNE, SUDDEN, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
 import { DM_GOALS, OPTION_CHOICES, PACE, type MatchOpts, type Mode } from '../shared/match.ts';
 import { arenaName, t } from './i18n.ts';
-import { UI_ICON, el, icon } from './icons.ts';
+import { UI_ICON, el, icon, iconButton } from './icons.ts';
 import { n1, pct } from './rules-text.ts';
 
 const s = (ms: number) => `${n1(ms / 1000)} s`;
@@ -81,7 +81,7 @@ export function infoButton(title: string, html: () => string): HTMLButtonElement
     const body = el('div');
     body.innerHTML = html();
     pop = el('div', { class: 'info-pop', role: 'dialog', 'aria-label': title },
-      el('button', { type: 'button', class: 'info-close', 'aria-label': t('Fechar', 'Close'), onclick: close }, '✕'), el('b', {}, title), body);
+      iconButton('✕', t('Fechar', 'Close'), close, { class: 'info-close' }), el('b', {}, title), body);
     document.body.append(pop);
     owner = b;
     b.setAttribute('aria-expanded', 'true');

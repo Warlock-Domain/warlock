@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { CHARACTERS, LOOK_PARTS, PRESETS, fixLook, isCharacter, isLook, isRetired, lookHead, lookOf, randomLook, type Piece } from '../shared/characters.ts';
 import { t } from './i18n.ts';
-import { el } from './icons.ts';
+import { el, iconButton } from './icons.ts';
 import { loadFile, loadLook, lookModel } from './scene.ts';
 import { store } from './store.ts';
 
@@ -159,9 +159,9 @@ function build(): HTMLElement {
   };
   const rows = LOOK_PARTS.map((p, i) => el('div', { class: 'keys-row' }, el('span', {}, t(p.name, p.en)),
     el('span', { class: 'avatar-pick' },
-      el('button', { type: 'button', class: 'icon', 'aria-label': t(`${p.name}: anterior`, `${p.en}: previous`), onclick: () => step(i, -1) }, '‹'),
+      iconButton('‹', t(`${p.name}: anterior`, `${p.en}: previous`), () => step(i, -1)),
       names[i],
-      el('button', { type: 'button', class: 'icon', 'aria-label': t(`${p.name}: próxima`, `${p.en}: next`), onclick: () => step(i, 1) }, '›'))));
+      iconButton('›', t(`${p.name}: próxima`, `${p.en}: next`), () => step(i, 1)))));
   // os bonecos originais como atalho: um clique monta o boneco inteiro (Fernando, 19/10); uma Ladina só, o capuz é chapéu (#107)
   const presets = PRESETS.map((c) => el('button', { type: 'button', class: 'avatar-preset', title: t(c.name, c.en), 'aria-label': t(c.name, c.en), onclick: () => set(lookOf(c.id)) },
     el('img', { src: `/chars/${lookHead(lookOf(c.id))}.webp`, alt: '', width: 48, height: 64 }))); // a Ladina pronta mostra o retrato com o Capuz
