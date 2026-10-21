@@ -23,7 +23,7 @@ const { values: arg, positionals } = parseArgs({
     plan: { type: 'string', default: 'random' },
     rounds: { type: 'string' },
     every: { type: 'string', default: '1000' },
-    difficulty: { type: 'string', default: 'normal' }, // easy | normal | hard (grill de 18/10: medir no Normal e no Difícil)
+    difficulty: { type: 'string', default: 'normal' }, // easy | casual | normal | veteran | hard (grill de 18/10: medir no Normal e no Difícil)
     arena: { type: 'string', default: 'random' }, // arena fixa ou sorteada a cada rodada (padrão do jogo)
   },
 });
@@ -34,7 +34,7 @@ const deadline = Date.now() + Number(arg.minutes) * 60_000;
 const outDir = arg.out!;
 if (arg.arena !== 'random' && !(ARENA_IDS as readonly string[]).includes(arg.arena!)) throw new Error('arena desconhecida: ' + arg.arena);
 const arenaOpt = arg.arena as MatchOpts['arena'];
-if (!['easy', 'normal', 'hard'].includes(arg.difficulty!)) throw new Error('dificuldade desconhecida: ' + arg.difficulty);
+if (!['easy', 'casual', 'normal', 'veteran', 'hard'].includes(arg.difficulty!)) throw new Error('dificuldade desconhecida: ' + arg.difficulty);
 mkdirSync(outDir, { recursive: true });
 
 const rng = seedRandom(seed);

@@ -27,7 +27,7 @@ export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#
 // modo Times: Azul e Vermelho (anel no chão e barra de vida)
 export const TEAM_COLORS = ['#3b82f6', '#ef4444'];
 // dificuldade dos bots, curta (rótulo em cima do mago e placar do canto)
-export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), normal: 'Normal', hard: t('Difícil', 'Hard'), auto: 'Auto' };
+export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), casual: 'Casual', normal: 'Normal', veteran: t('Veterano', 'Veteran'), hard: t('Difícil', 'Hard'), auto: 'Auto' };
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
