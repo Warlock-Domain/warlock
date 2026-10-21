@@ -3,7 +3,7 @@ import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
 import { CHARACTERS, fixLook, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
-  ARENA_MIN, ARENA_STEP, ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_EFFECT_IDS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R, arenaRadius,
+  ARENA_MIN, ARENA_STEP, ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, MAX_WATCHERS, PILLAR, PROJ_R, ROUND_EFFECT_IDS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R, arenaRadius,
   roundMods, type RuneKind,
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
@@ -113,6 +113,8 @@ export type Player = {
   difficulty?: MatchOpts['difficulty']; // bot: a dificuldade dele, escolhida na sala (sem ela, a da partida)
   dummy?: boolean; // sandbox: boneco parado (bot que não anda nem atira)
   turret?: TurretDir; // Sandbox: tiro fixo, sem dano nem deslocamento.
+  // espectador (pedido do Sky, 20/10): sem mago a partir da próxima rodada; pontos, ouro e compras ficam guardados para voltar
+  watch?: boolean;
 };
 
 // torreta da sandbox: para onde atira em cada direção (passo no plano do chão; y positivo é para baixo na tela)
@@ -168,11 +170,14 @@ export const newMatch = (): Match => ({
 });
 
 const player = (m: Match, id: string | null) => m.players.find((p) => p.id === id);
+// quem joga (tem mago a cada rodada): só esses ocupam as vagas de mago, entram nos times e seguram a loja
+export const playing = (m: Match) => m.players.filter((p) => !p.watch);
 
 // o bot i+1 da partida recebe BOT_NAMES[i] (a sala mostra a lista nesta ordem)
 export const BOT_NAMES = ['Gul’dan', 'Merlim', 'Morgana', 'Rasputin', 'Zatanna', 'Mandrake', 'Gandalfo'];
 
-export function addPlayer(m: Match, id: string, name: string, bot = false): boolean {
+// watch: entra assistindo; sem vaga de mago, a pessoa também entra assistindo (até MAX_WATCHERS)
+export function addPlayer(m: Match, id: string, name: string, bot = false, watch = false): boolean {
   if (m.banned.includes(id)) return false;
   const known = player(m, id);
   if (known) {
@@ -180,20 +185,47 @@ export function addPlayer(m: Match, id: string, name: string, bot = false): bool
     known.connected = true;
     return true;
   }
-  if (m.players.length >= MAX_PLAYERS) return false;
-  const used = new Set(m.players.map((p) => p.color));
-  const color = [0, 1, 2, 3, 4, 5, 6, 7].find((c) => !used.has(c)) ?? 0;
+  const full = playing(m).length >= MAX_PLAYERS;
+  const watchersFull = m.players.length - playing(m).length >= MAX_WATCHERS;
+  if (full && (bot || watchersFull)) return false;
+  // pediu para assistir com os espectadores no limite: entra jogando (ainda há vaga de mago)
+  const watching = !bot && (full || (watch && !watchersFull));
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
-  m.players.push({ id, name, bot, color, character, look: lookOf(character), score: 0, gold: startGold(m), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null });
+  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold: startGold(m), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
   enter(m, m.players[m.players.length - 1]);
+  return true;
+}
+
+// primeira cor que ninguém em campo usa (quem assiste pode repetir; ao voltar a jogar ganha uma livre)
+function freeColor(m: Match): number {
+  const used = new Set(playing(m).map((p) => p.color));
+  return [0, 1, 2, 3, 4, 5, 6, 7].find((c) => !used.has(c)) ?? 0;
+}
+
+// assistir ou voltar a jogar: vale a partir da próxima rodada (o mundo de cada rodada só tem quem joga);
+// voltar precisa de vaga de mago. Na sandbox, que não tem fim de rodada, vale na hora
+export function setWatch(m: Match, id: string, on: boolean): boolean {
+  const p = player(m, id);
+  if (!p || p.bot || !!p.watch === on) return false;
+  if (!on && playing(m).length >= MAX_PLAYERS) return false;
+  if (on && m.players.length - playing(m).length >= MAX_WATCHERS) return false; // espectadores no limite
+  if (on) {
+    p.watch = true;
+    p.team = null; // nos Times fixos, ao voltar entra no time menor
+    if (m.sandbox && m.world) m.world.wizards = m.world.wizards.filter((z) => z.id !== id);
+    return true;
+  }
+  delete p.watch;
+  if (playing(m).some((q) => q !== p && q.color === p.color)) p.color = freeColor(m);
+  enter(m, p);
   return true;
 }
 
 // sandbox: quem entra no meio da rodada ganha um mago, que nasce no próximo passo (como quem volta no deathmatch)
 function enter(m: Match, p: Player) {
   const w = m.sandbox && m.world;
-  if (!w || w.wizards.some((z) => z.id === p.id)) return;
+  if (!w || p.watch || w.wizards.some((z) => z.id === p.id)) return;
   const z = newWorld([p.id], { [p.id]: p.spells }, { [p.id]: p.items }).wizards[0];
   w.wizards.push(Object.assign(z, { alive: false, respawnAt: 0 }));
 }
@@ -230,7 +262,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   if (sandbox) m.opts = { ...m.opts, arena: 'circle' };
   m.players = m.players.filter((p) => !p.bot && p.connected);
   const solo = m.players.length === 1;
-  for (let i = 0; m.players.length < MAX_PLAYERS && i < bots; i++) {
+  for (let i = 0; playing(m).length < MAX_PLAYERS && i < bots; i++) {
     addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true);
     const bot = m.players[m.players.length - 1];
     const { difficulty, ...rest } = setup[i] ?? {};
@@ -238,7 +270,8 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
     // só a dificuldade não é treino (a rodada não sai marcada na telemetria)
     if (solo && setup[i] && (!difficulty || Object.keys(rest).length)) bot.setup = rest;
   }
-  if (m.players.length < (sandbox ? 1 : 2)) return false;
+  // quem assiste não conta: dá para pôr só bots em campo e assistir a partida
+  if (playing(m).length < (sandbox ? 1 : 2)) return false;
   fresh(m, now, mode, teamShuffle, rand);
   return true;
 }
@@ -441,7 +474,7 @@ export function startVote(m: Match, id: string, kind: Vote['kind'], target: stri
     const o = parseOpt(target);
     if (!o || { ...m.opts, ...m.pendingOpts }[o[0]] === o[1]) return false;
   } else {
-    if (kind === 'addBot' && m.players.length + Math.max(0, m.botDelta) >= MAX_PLAYERS) return false;
+    if (kind === 'addBot' && playing(m).length + Math.max(0, m.botDelta) >= MAX_PLAYERS) return false;
     if (kind === 'removeBot' && m.players.filter((p) => p.bot).length + m.botDelta <= 0) return false;
     if (kind === 'skipShop' && m.phase !== 'shop') return false;
     target = '';
@@ -527,7 +560,7 @@ function botShop(m: Match, p: Player) {
 
 // 2 times de tamanhos iguais (com número ímpar, um tem 1 a mais; qual deles também é sorteado)
 function shuffleTeams(m: Match, rand: () => number) {
-  const order = [...m.players];
+  const order = [...playing(m)];
   for (let i = order.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
     [order[i], order[j]] = [order[j], order[i]];
@@ -552,7 +585,7 @@ function difficultySkill(m: Match, bot: Player): BotSkill {
   return skillAt(Math.max(-1, Math.min(1, (avg - bot.score) / goalOf(m))));
 }
 
-const teamSize = (m: Match, t: number) => m.players.filter((p) => p.team === t).length;
+const teamSize = (m: Match, t: number) => playing(m).filter((p) => p.team === t).length;
 
 function enterCountdown(m: Match, now: number, rand: () => number) {
   m.dmgOn = {};
@@ -584,19 +617,19 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   m.botDelta = 0;
   if (m.mode === 'teams') {
     // a cada rodada: sorteia de novo; fixos: mantém, e quem entrou depois vai para o time menor
-    if (m.teamShuffle || m.players.every((p) => p.team === null)) shuffleTeams(m, rand);
-    for (const p of m.players) if (p.team === null) p.team = teamSize(m, 1) < teamSize(m, 0) ? 1 : 0;
+    if (m.teamShuffle || playing(m).every((p) => p.team === null)) shuffleTeams(m, rand);
+    for (const p of playing(m)) if (p.team === null) p.team = teamSize(m, 1) < teamSize(m, 0) ? 1 : 0;
     // um time inteiro saiu da sala: sorteia de novo, senão a rodada acabaria na hora
-    if (new Set(m.players.map((p) => p.team)).size < 2) shuffleTeams(m, rand);
+    if (new Set(playing(m).map((p) => p.team)).size < 2) shuffleTeams(m, rand);
   }
   m.round++;
   for (const p of m.players) p.stats.round = newStat();
   m.roundPaid = [];
-  const ids = m.players.map((p) => p.id);
-  const teams = m.mode === 'teams' ? Object.fromEntries(m.players.map((p) => [p.id, p.team ?? 0])) : {};
+  const ids = playing(m).map((p) => p.id);
+  const teams = m.mode === 'teams' ? Object.fromEntries(playing(m).map((p) => [p.id, p.team ?? 0])) : {};
   // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
   const arena = m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
-  m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests }, arena);
+  m.world = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests }, arena);
   if (m.sandbox) m.world.shrink = m.sandbox.shrink; // a sandbox usa o mundo do deathmatch: não encolhe (a não ser que peçam) e quem morre volta
   // efeito da rodada (prova de conceito): sorteado depois do mundo, para não mudar a arena nem os pilares; a sandbox fica sem
   else {
@@ -804,7 +837,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   const sb = m.sandbox;
   if (sb) for (const p of m.players) if (!p.bot) p.gold = SANDBOX_GOLD; // sandbox: ouro sem fim para os humanos
   if (m.phase === 'shop') {
-    const humans = m.players.filter((p) => !p.bot && p.connected);
+    const humans = m.players.filter((p) => !p.bot && p.connected && !p.watch);
     // a sandbox pula a loja (ela abre a qualquer hora)
     if (now >= m.phaseEnds || humans.every((p) => p.ready) || sb) enterCountdown(m, now, rand);
     return [];

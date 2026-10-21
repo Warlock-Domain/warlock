@@ -1,7 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
-import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
+import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
@@ -12,7 +12,7 @@ import { TAUNT_COOLDOWN_MS } from '../shared/taunts.ts';
 const STEP_MS = DT * 1000;
 const MAX_CATCHUP = 5; // passos por chamada do laço; atraso maior que isso é descartado
 const EMPTY_MS = 5 * 60_000; // sala sem ninguém conectado é apagada depois disso (alarm)
-const IDLE_MS = 3 * 60_000; // partida sem nenhum comando de gente por 3 min é encerrada
+const IDLE_MS = 3 * 60_000; // partida sem nenhum comando de gente por 3 min é encerrada (menos a sandbox)
 // sem 'ping' por esse tempo, a conexão morreu sem avisar (o cliente pinga a cada 10 s; numa aba escondida o Chrome segura a 1 por minuto)
 const DEAD_MS = 90_000;
 
@@ -35,6 +35,7 @@ export class Room extends DurableObject<Env> {
   private roomSentAt = 0;
   private taunted = new Map<string, number>();
   private looked = new Map<string, number>();
+  private watched = new Map<string, number>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -108,7 +109,7 @@ export class Room extends DurableObject<Env> {
         forget(other);
       }
       if (m.banned.includes(msg.playerId)) return send(ws, KICKED);
-      if (!addPlayer(m, msg.playerId, msg.name)) return send(ws, { t: 'error', code: 'full', msg: 'Sala cheia.' });
+      if (!addPlayer(m, msg.playerId, msg.name, false, msg.watch)) return send(ws, { t: 'error', code: 'full', msg: 'Sala cheia.' });
       ws.serializeAttachment({ playerId: msg.playerId, at: now } satisfies Attachment);
       return this.changed();
     }
@@ -180,6 +181,12 @@ export class Room extends DurableObject<Env> {
         if (now - (this.looked.get(id) ?? 0) < 100) return;
         this.looked.set(id, now);
         if (setLook(m, id, msg.look)) await this.changed();
+        return;
+      case 'watch':
+        // assistir ou voltar a jogar: como a aparência, no máximo uma troca a cada 100 ms (cada troca grava a sala)
+        if (now - (this.watched.get(id) ?? 0) < 100) return;
+        this.watched.set(id, now);
+        if (setWatch(m, id, msg.on)) await this.changed();
         return;
       case 'ready':
         if (setReady(m, id)) await this.changed();
@@ -310,7 +317,8 @@ export class Room extends DurableObject<Env> {
     }
     // a sandbox não grava telemetria (e a rodada dela nem acaba)
     if (m.phase === 'roundEnd' && before.startsWith('playing') && !m.sandbox) this.lobby().record(roundRecord(m, now)).catch(() => {});
-    if (now - this.lastCmdAt > IDLE_MS) endIdle(m);
+    // sandbox não encerra por inatividade: quem testa fica parado mirando ou lendo; sem ninguém conectado o laço já para (shouldRun) e o alarme apaga a sala
+    if (!m.sandbox && now - this.lastCmdAt > IDLE_MS) endIdle(m);
     if (sig() !== before) void this.changed();
   }
 

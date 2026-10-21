@@ -29,9 +29,9 @@ export const SPELLS: Record<SpellId, Spell> = {
   // as cinco magias seguintes: npc_abilities_custom.txt, spells/*.lua e shop/warlock_shop_data.js do Warlock Brawl
   // troca: projétil de 1983 u/s que vive 0,4706 s (alcance 933 u)
   swap: { name: 'Troca', en: 'Swap', cost: 11, up: [6, 7, 8, 9, 10, 11], levels: [15.8, 13.3, 11.3, 9.8, 8.8, 7.8, 7].map((cd) => L({ cd: cd * 1.3, speed: 1983 * UNIT, range: 933 * UNIT })) }, // 18/10 bots humanos: recarga ×1,3 (26% / 29% acima do justo no Normal / Difícil)
-  // agarrar: projétil de 1000 u/s por 1,1 s; duration = tempo preso
+  // Agarrar em área (decisão do Fernando, 21/10, #168): cipós com raio de 1,5 m no ponto mirado, sem simulador (exceção como a Ilusão); duration é o tempo preso.
   // Agarrar prende metade do tempo do original (nerf pedido pelo Fernando, 17/10)
-  grip: { name: 'Agarrar', en: 'Grip', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [24, 19, 15, 12, 10, 8.5, 7].map((cd, i) => L({ cd: cd * 0.8, duration: 2.25, speed: 1000 * UNIT, range: 1100 * UNIT, scale: steps(0.3, 0.1)[i] })) /* 18/10: tempo preso fixo, preso sem proteção de empurrão (0,81 → 0,91); Agarrar novo (18/10): scale = empurrão a mais do golpe que solta, +30% a +90% */ },
+  grip: { name: 'Agarrar', en: 'Grip', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [24, 19, 15, 12, 10, 8.5, 7].map((cd, i) => L({ cd: cd * 0.8, duration: 2.25, radius: 1.5, range: 1100 * UNIT, scale: steps(0.3, 0.1)[i] })) /* 18/10: tempo preso fixo, preso sem proteção de empurrão (0,81 → 0,91); Agarrar novo (18/10): scale = empurrão a mais do golpe que solta, +30% a +90% */ },
   // meteoro: dano de 40 na borda (aqui 60) até o máximo no centro; empurrão 0,66
   meteor: { name: 'Meteoro', en: 'Meteor', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([20, 19.5, 19, 18.5, 18, 17.5, 17], [110, 120, 130, 140, 150, 160, 170]).map(([cd, d], i) => L({ cd: cd * 0.9, dmg: d, dmgMin: 60, kbf: 0.66, /* ciclo 1: recarga ×0,9 (0,94×) */ /* borda 40 → 60 em 17/10 */ radius: [225, 240, 255, 269, 282, 294, 304][i] * UNIT, range: 1000 * UNIT })) },
   // investida: absorve até `absorb` de dano (metade de cada golpe) e vira velocidade
@@ -77,7 +77,7 @@ export const SPELLS: Record<SpellId, Spell> = {
 // o solta empurrando mais (o scale do nível: +30% no 1 até +90% no 7); cada magia lançada preso soma 5 ao dano acumulado (gripmodifier.lua)
 // Zona de dobra: inimigo de quem a criou anda mais devagar dentro dela (pedido do Fernando, 18/10; não existe no original)
 export const WARPZONE = { wizMult: 0.5 }; // 0,6 → 0,5 em 18/10 (16% abaixo do justo com bots humanos)
-export const GRIP = { castPenalty: 5 };
+export const GRIP = { castPenalty: 5, delay: 1.3 }; // 1,3 s entre a marca no chão e os cipós: dá para sair da área (pedido do Leonard, estilo do stun do Leshrac)
 // meteoro: 0,55 s parado no ar + 0,60 s caindo (meteor.lua)
 export const METEOR_DELAY = 1.15;
 // investida: +35 u/s ao ativar; cada ponto absorvido soma 1,5 u/s (rushmodifier.lua)
@@ -93,6 +93,9 @@ export const HOMING_TURN = 2.5; // rad/s
 export const BOOMERANG = { side: 300 * UNIT, minDist: 300 * UNIT, back: 1000 * UNIT, turn: 1000 * UNIT, bounce: 500 * UNIT, bounceWall: 750 * UNIT, gap: 10 * UNIT, life: 6 };
 // estocada (thrust.lua, thrustmodifier.lua): sai a 77% da velocidade e acelera até ela (aceleração que empata com o atrito);
 // dura o caminho + 0,09 s; sem acertar, freia para 20%; reach: a bolha da estocada tem 30 u a mais que o mago
+// Raio: além do corpo do mago, pega quem passa a `width` da linha (21/10, exceção decidida pelo Fernando sem passar pelo simulador:
+// "o hitbox ainda está muito fino"; antes só quem o corpo cruzava a linha)
+export const LIGHTNING = { width: 0.15 };
 export const THRUST = { start: 0.77, accel: FRICTION, extra: 0.09, endSlow: 0.2, reach: 30 * UNIT, full: 0.8 };
 // gravidade (gravity.lua, gravityprojectile.lua): puxa magos inimigos até 550 u e projéteis até 600 u (1650 u/s², de qualquer dono)
 export const GRAVITY = { wizR: 550 * UNIT, projR: 600 * UNIT, projPull: 1650 * UNIT, tick: 0.2 };

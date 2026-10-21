@@ -67,7 +67,7 @@ h2.title { font-family: var(--display); font-size: 1.6rem; text-transform: none;
 h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font-size: .55em; vertical-align: .25em; color: var(--lava); text-shadow: 0 0 8px rgba(255, 106, 26, .6); }
 
 /* um só jeito de mostrar "selecionado": modo, aba, personagem e magia escolhida */
-.pick.on, .stats-tabs button.on, .spell.armed { border-color: var(--ember); background: var(--sel-bg); box-shadow: 0 0 0 1px var(--ember); color: var(--fg); }
+.pick.on, .stats-tabs button.on, .watching button.on, .spell.armed { border-color: var(--ember); background: var(--sel-bg); box-shadow: 0 0 0 1px var(--ember); color: var(--fg); }
 
 .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: var(--overlay); padding: 16px; z-index: 10; }
 .panel { background: var(--frame), var(--plate); border: 2px solid var(--bronze); box-shadow: var(--plate-edge), var(--shadow-lg); border-radius: var(--r-frame); padding: 24px; width: min(380px, 100%); display: flex; flex-direction: column; gap: 12px; }
@@ -673,6 +673,7 @@ html.pad .shop-item:focus-within .shop-tile { border-color: #ffd166; }
 .room-top .code { font-size: 1.1rem; }
 .room-mode { font-size: .8rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--gold-faint); color: var(--gold); border: 1px solid var(--gold-line); }
 .room-card .button { min-width: 96px; }
+.room-actions { display: flex; flex-direction: column; gap: 6px; } /* Entrar em cima, Assistir embaixo */
 /* Entrar de sala no meio da partida: secundário (a de quem espera começar é a chamada principal) */
 .button.secondary { background: var(--panel2); border-color: var(--line); color: var(--fg); font-family: inherit; font-weight: 400; text-shadow: none; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07), 0 2px 0 rgba(0, 0, 0, .45); }
 /* salas vazias recolhidas embaixo da lista */
