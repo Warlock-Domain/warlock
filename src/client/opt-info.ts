@@ -2,6 +2,7 @@
 // com os números lidos do código. Clique ou toque fixa a explicação (✕, Esc ou toque fora fecham); mouse em cima e foco pelo teclado mostram.
 import { BOT_SKILL } from '../shared/bots.ts';
 import { ARENA_IDS } from '../shared/arena.ts';
+import { ASC_MODE_TEXT } from './ascension-ui.ts';
 import { ASSIST_GOLD, CHEST, COUNTDOWN_MS, DM_RESPAWN, DM_ROUND_MS, KILL_GOLD, RECOVERY, ROUND_END_MS, ROUND_GOLD, RUNE, SUDDEN, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
 import { DM_GOALS, OPTION_CHOICES, PACE, type MatchOpts, type Mode } from '../shared/match.ts';
 import { arenaName, t } from './i18n.ts';
@@ -52,6 +53,7 @@ export const MODE_INFO = () => list([
   t('Rodadas: o último vivo ganha a rodada e 1 ponto.', 'Rounds: the last one alive wins the round and 1 point.'),
   t(`Deathmatch: rodadas de ${s(DM_ROUND_MS)}, quem cai volta em ${DM_RESPAWN} s; cada abate vale 1 ponto.`, `Deathmatch: ${s(DM_ROUND_MS)} rounds, whoever falls comes back after ${DM_RESPAWN} s; each kill is worth 1 point.`),
   t('Times: Azul contra Vermelho; a rodada acaba quando só sobra um time e todos dele pontuam. Magia em aliado só empurra.', 'Teams: Blue vs. Red; the round ends when only one team is left and all of them score. Spells on allies only knock back.'),
+  t('Ascensão: ', 'Ascension: ') + ASC_MODE_TEXT,
 ]);
 
 // um balão aberto por vez

@@ -1146,3 +1146,24 @@ div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: 
   .tile-acts button.sell .sell-txt { display: none; }
   .tile-acts button.sell svg { width: 15px; height: 15px; }
 }
+
+/* Ascensão: as 3 cartas do intervalo no lugar da loja; cor de grupo (--g) como na loja, item prateado, rara com brilho dourado */
+.asc .is-item { --g: var(--item); }
+.asc-xp { display: flex; align-items: center; gap: 10px; }
+.asc-bar { flex: 1; height: 8px; border-radius: var(--r-xs); background: var(--panel2); border: 1px solid var(--line); overflow: hidden; }
+.asc-bar i { display: block; height: 100%; background: var(--gold); }
+.asc-pick { margin: 0 0 8px; font-weight: 600; }
+.asc-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.asc-card { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; padding: 12px; min-height: 180px; text-align: left; border: 2px solid var(--g, var(--bronze)); border-radius: var(--r-md); }
+.asc-card .ico { display: flex; font-size: 2.2rem; color: var(--g, var(--ember)); }
+.asc-card .asc-kind { font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--g, var(--muted)); }
+.asc-card small { color: var(--muted); }
+.asc-card.rare { box-shadow: 0 0 0 2px var(--gold), 0 0 14px rgba(255, 214, 102, .35); }
+.asc-rare { color: var(--gold); font-weight: 700; font-size: .8rem; }
+.asc-reroll { margin-top: 10px; }
+.asc-lv { font-size: .75rem; color: var(--gold); white-space: nowrap; }
+.asc-lv.lead { color: var(--lava-hi); font-weight: 700; }
+.asc-swap-list { display: flex; flex-direction: column; gap: 8px; }
+.asc-swap-list button { justify-content: flex-start; border-left: 3px solid var(--g, var(--bronze)); }
+@media (hover: hover) { .asc-card:hover { transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .asc-card:hover { transform: none; } }
