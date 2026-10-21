@@ -233,7 +233,9 @@ export function ascEndRound(m: Match, played: string[], alive: string[]) {
   for (const p of inRound) {
     p.score += pts[p.id];
     const before = lv(a, p.id);
-    const gain = (xpGain(p.stats.round) + (a.extra[p.id] ?? 0)) * (1 + CONSOLATION * Math.max(0, avg - before));
+    // Febre arcana: no Ascensão (sem ouro) o efeito de rodada da Febre do ouro multiplica o XP da rodada (Fernando, 21/10: "arcane rush q da 50% mais xp")
+    const rush = m.world?.mods.gold ?? 1;
+    const gain = (xpGain(p.stats.round) + (a.extra[p.id] ?? 0)) * rush * (1 + CONSOLATION * Math.max(0, avg - before));
     a.xp[p.id] = (a.xp[p.id] ?? 0) + Math.round(gain);
     a.todo[p.id] = [...(a.todo[p.id] ?? []), ...EVERY_BREAK, ...Array<Kind>(lv(a, p.id) - before).fill('up')];
   }

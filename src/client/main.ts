@@ -18,7 +18,7 @@ import { aimOf, hitR, reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t } from './i18n.ts';
-import { EFFECT_NAME } from './opt-info.ts';
+import { effectName } from './opt-info.ts';
 import { getCastMode, isPadMode, labelOf, onFreeEsc } from './keys.ts';
 import { openSettings, savedPixel } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
@@ -715,7 +715,7 @@ function startRoom(code: string, name: string) {
       watchId = null;
       // modo Times: avisa em que time a pessoa está nesta rodada
       const team = room.mode === 'teams' ? room.players.find((p) => p.id === me)?.team : null;
-      const fx = room.effect ? ` · ${EFFECT_NAME[room.effect]}` : ''; // efeito da rodada na faixa grande: a linha do topo passa despercebida
+      const fx = room.effect ? ` · ${effectName(room.effect, room.mode)}` : ''; // efeito da rodada na faixa grande: a linha do topo passa despercebida
       banner(team != null ? t(`Rodada ${room.round} · Você está no time ${TEAM_NAMES[team]}${fx}`, `Round ${room.round} · You are on the ${TEAM_NAMES[team]} team${fx}`) : t(`Rodada ${room.round}${fx}`, `Round ${room.round}${fx}`));
       [3, 2, 1].forEach((_, i) => setTimeout(() => sound.play('beep'), i * 1000));
     } else if (room.phase === 'playing') {
@@ -811,6 +811,7 @@ function startRoom(code: string, name: string) {
       lock: !!rs || (!!watched && !watchCenter),
       // na loja o room.effect já é o da próxima rodada: o mapa só muda quando ela começa
       effect: room && ['countdown', 'playing', 'roundEnd'].includes(room.phase) ? room.effect : null,
+      arcane: room?.mode === 'ascension', // Febre arcana: a Febre do ouro em azul
     });
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;

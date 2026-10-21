@@ -3,6 +3,7 @@ import { ASC_ROUNDS, CONSOLATION, LEADER_KILL_XP, MARK_KB, applyCard, ascDeath, 
 import { addPlayer, buy, castBallot, newMatch, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
 import { gearOf } from '../src/shared/sim.ts';
+import { ROUND_EFFECTS } from '../src/shared/constants.ts';
 import { STEP_MS, until } from './helpers.ts';
 import { ITEM_IDS, noItems, type ItemId } from '../src/shared/items.ts';
 import { MAX_SPELL_LEVEL, SPELL_GROUP_IDS, SPELL_IDS, noSpells, spellGroup, type SpellId } from '../src/shared/spells.ts';
@@ -365,5 +366,21 @@ describe('sala gravada por uma versão anterior do Ascensão', () => {
       publicRoom('SALA', old, 2000);
     }).not.toThrow();
     expect(old.phase).toBe('playing');
+  });
+});
+
+describe('Febre arcana', () => {
+  it('gold rush effect gives 50% more XP in ascension', () => {
+    const gainWith = (effect: 'gold' | null) => {
+      const m = ascMatch(1, true);
+      run(m, 0, () => m.phase === 'playing');
+      m.world!.mods = { ...m.world!.mods, gold: effect ? ROUND_EFFECTS.gold.gold! : 1 };
+      const ids = m.players.map((p) => p.id);
+      for (const p of m.players) p.stats.round = { ...p.stats.round, dmgBy: { fireball: 400 }, dmg: 400, kills: 0, alive: 0 };
+      m.players.forEach((p) => (m.asc!.xp[p.id] = 0));
+      ascEndRound(m, ids, []);
+      return m.asc!.xp.h;
+    };
+    expect(gainWith('gold')).toBe(Math.round(gainWith(null) * 1.5));
   });
 });

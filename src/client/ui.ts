@@ -12,7 +12,7 @@ import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, t
 import { POS_ACTIONS, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
 import { openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
-import { EFFECT_NAME, EFFECT_TEXT, MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, infoButton } from './opt-info.ts';
+import { EFFECT_NAME, MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, effectName, effectText, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
 import { SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, iconButton, type Child } from './icons.ts';
@@ -351,7 +351,7 @@ function optText(k: OptKey, val: MatchOpts[OptKey], mode: Mode): string {
   if (k === 'pace') return PACE_NAME[val as MatchOpts['pace']];
   if (k === 'economy') return { 0.6: t('Pouco ×0,6', 'Low ×0.6'), 1: 'Normal', 1.5: t('Muito ×1,5', 'High ×1.5'), 2: t('Festa ×2', 'Party ×2') }[val as MatchOpts['economy']];
   if (k === 'arena') return val === 'random' ? t('Sortear', 'Random') : arenaName(val as ArenaId);
-  if (k === 'effect') return val === 'off' ? t('Desligado', 'Off') : val === 'random' ? t('Sortear', 'Random') : EFFECT_NAME[val as RoundEffectId];
+  if (k === 'effect') return val === 'off' ? t('Desligado', 'Off') : val === 'random' ? t('Sortear', 'Random') : effectName(val as RoundEffectId, mode);
   if (k === 'difficulty') return SKILL_NAME[val as MatchOpts['difficulty']];
   if (k === 'goal') return mode === 'deathmatch' ? `${DM_GOALS[val as MatchOpts['goal']]} ${t('abates', 'kills')}` : `${val} ${t('rodadas', 'rounds')}`;
   if (typeof val === 'boolean') return val ? t('Ligado', 'On') : t('Desligado', 'Off');
@@ -364,7 +364,7 @@ function optsLine(o: MatchOpts, mode: Mode): string {
   const off = (['runes', 'sudden', 'chests'] as const).filter((k) => !o[k] && !(mode === 'ascension' && k === 'chests')).map((k) => t('sem ', 'no ') + OPT_NAME[k].toLowerCase());
   const bots = o.difficulty !== 'normal' ? [{ easy: t('bots fáceis', 'easy bots'), casual: t('bots casuais', 'casual bots'), veteran: t('bots veteranos', 'veteran bots'), hard: t('bots difíceis', 'hard bots'), auto: t('bots automáticos', 'auto bots') }[o.difficulty]] : [];
   const arena = o.arena !== 'random' ? [t('arena ' + arenaName(o.arena), arenaName(o.arena) + ' arena')] : [];
-  const effect = o.effect === 'random' ? [t('efeito sorteado', 'random effect')] : o.effect !== 'off' ? [EFFECT_NAME[o.effect]] : [];
+  const effect = o.effect === 'random' ? [t('efeito sorteado', 'random effect')] : o.effect !== 'off' ? [effectName(o.effect, mode)] : [];
   // Ascensão: sem loja, ouro nem meta (9 rodadas fixas)
   const head = mode === 'ascension' ? [t(`${ASC_ROUNDS} rodadas`, `${ASC_ROUNDS} rounds`)]
     : [t(`Loja ${optText('shop', o.shop, mode)}`, `Shop ${optText('shop', o.shop, mode)}`), t(`Ouro ×${n1(o.economy)}`, `Gold ×${n1(o.economy)}`), t(`Vence com ${optText('goal', o.goal, mode)}`, `Wins with ${optText('goal', o.goal, mode)}`)];
@@ -1643,12 +1643,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           : r.round > 0 && r.phase !== 'lobby' && r.phase !== 'end' ? (r.mode === 'deathmatch' ? t(`Deathmatch · rodada ${r.round} · ${r.goal} abates para vencer`, `Deathmatch · round ${r.round} · ${r.goal} kills to win`) : r.mode === 'ascension' ? t(`Ascensão · rodada ${r.round} de ${r.goal}`, `Ascension · round ${r.round} of ${r.goal}`) : t(`${r.mode === 'teams' ? 'Times · ' : ''}Rodada ${r.round} · vence quem fizer ${r.goal}`, `${r.mode === 'teams' ? 'Teams · ' : ''}Round ${r.round} · first to ${r.goal} wins`)) : '',
         // na loja o efeito já é o da próxima rodada (sorteado antes, para comprar sabendo)
         // só o nome: a descrição longa (Arena de espinhos) passava por cima do aviso "Arena encolhe em X s" no centro; ela fica na dica
-        r.effect && r.phase === 'shop' ? t(`Próxima rodada: ${EFFECT_NAME[r.effect]}`, `Next round: ${EFFECT_NAME[r.effect]}`)
-          : r.effect && PEEK_PHASES.includes(r.phase) ? EFFECT_NAME[r.effect] : '',
+        r.effect && r.phase === 'shop' ? t(`Próxima rodada: ${effectName(r.effect, r.mode)}`, `Next round: ${effectName(r.effect, r.mode)}`)
+          : r.effect && PEEK_PHASES.includes(r.phase) ? effectName(r.effect, r.mode) : '',
         r.pendingMode && r.phase !== 'end' ? t(`Próxima rodada: ${MODE_NAME[r.pendingMode]}`, `Next round: ${MODE_NAME[r.pendingMode]}`) : '',
         r.pendingShuffle !== null && r.phase !== 'end' ? t(`Próxima rodada: times ${SHUFFLE_NAME(r.pendingShuffle)}`, `Next round: teams ${SHUFFLE_NAME(r.pendingShuffle)}`) : '',
       ].filter(Boolean).join(' · ');
-      roundEl.title = r.effect && (r.phase === 'shop' || PEEK_PHASES.includes(r.phase)) ? `${EFFECT_NAME[r.effect]}: ${EFFECT_TEXT[r.effect]}` : '';
+      roundEl.title = r.effect && (r.phase === 'shop' || PEEK_PHASES.includes(r.phase)) ? `${effectName(r.effect, r.mode)}: ${effectText(r.effect, r.mode)}` : '';
       tops.hidden = !PEEK_PHASES.includes(r.phase); // contagem, rodada e fim da rodada
       drawTops();
       mine = r.players.find((p) => p.id === you);
