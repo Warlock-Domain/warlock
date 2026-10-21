@@ -42,4 +42,4 @@ npx vitest run     # testes
 
 ## Créditos
 
-Modelos, texturas, efeitos, sons e música de uso livre (KayKit, Kenney, ambientCG, Poly Haven, OpenGameArt); lista completa em `public/CREDITS.txt`. Baseado no Warlock de Zymoran e Adynathos e no Warlock Brawl (github.com/warlockbrawl/warlock).
+Modelos, texturas, efeitos, sons e música de uso livre (KayKit, Kenney, ambientCG, Poly Haven, OpenGameArt); lista completa em `public/CREDITS.txt` e índice de todos os assets em [docs/ASSETS.md](docs/ASSETS.md) (todo asset novo entra lá). Biblioteca com todos os modelos grátis do KayKit para quem contribui: `assets/kaykit/`. Baseado no Warlock de Zymoran e Adynathos e no Warlock Brawl (github.com/warlockbrawl/warlock).
