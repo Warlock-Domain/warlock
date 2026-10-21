@@ -399,6 +399,7 @@ function startRoom(code: string, name: string) {
       justCast.set(item, performance.now() + 120 + (ITEM_CAST[item] ?? 0) * 1000 + predict.rtt() * 1000);
       command({ t: 'item', item, x: at.x, y: at.y });
       predict.hold(ITEM_CAST[item] ?? 0);
+      if (item === 'scourge') scene.castLocal(me, item);
       scene.clickMarker(at, true);
       return true;
     },

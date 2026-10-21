@@ -3,7 +3,7 @@ import { edge, inArena, inward, pathStep, roomAt, safeInside } from './arena.ts'
 import { DT, FRICTION, ISLAND, OBSTACLES, PROJ_R, WIZ_R } from './constants.ts';
 import type { Cmd, Projectile, Wizard, World } from './sim.ts';
 import { ITEM_IDS, SCOURGE, itemPrice, type ItemId } from './items.ts';
-import { CAST_POINT, MAX_SPELLS, METEOR_DELAY, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
+import { CAST_POINT, GRIP, MAX_SPELLS, METEOR_DELAY, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export type BotPick = { kind: 'spell'; id: SpellId } | { kind: 'item'; id: ItemId };
@@ -150,8 +150,8 @@ export function threatTo(w: World, me: Wizard, visible: (p: Projectile) => boole
     // não ameaçam: Gravidade (só puxa), Zona de dobra (parada), cópia da Ilusão, cura do Drenar e volta da Recarga, Elo já preso
     if ((owner && (owner === me || (me.team !== null && owner.team === me.team))) || p.kind === 'gravity' || p.kind === 'warpzone' || p.kind === 'illusion' || (p.back && (p.kind === 'drain' || p.kind === 'recharge'))) continue;
     if (p.kind === 'link' && (p.target || p.pillar !== undefined)) continue;
-    if (p.kind === 'meteor') {
-      if (dist(p.pos, me.pos) < spellLevel('meteor', p.level).radius + WIZ_R && p.until - w.t < tHit) [threat, tHit] = [p, p.until - w.t];
+    if (p.kind === 'meteor' || p.kind === 'grip') {
+      if (dist(p.pos, me.pos) < spellLevel(p.kind, p.level).radius + WIZ_R && p.until - w.t < tHit) [threat, tHit] = [p, p.until - w.t];
       continue;
     }
     const rel = sub(me.pos, p.pos);
@@ -219,7 +219,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // o Flagelo em preparo não deixa sair nada além do Teleporte
   const winding = me.casting?.item === 'scourge';
   if (threat) {
-    const meteor = threat.kind === 'meteor';
+    const meteor = threat.kind === 'meteor' || threat.kind === 'grip'; // áreas paradas pedem esquiva radial
     const side = meteor ? norm(sub(me.pos, threat.pos)) : norm(v(-threat.vel.y, threat.vel.x));
     const away = meteor || dot(side, into) > 0 ? side : scale(side, -1); // de lado, para o lado de dentro
     // reação humana: o escudo não sobe sempre nem no último instante (o bot perfeito inflava o Escudo para 1,89×); com o tempo de reação
@@ -451,7 +451,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     else if (s === 'grip') {
       // só com dano pronto para emendar; preso na lava (ou deslizando para ela) não volta andando; e o Agarrar corta o Flagelo em preparo
       prio = !inside(E.pos, 0.6) || !inside(slideEnd, 0.3) || (E.casting?.item === 'scourge' && d < 3);
-      at = d < L.range * 0.85 && (loaded || prio) ? lead(L.speed, cp) : null;
+      at = d < L.range * 0.85 && (loaded || prio) ? lead(0, cp + GRIP.delay) : null;
     }
     else if (s === 'thrust') at = d > 1.5 && d < L.range && inside(add(me.pos, scale(dir, Math.min(d, L.range))), 1.5) ? lead(L.speed, cp) : null;
     else if (s === 'rush') at = d < 3.2 && inside(add(me.pos, scale(dir, 3)), 1) ? seenNow : null;
