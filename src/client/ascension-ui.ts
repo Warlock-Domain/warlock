@@ -7,6 +7,7 @@ import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, spellCount, type SpellId } from
 import { ICON, ITEM_ICON, el, icon, type Child } from './icons.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { SPELL_USE, spellClass } from './rules-text.ts';
+import { itemCardTip, spellCardTip, withTip } from './tips.ts';
 
 export type AscActions = { card: (slot: number, i: number, swap?: SpellId) => void; reroll: () => void; keep: (slot: number) => void };
 type Dialog = (cls: string, title: string, body: Node[]) => { close: () => void };
@@ -61,10 +62,12 @@ export function ascPanel(r: PublicRoom, me: string, act: AscActions, dialog: Dia
       el('div', { class: 'asc-cards' }, ...cards.map((c, i) => {
         const f = cardFace(c, mine);
         const on = pick?.i === i;
-        return el('button', { type: 'button', class: `asc-card ${f.cls}` + (c.kind === 'up' && c.rare ? ' rare' : '') + (on ? ' chosen' : ''), 'aria-pressed': String(on), 'data-key': `card-${slot}-${i}`, onclick: () => choose(slot, i, c) },
+        // a mesma janelinha da loja: números de agora → depois da carta
+        const tip = () => (c.kind === 'item' ? itemCardTip(c.id, mine.items[c.id]) : c.kind === 'up' ? spellCardTip(c.id, mine.spells[c.id], Math.min(MAX_SPELL_LEVEL, mine.spells[c.id] + (c.rare ? 2 : 1))) : spellCardTip(c.id, 0, 1, full));
+        return withTip(el('button', { type: 'button', class: `asc-card ${f.cls}` + (c.kind === 'up' && c.rare ? ' rare' : '') + (on ? ' chosen' : ''), 'aria-pressed': String(on), 'data-key': `card-${slot}-${i}`, onclick: () => choose(slot, i, c) },
           el('span', { class: 'asc-kind' }, f.kind), el('span', { class: 'ico' }, icon(f.ico)), el('b', {}, f.name), el('small', {}, f.text),
           c.kind === 'up' && c.rare ? el('span', { class: 'asc-rare' }, t('Rara: +2 níveis', 'Rare: +2 levels')) : null,
-          on && pick?.swap ? el('span', { class: 'asc-swapped' }, t(`No lugar de ${spellName(pick.swap)}`, `Replaces ${spellName(pick.swap)}`)) : null);
+          on && pick?.swap ? el('span', { class: 'asc-swapped' }, t(`No lugar de ${spellName(pick.swap)}`, `Replaces ${spellName(pick.swap)}`)) : null), tip);
       })),
       // barra cheia: magia nova é troca, e trocar é escolha (pode recusar)
       a.todo[slot] === 'spell' && full ? el('button', { type: 'button', class: 'asc-keep' + (pick?.i === -1 ? ' chosen' : ''), 'aria-pressed': String(pick?.i === -1), 'data-key': `keep-${slot}`, onclick: () => act.keep(slot) }, t('Manter as minhas magias', 'Keep my spells')) : null);
