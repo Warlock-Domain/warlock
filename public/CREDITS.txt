@@ -28,8 +28,9 @@ models/barrier_half.glb (barrier_half.gltf.glb), a parede do Pilar de pedra
   https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0 (arquivo copiado sem alteração)
   Licença lida no LICENSE.txt do repositório: "License: (Creative Commons Zero, CC0)".
 assets/kaykit/ (fora de public/, não vai para o jogo no ar; biblioteca para quem contribui)
-  Os 10 packs grátis do KayKit, por Kay Lousberg (www.kaylousberg.com), CC0 - https://github.com/KayKit-Game-Assets
-  Só os glTF, sem alteração; lista e links em assets/kaykit/README.md. Licença lida no LICENSE.txt de cada pack: "License: (Creative Commons Zero, CC0)".
+  Todos os packs grátis do KayKit, por Kay Lousberg (www.kaylousberg.com), CC0 - https://github.com/KayKit-Game-Assets e https://kaylousberg.itch.io (versões FREE)
+  Só os glTF, sem alteração; lista e links em assets/kaykit/README.md. Licença lida no LICENSE.txt de cada pack: "License: (Creative Commons Zero, CC0)"
+  (Holiday Bits sem licença no zip: lida na página, "Creative Commons Zero v1.0 Universal").
 
 == Texturas ==
 tex/lava_emit.jpg

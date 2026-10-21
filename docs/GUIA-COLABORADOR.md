@@ -170,7 +170,7 @@ navegador ──WebSocket──▶ Durable Object (uma sala)
 8. Menos código: reaproveite `el()`, `dialog()`, `iconButton()`, `tabs()`, `choice()`, `searchFilter()`, `withTip`, `store`, `t()`; mudança cirúrgica.
 9. **Interface só com as peças que já existem** (`dialog()`, `iconButton()`, `tabs()`, `choice()`, `searchFilter()`, `withTip`, detalhes em `src/client/CLAUDE.md`), com cores e tamanhos pelas variáveis do `:root`. Precisa de algo que nenhuma peça faz? Primeiro estenda a peça (um parâmetro a mais); só se não couber, crie uma função nova junto das outras e registre em `src/client/CLAUDE.md`. Nada de HTML/CSS repetido nem de cor ou tamanho soltos no código. Peça isso à sua IA no prompt: *"use as peças de interface que já existem (veja src/client/CLAUDE.md) e as variáveis do :root; não crie componente nem CSS novo sem antes tentar estender um existente"*.
 10. Sem segredo: o repositório é público.
-11. Asset só com licença livre e crédito em `public/CREDITS.txt`.
+11. Asset só com licença livre e crédito em `public/CREDITS.txt`, e com uma linha em [`docs/ASSETS.md`](ASSETS.md) dizendo o que é, onde o código usa e de onde veio. Modelos 3D prontos para usar: `assets/kaykit/` (lista em `assets/kaykit/INDICE.md`).
 
 Estilo: decisão não óbvia leva 1 linha de comentário com o porquê (tempo, número, ordem, contorno de bug), para outra pessoa ou IA não desfazer sem querer; o óbvio não se comenta; mudou a decisão, mude o comentário; imports no topo; siga o estilo do arquivo. O `ui.ts` não carrega no Vitest: decisão de tela testável vai para função pura.
 
