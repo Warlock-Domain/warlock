@@ -1308,7 +1308,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (look) return filterShop(el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
       shopLoadout(mine),
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.sandbox ? t('Loja · sandbox', 'Shop · sandbox') : deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${r.sandbox ? 'ouro sem fim: compre e venda, vale na hora' : deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${r.sandbox ? 'endless gold: buy and sell, it applies right away' : deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
-        iconButton('✕', t('Fechar a loja', 'Close the shop'), () => togglePeek(false), { title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`) })),
+        iconButton('✕', t('Fechar a loja', 'Close the shop'), () => togglePeek(false), { class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`) })),
       shopSearch(),
       ...grid),
       el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), sheetBox())));
