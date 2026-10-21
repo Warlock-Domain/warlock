@@ -737,9 +737,9 @@ button.train small { font-weight: 400; }
 /* loja com alça de arrastar no canto (só PC): o tamanho escolhido fica salvo; no celular ela já ocupa a tela */
 @media (min-width: 601px) {
   /* começa abaixo da barra do topo (56 px: ela vai de 8 a 52): centralizada com altura quase total a loja cobria a porta de sair, o código da sala e as engrenagens (issue #26) */
-  /* termina acima da barra do personagem (112 px a 10 px do fundo), que fica no intervalo para trocar as magias de tecla */
-  .center.shop-open { top: calc(56px + var(--safe-t)); transform: translateX(-50%); resize: both; min-width: min(560px, calc(100% - 24px)); max-width: calc(100% - 24px); min-height: 320px; max-height: calc(100% - 56px - 12px - 124px - var(--safe-t) - var(--safe-b)); }
-  .center.asc-open { top: calc(56px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 56px - 12px - 124px - var(--safe-t) - var(--safe-b)); }
+  .center.shop-open { top: calc(56px + var(--safe-t)); transform: translateX(-50%); resize: both; min-width: min(560px, calc(100% - 24px)); max-width: calc(100% - 24px); min-height: 320px; max-height: calc(100% - 56px - 12px - var(--safe-t) - var(--safe-b)); }
+  /* cartas do Ascensão: acima da barra de baixo quando ela aparece no intervalo (--bar-space, só no PC grande, como na loja) */
+  .center.asc-open { top: calc(56px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 56px - 12px - var(--bar-space, 0px) - var(--safe-t) - var(--safe-b)); }
 }
 
 /* grimório (Como jogar): livro aberto de couro com páginas de pergaminho escuro; duas páginas no PC, uma no celular */
