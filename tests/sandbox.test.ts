@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HP_MAX } from '../src/shared/constants.ts';
+import { ARENA_MIN, ARENA_STEP, HP_MAX, arenaRadius } from '../src/shared/constants.ts';
 import { addPlayer, buy, buyItem, kick, newMatch, sandboxCmd, sell, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage } from '../src/shared/protocol.ts';
 import { inLava, type Cmd, type SimEvent } from '../src/shared/sim.ts';
@@ -23,15 +23,47 @@ function steps(m: Match, now: number, n: number, cmds: Cmd[] = []): { now: numbe
 }
 
 describe('sandbox', () => {
-  it('Sandbox sempre começa redondo mesmo com arena aleatória ou outra forma', () => {
+  it('Sandbox começa redonda e nunca sorteia a arena', () => {
     for (const arena of ['random', 'cross', 'islands', 'ring'] as const) {
       const m = newMatch();
       addPlayer(m, 'a', 'Ana');
-      startMatch(m, 0, 0, 'rounds', true, () => 0.75, { arena }, [], true);
+      startMatch(m, 0, 0, 'rounds', true, () => 0.75, { arena }, [], true); // 0.75 sortearia a cruz
       toPlaying(m, 0);
-      expect(m.opts.arena).toBe('circle');
-      expect(m.world!.arena).toBe('circle');
+      expect(m.opts.arena, arena).toBe('circle');
+      expect(m.world!.arena, arena).toBe('circle');
     }
+  });
+
+  it('a arena escolhida no painel reinicia a rodada e fica nos reinícios seguintes', () => {
+    const { m, now: t0 } = sandbox();
+    expect(sandboxCmd(m, { op: 'arena', arena: 'cross' }, t0)).toBe(true);
+    let now = toPlaying(m, t0);
+    expect([m.world!.arena, m.opts.arena]).toEqual(['cross', 'cross']);
+    for (let i = 0; i < 3; i++) {
+      expect(sandboxCmd(m, { op: 'restart' }, now)).toBe(true);
+      now = toPlaying(m, now);
+      expect(m.world!.arena, `reinício ${i + 1}`).toBe('cross');
+    }
+    ({ now } = steps(m, now, 60 * 30));
+    expect(m.world!.arena).toBe('cross');
+  });
+
+  it('pedra cresce e diminui uma faixa por clique, entre o mínimo e o teto; as ilhas acompanham a borda', () => {
+    const { m, now } = sandbox();
+    const w = m.world!, r0 = w.arenaR, isle = { ...w.isles[0].pos };
+    // só o mundo muda (vai no snapshot): devolve false para a sala não gravar
+    expect(sandboxCmd(m, { op: 'radius', step: 1 }, now)).toBe(false);
+    expect(w.arenaR).toBeCloseTo(r0 + ARENA_STEP, 9);
+    expect(dist(w.isles[0].pos, v(0, 0))).toBeGreaterThan(dist(isle, v(0, 0)));
+    sandboxCmd(m, { op: 'radius', step: -1 }, now);
+    expect(w.arenaR).toBeCloseTo(r0, 9);
+    for (let i = 0; i < 40; i++) sandboxCmd(m, { op: 'radius', step: 1 }, now);
+    expect(w.arenaR).toBeCloseTo(arenaRadius(10), 9);
+    for (let i = 0; i < 40; i++) sandboxCmd(m, { op: 'radius', step: -1 }, now);
+    expect(w.arenaR).toBeCloseTo(ARENA_MIN, 9);
+    // o tamanho fica até o fim da rodada (a arena não encolhe sozinha na sandbox)
+    steps(m, now, 60 * 15);
+    expect(w.arenaR).toBeCloseTo(ARENA_MIN, 9);
   });
   it('torreta fica fixa, não recebe dano e dispara só para a direção escolhida', () => {
     const { m, now: t0 } = sandbox([{ op: 'turret', direction: 'east' }]);
@@ -85,14 +117,16 @@ describe('sandbox', () => {
     expect(m.phase).toBe('playing');
   });
 
-  it('vida infinita: golpe e lava não matam; quem cai na lava volta para a pedra com a vida cheia', () => {
+  it('vida infinita: golpe e lava não matam; quem entra na lava fica nela, com a vida cheia', () => {
     const { m, now } = sandbox();
     kill(m, 'a', null); // quase sem vida e no meio da lava
+    const at = { ...wiz(m, 'a').pos };
     const { events } = steps(m, now, 5);
     const a = wiz(m, 'a');
-    expect([a.alive, a.hp, inLava(m.world!, a.pos)]).toEqual([true, a.hpMax, false]);
+    expect([a.alive, a.hp, inLava(m.world!, a.pos)]).toEqual([true, a.hpMax, true]);
+    expect(dist(a.pos, at)).toBeLessThan(0.5);
     expect(events.some((e) => e.k === 'death')).toBe(false);
-    expect(events.some((e) => e.k === 'teleport' && e.id === 'a')).toBe(true);
+    expect(events.some((e) => e.k === 'teleport' && e.id === 'a')).toBe(false);
   });
 
   it('desligada a vida infinita, o humano morre e volta como no deathmatch; o bot também', () => {
@@ -191,7 +225,7 @@ describe('sandbox', () => {
     startMatch(m, 0, 1);
     toPlaying(m, 0);
     const before = JSON.stringify(m.players);
-    for (const c of [{ op: 'bot' }, { op: 'set', key: 'god', on: false }, { op: 'restart' }, { op: 'rune', kind: 'fury' }] as const) expect(sandboxCmd(m, c, 0, 'a')).toBe(false);
+    for (const c of [{ op: 'bot' }, { op: 'set', key: 'god', on: false }, { op: 'restart' }, { op: 'rune', kind: 'fury' }, { op: 'arena', arena: 'cross' }, { op: 'radius', step: 1 }] as const) expect(sandboxCmd(m, c, 0, 'a')).toBe(false);
     expect(JSON.stringify(m.players)).toBe(before);
     expect(m.world!.runes).toEqual([]);
     expect([m.sandbox, m.world!.dm, buy(m, 'a', 'lightning')]).toEqual([undefined, false, false]);
@@ -206,8 +240,11 @@ describe('sandbox', () => {
     expect(p({ t: 'sandbox', cmd: { op: 'set', key: 'noCd', on: true } })).toEqual({ t: 'sandbox', cmd: { op: 'set', key: 'noCd', on: true } });
     expect(p({ t: 'sandbox', cmd: { op: 'bot', bot: { difficulty: 'hard', spells: { homing: 2 } }, dummy: true } })).toEqual({ t: 'sandbox', cmd: { op: 'bot', bot: { difficulty: 'hard', spells: { homing: 2 } }, dummy: true } });
     expect(p({ t: 'sandbox', cmd: { op: 'rune', kind: 'recharge', x: 9 } })).toEqual({ t: 'sandbox', cmd: { op: 'rune', kind: 'recharge' } });
+    expect(p({ t: 'sandbox', cmd: { op: 'arena', arena: 'cross', x: 9 } })).toEqual({ t: 'sandbox', cmd: { op: 'arena', arena: 'cross' } });
+    for (const step of [1, -1]) expect(p({ t: 'sandbox', cmd: { op: 'radius', step, x: 9 } })).toEqual({ t: 'sandbox', cmd: { op: 'radius', step } });
     expect(p({ t: 'start', bots: 0, sandbox: true })).toMatchObject({ t: 'start', bots: 0, sandbox: true });
-    for (const bad of [{ op: 'set', key: 'gold', on: true }, { op: 'set', key: 'god', on: 1 }, { op: 'arena', arena: 'cross' }, { op: 'bot', bot: { spells: { homing: 99 } } }, { op: 'bot', dummy: 'sim' }, { op: 'nuke' }, { op: 'rune', kind: 'gold' }, { op: 'rune' }, null])
+    for (const bad of [{ op: 'set', key: 'gold', on: true }, { op: 'set', key: 'god', on: 1 }, { op: 'arena', arena: 'random' }, { op: 'arena', arena: 'hex' }, { op: 'arena' },
+      { op: 'radius', step: 2 }, { op: 'radius', step: 0 }, { op: 'radius', step: '1' }, { op: 'radius', step: 0.5 }, { op: 'radius' }, { op: 'bot', bot: { spells: { homing: 99 } } }, { op: 'bot', dummy: 'sim' }, { op: 'nuke' }, { op: 'rune', kind: 'gold' }, { op: 'rune' }, null])
       expect(p({ t: 'sandbox', cmd: bad })).toBeNull();
     expect(p({ t: 'start', bots: 0, sandbox: 'sim' })).toBeNull();
   });
