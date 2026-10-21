@@ -48,6 +48,7 @@ const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica'
 // Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, controle, jogador,
 // personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando) e partida:loja (contra 1 bot, na loja da rodada 1, com 120 s).
 // Sala e seção juntas, com vírgula (as Configurações de dentro da partida): sandbox,config:som
+// Porta nova não tem apelido guardado: o ?apelido= (ou o ?aba=) pula o pedido de nome, ver TEST_NAME abaixo (issue #175).
 const IR = (LOCAL && new URLSearchParams(location.search).get('ir')?.split(',')) || [];
 const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 
@@ -109,6 +110,12 @@ function servidor(on: boolean) {
 const PID = 'warlock:pid' + (as && ':' + as);
 const NAME = 'warlock:name' + (as && ':' + as);
 const CHAR = 'warlock:char' + (as && ':' + as);
+// aba de teste já entra com apelido (pedido do Fernando, 21/10; issue #175), só em localhost: cada porta é um site novo, sem apelido
+// guardado, e o pedido de nome parava a aba antes do ?ir=. ?apelido=<nome> grava o apelido; sem ele, o começo do ?aba= entra só
+// se ainda não houver apelido. No ar nada muda.
+const query = new URLSearchParams(location.search);
+const TEST_NAME = (query.get('apelido') || (!store.get(NAME) && query.get('aba')) || '').replace(/[<>]/g, '').trim().slice(0, 20);
+if (LOCAL && TEST_NAME) store.set(NAME, TEST_NAME);
 const playerId = store.get(PID) ?? crypto.randomUUID();
 store.set(PID, playerId);
 
