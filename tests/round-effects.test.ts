@@ -21,7 +21,7 @@ describe('efeitos de rodada', () => {
     expect(roundMods(null)).toEqual(NO_MODS);
     expect(roundMods('lava')).toEqual({ ...NO_MODS, lava: 0.5 });
     expect(roundMods('swords')).toEqual({ ...NO_MODS, swords: true, shrink: 0.5 });
-    expect(roundMods('gold')).toEqual({ ...NO_MODS, killGold: 1.5 });
+    expect(roundMods('gold')).toEqual({ ...NO_MODS, gold: 1.5 });
     expect(roundMods('speed')).toEqual({ ...NO_MODS, speed: 1.5 });
     expect(roundMods('regen')).toEqual({ ...NO_MODS, heal: 1.5 });
     expect(roundMods('clear')).toEqual(NO_MODS);
@@ -87,13 +87,13 @@ describe('efeitos de rodada', () => {
     expect(heal('regen')).toBeCloseTo(heal(null) * 1.5);
   });
 
-  it('Caçada: o abate paga 50% a mais, com a parte quebrada guardada', () => {
+  it('Febre do ouro: o abate paga 50% a mais, com a parte quebrada guardada', () => {
     const gain = (effect: RoundEffectId | null) => {
       const m = newMatch();
       for (const id of ['a', 'b', 'c']) addPlayer(m, id, id); // 3 magos: o abate não encerra a rodada (sem ouro de vitória no meio)
       startMatch(m, 0, 0);
       const now = toPlaying(m, 0);
-      m.world!.mods = { ...NO_MODS, killGold: roundMods(effect).killGold }; // só o ouro: com a parede de espadas o kill() não cai na lava
+      m.world!.mods = roundMods(effect);
       const killer = m.players[0], before = killer.gold;
       kill(m, 'b', 'a');
       until(m, now, () => !m.world!.wizards[1].alive, 600);

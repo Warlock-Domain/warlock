@@ -449,7 +449,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // também (as brasas sozinhas sumiam no print, pontos de poucos pixels). Por cima, um detalhe por efeito pedido pelo Fernando (21/10):
   // espinhos na borda (Arena de espinhos), pontos verdes subindo da pedra (Fonte da vida), vento (Vendaval) e chuva (Tempo chuvoso);
   // poucos, transparentes e sem sombra, para não brigar com as magias. No modo leve (lite) só a cor da faixa fica
-  // Arena de espinhos preta, Caçada amarela (com moedas), Vendaval pálida (brasas mais rápidas), Fonte da vida verde; Tempo chuvoso escurece a lava e a crosta da borda
+  // Arena de espinhos preta, Febre do ouro amarela (com moedas), Vendaval pálida (brasas mais rápidas), Fonte da vida verde; Tempo chuvoso escurece a lava e a crosta da borda
   const EMBER_COLOR: Partial<Record<RoundEffectId, string>> = { swords: '#c9ccd2', gold: '#ffd34d', speed: '#d6ecff', regen: '#7dffa8', lava: '#ffb27a' };
   const SHORE_TINT: Partial<Record<RoundEffectId, [string, number]>> = { swords: ['#050403', 0.75], gold: ['#ffe11a', 0.7], speed: ['#bfe6ff', 0.45], regen: ['#3dff8a', 0.45], lava: ['#7a2a10', 0.5] };
   let tintK = 0;
@@ -502,7 +502,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   };
   const motes = pool(26, '#7dffa8', 0.75);
   const gusts = pool(14, '#eaf6ff', 0.35);
-  // Caçada: moedas pulando da borda e caindo de volta, piscando como se tilintassem (pedido do Fernando, 21/10)
+  // Febre do ouro: moedas pulando da borda e caindo de volta, piscando como se tilintassem (pedido do Fernando, 21/10)
   const coins = pool(22, '#ffd84a', 0.95);
   // chuva (Tempo chuvoso): riscos curtos caindo, uma geometria só atualizada por quadro
   const RAIN = 90, rainPos = new Float32Array(RAIN * 6);
@@ -2199,7 +2199,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         s.scale.setScalar(0.22 * Math.min(1, s.position.y * 2) * Math.max(0, 1 - s.position.y / 2.6));
         if (s.position.y > 2.6) { s.visible = false; u.wait = Math.random() * 2; }
       }
-      // Caçada: cada moeda nasce num ponto da borda, sobe 1 a 1,6 m e cai; o brilho pisca rápido (o "tilintar")
+      // Febre do ouro: cada moeda nasce num ponto da borda, sobe 1 a 1,6 m e cai; o brilho pisca rápido (o "tilintar")
       for (const s of coins) {
         const u = s.userData as { vy: number; wait: number };
         if (lite || state.effect !== 'gold') { s.visible = false; continue; }

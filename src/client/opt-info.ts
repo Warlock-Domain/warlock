@@ -23,12 +23,12 @@ export const SKILL_NAME: Record<MatchOpts['difficulty'], string> = { easy: t('F�
 // efeitos de rodada (constants.ts ROUND_EFFECTS): nome curto (opção, faixa da contagem) e o que muda (linha da rodada, explicação)
 export const EFFECT_NAME: Record<RoundEffectId, string> = {
   // nomes do Fernando (21/10); os ids ficaram os antigos (lava, swords, speed) para não mexer no protocolo nem nas salas gravadas
-  lava: t('Tempo chuvoso', 'Rainy weather'), swords: t('Arena de espinhos', 'Spike arena'), gold: t('Caçada', 'Bounty hunt'), speed: t('Vendaval', 'Gale'), regen: t('Fonte da vida', 'Wellspring'), clear: t('Campo aberto', 'Open field'),
+  lava: t('Tempo chuvoso', 'Rainy weather'), swords: t('Arena de espinhos', 'Spike arena'), gold: t('Febre do ouro', 'Gold rush'), speed: t('Vendaval', 'Gale'), regen: t('Fonte da vida', 'Wellspring'), clear: t('Campo aberto', 'Open field'),
 };
 export const EFFECT_TEXT: Record<RoundEffectId, string> = {
   lava: t('dano da lava pela metade', 'lava damage halved'),
   swords: t('a parede de espinhos empurra de volta e fere; a arena encolhe só metade', 'the spike wall knocks you back and hurts; the arena shrinks only halfway'),
-  gold: t('abates dão 50% mais ouro', 'kills give 50% more gold'),
+  gold: t('todo ouro ganho na rodada vale 50% mais', 'all gold earned in the round is worth 50% more'),
   speed: t(`todos andam ${pct(ROUND_EFFECTS.speed.speed! - 1)} mais rápido`, `everyone moves ${pct(ROUND_EFFECTS.speed.speed! - 1)} faster`),
   regen: t('toda cura recebida 50% maior', 'all healing received 50% stronger'),
   clear: t('arena sem obstáculos', 'no obstacles in the arena'),

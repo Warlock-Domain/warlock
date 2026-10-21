@@ -36,7 +36,8 @@ function addStat(p: Player, f: (s: Stat) => void) {
 function earn(m: Match, p: Player, gold: number, scaled = true): number {
   let n = gold;
   if (scaled) {
-    const total = gold * m.opts.economy + (p.goldCarry ?? 0);
+    // efeito de rodada da Febre do ouro: todo ouro ganho durante a rodada (abate, rodada, vitória, baú…) vale mods.gold vezes; na loja não há mundo
+    const total = gold * m.opts.economy * (m.world?.mods.gold ?? 1) + (p.goldCarry ?? 0);
     n = Math.floor(total + 1e-9);
     p.goldCarry = total - n;
   }
@@ -1005,7 +1006,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
         const avgScore = m.players.reduce((sum, q) => sum + q.score, 0) / m.players.length;
         const top = Math.max(...m.players.map((q) => q.score));
         const head = victim && m.mode !== 'deathmatch' && victim.score === top ? Math.min(BOUNTY.max, Math.round(BOUNTY.perWin * (victim.score - avgScore))) : 0;
-        bonus(m, killer, (KILL_GOLD + Math.max(0, head)) * (m.world?.mods.killGold ?? 1)); // a parte quebrada fica guardada (earn)
+        bonus(m, killer, KILL_GOLD + Math.max(0, head));
       }
     }
     // a Égide quebra ao salvar (consumível): sai do inventário sem valor de venda
