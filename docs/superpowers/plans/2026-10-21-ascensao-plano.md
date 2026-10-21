@@ -84,7 +84,7 @@ export function applyCard(p: Player, card: Card, swap?: SpellId): boolean;
 ```
 
 - [ ] Testes: `drawCards same seed same cards`; `drawCards gives 3 distinct cards from at least 2 groups` (item conta como grupo); `drawCards never offers up for a spell at max level nor a new spell already owned`; `applyCard new spell enters at level 1`; `applyCard full bar needs swap` (sem `swap` → `false`; `swap` de magia que não tem → `false`; com `swap` válido troca); `applyCard up raises one level`; `applyCard repeated item raises its level`; `levelOf is monotonic`.
-- [ ] Implementar. Números iniciais: XP = 1 por ponto de dano + `KILL_XP` por abate + `ALIVE_XP` por segundo vivo; curva calibrada para ~1,5 nível por rodada com 4 magos. Rara = `up` de 2 níveis (escolha do builder registrada no PR). Empurrão fica fora do XP na 1ª versão (a simulação não mede empurrão causado; o abate já premia).
+- [ ] Implementar. Números iniciais: XP = 1 por ponto de dano + `KILL_XP` por abate + `ALIVE_XP` por segundo vivo; curva calibrada para ~1,5 nível por rodada com 4 magos. Rara = `up` de 2 níveis (escolha do builder registrada no PR). O dano vem de `stats.round.dmg`, que já soma metade da vida que a lava tira, creditada a quem acertou por último nos 5 s (`sim.ts` `lavaCredit`, `match.ts:871`); com a #179, Troca/Agarrar/Magnetizar também entram nesse crédito. Empurrão fica fora do XP na 1ª versão (a simulação não mede empurrão causado; o abate já premia).
 - [ ] Commit `feat: motor de XP e cartas do Ascensão`.
 
 ### Task 1.3: ganchos na partida, protocolo e sala
