@@ -361,7 +361,7 @@ function optText(k: OptKey, val: MatchOpts[OptKey], mode: Mode): string {
 const optLabel = (k: OptKey, mode: Mode) => el('div', { class: 'opt-label' }, el('small', {}, OPT_NAME[k]), infoButton(OPT_NAME[k], () => OPT_INFO[k](mode)));
 // resumo de uma linha (loja e votação): "Loja 30 s · Ouro ×1,6 · Vence com 5 rodadas · sem runas"
 function optsLine(o: MatchOpts, mode: Mode): string {
-  const off = (['runes', 'sudden', 'chests'] as const).filter((k) => !o[k]).map((k) => t('sem ', 'no ') + OPT_NAME[k].toLowerCase());
+  const off = (['runes', 'sudden', 'chests'] as const).filter((k) => !o[k] && !(mode === 'ascension' && k === 'chests')).map((k) => t('sem ', 'no ') + OPT_NAME[k].toLowerCase());
   const bots = o.difficulty !== 'normal' ? [{ easy: t('bots fáceis', 'easy bots'), casual: t('bots casuais', 'casual bots'), veteran: t('bots veteranos', 'veteran bots'), hard: t('bots difíceis', 'hard bots'), auto: t('bots automáticos', 'auto bots') }[o.difficulty]] : [];
   const arena = o.arena !== 'random' ? [t('arena ' + arenaName(o.arena), arenaName(o.arena) + ' arena')] : [];
   const effect = o.effect === 'random' ? [t('efeito sorteado', 'random effect')] : o.effect !== 'off' ? [EFFECT_NAME[o.effect]] : [];
