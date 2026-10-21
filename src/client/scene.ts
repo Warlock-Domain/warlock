@@ -450,8 +450,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // espinhos na borda (Arena de espinhos), pontos verdes subindo da pedra (Fonte da vida), vento (Vendaval) e chuva (Tempo chuvoso);
   // poucos, transparentes e sem sombra, para não brigar com as magias. No modo leve (lite) só a cor da faixa fica
   // Arena de espinhos dourada, Vendaval pálida (brasas mais rápidas), Fonte da vida verde; Tempo chuvoso escurece a lava e a crosta da borda
-  const EMBER_COLOR: Partial<Record<RoundEffectId, string>> = { swords: '#ffd34d', speed: '#d6ecff', regen: '#7dffa8', lava: '#ffb27a' };
-  const SHORE_TINT: Partial<Record<RoundEffectId, [string, number]>> = { swords: ['#ffc21a', 0.55], speed: ['#bfe6ff', 0.45], regen: ['#3dff8a', 0.45], lava: ['#7a2a10', 0.5] };
+  const EMBER_COLOR: Partial<Record<RoundEffectId, string>> = { swords: '#c9ccd2', gold: '#ffd34d', speed: '#d6ecff', regen: '#7dffa8', lava: '#ffb27a' };
+  const SHORE_TINT: Partial<Record<RoundEffectId, [string, number]>> = { swords: ['#9aa0aa', 0.45], gold: ['#ffc21a', 0.55], speed: ['#bfe6ff', 0.45], regen: ['#3dff8a', 0.45], lava: ['#7a2a10', 0.5] };
   let tintK = 0;
   const emberBase = emberMat.color.clone();
   let heat = 1;

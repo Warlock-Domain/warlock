@@ -9,7 +9,7 @@ import { noSpells } from '../src/shared/spells.ts';
 import { kill, toPlaying, until, world } from './helpers.ts';
 
 // partida só de bots já na rodada 1 (o mundo da rodada existe a partir da contagem), com o efeito sorteado
-// rand fixo escolhe o efeito: floor(r × 5) → 0,3 dá Arena de espinhos, 0,9 dá Campo aberto
+// rand fixo escolhe o efeito: floor(r × 6) → 0,3 dá Arena de espinhos, 0,9 dá Campo aberto
 const firstRound = (bots: number, sandbox = false, r = 0.3, opts: Partial<MatchOpts> = { effect: 'random' }): { m: Match; now: number } => {
   const m = newMatch();
   startMatch(m, 0, bots, 'rounds', true, () => r, opts, [], sandbox);
@@ -20,9 +20,10 @@ describe('efeitos de rodada', () => {
   it('cada efeito muda só o seu multiplicador; sem efeito tudo fica em 1', () => {
     expect(roundMods(null)).toEqual(NO_MODS);
     expect(roundMods('lava')).toEqual({ ...NO_MODS, lava: 0.5 });
-    expect(roundMods('swords')).toEqual({ ...NO_MODS, killGold: 1.5, swords: true, shrink: 0.5 });
-    expect(roundMods('speed')).toEqual({ ...NO_MODS, speed: 1.3 });
-    expect(roundMods('regen')).toEqual({ ...NO_MODS, regen: 1.3 });
+    expect(roundMods('swords')).toEqual({ ...NO_MODS, swords: true, shrink: 0.5 });
+    expect(roundMods('gold')).toEqual({ ...NO_MODS, killGold: 1.5 });
+    expect(roundMods('speed')).toEqual({ ...NO_MODS, speed: 1.5 });
+    expect(roundMods('regen')).toEqual({ ...NO_MODS, heal: 1.5 });
     expect(roundMods('clear')).toEqual(NO_MODS);
   });
 
@@ -75,7 +76,7 @@ describe('efeitos de rodada', () => {
     expect(fast.dmg).toBeGreaterThan(slow.dmg * 2);
   });
 
-  it('Fonte da vida: a vida volta 30% mais rápido', () => {
+  it('Fonte da vida: a vida volta 50% mais rápido (e toda cura, pelo mesmo multiplicador)', () => {
     const heal = (effect: RoundEffectId | null) => {
       const w = world([[0, 0], [3, 0]], noSpells());
       w.mods = roundMods(effect);
@@ -83,10 +84,10 @@ describe('efeitos de rodada', () => {
       stepWorld(w, []);
       return w.wizards[0].hp - 500;
     };
-    expect(heal('regen')).toBeCloseTo(heal(null) * 1.3);
+    expect(heal('regen')).toBeCloseTo(heal(null) * 1.5);
   });
 
-  it('Arena de espinhos: o abate paga 50% a mais, com a parte quebrada guardada', () => {
+  it('Caçada: o abate paga 50% a mais, com a parte quebrada guardada', () => {
     const gain = (effect: RoundEffectId | null) => {
       const m = newMatch();
       for (const id of ['a', 'b', 'c']) addPlayer(m, id, id); // 3 magos: o abate não encerra a rodada (sem ouro de vitória no meio)
@@ -99,7 +100,7 @@ describe('efeitos de rodada', () => {
       return { gold: killer.gold - before, carry: killer.goldCarry ?? 0 };
     };
     expect(gain(null).gold).toBe(KILL_GOLD);
-    expect(gain('swords')).toEqual({ gold: Math.floor(KILL_GOLD * 1.5), carry: KILL_GOLD * 1.5 - Math.floor(KILL_GOLD * 1.5) });
+    expect(gain('gold')).toEqual({ gold: Math.floor(KILL_GOLD * 1.5), carry: KILL_GOLD * 1.5 - Math.floor(KILL_GOLD * 1.5) });
   });
 
   it('a partida sorteia um efeito por rodada e o manda para o navegador; a sandbox fica sem', () => {

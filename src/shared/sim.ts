@@ -421,7 +421,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   target.vel = add(target.vel, scale(norm(dir), knock * mult * release));
   mark(w, target, by, src);
   // roubo de vida: quem acertou recupera parte do dano (e, como no original, a cura reduz o dano acumulado pela metade dela)
-  if (att && att.lifesteal > 0) heal(att, dmg * att.lifesteal);
+  if (att && att.lifesteal > 0) heal(w, att, dmg * att.lifesteal);
   w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg), src });
 }
 
@@ -587,7 +587,8 @@ function nearestEnemy(w: World, to: Vec, skip: string, owner = skip): Wizard | n
 }
 
 // cura (Drenar, Roubo de vida): como no original, tira do dano acumulado metade do que curou (pawn.lua)
-function heal(wz: Wizard, amount: number) {
+function heal(w: World, wz: Wizard, amount: number) {
+  amount *= w.mods.heal; // Fonte da vida
   wz.hp = Math.min(wz.hpMax, wz.hp + amount);
   wz.dmgTaken = Math.max(0, wz.dmgTaken - amount * 0.5);
 }
@@ -1085,7 +1086,7 @@ function flyBack(w: World, p: Projectile, dt: number): boolean {
   if (!to || w.t >= p.until) return false;
   const drain = p.kind === 'drain';
   if (dist(to.pos, p.pos) < (drain ? DRAIN.reach : RECHARGE.reach)) {
-    if (drain) heal(to, spellLevel('drain', p.level).dmg * p.dmgMult);
+    if (drain) heal(w, to, spellLevel('drain', p.level).dmg * p.dmgMult);
     else to.cd.recharge = w.t;
     return false;
   }
@@ -1099,7 +1100,7 @@ function drainHit(w: World, p: Projectile, wz: Wizard, L: Level) {
   const owner = anyById(w, p.owner);
   const amount = L.dmg * p.dmgMult;
   if (allies(owner, wz)) {
-    heal(wz, amount);
+    heal(w, wz, amount);
     wz.haste = DRAIN.haste;
     wz.hasteUntil = w.t + L.duration;
     return;
@@ -1729,7 +1730,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
         toStone(w, wz);
         w.events.push({ k: 'aegis', id: wz.id });
       }
-    } else wz.hp = Math.min(wz.hpMax, wz.hp + wz.regen * w.mods.regen * DT);
+    } else wz.hp = Math.min(wz.hpMax, wz.hp + wz.regen * w.mods.heal * DT);
     if (wz.hp > 0) continue;
     wz.hp = 0;
     wz.alive = false;

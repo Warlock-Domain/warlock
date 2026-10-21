@@ -100,20 +100,20 @@ export const RUNE_KINDS = ['haste', 'fury', 'shield', 'recharge'] as const;
 export type RuneKind = (typeof RUNE_KINDS)[number];
 // efeitos por 8 s (Fernando, 18/10): Pressa +50% de velocidade, Fúria +30% de dano, Escudo −30% de dano levado, Recarga recargas 30% mais rápidas
 export const RUNE = { first: 15, every: 20, secs: 8, reach: 0.6, spread: 0.6, haste: 0.5, fury: 0.3, armor: 0.3, cdr: 0.3 };
-// efeitos de rodada (prova de conceito, pedido do Reinaldo, 21/10): um sorteado por rodada, para todos; números ainda sem simulador.
-// nomes na tela: lava = Tempo chuvoso, swords = Arena de espinhos, speed = Vendaval (opt-info.ts EFFECT_NAME)
-// lava: dano da lava (×); killGold: ouro do abate (×); speed: velocidade de todos os magos (×); regen: vida por segundo (×)
-// Vendaval (antes Passos leves, "lentidões duram 20% menos") (só mexia em Drenar e Bola de neve); virou velocidade para todos (Fernando, 21/10)
-// shrink: quanto do encolhimento normal acontece (1 = tudo; abaixo de 1 a arena para antes e nunca some); swords: a borda vira parede
-// de espadas (SWORDS): quem passa dela volta para dentro em vez de cair na lava
-// Caçada virou Arena de espinhos (Fernando, 21/10; nome final depois de "Arena de espadas"): parede de espinhos que empurra de volta e fere, abates com 50% mais ouro e a arena
-// encolhendo só metade até o SUDDEN.collapse (simulador: sem encolher, rodada média de 181 s no Normal; ninguém cai mais na lava)
+// efeitos de rodada (issue #189, ideia do Reinaldo, números do Fernando em 21/10): um por rodada, igual para todos.
+// Nomes na tela (opt-info.ts EFFECT_NAME): lava = Tempo chuvoso, swords = Arena de espinhos, gold = Caçada, speed = Vendaval,
+// regen = Fonte da vida, clear = Campo aberto. Multiplicadores: lava = dano da lava; killGold = ouro do abate; speed = velocidade de
+// todos; heal = toda vida recuperada (regeneração, Drenar, Roubo de vida); shrink = quanto do encolhimento normal acontece (abaixo de 1
+// a arena para antes, até o SUDDEN.collapse); swords = a borda vira parede de espinhos (SWORDS) em vez de lava.
+// Histórico: Vendaval era "lentidões −20%" e virou velocidade (+30% medido, +50% pedido pelo Fernando depois de jogar); a Caçada foi
+// juntada à Arena e separada de novo; a Fonte da vida curava só a regeneração (×1,3, "fraquinho") e passou a ×1,5 em toda cura.
+// Arena encolhendo só metade: sem encolher, rodada média de 181 s no Normal (simulador), porque ninguém cai mais na lava
 // clear (Campo aberto) não tem multiplicador: a partida tira os obstáculos sorteados da arena (match.ts)
-export const ROUND_EFFECT_IDS = ['lava', 'swords', 'speed', 'regen', 'clear'] as const;
+export const ROUND_EFFECT_IDS = ['lava', 'swords', 'gold', 'speed', 'regen', 'clear'] as const;
 export type RoundEffectId = (typeof ROUND_EFFECT_IDS)[number];
-export type RoundMods = { lava: number; killGold: number; speed: number; regen: number; shrink: number; swords: boolean };
-export const NO_MODS: RoundMods = { lava: 1, killGold: 1, speed: 1, regen: 1, shrink: 1, swords: false };
-export const ROUND_EFFECTS: Record<RoundEffectId, Partial<RoundMods>> = { lava: { lava: 0.5 }, swords: { killGold: 1.5, swords: true, shrink: 0.5 }, speed: { speed: 1.3 }, regen: { regen: 1.3 }, clear: {} };
+export type RoundMods = { lava: number; killGold: number; speed: number; heal: number; shrink: number; swords: boolean };
+export const NO_MODS: RoundMods = { lava: 1, killGold: 1, speed: 1, heal: 1, shrink: 1, swords: false };
+export const ROUND_EFFECTS: Record<RoundEffectId, Partial<RoundMods>> = { lava: { lava: 0.5 }, swords: { swords: true, shrink: 0.5 }, gold: { killGold: 1.5 }, speed: { speed: 1.5 }, regen: { heal: 1.5 }, clear: {} };
 // parede de espadas: dano = base + perSpeed × a velocidade com que o empurrão joga o mago contra ela (m/s; Fernando, 21/10: quanto mais
 // rápido bate, mais dói). Bola de fogo nível 1 empurra a ~4,5 m/s → ~87; só andando até a borda, 20. O empurrão de volta é o desse dano
 // inset: a parede ocupa os últimos 0,3 m da pedra (Fernando, 21/10: espinhos mais para dentro); encostar nela já fere
