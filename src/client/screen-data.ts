@@ -3,6 +3,8 @@ import type { PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { MAX_SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
 
+// Sandbox: o servidor manda todos, e o 8388608 marca quem estaria escondido (Caminhada no vento ou véu da Ilusão).
+// "Ver invisíveis (teste)" ligado só deixa esses translúcidos; desligado, esconde como numa sala normal.
 export function sandboxVisibility(status: number, self: boolean, sandbox: boolean, seeInvis = false): number {
   if (!sandbox || self) return status;
   if (seeInvis) return status & (1024 | 8388608) ? status | 8388608 : status;
