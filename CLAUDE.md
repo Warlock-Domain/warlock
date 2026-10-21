@@ -134,6 +134,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 21/10 | **Raio mais largo**: pega quem tem o corpo a até 0,15 m da linha (`LIGHTNING.width`; antes só quem o corpo cruzava a linha); desenho sai do cetro, baixo, grosso e com zigue-zague da mesma largura. Aplicado **sem passar pelo simulador** (exceção decidida pelo dono) | "o hitbox ainda está muito fino"; a animação parecia bem maior que o acerto |
 | 21/10 | **Agarrar vira área** no ponto mirado: depois do atraso, cipós prendem quem está dentro (raio 1,5 m, atraso 1,3 s). Aprovado **sem passar pelo simulador** (exceção decidida pelo dono, como a Ilusão); a prévia de área no cursor vale também para a Zona de dobra e a Barricada e some ao lançar (issue #168, PR #169) | pedido do Leonard, testado e aprovado pelo Fernando no ambiente do PR; "Libero o #169 sem simulador (exceção como a Ilusão)" |
 | 21/10 | **Modo espectador**: botão Assistir na lista de salas e na sala; quem assiste fica sem mago a partir da próxima rodada (na sandbox, na hora), com pontos, ouro e compras guardados para voltar a jogar se houver vaga (PR #151, issue #148) | pedido do Sky; "a 151 pode entrar tbm", depois de testar no ambiente do PR |
+| 21/10 | Espectador (quem caiu ou assiste) tem o botão **Câmera no centro da arena** na barra "Assistindo": ligado, a câmera fica parada no centro (para onde a arena encolhe) em vez de seguir o mago; a escolha fica salva no navegador (PR #194) | pedido do Reinaldo: seguindo um mago na borda, a arena que encolhe saía da tela |
 
 ## Fluxo com agente
 
