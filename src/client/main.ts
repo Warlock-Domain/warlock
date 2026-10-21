@@ -213,20 +213,15 @@ function startRoom(code: string, name: string) {
   const pixelOk = !matchMedia('(pointer: coarse)').matches;
 
   let autostart = takeAutostart();
-  if (autostart === 'bots') {
-    store.set('warlock:bot-room:' + code, '1');
-    autostart = null;
-  }
-  const botsRoom = store.get('warlock:bot-room:' + code) === '1';
   const view = createRoomUi(ui, code, {
-    start: (bots, mode, shuffle, opts, again, botSetup) => {
+    start: (bots, mode, shuffle, opts, again) => {
       training = false; // partida normal depois de um treino: sem dicas
       run = pending = null;
       if (!again) {
-        trainSetup = botSetup;
+        trainSetup = undefined;
         shadow = false;
       }
-      // Dificuldade e magias escolhidas na preparação; Jogar de novo repete a configuração.
+      // Dificuldade escolhida na preparação (as magias os bots compram sozinhos); Jogar de novo repete a configuração.
       net.send({ t: 'start', bots: bots.length, mode, shuffle, opts, setup: bots.map((difficulty, i) => ({ ...trainSetup?.[i], difficulty })) });
     },
     buy: (spell) => net.send({ t: 'buy', spell }),
@@ -274,7 +269,7 @@ function startRoom(code: string, name: string) {
       store.set(NAME, myName);
       net.send({ t: 'hello', playerId, name: myName });
     },
-  }, botsRoom);
+  });
   addEventListener('keydown', (e) => {
     // ← → já trocam o período do placar quando ele está aberto (ui.ts marca o evento; por isso este ouvinte vem depois do createRoomUi)
     if (!watchId || e.defaultPrevented || (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight')) return;
