@@ -27,6 +27,7 @@ import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
+import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
 import { endResult, sandboxVisibility } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
@@ -448,8 +449,7 @@ function startRoom(code: string, name: string) {
     run = pending = null;
     trainSetup = undefined;
     net.send({ t: 'start', bots: 0, mode: 'rounds', shuffle: true, opts: DEFAULT_OPTS, sandbox: true });
-    net.send({ t: 'sandbox', cmd: { op: 'bot', dummy: true } });
-    net.send({ t: 'sandbox', cmd: { op: 'turret', direction: 'east' } });
+    for (const cmd of SANDBOX_START) net.send({ t: 'sandbox', cmd });
   }
 
   function startChallenge(c: Challenge) {
