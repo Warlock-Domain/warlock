@@ -47,7 +47,7 @@ npx vite build
 
 ## Ambiente de cada PR
 
-Todo PR, rascunho também, publica em `https://pr-<n>-warlock.fernandorffdev.com` (`<n>` é o número do PR), com salas separadas do jogo no ar. O link fica num comentário fixo no PR, atualizado a cada push. Para testar com outras pessoas antes de pronto, abra o PR em rascunho e mande o link no grupo. Ao fechar o PR o ambiente é apagado sozinho. Só funciona com branch neste repositório (não em fork).
+Todo PR, rascunho também, publica em `https://pr-<n>-warlock.fernandorffdev.com` (`<n>` é o número do PR), com salas separadas do jogo no ar. O link fica num comentário fixo no PR, atualizado a cada push. Para testar com outras pessoas antes de pronto, abra o PR em rascunho e mande o link no grupo. Pronto (gates verdes, testado, prints de PC se a tela mudou): *Ready for review*; se a sua IA não consegue testar no navegador, saia do rascunho assim mesmo, diga no PR o que não testou e como testar, e quem revisa testa no ambiente do PR ([CONTRIBUTING](../CONTRIBUTING.md#ambiente-de-cada-pr)). Ao fechar o PR o ambiente é apagado sozinho. Só funciona com branch neste repositório (não em fork).
 
 ## Pipelines
 
@@ -190,6 +190,26 @@ node scripts/smoke.mjs http://localhost:8787                          # teste r�
 Os scripts usam o Chrome instalado e um perfil temporário. `PW_CHANNEL=chromium` usa o Chromium do Playwright (`npx playwright-core install chromium` antes); `PW_PROFILE=<pasta>` usa um perfil fixo.
 
 Atalhos: aba **Jogar** (partida contra bots, desafios, Sombra e a sandbox com ouro e vida infinitos, arena à escolha, pedra que cresce e diminui e torreta de treino), `?as=nome` no endereço, `localStorage['warlock:lang'] = 'pt' | 'en'`. Mudança de tela: PC 1280×720 e 1920×1080, português e inglês, sem erro no console; sem print de celular por enquanto (o celular não está sendo otimizado, decisão de 20/10).
+
+### Fluxo de teste recomendado para a sua IA
+
+Peça à sua IA (Claude Code, Codex, Cursor…) que, a cada mudança, deixe o teste pronto para você testar em segundos. Ela abre o teste num navegador só de testes, já no lugar certo, e diz o que conferir. As sessões do Fernando usam esse fluxo; os detalhes estão em [SESSOES-COM-ORQUESTRADOR](SESSOES-COM-ORQUESTRADOR.md#regras-que-evitam-problema).
+
+1. **Navegador só de testes.** A IA abre um perfil separado do Chrome ou do Edge, com a porta de depuração ligada só no seu PC. Assim ela consegue listar e fechar as abas de teste sem mexer no seu navegador do dia a dia. Desde o Chrome 136, essa porta só funciona fora do perfil normal.
+   ```powershell
+   # Windows (Edge); no Chrome é igual, trocando o executável
+   & "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --user-data-dir="$HOME\warlock-testes" --remote-debugging-port=9333 --remote-debugging-address=127.0.0.1 --no-first-run "http://localhost:8787/?aba=minha-mudanca&ir=sandbox"
+   ```
+   Se a janela já estiver aberta, o mesmo comando só acrescenta uma aba. Para fechar, a IA lista as abas em `http://127.0.0.1:9333/json/list` e fecha cada uma em `http://127.0.0.1:9333/json/close/<id>`.
+2. **Já no ponto do teste.** `?ir=<lugar>` leva direto ao que mudou (lista dos lugares no comentário do `?ir=` em `src/client/main.ts`; ex.: `sandbox`, `partida:loja`, `config:som`).
+
+   `?aba=<nome>` dá o nome da aba. Exemplo: `?aba=fix-loja&ir=partida:loja`.
+3. **Sem barulho.** Em localhost a música começa desligada. Num teste de som, abra com `?musica=1`.
+4. **O que testar, à vista.** A IA manda no chat de 3 a 5 passos curtos, cada um com o que esperar. Se ajudar, ela põe notas na tela, só em localhost: uma caixinha apontando o que mudou, feita por um script local que fica fora do commit.
+5. **Limpeza.** Ao terminar, a IA desliga o servidor local e fecha as abas dele. Abas velhas da mesma porta já aparecem como `❌ FECHAR`.
+6. **Quando pular.** Mudança que não altera o jogo (refatoração, limpeza, docs, CI) não precisa de aba de teste. Bastam os gates verdes e, se mexer em tela, prints de antes e depois iguais.
+
+Prompt pronto: *"Ao terminar, suba o `wrangler dev`, abra a aba no meu navegador de testes já com `?aba=` e `?ir=` no ponto da mudança, me diga em até 5 passos o que testar e o que esperar, e feche as abas e o servidor quando eu aprovar."*
 
 ## Balanceamento
 

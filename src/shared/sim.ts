@@ -1238,7 +1238,7 @@ function stepProjectiles(w: World) {
       const next = add(p.pos, scale(add(walk, push), dt));
       if (!firstPillarOnSegment(w, p.pos, next, WIZ_R)) p.pos = next;
       p.pushVel = scale(push, Math.exp(-FRICTION * dt));
-      if (len(p.pushVel) < 0.05) p.pushVel = undefined;
+      if (len(p.pushVel) < 0.05) p.pushVel = undefined; // mesmo corte do empurrão do mago (fim do deslize)
       if (w.t < p.until) keep.push(p);
       continue;
     }
