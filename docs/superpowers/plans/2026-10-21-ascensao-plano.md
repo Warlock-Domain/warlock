@@ -103,6 +103,7 @@ export function pickCard(m: Match, id: string, i: number, swap?: SpellId): boole
 
 - [ ] Testes: `ascension match lasts 9 rounds` (bots, semente fixa, `m.phase === 'end'` após a rodada 9 e não antes); `placement points follow fall order` (último vivo leva mais; ordem pelos eventos `death`); `tie broken by total damage`; `start gives fireball, scourge and one pick`; `shop is closed in ascension` (`buy`, `buyItem`, `sell` devolvem `false`; ouro não muda); `no chests in ascension` (`opts.chests` forçado `false`); `bots pick with match rand`; `shop timeout resolves pending picks`; `resume keeps ascension state`; `mode vote to ascension restarts match`; `card message parses and rejects bad i/swap`; `card outside ascension is ignored`.
 - [ ] Teste de guarda: `style.test.ts` sem mudar o hash.
+- [ ] `ui.ts`: `MODE_NAME` ganha `ascension` (o tipo exige), mas o modo fica fora das duas `choice` de modo (sala e votação) até a Fase 2, para o PR não mudar nada visível.
 - [ ] Implementar os ganchos (cada um 1 a 3 linhas chamando `ascension.ts`). Bots desta fase escolhem a carta 0 do sorteio (ao acaso por construção; Normal/Difícil na Fase 3).
 - [ ] `CLAUDE.md`: Registro de decisões (magias sem rebalancear, 21/10) e Mapa do código com `ascension.ts`. `README.md`: o modo existe, ainda sem tela.
 - [ ] Commit `feat: modo Ascensão jogável na sala com bots (sem tela)`.
