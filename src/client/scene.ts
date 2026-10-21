@@ -1832,6 +1832,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // explosão do Meteoro no ponto onde ele cai: o mesmo anel, do tamanho da explosão
   const blastRing = rangeRing.clone();
   scene.add(blastRing);
+  const hits: THREE.Mesh[] = []; // discos do "Ver hitbox", criados conforme precisa
   // faixa de acerto da mira (até 4: a Rajada sai em leque), bem clara para não esconder o chão; plano já deitado, girado só em y
   const bandMat = new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.16, depthWrite: false });
   const bands = CLUSTER_FAN.map(() => {
@@ -1856,6 +1857,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!at || r <= 0) return;
       rangeRing.position.copy(w3(at, 0.04));
       rangeRing.scale.setScalar(r);
+    },
+    // "Ver hitbox (teste)": disco no chão de cada mago (vermelho) e de cada projétil (azul), no tamanho da colisão; null esconde
+    hitboxes(list: { pos: Vec; r: number; wiz: boolean }[] | null) {
+      for (let i = hits.length; i < (list?.length ?? 0); i++) {
+        const m = new THREE.Mesh(new THREE.CircleGeometry(1, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.45, depthWrite: false }));
+        m.renderOrder = 9;
+        scene.add(m);
+        hits.push(m);
+      }
+      hits.forEach((m, i) => {
+        const h = list?.[i];
+        m.visible = !!h;
+        if (!h) return;
+        m.position.copy(w3(h.pos, 0.045));
+        m.scale.setScalar(h.r);
+        (m.material as THREE.MeshBasicMaterial).color.set(h.wiz ? '#ff4040' : '#40c8ff');
+      });
     },
     // faixas de `from` até cada ponta, com meia largura `half`; sem `from` ou lista vazia esconde
     bands(from: Vec | null, ends: Vec[], half: number) {

@@ -2,7 +2,7 @@
 // raio em metros da magia ou item no nível atual, com o multiplicador de alcance dos itens (Elmo); 0 = não mostra.
 import { PROJ_R, PROJ_SPAWN, WIZ_R } from '../shared/constants.ts';
 import { SCOURGE, isActive, itemStats, type ItemId } from '../shared/items.ts';
-import { snowR } from '../shared/sim.ts';
+import { snowR, type ProjKind } from '../shared/sim.ts';
 import { CLUSTER_FAN, RUSH, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, clampLen, norm, scale, sub, v, type Vec } from '../shared/vec.ts';
 
@@ -54,3 +54,8 @@ export function aimOf(a: SpellId | ItemId, spells: Record<SpellId, number>, item
   const half = HALF[a as SpellId];
   return half ? { ...none, ends: [tip(reach)], half } : none;
 }
+
+// "Ver hitbox (teste)" da sandbox: raio no chão de cada coisa, escolhido para que círculos que se encostam = acerto
+// (firstOnSegment testa centro a centro com WIZ_R + raio do projétil). A Bola de neve usa o nível 1 (no 7 são 8 cm a mais);
+// Meteoro, Zona de dobra e Gravidade não batem em mago e já mostram a própria área
+export const hitR = (k: ProjKind) => (k === 'illusion' ? WIZ_R : k === 'snowball' ? snowR(1) : k === 'meteor' || k === 'warpzone' || k === 'gravity' ? 0 : PROJ_R);

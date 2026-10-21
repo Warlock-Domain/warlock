@@ -1,5 +1,5 @@
 import { inLavaAt, type ArenaId } from '../shared/arena.ts';
-import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, SUDDEN, type RuneKind } from '../shared/constants.ts';
+import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
 import type { BotSetup, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { BotSkill } from '../shared/bots.ts';
@@ -14,7 +14,7 @@ import { LOOK_EVENT, saveLook, savedLook } from './avatar.ts';
 import { coachTip } from './coach.ts';
 import { PROFILE_KEY, addRound, toSkill, type Profile } from './mimic.ts';
 import { n1 } from './rules-text.ts';
-import { aimOf, reachOf } from './reach.ts';
+import { aimOf, hitR, reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t } from './i18n.ts';
@@ -231,6 +231,7 @@ function startRoom(code: string, name: string) {
   let trainSetup: BotSetup[] | undefined; // magias dos bots do último treino
   let shadow = false; // treino contra a sombra: o bot aparece como "Sombra" (só nesta tela)
   let seeInvis = false; // visão de teste só quando o jogador pedir explicitamente
+  let seeHit = false; // sandbox: "Ver hitbox (teste)"
   // desafio curto: pending espera a loja da rodada 0 (começo ou Repetir); run conta a tarefa; runRound = rodada em que ela acabou
   let pending: Challenge | null = null;
   let run: Run | null = null;
@@ -292,6 +293,7 @@ function startRoom(code: string, name: string) {
     ready: () => net.send({ t: 'ready' }),
     sandbox: (cmd) => net.send({ t: 'sandbox', cmd }),
     seeInvis: (on) => (seeInvis = on),
+    seeHit: (on) => (seeHit = on),
     spell: (s) => input.button(s),
     hover: (a) => (hovered = a),
     volumes: sound.volumes,
@@ -789,6 +791,8 @@ function startRoom(code: string, name: string) {
     const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, myPos, aimAt) : null;
     scene.range(showing && myPos ? myPos : null, reach, shape?.blastAt ?? null, shape?.blastR ?? 0);
     scene.bands(myPos, shape?.ends ?? [], shape?.half ?? 0);
+    // nas posições desenhadas (as mesmas da tela), para ver se o erro foi mira, desvio ou a bola no ar enganando
+    scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
     view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,

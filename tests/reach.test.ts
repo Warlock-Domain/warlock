@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aimOf, blastOf, reachOf } from '../src/client/reach.ts';
+import { aimOf, blastOf, hitR, reachOf } from '../src/client/reach.ts';
 import { PROJ_R, PROJ_SPAWN, WIZ_R } from '../src/shared/constants.ts';
 import { SCOURGE, noItems } from '../src/shared/items.ts';
 import { snowR } from '../src/shared/sim.ts';
@@ -72,5 +72,12 @@ describe('largura do acerto e explosão na mira (pedido do Fernando, 21/10)', ()
   it('Drenar vira no ponto mirado: a faixa para ali; sem faixa no Bumerangue, Míssil, Divisor e magias sem projétil', () => {
     expect(aimOf('drain', all, noItems(), from, at).ends[0].x).toBeCloseTo(2);
     for (const s of ['boomerang', 'homing', 'splitter', 'teleport', 'shield', 'scourge'] as const) expect(aimOf(s, all, noItems(), from, at)).toMatchObject({ ends: [], blastR: 0 });
+  });
+});
+
+describe('hitbox de verdade na sandbox (pedido do Fernando, 21/10)', () => {
+  it('círculos que se encostam = acerto: mago e Ilusão com WIZ_R, projétil com o raio dele; sem círculo no que não bate', () => {
+    expect([hitR('fireball'), hitR('shard'), hitR('swap'), hitR('snowball'), hitR('illusion')]).toEqual([PROJ_R, PROJ_R, PROJ_R, snowR(1), WIZ_R]);
+    for (const k of ['meteor', 'warpzone', 'gravity'] as const) expect(hitR(k)).toBe(0);
   });
 });
