@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { blastOf, reachOf } from '../src/client/reach.ts';
-import { OBSTACLES, PROJ_R, PROJ_SPAWN, WALL_GAP } from '../src/shared/constants.ts';
+import { aimOf, blastOf, hitR, reachOf } from '../src/client/reach.ts';
+import { OBSTACLES, PROJ_R, PROJ_SPAWN, WALL_GAP, WIZ_R } from '../src/shared/constants.ts';
 import { SCOURGE, noItems } from '../src/shared/items.ts';
 import { snowR } from '../src/shared/sim.ts';
 import { CLUSTER_FAN, LIGHTNING, RUSH, SPELL_IDS, SPLITTER, THRUST, noSpells, spellLevel } from '../src/shared/spells.ts';
@@ -19,6 +19,14 @@ describe('círculo de alcance', () => {
     expect(blastOf('warpzone', spells)).toBeCloseTo(spellLevel('warpzone', 3).radius);
     expect(blastOf('rockpillar', spells)).toBeCloseTo(WALL_GAP + OBSTACLES.rockpillar.r);
     expect([blastOf('warpzone', noSpells()), blastOf('rockpillar', noSpells())]).toEqual([0, 0]);
+  });
+  it('na mira, as magias de área mostram só o círculo no ponto mirado', () => {
+    const spells = { ...noSpells(), grip: 1, warpzone: 1, rockpillar: 1 };
+    for (const s of ['grip', 'warpzone', 'rockpillar'] as const) {
+      const a = aimOf(s, spells, noItems(), v(0, 0), v(3, 0));
+      expect([a.segs.length, a.blastR]).toEqual([0, blastOf(s, spells)]);
+      expect(a.blastAt).toEqual(v(3, 0));
+    }
   });
   it('mostra o alcance do nível atual; o Elmo encurta 10%', () => {
     const spells = { ...noSpells(), lightning: 3 };
@@ -61,7 +69,7 @@ describe('largura do acerto e explosão na mira (pedido do Fernando, 21/10)', ()
     expect(fb.blastR).toBe(0);
     expect(aimOf('lightning', all, noItems(), from, at)).toMatchObject({ half: LIGHTNING.width, segs: [[from, v(reach('lightning'), 0)]] }); // largura extra do Raio
     expect(aimOf('snowball', all, noItems(), from, at).half).toBeCloseTo(snowR(1));
-    for (const s of ['grip', 'magnetize', 'bouncer', 'recharge', 'link', 'swap'] as const) expect(aimOf(s, all, noItems(), from, at).half).toBeCloseTo(PROJ_R);
+    for (const s of ['magnetize', 'bouncer', 'recharge', 'link', 'swap'] as const) expect(aimOf(s, all, noItems(), from, at).half).toBeCloseTo(PROJ_R);
   });
 
   it('Rajada: uma faixa por projétil do leque', () => {

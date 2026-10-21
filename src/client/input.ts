@@ -17,7 +17,7 @@ export type InputHandlers = {
   zoom: (deltaY: number) => void;
   pan: (dx: number, dy: number) => void;
   armedChanged: (armed: SpellId | ItemId | null) => void;
-  preview: (held: SpellId | ItemId | null, flash?: boolean) => void; // tecla segurada (círculo de alcance); flash: só o anel, sem a área no cursor
+  preview: (held: SpellId | ItemId | null) => void; // tecla segurada (círculo de alcance)
   padRange: (aiming: SpellId | ItemId | null) => void; // controle mirando com o analógico direito
   // controle: posição do próprio mago (para andar e mirar) e o retículo no chão
   me: () => Vec | null;
@@ -137,10 +137,9 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
         return h.preview(action);
       }
       const p = h.pick(cursor.x, cursor.y);
-      // Rápido: o anel de alcance pisca por um instante quando a magia sai (issue #61); a área já caiu no ponto,
-      // então o círculo dela não pisca junto, senão ficaria seguindo o mouse (Fernando, 21/10, PR #169)
+      // Rápido: o anel de alcance pisca por um instante quando a magia sai (issue #61)
       if (p && fire(action, p)) {
-        h.preview(action, true);
+        h.preview(action);
         clearTimeout(flash);
         flash = setTimeout(() => !held && h.preview(null), 400);
       }

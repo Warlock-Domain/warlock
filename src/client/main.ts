@@ -219,7 +219,6 @@ function startRoom(code: string, name: string) {
   let armed: SpellId | ItemId | null = null;
   // círculo de alcance: tecla segurada, magia escolhida no botão (toque no chão para lançar) ou controle mirando
   let held: SpellId | ItemId | null = null;
-  let heldFlash = false; // o held é só o piscar do Rápido depois de lançar: sem a área no cursor
   let padAiming: SpellId | ItemId | null = null;
   let padAt: Vec | null = null; // retículo do controle no chão (explosão do Meteoro)
   let hovered: SpellId | ItemId | null = null; // mouse em cima da magia na barra
@@ -401,7 +400,7 @@ function startRoom(code: string, name: string) {
     zoom: (d) => scene.zoomBy(d),
     pan: (dx, dy) => scene.panBy(dx, dy),
     armedChanged: (s) => (armed = s),
-    preview: (s, flash = false) => ((held = s), (heldFlash = flash)),
+    preview: (s) => (held = s),
     padRange: (s) => (padAiming = s),
     me: () => (myWizard(interp.latest())?.alive ? (drawn.get(me) ?? null) : null),
     aim: (at) => ((padAt = at), scene.aim(at)),
@@ -785,10 +784,15 @@ function startRoom(code: string, name: string) {
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
     const reach = showing && meP ? reachOf(showing, meP.spells, meP.items) : 0;
-    // magia de área (blastOf): o círculo onde ela cai (no cursor ou no retículo do controle, sem passar do alcance)
-    const blast = showing && meP && !heldFlash ? blastOf(showing, meP.spells) : 0;
-    const aimAt = blast && myPos ? (padAiming ? padAt : input.aimPoint()) : null;
-    scene.range(showing && myPos ? myPos : null, reach, aimAt && myPos ? add(myPos, clampLen(sub(aimAt, myPos), reach)) : null, blast);
+    // mira de verdade (tecla segurada no Segurar, magia escolhida ou controle): faixa de acerto e explosão rumo ao cursor ou retículo.
+    // No Rápido a tecla segurada é só o anel piscando depois de lançar, e o mouse na barra não aponta o chão: nada segue o mouse
+    const aiming = showing && (armed ?? padAiming ?? (getCastMode() === 'release' ? held : null));
+    const aimAt = aiming ? (padAiming ? padAt : input.aimPoint()) : null;
+    const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, myPos, aimAt) : null;
+    scene.range(showing && myPos ? myPos : null, reach, shape?.blastAt ?? null, shape?.blastR ?? 0);
+    scene.bands(shape?.segs ?? [], shape?.half ?? 0);
+    // nas posições desenhadas (as mesmas da tela), para ver se o erro foi mira, desvio ou a bola no ar enganando
+    scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
     view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
