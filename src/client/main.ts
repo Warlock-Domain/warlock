@@ -227,6 +227,7 @@ function startRoom(code: string, name: string) {
   let armed: SpellId | ItemId | null = null;
   // círculo de alcance: tecla segurada, magia escolhida no botão (toque no chão para lançar) ou controle mirando
   let held: SpellId | ItemId | null = null;
+  let flashAim: { from: Vec; at: Vec } | null = null; // Rápido: de onde e para onde a magia saiu, para a faixa piscar parada ali
   let padAiming: SpellId | ItemId | null = null;
   let padAt: Vec | null = null; // retículo do controle no chão (explosão do Meteoro)
   let hovered: SpellId | ItemId | null = null; // mouse em cima da magia na barra
@@ -412,7 +413,11 @@ function startRoom(code: string, name: string) {
     zoom: (d) => scene.zoomBy(d),
     pan: (dx, dy) => scene.panBy(dx, dy),
     armedChanged: (s) => (armed = s),
-    preview: (s) => (held = s),
+    preview: (s, at) => {
+      held = s;
+      const from = drawn.get(me);
+      flashAim = at && from ? { from, at } : null;
+    },
     padRange: (s) => (padAiming = s),
     me: () => (myWizard(interp.latest())?.alive ? (drawn.get(me) ?? null) : null),
     aim: (at) => ((padAt = at), scene.aim(at)),
@@ -798,10 +803,12 @@ function startRoom(code: string, name: string) {
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
     const reach = showing && meP ? reachOf(showing, meP.spells, meP.items) : 0;
     // mira de verdade (tecla segurada no Segurar, magia escolhida ou controle): faixa de acerto e explosão rumo ao cursor ou retículo.
-    // No Rápido a tecla segurada é só o anel piscando depois de lançar, e o mouse na barra não aponta o chão: nada segue o mouse
-    const aiming = showing && (armed ?? padAiming ?? (getCastMode() === 'release' ? held : null));
-    const aimAt = aiming ? (padAiming ? padAt : input.aimPoint()) : null;
-    const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, myPos, aimAt) : null;
+    // No Rápido a tecla é o piscar depois de lançar: a faixa fica parada onde a magia saiu (flashAim), e o mouse na barra não aponta
+    // o chão: nada segue o mouse
+    const frozen = armed || padAiming ? null : flashAim;
+    const aiming = showing && (armed ?? padAiming ?? (getCastMode() === 'release' || frozen ? held : null));
+    const aimAt = aiming ? (padAiming ? padAt : (frozen?.at ?? input.aimPoint())) : null;
+    const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, frozen?.from ?? myPos, aimAt) : null;
     scene.range(showing && myPos ? myPos : null, reach, shape?.blastAt ?? null, shape?.blastR ?? 0);
     scene.bands(shape?.segs ?? [], shape?.half ?? 0);
     // nas posições desenhadas (as mesmas da tela), para ver se o erro foi mira, desvio ou a bola no ar enganando
