@@ -2,6 +2,7 @@
 // com os números lidos do código. Clique ou toque fixa a explicação (✕, Esc ou toque fora fecham); mouse em cima e foco pelo teclado mostram.
 import { BOT_SKILL } from '../shared/bots.ts';
 import { ARENA_IDS } from '../shared/arena.ts';
+import { ASC_MODE_TEXT } from './ascension-ui.ts';
 import { ASSIST_GOLD, CHEST, COUNTDOWN_MS, DM_RESPAWN, DM_ROUND_MS, KILL_GOLD, RECOVERY, ROUND_EFFECT_IDS, ROUND_EFFECTS, ROUND_END_MS, ROUND_GOLD, RUNE, SUDDEN, TOP_DMG_GOLD, WIN_GOLD, type RoundEffectId } from '../shared/constants.ts';
 import { DM_GOALS, OPTION_CHOICES, PACE, type MatchOpts, type Mode } from '../shared/match.ts';
 import { arenaName, t } from './i18n.ts';
@@ -19,7 +20,7 @@ const ARENA_TEXT: Record<(typeof ARENA_IDS)[number], string> = {
 };
 // nomes do ritmo e da dificuldade (aqui e nas opções da sala)
 export const PACE_NAME: Record<MatchOpts['pace'], string> = { short: t('Curto', 'Short'), normal: 'Normal', long: t('Longo', 'Long') };
-export const SKILL_NAME: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), normal: 'Normal', hard: t('Difícil', 'Hard'), auto: t('Automático', 'Auto') };
+export const SKILL_NAME: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), casual: 'Casual', normal: 'Normal', veteran: t('Veterano', 'Veteran'), hard: t('Difícil', 'Hard'), auto: t('Automático', 'Auto') };
 // efeitos de rodada (constants.ts ROUND_EFFECTS): nome curto (opção, faixa da contagem) e o que muda (linha da rodada, explicação)
 export const EFFECT_NAME: Record<RoundEffectId, string> = {
   // nomes do Fernando (21/10); os ids ficaram os antigos (lava, swords, speed) para não mexer no protocolo nem nas salas gravadas

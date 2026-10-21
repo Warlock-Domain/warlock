@@ -36,7 +36,7 @@ const outDir = arg.out!;
 if (arg.arena !== 'random' && !(ARENA_IDS as readonly string[]).includes(arg.arena!)) throw new Error('arena desconhecida: ' + arg.arena);
 const arenaOpt = arg.arena as MatchOpts['arena'];
 if (!(OPTION_CHOICES.effect as readonly string[]).includes(arg.effect!)) throw new Error('efeito desconhecido: ' + arg.effect);
-if (!['easy', 'normal', 'hard'].includes(arg.difficulty!)) throw new Error('dificuldade desconhecida: ' + arg.difficulty);
+if (!['easy', 'casual', 'normal', 'veteran', 'hard'].includes(arg.difficulty!)) throw new Error('dificuldade desconhecida: ' + arg.difficulty);
 mkdirSync(outDir, { recursive: true });
 
 const rng = seedRandom(seed);

@@ -342,6 +342,9 @@ type OptKey = keyof MatchOpts;
 // o servidor ainda aceita, para salas antigas
 const FIXED: Partial<MatchOpts> = { pace: DEFAULT_OPTS.pace, sudden: DEFAULT_OPTS.sudden, difficulty: DEFAULT_OPTS.difficulty };
 const OPT_KEYS = (Object.keys(OPTION_CHOICES) as OptKey[]).filter((k) => !(k in FIXED));
+// Ascensão: sem ouro, loja, baús e meta (9 rodadas fixas), então essas opções somem da sala
+const ASC_OFF: OptKey[] = ['shop', 'economy', 'startGold', 'goal', 'chests'];
+const optKeys = (mode: Mode) => (mode === 'ascension' ? OPT_KEYS.filter((k) => !ASC_OFF.includes(k)) : OPT_KEYS);
 const OPT_NAME: Record<OptKey, string> = { shop: t('Tempo de loja', 'Shop time'), pace: t('Contagem e fim de rodada', 'Countdown and round end'), economy: t('Ouro ganho', 'Gold earned'), startGold: t('Ouro inicial', 'Starting gold'), goal: t('Vence com', 'Wins with'), runes: t('Runas', 'Runes'), sudden: t('Morte súbita', 'Sudden death'), chests: t('Baús de ouro', 'Gold chests'), difficulty: t('Dificuldade dos bots', 'Bot difficulty'), arena: 'Arena', effect: t('Efeito de rodada', 'Round effect') };
 function optText(k: OptKey, val: MatchOpts[OptKey], mode: Mode): string {
   if (k === 'shop') return (val as number) >= 120 ? '2 min' : `${val} s`;
@@ -362,7 +365,10 @@ function optsLine(o: MatchOpts, mode: Mode): string {
   const bots = o.difficulty !== 'normal' ? [{ easy: t('bots fáceis', 'easy bots'), casual: t('bots casuais', 'casual bots'), veteran: t('bots veteranos', 'veteran bots'), hard: t('bots difíceis', 'hard bots'), auto: t('bots automáticos', 'auto bots') }[o.difficulty]] : [];
   const arena = o.arena !== 'random' ? [t('arena ' + arenaName(o.arena), arenaName(o.arena) + ' arena')] : [];
   const effect = o.effect === 'random' ? [t('efeito sorteado', 'random effect')] : o.effect !== 'off' ? [EFFECT_NAME[o.effect]] : [];
-  return [t(`Loja ${optText('shop', o.shop, mode)}`, `Shop ${optText('shop', o.shop, mode)}`), t(`Ouro ×${n1(o.economy)}`, `Gold ×${n1(o.economy)}`), t(`Vence com ${optText('goal', o.goal, mode)}`, `Wins with ${optText('goal', o.goal, mode)}`), ...arena, ...effect, ...bots, ...off].join(' · ');
+  // Ascensão: sem loja, ouro nem meta (9 rodadas fixas)
+  const head = mode === 'ascension' ? [t(`${ASC_ROUNDS} rodadas`, `${ASC_ROUNDS} rounds`)]
+    : [t(`Loja ${optText('shop', o.shop, mode)}`, `Shop ${optText('shop', o.shop, mode)}`), t(`Ouro ×${n1(o.economy)}`, `Gold ×${n1(o.economy)}`), t(`Vence com ${optText('goal', o.goal, mode)}`, `Wins with ${optText('goal', o.goal, mode)}`)];
+  return [...head, ...arena, ...effect, ...bots, ...off].join(' · ');
 }
 // texto de uma votação aberta
 function voteText(v: { kind: Vote['kind']; target: string }, mode: Mode, name: (id: string) => string): string {
@@ -1634,7 +1640,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       roundEl.textContent = [
         // sala de espera e fim da partida: a rodada já não diz nada
         r.sandbox && r.phase !== 'lobby' && r.phase !== 'end' ? t('Sandbox · vida e ouro sem fim', 'Sandbox · endless health and gold')
-          : r.round > 0 && r.phase !== 'lobby' && r.phase !== 'end' ? (r.mode === 'deathmatch' ? t(`Deathmatch · rodada ${r.round} · ${r.goal} abates para vencer`, `Deathmatch · round ${r.round} · ${r.goal} kills to win`) : t(`${r.mode === 'teams' ? 'Times · ' : ''}Rodada ${r.round} · vence quem fizer ${r.goal}`, `${r.mode === 'teams' ? 'Teams · ' : ''}Round ${r.round} · first to ${r.goal} wins`)) : '',
+          : r.round > 0 && r.phase !== 'lobby' && r.phase !== 'end' ? (r.mode === 'deathmatch' ? t(`Deathmatch · rodada ${r.round} · ${r.goal} abates para vencer`, `Deathmatch · round ${r.round} · ${r.goal} kills to win`) : r.mode === 'ascension' ? t(`Ascensão · rodada ${r.round} de ${r.goal}`, `Ascension · round ${r.round} of ${r.goal}`) : t(`${r.mode === 'teams' ? 'Times · ' : ''}Rodada ${r.round} · vence quem fizer ${r.goal}`, `${r.mode === 'teams' ? 'Teams · ' : ''}Round ${r.round} · first to ${r.goal} wins`)) : '',
         // na loja o efeito já é o da próxima rodada (sorteado antes, para comprar sabendo)
         // só o nome: a descrição longa (Arena de espinhos) passava por cima do aviso "Arena encolhe em X s" no centro; ela fica na dica
         r.effect && r.phase === 'shop' ? t(`Próxima rodada: ${EFFECT_NAME[r.effect]}`, `Next round: ${EFFECT_NAME[r.effect]}`)

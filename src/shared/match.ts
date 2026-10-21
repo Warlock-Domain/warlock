@@ -169,6 +169,7 @@ export type Match = {
   sandbox?: Sandbox; // só nas salas sandbox (escolhido no começo da partida)
   roundPaid?: string[]; // quem já recebeu o ouro garantido desta rodada (paga na queda)
   nextEffect?: RoundEffectId | null; // efeito da próxima rodada, sorteado antes da loja para cada um comprar sabendo
+  asc?: AscState; // só no modo Ascensão: XP, escolhas de carta e ordem de queda (ascension.ts)
 };
 
 export const newMatch = (): Match => ({
