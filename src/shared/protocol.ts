@@ -252,7 +252,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     mode: m.mode,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy, turret, watch }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }), ...(turret && { turret: true as const }), ...(watch && { watch: true as const }) })),
+    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy, turret, watch }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }), ...(turret && { turret: true as const }), ...(watch && { watch: true as const }), ...(m.asc && { asc: ascOf(m.asc, id) }) })),
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),

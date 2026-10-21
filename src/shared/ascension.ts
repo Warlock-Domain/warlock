@@ -162,7 +162,7 @@ export function ascShop(m: Match, now: number, rand: () => number) {
   const a = m.asc!;
   const late = now >= m.phaseEnds;
   const top = Math.max(...m.players.map((p) => lv(a, p.id)));
-  for (const p of m.players) {
+  for (const p of m.players.filter((q) => !q.watch)) { // quem só assiste não escolhe carta
     const todo = (a.todo[p.id] ??= []);
     while (todo.length) {
       const rare = Math.min(RARE_MAX, RARE_PER_LEVEL * (top - lv(a, p.id)));

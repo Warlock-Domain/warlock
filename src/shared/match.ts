@@ -275,7 +275,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   }
   // quem assiste não conta: dá para pôr só bots em campo e assistir a partida
   if (playing(m).length < (sandbox ? 1 : 2)) return false;
-  fresh(m, now, mode, teamShuffle, rand);
+  fresh(m, now, sandbox && mode === 'ascension' ? 'rounds' : mode, teamShuffle, rand); // a sandbox fica fora do Ascensão
   return true;
 }
 
@@ -638,7 +638,8 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   const teams = m.mode === 'teams' ? Object.fromEntries(playing(m).map((p) => [p.id, p.team ?? 0])) : {};
   // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
   const arena = m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
-  m.world = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests }, arena);
+  m.world = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests && !m.asc }, arena);
+  if (m.asc) ascMark(m);
   if (m.sandbox) m.world.shrink = m.sandbox.shrink; // a sandbox usa o mundo do deathmatch: não encolhe (a não ser que peçam) e quem morre volta
   m.phase = 'countdown';
   m.phaseEnds = now + COUNTDOWN_MS * PACE[m.opts.pace];
@@ -847,6 +848,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   const sb = m.sandbox;
   if (sb) for (const p of m.players) if (!p.bot) p.gold = SANDBOX_GOLD; // sandbox: ouro sem fim para os humanos
   if (m.phase === 'shop') {
+    if (m.asc) ascShop(m, now, rand);
     const humans = m.players.filter((p) => !p.bot && p.connected && !p.watch);
     // a sandbox pula a loja (ela abre a qualquer hora)
     if (now >= m.phaseEnds || humans.every((p) => p.ready) || sb) enterCountdown(m, now, rand);
