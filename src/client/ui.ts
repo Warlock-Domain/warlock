@@ -310,6 +310,7 @@ type RoomActions = {
   rename: () => void;
   sandbox: (cmd: SandboxCmd) => void; // painel da sandbox
   seeInvis: (on: boolean) => void; // sandbox: invisíveis meio transparentes (só nesta tela)
+  seeHit: (on: boolean) => void; // sandbox: discos da colisão real no chão (só nesta tela)
 };
 
 type Level = MatchOpts['difficulty'];
@@ -745,6 +746,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     rule('noCd', t('Sem recarga', 'No cooldowns')),
     rule('shrink', t('Encolher a arena', 'Shrink the arena')),
     check(t('Ver invisíveis (teste)', 'See invisible wizards (test)'), false, act.seeInvis).row,
+    check(t('Ver hitbox (teste)', 'Show hitboxes (test)'), false, act.seeHit).row,
     el('div', { class: 'sandbox-row' },
       el('select', { 'aria-label': t('Dificuldade do bot', 'Bot difficulty'), onchange: (e: Event) => (sbLevel = (e.target as HTMLSelectElement).value as Level) },
         ...(['easy', 'normal', 'hard'] as const).map((k) => el('option', { value: k, selected: k === sbLevel }, SKILL_NAME[k]))),

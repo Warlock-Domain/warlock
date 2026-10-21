@@ -2,8 +2,9 @@
 // raio em metros da magia ou item no nível atual, com o multiplicador de alcance dos itens (Elmo); 0 = não mostra.
 import { OBSTACLES, PROJ_R, PROJ_SPAWN, WALL_GAP } from '../shared/constants.ts';
 import { SCOURGE, isActive, itemStats, type ItemId } from '../shared/items.ts';
-import { snowR } from '../shared/sim.ts';
-import { RUSH, spellLevel, type SpellId } from '../shared/spells.ts';
+import { snowR, type ProjKind } from '../shared/sim.ts';
+import { CLUSTER_FAN, LIGHTNING, RUSH, SPLITTER, THRUST, spellLevel, type SpellId } from '../shared/spells.ts';
+import { add, clampLen, len, norm, scale, sub, v, type Vec } from '../shared/vec.ts';
 
 // projéteis que saem na frente do mago e voam o alcance: o anel marca até onde a ponta chega, então inimigo que encosta
 // no anel é atingido (Fernando, 20/10, issue #82; antes ficava 0,8 m curto)
