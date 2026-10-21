@@ -3,12 +3,12 @@ import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
 import { CHARACTERS, fixLook, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
-  ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
+  ARENA_MIN, ARENA_STEP, ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R, arenaRadius,
   type RuneKind,
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
 import type { BotSetup } from './protocol.ts';
-import { gearOf, newWorld, placeRune, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
+import { gearOf, newWorld, placeRune, resizeArena, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
 import { MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { dist, len, type Vec } from './vec.ts';
 
@@ -122,9 +122,14 @@ export type SandboxCmd =
   | { op: 'set'; key: keyof Sandbox; on: boolean }
   | { op: 'bot'; bot?: BotSetup; dummy?: boolean }
   | { op: 'turret'; direction: NonNullable<Player['turret']> }
+  | { op: 'arena'; arena: ArenaId } // forma escolhida: reinicia a rodada e fica nos reinícios seguintes (pedido do Fernando, 20/10)
+  | { op: 'radius'; step: 1 | -1 } // pedra uma faixa maior ou menor, na hora (volta ao padrão no reinício)
   | { op: 'rune'; kind: RuneKind } // runa escolhida ao lado de quem pediu (pedido do Sky, 20/10)
   | { op: 'restart' };
 const SANDBOX_GOLD = 9999;
+// teto da pedra na sandbox: o raio com 10 magos (14,9 m), duas faixas de folga acima da maior arena real (8 magos, 13,6 m);
+// na forma mais larga (Ilhas, 1,63 × raio) fica em 24 m, dentro do MAX_COORD (30 m) do protocolo, então o clique ainda alcança a pedra
+const SANDBOX_R_MAX = arenaRadius(10);
 
 export type Match = {
   phase: Phase;
@@ -217,6 +222,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   if (m.phase !== 'lobby' && m.phase !== 'end') return false;
   m.opts = { ...m.opts, ...opts };
   m.sandbox = sandbox ? { god: true, noCd: false, shrink: false } : undefined;
+  // começa redonda; a forma escolhida no painel fica em m.opts.arena e a sandbox nunca sorteia
   if (sandbox) m.opts = { ...m.opts, arena: 'circle' };
   m.players = m.players.filter((p) => !p.bot && p.connected);
   const solo = m.players.length === 1;
@@ -585,7 +591,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   const ids = m.players.map((p) => p.id);
   const teams = m.mode === 'teams' ? Object.fromEntries(m.players.map((p) => [p.id, p.team ?? 0])) : {};
   // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
-  const arena = m.sandbox ? 'circle' : m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
+  const arena = m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
   m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests }, arena);
   if (m.sandbox) m.world.shrink = m.sandbox.shrink; // a sandbox usa o mundo do deathmatch: não encolhe (a não ser que peçam) e quem morre volta
   m.phase = 'countdown';
@@ -656,7 +662,7 @@ function afterRound(m: Match, now: number) {
 
 const EMPTY_ROUNDS_END = 3;
 
-// painel da sandbox: ligar/desligar regras, pôr bot (tirar é o 'kick'), pôr runa, trocar a arena e reiniciar a rodada; fora da sandbox não faz nada
+// painel da sandbox: ligar/desligar regras, pôr bot (tirar é o 'kick'), pôr runa, trocar a arena, mudar o tamanho da pedra e reiniciar a rodada; fora da sandbox não faz nada
 // id: quem mandou (a runa nasce ao lado dele)
 export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boolean {
   const sb = m.sandbox;
@@ -696,7 +702,16 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boo
     refit(m, b);
     return true;
   }
-  // reiniciar: mundo novo com todos no ponto de partida e vida cheia, depois da contagem
+  if (cmd.op === 'radius') {
+    const w = m.world;
+    if (!w) return false;
+    const r = Math.min(SANDBOX_R_MAX, Math.max(ARENA_MIN, w.arenaR + cmd.step * ARENA_STEP));
+    // como a runa: só o mundo muda e o raio vai no snapshot (o cliente desenha crescendo ou encolhendo), então a sala não grava
+    if (Math.abs(r - w.arenaR) > 1e-9) resizeArena(w, r);
+    return false;
+  }
+  if (cmd.op === 'arena') m.opts = { ...m.opts, arena: cmd.arena };
+  // reiniciar (e trocar a arena): mundo novo com todos no ponto de partida e vida cheia, depois da contagem
   enterCountdown(m, now, Math.random);
   return true;
 }
