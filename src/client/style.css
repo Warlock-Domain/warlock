@@ -1194,9 +1194,11 @@ div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: 
 .asc-xp { display: flex; align-items: center; gap: 10px; }
 .asc-bar { flex: 1; height: 8px; border-radius: var(--r-xs); background: var(--panel2); border: 1px solid var(--line); overflow: hidden; }
 .asc-bar i { display: block; height: 100%; background: var(--gold); }
-.asc-pick { margin: 0 0 8px; font-weight: 600; }
+.asc-pick { margin: 0; font-weight: 600; }
+.asc-rows { display: flex; flex-direction: column; gap: 12px; }
+.asc-row h3 { margin: 0 0 6px; font-size: .95rem; }
 .asc-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-.asc-card { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; padding: 12px; min-height: 180px; text-align: left; border: 2px solid var(--g, var(--bronze)); border-radius: var(--r-md); }
+.asc-card { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; padding: 10px 12px; min-height: 130px; text-align: left; border: 2px solid var(--g, var(--bronze)); border-radius: var(--r-md); }
 .asc-card .ico { display: flex; font-size: 2.2rem; color: var(--g, var(--ember)); }
 .asc-card .asc-kind { font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--g, var(--muted)); }
 .asc-card small { color: var(--muted); }

@@ -177,7 +177,7 @@ export class Room extends DurableObject<Env> {
         if (reroll(m, id)) await this.changed();
         return;
       case 'card':
-        if (pickCard(m, id, msg.i, msg.swap)) await this.changed();
+        if (pickCard(m, id, msg.slot, msg.i, msg.swap)) await this.changed();
         return;
       case 'pick':
         if (setLook(m, id, lookOf(msg.character))) await this.changed();
@@ -306,7 +306,7 @@ export class Room extends DurableObject<Env> {
     this.last = now;
     // a votação entra na conta para o fim por tempo (e a troca de modo) chegar aos clientes
     // Ascensão: as cartas entram na mesa no passo do intervalo (ascShop), então a mesa e as escolhas também
-    const asc = () => (m.asc ? `${Object.keys(m.asc.offer).length}:${Object.values(m.asc.picks).join()}` : '');
+    const asc = () => (m.asc ? `${Object.keys(m.asc.offer).length}:${Object.values(m.asc.todo).map((t) => t.length).join()}` : '');
     const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}:${asc()}`;
     const before = sig();
     while (this.acc >= STEP_MS) {

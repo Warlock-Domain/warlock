@@ -42,6 +42,7 @@ Um quarto modo de partida, "meio roguelike, tipo o ARAM do LoL com as cartinhas 
 | Baús | Não existem no Ascensão (a opção some da sala nesse modo) |
 | Bots | Escolhem pela dificuldade: Fácil ao acaso; Normal completa grupos que faltam (defesa/mobilidade antes de mais ataque); Difícil escolhe a carta que mais vence no simulador |
 | Crédito de abate por controle (21/10) | Troca, Agarrar e Magnetizar contam como golpe para o crédito do abate (janela de 5 s), **em todos os modos**: "no jogo normal tbm deve contar". Fica em issue própria, fora do Ascensão; o modo só herda |
+| Cartas por intervalo (21/10) | Todo intervalo dá 1 magia nova e 1 item ("no modo assencao todo round deve ganhar ... 1 magia nova e 1 item"); cada nível de XP dá 1 subir magia. Cada escolha é 1 entre 3 cartas do mesmo tipo. Substitui "cada nível = 1 carta de qualquer tipo" |
 | Magias no modo (21/10) | "Por enquanto o modo Ascension vai ser sem skills rebalanceadas": mesmos números de `spells.ts` e `items.ts` dos outros modos |
 
 ## Como funciona

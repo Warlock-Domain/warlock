@@ -364,7 +364,7 @@ export function sell(m: Match, id: string, key: string): boolean {
 
 export function setReady(m: Match, id: string): boolean {
   const p = player(m, id);
-  if (m.phase !== 'shop' || !p || p.ready || m.asc?.picks[id]) return false; // Ascensão: pronto só depois de escolher as cartas
+  if (m.phase !== 'shop' || !p || p.ready || m.asc?.todo[id]?.length) return false; // Ascensão: pronto só depois de escolher as cartas
   p.ready = true;
   return true;
 }

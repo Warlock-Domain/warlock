@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ASC_ROUNDS, CONSOLATION, LEADER_KILL_XP, MARK_KB, applyCard, ascDeath, ascEndRound, autoPick, drawCards, levelOf, placePoints, pickCard, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
 import { addPlayer, buy, castBallot, newMatch, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage } from '../src/shared/protocol.ts';
+import { gearOf } from '../src/shared/sim.ts';
 import { STEP_MS, until } from './helpers.ts';
 import { ITEM_IDS, noItems } from '../src/shared/items.ts';
 import { MAX_SPELL_LEVEL, SPELL_GROUP_IDS, SPELL_IDS, noSpells, spellGroup, type SpellId } from '../src/shared/spells.ts';
@@ -26,22 +27,25 @@ describe('grupos de magia', () => {
 
 describe('cartas do Ascensão', () => {
   it('drawCards same seed same cards', () => {
-    expect(drawCards(mage(), seeded(1))).toEqual(drawCards(mage(), seeded(1)));
+    expect(drawCards(mage(), 'spell', seeded(1))).toEqual(drawCards(mage(), 'spell', seeded(1)));
   });
 
-  it('drawCards gives 3 distinct cards from at least 2 groups', () => {
+  it('drawCards gives 3 distinct cards of the asked kind, new spells from at least 2 groups', () => {
     for (let s = 0; s < 300; s++) {
-      const cards = drawCards(mage(), seeded(s));
-      expect(cards).toHaveLength(3);
-      expect(new Set(cards.map((c) => c.kind + c.id)).size).toBe(3);
-      expect(new Set(cards.map(group)).size).toBeGreaterThanOrEqual(2);
+      for (const kind of ['spell', 'item'] as const) {
+        const cards = drawCards(mage(), kind, seeded(s));
+        expect(cards).toHaveLength(3);
+        expect(cards.every((c) => c.kind === kind)).toBe(true);
+        expect(new Set(cards.map((c) => c.id)).size).toBe(3);
+        if (kind === 'spell') expect(new Set(cards.map(group)).size).toBeGreaterThanOrEqual(2);
+      }
     }
   });
 
   it('drawCards never offers up for a spell at max level nor a new spell already owned', () => {
     const p = mage({ fireball: MAX_SPELL_LEVEL, teleport: 2 });
     for (let s = 0; s < 300; s++) {
-      for (const c of drawCards(p, seeded(s))) {
+      for (const c of [...drawCards(p, 'spell', seeded(s)), ...drawCards(p, 'up', seeded(s))]) {
         if (c.kind === 'up') expect(c.id).toBe('teleport');
         if (c.kind === 'spell') expect(['fireball', 'teleport']).not.toContain(c.id);
       }
@@ -112,18 +116,34 @@ function ascMatch(seed: number, human = false): Match {
 const run = (m: Match, now: number, cond: () => boolean, rand = seeded(9)) => until(m, now, cond, 60 * 60 * 60, rand);
 
 describe('partida do Ascensão', () => {
-  it('start gives fireball, scourge and one pick, no gold', () => {
+  it('start gives fireball, scourge, one new spell and one item to pick, no gold', () => {
     const m = ascMatch(1, true);
     const h = m.players.find((p) => p.id === 'h')!;
-    expect([h.spells.fireball, h.items.scourge, h.gold, m.asc!.picks.h]).toEqual([1, 1, 0, 1]);
-    // o intervalo não acaba sem a escolha dele, nem com o Pronto
+    expect([h.spells.fireball, h.items.scourge, h.gold]).toEqual([1, 1, 0]);
+    expect(m.asc!.todo.h).toEqual(['spell', 'item']);
+    // o intervalo não acaba sem as escolhas dele, nem com o Pronto
     expect(setReady(m, 'h')).toBe(false);
     tickMatch(m, STEP_MS, [], seeded(2));
-    expect(m.asc!.offer.h).toHaveLength(3);
-    expect(m.phase).toBe('shop');
-    expect(pickCard(m, 'h', 0)).toBe(true);
+    expect(m.asc!.offer.h.map((cards) => cards.length)).toEqual([3, 3]);
+    const itemRow = m.asc!.offer.h[1];
+    expect(pickCard(m, 'h', 0, 0)).toBe(true);
+    // a fileira do item fica a mesma depois de escolher a magia
+    expect(m.asc!.offer.h).toEqual([itemRow]);
     tickMatch(m, 2 * STEP_MS, [], seeded(2));
+    expect(m.phase).toBe('shop');
+    expect(pickCard(m, 'h', 0, 2)).toBe(true);
+    tickMatch(m, 3 * STEP_MS, [], seeded(2));
     expect(m.phase).toBe('countdown');
+  });
+
+  it('every break gives one new spell, one item and one spell upgrade per level gained', () => {
+    const m = ascMatch(1, true);
+    const ids = m.players.map((p) => p.id);
+    m.asc!.todo = {};
+    m.players[0].stats.round = { ...m.players[0].stats.round, kills: 0, alive: 0, dmgBy: { fireball: xpFor(3) } };
+    ascEndRound(m, ids, []);
+    expect(m.asc!.todo.h).toEqual(['spell', 'item', 'up', 'up']);
+    expect(m.asc!.todo[ids[1]]).toEqual(['spell', 'item']);
   });
 
   it('shop is closed in ascension', () => {
@@ -158,14 +178,14 @@ describe('partida do Ascensão', () => {
     run(a, 0, () => a.phase === 'playing', seeded(4));
     run(b, 0, () => b.phase === 'playing', seeded(4));
     expect(builds(a)).toEqual(builds(b));
-    expect(a.players.every((p) => Object.values(p.spells).reduce((x, y) => x + y) + Object.values(p.items).reduce((x, y) => x + y) === 3)).toBe(true);
+    expect(a.players.every((p) => Object.values(p.spells).reduce((x, y) => x + y) + Object.values(p.items).reduce((x, y) => x + y) === 4)).toBe(true);
   });
 
   it('shop timeout resolves pending picks', () => {
     const m = ascMatch(1, true);
     run(m, 0, () => m.phase === 'countdown');
-    expect(m.asc!.picks.h).toBe(0);
-    expect(Object.values(m.players[0].spells).reduce((x, y) => x + y) + Object.values(m.players[0].items).reduce((x, y) => x + y)).toBe(3);
+    expect(m.asc!.todo.h).toEqual([]);
+    expect(Object.values(m.players[0].spells).reduce((x, y) => x + y) + Object.values(m.players[0].items).reduce((x, y) => x + y)).toBe(4);
   });
 
   it('resume keeps ascension state', () => {
@@ -196,7 +216,7 @@ describe('partida do Ascensão', () => {
     const m = newMatch();
     addPlayer(m, 'h', 'Ana');
     startMatch(m, 0, 2, 'rounds', true, seeded(1));
-    expect(pickCard(m, 'h', 0)).toBe(false);
+    expect(pickCard(m, 'h', 0, 0)).toBe(false);
   });
 
   it('sandbox stays out of ascension', () => {
@@ -209,9 +229,9 @@ describe('partida do Ascensão', () => {
 
 describe('mensagem card', () => {
   it('card message parses and rejects bad i/swap', () => {
-    expect(parseClientMessage(JSON.stringify({ t: 'card', i: 2 }))).toEqual({ t: 'card', i: 2 });
-    expect(parseClientMessage(JSON.stringify({ t: 'card', i: 0, swap: 'teleport', x: 1 }))).toEqual({ t: 'card', i: 0, swap: 'teleport' });
-    for (const bad of [{ i: 3 }, { i: -1 }, { i: 1.5 }, { i: '1' }, { i: 0, swap: 'nada' }]) expect(parseClientMessage(JSON.stringify({ t: 'card', ...bad }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ t: 'card', slot: 1, i: 2 }))).toEqual({ t: 'card', slot: 1, i: 2 });
+    expect(parseClientMessage(JSON.stringify({ t: 'card', slot: 0, i: 0, swap: 'teleport', x: 1 }))).toEqual({ t: 'card', slot: 0, i: 0, swap: 'teleport' });
+    for (const bad of [{ i: 3 }, { i: -1 }, { i: 1.5 }, { i: '1' }, { i: 0, swap: 'nada' }, { i: 0, slot: -1 }, { i: 0, slot: 'a' }]) expect(parseClientMessage(JSON.stringify({ t: 'card', slot: 0, ...bad }))).toBeNull();
   });
 });
 
@@ -246,7 +266,8 @@ describe('recuperação e bots do Ascensão', () => {
     const ids = m.players.map((p) => p.id);
     ascEndRound(m, ids, []);
     expect(ids.map((id) => m.asc!.rerolls[id])).toEqual([0, 1, 0, 1]);
-    const rare = drawCards({ spells: { ...noSpells(), teleport: 1, swap: 1, shield: 1, grip: 1, lightning: 1 }, items: { ...noItems(), ring: 6, cape: 6 } }, seeded(3), 1);
+    const rare = drawCards({ spells: { ...noSpells(), teleport: 1, swap: 1, shield: 1, grip: 1, lightning: 1 }, items: noItems() }, 'up', seeded(3), 1);
+    expect(rare).toHaveLength(3);
     expect(rare.filter((c) => c.kind === 'up').every((c) => c.kind === 'up' && c.rare)).toBe(true);
     const p = mage();
     applyCard(p, { kind: 'up', id: 'fireball', rare: true });
@@ -269,7 +290,9 @@ describe('recuperação e bots do Ascensão', () => {
     const now = run(m, 0, () => m.phase === 'playing');
     const z = m.world!.wizards.find((q) => q.id === m.players[0].id)!;
     const other = m.world!.wizards.find((q) => q.id === m.players[2].id)!;
-    expect(other.kbResist - z.kbResist).toBeCloseTo(MARK_KB * 2);
+    // o item da carta inicial também mexe no empurrão: a marca é o que sobra além dele
+    expect(gearOf(m.players[0].items).kbResist - z.kbResist).toBeCloseTo(MARK_KB * 2);
+    expect(other.kbResist).toBeCloseTo(gearOf(m.players[2].items).kbResist);
     expect(now).toBeGreaterThan(0);
   });
 

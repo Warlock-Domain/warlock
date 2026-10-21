@@ -1,5 +1,6 @@
-// Modo Ascensão (desenho em docs/superpowers/specs/2026-10-19-ascensao-design.md): XP do mago, 1 entre 3 cartas por nível no
-// intervalo, 9 rodadas e pontos pela ordem de queda. Toda a regra do modo mora aqui (pedido do Fernando, 19/10: "deixe o código do
+// Modo Ascensão (desenho em docs/superpowers/specs/2026-10-19-ascensao-design.md): todo intervalo dá 1 magia nova e 1 item
+// (Fernando, 21/10: "1 magia nova e 1 item"), e cada nível de XP dá 1 subir magia; cada escolha é 1 entre 3 cartas.
+// 9 rodadas e pontos pela ordem de queda. Toda a regra do modo mora aqui (pedido do Fernando, 19/10: "deixe o código do
 // ascension mais separado pois vai mudar muita coisa da core gameplay"); match.ts só chama estas funções atrás de `m.asc`.
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
 import type { Match, Player, Stat } from './match.ts';
@@ -7,9 +8,12 @@ import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, spellCount, spellGroup, type Sp
 
 // rare: carta rara (só de subir magia): sobe 2 níveis
 export type Card = { kind: 'spell'; id: SpellId } | { kind: 'up'; id: SpellId; rare?: true } | { kind: 'item'; id: ItemId };
-// xp: total da partida; picks: escolhas que faltam; offer: as 3 cartas na mesa; fallen: ordem de queda da rodada;
-// extra: XP da rodada por derrubar o líder; rerolls: novos sorteios do intervalo (quem está atrás do líder)
-export type AscState = { xp: Record<string, number>; picks: Record<string, number>; offer: Record<string, Card[]>; fallen: string[]; extra: Record<string, number>; rerolls: Record<string, number> };
+export type Kind = Card['kind'];
+// xp: total da partida; todo: escolhas que faltam no intervalo, pelo tipo; offer: as cartas na mesa de cada escolha (mesma ordem);
+// fallen: ordem de queda da rodada; extra: XP da rodada por derrubar o líder; rerolls: novos sorteios do intervalo (quem está atrás)
+export type AscState = { xp: Record<string, number>; todo: Record<string, Kind[]>; offer: Record<string, Card[][]>; fallen: string[]; extra: Record<string, number>; rerolls: Record<string, number> };
+// o que todo intervalo dá, além do subir magia de cada nível ganho
+const EVERY_BREAK: Kind[] = ['spell', 'item'];
 
 export const ASC_ROUNDS = 9;
 // números iniciais, a medir no simulador (PRs de rebalanceamento depois); as magias e os itens não mudam (Fernando, 21/10)
@@ -29,7 +33,7 @@ export const RARE_PER_LEVEL = 0.15;
 export const RARE_MAX = 0.6;
 export const MARK_KB = 0.05;
 
-export const newAsc = (ids: string[]): AscState => ({ xp: {}, picks: Object.fromEntries(ids.map((id) => [id, 1])), offer: {}, fallen: [], extra: {}, rerolls: {} });
+export const newAsc = (ids: string[]): AscState => ({ xp: {}, todo: Object.fromEntries(ids.map((id) => [id, [...EVERY_BREAK]])), offer: {}, fallen: [], extra: {}, rerolls: {} });
 
 export function xpGain(s: Stat): number {
   const spells = Object.entries(s.dmgBy).reduce((t, [src, d]) => t + (src === 'lava' ? 0 : d), 0);
@@ -43,14 +47,12 @@ const lv = (a: AscState, id: string) => levelOf(a.xp[id] ?? 0);
 const groupOf = (c: Card) => (c.kind === 'item' ? 'item' : spellGroup(c.id));
 type Kit = Pick<Player, 'spells' | 'items'>;
 
-// 3 cartas diferentes que o mago pode usar, de pelo menos 2 grupos (item conta como grupo), sorteadas com o rand da partida;
+// até 3 cartas diferentes do tipo pedido que o mago pode usar, sorteadas com o rand da partida; magia nova de pelo menos 2 grupos;
 // cada carta de subir magia vira rara com a chance `rare`
-export function drawCards(p: Kit, rand: () => number, rare = 0): Card[] {
-  const pool: Card[] = [
-    ...SPELL_IDS.filter((s) => p.spells[s] === 0).map((id): Card => ({ kind: 'spell', id })),
-    ...SPELL_IDS.filter((s) => p.spells[s] > 0 && p.spells[s] < MAX_SPELL_LEVEL).map((id): Card => ({ kind: 'up', id })),
-    ...ITEM_IDS.filter((i) => itemPrice(p.items, i) !== null).map((id): Card => ({ kind: 'item', id })),
-  ];
+export function drawCards(p: Kit, kind: Kind, rand: () => number, rare = 0): Card[] {
+  const pool: Card[] = kind === 'spell' ? SPELL_IDS.filter((s) => p.spells[s] === 0).map((id): Card => ({ kind, id }))
+    : kind === 'up' ? SPELL_IDS.filter((s) => p.spells[s] > 0 && p.spells[s] < MAX_SPELL_LEVEL).map((id): Card => ({ kind, id }))
+    : ITEM_IDS.filter((i) => itemPrice(p.items, i) !== null).map((id): Card => ({ kind, id }));
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -115,7 +117,7 @@ export function autoPick(p: Player, cards: Card[], how: 'top' | 'easy' | 'normal
 // novo sorteio (quem está atrás do líder, 1 por intervalo): as cartas da mesa saem e outras entram no próximo passo
 export function reroll(m: Match, id: string): boolean {
   const a = m.asc;
-  if (!a || m.phase !== 'shop' || !a.rerolls[id] || !a.offer[id]) return false;
+  if (!a || m.phase !== 'shop' || !a.rerolls[id] || !a.offer[id]?.length) return false;
   a.rerolls[id]--;
   delete a.offer[id];
   return true;
@@ -143,13 +145,14 @@ export function ascMark(m: Match) {
   if (z && lead) z.kbResist -= MARK_KB * lead.above;
 }
 
-export function pickCard(m: Match, id: string, i: number, swap?: SpellId): boolean {
+// escolha `slot` da mesa (a ordem de todo/offer), carta i
+export function pickCard(m: Match, id: string, slot: number, i: number, swap?: SpellId): boolean {
   const a = m.asc;
   const p = m.players.find((q) => q.id === id);
-  const card = a?.offer[id]?.[i];
+  const card = a?.offer[id]?.[slot]?.[i];
   if (!a || !p || m.phase !== 'shop' || !card || !applyCard(p, card, swap)) return false;
-  delete a.offer[id];
-  a.picks[id] = Math.max(0, (a.picks[id] ?? 0) - 1);
+  a.todo[id].splice(slot, 1);
+  a.offer[id].splice(slot, 1); // as outras fileiras ficam como estão na mesa
   return true;
 }
 
@@ -160,13 +163,22 @@ export function ascShop(m: Match, now: number, rand: () => number) {
   const late = now >= m.phaseEnds;
   const top = Math.max(...m.players.map((p) => lv(a, p.id)));
   for (const p of m.players) {
-    while ((a.picks[p.id] ?? 0) > 0) {
-      const cards = (a.offer[p.id] ??= drawCards(p, rand, Math.min(RARE_MAX, RARE_PER_LEVEL * (top - lv(a, p.id)))));
+    const todo = (a.todo[p.id] ??= []);
+    while (todo.length) {
+      const rare = Math.min(RARE_MAX, RARE_PER_LEVEL * (top - lv(a, p.id)));
+      // mesa nova a cada intervalo (e depois do novo sorteio); escolher tira só a fileira escolhida
+      if (a.offer[p.id]?.length !== todo.length) a.offer[p.id] = todo.map((k) => drawCards(p, k, rand, rare));
+      const offer = a.offer[p.id];
+      const empty = offer.findIndex((c) => !c.length); // nada desse tipo a ganhar (ex.: todos os itens no máximo)
+      if (empty >= 0) {
+        todo.splice(empty, 1);
+        offer.splice(empty, 1);
+        continue;
+      }
       const how = !p.bot && p.connected ? 'top' : (p.difficulty ?? m.opts.difficulty) === 'easy' ? 'easy' : 'normal';
-      if (!cards.length) a.picks[p.id] = 0; // nada mais a ganhar
-      else if (!(p.bot || !p.connected || late) || !pickCard(m, p.id, ...autoPick(p, cards, how, rand))) break;
+      if (!(p.bot || !p.connected || late) || !pickCard(m, p.id, 0, ...autoPick(p, offer[0], how, rand))) break;
     }
-    if (!p.bot) p.ready = !a.picks[p.id];
+    if (!p.bot) p.ready = !todo.length;
   }
 }
 
@@ -181,7 +193,7 @@ export function ascEndRound(m: Match, played: string[], alive: string[]) {
     const before = lv(a, p.id);
     const gain = (xpGain(p.stats.round) + (a.extra[p.id] ?? 0)) * (1 + CONSOLATION * Math.max(0, avg - before));
     a.xp[p.id] = (a.xp[p.id] ?? 0) + Math.round(gain);
-    a.picks[p.id] = (a.picks[p.id] ?? 0) + lv(a, p.id) - before;
+    a.todo[p.id] = [...(a.todo[p.id] ?? []), ...EVERY_BREAK, ...Array<Kind>(lv(a, p.id) - before).fill('up')];
   }
   a.extra = {};
   const top = Math.max(...m.players.map((p) => lv(a, p.id)));
@@ -195,5 +207,5 @@ export const ascWinner = (m: Match) => [...m.players].sort((x, y) => y.score - x
 export function ascOf(a: AscState, id: string) {
   const xp = a.xp[id] ?? 0;
   const level = levelOf(xp);
-  return { xp, level, next: xpFor(level + 1), picks: a.picks[id] ?? 0, offer: a.offer[id] ?? [], rerolls: a.rerolls[id] ?? 0 };
+  return { xp, level, next: xpFor(level + 1), todo: a.todo[id] ?? [], offer: a.offer[id] ?? [], rerolls: a.rerolls[id] ?? 0 };
 }

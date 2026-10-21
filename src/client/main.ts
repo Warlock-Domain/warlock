@@ -291,7 +291,7 @@ function startRoom(code: string, name: string) {
       saveLook(lookOf(character));
     },
     ready: () => net.send({ t: 'ready' }),
-    card: (i, swap) => net.send({ t: 'card', i, ...(swap && { swap }) }),
+    card: (slot, i, swap) => net.send({ t: 'card', slot, i, ...(swap && { swap }) }),
     reroll: () => net.send({ t: 'reroll' }),
     sandbox: (cmd) => net.send({ t: 'sandbox', cmd }),
     seeInvis: (on) => (seeInvis = on),

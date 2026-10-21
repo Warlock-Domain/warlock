@@ -295,7 +295,7 @@ type RoomActions = {
   useItem: (i: ItemId) => void;
   pick: (c: CharacterId) => void;
   ready: () => void;
-  card: (i: number, swap?: SpellId) => void; // Ascensão: carta da mesa (swap = magia que sai com a barra cheia)
+  card: (slot: number, i: number, swap?: SpellId) => void; // Ascensão: carta i da escolha slot (swap = magia que sai com a barra cheia)
   reroll: () => void; // Ascensão: novo sorteio
   spell: (s: SpellId) => void;
   volumes: () => { sfx: number; music: number };
