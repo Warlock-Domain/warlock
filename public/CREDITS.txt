@@ -103,7 +103,7 @@ warlock-wars.svg (vetorial, o W em <path>), favicon.ico (16, 32 e 48 px) e apple
 == Ícones (public/icons.svg) ==
   game-icons.net - https://game-icons.net - repositório oficial https://github.com/game-icons/icons
   Licença lida no license.txt do repositório: "Icons provided under the Creative Commons 3.0 BY" - https://creativecommons.org/licenses/by/3.0/
-  Icons made by Lorc, Delapouite, Skoll, Sbed e Caro Asercion. Alteração: fundo preto removido e cor trocada pela do tema (currentColor);
+  Icons made by Lorc, Delapouite, Skoll, Sbed, Caro Asercion e HeavenlyDog. Alteração: fundo preto removido e cor trocada pela do tema (currentColor);
   montados num sprite por scripts/assets/build-icons.mjs. Cada ícone (uso no jogo: arquivo no repositório, autor):
   Magias:
     Bola de fogo: lorc/fire-ray.svg, Lorc (http://lorcblog.blogspot.com)
@@ -119,7 +119,8 @@ warlock-wars.svg (vetorial, o W em <path>), favicon.ico (16, 32 e 48 px) e apple
     Bumerangue: delapouite/boomerang.svg, Delapouite (http://delapouite.com)
     Estocada: lorc/knife-thrust.svg, Lorc (http://lorcblog.blogspot.com)
     Gravidade: lorc/vortex.svg, Lorc (http://lorcblog.blogspot.com)
-    Pilar de pedra (e a causa "pilar" no placar): delapouite/menhir.svg, Delapouite (http://delapouite.com)
+    Barricada: heavenly-dog/defensive-wall.svg, HeavenlyDog (http://www.gnomosygoblins.blogspot.com)
+    Causa "pilar" no placar: delapouite/menhir.svg, Delapouite (http://delapouite.com)
     Ricochete: caro-asercion/ricochet.svg, Caro Asercion
     Drenar: lorc/life-tap.svg, Lorc (http://lorcblog.blogspot.com)
     Bola de neve: lorc/frozen-orb.svg, Lorc (http://lorcblog.blogspot.com)

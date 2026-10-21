@@ -1,7 +1,18 @@
 // Decisões das telas sem DOM (testáveis): resultado do fim da partida e ordem da lista de salas.
 import type { PublicRoom, RoomInfo } from '../shared/protocol.ts';
-import { SPELL_IDS, type SpellId } from '../shared/spells.ts';
+import { MAX_SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
+
+// Sandbox: o servidor manda todos, e o 8388608 marca quem estaria escondido (Caminhada no vento ou véu da Ilusão).
+// "Ver invisíveis (teste)" ligado só deixa esses translúcidos; desligado, esconde como numa sala normal.
+export function sandboxVisibility(status: number, self: boolean, sandbox: boolean, seeInvis = false): number {
+  if (!sandbox || self) return status;
+  if (seeInvis) return status & (1024 | 8388608) ? status | 8388608 : status;
+  // Remover o marcador de teste sem pôr 2048 revelava a Ilusão a outros humanos.
+  return status & (1024 | 8388608) ? (status & ~(1024 | 8388608)) | 2048 : status;
+}
+
+const ITEM_SLOTS = 3; // itens ativos nas teclas 1 2 3 (POS_ACTIONS item1 a item3)
 
 // Mesma ordem da barra da partida; vagas não compradas continuam visíveis.
 export type LoadoutOrder = { spells: (SpellId | null)[]; items: (ItemId | null)[] };
@@ -24,15 +35,16 @@ export function loadoutSlots(spells: Record<SpellId, number>, items: Record<Item
     }
     return result;
   };
-  return { spells: arrange(owned, order?.spells, 6), items: arrange(active, order?.items, 3) };
+  return { spells: arrange(owned, order?.spells, MAX_SPELLS), items: arrange(active, order?.items, ITEM_SLOTS) };
 }
 
 // Índices 0–5 são magias; 6–8 são itens. Nunca misturar os grupos.
 export function moveLoadout(order: LoadoutOrder, from: number, to: number): LoadoutOrder {
-  if (![from, to].every((i) => Number.isInteger(i) && i >= 0 && i < 9) || (from < 6) !== (to < 6)) return order;
+  const S = MAX_SPELLS;
+  if (![from, to].every((i) => Number.isInteger(i) && i >= 0 && i < S + ITEM_SLOTS) || (from < S) !== (to < S)) return order;
   const next = { spells: [...order.spells], items: [...order.items] };
-  const slots = from < 6 ? next.spells : next.items;
-  const a = from < 6 ? from : from - 6, b = to < 6 ? to : to - 6;
+  const slots = from < S ? next.spells : next.items;
+  const a = from < S ? from : from - S, b = to < S ? to : to - S;
   if (!slots[a]) return order;
   [slots[a], slots[b]] = [slots[b], slots[a]];
   return next;

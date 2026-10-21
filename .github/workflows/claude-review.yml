@@ -58,7 +58,11 @@ jobs:
               el()/choice()/withTip/store/t() ou outro helper que já existe no repo, reinventar o que a biblioteca padrão,
               o navegador/CSS ou uma dependência já instalada fazem, dependência nova para o que cabe em poucas linhas,
               configuração ou flexibilidade sem pedido, código morto deixado pela mudança, reformatar código vizinho;
-              cada achado em uma linha: onde, o que cortar, o que fica no lugar.
+              cada achado em uma linha: onde, o que cortar, o que fica no lugar;
+              interface: tela nova ou mexida usa as peças que já existem (dialog(), iconButton(), tabs(), choice(),
+              searchFilter(), withTip; lista em src/client/CLAUDE.md) e as variáveis de cor e tamanho do :root; HTML/CSS
+              repetido, cor ou tamanho soltos, ou componente novo que uma peça existente faria (estendida com um parâmetro)
+              é ponto com arquivo:linha e a peça que fica no lugar; peça nova só se nenhuma serve, e registrada em src/client/CLAUDE.md.
             - Pertinência: o jogo é para jogadores de Dota, com menus enxutos. Decisões já tomadas que um PR não desfaz
               sem combinar: menu de 5 abas; loja em grade com cores por grupo; 10 magias de ataque e 5 de cada outro grupo;
               sala sem opção de ritmo nem de morte súbita; dificuldade bot a bot; no máximo 3 baús por rodada;

@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 const ICONS = [
   // magias
   'lorc/fire-ray', 'lorc/focused-lightning', 'lorc/on-target', 'lorc/shield-reflect', 'lorc/teleport', 'lorc/body-swapping', 'lorc/grab', 'lorc/meteor-impact',
-  'lorc/sprint', 'lorc/striking-splinter', 'delapouite/boomerang', 'lorc/knife-thrust', 'lorc/vortex', 'delapouite/menhir', 'caro-asercion/ricochet', 'lorc/life-tap',
+  'lorc/sprint', 'lorc/striking-splinter', 'delapouite/boomerang', 'lorc/knife-thrust', 'lorc/vortex', 'delapouite/menhir', 'heavenly-dog/defensive-wall', 'caro-asercion/ricochet', 'lorc/life-tap',
   'lorc/frozen-orb', 'lorc/two-shadows', 'lorc/magnet', 'lorc/cycle', 'delapouite/card-exchange', 'lorc/harpoon-chain', 'lorc/wind-slap', 'delapouite/split-arrows', 'lorc/time-trap',
   // itens
   'delapouite/diamond-ring', 'lorc/skull-ring', 'delapouite/cape', 'lorc/breastplate', 'lorc/leather-boot', 'skoll/pocket-watch', 'delapouite/bat', 'delapouite/flail',

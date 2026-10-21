@@ -3,7 +3,7 @@ import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
 import { ARENA_IDS, type ArenaId } from '../shared/arena.ts';
 import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/characters.ts';
-import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Sandbox, type SandboxCmd, type Vote } from '../shared/match.ts';
+import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
@@ -80,7 +80,7 @@ function playMenu(roomList: HTMLElement, onCreate: () => void, onTrain: (kind: s
     el('section', { class: 'play-content' }, el('h2', {}, labels[0]),
       el('button', { type: 'button', class: 'primary big', onclick: onCreate }, t('Criar sala', 'Create room')), roomList),
     el('section', { class: 'play-content' }, el('h2', {}, labels[1]),
-      el('p', { class: 'muted' }, t('Prepare a partida: escolha os bots, a dificuldade e as magias antes de começar.', 'Set up the match: choose bots, difficulty and spells before starting.')),
+      el('p', { class: 'muted' }, t('Prepare a partida: escolha os bots e a dificuldade antes de começar.', 'Set up the match: choose bots and difficulty before starting.')),
       el('button', { type: 'button', class: 'primary big', onclick: () => onTrain('bots') }, t('Criar partida contra bots', 'Create bot match')),
       el('button', { type: 'button', disabled: !skill, onclick: () => skill && onTrain('shadow') }, t('Treinar contra a sua sombra', 'Practice against your shadow')),
       !skill ? el('small', {}, t('Jogue 3 rodadas para a sombra aprender.', 'Play 3 rounds for the shadow to learn.')) : null),
@@ -110,9 +110,9 @@ function playMenu(roomList: HTMLElement, onCreate: () => void, onTrain: (kind: s
 
 // Protótipo de navegação da issue #83; Home abre ao entrar no menu.
 type HomeTab = 'home' | 'play' | 'library' | 'char' | 'shop' | 'profile' | 'settings';
-const HOME_TABS: [HomeTab, string, string][] = [['play', t('Jogar', 'Play'), UI_ICON.aim], ['library', t('Aprender', 'Learn'), ICON.fireball],
-  ['char', t('Guarda-roupas', 'Wardrobe'), UI_ICON.person], ['shop', t('Loja', 'Shop'), UI_ICON.gold],
-  ['profile', t('Perfil', 'Profile'), UI_ICON.person], ['settings', t('Configurações', 'Settings'), UI_ICON.gear]];
+// abas só com texto: as placas da barra não mostram ícone e Configurações vira a chave (wrench.svg)
+const HOME_TABS: [HomeTab, string][] = [['play', t('Jogar', 'Play')], ['library', t('Aprender', 'Learn')], ['char', t('Guarda-roupas', 'Wardrobe')],
+  ['shop', t('Loja', 'Shop')], ['profile', t('Perfil', 'Profile')], ['settings', t('Configurações', 'Settings')]];
 
 // Categorias do Guarda-roupas; o editor existente permanece em Acessórios.
 function personagemTab(): HTMLElement {
@@ -198,7 +198,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   const stage = el('div', { class: 'home-stage' },
     el('div', { class: 'home-backdrop', 'aria-hidden': 'true' }, el('img', { class: 'home-art', src: '/home-cat.jpg', alt: '', width: 736, height: 736 })),
     ...Object.values(panels));
-  const btns = HOME_TABS.map(([k, label, ico]) => el('button', { type: 'button', role: 'tab', id: 'home-tab-' + k, 'aria-controls': 'home-' + k, onclick: () => show(k) }, icon(ico), el('span', {}, label)));
+  const btns = HOME_TABS.map(([k, label]) => el('button', { type: 'button', role: 'tab', id: 'home-tab-' + k, 'aria-controls': 'home-' + k, onclick: () => show(k) }, el('span', {}, label)));
   const settingsBtn = btns[HOME_TABS.findIndex(([k]) => k === 'settings')];
   settingsBtn.classList.add('home-tool');
   settingsBtn.title = t('Configurações', 'Settings');
@@ -744,14 +744,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     rule('god', t('Vida infinita', 'Infinite health')),
     rule('noCd', t('Sem recarga', 'No cooldowns')),
     rule('shrink', t('Encolher a arena', 'Shrink the arena')),
-    check(t('Ver invisíveis', 'See invisible wizards'), true, act.seeInvis).row,
+    check(t('Ver invisíveis (teste)', 'See invisible wizards (test)'), false, act.seeInvis).row,
     el('div', { class: 'sandbox-row' },
       el('select', { 'aria-label': t('Dificuldade do bot', 'Bot difficulty'), onchange: (e: Event) => (sbLevel = (e.target as HTMLSelectElement).value as Level) },
         ...(['easy', 'normal', 'hard'] as const).map((k) => el('option', { value: k, selected: k === sbLevel }, SKILL_NAME[k]))),
       el('button', { type: 'button', onclick: () => addBot(false) }, t('+ Bot', '+ Bot'))),
     el('button', { type: 'button', title: t('Bot que não anda nem atira: bom para testar dano e empurrão', 'A bot that neither moves nor shoots: good for testing damage and knockback'), onclick: () => addBot(true) }, t('+ Boneco parado', '+ Training dummy')),
     el('div', { class: 'sandbox-row' }, sbTurretDirection,
-      el('button', { type: 'button', title: t('Dispara bolas de fogo numa direção fixa. Não recebe dano nem empurrão. A torreta inicial dispara da esquerda para a direita.', 'Fires fireballs in a fixed direction. Takes no damage or knockback. The initial turret fires from left to right.'), onclick: () => act.sandbox({ op: 'turret', direction: sbTurretDirection.value as 'north' | 'east' | 'south' | 'west' }) }, t('+ Torreta', '+ Turret'))),
+      el('button', { type: 'button', title: t('Dispara bolas de fogo numa direção fixa. Não recebe dano nem empurrão. A torreta inicial dispara da esquerda para a direita.', 'Fires fireballs in a fixed direction. Takes no damage or knockback. The initial turret fires from left to right.'), onclick: () => act.sandbox({ op: 'turret', direction: sbTurretDirection.value as TurretDir }) }, t('+ Torreta', '+ Turret'))),
     botSetupPanel(1, savedBotSetup(), () => {}),
     sbBots,
     el('div', { class: 'sandbox-row' }, t('Arena', 'Arena'), sbArena),
@@ -859,6 +859,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     });
     node.addEventListener('pointermove', (e) => {
       if (!slotDrag || slotDrag.pointer !== e.pointerId) return;
+      // até 6 px conta como clique; passou disso vira arraste, e o clique da vaga não dispara (blockClick)
       if (Math.hypot(e.clientX - slotDrag.x, e.clientY - slotDrag.y) > 6) slotDrag.moved = true;
       if (slotDrag.moved) { e.preventDefault(); node.classList.add('dragging-slot'); }
     });
@@ -1200,7 +1201,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   // estado da loja que sobrevive ao redesenho (a sala manda o estado a cada compra de qualquer jogador)
   let goldOpen = false;
-  let sheetOpen = true;
+  let sheetOpen = false; // Ficha começa recolhida para a loja caber sem rolagem no PC; abrir/fechar sobrevive ao redesenho
   let shopQuery = ''; // busca da loja: fica ao redesenhar (a sala manda o estado a cada segundo)
   const shopLoadout = (p: PublicPlayer) => {
     const slots = equipment(p);
@@ -1315,7 +1316,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const items = () => el('div', { class: 'shop-items' },
       group(t('Itens passivos', 'Passive items'), itemCount, ITEM_IDS.filter((i): boolean => !isActive(i)).map(itemOffer)),
       group(t('Itens ativos', 'Active items'), t('cada um com a sua tecla', 'each with its own key'), ACTIVE_ITEMS.map(itemOffer)));
-    if (look) return filterShop(el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
+    if (look) return filterShop(el('div', { class: 'card shop compact-shop' }, items(), el('div', { class: 'shop-main' },
       shopLoadout(mine),
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.sandbox ? t('Loja · sandbox', 'Shop · sandbox') : deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${r.sandbox ? 'ouro sem fim: compre e venda, vale na hora' : deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${r.sandbox ? 'endless gold: buy and sell, it applies right away' : deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
         iconButton('✕', t('Fechar a loja', 'Close the shop'), () => togglePeek(false), { class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`) })),
@@ -1327,14 +1328,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       act.ready();
     } }, readyText(mine.ready));
     // compras no meio; ouro, Pronto e placar à direita (pedido do Fernando: loja mais larga; o personagem saiu para o menu principal e as Configurações)
-    return filterShop(el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
+    return filterShop(el('div', { class: 'card shop compact-shop' }, items(), el('div', { class: 'shop-main' },
       shopLoadout(mine),
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? t('Loja', 'Shop') : t(`Loja · depois da rodada ${r.round}`, `Shop · after round ${r.round}`)), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells`))),
       shopSearch(),
-      r.round === 0 && !firstSeen ? firstCard() : null,
       ...grid,
       ),
       el('aside', { class: 'shop-side' },
+        r.round === 0 && !firstSeen ? firstCard() : null,
         el('span', { class: 'gold big' }, gold(mine.gold)),
         readyBtn,
         el('button', { type: 'button', 'data-key': 'placar', onclick: () => pinTab(true) }, icon(UI_ICON.board), ' ' + t('Placar', 'Scoreboard')),
