@@ -40,6 +40,10 @@ if (LOCAL) {
   document.title = `🧪 ${new URLSearchParams(location.search).get('aba') || __BRANCH__ || 'teste'} · Warlock Wars`;
 }
 
+// música desligada nas abas de teste (pedido do Fernando, 20/10: várias abas tocando juntas, issue #158): em localhost quem nunca
+// mexeu no volume começa sem música; ?musica=1 volta ao padrão, para testar som. Volume já guardado vale igual. No ar nada muda.
+const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica') !== '1' ? 0 : undefined;
+
 // ?ir=<lugar> (issue #140): em localhost a aba de teste já abre no ponto a testar (pedido do Fernando, 20/10); no ar nada muda.
 // Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, controle, jogador,
 // personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando) e partida:loja (contra 1 bot, na loja da rodada 1, com 120 s).
@@ -138,7 +142,7 @@ function startLobby(name: string) {
   document.body.className = 'in-lobby';
   curtain();
   // no lobby também: hover e clique dos botões e o volume das Configurações (sem música nem lava, que só existem na partida)
-  const sound = createSound();
+  const sound = createSound(MUSIC_DEFAULT);
   hoverSound(sound);
   ui.addEventListener('click', (e) => (e.target as Element).closest('button, .button') && sound.play('click'));
   let rooms: RoomInfo[] | null = null;
@@ -199,7 +203,7 @@ function startRoom(code: string, name: string) {
   let myName = name;
   document.body.className = 'in-room';
   curtain();
-  const sound = createSound();
+  const sound = createSound(MUSIC_DEFAULT);
   hoverSound(sound);
   let room: PublicRoom | null = null;
   let me = playerId;
