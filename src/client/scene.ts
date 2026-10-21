@@ -129,6 +129,7 @@ function sdfTexture(id: ArenaId) {
 // GLSL comum: shoreDist(xz) = metros até a borda, positivo na lava; vnoise = ruído de valor barato
 const SHORE_GLSL = `
 uniform sampler2D uSdf; uniform float uSpan; uniform float uR; uniform float uShoreTime; uniform float uLick; uniform float uWarn;
+uniform vec3 uTint; uniform float uTintK;
 float shoreDist(vec2 xz){ vec2 uv = (xz / uR + uSpan) / (2.0 * uSpan); return (texture2D(uSdf, uv).r * 2.0 - 1.0) * ${SDF_CLAMP.toFixed(2)} * uR; }
 float shash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
@@ -231,7 +232,7 @@ type Fx = { obj: THREE.Object3D; until: number; born: number; update?: (k: numbe
 
 const LAVA_VERT = `varying vec2 vUv; varying vec3 vPos; void main(){ vUv = uv; vec4 wp = modelMatrix * vec4(position,1.0); vPos = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`;
 const LAVA_FRAG = `
-uniform float uTime; uniform sampler2D uMap; uniform float uHas; uniform float uHeat; uniform vec3 uTint; uniform float uTintK; varying vec2 vUv; varying vec3 vPos;
+uniform float uTime; uniform sampler2D uMap; uniform float uHas; uniform float uHeat; varying vec2 vUv; varying vec3 vPos;
 ${SHORE_GLSL}
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.0-2.0*f);
@@ -368,8 +369,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   };
   const FIRE_KINDS = new Set<ProjKind>(['fireball', 'cluster', 'meteor']);
   // distância até a borda e relógio da borda derretida, divididos pela lava e pela pedra
-  const shoreU = { uSdf: { value: sdfTexture('circle') }, uSpan: { value: sdfSpan('circle') }, uR: { value: 11 }, uShoreTime: { value: 0 }, uLick: { value: 1 }, uWarn: { value: 0 } };
-  const lavaMat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uMap: { value: null }, uHas: { value: 0 }, uHeat: { value: 1 }, uTint: { value: new THREE.Color() }, uTintK: { value: 0 }, ...shoreU }, vertexShader: LAVA_VERT, fragmentShader: LAVA_FRAG });
+  const shoreU = { uSdf: { value: sdfTexture('circle') }, uSpan: { value: sdfSpan('circle') }, uR: { value: 11 }, uShoreTime: { value: 0 }, uLick: { value: 1 }, uWarn: { value: 0 }, uTint: { value: new THREE.Color() }, uTintK: { value: 0 } };
+  const lavaMat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uMap: { value: null }, uHas: { value: 0 }, uHeat: { value: 1 }, ...shoreU }, vertexShader: LAVA_VERT, fragmentShader: LAVA_FRAG });
   loader.load('/tex/lava_emit.jpg', (t) => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     lavaMat.uniforms.uMap.value = t;
@@ -402,7 +403,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       float band = 1.0 - smoothstep(0.0, 1.3, eIn - 0.4 * (nz - 0.5));
       diffuseColor.rgb *= mix(1.0, 0.3, band);
       float crack = max(1.0 - smoothstep(0.0, 0.05, abs(vnoise(vWPos.xz * 1.6 + 7.0) - 0.5)), 0.6 * (1.0 - smoothstep(0.0, 0.04, abs(vnoise(vWPos.xz * 4.1 - 3.0) - 0.5))));
-      vec3 hot = mix(vec3(1.0, 0.34, 0.05), vec3(1.0, 0.1, 0.02), uWarn);
+      // a borda derretida da pedra também pega a cor do efeito da rodada (a lava pinta o lado dela com os mesmos uTint/uTintK)
+      vec3 hot = mix(mix(vec3(1.0, 0.34, 0.05), uTint, uTintK), vec3(1.0, 0.1, 0.02), uWarn);
       float melt = 1.0 - smoothstep(0.0, 0.22, eIn - shoreLick(vWPos.xz) - 0.12 * (nz - 0.5));
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.08, 0.02, 0.0), melt);
       totalEmissiveRadiance += hot * (crack * band * band * (0.9 + 1.2 * uWarn) + melt * (0.85 + 0.9 * uWarn));`);
@@ -502,6 +504,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   };
   const motes = pool(26, '#7dffa8', 0.75);
   const gusts = pool(14, '#eaf6ff', 0.35);
+  // Arena de espinhos: fumaça preta subindo devagar entre os espinhos (pedido do Fernando, 21/10); mistura normal (aditiva não escurece)
+  const soot = Array.from({ length: 40 }, (_, i) => {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: SMOKES[i % SMOKES.length], color: '#0b0908', transparent: true, opacity: 0, depthWrite: false }));
+    s.userData = { age: 0, life: 0, wait: Math.random() * 2 };
+    s.visible = false;
+    scene.add(s);
+    return s;
+  });
   // Febre do ouro: moedas pulando da borda e caindo de volta, piscando como se tilintassem (pedido do Fernando, 21/10)
   const coins = pool(22, '#ffd84a', 0.95);
   // chuva (Tempo chuvoso): riscos curtos caindo, uma geometria só atualizada por quadro
@@ -2137,9 +2147,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // Tempo chuvoso: a lava esfria aos poucos (~1 s) para 55% do brilho, por cima e por baixo da borda
       heat += ((state.effect === 'lava' ? 0.55 : 1) - heat) * Math.min(1, dt * 3);
       const tint = state.effect ? SHORE_TINT[state.effect] : undefined;
-      if (tint) lavaMat.uniforms.uTint.value.set(tint[0]);
+      if (tint) shoreU.uTint.value.set(tint[0]);
       tintK += ((tint?.[1] ?? 0) - tintK) * Math.min(1, dt * 3);
-      lavaMat.uniforms.uTintK.value = tintK;
+      shoreU.uTintK.value = tintK;
       lavaMat.uniforms.uHeat.value = heat;
       under.intensity = (52 + Math.sin(now * 2) * 9 + Math.sin(now * 7.3) * 3) * heat;
       const ec = state.effect && EMBER_COLOR[state.effect];
@@ -2198,6 +2208,28 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         s.position.y += u.vy * dt;
         s.scale.setScalar(0.22 * Math.min(1, s.position.y * 2) * Math.max(0, 1 - s.position.y / 2.6));
         if (s.position.y > 2.6) { s.visible = false; u.wait = Math.random() * 2; }
+      }
+      // Arena de espinhos: fumaça preta nasce num ponto entre os espinhos, sobe e abre, aparece e some aos poucos
+      for (const s of soot) {
+        const u = s.userData as { age: number; life: number; wait: number };
+        const mat = s.material as THREE.SpriteMaterial;
+        if (lite || state.effect !== 'swords') { s.visible = false; continue; }
+        if (!s.visible) {
+          if ((u.wait -= dt) > 0) continue;
+          const ring = ARENAS[shownArena].outline[0], q = ring[Math.floor(Math.random() * ring.length)];
+          const k = 1 - (SWORDS.inset * 0.6) / Math.max(1, shownR * len(q)); // um pouco para dentro, no meio da parede
+          s.position.set(q.x * shownR * k, 0.15, q.y * shownR * k);
+          u.age = 0;
+          u.life = 2.2 + Math.random() * 1.6;
+          mat.rotation = Math.random() * Math.PI * 2;
+          s.visible = true;
+        }
+        u.age += dt;
+        const f = u.age / u.life;
+        s.position.y += 0.35 * dt;
+        s.scale.setScalar(1 + f * 1.8);
+        mat.opacity = 0.8 * Math.min(1, f * 4) * (1 - f);
+        if (f >= 1) { s.visible = false; u.wait = Math.random() * 0.6; }
       }
       // Febre do ouro: cada moeda nasce num ponto da borda, sobe 1 a 1,6 m e cai; o brilho pisca rápido (o "tilintar")
       for (const s of coins) {
