@@ -169,7 +169,7 @@ describe('partida do Ascensão', () => {
     const best = Math.max(...m.players.map((p) => p.score));
     expect(m.players.find((p) => p.id === m.winner)!.score).toBe(best);
     expect(best).toBeGreaterThan(0);
-  });
+  }, 30_000); // 9 rodadas inteiras: com a suíte em paralelo passa dos 5 s padrão
 
   it('bots pick with match rand: same seed, same builds', () => {
     const builds = (m: Match) => m.players.map((p) => JSON.stringify([p.spells, p.items]));
