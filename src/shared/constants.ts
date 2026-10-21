@@ -99,6 +99,14 @@ export const RUNE_KINDS = ['haste', 'fury', 'shield', 'recharge'] as const;
 export type RuneKind = (typeof RUNE_KINDS)[number];
 // efeitos por 8 s (Fernando, 18/10): Pressa +50% de velocidade, Fúria +30% de dano, Escudo −30% de dano levado, Recarga recargas 30% mais rápidas
 export const RUNE = { first: 15, every: 20, secs: 8, reach: 0.6, spread: 0.6, haste: 0.5, fury: 0.3, armor: 0.3, cdr: 0.3 };
+// efeitos de rodada (prova de conceito, pedido do Reinaldo, 21/10): um sorteado por rodada, para todos; números ainda sem simulador.
+// lava: dano da lava (×); killGold: ouro do abate (×); slow: duração das lentidões (×); regen: vida por segundo (×)
+export const ROUND_EFFECT_IDS = ['lava', 'gold', 'slow', 'regen'] as const;
+export type RoundEffectId = (typeof ROUND_EFFECT_IDS)[number];
+export type RoundMods = { lava: number; killGold: number; slow: number; regen: number };
+export const NO_MODS: RoundMods = { lava: 1, killGold: 1, slow: 1, regen: 1 };
+export const ROUND_EFFECTS: Record<RoundEffectId, Partial<RoundMods>> = { lava: { lava: 0.5 }, gold: { killGold: 1.5 }, slow: { slow: 0.8 }, regen: { regen: 1.3 } };
+export const roundMods = (e: RoundEffectId | null): RoundMods => ({ ...NO_MODS, ...(e ? ROUND_EFFECTS[e] : {}) });
 // sequências de abate (anúncio estilo Dota): abates com até 4 s entre eles; Matança e cia. contam abates sem morrer (atravessam as rodadas);
 // quem derruba alguém com 3 ou mais abates seguidos ganha o Quebra-combo
 export const STREAK = { window: 4, spree: [3, 5, 7, 10], breakAt: 3, breakGold: 3 };

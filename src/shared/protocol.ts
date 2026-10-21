@@ -2,7 +2,7 @@
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
-import { MAX_PLAYERS, RUNE_KINDS, type RuneKind } from './constants.ts';
+import { MAX_PLAYERS, RUNE_KINDS, type RoundEffectId, type RuneKind } from './constants.ts';
 import { ITEM_IDS, isActive, type ItemId } from './items.ts';
 import { MODES, OPTION_CHOICES, TURRET_DIR, goalOf, parseOpt, votesNeeded, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
@@ -64,6 +64,7 @@ export type PublicRoom = {
   botDelta: number; // bots votados para entrar (+) ou sair (−) na próxima rodada
   goal: number; // pontos para vencer no modo atual (rodadas; abates no Deathmatch)
   arena: ArenaId | null; // formato da arena desta rodada (null sem rodada)
+  effect: RoundEffectId | null; // efeito sorteado desta rodada (null sem rodada e na sandbox)
   sandbox?: Sandbox; // só nas salas sandbox: as regras ligadas
 };
 
@@ -260,6 +261,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     botDelta: m.botDelta,
     goal: goalOf(m),
     arena: m.world?.arena ?? null,
+    effect: m.world?.effect ?? null,
     ...(m.sandbox && { sandbox: m.sandbox }),
   };
 }
