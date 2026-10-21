@@ -41,6 +41,7 @@ Um quarto modo de partida, "meio roguelike, tipo o ARAM do LoL com as cartinhas 
 | Recuperação | As 4: recompensa por derrubar o líder, XP de consolação, cartas melhores para quem está atrás, líder marcado leva mais empurrão |
 | Baús | Não existem no Ascensão (a opção some da sala nesse modo) |
 | Bots | Escolhem pela dificuldade: Fácil ao acaso; Normal completa grupos que faltam (defesa/mobilidade antes de mais ataque); Difícil escolhe a carta que mais vence no simulador |
+| Crédito de abate por controle (21/10) | Troca, Agarrar e Magnetizar contam como golpe para o crédito do abate (janela de 5 s), **em todos os modos**: "no jogo normal tbm deve contar". Fica em issue própria, fora do Ascensão; o modo só herda |
 | Magias no modo (21/10) | "Por enquanto o modo Ascension vai ser sem skills rebalanceadas": mesmos números de `spells.ts` e `items.ts` dos outros modos |
 
 ## Como funciona

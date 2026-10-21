@@ -27,6 +27,8 @@ O que entrou no master desde o desenho (19/10) e muda o plano:
 | `botShop` sorteia com `Math.random` | A escolha de carta dos bots recebe o `rand` da partida |
 | Plano da Campanha: "o motor de cartas nasce no Ascensão" | A Fase 1 exporta `drawCards`/`applyCard`; não cria nada a mais só para a Campanha |
 
+**Crédito de abate por controle (Fernando, 21/10):** Troca, Agarrar e Magnetizar não marcam `lastHitBy` hoje (só `hit()` marca, `sim.ts:412`), então quem derruba alguém na lava só com controle não leva o abate. Decidido que passam a contar **em todos os modos**: issue #179, fora deste plano (muda o hash de `style.test.ts` de propósito, nesse PR e só nele). O Ascensão não cria gancho para isso; o XP por abate já herda.
+
 Já existe e é reusado (não recriar): `stats.round.dmg/kills/alive` (fontes de XP), o evento `{ k: 'death', id, by }` (`sim.ts:131`, ordem de queda e abates), `BOUNTY` (modelo da recompensa pelo líder), `MAX_SPELLS`/`MAX_ITEMS`, `priceOf`/níveis de `spells.ts` e `items.ts`.
 
 ## Global Constraints
