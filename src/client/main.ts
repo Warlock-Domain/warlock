@@ -102,7 +102,7 @@ async function main() {
   if (/^[A-Z]{4}$/.test(id)) startRoom(id, name);
   else startLobby(name);
   // Esc sem nada para cancelar ou fechar abre as configurações (pedido do Fernando, 18/10); por último, depois dos ouvintes da sala
-  onFreeEsc(() => !document.querySelector('.overlay, .rules-overlay') && openSettings());
+  onFreeEsc(() => !document.querySelector('.overlay') && openSettings());
 }
 
 function startLobby(name: string) {

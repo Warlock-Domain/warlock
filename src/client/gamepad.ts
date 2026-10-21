@@ -156,11 +156,9 @@ function navigate(dir: Dir) {
   if (i >= 0) focus(others[i]);
 }
 
-// B: fecha a camada de cima (ajuda, configurações, painel do topo, placar fixo, ficha, grupo aberto)
+// B: fecha a camada de cima (diálogo, painel do topo, placar fixo, ficha, grupo aberto)
 function back() {
-  const rules = $('.rules-overlay');
-  if (rules) return rules.remove();
-  if ($('.settings-overlay')) return key('keydown', 'Escape');
+  if ($('.dialog-overlay')) return key('keydown', 'Escape');
   const panel = $('.vol-panel:not([hidden])');
   if (panel) return (panel.hidden = true);
   if ($('.tab-overlay.pinned')) return key('keydown', 'Escape');
