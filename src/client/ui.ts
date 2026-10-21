@@ -1629,11 +1629,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         r.sandbox && r.phase !== 'lobby' && r.phase !== 'end' ? t('Sandbox · vida e ouro sem fim', 'Sandbox · endless health and gold')
           : r.round > 0 && r.phase !== 'lobby' && r.phase !== 'end' ? (r.mode === 'deathmatch' ? t(`Deathmatch · rodada ${r.round} · ${r.goal} abates para vencer`, `Deathmatch · round ${r.round} · ${r.goal} kills to win`) : t(`${r.mode === 'teams' ? 'Times · ' : ''}Rodada ${r.round} · vence quem fizer ${r.goal}`, `${r.mode === 'teams' ? 'Teams · ' : ''}Round ${r.round} · first to ${r.goal} wins`)) : '',
         // na loja o efeito já é o da próxima rodada (sorteado antes, para comprar sabendo)
-        r.effect && r.phase === 'shop' ? t(`Próxima rodada: ${EFFECT_NAME[r.effect]} (${EFFECT_TEXT[r.effect]})`, `Next round: ${EFFECT_NAME[r.effect]} (${EFFECT_TEXT[r.effect]})`)
-          : r.effect && PEEK_PHASES.includes(r.phase) ? `${EFFECT_NAME[r.effect]}: ${EFFECT_TEXT[r.effect]}` : '',
+        // só o nome: a descrição longa (Arena de espinhos) passava por cima do aviso "Arena encolhe em X s" no centro; ela fica na dica
+        r.effect && r.phase === 'shop' ? t(`Próxima rodada: ${EFFECT_NAME[r.effect]}`, `Next round: ${EFFECT_NAME[r.effect]}`)
+          : r.effect && PEEK_PHASES.includes(r.phase) ? EFFECT_NAME[r.effect] : '',
         r.pendingMode && r.phase !== 'end' ? t(`Próxima rodada: ${MODE_NAME[r.pendingMode]}`, `Next round: ${MODE_NAME[r.pendingMode]}`) : '',
         r.pendingShuffle !== null && r.phase !== 'end' ? t(`Próxima rodada: times ${SHUFFLE_NAME(r.pendingShuffle)}`, `Next round: teams ${SHUFFLE_NAME(r.pendingShuffle)}`) : '',
       ].filter(Boolean).join(' · ');
+      roundEl.title = r.effect && (r.phase === 'shop' || PEEK_PHASES.includes(r.phase)) ? `${EFFECT_NAME[r.effect]}: ${EFFECT_TEXT[r.effect]}` : '';
       tops.hidden = !PEEK_PHASES.includes(r.phase); // contagem, rodada e fim da rodada
       drawTops();
       mine = r.players.find((p) => p.id === you);
