@@ -4,7 +4,7 @@ import { SHAPES, type ArenaId } from '../shared/arena.ts';
 import { DT, OBSTACLES, PROJ_R, WIZ_R } from '../shared/constants.ts';
 import { ITEMS, noItems, type ItemId } from '../shared/items.ts';
 import { newWorld, snowR, spellOf, stepWorld, type Cmd, type SimEvent, type World } from '../shared/sim.ts';
-import { isSpell, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
+import { GRIP, isSpell, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, scale, v, type Vec } from '../shared/vec.ts';
 import { t } from './i18n.ts';
 
@@ -161,6 +161,9 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       if (p.kind === 'meteor') {
         circle(p.pos, L.radius, 'rgba(255,90,26,.18)', col, true);
         circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / 1.15), 'rgba(255,90,26,.35)');
+      } else if (p.kind === 'grip') {
+        circle(p.pos, L.radius, 'rgba(100,180,50,.12)', '#8ed64b', true);
+        circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / GRIP.delay), 'rgba(100,180,50,.3)');
       } else if (p.kind === 'warpzone') circle(p.pos, L.radius, 'rgba(138,123,255,.25)', col);
       else if (p.kind === 'illusion') {
         // a cópia: um mago meio apagado na cor do dono

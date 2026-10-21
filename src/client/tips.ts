@@ -4,7 +4,7 @@ import { LAVA_DPS } from '../shared/constants.ts';
 import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { labelOf } from './keys.ts';
-import { MAX_SPELL_LEVEL, RECHARGE, RUSH, SPELLS, WARPZONE, type Level, type SpellId } from '../shared/spells.ts';
+import { GRIP, MAX_SPELL_LEVEL, RECHARGE, RUSH, SPELLS, WARPZONE, type Level, type SpellId } from '../shared/spells.ts';
 import { RULES_SHORT, n1 } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 
@@ -32,7 +32,7 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   shield: [[DURATION, (l) => s(l.duration)], [t('Raio da bolha', 'Bubble radius'), (l) => m(l.radius)], [CD, (l) => s(l.cd)]],
   teleport: [[RANGE, (l) => m(l.range)], [CD, (l) => s(l.cd)]],
   swap: [[RANGE, (l) => m(l.range)], [CD, (l) => s(l.cd)]],
-  grip: [[t('Tempo preso', 'Time gripped'), (l) => s(l.duration) + t(' ou até o 1º golpe', ' or until the 1st hit')], [t('Empurrão do golpe que solta', 'Knockback of the hit that frees'), (l) => `+${Math.round(l.scale * 100)}%`], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  grip: [[t('Atraso dos cipós', 'Vine delay'), () => s(GRIP.delay)], [RADIUS, (l) => m(l.radius)], [t('Tempo preso', 'Time gripped'), (l) => s(l.duration) + t(' ou até o 1º golpe', ' or until the 1st hit')], [t('Empurrão do golpe que solta', 'Knockback of the hit that frees'), (l) => `+${Math.round(l.scale * 100)}%`], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   meteor: [[t('Dano no centro', 'Center damage'), (l) => n1(l.dmg)], [t('Dano na borda', 'Edge damage'), (l) => n1(l.dmgMin)], [t('Empurrão no centro', 'Center knockback'), (l) => m(l.knock / 1.166)], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   rush: [[t('Avanço', 'Dash'), () => m(RUSH.dash)], [DURATION, (l) => s(l.duration)], [t('Dano absorvido', 'Damage absorbed'), (l) => n1(l.absorb)], [CD, (l) => s(l.cd)]],
   cluster: [[t('Dano por projétil', 'Damage per projectile'), (l) => n1(l.dmg)], [t('Empurrão por projétil', 'Knockback per projectile'), (l) => m(l.knock / 1.166)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],

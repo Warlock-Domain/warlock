@@ -69,7 +69,7 @@ describe('escudo contra as magias novas', () => {
 describe('Agarrar', () => {
   it('stops the target from walking while it lasts, then releases', () => {
     const w = world([[0, 0], [4, 0]], ['grip']);
-    run(w, 1.2, [cast('p0', 'grip', 4, 0)]);
+    run(w, 1.5, [cast('p0', 'grip', 4, 0)]);
     const L = spellLevel('grip', 1);
     expect(w.wizards[1].gripUntil).toBeGreaterThan(w.t);
     const before = w.wizards[1].pos;
@@ -94,13 +94,16 @@ describe('Agarrar', () => {
     const h = world([[0, 0], [4, 0]], ['grip']);
     h.wizards[0].spells.grip = 7;
     h.wizards[1].invulnUntil = 0;
-    run(h, 1, [cast('p0', 'grip', 4, 0)]);
+    run(h, 1.5, [cast('p0', 'grip', 4, 0)]);
     expect(h.wizards[1].gripUntil).toBeGreaterThan(h.t);
     expect(h.wizards[1].gripBonus).toBe(0.9);
     const c = world([[0, 0], [4, 0]], ['grip', 'meteor']);
+    run(c, .2, [cast('p0', 'grip', 4, 0)]);
+    const mark = c.projectiles.find((p) => p.kind === 'grip')!;
+    while (c.t + .05 < mark.until) stepWorld(c, []);
     stepWorld(c, [cast('p1', 'meteor', 0, 0)]);
     expect(c.wizards[1].casting).not.toBeNull();
-    run(c, 0.4, [cast('p0', 'grip', 4, 0)]);
+    run(c, .08);
     expect(c.wizards[1].casting).toBeNull();
   });
 });
@@ -881,10 +884,11 @@ describe('crédito do abate sem dano', () => {
     expect(seen.filter((e) => e.k === 'hit')).toHaveLength(0); // a Troca não causa dano: só a lava mata
   });
 
-  it.each(['grip', 'magnetize'] as const)('%s num inimigo na lava dá o abate a quem lançou', (spell) => {
+  // vida = segundos de lava até morrer: o Agarrar só prende depois do atraso dos cipós (1,3 s), então a vítima dura mais
+  it.each([['grip', 250], ['magnetize', 100]] as const)('%s num inimigo na lava dá o abate a quem lançou', (spell, hp) => {
     const w = world([[stone, 0], [lava, 0]], [spell]);
-    w.wizards[1].hp = 100; // 1 s de lava: morre dentro da janela de 5 s do crédito
+    w.wizards[1].hp = hp; // morre dentro da janela de 5 s do crédito
     stepWorld(w, [cast('p0', spell, lava, 0)]);
-    expect(play(w, 2).find((e) => e.k === 'death')).toMatchObject({ id: 'p1', by: 'p0', src: spell });
+    expect(play(w, 4).find((e) => e.k === 'death')).toMatchObject({ id: 'p1', by: 'p0', src: spell });
   });
 });

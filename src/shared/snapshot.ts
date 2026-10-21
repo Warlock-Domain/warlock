@@ -51,10 +51,10 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     ab.push(seen && w.t < z.rushUntil ? Math.ceil(z.rushLeft) : 0);
   }
   const p: number[] = [];
-  // o meteoro e a Zona de dobra não andam: no lugar da velocidade vão o raio e os segundos que faltam;
+  // Marcas de Meteoro, Agarrar e Zona não andam: no lugar da velocidade vão raio e segundos restantes;
   // o Elo manda a posição de quem lançou (o cliente desenha o fio até ela); a cópia da Ilusão, o índice do dono e para onde olha
   for (const q of w.projectiles) {
-    const still = q.kind === 'meteor' || q.kind === 'warpzone' ? q.kind : null;
+    const still = q.kind === 'meteor' || q.kind === 'warpzone' || q.kind === 'grip' ? q.kind : null;
     const tail = q.kind === 'link' ? w.wizards.find((z) => z.id === q.owner)?.pos : q.kind === 'illusion' ? v(w.wizards.findIndex((z) => z.id === q.owner), Math.atan2(q.vel.y, q.vel.x)) : undefined;
     const a = still ? spellLevel(still, q.level).radius : (tail ?? q.vel).x;
     const b = still ? Math.max(0, q.until - w.t) : (tail ?? q.vel).y;
@@ -96,7 +96,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
 }
 
 export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number; rushLeft?: number };
-// meteor e warpzone: vel = (raio, segundos que faltam); link: vel = posição de quem lançou; illusion: vel = (índice do dono, para onde olha)
+// meteor, grip e warpzone: vel = (raio, segundos que faltam); link: posição do dono; illusion: índice do dono e direção
 export type ProjView = { id: number; kind: ProjKind; pos: Vec; vel: Vec };
 export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
 export type RuneView = { pos: Vec; kind: RuneKind };

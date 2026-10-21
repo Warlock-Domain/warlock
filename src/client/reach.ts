@@ -1,6 +1,6 @@
 // Círculo de alcance (pedido do Fernando, 18/10: o Raio acertava 13% nas partidas reais, suspeita de lançar fora dos 8 m):
 // raio em metros da magia ou item no nível atual, com o multiplicador de alcance dos itens (Elmo); 0 = não mostra.
-import { PROJ_R, PROJ_SPAWN, WIZ_R } from '../shared/constants.ts';
+import { OBSTACLES, PROJ_R, PROJ_SPAWN, WALL_GAP, WIZ_R } from '../shared/constants.ts';
 import { SCOURGE, isActive, itemStats, type ItemId } from '../shared/items.ts';
 import { snowR, type ProjKind } from '../shared/sim.ts';
 import { CLUSTER_FAN, LIGHTNING, RUSH, SPLITTER, THRUST, spellLevel, type SpellId } from '../shared/spells.ts';
@@ -8,7 +8,7 @@ import { add, clampLen, len, norm, scale, sub, v, type Vec } from '../shared/vec
 
 // projéteis que saem na frente do mago e voam o alcance: o anel marca até onde a ponta chega, então inimigo que encosta
 // no anel é atingido (Fernando, 20/10, issue #82; antes ficava 0,8 m curto)
-const FLIES = new Set<SpellId>(['fireball', 'cluster', 'grip', 'snowball', 'magnetize', 'gravity', 'bouncer', 'drain', 'recharge', 'link', 'splitter']);
+const FLIES = new Set<SpellId>(['fireball', 'cluster', 'snowball', 'magnetize', 'gravity', 'bouncer', 'drain', 'recharge', 'link', 'splitter']);
 
 export function reachOf(a: SpellId | ItemId, spells: Record<SpellId, number>, items: Record<ItemId, number>): number {
   if (isActive(a)) return a === 'scourge' ? SCOURGE.radius : 0; // Flagelo: o raio da explosão
@@ -23,15 +23,20 @@ export function reachOf(a: SpellId | ItemId, spells: Record<SpellId, number>, it
   return FLIES.has(a as SpellId) ? r + PROJ_SPAWN + (a === 'snowball' ? snowR(lvl) : PROJ_R) : r;
 }
 
-// raio da explosão no ponto mirado (Meteoro), desenhado em volta do ponto onde ele cai; 0 = não tem
-export const blastOf = (a: SpellId | ItemId, spells: Record<SpellId, number>) => (a === 'meteor' && spells.meteor ? spellLevel('meteor', spells.meteor).radius : 0);
+// Área de efeito no ponto mirado: Meteoro, cipós do Agarrar, Zona de dobra e Barricada (pedido do Fernando, 21/10, PR #169); 0 = não tem.
+export function blastOf(a: SpellId | ItemId, spells: Record<SpellId, number>): number {
+  if (!spells[a as SpellId]) return 0; // item ou magia não comprada
+  // Barricada não tem raio: o círculo cobre a parede de 3 pedaços, que fica atravessada no ponto
+  if (a === 'rockpillar') return WALL_GAP + OBSTACLES.rockpillar.r;
+  return a === 'meteor' || a === 'grip' || a === 'warpzone' ? spellLevel(a, spells[a]).radius : 0;
+}
 
 // largura do acerto na mira (pedido do Fernando, 21/10: ninguém sabia quanto o Raio e os projéteis pegam de lado):
 // meia largura da faixa = raio do projétil, então o CORPO do inimigo que encosta na faixa é atingido (escolha do Fernando, 21/10:
 // a faixa pelo centro do inimigo, WIZ_R mais larga de cada lado, parecia bem maior que a bola). É a conta do firstOnSegment em
 // sim.ts (centro a WIZ_R + raio do projétil) vista pelo corpo; no Raio, a largura extra dele (LIGHTNING.width).
 // Bumerangue (curva) e Míssil (persegue) ficam sem faixa: a reta mentiria.
-const HALF: Partial<Record<SpellId, number>> = { lightning: LIGHTNING.width, ...Object.fromEntries(['fireball', 'cluster', 'grip', 'magnetize', 'bouncer', 'recharge', 'link', 'swap', 'drain'].map((s) => [s, PROJ_R])) };
+const HALF: Partial<Record<SpellId, number>> = { lightning: LIGHTNING.width, ...Object.fromEntries(['fireball', 'cluster', 'magnetize', 'bouncer', 'recharge', 'link', 'swap', 'drain'].map((s) => [s, PROJ_R])) };
 
 // trechos de faixa (de onde a onde) e o círculo da explosão, para a mira de `from` em direção a `at`
 export function aimOf(a: SpellId | ItemId, spells: Record<SpellId, number>, items: Record<ItemId, number>, from: Vec, at: Vec) {
@@ -43,8 +48,9 @@ export function aimOf(a: SpellId | ItemId, spells: Record<SpellId, number>, item
   const tip = (r: number) => add(from, scale(d, r));
   const aimed = add(from, clampLen(sub(at, from), reach)); // o ponto mirado, sem passar do alcance
   const line = (to: Vec, half: number) => ({ ...none, segs: [[from, to]] as [Vec, Vec][], half });
-  // Meteoro: só a explosão no ponto mirado; Teleporte: o corpo onde você aparece
-  if (a === 'meteor') return { ...none, blastAt: aimed, blastR: blastOf(a, spells) };
+  // magias de área (Meteoro, Agarrar, Zona de dobra, Barricada): só o círculo no ponto mirado; Teleporte: o corpo onde você aparece
+  const blastR = blastOf(a, spells);
+  if (blastR) return { ...none, blastAt: aimed, blastR };
   if (a === 'teleport') return { ...none, blastAt: aimed, blastR: WIZ_R };
   // Drenar vira para o mago mais perto no ponto mirado: a reta só vale até ali
   if (a === 'drain') return line(aimed, HALF.drain!);
