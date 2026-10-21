@@ -7,14 +7,25 @@ mkdir -p "$P/sfx" "$P/music" "$T"
 
 # sfx <fonte> <saida> <inicio> <duracao|0> <fade-out> [bitrate] [ganho-dB]
 # corta o silêncio inicial, limita a duração, aplica fade-out e normaliza o pico para -1 dBFS;
-# ganho-dB (negativo) abaixa o som depois disso, para igualar o volume dos sons contínuos aos de impacto
+# ganho-dB (negativo) abaixa o som depois disso. Os sons das magias (SPELLS) saem todos no mesmo volume percebido (LUFS)
+SPELLS=" fireball lightning homing shield teleport frost swap grip meteor rush cluster boomerang thrust gravity rockpillar bouncer drain illusion magnetize recharge alteration link windwalk splitter warpzone "
 sfx() {
   local src=$1 out=$2 ss=$3 dur=$4 fade=$5 br=${6:-80k} trim=${7:-0} wav="$T/$2.wav" f
   f="silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.02"
   [ "$dur" != 0 ] && f="$f,atrim=0:$dur,asetpts=PTS-STARTPTS"
   [ "$dur" != 0 ] && f="$f,afade=t=out:st=$(python -I -c "print(max(0,$dur-$fade))"):d=$fade"
   ffmpeg -v error -y -ss "$ss" -i "$src" -ac 1 -ar 44100 -af "$f" "$wav"
-  norm_encode "$wav" "$P/sfx/$out.mp3" "$br" "$trim"
+  if [[ $SPELLS == *" $out "* ]]; then loud_encode "$wav" "$P/sfx/$out.mp3" "$br"; else norm_encode "$wav" "$P/sfx/$out.mp3" "$br" "$trim"; fi
+}
+# loud_encode: volume percebido igual em todos (-18 LUFS integrado; antes iam de -11,8 a -20,4) e pico limitado a -1 dB;
+# som com menos de 0,4 s é medido completado com silêncio até 0,4 s (a medida precisa de uma janela de 0,4 s)
+LUFS=-18
+loud_encode() {
+  local wav=$1 out=$2 br=$3 i gain
+  i=$(ffmpeg -hide_banner -nostats -i "$wav" -af apad=whole_dur=0.4,ebur128 -f null - 2>&1 | sed -n 's/^ *I: *\(-\?[0-9.]*\) LUFS/\1/p' | tail -1)
+  gain=$(python -I -c "print(round($LUFS-($i),2))")
+  ffmpeg -v error -y -i "$wav" -af "volume=${gain}dB,alimiter=limit=0.891:attack=1:release=50:level=false" -ac 1 -ar 44100 -c:a libmp3lame -b:a "$br" "$out"
+  echo "$(basename "$out"): I_in=${i}LUFS gain=${gain}dB"
 }
 norm_encode() {
   local wav=$1 out=$2 br=$3 trim=${4:-0} mx gain
