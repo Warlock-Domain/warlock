@@ -1125,9 +1125,10 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
   /* a loja termina acima da barra de baixo, onde se troca a ordem das magias: --bar-space = barra (112 px) + 10 px de margem + 8 de folga */
   .hud { --bar-space: 130px; }
   .center:has(.compact-shop) { top: calc(76px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 76px - var(--bar-space) - var(--safe-t) - var(--safe-b)); }
-  .compact-shop { padding: 12px; gap: 10px; --acts-w: 24px; --tile-h: clamp(50px, calc((100dvh - 470px) / 5), 74px); }
-  .compact-shop .shop-main { gap: 4px; }
-  .compact-shop .shop-group { gap: 3px; }
+  /* --gap-v: espaço vertical entre fileiras, grupos e blocos; cresce com a altura da tela (3 px em 720, 26 px em 1080) para a loja usar a altura livre (Fernando, 21/10) */
+  .compact-shop { padding: 12px; gap: 10px; --acts-w: 24px; --gap-v: clamp(3px, calc((100dvh - 680px) / 15), 26px); --tile-h: clamp(50px, calc((100dvh - 470px - 9 * var(--gap-v)) / 5), 84px); }
+  .compact-shop .shop-main, .compact-shop .shop-items { gap: var(--gap-v); }
+  .compact-shop .shop-group { gap: calc(var(--gap-v) / 2 + 2px); }
   .compact-shop .shop-head { gap: 4px 8px; }
   .compact-shop .shop-head h2 { font-size: 1.15rem; }
   .compact-shop .shop-head h3 { font-size: 1rem; }
@@ -1135,14 +1136,14 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
   .shop.compact-shop .shop-main > .shop-head h2 { white-space: nowrap; }
   .shop.compact-shop .shop-main > .shop-head small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* numa linha: a quebra dava 33 px de rolagem na gaveta em 1280 */
   .compact-shop .lib-search { min-height: 32px; padding-block: 5px; }
-  .shop.compact-shop .shop-grid { gap: 5px; }
+  .shop.compact-shop .shop-grid { gap: var(--gap-v) 5px; }
   .shop.compact-shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   /* um cartão só para itens e magias (Fernando, 21/10): o ícone num quadro da cor do grupo à esquerda; nome, nível e preço empilhados à direita.
      470 px: altura do que fica acima e abaixo do catálogo (topo, título, busca, barra de baixo); as 5 fileiras de magias dividem o resto.
-     A altura segue a largura (5 por 2) dentro desse teto: em 16:9 e em ultrawide o cartão tem o mesmo formato (Fernando, 21/10).
+     A altura segue a largura (9 por 4) dentro desse teto: em 16:9 e em ultrawide o cartão tem o mesmo formato (Fernando, 21/10).
      Padding igual nos quatro lados; à direita fica a coluna dos botões (comprar ou subir, vender, desfazer) */
   .compact-shop .shop-tile { --well: min(calc(var(--tile-h) - 18px), calc(40cqi - 18px), 52px); display: grid; grid-template-columns: var(--well) minmax(0, 1fr); grid-template-rows: 1fr auto auto auto 1fr;
-    gap: 3px 8px; align-items: center; padding: 8px calc(8px + var(--acts-w)) 8px 8px; height: auto; aspect-ratio: 5 / 2; min-height: 50px; max-height: var(--tile-h); }
+    gap: 3px 8px; align-items: center; padding: 8px calc(8px + var(--acts-w)) 8px 8px; height: auto; aspect-ratio: 9 / 4; min-height: 50px; max-height: var(--tile-h); }
   .compact-shop .shop-tile .ico { grid-area: 1 / 1 / -1 / 2; width: var(--well); aspect-ratio: 1; justify-content: center; align-items: center; font-size: calc(var(--well) * .6); }
   .compact-shop .shop-tile .tile-name { grid-area: 2 / 2; font-family: var(--display); font-weight: 700; font-size: .78rem; line-height: 1.05; min-height: 0; text-align: left; }
   .compact-shop .shop-tile .pips { grid-area: 3 / 2; margin: 0; justify-content: flex-start; }
