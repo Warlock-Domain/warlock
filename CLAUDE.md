@@ -121,6 +121,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 20/10 | **Sala contra bots sem escolha de magias** (issue #145): sai o bloco "Magias dos bots" (Sorteio + grade); os bots compram sozinhos, como em qualquer sala. A escolha do boneco fica só na sandbox | pedido do Fernando: "nem quero sorteio nem nada" |
 | 20/10 | **Música desligada nas abas de teste** (issue #158): em `localhost`/`127.0.0.1`, sem volume guardado, a música começa em 0 (no ar segue 0,7); `?musica=1` volta ao padrão para os testes de som. Os efeitos não mudam e volume já guardado vale igual | pedido do Fernando: "está muito irritante várias abas tocando a música" |
 | 21/10 | PR **pequeno** de colaborador (bug, alinhamento de interface, texto, ajuste visual pontual) a revisão aprova e mescla sem o "aprovado" do Fernando; PR **grande** de colaborador só entra com a aprovação do Fernando (além da decisão da issue); PR das sessões do Fernando segue com o teste em `localhost` aprovado por ele | pedido dele: "pode aprovar as PRs deles sem minha aprovação se forem coisas pequenas" |
+| 21/10 | Fluxo de teste recomendado para a IA de cada dev (docs/GUIA-COLABORADOR.md, seção Testar): navegador só de testes com perfil separado e porta de depuração em 127.0.0.1, aba já no ponto certo com `?aba=`/`?ir=`, música desligada (`?musica=1` em teste de som), 3 a 5 passos do que testar, limpeza no fim; sem aba em mudança que não altera o jogo | pedido do Fernando: cada dev testar a própria mudança em segundos |
 
 ## Fluxo com agente
 
