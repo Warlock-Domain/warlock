@@ -2,7 +2,7 @@
 import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
 import type { ArenaId } from '../shared/arena.ts';
-import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
+import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/characters.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Sandbox, type SandboxCmd, type Vote } from '../shared/match.ts';
 import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
@@ -176,8 +176,9 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
     char: panel('char', personagemTab()),
     shop: panel('shop', el('section', { class: 'home-learn' }, el('h2', {}, t('Loja', 'Shop')),
       el('p', { class: 'muted' }, t('Roupas e visuais para o seu personagem. Prévia do catálogo com os modelos atuais; moeda, preços e compras ainda não foram definidos. Os visuais existentes continuam disponíveis no Guarda-roupas.', 'Outfits and looks for your character. Catalog preview using current models; currency, prices and purchases have not been defined yet. Existing looks remain available in the Wardrobe.'))),
-      el('div', { class: 'home-cosmetics' }, ...CHARACTERS.map((c) => el('article', { class: 'cosmetic-card' },
-        el('img', { src: `/chars/${c.id}.webp`, alt: '', width: 96, height: 128, loading: 'lazy' }),
+      // os mesmos 8 prontos do Guarda-roupas: uma Ladina só, já com o Capuz (pedido do Fernando, 20/10)
+      el('div', { class: 'home-cosmetics' }, ...PRESETS.map((c) => el('article', { class: 'cosmetic-card' },
+        el('img', { src: `/chars/${lookHead(lookOf(c.id))}.webp`, alt: '', width: 96, height: 128, loading: 'lazy' }),
         el('h3', {}, t(c.name, c.en)), el('small', {}, t('Prévia de visual · sem compra', 'Look preview · not for sale')))))),
     profile: panel('profile', el('section', { class: 'home-learn' }, el('h2', {}, t('Perfil', 'Profile')),
       el('p', {}, t('Seu apelido: ', 'Your nickname: '), el('strong', {}, name)),
@@ -224,7 +225,7 @@ export function showRules() {
 addEventListener('keydown', (e) => {
   if (!isUiKey(e.code, 'rules') || e.repeat || (e.target as HTMLElement)?.tagName === 'INPUT') return;
   e.preventDefault(); // F1: não abre a ajuda do navegador
-  if (!document.querySelector('.rules-overlay')) showRules();
+  if (!document.querySelector('.grimoire-overlay')) showRules();
 });
 // biblioteca de magias e itens por cima de qualquer tela (F2 no padrão); aberta, a própria tecla ou o Esc fecham
 const showLibrary = () => void import('./grimoire.ts').then((m) => m.openLibrary());
@@ -376,6 +377,34 @@ export const choice = <T>(label: string, items: [T, string][], on: T, pick: (v: 
 const tabs = <T extends string>(label: string, list: [T, string][], on: T, set: (k: T) => void) =>
   el('div', { class: 'stats-tabs', role: 'tablist', 'aria-label': label }, ...list.map(([k, text]) =>
     el('button', { type: 'button', role: 'tab', 'aria-selected': String(k === on), class: k === on ? 'on' : '', onclick: () => set(k) }, text)));
+
+// diálogo por cima de qualquer tela (Configurações, Grimório, Biblioteca): fundo, título e ✕; ✕, clique fora e Esc fecham.
+// O fundo leva a classe <cls>-overlay (camada e celular no style.css). Teclas na captura e sem repassar: com ele aberto
+// nada chega ao jogo (digitar e o Tab do navegador continuam). onKey vê cada tecla antes; se der preventDefault, o Esc não fecha
+export function dialog(cls: string, title: string, body: Node[], o: { ico?: string; onKey?: (e: KeyboardEvent) => void; onClose?: () => void } = {}) {
+  const ac = new AbortController();
+  const close = () => {
+    if (!overlay.isConnected) return;
+    overlay.remove();
+    ac.abort();
+    o.onClose?.();
+  };
+  const x = el('button', { type: 'button', class: 'icon', title: t('Fechar (Esc)', 'Close (Esc)'), 'aria-label': t('Fechar', 'Close'), onclick: close }, '✕');
+  const overlay = el('div', { class: `overlay dialog-overlay ${cls}-overlay`, onclick: (e: Event) => e.target === overlay && close() },
+    el('div', { class: cls, role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+      el('header', { class: 'dialog-head' }, el('h2', { class: 'title' }, o.ico ? icon(o.ico) : null, title), x), ...body));
+  addEventListener('keydown', (e) => {
+    if (!overlay.isConnected) return ac.abort(); // tirado do DOM sem passar pelo close
+    e.stopImmediatePropagation();
+    o.onKey?.(e);
+    if (e.code !== 'Escape' || e.defaultPrevented) return;
+    e.preventDefault();
+    close();
+  }, { capture: true, signal: ac.signal });
+  document.body.append(overlay);
+  x.focus();
+  return { overlay, close };
+}
 
 // kick: só no fim da partida, onde a tabela substitui a lista de jogadores
 function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Scope) => void, view: View, setView: (v: View) => void, kick?: (id: string) => void) {
@@ -902,7 +931,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions, 
     tabOverlay.hidden = !on || !room;
     if (tabOverlay.hidden) tabOverlay.classList.remove('pinned');
     if (on && room) tabOverlay.replaceChildren(el('div', { class: 'card' },
-      el('div', { class: 'stats-head' }, el('h2', { class: 'title' }, t('Placar', 'Scoreboard')),
+      el('div', { class: 'dialog-head' }, el('h2', { class: 'title' }, t('Placar', 'Scoreboard')),
         tabOverlay.classList.contains('pinned') ? el('button', { type: 'button', class: 'icon', title: t('Fechar o placar', 'Close the scoreboard'), 'aria-label': t('Fechar o placar', 'Close the scoreboard'), onclick: () => pinTab(false) }, '✕') : el('small', {}, t('← → troca o período', '← → switch period'))),
       statsBoard(room, me, scope, setScope, view, setView)));
   }
@@ -968,7 +997,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions, 
     const taken = live[me]?.taken ?? 0;
     const effects = STATUS_ICONS.filter(([bit]) => myStatus & bit);
     sheetPanel.replaceChildren(
-      el('div', { class: 'stats-head' }, el('h2', { class: 'title' }, t('Ficha do mago', 'Wizard sheet')), el('button', { type: 'button', class: 'icon', title: t('Fechar a ficha', 'Close the sheet'), 'aria-label': t('Fechar a ficha', 'Close the sheet'), onclick: () => toggleSheet(false) }, '✕')),
+      el('div', { class: 'dialog-head' }, el('h2', { class: 'title' }, t('Ficha do mago', 'Wizard sheet')), el('button', { type: 'button', class: 'icon', title: t('Fechar a ficha', 'Close the sheet'), 'aria-label': t('Fechar a ficha', 'Close the sheet'), onclick: () => toggleSheet(false) }, '✕')),
       sheetEl(sheet(mine.spells, mine.items),
         el('section', {}, el('h4', {}, t('Agora', 'Now')), el('dl', {},
           el('dt', {}, t('Dano levado na rodada', 'Damage taken this round')), el('dd', {}, `${Math.round(taken)} · ${t('empurrão', 'knockback')} ×${(1 + (KNOCK_HP_SCALE * taken) / HP_MAX).toLocaleString(LOCALE, { maximumFractionDigits: 2 })}`), el('small', { class: 'from' }, t('Cada ponto de dano levado faz você voar mais longe até o fim da rodada (a lava conta pela metade e não entra nesta conta).', 'Every point of damage taken sends you flying farther until the end of the round (lava counts half and is not included here).')),

@@ -68,9 +68,9 @@ export const fixLook = (s: string) => {
   const l = decodeLook(s);
   return l ? encodeLook(l) : s;
 };
-// os personagens prontos viram a aparência equivalente (a encapuzada vira a Ladina com o Capuz; a Ladina pronta vem sem ele)
+// os personagens prontos viram a aparência equivalente; a Ladina pronta já vem com o Capuz (pedido do Fernando, 20/10), igual à encapuzada
 export const lookOf = (c: CharacterId) => fixLook(encodeLook(LOOK_PARTS.map(({ opts }) => {
-  const i = opts.findIndex((o, k) => o?.from === c && !(opts === LOOK_PARTS[HAT].opts && k === HOOD));
+  const i = opts.findIndex((o) => o?.from === c);
   return i >= 0 ? i : c === 'rogue_hooded' ? Math.max(0, opts.findIndex((o) => o?.from === 'rogue')) : 0;
 })));
 // atalhos do criador: uma Ladina só (issue #107)
