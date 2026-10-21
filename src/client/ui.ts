@@ -655,7 +655,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const voteWrap = el('div', { class: 'vol' }, voteBtn, votePanel);
   // espectador (pedido do Sky, 20/10): sem mago a partir da próxima rodada (na sandbox, na hora); voltar precisa de vaga
   const specLabel = el('span', { class: 'vote-label' });
-  const specBtn = el('button', { type: 'button', class: 'vote-btn', 'aria-pressed': 'false', onclick: () => {
+  let specTip = '';
+  const specBtn = withTip(el('button', { type: 'button', class: 'vote-btn', 'aria-pressed': 'false', onclick: () => {
     const mine = room?.players.find((p) => p.id === me);
     if (!room || !mine) return;
     const on = !mine.watch;
@@ -664,13 +665,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const now = room.phase === 'lobby' || room.phase === 'end' || !!room.sandbox;
     toast(on ? (now ? t('Você está assistindo.', 'You are spectating.') : t('Você assiste a partir da próxima rodada. Pontos, ouro e compras ficam guardados.', 'You spectate from the next round. Score, gold and purchases are kept.'))
       : now ? t('Você voltou a jogar.', 'You are playing again.') : t('Você volta a jogar na próxima rodada.', 'You play again from the next round.'), 'good');
-  } }, icon(UI_ICON.watch), specLabel);
+  } }, icon(UI_ICON.watch), specLabel), () => specTip);
   function drawSpectate(r: PublicRoom) {
     const on = !!r.players.find((p) => p.id === me)?.watch;
     specLabel.textContent = ' ' + (on ? t('Jogar', 'Play') : t('Assistir', 'Spectate'));
     const tip = on ? t('Voltar a jogar (se tiver vaga de mago)', 'Play again (if there is a wizard slot)')
       : t('Assistir: sem mago a partir da próxima rodada; pontos, ouro e compras ficam guardados', 'Spectate: no wizard from the next round; score, gold and purchases are kept');
-    specBtn.title = tip;
+    specTip = tip;
     specBtn.setAttribute('aria-label', tip);
     specBtn.setAttribute('aria-pressed', String(on));
   }
