@@ -1,6 +1,6 @@
 // Tela do modo Ascensão: as 3 cartas do intervalo (no lugar da loja), o nível no placar e o líder marcado.
 // A regra do modo mora em src/shared/ascension.ts; aqui só se desenha o que a sala manda em PublicPlayer.asc.
-import { ASC_ROUNDS, MARK_KB, type Card } from '../shared/ascension.ts';
+import { ASC_ROUNDS, MARK_KB, markedLeader, type Card } from '../shared/ascension.ts';
 import { ITEMS } from '../shared/items.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, spellCount, type SpellId } from '../shared/spells.ts';
@@ -16,12 +16,7 @@ export const ASC_MODE_TEXT = t(
   `${ASC_ROUNDS} rounds. Hits give XP; each level becomes 1 card out of 3 between rounds (new spell, spell upgrade or item). No gold or shop. Points by fall order; highest total wins.`,
 );
 
-// o líder marcado: sozinho no maior nível (a mesma regra de ascMark)
-export function ascLeader(r: PublicRoom): { id: string; above: number } | null {
-  const lv = r.players.map((p) => p.asc?.level ?? 1).sort((a, b) => b - a);
-  const p = r.players.find((q) => (q.asc?.level ?? 1) === lv[0]);
-  return p && lv.length > 1 && lv[0] > lv[1] ? { id: p.id, above: lv[0] - lv[1] } : null;
-}
+const ascLeader = (r: PublicRoom) => markedLeader(r.players.map((p) => [p.id, p.asc?.level ?? 1]));
 
 // "Nv 3" no placar, com o XP na dica; o líder ganha a marca
 export function ascLevel(r: PublicRoom, p: PublicPlayer): Child {

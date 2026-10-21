@@ -37,11 +37,7 @@ export function xpGain(s: Stat): number {
 }
 
 export const xpFor = (level: number) => LEVEL_XP * (level - 1);
-export function levelOf(xp: number): number {
-  let l = 1;
-  while (xp >= xpFor(l + 1)) l++;
-  return l;
-}
+export const levelOf = (xp: number) => 1 + Math.floor(xp / LEVEL_XP);
 
 const lv = (a: AscState, id: string) => levelOf(a.xp[id] ?? 0);
 const groupOf = (c: Card) => (c.kind === 'item' ? 'item' : spellGroup(c.id));
@@ -133,13 +129,18 @@ export function ascDeath(m: Match, victim: string, by: string | null) {
   if (by && by !== victim && lv(a, victim) === top && top > lv(a, by)) a.extra[by] = (a.extra[by] ?? 0) + LEADER_KILL_XP * (top - lv(a, by));
 }
 
-// começo da rodada: o líder marcado (sozinho no maior nível) leva mais empurrão; a simulação lê o kbResist do mago
+// líder marcado: sozinho no maior nível; above = níveis à frente do 2º (o cliente usa a mesma regra para a marca)
+export function markedLeader(levels: [id: string, level: number][]): { id: string; above: number } | null {
+  const [first, second] = levels.map(([, l]) => l).sort((x, y) => y - x);
+  const id = levels.find(([, l]) => l === first)?.[0];
+  return id && second !== undefined && first > second ? { id, above: first - second } : null;
+}
+
+// começo da rodada: o líder marcado leva mais empurrão; a simulação lê o kbResist do mago
 export function ascMark(m: Match) {
-  const a = m.asc!;
-  const [first, second] = m.players.map((p) => lv(a, p.id)).sort((x, y) => y - x);
-  const leader = m.players.find((p) => lv(a, p.id) === first);
-  const z = m.world?.wizards.find((q) => q.id === leader?.id);
-  if (z && second !== undefined && first > second) z.kbResist -= MARK_KB * (first - second);
+  const lead = markedLeader(m.players.map((p) => [p.id, lv(m.asc!, p.id)]));
+  const z = m.world?.wizards.find((q) => q.id === lead?.id);
+  if (z && lead) z.kbResist -= MARK_KB * lead.above;
 }
 
 export function pickCard(m: Match, id: string, i: number, swap?: SpellId): boolean {
