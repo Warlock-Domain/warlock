@@ -1146,7 +1146,7 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
 }
 /* Mesmo formato compacto em toda compra; a gaveta estreita não comporta o catálogo sem rolagem. */
 @media (min-width: 1100px) and (min-height: 600px) {
-  .center:has(.compact-shop) { top: calc(76px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 88px - var(--safe-t) - var(--safe-b)); }
+  .center:has(.compact-shop) { top: calc(76px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 88px - 124px - var(--safe-t) - var(--safe-b)); } /* acima da barra do personagem */
   .compact-shop { padding: 12px; gap: 10px; --acts-w: 24px; --tile-h: clamp(60px, calc((100dvh - 420px) / 5), 74px); }
   .compact-shop .shop-main { gap: 6px; }
   .compact-shop .shop-loadout { gap: 10px; margin-bottom: 0; }
