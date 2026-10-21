@@ -28,7 +28,7 @@ import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
-import { TEAM_NAMES, TOUCH, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
+import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
 import { endResult, sandboxVisibility } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
@@ -210,6 +210,14 @@ function startLobby(name: string) {
 
 function startRoom(code: string, name: string) {
   let myName = name;
+  // botão Assistir da lista de salas: entra só assistindo nesta sala (a marca vale uma vez)
+  let watchJoin = false;
+  try {
+    watchJoin = sessionStorage.getItem(WATCH_JOIN) === code;
+    sessionStorage.removeItem(WATCH_JOIN);
+  } catch {
+    // sem armazenamento: entra jogando
+  }
   document.body.className = 'in-room';
   curtain();
   const sound = createSound(MUSIC_DEFAULT);
@@ -296,6 +304,7 @@ function startRoom(code: string, name: string) {
     card: (slot, i, swap) => net.send({ t: 'card', slot, i, ...(swap && { swap }) }),
     reroll: () => net.send({ t: 'reroll' }),
     sandbox: (cmd) => net.send({ t: 'sandbox', cmd }),
+    spectate: (on) => net.send({ t: 'watch', on }),
     seeInvis: (on) => (seeInvis = on),
     seeHit: (on) => (seeHit = on),
     spell: (s) => input.button(s),
@@ -412,7 +421,7 @@ function startRoom(code: string, name: string) {
 
   // a aparência escolhida fica salva e é reenviada ao entrar em qualquer sala; trocada nas Configurações, vale na hora
   const net = connect('/ws/room/' + code, onMsg, () => {
-    net.send({ t: 'hello', playerId, name: myName });
+    net.send({ t: 'hello', playerId, name: myName, ...(watchJoin && { watch: true as const }) });
     net.send({ t: 'look', look: savedLook() });
   }, (on) => {
     servidor(on);
