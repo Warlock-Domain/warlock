@@ -10,6 +10,8 @@ export function sandboxVisibility(status: number, self: boolean, sandbox: boolea
   return status & (1024 | 8388608) ? (status & ~(1024 | 8388608)) | 2048 : status;
 }
 
+const ITEM_SLOTS = 3; // itens ativos nas teclas 1 2 3 (POS_ACTIONS item1 a item3)
+
 // Mesma ordem da barra da partida; vagas não compradas continuam visíveis.
 export type LoadoutOrder = { spells: (SpellId | null)[]; items: (ItemId | null)[] };
 export function loadoutSlots(spells: Record<SpellId, number>, items: Record<ItemId, number>, order?: LoadoutOrder) {
