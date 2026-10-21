@@ -44,7 +44,7 @@ const named = <K extends string>(m: Record<K, [id: string, alt: string]>) =>
 
 export const ICON: Record<SpellId, string> = named<SpellId>({ fireball: ['fire-ray', '🔥'], lightning: ['focused-lightning', '⚡'], homing: ['on-target', '🎯'], shield: ['shield-reflect', '🛡️'],
   teleport: ['teleport', '✨'], swap: ['body-swapping', '🔄'], grip: ['grab', '⛓️'], meteor: ['meteor-impact', '☄️'], rush: ['sprint', '💨'], cluster: ['striking-splinter', '🔱'],
-  boomerang: ['boomerang', '🪃'], thrust: ['knife-thrust', '🗡️'], gravity: ['vortex', '🌀'], rockpillar: ['menhir', '🪨'], bouncer: ['ricochet', '🏓'], drain: ['life-tap', '🧛'],
+  boomerang: ['boomerang', '🪃'], thrust: ['knife-thrust', '🗡️'], gravity: ['vortex', '🌀'], rockpillar: ['defensive-wall', '🧱'], bouncer: ['ricochet', '🏓'], drain: ['life-tap', '🧛'],
   snowball: ['frozen-orb', '❄️'], illusion: ['two-shadows', '👥'], magnetize: ['magnet', '🧲'], recharge: ['cycle', '🔋'], alteration: ['card-exchange', '🔀'], link: ['harpoon-chain', '🔗'],
   windwalk: ['wind-slap', '👻'], splitter: ['split-arrows', '💠'], warpzone: ['time-trap', '⏳'] });
 // Armadura e Roubo de vida tinham o mesmo emoji de Agarrar e de Drenar; agora cada um tem desenho próprio
