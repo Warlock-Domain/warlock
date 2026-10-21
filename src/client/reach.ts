@@ -7,7 +7,7 @@ import { RUSH, spellLevel, type SpellId } from '../shared/spells.ts';
 
 // projéteis que saem na frente do mago e voam o alcance: o anel marca até onde a ponta chega, então inimigo que encosta
 // no anel é atingido (Fernando, 20/10, issue #82; antes ficava 0,8 m curto)
-const FLIES = new Set<SpellId>(['fireball', 'cluster', 'grip', 'snowball', 'magnetize', 'gravity', 'bouncer', 'drain', 'recharge', 'link']);
+const FLIES = new Set<SpellId>(['fireball', 'cluster', 'snowball', 'magnetize', 'gravity', 'bouncer', 'drain', 'recharge', 'link']);
 
 export function reachOf(a: SpellId | ItemId, spells: Record<SpellId, number>, items: Record<ItemId, number>): number {
   if (isActive(a)) return a === 'scourge' ? SCOURGE.radius : 0; // Flagelo: o raio da explosão
@@ -22,5 +22,5 @@ export function reachOf(a: SpellId | ItemId, spells: Record<SpellId, number>, it
   return FLIES.has(a as SpellId) ? r + PROJ_SPAWN + (a === 'snowball' ? snowR(lvl) : PROJ_R) : r;
 }
 
-// raio da explosão no ponto mirado (Meteoro), desenhado em volta do ponto onde ele cai; 0 = não tem
-export const blastOf = (a: SpellId | ItemId, spells: Record<SpellId, number>) => (a === 'meteor' && spells.meteor ? spellLevel('meteor', spells.meteor).radius : 0);
+// Área de efeito no ponto mirado: Meteoro e cipós do Agarrar; 0 = não tem.
+export const blastOf = (a: SpellId | ItemId, spells: Record<SpellId, number>) => ((a === 'meteor' || a === 'grip') && spells[a] ? spellLevel(a, spells[a]).radius : 0);

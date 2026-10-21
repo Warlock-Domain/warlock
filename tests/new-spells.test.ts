@@ -69,7 +69,7 @@ describe('escudo contra as magias novas', () => {
 describe('Agarrar', () => {
   it('stops the target from walking while it lasts, then releases', () => {
     const w = world([[0, 0], [4, 0]], ['grip']);
-    run(w, 1.2, [cast('p0', 'grip', 4, 0)]);
+    run(w, 1.5, [cast('p0', 'grip', 4, 0)]);
     const L = spellLevel('grip', 1);
     expect(w.wizards[1].gripUntil).toBeGreaterThan(w.t);
     const before = w.wizards[1].pos;
@@ -94,13 +94,16 @@ describe('Agarrar', () => {
     const h = world([[0, 0], [4, 0]], ['grip']);
     h.wizards[0].spells.grip = 7;
     h.wizards[1].invulnUntil = 0;
-    run(h, 1, [cast('p0', 'grip', 4, 0)]);
+    run(h, 1.5, [cast('p0', 'grip', 4, 0)]);
     expect(h.wizards[1].gripUntil).toBeGreaterThan(h.t);
     expect(h.wizards[1].gripBonus).toBe(0.9);
     const c = world([[0, 0], [4, 0]], ['grip', 'meteor']);
+    run(c, .2, [cast('p0', 'grip', 4, 0)]);
+    const mark = c.projectiles.find((p) => p.kind === 'grip')!;
+    while (c.t + .05 < mark.until) stepWorld(c, []);
     stepWorld(c, [cast('p1', 'meteor', 0, 0)]);
     expect(c.wizards[1].casting).not.toBeNull();
-    run(c, 0.4, [cast('p0', 'grip', 4, 0)]);
+    run(c, .08);
     expect(c.wizards[1].casting).toBeNull();
   });
 });

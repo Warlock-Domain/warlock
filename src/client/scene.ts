@@ -169,6 +169,7 @@ type Mage = {
   ring: THREE.Mesh;
   shield: THREE.Mesh;
   aura: THREE.Mesh; // anel no chão: dourado invulnerável, azul com Escudo de runa
+  vines: THREE.Group;
   bar: HTMLDivElement;
   absRush: HTMLDivElement;
   extraEl: HTMLSpanElement; // números pequenos ao lado da barra: regeneração por segundo e o que os escudos ainda absorvem
@@ -456,7 +457,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     homing: { mat: homingMat, halo: '#c23cff', trail: '#b040ff', tex: FX.magic, size: 1.1 },
     cluster: { mat: fireMat, halo: '#fff066', trail: '#ffd23a', tex: FX.spark, size: 0.65 },
     swap: { mat: swapMat, halo: '#00fff0', trail: '#2fe0d0', tex: FX.magic, size: 1 },
-    grip: { mat: gripMat, halo: '#ff1f4f', trail: '#e0103a', tex: FX.magic, size: 1 },
+    grip: { mat: gripMat, halo: '#8ed64b', trail: '#4d8f28', tex: FX.magic, size: 1 },
     meteor: { mat: fireMat, halo: '#ff5a1a', trail: '#ff7a20', tex: FX.fire, size: 3 },
     boomerang: { mat: swapMat, halo: '#7dff5a', trail: '#5ad040', tex: FX.spark, size: 0.85 },
     gravity: { mat: homingMat, halo: '#3b2bff', trail: '#6a3cff', tex: FX.magic, size: 1.5 },
@@ -479,6 +480,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     return g;
   };
   const flat = (color: string, emissive: string, intensity = 0.6) => new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity, flatShading: true, roughness: 0.5 });
+  function vineModel(radius: number) {
+    const group = new THREE.Group();
+    const stem = flat('#3c7023', '#203f0e', .3), leafMat = flat('#8ac34b', '#335d17', .3);
+    for (let i = 0; i < 6; i++) {
+      const points = Array.from({ length: 13 }, (_, j) => {
+        const k = j / 12, a = i * Math.PI / 3 + k * 2.5, r = radius * (1 - k * .55);
+        return new THREE.Vector3(Math.cos(a) * r, k * 1.15, Math.sin(a) * r);
+      });
+      group.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 20, .035, 5, false), stem));
+      for (const j of [4, 9]) {
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(.09, 5, 3), leafMat);
+        leaf.position.copy(points[j]); leaf.scale.set(.5, 1.8, 1); leaf.rotation.z = i;
+        group.add(leaf);
+      }
+    }
+    return group;
+  }
   const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
     fireball: () => new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.24, 1), 0.35), flat('#ffb347', '#ff6a00', 1.4)),
     cluster: () => new THREE.Mesh(new THREE.TetrahedronGeometry(0.2), flat('#ffe066', '#ff9a00', 1.2)),
@@ -496,13 +514,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       return g;
     },
     grip: () => {
-      const g = new THREE.Group();
-      const hook = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 6), flat('#ff8095', '#e0103a', 1.1));
-      hook.rotation.x = Math.PI / 2; // ponta para a frente
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.04, 6, 16), flat('#c0c0c8', '#400010', 0.4));
-      ring.position.z = -0.3;
-      g.add(hook, ring);
-      return g;
+      const ring = new THREE.Mesh(new THREE.RingGeometry(.94, 1, 64), new THREE.MeshBasicMaterial({ color: '#8ed64b', side: THREE.DoubleSide, transparent: true, opacity: .8, depthWrite: false }));
+      ring.rotation.x = -Math.PI / 2;
+      return ring;
     },
     meteor: () => new THREE.Mesh(jitter(new THREE.DodecahedronGeometry(0.3, 0), 0.4), flat('#4a2c20', '#ff4a00', 0.9)),
     boomerang: () => {
@@ -758,6 +772,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     aura.scale.setScalar(1.45);
     aura.visible = false;
     root.add(aura);
+    const vines = vineModel(.5);
+    vines.visible = false;
+    root.add(vines);
     scene.add(root);
     const mixer = new THREE.AnimationMixer(model);
     const actions: Record<string, THREE.AnimationAction> = {};
@@ -785,7 +802,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const lootBar = el('div', { class: 'loot-bar', hidden: true }, lootFill);
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -1420,11 +1437,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(v(e.x, e.y), '#cfeaff', 1.6, 0.25, 0.8, FX.light);
       }
       else if (e.k === 'lightning') bolt(e.from, e.to);
+      else if (e.k === 'vines') {
+        const vines = vineModel(e.r);
+        vines.position.copy(w3(v(e.x, e.y), .03));
+        addFx(vines, .7, (k) => { vines.scale.y = k < .25 ? k * 4 : Math.max(.01, (1 - k) / .75); });
+        shockwave(v(e.x, e.y), e.r, '#8ed64b');
+      }
       else if (e.k === 'grip') {
         oneShot(e.id, 'Hit_B', 0.85); // quem foi preso cambaleia para trás
-        burst(v(e.x, e.y), '#e0203a', 2.4, 0.5, 0.8, FX.magic);
-        burst(v(e.x, e.y), '#ffd0d8', 1.6, 0.3, 0.8, FX.light);
-        shockwave(v(e.x, e.y), 1.2, '#e0203a');
+        burst(v(e.x, e.y), '#6eaf34', 2.4, 0.5, 0.8, FX.magic);
       }
       else if (e.k === 'teleport') {
         // só o Teleporte lançado (não Troca, Égide nem Alteração) ganha o fade com deslize
@@ -1521,7 +1542,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         halo.scale.setScalar(1.2 * look.size);
         halo.material.opacity = 0.7;
         g.add(core, halo);
-        if (p.kind === 'warpzone') {
+        if (p.kind === 'warpzone' || p.kind === 'grip') {
           core.scale.setScalar(p.vel.x); // vel.x = raio
           halo.visible = false;
         }
@@ -1559,7 +1580,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const warn = g.getObjectByName('warn') as THREE.Mesh;
         warn.position.y = 0.04 - y;
         (warn.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.sin(performance.now() / 70);
-      } else if (p.kind === 'warpzone') g.position.copy(w3(p.pos, 0));
+      } else if (p.kind === 'grip') g.position.copy(w3(p.pos, .045));
+      else if (p.kind === 'warpzone') g.position.copy(w3(p.pos, 0));
       else g.position.copy(w3(p.pos, 0.9));
       if (p.kind === 'link') {
         const dx = p.vel.x - p.pos.x, dz = p.vel.y - p.pos.y;
@@ -1571,7 +1593,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // giro e direção: aponta para onde voa; anéis, bumerangue e pedras giram
       const body = g.children[0];
       const t = performance.now() / 1000;
-      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
+      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
       if (p.kind === 'boomerang') body.rotation.y = t * 18;
       else if (p.kind === 'fireball' || p.kind === 'meteor' || p.kind === 'cluster' || p.kind === 'bouncer' || p.kind === 'snowball' || p.kind === 'splitter' || p.kind === 'shard') body.rotation.set(t * 3, t * 4, 0);
       else if (p.kind === 'link') body.rotation.y = t * 6;
@@ -1588,7 +1610,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (swirl) swirl.material.rotation = -t * 4;
       // rastro: brasas que ficam para trás e somem
       const look = LOOK[p.kind];
-      if (p.kind !== 'warpzone' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
+      if (p.kind !== 'warpzone' && p.kind !== 'grip' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
@@ -1609,6 +1631,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (made && m) {
           unburn(m);
           scene.remove(m.root);
+          dispose(m.vines); // Os cipós procedurais pertencem à aparência que está sendo substituída.
           for (const o of [m.ring, m.shield, m.aura]) (o.material as THREE.Material).dispose();
           for (const x of m.mats) x.m.dispose();
           m.label.remove();
@@ -1639,6 +1662,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       m.root.position.copy(w3(tk < 1 ? add(m.tpFrom, scale(m.tpDir, tk * TP_SLIDE)) : tk < 2 ? add(m.tpTo, scale(m.tpDir, (tk - 2) * TP_SLIDE)) : d.pos));
       m.root.rotation.y = Math.PI / 2 - d.facing;
+      m.vines.visible = d.alive && !!(d.status & 128);
       // Escudo: bolha no raio real que vai apagando, e a barrinha do tempo que falta
       if (d.shield && !m.shield.visible) m.shieldSince = now;
       m.shield.visible = d.shield && d.alive;

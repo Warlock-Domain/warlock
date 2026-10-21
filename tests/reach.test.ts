@@ -6,6 +6,13 @@ import { snowR } from '../src/shared/sim.ts';
 import { RUSH, SPELL_IDS, noSpells, spellLevel } from '../src/shared/spells.ts';
 
 describe('círculo de alcance', () => {
+  it('Agarrar mostra o alcance da marca e seu raio, sem o avanço de um projétil', () => {
+    const spells = { ...noSpells(), grip: 1 };
+    expect(reachOf('grip', spells, noItems())).toBeCloseTo(spellLevel('grip', 1).range);
+    expect(reachOf('grip', spells, { ...noItems(), helmet: 1 })).toBeCloseTo(spellLevel('grip', 1).range * .9);
+    expect(blastOf('grip', spells)).toBe(1.5);
+    expect(blastOf('grip', noSpells())).toBe(0);
+  });
   it('mostra o alcance do nível atual; o Elmo encurta 10%', () => {
     const spells = { ...noSpells(), lightning: 3 };
     expect(reachOf('lightning', spells, noItems())).toBeCloseTo(spellLevel('lightning', 3).range);
