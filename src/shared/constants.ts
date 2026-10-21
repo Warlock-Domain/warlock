@@ -52,6 +52,7 @@ export const OBSTACLES: Record<ObstacleKind, { r: number; hp: number; blastR: nu
 export const WALL_GAP = 0.65; // centro a centro dos 3 pedaços da parede: 2 × 0,65 + 2 × 0,35 = 2 m, a largura do modelo
 
 export const MAX_PLAYERS = 8;
+export const MAX_WATCHERS = 8; // espectadores além dos magos (não ocupam vaga de mago)
 export const WINS_TO_WIN = 5; // original: 1 ponto por rodada vencida (lá o padrão é 11; aqui 5, decisão do Fernando)
 export const START_GOLD = 30;
 export const ROUND_GOLD = 10;

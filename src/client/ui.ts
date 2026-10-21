@@ -91,6 +91,8 @@ function trainBlock(onTrain: (kind: string) => void) {
 // menu principal com abas no topo, como o do Dota (decisão do Fernando, 19/10); a aba aberta fica guardada
 type HomeTab = 'play' | 'library' | 'learn' | 'char' | 'settings';
 const HOME_TAB = 'warlock:homeTab';
+// botão Assistir da lista de salas: o código da sala em que a pessoa entra só assistindo (lido uma vez em main.ts)
+export const WATCH_JOIN = 'warlock:watchjoin';
 const HOME_TABS: [HomeTab, string, string][] = [['play', t('Jogar', 'Play'), UI_ICON.aim], ['library', t('Magias e itens', 'Spells and items'), ICON.fireball],
   ['learn', t('Aprender', 'Learn'), UI_ICON.help], ['char', t('Personagem', 'Character'), UI_ICON.person], ['settings', t('Configurações', 'Settings'), UI_ICON.gear]];
 
@@ -109,7 +111,16 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
         el('div', { class: 'room-top' }, el('span', { class: 'code' }, r.id), r.mode && r.mode in MODE_NAME ? el('span', { class: 'room-mode' }, MODE_NAME[r.mode as Mode]) : null),
         r.players ? el('span', {}, icon(UI_ICON.person), ` ${r.players} ${r.players === 1 ? t('pessoa', 'person') : t('pessoas', 'people')}`, r.bots ? ' + ' : null, r.bots ? icon(UI_ICON.bot) : null, r.bots ? ` ${r.bots} ${r.bots === 1 ? 'bot' : 'bots'}` : null) : el('span', {}, t('Vazia (fecha sozinha daqui a pouco)', 'Empty (closes on its own soon)')),
         el('small', {}, roomPhase(r))),
-      el('a', { class: 'button' + (r.phase === 'lobby' || r.phase === 'end' ? '' : ' secondary'), href: '#' + r.id, 'aria-label': t(`Entrar na sala ${r.id}`, `Join room ${r.id}`) }, t('Entrar', 'Join')),
+      el('div', { class: 'room-actions' },
+        el('a', { class: 'button' + (r.phase === 'lobby' || r.phase === 'end' ? '' : ' secondary'), href: '#' + r.id, 'aria-label': t(`Entrar na sala ${r.id}`, `Join room ${r.id}`) }, t('Entrar', 'Join')),
+        // entrar só assistindo: a marca atravessa o recarregar da página (main.ts manda watch no hello)
+        el('a', { class: 'button secondary', href: '#' + r.id, 'aria-label': t(`Assistir a sala ${r.id}`, `Spectate room ${r.id}`), onclick: () => {
+          try {
+            sessionStorage.setItem(WATCH_JOIN, r.id);
+          } catch {
+            // sem armazenamento: entra jogando e o botão Assistir da sala resolve
+          }
+        } }, icon(UI_ICON.watch), ' ' + t('Assistir', 'Spectate'))),
     )));
   const groups = rooms && roomGroups(rooms);
   const list =
@@ -240,6 +251,7 @@ type RoomActions = {
   name: () => string; // apelido atual e a troca (aba Jogador das configurações)
   rename: () => void;
   sandbox: (cmd: SandboxCmd) => void; // painel da sandbox
+  spectate: (on: boolean) => void; // assistir (sem mago a partir da próxima rodada) ou voltar a jogar
   seeInvis: (on: boolean) => void; // sandbox: invisíveis meio transparentes (só nesta tela)
 };
 
@@ -542,6 +554,27 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const voteBtn = el('button', { type: 'button', class: 'vote-btn', title: t('Votar: trocar o modo ou expulsar alguém', 'Vote: change the mode or kick someone'), 'aria-label': t('Votar', 'Vote'), 'aria-expanded': 'false', onclick: () => toggle(votePanel, voteBtn) },
     icon(UI_ICON.vote), el('span', { class: 'vote-label' }, ' ' + t('Votar', 'Vote')));
   const voteWrap = el('div', { class: 'vol' }, voteBtn, votePanel);
+  // espectador (pedido do Sky, 20/10): sem mago a partir da próxima rodada (na sandbox, na hora); voltar precisa de vaga
+  const specLabel = el('span', { class: 'vote-label' });
+  const specBtn = el('button', { type: 'button', class: 'vote-btn', 'aria-pressed': 'false', onclick: () => {
+    const mine = room?.players.find((p) => p.id === me);
+    if (!room || !mine) return;
+    const on = !mine.watch;
+    if (!on && room.players.filter((p) => !p.watch).length >= MAX_PLAYERS) return void toast(t('Sem vaga de mago: espere alguém sair ou ir assistir.', 'No wizard slot: wait for someone to leave or spectate.'));
+    act.spectate(on);
+    const now = room.phase === 'lobby' || room.phase === 'end' || !!room.sandbox;
+    toast(on ? (now ? t('Você está assistindo.', 'You are spectating.') : t('Você assiste a partir da próxima rodada. Pontos, ouro e compras ficam guardados.', 'You spectate from the next round. Score, gold and purchases are kept.'))
+      : now ? t('Você voltou a jogar.', 'You are playing again.') : t('Você volta a jogar na próxima rodada.', 'You play again from the next round.'), 'good');
+  } }, icon(UI_ICON.watch), specLabel);
+  function drawSpectate(r: PublicRoom) {
+    const on = !!r.players.find((p) => p.id === me)?.watch;
+    specLabel.textContent = ' ' + (on ? t('Jogar', 'Play') : t('Assistir', 'Spectate'));
+    const tip = on ? t('Voltar a jogar (se tiver vaga de mago)', 'Play again (if there is a wizard slot)')
+      : t('Assistir: sem mago a partir da próxima rodada; pontos, ouro e compras ficam guardados', 'Spectate: no wizard from the next round; score, gold and purchases are kept');
+    specBtn.title = tip;
+    specBtn.setAttribute('aria-label', tip);
+    specBtn.setAttribute('aria-pressed', String(on));
+  }
   // provocações (taunts): a tecla (Y no padrão) abre a lista e o número escolhe (ou clique); vale na loja e no jogo
   const sendTaunt = (i: number) => {
     act.taunt(i);
@@ -707,7 +740,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     exitBtn,
     el('button', { type: 'button', class: 'code', title: t('Copiar link da sala', 'Copy room link'), 'aria-label': t(`Sala ${code}: copiar link`, `Room ${code}: copy link`), onclick: () => copyLink() }, status, ' ', code, ping),
     roundEl,
-    el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, volBtn, gearBtn, helpBtn, el('div', { class: 'vol more-wrap' }, moreBtn, morePanel), el('div', { class: 'vol' }, sbBtn, sbPanel)),
+    el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), specBtn, voteWrap, volBtn, gearBtn, helpBtn, el('div', { class: 'vol more-wrap' }, moreBtn, morePanel), el('div', { class: 'vol' }, sbBtn, sbPanel)),
   );
   const center = el('div', { class: 'center' });
   // a janela da loja pode ser alargada pela alça do canto (PC); o tamanho fica salvo neste navegador (pedido do Fernando, 18/10)
@@ -902,7 +935,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let setup = false; // fim da partida: true depois do "Voltar à sala"
 
   function lobbyPanel(r: PublicRoom) {
-    const humans = r.players.filter((p) => !p.bot).length;
+    const humans = r.players.filter((p) => !p.bot && !p.watch).length; // quem assiste não ocupa vaga nem conta para começar
     const maxBots = MAX_PLAYERS - humans;
     bots = bots.slice(0, maxBots);
     const count = el('b', { class: 'count' }, String(bots.length));
@@ -951,7 +984,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         choice(OPT_NAME[k], (OPTION_CHOICES[k] as readonly MatchOpts[OptKey][]).map((val): [MatchOpts[OptKey], string] => [val, optText(k, val, mode)]), o[k], (val) => (Object.assign(o, { [k]: val }), drawCenter()))))));
     return el('div', { class: 'card room-wait' },
       el('div', {}, el('h2', { class: 'title' }, t('Sala ', 'Room ') + r.id), el('p', { class: 'muted' }, t('Mande o link para os amigos entrarem. Até 8 magos.', 'Send the link so your friends can join. Up to 8 wizards.')),
-        el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : t(' · caiu', ' · dropped')), kickBtn(p, act.kick))))),
+        el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : t(' · caiu', ' · dropped'), p.watch ? t(' · assistindo', ' · spectating') : ''), kickBtn(p, act.kick))))),
       // no PC em colunas, lado a lado (Fernando, 19/10: "tá muito vertical"); no celular uma embaixo da outra
       el('div', { class: 'lobby-cols' },
         el('div', { class: 'lobby-col' },
@@ -983,7 +1016,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   function endPanel(r: PublicRoom) {
     const levels = r.players.filter((p) => p.bot).map((p) => p.difficulty ?? r.opts.difficulty);
     const roomBots = levels.length;
-    const humans = r.players.filter((p) => !p.bot && p.connected).length;
+    const humans = r.players.filter((p) => !p.bot && p.connected && !p.watch).length;
     const again = el('button', { type: 'button', class: 'primary big', disabled: humans + roomBots < 2, onclick: () => act.start(levels, r.mode, r.teamShuffle, r.opts, true) }, t('Jogar de novo', 'Play again'));
     // cabeçalho grande: Vitória (eu ou meu time), Derrota (outro venceu) ou Fim de jogo (sem vencedor ou só assistindo)
     const res = endResult(r, me);
@@ -1407,6 +1440,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       drawVote(r, prev);
       drawCenter();
       sheetBtn.hidden = r.phase === 'lobby' || r.phase === 'end' || !mine;
+      drawSpectate(r);
       if (sheetBtn.hidden) sheetPanel.hidden = true;
       drawSheet();
     },

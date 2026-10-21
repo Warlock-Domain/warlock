@@ -159,3 +159,4 @@ music/battle.mp3
     bot: delapouite/robot-antennas.svg, Delapouite (http://delapouite.com)
     pessoas na sala: delapouite/character.svg, Delapouite (http://delapouite.com)
     sair da sala: delapouite/exit-door.svg, Delapouite (http://delapouite.com)
+    assistir (espectador): lorc/eyeball.svg, Lorc (http://lorcblog.blogspot.com)
