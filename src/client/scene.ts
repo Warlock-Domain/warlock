@@ -19,7 +19,7 @@ import { add, clampLen, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
-import { CLUSTER_FAN, SPELLS } from '../shared/spells.ts';
+import { SPELLS } from '../shared/spells.ts';
 import type { TAUNTS } from '../shared/taunts.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
@@ -613,7 +613,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const markerGeo = new THREE.RingGeometry(0.15, 0.25, 24);
   const scorchGeo = new THREE.PlaneGeometry(1.6, 1.6);
   const waveGeo = new THREE.RingGeometry(0.85, 1, 64);
-  const SHARED = new Set<THREE.BufferGeometry>([ringGeo, shieldGeo, markerGeo, scorchGeo, waveGeo, ballGeo]);
+  const boltGeo = new THREE.CylinderGeometry(1, 1, 1, 5); // trecho do Raio: raio 1, altura 1, escalado por trecho
+  const SHARED = new Set<THREE.BufferGeometry>([ringGeo, shieldGeo, markerGeo, scorchGeo, waveGeo, ballGeo, boltGeo]);
 
   // libera o que o efeito criou (material sempre; geometria se não for compartilhada; sprite usa a geometria interna do three)
   function dispose(obj: THREE.Object3D) {
@@ -1386,21 +1387,30 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   function bolt(from: Vec, to: Vec) {
     const hand = add(from, clampLen(sub(to, from), 0.45));
     const pts: THREE.Vector3[] = [];
-    const n = 10;
+    const n = 18;
     for (let i = 0; i <= n; i++) {
-      // sai do cetro (a mão do brilho de lançamento: 0,45 m à frente, 0,9 m de altura) e desce até 0,25 m no alvo, com zigue-zague
-      // curto (pedido do Fernando, 21/10): a 1 m de altura e ±0,25 m de lado, a câmera inclinada mostrava o raio ~0,9 m acima da
-      // linha do acerto e mais largo que ela; assim o traço fica em cima da linha (a mão também está nela)
+      // sai do cetro (a mão do brilho de lançamento: 0,45 m à frente, 0,9 m de altura) e desce até 0,25 m no alvo (pedido do
+      // Fernando, 21/10): a 1 m de altura a câmera inclinada mostrava o raio ~0,9 m acima da linha do acerto. Zigue-zague de muitos
+      // trechos curtos e ±0,1 m de lado, para parecer elétrico sem sair muito da linha (o acerto é a linha no chão)
       const k = i / n;
       const p = w3(v(hand.x + (to.x - hand.x) * k, hand.y + (to.y - hand.y) * k), 0.9 - 0.65 * k);
-      if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.1, (Math.random() - 0.5) * 0.12));
+      if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 0.2, (Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.2));
       pts.push(p);
     }
-    // três traços tortos sobrepostos para o raio parecer grosso (linha de WebGL tem 1 px)
-    for (let j = 0; j < 3; j++) {
-      const jit = pts.map((p, i) => (i === 0 || i === n ? p : p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.06))));
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(jit), new THREE.LineBasicMaterial({ color: j ? '#9fd0ff' : '#ffffff', transparent: true, blending: THREE.AdditiveBlending }));
-      addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 1 - k));
+    // traço grosso de cilindros por trecho (linha de WebGL tem 1 px e sumia de longe): miolo branco e brilho azul em volta
+    const up = new THREE.Vector3(0, 1, 0);
+    for (const [r, color, op] of [[0.025, '#ffffff', 1], [0.07, '#9fd0ff', 0.45]] as const) {
+      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false });
+      const g = new THREE.Group();
+      for (let i = 0; i < n; i++) {
+        const [a, b] = [pts[i], pts[i + 1]];
+        const m = new THREE.Mesh(boltGeo, mat);
+        m.position.copy(a).lerp(b, 0.5);
+        m.quaternion.setFromUnitVectors(up, b.clone().sub(a).normalize());
+        m.scale.set(r, a.distanceTo(b), r);
+        g.add(m);
+      }
+      addFx(g, 0.35, (k) => (mat.opacity = op * (1 - k)));
     }
     burst(to, '#9fd0ff', 2.4, 0.3, 0.25, FX.light);
     burst(to, '#e6f4ff', 1.4, 0.35, 0.25, FX.spark);
@@ -1838,19 +1848,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const blastRing = rangeRing.clone();
   scene.add(blastRing);
   const hits: THREE.Mesh[] = []; // discos do "Ver hitbox", criados conforme precisa
-  // faixa de acerto da mira (até 4: a Rajada sai em leque), bem clara para não esconder o chão: corpo reto do mago para a frente (+x)
-  // e ponta em meio círculo do tamanho da bola, onde ela termina o voo, como a prévia do LoL (pedido do Fernando, 21/10); girada só em y
+  // faixas de acerto da mira (a Rajada e o Divisor saem em leque), bem claras para não esconder o chão: corpo reto para a frente (+x)
+  // e ponta em meio círculo do tamanho da bola, onde ela termina o voo, como a prévia do LoL (pedido do Fernando, 21/10); giradas só
+  // em y e criadas conforme precisa
   const bandMat = new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.16, depthWrite: false });
-  const bands = CLUSTER_FAN.map(() => {
-    const g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0).rotateX(-Math.PI / 2), bandMat);
-    const cap = new THREE.Mesh(new THREE.CircleGeometry(1, 24, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2), bandMat);
-    body.renderOrder = cap.renderOrder = 9;
-    g.add(body, cap);
-    g.visible = false;
-    scene.add(g);
-    return g;
-  });
+  const bandBody = new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0).rotateX(-Math.PI / 2);
+  const bandCap = new THREE.CircleGeometry(1, 24, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2);
+  const bands: THREE.Group[] = [];
 
   return {
     ready,
@@ -1884,16 +1888,24 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         (m.material as THREE.MeshBasicMaterial).color.set(h.wiz ? '#ff4040' : '#40c8ff');
       });
     },
-    // faixas de `from` até cada ponta, com meia largura `half`; sem `from` ou lista vazia esconde
-    bands(from: Vec | null, ends: Vec[], half: number) {
+    // trechos de faixa [de, até] com meia largura `half`; lista vazia esconde
+    bands(segs: [Vec, Vec][], half: number) {
+      for (let i = bands.length; i < segs.length; i++) {
+        const g = new THREE.Group();
+        const [body, cap] = [new THREE.Mesh(bandBody, bandMat), new THREE.Mesh(bandCap, bandMat)];
+        body.renderOrder = cap.renderOrder = 9;
+        g.add(body, cap);
+        scene.add(g);
+        bands.push(g);
+      }
       const w = Math.max(half, 0.03); // o Raio (largura 0) vira uma linha de 6 cm para aparecer
       bands.forEach((g, i) => {
-        const e = from && ends[i];
-        g.visible = !!e;
-        if (!e) return;
-        const d = sub(e, from), l = Math.max(len(d) - w, 0);
+        const sg = segs[i];
+        g.visible = !!sg;
+        if (!sg) return;
+        const d = sub(sg[1], sg[0]), l = Math.max(len(d) - w, 0);
         const [body, cap] = g.children;
-        g.position.copy(w3(from, 0.035));
+        g.position.copy(w3(sg[0], 0.035));
         g.rotation.y = -Math.atan2(d.y, d.x);
         body.scale.set(l, 1, 2 * w);
         cap.position.x = l;

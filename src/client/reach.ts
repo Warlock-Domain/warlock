@@ -3,8 +3,8 @@
 import { PROJ_R, PROJ_SPAWN, WIZ_R } from '../shared/constants.ts';
 import { SCOURGE, isActive, itemStats, type ItemId } from '../shared/items.ts';
 import { snowR, type ProjKind } from '../shared/sim.ts';
-import { CLUSTER_FAN, RUSH, spellLevel, type SpellId } from '../shared/spells.ts';
-import { add, clampLen, norm, scale, sub, v, type Vec } from '../shared/vec.ts';
+import { CLUSTER_FAN, RUSH, SPLITTER, THRUST, spellLevel, type SpellId } from '../shared/spells.ts';
+import { add, clampLen, len, norm, scale, sub, v, type Vec } from '../shared/vec.ts';
 
 // projéteis que saem na frente do mago e voam o alcance: o anel marca até onde a ponta chega, então inimigo que encosta
 // no anel é atingido (Fernando, 20/10, issue #82; antes ficava 0,8 m curto)
@@ -30,32 +30,52 @@ export const blastOf = (a: SpellId | ItemId, spells: Record<SpellId, number>) =>
 // meia largura da faixa = raio do projétil, então o CORPO do inimigo que encosta na faixa é atingido (escolha do Fernando, 21/10:
 // a faixa pelo centro do inimigo, WIZ_R mais larga de cada lado, parecia bem maior que a bola). É a conta do firstOnSegment em
 // sim.ts (centro a WIZ_R + raio do projétil) vista pelo corpo; o Raio fica 0, uma linha: só pega quem o corpo cruza.
-// Bumerangue (curva), Míssil (persegue) e Divisor (não acerta, só estoura) ficam sem faixa: a reta mentiria.
+// Bumerangue (curva) e Míssil (persegue) ficam sem faixa: a reta mentiria.
 const HALF: Partial<Record<SpellId, number>> = { lightning: 0, ...Object.fromEntries(['fireball', 'cluster', 'grip', 'magnetize', 'bouncer', 'recharge', 'link', 'swap', 'drain'].map((s) => [s, PROJ_R])) };
 
-// faixas do mago até onde cada projétil chega e o círculo da explosão, para a mira de `from` em direção a `at`
+// trechos de faixa (de onde a onde) e o círculo da explosão, para a mira de `from` em direção a `at`
 export function aimOf(a: SpellId | ItemId, spells: Record<SpellId, number>, items: Record<ItemId, number>, from: Vec, at: Vec) {
   const reach = reachOf(a, spells, items);
   const lvl = spells[a as SpellId];
-  const none = { ends: [] as Vec[], half: 0, blastAt: null as Vec | null, blastR: 0 };
+  const none = { segs: [] as [Vec, Vec][], half: 0, blastAt: null as Vec | null, blastR: 0 };
   if (!reach) return none;
   const d = norm(sub(at, from));
   const tip = (r: number) => add(from, scale(d, r));
-  // Meteoro: só a explosão no ponto mirado, sem passar do alcance
-  if (a === 'meteor') return { ...none, blastAt: add(from, clampLen(sub(at, from), reach)), blastR: blastOf(a, spells) };
+  const aimed = add(from, clampLen(sub(at, from), reach)); // o ponto mirado, sem passar do alcance
+  const line = (to: Vec, half: number) => ({ ...none, segs: [[from, to]] as [Vec, Vec][], half });
+  // Meteoro: só a explosão no ponto mirado; Teleporte: o corpo onde você aparece
+  if (a === 'meteor') return { ...none, blastAt: aimed, blastR: blastOf(a, spells) };
+  if (a === 'teleport') return { ...none, blastAt: aimed, blastR: WIZ_R };
   // Drenar vira para o mago mais perto no ponto mirado: a reta só vale até ali
-  if (a === 'drain') return { ...none, ends: [add(from, clampLen(sub(at, from), reach))], half: HALF.drain! };
+  if (a === 'drain') return line(aimed, HALF.drain!);
+  // Investida avança RUSH.dash e acerta quem fica a 2 WIZ_R + 0,1 (sim.ts, dashHit): pelo corpo do inimigo, WIZ_R + 0,1 de cada lado
+  if (a === 'rush') return line(tip(reach), WIZ_R + 0.1);
+  // Estocada vai até o ponto mirado e acerta quem fica a 2 WIZ_R + THRUST.reach: pelo corpo, WIZ_R + THRUST.reach
+  if (a === 'thrust') return line(aimed, WIZ_R + THRUST.reach);
   // a Bola de neve explode onde o voo acaba (centro dela, um raio antes da ponta) e pega pelo centro de quem está a menos de
   // radius: pelo corpo, o círculo fica WIZ_R menor
-  if (a === 'snowball') return { ends: [tip(reach)], half: snowR(lvl), blastAt: tip(reach - snowR(lvl)), blastR: spellLevel('snowball', lvl).radius - WIZ_R };
+  if (a === 'snowball') return { ...line(tip(reach), snowR(lvl)), blastAt: tip(reach - snowR(lvl)), blastR: spellLevel('snowball', lvl).radius - WIZ_R };
   // a Gravidade não bate em ninguém: queima quem tem o centro a um radius do caminho (pelo corpo, WIZ_R a menos), até o fim do voo
   if (a === 'gravity') {
     const r = spellLevel('gravity', lvl).radius - WIZ_R;
-    return { ends: [tip(reach)], half: r, blastAt: tip(reach - PROJ_R), blastR: r };
+    return { ...line(tip(reach), r), blastAt: tip(reach - PROJ_R), blastR: r };
   }
-  if (a === 'cluster') return { ...none, ends: CLUSTER_FAN.map((o) => add(from, scale(v(d.x * Math.cos(o) - d.y * Math.sin(o), d.x * Math.sin(o) + d.y * Math.cos(o)), reach))), half: HALF.cluster! };
+  const turn = (o: number) => v(d.x * Math.cos(o) - d.y * Math.sin(o), d.x * Math.sin(o) + d.y * Math.cos(o));
+  if (a === 'cluster') return { ...none, segs: CLUSTER_FAN.map((o) => [from, add(from, scale(turn(o), reach))] as [Vec, Vec]), half: HALF.cluster! };
+  // Divisor: voa até o ponto mirado e estoura; o lançador segue devagar e solta 2 filhotes por onda, abrindo menos a cada uma
+  // (a mesma conta de split/spawnShards em sim.ts: direção não normalizada, então os filhotes de fora vão mais curto)
+  if (a === 'splitter') {
+    const split = tip(PROJ_SPAWN + Math.min(spellLevel('splitter', lvl).range * (1 + itemStats(items).range), len(sub(at, from))));
+    const segs: [Vec, Vec][] = [[from, split]];
+    for (let j = 1; j <= SPLITTER.waves; j++) {
+      const k = SPLITTER.spawnLife * ((SPLITTER.waves - j + 1) / SPLITTER.waves);
+      const s0 = add(split, scale(d, SPLITTER.spawnSpeed * SPLITTER.spawnLife * (j / SPLITTER.waves)));
+      for (const sd of [-1, 1]) segs.push([s0, add(s0, scale(v(d.x - sd * d.y * k, d.y + sd * d.x * k), (SPLITTER.childSpeed * SPLITTER.childLife) / (1 + k)))]);
+    }
+    return { ...none, segs, half: PROJ_R };
+  }
   const half = HALF[a as SpellId];
-  return half === undefined ? none : { ...none, ends: [tip(reach)], half };
+  return half === undefined ? none : line(tip(reach), half);
 }
 
 // "Ver hitbox (teste)" da sandbox: raio no chão de cada coisa, escolhido para que círculos que se encostam = acerto
