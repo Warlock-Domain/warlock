@@ -1,6 +1,6 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
-import { ASC_ROUNDS, ascDeath, ascEndRound, ascMark, ascShop, ascWinner, newAsc, type AscState } from './ascension.ts';
+import { ASC_ROUNDS, ascDeath, ascEndRound, ascMark, ascResume, ascShop, ascWinner, newAsc, type AscState } from './ascension.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
 import { CHARACTERS, fixLook, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
@@ -417,6 +417,7 @@ export function resume(m: Match, now: number) {
   m.pendingOpts ??= {};
   m.botDelta ??= 0;
   m.vote = null; // o prazo de uma votação gravada já passou
+  if (m.asc) ascResume(m.asc);
   for (const p of m.players) {
     p.character ??= 'mage';
     p.look = fixLook(p.look ?? lookOf(p.character)); // salas gravadas antes da aparência montada ou com peça da Ladina encapuzada (#107)

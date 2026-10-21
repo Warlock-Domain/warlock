@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ASC_ROUNDS, CONSOLATION, LEADER_KILL_XP, MARK_KB, applyCard, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
 import { addPlayer, buy, castBallot, newMatch, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
-import { parseClientMessage } from '../src/shared/protocol.ts';
+import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
 import { gearOf } from '../src/shared/sim.ts';
 import { STEP_MS, until } from './helpers.ts';
 import { ITEM_IDS, noItems, type ItemId } from '../src/shared/items.ts';
@@ -348,5 +348,22 @@ describe('recuperação e bots do Ascensão', () => {
   it('keep message parses only with a valid slot', () => {
     expect(parseClientMessage(JSON.stringify({ t: 'keep', slot: 0 }))).toEqual({ t: 'keep', slot: 0 });
     for (const slot of [-1, 1.5, 'a', 20]) expect(parseClientMessage(JSON.stringify({ t: 'keep', slot }))).toBeNull();
+  });
+});
+
+describe('sala gravada por uma versão anterior do Ascensão', () => {
+  it('resume of an older ascension state does not crash the room', () => {
+    const m = ascMatch(3, true);
+    run(m, 0, () => m.round === 1 && m.phase === 'playing');
+    // formato da versão anterior: sem as escolhas marcadas e com a mesa de uma fileira só
+    const old = JSON.parse(JSON.stringify({ ...m, world: null }));
+    old.asc = { xp: old.asc.xp, picks: { h: 1 }, offer: { h: [{ kind: 'item', id: 'boots' }] }, fallen: [], extra: {}, rerolls: {} };
+    resume(old, 1000);
+    expect(() => {
+      publicRoom('SALA', old, 1000);
+      until(old, 1000, () => old.phase === 'playing');
+      publicRoom('SALA', old, 2000);
+    }).not.toThrow();
+    expect(old.phase).toBe('playing');
   });
 });

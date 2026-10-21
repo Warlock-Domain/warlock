@@ -42,6 +42,13 @@ export const LAST_CALL_MS = 5000;
 
 export const newAsc = (ids: string[]): AscState => ({ xp: {}, todo: Object.fromEntries(ids.map((id) => [id, [...EVERY_BREAK]])), offer: {}, pick: {}, fallen: [], extra: {}, rerolls: {} });
 
+// sala gravada por uma versão anterior do modo (ex.: publicação nova no meio da partida, 21/10: a sala caiu): mantém XP e pontos
+// e refaz a mesa do intervalo, que mudou de formato (escolhas marcadas, uma fileira por tipo)
+export function ascResume(a: AscState) {
+  if (a.todo && a.pick && Object.values(a.offer ?? {}).every((rows) => rows.every(Array.isArray))) return;
+  Object.assign(a, { todo: a.todo ?? {}, offer: {}, pick: {}, fallen: a.fallen ?? [], extra: a.extra ?? {}, rerolls: a.rerolls ?? {} });
+}
+
 export function xpGain(s: Stat): number {
   const spells = Object.entries(s.dmgBy).reduce((t, [src, d]) => t + (src === 'lava' ? 0 : d), 0);
   return Math.round(DMG_XP * spells + LAVA_XP * (s.dmgBy.lava ?? 0) + KILL_XP * s.kills + ALIVE_XP * s.alive);
