@@ -1,5 +1,6 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
+import { ascOf, type Card, type Choice, type Kind } from './ascension.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type RuneKind } from './constants.ts';
@@ -24,6 +25,9 @@ export type ClientMsg =
   | { t: 'cast'; spell: SpellId; x: number; y: number; seq: number }
   | { t: 'buy'; spell: SpellId }
   | { t: 'pick'; character: CharacterId } // um dos 9 prontos: vira a aparência equivalente
+  | { t: 'reroll' } // Ascensão: novo sorteio das cartas da mesa
+  | { t: 'keep'; slot: number } // Ascensão: com a barra cheia, recusa a fileira de magia nova
+  | { t: 'card'; slot: number; i: number; swap?: SpellId } // Ascensão: carta i (0 a 2) da escolha slot; swap = magia que sai com a barra cheia
   | { t: 'look'; look: string } // aparência montada (7 dígitos, ver LOOK_PARTS)
   | { t: 'buyItem'; item: ItemId }
   | { t: 'kick'; target: string }
@@ -43,6 +47,7 @@ export type PublicPlayer = {
   dummy?: true; // sandbox: boneco parado
   watch?: true; // assistindo: sem mago a partir da próxima rodada
   turret?: true; // Sandbox: torreta de direção fixa.
+  asc?: { xp: number; level: number; next: number; todo: Kind[]; offer: Card[][]; pick: (Choice | null)[]; rerolls: number }; // só no Ascensão (next: XP do próximo nível)
 };
 
 export type PublicRoom = {
@@ -217,12 +222,19 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return ITEM_IDS.includes(m.item as ItemId) ? { t: 'buyItem', item: m.item as ItemId } : null;
     case 'item':
       return isActive(m.item) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'item', item: m.item, x: m.x, y: m.y, seq: m.seq } : null;
+    case 'keep':
+      return Number.isInteger(m.slot) && (m.slot as number) >= 0 && (m.slot as number) < 20 ? { t: 'keep', slot: m.slot as number } : null;
+    case 'card':
+      return Number.isInteger(m.i) && (m.i as number) >= 0 && (m.i as number) < 3 && Number.isInteger(m.slot) && (m.slot as number) >= 0 && (m.slot as number) < 20 && (m.swap === undefined || isSpell(m.swap))
+        ? { t: 'card', slot: m.slot as number, i: m.i as number, ...(m.swap !== undefined && { swap: m.swap as SpellId }) }
+        : null;
     case 'pick':
       return isCharacter(m.character) ? { t: 'pick', character: m.character } : null;
     case 'look':
       return isLook(m.look) ? { t: 'look', look: fixLook(m.look) } : null;
     case 'ready':
     case 'alive':
+    case 'reroll':
       return { t: m.t };
     default:
       return null;
@@ -251,7 +263,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     mode: m.mode,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy, turret, watch }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }), ...(turret && { turret: true as const }), ...(watch && { watch: true as const }) })),
+    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy, turret, watch }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }), ...(turret && { turret: true as const }), ...(watch && { watch: true as const }), ...(m.asc && { asc: ascOf(m.asc, id) }) })),
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),

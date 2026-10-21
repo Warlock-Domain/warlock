@@ -6,7 +6,7 @@ import { DEFAULT_OPTS, DM_GOALS, OPTION_CHOICES } from '../shared/match.ts';
 import { CLASH } from '../shared/sim.ts';
 import { ITEMS, MAX_ITEMS, SCOURGE } from '../shared/items.ts';
 import { keyLabel, keyOf, padButtonName, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
-import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, RECHARGE, RUSH, SPELLS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
+import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, RECHARGE, RUSH, SPELLS, SPELL_GROUP_IDS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
 import { LANG, LOCALE, spellName, t } from './i18n.ts';
 
 // formatação dos números nos textos (também usada pela loja, ficha, dicas e opções)
@@ -335,17 +335,19 @@ export const ITEM_DEMO = LANG === 'en' ? ITEM_DEMO_EN : ITEM_DEMO_PT;
 
 // loja e ajuda: magias agrupadas pelo efeito principal (o que cada uma faz está em RULES_SHORT)
 type SpellGroups = [name: string, hint: string, spells: SpellId[]][];
+// as listas moram em spells.ts (SPELL_GROUP_IDS), que o sorteio das cartas do Ascensão também usa
+const G = SPELL_GROUP_IDS;
 const SPELL_GROUPS_PT: SpellGroups = [
-  ['Ataque', 'dano e empurrão', ['fireball', 'lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball']],
-  ['Mobilidade', 'sair do lugar', ['teleport', 'swap', 'rush', 'thrust', 'windwalk']],
-  ['Defesa', 'parar o que vem', ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion']],
-  ['Controle', 'prender, puxar, atrasar', ['grip', 'gravity', 'link', 'magnetize', 'drain']],
+  ['Ataque', 'dano e empurrão', [...G.attack]],
+  ['Mobilidade', 'sair do lugar', [...G.mobility]],
+  ['Defesa', 'parar o que vem', [...G.defense]],
+  ['Controle', 'prender, puxar, atrasar', [...G.control]],
 ];
 const SPELL_GROUPS_EN: SpellGroups = [
-  ['Attack', 'damage and knockback', ['fireball', 'lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball']],
-  ['Mobility', 'get out of the way', ['teleport', 'swap', 'rush', 'thrust', 'windwalk']],
-  ['Defense', 'stop what is coming', ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion']],
-  ['Control', 'grip, pull, slow', ['grip', 'gravity', 'link', 'magnetize', 'drain']],
+  ['Attack', 'damage and knockback', [...G.attack]],
+  ['Mobility', 'get out of the way', [...G.mobility]],
+  ['Defense', 'stop what is coming', [...G.defense]],
+  ['Control', 'grip, pull, slow', [...G.control]],
 ];
 export { SPELL_GROUPS_EN, SPELL_GROUPS_PT };
 export const SPELL_GROUPS = LANG === 'en' ? SPELL_GROUPS_EN : SPELL_GROUPS_PT;

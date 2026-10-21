@@ -28,7 +28,8 @@ export default {
     if (url.pathname === '/api/rooms' && req.method === 'POST') {
       let id = newCode();
       while (await lobby.has(id)) id = newCode();
-      await roomStub(id).init(id);
+      // sala do Ascensão: opção própria no menu Jogar (Fernando, 21/10), presa ao modo
+      await roomStub(id).init(id, url.searchParams.get('modo') === 'ascensao');
       return Response.json({ id });
     }
 

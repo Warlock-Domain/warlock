@@ -453,6 +453,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // efeito pedido pelo Fernando (21/10): espinhos na borda, pontos verdes subindo da pedra, vento e chuva; poucos, transparentes e
   // sem sombra, para não brigar com as magias. No modo leve (lite) só a cor da faixa fica.
   const EMBER_COLOR: Partial<Record<RoundEffectId, string>> = { swords: '#c9ccd2', gold: '#ffd34d', speed: '#d6ecff', regen: '#7dffa8', lava: '#ffb27a' };
+  // Febre arcana (Ascensão): a Febre do ouro em azul (Fernando, 21/10: "com o msm efeito so q azul")
+  const ARCANE = { tint: '#3d7bff', ember: '#8cbcff', coin: '#6fa8ff' };
   const SHORE_TINT: Partial<Record<RoundEffectId, [string, number]>> = { swords: ['#050403', 0.75], gold: ['#ffe11a', 0.7], speed: ['#bfe6ff', 0.45], regen: ['#3dff8a', 0.45], lava: ['#7a2a10', 0.5] };
   let tintK = 0;
   const emberBase = emberMat.color.clone();
@@ -2119,7 +2121,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null }) {
+    render(state: { arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
@@ -2146,13 +2148,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       shoreU.uLick.value = lite ? 0 : 1;
       // Tempo chuvoso: a lava esfria aos poucos (~1 s) para 55% do brilho, por cima e por baixo da borda
       heat += ((state.effect === 'lava' ? 0.55 : 1) - heat) * Math.min(1, dt * 3);
-      const tint = state.effect ? SHORE_TINT[state.effect] : undefined;
+      const arcane = state.arcane && state.effect === 'gold';
+      const tint = arcane ? ([ARCANE.tint, SHORE_TINT.gold![1]] as [string, number]) : state.effect ? SHORE_TINT[state.effect] : undefined;
       if (tint) shoreU.uTint.value.set(tint[0]);
       tintK += ((tint?.[1] ?? 0) - tintK) * Math.min(1, dt * 3);
       shoreU.uTintK.value = tintK;
       lavaMat.uniforms.uHeat.value = heat;
       under.intensity = (52 + Math.sin(now * 2) * 9 + Math.sin(now * 7.3) * 3) * heat;
-      const ec = state.effect && EMBER_COLOR[state.effect];
+      const ec = arcane ? ARCANE.ember : state.effect && EMBER_COLOR[state.effect];
       if (ec) emberMat.color.set(ec);
       else emberMat.color.copy(emberBase);
       const lift = state.effect === 'speed' ? 1.5 : 1; // Vendaval: brasas sobem mais soltas
@@ -2232,6 +2235,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (f >= 1) { s.visible = false; u.wait = Math.random() * 0.6; }
       }
       // Febre do ouro: cada moeda nasce num ponto da borda, sobe 1 a 1,6 m e cai; o brilho pisca rápido (o "tilintar")
+      (coins[0].material as THREE.SpriteMaterial).color.set(arcane ? ARCANE.coin : '#ffd84a');
       for (const s of coins) {
         const u = s.userData as { vy: number; wait: number };
         if (lite || state.effect !== 'gold') { s.visible = false; continue; }
