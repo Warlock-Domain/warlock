@@ -1,9 +1,9 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
   ARENA_MIN, ARENA_STEP, CHEST, CREDIT_WINDOW, ZONES, DM_RESPAWN, DM_SPAWN_GAP, OBSTACLES, OBSTACLE_KINDS, PILLAR, type ObstacleKind, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KB_SOFT_CAP, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
-  ISLAND, NO_MODS, PROJ_SPAWN, RUNE, RUNE_KINDS, SUDDEN, WALL_GAP, WIZ_R, WIZ_SPEED, arenaRadius, type RoundEffectId, type RoundMods, type RuneKind,
+  ISLAND, NO_MODS, PROJ_SPAWN, RUNE, RUNE_KINDS, SUDDEN, SWORDS, WALL_GAP, WIZ_R, WIZ_SPEED, arenaRadius, type RoundEffectId, type RoundMods, type RuneKind,
 } from './constants.ts';
-import { SHAPES, edge, inArena, inLavaAt, isleSpot, safeInside, type ArenaId, type Isle } from './arena.ts';
+import { SHAPES, edge, inArena, inLavaAt, inward, isleSpot, onIsle, safeInside, type ArenaId, type Isle } from './arena.ts';
 import { ACTIVE_ITEMS, AEGIS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, isActive, itemStats, noItems, type ItemId } from './items.ts';
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
@@ -595,7 +595,7 @@ function heal(wz: Wizard, amount: number) {
 // ponytail: duas lentidões juntas valem a maior (no original somavam); somar pede uma lista de efeitos por mago
 function slowDown(w: World, wz: Wizard, amount: number, secs: number) {
   wz.slow = w.t < wz.slowUntil ? Math.max(wz.slow, amount) : amount;
-  wz.slowUntil = Math.max(wz.slowUntil, w.t + secs * w.mods.slow);
+  wz.slowUntil = Math.max(wz.slowUntil, w.t + secs);
 }
 
 // quantos 'fire' cada lançamento conta (a Rajada sai com 4 e o Divisor com 8 filhotes); as outras, 1
@@ -1615,7 +1615,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       for (const s of SPELL_IDS) if (wz.cd[s] > w.t) wz.cd[s] -= extraT;
       for (const i of ACTIVE_ITEMS) if (wz.itemCd[i] > w.t) wz.itemCd[i] -= extraT;
     }
-    wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1) * (inWarp(w, wz) ? WARPZONE.wizMult : 1) * haste);
+    wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1) * (inWarp(w, wz) ? WARPZONE.wizMult : 1) * haste * w.mods.speed);
     if (rooted) wz.target = null;
   }
 
@@ -1628,9 +1628,13 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   // passou de SUDDEN.collapse: o tamanho mínimo deixa de valer e a arena some aos poucos (vale mesmo com a morte súbita desligada)
   const collapsing = w.t >= SUDDEN.collapse;
   const minR = collapsing && !w.dm ? 0 : ARENA_MIN; // a sandbox encolhe até o mínimo, sem sumir
+  // Arena de espinhos: para depois de mods.shrink do caminho entre o tamanho inicial e o mínimo; passado o SUDDEN.collapse some como
+  // sempre (sem lava ninguém cai, e no simulador rodadas sem esse fim passavam de 10 min)
+  const start = arenaRadius(w.wizards.length);
+  const floor = w.mods.shrink < 1 && !collapsing ? Math.max(ARENA_MIN, start - (start - ARENA_MIN) * w.mods.shrink) : minR;
   if (!w.dm && collapsing && w.shrinkAt > w.t + SUDDEN.every) w.shrinkAt = w.t + SUDDEN.every;
-  if ((!w.dm || w.shrink) && w.t >= w.shrinkAt && w.arenaR > minR) {
-    resizeArena(w, Math.max(minR, w.arenaR - ARENA_STEP));
+  if ((!w.dm || w.shrink) && w.t >= w.shrinkAt && w.arenaR > floor) {
+    resizeArena(w, Math.max(floor, w.arenaR - ARENA_STEP));
     w.shrinkAt += w.sudden || collapsing ? SUDDEN.every : SHRINK_EVERY;
   }
 
@@ -1692,6 +1696,17 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
 
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
+    // Arena de espinhos: quem passa da borda volta para dentro empurrado e ferido, mais quanto mais rápido bateu (SWORDS); o crédito
+    // fica com quem empurrou por último, como na lava. Antes do "vida infinita" para valer também na sandbox
+    if (w.mods.swords && edge(w, wz.pos) < SWORDS.inset && !onIsle(w.isles, wz.pos)) {
+      const n = inward(w, wz.pos);
+      const out = dot(wz.vel, n);
+      if (out < 0) wz.vel = sub(wz.vel, scale(n, out)); // tira o que ia para fora; o empurrão do golpe põe para dentro
+      wz.pos = safeInside(w, wz.pos, SWORDS.inset + WIZ_R);
+      const by = wz.lastHitBy && w.t - wz.lastHitAt <= CREDIT_WINDOW ? wz.lastHitBy : wz.id;
+      const dmg = SWORDS.base + SWORDS.perSpeed * Math.max(0, -out);
+      hit(w, wz, by, dmg, dmg * KB_PER_DMG, n, 'espadas');
+    }
     // sandbox: vida infinita não morre; na lava fica onde está (sem voltar para a pedra), só com a vida cheia
     if (wz.god) {
       wz.hp = wz.hpMax;

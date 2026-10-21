@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DT, LAVA_DPS, NO_MODS, UNIT, WIZ_SPEED } from '../src/shared/constants.ts';
+import { DT, LAVA_DPS, UNIT, WIZ_SPEED } from '../src/shared/constants.ts';
 import { ITEMS, WIND_BOOTS, noItems } from '../src/shared/items.ts';
 import { addPlayer, newMatch, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { newWorld, stepWorld } from '../src/shared/sim.ts';
@@ -62,7 +62,6 @@ describe('dano da lava para quem empurrou', () => {
     let now = 0;
     while (m.phase !== 'playing') tickMatch(m, (now = Math.max(now + 17, m.phaseEnds)), []);
     for (const z of m.world!.wizards) z.invulnUntil = 0;
-    m.world!.mods = NO_MODS; // sem efeito de rodada: o teste mede o crédito da lava, e a Lava amena tiraria metade
     return m;
   }
   const steps = (m: Match, n: number) => {

@@ -2,7 +2,7 @@
 // com os números lidos do código. Clique ou toque fixa a explicação (✕, Esc ou toque fora fecham); mouse em cima e foco pelo teclado mostram.
 import { BOT_SKILL } from '../shared/bots.ts';
 import { ARENA_IDS } from '../shared/arena.ts';
-import { ASSIST_GOLD, CHEST, COUNTDOWN_MS, DM_RESPAWN, DM_ROUND_MS, KILL_GOLD, RECOVERY, ROUND_END_MS, ROUND_GOLD, RUNE, SUDDEN, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
+import { ASSIST_GOLD, CHEST, COUNTDOWN_MS, DM_RESPAWN, DM_ROUND_MS, KILL_GOLD, RECOVERY, ROUND_EFFECT_IDS, ROUND_EFFECTS, ROUND_END_MS, ROUND_GOLD, RUNE, SUDDEN, TOP_DMG_GOLD, WIN_GOLD, type RoundEffectId } from '../shared/constants.ts';
 import { DM_GOALS, OPTION_CHOICES, PACE, type MatchOpts, type Mode } from '../shared/match.ts';
 import { arenaName, t } from './i18n.ts';
 import { UI_ICON, el, icon, iconButton } from './icons.ts';
@@ -20,6 +20,18 @@ const ARENA_TEXT: Record<(typeof ARENA_IDS)[number], string> = {
 // nomes do ritmo e da dificuldade (aqui e nas opções da sala)
 export const PACE_NAME: Record<MatchOpts['pace'], string> = { short: t('Curto', 'Short'), normal: 'Normal', long: t('Longo', 'Long') };
 export const SKILL_NAME: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), normal: 'Normal', hard: t('Difícil', 'Hard'), auto: t('Automático', 'Auto') };
+// efeitos de rodada (constants.ts ROUND_EFFECTS): nome curto (opção, faixa da contagem) e o que muda (linha da rodada, explicação)
+export const EFFECT_NAME: Record<RoundEffectId, string> = {
+  // nomes do Fernando (21/10); os ids ficaram os antigos (lava, swords, speed) para não mexer no protocolo nem nas salas gravadas
+  lava: t('Tempo chuvoso', 'Rainy weather'), swords: t('Arena de espinhos', 'Spike arena'), speed: t('Vendaval', 'Gale'), regen: t('Fonte da vida', 'Wellspring'), clear: t('Campo aberto', 'Open field'),
+};
+export const EFFECT_TEXT: Record<RoundEffectId, string> = {
+  lava: t('dano da lava pela metade', 'lava damage halved'),
+  swords: t('a parede de espinhos empurra de volta e fere; abates dão 50% mais ouro; a arena encolhe só metade', 'the spike wall knocks you back and hurts; kills give 50% more gold; the arena shrinks only halfway'),
+  speed: t(`todos andam ${pct(ROUND_EFFECTS.speed.speed! - 1)} mais rápido`, `everyone moves ${pct(ROUND_EFFECTS.speed.speed! - 1)} faster`),
+  regen: t('vida volta 30% mais rápido', 'health comes back 30% faster'),
+  clear: t('arena sem obstáculos', 'no obstacles in the arena'),
+};
 
 // explicação de cada opção (HTML curto); a meta depende do modo
 export const OPT_INFO: Record<keyof MatchOpts, (mode: Mode) => string> = {
@@ -46,6 +58,8 @@ export const OPT_INFO: Record<keyof MatchOpts, (mode: Mode) => string> = {
       `${SKILL_NAME[k]}: reacts in ${n1(b.delay)} s, decides ${n1(b.rate)} times per second, aim misses by up to ${n1(b.aim)} m, uses a spell ${n1(b.waitMin)} to ${n1(b.waitMax)} s after its cooldown, dodges ${pct(b.dodge)} of shots, chains ${pct(b.combo)} of combos, stays ${n1(b.range)} m from the target and sees up to ${b.vision} m`);
   }), t('Automático: cada bot fica entre o Fácil e o Difícil conforme o placar: humano perdendo deixa os bots mais fracos, ganhando mais fortes',
     'Auto: each bot sits between Easy and Hard depending on the score: a human losing makes the bots weaker, winning makes them stronger')])}`,
+  effect: () => `<p>${t('Uma regra a mais em cada rodada, igual para todos. A loja já mostra o efeito da próxima rodada, para comprar sabendo.', 'One extra rule each round, the same for everyone. The shop already shows the next round’s effect, so you can buy for it.')}</p>${list([
+    t('Sortear: um efeito diferente a cada rodada (nunca o mesmo duas vezes seguidas)', 'Random: a different effect every round (never the same twice in a row)'), ...ROUND_EFFECT_IDS.map((e) => `${EFFECT_NAME[e]}: ${EFFECT_TEXT[e]}`)])}<small>${t('Desligado: rodadas normais.', 'Off: normal rounds.')}</small>`,
   arena: () => `<p>${t('Formato da pedra. Todas têm área parecida e encolhem igual.', 'Shape of the rock. All have a similar area and shrink the same way.')}</p>${list([t('Sortear: uma arena diferente a cada rodada', 'Random: a different arena every round'), ...ARENA_IDS.map((a) => `${arenaName(a)}: ${ARENA_TEXT[a]}`)])}`,
 };
 export const MODE_INFO = () => list([
