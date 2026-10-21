@@ -1,7 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
-import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
+import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
@@ -35,6 +35,7 @@ export class Room extends DurableObject<Env> {
   private roomSentAt = 0;
   private taunted = new Map<string, number>();
   private looked = new Map<string, number>();
+  private watched = new Map<string, number>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -108,7 +109,7 @@ export class Room extends DurableObject<Env> {
         forget(other);
       }
       if (m.banned.includes(msg.playerId)) return send(ws, KICKED);
-      if (!addPlayer(m, msg.playerId, msg.name)) return send(ws, { t: 'error', code: 'full', msg: 'Sala cheia.' });
+      if (!addPlayer(m, msg.playerId, msg.name, false, msg.watch)) return send(ws, { t: 'error', code: 'full', msg: 'Sala cheia.' });
       ws.serializeAttachment({ playerId: msg.playerId, at: now } satisfies Attachment);
       return this.changed();
     }
@@ -180,6 +181,12 @@ export class Room extends DurableObject<Env> {
         if (now - (this.looked.get(id) ?? 0) < 100) return;
         this.looked.set(id, now);
         if (setLook(m, id, msg.look)) await this.changed();
+        return;
+      case 'watch':
+        // assistir ou voltar a jogar: como a aparência, no máximo uma troca a cada 100 ms (cada troca grava a sala)
+        if (now - (this.watched.get(id) ?? 0) < 100) return;
+        this.watched.set(id, now);
+        if (setWatch(m, id, msg.on)) await this.changed();
         return;
       case 'ready':
         if (setReady(m, id)) await this.changed();
