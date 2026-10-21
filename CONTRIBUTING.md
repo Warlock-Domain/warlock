@@ -41,6 +41,8 @@ Todo PR, rascunho também, ganha um jogo só dele na internet: `https://pr-<n>-w
 
 - **Link:** um comentário fixo no PR traz o link e o commit que está no ar. A cada push na branch ele é atualizado, sem criar outro.
 - **Testar com o grupo antes de pronto:** abra o PR em rascunho (*Create draft pull request*) e mande o link no grupo. Terminou: *Ready for review*.
+- **Quando sair do rascunho:** gates verdes, o que dá para testar testado e prints de PC se a tela mudou. Rascunho é só para trabalho em andamento ou teste com o grupo: a revisão automática não roda em rascunho e ninguém revisa nem mescla.
+- **Sua IA não consegue testar no navegador?** Saia do rascunho mesmo assim e escreva no PR, em "Como testei", o que não foi testado e como testar (passos e o que esperar). Quem revisa testa no ambiente do PR (link acima) e tira os prints que faltarem. Não deixe o PR parado em rascunho só por isso.
 - **Quando some:** ao fechar o PR (mesclado ou não) o ambiente é apagado sozinho e o comentário avisa. Reabrir o PR publica de novo.
 - **Acompanhar:** aba [Actions](https://github.com/fernandorff/warlock/actions), pipeline **Ambiente do PR**. Ela faz o build, publica, espera o link responder e roda o teste rápido (uma sala de verdade).
 - **Se der errado:** build quebrado não publica nada e a versão anterior do PR continua. Teste rápido vermelho quer dizer que a versão nova já está no ar com problema: veja o log.
