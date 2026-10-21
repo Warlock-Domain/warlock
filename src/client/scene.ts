@@ -15,7 +15,7 @@ import { lookBody, lookOf, lookPieces, type CharacterId } from '../shared/charac
 import type { MatchOpts } from '../shared/match.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
-import { add, len, scale, sub, v, type Vec } from '../shared/vec.ts';
+import { add, clampLen, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
@@ -1384,12 +1384,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
 
   function bolt(from: Vec, to: Vec) {
+    const hand = add(from, clampLen(sub(to, from), 0.45));
     const pts: THREE.Vector3[] = [];
     const n = 10;
     for (let i = 0; i <= n; i++) {
-      // baixo e com zigue-zague curto (pedido do Fernando, 21/10): a 1 m de altura e ±0,25 m de lado, a câmera inclinada mostrava o
-      // raio ~0,9 m acima da linha real e mais largo que o acerto, que é a linha no chão
-      const p = w3(v(from.x + ((to.x - from.x) * i) / n, from.y + ((to.y - from.y) * i) / n), 0.25);
+      // sai do cetro (a mão do brilho de lançamento: 0,45 m à frente, 0,9 m de altura) e desce até 0,25 m no alvo, com zigue-zague
+      // curto (pedido do Fernando, 21/10): a 1 m de altura e ±0,25 m de lado, a câmera inclinada mostrava o raio ~0,9 m acima da
+      // linha do acerto e mais largo que ela; assim o traço fica em cima da linha (a mão também está nela)
+      const k = i / n;
+      const p = w3(v(hand.x + (to.x - hand.x) * k, hand.y + (to.y - hand.y) * k), 0.9 - 0.65 * k);
       if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.1, (Math.random() - 0.5) * 0.12));
       pts.push(p);
     }
@@ -1401,7 +1404,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     }
     burst(to, '#9fd0ff', 2.4, 0.3, 0.25, FX.light);
     burst(to, '#e6f4ff', 1.4, 0.35, 0.25, FX.spark);
-    burst(from, '#9fd0ff', 1.2, 0.2, 0.25, FX.light);
+    burst(hand, '#9fd0ff', 1.2, 0.2, 0.9, FX.light);
   }
 
   function onEvents(events: SimEvent[]) {
