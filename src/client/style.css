@@ -1041,8 +1041,6 @@ body.replaying .peek-shop { display: none; }
 .tile-acts { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
 .tile-acts:empty { display: none; }
 .tile-acts .buy { display: none; } /* só o cartão compacto tem o botão de comprar; nos outros o próprio cartão compra */
-/* a busca na coluna da loja não cresce na altura (flex-basis de 220 px valia como altura) */
-.shop-main > .lib-search { flex: none; }
 .reorder-slot { touch-action: none; cursor: grab; user-select: none; }
 .dragging-slot { cursor: grabbing; outline: 2px solid var(--gold); opacity: .65; }
 /* arraste de vaga: o ícone vai junto com o mouse e a vaga de destino acende; 40 px (ícone de 26 px): menor que a vaga (42 a 64 px), para a borda acesa da vaga de destino aparecer em volta */
@@ -1107,7 +1105,6 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
 .shop-main { container: shop-content / inline-size; }
 .shop-side { min-width: 0; overflow-wrap: anywhere; }
 .shop-main > .shop-head { flex-wrap: wrap; }
-.shop-main > .lib-search { width: 100%; min-width: 0; }
 .shop .shop-main .shop-item { min-width: 0; }
 @container shop-window (max-width: 1050px) {
   .shop { grid-template-columns: minmax(0, 1fr); }
@@ -1124,9 +1121,12 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
 @media (min-width: 1100px) and (min-height: 600px) {
   /* a loja termina acima da barra de baixo, onde se troca a ordem das magias: --bar-space = barra (112 px) + 10 px de margem + 8 de folga */
   .hud { --bar-space: 130px; }
-  .center:has(.compact-shop) { top: calc(76px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 76px - var(--bar-space) - var(--safe-t) - var(--safe-b)); }
+  /* centrada no espaço livre entre a barra de cima e a de baixo (Fernando, 21/10): topo e fundo presos, altura do conteúdo e margem automática */
+  .center:has(.compact-shop), .peek-shop:has(.compact-shop) { top: calc(76px + var(--safe-t)); bottom: calc(var(--bar-space) + var(--safe-b)); height: fit-content; margin-block: auto;
+    max-height: calc(100% - 76px - var(--bar-space) - var(--safe-t) - var(--safe-b)); }
+  .center:has(.compact-shop) { transform: translateX(-50%); }
   /* --gap-v: espaço vertical entre fileiras, grupos e blocos; cresce com a altura da tela (3 px em 720, 26 px em 1080) para a loja usar a altura livre (Fernando, 21/10) */
-  .compact-shop { padding: 12px; gap: 10px; --acts-w: 24px; --gap-v: clamp(3px, calc((100dvh - 680px) / 15), 26px); --tile-h: clamp(50px, calc((100dvh - 470px - 9 * var(--gap-v)) / 5), 84px); }
+  .compact-shop { padding: 24px; gap: 16px; --acts-w: 24px; --gap-v: clamp(3px, calc((100dvh - 680px) / 15), 26px); --tile-h: clamp(50px, calc((100dvh - 470px - 9 * var(--gap-v)) / 5), 84px); }
   .compact-shop .shop-main, .compact-shop .shop-items { gap: var(--gap-v); }
   .compact-shop .shop-group { gap: calc(var(--gap-v) / 2 + 2px); }
   .compact-shop .shop-head { gap: 4px 8px; }
@@ -1135,7 +1135,6 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
   .shop.compact-shop .shop-main > .shop-head { flex-wrap: nowrap; }
   .shop.compact-shop .shop-main > .shop-head h2 { white-space: nowrap; }
   .shop.compact-shop .shop-main > .shop-head small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* numa linha: a quebra dava 33 px de rolagem na gaveta em 1280 */
-  .compact-shop .lib-search { min-height: 32px; padding-block: 5px; }
   .shop.compact-shop .shop-grid { gap: var(--gap-v) 5px; }
   .shop.compact-shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   /* um cartão só para itens e magias (Fernando, 21/10): o ícone num quadro da cor do grupo à esquerda; nome, nível e preço empilhados à direita.
@@ -1152,7 +1151,7 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--g, var(--ember)) 40%, transparent); }
   /* medidas do cartão sem variável no :root: --acts-w 24 px = botão de 20 px e 4 px de folga; o quadro do ícone para em 52 px (o cartão
      de 74 px menos o padding) e cai para 30 px no estreito (com a coluna de 18 px); 160 px e 170 px são a largura do cartão em 1600×900 e 1920×1080.
-     O :root não tem escala de fonte: .64rem (estreito), .78rem e .85rem (largo) são os tamanhos em que o nome mais longo cabe em cada cartão */
+     O :root não tem escala de fonte: .6rem (estreito), .78rem e .8rem (largo) são os tamanhos em que o nome mais longo cabe em cada cartão */
   /* cartão estreito (até 1600 px): quadro menor e nome na fonte do texto, para "Redirecionador" caber sem partir a palavra; o Vender fica só com a moeda */
   .compact-shop .shop-item { container: tile / inline-size; }
   @container tile (max-width: 160px) {
@@ -1160,7 +1159,7 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
     .compact-shop .shop-tile { --well: 30px; column-gap: 5px; padding-inline: 5px; }
     /* sem largura para a coluna inteira: o carrinho fica escondido (o clique no cartão compra) e a coluna só aparece com vender ou desfazer */
     .compact-shop .shop-item:has(.sell, .undo) .shop-tile { padding-right: calc(8px + var(--acts-w)); }
-    .compact-shop .shop-tile .tile-name { font-family: inherit; font-weight: 600; font-size: .64rem; }
+    .compact-shop .shop-tile .tile-name { font-family: inherit; font-weight: 600; font-size: .6rem; }
     .compact-shop .shop-tile .tile-price .lvl { display: none; } /* o nível já está nos pips; "Nv 2" não cabia ao lado dos botões */
   }
   .compact-shop .tile-acts { top: 6px; bottom: 6px; right: 6px; width: var(--acts-w); flex-direction: column; flex-wrap: nowrap; justify-content: center; }
@@ -1171,7 +1170,7 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
   .compact-shop .tile-acts button.sell .sell-txt { display: none; }
   /* cartão largo (tela grande): nome e preço maiores para o conteúdo não ficar miúdo no meio do cartão */
   @container tile (min-width: 170px) {
-    .compact-shop .shop-tile .tile-name { font-size: .85rem; }
+    .compact-shop .shop-tile .tile-name { font-size: .8rem; }
     .compact-shop .shop-tile .tile-price { font-size: .9rem; }
   }
   .compact-shop .shop-items { max-height: none; overflow: visible; }
@@ -1179,7 +1178,7 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
   .compact-shop .shop-side { gap: 6px; height: 0; min-height: 100%; overflow-y: auto; scrollbar-width: thin; }
   .compact-shop .first-tip { padding: 6px 8px; gap: 6px; font-size: .8rem; }
   /* No PC a compra durante a rodada usa a mesma largura da inicial, inclusive para quem caiu (#121) */
-  .peek-shop:has(.compact-shop) { top: calc(76px + var(--safe-t)); left: 50%; right: auto; transform: translateX(-50%); width: min(1860px, calc(100% - 24px)); max-height: calc(100% - 76px - var(--bar-space) - var(--safe-t) - var(--safe-b)); }
+  .peek-shop:has(.compact-shop) { left: 50%; right: auto; transform: translateX(-50%); width: min(1860px, calc(100% - 24px)); }
   .peek-shop.drawer .compact-shop { grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) 270px; }
   .peek-shop.drawer .compact-shop .shop-items { order: initial; }
   .peek-shop.drawer .compact-shop .shop-side { display: flex; }
