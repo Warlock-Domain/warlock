@@ -1190,7 +1190,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   // estado da loja que sobrevive ao redesenho (a sala manda o estado a cada compra de qualquer jogador)
   let goldOpen = false;
-  let sheetOpen = true;
+  let sheetOpen = false;
   let shopQuery = ''; // busca da loja: fica ao redesenhar (a sala manda o estado a cada segundo)
   const shopLoadout = (p: PublicPlayer) => {
     const slots = equipment(p);
@@ -1323,14 +1323,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       act.ready();
     } }, readyText(mine.ready));
     // compras no meio; ouro, Pronto e placar à direita (pedido do Fernando: loja mais larga; o personagem saiu para o menu principal e as Configurações)
-    return filterShop(el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
+    return filterShop(el('div', { class: 'card shop' + (r.round === 0 ? ' initial-shop' : '') }, items(), el('div', { class: 'shop-main' },
       shopLoadout(mine),
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? t('Loja', 'Shop') : t(`Loja · depois da rodada ${r.round}`, `Shop · after round ${r.round}`)), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells`))),
       shopSearch(),
-      r.round === 0 && !firstSeen ? firstCard() : null,
       ...grid,
       ),
       el('aside', { class: 'shop-side' },
+        r.round === 0 && !firstSeen ? firstCard() : null,
         el('span', { class: 'gold big' }, gold(mine.gold)),
         readyBtn,
         el('button', { type: 'button', 'data-key': 'placar', onclick: () => pinTab(true) }, icon(UI_ICON.board), ' ' + t('Placar', 'Scoreboard')),
