@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { blastOf, reachOf } from '../src/client/reach.ts';
-import { PROJ_R, PROJ_SPAWN } from '../src/shared/constants.ts';
+import { aimOf, blastOf, reachOf } from '../src/client/reach.ts';
+import { PROJ_R, PROJ_SPAWN, WIZ_R } from '../src/shared/constants.ts';
 import { SCOURGE, noItems } from '../src/shared/items.ts';
 import { snowR } from '../src/shared/sim.ts';
-import { RUSH, SPELL_IDS, noSpells, spellLevel } from '../src/shared/spells.ts';
+import { CLUSTER_FAN, RUSH, SPELL_IDS, noSpells, spellLevel } from '../src/shared/spells.ts';
+import { v } from '../src/shared/vec.ts';
 
 describe('círculo de alcance', () => {
   it('mostra o alcance do nível atual; o Elmo encurta 10%', () => {
@@ -31,5 +32,45 @@ describe('círculo de alcance', () => {
     expect(reachOf('pact', all, noItems())).toBe(0);
     // toda magia com alcance mostra algo
     for (const s of SPELL_IDS) if (spellLevel(s, 1).range > 0) expect(reachOf(s, all, noItems())).toBeGreaterThan(0);
+  });
+});
+
+describe('largura do acerto e explosão na mira (pedido do Fernando, 21/10)', () => {
+  const from = v(0, 0), at = v(2, 0);
+  const all = Object.fromEntries(SPELL_IDS.map((s) => [s, 1])) as ReturnType<typeof noSpells>;
+  const reach = (s: Parameters<typeof reachOf>[0]) => reachOf(s, all, noItems());
+
+  it('faixa onde o centro do inimigo é atingido: raio do mago (+ raio do projétil), até o alcance na direção da mira', () => {
+    const fb = aimOf('fireball', all, noItems(), from, at);
+    expect(fb.half).toBeCloseTo(WIZ_R + PROJ_R);
+    expect(fb.ends).toHaveLength(1);
+    expect(fb.ends[0].x).toBeCloseTo(reach('fireball'));
+    expect(fb.blastR).toBe(0);
+    expect(aimOf('lightning', all, noItems(), from, at).half).toBeCloseTo(WIZ_R); // o raio é uma linha: só o corpo do mago conta
+    expect(aimOf('snowball', all, noItems(), from, at).half).toBeCloseTo(WIZ_R + snowR(1));
+    for (const s of ['grip', 'magnetize', 'bouncer', 'recharge', 'link', 'swap'] as const) expect(aimOf(s, all, noItems(), from, at).half).toBeCloseTo(WIZ_R + PROJ_R);
+  });
+
+  it('Rajada: uma faixa por projétil do leque', () => {
+    const c = aimOf('cluster', all, noItems(), from, at);
+    expect(c.ends).toHaveLength(CLUSTER_FAN.length);
+    c.ends.forEach((e, i) => expect(Math.atan2(e.y, e.x)).toBeCloseTo(CLUSTER_FAN[i]));
+  });
+
+  it('Bola de neve explode no fim do voo; Gravidade queima em volta do caminho e no fim; Meteoro no ponto mirado', () => {
+    const sn = aimOf('snowball', all, noItems(), from, at);
+    expect(sn.blastR).toBeCloseTo(spellLevel('snowball', 1).radius);
+    expect(sn.blastAt!.x).toBeCloseTo(reach('snowball') - snowR(1));
+    const g = aimOf('gravity', all, noItems(), from, at);
+    expect([g.half, g.blastR]).toEqual([spellLevel('gravity', 1).radius, spellLevel('gravity', 1).radius]);
+    expect(g.blastAt!.x).toBeCloseTo(reach('gravity') - PROJ_R);
+    const m = aimOf('meteor', all, noItems(), from, at);
+    expect([m.ends, m.half, m.blastR, m.blastAt]).toEqual([[], 0, spellLevel('meteor', 1).radius, at]);
+    expect(aimOf('meteor', all, noItems(), from, v(50, 0)).blastAt!.x).toBeCloseTo(reach('meteor')); // sem passar do alcance
+  });
+
+  it('Drenar vira no ponto mirado: a faixa para ali; sem faixa no Bumerangue, Míssil, Divisor e magias sem projétil', () => {
+    expect(aimOf('drain', all, noItems(), from, at).ends[0].x).toBeCloseTo(2);
+    for (const s of ['boomerang', 'homing', 'splitter', 'teleport', 'shield', 'scourge'] as const) expect(aimOf(s, all, noItems(), from, at)).toMatchObject({ ends: [], blastR: 0 });
   });
 });
