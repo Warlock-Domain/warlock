@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { blastOf, reachOf } from '../src/client/reach.ts';
-import { PROJ_R, PROJ_SPAWN } from '../src/shared/constants.ts';
+import { OBSTACLES, PROJ_R, PROJ_SPAWN, WALL_GAP } from '../src/shared/constants.ts';
 import { SCOURGE, noItems } from '../src/shared/items.ts';
 import { snowR } from '../src/shared/sim.ts';
 import { RUSH, SPELL_IDS, noSpells, spellLevel } from '../src/shared/spells.ts';
@@ -12,6 +12,12 @@ describe('círculo de alcance', () => {
     expect(reachOf('grip', spells, { ...noItems(), helmet: 1 })).toBeCloseTo(spellLevel('grip', 1).range * .9);
     expect(blastOf('grip', spells)).toBe(1.5);
     expect(blastOf('grip', noSpells())).toBe(0);
+  });
+  it('área no ponto mirado: raio da Zona de dobra no nível e meia largura da Barricada', () => {
+    const spells = { ...noSpells(), warpzone: 3, rockpillar: 1 };
+    expect(blastOf('warpzone', spells)).toBeCloseTo(spellLevel('warpzone', 3).radius);
+    expect(blastOf('rockpillar', spells)).toBeCloseTo(WALL_GAP + OBSTACLES.rockpillar.r);
+    expect([blastOf('warpzone', noSpells()), blastOf('rockpillar', noSpells())]).toEqual([0, 0]);
   });
   it('mostra o alcance do nível atual; o Elmo encurta 10%', () => {
     const spells = { ...noSpells(), lightning: 3 };

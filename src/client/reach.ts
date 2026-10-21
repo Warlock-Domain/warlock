@@ -1,6 +1,6 @@
 // Círculo de alcance (pedido do Fernando, 18/10: o Raio acertava 13% nas partidas reais, suspeita de lançar fora dos 8 m):
 // raio em metros da magia ou item no nível atual, com o multiplicador de alcance dos itens (Elmo); 0 = não mostra.
-import { PROJ_R, PROJ_SPAWN } from '../shared/constants.ts';
+import { OBSTACLES, PROJ_R, PROJ_SPAWN, WALL_GAP } from '../shared/constants.ts';
 import { SCOURGE, isActive, itemStats, type ItemId } from '../shared/items.ts';
 import { snowR } from '../shared/sim.ts';
 import { RUSH, spellLevel, type SpellId } from '../shared/spells.ts';
@@ -22,5 +22,10 @@ export function reachOf(a: SpellId | ItemId, spells: Record<SpellId, number>, it
   return FLIES.has(a as SpellId) ? r + PROJ_SPAWN + (a === 'snowball' ? snowR(lvl) : PROJ_R) : r;
 }
 
-// Área de efeito no ponto mirado: Meteoro e cipós do Agarrar; 0 = não tem.
-export const blastOf = (a: SpellId | ItemId, spells: Record<SpellId, number>) => ((a === 'meteor' || a === 'grip') && spells[a] ? spellLevel(a, spells[a]).radius : 0);
+// Área de efeito no ponto mirado: Meteoro, cipós do Agarrar, Zona de dobra e Barricada (pedido do Fernando, 21/10, PR #169); 0 = não tem.
+export function blastOf(a: SpellId | ItemId, spells: Record<SpellId, number>): number {
+  if (!spells[a as SpellId]) return 0; // item ou magia não comprada
+  // Barricada não tem raio: o círculo cobre a parede de 3 pedaços, que fica atravessada no ponto
+  if (a === 'rockpillar') return WALL_GAP + OBSTACLES.rockpillar.r;
+  return a === 'meteor' || a === 'grip' || a === 'warpzone' ? spellLevel(a, spells[a]).radius : 0;
+}
