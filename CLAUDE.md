@@ -110,7 +110,9 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 20/10 | Aba de teste diz qual é o teste: em `localhost`/`127.0.0.1` o título vira `🧪 <branch> · Warlock Wars` (branch gravada no build; refazer o build ao trocar de branch) e `?aba=<nome>` na URL troca o nome; no ar nada muda (issue #113) | várias sessões abrem abas de localhost para o Fernando testar e todas tinham o mesmo título |
 | 20/10 | Branch local de teste sempre em dia com o `master`: a cada merge no `master`, toda branch com tarefa aberta recebe `git merge origin/master` (sem rebase nem force num PR já aberto), roda os gates e reinicia o servidor local; a orquestradora avisa as sessões filhas | evitar conflito no PR e o Fernando testar sempre a versão atual do jogo |
 | 20/10 | PR de código do Fernando só é mesclado depois que ele aprova o teste em `localhost`: a sessão dona abre a aba no navegador dele (`?aba=<nome do teste>`), lista o que testar e o que esperar, e põe notas na tela (só em `localhost`) apontando o que mudou; aprovação em múltipla escolha, citada à revisora. PR só de docs/CI e PR de colaborador seguem como antes | ele quer ver e entender cada mudança no jogo antes de ir ao ar |
-| 20/10 | Loja com **itens em 3 colunas** (antes 2) no PC: cartão de item de ~105 px (antes 118), coluna de itens de 334 px e a loja só para ver 60 px mais larga (1300 px) para as magias seguirem 5 por fileira em 1280 e 1920 (issue #121) | com 2 colunas a loja ficava muito vertical; escolhido entre cartão de 105 px, de 97 px e cartão de 118 px com a Ficha do mago mais estreita |
+| 20/10 | **Ambiente por PR** (issue #125): cada PR (rascunho também) publica o próprio jogo em `pr-<n>-warlock.fernandorffdev.com` e ele é apagado sozinho quando o PR fecha; para testar com o grupo antes de pronto, PR em rascunho. Os ambientes `<usuário>-dev` e o `dev-deploy.yml` saem. Substitui as linhas de 19/10 e 20/10 sobre o ambiente `<nome>-dev` | decisão do Fernando em múltipla escolha ("Por PR, -dev sai"): link por tarefa, sem branch extra por pessoa |
+| 20/10 | O **W da barra do menu principal** fica solto, sem placa, moldura nem fundo: só ganha brilho atrás com o mouse em cima; placa inclinada igual às abas e quadrado igual à chave foram recusados (issue #117) | o W é o emblema do jogo, não mais uma aba; a caixa em volta destoava das vizinhas |
+| 20/10 | **Animações KayKit nos bonecos** (issue #142): gesto por magia (`CAST_ANIM` em `scene.ts`), preso cambaleia, arremessado de braços abertos, morte na pedra de costas (na lava segue a dos ossos), provocação com gesto pelo tom (`TAUNT_ANIM`), mago sai do chão ao nascer e Teleporte com fade e deslize de 0,24 s (só visual); clips dos originais KayKit e 4 do KayKit Character Animations 1.1 (CC0, mesmo esqueleto). Peso aceito: os 9 bonecos vão de 4,5 MB para 9,2 MB (cada um baixa só quando aparece) | de cima o mago fazia o mesmo gesto para quase tudo e o Teleporte era brusco; testado e aprovado pelo Fernando em localhost |
 
 ## Fluxo com agente
 
@@ -118,28 +120,17 @@ Ambiente sugerido: uma sessão orquestradora e uma sessão filha por issue, cada
 
 Skills (plugins `superpowers@claude-plugins-official` e `ponytail@ponytail`): brainstorming antes de coisa nova → writing-plans para vários passos → TDD em `src/shared` → systematic-debugging antes de corrigir bug → verification-before-completion antes de dizer pronto → `/ponytail-review` no diff antes do PR. Guia completo do colaborador (máquina, prompts, testes, problemas comuns): [docs/GUIA-COLABORADOR.md](docs/GUIA-COLABORADOR.md).
 
-Armadilhas: depois de `vite build`, reinicie o `wrangler dev` (senão página branca/404); trabalhe em branch deste repositório, não em fork (em fork o CI espera aprovação manual e a revisão automática não roda); push em `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffdev.com`.
+Armadilhas: depois de `vite build`, reinicie o `wrangler dev` (senão página branca/404); trabalhe em branch deste repositório, não em fork (em fork o CI espera aprovação manual e a revisão automática não roda); todo PR (rascunho também) publica em `https://pr-<n>-warlock.fernandorffdev.com`.
 
-## Ambientes dev
+## Ambiente por PR
 
-Push na branch `<nome>-dev` publica em `https://<nome>-dev-warlock.fernandorffdev.com` (`.github/workflows/dev-deploy.yml`, Worker e salas próprios, teste rápido no fim). Trabalhe na sua branch de tarefa e traga para a sua `-dev` quando quiser testar com outras pessoas (`git push origin HEAD:<nome>-dev`, ou merge). O nome é o usuário do GitHub, em minúsculas. Colaborador novo ganha a branch dele aqui.
-
-| Colaborador | GitHub | Branch | Link |
-|---|---|---|---|
-| Leonard | lboesmans | `lboesmans-dev` | https://lboesmans-dev-warlock.fernandorffdev.com |
-| Sky | breakie33 | `breakie33-dev` | https://breakie33-dev-warlock.fernandorffdev.com |
-| Lucas | lucascvalle | `lucascvalle-dev` | https://lucascvalle-dev-warlock.fernandorffdev.com |
-| Arthur | arthurbaquit | `arthurbaquit-dev` | https://arthurbaquit-dev-warlock.fernandorffdev.com |
-| Reinaldo | reirag | `reirag-dev` | https://reirag-dev-warlock.fernandorffdev.com |
-| Fernando | fernandorff | `fernandorff-dev` | https://fernandorff-dev-warlock.fernandorffdev.com |
-
-A branch `-dev` é sua: pode substituir pelo estado da tarefa (`git push --force origin HEAD:<usuário>-dev`) ou atualizar com o jogo no ar (`git merge origin/master` nela). Não abra PR a partir da `-dev`; o PR sai da branch da tarefa.
+Todo PR do próprio repositório, rascunho também, publica em `https://pr-<n>-warlock.fernandorffdev.com` (`.github/workflows/pr-env.yml`, Worker `warlock-pr-<n>` e salas próprios, teste rápido no fim). Um comentário fixo no PR traz o link e o commit no ar, editado a cada push. Ao fechar o PR (mesclado ou não) o domínio e o Worker são apagados e o comentário avisa; reabrir publica de novo. Para testar com o grupo antes de pronto, abra o PR em rascunho. PR de fork não ganha ambiente (sem segredos). Limite do plano grátis: 100 Workers por conta e 100 domínios próprios por zona, PRs abertos somados ao jogo no ar.
 
 ### Fluxo dos ambientes
 
 **branch da tarefa → PR para o `master` → no ar** (decisão do Fernando, 20/10; o dev geral saiu do fluxo):
 
-1. Branch da tarefa (`feat/…`, `fix/…`) a partir do `master`; para testar com outras pessoas, publique no seu `<usuário>-dev`.
+1. Branch da tarefa (`feat/…`, `fix/…`) a partir do `master`; para testar com outras pessoas, abra o PR em rascunho: ele ganha o próprio link.
 2. PR da tarefa para o **`master`** (a branch padrão), em *squash and merge*. Mudança de balanceamento só depois da simulação aprovada.
 3. Ao mesclar, a pipeline **Produção** publica em https://warlock.fernandorffdev.com. Sem promoção e sem dev geral.
 
@@ -151,7 +142,7 @@ A branch `-dev` é sua: pode substituir pelo estado da tarefa (`git push --force
 | Título do PR | `pr-title.yml` | ao abrir ou editar o PR | confere o formato `tipo: o que muda` | edite o título; roda de novo sozinho |
 | Revisão do Claude | `claude-review.yml` | PR aberto, commit novo, saiu de rascunho | comenta veredito, checagens e pontos (não aprova nem mescla) | não bloqueia; não roda em fork nem no PR que altera o próprio workflow |
 | `@claude` | `claude.yml` | comentário com `@claude` num PR ou issue | responde e ajuda no próprio PR/issue | — |
-| Ambiente dev | `dev-deploy.yml` | push na branch `<usuário do GitHub>-dev` | build, publica um Worker só seu, espera o domínio responder e roda o teste rápido | build quebrado: nada é publicado e o site anterior continua; teste rápido falhou: a versão nova já foi publicada e está com problema, veja o log |
+| Ambiente do PR | `pr-env.yml` | PR aberto, push novo, reaberto e fechado (só PR do próprio repositório) | build, publica `warlock-pr-<n>` em `pr-<n>-warlock.fernandorffdev.com`, espera o domínio responder, roda o teste rápido e edita o comentário fixo com o link; ao fechar, apaga o Worker (o domínio sai junto) | build quebrado: nada é publicado e a versão anterior do PR continua; teste rápido falhou: a versão nova já está no ar com problema, veja o log; limpeza falhou: o Worker fica no ar, rode o job de novo (*Re-run*) em Actions |
 | Produção | `deploy.yml` | push no `master` (merge do PR da tarefa) | gates, publica o jogo no ar, confere se o site serve o build novo e roda o teste rápido | falhou antes do deploy: nada muda no ar; falhou depois: o jogo no ar está com a versão nova, veja o log |
 
 Logs: https://github.com/fernandorff/warlock/actions.
