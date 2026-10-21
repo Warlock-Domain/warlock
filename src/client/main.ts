@@ -43,7 +43,7 @@ if (LOCAL) {
 // ?ir=<lugar> (issue #140): em localhost a aba de teste já abre no ponto a testar (pedido do Fernando, 20/10); no ar nada muda.
 // Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, controle, jogador,
 // personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando) e partida:loja (contra 1 bot, na loja da rodada 1, com 120 s).
-// Sala e seção juntas, com vírgula: sandbox,config:som (Som só existe dentro da sala)
+// Sala e seção juntas, com vírgula (as Configurações de dentro da partida): sandbox,config:som
 const IR = (LOCAL && new URLSearchParams(location.search).get('ir')?.split(',')) || [];
 const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 
