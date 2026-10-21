@@ -40,15 +40,15 @@ describe('largura do acerto e explosão na mira (pedido do Fernando, 21/10)', ()
   const all = Object.fromEntries(SPELL_IDS.map((s) => [s, 1])) as ReturnType<typeof noSpells>;
   const reach = (s: Parameters<typeof reachOf>[0]) => reachOf(s, all, noItems());
 
-  it('faixa onde o centro do inimigo é atingido: raio do mago (+ raio do projétil), até o alcance na direção da mira', () => {
+  it('faixa da largura do projétil (corpo do inimigo encostou = acerto), até o alcance na direção da mira', () => {
     const fb = aimOf('fireball', all, noItems(), from, at);
-    expect(fb.half).toBeCloseTo(WIZ_R + PROJ_R);
+    expect(fb.half).toBeCloseTo(PROJ_R);
     expect(fb.ends).toHaveLength(1);
     expect(fb.ends[0].x).toBeCloseTo(reach('fireball'));
     expect(fb.blastR).toBe(0);
-    expect(aimOf('lightning', all, noItems(), from, at).half).toBeCloseTo(WIZ_R); // o raio é uma linha: só o corpo do mago conta
-    expect(aimOf('snowball', all, noItems(), from, at).half).toBeCloseTo(WIZ_R + snowR(1));
-    for (const s of ['grip', 'magnetize', 'bouncer', 'recharge', 'link', 'swap'] as const) expect(aimOf(s, all, noItems(), from, at).half).toBeCloseTo(WIZ_R + PROJ_R);
+    expect(aimOf('lightning', all, noItems(), from, at)).toMatchObject({ half: 0, ends: [v(reach('lightning'), 0)] }); // linha: só quem o corpo cruza
+    expect(aimOf('snowball', all, noItems(), from, at).half).toBeCloseTo(snowR(1));
+    for (const s of ['grip', 'magnetize', 'bouncer', 'recharge', 'link', 'swap'] as const) expect(aimOf(s, all, noItems(), from, at).half).toBeCloseTo(PROJ_R);
   });
 
   it('Rajada: uma faixa por projétil do leque', () => {
@@ -59,10 +59,11 @@ describe('largura do acerto e explosão na mira (pedido do Fernando, 21/10)', ()
 
   it('Bola de neve explode no fim do voo; Gravidade queima em volta do caminho e no fim; Meteoro no ponto mirado', () => {
     const sn = aimOf('snowball', all, noItems(), from, at);
-    expect(sn.blastR).toBeCloseTo(spellLevel('snowball', 1).radius);
+    expect(sn.blastR).toBeCloseTo(spellLevel('snowball', 1).radius - WIZ_R); // ela pega pelo centro: o corpo encosta a WIZ_R antes
     expect(sn.blastAt!.x).toBeCloseTo(reach('snowball') - snowR(1));
     const g = aimOf('gravity', all, noItems(), from, at);
-    expect([g.half, g.blastR]).toEqual([spellLevel('gravity', 1).radius, spellLevel('gravity', 1).radius]);
+    expect(g.half).toBeCloseTo(spellLevel('gravity', 1).radius - WIZ_R);
+    expect(g.blastR).toBeCloseTo(g.half);
     expect(g.blastAt!.x).toBeCloseTo(reach('gravity') - PROJ_R);
     const m = aimOf('meteor', all, noItems(), from, at);
     expect([m.ends, m.half, m.blastR, m.blastAt]).toEqual([[], 0, spellLevel('meteor', 1).radius, at]);

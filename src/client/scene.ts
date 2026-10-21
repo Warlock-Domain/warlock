@@ -1884,7 +1884,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const d = sub(e, from);
         m.position.copy(w3(add(from, scale(d, 0.5)), 0.035));
         m.rotation.y = -Math.atan2(d.y, d.x);
-        m.scale.set(len(d), 1, 2 * half);
+        m.scale.set(len(d), 1, Math.max(2 * half, 0.06)); // o Raio (largura 0) vira uma linha de 6 cm para aparecer
       });
     },
     aim(at: Vec | null) {
