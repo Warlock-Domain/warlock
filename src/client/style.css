@@ -1021,7 +1021,7 @@ body.replaying .peek-shop { display: none; }
   box-shadow: inset 0 0 0 2px var(--panel-bot), inset 0 0 0 3px var(--gold-faint); color: var(--fg); }
 .shop-tile .ico { display: flex; font-size: 1.9rem; color: var(--g, var(--ember)); }
 .shop-item > .key { position: absolute; top: -6px; left: -6px; z-index: 2; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; display: grid; place-items: center;
-  border-radius: 999px; background: var(--g, var(--ember)); color: var(--panel-bot); font-size: .68rem; font-weight: 700; line-height: 1; box-shadow: 0 0 0 2px var(--panel-solid); pointer-events: none; }
+  border-radius: var(--r-lg); background: var(--g, var(--ember)); color: var(--panel-bot); font-size: .68rem; font-weight: 700; line-height: 1; box-shadow: 0 0 0 2px var(--panel-solid); pointer-events: none; }
 .shop-tile .pips i { width: 9px; height: 3px; }
 .shop-tile .pips i.on { background: var(--g, var(--ember)); }
 .tile-price { display: inline-flex; align-items: center; gap: 2px; font-family: var(--display); font-weight: 700; font-size: .8rem; line-height: 1; white-space: nowrap; color: var(--muted); }
@@ -1172,7 +1172,8 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
   .compact-shop .shop-tile .ico, .compact-shop .shop-loadout-slot > .gi { box-sizing: border-box; border-radius: var(--r-sm); background: color-mix(in srgb, var(--g, var(--ember)) 14%, var(--panel-bot));
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--g, var(--ember)) 40%, transparent); }
   /* medidas do cartão sem variável no :root: --acts-w 28 px = botão de 24 px e 4 px de folga; o quadro do ícone para em 52 px (o cartão
-     de 74 px menos o padding) e cai para 30 px no estreito; 160 px e 170 px são a largura do cartão em 1600×900 e 1920×1080 */
+     de 74 px menos o padding) e cai para 30 px no estreito; 160 px e 170 px são a largura do cartão em 1600×900 e 1920×1080.
+     O :root não tem escala de fonte: .66rem (estreito), .78rem e .92rem (largo) são os tamanhos em que o nome mais longo cabe em cada cartão */
   /* cartão estreito (até 1600 px): quadro menor e nome na fonte do texto, para "Redirecionador" caber sem partir a palavra; o Vender fica só com a moeda */
   .compact-shop .shop-item { container: tile / inline-size; }
   @container tile (max-width: 160px) {

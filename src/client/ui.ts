@@ -1348,8 +1348,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         // tecla só do que está equipado, numa bolinha por cima do canto, fora do arranjo do cartão (Fernando, 21/10)
         o.lvl && o.hotkey ? el('span', { class: 'key', 'aria-hidden': 'true' }, o.hotkey) : null,
         // comprar ou subir de nível, vender e desfazer numa coluna à direita do cartão (Fernando, 21/10); o clique no cartão continua comprando
-        el('div', { class: 'tile-acts' }, !peek && open ? el('button', { type: 'button', class: 'buy', title: full, 'aria-label': full, 'data-key': 'buy-' + o.key, disabled: !can, onclick: o.buy },
-          icon(o.lvl ? UI_ICON.upgrade : UI_ICON.buy)) : null, sellBtn(key), undoBtn(key)),
+        el('div', { class: 'tile-acts' }, !peek && open ? iconButton(icon(o.lvl ? UI_ICON.upgrade : UI_ICON.buy), full, o.buy, { class: 'buy', 'data-key': 'buy-' + o.key, disabled: !can }) : null, sellBtn(key), undoBtn(key)),
       ), () => {
         const sell = peek ? 0 : sellValue(mine, r.round, key);
         return o.tip() + (o.key.startsWith('spell') ? `<p><i>${o.use}</i></p>` : '')
