@@ -218,6 +218,7 @@ function startRoom(code: string, name: string) {
   let armed: SpellId | ItemId | null = null;
   // círculo de alcance: tecla segurada, magia escolhida no botão (toque no chão para lançar) ou controle mirando
   let held: SpellId | ItemId | null = null;
+  let heldFlash = false; // o held é só o piscar do Rápido depois de lançar: sem a área no cursor
   let padAiming: SpellId | ItemId | null = null;
   let padAt: Vec | null = null; // retículo do controle no chão (explosão do Meteoro)
   let hovered: SpellId | ItemId | null = null; // mouse em cima da magia na barra
@@ -397,7 +398,7 @@ function startRoom(code: string, name: string) {
     zoom: (d) => scene.zoomBy(d),
     pan: (dx, dy) => scene.panBy(dx, dy),
     armedChanged: (s) => (armed = s),
-    preview: (s) => (held = s),
+    preview: (s, flash = false) => ((held = s), (heldFlash = flash)),
     padRange: (s) => (padAiming = s),
     me: () => (myWizard(interp.latest())?.alive ? (drawn.get(me) ?? null) : null),
     aim: (at) => ((padAt = at), scene.aim(at)),
@@ -782,8 +783,8 @@ function startRoom(code: string, name: string) {
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
     const reach = showing && meP ? reachOf(showing, meP.spells, meP.items) : 0;
-    // Meteoro: a explosão onde ele cai (no cursor ou no retículo do controle, sem passar do alcance)
-    const blast = showing && meP ? blastOf(showing, meP.spells) : 0;
+    // magia de área (blastOf): o círculo onde ela cai (no cursor ou no retículo do controle, sem passar do alcance)
+    const blast = showing && meP && !heldFlash ? blastOf(showing, meP.spells) : 0;
     const aimAt = blast && myPos ? (padAiming ? padAt : input.aimPoint()) : null;
     scene.range(showing && myPos ? myPos : null, reach, aimAt && myPos ? add(myPos, clampLen(sub(aimAt, myPos), reach)) : null, blast);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
