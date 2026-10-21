@@ -9,7 +9,7 @@ import {
 } from './keys.ts';
 import { avatarPanel } from './avatar.ts';
 import { RULES } from './rules-text.ts';
-import { choice, showRules, toast } from './ui.ts';
+import { choice, dialog, showRules, toast } from './ui.ts';
 import { LANG, setLang, spellName, t, type Lang } from './i18n.ts';
 import { isSpell } from '../shared/spells.ts';
 import { store } from './store.ts';
@@ -17,19 +17,20 @@ import { MUSIC_TRACKS, musicTrack, setMusicTrack, type MusicTrack } from './soun
 
 declare const __BUILD__: string;
 
-// o que a tela atual oferece: som e vídeo só existem dentro da sala; trocar o apelido vale no lobby e na sala
-type SettingsCtx = {
+// o que a tela atual oferece: apelido e som valem no menu inicial e na sala (volume obrigatório: toda tela que abre as Configurações
+// passa o som, issue #128); efeitos visuais só existem dentro da sala
+export type SettingsCtx = {
   name: () => string;
   rename: () => void;
-  volumes?: () => { sfx: number; music: number };
-  setVolume?: (kind: 'sfx' | 'music', value: number) => void;
+  volumes: () => { sfx: number; music: number };
+  setVolume: (kind: 'sfx' | 'music', value: number) => void;
   fxLite?: () => boolean;
   setFxLite?: (lite: boolean) => void;
   pixel?: () => number;
   setPixel?: (size: number) => void;
   closePanels?: () => void; // um painel por vez: abrir o menu fecha os do topo
 };
-let ctx: SettingsCtx = { name: () => '', rename: () => {} };
+let ctx: SettingsCtx = { name: () => '', rename: () => {}, volumes: () => ({ sfx: 0, music: 0 }), setVolume: () => {} };
 export function setSettingsCtx(c: SettingsCtx) {
   ctx = c;
   if (overlay) draw();
@@ -122,9 +123,8 @@ function castSection(): Node[] {
 
 // som: lembra o volume de antes para o "Ligar o som" voltar onde estava
 let beforeMute = { sfx: 1, music: 0.7 };
-function soundSection(): Node[] | null {
+function soundSection(): Node[] {
   const { volumes, setVolume } = ctx;
-  if (!volumes || !setVolume) return null;
   const slider = (kind: 'sfx' | 'music', label: string) => {
     const input = el('input', { type: 'range', id: 'vol-' + kind, min: 0, max: 100, step: 5, value: Math.round(volumes()[kind] * 100) }) as HTMLInputElement;
     const out = el('span', { class: 'vol-value' }, input.value + '%');
@@ -285,7 +285,7 @@ const SECTIONS: Section[] = [
 // a prévia 3D é uma só (avatarPanel) e sairia de lá
 type Page = { body: HTMLElement; grid: HTMLElement; fill: () => void; jump: (id: string) => void };
 let home: Page | null = null;
-let dialog: Page | null = null;
+let modal: Page | null = null; // a página dentro do diálogo da partida
 const charLink = () => [el('p', { class: 'muted' }, t('O visual do seu mago fica na aba Personagem.', 'Your wizard\'s look is in the Character tab.')),
   el('button', { type: 'button', onclick: () => document.getElementById('home-tab-char')?.click() }, icon(UI_ICON.person), ' ', t('Abrir a aba Personagem', 'Open the Character tab'))];
 // scroller: quem rola a página (null = a janela, no menu inicial)
@@ -325,11 +325,11 @@ export function settingsPage(): HTMLElement {
 }
 
 let overlay: HTMLElement | null = null;
-let ac: AbortController | null = null;
+let close = () => {};
 
 function draw() {
   if (home?.body.isConnected) home.fill();
-  if (overlay) dialog?.fill();
+  if (overlay) modal?.fill();
 }
 
 // abre na seção pedida (o atalho do volume abre em Som). No menu inicial as configurações já são uma aba: Esc e Start abrem ela
@@ -340,27 +340,24 @@ export function openSettings(id?: string) {
     if (id) home.jump(id);
     return;
   }
-  if (overlay) return id ? dialog?.jump(id) : undefined;
+  if (overlay) return id ? modal?.jump(id) : undefined;
   ctx.closePanels?.();
   const scroller = el('div', { class: 'settings-scroll' });
-  dialog = stackedPage(scroller, false);
-  scroller.append(dialog.grid);
-  overlay = el('div', { class: 'overlay settings-overlay', onclick: (e: Event) => e.target === overlay && close() },
-    el('div', { class: 'settings', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'settings-title' },
-      el('header', { class: 'settings-head' },
-        el('h2', { class: 'title', id: 'settings-title' }, t('Configurações', 'Settings')),
-        el('button', { type: 'button', class: 'icon', title: t('Fechar (Esc)', 'Close (Esc)'), 'aria-label': t('Fechar as configurações', 'Close settings'), onclick: close }, '✕')),
-      scroller));
-  document.body.append(overlay);
-  if (id) dialog.jump(id);
+  modal = stackedPage(scroller, false);
+  scroller.append(modal.grid);
+  // com o menu aberto o jogo não recebe teclas (o que o navegador faz com Tab, Enter e setas continua)
+  ({ overlay, close } = dialog('settings', t('Configurações', 'Settings'), [scroller], { onKey, onClose: () => {
+    waiting = null;
+    if (padWaiting) waitPad(null);
+    overlay = null;
+    modal = null;
+  } }));
+  if (id) modal.jump(id);
   overlay.querySelector<HTMLElement>('.settings-toc button')?.focus({ preventScroll: true }); // focar rolando cortaria o pulo para a seção
-  ac = new AbortController();
-  // na captura: com o menu aberto o jogo não recebe teclas (o que o navegador faz com Tab, Enter e setas continua)
-  addEventListener('keydown', onKey, { capture: true, signal: ac.signal });
 }
+// esperando tecla ou botão, a próxima tecla é da troca (preventDefault: o Esc só cancela, não fecha o diálogo)
 function onKey(e: KeyboardEvent) {
   if (e.code === 'F1') e.preventDefault(); // não abre a ajuda do navegador
-  e.stopImmediatePropagation();
   if (padWaiting && e.code === 'Escape') {
     e.preventDefault();
     return waitPad(null);
@@ -370,22 +367,13 @@ function onKey(e: KeyboardEvent) {
     const a = waiting;
     waiting = null;
     if (e.code !== 'Escape') bindKey(a, e.code);
-    return draw();
-  }
-  if (e.code === 'Escape') {
-    e.preventDefault();
-    close();
+    draw();
   }
 }
 // página do menu inicial esperando tecla ou botão: a próxima tecla é dela (com o diálogo aberto, vale o ouvinte dele)
-addEventListener('keydown', (e) => !overlay && home?.body.isConnected && (waiting || padWaiting) && onKey(e), { capture: true });
-function close() {
-  if (!overlay) return;
-  waiting = null;
-  if (padWaiting) waitPad(null);
-  ac?.abort();
-  overlay.remove();
-  overlay = null;
-  dialog = null;
-}
+addEventListener('keydown', (e) => {
+  if (overlay || !home?.body.isConnected || !(waiting || padWaiting)) return;
+  e.stopImmediatePropagation();
+  onKey(e);
+}, { capture: true });
 onKeysChange(draw);

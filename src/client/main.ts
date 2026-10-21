@@ -84,16 +84,6 @@ const canvas = document.getElementById('c') as HTMLCanvasElement;
 // trocar de sala recarrega a página: startRoom deixa laço, socket e ouvintes ligados e não tem desmontagem
 addEventListener('hashchange', () => location.reload());
 
-// volumes guardados no navegador (0 a 1); quem tinha deixado mudo na versão antiga começa em zero
-function loadVolumes() {
-  const readVol = (k: string, fallback: number) => {
-    const n = Number(store.get(k));
-    return Number.isFinite(n) && store.get(k) !== null ? Math.max(0, Math.min(1, n)) : fallback;
-  };
-  const oldMute = store.get('warlock:mute') === '1';
-  return { sfx: readVol('warlock:vol-sfx', oldMute ? 0 : 1), music: readVol('warlock:vol-music', oldMute || store.get('warlock:music') === '0' ? 0 : 0.7) };
-}
-
 // som curto ao passar o mouse num botão, no máximo 1 a cada 60 ms (o toque não tem hover; o clique tem som próprio)
 function hoverSound(sound: ReturnType<typeof createSound>) {
   let at = 0;
@@ -112,14 +102,14 @@ async function main() {
   if (/^[A-Z]{4}$/.test(id)) startRoom(id, name);
   else startLobby(name);
   // Esc sem nada para cancelar ou fechar abre as configurações (pedido do Fernando, 18/10); por último, depois dos ouvintes da sala
-  onFreeEsc(() => !document.querySelector('.overlay, .rules-overlay') && openSettings());
+  onFreeEsc(() => !document.querySelector('.overlay') && openSettings());
 }
 
 function startLobby(name: string) {
   document.body.className = 'in-lobby';
   curtain();
-  // no lobby também: hover e clique dos botões (sem música nem lava, que só existem na partida)
-  const sound = createSound(loadVolumes);
+  // no lobby também: hover e clique dos botões e o volume das Configurações (sem música nem lava, que só existem na partida)
+  const sound = createSound();
   hoverSound(sound);
   ui.addEventListener('click', (e) => (e.target as Element).closest('button, .button') && sound.play('click'));
   let rooms: RoomInfo[] | null = null;
@@ -135,7 +125,7 @@ function startLobby(name: string) {
       lobbyNet.stop();
       screen(ui, t('Até a próxima!', 'See you soon!'), t('Você saiu do jogo. Pode fechar esta aba.', 'You left the game. You can close this tab.'), t('Voltar ao jogo', 'Return to game'), () => location.reload());
       window.close();
-    });
+    }, sound);
   // train: o treino que começa sozinho na sala nova (sem armazenamento, entra só na sala)
   async function create(train?: string) {
     try {
@@ -169,8 +159,7 @@ function startRoom(code: string, name: string) {
   let myName = name;
   document.body.className = 'in-room';
   curtain();
-  const vol = loadVolumes();
-  const sound = createSound(() => vol);
+  const sound = createSound();
   hoverSound(sound);
   let room: PublicRoom | null = null;
   let me = playerId;
@@ -259,13 +248,8 @@ function startRoom(code: string, name: string) {
     seeInvis: (on) => (seeInvis = on),
     spell: (s) => input.button(s),
     hover: (a) => (hovered = a),
-    volumes: () => vol,
-    setVolume: (kind, value) => {
-      vol[kind] = value;
-      store.set(kind === 'sfx' ? 'warlock:vol-sfx' : 'warlock:vol-music', String(value));
-      sound.refresh();
-      if (kind === 'sfx') sound.play('click');
-    },
+    volumes: sound.volumes,
+    setVolume: sound.setVolume,
     click: () => sound.play('click'),
     fxLite: () => fxLite,
     setFxLite: (lite) => {

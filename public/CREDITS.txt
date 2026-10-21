@@ -29,8 +29,8 @@ models/barrier_half.glb (barrier_half.gltf.glb), a parede do Pilar de pedra
   Licença lida no LICENSE.txt do repositório: "License: (Creative Commons Zero, CC0)".
 
 == Texturas ==
-tex/lava.jpg, tex/lava_emit.jpg
-  ambientCG, "Lava004" (Color e Emission, 1K reduzido a 512x512) - https://ambientcg.com/a/Lava004
+tex/lava_emit.jpg
+  ambientCG, "Lava001" (Emission, 1K reduzido a 512x512) - https://ambientcg.com/a/Lava001
   Licença lida na página: "CC0 license, making them free to use without attribution".
 tex/stone.jpg, tex/stone_nor.jpg
   Poly Haven, "slate_floor_02" (diff e nor_gl, 1K reduzido a 512x512) - https://polyhaven.com/a/slate_floor_02
