@@ -16,18 +16,19 @@ const RATE: Partial<Record<SoundKind, number>> = { hitLight: 1.25, hitHeavy: 0.7
 // Quem tinha deixado mudo na versão antiga começa em zero
 type Volumes ={ sfx: number; music: number };
 const VOL_KEY = { sfx: 'warlock:vol-sfx', music: 'warlock:vol-music' } as const;
-export function loadVolumes(): Volumes {
+export function loadVolumes(musicDefault = 0.7): Volumes {
   const readVol = (k: string, fallback: number) => {
     const n = Number(store.get(k));
     return Number.isFinite(n) && store.get(k) !== null ? Math.max(0, Math.min(1, n)) : fallback;
   };
   const oldMute = store.get('warlock:mute') === '1';
-  return { sfx: readVol(VOL_KEY.sfx, oldMute ? 0 : 1), music: readVol(VOL_KEY.music, oldMute || store.get('warlock:music') === '0' ? 0 : 0.7) };
+  return { sfx: readVol(VOL_KEY.sfx, oldMute ? 0 : 1), music: readVol(VOL_KEY.music, oldMute || store.get('warlock:music') === '0' ? 0 : musicDefault) };
 }
 export const saveVolume = (kind: keyof Volumes, value: number) => store.set(VOL_KEY[kind], String(value));
 
-export function createSound() {
-  const vol = loadVolumes();
+// musicDefault: volume da música de quem nunca mexeu nele (nas abas de teste em localhost, 0; main.ts)
+export function createSound(musicDefault?: number) {
+  const vol = loadVolumes(musicDefault);
   const volumes = () => vol;
   let ctx: AudioContext | null = null;
   let noise: AudioBuffer | null = null;
