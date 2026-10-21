@@ -114,7 +114,7 @@ export type RoundEffectId = (typeof ROUND_EFFECT_IDS)[number];
 export type RoundMods = { lava: number; gold: number; speed: number; heal: number; shrink: number; swords: boolean };
 export const NO_MODS: RoundMods = { lava: 1, gold: 1, speed: 1, heal: 1, shrink: 1, swords: false };
 export const ROUND_EFFECTS: Record<RoundEffectId, Partial<RoundMods>> = { lava: { lava: 0.5 }, swords: { swords: true, shrink: 0.5 }, gold: { gold: 1.5 }, speed: { speed: 1.5 }, regen: { heal: 1.5 }, clear: {} };
-// parede de espadas: dano = base + perSpeed × a velocidade com que o empurrão joga o mago contra ela (m/s; Fernando, 21/10: quanto mais
+// parede de espinhos (Arena de espinhos; o id swords ficou do nome antigo): dano = base + perSpeed × a velocidade com que o empurrão joga o mago contra ela (m/s; Fernando, 21/10: quanto mais
 // rápido bate, mais dói). Bola de fogo nível 1 empurra a ~4,5 m/s → ~87; só andando até a borda, 20. O empurrão de volta é o desse dano
 // inset: a parede ocupa os últimos 0,3 m da pedra (Fernando, 21/10: espinhos mais para dentro); encostar nela já fere
 export const SWORDS = { base: 20, perSpeed: 15, inset: 0.3 };

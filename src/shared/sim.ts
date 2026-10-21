@@ -1706,7 +1706,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       wz.pos = safeInside(w, wz.pos, SWORDS.inset + WIZ_R);
       const by = wz.lastHitBy && w.t - wz.lastHitAt <= CREDIT_WINDOW ? wz.lastHitBy : wz.id;
       const dmg = SWORDS.base + SWORDS.perSpeed * Math.max(0, -out);
-      hit(w, wz, by, dmg, dmg * KB_PER_DMG, n, 'espadas');
+      hit(w, wz, by, dmg, dmg * KB_PER_DMG, n, 'espinhos'); // o nome da fonte aparece cru no placar e no replay, como o 'choque'
     }
     // sandbox: vida infinita não morre; na lava fica onde está (sem voltar para a pedra), só com a vida cheia
     if (wz.god) {

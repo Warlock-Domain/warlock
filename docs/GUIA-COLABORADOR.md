@@ -202,7 +202,7 @@ Peça à sua IA (Claude Code, Codex, Cursor…) que, a cada mudança, deixe o te
    & "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --user-data-dir="$HOME\warlock-testes" --remote-debugging-port=9333 --remote-debugging-address=127.0.0.1 --no-first-run "http://localhost:8787/?aba=minha-mudanca&ir=sandbox"
    ```
    Se a janela já estiver aberta, o mesmo comando só acrescenta uma aba. Para fechar, a IA lista as abas em `http://127.0.0.1:9333/json/list` e fecha cada uma em `http://127.0.0.1:9333/json/close/<id>`.
-2. **Já no ponto do teste.** `?ir=<lugar>` leva direto ao que mudou (lista dos lugares no comentário do `?ir=` em `src/client/main.ts`; ex.: `sandbox`, `partida:loja`, `config:som`).
+2. **Já no ponto do teste.** `?ir=<lugar>` leva direto ao que mudou, em localhost e no ambiente do PR (lista dos lugares no comentário do `?ir=` em `src/client/main.ts`; ex.: `sandbox`, `partida:loja`, `config:som`).
 
    `?aba=<nome>` dá o nome da aba. Exemplo: `?aba=fix-loja&ir=partida:loja`.
 3. **Sem barulho.** Em localhost a música começa desligada. Num teste de som, abra com `?musica=1`.
@@ -263,7 +263,7 @@ Não desfaça sem combinar numa issue.
 
 **Ilusão:** cria uma cópia visível que segue reto na direção do movimento por 2 s. O jogador pode se mover livremente enquanto fica invisível; usar outra magia o revela, sem encerrar a cópia. Jogador e cópia podem ser atingidos; a cópia pode ser empurrada, mas não destruída antes do fim do prazo.
 
-Modos: Rodadas (vence quem fizer 5), Deathmatch (volta em 10 s), Times (Azul × Vermelho). Arenas: Círculo, Anel, Ilhas, Cruz. Atalhos: <kbd>F1</kbd> grimório, <kbd>F2</kbd> biblioteca, <kbd>Tab</kbd> placar, <kbd>4</kbd> loja, <kbd>5</kbd> replay da queda, <kbd>Esc</kbd> configurações.
+Modos: Rodadas (vence quem fizer 5), Deathmatch (volta em 10 s), Times (Azul × Vermelho). Arenas: Círculo, Anel, Ilhas, Cruz. Efeito de rodada (opção da sala, desligado por padrão; Sortear ou um fixo): Tempo chuvoso, Arena de espinhos, Febre do ouro, Vendaval, Fonte da vida, Campo aberto; na sandbox, pelo painel. Atalhos: <kbd>F1</kbd> grimório, <kbd>F2</kbd> biblioteca, <kbd>Tab</kbd> placar, <kbd>4</kbd> loja, <kbd>5</kbd> replay da queda, <kbd>Esc</kbd> configurações.
 
 ## Problemas comuns
 

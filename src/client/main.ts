@@ -46,7 +46,8 @@ if (LOCAL) {
 // mexeu no volume começa sem música; ?musica=1 volta ao padrão, para testar som. Volume já guardado vale igual. No ar nada muda.
 const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica') !== '1' ? 0 : undefined;
 
-// ?ir=<lugar> (issue #140): em localhost a aba de teste já abre no ponto a testar (pedido do Fernando, 20/10); no ar nada muda.
+// ?ir=<lugar> (issue #140): em localhost e no ambiente de cada PR (TEST_LINK, abaixo) a aba de teste já abre no ponto a testar
+// (pedido do Fernando, 20/10); no jogo no ar nada muda.
 // Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, controle, jogador,
 // personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando) e partida:loja (contra 1 bot, na loja da rodada 1, com 120 s).
 // Sala e seção juntas, com vírgula (as Configurações de dentro da partida): sandbox,config:som
@@ -115,7 +116,7 @@ function servidor(on: boolean) {
 const PID = 'warlock:pid' + (as && ':' + as);
 const NAME = 'warlock:name' + (as && ':' + as);
 const CHAR = 'warlock:char' + (as && ':' + as);
-// aba de teste já entra com apelido (pedido do Fernando, 21/10; issue #175), só em localhost: cada porta é um site novo, sem apelido
+// aba de teste já entra com apelido (pedido do Fernando, 21/10; issue #175), em localhost e no ambiente do PR (TEST_LINK): cada porta é um site novo, sem apelido
 // guardado, e o pedido de nome parava a aba antes do ?ir=. ?apelido=<nome> grava o apelido; sem ele, o começo do ?aba= entra só
 // se ainda não houver apelido. No ar nada muda.
 const query = new URLSearchParams(location.search);

@@ -447,11 +447,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     scene.add(s);
     return s;
   });
-  // efeito da rodada no mapa (issue #189), leve de propósito: a faixa de lava colada na borda ganha a cor do efeito e as brasas
-  // também (as brasas sozinhas sumiam no print, pontos de poucos pixels). Por cima, um detalhe por efeito pedido pelo Fernando (21/10):
-  // espinhos na borda (Arena de espinhos), pontos verdes subindo da pedra (Fonte da vida), vento (Vendaval) e chuva (Tempo chuvoso);
-  // poucos, transparentes e sem sombra, para não brigar com as magias. No modo leve (lite) só a cor da faixa fica
-  // Arena de espinhos preta, Febre do ouro amarela (com moedas), Vendaval pálida (brasas mais rápidas), Fonte da vida verde; Tempo chuvoso escurece a lava e a crosta da borda
+  // efeito da rodada no mapa (issue #189), leve de propósito: a faixa de lava colada na borda e as brasas ganham a cor do efeito
+  // (as brasas sozinhas sumiam no print): preta na Arena de espinhos, amarela na Febre do ouro (com moedas), pálida no Vendaval
+  // (brasas mais rápidas) e verde na Fonte da vida; o Tempo chuvoso escurece a lava e a crosta da borda. Por cima, um detalhe por
+  // efeito pedido pelo Fernando (21/10): espinhos na borda, pontos verdes subindo da pedra, vento e chuva; poucos, transparentes e
+  // sem sombra, para não brigar com as magias. No modo leve (lite) só a cor da faixa fica.
   const EMBER_COLOR: Partial<Record<RoundEffectId, string>> = { swords: '#c9ccd2', gold: '#ffd34d', speed: '#d6ecff', regen: '#7dffa8', lava: '#ffb27a' };
   const SHORE_TINT: Partial<Record<RoundEffectId, [string, number]>> = { swords: ['#050403', 0.75], gold: ['#ffe11a', 0.7], speed: ['#bfe6ff', 0.45], regen: ['#3dff8a', 0.45], lava: ['#7a2a10', 0.5] };
   let tintK = 0;
