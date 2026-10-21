@@ -67,7 +67,7 @@ h2.title { font-family: var(--display); font-size: 1.6rem; text-transform: none;
 h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font-size: .55em; vertical-align: .25em; color: var(--lava); text-shadow: 0 0 8px rgba(255, 106, 26, .6); }
 
 /* um só jeito de mostrar "selecionado": modo, aba, personagem e magia escolhida */
-.pick.on, .stats-tabs button.on, .spell.armed { border-color: var(--ember); background: var(--sel-bg); box-shadow: 0 0 0 1px var(--ember); color: var(--fg); }
+.pick.on, .stats-tabs button.on, .watching button.on, .spell.armed { border-color: var(--ember); background: var(--sel-bg); box-shadow: 0 0 0 1px var(--ember); color: var(--fg); }
 
 .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: var(--overlay); padding: 16px; z-index: 10; }
 .panel { background: var(--frame), var(--plate); border: 2px solid var(--bronze); box-shadow: var(--plate-edge), var(--shadow-lg); border-radius: var(--r-frame); padding: 24px; width: min(380px, 100%); display: flex; flex-direction: column; gap: 12px; }
