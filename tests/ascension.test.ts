@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ASC_ROUNDS, CONSOLATION, LEADER_KILL_XP, MARK_KB, applyCard, ascDeath, ascEndRound, autoPick, drawCards, keepSpells, levelOf, placePoints, pickCard, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
+import { ASC_ROUNDS, CONSOLATION, LEADER_KILL_XP, MARK_KB, applyCard, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
 import { addPlayer, buy, castBallot, newMatch, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage } from '../src/shared/protocol.ts';
 import { gearOf } from '../src/shared/sim.ts';
 import { STEP_MS, until } from './helpers.ts';
-import { ITEM_IDS, noItems } from '../src/shared/items.ts';
+import { ITEM_IDS, noItems, type ItemId } from '../src/shared/items.ts';
 import { MAX_SPELL_LEVEL, SPELL_GROUP_IDS, SPELL_IDS, noSpells, spellGroup, type SpellId } from '../src/shared/spells.ts';
 
 // gerador com semente (o mesmo mulberry32 dos outros testes)
@@ -64,7 +64,7 @@ describe('cartas do Ascensão', () => {
     expect(applyCard(p, { kind: 'spell', id: 'grip' })).toBe(false);
     expect(applyCard(p, { kind: 'spell', id: 'grip' }, 'meteor')).toBe(false);
     expect(applyCard(p, { kind: 'spell', id: 'grip' }, 'swap')).toBe(true);
-    expect([p.spells.grip, p.spells.swap]).toEqual([1, 0]);
+    expect([p.spells.grip, p.spells.swap]).toEqual([2, 0]); // herda o nível 2 da Troca
   });
 
   it('applyCard up raises one level', () => {
@@ -125,15 +125,23 @@ describe('partida do Ascensão', () => {
     expect(setReady(m, 'h')).toBe(false);
     tickMatch(m, STEP_MS, [], seeded(2));
     expect(m.asc!.offer.h.map((cards) => cards.length)).toEqual([3, 3]);
-    const itemRow = m.asc!.offer.h[1];
-    expect(pickCard(m, 'h', 0, 0)).toBe(true);
-    // a fileira do item fica a mesma depois de escolher a magia
-    expect(m.asc!.offer.h).toEqual([itemRow]);
+    const [spellRow, itemRow] = m.asc!.offer.h;
+    // escolher não aplica nem fecha a fileira: dá para trocar até o fim do intervalo
+    expect(chooseCard(m, 'h', 0, 0)).toBe(true);
+    expect(chooseCard(m, 'h', 0, 1)).toBe(true);
+    expect(m.asc!.offer.h).toEqual([spellRow, itemRow]);
+    expect(h.spells[spellRow[1].id as SpellId]).toBe(0);
     tickMatch(m, 2 * STEP_MS, [], seeded(2));
-    expect(m.phase).toBe('shop');
-    expect(pickCard(m, 'h', 0, 2)).toBe(true);
+    expect([m.phase, h.ready]).toEqual(['shop', false]);
+    expect(chooseCard(m, 'h', 1, 2)).toBe(true);
+    // todos escolheram: mais LAST_CALL_MS para trocar, e só então a escolha vale
     tickMatch(m, 3 * STEP_MS, [], seeded(2));
-    expect(m.phase).toBe('countdown');
+    expect([m.phase, h.ready, m.phaseEnds]).toEqual(['shop', true, 3 * STEP_MS + LAST_CALL_MS]);
+    expect(chooseCard(m, 'h', 0, 2)).toBe(true);
+    until(m, 3 * STEP_MS, () => m.phase === 'countdown');
+    expect(h.spells[spellRow[1].id as SpellId]).toBe(0);
+    expect(h.spells[spellRow[2].id as SpellId]).toBe(1);
+    expect(h.items[itemRow[2].id as ItemId]).toBeGreaterThan(0);
   });
 
   it('every break gives one new spell, one item and one spell upgrade per level gained', () => {
@@ -216,7 +224,7 @@ describe('partida do Ascensão', () => {
     const m = newMatch();
     addPlayer(m, 'h', 'Ana');
     startMatch(m, 0, 2, 'rounds', true, seeded(1));
-    expect(pickCard(m, 'h', 0, 0)).toBe(false);
+    expect(chooseCard(m, 'h', 0, 0)).toBe(false);
   });
 
   it('sandbox stays out of ascension', () => {
@@ -312,9 +320,14 @@ describe('recuperação e bots do Ascensão', () => {
     expect(autoPick(h, [{ kind: 'spell', id: 'grip' }, { kind: 'spell', id: 'meteor' }], 'normal', seeded(1))).toBe(-1);
     tickMatch(m, STEP_MS, [], seeded(2));
     expect(m.asc!.todo.h).toEqual(['spell', 'item']);
-    expect(keepSpells(m, 'h', 1)).toBe(false); // a fileira do item não se recusa
-    expect(keepSpells(m, 'h', 0)).toBe(true);
-    expect([m.asc!.todo.h, h.spells.swap]).toEqual([['item'], 3]);
+    expect(chooseCard(m, 'h', 1, -1)).toBe(false); // a fileira do item não se recusa
+    expect(chooseCard(m, 'h', 0, -1)).toBe(true);
+    // magia nova com a barra cheia pede a que sai
+    expect(chooseCard(m, 'h', 0, 0)).toBe(false);
+    expect(chooseCard(m, 'h', 0, 0, 'meteor')).toBe(false);
+    expect(chooseCard(m, 'h', 0, 0, 'swap')).toBe(true);
+    expect(chooseCard(m, 'h', 0, -1)).toBe(true);
+    expect(m.asc!.pick.h[0]).toEqual({ i: -1 });
     // tempo esgotado: mantém as magias e pega o item de cima
     const n = newMatch();
     addPlayer(n, 'h', 'Ana');
@@ -324,6 +337,12 @@ describe('recuperação e bots do Ascensão', () => {
     run(n, 0, () => n.phase === 'countdown');
     expect(g.spells.swap).toBe(3);
     expect(Object.values(g.items).reduce((x, y) => x + y)).toBe(2);
+  });
+
+  it('swap with a full bar: the new spell keeps the level of the one that leaves', () => {
+    const p = mage({ lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 4 });
+    expect(applyCard(p, { kind: 'spell', id: 'grip' }, 'swap')).toBe(true);
+    expect([p.spells.grip, p.spells.swap]).toEqual([4, 0]);
   });
 
   it('keep message parses only with a valid slot', () => {

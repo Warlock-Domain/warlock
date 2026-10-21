@@ -1207,6 +1207,11 @@ div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: 
 .asc-rare { color: var(--gold); font-weight: 700; font-size: .8rem; }
 .asc-reroll { margin-top: 10px; }
 .asc-keep { margin-top: 8px; }
+.asc-card.chosen, .asc-keep.chosen { box-shadow: 0 0 0 3px var(--gold), 0 0 16px rgba(255, 214, 102, .4); }
+.asc-row.done .asc-card:not(.chosen) { opacity: .62; }
+.asc-done { color: var(--ok); font-size: .85rem; }
+.asc-pick.ready { color: var(--ok); }
+.asc-swapped { font-size: .78rem; color: var(--gold); }
 .asc-lv { font-size: .75rem; color: var(--gold); white-space: nowrap; }
 .asc-lv.lead { color: var(--lava-hi); font-weight: 700; }
 .asc-swap-overlay { z-index: 20; }

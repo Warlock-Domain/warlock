@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
-import { keepSpells, pickCard, reroll } from '../shared/ascension.ts';
+import { chooseCard, reroll } from '../shared/ascension.ts';
 import { lookOf } from '../shared/characters.ts';
 import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
@@ -175,13 +175,13 @@ export class Room extends DurableObject<Env> {
         if (buyItem(m, id, msg.item)) await this.changed();
         return;
       case 'keep':
-        if (keepSpells(m, id, msg.slot)) await this.changed();
+        if (chooseCard(m, id, msg.slot, -1)) await this.changed();
         return;
       case 'reroll':
         if (reroll(m, id)) await this.changed();
         return;
       case 'card':
-        if (pickCard(m, id, msg.slot, msg.i, msg.swap)) await this.changed();
+        if (chooseCard(m, id, msg.slot, msg.i, msg.swap)) await this.changed();
         return;
       case 'pick':
         if (setLook(m, id, lookOf(msg.character))) await this.changed();
@@ -315,8 +315,9 @@ export class Room extends DurableObject<Env> {
     this.acc = Math.min(this.acc + now - this.last, STEP_MS * MAX_CATCHUP);
     this.last = now;
     // a votação entra na conta para o fim por tempo (e a troca de modo) chegar aos clientes
-    // Ascensão: as cartas entram na mesa no passo do intervalo (ascShop), então a mesa e as escolhas também
-    const asc = () => (m.asc ? `${Object.keys(m.asc.offer).length}:${Object.values(m.asc.todo).map((t) => t.length).join()}` : '');
+    // Ascensão: as cartas entram na mesa no passo do intervalo (ascShop), então a mesa também
+    // os 5 s finais (todos escolheram) mudam o fim do intervalo: o relógio da tela precisa saber
+    const asc = () => (m.asc ? `${Object.values(m.asc.offer).map((o) => o.length).join()}:${m.phaseEnds}` : '');
     const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}:${asc()}`;
     const before = sig();
     while (this.acc >= STEP_MS) {

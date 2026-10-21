@@ -44,6 +44,7 @@ Um quarto modo de partida, "meio roguelike, tipo o ARAM do LoL com as cartinhas 
 | Crédito de abate por controle (21/10) | Troca, Agarrar e Magnetizar contam como golpe para o crédito do abate (janela de 5 s), **em todos os modos**: "no jogo normal tbm deve contar". Fica em issue própria, fora do Ascensão; o modo só herda |
 | Cartas por intervalo (21/10) | Todo intervalo dá 1 magia nova e 1 item ("no modo assencao todo round deve ganhar ... 1 magia nova e 1 item"); cada nível de XP dá 1 subir magia. Cada escolha é 1 entre 3 cartas do mesmo tipo. Substitui "cada nível = 1 carta de qualquer tipo" |
 | Ritmo e troca (21/10, pela simulação de 1 430 partidas) | Nível custa 1 100 XP (1,3 subir magia por intervalo; com 600 eram 2,8). Com a barra cheia, a fileira de magia nova pode ser recusada ("Manter as minhas magias"); o tempo esgotado e os bots mantêm em vez de trocar |
+| Intervalo (21/10, depois de jogar) | As fileiras não fecham depois da escolha: a carta fica marcada e dá para trocar; as escolhas só valem no fim do intervalo. Quando todos escolheram, o intervalo acaba em 5 s. Na troca com a barra cheia, a magia nova herda o nível da que sai ("nao fechar os menus dps q vc escolhe", "countdown de 5 segundos", "a magia q vc recebe recebe os niveis q a magia q esta sendo trocada recebeu") |
 | Magias no modo (21/10) | "Por enquanto o modo Ascension vai ser sem skills rebalanceadas": mesmos números de `spells.ts` e `items.ts` dos outros modos |
 
 ## Como funciona

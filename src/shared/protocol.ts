@@ -1,6 +1,6 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
-import { ascOf, type Card, type Kind } from './ascension.ts';
+import { ascOf, type Card, type Choice, type Kind } from './ascension.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, RUNE_KINDS, type RuneKind } from './constants.ts';
@@ -47,7 +47,7 @@ export type PublicPlayer = {
   dummy?: true; // sandbox: boneco parado
   watch?: true; // assistindo: sem mago a partir da próxima rodada
   turret?: true; // Sandbox: torreta de direção fixa.
-  asc?: { xp: number; level: number; next: number; todo: Kind[]; offer: Card[][]; rerolls: number }; // só no Ascensão (next: XP do próximo nível)
+  asc?: { xp: number; level: number; next: number; todo: Kind[]; offer: Card[][]; pick: (Choice | null)[]; rerolls: number }; // só no Ascensão (next: XP do próximo nível)
 };
 
 export type PublicRoom = {

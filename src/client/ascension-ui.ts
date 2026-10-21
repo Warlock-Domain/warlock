@@ -34,7 +34,9 @@ function cardFace(c: Card, p: PublicPlayer) {
   }
   const lvl = p.spells[c.id];
   const to = c.kind === 'up' ? Math.min(MAX_SPELL_LEVEL, lvl + (c.rare ? 2 : 1)) : 1;
-  const kind = c.kind === 'up' ? t(`Subir magia · nível ${lvl} → ${to}`, `Spell upgrade · level ${lvl} → ${to}`) : t('Magia nova · nível 1', 'New spell · level 1');
+  const swap = c.kind === 'spell' && spellCount(p.spells) >= MAX_SPELLS;
+  const kind = c.kind === 'up' ? t(`Subir magia · nível ${lvl} → ${to}`, `Spell upgrade · level ${lvl} → ${to}`)
+    : swap ? t('Magia nova · troca, herda o nível', 'New spell · swap, keeps the level') : t('Magia nova · nível 1', 'New spell · level 1');
   return { cls: spellClass(c.id), ico: ICON[c.id], kind, name: spellName(c.id), text: SPELL_USE[c.id], max: MAX_SPELL_LEVEL, lvl };
 }
 
@@ -49,18 +51,25 @@ export function ascPanel(r: PublicRoom, me: string, act: AscActions, dialog: Dia
     if (c.kind !== 'spell' || !full) return act.card(slot, i);
     const d = dialog('asc-swap', t(`${spellName(c.id)} entra no lugar de qual?`, `${spellName(c.id)} replaces which?`),
       [el('div', { class: 'asc-swap-list' }, ...SPELL_IDS.filter((s) => mine.spells[s] > 0).map((s) => el('button', { type: 'button', class: spellClass(s), onclick: () => (d.close(), act.card(slot, i, s)) },
-        icon(ICON[s]), ` ${spellName(s)} · ${t('nível', 'level')} ${mine.spells[s]}`)))]);
+        icon(ICON[s]), ` ${spellName(s)} · ${t('nível', 'level')} ${mine.spells[s]}`, el('small', {}, t(` (${spellName(c.id)} entra no nível ${mine.spells[s]})`, ` (${spellName(c.id)} comes in at level ${mine.spells[s]})`)))))]);
   };
-  // uma fileira por escolha do intervalo: magia nova, item e um subir magia por nível ganho
-  const rows = a.offer.map((cards, slot) => el('section', { class: 'asc-row' }, el('h3', {}, KIND_TITLE[a.todo[slot]]),
-    el('div', { class: 'asc-cards' }, ...cards.map((c, i) => {
-      const f = cardFace(c, mine);
-      return el('button', { type: 'button', class: `asc-card ${f.cls}` + (c.kind === 'up' && c.rare ? ' rare' : ''), 'data-key': `card-${slot}-${i}`, onclick: () => choose(slot, i, c) },
-        el('span', { class: 'asc-kind' }, f.kind), el('span', { class: 'ico' }, icon(f.ico)), el('b', {}, f.name), el('small', {}, f.text),
-        c.kind === 'up' && c.rare ? el('span', { class: 'asc-rare' }, t('Rara: +2 níveis', 'Rare: +2 levels')) : null);
-    })),
-    // barra cheia: magia nova é troca, e trocar é escolha (pode recusar)
-    a.todo[slot] === 'spell' && full ? el('button', { type: 'button', class: 'asc-keep', 'data-key': `keep-${slot}`, onclick: () => act.keep(slot) }, t('Manter as minhas magias', 'Keep my spells')) : null));
+  // uma fileira por escolha do intervalo: magia nova, item e um subir magia por nível ganho; a escolha fica marcada e
+  // dá para trocar até o intervalo acabar (as fileiras não fecham; Fernando, 21/10)
+  const rows = a.offer.map((cards, slot) => {
+    const pick = a.pick[slot];
+    return el('section', { class: 'asc-row' + (pick ? ' done' : '') }, el('h3', {}, KIND_TITLE[a.todo[slot]], pick ? el('span', { class: 'asc-done' }, t(' ✓ escolhida', ' ✓ picked')) : null),
+      el('div', { class: 'asc-cards' }, ...cards.map((c, i) => {
+        const f = cardFace(c, mine);
+        const on = pick?.i === i;
+        return el('button', { type: 'button', class: `asc-card ${f.cls}` + (c.kind === 'up' && c.rare ? ' rare' : '') + (on ? ' chosen' : ''), 'aria-pressed': String(on), 'data-key': `card-${slot}-${i}`, onclick: () => choose(slot, i, c) },
+          el('span', { class: 'asc-kind' }, f.kind), el('span', { class: 'ico' }, icon(f.ico)), el('b', {}, f.name), el('small', {}, f.text),
+          c.kind === 'up' && c.rare ? el('span', { class: 'asc-rare' }, t('Rara: +2 níveis', 'Rare: +2 levels')) : null,
+          on && pick?.swap ? el('span', { class: 'asc-swapped' }, t(`No lugar de ${spellName(pick.swap)}`, `Replaces ${spellName(pick.swap)}`)) : null);
+      })),
+      // barra cheia: magia nova é troca, e trocar é escolha (pode recusar)
+      a.todo[slot] === 'spell' && full ? el('button', { type: 'button', class: 'asc-keep' + (pick?.i === -1 ? ' chosen' : ''), 'aria-pressed': String(pick?.i === -1), 'data-key': `keep-${slot}`, onclick: () => act.keep(slot) }, t('Manter as minhas magias', 'Keep my spells')) : null);
+  });
+  const left = a.pick.filter((p) => !p).length;
   const pct = Math.min(100, Math.round((100 * a.xp) / Math.max(1, a.next)));
   const lead = ascLeader(r);
   return el('div', { class: 'card asc' },
@@ -69,7 +78,7 @@ export function ascPanel(r: PublicRoom, me: string, act: AscActions, dialog: Dia
         el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells`))),
       el('div', { class: 'asc-xp', title: `${a.xp} / ${a.next} XP` }, el('b', {}, t(`Nível ${a.level}`, `Level ${a.level}`)), el('span', { class: 'asc-bar' }, el('i', { style: `width:${pct}%` })), el('small', {}, `${a.xp} / ${a.next} XP`)),
       a.todo.length > 0
-        ? el('div', { class: 'asc-rows' }, el('p', { class: 'asc-pick' }, t('Escolha 1 carta em cada fileira', 'Pick 1 card in each row')), ...rows,
+        ? el('div', { class: 'asc-rows' }, el('p', { class: 'asc-pick' + (left ? '' : ' ready') }, left ? t(`Escolha 1 carta em cada fileira (falta${left > 1 ? 'm' : ''} ${left})`, `Pick 1 card in each row (${left} left)`) : t('Tudo escolhido. Dá para trocar até a rodada começar.', 'All picked. You can still change until the round starts.')), ...rows,
           a.rerolls > 0 ? el('button', { type: 'button', class: 'asc-reroll', onclick: act.reroll }, t('Novo sorteio (1 por intervalo, para quem está atrás do líder)', 'Reroll (1 per break, for those behind the leader)')) : null)
         : el('p', { class: 'muted' }, t('Sem carta nova desta vez. Esperando os outros escolherem.', 'No new card this time. Waiting for the others to pick.')),
       lead ? el('small', { class: 'muted' }, t(`Líder marcado: ${r.players.find((p) => p.id === lead.id)?.name} leva +${Math.round(MARK_KB * lead.above * 100)}% de empurrão.`, `Marked leader: ${r.players.find((p) => p.id === lead.id)?.name} takes +${Math.round(MARK_KB * lead.above * 100)}% knockback.`)) : null),

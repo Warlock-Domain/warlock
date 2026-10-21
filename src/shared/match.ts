@@ -397,7 +397,7 @@ export function sell(m: Match, id: string, key: string): boolean {
 
 export function setReady(m: Match, id: string): boolean {
   const p = player(m, id);
-  if (m.phase !== 'shop' || !p || p.ready || m.asc?.todo[id]?.length) return false; // Ascensão: pronto só depois de escolher as cartas
+  if (m.phase !== 'shop' || !p || p.ready || m.asc) return false; // Ascensão: pronto só depois de escolher as cartas
   p.ready = true;
   return true;
 }
@@ -851,7 +851,8 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
     if (m.asc) ascShop(m, now, rand);
     const humans = m.players.filter((p) => !p.bot && p.connected && !p.watch);
     // a sandbox pula a loja (ela abre a qualquer hora)
-    if (now >= m.phaseEnds || humans.every((p) => p.ready) || sb) enterCountdown(m, now, rand);
+    // Ascensão: todos prontos encurta o intervalo para 5 s (ascShop) em vez de fechar na hora
+    if (now >= m.phaseEnds || (!m.asc && humans.every((p) => p.ready)) || sb) enterCountdown(m, now, rand);
     return [];
   }
   if (m.phase === 'countdown') {

@@ -9,9 +9,12 @@ import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, spellCount, spellGroup, type Sp
 // rare: carta rara (só de subir magia): sobe 2 níveis
 export type Card = { kind: 'spell'; id: SpellId } | { kind: 'up'; id: SpellId; rare?: true } | { kind: 'item'; id: ItemId };
 export type Kind = Card['kind'];
-// xp: total da partida; todo: escolhas que faltam no intervalo, pelo tipo; offer: as cartas na mesa de cada escolha (mesma ordem);
-// fallen: ordem de queda da rodada; extra: XP da rodada por derrubar o líder; rerolls: novos sorteios do intervalo (quem está atrás)
-export type AscState = { xp: Record<string, number>; todo: Record<string, Kind[]>; offer: Record<string, Card[][]>; fallen: string[]; extra: Record<string, number>; rerolls: Record<string, number> };
+// escolha de uma fileira: carta i (−1 = manter as magias, só com a barra cheia) e a magia que sai na troca
+export type Choice = { i: number; swap?: SpellId };
+// xp: total da partida; todo: as fileiras do intervalo, pelo tipo; offer: as cartas de cada fileira; pick: a escolha de cada fileira
+// (null = falta escolher; só vale no fim do intervalo e dá para trocar até lá); fallen: ordem de queda da rodada;
+// extra: XP da rodada por derrubar o líder; rerolls: novos sorteios do intervalo (quem está atrás)
+export type AscState = { xp: Record<string, number>; todo: Record<string, Kind[]>; offer: Record<string, Card[][]>; pick: Record<string, (Choice | null)[]>; fallen: string[]; extra: Record<string, number>; rerolls: Record<string, number> };
 // o que todo intervalo dá, além do subir magia de cada nível ganho
 const EVERY_BREAK: Kind[] = ['spell', 'item'];
 
@@ -34,8 +37,10 @@ export const CONSOLATION = 0.25;
 export const RARE_PER_LEVEL = 0.15;
 export const RARE_MAX = 0.6;
 export const MARK_KB = 0.05;
+// todos escolheram: o intervalo acaba em 5 s, e até lá dá para trocar (Fernando, 21/10)
+export const LAST_CALL_MS = 5000;
 
-export const newAsc = (ids: string[]): AscState => ({ xp: {}, todo: Object.fromEntries(ids.map((id) => [id, [...EVERY_BREAK]])), offer: {}, fallen: [], extra: {}, rerolls: {} });
+export const newAsc = (ids: string[]): AscState => ({ xp: {}, todo: Object.fromEntries(ids.map((id) => [id, [...EVERY_BREAK]])), offer: {}, pick: {}, fallen: [], extra: {}, rerolls: {} });
 
 export function xpGain(s: Stat): number {
   const spells = Object.entries(s.dmgBy).reduce((t, [src, d]) => t + (src === 'lava' ? 0 : d), 0);
@@ -66,7 +71,8 @@ export function drawCards(p: Kit, kind: Kind, rand: () => number, rare = 0): Car
   return rare > 0 ? out.map((c) => (c.kind === 'up' && rand() < rare ? { ...c, rare: true } : c)) : out;
 }
 
-// magia nova com a barra cheia (MAX_SPELLS) troca a `swap`, que precisa ser uma magia que o mago tem
+// magia nova com a barra cheia (MAX_SPELLS) troca a `swap`, que precisa ser uma magia que o mago tem; a nova herda o nível dela
+// (Fernando, 21/10: "a magia q vc recebe recebe os niveis q a magia q esta sendo trocada recebeu")
 export function applyCard(p: Kit, card: Card, swap?: SpellId): boolean {
   if (card.kind === 'item') {
     if (itemPrice(p.items, card.id) === null) return false;
@@ -80,11 +86,13 @@ export function applyCard(p: Kit, card: Card, swap?: SpellId): boolean {
     return true;
   }
   if (lv > 0) return false;
+  let level = 1;
   if (spellCount(p.spells) >= MAX_SPELLS) {
     if (!swap || p.spells[swap] === 0) return false;
+    level = p.spells[swap];
     p.spells[swap] = 0;
   }
-  p.spells[card.id] = 1;
+  p.spells[card.id] = level;
   return true;
 }
 
@@ -115,15 +123,40 @@ export function autoPick(p: Player, cards: Card[], how: 'top' | 'easy' | 'normal
   return ok[0];
 }
 
-// barra cheia: a fileira de magia nova pode ser recusada (Fernando, 21/10: "troca opcional com a barra cheia");
-// antes, a magia nova obrigava a tirar uma já subida, e o tempo esgotado tirava a mais fraca
-export function keepSpells(m: Match, id: string, slot: number): boolean {
+const full = (p: Kit) => spellCount(p.spells) >= MAX_SPELLS;
+
+// escolhe (ou troca a escolha de) uma fileira; só vale no fim do intervalo (applyPicks), então dá para mudar até lá
+// (Fernando, 21/10: "nao fechar os menus dps q vc escolhe"). i = −1: manter as magias, só na fileira de magia nova com a barra cheia
+// (Fernando, 21/10: "troca opcional com a barra cheia"); magia nova com a barra cheia pede a `swap`, uma magia que o mago tem
+export function chooseCard(m: Match, id: string, slot: number, i: number, swap?: SpellId): boolean {
   const a = m.asc;
   const p = m.players.find((q) => q.id === id);
-  if (!a || !p || m.phase !== 'shop' || a.todo[id]?.[slot] !== 'spell' || !a.offer[id]?.[slot] || spellCount(p.spells) < MAX_SPELLS) return false;
-  a.todo[id].splice(slot, 1);
-  a.offer[id].splice(slot, 1);
+  const row = a?.offer[id]?.[slot];
+  if (!a || !p || m.phase !== 'shop' || !row || !a.pick[id]) return false;
+  const card = row[i];
+  const keep = i === -1 && a.todo[id][slot] === 'spell' && full(p);
+  if (!keep && !card) return false;
+  if (card?.kind === 'spell' && full(p) && (!swap || !p.spells[swap])) return false;
+  a.pick[id][slot] = keep ? { i } : { i, ...(card?.kind === 'spell' && full(p) && { swap }) };
   return true;
+}
+
+// fim do intervalo: aplica as escolhas, e as que faltam pela escolha automática; itens e subir magia antes da magia nova,
+// para a troca não tirar uma magia que ia subir nesta mesma leva sem querer
+function applyPicks(m: Match, rand: () => number) {
+  const a = m.asc!;
+  for (const p of m.players) {
+    const offer = a.offer[p.id] ?? [];
+    const how = !p.bot && p.connected ? 'top' : (p.difficulty ?? m.opts.difficulty) === 'easy' ? 'easy' : 'normal';
+    const order = offer.map((_, slot) => slot).sort((x, y) => Number(a.todo[p.id][x] === 'spell') - Number(a.todo[p.id][y] === 'spell'));
+    for (const slot of order) {
+      const c = a.pick[p.id]?.[slot] ?? { i: autoPick(p, offer[slot], how, rand) };
+      if (c.i >= 0) applyCard(p, offer[slot][c.i], c.swap);
+    }
+    a.todo[p.id] = [];
+    a.offer[p.id] = [];
+    a.pick[p.id] = [];
+  }
 }
 
 // novo sorteio (quem está atrás do líder, 1 por intervalo): as cartas da mesa saem e outras entram no próximo passo
@@ -131,7 +164,7 @@ export function reroll(m: Match, id: string): boolean {
   const a = m.asc;
   if (!a || m.phase !== 'shop' || !a.rerolls[id] || !a.offer[id]?.length) return false;
   a.rerolls[id]--;
-  delete a.offer[id];
+  delete a.offer[id]; // as escolhas da mesa velha saem junto (ascShop sorteia as fileiras e zera as escolhas)
   return true;
 }
 
@@ -157,43 +190,31 @@ export function ascMark(m: Match) {
   if (z && lead) z.kbResist -= MARK_KB * lead.above;
 }
 
-// escolha `slot` da mesa (a ordem de todo/offer), carta i
-export function pickCard(m: Match, id: string, slot: number, i: number, swap?: SpellId): boolean {
-  const a = m.asc;
-  const p = m.players.find((q) => q.id === id);
-  const card = a?.offer[id]?.[slot]?.[i];
-  if (!a || !p || m.phase !== 'shop' || !card || !applyCard(p, card, swap)) return false;
-  a.todo[id].splice(slot, 1);
-  a.offer[id].splice(slot, 1); // as outras fileiras ficam como estão na mesa
-  return true;
-}
-
-// a cada passo do intervalo: põe as cartas na mesa, escolhe pelos bots e por quem saiu, e no fim do tempo pela carta automática;
-// humano com escolha pendente fica "não pronto" (o intervalo acaba quando todos escolheram, como o Pronto da loja)
+// a cada passo do intervalo: põe as fileiras na mesa (bots e quem saiu escolhem na hora); quando todo humano escolheu tudo, o
+// intervalo encurta para LAST_CALL_MS; no fim do tempo aplica as escolhas (applyPicks) e a partida segue para a contagem
 export function ascShop(m: Match, now: number, rand: () => number) {
   const a = m.asc!;
-  const late = now >= m.phaseEnds;
   const top = Math.max(...m.players.map((p) => lv(a, p.id)));
   for (const p of m.players.filter((q) => !q.watch)) { // quem só assiste não escolhe carta
     const todo = (a.todo[p.id] ??= []);
-    while (todo.length) {
+    // mesa nova a cada intervalo e depois do novo sorteio; fileira sem carta possível sai (ex.: todos os itens no máximo)
+    if (a.offer[p.id]?.length !== todo.length) {
       const rare = Math.min(RARE_MAX, RARE_PER_LEVEL * (top - lv(a, p.id)));
-      // mesa nova a cada intervalo (e depois do novo sorteio); escolher tira só a fileira escolhida
-      if (a.offer[p.id]?.length !== todo.length) a.offer[p.id] = todo.map((k) => drawCards(p, k, rand, rare));
-      const offer = a.offer[p.id];
-      const empty = offer.findIndex((c) => !c.length); // nada desse tipo a ganhar (ex.: todos os itens no máximo)
-      if (empty >= 0) {
-        todo.splice(empty, 1);
-        offer.splice(empty, 1);
-        continue;
-      }
-      const how = !p.bot && p.connected ? 'top' : (p.difficulty ?? m.opts.difficulty) === 'easy' ? 'easy' : 'normal';
-      if (!(p.bot || !p.connected || late)) break;
-      const i = autoPick(p, offer[0], how, rand);
-      if (!(i < 0 ? keepSpells(m, p.id, 0) : pickCard(m, p.id, 0, i))) break;
+      const rows = todo.map((k) => drawCards(p, k, rand, rare));
+      a.todo[p.id] = todo.filter((_, k) => rows[k].length);
+      a.offer[p.id] = rows.filter((r) => r.length);
+      a.pick[p.id] = a.offer[p.id].map(() => null);
     }
-    if (!p.bot) p.ready = !todo.length;
+    const pick = (a.pick[p.id] ??= a.offer[p.id].map(() => null));
+    if (p.bot || !p.connected) {
+      const how = (p.difficulty ?? m.opts.difficulty) === 'easy' ? 'easy' : 'normal';
+      pick.forEach((c, slot) => (pick[slot] = c ?? { i: autoPick(p, a.offer[p.id][slot], how, rand) }));
+    }
+    if (!p.bot) p.ready = pick.every(Boolean);
   }
+  const humans = m.players.filter((p) => !p.bot && p.connected && !p.watch);
+  if (humans.every((p) => p.ready)) m.phaseEnds = Math.min(m.phaseEnds, now + LAST_CALL_MS);
+  if (now >= m.phaseEnds) applyPicks(m, rand);
 }
 
 // fim da rodada: pontos pela queda (no placar, p.score) e XP; cada nível ganho vira uma escolha no intervalo
@@ -221,5 +242,5 @@ export const ascWinner = (m: Match) => [...m.players].sort((x, y) => y.score - x
 export function ascOf(a: AscState, id: string) {
   const xp = a.xp[id] ?? 0;
   const level = levelOf(xp);
-  return { xp, level, next: xpFor(level + 1), todo: a.todo[id] ?? [], offer: a.offer[id] ?? [], rerolls: a.rerolls[id] ?? 0 };
+  return { xp, level, next: xpFor(level + 1), todo: a.todo[id] ?? [], offer: a.offer[id] ?? [], pick: a.pick[id] ?? [], rerolls: a.rerolls[id] ?? 0 };
 }
