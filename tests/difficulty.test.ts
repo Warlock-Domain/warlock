@@ -339,3 +339,15 @@ describe('dificuldade dos bots', () => {
     expect(parseOpt('difficulty:insane')).toBeNull();
   });
 });
+
+describe('dificuldades intermediárias', () => {
+  it('Casual fica entre Fácil e Normal e Veterano entre Normal e Difícil, em todo número', () => {
+    const between = (x: number, a: number, b: number) => x >= Math.min(a, b) && x <= Math.max(a, b);
+    for (const k of Object.keys(BOT_SKILL.normal) as (keyof BotSkill)[]) {
+      expect(between(BOT_SKILL.casual[k], BOT_SKILL.easy[k], BOT_SKILL.normal[k])).toBe(true);
+      expect(between(BOT_SKILL.veteran[k], BOT_SKILL.normal[k], BOT_SKILL.hard[k])).toBe(true);
+    }
+    expect(BOT_SKILL.casual.delay).toBeCloseTo((BOT_SKILL.easy.delay + BOT_SKILL.normal.delay) / 2);
+    expect(parseOpt('difficulty:veteran')).toEqual(['difficulty', 'veteran']);
+  });
+});
