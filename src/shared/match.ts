@@ -186,10 +186,13 @@ export function addPlayer(m: Match, id: string, name: string, bot = false, watch
     return true;
   }
   const full = playing(m).length >= MAX_PLAYERS;
-  if (full && (bot || m.players.length - playing(m).length >= MAX_WATCHERS)) return false;
+  const watchersFull = m.players.length - playing(m).length >= MAX_WATCHERS;
+  if (full && (bot || watchersFull)) return false;
+  // pediu para assistir com os espectadores no limite: entra jogando (ainda há vaga de mago)
+  const watching = !bot && (full || (watch && !watchersFull));
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
-  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold: startGold(m), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...((watch || full) && !bot && { watch: true }) });
+  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold: startGold(m), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
   enter(m, m.players[m.players.length - 1]);
   return true;
 }
@@ -206,6 +209,7 @@ export function setWatch(m: Match, id: string, on: boolean): boolean {
   const p = player(m, id);
   if (!p || p.bot || !!p.watch === on) return false;
   if (!on && playing(m).length >= MAX_PLAYERS) return false;
+  if (on && m.players.length - playing(m).length >= MAX_WATCHERS) return false; // espectadores no limite
   if (on) {
     p.watch = true;
     p.team = null; // nos Times fixos, ao voltar entra no time menor

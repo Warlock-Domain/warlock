@@ -68,6 +68,17 @@ describe('espectador', () => {
     expect(addPlayer(m, 'bot-9', 'Bot', true)).toBe(false);
   });
 
+  it('o limite de espectadores vale também com vaga de mago livre', () => {
+    const m = newMatch();
+    for (let i = 0; i < MAX_WATCHERS; i++) expect(addPlayer(m, 'w' + i, 'W' + i, false, true)).toBe(true);
+    // pediu para assistir com os espectadores no limite: entra jogando
+    expect(addPlayer(m, 'a', 'Ana', false, true)).toBe(true);
+    expect(m.players.find((p) => p.id === 'a')!.watch).toBeUndefined();
+    // e o botão Assistir não passa do limite
+    expect(setWatch(m, 'a', true)).toBe(false);
+    expect(playing(m).map((p) => p.id)).toEqual(['a']);
+  });
+
   it('nos Times, quem assiste fica fora do sorteio e quem volta entra no time menor', () => {
     const m = newMatch();
     for (const id of ['a', 'b', 'c']) addPlayer(m, id, id);
