@@ -2,7 +2,7 @@
 import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
 import type { ArenaId } from '../shared/arena.ts';
-import { CHARACTERS, type CharacterId } from '../shared/characters.ts';
+import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/characters.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Sandbox, type SandboxCmd, type Vote } from '../shared/match.ts';
 import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
@@ -176,8 +176,9 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
     char: panel('char', personagemTab()),
     shop: panel('shop', el('section', { class: 'home-learn' }, el('h2', {}, t('Loja', 'Shop')),
       el('p', { class: 'muted' }, t('Roupas e visuais para o seu personagem. Prévia do catálogo com os modelos atuais; moeda, preços e compras ainda não foram definidos. Os visuais existentes continuam disponíveis no Guarda-roupas.', 'Outfits and looks for your character. Catalog preview using current models; currency, prices and purchases have not been defined yet. Existing looks remain available in the Wardrobe.'))),
-      el('div', { class: 'home-cosmetics' }, ...CHARACTERS.map((c) => el('article', { class: 'cosmetic-card' },
-        el('img', { src: `/chars/${c.id}.webp`, alt: '', width: 96, height: 128, loading: 'lazy' }),
+      // os mesmos 8 prontos do Guarda-roupas: uma Ladina só, já com o Capuz (pedido do Fernando, 20/10)
+      el('div', { class: 'home-cosmetics' }, ...PRESETS.map((c) => el('article', { class: 'cosmetic-card' },
+        el('img', { src: `/chars/${lookHead(lookOf(c.id))}.webp`, alt: '', width: 96, height: 128, loading: 'lazy' }),
         el('h3', {}, t(c.name, c.en)), el('small', {}, t('Prévia de visual · sem compra', 'Look preview · not for sale')))))),
     profile: panel('profile', el('section', { class: 'home-learn' }, el('h2', {}, t('Perfil', 'Profile')),
       el('p', {}, t('Seu apelido: ', 'Your nickname: '), el('strong', {}, name)),
