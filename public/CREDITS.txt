@@ -80,6 +80,22 @@ sfx/grip.mp3 (bfh1_metal_hit_02.ogg), sfx/thrust.mp3 (bfh1_metal_hit_04.ogg)
 sfx/rockpillar.mp3 (boulder_drop_0.ogg)
   themightyglider, "Moving Boulder" - https://opengameart.org/content/moving-boulder (derivado de Freesound 513236 e 522099, ambos CC0)
   Licença lida na página em 20/10/2026 (campo "License(s)"): "CC0".
+sfx/opcoes/*.mp3 (as 75 opções de efeito sonoro das magias, issue #203; arquivo de cada opção em scripts/assets/opcoes.tsv)
+  Licença lida na página de cada pacote em 20/10/2026 (campo "License(s)" do OpenGameArt ou texto da página): "CC0".
+  rubberduck, "80 CC0 RPG SFX" - https://opengameart.org/content/80-cc0-rpg-sfx
+  rubberduck, "100 CC0 SFX" - https://opengameart.org/content/100-cc0-sfx
+  artisticdude, "RPG Sound Pack" - https://opengameart.org/content/rpg-sound-pack
+  artisticdude, "Swishes Sound Pack" - https://opengameart.org/content/swishes-sound-pack
+  legit-audio, "Fire Staff Sound Effects" - https://opengameart.org/content/fire-staff-sound-effects
+  bart, "Ice Spells" - https://opengameart.org/content/ice-spells
+  ogrebane, "Teleport Spell" - https://opengameart.org/content/teleport-spell
+  qubodup, "Earth Element Magic Spell" - https://opengameart.org/content/earth-element-magic-spell
+  fvcalderan, "Gravity Inverter" - https://opengameart.org/content/gravity-inverter
+  qubodup, "3 Dark Magic Spells" - https://opengameart.org/content/3-dark-magic-spells
+  qubodup, "Energy Drain" - https://opengameart.org/content/energy-drain
+    A página diz "2024-06-23: terms changed to CC0. Restrictions in the 7z file can be ignored."; o license.txt do 7z ainda cita CC-BY-SA 3.0.
+  Kenney, "RPG Audio" - https://kenney.nl/assets/rpg-audio (License.txt do zip: "Creative Commons Zero, CC0")
+  Também lentikula "Basic Spell Impacts" e JaggedStone "Magic Spell SFX", creditados acima.
 sfx/lava_loop.mp3 (fire-1.ogg, com crossfade para laço)
   AntumDeluge, "Fire Crackling" - https://opengameart.org/content/fire-crackling
   Licença lida na página: "Licensing: Creative Commons Zero (CC0)".

@@ -16,6 +16,7 @@ import { SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rule
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, iconButton, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
+import { MUSIC_TRACKS, musicTrack, setMusicTrack, type MusicTrack } from './sound.ts';
 import { botSetupPanel, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
@@ -324,6 +325,8 @@ type RoomActions = {
   spectate: (on: boolean) => void; // assistir (sem mago a partir da próxima rodada) ou voltar a jogar
   seeInvis: (on: boolean) => void; // sandbox: invisíveis meio transparentes (só nesta tela)
   seeHit: (on: boolean) => void; // sandbox: discos da colisão real no chão (só nesta tela)
+  spellSound: (s: SpellId) => void; // teste local dos efeitos sonoros (issue #203, só em localhost)
+  preview: (name: string) => void;
 };
 
 type Level = MatchOpts['difficulty'];
@@ -800,12 +803,67 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('div', { class: 'sandbox-row', role: 'group', 'aria-label': t('Pôr runa', 'Place rune') }, t('Runa', 'Rune'),
       ...RUNE_KINDS.map((k) => iconButton(icon(RUNE_ICON[k]), t(`Pôr a ${RUNE_NAME[k]} ao seu lado`, `Place the ${RUNE_NAME[k]} next to you`), () => act.sandbox({ op: 'rune', kind: k }), { title: RUNE_NAME[k] }))),
     el('button', { type: 'button', onclick: () => act.sandbox({ op: 'restart' }) }, t('Reiniciar a rodada', 'Restart the round')));
+  // teste local dos efeitos sonoros (issue #203, só em localhost): notas do que mudou, um botão por magia e a escolha da música
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    let run = 0;
+    const playAll = () => {
+      const me = ++run;
+      const next = (i: number) => {
+        if (me !== run || i >= SPELL_IDS.length) return;
+        toast(`${spellName(SPELL_IDS[i])} (${i + 1}/${SPELL_IDS.length})`);
+        act.spellSound(SPELL_IDS[i]);
+        setTimeout(() => next(i + 1), 1600);
+      };
+      next(0);
+    };
+    // escolha entre o som atual e as 3 opções (public/sfx/opcoes/<magia>-<n>.mp3, nomes em lista.json); fica no navegador
+    const ESCOLHA = 'warlock:sons-escolha';
+    const escolha: Record<string, string> = store.json<Record<string, string>>(ESCOLHA) ?? {};
+    let nomes: Record<string, string[]> = {};
+    const escolhaBox = el('div', {});
+    const drawEscolha = () => escolhaBox.replaceChildren(
+      el('small', { class: 'muted' }, `Escolhidas: ${Object.keys(escolha).length}/${SPELL_IDS.length}`),
+      ...SPELL_IDS.map((s) => el('div', {}, el('small', {}, spellName(s)),
+        choice(spellName(s), [['atual', 'Atual'], ['1', '1'], ['2', '2'], ['3', '3']], escolha[s] ?? '', (k) => {
+          run++;
+          toast(`${spellName(s)}: ${k === 'atual' ? 'atual' : `opção ${k}${nomes[s]?.[+k - 1] ? ` (${nomes[s][+k - 1]})` : ''}`}`);
+          if (k === 'atual') act.spellSound(s);
+          else act.preview(`opcoes/${s}-${k}`);
+          escolha[s] = k;
+          store.set(ESCOLHA, JSON.stringify(escolha));
+          drawEscolha();
+        }))));
+    drawEscolha();
+    void fetch('/sfx/opcoes/lista.json').then((r) => (r.ok ? r.json() : {})).then((j) => (nomes = j), () => {});
+    const musicBox = el('div', {});
+    const drawMusic = () => musicBox.replaceChildren(choice('Música da partida', (Object.keys(MUSIC_TRACKS) as MusicTrack[]).map((k): [MusicTrack, string] => [k, MUSIC_TRACKS[k]]), musicTrack(),
+      (k) => (setMusicTrack(k), toast(`Tocando: ${MUSIC_TRACKS[k]}`), drawMusic())));
+    drawMusic();
+    sbPanel.prepend(
+      el('b', {}, '🧪 Teste dos sons (só localhost)'),
+      el('small', { class: 'muted' }, 'O que mudou: as 25 magias agora têm o mesmo volume (antes iam de −11,8 a −20,4 LUFS; agora −18,3 a −20,0). Cada magia tem som próprio, e abaixo há 3 opções novas para cada uma. Música nova: Epic Boss Battle.'),
+      el('small', { class: 'muted' }, 'Escolha uma por magia; a escolha fica salva neste navegador (localStorage warlock:sons-escolha).'),
+      el('button', { type: 'button', onclick: playAll }, 'Tocar todos os atuais'),
+      el('small', { class: 'muted' }, 'Escolha: cada botão toca o som e fica marcado como o escolhido. "Atual" é o de hoje; 1, 2 e 3 são as opções novas. Todos no mesmo volume.'),
+      escolhaBox,
+      el('small', { class: 'muted' }, 'Música (a mesma opção de Configurações → Som; troca na hora). A nova dá a volta em 2 min 3 s: ouça se o recomeço tem vão ou estalo.'),
+      musicBox);
+  }
+  let sbAutoOpen = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   let sbSig = '';
   function drawSandbox(r: PublicRoom) {
     sbBtn.hidden = !r.sandbox || !PEEK_PHASES.includes(r.phase);
     if (!r.sandbox || sbBtn.hidden) {
       if (!sbPanel.hidden) toggle(sbPanel, sbBtn, false);
       return;
+    }
+    if (sbAutoOpen) {
+      sbAutoOpen = false;
+      toggle(sbPanel, sbBtn, true);
+      // o navegador só libera som depois de um clique: o clique já é o "tocar" (espera os arquivos carregarem)
+      const go = el('button', { type: 'button', class: 'primary big', style: 'position:fixed;inset:35% 30%;z-index:9999;font-size:1.4rem',
+        onclick: () => go.remove() }, '▶ Clique para ligar o som (o navegador pede 1 clique) e escolha os sons no painel à direita');
+      document.body.append(go);
     }
     for (const [k, box] of sbChecks) box.checked = r.sandbox[k];
     if (r.arena && document.activeElement !== sbArena) sbArena.value = r.arena;

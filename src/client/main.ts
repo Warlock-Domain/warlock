@@ -137,10 +137,13 @@ function hoverSound(sound: ReturnType<typeof createSound>) {
 }
 
 async function main() {
-  const name = store.get(NAME) || (await askName(ui, as));
+  // teste local dos efeitos sonoros (issue #203, só em localhost): com ?abrir=sandbox não pede apelido
+  const quick = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') && new URLSearchParams(location.search).get('abrir') === 'sandbox';
+  const name = store.get(NAME) || (quick ? 'Teste' : await askName(ui, as));
   store.set(NAME, name);
   const id = location.hash.slice(1).toUpperCase();
-  if (/^[A-Z]{4}$/.test(id)) startRoom(id, name);
+  // F5 com ?abrir=sandbox: sala de sandbox nova (sem o aviso guardado, a sala antiga já saiu do sandbox)
+  if (/^[A-Z]{4}$/.test(id) && !(quick && !sessionStorage.getItem(AUTOSTART))) startRoom(id, name);
   else startLobby(name);
   // Esc sem nada para cancelar ou fechar abre as configurações (pedido do Fernando, 18/10); por último, depois dos ouvintes da sala
   onFreeEsc(() => !document.querySelector('.overlay') && openSettings());
@@ -205,6 +208,8 @@ function startLobby(name: string) {
     void create(k);
   } else if (IR_CONFIG) openSettings(IR_CONFIG);
   else if (k) document.getElementById('home-tab-' + k)?.click();
+  // teste local dos efeitos sonoros (issue #203, só em localhost): ?abrir=sandbox entra direto no sandbox
+  if ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') && new URLSearchParams(location.search).get('abrir') === 'sandbox') void create('sandbox');
 }
 
 function startRoom(code: string, name: string) {
@@ -306,6 +311,8 @@ function startRoom(code: string, name: string) {
     spectate: (on) => net.send({ t: 'watch', on }),
     seeInvis: (on) => (seeInvis = on),
     seeHit: (on) => (seeHit = on),
+    spellSound: (s) => sound.play(SPELL_SOUND[s]),
+    preview: (name) => void sound.preview(name),
     spell: (s) => input.button(s),
     hover: (a) => (hovered = a),
     volumes: sound.volumes,

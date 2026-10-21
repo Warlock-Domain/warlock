@@ -174,6 +174,12 @@ export function createSound(musicDefault?: number) {
       wantAmbience = on;
       syncAmbience();
     },
+    // teste local dos efeitos sonoros (issue #203, só em localhost): toca public/sfx/<nome>.mp3 pelo mesmo caminho das magias
+    async preview(name: string) {
+      if (!ctx || volumes().sfx === 0 || ctx.state !== 'running') return;
+      if (!buffers.has(name)) await load(name);
+      file(name, 0.8);
+    },
     // taunt: public/sfx/taunt/<nome>.mp3, carregado na primeira vez que alguém usa
     async taunt(name: string) {
       if (!ctx || volumes().sfx === 0 || ctx.state !== 'running') return;
