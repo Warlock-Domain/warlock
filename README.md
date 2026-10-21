@@ -29,6 +29,7 @@ Remake web do mod de arena **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): m
 npm ci
 npx wrangler dev   # servidor + cliente em http://localhost:8787
 npx vitest run     # testes
+# instalador para Windows (abre o jogo no ar): cd desktop && npm ci && npm run dist
 ```
 
 ## Contribuir

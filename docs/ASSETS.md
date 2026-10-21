@@ -22,6 +22,7 @@
 |---|---|---|---|
 | `models/mage.glb`, `knight`, `barbarian`, `rogue`, `rogue_hooded`, `skeleton_mage`, `skeleton_minion`, `skeleton_rogue`, `skeleton_warrior` | os 9 bonecos (1 MB cada), com 21 animações | `src/client/scene.ts` (`/models/${id}.glb`), lista em `src/shared/characters.ts` | KayKit Adventurers e Skeletons, CC0; cortados por `scripts/slim-character.mjs`, capuz por `scripts/assets/hood.mjs` |
 | `models/KAYKIT-LICENSE.txt`, `KAYKIT-SKELETONS-LICENSE.txt` | licenças dos bonecos | — | KayKit, CC0 |
+| `desktop/icon.png` (fora de `public/`) | ícone do app e do instalador para Windows | `desktop/package.json` (`build.win.icon`; o electron-builder converte para o ícone do `.exe`) | gerado do `public/warlock-wars.svg` (o W da aba) em 512×512, recortado em círculo transparente; arte do projeto |
 | `models/decor.glb` | decoração da arena num GLB só (caveiras, ossos, árvores mortas, tochas, colunas, velas) | `src/client/decor.ts` | KayKit Halloween e Dungeon, CC0; junto por `scripts/assets/merge-decor.mjs` |
 | `models/barrier_half.glb` | parede do Pilar de pedra | `src/client/scene.ts` (`loadFile('barrier_half')`) | KayKit Dungeon Remastered, CC0 |
 | `models/hex/rock_single_A..E.gltf` (+ `.bin`, `hexagons_medieval.png`) | pedras na beira das ilhas de refúgio | `src/client/scene.ts` | KayKit Medieval Hexagon, CC0 |
