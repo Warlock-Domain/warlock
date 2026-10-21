@@ -26,11 +26,12 @@ export const EFFECT_NAME: Record<RoundEffectId, string> = {
   lava: t('Tempo chuvoso', 'Rainy weather'), swords: t('Arena de espinhos', 'Spike arena'), gold: t('Febre do ouro', 'Gold rush'), speed: t('Vendaval', 'Gale'), regen: t('Fonte da vida', 'Wellspring'), clear: t('Campo aberto', 'Open field'),
 };
 export const EFFECT_TEXT: Record<RoundEffectId, string> = {
-  lava: t('dano da lava pela metade', 'lava damage halved'),
+  // os números vêm de ROUND_EFFECTS (constants.ts), para o texto não ficar defasado quando eles mudarem
+  lava: t(`dano da lava ${pct(1 - ROUND_EFFECTS.lava.lava!)} menor`, `lava damage ${pct(1 - ROUND_EFFECTS.lava.lava!)} lower`),
   swords: t('a parede de espinhos empurra de volta e fere; a arena encolhe só metade', 'the spike wall knocks you back and hurts; the arena shrinks only halfway'),
-  gold: t('todo ouro ganho na rodada vale 50% mais', 'all gold earned in the round is worth 50% more'),
+  gold: t(`todo ouro ganho na rodada vale ${pct(ROUND_EFFECTS.gold.gold! - 1)} mais`, `all gold earned in the round is worth ${pct(ROUND_EFFECTS.gold.gold! - 1)} more`),
   speed: t(`todos andam ${pct(ROUND_EFFECTS.speed.speed! - 1)} mais rápido`, `everyone moves ${pct(ROUND_EFFECTS.speed.speed! - 1)} faster`),
-  regen: t('toda cura recebida 50% maior', 'all healing received 50% stronger'),
+  regen: t(`toda cura recebida ${pct(ROUND_EFFECTS.regen.heal! - 1)} maior`, `all healing received ${pct(ROUND_EFFECTS.regen.heal! - 1)} stronger`),
   clear: t('arena sem obstáculos', 'no obstacles in the arena'),
 };
 
