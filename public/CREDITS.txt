@@ -188,6 +188,9 @@ warlock-wars.svg (vetorial, o W em <path>), favicon.ico (16, 32 e 48 px) e apple
     pessoas na sala: delapouite/character.svg, Delapouite (http://delapouite.com)
     sair da sala: delapouite/exit-door.svg, Delapouite (http://delapouite.com)
     assistir (espectador): lorc/eyeball.svg, Lorc (http://lorcblog.blogspot.com)
+    comprar na loja: delapouite/shopping-cart.svg, Delapouite (http://delapouite.com)
+    subir de nível na loja: delapouite/upgrade.svg, Delapouite (http://delapouite.com)
+    desfazer a compra: delapouite/anticlockwise-rotation.svg, Delapouite (http://delapouite.com)
 
 Menu principal (issue #83, PR #85):
   home-cat.jpg: imagem gato2.jpg fornecida por Leonard (lboesmans), que declarou
