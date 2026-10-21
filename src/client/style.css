@@ -735,7 +735,9 @@ button.train small { font-weight: 400; }
 /* loja com alça de arrastar no canto (só PC): o tamanho escolhido fica salvo; no celular ela já ocupa a tela */
 @media (min-width: 601px) {
   /* começa abaixo da barra do topo (56 px: ela vai de 8 a 52): centralizada com altura quase total a loja cobria a porta de sair, o código da sala e as engrenagens (issue #26) */
-  .center.shop-open { top: calc(56px + var(--safe-t)); transform: translateX(-50%); resize: both; min-width: min(560px, calc(100% - 24px)); max-width: calc(100% - 24px); min-height: 320px; max-height: calc(100% - 56px - 12px - var(--safe-t) - var(--safe-b)); }
+  /* termina acima da barra do personagem (112 px a 10 px do fundo), que fica no intervalo para trocar as magias de tecla */
+  .center.shop-open { top: calc(56px + var(--safe-t)); transform: translateX(-50%); resize: both; min-width: min(560px, calc(100% - 24px)); max-width: calc(100% - 24px); min-height: 320px; max-height: calc(100% - 56px - 12px - 124px - var(--safe-t) - var(--safe-b)); }
+  .center.asc-open { top: calc(56px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 56px - 12px - 124px - var(--safe-t) - var(--safe-b)); }
 }
 
 /* grimório (Como jogar): livro aberto de couro com páginas de pergaminho escuro; duas páginas no PC, uma no celular */
@@ -1134,7 +1136,7 @@ div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: 
 }
 /* Mesmo formato compacto em toda compra; a gaveta estreita não comporta o catálogo sem rolagem. */
 @media (min-width: 1100px) and (min-height: 600px) {
-  .center:has(.compact-shop) { top: calc(76px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 88px - var(--safe-t) - var(--safe-b)); }
+  .center:has(.compact-shop) { top: calc(76px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 88px - 124px - var(--safe-t) - var(--safe-b)); } /* acima da barra do personagem */
   .compact-shop { padding: 12px; gap: 10px; }
   .compact-shop .shop-main { gap: 6px; }
   .compact-shop .shop-loadout { gap: 10px; margin-bottom: 0; }

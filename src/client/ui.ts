@@ -1036,7 +1036,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const heroFace = el('img', { class: 'hero-face', alt: '', width: 72, height: 84 });
   const hero = el('div', { class: 'hero-box' }, heroFace, vitals);
   const barWrap = el('div', { class: 'barwrap' }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, bar, itemGrid)));
-  // a barra some na sala, na loja e no fim (update, a cada segundo) e enquanto eu assisto morto (watching, a cada quadro): uma conta só, sem piscar
+  // a barra some na sala e no fim (update, a cada segundo) e enquanto eu assisto morto (watching, a cada quadro): uma conta só, sem piscar
   let barOff = true;
   let watchingNow = false;
   const syncBar = () => (barWrap.hidden = barOff || watchingNow);
@@ -1499,6 +1499,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     centerPhase = r.phase;
     center.replaceChildren(r.phase === 'lobby' || (r.phase === 'end' && setup) ? lobbyPanel(r) : r.phase === 'end' ? endPanel(r) : r.phase === 'shop' ? (r.mode === 'ascension' ? ascPanel(r, me, act, dialog, [board(r, me, act.kick), nextModePicker(r)]) : shopPanel(r)) : '');
     const shopOpen = r.phase === 'shop' && r.mode !== 'ascension'; // Ascensão: as cartas não usam o tamanho guardado da loja
+    center.classList.toggle('asc-open', r.phase === 'shop' && r.mode === 'ascension');
     if (shopOpen !== center.classList.contains('shop-open')) {
       center.classList.toggle('shop-open', shopOpen);
       const size = shopOpen ? store.json<[string, string]>(SHOP_SIZE) : null;
@@ -1655,7 +1656,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         b.hidden = lvl === 0;
         pips.replaceChildren(...pipsOf(lvl, MAX_SPELL_LEVEL));
       }
-      barOff = r.phase === 'lobby' || r.phase === 'end' || r.phase === 'shop' || !mine;
+      // no intervalo (loja e cartas do Ascensão) a barra fica: dá para arrastar as magias entre as teclas enquanto escolhe (Fernando, 21/10)
+      barOff = r.phase === 'lobby' || r.phase === 'end' || !mine;
       syncBar();
       goldNow.replaceChildren(r.mode === 'ascension' ? '' : gold(mine?.gold ?? 0)); // Ascensão: sem ouro
       const tabPhase = TAB_PHASES.includes(r.phase);
