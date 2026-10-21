@@ -1,5 +1,6 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
+import { ASC_ROUNDS, ascDeath, ascEndRound, ascMark, ascResume, ascShop, ascWinner, newAsc, type AscState } from './ascension.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
 import { CHARACTERS, classOf, fixLook, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
@@ -34,6 +35,7 @@ function addStat(p: Player, f: (s: Stat) => void) {
 // toda renda passa por aqui e é multiplicada pela economia da sala (scaled = false: o valor já vem na escala dela); devolve o ganho
 // a parte quebrada fica guardada no jogador (Fernando, 20/10, issue #88: no ×1,5 o monte paga 1, 2, 1, 2…); o 1e-9 segura o erro das contas com decimal
 function earn(m: Match, p: Player, gold: number, scaled = true): number {
+  if (m.asc) return 0; // Ascensão: sem ouro (magias e itens vêm pelas cartas)
   let n = gold;
   if (scaled) {
     // efeito de rodada da Febre do ouro: todo ouro ganho durante a rodada (abate, rodada, vitória, baú…) vale mods.gold vezes; na loja não há mundo
@@ -48,7 +50,7 @@ function earn(m: Match, p: Player, gold: number, scaled = true): number {
 
 // rounds: último vivo ganha a rodada; deathmatch: rodadas de 60 s, quem morre volta e cada abate vale 1 ponto;
 // teams: 2 times, a rodada acaba quando só sobra um time e todos dele pontuam
-export const MODES = ['rounds', 'deathmatch', 'teams'] as const;
+export const MODES = ['rounds', 'deathmatch', 'teams', 'ascension'] as const;
 export type Mode = (typeof MODES)[number];
 export type Phase = 'lobby' | 'shop' | 'countdown' | 'playing' | 'roundEnd' | 'end';
 // votação na partida: trocar o modo (target = modo novo), expulsar um humano (target = id dele),
@@ -90,7 +92,7 @@ export function parseOpt(target: string): [keyof MatchOpts, MatchOpts[keyof Matc
 }
 export const PACE = { short: 0.6, normal: 1, long: 1.6 }; // multiplica COUNTDOWN_MS e ROUND_END_MS
 export const DM_GOALS = { 3: 10, 5: 15, 7: 25 }; // 15 = DM_KILLS_TO_WIN
-export const goalOf = (m: Pick<Match, 'mode' | 'opts'>) => (m.mode === 'deathmatch' ? DM_GOALS[m.opts.goal] : m.opts.goal);
+export const goalOf = (m: Pick<Match, 'mode' | 'opts'>) => (m.mode === 'ascension' ? ASC_ROUNDS : m.mode === 'deathmatch' ? DM_GOALS[m.opts.goal] : m.opts.goal);
 const startGold = (m: Match) => Math.round(m.opts.startGold * m.opts.economy);
 
 export type Player = {
@@ -167,6 +169,7 @@ export type Match = {
   sandbox?: Sandbox; // só nas salas sandbox (escolhido no começo da partida)
   roundPaid?: string[]; // quem já recebeu o ouro garantido desta rodada (paga na queda)
   nextEffect?: RoundEffectId | null; // efeito da próxima rodada, sorteado antes da loja para cada um comprar sabendo
+  asc?: AscState; // só no modo Ascensão: XP, escolhas de carta e ordem de queda (ascension.ts)
 };
 
 export const newMatch = (): Match => ({
@@ -277,7 +280,10 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   }
   // quem assiste não conta: dá para pôr só bots em campo e assistir a partida
   if (playing(m).length < (sandbox ? 1 : 2)) return false;
-  fresh(m, now, mode, teamShuffle, rand);
+  // o Ascensão é um tipo de sala, não um modo a escolher (Fernando, 21/10: "nao como um modo de jogo do principal mas como uma nova opcao no
+  // menu jogar"): sala do Ascensão só joga Ascensão; sala normal e sandbox nunca viram Ascensão
+  const kind = m.mode === 'ascension' && !sandbox ? 'ascension' : mode === 'ascension' ? 'rounds' : mode;
+  fresh(m, now, kind, teamShuffle, rand);
   return true;
 }
 
@@ -290,6 +296,8 @@ function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: ()
     p.stats.round = newStat();
     p.team = null;
   }
+  m.asc = mode === 'ascension' ? newAsc(m.players.map((p) => p.id)) : undefined;
+  if (m.asc) for (const p of m.players) p.gold = 0;
   Object.assign(m, { streaks: {}, mode, round: 0, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0, vote: null, pendingMode: null, teamShuffle, pendingShuffle: null, winnerTeam: null, pendingOpts: {}, botDelta: 0 });
   // já sorteia na loja para cada um ver o time; com sorteio a cada rodada, a contagem sorteia de novo
   if (mode === 'teams') shuffleTeams(m, rand);
@@ -310,6 +318,7 @@ function drawEffect(m: Match, rand: () => number, prev: RoundEffectId | null): R
 
 // loja aberta: na fase da loja ou, nas Rodadas e nos Times, para quem já caiu na rodada (sugestão do Reinaldo, 18/10: montar a build morto)
 export function canShop(m: Match, id: string): boolean {
+  if (m.asc) return false; // Ascensão: sem loja
   if (m.phase === 'shop' || (m.sandbox && m.world)) return true; // sandbox: a qualquer hora da rodada
   return m.phase === 'playing' && m.mode !== 'deathmatch' && m.world?.wizards.find((z) => z.id === id)?.alive === false;
 }
@@ -408,7 +417,7 @@ export function sell(m: Match, id: string, key: string): boolean {
 
 export function setReady(m: Match, id: string): boolean {
   const p = player(m, id);
-  if (m.phase !== 'shop' || !p || p.ready) return false;
+  if (m.phase !== 'shop' || !p || p.ready || m.asc) return false; // Ascensão: pronto só depois de escolher as cartas
   p.ready = true;
   return true;
 }
@@ -428,6 +437,7 @@ export function resume(m: Match, now: number) {
   m.pendingOpts ??= {};
   m.botDelta ??= 0;
   m.vote = null; // o prazo de uma votação gravada já passou
+  if (m.asc) ascResume(m.asc);
   for (const p of m.players) {
     p.character ??= 'mage';
     p.look = fixLook(p.look ?? lookOf(p.character)); // salas gravadas antes da aparência montada ou com peça da Ladina encapuzada (#107)
@@ -485,6 +495,7 @@ export function startVote(m: Match, id: string, kind: Vote['kind'], target: stri
   } else if (kind === 'mode') {
     // qualquer um dos modos, menos o que já vale na próxima rodada
     if (!(MODES as readonly string[]).includes(target) || target === (m.pendingMode ?? m.mode)) return false;
+    if (target === 'ascension' || m.mode === 'ascension') return false; // o tipo da sala não muda por votação
   } else if (kind === 'shuffle') target = (m.pendingShuffle ?? m.teamShuffle) ? 'match' : 'round'; // alterna o que valeria na próxima rodada
   else if (kind === 'opt') {
     // uma opção, com valor diferente do que já vale na próxima rodada
@@ -606,6 +617,7 @@ const teamSize = (m: Match, t: number) => playing(m).filter((p) => p.team === t)
 
 function enterCountdown(m: Match, now: number, rand: () => number) {
   m.dmgOn = {};
+  if (m.asc) m.asc.fallen = [];
   for (const s of Object.values(m.streaks ?? {})) s.at = -1e9; // o relógio do mundo volta a zero: abate rápido não atravessa rodadas
   // troca de modo votada: antes de criar o mundo (que depende do modo); os pontos zeram porque as metas são outras
   if (m.pendingMode) {
@@ -646,7 +658,8 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   const teams = m.mode === 'teams' ? Object.fromEntries(playing(m).map((p) => [p.id, p.team ?? 0])) : {};
   // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
   const arena = m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
-  m.world = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests }, arena, Object.fromEntries(playing(m).map((p) => [p.id, classOf(p.look)])));
+  m.world = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests && !m.asc }, arena, Object.fromEntries(playing(m).map((p) => [p.id, classOf(p.look)])));
+  if (m.asc) ascMark(m);
   if (m.sandbox) m.world.shrink = m.sandbox.shrink; // a sandbox usa o mundo do deathmatch: não encolhe (a não ser que peçam) e quem morre volta
   // efeito da rodada: o que a loja mostrou (a opção pode ter mudado por votação); o da próxima é sorteado depois do mundo,
   // para não mudar a arena nem os pilares
@@ -676,7 +689,7 @@ function endRound(m: Match, now: number, winner: string | null) {
   // nos Times, todos do time de quem venceu (vivos ou não) pontuam e ganham o ouro da vitória
   const teams = m.mode === 'teams';
   const inRound = m.players.filter((q) => played.has(q.id));
-  const won = !p || dm ? [] : teams ? inRound.filter((q) => q.team === p.team) : [p];
+  const won = !p || dm || m.asc ? [] : teams ? inRound.filter((q) => q.team === p.team) : [p];
   // quem já liderava sozinho o placar ganha menos pela vitória (freia a bola de neve); nos Times, à frente de todos os inimigos
   const leaders = won.filter((q) => q.score > 0 && m.players.every((o) => o === q || (teams && o.team === q.team) || o.score < q.score));
   for (const q of won) {
@@ -688,6 +701,7 @@ function endRound(m: Match, now: number, winner: string | null) {
     const q = player(m, z.id);
     if (q && z.alive && !dm) addStat(q, (s) => (s.alive += m.world!.t));
   }
+  if (m.asc) ascEndRound(m, [...played], m.world!.wizards.filter((z) => z.alive).map((z) => z.id));
   const top = Math.max(0, ...inRound.map((q) => q.stats.round.dmg));
   for (const q of inRound) if (top > 0 && q.stats.round.dmg === top) bonus(m, q, TOP_DMG_GOLD);
   for (const q of inRound) if (!m.roundPaid?.includes(q.id)) earn(m, q, ROUND_GOLD);
@@ -703,6 +717,13 @@ function endRound(m: Match, now: number, winner: string | null) {
 
 // como no original: ganha quem vencer goalOf(m) rodadas primeiro (padrão WINS_TO_WIN)
 function afterRound(m: Match, now: number) {
+  if (m.asc) {
+    if (m.round < ASC_ROUNDS) return enterShop(m, now);
+    m.phase = 'end';
+    m.winner = ascWinner(m);
+    m.world = null;
+    return;
+  }
   if (m.mode === 'deathmatch') {
     // a meta só vale no fim da rodada (a rodada sempre dura os 60 s); empate no topo joga mais uma rodada
     const [best, top] = atTop(m.players, (p) => p.score);
@@ -867,9 +888,11 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   const sb = m.sandbox;
   if (sb) for (const p of m.players) if (!p.bot) p.gold = SANDBOX_GOLD; // sandbox: ouro sem fim para os humanos
   if (m.phase === 'shop') {
+    if (m.asc) ascShop(m, now, rand);
     const humans = m.players.filter((p) => !p.bot && p.connected && !p.watch);
     // a sandbox pula a loja (ela abre a qualquer hora)
-    if (now >= m.phaseEnds || humans.every((p) => p.ready) || sb) enterCountdown(m, now, rand);
+    // Ascensão: todos prontos encurta o intervalo para 5 s (ascShop) em vez de fechar na hora
+    if (now >= m.phaseEnds || (!m.asc && humans.every((p) => p.ready)) || sb) enterCountdown(m, now, rand);
     return [];
   }
   if (m.phase === 'countdown') {
@@ -963,6 +986,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
       const bucket = e.k === 'fire' ? 'fired' : 'landed';
       if (p) addStat(p, (s) => (s[bucket][e.src] = (s[bucket][e.src] ?? 0) + 1));
     } else if (e.k === 'death') {
+      if (m.asc) ascDeath(m, e.id, e.by);
       // causa da morte e tempo vivo, para os dados de balanceamento
       const dead = player(m, e.id);
       if (dead) addStat(dead, (s) => {

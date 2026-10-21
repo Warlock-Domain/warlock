@@ -117,6 +117,24 @@ export function itemTip(id: ItemId, level: number): string {
 }
 
 
+// carta do Ascensão: os números de agora e, à direita, os de depois da carta; sem preço (no modo não há ouro)
+export function spellCardTip(id: SpellId, from: number, to: number, swap = false): string {
+  const sp = SPELLS[id];
+  const after = sp.levels[Math.min(MAX_SPELL_LEVEL, to) - 1];
+  const head = `<b>${spellName(id)}</b><br><small>${from ? t(`Nível ${from} → ${to}`, `Level ${from} → ${to}`) : t(`Magia nova · entra no nível ${to}`, `New spell · comes in at level ${to}`)}</small>`;
+  const rows = SPELL_ROWS[id].map(([k, f]): [string, string, string | null] => (from ? [k, f(sp.levels[from - 1]), f(after)] : [k, f(after), null]));
+  const foot = from ? `<small class="up">${t('Depois da carta: o que está à direita', 'After the card: shown on the right')}</small>` : swap ? `<small class="up">${t('Barra cheia: entra no nível da magia que sair', 'Full bar: comes in at the level of the spell it replaces')}</small>` : '';
+  return `${demo(id)}${head}<p>${RULES_SHORT[id]}</p>${table(rows)}${foot}`;
+}
+export function itemCardTip(id: ItemId, from: number): string {
+  const it = ITEMS[id];
+  const to = Math.min(it.levels.length, from + 1);
+  const rows = ITEM_ROWS[id]!;
+  const head = `<b>${itemName(id)}</b><br><small>${from ? t(`Nível ${from} → ${to}`, `Level ${from} → ${to}`) : t('Item novo · nível 1', 'New item · level 1')} · ${isActive(id) ? t('ativo', 'active') : t('passivo', 'passive')}</small>`;
+  const body = table(rows(to - 1).map(([k, v], i): [string, string, string | null] => (from ? [k, rows(from - 1)[i][1], v] : [k, v, null])));
+  return `${demo(id)}${head}<p>${itemText(id)}</p>${body}${from ? `<small class="up">${t('Depois da carta: o que está à direita', 'After the card: shown on the right')}</small>` : ''}`;
+}
+
 let tipEl: HTMLDivElement | null = null;
 let owner: HTMLElement | null = null; // elemento cuja dica está aberta
 

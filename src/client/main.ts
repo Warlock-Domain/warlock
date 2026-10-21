@@ -18,7 +18,7 @@ import { aimOf, hitR, reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t } from './i18n.ts';
-import { EFFECT_NAME } from './opt-info.ts';
+import { effectName } from './opt-info.ts';
 import { getCastMode, isPadMode, labelOf, onFreeEsc } from './keys.ts';
 import { openSettings, savedPixel } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
@@ -49,7 +49,8 @@ const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica'
 // ?ir=<lugar> (issue #140): em localhost e no ambiente de cada PR (TEST_LINK, abaixo) a aba de teste já abre no ponto a testar
 // (pedido do Fernando, 20/10); no jogo no ar nada muda.
 // Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, controle, jogador,
-// personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando) e partida:loja (contra 1 bot, na loja da rodada 1, com 120 s).
+// personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando), partida:loja (contra 1 bot, na loja da rodada 1, com 120 s)
+// e partida:ascensao (Ascensão contra 3 bots, na carta inicial, com 120 s).
 // Sala e seção juntas, com vírgula (as Configurações de dentro da partida): sandbox,config:som
 // Porta nova não tem apelido guardado: o ?apelido= (ou o ?aba=) pula o pedido de nome, ver TEST_NAME abaixo (issue #175).
 // ?ir= e ?apelido= valem também no ambiente de cada PR (pr-<n>-warlock…, issue #125): o link mandado ao colaborador já cai no ponto
@@ -162,7 +163,7 @@ function startLobby(name: string) {
   let offline = false;
   let exited = false;
   const draw = () =>
-    !exited && renderLobby(ui, name, rooms, offline, () => create(), async () => {
+    !exited && renderLobby(ui, name, rooms, offline, () => create(), () => create(undefined, true), async () => {
       name = await askName(document.body, name);
       store.set(NAME, name);
       draw();
@@ -173,9 +174,10 @@ function startLobby(name: string) {
       window.close();
     }, sound);
   // train: o treino que começa sozinho na sala nova (sem armazenamento, entra só na sala)
-  async function create(train?: string) {
+  // ascension: sala do Ascensão (opção própria no menu Jogar)
+  async function create(train?: string, ascension = false) {
     try {
-      const res = await fetch('/api/rooms', { method: 'POST' });
+      const res = await fetch(ascension ? '/api/rooms?modo=ascensao' : '/api/rooms', { method: 'POST' });
       if (!res.ok) throw new Error(String(res.status));
       const { id } = await res.json();
       try {
@@ -207,7 +209,7 @@ function startLobby(name: string) {
     if (IR.length > 1) url.searchParams.set('ir', IR.slice(1).join(','));
     else url.searchParams.delete('ir');
     history.replaceState(null, '', url);
-    void create(k);
+    void create(k, k === 'partida:ascensao');
   } else if (IR_CONFIG) openSettings(IR_CONFIG);
   else if (k) document.getElementById('home-tab-' + k)?.click();
 }
@@ -307,6 +309,9 @@ function startRoom(code: string, name: string) {
       saveLook(lookOf(character));
     },
     ready: () => net.send({ t: 'ready' }),
+    card: (slot, i, swap) => net.send({ t: 'card', slot, i, ...(swap && { swap }) }),
+    reroll: () => net.send({ t: 'reroll' }),
+    keep: (slot) => net.send({ t: 'keep', slot }),
     sandbox: (cmd) => net.send({ t: 'sandbox', cmd }),
     spectate: (on) => net.send({ t: 'watch', on }),
     seeInvis: (on) => (seeInvis = on),
@@ -466,6 +471,7 @@ function startRoom(code: string, name: string) {
       net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
       if (k === 'partida') net.send({ t: 'ready' });
     }
+    else if (k === 'partida:ascensao') net.send({ t: 'start', bots: 3, mode: 'ascension', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
   }
   // sandbox: começa com você e um boneco parado; o resto vem pelo painel
   function startSandbox() {
@@ -710,7 +716,7 @@ function startRoom(code: string, name: string) {
       watchId = null;
       // modo Times: avisa em que time a pessoa está nesta rodada
       const team = room.mode === 'teams' ? room.players.find((p) => p.id === me)?.team : null;
-      const fx = room.effect ? ` · ${EFFECT_NAME[room.effect]}` : ''; // efeito da rodada na faixa grande: a linha do topo passa despercebida
+      const fx = room.effect ? ` · ${effectName(room.effect, room.mode)}` : ''; // efeito da rodada na faixa grande: a linha do topo passa despercebida
       banner(team != null ? t(`Rodada ${room.round} · Você está no time ${TEAM_NAMES[team]}${fx}`, `Round ${room.round} · You are on the ${TEAM_NAMES[team]} team${fx}`) : t(`Rodada ${room.round}${fx}`, `Round ${room.round}${fx}`));
       [3, 2, 1].forEach((_, i) => setTimeout(() => sound.play('beep'), i * 1000));
     } else if (room.phase === 'playing') {
@@ -764,7 +770,7 @@ function startRoom(code: string, name: string) {
     watchStep = 0;
     watchId = watched?.id ?? null;
     view.watching(watched?.name ?? null);
-    view.deadShopping(room?.phase === 'playing' && room.mode !== 'deathmatch' && !!meP && !!meW && !meW.alive);
+    view.deadShopping(room?.phase === 'playing' && room.mode !== 'deathmatch' && room.mode !== 'ascension' && !!meP && !!meW && !meW.alive);
     // replay da queda: só caído na rodada ou no fim dela; acaba no fim do trecho (segura 1 s na queda) ou ao voltar vivo no Deathmatch
     canReplay = clip.length > 1 && (room?.phase === 'roundEnd' || (room?.phase === 'playing' && !meW?.alive));
     const rt = rp ? clip[0].s.time + (nowMs - rp.at) / 1000 : 0;
@@ -806,6 +812,7 @@ function startRoom(code: string, name: string) {
       lock: !!rs || (!!watched && !watchCenter),
       // na loja o room.effect já é o da próxima rodada: o mapa só muda quando ela começa
       effect: room && ['countdown', 'playing', 'roundEnd'].includes(room.phase) ? room.effect : null,
+      arcane: room?.mode === 'ascension', // Febre arcana: a Febre do ouro em azul
     });
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
