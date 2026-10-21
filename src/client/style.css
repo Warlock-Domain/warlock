@@ -1154,7 +1154,7 @@ div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: 
   .compact-shop .shop-items { max-height: none; overflow: visible; }
   .compact-shop .shop-items .shop-tile { height: clamp(64px, calc((100dvh - 360px) / 6), 98px); display: grid; grid-template-columns: 24px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 3px auto; gap: 2px 4px; padding: 16px 4px 4px; }
   .compact-shop .shop-items .shop-tile .ico { grid-area: 1 / 1; font-size: 1.4rem; }
-  .compact-shop .shop-items .shop-tile .tile-name { grid-area: 1 / 2; font-size: .7rem; min-height: 0; }
+  .compact-shop .shop-items .shop-tile .tile-name { grid-area: 1 / 2; font-size: .64rem; min-height: 0; } /* "Redirecionador" cabe no item em 1280 px */
   .compact-shop .shop-items .shop-tile .pips { grid-area: 2 / 1 / 3 / -1; margin: 0; }
   .compact-shop .shop-items .shop-tile .tile-price { grid-area: 3 / 1 / 4 / -1; }
   .compact-shop .shop-side { gap: 6px; }
