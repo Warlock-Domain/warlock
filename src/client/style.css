@@ -266,6 +266,8 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 
 #toast { position: fixed; left: 50%; bottom: calc(150px + var(--safe-b)); transform: translateX(-50%); background: var(--plate); border: 1px solid var(--gold-line); padding: 10px 14px; border-radius: var(--r-sm); opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
 #toast.show { opacity: 1; pointer-events: auto; }
+/* com uma loja aberta o clique atravessa o aviso: ele fica por cima da última fileira de cartas e tapava a compra (issue #208) */
+body:has(.center .shop, .peek-shop:not([hidden]) .shop) #toast { pointer-events: none; }
 body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, .55) 100%); z-index: 1; }
 .banner { position: fixed; left: 50%; top: 24%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none; font-family: var(--display); font-size: clamp(1.8rem, 6vw, 3.6rem); color: var(--fg); text-shadow: 0 4px 24px rgba(0, 0, 0, .8), 0 0 2px var(--ink); animation: banner-pop 1.6s ease-out forwards; white-space: nowrap; }
 .banner.bad { color: var(--red); }
