@@ -302,7 +302,7 @@ void main(){
   vec3 hot = mix(vec3(0.7, 0.1, 0.01), vec3(1.0, 0.45, 0.06), core);
   vec3 col = mix(crust, hot, veins);
   if (uHas > 0.5) {
-    // textura de lava (ambientCG Lava004) em duas camadas que correm em sentidos diferentes
+    // textura de lava (ambientCG Lava001) em duas camadas que correm em sentidos diferentes
     vec2 q = vPos.xz * 0.05;
     vec3 a = texture2D(uMap, q + vec2(t * 0.10, t * 0.04)).rgb;
     vec3 b = texture2D(uMap, q * 1.7 - vec2(t * 0.06, -t * 0.09)).rgb;
