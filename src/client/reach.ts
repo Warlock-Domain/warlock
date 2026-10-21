@@ -3,12 +3,12 @@
 import { PROJ_R, PROJ_SPAWN, WIZ_R } from '../shared/constants.ts';
 import { SCOURGE, isActive, itemStats, type ItemId } from '../shared/items.ts';
 import { snowR, type ProjKind } from '../shared/sim.ts';
-import { CLUSTER_FAN, RUSH, SPLITTER, THRUST, spellLevel, type SpellId } from '../shared/spells.ts';
+import { CLUSTER_FAN, LIGHTNING, RUSH, SPLITTER, THRUST, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, clampLen, len, norm, scale, sub, v, type Vec } from '../shared/vec.ts';
 
 // projéteis que saem na frente do mago e voam o alcance: o anel marca até onde a ponta chega, então inimigo que encosta
 // no anel é atingido (Fernando, 20/10, issue #82; antes ficava 0,8 m curto)
-const FLIES = new Set<SpellId>(['fireball', 'cluster', 'grip', 'snowball', 'magnetize', 'gravity', 'bouncer', 'drain', 'recharge', 'link']);
+const FLIES = new Set<SpellId>(['fireball', 'cluster', 'grip', 'snowball', 'magnetize', 'gravity', 'bouncer', 'drain', 'recharge', 'link', 'splitter']);
 
 export function reachOf(a: SpellId | ItemId, spells: Record<SpellId, number>, items: Record<ItemId, number>): number {
   if (isActive(a)) return a === 'scourge' ? SCOURGE.radius : 0; // Flagelo: o raio da explosão
@@ -29,9 +29,9 @@ export const blastOf = (a: SpellId | ItemId, spells: Record<SpellId, number>) =>
 // largura do acerto na mira (pedido do Fernando, 21/10: ninguém sabia quanto o Raio e os projéteis pegam de lado):
 // meia largura da faixa = raio do projétil, então o CORPO do inimigo que encosta na faixa é atingido (escolha do Fernando, 21/10:
 // a faixa pelo centro do inimigo, WIZ_R mais larga de cada lado, parecia bem maior que a bola). É a conta do firstOnSegment em
-// sim.ts (centro a WIZ_R + raio do projétil) vista pelo corpo; o Raio fica 0, uma linha: só pega quem o corpo cruza.
+// sim.ts (centro a WIZ_R + raio do projétil) vista pelo corpo; no Raio, a largura extra dele (LIGHTNING.width).
 // Bumerangue (curva) e Míssil (persegue) ficam sem faixa: a reta mentiria.
-const HALF: Partial<Record<SpellId, number>> = { lightning: 0, ...Object.fromEntries(['fireball', 'cluster', 'grip', 'magnetize', 'bouncer', 'recharge', 'link', 'swap', 'drain'].map((s) => [s, PROJ_R])) };
+const HALF: Partial<Record<SpellId, number>> = { lightning: LIGHTNING.width, ...Object.fromEntries(['fireball', 'cluster', 'grip', 'magnetize', 'bouncer', 'recharge', 'link', 'swap', 'drain'].map((s) => [s, PROJ_R])) };
 
 // trechos de faixa (de onde a onde) e o círculo da explosão, para a mira de `from` em direção a `at`
 export function aimOf(a: SpellId | ItemId, spells: Record<SpellId, number>, items: Record<ItemId, number>, from: Vec, at: Vec) {

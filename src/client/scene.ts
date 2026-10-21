@@ -19,7 +19,7 @@ import { add, clampLen, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
-import { SPELLS } from '../shared/spells.ts';
+import { LIGHTNING, SPELLS } from '../shared/spells.ts';
 import type { TAUNTS } from '../shared/taunts.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
@@ -1387,14 +1387,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   function bolt(from: Vec, to: Vec) {
     const hand = add(from, clampLen(sub(to, from), 0.45));
     const pts: THREE.Vector3[] = [];
-    const n = 18;
+    const n = 28;
     for (let i = 0; i <= n; i++) {
       // sai do cetro (a mão do brilho de lançamento: 0,45 m à frente, 0,9 m de altura) e desce até 0,25 m no alvo (pedido do
       // Fernando, 21/10): a 1 m de altura a câmera inclinada mostrava o raio ~0,9 m acima da linha do acerto. Zigue-zague de muitos
-      // trechos curtos e ±0,1 m de lado, para parecer elétrico sem sair muito da linha (o acerto é a linha no chão)
+      // trechos curtos que balança até LIGHTNING.width para cada lado, a largura extra do acerto do Raio
       const k = i / n;
       const p = w3(v(hand.x + (to.x - hand.x) * k, hand.y + (to.y - hand.y) * k), 0.9 - 0.65 * k);
-      if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 0.2, (Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.2));
+      if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 2 * LIGHTNING.width, (Math.random() - 0.5) * 0.14, (Math.random() - 0.5) * 2 * LIGHTNING.width));
       pts.push(p);
     }
     // traço grosso de cilindros por trecho (linha de WebGL tem 1 px e sumia de longe): miolo branco e brilho azul em volta

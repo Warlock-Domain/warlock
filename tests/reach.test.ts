@@ -3,7 +3,7 @@ import { aimOf, blastOf, hitR, reachOf } from '../src/client/reach.ts';
 import { PROJ_R, PROJ_SPAWN, WIZ_R } from '../src/shared/constants.ts';
 import { SCOURGE, noItems } from '../src/shared/items.ts';
 import { snowR } from '../src/shared/sim.ts';
-import { CLUSTER_FAN, RUSH, SPELL_IDS, SPLITTER, THRUST, noSpells, spellLevel } from '../src/shared/spells.ts';
+import { CLUSTER_FAN, LIGHTNING, RUSH, SPELL_IDS, SPLITTER, THRUST, noSpells, spellLevel } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
 
 describe('círculo de alcance', () => {
@@ -46,7 +46,7 @@ describe('largura do acerto e explosão na mira (pedido do Fernando, 21/10)', ()
     expect(fb.segs).toHaveLength(1);
     expect(fb.segs[0][1].x).toBeCloseTo(reach('fireball'));
     expect(fb.blastR).toBe(0);
-    expect(aimOf('lightning', all, noItems(), from, at)).toMatchObject({ half: 0, segs: [[from, v(reach('lightning'), 0)]] }); // linha: só quem o corpo cruza
+    expect(aimOf('lightning', all, noItems(), from, at)).toMatchObject({ half: LIGHTNING.width, segs: [[from, v(reach('lightning'), 0)]] }); // largura extra do Raio
     expect(aimOf('snowball', all, noItems(), from, at).half).toBeCloseTo(snowR(1));
     for (const s of ['grip', 'magnetize', 'bouncer', 'recharge', 'link', 'swap'] as const) expect(aimOf(s, all, noItems(), from, at).half).toBeCloseTo(PROJ_R);
   });
