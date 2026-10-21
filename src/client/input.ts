@@ -17,7 +17,7 @@ export type InputHandlers = {
   zoom: (deltaY: number) => void;
   pan: (dx: number, dy: number) => void;
   armedChanged: (armed: SpellId | ItemId | null) => void;
-  preview: (held: SpellId | ItemId | null) => void; // tecla segurada (círculo de alcance)
+  preview: (held: SpellId | ItemId | null, at?: Vec) => void; // tecla segurada (círculo de alcance); at: ponto do lançamento no Rápido
   padRange: (aiming: SpellId | ItemId | null) => void; // controle mirando com o analógico direito
   // controle: posição do próprio mago (para andar e mirar) e o retículo no chão
   me: () => Vec | null;
@@ -137,9 +137,10 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
         return h.preview(action);
       }
       const p = h.pick(cursor.x, cursor.y);
-      // Rápido: o anel de alcance pisca por um instante quando a magia sai (issue #61)
+      // Rápido: o anel de alcance pisca por um instante quando a magia sai (issue #61), com a faixa de acerto e a área presas
+      // no ponto do lançamento (pedido do Fernando, 21/10: igual ao Segurar, mas sem seguir o mouse depois)
       if (p && fire(action, p)) {
-        h.preview(action);
+        h.preview(action, p);
         clearTimeout(flash);
         flash = setTimeout(() => !held && h.preview(null), 400);
       }

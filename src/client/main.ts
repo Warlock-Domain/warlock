@@ -18,6 +18,7 @@ import { aimOf, hitR, reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t } from './i18n.ts';
+import { EFFECT_NAME } from './opt-info.ts';
 import { getCastMode, isPadMode, labelOf, onFreeEsc } from './keys.ts';
 import { openSettings, savedPixel } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
@@ -45,12 +46,16 @@ if (LOCAL) {
 // mexeu no volume começa sem música; ?musica=1 volta ao padrão, para testar som. Volume já guardado vale igual. No ar nada muda.
 const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica') !== '1' ? 0 : undefined;
 
-// ?ir=<lugar> (issue #140): em localhost a aba de teste já abre no ponto a testar (pedido do Fernando, 20/10); no ar nada muda.
+// ?ir=<lugar> (issue #140): em localhost e no ambiente de cada PR (TEST_LINK, abaixo) a aba de teste já abre no ponto a testar
+// (pedido do Fernando, 20/10); no jogo no ar nada muda.
 // Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, controle, jogador,
 // personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando) e partida:loja (contra 1 bot, na loja da rodada 1, com 120 s).
 // Sala e seção juntas, com vírgula (as Configurações de dentro da partida): sandbox,config:som
 // Porta nova não tem apelido guardado: o ?apelido= (ou o ?aba=) pula o pedido de nome, ver TEST_NAME abaixo (issue #175).
-const IR = (LOCAL && new URLSearchParams(location.search).get('ir')?.split(',')) || [];
+// ?ir= e ?apelido= valem também no ambiente de cada PR (pr-<n>-warlock…, issue #125): o link mandado ao colaborador já cai no ponto
+// do teste (pedido do Fernando, 21/10). No jogo no ar nada muda
+const TEST_LINK = LOCAL || /^pr-\d+-warlock\./.test(location.hostname);
+const IR = (TEST_LINK && new URLSearchParams(location.search).get('ir')?.split(',')) || [];
 const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 
 // som de cada magia: as novas reaproveitam os sons que já existem
@@ -111,12 +116,12 @@ function servidor(on: boolean) {
 const PID = 'warlock:pid' + (as && ':' + as);
 const NAME = 'warlock:name' + (as && ':' + as);
 const CHAR = 'warlock:char' + (as && ':' + as);
-// aba de teste já entra com apelido (pedido do Fernando, 21/10; issue #175), só em localhost: cada porta é um site novo, sem apelido
+// aba de teste já entra com apelido (pedido do Fernando, 21/10; issue #175), em localhost e no ambiente do PR (TEST_LINK): cada porta é um site novo, sem apelido
 // guardado, e o pedido de nome parava a aba antes do ?ir=. ?apelido=<nome> grava o apelido; sem ele, o começo do ?aba= entra só
 // se ainda não houver apelido. No ar nada muda.
 const query = new URLSearchParams(location.search);
 const TEST_NAME = (query.get('apelido') || (!store.get(NAME) && query.get('aba')) || '').replace(/[<>]/g, '').trim().slice(0, 20);
-if (LOCAL && TEST_NAME) store.set(NAME, TEST_NAME);
+if (TEST_LINK && TEST_NAME) store.set(NAME, TEST_NAME);
 const playerId = store.get(PID) ?? crypto.randomUUID();
 store.set(PID, playerId);
 
@@ -227,6 +232,7 @@ function startRoom(code: string, name: string) {
   let armed: SpellId | ItemId | null = null;
   // círculo de alcance: tecla segurada, magia escolhida no botão (toque no chão para lançar) ou controle mirando
   let held: SpellId | ItemId | null = null;
+  let flashAim: { from: Vec; at: Vec } | null = null; // Rápido: de onde e para onde a magia saiu, para a faixa piscar parada ali
   let padAiming: SpellId | ItemId | null = null;
   let padAt: Vec | null = null; // retículo do controle no chão (explosão do Meteoro)
   let hovered: SpellId | ItemId | null = null; // mouse em cima da magia na barra
@@ -412,7 +418,11 @@ function startRoom(code: string, name: string) {
     zoom: (d) => scene.zoomBy(d),
     pan: (dx, dy) => scene.panBy(dx, dy),
     armedChanged: (s) => (armed = s),
-    preview: (s) => (held = s),
+    preview: (s, at) => {
+      held = s;
+      const from = drawn.get(me);
+      flashAim = at && from ? { from, at } : null;
+    },
     padRange: (s) => (padAiming = s),
     me: () => (myWizard(interp.latest())?.alive ? (drawn.get(me) ?? null) : null),
     aim: (at) => ((padAt = at), scene.aim(at)),
@@ -700,7 +710,8 @@ function startRoom(code: string, name: string) {
       watchId = null;
       // modo Times: avisa em que time a pessoa está nesta rodada
       const team = room.mode === 'teams' ? room.players.find((p) => p.id === me)?.team : null;
-      banner(team != null ? t(`Rodada ${room.round} · Você está no time ${TEAM_NAMES[team]}`, `Round ${room.round} · You are on the ${TEAM_NAMES[team]} team`) : t(`Rodada ${room.round}`, `Round ${room.round}`));
+      const fx = room.effect ? ` · ${EFFECT_NAME[room.effect]}` : ''; // efeito da rodada na faixa grande: a linha do topo passa despercebida
+      banner(team != null ? t(`Rodada ${room.round} · Você está no time ${TEAM_NAMES[team]}${fx}`, `Round ${room.round} · You are on the ${TEAM_NAMES[team]} team${fx}`) : t(`Rodada ${room.round}${fx}`, `Round ${room.round}${fx}`));
       [3, 2, 1].forEach((_, i) => setTimeout(() => sound.play('beep'), i * 1000));
     } else if (room.phase === 'playing') {
       playingAt = performance.now();
@@ -793,15 +804,19 @@ function startRoom(code: string, name: string) {
       // follow null = centro da arena (0, 0), para onde ela encolhe
       follow: rs ? (rMe && rBy ? scale(add(rMe, rBy), 0.5) : (rMe ?? rBy ?? null)) : watched ? (watchCenter ? null : watched.pos) : follow ? myPos : null,
       lock: !!rs || (!!watched && !watchCenter),
+      // na loja o room.effect já é o da próxima rodada: o mapa só muda quando ela começa
+      effect: room && ['countdown', 'playing', 'roundEnd'].includes(room.phase) ? room.effect : null,
     });
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
     const reach = showing && meP ? reachOf(showing, meP.spells, meP.items) : 0;
     // mira de verdade (tecla segurada no Segurar, magia escolhida ou controle): faixa de acerto e explosão rumo ao cursor ou retículo.
-    // No Rápido a tecla segurada é só o anel piscando depois de lançar, e o mouse na barra não aponta o chão: nada segue o mouse
-    const aiming = showing && (armed ?? padAiming ?? (getCastMode() === 'release' ? held : null));
-    const aimAt = aiming ? (padAiming ? padAt : input.aimPoint()) : null;
-    const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, myPos, aimAt) : null;
+    // No Rápido a tecla é o piscar depois de lançar: a faixa fica parada onde a magia saiu (flashAim), e o mouse na barra não aponta
+    // o chão: nada segue o mouse
+    const frozen = armed || padAiming ? null : flashAim;
+    const aiming = showing && (armed ?? padAiming ?? (getCastMode() === 'release' || frozen ? held : null));
+    const aimAt = aiming ? (padAiming ? padAt : (frozen?.at ?? input.aimPoint())) : null;
+    const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, frozen?.from ?? myPos, aimAt) : null;
     scene.range(showing && myPos ? myPos : null, reach, shape?.blastAt ?? null, shape?.blastR ?? 0);
     scene.bands(shape?.segs ?? [], shape?.half ?? 0);
     // nas posições desenhadas (as mesmas da tela), para ver se o erro foi mira, desvio ou a bola no ar enganando

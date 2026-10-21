@@ -27,6 +27,10 @@ models/barrier_half.glb (barrier_half.gltf.glb), a parede do Pilar de pedra
   KayKit Dungeon Remastered 1.0, por Kay Lousberg (www.kaylousberg.com), CC0
   https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0 (arquivo copiado sem alteração)
   Licença lida no LICENSE.txt do repositório: "License: (Creative Commons Zero, CC0)".
+assets/kaykit/ (fora de public/, não vai para o jogo no ar; biblioteca para quem contribui)
+  Todos os packs grátis do KayKit, por Kay Lousberg (www.kaylousberg.com), CC0 - https://github.com/KayKit-Game-Assets e https://kaylousberg.itch.io (versões FREE)
+  Só os glTF, sem alteração; lista e links em assets/kaykit/README.md. Licença lida no LICENSE.txt de cada pack: "License: (Creative Commons Zero, CC0)"
+  (Holiday Bits sem licença no zip: lida na página, "Creative Commons Zero v1.0 Universal").
 
 == Texturas ==
 tex/lava_emit.jpg
@@ -174,6 +178,9 @@ warlock-wars.svg (vetorial, o W em <path>), favicon.ico (16, 32 e 48 px) e apple
     pessoas na sala: delapouite/character.svg, Delapouite (http://delapouite.com)
     sair da sala: delapouite/exit-door.svg, Delapouite (http://delapouite.com)
     assistir (espectador): lorc/eyeball.svg, Lorc (http://lorcblog.blogspot.com)
+    comprar na loja: delapouite/shopping-cart.svg, Delapouite (http://delapouite.com)
+    subir de nível na loja: delapouite/upgrade.svg, Delapouite (http://delapouite.com)
+    desfazer a compra: delapouite/anticlockwise-rotation.svg, Delapouite (http://delapouite.com)
 
 Menu principal (issue #83, PR #85):
   home-cat.jpg: imagem gato2.jpg fornecida por Leonard (lboesmans), que declarou

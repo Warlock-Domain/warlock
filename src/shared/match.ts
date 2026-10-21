@@ -3,8 +3,8 @@ import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
 import { CHARACTERS, classOf, fixLook, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
-  ARENA_MIN, ARENA_STEP, ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, MAX_WATCHERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R, arenaRadius,
-  type RuneKind,
+  ARENA_MIN, ARENA_STEP, ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, MAX_WATCHERS, PILLAR, PROJ_R, ROUND_EFFECT_IDS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R, arenaRadius,
+  roundMods, type RoundEffectId, type RuneKind,
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
 import type { BotSetup } from './protocol.ts';
@@ -36,7 +36,8 @@ function addStat(p: Player, f: (s: Stat) => void) {
 function earn(m: Match, p: Player, gold: number, scaled = true): number {
   let n = gold;
   if (scaled) {
-    const total = gold * m.opts.economy + (p.goldCarry ?? 0);
+    // efeito de rodada da Febre do ouro: todo ouro ganho durante a rodada (abate, rodada, vitória, baú…) vale mods.gold vezes; na loja não há mundo
+    const total = gold * m.opts.economy * (m.world?.mods.gold ?? 1) + (p.goldCarry ?? 0);
     n = Math.floor(total + 1e-9);
     p.goldCarry = total - n;
   }
@@ -74,10 +75,12 @@ export const OPTION_CHOICES = {
   difficulty: ['easy', 'normal', 'hard', 'auto'],
   // formato da arena (pedido do Fernando, 18/10): sorteado a cada rodada ou fixo
   arena: ['random', ...ARENA_IDS],
+  // efeito de rodada (pedido do Fernando, 21/10: ativável na criação da sala, issue #189): desligado, sorteado a cada rodada ou fixo
+  effect: ['off', 'random', ...ROUND_EFFECT_IDS],
 } as const;
 export type MatchOpts = { [K in keyof typeof OPTION_CHOICES]: (typeof OPTION_CHOICES)[K][number] };
 // os padrões são os números de sempre (SHOP_MS, START_GOLD, WINS_TO_WIN), para o simulador e as salas antigas
-export const DEFAULT_OPTS: MatchOpts = { shop: 30, pace: 'normal', economy: 1, startGold: 30, goal: 5, runes: true, sudden: true, chests: true, difficulty: 'normal', arena: 'random' };
+export const DEFAULT_OPTS: MatchOpts = { shop: 30, pace: 'normal', economy: 1, startGold: 30, goal: 5, runes: true, sudden: true, chests: true, difficulty: 'normal', arena: 'random', effect: 'off' };
 // 'chave:valor' de um voto de opção → [chave, valor] válidos, ou null
 export function parseOpt(target: string): [keyof MatchOpts, MatchOpts[keyof MatchOpts]] | null {
   const [k, raw] = target.split(':');
@@ -131,6 +134,7 @@ export type SandboxCmd =
   | { op: 'arena'; arena: ArenaId } // forma escolhida: reinicia a rodada e fica nos reinícios seguintes (pedido do Fernando, 20/10)
   | { op: 'radius'; step: 1 | -1 } // pedra uma faixa maior ou menor, na hora (volta ao padrão no reinício)
   | { op: 'rune'; kind: RuneKind } // runa escolhida ao lado de quem pediu (pedido do Sky, 20/10)
+  | { op: 'effect'; effect: RoundEffectId | null } // efeito de rodada na hora, sem reiniciar; fica nos reinícios seguintes
   | { op: 'restart' };
 const SANDBOX_GOLD = 9999;
 // teto da pedra na sandbox: o raio com 10 magos (14,9 m), duas faixas de folga acima da maior arena real (8 magos, 13,6 m);
@@ -162,6 +166,7 @@ export type Match = {
   botDelta: number; // bots votados para entrar (+) ou sair (−) quando a próxima rodada começar
   sandbox?: Sandbox; // só nas salas sandbox (escolhido no começo da partida)
   roundPaid?: string[]; // quem já recebeu o ouro garantido desta rodada (paga na queda)
+  nextEffect?: RoundEffectId | null; // efeito da próxima rodada, sorteado antes da loja para cada um comprar sabendo
 };
 
 export const newMatch = (): Match => ({
@@ -257,7 +262,7 @@ export function removePlayer(m: Match, id: string) {
 export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'rounds', teamShuffle = true, rand: () => number = Math.random, opts: Partial<MatchOpts> = {}, setup: BotSetup[] = [], sandbox = false): boolean {
   if (m.phase !== 'lobby' && m.phase !== 'end') return false;
   m.opts = { ...m.opts, ...opts };
-  m.sandbox = sandbox ? { god: true, noCd: false, shrink: false } : undefined;
+  m.sandbox = sandbox ? { god: true, noCd: true, shrink: false } : undefined; // sem recarga ligado de início (Fernando, 21/10)
   // começa redonda; a forma escolhida no painel fica em m.opts.arena e a sandbox nunca sorteia
   if (sandbox) m.opts = { ...m.opts, arena: 'circle' };
   m.players = m.players.filter((p) => !p.bot && p.connected);
@@ -288,7 +293,19 @@ function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: ()
   Object.assign(m, { streaks: {}, mode, round: 0, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0, vote: null, pendingMode: null, teamShuffle, pendingShuffle: null, winnerTeam: null, pendingOpts: {}, botDelta: 0 });
   // já sorteia na loja para cada um ver o time; com sorteio a cada rodada, a contagem sorteia de novo
   if (mode === 'teams') shuffleTeams(m, rand);
+  m.nextEffect = m.sandbox ? null : drawEffect(m, rand, null);
   enterShop(m, now);
+}
+
+// efeito de uma rodada: fixo pela opção ou sorteado sem repetir o anterior (rodadas seguidas iguais cansam); null desligado e na sandbox.
+// Desligado não gasta sorteio, então a partida fica igual à de antes dos efeitos (hash do style.test)
+function drawEffect(m: Match, rand: () => number, prev: RoundEffectId | null): RoundEffectId | null {
+  const o = m.opts.effect;
+  if (m.sandbox) return m.nextEffect ?? null; // a sandbox nunca sorteia: fica o escolhido no painel (op 'effect')
+  if (o === 'off') return null;
+  if (o !== 'random') return o;
+  const pool = ROUND_EFFECT_IDS.filter((e) => e !== prev);
+  return pool[Math.floor(rand() * pool.length)];
 }
 
 // loja aberta: na fase da loja ou, nas Rodadas e nos Times, para quem já caiu na rodada (sugestão do Reinaldo, 18/10: montar a build morto)
@@ -631,6 +648,14 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   const arena = m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
   m.world = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests }, arena, Object.fromEntries(playing(m).map((p) => [p.id, classOf(p.look)])));
   if (m.sandbox) m.world.shrink = m.sandbox.shrink; // a sandbox usa o mundo do deathmatch: não encolhe (a não ser que peçam) e quem morre volta
+  // efeito da rodada: o que a loja mostrou (a opção pode ter mudado por votação); o da próxima é sorteado depois do mundo,
+  // para não mudar a arena nem os pilares
+  const fx = !m.sandbox && m.opts.effect === 'random' ? (m.nextEffect ?? drawEffect(m, rand, null)) : drawEffect(m, rand, null);
+  m.world.effect = fx;
+  m.world.mods = roundMods(fx);
+  // Campo aberto: some com os obstáculos sorteados; baús (nascem durante a rodada) e Barricada continuam
+  if (fx === 'clear') m.world.pillars = [];
+  m.nextEffect = drawEffect(m, rand, fx);
   m.phase = 'countdown';
   m.phaseEnds = now + COUNTDOWN_MS * PACE[m.opts.pace];
 }
@@ -713,6 +738,18 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boo
     if (sb[cmd.key] === cmd.on) return false;
     sb[cmd.key] = cmd.on;
     if (m.world) m.world.shrink = sb.shrink;
+    return true;
+  }
+  // efeito de rodada escolhido no painel (issue #189), para ver cada um sem jogar uma partida; guardado como o "próximo", vale nos reinícios
+  if (cmd.op === 'effect') {
+    m.nextEffect = cmd.effect;
+    const w = m.world;
+    if (w) {
+      w.effect = cmd.effect;
+      w.mods = roundMods(cmd.effect);
+      // Campo aberto tira os obstáculos na hora; eles só voltam ao reiniciar a rodada (mundo novo)
+      if (cmd.effect === 'clear') w.pillars = [];
+    }
     return true;
   }
   if (cmd.op === 'turret') {

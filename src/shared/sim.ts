@@ -1,9 +1,9 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
   ARENA_MIN, ARENA_STEP, CHEST, CREDIT_WINDOW, ZONES, DM_RESPAWN, DM_SPAWN_GAP, OBSTACLES, OBSTACLE_KINDS, PILLAR, type ObstacleKind, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KB_SOFT_CAP, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
-  ISLAND, PROJ_SPAWN, RUNE, RUNE_KINDS, SUDDEN, WALL_GAP, WIZ_R, WIZ_SPEED, arenaRadius, type RuneKind,
+  ISLAND, NO_MODS, PROJ_SPAWN, RUNE, RUNE_KINDS, SUDDEN, SWORDS, WALL_GAP, WIZ_R, WIZ_SPEED, arenaRadius, type RoundEffectId, type RoundMods, type RuneKind,
 } from './constants.ts';
-import { SHAPES, edge, inArena, inLavaAt, isleSpot, safeInside, type ArenaId, type Isle } from './arena.ts';
+import { SHAPES, edge, inArena, inLavaAt, inward, isleSpot, onIsle, safeInside, type ArenaId, type Isle } from './arena.ts';
 import { CLASS_PASSIVE, type ClassId, type ClassPassive } from './characters.ts';
 import { ACTIVE_ITEMS, AEGIS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, isActive, itemStats, noItems, type ItemId } from './items.ts';
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
@@ -167,6 +167,8 @@ type Zone = { pos: Vec; r: number; kind: 'burn' | 'slow' | 'pull'; until: number
 export type World = {
   t: number;
   arena: ArenaId; // formato desta rodada (arena.ts)
+  effect: RoundEffectId | null; // efeito sorteado desta rodada (match.ts); null na sandbox e fora da partida
+  mods: RoundMods; // multiplicadores do efeito (NO_MODS sem efeito)
   arenaR: number; // raio atual: o encolhimento escala a forma
   shrinkAt: number;
   wizards: Wizard[];
@@ -297,7 +299,7 @@ export function newWorld(
     const d = ISLAND.near + rand() * (ISLAND.far - ISLAND.near);
     return { a, d, r: ISLAND.r, pos: isleSpot({ arena, arenaR }, a, d) };
   });
-  return { t: 0, arena, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars, zones: [], loots: [], chestAt: CHEST.first, chestsLeft: Math.min(CHEST.perRound, Math.floor(ids.length / 2) + 1), runes: [], runeAt: RUNE.first, isles, sudden: false, rules: { ...rules }, events: [], lavaCredit: {}, nextId: 1, dm };
+  return { t: 0, arena, effect: null, mods: NO_MODS, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars, zones: [], loots: [], chestAt: CHEST.first, chestsLeft: Math.min(CHEST.perRound, Math.floor(ids.length / 2) + 1), runes: [], runeAt: RUNE.first, isles, sudden: false, rules: { ...rules }, events: [], lavaCredit: {}, nextId: 1, dm };
 }
 
 export const inLava = (w: World, p: Vec) => inLavaAt(w.arena, w.arenaR, w.isles, p);
@@ -431,7 +433,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   target.vel = add(target.vel, scale(norm(dir), knock * mult * release));
   mark(w, target, by, src);
   // roubo de vida: quem acertou recupera parte do dano (e, como no original, a cura reduz o dano acumulado pela metade dela)
-  if (att && att.lifesteal > 0) heal(att, dmg * att.lifesteal);
+  if (att && att.lifesteal > 0) heal(w, att, dmg * att.lifesteal);
   w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg), src });
 }
 
@@ -597,7 +599,8 @@ function nearestEnemy(w: World, to: Vec, skip: string, owner = skip): Wizard | n
 }
 
 // cura (Drenar, Roubo de vida): como no original, tira do dano acumulado metade do que curou (pawn.lua)
-function heal(wz: Wizard, amount: number) {
+function heal(w: World, wz: Wizard, amount: number) {
+  amount *= w.mods.heal; // Fonte da vida
   wz.hp = Math.min(wz.hpMax, wz.hp + amount);
   wz.dmgTaken = Math.max(0, wz.dmgTaken - amount * 0.5);
 }
@@ -1095,7 +1098,7 @@ function flyBack(w: World, p: Projectile, dt: number): boolean {
   if (!to || w.t >= p.until) return false;
   const drain = p.kind === 'drain';
   if (dist(to.pos, p.pos) < (drain ? DRAIN.reach : RECHARGE.reach)) {
-    if (drain) heal(to, spellLevel('drain', p.level).dmg * p.dmgMult);
+    if (drain) heal(w, to, spellLevel('drain', p.level).dmg * p.dmgMult);
     else to.cd.recharge = w.t;
     return false;
   }
@@ -1109,7 +1112,7 @@ function drainHit(w: World, p: Projectile, wz: Wizard, L: Level) {
   const owner = anyById(w, p.owner);
   const amount = L.dmg * p.dmgMult;
   if (allies(owner, wz)) {
-    heal(wz, amount);
+    heal(w, wz, amount);
     wz.haste = DRAIN.haste;
     wz.hasteUntil = w.t + L.duration;
     return;
@@ -1625,7 +1628,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       for (const s of SPELL_IDS) if (wz.cd[s] > w.t) wz.cd[s] -= extraT;
       for (const i of ACTIVE_ITEMS) if (wz.itemCd[i] > w.t) wz.itemCd[i] -= extraT;
     }
-    wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1) * (inWarp(w, wz) ? WARPZONE.wizMult : 1) * haste);
+    wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1) * (inWarp(w, wz) ? WARPZONE.wizMult : 1) * haste * w.mods.speed);
     if (rooted) wz.target = null;
   }
 
@@ -1638,9 +1641,13 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   // passou de SUDDEN.collapse: o tamanho mínimo deixa de valer e a arena some aos poucos (vale mesmo com a morte súbita desligada)
   const collapsing = w.t >= SUDDEN.collapse;
   const minR = collapsing && !w.dm ? 0 : ARENA_MIN; // a sandbox encolhe até o mínimo, sem sumir
+  // Arena de espinhos: para depois de mods.shrink do caminho entre o tamanho inicial e o mínimo; passado o SUDDEN.collapse some como
+  // sempre (sem lava ninguém cai, e no simulador rodadas sem esse fim passavam de 10 min)
+  const start = arenaRadius(w.wizards.length);
+  const floor = w.mods.shrink < 1 && !collapsing ? Math.max(ARENA_MIN, start - (start - ARENA_MIN) * w.mods.shrink) : minR;
   if (!w.dm && collapsing && w.shrinkAt > w.t + SUDDEN.every) w.shrinkAt = w.t + SUDDEN.every;
-  if ((!w.dm || w.shrink) && w.t >= w.shrinkAt && w.arenaR > minR) {
-    resizeArena(w, Math.max(minR, w.arenaR - ARENA_STEP));
+  if ((!w.dm || w.shrink) && w.t >= w.shrinkAt && w.arenaR > floor) {
+    resizeArena(w, Math.max(floor, w.arenaR - ARENA_STEP));
     w.shrinkAt += w.sudden || collapsing ? SUDDEN.every : SHRINK_EVERY;
   }
 
@@ -1702,6 +1709,17 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
 
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
+    // Arena de espinhos: quem passa da borda volta para dentro empurrado e ferido, mais quanto mais rápido bateu (SWORDS); o crédito
+    // fica com quem empurrou por último, como na lava. Antes do "vida infinita" para valer também na sandbox
+    if (w.mods.swords && edge(w, wz.pos) < SWORDS.inset && !onIsle(w.isles, wz.pos)) {
+      const n = inward(w, wz.pos);
+      const out = dot(wz.vel, n);
+      if (out < 0) wz.vel = sub(wz.vel, scale(n, out)); // tira o que ia para fora; o empurrão do golpe põe para dentro
+      wz.pos = safeInside(w, wz.pos, SWORDS.inset + WIZ_R);
+      const by = wz.lastHitBy && w.t - wz.lastHitAt <= CREDIT_WINDOW ? wz.lastHitBy : wz.id;
+      const dmg = SWORDS.base + SWORDS.perSpeed * Math.max(0, -out);
+      hit(w, wz, by, dmg, dmg * KB_PER_DMG, n, 'espinhos'); // o nome da fonte aparece cru no placar e no replay, como o 'choque'
+    }
     // sandbox: vida infinita não morre; na lava fica onde está (sem voltar para a pedra), só com a vida cheia
     if (wz.god) {
       wz.hp = wz.hpMax;
@@ -1709,7 +1727,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     }
     if (inLava(w, wz.pos)) {
       if (w.t < wz.invulnUntil) continue;
-      const dmg = LAVA_DPS * DT * (1 - wz.lavaCut), burn = Math.min(Math.max(0, wz.hp), dmg);
+      const dmg = LAVA_DPS * DT * (1 - wz.lavaCut) * w.mods.lava, burn = Math.min(Math.max(0, wz.hp), dmg);
       wz.hp -= dmg;
       wz.calmSince = w.t;
       // metade da vida que a lava tira conta como dano de quem acertou por último (mesma janela do abate); a partida soma no placar
@@ -1724,7 +1742,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
         toStone(w, wz);
         w.events.push({ k: 'aegis', id: wz.id });
       }
-    } else wz.hp = Math.min(wz.hpMax, wz.hp + wz.regen * DT);
+    } else wz.hp = Math.min(wz.hpMax, wz.hp + wz.regen * w.mods.heal * DT);
     if (wz.hp > 0) continue;
     wz.hp = 0;
     wz.alive = false;

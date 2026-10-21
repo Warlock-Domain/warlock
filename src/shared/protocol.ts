@@ -2,7 +2,7 @@
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
-import { MAX_PLAYERS, RUNE_KINDS, type RuneKind } from './constants.ts';
+import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type RuneKind } from './constants.ts';
 import { ITEM_IDS, isActive, type ItemId } from './items.ts';
 import { MODES, OPTION_CHOICES, TURRET_DIR, goalOf, parseOpt, votesNeeded, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
@@ -66,6 +66,7 @@ export type PublicRoom = {
   botDelta: number; // bots votados para entrar (+) ou sair (−) na próxima rodada
   goal: number; // pontos para vencer no modo atual (rodadas; abates no Deathmatch)
   arena: ArenaId | null; // formato da arena desta rodada (null sem rodada)
+  effect: RoundEffectId | null; // efeito desta rodada; na loja, o da próxima (null desligado, sem rodada e na sandbox)
   sandbox?: Sandbox; // só nas salas sandbox: as regras ligadas
 };
 
@@ -146,6 +147,7 @@ function parseSandbox(c: unknown): SandboxCmd | null {
   if (c.op === 'arena') return ARENA_IDS.includes(c.arena as ArenaId) ? { op: 'arena', arena: c.arena as ArenaId } : null; // 'random' não entra: a sandbox nunca sorteia
   if (c.op === 'radius') return c.step === 1 || c.step === -1 ? { op: 'radius', step: c.step } : null;
   if (c.op === 'rune') return RUNE_KINDS.includes(c.kind as RuneKind) ? { op: 'rune', kind: c.kind as RuneKind } : null;
+  if (c.op === 'effect') return c.effect === null || ROUND_EFFECT_IDS.includes(c.effect as RoundEffectId) ? { op: 'effect', effect: c.effect as RoundEffectId | null } : null;
   if (c.op === 'restart') return { op: 'restart' };
   if (c.op === 'turret') return Object.hasOwn(TURRET_DIR, c.direction as string) ? { op: 'turret', direction: c.direction as TurretDir } : null;
   if (c.op !== 'bot' || (c.dummy !== undefined && typeof c.dummy !== 'boolean')) return null;
@@ -235,6 +237,12 @@ export function publicId(room: string, id: string): string {
   return 'p' + h.toString(36);
 }
 
+// efeito que a loja anuncia: o votado para a próxima rodada vale na contagem, então a loja já mostra o que vai valer
+function shopEffect(m: Match): RoundEffectId | null {
+  const o = { ...m.opts, ...m.pendingOpts }.effect;
+  return o === 'off' || m.sandbox ? null : o === 'random' ? (m.nextEffect ?? null) : o;
+}
+
 export function publicRoom(id: string, m: Match, now: number): PublicRoom {
   const pub = (x: string) => publicId(id, x);
   return {
@@ -265,6 +273,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     botDelta: m.botDelta,
     goal: goalOf(m),
     arena: m.world?.arena ?? null,
+    effect: (m.phase === 'shop' ? shopEffect(m) : m.world?.effect) ?? null,
     ...(m.sandbox && { sandbox: m.sandbox }),
   };
 }
