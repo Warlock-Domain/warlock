@@ -1838,14 +1838,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const blastRing = rangeRing.clone();
   scene.add(blastRing);
   const hits: THREE.Mesh[] = []; // discos do "Ver hitbox", criados conforme precisa
-  // faixa de acerto da mira (até 4: a Rajada sai em leque), bem clara para não esconder o chão; plano já deitado, girado só em y
+  // faixa de acerto da mira (até 4: a Rajada sai em leque), bem clara para não esconder o chão: corpo reto do mago para a frente (+x)
+  // e ponta em meio círculo do tamanho da bola, onde ela termina o voo, como a prévia do LoL (pedido do Fernando, 21/10); girada só em y
   const bandMat = new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.16, depthWrite: false });
   const bands = CLUSTER_FAN.map(() => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), bandMat);
-    m.renderOrder = 9;
-    m.visible = false;
-    scene.add(m);
-    return m;
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0).rotateX(-Math.PI / 2), bandMat);
+    const cap = new THREE.Mesh(new THREE.CircleGeometry(1, 24, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2), bandMat);
+    body.renderOrder = cap.renderOrder = 9;
+    g.add(body, cap);
+    g.visible = false;
+    scene.add(g);
+    return g;
   });
 
   return {
@@ -1882,14 +1886,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     },
     // faixas de `from` até cada ponta, com meia largura `half`; sem `from` ou lista vazia esconde
     bands(from: Vec | null, ends: Vec[], half: number) {
-      bands.forEach((m, i) => {
+      const w = Math.max(half, 0.03); // o Raio (largura 0) vira uma linha de 6 cm para aparecer
+      bands.forEach((g, i) => {
         const e = from && ends[i];
-        m.visible = !!e;
+        g.visible = !!e;
         if (!e) return;
-        const d = sub(e, from);
-        m.position.copy(w3(add(from, scale(d, 0.5)), 0.035));
-        m.rotation.y = -Math.atan2(d.y, d.x);
-        m.scale.set(len(d), 1, Math.max(2 * half, 0.06)); // o Raio (largura 0) vira uma linha de 6 cm para aparecer
+        const d = sub(e, from), l = Math.max(len(d) - w, 0);
+        const [body, cap] = g.children;
+        g.position.copy(w3(from, 0.035));
+        g.rotation.y = -Math.atan2(d.y, d.x);
+        body.scale.set(l, 1, 2 * w);
+        cap.position.x = l;
+        cap.scale.set(w, 1, w);
       });
     },
     aim(at: Vec | null) {
