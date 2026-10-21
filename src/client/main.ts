@@ -81,6 +81,27 @@ function takeAutostart(): string | null {
 
 // ?as=nome dá outra identidade na mesma máquina (testar com várias abas)
 const as = new URLSearchParams(location.search).get('as')?.replace(/[^a-z0-9]/gi, '').slice(0, 12) ?? '';
+// aba de teste velha pede para ser fechada (pedido do Fernando, 20/10; issue #140), só em localhost: a aba nova na mesma porta
+// marca as anteriores, e o servidor local fora do ar por 3 s marca a aba. Com ?as= não marca (várias abas de propósito)
+const TITLE = document.title;
+let velha = false;
+const fechar = (why: string) => (document.title = `❌ FECHAR · ${why}`);
+if (LOCAL && !as) {
+  const abas = new BroadcastChannel('warlock:abas');
+  abas.onmessage = () => {
+    velha = true;
+    fechar(TITLE);
+  };
+  abas.postMessage(0);
+}
+let caiu: ReturnType<typeof setTimeout> | undefined;
+function servidor(on: boolean) {
+  if (!LOCAL) return;
+  clearTimeout(caiu);
+  if (!on) caiu = setTimeout(() => fechar('servidor desligado'), 3000);
+  else if (velha) fechar(TITLE);
+  else document.title = TITLE;
+}
 const PID = 'warlock:pid' + (as && ':' + as);
 const NAME = 'warlock:name' + (as && ':' + as);
 const CHAR = 'warlock:char' + (as && ':' + as);
@@ -165,6 +186,7 @@ function startLobby(name: string) {
     rooms = m.rooms as RoomInfo[]; // a ordem e as vazias recolhidas ficam com renderLobby (screen-data.ts)
     draw();
   }, () => {}, (on) => {
+    if (!exited) servidor(on);
     // sem a conexão da lista, o lobby mostra o erro em vez de "Carregando salas…" para sempre
     if (offline === !on) return;
     offline = !on;
@@ -395,6 +417,7 @@ function startRoom(code: string, name: string) {
     net.send({ t: 'hello', playerId, name: myName });
     net.send({ t: 'look', look: savedLook() });
   }, (on) => {
+    servidor(on);
     online = on;
     view.setOnline(on);
   });
