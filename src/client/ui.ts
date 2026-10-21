@@ -4,7 +4,7 @@ import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, 
 import type { ArenaId } from '../shared/arena.ts';
 import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/characters.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Sandbox, type SandboxCmd, type Vote } from '../shared/match.ts';
-import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
+import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { POS_ACTIONS, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
@@ -16,7 +16,7 @@ import { SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rule
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, iconButton, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
-import { SANDBOX_BOT, botSetupPanel, savedBotSetup } from './train.ts';
+import { botSetupPanel, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
@@ -270,7 +270,7 @@ export function screen(root: HTMLElement, title: string, text: string, button: s
 }
 
 type RoomActions = {
-  start: (bots: Level[], mode: Mode, shuffle: boolean, opts: MatchOpts, again?: boolean, botSetup?: BotSetup[]) => void; // bots: a dificuldade de cada um; again: repete o treino
+  start: (bots: Level[], mode: Mode, shuffle: boolean, opts: MatchOpts, again?: boolean) => void; // bots: a dificuldade de cada um; again: repete o treino
   hover: (a: SpellId | ItemId | null) => void; // mouse em cima da magia ou item na barra (círculo de alcance)
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
@@ -573,7 +573,7 @@ function sheetEl(rows: SheetRow[], ...extra: Child[]) {
 const previewHtml = (title: string, ch: Change[], extra = '') =>
   `<div class="preview"><b>${title}</b>${ch.length ? `<table>${ch.map((c) => `<tr class="${c.worse ? 'worse' : 'better'}"><th>${c.label}</th><td>${c.before ?? '—'} → ${c.after ?? '—'}</td></tr>`).join('')}</table>` : `<small>${t('Nada muda na ficha.', 'Nothing changes on the sheet.')}</small>`}${extra}</div>`;
 
-export function createRoomUi(root: HTMLElement, code: string, act: RoomActions, botsRoom = false) {
+export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) {
   // uma dificuldade por bot (pedido do Fernando, 19/10); guardada nesta aba (o número de bots de antes vira 3 Normal)
   let bots: Level[] = ['normal', 'normal', 'normal'];
   try {
@@ -719,7 +719,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions, 
   let sbLevel: Level = 'normal';
   // bot com a dificuldade escolhida e as magias marcadas abaixo (sem nenhuma, compra sozinho)
   const addBot = (dummy: boolean) => {
-    const spells = savedBotSetup(SANDBOX_BOT)[0]?.spells;
+    const spells = savedBotSetup()[0]?.spells;
     act.sandbox({ op: 'bot', bot: { difficulty: sbLevel, ...(spells && { spells }) }, ...(dummy && { dummy: true }) });
   };
   const sbBots = el('ul', { class: 'sandbox-bots' });
@@ -740,7 +740,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions, 
     el('button', { type: 'button', title: t('Bot que não anda nem atira: bom para testar dano e empurrão', 'A bot that neither moves nor shoots: good for testing damage and knockback'), onclick: () => addBot(true) }, t('+ Boneco parado', '+ Training dummy')),
     el('div', { class: 'sandbox-row' }, sbTurretDirection,
       el('button', { type: 'button', title: t('Dispara bolas de fogo numa direção fixa. Não recebe dano nem empurrão.', 'Fires fireballs in a fixed direction. Takes no damage or knockback.'), onclick: () => act.sandbox({ op: 'turret', direction: sbTurretDirection.value as 'north' | 'east' | 'south' | 'west' }) }, t('+ Torreta', '+ Turret'))),
-    botSetupPanel(1, savedBotSetup(SANDBOX_BOT), () => {}, SANDBOX_BOT),
+    botSetupPanel(1, savedBotSetup(), () => {}),
     sbBots,
     el('p', { class: 'muted' }, t('Arena: círculo fixo. A torreta inicial dispara da esquerda para a direita.', 'Arena: fixed circle. The initial turret fires from left to right.')),
     // runa escolhida: nasce ao lado do seu mago, no lugar da que estiver na arena
@@ -1111,12 +1111,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions, 
       save();
       count.textContent = String(bots.length);
       list.replaceChildren(...rows());
-      botSpells?.replaceChildren(botSetupPanel(bots.length, savedBotSetup(), () => {}));
       startBtn.toggleAttribute('disabled', humans + bots.length < 2);
     };
     const o = (opts ??= { ...DEFAULT_OPTS, ...r.opts, ...FIXED }); // o que a sala não mostra volta ao padrão (um desafio deixa a morte súbita desligada)
-    const botSpells = botsRoom ? el('div', {}, botSetupPanel(bots.length, savedBotSetup(), () => {})) : null;
-    const startBtn = el('button', { type: 'button', class: 'primary big', disabled: humans + bots.length < 2, onclick: () => act.start(bots, mode, shuffle, o, false, botsRoom ? savedBotSetup().slice(0, bots.length) : undefined) }, t('Começar partida', 'Start match'));
+    const startBtn = el('button', { type: 'button', class: 'primary big', disabled: humans + bots.length < 2, onclick: () => act.start(bots, mode, shuffle, o) }, t('Começar partida', 'Start match'));
     const modes: [Mode, string, string][] = [
       ['rounds', MODE_NAME.rounds, t(`O último vivo ganha a rodada. Vence quem fizer ${o.goal} rodadas.`, `The last one alive wins the round. First to win ${o.goal} rounds wins.`)],
       ['deathmatch', MODE_NAME.deathmatch, t(`Rodadas de 60 s, quem cai volta em 10 s. Cada abate vale 1 ponto; vence quem chegar a ${DM_GOALS[o.goal]}.`, `60 s rounds, whoever falls comes back after 10 s. Each kill is worth 1 point; first to ${DM_GOALS[o.goal]} wins.`)],
@@ -1140,7 +1138,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions, 
         el('div', { class: 'lobby-col' },
           el('div', { class: 'bots' }, el('span', {}, 'Bots ', infoButton(t('Dificuldade dos bots', 'Bot difficulty'), () => OPT_INFO.difficulty(mode))),
             el('button', { type: 'button', 'aria-label': t('Menos um bot', 'One less bot'), onclick: () => set(bots.slice(0, -1)) }, '−'), count, el('button', { type: 'button', 'aria-label': t('Mais um bot', 'One more bot'), onclick: () => set([...bots, 'normal']) }, '+')),
-          list, botSpells,
+          list,
         ),
         el('div', { class: 'lobby-col' }, modePicker, optsBlock),
       ),

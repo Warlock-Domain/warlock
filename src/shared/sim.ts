@@ -1538,8 +1538,9 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       if (wz.casting) wz.casting.then = c.to;
       else wz.target = c.to;
     } else if (c.kind === 'stop') {
-      if (wz.casting) wz.casting.then = null;
-      else wz.target = null;
+      // como no Dota (#144): no tempo de lançamento, cancela a magia; a recarga só começa quando ela sai, então fica livre
+      wz.casting = null;
+      wz.target = null;
     } else if (c.kind === 'item') beginCast(w, wz, { item: c.item }, c.at);
     else beginCast(w, wz, { spell: c.spell }, c.at);
   }
