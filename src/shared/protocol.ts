@@ -14,7 +14,8 @@ import { TAUNTS } from './taunts.ts';
 export type BotSetup = { spells?: Partial<Record<SpellId, number>>; items?: Partial<Record<ItemId, number>>; skill?: Partial<BotSkill>; difficulty?: MatchOpts['difficulty'] };
 
 export type ClientMsg =
-  | { t: 'hello'; playerId: string; name: string }
+  | { t: 'hello'; playerId: string; name: string; watch?: true } // watch: entra assistindo (botão Assistir da lista de salas)
+  | { t: 'watch'; on: boolean } // assistir (sem mago a partir da próxima rodada) ou voltar a jogar
   // shuffle: Times sorteados a cada rodada (padrão) ou fixos; opts: opções da partida; setup[i]: dificuldade do bot i+1 e a configuração dele no treino
   | { t: 'start'; bots: number; mode?: Mode; shuffle?: boolean; opts?: Partial<MatchOpts>; setup?: BotSetup[]; sandbox?: true }
   | { t: 'sandbox'; cmd: SandboxCmd } // painel da sandbox (o servidor ignora numa sala normal)
@@ -40,6 +41,7 @@ export type PublicPlayer = {
   spells: Record<SpellId, number>; items: Record<ItemId, number>; stats: Stats; bought: string[]; held: Record<string, number[]>; ready: boolean; connected: boolean; team: number | null;
   difficulty?: MatchOpts['difficulty']; // só bots: a dificuldade dele
   dummy?: true; // sandbox: boneco parado
+  watch?: true; // assistindo: sem mago a partir da próxima rodada
   turret?: true; // Sandbox: torreta de direção fixa.
 };
 
@@ -165,7 +167,10 @@ export function parseClientMessage(raw: string): ClientMsg | null {
     case 'hello':
       // o cliente gera com crypto.randomUUID (36 caracteres); o id é o segredo de reconexão, então só formato fechado
       if (typeof m.playerId !== 'string' || !/^[\w-]{8,64}$/.test(m.playerId)) return null;
-      return { t: 'hello', playerId: m.playerId, name: cleanName(m.name) };
+      if (m.watch !== undefined && typeof m.watch !== 'boolean') return null;
+      return { t: 'hello', playerId: m.playerId, name: cleanName(m.name), ...(m.watch === true && { watch: true as const }) };
+    case 'watch':
+      return typeof m.on === 'boolean' ? { t: 'watch', on: m.on } : null;
     case 'start': {
       if (m.mode !== undefined && !MODES.includes(m.mode as Mode)) return null;
       if (m.shuffle !== undefined && typeof m.shuffle !== 'boolean') return null;
@@ -238,7 +243,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     mode: m.mode,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy, turret }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }), ...(turret && { turret: true as const }) })),
+    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy, turret, watch }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }), ...(turret && { turret: true as const }), ...(watch && { watch: true as const }) })),
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),
