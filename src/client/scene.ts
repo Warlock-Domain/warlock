@@ -1387,19 +1387,21 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const pts: THREE.Vector3[] = [];
     const n = 10;
     for (let i = 0; i <= n; i++) {
-      const p = w3(v(from.x + ((to.x - from.x) * i) / n, from.y + ((to.y - from.y) * i) / n), 1);
-      if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.5));
+      // baixo e com zigue-zague curto (pedido do Fernando, 21/10): a 1 m de altura e ±0,25 m de lado, a câmera inclinada mostrava o
+      // raio ~0,9 m acima da linha real e mais largo que o acerto, que é a linha no chão
+      const p = w3(v(from.x + ((to.x - from.x) * i) / n, from.y + ((to.y - from.y) * i) / n), 0.25);
+      if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.1, (Math.random() - 0.5) * 0.12));
       pts.push(p);
     }
     // três traços tortos sobrepostos para o raio parecer grosso (linha de WebGL tem 1 px)
     for (let j = 0; j < 3; j++) {
-      const jit = pts.map((p, i) => (i === 0 || i === n ? p : p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.18, (Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.18))));
+      const jit = pts.map((p, i) => (i === 0 || i === n ? p : p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.06))));
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(jit), new THREE.LineBasicMaterial({ color: j ? '#9fd0ff' : '#ffffff', transparent: true, blending: THREE.AdditiveBlending }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 1 - k));
     }
-    burst(to, '#9fd0ff', 2.4, 0.3, 1, FX.light);
-    burst(to, '#e6f4ff', 1.4, 0.35, 1, FX.spark);
-    burst(from, '#9fd0ff', 1.2, 0.2, 1, FX.light);
+    burst(to, '#9fd0ff', 2.4, 0.3, 0.25, FX.light);
+    burst(to, '#e6f4ff', 1.4, 0.35, 0.25, FX.spark);
+    burst(from, '#9fd0ff', 1.2, 0.2, 0.25, FX.light);
   }
 
   function onEvents(events: SimEvent[]) {
