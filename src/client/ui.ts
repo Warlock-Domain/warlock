@@ -1075,7 +1075,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const coach = el('div', { class: 'coach', role: 'status', hidden: true }, icon(UI_ICON.tip), ' ', coachText, coachAgain, coachQuit);
   // espectador: selo "Assistindo X" com setas para trocar (← → no teclado)
   const watchName = el('b', {});
-  // câmera no centro da arena: seguindo um mago na borda, a arena que encolhe sai da tela (pedido do Reinaldo, 21/10); fica salva no navegador
+  // câmera no centro da arena: seguindo um mago na borda, a arena que encolhe sai da tela; fica salva no navegador
   const CENTER_KEY = 'warlock:watch-center';
   let centerCam = store.get(CENTER_KEY) === '1';
   const centerBtn = iconButton(icon(UI_ICON.aim), t('Câmera no centro da arena', 'Camera on the arena center'), () => {
@@ -1085,7 +1085,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     centerBtn.classList.toggle('on', centerCam);
     act.watchCenter(centerCam);
   }, { 'aria-pressed': String(centerCam), class: centerCam ? 'icon on' : 'icon' });
-  act.watchCenter(centerCam);
+  act.watchCenter(centerCam); // a escolha salva já vale na primeira vez que a câmera seguir alguém
   const watchBadge = el('div', { class: 'watching', role: 'status', hidden: true },
     iconButton('‹', t('Assistir o anterior', 'Watch the previous player'), () => act.watch(-1), { title: t('Anterior (←)', 'Previous (←)') }),
     el('span', {}, t('Assistindo ', 'Watching '), watchName, TOUCH ? null : el('small', {}, t(' · ← → troca', ' · ← → switch'))),
