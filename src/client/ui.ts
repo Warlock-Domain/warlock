@@ -26,6 +26,16 @@ import { LOCALE, arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 const TITLE = 'Warlock';
 // busca pelo nome sem acento nem maiúscula (loja e biblioteca)
 export const norm = (x: string) => x.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+// busca pelo nome (loja e biblioteca): esconde os itens cujo data-name (já com norm) não tem o texto e os grupos que ficaram vazios;
+// off: grupo escondido de todo (filtro por grupo da biblioteca)
+export function searchFilter(groups: Iterable<HTMLElement>, item: string, query: string, off?: (g: HTMLElement) => boolean) {
+  const q = norm(query.trim());
+  for (const g of groups) {
+    const cards = [...g.querySelectorAll<HTMLElement>(item)];
+    for (const c of cards) c.hidden = !c.dataset.name!.includes(q);
+    g.hidden = cards.every((c) => c.hidden) || !!off?.(g);
+  }
+}
 // tela de toque sem mouse: os textos de ajuda falam de tocar, não de clicar
 export const TOUCH = matchMedia('(hover: none) and (pointer: coarse)').matches;
 
@@ -1213,14 +1223,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       shopQuery = (e.target as HTMLInputElement).value;
       filterShop((e.target as HTMLElement).closest('.shop')!);
     } });
-  // esconde os ícones que não batem com a busca e os grupos que ficaram vazios
   function filterShop(box: HTMLElement) {
-    const q = norm(shopQuery.trim());
-    for (const g of box.querySelectorAll<HTMLElement>('.shop-group')) {
-      const cards = [...g.querySelectorAll<HTMLElement>('.shop-item')];
-      for (const c of cards) c.hidden = !c.dataset.name!.includes(q);
-      g.hidden = cards.every((c) => c.hidden);
-    }
+    searchFilter(box.querySelectorAll<HTMLElement>('.shop-group'), '.shop-item', shopQuery);
     return box;
   }
   let readyBtn: HTMLElement | null = null;
