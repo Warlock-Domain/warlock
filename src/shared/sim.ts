@@ -856,6 +856,7 @@ function gripLand(w: World, p: Projectile) {
     if (!z.alive || z.id === p.owner || allies(anyById(w, p.owner), z) || w.t < z.invulnUntil || shielded(w, z) || dist(z.pos, p.pos) > L.radius + WIZ_R) continue;
     z.gripUntil = w.t + L.duration * z.debuffMult;
     z.gripBonus = L.scale;
+    mark(w, z, p.owner, 'grip'); // crédito do abate sem dano (#179)
     z.target = null;
     z.casting = null;
     w.events.push({ k: 'grip', id: z.id, x: z.pos.x, y: z.pos.y });

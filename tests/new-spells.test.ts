@@ -884,10 +884,11 @@ describe('crédito do abate sem dano', () => {
     expect(seen.filter((e) => e.k === 'hit')).toHaveLength(0); // a Troca não causa dano: só a lava mata
   });
 
-  it.each(['grip', 'magnetize'] as const)('%s num inimigo na lava dá o abate a quem lançou', (spell) => {
+  // vida = segundos de lava até morrer: o Agarrar só prende depois do atraso dos cipós (1,3 s), então a vítima dura mais
+  it.each([['grip', 250], ['magnetize', 100]] as const)('%s num inimigo na lava dá o abate a quem lançou', (spell, hp) => {
     const w = world([[stone, 0], [lava, 0]], [spell]);
-    w.wizards[1].hp = 100; // 1 s de lava: morre dentro da janela de 5 s do crédito
+    w.wizards[1].hp = hp; // morre dentro da janela de 5 s do crédito
     stepWorld(w, [cast('p0', spell, lava, 0)]);
-    expect(play(w, 2).find((e) => e.k === 'death')).toMatchObject({ id: 'p1', by: 'p0', src: spell });
+    expect(play(w, 4).find((e) => e.k === 'death')).toMatchObject({ id: 'p1', by: 'p0', src: spell });
   });
 });
