@@ -304,6 +304,7 @@ function startRoom(code: string, name: string) {
     ready: () => net.send({ t: 'ready' }),
     card: (slot, i, swap) => net.send({ t: 'card', slot, i, ...(swap && { swap }) }),
     reroll: () => net.send({ t: 'reroll' }),
+    keep: (slot) => net.send({ t: 'keep', slot }),
     sandbox: (cmd) => net.send({ t: 'sandbox', cmd }),
     spectate: (on) => net.send({ t: 'watch', on }),
     seeInvis: (on) => (seeInvis = on),

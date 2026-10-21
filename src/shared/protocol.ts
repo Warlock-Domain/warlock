@@ -26,6 +26,7 @@ export type ClientMsg =
   | { t: 'buy'; spell: SpellId }
   | { t: 'pick'; character: CharacterId } // um dos 9 prontos: vira a aparência equivalente
   | { t: 'reroll' } // Ascensão: novo sorteio das cartas da mesa
+  | { t: 'keep'; slot: number } // Ascensão: com a barra cheia, recusa a fileira de magia nova
   | { t: 'card'; slot: number; i: number; swap?: SpellId } // Ascensão: carta i (0 a 2) da escolha slot; swap = magia que sai com a barra cheia
   | { t: 'look'; look: string } // aparência montada (7 dígitos, ver LOOK_PARTS)
   | { t: 'buyItem'; item: ItemId }
@@ -219,6 +220,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return ITEM_IDS.includes(m.item as ItemId) ? { t: 'buyItem', item: m.item as ItemId } : null;
     case 'item':
       return isActive(m.item) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'item', item: m.item, x: m.x, y: m.y, seq: m.seq } : null;
+    case 'keep':
+      return Number.isInteger(m.slot) && (m.slot as number) >= 0 && (m.slot as number) < 20 ? { t: 'keep', slot: m.slot as number } : null;
     case 'card':
       return Number.isInteger(m.i) && (m.i as number) >= 0 && (m.i as number) < 3 && Number.isInteger(m.slot) && (m.slot as number) >= 0 && (m.slot as number) < 20 && (m.swap === undefined || isSpell(m.swap))
         ? { t: 'card', slot: m.slot as number, i: m.i as number, ...(m.swap !== undefined && { swap: m.swap as SpellId }) }

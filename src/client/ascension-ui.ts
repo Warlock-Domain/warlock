@@ -8,7 +8,7 @@ import { ICON, ITEM_ICON, el, icon, type Child } from './icons.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { SPELL_USE, spellClass } from './rules-text.ts';
 
-export type AscActions = { card: (slot: number, i: number, swap?: SpellId) => void; reroll: () => void };
+export type AscActions = { card: (slot: number, i: number, swap?: SpellId) => void; reroll: () => void; keep: (slot: number) => void };
 type Dialog = (cls: string, title: string, body: Node[]) => { close: () => void };
 
 export const ASC_MODE_TEXT = t(
@@ -58,7 +58,9 @@ export function ascPanel(r: PublicRoom, me: string, act: AscActions, dialog: Dia
       return el('button', { type: 'button', class: `asc-card ${f.cls}` + (c.kind === 'up' && c.rare ? ' rare' : ''), 'data-key': `card-${slot}-${i}`, onclick: () => choose(slot, i, c) },
         el('span', { class: 'asc-kind' }, f.kind), el('span', { class: 'ico' }, icon(f.ico)), el('b', {}, f.name), el('small', {}, f.text),
         c.kind === 'up' && c.rare ? el('span', { class: 'asc-rare' }, t('Rara: +2 níveis', 'Rare: +2 levels')) : null);
-    }))));
+    })),
+    // barra cheia: magia nova é troca, e trocar é escolha (pode recusar)
+    a.todo[slot] === 'spell' && full ? el('button', { type: 'button', class: 'asc-keep', 'data-key': `keep-${slot}`, onclick: () => act.keep(slot) }, t('Manter as minhas magias', 'Keep my spells')) : null));
   const pct = Math.min(100, Math.round((100 * a.xp) / Math.max(1, a.next)));
   const lead = ascLeader(r);
   return el('div', { class: 'card asc' },

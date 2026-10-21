@@ -22,7 +22,9 @@ export const DMG_XP = 1;
 export const LAVA_XP = 1;
 export const KILL_XP = 100;
 export const ALIVE_XP = 2; // por segundo vivo
-export const LEVEL_XP = 600; // cada nível custa o mesmo: o vencedor de uma rodada faz ~1 000 XP (medido em localhost, 21/10), 1 a 2 cartas
+// cada nível custa o mesmo; 1 100 (escolha do Fernando, 21/10, pela simulação de 1 430 partidas): 1,3 subir magia por intervalo
+// (com 600 eram 2,8, umas 5 cartas por intervalo)
+export const LEVEL_XP = 1100;
 export const LAST_ALIVE_PTS = 1; // ponto a mais para o último vivo
 // recuperação (as 4 do desenho, números iniciais): derrubar o líder rende LEADER_KILL_XP por nível de diferença; abaixo da média de
 // nível, +CONSOLATION do XP da rodada por nível abaixo; atrás do líder, RARE_PER_LEVEL de chance de carta rara por nível (até RARE_MAX)
@@ -98,20 +100,30 @@ export function placePoints(played: string[], fallen: string[], alive: string[])
 // escolha automática: tempo esgotado, a de cima; bot (e humano desconectado, que o bot joga) pela dificuldade: Fácil ao acaso,
 // os outros completam primeiro o grupo que falta (defesa, depois mobilidade), senão a de cima.
 // Difícil pela força medida no simulador fica para o PR de rebalanceamento (a tabela sai de lá).
-// Só cartas que entram sem troca; se as 3 pedem troca, a de cima no lugar da magia de nível mais baixo
-export function autoPick(p: Player, cards: Card[], how: 'top' | 'easy' | 'normal', rand: () => number): [number, SpellId | undefined] {
+// Só cartas que entram sem troca; magia nova com a barra cheia devolve -1 (mantém as magias, ver keepSpells)
+export function autoPick(p: Player, cards: Card[], how: 'top' | 'easy' | 'normal', rand: () => number): number {
   const full = spellCount(p.spells) >= MAX_SPELLS;
   const ok = cards.map((_, i) => i).filter((i) => !(full && cards[i].kind === 'spell'));
-  const weakest = SPELL_IDS.filter((s) => p.spells[s] > 0).sort((a, b) => p.spells[a] - p.spells[b])[0];
-  if (!ok.length) return [0, weakest];
-  if (how === 'easy') return [ok[Math.floor(rand() * ok.length)], undefined];
+  if (!ok.length) return -1;
+  if (how === 'easy') return ok[Math.floor(rand() * ok.length)];
   if (how === 'normal') {
     const has = (g: string) => SPELL_IDS.some((s) => p.spells[s] > 0 && spellGroup(s) === g);
     const want = ['defense', 'mobility'].find((g) => !has(g));
     const i = ok.find((i) => cards[i].kind !== 'item' && groupOf(cards[i]) === want);
-    if (i !== undefined) return [i, undefined];
+    if (i !== undefined) return i;
   }
-  return [ok[0], undefined];
+  return ok[0];
+}
+
+// barra cheia: a fileira de magia nova pode ser recusada (Fernando, 21/10: "troca opcional com a barra cheia");
+// antes, a magia nova obrigava a tirar uma já subida, e o tempo esgotado tirava a mais fraca
+export function keepSpells(m: Match, id: string, slot: number): boolean {
+  const a = m.asc;
+  const p = m.players.find((q) => q.id === id);
+  if (!a || !p || m.phase !== 'shop' || a.todo[id]?.[slot] !== 'spell' || !a.offer[id]?.[slot] || spellCount(p.spells) < MAX_SPELLS) return false;
+  a.todo[id].splice(slot, 1);
+  a.offer[id].splice(slot, 1);
+  return true;
 }
 
 // novo sorteio (quem está atrás do líder, 1 por intervalo): as cartas da mesa saem e outras entram no próximo passo
@@ -176,7 +188,9 @@ export function ascShop(m: Match, now: number, rand: () => number) {
         continue;
       }
       const how = !p.bot && p.connected ? 'top' : (p.difficulty ?? m.opts.difficulty) === 'easy' ? 'easy' : 'normal';
-      if (!(p.bot || !p.connected || late) || !pickCard(m, p.id, 0, ...autoPick(p, offer[0], how, rand))) break;
+      if (!(p.bot || !p.connected || late)) break;
+      const i = autoPick(p, offer[0], how, rand);
+      if (!(i < 0 ? keepSpells(m, p.id, 0) : pickCard(m, p.id, 0, i))) break;
     }
     if (!p.bot) p.ready = !todo.length;
   }

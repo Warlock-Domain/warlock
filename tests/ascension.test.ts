@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ASC_ROUNDS, CONSOLATION, LEADER_KILL_XP, MARK_KB, applyCard, ascDeath, ascEndRound, autoPick, drawCards, levelOf, placePoints, pickCard, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
+import { ASC_ROUNDS, CONSOLATION, LEADER_KILL_XP, MARK_KB, applyCard, ascDeath, ascEndRound, autoPick, drawCards, keepSpells, levelOf, placePoints, pickCard, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
 import { addPlayer, buy, castBallot, newMatch, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage } from '../src/shared/protocol.ts';
 import { gearOf } from '../src/shared/sim.ts';
@@ -299,9 +299,35 @@ describe('recuperação e bots do Ascensão', () => {
   it('easy bot picks at random; normal bot fills missing defense first', () => {
     const p = { ...ascMatch(1).players[1], spells: { ...noSpells(), teleport: 1 } };
     const cards: Card[] = [{ kind: 'item', id: 'boots' }, { kind: 'spell', id: 'lightning' }, { kind: 'spell', id: 'shield' }];
-    expect(autoPick(p, cards, 'normal', seeded(1))[0]).toBe(2);
-    expect(autoPick(p, cards, 'top', seeded(1))[0]).toBe(0);
-    const seen = new Set(Array.from({ length: 50 }, (_, s) => autoPick(p, cards, 'easy', seeded(s))[0]));
+    expect(autoPick(p, cards, 'normal', seeded(1))).toBe(2);
+    expect(autoPick(p, cards, 'top', seeded(1))).toBe(0);
+    const seen = new Set(Array.from({ length: 50 }, (_, s) => autoPick(p, cards, 'easy', seeded(s))));
     expect(seen.size).toBe(3);
+  });
+
+  it('full bar: new spell row can be kept, and the automatic pick keeps instead of swapping', () => {
+    const m = ascMatch(1, true);
+    const h = m.players.find((q) => q.id === 'h')!;
+    h.spells = { ...noSpells(), lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 3 };
+    expect(autoPick(h, [{ kind: 'spell', id: 'grip' }, { kind: 'spell', id: 'meteor' }], 'normal', seeded(1))).toBe(-1);
+    tickMatch(m, STEP_MS, [], seeded(2));
+    expect(m.asc!.todo.h).toEqual(['spell', 'item']);
+    expect(keepSpells(m, 'h', 1)).toBe(false); // a fileira do item não se recusa
+    expect(keepSpells(m, 'h', 0)).toBe(true);
+    expect([m.asc!.todo.h, h.spells.swap]).toEqual([['item'], 3]);
+    // tempo esgotado: mantém as magias e pega o item de cima
+    const n = newMatch();
+    addPlayer(n, 'h', 'Ana');
+    startMatch(n, 0, 3, 'ascension', true, seeded(1), { pace: 'short' });
+    const g = n.players.find((q) => q.id === 'h')!;
+    g.spells = { ...noSpells(), lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 3 };
+    run(n, 0, () => n.phase === 'countdown');
+    expect(g.spells.swap).toBe(3);
+    expect(Object.values(g.items).reduce((x, y) => x + y)).toBe(2);
+  });
+
+  it('keep message parses only with a valid slot', () => {
+    expect(parseClientMessage(JSON.stringify({ t: 'keep', slot: 0 }))).toEqual({ t: 'keep', slot: 0 });
+    for (const slot of [-1, 1.5, 'a', 20]) expect(parseClientMessage(JSON.stringify({ t: 'keep', slot }))).toBeNull();
   });
 });

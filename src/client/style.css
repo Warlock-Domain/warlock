@@ -1206,6 +1206,7 @@ div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: 
 .asc-card.rare { box-shadow: 0 0 0 2px var(--gold), 0 0 14px rgba(255, 214, 102, .35); }
 .asc-rare { color: var(--gold); font-weight: 700; font-size: .8rem; }
 .asc-reroll { margin-top: 10px; }
+.asc-keep { margin-top: 8px; }
 .asc-lv { font-size: .75rem; color: var(--gold); white-space: nowrap; }
 .asc-lv.lead { color: var(--lava-hi); font-weight: 700; }
 .asc-swap-overlay { z-index: 20; }

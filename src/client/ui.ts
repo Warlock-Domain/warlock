@@ -308,6 +308,7 @@ type RoomActions = {
   ready: () => void;
   card: (slot: number, i: number, swap?: SpellId) => void; // Ascensão: carta i da escolha slot (swap = magia que sai com a barra cheia)
   reroll: () => void; // Ascensão: novo sorteio
+  keep: (slot: number) => void; // Ascensão: manter as magias (barra cheia)
   spell: (s: SpellId) => void;
   volumes: () => { sfx: number; music: number };
   setVolume: (kind: 'sfx' | 'music', value: number) => void;
