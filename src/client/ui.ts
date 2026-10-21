@@ -564,7 +564,7 @@ function podium(room: PublicRoom, me: string) {
   const top = [...room.players].sort((a, b) => b.score - a.score || b.stats.match.dmg - a.stats.match.dmg).slice(0, 3);
   // ninguém pontuou (encerrada cedo): pódio de zeros não diz nada
   if (top.length < 2 || top[0].score === 0) return null;
-  const unit = room.mode === 'deathmatch' ? [t('ponto', 'point'), t('pontos', 'points')] : [t('vitória', 'win'), t('vitórias', 'wins')];
+  const unit = room.mode === 'deathmatch' || room.mode === 'ascension' ? [t('ponto', 'point'), t('pontos', 'points')] : [t('vitória', 'win'), t('vitórias', 'wins')];
   const step = (p: PublicPlayer, place: number) => el('div', { class: `podium-step p${place}` + (p.id === me ? ' me' : '') },
     el('img', { class: 'podium-face', src: `/chars/${p.character}.webp`, alt: '', width: 64, height: 64 }),
     el('b', {}, p.name), el('small', {}, `${p.score} ${unit[p.score === 1 ? 0 : 1]}`),
@@ -1145,8 +1145,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const modes: [Mode, string, string][] = [
       ['rounds', MODE_NAME.rounds, t(`O último vivo ganha a rodada. Vence quem fizer ${o.goal} rodadas.`, `The last one alive wins the round. First to win ${o.goal} rounds wins.`)],
       ['deathmatch', MODE_NAME.deathmatch, t(`Rodadas de 60 s, quem cai volta em 10 s. Cada abate vale 1 ponto; vence quem chegar a ${DM_GOALS[o.goal]}.`, `60 s rounds, whoever falls comes back after 10 s. Each kill is worth 1 point; first to ${DM_GOALS[o.goal]} wins.`)],
-      ['ascension', MODE_NAME.ascension, ASC_MODE_TEXT],
       ['teams', MODE_NAME.teams, t(`Azul contra Vermelho. A rodada acaba quando só sobra um time, e todos dele ganham 1 ponto; vence quem fizer ${o.goal}. Magia em aliado só empurra.`, `Blue vs Red. The round ends when only one team is left, and everyone on it gets 1 point; first to ${o.goal} wins. Spells on allies only knock back.`)],
+      ['ascension', MODE_NAME.ascension, ASC_MODE_TEXT],
     ];
     // Times: o grupo escolhe se os times mudam a cada rodada ou ficam até o fim
     const shufflePicker = mode !== 'teams' ? null : choice(t('Sorteio dos times', 'Team shuffle'), [[true, t('Sorteados a cada rodada', 'Shuffled every round')], [false, t('Fixos na partida', 'Fixed for the match')]], shuffle, (k) => ((shuffle = k), drawCenter()));
@@ -1451,7 +1451,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     center.classList.toggle('enter', entering);
     centerPhase = r.phase;
     center.replaceChildren(r.phase === 'lobby' || (r.phase === 'end' && setup) ? lobbyPanel(r) : r.phase === 'end' ? endPanel(r) : r.phase === 'shop' ? (r.mode === 'ascension' ? ascPanel(r, me, act, dialog, [board(r, me, act.kick), nextModePicker(r)]) : shopPanel(r)) : '');
-    const shopOpen = r.phase === 'shop';
+    const shopOpen = r.phase === 'shop' && r.mode !== 'ascension'; // Ascensão: as cartas não usam o tamanho guardado da loja
     if (shopOpen !== center.classList.contains('shop-open')) {
       center.classList.toggle('shop-open', shopOpen);
       const size = shopOpen ? store.json<[string, string]>(SHOP_SIZE) : null;

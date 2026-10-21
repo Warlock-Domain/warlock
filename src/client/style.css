@@ -1205,6 +1205,8 @@ div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: 
 .asc-reroll { margin-top: 10px; }
 .asc-lv { font-size: .75rem; color: var(--gold); white-space: nowrap; }
 .asc-lv.lead { color: var(--lava-hi); font-weight: 700; }
+.asc-swap-overlay { z-index: 20; }
+.asc-swap { width: min(420px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 14px 18px 18px; border-radius: var(--r-frame); border: 2px solid var(--bronze); background: var(--frame), var(--plate); box-shadow: var(--plate-edge), var(--shadow-lg); }
 .asc-swap-list { display: flex; flex-direction: column; gap: 8px; }
 .asc-swap-list button { justify-content: flex-start; border-left: 3px solid var(--g, var(--bronze)); }
 @media (hover: hover) { .asc-card:hover { transform: translateY(-2px); } }
