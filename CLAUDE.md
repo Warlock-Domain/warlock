@@ -120,6 +120,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 20/10 | Loja com **itens em 3 colunas** (antes 2) no PC: cartão de item de ~105 px (antes 118), coluna de itens de 334 px e a loja só para ver 60 px mais larga (1300 px) para as magias seguirem 5 por fileira em 1280 e 1920 (issue #121) | com 2 colunas a loja ficava muito vertical; escolhido entre cartão de 105 px, de 97 px e cartão de 118 px com a Ficha do mago mais estreita |
 | 20/10 | **Sala contra bots sem escolha de magias** (issue #145): sai o bloco "Magias dos bots" (Sorteio + grade); os bots compram sozinhos, como em qualquer sala. A escolha do boneco fica só na sandbox | pedido do Fernando: "nem quero sorteio nem nada" |
 | 20/10 | **Música desligada nas abas de teste** (issue #158): em `localhost`/`127.0.0.1`, sem volume guardado, a música começa em 0 (no ar segue 0,7); `?musica=1` volta ao padrão para os testes de som. Os efeitos não mudam e volume já guardado vale igual | pedido do Fernando: "está muito irritante várias abas tocando a música" |
+| 21/10 | PR **pequeno** de colaborador (bug, alinhamento de interface, texto, ajuste visual pontual) a revisão aprova e mescla sem o "aprovado" do Fernando; PR **grande** de colaborador só entra com a aprovação do Fernando (além da decisão da issue); PR das sessões do Fernando segue com o teste em `localhost` aprovado por ele | pedido dele: "pode aprovar as PRs deles sem minha aprovação se forem coisas pequenas" |
 
 ## Fluxo com agente
 

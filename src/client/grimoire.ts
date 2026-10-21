@@ -13,7 +13,7 @@ import { ITEM_DEMO, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, gro
 import { COLORS } from './scene.ts';
 import { store } from './store.ts';
 import { hideTip, itemLevels, itemTip, spellLevels, spellTip, withTip } from './tips.ts';
-import { choice, dialog, norm } from './ui.ts';
+import { choice, dialog, norm, searchFilter } from './ui.ts';
 import { arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
 type Page = { chapter: string; title: string; body: () => (Node | string | null)[]; demo?: DemoId };
@@ -230,19 +230,14 @@ export function library(onOpen?: () => void): HTMLElement {
     section('items', t('Itens passivos', 'Passive items'), 'lib-items', items(ITEM_IDS.filter((i) => !isActive(i)))),
     section('items', t('Itens ativos', 'Active items'), 'lib-items', items(ACTIVE_ITEMS)),
   ];
-  let query = '';
   let only = 'all';
   const none = el('p', { class: 'muted', hidden: true }, t('Nada com esse nome.', 'Nothing with that name.'));
   const search = el('input', { type: 'search', class: 'lib-search', placeholder: t('Buscar pelo nome', 'Search by name'), 'aria-label': t('Buscar magia ou item pelo nome', 'Search spell or item by name'),
-    oninput: () => ((query = norm(search.value.trim())), apply()) }) as HTMLInputElement;
+    oninput: () => apply() }) as HTMLInputElement;
   const filters = el('div', {});
   function apply() {
     filters.replaceChildren(choice(t('Grupo', 'Group'), [['all', t('Todos', 'All')], ...SPELL_GROUPS.map(([g]): [string, string] => [g, g]), ['items', CH.items]], only, (k) => ((only = k), apply())));
-    for (const g of groups) {
-      const tiles = [...g.querySelectorAll<HTMLElement>('.lib-tile')];
-      for (const b of tiles) b.hidden = !b.dataset.name!.includes(query);
-      g.hidden = tiles.every((b) => b.hidden) || (only !== 'all' && g.dataset.filter !== only);
-    }
+    searchFilter(groups, '.lib-tile', search.value, (g) => only !== 'all' && g.dataset.filter !== only);
     none.hidden = groups.some((g) => !g.hidden);
   }
   apply();
