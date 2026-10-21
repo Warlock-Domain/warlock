@@ -866,7 +866,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let mine: PublicPlayer | undefined;
   const ORDER_KEY = 'warlock:loadout-order';
   let loadoutOrder = store.json<LoadoutOrder>(ORDER_KEY) ?? undefined;
-  let slotDrag: { pointer: number; from: number; x: number; y: number; moved: boolean } | null = null;
+  let slotDrag: { pointer: number; from: number; x: number; y: number; moved: boolean; ghost?: HTMLElement; over?: HTMLElement | null } | null = null;
   const equipment = (p: PublicPlayer) => loadoutSlots(p.spells, p.items, loadoutOrder);
   function changeSlot(from: number, to: number) {
     if (!mine) return false;
@@ -895,13 +895,27 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (!slotDrag || slotDrag.pointer !== e.pointerId) return;
       // até 6 px conta como clique; passou disso vira arraste, e o clique da vaga não dispara (blockClick)
       if (Math.hypot(e.clientX - slotDrag.x, e.clientY - slotDrag.y) > 6) slotDrag.moved = true;
-      if (slotDrag.moved) { e.preventDefault(); node.classList.add('dragging-slot'); }
+      if (!slotDrag.moved) return;
+      e.preventDefault();
+      node.classList.add('dragging-slot');
+      // o ícone segue o mouse e a vaga embaixo dele acende (Fernando, 21/10)
+      slotDrag.ghost ??= document.body.appendChild(el('div', { class: 'drag-ghost', style: `--g: ${getComputedStyle(node).getPropertyValue('--g')}` }, node.querySelector('svg')?.cloneNode(true) ?? null));
+      slotDrag.ghost.style.left = e.clientX + 'px';
+      slotDrag.ghost.style.top = e.clientY + 'px';
+      const over = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-loadout-slot]');
+      if (over !== slotDrag.over) {
+        slotDrag.over?.classList.remove('drop-target');
+        if (over && over !== node) over.classList.add('drop-target');
+        slotDrag.over = over;
+      }
     });
     const finish = (e: PointerEvent) => {
       if (!slotDrag || slotDrag.pointer !== e.pointerId) return;
       const drag = slotDrag;
       slotDrag = null;
       node.classList.remove('dragging-slot');
+      drag.ghost?.remove();
+      drag.over?.classList.remove('drop-target');
       blockClick = drag.moved;
       setTimeout(() => { blockClick = false; }, 0);
       if (drag.moved && e.type === 'pointerup') {
@@ -1295,7 +1309,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const peek = look && !deadShop && !r.sandbox;
     const mine = r.players.find((p) => p.id === me);
     // desfazer: só o que foi comprado nesta loja (devolve o ouro)
-    const undoBtn = (key: string) => (!peek && mine?.bought.includes(key) ? el('button', { type: 'button', class: 'undo', title: t('Desfazer a compra (devolve o ouro)', 'Undo the purchase (refunds the gold)'), 'aria-label': t('Desfazer a compra', 'Undo the purchase'), 'data-key': 'undo-' + key, onclick: () => act.undo(key) }, '↩') : null);
+    const undoBtn = (key: string) => (!peek && mine?.bought.includes(key) ? el('button', { type: 'button', class: 'undo', title: t('Desfazer a compra (devolve o ouro)', 'Undo the purchase (refunds the gold)'), 'aria-label': t('Desfazer a compra', 'Undo the purchase'), 'data-key': 'undo-' + key, onclick: () => act.undo(key) }, icon(UI_ICON.undo)) : null);
     if (!mine) return el('div', { class: 'card' }, el('p', {}, t('Você está assistindo. Entra na próxima partida.', 'You are watching. You join the next match.')));
     // vender: magia ou item inteiro; o comprado nesta loja volta inteiro, o de antes pela metade
     const sellBtn = (key: string) => {
@@ -1305,6 +1319,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       return !peek && canSell(mine, r.round, key) ? el('button', { type: 'button', class: 'sell', title, 'aria-label': value > 0 ? t(`Vender por ${value} de ouro`, `Sell for ${value} gold`) : t('Vender', 'Sell'), 'data-key': 'sell-' + key, onclick: () => act.sell(key) }, icon(UI_ICON.gold), el('span', { class: 'sell-txt' }, value > 0 ? t(`Vender ${value}`, `Sell ${value}`) : t('Vender', 'Sell'))) : null;
     };
     // um cartão por magia ou item: "dá para comprar" e "já tenho" à vista, e quanto falta quando o ouro não dá
+    // tecla para mostrar no cartão, ou null quando a magia ou o item não tem tecla
+    const hotkeyOf = (a: Action) => (isPadMode() || keyOf(a) ? labelOf(a) : null);
     type Offer = { key: string; ico: string; name: string; hotkey: string | null; use: string; lvl: number; max: number; price: number | null; blocked: string | null; buy: () => void; tip: () => string;
       // a ficha depois de comprar mais um nível e depois de vender tudo (prévia na dica)
       bought: () => SheetRow[]; sold: () => SheetRow[] };
@@ -1317,10 +1333,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const key = o.key.replace('-', ':'); // spell:x ou item:y, como na compra
       const cost = o.price === 0 ? t('de graça', 'for free') : t(`por ${o.price} de ouro`, `for ${o.price} gold`);
       const full = o.blocked ?? (o.lvl ? t(`Subir para o nível ${o.lvl + 1} ${cost}`, `Upgrade to level ${o.lvl + 1} ${cost}`) : t(`Comprar ${cost}`, `Buy ${cost}`));
-      // ícone quadrado como na loja do Dota (decisão do Fernando, 19/10): tecla no canto, nível em pips e embaixo a moeda e o preço
+      // ícone quadrado como na loja do Dota (decisão do Fernando, 19/10): nível em pips e embaixo a moeda e o preço
       // (vermelho quando o ouro não dá); o nome vai dentro do cartão (Fernando, 19/10) e o que faz fica na dica
-      const face = [o.hotkey !== null ? el('span', { class: 'key' }, o.hotkey) : null, el('span', { class: 'ico' }, icon(o.ico)), el('span', { class: 'tile-name' }, o.name), el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
-        el('span', { class: 'tile-price' + (o.blocked ? ' off' : can ? ' can' : ' cant') }, ...(o.blocked ? [o.blocked] : [o.lvl ? t(`Nv ${o.lvl + 1} `, `Lv ${o.lvl + 1} `) : '', icon(UI_ICON.gold), o.price === 0 ? t(' grátis', ' free') : ` ${o.price}`]))];
+      const face = [el('span', { class: 'ico' }, icon(o.ico)), el('span', { class: 'tile-name' }, o.name), el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
+        el('span', { class: 'tile-price' + (o.blocked ? ' off' : can ? ' can' : ' cant') }, ...(o.blocked ? [o.blocked] : [o.lvl ? el('span', { class: 'lvl' }, t(`Nv ${o.lvl + 1} `, `Lv ${o.lvl + 1} `)) : null, icon(UI_ICON.gold), o.price === 0 ? t(' grátis', ' free') : ` ${o.price}`]))];
       // clique compra; clique direito também (como no Dota); só ver: o ícone não compra
       return withTip(el('div', { class: 'shop-item' + (o.key.startsWith('item') ? ' is-item' : '') + (o.lvl ? ' owned' : '') + (can && !peek ? ' can' : '') + (o.blocked && !o.lvl ? ' locked' : ''), 'data-name': norm(o.name),
         oncontextmenu: (e: Event) => {
@@ -1329,7 +1345,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         } },
         peek ? el('div', { class: 'shop-tile', role: 'img', 'aria-label': `${o.name}: ${full}` }, ...face)
           : el('button', { type: 'button', class: 'shop-tile', 'data-key': o.key, disabled: !can, 'aria-label': `${o.name}: ${full}`, onclick: o.buy }, ...face),
-        el('div', { class: 'tile-acts' }, undoBtn(key), sellBtn(key)),
+        // tecla só do que está equipado, numa bolinha por cima do canto, fora do arranjo do cartão (Fernando, 21/10)
+        o.lvl && o.hotkey ? el('span', { class: 'key', 'aria-hidden': 'true' }, o.hotkey) : null,
+        // comprar ou subir de nível, vender e desfazer numa coluna à direita do cartão (Fernando, 21/10); o clique no cartão continua comprando
+        el('div', { class: 'tile-acts' }, !peek && open ? iconButton(icon(o.lvl ? UI_ICON.upgrade : UI_ICON.buy), full, o.buy, { class: 'buy', 'data-key': 'buy-' + o.key, disabled: !can }) : null, sellBtn(key), undoBtn(key)),
       ), () => {
         const sell = peek ? 0 : sellValue(mine, r.round, key);
         return o.tip() + (o.key.startsWith('spell') ? `<p><i>${o.use}</i></p>` : '')
@@ -1343,14 +1362,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const lvl = mine.spells[s];
       const price = priceOf(s, lvl);
       const full = lvl === 0 && spellCount(mine.spells) >= MAX_SPELLS;
-      return offer({ key: 'spell-' + s, ico: ICON[s], name: spellName(s), hotkey: labelOf(s), use: SPELL_USE[s], lvl, max: MAX_SPELL_LEVEL, price,
+      return offer({ key: 'spell-' + s, ico: ICON[s], name: spellName(s), hotkey: hotkeyOf(s), use: SPELL_USE[s], lvl, max: MAX_SPELL_LEVEL, price,
         blocked: price === null ? t('Máximo', 'Max') : full ? t(`Limite de ${MAX_SPELLS} magias`, `Limit of ${MAX_SPELLS} spells`) : null, buy: () => act.buy(s), tip: () => spellTip(s, lvl),
         bought: () => sheet({ ...mine.spells, [s]: lvl + 1 }, mine.items), sold: () => sheet({ ...mine.spells, [s]: 0 }, mine.items) });
     };
     const itemOffer = (i: ItemId) => {
       const lvl = mine.items[i];
       const price = itemPrice(mine.items, i);
-      return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: itemName(i), hotkey: isActive(i) ? labelOf(i) : null, use: itemText(i), lvl, max: ITEMS[i].levels.length, price,
+      return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: itemName(i), hotkey: isActive(i) ? hotkeyOf(i) : null, use: itemText(i), lvl, max: ITEMS[i].levels.length, price,
         blocked: lvl >= ITEMS[i].levels.length ? t('Máximo', 'Max') : price === null ? t('Sem espaço', 'No room') : null, buy: () => act.buyItem(i), tip: () => itemTip(i, lvl),
         bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }) });
     };

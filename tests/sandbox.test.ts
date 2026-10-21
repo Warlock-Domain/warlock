@@ -160,10 +160,11 @@ describe('sandbox', () => {
     expect(wiz(m, 'a').spells.lightning).toBe(0);
   });
 
-  it('sem recarga: as magias do humano ficam prontas na hora', () => {
+  it('sem recarga: começa ligado e as magias do humano ficam prontas na hora; desligado volta a recarga', () => {
+    expect(sandbox().m.sandbox?.noCd).toBe(true);
     const fire = (noCd: boolean) => {
       const { m, now } = sandbox();
-      if (noCd) sandboxCmd(m, { op: 'set', key: 'noCd', on: true }, now);
+      if (!noCd) sandboxCmd(m, { op: 'set', key: 'noCd', on: false }, now);
       const { events } = steps(m, now, 60, [{ id: 'a', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
       expect(events.some((e) => e.k === 'fire' && e.id === 'a')).toBe(true);
       return wiz(m, 'a').cd.fireball - m.world!.t;
