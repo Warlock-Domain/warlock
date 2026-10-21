@@ -925,7 +925,6 @@ body.replaying .peek-shop { display: none; }
 .home-tabs button.on::before { border-bottom-color: var(--gold); background: linear-gradient(180deg, var(--panel2), var(--lava-night)); }
 .home-tabs button:focus-visible { z-index: 1; outline-offset: -5px; }
 @media (hover: hover) { .home-tabs button:hover { color: var(--fg); } .home-tabs button:hover::before { border-bottom-color: var(--bronze); background: var(--plate); } }
-.home-tabs button .gi { display: none; }
 .home-tabs .home-exit { flex: 0 0 64px; padding: 10px; border-right: 1px solid var(--line); }
 .home-tabs .home-exit::before { display: none; }
 .home-tabs .home-exit .gi { display: block; width: 28px; height: 28px; color: var(--muted); }

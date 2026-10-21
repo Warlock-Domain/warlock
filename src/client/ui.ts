@@ -3,7 +3,7 @@ import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
 import { ARENA_IDS, type ArenaId } from '../shared/arena.ts';
 import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/characters.ts';
-import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Sandbox, type SandboxCmd, type Vote } from '../shared/match.ts';
+import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
@@ -80,7 +80,7 @@ function playMenu(roomList: HTMLElement, onCreate: () => void, onTrain: (kind: s
     el('section', { class: 'play-content' }, el('h2', {}, labels[0]),
       el('button', { type: 'button', class: 'primary big', onclick: onCreate }, t('Criar sala', 'Create room')), roomList),
     el('section', { class: 'play-content' }, el('h2', {}, labels[1]),
-      el('p', { class: 'muted' }, t('Prepare a partida: escolha os bots, a dificuldade e as magias antes de começar.', 'Set up the match: choose bots, difficulty and spells before starting.')),
+      el('p', { class: 'muted' }, t('Prepare a partida: escolha os bots e a dificuldade antes de começar.', 'Set up the match: choose bots and difficulty before starting.')),
       el('button', { type: 'button', class: 'primary big', onclick: () => onTrain('bots') }, t('Criar partida contra bots', 'Create bot match')),
       el('button', { type: 'button', disabled: !skill, onclick: () => skill && onTrain('shadow') }, t('Treinar contra a sua sombra', 'Practice against your shadow')),
       !skill ? el('small', {}, t('Jogue 3 rodadas para a sombra aprender.', 'Play 3 rounds for the shadow to learn.')) : null),
@@ -110,9 +110,9 @@ function playMenu(roomList: HTMLElement, onCreate: () => void, onTrain: (kind: s
 
 // Protótipo de navegação da issue #83; Home abre ao entrar no menu.
 type HomeTab = 'home' | 'play' | 'library' | 'char' | 'shop' | 'profile' | 'settings';
-const HOME_TABS: [HomeTab, string, string][] = [['play', t('Jogar', 'Play'), UI_ICON.aim], ['library', t('Aprender', 'Learn'), ICON.fireball],
-  ['char', t('Guarda-roupas', 'Wardrobe'), UI_ICON.person], ['shop', t('Loja', 'Shop'), UI_ICON.gold],
-  ['profile', t('Perfil', 'Profile'), UI_ICON.person], ['settings', t('Configurações', 'Settings'), UI_ICON.gear]];
+// abas só com texto: as placas da barra não mostram ícone e Configurações vira a chave (wrench.svg)
+const HOME_TABS: [HomeTab, string][] = [['play', t('Jogar', 'Play')], ['library', t('Aprender', 'Learn')], ['char', t('Guarda-roupas', 'Wardrobe')],
+  ['shop', t('Loja', 'Shop')], ['profile', t('Perfil', 'Profile')], ['settings', t('Configurações', 'Settings')]];
 
 // Categorias do Guarda-roupas; o editor existente permanece em Acessórios.
 function personagemTab(): HTMLElement {
@@ -198,7 +198,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   const stage = el('div', { class: 'home-stage' },
     el('div', { class: 'home-backdrop', 'aria-hidden': 'true' }, el('img', { class: 'home-art', src: '/home-cat.jpg', alt: '', width: 736, height: 736 })),
     ...Object.values(panels));
-  const btns = HOME_TABS.map(([k, label, ico]) => el('button', { type: 'button', role: 'tab', id: 'home-tab-' + k, 'aria-controls': 'home-' + k, onclick: () => show(k) }, icon(ico), el('span', {}, label)));
+  const btns = HOME_TABS.map(([k, label]) => el('button', { type: 'button', role: 'tab', id: 'home-tab-' + k, 'aria-controls': 'home-' + k, onclick: () => show(k) }, el('span', {}, label)));
   const settingsBtn = btns[HOME_TABS.findIndex(([k]) => k === 'settings')];
   settingsBtn.classList.add('home-tool');
   settingsBtn.title = t('Configurações', 'Settings');
@@ -744,14 +744,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     rule('god', t('Vida infinita', 'Infinite health')),
     rule('noCd', t('Sem recarga', 'No cooldowns')),
     rule('shrink', t('Encolher a arena', 'Shrink the arena')),
-    check(t('Ver invisíveis', 'See invisible wizards'), true, act.seeInvis).row,
+    check(t('Ver invisíveis (teste)', 'See invisible wizards (test)'), false, act.seeInvis).row,
     el('div', { class: 'sandbox-row' },
       el('select', { 'aria-label': t('Dificuldade do bot', 'Bot difficulty'), onchange: (e: Event) => (sbLevel = (e.target as HTMLSelectElement).value as Level) },
         ...(['easy', 'normal', 'hard'] as const).map((k) => el('option', { value: k, selected: k === sbLevel }, SKILL_NAME[k]))),
       el('button', { type: 'button', onclick: () => addBot(false) }, t('+ Bot', '+ Bot'))),
     el('button', { type: 'button', title: t('Bot que não anda nem atira: bom para testar dano e empurrão', 'A bot that neither moves nor shoots: good for testing damage and knockback'), onclick: () => addBot(true) }, t('+ Boneco parado', '+ Training dummy')),
     el('div', { class: 'sandbox-row' }, sbTurretDirection,
-      el('button', { type: 'button', title: t('Dispara bolas de fogo numa direção fixa. Não recebe dano nem empurrão. A torreta inicial dispara da esquerda para a direita.', 'Fires fireballs in a fixed direction. Takes no damage or knockback. The initial turret fires from left to right.'), onclick: () => act.sandbox({ op: 'turret', direction: sbTurretDirection.value as 'north' | 'east' | 'south' | 'west' }) }, t('+ Torreta', '+ Turret'))),
+      el('button', { type: 'button', title: t('Dispara bolas de fogo numa direção fixa. Não recebe dano nem empurrão. A torreta inicial dispara da esquerda para a direita.', 'Fires fireballs in a fixed direction. Takes no damage or knockback. The initial turret fires from left to right.'), onclick: () => act.sandbox({ op: 'turret', direction: sbTurretDirection.value as TurretDir }) }, t('+ Torreta', '+ Turret'))),
     botSetupPanel(1, savedBotSetup(), () => {}),
     sbBots,
     el('div', { class: 'sandbox-row' }, t('Arena', 'Arena'), sbArena),
@@ -859,6 +859,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     });
     node.addEventListener('pointermove', (e) => {
       if (!slotDrag || slotDrag.pointer !== e.pointerId) return;
+      // até 6 px conta como clique; passou disso vira arraste, e o clique da vaga não dispara (blockClick)
       if (Math.hypot(e.clientX - slotDrag.x, e.clientY - slotDrag.y) > 6) slotDrag.moved = true;
       if (slotDrag.moved) { e.preventDefault(); node.classList.add('dragging-slot'); }
     });
