@@ -52,7 +52,7 @@ jobs:
               número de magia, item ou bot (spells.ts, items.ts, constants.ts, BOT_SKILL em bots.ts) só com a medição
               do simulador no PR (vitória ajustada antes → depois, faixa 0,85 a 1,15 no Normal e no Difícil);
               lógica nova em src/shared com teste em tests/; decisão não óbvia (tempo, número, ordem, contorno de bug, servidor x cliente) com comentário curto de porquê, e comentário antigo atualizado quando a decisão muda; tela mexida com prints de PC (sem print de celular por enquanto: não pedir)
-              e as media queries do celular que já existem não removidas; sem segredo; asset novo com licença livre e crédito em public/CREDITS.txt;
+              e as media queries do celular que já existem não removidas; sem segredo; asset novo com licença livre, crédito em public/CREDITS.txt e linha em docs/ASSETS.md (o que é, onde o código usa, de onde veio);
               dependência ou script novo (package.json, package-lock.json, .github/workflows) destacado para o dono olhar;
               código a mais, no critério da skill ponytail-review (o que dá para apagar): abstração de um uso só, duplicar
               el()/choice()/withTip/store/t() ou outro helper que já existe no repo, reinventar o que a biblioteca padrão,
