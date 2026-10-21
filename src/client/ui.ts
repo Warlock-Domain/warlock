@@ -741,7 +741,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('button', { type: 'button', onclick: () => addBot(false) }, t('+ Bot', '+ Bot'))),
     el('button', { type: 'button', title: t('Bot que não anda nem atira: bom para testar dano e empurrão', 'A bot that neither moves nor shoots: good for testing damage and knockback'), onclick: () => addBot(true) }, t('+ Boneco parado', '+ Training dummy')),
     el('div', { class: 'sandbox-row' }, sbTurretDirection,
-      el('button', { type: 'button', title: t('Dispara bolas de fogo numa direção fixa. Não recebe dano nem empurrão.', 'Fires fireballs in a fixed direction. Takes no damage or knockback.'), onclick: () => act.sandbox({ op: 'turret', direction: sbTurretDirection.value as 'north' | 'east' | 'south' | 'west' }) }, t('+ Torreta', '+ Turret'))),
+      el('button', { type: 'button', title: t('Dispara bolas de fogo numa direção fixa. Não recebe dano nem empurrão. A torreta inicial dispara da esquerda para a direita.', 'Fires fireballs in a fixed direction. Takes no damage or knockback. The initial turret fires from left to right.'), onclick: () => act.sandbox({ op: 'turret', direction: sbTurretDirection.value as 'north' | 'east' | 'south' | 'west' }) }, t('+ Torreta', '+ Turret'))),
     botSetupPanel(1, savedBotSetup(), () => {}),
     sbBots,
     el('div', { class: 'sandbox-row' }, t('Arena', 'Arena'), sbArena),
