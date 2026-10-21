@@ -18,6 +18,7 @@ Um quarto modo de partida, "meio roguelike, tipo o ARAM do LoL com as cartinhas 
 - **Aumentos** (cartas que mudam como uma magia funciona, ex.: "Bola de fogo quica"): ficam para a 2ª leva. Lista proposta no artefato.
 - Ouro, loja, venda e desfazer no Ascensão.
 - Mudar os modos atuais (Rodadas, Deathmatch, Times) ou os números das magias e itens.
+- Rebalancear magias para o Ascensão (decisão de 21/10): as magias e os itens entram com os números de hoje; o simulador só ajusta o que é do modo (XP, curva de níveis, pontos, peso no sorteio e raridade).
 
 ## Anti-objetivos
 
@@ -40,6 +41,7 @@ Um quarto modo de partida, "meio roguelike, tipo o ARAM do LoL com as cartinhas 
 | Recuperação | As 4: recompensa por derrubar o líder, XP de consolação, cartas melhores para quem está atrás, líder marcado leva mais empurrão |
 | Baús | Não existem no Ascensão (a opção some da sala nesse modo) |
 | Bots | Escolhem pela dificuldade: Fácil ao acaso; Normal completa grupos que faltam (defesa/mobilidade antes de mais ataque); Difícil escolhe a carta que mais vence no simulador |
+| Magias no modo (21/10) | "Por enquanto o modo Ascension vai ser sem skills rebalanceadas": mesmos números de `spells.ts` e `items.ts` dos outros modos |
 
 ## Como funciona
 
@@ -91,6 +93,12 @@ Curva de níveis calibrada para dar em média 1 a 2 escolhas por intervalo.
 - Rodada média entre 60 e 120 s; ≥ 60% das mortes por golpe (metas atuais).
 - Quem lidera em nível na rodada 3 vence entre 25% e 50% das partidas.
 - Nenhuma carta escolhida em mais de 40% das vezes em que aparece (sinal de carta forte demais).
+
+## Código separado (pedido do Fernando, 19/10: "deixe o código do ascension mais separado pois vai mudar muita coisa da core gameplay")
+
+- Toda a regra do modo mora em `src/shared/ascension.ts` (XP, níveis, cartas, pontos, recuperação, escolha dos bots) e a tela em `src/client/ascension-ui.ts`.
+- `match.ts`, `sim.ts`, `protocol.ts`, `room-do.ts` e `ui.ts` ganham só ganchos curtos do tipo `if (m.mode === 'ascension') return asc.algo(...)`.
+- Os outros modos não mudam: o hash de `tests/style.test.ts` continua o mesmo.
 
 ## Onde mexe (para o builder confirmar)
 
