@@ -35,17 +35,29 @@ declare const __BRANCH__: string;
 
 // aba de teste diz qual é o teste (pedido do Fernando, 20/10): várias sessões abrem localhost e todas as abas tinham o mesmo
 // título. Em localhost vira "🧪 <branch> · Warlock Wars"; ?aba=<nome> na URL troca o nome. No ar nada muda.
-if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+const LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+if (LOCAL) {
   document.title = `🧪 ${new URLSearchParams(location.search).get('aba') || __BRANCH__ || 'teste'} · Warlock Wars`;
 }
 
-// som de cada magia: um arquivo para cada, nenhum repetido (a Bola de neve é o 'frost')
+// música desligada nas abas de teste (pedido do Fernando, 20/10: várias abas tocando juntas, issue #158): em localhost quem nunca
+// mexeu no volume começa sem música; ?musica=1 volta ao padrão, para testar som. Volume já guardado vale igual. No ar nada muda.
+const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica') !== '1' ? 0 : undefined;
+
+// ?ir=<lugar> (issue #140): em localhost a aba de teste já abre no ponto a testar (pedido do Fernando, 20/10); no ar nada muda.
+// Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, controle, jogador,
+// personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando) e partida:loja (contra 1 bot, na loja da rodada 1, com 120 s).
+// Sala e seção juntas, com vírgula (as Configurações de dentro da partida): sandbox,config:som
+const IR = (LOCAL && new URLSearchParams(location.search).get('ir')?.split(',')) || [];
+const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
+
+// som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
   fireball: 'fireball', lightning: 'lightning', homing: 'homing', shield: 'shield', teleport: 'teleport',
-  swap: 'swap', grip: 'grip', meteor: 'meteor', rush: 'rush', cluster: 'cluster',
-  boomerang: 'boomerang', thrust: 'thrust', gravity: 'gravity', rockpillar: 'rockpillar', bouncer: 'bouncer',
-  drain: 'drain', snowball: 'frost', illusion: 'illusion', magnetize: 'magnetize', recharge: 'recharge',
-  alteration: 'alteration', link: 'link', windwalk: 'windwalk', splitter: 'splitter', warpzone: 'warpzone',
+  swap: 'teleport', grip: 'lightning', meteor: 'fireball', rush: 'shield', cluster: 'fireball',
+  boomerang: 'homing', thrust: 'teleport', gravity: 'homing', rockpillar: 'shield', bouncer: 'lightning',
+  drain: 'homing', snowball: 'fireball', illusion: 'teleport', magnetize: 'lightning', recharge: 'homing',
+  alteration: 'teleport', link: 'lightning', windwalk: 'shield', splitter: 'fireball', warpzone: 'shield',
 };
 
 // mensagens de erro do servidor (em português, protocolo inalterado) -> inglês
@@ -73,6 +85,27 @@ function takeAutostart(): string | null {
 
 // ?as=nome dá outra identidade na mesma máquina (testar com várias abas)
 const as = new URLSearchParams(location.search).get('as')?.replace(/[^a-z0-9]/gi, '').slice(0, 12) ?? '';
+// aba de teste velha pede para ser fechada (pedido do Fernando, 20/10; issue #140), só em localhost: a aba nova na mesma porta
+// marca as anteriores, e o servidor local fora do ar por 3 s marca a aba. Com ?as= não marca (várias abas de propósito)
+const TITLE = document.title;
+let velha = false;
+const fechar = (why: string) => (document.title = `❌ FECHAR · ${why}`);
+if (LOCAL && !as) {
+  const abas = new BroadcastChannel('warlock:abas');
+  abas.onmessage = () => {
+    velha = true;
+    fechar(TITLE);
+  };
+  abas.postMessage(0);
+}
+let caiu: ReturnType<typeof setTimeout> | undefined;
+function servidor(on: boolean) {
+  if (!LOCAL) return;
+  clearTimeout(caiu);
+  if (!on) caiu = setTimeout(() => fechar('servidor desligado'), 3000);
+  else if (velha) fechar(TITLE);
+  else document.title = TITLE;
+}
 const PID = 'warlock:pid' + (as && ':' + as);
 const NAME = 'warlock:name' + (as && ':' + as);
 const CHAR = 'warlock:char' + (as && ':' + as);
@@ -109,7 +142,7 @@ function startLobby(name: string) {
   document.body.className = 'in-lobby';
   curtain();
   // no lobby também: hover e clique dos botões e o volume das Configurações (sem música nem lava, que só existem na partida)
-  const sound = createSound();
+  const sound = createSound(MUSIC_DEFAULT);
   hoverSound(sound);
   ui.addEventListener('click', (e) => (e.target as Element).closest('button, .button') && sound.play('click'));
   let rooms: RoomInfo[] | null = null;
@@ -147,19 +180,30 @@ function startLobby(name: string) {
     rooms = m.rooms as RoomInfo[]; // a ordem e as vazias recolhidas ficam com renderLobby (screen-data.ts)
     draw();
   }, () => {}, (on) => {
+    if (!exited) servidor(on);
     // sem a conexão da lista, o lobby mostra o erro em vez de "Carregando salas…" para sempre
     if (offline === !on) return;
     offline = !on;
     draw();
   });
   draw();
+  const k = IR[0];
+  if (k === 'sandbox' || k?.startsWith('partida')) {
+    // a sala sai da URL (só a seção fica): ao voltar ao menu (location.hash = '') a página não cria outra sala
+    const url = new URL(location.href);
+    if (IR.length > 1) url.searchParams.set('ir', IR.slice(1).join(','));
+    else url.searchParams.delete('ir');
+    history.replaceState(null, '', url);
+    void create(k);
+  } else if (IR_CONFIG) openSettings(IR_CONFIG);
+  else if (k) document.getElementById('home-tab-' + k)?.click();
 }
 
 function startRoom(code: string, name: string) {
   let myName = name;
   document.body.className = 'in-room';
   curtain();
-  const sound = createSound();
+  const sound = createSound(MUSIC_DEFAULT);
   hoverSound(sound);
   let room: PublicRoom | null = null;
   let me = playerId;
@@ -213,20 +257,15 @@ function startRoom(code: string, name: string) {
   const pixelOk = !matchMedia('(pointer: coarse)').matches;
 
   let autostart = takeAutostart();
-  if (autostart === 'bots') {
-    store.set('warlock:bot-room:' + code, '1');
-    autostart = null;
-  }
-  const botsRoom = store.get('warlock:bot-room:' + code) === '1';
   const view = createRoomUi(ui, code, {
-    start: (bots, mode, shuffle, opts, again, botSetup) => {
+    start: (bots, mode, shuffle, opts, again) => {
       training = false; // partida normal depois de um treino: sem dicas
       run = pending = null;
       if (!again) {
-        trainSetup = botSetup;
+        trainSetup = undefined;
         shadow = false;
       }
-      // Dificuldade e magias escolhidas na preparação; Jogar de novo repete a configuração.
+      // Dificuldade escolhida na preparação (as magias os bots compram sozinhos); Jogar de novo repete a configuração.
       net.send({ t: 'start', bots: bots.length, mode, shuffle, opts, setup: bots.map((difficulty, i) => ({ ...trainSetup?.[i], difficulty })) });
     },
     buy: (spell) => net.send({ t: 'buy', spell }),
@@ -274,7 +313,7 @@ function startRoom(code: string, name: string) {
       store.set(NAME, myName);
       net.send({ t: 'hello', playerId, name: myName });
     },
-  }, botsRoom);
+  });
   addEventListener('keydown', (e) => {
     // ← → já trocam o período do placar quando ele está aberto (ui.ts marca o evento; por isso este ouvinte vem depois do createRoomUi)
     if (!watchId || e.defaultPrevented || (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight')) return;
@@ -313,6 +352,7 @@ function startRoom(code: string, name: string) {
     stop() {
       command({ t: 'stop' });
       predict.stop();
+      scourgeUntil = 0; // o S cancela o Flagelo em preparo
     },
     cast(spell, at) {
       const i = SPELL_IDS.indexOf(spell);
@@ -361,6 +401,7 @@ function startRoom(code: string, name: string) {
     net.send({ t: 'hello', playerId, name: myName });
     net.send({ t: 'look', look: savedLook() });
   }, (on) => {
+    servidor(on);
     online = on;
     view.setOnline(on);
   });
@@ -381,12 +422,18 @@ function startRoom(code: string, name: string) {
     const k = autostart;
     if (!k || !r.players.some((p) => p.id === me)) return;
     autostart = null;
+    if (IR_CONFIG) openSettings(IR_CONFIG); // ?ir=sandbox,config:som (só localhost)
     if (r.phase !== 'lobby' || r.players.some((p) => !p.bot && p.id !== me)) return;
     const c = CHALLENGES.find((x) => x.id === k);
     const skill = toSkill(store.json<Profile>(PROFILE_KEY));
     if (c) startChallenge(c);
     else if (k === 'shadow' && skill) startShadow(skill);
     else if (k === 'sandbox') startSandbox();
+    else if (k === 'partida' || k === 'partida:loja') {
+      // ?ir= (só localhost): partida contra 1 bot já começada; 'partida' ainda clica Pronto e pula a loja
+      net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
+      if (k === 'partida') net.send({ t: 'ready' });
+    }
   }
   // sandbox: começa com você e um boneco parado; o resto vem pelo painel
   function startSandbox() {
