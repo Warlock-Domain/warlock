@@ -7,6 +7,16 @@ export const isSpell = (x: unknown): x is SpellId => SPELL_IDS.includes(x as Spe
 // decisão do Fernando (17/10): no máximo 6 magias por mago (a Bola de fogo conta)
 export const MAX_SPELLS = 6;
 
+// magias pelo efeito principal: a loja e a ajuda mostram os nomes (rules-text.ts); o sorteio das cartas do Ascensão usa os grupos
+export const SPELL_GROUP_IDS = {
+  attack: ['fireball', 'lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball'],
+  mobility: ['teleport', 'swap', 'rush', 'thrust', 'windwalk'],
+  defense: ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion'],
+  control: ['grip', 'gravity', 'link', 'magnetize', 'drain'],
+} as const satisfies Record<string, readonly SpellId[]>;
+export type SpellGroup = keyof typeof SPELL_GROUP_IDS;
+export const spellGroup = (s: SpellId) => (Object.keys(SPELL_GROUP_IDS) as SpellGroup[]).find((g) => (SPELL_GROUP_IDS[g] as readonly SpellId[]).includes(s))!;
+
 // radius: raio da explosão do Meteoro (e do dano da Gravidade); dmgMin: dano na borda dele; absorb: dano que a Investida converte em velocidade;
 // pull: puxão da Gravidade nos magos (m/s²); scale: tempo dos projéteis inimigos na Zona de dobra; dot: dano por segundo da Bola de neve encostada
 export type Level = { cd: number; dmg: number; knock: number; speed: number; range: number; duration: number; radius: number; dmgMin: number; absorb: number; pull: number; scale: number; dot: number };
