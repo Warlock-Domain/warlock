@@ -122,6 +122,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 20/10 | **Música desligada nas abas de teste** (issue #158): em `localhost`/`127.0.0.1`, sem volume guardado, a música começa em 0 (no ar segue 0,7); `?musica=1` volta ao padrão para os testes de som. Os efeitos não mudam e volume já guardado vale igual | pedido do Fernando: "está muito irritante várias abas tocando a música" |
 | 21/10 | PR **pequeno** de colaborador (bug, alinhamento de interface, texto, ajuste visual pontual) a revisão aprova e mescla sem o "aprovado" do Fernando; PR **grande** de colaborador só entra com a aprovação do Fernando (além da decisão da issue); PR das sessões do Fernando segue com o teste em `localhost` aprovado por ele | pedido dele: "pode aprovar as PRs deles sem minha aprovação se forem coisas pequenas" |
 | 21/10 | Fluxo de teste recomendado para a IA de cada dev (docs/GUIA-COLABORADOR.md, seção Testar): navegador só de testes com perfil separado e porta de depuração em 127.0.0.1, aba já no ponto certo com `?aba=`/`?ir=`, música desligada (`?musica=1` em teste de som), 3 a 5 passos do que testar, limpeza no fim; sem aba em mudança que não altera o jogo | pedido do Fernando: cada dev testar a própria mudança em segundos |
+| 21/10 | **Quando sair do rascunho:** PR em rascunho é só trabalho em andamento ou teste com o grupo; pronto (gates verdes, testado, prints de PC se a tela mudou) vai para *Ready for review*. Agente que não consegue testar no navegador sai do rascunho do mesmo jeito e escreve no PR o que não testou e como testar; a revisão testa no ambiente do PR (CONTRIBUTING, Ambiente de cada PR) | pedido do Fernando: PRs dos colaboradores ficavam parados em rascunho porque a IA deles não abre navegador, e rascunho não recebe a revisão automática |
 
 ## Fluxo com agente
 
@@ -139,7 +140,7 @@ Todo PR do próprio repositório, rascunho também, publica em `https://pr-<n>-w
 
 **branch da tarefa → PR para o `master` → no ar** (decisão do Fernando, 20/10; o dev geral saiu do fluxo):
 
-1. Branch da tarefa (`feat/…`, `fix/…`) a partir do `master`; para testar com outras pessoas, abra o PR em rascunho: ele ganha o próprio link.
+1. Branch da tarefa (`feat/…`, `fix/…`) a partir do `master`; para testar com outras pessoas, abra o PR em rascunho: ele ganha o próprio link. Pronto, sai do rascunho; agente que não consegue testar no navegador sai do rascunho do mesmo jeito e escreve no PR o que não testou e como testar (a revisão testa no ambiente do PR).
 2. PR da tarefa para o **`master`** (a branch padrão), em *squash and merge*. Mudança de balanceamento só depois da simulação aprovada.
 3. Ao mesclar, a pipeline **Produção** publica em https://warlock.fernandorffdev.com. Sem promoção e sem dev geral.
 
