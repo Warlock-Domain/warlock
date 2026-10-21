@@ -1,7 +1,7 @@
 :root {
   /* fantasia sombria: pedra escura, lava e ouro. Toda cor do jogo sai daqui */
   --bg: #140806; --bg-glow: #5a1a08; --panel: #22110c; --panel2: #2e1710; --panel-top: #2c1610; --panel-bot: #1a0c08;
-  --line: #4a2418; --bronze: #8a4a20; --fg: #f7ecdf; --muted: #c4a693; --hero-fg: #f3dccb;
+  --line: #4a2418; --bronze: #8a4a20; --fg: #f7ecdf; --muted: #c4a693;
   --lava: #ff6a1a; --lava-hi: #ff8a3a; --lava-deep: #d9480f; --lava-dark: #8a2408; --lava-night: #2a0c06; --lava-edge: #6a2410; --ember: #ffb347;
   --gold: #ffd666; --gold-pale: #fff2a0; --red: #ff6a4d; --red-ink: #2a0800; --ok: #6fdc8c; --item: #5a4a9a; --stone: #d9c3a5;
   --silver: #d6d3cf; --copper: #d98a4e; --cream: #fff4dc; --cream-ink: #2a1206; --on-lava: #fff8f0; --ink: #000; --white: #fff;
@@ -27,7 +27,6 @@
   --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px);
   --display: "Grenze", Georgia, serif;
-  --gothic: "Grenze Gotisch", "Grenze", Georgia, serif;
   font-family: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: dark;
 }
@@ -75,15 +74,6 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 .panel input { font: inherit; font-size: 1.1rem; padding: 12px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
 
 .lobby { max-width: 760px; margin: 0 auto; padding: calc(24px + var(--safe-t)) max(16px, var(--safe-r)) calc(32px + var(--safe-b)) max(16px, var(--safe-l)); display: flex; flex-direction: column; gap: 24px; }
-.hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 26px 22px; border-radius: var(--r-frame); border: 2px solid var(--bronze); box-shadow: inset 0 0 0 3px var(--lava-night), inset 0 0 0 4px var(--gold-faint), 0 10px 40px rgba(255, 90, 20, .15);
-  /* lava de verdade (a textura da arena) escurecida à esquerda, onde fica o texto; o og.jpg tem título e retratos desenhados, ficaria texto fantasma */
-  background: var(--rivet) left 5px top 5px / 10px 10px no-repeat, var(--rivet) right 5px top 5px / 10px 10px no-repeat, var(--rivet) left 5px bottom 5px / 10px 10px no-repeat, var(--rivet) right 5px bottom 5px / 10px 10px no-repeat,
-    linear-gradient(90deg, rgba(20, 8, 6, .9), rgba(20, 8, 6, .72) 55%, rgba(20, 8, 6, .6)), radial-gradient(ellipse at 50% 130%, rgba(255, 106, 26, .5), transparent 65%), url(/tex/lava.jpg) center / 320px, var(--lava-night); }
-/* logo gótico em degradê dourado → lava; drop-shadow no lugar do text-shadow, que vazaria pelo texto transparente */
-.hero h1 { font-family: var(--gothic); font-size: 3.6rem; line-height: 1.05; letter-spacing: .01em; background: linear-gradient(180deg, var(--gold-pale), var(--gold) 45%, var(--lava-hi)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; text-shadow: none; filter: drop-shadow(0 3px 14px rgba(255, 120, 30, .55)) drop-shadow(0 0 1px var(--ink)); }
-.hero p { margin: 6px 0 0; color: var(--hero-fg); max-width: 36ch; }
-/* "trocar" o apelido: o muted some no degradê do herói (4,1:1 no celular) */
-.hero button.link { color: var(--hero-fg); }
 .lobby-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .lobby-actions .primary { flex: 1; }
 /* "Criar sala" não quebra em duas linhas no celular */
