@@ -51,13 +51,13 @@ const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica'
 const IR = (LOCAL && new URLSearchParams(location.search).get('ir')?.split(',')) || [];
 const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 
-// som de cada magia: as novas reaproveitam os sons que já existem
+// som de cada magia: um arquivo para cada, nenhum repetido (a Bola de neve é o 'frost')
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
   fireball: 'fireball', lightning: 'lightning', homing: 'homing', shield: 'shield', teleport: 'teleport',
-  swap: 'teleport', grip: 'lightning', meteor: 'fireball', rush: 'shield', cluster: 'fireball',
-  boomerang: 'homing', thrust: 'teleport', gravity: 'homing', rockpillar: 'shield', bouncer: 'lightning',
-  drain: 'homing', snowball: 'fireball', illusion: 'teleport', magnetize: 'lightning', recharge: 'homing',
-  alteration: 'teleport', link: 'lightning', windwalk: 'shield', splitter: 'fireball', warpzone: 'shield',
+  swap: 'swap', grip: 'grip', meteor: 'meteor', rush: 'rush', cluster: 'cluster',
+  boomerang: 'boomerang', thrust: 'thrust', gravity: 'gravity', rockpillar: 'rockpillar', bouncer: 'bouncer',
+  drain: 'drain', snowball: 'frost', illusion: 'illusion', magnetize: 'magnetize', recharge: 'recharge',
+  alteration: 'alteration', link: 'link', windwalk: 'windwalk', splitter: 'splitter', warpzone: 'warpzone',
 };
 
 // mensagens de erro do servidor (em português, protocolo inalterado) -> inglês
