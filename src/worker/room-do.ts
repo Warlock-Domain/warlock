@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
+import { pickCard } from '../shared/ascension.ts';
 import { lookOf } from '../shared/characters.ts';
 import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
@@ -171,6 +172,9 @@ export class Room extends DurableObject<Env> {
       }
       case 'buyItem':
         if (buyItem(m, id, msg.item)) await this.changed();
+        return;
+      case 'card':
+        if (pickCard(m, id, msg.i, msg.swap)) await this.changed();
         return;
       case 'pick':
         if (setLook(m, id, lookOf(msg.character))) await this.changed();

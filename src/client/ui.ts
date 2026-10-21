@@ -313,7 +313,7 @@ type RoomActions = {
 };
 
 type Level = MatchOpts['difficulty'];
-const MODE_NAME: Record<Mode, string> = { rounds: t('Rodadas', 'Rounds'), deathmatch: 'Deathmatch', teams: t('Times', 'Teams') };
+const MODE_NAME: Record<Mode, string> = { rounds: t('Rodadas', 'Rounds'), deathmatch: 'Deathmatch', teams: t('Times', 'Teams'), ascension: t('Ascensão', 'Ascension') };
 export const TEAM_NAMES = [t('Azul', 'Blue'), t('Vermelho', 'Red')];
 const teamLabel = (i: number) => t(`Time ${TEAM_NAMES[i]}`, `${TEAM_NAMES[i]} team`);
 const SHUFFLE_NAME =(shuffle: boolean) => (shuffle ? t('sorteados a cada rodada', 'shuffled every round') : t('fixos na partida', 'fixed for the match'));
