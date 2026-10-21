@@ -15,6 +15,7 @@ const click = (button: number, x = 10, y = 20) => fire(cnv, 'pointerdown', { but
 let log: string[] = [];
 let ok = true; // false: a magia não sai (recarga ou sem a magia)
 let preview: string | null = null;
+let previewAt: Vec | undefined;
 let armed: string | null = null;
 let input: { setEnabled: (on: boolean) => void };
 
@@ -31,7 +32,7 @@ beforeAll(async () => {
     zoom: () => {},
     pan: () => {},
     armedChanged: (a) => (armed = a),
-    preview: (a) => (preview = a),
+    preview: (a, at) => ((preview = a), (previewAt = at)),
     padRange: () => {},
     me: () => null,
     aim: () => {},
@@ -73,6 +74,9 @@ describe('jeitos de lançar no PC', () => {
     key('keydown', 'KeyQ');
     expect(log).toEqual(['cast fireball 300,200']);
     expect(preview).toBe('fireball');
+    expect(previewAt).toEqual({ x: 300, y: 200 }); // a faixa pisca presa no ponto do lançamento
+    fire(cnv, 'pointermove', { clientX: 500, clientY: 100 });
+    expect(previewAt).toEqual({ x: 300, y: 200 }); // e não segue o mouse
     key('keyup', 'KeyQ');
     expect(log).toHaveLength(1);
     vi.advanceTimersByTime(400);
