@@ -112,9 +112,9 @@ function playMenu(roomList: HTMLElement, onCreate: () => void, onTrain: (kind: s
 type HomeTab = 'home' | 'play' | 'library' | 'char' | 'shop' | 'profile' | 'settings';
 // botão Assistir da lista de salas: o código da sala em que a pessoa entra só assistindo (lido uma vez em main.ts)
 export const WATCH_JOIN = 'warlock:watchjoin';
-const HOME_TABS: [HomeTab, string, string][] = [['play', t('Jogar', 'Play'), UI_ICON.aim], ['library', t('Aprender', 'Learn'), ICON.fireball],
-  ['char', t('Guarda-roupas', 'Wardrobe'), UI_ICON.person], ['shop', t('Loja', 'Shop'), UI_ICON.gold],
-  ['profile', t('Perfil', 'Profile'), UI_ICON.person], ['settings', t('Configurações', 'Settings'), UI_ICON.gear]];
+// abas só com texto: as placas da barra não mostram ícone e Configurações vira a chave (wrench.svg)
+const HOME_TABS: [HomeTab, string][] = [['play', t('Jogar', 'Play')], ['library', t('Aprender', 'Learn')], ['char', t('Guarda-roupas', 'Wardrobe')],
+  ['shop', t('Loja', 'Shop')], ['profile', t('Perfil', 'Profile')], ['settings', t('Configurações', 'Settings')]];
 
 // Categorias do Guarda-roupas; o editor existente permanece em Acessórios.
 function personagemTab(): HTMLElement {

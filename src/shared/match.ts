@@ -112,7 +112,7 @@ export type Player = {
   setup?: BotSetup; // treino: magias, itens e jeito de jogar escolhidos para este bot
   difficulty?: MatchOpts['difficulty']; // bot: a dificuldade dele, escolhida na sala (sem ela, a da partida)
   dummy?: boolean; // sandbox: boneco parado (bot que não anda nem atira)
-  turret?: 'north' | 'east' | 'south' | 'west'; // Sandbox: tiro fixo, sem dano nem deslocamento.
+  turret?: TurretDir; // Sandbox: tiro fixo, sem dano nem deslocamento.
   // espectador (pedido do Sky, 20/10): sem mago a partir da próxima rodada; pontos, ouro e compras ficam guardados para voltar
   watch?: boolean;
 };
