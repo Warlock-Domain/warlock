@@ -305,6 +305,7 @@ type RoomActions = {
   setPixel: (size: number) => void;
   spellReady: () => void; // uma magia acabou de recarregar
   watch: (step: number) => void; // espectador: +1 próximo vivo, −1 anterior
+  watchCenter: (on: boolean) => void; // espectador: câmera parada no centro da arena em vez de seguir quem assiste
   replay: () => void; // liga ou desliga o replay da queda
   name: () => string; // apelido atual e a troca (aba Jogador das configurações)
   rename: () => void;
@@ -1040,10 +1041,22 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const coach = el('div', { class: 'coach', role: 'status', hidden: true }, icon(UI_ICON.tip), ' ', coachText, coachAgain, coachQuit);
   // espectador: selo "Assistindo X" com setas para trocar (← → no teclado)
   const watchName = el('b', {});
+  // câmera no centro da arena: seguindo um mago na borda, a arena que encolhe sai da tela (pedido do Reinaldo, 21/10); fica salva no navegador
+  const CENTER_KEY = 'warlock:watch-center';
+  let centerCam = store.get(CENTER_KEY) === '1';
+  const centerBtn = iconButton(icon(UI_ICON.aim), t('Câmera no centro da arena', 'Camera on the arena center'), () => {
+    centerCam = !centerCam;
+    store.set(CENTER_KEY, centerCam ? '1' : '0');
+    centerBtn.setAttribute('aria-pressed', String(centerCam));
+    centerBtn.classList.toggle('on', centerCam);
+    act.watchCenter(centerCam);
+  }, { 'aria-pressed': String(centerCam), class: centerCam ? 'icon on' : 'icon' });
+  act.watchCenter(centerCam);
   const watchBadge = el('div', { class: 'watching', role: 'status', hidden: true },
     iconButton('‹', t('Assistir o anterior', 'Watch the previous player'), () => act.watch(-1), { title: t('Anterior (←)', 'Previous (←)') }),
     el('span', {}, t('Assistindo ', 'Watching '), watchName, TOUCH ? null : el('small', {}, t(' · ← → troca', ' · ← → switch'))),
-    iconButton('›', t('Assistir o próximo', 'Watch the next player'), () => act.watch(1), { title: t('Próximo (→)', 'Next (→)') }));
+    iconButton('›', t('Assistir o próximo', 'Watch the next player'), () => act.watch(1), { title: t('Próximo (→)', 'Next (→)') }),
+    centerBtn);
   // caiu nas Rodadas ou nos Times: botão Loja pulsando no selo (no celular a loja não abre sozinha)
   const shopNudge = el('button', { type: 'button', class: 'shop-nudge', hidden: true, onclick: () => togglePeek() }, icon(UI_ICON.shop), ' ' + t('Loja', 'Shop'));
   watchBadge.append(shopNudge);
