@@ -1,7 +1,7 @@
 :root {
   /* fantasia sombria: pedra escura, lava e ouro. Toda cor do jogo sai daqui */
   --bg: #140806; --bg-glow: #5a1a08; --panel: #22110c; --panel2: #2e1710; --panel-top: #2c1610; --panel-bot: #1a0c08;
-  --line: #4a2418; --bronze: #8a4a20; --fg: #f7ecdf; --muted: #c4a693; --hero-fg: #f3dccb;
+  --line: #4a2418; --bronze: #8a4a20; --fg: #f7ecdf; --muted: #c4a693;
   --lava: #ff6a1a; --lava-hi: #ff8a3a; --lava-deep: #d9480f; --lava-dark: #8a2408; --lava-night: #2a0c06; --lava-edge: #6a2410; --ember: #ffb347;
   --gold: #ffd666; --gold-pale: #fff2a0; --red: #ff6a4d; --red-ink: #2a0800; --ok: #6fdc8c; --item: #5a4a9a; --stone: #d9c3a5;
   --silver: #d6d3cf; --copper: #d98a4e; --cream: #fff4dc; --cream-ink: #2a1206; --on-lava: #fff8f0; --ink: #000; --white: #fff;
@@ -27,7 +27,6 @@
   --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px);
   --display: "Grenze", Georgia, serif;
-  --gothic: "Grenze Gotisch", "Grenze", Georgia, serif;
   font-family: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: dark;
 }
@@ -75,15 +74,6 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 .panel input { font: inherit; font-size: 1.1rem; padding: 12px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
 
 .lobby { max-width: 760px; margin: 0 auto; padding: calc(24px + var(--safe-t)) max(16px, var(--safe-r)) calc(32px + var(--safe-b)) max(16px, var(--safe-l)); display: flex; flex-direction: column; gap: 24px; }
-.hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 26px 22px; border-radius: var(--r-frame); border: 2px solid var(--bronze); box-shadow: inset 0 0 0 3px var(--lava-night), inset 0 0 0 4px var(--gold-faint), 0 10px 40px rgba(255, 90, 20, .15);
-  /* lava de verdade (a textura da arena) escurecida à esquerda, onde fica o texto; o og.jpg tem título e retratos desenhados, ficaria texto fantasma */
-  background: var(--rivet) left 5px top 5px / 10px 10px no-repeat, var(--rivet) right 5px top 5px / 10px 10px no-repeat, var(--rivet) left 5px bottom 5px / 10px 10px no-repeat, var(--rivet) right 5px bottom 5px / 10px 10px no-repeat,
-    linear-gradient(90deg, rgba(20, 8, 6, .9), rgba(20, 8, 6, .72) 55%, rgba(20, 8, 6, .6)), radial-gradient(ellipse at 50% 130%, rgba(255, 106, 26, .5), transparent 65%), url(/tex/lava.jpg) center / 320px, var(--lava-night); }
-/* logo gótico em degradê dourado → lava; drop-shadow no lugar do text-shadow, que vazaria pelo texto transparente */
-.hero h1 { font-family: var(--gothic); font-size: 3.6rem; line-height: 1.05; letter-spacing: .01em; background: linear-gradient(180deg, var(--gold-pale), var(--gold) 45%, var(--lava-hi)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; text-shadow: none; filter: drop-shadow(0 3px 14px rgba(255, 120, 30, .55)) drop-shadow(0 0 1px var(--ink)); }
-.hero p { margin: 6px 0 0; color: var(--hero-fg); max-width: 36ch; }
-/* "trocar" o apelido: o muted some no degradê do herói (4,1:1 no celular) */
-.hero button.link { color: var(--hero-fg); }
 .lobby-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .lobby-actions .primary { flex: 1; }
 /* "Criar sala" não quebra em duas linhas no celular */
@@ -317,8 +307,9 @@ body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: no
 }
 /* placar: Resumo (um jogador por linha) e Magias (jogador × magia); legível por cima da arena */
 .stats { display: flex; flex-direction: column; gap: 10px; }
-.stats-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.stats-head .title { margin: 0; }
+/* cabeçalho título + ✕ dos diálogos (dialog() em ui.ts), do placar e da ficha */
+.dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dialog-head .title { margin: 0; }
 .stats-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .stats-tabs { display: flex; gap: 6px; }
 .stats-tabs button { min-height: 32px; padding: 4px 14px; font-size: .9rem; border-radius: 999px; }
@@ -398,7 +389,7 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
 .rules { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
 .rules h2 { margin: 8px 0 6px; }
 .rules ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; line-height: 1.45; }
-.rules-overlay { z-index: 20; }
+.grimoire-overlay { z-index: 20; }
 /* ficha do mago: atributos (com a origem de cada número), magias e itens ativos; na loja fica na coluna, na partida num painel à direita */
 .sheet { display: flex; flex-direction: column; gap: 8px; font-size: .85rem; }
 .sheet h4 { margin: 0 0 2px; font-family: var(--display); font-size: 1rem; color: var(--gold); }
@@ -548,7 +539,7 @@ button.info .gi { width: 16px; height: 16px; }
 .info-close { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; padding: 0; background: transparent; border: none; color: var(--muted); }
 @media (pointer: coarse) { button.info, .info-close { width: 44px; height: 44px; min-height: 44px; } }
 /* loja só para ver no meio da rodada (ui.ts, togglePeek): por cima da arena, o jogo continua atrás; no celular cobre a tela */
-.peek-shop { position: absolute; left: 50%; top: calc(58px + var(--safe-t)); transform: translateX(-50%); z-index: 8; width: min(1240px, calc(100% - 24px)); max-height: calc(100% - 170px - var(--safe-t) - var(--safe-b)); overflow-y: auto; border-radius: var(--r-frame); }
+.peek-shop { position: absolute; left: 50%; top: calc(58px + var(--safe-t)); transform: translateX(-50%); z-index: 8; width: min(1300px, calc(100% - 24px)); max-height: calc(100% - 170px - var(--safe-t) - var(--safe-b)); overflow-y: auto; border-radius: var(--r-frame); }
 .peek-shop .shop-main > .shop-head { align-items: center; }
 .peek-close { margin-left: auto; }
 /* só ver: no lugar do botão, o preço em verde (o ouro de agora dá) ou vermelho (não dá) */
@@ -742,14 +733,14 @@ button.train small { font-weight: 400; }
 
 /* loja com alça de arrastar no canto (só PC): o tamanho escolhido fica salvo; no celular ela já ocupa a tela */
 @media (min-width: 601px) {
-  .center.shop-open { resize: both; min-width: min(560px, calc(100% - 24px)); max-width: calc(100% - 24px); min-height: 320px; max-height: calc(100% - 24px - var(--safe-t) - var(--safe-b)); }
+  /* começa abaixo da barra do topo (56 px: ela vai de 8 a 52): centralizada com altura quase total a loja cobria a porta de sair, o código da sala e as engrenagens (issue #26) */
+  .center.shop-open { top: calc(56px + var(--safe-t)); transform: translateX(-50%); resize: both; min-width: min(560px, calc(100% - 24px)); max-width: calc(100% - 24px); min-height: 320px; max-height: calc(100% - 56px - 12px - var(--safe-t) - var(--safe-b)); }
 }
 
 /* grimório (Como jogar): livro aberto de couro com páginas de pergaminho escuro; duas páginas no PC, uma no celular */
-.g-overlay { padding: 16px; }
 .grimoire { --page: #2a1a11; --page-hi: #33211a; --ink-soft: #d9c3a5; width: min(1180px, 100%); height: min(800px, calc(100dvh - 32px)); display: grid; grid-template-rows: auto 1fr auto; gap: 8px; padding: 10px 14px 12px; border-radius: var(--r-frame); background: var(--frame), linear-gradient(160deg, #4a2414, #2a1209 60%, #1a0a05); border: 2px solid var(--bronze); box-shadow: inset 0 0 0 4px #1a0a05, inset 0 0 0 5px var(--gold-faint), var(--shadow-lg); }
-.g-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.g-title { font-family: var(--display); font-size: 1.5rem; color: var(--gold); letter-spacing: .03em; display: inline-flex; align-items: center; gap: 8px; }
+.grimoire .dialog-head .title { font-size: 1.5rem; color: var(--gold); letter-spacing: .03em; display: inline-flex; align-items: center; gap: 8px; }
+.grimoire .dialog-head .title::before { content: none; } /* o ícone do livro já faz o papel do losango */
 .g-spread { display: grid; grid-template-columns: 1fr 1fr; min-height: 0; border-radius: var(--r-sm); box-shadow: 0 6px 18px rgba(0, 0, 0, .5); perspective: 1600px; }
 .g-page { position: relative; min-height: 0; overflow-y: auto; padding: 18px 22px 12px; color: var(--fg); line-height: 1.5; background: radial-gradient(ellipse at 50% 0%, var(--page-hi), var(--page) 70%); touch-action: pan-y; scrollbar-color: var(--bronze) transparent; }
 .g-page:first-child { border-radius: var(--r-sm) 0 0 var(--r-sm); box-shadow: inset -18px 0 24px -14px rgba(0, 0, 0, .7); }
@@ -799,7 +790,7 @@ button.train small { font-weight: 400; }
 @media (prefers-reduced-motion: reduce) { .g-spread.turn-next .g-page, .g-spread.turn-prev .g-page { animation: none; } }
 /* celular e tela estreita: uma página, livro na tela toda */
 @media (max-width: 899px) {
-  .g-overlay { padding: 0; }
+  .grimoire-overlay { padding: 0; }
   .grimoire { width: 100%; height: 100dvh; border-radius: 0; padding: calc(8px + var(--safe-t)) 10px calc(10px + var(--safe-b)); }
   .g-spread { grid-template-columns: 1fr; }
   .g-page:first-child { border-radius: var(--r-sm); box-shadow: inset 0 0 24px rgba(0, 0, 0, .5); }
@@ -812,8 +803,7 @@ button.train small { font-weight: 400; }
 /* configurações (settings.ts): pergaminho escuro com as seções empilhadas e o sumário à esquerda, como a aba do menu inicial */
 .settings-overlay { z-index: 15; }
 .settings { display: flex; flex-direction: column; width: min(1100px, 100%); height: min(800px, calc(100dvh - 32px)); background: var(--frame), var(--plate); border: 2px solid var(--bronze); border-radius: var(--r-frame); box-shadow: var(--plate-edge), var(--shadow-lg); overflow: hidden; animation: panel-in .18s ease-out; }
-.settings-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 12px 14px 10px 18px; border-bottom: 1px solid var(--line); background: radial-gradient(ellipse at 20% 0%, rgba(255, 106, 26, .14), transparent 70%); }
-.settings-head .title { flex: 1; margin: 0; }
+.settings .dialog-head { padding: 12px 14px 10px 18px; border-bottom: 1px solid var(--line); background: radial-gradient(ellipse at 20% 0%, rgba(255, 106, 26, .14), transparent 70%); }
 .settings-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 24px; }
 .settings-toc button { justify-content: flex-start; gap: 10px; background: transparent; border-color: transparent; text-align: left; }
 .settings-toc button .gi { font-size: 1.25rem; color: var(--ember); flex: none; }
@@ -918,12 +908,12 @@ body.replaying .peek-shop { display: none; }
 /* Barra local inspirada na referência: emblema e placas metálicas inclinadas. */
 .lobby:has(.home-bar) { padding-top: var(--safe-t); }
 .home-bar { display: flex; align-items: stretch; gap: 0; width: 100vw; margin-left: calc(50% - 50vw); padding: 0 max(20px, var(--safe-r)) 0 max(20px, var(--safe-l)); min-height: 88px; background: linear-gradient(115deg, var(--panel2), var(--bg) 55%, var(--panel-bot)); border-bottom: 2px solid var(--bronze); box-shadow: var(--shadow-md); }
-.home-logo { flex: 0 0 auto; min-width: 132px; display: grid; place-items: center; padding: 8px; border: 0; border-radius: 0; background: radial-gradient(ellipse at 50% 100%, var(--lava-dark), transparent 75%); border-inline: 1px solid var(--gold-line); }
+/* W solto, sem placa nem moldura: só ganha brilho atrás no hover (Fernando, 20/10, issue #117: placa inclinada e quadrado recusados) */
+.home-logo { flex: 0 0 auto; display: grid; place-items: center; padding: 8px 16px; border: 0; border-radius: 0; background: none; }
 .home-logo:focus-visible { outline-offset: -4px; }
-.home-logo[aria-selected="true"] { background-color: var(--sel-bg); box-shadow: inset 0 -3px var(--gold); }
-@media (hover: hover) { .home-logo:hover { background-color: var(--sel-bg); } }
 /* logo na barra = o mesmo SVG do ícone da aba (public/warlock-wars.svg; pedido do Fernando, 20/10) */
 .home-logo img { display: block; width: 64px; height: 64px; filter: drop-shadow(0 2px 8px rgba(255, 120, 30, .45)); }
+@media (hover: hover) { .home-logo:hover img { filter: drop-shadow(0 0 6px var(--ember)) drop-shadow(0 0 18px var(--ember)); } }
 .home-tool { flex: 0 0 64px; border: 0; border-right: 1px solid var(--line); border-radius: 0; background: none; padding: 10px; }
 .home-tool img { display: block; }
 .home-tool.on { background: var(--sel-bg); box-shadow: inset 0 -3px var(--gold); }
@@ -1015,7 +1005,7 @@ body.replaying .peek-shop { display: none; }
 .lib-tile:hover, .lib-tile:focus-visible { border-color: var(--g, var(--gold)); background: color-mix(in srgb, var(--g, var(--gold)) 14%, var(--panel2)); }
 .library-box { width: min(980px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 14px 18px 18px; border-radius: var(--r-frame); border: 2px solid var(--bronze); background: var(--frame), var(--plate); box-shadow: var(--plate-edge), var(--shadow-lg); }
 @media (max-width: 600px) {
-  .library-overlay { padding: 0; }
+  .library-box-overlay { padding: 0; }
   .library-box { width: 100%; height: 100dvh; max-height: none; border-radius: 0; padding: calc(10px + var(--safe-t)) 12px calc(12px + var(--safe-b)); }
   .lib-grid { grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 6px; }
   .lib-tile { width: auto; height: 72px; }
@@ -1081,8 +1071,12 @@ body.replaying .peek-shop { display: none; }
 .tile-acts { min-height: 26px; }
 @media (min-width: 861px) {
   .shop .shop-main .shop-grid { grid-template-columns: repeat(5, 118px); column-gap: 10px; }
-  .shop-items .shop-grid { grid-template-columns: repeat(2, 118px); column-gap: 8px; }
-  .shop { grid-template-columns: 262px minmax(0, 1fr) 270px; }
+  /* itens em 3 colunas de ~105 px (Fernando, 20/10: 2 ficava muito vertical); 334 px é o máximo que deixa as magias em 5 por fileira
+     em 1280 e na loja só para ver de 1300 px (abaixo de 560 px no meio elas caem para 4) */
+  .shop-items .shop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 8px; }
+  .shop-items .shop-item { width: auto; }
+  .shop-items .shop-tile { width: 100%; }
+  .shop { grid-template-columns: 334px minmax(0, 1fr) 270px; }
 }
 /* tela estreita (celular, gaveta): cartões ocupam a largura em colunas iguais */
 @media (max-width: 860px) {
@@ -1093,7 +1087,7 @@ body.replaying .peek-shop { display: none; }
 .peek-shop.drawer .shop .shop-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
 .peek-shop.drawer .shop-item { width: auto; }
 .peek-shop.drawer .shop-tile { width: 100%; }
-@media (min-width: 1500px) { .shop { grid-template-columns: 262px minmax(0, 1fr) 290px; } .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 1500px) { .shop { grid-template-columns: 334px minmax(0, 1fr) 290px; } .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); } }
 /* loja só para ver: o ícone é um div, não botão; recebe o mesmo arranjo e a mesma moldura do botão */
 .shop-tile { display: flex; align-items: center; }
 div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: var(--fg); box-sizing: border-box; }
@@ -1127,6 +1121,9 @@ div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: 
 }
 @container shop-content (max-width: 640px) {
   .shop .shop-main .shop-grid { grid-template-columns: repeat(auto-fit, minmax(min(104px, 100%), 1fr)); }
+}
+/* equipamento numa fileira só até 541 px: com os itens em 3 colunas o meio fica com ~580 px em 1280 */
+@container shop-content (max-width: 540px) {
   .shop-loadout { flex-wrap: wrap; gap: 10px; margin-bottom: 0; }
   .loadout-spells { flex: 1 0 100%; }
   .loadout-items { flex: 0 1 50%; }

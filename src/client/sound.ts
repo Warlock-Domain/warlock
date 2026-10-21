@@ -1,5 +1,7 @@
 // Sons: arquivos gravados (CC0, public/sfx, créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
 // sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
+import { store } from './store.ts';
+
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
   | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover';
 
@@ -10,8 +12,23 @@ const FILES: Partial<Record<SoundKind, string[]>> = {
 // golpe fraco mais agudo, golpe forte mais grave
 const RATE: Partial<Record<SoundKind, number>> = { hitLight: 1.25, hitHeavy: 0.78 };
 
-// volumes de 0 a 1, separados para efeitos e música
-export function createSound(volumes: () => { sfx: number; music: number }) {
+// volumes de 0 a 1, separados para efeitos e música, guardados no navegador: os mesmos no menu inicial e na sala (issue #128).
+// Quem tinha deixado mudo na versão antiga começa em zero
+type Volumes ={ sfx: number; music: number };
+const VOL_KEY = { sfx: 'warlock:vol-sfx', music: 'warlock:vol-music' } as const;
+export function loadVolumes(): Volumes {
+  const readVol = (k: string, fallback: number) => {
+    const n = Number(store.get(k));
+    return Number.isFinite(n) && store.get(k) !== null ? Math.max(0, Math.min(1, n)) : fallback;
+  };
+  const oldMute = store.get('warlock:mute') === '1';
+  return { sfx: readVol(VOL_KEY.sfx, oldMute ? 0 : 1), music: readVol(VOL_KEY.music, oldMute || store.get('warlock:music') === '0' ? 0 : 0.7) };
+}
+export const saveVolume = (kind: keyof Volumes, value: number) => store.set(VOL_KEY[kind], String(value));
+
+export function createSound() {
+  const vol = loadVolumes();
+  const volumes = () => vol;
   let ctx: AudioContext | null = null;
   let noise: AudioBuffer | null = null;
   let master: GainNode | null = null;
@@ -126,12 +143,19 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
     o.stop(t + dur + 0.05);
   }
 
-  return {
+  const api = {
+    volumes,
+    // Configurações (menu e sala): guarda, aplica na hora e toca o clique no volume novo dos efeitos
+    setVolume(kind: keyof Volumes, value: number) {
+      vol[kind] = value;
+      saveVolume(kind, value);
+      syncAmbience();
+      if (kind === 'sfx') api.play('click');
+    },
     setAmbience(on: boolean) {
       wantAmbience = on;
       syncAmbience();
     },
-    refresh: syncAmbience,
     // taunt: public/sfx/taunt/<nome>.mp3, carregado na primeira vez que alguém usa
     async taunt(name: string) {
       if (!ctx || volumes().sfx === 0 || ctx.state !== 'running') return;
@@ -182,4 +206,5 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
       syncAmbience();
     },
   };
+  return api;
 }

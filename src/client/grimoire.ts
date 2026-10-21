@@ -13,7 +13,7 @@ import { ITEM_DEMO, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, gro
 import { COLORS } from './scene.ts';
 import { store } from './store.ts';
 import { hideTip, itemLevels, itemTip, spellLevels, spellTip, withTip } from './tips.ts';
-import { choice, norm } from './ui.ts';
+import { choice, dialog, norm } from './ui.ts';
 import { arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
 type Page = { chapter: string; title: string; body: () => (Node | string | null)[]; demo?: DemoId };
@@ -112,7 +112,7 @@ const pageOf = (pred: (p: Page) => boolean) => PAGES.findIndex(pred);
 
 // to: abre direto na página daquela magia ou item (biblioteca)
 export function openGrimoire(to?: SpellId | ItemId) {
-  document.querySelector('.rules-overlay')?.remove();
+  document.querySelector('.grimoire-overlay')?.remove();
   let at = Math.min(PAGES.length - 1, Math.max(0, Number(store.get(STORE)) || 0));
   const page = to ? pageOf((p) => (p.chapter === CH.spells || p.chapter === CH.items) && p.title === actionName(to)) : -1;
   if (page >= 0) at = page;
@@ -124,18 +124,7 @@ export function openGrimoire(to?: SpellId | ItemId) {
   const where = el('span', { class: 'g-where' });
   const prev = el('button', { type: 'button', class: 'g-turn', 'aria-label': t('Página anterior', 'Previous page'), onclick: () => turn(-1) }, '‹') as HTMLButtonElement;
   const next = el('button', { type: 'button', class: 'g-turn', 'aria-label': t('Próxima página', 'Next page'), onclick: () => turn(1) }, '›') as HTMLButtonElement;
-  const closeBtn = el('button', { type: 'button', class: 'g-close icon', 'aria-label': t('Fechar', 'Close'), onclick: () => close() }, '✕');
-  const book = el('div', { class: 'grimoire', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('Grimório: como jogar', 'Grimoire: how to play') },
-    el('header', { class: 'g-top' }, el('b', { class: 'g-title' }, icon(UI_ICON.help), ' ', t('Grimório', 'Grimoire')), closeBtn),
-    spread,
-    el('nav', { class: 'g-nav' }, prev, el('button', { type: 'button', class: 'g-toc-btn', onclick: () => go(0) }, CH.toc), where, next),
-  );
-  const overlay = el('div', { class: 'overlay rules-overlay g-overlay', onclick: (e: Event) => e.target === overlay && close() }, book);
-
-  function close() {
-    overlay.remove();
-    ac.abort();
-  }
+  const nav = el('nav', { class: 'g-nav' }, prev, el('button', { type: 'button', class: 'g-toc-btn', onclick: () => go(0) }, CH.toc), where, next);
 
   // página 1: capítulos com o número da página; página 2: atalho para cada magia (por grupo) e cada item
   function toc(i: number): (Node | string)[] {
@@ -199,18 +188,16 @@ export function openGrimoire(to?: SpellId | ItemId) {
     go(first + step * per);
   }
 
-  // teclas na captura: ← → não chegam ao placar nem à câmera de quem assiste
-  addEventListener('keydown', (e) => {
-    if (!overlay.isConnected) return ac.abort();
+  // ← → não chegam ao placar nem à câmera de quem assiste (o diálogo segura todas as teclas)
+  const onKey = (e: KeyboardEvent) => {
     const k = e.key;
-    if (k === 'Escape' || e.code === 'Escape') close(); // o Start do controle manda só o code
-    else if (k === 'ArrowRight' || k === 'PageDown') turn(1);
+    if (k === 'ArrowRight' || k === 'PageDown') turn(1);
     else if (k === 'ArrowLeft' || k === 'PageUp') turn(-1);
     else if (k === 'Home') go(0);
     else return;
     e.preventDefault();
-    e.stopPropagation();
-  }, { capture: true, signal: ac.signal });
+  };
+  const { overlay } = dialog('grimoire', t('Grimório', 'Grimoire'), [spread, nav], { ico: UI_ICON.help, onKey, onClose: () => ac.abort() });
   wide.addEventListener('change', () => (overlay.isConnected ? show(0) : ac.abort()), { signal: ac.signal });
   // deslizar o dedo para os lados vira a página (o rolar de cima para baixo continua com o navegador)
   let start: { x: number; y: number } | null = null;
@@ -223,9 +210,7 @@ export function openGrimoire(to?: SpellId | ItemId) {
   });
   spread.addEventListener('pointercancel', () => (start = null));
 
-  document.body.append(overlay);
   show(0);
-  closeBtn.focus();
 }
 
 // Biblioteca "Magias e itens" (decisão do Fernando, 19/10; como a de heróis e itens do Dota): grade de ícones por grupo,
@@ -266,26 +251,11 @@ export function library(onOpen?: () => void): HTMLElement {
 
 // a mesma biblioteca por cima de qualquer tela, só para consultar (no meio da partida também); Esc ou a mesma tecla fecham
 export function openLibrary() {
-  if (document.querySelector('.library-overlay')) return;
-  const ac = new AbortController();
-  const close = () => {
-    overlay.remove();
-    hideTip();
-    ac.abort();
-  };
-  const body = library(close);
-  const overlay = el('div', { class: 'overlay library-overlay', onclick: (e: Event) => e.target === overlay && close() },
-    el('div', { class: 'library-box', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('Magias e itens', 'Spells and items') },
-      el('div', { class: 'stats-head' }, el('h2', { class: 'title' }, t('Magias e itens', 'Spells and items')),
-        el('button', { type: 'button', class: 'icon', title: t('Fechar (Esc)', 'Close (Esc)'), 'aria-label': t('Fechar', 'Close'), onclick: close }, '✕')),
-      body));
-  // na captura: com a biblioteca aberta as teclas não chegam ao jogo (digitar na busca continua)
-  addEventListener('keydown', (e) => {
-    e.stopPropagation();
-    if (e.code !== 'Escape' && !isUiKey(e.code, 'library')) return;
-    e.preventDefault();
-    close();
-  }, { capture: true, signal: ac.signal });
-  document.body.append(overlay);
+  if (document.querySelector('.library-box')) return;
+  const body = library(() => close());
+  const { close } = dialog('library-box', t('Magias e itens', 'Spells and items'), [body], {
+    onKey: (e) => isUiKey(e.code, 'library') && (e.preventDefault(), close()),
+    onClose: hideTip,
+  });
   if (matchMedia('(pointer: fine)').matches) body.querySelector('input')!.focus(); // no toque o teclado da tela não sobe sozinho
 }

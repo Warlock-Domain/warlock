@@ -45,15 +45,9 @@ npx vitest run
 npx vite build
 ```
 
-## Ambiente dev próprio
+## Ambiente de cada PR
 
-Push na branch `<usuário do GitHub>-dev` publica em `https://<usuário do GitHub>-dev-warlock.fernandorffdev.com`, com salas separadas do jogo no ar. Branches de hoje: `lboesmans-dev`, `breakie33-dev`, `lucascvalle-dev`, `arthurbaquit-dev`, `reirag-dev` e `fernandorff-dev`. Serve para testar com outras pessoas antes do PR. Só funciona com branch neste repositório (não em fork).
-
-```bash
-git push --force origin HEAD:lboesmans-dev   # publica o estado da sua branch de tarefa
-```
-
-A branch `-dev` é sua (pode substituir à vontade); o PR sai sempre da branch da tarefa.
+Todo PR, rascunho também, publica em `https://pr-<n>-warlock.fernandorffdev.com` (`<n>` é o número do PR), com salas separadas do jogo no ar. O link fica num comentário fixo no PR, atualizado a cada push. Para testar com outras pessoas antes de pronto, abra o PR em rascunho e mande o link no grupo. Ao fechar o PR o ambiente é apagado sozinho. Só funciona com branch neste repositório (não em fork).
 
 ## Pipelines
 
@@ -63,7 +57,7 @@ A branch `-dev` é sua (pode substituir à vontade); o PR sai sempre da branch d
 | Título do PR | `pr-title.yml` | ao abrir ou editar o PR | confere o formato `tipo: o que muda` | edite o título; roda de novo sozinho |
 | Revisão do Claude | `claude-review.yml` | PR aberto, commit novo, saiu de rascunho | comenta veredito, checagens e pontos (não aprova nem mescla) | não bloqueia; não roda em fork nem no PR que altera o próprio workflow |
 | `@claude` | `claude.yml` | comentário com `@claude` num PR ou issue | responde e ajuda no próprio PR/issue | — |
-| Ambiente dev | `dev-deploy.yml` | push na branch `<usuário do GitHub>-dev` | build, publica um Worker só seu, espera o domínio responder e roda o teste rápido | build quebrado: nada é publicado e o site anterior continua; teste rápido falhou: a versão nova já foi publicada e está com problema, veja o log |
+| Ambiente do PR | `pr-env.yml` | PR aberto, push novo, reaberto e fechado (só PR do próprio repositório) | build, publica `warlock-pr-<n>` em `pr-<n>-warlock.fernandorffdev.com`, espera o domínio responder, roda o teste rápido e edita o comentário fixo com o link; ao fechar, apaga o Worker (o domínio sai junto) | build quebrado: nada é publicado e a versão anterior do PR continua; teste rápido falhou: a versão nova já está no ar com problema, veja o log; limpeza falhou: o Worker fica no ar, rode o job de novo (*Re-run*) em Actions |
 | Produção | `deploy.yml` | push no `master` (merge do PR da tarefa) | gates, publica o jogo no ar, confere se o site serve o build novo e roda o teste rápido | falhou antes do deploy: nada muda no ar; falhou depois: o jogo no ar está com a versão nova, veja o log |
 
 Logs: https://github.com/fernandorff/warlock/actions.
