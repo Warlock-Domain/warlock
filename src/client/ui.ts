@@ -28,7 +28,7 @@ import { LOCALE, arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 const TITLE = 'Warlock';
 // busca pelo nome sem acento nem maiúscula (loja e biblioteca)
 export const norm = (x: string) => x.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
-// busca pelo nome (loja e biblioteca): esconde os itens cujo data-name (já com norm) não tem o texto e os grupos que ficaram vazios;
+// busca pelo nome (biblioteca): esconde os itens cujo data-name (já com norm) não tem o texto e os grupos que ficaram vazios;
 // off: grupo escondido de todo (filtro por grupo da biblioteca)
 export function searchFilter(groups: Iterable<HTMLElement>, item: string, query: string, off?: (g: HTMLElement) => boolean) {
   const q = norm(query.trim());
@@ -747,6 +747,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     toggle(peekPanel, peekBtn, open);
     peekPanel.classList.toggle('drawer', deadShop); // gaveta só para quem caiu (ver deadShopping)
     if (!open) hideTip(peekPanel);
+    syncBar();
     drawPeek();
   }
   addEventListener('keydown', (e) => {
@@ -942,10 +943,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (!e.altKey || !['ArrowLeft', 'ArrowRight'].includes(e.code)) return;
       e.preventDefault(); e.stopPropagation();
       const from = Number(node.dataset.loadoutSlot), to = from + (e.code === 'ArrowLeft' ? -1 : 1);
-      // a loja é redesenhada na troca: o foco vai para a vaga nova da loja (os botões da barra são os mesmos nós)
-      const inShop = !!node.closest('.shop-loadout');
-      if (changeSlot(from, to) && inShop) document.querySelector<HTMLElement>(`.shop-loadout [data-loadout-slot="${to}"]`)?.focus();
-      else node.focus();
+      changeSlot(from, to);
+      node.focus(); // os botões da barra são os mesmos nós depois da troca
     });
     return node;
   }
@@ -1053,7 +1052,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // a barra some na sala e no fim (update, a cada segundo) e enquanto eu assisto morto (watching, a cada quadro): uma conta só, sem piscar
   let barOff = true;
   let watchingNow = false;
-  const syncBar = () => (barWrap.hidden = barOff || watchingNow);
+  // na loja do PC (compacta) a barra fica à vista: é nela que se troca a ordem das magias (Fernando, 21/10); quem caiu a vê com a loja aberta
+  const SHOP_BAR = matchMedia('(min-width: 1100px) and (min-height: 600px)'); // o mesmo corte do .compact-shop (style.css)
+  const syncBar = () => (barWrap.hidden = barOff || (watchingNow && (peekPanel.hidden || !SHOP_BAR.matches)));
   // varredura da recarga: o total é o tempo restante quando a recarga começou (ou cresceu); a Recarga e a runa só encurtam
   const cdTotal = new Map<string, number>();
   const cdLeft = new Map<string, number>();
@@ -1274,32 +1275,6 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // estado da loja que sobrevive ao redesenho (a sala manda o estado a cada compra de qualquer jogador)
   let goldOpen = false;
   let sheetOpen = false; // Ficha começa recolhida para a loja caber sem rolagem no PC; abrir/fechar sobrevive ao redesenho
-  let shopQuery = ''; // busca da loja: fica ao redesenhar (a sala manda o estado a cada segundo)
-  const shopLoadout = (p: PublicPlayer) => {
-    const slots = equipment(p);
-    const slot = (id: SpellId | ItemId | null, index: number, item: boolean) => {
-      const key = id ? labelOf(id) : keyLabel(keyOf(POS_ACTIONS[index]));
-      const name = id ? item ? itemName(id as ItemId) : spellName(id as SpellId) : t('Vazio', 'Empty');
-      const level = id ? item ? p.items[id as ItemId] : p.spells[id as SpellId] : 0;
-      const box = el('span', { class: 'shop-loadout-slot' + (id ? item ? ' loadout-item' : ' ' + spellClass(id as SpellId) : ' empty'), tabindex: id ? 0 : undefined, 'aria-label': `${key}: ${name}${level ? ' · ' + t(`nível ${level}`, `level ${level}`) : ''}` },
-        el('kbd', {}, key), id ? icon(item ? ITEM_ICON[id as ItemId] : ICON[id as SpellId]) : el('span', { class: 'loadout-empty', 'aria-hidden': 'true' }, '—'),
-        el('small', {}, name), level ? el('b', { class: 'loadout-level' }, String(level)) : null);
-      draggableSlot(box, index, !!id);
-      return id ? withTip(box, () => item ? itemTip(id as ItemId, level) : spellTip(id as SpellId, level)) : box;
-    };
-    return el('div', { class: 'shop-loadout' },
-      el('div', { class: 'loadout-spells', role: 'group', 'aria-label': t('Seis posições de magias', 'Six spell slots') }, ...slots.spells.map((s, i) => slot(s, i, false))),
-      el('div', { class: 'loadout-items', role: 'group', 'aria-label': t('Três posições de itens ativos', 'Three active item slots') }, ...slots.items.map((s, i) => slot(s, i + 6, true))));
-  };
-  const shopSearch = () => el('input', { type: 'search', class: 'lib-search', 'data-key': 'shop-search', value: shopQuery, placeholder: t('Buscar pelo nome', 'Search by name'), 'aria-label': t('Buscar na loja pelo nome', 'Search the shop by name'),
-    oninput: (e: Event) => {
-      shopQuery = (e.target as HTMLInputElement).value;
-      filterShop((e.target as HTMLElement).closest('.shop')!);
-    } });
-  function filterShop(box: HTMLElement) {
-    searchFilter(box.querySelectorAll<HTMLElement>('.shop-group'), '.shop-item', shopQuery);
-    return box;
-  }
   let readyBtn: HTMLElement | null = null;
   // cartão de primeira vez na loja da rodada 0: some ao fechar ou ao apertar Pronto, e fica guardado no navegador
   const FIRST = 'warlock:firstshop';
@@ -1350,7 +1325,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const face = [el('span', { class: 'ico' }, icon(o.ico)), el('span', { class: 'tile-name' }, o.name), el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
         el('span', { class: 'tile-price' + (o.blocked ? ' off' : can ? ' can' : ' cant') }, ...(o.blocked ? [o.blocked] : [o.lvl ? el('span', { class: 'lvl' }, t(`Nv ${o.lvl + 1} `, `Lv ${o.lvl + 1} `)) : null, icon(UI_ICON.gold), o.price === 0 ? t(' grátis', ' free') : ` ${o.price}`]))];
       // clique compra; clique direito também (como no Dota); só ver: o ícone não compra
-      return withTip(el('div', { class: 'shop-item' + (o.key.startsWith('item') ? ' is-item' : '') + (o.lvl ? ' owned' : '') + (can && !peek ? ' can' : '') + (o.blocked && !o.lvl ? ' locked' : ''), 'data-name': norm(o.name),
+      return withTip(el('div', { class: 'shop-item' + (o.key.startsWith('item') ? ' is-item' : '') + (o.lvl ? ' owned' : '') + (can && !peek ? ' can' : '') + (o.blocked && !o.lvl ? ' locked' : ''),
         oncontextmenu: (e: Event) => {
           e.preventDefault();
           if (can && !peek) o.buy();
@@ -1393,22 +1368,19 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const items = () => el('div', { class: 'shop-items' },
       group(t('Itens passivos', 'Passive items'), itemCount, ITEM_IDS.filter((i): boolean => !isActive(i)).map(itemOffer)),
       group(t('Itens ativos', 'Active items'), t('cada um com a sua tecla', 'each with its own key'), ACTIVE_ITEMS.map(itemOffer)));
-    if (look) return filterShop(el('div', { class: 'card shop compact-shop' }, items(), el('div', { class: 'shop-main' },
-      shopLoadout(mine),
+    if (look) return el('div', { class: 'card shop compact-shop' }, items(), el('div', { class: 'shop-main' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.sandbox ? t('Loja · sandbox', 'Shop · sandbox') : deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${r.sandbox ? 'ouro sem fim: compre e venda, vale na hora' : deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${r.sandbox ? 'endless gold: buy and sell, it applies right away' : deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
         iconButton('✕', t('Fechar a loja', 'Close the shop'), () => togglePeek(false), { class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`) })),
-      shopSearch(),
       ...grid),
-      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), sheetBox())));
+      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), sheetBox()));
     readyBtn = el('button', { type: 'button', class: 'primary big', 'data-key': 'ready', disabled: mine.ready, onclick: () => {
       if (r.round === 0) seeFirst();
       act.ready();
     } }, readyText(mine.ready));
     // compras no meio; ouro, Pronto e placar à direita (pedido do Fernando: loja mais larga; o personagem saiu para o menu principal e as Configurações)
-    return filterShop(el('div', { class: 'card shop compact-shop' }, items(), el('div', { class: 'shop-main' },
-      shopLoadout(mine),
+    // título e contagem só aparecem abaixo de 1100×600 (no PC o CSS esconde: a loja ocupa a tela entre as barras)
+    return el('div', { class: 'card shop compact-shop' }, items(), el('div', { class: 'shop-main' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? t('Loja', 'Shop') : t(`Loja · depois da rodada ${r.round}`, `Shop · after round ${r.round}`)), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells`))),
-      shopSearch(),
       ...grid,
       ),
       el('aside', { class: 'shop-side' },
@@ -1421,7 +1393,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         nextModePicker(r),
         board(r, me, act.kick),
       ),
-    ));
+    );
   }
 
   // loja: modo da próxima rodada à vista; clicar abre a votação (sozinho com bots passa na hora)
@@ -1675,8 +1647,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         b.hidden = lvl === 0;
         pips.replaceChildren(...pipsOf(lvl, MAX_SPELL_LEVEL));
       }
-      // no intervalo (loja e cartas do Ascensão) a barra fica: dá para arrastar as magias entre as teclas enquanto escolhe (Fernando, 21/10)
-      barOff = r.phase === 'lobby' || r.phase === 'end' || !mine;
+      barOff = r.phase === 'lobby' || r.phase === 'end' || (r.phase === 'shop' && !SHOP_BAR.matches) || !mine;
       syncBar();
       goldNow.replaceChildren(r.mode === 'ascension' ? '' : gold(mine?.gold ?? 0)); // Ascensão: sem ouro
       const tabPhase = TAB_PHASES.includes(r.phase);
