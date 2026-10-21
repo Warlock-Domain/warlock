@@ -47,7 +47,7 @@ npx vite build
 
 ## Ambiente de cada PR
 
-Todo PR, rascunho também, publica em `https://pr-<n>-warlock.fernandorffdev.com` (`<n>` é o número do PR), com salas separadas do jogo no ar. O link fica num comentário fixo no PR, atualizado a cada push. Para testar com outras pessoas antes de pronto, abra o PR em rascunho e mande o link no grupo. Ao fechar o PR o ambiente é apagado sozinho. Só funciona com branch neste repositório (não em fork).
+Todo PR, rascunho também, publica em `https://pr-<n>-warlock.fernandorffdev.com` (`<n>` é o número do PR), com salas separadas do jogo no ar. O link fica num comentário fixo no PR, atualizado a cada push. Para testar com outras pessoas antes de pronto, abra o PR em rascunho e mande o link no grupo. Pronto (gates verdes, testado, prints de PC se a tela mudou): *Ready for review*; se a sua IA não consegue testar no navegador, saia do rascunho assim mesmo, diga no PR o que não testou e como testar, e quem revisa testa no ambiente do PR ([CONTRIBUTING](../CONTRIBUTING.md#ambiente-de-cada-pr)). Ao fechar o PR o ambiente é apagado sozinho. Só funciona com branch neste repositório (não em fork).
 
 ## Pipelines
 
