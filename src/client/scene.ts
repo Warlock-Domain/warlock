@@ -15,11 +15,11 @@ import { lookBody, lookOf, lookPieces, type CharacterId } from '../shared/charac
 import type { MatchOpts } from '../shared/match.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
-import { add, scale, v, type Vec } from '../shared/vec.ts';
+import { add, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
-import { SPELLS } from '../shared/spells.ts';
+import { CLUSTER_FAN, SPELLS } from '../shared/spells.ts';
 import type { TAUNTS } from '../shared/taunts.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
@@ -1832,6 +1832,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // explosão do Meteoro no ponto onde ele cai: o mesmo anel, do tamanho da explosão
   const blastRing = rangeRing.clone();
   scene.add(blastRing);
+  // faixa de acerto da mira (até 4: a Rajada sai em leque), bem clara para não esconder o chão; plano já deitado, girado só em y
+  const bandMat = new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.16, depthWrite: false });
+  const bands = CLUSTER_FAN.map(() => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), bandMat);
+    m.renderOrder = 9;
+    m.visible = false;
+    scene.add(m);
+    return m;
+  });
 
   return {
     ready,
@@ -1847,6 +1856,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!at || r <= 0) return;
       rangeRing.position.copy(w3(at, 0.04));
       rangeRing.scale.setScalar(r);
+    },
+    // faixas de `from` até cada ponta, com meia largura `half`; sem `from` ou lista vazia esconde
+    bands(from: Vec | null, ends: Vec[], half: number) {
+      bands.forEach((m, i) => {
+        const e = from && ends[i];
+        m.visible = !!e;
+        if (!e) return;
+        const d = sub(e, from);
+        m.position.copy(w3(add(from, scale(d, 0.5)), 0.035));
+        m.rotation.y = -Math.atan2(d.y, d.x);
+        m.scale.set(len(d), 1, 2 * half);
+      });
     },
     aim(at: Vec | null) {
       aimRing.visible = !!at;

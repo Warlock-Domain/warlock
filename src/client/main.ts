@@ -8,17 +8,17 @@ import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
-import { add, clampLen, dist, len, scale, sub, type Vec } from '../shared/vec.ts';
+import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
 import { LOOK_EVENT, saveLook, savedLook } from './avatar.ts';
 import { coachTip } from './coach.ts';
 import { PROFILE_KEY, addRound, toSkill, type Profile } from './mimic.ts';
 import { n1 } from './rules-text.ts';
-import { blastOf, reachOf } from './reach.ts';
+import { aimOf, reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t } from './i18n.ts';
-import { isPadMode, labelOf, onFreeEsc } from './keys.ts';
+import { getCastMode, isPadMode, labelOf, onFreeEsc } from './keys.ts';
 import { openSettings, savedPixel } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
 import { DELAY, REPLAY_MAX, createInterp, keepLast } from './interp.ts';
@@ -782,10 +782,13 @@ function startRoom(code: string, name: string) {
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
     const reach = showing && meP ? reachOf(showing, meP.spells, meP.items) : 0;
-    // Meteoro: a explosão onde ele cai (no cursor ou no retículo do controle, sem passar do alcance)
-    const blast = showing && meP ? blastOf(showing, meP.spells) : 0;
-    const aimAt = blast && myPos ? (padAiming ? padAt : input.aimPoint()) : null;
-    scene.range(showing && myPos ? myPos : null, reach, aimAt && myPos ? add(myPos, clampLen(sub(aimAt, myPos), reach)) : null, blast);
+    // mira de verdade (tecla segurada no Segurar, magia escolhida ou controle): faixa de acerto e explosão rumo ao cursor ou retículo.
+    // No Rápido a tecla segurada é só o anel piscando depois de lançar, e o mouse na barra não aponta o chão: nada segue o mouse
+    const aiming = showing && (armed ?? padAiming ?? (getCastMode() === 'release' ? held : null));
+    const aimAt = aiming ? (padAiming ? padAt : input.aimPoint()) : null;
+    const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, myPos, aimAt) : null;
+    scene.range(showing && myPos ? myPos : null, reach, shape?.blastAt ?? null, shape?.blastR ?? 0);
+    scene.bands(myPos, shape?.ends ?? [], shape?.half ?? 0);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
     view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
