@@ -314,6 +314,7 @@ type RoomActions = {
   rename: () => void;
   sandbox: (cmd: SandboxCmd) => void; // painel da sandbox
   seeInvis: (on: boolean) => void; // sandbox: invisíveis meio transparentes (só nesta tela)
+  seeHit: (on: boolean) => void; // sandbox: discos da colisão real no chão (só nesta tela)
 };
 
 type Level = MatchOpts['difficulty'];
@@ -755,13 +756,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     rule('noCd', t('Sem recarga', 'No cooldowns')),
     rule('shrink', t('Encolher a arena', 'Shrink the arena')),
     check(t('Ver invisíveis (teste)', 'See invisible wizards (test)'), false, act.seeInvis).row,
+    check(t('Ver hitbox (teste)', 'Show hitboxes (test)'), false, act.seeHit).row,
     el('div', { class: 'sandbox-row' },
       el('select', { 'aria-label': t('Dificuldade do bot', 'Bot difficulty'), onchange: (e: Event) => (sbLevel = (e.target as HTMLSelectElement).value as Level) },
         ...(['easy', 'normal', 'hard'] as const).map((k) => el('option', { value: k, selected: k === sbLevel }, SKILL_NAME[k]))),
       el('button', { type: 'button', onclick: () => addBot(false) }, t('+ Bot', '+ Bot'))),
     el('button', { type: 'button', title: t('Bot que não anda nem atira: bom para testar dano e empurrão', 'A bot that neither moves nor shoots: good for testing damage and knockback'), onclick: () => addBot(true) }, t('+ Boneco parado', '+ Training dummy')),
     el('div', { class: 'sandbox-row' }, sbTurretDirection,
-      el('button', { type: 'button', title: t('Dispara bolas de fogo numa direção fixa. Não recebe dano nem empurrão. A torreta inicial dispara da esquerda para a direita.', 'Fires fireballs in a fixed direction. Takes no damage or knockback. The initial turret fires from left to right.'), onclick: () => act.sandbox({ op: 'turret', direction: sbTurretDirection.value as TurretDir }) }, t('+ Torreta', '+ Turret'))),
+      el('button', { type: 'button', title: t('Dispara bolas de fogo numa direção fixa. Não recebe dano nem empurrão.', 'Fires fireballs in a fixed direction. Takes no damage or knockback.'), onclick: () => act.sandbox({ op: 'turret', direction: sbTurretDirection.value as TurretDir }) }, t('+ Torreta', '+ Turret'))),
     botSetupPanel(1, savedBotSetup(), () => {}),
     sbBots,
     el('div', { class: 'sandbox-row' }, t('Arena', 'Arena'), sbArena),
@@ -771,10 +773,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // runa escolhida: nasce ao lado do seu mago, no lugar da que estiver na arena
     el('div', { class: 'sandbox-row', role: 'group', 'aria-label': t('Pôr runa', 'Place rune') }, t('Runa', 'Rune'),
       ...RUNE_KINDS.map((k) => iconButton(icon(RUNE_ICON[k]), t(`Pôr a ${RUNE_NAME[k]} ao seu lado`, `Place the ${RUNE_NAME[k]} next to you`), () => act.sandbox({ op: 'rune', kind: k }), { title: RUNE_NAME[k] }))),
-    el('button', { type: 'button', title: t('Recomeça a rodada; sem torreta na arena, põe uma de novo', 'Restarts the round; with no turret in the arena, adds one back'), onclick: () => {
-      if (!room?.players.some((p) => p.turret)) act.sandbox({ op: 'turret', direction: 'east' });
-      act.sandbox({ op: 'restart' });
-    } }, t('Reiniciar a rodada', 'Restart the round')));
+    el('button', { type: 'button', onclick: () => act.sandbox({ op: 'restart' }) }, t('Reiniciar a rodada', 'Restart the round')));
   let sbSig = '';
   function drawSandbox(r: PublicRoom) {
     sbBtn.hidden = !r.sandbox || !PEEK_PHASES.includes(r.phase);
