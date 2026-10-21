@@ -1,6 +1,6 @@
 // Decisões das telas sem DOM (testáveis): resultado do fim da partida e ordem da lista de salas.
 import type { PublicRoom, RoomInfo } from '../shared/protocol.ts';
-import { SPELL_IDS, type SpellId } from '../shared/spells.ts';
+import { MAX_SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
 
 export function sandboxVisibility(status: number, self: boolean, sandbox: boolean, seeInvis = false): number {
@@ -31,15 +31,16 @@ export function loadoutSlots(spells: Record<SpellId, number>, items: Record<Item
     }
     return result;
   };
-  return { spells: arrange(owned, order?.spells, 6), items: arrange(active, order?.items, 3) };
+  return { spells: arrange(owned, order?.spells, MAX_SPELLS), items: arrange(active, order?.items, ITEM_SLOTS) };
 }
 
 // Índices 0–5 são magias; 6–8 são itens. Nunca misturar os grupos.
 export function moveLoadout(order: LoadoutOrder, from: number, to: number): LoadoutOrder {
-  if (![from, to].every((i) => Number.isInteger(i) && i >= 0 && i < 9) || (from < 6) !== (to < 6)) return order;
+  const S = MAX_SPELLS;
+  if (![from, to].every((i) => Number.isInteger(i) && i >= 0 && i < S + ITEM_SLOTS) || (from < S) !== (to < S)) return order;
   const next = { spells: [...order.spells], items: [...order.items] };
-  const slots = from < 6 ? next.spells : next.items;
-  const a = from < 6 ? from : from - 6, b = to < 6 ? to : to - 6;
+  const slots = from < S ? next.spells : next.items;
+  const a = from < S ? from : from - S, b = to < S ? to : to - S;
   if (!slots[a]) return order;
   [slots[a], slots[b]] = [slots[b], slots[a]];
   return next;
