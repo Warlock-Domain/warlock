@@ -1,9 +1,9 @@
 <!--
 Título no formato do commit: `tipo: o que muda, em português` (tipos: feat, fix, balance, style, refactor, docs, ci, test).
-Ex.: `feat: runa de gelo que deixa o inimigo lento por 3 s`. O título vira o commit em `dev`.
+Ex.: `feat: runa de gelo que deixa o inimigo lento por 3 s`. O título vira o commit no `master`.
 -->
 
-Fecha #<!-- número da issue, se houver -->
+Closes #<!-- número da issue, se houver; a palavra tem de ser em inglês (Closes, Fixes ou Resolves) para o GitHub fechar a issue sozinho -->
 
 ## Por quê
 
@@ -15,7 +15,7 @@ Fecha #<!-- número da issue, se houver -->
 
 ## Prints
 
-<!-- Obrigatório se mudou algo na tela: antes e depois, no PC. Celular só se a mudança mexe no layout (responsividade). Arraste as imagens aqui. -->
+<!-- Obrigatório se mudou algo na tela: antes e depois, no PC. Sem print de celular por enquanto. Arraste as imagens aqui. -->
 
 | Antes | Depois |
 |---|---|
@@ -26,8 +26,9 @@ Fecha #<!-- número da issue, se houver -->
 - [ ] `npx tsc --noEmit -p .` e `npx tsc --noEmit -p src/worker`
 - [ ] `npx vitest run`
 - [ ] `npx vite build`
-- [ ] Joguei no navegador (`npx wrangler dev`) no PC e no celular
+- [ ] Joguei no navegador (`npx wrangler dev`) no PC
 - [ ] Textos novos em português e inglês (`t('pt', 'en')`)
+- [ ] Decisão não óbvia com 1 linha de comentário explicando o porquê
 
 ## Balanceamento
 

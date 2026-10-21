@@ -6,6 +6,7 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { RenderPixelatedPass } from 'three/examples/jsm/postprocessing/RenderPixelatedPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SHAPES as ARENAS, edgeAt, inLavaAt, type ArenaId, type Isle } from '../shared/arena.ts';
@@ -19,6 +20,7 @@ import { createDecor } from './decor.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
 import { SPELLS } from '../shared/spells.ts';
+import type { TAUNTS } from '../shared/taunts.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
 export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#12c7c7', '#f76b15', '#e93d82'];
@@ -147,6 +149,17 @@ function bandGeo(pairs: [Vec[], Vec[]][], keep: (m: Vec) => boolean = () => true
   return g;
 }
 
+// clips que repetem (o resto toca uma vez e para no último quadro)
+const LOOPS = ['Idle', 'Running_A', 'Jump_Idle', 'Cheer', 'Waving'];
+// gesto da provocação pelo tom: deboche, festa ou aviso [clip, segundos]
+const TEASE: [string, number] = ['Skeletons_Taunt', 1.03], PARTY: [string, number] = ['Cheer', 1.67], CALL: [string, number] = ['Waving', 2.1];
+const TAUNT_ANIM: Record<(typeof TAUNTS)[number]['id'], [string, number]> = {
+  loser: TEASE, laugh: TEASE, meow: TEASE, flawless: PARTY, combo_breaker: PARTY, multi_kill: PARTY, ultra_kill: PARTY, congrats: PARTY,
+  fire_in_the_hole: CALL, look_out: CALL,
+};
+// Teleporte (só visual): some em TP s deslizando TP_SLIDE m rumo ao destino e reaparece em TP s chegando na mesma direção
+const TP = 0.12, TP_SLIDE = 0.6;
+
 type Mage = {
   root: THREE.Group;
   mixer: THREE.AnimationMixer;
@@ -195,6 +208,12 @@ type Mage = {
   flash: number; // clarão branco do golpe: 1 no acerto, cai até 0
   freezeUntil: number; // hit-stop: animação parada até este instante
   cheering: boolean;
+  invuln: boolean; // invulnerável no quadro anterior: ligar de novo é nascer (começo da rodada ou volta no deathmatch)
+  faded: boolean; // materiais mexidos pelo fade do Teleporte
+  tpAt: number; // Teleporte: quando saiu, de onde, para onde e a direção (só visual)
+  tpFrom: Vec;
+  tpTo: Vec;
+  tpDir: Vec;
 };
 
 // limiares de golpe (dano por acerto vai de ~30 a ~170): grande e crítico
@@ -227,7 +246,7 @@ void main(){
   vec3 hot = mix(vec3(0.7, 0.1, 0.01), vec3(1.0, 0.45, 0.06), core);
   vec3 col = mix(crust, hot, veins);
   if (uHas > 0.5) {
-    // textura de lava (ambientCG Lava004) em duas camadas que correm em sentidos diferentes
+    // textura de lava (ambientCG Lava001) em duas camadas que correm em sentidos diferentes
     vec2 q = vPos.xz * 0.05;
     vec3 a = texture2D(uMap, q + vec2(t * 0.10, t * 0.04)).rgb;
     vec3 b = texture2D(uMap, q * 1.7 - vec2(t * 0.06, -t * 0.09)).rgb;
@@ -263,7 +282,7 @@ function stoneTexture(): THREE.CanvasTexture {
   const g = c.getContext('2d')!;
   g.fillStyle = '#3b3633';
   g.fillRect(0, 0, 1024, 1024);
-  // lajes irregulares com rejunte escuro
+  // lajes irregulares com rejunte escuro (Math.random aqui e nos enfeites desta cena é só visual: não entra na simulação nem no hash)
   for (let i = 0; i < 2600; i++) {
     const x = Math.random() * 1024, y = Math.random() * 1024, r = 8 + Math.random() * 30;
     const l = 24 + Math.random() * 18;
@@ -300,6 +319,7 @@ function glowTexture(): THREE.CanvasTexture {
 }
 
 export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
+  // celular: sem antialias, densidade até 1,5× e sombra menor, para caber na GPU dele
   const mobile = matchMedia('(pointer: coarse)').matches;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: !mobile, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.5 : 2));
@@ -742,9 +762,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const mixer = new THREE.AnimationMixer(model);
     const actions: Record<string, THREE.AnimationAction> = {};
     for (const c of src.clips) actions[c.name] = mixer.clipAction(c);
-    for (const n of ['Spellcast_Shoot', 'Hit_A', 'Death_A', 'Spellcast_Raise']) {
-      actions[n]?.setLoop(THREE.LoopOnce, 1);
-      if (actions[n]) actions[n].clampWhenFinished = true;
+    // tudo toca uma vez e para no último quadro, menos o que repete
+    for (const [n, a] of Object.entries(actions)) if (!LOOPS.includes(n)) {
+      a.setLoop(THREE.LoopOnce, 1);
+      a.clampWhenFinished = true;
     }
     actions.Idle?.play();
     const hpFill = el('div', { class: 'hp-fill', style: `background: ${COLORS[d.color]}` });
@@ -764,7 +785,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const lootBar = el('div', { class: 'loot-bar', hidden: true }, lootFill);
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -774,12 +795,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     m.current = name;
   }
 
-  // animação de conjurar: Escudo e Investida erguem as mãos, o resto atira
-  const castAnim = (spell: string) => (spell === 'shield' || spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot');
-  function oneShot(id: string, name: string, secs: number) {
+  // animação de conjurar [clip, segundos, início no clip]; o resto atira (Spellcast_Shoot). Quando o gesto forte vem no meio
+  // do clip, começa ali: o Throw desce o braço aos ~0,6 s, o Summon bate o cajado aos ~3,3 s, o chute sai aos ~0,3 s
+  const SUMMON: [string, number, number] = ['Ranged_Magic_Summon', 0.8, 3.1];
+  const SPIN: [string, number] = ['2H_Melee_Attack_Spinning', 0.67];
+  const CAST_ANIM: Record<string, [string, number, number?]> = {
+    shield: ['Block', 0.6], rush: ['Dodge_Forward', 0.4], teleport: ['Dodge_Forward', 0.4], windwalk: ['Dodge_Backward', 0.4], grip: ['Throw', 0.6, 0.45],
+    meteor: SUMMON, rockpillar: SUMMON, warpzone: SUMMON, drain: ['Spellcast_Long', 0.9, 0.3], thrust: ['Unarmed_Melee_Attack_Kick', 0.5, 0.2],
+    gravity: SPIN, cluster: SPIN,
+  };
+  const castAnim = (spell: string) => CAST_ANIM[spell] ?? (['Spellcast_Shoot', 0.55] as const);
+  function oneShot(id: string, name: string, secs: number, from = 0) {
     const m = mages.get(id);
     if (!m || m.dead) return;
+    // a magia chama duas vezes (castLocal e o 'cast' do servidor): só a primeira pula para o início
+    const fresh = m.current !== name;
     play(m, name, 0.08);
+    if (fresh && from && m.actions[name]) m.actions[name].time = from;
     m.oneShotUntil = performance.now() / 1000 + secs;
   }
 
@@ -1372,7 +1404,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   function onEvents(events: SimEvent[]) {
     for (const e of events) {
-      if (e.k === 'cast') oneShot(e.id, castAnim(e.spell), 0.55);
+      if (e.k === 'cast') oneShot(e.id, ...castAnim(e.spell));
       else if (e.k === 'hit') {
         oneShot(e.id, 'Hit_A', 0.45);
         // o acerto do raio tem impacto elétrico próprio: a explosão de fogo cobria o raio e parecia que ele não tinha saído
@@ -1389,11 +1421,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       else if (e.k === 'lightning') bolt(e.from, e.to);
       else if (e.k === 'grip') {
+        oneShot(e.id, 'Hit_B', 0.85); // quem foi preso cambaleia para trás
         burst(v(e.x, e.y), '#e0203a', 2.4, 0.5, 0.8, FX.magic);
         burst(v(e.x, e.y), '#ffd0d8', 1.6, 0.3, 0.8, FX.light);
         shockwave(v(e.x, e.y), 1.2, '#e0203a');
       }
       else if (e.k === 'teleport') {
+        // só o Teleporte lançado (não Troca, Égide nem Alteração) ganha o fade com deslize
+        const m = mages.get(e.id);
+        if (m && events.some((x) => x.k === 'cast' && x.id === e.id && x.spell === 'teleport')) {
+          const dx = e.to.x - e.from.x, dy = e.to.y - e.from.y, n = Math.hypot(dx, dy) || 1;
+          Object.assign(m, { tpAt: performance.now() / 1000, tpFrom: e.from, tpTo: e.to, tpDir: v(dx / n, dy / n) });
+        }
         burst(e.from, '#c49bff', 2.4, 0.45, 0.8, FX.magic);
         burst(e.to, '#c49bff', 2.6, 0.45, 0.8, FX.magic);
         burst(e.to, '#e9d8ff', 1.6, 0.3, 0.8, FX.light);
@@ -1524,7 +1563,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       else g.position.copy(w3(p.pos, 0.9));
       if (p.kind === 'link') {
         const dx = p.vel.x - p.pos.x, dz = p.vel.y - p.pos.y;
-        const beam = g.children[2];
+        const beam = g.children[2]; // filhos do Elo: corpo, halo e fio (ele não ganha chama nem redemoinho)
         beam.position.set(dx / 2, 0, dz / 2);
         beam.rotation.y = Math.atan2(dx, dz);
         beam.scale.set(1, 1, Math.hypot(dx, dz));
@@ -1590,12 +1629,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.root.visible = !hidden;
       // A cópia é sólida e visível; a invisibilidade vale somente para o jogador real.
       const ghost = !!d.ghost || (d.status & (1024 | 8388608)) > 0; // Caminhada no vento e o véu visto por si ou pela visão de teste da sandbox
-      if (m.ghost !== ghost) {
+      // Teleporte: tk de 0 a 1 sumindo e deslizando rumo ao destino, de 1 a 2 chegando de um pouco atrás; 2 = sem efeito
+      const tk = Math.min(2, (now - m.tpAt) / TP), fade = tk < 1 ? 1 - tk : tk - 1, faded = fade < 1;
+      if (m.ghost !== ghost || faded || m.faded) {
         m.ghost = ghost;
-        for (const x of m.ghostMats) Object.assign(x.m, { transparent: ghost || x.transparent, opacity: ghost ? x.opacity * (d.ghost ? 0.45 : 0.35) : x.opacity, needsUpdate: true });
+        m.faded = faded;
+        for (const x of m.ghostMats) Object.assign(x.m, { transparent: ghost || faded || x.transparent, opacity: x.opacity * (ghost ? (d.ghost ? 0.45 : 0.35) : 1) * fade, needsUpdate: true });
         m.label.style.opacity = ghost ? '0.6' : '';
       }
-      m.root.position.copy(w3(d.pos));
+      m.root.position.copy(w3(tk < 1 ? add(m.tpFrom, scale(m.tpDir, tk * TP_SLIDE)) : tk < 2 ? add(m.tpTo, scale(m.tpDir, (tk - 2) * TP_SLIDE)) : d.pos));
       m.root.rotation.y = Math.PI / 2 - d.facing;
       // Escudo: bolha no raio real que vai apagando, e a barrinha do tempo que falta
       if (d.shield && !m.shield.visible) m.shieldSince = now;
@@ -1617,9 +1659,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!d.alive) {
         if (!m.dead) {
           m.dead = true;
-          play(m, 'Death_A', 0.1);
-          // caiu na lava (fora da pedra e fora das ilhas): o corpo queima
-          if (inLavaAt(shownArena, shownR, shownIsles, d.pos)) {
+          // caiu na lava (fora da pedra e fora das ilhas): Death_A, que é a pose dos ossos, e o corpo queima; na pedra, Death_B (cai de costas)
+          const lava = inLavaAt(shownArena, shownR, shownIsles, d.pos);
+          play(m, lava ? 'Death_A' : 'Death_B', 0.1);
+          if (lava) {
             m.burnAt = now;
             loadFile(BONES);
           }
@@ -1630,12 +1673,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           m.dead = false;
           unburn(m);
         }
-        if (now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.moving ? 'Running_A' : 'Idle');
+        // nasceu (começo da rodada ou volta no deathmatch): a invulnerabilidade do começo acabou de ligar
+        if (invuln && !m.invuln) oneShot(d.id, 'Spawn_Ground', 1.3);
+        // atordoado (16: arremessado por um golpe) voa de braços abertos
+        if (now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
         // vencedor: estouro dourado ao começar a comemorar e faíscas subindo enquanto dura
         if (d.cheer && !m.cheering) victoryBurst(d.pos);
         if (d.cheer && !lite && Math.random() < 0.2) burst(v(d.pos.x + (Math.random() - 0.5) * 1.4, d.pos.y + (Math.random() - 0.5) * 1.4), Math.random() < 0.5 ? '#ffd84a' : '#fff2a0', 0.7, 1.2, 0.4, FX.star, 2.6);
       }
       m.cheering = d.cheer && d.alive;
+      m.invuln = invuln;
       // clarão branco do golpe: some em ~0,15 s
       if (m.flash > 0) {
         m.flash = Math.max(0, m.flash - 0.12);
@@ -1654,6 +1701,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
         m.statusClocks.clear();
+        // Égide pronta (131072) não vira ícone: tem o selo próprio ao lado da barra (aegisEl)
         m.statusEl.replaceChildren(...STATUS_ICONS.filter(([bit]) => d.status & bit && bit !== 131072).map(([bit, ico, name]) => {
           const c = el('b', { class: 'fx-clock', 'aria-hidden': 'true' });
           m.statusClocks.set(bit, c);
@@ -1729,12 +1777,30 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
   let composer: EffectComposer | null = null;
+  const renderPass = new RenderPass(scene, camera);
+  // pós-processamento (bloom e o pixel art, que depende dele) só no PC; no celular a cena vai direto ao renderer
   if (!mobile) {
     composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(renderPass);
     composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.4, 0.45, 0.85));
     composer.addPass(new OutputPass());
   }
+  let pixelSize = 0; // tamanho do bloco em pixels da tela (0 = desligado); 2 ou 3 escolhidos nas Configurações
+  // pixel art (issue #79): cena em blocos de pixelSize×pixelSize px com contorno, no lugar do RenderPass; só existe com o composer (PC)
+  let pixelPass: RenderPixelatedPass | null = null;
+  let pixelShift = ''; // deslize da imagem que completa a câmera presa à grade
+  let camK = 1; // quantas vezes mais longe fica a câmera do pixel art (ângulo menor, mesmo enquadramento)
+  const makePixelPass = () => {
+    const pass = new RenderPixelatedPass(pixelSize * renderer.getPixelRatio(), scene, camera, { depthEdgeStrength: 0.4, normalEdgeStrength: 0.3 });
+    // o passe compara a profundidade crua, feita para câmera ortográfica; na nossa perspectiva a diferença some.
+    // Em metros (×0,04), o contorno aparece quando a borda tem ~0,25 a 0,5 m de degrau
+    const m = pass.pixelatedMaterial;
+    Object.assign(m.uniforms, { cameraNear: { value: camera.near }, cameraFar: { value: camera.far } });
+    m.fragmentShader = '#include <packing>\nuniform float cameraNear;\nuniform float cameraFar;\n' + m.fragmentShader.replace(/return texture2D\( tDepth, ([^;]+) \)\.r;/, 'return -perspectiveDepthToViewZ(texture2D( tDepth, $1 ).r, cameraNear, cameraFar) * 0.04;');
+    // a troca é no texto do shader do three 0.186: se uma versão nova mudar o trecho, o contorno escuro some e o aviso mostra
+    if (!m.fragmentShader.includes('perspectiveDepthToViewZ')) console.warn('pixel art: o shader do RenderPixelatedPass mudou; contorno por profundidade desligado');
+    return pass;
+  };
 
   function resize() {
     const w = innerWidth, h = innerHeight;
@@ -1763,12 +1829,20 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   rangeRing.renderOrder = 9;
   rangeRing.visible = false;
   scene.add(rangeRing);
+  // explosão do Meteoro no ponto onde ele cai: o mesmo anel, do tamanho da explosão
+  const blastRing = rangeRing.clone();
+  scene.add(blastRing);
 
   return {
     ready,
     onEvents,
-    // centro no mago e raio em metros; null (ou raio 0) esconde
-    range(at: Vec | null, r: number) {
+    // centro no mago e raio em metros; null (ou raio 0) esconde. blastAt/blastR: o círculo da explosão no ponto mirado
+    range(at: Vec | null, r: number, blastAt: Vec | null = null, blastR = 0) {
+      blastRing.visible = !!blastAt && blastR > 0;
+      if (blastAt && blastR > 0) {
+        blastRing.position.copy(w3(blastAt, 0.04));
+        blastRing.scale.setScalar(blastR);
+      }
       rangeRing.visible = !!at && r > 0;
       if (!at || r <= 0) return;
       rangeRing.position.copy(w3(at, 0.04));
@@ -1808,16 +1882,38 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       });
       burst(at, cast ? '#ffb347' : '#7dff9a', 0.7, 0.25, 0.08, FX.light);
     },
+    // pixel art (issue #79): só no PC, onde há composer
+    setPixel(size: number) {
+      if (!composer || size === pixelSize) return;
+      const on = size > 0;
+      pixelSize = size;
+      if (on && pixelPass) pixelPass.setPixelSize(size * renderer.getPixelRatio());
+      const want = on ? (pixelPass ??= makePixelPass()) : renderPass;
+      if (composer.passes[0] !== want) {
+        composer.removePass(composer.passes[0]);
+        composer.insertPass(want, 0);
+      }
+      // câmera quase sem perspectiva: 1 bloco mede o mesmo no chão da tela toda, e a grade presa não balança nas bordas
+      camera.fov = on ? 12 : 40;
+      // 20° = metade do campo de visão normal (40°): com o ângulo menor, a câmera recua camK vezes para enquadrar a mesma arena
+      camK = Math.tan(THREE.MathUtils.degToRad(20)) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+      camera.near = on ? 2 : 0.5;
+      camera.far = on ? 400 : 200;
+      camera.updateProjectionMatrix();
+      Object.assign(pixelPass!.pixelatedMaterial.uniforms.cameraNear, { value: camera.near });
+      Object.assign(pixelPass!.pixelatedMaterial.uniforms.cameraFar, { value: camera.far });
+    },
     // Efeitos: true = Leve (sem tremor, hit-stop e partículas extras)
     setFx(on: boolean) {
       lite = on;
       if (lite) shake = 0;
       for (const s of embers) s.visible = false;
     },
-    // balão do taunt em cima do mago por 2,5 s
-    bubble(id: string, text: string) {
+    // balão do taunt em cima do mago por 2,5 s, com o gesto do tom (TAUNT_ANIM)
+    bubble(id: string, text: string, taunt?: keyof typeof TAUNT_ANIM) {
       const m = mages.get(id);
       if (!m) return false;
+      if (taunt) oneShot(id, ...TAUNT_ANIM[taunt]);
       m.label.querySelector('.bubble')?.remove();
       const b = el('div', { class: 'bubble' }, text);
       m.label.prepend(b);
@@ -1838,7 +1934,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       pan.set(0, 0, 0);
     },
     castLocal(id: string, spell: string, at?: Vec) {
-      oneShot(id, castAnim(spell), 0.55);
+      oneShot(id, ...castAnim(spell));
       const m = mages.get(id);
       if (!m || m.dead) return;
       // brilho na mão (um pouco à frente do mago, na cor da magia) e linha de mira fraca até o ponto
@@ -1932,7 +2028,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         g.visible = !!l;
         if (!l) return;
         g.position.copy(w3(l.pos, 0));
-        g.scale.setScalar(0.6 + 0.4 * (l.left / CHEST.pile));
+        g.scale.setScalar(0.6 + 0.4 * (l.left / CHEST.pile[1]));
         g.rotation.y = now * 0.6;
       });
       pileShine.opacity = 0.22 + 0.1 * Math.sin(now * 3);
@@ -1978,9 +2074,25 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const dist = Math.min(44, Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
       lastDist = dist;
       // olha um pouco à frente do centro para a borda de baixo não ficar atrás da barra de magias
-      const lookZ = focus.z + dist * 0.06;
-      camera.position.set(focus.x, dist * 0.74, lookZ + dist * 0.67);
-      camera.lookAt(focus.x, 0, lookZ);
+      let lookX = focus.x, lookZ = focus.z + dist * 0.06;
+      // pixel art: a câmera desenha de bloco em bloco (pixelSize px medidos no chão do meio da tela); solta, o chão "ferve" a cada quadro.
+      // A sobra (menos de um bloco) desliza a imagem pronta e os nomes, e o movimento continua suave.
+      // No eixo z o chão inclinado aparece encurtado (×0,74), então o passo no chão é maior
+      let shift = '';
+      if (pixelPass && composer?.passes[0] === pixelPass) {
+        const block = (2 * dist * camK * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / (innerHeight / pixelSize);
+        const stepZ = block / 0.74;
+        const sx = Math.round(lookX / block) * block, sz = Math.round(lookZ / stepZ) * stepZ;
+        const px = (v: number) => Math.round(v * pixelSize * devicePixelRatio) / devicePixelRatio; // pixel inteiro da tela: sem borrar os blocos
+        shift = `translate(${px((sx - lookX) / block)}px, ${px((sz - lookZ) / stepZ)}px)`;
+        lookX = sx;
+        lookZ = sz;
+      }
+      if (shift !== pixelShift) canvas.style.transform = labels.style.transform = pixelShift = shift;
+      camera.position.set(lookX, dist * 0.74 * camK, lookZ + dist * 0.67 * camK);
+      // a névoa conta da câmera: com ela mais longe, empurra junto
+      Object.assign(scene.fog!, { near: 30 + (camK - 1) * dist, far: 70 + (camK - 1) * dist });
+      camera.lookAt(lookX, 0, lookZ);
       if (shake > 0.01 && !lite) {
         camera.position.x += (Math.random() - 0.5) * shake;
         camera.position.z += (Math.random() - 0.5) * shake;

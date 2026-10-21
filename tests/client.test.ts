@@ -88,14 +88,15 @@ describe('previsão', () => {
 });
 
 describe('teclas Q W E R D F', () => {
-  it('in slot mode the equipped spells follow the bar order and items keep their keys', () => {
+  it('in slot mode the equipped spells and active items follow the bar order', () => {
     setSlotMode(true);
-    setSlots(['fireball', 'gravity', 'swap']);
+    setSlots(['fireball', 'gravity', 'swap'], ['redirector', 'pact']);
     expect(actionFor('KeyQ')).toBe('fireball');
     expect(actionFor('KeyW')).toBe('gravity');
     expect(actionFor('KeyE')).toBe('swap');
     expect(actionFor('KeyR')).toBeUndefined();
-    expect(actionFor('Digit1')).toBe('scourge');
+    expect([actionFor('Digit1'), actionFor('Digit2'), actionFor('Digit3')]).toEqual(['redirector', 'pact', undefined]);
+    expect(labelOf('pact')).toBe('2');
     expect(labelOf('gravity')).toBe('W');
     setSlotMode(false);
     expect(actionFor('KeyW')).toBe('lightning');

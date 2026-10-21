@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DT, HP_MAX, OBSTACLES, WIZ_R, WIZ_SPEED } from '../src/shared/constants.ts';
+import { DT, FRICTION, HP_MAX, OBSTACLES, WIZ_R, WIZ_SPEED } from '../src/shared/constants.ts';
 import { botBuy, botCmds, botWatch, type BotPlan } from '../src/shared/bots.ts';
 import { addPlayer, buy, newMatch, resume, startMatch, undoBuy } from '../src/shared/match.ts';
 import { parseClientMessage } from '../src/shared/protocol.ts';
@@ -607,9 +607,62 @@ describe('Ilusão', () => {
     w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'fireball', owner: 'p1', caster: 'p1', pos: v(0, -0.5), vel: v(0, 20), level: 1, until: w.t + 2, target: null, dmgMult: 1 });
     stepWorld(w, []);
     expect(copy(w)).toBe(q); // o impacto não encerra a duração
-    expect(q.vel.y).toBeGreaterThan(0); // a cópia recebe o empurrão
+    expect(q.pushVel?.y).toBeGreaterThan(0); // empurrão não vira caminhada
     expect(w.wizards[0].pos.x).toBeGreaterThan(0); // personagem independente, longe do impacto
     expect(w.wizards[0].hp).toBe(HP_MAX);
+  });
+
+  it('empurrão lateral não muda a direção de caminhada da cópia e perde força', () => {
+    const w = world([[0, 0], [5, 0]], ['illusion']);
+    stepWorld(w, [cast('p0', 'illusion', 5, 0)]);
+    const q = copy(w)!;
+    q.pos = v(0, 0);
+    const walking = { ...q.vel };
+    w.wizards[0].pos = v(5, 5);
+    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'fireball', owner: 'p1', caster: 'p1', pos: v(0, -0.5), vel: v(0, 20), level: 1, until: w.t + 2, target: null, dmgMult: 1 });
+    stepWorld(w, []);
+    expect(q.vel).toEqual(walking);
+    const y0 = q.pos.y;
+    run(w, 0.2);
+    const firstSlide = q.pos.y - y0;
+    run(w, 0.2);
+    expect(q.pos.y - y0 - firstSlide).toBeLessThan(firstSlide);
+    expect(firstSlide).toBeGreaterThan(0);
+    expect(q.vel).toEqual(walking);
+    expect(copy(w)).toBe(q);
+  });
+
+  it('Flagelo desloca a cópia sem alterar sua direção de caminhada', () => {
+    const w = world([[0, 0], [0, -0.5]], ['illusion']);
+    stepWorld(w, [cast('p0', 'illusion', 5, 0)]);
+    const q = copy(w)!;
+    q.pos = v(0, 0);
+    const walking = { ...q.vel };
+    w.wizards[0].pos = v(5, 5);
+    w.wizards[1].items.scourge = 1;
+    run(w, 0.65, [{ id: 'p1', kind: 'item', item: 'scourge', at: v(0, 0) }]);
+    expect(q.vel).toEqual(walking);
+    expect(q.pushVel?.y).toBeGreaterThan(0);
+    expect(copy(w)).toBe(q);
+  });
+
+  it.each([[0, 0], [350, 0.35]])('cópia e jogador recebem o mesmo impulso com dano %s e resistência %s', (taken, resist) => {
+    const w = world([[0, 0], [5, -5], [3, 0]], ['illusion']);
+    for (const i of [0, 2]) {
+      w.wizards[i].dmgTaken = taken;
+      w.wizards[i].kbResist = resist;
+    }
+    stepWorld(w, [cast('p0', 'illusion', 5, 0)]);
+    const q = copy(w)!;
+    q.pos = v(0, 0);
+    q.vel = v(0, 0);
+    w.wizards[0].pos = v(5, 5);
+    for (const x of [0, 3]) w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'fireball', owner: 'p1', caster: 'p1', pos: v(x, -0.5), vel: v(0, 20), level: 7, until: w.t + 2, target: null, dmgMult: 1 });
+    stepWorld(w, []);
+    expect(q.pushVel!.y).toBeCloseTo(w.wizards[2].vel.y, 8);
+    const qy = q.pos.y, py = w.wizards[2].pos.y;
+    run(w, 0.4);
+    expect(q.pos.y - qy).toBeCloseTo(w.wizards[2].pos.y - py, 8);
   });
 
   it('o projétil que atravessa a cópia a empurra uma vez só', () => {
@@ -621,7 +674,8 @@ describe('Ilusão', () => {
     // na velocidade real: a bola de fogo passa vários passos dentro da cópia
     w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'fireball', owner: 'p1', caster: 'p1', pos: v(0, -0.6), vel: v(0, spellLevel('fireball', 1).speed), level: 1, until: w.t + 2, target: null, dmgMult: 1 });
     run(w, 0.5);
-    expect(q.vel.y).toBeCloseTo(spellLevel('fireball', 1).knock, 5);
+    expect(q.vel).toEqual(v(0, 0));
+    expect(q.pushVel!.y).toBeCloseTo(spellLevel('fireball', 1).knock * Math.exp(-FRICTION * (0.5 - DT)), 5);
   });
 
   it('o Míssil teleguiado inimigo que mirava o dono persegue a cópia enquanto ela existir', () => {

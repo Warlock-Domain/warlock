@@ -1,14 +1,14 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
-import { CHARACTERS, lookHead, lookOf, type CharacterId } from './characters.ts';
+import { CHARACTERS, fixLook, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
-  ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, MAX_WATCHERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R,
+  ARENA_MIN, ARENA_STEP, ASSIST_GOLD, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, MAX_WATCHERS, PILLAR, PROJ_R, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R, arenaRadius,
   type RuneKind,
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
 import type { BotSetup } from './protocol.ts';
-import { gearOf, newWorld, placeRune, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
+import { gearOf, newWorld, placeRune, resizeArena, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
 import { MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { dist, len, type Vec } from './vec.ts';
 
@@ -32,8 +32,14 @@ function addStat(p: Player, f: (s: Stat) => void) {
   f(p.stats.room);
 }
 // toda renda passa por aqui e é multiplicada pela economia da sala (scaled = false: o valor já vem na escala dela); devolve o ganho
+// a parte quebrada fica guardada no jogador (Fernando, 20/10, issue #88: no ×1,5 o monte paga 1, 2, 1, 2…); o 1e-9 segura o erro das contas com decimal
 function earn(m: Match, p: Player, gold: number, scaled = true): number {
-  const n = scaled ? Math.round(gold * m.opts.economy) : gold;
+  let n = gold;
+  if (scaled) {
+    const total = gold * m.opts.economy + (p.goldCarry ?? 0);
+    n = Math.floor(total + 1e-9);
+    p.goldCarry = total - n;
+  }
   p.gold += n;
   addStat(p, (s) => (s.gold += n));
   return n;
@@ -57,7 +63,7 @@ export type Vote = { kind: (typeof VOTE_KINDS)[number]; target: string; by: stri
 export const OPTION_CHOICES = {
   shop: [30, 45, 60, 90, 120], // a loja ainda acaba antes quando todos clicam Pronto
   pace: ['short', 'normal', 'long'],
-  economy: [0.6, 1, 1.6, 2.5],
+  economy: [0.6, 1, 1.5, 2], // Fernando, 20/10 (issue #88): antes ×1,6 e ×2,5
   startGold: [30, 60, 100],
   goal: [3, 5, 7],
   // mecânicas que dá para desligar: runas, morte súbita e baús de ouro
@@ -93,6 +99,7 @@ export type Player = {
   look: string; // aparência montada (7 dígitos, ver LOOK_PARTS)
   score: number; // rodadas vencidas (deathmatch: abates)
   gold: number;
+  goldCarry?: number; // fração de ouro ainda não paga (ver earn)
   spells: Record<SpellId, number>;
   items: Record<ItemId, number>;
   stats: Stats;
@@ -105,6 +112,7 @@ export type Player = {
   setup?: BotSetup; // treino: magias, itens e jeito de jogar escolhidos para este bot
   difficulty?: MatchOpts['difficulty']; // bot: a dificuldade dele, escolhida na sala (sem ela, a da partida)
   dummy?: boolean; // sandbox: boneco parado (bot que não anda nem atira)
+  turret?: 'north' | 'east' | 'south' | 'west'; // Sandbox: tiro fixo, sem dano nem deslocamento.
   // espectador (pedido do Sky, 20/10): sem mago a partir da próxima rodada; pontos, ouro e compras ficam guardados para voltar
   watch?: boolean;
 };
@@ -115,10 +123,15 @@ export type Sandbox = { god: boolean; noCd: boolean; shrink: boolean };
 export type SandboxCmd =
   | { op: 'set'; key: keyof Sandbox; on: boolean }
   | { op: 'bot'; bot?: BotSetup; dummy?: boolean }
-  | { op: 'arena'; arena: ArenaId }
+  | { op: 'turret'; direction: NonNullable<Player['turret']> }
+  | { op: 'arena'; arena: ArenaId } // forma escolhida: reinicia a rodada e fica nos reinícios seguintes (pedido do Fernando, 20/10)
+  | { op: 'radius'; step: 1 | -1 } // pedra uma faixa maior ou menor, na hora (volta ao padrão no reinício)
   | { op: 'rune'; kind: RuneKind } // runa escolhida ao lado de quem pediu (pedido do Sky, 20/10)
   | { op: 'restart' };
 const SANDBOX_GOLD = 9999;
+// teto da pedra na sandbox: o raio com 10 magos (14,9 m), duas faixas de folga acima da maior arena real (8 magos, 13,6 m);
+// na forma mais larga (Ilhas, 1,63 × raio) fica em 24 m, dentro do MAX_COORD (30 m) do protocolo, então o clique ainda alcança a pedra
+const SANDBOX_R_MAX = arenaRadius(10);
 
 export type Match = {
   phase: Phase;
@@ -237,6 +250,8 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   if (m.phase !== 'lobby' && m.phase !== 'end') return false;
   m.opts = { ...m.opts, ...opts };
   m.sandbox = sandbox ? { god: true, noCd: false, shrink: false } : undefined;
+  // começa redonda; a forma escolhida no painel fica em m.opts.arena e a sandbox nunca sorteia
+  if (sandbox) m.opts = { ...m.opts, arena: 'circle' };
   m.players = m.players.filter((p) => !p.bot && p.connected);
   const solo = m.players.length === 1;
   for (let i = 0; playing(m).length < MAX_PLAYERS && i < bots; i++) {
@@ -256,7 +271,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
 // zera a partida e abre a loja da rodada 1 (começar, ou reiniciar por votação com os mesmos jogadores)
 function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: () => number) {
   for (const p of m.players) {
-    Object.assign(p, { score: 0, gold: startGold(m), spells: noSpells(), items: startItems() });
+    Object.assign(p, { score: 0, gold: startGold(m), goldCarry: 0, spells: noSpells(), items: startItems() });
     p.held = {};
     p.stats.match = newStat();
     p.stats.round = newStat();
@@ -390,7 +405,7 @@ export function resume(m: Match, now: number) {
   m.vote = null; // o prazo de uma votação gravada já passou
   for (const p of m.players) {
     p.character ??= 'mage';
-    p.look ??= lookOf(p.character); // salas gravadas antes da aparência montada
+    p.look = fixLook(p.look ?? lookOf(p.character)); // salas gravadas antes da aparência montada ou com peça da Ladina encapuzada (#107)
     // salas gravadas antes das magias novas, ou com uma que saiu do jogo (os Gêmeos, 19/10): fica só o que existe
     p.spells = Object.fromEntries(SPELL_IDS.map((s) => [s, p.spells[s] ?? noSpells()[s]])) as Record<SpellId, number>;
     const plan = (p as { plan?: BotPlan }).plan;
@@ -617,7 +632,7 @@ function bonus(m: Match, p: Player, gold: number, scaled = true) {
   if (gold <= 0) return;
   const n = earn(m, p, gold, scaled);
   const z = m.world?.wizards.find((q) => q.id === p.id);
-  if (z) m.world!.events.push({ k: 'gold', id: p.id, n, x: z.pos.x, y: z.pos.y });
+  if (z && n > 0) m.world!.events.push({ k: 'gold', id: p.id, n, x: z.pos.x, y: z.pos.y });
 }
 
 function endRound(m: Match, now: number, winner: string | null) {
@@ -676,7 +691,7 @@ function afterRound(m: Match, now: number) {
 
 const EMPTY_ROUNDS_END = 3;
 
-// painel da sandbox: ligar/desligar regras, pôr bot (tirar é o 'kick'), pôr runa, trocar a arena e reiniciar a rodada; fora da sandbox não faz nada
+// painel da sandbox: ligar/desligar regras, pôr bot (tirar é o 'kick'), pôr runa, trocar a arena, mudar o tamanho da pedra e reiniciar a rodada; fora da sandbox não faz nada
 // id: quem mandou (a runa nasce ao lado dele)
 export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boolean {
   const sb = m.sandbox;
@@ -692,6 +707,17 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boo
     if (m.world) m.world.shrink = sb.shrink;
     return true;
   }
+  if (cmd.op === 'turret') {
+    const b = newBot(m);
+    if (!b) return false;
+    b.turret = cmd.direction;
+    b.dummy = true;
+    b.name = 'Totem'; // igual em português e inglês (o nome aparece no placar e no "Tirar …")
+    b.spells = { ...noSpells(), fireball: 1 };
+    b.items = noItems();
+    refit(m, b);
+    return true;
+  }
   if (cmd.op === 'bot') {
     const b = newBot(m);
     if (!b) return false;
@@ -704,6 +730,14 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boo
     else if (!cmd.dummy) botShop(m, b); // o boneco fica sem compras: dano e empurrão de referência
     refit(m, b);
     return true;
+  }
+  if (cmd.op === 'radius') {
+    const w = m.world;
+    if (!w) return false;
+    const r = Math.min(SANDBOX_R_MAX, Math.max(ARENA_MIN, w.arenaR + cmd.step * ARENA_STEP));
+    // como a runa: só o mundo muda e o raio vai no snapshot (o cliente desenha crescendo ou encolhendo), então a sala não grava
+    if (Math.abs(r - w.arenaR) > 1e-9) resizeArena(w, r);
+    return false;
   }
   if (cmd.op === 'arena') m.opts = { ...m.opts, arena: cmd.arena };
   // reiniciar (e trocar a arena): mundo novo com todos no ponto de partida e vida cheia, depois da contagem
@@ -809,6 +843,33 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   const w = m.world;
   m.steps++;
   const all = [...cmds];
+  const turrets = sb ? m.players.filter((p) => p.turret) : [];
+  const pinTurrets = () => {
+    const zs = turrets.map((p) => w.wizards.find((q) => q.id === p.id && q.alive));
+    for (const z of zs) {
+      if (!z || z.turretAnchor) continue;
+      // em diagonal (0, +1, -1, +2…), na primeira vaga livre: cada torreta numa linha e numa coluna só dela, o tiro de uma não cruza outra
+      for (let i = 0; !z.turretAnchor; i++) {
+        const k = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 1.2;
+        if (!zs.some((o) => o?.turretAnchor?.y === k)) z.turretAnchor = { x: -w.arenaR * 0.35 + k, y: k };
+      }
+    }
+    for (const z of zs) {
+      if (!z?.turretAnchor) continue;
+      z.pos = { ...z.turretAnchor };
+      z.vel = { x: 0, y: 0 };
+      z.target = null;
+      z.invulnUntil = Infinity;
+      z.hp = z.hpMax;
+    }
+  };
+  pinTurrets();
+  for (const p of turrets) {
+    const z = w.wizards.find((q) => q.id === p.id && q.alive);
+    if (!z) continue;
+    const [x, y] = { north: [0, -1], east: [1, 0], south: [0, 1], west: [-1, 0] }[p.turret!];
+    all.push({ id: p.id, kind: 'cast', spell: 'fireball', at: { x: z.pos.x + x, y: z.pos.y + y } });
+  }
   // os bots enxergam a cada passo e pensam D.rate vezes por segundo; o placar serve para o Difícil caçar o líder
   botWatch(w);
   const scores = Object.fromEntries(m.players.map((p) => [p.id, p.score]));
@@ -825,6 +886,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   const human = (id: string) => player(m, id)?.bot === false;
   if (sb) for (const z of w.wizards) z.god = sb.god && human(z.id);
   stepWorld(w, all, rand);
+  pinTurrets();
   if (sb?.noCd) for (const z of w.wizards.filter((q) => human(q.id))) {
     for (const s of SPELL_IDS) z.cd[s] = 0;
     for (const i of ITEM_IDS) z.itemCd[i] = 0;

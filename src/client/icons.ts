@@ -19,6 +19,10 @@ export function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<
   for (const c of children) if (c) e.append(c);
   return e;
 }
+// botão só de ícone (✕, ⋯, ‹ ›, engrenagem): o nome vira title e aria-label. props sobrescreve (class 'icon …', title com a tecla,
+// aria-expanded, hidden). Outros visuais do ✕ só pela class: 'kick' (pequeno e vermelho, na linha do placar), 'info-close' (canto do ⓘ)
+export const iconButton = (child: Child, name: string, onclick: () => void, props: Record<string, unknown> = {}) =>
+  el('button', { type: 'button', class: 'icon', title: name, 'aria-label': name, onclick, ...props }, child);
 
 // símbolo do sprite → <svg> do tamanho da fonte; o emoji antigo fica como texto alternativo
 const ALT: Record<string, string> = {};

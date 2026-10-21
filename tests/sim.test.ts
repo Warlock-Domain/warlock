@@ -359,6 +359,17 @@ describe('tecla repetida', () => {
 });
 
 describe('baú e chão do choque', () => {
+  it('the gold pile is drawn from 3 to 5 when the chest appears', () => {
+    const gold = (r: number) => {
+      const w = world([[0, 5], [0, -5]]);
+      w.pillars = [];
+      w.t = w.chestAt;
+      stepWorld(w, [], () => r);
+      return w.pillars.find((q) => q.kind === 'chest')?.gold;
+    };
+    expect([gold(0), gold(0.5), gold(0.999)]).toEqual([CHEST.pile[0], 4, CHEST.pile[1]]);
+  });
+
   it('a chest appears after 15 s, spells break it and standing on the gold pays 1 every 2 s', () => {
     const w = world([[0, 0], [6, 6]]);
     w.pillars = [];
@@ -373,7 +384,7 @@ describe('baú e chão do choque', () => {
       run(w, 0.4, [{ id: 'p0', kind: 'cast', spell: 'fireball', at }]);
     }
     expect(w.pillars[i].alive).toBe(false);
-    expect(w.loots[0]?.left).toBe(CHEST.pile);
+    expect(w.loots[0]?.left).toBe(w.pillars[i].gold);
     w.wizards[0].pos = v(at.x, at.y);
     w.wizards[0].vel = v(0, 0);
     let gold = 0;

@@ -1,7 +1,7 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
   ARENA_MIN, ARENA_STEP, CHEST, CREDIT_WINDOW, ZONES, DM_RESPAWN, DM_SPAWN_GAP, OBSTACLES, OBSTACLE_KINDS, PILLAR, type ObstacleKind, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KB_SOFT_CAP, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
-  ISLAND, RUNE, RUNE_KINDS, SUDDEN, WALL_GAP, WIZ_R, WIZ_SPEED, arenaRadius, type RuneKind,
+  ISLAND, PROJ_SPAWN, RUNE, RUNE_KINDS, SUDDEN, WALL_GAP, WIZ_R, WIZ_SPEED, arenaRadius, type RuneKind,
 } from './constants.ts';
 import { SHAPES, edge, inArena, inLavaAt, isleSpot, safeInside, type ArenaId, type Isle } from './arena.ts';
 import { ACTIVE_ITEMS, AEGIS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, isActive, itemStats, noItems, type ItemId } from './items.ts';
@@ -75,7 +75,8 @@ export type Wizard = {
   // magia ou item sendo conjurado: sai em fireAt e o mago fica parado até lá (pedido do Fernando, 17/10:
   // clicar para andar não cancela); o clique de andar fica guardado em `then` e vale quando a magia sai
   casting: { spell?: SpellId; item?: ItemId; at: Vec; fireAt: number; then?: Vec | null } | null;
-  god?: boolean; // sandbox: vida infinita (não morre; da lava volta para a pedra)
+  god?: boolean; // sandbox: vida infinita (não morre; fica na lava com a vida cheia, sem voltar para a pedra: pedido do Fernando, 20/10)
+  turretAnchor?: Vec; // sandbox: ponto fixo da torreta nesta rodada
 };
 
 // meteor fica parado no ponto de impacto até `until` e então explode; swap e grip não causam dano
@@ -100,6 +101,9 @@ export type Projectile = {
   caster: string; // quem lançou (o dono muda quando um escudo reflete)
   dest?: Vec; // Troca: aonde o mago vai se ela não tocar ninguém (o ponto da mira)
   decoy?: number; // Ilusão: id da cópia que este projétil já empurrou (empurra uma vez só ao atravessar)
+  pushVel?: Vec; // Ilusão: empurrão da cópia, separado da caminhada e de para onde ela olha
+  decoyDamage?: number; // Ilusão: dano que a cópia já levou (só aumenta o empurrão; ela não morre)
+  decoyResist?: number; // Ilusão: resistência a empurrão do dono no momento do lançamento
   curve?: { acc: Vec; next: Vec; flipAt: number; stopAt: number }; // Bumerangue indo: aceleração agora, a da volta e quando trocam
   back?: boolean; // Bumerangue voltando ao dono
   prev?: string; // Ricochete: último mago tocado (não bate nele de novo em seguida)
@@ -150,8 +154,8 @@ type AimSrc = SpellId | 'scourge' | 'pact' | 'redirector';
 // choque de magias: fogo×fogo, fogo×míssil, míssil×míssil, e o raio detonando uma bola de fogo
 type Combo = 'fire' | 'arcane' | 'pulse' | 'detonate' | 'pillar' | 'snow'; // snow: explosão da Bola de neve
 
-// until: some sozinho (Pilar de pedra); wall: índice do pedaço do meio da parede do Pilar de pedra (os 3 dividem a vida)
-export type Pillar = { pos: Vec; hp: number; alive: boolean; kind: ObstacleKind; until?: number; wall?: number };
+// until: some sozinho (Pilar de pedra); wall: índice do pedaço do meio da parede do Pilar de pedra (os 3 dividem a vida); gold: ouro do monte do baú
+export type Pillar = { pos: Vec; hp: number; alive: boolean; kind: ObstacleKind; until?: number; wall?: number; gold?: number };
 
 type Zone = { pos: Vec; r: number; kind: 'burn' | 'slow' | 'pull'; until: number };
 
@@ -363,12 +367,16 @@ const bubble = (w: World, wz: Wizard) => (shielded(w, wz) ? Math.max(0, wz.shiel
 const allies = (a: Wizard | undefined, b: Wizard) => !!a && a !== b && a.team !== null && a.team === b.team;
 
 // src: o que causou o dano (magia, item, choque ou pilar), para o placar e os dados de balanceamento
+function knockScale(dmg: number, taken: number, resist: number) {
+  const big = dmg > KB_SOFT_CAP ? Math.sqrt(KB_SOFT_CAP * dmg) / dmg : 1;
+  return big * (1 + (KNOCK_HP_SCALE * taken) / HP_MAX) * Math.max(0, 1 - resist);
+}
+
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string) {
   // invulnerável: sem dano nem empurrão, mas o acerto aparece (explosão e som), senão o projétil sumiria sem efeito
   if (w.t < target.invulnUntil) return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
   // como no mod de Dota 2 (pawn.lua): acima de 100 de dano por golpe o empurrão cresce pela raiz, não em linha reta
-  const big = dmg > KB_SOFT_CAP ? Math.sqrt(KB_SOFT_CAP * dmg) / dmg : 1;
-  const mult = big * (1 + (KNOCK_HP_SCALE * target.dmgTaken) / HP_MAX) * Math.max(0, 1 - target.kbResist);
+  const mult = knockScale(dmg, target.dmgTaken, target.kbResist);
   // fogo amigo: só empurra; sem dano, sem roubo de vida e sem crédito de abate para o aliado
   if (allies(anyById(w, by), target)) {
     target.vel = add(target.vel, scale(norm(dir), knock * mult));
@@ -464,7 +472,7 @@ function area(w: World, at: Vec, radius: number, dmg: number, kbFactor: number, 
     const d = dist(q.pos, at);
     if (d > radius + WIZ_R) continue;
     const amount = dmg * Math.max(0, 1 - d / (radius + WIZ_R));
-    if (amount > 0.5) q.vel = add(q.vel, scale(norm(sub(q.pos, at)), amount * KB_PER_DMG * kbFactor));
+    if (amount > 0.5) pushDecoy(q, scale(norm(sub(q.pos, at)), amount * KB_PER_DMG * kbFactor), amount);
   }
   w.events.push({ k: 'clash', x: at.x, y: at.y, combo, r: radius });
   const kind = combo === 'fire' || combo === 'detonate' ? 'burn' : combo === 'arcane' ? 'slow' : combo === 'pulse' ? 'pull' : null;
@@ -525,7 +533,7 @@ function damagePillar(w: World, i: number, dmg: number, by: string | null) {
   const at = p.wall === undefined ? p.pos : w.pillars[p.wall].pos;
   const o = OBSTACLES[p.kind];
   // o ouro cai na pedra: baú que a lava pegou espalha o monte na beira de dentro
-  if (p.kind === 'chest') w.loots.push({ pos: safeInside(w, p.pos, 0.6), left: CHEST.pile, until: w.t + CHEST.pileSecs });
+  if (p.kind === 'chest') w.loots.push({ pos: safeInside(w, p.pos, 0.6), left: p.gold ?? CHEST.pile[1], until: w.t + CHEST.pileSecs });
   if (o.blastR > 0) area(w, at, o.blastR, o.blastDmg, 1, by, 'pillar');
   else w.events.push({ k: 'clash', x: at.x, y: at.y, combo: 'pillar', r: o.r * 1.5 });
 }
@@ -601,7 +609,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   const flight = (L.range / L.speed) * wz.rangeF; // segundos de voo do alcance todo
 
   // projétil reto saindo do mago; life em segundos (já com o alcance do Elmo)
-  const launch = (kind: ProjKind, d: Vec, life: number, target: string | null = null, from = add(wz.pos, scale(d, WIZ_R + PROJ_R + 0.05))) => {
+  const launch = (kind: ProjKind, d: Vec, life: number, target: string | null = null, from = add(wz.pos, scale(d, PROJ_SPAWN))) => {
     const p: Projectile = { id: w.nextId++, born: w.t, kind, owner: wz.id, pos: from, vel: scale(d, L.speed), level, until: w.t + life, target, dmgMult, caster: wz.id };
     w.projectiles.push(p);
     return p;
@@ -666,7 +674,9 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   } else if (spell === 'illusion') {
     // a cópia segue o movimento atual (ou o destino recém-ordenado); parada, usa a direção da magia
     const moveDir = len(wz.vel) > 0.5 ? norm(wz.vel) : wz.target && dist(wz.target, wz.pos) > 0.1 ? norm(sub(wz.target, wz.pos)) : dir;
-    launch('illusion', moveDir, L.duration, null, wz.pos);
+    const copy = launch('illusion', moveDir, L.duration, null, wz.pos);
+    copy.decoyDamage = wz.dmgTaken;
+    copy.decoyResist = wz.kbResist;
     wz.veilUntil = w.t + L.duration;
   } else if (spell === 'recharge') {
     launch('recharge', dir, flight).bonus = RECHARGE.perHit * wz.streak;
@@ -810,7 +820,7 @@ function scourge(w: World, wz: Wizard) {
     const d = dist(q.pos, wz.pos);
     if (d <= SCOURGE.radius + WIZ_R) {
       const factor = 0.75 + 0.25 * Math.max(0, 1 - d / SCOURGE.radius);
-      q.vel = add(q.vel, scale(norm(sub(q.pos, wz.pos)), dmg * KB_PER_DMG * factor));
+      pushDecoy(q, scale(norm(sub(q.pos, wz.pos)), dmg * KB_PER_DMG * factor), dmg);
     }
   }
   // também bate nos obstáculos e no baú dentro da explosão (pedido do Fernando, 17/10)
@@ -849,7 +859,7 @@ function meteorLand(w: World, p: Projectile) {
     const d = dist(q.pos, p.pos);
     if (d > L.radius + WIZ_R) continue;
     const amount = (L.dmgMin + (L.dmg - L.dmgMin) * Math.max(0, 1 - d / L.radius)) * p.dmgMult;
-    q.vel = add(q.vel, scale(norm(sub(q.pos, p.pos)), amount * (L.knock / L.dmg) * KB_PER_DMG));
+    pushDecoy(q, scale(norm(sub(q.pos, p.pos)), amount * (L.knock / L.dmg)), amount);
   }
   w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'fire', r: L.radius });
   if (landed) land(w, p, 'meteor');
@@ -1103,6 +1113,13 @@ function snowBlast(w: World, p: Projectile) {
   w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'snow', r: L.radius });
 }
 
+// empurra a cópia da Ilusão com a mesma escala do mago (dano acumulado, teto e resistência do dono); ela nunca morre
+function pushDecoy(q: Projectile, impulse: Vec, dmg: number) {
+  const taken = q.decoyDamage ?? 0;
+  q.pushVel = add(q.pushVel ?? v(0, 0), scale(impulse, knockScale(dmg, taken, q.decoyResist ?? 0)));
+  q.decoyDamage = taken + dmg;
+}
+
 // cópia da Ilusão de um inimigo do dono de p que o segmento p.pos→b toca (a mais perto do começo); t em [0,1]
 function decoyOnSegment(w: World, p: Projectile, b: Vec, radius: number): { q: Projectile; t: number } | null {
   const owner = anyById(w, p.owner);
@@ -1189,9 +1206,13 @@ function stepProjectiles(w: World) {
       continue;
     }
     if (p.kind === 'illusion') {
-      // cópia autônoma: segue o vetor de movimento e só desaparece no prazo; projéteis podem empurrá-la, nunca destruí-la
-      const next = add(p.pos, scale(p.vel, dt));
+      // Mesmo deslizamento do mago: empurrão não muda a caminhada nem para onde olha.
+      const push = p.pushVel ?? v(0, 0);
+      const walk = isSliding({ vel: push }) ? v(0, 0) : p.vel;
+      const next = add(p.pos, scale(add(walk, push), dt));
       if (!firstPillarOnSegment(w, p.pos, next, WIZ_R)) p.pos = next;
+      p.pushVel = scale(push, Math.exp(-FRICTION * dt));
+      if (len(p.pushVel) < 0.05) p.pushVel = undefined;
       if (w.t < p.until) keep.push(p);
       continue;
     }
@@ -1241,7 +1262,7 @@ function stepProjectiles(w: World) {
     // Ilusão: projéteis não a destroem; ao acertá-la, transferem o empurrão e continuam o trajeto
     const fake = p.kind === 'gravity' ? null : decoyOnSegment(w, p, next, WIZ_R + r);
     if (fake && (!found || fake.t <= found.t) && (!pil || fake.t < pil.t)) {
-      fake.q.vel = add(fake.q.vel, scale(norm(p.vel), L.knock * p.dmgMult));
+      pushDecoy(fake.q, scale(norm(p.vel), L.knock * p.dmgMult), L.dmg * p.dmgMult);
       p.decoy = fake.q.id;
     }
     // a Bola de neve atravessa magos (arrastando) e só para em obstáculo ou escudo
@@ -1500,7 +1521,18 @@ export function placeRune(w: World, kind: RuneKind, near: Vec | null, rand: () =
   return true;
 }
 
-// volta parado para dentro da pedra, na mesma direção (Égide; na sandbox, quem tem vida infinita e cai na lava)
+// raio novo da pedra (encolhimento e painel da sandbox): as ilhas chegam junto com a borda e levam quem está em cima
+export function resizeArena(w: World, r: number) {
+  w.arenaR = r;
+  for (const i of w.isles) {
+    const to = isleSpot(w, i.a, i.d);
+    for (const z of w.wizards) if (z.alive && dist(z.pos, i.pos) < i.r) z.pos = add(z.pos, sub(to, i.pos));
+    i.pos = to;
+  }
+  w.events.push({ k: 'shrink', r });
+}
+
+// volta parado para dentro da pedra, na mesma direção (Égide)
 function toStone(w: World, wz: Wizard) {
   const from = wz.pos;
   Object.assign(wz, { pos: safeInside(w, wz.pos, w.arenaR * (1 - AEGIS.back)), vel: v(0, 0), target: null, dashUntil: 0, thrustUntil: 0 });
@@ -1517,8 +1549,9 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       if (wz.casting) wz.casting.then = c.to;
       else wz.target = c.to;
     } else if (c.kind === 'stop') {
-      if (wz.casting) wz.casting.then = null;
-      else wz.target = null;
+      // como no Dota (#144): no tempo de lançamento, cancela a magia; a recarga só começa quando ela sai, então fica livre
+      wz.casting = null;
+      wz.target = null;
     } else if (c.kind === 'item') beginCast(w, wz, { item: c.item }, c.at);
     else beginCast(w, wz, { spell: c.spell }, c.at);
   }
@@ -1569,15 +1602,8 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   const minR = collapsing && !w.dm ? 0 : ARENA_MIN; // a sandbox encolhe até o mínimo, sem sumir
   if (!w.dm && collapsing && w.shrinkAt > w.t + SUDDEN.every) w.shrinkAt = w.t + SUDDEN.every;
   if ((!w.dm || w.shrink) && w.t >= w.shrinkAt && w.arenaR > minR) {
-    w.arenaR = Math.max(minR, w.arenaR - ARENA_STEP);
-    // as ilhas chegam junto com a borda e levam quem está em cima
-    for (const i of w.isles) {
-      const to = isleSpot(w, i.a, i.d);
-      for (const z of w.wizards) if (z.alive && dist(z.pos, i.pos) < i.r) z.pos = add(z.pos, sub(to, i.pos));
-      i.pos = to;
-    }
+    resizeArena(w, Math.max(minR, w.arenaR - ARENA_STEP));
     w.shrinkAt += w.sudden || collapsing ? SUDDEN.every : SHRINK_EVERY;
-    w.events.push({ k: 'shrink', r: w.arenaR });
   }
 
   w.zones = w.zones.filter((z) => z.until > w.t);
@@ -1587,7 +1613,8 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   if (w.rules.chests && chestsUp < CHEST.maxUp && w.chestsLeft > 0 && w.t >= w.chestAt) {
     const at = freeSpot(w, rand, CHEST.spread);
     if (at) {
-      w.pillars.push({ pos: at, hp: OBSTACLES.chest.hp, alive: true, kind: 'chest' });
+      const gold = CHEST.pile[0] + Math.floor(rand() * (CHEST.pile[1] - CHEST.pile[0] + 1));
+      w.pillars.push({ pos: at, hp: OBSTACLES.chest.hp, alive: true, kind: 'chest', gold });
       w.events.push({ k: 'chest', x: at.x, y: at.y });
       w.chestAt = w.t + CHEST.every;
       w.chestsLeft--;
@@ -1637,9 +1664,8 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
 
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
-    // sandbox: vida infinita não morre e, na lava, volta para a pedra
+    // sandbox: vida infinita não morre; na lava fica onde está (sem voltar para a pedra), só com a vida cheia
     if (wz.god) {
-      if (inLava(w, wz.pos)) toStone(w, wz);
       wz.hp = wz.hpMax;
       continue;
     }
