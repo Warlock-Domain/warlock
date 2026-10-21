@@ -22,18 +22,18 @@ describe('aparência montada', () => {
     for (const c of PRESETS) {
       const look = lookOf(c.id);
       expect(isLook(look)).toBe(true);
-      expect(lookHead(look)).toBe(c.id);
-      // o capuz (Rogue_Hood) mora no rogue.glb, mas é chapéu: a Ladina pronta vem sem ele
-      expect(lookPieces(look).flatMap((p) => p.nodes).sort()).toEqual(meshNodes(c.id).filter((n) => n !== 'Rogue_Hood').sort());
+      expect(lookHead(look)).toBe(c.id === 'rogue' ? 'rogue_hooded' : c.id); // Ladina com o Capuz: retrato com capuz
+      // a Ladina pronta já vem com o Capuz (Rogue_Hood, no rogue.glb)
+      expect(lookPieces(look).flatMap((p) => p.nodes).sort()).toEqual(meshNodes(c.id).sort());
     }
-    expect(new Set(CHARACTERS.map((c) => lookOf(c.id))).size).toBe(CHARACTERS.length);
+    expect(new Set(PRESETS.map((c) => lookOf(c.id))).size).toBe(PRESETS.length);
     expect(lookOf('mage')).toBe('0100011');
   });
 
   it('a Ladina encapuzada vira Ladina + Capuz e nenhum outro código salvo muda (#107)', () => {
     const hood = LOOK_PARTS[1].opts.findIndex((o) => o?.name === 'Capuz');
-    expect(lookOf('rogue')).toBe('3033344');
-    expect(lookOf('rogue_hooded')).toBe('3' + hood + '33344');
+    expect(lookOf('rogue')).toBe('3' + hood + '33344'); // a Ladina pronta já vem com o Capuz (20/10)
+    expect(lookOf('rogue_hooded')).toBe(lookOf('rogue'));
     expect(lookPieces(lookOf('rogue_hooded')).flatMap((p) => p.nodes)).toContain('Rogue_Hood');
     expect(lookHead(lookOf('rogue_hooded'))).toBe('rogue_hooded'); // retrato do placar continua o da encapuzada
     expect(lookHead('1' + hood + '11122')).toBe('knight');

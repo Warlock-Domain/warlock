@@ -308,6 +308,7 @@ function startRoom(code: string, name: string) {
     stop() {
       command({ t: 'stop' });
       predict.stop();
+      scourgeUntil = 0; // o S cancela o Flagelo em preparo
     },
     cast(spell, at) {
       const i = SPELL_IDS.indexOf(spell);

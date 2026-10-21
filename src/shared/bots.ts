@@ -207,7 +207,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   M.route.delete(id);
   if (slip === 'freeze' && inside(me.pos, fear)) {
     M.frozen.set(id, w.t + 0.5);
-    return [{ id, kind: 'stop' }];
+    // hesitar não é apertar S: conjurando, só fica parado (o S cancelaria a magia)
+    return me.casting ? [] : [{ id, kind: 'stop' }];
   }
 
   // projétil que acabou de surgir ainda não deu tempo de ver; longe demais, o bot não enxerga
