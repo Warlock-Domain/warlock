@@ -1,6 +1,6 @@
 // Simulador de balanceamento: partidas só de bots (2 a 8, rodadas e às vezes Times), em tempo simulado, o mais rápido possível.
 // Soma por rodada quem tinha o quê e quem venceu; grava <out>/summary.json e <out>/report.md a cada --every rodadas e no fim.
-// Uso: node scripts/balance-sim.ts --minutes 480 --out balance/noite --seed 1 [--plan random|classic|smart] [--rounds N] [--every 1000] [--difficulty normal|hard] [--arena random|circle|ring|islands|cross] [--effect off|random|lava|gold|slow|regen|clear]
+// Uso: node scripts/balance-sim.ts --minutes 480 --out balance/noite --seed 1 [--plan random|classic|smart] [--rounds N] [--every 1000] [--difficulty normal|hard] [--arena random|circle|ring|islands|cross] [--effect off|random|<id de ROUND_EFFECT_IDS>]
 // Juntar vários processos: node scripts/balance-sim.ts --merge --out balance/total balance/p1 balance/p2 ...
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
