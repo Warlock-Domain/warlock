@@ -1212,7 +1212,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   // estado da loja que sobrevive ao redesenho (a sala manda o estado a cada compra de qualquer jogador)
   let goldOpen = false;
-  let sheetOpen = true;
+  let sheetOpen = false; // Ficha começa recolhida para a loja caber sem rolagem no PC; abrir/fechar sobrevive ao redesenho
   let shopQuery = ''; // busca da loja: fica ao redesenhar (a sala manda o estado a cada segundo)
   const shopLoadout = (p: PublicPlayer) => {
     const slots = equipment(p);
@@ -1327,7 +1327,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const items = () => el('div', { class: 'shop-items' },
       group(t('Itens passivos', 'Passive items'), itemCount, ITEM_IDS.filter((i): boolean => !isActive(i)).map(itemOffer)),
       group(t('Itens ativos', 'Active items'), t('cada um com a sua tecla', 'each with its own key'), ACTIVE_ITEMS.map(itemOffer)));
-    if (look) return filterShop(el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
+    if (look) return filterShop(el('div', { class: 'card shop compact-shop' }, items(), el('div', { class: 'shop-main' },
       shopLoadout(mine),
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.sandbox ? t('Loja · sandbox', 'Shop · sandbox') : deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${r.sandbox ? 'ouro sem fim: compre e venda, vale na hora' : deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${r.sandbox ? 'endless gold: buy and sell, it applies right away' : deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
         iconButton('✕', t('Fechar a loja', 'Close the shop'), () => togglePeek(false), { class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`) })),
@@ -1339,14 +1339,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       act.ready();
     } }, readyText(mine.ready));
     // compras no meio; ouro, Pronto e placar à direita (pedido do Fernando: loja mais larga; o personagem saiu para o menu principal e as Configurações)
-    return filterShop(el('div', { class: 'card shop' }, items(), el('div', { class: 'shop-main' },
+    return filterShop(el('div', { class: 'card shop compact-shop' }, items(), el('div', { class: 'shop-main' },
       shopLoadout(mine),
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? t('Loja', 'Shop') : t(`Loja · depois da rodada ${r.round}`, `Shop · after round ${r.round}`)), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells`))),
       shopSearch(),
-      r.round === 0 && !firstSeen ? firstCard() : null,
       ...grid,
       ),
       el('aside', { class: 'shop-side' },
+        r.round === 0 && !firstSeen ? firstCard() : null,
         el('span', { class: 'gold big' }, gold(mine.gold)),
         readyBtn,
         el('button', { type: 'button', 'data-key': 'placar', onclick: () => pinTab(true) }, icon(UI_ICON.board), ' ' + t('Placar', 'Scoreboard')),
