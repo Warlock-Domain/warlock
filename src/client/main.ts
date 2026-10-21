@@ -254,6 +254,7 @@ function startRoom(code: string, name: string) {
   // espectador: quem a câmera segue e o pedido de troca (+1 próximo, −1 anterior) do quadro seguinte
   let watchId: string | null = null;
   let watchStep = 0;
+  let watchCenter = false; // câmera do espectador parada no centro da arena (botão na barra "Assistindo", ui.ts)
   // replay da queda (em qualquer partida): os últimos 6 s de estados e eventos; ao eu cair, vira o trecho que dá para rever
   let ring: { s: SnapView; e: SimEvent[] }[] = [];
   let clip: typeof ring = [];
@@ -324,6 +325,7 @@ function startRoom(code: string, name: string) {
     },
     spellReady: () => sound.play('ready', 0.8),
     watch: (step) => (watchStep = step),
+    watchCenter: (on) => (watchCenter = on),
     replay: toggleReplay,
     name: () => myName,
     // o servidor atualiza o apelido de quem já está na sala quando o hello chega de novo (addPlayer)
@@ -788,8 +790,9 @@ function startRoom(code: string, name: string) {
       runes: shown ? shown.runes : [],
       zones: shown ? shown.zones : [],
       isles: shown ? shown.isles : [],
-      follow: rs ? (rMe && rBy ? scale(add(rMe, rBy), 0.5) : (rMe ?? rBy ?? null)) : watched ? watched.pos : follow ? myPos : null,
-      lock: !!rs || !!watched,
+      // follow null = centro da arena (0, 0), para onde ela encolhe
+      follow: rs ? (rMe && rBy ? scale(add(rMe, rBy), 0.5) : (rMe ?? rBy ?? null)) : watched ? (watchCenter ? null : watched.pos) : follow ? myPos : null,
+      lock: !!rs || (!!watched && !watchCenter),
     });
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
