@@ -866,7 +866,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let mine: PublicPlayer | undefined;
   const ORDER_KEY = 'warlock:loadout-order';
   let loadoutOrder = store.json<LoadoutOrder>(ORDER_KEY) ?? undefined;
-  let slotDrag: { pointer: number; from: number; x: number; y: number; moved: boolean } | null = null;
+  let slotDrag: { pointer: number; from: number; x: number; y: number; moved: boolean; ghost?: HTMLElement; over?: HTMLElement | null } | null = null;
   const equipment = (p: PublicPlayer) => loadoutSlots(p.spells, p.items, loadoutOrder);
   function changeSlot(from: number, to: number) {
     if (!mine) return false;
@@ -895,13 +895,27 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (!slotDrag || slotDrag.pointer !== e.pointerId) return;
       // até 6 px conta como clique; passou disso vira arraste, e o clique da vaga não dispara (blockClick)
       if (Math.hypot(e.clientX - slotDrag.x, e.clientY - slotDrag.y) > 6) slotDrag.moved = true;
-      if (slotDrag.moved) { e.preventDefault(); node.classList.add('dragging-slot'); }
+      if (!slotDrag.moved) return;
+      e.preventDefault();
+      node.classList.add('dragging-slot');
+      // o ícone segue o mouse e a vaga embaixo dele acende (Fernando, 21/10)
+      slotDrag.ghost ??= document.body.appendChild(el('div', { class: 'drag-ghost', style: `--g: ${getComputedStyle(node).getPropertyValue('--g')}` }, node.querySelector('svg')?.cloneNode(true) ?? null));
+      slotDrag.ghost.style.left = e.clientX + 'px';
+      slotDrag.ghost.style.top = e.clientY + 'px';
+      const over = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-loadout-slot]');
+      if (over !== slotDrag.over) {
+        slotDrag.over?.classList.remove('drop-target');
+        if (over && over !== node) over.classList.add('drop-target');
+        slotDrag.over = over;
+      }
     });
     const finish = (e: PointerEvent) => {
       if (!slotDrag || slotDrag.pointer !== e.pointerId) return;
       const drag = slotDrag;
       slotDrag = null;
       node.classList.remove('dragging-slot');
+      drag.ghost?.remove();
+      drag.over?.classList.remove('drop-target');
       blockClick = drag.moved;
       setTimeout(() => { blockClick = false; }, 0);
       if (drag.moved && e.type === 'pointerup') {
@@ -1295,7 +1309,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const peek = look && !deadShop && !r.sandbox;
     const mine = r.players.find((p) => p.id === me);
     // desfazer: só o que foi comprado nesta loja (devolve o ouro)
-    const undoBtn = (key: string) => (!peek && mine?.bought.includes(key) ? el('button', { type: 'button', class: 'undo', title: t('Desfazer a compra (devolve o ouro)', 'Undo the purchase (refunds the gold)'), 'aria-label': t('Desfazer a compra', 'Undo the purchase'), 'data-key': 'undo-' + key, onclick: () => act.undo(key) }, '↩') : null);
+    const undoBtn = (key: string) => (!peek && mine?.bought.includes(key) ? el('button', { type: 'button', class: 'undo', title: t('Desfazer a compra (devolve o ouro)', 'Undo the purchase (refunds the gold)'), 'aria-label': t('Desfazer a compra', 'Undo the purchase'), 'data-key': 'undo-' + key, onclick: () => act.undo(key) }, icon(UI_ICON.undo)) : null);
     if (!mine) return el('div', { class: 'card' }, el('p', {}, t('Você está assistindo. Entra na próxima partida.', 'You are watching. You join the next match.')));
     // vender: magia ou item inteiro; o comprado nesta loja volta inteiro, o de antes pela metade
     const sellBtn = (key: string) => {
@@ -1317,9 +1331,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const key = o.key.replace('-', ':'); // spell:x ou item:y, como na compra
       const cost = o.price === 0 ? t('de graça', 'for free') : t(`por ${o.price} de ouro`, `for ${o.price} gold`);
       const full = o.blocked ?? (o.lvl ? t(`Subir para o nível ${o.lvl + 1} ${cost}`, `Upgrade to level ${o.lvl + 1} ${cost}`) : t(`Comprar ${cost}`, `Buy ${cost}`));
-      // ícone quadrado como na loja do Dota (decisão do Fernando, 19/10): tecla no canto, nível em pips e embaixo a moeda e o preço
+      // ícone quadrado como na loja do Dota (decisão do Fernando, 19/10): nível em pips e embaixo a moeda e o preço
       // (vermelho quando o ouro não dá); o nome vai dentro do cartão (Fernando, 19/10) e o que faz fica na dica
-      const face = [o.hotkey !== null ? el('span', { class: 'key' }, o.hotkey) : null, el('span', { class: 'ico' }, icon(o.ico)), el('span', { class: 'tile-name' }, o.name), el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
+      const face = [el('span', { class: 'ico' }, icon(o.ico)), el('span', { class: 'tile-name' }, o.name), el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
         el('span', { class: 'tile-price' + (o.blocked ? ' off' : can ? ' can' : ' cant') }, ...(o.blocked ? [o.blocked] : [o.lvl ? t(`Nv ${o.lvl + 1} `, `Lv ${o.lvl + 1} `) : '', icon(UI_ICON.gold), o.price === 0 ? t(' grátis', ' free') : ` ${o.price}`]))];
       // clique compra; clique direito também (como no Dota); só ver: o ícone não compra
       return withTip(el('div', { class: 'shop-item' + (o.key.startsWith('item') ? ' is-item' : '') + (o.lvl ? ' owned' : '') + (can && !peek ? ' can' : '') + (o.blocked && !o.lvl ? ' locked' : ''), 'data-name': norm(o.name),
@@ -1329,7 +1343,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         } },
         peek ? el('div', { class: 'shop-tile', role: 'img', 'aria-label': `${o.name}: ${full}` }, ...face)
           : el('button', { type: 'button', class: 'shop-tile', 'data-key': o.key, disabled: !can, 'aria-label': `${o.name}: ${full}`, onclick: o.buy }, ...face),
-        el('div', { class: 'tile-acts' }, undoBtn(key), sellBtn(key)),
+        // tecla só do que está equipado, numa bolinha por cima do canto, fora do arranjo do cartão (Fernando, 21/10)
+        o.lvl && o.hotkey && o.hotkey !== '—' ? el('span', { class: 'key', 'aria-hidden': 'true' }, o.hotkey) : null,
+        // comprar ou subir de nível, vender e desfazer numa coluna à direita do cartão (Fernando, 21/10); o clique no cartão continua comprando
+        el('div', { class: 'tile-acts' }, !peek && open ? el('button', { type: 'button', class: 'buy', title: full, 'aria-label': full, 'data-key': 'buy-' + o.key, disabled: !can, onclick: o.buy },
+          icon(o.lvl ? UI_ICON.upgrade : UI_ICON.buy)) : null, sellBtn(key), undoBtn(key)),
       ), () => {
         const sell = peek ? 0 : sellValue(mine, r.round, key);
         return o.tip() + (o.key.startsWith('spell') ? `<p><i>${o.use}</i></p>` : '')
