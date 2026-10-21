@@ -320,6 +320,7 @@ const EFFECT_TEXT: Record<RoundEffectId, string> = {
   gold: t('Caçada: abates dão 50% mais ouro', 'Bounty hunt: kills give 50% more gold'),
   slow: t('Passos leves: lentidões duram 20% menos', 'Light steps: slows last 20% shorter'),
   regen: t('Fonte da vida: vida volta 30% mais rápido', 'Wellspring: health comes back 30% faster'),
+  clear: t('Campo aberto: arena sem obstáculos', 'Open field: no obstacles in the arena'),
 };
 export const TEAM_NAMES = [t('Azul', 'Blue'), t('Vermelho', 'Red')];
 const teamLabel = (i: number) => t(`Time ${TEAM_NAMES[i]}`, `${TEAM_NAMES[i]} team`);

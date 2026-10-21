@@ -602,6 +602,8 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   else {
     m.world.effect = ROUND_EFFECT_IDS[Math.floor(rand() * ROUND_EFFECT_IDS.length)];
     m.world.mods = roundMods(m.world.effect);
+    // Campo aberto: some com os obstáculos sorteados; baús (nascem durante a rodada) e Barricada continuam
+    if (m.world.effect === 'clear') m.world.pillars = [];
   }
   m.phase = 'countdown';
   m.phaseEnds = now + COUNTDOWN_MS * PACE[m.opts.pace];

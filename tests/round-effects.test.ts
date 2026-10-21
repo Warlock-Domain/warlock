@@ -7,10 +7,11 @@ import { noSpells } from '../src/shared/spells.ts';
 import { kill, toPlaying, until, world } from './helpers.ts';
 
 // partida só de bots já na rodada 1 (o mundo da rodada existe a partir da contagem)
-const firstRound = (bots: number, sandbox = false): { m: Match; now: number } => {
+// rand fixo escolhe o efeito: floor(r × 5) → 0,3 dá Caçada, 0,9 dá Campo aberto
+const firstRound = (bots: number, sandbox = false, r = 0.3): { m: Match; now: number } => {
   const m = newMatch();
-  startMatch(m, 0, bots, 'rounds', true, () => 0.3, {}, [], sandbox);
-  return { m, now: toPlaying(m, 0) };
+  startMatch(m, 0, bots, 'rounds', true, () => r, {}, [], sandbox);
+  return { m, now: toPlaying(m, 0, () => r) };
 };
 
 describe('efeitos de rodada', () => {
@@ -20,6 +21,16 @@ describe('efeitos de rodada', () => {
     expect(roundMods('gold')).toEqual({ ...NO_MODS, killGold: 1.5 });
     expect(roundMods('slow')).toEqual({ ...NO_MODS, slow: 0.8 });
     expect(roundMods('regen')).toEqual({ ...NO_MODS, regen: 1.3 });
+    expect(roundMods('clear')).toEqual(NO_MODS);
+  });
+
+  it('Campo aberto: a rodada começa sem obstáculos; com outro efeito eles continuam', () => {
+    const clear = firstRound(2, false, 0.9).m.world!;
+    expect(clear.effect).toBe('clear');
+    expect(clear.pillars).toEqual([]);
+    const other = firstRound(2, false, 0.3).m.world!;
+    expect(other.effect).toBe('gold');
+    expect(other.pillars.length).toBeGreaterThan(0);
   });
 
   it('Lava amena: a lava tira metade da vida', () => {
