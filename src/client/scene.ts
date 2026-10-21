@@ -449,9 +449,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // também (as brasas sozinhas sumiam no print, pontos de poucos pixels). Por cima, um detalhe por efeito pedido pelo Fernando (21/10):
   // espinhos na borda (Arena de espinhos), pontos verdes subindo da pedra (Fonte da vida), vento (Vendaval) e chuva (Tempo chuvoso);
   // poucos, transparentes e sem sombra, para não brigar com as magias. No modo leve (lite) só a cor da faixa fica
-  // Arena de espinhos dourada, Vendaval pálida (brasas mais rápidas), Fonte da vida verde; Tempo chuvoso escurece a lava e a crosta da borda
+  // Arena de espinhos preta, Caçada amarela (com moedas), Vendaval pálida (brasas mais rápidas), Fonte da vida verde; Tempo chuvoso escurece a lava e a crosta da borda
   const EMBER_COLOR: Partial<Record<RoundEffectId, string>> = { swords: '#c9ccd2', gold: '#ffd34d', speed: '#d6ecff', regen: '#7dffa8', lava: '#ffb27a' };
-  const SHORE_TINT: Partial<Record<RoundEffectId, [string, number]>> = { swords: ['#9aa0aa', 0.45], gold: ['#ffc21a', 0.55], speed: ['#bfe6ff', 0.45], regen: ['#3dff8a', 0.45], lava: ['#7a2a10', 0.5] };
+  const SHORE_TINT: Partial<Record<RoundEffectId, [string, number]>> = { swords: ['#050403', 0.75], gold: ['#ffe11a', 0.7], speed: ['#bfe6ff', 0.45], regen: ['#3dff8a', 0.45], lava: ['#7a2a10', 0.5] };
   let tintK = 0;
   const emberBase = emberMat.color.clone();
   let heat = 1;
@@ -502,6 +502,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   };
   const motes = pool(26, '#7dffa8', 0.75);
   const gusts = pool(14, '#eaf6ff', 0.35);
+  // Caçada: moedas pulando da borda e caindo de volta, piscando como se tilintassem (pedido do Fernando, 21/10)
+  const coins = pool(22, '#ffd84a', 0.95);
   // chuva (Tempo chuvoso): riscos curtos caindo, uma geometria só atualizada por quadro
   const RAIN = 90, rainPos = new Float32Array(RAIN * 6);
   const rainGeo = new THREE.BufferGeometry();
@@ -2196,6 +2198,22 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         s.position.y += u.vy * dt;
         s.scale.setScalar(0.22 * Math.min(1, s.position.y * 2) * Math.max(0, 1 - s.position.y / 2.6));
         if (s.position.y > 2.6) { s.visible = false; u.wait = Math.random() * 2; }
+      }
+      // Caçada: cada moeda nasce num ponto da borda, sobe 1 a 1,6 m e cai; o brilho pisca rápido (o "tilintar")
+      for (const s of coins) {
+        const u = s.userData as { vy: number; wait: number };
+        if (lite || state.effect !== 'gold') { s.visible = false; continue; }
+        if (!s.visible) {
+          if ((u.wait -= dt) > 0) continue;
+          const ring = ARENAS[shownArena].outline[0], q = ring[Math.floor(Math.random() * ring.length)];
+          s.position.set(q.x * shownR, 0.05, q.y * shownR);
+          u.vy = 4.5 + Math.random() * 1.2;
+          s.visible = true;
+        }
+        u.vy -= 12 * dt;
+        s.position.y += u.vy * dt;
+        s.scale.setScalar(0.16 + 0.1 * Math.abs(Math.sin(now * 18 + s.id)));
+        if (s.position.y < 0) { s.visible = false; u.wait = Math.random() * 1.2; }
       }
       // Vendaval: riscos claros atravessando a arena na mesma direção, rápidos
       for (const s of gusts) {
