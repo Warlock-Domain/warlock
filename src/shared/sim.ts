@@ -5,7 +5,7 @@ import {
 } from './constants.ts';
 import { SHAPES, edge, inArena, inLavaAt, isleSpot, safeInside, type ArenaId, type Isle } from './arena.ts';
 import { ACTIVE_ITEMS, AEGIS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, isActive, itemStats, noItems, type ItemId } from './items.ts';
-import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
+import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export type Wizard = {
@@ -128,6 +128,7 @@ export type SimEvent =
   | { k: 'lightning'; from: Vec; to: Vec }
   | { k: 'teleport'; id: string; from: Vec; to: Vec }
   | { k: 'grip'; id: string; x: number; y: number }
+  | { k: 'vines'; x: number; y: number; r: number }
   | { k: 'death'; id: string; by: string | null; src: string } // src: o que empurrou por último (dentro da janela de crédito) ou 'lava'
   | { k: 'gold'; id: string; n: number; x: number; y: number }
   | { k: 'shrink'; r: number }
@@ -626,7 +627,10 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   } else if (spell === 'cluster') {
     const base = Math.atan2(dir.y, dir.x);
     for (const off of CLUSTER_FAN) launch('cluster', v(Math.cos(base + off), Math.sin(base + off)), flight);
-  } else if (spell === 'grip' || spell === 'snowball' || spell === 'magnetize') {
+  } else if (spell === 'grip') {
+    const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
+    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'grip', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + GRIP.delay, target: null, dmgMult, caster: wz.id });
+  } else if (spell === 'snowball' || spell === 'magnetize') {
     launch(spell, dir, flight);
   } else if (spell === 'swap') {
     // voa o alcance todo e troca com o primeiro mago que tocar (no original parava no clique e errava quem se mexia);
@@ -701,7 +705,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'warpzone', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + L.duration, target: null, dmgMult, caster: wz.id });
   } else if (spell === 'lightning') {
     const end = add(wz.pos, scale(dir, L.range * wz.rangeF));
-    const found = firstOnSegment(w, wz.pos, end, WIZ_R, wz.id);
+    const found = firstOnSegment(w, wz.pos, end, WIZ_R + LIGHTNING.width, wz.id);
     const proj = firstProjectileOnSegment(w, wz.pos, end, wz.id);
     const pil = firstPillarOnSegment(w, wz.pos, end, 0.1);
     if (pil && (!found || pil.t < found.t) && (!proj || pil.t < proj.t)) {
@@ -845,6 +849,24 @@ function scourge(w: World, wz: Wizard) {
   w.events.push({ k: 'scourge', id: wz.id, x: wz.pos.x, y: wz.pos.y, r: SCOURGE.radius });
 }
 
+function gripLand(w: World, p: Projectile) {
+  const L = spellLevel('grip', p.level);
+  let landed = false;
+  for (const z of w.wizards) {
+    if (!z.alive || z.id === p.owner || allies(anyById(w, p.owner), z) || w.t < z.invulnUntil || shielded(w, z) || dist(z.pos, p.pos) > L.radius + WIZ_R) continue;
+    z.gripUntil = w.t + L.duration * z.debuffMult;
+    z.gripBonus = L.scale;
+    mark(w, z, p.owner, 'grip'); // crédito do abate sem dano (#179)
+    z.target = null;
+    z.casting = null;
+    w.events.push({ k: 'grip', id: z.id, x: z.pos.x, y: z.pos.y });
+    landed = true;
+  }
+  // A erupção aparece também sem alvo; a marca não é uma zona persistente.
+  w.events.push({ k: 'vines', x: p.pos.x, y: p.pos.y, r: L.radius });
+  if (landed) land(w, p, 'grip');
+}
+
 // o meteoro cai: dano de dmgMin na borda até o máximo no centro, em todos menos quem lançou
 function meteorLand(w: World, p: Projectile) {
   const L = spellLevel('meteor', p.level);
@@ -986,8 +1008,8 @@ function windTouch(w: World, wz: Wizard) {
   }
 }
 
-// não andam: meteoro e zona de dobra. A cópia da Ilusão anda sozinha e pode ser afetada por habilidades.
-const fixed = (p: Projectile) => p.kind === 'meteor' || p.kind === 'warpzone';
+// Marcas de chão não são desviadas por habilidades; a cópia da Ilusão continua móvel.
+const fixed = (p: Projectile) => p.kind === 'meteor' || p.kind === 'warpzone' || p.kind === 'grip';
 const returning = (p: Projectile) => !!p.back && (p.kind === 'drain' || p.kind === 'recharge'); // bolinha voltando a quem lançou
 export const spellOf = (k: ProjKind): SpellId => (k === 'shard' ? 'splitter' : k); // os filhotes são do Divisor
 // acerto conta para quem lançou ('land'), não para quem devolveu; once: só o primeiro (os que acertam mais de uma vez)
@@ -1190,6 +1212,11 @@ function stepProjectiles(w: World) {
   const keep: Projectile[] = [];
   // projéteis criados durante o passo (cura do Drenar, filhotes do Divisor) entram no fim da lista e já andam neste passo
   for (const p of w.projectiles) {
+    if (p.kind === 'grip') {
+      if (w.t >= p.until) gripLand(w, p);
+      else keep.push(p);
+      continue;
+    }
     if (p.kind === 'meteor') {
       if (w.t >= p.until) meteorLand(w, p);
       else keep.push(p);
@@ -1349,17 +1376,6 @@ function stepProjectiles(w: World) {
         swapPlaces(w, p, wz);
         if (!allies(anyById(w, p.owner), wz)) mark(w, wz, p.owner, 'swap');
         w.events.push({ k: 'land', id: p.caster, src: 'swap' });
-      } else if (p.kind === 'grip') {
-        // aliado não fica preso
-        if (w.t >= wz.invulnUntil && !allies(anyById(w, p.owner), wz)) {
-          w.events.push({ k: 'land', id: p.caster, src: 'grip' });
-          wz.gripUntil = w.t + L.duration * wz.debuffMult;
-          wz.gripBonus = L.scale;
-          mark(w, wz, p.owner, 'grip');
-          wz.target = null;
-          wz.casting = null;
-          w.events.push({ k: 'grip', id: wz.id, x: wz.pos.x, y: wz.pos.y });
-        }
       } else if (p.kind === 'boomerang') {
         // bate, quica a 500 u/s e volta ao dono; pode acertar de novo na volta
         hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, sub(wz.pos, p.pos), 'boomerang');

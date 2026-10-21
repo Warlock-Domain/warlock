@@ -15,11 +15,11 @@ import { lookBody, lookOf, lookPieces, type CharacterId } from '../shared/charac
 import type { MatchOpts } from '../shared/match.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
-import { add, scale, v, type Vec } from '../shared/vec.ts';
+import { add, clampLen, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
-import { SPELLS } from '../shared/spells.ts';
+import { LIGHTNING, SPELLS } from '../shared/spells.ts';
 import type { TAUNTS } from '../shared/taunts.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
@@ -169,6 +169,7 @@ type Mage = {
   ring: THREE.Mesh;
   shield: THREE.Mesh;
   aura: THREE.Mesh; // anel no chão: dourado invulnerável, azul com Escudo de runa
+  vines: THREE.Group;
   bar: HTMLDivElement;
   absRush: HTMLDivElement;
   extraEl: HTMLSpanElement; // números pequenos ao lado da barra: regeneração por segundo e o que os escudos ainda absorvem
@@ -456,7 +457,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     homing: { mat: homingMat, halo: '#c23cff', trail: '#b040ff', tex: FX.magic, size: 1.1 },
     cluster: { mat: fireMat, halo: '#fff066', trail: '#ffd23a', tex: FX.spark, size: 0.65 },
     swap: { mat: swapMat, halo: '#00fff0', trail: '#2fe0d0', tex: FX.magic, size: 1 },
-    grip: { mat: gripMat, halo: '#ff1f4f', trail: '#e0103a', tex: FX.magic, size: 1 },
+    grip: { mat: gripMat, halo: '#8ed64b', trail: '#4d8f28', tex: FX.magic, size: 1 },
     meteor: { mat: fireMat, halo: '#ff5a1a', trail: '#ff7a20', tex: FX.fire, size: 3 },
     boomerang: { mat: swapMat, halo: '#7dff5a', trail: '#5ad040', tex: FX.spark, size: 0.85 },
     gravity: { mat: homingMat, halo: '#3b2bff', trail: '#6a3cff', tex: FX.magic, size: 1.5 },
@@ -479,6 +480,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     return g;
   };
   const flat = (color: string, emissive: string, intensity = 0.6) => new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity, flatShading: true, roughness: 0.5 });
+  function vineModel(radius: number) {
+    const group = new THREE.Group();
+    const stem = flat('#3c7023', '#203f0e', .3), leafMat = flat('#8ac34b', '#335d17', .3);
+    for (let i = 0; i < 6; i++) {
+      const points = Array.from({ length: 13 }, (_, j) => {
+        const k = j / 12, a = i * Math.PI / 3 + k * 2.5, r = radius * (1 - k * .55);
+        return new THREE.Vector3(Math.cos(a) * r, k * 1.15, Math.sin(a) * r);
+      });
+      group.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 20, .035, 5, false), stem));
+      for (const j of [4, 9]) {
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(.09, 5, 3), leafMat);
+        leaf.position.copy(points[j]); leaf.scale.set(.5, 1.8, 1); leaf.rotation.z = i;
+        group.add(leaf);
+      }
+    }
+    return group;
+  }
   const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
     fireball: () => new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.24, 1), 0.35), flat('#ffb347', '#ff6a00', 1.4)),
     cluster: () => new THREE.Mesh(new THREE.TetrahedronGeometry(0.2), flat('#ffe066', '#ff9a00', 1.2)),
@@ -496,13 +514,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       return g;
     },
     grip: () => {
-      const g = new THREE.Group();
-      const hook = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 6), flat('#ff8095', '#e0103a', 1.1));
-      hook.rotation.x = Math.PI / 2; // ponta para a frente
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.04, 6, 16), flat('#c0c0c8', '#400010', 0.4));
-      ring.position.z = -0.3;
-      g.add(hook, ring);
-      return g;
+      const ring = new THREE.Mesh(new THREE.RingGeometry(.94, 1, 64), new THREE.MeshBasicMaterial({ color: '#8ed64b', side: THREE.DoubleSide, transparent: true, opacity: .8, depthWrite: false }));
+      ring.rotation.x = -Math.PI / 2;
+      return ring;
     },
     meteor: () => new THREE.Mesh(jitter(new THREE.DodecahedronGeometry(0.3, 0), 0.4), flat('#4a2c20', '#ff4a00', 0.9)),
     boomerang: () => {
@@ -613,7 +627,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const markerGeo = new THREE.RingGeometry(0.15, 0.25, 24);
   const scorchGeo = new THREE.PlaneGeometry(1.6, 1.6);
   const waveGeo = new THREE.RingGeometry(0.85, 1, 64);
-  const SHARED = new Set<THREE.BufferGeometry>([ringGeo, shieldGeo, markerGeo, scorchGeo, waveGeo, ballGeo]);
+  const boltGeo = new THREE.CylinderGeometry(1, 1, 1, 5); // trecho do Raio: raio 1, altura 1, escalado por trecho
+  const SHARED = new Set<THREE.BufferGeometry>([ringGeo, shieldGeo, markerGeo, scorchGeo, waveGeo, ballGeo, boltGeo]);
 
   // libera o que o efeito criou (material sempre; geometria se não for compartilhada; sprite usa a geometria interna do three)
   function dispose(obj: THREE.Object3D) {
@@ -758,6 +773,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     aura.scale.setScalar(1.45);
     aura.visible = false;
     root.add(aura);
+    const vines = vineModel(.5);
+    vines.visible = false;
+    root.add(vines);
     scene.add(root);
     const mixer = new THREE.AnimationMixer(model);
     const actions: Record<string, THREE.AnimationAction> = {};
@@ -785,7 +803,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const lootBar = el('div', { class: 'loot-bar', hidden: true }, lootFill);
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -803,6 +821,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     shield: ['Block', 0.6], rush: ['Dodge_Forward', 0.4], teleport: ['Dodge_Forward', 0.4], windwalk: ['Dodge_Backward', 0.4], grip: ['Throw', 0.6, 0.45],
     meteor: SUMMON, rockpillar: SUMMON, warpzone: SUMMON, drain: ['Spellcast_Long', 0.9, 0.3], thrust: ['Unarmed_Melee_Attack_Kick', 0.5, 0.2],
     gravity: SPIN, cluster: SPIN,
+    // Flagelo: o giro mais forte vai de ~0,6 a ~0,9 s do clip; começando em 0,15 ele cai junto com a explosão (preparo de 0,5 s)
+    scourge: ['2H_Melee_Attack_Spin', 0.85, 0.15],
   };
   const castAnim = (spell: string) => CAST_ANIM[spell] ?? (['Spellcast_Shoot', 0.55] as const);
   function oneShot(id: string, name: string, secs: number, from = 0) {
@@ -1384,22 +1404,36 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
 
   function bolt(from: Vec, to: Vec) {
+    const hand = add(from, clampLen(sub(to, from), 0.45));
     const pts: THREE.Vector3[] = [];
-    const n = 10;
+    const n = 28;
     for (let i = 0; i <= n; i++) {
-      const p = w3(v(from.x + ((to.x - from.x) * i) / n, from.y + ((to.y - from.y) * i) / n), 1);
-      if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.5));
+      // sai do cetro (a mão do brilho de lançamento: 0,45 m à frente, 0,9 m de altura) e desce até 0,25 m no alvo (pedido do
+      // Fernando, 21/10): a 1 m de altura a câmera inclinada mostrava o raio ~0,9 m acima da linha do acerto. Zigue-zague de muitos
+      // trechos curtos que balança até LIGHTNING.width para cada lado, a largura extra do acerto do Raio
+      const k = i / n;
+      const p = w3(v(hand.x + (to.x - hand.x) * k, hand.y + (to.y - hand.y) * k), 0.9 - 0.65 * k);
+      if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 2 * LIGHTNING.width, (Math.random() - 0.5) * 0.14, (Math.random() - 0.5) * 2 * LIGHTNING.width));
       pts.push(p);
     }
-    // três traços tortos sobrepostos para o raio parecer grosso (linha de WebGL tem 1 px)
-    for (let j = 0; j < 3; j++) {
-      const jit = pts.map((p, i) => (i === 0 || i === n ? p : p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.18, (Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.18))));
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(jit), new THREE.LineBasicMaterial({ color: j ? '#9fd0ff' : '#ffffff', transparent: true, blending: THREE.AdditiveBlending }));
-      addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 1 - k));
+    // traço grosso de cilindros por trecho (linha de WebGL tem 1 px e sumia de longe): miolo branco e brilho azul em volta
+    const up = new THREE.Vector3(0, 1, 0);
+    for (const [r, color, op] of [[0.025, '#ffffff', 1], [0.07, '#9fd0ff', 0.45]] as const) {
+      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false });
+      const g = new THREE.Group();
+      for (let i = 0; i < n; i++) {
+        const [a, b] = [pts[i], pts[i + 1]];
+        const m = new THREE.Mesh(boltGeo, mat);
+        m.position.copy(a).lerp(b, 0.5);
+        m.quaternion.setFromUnitVectors(up, b.clone().sub(a).normalize());
+        m.scale.set(r, a.distanceTo(b), r);
+        g.add(m);
+      }
+      addFx(g, 0.35, (k) => (mat.opacity = op * (1 - k)));
     }
-    burst(to, '#9fd0ff', 2.4, 0.3, 1, FX.light);
-    burst(to, '#e6f4ff', 1.4, 0.35, 1, FX.spark);
-    burst(from, '#9fd0ff', 1.2, 0.2, 1, FX.light);
+    burst(to, '#9fd0ff', 2.4, 0.3, 0.25, FX.light);
+    burst(to, '#e6f4ff', 1.4, 0.35, 0.25, FX.spark);
+    burst(hand, '#9fd0ff', 1.2, 0.2, 0.9, FX.light);
   }
 
   function onEvents(events: SimEvent[]) {
@@ -1420,11 +1454,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(v(e.x, e.y), '#cfeaff', 1.6, 0.25, 0.8, FX.light);
       }
       else if (e.k === 'lightning') bolt(e.from, e.to);
+      else if (e.k === 'vines') {
+        const vines = vineModel(e.r);
+        vines.position.copy(w3(v(e.x, e.y), .03));
+        addFx(vines, .7, (k) => { vines.scale.y = k < .25 ? k * 4 : Math.max(.01, (1 - k) / .75); });
+        shockwave(v(e.x, e.y), e.r, '#8ed64b');
+      }
       else if (e.k === 'grip') {
         oneShot(e.id, 'Hit_B', 0.85); // quem foi preso cambaleia para trás
-        burst(v(e.x, e.y), '#e0203a', 2.4, 0.5, 0.8, FX.magic);
-        burst(v(e.x, e.y), '#ffd0d8', 1.6, 0.3, 0.8, FX.light);
-        shockwave(v(e.x, e.y), 1.2, '#e0203a');
+        burst(v(e.x, e.y), '#6eaf34', 2.4, 0.5, 0.8, FX.magic);
       }
       else if (e.k === 'teleport') {
         // só o Teleporte lançado (não Troca, Égide nem Alteração) ganha o fade com deslize
@@ -1438,6 +1476,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(e.to, '#e9d8ff', 1.6, 0.3, 0.8, FX.light);
       } else if (e.k === 'item' && e.item === 'scourge') {
         // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
+        oneShot(e.id, ...castAnim('scourge'));
         const m = mages.get(e.id);
         if (m) {
           const at = v(m.root.position.x, m.root.position.z);
@@ -1521,7 +1560,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         halo.scale.setScalar(1.2 * look.size);
         halo.material.opacity = 0.7;
         g.add(core, halo);
-        if (p.kind === 'warpzone') {
+        if (p.kind === 'warpzone' || p.kind === 'grip') {
           core.scale.setScalar(p.vel.x); // vel.x = raio
           halo.visible = false;
         }
@@ -1559,7 +1598,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const warn = g.getObjectByName('warn') as THREE.Mesh;
         warn.position.y = 0.04 - y;
         (warn.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.sin(performance.now() / 70);
-      } else if (p.kind === 'warpzone') g.position.copy(w3(p.pos, 0));
+      } else if (p.kind === 'grip') g.position.copy(w3(p.pos, .045));
+      else if (p.kind === 'warpzone') g.position.copy(w3(p.pos, 0));
       else g.position.copy(w3(p.pos, 0.9));
       if (p.kind === 'link') {
         const dx = p.vel.x - p.pos.x, dz = p.vel.y - p.pos.y;
@@ -1571,7 +1611,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // giro e direção: aponta para onde voa; anéis, bumerangue e pedras giram
       const body = g.children[0];
       const t = performance.now() / 1000;
-      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
+      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
       if (p.kind === 'boomerang') body.rotation.y = t * 18;
       else if (p.kind === 'fireball' || p.kind === 'meteor' || p.kind === 'cluster' || p.kind === 'bouncer' || p.kind === 'snowball' || p.kind === 'splitter' || p.kind === 'shard') body.rotation.set(t * 3, t * 4, 0);
       else if (p.kind === 'link') body.rotation.y = t * 6;
@@ -1588,7 +1628,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (swirl) swirl.material.rotation = -t * 4;
       // rastro: brasas que ficam para trás e somem
       const look = LOOK[p.kind];
-      if (p.kind !== 'warpzone' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
+      if (p.kind !== 'warpzone' && p.kind !== 'grip' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
@@ -1609,6 +1649,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (made && m) {
           unburn(m);
           scene.remove(m.root);
+          dispose(m.vines); // Os cipós procedurais pertencem à aparência que está sendo substituída.
           for (const o of [m.ring, m.shield, m.aura]) (o.material as THREE.Material).dispose();
           for (const x of m.mats) x.m.dispose();
           m.label.remove();
@@ -1639,6 +1680,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       m.root.position.copy(w3(tk < 1 ? add(m.tpFrom, scale(m.tpDir, tk * TP_SLIDE)) : tk < 2 ? add(m.tpTo, scale(m.tpDir, (tk - 2) * TP_SLIDE)) : d.pos));
       m.root.rotation.y = Math.PI / 2 - d.facing;
+      m.vines.visible = d.alive && !!(d.status & 128);
       // Escudo: bolha no raio real que vai apagando, e a barrinha do tempo que falta
       if (d.shield && !m.shield.visible) m.shieldSince = now;
       m.shield.visible = d.shield && d.alive;
@@ -1832,6 +1874,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // explosão do Meteoro no ponto onde ele cai: o mesmo anel, do tamanho da explosão
   const blastRing = rangeRing.clone();
   scene.add(blastRing);
+  const hits: THREE.Mesh[] = []; // discos do "Ver hitbox", criados conforme precisa
+  // faixas de acerto da mira (a Rajada e o Divisor saem em leque), bem claras para não esconder o chão: corpo reto para a frente (+x)
+  // e ponta em meio círculo do tamanho da bola, onde ela termina o voo, como a prévia do LoL (pedido do Fernando, 21/10); giradas só
+  // em y e criadas conforme precisa
+  const bandMat = new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.16, depthWrite: false });
+  const bandBody = new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0).rotateX(-Math.PI / 2);
+  const bandCap = new THREE.CircleGeometry(1, 24, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2);
+  const bands: THREE.Group[] = [];
 
   return {
     ready,
@@ -1847,6 +1897,47 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!at || r <= 0) return;
       rangeRing.position.copy(w3(at, 0.04));
       rangeRing.scale.setScalar(r);
+    },
+    // "Ver hitbox (teste)": disco no chão de cada mago (vermelho) e de cada projétil (azul), no tamanho da colisão; null esconde
+    hitboxes(list: { pos: Vec; r: number; wiz: boolean }[] | null) {
+      for (let i = hits.length; i < (list?.length ?? 0); i++) {
+        const m = new THREE.Mesh(new THREE.CircleGeometry(1, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.45, depthWrite: false }));
+        m.renderOrder = 9;
+        scene.add(m);
+        hits.push(m);
+      }
+      hits.forEach((m, i) => {
+        const h = list?.[i];
+        m.visible = !!h;
+        if (!h) return;
+        m.position.copy(w3(h.pos, 0.045));
+        m.scale.setScalar(h.r);
+        (m.material as THREE.MeshBasicMaterial).color.set(h.wiz ? '#ff4040' : '#40c8ff');
+      });
+    },
+    // trechos de faixa [de, até] com meia largura `half`; lista vazia esconde
+    bands(segs: [Vec, Vec][], half: number) {
+      for (let i = bands.length; i < segs.length; i++) {
+        const g = new THREE.Group();
+        const [body, cap] = [new THREE.Mesh(bandBody, bandMat), new THREE.Mesh(bandCap, bandMat)];
+        body.renderOrder = cap.renderOrder = 9;
+        g.add(body, cap);
+        scene.add(g);
+        bands.push(g);
+      }
+      const w = Math.max(half, 0.03); // o Raio (largura 0) vira uma linha de 6 cm para aparecer
+      bands.forEach((g, i) => {
+        const sg = segs[i];
+        g.visible = !!sg;
+        if (!sg) return;
+        const d = sub(sg[1], sg[0]), l = Math.max(len(d) - w, 0);
+        const [body, cap] = g.children;
+        g.position.copy(w3(sg[0], 0.035));
+        g.rotation.y = -Math.atan2(d.y, d.x);
+        body.scale.set(l, 1, 2 * w);
+        cap.position.x = l;
+        cap.scale.set(w, 1, w);
+      });
     },
     aim(at: Vec | null) {
       aimRing.visible = !!at;
