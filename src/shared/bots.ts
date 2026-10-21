@@ -98,17 +98,19 @@ export type BotSkill = {
   lootSafe: number; // ...se não houver inimigo mais perto que isso (m; 0 = não liga)
   smart: number; // chance de comprar uma combinação que funciona (senão sorteia o plano)
 };
-export const BOT_SKILL = {
+const BASE = {
   easy: { aim: 1.5, lag: 0.3, delay: 0.6, waitMin: 2, waitMax: 4, rate: 1.5, dodge: 0.3, shield: 0.12, react: 0.35, cast: 0.7, combo: 0.3, range: 6, flee: 1, hunt: 0, edge: 1, slip: 0.2, vision: 10, loot: 0, lootSafe: 0, smart: 0 },
   normal: { aim: 1, lag: 0.3, delay: 0.4, waitMin: 1, waitMax: 2, rate: 2.5, dodge: 0.55, shield: 0.35, react: 1, cast: 0.7, combo: 0.6, range: 4.5, flee: 0, hunt: 0, edge: 1.5, slip: 0.08, vision: 12, loot: 5, lootSafe: 4, smart: 1 },
   hard: { aim: 0.6, lag: 0.3, delay: 0.25, waitMin: 0.5, waitMax: 1, rate: 4, dodge: 0.8, shield: 0.52, react: 1.5, cast: 0.9, combo: 0.9, range: 3, flee: 0, hunt: 1, edge: 2, slip: 0.02, vision: 15, loot: 8, lootSafe: 0, smart: 1 },
 } satisfies Record<string, BotSkill>;
 // k de −1 (Fácil) a 1 (Difícil), 0 = Normal; o modo Automático usa os valores do meio (as chances também se misturam)
 export function skillAt(k: number): BotSkill {
-  const to: BotSkill = k < 0 ? BOT_SKILL.easy : BOT_SKILL.hard;
+  const to: BotSkill = k < 0 ? BASE.easy : BASE.hard;
   const t = Math.min(1, Math.abs(k));
-  return Object.fromEntries(Object.entries(BOT_SKILL.normal).map(([key, n]) => [key, n * (1 - t) + to[key as keyof BotSkill] * t])) as BotSkill;
+  return Object.fromEntries(Object.entries(BASE.normal).map(([key, n]) => [key, n * (1 - t) + to[key as keyof BotSkill] * t])) as BotSkill;
 }
+// Casual e Veterano na metade do caminho entre os vizinhos (Fernando, 21/10: "mais 2 niveis de dificuldade com valores intermediarios")
+export const BOT_SKILL = { easy: BASE.easy, casual: skillAt(-0.5), normal: BASE.normal, veteran: skillAt(0.5), hard: BASE.hard };
 // pensa D.rate vezes por segundo; i espalha os bots para não pensarem todos no mesmo passo
 export function botThinks(step: number, i: number, D: BotSkill): boolean {
   const n = Math.max(1, Math.round(1 / (DT * D.rate)));

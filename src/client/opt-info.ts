@@ -19,7 +19,7 @@ const ARENA_TEXT: Record<(typeof ARENA_IDS)[number], string> = {
 };
 // nomes do ritmo e da dificuldade (aqui e nas opções da sala)
 export const PACE_NAME: Record<MatchOpts['pace'], string> = { short: t('Curto', 'Short'), normal: 'Normal', long: t('Longo', 'Long') };
-export const SKILL_NAME: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), normal: 'Normal', hard: t('Difícil', 'Hard'), auto: t('Automático', 'Auto') };
+export const SKILL_NAME: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), casual: 'Casual', normal: 'Normal', veteran: t('Veterano', 'Veteran'), hard: t('Difícil', 'Hard'), auto: t('Automático', 'Auto') };
 // efeitos de rodada (constants.ts ROUND_EFFECTS): nome curto (opção, faixa da contagem) e o que muda (linha da rodada, explicação)
 export const EFFECT_NAME: Record<RoundEffectId, string> = {
   // nomes do Fernando (21/10); os ids ficaram os antigos (lava, swords, speed) para não mexer no protocolo nem nas salas gravadas
@@ -53,7 +53,7 @@ export const OPT_INFO: Record<keyof MatchOpts, (mode: Mode) => string> = {
     `Off: always shrinks every 10 s. After ${SUDDEN.collapse} s the arena fades away gradually anyway, so the round ends.`)}</small>`,
   chests: () => `<p>${t(`Baú de ouro no meio da rodada: o primeiro aos ${CHEST.first} s, depois um a cada ${CHEST.every} s (até ${CHEST.maxUp} de pé). Quebre com magias e fique em cima do monte: 1 de ouro a cada ${CHEST.goldEvery} s; o monte tem de ${CHEST.pile[0]} a ${CHEST.pile[1]} de ouro.`,
     `Gold chest mid-round: the first at ${CHEST.first} s, then one every ${CHEST.every} s (up to ${CHEST.maxUp} standing). Break it with spells and stand on the pile: 1 gold every ${CHEST.goldEvery} s; the pile holds ${CHEST.pile[0]} to ${CHEST.pile[1]}.`)}</p><small>${t('Desligado: sem baús.', 'Off: no chests.')}</small>`,
-  difficulty: () => `<p>${t('Como os bots jogam.', 'How the bots play.')}</p>${list([...(['easy', 'normal', 'hard'] as const).map((k) => {
+  difficulty: () => `<p>${t('Como os bots jogam.', 'How the bots play.')}</p>${list([...(['easy', 'casual', 'normal', 'veteran', 'hard'] as const).map((k) => {
     const b = BOT_SKILL[k];
     return t(`${SKILL_NAME[k]}: reage em ${n1(b.delay)} s, decide ${n1(b.rate)} vezes por segundo, mira erra até ${n1(b.aim)} m, usa a magia ${n1(b.waitMin)} a ${n1(b.waitMax)} s depois da recarga, desvia ${pct(b.dodge)} dos tiros, emenda ${pct(b.combo)} dos combos, fica a ${n1(b.range)} m do alvo e vê até ${b.vision} m`,
       `${SKILL_NAME[k]}: reacts in ${n1(b.delay)} s, decides ${n1(b.rate)} times per second, aim misses by up to ${n1(b.aim)} m, uses a spell ${n1(b.waitMin)} to ${n1(b.waitMax)} s after its cooldown, dodges ${pct(b.dodge)} of shots, chains ${pct(b.combo)} of combos, stays ${n1(b.range)} m from the target and sees up to ${b.vision} m`);

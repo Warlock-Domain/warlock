@@ -72,7 +72,7 @@ export const OPTION_CHOICES = {
   sudden: [true, false],
   chests: [true, false],
   // dificuldade dos bots (pedido do Fernando, 18/10); 'auto' ajusta cada bot pelo placar dos humanos
-  difficulty: ['easy', 'normal', 'hard', 'auto'],
+  difficulty: ['easy', 'casual', 'normal', 'veteran', 'hard', 'auto'],
   // formato da arena (pedido do Fernando, 18/10): sorteado a cada rodada ou fixo
   arena: ['random', ...ARENA_IDS],
   // efeito de rodada (pedido do Fernando, 21/10: ativável na criação da sala, issue #189): desligado, sorteado a cada rodada ou fixo
