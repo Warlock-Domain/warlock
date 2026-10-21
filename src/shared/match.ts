@@ -1,6 +1,6 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
-import { ASC_ROUNDS, ascEndRound, ascShop, ascWinner, newAsc, type AscState } from './ascension.ts';
+import { ASC_ROUNDS, ascDeath, ascEndRound, ascMark, ascShop, ascWinner, newAsc, type AscState } from './ascension.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
 import { CHARACTERS, fixLook, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
@@ -606,6 +606,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
   const arena = m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
   m.world = newWorld(ids, Object.fromEntries(m.players.map((p) => [p.id, p.spells])), Object.fromEntries(m.players.map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests && !m.asc }, arena);
+  if (m.asc) ascMark(m);
   if (m.sandbox) m.world.shrink = m.sandbox.shrink; // a sandbox usa o mundo do deathmatch: não encolhe (a não ser que peçam) e quem morre volta
   m.phase = 'countdown';
   m.phaseEnds = now + COUNTDOWN_MS * PACE[m.opts.pace];
@@ -911,7 +912,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
       const bucket = e.k === 'fire' ? 'fired' : 'landed';
       if (p) addStat(p, (s) => (s[bucket][e.src] = (s[bucket][e.src] ?? 0) + 1));
     } else if (e.k === 'death') {
-      if (m.asc) m.asc.fallen.push(e.id);
+      if (m.asc) ascDeath(m, e.id, e.by);
       // causa da morte e tempo vivo, para os dados de balanceamento
       const dead = player(m, e.id);
       if (dead) addStat(dead, (s) => {

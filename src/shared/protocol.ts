@@ -24,6 +24,7 @@ export type ClientMsg =
   | { t: 'cast'; spell: SpellId; x: number; y: number; seq: number }
   | { t: 'buy'; spell: SpellId }
   | { t: 'pick'; character: CharacterId } // um dos 9 prontos: vira a aparência equivalente
+  | { t: 'reroll' } // Ascensão: novo sorteio das cartas da mesa
   | { t: 'card'; i: number; swap?: SpellId } // Ascensão: carta i (0 a 2) da mesa; swap = magia que sai com a barra cheia
   | { t: 'look'; look: string } // aparência montada (7 dígitos, ver LOOK_PARTS)
   | { t: 'buyItem'; item: ItemId }
@@ -43,7 +44,7 @@ export type PublicPlayer = {
   difficulty?: MatchOpts['difficulty']; // só bots: a dificuldade dele
   dummy?: true; // sandbox: boneco parado
   turret?: true; // Sandbox: torreta de direção fixa.
-  asc?: { xp: number; level: number; next: number; picks: number; offer: Card[] }; // só no Ascensão (next: XP do próximo nível)
+  asc?: { xp: number; level: number; next: number; picks: number; offer: Card[]; rerolls: number }; // só no Ascensão (next: XP do próximo nível)
 };
 
 export type PublicRoom = {
@@ -223,6 +224,7 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return isLook(m.look) ? { t: 'look', look: fixLook(m.look) } : null;
     case 'ready':
     case 'alive':
+    case 'reroll':
       return { t: m.t };
     default:
       return null;

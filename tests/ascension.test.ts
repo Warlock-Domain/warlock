@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ASC_ROUNDS, applyCard, drawCards, levelOf, placePoints, pickCard, xpGain, type Card } from '../src/shared/ascension.ts';
+import { ASC_ROUNDS, CONSOLATION, LEADER_KILL_XP, MARK_KB, applyCard, ascDeath, ascEndRound, autoPick, drawCards, levelOf, placePoints, pickCard, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
 import { addPlayer, buy, castBallot, newMatch, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage } from '../src/shared/protocol.ts';
 import { STEP_MS, until } from './helpers.ts';
@@ -212,5 +212,73 @@ describe('mensagem card', () => {
     expect(parseClientMessage(JSON.stringify({ t: 'card', i: 2 }))).toEqual({ t: 'card', i: 2 });
     expect(parseClientMessage(JSON.stringify({ t: 'card', i: 0, swap: 'teleport', x: 1 }))).toEqual({ t: 'card', i: 0, swap: 'teleport' });
     for (const bad of [{ i: 3 }, { i: -1 }, { i: 1.5 }, { i: '1' }, { i: 0, swap: 'nada' }]) expect(parseClientMessage(JSON.stringify({ t: 'card', ...bad }))).toBeNull();
+  });
+});
+
+describe('recuperação e bots do Ascensão', () => {
+  const twoAt = (levels: number[]) => {
+    const m = ascMatch(1, true);
+    m.players.forEach((p, i) => (m.asc!.xp[p.id] = xpFor(levels[i] ?? 1)));
+    return m;
+  };
+
+  it('killing the leader gives extra xp by level gap', () => {
+    const m = twoAt([4, 1, 1, 1]);
+    const [lead, a] = m.players;
+    ascDeath(m, lead.id, a.id);
+    expect(m.asc!.extra[a.id]).toBe(LEADER_KILL_XP * 3);
+    ascDeath(m, a.id, lead.id);
+    expect(m.asc!.extra[lead.id]).toBeUndefined();
+  });
+
+  it('below average gets +25% xp per level below', () => {
+    const m = twoAt([3, 1, 3, 1]);
+    const ids = m.players.map((p) => p.id);
+    for (const p of m.players) p.stats.round = { ...p.stats.round, dmgBy: { fireball: 100 }, dmg: 100 };
+    const before = ids.map((id) => m.asc!.xp[id]);
+    ascEndRound(m, ids, []);
+    const gain = ids.map((id, i) => m.asc!.xp[id] - before[i]);
+    expect(gain[1]).toBe(Math.round(gain[0] * (1 + CONSOLATION * 1)));
+  });
+
+  it('behind the leader gets one reroll and rare cards; leader gets none', () => {
+    const m = twoAt([4, 1, 4, 1]);
+    const ids = m.players.map((p) => p.id);
+    ascEndRound(m, ids, []);
+    expect(ids.map((id) => m.asc!.rerolls[id])).toEqual([0, 1, 0, 1]);
+    const rare = drawCards({ spells: { ...noSpells(), teleport: 1, swap: 1, shield: 1, grip: 1, lightning: 1 }, items: { ...noItems(), ring: 6, cape: 6 } }, seeded(3), 1);
+    expect(rare.filter((c) => c.kind === 'up').every((c) => c.kind === 'up' && c.rare)).toBe(true);
+    const p = mage();
+    applyCard(p, { kind: 'up', id: 'fireball', rare: true });
+    expect(p.spells.fireball).toBe(3);
+  });
+
+  it('reroll swaps the cards once per interval', () => {
+    const m = ascMatch(1, true);
+    tickMatch(m, STEP_MS, [], seeded(2));
+    m.asc!.rerolls.h = 1;
+    const first = m.asc!.offer.h;
+    expect(reroll(m, 'h')).toBe(true);
+    expect(reroll(m, 'h')).toBe(false);
+    tickMatch(m, 2 * STEP_MS, [], seeded(7));
+    expect(m.asc!.offer.h).not.toEqual(first);
+  });
+
+  it('marked leader takes +5% knockback per level above second', () => {
+    const m = twoAt([5, 2, 3, 1]);
+    const now = run(m, 0, () => m.phase === 'playing');
+    const z = m.world!.wizards.find((q) => q.id === m.players[0].id)!;
+    const other = m.world!.wizards.find((q) => q.id === m.players[2].id)!;
+    expect(other.kbResist - z.kbResist).toBeCloseTo(MARK_KB * 2);
+    expect(now).toBeGreaterThan(0);
+  });
+
+  it('easy bot picks at random; normal bot fills missing defense first', () => {
+    const p = { ...ascMatch(1).players[1], spells: { ...noSpells(), teleport: 1 } };
+    const cards: Card[] = [{ kind: 'item', id: 'boots' }, { kind: 'spell', id: 'lightning' }, { kind: 'spell', id: 'shield' }];
+    expect(autoPick(p, cards, 'normal', seeded(1))[0]).toBe(2);
+    expect(autoPick(p, cards, 'top', seeded(1))[0]).toBe(0);
+    const seen = new Set(Array.from({ length: 50 }, (_, s) => autoPick(p, cards, 'easy', seeded(s))[0]));
+    expect(seen.size).toBe(3);
   });
 });
