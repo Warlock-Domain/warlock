@@ -3,6 +3,13 @@ import type { PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
 
+export function sandboxVisibility(status: number, self: boolean, sandbox: boolean, seeInvis = false): number {
+  if (!sandbox || self) return status;
+  if (seeInvis) return status & (1024 | 8388608) ? status | 8388608 : status;
+  // Remover o marcador de teste sem pôr 2048 revelava a Ilusão a outros humanos.
+  return status & (1024 | 8388608) ? (status & ~(1024 | 8388608)) | 2048 : status;
+}
+
 // Mesma ordem da barra da partida; vagas não compradas continuam visíveis.
 export type LoadoutOrder = { spells: (SpellId | null)[]; items: (ItemId | null)[] };
 export function loadoutSlots(spells: Record<SpellId, number>, items: Record<ItemId, number>, order?: LoadoutOrder) {

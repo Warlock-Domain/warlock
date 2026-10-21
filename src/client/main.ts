@@ -28,7 +28,7 @@ import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
 import { TEAM_NAMES, TOUCH, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
-import { endResult } from './screen-data.ts';
+import { endResult, sandboxVisibility } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
 declare const __BRANCH__: string;
@@ -223,7 +223,7 @@ function startRoom(code: string, name: string) {
   let training = false;
   let trainSetup: BotSetup[] | undefined; // magias dos bots do último treino
   let shadow = false; // treino contra a sombra: o bot aparece como "Sombra" (só nesta tela)
-  let seeInvis = true; // sandbox: "Ver invisíveis" do painel
+  let seeInvis = false; // visão de teste só quando o jogador pedir explicitamente
   // desafio curto: pending espera a loja da rodada 0 (começo ou Repetir); run conta a tarefa; runRound = rodada em que ela acabou
   let pending: Challenge | null = null;
   let run: Run | null = null;
@@ -798,21 +798,13 @@ function startRoom(code: string, name: string) {
       const p = byId.get(w.id);
       // o meu véu usa o estado mais recente do servidor, sem atraso da interpolação; andar não pode fazê-lo piscar
       const visibilityBits = 1024 | 2048 | 8388608;
-      const status = w.id === me && server ? (w.status & ~visibilityBits) | (server.status & visibilityBits) : seen(w);
+      const status = w.id === me && server ? (w.status & ~visibilityBits) | (server.status & visibilityBits) : sandboxVisibility(w.status, w.id === me, !!room?.sandbox, seeInvis);
       const pos = w.id === me && server ? predict.frame(server, dt) : w.pos;
       const prevDraw = prev.get(w.id);
       const moving = len(w.vel) < STUN_SPEED && w.alive && (!prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
       return { ...w, status, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
     });
-  }
-  // sandbox: o servidor manda todos visíveis; "Ver invisíveis" deixa os outros na Caminhada no vento ou no véu da Ilusão
-  // meio transparentes (o bit do véu); desligado, esconde como numa sala normal
-  function seen(w: WizView): number {
-    const s = w.status;
-    if (!room?.sandbox || w.id === me) return s;
-    if (seeInvis) return s & (1024 | 8388608) ? s | 8388608 : s;
-    return (s & 1024 ? (s & ~1024) | 2048 : s) & ~8388608;
   }
   // eventos do replay: só a cena (clarão, explosão) e a seta do golpe que eu levei
   function replayEvents(events: SimEvent[], rs: SnapView) {
