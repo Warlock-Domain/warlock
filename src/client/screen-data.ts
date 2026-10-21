@@ -3,6 +3,15 @@ import type { PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { MAX_SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
 
+// Sandbox: o servidor manda todos, e o 8388608 marca quem estaria escondido (Caminhada no vento ou véu da Ilusão).
+// "Ver invisíveis (teste)" ligado só deixa esses translúcidos; desligado, esconde como numa sala normal.
+export function sandboxVisibility(status: number, self: boolean, sandbox: boolean, seeInvis = false): number {
+  if (!sandbox || self) return status;
+  if (seeInvis) return status & (1024 | 8388608) ? status | 8388608 : status;
+  // Remover o marcador de teste sem pôr 2048 revelava a Ilusão a outros humanos.
+  return status & (1024 | 8388608) ? (status & ~(1024 | 8388608)) | 2048 : status;
+}
+
 const ITEM_SLOTS = 3; // itens ativos nas teclas 1 2 3 (POS_ACTIONS item1 a item3)
 
 // Mesma ordem da barra da partida; vagas não compradas continuam visíveis.

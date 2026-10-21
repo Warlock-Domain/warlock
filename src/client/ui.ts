@@ -744,7 +744,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     rule('god', t('Vida infinita', 'Infinite health')),
     rule('noCd', t('Sem recarga', 'No cooldowns')),
     rule('shrink', t('Encolher a arena', 'Shrink the arena')),
-    check(t('Ver invisíveis', 'See invisible wizards'), true, act.seeInvis).row,
+    check(t('Ver invisíveis (teste)', 'See invisible wizards (test)'), false, act.seeInvis).row,
     el('div', { class: 'sandbox-row' },
       el('select', { 'aria-label': t('Dificuldade do bot', 'Bot difficulty'), onchange: (e: Event) => (sbLevel = (e.target as HTMLSelectElement).value as Level) },
         ...(['easy', 'normal', 'hard'] as const).map((k) => el('option', { value: k, selected: k === sbLevel }, SKILL_NAME[k]))),
