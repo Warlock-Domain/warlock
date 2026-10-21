@@ -1131,6 +1131,45 @@ div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: 
   .loadout-spells { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .loadout-items { flex-basis: 100%; }
 }
+/* Mesmo formato compacto em toda compra; a gaveta estreita não comporta o catálogo sem rolagem. */
+@media (min-width: 1100px) and (min-height: 600px) {
+  .center:has(.compact-shop) { top: calc(76px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 88px - var(--safe-t) - var(--safe-b)); }
+  .compact-shop { padding: 12px; gap: 10px; }
+  .compact-shop .shop-main { gap: 6px; }
+  .compact-shop .shop-loadout { gap: 10px; margin-bottom: 0; }
+  .compact-shop .shop-loadout-slot { min-height: 52px; padding: 16px 3px 4px; gap: 2px; }
+  .compact-shop .shop-loadout-slot > .gi { width: 20px; height: 20px; }
+  .compact-shop .shop-loadout-slot small { font-size: .65rem; }
+  .compact-shop .shop-group { gap: 3px; }
+  .compact-shop .shop-head { gap: 4px 8px; }
+  .compact-shop .shop-head h2 { font-size: 1.15rem; }
+  .compact-shop .shop-head h3 { font-size: 1rem; }
+  .compact-shop .lib-search { min-height: 32px; padding-block: 5px; }
+  .shop.compact-shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+  /* card: ícone e nome na linha de cima, nível e preço embaixo */
+  .compact-shop .shop-tile { display: grid; grid-template-columns: 24px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 3px auto; gap: 2px 4px; padding: 16px 4px 4px; }
+  .compact-shop .shop-tile .ico { grid-area: 1 / 1; }
+  .compact-shop .shop-tile .tile-name { grid-area: 1 / 2; font-size: .7rem; min-height: 0; }
+  .compact-shop .shop-tile .pips { grid-area: 2 / 1 / 3 / -1; margin: 0; }
+  .compact-shop .shop-tile .tile-price { grid-area: 3 / 1 / 4 / -1; }
+  /* 420 px e 360 px: altura do que fica acima e abaixo do catálogo (topo, slots, título, busca); 5 fileiras de magias e 6 de itens dividem o resto */
+  .compact-shop .shop-main .shop-tile { height: clamp(60px, calc((100dvh - 420px) / 5), 92px); }
+  .compact-shop .shop-main .shop-tile .ico { font-size: 1.35rem; }
+  .compact-shop .shop-items { max-height: none; overflow: visible; }
+  .compact-shop .shop-items .shop-tile { height: clamp(64px, calc((100dvh - 360px) / 6), 98px); }
+  .compact-shop .shop-items .shop-tile .ico { font-size: 1.4rem; }
+  .compact-shop .shop-items .shop-tile .tile-name { font-size: .64rem; } /* "Redirecionador" cabe no item em 1280 px */
+  .compact-shop .shop-side { gap: 6px; }
+  .compact-shop .first-tip { padding: 6px 8px; gap: 6px; font-size: .8rem; }
+  /* No PC a compra durante a rodada usa a mesma largura da inicial, inclusive para quem caiu; 334 px é a coluna de itens da Loja (#121) */
+  .peek-shop:has(.compact-shop) { top: calc(76px + var(--safe-t)); left: 50%; right: auto; transform: translateX(-50%); width: min(1860px, calc(100% - 24px)); max-height: calc(100% - 88px - var(--safe-t) - var(--safe-b)); }
+  .peek-shop.drawer .compact-shop { grid-template-columns: 334px minmax(0, 1fr) 270px; }
+  .peek-shop.drawer .compact-shop .shop-items { order: initial; }
+  .peek-shop.drawer .compact-shop .shop-side { display: flex; }
+  .peek-shop.drawer .compact-shop .shop-side > .gold.big { position: static; margin: 0; padding: 0; background: none; border: 0; }
+  .peek-shop.drawer .compact-shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@media (min-width: 1500px) and (min-height: 600px) { .peek-shop.drawer .compact-shop { grid-template-columns: 334px minmax(0, 1fr) 290px; } } /* coluna da direita um pouco mais larga em tela grande */
 @media all {
   .shop-item { position: relative; }
   .tile-acts { position: absolute; top: 4px; right: 4px; min-height: 0; z-index: 1; }
