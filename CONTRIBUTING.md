@@ -13,9 +13,9 @@ Vai trabalhar com agentes de IA? Veja a sugestão de ambiente em [Sessões com o
    - `balance/<assunto>` números de magia, item ou bot
    - `style/<assunto>` visual e interface
    - `docs/<assunto>`, `refactor/<assunto>`
-   Colaborador trabalha em branch deste repositório. Fork só para quem não é colaborador: nele o CI espera aprovação manual, a revisão automática não roda e o ambiente dev não publica.
+   Colaborador trabalha em branch deste repositório. Fork só para quem não é colaborador: nele o CI espera aprovação manual, a revisão automática não roda e o PR não ganha ambiente de teste.
 3. **Commits pequenos, em português**, começando pelo tipo: `feat: …`, `fix: …`, `balance: …`, `style: …`, `refactor: …`, `docs: …`. A mensagem diz o que mudou para o jogador e, em balanceamento, os números medidos.
-4. **Antes de abrir o PR**, rode os gates (os dois `tsc`, `vitest run`, `vite build`) e jogue no navegador. Para testar com outras pessoas, publique no seu ambiente dev (veja [Ambiente de cada dev](#ambiente-de-cada-dev)). Mantenha a branch em dia com o `master` (`git fetch` + `git merge origin/master`).
+4. **Antes de abrir o PR**, rode os gates (os dois `tsc`, `vitest run`, `vite build`) e jogue no navegador. Para testar com outras pessoas antes de pronto, abra o PR em rascunho: ele já ganha o próprio link (veja [Ambiente de cada PR](#ambiente-de-cada-pr)). Mantenha a branch em dia com o `master` (`git fetch` + `git merge origin/master`).
 5. **Abra o pull request para o `master`** preenchendo o modelo (Por quê, O que muda, Prints antes e depois se mudou algo na tela, Como testei, Balanceamento) e com `Closes #n` para ligar a issue. **Título no formato do commit** (`feat: …`, `fix: …`): uma checagem do GitHub barra título fora do padrão. O GitHub Actions roda as mesmas checagens dos gates; o PR só entra com tudo verde.
 6. **Revisão:** o Claude comenta sozinho em todo PR (veredito, checagens, pontos); comente `@claude` para pedir ajuda. O agente do dono pode ajustar e mesclar o PR. PR de código do dono (sessões do Fernando) só é mesclado depois que ele aprova o teste em `localhost`: a sessão abre a aba, lista o que testar e põe à mão notas na tela apontando o que mudou (só em `localhost`, fora do PR). PR de colaborador e PR só de docs/CI não passam por essa aprovação. Responda os comentários com commits novos na mesma branch (sem reescrever o histórico depois que a revisão começou). **A cada merge no `master`** enquanto o PR estiver aberto, faça `git fetch` + `git merge origin/master` (sem rebase nem force), rode os gates e reinicie o servidor local, para não acumular conflito e testar sempre a versão atual.
 7. **Merge:** *squash and merge* no `master`; o título do PR vira o commit. A branch é apagada depois.
@@ -35,37 +35,20 @@ Projeto de grupo: o que muda o jogo para todo mundo é combinado antes de virar 
 - **PR grande sem decisão** recebe `precisa de decisão` e espera, sem mesclar, até a issue ser decidida.
 - **Prova de conceito não tem issue.** Testar algo localmente (um pacote de assets, um efeito, uma ideia) se faz direto numa branch `poc/<assunto>`, com prints, sem PR. A issue e o PR só nascem quando o Fernando decide que vale a pena.
 
-## Ambiente de cada dev
+## Ambiente de cada PR
 
-Cada colaborador tem um jogo só seu na internet, para testar a tarefa com outras pessoas antes do PR. Ele usa Worker e salas próprios: nada do que acontece ali chega ao jogo no ar.
+Todo PR, rascunho também, ganha um jogo só dele na internet: `https://pr-<n>-warlock.fernandorffdev.com` (`<n>` é o número do PR). Worker e salas próprios: nada do que acontece ali chega ao jogo no ar.
 
-| Quem | GitHub | Branch | Link |
-|---|---|---|---|
-| Leonard | lboesmans | `lboesmans-dev` | https://lboesmans-dev-warlock.fernandorffdev.com |
-| Sky | breakie33 | `breakie33-dev` | https://breakie33-dev-warlock.fernandorffdev.com |
-| Lucas | lucascvalle | `lucascvalle-dev` | https://lucascvalle-dev-warlock.fernandorffdev.com |
-| Arthur | arthurbaquit | `arthurbaquit-dev` | https://arthurbaquit-dev-warlock.fernandorffdev.com |
-| Reinaldo | reirag | `reirag-dev` | https://reirag-dev-warlock.fernandorffdev.com |
-| Fernando | fernandorff | `fernandorff-dev` | https://fernandorff-dev-warlock.fernandorffdev.com |
-
-**Como subir:** todo push na branch `<seu usuário do GitHub>-dev` (em minúsculas) publica sozinho no seu link. A branch é sua: pode substituir à vontade.
-
-```bash
-# o estado da sua branch de tarefa vai para o seu ambiente
-git push --force origin HEAD:<seu-usuario>-dev
-
-# ou: juntar o jogo no ar no seu ambiente, sem perder o que já está lá
-git checkout <seu-usuario>-dev && git pull && git merge origin/master && git push
-```
-
-- **Acompanhar:** aba [Actions](https://github.com/fernandorff/warlock/actions), pipeline **Ambiente dev**. Ela faz o build, publica, espera o link responder e roda o teste rápido (uma sala de verdade). Leva menos de 1 minuto.
-- **Se der errado:** build quebrado não publica nada e o site anterior continua. Teste rápido vermelho quer dizer que a versão nova já está no ar com problema: veja o log.
-- **Colaborador novo:** o primeiro push na `<usuário>-dev` cria o ambiente sozinho. Use o seu usuário do GitHub em minúsculas: a pipeline só aceita letras minúsculas e números antes do `-dev`. Avise o dono para entrar na tabela acima.
-- **Não abra PR a partir da `-dev`.** O PR sai da branch da tarefa (`feat/…`, `fix/…`) para o `master`.
+- **Link:** um comentário fixo no PR traz o link e o commit que está no ar. A cada push na branch ele é atualizado, sem criar outro.
+- **Testar com o grupo antes de pronto:** abra o PR em rascunho (*Create draft pull request*) e mande o link no grupo. Terminou: *Ready for review*.
+- **Quando some:** ao fechar o PR (mesclado ou não) o ambiente é apagado sozinho e o comentário avisa. Reabrir o PR publica de novo.
+- **Acompanhar:** aba [Actions](https://github.com/fernandorff/warlock/actions), pipeline **Ambiente do PR**. Ela faz o build, publica, espera o link responder e roda o teste rápido (uma sala de verdade).
+- **Se der errado:** build quebrado não publica nada e a versão anterior do PR continua. Teste rápido vermelho quer dizer que a versão nova já está no ar com problema: veja o log.
+- **PR de fork** não ganha ambiente: o GitHub não passa os segredos de publicação para fork.
 
 ## Pipelines
 
-Tabela completa no [CLAUDE.md](CLAUDE.md#pipelines): CI, título do PR, revisão do Claude, `@claude` e ambiente dev. Logs em https://github.com/fernandorff/warlock/actions.
+Tabela completa no [CLAUDE.md](CLAUDE.md#pipelines): CI, título do PR, revisão do Claude, `@claude` e ambiente do PR. Logs em https://github.com/fernandorff/warlock/actions.
 
 ## Issues
 
