@@ -35,9 +35,11 @@ export function createPredict() {
       if (now() < holdUntil) queued = to;
       else if (me) me.target = to;
     },
+    // o S também cancela a magia em lançamento (como no servidor): pode andar de novo na hora
     stop() {
-      if (now() < holdUntil) queued = null;
-      else if (me) me.target = null;
+      holdUntil = 0;
+      queued = undefined;
+      if (me) me.target = null;
     },
     teleported(to: Vec) {
       if (!me) return;
