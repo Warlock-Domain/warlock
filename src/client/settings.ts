@@ -16,19 +16,20 @@ import { store } from './store.ts';
 
 declare const __BUILD__: string;
 
-// o que a tela atual oferece: som e vídeo só existem dentro da sala; trocar o apelido vale no lobby e na sala
-type SettingsCtx = {
+// o que a tela atual oferece: apelido e som valem no menu inicial e na sala (volume obrigatório: toda tela que abre as Configurações
+// passa o som, issue #128); efeitos visuais só existem dentro da sala
+export type SettingsCtx = {
   name: () => string;
   rename: () => void;
-  volumes?: () => { sfx: number; music: number };
-  setVolume?: (kind: 'sfx' | 'music', value: number) => void;
+  volumes: () => { sfx: number; music: number };
+  setVolume: (kind: 'sfx' | 'music', value: number) => void;
   fxLite?: () => boolean;
   setFxLite?: (lite: boolean) => void;
   pixel?: () => number;
   setPixel?: (size: number) => void;
   closePanels?: () => void; // um painel por vez: abrir o menu fecha os do topo
 };
-let ctx: SettingsCtx = { name: () => '', rename: () => {} };
+let ctx: SettingsCtx = { name: () => '', rename: () => {}, volumes: () => ({ sfx: 0, music: 0 }), setVolume: () => {} };
 export function setSettingsCtx(c: SettingsCtx) {
   ctx = c;
   if (overlay) draw();
@@ -121,9 +122,8 @@ function castSection(): Node[] {
 
 // som: lembra o volume de antes para o "Ligar o som" voltar onde estava
 let beforeMute = { sfx: 1, music: 0.7 };
-function soundSection(): Node[] | null {
+function soundSection(): Node[] {
   const { volumes, setVolume } = ctx;
-  if (!volumes || !setVolume) return null;
   const slider = (kind: 'sfx' | 'music', label: string) => {
     const input = el('input', { type: 'range', id: 'vol-' + kind, min: 0, max: 100, step: 5, value: Math.round(volumes()[kind] * 100) }) as HTMLInputElement;
     const out = el('span', { class: 'vol-value' }, input.value + '%');
