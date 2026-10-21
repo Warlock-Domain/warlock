@@ -1051,9 +1051,9 @@ body.replaying .peek-shop { display: none; }
 .shop-loadout-slot.empty { border-style: dashed; border-color: var(--line); color: var(--muted); }
 .reorder-slot { touch-action: none; cursor: grab; user-select: none; }
 .dragging-slot { cursor: grabbing; outline: 2px solid var(--gold); opacity: .65; }
-/* arraste de vaga: o ícone vai junto com o mouse e a vaga de destino acende */
+/* arraste de vaga: o ícone vai junto com o mouse e a vaga de destino acende; 40 px (ícone de 26 px): menor que a vaga (42 a 64 px), para a borda acesa da vaga de destino aparecer em volta */
 .drag-ghost { position: fixed; z-index: 100; pointer-events: none; display: grid; place-items: center; width: 40px; height: 40px; transform: translate(-50%, -50%); border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--g, var(--gold)) 22%, var(--panel-solid)); color: var(--g, var(--gold)); box-shadow: 0 0 0 2px var(--g, var(--gold)), 0 6px 16px rgba(0, 0, 0, .5); }
+  background: color-mix(in srgb, var(--g, var(--gold)) 22%, var(--panel-solid)); color: var(--g, var(--gold)); box-shadow: 0 0 0 2px var(--g, var(--gold)), var(--shadow-sm); }
 .drag-ghost svg { width: 26px; height: 26px; }
 body:has(.drag-ghost) .tip { display: none; } /* a dica cobria a vaga de destino durante o arraste */
 .drop-target { outline: 2px solid var(--gold); outline-offset: 2px; background: color-mix(in srgb, var(--gold) 14%, var(--plate)); }
@@ -1171,19 +1171,21 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
   /* o mesmo quadro do ícone nos cartões e nos slots */
   .compact-shop .shop-tile .ico, .compact-shop .shop-loadout-slot > .gi { box-sizing: border-box; border-radius: var(--r-sm); background: color-mix(in srgb, var(--g, var(--ember)) 14%, var(--panel-bot));
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--g, var(--ember)) 40%, transparent); }
+  /* medidas do cartão sem variável no :root: --acts-w 28 px = botão de 24 px e 4 px de folga; o quadro do ícone para em 52 px (o cartão
+     de 74 px menos o padding) e cai para 30 px no estreito; 160 px e 170 px são a largura do cartão em 1600×900 e 1920×1080 */
   /* cartão estreito (até 1600 px): quadro menor e nome na fonte do texto, para "Redirecionador" caber sem partir a palavra; o Vender fica só com a moeda */
   .compact-shop .shop-item { container: tile / inline-size; }
   @container tile (max-width: 160px) {
     .compact-shop .shop-tile { --well: 30px; column-gap: 5px; padding-inline: 5px; }
-    /* sem largura para a coluna inteira: o carrinho some (o clique no cartão compra) e a coluna só aparece com vender ou desfazer */
-    .compact-shop .shop-item .tile-acts button.buy { display: none; }
+    /* sem largura para a coluna inteira: o carrinho fica escondido (o clique no cartão compra) e a coluna só aparece com vender ou desfazer */
     .compact-shop .shop-item:has(.sell, .undo) .shop-tile { padding-right: calc(8px + var(--acts-w)); }
     .compact-shop .shop-tile .tile-name { font-family: inherit; font-weight: 600; font-size: .66rem; }
   }
   .compact-shop .tile-acts { top: 6px; bottom: 6px; right: 6px; width: var(--acts-w); flex-direction: column; flex-wrap: nowrap; justify-content: center; }
   .compact-shop .tile-acts button { width: 100%; min-height: 0; flex: 0 1 24px; padding: 0; justify-content: center; }
   .compact-shop .tile-acts button svg { width: 14px; height: 14px; }
-  .compact-shop .tile-acts button.buy { display: inline-flex; align-items: center; color: var(--gold); }
+  /* o carrinho só aparece acima de 160 px; abaixo vale o .tile-acts .buy escondido de toda loja */
+  @container tile (min-width: 161px) { .compact-shop .tile-acts button.buy { display: inline-flex; align-items: center; color: var(--gold); } }
   .compact-shop .tile-acts button.sell .sell-txt { display: none; }
   /* cartão largo (tela grande): nome e preço maiores para o conteúdo não ficar miúdo no meio do cartão */
   @container tile (min-width: 170px) {
