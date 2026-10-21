@@ -4,7 +4,7 @@ import { HP_REGEN, WIZ_SPEED } from '../src/shared/constants.ts';
 import { gearOf, stepWorld, type World } from '../src/shared/sim.ts';
 import { noSpells, spellLevel } from '../src/shared/spells.ts';
 import { noItems } from '../src/shared/items.ts';
-import { sheet } from '../src/client/sheet.ts';
+import { classLine, sheet } from '../src/client/sheet.ts';
 import { world } from './helpers.ts';
 
 const BODY = LOOK_PARTS.findIndex((p) => p.id === 'body');
@@ -66,6 +66,25 @@ describe('classes', () => {
       return w.wizards[1].slowUntil - hits[0].t;
     };
     expect(slowFor(true)).toBeCloseTo(slowFor(false) * 1.05, 2);
+  });
+
+  it('a Ficha soma a passiva nos totais e diz de onde ela vem', () => {
+    const row = (rows: ReturnType<typeof sheet>, group: string, label: string) => rows.find((r) => r.group === group && r.label === label)!;
+    const knight = sheet(noSpells(), noItems(), 'knight');
+    expect(row(knight, 'Mago', 'Empurrão recebido').value).toBe('95%');
+    expect(row(knight, 'Mago', 'Empurrão recebido').from).toContain('da classe Cavaleiro');
+    expect(row(knight, 'Mago', 'Vida por segundo (na pedra)').value).toBe('5,25');
+    const spells = { ...noSpells(), fireball: 1 };
+    const plain = sheet(spells, noItems()), mage = sheet(spells, noItems(), 'mage');
+    expect(row(plain, 'Bola de fogo', 'Dano').value).toBe('70');
+    expect(row(mage, 'Bola de fogo', 'Dano').value).toBe('73,5');
+    expect(row(mage, 'Bola de fogo', 'Recarga').value).not.toBe(row(plain, 'Bola de fogo', 'Recarga').value);
+  });
+
+  it('o criador diz a classe do tronco e que ela muda na próxima rodada', () => {
+    expect(classLine(lookOf('knight'))).toContain('Cavaleiro');
+    expect(classLine(lookOf('knight'))).toContain('próxima rodada');
+    expect(classLine(lookOf('barbarian'))).toContain('Sem classe');
   });
 
   it('a Ficha do mago mostra a classe e a passiva; sem classe, nada a mais', () => {
