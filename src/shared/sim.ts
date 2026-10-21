@@ -5,7 +5,7 @@ import {
 } from './constants.ts';
 import { SHAPES, edge, inArena, inLavaAt, isleSpot, safeInside, type ArenaId, type Isle } from './arena.ts';
 import { ACTIVE_ITEMS, AEGIS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, isActive, itemStats, noItems, type ItemId } from './items.ts';
-import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
+import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export type Wizard = {
@@ -372,6 +372,13 @@ function knockScale(dmg: number, taken: number, resist: number) {
   return big * (1 + (KNOCK_HP_SCALE * taken) / HP_MAX) * Math.max(0, 1 - resist);
 }
 
+// último golpe, para o crédito do abate; também o efeito sem dano num inimigo (Troca, Agarrar, Magnetizar; #179)
+function mark(w: World, target: Wizard, by: string, src: string) {
+  target.lastHitBy = by;
+  target.lastHitSrc = src;
+  target.lastHitAt = w.t;
+}
+
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string) {
   // invulnerável: sem dano nem empurrão, mas o acerto aparece (explosão e som), senão o projétil sumiria sem efeito
   if (w.t < target.invulnUntil) return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
@@ -409,9 +416,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
     if (att) att.calmSince = w.t;
   }
   target.vel = add(target.vel, scale(norm(dir), knock * mult * release));
-  target.lastHitBy = by;
-  target.lastHitSrc = src;
-  target.lastHitAt = w.t;
+  mark(w, target, by, src);
   // roubo de vida: quem acertou recupera parte do dano (e, como no original, a cura reduz o dano acumulado pela metade dela)
   if (att && att.lifesteal > 0) heal(att, dmg * att.lifesteal);
   w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg), src });
@@ -696,7 +701,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'warpzone', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + L.duration, target: null, dmgMult, caster: wz.id });
   } else if (spell === 'lightning') {
     const end = add(wz.pos, scale(dir, L.range * wz.rangeF));
-    const found = firstOnSegment(w, wz.pos, end, WIZ_R, wz.id);
+    const found = firstOnSegment(w, wz.pos, end, WIZ_R + LIGHTNING.width, wz.id);
     const proj = firstProjectileOnSegment(w, wz.pos, end, wz.id);
     const pil = firstPillarOnSegment(w, wz.pos, end, 0.1);
     if (pil && (!found || pil.t < found.t) && (!proj || pil.t < proj.t)) {
@@ -1212,7 +1217,7 @@ function stepProjectiles(w: World) {
       const next = add(p.pos, scale(add(walk, push), dt));
       if (!firstPillarOnSegment(w, p.pos, next, WIZ_R)) p.pos = next;
       p.pushVel = scale(push, Math.exp(-FRICTION * dt));
-      if (len(p.pushVel) < 0.05) p.pushVel = undefined;
+      if (len(p.pushVel) < 0.05) p.pushVel = undefined; // mesmo corte do empurrão do mago (fim do deslize)
       if (w.t < p.until) keep.push(p);
       continue;
     }
@@ -1342,6 +1347,7 @@ function stepProjectiles(w: World) {
       }
       if (p.kind === 'swap') {
         swapPlaces(w, p, wz);
+        if (!allies(anyById(w, p.owner), wz)) mark(w, wz, p.owner, 'swap');
         w.events.push({ k: 'land', id: p.caster, src: 'swap' });
       } else if (p.kind === 'grip') {
         // aliado não fica preso
@@ -1349,6 +1355,7 @@ function stepProjectiles(w: World) {
           w.events.push({ k: 'land', id: p.caster, src: 'grip' });
           wz.gripUntil = w.t + L.duration * wz.debuffMult;
           wz.gripBonus = L.scale;
+          mark(w, wz, p.owner, 'grip');
           wz.target = null;
           wz.casting = null;
           w.events.push({ k: 'grip', id: wz.id, x: wz.pos.x, y: wz.pos.y });
@@ -1382,7 +1389,10 @@ function stepProjectiles(w: World) {
         const enemy = wz.id !== p.owner && !allies(anyById(w, p.owner), wz);
         wz.magnet = enemy ? 1 : -1;
         wz.magnetUntil = w.t + L.duration * (enemy ? wz.debuffMult : 1);
-        if (enemy) land(w, p, 'magnetize');
+        if (enemy) {
+          mark(w, wz, p.owner, 'magnetize');
+          land(w, p, 'magnetize');
+        }
       } else if (p.kind === 'recharge') {
         // dano + 1 por acerto seguido; acerto sem reflexo soma, o resto zera; a recarga volta para quem a lançou por último
         const dmg = L.dmg + (p.bonus ?? 0);

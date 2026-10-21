@@ -1,5 +1,5 @@
 import { inLavaAt, type ArenaId } from '../shared/arena.ts';
-import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, SUDDEN, type RuneKind } from '../shared/constants.ts';
+import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
 import type { BotSetup, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { BotSkill } from '../shared/bots.ts';
@@ -8,17 +8,17 @@ import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
 import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
-import { add, clampLen, dist, len, scale, sub, type Vec } from '../shared/vec.ts';
+import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
 import { LOOK_EVENT, saveLook, savedLook } from './avatar.ts';
 import { coachTip } from './coach.ts';
 import { PROFILE_KEY, addRound, toSkill, type Profile } from './mimic.ts';
 import { n1 } from './rules-text.ts';
-import { blastOf, reachOf } from './reach.ts';
+import { aimOf, hitR, reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t } from './i18n.ts';
-import { isPadMode, labelOf, onFreeEsc } from './keys.ts';
+import { getCastMode, isPadMode, labelOf, onFreeEsc } from './keys.ts';
 import { openSettings, savedPixel } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
 import { DELAY, REPLAY_MAX, createInterp, keepLast } from './interp.ts';
@@ -48,6 +48,7 @@ const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica'
 // Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, controle, jogador,
 // personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando) e partida:loja (contra 1 bot, na loja da rodada 1, com 120 s).
 // Sala e seção juntas, com vírgula (as Configurações de dentro da partida): sandbox,config:som
+// Porta nova não tem apelido guardado: o ?apelido= (ou o ?aba=) pula o pedido de nome, ver TEST_NAME abaixo (issue #175).
 const IR = (LOCAL && new URLSearchParams(location.search).get('ir')?.split(',')) || [];
 const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 
@@ -109,6 +110,12 @@ function servidor(on: boolean) {
 const PID = 'warlock:pid' + (as && ':' + as);
 const NAME = 'warlock:name' + (as && ':' + as);
 const CHAR = 'warlock:char' + (as && ':' + as);
+// aba de teste já entra com apelido (pedido do Fernando, 21/10; issue #175), só em localhost: cada porta é um site novo, sem apelido
+// guardado, e o pedido de nome parava a aba antes do ?ir=. ?apelido=<nome> grava o apelido; sem ele, o começo do ?aba= entra só
+// se ainda não houver apelido. No ar nada muda.
+const query = new URLSearchParams(location.search);
+const TEST_NAME = (query.get('apelido') || (!store.get(NAME) && query.get('aba')) || '').replace(/[<>]/g, '').trim().slice(0, 20);
+if (LOCAL && TEST_NAME) store.set(NAME, TEST_NAME);
 const playerId = store.get(PID) ?? crypto.randomUUID();
 store.set(PID, playerId);
 
@@ -231,7 +238,8 @@ function startRoom(code: string, name: string) {
   let training = false;
   let trainSetup: BotSetup[] | undefined; // magias dos bots do último treino
   let shadow = false; // treino contra a sombra: o bot aparece como "Sombra" (só nesta tela)
-  let seeInvis = true; // sandbox: "Ver invisíveis" do painel
+  let seeInvis = false; // visão de teste só quando o jogador pedir explicitamente
+  let seeHit = false; // sandbox: "Ver hitbox (teste)"
   // desafio curto: pending espera a loja da rodada 0 (começo ou Repetir); run conta a tarefa; runRound = rodada em que ela acabou
   let pending: Challenge | null = null;
   let run: Run | null = null;
@@ -294,6 +302,7 @@ function startRoom(code: string, name: string) {
     sandbox: (cmd) => net.send({ t: 'sandbox', cmd }),
     spectate: (on) => net.send({ t: 'watch', on }),
     seeInvis: (on) => (seeInvis = on),
+    seeHit: (on) => (seeHit = on),
     spell: (s) => input.button(s),
     hover: (a) => (hovered = a),
     volumes: sound.volumes,
@@ -450,8 +459,7 @@ function startRoom(code: string, name: string) {
     run = pending = null;
     trainSetup = undefined;
     net.send({ t: 'start', bots: 0, mode: 'rounds', shuffle: true, opts: DEFAULT_OPTS, sandbox: true });
-    net.send({ t: 'sandbox', cmd: { op: 'bot', dummy: true } });
-    net.send({ t: 'sandbox', cmd: { op: 'turret', direction: 'east' } });
+    for (const cmd of SANDBOX_START) net.send({ t: 'sandbox', cmd });
   }
 
   function startChallenge(c: Challenge) {
@@ -784,10 +792,15 @@ function startRoom(code: string, name: string) {
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
     const reach = showing && meP ? reachOf(showing, meP.spells, meP.items) : 0;
-    // Meteoro: a explosão onde ele cai (no cursor ou no retículo do controle, sem passar do alcance)
-    const blast = showing && meP ? blastOf(showing, meP.spells) : 0;
-    const aimAt = blast && myPos ? (padAiming ? padAt : input.aimPoint()) : null;
-    scene.range(showing && myPos ? myPos : null, reach, aimAt && myPos ? add(myPos, clampLen(sub(aimAt, myPos), reach)) : null, blast);
+    // mira de verdade (tecla segurada no Segurar, magia escolhida ou controle): faixa de acerto e explosão rumo ao cursor ou retículo.
+    // No Rápido a tecla segurada é só o anel piscando depois de lançar, e o mouse na barra não aponta o chão: nada segue o mouse
+    const aiming = showing && (armed ?? padAiming ?? (getCastMode() === 'release' ? held : null));
+    const aimAt = aiming ? (padAiming ? padAt : input.aimPoint()) : null;
+    const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, myPos, aimAt) : null;
+    scene.range(showing && myPos ? myPos : null, reach, shape?.blastAt ?? null, shape?.blastR ?? 0);
+    scene.bands(shape?.segs ?? [], shape?.half ?? 0);
+    // nas posições desenhadas (as mesmas da tela), para ver se o erro foi mira, desvio ou a bola no ar enganando
+    scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
     view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
@@ -807,21 +820,13 @@ function startRoom(code: string, name: string) {
       const p = byId.get(w.id);
       // o meu véu usa o estado mais recente do servidor, sem atraso da interpolação; andar não pode fazê-lo piscar
       const visibilityBits = 1024 | 2048 | 8388608;
-      const status = w.id === me && server ? (w.status & ~visibilityBits) | (server.status & visibilityBits) : seen(w);
+      const status = w.id === me && server ? (w.status & ~visibilityBits) | (server.status & visibilityBits) : sandboxVisibility(w.status, w.id === me, !!room?.sandbox, seeInvis);
       const pos = w.id === me && server ? predict.frame(server, dt) : w.pos;
       const prevDraw = prev.get(w.id);
       const moving = len(w.vel) < STUN_SPEED && w.alive && (!prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
       return { ...w, status, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
     });
-  }
-  // sandbox: o servidor manda todos visíveis; "Ver invisíveis" deixa os outros na Caminhada no vento ou no véu da Ilusão
-  // meio transparentes (o bit do véu); desligado, esconde como numa sala normal
-  function seen(w: WizView): number {
-    const s = w.status;
-    if (!room?.sandbox || w.id === me) return s;
-    if (seeInvis) return s & (1024 | 8388608) ? s | 8388608 : s;
-    return (s & 1024 ? (s & ~1024) | 2048 : s) & ~8388608;
   }
   // eventos do replay: só a cena (clarão, explosão) e a seta do golpe que eu levei
   function replayEvents(events: SimEvent[], rs: SnapView) {

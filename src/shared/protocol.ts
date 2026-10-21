@@ -4,7 +4,7 @@ import { BOT_SKILL, type BotSkill } from './bots.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, RUNE_KINDS, type RuneKind } from './constants.ts';
 import { ITEM_IDS, isActive, type ItemId } from './items.ts';
-import { MODES, OPTION_CHOICES, goalOf, parseOpt, votesNeeded, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type Vote } from './match.ts';
+import { MODES, OPTION_CHOICES, TURRET_DIR, goalOf, parseOpt, votesNeeded, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
@@ -147,7 +147,7 @@ function parseSandbox(c: unknown): SandboxCmd | null {
   if (c.op === 'radius') return c.step === 1 || c.step === -1 ? { op: 'radius', step: c.step } : null;
   if (c.op === 'rune') return RUNE_KINDS.includes(c.kind as RuneKind) ? { op: 'rune', kind: c.kind as RuneKind } : null;
   if (c.op === 'restart') return { op: 'restart' };
-  if (c.op === 'turret') return ['north', 'east', 'south', 'west'].includes(c.direction as string) ? { op: 'turret', direction: c.direction as 'north' | 'east' | 'south' | 'west' } : null;
+  if (c.op === 'turret') return Object.hasOwn(TURRET_DIR, c.direction as string) ? { op: 'turret', direction: c.direction as TurretDir } : null;
   if (c.op !== 'bot' || (c.dummy !== undefined && typeof c.dummy !== 'boolean')) return null;
   const bot = c.bot === undefined ? undefined : parseSetup([c.bot])?.[0];
   if (bot === undefined && c.bot !== undefined) return null;

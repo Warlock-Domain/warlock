@@ -12,7 +12,7 @@ import { TAUNT_COOLDOWN_MS } from '../shared/taunts.ts';
 const STEP_MS = DT * 1000;
 const MAX_CATCHUP = 5; // passos por chamada do laço; atraso maior que isso é descartado
 const EMPTY_MS = 5 * 60_000; // sala sem ninguém conectado é apagada depois disso (alarm)
-const IDLE_MS = 3 * 60_000; // partida sem nenhum comando de gente por 3 min é encerrada
+const IDLE_MS = 3 * 60_000; // partida sem nenhum comando de gente por 3 min é encerrada (menos a sandbox)
 // sem 'ping' por esse tempo, a conexão morreu sem avisar (o cliente pinga a cada 10 s; numa aba escondida o Chrome segura a 1 por minuto)
 const DEAD_MS = 90_000;
 
@@ -317,7 +317,8 @@ export class Room extends DurableObject<Env> {
     }
     // a sandbox não grava telemetria (e a rodada dela nem acaba)
     if (m.phase === 'roundEnd' && before.startsWith('playing') && !m.sandbox) this.lobby().record(roundRecord(m, now)).catch(() => {});
-    if (now - this.lastCmdAt > IDLE_MS) endIdle(m);
+    // sandbox não encerra por inatividade: quem testa fica parado mirando ou lendo; sem ninguém conectado o laço já para (shouldRun) e o alarme apaga a sala
+    if (!m.sandbox && now - this.lastCmdAt > IDLE_MS) endIdle(m);
     if (sig() !== before) void this.changed();
   }
 

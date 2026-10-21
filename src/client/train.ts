@@ -1,6 +1,7 @@
 // Sandbox: escolher as magias do bot (decisão do Fernando, 18/10). Sorteio = o bot compra sozinho, como sempre.
 // A sala contra bots não escolhe mais: lá os bots sempre compram sozinhos (Fernando, 20/10).
 import type { BotSetup } from '../shared/protocol.ts';
+import type { SandboxCmd } from '../shared/match.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { ICON, el, icon } from './icons.ts';
 import { store } from './store.ts';
@@ -10,6 +11,8 @@ import { spellName, t } from './i18n.ts';
 const KEY = 'warlock:sandboxbot';
 export const savedBotSetup = (): BotSetup[] =>
   (store.json<BotSetup[]>(KEY) ?? []).map((b) => (b?.spells ? { ...b, spells: Object.fromEntries(Object.entries(b.spells).filter(([id]) => (SPELL_IDS as readonly string[]).includes(id))) } : b));
+// sandbox nova: você e um boneco parado; torreta só pelo painel (o tiro dela enchia de som ao abrir, Fernando, 21/10)
+export const SANDBOX_START: SandboxCmd[] = [{ op: 'bot', dummy: true }];
 let open = false; // aberto ou fechado sobrevive ao redesenho da sala
 
 // uma linha por bot: Sorteio ou as magias marcadas (até MAX_SPELLS, a Bola de fogo conta), cada uma com o nível
