@@ -1130,11 +1130,12 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
   .compact-shop .shop-main, .compact-shop .shop-items { gap: var(--gap-v); }
   .compact-shop .shop-group { gap: calc(var(--gap-v) / 2 + 2px); }
   .compact-shop .shop-head { gap: 4px 8px; }
-  .compact-shop .shop-head h2 { font-size: 1.15rem; }
   .compact-shop .shop-head h3 { font-size: 1rem; }
-  .shop.compact-shop .shop-main > .shop-head { flex-wrap: nowrap; }
-  .shop.compact-shop .shop-main > .shop-head h2 { white-space: nowrap; }
-  .shop.compact-shop .shop-main > .shop-head small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* numa linha: a quebra dava 33 px de rolagem na gaveta em 1280 */
+  /* sem título nem contagem de magias: "Ataque" alinha com "Itens passivos" (Fernando, 21/10); o ✕ da loja da partida fica no canto da caixa */
+  .shop.compact-shop { position: relative; }
+  .shop.compact-shop .shop-main > .shop-head { display: contents; }
+  .shop.compact-shop .shop-main > .shop-head > :not(.peek-close) { display: none; }
+  .shop.compact-shop .peek-close { position: absolute; top: 4px; right: 4px; z-index: 2; width: 32px; min-height: 32px; margin: 0; }
   .shop.compact-shop .shop-grid { gap: var(--gap-v) 5px; }
   .shop.compact-shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   /* um cartão só para itens e magias (Fernando, 21/10): o ícone num quadro da cor do grupo à esquerda; nome, nível e preço empilhados à direita.
