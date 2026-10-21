@@ -538,7 +538,7 @@ button.info .gi { width: 16px; height: 16px; }
 .info-close { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; padding: 0; background: transparent; border: none; color: var(--muted); }
 @media (pointer: coarse) { button.info, .info-close { width: 44px; height: 44px; min-height: 44px; } }
 /* loja só para ver no meio da rodada (ui.ts, togglePeek): por cima da arena, o jogo continua atrás; no celular cobre a tela */
-.peek-shop { position: absolute; left: 50%; top: calc(58px + var(--safe-t)); transform: translateX(-50%); z-index: 8; width: min(1240px, calc(100% - 24px)); max-height: calc(100% - 170px - var(--safe-t) - var(--safe-b)); overflow-y: auto; border-radius: var(--r-frame); }
+.peek-shop { position: absolute; left: 50%; top: calc(58px + var(--safe-t)); transform: translateX(-50%); z-index: 8; width: min(1300px, calc(100% - 24px)); max-height: calc(100% - 170px - var(--safe-t) - var(--safe-b)); overflow-y: auto; border-radius: var(--r-frame); }
 .peek-shop .shop-main > .shop-head { align-items: center; }
 .peek-close { margin-left: auto; }
 /* só ver: no lugar do botão, o preço em verde (o ouro de agora dá) ou vermelho (não dá) */
@@ -1072,8 +1072,12 @@ body.replaying .peek-shop { display: none; }
 .tile-acts { min-height: 26px; }
 @media (min-width: 861px) {
   .shop .shop-main .shop-grid { grid-template-columns: repeat(5, 118px); column-gap: 10px; }
-  .shop-items .shop-grid { grid-template-columns: repeat(2, 118px); column-gap: 8px; }
-  .shop { grid-template-columns: 262px minmax(0, 1fr) 270px; }
+  /* itens em 3 colunas de ~105 px (Fernando, 20/10: 2 ficava muito vertical); 334 px é o máximo que deixa as magias em 5 por fileira
+     em 1280 e na loja só para ver de 1300 px (abaixo de 560 px no meio elas caem para 4) */
+  .shop-items .shop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 8px; }
+  .shop-items .shop-item { width: auto; }
+  .shop-items .shop-tile { width: 100%; }
+  .shop { grid-template-columns: 334px minmax(0, 1fr) 270px; }
 }
 /* tela estreita (celular, gaveta): cartões ocupam a largura em colunas iguais */
 @media (max-width: 860px) {
@@ -1084,7 +1088,7 @@ body.replaying .peek-shop { display: none; }
 .peek-shop.drawer .shop .shop-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
 .peek-shop.drawer .shop-item { width: auto; }
 .peek-shop.drawer .shop-tile { width: 100%; }
-@media (min-width: 1500px) { .shop { grid-template-columns: 262px minmax(0, 1fr) 290px; } .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 1500px) { .shop { grid-template-columns: 334px minmax(0, 1fr) 290px; } .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); } }
 /* loja só para ver: o ícone é um div, não botão; recebe o mesmo arranjo e a mesma moldura do botão */
 .shop-tile { display: flex; align-items: center; }
 div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: var(--fg); box-sizing: border-box; }
@@ -1118,6 +1122,9 @@ div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: 
 }
 @container shop-content (max-width: 640px) {
   .shop .shop-main .shop-grid { grid-template-columns: repeat(auto-fit, minmax(min(104px, 100%), 1fr)); }
+}
+/* equipamento numa fileira só até 541 px: com os itens em 3 colunas o meio fica com ~580 px em 1280 */
+@container shop-content (max-width: 540px) {
   .shop-loadout { flex-wrap: wrap; gap: 10px; margin-bottom: 0; }
   .loadout-spells { flex: 1 0 100%; }
   .loadout-items { flex: 0 1 50%; }
