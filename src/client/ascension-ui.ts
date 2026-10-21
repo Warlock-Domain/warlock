@@ -63,8 +63,8 @@ export function ascPanel(r: PublicRoom, me: string, act: AscActions, dialog: Dia
   });
   const pct = Math.min(100, Math.round((100 * a.xp) / Math.max(1, a.next)));
   const lead = ascLeader(r);
-  return el('div', { class: 'card shop asc' },
-    el('div', { class: 'shop-main' },
+  return el('div', { class: 'card asc' },
+    el('div', { class: 'asc-main' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? t('Ascensão · carta inicial', 'Ascension · starting card') : t(`Ascensão · depois da rodada ${r.round} de ${ASC_ROUNDS}`, `Ascension · after round ${r.round} of ${ASC_ROUNDS}`)),
         el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells`))),
       el('div', { class: 'asc-xp', title: `${a.xp} / ${a.next} XP` }, el('b', {}, t(`Nível ${a.level}`, `Level ${a.level}`)), el('span', { class: 'asc-bar' }, el('i', { style: `width:${pct}%` })), el('small', {}, `${a.xp} / ${a.next} XP`)),
@@ -74,5 +74,5 @@ export function ascPanel(r: PublicRoom, me: string, act: AscActions, dialog: Dia
           a.rerolls > 0 ? el('button', { type: 'button', class: 'asc-reroll', onclick: act.reroll }, t('Novo sorteio (1 por intervalo, para quem está atrás do líder)', 'Reroll (1 per break, for those behind the leader)')) : null)
         : el('p', { class: 'muted' }, t('Sem carta nova desta vez. Esperando os outros escolherem.', 'No new card this time. Waiting for the others to pick.')),
       lead ? el('small', { class: 'muted' }, t(`Líder marcado: ${r.players.find((p) => p.id === lead.id)?.name} leva +${Math.round(MARK_KB * lead.above * 100)}% de empurrão.`, `Marked leader: ${r.players.find((p) => p.id === lead.id)?.name} takes +${Math.round(MARK_KB * lead.above * 100)}% knockback.`)) : null),
-    el('aside', { class: 'shop-side' }, ...side));
+    el('aside', { class: 'asc-side' }, ...side));
 }

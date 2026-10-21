@@ -18,7 +18,7 @@ export const DMG_XP = 1;
 export const LAVA_XP = 1;
 export const KILL_XP = 100;
 export const ALIVE_XP = 2; // por segundo vivo
-export const LEVEL_XP = 150; // subir do nível n para o n+1 custa LEVEL_XP × n
+export const LEVEL_XP = 600; // cada nível custa o mesmo: o vencedor de uma rodada faz ~1 000 XP (medido em localhost, 21/10), 1 a 2 cartas
 export const LAST_ALIVE_PTS = 1; // ponto a mais para o último vivo
 // recuperação (as 4 do desenho, números iniciais): derrubar o líder rende LEADER_KILL_XP por nível de diferença; abaixo da média de
 // nível, +CONSOLATION do XP da rodada por nível abaixo; atrás do líder, RARE_PER_LEVEL de chance de carta rara por nível (até RARE_MAX)
@@ -36,7 +36,7 @@ export function xpGain(s: Stat): number {
   return Math.round(DMG_XP * spells + LAVA_XP * (s.dmgBy.lava ?? 0) + KILL_XP * s.kills + ALIVE_XP * s.alive);
 }
 
-export const xpFor = (level: number) => (LEVEL_XP * level * (level - 1)) / 2;
+export const xpFor = (level: number) => LEVEL_XP * (level - 1);
 export function levelOf(xp: number): number {
   let l = 1;
   while (xp >= xpFor(l + 1)) l++;

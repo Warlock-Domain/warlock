@@ -1148,6 +1148,9 @@ div.shop-tile { border: 1px solid var(--line); background: var(--plate); color: 
 }
 
 /* Ascensão: as 3 cartas do intervalo no lugar da loja; cor de grupo (--g) como na loja, item prateado, rara com brilho dourado */
+.card.asc { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 320px); gap: 18px; align-items: start; }
+.asc-main, .asc-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+@media (max-width: 860px) { .card.asc { grid-template-columns: minmax(0, 1fr); } }
 .asc .is-item { --g: var(--item); }
 .asc-xp { display: flex; align-items: center; gap: 10px; }
 .asc-bar { flex: 1; height: 8px; border-radius: var(--r-xs); background: var(--panel2); border: 1px solid var(--line); overflow: hidden; }

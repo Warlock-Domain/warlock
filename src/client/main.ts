@@ -46,7 +46,8 @@ const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica'
 
 // ?ir=<lugar> (issue #140): em localhost a aba de teste já abre no ponto a testar (pedido do Fernando, 20/10); no ar nada muda.
 // Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, controle, jogador,
-// personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando) e partida:loja (contra 1 bot, na loja da rodada 1, com 120 s).
+// personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando), partida:loja (contra 1 bot, na loja da rodada 1, com 120 s)
+// e partida:ascensao (Ascensão contra 3 bots, na carta inicial, com 120 s).
 // Sala e seção juntas, com vírgula (as Configurações de dentro da partida): sandbox,config:som
 // Porta nova não tem apelido guardado: o ?apelido= (ou o ?aba=) pula o pedido de nome, ver TEST_NAME abaixo (issue #175).
 const IR = (LOCAL && new URLSearchParams(location.search).get('ir')?.split(',')) || [];
@@ -443,6 +444,7 @@ function startRoom(code: string, name: string) {
       net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
       if (k === 'partida') net.send({ t: 'ready' });
     }
+    else if (k === 'partida:ascensao') net.send({ t: 'start', bots: 3, mode: 'ascension', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
   }
   // sandbox: começa com você e um boneco parado; o resto vem pelo painel
   function startSandbox() {
@@ -741,7 +743,7 @@ function startRoom(code: string, name: string) {
     watchStep = 0;
     watchId = watched?.id ?? null;
     view.watching(watched?.name ?? null);
-    view.deadShopping(room?.phase === 'playing' && room.mode !== 'deathmatch' && !!meP && !!meW && !meW.alive);
+    view.deadShopping(room?.phase === 'playing' && room.mode !== 'deathmatch' && room.mode !== 'ascension' && !!meP && !!meW && !meW.alive);
     // replay da queda: só caído na rodada ou no fim dela; acaba no fim do trecho (segura 1 s na queda) ou ao voltar vivo no Deathmatch
     canReplay = clip.length > 1 && (room?.phase === 'roundEnd' || (room?.phase === 'playing' && !meW?.alive));
     const rt = rp ? clip[0].s.time + (nowMs - rp.at) / 1000 : 0;
