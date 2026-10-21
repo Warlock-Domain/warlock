@@ -16,7 +16,7 @@ import { SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rule
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
-import { SANDBOX_BOT, botSetupPanel, savedBotSetup } from './train.ts';
+import { botSetupPanel, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
@@ -690,7 +690,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let sbLevel: Level = 'normal';
   // bot com a dificuldade escolhida e as magias marcadas abaixo (sem nenhuma, compra sozinho)
   const addBot = (dummy: boolean) => {
-    const spells = savedBotSetup(SANDBOX_BOT)[0]?.spells;
+    const spells = savedBotSetup()[0]?.spells;
     act.sandbox({ op: 'bot', bot: { difficulty: sbLevel, ...(spells && { spells }) }, ...(dummy && { dummy: true }) });
   };
   const sbBots = el('ul', { class: 'sandbox-bots' });
@@ -711,7 +711,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('button', { type: 'button', title: t('Bot que não anda nem atira: bom para testar dano e empurrão', 'A bot that neither moves nor shoots: good for testing damage and knockback'), onclick: () => addBot(true) }, t('+ Boneco parado', '+ Training dummy')),
     el('div', { class: 'sandbox-row' }, sbTurretDirection,
       el('button', { type: 'button', title: t('Dispara bolas de fogo numa direção fixa. Não recebe dano nem empurrão.', 'Fires fireballs in a fixed direction. Takes no damage or knockback.'), onclick: () => act.sandbox({ op: 'turret', direction: sbTurretDirection.value as 'north' | 'east' | 'south' | 'west' }) }, t('+ Torreta', '+ Turret'))),
-    botSetupPanel(1, savedBotSetup(SANDBOX_BOT), () => {}, SANDBOX_BOT),
+    botSetupPanel(1, savedBotSetup(), () => {}),
     sbBots,
     el('p', { class: 'muted' }, t('Arena: círculo fixo. A torreta inicial dispara da esquerda para a direita.', 'Arena: fixed circle. The initial turret fires from left to right.')),
     // runa escolhida: nasce ao lado do seu mago, no lugar da que estiver na arena

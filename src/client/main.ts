@@ -224,7 +224,6 @@ function startRoom(code: string, name: string) {
   const pixelOk = !matchMedia('(pointer: coarse)').matches;
 
   let autostart = takeAutostart();
-  if (autostart === 'bots') autostart = null;
   const view = createRoomUi(ui, code, {
     start: (bots, mode, shuffle, opts, again) => {
       training = false; // partida normal depois de um treino: sem dicas

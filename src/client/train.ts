@@ -7,16 +7,16 @@ import { store } from './store.ts';
 import { spellName, t } from './i18n.ts';
 
 // magia que saiu do jogo (o Gêmeos, 19/10) fica de fora: o servidor recusaria o treino inteiro
-export const SANDBOX_BOT = 'warlock:sandboxbot';
-export const savedBotSetup = (key: string): BotSetup[] =>
-  (store.json<BotSetup[]>(key) ?? []).map((b) => (b?.spells ? { ...b, spells: Object.fromEntries(Object.entries(b.spells).filter(([id]) => (SPELL_IDS as readonly string[]).includes(id))) } : b));
+const KEY = 'warlock:sandboxbot';
+export const savedBotSetup = (): BotSetup[] =>
+  (store.json<BotSetup[]>(KEY) ?? []).map((b) => (b?.spells ? { ...b, spells: Object.fromEntries(Object.entries(b.spells).filter(([id]) => (SPELL_IDS as readonly string[]).includes(id))) } : b));
 let open = false; // aberto ou fechado sobrevive ao redesenho da sala
 
 // uma linha por bot: Sorteio ou as magias marcadas (até MAX_SPELLS, a Bola de fogo conta), cada uma com o nível
-export function botSetupPanel(n: number, saved: BotSetup[], onChange: (s: BotSetup[]) => void, key: string): HTMLElement {
+export function botSetupPanel(n: number, saved: BotSetup[], onChange: (s: BotSetup[]) => void): HTMLElement {
   const setup = Array.from({ length: n }, (_, i): BotSetup => saved[i] ?? {});
   const save = () => {
-    store.set(key, JSON.stringify(setup));
+    store.set(KEY, JSON.stringify(setup));
     onChange(setup);
   };
   const rows = setup.map((_, i) => row(i));
