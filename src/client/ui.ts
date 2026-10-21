@@ -1201,7 +1201,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   // estado da loja que sobrevive ao redesenho (a sala manda o estado a cada compra de qualquer jogador)
   let goldOpen = false;
-  let sheetOpen = false;
+  let sheetOpen = false; // Ficha começa recolhida para a loja caber sem rolagem no PC; abrir/fechar sobrevive ao redesenho
   let shopQuery = ''; // busca da loja: fica ao redesenhar (a sala manda o estado a cada segundo)
   const shopLoadout = (p: PublicPlayer) => {
     const slots = equipment(p);
