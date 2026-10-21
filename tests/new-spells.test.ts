@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DT, FRICTION, HP_MAX, OBSTACLES, WIZ_R, WIZ_SPEED } from '../src/shared/constants.ts';
+import { ARENA_R0, DT, FRICTION, HP_MAX, OBSTACLES, WIZ_R, WIZ_SPEED } from '../src/shared/constants.ts';
 import { botBuy, botCmds, botWatch, type BotPlan } from '../src/shared/bots.ts';
 import { addPlayer, buy, newMatch, resume, startMatch, undoBuy } from '../src/shared/match.ts';
 import { parseClientMessage } from '../src/shared/protocol.ts';
@@ -858,5 +858,36 @@ describe('Zona de dobra', () => {
     run(w, 0.3, [cast('p0', 'warpzone', 3, 0), { id: 'p1', kind: 'move', to: v(3, 3) }, { id: 'p0', kind: 'move', to: v(0, 3) }]);
     expect(w.wizards[1].speed).toBeCloseTo(w.wizards[1].baseSpeed * WARPZONE.wizMult, 5);
     expect(w.wizards[0].speed).toBeCloseTo(w.wizards[0].baseSpeed, 5);
+  });
+});
+
+// #179: Troca, Agarrar e Magnetizar não causam dano, mas quem derruba alguém na lava só com elas leva o abate
+describe('crédito do abate sem dano', () => {
+  const lava = ARENA_R0 + 1, stone = ARENA_R0 - 3;
+  // eventos dos passos até a primeira morte
+  const play = (w: World, seconds: number) => {
+    const seen: SimEvent[] = [];
+    for (let i = 0; i < Math.round(seconds / DT) && !seen.some((e) => e.k === 'death'); i++) {
+      stepWorld(w, []);
+      seen.push(...w.events);
+    }
+    return seen;
+  };
+
+  it('Troca: quem trocou o inimigo para a lava leva o abate', () => {
+    const w = world([[lava, 0], [stone, 0]], ['swap']);
+    w.wizards[0].god = true; // quem trocou fica na lava antes e não morre
+    w.wizards[1].hp = 1;
+    stepWorld(w, [cast('p0', 'swap', stone, 0)]);
+    const seen = play(w, 1);
+    expect(seen.find((e) => e.k === 'death')).toMatchObject({ id: 'p1', by: 'p0', src: 'swap' });
+    expect(seen.filter((e) => e.k === 'hit')).toHaveLength(0); // a Troca não causa dano: só a lava mata
+  });
+
+  it.each(['grip', 'magnetize'] as const)('%s num inimigo na lava dá o abate a quem lançou', (spell) => {
+    const w = world([[stone, 0], [lava, 0]], [spell]);
+    w.wizards[1].hp = 100; // 1 s de lava: morre dentro da janela de 5 s do crédito
+    stepWorld(w, [cast('p0', spell, lava, 0)]);
+    expect(play(w, 2).find((e) => e.k === 'death')).toMatchObject({ id: 'p1', by: 'p0', src: spell });
   });
 });

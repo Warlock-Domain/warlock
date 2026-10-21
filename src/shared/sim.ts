@@ -373,6 +373,13 @@ function knockScale(dmg: number, taken: number, resist: number) {
   return big * (1 + (KNOCK_HP_SCALE * taken) / HP_MAX) * Math.max(0, 1 - resist);
 }
 
+// último golpe, para o crédito do abate; também o efeito sem dano num inimigo (Troca, Agarrar, Magnetizar; #179)
+function mark(w: World, target: Wizard, by: string, src: string) {
+  target.lastHitBy = by;
+  target.lastHitSrc = src;
+  target.lastHitAt = w.t;
+}
+
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string) {
   // invulnerável: sem dano nem empurrão, mas o acerto aparece (explosão e som), senão o projétil sumiria sem efeito
   if (w.t < target.invulnUntil) return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
@@ -410,9 +417,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
     if (att) att.calmSince = w.t;
   }
   target.vel = add(target.vel, scale(norm(dir), knock * mult * release));
-  target.lastHitBy = by;
-  target.lastHitSrc = src;
-  target.lastHitAt = w.t;
+  mark(w, target, by, src);
   // roubo de vida: quem acertou recupera parte do dano (e, como no original, a cura reduz o dano acumulado pela metade dela)
   if (att && att.lifesteal > 0) heal(att, dmg * att.lifesteal);
   w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg), src });
@@ -1368,6 +1373,7 @@ function stepProjectiles(w: World) {
       }
       if (p.kind === 'swap') {
         swapPlaces(w, p, wz);
+        if (!allies(anyById(w, p.owner), wz)) mark(w, wz, p.owner, 'swap');
         w.events.push({ k: 'land', id: p.caster, src: 'swap' });
       } else if (p.kind === 'boomerang') {
         // bate, quica a 500 u/s e volta ao dono; pode acertar de novo na volta
@@ -1398,7 +1404,10 @@ function stepProjectiles(w: World) {
         const enemy = wz.id !== p.owner && !allies(anyById(w, p.owner), wz);
         wz.magnet = enemy ? 1 : -1;
         wz.magnetUntil = w.t + L.duration * (enemy ? wz.debuffMult : 1);
-        if (enemy) land(w, p, 'magnetize');
+        if (enemy) {
+          mark(w, wz, p.owner, 'magnetize');
+          land(w, p, 'magnetize');
+        }
       } else if (p.kind === 'recharge') {
         // dano + 1 por acerto seguido; acerto sem reflexo soma, o resto zera; a recarga volta para quem a lançou por último
         const dmg = L.dmg + (p.bonus ?? 0);

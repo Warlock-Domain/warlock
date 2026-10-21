@@ -29,6 +29,7 @@ Closes #<!-- número da issue, se houver; a palavra tem de ser em inglês (Close
 - [ ] Joguei no navegador (`npx wrangler dev`) no PC
 - [ ] Textos novos em português e inglês (`t('pt', 'en')`)
 - [ ] Decisão não óbvia com 1 linha de comentário explicando o porquê
+- [ ] Interface com as peças que já existem (`dialog()`, `iconButton()`, `tabs()`, `choice()`, `searchFilter()`, `withTip`) e as variáveis do `:root`; peça nova só se nenhuma serve, registrada em `src/client/CLAUDE.md`
 
 ## Balanceamento
 

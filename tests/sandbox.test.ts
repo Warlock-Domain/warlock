@@ -5,6 +5,7 @@ import { parseClientMessage } from '../src/shared/protocol.ts';
 import { inLava, type Cmd, type SimEvent } from '../src/shared/sim.ts';
 import { kill, STEP_MS, toPlaying, until } from './helpers.ts';
 import { dist, v } from '../src/shared/vec.ts';
+import { SANDBOX_START } from '../src/client/train.ts';
 
 // sala sandbox com uma pessoa ('a') já na rodada, mais os bots pedidos pelo painel
 function sandbox(bots: Parameters<typeof sandboxCmd>[1][] = []): { m: Match; now: number } {
@@ -64,6 +65,12 @@ describe('sandbox', () => {
     // o tamanho fica até o fim da rodada (a arena não encolhe sozinha na sandbox)
     steps(m, now, 60 * 15);
     expect(w.arenaR).toBeCloseTo(ARENA_MIN, 9);
+  });
+  it('sandbox nova começa sem torreta; o + Torreta do painel ainda põe uma', () => {
+    const { m, now } = sandbox(SANDBOX_START);
+    expect(m.players.filter((p) => p.turret)).toHaveLength(0);
+    expect(sandboxCmd(m, { op: 'turret', direction: 'east' }, now)).toBe(true);
+    expect(m.players.filter((p) => p.turret)).toHaveLength(1);
   });
   it('torreta fica fixa, não recebe dano e dispara só para a direção escolhida', () => {
     const { m, now: t0 } = sandbox([{ op: 'turret', direction: 'east' }]);
