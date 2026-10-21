@@ -112,8 +112,12 @@ export type Player = {
   setup?: BotSetup; // treino: magias, itens e jeito de jogar escolhidos para este bot
   difficulty?: MatchOpts['difficulty']; // bot: a dificuldade dele, escolhida na sala (sem ela, a da partida)
   dummy?: boolean; // sandbox: boneco parado (bot que não anda nem atira)
-  turret?: 'north' | 'east' | 'south' | 'west'; // Sandbox: tiro fixo, sem dano nem deslocamento.
+  turret?: TurretDir; // Sandbox: tiro fixo, sem dano nem deslocamento.
 };
+
+// torreta da sandbox: para onde atira em cada direção (passo no plano do chão; y positivo é para baixo na tela)
+export const TURRET_DIR = { north: [0, -1], east: [1, 0], south: [0, 1], west: [-1, 0] } as const;
+export type TurretDir = keyof typeof TURRET_DIR;
 
 // Sandbox (pedido do Fernando, 19/10): sala para testar magias e interações, sem fim de rodada nem telemetria.
 // god: vida infinita para os humanos; noCd: magias e itens dos humanos sem recarga; shrink: a arena encolhe
@@ -121,7 +125,7 @@ export type Sandbox = { god: boolean; noCd: boolean; shrink: boolean };
 export type SandboxCmd =
   | { op: 'set'; key: keyof Sandbox; on: boolean }
   | { op: 'bot'; bot?: BotSetup; dummy?: boolean }
-  | { op: 'turret'; direction: NonNullable<Player['turret']> }
+  | { op: 'turret'; direction: TurretDir }
   | { op: 'arena'; arena: ArenaId } // forma escolhida: reinicia a rodada e fica nos reinícios seguintes (pedido do Fernando, 20/10)
   | { op: 'radius'; step: 1 | -1 } // pedra uma faixa maior ou menor, na hora (volta ao padrão no reinício)
   | { op: 'rune'; kind: RuneKind } // runa escolhida ao lado de quem pediu (pedido do Sky, 20/10)
@@ -838,7 +842,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   for (const p of turrets) {
     const z = w.wizards.find((q) => q.id === p.id && q.alive);
     if (!z) continue;
-    const [x, y] = { north: [0, -1], east: [1, 0], south: [0, 1], west: [-1, 0] }[p.turret!];
+    const [x, y] = TURRET_DIR[p.turret!];
     all.push({ id: p.id, kind: 'cast', spell: 'fireball', at: { x: z.pos.x + x, y: z.pos.y + y } });
   }
   // os bots enxergam a cada passo e pensam D.rate vezes por segundo; o placar serve para o Difícil caçar o líder
