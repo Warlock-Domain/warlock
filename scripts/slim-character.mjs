@@ -6,7 +6,7 @@ import { dedup, prune, resample } from '@gltf-transform/functions';
 
 // do próprio boneco; o gesto de cada magia e situação está em CAST_ANIM e TAUNT_ANIM (src/client/scene.ts)
 const KEEP = ['Idle', 'Running_A', 'Spellcast_Shoot', 'Hit_A', 'Death_A', 'Cheer', 'Dodge_Forward', 'Throw', 'Hit_B', 'Jump_Idle', 'Death_B',
-  'Block', 'Spellcast_Long', 'Dodge_Backward', 'Unarmed_Melee_Attack_Kick', '2H_Melee_Attack_Spinning'];
+  'Block', 'Spellcast_Long', 'Dodge_Backward', 'Unarmed_Melee_Attack_Kick', '2H_Melee_Attack_Spinning', '2H_Melee_Attack_Spin'];
 // do KayKit Character Animations 1.1 (Rig_Medium: mesmos ossos e mesma pose de repouso), copiados osso a osso pelo nome
 const PACK = ['Ranged_Magic_Summon', 'Waving', 'Skeletons_Taunt', 'Spawn_Ground'];
 const [src, out, drop, extra = ''] = process.argv.slice(2);

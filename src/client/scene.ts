@@ -821,6 +821,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     shield: ['Block', 0.6], rush: ['Dodge_Forward', 0.4], teleport: ['Dodge_Forward', 0.4], windwalk: ['Dodge_Backward', 0.4], grip: ['Throw', 0.6, 0.45],
     meteor: SUMMON, rockpillar: SUMMON, warpzone: SUMMON, drain: ['Spellcast_Long', 0.9, 0.3], thrust: ['Unarmed_Melee_Attack_Kick', 0.5, 0.2],
     gravity: SPIN, cluster: SPIN,
+    // Flagelo: o giro mais forte vai de ~0,6 a ~0,9 s do clip; começando em 0,15 ele cai junto com a explosão (preparo de 0,5 s)
+    scourge: ['2H_Melee_Attack_Spin', 0.85, 0.15],
   };
   const castAnim = (spell: string) => CAST_ANIM[spell] ?? (['Spellcast_Shoot', 0.55] as const);
   function oneShot(id: string, name: string, secs: number, from = 0) {
@@ -1474,6 +1476,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(e.to, '#e9d8ff', 1.6, 0.3, 0.8, FX.light);
       } else if (e.k === 'item' && e.item === 'scourge') {
         // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
+        oneShot(e.id, ...castAnim('scourge'));
         const m = mages.get(e.id);
         if (m) {
           const at = v(m.root.position.x, m.root.position.z);
