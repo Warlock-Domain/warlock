@@ -77,9 +77,10 @@ export class Room extends DurableObject<Env> {
     return new Set(this.live(except).map((ws) => this.playerOf(ws))).size;
   }
 
-  async init(id: string) {
+  async init(id: string, ascension = false) {
     if (await this.load()) return;
     this.saved = { id, match: newMatch() };
+    if (ascension) this.saved.match.mode = 'ascension'; // sala do Ascensão: o lobby já mostra o modo e a partida só pode ser dele
     await this.persist();
     // sala criada e nunca aberta também é limpa
     await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS);

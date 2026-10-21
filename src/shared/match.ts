@@ -280,7 +280,10 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   }
   // quem assiste não conta: dá para pôr só bots em campo e assistir a partida
   if (playing(m).length < (sandbox ? 1 : 2)) return false;
-  fresh(m, now, sandbox && mode === 'ascension' ? 'rounds' : mode, teamShuffle, rand); // a sandbox fica fora do Ascensão
+  // o Ascensão é um tipo de sala, não um modo a escolher (Fernando, 21/10: "nao como um modo de jogo do principal mas como uma nova opcao no
+  // menu jogar"): sala do Ascensão só joga Ascensão; sala normal e sandbox nunca viram Ascensão
+  const kind = m.mode === 'ascension' && !sandbox ? 'ascension' : mode === 'ascension' ? 'rounds' : mode;
+  fresh(m, now, kind, teamShuffle, rand);
   return true;
 }
 
@@ -492,6 +495,7 @@ export function startVote(m: Match, id: string, kind: Vote['kind'], target: stri
   } else if (kind === 'mode') {
     // qualquer um dos modos, menos o que já vale na próxima rodada
     if (!(MODES as readonly string[]).includes(target) || target === (m.pendingMode ?? m.mode)) return false;
+    if (target === 'ascension' || m.mode === 'ascension') return false; // o tipo da sala não muda por votação
   } else if (kind === 'shuffle') target = (m.pendingShuffle ?? m.teamShuffle) ? 'match' : 'round'; // alterna o que valeria na próxima rodada
   else if (kind === 'opt') {
     // uma opção, com valor diferente do que já vale na próxima rodada
@@ -528,9 +532,7 @@ function settleVote(m: Match, now: number) {
   else if (yes >= need) {
     m.vote = null;
     // voltar ao que já vale agora só cancela o pendente
-    // entrar ou sair do Ascensão reinicia a partida (pontos e XP não se convertem)
-    if (v.kind === 'mode' && (v.target === 'ascension' || m.mode === 'ascension')) fresh(m, now, v.target as Mode, m.teamShuffle, Math.random);
-    else if (v.kind === 'mode') m.pendingMode = v.target === m.mode ? null : (v.target as Mode);
+    if (v.kind === 'mode') m.pendingMode = v.target === m.mode ? null : (v.target as Mode);
     else if (v.kind === 'shuffle') m.pendingShuffle = (v.target === 'round') === m.teamShuffle ? null : v.target === 'round';
     else if (v.kind === 'opt') {
       const [k, val] = parseOpt(v.target)!;

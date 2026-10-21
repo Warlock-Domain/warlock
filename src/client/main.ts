@@ -163,7 +163,7 @@ function startLobby(name: string) {
   let offline = false;
   let exited = false;
   const draw = () =>
-    !exited && renderLobby(ui, name, rooms, offline, () => create(), async () => {
+    !exited && renderLobby(ui, name, rooms, offline, () => create(), () => create(undefined, true), async () => {
       name = await askName(document.body, name);
       store.set(NAME, name);
       draw();
@@ -174,9 +174,10 @@ function startLobby(name: string) {
       window.close();
     }, sound);
   // train: o treino que começa sozinho na sala nova (sem armazenamento, entra só na sala)
-  async function create(train?: string) {
+  // ascension: sala do Ascensão (opção própria no menu Jogar)
+  async function create(train?: string, ascension = false) {
     try {
-      const res = await fetch('/api/rooms', { method: 'POST' });
+      const res = await fetch(ascension ? '/api/rooms?modo=ascensao' : '/api/rooms', { method: 'POST' });
       if (!res.ok) throw new Error(String(res.status));
       const { id } = await res.json();
       try {
@@ -208,7 +209,7 @@ function startLobby(name: string) {
     if (IR.length > 1) url.searchParams.set('ir', IR.slice(1).join(','));
     else url.searchParams.delete('ir');
     history.replaceState(null, '', url);
-    void create(k);
+    void create(k, k === 'partida:ascensao');
   } else if (IR_CONFIG) openSettings(IR_CONFIG);
   else if (k) document.getElementById('home-tab-' + k)?.click();
 }

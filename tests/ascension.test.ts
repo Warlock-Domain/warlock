@@ -110,6 +110,7 @@ describe('XP e pontos do Ascensão', () => {
 // partida do Ascensão só de bots (ou com o humano h), com o sorteio da partida por semente
 function ascMatch(seed: number, human = false): Match {
   const m = newMatch();
+  m.mode = 'ascension'; // sala criada pela opção do Ascensão no menu Jogar
   if (human) addPlayer(m, 'h', 'Ana');
   startMatch(m, 0, 3, 'ascension', true, seeded(seed), { pace: 'short' });
   return m;
@@ -208,17 +209,15 @@ describe('partida do Ascensão', () => {
     expect(saved.round).toBe(2);
   });
 
-  it('mode vote to and from ascension restarts match', () => {
+  it('the room type is fixed: a normal room never becomes ascension and an ascension room stays ascension', () => {
     const m = newMatch();
     addPlayer(m, 'h', 'Ana');
-    startMatch(m, 0, 2, 'rounds', true, seeded(1));
-    expect(startVote(m, 'h', 'mode', 'ascension', 0)).toBe(true);
-    tickMatch(m, STEP_MS, [], seeded(1));
-    expect([m.mode, m.round, !!m.asc]).toEqual(['ascension', 0, true]);
-    expect(startVote(m, 'h', 'mode', 'rounds', 0)).toBe(true);
-    castBallot(m, 'h', true, 0);
-    tickMatch(m, 2 * STEP_MS, [], seeded(1));
+    startMatch(m, 0, 2, 'ascension', true, seeded(1));
     expect([m.mode, !!m.asc]).toEqual(['rounds', false]);
+    expect(startVote(m, 'h', 'mode', 'ascension', 0)).toBe(false);
+    const a = ascMatch(1, true);
+    expect(startVote(a, 'h', 'mode', 'rounds', 0)).toBe(false);
+    expect(a.mode).toBe('ascension');
   });
 
   it('card outside ascension is ignored', () => {
@@ -331,6 +330,7 @@ describe('recuperação e bots do Ascensão', () => {
     expect(m.asc!.pick.h[0]).toEqual({ i: -1 });
     // tempo esgotado: mantém as magias e pega o item de cima
     const n = newMatch();
+    n.mode = 'ascension';
     addPlayer(n, 'h', 'Ana');
     startMatch(n, 0, 3, 'ascension', true, seeded(1), { pace: 'short' });
     const g = n.players.find((q) => q.id === 'h')!;
