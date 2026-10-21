@@ -15,11 +15,11 @@ import { lookBody, lookOf, lookPieces, type CharacterId } from '../shared/charac
 import type { MatchOpts } from '../shared/match.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
-import { add, scale, v, type Vec } from '../shared/vec.ts';
+import { add, clampLen, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
-import { SPELLS } from '../shared/spells.ts';
+import { LIGHTNING, SPELLS } from '../shared/spells.ts';
 import type { TAUNTS } from '../shared/taunts.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
@@ -613,7 +613,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const markerGeo = new THREE.RingGeometry(0.15, 0.25, 24);
   const scorchGeo = new THREE.PlaneGeometry(1.6, 1.6);
   const waveGeo = new THREE.RingGeometry(0.85, 1, 64);
-  const SHARED = new Set<THREE.BufferGeometry>([ringGeo, shieldGeo, markerGeo, scorchGeo, waveGeo, ballGeo]);
+  const boltGeo = new THREE.CylinderGeometry(1, 1, 1, 5); // trecho do Raio: raio 1, altura 1, escalado por trecho
+  const SHARED = new Set<THREE.BufferGeometry>([ringGeo, shieldGeo, markerGeo, scorchGeo, waveGeo, ballGeo, boltGeo]);
 
   // libera o que o efeito criou (material sempre; geometria se não for compartilhada; sprite usa a geometria interna do three)
   function dispose(obj: THREE.Object3D) {
@@ -1386,22 +1387,36 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
 
   function bolt(from: Vec, to: Vec) {
+    const hand = add(from, clampLen(sub(to, from), 0.45));
     const pts: THREE.Vector3[] = [];
-    const n = 10;
+    const n = 28;
     for (let i = 0; i <= n; i++) {
-      const p = w3(v(from.x + ((to.x - from.x) * i) / n, from.y + ((to.y - from.y) * i) / n), 1);
-      if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.5));
+      // sai do cetro (a mão do brilho de lançamento: 0,45 m à frente, 0,9 m de altura) e desce até 0,25 m no alvo (pedido do
+      // Fernando, 21/10): a 1 m de altura a câmera inclinada mostrava o raio ~0,9 m acima da linha do acerto. Zigue-zague de muitos
+      // trechos curtos que balança até LIGHTNING.width para cada lado, a largura extra do acerto do Raio
+      const k = i / n;
+      const p = w3(v(hand.x + (to.x - hand.x) * k, hand.y + (to.y - hand.y) * k), 0.9 - 0.65 * k);
+      if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 2 * LIGHTNING.width, (Math.random() - 0.5) * 0.14, (Math.random() - 0.5) * 2 * LIGHTNING.width));
       pts.push(p);
     }
-    // três traços tortos sobrepostos para o raio parecer grosso (linha de WebGL tem 1 px)
-    for (let j = 0; j < 3; j++) {
-      const jit = pts.map((p, i) => (i === 0 || i === n ? p : p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.18, (Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.18))));
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(jit), new THREE.LineBasicMaterial({ color: j ? '#9fd0ff' : '#ffffff', transparent: true, blending: THREE.AdditiveBlending }));
-      addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 1 - k));
+    // traço grosso de cilindros por trecho (linha de WebGL tem 1 px e sumia de longe): miolo branco e brilho azul em volta
+    const up = new THREE.Vector3(0, 1, 0);
+    for (const [r, color, op] of [[0.025, '#ffffff', 1], [0.07, '#9fd0ff', 0.45]] as const) {
+      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false });
+      const g = new THREE.Group();
+      for (let i = 0; i < n; i++) {
+        const [a, b] = [pts[i], pts[i + 1]];
+        const m = new THREE.Mesh(boltGeo, mat);
+        m.position.copy(a).lerp(b, 0.5);
+        m.quaternion.setFromUnitVectors(up, b.clone().sub(a).normalize());
+        m.scale.set(r, a.distanceTo(b), r);
+        g.add(m);
+      }
+      addFx(g, 0.35, (k) => (mat.opacity = op * (1 - k)));
     }
-    burst(to, '#9fd0ff', 2.4, 0.3, 1, FX.light);
-    burst(to, '#e6f4ff', 1.4, 0.35, 1, FX.spark);
-    burst(from, '#9fd0ff', 1.2, 0.2, 1, FX.light);
+    burst(to, '#9fd0ff', 2.4, 0.3, 0.25, FX.light);
+    burst(to, '#e6f4ff', 1.4, 0.35, 0.25, FX.spark);
+    burst(hand, '#9fd0ff', 1.2, 0.2, 0.9, FX.light);
   }
 
   function onEvents(events: SimEvent[]) {
@@ -1835,6 +1850,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // explosão do Meteoro no ponto onde ele cai: o mesmo anel, do tamanho da explosão
   const blastRing = rangeRing.clone();
   scene.add(blastRing);
+  const hits: THREE.Mesh[] = []; // discos do "Ver hitbox", criados conforme precisa
+  // faixas de acerto da mira (a Rajada e o Divisor saem em leque), bem claras para não esconder o chão: corpo reto para a frente (+x)
+  // e ponta em meio círculo do tamanho da bola, onde ela termina o voo, como a prévia do LoL (pedido do Fernando, 21/10); giradas só
+  // em y e criadas conforme precisa
+  const bandMat = new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.16, depthWrite: false });
+  const bandBody = new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0).rotateX(-Math.PI / 2);
+  const bandCap = new THREE.CircleGeometry(1, 24, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2);
+  const bands: THREE.Group[] = [];
 
   return {
     ready,
@@ -1850,6 +1873,47 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!at || r <= 0) return;
       rangeRing.position.copy(w3(at, 0.04));
       rangeRing.scale.setScalar(r);
+    },
+    // "Ver hitbox (teste)": disco no chão de cada mago (vermelho) e de cada projétil (azul), no tamanho da colisão; null esconde
+    hitboxes(list: { pos: Vec; r: number; wiz: boolean }[] | null) {
+      for (let i = hits.length; i < (list?.length ?? 0); i++) {
+        const m = new THREE.Mesh(new THREE.CircleGeometry(1, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.45, depthWrite: false }));
+        m.renderOrder = 9;
+        scene.add(m);
+        hits.push(m);
+      }
+      hits.forEach((m, i) => {
+        const h = list?.[i];
+        m.visible = !!h;
+        if (!h) return;
+        m.position.copy(w3(h.pos, 0.045));
+        m.scale.setScalar(h.r);
+        (m.material as THREE.MeshBasicMaterial).color.set(h.wiz ? '#ff4040' : '#40c8ff');
+      });
+    },
+    // trechos de faixa [de, até] com meia largura `half`; lista vazia esconde
+    bands(segs: [Vec, Vec][], half: number) {
+      for (let i = bands.length; i < segs.length; i++) {
+        const g = new THREE.Group();
+        const [body, cap] = [new THREE.Mesh(bandBody, bandMat), new THREE.Mesh(bandCap, bandMat)];
+        body.renderOrder = cap.renderOrder = 9;
+        g.add(body, cap);
+        scene.add(g);
+        bands.push(g);
+      }
+      const w = Math.max(half, 0.03); // o Raio (largura 0) vira uma linha de 6 cm para aparecer
+      bands.forEach((g, i) => {
+        const sg = segs[i];
+        g.visible = !!sg;
+        if (!sg) return;
+        const d = sub(sg[1], sg[0]), l = Math.max(len(d) - w, 0);
+        const [body, cap] = g.children;
+        g.position.copy(w3(sg[0], 0.035));
+        g.rotation.y = -Math.atan2(d.y, d.x);
+        body.scale.set(l, 1, 2 * w);
+        cap.position.x = l;
+        cap.scale.set(w, 1, w);
+      });
     },
     aim(at: Vec | null) {
       aimRing.visible = !!at;
