@@ -212,3 +212,24 @@ export function createSound(musicDefault?: number) {
   };
   return api;
 }
+
+let tauntPreview: HTMLAudioElement | null = null;
+export function stopTauntPreview() {
+  tauntPreview?.pause();
+  tauntPreview = null;
+}
+// Prévia só para quem escolhe a fala (Configurações): não envia nada à sala. Segue o volume de efeitos; mudo (0) toca no máximo, porque quem pede a prévia quer ouvir.
+export async function previewTaunt(name: string): Promise<boolean> {
+  const src = tauntAudioSrc(name);
+  if (!src) return false;
+  stopTauntPreview();
+  const audio = new Audio(src);
+  tauntPreview = audio;
+  audio.volume = loadVolumes().sfx || 1;
+  try {
+    await audio.play();
+    return true;
+  } catch {
+    return tauntPreview !== audio; // trocar de fala interrompe o play pendente; isso não é falha do arquivo
+  }
+}
