@@ -51,7 +51,10 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     const p = a && enabled ? h.pick(cursor.x, cursor.y) : null;
     if (a && p) h.cast(a, p);
   };
-  addEventListener('blur', cancel);
+  const cancelPointer = () => { dragging = panning = space = panned = false; };
+  // Perder foco pode suprimir pointerup; não renovar um comando de movimento já solto.
+  addEventListener('blur', () => { cancel(); cancelPointer(); });
+  addEventListener('pointercancel', cancelPointer);
 
   // o controle usa os mesmos comandos, liberados só durante a rodada
   setPadGame({ ...h, enabled: () => enabled });
@@ -63,6 +66,8 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   }, { passive: false });
   canvas.addEventListener('pointermove', (e) => {
     cursor = { x: e.clientX, y: e.clientY };
+    if (!(e.buttons & 2)) dragging = false;
+    if (!(e.buttons & 1)) panning = false;
     if (panning) {
       h.pan(e.clientX - panFrom.x, e.clientY - panFrom.y);
       panFrom = { x: e.clientX, y: e.clientY };

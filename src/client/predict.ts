@@ -1,12 +1,13 @@
 // Previsão do próprio mago: anda na hora do clique com o mesmo código do servidor e é corrigido de leve.
 import { WIZ_SPEED } from '../shared/constants.ts';
-import { isSliding, moveWizard, type Wizard } from '../shared/sim.ts';
+import { isStunned, moveWizard, type Wizard } from '../shared/sim.ts';
 import type { WizView } from '../shared/snapshot.ts';
 import { add, dist, scale, sub, v, type Vec } from '../shared/vec.ts';
 
 export function createPredict() {
   let me: Wizard | null = null;
   let velocitySource: WizView | null = null;
+  let wasStunned = false;
   let rttSec = 0.1;
   // conjurando: o mago fica parado até holdUntil; o clique de andar nesse meio-tempo fica guardado
   let holdUntil = 0;
@@ -22,10 +23,11 @@ export function createPredict() {
     reset() {
       me = null;
       velocitySource = null;
+      wasStunned = false;
     },
     // velocidade de andar que o servidor diz que o mago tem agora (botas, Investida, preso)
     setSpeed(sp: number) {
-      if (me && sp > 0) me.speed = sp;
+      if (me && sp >= 0) me.speed = sp;
     },
     hold(secs: number) {
       if (secs <= 0) return;
@@ -65,11 +67,17 @@ export function createPredict() {
       }
       // O residual continua no servidor depois de liberar a caminhada; reler o mesmo snapshot por quadro renovaria o impulso.
       // Fica antes do ramo de empurrado/morto abaixo, que manda na posição quando o servidor ainda desliza o mago.
+      const stunned = server.stunLeft === undefined ? isStunned(server) : !!(server.status & 16);
+      if (wasStunned && !stunned) me.pos = { ...server.pos };
+      wasStunned = stunned;
       if (server !== velocitySource) {
+        me.stunLeft = server.stunLeft;
+        me.recoveryLeft = server.recoveryLeft ?? 0;
         me.vel = { ...server.vel };
         velocitySource = server;
       }
-      if (!server.alive || isSliding(server)) {
+      if (!server.alive || stunned) {
+        if (stunned) holdUntil = 0; // conjuração interrompida não mantém espera antiga.
         // empurrado ou morto: quem manda é o servidor
         me.pos = add(me.pos, scale(sub(server.pos, me.pos), 0.35));
         me.vel = v(0, 0);

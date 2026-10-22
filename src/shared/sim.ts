@@ -7,11 +7,15 @@ import { SHAPES, edge, inArena, inLavaAt, inward, isleSpot, onIsle, safeInside, 
 import { AEGIS, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, PROJECTILE_COLLISION, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
+import { SHIELD, castBlocked } from './spells.ts';
+import { KNOCK_RECOVERY } from './constants.ts';
 
 export type Wizard = {
   id: string;
   pos: Vec;
   vel: Vec; // só o empurrão; andar não entra aqui
+  stunLeft?: number; // bloqueio de controle separado da velocidade física.
+  recoveryLeft?: number; // retomada disparada pelo fim do impulso, não pelo fim de qualquer stun.
   target: Vec | null;
   facing: number;
   hp: number;
@@ -335,15 +339,19 @@ function placePillars(arena: ArenaId, arenaR: number, n: number, spawns: Vec[], 
 }
 
 export const isSliding = (wz: { vel: Vec }) => len(wz.vel) > STUN_SPEED;
+export const isStunned = (wz: { vel: Vec; stunLeft?: number }) => wz.stunLeft === undefined ? isSliding(wz) : wz.stunLeft > 1e-8;
 // velocidade das botas que agem agora: as de choque depois de um golpe, as de vento na calmaria (não somam: vale a maior)
 export const bootsBonus = (w: World, wz: Wizard) =>
   Math.max(w.t < wz.shockUntil ? wz.shockBonus : 0, wz.windBonus > 0 && w.t - wz.calmSince >= WIND_BOOTS.calm ? wz.windBonus : 0);
 
 export function moveWizard(wz: Wizard, dt: number) {
-  if (wz.target && !isSliding(wz)) {
+  const sliding = isSliding(wz);
+  const left = wz.recoveryLeft ?? 0;
+  const recovery = left > 1e-8 ? KNOCK_RECOVERY.start + KNOCK_RECOVERY.step * Math.floor((KNOCK_RECOVERY.seconds - left + 1e-8) / KNOCK_RECOVERY.interval) : 1;
+  if (wz.target && !isStunned(wz)) {
     const d = sub(wz.target, wz.pos);
     const l = len(d);
-    const step = (wz.speed ?? WIZ_SPEED) * dt;
+    const step = (wz.speed ?? WIZ_SPEED) * recovery * dt;
     if (l <= step) {
       wz.pos = wz.target;
       wz.target = null;
@@ -354,12 +362,32 @@ export function moveWizard(wz: Wizard, dt: number) {
   }
   wz.pos = add(wz.pos, scale(wz.vel, dt));
   wz.vel = scale(wz.vel, Math.exp(-FRICTION * dt));
+  if (sliding && !isSliding(wz)) {
+    // A caminhada retoma sem somar impulso residual; stun sem impulso nunca entra neste ramo.
+    wz.vel = v(0, 0);
+    wz.recoveryLeft = KNOCK_RECOVERY.seconds;
+  } else wz.recoveryLeft = sliding ? 0 : Math.max(0, left - dt);
   if (len(wz.vel) < 0.05) wz.vel = v(0, 0);
+  if (wz.stunLeft !== undefined) wz.stunLeft = Math.max(0, wz.stunLeft - dt);
 }
 
 const byId = (w: World, id: string | null) => w.wizards.find((z) => z.id === id && z.alive); // só os vivos
 const anyById = (w: World, id: string | null) => w.wizards.find((z) => z.id === id); // vivo ou morto
 const shielded = (w: World, wz: Wizard) => w.t < wz.shieldUntil;
+export const statusDuration = (w: World, wz: Wizard, seconds: number) => seconds * (shielded(w, wz) ? SHIELD.statusDuration : 1);
+function stun(w: World, wz: Wizard, seconds: number) {
+  if (w.t < wz.invulnUntil) return;
+  wz.stunLeft = Math.max(wz.stunLeft ?? 0, statusDuration(w, wz, seconds * wz.debuffMult));
+  wz.casting = null;
+  wz.dashUntil = wz.thrustUntil = 0; // encerra avanço voluntário, mas preserva forças externas.
+}
+function addKnock(w: World, wz: Wizard, impulse: Vec) {
+  if (shielded(w, wz)) impulse = scale(impulse, SHIELD.knock);
+  wz.vel = add(wz.vel, impulse);
+  if (len(impulse) <= 0 || !isSliding(wz)) return;
+  // O relógio de controle não precisa carregar o resto do impulso depois do limite de caminhada.
+  stun(w, wz, Math.log(len(wz.vel) / STUN_SPEED) / FRICTION);
+}
 const bubble = (w: World, wz: Wizard) => (shielded(w, wz) ? Math.max(0, wz.shieldR - WIZ_R) : 0); // quanto a bolha do escudo passa do mago
 // modo Times: do mesmo time e não é a própria pessoa
 const allies = (a: Wizard | undefined, b: Wizard) => !!a && a !== b && a.team !== null && a.team === b.team;
@@ -384,12 +412,13 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   const mult = knockScale(dmg, target.dmgTaken, target.kbResist);
   // fogo amigo: só empurra; sem dano, sem roubo de vida e sem crédito de abate para o aliado
   if (allies(anyById(w, by), target)) {
-    target.vel = add(target.vel, scale(norm(dir), knock * mult));
+    addKnock(w, target, scale(norm(dir), knock * mult));
     return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
   }
   // runa da Fúria de quem bateu
   const att = by !== target.id ? byId(w, by) : undefined;
   if (att && att.rune === 'fury' && w.t < att.runeUntil) dmg *= 1 + RUNE.fury;
+  if (shielded(w, target)) dmg = 0; // áreas e golpes não refletidos também respeitam a proteção geral.
   // Guardião: tira um pouco de cada golpe, nunca mais que metade dele (senão zerava os tiques da Gravidade e do Elo)
   dmg = Math.max(dmg * 0.5, dmg - target.ward);
   // runa do Escudo: menos dano levado (o empurrão do golpe continua)
@@ -413,7 +442,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
     target.calmSince = w.t;
     if (att) att.calmSince = w.t;
   }
-  target.vel = add(target.vel, scale(norm(dir), knock * mult * release));
+  addKnock(w, target, scale(norm(dir), knock * mult * release));
   mark(w, target, by, src);
   // roubo de vida: quem acertou recupera parte do dano (e, como no original, a cura reduz o dano acumulado pela metade dela)
   if (att && att.lifesteal > 0) heal(w, att, dmg * att.lifesteal);
@@ -592,7 +621,7 @@ function heal(w: World, wz: Wizard, amount: number) {
 // ponytail: duas lentidões juntas valem a maior (no original somavam); somar pede uma lista de efeitos por mago
 function slowDown(w: World, wz: Wizard, amount: number, secs: number) {
   wz.slow = w.t < wz.slowUntil ? Math.max(wz.slow, amount) : amount;
-  wz.slowUntil = Math.max(wz.slowUntil, w.t + secs);
+  wz.slowUntil = Math.max(wz.slowUntil, w.t + statusDuration(w, wz, secs));
 }
 
 // quantos 'fire' cada lançamento conta (a Rajada sai com 4 e o Divisor com 8 filhotes); as outras, 1
@@ -751,6 +780,7 @@ function usePact(w: World, wz: Wizard): number {
 
 // começa a conjurar: confere nível e recarga agora; o efeito sai depois do tempo de conjuração
 function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
+  if (castBlocked(isStunned(wz), w.t < wz.gripUntil, spell)) return;
   // a mesma magia já sendo conjurada: ignora a tecla repetida (a recarga só começa quando ela sai)
   if (wz.casting?.spell === spell) return;
   // Flagelo em preparo: nada mais sai até ele explodir, menos o Teleporte, que cancela a explosão (pedidos do Fernando, 17/10)
@@ -815,8 +845,10 @@ function gripLand(w: World, p: Projectile) {
   const L = spellLevel('grip', p.level);
   let landed = false;
   for (const z of w.wizards) {
-    if (!z.alive || z.id === p.owner || allies(anyById(w, p.owner), z) || w.t < z.invulnUntil || shielded(w, z) || dist(z.pos, p.pos) > L.radius + WIZ_R) continue;
-    z.gripUntil = w.t + L.duration * z.debuffMult;
+    if (!z.alive || z.id === p.owner || allies(anyById(w, p.owner), z) || w.t < z.invulnUntil || dist(z.pos, p.pos) > L.radius + WIZ_R) continue;
+    z.gripUntil = Math.max(z.gripUntil, w.t + statusDuration(w, z, L.duration * z.debuffMult));
+    if (z.casting && castBlocked(false, true, z.casting.spell)) z.casting = null;
+    z.dashUntil = z.thrustUntil = 0;
     z.gripBonus = L.scale;
     mark(w, z, p.owner, 'grip'); // crédito do abate sem dano (#179)
     z.target = null;
@@ -1080,7 +1112,7 @@ function snowRoll(w: World, p: Projectile, at: Vec) {
   for (const o of w.wizards) {
     if (!o.alive || o.id === p.owner || allies(owner, o) || dist(at, o.pos) > WIZ_R + snowR(p.level)) continue;
     const c = SNOWBALL.drag - dot(dir, o.vel);
-    if (c > 0) o.vel = add(o.vel, scale(dir, c));
+    if (c > 0) addKnock(w, o, scale(dir, c));
     if (o.snow) continue;
     o.snow = { until: w.t + SNOWBALL.period, by: p.owner, dmg: L.dot * SNOWBALL.period * p.dmgMult };
     slowDown(w, o, SNOWBALL.slow, SNOWBALL.period);
@@ -1455,7 +1487,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
     if (g > bestGap) [best, bestGap] = [p, g];
   }
   Object.assign(wz, {
-    alive: true, pos: best, vel: v(0, 0), target: null, casting: null, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
+    alive: true, pos: best, vel: v(0, 0), target: null, casting: null, stunLeft: undefined, recoveryLeft: 0, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
     rune: null, runeUntil: 0,
@@ -1556,7 +1588,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     // chão do choque: lento no arcano, queima no fogo (como a lava, mas fraco)
     wz.zone = 0;
     for (const z of w.zones) if (dist(z.pos, wz.pos) < z.r + WIZ_R * 0.5) wz.zone |= z.kind === 'slow' ? 1 : z.kind === 'burn' ? 2 : 0;
-    if (wz.zone & 2 && w.t >= wz.invulnUntil) {
+    if (wz.zone & 2 && w.t >= wz.invulnUntil && !shielded(w, wz)) {
       wz.hp -= ZONES.burn.dps * DT;
       wz.calmSince = w.t;
     }
@@ -1671,7 +1703,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       continue;
     }
     if (inLava(w, wz.pos)) {
-      if (w.t < wz.invulnUntil) continue;
+      if (w.t < wz.invulnUntil || shielded(w, wz)) continue;
       const dmg = LAVA_DPS * DT * (1 - wz.lavaCut) * w.mods.lava, burn = Math.min(Math.max(0, wz.hp), dmg);
       wz.hp -= dmg;
       wz.calmSince = w.t;

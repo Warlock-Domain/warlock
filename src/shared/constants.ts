@@ -23,7 +23,9 @@ export const FRICTION = -Math.log(0.96) / 0.035; // 0,96 por tique de 0,035 s: a
 export const KB_SOFT_CAP = 100; // golpe acima disso empurra pela raiz (como no original, pawn.lua do mod de Dota 2)
 export const KB_PER_DMG = 10 * UNIT; // empurrão (m/s) por ponto de dano: 10 unidades/s por dano, como no original
 export const STUN_SPEED = 1.5; // deslizando mais rápido que isso, o mago não anda
-export const KNOCK_HP_SCALE = 1; // empurrão × (1 + KNOCK_HP_SCALE·danoRecebido/HP_MAX); a lava conta pela metade
+// Retomada escolhida pelo Leonard: 50%, +10pp a cada0,2s, chegando a100% em1s.
+export const KNOCK_RECOVERY = { seconds: 1, start: .5, step: .1, interval: .2 };
+export const KNOCK_HP_SCALE = 0; // 22/10: dano histórico não amplifica empurrão; impulsos e resistência continuam valendo.
 export const LAVA_KB_FACTOR = 0.5;
 export const CREDIT_WINDOW = 5; // o abate vai para quem acertou nos últimos 5 s
 export const PROJ_R = 0.2;
