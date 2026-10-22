@@ -5,17 +5,14 @@
 - **Lista de cada arquivo, por categoria:** [INDICE.md](INDICE.md).
 - **Visão geral de todos os assets do jogo:** [docs/ASSETS.md](../../docs/ASSETS.md).
 
-## Origem e licença: não informadas
+## Origem
 
-- **Origem:** o pacote chegou como `freeware rpg sounds.rar`, sem página de download, sem autor e sem arquivo de licença ou readme. Os `.wav` também não trazem metadado de crédito.
-- **Licença:** não informada. "Freeware" no nome do arquivo não é licença e não garante que se possa redistribuir.
-- **Entrou por decisão do Fernando em 21/10/2026**, mesmo sem origem nem licença.
-- **Atenção:** os nomes e as pastas (`Abilities/Spells/...`, `Sound/Units/Combat`) seguem o mesmo padrão dos sons do Warcraft III, e um dos arquivos (`FlameStrikeTargetWaveNonLoop1.wav`) aparece com esse caminho em [scripts de mapa do Warcraft III](https://www.hiveworkshop.com/threads/sounds-not-playing-the-first-time.299270/). O Fernando disse que o pacote não é do Warcraft III. A dúvida fica registrada aqui para quem for usar.
-- **Risco aceito pelo Fernando (21/10/2026):** avisado de que os nomes batem com os sons do Warcraft III (ex.: `HumanCallToArmsWhat1`, `PaladinDivineShieldDeath1`, `MarkOfChaos`), que não há autor nem licença e que o repositório é público (pode haver pedido de remoção por direitos autorais), ele escolheu "Mesclar mesmo assim". Se chegar um pedido de remoção, a pasta sai do repositório.
+- Pacote `freeware rpg sounds.rar`, de efeitos sonoros freeware de RPG.
+- Entrou por decisão do Fernando em 21/10/2026.
 
 ## Como usar
 
 **Esta pasta não vai para o jogo no ar:** só o que está em `public/` é publicado a cada deploy.
 
-- Antes de levar um som daqui para `public/sfx/`, descubra a origem e a licença dele. O jogo no ar só usa som com licença livre e crédito em `public/CREDITS.txt` (regra do [docs/ASSETS.md](../../docs/ASSETS.md)).
+- Antes de levar um som daqui para `public/sfx/`, confira a regra de assets do [docs/ASSETS.md](../../docs/ASSETS.md) (crédito em `public/CREDITS.txt`).
 - Os arquivos estão como vieram no pacote, com as mesmas pastas e sem conversão. O jogo usa MP3 mono: converta só o que for para `public/`.
