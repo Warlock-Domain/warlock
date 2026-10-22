@@ -16,6 +16,7 @@ Vale junto com o `CLAUDE.md` da raiz.
 - **Menus enxutos** (decisão do Fernando): antes de pôr opção nova numa tela, pergunte se ela precisa existir.
 - **Logo do jogo em imagem:** `public/warlock-wars.svg` (o W com moldura dourada da foto do grupo, vetorial, sem depender da fonte) → `el('img', { src: '/warlock-wars.svg', alt: 'Warlock Wars' })` ou `<img src="/warlock-wars.svg">`. Também é o ícone da aba. Gerado por `scripts/assets/favicon.py` (com `favicon.ico` e `apple-touch-icon.png`); não edite à mão.
 - Aba nova do menu inicial: tupla em `HOME_TABS` + chave em `HomeTab` + painel em `panels` com `panel(...)`. Conteúdo pesado carrega sob demanda (`void import('./grimoire.ts')`).
+- **Roda de provocações** (`radialPicker`, `radial-picker.ts`, PRs #239/#238/#240): botões em volta de um centro que cancela, feitos com `el`/`iconButton`; mouse, setas, números e analógico escolhem pelo mesmo índice (`radialIndex`). A matemática e a tecla segurada (`radialHold`) ficam em `taunt-wheel.ts`, sem DOM, com teste. Mostra todas as falas de `TAUNTS` (15 hoje): fala nova entra sozinha na roda.
 
 ## Idioma
 
@@ -26,14 +27,16 @@ Vale junto com o `CLAUDE.md` da raiz.
 ## CSS (`style.css`, arquivo único)
 
 - Cores e medidas pelas variáveis de `:root` (`--lava`, `--gold`, `--bronze`, `--panel`, `--fg`, `--r-md`…). Nada de hex solto, exceto a cor de grupo.
-- Cor de grupo: `.g-ataque`, `.g-mobilidade`, `.g-defesa`, `.g-controle` (variável `--g`); itens prateados (`--item`). A classe vem de `spellClass(s)` pela posição em `SPELL_GROUPS`: magia nova ganha cor entrando num grupo, sem classe nova.
+- Cor de grupo: `.g-ataque`, `.g-mobilidade`, `.g-defesa`, `.g-controle` (variável `--g`); itens prateados (`--item`). A classe vem de `spellClass(s)` pela posição em `SPELL_GROUPS`: magia nova ganha cor entrando num grupo, sem classe nova. Na loja, os itens passivos ficam em seções por `ITEM_GROUPS` (`rules-text.ts`, mesmo formato, todos prateados): item passivo novo entra num grupo, senão some da loja (teste em `ui-data.test.ts`).
 - Celular (fora de foco desde 20/10: não conferir a cada mudança, só não apagar estas regras): `(max-width: 600px)`, `(max-height: 500px)` (deitado), `(pointer: coarse)` com alvos de 44 px, `(max-width: 860px)` / `(min-width: 861px)`. Hover só dentro de `(hover: hover)`. Animação nova com `(prefers-reduced-motion: reduce)`. Em JS, `TOUCH` (`ui.ts`).
 
 ## Teclas (`keys.ts`)
 
+Provocações no controle: ← por padrão, remapeável; se uma preferência antiga já ocupa ←, escolhe botão livre sem sobrescrever. O roteamento em `gamepad.ts` abre a roda (o botão da interface), o analógico aponta pela `radialIndex`, o direcional anda ±1 por toque (com as 15 falas, 8 direções não chegariam a todas), A/✕ confirma, B/○ ou Start cancela. Enquanto aberta não envia movimento nem magia; reutiliza o botão e o envio da interface atual.
+
 `DEFAULTS` usa `event.code` (`'KeyQ'`, `'Digit1'`, `'F1'`), nunca `event.key`. Ação de interface nova entra em `UI_ACTIONS` e `UI_NAMES` (`''` = sem tecla). Esc, Enter, Espaço e ← → são reservadas. As 26 letras já têm dono.
 
-Modo Q W E R D F (padrão): magias e itens ativos usam a tecla da **posição** na barra (`POS_ACTIONS`: Magia 1 a 6 e Item 1 a 3, guardadas em `warlock:poskeys`); `keyOf`/`actionFor`/`whoUses` já resolvem o modo. A ordem das posições vem de `loadoutSlots`/`moveLoadout` (`screen-data.ts`, guardada em `warlock:loadout-order`) e chega às teclas e ao controle por `setSlots`; vaga vazia é `null`. Posições e atalhos da interface nunca repetem tecla (`setKey` troca). Trocar qualquer tecla fixa o modo em uso no navegador.
+Teclas por posição (padrão): as magias usam a tecla da **posição** na barra (`POS_ACTIONS`: Magia 1 a 8 em 1 2 3 4 Q W E R, guardadas em `warlock:poskeys8`; sem itens ativos desde 21/10, #217); `keyOf`/`actionFor`/`whoUses` já resolvem o modo. A ordem das posições vem de `loadoutSlots`/`moveLoadout` (`screen-data.ts`, guardada em `warlock:loadout-order`) e chega às teclas e ao controle por `setSlots`; vaga vazia é `null`. Posições e atalhos da interface nunca repetem tecla (`setKey` troca). Trocar qualquer tecla fixa o modo em uso no navegador.
 
 ## Configurações (`settings.ts`)
 

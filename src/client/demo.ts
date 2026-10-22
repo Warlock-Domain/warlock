@@ -4,13 +4,13 @@ import { SHAPES, type ArenaId } from '../shared/arena.ts';
 import { DT, OBSTACLES, PROJ_R, WIZ_R } from '../shared/constants.ts';
 import { ITEMS, noItems, type ItemId } from '../shared/items.ts';
 import { newWorld, snowR, spellOf, stepWorld, type Cmd, type SimEvent, type World } from '../shared/sim.ts';
-import { GRIP, isSpell, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
+import { CAST_POINT, GRIP, isSpell, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, scale, v, type Vec } from '../shared/vec.ts';
 import { t } from './i18n.ts';
 
 // alvo do passo: ponto fixo ou a posição atual do mago com esse índice
 type At = Vec | number;
-type Step = [t: number, who: number, what: SpellId | ItemId | 'move', at: At];
+type Step = [t: number, who: number, what: SpellId | 'move', at: At];
 type Script = { pos?: Vec[]; end: number; steps: Step[]; prep?: (w: World) => void };
 export type DemoId = SpellId | ItemId | 'clash';
 
@@ -18,6 +18,11 @@ const A = 0, B = 1, C = 2;
 // arena menor que a de verdade para a lava aparecer no quadro
 const DEMO_R = 6;
 const RULES = { runes: false, sudden: false, chests: false };
+// O roteiro espera os cipós reais antes de tentar andar e deixa a prisão visível antes do golpe que solta.
+const GRIP_CAST_AT = .4;
+const GRIP_ROOT_AT = GRIP_CAST_AT + CAST_POINT.grip + GRIP.delay;
+// verde dos cipós do Agarrar: a marca no chão, o anel de quem está preso e as folhas
+const VINE_COLOR = '#8ed64b';
 
 // mago 0 é "você" (com a magia ou o item da página); 1 e 2 são de treino e só têm a Bola de fogo
 export const SCRIPTS: Partial<Record<DemoId, Script>> = {
@@ -27,7 +32,7 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   shield: { end: 2.8, steps: [[0.3, B, 'fireball', A], [0.7, A, 'shield', B]] },
   teleport: { end: 2.4, steps: [[0.3, B, 'fireball', A], [0.75, A, 'teleport', v(-3, 3.5)]] },
   swap: { pos: [v(-4.6, 0), v(1, 0), v(1.6, 2)], end: 3.4, steps: [[0.4, A, 'swap', B], [1.3, A, 'fireball', B]] },
-  grip: { end: 3.8, steps: [[0.4, A, 'grip', B], [1.4, B, 'move', v(2, 4)], [1.8, A, 'fireball', B]] },
+  grip: { pos: [v(-3, 0), v(2, 0), v(2.6, .9)], end: GRIP_ROOT_AT + 3.4, steps: [[GRIP_CAST_AT, A, 'grip', v(2.3, .45)], [GRIP_ROOT_AT + .2, B, 'move', v(2, 4)], [GRIP_ROOT_AT + .2, C, 'move', v(4, .9)], [GRIP_ROOT_AT + 1, A, 'fireball', B], [GRIP_ROOT_AT + spellLevel('grip', 1).duration + .2, C, 'move', v(2.6, 3)]] },
   meteor: { pos: [v(-3, 0), v(2, 0), v(2.6, 0.9)], end: 3, steps: [[0.4, A, 'meteor', v(2.3, 0.45)]] },
   rush: { pos: [v(-3, 0), v(-0.6, 0.3), v(2.6, 1.6)], end: 3, steps: [[0.4, A, 'rush', v(1, 0)], [0.7, A, 'move', v(1, 3)], [1.2, C, 'fireball', A]] },
   cluster: { pos: [v(-3, 0), v(0.5, 0), v(1, 0.9)], end: 2.8, steps: [[0.4, A, 'cluster', v(0.6, 0.3)]] },
@@ -47,7 +52,6 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   splitter: { pos: [v(-3, 0), v(2, 0), v(2.4, 1.3)], end: 3, steps: [[0.4, A, 'splitter', v(0.8, 0.3)]] },
   warpzone: { end: 3.4, steps: [[0.2, B, 'fireball', A], [0.3, A, 'warpzone', v(-0.6, 0)], [0.5, A, 'move', v(-3, 2.6)], [0.6, B, 'move', v(-1, 0.2)]] },
   scourge: { pos: [v(-3, 0), v(-2.2, 0.2), v(-3.6, 1.2)], end: 2.4, steps: [[0.4, A, 'scourge', A]] },
-  redirector: { end: 3, steps: [[0.3, A, 'fireball', v(-3, -5)], [0.75, A, 'redirector', B]] },
   pact: { end: 3.4, steps: [[0.3, A, 'pact', B], [0.6, A, 'fireball', B]] },
   aegis: { pos: [v(-1.5, 0), v(3.4, 0)], end: 3.6, steps: [[0.4, A, 'fireball', B]], prep: (w) => Object.assign(w.wizards[B], { hp: 320, aegis: true }) },
   clash: { pos: [v(-3, 0), v(2, 0), v(1, 2.4)], end: 3.8, steps: [[0.3, A, 'fireball', B], [0.3, B, 'fireball', A], [0.9, C, 'move', v(-0.5, 0)]] },
@@ -77,7 +81,7 @@ export function demoStep(s: DemoState) {
     const [, who, what, at] = script.steps[s.next];
     const id = w.wizards[who].id;
     const to = typeof at === 'number' ? { ...w.wizards[at].pos } : at;
-    cmds.push(what === 'move' ? { id, kind: 'move', to } : isSpell(what) ? { id, kind: 'cast', spell: what, at: to } : { id, kind: 'item', item: what, at: to });
+    cmds.push(what === 'move' ? { id, kind: 'move', to } : { id, kind: 'cast', spell: what, at: to });
   }
   stepWorld(w, cmds, () => 0.5);
   s.events = w.events;
@@ -98,7 +102,7 @@ export function runDemo(tick: (now: number) => void, alive: () => boolean, still
 type Fx = { e: SimEvent; until: number };
 const PROJ_COLOR: Record<string, string> = {
   fireball: '#ff7a1a', homing: '#c38bff', cluster: '#ff9a3c', boomerang: '#ffd666', bouncer: '#7fe3ff', drain: '#ff4d6d', snowball: '#e8f6ff',
-  magnetize: '#ff5ad1', recharge: '#7dff9a', link: '#d6d3cf', splitter: '#9ad0ff', shard: '#9ad0ff', grip: '#b8a07a', swap: '#9be7ff',
+  magnetize: '#ff5ad1', recharge: '#7dff9a', link: '#d6d3cf', splitter: '#9ad0ff', shard: '#9ad0ff', grip: VINE_COLOR, swap: '#9be7ff',
   gravity: '#a06bff', meteor: '#ff5a1a', warpzone: '#8a7bff',
 };
 const ZONE_COLOR = { burn: 'rgba(255,106,26,.35)', slow: 'rgba(120,170,255,.32)', pull: 'rgba(170,110,255,.32)' };
@@ -139,7 +143,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
         continue;
       }
       demoStep(s);
-      for (const e of s.events) fx.push({ e, until: s.w.t + (e.k === 'hit' ? 0.8 : e.k === 'clash' || e.k === 'scourge' ? 0.5 : 0.3) });
+      for (const e of s.events) fx.push({ e, until: s.w.t + (e.k === 'hit' ? 0.8 : e.k === 'vines' ? .7 : e.k === 'clash' || e.k === 'scourge' ? 0.5 : 0.3) });
     }
     fx = fx.filter((f) => f.until > s.w.t);
     draw();
@@ -162,7 +166,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
         circle(p.pos, L.radius, 'rgba(255,90,26,.18)', col, true);
         circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / 1.15), 'rgba(255,90,26,.35)');
       } else if (p.kind === 'grip') {
-        circle(p.pos, L.radius, 'rgba(100,180,50,.12)', '#8ed64b', true);
+        circle(p.pos, L.radius, 'rgba(100,180,50,.12)', VINE_COLOR, true);
         circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / GRIP.delay), 'rgba(100,180,50,.3)');
       } else if (p.kind === 'warpzone') circle(p.pos, L.radius, 'rgba(138,123,255,.25)', col);
       else if (p.kind === 'illusion') {
@@ -183,7 +187,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       ctx.globalAlpha = w.t < z.windUntil || w.t < z.veilUntil ? 0.35 : 1; // no véu, quem treina ainda vê o próprio mago como no Windwalk
       if (w.t < z.shieldUntil) circle(z.pos, z.shieldR, 'rgba(255,214,102,.15)', '#ffd666');
       if (w.t < z.alterUntil) circle(z.pos, spellLevel('alteration', z.spells.alteration || 1).radius, 'rgba(110,230,255,.12)', '#6ee6ff', true);
-      if (w.t < z.gripUntil) circle(z.pos, WIZ_R + 0.15, null, '#b8a07a', true);
+      if (w.t < z.gripUntil) vines(z.pos, WIZ_R + .18);
       if (w.t < z.slowUntil) circle(z.pos, WIZ_R + 0.1, null, '#78aaff');
       if (w.t < z.magnetUntil) circle(z.pos, WIZ_R + 0.22, null, z.magnet > 0 ? '#ff5ad1' : '#9be7ff', true);
       if (w.t < z.rushUntil) circle(z.pos, WIZ_R + 0.12, null, '#ffb347');
@@ -200,11 +204,29 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     for (const { e, until } of fx) {
       const life = until - w.t;
       if (e.k === 'lightning') line(e.from, e.to, '#cfe8ff', 0.09);
+      else if (e.k === 'vines') {
+        circle(v(e.x, e.y), e.r, null, VINE_COLOR);
+        ctx.globalAlpha = Math.min(1, life / .3);
+        vines(v(e.x, e.y), e.r);
+        ctx.globalAlpha = 1;
+      }
       else if (e.k === 'teleport') line(e.from, e.to, 'rgba(255,214,102,.6)', 0.05, true);
-      else if (e.k === 'reflect' || e.k === 'redirect') circle(v(e.x, e.y), 0.5, null, '#ffd666');
+      else if (e.k === 'reflect') circle(v(e.x, e.y), 0.5, null, '#ffd666');
       else if (e.k === 'scourge' || e.k === 'clash') circle(v(e.x, e.y), e.r, null, e.k === 'clash' ? CLASH_COLOR[e.combo] : '#ff6a4d');
       else if (e.k === 'hit' && e.dmg > 0.5) text('−' + Math.round(e.dmg), v(e.x, e.y - 1.1 - (0.8 - life) * 0.8), '#fff2a0', 0.42);
       else if (e.k === 'death') text('✕', w.wizards.find((z) => z.id === e.id)?.pos ?? v(0, 0), '#ff6a4d', 0.6);
+    }
+  }
+
+  function vines(at: Vec, radius: number) {
+    for (let i = 0; i < 6; i++) {
+      const a = i * Math.PI / 3;
+      ctx.beginPath();
+      ctx.moveTo(at.x + Math.cos(a) * radius, at.y + Math.sin(a) * radius);
+      ctx.quadraticCurveTo(at.x + Math.cos(a + .6) * radius, at.y + Math.sin(a + .6) * radius,
+        at.x + Math.cos(a + 1.4) * radius * .35, at.y + Math.sin(a + 1.4) * radius * .35);
+      ctx.strokeStyle = '#6eaf34'; ctx.lineWidth = .07; ctx.stroke();
+      circle(v(at.x + Math.cos(a + .5) * radius * .65, at.y + Math.sin(a + .5) * radius * .65), .07, VINE_COLOR);
     }
   }
 

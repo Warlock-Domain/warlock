@@ -1,6 +1,6 @@
-// Sons: arquivos gravados (CC0, public/sfx, créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
+// Sons: arquivos gravados (CC0 em public/sfx; as provocações do Leonard em public/taunts-local têm só a autorização dele; créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
 // sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
-import { TAUNTS, tauntAudioSrc } from '../shared/taunts.ts';
+import { tauntAudioSrc } from '../shared/taunts.ts';
 import { store } from './store.ts';
 
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
@@ -42,9 +42,9 @@ export function createSound(musicDefault?: number) {
   let wantAmbience = false;
   let duck = 1; // na loja a música abaixa um pouco
 
-  async function load(name: string) {
+  async function load(name: string, src = `/sfx/${name}.mp3`) {
     try {
-      const res = await fetch(`/sfx/${name}.mp3`);
+      const res = await fetch(src);
       if (res.ok) buffers.set(name, await ctx!.decodeAudioData(await res.arrayBuffer()));
     } catch {
       // fica o som sintetizado
@@ -67,7 +67,7 @@ export function createSound(musicDefault?: number) {
       const data = noise.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
       const names = new Set([...Object.values(FILES).flat(), 'lava_loop']);
-      void Promise.all([...names].map(load)).then(syncAmbience);
+      void Promise.all([...names].map((name) => load(name))).then(syncAmbience);
     }
     if (ctx.state === 'suspended') void ctx.resume();
     syncAmbience();
@@ -158,11 +158,13 @@ export function createSound(musicDefault?: number) {
       wantAmbience = on;
       syncAmbience();
     },
-    // taunt: public/sfx/taunt/<nome>.mp3, carregado na primeira vez que alguém usa
+    // taunt: caminho do catálogo (public/sfx/taunt/<nome>.mp3 ou a gravação em public/taunts-local), carregado na primeira vez que alguém usa
     async taunt(name: string) {
+      const src = tauntAudioSrc(name);
+      if (!src) return;
       if (!ctx || volumes().sfx === 0 || ctx.state !== 'running') return;
       const key = 'taunt/' + name;
-      if (!buffers.has(key)) await load(key);
+      if (!buffers.has(key)) await load(key, src);
       file(key, 1);
     },
     play(kind: SoundKind, volume = 1) {
@@ -209,25 +211,4 @@ export function createSound(musicDefault?: number) {
     },
   };
   return api;
-}
-
-let tauntPreview: HTMLAudioElement | null = null;
-export function stopTauntPreview() {
-  tauntPreview?.pause();
-  tauntPreview = null;
-}
-// Prévia privada e desmutada, como na Loja: não altera volumes da partida nem envia mensagem à sala.
-export async function previewTaunt(name: string): Promise<boolean> {
-  if (!TAUNTS.some((t) => t.id === name)) return false;
-  stopTauntPreview();
-  const audio = new Audio(tauntAudioSrc(name)!);
-  tauntPreview = audio;
-  audio.muted = false;
-  audio.volume = 1;
-  try {
-    await audio.play();
-    return true;
-  } catch {
-    return tauntPreview !== audio; // Trocar de fala pode interromper play pendente; isso não é falha do arquivo.
-  }
 }

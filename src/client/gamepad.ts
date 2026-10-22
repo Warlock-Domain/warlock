@@ -1,12 +1,12 @@
 // Controle de Xbox/PlayStation (Gamepad API): analógico esquerdo anda, direito mira, botões lançam pela posição na barra.
 // Fora da rodada (sala, loja, ajuda) o D-pad ou o analógico esquerdo andam entre os botões da tela.
 // Um jogador por navegador: vale o primeiro controle conectado.
-import { isActive, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import { add, len, norm, scale, type Vec } from '../shared/vec.ts';
 import { t } from './i18n.ts';
-import { PAD_NAMES, keyOf, padActionAt, padButtonOf, setPadMode, slotSpell, slotItem } from './keys.ts';
+import { PAD_NAMES, keyOf, padActionAt, padButtonOf, setPadMode, slotSpell } from './keys.ts';
 import { store } from './store.ts';
+import { radialIndex } from './taunt-wheel.ts';
 
 // índices do mapeamento padrão (Xbox: A B X Y; PlayStation: ✕ ○ □ △ nas mesmas posições)
 export const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 } as const;
@@ -29,11 +29,10 @@ export function aimPoint(me: Vec, s: Vec, range = AIM_RANGE): Vec {
   return m ? add(me, scale(norm(s), AIM_MIN + (range - AIM_MIN) * Math.min(1, m))) : me;
 }
 
-// magia ou item do botão, pelo mapeamento da aba Controle (padrão: A B X Y LB RB = magias 1 a 6 da barra; LT, RT e ↑ = itens 1 a 3)
-export function padAction(btn: number): SpellId | ItemId | undefined {
+// magia do botão, pelo mapeamento da aba Controle (padrão: A B X Y LB RB LT RT = magias 1 a 8 da barra)
+export function padAction(btn: number): SpellId | undefined {
   const p = padActionAt(btn);
   if (p?.startsWith('slot')) return slotSpell(Number(p.slice(4)) - 1);
-  if (p?.startsWith('item')) return slotItem(Number(p.slice(4)) - 1);
   return undefined;
 }
 
@@ -89,10 +88,9 @@ type PadGame = {
   move: (to: Vec) => void;
   stop: () => void;
   cast: (spell: SpellId, at: Vec) => void;
-  useItem: (item: ItemId, at: Vec) => void;
   center: () => void;
   aim: (at: Vec | null) => void;
-  padRange: (aiming: SpellId | ItemId | null) => void; // círculo de alcance enquanto mira
+  padRange: (aiming: SpellId | null) => void; // círculo de alcance enquanto mira
 };
 let game: PadGame | null = null;
 export const setPadGame = (g: PadGame) => (game = g);
@@ -215,7 +213,7 @@ const MOVE_AHEAD = 2; // metros à frente do mago: o destino anda junto enquanto
 let wasMoving = false;
 let lastMove = 0;
 let lastAim: Vec = { x: 0, y: -0.7 };
-let lastCast: SpellId | ItemId = 'fireball'; // o círculo de alcance mostra a última magia lançada pelo controle
+let lastCast: SpellId = 'fireball'; // o círculo de alcance mostra a última magia lançada pelo controle
 let prevAim = 0;
 
 function play(g: PadGame, hit: (b: number) => boolean, mv: Vec, aimS: Vec) {
@@ -252,8 +250,7 @@ function play(g: PadGame, hit: (b: number) => boolean, mv: Vec, aimS: Vec) {
     const a = padAction(b);
     if (!a || !at) continue;
     lastCast = a;
-    if (isActive(a)) g.useItem(a, at);
-    else g.cast(a as SpellId, at);
+    g.cast(a, at);
   }
 }
 
@@ -296,6 +293,33 @@ function tick(toast: (msg: string) => void) {
   const aimS = stick(gp.axes[2] ?? 0, gp.axes[3] ?? 0);
   if (down.some(Boolean) || mv.x || mv.y || aimS.x || aimS.y) setMode(true);
   const now = performance.now();
+  const tauntPanel = () => $<HTMLElement>('.radial-picker:not([hidden])');
+  const tauntButton = !$('.overlay') ? $('.hud-right .vol:has(.radial-picker) > button') : null;
+  const openedTaunts = !!tauntButton && !tauntPanel() && hit(padButtonOf('taunt'));
+  if (openedTaunts) tauntButton!.click();
+  const panel = !$('.overlay') ? tauntPanel() : null;
+  if (panel) {
+    // Enquanto escolhe uma fala, A/B e os eixos não podem andar, usar item ou lançar magia.
+    if (wasMoving) game?.stop();
+    wasMoving = false;
+    game?.aim(null);
+    game?.padRange(null);
+    const buttons = [...panel.querySelectorAll<HTMLButtonElement>('.radial-stage > button:not(.radial-center)')];
+    // Analógico aponta pela roda; o direcional anda ±1 por toque (com as 15 falas, 8 direções não chegariam a todas).
+    const s = len(aimS) ? aimS : mv;
+    let selected = radialIndex(s.x, s.y, buttons.length);
+    if (selected === null && !openedTaunts) {
+      const step = Number(hit(BTN.RIGHT) || hit(BTN.DOWN)) - Number(hit(BTN.LEFT) || hit(BTN.UP));
+      const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      if (step) selected = (at < 0 ? (step > 0 ? 0 : buttons.length - 1) : at + step + buttons.length) % buttons.length;
+    }
+    if (selected !== null) buttons[selected]?.focus({ preventScroll: true });
+    if (!openedTaunts && hit(BTN.A) && buttons.includes(document.activeElement as HTMLButtonElement)) (document.activeElement as HTMLButtonElement).click();
+    if ((!openedTaunts && hit(BTN.B)) || hit(BTN.START)) panel.hidden = true;
+    if (prev[board] && !down[board]) key('keyup', keyOf('board'));
+    prev = down;
+    return;
+  }
   if (game?.enabled() && !$('.overlay')) {
     play(game, hit, mv, aimS);
     navDir = null;

@@ -26,7 +26,7 @@ export function seedRandom(seed: number): () => number {
 export function spent(p: Player): number {
   let g = 0;
   for (const id of SPELL_IDS) for (let l = 0; l < p.spells[id]; l++) g += l === 0 ? SPELLS[id].cost : SPELLS[id].up[l - 1];
-  for (const id of ITEM_IDS) g += Math.max(0, p.items[id] - (id === 'scourge' ? 1 : 0)) * ITEMS[id].cost;
+  for (const id of ITEM_IDS) g += p.items[id] * ITEMS[id].cost;
   return g;
 }
 export const goldBand = (p: Player) => String(Math.floor(spent(p) / 10) * 10);
