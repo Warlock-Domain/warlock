@@ -239,7 +239,7 @@ Não desfaça sem combinar numa issue.
 | Assunto | Decisão |
 |---|---|
 | Público e estilo | jogadores de Dota; menus, loja e barra no jeito do Dota; menus enxutos |
-| Menu principal | barra: logo W do ícone da aba (Início) · Jogar · Aprender · Guarda-roupas · Loja (vitrine) · Perfil; Configurações como ícone (sem botão de sair desde 22/10, issue #201) (issue #83) |
+| Menu principal | barra: logo W do ícone da aba (Início) · Jogar · Aprender · Guarda-roupas · Loja (vitrine) · Perfil; Configurações como ícone (issue #83; sem botão de sair desde 22/10, issue #201) |
 | Loja | grade de ícones com nome dentro, preço com moeda, busca; itens prateados numa coluna à esquerda; Ataque em 2 fileiras de 5, os outros grupos em 1 |
 | Cores por grupo | Ataque vermelho-laranja, Mobilidade verde, Defesa azul, Controle roxo, Itens prateado |
 | Grupos de magia | 10 ataque, 5 mobilidade, 5 defesa, 5 controle |
