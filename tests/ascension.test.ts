@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ASC_ROUNDS, CONSOLATION, roundMult, LEADER_KILL_XP, MARK_KB, applyCard, setAscLobby, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
+import { ASC_ROUNDS, ASSIST_XP, CONSOLATION, KILL_XP, liveLevel, roundMult, LEADER_KILL_XP, MARK_KB, applyCard, setAscLobby, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
 import { addPlayer, buy, castBallot, newMatch, removePlayer, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
 import { gearOf } from '../src/shared/sim.ts';
@@ -280,6 +280,16 @@ describe('recuperação e bots do Ascensão', () => {
     expect(m.asc!.extra[lead.id]).toBeUndefined();
   });
 
+  it('a kill is worth 200 XP and an assist 100 XP (Fernando, 21/10)', () => {
+    expect([KILL_XP, ASSIST_XP]).toEqual([200, 100]);
+    const m = twoAt([1, 1, 1, 1]);
+    const [victim, killer, helper] = m.players;
+    ascDeath(m, victim.id, killer.id, helper.id);
+    expect(m.asc!.extra[helper.id]).toBe(ASSIST_XP);
+    expect(m.asc!.extra[killer.id]).toBeUndefined(); // o abate entra pelo xpGain (stats.kills)
+    expect(xpGain({ ...killer.stats.round, dmgBy: {}, kills: 1, alive: 0 })).toBe(KILL_XP);
+  });
+
   it('below average gets +25% xp per level below', () => {
     const m = twoAt([3, 1, 3, 1]);
     const ids = m.players.map((p) => p.id);
@@ -497,5 +507,15 @@ describe('final valendo mais', () => {
     expect(pointsAt(8)).toEqual(base.map((x) => x * 2));
     expect(pointsAt(9)).toEqual(pointsAt(8));
     expect(pointsAt(6).every(Number.isInteger)).toBe(true);
+  });
+});
+
+describe('barra de XP na arena', () => {
+  it('live level adds the round damage, kills and seconds alive to the match XP', () => {
+    expect(liveLevel(0, 0, 0, 0)).toEqual({ level: 1, total: 0, next: xpFor(2), frac: 0 });
+    const r = liveLevel(xpFor(2) - (30 + KILL_XP + 20), 30, 1, 10); // 30 de dano + 1 abate + 10 s vivo: fecha o nível 2
+    expect([r.level, r.total, r.frac]).toEqual([2, xpFor(2), 0]);
+    expect(liveLevel(0, 0, 1, 0).total).toBe(KILL_XP);
+    expect(liveLevel(0, 0, 0, 0).frac).toBeLessThan(liveLevel(0, 100, 0, 0).frac);
   });
 });
