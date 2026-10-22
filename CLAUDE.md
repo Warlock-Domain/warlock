@@ -160,6 +160,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 21/10 | **Ascensão: pontos da queda valem 1,5× nas rodadas 6 e 7 e o dobro nas 8 e 9** (`roundMult`, arredondado para o placar seguir inteiro), com o aviso na faixa da rodada e no texto do modo; primeiro pedido foi 2× nas rodadas 7 a 9 (no simulador, a virada do último da rodada 3 subia de 10,5% para 13% com bots Normais). Análise: skill `warlock-analise-de-modo` | "7-9 podem valer 2x"; depois "coloque 6 e 7 1.5x e 8 e 9 2x pontos" |
 | 21/10 | **Exceções do PR #236** (8 magias em 1 2 3 4 Q W E R): Flagelo e Pacto entram no grupo Ataque, que fica com **12** magias (a regra de 19/10 fixava 10 de Ataque e 5 em cada outro grupo); e entram com 3 magias fora da faixa 0,85–1,15 no Normal (Caminhada no vento 1,16, Drenar 1,16, Agarrar 0,84), medidas com amostra menor | "pode", depois de avisado das duas exceções |
 | 21/10 | **Ascensão: barra fina de XP embaixo da vida na arena**, que enche a cada golpe, abate e segundo vivo (`liveLevel`); no fim da rodada vale o XP do servidor (bônus do líder, consolação, Febre arcana); nível e XP no hover | "Barra de XP na arena ... pode ser" |
+| 21/10 | **Ascensão: abate vale 200 XP e assistência 100 XP** (`KILL_XP`, `ASSIST_XP`; assistência = quem mais bateu na vítima sem ser quem matou, com `ASSIST_MIN_DMG`); no simulador, níveis por mago por rodada de 1,30 para 1,48 e intervalos com 4+ fileiras de 37% para 45% | "coloque abate 200xp e assist 100xp" |
 
 ## Fluxo com agente
 
