@@ -89,7 +89,7 @@ Curva de níveis calibrada para dar em média 1 a 2 escolhas por intervalo.
 - **Critério dos 40%:** medido com bots Normais (o Difícil, por desenho, prefere as fortes).
 - **Alavancas de balanceamento do modo:** peso no sorteio e raridade da carta, ajustados em ciclo pelo simulador sem parar a cada carta; tirar uma carta do sorteio ou mexer em número de magia/item continua precisando do Fernando.
 - **Empate após a rodada 9:** desempate pelo dano total da partida.
-- **Tempo do intervalo esgotado:** escolha automática (a carta de cima). Humano desconectado: o bot escolhe por ele.
+- **Tempo do intervalo esgotado:** ~~escolha automática (a carta de cima). Humano desconectado: o bot escolhe por ele.~~ Trocado em 21/10 (#224): pessoa sem escolha, na sala ou fora dela, recebe uma carta sorteada entre as oferecidas (rand da simulação) e vê o aviso do que foi escolhido; bots seguem pela dificuldade.
 - **Troca de modo por votação:** reinicia a partida.
 
 ## Critérios de sucesso (simulador)
