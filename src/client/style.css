@@ -20,7 +20,9 @@
   /* pergaminho claro dos avisos: destaca por cima da lava e da pedra escura, que têm o mesmo tom do --plate */
   --paper: linear-gradient(180deg, var(--cream), var(--stone));
   /* cores dos avisos no pergaminho: azul de informação e vermelho vivo de erro; letra e ícones em preto (--ink): nada marrom no aviso, o resto da tela já é marrom */
-  --toast-info: #2f86e8; --toast-bad: #e8261c;
+  --toast-info: #2f86e8; --toast-bad: #e8261c; --toast-good: #22c55e;
+  /* runas nos avisos: as mesmas cores das runas na arena (RUNE_COLOR em scene.ts) */
+  --rune-haste: #2dd4bf; --rune-fury: #ef4444; --rune-shield: #60a5fa; --rune-recharge: #facc15;
   --plate-edge: inset 0 0 0 3px var(--panel-bot), inset 0 0 0 4px var(--gold-faint);
   /* moldura de jogo dos painéis: rebite dourado nos 4 cantos e brilho de lava atrás do título (camadas por cima do --plate) */
   --r-frame: 6px;
@@ -615,13 +617,19 @@ button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infini
 #toast.show { transform: translateX(-50%); }
 #toast::before { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .8rem; font-weight: 800; content: 'i'; background: var(--toast-info); color: var(--white); }
 /* no fundo claro o ícone é um disco cheio da cor do tipo com o símbolo escuro: a cor clara sobre o pergaminho sumia */
-#toast[data-kind="good"] { border-left-color: var(--ok); }
-#toast[data-kind="good"]::before { content: '✓'; background: var(--ok); color: var(--ink); }
+#toast[data-kind="good"] { border-left-color: var(--toast-good); }
+#toast[data-kind="good"]::before { content: '✓'; background: var(--toast-good); color: var(--ink); }
 #toast[data-kind="bad"] { border-left-color: var(--toast-bad); }
 #toast[data-kind="bad"]::before { content: '!'; background: var(--toast-bad); color: var(--white); }
 #toast[data-kind="gold"] { border-left-color: var(--gold); }
 #toast[data-kind="gold"]::before { content: none; }
-#toast[data-kind="gold"] > .gi { flex: none; font-size: 1.3rem; color: var(--lava-deep); }
+/* ícone dentro do aviso num disco cheio de cor viva, como o i ✓ !: solto em cima do fundo claro ele sumia; símbolo preto nas cores claras e branco nas escuras */
+#toast .gi[data-rune], #toast[data-kind="gold"] > .gi { box-sizing: content-box; padding: .2em; border-radius: 50%; color: var(--ink); vertical-align: -.36em; }
+#toast .gi[data-rune="haste"] { background: var(--rune-haste); }
+#toast .gi[data-rune="fury"] { background: var(--rune-fury); color: var(--white); }
+#toast .gi[data-rune="shield"] { background: var(--rune-shield); }
+#toast .gi[data-rune="recharge"] { background: var(--rune-recharge); }
+#toast[data-kind="gold"] > .gi { flex: none; font-size: 1rem; background: var(--gold); }
 /* golpe crítico: número claro com brilho de brasa */
 .dmg.crit { color: var(--gold-pale); -webkit-text-stroke: 1px var(--lava-dark); text-shadow: 0 0 12px rgba(255, 170, 40, .9), var(--text-shadow); }
 /* VITÓRIA: dourado em degradê, maior, com confete saindo do centro */
