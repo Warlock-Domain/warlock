@@ -1144,7 +1144,7 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
     max-height: calc(100% - 76px - var(--bar-space) - var(--safe-t) - var(--safe-b)); }
   .center:has(.compact-shop) { transform: translateX(-50%); }
   /* --gap-v: espaço vertical entre fileiras, grupos e blocos; cresce com a altura da tela (3 px em 720, 26 px em 1080) para a loja usar a altura livre (Fernando, 21/10) */
-  .compact-shop { padding: 24px; gap: 16px; --acts-w: 24px; --gap-v: clamp(3px, calc((100dvh - 680px) / 15), 26px); --tile-h: clamp(50px, calc((100dvh - 340px - var(--bar-space) - 9 * var(--gap-v)) / 5), 84px); }
+  .compact-shop { padding: 24px; gap: 16px; --acts-w: 24px; --gap-v: clamp(3px, calc((100dvh - 680px) / 15), 26px); --tile-h: clamp(50px, calc((100dvh - 240px - var(--bar-space) - var(--heads) * 25px - (var(--heads) - 1) * 1.5 * var(--gap-v) - (var(--rows) - 1) * 5px) / var(--rows)), 84px); }
   .compact-shop .shop-main, .compact-shop .shop-items { gap: var(--gap-v); }
   .compact-shop .shop-group { gap: calc(var(--gap-v) / 2 + 2px); }
   .compact-shop .shop-head { gap: 4px 8px; }
@@ -1157,7 +1157,7 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
   .shop.compact-shop .shop-grid { gap: 5px; } /* fileiras da mesma categoria coladas; entre categorias fica o --gap-v (Fernando, 21/10) */
   .shop.compact-shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   /* um cartão só para itens e magias (Fernando, 21/10): o ícone num quadro da cor do grupo à esquerda; nome, nível e preço empilhados à direita.
-     340 px + --bar-space: altura do que fica acima e abaixo do catálogo (topo, títulos e a barra de baixo); as 5 fileiras de magias dividem o resto.
+     240 px + --bar-space + 25 px por título: o que fica acima e abaixo do catálogo (topo, títulos e a barra de baixo); as fileiras da coluna mais alta (--rows e --heads, de ui.ts) dividem o resto.
      A altura segue a largura (9 por 4) dentro desse teto: em 16:9 e em ultrawide o cartão tem o mesmo formato (Fernando, 21/10).
      Padding igual nos quatro lados; à direita fica a coluna dos botões (comprar ou subir, vender, desfazer) */
   .compact-shop .shop-tile { --well: min(calc(var(--tile-h) - 18px), calc(40cqi - 18px), 52px); display: grid; grid-template-columns: var(--well) minmax(0, 1fr); grid-template-rows: 1fr auto auto auto 1fr;

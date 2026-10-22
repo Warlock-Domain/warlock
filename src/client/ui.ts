@@ -1406,8 +1406,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const grid = SPELL_GROUPS.map(([title, hint, ids]) => group(title, hint, ids.map(spellOffer)));
     // itens numa coluna à esquerda, com cor própria (Fernando, 19/10: distintos das magias e loja mais horizontal)
     const items = () => el('div', { class: 'shop-items' },
-      group(t('Itens passivos', 'Passive items'), itemCount, ITEM_IDS.map(itemOffer)));
-    if (look) return el('div', { class: 'card shop compact-shop' }, items(), el('div', { class: 'shop-main' },
+      // seções como as magias (Fernando, 21/10); a contagem de itens vai na dica da primeira
+      ...ITEM_GROUPS.map(([title, hint, ids], n) => group(title, n ? hint : `${hint} · ${itemCount}`, ids.map(itemOffer))));
+    // fileiras e títulos da coluna mais alta (magias em 5 colunas, itens em 3): o --tile-h do CSS divide a altura livre por elas
+    const rows = (lists: unknown[][], cols: number) => lists.reduce((n, ids) => n + Math.ceil(ids.length / cols), 0);
+    const itemLists = ITEM_GROUPS.map(([, , ids]) => ids);
+    const fit = `--rows: ${Math.max(rows(SPELL_GROUPS.map(([, , ids]) => ids), 5), rows(itemLists, 3))}; --heads: ${Math.max(SPELL_GROUPS.length, itemLists.length)}`;
+    if (look) return el('div', { class: 'card shop compact-shop', style: fit }, items(), el('div', { class: 'shop-main' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.sandbox ? t('Loja · sandbox', 'Shop · sandbox') : deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${r.sandbox ? 'ouro sem fim: compre e venda, vale na hora' : deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${r.sandbox ? 'endless gold: buy and sell, it applies right away' : deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
         iconButton('✕', t('Fechar a loja', 'Close the shop'), () => togglePeek(false), { class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`) })),
       ...grid),
