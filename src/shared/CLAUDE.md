@@ -27,6 +27,8 @@ Mensagem nova do cliente: variante em `ClientMsg` → `case` em `parseClientMess
 
 ## Snapshot (`snapshot.ts`)
 
+- Proposta Escudo: impede dano e recebe60%dos novos impulsos e durações de stun/root/slow. `statusDuration` decide no instante do impacto; ativar depois não recalcula efeitos prévios. Proteção geral, não exceção entre duas magias. Sem mudança do Meteoro nesta PR.
+
 - Recuperação pós-knockback (`kr`) só começa quando impulso físico cruza STUN_SPEED: zera residual e retoma50→100% em1s, +10pp/0,2s. Terminar um stun sem impulso não aciona recuperação; teste dedicado cobre essa separação. Cliente relê kr só por snapshot novo, nunca por quadro.
 
 - Proposta em revisão: `stunLeft` é relógio de bloqueio de ações separado da velocidade física (`st` no snapshot, -1 usa regra antiga). `castBlocked` bloqueia tudo sob stun e só magias de Mobilidade sob Agarrar. Não modifica Meteoro, Escudo nem regra de recuperação de velocidade nesta etapa.
