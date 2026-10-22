@@ -182,7 +182,9 @@ export type World = {
   lavaCredit: Record<string, Record<string, number>>;
   nextId: number;
   dm: boolean; // deathmatch: a arena não encolhe e quem morre volta depois de DM_RESPAWN s
-  rand: () => number; // sorteio do passo (o de stepWorld), para o crítico sortear dentro de hit()
+  // sorteio do passo: stepWorld grava o rand que recebeu, para o crítico sortear dentro de hit() sem passar o rand pelas 18 chamadas;
+  // é sempre o mesmo do passo (determinismo) e fica no servidor: o snapshot monta campo a campo e a sala salva o mundo como null
+  rand: () => number;
   shrink?: boolean; // sandbox (mundo de deathmatch): a arena encolhe mesmo assim
 };
 
