@@ -5,7 +5,7 @@ import {
 } from './constants.ts';
 import { SHAPES, edge, inArena, inLavaAt, inward, isleSpot, onIsle, safeInside, type ArenaId, type Isle } from './arena.ts';
 import { AEGIS, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
-import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
+import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, PROJECTILE_COLLISION, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export type Wizard = {
@@ -100,6 +100,7 @@ export type Projectile = {
   caster: string; // quem lançou (o dono muda quando um escudo reflete)
   dest?: Vec; // Troca: aonde o mago vai se ela não tocar ninguém (o ponto da mira)
   decoy?: number; // Ilusão: id da cópia que este projétil já empurrou (empurra uma vez só ao atravessar)
+  decoyTarget?: number; // estado de Elo preso a uma cópia, não considerado projétil em voo.
   pushVel?: Vec; // Ilusão: empurrão da cópia, separado da caminhada e de para onde ela olha
   decoyDamage?: number; // Ilusão: dano que a cópia já levou (só aumenta o empurrão; ela não morre)
   decoyResist?: number; // Ilusão: resistência a empurrão do dono no momento do lançamento
@@ -440,20 +441,18 @@ function firstOnSegment(w: World, a: Vec, b: Vec, radius: number, skip: string):
   return best;
 }
 
-// só bola de fogo e míssil se chocam entre si e com o raio; as outras magias atravessam
-const clashes = (p: Projectile) => p.kind === 'fireball' || p.kind === 'homing';
+// O Elo preso e o lançador do Divisor já não são projéteis em voo; áreas e cópia seguem seus próprios prazos.
+const clashes = (p: Projectile) => PROJECTILE_COLLISION[p.kind] !== null && p.waves === undefined && !(p.kind === 'link' && (p.target || p.pillar !== undefined || p.decoyTarget !== undefined));
 
-// bola de fogo de qualquer dono ou míssil de outro dono no caminho do raio
-function firstProjectileOnSegment(w: World, a: Vec, b: Vec, caster: string): { p: Projectile; t: number } | null {
+// Limpa todos os projéteis tocados até o bloqueio real do feixe, de qualquer dono, sem consumir o Raio nem gerar dano extra.
+function clearProjectilesOnSegment(w: World, a: Vec, b: Vec) {
+  if (!LIGHTNING.destroysProjectiles) return;
   const d = sub(b, a);
-  let best: { p: Projectile; t: number } | null = null;
-  for (const p of w.projectiles) {
-    if (!clashes(p) || (p.kind === 'homing' && p.owner === caster)) continue;
-    const [t, gap] = segT(a, d, p.pos);
-    if (gap > PROJ_R + 0.15) continue;
-    if (!best || t < best.t) best = { p, t };
-  }
-  return best;
+  w.projectiles = w.projectiles.filter((p) => {
+    if (!clashes(p) || segT(a, d, p.pos)[1] > PROJ_R + LIGHTNING.width) return true;
+    w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pulse', r: LIGHTNING.destroyFxRadius });
+    return false;
+  });
 }
 
 // explosão em área: dano e empurrão em todos dentro do raio (inclusive donos), caindo até zero na borda
@@ -503,9 +502,12 @@ function clashProjectiles(w: World) {
       gone.add(a);
       gone.add(b);
       const at = scale(add(a.pos, b.pos), 0.5);
-      const combo: Combo = a.kind === b.kind ? (a.kind === 'fireball' ? 'fire' : 'pulse') : 'arcane';
-      const c = CLASH[combo];
-      area(w, at, c.r, c.dmg * Math.max(a.dmgMult, b.dmgMult), c.kb, null, combo);
+      const ae = PROJECTILE_COLLISION[a.kind], be = PROJECTILE_COLLISION[b.kind];
+      if (ae && be && ae !== 'plain' && be !== 'plain') {
+        const combo = ae === be ? ae : 'arcane';
+        const c = CLASH[combo];
+        area(w, at, c.r, c.dmg * Math.max(a.dmgMult, b.dmgMult), c.kb, null, combo);
+      } else w.events.push({ k: 'clash', x: at.x, y: at.y, combo: 'pulse', r: .6 });
       break;
     }
   }
@@ -708,20 +710,13 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   } else if (spell === 'lightning') {
     const end = add(wz.pos, scale(dir, L.range * wz.rangeF));
     const found = firstOnSegment(w, wz.pos, end, WIZ_R + LIGHTNING.width, wz.id);
-    const proj = firstProjectileOnSegment(w, wz.pos, end, wz.id);
     const pil = firstPillarOnSegment(w, wz.pos, end, 0.1);
-    if (pil && (!found || pil.t < found.t) && (!proj || pil.t < proj.t)) {
+    const stop = pil && (!found || pil.t < found.t) ? w.pillars[pil.i].pos : found ? found.wz.pos : end;
+    clearProjectilesOnSegment(w, wz.pos, stop);
+    if (pil && (!found || pil.t < found.t)) {
       const at = w.pillars[pil.i].pos;
       w.events.push({ k: 'lightning', from: wz.pos, to: at });
       damagePillar(w, pil.i, L.dmg * dmgMult, wz.id);
-      return;
-    }
-    if (proj && (!found || proj.t < found.t)) {
-      w.events.push({ k: 'lightning', from: wz.pos, to: proj.p.pos });
-      w.projectiles = w.projectiles.filter((q) => q !== proj.p);
-      // como no original: dano máximo 2/3 de (dano do raio + 70), caindo até zero na borda, empurrão 1,35×
-      if (proj.p.kind === 'fireball') area(w, proj.p.pos, CLASH.detonate.r, (2 / 3) * (L.dmg * dmgMult + 70), 1.35, wz.id, 'detonate');
-      else w.events.push({ k: 'clash', x: proj.p.pos.x, y: proj.p.pos.y, combo: 'pulse', r: 0.6 });
       return;
     }
     if (!found) return void w.events.push({ k: 'lightning', from: wz.pos, to: end });

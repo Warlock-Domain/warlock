@@ -561,6 +561,8 @@ function startRoom(code: string, name: string) {
       } else if (e.k === 'hit') sound.play(e.dmg >= 100 ? 'hitHeavy' : e.dmg < 50 ? 'hitLight' : 'hit', near(e.x, e.y));
       else if (e.k === 'pillar') sound.play('hit', near(e.x, e.y) * 0.6);
       else if (e.k === 'grip') sound.play('hit', near(e.x, e.y));
+      // Mesmo som de impacto/explosão para colisão entre magias e destruição por Raio, inclusive quando não houve dano.
+      else if (e.k === 'clash') sound.play('hitHeavy', near(e.x, e.y));
       else if (e.k === 'reflect') sound.play('reflect', near(e.x, e.y));
       else if (e.k === 'teleport' && e.id === me) predict.teleported(e.to);
       else if (e.k === 'scourge') sound.play('death', near(e.x, e.y));

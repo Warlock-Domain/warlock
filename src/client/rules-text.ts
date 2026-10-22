@@ -115,11 +115,11 @@ const RULES_PT = {
     recharge: `Recarga: suas recargas levam ${pct(RUNE.cdr)} menos tempo.`,
   },
   choques: [
-    'Bola de fogo e Míssil teleguiado de magos diferentes se anulam quando se encontram e explodem, deixando o chão com efeito:',
+    'Projéteis em voo de magos inimigos se destroem ao colidir, incluindo a Rajada. Projéteis do mesmo dono ou de aliados não se anulam. As combinações elementais existentes mantêm seus efeitos:',
     `Fogo com fogo: explosão de ${CLASH.fire.dmg} em ${n1(CLASH.fire.r)} m e chão em chamas (${ZONES.burn.dps} de dano por segundo por ${n1(ZONES.burn.secs)} s).`,
     `Fogo com míssil (arcano): explosão de ${CLASH.arcane.dmg} em ${n1(CLASH.arcane.r)} m e chão lento (anda a ${pct(ZONES.slow.mult)} por ${n1(ZONES.slow.secs)} s).`,
     `Míssil com míssil (pulso): explosão de ${CLASH.pulse.dmg} em ${n1(CLASH.pulse.r)} m e um redemoinho que puxa para o centro por ${ZONES.pull.secs} s.`,
-    `Raio atravessando uma Bola de fogo: detona a bola (2/3 de dano do raio + 70, caindo até a borda de ${n1(CLASH.detonate.r)} m) e deixa chão em chamas por 3,5 s.`,
+    'O Raio destrói os projéteis que atingir no caminho, sem ser interrompido por eles. Não destrói áreas persistentes nem a cópia da Ilusão; obstáculos e Escudo continuam bloqueando/refletindo o Raio.',
     'O dano das explosões cai do centro para a borda. O Escudo não segura explosões.',
   ],
   dicas: [
@@ -232,11 +232,11 @@ const RULES_EN: typeof RULES_PT = {
     recharge: `Recharge: your cooldowns take ${pct(RUNE.cdr)} less time.`,
   },
   choques: [
-    'Fireball and Homing Missile from different wizards cancel each other out when they meet and explode, leaving an effect on the ground:',
+    'Flying projectiles from enemy wizards destroy each other on collision, including Cluster. Projectiles from the same owner or allies do not cancel each other. Existing elemental combinations retain their effects:',
     `Fire with fire: ${CLASH.fire.dmg} explosion in ${n1(CLASH.fire.r)} m and burning ground (${ZONES.burn.dps} damage per second for ${n1(ZONES.burn.secs)} s).`,
     `Fire with missile (arcane): ${CLASH.arcane.dmg} explosion in ${n1(CLASH.arcane.r)} m and slow ground (move at ${pct(ZONES.slow.mult)} for ${n1(ZONES.slow.secs)} s).`,
     `Missile with missile (pulse): ${CLASH.pulse.dmg} explosion in ${n1(CLASH.pulse.r)} m and a whirlpool that pulls toward the center for ${ZONES.pull.secs} s.`,
-    `Lightning passing through a Fireball: detonates the ball (2/3 of the lightning damage + 70, falling off to the edge at ${n1(CLASH.detonate.r)} m) and leaves burning ground for 3.5 s.`,
+    'Lightning destroys projectiles it hits along its path without being stopped by them. Does not destroy persistent areas or the Illusion copy; obstacles and Shield still block/reflect Lightning.',
     'Explosion damage falls off from the center to the edge. The Shield does not stop explosions.',
   ],
   dicas: [
@@ -259,8 +259,8 @@ export const RULES = LANG === 'en' ? RULES_EN : RULES_PT;
 // grimório: como usar cada magia e contra o quê ela funciona (lido do comportamento em shared/sim.ts)
 type SpellTips = Record<SpellId, [use: string, vs: string]>;
 const SPELL_TIPS_PT: SpellTips = {
-  fireball: ['Mire um pouco à frente de quem anda. Perto da borda, um acerto já joga na lava.', 'O Escudo devolve; Teleporte e Troca escapam. O Raio detona a bola no ar e duas bolas que se chocam viram chão em chamas.'],
-  lightning: ['Não dá tempo de desviar: bom em quem está preso, conjurando ou na borda. Passar pela sua Bola de fogo a detona.', `Obstáculos bloqueiam; o Escudo devolve o raio para você. Alcance curto (${n1(L1('lightning').range)} m no nível 1).`],
+  fireball: ['Mire um pouco à frente de quem anda. Perto da borda, um acerto já joga na lava.', 'O Escudo devolve; Teleporte e Troca escapam. O Raio destrói a bola no ar e duas bolas que se chocam viram chão em chamas.'],
+  lightning: ['Não dá tempo de desviar. Destrói os projéteis que atingir no caminho, sem ser interrompido por eles.', `Obstáculos bloqueiam; o Escudo devolve o raio para você. Alcance curto (${n1(L1('lightning').range)} m no nível 1).`],
   homing: ['Bom contra quem foge e desvia: mire perto do alvo, ele persegue o inimigo mais perto da mira.', 'O Escudo devolve e ele passa a perseguir você; obstáculos o param. Com uma Bola de fogo inimiga, vira chão lento.'],
   shield: [`Ligue quando o projétil estiver chegando: dura só ${n1(L1('shield').duration)} s. Devolve mirando quem lançou.`, 'Devolve projéteis e o Raio; barra a Troca; Bumerangue e Elo quicam. Não segura áreas: Meteoro, Flagelo, explosões dos choques e lava.'],
   teleport: ['Volte da lava para a pedra ou saia da frente de um projétil. É a única magia que sai durante o preparo do seu Flagelo (e o cancela).', `Quem lê o salto atira no ponto de chegada. Recarga longa no começo (${n1(L1('teleport').cd)} s).`],
@@ -289,8 +289,8 @@ const SPELL_TIPS_PT: SpellTips = {
 };
 
 const SPELL_TIPS_EN: SpellTips = {
-  fireball: ['Aim a little ahead of anyone who is moving. Near the edge, one hit already sends them into the lava.', 'The Shield reflects it; Teleport and Swap escape it. Lightning detonates the ball in the air and two balls that collide become burning ground.'],
-  lightning: ['No time to dodge: good against anyone gripped, casting or at the edge. Passing through your Fireball detonates it.', `Obstacles block it; the Shield sends the bolt back at you. Short range (${n1(L1('lightning').range)} m at level 1).`],
+  fireball: ['Aim a little ahead of anyone who is moving. Near the edge, one hit already sends them into the lava.', 'The Shield reflects it; Teleport and Swap escape it. Lightning destroys the ball in the air and two balls that collide become burning ground.'],
+  lightning: ['No time to dodge. Destroys projectiles it hits along its path without being stopped by them.', `Obstacles block it; the Shield sends the bolt back at you. Short range (${n1(L1('lightning').range)} m at level 1).`],
   homing: ['Good against anyone who runs and dodges: aim near the target, it chases the enemy closest to your aim.', 'The Shield reflects it and it starts chasing you; obstacles stop it. With an enemy Fireball, it becomes slow ground.'],
   shield: [`Turn it on when the projectile is about to arrive: it lasts only ${n1(L1('shield').duration)} s. It sends it back aimed at whoever cast it.`, 'Reflects projectiles and Lightning; blocks Swap; Boomerang and Link bounce off. Does not hold areas: Meteor, Scourge, clash explosions and lava.'],
   teleport: ['Get back from the lava to the rock or get out of a projectile\'s path. It is the only spell that goes off during your Scourge windup (and cancels it).', `Whoever reads the jump shoots at the landing point. Long cooldown at the start (${n1(L1('teleport').cd)} s).`],
@@ -363,7 +363,7 @@ export const ITEM_GROUPS = LANG === 'en' ? ITEM_GROUPS_EN : ITEM_GROUPS_PT;
 // para que serve, em uma linha (cartão da loja)
 const SPELL_USE_PT: Record<SpellId, string> = {
   fireball: 'Ataque básico: empurra de longe.',
-  lightning: 'Acerta na hora, sem tempo de desviar.',
+  lightning: 'Acerta na hora e destrói os projéteis no caminho sem ser interrompido por eles.',
   homing: 'Persegue quem foge ou desvia.',
   meteor: 'Pune grupos e quem fica parado.',
   cluster: 'Muito dano de perto.',
@@ -392,7 +392,7 @@ const SPELL_USE_PT: Record<SpellId, string> = {
 };
 const SPELL_USE_EN: Record<SpellId, string> = {
   fireball: 'Basic attack: knocks back from afar.',
-  lightning: 'Hits instantly, no time to dodge.',
+  lightning: 'Hits instantly and destroys projectiles along its path without being stopped by them.',
   homing: 'Chases anyone who flees or dodges.',
   meteor: 'Punishes groups and anyone standing still.',
   cluster: 'Lots of damage up close.',
@@ -424,7 +424,7 @@ export const SPELL_USE = LANG === 'en' ? SPELL_USE_EN : SPELL_USE_PT;
 
 const RULES_SHORT_PT: Record<SpellId, string> = {
   fireball: 'Projétil reto. Dano e empurrão médios.',
-  lightning: 'Instantâneo. Acerta o primeiro na linha.',
+  lightning: 'Instantâneo. Acerta o primeiro mago na linha e destrói projéteis no caminho sem ser interrompido por eles.',
   homing: `Persegue por ${n1(L1('homing').duration)} s o inimigo mais perto da mira, virando devagar.`,
   shield: `Por ${n1(L1('shield').duration)} s, devolve projéteis e o Raio para quem lançou.`,
   teleport: 'Salta até o cursor (alcance curto).',
@@ -453,7 +453,7 @@ const RULES_SHORT_PT: Record<SpellId, string> = {
 };
 const RULES_SHORT_EN: Record<SpellId, string> = {
   fireball: 'Straight projectile. Medium damage and knockback.',
-  lightning: 'Instant. Hits the first one in line.',
+  lightning: 'Instant. Hits the first wizard in line and destroys projectiles along its path without being stopped by them.',
   homing: `Chases the enemy closest to your aim for ${n1(L1('homing').duration)} s, turning slowly.`,
   shield: `For ${n1(L1('shield').duration)} s, sends projectiles and Lightning back at whoever cast them.`,
   teleport: 'Jumps to the cursor (short range).',

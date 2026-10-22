@@ -263,7 +263,7 @@ describe('choque de magias', () => {
     expect(w.projectiles.length).toBe(2);
   });
 
-  it('lightning detonates a fireball in its path', () => {
+  it('Raio destrói uma bola no caminho sem criar a antiga detonação em área', () => {
     const w = world([[0, 0], [3, 2], [2.2, 0.6]]);
     stepWorld(w, [{ id: 'p1', kind: 'cast', spell: 'fireball', at: v(-3, -2) }]);
     for (let i = 0; i < 16; i++) stepWorld(w, []);
@@ -274,9 +274,10 @@ describe('choque de magias', () => {
       stepWorld(w, []);
       for (const e of w.events) if (e.k === 'clash') seen.push(e.combo);
     }
-    expect(seen).toContain('detonate');
+    expect(seen).toContain('pulse');
+    expect(seen).not.toContain('detonate');
     expect(w.projectiles.length).toBe(0);
-    expect(wz(w, 2).hp).toBeLessThan(HP_MAX);
+    expect(wz(w, 2).hp).toBe(HP_MAX);
   });
 });
 

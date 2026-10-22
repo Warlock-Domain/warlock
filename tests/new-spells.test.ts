@@ -54,13 +54,14 @@ describe('escudo contra as magias novas', () => {
   it('reflects Rajada back at the caster without crediting a hit', () => {
     const w = world([[0, 0], [4, 0]], ['cluster']);
     w.wizards[1].shieldUntil = 99;
-    let landed = false;
+    let landed = false, reflected = false;
     stepWorld(w, [cast('p0', 'cluster', 4, 0)]);
     for (let i = 0; i < 60; i++) {
       stepWorld(w, []);
       landed ||= w.events.some((e) => e.k === 'land');
+      reflected ||= w.events.some((e) => e.k === 'reflect');
     }
-    expect(w.projectiles.some((p) => p.kind === 'cluster' && p.owner === 'p1')).toBe(true);
+    expect(reflected).toBe(true); // os refletidos podem se anular com o restante da rajada agora.
     expect(w.wizards[1].hp).toBe(HP_MAX);
     expect(landed).toBe(false);
   });
@@ -188,7 +189,7 @@ describe('Rajada', () => {
     expect(w.wizards[1].hp).toBeGreaterThan(HP_MAX - 4 * spellLevel('cluster', 1).dmg - 10);
   });
 
-  it('passes through enemy fireballs instead of clashing', () => {
+  it('colide com bolas de fogo inimigas', () => {
     const w = world([[0, 0], [8, 0]], ['cluster', 'fireball']);
     let clashed = false;
     stepWorld(w, [cast('p0', 'cluster', 8, 0), cast('p1', 'fireball', 0, 0)]);
@@ -196,7 +197,7 @@ describe('Rajada', () => {
       stepWorld(w, []);
       clashed ||= w.events.some((e) => e.k === 'clash');
     }
-    expect(clashed).toBe(false);
+    expect(clashed).toBe(true);
   });
 });
 
