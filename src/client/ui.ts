@@ -327,6 +327,7 @@ type RoomActions = {
   spellReady: () => void; // uma magia acabou de recarregar
   watch: (step: number) => void; // espectador: +1 próximo vivo, −1 anterior
   watchCenter: (on: boolean) => void; // espectador: câmera parada no centro da arena em vez de seguir quem assiste
+  camFollow: (on: boolean) => void; // câmera centrada no próprio mago, de perto, em vez de mostrar a arena
   replay: () => void; // liga ou desliga o replay da queda
   name: () => string; // apelido atual e a troca (aba Jogador das configurações)
   rename: () => void;
@@ -666,6 +667,25 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     drawCenter();
     drawHints();
   });
+  // câmera: mostrar a arena (padrão) ou seguir o próprio mago de perto (pedido do Fernando, issue #222); fica salva no navegador
+  const FOLLOW_KEY = 'warlock:cam-follow';
+  let camFollow = store.get(FOLLOW_KEY) === '1';
+  const camTitle = () => t('Câmera seguindo o seu mago', 'Camera following your wizard') + (uiLabel('camera') === '—' ? '' : ` (${uiLabel('camera')})`);
+  const toggleCam = () => {
+    camFollow = !camFollow;
+    store.set(FOLLOW_KEY, camFollow ? '1' : '0');
+    camBtn.setAttribute('aria-pressed', String(camFollow));
+    camBtn.classList.toggle('on', camFollow);
+    act.camFollow(camFollow);
+  };
+  const camBtn = iconButton(icon(UI_ICON.person), t('Câmera seguindo o seu mago', 'Camera following your wizard'), toggleCam, { 'aria-pressed': String(camFollow), class: camFollow ? 'icon on' : 'icon', title: camTitle() });
+  onKeysChange(() => (camBtn.title = camTitle()));
+  addEventListener('keydown', (e) => {
+    if (!isUiKey(e.code, 'camera') || typing(e)) return;
+    e.preventDefault();
+    toggleCam();
+  });
+  act.camFollow(camFollow);
   const volBtn = iconButton(icon(act.volumes().sfx + act.volumes().music === 0 ? UI_ICON.mute : UI_ICON.sound), t('Som', 'Sound'), () => openSettings('som'), { class: 'icon wide-only' });
   // votação na partida: o botão abre as opções; a faixa no topo mostra a votação aberta para todos
   const votePanel = el('div', { class: 'vol-panel', hidden: true });
@@ -880,7 +900,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     exitBtn,
     el('button', { type: 'button', class: 'code', title: t('Copiar link da sala', 'Copy room link'), 'aria-label': t(`Sala ${code}: copiar link`, `Room ${code}: copy link`), onclick: () => copyLink() }, status, ' ', code, ping),
     roundEl,
-    el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), specBtn, voteWrap, volBtn, gearBtn, helpBtn, el('div', { class: 'vol more-wrap' }, moreBtn, morePanel), el('div', { class: 'vol' }, sbBtn, sbPanel)),
+    el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), specBtn, voteWrap, camBtn, volBtn, gearBtn, helpBtn, el('div', { class: 'vol more-wrap' }, moreBtn, morePanel), el('div', { class: 'vol' }, sbBtn, sbPanel)),
   );
   const center = el('div', { class: 'center' });
   // a janela da loja pode ser alargada pela alça do canto (PC); o tamanho fica salvo neste navegador (pedido do Fernando, 18/10)
