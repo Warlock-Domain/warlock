@@ -1369,6 +1369,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       bought: () => SheetRow[]; sold: () => SheetRow[] };
     const now = sheet(mine.spells, mine.items);
     if (presetOrder && presetOrder.round !== r.round) presetOrder = null; // o ouro não deu para tudo: não mexe na barra da próxima loja
+    // gravar no desenho é seguro: o myLoadout (barra e teclas) já grava a ordem durante o desenho, e este é o primeiro desenho com as magias da build
     if (presetOrder?.order.every((s) => !s || mine.spells[s] > 0)) {
       saveLoadout({ spells: presetOrder.order });
       presetOrder = null;
@@ -1380,7 +1381,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const buildsBox = () => {
       const saved = readPresets(store.get(PRESETS_KEY));
       const row = (i: number) => {
-        const icons = el('span', { class: 'build-icons' });
+        // dica com os nomes: só os ícones não dizem o que a build guarda
+        const icons = withTip(el('span', { class: 'build-icons' }), () => (saved[i] ? [...saved[i]!.order.filter((s): s is SpellId => !!s).map(spellName), ...ITEM_IDS.filter((x) => saved[i]!.items[x]).map(itemName)].join(' · ') : t('Posição vazia: Salvar guarda o que você tem agora', 'Empty slot: Save stores what you have now')));
         const show = (p: Preset | null) => icons.replaceChildren(...(p ? [...p.order.filter((s): s is SpellId => !!s).map((s) => icon(ICON[s])), ...ITEM_IDS.filter((x) => p.items[x]).map((x) => icon(ITEM_ICON[x]))] : [t('Vazia', 'Empty')]));
         show(saved[i]);
         const use = el('button', { type: 'button', disabled: !saved[i], 'aria-label': t(`Usar a build ${i + 1}`, `Use build ${i + 1}`), onclick: () => {
