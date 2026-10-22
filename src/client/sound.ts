@@ -1,5 +1,6 @@
-// Sons: arquivos gravados (CC0, public/sfx, créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
+// Sons: arquivos gravados (CC0 em public/sfx; as provocações do Leonard em public/taunts-local têm só a autorização dele; créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
 // sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
+import { tauntAudioSrc } from '../shared/taunts.ts';
 import { store } from './store.ts';
 
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'frost' | 'swap' | 'grip' | 'meteor' | 'rush' | 'cluster' | 'boomerang' | 'thrust' | 'gravity'
@@ -58,9 +59,9 @@ export function createSound(musicDefault?: number) {
   let wantAmbience = false;
   let duck = 1; // na loja a música abaixa um pouco
 
-  async function load(name: string) {
+  async function load(name: string, src = `/sfx/${name}.mp3`) {
     try {
-      const res = await fetch(`/sfx/${name}.mp3`);
+      const res = await fetch(src);
       if (res.ok) buffers.set(name, await ctx!.decodeAudioData(await res.arrayBuffer()));
     } catch {
       // fica o som sintetizado
@@ -83,7 +84,7 @@ export function createSound(musicDefault?: number) {
       const data = noise.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
       const names = new Set([...Object.values(FILES).flat(), 'lava_loop']);
-      void Promise.all([...names].map(load)).then(syncAmbience);
+      void Promise.all([...names].map((name) => load(name))).then(syncAmbience);
     }
     if (ctx.state === 'suspended') void ctx.resume();
     syncAmbience();
@@ -175,16 +176,18 @@ export function createSound(musicDefault?: number) {
       syncAmbience();
     },
     // teste local dos efeitos sonoros (issue #203, só em localhost): toca public/sfx/<nome>.mp3 pelo mesmo caminho das magias
-    async preview(name: string) {
+    async preview(name: string, volume = 1) {
       if (!ctx || volumes().sfx === 0 || ctx.state !== 'running') return;
       if (!buffers.has(name)) await load(name);
-      file(name, 0.8);
+      file(name, 0.8 * Math.max(0.05, Math.min(1, volume)));
     },
-    // taunt: public/sfx/taunt/<nome>.mp3, carregado na primeira vez que alguém usa
+    // taunt: caminho do catálogo (public/sfx/taunt/<nome>.mp3 ou a gravação em public/taunts-local), carregado na primeira vez que alguém usa
     async taunt(name: string) {
+      const src = tauntAudioSrc(name);
+      if (!src) return;
       if (!ctx || volumes().sfx === 0 || ctx.state !== 'running') return;
       const key = 'taunt/' + name;
-      if (!buffers.has(key)) await load(key);
+      if (!buffers.has(key)) await load(key, src);
       file(key, 1);
     },
     play(kind: SoundKind, volume = 1) {
