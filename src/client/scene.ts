@@ -1475,6 +1475,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           if (k >= 1) {
             m.fallAt = undefined;
             shockwave(p.pos, 1.6, '#c8b8a0');
+            // Math.random só no desenho da poeira (fora da simulação, como o resto da cena)
             if (!lite) for (let j = 0; j < 4; j++) puff(v(p.pos.x + (Math.random() - 0.5) * 1.6, p.pos.y + (Math.random() - 0.5) * 1.6), 0.8, 1.2);
           }
         }
