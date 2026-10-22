@@ -19,7 +19,10 @@ const A = 0, B = 1, C = 2;
 const DEMO_R = 6;
 const RULES = { runes: false, sudden: false, chests: false };
 // O roteiro espera os cipós reais antes de tentar andar e deixa a prisão visível antes do golpe que solta.
-const GRIP_ROOT_AT = .4 + CAST_POINT.grip + GRIP.delay;
+const GRIP_CAST_AT = .4;
+const GRIP_ROOT_AT = GRIP_CAST_AT + CAST_POINT.grip + GRIP.delay;
+// verde dos cipós do Agarrar: a marca no chão, o anel de quem está preso e as folhas
+const VINE_COLOR = '#8ed64b';
 
 // mago 0 é "você" (com a magia ou o item da página); 1 e 2 são de treino e só têm a Bola de fogo
 export const SCRIPTS: Partial<Record<DemoId, Script>> = {
@@ -29,7 +32,7 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   shield: { end: 2.8, steps: [[0.3, B, 'fireball', A], [0.7, A, 'shield', B]] },
   teleport: { end: 2.4, steps: [[0.3, B, 'fireball', A], [0.75, A, 'teleport', v(-3, 3.5)]] },
   swap: { pos: [v(-4.6, 0), v(1, 0), v(1.6, 2)], end: 3.4, steps: [[0.4, A, 'swap', B], [1.3, A, 'fireball', B]] },
-  grip: { pos: [v(-3, 0), v(2, 0), v(2.6, .9)], end: GRIP_ROOT_AT + 3.4, steps: [[.4, A, 'grip', v(2.3, .45)], [GRIP_ROOT_AT + .2, B, 'move', v(2, 4)], [GRIP_ROOT_AT + .2, C, 'move', v(4, .9)], [GRIP_ROOT_AT + 1, A, 'fireball', B], [GRIP_ROOT_AT + spellLevel('grip', 1).duration + .2, C, 'move', v(2.6, 3)]] },
+  grip: { pos: [v(-3, 0), v(2, 0), v(2.6, .9)], end: GRIP_ROOT_AT + 3.4, steps: [[GRIP_CAST_AT, A, 'grip', v(2.3, .45)], [GRIP_ROOT_AT + .2, B, 'move', v(2, 4)], [GRIP_ROOT_AT + .2, C, 'move', v(4, .9)], [GRIP_ROOT_AT + 1, A, 'fireball', B], [GRIP_ROOT_AT + spellLevel('grip', 1).duration + .2, C, 'move', v(2.6, 3)]] },
   meteor: { pos: [v(-3, 0), v(2, 0), v(2.6, 0.9)], end: 3, steps: [[0.4, A, 'meteor', v(2.3, 0.45)]] },
   rush: { pos: [v(-3, 0), v(-0.6, 0.3), v(2.6, 1.6)], end: 3, steps: [[0.4, A, 'rush', v(1, 0)], [0.7, A, 'move', v(1, 3)], [1.2, C, 'fireball', A]] },
   cluster: { pos: [v(-3, 0), v(0.5, 0), v(1, 0.9)], end: 2.8, steps: [[0.4, A, 'cluster', v(0.6, 0.3)]] },
@@ -99,7 +102,7 @@ export function runDemo(tick: (now: number) => void, alive: () => boolean, still
 type Fx = { e: SimEvent; until: number };
 const PROJ_COLOR: Record<string, string> = {
   fireball: '#ff7a1a', homing: '#c38bff', cluster: '#ff9a3c', boomerang: '#ffd666', bouncer: '#7fe3ff', drain: '#ff4d6d', snowball: '#e8f6ff',
-  magnetize: '#ff5ad1', recharge: '#7dff9a', link: '#d6d3cf', splitter: '#9ad0ff', shard: '#9ad0ff', grip: '#8ed64b', swap: '#9be7ff',
+  magnetize: '#ff5ad1', recharge: '#7dff9a', link: '#d6d3cf', splitter: '#9ad0ff', shard: '#9ad0ff', grip: VINE_COLOR, swap: '#9be7ff',
   gravity: '#a06bff', meteor: '#ff5a1a', warpzone: '#8a7bff',
 };
 const ZONE_COLOR = { burn: 'rgba(255,106,26,.35)', slow: 'rgba(120,170,255,.32)', pull: 'rgba(170,110,255,.32)' };
@@ -163,7 +166,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
         circle(p.pos, L.radius, 'rgba(255,90,26,.18)', col, true);
         circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / 1.15), 'rgba(255,90,26,.35)');
       } else if (p.kind === 'grip') {
-        circle(p.pos, L.radius, 'rgba(100,180,50,.12)', '#8ed64b', true);
+        circle(p.pos, L.radius, 'rgba(100,180,50,.12)', VINE_COLOR, true);
         circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / GRIP.delay), 'rgba(100,180,50,.3)');
       } else if (p.kind === 'warpzone') circle(p.pos, L.radius, 'rgba(138,123,255,.25)', col);
       else if (p.kind === 'illusion') {
@@ -202,7 +205,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       const life = until - w.t;
       if (e.k === 'lightning') line(e.from, e.to, '#cfe8ff', 0.09);
       else if (e.k === 'vines') {
-        circle(v(e.x, e.y), e.r, null, '#8ed64b');
+        circle(v(e.x, e.y), e.r, null, VINE_COLOR);
         ctx.globalAlpha = Math.min(1, life / .3);
         vines(v(e.x, e.y), e.r);
         ctx.globalAlpha = 1;
@@ -223,7 +226,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       ctx.quadraticCurveTo(at.x + Math.cos(a + .6) * radius, at.y + Math.sin(a + .6) * radius,
         at.x + Math.cos(a + 1.4) * radius * .35, at.y + Math.sin(a + 1.4) * radius * .35);
       ctx.strokeStyle = '#6eaf34'; ctx.lineWidth = .07; ctx.stroke();
-      circle(v(at.x + Math.cos(a + .5) * radius * .65, at.y + Math.sin(a + .5) * radius * .65), .07, '#8ed64b');
+      circle(v(at.x + Math.cos(a + .5) * radius * .65, at.y + Math.sin(a + .5) * radius * .65), .07, VINE_COLOR);
     }
   }
 

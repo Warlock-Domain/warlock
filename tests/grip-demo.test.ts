@@ -3,7 +3,7 @@ import { demoStep, demoWorld } from '../src/client/demo.ts';
 import { GRIP } from '../src/shared/spells.ts';
 
 describe('prévia do Agarrar em área', () => {
-  it('mostra a marca fixa, espera1,3s e mantém dois alvos presos antes do golpe que solta', () => {
+  it('mostra a marca fixa, espera 1,3 s e mantém dois alvos presos antes do golpe que solta', () => {
     const s = demoWorld('grip');
     while (s.w.t < .8) demoStep(s);
     const mark = s.w.projectiles.find((p) => p.kind === 'grip')!;
