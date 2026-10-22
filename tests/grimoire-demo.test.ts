@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SCRIPTS, demoStep, demoWorld, runDemo, type DemoId } from '../src/client/demo.ts';
-import { ACTIVE_ITEMS } from '../src/shared/items.ts';
 import { SPELLS, SPELL_IDS, type SpellId } from '../src/shared/spells.ts';
 import type { SimEvent } from '../src/shared/sim.ts';
 
@@ -16,8 +15,8 @@ function run(id: DemoId): SimEvent[] {
 }
 
 describe('grimório: demonstrações com a simulação de verdade', () => {
-  it('has a demo for every spell and active item', () => {
-    for (const id of [...SPELL_IDS, ...ACTIVE_ITEMS, 'aegis', 'clash'] as DemoId[]) expect(SCRIPTS[id], id).toBeTruthy();
+  it('has a demo for every spell, the Aegis and the clash', () => {
+    for (const id of [...SPELL_IDS, 'aegis', 'clash'] as DemoId[]) expect(SCRIPTS[id], id).toBeTruthy();
   });
 
   it('casts the spell of the page, and damage spells hit a training wizard', () => {
@@ -37,9 +36,7 @@ describe('grimório: demonstrações com a simulação de verdade', () => {
     expect(run('illusion').some((e) => e.k === 'hit')).toBe(false); // a cópia não causa dano
     expect(run('warpzone').some((e) => e.k === 'hit' && e.id === 'a')).toBe(false);
     expect(run('grip').some((e) => e.k === 'grip')).toBe(true);
-    for (const id of ACTIVE_ITEMS) expect(run(id).some((e) => e.k === 'item' && e.id === 'a' && e.item === id), id).toBe(true);
-    expect(run('scourge').some((e) => e.k === 'hit' && e.by === 'a' && e.dmg > 0)).toBe(true);
-    expect(run('redirector').some((e) => e.k === 'hit' && e.by === 'a' && e.dmg > 0)).toBe(true);
+    expect(run('scourge').some((e) => e.k === 'scourge' && e.id === 'a')).toBe(true);
     expect(run('aegis').some((e) => e.k === 'aegis' && e.id === 'b')).toBe(true);
     expect(run('clash').some((e) => e.k === 'clash' && e.combo === 'fire')).toBe(true);
   });

@@ -7,7 +7,7 @@ import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
-import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
+import { itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
@@ -68,6 +68,7 @@ const SPELL_SOUND: Record<SpellId, SoundKind> = {
   boomerang: 'homing', thrust: 'teleport', gravity: 'homing', rockpillar: 'shield', bouncer: 'lightning',
   drain: 'homing', snowball: 'fireball', illusion: 'teleport', magnetize: 'lightning', recharge: 'homing',
   alteration: 'teleport', link: 'lightning', windwalk: 'shield', splitter: 'fireball', warpzone: 'shield',
+  scourge: 'homing', pact: 'shield', // os sons que tinham como item ativo
 };
 
 // mensagens de erro do servidor (em português, protocolo inalterado) -> inglês
@@ -233,13 +234,13 @@ function startRoom(code: string, name: string) {
   let room: PublicRoom | null = null;
   let me = playerId;
   let online = false;
-  let armed: SpellId | ItemId | null = null;
+  let armed: SpellId | null = null;
   // círculo de alcance: tecla segurada, magia escolhida no botão (toque no chão para lançar) ou controle mirando
-  let held: SpellId | ItemId | null = null;
+  let held: SpellId | null = null;
   let flashAim: { from: Vec; at: Vec } | null = null; // Rápido: de onde e para onde a magia saiu, para a faixa piscar parada ali
-  let padAiming: SpellId | ItemId | null = null;
+  let padAiming: SpellId | null = null;
   let padAt: Vec | null = null; // retículo do controle no chão (explosão do Meteoro)
-  let hovered: SpellId | ItemId | null = null; // mouse em cima da magia na barra
+  let hovered: SpellId | null = null; // mouse em cima da magia na barra
   let seq = 0;
   const sentAt = new Map<number, number>();
   let lastSnap: Snap | null = null;
@@ -306,7 +307,6 @@ function startRoom(code: string, name: string) {
     undo: (key) => net.send({ t: 'undo', key }),
     sell: (key) => net.send({ t: 'sell', key }),
     taunt: (i) => net.send({ t: 'taunt', i }),
-    useItem: (item) => input.button(item),
     // personagem pronto da sala: vira a aparência equivalente (o evento abaixo manda ao servidor)
     pick: (character) => {
       store.set(CHAR, character);
@@ -371,7 +371,7 @@ function startRoom(code: string, name: string) {
 
   const myWizard = (s: SnapView | null) => s?.wizards.find((w) => w.id === me) ?? null;
 
-  function command(msg: { t: 'move'; x: number; y: number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number } | { t: 'item'; item: ItemId; x: number; y: number }) {
+  function command(msg: { t: 'move'; x: number; y: number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
     seq++;
     sentAt.set(seq, performance.now());
     // teto do mapa de latência: o snapshot só confirma o último seq (e nada fora da rodada), então muito comando nunca tem ack
@@ -397,6 +397,8 @@ function startRoom(code: string, name: string) {
       if (!mine?.spells[spell]) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
       if ((lastSnap?.cd[i] ?? 0) > 0.1 || performance.now() < (justCast.get(spell) ?? 0) || (performance.now() < scourgeUntil && spell !== 'teleport')) return;
       if (spell === 'teleport') scourgeUntil = 0; // o Teleporte cancela o Flagelo em preparo
+      // Flagelo em preparo: o servidor ignora outras magias até ele explodir
+      if (spell === 'scourge') scourgeUntil = performance.now() + CAST_POINT.scourge * 1000;
       if (spell === 'rush') predict.stop(); // o avanço esquece o destino de andar, como no servidor
       // até a recarga chegar do servidor, não repete a mesma magia (senão a animação e o som tocam sem sair nada)
       justCast.set(spell, performance.now() + 120 + CAST_POINT[spell] * 1000 + predict.rtt() * 1000);
@@ -406,19 +408,6 @@ function startRoom(code: string, name: string) {
       scene.castLocal(me, spell, at);
       scene.clickMarker(at, true);
       sound.play(SPELL_SOUND[spell]);
-      return true;
-    },
-    useItem(item, at) {
-      const mine = room?.players.find((p) => p.id === me);
-      if (!mine?.items[item]) return toast(t('Você ainda não tem esse item. Compre na loja.', 'You don’t have that item yet. Buy it in the shop.'));
-      if ((lastSnap?.icd[ACTIVE_ITEMS.indexOf(item)] ?? 0) > 0.1 || performance.now() < (justCast.get(item) ?? 0) || performance.now() < scourgeUntil) return;
-      // Flagelo em preparo: o servidor ignora outras magias até ele explodir
-      if (item === 'scourge') scourgeUntil = performance.now() + SCOURGE.windup * 1000;
-      justCast.set(item, performance.now() + 120 + (ITEM_CAST[item] ?? 0) * 1000 + predict.rtt() * 1000);
-      command({ t: 'item', item, x: at.x, y: at.y });
-      predict.hold(ITEM_CAST[item] ?? 0);
-      if (item === 'scourge') scene.castLocal(me, item);
-      scene.clickMarker(at, true);
       return true;
     },
     center: () => {
@@ -575,7 +564,6 @@ function startRoom(code: string, name: string) {
       else if (e.k === 'grip') sound.play('hit', near(e.x, e.y));
       else if (e.k === 'reflect') sound.play('reflect', near(e.x, e.y));
       else if (e.k === 'teleport' && e.id === me) predict.teleported(e.to);
-      else if (e.k === 'item') sound.play(e.item === 'redirector' ? 'teleport' : e.item === 'pact' ? 'shield' : 'homing', 0.7);
       else if (e.k === 'scourge') sound.play('death', near(e.x, e.y));
       else if (e.k === 'shrink') sound.play('shrink');
       else if (e.k === 'chest') toast(t('Baú de ouro na arena! Quebre e fique em cima do ouro', 'Gold chest in the arena! Break it and stand on the gold'), 'gold');
@@ -850,8 +838,8 @@ function startRoom(code: string, name: string) {
     scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
-    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
-      wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx, xp); // caídos na rodada: retrato apagado no topo
+    view.frame(lastSnap?.cd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
+      wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx); // caídos na rodada: retrato apagado no topo
   }
   const drawn = new Map<string, Vec>();
   const replayDrawn = new Map<string, Vec>();
