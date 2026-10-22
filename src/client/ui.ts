@@ -265,12 +265,14 @@ addEventListener('keydown', (e) => {
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 // tipo do aviso: muda a cor da borda e o ícone (style.css, #toast[data-kind])
 type ToastKind = 'info' | 'good' | 'bad' | 'gold';
-// msg pode vir com ícones (lista de textos e nós); o de ouro ganha a moeda na frente
-export function toast(msg: string | (string | Node)[], kind: ToastKind = 'info') {
+// msg pode vir com ícones (lista de textos e nós); o de ouro ganha a moeda na frente;
+// top: no alto da tela e com letra maior, para o que todo mundo precisa ler na hora (quem saiu e o bot que assumiu, issue #223)
+export function toast(msg: string | (string | Node)[], kind: ToastKind = 'info', top = false) {
   let t = document.getElementById('toast');
   if (!t) document.body.append((t = el('div', { id: 'toast', role: 'status' })));
   t.replaceChildren(...(kind === 'gold' ? [icon(UI_ICON.gold)] : []), el('span', {}, ...[msg].flat()));
   t.dataset.kind = kind;
+  t.classList.toggle('top', top);
   t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t!.classList.remove('show'), 3500);

@@ -659,9 +659,9 @@ function startRoom(code: string, name: string) {
         const { left, back } = seatChanges(prev, room);
         for (const p of left) {
           const lvl = SKILL_NAME[botLevel(p, room) ?? room.opts.difficulty];
-          toast(t(`${p.name} saiu da partida · um bot ${lvl} joga no lugar até voltar`, `${p.name} left the match · a ${lvl} bot plays in their place until they return`));
+          toast(t(`${p.name} saiu da partida · um bot ${lvl} joga no lugar até voltar`, `${p.name} left the match · a ${lvl} bot plays in their place until they return`), 'info', true);
         }
-        for (const p of back) toast(t(`${p.name} voltou para a partida`, `${p.name} is back in the match`), 'good');
+        for (const p of back) toast(t(`${p.name} voltou para a partida`, `${p.name} is back in the match`), 'good', true);
       }
       // compra na loja: o ouro caiu → som de moedas
       if (prev?.phase === 'shop' && room.phase === 'shop') {
