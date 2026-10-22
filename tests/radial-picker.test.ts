@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { assignTauntSlot, radialHold, radialIndex, tauntWheelSlots } from '../src/client/taunt-wheel.ts';
+import { radialHold, radialIndex } from '../src/client/taunt-wheel.ts';
+import { TAUNTS } from '../src/shared/taunts.ts';
 
 describe('seletor radial', () => {
   it('segura a tecla e confirma somente uma vez ao soltá-la, ignorando repetição e outras teclas', () => {
@@ -22,25 +23,12 @@ describe('seletor radial', () => {
     expect(hold.press('KeyP')).toBe(true);
     expect(hold.release('KeyP')).toBe(true);
   });
-  it('configura oito posições únicas e troca as falas que já estavam equipadas', () => {
-    const slots = tauntWheelSlots(null);
-    expect(slots).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
-    expect(assignTauntSlot(slots, 0, 7)).toEqual([7, 1, 2, 3, 4, 5, 6, 0]);
-    expect(assignTauntSlot(slots, 3, 9)).toEqual([0, 1, 2, 9, 4, 5, 6, 7]);
-    expect(assignTauntSlot(slots, 8, 2)).toBe(slots);
-    expect(assignTauntSlot(slots, 1, 100)).toBe(slots);
-  });
-  it('recupera preferências inválidas sem repetir ou enviar índice fora do catálogo', () => {
-    expect(tauntWheelSlots([9, 9, -1, '2', 80])).toEqual([9, 0, 1, 2, 3, 4, 5, 6]);
-    for (let i = 0; i < 8; i++) {
-      const angle = i / 8 * Math.PI * 2;
-      expect(radialIndex(Math.sin(angle), -Math.cos(angle), 8)).toBe(i);
-    }
-  });
-  it('começa em cima e seleciona todos os dez setores no sentido horário', () => {
-    for (let i = 0; i < 10; i++) {
-      const angle = i / 10 * Math.PI * 2;
-      expect(radialIndex(Math.sin(angle), -Math.cos(angle), 10)).toBe(i);
+  it('começa em cima e alcança todas as provocações do catálogo no sentido horário', () => {
+    for (const count of [8, 10, TAUNTS.length]) {
+      for (let i = 0; i < count; i++) {
+        const angle = i / count * Math.PI * 2;
+        expect(radialIndex(Math.sin(angle), -Math.cos(angle), count)).toBe(i);
+      }
     }
   });
   it('mantém o centro neutro e recusa catálogo vazio', () => {
