@@ -472,6 +472,10 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
 .hpbar { position: relative; width: min(280px, 62vw); height: 18px; border-radius: var(--r-xs); background: rgba(0, 0, 0, .75); border: 2px solid var(--bronze); box-shadow: inset 0 0 0 1px var(--panel-bot), 0 0 0 1px var(--gold-faint), var(--shadow-sm); overflow: hidden; }
 .hpbar > i { display: block; height: 100%; background: linear-gradient(180deg, var(--red), var(--lava-deep) 60%, var(--lava-dark)); transition: width .15s; }
 .hpbar .hp-text { font-size: .75rem; }
+/* Ascensão: XP fino embaixo da vida, no azul da Febre arcana */
+.hp-col { display: grid; gap: 3px; }
+.xpbar { height: 6px; border-radius: 3px; background: rgba(0, 0, 0, .75); border: 1px solid var(--bronze); overflow: hidden; }
+.xpbar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #3d7bff, #8cbcff); transition: width .2s; }
 .vitals .gold { padding: 0 10px; border-radius: 999px; background: var(--panel-glass); font-size: 1.1rem; text-shadow: var(--text-shadow); }
 /* celular: configurações, som, provocações e ajuda dentro do "⋯" */
 .more-wrap { display: none; }

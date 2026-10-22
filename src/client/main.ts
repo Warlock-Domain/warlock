@@ -1,6 +1,7 @@
 import { inLavaAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
+import { liveLevel } from '../shared/ascension.ts';
 import type { BotSetup, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS } from '../shared/match.ts';
@@ -535,6 +536,7 @@ function startRoom(code: string, name: string) {
   const MULTI_TEXT = ['', '', t('Abate duplo!', 'Double kill!'), t('Abate triplo!', 'Triple kill!'), t('Massacre!', 'Ultra kill!')];
   const SPREE_TEXT: Record<number, string> = { 3: t('Matança', 'Killing Spree'), 5: t('Fúria assassina', 'Rampage'), 7: t('sequência Imparável', 'Unstoppable streak'), 10: t('sequência Lendária', 'Legendary streak') };
   let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
+  let aliveT = 0; // Ascensão: segundos que eu fiquei vivo na rodada (XP ao vivo)
   function onEvents(events: SimEvent[]) {
     const pos = myWizard(interp.latest())?.pos;
     const near = (x: number, y: number) => (pos ? Math.max(0.25, 1 - dist(pos, { x, y }) / 20) : 0.6);
@@ -712,6 +714,7 @@ function startRoom(code: string, name: string) {
     sound.duck(room.phase === 'shop');
     if (room.phase === 'countdown') {
       live = {};
+      aliveT = 0;
       view.live(live);
       interp.reset();
       predict.reset();
@@ -762,6 +765,9 @@ function startRoom(code: string, name: string) {
     const meW = room?.phase === 'playing' ? myWizard(latest) : null;
     const meP = room?.players.find((p) => p.id === me);
     const meMax = HP_MAX + (meP ? itemStats(meP.items).hp : 0);
+    // Ascensão: XP ao vivo para a barra embaixo da vida (segundos vivo contam até a queda)
+    if (meW?.alive && s) aliveT = s.time;
+    const xp = meP?.asc && meW?.alive ? liveLevel(meP.asc.xp, live[me]?.dmg ?? 0, live[me]?.kills ?? 0, aliveT) : null;
     const low = !!meW?.alive && !!meP && meW.hp < 0.25 * meMax;
     const lava = !!meW?.alive && !!latest && inLavaAt(arenaId, latest.arenaR, latest.isles, meW.pos);
     view.danger(low, lava);
@@ -836,7 +842,7 @@ function startRoom(code: string, name: string) {
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
     view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
-      wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx); // caídos na rodada: retrato apagado no topo
+      wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx, xp); // caídos na rodada: retrato apagado no topo
   }
   const drawn = new Map<string, Vec>();
   const replayDrawn = new Map<string, Vec>();

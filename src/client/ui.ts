@@ -1062,7 +1062,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const hpText = el('span', { class: 'hp-text' });
   const hpBar = el('div', { class: 'hpbar', role: 'img' }, hpFill, hpText);
   const goldNow = el('span', { class: 'gold' });
-  const vitals = el('div', { class: 'vitals', hidden: true }, hpBar, goldNow); // vida só jogando e vivo
+  // Ascensão: barra fina de XP embaixo da vida, que enche a cada golpe (Fernando, 21/10)
+  const xpFill = el('i', {});
+  const xpBar = el('div', { class: 'xpbar', role: 'img', hidden: true }, xpFill);
+  const vitals = el('div', { class: 'vitals', hidden: true }, el('div', { class: 'hp-col' }, hpBar, xpBar), goldNow); // vida só jogando e vivo
   const heroFace = el('img', { class: 'hero-face', alt: '', width: 72, height: 84 });
   const hero = el('div', { class: 'hero-box' }, heroFace, vitals);
   const barWrap = el('div', { class: 'barwrap' }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, bar, itemGrid)));
@@ -1710,7 +1713,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // a cada quadro: recargas, magia escolhida e o relógio da fase
     // hp: minha vida e o máximo, só jogando e vivo (null esconde a barra grande); dead: ids caídos na rodada, separados por vírgula
     // fx: pares [bit, segundos que faltam] dos meus efeitos com prazo (snap.fx)
-    frame(cd: number[], icd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '', fx: number[] = []) {
+    // xp: Ascensão, nível e XP ao vivo (liveLevel); null fora do modo
+    frame(cd: number[], icd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '', fx: number[] = [], xp: { level: number; total: number; next: number; frac: number } | null = null) {
       if (dead !== shownDead) {
         shownDead = dead;
         const down = new Set(dead.split(','));
@@ -1742,6 +1746,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         hpText.textContent = hpLabel;
         hpBar.setAttribute('aria-label', t(`Vida ${hpLabel}`, `Health ${hpLabel}`));
         hpFill.style.width = `${Math.max(0, Math.min(100, (hp.now / hp.max) * 100))}%`;
+      }
+      xpBar.hidden = !xp;
+      const xpLabel = xp ? t(`Nível ${xp.level} · ${xp.total} de ${xp.next} XP`, `Level ${xp.level} · ${xp.total} of ${xp.next} XP`) : '';
+      if (xp && xpBar.title !== xpLabel) {
+        xpBar.title = xpLabel;
+        xpBar.setAttribute('aria-label', xpLabel);
+        xpFill.style.width = `${(xp.frac * 100).toFixed(1)}%`;
       }
       // recarga de cada botão (itens ativos e magias): número, varredura circular (--cd: fração que falta) e a marca da escolhida
       const tick = (a: string, { b, cd: c }: { b: HTMLElement; cd: HTMLElement }, left = 0) => {
