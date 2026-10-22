@@ -1423,6 +1423,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const saved = readPresets(store.get(PRESETS_KEY));
       // magias pela ordem da barra e depois itens: o mesmo conteúdo vira os ícones da linha e os nomes da dica
       const parts = (p: Preset) => [...p.order.filter((s): s is SpellId => !!s).map((s) => [icon(ICON[s]), spellName(s)] as const), ...ITEM_IDS.filter((x) => p.items[x]).map((x) => [icon(ITEM_ICON[x]), itemName(x)] as const)];
+      const saves: HTMLElement[] = []; // botões Salvar das 3 posições: armar ou salvar uma volta as outras para "Salvar"
+      const disarm = () => saves.forEach((b) => (b.textContent = t('Salvar', 'Save')));
       const row = (i: number) => {
         // dica com os nomes: só os ícones não dizem o que a build guarda
         const icons = withTip(el('span', { class: 'build-icons' }), () => (saved[i] ? parts(saved[i]!).map(([, name]) => name).join(' · ') : t('Posição vazia: Salvar guarda o que você tem agora', 'Empty slot: Save stores what you have now')));
@@ -1443,6 +1445,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         const save = el('button', { type: 'button', 'aria-label': t(`Salvar na build ${i + 1}`, `Save to build ${i + 1}`), onclick: () => {
           if (saved[i] && armedBuild !== i) {
             armedBuild = i;
+            disarm();
             save.textContent = t('Substituir?', 'Replace?');
             return;
           }
@@ -1451,8 +1454,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           show(saved[i]);
           use.disabled = false;
           armedBuild = null;
-          save.textContent = t('Salvar', 'Save');
+          disarm();
         } }, armedBuild === i ? t('Substituir?', 'Replace?') : t('Salvar', 'Save'));
+        saves.push(save);
         return el('div', { class: 'keys-row' }, icons, el('span', { class: 'build-acts' }, use, save));
       };
       return el('details', { class: 'sheet-box', open: buildsOpen, ontoggle: (e: Event) => (buildsOpen = (e.target as HTMLDetailsElement).open) },
