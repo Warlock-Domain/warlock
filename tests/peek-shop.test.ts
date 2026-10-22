@@ -20,16 +20,16 @@ describe('loja só para ver no meio da rodada', () => {
     expect(p.spells.homing).toBe(0);
   });
 
-  it('a tecla da loja (4) não lança nada nos dois modos; dada a uma magia, as duas trocam (a loja virou atalho trocável)', () => {
+  it('a tecla da loja (6, desde 21/10: o 4 é da magia 4) não lança nada nos dois modos; dada a uma magia, as duas trocam (a loja virou atalho trocável)', () => {
     resetKeys();
-    expect(keyOf('shop')).toBe('Digit4');
+    expect(keyOf('shop')).toBe('Digit6');
     setSlotMode(false);
-    expect(actionFor('Digit4')).toBeUndefined();
+    expect(actionFor('Digit6')).toBeUndefined();
     setSlotMode(true);
-    expect(actionFor('Digit4')).toBeUndefined();
+    expect(actionFor('Digit6')).toBeUndefined();
     setSlotMode(false);
-    expect(setKey('lightning', 'Digit4')).toBe(true);
-    expect([keyOf('lightning'), keyOf('shop')]).toEqual(['Digit4', 'KeyW']);
+    expect(setKey('lightning', 'Digit6')).toBe(true);
+    expect([keyOf('lightning'), keyOf('shop')]).toEqual(['Digit6', 'KeyW']);
     resetKeys();
   });
 });

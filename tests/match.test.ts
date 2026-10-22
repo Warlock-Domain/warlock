@@ -338,10 +338,10 @@ describe('treino: magias dos bots', () => {
     const bot = (n: number) => m.players.find((p) => p.id === 'bot-' + n)!;
     const want = { ...noSpells(), fireball: 0, lightning: 3, shield: 7 };
     expect(bot(1).spells).toEqual(want);
-    expect(bot(1).items).toEqual({ ...noItems(), scourge: 1 });
+    expect(bot(1).items).toEqual(noItems());
     expect(bot(1).gold).toBe(START_GOLD); // não gastou nada
     expect(bot(3).spells).toEqual(noSpells());
-    expect(bot(3).items).toEqual({ ...noItems(), scourge: 1, armor: 2 });
+    expect(bot(3).items).toEqual({ ...noItems(), armor: 2 });
     let now = toPlaying(m, 0);
     expect(m.world!.wizards.find((z) => z.id === 'bot-1')!.spells).toEqual(want);
     // a rodada sai marcada na telemetria

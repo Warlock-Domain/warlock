@@ -128,11 +128,10 @@ export class Room extends DurableObject<Env> {
       case 'move':
       case 'stop':
       case 'cast':
-      case 'item':
         // comandos de jogo só valem com a rodada rolando (fora dela a fila cresceria sem limite)
         if (m.phase !== 'playing') return;
         this.cmds.push(msg.t === 'move' ? { id, kind: 'move', to: v(msg.x, msg.y) } : msg.t === 'stop' ? { id, kind: 'stop' }
-          : msg.t === 'cast' ? { id, kind: 'cast', spell: msg.spell, at: v(msg.x, msg.y) } : { id, kind: 'item', item: msg.item, at: v(msg.x, msg.y) });
+          : { id, kind: 'cast', spell: msg.spell, at: v(msg.x, msg.y) });
         this.acks.set(id, msg.seq);
         return;
       case 'start':

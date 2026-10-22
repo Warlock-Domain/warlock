@@ -9,7 +9,7 @@ Jogo no ar: https://warlock.fernandorffdev.com · remake web do mod **Warlock** 
 ```
 src/shared/   lógica do jogo, roda igual no servidor e no navegador
   sim.ts        simulação (60 passos/s): magos, projéteis, lava, obstáculos, ilhas, runas
-  spells.ts     as 25 magias (níveis, recarga, dano, empurrão); items.ts os itens
+  spells.ts     as 27 magias (níveis, recarga, dano, empurrão); items.ts os itens (só passivos)
   bots.ts       bots (BOT_SKILL por dificuldade, decisão a cada pensamento)
   match.ts      partida: fases, loja, ouro, rodadas, votações, estatísticas
   ascension.ts  modo Ascensão: XP, cartas, pontos por queda, recuperação (match.ts chama atrás de m.asc)
@@ -50,7 +50,7 @@ npx vite build                      # build do cliente (dist/)
 ## Decisões de produto (não desfazer sem combinar numa issue)
 
 - Menu principal em barra (issue #83): logo W do ícone da aba (leva ao Início) · Jogar · Aprender · Guarda-roupas · Loja (vitrine, sem preço nem compra) · Perfil, com Configurações e Sair como ícones. Menus enxutos.
-- Loja em grade com o nome dentro do ícone e preço com moeda; cores por grupo (Ataque vermelho-laranja, Mobilidade verde, Defesa azul, Controle roxo, Itens prateado); 10 magias de ataque e 5 de cada outro grupo.
+- Loja em grade com o nome dentro do ícone e preço com moeda; cores por grupo (Ataque vermelho-laranja, Mobilidade verde, Defesa azul, Controle roxo, Itens prateado); 12 magias de ataque (com Flagelo e Pacto, 21/10) e 5 de cada outro grupo.
 - Sala sem opção de ritmo nem de morte súbita (sempre ligada); dificuldade escolhida bot a bot.
 - Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3; o monte dá 3 a 5 de ouro. Escudo com recarga de 16 s. Drenar só muda depois de partidas reais. Ataques fortes e raros (não encurtar recargas).
 - Recusados: ranking/perfil e itens que só ajudam uma magia específica.
@@ -151,6 +151,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 21/10 | **Barra do personagem nas cartas do Ascensão**: como na loja (PR #200), fica embaixo no PC (a partir de 1100×600) para arrastar as magias entre as teclas enquanto escolhe; o painel das cartas termina acima dela (`--bar-space`) | "deixe a barra de personagem disponivel la embaixo para trocar as keybinds durante as escolhas das magias e no modo normal tbm" |
 | 21/10 | **Febre arcana** (só no Ascensão): o efeito de rodada Febre do ouro vira Febre arcana, com +50% no XP da rodada (o mesmo `ROUND_EFFECTS.gold`) e o visual azul em vez de dourado; nos outros modos a Febre do ouro segue igual | "no ascension o gold rush deve ser substituido por arcane rush q da 50% mais xp e com o msm efeito so q azul", "mas a febre arcana so funfa no ascencion" |
 | 21/10 | **Ascensão é uma opção própria no menu Jogar**, não um modo da escolha da sala: "Criar sala do Ascensão" cria a sala presa ao modo (`POST /api/rooms?modo=ascensao`); sala normal nunca vira Ascensão e a do Ascensão não troca de modo por votação | "coloque ela nao como um modo de jogo do principal mas como uma nova opcao no menu jogar para nao se confundir com os outros modos de shop livre" |
+| 21/10 | **8 magias e sem itens ativos** (issue #217): 8 vagas de magia nas teclas **1 2 3 4 Q W E R** pela ordem da barra (padrão; a barra fica em 2 fileiras, 1 2 3 4 em cima e Q W E R embaixo); o controle usa A B X Y LB RB LT RT. **Flagelo** vira magia inicial de graça, como a Bola de fogo (nível 1 com os números do item, 7 níveis) e, ao explodir, **acaba o empurrão que o próprio mago está sofrendo**; **Pacto** vira magia comprável; o **Redirecionador** sai (o Magnetizar já faz esse papel). Os dois entram no grupo Ataque (12 de ataque). Itens agora só passivos; a Loja só para ver passa para a tecla 6. A fusão de itens (#218) e os upgrades de item em 3 níveis (#227) ficam para depois. Bug junto (issue #226): comprar magia nova não troca mais a tecla das que você já tem | "EXECUTE A ISSUE PARA REMOVER ITENS ATIVÁVEIS E TRANSFORMAR PACTO E FLAGELO EM SKILL E AUMENTAR O NÚMERO DE SKILLS PARA 8 USANDO 1 2 3 4 Q W E R"; "O FLAGELO VAI SER SKILL INICIAL TIPO A BOLA DE FOGO E ELA DEVE CANCELAR KNOCKBACK QUANDO O PERSONAGEM EXPLODE"; "a barra de magias vai ser 1 em cima da outra por padrao ... 1 2 3 4 e Q W E R em baixo"; misturar comandos de MMO e de MOBA |
 
 ## Fluxo com agente
 

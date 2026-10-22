@@ -1,11 +1,10 @@
-// Teclas de cada magia, item ativo e atalho da interface, trocáveis pelo jogador (guardadas no navegador), e os botões do controle.
-import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
-import { SPELL_IDS, isSpell, type SpellId } from '../shared/spells.ts';
+// Teclas de cada magia e atalho da interface, trocáveis pelo jogador (guardadas no navegador), e os botões do controle.
+import { SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { t } from './i18n.ts';
 import { store } from './store.ts';
 
-export type Action = SpellId | ItemId;
-export const ACTIONS: Action[] = [...SPELL_IDS, ...ACTIVE_ITEMS];
+export type Action = SpellId;
+export const ACTIONS: Action[] = [...SPELL_IDS];
 // atalhos da interface (pedido do Fernando, 18/10): trocáveis no mesmo painel das magias; o Votar começa sem tecla
 export const UI_ACTIONS = ['shop', 'board', 'sheet', 'taunt', 'rules', 'library', 'stop', 'vote', 'replay'] as const;
 export type UiAction = (typeof UI_ACTIONS)[number];
@@ -16,12 +15,13 @@ const DEFAULTS: Record<string, string> = {
   fireball: 'KeyQ', lightning: 'KeyW', homing: 'KeyE', shield: 'KeyR', teleport: 'KeyF',
   cluster: 'KeyT', swap: 'KeyD', grip: 'KeyG', rush: 'KeyC', meteor: 'KeyV',
   boomerang: 'KeyB', thrust: 'KeyX', gravity: 'KeyH', rockpillar: 'KeyZ', bouncer: 'KeyA',
-  // as dez últimas: sobraram 9 letras livres; a Zona de dobra fica sem tecla padrão (modo Q W E R D F ou painel de teclas)
+  // as dez últimas: sobraram 9 letras livres; a Zona de dobra fica sem tecla padrão (teclas por posição ou painel de teclas)
   drain: 'KeyN', snowball: 'KeyO', illusion: 'KeyJ', magnetize: 'KeyM', recharge: 'KeyK', alteration: 'KeyL', link: 'KeyU', windwalk: 'KeyI', splitter: 'KeyP', warpzone: '',
-  scourge: 'Digit1', redirector: 'Digit2', pact: 'Digit3',
-  // loja: o B do Dota é do Bumerangue e as 26 letras já têm dono, então o 4; ficha: a tecla à esquerda do 1 (' no ABNT2);
-  // grimório no F1 (o H é da Gravidade) e a biblioteca de magias e itens no F2
-  shop: 'Digit4', board: 'Tab', sheet: 'Backquote', taunt: 'KeyY', rules: 'F1', library: 'F2', stop: 'KeyS', vote: '', replay: 'Digit5',
+  // Flagelo e Pacto ficam nas teclas que tinham como item (viraram magia em 21/10, #217)
+  scourge: 'Digit1', pact: 'Digit3',
+  // loja: o B do Dota é do Bumerangue e as 26 letras já têm dono; 1 a 4 são das magias por posição (21/10, #217), então o 6
+  // (o 5 já era do Rever a queda); ficha: a tecla à esquerda do 1 (' no ABNT2); grimório no F1 (o H é da Gravidade) e a biblioteca no F2
+  shop: 'Digit6', board: 'Tab', sheet: 'Backquote', taunt: 'KeyY', rules: 'F1', library: 'F2', stop: 'KeyS', vote: '', replay: 'Digit5',
 };
 // fixas: Esc (cancela, fecha e abre as configurações), Enter, Espaço (segurar arrasta a câmera, soltar centraliza) e ← → (placar e espectador)
 export const RESERVED = new Set(['Escape', 'Enter', 'Space', 'ArrowLeft', 'ArrowRight']);
@@ -32,7 +32,7 @@ for (const [a, code] of Object.entries(store.json<Record<string, string>>(STORE)
 
 const listeners: (() => void)[] = [];
 const notify = () => listeners.forEach((f) => f());
-// trocar uma tecla fixa o modo em uso (Q W E R D F ou não): quem personalizou não muda de modo sozinho ao recarregar
+// trocar uma tecla fixa o modo em uso (teclas por posição ou não): quem personalizou não muda de modo sozinho ao recarregar
 const save = () => {
   store.set(STORE, JSON.stringify(map));
   store.set(POS_STORE, JSON.stringify(posMap));
@@ -40,35 +40,37 @@ const save = () => {
   notify();
 };
 
-// modo Q W E R D F (como no Dota; pedido do Fernando, 17/10): as magias e os itens ativos usam a tecla da posição na barra.
-// As posições são trocáveis (Fernando, 20/10): Magia 1 a 6 (Q W E R D F) e Item 1 a 3 (1 2 3), com os nomes das do controle.
-export const POS_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'item1', 'item2', 'item3'] as const;
+// teclas por posição (como no Dota; pedido do Fernando, 17/10): as magias usam a tecla da posição na barra.
+// 8 posições em 1 2 3 4 Q W E R, misturando MMO e MOBA (Fernando, 21/10, #217; antes Magia 1 a 6 em Q W E R D F e Item 1 a 3 em 1 2 3),
+// trocáveis (20/10), com os nomes das do controle.
+export const POS_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8'] as const;
 export type PosAction = (typeof POS_ACTIONS)[number];
-const POS_DEFAULTS: Record<PosAction, string> = { slot1: 'KeyQ', slot2: 'KeyW', slot3: 'KeyE', slot4: 'KeyR', slot5: 'KeyD', slot6: 'KeyF', item1: 'Digit1', item2: 'Digit2', item3: 'Digit3' };
+const POS_DEFAULTS: Record<PosAction, string> = { slot1: 'Digit1', slot2: 'Digit2', slot3: 'Digit3', slot4: 'Digit4', slot5: 'KeyQ', slot6: 'KeyW', slot7: 'KeyE', slot8: 'KeyR' };
 export const isPos = (a: AnyAction): a is PosAction => a in POS_DEFAULTS;
-const POS_STORE = 'warlock:poskeys';
+// chave nova em 21/10: as posições salvas do jeito antigo (Q W E R nas 4 primeiras) repetiriam teclas com as 8 novas
+const POS_STORE = 'warlock:poskeys8';
 let posMap: Record<PosAction, string> = { ...POS_DEFAULTS };
 for (const [a, code] of Object.entries(store.json<Record<string, string>>(POS_STORE) ?? {})) if (a in POS_DEFAULTS && typeof code === 'string' && !RESERVED.has(code)) posMap[a as PosAction] = code;
 const SLOT_STORE = 'warlock:slotkeys';
-// ligado por padrão (Fernando, 20/10), menos para quem já tem teclas salvas: o modo ignoraria as teclas das magias e prenderia Q W E R D F
+// ligado por padrão (Fernando, 20/10), menos para quem já tem teclas salvas: o modo ignoraria as teclas das magias e prenderia as teclas das posições
 let slotMode = (store.get(SLOT_STORE) ?? (store.get(STORE) ? '0' : '1')) === '1';
+// atalho salvo antes de 21/10 numa tecla que agora é de posição (a Loja no 4): volta ao padrão, senão a tecla abriria a loja e lançaria a magia;
+// sem as teclas por posição nada colide, e o atalho fica onde a pessoa pôs
+if (slotMode) for (const u of UI_ACTIONS) if (Object.values(posMap).includes(map[u])) map[u] = DEFAULTS[u];
 let slots: (SpellId | null)[] = [];
-let itemSlots: (ItemId | null)[] = [];
 export const isSlotMode = () => slotMode;
 export function setSlotMode(on: boolean) {
   slotMode = on;
   store.set(SLOT_STORE, on ? '1' : '0');
   notify();
 }
-// magias e itens ativos na ordem da barra (a interface avisa quando muda)
-export function setSlots(next: (SpellId | null)[], items: (ItemId | null)[] = []) {
-  if (next.join() === slots.join() && items.join() === itemSlots.join()) return;
+// magias na ordem da barra (a interface avisa quando muda)
+export function setSlots(next: (SpellId | null)[]) {
+  if (next.join() === slots.join()) return;
   slots = next;
-  itemSlots = items;
   if (slotMode || pad) notify();
 }
 export const slotSpell = (i: number): SpellId | undefined => slots[i] ?? undefined;
-export const slotItem = (i: number): ItemId | undefined => itemSlots[i] ?? undefined;
 
 // jeito de lançar pela tecla no PC (decisão do Fernando, 18/10; os três do Dota), guardado no navegador:
 // quick = lança na hora (padrão, como sempre foi); release = segurar mostra o alcance, soltar lança;
@@ -86,18 +88,18 @@ export function setCastMode(m: CastMode) {
 }
 
 // controle (gamepad): botão de cada ação, trocável na aba Controle das configurações (pedido do Fernando, 18/10).
-// Padrão: A B X Y LB RB pela ordem da barra; LT, RT e ↑ itens 1 a 3; L3 ficha; View placar; ↓ loja; R3 câmera.
+// Padrão: A B X Y LB RB LT RT pela ordem da barra (8 magias desde 21/10); L3 ficha; View placar; ↓ loja; R3 câmera.
 // Start fica fora: é o Esc do controle. Índices do mapeamento padrão da Gamepad API (PlayStation nas mesmas posições).
 export const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Start', 'L3', 'R3', '↑', '↓', '←', '→'];
 export const PAD_NAMES_PS = ['✕', '○', '□', '△', 'L1', 'R1', 'L2', 'R2', 'Share', 'Options', 'L3', 'R3', '↑', '↓', '←', '→'];
 export const PAD_START = 9;
 // nome do botão nas duas famílias ("A / ✕"); L3, R3 e o D-pad são iguais
 export const padButtonName = (b: number, open = ' / ', close = '') => (PAD_NAMES[b] === PAD_NAMES_PS[b] ? PAD_NAMES[b] : PAD_NAMES[b] + open + PAD_NAMES_PS[b] + close);
-export const PAD_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'item1', 'item2', 'item3', 'sheet', 'board', 'shop', 'center'] as const;
+export const PAD_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'sheet', 'board', 'shop', 'center'] as const;
 export type PadAction = (typeof PAD_ACTIONS)[number];
-const PAD_DEFAULTS: Record<PadAction, number> = { slot1: 0, slot2: 1, slot3: 2, slot4: 3, slot5: 4, slot6: 5, item1: 6, item2: 7, item3: 12, sheet: 10, board: 8, shop: 13, center: 11 };
+const PAD_DEFAULTS: Record<PadAction, number> = { slot1: 0, slot2: 1, slot3: 2, slot4: 3, slot5: 4, slot6: 5, slot7: 6, slot8: 7, sheet: 10, board: 8, shop: 13, center: 11 };
 export const PAD_ACTION_NAMES: Record<PadAction, string> = { slot1: t('Magia 1', 'Spell 1'), slot2: t('Magia 2', 'Spell 2'), slot3: t('Magia 3', 'Spell 3'), slot4: t('Magia 4', 'Spell 4'), slot5: t('Magia 5', 'Spell 5'), slot6: t('Magia 6', 'Spell 6'),
-  item1: 'Item 1', item2: 'Item 2', item3: 'Item 3', sheet: t('Ficha do mago', 'Wizard sheet'), board: t('Placar (segurar)', 'Scoreboard (hold)'), shop: t('Loja só para ver', 'Shop (view only)'), center: t('Centralizar a câmera', 'Center the camera') };
+  slot7: t('Magia 7', 'Spell 7'), slot8: t('Magia 8', 'Spell 8'), sheet: t('Ficha do mago', 'Wizard sheet'), board: t('Placar (segurar)', 'Scoreboard (hold)'), shop: t('Loja só para ver', 'Shop (view only)'), center: t('Centralizar a câmera', 'Center the camera') };
 const PAD_STORE = 'warlock:pad';
 let padMap: Record<PadAction, number> = { ...PAD_DEFAULTS };
 for (const [a, b] of Object.entries(store.json<Record<string, number>>(PAD_STORE) ?? {})) if (a in PAD_DEFAULTS && Number.isInteger(b) && b >= 0 && b < PAD_NAMES.length && b !== PAD_START) padMap[a as PadAction] = b;
@@ -130,15 +132,15 @@ export function setPadMode(on: boolean) {
   notify();
 }
 const padLabel = (a: Action) => {
-  const i = isSpell(a) ? slots.indexOf(a) : itemSlots.indexOf(a);
-  return i < 0 ? '—' : PAD_NAMES[padMap[`${isSpell(a) ? 'slot' : 'item'}${i + 1}` as PadAction]];
+  const i = slots.indexOf(a);
+  return i < 0 ? '—' : PAD_NAMES[padMap[`slot${i + 1}` as PadAction]];
 };
 
 const isUi = (a: AnyAction): a is UiAction => (UI_ACTIONS as readonly string[]).includes(a);
-// posição da magia ou do item na barra (sem posição: ainda não comprou, ou passou das posições que existem)
+// posição da magia na barra (sem posição: ainda não comprou, ou passou das posições que existem)
 const posOf = (a: Action): PosAction | undefined => {
-  const i = isSpell(a) ? slots.indexOf(a) : itemSlots.indexOf(a);
-  const p = `${isSpell(a) ? 'slot' : 'item'}${i + 1}`;
+  const i = slots.indexOf(a);
+  const p = `slot${i + 1}`;
   return i >= 0 && p in POS_DEFAULTS ? (p as PosAction) : undefined;
 };
 export const keyOf = (a: AnyAction): string => {
@@ -149,13 +151,13 @@ export const keyOf = (a: AnyAction): string => {
 };
 // a tecla apertada é a do atalho da interface? (sem tecla nunca casa)
 export const isUiKey = (code: string, a: UiAction) => !!code && map[a] === code;
-// só magias e itens: os atalhos da interface nunca lançam nada
+// só magias: os atalhos da interface nunca lançam nada
 export const actionFor = (code: string): Action | undefined => {
   if (!slotMode) return ACTIONS.find((a) => map[a] === code) as Action | undefined;
   const p = code ? POS_ACTIONS.find((q) => posMap[q] === code) : undefined;
   if (!p) return undefined;
   const i = Number(p.slice(4)) - 1;
-  return (p.startsWith('slot') ? slots[i] : itemSlots[i]) ?? undefined;
+  return slots[i] ?? undefined;
 };
 export const onKeysChange = (f: () => void) => listeners.push(f);
 
@@ -173,7 +175,7 @@ export const labelOf = (a: Action) => (pad ? padLabel(a) : keyLabel(keyOf(a)));
 // rótulo do atalho da interface, para dicas e textos de ajuda
 export const uiLabel = (a: UiAction) => keyLabel(map[a]);
 
-// quem usa a tecla agora: no modo Q W E R D F, as posições e os atalhos; fora dele, as magias, os itens e os atalhos
+// quem usa a tecla agora: com as teclas por posição, as posições e os atalhos; fora delas, as magias e os atalhos
 export function whoUses(code: string): AnyAction | undefined {
   if (!code) return undefined;
   if (slotMode) return POS_ACTIONS.find((p) => posMap[p] === code) ?? UI_ACTIONS.find((u) => map[u] === code);

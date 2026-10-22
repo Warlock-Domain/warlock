@@ -4,7 +4,7 @@ import { ascOf, type Card, type Choice, type Kind } from './ascension.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type RuneKind } from './constants.ts';
-import { ITEM_IDS, isActive, type ItemId } from './items.ts';
+import { ITEM_IDS, type ItemId } from './items.ts';
 import { MODES, OPTION_CHOICES, TURRET_DIR, goalOf, parseOpt, votesNeeded, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
@@ -33,7 +33,6 @@ export type ClientMsg =
   | { t: 'kick'; target: string }
   | { t: 'undo'; key: string }
   | { t: 'sell'; key: string }
-  | { t: 'item'; item: ItemId; x: number; y: number; seq: number }
   | { t: 'vote'; kind: Vote['kind']; target?: string }
   | { t: 'ballot'; yes: boolean }
   | { t: 'taunt'; i: number }
@@ -77,14 +76,14 @@ export type PublicRoom = {
 
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits de estado (ver encodeSnap)
 // p: 6 números por projétil: id, tipo (índice em PROJ_KINDS), x, y, vx, vy (Meteoro/Agarrar/Zona: raio e segundos restantes)
-// cd: recarga restante das magias de quem recebe, na ordem de SPELL_IDS; icd: dos 3 itens ativos (ACTIVE_ITEMS);
+// cd: recarga restante das magias de quem recebe, na ordem de SPELL_IDS;
 // ch: montes de ouro dos baús (3 números por monte: x, y, quanto falta); lp: progresso de cada mago (0 a 1) até o próximo ouro do monte, na ordem de room.ids
 // pl: 4 números por obstáculo: x, y, vida em % (0 = quebrado), tipo (índice em OBSTACLE_KINDS)
 // rs: só no deathmatch, 1 número por mago na ordem de room.ids: segundos até voltar (0 = vivo)
 // sp: velocidade de andar dele agora (botas, lentidão), para a previsão; ack: último seq aplicado dele
 // fx: efeitos com prazo de quem recebe, 2 números por efeito: bit de estado (como em w) e segundos que faltam
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
-export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; icd: number[]; sp: number; pl: number[]; rs?: number[]; ch?: number[]; lp?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
+export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; rs?: number[]; ch?: number[]; lp?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
 
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
 export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
@@ -220,8 +219,6 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return Number.isInteger(m.i) && (m.i as number) >= 0 && (m.i as number) < TAUNTS.length ? { t: 'taunt', i: m.i as number } : null;
     case 'buyItem':
       return ITEM_IDS.includes(m.item as ItemId) ? { t: 'buyItem', item: m.item as ItemId } : null;
-    case 'item':
-      return isActive(m.item) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'item', item: m.item, x: m.x, y: m.y, seq: m.seq } : null;
     case 'keep':
       return Number.isInteger(m.slot) && (m.slot as number) >= 0 && (m.slot as number) < 20 ? { t: 'keep', slot: m.slot as number } : null;
     case 'card':

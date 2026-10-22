@@ -50,7 +50,6 @@ button.icon.off { opacity: .4; text-decoration: line-through; }
 .gi { width: 1em; height: 1em; flex: none; fill: currentColor; vertical-align: -.14em; }
 button.icon .gi { font-size: 1.3rem; vertical-align: middle; }
 .spell .ico { display: flex; color: var(--ember); }
-.spell.item .ico { color: var(--gold-pale); }
 .vol { position: relative; }
 .vol-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 6; background: var(--plate); border: 1px solid var(--gold-line); border-radius: var(--r-md); padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 240px; box-shadow: var(--plate-edge), var(--shadow-md); max-height: calc(100vh - 64px - var(--safe-t) - var(--safe-b)); max-height: calc(100dvh - 64px - var(--safe-t) - var(--safe-b)); overflow-y: auto; }
 .vol-row { display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 8px; font-size: .9rem; }
@@ -182,12 +181,12 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
   /* a vida some na contagem e morto: o lugar fica, para a barra não pular */
   .hero-box .vitals[hidden] { display: flex !important; visibility: hidden; }
   .hero-box .vitals { flex-direction: column; align-items: stretch; gap: 6px; }
+  /* 8 magias em 2 fileiras: 1 2 3 4 em cima e Q W E R embaixo (Fernando, 21/10, #217) */
+  .spellbar { display: grid; grid-template-columns: repeat(4, auto); }
   .hero-box .hpbar { width: 190px; height: 22px; }
   .hero-box .hpbar .hp-text { font-size: .85rem; }
   .item-grid .spell { width: 42px; height: 42px; border-radius: var(--r-sm); }
   .item-grid .spell .ico { font-size: 1.25rem; }
-  .item-grid .spell .key { left: 2px; top: 1px; padding: 0 3px; font-size: .65rem; }
-  .item-grid .spell .cd { font-size: .95rem; }
 }
 .spell { position: relative; width: 64px; height: 64px; min-height: 0; padding: 0; flex-direction: column; gap: 0; border-radius: var(--r-md); background: var(--plate); border: 2px solid var(--bronze); box-shadow: inset 0 0 0 2px var(--panel-bot), inset 0 0 0 3px var(--gold-faint); overflow: hidden; touch-action: manipulation; }
 .spell .ico { font-size: 1.6rem; line-height: 1; }
@@ -892,9 +891,6 @@ body.replaying .peek-shop { display: none; }
 .shop-items { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .shop-items .shop-head h3 { color: var(--item); }
 .shop-items .shop-group .shop-head { border-bottom-color: var(--item-line); }
-/* na barra da partida, os itens também prateados */
-.spellbar .spell.item { border-color: var(--item-line); }
-.spellbar .spell.item .ico { color: var(--item); filter: drop-shadow(0 0 4px rgba(201, 212, 224, .4)); }
 
 /* uma cor por grupo de magia (Fernando, 19/10): Ataque vermelho-laranja, Mobilidade verde, Defesa azul, Controle roxo */
 .g-ataque { --g: #ff6b4a; } .g-mobilidade { --g: #8be36a; } .g-defesa { --g: #5fb0ff; } .g-controle { --g: #c58bff; }

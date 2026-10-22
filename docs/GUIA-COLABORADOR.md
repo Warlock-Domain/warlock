@@ -150,7 +150,7 @@ navegador ──WebSocket──▶ Durable Object (uma sala)
 
 ## Mapa do código
 
-`src/shared`: `sim.ts` (simulação), `spells.ts` (25 magias), `items.ts` (16 itens), `constants.ts` (arena, lava, baús, runas), `match.ts` (fases, loja, ouro, votações), `bots.ts` (`BOT_SKILL` por dificuldade), `protocol.ts` (mensagens e validação), `arena.ts`, `snapshot.ts`, `characters.ts` (9 bonecos e o look de 7 peças), `telemetry.ts`.
+`src/shared`: `sim.ts` (simulação), `spells.ts` (27 magias), `items.ts` (13 itens), `constants.ts` (arena, lava, baús, runas), `match.ts` (fases, loja, ouro, votações), `bots.ts` (`BOT_SKILL` por dificuldade), `protocol.ts` (mensagens e validação), `arena.ts`, `snapshot.ts`, `characters.ts` (9 bonecos e o look de 7 peças), `telemetry.ts`.
 
 `src/client`: `main.ts` (laço), `ui.ts` (menus, sala, loja, barra da partida, placar), `scene.ts` (3D), `style.css`, `i18n.ts`, `rules-text.ts`, `grimoire.ts` e `demo.ts` (grimório e demonstrações), `tips.ts`, `sheet.ts`, `settings.ts`, `keys.ts`, `gamepad.ts`, `avatar.ts` (criador de personagem), `train.ts`, `challenges.ts`, `mimic.ts`, `coach.ts`, `predict.ts`, `interp.ts`, `net.ts`.
 
@@ -259,7 +259,7 @@ Não desfaça sem combinar numa issue.
 - **Mobilidade (5):** Teleporte, Troca, Investida, Estocada, Caminhada no vento
 - **Defesa (5):** Escudo, Alteração, Zona de dobra, Barricada, Ilusão
 - **Controle (5):** Agarrar, Gravidade, Elo, Magnetizar, Drenar
-- **Itens (16):** Anel de vida, Anel amaldiçoado, Capa, Armadura, Botas, Relógio de bolso, Roubo de vida, Botas de lava, Guardião, Elmo, Botas de choque, Égide, Botas de vento, Flagelo (ativo), Redirecionador (ativo), Pacto (ativo)
+- **Itens (13):** Anel de vida, Anel amaldiçoado, Capa, Armadura, Botas, Relógio de bolso, Roubo de vida, Botas de lava, Guardião, Elmo, Botas de choque, Égide, Botas de vento (todos passivos; Flagelo e Pacto viraram magia e o Redirecionador saiu em 21/10, #217)
 
 **Ilusão:** cria uma cópia visível que segue reto na direção do movimento por 2 s. O jogador pode se mover livremente enquanto fica invisível; usar outra magia o revela, sem encerrar a cópia. Jogador e cópia podem ser atingidos; a cópia pode ser empurrada, mas não destruída antes do fim do prazo.
 
