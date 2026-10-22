@@ -29,8 +29,8 @@ const RULES_PT = {
     `As magias saem 0,1 s depois da tecla e o mago fica parado enquanto conjura; saem na hora: ${INSTANT}. O clique de andar dado durante a conjuração vale assim que a magia sai.`,
   ],
   empurrao: [
-    'Cada golpe empurra na direção dele. O número de empurrão das magias é a distância, em metros, que um mago sem dano acumulado desliza.',
-    `Quanto mais dano você já levou na rodada, mais longe voa: +10% de empurrão a cada 100 de dano levado. A lava também soma, pela metade (${pct(LAVA_KB_FACTOR)} do que ela tira).`,
+    'Cada golpe empurra na direção dele. O número de empurrão das magias é a distância, em metros, que um mago sem resistência desliza.',
+    'O dano recebido anteriormente não aumenta o empurrão. A força depende da magia e das resistências; impulsos simultâneos ainda podem se somar.',
     'Deslizando rápido você não consegue andar: espere parar ou use uma magia de movimento.',
     `O abate vai para quem acertou você por último nos ${CREDIT_WINDOW} s antes da morte. Cair sozinho na lava não dá abate a ninguém.`,
     `Lava conta como dano de quem empurrou: metade da vida que a lava tira de quem você acertou nos últimos ${CREDIT_WINDOW} s entra no seu dano (placar, top dano e assistência).`,
@@ -123,7 +123,7 @@ const RULES_PT = {
     'O dano das explosões cai do centro para a borda. O Escudo não segura explosões.',
   ],
   dicas: [
-    'Fique longe da borda: com dano acumulado, um golpe médio já joga você na lava.',
+    'Fique longe da borda: um golpe pode jogar você na lava.',
     'Ande o tempo todo: projéteis vão reto, e quem para de andar vira alvo fácil do Meteoro.',
     `Guarde uma magia de fuga (Teleporte, Investida, Troca) para quando cair na lava: são ${LAVA_DPS} de vida por segundo.`,
     'Prenda (Agarrar, Elo, Bola de neve) e emende a magia mais forte: o golpe que solta o Agarrar empurra mais.',
@@ -147,8 +147,8 @@ const RULES_EN: typeof RULES_PT = {
     `Spells go off 0.1 s after the key and the wizard stands still while casting; these go off instantly: ${INSTANT}. A walk click made during casting takes effect as soon as the spell goes off.`,
   ],
   empurrao: [
-    "Each hit knocks back in the direction it travels. A spell's knockback number is the distance, in meters, that a wizard with no accumulated damage slides.",
-    `The more damage you have taken in the round, the farther you fly: +10% knockback for every 100 damage taken. Lava adds too, at half rate (${pct(LAVA_KB_FACTOR)} of what it takes).`,
+    "Each hit knocks back in the direction it travels. A spell's knockback number is the distance, in meters, that a wizard without resistance slides.",
+    'Previously received damage does not increase knockback. Strength depends on the spell and resistances; simultaneous impulses can still add together.',
     'While sliding fast you cannot walk: wait until you stop or use a movement spell.',
     `The kill goes to whoever hit you last in the ${CREDIT_WINDOW} s before the death. Falling into the lava on your own gives no kill to anyone.`,
     `Lava counts as damage from whoever knocked you in: half of the health the lava takes from someone you hit in the last ${CREDIT_WINDOW} s is added to your damage (scoreboard, top damage and assists).`,
@@ -240,7 +240,7 @@ const RULES_EN: typeof RULES_PT = {
     'Explosion damage falls off from the center to the edge. The Shield does not stop explosions.',
   ],
   dicas: [
-    'Stay away from the edge: with accumulated damage, an average hit already throws you into the lava.',
+    'Stay away from the edge: a hit can throw you into the lava.',
     'Keep moving: projectiles go straight, and anyone who stops walking becomes an easy target for the Meteor.',
     `Keep an escape spell (Teleport, Rush, Swap) for when you fall into the lava: that is ${LAVA_DPS} health per second.`,
     'Pin them down (Grip, Link, Snowball) and follow up with your strongest spell: the hit that releases the Grip knocks back farther.',

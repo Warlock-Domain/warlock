@@ -37,7 +37,8 @@ describe('jeito de jogar', () => {
   // um sorteio a mais na sequência. 21/10 (issue #217): Flagelo e Pacto viram magia, o Redirecionador sai e as compras dos bots mudam
   it('a medição não muda a partida: mesma semente, mesmos eventos de antes', () => {
     const { m, hash } = botMatch(7, 4000);
-    expect(hash).toBe(288817366);
+    // 22/10: fim da amplificação por dano histórico altera intencionalmente as trajetórias.
+    expect(hash).toBe(2659190752);
     // e mediu de verdade nessa mesma partida
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);

@@ -6,7 +6,7 @@ import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo, ServerMsg, Snap } fr
 import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
-import { decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
+import { WALKING_BIT, decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
 import { itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
@@ -874,7 +874,8 @@ function startRoom(code: string, name: string) {
       const status = sandboxVisibility(state.status, w.id === me, !!room?.sandbox, seeInvis);
       const pos = w.id === me && server ? predict.frame(server, dt) : w.pos;
       const prevDraw = prev.get(w.id);
-      const moving = len(state.vel) < STUN_SPEED && state.alive && (!prevDraw || dist(prevDraw, pos) > 0.004);
+      // Só um comando real pode ligar a corrida; empurrão e reconciliação não são caminhada.
+      const moving = !!(state.status & WALKING_BIT) && state.alive && (!prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
       if (live && w.alive && room?.phase === 'playing') aliveAt[w.id] = s.time;
       return { ...state, xp: live && p ? xpOf(p) : null, status, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p && room ? botLevel(p, room) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', place: placeOf(p), shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
