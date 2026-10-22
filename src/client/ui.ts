@@ -720,14 +720,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     specBtn.setAttribute('aria-label', tip);
     specBtn.setAttribute('aria-pressed', String(on));
   }
-  // provocações (taunts): a tecla (Y no padrão) abre a lista e o número escolhe (ou clique); vale na loja e no jogo
+  // provocações (taunts): a tecla (Y no padrão) abre a lista e o número escolhe (ou clique); vale na loja e no jogo.
+  // Só as 10 primeiras têm número (1 a 9 e 0); as gravadas a mais vão por clique
   const sendTaunt = (i: number) => {
     act.taunt(i);
     tauntPanel.hidden = true;
   };
   const tauntTitle = el('b', {}, t('Provocações', 'Taunts'));
   const tauntPanel = el('div', { class: 'vol-panel', hidden: true }, tauntTitle,
-    el('div', { class: 'taunt-list' }, ...TAUNTS.map((x, i) => el('button', { type: 'button', onclick: () => sendTaunt(i) }, `${(i + 1) % 10} · ${t(x.text, x.en)}`))));
+    el('div', { class: 'taunt-list' }, ...TAUNTS.map((x, i) => el('button', { type: 'button', onclick: () => sendTaunt(i) }, i < 10 ? `${(i + 1) % 10} · ${t(x.text, x.en)}` : t(x.text, x.en)))));
   const sheetBtn = iconButton(icon(UI_ICON.sheet), t('Ficha do mago', 'Wizard sheet'), () => toggleSheet(), { 'aria-expanded': 'false' });
   const tauntBtn = iconButton(icon(UI_ICON.taunt), t('Provocações', 'Taunts'), () => toggle(tauntPanel, null), { class: 'icon wide-only' });
   addEventListener('keydown', (e) => {
