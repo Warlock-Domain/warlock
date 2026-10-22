@@ -176,6 +176,7 @@ function applyPicks(m: Match, rand: () => number) {
   const a = m.asc!;
   for (const p of m.players) {
     const offer = a.offer[p.id] ?? [];
+    // 'easy' = sorteio uniforme entre as cartas válidas: é o que a pessoa sem escolha recebe (#224); não trocar por 'normal'
     const how = !p.bot || (p.difficulty ?? m.opts.difficulty) === 'easy' ? 'easy' : 'normal';
     const auto: Card[] = [];
     const order = offer.map((_, slot) => slot).sort((x, y) => Number(a.todo[p.id][x] === 'spell') - Number(a.todo[p.id][y] === 'spell'));

@@ -17,7 +17,8 @@ import { n1 } from './rules-text.ts';
 import { aimOf, hitR, reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
-import { itemName, spellName, t } from './i18n.ts';
+import { t } from './i18n.ts';
+import { cardName } from './ascension-ui.ts';
 import { effectName } from './opt-info.ts';
 import { getCastMode, isPadMode, labelOf, onFreeEsc } from './keys.ts';
 import { openSettings, savedPixel } from './settings.ts';
@@ -713,7 +714,7 @@ function startRoom(code: string, name: string) {
     // Ascensão: o tempo acabou sem a escolha da pessoa e o jogo sorteou (#224)
     const auto = prev?.phase === 'shop' && room.phase === 'countdown' ? room.players.find((p) => p.id === me)?.asc?.auto : null;
     if (auto?.length) {
-      const names = auto.map((c) => (c.kind === 'item' ? itemName(c.id) : c.kind === 'up' ? t(`${spellName(c.id)} +${c.rare ? 2 : 1} nível`, `${spellName(c.id)} +${c.rare ? 2 : 1} level`) : spellName(c.id))).join(', ');
+      const names = auto.map(cardName).join(', ');
       toast(t(`Tempo esgotado: o jogo escolheu por você ${names}.`, `Time's up: the game picked ${names} for you.`));
     }
     if (room.phase === 'countdown') {
