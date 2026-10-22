@@ -303,7 +303,8 @@ export function newWorld(
   return { t: 0, arena, effect: null, mods: NO_MODS, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars, zones: [], loots: [], chestAt: CHEST.first, chestsLeft: Math.min(CHEST.perRound, Math.floor(ids.length / 2) + 1), runes: [], runeAt: RUNE.first, isles, sudden: false, rules: { ...rules }, events: [], lavaCredit: {}, nextId: 1, dm };
 }
 
-export const inLava = (w: World, p: Vec) => !w.map && inLavaAt(w.arena, w.arenaR, w.isles, p);
+// no mapa da Campanha a lava é chão desenhado (^): o mesmo dano, crédito e queima da arena (Lucas, 22/10)
+export const inLava = (w: World, p: Vec) => (w.map ? cellAt(w.map, p.x, p.y) === CELL.lava : inLavaAt(w.arena, w.arenaR, w.isles, p));
 
 // ilhas: com alguém em cima a lava come a borda; vazia, a pedra volta a crescer (menos quando a arena já está sumindo: a rodada tem de acabar)
 function stepIsles(w: World) {
@@ -1793,8 +1794,9 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       continue;
     }
     if (w.map) {
-      if (cellAt(w.map, wz.pos.x, wz.pos.y) === CELL.pit) fall(w, wz);
-      else wz.safe = wz.pos;
+      const c = cellAt(w.map, wz.pos.x, wz.pos.y);
+      if (c === CELL.pit) fall(w, wz);
+      else if (c !== CELL.lava) wz.safe = wz.pos; // quem cai no abismo não volta para dentro da lava
     }
     if (inLava(w, wz.pos)) {
       if (w.t < wz.invulnUntil) continue;

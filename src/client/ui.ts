@@ -959,10 +959,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), specBtn, voteWrap, camBtn, volBtn, gearBtn, helpBtn, el('div', { class: 'vol more-wrap' }, moreBtn, morePanel), el('div', { class: 'vol' }, sbBtn, sbPanel)),
   );
   const center = el('div', { class: 'center' });
-  // fala da Ilse (tutorial da Campanha): nome, a linha e o botão de pular; não pausa nada
+  // fala da Ilse (tutorial da Campanha): nome, a linha e o botão; só o botão tira a fala (o jogador lê no ritmo dele) e
+  // quem chama decide a próxima; não pausa nada
   const ilseText = el('span', { class: 'ilse-text' });
+  let ilseDone: (() => void) | null = null;
   const ilseBox = el('div', { class: 'ilse', role: 'status', hidden: true }, el('b', { class: 'ilse-name' }, 'Ilse'), ilseText,
-    el('button', { type: 'button', class: 'ilse-skip', onclick: () => (ilseBox.hidden = true) }, t('Pular', 'Skip')));
+    el('button', { type: 'button', class: 'ilse-skip', onclick: () => ilseDone?.() }, t('Entendi', 'Got it')));
   // barra do chefe da Campanha, no topo enquanto ele está em pé
   const bossName = el('span', { class: 'boss-name' });
   const bossFill = el('i', {});
@@ -1814,10 +1816,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       setOnline(on);
       if (changed) drawCenter();
     },
-    // fala da Ilse: mostra a linha (null esconde); quem chama decide quanto tempo ela fica
-    ilse(text: string | null) {
+    // fala da Ilse: mostra a linha até o botão (null esconde); done é chamado no clique
+    ilse(text: string | null, done?: () => void) {
+      ilseDone = done ?? null;
       if (!text) return void (ilseBox.hidden = true);
-      ilseText.textContent = text;
+      if (ilseText.textContent !== text || ilseBox.hidden) ilseText.textContent = text;
       ilseBox.hidden = false;
     },
     // a cada quadro: vida do chefe da Campanha (null esconde)

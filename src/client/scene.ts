@@ -725,8 +725,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     wall: new THREE.MeshStandardMaterial({ color: '#6a5d56', roughness: 1 }),
     low: new THREE.MeshStandardMaterial({ color: '#a08a72', roughness: 1 }),
     wax: new THREE.MeshStandardMaterial({ color: '#d9b866', roughness: 0.6, emissive: '#3a2a08', transparent: true, opacity: 0.85 }),
+    // lava do mapa (^): brilho próprio, para ler como a lava da arena mesmo na noite escura da Campanha
+    lava: new THREE.MeshStandardMaterial({ color: '#ff5a1a', emissive: '#ff3a0a', emissiveIntensity: 1.4, roughness: 0.5 }),
   };
   let mapKey = '';
+  // mapa da Campanha em cena: lá a lava é o chão desenhado (^), não a borda da arena (as coordenadas do mapa ficam longe do centro)
+  let curMap: NightMap | null = null;
+  const lavaAt = (p: Vec, pad = 0) => (curMap ? curMap.ground[Math.floor(p.y)]?.[Math.floor(p.x)] === 'lava' : inLavaAt(shownArena, shownR, shownIsles, p, pad));
   let cpMarks: { room: number; mat: THREE.MeshBasicMaterial }[] = [];
   function buildMap(n: NightMap) {
     for (const c of [...mapGroup.children]) {
@@ -750,8 +755,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     };
     const wall = (x: number, y: number) => (n.ground[y]?.[x] ?? 'wall') === 'wall';
     // da parede só a casca (casas de parede encostadas em algo que não é parede): o miolo nunca aparece
-    inst(new THREE.BoxGeometry(1, 0.1, 1), mapMats.floor, at((g) => g !== 'wall' && g !== 'pit'), -0.05);
+    inst(new THREE.BoxGeometry(1, 0.1, 1), mapMats.floor, at((g) => g !== 'wall' && g !== 'pit' && g !== 'lava'), -0.05);
     inst(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mapMats.wax, at((g) => g === 'wax'), 0.01);
+    inst(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mapMats.lava, at((g) => g === 'lava'), -0.12);
     // 1 m de altura: a câmera olha do sul e uma parede mais alta esconderia quem está logo atrás dela
     inst(new THREE.BoxGeometry(1, 1, 1), mapMats.wall, at((g, x, y) => g === 'wall' && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => !wall(x + dx, y + dy))), 0.5, true);
     inst(new THREE.BoxGeometry(1, 0.5, 1), mapMats.low, at((g) => g === 'low'), 0.25, true);
@@ -1706,7 +1712,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (m) {
           const at = v(m.root.position.x, m.root.position.z);
           // fora da pedra: caiu na lava (respingo); em cima dela: estoura em fogo
-          if (inLavaAt(shownArena, shownR, shownIsles, at, 0.3)) lavaSplash(at);
+          if (lavaAt(at, 0.3)) lavaSplash(at);
           else {
             burst(at, '#ffcf5a', 4, 0.6, 0.3, FX.fire);
             smoke(at, 2.6, 1.6);
@@ -1873,7 +1879,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (!m.dead) {
           m.dead = true;
           // caiu na lava (fora da pedra e fora das ilhas): Death_A, que é a pose dos ossos, e o corpo queima; na pedra, Death_B (cai de costas)
-          const lava = inLavaAt(shownArena, shownR, shownIsles, d.pos);
+          const lava = lavaAt(d.pos);
           play(m, lava ? 'Death_A' : 'Death_B', 0.1);
           if (lava) {
             m.burnAt = now;
@@ -1896,7 +1902,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       // queimando na lava (issue #225): de cima não se via que o mago estava tomando dano; faíscas e labaredas pequenas nos pés
       // (no modo leve, poucas: com muitos magos na lava o teto de partículas FX_CAP segura o resto)
-      const burning = d.alive && !hidden && inLavaAt(shownArena, shownR, shownIsles, d.pos);
+      const burning = d.alive && !hidden && lavaAt(d.pos);
       if (burning) {
         const feet = () => v(d.pos.x + (Math.random() - 0.5) * 0.7, d.pos.y + (Math.random() - 0.5) * 0.7);
         if (Math.random() < (lite ? 0.05 : 0.25)) burst(feet(), Math.random() < 0.5 ? '#ff8a2a' : '#ffd060', 0.35, 0.8, 0.2, glow, 1.4);
@@ -2267,6 +2273,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       lavaMat.uniforms.uTime.value = now;
       // Campanha: o mapa no lugar da arena e da lava
       const onMap = !!state.map;
+      curMap = state.map ? state.map.night : null;
       if (state.map && state.map.key !== mapKey) {
         mapKey = state.map.key;
         buildMap(state.map.night);

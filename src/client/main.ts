@@ -23,7 +23,7 @@ import { createInput } from './input.ts';
 import { t } from './i18n.ts';
 import { cardName } from './ascension-ui.ts';
 import { SKILL_NAME, effectName } from './opt-info.ts';
-import { getCastMode, isPadMode, labelOf, onFreeEsc } from './keys.ts';
+import { getCastMode, isPadMode, labelOf, onFreeEsc, uiLabel } from './keys.ts';
 import { openSettings, savedPixel } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
 import { DELAY, REPLAY_MAX, createInterp, keepLast } from './interp.ts';
@@ -36,7 +36,7 @@ import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
 import { STAGE_NAME, botLevel, endResult, maxHp, playerName, renderWizardState, sandboxVisibility, seatChanges } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
-import { ILSE_MOMENTS, ILSE_ROOMS, ilseOn, ilseSecs, setIlse } from './ilse.ts';
+import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, setIlse, type IlseCtx } from './ilse.ts';
 
 declare const __BRANCH__: string;
 
@@ -229,14 +229,14 @@ function startRoom(code: string, name: string) {
   const sound = createSound(MUSIC_DEFAULT);
   hoverSound(sound);
   let room: PublicRoom | null = null;
+  // Campanha: lava é o chão ^ do mapa da noite
+  const mapLava = (p: Vec) => !!room?.night && nightMap(room.night.seed, room.night.stage).ground[Math.floor(p.y)]?.[Math.floor(p.x)] === 'lava';
   // fala da Ilse (Campanha): quais já saíram nesta noite (pela semente) e até quando a atual fica na tela
-  let ilseNight = '', ilseSaid = new Set<string>(), ilseUntil = 0;
-  const ilseSay = (key: string, text: string) => {
-    if (ilseSaid.has(key)) return;
-    ilseSaid.add(key);
-    view.ilse(text);
-    ilseUntil = performance.now() + ilseSecs(text) * 1000;
-  };
+  let ilseNight = '', ilseQ = newIlseQueue();
+  // a fala da frente fica até o botão; o botão passa para a próxima da fila
+  const ilseShow = (): void => view.ilse(ilseQ.lines[0] ?? null, () => (ilseNext(ilseQ), ilseShow()));
+  const ilseSay = (key: string, lines: string[]) => ilsePush(ilseQ, key, lines) && ilseShow();
+  const ilseCtx = (): IlseCtx => ({ touch: TOUCH, fireKey: labelOf('fireball'), scourgeKey: labelOf('scourge'), stopKey: uiLabel('stop') });
   let me = playerId;
   let online = false;
   let armed: SpellId | null = null;
@@ -631,7 +631,7 @@ function startRoom(code: string, name: string) {
         // fora da pedra: mergulho na lava (chiado e bolhas) em vez da explosão
         const snap = interp.latest();
         const w = snap?.wizards.find((z) => z.id === e.id);
-        sound.play(w && snap && !room?.night && inLavaAt(arenaId, snap.arenaR, snap.isles, w.pos, 0.3) ? 'splash' : 'death', w ? near(w.pos.x, w.pos.y) : 1);
+        sound.play(w && snap && (room?.night ? mapLava(w.pos) : inLavaAt(arenaId, snap.arenaR, snap.isles, w.pos, 0.3)) ? 'splash' : 'death', w ? near(w.pos.x, w.pos.y) : 1);
         const dead = who.get(e.id) ?? '?';
         if (e.id === me) {
           clip = ring.slice();
@@ -822,7 +822,7 @@ function startRoom(code: string, name: string) {
     const meMax = maxHp(meP);
     const xp = meW?.alive && meP ? xpOf(meP) : null; // Ascensão: XP ao vivo na barra embaixo da vida
     const low = !!meW?.alive && !!meP && meW.hp < 0.25 * meMax;
-    const lava = !!meW?.alive && !!latest && !room?.night && inLavaAt(arenaId, latest.arenaR, latest.isles, meW.pos);
+    const lava = !!meW?.alive && !!latest && (room?.night ? mapLava(meW.pos) : inLavaAt(arenaId, latest.arenaR, latest.isles, meW.pos));
     view.danger(low, lava);
     const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' && !room.night && (!room.sandbox || room.sandbox.shrink) ? s.shrinkAt - s.time : null;
     // espectador: morto na rodada (ou só assistindo), a câmera segue o vivo com mais vida; ← → ou os botões trocam.
@@ -898,21 +898,21 @@ function startRoom(code: string, name: string) {
     const nightKey = room?.night ? String(room.night.seed) : '';
     if (nightKey !== ilseNight) {
       ilseNight = nightKey;
-      ilseSaid = new Set();
+      ilseQ = newIlseQueue();
       view.ilse(null);
     }
+    // fora da noite (fim, sala) a fala sai da frente; a fila fica para a mesma noite
+    if (!playing) view.ilse(null);
+    else if (ilseQ.lines.length) ilseShow();
     if (nm && playing && room!.night!.stage === 0 && ilseOn()) {
       const here = myPos && nm.rooms.find((p) => myPos.x > p.x && myPos.y > p.y && myPos.x < p.x + p.room.w && myPos.y < p.y + p.room.h);
       const line = here && ILSE_ROOMS[here.room.id];
-      if (here && line) ilseSay(here.room.id, line({ fireKey: isPadMode() ? 'A' : labelOf('fireball'), touch: TOUCH }));
+      if (here && line) ilseSay(here.room.id, line(ilseCtx()));
+      if (room!.night!.fight !== null) ilseSay('fight', ILSE_MOMENTS.fight(ilseCtx())); // primeiro encontro: magias e teclas
       if (room!.night!.result === 'won') {
         ilseSay('won', ILSE_MOMENTS.won());
         setIlse(false); // venceu a Charneca: o tutorial acabou neste navegador
       }
-    }
-    if (ilseUntil && nowMs >= ilseUntil) {
-      ilseUntil = 0;
-      view.ilse(null);
     }
     // Campanha: barra do chefe enquanto ele está em pé
     const bossP = room?.night ? room.players.find((p) => p.servo && SERVOS[p.servo].boss) : undefined;

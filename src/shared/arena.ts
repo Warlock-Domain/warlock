@@ -94,7 +94,8 @@ export function edgeAt(id: ArenaId, R: number, p: Vec): number {
 
 // mapa explorável da Campanha (levels.ts): casas de 1 m a partir de (0, 0); fora do mapa é parede. Com mapa, a "borda" é
 // a distância até a casa mais perto em que não se pode estar (parede, mureta, abismo): os bots desviam dela como da lava
-export const CELL = { floor: 0, wax: 1, low: 2, wall: 3, pit: 4 } as const;
+// tudo acima de wax é "fora" para a borda dos bots (o campo de distância): lava conta como a lava da arena
+export const CELL = { floor: 0, wax: 1, low: 2, wall: 3, pit: 4, lava: 5 } as const;
 export type Terrain = { w: number; h: number; cells: Uint8Array; home: Vec }; // home: onde os bots sem o que fazer passeiam
 export const cellAt = (t: Terrain, x: number, y: number) => {
   const cx = Math.floor(x), cy = Math.floor(y);

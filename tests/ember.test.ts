@@ -50,6 +50,16 @@ describe('reacender', () => {
     expect(encodeSnap(m.world!, 'b', 0, []).em).toBeUndefined();
   });
 
+  it('falling in the lava leaves the ember on the last firm ground', () => {
+    let { m, now } = night();
+    const n = nightMap(m.night!.seed, m.night!.stage), lava = n.ground.flatMap((row, y) => row.map((g, x) => ({ g, x, y }))).find((c) => c.g === 'lava')!;
+    const a = wiz(m, 'a');
+    Object.assign(a, { pos: v(lava.x + 0.5, lava.y + 0.5), safe: v(3, 3), hp: -1, invulnUntil: 0 });
+    now = step(m, now);
+    expect(a.alive).toBe(false);
+    expect(a.pos).toEqual(v(3, 3));
+  });
+
   it('stepping away resets the progress', () => {
     let { m, now } = night();
     const a = wiz(m, 'a'), b = wiz(m, 'b');

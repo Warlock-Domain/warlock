@@ -240,6 +240,14 @@ describe('Campanha: partida no mapa', () => {
     expect(m.players.some((p) => p.servo)).toBe(false);
   });
 
+  it('nobody earns gold in the Campaign, not even the round gold paid on a fall', () => {
+    const m = night(['a', 'b']);
+    let now = toPlaying(m, 0);
+    Object.assign(wiz(m, 'a'), { hp: -1, invulnUntil: 0 });
+    now = step(m, now, 2);
+    expect(m.players.filter((p) => !p.servo).map((p) => p.gold)).toEqual([0, 0]);
+  });
+
   it('all humans down loses the night', () => {
     const m = night(['a', 'b']);
     let now = toPlaying(m, 0);

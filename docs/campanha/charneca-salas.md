@@ -56,7 +56,8 @@ Nenhum servo regenera vida.
 | `:` | mureta: bloqueia o passo, a magia passa por cima |
 | `%` | destroço: bloqueia passo e magia até quebrar |
 | `~` | cera: deixa lento |
-| `*` | vala / abismo: quem é empurrado para dentro cai e volta à beira de onde caiu, com menos vida |
+| `*` | vala / abismo: o Aceso e o chefe empurrados para dentro caem e voltam à beira de onde caíram, com menos vida; o servo morre |
+| `^` | lava: queima como a lava da arena (dano por segundo, sem regenerar, abate de quem empurrou); dá para entrar e sair andando, os bots evitam (Lucas, 22/10) |
 | `T` | árvore queimada (obstáculo que quebra) |
 | `I` | estátua, lápide ou pilar; `I` encostados viram um bloco só (os pilares 2×2 da arena) |
 | `$` | baú: dá uma recompensa sorteada (carta extra, cura ou runa, ou fragmento) |

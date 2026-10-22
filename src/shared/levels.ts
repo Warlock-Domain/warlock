@@ -11,8 +11,8 @@ import { v } from './vec.ts';
 
 // chão de cada casa: parede bloqueia tudo; mureta (low) bloqueia o passo e deixa a magia passar; destroço bloqueia os dois
 // até quebrar; cera deixa lento; abismo (pit) derruba quem é empurrado para dentro
-export type Ground = 'wall' | 'floor' | 'low' | 'debris' | 'wax' | 'pit';
-const GROUND: Record<string, Ground> = { '#': 'wall', '.': 'floor', ':': 'low', '%': 'debris', '~': 'wax', '*': 'pit', '=': 'floor' };
+export type Ground = 'wall' | 'floor' | 'low' | 'debris' | 'wax' | 'pit' | 'lava';
+const GROUND: Record<string, Ground> = { '#': 'wall', '.': 'floor', ':': 'low', '%': 'debris', '~': 'wax', '*': 'pit', '=': 'floor', '^': 'lava' };
 // marcas ficam em cima do chão: árvore e estátua são obstáculos; o resto é ponto de jogo
 export type MarkKind = 'tree' | 'statue' | 'chest' | 'start' | 'candle' | 'entry' | 'boss' | 'checkpoint';
 const MARK: Record<string, MarkKind> = { T: 'tree', I: 'statue', $: 'chest', '@': 'start', '+': 'candle', E: 'entry', B: 'boss' };
@@ -270,7 +270,7 @@ export function buildNight(seed: number, stage: number): NightMap {
 
 // --- do mapa da noite para a simulação ------------------------------------------------------------------------------
 
-const CODE: Record<Ground, number> = { floor: CELL.floor, debris: CELL.floor, wax: CELL.wax, low: CELL.low, wall: CELL.wall, pit: CELL.pit };
+const CODE: Record<Ground, number> = { floor: CELL.floor, debris: CELL.floor, wax: CELL.wax, low: CELL.low, wall: CELL.wall, pit: CELL.pit, lava: CELL.lava };
 // grade da simulação (o destroço é chão: quem bloqueia é o obstáculo em cima dele); home começa no início do grupo
 export function terrainOf(n: NightMap): Terrain {
   const start = n.marks.find((m) => m.kind === 'start')!;

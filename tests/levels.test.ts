@@ -45,12 +45,13 @@ describe('Campanha: salas da Charneca', () => {
     expect(room('charneca-entrada-01').marks.find((m) => m.kind === 'checkpoint')!.id).toBe('C1');
   });
 
-  it('reads the ground: low wall, debris, wax, ditch and bridge', () => {
+  it('reads the ground: low wall, debris, wax, lava and bridge', () => {
     const at = (id: string, x: number, y: number) => room(id).ground[y][x];
     expect(at('charneca-entrada-01', 12, 2)).toBe('low');
     expect(at('moinho-caido-01', 8, 1)).toBe('debris');
     expect(at('vilarejo-queimado-02', 11, 5)).toBe('wax');
-    expect(at('ponte-dos-enforcados-01', 12, 1)).toBe('pit');
+    expect(at('ponte-dos-enforcados-01', 12, 1)).toBe('lava'); // lava sob a ponte (22/10)
+    expect(at('arena-odran-01', 1, 4)).toBe('lava'); // anel de lava da arena
     expect(at('ponte-dos-enforcados-01', 12, 4)).toBe('floor');
   });
 

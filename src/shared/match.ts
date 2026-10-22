@@ -13,7 +13,7 @@ import {
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
 import type { BotSetup } from './protocol.ts';
 import { nightRand } from './rng.ts';
-import { gearOf, newWorld, placeRune, resizeArena, revive, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
+import { gearOf, newWorld, inLava, placeRune, resizeArena, revive, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
 import { FREE_SPELLS, MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { dist, len, v, type Vec } from './vec.ts';
 
@@ -37,7 +37,7 @@ function addStat(p: Player, f: (s: Stat) => void) {
 // toda renda passa por aqui e é multiplicada pela economia da sala (scaled = false: o valor já vem na escala dela); devolve o ganho
 // a parte quebrada fica guardada no jogador (Fernando, 20/10, issue #88: no ×1,5 o monte paga 1, 2, 1, 2…); o 1e-9 segura o erro das contas com decimal
 function earn(m: Match, p: Player, gold: number, scaled = true): number {
-  if (m.asc) return 0; // Ascensão: sem ouro (magias e itens vêm pelas cartas)
+  if (m.asc || m.night) return 0; // Ascensão e Campanha: sem ouro (Ascensão pelas cartas; a Campanha não tem loja)
   let n = gold;
   if (scaled) {
     // efeito de rodada da Febre do ouro: todo ouro ganho durante a rodada (abate, rodada, vitória, baú…) vale mods.gold vezes; na loja não há mundo
@@ -946,6 +946,8 @@ function stepEmbers(m: Match, w: World, map: NightMap) {
     if (!z.ember) {
       const falls = (n.falls ??= {}), k = n.fight !== null ? (falls[z.id] ?? 0) : 0;
       if (n.fight !== null) falls[z.id] = k + 1; // só a queda dentro de um encontro encarece a próxima
+      // quem cai dentro da lava vira brasa na última pedra firme: senão quem reacende queimaria junto e ele voltaria na lava
+      if (inLava(w, z.pos) && z.safe) z.pos = z.safe;
       z.ember = { prog: 0, need: EMBER.base + EMBER.perFall * k, since: w.t };
       continue;
     }

@@ -8,7 +8,7 @@ import { run, world } from './helpers.ts';
 
 // mapa de teste desenhado como as salas: # parede, : mureta, * abismo, ~ cera, . chão (1 caractere = 1 m)
 function terrain(rows: string[]): Terrain {
-  const code: Record<string, number> = { '.': CELL.floor, '~': CELL.wax, ':': CELL.low, '#': CELL.wall, '*': CELL.pit };
+  const code: Record<string, number> = { '.': CELL.floor, '~': CELL.wax, ':': CELL.low, '#': CELL.wall, '*': CELL.pit, '^': CELL.lava };
   return { w: rows[0].length, h: rows.length, cells: Uint8Array.from(rows.join(''), (c) => code[c]), home: v(1.5, 1.5) };
 }
 // mundo de dois magos (p0, p1) num mapa, sem obstáculos nem ilhas
@@ -58,6 +58,16 @@ describe('mapa da Campanha', () => {
     run(w, 4, [{ id: 'p0', kind: 'move', to: v(7.5, 2.5) }]);
     expect(w.wizards[0].pos.x).toBeCloseTo(5 - WIZ_R, 2);
     expect(w.wizards[0].hp).toBe(HP_MAX);
+  });
+
+  it('lava on the map burns like the arena lava, with the credit to who pushed, and does not become the safe spot', () => {
+    const rows = ['##########', '#....^^^^#', '#....^^^^#', '#....^^^^#', '##########'];
+    const w = onMap(rows, [[6.5, 2.5], [1.5, 2.5]]);
+    Object.assign(w.wizards[0], { lastHitBy: 'p1', lastHitAt: 0, safe: v(4, 2.5) });
+    run(w, 1);
+    expect(w.wizards[0].hp).toBeLessThan(HP_MAX - 50);
+    expect(w.wizards[0].safe).toEqual(v(4, 2.5));
+    expect(w.wizards[1].hp).toBe(HP_MAX); // na pedra não queima
   });
 
   it('a Smoke servant pushed into the abyss dies there, with the credit to who pushed', () => {
