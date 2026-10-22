@@ -13,6 +13,14 @@ beforeEach(() => {
 });
 
 describe('teclas da interface no mesmo painel das magias', () => {
+  it('provocações começam em Y e no direcional esquerdo, e permitem trocar o botão', () => {
+    expect(keyOf('taunt')).toBe('KeyY');
+    expect(padButtonOf('taunt')).toBe(BTN.LEFT);
+    expect(padActionAt(BTN.LEFT)).toBe('taunt');
+    expect(setPadButton('taunt', BTN.DOWN)).toBe(true);
+    expect(padButtonOf('shop')).toBe(BTN.LEFT);
+    expect(padActionAt(BTN.DOWN)).toBe('taunt');
+  });
   it('atalho e magia não repetem tecla: dar o Q às provocações troca com a Bola de fogo, e o atalho nunca lança', () => {
     expect(whoUses('KeyQ')).toBe('fireball');
     expect(setKey('taunt', 'KeyQ')).toBe(true);
@@ -109,6 +117,17 @@ describe('teclas e botões guardados no navegador', () => {
     expect([c.keyOf('shop'), c.keyOf('taunt'), c.padButtonOf('shop'), c.padButtonOf('center')]).toEqual(['Digit7', 'KeyP', BTN.DOWN, BTN.RIGHT]);
   });
 
+  it('preserva o direcional esquerdo personalizado de versões anteriores sem duplicar a provocação', async () => {
+    Object.assign(globalThis, { localStorage: fake });
+    store.set('warlock:pad', JSON.stringify({ sheet: BTN.LEFT }));
+    vi.resetModules();
+    const k = await import('../src/client/keys.ts');
+    expect(k.padButtonOf('sheet')).toBe(BTN.LEFT);
+    expect(k.padActionAt(BTN.LEFT)).toBe('sheet');
+    const assigned = k.PAD_ACTIONS.map(k.padButtonOf);
+    expect(new Set(assigned).size).toBe(assigned.length);
+  });
+
   it('tecla salva de magia que saiu do jogo (os Gêmeos) é ignorada: o J fica com a Ilusão', async () => {
     Object.assign(globalThis, { localStorage: fake });
     store.set('warlock:keys', JSON.stringify({ twin: 'KeyZ', taunt: 'KeyP' }));
@@ -119,9 +138,9 @@ describe('teclas e botões guardados no navegador', () => {
 });
 
 describe('botões do controle trocáveis', () => {
-  it('padrão: A B X Y LB RB LT RT magias, L3 ficha, View placar, ↓ loja, R3 câmera; Start e ↑ de ninguém', () => {
-    expect([BTN.A, BTN.RB, BTN.LT, BTN.RT, BTN.L3, BTN.VIEW, BTN.DOWN, BTN.R3, BTN.START, BTN.UP].map(padActionAt))
-      .toEqual(['slot1', 'slot6', 'slot7', 'slot8', 'sheet', 'board', 'shop', 'center', undefined, undefined]);
+  it('padrão: A B X Y LB RB LT RT magias, L3 ficha, View placar, ↓ loja, R3 câmera, ← provocações; Start e ↑ de ninguém', () => {
+    expect([BTN.A, BTN.RB, BTN.LT, BTN.RT, BTN.L3, BTN.VIEW, BTN.DOWN, BTN.R3, BTN.START, BTN.UP, BTN.LEFT].map(padActionAt))
+      .toEqual(['slot1', 'slot6', 'slot7', 'slot8', 'sheet', 'board', 'shop', 'center', undefined, undefined, 'taunt']);
   });
 
   it('trocar um botão troca com quem o usava; Start é recusado', () => {
@@ -129,8 +148,8 @@ describe('botões do controle trocáveis', () => {
     expect([padButtonOf('sheet'), padButtonOf('slot1')]).toEqual([BTN.A, BTN.L3]);
     expect(setPadButton('board', PAD_START)).toBe(false);
     expect(padButtonOf('board')).toBe(BTN.VIEW);
-    expect(setPadButton('center', BTN.LEFT)).toBe(true); // botão livre: só muda
-    expect([padActionAt(BTN.LEFT), padActionAt(BTN.R3)]).toEqual(['center', undefined]);
+    expect(setPadButton('center', BTN.LEFT)).toBe(true); // troca com as provocações
+    expect([padActionAt(BTN.LEFT), padActionAt(BTN.R3)]).toEqual(['center', 'taunt']);
   });
 
   it('o controle lança e a barra mostra os rótulos pelo mapeamento novo', () => {

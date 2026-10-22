@@ -293,9 +293,8 @@ function tick(toast: (msg: string) => void) {
   const aimS = stick(gp.axes[2] ?? 0, gp.axes[3] ?? 0);
   if (down.some(Boolean) || mv.x || mv.y || aimS.x || aimS.y) setMode(true);
   const now = performance.now();
-  // Aceita a lista atual e a roda: o atalho do controle não depende de outra PR já ter sido integrada.
-  const tauntPanel = () => $<HTMLElement>('.vol-panel:not([hidden]):has(.taunt-list), .radial-picker:not(.radial-inline):not([hidden])');
-  const tauntButton = !$('.overlay') ? $('.hud-right .vol:has(.taunt-list) > button, .hud-right .vol:has(.radial-picker) > button') : null;
+  const tauntPanel = () => $<HTMLElement>('.radial-picker:not([hidden])');
+  const tauntButton = !$('.overlay') ? $('.hud-right .vol:has(.radial-picker) > button') : null;
   const openedTaunts = !!tauntButton && !tauntPanel() && hit(padButtonOf('taunt'));
   if (openedTaunts) tauntButton!.click();
   const panel = !$('.overlay') ? tauntPanel() : null;
@@ -305,10 +304,15 @@ function tick(toast: (msg: string) => void) {
     wasMoving = false;
     game?.aim(null);
     game?.padRange(null);
-    const buttons = [...panel.querySelectorAll<HTMLButtonElement>('.taunt-list button, .radial-stage > button:not(.radial-center)')];
-    const dpad = { x: Number(down[BTN.RIGHT]) - Number(down[BTN.LEFT]), y: Number(down[BTN.DOWN]) - Number(down[BTN.UP]) };
-    const s = len(aimS) ? aimS : len(mv) ? mv : openedTaunts ? { x: 0, y: 0 } : dpad;
-    const selected = radialIndex(s.x, s.y, buttons.length);
+    const buttons = [...panel.querySelectorAll<HTMLButtonElement>('.radial-stage > button:not(.radial-center)')];
+    // Analógico aponta pela roda; o direcional anda ±1 por toque (com as 15 falas, 8 direções não chegariam a todas).
+    const s = len(aimS) ? aimS : mv;
+    let selected = radialIndex(s.x, s.y, buttons.length);
+    if (selected === null && !openedTaunts) {
+      const step = Number(hit(BTN.RIGHT) || hit(BTN.DOWN)) - Number(hit(BTN.LEFT) || hit(BTN.UP));
+      const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      if (step) selected = (at < 0 ? (step > 0 ? 0 : buttons.length - 1) : at + step + buttons.length) % buttons.length;
+    }
     if (selected !== null) buttons[selected]?.focus({ preventScroll: true });
     if (!openedTaunts && hit(BTN.A) && buttons.includes(document.activeElement as HTMLButtonElement)) (document.activeElement as HTMLButtonElement).click();
     if ((!openedTaunts && hit(BTN.B)) || hit(BTN.START)) panel.hidden = true;

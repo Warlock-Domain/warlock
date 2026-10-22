@@ -780,7 +780,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   addEventListener('blur', cancelTaunts);
   document.addEventListener('visibilitychange', () => { if (document.hidden) cancelTaunts(); });
   const sheetBtn = iconButton(icon(UI_ICON.sheet), t('Ficha do mago', 'Wizard sheet'), () => toggleSheet(), { 'aria-expanded': 'false' });
-  const tauntBtn = iconButton(icon(UI_ICON.taunt), t('Provocações', 'Taunts'), toggleTaunts, { class: 'icon wide-only' });
+  const tauntBtn = iconButton(icon(UI_ICON.taunt), t('Provocações', 'Taunts'), () => toggleTaunts(), { class: 'icon wide-only' });
   addEventListener('keydown', (e) => {
     if (typing(e)) return;
     if (isUiKey(e.code, 'vote') && voteBtn.checkVisibility()) {
