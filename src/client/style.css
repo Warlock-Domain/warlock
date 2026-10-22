@@ -309,6 +309,8 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 /* letra 1,3x do tamanho normal, a mesma do aviso de quem saiu (PR #234), e fundo claro: o aviso aparece por poucos segundos no meio da partida e precisa ser lido de relance */
 #toast { position: fixed; left: 50%; bottom: calc(150px + var(--safe-b)); transform: translateX(-50%); background: var(--paper); color: var(--ink); border: 1px solid var(--gold-toast); box-shadow: var(--shadow-toast); padding: 13px 18px; border-radius: var(--r-sm); font-size: 1.3rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
 #toast.show { opacity: 1; pointer-events: auto; }
+/* acima de 800 px de altura a barra de baixo tem 160 px + 10 de margem (no 1080 o aviso a 150 px cobria 20 px dela): 14 px de folga, a mesma do 720 */
+@media (min-width: 601px) and (min-height: 801px) { #toast { bottom: calc(184px + var(--safe-b)); } }
 /* com uma loja aberta o clique atravessa o aviso: ele fica por cima da última fileira de cartas e tapava a compra (issue #208) */
 body:has(.center .shop, .peek-shop:not([hidden]) .shop) #toast { pointer-events: none; }
 body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, .55) 100%); z-index: 1; }
