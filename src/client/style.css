@@ -184,6 +184,13 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .barwrap .hud-status { gap: 10px; padding: 3px 12px; border-radius: 999px; background: var(--panel-glass); }
 .hud-status:empty { display: none; }
 .barwrap .hud-status i { font-size: 1.3rem; position: relative; flex-direction: column; align-items: center; }
+/* ícone do buff num disco de cor, igual ao do aviso (1,3rem e .2em de borda): o aviso da runa vira este ícone (flyToast em ui.ts) */
+.barwrap .hud-status .gi { box-sizing: content-box; padding: .2em; border-radius: 50%; background: var(--toast-good); color: var(--ink); }
+.barwrap .hud-status i.bad .gi { background: var(--toast-bad); color: var(--white); }
+.barwrap .hud-status i[data-rune="haste"] .gi { background: var(--rune-haste); }
+.barwrap .hud-status i[data-rune="fury"] .gi { background: var(--rune-fury); color: var(--white); }
+.barwrap .hud-status i[data-rune="shield"] .gi { background: var(--rune-shield); }
+.barwrap .hud-status i[data-rune="recharge"] .gi { background: var(--rune-recharge); }
 /* duração do efeito: segundos embaixo do ícone e um filete que esvazia (--left vem de ui.ts) */
 .barwrap .hud-status i small { font-size: .5em; font-weight: 700; color: var(--fg); margin-top: 1px; }
 .barwrap .hud-status i small:empty { display: none; }
@@ -307,11 +314,11 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .wiz-label .hp-extra .rush { color: #ff9640; }
 
 /* letra 1,3x do tamanho normal, a mesma do aviso de quem saiu (PR #234), e fundo claro: o aviso aparece por poucos segundos no meio da partida e precisa ser lido de relance */
-#toast { position: fixed; left: 50%; bottom: calc(188px + var(--safe-b)); transform: translateX(-50%); background: var(--paper); color: var(--ink); border: 1px solid var(--gold-toast); box-shadow: var(--shadow-toast); padding: 13px 18px; border-radius: var(--r-sm); font-size: 1.3rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
+#toast { position: fixed; left: 50%; bottom: calc(196px + var(--safe-b)); transform: translateX(-50%); background: var(--paper); color: var(--ink); border: 1px solid var(--gold-toast); box-shadow: var(--shadow-toast); padding: 13px 18px; border-radius: var(--r-sm); font-size: 1.3rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
 #toast.show { opacity: 1; pointer-events: auto; }
-/* o aviso fica acima dos ícones dos buffs ativos (.hud-status, 44 px acima da barra), com 8 px de folga, para não tapá-los (issue #262);
+/* o aviso fica acima dos ícones dos buffs ativos (.hud-status, 52 px acima da barra desde que o ícone ganhou o disco do aviso), com 8 px de folga, para não tapá-los (issue #262);
    acima de 800 px de altura a barra de baixo tem 160 px + 10 de margem em vez de 118 + 10, então o aviso sobe junto */
-@media (min-width: 601px) and (min-height: 801px) { #toast { bottom: calc(222px + var(--safe-b)); } }
+@media (min-width: 601px) and (min-height: 801px) { #toast { bottom: calc(230px + var(--safe-b)); } }
 /* com uma loja aberta o clique atravessa o aviso: ele fica por cima da última fileira de cartas e tapava a compra (issue #208) */
 body:has(.center .shop, .peek-shop:not([hidden]) .shop) #toast { pointer-events: none; }
 body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, .55) 100%); z-index: 1; }

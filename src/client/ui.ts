@@ -1834,7 +1834,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         statusRow.replaceChildren(...STATUS_ICONS.filter(([bit]) => status & bit).map(([bit, ico, name]) => {
           const s = el('small', { 'aria-hidden': 'true' });
           fxCells.set(bit, s);
-          return el('i', { class: BAD_STATUS.includes(bit) ? 'bad' : 'good', title: name, role: 'img', 'aria-label': name }, icon(ico), s);
+          // data-rune: o disco do buff na cor da runa, o mesmo do aviso (style.css)
+          const rune = RUNE_KINDS.find((k) => RUNE_ICON[k] === ico);
+          return el('i', { class: BAD_STATUS.includes(bit) ? 'bad' : 'good', title: name, role: 'img', 'aria-label': name, ...(rune ? { 'data-rune': rune } : {}) }, icon(ico), s);
         }));
       }
       // segundos que faltam de cada efeito com prazo e o filete que esvazia (--left: fração que falta, como a recarga)
