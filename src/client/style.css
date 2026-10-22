@@ -238,7 +238,7 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 /* círculo de 72% da altura: as 15 falas não encostam na barra de magias embaixo */
 .radial-stage { position: relative; width: 100%; aspect-ratio: 1; }
 .radial-stage::before { content: ''; position: absolute; inset: 12%; border-radius: 50%; border: 1px solid var(--gold-faint); background: repeating-conic-gradient(from var(--radial-start), color-mix(in srgb, var(--ink) 30%, transparent) 0deg calc(var(--radial-step) - 1deg), transparent calc(var(--radial-step) - 1deg) var(--radial-step)); }
-/* 16% de largura: as 15 falas cabem na volta sem um botão cobrir o vizinho (tests de print: nenhum par sobreposto) */
+/* 16% de largura: as 15 falas cabem na volta sem um botão cobrir o vizinho */
 .radial-stage > button { position: absolute; transform: translate(-50%, -50%); width: 16%; min-height: 44px; padding: 4px; font-size: .88rem; font-weight: 700; line-height: 1.15; background: transparent; border-color: transparent; box-shadow: none; text-shadow: var(--text-shadow); }
 .radial-stage > button.on { background: var(--sel-bg); border-color: var(--gold-line); color: var(--gold-pale); }
 .radial-stage > .radial-center { left: 50%; top: 50%; width: 18%; aspect-ratio: 1; border-radius: 50%; font-size: 1.8rem; background: color-mix(in srgb, var(--ink) 40%, transparent); border-color: var(--gold-line); }
