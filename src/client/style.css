@@ -210,6 +210,21 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .dmg.big { color: var(--gold); font-size: 2.2rem; }
 .wiz-label .bubble { background: var(--cream); color: var(--cream-ink); font-weight: 700; font-size: .85rem; padding: 3px 9px; border-radius: var(--r-md); margin-bottom: 4px; white-space: nowrap; box-shadow: var(--shadow-sm); animation: pop .18s ease-out; }
 @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.vol-panel.radial-picker { position: fixed; inset: 50% auto auto 50%; transform: translate(-50%, -50%); width: min(680px, 96vw, 115vh); max-height: 96vh; text-align: center; overflow: visible; }
+/* panel-in sobrescreve transform até terminar: a roda precisa da translação de centralização desde o primeiro quadro. */
+.vol-panel.radial-picker { animation: none; }
+.vol-panel.radial-picker.radial-inline { position: relative; inset: auto; transform: none; width: min(680px, 100%); max-height: none; margin-inline: auto; box-shadow: none; }
+.radial-stage { position: relative; width: 100%; aspect-ratio: 4 / 3; }
+.radial-stage::before { content: ''; position: absolute; inset: 12%; border-radius: 50%; border: 1px solid var(--gold-line); background: repeating-conic-gradient(from var(--radial-start), var(--tint) 0deg calc(var(--radial-step) - 1deg), transparent calc(var(--radial-step) - 1deg) var(--radial-step)); }
+.radial-stage > button { position: absolute; transform: translate(-50%, -50%); width: 22%; min-height: 48px; padding: 6px; font-size: .95rem; background: var(--panel-glass); text-shadow: var(--text-shadow); }
+.radial-stage > button.on { border-color: var(--gold); color: var(--gold-pale); background: var(--sel-bg); box-shadow: var(--shadow-sm); }
+.radial-stage > .radial-center { left: 50%; top: 50%; width: 18%; aspect-ratio: 1; border-radius: 50%; font-size: 1.8rem; background: var(--plate); }
+/* Só a roda sobre a partida é translúcida; o editor mantém a placa para leitura nas Configurações. */
+.vol-panel.radial-picker:not(.radial-inline) { background: transparent; border-color: transparent; box-shadow: none; text-shadow: var(--text-shadow); }
+.radial-picker:not(.radial-inline) .radial-stage::before { border-color: var(--gold-faint); background: repeating-conic-gradient(from var(--radial-start), color-mix(in srgb, var(--ink) 30%, transparent) 0deg calc(var(--radial-step) - 1deg), transparent calc(var(--radial-step) - 1deg) var(--radial-step)); }
+.radial-picker:not(.radial-inline) .radial-stage > button { background: transparent; border-color: transparent; box-shadow: none; font-weight: 700; }
+.radial-picker:not(.radial-inline) .radial-stage > button.on { background: var(--sel-bg); border-color: var(--gold-line); color: var(--gold-pale); }
+.radial-picker:not(.radial-inline) .radial-stage > .radial-center { background: color-mix(in srgb, var(--ink) 40%, transparent); border-color: var(--gold-line); }
 /* provocações em grade de 2 colunas compacta */
 .taunt-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
 .taunt-list button { justify-content: flex-start; text-align: left; min-height: 36px; padding: 4px 10px; font-size: .88rem; }
