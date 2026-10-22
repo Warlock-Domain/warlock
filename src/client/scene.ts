@@ -1829,8 +1829,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.cheering = d.cheer && d.alive;
       m.invuln = invuln;
       // brasa no corpo enquanto queima, pulsando; o clarão do golpe passa por cima e, ao sair da lava, volta a cor própria
-      // morreu na lava: o burnCorpse já cuida da cor do corpo, então não devolve a cor própria por cima
-      if (m.flash <= 0 && (burning || (m.burning && d.alive))) for (const x of m.mats) {
+      // parou de queimar (saiu da lava ou morreu fora dela, empurrado por um golpe): volta a cor própria; morreu na lava
+      // (burnAt marcado neste quadro): o burnCorpse já cuida da cor do corpo, então não devolve a cor própria por cima
+      if (m.flash <= 0 && (burning || (m.burning && m.burnAt < 0))) for (const x of m.mats) {
         if (burning) {
           x.m.emissive.copy(EMBER);
           x.m.emissiveIntensity = 0.35 + 0.25 * Math.sin(now * 9);
