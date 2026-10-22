@@ -290,6 +290,11 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .wiz-label .shield-bar { width: 64px; height: 4px; margin-top: 2px; border-radius: 2px; background: rgba(0, 0, 0, .6); overflow: hidden; }
 .wiz-label .shield-bar > div { height: 100%; background: #8fd3ff; }
 .dmg.heal { color: #6ee787; -webkit-text-stroke: 1px #0f3d22; }
+/* medalha da colocação (1 a 3) à esquerda do nome, em cima do mago */
+.wiz-medal { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-right: 4px; border-radius: 50%; font-size: .62rem; font-weight: 800; line-height: 1; color: #2a1d17; text-shadow: none; vertical-align: middle; box-shadow: 0 0 0 1px rgba(0, 0, 0, .6), inset 0 -2px 0 rgba(0, 0, 0, .2); }
+.wiz-medal.medal-1 { background: radial-gradient(circle at 35% 30%, #fff3b0, #f2c200 60%, #a07800); }
+.wiz-medal.medal-2 { background: radial-gradient(circle at 35% 30%, #ffffff, #bfc5cc 60%, #7b828a); }
+.wiz-medal.medal-3 { background: radial-gradient(circle at 35% 30%, #f3c9a0, #c07a3a 60%, #7a4419); }
 /* bot: robô e dificuldade ao lado do nome (rótulo do mago e placar do canto) */
 .bot-tag { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; font-size: .68rem; font-weight: 700; color: var(--muted); vertical-align: middle; }
 /* números pequenos à direita da barra: regeneração e escudos (sem mexer no tamanho da barra) */
