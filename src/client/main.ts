@@ -71,6 +71,20 @@ const SPELL_SOUND: Record<SpellId, SoundKind> = {
   scourge: 'homing', pact: 'shield', // os sons que tinham como item ativo
 };
 
+// teste local dos efeitos sonoros (issue #203, só em localhost): a opção escolhida no painel do Sandbox toca no lançamento da magia
+function castSound(sound: ReturnType<typeof createSound>, s: SpellId, volume = 1) {
+  const k = LOCAL ? store.json<Record<string, string>>('warlock:sons-escolha')?.[s] : undefined;
+  if (k && k !== 'atual') void sound.preview(`${k.startsWith('r') ? 'opcoes-rpg' : 'opcoes'}/${s}-${k.replace('r', '')}`, volume);
+  else sound.play(SPELL_SOUND[s], volume);
+}
+// impacto (acertar alguém, o Escudo devolver, o Agarrar prender): toca a opção escolhida em vez do golpe padrão; sem escolha, false
+function impactSound(sound: ReturnType<typeof createSound>, src: string, volume: number) {
+  const k = LOCAL ? store.json<Record<string, string>>('warlock:sons-impacto')?.[src] : undefined;
+  if (!k || k === 'atual') return false;
+  void sound.preview(`opcoes-rpg-impacto/${src}-${k.replace('r', '')}`, volume);
+  return true;
+}
+
 // mensagens de erro do servidor (em português, protocolo inalterado) -> inglês
 const SERVER_EN: Record<string, string> = {
   'Mensagem inválida.': 'Invalid message.',
@@ -414,7 +428,7 @@ function startRoom(code: string, name: string) {
       predict.hold(CAST_POINT[spell]);
       scene.castLocal(me, spell, at);
       scene.clickMarker(at, true);
-      sound.play(SPELL_SOUND[spell]);
+      castSound(sound, spell);
       return true;
     },
     center: () => {
@@ -565,11 +579,13 @@ function startRoom(code: string, name: string) {
       else if (e.k === 'death' && e.id === me) rumble(1, 500);
       if (e.k === 'cast' && e.id !== me) {
         const w = interp.latest()?.wizards.find((z) => z.id === e.id);
-        sound.play(SPELL_SOUND[e.spell], w ? near(w.pos.x, w.pos.y) : 0.5);
-      } else if (e.k === 'hit') sound.play(e.dmg >= 100 ? 'hitHeavy' : e.dmg < 50 ? 'hitLight' : 'hit', near(e.x, e.y));
+        castSound(sound, e.spell, w ? near(w.pos.x, w.pos.y) : 0.5);
+      } else if (e.k === 'hit') {
+        if (!impactSound(sound, e.src, near(e.x, e.y))) sound.play(e.dmg >= 100 ? 'hitHeavy' : e.dmg < 50 ? 'hitLight' : 'hit', near(e.x, e.y));
+      }
       else if (e.k === 'pillar') sound.play('hit', near(e.x, e.y) * 0.6);
-      else if (e.k === 'grip') sound.play('hit', near(e.x, e.y));
-      else if (e.k === 'reflect') sound.play('reflect', near(e.x, e.y));
+      else if (e.k === 'grip') impactSound(sound, 'grip', near(e.x, e.y)) || sound.play('hit', near(e.x, e.y));
+      else if (e.k === 'reflect') impactSound(sound, 'shield', near(e.x, e.y)) || sound.play('reflect', near(e.x, e.y));
       else if (e.k === 'teleport' && e.id === me) predict.teleported(e.to);
       else if (e.k === 'scourge') sound.play('death', near(e.x, e.y));
       else if (e.k === 'shrink') sound.play('shrink');

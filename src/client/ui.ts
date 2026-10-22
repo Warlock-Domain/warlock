@@ -864,25 +864,31 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       };
       next(0);
     };
-    // escolha entre o som atual e as 3 opções (public/sfx/opcoes/<magia>-<n>.mp3, nomes em lista.json); fica no navegador
-    const ESCOLHA = 'warlock:sons-escolha';
-    const escolha: Record<string, string> = store.json<Record<string, string>>(ESCOLHA) ?? {};
-    let nomes: Record<string, string[]> = {};
+    // escolha, por magia, do efeito sonoro de lançar e do de impacto: o atual ou uma das 10 opções da biblioteca de RPG
+    // (public/sfx/opcoes-rpg e opcoes-rpg-impacto, R1 a R10; nomes em lista.json); a escolha fica no navegador e a partida também
+    // a usa (castSound e impactSound em main.ts)
+    const KEY = { 'opcoes-rpg': 'warlock:sons-escolha', 'opcoes-rpg-impacto': 'warlock:sons-impacto' } as const;
+    type Pasta = keyof typeof KEY;
+    const escolha: Record<Pasta, Record<string, string>> = { 'opcoes-rpg': store.json(KEY['opcoes-rpg']) ?? {}, 'opcoes-rpg-impacto': store.json(KEY['opcoes-rpg-impacto']) ?? {} };
+    const nomes: Record<Pasta, Record<string, string[]>> = { 'opcoes-rpg': {}, 'opcoes-rpg-impacto': {} };
     const escolhaBox = el('div', {});
+    const linha = (s: SpellId, d: Pasta, rotulo: string) => nomes[d][s] && el('div', { class: 'sandbox-row' }, el('small', {}, rotulo),
+      choice(`${spellName(s)}: ${rotulo}`, [['atual', 'Atual'] as [string, string], ...nomes[d][s].map((_, i): [string, string] => ['r' + (i + 1), 'R' + (i + 1)])], escolha[d][s] ?? '', (k) => {
+        run++;
+        const n = +k.slice(1);
+        toast(`${spellName(s)} (${rotulo.toLowerCase()}): ${k === 'atual' ? 'atual' : `R${n} (${nomes[d][s][n - 1]})`}`);
+        if (k !== 'atual') act.preview(`${d}/${s}-${n}`);
+        else if (d === 'opcoes-rpg') act.spellSound(s);
+        escolha[d][s] = k;
+        store.set(KEY[d], JSON.stringify(escolha[d]));
+        drawEscolha();
+      }));
     const drawEscolha = () => escolhaBox.replaceChildren(
-      el('small', { class: 'muted' }, `Escolhidas: ${Object.keys(escolha).length}/${SPELL_IDS.length}`),
-      ...SPELL_IDS.map((s) => el('div', {}, el('small', {}, spellName(s)),
-        choice(spellName(s), [['atual', 'Atual'], ['1', '1'], ['2', '2'], ['3', '3']], escolha[s] ?? '', (k) => {
-          run++;
-          toast(`${spellName(s)}: ${k === 'atual' ? 'atual' : `opção ${k}${nomes[s]?.[+k - 1] ? ` (${nomes[s][+k - 1]})` : ''}`}`);
-          if (k === 'atual') act.spellSound(s);
-          else act.preview(`opcoes/${s}-${k}`);
-          escolha[s] = k;
-          store.set(ESCOLHA, JSON.stringify(escolha));
-          drawEscolha();
-        }))));
+      el('small', { class: 'muted' }, `Lançar: ${Object.keys(escolha['opcoes-rpg']).length}/${SPELL_IDS.length} escolhidas · Impacto: ${Object.keys(escolha['opcoes-rpg-impacto']).length}/${Object.keys(nomes['opcoes-rpg-impacto']).length}`),
+      ...SPELL_IDS.map((s) => el('div', { class: 'sons-magia' }, el('b', {}, spellName(s)), linha(s, 'opcoes-rpg', 'Lançar'), linha(s, 'opcoes-rpg-impacto', 'Impacto'))));
     drawEscolha();
-    void fetch('/sfx/opcoes/lista.json').then((r) => (r.ok ? r.json() : {})).then((j) => (nomes = j), () => {});
+    for (const d of ['opcoes-rpg', 'opcoes-rpg-impacto'] as const)
+      void fetch(`/sfx/${d}/lista.json`).then((r) => (r.ok ? r.json() : {})).then((j) => ((nomes[d] = j), drawEscolha()), () => {});
     const musicBox = el('div', {});
     const drawMusic = () => musicBox.replaceChildren(choice('Música da partida', (Object.keys(MUSIC_TRACKS) as MusicTrack[]).map((k): [MusicTrack, string] => [k, MUSIC_TRACKS[k]]), musicTrack(),
       (k) => (setMusicTrack(k), toast(`Tocando: ${MUSIC_TRACKS[k]}`), drawMusic())));
@@ -892,7 +898,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('small', { class: 'muted' }, 'O que mudou: as 25 magias agora têm o mesmo volume (antes iam de −11,8 a −20,4 LUFS; agora −18,3 a −20,0). Cada magia tem som próprio, e abaixo há 3 opções novas para cada uma. Música nova: Epic Boss Battle.'),
       el('small', { class: 'muted' }, 'Escolha uma por magia; a escolha fica salva neste navegador (localStorage warlock:sons-escolha).'),
       el('button', { type: 'button', onclick: playAll }, 'Tocar todos os atuais'),
-      el('small', { class: 'muted' }, 'Escolha: cada botão toca o som e fica marcado como o escolhido. "Atual" é o de hoje; 1, 2 e 3 são as opções novas. Todos no mesmo volume.'),
+      el('small', { class: 'muted' }, 'Escolha: cada botão toca o som e fica marcado como o escolhido. "Atual" é o de hoje; R1 a R10 vêm da biblioteca de RPG (assets/sons-rpg, licença não informada). Lançar = ao soltar a magia; Impacto = ao acertar alguém (no Escudo, ao devolver; no Agarrar, ao prender). Todos no mesmo volume, e a escolha vale na partida (só em localhost).'),
       escolhaBox,
       el('small', { class: 'muted' }, 'Música (a mesma opção de Configurações → Som; troca na hora). A nova dá a volta em 2 min 3 s: ouça se o recomeço tem vão ou estalo.'),
       musicBox);

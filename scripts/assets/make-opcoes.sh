@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Opções da issue #203 (teste local, painel do Sandbox): gera public/sfx/opcoes/<magia>-<n>.mp3 com o mesmo corte e o mesmo volume (-18 LUFS)
 # do make-audio.sh, a partir de uma tabela TSV: magia<TAB>n<TAB>fonte<TAB>inicio<TAB>duracao|0<TAB>fade<TAB>rotulo
-# bash scripts/assets/make-opcoes.sh scripts/assets/opcoes.tsv . <pasta-temporária>   (fontes em /d/Projetos/warlock-assets, caminhos na tabela)
+# bash scripts/assets/make-opcoes.sh scripts/assets/opcoes.tsv . <pasta-temporária> [pasta em public/sfx, padrão opcoes]   (fontes em /d/Projetos/warlock-assets, caminhos na tabela)
 set -euo pipefail
-TAB=$1; R=$2; T=$3; O="$R/public/sfx/opcoes"; LUFS=-18
+TAB=$1; R=$2; T=$3; O="$R/public/sfx/${4:-opcoes}"; LUFS=-18
 mkdir -p "$O" "$T"
 json="{"
 declare -A labels
