@@ -6,7 +6,7 @@ import { DEFAULT_OPTS, DM_GOALS, OPTION_CHOICES } from '../shared/match.ts';
 import { CLASH } from '../shared/sim.ts';
 import { ITEMS, MAX_ITEMS, SCOURGE } from '../shared/items.ts';
 import { keyLabel, keyOf, padButtonName, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
-import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, RECHARGE, RUSH, SPELLS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
+import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, RECHARGE, RUSH, SPELLS, SPELL_GROUP_IDS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
 import { LANG, LOCALE, spellName, t } from './i18n.ts';
 
 // formatação dos números nos textos (também usada pela loja, ficha, dicas e opções)
@@ -84,7 +84,7 @@ const RULES_PT = {
     'Magia em aliado só empurra: não tira vida nem dá abate. Míssil, Ricochete, Gravidade e Agarrar só pegam inimigos; a Troca com aliado vale.',
   ],
   opcoes: [
-    `Quem começa a partida escolhe o modo e as opções na sala de espera: tempo de loja (${list(OPTION_CHOICES.shop)} s), ouro ganho (×${list(OPTION_CHOICES.economy.map(n1))}), ouro inicial (${list(OPTION_CHOICES.startGold)}), meta e arena. Runas e baús dá para desligar. Embaixo do número de bots, cada bot tem a sua dificuldade (Fácil, Normal, Difícil ou Automático); bot votado no meio da partida entra Normal.`,
+    `Quem começa a partida escolhe o modo e as opções na sala de espera: tempo de loja (${list(OPTION_CHOICES.shop)} s), ouro ganho (×${list(OPTION_CHOICES.economy.map(n1))}), ouro inicial (${list(OPTION_CHOICES.startGold)}), meta e arena. Runas e baús dá para desligar. Embaixo do número de bots, cada bot tem a sua dificuldade (Fácil, Casual, Normal, Veterano, Difícil ou Automático, o padrão); bot votado no meio da partida entra Automático.`,
     `Votar, no topo: trocar o modo, mudar uma opção, sortear ou fixar os times, pôr ou tirar um bot, pular a loja, reiniciar, encerrar ou expulsar alguém. Passa com mais da metade; fecha em ${VOTE_MS / 1000} s e vale na próxima rodada.`,
   ],
   arenas: [
@@ -201,7 +201,7 @@ const RULES_EN: typeof RULES_PT = {
     'Spells on an ally only knock back: no damage and no kill. Homing Missile, Bouncer, Gravity and Grip only hit enemies; Swap with an ally works.',
   ],
   opcoes: [
-    `Whoever starts the match picks the mode and options in the lobby: shop time (${list(OPTION_CHOICES.shop)} s), gold earned (×${list(OPTION_CHOICES.economy.map(n1))}), starting gold (${list(OPTION_CHOICES.startGold)}), goal and arena. Runes and chests can be turned off. Below the bot count, each bot has its own difficulty (Easy, Normal, Hard or Auto); a bot voted in mid-match joins on Normal.`,
+    `Whoever starts the match picks the mode and options in the lobby: shop time (${list(OPTION_CHOICES.shop)} s), gold earned (×${list(OPTION_CHOICES.economy.map(n1))}), starting gold (${list(OPTION_CHOICES.startGold)}), goal and arena. Runes and chests can be turned off. Below the bot count, each bot has its own difficulty (Easy, Casual, Normal, Veteran, Hard or Auto, the default); a bot voted in mid-match joins on Auto.`,
     `Vote, at the top: change the mode, change an option, shuffle or fix the teams, add or remove a bot, skip the shop, restart, end or kick someone. Passes with more than half; closes in ${VOTE_MS / 1000} s and takes effect next round.`,
   ],
   arenas: [
@@ -335,17 +335,19 @@ export const ITEM_DEMO = LANG === 'en' ? ITEM_DEMO_EN : ITEM_DEMO_PT;
 
 // loja e ajuda: magias agrupadas pelo efeito principal (o que cada uma faz está em RULES_SHORT)
 type SpellGroups = [name: string, hint: string, spells: SpellId[]][];
+// as listas moram em spells.ts (SPELL_GROUP_IDS), que o sorteio das cartas do Ascensão também usa
+const G = SPELL_GROUP_IDS;
 const SPELL_GROUPS_PT: SpellGroups = [
-  ['Ataque', 'dano e empurrão', ['fireball', 'lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball']],
-  ['Mobilidade', 'sair do lugar', ['teleport', 'swap', 'rush', 'thrust', 'windwalk']],
-  ['Defesa', 'parar o que vem', ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion']],
-  ['Controle', 'prender, puxar, atrasar', ['grip', 'gravity', 'link', 'magnetize', 'drain']],
+  ['Ataque', 'dano e empurrão', [...G.attack]],
+  ['Mobilidade', 'sair do lugar', [...G.mobility]],
+  ['Defesa', 'parar o que vem', [...G.defense]],
+  ['Controle', 'prender, puxar, atrasar', [...G.control]],
 ];
 const SPELL_GROUPS_EN: SpellGroups = [
-  ['Attack', 'damage and knockback', ['fireball', 'lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball']],
-  ['Mobility', 'get out of the way', ['teleport', 'swap', 'rush', 'thrust', 'windwalk']],
-  ['Defense', 'stop what is coming', ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion']],
-  ['Control', 'grip, pull, slow', ['grip', 'gravity', 'link', 'magnetize', 'drain']],
+  ['Attack', 'damage and knockback', [...G.attack]],
+  ['Mobility', 'get out of the way', [...G.mobility]],
+  ['Defense', 'stop what is coming', [...G.defense]],
+  ['Control', 'grip, pull, slow', [...G.control]],
 ];
 export { SPELL_GROUPS_EN, SPELL_GROUPS_PT };
 export const SPELL_GROUPS = LANG === 'en' ? SPELL_GROUPS_EN : SPELL_GROUPS_PT;

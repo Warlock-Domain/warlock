@@ -2,6 +2,7 @@
 // com os números lidos do código. Clique ou toque fixa a explicação (✕, Esc ou toque fora fecham); mouse em cima e foco pelo teclado mostram.
 import { BOT_SKILL } from '../shared/bots.ts';
 import { ARENA_IDS } from '../shared/arena.ts';
+import { ASC_MODE_TEXT } from './ascension-ui.ts';
 import { ASSIST_GOLD, CHEST, COUNTDOWN_MS, DM_RESPAWN, DM_ROUND_MS, KILL_GOLD, RECOVERY, ROUND_EFFECT_IDS, ROUND_EFFECTS, ROUND_END_MS, ROUND_GOLD, RUNE, SUDDEN, TOP_DMG_GOLD, WIN_GOLD, type RoundEffectId } from '../shared/constants.ts';
 import { DM_GOALS, OPTION_CHOICES, PACE, type MatchOpts, type Mode } from '../shared/match.ts';
 import { arenaName, t } from './i18n.ts';
@@ -25,6 +26,10 @@ export const EFFECT_NAME: Record<RoundEffectId, string> = {
   // nomes do Fernando (21/10); os ids ficaram os antigos (lava, swords, speed) para não mexer no protocolo nem nas salas gravadas
   lava: t('Tempo chuvoso', 'Rainy weather'), swords: t('Arena de espinhos', 'Spike arena'), gold: t('Febre do ouro', 'Gold rush'), speed: t('Vendaval', 'Gale'), regen: t('Fonte da vida', 'Wellspring'), clear: t('Campo aberto', 'Open field'),
 };
+// Ascensão: sem ouro, a Febre do ouro vira Febre arcana, com o mesmo +50% no XP e o visual azul (Fernando, 21/10)
+export const effectName = (e: RoundEffectId, mode?: Mode) => (e === 'gold' && mode === 'ascension' ? t('Febre arcana', 'Arcane rush') : EFFECT_NAME[e]);
+export const effectText = (e: RoundEffectId, mode?: Mode) =>
+  e === 'gold' && mode === 'ascension' ? t(`todo XP ganho na rodada vale ${pct(ROUND_EFFECTS.gold.gold! - 1)} mais`, `all XP earned in the round is worth ${pct(ROUND_EFFECTS.gold.gold! - 1)} more`) : EFFECT_TEXT[e];
 export const EFFECT_TEXT: Record<RoundEffectId, string> = {
   // os números vêm de ROUND_EFFECTS (constants.ts), para o texto não ficar defasado quando eles mudarem
   lava: t(`dano da lava ${pct(1 - ROUND_EFFECTS.lava.lava!)} menor`, `lava damage ${pct(1 - ROUND_EFFECTS.lava.lava!)} lower`),
@@ -60,14 +65,15 @@ export const OPT_INFO: Record<keyof MatchOpts, (mode: Mode) => string> = {
       `${SKILL_NAME[k]}: reacts in ${n1(b.delay)} s, decides ${n1(b.rate)} times per second, aim misses by up to ${n1(b.aim)} m, uses a spell ${n1(b.waitMin)} to ${n1(b.waitMax)} s after its cooldown, dodges ${pct(b.dodge)} of shots, chains ${pct(b.combo)} of combos, stays ${n1(b.range)} m from the target and sees up to ${b.vision} m`);
   }), t('Automático: cada bot fica entre o Fácil e o Difícil conforme o placar: humano perdendo deixa os bots mais fracos, ganhando mais fortes',
     'Auto: each bot sits between Easy and Hard depending on the score: a human losing makes the bots weaker, winning makes them stronger')])}`,
-  effect: () => `<p>${t('Uma regra a mais em cada rodada, igual para todos. A loja já mostra o efeito da próxima rodada, para comprar sabendo.', 'One extra rule each round, the same for everyone. The shop already shows the next round’s effect, so you can buy for it.')}</p>${list([
-    t('Sortear: um efeito diferente a cada rodada (nunca o mesmo duas vezes seguidas)', 'Random: a different effect every round (never the same twice in a row)'), ...ROUND_EFFECT_IDS.map((e) => `${EFFECT_NAME[e]}: ${EFFECT_TEXT[e]}`)])}<small>${t('Desligado: rodadas normais.', 'Off: normal rounds.')}</small>`,
+  effect: (mode) => `<p>${t('Uma regra a mais em cada rodada, igual para todos. A loja já mostra o efeito da próxima rodada, para comprar sabendo.', 'One extra rule each round, the same for everyone. The shop already shows the next round’s effect, so you can buy for it.')}</p>${list([
+    t('Sortear: um efeito diferente a cada rodada (nunca o mesmo duas vezes seguidas)', 'Random: a different effect every round (never the same twice in a row)'), ...ROUND_EFFECT_IDS.map((e) => `${effectName(e, mode)}: ${effectText(e, mode)}`)])}<small>${t('Desligado: rodadas normais.', 'Off: normal rounds.')}</small>`,
   arena: () => `<p>${t('Formato da pedra. Todas têm área parecida e encolhem igual.', 'Shape of the rock. All have a similar area and shrink the same way.')}</p>${list([t('Sortear: uma arena diferente a cada rodada', 'Random: a different arena every round'), ...ARENA_IDS.map((a) => `${arenaName(a)}: ${ARENA_TEXT[a]}`)])}`,
 };
 export const MODE_INFO = () => list([
   t('Rodadas: o último vivo ganha a rodada e 1 ponto.', 'Rounds: the last one alive wins the round and 1 point.'),
   t(`Deathmatch: rodadas de ${s(DM_ROUND_MS)}, quem cai volta em ${DM_RESPAWN} s; cada abate vale 1 ponto.`, `Deathmatch: ${s(DM_ROUND_MS)} rounds, whoever falls comes back after ${DM_RESPAWN} s; each kill is worth 1 point.`),
   t('Times: Azul contra Vermelho; a rodada acaba quando só sobra um time e todos dele pontuam. Magia em aliado só empurra.', 'Teams: Blue vs. Red; the round ends when only one team is left and all of them score. Spells on allies only knock back.'),
+  t('Ascensão: ', 'Ascension: ') + ASC_MODE_TEXT,
 ]);
 
 // um balão aberto por vez
