@@ -12,6 +12,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Números de magia e item (`spells.ts`, `items.ts`, `constants.ts`)
 
+- Proposta Meteoro em revisão: preserva dano/área e substitui empurrão por duration=1,25s em todos os níveis. Usa o bloqueio geral de stun e resistências do alvo; não aciona recuperação pós-knockback sem impulso. Medição/decisão do dono pendente antes de integrar.
+
 - 7 níveis por `L({...})`; séries irregulares com `zip([...], [...])`, lineares com `steps(de, passo)`.
 - Ajuste de balanceamento fica **inline sobre o número original**, com comentário de data e medição: `cd: cd * 0.7 /* 18/10: … (0,86 → 0,97) */`.
 - Constante extra de mecânica vira objeto `NOME = { … * UNIT }` abaixo da tabela, com o arquivo `.lua` de origem no comentário. Nada de número mágico solto em `sim.ts`.

@@ -121,7 +121,8 @@ describe('Meteoro', () => {
     expect(w.wizards[1].hp).toBeCloseTo(HP_MAX - L.dmg, -1); // no centro: dano máximo
     expect(w.wizards[2].hp).toBe(HP_MAX); // fora do raio
     expect(w.wizards[0].hp).toBe(HP_MAX); // quem lança não leva
-    expect(len(w.wizards[1].vel)).toBeGreaterThan(0);
+    expect(len(w.wizards[1].vel)).toBe(0); // troca empurrão por stun fixo.
+    expect(w.wizards[1].stunLeft).toBeGreaterThan(0);
   });
 
   it('deals less at the edge', () => {

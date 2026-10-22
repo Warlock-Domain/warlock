@@ -878,6 +878,7 @@ function meteorLand(w: World, p: Projectile) {
     if (d > L.radius + WIZ_R) continue;
     const amount = (L.dmgMin + (L.dmg - L.dmgMin) * Math.max(0, 1 - d / L.radius)) * p.dmgMult;
     hit(w, o, p.owner, amount, amount * (L.knock / L.dmg), sub(o.pos, p.pos), 'meteor');
+    stun(w, o, L.duration);
     landed = true;
   }
   const owner = anyById(w, p.owner);
@@ -888,6 +889,7 @@ function meteorLand(w: World, p: Projectile) {
     if (d > L.radius + WIZ_R) continue;
     const amount = (L.dmgMin + (L.dmg - L.dmgMin) * Math.max(0, 1 - d / L.radius)) * p.dmgMult;
     pushDecoy(q, scale(norm(sub(q.pos, p.pos)), amount * (L.knock / L.dmg)), amount);
+    q.stunLeft = Math.max(q.stunLeft ?? 0, L.duration);
   }
   w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'fire', r: L.radius });
   if (landed) land(w, p, 'meteor');

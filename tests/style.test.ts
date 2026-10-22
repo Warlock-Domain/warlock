@@ -40,7 +40,8 @@ describe('jeito de jogar', () => {
     // 22/10: fim da amplificação por dano histórico altera intencionalmente as trajetórias.
     // Proposta 23/10: bloqueios explícitos de stun/Agarrar mudam as decisões e trajetórias dos bots.
     // Proposta23/10: fim limpo do impulso e retomada50→100% mudam trajetórias.
-    expect(hash).toBe(2407774018);
+    // Proposta23/10: Meteoro sem empurrão, com stun fixo1,25s.
+    expect(hash).toBe(904780266);
 
     // e mediu de verdade nessa mesma partida
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
