@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ASC_ROUNDS, CONSOLATION, DOUBLE_FROM, LEADER_KILL_XP, MARK_KB, applyCard, setAscLobby, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
+import { ASC_ROUNDS, CONSOLATION, roundMult, LEADER_KILL_XP, MARK_KB, applyCard, setAscLobby, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
 import { addPlayer, buy, castBallot, newMatch, removePlayer, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
 import { gearOf } from '../src/shared/sim.ts';
@@ -477,9 +477,9 @@ describe('sala do Ascensão: o dono escolhe, todos veem', () => {
   });
 });
 
-describe('final em dobro', () => {
-  it('rounds 7 to 9 are worth double points, earlier rounds normal points', () => {
-    expect(DOUBLE_FROM).toBe(7);
+describe('final valendo mais', () => {
+  it('rounds 6 and 7 are worth 1.5x points (rounded) and rounds 8 and 9 double', () => {
+    expect([1, 5, 6, 7, 8, 9].map(roundMult)).toEqual([1, 1, 1.5, 1.5, 2, 2]);
     const pointsAt = (round: number) => {
       const m = ascMatch(1, true);
       m.round = round;
@@ -489,9 +489,13 @@ describe('final em dobro', () => {
       ascEndRound(m, ids, [ids[3]]);
       return m.players.map((p) => p.score);
     };
-    expect(pointsAt(6).some((x) => x > 0)).toBe(true);
-    expect(pointsAt(7)).toEqual(pointsAt(6).map((x) => x * 2));
-    expect(pointsAt(9)).toEqual(pointsAt(7));
-    expect(pointsAt(1)).toEqual(pointsAt(6));
+    const base = pointsAt(5);
+    expect(base.some((x) => x > 1)).toBe(true);
+    expect(pointsAt(1)).toEqual(base);
+    expect(pointsAt(6)).toEqual(base.map((x) => Math.round(x * 1.5)));
+    expect(pointsAt(7)).toEqual(pointsAt(6));
+    expect(pointsAt(8)).toEqual(base.map((x) => x * 2));
+    expect(pointsAt(9)).toEqual(pointsAt(8));
+    expect(pointsAt(6).every(Number.isInteger)).toBe(true);
   });
 });

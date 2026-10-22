@@ -20,9 +20,9 @@ export type AscState = { xp: Record<string, number>; todo: Record<string, Kind[]
 const EVERY_BREAK: Kind[] = ['spell', 'item'];
 
 export const ASC_ROUNDS = 9;
-// final em dobro: a partir desta rodada os pontos da queda valem o dobro, para quem está atrás ainda virar (Fernando, 21/10:
-// "7-9 podem valer 2x"; no simulador a virada do último da rodada 3 foi de 10,5% para 13%)
-export const DOUBLE_FROM = 7;
+// final valendo mais: os pontos da queda valem 1,5× nas rodadas 6 e 7 e o dobro nas 8 e 9, para quem está atrás ainda virar
+// (Fernando, 21/10: "coloque 6 e 7 1.5x e 8 e 9 2x pontos"); arredonda para o placar seguir inteiro (a ordem não muda)
+export const roundMult = (round: number) => (round >= 8 ? 2 : round >= 6 ? 1.5 : 1);
 // números iniciais, a medir no simulador (PRs de rebalanceamento depois); as magias e os itens não mudam (Fernando, 21/10)
 // DMG_XP e LAVA_XP separados: o Fernando está decidindo se a lava continua contando como dano do mago (21/10)
 export const DMG_XP = 1;
@@ -261,7 +261,7 @@ export function ascEndRound(m: Match, played: string[], alive: string[]) {
   const inRound = m.players.filter((p) => played.includes(p.id));
   const avg = inRound.reduce((t, p) => t + lv(a, p.id), 0) / Math.max(1, inRound.length);
   for (const p of inRound) {
-    p.score += pts[p.id] * (m.round >= DOUBLE_FROM ? 2 : 1);
+    p.score += Math.round(pts[p.id] * roundMult(m.round));
     const before = lv(a, p.id);
     // Febre arcana: no Ascensão (sem ouro) o efeito de rodada da Febre do ouro multiplica o XP da rodada (Fernando, 21/10: "arcane rush q da 50% mais xp")
     const rush = m.world?.mods.gold ?? 1;
