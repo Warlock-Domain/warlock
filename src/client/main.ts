@@ -164,18 +164,12 @@ function startLobby(name: string) {
   ui.addEventListener('click', (e) => (e.target as Element).closest('button, .button') && sound.play('click'));
   let rooms: RoomInfo[] | null = null;
   let offline = false;
-  let exited = false;
   const draw = () =>
-    !exited && renderLobby(ui, name, rooms, offline, () => create(), () => create(undefined, true), async () => {
+    renderLobby(ui, name, rooms, offline, () => create(), () => create(undefined, true), async () => {
       name = await askName(document.body, name);
       store.set(NAME, name);
       draw();
-    }, create, () => {
-      exited = true;
-      lobbyNet.stop();
-      screen(ui, t('Até a próxima!', 'See you soon!'), t('Você saiu do jogo. Pode fechar esta aba.', 'You left the game. You can close this tab.'), t('Voltar ao jogo', 'Return to game'), () => location.reload());
-      window.close();
-    }, sound);
+    }, create, sound);
   // train: o treino que começa sozinho na sala nova (sem armazenamento, entra só na sala)
   // ascension: sala do Ascensão (opção própria no menu Jogar)
   async function create(train?: string, ascension = false) {
@@ -198,7 +192,7 @@ function startLobby(name: string) {
     rooms = m.rooms as RoomInfo[]; // a ordem e as vazias recolhidas ficam com renderLobby (screen-data.ts)
     draw();
   }, () => {}, (on) => {
-    if (!exited) servidor(on);
+    servidor(on);
     // sem a conexão da lista, o lobby mostra o erro em vez de "Carregando salas…" para sempre
     if (offline === !on) return;
     offline = !on;
