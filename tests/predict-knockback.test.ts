@@ -69,25 +69,29 @@ describe('previsão no fim do empurrão', () => {
   });
 
   it.each([30, 60, 144])('não alterna paradas e saltos após liberar a caminhada (%s FPS, snapshots 30Hz)', (fps) => {
-    const server = { id: 'p', pos: v(0, 0), vel: v(4.529, 0), target: null, speed: WIZ_SPEED } as Wizard;
-    const view = () => ({ ...snapshot(server.pos.x, server.vel.x) });
+    const server = { id: 'p', pos: v(0, 0), vel: v(4.529, 0), target: v(0, 20), speed: WIZ_SPEED } as Wizard;
+    const view = () => ({ ...snapshot(server.pos.x, server.vel.x), pos: { ...server.pos }, recoveryLeft: server.recoveryLeft });
     const p = createPredict();
     let latest = view(), tick = 0, before = 0, checked = 0;
     p.frame(latest, 0);
+    p.setSpeed(WIZ_SPEED);
+    p.move(v(0, 20));
     for (let frame = 1; frame <= fps * 4; frame++) {
       const time = frame / fps;
       while ((tick + 1) * DT <= time + 1e-9) {
         moveWizard(server, DT);
         if (++tick % 2 === 0) latest = view();
       }
-      const shown = p.frame(latest, 1 / fps).x;
-      if (!isSliding(latest) && server.vel.x > .1) {
+      const position = p.frame(latest, 1 / fps);
+      const shown = position.y;
+      if (!isSliding(latest) && (server.recoveryLeft ?? 0) > 0) {
         expect(shown - before).toBeGreaterThan(0);
-        expect(Math.abs(server.pos.x - shown)).toBeLessThan(.25);
+        expect(Math.abs(server.pos.y - shown)).toBeLessThan(.25);
+        expect(Math.abs(position.x - server.pos.x)).toBeLessThan(.03); // destino diagonal legítimo também reduz x durante a caminhada.
         checked++;
       }
       before = shown;
     }
-    expect(checked).toBeGreaterThan(fps);
+    expect(checked).toBeGreaterThan(fps * .8);
   });
 });
