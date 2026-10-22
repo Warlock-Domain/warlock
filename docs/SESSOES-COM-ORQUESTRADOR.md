@@ -50,7 +50,7 @@ Sugestão de ambiente de desenvolvimento, usada pelo dono do projeto desde 20/10
 - **Navegador só para testes.** As abas de teste abrem num navegador separado (um perfil próprio, com porta de depuração local em `127.0.0.1`), que a sessão consegue listar e fechar sozinha; o seu navegador do dia a dia fica intocado. Aba de servidor desligado é fechada a cada merge.
 - **PR que não muda o comportamento do jogo** (refatoração, limpeza, docs, CI) não abre aba de teste nem espera aprovação: basta CI verde, a revisão de excesso de código (`/ponytail-review`) e prints iguais.
 - **Sessão se arquiva sozinha.** Mandou o PR para revisão ou terminou a frente: derruba o próprio servidor, fecha as próprias abas e se arquiva. Se o PR precisar de ajuste, a revisora ou a orquestradora reabre a sessão.
-- **Revisora nova todo dia** (se usar revisoras): uma tarefa agendada abre uma revisora de cada papel pela manhã; a nova pede à anterior que atualize o arquivo de estado do papel (uma linha por PR aberto: o que foi pedido, o que falta, de quem depende) e se arquive. Assim nenhuma sessão fica lotada de contexto.
+- **Revisora nova todo dia** (se usar revisoras): uma tarefa agendada abre uma revisora de cada papel pela manhã; a nova pede à anterior que atualize o arquivo de estado do papel (um `.md` fora do repositório, na pasta que você escolher; uma linha por PR aberto: o que foi pedido, o que falta, de quem depende) e se arquive. Assim nenhuma sessão fica lotada de contexto.
 - **Prints só no PC** por enquanto (decisão de 20/10).
 - **Commits em português, sem `Co-Authored-By`**; nada vai para o `master` sem PR.
 
