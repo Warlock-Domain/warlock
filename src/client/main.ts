@@ -656,9 +656,9 @@ function startRoom(code: string, name: string) {
       }
       // mais usados (#185): cada nível novo de magia ou item conta; Sandbox, Desafios, Sombra e Ascensão (cartas, sem loja) ficam fora (Fernando, 21/10)
       // shortcut: desfazer e comprar de novo conta duas vezes; mudar para descontar se o selo começar a errar
-      const was = prev?.players.find((p) => p.id === me), now = room.players.find((p) => p.id === me);
-      if (was && now && !room.sandbox && !shadow && !run && !pending && !now.asc) {
-        const keys = boughtKeys(was, now);
+      const mineBefore = prev?.players.find((p) => p.id === me), mineNow = room.players.find((p) => p.id === me);
+      if (mineBefore && mineNow && !room.sandbox && !shadow && !run && !pending && !mineNow.asc) {
+        const keys = boughtKeys(mineBefore, mineNow);
         if (keys.length) store.set(USED_KEY, JSON.stringify(countBuys(store.json<Record<string, number>>(USED_KEY) ?? {}, keys)));
       }
       // compra na loja: o ouro caiu → som de moedas
