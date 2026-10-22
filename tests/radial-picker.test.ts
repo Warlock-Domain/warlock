@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { radialHold, radialIndex } from '../src/client/taunt-wheel.ts';
+import { assignTauntSlot, radialHold, radialIndex, tauntWheelSlots } from '../src/client/taunt-wheel.ts';
 import { TAUNTS } from '../src/shared/taunts.ts';
 
 describe('seletor radial', () => {
@@ -22,6 +22,20 @@ describe('seletor radial', () => {
     expect(hold.release('KeyP')).toBe(false);
     expect(hold.press('KeyP')).toBe(true);
     expect(hold.release('KeyP')).toBe(true);
+  });
+  it('a ordem da roda é uma permutação de todas as falas e trocar põe a outra no lugar da primeira', () => {
+    const slots = tauntWheelSlots(null, TAUNTS.length);
+    expect(slots).toEqual(TAUNTS.map((_, i) => i));
+    expect(assignTauntSlot(slots, 0, 7).slice(0, 8)).toEqual([7, 1, 2, 3, 4, 5, 6, 0]);
+    expect(new Set(assignTauntSlot(slots, 14, 0)).size).toBe(TAUNTS.length);
+    expect(assignTauntSlot(slots, 99, 2)).toBe(slots);
+    expect(assignTauntSlot(slots, 1, 100)).toBe(slots);
+  });
+  it('recupera preferência inválida ou de catálogo menor sem repetir nem perder fala', () => {
+    const slots = tauntWheelSlots([9, 9, -1, '2', 80, 3], TAUNTS.length);
+    expect(slots.slice(0, 3)).toEqual([9, 3, 0]);
+    expect([...slots].sort((a, b) => a - b)).toEqual(TAUNTS.map((_, i) => i));
+    expect(tauntWheelSlots('x', 3)).toEqual([0, 1, 2]);
   });
   it('começa em cima e alcança todas as provocações do catálogo no sentido horário', () => {
     for (const count of [8, 10, TAUNTS.length]) {

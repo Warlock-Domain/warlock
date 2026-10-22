@@ -918,6 +918,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     gravity: SPIN, cluster: SPIN,
     // Flagelo: o giro mais forte vai de ~0,6 a ~0,9 s do clip; começando em 0,15 ele cai junto com a explosão (preparo de 0,5 s)
     scourge: ['2H_Melee_Attack_Spin', 0.85, 0.15],
+    // issue #207: o que é jogado sai de arremesso, do mesmo ponto do clip que o Agarrar (a soltura cai no preparo de 0,1 s);
+    // o que é feito em si mesmo canaliza como o Drenar. Os outros projéteis seguem no disparo padrão, que já parece magia saindo da mão
+    boomerang: ['Throw', 0.6, 0.45], link: ['Throw', 0.6, 0.45], snowball: ['Throw', 0.6, 0.45],
+    pact: ['Spellcast_Long', 0.9, 0.3], recharge: ['Spellcast_Long', 0.9, 0.3],
   };
   const castAnim = (spell: string) => CAST_ANIM[spell] ?? (['Spellcast_Shoot', 0.55] as const);
   function oneShot(id: string, name: string, secs: number, from = 0) {
