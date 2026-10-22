@@ -972,7 +972,7 @@ body.replaying .peek-shop { display: none; }
 /* logo na barra = o mesmo SVG do ícone da aba (public/warlock-wars.svg; pedido do Fernando, 20/10) */
 .home-logo img { display: block; width: 64px; height: 64px; filter: drop-shadow(0 2px 8px rgba(255, 120, 30, .45)); }
 @media (hover: hover) { .home-logo:hover img { filter: drop-shadow(0 0 6px var(--ember)) drop-shadow(0 0 18px var(--ember)); } }
-.home-tool { flex: 0 0 64px; border: 0; border-right: 1px solid var(--line); border-radius: 0; background: none; padding: 10px; }
+.home-tool { flex: 0 0 64px; border: 0; border-radius: 0; background: none; padding: 10px; }
 .home-tool img { display: block; }
 .home-tool.on { background: var(--sel-bg); box-shadow: inset 0 -3px var(--gold); }
 @media (hover: hover) { .home-tool:hover { background: var(--sel-bg); } }
@@ -983,10 +983,6 @@ body.replaying .peek-shop { display: none; }
 .home-tabs button.on::before { border-bottom-color: var(--gold); background: linear-gradient(180deg, var(--panel2), var(--lava-night)); }
 .home-tabs button:focus-visible { z-index: 1; outline-offset: -5px; }
 @media (hover: hover) { .home-tabs button:hover { color: var(--fg); } .home-tabs button:hover::before { border-bottom-color: var(--bronze); background: var(--plate); } }
-.home-tabs .home-exit { flex: 0 0 64px; padding: 10px; border-right: 1px solid var(--line); }
-.home-tabs .home-exit::before { display: none; }
-.home-tabs .home-exit .gi { display: block; width: 28px; height: 28px; color: var(--muted); }
-@media (max-width: 600px) { .home-tabs .home-exit { flex-basis: 48px; } }
 .home-panel { display: flex; flex-direction: column; gap: 24px; }
 .play-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 32px; align-items: start; }
 .play-content { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
