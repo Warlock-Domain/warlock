@@ -38,11 +38,11 @@ export const ITEMS: Record<ItemId, Item> = {
   shock_boots: { name: 'Botas de choque', cost: 5, text: 'Ao levar um golpe, anda mais rápido por 3 s (não soma com as Botas: vale a maior).', en: 'Shock Boots', textEn: 'When hit, move faster for 3 s (does not stack with Boots: the higher one counts).', levels: [{}] },
   // Wind boots do catálogo (docs/itens-candidatos.md); pedido do Fernando, 18/10: item que serve a qualquer jeito de jogar
   wind_boots: { name: 'Botas de vento', cost: 7, text: 'Depois de 5 s sem causar nem levar dano, anda mais rápido até o próximo golpe (não soma com outras botas: vale a maior).', en: 'Wind Boots', textEn: 'After 5 s without dealing or taking damage, move faster until the next hit (does not stack with other boots: the higher one counts).', levels: [{}] },
-  // consumível desde o ciclo 4: preço, vida e distância não a tiravam de 1,20× (a vida extra é o poder); some ao salvar
   // itens de crítico (issue #184, ideia do Reinaldo): valem para qualquer magia de dano; a Magia Perfurante só soma ao crítico da Lente
   lens: { name: 'Lente Letal', cost: 6, text: `Chance de golpe crítico em todo dano de magia, também em cada tique da Gravidade e do Elo: o crítico causa ${CRIT.dmg * 100}% a mais de dano.`, en: 'Lethal Lens', textEn: `Chance of a critical hit on all spell damage, including each tick of Gravity and Link: a critical hit deals ${CRIT.dmg * 100}% more damage.`, levels: [0.05, 0.1, 0.15].map((crit) => ({ crit })) },
   piercing: { name: 'Magia Perfurante', cost: 4, text: 'Seus golpes críticos causam ainda mais dano (sem a Lente Letal, não há crítico).', en: 'Piercing Magic', textEn: 'Your critical hits deal even more damage (without the Lethal Lens there are no critical hits).', levels: [0.3, 0.4, 0.5].map((critDmg) => ({ critDmg })) },
   affliction: { name: 'Runa da aflição', cost: 3, text: 'As lentidões e penalidades que você aplica duram mais em quem você acerta.', en: 'Rune of Affliction', textEn: 'The slows and penalties you apply last longer on whoever you hit.', levels: [0.05, 0.1].map((afflict) => ({ afflict })) },
+  // consumível desde o ciclo 4: preço, vida e distância não a tiravam de 1,20× (a vida extra é o poder); some ao salvar
   aegis: { name: 'Égide', cost: 7, text: 'Na lava com pouca vida, volta para a pedra. Quebra ao salvar você (compre de novo).', en: 'Aegis', textEn: 'In the lava with low health, sends you back to the rock. Breaks when it saves you (buy it again).', levels: [{}] },
 };
 
