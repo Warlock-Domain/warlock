@@ -10,7 +10,7 @@ import { t } from './i18n.ts';
 
 // alvo do passo: ponto fixo ou a posição atual do mago com esse índice
 type At = Vec | number;
-type Step = [t: number, who: number, what: SpellId | ItemId | 'move', at: At];
+type Step = [t: number, who: number, what: SpellId | 'move', at: At];
 type Script = { pos?: Vec[]; end: number; steps: Step[]; prep?: (w: World) => void };
 export type DemoId = SpellId | ItemId | 'clash';
 
@@ -49,7 +49,6 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   splitter: { pos: [v(-3, 0), v(2, 0), v(2.4, 1.3)], end: 3, steps: [[0.4, A, 'splitter', v(0.8, 0.3)]] },
   warpzone: { end: 3.4, steps: [[0.2, B, 'fireball', A], [0.3, A, 'warpzone', v(-0.6, 0)], [0.5, A, 'move', v(-3, 2.6)], [0.6, B, 'move', v(-1, 0.2)]] },
   scourge: { pos: [v(-3, 0), v(-2.2, 0.2), v(-3.6, 1.2)], end: 2.4, steps: [[0.4, A, 'scourge', A]] },
-  redirector: { end: 3, steps: [[0.3, A, 'fireball', v(-3, -5)], [0.75, A, 'redirector', B]] },
   pact: { end: 3.4, steps: [[0.3, A, 'pact', B], [0.6, A, 'fireball', B]] },
   aegis: { pos: [v(-1.5, 0), v(3.4, 0)], end: 3.6, steps: [[0.4, A, 'fireball', B]], prep: (w) => Object.assign(w.wizards[B], { hp: 320, aegis: true }) },
   clash: { pos: [v(-3, 0), v(2, 0), v(1, 2.4)], end: 3.8, steps: [[0.3, A, 'fireball', B], [0.3, B, 'fireball', A], [0.9, C, 'move', v(-0.5, 0)]] },
@@ -79,7 +78,7 @@ export function demoStep(s: DemoState) {
     const [, who, what, at] = script.steps[s.next];
     const id = w.wizards[who].id;
     const to = typeof at === 'number' ? { ...w.wizards[at].pos } : at;
-    cmds.push(what === 'move' ? { id, kind: 'move', to } : isSpell(what) ? { id, kind: 'cast', spell: what, at: to } : { id, kind: 'item', item: what, at: to });
+    cmds.push(what === 'move' ? { id, kind: 'move', to } : { id, kind: 'cast', spell: what, at: to });
   }
   stepWorld(w, cmds, () => 0.5);
   s.events = w.events;
@@ -209,7 +208,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
         ctx.globalAlpha = 1;
       }
       else if (e.k === 'teleport') line(e.from, e.to, 'rgba(255,214,102,.6)', 0.05, true);
-      else if (e.k === 'reflect' || e.k === 'redirect') circle(v(e.x, e.y), 0.5, null, '#ffd666');
+      else if (e.k === 'reflect') circle(v(e.x, e.y), 0.5, null, '#ffd666');
       else if (e.k === 'scourge' || e.k === 'clash') circle(v(e.x, e.y), e.r, null, e.k === 'clash' ? CLASH_COLOR[e.combo] : '#ff6a4d');
       else if (e.k === 'hit' && e.dmg > 0.5) text('−' + Math.round(e.dmg), v(e.x, e.y - 1.1 - (0.8 - life) * 0.8), '#fff2a0', 0.42);
       else if (e.k === 'death') text('✕', w.wizards.find((z) => z.id === e.id)?.pos ?? v(0, 0), '#ff6a4d', 0.6);

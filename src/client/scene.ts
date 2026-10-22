@@ -31,7 +31,8 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[] }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago
+// xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
+export type WizDraw = { xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[] }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -210,6 +211,10 @@ type Mage = {
   flash: number; // clarão branco do golpe: 1 no acerto, cai até 0
   freezeUntil: number; // hit-stop: animação parada até este instante
   cheering: boolean;
+  xpEl: HTMLElement; // Ascensão: nível e barrinha de XP embaixo da vida
+  xpLv: HTMLElement;
+  xpFill: HTMLElement;
+  level: number; // último nível visto (0 = ainda não visto): subir ao vivo comemora
   invuln: boolean; // invulnerável no quadro anterior: ligar de novo é nascer (começo da rodada ou volta no deathmatch)
   faded: boolean; // materiais mexidos pelo fade do Teleporte
   tpAt: number; // Teleporte: quando saiu, de onde, para onde e a direção (só visual)
@@ -883,9 +888,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     // barrinha dourada do monte de ouro: enche a cada 2 s em cima dele
     const lootFill = el('div');
     const lootBar = el('div', { class: 'loot-bar', hidden: true }, lootFill);
-    const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), shieldBar, lootBar);
+    const xpLv = el('b', {});
+    const xpFill = el('div');
+    const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
+    const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -1026,13 +1034,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
 
   // vencedor da rodada: faíscas douradas em volta e anel de ouro no chão
-  function victoryBurst(at: Vec) {
-    shockwave(at, 2.6, '#ffd84a');
-    burst(at, '#fff2a0', 3, 0.5, 1, FX.light);
+  // vencedor (dourado) e subir de nível no Ascensão (azul da Febre arcana)
+  function victoryBurst(at: Vec, c1 = '#ffd84a', c2 = '#fff2a0') {
+    shockwave(at, 2.6, c1);
+    burst(at, c2, 3, 0.5, 1, FX.light);
     if (lite) return;
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * Math.PI * 2;
-      burst(v(at.x + Math.cos(a) * 0.9, at.y + Math.sin(a) * 0.9), i % 2 ? '#ffd84a' : '#fff2a0', 0.8, 1.1, 0.6, FX.star, 2.4);
+      burst(v(at.x + Math.cos(a) * 0.9, at.y + Math.sin(a) * 0.9), i % 2 ? c1 : c2, 0.8, 1.1, 0.6, FX.star, 2.4);
     }
   }
   // ouro ganho no abate: sobe dourado em cima de quem matou
@@ -1520,8 +1529,21 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   function onEvents(events: SimEvent[]) {
     for (const e of events) {
-      if (e.k === 'cast') oneShot(e.id, ...castAnim(e.spell));
-      else if (e.k === 'hit') {
+      if (e.k === 'cast') {
+        oneShot(e.id, ...castAnim(e.spell));
+        if (e.spell === 'scourge') {
+          // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
+          const m = mages.get(e.id);
+          if (m) {
+            const at = v(m.root.position.x, m.root.position.z);
+            burst(at, '#ff5a1a', 3, 0.9, 0.6, FX.magic);
+            burst(at, '#ffb347', 1.6, 0.9, 1.2, FX.light);
+          }
+        } else if (e.spell === 'pact') {
+          const m = mages.get(e.id);
+          if (m) burst(v(m.root.position.x, m.root.position.z), '#c2122a', 2.6, 0.6, 1, FX.magic);
+        }
+      } else if (e.k === 'hit') {
         oneShot(e.id, 'Hit_A', 0.45);
         // o acerto do raio tem impacto elétrico próprio: a explosão de fogo cobria o raio e parecia que ele não tinha saído
         if (e.src === 'lightning') zap(v(e.x, e.y));
@@ -1556,18 +1578,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(e.from, '#c49bff', 2.4, 0.45, 0.8, FX.magic);
         burst(e.to, '#c49bff', 2.6, 0.45, 0.8, FX.magic);
         burst(e.to, '#e9d8ff', 1.6, 0.3, 0.8, FX.light);
-      } else if (e.k === 'item' && e.item === 'scourge') {
-        // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
-        oneShot(e.id, ...castAnim('scourge'));
-        const m = mages.get(e.id);
-        if (m) {
-          const at = v(m.root.position.x, m.root.position.z);
-          burst(at, '#ff5a1a', 3, 0.9, 0.6, FX.magic);
-          burst(at, '#ffb347', 1.6, 0.9, 1.2, FX.light);
-        }
-      } else if (e.k === 'item' && e.item === 'pact') {
-        const m = mages.get(e.id);
-        if (m) burst(v(m.root.position.x, m.root.position.z), '#c2122a', 2.6, 0.6, 1, FX.magic);
       } else if (e.k === 'scourge') {
         shockwave(v(e.x, e.y), e.r, '#ff7a1a');
         explosion(v(e.x, e.y));
@@ -1610,8 +1620,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           shockwave(at, e.r, '#b98cff');
           burst(at, '#b98cff', 2.2, 0.4, 0.9, FX.magic);
         }
-      } else if (e.k === 'redirect') {
-        burst(v(e.x, e.y), '#b98cff', 2, 0.35, 0.9, FX.circle);
       } else if (e.k === 'death') {
         const m = mages.get(e.id);
         if (m) {
@@ -1882,6 +1890,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.botKey = d.bot ?? '';
         m.botEl.hidden = !d.bot;
         m.botEl.replaceChildren(icon(UI_ICON.bot), d.bot ? BOT_LEVEL[d.bot] : '');
+      }
+      // Ascensão: nível e XP embaixo da vida, para todos; subir de nível ao vivo comemora (Fernando, 21/10: "animacao ao subir de
+      // level ao vivo ... inclusive animacao do boneco comemorando")
+      m.xpEl.hidden = !d.xp;
+      if (d.xp) {
+        m.xpFill.style.width = `${(d.xp.frac * 100).toFixed(1)}%`;
+        if (d.xp.level !== m.level) {
+          m.xpLv.textContent = String(d.xp.level);
+          if (m.level && d.xp.level > m.level && d.alive) {
+            oneShot(d.id, ...PARTY);
+            victoryBurst(d.pos, '#3d7bff', '#8cbcff');
+            m.label.classList.remove('lvup');
+            void m.label.offsetWidth; // reinicia a animação se subir de novo logo em seguida
+            m.label.classList.add('lvup');
+          }
+          m.level = d.xp.level;
+        }
       }
       m.lootBar.hidden = !d.loot;
       if (d.loot) m.lootFill.style.width = `${Math.min(100, d.loot * 100)}%`;
@@ -2346,8 +2371,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         target = target.lerp(c, celebrate);
       }
       focus.lerp(target, Math.min(1, dt * 3));
-      // aproxima conforme a arena encolhe
-      const dist = Math.min(44, Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
+      // aproxima conforme a arena encolhe. Teto 54: as Ilhas com 8 magos (48,5) e no máximo da sandbox (53) cabem
+      // inteiras; com 44 uma ilha saía pela lateral (issue #222). Seguindo um mago (lock), o teto é 25, o da arena de 4 magos:
+      // em mapa grande ele não encolhe na tela
+      const dist = Math.min(state.lock ? 25 : 54, Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
       lastDist = dist;
       // olha um pouco à frente do centro para a borda de baixo não ficar atrás da barra de magias
       let lookX = focus.x, lookZ = focus.z + dist * 0.06;
@@ -2366,8 +2393,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       if (shift !== pixelShift) canvas.style.transform = labels.style.transform = pixelShift = shift;
       camera.position.set(lookX, dist * 0.74 * camK, lookZ + dist * 0.67 * camK);
-      // a névoa conta da câmera: com ela mais longe, empurra junto
-      Object.assign(scene.fog!, { near: 30 + (camK - 1) * dist, far: 70 + (camK - 1) * dist });
+      // a névoa conta da câmera: com ela mais longe, empurra junto (acima do teto antigo de 44 também, senão a borda
+      // de trás das Ilhas grandes some na névoa)
+      const fogPush = (camK - 1) * dist + Math.max(0, dist - 44);
+      Object.assign(scene.fog!, { near: 30 + fogPush, far: 70 + fogPush });
       camera.lookAt(lookX, 0, lookZ);
       if (shake > 0.01 && !lite) {
         camera.position.x += (Math.random() - 0.5) * shake;
