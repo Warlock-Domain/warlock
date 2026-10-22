@@ -17,6 +17,12 @@
   --text-shadow: 0 2px 6px var(--ink);
   /* metal envelhecido: gradiente sutil e borda dupla dourada fina */
   --plate: linear-gradient(180deg, var(--panel-top), var(--panel-bot));
+  /* pergaminho claro dos avisos: destaca por cima da lava e da pedra escura, que têm o mesmo tom do --plate */
+  --paper: linear-gradient(180deg, var(--cream), var(--stone));
+  /* cores dos avisos no pergaminho: azul de informação e vermelho vivo de erro; letra e ícones em preto (--ink): nada marrom no aviso, o resto da tela já é marrom */
+  --toast-info: #2f86e8; --toast-bad: #e8261c; --toast-good: #22c55e;
+  /* runas nos avisos: as mesmas cores das runas na arena (RUNE_COLOR em scene.ts) */
+  --rune-haste: #2dd4bf; --rune-fury: #ef4444; --rune-shield: #60a5fa; --rune-recharge: #facc15;
   --plate-edge: inset 0 0 0 3px var(--panel-bot), inset 0 0 0 4px var(--gold-faint);
   /* moldura de jogo dos painéis: rebite dourado nos 4 cantos e brilho de lava atrás do título (camadas por cima do --plate) */
   --r-frame: 6px;
@@ -293,7 +299,8 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .wiz-label .hp-extra .rune { color: #93c5fd; }
 .wiz-label .hp-extra .rush { color: #ff9640; }
 
-#toast { position: fixed; left: 50%; bottom: calc(150px + var(--safe-b)); transform: translateX(-50%); background: var(--plate); border: 1px solid var(--gold-line); padding: 10px 14px; border-radius: var(--r-sm); opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
+/* letra 1,3x do tamanho normal, a mesma do aviso de quem saiu (PR #234), e fundo claro: o aviso aparece por poucos segundos no meio da partida e precisa ser lido de relance */
+#toast { position: fixed; left: 50%; bottom: calc(150px + var(--safe-b)); transform: translateX(-50%); background: var(--paper); color: var(--ink); border: 1px solid var(--gold); box-shadow: var(--shadow-md); padding: 13px 18px; border-radius: var(--r-sm); font-size: 1.3rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
 #toast.show { opacity: 1; pointer-events: auto; }
 /* com uma loja aberta o clique atravessa o aviso: ele fica por cima da última fileira de cartas e tapava a compra (issue #208) */
 body:has(.center .shop, .peek-shop:not([hidden]) .shop) #toast { pointer-events: none; }
@@ -624,19 +631,26 @@ button.primary:not(:disabled):active, .button:active { transform: translateY(2px
 button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infinite alternate; }
 @keyframes urgent { from { box-shadow: 0 0 0 0 rgba(255, 106, 77, 0); } to { box-shadow: 0 0 0 3px var(--red), 0 0 22px rgba(255, 106, 77, .7); } }
 /* avisos com ícone e cor por tipo; sobem um pouco ao aparecer */
-#toast { display: flex; align-items: center; gap: 10px; border-left: 4px solid var(--gold-line); transform: translate(-50%, 8px); transition: opacity .2s, transform .2s; }
+#toast { display: flex; align-items: center; gap: 10px; border-left: 4px solid var(--toast-info); transform: translate(-50%, 8px); transition: opacity .2s, transform .2s; }
 #toast.show { transform: translateX(-50%); }
-#toast::before { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .8rem; font-weight: 800; content: 'i'; background: var(--gold-faint); color: var(--gold); }
-#toast[data-kind="good"] { border-left-color: var(--ok); }
-#toast[data-kind="good"]::before { content: '✓'; background: rgba(111, 220, 140, .16); color: var(--ok); }
-#toast[data-kind="bad"] { border-left-color: var(--red); }
-#toast[data-kind="bad"]::before { content: '!'; background: rgba(255, 106, 77, .18); color: var(--red); }
+#toast::before { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .8rem; font-weight: 800; content: 'i'; background: var(--toast-info); color: var(--white); }
+/* no fundo claro o ícone é um disco cheio da cor do tipo com o símbolo escuro: a cor clara sobre o pergaminho sumia */
+#toast[data-kind="good"] { border-left-color: var(--toast-good); }
+#toast[data-kind="good"]::before { content: '✓'; background: var(--toast-good); color: var(--ink); }
+#toast[data-kind="bad"] { border-left-color: var(--toast-bad); }
+#toast[data-kind="bad"]::before { content: '!'; background: var(--toast-bad); color: var(--white); }
 #toast[data-kind="gold"] { border-left-color: var(--gold); }
 #toast[data-kind="gold"]::before { content: none; }
-#toast[data-kind="gold"] > .gi { flex: none; font-size: 1.3rem; color: var(--gold); }
-/* toast(…, top): logo abaixo da barra do topo, com letra maior, entrando de cima (issue #223); id + classe ganha das
+/* ícone dentro do aviso num disco cheio de cor viva, como o i ✓ !: solto em cima do fundo claro ele sumia; símbolo preto nas cores claras e branco nas escuras */
+#toast .gi[data-rune], #toast[data-kind="gold"] > .gi { box-sizing: content-box; padding: .2em; border-radius: 50%; color: var(--ink); vertical-align: -.36em; }
+#toast .gi[data-rune="haste"] { background: var(--rune-haste); }
+#toast .gi[data-rune="fury"] { background: var(--rune-fury); color: var(--white); }
+#toast .gi[data-rune="shield"] { background: var(--rune-shield); }
+#toast .gi[data-rune="recharge"] { background: var(--rune-recharge); }
+#toast[data-kind="gold"] > .gi { flex: none; font-size: 1rem; background: var(--gold); }
+/* toast(…, top): logo abaixo da barra do topo, entrando de cima (issue #223); id + classe ganha das
    posições de baixo das media queries de #toast, então vale em toda largura de tela */
-#toast.top { top: calc(64px + var(--safe-t)); bottom: auto; font-size: 1.3rem; padding: 13px 18px; transform: translate(-50%, -8px); }
+#toast.top { top: calc(64px + var(--safe-t)); bottom: auto; transform: translate(-50%, -8px); }
 #toast.top.show { transform: translateX(-50%); }
 /* golpe crítico: número claro com brilho de brasa */
 .dmg.crit { color: var(--gold-pale); -webkit-text-stroke: 1px var(--lava-dark); text-shadow: 0 0 12px rgba(255, 170, 40, .9), var(--text-shadow); }
