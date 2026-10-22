@@ -25,7 +25,7 @@ import { TAUNTS } from '../shared/taunts.ts';
 import { botLevel, endResult, moveLoadout, myLoadout, roomGroups, saveLoadout } from './screen-data.ts';
 import { LOCALE, arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 import { radialPicker } from './radial-picker.ts';
-import { radialHold } from './taunt-wheel.ts';
+import { radialHold, tauntWheelSlots } from './taunt-wheel.ts';
 
 const TITLE = 'Warlock';
 // busca pelo nome sem acento nem maiúscula (loja e biblioteca)
@@ -424,7 +424,7 @@ const portrait = (p: PublicPlayer) => el('img', { class: 'face', src: `/chars/${
 // fileira de botões com um marcado (opções da partida, modo, jeito de lançar); off: botão desligado
 export const choice = <T>(label: string, items: [T, string][], on: T, pick: (v: T) => void, off?: (v: T) => boolean) => el('div', { class: 'stats-tabs', role: 'group', 'aria-label': label },
   ...items.map(([v, text]) => el('button', { type: 'button', 'aria-pressed': String(v === on), class: v === on ? 'on' : '', disabled: off?.(v), onclick: () => pick(v) }, text)));
-export const tabs = <T extends string>(label: string, list: [T, string][], on: T, set: (k: T) => void) =>
+const tabs = <T extends string>(label: string, list: [T, string][], on: T, set: (k: T) => void) =>
   el('div', { class: 'stats-tabs', role: 'tablist', 'aria-label': label }, ...list.map(([k, text]) =>
     el('button', { type: 'button', role: 'tab', 'aria-selected': String(k === on), class: k === on ? 'on' : '', onclick: () => set(k) }, text)));
 
@@ -722,7 +722,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     specBtn.setAttribute('aria-pressed', String(on));
   }
   // provocações: segurar a tecla (Y no padrão) abre a roda com todas as falas do catálogo, apontar escolhe e soltar envia;
-  // o clique no botão abre a roda parada (clique ou número escolhe). O índice enviado é o do catálogo (TAUNTS).
+  // o clique no botão abre a roda parada (clique ou número escolhe). A ordem vem das Configurações (Comunicação); o índice enviado é sempre o do catálogo (TAUNTS).
   const heldTaunt = radialHold();
   const sendTaunt = (i: number) => {
     heldTaunt.cancel();
@@ -731,11 +731,17 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   };
   const tauntTitle = el('b', {}, t('Provocações', 'Taunts'));
   const cancelTaunts = () => { heldTaunt.cancel(); tauntPanel.hidden = true; };
-  const wheel = radialPicker(tauntTitle, TAUNTS.map((x) => t(x.text, x.en)), (i) => { if (!heldTaunt.active()) sendTaunt(i); }, cancelTaunts);
+  const loadSlots = () => tauntWheelSlots(store.json('warlock:taunt-wheel'), TAUNTS.length);
+  let slots = loadSlots();
+  const wheel = radialPicker(tauntTitle, slots.map((j) => t(TAUNTS[j].text, TAUNTS[j].en)), (i) => { if (!heldTaunt.active()) sendTaunt(slots[i]); }, cancelTaunts);
   const tauntPanel = wheel.panel;
   const toggleTaunts = (open = tauntPanel.hidden) => {
     heldTaunt.cancel();
     wheel.reset();
+    if (open) { // a ordem pode ter mudado nas Configurações desde a última vez
+      slots = loadSlots();
+      wheel.setLabels(slots.map((j) => t(TAUNTS[j].text, TAUNTS[j].en)));
+    }
     toggle(tauntPanel, null, open);
   };
   addEventListener('keydown', (e) => {
@@ -756,7 +762,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const i = (Number(e.code.slice(-1)) + 9) % 10; // 1..9 e o 0 para a 10ª
       if (i >= TAUNTS.length) return;
       if (heldTaunt.active()) wheel.choose(i);
-      else sendTaunt(i);
+      else sendTaunt(slots[i]);
     }
     else if (e.code === 'ArrowLeft' || e.code === 'ArrowUp') wheel.step(-1);
     else if (e.code === 'ArrowRight' || e.code === 'ArrowDown') wheel.step(1);

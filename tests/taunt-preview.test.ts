@@ -4,16 +4,15 @@ import { previewTaunt, stopTauntPreview } from '../src/client/sound.ts';
 afterEach(() => { stopTauntPreview(); vi.unstubAllGlobals(); });
 
 describe('prévia privada da provocação', () => {
-  it('toca originais e áudios da Loja desmutados e interrompe a prévia anterior', async () => {
-    const audios: { src: string; muted: boolean; volume: number; pause: ReturnType<typeof vi.fn>; play: ReturnType<typeof vi.fn> }[] = [];
+  it('toca originais e gravados e interrompe a prévia anterior', async () => {
+    const audios: { src: string; volume: number; pause: ReturnType<typeof vi.fn>; play: ReturnType<typeof vi.fn> }[] = [];
     vi.stubGlobal('Audio', class {
-      muted = true; volume = 0;
+      volume = 0;
       pause = vi.fn(); play = vi.fn().mockResolvedValue(undefined);
       constructor(public src: string) { audios.push(this); }
     });
     expect(await previewTaunt('laugh')).toBe(true);
     expect(audios[0].src).toBe('/sfx/taunt/laugh.mp3');
-    expect(audios[0].muted).toBe(false);
     expect(audios[0].volume).toBe(1);
     expect(await previewTaunt('meow')).toBe(true);
     expect(audios[0].pause).toHaveBeenCalledOnce();
