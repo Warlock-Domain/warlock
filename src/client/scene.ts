@@ -31,7 +31,8 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[] }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago
+// xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
+export type WizDraw = { xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[] }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -210,6 +211,10 @@ type Mage = {
   flash: number; // clarão branco do golpe: 1 no acerto, cai até 0
   freezeUntil: number; // hit-stop: animação parada até este instante
   cheering: boolean;
+  xpEl: HTMLElement; // Ascensão: nível e barrinha de XP embaixo da vida
+  xpLv: HTMLElement;
+  xpFill: HTMLElement;
+  level: number; // último nível visto (0 = ainda não visto): subir ao vivo comemora
   invuln: boolean; // invulnerável no quadro anterior: ligar de novo é nascer (começo da rodada ou volta no deathmatch)
   faded: boolean; // materiais mexidos pelo fade do Teleporte
   tpAt: number; // Teleporte: quando saiu, de onde, para onde e a direção (só visual)
@@ -883,9 +888,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     // barrinha dourada do monte de ouro: enche a cada 2 s em cima dele
     const lootFill = el('div');
     const lootBar = el('div', { class: 'loot-bar', hidden: true }, lootFill);
-    const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), shieldBar, lootBar);
+    const xpLv = el('b', {});
+    const xpFill = el('div');
+    const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
+    const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -1026,13 +1034,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
 
   // vencedor da rodada: faíscas douradas em volta e anel de ouro no chão
-  function victoryBurst(at: Vec) {
-    shockwave(at, 2.6, '#ffd84a');
-    burst(at, '#fff2a0', 3, 0.5, 1, FX.light);
+  // vencedor (dourado) e subir de nível no Ascensão (azul da Febre arcana)
+  function victoryBurst(at: Vec, c1 = '#ffd84a', c2 = '#fff2a0') {
+    shockwave(at, 2.6, c1);
+    burst(at, c2, 3, 0.5, 1, FX.light);
     if (lite) return;
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * Math.PI * 2;
-      burst(v(at.x + Math.cos(a) * 0.9, at.y + Math.sin(a) * 0.9), i % 2 ? '#ffd84a' : '#fff2a0', 0.8, 1.1, 0.6, FX.star, 2.4);
+      burst(v(at.x + Math.cos(a) * 0.9, at.y + Math.sin(a) * 0.9), i % 2 ? c1 : c2, 0.8, 1.1, 0.6, FX.star, 2.4);
     }
   }
   // ouro ganho no abate: sobe dourado em cima de quem matou
@@ -1881,6 +1890,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.botKey = d.bot ?? '';
         m.botEl.hidden = !d.bot;
         m.botEl.replaceChildren(icon(UI_ICON.bot), d.bot ? BOT_LEVEL[d.bot] : '');
+      }
+      // Ascensão: nível e XP embaixo da vida, para todos; subir de nível ao vivo comemora (Fernando, 21/10: "animacao ao subir de
+      // level ao vivo ... inclusive animacao do boneco comemorando")
+      m.xpEl.hidden = !d.xp;
+      if (d.xp) {
+        m.xpFill.style.width = `${(d.xp.frac * 100).toFixed(1)}%`;
+        if (d.xp.level !== m.level) {
+          m.xpLv.textContent = String(d.xp.level);
+          if (m.level && d.xp.level > m.level && d.alive) {
+            oneShot(d.id, ...PARTY);
+            victoryBurst(d.pos, '#3d7bff', '#8cbcff');
+            m.label.classList.remove('lvup');
+            void m.label.offsetWidth; // reinicia a animação se subir de novo logo em seguida
+            m.label.classList.add('lvup');
+          }
+          m.level = d.xp.level;
+        }
       }
       m.lootBar.hidden = !d.loot;
       if (d.loot) m.lootFill.style.width = `${Math.min(100, d.loot * 100)}%`;
