@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ASC_ROUNDS, CONSOLATION, KILL_XP, liveLevel, LEADER_KILL_XP, MARK_KB, applyCard, setAscLobby, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
+import { ASC_ROUNDS, CONSOLATION, roundMult, LEADER_KILL_XP, MARK_KB, applyCard, setAscLobby, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
 import { addPlayer, buy, castBallot, newMatch, removePlayer, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
 import { gearOf } from '../src/shared/sim.ts';
@@ -477,12 +477,25 @@ describe('sala do Ascensão: o dono escolhe, todos veem', () => {
   });
 });
 
-describe('barra de XP na arena', () => {
-  it('live level adds the round damage, kills and seconds alive to the match XP', () => {
-    expect(liveLevel(0, 0, 0, 0)).toEqual({ level: 1, total: 0, next: xpFor(2), frac: 0 });
-    const r = liveLevel(xpFor(2) - 150, 30, 1, 10); // 30 de dano + 1 abate + 10 s vivo = 150 XP: fecha o nível 2
-    expect([r.level, r.total, r.frac]).toEqual([2, xpFor(2), 0]);
-    expect(liveLevel(0, 0, 1, 0).total).toBe(KILL_XP);
-    expect(liveLevel(0, 0, 0, 0).frac).toBeLessThan(liveLevel(0, 100, 0, 0).frac);
+describe('final valendo mais', () => {
+  it('rounds 6 and 7 are worth 1.5x points (rounded) and rounds 8 and 9 double', () => {
+    expect([1, 5, 6, 7, 8, 9].map(roundMult)).toEqual([1, 1, 1.5, 1.5, 2, 2]);
+    const pointsAt = (round: number) => {
+      const m = ascMatch(1, true);
+      m.round = round;
+      const ids = m.players.map((p) => p.id);
+      m.asc!.fallen = ids.slice(0, 3);
+      m.players.forEach((p) => (p.score = 0));
+      ascEndRound(m, ids, [ids[3]]);
+      return m.players.map((p) => p.score);
+    };
+    const base = pointsAt(5);
+    expect(base.some((x) => x > 1)).toBe(true);
+    expect(pointsAt(1)).toEqual(base);
+    expect(pointsAt(6)).toEqual(base.map((x) => Math.round(x * 1.5)));
+    expect(pointsAt(7)).toEqual(pointsAt(6));
+    expect(pointsAt(8)).toEqual(base.map((x) => x * 2));
+    expect(pointsAt(9)).toEqual(pointsAt(8));
+    expect(pointsAt(6).every(Number.isInteger)).toBe(true);
   });
 });
