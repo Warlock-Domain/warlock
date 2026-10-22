@@ -98,7 +98,7 @@ export const GRIP = { castPenalty: 5, delay: 1.3 }; // 1,3 s entre a marca no ch
 // meteoro: 0,55 s parado no ar + 0,60 s caindo (meteor.lua)
 export const METEOR_DELAY = 1.15;
 // investida: +35 u/s ao ativar; cada ponto absorvido soma 1,5 u/s (rushmodifier.lua)
-// avanço: 3 m em 0,2 s na direção do mouse (não existe no original; pedido do Fernando, 17/10: "dash não funciona")
+// avanço: 3 m em 0,2 s na direção do mouse (não existe no original; pedido do Fernando, 17/10: o avanço não funcionava)
 export const RUSH = { bonus: 35 * UNIT, perHp: 1.5 * UNIT, share: 0.5, dash: 3, dashTime: 0.2, dashDmg: 20 }; // ciclo 1 (18/10): dano do avanço 60 → 40 (Investida 1,30×) // dashDmg: dano em quem o avanço encostar (pedido do Fernando, 17/10)
 // rajada: ângulos do leque em radianos (cluster.lua)
 export const CLUSTER_FAN = [-0.18, -0.06, 0.06, 0.18];

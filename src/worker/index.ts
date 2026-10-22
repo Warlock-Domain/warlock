@@ -20,7 +20,7 @@ export default {
     // jeito de jogar: uma linha por humano e por dificuldade dos bots (telemetry.ts styleRows)
     if (url.pathname === '/api/telemetry/style') return Response.json(styleRows(await lobby.telemetry()), { headers: { 'cache-control': 'no-store' } });
 
-    // a sala nasce no leste dos EUA (Fernando, 21/10: "apenas fixe no leste eua"): Durable Object não existe na América do Sul, e sem a
+    // a sala nasce no leste dos EUA (Fernando, 21/10: fixar no leste dos EUA): Durable Object não existe na América do Sul, e sem a
     // dica a sala nascia perto de onde entrou o pedido, às vezes Vancouver (medido do Brasil em 21/10: 0,2 s para conectar contra 0,1 s
     // por Jacksonville/Charlotte). A dica só vale na criação; sala já criada fica onde está
     const roomStub = (code: string) => env.ROOM.get(env.ROOM.idFromName(code), { locationHint: 'enam' });

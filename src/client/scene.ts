@@ -462,14 +462,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // efeito pedido pelo Fernando (21/10): espinhos na borda, pontos verdes subindo da pedra, vento e chuva; poucos, transparentes e
   // sem sombra, para não brigar com as magias. No modo leve (lite) só a cor da faixa fica.
   const EMBER_COLOR: Partial<Record<RoundEffectId, string>> = { swords: '#c9ccd2', gold: '#ffd34d', speed: '#d6ecff', regen: '#7dffa8', lava: '#ffb27a' };
-  // Febre arcana (Ascensão): a Febre do ouro em azul (Fernando, 21/10: "com o msm efeito so q azul")
+  // Febre arcana (Ascensão): a Febre do ouro em azul (Fernando, 21/10: o mesmo efeito, só que azul)
   const ARCANE = { tint: '#3d7bff', ember: '#8cbcff', coin: '#6fa8ff' };
   const SHORE_TINT: Partial<Record<RoundEffectId, [string, number]>> = { swords: ['#050403', 0.75], gold: ['#ffe11a', 0.7], speed: ['#bfe6ff', 0.45], regen: ['#3dff8a', 0.45], lava: ['#7a2a10', 0.5] };
   let tintK = 0;
   const emberBase = emberMat.color.clone();
   let heat = 1;
   // borda da Arena de espinhos: parede caótica de espinhos de ferro apontando para todos os lados, em 3 fileiras (pedido do Fernando,
-  // 21/10: "bater aqui machuca"; as armas KayKit espalhadas ficaram feias e saíram). Sorteio por índice (semente fixa): não pisca ao refazer
+  // 21/10: precisa parecer que bater ali machuca; as armas KayKit espalhadas ficaram feias e saíram). Sorteio por índice (semente fixa): não pisca ao refazer
   const SPIKE_GAP = 0.16, SPIKE_ROWS = 3, SPIKE_MAX = 2400;
   const spikes = new THREE.InstancedMesh(new THREE.ConeGeometry(0.055, 0.5, 5).translate(0, 0.25, 0), new THREE.MeshStandardMaterial({ color: '#555b63', metalness: 0.55, roughness: 0.45, emissive: '#3a0a02', emissiveIntensity: 0.45, flatShading: true }), SPIKE_MAX);
   spikes.count = 0;
@@ -1920,16 +1920,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.botEl.hidden = !d.bot;
         m.botEl.replaceChildren(icon(UI_ICON.bot), d.bot ? BOT_LEVEL[d.bot] : '');
       }
-      // medalha de ouro, prata ou bronze com a colocação, à esquerda do nome (Fernando, 21/10: "do lado esquerdo do nome da pessoa
-      // ... coloque uma medalinha de ouro, prata e bronze com o numero dentro")
+      // medalha de ouro, prata ou bronze com a colocação, à esquerda do nome (Fernando, 21/10: medalha
+      // com o número dentro, no lugar da pontuação)
       const place = d.place && d.place <= 3 ? String(d.place) : '';
       if (m.medalEl.textContent !== place) {
         m.medalEl.textContent = place;
         m.medalEl.className = `wiz-medal medal-${place}`;
         m.medalEl.hidden = !place;
       }
-      // Ascensão: nível e XP embaixo da vida, para todos; subir de nível ao vivo comemora (Fernando, 21/10: "animacao ao subir de
-      // level ao vivo ... inclusive animacao do boneco comemorando")
+      // Ascensão: nível e XP embaixo da vida, para todos; subir de nível ao vivo comemora (Fernando, 21/10: animação ao subir
+      // de nível ao vivo, com o boneco comemorando)
       m.xpEl.hidden = !d.xp;
       if (d.xp) {
         m.xpFill.style.width = `${(d.xp.frac * 100).toFixed(1)}%`;

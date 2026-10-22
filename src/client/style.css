@@ -959,7 +959,7 @@ body.replaying .peek-shop { display: none; }
 .spellbar .spell[class*="g-"] .ico { color: var(--g); filter: drop-shadow(0 0 5px color-mix(in srgb, var(--g) 55%, transparent)); }
 .g-sub[class*="g-"] > small { color: var(--g); }
 .g-sub[class*="g-"] .g-chips button .ico, .g-sub[class*="g-"] .g-chips .ico { color: var(--g); }
-/* Começar partida sem ocupar a largura toda (Fernando, 19/10: "muito grande") */
+/* Começar partida sem ocupar a largura toda (Fernando, 19/10: estava grande demais) */
 @media (min-width: 601px) { .card-go { grid-template-columns: minmax(320px, 480px) auto; justify-content: center; } .card-go button.big { min-height: 44px; font-size: 1rem; } }
 /* loja larga (Fernando, 19/10) */
 .center.wide:has(.shop) { width: min(1860px, calc(100% - 24px)); }
@@ -1071,7 +1071,7 @@ body.replaying .peek-shop { display: none; }
 .shop-items { --g: var(--item); }
 .shop-item { display: flex; flex-direction: column; gap: 4px; width: 76px; }
 .shop-tile { position: relative; width: 76px; height: 76px; min-height: 0; padding: 6px 2px 4px; flex-direction: column; justify-content: flex-end; gap: 3px; }
-/* moldura do cartão (Fernando, 21/10: "todo desalinhado os cards") */
+/* moldura do cartão (Fernando, 21/10: os cartões estavam desalinhados) */
 .shop-tile { border-radius: var(--r-md); background: var(--plate); border: 2px solid color-mix(in srgb, var(--g, var(--ember)) 45%, transparent);
   box-shadow: inset 0 0 0 2px var(--panel-bot), inset 0 0 0 3px var(--gold-faint); color: var(--fg); }
 .shop-tile .ico { display: flex; font-size: 1.9rem; color: var(--g, var(--ember)); }
@@ -1121,7 +1121,7 @@ body:has(.drag-ghost) .tip { display: none; } /* a dica cobria a vaga de destino
 @media (min-width: 861px) {
   .shop .shop-main .shop-grid { grid-template-columns: repeat(5, 118px); column-gap: 10px; }
   /* itens em 3 colunas (Fernando, 20/10: 2 ficava muito vertical), em cartões menos largos que os de magia: 2,5fr contra 5fr
-     (Fernando, 21/10: "deixe 3 por linha mas deixe o card menos largo") */
+     (Fernando, 21/10: 3 por linha, com o cartão menos largo) */
   .shop-items .shop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 8px; }
   .shop-items .shop-item { width: auto; }
   .shop-items .shop-tile { width: 100%; }
@@ -1143,7 +1143,7 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
 /* loja só para ver termina acima da barra da partida (que ficou mais alta no estilo Dota) */
 @media (min-width: 601px) { .peek-shop:not(.drawer) { max-height: calc(100% - 215px - var(--safe-t) - var(--safe-b)); } }
 
-/* loja revista (Fernando, 19/10: "toda feia e mal diagramada"): cartas ocupam a coluna do meio até 200 px,
+/* loja revista (Fernando, 19/10: a loja estava feia e mal diagramada): cartas ocupam a coluna do meio até 200 px,
    Vender/Desfazer no canto da carta (sem abrir buraco entre as fileiras), itens mais baixos com a coluna rolando sozinha */
 @media (min-width: 861px) {
   .shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
