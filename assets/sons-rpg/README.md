@@ -11,6 +11,7 @@
 - **Licença:** não informada. "Freeware" no nome do arquivo não é licença e não garante que se possa redistribuir.
 - **Entrou por decisão do Fernando em 21/10/2026**, mesmo sem origem nem licença.
 - **Atenção:** os nomes e as pastas (`Abilities/Spells/...`, `Sound/Units/Combat`) seguem o mesmo padrão dos sons do Warcraft III, e um dos arquivos (`FlameStrikeTargetWaveNonLoop1.wav`) aparece com esse caminho em [scripts de mapa do Warcraft III](https://www.hiveworkshop.com/threads/sounds-not-playing-the-first-time.299270/). O Fernando disse que o pacote não é do Warcraft III. A dúvida fica registrada aqui para quem for usar.
+- **Risco aceito pelo Fernando (21/10/2026):** avisado de que os nomes batem com os sons do Warcraft III (ex.: `HumanCallToArmsWhat1`, `PaladinDivineShieldDeath1`, `MarkOfChaos`), que não há autor nem licença e que o repositório é público (pode haver pedido de remoção por direitos autorais), ele escolheu "Mesclar mesmo assim". Se chegar um pedido de remoção, a pasta sai do repositório.
 
 ## Como usar
 
