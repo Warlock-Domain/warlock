@@ -158,6 +158,7 @@ const TEASE: [string, number] = ['Skeletons_Taunt', 1.03], PARTY: [string, numbe
 const TAUNT_ANIM: Record<(typeof TAUNTS)[number]['id'], [string, number]> = {
   loser: TEASE, laugh: TEASE, meow: TEASE, flawless: PARTY, combo_breaker: PARTY, multi_kill: PARTY, ultra_kill: PARTY, congrats: PARTY,
   fire_in_the_hole: CALL, look_out: CALL,
+  fausto: CALL, emafia: TEASE, meestruparam: TEASE, usarameabusaram: TEASE, lanchado: PARTY,
 };
 // Teleporte (só visual): some em TP s deslizando TP_SLIDE m rumo ao destino e reaparece em TP s chegando na mesma direção
 const TP = 0.12, TP_SLIDE = 0.6;
