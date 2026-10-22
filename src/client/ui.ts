@@ -1421,10 +1421,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // presets de build (#185): 3 posições guardadas neste navegador; Usar compra sozinho, em ordem, até acabar o ouro (Fernando, 21/10)
     const buildsBox = () => {
       const saved = readPresets(store.get(PRESETS_KEY));
+      // magias pela ordem da barra e depois itens: o mesmo conteúdo vira os ícones da linha e os nomes da dica
+      const parts = (p: Preset) => [...p.order.filter((s): s is SpellId => !!s).map((s) => [icon(ICON[s]), spellName(s)] as const), ...ITEM_IDS.filter((x) => p.items[x]).map((x) => [icon(ITEM_ICON[x]), itemName(x)] as const)];
       const row = (i: number) => {
         // dica com os nomes: só os ícones não dizem o que a build guarda
-        const icons = withTip(el('span', { class: 'build-icons' }), () => (saved[i] ? [...saved[i]!.order.filter((s): s is SpellId => !!s).map(spellName), ...ITEM_IDS.filter((x) => saved[i]!.items[x]).map(itemName)].join(' · ') : t('Posição vazia: Salvar guarda o que você tem agora', 'Empty slot: Save stores what you have now')));
-        const show = (p: Preset | null) => icons.replaceChildren(...(p ? [...p.order.filter((s): s is SpellId => !!s).map((s) => icon(ICON[s])), ...ITEM_IDS.filter((x) => p.items[x]).map((x) => icon(ITEM_ICON[x]))] : [t('Vazia', 'Empty')]));
+        const icons = withTip(el('span', { class: 'build-icons' }), () => (saved[i] ? parts(saved[i]!).map(([, name]) => name).join(' · ') : t('Posição vazia: Salvar guarda o que você tem agora', 'Empty slot: Save stores what you have now')));
+        const show = (p: Preset | null) => icons.replaceChildren(...(p ? parts(p).map(([ico]) => ico) : [t('Vazia', 'Empty')]));
         show(saved[i]);
         const use = el('button', { type: 'button', disabled: !saved[i], 'aria-label': t(`Usar a build ${i + 1}`, `Use build ${i + 1}`), onclick: () => {
           const p = saved[i]!;
@@ -1432,6 +1434,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           // a fila sai do ouro de agora: um segundo clique antes das compras chegarem compraria tudo de novo, acima da build
           // (fila vazia não desliga: nenhuma compra chega para redesenhar a loja e o botão ficaria preso)
           if (queue.length) use.disabled = true;
+          // se o servidor recusar todas (ouro mudou, loja fechou), nada chega para redesenhar: o botão volta sozinho
+          setTimeout(() => (use.disabled = false), 2000);
           for (const b of queue) if (b.kind === 'spell') act.buy(b.id); else act.buyItem(b.id);
           presetOrder = { order: p.order, round: r.round };
         } }, t('Usar', 'Use'));
