@@ -27,7 +27,6 @@ beforeAll(async () => {
     move: (to) => log.push(`move ${to.x},${to.y}`),
     stop: () => log.push('stop'),
     cast: (s, at) => (log.push(`cast ${s} ${at.x},${at.y}`), ok),
-    useItem: (i, at) => (log.push(`item ${i} ${at.x},${at.y}`), ok),
     center: () => {},
     zoom: () => {},
     pan: () => {},
