@@ -1001,7 +1001,6 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
       const bucket = e.k === 'fire' ? 'fired' : 'landed';
       if (p) addStat(p, (s) => (s[bucket][e.src] = (s[bucket][e.src] ?? 0) + 1));
     } else if (e.k === 'death') {
-      if (m.asc) ascDeath(m, e.id, e.by);
       // causa da morte e tempo vivo, para os dados de balanceamento
       const dead = player(m, e.id);
       if (dead) addStat(dead, (s) => {
@@ -1019,6 +1018,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
       const [helper, dmg] = Object.entries(on).filter(([id]) => id !== e.by && id !== e.id).sort((a, b) => b[1] - a[1])[0] ?? [];
       const hp = helper && dmg >= ASSIST_MIN_DMG ? player(m, helper) : undefined;
       if (hp) bonus(m, hp, ASSIST_GOLD);
+      if (m.asc) ascDeath(m, e.id, e.by, hp?.id);
       if (m.dmgOn) delete m.dmgOn[e.id];
       // sequências de abate: qualquer morte (até na lava) zera a de quem morreu
       const sk = (m.streaks ??= {});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ASC_ROUNDS, CONSOLATION, LEADER_KILL_XP, MARK_KB, applyCard, setAscLobby, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
+import { ASC_ROUNDS, ASSIST_XP, CONSOLATION, KILL_XP, LEADER_KILL_XP, MARK_KB, applyCard, setAscLobby, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
 import { addPlayer, buy, castBallot, newMatch, removePlayer, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
 import { gearOf } from '../src/shared/sim.ts';
@@ -278,6 +278,16 @@ describe('recuperação e bots do Ascensão', () => {
     expect(m.asc!.extra[a.id]).toBe(LEADER_KILL_XP * 3);
     ascDeath(m, a.id, lead.id);
     expect(m.asc!.extra[lead.id]).toBeUndefined();
+  });
+
+  it('a kill is worth 200 XP and an assist 100 XP (Fernando, 21/10)', () => {
+    expect([KILL_XP, ASSIST_XP]).toEqual([200, 100]);
+    const m = twoAt([1, 1, 1, 1]);
+    const [victim, killer, helper] = m.players;
+    ascDeath(m, victim.id, killer.id, helper.id);
+    expect(m.asc!.extra[helper.id]).toBe(ASSIST_XP);
+    expect(m.asc!.extra[killer.id]).toBeUndefined(); // o abate entra pelo xpGain (stats.kills)
+    expect(xpGain({ ...killer.stats.round, dmgBy: {}, kills: 1, alive: 0 })).toBe(KILL_XP);
   });
 
   it('below average gets +25% xp per level below', () => {
