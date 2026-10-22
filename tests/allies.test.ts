@@ -51,7 +51,7 @@ describe('aliados: magia não pega aliado (Campanha)', () => {
     expect(n.wizards[ally].hp).toBeLessThan(HP_MAX);
   });
 
-  it('the lightning does not detonate an ally fireball (bug found in review)', () => {
+  it('the lightning does not destroy an ally fireball (bug found in review)', () => {
     for (const friendly of ['none', undefined] as const) {
       // p0 e p1 do mesmo time; a Bola de fogo de p1 parada bem no caminho do Raio de p0; p3, aliado, ao lado dela
       const w = world([[0, 0], [0, 3], [6, 0], [3, 0.6]], ALL, [], () => 0.5, false, [1, 1, 0, 1]);
@@ -63,7 +63,7 @@ describe('aliados: magia não pega aliado (Campanha)', () => {
         stepWorld(w, []);
         events.push(...w.events);
       }
-      expect(events.some((e) => e.k === 'clash' && e.combo === 'detonate'), String(friendly)).toBe(friendly !== 'none');
+      expect(events.some((e) => e.k === 'clash' && e.combo === 'pulse'), String(friendly)).toBe(friendly !== 'none');
       if (friendly === 'none') expect(w.wizards[3].hp).toBe(HP_MAX); // o aliado do lado não queima
     }
   });
