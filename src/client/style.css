@@ -1083,12 +1083,12 @@ body:has(.drag-ghost) .tip { display: none; } /* a dica cobria a vaga de destino
 .tile-acts { min-height: 26px; }
 @media (min-width: 861px) {
   .shop .shop-main .shop-grid { grid-template-columns: repeat(5, 118px); column-gap: 10px; }
-  /* itens em 2 colunas (Fernando, 21/10, #217: "com essa diminuição do número de itens pode deixar a coluna de itens com 2 itens por linha";
-     antes 3, de 20/10, com 16 itens); 2fr e 5fr dão a largura de um cartão de magia a cada item (Fernando, 21/10: "todo desalinhado os cards") */
-  .shop-items .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 8px; }
+  /* itens em 3 colunas (Fernando, 20/10: 2 ficava muito vertical); 3fr e 5fr dão a largura de um cartão de magia a cada item
+     (Fernando, 21/10: "todo desalinhado os cards") */
+  .shop-items .shop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 8px; }
   .shop-items .shop-item { width: auto; }
   .shop-items .shop-tile { width: 100%; }
-  .shop { grid-template-columns: minmax(0, 2fr) minmax(0, 5fr) 270px; }
+  .shop { grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) 270px; }
 }
 /* tela estreita (celular, gaveta): cartões ocupam a largura em colunas iguais */
 @media (max-width: 860px) {
@@ -1099,7 +1099,7 @@ body:has(.drag-ghost) .tip { display: none; } /* a dica cobria a vaga de destino
 .peek-shop.drawer .shop .shop-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
 .peek-shop.drawer .shop-item { width: auto; }
 .peek-shop.drawer .shop-tile { width: 100%; }
-@media (min-width: 1500px) { .shop { grid-template-columns: minmax(0, 2fr) minmax(0, 5fr) 290px; } .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 1500px) { .shop { grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) 290px; } .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); } }
 /* loja só para ver: o ícone é um div, não botão; recebe o mesmo arranjo e a mesma moldura do botão */
 .shop-tile { display: flex; align-items: center; }
 div.shop-tile { border-color: var(--line); box-sizing: border-box; }
@@ -1198,14 +1198,14 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
   .compact-shop .first-tip { padding: 6px 8px; gap: 6px; font-size: .8rem; }
   /* No PC a compra durante a rodada usa a mesma largura da inicial, inclusive para quem caiu (#121) */
   .peek-shop:has(.compact-shop) { left: 50%; right: auto; transform: translateX(-50%); width: min(1860px, calc(100% - 24px)); }
-  .peek-shop.drawer .compact-shop { grid-template-columns: minmax(0, 2fr) minmax(0, 5fr) 270px; }
+  .peek-shop.drawer .compact-shop { grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) 270px; }
   .peek-shop.drawer .compact-shop .shop-items { order: initial; }
   .peek-shop.drawer .compact-shop .shop-side { display: flex; }
   .peek-shop.drawer .compact-shop .shop-side > .gold.big { position: static; margin: 0; padding: 0; background: none; border: 0; }
   .peek-shop.drawer .compact-shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .peek-shop.drawer .compact-shop .shop-items .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .peek-shop.drawer .compact-shop .shop-items .shop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (min-width: 1500px) and (min-height: 600px) { .peek-shop.drawer .compact-shop { grid-template-columns: minmax(0, 2fr) minmax(0, 5fr) 290px; } } /* coluna da direita um pouco mais larga em tela grande */
+@media (min-width: 1500px) and (min-height: 600px) { .peek-shop.drawer .compact-shop { grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) 290px; } } /* coluna da direita um pouco mais larga em tela grande */
 @media all {
   .shop-item { position: relative; }
   .tile-acts { position: absolute; top: 4px; right: 4px; min-height: 0; z-index: 1; }
