@@ -2,6 +2,7 @@
 import type { PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { MAX_SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
+import { store } from './store.ts';
 
 // Sandbox: o servidor manda todos, e o 8388608 marca quem estaria escondido (Caminhada no vento ou véu da Ilusão).
 // "Ver invisíveis (teste)" ligado só deixa esses translúcidos; desligado, esconde como numa sala normal.
@@ -37,6 +38,17 @@ export function loadoutSlots(spells: Record<SpellId, number>, items: Record<Item
   };
   return { spells: arrange(owned, order?.spells, MAX_SPELLS), items: arrange(active, order?.items, ITEM_SLOTS) };
 }
+
+const ORDER_KEY = 'warlock:loadout-order';
+// ordem do meu equipamento, gravada a cada mudança (#226): gravada só ao arrastar, a compra seguinte reordenava
+// pela lista de magias e as teclas por posição trocavam de magia sozinhas
+export function myLoadout(spells: Record<SpellId, number>, items: Record<ItemId, number>) {
+  const saved = store.json<LoadoutOrder>(ORDER_KEY) ?? undefined;
+  const order = loadoutSlots(spells, items, saved);
+  if (JSON.stringify(order) !== JSON.stringify(saved)) saveLoadout(order);
+  return order;
+}
+export const saveLoadout = (order: LoadoutOrder) => store.set(ORDER_KEY, JSON.stringify(order));
 
 // Índices 0–5 são magias; 6–8 são itens. Nunca misturar os grupos.
 export function moveLoadout(order: LoadoutOrder, from: number, to: number): LoadoutOrder {

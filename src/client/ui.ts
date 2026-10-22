@@ -22,7 +22,7 @@ import { botSetupPanel, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
-import { endResult, loadoutSlots, moveLoadout, roomGroups, type LoadoutOrder } from './screen-data.ts';
+import { endResult, moveLoadout, myLoadout, roomGroups, saveLoadout } from './screen-data.ts';
 import { LOCALE, arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
 const TITLE = 'Warlock';
@@ -892,16 +892,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const respawn = el('div', { class: 'respawn' });
   const buttons = new Map<SpellId, { b: HTMLElement; cd: HTMLElement; pips: HTMLElement }>();
   let mine: PublicPlayer | undefined;
-  const ORDER_KEY = 'warlock:loadout-order';
-  let loadoutOrder = store.json<LoadoutOrder>(ORDER_KEY) ?? undefined;
   let slotDrag: { pointer: number; from: number; x: number; y: number; moved: boolean; ghost?: HTMLElement; over?: HTMLElement | null } | null = null;
-  const equipment = (p: PublicPlayer) => loadoutSlots(p.spells, p.items, loadoutOrder);
+  const equipment = (p: PublicPlayer) => myLoadout(p.spells, p.items);
   function changeSlot(from: number, to: number) {
     if (!mine) return false;
     const current = equipment(mine), next = moveLoadout(current, from, to);
     if (next === current) return false;
-    loadoutOrder = next;
-    store.set(ORDER_KEY, JSON.stringify(next));
+    saveLoadout(next);
     refreshEquipment();
     drawCenter();
     drawPeek();
