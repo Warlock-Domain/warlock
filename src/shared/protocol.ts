@@ -1,6 +1,6 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
-import { ascOf, type Card, type Choice, type Kind } from './ascension.ts';
+import { ascOf, type AscLobby, type Card, type Choice, type Kind } from './ascension.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type RuneKind } from './constants.ts';
@@ -36,6 +36,7 @@ export type ClientMsg =
   | { t: 'item'; item: ItemId; x: number; y: number; seq: number }
   | { t: 'vote'; kind: Vote['kind']; target?: string }
   | { t: 'ballot'; yes: boolean }
+  | { t: 'lobby'; bots: MatchOpts['difficulty'][]; opts: Partial<MatchOpts> } // sala do Ascensão: o dono escolhe bots e opções
   | { t: 'taunt'; i: number }
   | { t: 'ready' }
   | { t: 'alive' };
@@ -47,7 +48,7 @@ export type PublicPlayer = {
   dummy?: true; // sandbox: boneco parado
   watch?: true; // assistindo: sem mago a partir da próxima rodada
   turret?: true; // Sandbox: torreta de direção fixa.
-  asc?: { xp: number; level: number; next: number; todo: Kind[]; offer: Card[][]; pick: (Choice | null)[]; rerolls: number }; // só no Ascensão (next: XP do próximo nível)
+  asc?: { xp: number; level: number; next: number; todo: Kind[]; offer: Card[][]; pick: (Choice | null)[]; rerolls: number; auto: Card[] }; // só no Ascensão (next: XP do próximo nível; auto: sorteado por falta de escolha)
 };
 
 export type PublicRoom = {
@@ -73,6 +74,7 @@ export type PublicRoom = {
   arena: ArenaId | null; // formato da arena desta rodada (null sem rodada)
   effect: RoundEffectId | null; // efeito desta rodada; na loja, o da próxima (null desligado, sem rodada e na sandbox)
   sandbox?: Sandbox; // só nas salas sandbox: as regras ligadas
+  lobby?: AscLobby; // só na sala do Ascensão: dono (id público) e os bots e opções que ele escolheu
 };
 
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits de estado (ver encodeSnap)
@@ -216,6 +218,11 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return m.kind === 'kick' && pubId(m.target) ? { t: 'vote', kind: 'kick', target: m.target } : null;
     case 'ballot':
       return typeof m.yes === 'boolean' ? { t: 'ballot', yes: m.yes } : null;
+    case 'lobby': {
+      const opts = parseOpts(m.opts);
+      const bots = Array.isArray(m.bots) && m.bots.length < MAX_PLAYERS && m.bots.every((d) => OPTION_CHOICES.difficulty.includes(d)) ? (m.bots as MatchOpts['difficulty'][]) : null;
+      return opts && bots ? { t: 'lobby', bots, opts } : null;
+    }
     case 'taunt':
       return Number.isInteger(m.i) && (m.i as number) >= 0 && (m.i as number) < TAUNTS.length ? { t: 'taunt', i: m.i as number } : null;
     case 'buyItem':
@@ -287,5 +294,6 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     arena: m.world?.arena ?? null,
     effect: (m.phase === 'shop' ? shopEffect(m) : m.world?.effect) ?? null,
     ...(m.sandbox && { sandbox: m.sandbox }),
+    ...(m.lobby && { lobby: { ...m.lobby, owner: m.lobby.owner && pub(m.lobby.owner) } }),
   };
 }
