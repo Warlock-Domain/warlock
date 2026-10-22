@@ -119,7 +119,7 @@ describe('jeitos de lançar no PC', () => {
     key('keydown', 'KeyQ');
     key('keydown', 'Escape');
     expect(armed).toBeNull();
-    click(0, 1, 2); // sem magia escolhida, o clique esquerdo só anda
-    expect(log.at(-1)).toBe('move 1,2');
+    click(0, 1, 2); // sem magia escolhida, o clique esquerdo não envia comando.
+    expect(log).toEqual(['cast fireball 40,50', 'move 70,80']);
   });
 });
