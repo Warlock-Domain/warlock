@@ -163,6 +163,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 21/10 | **Ascensão: barra fina de XP embaixo da vida na arena**, que enche a cada golpe, abate e segundo vivo (`liveLevel`); no fim da rodada vale o XP do servidor (bônus do líder, consolação, Febre arcana); nível e XP no hover | "Barra de XP na arena ... pode ser" |
 | 21/10 | **Sem interação específica entre magias**: o efeito de cada magia sai de stats gerais e documentados, iguais contra tudo; regra de par de magias (ex.: Escudo × Meteoro, PR #241) não entra | "já falei para ele não colocar regras não documentadas e interações específicas entre skills ... todos os stats das skills devem ser bem documentados e gerais" |
 | 21/10 | **Ascensão: abate vale 200 XP e assistência 100 XP** (`KILL_XP`, `ASSIST_XP`; assistência = quem mais bateu na vítima sem ser quem matou, com `ASSIST_MIN_DMG`); no simulador, níveis por mago por rodada de 1,30 para 1,48 e intervalos com 4+ fileiras de 37% para 45% | "coloque abate 200xp e assist 100xp" |
+| 21/10 | **Pontos da partida ao lado do nome, em cima de cada mago**, em todos os modos (fora da sandbox); a ilusão copia o do dono | "do lado do nome de cada personagem coloque sua pontuacao"; local escolhido: "em cima do mago na arena, em todos os modos" |
 
 ## Fluxo com agente
 
