@@ -1,6 +1,7 @@
 // Decisões das telas sem DOM (testáveis): resultado do fim da partida, ordem da lista de salas e quem joga como bot.
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import type { MatchOpts } from '../shared/match.ts';
+import type { WizView } from '../shared/snapshot.ts';
 import { MAX_SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { store } from './store.ts';
 
