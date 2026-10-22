@@ -417,7 +417,7 @@ const portrait = (p: PublicPlayer) => el('img', { class: 'face', src: `/chars/${
 // fileira de botões com um marcado (opções da partida, modo, jeito de lançar); off: botão desligado
 export const choice = <T>(label: string, items: [T, string][], on: T, pick: (v: T) => void, off?: (v: T) => boolean) => el('div', { class: 'stats-tabs', role: 'group', 'aria-label': label },
   ...items.map(([v, text]) => el('button', { type: 'button', 'aria-pressed': String(v === on), class: v === on ? 'on' : '', disabled: off?.(v), onclick: () => pick(v) }, text)));
-const tabs = <T extends string>(label: string, list: [T, string][], on: T, set: (k: T) => void) =>
+export const tabs = <T extends string>(label: string, list: [T, string][], on: T, set: (k: T) => void) =>
   el('div', { class: 'stats-tabs', role: 'tablist', 'aria-label': label }, ...list.map(([k, text]) =>
     el('button', { type: 'button', role: 'tab', 'aria-selected': String(k === on), class: k === on ? 'on' : '', onclick: () => set(k) }, text)));
 

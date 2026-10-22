@@ -13,3 +13,9 @@ export const TAUNTS = [
   { id: 'congrats', text: 'Parabéns… 👏', en: 'Congrats… 👏' },
 ] as const;
 export const TAUNT_COOLDOWN_MS = 2500;
+
+// Caminhos vêm só do catálogo fixo: nenhuma URL enviada pelo cliente é carregada.
+export function tauntAudioSrc(id: string): string | null {
+  const taunt = TAUNTS.find((t) => t.id === id);
+  return taunt ? ('src' in taunt && typeof taunt.src === 'string' ? taunt.src : `/sfx/taunt/${taunt.id}.mp3`) : null;
+}

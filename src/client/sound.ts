@@ -1,6 +1,28 @@
 // Sons: arquivos gravados (CC0, public/sfx, créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
 // sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
 import { store } from './store.ts';
+import { tauntAudioSrc } from '../shared/taunts.ts';
+import { TAUNTS } from '../shared/taunts.ts';
+let tauntPreview: HTMLAudioElement | null = null;
+export function stopTauntPreview() {
+  tauntPreview?.pause();
+  tauntPreview = null;
+}
+// Prévia privada e desmutada, como na Loja: não altera volumes da partida nem envia mensagem à sala.
+export async function previewTaunt(name: string): Promise<boolean> {
+  if (!TAUNTS.some((t) => t.id === name)) return false;
+  stopTauntPreview();
+  const audio = new Audio(tauntAudioSrc(name)!);
+  tauntPreview = audio;
+  audio.muted = false;
+  audio.volume = 1;
+  try {
+    await audio.play();
+    return true;
+  } catch {
+    return tauntPreview !== audio; // Trocar de fala pode interromper play pendente; isso não é falha do arquivo.
+  }
+}
 
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
   | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover';
