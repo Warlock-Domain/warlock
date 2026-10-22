@@ -1,5 +1,5 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
-import { AEGIS, ITEMS, SHOCK_BOOTS, WIND_BOOTS, type ItemId } from '../shared/items.ts';
+import { AEGIS, CRIT, ITEMS, SHOCK_BOOTS, WIND_BOOTS, type ItemId } from '../shared/items.ts';
 import { LAVA_DPS } from '../shared/constants.ts';
 import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
@@ -101,6 +101,9 @@ export const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string]
   helmet: () => [[KNOCK_TAKEN, `−${n1(ITEMS.helmet.levels[0].kb! * 100)}%`], [t('Alcance das magias', 'Spell range'), `−${n1(-ITEMS.helmet.levels[0].range! * 100)}%`]],
   wind_boots: () => [[t('5 s sem causar nem levar dano', '5 s without dealing or taking damage'), `+${n1(WIND_BOOTS.speed * 100)} cm/s`], [t('Acaba', 'Ends'), t('ao causar ou levar dano (golpe, lava, fogo)', 'when you deal or take damage (hit, lava, fire)')], [t('Com outras botas', 'With other boots'), WITH_BOOTS_RULE]],
   shock_boots: () => [[t('Ao levar um golpe', 'When you take a hit'), t(`+${n1(SHOCK_BOOTS.speed * 100)} cm/s por ${s(SHOCK_BOOTS.secs)}`, `+${n1(SHOCK_BOOTS.speed * 100)} cm/s for ${s(SHOCK_BOOTS.secs)}`)], [t('Com Botas', 'With Boots'), WITH_BOOTS_RULE]],
+  lens: (l) => [[t('Chance de crítico', 'Critical chance'), `${n1(ITEMS.lens.levels[l].crit! * 100)}%`], [t('Dano do crítico', 'Critical damage'), `+${n1(CRIT.dmg * 100)}%`]],
+  piercing: (l) => [[t('Dano do crítico', 'Critical damage'), t(`+${n1(ITEMS.piercing.levels[l].critDmg! * 100)}% (soma ao da Lente Letal)`, `+${n1(ITEMS.piercing.levels[l].critDmg! * 100)}% (adds to the Lethal Lens)`)], [t('Sem a Lente Letal', 'Without the Lethal Lens'), t('não há crítico', 'no critical hits')]],
+  affliction: (l) => [[t('Lentidões que você aplica', 'Slows you apply'), t(`+${n1(ITEMS.affliction.levels[l].afflict! * 100)}% de duração`, `+${n1(ITEMS.affliction.levels[l].afflict! * 100)}% duration`)], [t('Vale para', 'Applies to'), (['grip', 'drain', 'snowball', 'magnetize'] as const).map(spellName).join(', ')]],
   aegis: () => [[t('Quando', 'When'), t(`na lava com ${AEGIS.hp} de vida ou menos`, `in the lava with ${AEGIS.hp} health or less`)], [t('Efeito', 'Effect'), t(`volta parado para ${n1(AEGIS.back * 100)}% do raio da arena`, `brings you back, standing still, to ${n1(AEGIS.back * 100)}% of the arena radius`)], [t('Usos', 'Uses'), t('1: quebra ao salvar você (compre de novo na loja)', '1: breaks when it saves you (buy again in the shop)')]],
 };
 
