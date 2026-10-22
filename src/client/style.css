@@ -256,6 +256,12 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .obstacle-hp > div { height: 100%; background: var(--stone); }
 .obstacle-hp { opacity: .95; height: 4px; width: 40px; }
 .obstacle-hp.chest > div { background: var(--gold); }
+/* Ascensão: nível e XP embaixo da vida; ao subir de nível o número cresce e brilha */
+.wiz-label .wiz-xp { display: flex; align-items: center; gap: 3px; font-size: .62rem; line-height: 1; color: #8cbcff; }
+.wiz-label .xp-track { width: 46px; height: 4px; border-radius: 2px; background: rgba(0, 0, 0, .6); overflow: hidden; }
+.wiz-label .xp-track > div { height: 100%; background: linear-gradient(90deg, #3d7bff, #8cbcff); transition: width .2s; }
+.wiz-label.lvup .wiz-xp b { animation: lvup 1.2s ease-out; }
+@keyframes lvup { 0% { transform: scale(2.2); color: #fff; text-shadow: 0 0 8px #8cbcff; } 100% { transform: scale(1); } }
 .wiz-label .loot-bar { width: 46px; height: 5px; margin-top: 3px; border-radius: 2px; background: rgba(0, 0, 0, .6); overflow: hidden; }
 .wiz-label .loot-bar > div { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-pale)); }
 .hp-text { position: absolute; inset: 0; display: grid; place-items: center; font-size: .7rem; font-weight: 800; line-height: 1; color: var(--white); text-shadow: 0 1px 2px var(--ink), 0 0 2px var(--ink); font-variant-numeric: tabular-nums; }
@@ -489,6 +495,12 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
 .hpbar { position: relative; width: min(280px, 62vw); height: 18px; border-radius: var(--r-xs); background: rgba(0, 0, 0, .75); border: 2px solid var(--bronze); box-shadow: inset 0 0 0 1px var(--panel-bot), 0 0 0 1px var(--gold-faint), var(--shadow-sm); overflow: hidden; }
 .hpbar > i { display: block; height: 100%; background: linear-gradient(180deg, var(--red), var(--lava-deep) 60%, var(--lava-dark)); transition: width .15s; }
 .hpbar .hp-text { font-size: .75rem; }
+/* Ascensão: XP fino embaixo da vida, no azul da Febre arcana */
+.hp-col { display: grid; gap: 3px; }
+.vit-row { display: flex; align-items: center; gap: 6px; }
+.xpbar { height: 6px; border-radius: 3px; background: rgba(0, 0, 0, .75); border: 1px solid var(--bronze); overflow: hidden; }
+.xp-lv { white-space: nowrap; padding: 0 8px; border-radius: 999px; background: var(--panel-glass); color: #8cbcff; font-size: 1rem; text-shadow: var(--text-shadow); }
+.xpbar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #3d7bff, #8cbcff); transition: width .2s; }
 .vitals .gold { padding: 0 10px; border-radius: 999px; background: var(--panel-glass); font-size: 1.1rem; text-shadow: var(--text-shadow); }
 /* celular: configurações, som, provocações e ajuda dentro do "⋯" */
 .more-wrap { display: none; }

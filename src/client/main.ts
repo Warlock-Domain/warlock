@@ -1,8 +1,8 @@
 import { inLavaAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
-import { roundMult } from '../shared/ascension.ts';
-import type { BotSetup, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
+import { liveLevel, roundMult } from '../shared/ascension.ts';
+import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
@@ -528,6 +528,7 @@ function startRoom(code: string, name: string) {
   const MULTI_TEXT = ['', '', t('Abate duplo!', 'Double kill!'), t('Abate triplo!', 'Triple kill!'), t('Massacre!', 'Ultra kill!')];
   const SPREE_TEXT: Record<number, string> = { 3: t('Matança', 'Killing Spree'), 5: t('Fúria assassina', 'Rampage'), 7: t('sequência Imparável', 'Unstoppable streak'), 10: t('sequência Lendária', 'Legendary streak') };
   let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
+  let aliveAt: Record<string, number> = {}; // Ascensão: segundos que cada mago ficou vivo na rodada (XP ao vivo)
   function onEvents(events: SimEvent[]) {
     const pos = myWizard(interp.latest())?.pos;
     const near = (x: number, y: number) => (pos ? Math.max(0.25, 1 - dist(pos, { x, y }) / 20) : 0.6);
@@ -719,6 +720,7 @@ function startRoom(code: string, name: string) {
     }
     if (room.phase === 'countdown') {
       live = {};
+      aliveAt = {};
       view.live(live);
       interp.reset();
       predict.reset();
@@ -771,6 +773,7 @@ function startRoom(code: string, name: string) {
     const meW = room?.phase === 'playing' ? myWizard(latest) : null;
     const meP = room?.players.find((p) => p.id === me);
     const meMax = HP_MAX + (meP ? itemStats(meP.items).hp : 0);
+    const xp = meW?.alive && meP ? xpOf(meP) : null; // Ascensão: XP ao vivo na barra embaixo da vida
     const low = !!meW?.alive && !!meP && meW.hp < 0.25 * meMax;
     const lava = !!meW?.alive && !!latest && inLavaAt(arenaId, latest.arenaR, latest.isles, meW.pos);
     view.danger(low, lava);
@@ -845,11 +848,18 @@ function startRoom(code: string, name: string) {
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
     view.frame(lastSnap?.cd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
-      wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx); // caídos na rodada: retrato apagado no topo
+      wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx, xp); // caídos na rodada: retrato apagado no topo
   }
   const drawn = new Map<string, Vec>();
   const replayDrawn = new Map<string, Vec>();
   // magos para desenhar: ao vivo o meu vem da previsão; no replay, todos do trecho gravado (cada um com seu mapa de posições anteriores)
+  // Ascensão: XP da partida mais o da rodada ao vivo (dano, abates, segundos vivo até a queda); fora da rodada o servidor já somou
+  // a rodada em asc.xp, então vale só ele. null fora do modo
+  const xpOf = (p: PublicPlayer) => {
+    if (!p.asc) return null;
+    const on = room?.phase === 'playing';
+    return liveLevel(p.asc.xp, on ? (live[p.id]?.dmg ?? 0) : 0, on ? (live[p.id]?.kills ?? 0) : 0, on ? (aliveAt[p.id] ?? 0) : 0);
+  };
   function wizardsOf(s: SnapView, live: boolean, dt: number): WizDraw[] {
     const byId = new Map(room?.players.map((p) => [p.id, p]) ?? []);
     // modo Times: cor do time no anel e na barra; no fim da rodada o time vencedor inteiro comemora
@@ -866,7 +876,8 @@ function startRoom(code: string, name: string) {
       const prevDraw = prev.get(w.id);
       const moving = len(w.vel) < STUN_SPEED && w.alive && (!prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
-      return { ...w, status, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p && room ? botLevel(p, room) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
+      if (live && w.alive && room?.phase === 'playing') aliveAt[w.id] = s.time;
+      return { ...w, xp: live && p ? xpOf(p) : null, status, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
     });
   }
   // eventos do replay: só a cena (clarão, explosão) e a seta do golpe que eu levei
