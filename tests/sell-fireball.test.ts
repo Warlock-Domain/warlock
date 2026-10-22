@@ -20,14 +20,14 @@ describe('Bola de fogo à venda (pedido do Fernando, 18/10)', () => {
     expect(sell(m, 'a', 'spell:fireball')).toBe(true);
     expect(p.spells.fireball).toBe(0);
     expect(p.gold).toBe(gold);
-    expect(spellCount(p.spells)).toBe(0);
+    expect(spellCount(p.spells)).toBe(1); // sobra o Flagelo, também de graça (21/10, #217)
     expect(canSell(p, m.round, 'spell:fireball')).toBe(false); // nada mais para vender
-    // a vaga liberada: cabem 6 magias sem a Bola de fogo
+    // a vaga liberada: cabem 7 magias além do Flagelo, sem a Bola de fogo
     p.gold = 999;
-    const others = (['lightning', 'homing', 'shield', 'teleport', 'swap', 'grip', 'meteor'] as const);
+    const others = (['lightning', 'homing', 'shield', 'teleport', 'swap', 'grip', 'meteor', 'rush'] as const);
     for (const s of others) buy(m, 'a', s);
     expect(spellCount(p.spells)).toBe(MAX_SPELLS);
-    expect(p.spells.meteor).toBe(0); // a 7ª não cabe
+    expect(p.spells.rush).toBe(0); // a 9ª não cabe
   });
 
   it('compra de volta pelo preço normal (o nível 1 é grátis) e o nível comprado vende como os outros', () => {

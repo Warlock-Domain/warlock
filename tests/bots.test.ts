@@ -4,10 +4,10 @@ import { DT } from '../src/shared/constants.ts';
 import { ITEM_IDS, noItems } from '../src/shared/items.ts';
 import { newMatch, startMatch, tickMatch } from '../src/shared/match.ts';
 import { newWorld, type Cmd } from '../src/shared/sim.ts';
-import { SPELL_IDS, noSpells, type SpellId } from '../src/shared/spells.ts';
+import { FREE_SPELLS, SPELL_IDS, noSpells, type SpellId } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
 
-const casts = (cmds: Cmd[]) => cmds.filter((c) => c.kind === 'cast' || c.kind === 'item');
+const casts = (cmds: Cmd[]) => cmds.filter((c) => c.kind === 'cast');
 function seeded(seed: number) {
   return () => {
     seed = (seed + 0x6d2b79f5) | 0;
@@ -62,9 +62,9 @@ describe('bots usam tudo', () => {
   });
 
   it('arms the Pact before a damage spell, then casts the spell', () => {
-    const w = duel({ lightning: 1 }, { pact: 1 });
-    expect(casts(botCmds(w, 'bot', () => 0.3))).toEqual([{ id: 'bot', kind: 'item', item: 'pact', at: w.wizards[0].pos }]);
-    w.wizards[0].itemCd.pact = 99;
+    const w = duel({ lightning: 1, pact: 1 });
+    expect(casts(botCmds(w, 'bot', () => 0.3))).toEqual([{ id: 'bot', kind: 'cast', spell: 'pact', at: w.wizards[0].pos }]);
+    w.wizards[0].cd.pact = 99;
     w.wizards[0].pactUntil = 5;
     const c = casts(botCmds(w, 'bot', () => 0.3));
     expect(c[0]?.kind === 'cast' && c[0].spell === 'lightning').toBe(true);
@@ -211,11 +211,11 @@ describe('bots usam tudo', () => {
       const s = p.buys.filter((b) => b.kind === 'spell');
       expect(p.buys[0].kind).toBe('spell');
       expect(s.length).toBeGreaterThanOrEqual(2);
-      expect(s.length).toBeLessThanOrEqual(5);
+      expect(s.length).toBeLessThanOrEqual(6); // até encher as 8 vagas com a Bola de fogo e o Flagelo
       for (const b of p.buys) (b.kind === 'spell' ? spells : items).add(b.id);
     }
-    expect([...spells].sort()).toEqual(SPELL_IDS.filter((s) => s !== 'fireball').sort());
-    expect([...items].sort()).toEqual(ITEM_IDS.filter((i) => i !== 'scourge').sort());
+    expect([...spells].sort()).toEqual(SPELL_IDS.filter((s) => !FREE_SPELLS.includes(s)).sort());
+    expect([...items].sort()).toEqual([...ITEM_IDS].sort());
   });
 
   it('a bots-only match ends and uses several different spells', () => {

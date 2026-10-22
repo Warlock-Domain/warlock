@@ -3,7 +3,7 @@
 // Carregado sob demanda pelo botão "?" (import dinâmico em ui.ts), para não pesar o começo do jogo.
 import { ARENA_IDS, SHAPES, type ArenaId } from '../shared/arena.ts';
 import { ARENA_R0, HP_MAX, RUNE_KINDS } from '../shared/constants.ts';
-import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, isActive, type ItemId } from '../shared/items.ts';
+import { ITEMS, ITEM_IDS, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import { SCRIPTS, createDemo, drawStone, runDemo, type DemoId } from './demo.ts';
 import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
@@ -29,8 +29,8 @@ const LEGEND = t(
 const CH = {
   toc: t('Sumário', 'Contents'), spells: t('Magias', 'Spells'), items: t('Itens', 'Items'),
 };
-// magia fora da barra não tem tecla no modo Q W E R D F nem no controle (vale a posição na barra)
-const keyText = (a: SpellId | ItemId) => labelOf(a) !== '—' ? t(`tecla ${labelOf(a)}`, `key ${labelOf(a)}`) : isSlotMode() || isPadMode() ? t('tecla pela posição na barra', 'key by position in the bar') : t('sem tecla (escolha em Configurações > Lançamento)', 'no key (pick one in Settings > Casting)');
+// magia fora da barra não tem tecla no modo 1 2 3 4 Q W E R nem no controle (vale a posição na barra)
+const keyText = (a: SpellId) => labelOf(a) !== '—' ? t(`tecla ${labelOf(a)}`, `key ${labelOf(a)}`) : isSlotMode() || isPadMode() ? t('tecla pela posição na barra', 'key by position in the bar') : t('sem tecla (escolha em Configurações > Lançamento)', 'no key (pick one in Settings > Casting)');
 
 // contorno da arena num canvas pequeno (página das arenas)
 function arenaThumb(id: ArenaId): HTMLElement {
@@ -64,7 +64,7 @@ function itemPage(id: ItemId): Page {
     chapter: CH.items, title: itemName(id), demo: SCRIPTS[id] ? id : undefined,
     body: () => [
       el('div', { class: 'g-head' }, el('span', { class: 'g-medal item' }, icon(ITEM_ICON[id])),
-        el('div', {}, el('h2', {}, itemName(id)), el('small', {}, `${isActive(id) ? t(`ativo · ${keyText(id)}`, `active · ${keyText(id)}`) : t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}`))),
+        el('div', {}, el('h2', {}, itemName(id)), el('small', {}, `${t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}`))),
       el('p', { class: 'g-lead' }, itemText(id)),
       ITEM_DEMO[id] ? el('p', { class: 'muted' }, ITEM_DEMO[id]) : null,
       null,
@@ -85,7 +85,7 @@ const PAGES: Page[] = [
   text(t('Controles', 'Controls'), t('No PC', 'On PC'), () => RULES.pc),
   {
     chapter: t('Controles', 'Controls'), title: t('Suas teclas', 'Your keys'),
-    body: () => [el('h2', {}, isSlotMode() ? t('Suas teclas (Q W E R D F pela ordem da barra)', 'Your keys (Q W E R D F in bar order)') : t('Suas teclas', 'Your keys')),
+    body: () => [el('h2', {}, isSlotMode() ? t('Suas teclas (1 2 3 4 Q W E R pela ordem da barra)', 'Your keys (1 2 3 4 Q W E R in bar order)') : t('Suas teclas', 'Your keys')),
       el('div', { class: 'keys-grid' }, ...ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, labelOf(a)), ' ', icon(actionIcon(a)), ' ', actionName(a)))),
       el('h3', {}, t('Atalhos', 'Shortcuts')),
       el('div', { class: 'keys-grid' }, ...UI_ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, uiLabel(a)), ' ', UI_NAMES[a])), el('span', {}, el('span', { class: 'key' }, 'Esc'), ' ', t('Configurações', 'Settings'))),
@@ -227,8 +227,7 @@ export function library(onOpen?: () => void): HTMLElement {
   const items = (ids: ItemId[]) => ids.map((i) => tile(i, ITEM_ICON[i], () => itemTip(i, 0)));
   const groups = [
     ...SPELL_GROUPS.map(([g, , ids]) => section(g, g, groupClass(g), ids.map((s) => tile(s, ICON[s], () => spellTip(s, 0))))),
-    section('items', t('Itens passivos', 'Passive items'), 'lib-items', items(ITEM_IDS.filter((i) => !isActive(i)))),
-    section('items', t('Itens ativos', 'Active items'), 'lib-items', items(ACTIVE_ITEMS)),
+    section('items', t('Itens passivos', 'Passive items'), 'lib-items', items([...ITEM_IDS])),
   ];
   let only = 'all';
   const none = el('p', { class: 'muted', hidden: true }, t('Nada com esse nome.', 'Nothing with that name.'));
