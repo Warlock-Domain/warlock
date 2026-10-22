@@ -630,6 +630,10 @@ button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infini
 #toast[data-kind="gold"] { border-left-color: var(--gold); }
 #toast[data-kind="gold"]::before { content: none; }
 #toast[data-kind="gold"] > .gi { flex: none; font-size: 1.3rem; color: var(--gold); }
+/* toast(…, top): logo abaixo da barra do topo, com letra maior, entrando de cima (issue #223); id + classe ganha das
+   posições de baixo das media queries de #toast, então vale em toda largura de tela */
+#toast.top { top: calc(64px + var(--safe-t)); bottom: auto; font-size: 1.3rem; padding: 13px 18px; transform: translate(-50%, -8px); }
+#toast.top.show { transform: translateX(-50%); }
 /* golpe crítico: número claro com brilho de brasa */
 .dmg.crit { color: var(--gold-pale); -webkit-text-stroke: 1px var(--lava-dark); text-shadow: 0 0 12px rgba(255, 170, 40, .9), var(--text-shadow); }
 /* VITÓRIA: dourado em degradê, maior, com confete saindo do centro */
