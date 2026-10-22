@@ -7,6 +7,7 @@ import { add, len, norm, scale, type Vec } from '../shared/vec.ts';
 import { t } from './i18n.ts';
 import { PAD_NAMES, keyOf, padActionAt, padButtonOf, setPadMode, slotSpell, slotItem } from './keys.ts';
 import { store } from './store.ts';
+import { radialIndex } from './taunt-wheel.ts';
 
 // índices do mapeamento padrão (Xbox: A B X Y; PlayStation: ✕ ○ □ △ nas mesmas posições)
 export const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 } as const;
@@ -296,6 +297,29 @@ function tick(toast: (msg: string) => void) {
   const aimS = stick(gp.axes[2] ?? 0, gp.axes[3] ?? 0);
   if (down.some(Boolean) || mv.x || mv.y || aimS.x || aimS.y) setMode(true);
   const now = performance.now();
+  // Aceita a lista atual e a roda: o atalho do controle não depende de outra PR já ter sido integrada.
+  const tauntPanel = () => $<HTMLElement>('.vol-panel:not([hidden]):has(.taunt-list), .radial-picker:not(.radial-inline):not([hidden])');
+  const tauntButton = !$('.overlay') ? $('.hud-right .vol:has(.taunt-list) > button, .hud-right .vol:has(.radial-picker) > button') : null;
+  const openedTaunts = !!tauntButton && !tauntPanel() && hit(padButtonOf('taunt'));
+  if (openedTaunts) tauntButton!.click();
+  const panel = !$('.overlay') ? tauntPanel() : null;
+  if (panel) {
+    // Enquanto escolhe uma fala, A/B e os eixos não podem andar, usar item ou lançar magia.
+    if (wasMoving) game?.stop();
+    wasMoving = false;
+    game?.aim(null);
+    game?.padRange(null);
+    const buttons = [...panel.querySelectorAll<HTMLButtonElement>('.taunt-list button, .radial-stage > button:not(.radial-center)')];
+    const dpad = { x: Number(down[BTN.RIGHT]) - Number(down[BTN.LEFT]), y: Number(down[BTN.DOWN]) - Number(down[BTN.UP]) };
+    const s = len(aimS) ? aimS : len(mv) ? mv : openedTaunts ? { x: 0, y: 0 } : dpad;
+    const selected = radialIndex(s.x, s.y, buttons.length);
+    if (selected !== null) buttons[selected]?.focus({ preventScroll: true });
+    if (!openedTaunts && hit(BTN.A) && buttons.includes(document.activeElement as HTMLButtonElement)) (document.activeElement as HTMLButtonElement).click();
+    if ((!openedTaunts && hit(BTN.B)) || hit(BTN.START)) panel.hidden = true;
+    if (prev[board] && !down[board]) key('keyup', keyOf('board'));
+    prev = down;
+    return;
+  }
   if (game?.enabled() && !$('.overlay')) {
     play(game, hit, mv, aimS);
     navDir = null;
