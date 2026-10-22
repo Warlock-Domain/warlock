@@ -1,12 +1,13 @@
 import { inLavaAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
-import type { BotSetup, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
+import { liveLevel, roundMult } from '../shared/ascension.ts';
+import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
-import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
+import { itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
@@ -19,7 +20,7 @@ import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t } from './i18n.ts';
 import { cardName } from './ascension-ui.ts';
-import { effectName } from './opt-info.ts';
+import { SKILL_NAME, effectName } from './opt-info.ts';
 import { getCastMode, isPadMode, labelOf, onFreeEsc } from './keys.ts';
 import { openSettings, savedPixel } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
@@ -31,7 +32,7 @@ import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
-import { endResult, sandboxVisibility } from './screen-data.ts';
+import { botLevel, endResult, sandboxVisibility, seatChanges } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
 declare const __BRANCH__: string;
@@ -67,6 +68,7 @@ const SPELL_SOUND: Record<SpellId, SoundKind> = {
   boomerang: 'homing', thrust: 'teleport', gravity: 'homing', rockpillar: 'shield', bouncer: 'lightning',
   drain: 'homing', snowball: 'fireball', illusion: 'teleport', magnetize: 'lightning', recharge: 'homing',
   alteration: 'teleport', link: 'lightning', windwalk: 'shield', splitter: 'fireball', warpzone: 'shield',
+  scourge: 'homing', pact: 'shield', // os sons que tinham como item ativo
 };
 
 // mensagens de erro do servidor (em português, protocolo inalterado) -> inglês
@@ -232,13 +234,13 @@ function startRoom(code: string, name: string) {
   let room: PublicRoom | null = null;
   let me = playerId;
   let online = false;
-  let armed: SpellId | ItemId | null = null;
+  let armed: SpellId | null = null;
   // círculo de alcance: tecla segurada, magia escolhida no botão (toque no chão para lançar) ou controle mirando
-  let held: SpellId | ItemId | null = null;
+  let held: SpellId | null = null;
   let flashAim: { from: Vec; at: Vec } | null = null; // Rápido: de onde e para onde a magia saiu, para a faixa piscar parada ali
-  let padAiming: SpellId | ItemId | null = null;
+  let padAiming: SpellId | null = null;
   let padAt: Vec | null = null; // retículo do controle no chão (explosão do Meteoro)
-  let hovered: SpellId | ItemId | null = null; // mouse em cima da magia na barra
+  let hovered: SpellId | null = null; // mouse em cima da magia na barra
   let seq = 0;
   const sentAt = new Map<number, number>();
   let lastSnap: Snap | null = null;
@@ -305,7 +307,6 @@ function startRoom(code: string, name: string) {
     undo: (key) => net.send({ t: 'undo', key }),
     sell: (key) => net.send({ t: 'sell', key }),
     taunt: (i) => net.send({ t: 'taunt', i }),
-    useItem: (item) => input.button(item),
     // personagem pronto da sala: vira a aparência equivalente (o evento abaixo manda ao servidor)
     pick: (character) => {
       store.set(CHAR, character);
@@ -370,7 +371,7 @@ function startRoom(code: string, name: string) {
 
   const myWizard = (s: SnapView | null) => s?.wizards.find((w) => w.id === me) ?? null;
 
-  function command(msg: { t: 'move'; x: number; y: number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number } | { t: 'item'; item: ItemId; x: number; y: number }) {
+  function command(msg: { t: 'move'; x: number; y: number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
     seq++;
     sentAt.set(seq, performance.now());
     // teto do mapa de latência: o snapshot só confirma o último seq (e nada fora da rodada), então muito comando nunca tem ack
@@ -396,6 +397,8 @@ function startRoom(code: string, name: string) {
       if (!mine?.spells[spell]) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
       if ((lastSnap?.cd[i] ?? 0) > 0.1 || performance.now() < (justCast.get(spell) ?? 0) || (performance.now() < scourgeUntil && spell !== 'teleport')) return;
       if (spell === 'teleport') scourgeUntil = 0; // o Teleporte cancela o Flagelo em preparo
+      // Flagelo em preparo: o servidor ignora outras magias até ele explodir
+      if (spell === 'scourge') scourgeUntil = performance.now() + CAST_POINT.scourge * 1000;
       if (spell === 'rush') predict.stop(); // o avanço esquece o destino de andar, como no servidor
       // até a recarga chegar do servidor, não repete a mesma magia (senão a animação e o som tocam sem sair nada)
       justCast.set(spell, performance.now() + 120 + CAST_POINT[spell] * 1000 + predict.rtt() * 1000);
@@ -405,19 +408,6 @@ function startRoom(code: string, name: string) {
       scene.castLocal(me, spell, at);
       scene.clickMarker(at, true);
       sound.play(SPELL_SOUND[spell]);
-      return true;
-    },
-    useItem(item, at) {
-      const mine = room?.players.find((p) => p.id === me);
-      if (!mine?.items[item]) return toast(t('Você ainda não tem esse item. Compre na loja.', 'You don’t have that item yet. Buy it in the shop.'));
-      if ((lastSnap?.icd[ACTIVE_ITEMS.indexOf(item)] ?? 0) > 0.1 || performance.now() < (justCast.get(item) ?? 0) || performance.now() < scourgeUntil) return;
-      // Flagelo em preparo: o servidor ignora outras magias até ele explodir
-      if (item === 'scourge') scourgeUntil = performance.now() + SCOURGE.windup * 1000;
-      justCast.set(item, performance.now() + 120 + (ITEM_CAST[item] ?? 0) * 1000 + predict.rtt() * 1000);
-      command({ t: 'item', item, x: at.x, y: at.y });
-      predict.hold(ITEM_CAST[item] ?? 0);
-      if (item === 'scourge') scene.castLocal(me, item);
-      scene.clickMarker(at, true);
       return true;
     },
     center: () => {
@@ -538,6 +528,7 @@ function startRoom(code: string, name: string) {
   const MULTI_TEXT = ['', '', t('Abate duplo!', 'Double kill!'), t('Abate triplo!', 'Triple kill!'), t('Massacre!', 'Ultra kill!')];
   const SPREE_TEXT: Record<number, string> = { 3: t('Matança', 'Killing Spree'), 5: t('Fúria assassina', 'Rampage'), 7: t('sequência Imparável', 'Unstoppable streak'), 10: t('sequência Lendária', 'Legendary streak') };
   let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
+  let aliveAt: Record<string, number> = {}; // Ascensão: segundos que cada mago ficou vivo na rodada (XP ao vivo)
   function onEvents(events: SimEvent[]) {
     const pos = myWizard(interp.latest())?.pos;
     const near = (x: number, y: number) => (pos ? Math.max(0.25, 1 - dist(pos, { x, y }) / 20) : 0.6);
@@ -573,7 +564,6 @@ function startRoom(code: string, name: string) {
       else if (e.k === 'grip') sound.play('hit', near(e.x, e.y));
       else if (e.k === 'reflect') sound.play('reflect', near(e.x, e.y));
       else if (e.k === 'teleport' && e.id === me) predict.teleported(e.to);
-      else if (e.k === 'item') sound.play(e.item === 'redirector' ? 'teleport' : e.item === 'pact' ? 'shield' : 'homing', 0.7);
       else if (e.k === 'scourge') sound.play('death', near(e.x, e.y));
       else if (e.k === 'shrink') sound.play('shrink');
       else if (e.k === 'chest') toast(t('Baú de ouro na arena! Quebre e fique em cima do ouro', 'Gold chest in the arena! Break it and stand on the gold'), 'gold');
@@ -656,6 +646,15 @@ function startRoom(code: string, name: string) {
       arenaId = room.arena ?? arenaId; // na loja não há rodada: fica a última arena
       view.update(room, me, online);
       begin(room);
+      // alguém saiu no meio da partida e um bot assumiu o mago, ou a pessoa voltou (issue #223)
+      if (prev) {
+        const { left, back } = seatChanges(prev, room);
+        for (const p of left) {
+          const lvl = SKILL_NAME[botLevel(p, room) ?? room.opts.difficulty];
+          toast(t(`${p.name} saiu da partida · um bot ${lvl} joga no lugar até voltar`, `${p.name} left the match · a ${lvl} bot plays in their place until they return`), 'info', true);
+        }
+        for (const p of back) toast(t(`${p.name} voltou para a partida`, `${p.name} is back in the match`), 'good', true);
+      }
       // compra na loja: o ouro caiu → som de moedas
       if (prev?.phase === 'shop' && room.phase === 'shop') {
         const was = prev.players.find((p) => p.id === me)?.gold, now = room.players.find((p) => p.id === me)?.gold;
@@ -721,6 +720,7 @@ function startRoom(code: string, name: string) {
     }
     if (room.phase === 'countdown') {
       live = {};
+      aliveAt = {};
       view.live(live);
       interp.reset();
       predict.reset();
@@ -730,7 +730,9 @@ function startRoom(code: string, name: string) {
       watchId = null;
       // modo Times: avisa em que time a pessoa está nesta rodada
       const team = room.mode === 'teams' ? room.players.find((p) => p.id === me)?.team : null;
-      const fx = room.effect ? ` · ${effectName(room.effect, room.mode)}` : ''; // efeito da rodada na faixa grande: a linha do topo passa despercebida
+      // efeito da rodada na faixa grande (a linha do topo passa despercebida); no Ascensão, o aviso dos pontos valendo mais
+      const mult = room.mode === 'ascension' ? roundMult(room.round) : 1;
+      const fx = (room.effect ? ` · ${effectName(room.effect, room.mode)}` : '') + (mult === 2 ? t(' · Pontos em dobro', ' · Double points') : mult > 1 ? t(' · Pontos ×1,5', ' · Points ×1.5') : '');
       banner(team != null ? t(`Rodada ${room.round} · Você está no time ${TEAM_NAMES[team]}${fx}`, `Round ${room.round} · You are on the ${TEAM_NAMES[team]} team${fx}`) : t(`Rodada ${room.round}${fx}`, `Round ${room.round}${fx}`));
       [3, 2, 1].forEach((_, i) => setTimeout(() => sound.play('beep'), i * 1000));
     } else if (room.phase === 'playing') {
@@ -771,6 +773,7 @@ function startRoom(code: string, name: string) {
     const meW = room?.phase === 'playing' ? myWizard(latest) : null;
     const meP = room?.players.find((p) => p.id === me);
     const meMax = HP_MAX + (meP ? itemStats(meP.items).hp : 0);
+    const xp = meW?.alive && meP ? xpOf(meP) : null; // Ascensão: XP ao vivo na barra embaixo da vida
     const low = !!meW?.alive && !!meP && meW.hp < 0.25 * meMax;
     const lava = !!meW?.alive && !!latest && inLavaAt(arenaId, latest.arenaR, latest.isles, meW.pos);
     view.danger(low, lava);
@@ -844,12 +847,19 @@ function startRoom(code: string, name: string) {
     scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
-    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
-      wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx); // caídos na rodada: retrato apagado no topo
+    view.frame(lastSnap?.cd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
+      wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx, xp); // caídos na rodada: retrato apagado no topo
   }
   const drawn = new Map<string, Vec>();
   const replayDrawn = new Map<string, Vec>();
   // magos para desenhar: ao vivo o meu vem da previsão; no replay, todos do trecho gravado (cada um com seu mapa de posições anteriores)
+  // Ascensão: XP da partida mais o da rodada ao vivo (dano, abates, segundos vivo até a queda); fora da rodada o servidor já somou
+  // a rodada em asc.xp, então vale só ele. null fora do modo
+  const xpOf = (p: PublicPlayer) => {
+    if (!p.asc) return null;
+    const on = room?.phase === 'playing';
+    return liveLevel(p.asc.xp, on ? (live[p.id]?.dmg ?? 0) : 0, on ? (live[p.id]?.kills ?? 0) : 0, on ? (aliveAt[p.id] ?? 0) : 0);
+  };
   function wizardsOf(s: SnapView, live: boolean, dt: number): WizDraw[] {
     const byId = new Map(room?.players.map((p) => [p.id, p]) ?? []);
     // modo Times: cor do time no anel e na barra; no fim da rodada o time vencedor inteiro comemora
@@ -866,7 +876,8 @@ function startRoom(code: string, name: string) {
       const prevDraw = prev.get(w.id);
       const moving = len(w.vel) < STUN_SPEED && w.alive && (!prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
-      return { ...w, status, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
+      if (live && w.alive && room?.phase === 'playing') aliveAt[w.id] = s.time;
+      return { ...w, xp: live && p ? xpOf(p) : null, status, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p && room ? botLevel(p, room) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
     });
   }
   // eventos do replay: só a cena (clarão, explosão) e a seta do golpe que eu levei

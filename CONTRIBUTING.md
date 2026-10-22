@@ -88,6 +88,7 @@ Toda issue sai de um dos dois modelos (a issue em branco está desligada): https
 - Um PR, um assunto. Mudança grande vira vários PRs.
 - Texto novo que o jogador vê sai em português e inglês.
 - Mudança de balanceamento só com medição do simulador no PR (rodadas por dificuldade, antes → depois).
+- Sem interação específica entre duas magias: o efeito de cada uma sai de stats gerais e documentados, iguais contra tudo (decisão de 21/10).
 - Nada de segredo no repositório (chaves, tokens, senhas). O repositório é público.
 - Asset novo só com licença livre e crédito em `public/CREDITS.txt`, e indexado em [`docs/ASSETS.md`](docs/ASSETS.md): o que é, onde o código usa e de onde veio. Antes de procurar modelo fora, veja a biblioteca em `assets/kaykit/` (lista em `assets/kaykit/INDICE.md`).
 

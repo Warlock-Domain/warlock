@@ -9,7 +9,7 @@ import { parseArgs } from 'node:util';
 import { botConfig, randomPlan, type BotPick, type BotPlan } from '../src/shared/bots.ts';
 import { ITEMS, ITEM_IDS, MAX_ITEMS } from '../src/shared/items.ts';
 import { type MatchOpts } from '../src/shared/match.ts';
-import { MAX_SPELLS, SPELLS, SPELL_IDS } from '../src/shared/spells.ts';
+import { FREE_SPELLS, MAX_SPELLS, SPELLS, SPELL_IDS } from '../src/shared/spells.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
 import { addCell, adjusted, f, goldBand, pct, playMatch, seedRandom, writeAtomic, type Bands } from './sim-lib.ts';
 
@@ -35,9 +35,8 @@ mkdirSync(outDir, { recursive: true });
 setPriority(constants.priority.PRIORITY_LOW);
 
 const rng = seedRandom(Number(arg.seed));
-const SPELL_POOL = SPELL_IDS.filter((s) => s !== 'fireball');
-const ITEM_POOL = ITEM_IDS.filter((i) => i !== 'scourge');
-const POOL: BotPick[] = [...SPELL_POOL.map((id): BotPick => ({ kind: 'spell', id })), ...ITEM_POOL.map((id): BotPick => ({ kind: 'item', id }))];
+const SPELL_POOL = SPELL_IDS.filter((s) => !FREE_SPELLS.includes(s));
+const POOL: BotPick[] = [...SPELL_POOL.map((id): BotPick => ({ kind: 'spell', id })), ...ITEM_IDS.map((id): BotPick => ({ kind: 'item', id }))];
 const pick = <T>(a: T[]) => a[Math.floor(rng() * a.length)];
 const key = (b: BotPick) => b.kind + ':' + b.id;
 const sig = (p: BotPlan) => p.buys.map(key).join(',') + '/' + p.upgrade;
@@ -145,7 +144,7 @@ ${sorted.slice(0, 10).map((e, i) => `| ${i + 1} | ${e.plan.buys.map(name).join('
 ${freqTable('spell', SPELL_POOL)}
 
 ## Itens que mais aparecem nos vencedores
-${freqTable('item', ITEM_POOL)}
+${freqTable('item', [...ITEM_IDS])}
 
 ## Gerações (últimas 20)
 | geração | rodadas | melhor aptidão | média dos ${KEEP} melhores | melhor plano |

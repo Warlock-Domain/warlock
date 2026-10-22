@@ -44,15 +44,15 @@ describe('protocolo', () => {
 
   it('start: configuração dos bots do treino', () => {
     const spells = { fireball: 0, rockpillar: 7, magnetize: 7, alteration: 7, boomerang: 7, windwalk: 7, splitter: 7 };
-    const items = { ring: 6, cursed_ring: 6, shock_boots: 6, lava_boots: 6, redirector: 6, wind_boots: 6 };
+    const items = { ring: 6, cursed_ring: 6, shock_boots: 6, lava_boots: 6, warden: 6, wind_boots: 6 };
     expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 3 } }, {}, { items: { armor: 2 }, skill: { aim: 0.8 } }] }))
       .toEqual({ t: 'start', bots: 3, setup: [{ spells: { lightning: 3 } }, {}, { items: { armor: 2 }, skill: { aim: 0.8 } }] });
     // 7 bots com 6 magias no nível 7 e 6 itens no 6, e todas as opções: cabe na mensagem
     const full = { t: 'start', bots: 7, mode: 'deathmatch', opts: { shop: 120, economy: 2, startGold: 100, goal: 7, difficulty: 'normal', arena: 'random' }, setup: Array(7).fill({ spells, items }) };
     expect(JSON.stringify(full).length).toBeGreaterThan(1024);
     expect(p(full)).not.toBeNull();
-    // 7 magias (a Bola de fogo já vem e conta), nível 8, item com nível 7, chave de skill desconhecida, 8 bots
-    expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 1, grip: 1 } }] })).toBeNull();
+    // 9 magias (a Bola de fogo e o Flagelo já vêm e contam), nível 8, item com nível 7, chave de skill desconhecida, 8 bots
+    expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 1, grip: 1, meteor: 1 } }] })).toBeNull();
     expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 8 } }] })).toBeNull();
     expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 1.5 } }] })).toBeNull();
     expect(p({ t: 'start', bots: 3, setup: [{ items: { armor: 7 } }] })).toBeNull();
@@ -73,7 +73,7 @@ describe('protocolo', () => {
     for (const difficulty of ['insane', 1, null, '']) expect(p({ t: 'start', bots: 1, setup: [{ difficulty }] })).toBeNull();
     // 7 bots com magias, itens e dificuldade: ainda cabe na mensagem
     const spells = { fireball: 0, rockpillar: 7, magnetize: 7, alteration: 7, boomerang: 7, windwalk: 7, splitter: 7 };
-    const items = { ring: 6, cursed_ring: 6, shock_boots: 6, lava_boots: 6, redirector: 6, wind_boots: 6 };
+    const items = { ring: 6, cursed_ring: 6, shock_boots: 6, lava_boots: 6, warden: 6, wind_boots: 6 };
     expect(p({ t: 'start', bots: 7, mode: 'deathmatch', opts: { shop: 120, economy: 2, startGold: 100, goal: 7, difficulty: 'normal', arena: 'random' }, setup: Array(7).fill({ spells, items, difficulty: 'normal' }) })).not.toBeNull();
   });
 

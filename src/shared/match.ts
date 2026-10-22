@@ -10,11 +10,9 @@ import {
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
 import type { BotSetup } from './protocol.ts';
 import { gearOf, newWorld, placeRune, resizeArena, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
-import { MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
+import { FREE_SPELLS, MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { dist, len, type Vec } from './vec.ts';
 
-// como no original, todo mundo começa com o Flagelo (além da Bola de fogo)
-const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
 
 // estatísticas do placar: ouro ganho, dano causado e precisão (lançadas e acertadas) por magia;
 // jeito de jogar (watchStyle): ameaças, atingido por elas, Escudo pronto e usado, tempo de reação e distância do inimigo (somas e contagens)
@@ -201,7 +199,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false, watch
   const watching = !bot && (full || (watch && !watchersFull));
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
-  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold: startGold(m), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
+  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold: startGold(m), spells: noSpells(), items: noItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
   enter(m, m.players[m.players.length - 1]);
   ascOwner(m);
   return true;
@@ -300,7 +298,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
 // zera a partida e abre a loja da rodada 1 (começar, ou reiniciar por votação com os mesmos jogadores)
 function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: () => number) {
   for (const p of m.players) {
-    Object.assign(p, { score: 0, gold: startGold(m), goldCarry: 0, spells: noSpells(), items: startItems() });
+    Object.assign(p, { score: 0, gold: startGold(m), goldCarry: 0, spells: noSpells(), items: noItems() });
     p.held = {};
     p.stats.match = newStat();
     p.stats.round = newStat();
@@ -393,7 +391,7 @@ export function sellValue(p: { spells: Record<SpellId, number>; items: Record<It
   if (!spell && kind !== 'item') return 0; // só magia e item se vendem
   if (!(spell ? (SPELL_IDS as readonly string[]) : (ITEM_IDS as readonly string[])).includes(what)) return 0;
   const now = spell ? p.spells[what as SpellId] : p.items[what as ItemId];
-  const first = spell ? noSpells()[what as SpellId] : startItems()[what as ItemId];
+  const first = spell ? noSpells()[what as SpellId] : noItems()[what as ItemId];
   if (now <= first) return 0;
   const when = p.held?.[key] ?? [];
   let total = 0;
@@ -408,7 +406,7 @@ export function sellValue(p: { spells: Record<SpellId, number>; items: Record<It
 // dá para vender: vale ouro, ou é a Bola de fogo (pedido do Fernando, 18/10: deixa de ser obrigatória; o nível 1 grátis vale 0,
 // mas vender libera a vaga das magias e a tecla; comprar de volta custa o preço normal, 0 no nível 1)
 export const canSell = (p: Parameters<typeof sellValue>[0], round: number, key: string) =>
-  sellValue(p, round, key) > 0 || (key === 'spell:fireball' && p.spells.fireball > 0);
+  sellValue(p, round, key) > 0 || FREE_SPELLS.some((s) => key === 'spell:' + s && p.spells[s] > 0);
 
 // vende a magia ou o item inteiro (magia vai a 0, item volta ao nível inicial); não é ganho de ouro, então fora das estatísticas
 export function sell(m: Match, id: string, key: string): boolean {
@@ -417,7 +415,7 @@ export function sell(m: Match, id: string, key: string): boolean {
   const value = sellValue(p, m.round, key);
   const [kind, what] = key.split(':');
   if (kind === 'spell') p.spells[what as SpellId] = 0;
-  else p.items[what as ItemId] = startItems()[what as ItemId];
+  else p.items[what as ItemId] = noItems()[what as ItemId];
   p.gold += value;
   p.bought = p.bought.filter((b) => b.key !== key);
   delete p.held[key];
@@ -459,8 +457,9 @@ export function resume(m: Match, now: number) {
     // salas gravadas antes das magias novas, ou com uma que saiu do jogo (os Gêmeos, 19/10): fica só o que existe
     p.spells = Object.fromEntries(SPELL_IDS.map((s) => [s, p.spells[s] ?? noSpells()[s]])) as Record<SpellId, number>;
     const plan = (p as { plan?: BotPlan }).plan;
-    if (plan) plan.buys = plan.buys.filter((b) => b.kind === 'item' || isSpell(b.id));
-    p.items = { ...noItems(), ...p.items }; // salas gravadas antes dos itens novos
+    if (plan) plan.buys = plan.buys.filter((b) => (b.kind === 'item' ? (ITEM_IDS as readonly string[]).includes(b.id) : isSpell(b.id)));
+    // salas gravadas antes dos itens novos, ou com os ativos que viraram magia ou saíram (21/10, #217): fica só o que existe
+    p.items = Object.fromEntries(ITEM_IDS.map((i) => [i, p.items[i] ?? 0])) as Record<ItemId, number>;
     // salas gravadas com a maestria Roubo de vida: vira o item (sem passar do nível máximo)
     const old = (p as { masteries?: { lifesteal?: number } }).masteries?.lifesteal ?? 0;
     if (old && !p.items.vampire) p.items.vampire = Math.min(6, old);
@@ -591,7 +590,7 @@ function enterShop(m: Match, now: number) {
     p.ready = p.bot;
     // treino: bot configurado entra exatamente com as magias e itens pedidos, sem compra automática
     const s = p.setup;
-    if (s?.spells || s?.items) Object.assign(p, { spells: { ...noSpells(), ...s.spells }, items: { ...startItems(), ...s.items } });
+    if (s?.spells || s?.items) Object.assign(p, { spells: { ...noSpells(), ...s.spells }, items: { ...noItems(), ...s.items } });
     else botShop(m, p);
   }
 }
@@ -807,7 +806,7 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boo
     b.difficulty = difficulty;
     if (cmd.dummy) b.dummy = true;
     if (Object.keys(rest).length) b.setup = rest;
-    if (rest.spells || rest.items) Object.assign(b, { spells: { ...noSpells(), ...rest.spells }, items: { ...startItems(), ...rest.items } });
+    if (rest.spells || rest.items) Object.assign(b, { spells: { ...noSpells(), ...rest.spells }, items: { ...noItems(), ...rest.items } });
     else if (!cmd.dummy) botShop(m, b); // o boneco fica sem compras: dano e empurrão de referência
     refit(m, b);
     return true;
@@ -972,7 +971,6 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   pinTurrets();
   if (sb?.noCd) for (const z of w.wizards.filter((q) => human(q.id))) {
     for (const s of SPELL_IDS) z.cd[s] = 0;
-    for (const i of ITEM_IDS) z.itemCd[i] = 0;
   }
   watchStyle(m, w, all);
   // metade da vida tirada pela lava vira dano de quem empurrou (fonte 'lava'): placar, top dano e assistência; antes das mortes
@@ -1001,7 +999,6 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
       const bucket = e.k === 'fire' ? 'fired' : 'landed';
       if (p) addStat(p, (s) => (s[bucket][e.src] = (s[bucket][e.src] ?? 0) + 1));
     } else if (e.k === 'death') {
-      if (m.asc) ascDeath(m, e.id, e.by);
       // causa da morte e tempo vivo, para os dados de balanceamento
       const dead = player(m, e.id);
       if (dead) addStat(dead, (s) => {
@@ -1019,6 +1016,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
       const [helper, dmg] = Object.entries(on).filter(([id]) => id !== e.by && id !== e.id).sort((a, b) => b[1] - a[1])[0] ?? [];
       const hp = helper && dmg >= ASSIST_MIN_DMG ? player(m, helper) : undefined;
       if (hp) bonus(m, hp, ASSIST_GOLD);
+      if (m.asc) ascDeath(m, e.id, e.by, hp?.id);
       if (m.dmgOn) delete m.dmgOn[e.id];
       // sequências de abate: qualquer morte (até na lava) zera a de quem morreu
       const sk = (m.streaks ??= {});
