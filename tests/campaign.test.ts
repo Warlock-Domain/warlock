@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CAMPAIGN, SERVOS, roomWaves } from '../src/shared/campaign.ts';
 import { fightOf, nightMap, type NightMap } from '../src/shared/levels.ts';
 import { WIZ_SPEED } from '../src/shared/constants.ts';
-import { addPlayer, endIdle, kick, newMatch, removePlayer, resume, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
+import { addPlayer, endIdle, setWatch, kick, newMatch, removePlayer, resume, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
 import { mulberry32 } from '../src/shared/rng.ts';
 import { dist, v } from '../src/shared/vec.ts';
@@ -271,6 +271,21 @@ describe('Campanha: partida no mapa', () => {
     expect(m.phase).toBe('end');
     startMatch(m, 0, 1, 'rounds');
     expect(m.players.filter((p) => !p.bot).map((p) => p.gold)).toEqual([30, 30]);
+  });
+
+  it('spectators do not count for the 1 to 4 Acesos, and one who starts watching mid-night leaves the map', () => {
+    const m = newMatch();
+    for (const id of ['a', 'b', 'c', 'd', 'e']) addPlayer(m, id, id);
+    for (const id of ['c', 'd', 'e']) setWatch(m, id, true);
+    expect(startMatch(m, 0, 0, 'campaign', true, mulberry32(1))).toBe(true);
+    let now = toPlaying(m, 0);
+    expect(m.world!.wizards.some((z) => z.id === 'c')).toBe(false);
+    // a passa a assistir e b cai: não sobra Aceso, a noite é perdida
+    setWatch(m, 'a', true);
+    expect(m.world!.wizards.some((z) => z.id === 'a')).toBe(false);
+    Object.assign(wiz(m, 'b'), { hp: -1, invulnUntil: 0 });
+    now = step(m, now, 2);
+    expect(m.night!.result).toBe('lost');
   });
 
   it('someone who joins mid-night enters the map on the Acesos side, without gold', () => {

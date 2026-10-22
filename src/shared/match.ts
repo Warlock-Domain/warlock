@@ -230,7 +230,8 @@ export function setWatch(m: Match, id: string, on: boolean): boolean {
   if (on) {
     p.watch = true;
     p.team = null; // nos Times fixos, ao voltar entra no time menor
-    if (m.sandbox && m.world) m.world.wizards = m.world.wizards.filter((z) => z.id !== id);
+    // sandbox e Campanha não têm fim de rodada para o mago sumir: sai na hora (na Campanha, senão ficava parado contando como Aceso vivo)
+    if ((m.sandbox || m.night) && m.world) m.world.wizards = m.world.wizards.filter((z) => z.id !== id);
     return true;
   }
   delete p.watch;
@@ -280,7 +281,8 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   if (m.phase !== 'lobby' && m.phase !== 'end') return false;
   const campaign = mode === 'campaign';
   // Campanha: de 1 a 4 humanos, sem bots aliados nem sandbox; as vagas do Fumo entram depois
-  if (campaign && (sandbox || m.players.filter((p) => !p.bot && p.connected).length > CAMPAIGN.humans)) return false;
+  // quem assiste não conta (fica sem mago, como nos outros modos)
+  if (campaign && (sandbox || playing(m).filter((p) => !p.bot && p.connected).length > CAMPAIGN.humans)) return false;
   // sala do Ascensão: valem os bots e as opções que o dono escolheu, venha de quem vier o Começar
   if (m.lobby && !sandbox) {
     opts = m.lobby.opts;
