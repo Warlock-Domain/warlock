@@ -854,19 +854,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('div', { class: 'sandbox-row', role: 'group', 'aria-label': t('Pôr runa', 'Place rune') }, t('Runa', 'Rune'),
       ...RUNE_KINDS.map((k) => iconButton(icon(RUNE_ICON[k]), t(`Pôr a ${RUNE_NAME[k]} ao seu lado`, `Place the ${RUNE_NAME[k]} next to you`), () => act.sandbox({ op: 'rune', kind: k }), { title: RUNE_NAME[k] }))),
     el('button', { type: 'button', onclick: () => act.sandbox({ op: 'restart' }) }, t('Reiniciar a rodada', 'Restart the round')));
-  // teste local dos efeitos sonoros (issue #203, em localhost e no ambiente do PR): notas do que mudou, um botão por magia e a escolha da música
+  // teste dos efeitos sonoros (issue #203, em localhost e no ambiente do PR): notas, escolha de lançar e impacto por magia e a escolha da música
   if (TESTE_SONS) {
-    let run = 0;
-    const playAll = () => {
-      const me = ++run;
-      const next = (i: number) => {
-        if (me !== run || i >= SPELL_IDS.length) return;
-        toast(`${spellName(SPELL_IDS[i])} (${i + 1}/${SPELL_IDS.length})`);
-        act.spellSound(SPELL_IDS[i]);
-        setTimeout(() => next(i + 1), 1600);
-      };
-      next(0);
-    };
     // escolha, por magia, do efeito sonoro de lançar e do de impacto: o atual ou uma das 10 opções da biblioteca de RPG
     // (public/sfx/opcoes-rpg e opcoes-rpg-impacto, R1 a R10; nomes em lista.json); a escolha fica no navegador e a partida também
     // a usa (castSound e impactSound em main.ts)
@@ -877,7 +866,6 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const escolhaBox = el('div', {});
     const linha = (s: SpellId, d: Pasta, rotulo: string) => nomes[d][s] && el('div', { class: 'sandbox-row' }, el('small', {}, rotulo),
       choice(`${spellName(s)}: ${rotulo}`, [['atual', 'Atual'] as [string, string], ...nomes[d][s].map((_, i): [string, string] => ['r' + (i + 1), 'R' + (i + 1)])], escolha[d][s] ?? '', (k) => {
-        run++;
         const n = +k.slice(1);
         toast(`${spellName(s)} (${rotulo.toLowerCase()}): ${k === 'atual' ? 'atual' : `R${n} (${nomes[d][s][n - 1]})`}`);
         if (k !== 'atual') act.preview(`${d}/${s}-${n}`);
@@ -897,11 +885,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       (k) => (setMusicTrack(k), toast(`Tocando: ${MUSIC_TRACKS[k]}`), drawMusic())));
     drawMusic();
     sbPanel.prepend(
-      el('b', {}, '🧪 Teste dos sons (só localhost)'),
-      el('small', { class: 'muted' }, 'O que mudou: as 25 magias agora têm o mesmo volume (antes iam de −11,8 a −20,4 LUFS; agora −18,3 a −20,0). Cada magia tem som próprio, e abaixo há 3 opções novas para cada uma. Música nova: Epic Boss Battle.'),
-      el('small', { class: 'muted' }, 'Escolha uma por magia; a escolha fica salva neste navegador (localStorage warlock:sons-escolha).'),
-      el('button', { type: 'button', onclick: playAll }, 'Tocar todos os atuais'),
-      el('small', { class: 'muted' }, 'Escolha: cada botão toca o som e fica marcado como o escolhido. "Atual" é o de hoje; R1 a R10 vêm da biblioteca de RPG (assets/sons-rpg, licença não informada). Lançar = ao soltar a magia; Impacto = ao acertar alguém (no Escudo, ao devolver; no Agarrar, ao prender). Todos no mesmo volume, e a escolha vale na partida (só em localhost).'),
+      el('b', {}, '🧪 Teste dos efeitos sonoros (issue #203)'),
+      el('small', { class: 'muted' }, 'Cada botão toca o efeito sonoro e fica marcado como o escolhido. "Atual" é o de hoje; R1 a R10 vêm do pacote freeware de RPG (assets/sons-rpg). Lançar = ao soltar a magia; Impacto = ao acertar alguém (no Escudo, ao devolver; no Agarrar, ao prender). Todos a −18 LUFS. A escolha fica neste navegador e vale na partida: lance as magias para ouvir.'),
       escolhaBox,
       el('small', { class: 'muted' }, 'Música (a mesma opção de Configurações → Som; troca na hora). A nova dá a volta em 2 min 3 s: ouça se o recomeço tem vão ou estalo.'),
       musicBox);

@@ -74,14 +74,14 @@ const SPELL_SOUND: Record<SpellId, SoundKind> = {
 // teste local dos efeitos sonoros (issue #203, em localhost e no ambiente do PR): a opção escolhida no painel do Sandbox toca no lançamento da magia
 function castSound(sound: ReturnType<typeof createSound>, s: SpellId, volume = 1) {
   const k = TESTE_SONS ? store.json<Record<string, string>>('warlock:sons-escolha')?.[s] : undefined;
-  if (k && k !== 'atual') void sound.preview(`${k.startsWith('r') ? 'opcoes-rpg' : 'opcoes'}/${s}-${k.replace('r', '')}`, volume);
+  if (k?.startsWith('r')) void sound.preview(`opcoes-rpg/${s}-${k.slice(1)}`, volume);
   else sound.play(SPELL_SOUND[s], volume);
 }
 // impacto (acertar alguém, o Escudo devolver, o Agarrar prender): toca a opção escolhida em vez do golpe padrão; sem escolha, false
 function impactSound(sound: ReturnType<typeof createSound>, src: string, volume: number) {
   const k = TESTE_SONS ? store.json<Record<string, string>>('warlock:sons-impacto')?.[src] : undefined;
-  if (!k || k === 'atual') return false;
-  void sound.preview(`opcoes-rpg-impacto/${src}-${k.replace('r', '')}`, volume);
+  if (!k?.startsWith('r')) return false;
+  void sound.preview(`opcoes-rpg-impacto/${src}-${k.slice(1)}`, volume);
   return true;
 }
 
