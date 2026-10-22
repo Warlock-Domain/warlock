@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { aimOf, blastOf, hitR, reachOf } from '../src/client/reach.ts';
 import { OBSTACLES, PROJ_R, PROJ_SPAWN, WALL_GAP, WIZ_R } from '../src/shared/constants.ts';
-import { SCOURGE, noItems } from '../src/shared/items.ts';
+import { noItems } from '../src/shared/items.ts';
 import { snowR } from '../src/shared/sim.ts';
 import { CLUSTER_FAN, LIGHTNING, RUSH, SPELL_IDS, SPLITTER, THRUST, noSpells, spellLevel } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
@@ -48,7 +48,7 @@ describe('círculo de alcance', () => {
     const all = Object.fromEntries(SPELL_IDS.map((s) => [s, 1])) as ReturnType<typeof noSpells>;
     expect(reachOf('shield', all, noItems())).toBeCloseTo(spellLevel('shield', 1).radius);
     expect(reachOf('rush', all, noItems())).toBe(RUSH.dash);
-    expect(reachOf('scourge', all, noItems())).toBe(SCOURGE.radius);
+    expect(reachOf('scourge', all, noItems())).toBe(spellLevel('scourge', 1).radius);
     expect(reachOf('homing', all, noItems())).toBe(0);
     expect(reachOf('pact', all, noItems())).toBe(0);
     // toda magia com alcance mostra algo

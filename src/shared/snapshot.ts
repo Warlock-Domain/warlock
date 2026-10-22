@@ -2,7 +2,6 @@
 import type { Snap } from './protocol.ts';
 import { PROJ_KINDS, bootsBonus, isSliding, type ProjKind, type SimEvent, type World } from './sim.ts';
 import { CHEST, OBSTACLES, OBSTACLE_KINDS, RUNE_KINDS, WIZ_R, type ObstacleKind, type RuneKind } from './constants.ts';
-import { ACTIVE_ITEMS } from './items.ts';
 import { SPELL_IDS, spellLevel } from './spells.ts';
 import type { Isle } from './arena.ts';
 import { dist, v, type Vec } from './vec.ts';
@@ -61,8 +60,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     p.push(q.id, PROJ_KINDS.indexOf(q.kind), r2(q.pos.x), r2(q.pos.y), r2(a), r2(b));
   }
   const cd = SPELL_IDS.map((s) => (me ? r2(Math.max(0, me.cd[s] - w.t)) : 0));
-  const icd = ACTIVE_ITEMS.map((i) => (me ? r2(Math.max(0, me.itemCd[i] - w.t)) : 0));
-  const snap: Snap = { t: 'snap', time: r2(w.t * 1000) / 1000, r: r2(w.arenaR), s: r2(w.shrinkAt), w: wz, p, cd, icd, sp: r2(me?.speed ?? 0), pl: w.pillars.flatMap((q) => [r2(q.pos.x), r2(q.pos.y), q.alive ? (Number.isFinite(q.hp) ? Math.ceil((q.hp / OBSTACLES[q.kind].hp) * 100) : 100) : 0, OBSTACLE_KINDS.indexOf(q.kind)]), ack };
+  const snap: Snap = { t: 'snap', time: r2(w.t * 1000) / 1000, r: r2(w.arenaR), s: r2(w.shrinkAt), w: wz, p, cd, sp: r2(me?.speed ?? 0), pl: w.pillars.flatMap((q) => [r2(q.pos.x), r2(q.pos.y), q.alive ? (Number.isFinite(q.hp) ? Math.ceil((q.hp / OBSTACLES[q.kind].hp) * 100) : 100) : 0, OBSTACLE_KINDS.indexOf(q.kind)]), ack };
   // deathmatch: segundos até cada mago voltar (0 = vivo), na ordem de room.ids; o limite cobre o expulso, que não volta
   if (w.dm) snap.rs = w.wizards.map((z) => (z.alive ? 0 : r2(Math.min(99, Math.max(0, z.respawnAt - w.t)))));
   if (w.loots.length) {

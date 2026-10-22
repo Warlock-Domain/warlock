@@ -1520,8 +1520,21 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   function onEvents(events: SimEvent[]) {
     for (const e of events) {
-      if (e.k === 'cast') oneShot(e.id, ...castAnim(e.spell));
-      else if (e.k === 'hit') {
+      if (e.k === 'cast') {
+        oneShot(e.id, ...castAnim(e.spell));
+        if (e.spell === 'scourge') {
+          // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
+          const m = mages.get(e.id);
+          if (m) {
+            const at = v(m.root.position.x, m.root.position.z);
+            burst(at, '#ff5a1a', 3, 0.9, 0.6, FX.magic);
+            burst(at, '#ffb347', 1.6, 0.9, 1.2, FX.light);
+          }
+        } else if (e.spell === 'pact') {
+          const m = mages.get(e.id);
+          if (m) burst(v(m.root.position.x, m.root.position.z), '#c2122a', 2.6, 0.6, 1, FX.magic);
+        }
+      } else if (e.k === 'hit') {
         oneShot(e.id, 'Hit_A', 0.45);
         // o acerto do raio tem impacto elétrico próprio: a explosão de fogo cobria o raio e parecia que ele não tinha saído
         if (e.src === 'lightning') zap(v(e.x, e.y));
@@ -1556,18 +1569,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(e.from, '#c49bff', 2.4, 0.45, 0.8, FX.magic);
         burst(e.to, '#c49bff', 2.6, 0.45, 0.8, FX.magic);
         burst(e.to, '#e9d8ff', 1.6, 0.3, 0.8, FX.light);
-      } else if (e.k === 'item' && e.item === 'scourge') {
-        // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
-        oneShot(e.id, ...castAnim('scourge'));
-        const m = mages.get(e.id);
-        if (m) {
-          const at = v(m.root.position.x, m.root.position.z);
-          burst(at, '#ff5a1a', 3, 0.9, 0.6, FX.magic);
-          burst(at, '#ffb347', 1.6, 0.9, 1.2, FX.light);
-        }
-      } else if (e.k === 'item' && e.item === 'pact') {
-        const m = mages.get(e.id);
-        if (m) burst(v(m.root.position.x, m.root.position.z), '#c2122a', 2.6, 0.6, 1, FX.magic);
       } else if (e.k === 'scourge') {
         shockwave(v(e.x, e.y), e.r, '#ff7a1a');
         explosion(v(e.x, e.y));
@@ -1610,8 +1611,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           shockwave(at, e.r, '#b98cff');
           burst(at, '#b98cff', 2.2, 0.4, 0.9, FX.magic);
         }
-      } else if (e.k === 'redirect') {
-        burst(v(e.x, e.y), '#b98cff', 2, 0.35, 0.9, FX.circle);
       } else if (e.k === 'death') {
         const m = mages.get(e.id);
         if (m) {
@@ -2346,8 +2345,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         target = target.lerp(c, celebrate);
       }
       focus.lerp(target, Math.min(1, dt * 3));
-      // aproxima conforme a arena encolhe
-      const dist = Math.min(44, Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
+      // aproxima conforme a arena encolhe. Teto 54: as Ilhas com 8 magos (48,5) e no máximo da sandbox (53) cabem
+      // inteiras; com 44 uma ilha saía pela lateral (issue #222). Seguindo um mago (lock), o teto é 25, o da arena de 4 magos:
+      // em mapa grande ele não encolhe na tela
+      const dist = Math.min(state.lock ? 25 : 54, Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
       lastDist = dist;
       // olha um pouco à frente do centro para a borda de baixo não ficar atrás da barra de magias
       let lookX = focus.x, lookZ = focus.z + dist * 0.06;
@@ -2366,8 +2367,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       if (shift !== pixelShift) canvas.style.transform = labels.style.transform = pixelShift = shift;
       camera.position.set(lookX, dist * 0.74 * camK, lookZ + dist * 0.67 * camK);
-      // a névoa conta da câmera: com ela mais longe, empurra junto
-      Object.assign(scene.fog!, { near: 30 + (camK - 1) * dist, far: 70 + (camK - 1) * dist });
+      // a névoa conta da câmera: com ela mais longe, empurra junto (acima do teto antigo de 44 também, senão a borda
+      // de trás das Ilhas grandes some na névoa)
+      const fogPush = (camK - 1) * dist + Math.max(0, dist - 44);
+      Object.assign(scene.fog!, { near: 30 + fogPush, far: 70 + fogPush });
       camera.lookAt(lookX, 0, lookZ);
       if (shake > 0.01 && !lite) {
         camera.position.x += (Math.random() - 0.5) * shake;

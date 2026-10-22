@@ -2,7 +2,6 @@
 // na escala antiga (vida 100) antes da troca e têm de continuar iguais.
 import { describe, expect, it } from 'vitest';
 import { HP_MAX, UNIT, WIZ_SPEED } from '../src/shared/constants.ts';
-import { noItems } from '../src/shared/items.ts';
 import { newWorld, stepWorld, type World } from '../src/shared/sim.ts';
 import { RUSH, SPELLS, noSpells, type SpellId } from '../src/shared/spells.ts';
 import { len, v } from '../src/shared/vec.ts';
@@ -16,11 +15,11 @@ const KNOCK_BEFORE: Partial<Record<SpellId, [number, number]>> = {
 
 // p0 em (0,0) com o Pacto (se pedir) lança a Bola de fogo em p1, a 3 m; devolve p1 no passo do acerto e o dano do acerto
 function fireballHit(prepare: (w: World) => void = () => {}, pact = false) {
-  const w = newWorld(['p0', 'p1'], { p0: noSpells(), p1: noSpells() }, { p0: { ...noItems(), pact: pact ? 1 : 0 } });
+  const w = newWorld(['p0', 'p1'], { p0: { ...noSpells(), pact: pact ? 1 : 0 }, p1: noSpells() });
   [w.wizards[0].pos, w.wizards[1].pos] = [v(0, 0), v(3, 0)];
   for (const z of w.wizards) z.invulnUntil = 0;
   prepare(w);
-  if (pact) stepWorld(w, [{ id: 'p0', kind: 'item', item: 'pact', at: v(0, 0) }]);
+  if (pact) stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'pact', at: v(0, 0) }]);
   for (let i = 0; i < 15; i++) stepWorld(w, []);
   stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
   for (let i = 0; i < 120 && !w.events.some((e) => e.k === 'hit'); i++) stepWorld(w, []);

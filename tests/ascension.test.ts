@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ASC_ROUNDS, CONSOLATION, LEADER_KILL_XP, MARK_KB, applyCard, setAscLobby, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
+import { ASC_ROUNDS, CONSOLATION, roundMult, LEADER_KILL_XP, MARK_KB, applyCard, setAscLobby, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
 import { addPlayer, buy, castBallot, newMatch, removePlayer, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
 import { gearOf } from '../src/shared/sim.ts';
@@ -15,7 +15,7 @@ const seeded = (seed: number) => () => {
   t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
-const mage = (spells: Partial<Record<SpellId, number>> = {}) => ({ spells: { ...noSpells(), ...spells }, items: { ...noItems(), scourge: 1 } });
+const mage = (spells: Partial<Record<SpellId, number>> = {}) => ({ spells: { ...noSpells(), ...spells }, items: noItems() });
 const group = (c: Card) => (c.kind === 'item' ? 'item' : spellGroup(c.id));
 const stat = (o: object = {}) => ({ gold: 0, dmg: 0, kills: 0, dmgBy: {}, fired: {}, landed: {}, deaths: 0, deathBy: {}, alive: 0, threats: 0, struck: 0, shieldable: 0, shielded: 0, reactSum: 0, reactN: 0, nearSum: 0, nearN: 0, ...o });
 
@@ -47,8 +47,8 @@ describe('cartas do Ascensão', () => {
     const p = mage({ fireball: MAX_SPELL_LEVEL, teleport: 2 });
     for (let s = 0; s < 300; s++) {
       for (const c of [...drawCards(p, 'spell', seeded(s)), ...drawCards(p, 'up', seeded(s))]) {
-        if (c.kind === 'up') expect(c.id).toBe('teleport');
-        if (c.kind === 'spell') expect(['fireball', 'teleport']).not.toContain(c.id);
+        if (c.kind === 'up') expect(['teleport', 'scourge']).toContain(c.id); // o Flagelo nv 1 vem de graça
+        if (c.kind === 'spell') expect(['fireball', 'teleport', 'scourge']).not.toContain(c.id);
       }
     }
   });
@@ -61,7 +61,7 @@ describe('cartas do Ascensão', () => {
   });
 
   it('applyCard full bar needs swap', () => {
-    const p = mage({ lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 2 });
+    const p = mage({ lightning: 1, homing: 1, shield: 1, teleport: 1, cluster: 1, swap: 2 });
     expect(applyCard(p, { kind: 'spell', id: 'grip' })).toBe(false);
     expect(applyCard(p, { kind: 'spell', id: 'grip' }, 'meteor')).toBe(false);
     expect(applyCard(p, { kind: 'spell', id: 'grip' }, 'swap')).toBe(true);
@@ -121,7 +121,7 @@ describe('partida do Ascensão', () => {
   it('start gives fireball, scourge, one new spell and one item to pick, no gold', () => {
     const m = ascMatch(1, true);
     const h = m.players.find((p) => p.id === 'h')!;
-    expect([h.spells.fireball, h.items.scourge, h.gold]).toEqual([1, 1, 0]);
+    expect([h.spells.fireball, h.spells.scourge, h.gold]).toEqual([1, 1, 0]);
     expect(m.asc!.todo.h).toEqual(['spell', 'item']);
     // o intervalo não acaba sem as escolhas dele, nem com o Pronto
     expect(setReady(m, 'h')).toBe(false);
@@ -153,7 +153,7 @@ describe('partida do Ascensão', () => {
       const offer = m.asc!.offer.h;
       run(m, STEP_MS, () => m.phase === 'countdown', seeded(seed));
       const h = m.players.find((p) => p.id === 'h')!;
-      const got = offer.map((row) => row.findIndex((c) => (c.kind === 'item' ? h.items[c.id] > 0 && c.id !== 'scourge' : h.spells[c.id] > 0)));
+      const got = offer.map((row) => row.findIndex((c) => (c.kind === 'item' ? h.items[c.id] > 0 : h.spells[c.id] > 0)));
       return { got, auto: publicRoom('R', m, 0).players.find((p) => p.name === 'Ana')!.asc!.auto, offer, spells: { ...h.spells }, items: { ...h.items } };
     };
     const runs = Array.from({ length: 12 }, (_, s) => play(s));
@@ -336,7 +336,7 @@ describe('recuperação e bots do Ascensão', () => {
   it('full bar: new spell row can be kept, and the automatic pick keeps instead of swapping', () => {
     const m = ascMatch(1, true);
     const h = m.players.find((q) => q.id === 'h')!;
-    h.spells = { ...noSpells(), lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 3 };
+    h.spells = { ...noSpells(), lightning: 1, homing: 1, shield: 1, teleport: 1, cluster: 1, swap: 3 };
     expect(autoPick(h, [{ kind: 'spell', id: 'grip' }, { kind: 'spell', id: 'meteor' }], 'normal', seeded(1))).toBe(-1);
     tickMatch(m, STEP_MS, [], seeded(2));
     expect(m.asc!.todo.h).toEqual(['spell', 'item']);
@@ -354,14 +354,14 @@ describe('recuperação e bots do Ascensão', () => {
     addPlayer(n, 'h', 'Ana');
     startMatch(n, 0, 3, 'ascension', true, seeded(1), { pace: 'short' });
     const g = n.players.find((q) => q.id === 'h')!;
-    g.spells = { ...noSpells(), lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 3 };
+    g.spells = { ...noSpells(), lightning: 1, homing: 1, shield: 1, teleport: 1, cluster: 1, swap: 3 };
     run(n, 0, () => n.phase === 'countdown');
     expect(g.spells.swap).toBe(3);
-    expect(Object.values(g.items).reduce((x, y) => x + y)).toBe(2);
+    expect(Object.values(g.items).reduce((x, y) => x + y)).toBe(1); // só o item da carta (o Flagelo virou magia em 21/10)
   });
 
   it('swap with a full bar: the new spell keeps the level of the one that leaves', () => {
-    const p = mage({ lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 4 });
+    const p = mage({ lightning: 1, homing: 1, shield: 1, teleport: 1, cluster: 1, swap: 4 });
     expect(applyCard(p, { kind: 'spell', id: 'grip' }, 'swap')).toBe(true);
     expect([p.spells.grip, p.spells.swap]).toEqual([4, 0]);
   });
@@ -474,5 +474,28 @@ describe('sala do Ascensão: o dono escolhe, todos veem', () => {
     addPlayer(m, 'ana', 'Ana');
     resume(m, 0);
     expect(m.lobby?.owner).toBe('ana');
+  });
+});
+
+describe('final valendo mais', () => {
+  it('rounds 6 and 7 are worth 1.5x points (rounded) and rounds 8 and 9 double', () => {
+    expect([1, 5, 6, 7, 8, 9].map(roundMult)).toEqual([1, 1, 1.5, 1.5, 2, 2]);
+    const pointsAt = (round: number) => {
+      const m = ascMatch(1, true);
+      m.round = round;
+      const ids = m.players.map((p) => p.id);
+      m.asc!.fallen = ids.slice(0, 3);
+      m.players.forEach((p) => (p.score = 0));
+      ascEndRound(m, ids, [ids[3]]);
+      return m.players.map((p) => p.score);
+    };
+    const base = pointsAt(5);
+    expect(base.some((x) => x > 1)).toBe(true);
+    expect(pointsAt(1)).toEqual(base);
+    expect(pointsAt(6)).toEqual(base.map((x) => Math.round(x * 1.5)));
+    expect(pointsAt(7)).toEqual(pointsAt(6));
+    expect(pointsAt(8)).toEqual(base.map((x) => x * 2));
+    expect(pointsAt(9)).toEqual(pointsAt(8));
+    expect(pointsAt(6).every(Number.isInteger)).toBe(true);
   });
 });

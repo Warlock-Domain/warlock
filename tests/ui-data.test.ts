@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ITEM_IDS } from '../src/shared/items.ts';
 import { SPELLS, SPELL_IDS, type Level } from '../src/shared/spells.ts';
-import { RULES_SHORT, SPELL_GROUPS, SPELL_USE } from '../src/client/rules-text.ts';
+import { ITEM_GROUPS, RULES_SHORT, SPELL_GROUPS, SPELL_USE } from '../src/client/rules-text.ts';
 import { ITEM_ROWS, SPELL_ROWS } from '../src/client/tips.ts';
 import { ICON, ITEM_ICON, STATUS_ICONS } from '../src/client/icons.ts';
 import { botLevel, endResult, roomGroups, seatChanges } from '../src/client/screen-data.ts';
@@ -15,6 +15,11 @@ describe('loja: dados para decidir', () => {
       expect(SPELL_USE[s]).toBeTruthy();
       expect(RULES_SHORT[s]).toBeTruthy();
     }
+  });
+
+  it('puts every passive item in exactly one shop section', () => {
+    const grouped = ITEM_GROUPS.flatMap(([, , ids]) => ids);
+    expect([...grouped].sort()).toEqual([...ITEM_IDS].sort()); // sem itens ativos (#236): todo item é passivo
   });
 
   it('shows a tip row for every level field that is not zero', () => {
