@@ -670,10 +670,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // câmera: mostrar a arena (padrão) ou seguir o próprio mago de perto (pedido do Fernando, issue #222); fica salva no navegador
   const FOLLOW_KEY = 'warlock:cam-follow';
   let camFollow = store.get(FOLLOW_KEY) === '1';
-  const camTitle = () => {
-    const k = uiLabel('camera');
-    return k === '—' ? t('Câmera seguindo o seu mago', 'Camera following your wizard') : t(`Câmera seguindo o seu mago (${k})`, `Camera following your wizard (${k})`);
-  };
+  const camTitle = () => t('Câmera seguindo o seu mago', 'Camera following your wizard') + (uiLabel('camera') === '—' ? '' : ` (${uiLabel('camera')})`);
   const toggleCam = () => {
     camFollow = !camFollow;
     store.set(FOLLOW_KEY, camFollow ? '1' : '0');
