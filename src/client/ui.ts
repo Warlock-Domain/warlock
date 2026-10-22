@@ -313,6 +313,7 @@ type RoomActions = {
   card: (slot: number, i: number, swap?: SpellId) => void; // Ascensão: carta i da escolha slot (swap = magia que sai com a barra cheia)
   reroll: () => void; // Ascensão: novo sorteio
   keep: (slot: number) => void; // Ascensão: manter as magias (barra cheia)
+  lobby: (bots: Level[], opts: MatchOpts) => void; // sala do Ascensão: o dono manda os bots e as opções para todos verem
   spell: (s: SpellId) => void;
   volumes: () => { sfx: number; music: number };
   setVolume: (kind: 'sfx' | 'music', value: number) => void;
@@ -1190,13 +1191,20 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   function lobbyPanel(r: PublicRoom) {
     const humans = r.players.filter((p) => !p.bot && !p.watch).length; // quem assiste não ocupa vaga nem conta para começar
     const maxBots = MAX_PLAYERS - humans;
+    // sala do Ascensão: os bots e as opções são os do dono, iguais na tela de todos; só ele muda (Fernando, 21/10)
+    const L = r.lobby;
+    const locked = !!L && L.owner !== me;
+    if (locked) {
+      bots = [...L.bots];
+      opts = { ...DEFAULT_OPTS, ...r.opts, ...L.opts, ...FIXED };
+    }
     bots = bots.slice(0, maxBots);
     const count = el('b', { class: 'count' }, String(bots.length));
     // uma linha por bot, com o nome que o servidor vai dar (BOT_NAMES, na ordem) e a dificuldade dele
     const rows = () => bots.map((d, i) => {
       const name = BOT_NAMES[i % BOT_NAMES.length];
       return el('label', { class: 'bot-row' }, el('span', {}, icon(UI_ICON.bot), ' ' + name),
-        el('select', { 'aria-label': t(`Dificuldade de ${name}`, `${name}'s difficulty`), onchange: (e: Event) => {
+        el('select', { 'aria-label': t(`Dificuldade de ${name}`, `${name}'s difficulty`), disabled: locked, onchange: (e: Event) => {
           // sem redesenhar a lista: a seta do teclado no seletor continua nele
           bots[i] = (e.target as HTMLSelectElement).value as Level;
           save();
@@ -1210,7 +1218,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       } catch {
         // só nesta tela
       }
+      share();
     };
+    // o dono manda o que está na tela dele sempre que difere do que a sala tem (na entrada e a cada mudança)
+    const share = () => L && !locked && JSON.stringify([bots, o]) !== JSON.stringify([L.bots, L.opts]) && act.lobby(bots, o);
     const set = (next: Level[]) => {
       bots = next.slice(0, maxBots);
       save();
@@ -1218,7 +1229,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       list.replaceChildren(...rows());
       startBtn.toggleAttribute('disabled', humans + bots.length < 2);
     };
-    const o = (opts ??= { ...DEFAULT_OPTS, ...r.opts, ...FIXED }); // o que a sala não mostra volta ao padrão (um desafio deixa a morte súbita desligada)
+    const o = (opts ??= { ...DEFAULT_OPTS, ...r.opts, ...L?.opts, ...FIXED }); // o que a sala não mostra volta ao padrão (um desafio deixa a morte súbita desligada)
     const startBtn = el('button', { type: 'button', class: 'primary big', disabled: humans + bots.length < 2, onclick: () => act.start(bots, mode, shuffle, o) }, t('Começar partida', 'Start match'));
     const modes: [Mode, string, string][] = [
       ['rounds', MODE_NAME.rounds, t(`O último vivo ganha a rodada. Vence quem fizer ${o.goal} rodadas.`, `The last one alive wins the round. First to win ${o.goal} rounds wins.`)],
@@ -1237,24 +1248,31 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // abertas por padrão: quem cria a sala vê as opções sem procurar (fechar fica guardado até sair da sala)
     const optsBlock = el('details', { class: 'match-opts', open: optsOpen, ontoggle: (e: Event) => (optsOpen = (e.target as HTMLDetailsElement).open) }, el('summary', {}, t('Opções da partida', 'Match options') + ' · ', el('small', { class: 'muted' }, optsLine(o, mode))),
       el('div', { class: 'opt-grid' }, ...optKeys(mode).map((k) => el('div', { class: 'opt-row' }, optLabel(k, mode),
-        choice(OPT_NAME[k], (OPTION_CHOICES[k] as readonly MatchOpts[OptKey][]).map((val): [MatchOpts[OptKey], string] => [val, optText(k, val, mode)]), o[k], (val) => (Object.assign(o, { [k]: val }), drawCenter()))))));
-    return el('div', { class: 'card room-wait' },
+        choice(OPT_NAME[k], (OPTION_CHOICES[k] as readonly MatchOpts[OptKey][]).map((val): [MatchOpts[OptKey], string] => [val, optText(k, val, mode)]), o[k], (val) => (Object.assign(o, { [k]: val }), drawCenter()), locked ? () => true : undefined)))));
+    const ownerName = r.players.find((p) => p.id === L?.owner)?.name ?? '';
+    const whoPicks = L && el('small', { class: 'muted' }, locked ? t(`Quem escolhe os bots e as opções é ${ownerName}, que criou a sala.`, `${ownerName}, who created the room, picks the bots and options.`)
+      : t('Você criou a sala: só você muda os bots e as opções, e todos veem na hora.', 'You created the room: only you change the bots and options, and everyone sees them live.'));
+    share();
+    const card = el('div', { class: 'card room-wait' },
       el('div', {}, el('h2', { class: 'title' }, t('Sala ', 'Room ') + r.id), el('p', { class: 'muted' }, t('Mande o link para os amigos entrarem. Até 8 magos.', 'Send the link so your friends can join. Up to 8 wizards.')),
         el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : t(' · caiu', ' · dropped'), p.watch ? t(' · assistindo', ' · spectating') : ''), kickBtn(p, act.kick))))),
       // no PC em colunas, lado a lado (Fernando, 19/10: "tá muito vertical"); no celular uma embaixo da outra
       el('div', { class: 'lobby-cols' },
         el('div', { class: 'lobby-col' },
           el('div', { class: 'bots' }, el('span', {}, 'Bots ', infoButton(t('Dificuldade dos bots', 'Bot difficulty'), () => OPT_INFO.difficulty(mode))),
-            el('button', { type: 'button', 'aria-label': t('Menos um bot', 'One less bot'), onclick: () => set(bots.slice(0, -1)) }, '−'), count, el('button', { type: 'button', 'aria-label': t('Mais um bot', 'One more bot'), onclick: () => set([...bots, 'normal']) }, '+')),
+            el('button', { type: 'button', 'aria-label': t('Menos um bot', 'One less bot'), disabled: locked, onclick: () => set(bots.slice(0, -1)) }, '−'), count, el('button', { type: 'button', 'aria-label': t('Mais um bot', 'One more bot'), disabled: locked, onclick: () => set([...bots, 'normal']) }, '+')),
           list,
         ),
-        el('div', { class: 'lobby-col' }, modePicker, optsBlock),
+        el('div', { class: 'lobby-col' }, modePicker, whoPicks, optsBlock),
       ),
       // Começar e Convidar grudados no rodapé enquanto rola as opções
       el('div', { class: 'card-go' },
         el('div', { class: 'card-go-main' }, startBtn, el('button', { type: 'button', class: 'room-back secondary', onclick: () => exitBtn.click() }, '← ', t('Menu principal', 'Main menu'))),
         inviteBtn()),
     );
+    // aviso no hover do que está travado para quem não é o dono
+    if (locked) for (const b of card.querySelectorAll<HTMLElement>('.lobby-cols :disabled')) b.title = t('Só quem criou a sala muda os bots e as opções', 'Only the room creator can change the bots and options');
+    return card;
   }
 
   // "Voltar à sala" e "Sair do desafio": a sala de espera começa com as opções da partida que acabou
