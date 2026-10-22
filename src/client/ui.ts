@@ -1,27 +1,28 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
+import { ASC_ROUNDS } from '../shared/ascension.ts';
+import { ASC_MODE_TEXT, ascLevel, ascPanel } from './ascension-ui.ts';
 import { avatarPanel } from './avatar.ts';
-import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
+import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_EFFECT_IDS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD, type RoundEffectId } from '../shared/constants.ts';
 import { ARENA_IDS, type ArenaId } from '../shared/arena.ts';
 import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/characters.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
-import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, MAX_ITEMS, isActive, itemPrice, type ItemId } from '../shared/items.ts';
+import { ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { POS_ACTIONS, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
 import { openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
-import { MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, infoButton } from './opt-info.ts';
+import { EFFECT_NAME, MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, effectName, effectText, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
-import { SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
+import { ITEM_GROUPS, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, iconButton, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
-import { MUSIC_TRACKS, musicTrack, setMusicTrack, type MusicTrack } from './sound.ts';
 import { botSetupPanel, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
-import { endResult, loadoutSlots, moveLoadout, roomGroups, type LoadoutOrder } from './screen-data.ts';
+import { endResult, moveLoadout, myLoadout, roomGroups, saveLoadout } from './screen-data.ts';
 import { LOCALE, arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
 const TITLE = 'Warlock';
@@ -74,13 +75,17 @@ const roomPhase = (r: RoomInfo) => r.phase === 'lobby' ? t('esperando começar',
   : t(`jogando${r.round ? ` a rodada ${r.round}` : ''} · você entra na próxima rodada`, `playing${r.round ? ` round ${r.round}` : ''} · you join next round`);
 
 // Opções de partida à direita, com o conteúdo da escolha ao lado.
-function playMenu(roomList: HTMLElement, onCreate: () => void, onTrain: (kind: string) => void): HTMLElement {
+function playMenu(roomList: HTMLElement, onCreate: () => void, onCreateAsc: () => void, onTrain: (kind: string) => void): HTMLElement {
   const skill = toSkill(store.json<Profile>(PROFILE_KEY));
-  const labels = [t('Jogar online', 'Play online'), t('Jogar contra bots', 'Play against bots'), 'Sandbox', t('Desafios', 'Challenges')];
+  const labels = [t('Jogar online', 'Play online'), t('Ascensão', 'Ascension'), t('Jogar contra bots', 'Play against bots'), 'Sandbox', t('Desafios', 'Challenges')];
   const sections = [
     el('section', { class: 'play-content' }, el('h2', {}, labels[0]),
       el('button', { type: 'button', class: 'primary big', onclick: onCreate }, t('Criar sala', 'Create room')), roomList),
+    // Ascensão: opção própria, separada dos modos de loja livre (Fernando, 21/10); a sala nasce presa ao modo e o link leva os amigos a ela
     el('section', { class: 'play-content' }, el('h2', {}, labels[1]),
+      el('p', { class: 'muted' }, ASC_MODE_TEXT),
+      el('button', { type: 'button', class: 'primary big', onclick: onCreateAsc }, t('Criar sala do Ascensão', 'Create Ascension room'))),
+    el('section', { class: 'play-content' }, el('h2', {}, labels[2]),
       el('p', { class: 'muted' }, t('Prepare a partida: escolha os bots e a dificuldade antes de começar.', 'Set up the match: choose bots and difficulty before starting.')),
       el('button', { type: 'button', class: 'primary big', onclick: () => onTrain('bots') }, t('Criar partida contra bots', 'Create bot match')),
       el('button', { type: 'button', disabled: !skill, onclick: () => skill && onTrain('shadow') }, t('Treinar contra a sua sombra', 'Practice against your shadow')),
@@ -88,7 +93,7 @@ function playMenu(roomList: HTMLElement, onCreate: () => void, onTrain: (kind: s
     el('section', { class: 'play-content' }, el('h2', {}, 'Sandbox'),
       el('p', { class: 'muted' }, t('Vida e ouro sem fim, loja a qualquer hora e bots no painel.', 'Endless health and gold, shop any time and bots in the panel.')),
       el('button', { type: 'button', class: 'primary big', onclick: () => onTrain('sandbox') }, t('Abrir sandbox', 'Open sandbox'))),
-    el('section', { class: 'play-content' }, el('h2', {}, labels[3]),
+    el('section', { class: 'play-content' }, el('h2', {}, labels[4]),
       ...CHALLENGES.map((c) => {
         const best = bestOf(c.id);
         return el('button', { type: 'button', class: 'train', onclick: () => onTrain(c.id) }, c.name,
@@ -148,7 +153,7 @@ function personagemTab(): HTMLElement {
     el('div', { class: 'settings-grid' }, options, el('div', { class: 'settings-sections' }, ...sections)));
 }
 
-export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onRename: () => void, onTrain: (kind: string) => void, onExit: () => void, sound: Pick<SettingsCtx, 'volumes' | 'setVolume'>) {
+export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onCreateAsc: () => void, onRename: () => void, onTrain: (kind: string) => void, onExit: () => void, sound: Pick<SettingsCtx, 'volumes' | 'setVolume'>) {
   // no lobby: o volume é o mesmo da sala (issue #128); sem efeitos visuais (só existem na sala); o pixel art fica guardado e vale ao entrar numa sala (só PC)
   const pixelOk = !matchMedia('(pointer: coarse)').matches;
   setSettingsCtx({ name: () => name, rename: onRename, volumes: sound.volumes, setVolume: sound.setVolume, pixel: pixelOk ? savedPixel : undefined, setPixel: (size) => store.set('warlock:pixel', String(size)) });
@@ -189,7 +194,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   const panel = (k: HomeTab, ...kids: Child[]) => el('div', { class: 'home-panel', id: 'home-' + k, role: 'tabpanel', 'aria-labelledby': 'home-tab-' + k }, ...kids);
   const panels: Record<HomeTab, HTMLElement> = {
     home: panel('home'),
-    play: panel('play', playMenu(roomList, onCreate, onTrain)),
+    play: panel('play', playMenu(roomList, onCreate, onCreateAsc, onTrain)),
     library: panel('library',
       el('section', { class: 'home-learn' }, el('h2', {}, t('Como jogar', 'How to play')),
         el('p', { class: 'muted' }, t('O grimório explica o jogo, os controles, os modos, a loja e cada magia e item, com demonstração.', 'The grimoire explains the game, the controls, the modes, the shop and every spell and item, with demos.')),
@@ -293,7 +298,7 @@ export function screen(root: HTMLElement, title: string, text: string, button: s
 
 type RoomActions = {
   start: (bots: Level[], mode: Mode, shuffle: boolean, opts: MatchOpts, again?: boolean) => void; // bots: a dificuldade de cada um; again: repete o treino
-  hover: (a: SpellId | ItemId | null) => void; // mouse em cima da magia ou item na barra (círculo de alcance)
+  hover: (a: SpellId | null) => void; // mouse em cima da magia na barra (círculo de alcance)
   buy: (s: SpellId) => void;
   buyItem: (i: ItemId) => void;
   kick: (id: string) => void;
@@ -302,9 +307,12 @@ type RoomActions = {
   undo: (key: string) => void;
   sell: (key: string) => void;
   taunt: (i: number) => void;
-  useItem: (i: ItemId) => void;
   pick: (c: CharacterId) => void;
   ready: () => void;
+  card: (slot: number, i: number, swap?: SpellId) => void; // Ascensão: carta i da escolha slot (swap = magia que sai com a barra cheia)
+  reroll: () => void; // Ascensão: novo sorteio
+  keep: (slot: number) => void; // Ascensão: manter as magias (barra cheia)
+  lobby: (bots: Level[], opts: MatchOpts) => void; // sala do Ascensão: o dono manda os bots e as opções para todos verem
   spell: (s: SpellId) => void;
   volumes: () => { sfx: number; music: number };
   setVolume: (kind: 'sfx' | 'music', value: number) => void;
@@ -318,6 +326,7 @@ type RoomActions = {
   spellReady: () => void; // uma magia acabou de recarregar
   watch: (step: number) => void; // espectador: +1 próximo vivo, −1 anterior
   watchCenter: (on: boolean) => void; // espectador: câmera parada no centro da arena em vez de seguir quem assiste
+  camFollow: (on: boolean) => void; // câmera centrada no próprio mago, de perto, em vez de mostrar a arena
   replay: () => void; // liga ou desliga o replay da queda
   name: () => string; // apelido atual e a troca (aba Jogador das configurações)
   rename: () => void;
@@ -325,12 +334,10 @@ type RoomActions = {
   spectate: (on: boolean) => void; // assistir (sem mago a partir da próxima rodada) ou voltar a jogar
   seeInvis: (on: boolean) => void; // sandbox: invisíveis meio transparentes (só nesta tela)
   seeHit: (on: boolean) => void; // sandbox: discos da colisão real no chão (só nesta tela)
-  spellSound: (s: SpellId) => void; // teste local dos efeitos sonoros (issue #203, só em localhost)
-  preview: (name: string) => void;
 };
 
 type Level = MatchOpts['difficulty'];
-const MODE_NAME: Record<Mode, string> = { rounds: t('Rodadas', 'Rounds'), deathmatch: 'Deathmatch', teams: t('Times', 'Teams') };
+const MODE_NAME: Record<Mode, string> = { rounds: t('Rodadas', 'Rounds'), deathmatch: 'Deathmatch', teams: t('Times', 'Teams'), ascension: t('Ascensão', 'Ascension') };
 export const TEAM_NAMES = [t('Azul', 'Blue'), t('Vermelho', 'Red')];
 const teamLabel = (i: number) => t(`Time ${TEAM_NAMES[i]}`, `${TEAM_NAMES[i]} team`);
 const SHUFFLE_NAME =(shuffle: boolean) => (shuffle ? t('sorteados a cada rodada', 'shuffled every round') : t('fixos na partida', 'fixed for the match'));
@@ -340,12 +347,16 @@ type OptKey = keyof MatchOpts;
 // o servidor ainda aceita, para salas antigas
 const FIXED: Partial<MatchOpts> = { pace: DEFAULT_OPTS.pace, sudden: DEFAULT_OPTS.sudden, difficulty: DEFAULT_OPTS.difficulty };
 const OPT_KEYS = (Object.keys(OPTION_CHOICES) as OptKey[]).filter((k) => !(k in FIXED));
-const OPT_NAME: Record<OptKey, string> = { shop: t('Tempo de loja', 'Shop time'), pace: t('Contagem e fim de rodada', 'Countdown and round end'), economy: t('Ouro ganho', 'Gold earned'), startGold: t('Ouro inicial', 'Starting gold'), goal: t('Vence com', 'Wins with'), runes: t('Runas', 'Runes'), sudden: t('Morte súbita', 'Sudden death'), chests: t('Baús de ouro', 'Gold chests'), difficulty: t('Dificuldade dos bots', 'Bot difficulty'), arena: 'Arena' };
+// Ascensão: sem ouro, loja, baús e meta (9 rodadas fixas), então essas opções somem da sala
+const ASC_OFF: OptKey[] = ['shop', 'economy', 'startGold', 'goal', 'chests'];
+const optKeys = (mode: Mode) => (mode === 'ascension' ? OPT_KEYS.filter((k) => !ASC_OFF.includes(k)) : OPT_KEYS);
+const OPT_NAME: Record<OptKey, string> = { shop: t('Tempo de loja', 'Shop time'), pace: t('Contagem e fim de rodada', 'Countdown and round end'), economy: t('Ouro ganho', 'Gold earned'), startGold: t('Ouro inicial', 'Starting gold'), goal: t('Vence com', 'Wins with'), runes: t('Runas', 'Runes'), sudden: t('Morte súbita', 'Sudden death'), chests: t('Baús de ouro', 'Gold chests'), difficulty: t('Dificuldade dos bots', 'Bot difficulty'), arena: 'Arena', effect: t('Efeito de rodada', 'Round effect') };
 function optText(k: OptKey, val: MatchOpts[OptKey], mode: Mode): string {
   if (k === 'shop') return (val as number) >= 120 ? '2 min' : `${val} s`;
   if (k === 'pace') return PACE_NAME[val as MatchOpts['pace']];
   if (k === 'economy') return { 0.6: t('Pouco ×0,6', 'Low ×0.6'), 1: 'Normal', 1.5: t('Muito ×1,5', 'High ×1.5'), 2: t('Festa ×2', 'Party ×2') }[val as MatchOpts['economy']];
   if (k === 'arena') return val === 'random' ? t('Sortear', 'Random') : arenaName(val as ArenaId);
+  if (k === 'effect') return val === 'off' ? t('Desligado', 'Off') : val === 'random' ? t('Sortear', 'Random') : effectName(val as RoundEffectId, mode);
   if (k === 'difficulty') return SKILL_NAME[val as MatchOpts['difficulty']];
   if (k === 'goal') return mode === 'deathmatch' ? `${DM_GOALS[val as MatchOpts['goal']]} ${t('abates', 'kills')}` : `${val} ${t('rodadas', 'rounds')}`;
   if (typeof val === 'boolean') return val ? t('Ligado', 'On') : t('Desligado', 'Off');
@@ -355,10 +366,14 @@ function optText(k: OptKey, val: MatchOpts[OptKey], mode: Mode): string {
 const optLabel = (k: OptKey, mode: Mode) => el('div', { class: 'opt-label' }, el('small', {}, OPT_NAME[k]), infoButton(OPT_NAME[k], () => OPT_INFO[k](mode)));
 // resumo de uma linha (loja e votação): "Loja 30 s · Ouro ×1,6 · Vence com 5 rodadas · sem runas"
 function optsLine(o: MatchOpts, mode: Mode): string {
-  const off = (['runes', 'sudden', 'chests'] as const).filter((k) => !o[k]).map((k) => t('sem ', 'no ') + OPT_NAME[k].toLowerCase());
-  const bots = o.difficulty !== 'normal' ? [{ easy: t('bots fáceis', 'easy bots'), hard: t('bots difíceis', 'hard bots'), auto: t('bots automáticos', 'auto bots') }[o.difficulty]] : [];
+  const off = (['runes', 'sudden', 'chests'] as const).filter((k) => !o[k] && !(mode === 'ascension' && k === 'chests')).map((k) => t('sem ', 'no ') + OPT_NAME[k].toLowerCase());
+  const bots = o.difficulty !== 'auto' ? [{ easy: t('bots fáceis', 'easy bots'), casual: t('bots casuais', 'casual bots'), normal: t('bots normais', 'normal bots'), veteran: t('bots veteranos', 'veteran bots'), hard: t('bots difíceis', 'hard bots') }[o.difficulty]] : [];
   const arena = o.arena !== 'random' ? [t('arena ' + arenaName(o.arena), arenaName(o.arena) + ' arena')] : [];
-  return [t(`Loja ${optText('shop', o.shop, mode)}`, `Shop ${optText('shop', o.shop, mode)}`), t(`Ouro ×${n1(o.economy)}`, `Gold ×${n1(o.economy)}`), t(`Vence com ${optText('goal', o.goal, mode)}`, `Wins with ${optText('goal', o.goal, mode)}`), ...arena, ...bots, ...off].join(' · ');
+  const effect = o.effect === 'random' ? [t('efeito sorteado', 'random effect')] : o.effect !== 'off' ? [effectName(o.effect, mode)] : [];
+  // Ascensão: sem loja, ouro nem meta (9 rodadas fixas)
+  const head = mode === 'ascension' ? [t(`${ASC_ROUNDS} rodadas`, `${ASC_ROUNDS} rounds`)]
+    : [t(`Loja ${optText('shop', o.shop, mode)}`, `Shop ${optText('shop', o.shop, mode)}`), t(`Ouro ×${n1(o.economy)}`, `Gold ×${n1(o.economy)}`), t(`Vence com ${optText('goal', o.goal, mode)}`, `Wins with ${optText('goal', o.goal, mode)}`)];
+  return [...head, ...arena, ...effect, ...bots, ...off].join(' · ');
 }
 // texto de uma votação aberta
 function voteText(v: { kind: Vote['kind']; target: string }, mode: Mode, name: (id: string) => string): string {
@@ -389,7 +404,7 @@ type Scope = 'round' | 'match' | 'room';
 const SCOPES: [Scope, string][] = [['round', t('Rodada', 'Round')], ['match', t('Partida', 'Match')], ['room', t('Sala', 'Room')]];
 const n0 = (x: number) => Math.round(x).toLocaleString(LOCALE);
 // magias de utilidade: mostra quantas vezes usou (não têm "acerto"); as outras mostram precisão
-const UTILITY = new Set(['teleport', 'shield', 'rush', 'pact', 'redirector', 'thrust', 'rockpillar', 'magnetize', 'alteration', 'warpzone']);
+const UTILITY = new Set(['teleport', 'shield', 'rush', 'pact', 'thrust', 'rockpillar', 'magnetize', 'alteration', 'warpzone']);
 const srcIcon = (k: string) => icon(k === 'lava' ? SOURCE_ICON.lava : k in ICON ? ICON[k as SpellId] : k in ITEM_ICON ? ITEM_ICON[k as ItemId] : k.startsWith('choque') ? SOURCE_ICON.shock : k === 'pillar' ? SOURCE_ICON.pillar : SOURCE_ICON.unknown);
 const gold = (n: number) => el('span', {}, icon(UI_ICON.gold), ' ' + n);
 export const srcName = (k: string) => (k === 'lava' ? 'lava' : isSpell(k) ? spellName(k) : k in ITEMS ? itemName(k as ItemId) : k);
@@ -571,7 +586,7 @@ function podium(room: PublicRoom, me: string) {
   const top = [...room.players].sort((a, b) => b.score - a.score || b.stats.match.dmg - a.stats.match.dmg).slice(0, 3);
   // ninguém pontuou (encerrada cedo): pódio de zeros não diz nada
   if (top.length < 2 || top[0].score === 0) return null;
-  const unit = room.mode === 'deathmatch' ? [t('ponto', 'point'), t('pontos', 'points')] : [t('vitória', 'win'), t('vitórias', 'wins')];
+  const unit = room.mode === 'deathmatch' || room.mode === 'ascension' ? [t('ponto', 'point'), t('pontos', 'points')] : [t('vitória', 'win'), t('vitórias', 'wins')];
   const step = (p: PublicPlayer, place: number) => el('div', { class: `podium-step p${place}` + (p.id === me ? ' me' : '') },
     el('img', { class: 'podium-face', src: `/chars/${p.character}.webp`, alt: '', width: 64, height: 64 }),
     el('b', {}, p.name), el('small', {}, `${p.score} ${unit[p.score === 1 ? 0 : 1]}`),
@@ -580,12 +595,12 @@ function podium(room: PublicRoom, me: string) {
 }
 
 // na loja: quem já clicou em Pronto (bots ficam prontos sozinhos)
-const readyTag = (p: PublicPlayer) => el('span', { class: 'ready-tag' + (p.ready ? ' on' : '') }, p.ready ? t('✓ Pronto', '✓ Ready') : t('Na loja', 'Shopping'));
+const readyTag = (p: PublicPlayer, mode: Mode) => el('span', { class: 'ready-tag' + (p.ready ? ' on' : '') }, p.ready ? t('✓ Pronto', '✓ Ready') : mode === 'ascension' ? t('Escolhendo', 'Picking') : t('Na loja', 'Shopping'));
 
 function board(room: PublicRoom, me: string, kick?: (id: string) => void) {
   const sorted = [...room.players].sort((a, b) => byTeam(room, a, b));
   return el('ol', { class: 'board' }, ...sorted.map((p) =>
-    el('li', { class: p.id === room.winner || (room.winnerTeam !== null && p.team === room.winnerTeam) ? 'win' : '' }, el('span', {}, teamTag(room, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : t(' · caiu', ' · dropped')), el('span', { class: 'board-right' }, room.phase === 'shop' ? readyTag(p) : null, el('b', {}, room.mode === 'deathmatch' ? `${p.score} ${p.score === 1 ? t('ponto', 'point') : t('pontos', 'points')}` : `${p.score} ${p.score === 1 ? t('vitória', 'win') : t('vitórias', 'wins')}`), kickBtn(p, kick))),
+    el('li', { class: p.id === room.winner || (room.winnerTeam !== null && p.team === room.winnerTeam) ? 'win' : '' }, el('span', {}, teamTag(room, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : t(' · caiu', ' · dropped')), el('span', { class: 'board-right' }, room.phase === 'shop' ? readyTag(p, room.mode) : null, ascLevel(room, p), el('b', {}, room.mode === 'deathmatch' || room.mode === 'ascension' ? `${p.score} ${p.score === 1 ? t('ponto', 'point') : t('pontos', 'points')}` : `${p.score} ${p.score === 1 ? t('vitória', 'win') : t('vitórias', 'wins')}`), kickBtn(p, kick))),
   ));
 }
 
@@ -601,8 +616,8 @@ const previewHtml = (title: string, ch: Change[], extra = '') =>
   `<div class="preview"><b>${title}</b>${ch.length ? `<table>${ch.map((c) => `<tr class="${c.worse ? 'worse' : 'better'}"><th>${c.label}</th><td>${c.before ?? '—'} → ${c.after ?? '—'}</td></tr>`).join('')}</table>` : `<small>${t('Nada muda na ficha.', 'Nothing changes on the sheet.')}</small>`}${extra}</div>`;
 
 export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) {
-  // uma dificuldade por bot (pedido do Fernando, 19/10); guardada nesta aba (o número de bots de antes vira 3 Normal)
-  let bots: Level[] = ['normal', 'normal', 'normal'];
+  // uma dificuldade por bot (pedido do Fernando, 19/10); guardada nesta aba (o padrão é 3 Automático, pedido de 21/10)
+  let bots: Level[] = ['auto', 'auto', 'auto'];
   try {
     const saved: unknown = JSON.parse(sessionStorage.getItem('warlock:bots') ?? 'null');
     if (Array.isArray(saved) && saved.every((d) => OPTION_CHOICES.difficulty.includes(d))) bots = saved;
@@ -651,6 +666,25 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     drawCenter();
     drawHints();
   });
+  // câmera: mostrar a arena (padrão) ou seguir o próprio mago de perto (pedido do Fernando, issue #222); fica salva no navegador
+  const FOLLOW_KEY = 'warlock:cam-follow';
+  let camFollow = store.get(FOLLOW_KEY) === '1';
+  const camTitle = () => t('Câmera seguindo o seu mago', 'Camera following your wizard') + (uiLabel('camera') === '—' ? '' : ` (${uiLabel('camera')})`);
+  const toggleCam = () => {
+    camFollow = !camFollow;
+    store.set(FOLLOW_KEY, camFollow ? '1' : '0');
+    camBtn.setAttribute('aria-pressed', String(camFollow));
+    camBtn.classList.toggle('on', camFollow);
+    act.camFollow(camFollow);
+  };
+  const camBtn = iconButton(icon(UI_ICON.person), t('Câmera seguindo o seu mago', 'Camera following your wizard'), toggleCam, { 'aria-pressed': String(camFollow), class: camFollow ? 'icon on' : 'icon', title: camTitle() });
+  onKeysChange(() => (camBtn.title = camTitle()));
+  addEventListener('keydown', (e) => {
+    if (!isUiKey(e.code, 'camera') || typing(e)) return;
+    e.preventDefault();
+    toggleCam();
+  });
+  act.camFollow(camFollow);
   const volBtn = iconButton(icon(act.volumes().sfx + act.volumes().music === 0 ? UI_ICON.mute : UI_ICON.sound), t('Som', 'Sound'), () => openSettings('som'), { class: 'icon wide-only' });
   // votação na partida: o botão abre as opções; a faixa no topo mostra a votação aberta para todos
   const votePanel = el('div', { class: 'vol-panel', hidden: true });
@@ -735,7 +769,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (f instanceof HTMLInputElement) f.setSelectionRange(f.value.length, f.value.length);
   }
   function togglePeek(open = peekPanel.hidden) {
-    open &&= !!room && PEEK_PHASES.includes(room.phase);
+    open &&= !!room && PEEK_PHASES.includes(room.phase) && room.mode !== 'ascension'; // Ascensão: sem loja
     toggle(peekPanel, peekBtn, open);
     peekPanel.classList.toggle('drawer', deadShop); // gaveta só para quem caiu (ver deadShopping)
     if (!open) hideTip(peekPanel);
@@ -778,6 +812,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       .map(([value, label]) => el('option', { value }, label))) as HTMLSelectElement;
   const sbArena = el('select', { 'aria-label': t('Forma da arena', 'Arena shape'), title: t('Trocar a forma recomeça a rodada; ela fica nos próximos reinícios', 'Changing the shape restarts the round; it stays for the next restarts'), onchange: (e: Event) => act.sandbox({ op: 'arena', arena: (e.target as HTMLSelectElement).value as ArenaId }) },
     ...ARENA_IDS.map((a) => el('option', { value: a }, arenaName(a)))) as HTMLSelectElement;
+  const sbEffect = el('select', { 'aria-label': t('Efeito de rodada', 'Round effect'), title: t('Vale na hora; Campo aberto tira os obstáculos até reiniciar', 'Applies right away; Open field removes the obstacles until a restart'), onchange: (e: Event) => { const v = (e.target as HTMLSelectElement).value; act.sandbox({ op: 'effect', effect: v ? (v as RoundEffectId) : null }); } },
+    el('option', { value: '' }, t('Nenhum', 'None')), ...ROUND_EFFECT_IDS.map((x) => el('option', { value: x }, EFFECT_NAME[x]))) as HTMLSelectElement;
   sbPanel.append(
     el('b', {}, 'Sandbox'),
     el('small', { class: 'muted' }, t('Nada daqui conta nos dados do jogo.', 'Nothing here counts toward the game data.')),
@@ -788,7 +824,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     check(t('Ver hitbox (teste)', 'Show hitboxes (test)'), false, act.seeHit).row,
     el('div', { class: 'sandbox-row' },
       el('select', { 'aria-label': t('Dificuldade do bot', 'Bot difficulty'), onchange: (e: Event) => (sbLevel = (e.target as HTMLSelectElement).value as Level) },
-        ...(['easy', 'normal', 'hard'] as const).map((k) => el('option', { value: k, selected: k === sbLevel }, SKILL_NAME[k]))),
+        ...(['easy', 'casual', 'normal', 'veteran', 'hard'] as const).map((k) => el('option', { value: k, selected: k === sbLevel }, SKILL_NAME[k]))),
       el('button', { type: 'button', onclick: () => addBot(false) }, t('+ Bot', '+ Bot'))),
     el('button', { type: 'button', title: t('Bot que não anda nem atira: bom para testar dano e empurrão', 'A bot that neither moves nor shoots: good for testing damage and knockback'), onclick: () => addBot(true) }, t('+ Boneco parado', '+ Training dummy')),
     el('div', { class: 'sandbox-row' }, sbTurretDirection,
@@ -796,6 +832,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     botSetupPanel(1, savedBotSetup(), () => {}),
     sbBots,
     el('div', { class: 'sandbox-row' }, t('Arena', 'Arena'), sbArena),
+    el('div', { class: 'sandbox-row' }, t('Efeito', 'Effect'), sbEffect),
     el('div', { class: 'sandbox-row', role: 'group', 'aria-label': t('Tamanho da pedra', 'Stone size') }, t('Pedra', 'Stone'),
       el('button', { type: 'button', title: t('Pedra uma faixa menor (volta ao tamanho normal ao reiniciar)', 'Stone one ring smaller (back to normal size on restart)'), onclick: () => act.sandbox({ op: 'radius', step: -1 }) }, t('− Menor', '− Smaller')),
       el('button', { type: 'button', title: t('Pedra uma faixa maior (volta ao tamanho normal ao reiniciar)', 'Stone one ring bigger (back to normal size on restart)'), onclick: () => act.sandbox({ op: 'radius', step: 1 }) }, t('+ Maior', '+ Bigger'))),
@@ -803,68 +840,20 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('div', { class: 'sandbox-row', role: 'group', 'aria-label': t('Pôr runa', 'Place rune') }, t('Runa', 'Rune'),
       ...RUNE_KINDS.map((k) => iconButton(icon(RUNE_ICON[k]), t(`Pôr a ${RUNE_NAME[k]} ao seu lado`, `Place the ${RUNE_NAME[k]} next to you`), () => act.sandbox({ op: 'rune', kind: k }), { title: RUNE_NAME[k] }))),
     el('button', { type: 'button', onclick: () => act.sandbox({ op: 'restart' }) }, t('Reiniciar a rodada', 'Restart the round')));
-  // teste local dos efeitos sonoros (issue #203, só em localhost): notas do que mudou, um botão por magia e a escolha da música
-  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-    let run = 0;
-    const playAll = () => {
-      const me = ++run;
-      const next = (i: number) => {
-        if (me !== run || i >= SPELL_IDS.length) return;
-        toast(`${spellName(SPELL_IDS[i])} (${i + 1}/${SPELL_IDS.length})`);
-        act.spellSound(SPELL_IDS[i]);
-        setTimeout(() => next(i + 1), 1600);
-      };
-      next(0);
-    };
-    // escolha entre o som atual e as 3 opções (public/sfx/opcoes/<magia>-<n>.mp3, nomes em lista.json); fica no navegador
-    const ESCOLHA = 'warlock:sons-escolha';
-    const escolha: Record<string, string> = store.json<Record<string, string>>(ESCOLHA) ?? {};
-    let nomes: Record<string, string[]> = {};
-    const escolhaBox = el('div', {});
-    const drawEscolha = () => escolhaBox.replaceChildren(
-      el('small', { class: 'muted' }, `Escolhidas: ${Object.keys(escolha).length}/${SPELL_IDS.length}`),
-      ...SPELL_IDS.map((s) => el('div', {}, el('small', {}, spellName(s)),
-        choice(spellName(s), [['atual', 'Atual'], ['1', '1'], ['2', '2'], ['3', '3']], escolha[s] ?? '', (k) => {
-          run++;
-          toast(`${spellName(s)}: ${k === 'atual' ? 'atual' : `opção ${k}${nomes[s]?.[+k - 1] ? ` (${nomes[s][+k - 1]})` : ''}`}`);
-          if (k === 'atual') act.spellSound(s);
-          else act.preview(`opcoes/${s}-${k}`);
-          escolha[s] = k;
-          store.set(ESCOLHA, JSON.stringify(escolha));
-          drawEscolha();
-        }))));
-    drawEscolha();
-    void fetch('/sfx/opcoes/lista.json').then((r) => (r.ok ? r.json() : {})).then((j) => (nomes = j), () => {});
-    const musicBox = el('div', {});
-    const drawMusic = () => musicBox.replaceChildren(choice('Música da partida', (Object.keys(MUSIC_TRACKS) as MusicTrack[]).map((k): [MusicTrack, string] => [k, MUSIC_TRACKS[k]]), musicTrack(),
-      (k) => (setMusicTrack(k), toast(`Tocando: ${MUSIC_TRACKS[k]}`), drawMusic())));
-    drawMusic();
-    sbPanel.prepend(
-      el('b', {}, '🧪 Teste dos sons (só localhost)'),
-      el('small', { class: 'muted' }, 'O que mudou: as 25 magias agora têm o mesmo volume (antes iam de −11,8 a −20,4 LUFS; agora −18,3 a −20,0). Cada magia tem som próprio, e abaixo há 3 opções novas para cada uma. Música nova: Epic Boss Battle.'),
-      el('small', { class: 'muted' }, 'Escolha uma por magia; a escolha fica salva neste navegador (localStorage warlock:sons-escolha).'),
-      el('button', { type: 'button', onclick: playAll }, 'Tocar todos os atuais'),
-      el('small', { class: 'muted' }, 'Escolha: cada botão toca o som e fica marcado como o escolhido. "Atual" é o de hoje; 1, 2 e 3 são as opções novas. Todos no mesmo volume.'),
-      escolhaBox,
-      el('small', { class: 'muted' }, 'Música (a mesma opção de Configurações → Som; troca na hora). A nova dá a volta em 2 min 3 s: ouça se o recomeço tem vão ou estalo.'),
-      musicBox);
-  }
-  let sbAutoOpen = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   let sbSig = '';
+  let sbOpened = false;
   function drawSandbox(r: PublicRoom) {
     sbBtn.hidden = !r.sandbox || !PEEK_PHASES.includes(r.phase);
     if (!r.sandbox || sbBtn.hidden) {
       if (!sbPanel.hidden) toggle(sbPanel, sbBtn, false);
       return;
     }
-    if (sbAutoOpen) {
-      sbAutoOpen = false;
+    // o painel já vem aberto ao entrar na sandbox (pedido do Fernando, 21/10): é para isso que se entra nela; fechado, fica fechado
+    if (!sbOpened) {
+      sbOpened = true;
       toggle(sbPanel, sbBtn, true);
-      // o navegador só libera som depois de um clique: o clique já é o "tocar" (espera os arquivos carregarem)
-      const go = el('button', { type: 'button', class: 'primary big', style: 'position:fixed;inset:35% 30%;z-index:9999;font-size:1.4rem',
-        onclick: () => go.remove() }, '▶ Clique para ligar o som (o navegador pede 1 clique) e escolha os sons no painel à direita');
-      document.body.append(go);
     }
+    if (document.activeElement !== sbEffect) sbEffect.value = r.effect ?? '';
     for (const [k, box] of sbChecks) box.checked = r.sandbox[k];
     if (r.arena && document.activeElement !== sbArena) sbArena.value = r.arena;
     // lista dos bots com o ✕ (tirar): só redesenha quando muda
@@ -910,7 +899,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     exitBtn,
     el('button', { type: 'button', class: 'code', title: t('Copiar link da sala', 'Copy room link'), 'aria-label': t(`Sala ${code}: copiar link`, `Room ${code}: copy link`), onclick: () => copyLink() }, status, ' ', code, ping),
     roundEl,
-    el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), specBtn, voteWrap, volBtn, gearBtn, helpBtn, el('div', { class: 'vol more-wrap' }, moreBtn, morePanel), el('div', { class: 'vol' }, sbBtn, sbPanel)),
+    el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), specBtn, voteWrap, camBtn, volBtn, gearBtn, helpBtn, el('div', { class: 'vol more-wrap' }, moreBtn, morePanel), el('div', { class: 'vol' }, sbBtn, sbPanel)),
   );
   const center = el('div', { class: 'center' });
   // a janela da loja pode ser alargada pela alça do canto (PC); o tamanho fica salvo neste navegador (pedido do Fernando, 18/10)
@@ -923,16 +912,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const respawn = el('div', { class: 'respawn' });
   const buttons = new Map<SpellId, { b: HTMLElement; cd: HTMLElement; pips: HTMLElement }>();
   let mine: PublicPlayer | undefined;
-  const ORDER_KEY = 'warlock:loadout-order';
-  let loadoutOrder = store.json<LoadoutOrder>(ORDER_KEY) ?? undefined;
   let slotDrag: { pointer: number; from: number; x: number; y: number; moved: boolean; ghost?: HTMLElement; over?: HTMLElement | null } | null = null;
-  const equipment = (p: PublicPlayer) => loadoutSlots(p.spells, p.items, loadoutOrder);
+  const equipment = (p: PublicPlayer) => myLoadout(p.spells);
   function changeSlot(from: number, to: number) {
     if (!mine) return false;
     const current = equipment(mine), next = moveLoadout(current, from, to);
     if (next === current) return false;
-    loadoutOrder = next;
-    store.set(ORDER_KEY, JSON.stringify(next));
+    saveLoadout(next);
     refreshEquipment();
     drawCenter();
     drawPeek();
@@ -1004,44 +990,28 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     draggableSlot(b, 0, true);
     return b;
   }));
-  // itens ativos (teclas 1, 2 e 3) na grade de itens à direita da barra; só aparecem se comprados
-  // grade 3×2 como a do Dota (MAX_ITEMS = 6): ativos com a tecla, passivos apagados e o resto vazio
+  // grade 3×2 de itens à direita da barra, como a do Dota (MAX_ITEMS = 6): os comprados (todos passivos desde 21/10, #217) e o resto vazio
   const itemGrid = el('div', { class: 'item-grid', role: 'group', 'aria-label': t('Itens', 'Items') });
-  const itemButtons = new Map<ItemId, { b: HTMLElement; cd: HTMLElement }>();
-  for (const i of ACTIVE_ITEMS) {
-    const cd = el('span', { class: 'cd' });
-    const b = withTip(el('button', { type: 'button', class: 'spell item', 'aria-label': itemName(i), onclick: () => act.useItem(i), onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(i), onpointerleave: () => act.hover(null) },
-      el('span', { class: 'key', 'data-action': i }, labelOf(i)), el('span', { class: 'ico' }, icon(ITEM_ICON[i])), cd), () => itemTip(i, mine?.items[i] ?? 0));
-    b.hidden = true;
-    itemButtons.set(i, { b, cd });
-    draggableSlot(b, 6, true);
-    itemGrid.append(b);
-  }
   function refreshEquipment() {
-    if (!mine) return setSlots([], []); // espectador: teclas e controle não ficam com a ordem de antes
+    if (!mine) return setSlots([]); // espectador: teclas e controle não ficam com a ordem de antes
     if (slotDrag) return;
     const order = equipment(mine);
-    const passive = ITEM_IDS.filter((i) => !isActive(i) && mine!.items[i] > 0);
+    const passive = ITEM_IDS.filter((i) => mine!.items[i] > 0);
     const sig = JSON.stringify([order, passive.map((i) => [i, mine!.items[i]])]);
     if (bar.dataset.order !== sig) {
       bar.dataset.order = sig;
-      const empty = (index: number, item: boolean) => draggableSlot(el('span', { class: item ? 'slot-empty' : 'spell slot-empty', 'aria-label': t('Posição vazia', 'Empty slot') }, el('span', { class: 'key', 'data-position': index }, keyLabel(keyOf(POS_ACTIONS[index])))), index, false);
+      const empty = (index: number) => draggableSlot(el('span', { class: 'spell slot-empty', 'aria-label': t('Posição vazia', 'Empty slot') }, el('span', { class: 'key', 'data-position': index }, keyLabel(keyOf(POS_ACTIONS[index])))), index, false);
       bar.replaceChildren(...order.spells.map((s, i) => {
-        if (!s) return empty(i, false);
+        if (!s) return empty(i);
         const node = buttons.get(s)!.b;
         node.dataset.loadoutSlot = String(i);
         return node;
       }));
-      itemGrid.replaceChildren(...order.items.map((id, i) => {
-        if (!id) return empty(i + 6, true);
-        const node = itemButtons.get(id)!.b;
-        node.dataset.loadoutSlot = String(i + 6);
-        return node;
-      }), ...passive.map((i) => withTip(el('span', { class: 'spell passive', tabindex: 0, 'aria-label': t(`${itemName(i)} (passivo) nível ${mine!.items[i]}`, `${itemName(i)} (passive) level ${mine!.items[i]}`) }, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0))),
-      ...Array.from({ length: Math.max(0, MAX_ITEMS - 3 - passive.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
+      itemGrid.replaceChildren(...passive.map((i) => withTip(el('span', { class: 'spell passive', tabindex: 0, 'aria-label': t(`${itemName(i)} (passivo) nível ${mine!.items[i]}`, `${itemName(i)} (passive) level ${mine!.items[i]}`) }, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0))),
+      ...Array.from({ length: Math.max(0, MAX_ITEMS - passive.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
       hideTip(bar); hideTip(itemGrid);
     }
-    setSlots(order.spells, order.items);
+    setSlots(order.spells);
   }
   // efeitos ativos em mim, numa fileira pequena acima da barra
   const statusRow = el('div', { class: 'status-icons hud-status', role: 'group', 'aria-label': t('Efeitos', 'Effects') });
@@ -1085,18 +1055,21 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const armedHint = el('div', { class: 'armed-hint', role: 'status', hidden: true }, armedText,
     iconButton('✕', t('Cancelar a magia escolhida', 'Cancel the selected spell'), () => {
       if (isSpell(shownArmed)) act.spell(shownArmed);
-      else if (shownArmed) act.useItem(shownArmed as ItemId);
     }, { title: t('Cancelar', 'Cancel') }));
   // barra da partida estilo Dota (decisão do Fernando, 19/10): retrato com vida e ouro à esquerda, magias no meio, itens à direita
   const hpFill = el('i', {});
   const hpText = el('span', { class: 'hp-text' });
   const hpBar = el('div', { class: 'hpbar', role: 'img' }, hpFill, hpText);
   const goldNow = el('span', { class: 'gold' });
-  const vitals = el('div', { class: 'vitals', hidden: true }, hpBar, goldNow); // vida só jogando e vivo
-  const heroFace = el('img', { class: 'hero-face', alt: '', width: 72, height: 84 });
+  // números do mago embaixo da vida (Fernando, 21/10: "pode colocar mais stats relevantes para completar o espaço vazio"):
+  // os da Ficha do mago que mais mudam a luta, com a origem na dica
+  const STAT_ICON: Record<string, string> = { speed: ITEM_ICON.boots, kb: ITEM_ICON.armor, regen: ITEM_ICON.cape, range: UI_ICON.aim };
+  const heroStats = el('div', { class: 'hero-stats' });
+  const vitals = el('div', { class: 'vitals', hidden: true }, hpBar, el('div', { class: 'hero-row' }, goldNow, heroStats)); // vida só jogando e vivo
+  const heroFace = el('img', { class: 'hero-face', alt: '', width: 104, height: 120 });
   const hero = el('div', { class: 'hero-box' }, heroFace, vitals);
   const barWrap = el('div', { class: 'barwrap' }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, bar, itemGrid)));
-  // a barra some na sala, na loja e no fim (update, a cada segundo) e enquanto eu assisto morto (watching, a cada quadro): uma conta só, sem piscar
+  // a barra some na sala e no fim (update, a cada segundo) e enquanto eu assisto morto (watching, a cada quadro): uma conta só, sem piscar
   let barOff = true;
   let watchingNow = false;
   // na loja do PC (compacta) a barra fica à vista: é nela que se troca a ordem das magias (Fernando, 21/10); quem caiu a vê com a loja aberta
@@ -1221,13 +1194,20 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   function lobbyPanel(r: PublicRoom) {
     const humans = r.players.filter((p) => !p.bot && !p.watch).length; // quem assiste não ocupa vaga nem conta para começar
     const maxBots = MAX_PLAYERS - humans;
+    // sala do Ascensão: os bots e as opções são os do dono, iguais na tela de todos; só ele muda (Fernando, 21/10)
+    const L = r.lobby;
+    const locked = !!L && L.owner !== me;
+    if (locked) {
+      bots = [...L.bots];
+      opts = { ...DEFAULT_OPTS, ...r.opts, ...L.opts, ...FIXED };
+    }
     bots = bots.slice(0, maxBots);
     const count = el('b', { class: 'count' }, String(bots.length));
     // uma linha por bot, com o nome que o servidor vai dar (BOT_NAMES, na ordem) e a dificuldade dele
     const rows = () => bots.map((d, i) => {
       const name = BOT_NAMES[i % BOT_NAMES.length];
       return el('label', { class: 'bot-row' }, el('span', {}, icon(UI_ICON.bot), ' ' + name),
-        el('select', { 'aria-label': t(`Dificuldade de ${name}`, `${name}'s difficulty`), onchange: (e: Event) => {
+        el('select', { 'aria-label': t(`Dificuldade de ${name}`, `${name}'s difficulty`), disabled: locked, onchange: (e: Event) => {
           // sem redesenhar a lista: a seta do teclado no seletor continua nele
           bots[i] = (e.target as HTMLSelectElement).value as Level;
           save();
@@ -1241,7 +1221,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       } catch {
         // só nesta tela
       }
+      share();
     };
+    // o dono manda o que está na tela dele sempre que difere do que a sala tem (na entrada e a cada mudança); a comparação é
+    // chave a chave, sem depender da ordem das chaves na volta do servidor (senão vira laço de envio)
+    const share = () => L && !locked && (bots.join() !== L.bots.join() || (Object.keys(OPTION_CHOICES) as OptKey[]).some((k) => o[k] !== L.opts[k])) && act.lobby(bots, o);
     const set = (next: Level[]) => {
       bots = next.slice(0, maxBots);
       save();
@@ -1249,40 +1233,50 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       list.replaceChildren(...rows());
       startBtn.toggleAttribute('disabled', humans + bots.length < 2);
     };
-    const o = (opts ??= { ...DEFAULT_OPTS, ...r.opts, ...FIXED }); // o que a sala não mostra volta ao padrão (um desafio deixa a morte súbita desligada)
+    const o = (opts ??= { ...DEFAULT_OPTS, ...r.opts, ...L?.opts, ...FIXED }); // o que a sala não mostra volta ao padrão (um desafio deixa a morte súbita desligada)
     const startBtn = el('button', { type: 'button', class: 'primary big', disabled: humans + bots.length < 2, onclick: () => act.start(bots, mode, shuffle, o) }, t('Começar partida', 'Start match'));
     const modes: [Mode, string, string][] = [
       ['rounds', MODE_NAME.rounds, t(`O último vivo ganha a rodada. Vence quem fizer ${o.goal} rodadas.`, `The last one alive wins the round. First to win ${o.goal} rounds wins.`)],
       ['deathmatch', MODE_NAME.deathmatch, t(`Rodadas de 60 s, quem cai volta em 10 s. Cada abate vale 1 ponto; vence quem chegar a ${DM_GOALS[o.goal]}.`, `60 s rounds, whoever falls comes back after 10 s. Each kill is worth 1 point; first to ${DM_GOALS[o.goal]} wins.`)],
       ['teams', MODE_NAME.teams, t(`Azul contra Vermelho. A rodada acaba quando só sobra um time, e todos dele ganham 1 ponto; vence quem fizer ${o.goal}. Magia em aliado só empurra.`, `Blue vs Red. The round ends when only one team is left, and everyone on it gets 1 point; first to ${o.goal} wins. Spells on allies only knock back.`)],
     ];
+    // sala do Ascensão (criada pela opção do menu Jogar): o modo é o da sala, sem seletor
+    const ascRoom = r.mode === 'ascension';
+    if (ascRoom) mode = 'ascension';
     // Times: o grupo escolhe se os times mudam a cada rodada ou ficam até o fim
     const shufflePicker = mode !== 'teams' ? null : choice(t('Sorteio dos times', 'Team shuffle'), [[true, t('Sorteados a cada rodada', 'Shuffled every round')], [false, t('Fixos na partida', 'Fixed for the match')]], shuffle, (k) => ((shuffle = k), drawCenter()));
-    const modePicker = el('div', { class: 'mode' },
+    const modePicker = ascRoom ? el('div', { class: 'mode' }, el('b', {}, MODE_NAME.ascension), el('small', { class: 'muted' }, ASC_MODE_TEXT)) : el('div', { class: 'mode' },
       el('div', { class: 'opt-label' }, choice(t('Modo de jogo', 'Game mode'), modes.map(([k, label]): [Mode, string] => [k, label]), mode, (k) => ((mode = k), drawCenter())), infoButton(t('Modos de jogo', 'Game modes'), MODE_INFO)),
       el('small', { class: 'muted' }, modes.find(([k]) => k === mode)![2]), shufflePicker);
     // opções da partida: uma fileira de botões por opção, como o seletor de modo; vão junto com o "Começar"
     // abertas por padrão: quem cria a sala vê as opções sem procurar (fechar fica guardado até sair da sala)
     const optsBlock = el('details', { class: 'match-opts', open: optsOpen, ontoggle: (e: Event) => (optsOpen = (e.target as HTMLDetailsElement).open) }, el('summary', {}, t('Opções da partida', 'Match options') + ' · ', el('small', { class: 'muted' }, optsLine(o, mode))),
-      el('div', { class: 'opt-grid' }, ...OPT_KEYS.map((k) => el('div', { class: 'opt-row' }, optLabel(k, mode),
-        choice(OPT_NAME[k], (OPTION_CHOICES[k] as readonly MatchOpts[OptKey][]).map((val): [MatchOpts[OptKey], string] => [val, optText(k, val, mode)]), o[k], (val) => (Object.assign(o, { [k]: val }), drawCenter()))))));
-    return el('div', { class: 'card room-wait' },
+      el('div', { class: 'opt-grid' }, ...optKeys(mode).map((k) => el('div', { class: 'opt-row' }, optLabel(k, mode),
+        choice(OPT_NAME[k], (OPTION_CHOICES[k] as readonly MatchOpts[OptKey][]).map((val): [MatchOpts[OptKey], string] => [val, optText(k, val, mode)]), o[k], (val) => (Object.assign(o, { [k]: val }), drawCenter()), locked ? () => true : undefined)))));
+    const ownerName = r.players.find((p) => p.id === L?.owner)?.name ?? '';
+    const whoPicks = L && el('small', { class: 'muted' }, locked ? t(`Quem escolhe os bots e as opções é ${ownerName}, que criou a sala.`, `${ownerName}, who created the room, picks the bots and options.`)
+      : t('Você criou a sala: só você muda os bots e as opções, e todos veem na hora.', 'You created the room: only you change the bots and options, and everyone sees them live.'));
+    share();
+    const card = el('div', { class: 'card room-wait' },
       el('div', {}, el('h2', { class: 'title' }, t('Sala ', 'Room ') + r.id), el('p', { class: 'muted' }, t('Mande o link para os amigos entrarem. Até 8 magos.', 'Send the link so your friends can join. Up to 8 wizards.')),
         el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me), p.connected || p.bot ? '' : t(' · caiu', ' · dropped'), p.watch ? t(' · assistindo', ' · spectating') : ''), kickBtn(p, act.kick))))),
       // no PC em colunas, lado a lado (Fernando, 19/10: "tá muito vertical"); no celular uma embaixo da outra
       el('div', { class: 'lobby-cols' },
         el('div', { class: 'lobby-col' },
           el('div', { class: 'bots' }, el('span', {}, 'Bots ', infoButton(t('Dificuldade dos bots', 'Bot difficulty'), () => OPT_INFO.difficulty(mode))),
-            el('button', { type: 'button', 'aria-label': t('Menos um bot', 'One less bot'), onclick: () => set(bots.slice(0, -1)) }, '−'), count, el('button', { type: 'button', 'aria-label': t('Mais um bot', 'One more bot'), onclick: () => set([...bots, 'normal']) }, '+')),
+            el('button', { type: 'button', 'aria-label': t('Menos um bot', 'One less bot'), disabled: locked, onclick: () => set(bots.slice(0, -1)) }, '−'), count, el('button', { type: 'button', 'aria-label': t('Mais um bot', 'One more bot'), disabled: locked, onclick: () => set([...bots, 'normal']) }, '+')),
           list,
         ),
-        el('div', { class: 'lobby-col' }, modePicker, optsBlock),
+        el('div', { class: 'lobby-col' }, modePicker, whoPicks, optsBlock),
       ),
       // Começar e Convidar grudados no rodapé enquanto rola as opções
       el('div', { class: 'card-go' },
         el('div', { class: 'card-go-main' }, startBtn, el('button', { type: 'button', class: 'room-back secondary', onclick: () => exitBtn.click() }, '← ', t('Menu principal', 'Main menu'))),
         inviteBtn()),
     );
+    // aviso no hover do que está travado para quem não é o dono
+    if (locked) for (const b of card.querySelectorAll<HTMLElement>('.lobby-cols :disabled')) b.title = t('Só quem criou a sala muda os bots e as opções', 'Only the room creator can change the bots and options');
+    return card;
   }
 
   // "Voltar à sala" e "Sair do desafio": a sala de espera começa com as opções da partida que acabou
@@ -1402,7 +1396,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const itemOffer = (i: ItemId) => {
       const lvl = mine.items[i];
       const price = itemPrice(mine.items, i);
-      return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: itemName(i), hotkey: isActive(i) ? hotkeyOf(i) : null, use: itemText(i), lvl, max: ITEMS[i].levels.length, price,
+      return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: itemName(i), hotkey: null, use: itemText(i), lvl, max: ITEMS[i].levels.length, price,
         blocked: lvl >= ITEMS[i].levels.length ? t('Máximo', 'Max') : price === null ? t('Sem espaço', 'No room') : null, buy: () => act.buyItem(i), tip: () => itemTip(i, lvl),
         bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }) });
     };
@@ -1412,9 +1406,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const grid = SPELL_GROUPS.map(([title, hint, ids]) => group(title, hint, ids.map(spellOffer)));
     // itens numa coluna à esquerda, com cor própria (Fernando, 19/10: distintos das magias e loja mais horizontal)
     const items = () => el('div', { class: 'shop-items' },
-      group(t('Itens passivos', 'Passive items'), itemCount, ITEM_IDS.filter((i): boolean => !isActive(i)).map(itemOffer)),
-      group(t('Itens ativos', 'Active items'), t('cada um com a sua tecla', 'each with its own key'), ACTIVE_ITEMS.map(itemOffer)));
-    if (look) return el('div', { class: 'card shop compact-shop' }, items(), el('div', { class: 'shop-main' },
+      // seções como as magias (Fernando, 21/10); a contagem de itens vai na dica da primeira
+      ...ITEM_GROUPS.map(([title, hint, ids], n) => group(title, n ? hint : `${hint} · ${itemCount}`, ids.map(itemOffer))));
+    // fileiras e títulos da coluna mais alta (magias em 5 colunas, itens em 3): o --tile-h do CSS divide a altura livre por elas
+    const rows = (lists: unknown[][], cols: number) => lists.reduce((n, ids) => n + Math.ceil(ids.length / cols), 0);
+    const itemLists = ITEM_GROUPS.map(([, , ids]) => ids);
+    const fit = `--rows: ${Math.max(rows(SPELL_GROUPS.map(([, , ids]) => ids), 5), rows(itemLists, 3))}; --heads: ${Math.max(SPELL_GROUPS.length, itemLists.length)}`;
+    if (look) return el('div', { class: 'card shop compact-shop', style: fit }, items(), el('div', { class: 'shop-main' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.sandbox ? t('Loja · sandbox', 'Shop · sandbox') : deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${r.sandbox ? 'ouro sem fim: compre e venda, vale na hora' : deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${r.sandbox ? 'endless gold: buy and sell, it applies right away' : deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
         iconButton('✕', t('Fechar a loja', 'Close the shop'), () => togglePeek(false), { class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`) })),
       ...grid),
@@ -1425,7 +1423,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     } }, readyText(mine.ready));
     // compras no meio; ouro, Pronto e placar à direita (pedido do Fernando: loja mais larga; o personagem saiu para o menu principal e as Configurações)
     // título e contagem só aparecem abaixo de 1100×600 (no PC o CSS esconde: a loja ocupa a tela entre as barras)
-    return el('div', { class: 'card shop compact-shop' }, items(), el('div', { class: 'shop-main' },
+    return el('div', { class: 'card shop compact-shop', style: fit }, items(), el('div', { class: 'shop-main' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? t('Loja', 'Shop') : t(`Loja · depois da rodada ${r.round}`, `Shop · after round ${r.round}`)), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells`))),
       ...grid,
       ),
@@ -1448,7 +1446,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     return el('div', { class: 'mode' },
       el('small', { class: 'opts-line' }, optsLine({ ...r.opts, ...r.pendingOpts }, next)),
       el('small', { class: 'muted' }, t('Modo da próxima rodada', 'Next round mode')),
-      choice(t('Modo da próxima rodada', 'Next round mode'), MODES.map((k): [Mode, string] => [k, MODE_NAME[k]]), next, (k) => k !== next && act.vote('mode', k), (k) => !!r.vote && k !== next),
+      choice(t('Modo da próxima rodada', 'Next round mode'), MODES.filter((k) => k !== 'ascension').map((k): [Mode, string] => [k, MODE_NAME[k]]), next, (k) => k !== next && act.vote('mode', k), (k) => !!r.vote && k !== next),
       next === 'teams' ? el('button', { type: 'button', disabled: !!r.vote, onclick: () => act.vote('shuffle') }, t(`Times ${SHUFFLE_NAME(r.pendingShuffle ?? r.teamShuffle)} · trocar`, `Teams ${SHUFFLE_NAME(r.pendingShuffle ?? r.teamShuffle)} · change`)) : null,
       r.pendingMode ? el('small', {}, t(`Próxima rodada: ${MODE_NAME[r.pendingMode]} (os pontos zeram)`, `Next round: ${MODE_NAME[r.pendingMode]} (points reset)`)) : null,
       r.vote ? el('small', { class: 'muted' }, t('Votação aberta no topo da tela.', 'Vote open at the top of the screen.')) : null);
@@ -1479,11 +1477,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         btn(t('Reiniciar a partida', 'Restart the match'), 'restart'),
         btn(t('Encerrar agora (vence quem tem mais pontos)', 'End now (whoever has the most points wins)'), 'end'),
         r.phase === 'shop' ? btn(t('Pular a loja', 'Skip the shop'), 'skipShop') : '',
-        ...MODES.filter((k) => k !== next).map((k) => btn(t(`Trocar para ${MODE_NAME[k]}`, `Switch to ${MODE_NAME[k]}`), 'mode', k)),
+        ...(r.mode === 'ascension' ? [] : MODES.filter((k) => k !== next && k !== 'ascension')).map((k) => btn(t(`Trocar para ${MODE_NAME[k]}`, `Switch to ${MODE_NAME[k]}`), 'mode', k)),
         next === 'teams' ? btn(t(`Times ${SHUFFLE_NAME(!(r.pendingShuffle ?? r.teamShuffle))}`, `Teams ${SHUFFLE_NAME(!(r.pendingShuffle ?? r.teamShuffle))}`), 'shuffle') : ''),
       group(t('Regras', 'Rules'),
         el('small', { class: 'muted' }, optsLine(nextOpts, next)),
-        ...OPT_KEYS.map((k) => el('div', { class: 'opt-row' }, optLabel(k, next),
+        ...optKeys(next).map((k) => el('div', { class: 'opt-row' }, optLabel(k, next),
           ...(OPTION_CHOICES[k] as readonly MatchOpts[OptKey][]).filter((val) => val !== nextOpts[k]).map((val) => btn(optText(k, val, next), 'opt', `${k}:${val}`))))),
       group(t('Jogadores', 'Players'),
         r.players.length + Math.max(0, r.botDelta) < MAX_PLAYERS ? btn(t('Pôr um bot', 'Add a bot'), 'addBot') : '',
@@ -1534,8 +1532,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const entering = r.phase !== centerPhase;
     center.classList.toggle('enter', entering);
     centerPhase = r.phase;
-    center.replaceChildren(r.phase === 'lobby' || (r.phase === 'end' && setup) ? lobbyPanel(r) : r.phase === 'end' ? endPanel(r) : r.phase === 'shop' ? shopPanel(r) : '');
-    const shopOpen = r.phase === 'shop';
+    center.replaceChildren(r.phase === 'lobby' || (r.phase === 'end' && setup) ? lobbyPanel(r) : r.phase === 'end' ? endPanel(r) : r.phase === 'shop' ? (r.mode === 'ascension' ? ascPanel(r, me, act, dialog, [board(r, me, act.kick)]) : shopPanel(r)) : '');
+    const shopOpen = r.phase === 'shop' && r.mode !== 'ascension'; // Ascensão: as cartas não usam o tamanho guardado da loja
+    center.classList.toggle('asc-open', r.phase === 'shop' && r.mode === 'ascension');
     if (shopOpen !== center.classList.contains('shop-open')) {
       center.classList.toggle('shop-open', shopOpen);
       const size = shopOpen ? store.json<[string, string]>(SHOP_SIZE) : null;
@@ -1557,18 +1556,18 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   function drawTops() {
     if (!room) return;
     const r = room;
-    const sig = [me, r.mode, ...r.players.map((p) => [p.id, p.name, p.character, p.color, p.team, p.score].join(':'))].join();
+    const sig = [me, r.mode, ...r.players.map((p) => [p.id, p.name, p.character, p.color, p.team, p.score, p.asc?.level].join(':'))].join();
     if (sig === tops.dataset.sig) return;
     tops.dataset.sig = sig;
     topCells.clear();
     shownDead = null; // o próximo frame reaplica quem está caído
-    const unit = (n: number) => r.mode === 'deathmatch' ? (n === 1 ? t('ponto', 'point') : t('pontos', 'points')) : n === 1 ? t('vitória', 'win') : t('vitórias', 'wins');
+    const unit = (n: number) => r.mode === 'deathmatch' || r.mode === 'ascension' ? (n === 1 ? t('ponto', 'point') : t('pontos', 'points')) : n === 1 ? t('vitória', 'win') : t('vitórias', 'wins');
     const cell = (p: PublicPlayer) => {
       const name = `${p.name}${p.id === me ? t(' (você)', ' (you)') : ''}: ${p.score} ${unit(p.score)}`;
       const dmg = el('span', {}, String(Math.round(live[p.id]?.dmg ?? 0)));
       const kills = el('span', {}, String(live[p.id]?.kills ?? 0));
       const c = el('li', { class: 'top-p' + (p.id === me ? ' me' : ''), style: `--pc:${COLORS[p.color]}`, title: name, 'aria-label': name },
-        el('span', { class: 'top-name' }, p.name), el('b', { class: 'top-wins', title: unit(p.score) }, String(p.score)),
+        el('span', { class: 'top-name' }, p.name), ascLevel(r, p), el('b', { class: 'top-wins', title: unit(p.score) }, String(p.score)),
         el('span', { class: 'top-stat', title: t('Dano na rodada', 'Damage this round') }, icon(UI_ICON.dmg), dmg),
         el('span', { class: 'top-stat', title: t('Abates na rodada', 'Kills this round') }, icon(UI_ICON.kills), kills));
       topCells.set(p.id, { c, name, dmg, kills });
@@ -1666,21 +1665,25 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       phaseEndsAt = performance.now() + r.phaseLeft;
       setOnline(isOnline);
       // loja só para ver: botão só durante a rodada; fecha sozinha quando a loja de verdade abre (ou a partida acaba)
-      peekBtn.hidden = !PEEK_PHASES.includes(r.phase);
+      peekBtn.hidden = !PEEK_PHASES.includes(r.phase) || r.mode === 'ascension'; // Ascensão: sem loja
       if (!peekPanel.hidden && !PEEK_PHASES.includes(r.phase)) togglePeek(false);
       else drawPeek();
       drawSandbox(r);
       roundEl.textContent = [
         // sala de espera e fim da partida: a rodada já não diz nada
         r.sandbox && r.phase !== 'lobby' && r.phase !== 'end' ? t('Sandbox · vida e ouro sem fim', 'Sandbox · endless health and gold')
-          : r.round > 0 && r.phase !== 'lobby' && r.phase !== 'end' ? (r.mode === 'deathmatch' ? t(`Deathmatch · rodada ${r.round} · ${r.goal} abates para vencer`, `Deathmatch · round ${r.round} · ${r.goal} kills to win`) : t(`${r.mode === 'teams' ? 'Times · ' : ''}Rodada ${r.round} · vence quem fizer ${r.goal}`, `${r.mode === 'teams' ? 'Teams · ' : ''}Round ${r.round} · first to ${r.goal} wins`)) : '',
+          : r.round > 0 && r.phase !== 'lobby' && r.phase !== 'end' ? (r.mode === 'deathmatch' ? t(`Deathmatch · rodada ${r.round} · ${r.goal} abates para vencer`, `Deathmatch · round ${r.round} · ${r.goal} kills to win`) : r.mode === 'ascension' ? t(`Ascensão · rodada ${r.round} de ${r.goal}`, `Ascension · round ${r.round} of ${r.goal}`) : t(`${r.mode === 'teams' ? 'Times · ' : ''}Rodada ${r.round} · vence quem fizer ${r.goal}`, `${r.mode === 'teams' ? 'Teams · ' : ''}Round ${r.round} · first to ${r.goal} wins`)) : '',
+        // na loja o efeito já é o da próxima rodada (sorteado antes, para comprar sabendo)
+        // só o nome: a descrição longa (Arena de espinhos) passava por cima do aviso "Arena encolhe em X s" no centro; ela fica na dica
+        r.effect && r.phase === 'shop' ? t(`Próxima rodada: ${effectName(r.effect, r.mode)}`, `Next round: ${effectName(r.effect, r.mode)}`)
+          : r.effect && PEEK_PHASES.includes(r.phase) ? effectName(r.effect, r.mode) : '',
         r.pendingMode && r.phase !== 'end' ? t(`Próxima rodada: ${MODE_NAME[r.pendingMode]}`, `Next round: ${MODE_NAME[r.pendingMode]}`) : '',
         r.pendingShuffle !== null && r.phase !== 'end' ? t(`Próxima rodada: times ${SHUFFLE_NAME(r.pendingShuffle)}`, `Next round: teams ${SHUFFLE_NAME(r.pendingShuffle)}`) : '',
       ].filter(Boolean).join(' · ');
+      roundEl.title = r.effect && (r.phase === 'shop' || PEEK_PHASES.includes(r.phase)) ? `${effectName(r.effect, r.mode)}: ${effectText(r.effect, r.mode)}` : '';
       tops.hidden = !PEEK_PHASES.includes(r.phase); // contagem, rodada e fim da rodada
       drawTops();
       mine = r.players.find((p) => p.id === you);
-      for (const i of ACTIVE_ITEMS) itemButtons.get(i)!.b.hidden = !mine?.items[i];
       // meu retrato na barra: só troca quando muda o personagem ou o nome
       const face = mine ? `/chars/${mine.character}.webp` : '';
       if (mine && heroFace.getAttribute('src') !== face) heroFace.src = face;
@@ -1694,7 +1697,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       }
       barOff = r.phase === 'lobby' || r.phase === 'end' || (r.phase === 'shop' && !SHOP_BAR.matches) || !mine;
       syncBar();
-      goldNow.replaceChildren(gold(mine?.gold ?? 0));
+      goldNow.replaceChildren(r.mode === 'ascension' ? '' : gold(mine?.gold ?? 0)); // Ascensão: sem ouro
+      const stats = mine ? sheet(mine.spells, mine.items).filter((row) => row.key! in STAT_ICON) : [];
+      const statSig = JSON.stringify(stats);
+      if (heroStats.dataset.sig !== statSig) {
+        heroStats.dataset.sig = statSig;
+        heroStats.replaceChildren(...stats.map((row) => withTip(el('span', { tabindex: 0, 'aria-label': `${row.label}: ${row.value}` }, icon(STAT_ICON[row.key!]), row.value + (row.key === 'regen' ? '/s' : '')),
+          () => `<b>${row.label}</b>: ${row.value}${row.from ? `<br><small>${row.from}</small>` : ''}`)));
+      }
       const tabPhase = TAB_PHASES.includes(r.phase);
       tabBtn.hidden = !tabPhase;
       if (!tabOverlay.hidden) showTab(tabPhase);
@@ -1713,7 +1723,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // a cada quadro: recargas, magia escolhida e o relógio da fase
     // hp: minha vida e o máximo, só jogando e vivo (null esconde a barra grande); dead: ids caídos na rodada, separados por vírgula
     // fx: pares [bit, segundos que faltam] dos meus efeitos com prazo (snap.fx)
-    frame(cd: number[], icd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '', fx: number[] = []) {
+    frame(cd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '', fx: number[] = []) {
       if (dead !== shownDead) {
         shownDead = dead;
         const down = new Set(dead.split(','));
@@ -1756,7 +1766,6 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         cooled(b, left);
         b.classList.toggle('armed', armed === a);
       };
-      ACTIVE_ITEMS.forEach((i, k) => tick(i, itemButtons.get(i)!, icd[k]));
       SPELL_IDS.forEach((s, i) => tick(s, buttons.get(s)!, cd[i]));
       if (!room) return;
       // fps e ping: atualizam 2 vezes por segundo; fps verde a partir de 50, dourado a partir de 30; ping verde até 80 ms, dourado até 150, vermelho acima

@@ -4,9 +4,9 @@ import {
 } from '../shared/constants.ts';
 import { DEFAULT_OPTS, DM_GOALS, OPTION_CHOICES } from '../shared/match.ts';
 import { CLASH } from '../shared/sim.ts';
-import { ITEMS, MAX_ITEMS, SCOURGE } from '../shared/items.ts';
+import { ITEMS, MAX_ITEMS, type ItemId } from '../shared/items.ts';
 import { keyLabel, keyOf, padButtonName, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
-import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, RECHARGE, RUSH, SPELLS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
+import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, RECHARGE, RUSH, SPELLS, SPELL_GROUP_IDS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
 import { LANG, LOCALE, spellName, t } from './i18n.ts';
 
 // formatação dos números nos textos (também usada pela loja, ficha, dicas e opções)
@@ -49,7 +49,7 @@ const RULES_PT = {
       'Roda do mouse: zoom. Espaço + arrastar com o botão esquerdo: mover a câmera; Espaço sozinho volta ao centro.',
       `${k('board')} (segurar): placar; com ele aberto, ← → troca entre Rodada, Partida e Sala.`,
       `${k('taunt')}: provocações. ${sheet}: ficha do mago. ${k('shop')}: loja só para ver durante a rodada (o jogo não pausa; ${k('shop')}, Esc ou ✕ fecham). ${k('rules')}: este grimório.${keyOf('vote') ? ` ${k('vote')}: votar.` : ''}`,
-      'Dá para trocar a tecla de cada magia e item em Configurações > Lançamento e a de cada atalho em Configurações > Teclas (Esc ou a engrenagem no topo), ou usar Q W E R D F pela ordem da barra (fica salvo no navegador).',
+      'Dá para trocar a tecla de cada magia em Configurações > Lançamento e a de cada atalho em Configurações > Teclas (Esc ou a engrenagem no topo), ou usar 1 2 3 4 Q W E R pela ordem da barra (fica salvo no navegador).',
     ];
   },
   get controle() {
@@ -57,7 +57,7 @@ const RULES_PT = {
     return [
       'Ligue o controle (Xbox ou PlayStation) e aperte qualquer botão: aparece "Controle conectado" e a barra mostra os botões do controle.',
       'Analógico esquerdo: andar. Analógico direito: mirar (o anel dourado no chão mostra onde). Sem mirar, a magia vai para onde você anda.',
-      `${join((['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6'] as const).map(b), 'e')}: as magias pela ordem da barra. ${b('item1')}, ${b('item2')} e ${b('item3')}: itens ativos 1, 2 e 3.`,
+      `${join((['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8'] as const).map(b), 'e')}: as magias pela ordem da barra.`,
       `Start (Options): o Esc do controle (fecha o que estiver aberto; sem nada aberto, abre e fecha as configurações). ${b('board')} segurado: placar. ${b('sheet')}: ficha do mago. ${b('center')}: centraliza a câmera. ${b('shop')}: loja só para ver.`,
       'Os botões da partida se trocam em Configurações > Controle (desenho do controle: clique no botão e aperte o novo).',
       'Menus e loja: D-pad ou analógico esquerdo anda entre os botões, A confirma (o Pronto da loja começa focado), B volta ou fecha, X desfaz ou vende, Y mostra a dica, LB e RB pulam entre os grupos.',
@@ -84,7 +84,7 @@ const RULES_PT = {
     'Magia em aliado só empurra: não tira vida nem dá abate. Míssil, Ricochete, Gravidade e Agarrar só pegam inimigos; a Troca com aliado vale.',
   ],
   opcoes: [
-    `Quem começa a partida escolhe o modo e as opções na sala de espera: tempo de loja (${list(OPTION_CHOICES.shop)} s), ouro ganho (×${list(OPTION_CHOICES.economy.map(n1))}), ouro inicial (${list(OPTION_CHOICES.startGold)}), meta e arena. Runas e baús dá para desligar. Embaixo do número de bots, cada bot tem a sua dificuldade (Fácil, Normal, Difícil ou Automático); bot votado no meio da partida entra Normal.`,
+    `Quem começa a partida escolhe o modo e as opções na sala de espera: tempo de loja (${list(OPTION_CHOICES.shop)} s), ouro ganho (×${list(OPTION_CHOICES.economy.map(n1))}), ouro inicial (${list(OPTION_CHOICES.startGold)}), meta e arena. Runas e baús dá para desligar. Embaixo do número de bots, cada bot tem a sua dificuldade (Fácil, Casual, Normal, Veterano, Difícil ou Automático, o padrão); bot votado no meio da partida entra Automático.`,
     `Votar, no topo: trocar o modo, mudar uma opção, sortear ou fixar os times, pôr ou tirar um bot, pular a loja, reiniciar, encerrar ou expulsar alguém. Passa com mais da metade; fecha em ${VOTE_MS / 1000} s e vale na próxima rodada.`,
   ],
   arenas: [
@@ -128,7 +128,7 @@ const RULES_PT = {
     `Guarde uma magia de fuga (Teleporte, Investida, Troca) para quando cair na lava: são ${LAVA_DPS} de vida por segundo.`,
     'Prenda (Agarrar, Elo, Bola de neve) e emende a magia mais forte: o golpe que solta o Agarrar empurra mais.',
     'Combine: Magnetizar + projéteis, Gravidade + Meteoro, Pacto + Bola de fogo perto da borda.',
-    `Flagelo: ${n1(SCOURGE.windup)} s de preparo e ${n1(SCOURGE.cd)} s de recarga; use quando alguém encostar em você. A explosão também destrói Bolas de fogo e Mísseis inimigos em volta. O Teleporte cancela o preparo.`,
+    `Flagelo: ${n1(CAST_POINT.scourge)} s de preparo e ${n1(L1('scourge').cd)} s de recarga; use quando alguém encostar em você. A explosão também destrói Bolas de fogo e Mísseis inimigos em volta. O Teleporte cancela o preparo.`,
     'Na loja, passe o mouse (ou toque) numa magia para ver os números do nível atual e do próximo.',
   ],
   creditos: [
@@ -166,7 +166,7 @@ const RULES_EN: typeof RULES_PT = {
       'Mouse wheel: zoom. Space + drag with the left button: move the camera; Space alone recenters.',
       `${k('board')} (hold): scoreboard; with it open, ← → switches between Round, Match and Room.`,
       `${k('taunt')}: taunts. ${sheet}: wizard sheet. ${k('shop')}: view-only shop during the round (the game does not pause; ${k('shop')}, Esc or ✕ close it). ${k('rules')}: this grimoire.${keyOf('vote') ? ` ${k('vote')}: vote.` : ''}`,
-      'You can rebind the key of each spell and item in Settings > Casting and of each shortcut in Settings > Keys (Esc or the gear at the top), or use Q W E R D F in bar order (saved in the browser).',
+      'You can rebind the key of each spell in Settings > Casting and of each shortcut in Settings > Keys (Esc or the gear at the top), or use 1 2 3 4 Q W E R in bar order (saved in the browser).',
     ];
   },
   get controle() {
@@ -174,7 +174,7 @@ const RULES_EN: typeof RULES_PT = {
     return [
       'Plug in the controller (Xbox or PlayStation) and press any button: "Controller connected" appears and the bar shows the controller buttons.',
       'Left stick: walk. Right stick: aim (the golden ring on the ground shows where). Without aiming, the spell goes where you walk.',
-      `${join((['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6'] as const).map(b), 'and')}: the spells in bar order. ${b('item1')}, ${b('item2')} and ${b('item3')}: active items 1, 2 and 3.`,
+      `${join((['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8'] as const).map(b), 'and')}: the spells in bar order.`,
       `Start (Options): the controller's Esc (closes whatever is open; with nothing open, opens and closes the settings). ${b('board')} held: scoreboard. ${b('sheet')}: wizard sheet. ${b('center')}: centers the camera. ${b('shop')}: view-only shop.`,
       'The in-match buttons are changed in Settings > Controller (controller drawing: click the button and press the new one).',
       "Menus and shop: D-pad or left stick moves between buttons, A confirms (the shop's Ready starts focused), B goes back or closes, X undoes or sells, Y shows the tip, LB and RB jump between groups.",
@@ -201,7 +201,7 @@ const RULES_EN: typeof RULES_PT = {
     'Spells on an ally only knock back: no damage and no kill. Homing Missile, Bouncer, Gravity and Grip only hit enemies; Swap with an ally works.',
   ],
   opcoes: [
-    `Whoever starts the match picks the mode and options in the lobby: shop time (${list(OPTION_CHOICES.shop)} s), gold earned (×${list(OPTION_CHOICES.economy.map(n1))}), starting gold (${list(OPTION_CHOICES.startGold)}), goal and arena. Runes and chests can be turned off. Below the bot count, each bot has its own difficulty (Easy, Normal, Hard or Auto); a bot voted in mid-match joins on Normal.`,
+    `Whoever starts the match picks the mode and options in the lobby: shop time (${list(OPTION_CHOICES.shop)} s), gold earned (×${list(OPTION_CHOICES.economy.map(n1))}), starting gold (${list(OPTION_CHOICES.startGold)}), goal and arena. Runes and chests can be turned off. Below the bot count, each bot has its own difficulty (Easy, Casual, Normal, Veteran, Hard or Auto, the default); a bot voted in mid-match joins on Auto.`,
     `Vote, at the top: change the mode, change an option, shuffle or fix the teams, add or remove a bot, skip the shop, restart, end or kick someone. Passes with more than half; closes in ${VOTE_MS / 1000} s and takes effect next round.`,
   ],
   arenas: [
@@ -245,7 +245,7 @@ const RULES_EN: typeof RULES_PT = {
     `Keep an escape spell (Teleport, Rush, Swap) for when you fall into the lava: that is ${LAVA_DPS} health per second.`,
     'Pin them down (Grip, Link, Snowball) and follow up with your strongest spell: the hit that releases the Grip knocks back farther.',
     'Combine: Magnetize + projectiles, Gravity + Meteor, Pact + Fireball near the edge.',
-    `Scourge: ${n1(SCOURGE.windup)} s of windup and ${n1(SCOURGE.cd)} s of cooldown; use it when someone gets on top of you. The blast also destroys enemy Fireballs and Missiles around you. Teleport cancels the windup.`,
+    `Scourge: ${n1(CAST_POINT.scourge)} s of windup and ${n1(L1('scourge').cd)} s of cooldown; use it when someone gets on top of you. The blast also destroys enemy Fireballs and Missiles around you. Teleport cancels the windup.`,
     'In the shop, hover (or tap) a spell to see the numbers for the current and the next level.',
   ],
   creditos: [
@@ -284,6 +284,8 @@ const SPELL_TIPS_PT: SpellTips = {
   windwalk: ['Fique invisível, chegue perto e encoste: o primeiro inimigo leva dano. Também serve para fugir sem ser visto.', `Lançar qualquer magia desfaz; dura ${n1(L1('windwalk').duration)} s.`],
   splitter: ['Estoura no ponto (ou no primeiro que tocar) em 8 projéteis em leque: cobre uma área ou acerta quem está atrás de obstáculo.', 'Cada filhote é fraco; de longe eles se espalham.'],
   warpzone: [`Ponha entre você e os projéteis: dentro dela os projéteis inimigos andam a ${pct(L1('warpzone').scale)} (nível 1) e os inimigos a ${pct(WARPZONE.wizMult)} da velocidade.`, 'Não para o Raio nem áreas.'],
+  scourge: [`Encostaram em você: explode em volta depois de ${n1(CAST_POINT.scourge)} s, empurra quem está perto e destrói Bolas de fogo e Mísseis inimigos. Ao explodir, o empurrão que você está sofrendo acaba.`, 'Dá para sair do raio durante o preparo; o Teleporte cancela o seu. O Escudo não segura.'],
+  pact: [`A próxima magia de dano em ${n1(L1('pact').duration)} s sai ${n1(PACT.mult)}× mais forte: lance o Pacto e emende um golpe perto da borda.`, 'Errar o golpe seguinte desperdiça o Pacto.'],
 };
 
 const SPELL_TIPS_EN: SpellTips = {
@@ -312,6 +314,8 @@ const SPELL_TIPS_EN: SpellTips = {
   windwalk: ['Turn invisible, get close and touch: the first enemy takes damage. Also works to flee unseen.', `Casting any spell cancels it; lasts ${n1(L1('windwalk').duration)} s.`],
   splitter: ['Bursts at the point (or at the first thing it touches) into 8 projectiles in a fan: covers an area or hits someone behind an obstacle.', 'Each fragment is weak; from afar they spread out.'],
   warpzone: [`Place it between you and the projectiles: inside it enemy projectiles move at ${pct(L1('warpzone').scale)} (level 1) and enemies at ${pct(WARPZONE.wizMult)} of their speed.`, 'Does not stop Lightning or areas.'],
+  scourge: [`Someone got on top of you: it blasts around you after ${n1(CAST_POINT.scourge)} s, knocks back anyone close and destroys enemy Fireballs and Missiles. When it blasts, the knockback you are taking stops.`, 'You can leave the radius during the windup; Teleport cancels yours. The Shield does not stop it.'],
+  pact: [`Your next damage spell within ${n1(L1('pact').duration)} s comes out ${n1(PACT.mult)}× stronger: cast the Pact and follow with a hit near the edge.`, 'Missing the next hit wastes the Pact.'],
 };
 export { SPELL_TIPS_EN, SPELL_TIPS_PT };
 export const SPELL_TIPS = LANG === 'en' ? SPELL_TIPS_EN : SPELL_TIPS_PT;
@@ -319,15 +323,9 @@ export const SPELL_TIPS = LANG === 'en' ? SPELL_TIPS_EN : SPELL_TIPS_PT;
 // grimório: o que a demonstração do item mostra (itens sem demonstração não aparecem aqui)
 type ItemDemo = Partial<Record<keyof typeof ITEMS, string>>;
 const ITEM_DEMO_PT: ItemDemo = {
-  scourge: 'Você explode em volta e empurra os dois magos de treino.',
-  redirector: 'A Bola de fogo sai para o lado e o Redirecionador a desvia para o mago de treino.',
-  pact: 'Pacto e depois Bola de fogo: dano e empurrão dobrados.',
   aegis: 'O mago de treino tem a Égide: cai na lava com pouca vida e volta para a pedra.',
 };
 const ITEM_DEMO_EN: ItemDemo = {
-  scourge: 'You blast outward and knock back both practice wizards.',
-  redirector: 'The Fireball goes off to the side and the Redirector bends it toward the practice wizard.',
-  pact: 'Pact, then Fireball: double damage and knockback.',
   aegis: 'The practice wizard has the Aegis: falls into the lava with low health and returns to the rock.',
 };
 export { ITEM_DEMO_EN, ITEM_DEMO_PT };
@@ -335,17 +333,19 @@ export const ITEM_DEMO = LANG === 'en' ? ITEM_DEMO_EN : ITEM_DEMO_PT;
 
 // loja e ajuda: magias agrupadas pelo efeito principal (o que cada uma faz está em RULES_SHORT)
 type SpellGroups = [name: string, hint: string, spells: SpellId[]][];
+// as listas moram em spells.ts (SPELL_GROUP_IDS), que o sorteio das cartas do Ascensão também usa
+const G = SPELL_GROUP_IDS;
 const SPELL_GROUPS_PT: SpellGroups = [
-  ['Ataque', 'dano e empurrão', ['fireball', 'lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball']],
-  ['Mobilidade', 'sair do lugar', ['teleport', 'swap', 'rush', 'thrust', 'windwalk']],
-  ['Defesa', 'parar o que vem', ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion']],
-  ['Controle', 'prender, puxar, atrasar', ['grip', 'gravity', 'link', 'magnetize', 'drain']],
+  ['Ataque', 'dano e empurrão', [...G.attack]],
+  ['Mobilidade', 'sair do lugar', [...G.mobility]],
+  ['Defesa', 'parar o que vem', [...G.defense]],
+  ['Controle', 'prender, puxar, atrasar', [...G.control]],
 ];
 const SPELL_GROUPS_EN: SpellGroups = [
-  ['Attack', 'damage and knockback', ['fireball', 'lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball']],
-  ['Mobility', 'get out of the way', ['teleport', 'swap', 'rush', 'thrust', 'windwalk']],
-  ['Defense', 'stop what is coming', ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion']],
-  ['Control', 'grip, pull, slow', ['grip', 'gravity', 'link', 'magnetize', 'drain']],
+  ['Attack', 'damage and knockback', [...G.attack]],
+  ['Mobility', 'get out of the way', [...G.mobility]],
+  ['Defense', 'stop what is coming', [...G.defense]],
+  ['Control', 'grip, pull, slow', [...G.control]],
 ];
 export { SPELL_GROUPS_EN, SPELL_GROUPS_PT };
 export const SPELL_GROUPS = LANG === 'en' ? SPELL_GROUPS_EN : SPELL_GROUPS_PT;
@@ -353,6 +353,12 @@ export const SPELL_GROUPS = LANG === 'en' ? SPELL_GROUPS_EN : SPELL_GROUPS_PT;
 const GROUP_CLASS_EN: Record<string, string> = { attack: 'ataque', mobility: 'mobilidade', defense: 'defesa', control: 'controle' };
 export const groupClass = (name: string) => 'g-' + (GROUP_CLASS_EN[name.toLowerCase()] ?? name.toLowerCase());
 export const spellClass = (s: SpellId) => groupClass(SPELL_GROUPS.find(([, , ids]) => ids.includes(s))?.[0] ?? '');
+// loja: itens passivos em seções como as magias (Fernando, 21/10), pelo efeito principal
+type ItemGroups = [name: string, hint: string, items: ItemId[]][];
+const IG: Record<string, ItemId[]> = { life: ['ring', 'cape', 'vampire'], move: ['boots', 'shock_boots', 'wind_boots', 'lava_boots'], guard: ['armor', 'helmet', 'warden', 'cursed_ring', 'aegis', 'watch'] };
+const ITEM_GROUPS_PT: ItemGroups = [['Vida', 'mais vida e cura', IG.life], ['Movimento', 'correr e pisar na lava', IG.move], ['Proteção', 'menos empurrão, dano e lentidão', IG.guard]];
+const ITEM_GROUPS_EN: ItemGroups = [['Health', 'more health and healing', IG.life], ['Movement', 'run and step on lava', IG.move], ['Protection', 'less knockback, damage and slows', IG.guard]];
+export const ITEM_GROUPS = LANG === 'en' ? ITEM_GROUPS_EN : ITEM_GROUPS_PT;
 
 // para que serve, em uma linha (cartão da loja)
 const SPELL_USE_PT: Record<SpellId, string> = {
@@ -381,6 +387,8 @@ const SPELL_USE_PT: Record<SpellId, string> = {
   link: 'Puxa o inimigo, ou você até um obstáculo.',
   magnetize: 'Atrai para o alvo os projéteis dos outros.',
   drain: 'Deixa lento e devolve vida a você.',
+  scourge: 'Afasta quem encostar e para o seu empurrão.',
+  pact: 'Dobra o próximo golpe de dano.',
 };
 const SPELL_USE_EN: Record<SpellId, string> = {
   fireball: 'Basic attack: knocks back from afar.',
@@ -408,6 +416,8 @@ const SPELL_USE_EN: Record<SpellId, string> = {
   link: 'Pulls the enemy, or you to an obstacle.',
   magnetize: "Draws other casters' projectiles to the target.",
   drain: 'Slows enemies and gives health back to you.',
+  scourge: 'Pushes away whoever gets close and stops your knockback.',
+  pact: 'Doubles your next damage hit.',
 };
 export { SPELL_USE_EN, SPELL_USE_PT };
 export const SPELL_USE = LANG === 'en' ? SPELL_USE_EN : SPELL_USE_PT;
@@ -438,6 +448,8 @@ const RULES_SHORT_PT: Record<SpellId, string> = {
   windwalk: `Invisível e mais rápido por ${n1(L1('windwalk').duration)} s; o primeiro inimigo em que encostar leva dano. Lançar magia desfaz.`,
   splitter: 'Estoura no ponto (ou no primeiro que tocar) em 8 projéteis que se abrem em leque.',
   warpzone: 'Esfera que deixa lentos os projéteis inimigos que passam por ela e os inimigos que andam dentro dela.',
+  scourge: `Explode em volta depois de ${n1(CAST_POINT.scourge)} s: empurra quem está perto e destrói projéteis inimigos; ao explodir, acaba o empurrão que você está sofrendo.`,
+  pact: `A próxima magia de dano em ${n1(L1('pact').duration)} s faz ${n1(PACT.mult)}× de dano e empurrão.`,
 };
 const RULES_SHORT_EN: Record<SpellId, string> = {
   fireball: 'Straight projectile. Medium damage and knockback.',
@@ -465,6 +477,8 @@ const RULES_SHORT_EN: Record<SpellId, string> = {
   windwalk: `Invisible and faster for ${n1(L1('windwalk').duration)} s; the first enemy you touch takes damage. Casting a spell cancels it.`,
   splitter: 'Bursts at the point (or at the first thing it touches) into 8 projectiles that fan out.',
   warpzone: 'Sphere that slows enemy projectiles passing through it and enemies walking inside it.',
+  scourge: `Blasts around you after ${n1(CAST_POINT.scourge)} s: knocks back anyone close and destroys enemy projectiles; when it blasts, the knockback you are taking stops.`,
+  pact: `Your next damage spell within ${n1(L1('pact').duration)} s deals ${n1(PACT.mult)}× damage and knockback.`,
 };
 export { RULES_SHORT_EN, RULES_SHORT_PT };
 export const RULES_SHORT = LANG === 'en' ? RULES_SHORT_EN : RULES_SHORT_PT;

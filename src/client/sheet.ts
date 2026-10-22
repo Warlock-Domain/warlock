@@ -1,14 +1,14 @@
 // Ficha do mago: os números de agora (vida, velocidade, empurrão, magias e itens) e de onde vem cada um.
 // Sem DOM: a loja e a partida desenham a partir daqui, e a prévia de compra ou venda compara duas fichas.
 import { HP_MAX, HP_REGEN, LAVA_DPS, WIZ_SPEED } from '../shared/constants.ts';
-import { ACTIVE_ITEMS, ITEM_IDS, itemStats, noItems, type ItemId } from '../shared/items.ts';
+import { ITEM_IDS, itemStats, noItems, type ItemId } from '../shared/items.ts';
 import { SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { labelOf } from './keys.ts';
 import { n1, pct } from './rules-text.ts';
 import { ITEM_ROWS, SPELL_ROWS } from './tips.ts';
 import { LOCALE, itemName, spellName, t } from './i18n.ts';
 
-export type SheetRow = { group: string; label: string; value: string; from?: string };
+export type SheetRow = { group: string; label: string; value: string; from?: string; key?: string };
 export const BASE = t('Mago', 'Wizard');
 
 const n2 = (x: number) => x.toLocaleString(LOCALE, { maximumFractionDigits: 2 });
@@ -34,7 +34,7 @@ export function sheet(spells: Record<SpellId, number>, items: Record<ItemId, num
     // origem: a parte de cada item que mexe neste campo
     const from = ITEM_IDS.filter((i) => items[i] > 0).map((i) => [i, (itemStats({ ...noItems(), [i]: items[i] }) as Record<string, number>)[k]] as const)
       .filter(([, x]) => x).map(([i, x]) => t(`${part(x)} de ${itemName(i)} nível ${items[i]}`, `${part(x)} from ${itemName(i)} level ${items[i]}`)).join(' · ');
-    return { group: BASE, label, value: total(st[k]), from: from || undefined };
+    return { key: k, group: BASE, label, value: total(st[k]), from: from || undefined };
   });
   const rangeF = 1 + (st.range ?? 0);
   for (const s of SPELL_IDS) {
@@ -44,12 +44,6 @@ export function sheet(spells: Record<SpellId, number>, items: Record<ItemId, num
     const shown = { ...L, range: L.range * rangeF }; // o Elmo encurta o alcance de todas as magias
     rows.push({ group: spellName(s), label: t('Nível', 'Level'), value: t(`${lvl} · tecla ${labelOf(s)}`, `${lvl} · key ${labelOf(s)}`) });
     for (const [label, f] of SPELL_ROWS[s]) rows.push({ group: spellName(s), label, value: f(shown) });
-  }
-  for (const i of ACTIVE_ITEMS) {
-    const lvl = items[i];
-    if (!lvl) continue;
-    rows.push({ group: itemName(i), label: t('Nível', 'Level'), value: t(`${lvl} · tecla ${labelOf(i)}`, `${lvl} · key ${labelOf(i)}`) });
-    for (const [label, value] of ITEM_ROWS[i]?.(lvl - 1) ?? []) rows.push({ group: itemName(i), label, value });
   }
   return rows;
 }

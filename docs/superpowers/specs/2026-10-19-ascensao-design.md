@@ -18,6 +18,7 @@ Um quarto modo de partida, "meio roguelike, tipo o ARAM do LoL com as cartinhas 
 - **Aumentos** (cartas que mudam como uma magia funciona, ex.: "Bola de fogo quica"): ficam para a 2ª leva. Lista proposta no artefato.
 - Ouro, loja, venda e desfazer no Ascensão.
 - Mudar os modos atuais (Rodadas, Deathmatch, Times) ou os números das magias e itens.
+- Rebalancear magias para o Ascensão (decisão de 21/10): as magias e os itens entram com os números de hoje; o simulador só ajusta o que é do modo (XP, curva de níveis, pontos, peso no sorteio e raridade).
 
 ## Anti-objetivos
 
@@ -40,6 +41,11 @@ Um quarto modo de partida, "meio roguelike, tipo o ARAM do LoL com as cartinhas 
 | Recuperação | As 4: recompensa por derrubar o líder, XP de consolação, cartas melhores para quem está atrás, líder marcado leva mais empurrão |
 | Baús | Não existem no Ascensão (a opção some da sala nesse modo) |
 | Bots | Escolhem pela dificuldade: Fácil ao acaso; Normal completa grupos que faltam (defesa/mobilidade antes de mais ataque); Difícil escolhe a carta que mais vence no simulador |
+| Crédito de abate por controle (21/10) | Troca, Agarrar e Magnetizar contam como golpe para o crédito do abate (janela de 5 s), **em todos os modos**: "no jogo normal tbm deve contar". Fica em issue própria, fora do Ascensão; o modo só herda |
+| Cartas por intervalo (21/10) | Todo intervalo dá 1 magia nova e 1 item ("no modo assencao todo round deve ganhar ... 1 magia nova e 1 item"); cada nível de XP dá 1 subir magia. Cada escolha é 1 entre 3 cartas do mesmo tipo. Substitui "cada nível = 1 carta de qualquer tipo" |
+| Ritmo e troca (21/10, pela simulação de 1 430 partidas) | Nível custa 1 100 XP (1,3 subir magia por intervalo; com 600 eram 2,8). Com a barra cheia, a fileira de magia nova pode ser recusada ("Manter as minhas magias"); o tempo esgotado e os bots mantêm em vez de trocar |
+| Intervalo (21/10, depois de jogar) | As fileiras não fecham depois da escolha: a carta fica marcada e dá para trocar; as escolhas só valem no fim do intervalo. Quando todos escolheram, o intervalo acaba em 5 s. Na troca com a barra cheia, a magia nova herda o nível da que sai ("nao fechar os menus dps q vc escolhe", "countdown de 5 segundos", "a magia q vc recebe recebe os niveis q a magia q esta sendo trocada recebeu") |
+| Magias no modo (21/10) | "Por enquanto o modo Ascension vai ser sem skills rebalanceadas": mesmos números de `spells.ts` e `items.ts` dos outros modos |
 
 ## Como funciona
 
@@ -51,7 +57,7 @@ Um quarto modo de partida, "meio roguelike, tipo o ARAM do LoL com as cartinhas 
 
 ## Cartas
 
-- **Magia nova:** entra no nível 1, no próximo espaço livre. Com a barra cheia (`MAX_SPELLS` = 6), o jogador escolhe qual trocar.
+- **Magia nova:** entra no nível 1, no próximo espaço livre. Com a barra cheia (`MAX_SPELLS` = 6), o jogador escolhe qual trocar ou mantém as suas (21/10).
 - **Subir magia:** +1 nível numa magia que já tem (usa os 7 níveis de `spells.ts`).
 - **Item:** os itens de `items.ts`; item repetido sobe de nível (como hoje na loja).
 - Sorteio com semente (`rand` recebido, nunca `Math.random`): as 3 cartas não repetem e cobrem pelo menos 2 tipos/grupos diferentes, para não virem 3 de ataque.
@@ -83,7 +89,7 @@ Curva de níveis calibrada para dar em média 1 a 2 escolhas por intervalo.
 - **Critério dos 40%:** medido com bots Normais (o Difícil, por desenho, prefere as fortes).
 - **Alavancas de balanceamento do modo:** peso no sorteio e raridade da carta, ajustados em ciclo pelo simulador sem parar a cada carta; tirar uma carta do sorteio ou mexer em número de magia/item continua precisando do Fernando.
 - **Empate após a rodada 9:** desempate pelo dano total da partida.
-- **Tempo do intervalo esgotado:** escolha automática (a carta de cima). Humano desconectado: o bot escolhe por ele.
+- **Tempo do intervalo esgotado:** ~~escolha automática (a carta de cima). Humano desconectado: o bot escolhe por ele.~~ Trocado em 21/10 (#224): pessoa sem escolha, na sala ou fora dela, recebe uma carta sorteada entre as oferecidas (rand da simulação) e vê o aviso do que foi escolhido; bots seguem pela dificuldade.
 - **Troca de modo por votação:** reinicia a partida.
 
 ## Critérios de sucesso (simulador)
@@ -91,6 +97,12 @@ Curva de níveis calibrada para dar em média 1 a 2 escolhas por intervalo.
 - Rodada média entre 60 e 120 s; ≥ 60% das mortes por golpe (metas atuais).
 - Quem lidera em nível na rodada 3 vence entre 25% e 50% das partidas.
 - Nenhuma carta escolhida em mais de 40% das vezes em que aparece (sinal de carta forte demais).
+
+## Código separado (pedido do Fernando, 19/10: "deixe o código do ascension mais separado pois vai mudar muita coisa da core gameplay")
+
+- Toda a regra do modo mora em `src/shared/ascension.ts` (XP, níveis, cartas, pontos, recuperação, escolha dos bots) e a tela em `src/client/ascension-ui.ts`.
+- `match.ts`, `sim.ts`, `protocol.ts`, `room-do.ts` e `ui.ts` ganham só ganchos curtos do tipo `if (m.mode === 'ascension') return asc.algo(...)`.
+- Os outros modos não mudam: o hash de `tests/style.test.ts` continua o mesmo.
 
 ## Onde mexe (para o builder confirmar)
 

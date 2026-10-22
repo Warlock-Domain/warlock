@@ -1,6 +1,6 @@
 // Simulador de balanceamento: partidas só de bots (2 a 8, rodadas e às vezes Times), em tempo simulado, o mais rápido possível.
 // Soma por rodada quem tinha o quê e quem venceu; grava <out>/summary.json e <out>/report.md a cada --every rodadas e no fim.
-// Uso: node scripts/balance-sim.ts --minutes 480 --out balance/noite --seed 1 [--plan random|classic|smart] [--rounds N] [--every 1000] [--difficulty normal|hard] [--arena random|circle|ring|islands|cross]
+// Uso: node scripts/balance-sim.ts --minutes 480 --out balance/noite --seed 1 [--plan random|classic|smart] [--rounds N] [--every 1000] [--difficulty normal|hard] [--arena random|circle|ring|islands|cross] [--effect off|random|<id de ROUND_EFFECT_IDS>]
 // Juntar vários processos: node scripts/balance-sim.ts --merge --out balance/total balance/p1 balance/p2 ...
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -8,8 +8,8 @@ import { parseArgs } from 'node:util';
 import { ARENA_IDS, ARENA_NAMES, type ArenaId } from '../src/shared/arena.ts';
 import { CLASSIC_PLAN, botConfig, randomPlan, smartPlan, type BotPlan } from '../src/shared/bots.ts';
 import { ITEMS, ITEM_IDS, type ItemId } from '../src/shared/items.ts';
-import { type Match, type MatchOpts } from '../src/shared/match.ts';
-import { SPELLS, SPELL_IDS, type SpellId } from '../src/shared/spells.ts';
+import { OPTION_CHOICES, type Match, type MatchOpts } from '../src/shared/match.ts';
+import { FREE_SPELLS, SPELLS, SPELL_IDS, type SpellId } from '../src/shared/spells.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
 import { addCell, adjusted, f, goldBand, pct, playMatch, seedRandom, simNow, writeAtomic, type Bands } from './sim-lib.ts';
 
@@ -23,8 +23,9 @@ const { values: arg, positionals } = parseArgs({
     plan: { type: 'string', default: 'random' },
     rounds: { type: 'string' },
     every: { type: 'string', default: '1000' },
-    difficulty: { type: 'string', default: 'normal' }, // easy | normal | hard (grill de 18/10: medir no Normal e no Difícil)
+    difficulty: { type: 'string', default: 'normal' }, // easy | casual | normal | veteran | hard (grill de 18/10: medir no Normal e no Difícil)
     arena: { type: 'string', default: 'random' }, // arena fixa ou sorteada a cada rodada (padrão do jogo)
+    effect: { type: 'string', default: 'off' }, // efeito de rodada (issue #189): um fixo por processo, para comparar com o desligado
   },
 });
 const seed = Number(arg.seed);
@@ -34,7 +35,8 @@ const deadline = Date.now() + Number(arg.minutes) * 60_000;
 const outDir = arg.out!;
 if (arg.arena !== 'random' && !(ARENA_IDS as readonly string[]).includes(arg.arena!)) throw new Error('arena desconhecida: ' + arg.arena);
 const arenaOpt = arg.arena as MatchOpts['arena'];
-if (!['easy', 'normal', 'hard'].includes(arg.difficulty!)) throw new Error('dificuldade desconhecida: ' + arg.difficulty);
+if (!(OPTION_CHOICES.effect as readonly string[]).includes(arg.effect!)) throw new Error('efeito desconhecido: ' + arg.effect);
+if (!['easy', 'casual', 'normal', 'veteran', 'hard'].includes(arg.difficulty!)) throw new Error('dificuldade desconhecida: ' + arg.difficulty);
 mkdirSync(outDir, { recursive: true });
 
 const rng = seedRandom(seed);
@@ -46,7 +48,7 @@ botConfig.planner = arg.plan === 'classic' ? () => CLASSIC_PLAN : arg.plan === '
 // by (só em all, spell:* e item:*): por recorte (all, small 2–4 magos, large 5–8, rounds, teams), as faixas de ouro gasto
 type Agg = { n: number; wins: number; exp: number; dmg: number; kills: number; deaths: number; alive: number; gold: number; by?: Record<string, Bands> };
 const S = {
-  seed: String(seed), plan: arg.plan, difficulty: arg.difficulty, arena: arg.arena, startedAt: new Date().toISOString(), seconds: 0, roundsPerMin: 0,
+  seed: String(seed), plan: arg.plan, difficulty: arg.difficulty, arena: arg.arena, effect: arg.effect, startedAt: new Date().toISOString(), seconds: 0, roundsPerMin: 0,
   matches: 0, rounds: 0, playerRounds: 0, noWinner: 0, stalled: 0,
   modes: {} as Record<string, number>, sizes: {} as Record<string, number>,
   duration: { sum: 0, by10s: {} as Record<string, number> },
@@ -94,7 +96,7 @@ function record(m: Match) {
     for (const k of items) keys.push(`item:${k}`, `item:${k}@${p.items[k] || 1}`);
     for (const k of keys) if (k.startsWith('spell:') || k.startsWith('item:')) matchPicks.add(`${m.players[i].id}|${k}`);
     for (const k of Object.keys(RUNE_NAMES)) if (runes.has(`${m.players[i].id}:${k}`)) keys.push(`rune:${k}`);
-    const extra = spells.filter((k) => k !== 'fireball').sort();
+    const extra = spells.filter((k) => !FREE_SPELLS.includes(k as SpellId)).sort();
     for (let x = 0; x < extra.length; x++) for (let y = x + 1; y < extra.length; y++) keys.push(`pair:${extra[x]}+${extra[y]}`);
     for (const k of keys) {
       const a = (S.owned[k] ??= { n: 0, wins: 0, exp: 0, dmg: 0, kills: 0, deaths: 0, alive: 0, gold: 0 });
@@ -172,7 +174,7 @@ function goals(): string {
   const deaths = Object.values(S.deathBy).reduce((x, y) => x + y, 0);
   const hit = 1 - (S.deathBy.lava ?? 0) / Math.max(1, deaths);
   // Bola de fogo e Flagelo vêm de graça: ficam fora da escolha
-  const picks = [...SPELL_IDS.filter((x) => x !== 'fireball').map((x) => 'spell:' + x), ...ITEM_IDS.filter((x) => x !== 'scourge').map((x) => 'item:' + x)]
+  const picks = [...SPELL_IDS.filter((x) => !FREE_SPELLS.includes(x)).map((x) => 'spell:' + x), ...ITEM_IDS.map((x) => 'item:' + x)]
     .map((k) => [k, (S.picked?.[k] ?? 0) / Math.max(1, S.botMatches ?? 0)] as const)
     .sort((a, b) => b[1] - a[1]);
   const low = (kind: string) => picks.filter(([k, r]) => k.startsWith(kind) && r < 0.04).map(([k, r]) => `${label(k)} ${pct(r)}`).join(', ');
@@ -308,7 +310,7 @@ if (arg.merge) {
 }
 
 while (Date.now() < deadline && S.rounds < maxRounds) {
-  const opts = { arena: arenaOpt, difficulty: arg.difficulty as MatchOpts['difficulty'] };
+  const opts = { arena: arenaOpt, difficulty: arg.difficulty as MatchOpts['difficulty'], effect: arg.effect as MatchOpts['effect'] };
   const onRound = (m: Match) => {
     record(m);
     runes.clear();

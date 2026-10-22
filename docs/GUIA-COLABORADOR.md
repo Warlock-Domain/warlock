@@ -150,7 +150,7 @@ navegador ──WebSocket──▶ Durable Object (uma sala)
 
 ## Mapa do código
 
-`src/shared`: `sim.ts` (simulação), `spells.ts` (25 magias), `items.ts` (16 itens), `constants.ts` (arena, lava, baús, runas), `match.ts` (fases, loja, ouro, votações), `bots.ts` (`BOT_SKILL` por dificuldade), `protocol.ts` (mensagens e validação), `arena.ts`, `snapshot.ts`, `characters.ts` (9 bonecos e o look de 7 peças), `telemetry.ts`.
+`src/shared`: `sim.ts` (simulação), `spells.ts` (27 magias), `items.ts` (13 itens), `constants.ts` (arena, lava, baús, runas), `match.ts` (fases, loja, ouro, votações), `bots.ts` (`BOT_SKILL` por dificuldade), `protocol.ts` (mensagens e validação), `arena.ts`, `snapshot.ts`, `characters.ts` (9 bonecos e o look de 7 peças), `telemetry.ts`.
 
 `src/client`: `main.ts` (laço), `ui.ts` (menus, sala, loja, barra da partida, placar), `scene.ts` (3D), `style.css`, `i18n.ts`, `rules-text.ts`, `grimoire.ts` e `demo.ts` (grimório e demonstrações), `tips.ts`, `sheet.ts`, `settings.ts`, `keys.ts`, `gamepad.ts`, `avatar.ts` (criador de personagem), `train.ts`, `challenges.ts`, `mimic.ts`, `coach.ts`, `predict.ts`, `interp.ts`, `net.ts`.
 
@@ -170,7 +170,7 @@ navegador ──WebSocket──▶ Durable Object (uma sala)
 8. Menos código: reaproveite `el()`, `dialog()`, `iconButton()`, `tabs()`, `choice()`, `searchFilter()`, `withTip`, `store`, `t()`; mudança cirúrgica.
 9. **Interface só com as peças que já existem** (`dialog()`, `iconButton()`, `tabs()`, `choice()`, `searchFilter()`, `withTip`, detalhes em `src/client/CLAUDE.md`), com cores e tamanhos pelas variáveis do `:root`. Precisa de algo que nenhuma peça faz? Primeiro estenda a peça (um parâmetro a mais); só se não couber, crie uma função nova junto das outras e registre em `src/client/CLAUDE.md`. Nada de HTML/CSS repetido nem de cor ou tamanho soltos no código. Peça isso à sua IA no prompt: *"use as peças de interface que já existem (veja src/client/CLAUDE.md) e as variáveis do :root; não crie componente nem CSS novo sem antes tentar estender um existente"*.
 10. Sem segredo: o repositório é público.
-11. Asset só com licença livre e crédito em `public/CREDITS.txt`.
+11. Asset só com licença livre e crédito em `public/CREDITS.txt`, e com uma linha em [`docs/ASSETS.md`](ASSETS.md) dizendo o que é, onde o código usa e de onde veio. Modelos 3D prontos para usar: `assets/kaykit/` (lista em `assets/kaykit/INDICE.md`).
 
 Estilo: decisão não óbvia leva 1 linha de comentário com o porquê (tempo, número, ordem, contorno de bug), para outra pessoa ou IA não desfazer sem querer; o óbvio não se comenta; mudou a decisão, mude o comentário; imports no topo; siga o estilo do arquivo. O `ui.ts` não carrega no Vitest: decisão de tela testável vai para função pura.
 
@@ -202,7 +202,7 @@ Peça à sua IA (Claude Code, Codex, Cursor…) que, a cada mudança, deixe o te
    & "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --user-data-dir="$HOME\warlock-testes" --remote-debugging-port=9333 --remote-debugging-address=127.0.0.1 --no-first-run "http://localhost:8787/?aba=minha-mudanca&ir=sandbox"
    ```
    Se a janela já estiver aberta, o mesmo comando só acrescenta uma aba. Para fechar, a IA lista as abas em `http://127.0.0.1:9333/json/list` e fecha cada uma em `http://127.0.0.1:9333/json/close/<id>`.
-2. **Já no ponto do teste.** `?ir=<lugar>` leva direto ao que mudou (lista dos lugares no comentário do `?ir=` em `src/client/main.ts`; ex.: `sandbox`, `partida:loja`, `config:som`).
+2. **Já no ponto do teste.** `?ir=<lugar>` leva direto ao que mudou, em localhost e no ambiente do PR (lista dos lugares no comentário do `?ir=` em `src/client/main.ts`; ex.: `sandbox`, `partida:loja`, `config:som`).
 
    `?aba=<nome>` dá o nome da aba. Exemplo: `?aba=fix-loja&ir=partida:loja`.
 3. **Sem barulho.** Em localhost a música começa desligada. Num teste de som, abra com `?musica=1`.
@@ -259,11 +259,11 @@ Não desfaça sem combinar numa issue.
 - **Mobilidade (5):** Teleporte, Troca, Investida, Estocada, Caminhada no vento
 - **Defesa (5):** Escudo, Alteração, Zona de dobra, Barricada, Ilusão
 - **Controle (5):** Agarrar, Gravidade, Elo, Magnetizar, Drenar
-- **Itens (16):** Anel de vida, Anel amaldiçoado, Capa, Armadura, Botas, Relógio de bolso, Roubo de vida, Botas de lava, Guardião, Elmo, Botas de choque, Égide, Botas de vento, Flagelo (ativo), Redirecionador (ativo), Pacto (ativo)
+- **Itens (13):** Anel de vida, Anel amaldiçoado, Capa, Armadura, Botas, Relógio de bolso, Roubo de vida, Botas de lava, Guardião, Elmo, Botas de choque, Égide, Botas de vento (todos passivos; Flagelo e Pacto viraram magia e o Redirecionador saiu em 21/10, #217)
 
 **Ilusão:** cria uma cópia visível que segue reto na direção do movimento por 2 s. O jogador pode se mover livremente enquanto fica invisível; usar outra magia o revela, sem encerrar a cópia. Jogador e cópia podem ser atingidos; a cópia pode ser empurrada, mas não destruída antes do fim do prazo.
 
-Modos: Rodadas (vence quem fizer 5), Deathmatch (volta em 10 s), Times (Azul × Vermelho). Arenas: Círculo, Anel, Ilhas, Cruz. Atalhos: <kbd>F1</kbd> grimório, <kbd>F2</kbd> biblioteca, <kbd>Tab</kbd> placar, <kbd>4</kbd> loja, <kbd>5</kbd> replay da queda, <kbd>Esc</kbd> configurações.
+Modos: Rodadas (vence quem fizer 5), Deathmatch (volta em 10 s), Times (Azul × Vermelho), Ascensão (9 rodadas, cartas por nível). Arenas: Círculo, Anel, Ilhas, Cruz. Efeito de rodada (opção da sala, desligado por padrão; Sortear ou um fixo): Tempo chuvoso, Arena de espinhos, Febre do ouro, Vendaval, Fonte da vida, Campo aberto; na sandbox, pelo painel. Atalhos: <kbd>F1</kbd> grimório, <kbd>F2</kbd> biblioteca, <kbd>Tab</kbd> placar, <kbd>4</kbd> loja, <kbd>5</kbd> replay da queda, <kbd>Esc</kbd> configurações.
 
 ## Problemas comuns
 

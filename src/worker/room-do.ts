@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
+import { chooseCard, reroll, setAscLobby } from '../shared/ascension.ts';
 import { lookOf } from '../shared/characters.ts';
 import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
@@ -76,9 +77,11 @@ export class Room extends DurableObject<Env> {
     return new Set(this.live(except).map((ws) => this.playerOf(ws))).size;
   }
 
-  async init(id: string) {
+  async init(id: string, ascension = false) {
     if (await this.load()) return;
     this.saved = { id, match: newMatch() };
+    // sala do Ascensão: o lobby já mostra o modo e a partida só pode ser dele; o primeiro a entrar vira o dono
+    if (ascension) Object.assign(this.saved.match, { mode: 'ascension', lobby: { owner: null, bots: [], opts: {} } });
     await this.persist();
     // sala criada e nunca aberta também é limpa
     await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS);
@@ -126,11 +129,10 @@ export class Room extends DurableObject<Env> {
       case 'move':
       case 'stop':
       case 'cast':
-      case 'item':
         // comandos de jogo só valem com a rodada rolando (fora dela a fila cresceria sem limite)
         if (m.phase !== 'playing') return;
         this.cmds.push(msg.t === 'move' ? { id, kind: 'move', to: v(msg.x, msg.y) } : msg.t === 'stop' ? { id, kind: 'stop' }
-          : msg.t === 'cast' ? { id, kind: 'cast', spell: msg.spell, at: v(msg.x, msg.y) } : { id, kind: 'item', item: msg.item, at: v(msg.x, msg.y) });
+          : { id, kind: 'cast', spell: msg.spell, at: v(msg.x, msg.y) });
         this.acks.set(id, msg.seq);
         return;
       case 'start':
@@ -173,6 +175,15 @@ export class Room extends DurableObject<Env> {
       case 'buyItem':
         if (buyItem(m, id, msg.item)) await this.changed();
         return;
+      case 'keep':
+        if (chooseCard(m, id, msg.slot, -1)) await this.changed();
+        return;
+      case 'reroll':
+        if (reroll(m, id)) await this.changed();
+        return;
+      case 'card':
+        if (chooseCard(m, id, msg.slot, msg.i, msg.swap)) await this.changed();
+        return;
       case 'pick':
         if (setLook(m, id, lookOf(msg.character))) await this.changed();
         return;
@@ -190,6 +201,9 @@ export class Room extends DurableObject<Env> {
         return;
       case 'ready':
         if (setReady(m, id)) await this.changed();
+        return;
+      case 'lobby':
+        if (setAscLobby(m, id, msg.bots, msg.opts)) await this.changed();
         return;
     }
   }
@@ -305,7 +319,10 @@ export class Room extends DurableObject<Env> {
     this.acc = Math.min(this.acc + now - this.last, STEP_MS * MAX_CATCHUP);
     this.last = now;
     // a votação entra na conta para o fim por tempo (e a troca de modo) chegar aos clientes
-    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}`;
+    // Ascensão: as cartas entram na mesa no passo do intervalo (ascShop), então a mesa também
+    // os 5 s finais (todos escolheram) mudam o fim do intervalo: o relógio da tela precisa saber
+    const asc = () => (m.asc ? `${Object.values(m.asc.offer).map((o) => o.length).join()}:${m.phaseEnds}` : '');
+    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}:${asc()}`;
     const before = sig();
     while (this.acc >= STEP_MS) {
       this.acc -= STEP_MS;

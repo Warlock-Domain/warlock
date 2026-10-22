@@ -1,12 +1,13 @@
 import { inLavaAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
+import { roundMult } from '../shared/ascension.ts';
 import type { BotSetup, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
-import { ACTIVE_ITEMS, ITEM_CAST, SCOURGE, itemStats, type ItemId } from '../shared/items.ts';
+import { itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
@@ -18,6 +19,8 @@ import { aimOf, hitR, reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t } from './i18n.ts';
+import { cardName } from './ascension-ui.ts';
+import { effectName } from './opt-info.ts';
 import { getCastMode, isPadMode, labelOf, onFreeEsc } from './keys.ts';
 import { openSettings, savedPixel } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
@@ -45,21 +48,27 @@ if (LOCAL) {
 // mexeu no volume começa sem música; ?musica=1 volta ao padrão, para testar som. Volume já guardado vale igual. No ar nada muda.
 const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica') !== '1' ? 0 : undefined;
 
-// ?ir=<lugar> (issue #140): em localhost a aba de teste já abre no ponto a testar (pedido do Fernando, 20/10); no ar nada muda.
+// ?ir=<lugar> (issue #140): em localhost e no ambiente de cada PR (TEST_LINK, abaixo) a aba de teste já abre no ponto a testar
+// (pedido do Fernando, 20/10); no jogo no ar nada muda.
 // Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, controle, jogador,
-// personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando) e partida:loja (contra 1 bot, na loja da rodada 1, com 120 s).
+// personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando), partida:loja (contra 1 bot, na loja da rodada 1, com 120 s)
+// e partida:ascensao (Ascensão contra 3 bots, na carta inicial, com 120 s).
 // Sala e seção juntas, com vírgula (as Configurações de dentro da partida): sandbox,config:som
 // Porta nova não tem apelido guardado: o ?apelido= (ou o ?aba=) pula o pedido de nome, ver TEST_NAME abaixo (issue #175).
-const IR = (LOCAL && new URLSearchParams(location.search).get('ir')?.split(',')) || [];
+// ?ir= e ?apelido= valem também no ambiente de cada PR (pr-<n>-warlock…, issue #125): o link mandado ao colaborador já cai no ponto
+// do teste (pedido do Fernando, 21/10). No jogo no ar nada muda
+const TEST_LINK = LOCAL || /^pr-\d+-warlock\./.test(location.hostname);
+const IR = (TEST_LINK && new URLSearchParams(location.search).get('ir')?.split(',')) || [];
 const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 
-// som de cada magia: um arquivo para cada, nenhum repetido (a Bola de neve é o 'frost')
+// som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
   fireball: 'fireball', lightning: 'lightning', homing: 'homing', shield: 'shield', teleport: 'teleport',
-  swap: 'swap', grip: 'grip', meteor: 'meteor', rush: 'rush', cluster: 'cluster',
-  boomerang: 'boomerang', thrust: 'thrust', gravity: 'gravity', rockpillar: 'rockpillar', bouncer: 'bouncer',
-  drain: 'drain', snowball: 'frost', illusion: 'illusion', magnetize: 'magnetize', recharge: 'recharge',
-  alteration: 'alteration', link: 'link', windwalk: 'windwalk', splitter: 'splitter', warpzone: 'warpzone',
+  swap: 'teleport', grip: 'lightning', meteor: 'fireball', rush: 'shield', cluster: 'fireball',
+  boomerang: 'homing', thrust: 'teleport', gravity: 'homing', rockpillar: 'shield', bouncer: 'lightning',
+  drain: 'homing', snowball: 'fireball', illusion: 'teleport', magnetize: 'lightning', recharge: 'homing',
+  alteration: 'teleport', link: 'lightning', windwalk: 'shield', splitter: 'fireball', warpzone: 'shield',
+  scourge: 'homing', pact: 'shield', // os sons que tinham como item ativo
 };
 
 // mensagens de erro do servidor (em português, protocolo inalterado) -> inglês
@@ -111,12 +120,12 @@ function servidor(on: boolean) {
 const PID = 'warlock:pid' + (as && ':' + as);
 const NAME = 'warlock:name' + (as && ':' + as);
 const CHAR = 'warlock:char' + (as && ':' + as);
-// aba de teste já entra com apelido (pedido do Fernando, 21/10; issue #175), só em localhost: cada porta é um site novo, sem apelido
+// aba de teste já entra com apelido (pedido do Fernando, 21/10; issue #175), em localhost e no ambiente do PR (TEST_LINK): cada porta é um site novo, sem apelido
 // guardado, e o pedido de nome parava a aba antes do ?ir=. ?apelido=<nome> grava o apelido; sem ele, o começo do ?aba= entra só
 // se ainda não houver apelido. No ar nada muda.
 const query = new URLSearchParams(location.search);
 const TEST_NAME = (query.get('apelido') || (!store.get(NAME) && query.get('aba')) || '').replace(/[<>]/g, '').trim().slice(0, 20);
-if (LOCAL && TEST_NAME) store.set(NAME, TEST_NAME);
+if (TEST_LINK && TEST_NAME) store.set(NAME, TEST_NAME);
 const playerId = store.get(PID) ?? crypto.randomUUID();
 store.set(PID, playerId);
 
@@ -137,13 +146,10 @@ function hoverSound(sound: ReturnType<typeof createSound>) {
 }
 
 async function main() {
-  // teste local dos efeitos sonoros (issue #203, só em localhost): com ?abrir=sandbox não pede apelido
-  const quick = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') && new URLSearchParams(location.search).get('abrir') === 'sandbox';
-  const name = store.get(NAME) || (quick ? 'Teste' : await askName(ui, as));
+  const name = store.get(NAME) || (await askName(ui, as));
   store.set(NAME, name);
   const id = location.hash.slice(1).toUpperCase();
-  // F5 com ?abrir=sandbox: sala de sandbox nova (sem o aviso guardado, a sala antiga já saiu do sandbox)
-  if (/^[A-Z]{4}$/.test(id) && !(quick && !sessionStorage.getItem(AUTOSTART))) startRoom(id, name);
+  if (/^[A-Z]{4}$/.test(id)) startRoom(id, name);
   else startLobby(name);
   // Esc sem nada para cancelar ou fechar abre as configurações (pedido do Fernando, 18/10); por último, depois dos ouvintes da sala
   onFreeEsc(() => !document.querySelector('.overlay') && openSettings());
@@ -160,7 +166,7 @@ function startLobby(name: string) {
   let offline = false;
   let exited = false;
   const draw = () =>
-    !exited && renderLobby(ui, name, rooms, offline, () => create(), async () => {
+    !exited && renderLobby(ui, name, rooms, offline, () => create(), () => create(undefined, true), async () => {
       name = await askName(document.body, name);
       store.set(NAME, name);
       draw();
@@ -171,9 +177,10 @@ function startLobby(name: string) {
       window.close();
     }, sound);
   // train: o treino que começa sozinho na sala nova (sem armazenamento, entra só na sala)
-  async function create(train?: string) {
+  // ascension: sala do Ascensão (opção própria no menu Jogar)
+  async function create(train?: string, ascension = false) {
     try {
-      const res = await fetch('/api/rooms', { method: 'POST' });
+      const res = await fetch(ascension ? '/api/rooms?modo=ascensao' : '/api/rooms', { method: 'POST' });
       if (!res.ok) throw new Error(String(res.status));
       const { id } = await res.json();
       try {
@@ -205,11 +212,9 @@ function startLobby(name: string) {
     if (IR.length > 1) url.searchParams.set('ir', IR.slice(1).join(','));
     else url.searchParams.delete('ir');
     history.replaceState(null, '', url);
-    void create(k);
+    void create(k, k === 'partida:ascensao');
   } else if (IR_CONFIG) openSettings(IR_CONFIG);
   else if (k) document.getElementById('home-tab-' + k)?.click();
-  // teste local dos efeitos sonoros (issue #203, só em localhost): ?abrir=sandbox entra direto no sandbox
-  if ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') && new URLSearchParams(location.search).get('abrir') === 'sandbox') void create('sandbox');
 }
 
 function startRoom(code: string, name: string) {
@@ -229,13 +234,13 @@ function startRoom(code: string, name: string) {
   let room: PublicRoom | null = null;
   let me = playerId;
   let online = false;
-  let armed: SpellId | ItemId | null = null;
+  let armed: SpellId | null = null;
   // círculo de alcance: tecla segurada, magia escolhida no botão (toque no chão para lançar) ou controle mirando
-  let held: SpellId | ItemId | null = null;
+  let held: SpellId | null = null;
   let flashAim: { from: Vec; at: Vec } | null = null; // Rápido: de onde e para onde a magia saiu, para a faixa piscar parada ali
-  let padAiming: SpellId | ItemId | null = null;
+  let padAiming: SpellId | null = null;
   let padAt: Vec | null = null; // retículo do controle no chão (explosão do Meteoro)
-  let hovered: SpellId | ItemId | null = null; // mouse em cima da magia na barra
+  let hovered: SpellId | null = null; // mouse em cima da magia na barra
   let seq = 0;
   const sentAt = new Map<number, number>();
   let lastSnap: Snap | null = null;
@@ -261,6 +266,7 @@ function startRoom(code: string, name: string) {
   let watchId: string | null = null;
   let watchStep = 0;
   let watchCenter = false; // câmera do espectador parada no centro da arena (botão na barra "Assistindo", ui.ts)
+  let camFollow = false; // câmera centrada no próprio mago (botão no topo, ui.ts)
   // replay da queda (em qualquer partida): os últimos 6 s de estados e eventos; ao eu cair, vira o trecho que dá para rever
   let ring: { s: SnapView; e: SimEvent[] }[] = [];
   let clip: typeof ring = [];
@@ -293,6 +299,7 @@ function startRoom(code: string, name: string) {
       net.send({ t: 'start', bots: bots.length, mode, shuffle, opts, setup: bots.map((difficulty, i) => ({ ...trainSetup?.[i], difficulty })) });
     },
     buy: (spell) => net.send({ t: 'buy', spell }),
+    lobby: (bots, opts) => net.send({ t: 'lobby', bots, opts }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),
     kick: (target) => net.send({ t: 'kick', target }),
     vote: (kind, target) => net.send({ t: 'vote', kind, target }),
@@ -300,19 +307,19 @@ function startRoom(code: string, name: string) {
     undo: (key) => net.send({ t: 'undo', key }),
     sell: (key) => net.send({ t: 'sell', key }),
     taunt: (i) => net.send({ t: 'taunt', i }),
-    useItem: (item) => input.button(item),
     // personagem pronto da sala: vira a aparência equivalente (o evento abaixo manda ao servidor)
     pick: (character) => {
       store.set(CHAR, character);
       saveLook(lookOf(character));
     },
     ready: () => net.send({ t: 'ready' }),
+    card: (slot, i, swap) => net.send({ t: 'card', slot, i, ...(swap && { swap }) }),
+    reroll: () => net.send({ t: 'reroll' }),
+    keep: (slot) => net.send({ t: 'keep', slot }),
     sandbox: (cmd) => net.send({ t: 'sandbox', cmd }),
     spectate: (on) => net.send({ t: 'watch', on }),
     seeInvis: (on) => (seeInvis = on),
     seeHit: (on) => (seeHit = on),
-    spellSound: (s) => sound.play(SPELL_SOUND[s]),
-    preview: (name) => void sound.preview(name),
     spell: (s) => input.button(s),
     hover: (a) => (hovered = a),
     volumes: sound.volumes,
@@ -334,6 +341,7 @@ function startRoom(code: string, name: string) {
     spellReady: () => sound.play('ready', 0.8),
     watch: (step) => (watchStep = step),
     watchCenter: (on) => (watchCenter = on),
+    camFollow: (on) => (camFollow = on),
     replay: toggleReplay,
     name: () => myName,
     // o servidor atualiza o apelido de quem já está na sala quando o hello chega de novo (addPlayer)
@@ -363,7 +371,7 @@ function startRoom(code: string, name: string) {
 
   const myWizard = (s: SnapView | null) => s?.wizards.find((w) => w.id === me) ?? null;
 
-  function command(msg: { t: 'move'; x: number; y: number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number } | { t: 'item'; item: ItemId; x: number; y: number }) {
+  function command(msg: { t: 'move'; x: number; y: number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
     seq++;
     sentAt.set(seq, performance.now());
     // teto do mapa de latência: o snapshot só confirma o último seq (e nada fora da rodada), então muito comando nunca tem ack
@@ -389,6 +397,8 @@ function startRoom(code: string, name: string) {
       if (!mine?.spells[spell]) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
       if ((lastSnap?.cd[i] ?? 0) > 0.1 || performance.now() < (justCast.get(spell) ?? 0) || (performance.now() < scourgeUntil && spell !== 'teleport')) return;
       if (spell === 'teleport') scourgeUntil = 0; // o Teleporte cancela o Flagelo em preparo
+      // Flagelo em preparo: o servidor ignora outras magias até ele explodir
+      if (spell === 'scourge') scourgeUntil = performance.now() + CAST_POINT.scourge * 1000;
       if (spell === 'rush') predict.stop(); // o avanço esquece o destino de andar, como no servidor
       // até a recarga chegar do servidor, não repete a mesma magia (senão a animação e o som tocam sem sair nada)
       justCast.set(spell, performance.now() + 120 + CAST_POINT[spell] * 1000 + predict.rtt() * 1000);
@@ -398,19 +408,6 @@ function startRoom(code: string, name: string) {
       scene.castLocal(me, spell, at);
       scene.clickMarker(at, true);
       sound.play(SPELL_SOUND[spell]);
-      return true;
-    },
-    useItem(item, at) {
-      const mine = room?.players.find((p) => p.id === me);
-      if (!mine?.items[item]) return toast(t('Você ainda não tem esse item. Compre na loja.', 'You don’t have that item yet. Buy it in the shop.'));
-      if ((lastSnap?.icd[ACTIVE_ITEMS.indexOf(item)] ?? 0) > 0.1 || performance.now() < (justCast.get(item) ?? 0) || performance.now() < scourgeUntil) return;
-      // Flagelo em preparo: o servidor ignora outras magias até ele explodir
-      if (item === 'scourge') scourgeUntil = performance.now() + SCOURGE.windup * 1000;
-      justCast.set(item, performance.now() + 120 + (ITEM_CAST[item] ?? 0) * 1000 + predict.rtt() * 1000);
-      command({ t: 'item', item, x: at.x, y: at.y });
-      predict.hold(ITEM_CAST[item] ?? 0);
-      if (item === 'scourge') scene.castLocal(me, item);
-      scene.clickMarker(at, true);
       return true;
     },
     center: () => {
@@ -467,6 +464,11 @@ function startRoom(code: string, name: string) {
       // ?ir= (só localhost): partida contra 1 bot já começada; 'partida' ainda clica Pronto e pula a loja
       net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
       if (k === 'partida') net.send({ t: 'ready' });
+    }
+    else if (k === 'partida:ascensao') {
+      // sala do Ascensão: o Começar usa os bots e as opções do dono (quem abriu o atalho)
+      net.send({ t: 'lobby', bots: ['normal', 'normal', 'normal'], opts: { ...DEFAULT_OPTS, shop: 120 } });
+      net.send({ t: 'start', bots: 3, mode: 'ascension', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
     }
   }
   // sandbox: começa com você e um boneco parado; o resto vem pelo painel
@@ -561,7 +563,6 @@ function startRoom(code: string, name: string) {
       else if (e.k === 'grip') sound.play('hit', near(e.x, e.y));
       else if (e.k === 'reflect') sound.play('reflect', near(e.x, e.y));
       else if (e.k === 'teleport' && e.id === me) predict.teleported(e.to);
-      else if (e.k === 'item') sound.play(e.item === 'redirector' ? 'teleport' : e.item === 'pact' ? 'shield' : 'homing', 0.7);
       else if (e.k === 'scourge') sound.play('death', near(e.x, e.y));
       else if (e.k === 'shrink') sound.play('shrink');
       else if (e.k === 'chest') toast(t('Baú de ouro na arena! Quebre e fique em cima do ouro', 'Gold chest in the arena! Break it and stand on the gold'), 'gold');
@@ -701,6 +702,12 @@ function startRoom(code: string, name: string) {
     input.setEnabled(room.phase === 'playing');
     sound.setAmbience(room.phase !== 'lobby' && room.phase !== 'end');
     sound.duck(room.phase === 'shop');
+    // Ascensão: o tempo acabou sem a escolha da pessoa e o jogo sorteou (#224)
+    const auto = prev?.phase === 'shop' && room.phase === 'countdown' ? room.players.find((p) => p.id === me)?.asc?.auto : null;
+    if (auto?.length) {
+      const names = auto.map(cardName).join(', ');
+      toast(t(`Tempo esgotado: o jogo escolheu por você ${names}.`, `Time's up: the game picked ${names} for you.`));
+    }
     if (room.phase === 'countdown') {
       live = {};
       view.live(live);
@@ -712,7 +719,10 @@ function startRoom(code: string, name: string) {
       watchId = null;
       // modo Times: avisa em que time a pessoa está nesta rodada
       const team = room.mode === 'teams' ? room.players.find((p) => p.id === me)?.team : null;
-      banner(team != null ? t(`Rodada ${room.round} · Você está no time ${TEAM_NAMES[team]}`, `Round ${room.round} · You are on the ${TEAM_NAMES[team]} team`) : t(`Rodada ${room.round}`, `Round ${room.round}`));
+      // efeito da rodada na faixa grande (a linha do topo passa despercebida); no Ascensão, o aviso dos pontos valendo mais
+      const mult = room.mode === 'ascension' ? roundMult(room.round) : 1;
+      const fx = (room.effect ? ` · ${effectName(room.effect, room.mode)}` : '') + (mult === 2 ? t(' · Pontos em dobro', ' · Double points') : mult > 1 ? t(' · Pontos ×1,5', ' · Points ×1.5') : '');
+      banner(team != null ? t(`Rodada ${room.round} · Você está no time ${TEAM_NAMES[team]}${fx}`, `Round ${room.round} · You are on the ${TEAM_NAMES[team]} team${fx}`) : t(`Rodada ${room.round}${fx}`, `Round ${room.round}${fx}`));
       [3, 2, 1].forEach((_, i) => setTimeout(() => sound.play('beep'), i * 1000));
     } else if (room.phase === 'playing') {
       playingAt = performance.now();
@@ -765,7 +775,7 @@ function startRoom(code: string, name: string) {
     watchStep = 0;
     watchId = watched?.id ?? null;
     view.watching(watched?.name ?? null);
-    view.deadShopping(room?.phase === 'playing' && room.mode !== 'deathmatch' && !!meP && !!meW && !meW.alive);
+    view.deadShopping(room?.phase === 'playing' && room.mode !== 'deathmatch' && room.mode !== 'ascension' && !!meP && !!meW && !meW.alive);
     // replay da queda: só caído na rodada ou no fim dela; acaba no fim do trecho (segura 1 s na queda) ou ao voltar vivo no Deathmatch
     canReplay = clip.length > 1 && (room?.phase === 'roundEnd' || (room?.phase === 'playing' && !meW?.alive));
     const rt = rp ? clip[0].s.time + (nowMs - rp.at) / 1000 : 0;
@@ -804,7 +814,10 @@ function startRoom(code: string, name: string) {
       isles: shown ? shown.isles : [],
       // follow null = centro da arena (0, 0), para onde ela encolhe
       follow: rs ? (rMe && rBy ? scale(add(rMe, rBy), 0.5) : (rMe ?? rBy ?? null)) : watched ? (watchCenter ? null : watched.pos) : follow ? myPos : null,
-      lock: !!rs || (!!watched && !watchCenter),
+      lock: !!rs || (watched ? !watchCenter : camFollow && follow && !!myPos),
+      // na loja o room.effect já é o da próxima rodada: o mapa só muda quando ela começa
+      effect: room && ['countdown', 'playing', 'roundEnd'].includes(room.phase) ? room.effect : null,
+      arcane: room?.mode === 'ascension', // Febre arcana: a Febre do ouro em azul
     });
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
@@ -822,7 +835,7 @@ function startRoom(code: string, name: string) {
     scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
-    view.frame(lastSnap?.cd ?? [], lastSnap?.icd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
+    view.frame(lastSnap?.cd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
       wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx); // caídos na rodada: retrato apagado no topo
   }
   const drawn = new Map<string, Vec>();

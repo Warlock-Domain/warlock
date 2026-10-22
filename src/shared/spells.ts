@@ -1,11 +1,21 @@
 import { FRICTION, KB_PER_DMG, UNIT, WIZ_SPEED } from './constants.ts';
 
 export const SPELL_IDS = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap', 'grip', 'meteor', 'rush', 'cluster', 'boomerang', 'thrust', 'gravity', 'rockpillar', 'bouncer',
-  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone'] as const;
+  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone', 'scourge', 'pact'] as const;
 export type SpellId = (typeof SPELL_IDS)[number];
 export const isSpell = (x: unknown): x is SpellId => SPELL_IDS.includes(x as SpellId);
-// decisão do Fernando (17/10): no máximo 6 magias por mago (a Bola de fogo conta)
-export const MAX_SPELLS = 6;
+// 8 magias por mago nas teclas 1 2 3 4 Q W E R (decisão do Fernando, 21/10, issue #217; antes 6); a Bola de fogo e o Flagelo contam
+export const MAX_SPELLS = 8;
+
+// magias pelo efeito principal: a loja e a ajuda mostram os nomes (rules-text.ts); o sorteio das cartas do Ascensão usa os grupos
+export const SPELL_GROUP_IDS = {
+  attack: ['fireball', 'lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball', 'scourge', 'pact'],
+  mobility: ['teleport', 'swap', 'rush', 'thrust', 'windwalk'],
+  defense: ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion'],
+  control: ['grip', 'gravity', 'link', 'magnetize', 'drain'],
+} as const satisfies Record<string, readonly SpellId[]>;
+export type SpellGroup = keyof typeof SPELL_GROUP_IDS;
+export const spellGroup = (s: SpellId) => (Object.keys(SPELL_GROUP_IDS) as SpellGroup[]).find((g) => (SPELL_GROUP_IDS[g] as readonly SpellId[]).includes(s))!;
 
 // radius: raio da explosão do Meteoro (e do dano da Gravidade); dmgMin: dano na borda dele; absorb: dano que a Investida converte em velocidade;
 // pull: puxão da Gravidade nos magos (m/s²); scale: tempo dos projéteis inimigos na Zona de dobra; dot: dano por segundo da Bola de neve encostada
@@ -71,11 +81,18 @@ export const SPELLS: Record<SpellId, Spell> = {
   splitter: { name: 'Divisor', en: 'Splitter', cost: 15, up: [7, 8, 9, 10, 11, 12], levels: steps(24, -1).map((cd, i) => L({ cd, dmg: 30 + 5 * i, speed: 700 * UNIT, range: 700 * UNIT })) },
   // zona de dobra: esfera de 4,5 s a até 700 u; scale = tempo dos projéteis inimigos dentro dela
   warpzone: { name: 'Zona de dobra', en: 'Warp Zone', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([23, 21, 20, 19, 18, 17, 16], steps(0.4, -0.04)).map(([cd, scale], i) => L({ cd: cd * 0.5, duration: 4.5, scale, /* 18/10: recarga ×0,7 → ×0,6 (19% abaixo com bots humanos) e raio +20 por nível; 19/10: ×0,5 (16% abaixo no Normal) */ radius: (200 + 20 * i) * UNIT, range: 700 * UNIT })) },
+  // Flagelo e Pacto eram itens ativos (issue #217, 21/10): o nível 1 tem os números do item; o resto da subida é ponto de partida do simulador.
+  // Flagelo: explosão em volta (dmg e radius), de graça como a Bola de fogo; +10 de dano por nível, como o item subia (80/100/120 em 3 níveis)
+  scourge: { name: 'Flagelo', en: 'Scourge', cost: 0, up: [7, 7, 7, 7, 7, 7], levels: steps(80, 10).map((d) => L({ cd: 5, dmg: d, radius: 325 * UNIT })) },
+  // Pacto: a próxima magia de dano em `duration` s sai PACT.mult× mais forte; a subida só encurta a recarga
+  pact: { name: 'Pacto', en: 'Pact', cost: 10, up: [6, 7, 8, 9, 10, 11], levels: steps(20, -1).map((cd) => L({ cd, duration: 5 })) },
 };
 
 // agarrar (ideia do Fernando, 18/10): o preso fica no lugar até o primeiro golpe com dano (ou o fim do tempo), e esse golpe
 // o solta empurrando mais (o scale do nível: +30% no 1 até +90% no 7); cada magia lançada preso soma 5 ao dano acumulado (gripmodifier.lua)
 // Zona de dobra: inimigo de quem a criou anda mais devagar dentro dela (pedido do Fernando, 18/10; não existe no original)
+// Pacto: a próxima magia de dano sai 2× mais forte (balanceamento de 17/10: 5 rodadas com ele, 0 vitórias; no original 1,5× com lentidão)
+export const PACT = { mult: 2 };
 export const WARPZONE = { wizMult: 0.5 }; // 0,6 → 0,5 em 18/10 (16% abaixo do justo com bots humanos)
 export const GRIP = { castPenalty: 5, delay: 1.3 }; // 1,3 s entre a marca no chão e os cipós: dá para sair da área (pedido do Leonard, estilo do stun do Leshrac)
 // meteoro: 0,55 s parado no ar + 0,60 s caindo (meteor.lua)
@@ -122,7 +139,8 @@ export const SPLITTER = { spawnSpeed: 250 * UNIT, spawnLife: 0.48, waves: 4, chi
 
 // tempo de conjuração: a magia sai esse tempo depois da tecla (AbilityCastPoint do original era 0,2 s)
 export const CAST_POINT: Record<SpellId, number> = { fireball: 0.1, lightning: 0.1, homing: 0.1, shield: 0, teleport: 0, swap: 0, grip: 0.1, meteor: 0.1, rush: 0, cluster: 0.1, boomerang: 0.1, thrust: 0, gravity: 0.1, rockpillar: 0, bouncer: 0.1,
-  drain: 0.1, snowball: 0.1, illusion: 0, magnetize: 0.1, recharge: 0.1, alteration: 0, link: 0.1, windwalk: 0, splitter: 0, warpzone: 0.1 }; // Alteração, Caminhada e Divisor: 0 no original; Ilusão 0 (defesa, como o Escudo) // original 0,2 s (Estocada 0); 0,1 s a pedido do Fernando (17/10)
+  drain: 0.1, snowball: 0.1, illusion: 0, magnetize: 0.1, recharge: 0.1, alteration: 0, link: 0.1, windwalk: 0, splitter: 0, warpzone: 0.1,
+  scourge: 0.5, pact: 0.1 }; // Flagelo: o preparo de 0,5 s do item (0,9 s no original; Fernando, 17/10) // Alteração, Caminhada e Divisor: 0 no original; Ilusão 0 (defesa, como o Escudo) // original 0,2 s (Estocada 0); 0,1 s a pedido do Fernando (17/10)
 
 export const spellLevel = (id: SpellId, level: number): Level => SPELLS[id].levels[Math.max(1, Math.min(MAX_SPELL_LEVEL, level)) - 1];
 
@@ -132,6 +150,8 @@ export function priceOf(id: SpellId, level: number): number | null {
   return level === 0 ? SPELLS[id].cost : SPELLS[id].up[level - 1];
 }
 
-export const noSpells = (): Record<SpellId, number> => ({ ...Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), fireball: 1 }) as Record<SpellId, number>;
+// Bola de fogo e Flagelo de graça para todos (o Flagelo virou magia inicial em 21/10, issue #217)
+export const FREE_SPELLS: SpellId[] = ['fireball', 'scourge'];
+export const noSpells = (): Record<SpellId, number> => ({ ...Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), fireball: 1, scourge: 1 }) as Record<SpellId, number>;
 
 export const spellCount = (spells: Record<SpellId, number>) => SPELL_IDS.filter((s) => spells[s] > 0).length;

@@ -338,10 +338,10 @@ describe('treino: magias dos bots', () => {
     const bot = (n: number) => m.players.find((p) => p.id === 'bot-' + n)!;
     const want = { ...noSpells(), fireball: 0, lightning: 3, shield: 7 };
     expect(bot(1).spells).toEqual(want);
-    expect(bot(1).items).toEqual({ ...noItems(), scourge: 1 });
+    expect(bot(1).items).toEqual(noItems());
     expect(bot(1).gold).toBe(START_GOLD); // não gastou nada
     expect(bot(3).spells).toEqual(noSpells());
-    expect(bot(3).items).toEqual({ ...noItems(), scourge: 1, armor: 2 });
+    expect(bot(3).items).toEqual({ ...noItems(), armor: 2 });
     let now = toPlaying(m, 0);
     expect(m.world!.wizards.find((z) => z.id === 'bot-1')!.spells).toEqual(want);
     // a rodada sai marcada na telemetria
@@ -413,15 +413,15 @@ describe('dificuldade por bot', () => {
     expect(botSkill(m, b2)).toBe(BOT_SKILL.hard);
   });
 
-  it('bot votado no meio da partida entra Normal, mesmo com a partida em outra dificuldade', () => {
+  it('bot votado no meio da partida entra no padrão (Automático), mesmo com a partida em outra dificuldade', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     startMatch(m, 0, 1, 'rounds', true, Math.random, { difficulty: 'hard' }, [{ difficulty: 'easy' }]);
     expect(startVote(m, 'a', 'addBot', '', 0)).toBe(true);
     toPlaying(m, 0);
     const added = m.players.find((p) => p.id === 'bot-2')!;
-    expect(added.difficulty).toBe('normal');
-    expect(botSkill(m, added)).toBe(BOT_SKILL.normal);
+    expect(added.difficulty).toBe('auto');
+    expect(botSkill(m, added)).toEqual(skillAt(0)); // placar empatado: o meio do caminho
   });
 });
 

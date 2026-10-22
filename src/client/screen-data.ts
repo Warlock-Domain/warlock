@@ -1,7 +1,7 @@
 // Decisões das telas sem DOM (testáveis): resultado do fim da partida e ordem da lista de salas.
 import type { PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { MAX_SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
-import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
+import { store } from './store.ts';
 
 // Sandbox: o servidor manda todos, e o 8388608 marca quem estaria escondido (Caminhada no vento ou véu da Ilusão).
 // "Ver invisíveis (teste)" ligado só deixa esses translúcidos; desligado, esconde como numa sala normal.
@@ -12,42 +12,45 @@ export function sandboxVisibility(status: number, self: boolean, sandbox: boolea
   return status & (1024 | 8388608) ? (status & ~(1024 | 8388608)) | 2048 : status;
 }
 
-const ITEM_SLOTS = 3; // itens ativos nas teclas 1 2 3 (POS_ACTIONS item1 a item3)
-
 // Mesma ordem da barra da partida; vagas não compradas continuam visíveis.
-export type LoadoutOrder = { spells: (SpellId | null)[]; items: (ItemId | null)[] };
-export function loadoutSlots(spells: Record<SpellId, number>, items: Record<ItemId, number>, order?: LoadoutOrder) {
+// Ordem salva antes de 21/10 (6 magias e os itens ativos): as 2 vagas novas entram vazias e `items` é ignorado.
+export type LoadoutOrder = { spells: (SpellId | null)[] };
+export function loadoutSlots(spells: Record<SpellId, number>, order?: LoadoutOrder) {
   const owned = SPELL_IDS.filter((s) => spells[s] > 0);
-  const active = ACTIVE_ITEMS.filter((i) => items[i] > 0);
-  const arrange = <T extends string>(ids: T[], saved: (T | null)[] | undefined, count: number) => {
-    const seen = new Set<T>();
-    const result = Array.from({ length: count }, (_, i) => {
-      const id = Array.isArray(saved) ? saved[i] : null;
-      if (!id || !ids.includes(id) || seen.has(id)) return null;
-      seen.add(id);
-      return id;
-    });
-    for (const id of ids) if (!seen.has(id)) {
-      const i = result.indexOf(null);
-      if (i < 0) break;
-      result[i] = id;
-      seen.add(id);
-    }
-    return result;
-  };
-  return { spells: arrange(owned, order?.spells, MAX_SPELLS), items: arrange(active, order?.items, ITEM_SLOTS) };
+  const saved = Array.isArray(order?.spells) ? order.spells : [];
+  const seen = new Set<SpellId>();
+  const result = Array.from({ length: MAX_SPELLS }, (_, i) => {
+    const id = saved[i];
+    if (!id || !owned.includes(id) || seen.has(id)) return null;
+    seen.add(id);
+    return id;
+  });
+  for (const id of owned) if (!seen.has(id)) {
+    const i = result.indexOf(null);
+    if (i < 0) break;
+    result[i] = id;
+    seen.add(id);
+  }
+  return { spells: result };
 }
 
-// Índices 0–5 são magias; 6–8 são itens. Nunca misturar os grupos.
+const ORDER_KEY = 'warlock:loadout-order';
+// ordem do meu equipamento, gravada a cada mudança (#226): gravada só ao arrastar, a compra seguinte reordenava
+// pela lista de magias e as teclas por posição trocavam de magia sozinhas
+export function myLoadout(spells: Record<SpellId, number>) {
+  const saved = store.json<LoadoutOrder>(ORDER_KEY) ?? undefined;
+  const order = loadoutSlots(spells, saved);
+  if (JSON.stringify(order) !== JSON.stringify(saved)) saveLoadout(order);
+  return order;
+}
+export const saveLoadout = (order: LoadoutOrder) => store.set(ORDER_KEY, JSON.stringify(order));
+
+// troca duas vagas (0 a MAX_SPELLS − 1); vaga vazia não sai do lugar
 export function moveLoadout(order: LoadoutOrder, from: number, to: number): LoadoutOrder {
-  const S = MAX_SPELLS;
-  if (![from, to].every((i) => Number.isInteger(i) && i >= 0 && i < S + ITEM_SLOTS) || (from < S) !== (to < S)) return order;
-  const next = { spells: [...order.spells], items: [...order.items] };
-  const slots = from < S ? next.spells : next.items;
-  const a = from < S ? from : from - S, b = to < S ? to : to - S;
-  if (!slots[a]) return order;
-  [slots[a], slots[b]] = [slots[b], slots[a]];
-  return next;
+  if (![from, to].every((i) => Number.isInteger(i) && i >= 0 && i < MAX_SPELLS) || !order.spells[from]) return order;
+  const spells = [...order.spells];
+  [spells[from], spells[to]] = [spells[to], spells[from]];
+  return { spells };
 }
 
 // fim da partida para quem olha: 'none' sem vencedor ou para quem só assistia

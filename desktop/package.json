@@ -1,0 +1,27 @@
+{
+  "name": "warlock-wars-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Warlock Wars para Windows (PoC): janela que abre o jogo no ar",
+  "author": "Fernando",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.fernandorffdev.warlock",
+    "productName": "Warlock Wars",
+    "files": [
+      "main.js"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.png"
+    }
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3"
+  }
+}
