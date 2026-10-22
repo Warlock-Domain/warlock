@@ -1,4 +1,4 @@
-// Sons: arquivos gravados (CC0, public/sfx, créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
+// Sons: arquivos gravados (CC0 em public/sfx; as provocações do Leonard em public/taunts-local têm só a autorização dele; créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
 // sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
 import { tauntAudioSrc } from '../shared/taunts.ts';
 import { store } from './store.ts';

@@ -1,4 +1,4 @@
-// Taunts da roda (tecla Y): voz em inglês de pacotes CC0 (Kenney Voiceover Packs; miau e risada do OpenGameArt), legenda em português.
+// Taunts da roda (tecla Y): as 10 primeiras são voz em inglês de pacotes CC0 (Kenney Voiceover Packs; miau e risada do OpenGameArt), legenda em português.
 // O arquivo fica em public/sfx/taunt/<id>.mp3 (ou no src da gravação); a mensagem leva só o índice.
 // Gravações do Leonard (PR #243): autorizadas pelo autor para uso e redistribuição no Warlock, aceitas pelo Fernando em 21/10.
 export const CUSTOM_TAUNTS = [
