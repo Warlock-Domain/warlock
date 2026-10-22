@@ -64,6 +64,7 @@ export function createPredict() {
         me.target = null;
       }
       // O residual continua no servidor depois de liberar a caminhada; reler o mesmo snapshot por quadro renovaria o impulso.
+      // Fica antes do ramo de empurrado/morto abaixo, que manda na posição quando o servidor ainda desliza o mago.
       if (server !== velocitySource) {
         me.vel = { ...server.vel };
         velocitySource = server;
