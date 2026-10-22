@@ -1,6 +1,6 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
-import { ASC_ROUNDS, ascDeath, ascEndRound, ascMark, ascResume, ascShop, ascWinner, newAsc, type AscState } from './ascension.ts';
+import { ASC_ROUNDS, ascDeath, ascEndRound, ascMark, ascOwner, ascResume, ascShop, ascWinner, newAsc, type AscLobby, type AscState } from './ascension.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
 import { CHARACTERS, fixLook, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
@@ -170,6 +170,7 @@ export type Match = {
   roundPaid?: string[]; // quem já recebeu o ouro garantido desta rodada (paga na queda)
   nextEffect?: RoundEffectId | null; // efeito da próxima rodada, sorteado antes da loja para cada um comprar sabendo
   asc?: AscState; // só no modo Ascensão: XP, escolhas de carta e ordem de queda (ascension.ts)
+  lobby?: AscLobby; // só na sala do Ascensão: o dono e os bots e opções que ele escolheu (ascension.ts)
 };
 
 export const newMatch = (): Match => ({
@@ -202,6 +203,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false, watch
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
   m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold: startGold(m), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
   enter(m, m.players[m.players.length - 1]);
+  ascOwner(m);
   return true;
 }
 
@@ -252,8 +254,10 @@ function newBot(m: Match): Player | undefined {
 
 // no lobby e no fim sai da lista; no meio da partida o mago fica parado esperando a pessoa voltar
 export function removePlayer(m: Match, id: string) {
-  if (m.phase === 'lobby' || m.phase === 'end') m.players = m.players.filter((p) => p.id !== id);
-  else {
+  if (m.phase === 'lobby' || m.phase === 'end') {
+    m.players = m.players.filter((p) => p.id !== id);
+    ascOwner(m);
+  } else {
     const p = player(m, id);
     if (p) p.connected = false;
   }
@@ -264,6 +268,12 @@ export function removePlayer(m: Match, id: string) {
 // sandbox: a sala vira sandbox (começa até sozinho, os bots entram pelo painel)
 export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'rounds', teamShuffle = true, rand: () => number = Math.random, opts: Partial<MatchOpts> = {}, setup: BotSetup[] = [], sandbox = false): boolean {
   if (m.phase !== 'lobby' && m.phase !== 'end') return false;
+  // sala do Ascensão: valem os bots e as opções que o dono escolheu, venha de quem vier o Começar
+  if (m.lobby && !sandbox) {
+    opts = m.lobby.opts;
+    setup = m.lobby.bots.map((difficulty) => ({ difficulty }));
+    bots = setup.length;
+  }
   m.opts = { ...m.opts, ...opts };
   m.sandbox = sandbox ? { god: true, noCd: true, shrink: false } : undefined; // sem recarga ligado de início (Fernando, 21/10)
   // começa redonda; a forma escolhida no painel fica em m.opts.arena e a sandbox nunca sorteia
@@ -438,6 +448,11 @@ export function resume(m: Match, now: number) {
   m.botDelta ??= 0;
   m.vote = null; // o prazo de uma votação gravada já passou
   if (m.asc) ascResume(m.asc);
+  // salas do Ascensão gravadas antes do dono
+  if (m.mode === 'ascension' && !m.sandbox) {
+    m.lobby ??= { owner: null, bots: [], opts: {} };
+    ascOwner(m);
+  }
   for (const p of m.players) {
     p.character ??= 'mage';
     p.look = fixLook(p.look ?? lookOf(p.character)); // salas gravadas antes da aparência montada ou com peça da Ladina encapuzada (#107)

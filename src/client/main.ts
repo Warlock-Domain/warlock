@@ -295,6 +295,7 @@ function startRoom(code: string, name: string) {
       net.send({ t: 'start', bots: bots.length, mode, shuffle, opts, setup: bots.map((difficulty, i) => ({ ...trainSetup?.[i], difficulty })) });
     },
     buy: (spell) => net.send({ t: 'buy', spell }),
+    lobby: (bots, opts) => net.send({ t: 'lobby', bots, opts }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),
     kick: (target) => net.send({ t: 'kick', target }),
     vote: (kind, target) => net.send({ t: 'vote', kind, target }),
@@ -471,7 +472,11 @@ function startRoom(code: string, name: string) {
       net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
       if (k === 'partida') net.send({ t: 'ready' });
     }
-    else if (k === 'partida:ascensao') net.send({ t: 'start', bots: 3, mode: 'ascension', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
+    else if (k === 'partida:ascensao') {
+      // sala do Ascensão: o Começar usa os bots e as opções do dono (quem abriu o atalho)
+      net.send({ t: 'lobby', bots: ['normal', 'normal', 'normal'], opts: { ...DEFAULT_OPTS, shop: 120 } });
+      net.send({ t: 'start', bots: 3, mode: 'ascension', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
+    }
   }
   // sandbox: começa com você e um boneco parado; o resto vem pelo painel
   function startSandbox() {

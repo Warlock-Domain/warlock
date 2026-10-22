@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ASC_ROUNDS, CONSOLATION, LEADER_KILL_XP, MARK_KB, applyCard, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
-import { addPlayer, buy, castBallot, newMatch, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
+import { ASC_ROUNDS, CONSOLATION, LEADER_KILL_XP, MARK_KB, applyCard, setAscLobby, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
+import { addPlayer, buy, castBallot, newMatch, removePlayer, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
 import { gearOf } from '../src/shared/sim.ts';
 import { ROUND_EFFECTS } from '../src/shared/constants.ts';
@@ -382,5 +382,77 @@ describe('Febre arcana', () => {
       return m.asc!.xp.h;
     };
     expect(gainWith('gold')).toBe(Math.round(gainWith(null) * 1.5));
+  });
+});
+
+describe('sala do Ascensão: o dono escolhe, todos veem', () => {
+  // como a sala nasce no servidor (room-do.ts init)
+  const ascRoom = () => Object.assign(newMatch(), { mode: 'ascension' as const, lobby: { owner: null, bots: [], opts: {} } });
+
+  it('the first human is the owner and only the owner changes bots and options', () => {
+    const m = ascRoom();
+    addPlayer(m, 'bot-1', 'Bot', true);
+    addPlayer(m, 'ana', 'Ana');
+    addPlayer(m, 'bia', 'Bia');
+    expect(m.lobby!.owner).toBe('ana');
+    expect(setAscLobby(m, 'bia', ['hard'], { pace: 'short' })).toBe(false);
+    expect(setAscLobby(m, 'ana', ['easy', 'hard'], { pace: 'short' })).toBe(true);
+    expect(m.lobby).toEqual({ owner: 'ana', bots: ['easy', 'hard'], opts: { pace: 'short' } });
+  });
+
+  it('everyone sees the owner and the choices, the owner by public id', () => {
+    const m = ascRoom();
+    addPlayer(m, 'ana', 'Ana');
+    setAscLobby(m, 'ana', ['casual'], { pace: 'short' });
+    const r = publicRoom('ROOM', m, 0);
+    expect(r.lobby).toEqual({ owner: r.players[0].id, bots: ['casual'], opts: { pace: 'short' } });
+    expect(r.lobby!.owner).not.toBe('ana');
+  });
+
+  it('the owner leaving the room passes it to the next human', () => {
+    const m = ascRoom();
+    addPlayer(m, 'ana', 'Ana');
+    addPlayer(m, 'bia', 'Bia');
+    removePlayer(m, 'ana');
+    expect(m.lobby!.owner).toBe('bia');
+    removePlayer(m, 'bia');
+    expect(m.lobby!.owner).toBe(null);
+    addPlayer(m, 'cai', 'Cai');
+    expect(m.lobby!.owner).toBe('cai');
+  });
+
+  it('a new owner is preferably a human who plays and is connected', () => {
+    const m = ascRoom();
+    addPlayer(m, 'ana', 'Ana');
+    addPlayer(m, 'bia', 'Bia', false, true); // só assiste
+    addPlayer(m, 'cai', 'Cai');
+    removePlayer(m, 'ana');
+    expect(m.lobby!.owner).toBe('cai');
+  });
+
+  it("start uses the owner's bots and options, whoever presses it", () => {
+    const m = ascRoom();
+    addPlayer(m, 'ana', 'Ana');
+    addPlayer(m, 'bia', 'Bia');
+    setAscLobby(m, 'ana', ['easy', 'hard'], { pace: 'short' });
+    expect(startMatch(m, 0, 0, 'rounds', true, seeded(1), { pace: 'long' })).toBe(true);
+    expect(m.mode).toBe('ascension');
+    expect(m.opts.pace).toBe('short');
+    expect(m.players.filter((p) => p.bot).map((p) => p.difficulty)).toEqual(['easy', 'hard']);
+    expect(setAscLobby(m, 'ana', [], {})).toBe(false); // com a partida rolando, nada muda
+  });
+
+  it('lobby message only with valid difficulties and options', () => {
+    expect(parseClientMessage(JSON.stringify({ t: 'lobby', bots: ['easy'], opts: { pace: 'short' } }))).toEqual({ t: 'lobby', bots: ['easy'], opts: { pace: 'short' } });
+    expect(parseClientMessage(JSON.stringify({ t: 'lobby', bots: ['god'], opts: {} }))).toBe(null);
+    expect(parseClientMessage(JSON.stringify({ t: 'lobby', bots: [], opts: { pace: 'forever' } }))).toBe(null);
+    expect(parseClientMessage(JSON.stringify({ t: 'lobby', bots: Array(8).fill('easy'), opts: {} }))).toBe(null);
+  });
+
+  it('ascension rooms saved before the owner get one on resume', () => {
+    const m = Object.assign(newMatch(), { mode: 'ascension' as const });
+    addPlayer(m, 'ana', 'Ana');
+    resume(m, 0);
+    expect(m.lobby?.owner).toBe('ana');
   });
 });

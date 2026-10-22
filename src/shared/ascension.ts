@@ -3,7 +3,7 @@
 // 9 rodadas e pontos pela ordem de queda. Toda a regra do modo mora aqui (pedido do Fernando, 19/10: "deixe o código do
 // ascension mais separado pois vai mudar muita coisa da core gameplay"); match.ts só chama estas funções atrás de `m.asc`.
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
-import type { Match, Player, Stat } from './match.ts';
+import type { Match, MatchOpts, Player, Stat } from './match.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, spellCount, spellGroup, type SpellId } from './spells.ts';
 
 // rare: carta rara (só de subir magia): sobe 2 níveis
@@ -47,6 +47,26 @@ export const newAsc = (ids: string[]): AscState => ({ xp: {}, todo: Object.fromE
 export function ascResume(a: AscState) {
   if (a.todo && a.pick && Object.values(a.offer ?? {}).every((rows) => rows.every(Array.isArray))) return;
   Object.assign(a, { todo: a.todo ?? {}, offer: {}, pick: {}, fallen: a.fallen ?? [], extra: a.extra ?? {}, rerolls: a.rerolls ?? {} });
+}
+
+// sala do Ascensão: o dono (quem criou; se sair da sala, o próximo que entrou) escolhe os bots e as opções, e todos veem
+// na hora; só ele muda (Fernando, 21/10: "coloque para todos verem a opção que o criador da sala está selecionando e apenas
+// ele pode selecionar as opções"). O Começar usa estas escolhas, venha de quem vier
+export type AscLobby = { owner: string | null; bots: MatchOpts['difficulty'][]; opts: Partial<MatchOpts> };
+
+export function setAscLobby(m: Match, id: string, bots: AscLobby['bots'], opts: Partial<MatchOpts>): boolean {
+  const L = m.lobby;
+  if (!L || L.owner !== id || (m.phase !== 'lobby' && m.phase !== 'end')) return false;
+  Object.assign(L, { bots, opts });
+  return true;
+}
+
+// quem entra numa sala sem dono vira o dono; o dono que sai passa para o próximo humano da lista, de preferência um que joga
+// e está conectado (quem só assiste ou caiu fica por último)
+export function ascOwner(m: Match) {
+  const L = m.lobby;
+  const humans = m.players.filter((p) => !p.bot);
+  if (L && !m.players.some((p) => p.id === L.owner)) L.owner = (humans.find((p) => p.connected && !p.watch) ?? humans[0])?.id ?? null;
 }
 
 export function xpGain(s: Stat): number {
