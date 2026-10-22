@@ -6,7 +6,8 @@ Sugestão de ambiente de desenvolvimento, usada pelo dono do projeto desde 20/10
 
 | Sessão | O que faz | O que NÃO faz |
 |---|---|---|
-| **Orquestradora** (uma só) | recebe seus pedidos; cria a issue; abre a sessão filha com um brief; revisa e mescla os PRs; mantém o HANDOFF e as regras do projeto | não escreve código de tarefa; não faz pergunta de decisão sobre o assunto de uma filha |
+| **Orquestradora** (uma só) | recebe seus pedidos; cria a issue; abre a sessão filha com um brief; repassa os merges às filhas; arquiva as sessões terminadas; mantém o HANDOFF e as regras do projeto | não escreve código de tarefa; não revisa nem mescla PR; não faz pergunta de decisão sobre o assunto de uma filha |
+| **Revisoras** (fixas, opcional) | revisam e mesclam os PRs, divididas pelo autor do PR (ex.: uma para os PRs do dono e de docs/CI, outra por colaborador); avisam a orquestradora a cada merge | não escrevem código de tarefa; um PR nunca é mesclado por duas |
 | **Filha por issue** | lê a issue, trabalha num worktree próprio, roda os gates, tira os prints, abre o PR com `Closes #n` e pergunta a você as decisões da tarefa | não mescla; não muda configuração do repositório; não mexe no worktree de outra sessão |
 | **Filha fixa** (opcional) | um papel contínuo, por exemplo o bot do Telegram que responde dúvidas e anuncia os merges | não faz trabalho de código; repassa ao orquestrador o que for decisão ou tarefa |
 
@@ -17,7 +18,7 @@ Sugestão de ambiente de desenvolvimento, usada pelo dono do projeto desde 20/10
 - **Trabalho em paralelo.** Três issues independentes andam ao mesmo tempo em três sessões; você continua falando com a orquestradora enquanto elas trabalham.
 - **Nada se mistura.** Cada filha tem o seu worktree (pasta `../warlock-<nome>`, ao lado do repositório) e a sua branch, então uma tarefa não sobrescreve a outra e o checkout principal fica limpo.
 - **Decisão com contexto.** A pergunta sobre o anel de alcance é feita na sessão do anel, que tem os prints e os números na mão. A orquestradora só aponta onde há decisão esperando você.
-- **Revisão independente.** Quem revisa e mescla (a orquestradora) não é quem escreveu o código (a filha), como numa equipe.
+- **Revisão independente.** Quem revisa e mescla (uma revisora) não é quem escreveu o código (a filha) nem quem coordena (a orquestradora), como numa equipe.
 - **Retomar sem perder o fio.** O estado fica no HANDOFF e nas issues; uma orquestradora nova lê o HANDOFF e continua de onde a outra parou.
 - **Histórico visível.** Cada tarefa vira issue → PR com `Closes #n` → cartão no [quadro geral](https://github.com/users/fernandorff/projects/3) e no quadro do tema (Balanceamento, Jogabilidade, Interface, Bugfix ou Documentação e fluxos), e a barra lateral mostra as sessões filhas embaixo da orquestradora.
 
@@ -44,6 +45,12 @@ Sugestão de ambiente de desenvolvimento, usada pelo dono do projeto desde 20/10
 - **Aba de teste já no ponto do teste.** Em localhost, `?ir=<lugar>` leva direto ao que vai ser testado (issue #140): abas do menu inicial (`play`, `library`, `char`, `shop`, `profile`, `settings`), `config:<seção>` (ex.: `config:video`), `sandbox`, `partida` (contra 1 bot, já lutando) , `partida:loja` (loja da rodada 1, com 120 s) e `partida:ascensao` (Ascensão contra 3 bots, na carta inicial). Sala e seção juntas, com vírgula, para as Configurações de dentro da partida: `sandbox,config:som`. A lista fica no comentário de `src/client/main.ts`; no ar o parâmetro não faz nada. Ex.: `http://localhost:8839/?aba=loja-nova&ir=partida:loja`.
 - **Aba de teste sem música.** Em localhost a música começa desligada para quem nunca mexeu no volume (issue #158): várias abas abertas tocavam juntas. Teste de som abre com `?musica=1` (ex.: `http://localhost:8852/?aba=158-som&ir=partida&musica=1`). Volume mexido numa aba fica guardado para a porta inteira e vale nas outras abas dela, com ou sem `?musica=1`.
 - **Aba velha pede para ser fechada.** Em localhost, abrir uma aba nova na mesma porta troca o título das anteriores para `❌ FECHAR · <título>`, e o servidor local fora do ar por 3 s troca para `❌ FECHAR · servidor desligado` (volta sozinho quando o servidor religa). Abas com `?as=` não são marcadas como velhas.
+- **Uma frente por sessão.** 1 sessão = 1 issue = 1 branch = 1 servidor local. Sessão que pegou uma segunda frente passa essa frente para uma sessão nova (com um arquivo de handoff), para você não se perder entre abas e sessões.
+- **Issue marcada ao começar.** Ao pegar uma issue que já existe, a sessão se atribui (`gh issue edit N --add-assignee <você>`), comenta "Em andamento" e põe o cartão em "Fazendo" nos quadros. Antes, confere se um colaborador já se atribuiu; se sim, não duplica.
+- **Navegador só para testes.** As abas de teste abrem num navegador separado (um perfil próprio, com porta de depuração local em `127.0.0.1`), que a sessão consegue listar e fechar sozinha; o seu navegador do dia a dia fica intocado. Aba de servidor desligado é fechada a cada merge.
+- **PR que não muda o comportamento do jogo** (refatoração, limpeza, docs, CI) não abre aba de teste nem espera aprovação: basta CI verde, a revisão de excesso de código (`/ponytail-review`) e prints iguais.
+- **Sessão se arquiva sozinha.** Mandou o PR para revisão ou terminou a frente: derruba o próprio servidor, fecha as próprias abas e se arquiva. Se o PR precisar de ajuste, a revisora ou a orquestradora reabre a sessão.
+- **Revisora nova todo dia** (se usar revisoras): uma tarefa agendada abre uma revisora de cada papel pela manhã; a nova pede à anterior que atualize o arquivo de estado do papel (uma linha por PR aberto: o que foi pedido, o que falta, de quem depende) e se arquive. Assim nenhuma sessão fica lotada de contexto.
 - **Prints só no PC** por enquanto (decisão de 20/10).
 - **Commits em português, sem `Co-Authored-By`**; nada vai para o `master` sem PR.
 
@@ -51,7 +58,8 @@ Sugestão de ambiente de desenvolvimento, usada pelo dono do projeto desde 20/10
 
 | Sessão | Papel |
 |---|---|
-| Orquestrador Warlock | pedidos, issues, revisão, mescla, HANDOFF |
+| Orquestrador Warlock | pedidos, issues, sessões filhas, repasse dos merges, HANDOFF |
+| Revisoras 1, 2 e 3 (trocadas todo dia) | revisão e merge, divididas pelo autor do PR: PRs do dono e de docs/CI; PRs de um colaborador; PRs dos demais colaboradores |
 | Bot do Telegram (Gul'dan) | lê o grupo, responde dúvidas com fato conferido, anuncia cada merge no master; decisão de jogo vai para o dono |
 
 ## Sem o app do Claude Code
