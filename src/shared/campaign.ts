@@ -37,11 +37,14 @@ export const CAMPAIGN_BOOK: SpellBook = {};
 export const EMBER = { base: 3, perFall: 1, reach: 1, hp: 0.5, out: 20 };
 
 // padrão de cada estágio: ondas dos encontros, da mais fácil para a mais difícil (o mapa vem das salas, levels.ts)
-type StagePattern = { id: string; waves: [number, number]; pool: ServoKind[][] };
+// order: salas do meio sempre nesta sequência (estágio tutorial); só a direção de cada uma sai da semente
+type StagePattern = { id: string; waves: [number, number]; pool: ServoKind[][]; order?: string[] };
 export const STAGES: StagePattern[] = [
   {
     id: 'charneca', // Charneca Cinzenta: introdução, inimigos lentos
     waves: [2, 3],
+    // tutorial (Lucas, 22/10): cada sala ensina uma coisa, nesta ordem; a semente muda só para que lado cada sala abre
+    order: ['moinho-caido-01', 'ponte-dos-enforcados-01', 'vilarejo-queimado-02', 'cemiterio-dos-vigias-01'],
     pool: [['ash', 'ash'], ['ash', 'archer'], ['ash', 'ash', 'ash'], ['archer', 'archer'], ['ash', 'ash', 'archer'], ['ash', 'archer', 'archer'], ['ash', 'ash', 'archer', 'archer']],
   },
 ];

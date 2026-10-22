@@ -12,6 +12,7 @@ import { RULES } from './rules-text.ts';
 import { store } from './store.ts';
 import { choice, showRules, toast } from './ui.ts';
 import { LANG, setLang, spellName, t, type Lang } from './i18n.ts';
+import { ilseOn, setIlse } from './ilse.ts';
 
 declare const __BUILD__: string;
 
@@ -224,6 +225,7 @@ function playerSection(): Node[] {
       ctx.rename();
     } }, t('Trocar', 'Change'))),
     langChoice(),
+    check('ilse-on', ilseOn(), t('Falas da Ilse na Charneca (o tutorial da Campanha)', 'Ilse\'s lines on the Moor (the Campaign tutorial)'), setIlse),
   ];
 }
 

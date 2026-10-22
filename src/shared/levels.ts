@@ -2,7 +2,7 @@
 // padrão Diablo 2: objetivo fixo (entrada → salas do meio → portão → arena do chefe), salas sorteadas pela semente e,
 // nas saídas que sobram, salas laterais opcionais.
 import { CELL, type Terrain } from './arena.ts';
-import { CAMPAIGN, SERVOS, SERVO_KINDS, roomWaves, type ServoKind } from './campaign.ts';
+import { CAMPAIGN, SERVOS, SERVO_KINDS, STAGES, roomWaves, type ServoKind } from './campaign.ts';
 import { OBSTACLES, type ObstacleKind } from './constants.ts';
 import { CHARNECA } from './levels/charneca.ts';
 import { nightRand } from './rng.ts';
@@ -161,6 +161,23 @@ const shuffle = <T>(a: T[], rand: () => number) => {
   return a;
 };
 
+// a mesma sala espelhada, como os tiles do Diablo 2: fh troca esquerda e direita, fv troca cima e baixo. Chão, marcas e
+// saídas acompanham; a ordem das marcas não muda, então o E1 das linhas de onda continua o mesmo E
+const SWAP: Record<string, string> = { O: 'L', L: 'O', N: 'S', S: 'N' };
+export function flip(r: Room, fh: boolean, fv: boolean): Room {
+  if (!fh && !fv) return r;
+  const flat = (e: Edge) => e === 'top' || e === 'bottom';
+  const ground = r.ground.map((_, y) => r.ground[fv ? r.h - 1 - y : y].map((_, x) => r.ground[fv ? r.h - 1 - y : y][fh ? r.w - 1 - x : x]));
+  // o ponto de controle ocupa 2 casas (o C e o número): espelhado, o C continua à esquerda do número
+  const marks = r.marks.map((m) => ({ ...m, x: fh ? r.w - m.x - (m.kind === 'checkpoint' ? 2 : (m.w ?? 1)) : m.x, y: fv ? r.h - m.y - (m.h ?? 1) : m.y }));
+  const exits = r.exits.map((e) => {
+    const across = flat(e.edge) ? fv : fh, along = flat(e.edge) ? fh : fv, n = flat(e.edge) ? r.w : r.h;
+    return { letter: across ? (SWAP[e.letter] ?? e.letter) : e.letter, edge: across ? FACING[e.edge] : e.edge, from: along ? n - 1 - e.to : e.from, to: along ? n - 1 - e.from : e.to };
+  });
+  return { ...r, ground, marks, exits };
+}
+const variants = (r: Room, rand: () => number) => shuffle([[false, false], [true, false], [false, true], [true, true]], rand).map(([h, v]) => flip(r, h, v));
+
 // onde a sala nova fica para a abertura dela encostar na da sala atual (bordas lado a lado, aberturas alinhadas pelo meio)
 function attach(cur: Placed, out: Exit, room: Room, inn: Exit): { x: number; y: number } {
   const along = Math.round(center(out) - center(inn));
@@ -181,19 +198,21 @@ export function layoutStage(seed: number, stage: number): Placed[] {
   const rand = nightRand(seed, stage, -2);
   const rooms = STAGE_ROOMS[stage];
   const of = (p: Pool) => shuffle(rooms.filter((r) => r.pool === p), rand);
-  const middle = of('meio');
-  const want = MAIN_MIDDLE[0] + Math.floor(rand() * (MAIN_MIDDLE[1] - MAIN_MIDDLE[0] + 1));
-  const first: Placed = { room: of('entrada')[0], x: 0, y: 0, side: false, used: [] };
+  // estágio com ordem fixa (tutorial): todas as salas da lista, nessa sequência; senão 2 ou 3 sorteadas
+  const order = STAGES[stage]?.order?.map((id) => rooms.find((r) => r.id === id) ?? (() => { throw new Error(`estágio ${stage}: sala "${id}" da ordem não existe`); })());
+  const middle = order ?? of('meio');
+  const want = order ? order.length : MAIN_MIDDLE[0] + Math.floor(rand() * (MAIN_MIDDLE[1] - MAIN_MIDDLE[0] + 1));
+  const first: Placed = { room: variants(of('entrada')[0], rand)[0], x: 0, y: 0, side: false, used: [] };
   const gate = of('portão')[0], boss = of('chefe')[0];
 
   // caminho: do atual, por uma saída livre, para uma sala que caiba; depois de `want` salas do meio, portão e chefe
   const path: Placed[] = [first];
   const step = (n: number): boolean => {
     const cur = path[path.length - 1];
-    const next = n < want ? middle.filter((r) => !path.some((p) => p.room === r)) : n === want ? [gate] : n === want + 1 ? [boss] : null;
+    const next = n < want ? (order ? [order[n]] : middle.filter((r) => !path.some((p) => p.room.id === r.id))) : n === want ? [gate] : n === want + 1 ? [boss] : null;
     if (!next) return true;
     for (const out of shuffle(cur.room.exits.filter((e) => !cur.used.includes(e)), rand)) {
-      for (const room of next) {
+      for (const room of next.flatMap((r) => variants(r, rand))) {
         for (const inn of room.exits.filter((e) => fits(out, e))) {
           const at = attach(cur, out, room, inn);
           const cand: Placed = { room, ...at, side: false, used: [inn] };
@@ -211,12 +230,12 @@ export function layoutStage(seed: number, stage: number): Placed[] {
   if (!step(0)) throw new Error(`estágio ${stage}: nenhum caminho com ${want} salas do meio (semente ${seed})`);
 
   // salas laterais: nas saídas livres do caminho (menos portão e chefe), com as salas do meio que sobraram
-  const spare = middle.filter((r) => !path.some((p) => p.room === r));
+  const spare = middle.filter((r) => !path.some((p) => p.room.id === r.id)).flatMap((r) => variants(r, rand));
   const all = [...path];
   for (const cur of shuffle(path.filter((p) => p.room.pool === 'meio' || p.room.pool === 'entrada'), rand)) {
     for (const out of cur.room.exits.filter((e) => !cur.used.includes(e))) {
       if (all.length - path.length >= MAX_SIDE) break;
-      const room = spare.find((r) => r.exits.some((e) => fits(out, e)) && !all.some((p) => p.room === r));
+      const room = spare.find((r) => r.exits.some((e) => fits(out, e)) && !all.some((p) => p.room.id === r.id));
       const inn = room?.exits.find((e) => fits(out, e));
       if (!room || !inn) continue;
       const cand: Placed = { room, ...attach(cur, out, room, inn), side: true, used: [inn] };

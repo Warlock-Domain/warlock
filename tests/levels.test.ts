@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { STAGE_ROOMS, buildNight, layoutStage, parseRooms, type Ground, type NightMap } from '../src/shared/levels.ts';
+import { STAGES } from '../src/shared/campaign.ts';
+import { STAGE_ROOMS, buildNight, flip, layoutStage, parseRooms, type Ground, type NightMap } from '../src/shared/levels.ts';
 
 const rooms = STAGE_ROOMS[0];
 const room = (id: string) => rooms.find((r) => r.id === id)!;
@@ -100,21 +101,32 @@ describe('Campanha: montagem da noite', () => {
   it('same seed same map, and the seeds vary the path', () => {
     const ids = (s: number) => layoutStage(s, 0).map((p) => `${p.room.id}@${p.x},${p.y}`).join(' ');
     expect(ids(42)).toBe(ids(42));
-    expect(new Set(SEEDS.slice(0, 30).map(ids)).size).toBeGreaterThan(5);
+    // a Charneca tem ordem fixa: a semente vira as salas (espelho) e muda para que lado o caminho segue
+    expect(new Set(SEEDS.slice(0, 30).map(ids)).size).toBeGreaterThanOrEqual(4);
   });
 
-  it('every night goes entrance, 2 or 3 middle rooms, gate, boss, with at most 2 side rooms', () => {
+  it('the Charneca (tutorial) always goes entrance, the 4 middle rooms in order, gate, boss', () => {
     for (const s of SEEDS) {
       const all = layoutStage(s, 0);
-      const main = all.filter((p) => !p.side).map((p) => p.room.pool);
-      expect(main[0], String(s)).toBe('entrada');
-      expect(main.slice(-2), String(s)).toEqual(['portão', 'chefe']);
-      expect(main.length - 3, String(s)).toBeGreaterThanOrEqual(2);
-      expect(main.length - 3, String(s)).toBeLessThanOrEqual(3);
-      const side = all.filter((p) => p.side);
-      expect(side.length, String(s)).toBeLessThanOrEqual(2);
-      expect(new Set(all.map((p) => p.room.id)).size, String(s)).toBe(all.length); // sala nenhuma repete
+      expect(all.map((p) => p.room.id), String(s)).toEqual(['charneca-entrada-01', ...STAGES[0].order!, 'charneca-portao-01', 'arena-odran-01']);
+      expect(all.some((p) => p.side), String(s)).toBe(false);
     }
+  });
+
+  it('a mirrored room keeps its exits, marks and encounter consistent', () => {
+    const r = room('vilarejo-queimado-02');
+    const m = flip(r, true, true);
+    expect(flip(m, true, true)).toEqual(r);
+    expect(m.ground[0][0]).toBe(r.ground[r.h - 1][r.w - 1]);
+    // o E1 continua sendo a mesma marca (ordem preservada), só espelhada
+    const e = (q: typeof r) => q.marks.filter((k) => k.kind === 'entry');
+    expect(e(m).map((k) => [k.x, k.y])).toEqual(e(r).map((k) => [r.w - 1 - k.x, r.h - 1 - k.y]));
+    // o centro do ponto de controle (entre o C e o número) vai para o espelho do centro
+    const cp = (q: typeof r) => q.marks.find((k) => k.kind === 'checkpoint')!;
+    expect(cp(m).x + 1).toBe(r.w - (cp(r).x + 1));
+    // a saída N vira S, a L vira O, na posição espelhada
+    expect(m.exits.find((x) => x.letter === 'S')).toEqual({ letter: 'S', edge: 'bottom', from: r.w - 1 - r.exits.find((x) => x.letter === 'N')!.to, to: r.w - 1 - r.exits.find((x) => x.letter === 'N')!.from });
+    expect(m.fight).toBe(r.fight);
   });
 
   it('rooms never overlap and the boss is reachable on foot from the start', () => {

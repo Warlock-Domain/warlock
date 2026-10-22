@@ -33,6 +33,7 @@ import { hasBotSetup, savedBotSetup } from './train.ts';
 import { TEAM_NAMES, TOUCH, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
 import { STAGE_NAME, endResult, maxHp, playerName } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
+import { ILSE_MOMENTS, ILSE_ROOMS, ilseOn, ilseSecs, setIlse } from './ilse.ts';
 
 // som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
@@ -161,6 +162,14 @@ function startRoom(code: string, name: string) {
   const sound = createSound(() => vol);
   hoverSound(sound);
   let room: PublicRoom | null = null;
+  // fala da Ilse (Campanha): quais já saíram nesta noite (pela semente) e até quando a atual fica na tela
+  let ilseNight = '', ilseSaid = new Set<string>(), ilseUntil = 0;
+  const ilseSay = (key: string, text: string) => {
+    if (ilseSaid.has(key)) return;
+    ilseSaid.add(key);
+    view.ilse(text);
+    ilseUntil = performance.now() + ilseSecs(text) * 1000;
+  };
   let me = playerId;
   let online = false;
   let armed: SpellId | ItemId | null = null;
@@ -525,6 +534,7 @@ function startRoom(code: string, name: string) {
         // Campanha: caiu no abismo e voltou à beira
         sound.play('splash', near(e.x, e.y));
         if (e.id === me) banner(t('Você caiu no abismo!', 'You fell into the abyss!'));
+        if (e.id === me && room?.night?.stage === 0 && ilseOn()) ilseSay('fall', ILSE_MOMENTS.fall());
       } else if (e.k === 'aegis') {
         sound.play('shield');
         banner([icon(ITEM_ICON.aegis), e.id === me ? t(' A Égide te tirou da lava e quebrou', ' The Aegis pulled you out of the lava and broke') : t(` A Égide tirou ${who.get(e.id) ?? '?'} da lava`, ` The Aegis pulled ${who.get(e.id) ?? '?'} out of the lava`)], e.id === me ? 'good' : '');
@@ -761,6 +771,26 @@ function startRoom(code: string, name: string) {
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
     scene.range(showing && myPos ? myPos : null, showing && meP ? reachOf(showing, meP.spells, meP.items, room?.night ? CAMPAIGN_BOOK : undefined) : 0);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
+    // Campanha: falas da Ilse no tutorial (Charneca): a sala onde eu estou e a vitória; cada fala uma vez por noite
+    const nightKey = room?.night ? String(room.night.seed) : '';
+    if (nightKey !== ilseNight) {
+      ilseNight = nightKey;
+      ilseSaid = new Set();
+      view.ilse(null);
+    }
+    if (nm && playing && room!.night!.stage === 0 && ilseOn()) {
+      const here = myPos && nm.rooms.find((p) => myPos.x > p.x && myPos.y > p.y && myPos.x < p.x + p.room.w && myPos.y < p.y + p.room.h);
+      const line = here && ILSE_ROOMS[here.room.id];
+      if (here && line) ilseSay(here.room.id, line({ fireKey: isPadMode() ? 'A' : labelOf('fireball'), touch: TOUCH }));
+      if (room!.night!.result === 'won') {
+        ilseSay('won', ILSE_MOMENTS.won());
+        setIlse(false); // venceu a Charneca: o tutorial acabou neste navegador
+      }
+    }
+    if (ilseUntil && nowMs >= ilseUntil) {
+      ilseUntil = 0;
+      view.ilse(null);
+    }
     // Campanha: barra do chefe enquanto ele está em pé
     const bossP = room?.night ? room.players.find((p) => p.servo && SERVOS[p.servo].boss) : undefined;
     const bossW = bossP && playing ? s?.wizards.find((w) => w.id === bossP.id && w.alive) : undefined;

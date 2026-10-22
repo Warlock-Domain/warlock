@@ -696,6 +696,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), voteWrap, volBtn, gearBtn, helpBtn, el('div', { class: 'vol more-wrap' }, moreBtn, morePanel), el('div', { class: 'vol' }, sbBtn, sbPanel)),
   );
   const center = el('div', { class: 'center' });
+  // fala da Ilse (tutorial da Campanha): nome, a linha e o botão de pular; não pausa nada
+  const ilseText = el('span', { class: 'ilse-text' });
+  const ilseBox = el('div', { class: 'ilse', role: 'status', hidden: true }, el('b', { class: 'ilse-name' }, 'Ilse'), ilseText,
+    el('button', { type: 'button', class: 'ilse-skip', onclick: () => (ilseBox.hidden = true) }, t('Pular', 'Skip')));
   // barra do chefe da Campanha, no topo enquanto ele está em pé
   const bossName = el('span', { class: 'boss-name' });
   const bossFill = el('i', {});
@@ -848,7 +852,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     e.preventDefault();
     act.replay();
   });
-  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, bossBar, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
+  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, bossBar, ilseBox, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
@@ -1418,6 +1422,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const changed = on !== online;
       setOnline(on);
       if (changed) drawCenter();
+    },
+    // fala da Ilse: mostra a linha (null esconde); quem chama decide quanto tempo ela fica
+    ilse(text: string | null) {
+      if (!text) return void (ilseBox.hidden = true);
+      ilseText.textContent = text;
+      ilseBox.hidden = false;
     },
     // a cada quadro: vida do chefe da Campanha (null esconde)
     boss(b: { name: string; now: number; max: number } | null) {

@@ -77,6 +77,7 @@ export type Wizard = {
   // clicar para andar não cancela); o clique de andar fica guardado em `then` e vale quando a magia sai
   casting: { spell?: SpellId; item?: ItemId; at: Vec; fireAt: number; then?: Vec | null } | null;
   god?: boolean; // sandbox: vida infinita (não morre; da lava volta para a pedra)
+  pitDeath?: boolean; // mapa: cai no abismo e morre (servo do Fumo, Lucas 22/10); sem o campo volta à beira com dano
   safe?: Vec; // mapa: último ponto em chão firme (quem cai no abismo volta aqui)
   // Campanha: brasa do Aceso caído (match.ts): prog s com aliado perto, need s para voltar; out = apagou (arena do chefe)
   ember?: { prog: number; need: number; since: number; out?: boolean };
@@ -1549,6 +1550,12 @@ export function keepOut(t: Terrain, wz: Pick<Wizard, 'pos' | 'vel' | 'safe'>, lo
 // abismo: perde PIT.hit da vida máxima e volta parado à beira de onde caiu (o crédito fica com quem empurrou, como na lava)
 function fall(w: World, wz: Wizard) {
   const from = wz.pos;
+  if (wz.pitDeath) {
+    // morre no passo (a morte sai logo abaixo, com o crédito de quem empurrou); abaixo de zero para a regeneração não salvar
+    wz.hp = -wz.hpMax;
+    w.events.push({ k: 'fall', id: wz.id, x: from.x, y: from.y });
+    return;
+  }
   Object.assign(wz, { pos: wz.safe ?? from, vel: v(0, 0), target: null, dashUntil: 0, thrustUntil: 0 });
   if (w.t >= wz.invulnUntil) wz.hp -= wz.hpMax * PIT.hit;
   wz.calmSince = w.t;
