@@ -35,10 +35,10 @@ describe('posições de equipamento na loja', () => {
   it('teclado e controle usam a nova posição inclusive com vagas vazias', () => {
     setSlotMode(true);
     setSlots([null, 'illusion', null, null, null, 'fireball', null, 'pact']);
+    expect(actionFor('Digit1')).toBeUndefined();
+    expect(actionFor('KeyW')).toBe('fireball');
+    expect(actionFor('KeyR')).toBe('pact');
     expect(actionFor('KeyQ')).toBeUndefined();
-    expect(actionFor('KeyS')).toBe('fireball');
-    expect(actionFor('KeyF')).toBe('pact');
-    expect(actionFor('KeyA')).toBeUndefined();
     expect(padAction(BTN.RB)).toBe('fireball');
     expect(padAction(BTN.LT)).toBeUndefined();
     expect(padAction(BTN.RT)).toBe('pact');

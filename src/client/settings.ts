@@ -89,7 +89,7 @@ function keysSection(): Node[] {
   ];
 }
 
-// jeito de lançar pela tecla (os três do Dota) e o modo Q W E R A S D F
+// jeito de lançar pela tecla (os três do Dota) e o modo 1 2 3 4 Q W E R
 const CAST_TEXT: Record<CastMode, [string, string]> = {
   quick: [t('Rápido', 'Quick'), t('A tecla lança na hora na direção do mouse, e o anel de alcance pisca ao lançar. Passe o mouse na magia da barra para ver o alcance antes.', 'The key casts instantly toward the mouse, and the range ring flashes as it casts. Hover a spell on the bar to see its range beforehand.')],
   release: [t('Ao soltar', 'On release'), t('Segure a tecla para ver o círculo de alcance; ao soltar, a magia sai. Esc cancela.', 'Hold the key to see the range circle; on release, the spell is cast. Esc cancels.')],
@@ -98,7 +98,7 @@ const CAST_TEXT: Record<CastMode, [string, string]> = {
 const check = (id: string, on: boolean, text: string, change: (on: boolean) => void) => el('label', { class: 'slot-row', for: id },
   el('input', { type: 'checkbox', id, checked: on, onchange: (e: Event) => change((e.target as HTMLInputElement).checked) }), el('span', {}, text));
 
-// as teclas das magias moram em Lançamento, junto da caixa Q W E R A S D F (Fernando, 20/10): com ela desligada, o botão "Teclas de cada
+// as teclas das magias moram em Lançamento, junto da caixa 1 2 3 4 Q W E R (Fernando, 20/10): com ela desligada, o botão "Teclas de cada
 // magia" abre a lista (fica aberto quando o menu redesenha); ligada, as magias seguem a barra (sem itens ativos desde 21/10, #217)
 let spellKeysOpen = false;
 const actionRow = (a: Action) => keyRow(a, [icon(actionIcon(a)), ' ', nameOf(a)]);
@@ -108,7 +108,7 @@ function castSection(): Node[] {
     choice(t('Jeito de lançar', 'Casting mode'), CAST_MODES.map((k) => [k, CAST_TEXT[k][0]] as [CastMode, string]), getCastMode(), (k) => (setCastMode(k), draw())),
     el('p', { class: 'muted' }, CAST_TEXT[getCastMode()][1]),
     el('h3', {}, t('Teclas das magias', 'Spell keys')),
-    check('slot-keys', isSlotMode(), t('Q W E R A S D F pela ordem da barra', 'Q W E R A S D F in bar order'), (on) => (setSlotMode(on), draw())),
+    check('slot-keys', isSlotMode(), t('1 2 3 4 Q W E R pela ordem da barra', '1 2 3 4 Q W E R in bar order'), (on) => (setSlotMode(on), draw())),
     el('p', { class: 'muted' }, t('Ligado, as magias usam a tecla da posição na barra (troque abaixo); desligado, cada magia tem a sua tecla.', 'When on, spells use the key of their position on the bar (change them below); when off, each spell has its own key.')),
     ...(isSlotMode()
       ? [el('h3', {}, t('Teclas das posições', 'Position keys')), el('div', { class: 'keys-list' }, ...POS_ACTIONS.map((p) => keyRow(p, [padActionName(p)])))]

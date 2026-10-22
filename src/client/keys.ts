@@ -14,15 +14,14 @@ const ALL: AnyAction[] = [...ACTIONS, ...UI_ACTIONS];
 const DEFAULTS: Record<string, string> = {
   fireball: 'KeyQ', lightning: 'KeyW', homing: 'KeyE', shield: 'KeyR', teleport: 'KeyF',
   cluster: 'KeyT', swap: 'KeyD', grip: 'KeyG', rush: 'KeyC', meteor: 'KeyV',
-  boomerang: 'KeyB', thrust: 'KeyX', gravity: 'KeyS', rockpillar: 'KeyZ', bouncer: 'KeyA',
+  boomerang: 'KeyB', thrust: 'KeyX', gravity: 'KeyH', rockpillar: 'KeyZ', bouncer: 'KeyA',
   // as dez últimas: sobraram 9 letras livres; a Zona de dobra fica sem tecla padrão (teclas por posição ou painel de teclas)
   drain: 'KeyN', snowball: 'KeyO', illusion: 'KeyJ', magnetize: 'KeyM', recharge: 'KeyK', alteration: 'KeyL', link: 'KeyU', windwalk: 'KeyI', splitter: 'KeyP', warpzone: '',
   // Flagelo e Pacto ficam nas teclas que tinham como item (viraram magia em 21/10, #217)
   scourge: 'Digit1', pact: 'Digit3',
-  // loja: o B do Dota é do Bumerangue e as 26 letras já têm dono, então o 4; ficha: a tecla à esquerda do 1 (' no ABNT2);
-  // grimório no F1 e a biblioteca de magias e itens no F2. Parar no H (o Segurar do Dota) e Gravidade no S: o S virou a Magia 6
-  // das teclas por posição (Fernando, 21/10, #217: Q W E R A S D F)
-  shop: 'Digit4', board: 'Tab', sheet: 'Backquote', taunt: 'KeyY', rules: 'F1', library: 'F2', stop: 'KeyH', vote: '', replay: 'Digit5', camera: 'Digit6',
+  // loja: o B do Dota é do Bumerangue e as 26 letras já têm dono; 1 a 4 são das magias por posição (21/10, #217), então o 7
+  // (o 5 já era do Rever a queda e o 6 da câmera, #235); ficha: a tecla à esquerda do 1 (' no ABNT2); grimório no F1 (o H é da Gravidade) e a biblioteca no F2
+  shop: 'Digit7', board: 'Tab', sheet: 'Backquote', taunt: 'KeyY', rules: 'F1', library: 'F2', stop: 'KeyS', vote: '', replay: 'Digit5', camera: 'Digit6',
 };
 // fixas: Esc (cancela, fecha e abre as configurações), Enter, Espaço (segurar arrasta a câmera, soltar centraliza) e ← → (placar e espectador)
 export const RESERVED = new Set(['Escape', 'Enter', 'Space', 'ArrowLeft', 'ArrowRight']);
@@ -42,12 +41,11 @@ const save = () => {
 };
 
 // teclas por posição (como no Dota; pedido do Fernando, 17/10): as magias usam a tecla da posição na barra.
-// 8 posições em Q W E R A S D F (Fernando, 21/10, #217: primeiro 1 2 3 4 Q W E R, depois "troque o padrao dos botoes para Q W E R A S D F";
-// antes Magia 1 a 6 em Q W E R D F e Item 1 a 3 em 1 2 3),
+// 8 posições em 1 2 3 4 Q W E R, misturando MMO e MOBA (Fernando, 21/10, #217; antes Magia 1 a 6 em Q W E R D F e Item 1 a 3 em 1 2 3),
 // trocáveis (20/10), com os nomes das do controle.
 export const POS_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8'] as const;
 export type PosAction = (typeof POS_ACTIONS)[number];
-const POS_DEFAULTS: Record<PosAction, string> = { slot1: 'KeyQ', slot2: 'KeyW', slot3: 'KeyE', slot4: 'KeyR', slot5: 'KeyA', slot6: 'KeyS', slot7: 'KeyD', slot8: 'KeyF' };
+const POS_DEFAULTS: Record<PosAction, string> = { slot1: 'Digit1', slot2: 'Digit2', slot3: 'Digit3', slot4: 'Digit4', slot5: 'KeyQ', slot6: 'KeyW', slot7: 'KeyE', slot8: 'KeyR' };
 export const isPos = (a: AnyAction): a is PosAction => a in POS_DEFAULTS;
 // chave nova em 21/10: as posições salvas do jeito antigo (Q W E R nas 4 primeiras) repetiriam teclas com as 8 novas
 const POS_STORE = 'warlock:poskeys8';
@@ -56,7 +54,7 @@ for (const [a, code] of Object.entries(store.json<Record<string, string>>(POS_ST
 const SLOT_STORE = 'warlock:slotkeys';
 // ligado por padrão (Fernando, 20/10), menos para quem já tem teclas salvas: o modo ignoraria as teclas das magias e prenderia as teclas das posições
 let slotMode = (store.get(SLOT_STORE) ?? (store.get(STORE) ? '0' : '1')) === '1';
-// atalho salvo antes de 21/10 numa tecla que agora é de posição (o Parar no S): volta ao padrão, senão a tecla abriria a loja e lançaria a magia;
+// atalho salvo antes de 21/10 numa tecla que agora é de posição (a Loja no 4): volta ao padrão, senão a tecla abriria a loja e lançaria a magia;
 // sem as teclas por posição nada colide, e o atalho fica onde a pessoa pôs
 if (slotMode) for (const u of UI_ACTIONS) if (Object.values(posMap).includes(map[u])) map[u] = DEFAULTS[u];
 let slots: (SpellId | null)[] = [];
