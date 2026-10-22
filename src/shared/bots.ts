@@ -110,7 +110,7 @@ export function skillAt(k: number): BotSkill {
   const t = Math.min(1, Math.abs(k));
   return Object.fromEntries(Object.entries(BASE.normal).map(([key, n]) => [key, n * (1 - t) + to[key as keyof BotSkill] * t])) as BotSkill;
 }
-// Casual e Veterano na metade do caminho entre os vizinhos (Fernando, 21/10: "mais 2 niveis de dificuldade com valores intermediarios")
+// Casual e Veterano na metade do caminho entre os vizinhos (Fernando, 21/10: mais 2 níveis de dificuldade com valores intermediários)
 export const BOT_SKILL = { easy: BASE.easy, casual: skillAt(-0.5), normal: BASE.normal, veteran: skillAt(0.5), hard: BASE.hard };
 // pensa D.rate vezes por segundo; i espalha os bots para não pensarem todos no mesmo passo
 export function botThinks(step: number, i: number, D: BotSkill): boolean {
