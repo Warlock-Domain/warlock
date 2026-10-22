@@ -109,7 +109,7 @@ Um chefe é um `Wizard` com `role: 'boss'`, perfil em `src/shared/bosses.ts` (vi
 
 Regras comuns:
 
-- `kbResist` alto (0,6 a 0,75) e vida 5 a 8 vezes a de um mago. Caiu na lava: toma 15% da vida máxima, volta para a pedra (`safeInside`, como o `god` da sandbox faz hoje) e fica 1,5 s atordoado. É a maior janela de dano do grupo.
+- `kbResist` alto (0,6 a 0,75) e vida 5 a 8 vezes a de um mago. Caiu na lava: toma 15% da vida máxima, volta para a pedra (`safeInside`, como a Égide faz em `toStone`) e fica 1,5 s atordoado. É a maior janela de dano do grupo.
 - Troca de alvo: foca quem causou mais dano nos últimos 5 s, mas a cada ~12 s vira para quem está mais longe (puxa o grupo para junto).
 - Fases por fração de vida (ex.: 100 / 60 / 25%): cada fase troca o conjunto de padrões e dispara uma fala. Abaixo de 25% a arena começa a encolher.
 - Falas: evento `{ k: 'say', id, line }` da partida; os textos ficam no cliente em `campaign-text.ts` (pares `_PT`/`_EN`, como `rules-text.ts`). Fala contra a própria ordem: se algum Aceso tem a classe do chefe.

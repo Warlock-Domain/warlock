@@ -29,3 +29,7 @@ Mensagem nova do cliente: variante em `ClientMsg` → `case` em `parseClientMess
 ## Snapshot (`snapshot.ts`)
 
 Listas achatadas de números (layout no comentário de `protocol.ts`), valores com `r2`, campos opcionais só quando há conteúdo, estado novo por mago como bit documentado em `bits`. Inserir no meio de `PROJ_KINDS` quebra cliente aberto.
+
+## Aparência (`characters.ts`)
+
+O código da aparência guarda a **posição** de cada opção (7 dígitos, um por peça), e ele fica salvo no navegador e nas salas. Opção nova entra **no fim** da lista da peça; opção que sai fica no lugar e vira aposentada (`isRetired`): `decodeLook` troca por outra (a Ladina encapuzada vira Ladina + Capuz, issue #107), o criador e o sorteio pulam. Toda entrada de código passa por `fixLook` (navegador em `savedLook`, mensagem em `parseClientMessage`, sala gravada em `resume`).

@@ -44,6 +44,12 @@ describe('opções da partida', () => {
     expect(goalOf({ mode: 'deathmatch', opts: { ...DEFAULT_OPTS, goal: 7 } })).toBe(25);
   });
 
+  it('a new room has Auto bots (21/10)', () => {
+    expect(newMatch().opts.difficulty).toBe('auto');
+    const g = game(['a'], 1);
+    expect(g.m.players[1].difficulty ?? g.m.opts.difficulty).toBe('auto');
+  });
+
   it('shop time is the chosen one, and everyone ready still ends it early', () => {
     const g = game(['a', 'b'], 0, { shop: 90 });
     expect(g.m.phaseEnds).toBe(90_000);
@@ -62,12 +68,12 @@ describe('opções da partida', () => {
   });
 
   it('start gold is multiplied by the economy', () => {
-    expect(game(['a', 'b'], 0, { startGold: 60, economy: 1.6 }).m.players[0].gold).toBe(96);
+    expect(game(['a', 'b'], 0, { startGold: 60, economy: 1.5 }).m.players[0].gold).toBe(90);
     expect(game(['a', 'b'], 0, { startGold: 100 }).m.players[0].gold).toBe(100);
   });
 
   it('economy multiplies kill, assist, loot, round and win gold', () => {
-    const eco = 2.5;
+    const eco = 2;
     const g = game(['a', 'b', 'c'], 0, { economy: eco });
     toPlaying(g);
     g.m.dmgOn = { c: { b: 50 } }; // b ajudou a derrubar c
@@ -88,6 +94,19 @@ describe('opções da partida', () => {
       kill(x, 'b', null);
     }
     expect(goldOf(g2, 'a')).toBe(Math.round(ROUND_GOLD * eco) + Math.round((goldOf(g1, 'a') - ROUND_GOLD) * eco));
+  });
+
+  it('×1,5 keeps the fraction: the gold pile pays 1, 2, 1, 2', () => {
+    const g = game(['a', 'b'], 0, { economy: 1.5 });
+    toPlaying(g);
+    g.m.world!.loots = [{ pos: g.m.world!.wizards[0].pos, left: 5, until: 1e9 }];
+    const paid: number[] = [];
+    for (let k = 0; k < 4; k++) {
+      const before = goldOf(g, 'a');
+      until(g, () => goldOf(g, 'a') > before, 200);
+      paid.push(goldOf(g, 'a') - before);
+    }
+    expect(paid).toEqual([1, 2, 1, 2]);
   });
 
   it('goal: with 3 rounds the match ends at 3 wins', () => {
@@ -114,10 +133,10 @@ describe('opções da partida', () => {
 
   it('the protocol only accepts known options and values', () => {
     const p = (m: unknown) => parseClientMessage(JSON.stringify(m));
-    expect(p({ t: 'start', bots: 2, opts: { shop: 120, economy: 2.5, runes: false } })).toEqual({ t: 'start', bots: 2, mode: undefined, shuffle: undefined, opts: { shop: 120, economy: 2.5, runes: false } });
+    expect(p({ t: 'start', bots: 2, opts: { shop: 120, economy: 2, runes: false } })).toEqual({ t: 'start', bots: 2, mode: undefined, shuffle: undefined, opts: { shop: 120, economy: 2, runes: false } });
     expect(p({ t: 'start', bots: 2 })).toEqual({ t: 'start', bots: 2, mode: undefined, shuffle: undefined });
     expect(p({ t: 'start', bots: 2, opts: { shop: 15 } })).toBeNull();
-    expect(p({ t: 'start', bots: 2, opts: { economy: 2 } })).toBeNull();
+    expect(p({ t: 'start', bots: 2, opts: { economy: 2.5 } })).toBeNull();
     expect(p({ t: 'start', bots: 2, opts: { gold: 1 } })).toBeNull();
     expect(p({ t: 'start', bots: 2, opts: 'muita' })).toBeNull();
     expect(p({ t: 'vote', kind: 'opt', target: 'shop:60' })).toEqual({ t: 'vote', kind: 'opt', target: 'shop:60' });
@@ -162,7 +181,7 @@ describe('votações novas', () => {
   });
 
   it('restart goes back to the round 1 shop with everything reset, same mode and options', () => {
-    const g = game(['a'], 2, { economy: 1.6 }, 'teams');
+    const g = game(['a'], 2, { economy: 1.5 }, 'teams');
     toPlaying(g);
     g.m.players[0].score = 3;
     g.m.players[0].spells.lightning = 2;
@@ -170,10 +189,10 @@ describe('votações novas', () => {
     expect(g.m.phase).toBe('shop');
     expect(g.m.round).toBe(0);
     expect(g.m.mode).toBe('teams');
-    expect(g.m.opts.economy).toBe(1.6);
+    expect(g.m.opts.economy).toBe(1.5);
     expect(g.m.players.length).toBe(3);
     const a = g.m.players.find((p) => p.id === 'a')!;
-    expect([a.score, a.gold, a.spells.lightning]).toEqual([0, Math.round(START_GOLD * 1.6), 0]);
+    expect([a.score, a.gold, a.spells.lightning]).toEqual([0, Math.round(START_GOLD * 1.5), 0]);
   });
 
   it('end now: the top scorer wins; a tie at the top has no winner', () => {

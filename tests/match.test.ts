@@ -51,6 +51,24 @@ describe('partida', () => {
     expect(m.lastRoundWinner).toBe('a');
   });
 
+  // Fernando, 19/10: o ouro garantido da rodada chega na hora da queda (para comprar enquanto assiste), uma vez só
+  it('pays the round gold when you fall, not again at the end of the round', () => {
+    const m = twoPlayers();
+    addPlayer(m, 'c', 'Caio');
+    let now = toPlaying(m, 0);
+    const c = m.players.find((p) => p.id === 'c')!;
+    const before = c.gold;
+    kill(m, 'c', null);
+    now = until(m, now, () => !m.world!.wizards.find((z) => z.id === 'c')!.alive);
+    expect(c.gold).toBe(before + ROUND_GOLD);
+    const afterFall = c.stats.round.gold;
+    kill(m, 'b', null);
+    until(m, now, () => m.phase === 'roundEnd');
+    expect(m.roundPaid).toContain('c');
+    // no fim da rodada o Caio só pode receber a recuperação, nunca outro ROUND_GOLD
+    expect(c.stats.round.gold - afterFall).toBeLessThan(ROUND_GOLD);
+  });
+
   it('kill gives no points', () => {
     const m = twoPlayers();
     addPlayer(m, 'c', 'Caio');
@@ -271,6 +289,10 @@ describe('partida', () => {
     delete (m.players[0] as { look?: string }).look;
     resume(m, 0);
     expect(m.players[0].look).toBe(lookOf('rogue_hooded'));
+    // sala gravada com o código antigo da Ladina encapuzada: volta como Ladina + Capuz (#107)
+    m.players[0].look = '4044444';
+    resume(m, 0);
+    expect(m.players[0].look).toBe(lookOf('rogue_hooded'));
   });
 
   it('loop stops without humans', () => {
@@ -316,10 +338,10 @@ describe('treino: magias dos bots', () => {
     const bot = (n: number) => m.players.find((p) => p.id === 'bot-' + n)!;
     const want = { ...noSpells(), fireball: 0, lightning: 3, shield: 7 };
     expect(bot(1).spells).toEqual(want);
-    expect(bot(1).items).toEqual({ ...noItems(), scourge: 1 });
+    expect(bot(1).items).toEqual(noItems());
     expect(bot(1).gold).toBe(START_GOLD); // não gastou nada
     expect(bot(3).spells).toEqual(noSpells());
-    expect(bot(3).items).toEqual({ ...noItems(), scourge: 1, armor: 2 });
+    expect(bot(3).items).toEqual({ ...noItems(), armor: 2 });
     let now = toPlaying(m, 0);
     expect(m.world!.wizards.find((z) => z.id === 'bot-1')!.spells).toEqual(want);
     // a rodada sai marcada na telemetria
@@ -391,15 +413,15 @@ describe('dificuldade por bot', () => {
     expect(botSkill(m, b2)).toBe(BOT_SKILL.hard);
   });
 
-  it('bot votado no meio da partida entra Normal, mesmo com a partida em outra dificuldade', () => {
+  it('bot votado no meio da partida entra no padrão (Automático), mesmo com a partida em outra dificuldade', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     startMatch(m, 0, 1, 'rounds', true, Math.random, { difficulty: 'hard' }, [{ difficulty: 'easy' }]);
     expect(startVote(m, 'a', 'addBot', '', 0)).toBe(true);
     toPlaying(m, 0);
     const added = m.players.find((p) => p.id === 'bot-2')!;
-    expect(added.difficulty).toBe('normal');
-    expect(botSkill(m, added)).toBe(BOT_SKILL.normal);
+    expect(added.difficulty).toBe('auto');
+    expect(botSkill(m, added)).toEqual(skillAt(0)); // placar empatado: o meio do caminho
   });
 });
 

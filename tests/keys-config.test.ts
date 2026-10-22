@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BTN, padAction } from '../src/client/gamepad.ts';
 import {
-  ACTIONS, PAD_START, UI_ACTIONS, actionFor, isUiKey, keyOf, labelOf, onFreeEsc, padActionAt, padButtonOf, resetKeys, resetPad, setKey, setPadButton, setPadMode, setSlotMode, setSlots, whoUses,
+  ACTIONS, PAD_START, POS_ACTIONS, UI_ACTIONS, actionFor, isUiKey, keyOf, labelOf, onFreeEsc, padActionAt, padButtonOf, resetKeys, resetPad, setKey, setPadButton, setPadMode, setSlotMode, setSlots, whoUses,
 } from '../src/client/keys.ts';
 import { RULES } from '../src/client/rules-text.ts';
 
@@ -13,6 +13,14 @@ beforeEach(() => {
 });
 
 describe('teclas da interface no mesmo painel das magias', () => {
+  it('provocações começam em Y e no direcional esquerdo, e permitem trocar o botão', () => {
+    expect(keyOf('taunt')).toBe('KeyY');
+    expect(padButtonOf('taunt')).toBe(BTN.LEFT);
+    expect(padActionAt(BTN.LEFT)).toBe('taunt');
+    expect(setPadButton('taunt', BTN.DOWN)).toBe(true);
+    expect(padButtonOf('shop')).toBe(BTN.LEFT);
+    expect(padActionAt(BTN.DOWN)).toBe('taunt');
+  });
   it('atalho e magia não repetem tecla: dar o Q às provocações troca com a Bola de fogo, e o atalho nunca lança', () => {
     expect(whoUses('KeyQ')).toBe('fireball');
     expect(setKey('taunt', 'KeyQ')).toBe(true);
@@ -37,17 +45,28 @@ describe('teclas da interface no mesmo painel das magias', () => {
     expect([keyOf('fireball'), keyOf('board')]).toEqual(['KeyQ', 'Tab']);
   });
 
-  it('modo Q W E R D F: as seis letras são das posições da barra; atalho e item não ficam com elas', () => {
-    setSlots(['fireball', 'lightning']);
+  it('modo 1 2 3 4 Q W E R: as teclas são das posições da barra (Magia 1 a 8), trocáveis; posição e atalho trocam entre si (issues #76 e #217)', () => {
+    setSlots(['fireball', 'lightning', null, null, 'pact']);
     setSlotMode(true);
-    expect(setKey('shop', 'KeyQ')).toBe(false);
-    expect(setKey('scourge', 'KeyW')).toBe(false);
-    expect(whoUses('KeyQ')).toBe('fireball');
-    expect(actionFor('KeyW')).toBe('lightning');
-    expect(setKey('stop', 'KeyT')).toBe(true); // letra fora das seis vale
-    expect(isUiKey('KeyT', 'stop')).toBe(true);
-    // a tecla guardada da Rajada (T) trocou com a do Parar (S): o aviso de troca tem de citá-la
-    expect(whoUses('KeyS')).toBe('cluster');
+    expect([whoUses('Digit1'), actionFor('Digit2'), actionFor('KeyQ'), keyOf('pact')]).toEqual(['slot1', 'lightning', 'pact', 'KeyQ']);
+    // Magia 1 no Espaço não (fixa); Magia 1 no T: Bola de fogo vai para o T
+    expect(setKey('slot1', 'Space')).toBe(false);
+    setKey('slot1', 'KeyT');
+    expect([actionFor('KeyT'), actionFor('Digit1'), keyOf('fireball')]).toEqual(['fireball', undefined, 'KeyT']);
+    // Magia 2 no T: as duas posições trocam (Magia 1 fica com o 2)
+    setKey('slot2', 'KeyT');
+    expect([keyOf('slot1'), keyOf('slot2')]).toEqual(['Digit2', 'KeyT']);
+    // atalho no 2 da Magia 1: a posição fica com a tecla antiga do atalho (7)
+    setKey('shop', 'Digit2');
+    expect([isUiKey('Digit2', 'shop'), keyOf('slot1'), actionFor('Digit2'), actionFor('Digit7')]).toEqual([true, 'Digit7', undefined, 'fireball']);
+    // posição na tecla do Parar (S): o Parar fica com a tecla antiga da posição
+    setKey('slot5', 'KeyS');
+    expect([actionFor('KeyS'), keyOf('stop')]).toEqual(['pact', 'KeyQ']);
+    // nenhuma tecla em duas ações do modo; Voltar ao padrão volta as posições também
+    const used = [...POS_ACTIONS, ...UI_ACTIONS].map(keyOf).filter(Boolean);
+    expect(new Set(used).size).toBe(used.length);
+    resetKeys();
+    expect([keyOf('slot1'), keyOf('slot5'), keyOf('shop')]).toEqual(['Digit1', 'KeyQ', 'Digit7']);
   });
 
   it('Rever a queda começa no 5 e é trocável como os outros atalhos', () => {
@@ -55,6 +74,13 @@ describe('teclas da interface no mesmo painel das magias', () => {
     expect(actionFor('Digit5')).toBeUndefined();
     expect(setKey('replay', 'Digit9')).toBe(true);
     expect([isUiKey('Digit9', 'replay'), isUiKey('Digit5', 'replay')]).toEqual([true, false]);
+  });
+
+  it('Câmera no mago ou na arena começa no 6 e é trocável (issue #222)', () => {
+    expect(isUiKey('Digit6', 'camera')).toBe(true);
+    expect(actionFor('Digit6')).toBeUndefined();
+    expect(setKey('camera', 'Digit8')).toBe(true);
+    expect([isUiKey('Digit8', 'camera'), isUiKey('Digit6', 'camera')]).toEqual([true, false]);
   });
 
   it('depois de muitas trocas nenhuma tecla aparece em duas ações', () => {
@@ -75,6 +101,7 @@ describe('teclas e botões guardados no navegador', () => {
 
   it('a troca sobrevive a recarregar a página; tecla fixa ou botão Start salvos à mão são ignorados', async () => {
     Object.assign(globalThis, { localStorage: fake });
+    store.set('warlock:slotkeys', '0'); // teclas por ação: o Q W E R D F vem ligado por padrão e prende essas seis letras
     vi.resetModules();
     const a = await import('../src/client/keys.ts');
     a.setKey('sheet', 'F2');
@@ -87,7 +114,18 @@ describe('teclas e botões guardados no navegador', () => {
     store.set('warlock:pad', JSON.stringify({ shop: PAD_START, center: BTN.RIGHT }));
     vi.resetModules();
     const c = await import('../src/client/keys.ts');
-    expect([c.keyOf('shop'), c.keyOf('taunt'), c.padButtonOf('shop'), c.padButtonOf('center')]).toEqual(['Digit4', 'KeyP', BTN.DOWN, BTN.RIGHT]);
+    expect([c.keyOf('shop'), c.keyOf('taunt'), c.padButtonOf('shop'), c.padButtonOf('center')]).toEqual(['Digit7', 'KeyP', BTN.DOWN, BTN.RIGHT]);
+  });
+
+  it('preserva o direcional esquerdo personalizado de versões anteriores sem duplicar a provocação', async () => {
+    Object.assign(globalThis, { localStorage: fake });
+    store.set('warlock:pad', JSON.stringify({ sheet: BTN.LEFT }));
+    vi.resetModules();
+    const k = await import('../src/client/keys.ts');
+    expect(k.padButtonOf('sheet')).toBe(BTN.LEFT);
+    expect(k.padActionAt(BTN.LEFT)).toBe('sheet');
+    const assigned = k.PAD_ACTIONS.map(k.padButtonOf);
+    expect(new Set(assigned).size).toBe(assigned.length);
   });
 
   it('tecla salva de magia que saiu do jogo (os Gêmeos) é ignorada: o J fica com a Ilusão', async () => {
@@ -100,9 +138,9 @@ describe('teclas e botões guardados no navegador', () => {
 });
 
 describe('botões do controle trocáveis', () => {
-  it('padrão: A B X Y LB RB magias, LT RT ↑ itens, L3 ficha, View placar, ↓ loja, R3 câmera; Start de ninguém', () => {
-    expect([BTN.A, BTN.RB, BTN.LT, BTN.UP, BTN.L3, BTN.VIEW, BTN.DOWN, BTN.R3, BTN.START, BTN.LEFT].map(padActionAt))
-      .toEqual(['slot1', 'slot6', 'item1', 'item3', 'sheet', 'board', 'shop', 'center', undefined, undefined]);
+  it('padrão: A B X Y LB RB LT RT magias, L3 ficha, View placar, ↓ loja, R3 câmera, ← provocações; Start e ↑ de ninguém', () => {
+    expect([BTN.A, BTN.RB, BTN.LT, BTN.RT, BTN.L3, BTN.VIEW, BTN.DOWN, BTN.R3, BTN.START, BTN.UP, BTN.LEFT].map(padActionAt))
+      .toEqual(['slot1', 'slot6', 'slot7', 'slot8', 'sheet', 'board', 'shop', 'center', undefined, undefined, 'taunt']);
   });
 
   it('trocar um botão troca com quem o usava; Start é recusado', () => {
@@ -110,16 +148,16 @@ describe('botões do controle trocáveis', () => {
     expect([padButtonOf('sheet'), padButtonOf('slot1')]).toEqual([BTN.A, BTN.L3]);
     expect(setPadButton('board', PAD_START)).toBe(false);
     expect(padButtonOf('board')).toBe(BTN.VIEW);
-    expect(setPadButton('center', BTN.LEFT)).toBe(true); // botão livre: só muda
-    expect([padActionAt(BTN.LEFT), padActionAt(BTN.R3)]).toEqual(['center', undefined]);
+    expect(setPadButton('center', BTN.LEFT)).toBe(true); // troca com as provocações
+    expect([padActionAt(BTN.LEFT), padActionAt(BTN.R3)]).toEqual(['center', 'taunt']);
   });
 
   it('o controle lança e a barra mostra os rótulos pelo mapeamento novo', () => {
-    setSlots(['fireball', 'homing']);
-    setPadButton('slot1', BTN.RT); // o item 2 vai para o A
-    expect([padAction(BTN.RT), padAction(BTN.A)]).toEqual(['fireball', 'redirector']);
+    setSlots(['fireball', 'homing', null, null, null, null, null, 'pact']);
+    setPadButton('slot1', BTN.RT); // a Magia 8 vai para o A
+    expect([padAction(BTN.RT), padAction(BTN.A)]).toEqual(['fireball', 'pact']);
     setPadMode(true);
-    expect([labelOf('fireball'), labelOf('homing'), labelOf('redirector')]).toEqual(['RT', 'B', 'A']);
+    expect([labelOf('fireball'), labelOf('homing'), labelOf('pact')]).toEqual(['RT', 'B', 'A']);
   });
 });
 
@@ -146,5 +184,31 @@ describe('Esc que sobra abre as configurações', () => {
     expect(opened).toBe(0);
     fire('Escape', false);
     expect(opened).toBe(1);
+  });
+});
+
+describe('modo Q W E R D F', () => {
+  it('vem ligado para quem nunca mexeu; quem desmarcou continua desligado (issue #65)', async () => {
+    vi.resetModules();
+    expect((await import('../src/client/keys.ts')).isSlotMode()).toBe(true);
+    vi.resetModules();
+    (await import('../src/client/store.ts')).store.set('warlock:slotkeys', '0');
+    expect((await import('../src/client/keys.ts')).isSlotMode()).toBe(false);
+  });
+
+  it('quem já tem teclas salvas fica sem o modo: magia em outra tecla e atalho da interface no Q continuam valendo', async () => {
+    vi.resetModules();
+    (await import('../src/client/store.ts')).store.set('warlock:keys', JSON.stringify({ fireball: 'KeyZ', rockpillar: 'KeyQ' }));
+    let k = await import('../src/client/keys.ts');
+    expect([k.isSlotMode(), k.keyOf('fireball'), k.actionFor('KeyQ')]).toEqual([false, 'KeyZ', 'rockpillar']);
+    vi.resetModules();
+    (await import('../src/client/store.ts')).store.set('warlock:keys', JSON.stringify({ taunt: 'KeyQ', fireball: 'KeyY' }));
+    k = await import('../src/client/keys.ts');
+    expect([k.isSlotMode(), k.keyOf('taunt'), k.actionFor('KeyQ')]).toEqual([false, 'KeyQ', undefined]);
+    vi.resetModules();
+    const s = (await import('../src/client/store.ts')).store;
+    s.set('warlock:keys', JSON.stringify({ fireball: 'KeyZ' }));
+    s.set('warlock:slotkeys', '1'); // marcou à mão: vale a escolha
+    expect((await import('../src/client/keys.ts')).isSlotMode()).toBe(true);
   });
 });

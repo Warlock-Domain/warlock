@@ -34,23 +34,23 @@ describe('controle: analógico', () => {
 });
 
 describe('controle: botões', () => {
-  it('maps A B X Y LB RB to the bar slots and LT RT ↑ to the active items', () => {
-    setSlots(['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap']);
+  it('maps A B X Y LB RB LT RT to the 8 bar slots', () => {
+    setSlots(['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap', 'scourge', 'pact']);
     const p = pad([0, 0, 0, 0], [BTN.X]);
     expect(padAction(p.buttons.findIndex((b) => b.pressed))).toBe('homing');
     expect([BTN.A, BTN.B, BTN.Y, BTN.LB, BTN.RB].map(padAction)).toEqual(['fireball', 'lightning', 'shield', 'teleport', 'swap']);
-    expect([BTN.LT, BTN.RT, BTN.UP].map(padAction)).toEqual(['scourge', 'redirector', 'pact']);
-    expect([BTN.START, BTN.VIEW, BTN.DOWN].map(padAction)).toEqual([undefined, undefined, undefined]);
+    expect([BTN.LT, BTN.RT].map(padAction)).toEqual(['scourge', 'pact']);
+    expect([BTN.START, BTN.VIEW, BTN.DOWN, BTN.UP].map(padAction)).toEqual([undefined, undefined, undefined, undefined]);
     setSlots(['fireball']);
     expect(padAction(BTN.B)).toBeUndefined(); // slot vazio não lança nada
   });
 
   it('shows the pad labels on the bar while the pad is in use', () => {
-    setSlots(['fireball', 'homing']);
+    setSlots(['fireball', 'homing', null, null, null, null, 'scourge', 'pact']);
     setPadMode(true);
-    expect([labelOf('fireball'), labelOf('homing'), labelOf('lightning'), labelOf('scourge'), labelOf('pact')]).toEqual(['A', 'B', '—', 'LT', '↑']);
+    expect([labelOf('fireball'), labelOf('homing'), labelOf('lightning'), labelOf('scourge'), labelOf('pact')]).toEqual(['A', 'B', '—', 'LT', 'RT']);
     setPadMode(false);
-    expect(labelOf('fireball')).toBe('Q');
+    expect(labelOf('fireball')).toBe('1');
   });
 
   it('shortens the controller name for the notice', () => {

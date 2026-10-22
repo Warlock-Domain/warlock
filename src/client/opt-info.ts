@@ -2,10 +2,11 @@
 // com os números lidos do código. Clique ou toque fixa a explicação (✕, Esc ou toque fora fecham); mouse em cima e foco pelo teclado mostram.
 import { BOT_SKILL } from '../shared/bots.ts';
 import { ARENA_IDS } from '../shared/arena.ts';
-import { ASSIST_GOLD, CHEST, COUNTDOWN_MS, DM_RESPAWN, DM_ROUND_MS, KILL_GOLD, RECOVERY, ROUND_END_MS, ROUND_GOLD, RUNE, SUDDEN, TOP_DMG_GOLD, WIN_GOLD } from '../shared/constants.ts';
+import { ASC_MODE_TEXT } from './ascension-ui.ts';
+import { ASSIST_GOLD, CHEST, COUNTDOWN_MS, DM_RESPAWN, DM_ROUND_MS, KILL_GOLD, RECOVERY, ROUND_EFFECT_IDS, ROUND_EFFECTS, ROUND_END_MS, ROUND_GOLD, RUNE, SUDDEN, TOP_DMG_GOLD, WIN_GOLD, type RoundEffectId } from '../shared/constants.ts';
 import { DM_GOALS, OPTION_CHOICES, PACE, type MatchOpts, type Mode } from '../shared/match.ts';
 import { arenaName, t } from './i18n.ts';
-import { UI_ICON, el, icon } from './icons.ts';
+import { UI_ICON, el, icon, iconButton } from './icons.ts';
 import { n1, pct } from './rules-text.ts';
 
 const s = (ms: number) => `${n1(ms / 1000)} s`;
@@ -19,7 +20,25 @@ const ARENA_TEXT: Record<(typeof ARENA_IDS)[number], string> = {
 };
 // nomes do ritmo e da dificuldade (aqui e nas opções da sala)
 export const PACE_NAME: Record<MatchOpts['pace'], string> = { short: t('Curto', 'Short'), normal: 'Normal', long: t('Longo', 'Long') };
-export const SKILL_NAME: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), normal: 'Normal', hard: t('Difícil', 'Hard'), auto: t('Automático', 'Auto') };
+export const SKILL_NAME: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), casual: 'Casual', normal: 'Normal', veteran: t('Veterano', 'Veteran'), hard: t('Difícil', 'Hard'), auto: t('Automático', 'Auto') };
+// efeitos de rodada (constants.ts ROUND_EFFECTS): nome curto (opção, faixa da contagem) e o que muda (linha da rodada, explicação)
+export const EFFECT_NAME: Record<RoundEffectId, string> = {
+  // nomes do Fernando (21/10); os ids ficaram os antigos (lava, swords, speed) para não mexer no protocolo nem nas salas gravadas
+  lava: t('Tempo chuvoso', 'Rainy weather'), swords: t('Arena de espinhos', 'Spike arena'), gold: t('Febre do ouro', 'Gold rush'), speed: t('Vendaval', 'Gale'), regen: t('Fonte da vida', 'Wellspring'), clear: t('Campo aberto', 'Open field'),
+};
+// Ascensão: sem ouro, a Febre do ouro vira Febre arcana, com o mesmo +50% no XP e o visual azul (Fernando, 21/10)
+export const effectName = (e: RoundEffectId, mode?: Mode) => (e === 'gold' && mode === 'ascension' ? t('Febre arcana', 'Arcane rush') : EFFECT_NAME[e]);
+export const effectText = (e: RoundEffectId, mode?: Mode) =>
+  e === 'gold' && mode === 'ascension' ? t(`todo XP ganho na rodada vale ${pct(ROUND_EFFECTS.gold.gold! - 1)} mais`, `all XP earned in the round is worth ${pct(ROUND_EFFECTS.gold.gold! - 1)} more`) : EFFECT_TEXT[e];
+export const EFFECT_TEXT: Record<RoundEffectId, string> = {
+  // os números vêm de ROUND_EFFECTS (constants.ts), para o texto não ficar defasado quando eles mudarem
+  lava: t(`dano da lava ${pct(1 - ROUND_EFFECTS.lava.lava!)} menor`, `lava damage ${pct(1 - ROUND_EFFECTS.lava.lava!)} lower`),
+  swords: t('a parede de espinhos empurra de volta e fere; a arena encolhe só metade', 'the spike wall knocks you back and hurts; the arena shrinks only halfway'),
+  gold: t(`todo ouro ganho na rodada vale ${pct(ROUND_EFFECTS.gold.gold! - 1)} mais`, `all gold earned in the round is worth ${pct(ROUND_EFFECTS.gold.gold! - 1)} more`),
+  speed: t(`todos andam ${pct(ROUND_EFFECTS.speed.speed! - 1)} mais rápido`, `everyone moves ${pct(ROUND_EFFECTS.speed.speed! - 1)} faster`),
+  regen: t(`toda cura recebida ${pct(ROUND_EFFECTS.regen.heal! - 1)} maior`, `all healing received ${pct(ROUND_EFFECTS.regen.heal! - 1)} stronger`),
+  clear: t('arena sem obstáculos', 'no obstacles in the arena'),
+};
 
 // explicação de cada opção (HTML curto); a meta depende do modo
 export const OPT_INFO: Record<keyof MatchOpts, (mode: Mode) => string> = {
@@ -28,8 +47,8 @@ export const OPT_INFO: Record<keyof MatchOpts, (mode: Mode) => string> = {
     t(`${PACE_NAME[k]}: contagem ${s(COUNTDOWN_MS * PACE[k])}, fim de rodada ${s(ROUND_END_MS * PACE[k])}`, `${PACE_NAME[k]}: countdown ${s(COUNTDOWN_MS * PACE[k])}, round end ${s(ROUND_END_MS * PACE[k])}`)))}`,
   economy: () => `<p>${t(`Multiplica todo ouro ganho na partida: por rodada ${ROUND_GOLD}, vitória ${WIN_GOLD}, abate ${KILL_GOLD}, top dano ${TOP_DMG_GOLD}, assistência ${ASSIST_GOLD}, baú 1 a cada ${CHEST.goldEvery} s, recuperação até ${RECOVERY.max} (e o ouro inicial).`,
     `Multiplies all gold earned in the match: ${ROUND_GOLD} per round, ${WIN_GOLD} per win, ${KILL_GOLD} per kill, ${TOP_DMG_GOLD} for top damage, ${ASSIST_GOLD} per assist, chest 1 every ${CHEST.goldEvery} s, catch-up up to ${RECOVERY.max} (and the starting gold).`)}</p>${list(OPTION_CHOICES.economy.map((v) =>
-    t(`×${n1(v)}: rodada ${Math.round(ROUND_GOLD * v)}, vitória ${Math.round(WIN_GOLD * v)}, abate ${Math.round(KILL_GOLD * v)}${v === 1 ? ' (o normal)' : v > 1 ? ` (${pct(v - 1)} a mais)` : ` (${pct(1 - v)} a menos)`}`,
-      `×${n1(v)}: round ${Math.round(ROUND_GOLD * v)}, win ${Math.round(WIN_GOLD * v)}, kill ${Math.round(KILL_GOLD * v)}${v === 1 ? ' (normal)' : v > 1 ? ` (${pct(v - 1)} more)` : ` (${pct(1 - v)} less)`}`)))}`,
+    t(`×${n1(v)}: rodada ${n1(ROUND_GOLD * v)}, vitória ${n1(WIN_GOLD * v)}, abate ${n1(KILL_GOLD * v)}${v === 1 ? ' (o normal)' : v > 1 ? ` (${pct(v - 1)} a mais)` : ` (${pct(1 - v)} a menos)`}`,
+      `×${n1(v)}: round ${n1(ROUND_GOLD * v)}, win ${n1(WIN_GOLD * v)}, kill ${n1(KILL_GOLD * v)}${v === 1 ? ' (normal)' : v > 1 ? ` (${pct(v - 1)} more)` : ` (${pct(1 - v)} less)`}`)))}`,
   startGold: () => `<p>${t('Ouro de cada um no começo da partida (também multiplicado pelo Ouro ganho).', 'Everyone’s gold at the start of the match (also multiplied by Gold earned).')}</p>${list(OPTION_CHOICES.startGold.map((v) => t(`${v} de ouro`, `${v} gold`)))}`,
   goal: (mode) => `<p>${t('Pontos para vencer a partida.', 'Points needed to win the match.')}</p>${list(OPTION_CHOICES.goal.map((v) => t(`${v} rodadas nas Rodadas e nos Times, ou ${DM_GOALS[v]} abates no Deathmatch`, `${v} rounds in Rounds and Teams, or ${DM_GOALS[v]} kills in Deathmatch`)))}<small>${t('Agora', 'Now')}: ${mode === 'deathmatch' ? t('Deathmatch (conta abates)', 'Deathmatch (counts kills)') : t('conta rodadas vencidas', 'counts rounds won')}.</small>`,
   runes: () => `<p>${t(`Uma runa por vez aparece num ponto livre: a primeira aos ${RUNE.first} s e a próxima ${RUNE.every} s depois de alguém pegar. Dura ${RUNE.secs} s.`,
@@ -38,20 +57,23 @@ export const OPT_INFO: Record<keyof MatchOpts, (mode: Mode) => string> = {
     t(`Escudo de runa: leva ${pct(RUNE.armor)} menos dano`, `Rune shield: takes ${pct(RUNE.armor)} less damage`), t(`Recarga: recargas levam ${pct(RUNE.cdr)} menos tempo`, `Recharge: cooldowns are ${pct(RUNE.cdr)} shorter`)])}<small>${t('Desligado: sem runas.', 'Off: no runes.')}</small>`,
   sudden: () => `<p>${t(`Rodada longa: passados ${SUDDEN.at} s, a arena encolhe a cada ${SUDDEN.every} s em vez de 10.`, `Long round: after ${SUDDEN.at} s, the arena shrinks every ${SUDDEN.every} s instead of 10.`)}</p><small>${t(`Desligado: encolhe sempre a cada 10 s. Depois de ${SUDDEN.collapse} s a arena some aos poucos de qualquer jeito, para a rodada acabar.`,
     `Off: always shrinks every 10 s. After ${SUDDEN.collapse} s the arena fades away gradually anyway, so the round ends.`)}</small>`,
-  chests: () => `<p>${t(`Baú de ouro no meio da rodada: o primeiro aos ${CHEST.first} s, depois um a cada ${CHEST.every} s (até ${CHEST.maxUp} de pé). Quebre com magias e fique em cima do monte: 1 de ouro a cada ${CHEST.goldEvery} s, até ${CHEST.pile}.`,
-    `Gold chest mid-round: the first at ${CHEST.first} s, then one every ${CHEST.every} s (up to ${CHEST.maxUp} standing). Break it with spells and stand on the pile: 1 gold every ${CHEST.goldEvery} s, up to ${CHEST.pile}.`)}</p><small>${t('Desligado: sem baús.', 'Off: no chests.')}</small>`,
-  difficulty: () => `<p>${t('Como os bots jogam.', 'How the bots play.')}</p>${list([...(['easy', 'normal', 'hard'] as const).map((k) => {
+  chests: () => `<p>${t(`Baú de ouro no meio da rodada: o primeiro aos ${CHEST.first} s, depois um a cada ${CHEST.every} s (até ${CHEST.maxUp} de pé). Quebre com magias e fique em cima do monte: 1 de ouro a cada ${CHEST.goldEvery} s; o monte tem de ${CHEST.pile[0]} a ${CHEST.pile[1]} de ouro.`,
+    `Gold chest mid-round: the first at ${CHEST.first} s, then one every ${CHEST.every} s (up to ${CHEST.maxUp} standing). Break it with spells and stand on the pile: 1 gold every ${CHEST.goldEvery} s; the pile holds ${CHEST.pile[0]} to ${CHEST.pile[1]}.`)}</p><small>${t('Desligado: sem baús.', 'Off: no chests.')}</small>`,
+  difficulty: () => `<p>${t('Como os bots jogam.', 'How the bots play.')}</p>${list([...(['easy', 'casual', 'normal', 'veteran', 'hard'] as const).map((k) => {
     const b = BOT_SKILL[k];
     return t(`${SKILL_NAME[k]}: reage em ${n1(b.delay)} s, decide ${n1(b.rate)} vezes por segundo, mira erra até ${n1(b.aim)} m, usa a magia ${n1(b.waitMin)} a ${n1(b.waitMax)} s depois da recarga, desvia ${pct(b.dodge)} dos tiros, emenda ${pct(b.combo)} dos combos, fica a ${n1(b.range)} m do alvo e vê até ${b.vision} m`,
       `${SKILL_NAME[k]}: reacts in ${n1(b.delay)} s, decides ${n1(b.rate)} times per second, aim misses by up to ${n1(b.aim)} m, uses a spell ${n1(b.waitMin)} to ${n1(b.waitMax)} s after its cooldown, dodges ${pct(b.dodge)} of shots, chains ${pct(b.combo)} of combos, stays ${n1(b.range)} m from the target and sees up to ${b.vision} m`);
   }), t('Automático: cada bot fica entre o Fácil e o Difícil conforme o placar: humano perdendo deixa os bots mais fracos, ganhando mais fortes',
     'Auto: each bot sits between Easy and Hard depending on the score: a human losing makes the bots weaker, winning makes them stronger')])}`,
+  effect: (mode) => `<p>${t('Uma regra a mais em cada rodada, igual para todos. A loja já mostra o efeito da próxima rodada, para comprar sabendo.', 'One extra rule each round, the same for everyone. The shop already shows the next round’s effect, so you can buy for it.')}</p>${list([
+    t('Sortear: um efeito diferente a cada rodada (nunca o mesmo duas vezes seguidas)', 'Random: a different effect every round (never the same twice in a row)'), ...ROUND_EFFECT_IDS.map((e) => `${effectName(e, mode)}: ${effectText(e, mode)}`)])}<small>${t('Desligado: rodadas normais.', 'Off: normal rounds.')}</small>`,
   arena: () => `<p>${t('Formato da pedra. Todas têm área parecida e encolhem igual.', 'Shape of the rock. All have a similar area and shrink the same way.')}</p>${list([t('Sortear: uma arena diferente a cada rodada', 'Random: a different arena every round'), ...ARENA_IDS.map((a) => `${arenaName(a)}: ${ARENA_TEXT[a]}`)])}`,
 };
 export const MODE_INFO = () => list([
   t('Rodadas: o último vivo ganha a rodada e 1 ponto.', 'Rounds: the last one alive wins the round and 1 point.'),
   t(`Deathmatch: rodadas de ${s(DM_ROUND_MS)}, quem cai volta em ${DM_RESPAWN} s; cada abate vale 1 ponto.`, `Deathmatch: ${s(DM_ROUND_MS)} rounds, whoever falls comes back after ${DM_RESPAWN} s; each kill is worth 1 point.`),
   t('Times: Azul contra Vermelho; a rodada acaba quando só sobra um time e todos dele pontuam. Magia em aliado só empurra.', 'Teams: Blue vs. Red; the round ends when only one team is left and all of them score. Spells on allies only knock back.'),
+  t('Ascensão: ', 'Ascension: ') + ASC_MODE_TEXT,
   t('Campanha: de 1 a 4 jogadores juntos contra os servos do Fumo, sala a sala, sem ouro. Magia não pega aliado (nem empurra). Se todos caírem, a noite recomeça com outro mapa.', 'Campaign: 1 to 4 players together against the servants of the Smoke, room by room, with no gold. Spells never hit (or push) allies. If everyone falls, the night starts over on another map.'),
 ]);
 
@@ -82,7 +104,7 @@ export function infoButton(title: string, html: () => string): HTMLButtonElement
     const body = el('div');
     body.innerHTML = html();
     pop = el('div', { class: 'info-pop', role: 'dialog', 'aria-label': title },
-      el('button', { type: 'button', class: 'info-close', 'aria-label': t('Fechar', 'Close'), onclick: close }, '✕'), el('b', {}, title), body);
+      iconButton('✕', t('Fechar', 'Close'), close, { class: 'info-close' }), el('b', {}, title), body);
     document.body.append(pop);
     owner = b;
     b.setAttribute('aria-expanded', 'true');

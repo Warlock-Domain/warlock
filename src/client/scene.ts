@@ -6,31 +6,35 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { RenderPixelatedPass } from 'three/examples/jsm/postprocessing/RenderPixelatedPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SHAPES as ARENAS, edgeAt, inLavaAt, type ArenaId, type Isle } from '../shared/arena.ts';
-import { ARENA_STEP, CHEST, ISLAND, OBSTACLES, RUNE, SHRINK_WARN, WIZ_R, type RuneKind } from '../shared/constants.ts';
+import { ARENA_STEP, CHEST, ISLAND, OBSTACLES, RUNE, SHRINK_WARN, SWORDS, WIZ_R, type RoundEffectId, type RuneKind } from '../shared/constants.ts';
 import { lookBody, lookOf, lookPieces, type CharacterId } from '../shared/characters.ts';
 import type { NightMap } from '../shared/levels.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
-import { add, scale, v, type Vec } from '../shared/vec.ts';
+import { add, clampLen, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 import { t } from './i18n.ts';
-import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, icon } from './icons.ts';
-import { SPELLS } from '../shared/spells.ts';
+import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
+import { LIGHTNING, SPELLS } from '../shared/spells.ts';
+import type { TAUNTS } from '../shared/taunts.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
 export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#12c7c7', '#f76b15', '#e93d82'];
 // modo Times: Azul e Vermelho (anel no chão e barra de vida)
 export const TEAM_COLORS = ['#3b82f6', '#ef4444'];
 // dificuldade dos bots, curta (rótulo em cima do mago e placar do canto)
-export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), normal: 'Normal', hard: t('Difícil', 'Hard'), auto: 'Auto' };
+export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), casual: 'Casual', normal: 'Normal', veteran: t('Veterano', 'Veteran'), hard: t('Difícil', 'Hard'), auto: 'Auto' };
 const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
-export type WizDraw = { id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; ghost?: boolean; ember?: number }; // ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa); ghost: meio transparente (a cópia da Ilusão vista pelo dono)
+// xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
+// place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
+export type WizDraw = { place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -128,6 +132,7 @@ function sdfTexture(id: ArenaId) {
 // GLSL comum: shoreDist(xz) = metros até a borda, positivo na lava; vnoise = ruído de valor barato
 const SHORE_GLSL = `
 uniform sampler2D uSdf; uniform float uSpan; uniform float uR; uniform float uShoreTime; uniform float uLick; uniform float uWarn;
+uniform vec3 uTint; uniform float uTintK;
 float shoreDist(vec2 xz){ vec2 uv = (xz / uR + uSpan) / (2.0 * uSpan); return (texture2D(uSdf, uv).r * 2.0 - 1.0) * ${SDF_CLAMP.toFixed(2)} * uR; }
 float shash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
@@ -148,6 +153,18 @@ function bandGeo(pairs: [Vec[], Vec[]][], keep: (m: Vec) => boolean = () => true
   return g;
 }
 
+// clips que repetem (o resto toca uma vez e para no último quadro)
+const LOOPS = ['Idle', 'Running_A', 'Jump_Idle', 'Cheer', 'Waving'];
+// gesto da provocação pelo tom: deboche, festa ou aviso [clip, segundos]
+const TEASE: [string, number] = ['Skeletons_Taunt', 1.03], PARTY: [string, number] = ['Cheer', 1.67], CALL: [string, number] = ['Waving', 2.1];
+const TAUNT_ANIM: Record<(typeof TAUNTS)[number]['id'], [string, number]> = {
+  loser: TEASE, laugh: TEASE, meow: TEASE, flawless: PARTY, combo_breaker: PARTY, multi_kill: PARTY, ultra_kill: PARTY, congrats: PARTY,
+  fire_in_the_hole: CALL, look_out: CALL,
+  fausto: CALL, emafia: TEASE, meestruparam: TEASE, usarameabusaram: TEASE, lanchado: PARTY,
+};
+// Teleporte (só visual): some em TP s deslizando TP_SLIDE m rumo ao destino e reaparece em TP s chegando na mesma direção
+const TP = 0.12, TP_SLIDE = 0.6;
+
 type Mage = {
   root: THREE.Group;
   mixer: THREE.AnimationMixer;
@@ -157,6 +174,7 @@ type Mage = {
   ring: THREE.Mesh;
   shield: THREE.Mesh;
   aura: THREE.Mesh; // anel no chão: dourado invulnerável, azul com Escudo de runa
+  vines: THREE.Group;
   bar: HTMLDivElement;
   absRush: HTMLDivElement;
   extraEl: HTMLSpanElement; // números pequenos ao lado da barra: regeneração por segundo e o que os escudos ainda absorvem
@@ -181,18 +199,33 @@ type Mage = {
   tint: string; // cor do anel e da barra (do jogador, ou do time no modo Times)
   statusEl: HTMLSpanElement;
   statusKey: number;
+  statusClocks: Map<number, HTMLElement>; // bit → reloginho em cima do ícone (só o meu mago tem tempo: d.fx)
+  clock: ReturnType<typeof fxClock>;
   ghost: boolean; // desenhado meio transparente agora (Ilusão)
   dead: boolean;
   color: number;
   look: string;
   // materiais próprios deste boneco (o clone do SkeletonUtils divide os do modelo) e a cor de brilho original de cada um
   mats: { m: THREE.MeshStandardMaterial; c: THREE.Color; i: number; col: THREE.Color; rough: number }[];
+  ghostMats: { m: THREE.Material; transparent: boolean; opacity: number }[];
   model: THREE.Object3D; // o boneco (some no fim da queima, quando fica só o esqueleto)
   burnAt: number; // morreu na lava neste instante (−1 = não está queimando)
   bones: THREE.Object3D | null; // esqueleto escuro que sobra da queima
   flash: number; // clarão branco do golpe: 1 no acerto, cai até 0
+  burning: boolean; // vivo e na lava (issue #225): o corpo pulsa em brasa e solta faíscas
   freezeUntil: number; // hit-stop: animação parada até este instante
   cheering: boolean;
+  medalEl: HTMLElement; // medalha de ouro, prata ou bronze com a colocação, à esquerda do nome
+  xpEl: HTMLElement; // Ascensão: nível e barrinha de XP embaixo da vida
+  xpLv: HTMLElement;
+  xpFill: HTMLElement;
+  level: number; // último nível visto (0 = ainda não visto): subir ao vivo comemora
+  invuln: boolean; // invulnerável no quadro anterior: ligar de novo é nascer (começo da rodada ou volta no deathmatch)
+  faded: boolean; // materiais mexidos pelo fade do Teleporte
+  tpAt: number; // Teleporte: quando saiu, de onde, para onde e a direção (só visual)
+  tpFrom: Vec;
+  tpTo: Vec;
+  tpDir: Vec;
 };
 
 // limiares de golpe (dano por acerto vai de ~30 a ~170): grande e crítico
@@ -209,7 +242,7 @@ type Fx = { obj: THREE.Object3D; until: number; born: number; update?: (k: numbe
 
 const LAVA_VERT = `varying vec2 vUv; varying vec3 vPos; void main(){ vUv = uv; vec4 wp = modelMatrix * vec4(position,1.0); vPos = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`;
 const LAVA_FRAG = `
-uniform float uTime; uniform sampler2D uMap; uniform float uHas; varying vec2 vUv; varying vec3 vPos;
+uniform float uTime; uniform sampler2D uMap; uniform float uHas; uniform float uHeat; varying vec2 vUv; varying vec3 vPos;
 ${SHORE_GLSL}
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.0-2.0*f);
@@ -225,7 +258,7 @@ void main(){
   vec3 hot = mix(vec3(0.7, 0.1, 0.01), vec3(1.0, 0.45, 0.06), core);
   vec3 col = mix(crust, hot, veins);
   if (uHas > 0.5) {
-    // textura de lava (ambientCG Lava004) em duas camadas que correm em sentidos diferentes
+    // textura de lava (ambientCG Lava001) em duas camadas que correm em sentidos diferentes
     vec2 q = vPos.xz * 0.05;
     vec3 a = texture2D(uMap, q + vec2(t * 0.10, t * 0.04)).rgb;
     vec3 b = texture2D(uMap, q * 1.7 - vec2(t * 0.06, -t * 0.09)).rgb;
@@ -246,11 +279,12 @@ void main(){
   float shore = 1.0 - smoothstep(0.0, 1.3, dO);
   float ripple = 0.65 + 0.35 * sin(dO * 11.0 - uShoreTime * 2.4 * uLick + vnoise(vPos.xz * 1.4) * 5.0);
   vec3 molten = mix(vec3(0.8, 0.17, 0.02), vec3(1.0, 0.4, 0.07), ripple);
+  molten = mix(molten, uTint, uTintK); // efeito da rodada pinta a faixa da borda; o aviso de encolhimento vem depois e manda
   molten = mix(molten, vec3(1.0, 0.16, 0.03), uWarn * 0.6);
   col = mix(col, molten * (0.6 + 0.3 * ripple), shore * shore * 0.6);
   float scum = smoothstep(0.55, 0.75, vnoise(vPos.xz * 2.3 + uShoreTime * 0.05)) * smoothstep(0.05, 0.4, dO) * shore;
   col = mix(col, vec3(0.09, 0.025, 0.01), scum * 0.7);
-  gl_FragColor = vec4(col, 1.0);
+  gl_FragColor = vec4(col * uHeat, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
@@ -261,7 +295,7 @@ function stoneTexture(): THREE.CanvasTexture {
   const g = c.getContext('2d')!;
   g.fillStyle = '#3b3633';
   g.fillRect(0, 0, 1024, 1024);
-  // lajes irregulares com rejunte escuro
+  // lajes irregulares com rejunte escuro (Math.random aqui e nos enfeites desta cena é só visual: não entra na simulação nem no hash)
   for (let i = 0; i < 2600; i++) {
     const x = Math.random() * 1024, y = Math.random() * 1024, r = 8 + Math.random() * 30;
     const l = 24 + Math.random() * 18;
@@ -298,6 +332,7 @@ function glowTexture(): THREE.CanvasTexture {
 }
 
 export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
+  // celular: sem antialias, densidade até 1,5× e sombra menor, para caber na GPU dele
   const mobile = matchMedia('(pointer: coarse)').matches;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: !mobile, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.5 : 2));
@@ -344,8 +379,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   };
   const FIRE_KINDS = new Set<ProjKind>(['fireball', 'cluster', 'meteor']);
   // distância até a borda e relógio da borda derretida, divididos pela lava e pela pedra
-  const shoreU = { uSdf: { value: sdfTexture('circle') }, uSpan: { value: sdfSpan('circle') }, uR: { value: 11 }, uShoreTime: { value: 0 }, uLick: { value: 1 }, uWarn: { value: 0 } };
-  const lavaMat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uMap: { value: null }, uHas: { value: 0 }, ...shoreU }, vertexShader: LAVA_VERT, fragmentShader: LAVA_FRAG });
+  const shoreU = { uSdf: { value: sdfTexture('circle') }, uSpan: { value: sdfSpan('circle') }, uR: { value: 11 }, uShoreTime: { value: 0 }, uLick: { value: 1 }, uWarn: { value: 0 }, uTint: { value: new THREE.Color() }, uTintK: { value: 0 } };
+  const lavaMat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uMap: { value: null }, uHas: { value: 0 }, uHeat: { value: 1 }, ...shoreU }, vertexShader: LAVA_VERT, fragmentShader: LAVA_FRAG });
   loader.load('/tex/lava_emit.jpg', (t) => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     lavaMat.uniforms.uMap.value = t;
@@ -378,7 +413,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       float band = 1.0 - smoothstep(0.0, 1.3, eIn - 0.4 * (nz - 0.5));
       diffuseColor.rgb *= mix(1.0, 0.3, band);
       float crack = max(1.0 - smoothstep(0.0, 0.05, abs(vnoise(vWPos.xz * 1.6 + 7.0) - 0.5)), 0.6 * (1.0 - smoothstep(0.0, 0.04, abs(vnoise(vWPos.xz * 4.1 - 3.0) - 0.5))));
-      vec3 hot = mix(vec3(1.0, 0.34, 0.05), vec3(1.0, 0.1, 0.02), uWarn);
+      // a borda derretida da pedra também pega a cor do efeito da rodada (a lava pinta o lado dela com os mesmos uTint/uTintK)
+      vec3 hot = mix(mix(vec3(1.0, 0.34, 0.05), uTint, uTintK), vec3(1.0, 0.1, 0.02), uWarn);
       float melt = 1.0 - smoothstep(0.0, 0.22, eIn - shoreLick(vWPos.xz) - 0.12 * (nz - 0.5));
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.08, 0.02, 0.0), melt);
       totalEmissiveRadiance += hot * (crack * band * band * (0.9 + 1.2 * uWarn) + melt * (0.85 + 0.9 * uWarn));`);
@@ -421,6 +457,85 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     scene.add(s);
     return s;
   });
+  // efeito da rodada no mapa (issue #189), leve de propósito: a faixa de lava colada na borda e as brasas ganham a cor do efeito
+  // (as brasas sozinhas sumiam no print): preta na Arena de espinhos, amarela na Febre do ouro (com moedas), pálida no Vendaval
+  // (brasas mais rápidas) e verde na Fonte da vida; o Tempo chuvoso escurece a lava e a crosta da borda. Por cima, um detalhe por
+  // efeito pedido pelo Fernando (21/10): espinhos na borda, pontos verdes subindo da pedra, vento e chuva; poucos, transparentes e
+  // sem sombra, para não brigar com as magias. No modo leve (lite) só a cor da faixa fica.
+  const EMBER_COLOR: Partial<Record<RoundEffectId, string>> = { swords: '#c9ccd2', gold: '#ffd34d', speed: '#d6ecff', regen: '#7dffa8', lava: '#ffb27a' };
+  // Febre arcana (Ascensão): a Febre do ouro em azul (Fernando, 21/10: o mesmo efeito, só que azul)
+  const ARCANE = { tint: '#3d7bff', ember: '#8cbcff', coin: '#6fa8ff' };
+  const SHORE_TINT: Partial<Record<RoundEffectId, [string, number]>> = { swords: ['#050403', 0.75], gold: ['#ffe11a', 0.7], speed: ['#bfe6ff', 0.45], regen: ['#3dff8a', 0.45], lava: ['#7a2a10', 0.5] };
+  let tintK = 0;
+  const emberBase = emberMat.color.clone();
+  let heat = 1;
+  // borda da Arena de espinhos: parede caótica de espinhos de ferro apontando para todos os lados, em 3 fileiras (pedido do Fernando,
+  // 21/10: precisa parecer que bater ali machuca; as armas KayKit espalhadas ficaram feias e saíram). Sorteio por índice (semente fixa): não pisca ao refazer
+  const SPIKE_GAP = 0.16, SPIKE_ROWS = 3, SPIKE_MAX = 2400;
+  const spikes = new THREE.InstancedMesh(new THREE.ConeGeometry(0.055, 0.5, 5).translate(0, 0.25, 0), new THREE.MeshStandardMaterial({ color: '#555b63', metalness: 0.55, roughness: 0.45, emissive: '#3a0a02', emissiveIntensity: 0.45, flatShading: true }), SPIKE_MAX);
+  spikes.count = 0;
+  spikes.visible = false;
+  scene.add(spikes);
+  let swordsKey = '';
+  const swordM = new THREE.Matrix4(), swordQ = new THREE.Quaternion(), swordAxis = new THREE.Vector3(), swordS = new THREE.Vector3(), swordP = new THREE.Vector3();
+  const rnd = (i: number, k: number) => { const x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); };
+  function layoutSwords(id: ArenaId, R: number) {
+    let i = 0;
+    for (const ring of ARENAS[id].outline) for (let e = 0; e < ring.length && i < SPIKE_MAX; e++) {
+      const a = ring[e], b = ring[(e + 1) % ring.length];
+      const steps = Math.max(1, Math.round((len(sub(b, a)) * R) / SPIKE_GAP));
+      for (let k = 0; k < steps; k++) for (let row = 0; row < SPIKE_ROWS && i < SPIKE_MAX; row++, i++) {
+        const p = add(a, scale(sub(b, a), (k + rnd(i, 1)) / steps));
+        const out = edgeAt(id, R, add(scale(p, R), v(0.01, 0))) - edgeAt(id, R, add(scale(p, R), v(-0.01, 0)));
+        const outZ = edgeAt(id, R, add(scale(p, R), v(0, 0.01))) - edgeAt(id, R, add(scale(p, R), v(0, -0.01)));
+        const nl = Math.hypot(out, outZ) || 1; // edgeAt cresce para dentro da pedra: o gradiente negado aponta para a lava
+        const d = SWORDS.inset * 1.1 - row * 0.15 - rnd(i, 2) * 0.1; // para dentro da pedra, onde a parede fere (SWORDS.inset), até a borda
+        swordP.set(p.x * R + (out / nl) * d, -0.05 - rnd(i, 3) * 0.1, p.y * R + (outZ / nl) * d);
+        // ponta para qualquer lado: tomba de 15° a 85° numa direção sorteada
+        const az = rnd(i, 4) * Math.PI * 2;
+        swordAxis.set(Math.cos(az), 0, Math.sin(az));
+        swordQ.setFromAxisAngle(swordAxis, 0.26 + rnd(i, 5) * 1.22);
+        const big = rnd(i, 6) < 0.15 ? 1.7 : 1; // alguns espinhos bem maiores quebram a linha
+        swordS.set(1, (0.6 + rnd(i, 7) * 0.9) * big, 1).multiplyScalar(0.9 + rnd(i, 8) * 0.4);
+        spikes.setMatrixAt(i, swordM.compose(swordP, swordQ, swordS));
+      }
+    }
+    spikes.count = i;
+    spikes.instanceMatrix.needsUpdate = true;
+  }
+  // pontos verdes (Fonte da vida), riscos de vento (Vendaval): sprites reciclados como as brasas
+  const pool = (n: number, color: string, opacity: number) => {
+    const mat = new THREE.SpriteMaterial({ map: glow, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false });
+    return Array.from({ length: n }, () => {
+      const s = new THREE.Sprite(mat);
+      s.userData = { vy: 0, wait: Math.random() * 3 };
+      s.visible = false;
+      scene.add(s);
+      return s;
+    });
+  };
+  const motes = pool(26, '#7dffa8', 0.75);
+  const gusts = pool(14, '#eaf6ff', 0.35);
+  // Arena de espinhos: fumaça preta subindo devagar entre os espinhos (pedido do Fernando, 21/10); mistura normal (aditiva não escurece)
+  const soot = Array.from({ length: 40 }, (_, i) => {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: SMOKES[i % SMOKES.length], color: '#0b0908', transparent: true, opacity: 0, depthWrite: false }));
+    s.userData = { age: 0, life: 0, wait: Math.random() * 2 };
+    s.visible = false;
+    scene.add(s);
+    return s;
+  });
+  // Febre do ouro: moedas pulando da borda e caindo de volta, piscando como se tilintassem (pedido do Fernando, 21/10)
+  const coins = pool(22, '#ffd84a', 0.95);
+  // chuva (Tempo chuvoso): riscos curtos caindo, uma geometria só atualizada por quadro
+  const RAIN = 90, rainPos = new Float32Array(RAIN * 6);
+  const rainGeo = new THREE.BufferGeometry();
+  rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+  const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: '#b9d4ff', transparent: true, opacity: 0.35, depthWrite: false }));
+  rain.frustumCulled = false;
+  rain.visible = false;
+  scene.add(rain);
+  const rainY = new Float32Array(RAIN).map(() => Math.random() * 9);
+  const rainXZ = Array.from({ length: RAIN }, () => [0, 0]);
   // núcleo quase branco e brilho saturado: destaca do chão marrom e da lava laranja (legibilidade, ideia do Spellsworn)
   const fireMat = new THREE.MeshBasicMaterial({ color: '#fff2b0' });
   const homingMat = new THREE.MeshBasicMaterial({ color: '#f3d4ff' });
@@ -434,7 +549,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     homing: { mat: homingMat, halo: '#c23cff', trail: '#b040ff', tex: FX.magic, size: 1.1 },
     cluster: { mat: fireMat, halo: '#fff066', trail: '#ffd23a', tex: FX.spark, size: 0.65 },
     swap: { mat: swapMat, halo: '#00fff0', trail: '#2fe0d0', tex: FX.magic, size: 1 },
-    grip: { mat: gripMat, halo: '#ff1f4f', trail: '#e0103a', tex: FX.magic, size: 1 },
+    grip: { mat: gripMat, halo: '#8ed64b', trail: '#4d8f28', tex: FX.magic, size: 1 },
     meteor: { mat: fireMat, halo: '#ff5a1a', trail: '#ff7a20', tex: FX.fire, size: 3 },
     boomerang: { mat: swapMat, halo: '#7dff5a', trail: '#5ad040', tex: FX.spark, size: 0.85 },
     gravity: { mat: homingMat, halo: '#3b2bff', trail: '#6a3cff', tex: FX.magic, size: 1.5 },
@@ -457,6 +572,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     return g;
   };
   const flat = (color: string, emissive: string, intensity = 0.6) => new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity, flatShading: true, roughness: 0.5 });
+  function vineModel(radius: number) {
+    const group = new THREE.Group();
+    const stem = flat('#3c7023', '#203f0e', .3), leafMat = flat('#8ac34b', '#335d17', .3);
+    for (let i = 0; i < 6; i++) {
+      const points = Array.from({ length: 13 }, (_, j) => {
+        const k = j / 12, a = i * Math.PI / 3 + k * 2.5, r = radius * (1 - k * .55);
+        return new THREE.Vector3(Math.cos(a) * r, k * 1.15, Math.sin(a) * r);
+      });
+      group.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 20, .035, 5, false), stem));
+      for (const j of [4, 9]) {
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(.09, 5, 3), leafMat);
+        leaf.position.copy(points[j]); leaf.scale.set(.5, 1.8, 1); leaf.rotation.z = i;
+        group.add(leaf);
+      }
+    }
+    return group;
+  }
   const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
     fireball: () => new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.24, 1), 0.35), flat('#ffb347', '#ff6a00', 1.4)),
     cluster: () => new THREE.Mesh(new THREE.TetrahedronGeometry(0.2), flat('#ffe066', '#ff9a00', 1.2)),
@@ -474,13 +606,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       return g;
     },
     grip: () => {
-      const g = new THREE.Group();
-      const hook = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 6), flat('#ff8095', '#e0103a', 1.1));
-      hook.rotation.x = Math.PI / 2; // ponta para a frente
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.04, 6, 16), flat('#c0c0c8', '#400010', 0.4));
-      ring.position.z = -0.3;
-      g.add(hook, ring);
-      return g;
+      const ring = new THREE.Mesh(new THREE.RingGeometry(.94, 1, 64), new THREE.MeshBasicMaterial({ color: '#8ed64b', side: THREE.DoubleSide, transparent: true, opacity: .8, depthWrite: false }));
+      ring.rotation.x = -Math.PI / 2;
+      return ring;
     },
     meteor: () => new THREE.Mesh(jitter(new THREE.DodecahedronGeometry(0.3, 0), 0.4), flat('#4a2c20', '#ff4a00', 0.9)),
     boomerang: () => {
@@ -644,7 +772,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const markerGeo = new THREE.RingGeometry(0.15, 0.25, 24);
   const scorchGeo = new THREE.PlaneGeometry(1.6, 1.6);
   const waveGeo = new THREE.RingGeometry(0.85, 1, 64);
-  const SHARED = new Set<THREE.BufferGeometry>([ringGeo, shieldGeo, markerGeo, scorchGeo, waveGeo, ballGeo]);
+  const boltGeo = new THREE.CylinderGeometry(1, 1, 1, 5); // trecho do Raio: raio 1, altura 1, escalado por trecho
+  const SHARED = new Set<THREE.BufferGeometry>([ringGeo, shieldGeo, markerGeo, scorchGeo, waveGeo, ballGeo, boltGeo]);
 
   // libera o que o efeito criou (material sempre; geometria se não for compartilhada; sprite usa a geometria interna do three)
   function dispose(obj: THREE.Object3D) {
@@ -755,16 +884,25 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const model = cloneSkinned(src.scene) as THREE.Group;
     model.scale.setScalar(mageScale);
     const mats: Mage['mats'] = [];
+    const ghostMats: Mage['ghostMats'] = [];
     model.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       mesh.castShadow = true;
       // material próprio de cada boneco: o clarão do golpe não pode acender os outros magos do mesmo modelo
-      if (Array.isArray(mesh.material)) return;
-      const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
-      if (/^Mage_(Hat|Body|Cape)$/.test(mesh.name) && mat.map) mat.map = tintFor(d.color, mat.map);
+      if (Array.isArray(mesh.material)) {
+        mesh.material = mesh.material.map((source) => {
+          const mat = source.clone();
+          ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });
+          return mat;
+        });
+        return;
+      }
+      const mat = mesh.material.clone();
+      if (mat instanceof THREE.MeshStandardMaterial && /^Mage_(Hat|Body|Cape)$/.test(mesh.name) && mat.map) mat.map = tintFor(d.color, mat.map);
       mesh.material = mat;
-      if (mat.emissive) mats.push({ m: mat, c: mat.emissive.clone(), i: mat.emissiveIntensity, col: mat.color.clone(), rough: mat.roughness });
+      ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });
+      if (mat instanceof THREE.MeshStandardMaterial) mats.push({ m: mat, c: mat.emissive.clone(), i: mat.emissiveIntensity, col: mat.color.clone(), rough: mat.roughness });
     });
     const root = new THREE.Group();
     root.add(model);
@@ -780,18 +918,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     aura.scale.setScalar(1.45);
     aura.visible = false;
     root.add(aura);
+    const vines = vineModel(.5);
+    vines.visible = false;
+    root.add(vines);
     scene.add(root);
     const mixer = new THREE.AnimationMixer(model);
     const actions: Record<string, THREE.AnimationAction> = {};
     for (const c of src.clips) actions[c.name] = mixer.clipAction(c);
-    for (const n of ['Spellcast_Shoot', 'Hit_A', 'Death_A', 'Spellcast_Raise']) {
-      actions[n]?.setLoop(THREE.LoopOnce, 1);
-      if (actions[n]) actions[n].clampWhenFinished = true;
+    // tudo toca uma vez e para no último quadro, menos o que repete
+    for (const [n, a] of Object.entries(actions)) if (!LOOPS.includes(n)) {
+      a.setLoop(THREE.LoopOnce, 1);
+      a.clampWhenFinished = true;
     }
     actions.Idle?.play();
     const hpFill = el('div', { class: 'hp-fill', style: `background: ${COLORS[d.color]}` });
     const botEl = el('small', { class: 'bot-tag', hidden: true });
-    const nameEl = el('span', {}, d.name, botEl);
+    const medalEl = el('b', { class: 'wiz-medal', hidden: true });
+    const nameEl = el('span', {}, medalEl, d.name, botEl);
     const hpText = el('span', { class: 'hp-text' });
     const absRush = el('div', { class: 'hp-abs rush' });
     const bar = el('div', { class: 'hp' }, hpFill, absRush, hpText);
@@ -804,9 +947,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     // barrinha dourada do monte de ouro: enche a cada 2 s em cima dele
     const lootFill = el('div');
     const lootBar = el('div', { class: 'loot-bar', hidden: true }, lootFill);
-    const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), shieldBar, lootBar);
+    const xpLv = el('b', {});
+    const xpFill = el('div');
+    const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
+    const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, ghost: false, dead: false, color: d.color, look, mats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -816,12 +962,29 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     m.current = name;
   }
 
-  // animação de conjurar: Escudo e Investida erguem as mãos, o resto atira
-  const castAnim = (spell: string) => (spell === 'shield' || spell === 'rush' ? 'Spellcast_Raise' : 'Spellcast_Shoot');
-  function oneShot(id: string, name: string, secs: number) {
+  // animação de conjurar [clip, segundos, início no clip]; o resto atira (Spellcast_Shoot). Quando o gesto forte vem no meio
+  // do clip, começa ali: o Throw desce o braço aos ~0,6 s, o Summon bate o cajado aos ~3,3 s, o chute sai aos ~0,3 s
+  const SUMMON: [string, number, number] = ['Ranged_Magic_Summon', 0.8, 3.1];
+  const SPIN: [string, number] = ['2H_Melee_Attack_Spinning', 0.67];
+  const CAST_ANIM: Record<string, [string, number, number?]> = {
+    shield: ['Block', 0.6], rush: ['Dodge_Forward', 0.4], teleport: ['Dodge_Forward', 0.4], windwalk: ['Dodge_Backward', 0.4], grip: ['Throw', 0.6, 0.45],
+    meteor: SUMMON, rockpillar: SUMMON, warpzone: SUMMON, drain: ['Spellcast_Long', 0.9, 0.3], thrust: ['Unarmed_Melee_Attack_Kick', 0.5, 0.2],
+    gravity: SPIN, cluster: SPIN,
+    // Flagelo: o giro mais forte vai de ~0,6 a ~0,9 s do clip; começando em 0,15 ele cai junto com a explosão (preparo de 0,5 s)
+    scourge: ['2H_Melee_Attack_Spin', 0.85, 0.15],
+    // issue #207: o que é jogado sai de arremesso, do mesmo ponto do clip que o Agarrar (a soltura cai no preparo de 0,1 s);
+    // o que é feito em si mesmo canaliza como o Drenar. Os outros projéteis seguem no disparo padrão, que já parece magia saindo da mão
+    boomerang: ['Throw', 0.6, 0.45], link: ['Throw', 0.6, 0.45], snowball: ['Throw', 0.6, 0.45],
+    pact: ['Spellcast_Long', 0.9, 0.3], recharge: ['Spellcast_Long', 0.9, 0.3],
+  };
+  const castAnim = (spell: string) => CAST_ANIM[spell] ?? (['Spellcast_Shoot', 0.55] as const);
+  function oneShot(id: string, name: string, secs: number, from = 0) {
     const m = mages.get(id);
     if (!m || m.dead) return;
+    // a magia chama duas vezes (castLocal e o 'cast' do servidor): só a primeira pula para o início
+    const fresh = m.current !== name;
     play(m, name, 0.08);
+    if (fresh && from && m.actions[name]) m.actions[name].time = from;
     m.oneShotUntil = performance.now() / 1000 + secs;
   }
 
@@ -934,13 +1097,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
 
   // vencedor da rodada: faíscas douradas em volta e anel de ouro no chão
-  function victoryBurst(at: Vec) {
-    shockwave(at, 2.6, '#ffd84a');
-    burst(at, '#fff2a0', 3, 0.5, 1, FX.light);
+  // vencedor (dourado) e subir de nível no Ascensão (azul da Febre arcana)
+  function victoryBurst(at: Vec, c1 = '#ffd84a', c2 = '#fff2a0') {
+    shockwave(at, 2.6, c1);
+    burst(at, c2, 3, 0.5, 1, FX.light);
     if (lite) return;
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * Math.PI * 2;
-      burst(v(at.x + Math.cos(a) * 0.9, at.y + Math.sin(a) * 0.9), i % 2 ? '#ffd84a' : '#fff2a0', 0.8, 1.1, 0.6, FX.star, 2.4);
+      burst(v(at.x + Math.cos(a) * 0.9, at.y + Math.sin(a) * 0.9), i % 2 ? c1 : c2, 0.8, 1.1, 0.6, FX.star, 2.4);
     }
   }
   // ouro ganho no abate: sobe dourado em cima de quem matou
@@ -1394,22 +1558,36 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
 
   function bolt(from: Vec, to: Vec) {
+    const hand = add(from, clampLen(sub(to, from), 0.45));
     const pts: THREE.Vector3[] = [];
-    const n = 10;
+    const n = 28;
     for (let i = 0; i <= n; i++) {
-      const p = w3(v(from.x + ((to.x - from.x) * i) / n, from.y + ((to.y - from.y) * i) / n), 1);
-      if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.5));
+      // sai do cetro (a mão do brilho de lançamento: 0,45 m à frente, 0,9 m de altura) e desce até 0,25 m no alvo (pedido do
+      // Fernando, 21/10): a 1 m de altura a câmera inclinada mostrava o raio ~0,9 m acima da linha do acerto. Zigue-zague de muitos
+      // trechos curtos que balança até LIGHTNING.width para cada lado, a largura extra do acerto do Raio
+      const k = i / n;
+      const p = w3(v(hand.x + (to.x - hand.x) * k, hand.y + (to.y - hand.y) * k), 0.9 - 0.65 * k);
+      if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 2 * LIGHTNING.width, (Math.random() - 0.5) * 0.14, (Math.random() - 0.5) * 2 * LIGHTNING.width));
       pts.push(p);
     }
-    // três traços tortos sobrepostos para o raio parecer grosso (linha de WebGL tem 1 px)
-    for (let j = 0; j < 3; j++) {
-      const jit = pts.map((p, i) => (i === 0 || i === n ? p : p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.18, (Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.18))));
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(jit), new THREE.LineBasicMaterial({ color: j ? '#9fd0ff' : '#ffffff', transparent: true, blending: THREE.AdditiveBlending }));
-      addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 1 - k));
+    // traço grosso de cilindros por trecho (linha de WebGL tem 1 px e sumia de longe): miolo branco e brilho azul em volta
+    const up = new THREE.Vector3(0, 1, 0);
+    for (const [r, color, op] of [[0.025, '#ffffff', 1], [0.07, '#9fd0ff', 0.45]] as const) {
+      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false });
+      const g = new THREE.Group();
+      for (let i = 0; i < n; i++) {
+        const [a, b] = [pts[i], pts[i + 1]];
+        const m = new THREE.Mesh(boltGeo, mat);
+        m.position.copy(a).lerp(b, 0.5);
+        m.quaternion.setFromUnitVectors(up, b.clone().sub(a).normalize());
+        m.scale.set(r, a.distanceTo(b), r);
+        g.add(m);
+      }
+      addFx(g, 0.35, (k) => (mat.opacity = op * (1 - k)));
     }
-    burst(to, '#9fd0ff', 2.4, 0.3, 1, FX.light);
-    burst(to, '#e6f4ff', 1.4, 0.35, 1, FX.spark);
-    burst(from, '#9fd0ff', 1.2, 0.2, 1, FX.light);
+    burst(to, '#9fd0ff', 2.4, 0.3, 0.25, FX.light);
+    burst(to, '#e6f4ff', 1.4, 0.35, 0.25, FX.spark);
+    burst(hand, '#9fd0ff', 1.2, 0.2, 0.9, FX.light);
   }
 
   // chefe da Campanha: a faixa vermelha no chão é o caminho da investida enquanto ele mira; pilar derrubado = atordoado
@@ -1432,8 +1610,21 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   function onEvents(events: SimEvent[]) {
     for (const e of events) {
       if (e.k === 'boss') bossFx(e);
-      else if (e.k === 'cast') oneShot(e.id, castAnim(e.spell), 0.55);
-      else if (e.k === 'hit') {
+      else if (e.k === 'cast') {
+        oneShot(e.id, ...castAnim(e.spell));
+        if (e.spell === 'scourge') {
+          // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
+          const m = mages.get(e.id);
+          if (m) {
+            const at = v(m.root.position.x, m.root.position.z);
+            burst(at, '#ff5a1a', 3, 0.9, 0.6, FX.magic);
+            burst(at, '#ffb347', 1.6, 0.9, 1.2, FX.light);
+          }
+        } else if (e.spell === 'pact') {
+          const m = mages.get(e.id);
+          if (m) burst(v(m.root.position.x, m.root.position.z), '#c2122a', 2.6, 0.6, 1, FX.magic);
+        }
+      } else if (e.k === 'hit') {
         oneShot(e.id, 'Hit_A', 0.45);
         // o acerto do raio tem impacto elétrico próprio: a explosão de fogo cobria o raio e parecia que ele não tinha saído
         if (e.src === 'lightning') zap(v(e.x, e.y));
@@ -1448,26 +1639,26 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(v(e.x, e.y), '#cfeaff', 1.6, 0.25, 0.8, FX.light);
       }
       else if (e.k === 'lightning') bolt(e.from, e.to);
+      else if (e.k === 'vines') {
+        const vines = vineModel(e.r);
+        vines.position.copy(w3(v(e.x, e.y), .03));
+        addFx(vines, .7, (k) => { vines.scale.y = k < .25 ? k * 4 : Math.max(.01, (1 - k) / .75); });
+        shockwave(v(e.x, e.y), e.r, '#8ed64b');
+      }
       else if (e.k === 'grip') {
-        burst(v(e.x, e.y), '#e0203a', 2.4, 0.5, 0.8, FX.magic);
-        burst(v(e.x, e.y), '#ffd0d8', 1.6, 0.3, 0.8, FX.light);
-        shockwave(v(e.x, e.y), 1.2, '#e0203a');
+        oneShot(e.id, 'Hit_B', 0.85); // quem foi preso cambaleia para trás
+        burst(v(e.x, e.y), '#6eaf34', 2.4, 0.5, 0.8, FX.magic);
       }
       else if (e.k === 'teleport') {
+        // só o Teleporte lançado (não Troca, Égide nem Alteração) ganha o fade com deslize
+        const m = mages.get(e.id);
+        if (m && events.some((x) => x.k === 'cast' && x.id === e.id && x.spell === 'teleport')) {
+          const dx = e.to.x - e.from.x, dy = e.to.y - e.from.y, n = Math.hypot(dx, dy) || 1;
+          Object.assign(m, { tpAt: performance.now() / 1000, tpFrom: e.from, tpTo: e.to, tpDir: v(dx / n, dy / n) });
+        }
         burst(e.from, '#c49bff', 2.4, 0.45, 0.8, FX.magic);
         burst(e.to, '#c49bff', 2.6, 0.45, 0.8, FX.magic);
         burst(e.to, '#e9d8ff', 1.6, 0.3, 0.8, FX.light);
-      } else if (e.k === 'item' && e.item === 'scourge') {
-        // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
-        const m = mages.get(e.id);
-        if (m) {
-          const at = v(m.root.position.x, m.root.position.z);
-          burst(at, '#ff5a1a', 3, 0.9, 0.6, FX.magic);
-          burst(at, '#ffb347', 1.6, 0.9, 1.2, FX.light);
-        }
-      } else if (e.k === 'item' && e.item === 'pact') {
-        const m = mages.get(e.id);
-        if (m) burst(v(m.root.position.x, m.root.position.z), '#c2122a', 2.6, 0.6, 1, FX.magic);
       } else if (e.k === 'scourge') {
         shockwave(v(e.x, e.y), e.r, '#ff7a1a');
         explosion(v(e.x, e.y));
@@ -1510,8 +1701,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           shockwave(at, e.r, '#b98cff');
           burst(at, '#b98cff', 2.2, 0.4, 0.9, FX.magic);
         }
-      } else if (e.k === 'redirect') {
-        burst(v(e.x, e.y), '#b98cff', 2, 0.35, 0.9, FX.circle);
       } else if (e.k === 'death') {
         const m = mages.get(e.id);
         if (m) {
@@ -1542,7 +1731,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         halo.scale.setScalar(1.2 * look.size);
         halo.material.opacity = 0.7;
         g.add(core, halo);
-        if (p.kind === 'warpzone') {
+        if (p.kind === 'warpzone' || p.kind === 'grip') {
           core.scale.setScalar(p.vel.x); // vel.x = raio
           halo.visible = false;
         }
@@ -1580,11 +1769,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const warn = g.getObjectByName('warn') as THREE.Mesh;
         warn.position.y = 0.04 - y;
         (warn.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.sin(performance.now() / 70);
-      } else if (p.kind === 'warpzone') g.position.copy(w3(p.pos, 0));
+      } else if (p.kind === 'grip') g.position.copy(w3(p.pos, .045));
+      else if (p.kind === 'warpzone') g.position.copy(w3(p.pos, 0));
       else g.position.copy(w3(p.pos, 0.9));
       if (p.kind === 'link') {
         const dx = p.vel.x - p.pos.x, dz = p.vel.y - p.pos.y;
-        const beam = g.children[2];
+        const beam = g.children[2]; // filhos do Elo: corpo, halo e fio (ele não ganha chama nem redemoinho)
         beam.position.set(dx / 2, 0, dz / 2);
         beam.rotation.y = Math.atan2(dx, dz);
         beam.scale.set(1, 1, Math.hypot(dx, dz));
@@ -1592,7 +1782,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // giro e direção: aponta para onde voa; anéis, bumerangue e pedras giram
       const body = g.children[0];
       const t = performance.now() / 1000;
-      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
+      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
       if (p.kind === 'boomerang') body.rotation.y = t * 18;
       else if (p.kind === 'fireball' || p.kind === 'meteor' || p.kind === 'cluster' || p.kind === 'bouncer' || p.kind === 'snowball' || p.kind === 'splitter' || p.kind === 'shard') body.rotation.set(t * 3, t * 4, 0);
       else if (p.kind === 'link') body.rotation.y = t * 6;
@@ -1609,7 +1799,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (swirl) swirl.material.rotation = -t * 4;
       // rastro: brasas que ficam para trás e somem
       const look = LOOK[p.kind];
-      if (p.kind !== 'warpzone' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
+      if (p.kind !== 'warpzone' && p.kind !== 'grip' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
@@ -1630,6 +1820,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (made && m) {
           unburn(m);
           scene.remove(m.root);
+          dispose(m.vines); // Os cipós procedurais pertencem à aparência que está sendo substituída.
           for (const o of [m.ring, m.shield, m.aura]) (o.material as THREE.Material).dispose();
           for (const x of m.mats) x.m.dispose();
           m.label.remove();
@@ -1646,17 +1837,21 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.hpFill.style.background = tint;
         m.nameEl.style.color = d.team != null ? COLORS[d.color] : '';
       }
-      const hidden = (d.status & 2048) > 0; // Caminhada no vento de um inimigo
+      const hidden = !d.illusion && (d.status & 2048) > 0; // a cópia é sempre visível; os inimigos não veem o jogador velado
       m.root.visible = !hidden;
-      // Ilusão: o próprio mago velado (bit 8388608) e a cópia vista pelo dono ficam meio transparentes
-      const ghost = !!d.ghost || (d.status & 8388608) > 0;
-      if (m.ghost !== ghost) {
+      // A cópia é sólida e visível; a invisibilidade vale somente para o jogador real.
+      const ghost = !!d.ghost || (d.status & (1024 | 8388608)) > 0; // Caminhada no vento e o véu visto por si ou pela visão de teste da sandbox
+      // Teleporte: tk de 0 a 1 sumindo e deslizando rumo ao destino, de 1 a 2 chegando de um pouco atrás; 2 = sem efeito
+      const tk = Math.min(2, (now - m.tpAt) / TP), fade = tk < 1 ? 1 - tk : tk - 1, faded = fade < 1;
+      if (m.ghost !== ghost || faded || m.faded) {
         m.ghost = ghost;
-        for (const x of m.mats) Object.assign(x.m, { transparent: ghost, opacity: ghost ? 0.45 : 1, needsUpdate: true });
+        m.faded = faded;
+        for (const x of m.ghostMats) Object.assign(x.m, { transparent: ghost || faded || x.transparent, opacity: x.opacity * (ghost ? (d.ghost ? 0.45 : 0.35) : 1) * fade, needsUpdate: true });
         m.label.style.opacity = ghost ? '0.6' : '';
       }
-      m.root.position.copy(w3(d.pos));
+      m.root.position.copy(w3(tk < 1 ? add(m.tpFrom, scale(m.tpDir, tk * TP_SLIDE)) : tk < 2 ? add(m.tpTo, scale(m.tpDir, (tk - 2) * TP_SLIDE)) : d.pos));
       m.root.rotation.y = Math.PI / 2 - d.facing;
+      m.vines.visible = d.alive && !!(d.status & 128);
       // Escudo: bolha no raio real que vai apagando, e a barrinha do tempo que falta
       if (d.shield && !m.shield.visible) m.shieldSince = now;
       m.shield.visible = d.shield && d.alive;
@@ -1677,9 +1872,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!d.alive) {
         if (!m.dead) {
           m.dead = true;
-          play(m, 'Death_A', 0.1);
-          // caiu na lava (fora da pedra e fora das ilhas): o corpo queima
-          if (inLavaAt(shownArena, shownR, shownIsles, d.pos)) {
+          // caiu na lava (fora da pedra e fora das ilhas): Death_A, que é a pose dos ossos, e o corpo queima; na pedra, Death_B (cai de costas)
+          const lava = inLavaAt(shownArena, shownR, shownIsles, d.pos);
+          play(m, lava ? 'Death_A' : 'Death_B', 0.1);
+          if (lava) {
             m.burnAt = now;
             loadFile(BONES);
           }
@@ -1690,12 +1886,36 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           m.dead = false;
           unburn(m);
         }
-        if (now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.moving ? 'Running_A' : 'Idle');
+        // nasceu (começo da rodada ou volta no deathmatch): a invulnerabilidade do começo acabou de ligar
+        if (invuln && !m.invuln) oneShot(d.id, 'Spawn_Ground', 1.3);
+        // atordoado (16: arremessado por um golpe) voa de braços abertos
+        if (now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
         // vencedor: estouro dourado ao começar a comemorar e faíscas subindo enquanto dura
         if (d.cheer && !m.cheering) victoryBurst(d.pos);
         if (d.cheer && !lite && Math.random() < 0.2) burst(v(d.pos.x + (Math.random() - 0.5) * 1.4, d.pos.y + (Math.random() - 0.5) * 1.4), Math.random() < 0.5 ? '#ffd84a' : '#fff2a0', 0.7, 1.2, 0.4, FX.star, 2.6);
       }
+      // queimando na lava (issue #225): de cima não se via que o mago estava tomando dano; faíscas e labaredas pequenas nos pés
+      // (no modo leve, poucas: com muitos magos na lava o teto de partículas FX_CAP segura o resto)
+      const burning = d.alive && !hidden && inLavaAt(shownArena, shownR, shownIsles, d.pos);
+      if (burning) {
+        const feet = () => v(d.pos.x + (Math.random() - 0.5) * 0.7, d.pos.y + (Math.random() - 0.5) * 0.7);
+        if (Math.random() < (lite ? 0.05 : 0.25)) burst(feet(), Math.random() < 0.5 ? '#ff8a2a' : '#ffd060', 0.35, 0.8, 0.2, glow, 1.4);
+        if (!lite && Math.random() < 0.15) burst(feet(), Math.random() < 0.5 ? '#ff7a1a' : '#ffb347', 0.35, 0.8, 0.1, FLAMES[Math.floor(Math.random() * FLAMES.length)], 0.7); // as mesmas chamas do chão de fogo
+      }
       m.cheering = d.cheer && d.alive;
+      m.invuln = invuln;
+      // brasa pulsando enquanto queima (o clarão do golpe passa por cima); parou de queimar vivo ou morrendo fora da lava: volta
+      // a cor própria; morreu na lava (burnAt marcado neste quadro): o burnCorpse cuida da cor do corpo
+      if (m.flash <= 0 && (burning || (m.burning && m.burnAt < 0))) for (const x of m.mats) {
+        if (burning) {
+          x.m.emissive.copy(EMBER);
+          x.m.emissiveIntensity = 0.35 + 0.25 * Math.sin(now * 9);
+        } else {
+          x.m.emissive.copy(x.c);
+          x.m.emissiveIntensity = x.i;
+        }
+      }
+      m.burning = burning;
       // clarão branco do golpe: some em ~0,15 s
       if (m.flash > 0) {
         m.flash = Math.max(0, m.flash - 0.12);
@@ -1717,9 +1937,19 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // ícones de efeito em cima do mago (negativos primeiro)
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
+        m.statusClocks.clear();
+        // Égide pronta (131072) não vira ícone: tem o selo próprio ao lado da barra (aegisEl)
         m.statusEl.replaceChildren(...STATUS_ICONS.filter(([bit]) => d.status & bit && bit !== 131072).map(([bit, ico, name]) => {
-          return el('i', { title: name, class: BAD_STATUS.includes(bit) ? 'bad' : 'good' }, icon(ico));
+          const c = el('b', { class: 'fx-clock', 'aria-hidden': 'true' });
+          m.statusClocks.set(bit, c);
+          return el('i', { title: name, class: BAD_STATUS.includes(bit) ? 'bad' : 'good' }, c, icon(ico));
         }));
+      }
+      // reloginho em cima de cada efeito com prazo: os mesmos segundos da fileira acima da barra (mesma conta, fxClock)
+      for (const [bit, c] of m.statusClocks) {
+        const left = d.fx ? m.clock(d.fx, bit) : null;
+        c.textContent = left?.text ?? '';
+        c.style.setProperty('--left', left ? left.frac.toFixed(3) : '0');
       }
       // Investida na barra (estilo Overwatch): o que ainda absorve vem depois da vida; passando do máximo, a barra inteira encolhe
       const rush = d.rushLeft ?? 0;
@@ -1754,7 +1984,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         };
         m.extraEl.replaceChildren(...[
           regen ? part('regen', `+${Math.round(regen * 10) / 10}/s`) : null,
-          armor ? part('rune', `−${Math.round(RUNE.armor * 100)}%`, RUNE_ICON.shield) : null,
+          armor ? part('rune', `+${Math.round(RUNE.armor * 100)}%`, RUNE_ICON.shield) : null, // + como bônus de defesa (pedido do Sky, 19/10); o dano levado cai 30%
           rush ? part('rush', String(Math.ceil(rush)), ICON.rush) : null,
         ].filter((e) => e !== null));
       }
@@ -1765,6 +1995,31 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.botKey = d.bot ?? '';
         m.botEl.hidden = !d.bot;
         m.botEl.replaceChildren(icon(UI_ICON.bot), d.bot ? BOT_LEVEL[d.bot] : '');
+      }
+      // medalha de ouro, prata ou bronze com a colocação, à esquerda do nome (Fernando, 21/10: medalha
+      // com o número dentro, no lugar da pontuação)
+      const place = d.place && d.place <= 3 ? String(d.place) : '';
+      if (m.medalEl.textContent !== place) {
+        m.medalEl.textContent = place;
+        m.medalEl.className = `wiz-medal medal-${place}`;
+        m.medalEl.hidden = !place;
+      }
+      // Ascensão: nível e XP embaixo da vida, para todos; subir de nível ao vivo comemora (Fernando, 21/10: animação ao subir
+      // de nível ao vivo, com o boneco comemorando)
+      m.xpEl.hidden = !d.xp;
+      if (d.xp) {
+        m.xpFill.style.width = `${(d.xp.frac * 100).toFixed(1)}%`;
+        if (d.xp.level !== m.level) {
+          m.xpLv.textContent = String(d.xp.level);
+          if (m.level && d.xp.level > m.level && d.alive) {
+            oneShot(d.id, ...PARTY);
+            victoryBurst(d.pos, '#3d7bff', '#8cbcff');
+            m.label.classList.remove('lvup');
+            void m.label.offsetWidth; // reinicia a animação se subir de novo logo em seguida
+            m.label.classList.add('lvup');
+          }
+          m.level = d.xp.level;
+        }
       }
       const prog = ember ? d.ember! : d.loot;
       m.lootBar.hidden = !ember && !d.loot;
@@ -1785,12 +2040,30 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
   let composer: EffectComposer | null = null;
+  const renderPass = new RenderPass(scene, camera);
+  // pós-processamento (bloom e o pixel art, que depende dele) só no PC; no celular a cena vai direto ao renderer
   if (!mobile) {
     composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(renderPass);
     composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.4, 0.45, 0.85));
     composer.addPass(new OutputPass());
   }
+  let pixelSize = 0; // tamanho do bloco em pixels da tela (0 = desligado); 2 ou 3 escolhidos nas Configurações
+  // pixel art (issue #79): cena em blocos de pixelSize×pixelSize px com contorno, no lugar do RenderPass; só existe com o composer (PC)
+  let pixelPass: RenderPixelatedPass | null = null;
+  let pixelShift = ''; // deslize da imagem que completa a câmera presa à grade
+  let camK = 1; // quantas vezes mais longe fica a câmera do pixel art (ângulo menor, mesmo enquadramento)
+  const makePixelPass = () => {
+    const pass = new RenderPixelatedPass(pixelSize * renderer.getPixelRatio(), scene, camera, { depthEdgeStrength: 0.4, normalEdgeStrength: 0.3 });
+    // o passe compara a profundidade crua, feita para câmera ortográfica; na nossa perspectiva a diferença some.
+    // Em metros (×0,04), o contorno aparece quando a borda tem ~0,25 a 0,5 m de degrau
+    const m = pass.pixelatedMaterial;
+    Object.assign(m.uniforms, { cameraNear: { value: camera.near }, cameraFar: { value: camera.far } });
+    m.fragmentShader = '#include <packing>\nuniform float cameraNear;\nuniform float cameraFar;\n' + m.fragmentShader.replace(/return texture2D\( tDepth, ([^;]+) \)\.r;/, 'return -perspectiveDepthToViewZ(texture2D( tDepth, $1 ).r, cameraNear, cameraFar) * 0.04;');
+    // a troca é no texto do shader do three 0.186: se uma versão nova mudar o trecho, o contorno escuro some e o aviso mostra
+    if (!m.fragmentShader.includes('perspectiveDepthToViewZ')) console.warn('pixel art: o shader do RenderPixelatedPass mudou; contorno por profundidade desligado');
+    return pass;
+  };
 
   function resize() {
     const w = innerWidth, h = innerHeight;
@@ -1819,16 +2092,73 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   rangeRing.renderOrder = 9;
   rangeRing.visible = false;
   scene.add(rangeRing);
+  // explosão do Meteoro no ponto onde ele cai: o mesmo anel, do tamanho da explosão
+  const blastRing = rangeRing.clone();
+  scene.add(blastRing);
+  const hits: THREE.Mesh[] = []; // discos do "Ver hitbox", criados conforme precisa
+  // faixas de acerto da mira (a Rajada e o Divisor saem em leque), bem claras para não esconder o chão: corpo reto para a frente (+x)
+  // e ponta em meio círculo do tamanho da bola, onde ela termina o voo, como a prévia do LoL (pedido do Fernando, 21/10); giradas só
+  // em y e criadas conforme precisa
+  const bandMat = new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.16, depthWrite: false });
+  const bandBody = new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0).rotateX(-Math.PI / 2);
+  const bandCap = new THREE.CircleGeometry(1, 24, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2);
+  const bands: THREE.Group[] = [];
 
   return {
     ready,
     onEvents,
-    // centro no mago e raio em metros; null (ou raio 0) esconde
-    range(at: Vec | null, r: number) {
+    // centro no mago e raio em metros; null (ou raio 0) esconde. blastAt/blastR: o círculo da explosão no ponto mirado
+    range(at: Vec | null, r: number, blastAt: Vec | null = null, blastR = 0) {
+      blastRing.visible = !!blastAt && blastR > 0;
+      if (blastAt && blastR > 0) {
+        blastRing.position.copy(w3(blastAt, 0.04));
+        blastRing.scale.setScalar(blastR);
+      }
       rangeRing.visible = !!at && r > 0;
       if (!at || r <= 0) return;
       rangeRing.position.copy(w3(at, 0.04));
       rangeRing.scale.setScalar(r);
+    },
+    // "Ver hitbox (teste)": disco no chão de cada mago (vermelho) e de cada projétil (azul), no tamanho da colisão; null esconde
+    hitboxes(list: { pos: Vec; r: number; wiz: boolean }[] | null) {
+      for (let i = hits.length; i < (list?.length ?? 0); i++) {
+        const m = new THREE.Mesh(new THREE.CircleGeometry(1, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.45, depthWrite: false }));
+        m.renderOrder = 9;
+        scene.add(m);
+        hits.push(m);
+      }
+      hits.forEach((m, i) => {
+        const h = list?.[i];
+        m.visible = !!h;
+        if (!h) return;
+        m.position.copy(w3(h.pos, 0.045));
+        m.scale.setScalar(h.r);
+        (m.material as THREE.MeshBasicMaterial).color.set(h.wiz ? '#ff4040' : '#40c8ff');
+      });
+    },
+    // trechos de faixa [de, até] com meia largura `half`; lista vazia esconde
+    bands(segs: [Vec, Vec][], half: number) {
+      for (let i = bands.length; i < segs.length; i++) {
+        const g = new THREE.Group();
+        const [body, cap] = [new THREE.Mesh(bandBody, bandMat), new THREE.Mesh(bandCap, bandMat)];
+        body.renderOrder = cap.renderOrder = 9;
+        g.add(body, cap);
+        scene.add(g);
+        bands.push(g);
+      }
+      const w = Math.max(half, 0.03); // o Raio (largura 0) vira uma linha de 6 cm para aparecer
+      bands.forEach((g, i) => {
+        const sg = segs[i];
+        g.visible = !!sg;
+        if (!sg) return;
+        const d = sub(sg[1], sg[0]), l = Math.max(len(d) - w, 0);
+        const [body, cap] = g.children;
+        g.position.copy(w3(sg[0], 0.035));
+        g.rotation.y = -Math.atan2(d.y, d.x);
+        body.scale.set(l, 1, 2 * w);
+        cap.position.x = l;
+        cap.scale.set(w, 1, w);
+      });
     },
     aim(at: Vec | null) {
       aimRing.visible = !!at;
@@ -1864,16 +2194,38 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       });
       burst(at, cast ? '#ffb347' : '#7dff9a', 0.7, 0.25, 0.08, FX.light);
     },
+    // pixel art (issue #79): só no PC, onde há composer
+    setPixel(size: number) {
+      if (!composer || size === pixelSize) return;
+      const on = size > 0;
+      pixelSize = size;
+      if (on && pixelPass) pixelPass.setPixelSize(size * renderer.getPixelRatio());
+      const want = on ? (pixelPass ??= makePixelPass()) : renderPass;
+      if (composer.passes[0] !== want) {
+        composer.removePass(composer.passes[0]);
+        composer.insertPass(want, 0);
+      }
+      // câmera quase sem perspectiva: 1 bloco mede o mesmo no chão da tela toda, e a grade presa não balança nas bordas
+      camera.fov = on ? 12 : 40;
+      // 20° = metade do campo de visão normal (40°): com o ângulo menor, a câmera recua camK vezes para enquadrar a mesma arena
+      camK = Math.tan(THREE.MathUtils.degToRad(20)) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+      camera.near = on ? 2 : 0.5;
+      camera.far = on ? 400 : 200;
+      camera.updateProjectionMatrix();
+      Object.assign(pixelPass!.pixelatedMaterial.uniforms.cameraNear, { value: camera.near });
+      Object.assign(pixelPass!.pixelatedMaterial.uniforms.cameraFar, { value: camera.far });
+    },
     // Efeitos: true = Leve (sem tremor, hit-stop e partículas extras)
     setFx(on: boolean) {
       lite = on;
       if (lite) shake = 0;
       for (const s of embers) s.visible = false;
     },
-    // balão do taunt em cima do mago por 2,5 s
-    bubble(id: string, text: string) {
+    // balão do taunt em cima do mago por 2,5 s, com o gesto do tom (TAUNT_ANIM)
+    bubble(id: string, text: string, taunt?: keyof typeof TAUNT_ANIM) {
       const m = mages.get(id);
       if (!m) return false;
+      if (taunt) oneShot(id, ...TAUNT_ANIM[taunt]);
       m.label.querySelector('.bubble')?.remove();
       const b = el('div', { class: 'bubble' }, text);
       m.label.prepend(b);
@@ -1894,7 +2246,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       pan.set(0, 0, 0);
     },
     castLocal(id: string, spell: string, at?: Vec) {
-      oneShot(id, castAnim(spell), 0.55);
+      oneShot(id, ...castAnim(spell));
       const m = mages.get(id);
       if (!m || m.dead) return;
       // brilho na mão (um pouco à frente do mago, na cor da magia) e linha de mira fraca até o ponto
@@ -1908,7 +2260,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; map?: { night: NightMap; key: string; done: number[] } | null }) {
+    render(state: { arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[] } | null }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
@@ -1942,7 +2294,19 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       shoreU.uR.value = Math.max(0.01, shownR);
       shoreU.uShoreTime.value = now;
       shoreU.uLick.value = lite ? 0 : 1;
-      under.intensity = onMap ? 0 : 52 + Math.sin(now * 2) * 9 + Math.sin(now * 7.3) * 3;
+      // Tempo chuvoso: a lava esfria aos poucos (~1 s) para 55% do brilho, por cima e por baixo da borda
+      heat += ((state.effect === 'lava' ? 0.55 : 1) - heat) * Math.min(1, dt * 3);
+      const arcane = state.arcane && state.effect === 'gold';
+      const tint = arcane ? ([ARCANE.tint, SHORE_TINT.gold![1]] as [string, number]) : state.effect ? SHORE_TINT[state.effect] : undefined;
+      if (tint) shoreU.uTint.value.set(tint[0]);
+      tintK += ((tint?.[1] ?? 0) - tintK) * Math.min(1, dt * 3);
+      shoreU.uTintK.value = tintK;
+      lavaMat.uniforms.uHeat.value = heat;
+      under.intensity = onMap ? 0 : (52 + Math.sin(now * 2) * 9 + Math.sin(now * 7.3) * 3) * heat;
+      const ec = arcane ? ARCANE.ember : state.effect && EMBER_COLOR[state.effect];
+      if (ec) emberMat.color.set(ec);
+      else emberMat.color.copy(emberBase);
+      const lift = state.effect === 'speed' ? 1.5 : 1; // Vendaval: brasas sobem mais soltas
       const warning = state.shrinkIn > 0 && state.shrinkIn < SHRINK_WARN && state.arenaR > 0;
       warnMat.opacity = warning ? 0.25 + 0.25 * Math.sin(now * 14) : 0;
       // borda derretida puxa para o vermelho e pulsa quando a arena vai encolher
@@ -1969,13 +2333,104 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           s.position.set(Math.cos(u.a) * u.r, 0, Math.sin(u.a) * u.r);
           s.visible = true;
         }
-        s.position.y += u.vy * dt;
+        s.position.y += u.vy * lift * dt;
         s.position.x += Math.sin(now * 1.3 + u.a * 5) * 0.25 * dt;
         s.scale.setScalar(u.size * Math.max(0, 1 - (s.position.y + 0.5) / 4));
         if (s.position.y > 3.5) {
           s.visible = false;
           u.wait = Math.random() * 3;
         }
+      }
+      // espinhos: refeitos só quando a forma ou o raio mostrado muda de 5 cm (o encolhimento anima o raio)
+      spikes.visible = state.effect === 'swords';
+      const sk = spikes.visible ? `${shownArena}:${Math.round(shownR * 20)}` : '';
+      if (sk && sk !== swordsKey) layoutSwords(shownArena, shownR);
+      swordsKey = sk;
+      const span = shownR * ARENAS[shownArena].reach;
+      // Fonte da vida: pontos verdes sobem devagar de pontos da pedra
+      for (const s of motes) {
+        const u = s.userData as { vy: number; wait: number };
+        if (lite || state.effect !== 'regen') { s.visible = false; continue; }
+        if (!s.visible) {
+          if ((u.wait -= dt) > 0) continue;
+          for (let k = 0; k < 6; k++) {
+            s.position.set((Math.random() * 2 - 1) * span, 0.1, (Math.random() * 2 - 1) * span);
+            if (edgeAt(shownArena, shownR, v(s.position.x, s.position.z)) > 0.4) break;
+          }
+          u.vy = 0.35 + Math.random() * 0.35;
+          s.visible = true;
+        }
+        s.position.y += u.vy * dt;
+        s.scale.setScalar(0.22 * Math.min(1, s.position.y * 2) * Math.max(0, 1 - s.position.y / 2.6));
+        if (s.position.y > 2.6) { s.visible = false; u.wait = Math.random() * 2; }
+      }
+      // Arena de espinhos: fumaça preta nasce num ponto entre os espinhos, sobe e abre, aparece e some aos poucos
+      for (const s of soot) {
+        const u = s.userData as { age: number; life: number; wait: number };
+        const mat = s.material as THREE.SpriteMaterial;
+        if (lite || state.effect !== 'swords') { s.visible = false; continue; }
+        if (!s.visible) {
+          if ((u.wait -= dt) > 0) continue;
+          const ring = ARENAS[shownArena].outline[0], q = ring[Math.floor(Math.random() * ring.length)];
+          const k = 1 - (SWORDS.inset * 0.6) / Math.max(1, shownR * len(q)); // um pouco para dentro, no meio da parede
+          s.position.set(q.x * shownR * k, 0.15, q.y * shownR * k);
+          u.age = 0;
+          u.life = 2.2 + Math.random() * 1.6;
+          mat.rotation = Math.random() * Math.PI * 2;
+          s.visible = true;
+        }
+        u.age += dt;
+        const f = u.age / u.life;
+        s.position.y += 0.35 * dt;
+        s.scale.setScalar(1 + f * 1.8);
+        mat.opacity = 0.8 * Math.min(1, f * 4) * (1 - f);
+        if (f >= 1) { s.visible = false; u.wait = Math.random() * 0.6; }
+      }
+      // Febre do ouro: cada moeda nasce num ponto da borda, sobe 1 a 1,6 m e cai; o brilho pisca rápido (o "tilintar")
+      (coins[0].material as THREE.SpriteMaterial).color.set(arcane ? ARCANE.coin : '#ffd84a');
+      for (const s of coins) {
+        const u = s.userData as { vy: number; wait: number };
+        if (lite || state.effect !== 'gold') { s.visible = false; continue; }
+        if (!s.visible) {
+          if ((u.wait -= dt) > 0) continue;
+          const ring = ARENAS[shownArena].outline[0], q = ring[Math.floor(Math.random() * ring.length)];
+          s.position.set(q.x * shownR, 0.05, q.y * shownR);
+          u.vy = 4.5 + Math.random() * 1.2;
+          s.visible = true;
+        }
+        u.vy -= 12 * dt;
+        s.position.y += u.vy * dt;
+        s.scale.setScalar(0.16 + 0.1 * Math.abs(Math.sin(now * 18 + s.id)));
+        if (s.position.y < 0) { s.visible = false; u.wait = Math.random() * 1.2; }
+      }
+      // Vendaval: riscos claros atravessando a arena na mesma direção, rápidos
+      for (const s of gusts) {
+        const u = s.userData as { vy: number; wait: number };
+        if (lite || state.effect !== 'speed') { s.visible = false; continue; }
+        if (!s.visible) {
+          if ((u.wait -= dt) > 0) continue;
+          s.position.set(-span - 6, 0.5 + Math.random() * 1.6, (Math.random() * 2 - 1) * (span + 3));
+          u.vy = 9 + Math.random() * 5;
+          s.scale.set(1.6 + Math.random(), 0.07, 1);
+          s.visible = true;
+        }
+        s.position.x += u.vy * dt;
+        s.position.z += Math.sin(now * 2 + s.position.y * 3) * 0.6 * dt;
+        if (s.position.x > span + 6) { s.visible = false; u.wait = Math.random() * 1.5; }
+      }
+      // Tempo chuvoso: chuva fina caindo em toda a área (inclinada de leve, como o vento)
+      rain.visible = !lite && state.effect === 'lava';
+      if (rain.visible) {
+        for (let i = 0; i < RAIN; i++) {
+          rainY[i] -= 13 * dt;
+          if (rainY[i] < 0) {
+            rainY[i] += 9;
+            rainXZ[i] = [(Math.random() * 2 - 1) * (span + 6), (Math.random() * 2 - 1) * (span + 6)];
+          }
+          const [x, z] = rainXZ[i], y = rainY[i];
+          rainPos.set([x, y, z, x + 0.06, y + 0.45, z], i * 6);
+        }
+        rainGeo.attributes.position.needsUpdate = true;
       }
       if (warning && warnR !== state.arenaR) {
         warnR = state.arenaR;
@@ -2001,7 +2456,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         g.visible = !!l;
         if (!l) return;
         g.position.copy(w3(l.pos, 0));
-        g.scale.setScalar(0.6 + 0.4 * (l.left / CHEST.pile));
+        g.scale.setScalar(0.6 + 0.4 * (l.left / CHEST.pile[1]));
         g.rotation.y = now * 0.6;
       });
       pileShine.opacity = 0.22 + 0.1 * Math.sin(now * 3);
@@ -2044,8 +2499,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         target = target.lerp(c, celebrate);
       }
       focus.lerp(target, Math.min(1, dt * 3));
-      // aproxima conforme a arena encolhe
-      const dist = Math.min(44, (onMap ? 15 : Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2)) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
+      // aproxima conforme a arena encolhe. Teto 54: as Ilhas com 8 magos (48,5) e no máximo da sandbox (53) cabem
+      // inteiras; com 44 uma ilha saía pela lateral (issue #222). Seguindo um mago (lock), o teto é 25, o da arena de 4 magos:
+      // em mapa grande ele não encolhe na tela
+      const dist = Math.min(state.lock ? 25 : 54, (onMap ? 15 : Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2)) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
       // no mapa a sombra do sol acompanha a câmera (a janela de sombra é de 28 m)
       if (onMap) {
         voidPlane.position.set(focus.x, -0.8, focus.z); // o fundo do abismo acompanha a câmera: nunca acaba antes do mapa
@@ -2059,9 +2516,27 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       lastDist = dist;
       // olha um pouco à frente do centro para a borda de baixo não ficar atrás da barra de magias
-      const lookZ = focus.z + dist * 0.06;
-      camera.position.set(focus.x, dist * 0.74, lookZ + dist * 0.67);
-      camera.lookAt(focus.x, 0, lookZ);
+      let lookX = focus.x, lookZ = focus.z + dist * 0.06;
+      // pixel art: a câmera desenha de bloco em bloco (pixelSize px medidos no chão do meio da tela); solta, o chão "ferve" a cada quadro.
+      // A sobra (menos de um bloco) desliza a imagem pronta e os nomes, e o movimento continua suave.
+      // No eixo z o chão inclinado aparece encurtado (×0,74), então o passo no chão é maior
+      let shift = '';
+      if (pixelPass && composer?.passes[0] === pixelPass) {
+        const block = (2 * dist * camK * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / (innerHeight / pixelSize);
+        const stepZ = block / 0.74;
+        const sx = Math.round(lookX / block) * block, sz = Math.round(lookZ / stepZ) * stepZ;
+        const px = (v: number) => Math.round(v * pixelSize * devicePixelRatio) / devicePixelRatio; // pixel inteiro da tela: sem borrar os blocos
+        shift = `translate(${px((sx - lookX) / block)}px, ${px((sz - lookZ) / stepZ)}px)`;
+        lookX = sx;
+        lookZ = sz;
+      }
+      if (shift !== pixelShift) canvas.style.transform = labels.style.transform = pixelShift = shift;
+      camera.position.set(lookX, dist * 0.74 * camK, lookZ + dist * 0.67 * camK);
+      // a névoa conta da câmera: com ela mais longe, empurra junto (acima do teto antigo de 44 também, senão a borda
+      // de trás das Ilhas grandes some na névoa)
+      const fogPush = (camK - 1) * dist + Math.max(0, dist - 44);
+      Object.assign(scene.fog!, { near: 30 + fogPush, far: 70 + fogPush });
+      camera.lookAt(lookX, 0, lookZ);
       if (shake > 0.01 && !lite) {
         camera.position.x += (Math.random() - 0.5) * shake;
         camera.position.z += (Math.random() - 0.5) * shake;

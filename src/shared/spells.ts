@@ -1,11 +1,21 @@
 import { FRICTION, KB_PER_DMG, UNIT, WIZ_SPEED } from './constants.ts';
 
 export const SPELL_IDS = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap', 'grip', 'meteor', 'rush', 'cluster', 'boomerang', 'thrust', 'gravity', 'rockpillar', 'bouncer',
-  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone'] as const;
+  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone', 'scourge', 'pact'] as const;
 export type SpellId = (typeof SPELL_IDS)[number];
 export const isSpell = (x: unknown): x is SpellId => SPELL_IDS.includes(x as SpellId);
-// decisão do Fernando (17/10): no máximo 6 magias por mago (a Bola de fogo conta)
-export const MAX_SPELLS = 6;
+// 8 magias por mago nas teclas 1 2 3 4 Q W E R (decisão do Fernando, 21/10, issue #217; antes 6); a Bola de fogo e o Flagelo contam
+export const MAX_SPELLS = 8;
+
+// magias pelo efeito principal: a loja e a ajuda mostram os nomes (rules-text.ts); o sorteio das cartas do Ascensão usa os grupos
+export const SPELL_GROUP_IDS = {
+  attack: ['fireball', 'lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball', 'scourge', 'pact'],
+  mobility: ['teleport', 'swap', 'rush', 'thrust', 'windwalk'],
+  defense: ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion'],
+  control: ['grip', 'gravity', 'link', 'magnetize', 'drain'],
+} as const satisfies Record<string, readonly SpellId[]>;
+export type SpellGroup = keyof typeof SPELL_GROUP_IDS;
+export const spellGroup = (s: SpellId) => (Object.keys(SPELL_GROUP_IDS) as SpellGroup[]).find((g) => (SPELL_GROUP_IDS[g] as readonly SpellId[]).includes(s))!;
 
 // radius: raio da explosão do Meteoro (e do dano da Gravidade); dmgMin: dano na borda dele; absorb: dano que a Investida converte em velocidade;
 // pull: puxão da Gravidade nos magos (m/s²); scale: tempo dos projéteis inimigos na Zona de dobra; dot: dano por segundo da Bola de neve encostada
@@ -29,9 +39,9 @@ export const SPELLS: Record<SpellId, Spell> = {
   // as cinco magias seguintes: npc_abilities_custom.txt, spells/*.lua e shop/warlock_shop_data.js do Warlock Brawl
   // troca: projétil de 1983 u/s que vive 0,4706 s (alcance 933 u)
   swap: { name: 'Troca', en: 'Swap', cost: 11, up: [6, 7, 8, 9, 10, 11], levels: [15.8, 13.3, 11.3, 9.8, 8.8, 7.8, 7].map((cd) => L({ cd: cd * 1.3, speed: 1983 * UNIT, range: 933 * UNIT })) }, // 18/10 bots humanos: recarga ×1,3 (26% / 29% acima do justo no Normal / Difícil)
-  // agarrar: projétil de 1000 u/s por 1,1 s; duration = tempo preso
+  // Agarrar em área (decisão do Fernando, 21/10, #168): cipós com raio de 1,5 m no ponto mirado, sem simulador (exceção como a Ilusão); duration é o tempo preso.
   // Agarrar prende metade do tempo do original (nerf pedido pelo Fernando, 17/10)
-  grip: { name: 'Agarrar', en: 'Grip', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [24, 19, 15, 12, 10, 8.5, 7].map((cd, i) => L({ cd: cd * 0.8, duration: 2.25, speed: 1000 * UNIT, range: 1100 * UNIT, scale: steps(0.3, 0.1)[i] })) /* 18/10: tempo preso fixo, preso sem proteção de empurrão (0,81 → 0,91); Agarrar novo (18/10): scale = empurrão a mais do golpe que solta, +30% a +90% */ },
+  grip: { name: 'Agarrar', en: 'Grip', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [24, 19, 15, 12, 10, 8.5, 7].map((cd, i) => L({ cd: cd * 0.8, duration: 2.25, radius: 1.5, range: 1100 * UNIT, scale: steps(0.3, 0.1)[i] })) /* 18/10: tempo preso fixo, preso sem proteção de empurrão (0,81 → 0,91); Agarrar novo (18/10): scale = empurrão a mais do golpe que solta, +30% a +90% */ },
   // meteoro: dano de 40 na borda (aqui 60) até o máximo no centro; empurrão 0,66
   meteor: { name: 'Meteoro', en: 'Meteor', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([20, 19.5, 19, 18.5, 18, 17.5, 17], [110, 120, 130, 140, 150, 160, 170]).map(([cd, d], i) => L({ cd: cd * 0.9, dmg: d, dmgMin: 60, kbf: 0.66, /* ciclo 1: recarga ×0,9 (0,94×) */ /* borda 40 → 60 em 17/10 */ radius: [225, 240, 255, 269, 282, 294, 304][i] * UNIT, range: 1000 * UNIT })) },
   // investida: absorve até `absorb` de dano (metade de cada golpe) e vira velocidade
@@ -54,8 +64,8 @@ export const SPELLS: Record<SpellId, Spell> = {
   drain: { name: 'Drenar', en: 'Drain', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(22, -1).map((cd, i) => L({ cd: cd * 1.2 /* 18/10 bots humanos: 16% acima (×1,1); 19/10 bots do fim de rodada: 16% acima de novo (×1,2) */, dmg: 60 + 10 * i, kbf: 0.2, speed: 700 * UNIT, range: 850 * UNIT, duration: 4 + i })) },
   // bola de neve: 400 u/s por 575 u; dmg = explosão no centro (damage_max; 0 na borda do raio de 200 u; empurrão 0,8); dot = damage, por segundo encostado
   snowball: { name: 'Bola de neve', en: 'Snowball', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(19, -1).map((cd, i) => L({ cd, dmg: (45 + 35 * i) * 1.3, kbf: 0.8, dot: 30 + 10 * i, /* 18/10: explosão ×1,3, +35 e +10 de lentidão por nível (0,91 → 0,96) */ speed: 400 * UNIT, range: 575 * UNIT, radius: 200 * UNIT })) },
-  // ilusão (decisão do Fernando, 19/10; não existe no original): uma cópia do mago anda reto por `duration` s na velocidade de andar
-  illusion: { name: 'Ilusão', en: 'Illusion', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip(steps(14, -0.5), steps(2, 0.1)).map(([cd, duration]) => L({ cd, duration, speed: WIZ_SPEED })) },
+  // ilusão (decisão do Fernando, 19/10; não existe no original): a cópia sai do lugar do mago, anda na direção do movimento por 2 s e pode ser empurrada, mas não destruída
+  illusion: { name: 'Ilusão', en: 'Illusion', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(14, -0.5).map((cd) => L({ cd, duration: 2, speed: WIZ_SPEED })) },
   // magnetizar: projétil de 800 u/s por 1,2 s (960 u); duration = tempo magnetizado
   magnetize: { name: 'Magnetizar', en: 'Magnetize', cost: 14, up: [5, 6, 7, 8, 9, 10], levels: steps(22, -1).map((cd, i) => L({ cd, duration: (3.5 + 1.5 * i) * 1.25, speed: 800 * UNIT, range: 960 * UNIT })) /* 18/10: +1,5 s por nível (era +0,5; 0,88 → 0,92) */ },
   // recarga: 900 u/s por 1 s; +10 de dano por acerto seguido (RECHARGE)
@@ -71,17 +81,24 @@ export const SPELLS: Record<SpellId, Spell> = {
   splitter: { name: 'Divisor', en: 'Splitter', cost: 15, up: [7, 8, 9, 10, 11, 12], levels: steps(24, -1).map((cd, i) => L({ cd, dmg: 30 + 5 * i, speed: 700 * UNIT, range: 700 * UNIT })) },
   // zona de dobra: esfera de 4,5 s a até 700 u; scale = tempo dos projéteis inimigos dentro dela
   warpzone: { name: 'Zona de dobra', en: 'Warp Zone', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([23, 21, 20, 19, 18, 17, 16], steps(0.4, -0.04)).map(([cd, scale], i) => L({ cd: cd * 0.5, duration: 4.5, scale, /* 18/10: recarga ×0,7 → ×0,6 (19% abaixo com bots humanos) e raio +20 por nível; 19/10: ×0,5 (16% abaixo no Normal) */ radius: (200 + 20 * i) * UNIT, range: 700 * UNIT })) },
+  // Flagelo e Pacto eram itens ativos (issue #217, 21/10): o nível 1 tem os números do item; o resto da subida é ponto de partida do simulador.
+  // Flagelo: explosão em volta (dmg e radius), de graça como a Bola de fogo; +10 de dano por nível, como o item subia (80/100/120 em 3 níveis)
+  scourge: { name: 'Flagelo', en: 'Scourge', cost: 0, up: [7, 7, 7, 7, 7, 7], levels: steps(80, 10).map((d) => L({ cd: 5, dmg: d, radius: 325 * UNIT })) },
+  // Pacto: a próxima magia de dano em `duration` s sai PACT.mult× mais forte; a subida só encurta a recarga
+  pact: { name: 'Pacto', en: 'Pact', cost: 10, up: [6, 7, 8, 9, 10, 11], levels: steps(20, -1).map((cd) => L({ cd, duration: 5 })) },
 };
 
 // agarrar (ideia do Fernando, 18/10): o preso fica no lugar até o primeiro golpe com dano (ou o fim do tempo), e esse golpe
 // o solta empurrando mais (o scale do nível: +30% no 1 até +90% no 7); cada magia lançada preso soma 5 ao dano acumulado (gripmodifier.lua)
 // Zona de dobra: inimigo de quem a criou anda mais devagar dentro dela (pedido do Fernando, 18/10; não existe no original)
+// Pacto: a próxima magia de dano sai 2× mais forte (balanceamento de 17/10: 5 rodadas com ele, 0 vitórias; no original 1,5× com lentidão)
+export const PACT = { mult: 2 };
 export const WARPZONE = { wizMult: 0.5 }; // 0,6 → 0,5 em 18/10 (16% abaixo do justo com bots humanos)
-export const GRIP = { castPenalty: 5 };
+export const GRIP = { castPenalty: 5, delay: 1.3 }; // 1,3 s entre a marca no chão e os cipós: dá para sair da área (pedido do Leonard, estilo do stun do Leshrac)
 // meteoro: 0,55 s parado no ar + 0,60 s caindo (meteor.lua)
 export const METEOR_DELAY = 1.15;
 // investida: +35 u/s ao ativar; cada ponto absorvido soma 1,5 u/s (rushmodifier.lua)
-// avanço: 3 m em 0,2 s na direção do mouse (não existe no original; pedido do Fernando, 17/10: "dash não funciona")
+// avanço: 3 m em 0,2 s na direção do mouse (não existe no original; pedido do Fernando, 17/10: o avanço não funcionava)
 export const RUSH = { bonus: 35 * UNIT, perHp: 1.5 * UNIT, share: 0.5, dash: 3, dashTime: 0.2, dashDmg: 20 }; // ciclo 1 (18/10): dano do avanço 60 → 40 (Investida 1,30×) // dashDmg: dano em quem o avanço encostar (pedido do Fernando, 17/10)
 // rajada: ângulos do leque em radianos (cluster.lua)
 export const CLUSTER_FAN = [-0.18, -0.06, 0.06, 0.18];
@@ -93,6 +110,9 @@ export const HOMING_TURN = 2.5; // rad/s
 export const BOOMERANG = { side: 300 * UNIT, minDist: 300 * UNIT, back: 1000 * UNIT, turn: 1000 * UNIT, bounce: 500 * UNIT, bounceWall: 750 * UNIT, gap: 10 * UNIT, life: 6 };
 // estocada (thrust.lua, thrustmodifier.lua): sai a 77% da velocidade e acelera até ela (aceleração que empata com o atrito);
 // dura o caminho + 0,09 s; sem acertar, freia para 20%; reach: a bolha da estocada tem 30 u a mais que o mago
+// Raio: além do corpo do mago, pega quem passa a `width` da linha (21/10, exceção decidida pelo Fernando sem passar pelo simulador:
+// "o hitbox ainda está muito fino"; antes só quem o corpo cruzava a linha)
+export const LIGHTNING = { width: 0.15 };
 export const THRUST = { start: 0.77, accel: FRICTION, extra: 0.09, endSlow: 0.2, reach: 30 * UNIT, full: 0.8 };
 // gravidade (gravity.lua, gravityprojectile.lua): puxa magos inimigos até 550 u e projéteis até 600 u (1650 u/s², de qualquer dono)
 export const GRAVITY = { wizR: 550 * UNIT, projR: 600 * UNIT, projPull: 1650 * UNIT, tick: 0.2 };
@@ -104,8 +124,6 @@ export const DRAIN = { extra: 1.2, turnSpeed: 600 * UNIT, slow: 50 * UNIT, haste
 // bola de neve (snowballprojectile.lua, snowballmodifier.lua): rola atravessando magos e os arrasta a 425 u/s; quem encosta fica −100 u/s
 // por 0,5 s e leva dot × 0,5 no fim (sem empurrão); bolha de 75 u + 2 u por nível
 export const SNOWBALL = { drag: 425 * UNIT, slow: 100 * UNIT, period: 0.5, coll: 75 * UNIT, perLevel: 2 * UNIT };
-// ilusão: por 0,5 s o dono fica velado (os bots não o enxergam e miram a cópia; o navegador o desenha meio transparente)
-export const ILLUSION = { veil: 0.5 };
 // magnetizar (magnetizemodifier.lua): projéteis inimigos do magnetizado até 300 u viram 20%·(1 − d²/300²) por tique de 0,035 s
 export const MAGNETIZE = { r: 300 * UNIT, f: 0.2, tick: 0.035 };
 // recarga (recharge.lua, rechargerefreshprojectile.lua): +10 por acerto seguido; a volta anda 400 u/s e zera a recarga a 64 u
@@ -121,7 +139,8 @@ export const SPLITTER = { spawnSpeed: 250 * UNIT, spawnLife: 0.48, waves: 4, chi
 
 // tempo de conjuração: a magia sai esse tempo depois da tecla (AbilityCastPoint do original era 0,2 s)
 export const CAST_POINT: Record<SpellId, number> = { fireball: 0.1, lightning: 0.1, homing: 0.1, shield: 0, teleport: 0, swap: 0, grip: 0.1, meteor: 0.1, rush: 0, cluster: 0.1, boomerang: 0.1, thrust: 0, gravity: 0.1, rockpillar: 0, bouncer: 0.1,
-  drain: 0.1, snowball: 0.1, illusion: 0, magnetize: 0.1, recharge: 0.1, alteration: 0, link: 0.1, windwalk: 0, splitter: 0, warpzone: 0.1 }; // Alteração, Caminhada e Divisor: 0 no original; Ilusão 0 (defesa, como o Escudo) // original 0,2 s (Estocada 0); 0,1 s a pedido do Fernando (17/10)
+  drain: 0.1, snowball: 0.1, illusion: 0, magnetize: 0.1, recharge: 0.1, alteration: 0, link: 0.1, windwalk: 0, splitter: 0, warpzone: 0.1,
+  scourge: 0.5, pact: 0.1 }; // Flagelo: o preparo de 0,5 s do item (0,9 s no original; Fernando, 17/10) // Alteração, Caminhada e Divisor: 0 no original; Ilusão 0 (defesa, como o Escudo) // original 0,2 s (Estocada 0); 0,1 s a pedido do Fernando (17/10)
 
 // tabela de níveis própria de um modo (World.book; hoje só a Campanha, em campaign.ts): o que não está nela vem de SPELLS.
 // Assim mudar magia na Campanha não mexe nos outros modos, e quem lê número de magia passa o book do mundo
@@ -134,6 +153,8 @@ export function priceOf(id: SpellId, level: number): number | null {
   return level === 0 ? SPELLS[id].cost : SPELLS[id].up[level - 1];
 }
 
-export const noSpells = (): Record<SpellId, number> => ({ ...Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), fireball: 1 }) as Record<SpellId, number>;
+// Bola de fogo e Flagelo de graça para todos (o Flagelo virou magia inicial em 21/10, issue #217)
+export const FREE_SPELLS: SpellId[] = ['fireball', 'scourge'];
+export const noSpells = (): Record<SpellId, number> => ({ ...Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), fireball: 1, scourge: 1 }) as Record<SpellId, number>;
 
 export const spellCount = (spells: Record<SpellId, number>) => SPELL_IDS.filter((s) => spells[s] > 0).length;

@@ -20,10 +20,16 @@ export default {
     // jeito de jogar: uma linha por humano e por dificuldade dos bots (telemetry.ts styleRows)
     if (url.pathname === '/api/telemetry/style') return Response.json(styleRows(await lobby.telemetry()), { headers: { 'cache-control': 'no-store' } });
 
+    // a sala nasce no leste dos EUA (Fernando, 21/10: fixar no leste dos EUA): Durable Object não existe na América do Sul, e sem a
+    // dica a sala nascia perto de onde entrou o pedido, às vezes Vancouver (medido do Brasil em 21/10: 0,2 s para conectar contra 0,1 s
+    // por Jacksonville/Charlotte). A dica só vale na criação; sala já criada fica onde está
+    const roomStub = (code: string) => env.ROOM.get(env.ROOM.idFromName(code), { locationHint: 'enam' });
+
     if (url.pathname === '/api/rooms' && req.method === 'POST') {
       let id = newCode();
       while (await lobby.has(id)) id = newCode();
-      await env.ROOM.get(env.ROOM.idFromName(id)).init(id);
+      // sala do Ascensão: opção própria no menu Jogar (Fernando, 21/10), presa ao modo
+      await roomStub(id).init(id, url.searchParams.get('modo') === 'ascensao');
       return Response.json({ id });
     }
 
@@ -31,7 +37,7 @@ export default {
     if (url.pathname === '/ws/lobby' && isUpgrade) return lobby.fetch(req);
 
     const room = url.pathname.match(/^\/ws\/room\/([A-Z]{4})$/);
-    if (room && isUpgrade) return env.ROOM.get(env.ROOM.idFromName(room[1])).fetch(req);
+    if (room && isUpgrade) return roomStub(room[1]).fetch(req);
 
     return new Response('não encontrado', { status: 404 });
   },

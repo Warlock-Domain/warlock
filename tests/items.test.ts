@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { DT, HP_MAX, LAVA_DPS, WIZ_SPEED } from '../src/shared/constants.ts';
-import { AEGIS, ITEMS, ITEM_IDS, MAX_ITEMS, PACT, SCOURGE, SHOCK_BOOTS, itemPrice, noItems, type ItemId } from '../src/shared/items.ts';
+import { DT, HP_MAX, LAVA_DPS, STUN_SPEED, WIZ_SPEED } from '../src/shared/constants.ts';
+import { AEGIS, ITEMS, ITEM_IDS, MAX_ITEMS, SHOCK_BOOTS, itemPrice, noItems, type ItemId } from '../src/shared/items.ts';
 import { addPlayer, buy, buyItem, newMatch, resume, sell, sellValue, startMatch, tickMatch, undoBuy } from '../src/shared/match.ts';
 import { randomPlan } from '../src/shared/bots.ts';
 import { itemTip } from '../src/client/tips.ts';
 import { len } from '../src/shared/vec.ts';
-import { newWorld, stepWorld, type World } from '../src/shared/sim.ts';
-import { SPELLS, noSpells, type SpellId } from '../src/shared/spells.ts';
+import { newWorld, stepWorld, type Cmd, type World } from '../src/shared/sim.ts';
+import { CAST_POINT, PACT, SPELLS, noSpells, type SpellId } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
 import { world as spotsWorld } from './helpers.ts';
 
@@ -43,40 +43,75 @@ describe('itens passivos', () => {
   });
 });
 
-describe('itens ativos', () => {
+// Flagelo e Pacto eram itens ativos; viraram magia em 21/10 (#217) e o Redirecionador saiu
+describe('Flagelo e Pacto (magias)', () => {
+  const scourge = (id = 'p0'): Cmd => ({ id, kind: 'cast', spell: 'scourge', at: v(0, 0) });
+  const windup = Math.round(CAST_POINT.scourge / DT);
+
   it('scourge explodes after the windup and pushes nearby, without hurting the caster', () => {
-    const w = world([[0, 0], [1, 0], [5, 0]], [{ scourge: 1 }]);
-    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
-    steps(w, Math.round(SCOURGE.windup / DT) - 5);
+    const w = world([[0, 0], [1, 0], [5, 0]]);
+    stepWorld(w, [scourge()]);
+    steps(w, windup - 5);
     expect(w.wizards[1].hp).toBe(HP_MAX);
     steps(w, 10);
     expect(w.wizards[1].hp).toBeLessThan(HP_MAX);
     expect(w.wizards[1].vel.x).toBeGreaterThan(0);
     expect(w.wizards[2].hp).toBe(HP_MAX);
     expect(w.wizards[0].hp).toBe(HP_MAX);
+    expect(w.wizards[0].cd.scourge).toBeGreaterThan(w.t);
+  });
+
+  // pedido do Fernando (21/10): a explosão cancela o empurrão que o mago está sofrendo
+  it('the blast stops the knockback the caster is taking', () => {
+    const w = world([[0, 0], [1, 0]]);
+    stepWorld(w, [scourge()]);
+    w.wizards[0].vel = v(-12, 0); // empurrado durante o preparo
+    steps(w, windup - 5);
+    expect(len(w.wizards[0].vel)).toBeGreaterThan(STUN_SPEED);
+    let blasted = false;
+    for (let i = 0; i < 10 && !blasted; i++) {
+      stepWorld(w, []);
+      blasted = w.events.some((e) => e.k === 'scourge');
+    }
+    expect(blasted).toBe(true);
+    expect(len(w.wizards[0].vel)).toBe(0);
+  });
+
+  it('every wizard starts with the Scourge at level 1, and it levels up like a spell', () => {
+    expect(noSpells().scourge).toBe(1);
+    expect(SPELLS.scourge.cost).toBe(0);
+    expect(SPELLS.scourge.levels[0].dmg).toBe(80);
+    const w = world([[0, 0], [1, 0]]);
+    w.wizards[0].spells.scourge = 3;
+    stepWorld(w, [scourge()]);
+    steps(w, windup + 5);
+    expect(HP_MAX - w.wizards[1].hp).toBeGreaterThan(SPELLS.scourge.levels[2].dmg - 2);
   });
 
   it('scourge also damages obstacles and the chest in the blast', () => {
-    const w = world([[0, 0]], [{ scourge: 1 }]);
+    const w = world([[0, 0]]);
     w.pillars = [{ pos: v(1.2, 0), hp: 250, alive: true, kind: 'chest' }];
-    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
+    stepWorld(w, [scourge()]);
     steps(w, 40);
     expect(w.pillars[0].hp).toBeLessThan(250);
   });
 
   it('scourge never kills its caster', () => {
-    const w = world([[0, 0]], [{ scourge: 3 }]);
+    const w = world([[0, 0]]);
+    w.wizards[0].spells.scourge = 7;
     w.wizards[0].hp = 30;
-    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
+    stepWorld(w, [scourge()]);
     steps(w, 70);
     expect(w.wizards[0].alive).toBe(true);
     expect(w.wizards[0].hp).toBeGreaterThanOrEqual(10);
   });
 
   it('pact makes the next damaging spell stronger and does not slow', () => {
-    const w = world([[0, 0], [2, 0]], [{ pact: 1 }]);
-    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'pact', at: v(0, 0) }]);
+    const w = world([[0, 0], [2, 0]]);
+    w.wizards[0].spells.pact = 1;
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'pact', at: v(0, 0) }]);
     steps(w, 15);
+    expect(w.wizards[0].cd.pact).toBeGreaterThan(w.t);
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(2, 0) }]);
     steps(w, 15);
     // a vida volta um pouco (regeneração) entre o acerto e a conferência
@@ -86,50 +121,26 @@ describe('itens ativos', () => {
   });
 
   it('teleport during the scourge windup cancels the blast', () => {
-    const w = world([[0, 0], [1, 0]], [{ scourge: 1 }]);
-    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
+    const w = world([[0, 0], [1, 0]]);
+    stepWorld(w, [scourge()]);
     steps(w, 5);
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'teleport', at: v(-3, 0) }]);
     expect(w.wizards[0].casting).toBeNull();
     expect(w.wizards[0].pos.x).toBeLessThan(-1);
     steps(w, 40);
     expect(w.wizards[1].hp).toBe(HP_MAX);
-    expect(w.wizards[0].itemCd.scourge).toBe(0); // não saiu: sem recarga
+    expect(w.wizards[0].cd.scourge).toBe(0); // não saiu: sem recarga
   });
 
   it('no spell goes out while the scourge is winding up', () => {
-    const w = world([[0, 0], [1, 0]], [{ scourge: 1 }]);
-    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
+    const w = world([[0, 0], [1, 0]]);
+    stepWorld(w, [scourge()]);
     steps(w, 5);
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(2, 0) }]);
-    expect(w.wizards[0].casting?.item).toBe('scourge');
+    expect(w.wizards[0].casting?.spell).toBe('scourge');
     expect(w.wizards[0].cd.lightning).toBe(0);
     steps(w, 40);
     expect(w.wizards[1].hp).toBeLessThan(HP_MAX); // o Flagelo saiu mesmo assim
-  });
-
-  it('redirector turns your nearest projectile toward the cursor', () => {
-    const w = world([[0, 0], [0, 5]], [{ redirector: 1 }]);
-    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(5, 0) }]);
-    steps(w, 20);
-    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'redirector', at: v(0, 5) }]);
-    steps(w, 13);
-    const p = w.projectiles[0];
-    expect(p.vel.y).toBeGreaterThan(Math.abs(p.vel.x));
-    steps(w, 80);
-    expect(w.wizards[1].hp).toBeLessThan(HP_MAX);
-  });
-
-  it('redirector turns every projectile of yours, has no penalty and is not spent without one', () => {
-    const w = world([[0, 0], [0, 5]], [{ redirector: 1 }]);
-    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'redirector', at: v(0, 5) }]);
-    steps(w, 10);
-    expect(w.wizards[0].itemCd.redirector).toBe(0); // nada voando: não gastou
-    w.projectiles.push(...[v(1, 0), v(-1, 0)].map((pos, i) => ({ id: 90 + i, born: 0, kind: 'fireball' as const, owner: 'p0', caster: 'p0', pos, vel: v(6.47 * Math.sign(pos.x), 0), level: 1, until: w.t + 2, target: null, dmgMult: 1 })));
-    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'redirector', at: v(0, 5) }]);
-    steps(w, 8);
-    for (const p of w.projectiles.filter((q) => q.kind === 'fireball')) expect(p.vel.y).toBeGreaterThan(Math.abs(p.vel.x));
-    expect(w.wizards[0].itemCd.redirector).toBeGreaterThan(w.t);
   });
 
   it('a chest swallowed by the lava breaks on its own and the gold lands on the stone', () => {
@@ -143,18 +154,19 @@ describe('itens ativos', () => {
 
   it('scourge destroys enemy projectiles in the blast', () => {
     // a bola de fogo chega na área no meio do preparo de 0,5 s
-    const w = world([[0, 0], [5.5, 0]], [{ scourge: 1 }]);
+    const w = world([[0, 0], [5.5, 0]]);
     stepWorld(w, [{ id: 'p1', kind: 'cast', spell: 'fireball', at: v(0, 0) }]);
     steps(w, 6);
-    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
+    stepWorld(w, [scourge()]);
     steps(w, 32);
     expect(w.projectiles.length).toBe(0);
     expect(w.wizards[0].hp).toBe(HP_MAX);
   });
 
-  it('item not owned does nothing', () => {
+  it('a sold Scourge does nothing', () => {
     const w = world([[0, 0], [1, 0]]);
-    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }]);
+    w.wizards[0].spells.scourge = 0;
+    stepWorld(w, [scourge()]);
     steps(w, 70);
     expect(w.wizards[1].hp).toBe(HP_MAX);
   });
@@ -173,11 +185,9 @@ describe('loja de itens', () => {
     expect(buyItem(m, 'a', 'cape')).toBe(true);
     expect(buyItem(m, 'a', 'cape')).toBe(false);
     expect(p.gold).toBe(200 - 3 * ITEMS.cape.cost);
-    // o Flagelo já vem de graça e ocupa um espaço
-    expect(p.items.scourge).toBe(1);
-    for (const i of ['ring', 'armor', 'boots', 'watch'] as ItemId[]) expect(buyItem(m, 'a', i)).toBe(true);
-    expect(itemPrice(p.items, 'pact')).toBeNull();
-    expect(buyItem(m, 'a', 'pact')).toBe(false);
+    for (const i of ['ring', 'armor', 'boots', 'watch', 'vampire'] as ItemId[]) expect(buyItem(m, 'a', i)).toBe(true);
+    expect(itemPrice(p.items, 'helmet')).toBeNull();
+    expect(buyItem(m, 'a', 'helmet')).toBe(false);
     expect(Object.values(p.items).filter(Boolean).length).toBe(MAX_ITEMS);
   });
 });
@@ -201,7 +211,7 @@ describe('desfazer compra', () => {
     expect(p.gold).toBe(50 - 6);
     expect(undoBuy(m, 'a', 'spell:lightning')).toBe(false);
     // o Flagelo grátis do começo não pode ser "desfeito" para ganhar ouro
-    expect(undoBuy(m, 'a', 'item:scourge')).toBe(false);
+    expect(undoBuy(m, 'a', 'spell:scourge')).toBe(false);
   });
 });
 
@@ -216,19 +226,19 @@ describe('vender na loja', () => {
     return { m, p: m.players[0] };
   };
 
-  it('sells for 100% in the shop where it was bought, minus 5% per round held, down to 75%', () => {
+  // desde 19/10 (Fernando): vender devolve sempre 100% do que pagou, em qualquer rodada
+  it('sells for 100% of what was paid, in any round', () => {
     const { m, p } = shop();
     buy(m, 'a', 'lightning'); // 11
     buy(m, 'a', 'lightning'); // 8
     expect(sellValue(p, m.round, 'spell:lightning')).toBe(19);
-    expect(sellValue(p, m.round + 1, 'spell:lightning')).toBe(Math.floor(19 * 0.95));
-    expect(sellValue(p, m.round + 3, 'spell:lightning')).toBe(Math.floor(19 * 0.85));
-    expect(sellValue(p, m.round + 20, 'spell:lightning')).toBe(Math.floor(19 * 0.75));
+    expect(sellValue(p, m.round + 1, 'spell:lightning')).toBe(19);
+    expect(sellValue(p, m.round + 20, 'spell:lightning')).toBe(19);
     m.round += 2;
     const gold = p.gold;
     expect(sell(m, 'a', 'spell:lightning')).toBe(true);
     expect(p.spells.lightning).toBe(0);
-    expect(p.gold).toBe(gold + Math.floor(19 * 0.9));
+    expect(p.gold).toBe(gold + 19);
     expect(p.held['spell:lightning']).toBeUndefined();
   });
 
@@ -237,7 +247,7 @@ describe('vender na loja', () => {
     buy(m, 'a', 'lightning'); // 11 na rodada 0
     m.round = 4;
     buy(m, 'a', 'lightning'); // 8 na rodada 4
-    expect(sellValue(p, 4, 'spell:lightning')).toBe(Math.floor(11 * 0.8 + 8));
+    expect(sellValue(p, 4, 'spell:lightning')).toBe(11 + 8);
     expect(undoBuy(m, 'a', 'spell:lightning')).toBe(true);
     expect(p.held['spell:lightning']).toEqual([0]);
   });
@@ -245,18 +255,20 @@ describe('vender na loja', () => {
   it('a room saved before this rule counts unrecorded levels from round 0', () => {
     const { m, p } = shop();
     p.spells.lightning = 1;
-    expect(sellValue(p, 2, 'spell:lightning')).toBe(Math.floor(11 * 0.9));
+    expect(sellValue(p, 2, 'spell:lightning')).toBe(11);
   });
 
-  it('items sell the same way and the free Scourge level does not sell (the free Fireball does since 18/10)', () => {
+  it('items sell the same way; the free Fireball and Scourge levels sell for 0 and free the slot', () => {
     const { m, p } = shop();
     buyItem(m, 'a', 'armor');
     buyItem(m, 'a', 'armor'); // 6 + 6
-    expect(sellValue(p, m.round + 1, 'item:armor')).toBe(Math.floor(12 * 0.95));
+    expect(sellValue(p, m.round + 1, 'item:armor')).toBe(12);
     expect(sell(m, 'a', 'item:armor')).toBe(true);
     expect(p.items.armor).toBe(0);
-    expect(sell(m, 'a', 'item:scourge')).toBe(false); // nível 1 grátis
-    expect(p.items.scourge).toBe(1);
+    const gold = p.gold;
+    expect(sell(m, 'a', 'spell:scourge')).toBe(true); // magia grátis desde 21/10 (#217), como a Bola de fogo
+    expect(p.spells.scourge).toBe(0);
+    expect(p.gold).toBe(gold);
     expect(sell(m, 'a', 'spell:fireball')).toBe(true); // nível 1 grátis: volta 0 e libera a vaga
     expect(p.spells.fireball).toBe(0);
   });

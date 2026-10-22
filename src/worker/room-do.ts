@@ -1,7 +1,8 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
+import { chooseCard, reroll, setAscLobby } from '../shared/ascension.ts';
 import { lookOf } from '../shared/characters.ts';
-import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
+import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
@@ -11,12 +12,14 @@ import { TAUNT_COOLDOWN_MS } from '../shared/taunts.ts';
 
 const STEP_MS = DT * 1000;
 const MAX_CATCHUP = 5; // passos por chamada do laço; atraso maior que isso é descartado
-const EMPTY_MS = 5 * 60_000;
-const IDLE_MS = 3 * 60_000; // partida sem nenhum comando de gente por 3 min é encerrada
+const EMPTY_MS = 5 * 60_000; // sala sem ninguém conectado é apagada depois disso (alarm)
+const IDLE_MS = 3 * 60_000; // partida sem nenhum comando de gente por 3 min é encerrada (menos a sandbox)
+// sem 'ping' por esse tempo, a conexão morreu sem avisar (o cliente pinga a cada 10 s; numa aba escondida o Chrome segura a 1 por minuto)
+const DEAD_MS = 90_000;
 
 type Saved = { id: string; match: Match };
 const KICKED: ServerMsg = { t: 'error', code: 'kicked', msg: 'Você foi removido da sala por votação.' };
-type Attachment = { playerId: string | null };
+type Attachment = { playerId: string | null; at?: number }; // at: hora do hello
 
 // Uma sala: guarda a partida na memória e roda a simulação enquanto houver alguém conectado.
 // Só grava no disco quando muda a fase ou a lista de jogadores (o mundo da rodada não é gravado).
@@ -33,9 +36,12 @@ export class Room extends DurableObject<Env> {
   private roomSentAt = 0;
   private taunted = new Map<string, number>();
   private looked = new Map<string, number>();
+  private watched = new Map<string, number>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+    // o 'ping' é respondido pelo runtime sem chegar a webSocketMessage (não acorda socket hibernado); a hora do último fica
+    // em getWebSocketAutoResponseTimestamp, que o alarm() usa para achar conexão-fantasma
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
   }
 
@@ -71,9 +77,11 @@ export class Room extends DurableObject<Env> {
     return new Set(this.live(except).map((ws) => this.playerOf(ws))).size;
   }
 
-  async init(id: string) {
+  async init(id: string, ascension = false) {
     if (await this.load()) return;
     this.saved = { id, match: newMatch() };
+    // sala do Ascensão: o lobby já mostra o modo e a partida só pode ser dele; o primeiro a entrar vira o dono
+    if (ascension) Object.assign(this.saved.match, { mode: 'ascension', lobby: { owner: null, bots: [], opts: {} } });
     await this.persist();
     // sala criada e nunca aberta também é limpa
     await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS);
@@ -104,13 +112,14 @@ export class Room extends DurableObject<Env> {
         forget(other);
       }
       if (m.banned.includes(msg.playerId)) return send(ws, KICKED);
-      if (!addPlayer(m, msg.playerId, msg.name)) return send(ws, { t: 'error', code: 'full', msg: 'Sala cheia.' });
-      ws.serializeAttachment({ playerId: msg.playerId } satisfies Attachment);
+      if (!addPlayer(m, msg.playerId, msg.name, false, msg.watch)) return send(ws, { t: 'error', code: 'full', msg: 'Sala cheia.' });
+      ws.serializeAttachment({ playerId: msg.playerId, at: now } satisfies Attachment);
       return this.changed();
     }
 
     const id = this.playerOf(ws);
     if (!id) return send(ws, { t: 'error', code: 'bad_msg', msg: 'Envie hello primeiro.' });
+    // 'alive' é só o pulso do cliente (main.ts): se contasse como comando, partida com todos parados nunca acabaria por IDLE_MS
     if (msg.t !== 'alive') this.lastCmdAt = now;
     // o cliente só conhece o id público: acha o jogador correspondente
     const byPublic = (pub?: string) => m.players.find((p) => publicId(s.id, p.id) === pub);
@@ -120,18 +129,17 @@ export class Room extends DurableObject<Env> {
       case 'move':
       case 'stop':
       case 'cast':
-      case 'item':
         // comandos de jogo só valem com a rodada rolando (fora dela a fila cresceria sem limite)
         if (m.phase !== 'playing') return;
         this.cmds.push(msg.t === 'move' ? { id, kind: 'move', to: v(msg.x, msg.y) } : msg.t === 'stop' ? { id, kind: 'stop' }
-          : msg.t === 'cast' ? { id, kind: 'cast', spell: msg.spell, at: v(msg.x, msg.y) } : { id, kind: 'item', item: msg.item, at: v(msg.x, msg.y) });
+          : { id, kind: 'cast', spell: msg.spell, at: v(msg.x, msg.y) });
         this.acks.set(id, msg.seq);
         return;
       case 'start':
         if (startMatch(m, now, msg.bots, msg.mode, msg.shuffle ?? true, Math.random, msg.opts, msg.setup, msg.sandbox)) await this.changed();
         return;
       case 'sandbox':
-        if (sandboxCmd(m, msg.cmd, now)) await this.changed();
+        if (sandboxCmd(m, msg.cmd, now, id)) await this.changed();
         return;
       case 'buy':
         if (buy(m, id, msg.spell)) await this.changed();
@@ -167,6 +175,15 @@ export class Room extends DurableObject<Env> {
       case 'buyItem':
         if (buyItem(m, id, msg.item)) await this.changed();
         return;
+      case 'keep':
+        if (chooseCard(m, id, msg.slot, -1)) await this.changed();
+        return;
+      case 'reroll':
+        if (reroll(m, id)) await this.changed();
+        return;
+      case 'card':
+        if (chooseCard(m, id, msg.slot, msg.i, msg.swap)) await this.changed();
+        return;
       case 'pick':
         if (setLook(m, id, lookOf(msg.character))) await this.changed();
         return;
@@ -176,8 +193,17 @@ export class Room extends DurableObject<Env> {
         this.looked.set(id, now);
         if (setLook(m, id, msg.look)) await this.changed();
         return;
+      case 'watch':
+        // assistir ou voltar a jogar: como a aparência, no máximo uma troca a cada 100 ms (cada troca grava a sala)
+        if (now - (this.watched.get(id) ?? 0) < 100) return;
+        this.watched.set(id, now);
+        if (setWatch(m, id, msg.on)) await this.changed();
+        return;
       case 'ready':
         if (setReady(m, id)) await this.changed();
+        return;
+      case 'lobby':
+        if (setAscLobby(m, id, msg.bots, msg.opts)) await this.changed();
         return;
     }
   }
@@ -192,6 +218,7 @@ export class Room extends DurableObject<Env> {
 
   private async dropped(ws: WebSocket) {
     const id = this.playerOf(ws);
+    // outro socket vivo com o mesmo playerId: não remove (o hello já solta a aba antiga com forget; isto é só segurança)
     if (!id || this.live(ws).some((o) => this.playerOf(o) === id)) return;
     const s = await this.load();
     if (!s) return;
@@ -202,6 +229,14 @@ export class Room extends DurableObject<Env> {
   async alarm() {
     const s = await this.load();
     if (!s) return;
+    // conexão que sumiu sem o fechamento chegar (20/10: sala presa para sempre com "1 pessoa"): solta o jogador
+    const now = Date.now();
+    for (const ws of this.live()) {
+      const seen = Math.max(this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0, (ws.deserializeAttachment() as Attachment).at ?? 0);
+      if (now - seen < DEAD_MS) continue;
+      await this.dropped(ws); // antes do forget, que apaga o playerId do attachment
+      forget(ws, 'dead');
+    }
     if (this.humans() > 0) return void (await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS));
     this.stopLoop();
     // tira do lobby primeiro; se falhar, tenta de novo daqui a 1 minuto (antes a sala sumia do disco e ficava na lista)
@@ -263,7 +298,7 @@ export class Room extends DurableObject<Env> {
     this.last = Date.now();
     this.acc = 0;
     this.lastCmdAt = Date.now();
-    this.loop = setInterval(() => this.tick(), 16);
+    this.loop = setInterval(() => this.tick(), 16); // o intervalo real oscila; quem conta os passos de DT é o acumulador (acc)
   }
 
   private stopLoop() {
@@ -285,10 +320,14 @@ export class Room extends DurableObject<Env> {
     this.last = now;
     // a votação entra na conta para o fim por tempo (e a troca de modo) chegar aos clientes
     // na Campanha, encontro e onda novos trocam o tipo (aparência, vida) das vagas do Fumo: avisa na hora
-    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}:${m.night?.fight ?? ''}:${m.night?.wave ?? ''}`;
+    // Ascensão: as cartas entram na mesa no passo do intervalo (ascShop), então a mesa também
+    // os 5 s finais (todos escolheram) mudam o fim do intervalo: o relógio da tela precisa saber
+    const asc = () => (m.asc ? `${Object.values(m.asc.offer).map((o) => o.length).join()}:${m.phaseEnds}` : '');
+    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}:${asc()}:${m.night?.fight ?? ''}:${m.night?.wave ?? ''}`;
     const before = sig();
     while (this.acc >= STEP_MS) {
       this.acc -= STEP_MS;
+      // o que chegou desde o último tique entra no primeiro passo; nos passos de recuperação a fila já está vazia
       const cmds = this.cmds;
       this.cmds = [];
       this.events.push(...tickMatch(m, now, cmds));
@@ -296,7 +335,8 @@ export class Room extends DurableObject<Env> {
     }
     // a sandbox não grava telemetria (e a rodada dela nem acaba); a Campanha também não (PvE, outros números)
     if (m.phase === 'roundEnd' && before.startsWith('playing') && !m.sandbox && !m.night) this.lobby().record(roundRecord(m, now)).catch(() => {});
-    if (now - this.lastCmdAt > IDLE_MS) endIdle(m);
+    // sandbox não encerra por inatividade: quem testa fica parado mirando ou lendo; sem ninguém conectado o laço já para (shouldRun) e o alarme apaga a sala
+    if (!m.sandbox && now - this.lastCmdAt > IDLE_MS) endIdle(m);
     if (sig() !== before) void this.changed();
   }
 
@@ -307,6 +347,7 @@ export class Room extends DurableObject<Env> {
     const events = publicEvents(this.events, pub);
     this.events = [];
     if (!w) return;
+    // um snapshot por jogador: leva o ack e as recargas dele e os bits de visibilidade do ponto de vista dele
     for (const ws of this.live()) {
       const id = this.playerOf(ws)!;
       send(ws, encodeSnap(w, id, this.acks.get(id) ?? 0, events, !!s!.match.sandbox));

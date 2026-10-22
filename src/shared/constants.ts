@@ -27,12 +27,14 @@ export const KNOCK_HP_SCALE = 1; // empurrão × (1 + KNOCK_HP_SCALE·danoRecebi
 export const LAVA_KB_FACTOR = 0.5;
 export const CREDIT_WINDOW = 5; // o abate vai para quem acertou nos últimos 5 s
 export const PROJ_R = 0.2;
+// o projétil nasce na frente do mago, com o centro a esta distância do centro dele
+export const PROJ_SPAWN = WIZ_R + PROJ_R + 0.05;
 
 // pilares do original (mode.lua e obstacles.lua): 2 a 8 por rodada, sorteados até 1000 unidades do centro
 // (raio, vida e explosão em OBSTACLES.pillar)
 export const PILLAR = { spread: 1000 * UNIT, min: 2, max: 8 };
 
-// tipos de obstáculo (pedido do Fernando, 17/10: "não só esses pilares"); o pilar segue o original, os outros são meus:
+// tipos de obstáculo (pedido do Fernando, 17/10: mais tipos além dos pilares); o pilar segue o original, os outros são meus:
 // rocha grande que não quebra, árvore morta frágil e altar de velas que explode em fogo. weight = chance relativa no sorteio
 export const OBSTACLE_KINDS = ['pillar', 'rock', 'tree', 'shrine', 'chest', 'rockpillar'] as const;
 export type ObstacleKind = (typeof OBSTACLE_KINDS)[number];
@@ -57,23 +59,25 @@ export const WAX = { mult: 0.6 };
 export const WALL_GAP = 0.65; // centro a centro dos 3 pedaços da parede: 2 × 0,65 + 2 × 0,35 = 2 m, a largura do modelo
 
 export const MAX_PLAYERS = 8;
+export const MAX_WATCHERS = 8; // espectadores além dos magos (não ocupam vaga de mago)
 export const WINS_TO_WIN = 5; // original: 1 ponto por rodada vencida (lá o padrão é 11; aqui 5, decisão do Fernando)
 export const START_GOLD = 30;
 export const ROUND_GOLD = 10;
 // venda: cada nível volta 100% na loja em que foi comprado e perde 5% por rodada com ele, até 75% (Fernando, 17/10)
-export const SELL_DECAY = 0.05;
+// vender devolve sempre 100% do que pagou (Fernando, 19/10); antes perdia 5% por rodada até 75%
+export const SELL_DECAY = 0;
 export const SELL_FLOOR = 0.75;
-// baú de ouro no meio da rodada (pedidos do Fernando, 17/10: "incentivar a treta"): aparece a cada 15 s, as magias quebram
-// (vida em OBSTACLES.chest) e ele vira um monte de ouro; quem fica em cima ganha 1 a cada 2 s até o monte (10) acabar; sair zera o progresso
-// primeiro aos 8 s, depois um a cada 12 s mesmo que o anterior não tenha sido quebrado, até 2 baús de pé (Fernando, 17/10: "não aparece mais baú")
-// perRound: no máximo metade dos magos + 1 baús por rodada, nunca mais que 3 (Fernando, 19/10: "muitos baús nos rounds")
-export const CHEST = { first: 8, every: 12, maxUp: 2, perRound: 3, pile: 10, goldEvery: 2, reach: 0.75, pileSecs: 45, spread: 0.6 };
+// baú de ouro no meio da rodada (pedidos do Fernando, 17/10: incentivar o confronto): aparece a cada 15 s, as magias quebram
+// (vida em OBSTACLES.chest) e ele vira um monte de ouro; quem fica em cima ganha 1 a cada 2 s até o monte (3 a 5, sorteado quando o baú nasce; Fernando, 20/10, issue #80; antes 10) acabar; sair zera o progresso
+// primeiro aos 8 s, depois um a cada 12 s mesmo que o anterior não tenha sido quebrado, até 2 baús de pé (Fernando, 17/10: o baú deixava de aparecer)
+// perRound: no máximo metade dos magos + 1 baús por rodada, nunca mais que 3 (Fernando, 19/10: baús demais nas rodadas)
+export const CHEST = { first: 8, every: 12, maxUp: 2, perRound: 3, pile: [3, 5] as const, goldEvery: 2, reach: 0.75, pileSecs: 45, spread: 0.6 };
 // chão depois do choque de projéteis (pedido do Fernando, 17/10): fogo queima, arcano deixa lento, pulso puxa para o centro
 export const ZONES = { burn: { dps: 20, secs: 4.5 }, slow: { mult: 0.6, secs: 4.5 }, pull: { speed: 2.2, secs: 3 }, size: 0.75 };
 // assistência: quem causou mais dano em quem morreu, sem ser quem matou (anti-roubo de abate do Warlock original, versão 082)
 export const ASSIST_GOLD = 2;
 export const ASSIST_MIN_DMG = 30;
-// recuperação (pedido do Fernando, 17/10: "evitar a galera ficar muito atrás"):
+// recuperação (pedido do Fernando, 17/10: evitar que os jogadores fiquem muito para trás):
 // quem ganhou menos ouro na partida que a média recebe metade da diferença no fim da rodada (até 8);
 // abater o líder do placar vale +3 por vitória de vantagem dele sobre a média (até 10); o líder que vence ganha só 5
 export const RECOVERY = { share: 0.5, max: 8 };
@@ -92,7 +96,7 @@ export const DM_SPAWN_GAP = 2; // ao voltar, pelo menos 2 m de inimigos vivos e 
 export const COUNTDOWN_MS = 3_000;
 export const ROUND_END_MS = 2_500;
 export const VOTE_MS = 20_000; // votação na partida (trocar o modo, expulsar alguém) fecha em 20 s; pedido do Fernando (17/10)
-// mecânicas novas de 18/10 (o Fernando liberou "novas mecânicas legais"):
+// mecânicas novas de 18/10 (o Fernando liberou mecânicas novas):
 // morte súbita nas Rodadas e nos Times: passados 90 s, a arena encolhe a cada 5 s em vez de 10 (as rodadas duram ~97 s na simulação)
 // collapse: depois disso a arena continua encolhendo até sumir (nenhuma rodada fica sem fim; antes ~1 em 2.000 partidas de bots travava)
 export const SUDDEN = { at: 90, every: 5, collapse: 150 };
@@ -101,6 +105,25 @@ export const RUNE_KINDS = ['haste', 'fury', 'shield', 'recharge'] as const;
 export type RuneKind = (typeof RUNE_KINDS)[number];
 // efeitos por 8 s (Fernando, 18/10): Pressa +50% de velocidade, Fúria +30% de dano, Escudo −30% de dano levado, Recarga recargas 30% mais rápidas
 export const RUNE = { first: 15, every: 20, secs: 8, reach: 0.6, spread: 0.6, haste: 0.5, fury: 0.3, armor: 0.3, cdr: 0.3 };
+// efeitos de rodada (issue #189, ideia do Reinaldo, números do Fernando em 21/10): um por rodada, igual para todos.
+// Nomes na tela (opt-info.ts EFFECT_NAME): lava = Tempo chuvoso, swords = Arena de espinhos, gold = Febre do ouro (antes Caçada), speed = Vendaval,
+// regen = Fonte da vida, clear = Campo aberto. Multiplicadores: lava = dano da lava; gold = todo ouro ganho na rodada; speed = velocidade de
+// todos; heal = toda vida recuperada (regeneração, Drenar, Roubo de vida); shrink = quanto do encolhimento normal acontece (abaixo de 1
+// a arena para antes, até o SUDDEN.collapse); swords = a borda vira parede de espinhos (SWORDS) em vez de lava.
+// Histórico: Vendaval era "lentidões −20%" e virou velocidade (+30% medido, +50% pedido pelo Fernando depois de jogar); a Caçada (hoje Febre do ouro) foi
+// juntada à Arena e separada de novo, e passou de "ouro do abate" a todo ouro da rodada; a Fonte da vida curava só a regeneração (×1,3, fraca demais) e passou a ×1,5 em toda cura.
+// Arena encolhendo só metade: sem encolher, rodada média de 181 s no Normal (simulador), porque ninguém cai mais na lava
+// clear (Campo aberto) não tem multiplicador: a partida tira os obstáculos sorteados da arena (match.ts)
+export const ROUND_EFFECT_IDS = ['lava', 'swords', 'gold', 'speed', 'regen', 'clear'] as const;
+export type RoundEffectId = (typeof ROUND_EFFECT_IDS)[number];
+export type RoundMods = { lava: number; gold: number; speed: number; heal: number; shrink: number; swords: boolean };
+export const NO_MODS: RoundMods = { lava: 1, gold: 1, speed: 1, heal: 1, shrink: 1, swords: false };
+export const ROUND_EFFECTS: Record<RoundEffectId, Partial<RoundMods>> = { lava: { lava: 0.5 }, swords: { swords: true, shrink: 0.5 }, gold: { gold: 1.5 }, speed: { speed: 1.5 }, regen: { heal: 1.5 }, clear: {} };
+// parede de espinhos (Arena de espinhos; o id swords ficou do nome antigo): dano = base + perSpeed × a velocidade com que o empurrão joga o mago contra ela (m/s; Fernando, 21/10: quanto mais
+// rápido bate, mais dói). Bola de fogo nível 1 empurra a ~4,5 m/s → ~87; só andando até a borda, 20. O empurrão de volta é o desse dano
+// inset: a parede ocupa os últimos 0,3 m da pedra (Fernando, 21/10: espinhos mais para dentro); encostar nela já fere
+export const SWORDS = { base: 20, perSpeed: 15, inset: 0.3 };
+export const roundMods = (e: RoundEffectId | null): RoundMods => ({ ...NO_MODS, ...(e ? ROUND_EFFECTS[e] : {}) });
 // sequências de abate (anúncio estilo Dota): abates com até 4 s entre eles; Matança e cia. contam abates sem morrer (atravessam as rodadas);
 // quem derruba alguém com 3 ou mais abates seguidos ganha o Quebra-combo
 export const STREAK = { window: 4, spree: [3, 5, 7, 10], breakAt: 3, breakGold: 3 };

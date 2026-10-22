@@ -3,7 +3,7 @@
 // Carregado sob demanda pelo botão "?" (import dinâmico em ui.ts), para não pesar o começo do jogo.
 import { ARENA_IDS, SHAPES, type ArenaId } from '../shared/arena.ts';
 import { ARENA_R0, HP_MAX, RUNE_KINDS } from '../shared/constants.ts';
-import { ACTIVE_ITEMS, ITEMS, ITEM_IDS, isActive, type ItemId } from '../shared/items.ts';
+import { ITEMS, ITEM_IDS, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import { SCRIPTS, createDemo, drawStone, runDemo, type DemoId } from './demo.ts';
 import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
@@ -13,7 +13,7 @@ import { ITEM_DEMO, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, gro
 import { COLORS } from './scene.ts';
 import { store } from './store.ts';
 import { hideTip, itemLevels, itemTip, spellLevels, spellTip, withTip } from './tips.ts';
-import { choice, norm } from './ui.ts';
+import { choice, dialog, norm, searchFilter } from './ui.ts';
 import { arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
 type Page = { chapter: string; title: string; body: () => (Node | string | null)[]; demo?: DemoId };
@@ -29,8 +29,8 @@ const LEGEND = t(
 const CH = {
   toc: t('Sumário', 'Contents'), spells: t('Magias', 'Spells'), items: t('Itens', 'Items'),
 };
-// magia fora da barra não tem tecla no modo Q W E R D F nem no controle (vale a posição na barra)
-const keyText = (a: SpellId | ItemId) => labelOf(a) !== '—' ? t(`tecla ${labelOf(a)}`, `key ${labelOf(a)}`) : isSlotMode() || isPadMode() ? t('tecla pela posição na barra', 'key by position in the bar') : t('sem tecla (escolha em Configurações > Teclas)', 'no key (pick one in Settings > Keys)');
+// magia fora da barra não tem tecla no modo 1 2 3 4 Q W E R nem no controle (vale a posição na barra)
+const keyText = (a: SpellId) => labelOf(a) !== '—' ? t(`tecla ${labelOf(a)}`, `key ${labelOf(a)}`) : isSlotMode() || isPadMode() ? t('tecla pela posição na barra', 'key by position in the bar') : t('sem tecla (escolha em Configurações > Lançamento)', 'no key (pick one in Settings > Casting)');
 
 // contorno da arena num canvas pequeno (página das arenas)
 function arenaThumb(id: ArenaId): HTMLElement {
@@ -64,7 +64,7 @@ function itemPage(id: ItemId): Page {
     chapter: CH.items, title: itemName(id), demo: SCRIPTS[id] ? id : undefined,
     body: () => [
       el('div', { class: 'g-head' }, el('span', { class: 'g-medal item' }, icon(ITEM_ICON[id])),
-        el('div', {}, el('h2', {}, itemName(id)), el('small', {}, `${isActive(id) ? t(`ativo · ${keyText(id)}`, `active · ${keyText(id)}`) : t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}`))),
+        el('div', {}, el('h2', {}, itemName(id)), el('small', {}, `${t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}`))),
       el('p', { class: 'g-lead' }, itemText(id)),
       ITEM_DEMO[id] ? el('p', { class: 'muted' }, ITEM_DEMO[id]) : null,
       null,
@@ -85,11 +85,11 @@ const PAGES: Page[] = [
   text(t('Controles', 'Controls'), t('No PC', 'On PC'), () => RULES.pc),
   {
     chapter: t('Controles', 'Controls'), title: t('Suas teclas', 'Your keys'),
-    body: () => [el('h2', {}, isSlotMode() ? t('Suas teclas (Q W E R D F pela ordem da barra)', 'Your keys (Q W E R D F in bar order)') : t('Suas teclas', 'Your keys')),
+    body: () => [el('h2', {}, isSlotMode() ? t('Suas teclas (1 2 3 4 Q W E R pela ordem da barra)', 'Your keys (1 2 3 4 Q W E R in bar order)') : t('Suas teclas', 'Your keys')),
       el('div', { class: 'keys-grid' }, ...ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, labelOf(a)), ' ', icon(actionIcon(a)), ' ', actionName(a)))),
       el('h3', {}, t('Atalhos', 'Shortcuts')),
       el('div', { class: 'keys-grid' }, ...UI_ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, uiLabel(a)), ' ', UI_NAMES[a])), el('span', {}, el('span', { class: 'key' }, 'Esc'), ' ', t('Configurações', 'Settings'))),
-      el('small', {}, t('Troque em Configurações > Teclas (Esc ou a engrenagem no topo).', 'Change them in Settings > Keys (Esc or the gear at the top).'))],
+      el('small', {}, t('Troque as de magias e itens em Configurações > Lançamento e as dos atalhos em Configurações > Teclas (Esc ou a engrenagem no topo).', 'Change spell and item keys in Settings > Casting and shortcut keys in Settings > Keys (Esc or the gear at the top).'))],
   },
   text(t('Controles', 'Controls'), t('No celular', 'On mobile'), RULES.celular),
   text(t('Controles', 'Controls'), t('Com controle', 'With a controller'), () => RULES.controle),
@@ -112,7 +112,7 @@ const pageOf = (pred: (p: Page) => boolean) => PAGES.findIndex(pred);
 
 // to: abre direto na página daquela magia ou item (biblioteca)
 export function openGrimoire(to?: SpellId | ItemId) {
-  document.querySelector('.rules-overlay')?.remove();
+  document.querySelector('.grimoire-overlay')?.remove();
   let at = Math.min(PAGES.length - 1, Math.max(0, Number(store.get(STORE)) || 0));
   const page = to ? pageOf((p) => (p.chapter === CH.spells || p.chapter === CH.items) && p.title === actionName(to)) : -1;
   if (page >= 0) at = page;
@@ -124,18 +124,7 @@ export function openGrimoire(to?: SpellId | ItemId) {
   const where = el('span', { class: 'g-where' });
   const prev = el('button', { type: 'button', class: 'g-turn', 'aria-label': t('Página anterior', 'Previous page'), onclick: () => turn(-1) }, '‹') as HTMLButtonElement;
   const next = el('button', { type: 'button', class: 'g-turn', 'aria-label': t('Próxima página', 'Next page'), onclick: () => turn(1) }, '›') as HTMLButtonElement;
-  const closeBtn = el('button', { type: 'button', class: 'g-close icon', 'aria-label': t('Fechar', 'Close'), onclick: () => close() }, '✕');
-  const book = el('div', { class: 'grimoire', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('Grimório: como jogar', 'Grimoire: how to play') },
-    el('header', { class: 'g-top' }, el('b', { class: 'g-title' }, icon(UI_ICON.help), ' ', t('Grimório', 'Grimoire')), closeBtn),
-    spread,
-    el('nav', { class: 'g-nav' }, prev, el('button', { type: 'button', class: 'g-toc-btn', onclick: () => go(0) }, CH.toc), where, next),
-  );
-  const overlay = el('div', { class: 'overlay rules-overlay g-overlay', onclick: (e: Event) => e.target === overlay && close() }, book);
-
-  function close() {
-    overlay.remove();
-    ac.abort();
-  }
+  const nav = el('nav', { class: 'g-nav' }, prev, el('button', { type: 'button', class: 'g-toc-btn', onclick: () => go(0) }, CH.toc), where, next);
 
   // página 1: capítulos com o número da página; página 2: atalho para cada magia (por grupo) e cada item
   function toc(i: number): (Node | string)[] {
@@ -199,18 +188,16 @@ export function openGrimoire(to?: SpellId | ItemId) {
     go(first + step * per);
   }
 
-  // teclas na captura: ← → não chegam ao placar nem à câmera de quem assiste
-  addEventListener('keydown', (e) => {
-    if (!overlay.isConnected) return ac.abort();
+  // ← → não chegam ao placar nem à câmera de quem assiste (o diálogo segura todas as teclas)
+  const onKey = (e: KeyboardEvent) => {
     const k = e.key;
-    if (k === 'Escape' || e.code === 'Escape') close(); // o Start do controle manda só o code
-    else if (k === 'ArrowRight' || k === 'PageDown') turn(1);
+    if (k === 'ArrowRight' || k === 'PageDown') turn(1);
     else if (k === 'ArrowLeft' || k === 'PageUp') turn(-1);
     else if (k === 'Home') go(0);
     else return;
     e.preventDefault();
-    e.stopPropagation();
-  }, { capture: true, signal: ac.signal });
+  };
+  const { overlay } = dialog('grimoire', t('Grimório', 'Grimoire'), [spread, nav], { ico: UI_ICON.help, onKey, onClose: () => ac.abort() });
   wide.addEventListener('change', () => (overlay.isConnected ? show(0) : ac.abort()), { signal: ac.signal });
   // deslizar o dedo para os lados vira a página (o rolar de cima para baixo continua com o navegador)
   let start: { x: number; y: number } | null = null;
@@ -223,9 +210,7 @@ export function openGrimoire(to?: SpellId | ItemId) {
   });
   spread.addEventListener('pointercancel', () => (start = null));
 
-  document.body.append(overlay);
   show(0);
-  closeBtn.focus();
 }
 
 // Biblioteca "Magias e itens" (decisão do Fernando, 19/10; como a de heróis e itens do Dota): grade de ícones por grupo,
@@ -242,22 +227,16 @@ export function library(onOpen?: () => void): HTMLElement {
   const items = (ids: ItemId[]) => ids.map((i) => tile(i, ITEM_ICON[i], () => itemTip(i, 0)));
   const groups = [
     ...SPELL_GROUPS.map(([g, , ids]) => section(g, g, groupClass(g), ids.map((s) => tile(s, ICON[s], () => spellTip(s, 0))))),
-    section('items', t('Itens passivos', 'Passive items'), 'lib-items', items(ITEM_IDS.filter((i) => !isActive(i)))),
-    section('items', t('Itens ativos', 'Active items'), 'lib-items', items(ACTIVE_ITEMS)),
+    section('items', t('Itens passivos', 'Passive items'), 'lib-items', items([...ITEM_IDS])),
   ];
-  let query = '';
   let only = 'all';
   const none = el('p', { class: 'muted', hidden: true }, t('Nada com esse nome.', 'Nothing with that name.'));
   const search = el('input', { type: 'search', class: 'lib-search', placeholder: t('Buscar pelo nome', 'Search by name'), 'aria-label': t('Buscar magia ou item pelo nome', 'Search spell or item by name'),
-    oninput: () => ((query = norm(search.value.trim())), apply()) }) as HTMLInputElement;
+    oninput: () => apply() }) as HTMLInputElement;
   const filters = el('div', {});
   function apply() {
     filters.replaceChildren(choice(t('Grupo', 'Group'), [['all', t('Todos', 'All')], ...SPELL_GROUPS.map(([g]): [string, string] => [g, g]), ['items', CH.items]], only, (k) => ((only = k), apply())));
-    for (const g of groups) {
-      const tiles = [...g.querySelectorAll<HTMLElement>('.lib-tile')];
-      for (const b of tiles) b.hidden = !b.dataset.name!.includes(query);
-      g.hidden = tiles.every((b) => b.hidden) || (only !== 'all' && g.dataset.filter !== only);
-    }
+    searchFilter(groups, '.lib-tile', search.value, (g) => only !== 'all' && g.dataset.filter !== only);
     none.hidden = groups.some((g) => !g.hidden);
   }
   apply();
@@ -266,26 +245,11 @@ export function library(onOpen?: () => void): HTMLElement {
 
 // a mesma biblioteca por cima de qualquer tela, só para consultar (no meio da partida também); Esc ou a mesma tecla fecham
 export function openLibrary() {
-  if (document.querySelector('.library-overlay')) return;
-  const ac = new AbortController();
-  const close = () => {
-    overlay.remove();
-    hideTip();
-    ac.abort();
-  };
-  const body = library(close);
-  const overlay = el('div', { class: 'overlay library-overlay', onclick: (e: Event) => e.target === overlay && close() },
-    el('div', { class: 'library-box', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('Magias e itens', 'Spells and items') },
-      el('div', { class: 'stats-head' }, el('h2', { class: 'title' }, t('Magias e itens', 'Spells and items')),
-        el('button', { type: 'button', class: 'icon', title: t('Fechar (Esc)', 'Close (Esc)'), 'aria-label': t('Fechar', 'Close'), onclick: close }, '✕')),
-      body));
-  // na captura: com a biblioteca aberta as teclas não chegam ao jogo (digitar na busca continua)
-  addEventListener('keydown', (e) => {
-    e.stopPropagation();
-    if (e.code !== 'Escape' && !isUiKey(e.code, 'library')) return;
-    e.preventDefault();
-    close();
-  }, { capture: true, signal: ac.signal });
-  document.body.append(overlay);
+  if (document.querySelector('.library-box')) return;
+  const body = library(() => close());
+  const { close } = dialog('library-box', t('Magias e itens', 'Spells and items'), [body], {
+    onKey: (e) => isUiKey(e.code, 'library') && (e.preventDefault(), close()),
+    onClose: hideTip,
+  });
   if (matchMedia('(pointer: fine)').matches) body.querySelector('input')!.focus(); // no toque o teclado da tela não sobe sozinho
 }

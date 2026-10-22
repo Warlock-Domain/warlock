@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ARENA_R0, DT, RUNE, STREAK, SHRINK_EVERY, SUDDEN, type RuneKind } from '../src/shared/constants.ts';
+import { ARENA_R0, DT, RUNE, STREAK, SHRINK_EVERY, SUDDEN, WIZ_R, type RuneKind } from '../src/shared/constants.ts';
 import { addPlayer, newMatch, setReady, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { newWorld, stepWorld, type SimEvent, type World } from '../src/shared/sim.ts';
 import { encodeSnap, decodeSnap, publicEvents } from '../src/shared/snapshot.ts';
-import { SPELLS, noSpells } from '../src/shared/spells.ts';
+import { LIGHTNING, SPELLS, noSpells } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
 import { world as spotsWorld } from './helpers.ts';
 
@@ -104,12 +104,12 @@ describe('runas', () => {
     const w = world([[0, 0], [3, 0]]);
     w.runeAt = Infinity;
     w.wizards[0].cd.lightning = 50;
-    w.wizards[0].itemCd.scourge = 50;
+    w.wizards[0].cd.scourge = 50;
     w.runes = [{ pos: v(0, 0), kind: 'recharge' }];
     run(w, 1 + Math.round(1 / DT));
     // 1 s de jogo com a runa: a recarga andou 1/(1 − 30%) ≈ 1,43 s, ou seja 0,43 s a mais que o relógio
     expect(50 - w.wizards[0].cd.lightning).toBeCloseTo(1 / (1 - RUNE.cdr) - 1, 1);
-    expect(50 - w.wizards[0].itemCd.scourge).toBeCloseTo(1 / (1 - RUNE.cdr) - 1, 1);
+    expect(50 - w.wizards[0].cd.scourge).toBeCloseTo(1 / (1 - RUNE.cdr) - 1, 1);
   });
 
   it('runes and rune effects travel in the snapshot', () => {
@@ -193,5 +193,20 @@ describe('rodada sem fim', () => {
     w.wizards[1].pos = v(0, -0.2);
     for (let i = 0; i < Math.round(260 / DT) && w.wizards.every((z) => z.alive); i++) stepWorld(w, []);
     expect(w.wizards.some((z) => !z.alive)).toBe(true);
+  });
+});
+
+describe('largura do acerto do Raio (21/10, exceção decidida pelo Fernando)', () => {
+  it('pega quem tem o corpo a até LIGHTNING.width da linha, não mais', () => {
+    const hits = (gap: number) => {
+      const w = newWorld(['a', 'b'], { a: { ...noSpells(), lightning: 1 }, b: noSpells() }, {}, 0, () => 0.5);
+      const [a, b] = w.wizards;
+      [a.pos, b.pos, w.pillars] = [v(0, 0), v(3, WIZ_R + gap), []];
+      stepWorld(w, [{ id: 'a', kind: 'cast', spell: 'lightning', at: v(3, 0) }]);
+      let hit = false;
+      for (let i = 0; i < 20; i++, stepWorld(w, [])) hit = hit || w.events.some((e) => e.k === 'hit');
+      return hit;
+    };
+    expect([hits(LIGHTNING.width - 0.02), hits(LIGHTNING.width + 0.02)]).toEqual([true, false]);
   });
 });

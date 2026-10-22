@@ -2,13 +2,13 @@
 import type { Snap } from './protocol.ts';
 import { PROJ_KINDS, bootsBonus, isSliding, zoneReaches, type ProjKind, type SimEvent, type World } from './sim.ts';
 import { CHEST, OBSTACLES, OBSTACLE_KINDS, RUNE_KINDS, WIZ_R, type ObstacleKind, type RuneKind } from './constants.ts';
-import { ACTIVE_ITEMS } from './items.ts';
 import { SPELL_IDS, spellLevel } from './spells.ts';
 import type { Isle } from './arena.ts';
 import { dist, v, type Vec } from './vec.ts';
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 const ZONE_KINDS = ['burn', 'slow', 'pull'] as const;
+const RUNE_BIT: Record<RuneKind, number> = { haste: 262144, fury: 524288, shield: 1048576, recharge: 4194304 };
 export type ZoneKind = (typeof ZONE_KINDS)[number];
 
 // troca os ids secretos dos eventos pelos públicos (ver publicId)
@@ -33,16 +33,16 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     // 1024 Caminhada no vento (quem anda e os aliados veem), 2048 invisível para quem recebe (o cliente esconde), 4096 acelerado (Drenar, Botas de choque ou de vento),
     // 8192 magnetizado atraindo, 16384 magnetizado repelindo, 32768 Alteração, 65536 preso pelo Elo, 131072 Égide pronta,
     // runas: 262144 Pressa, 524288 Fúria, 1048576 Escudo de runa (−30% de dano); 2097152 no redemoinho (mesma conta do puxão em sim.ts);
-    // 8388608 velado pela Ilusão (só quem lançou e os aliados veem: para os outros, os dois magos são iguais)
+    // Ilusão: só o dono recebe 1024 (Caminhada no vento); os outros recebem 2048, salvo a visão de teste da sandbox (8388608)
     const hidden = !seeAll && z.id !== forId && !(me && me.team !== null && me.team === z.team);
     const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0)
       | (isSliding(z) ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
       | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 || w.t < z.slowUntil ? 4 : 0) | (z.zone & 2 ? 512 : 0)
       | (w.t < z.windUntil ? (hidden ? 2048 : 1024) : 0) | (w.t < z.hasteUntil || bootsBonus(w, z) > 0 ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)
       | (w.t < z.alterUntil ? 32768 : 0) | (linked.has(z.id) ? 65536 : 0) | (z.aegis ? 131072 : 0)
-      | (w.t < z.runeUntil ? (z.rune === 'haste' ? 262144 : z.rune === 'fury' ? 524288 : z.rune === 'shield' ? 1048576 : z.rune === 'recharge' ? 4194304 : 0) : 0)
+      | (w.t < z.runeUntil && z.rune ? RUNE_BIT[z.rune] : 0)
       | (z.alive && w.zones.some((q) => q.kind === 'pull' && dist(q.pos, z.pos) < q.r + WIZ_R && zoneReaches(w, q, z)) ? 2097152 : 0)
-      | (w.t < z.veilUntil && !hidden ? 8388608 : 0);
+      | (w.t < z.veilUntil ? (z.id === forId ? 1024 : seeAll ? 8388608 : 2048) : 0);
     // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão
     const dash = w.t < z.dashUntil ? z.dashVel : { x: 0, y: 0 };
     wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x + dash.x), r2(z.vel.y + dash.y), Math.ceil(z.hp), r2(z.facing), bits);
@@ -50,18 +50,17 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     ab.push(seen && w.t < z.rushUntil ? Math.ceil(z.rushLeft) : 0);
   }
   const p: number[] = [];
-  // o meteoro e a Zona de dobra não andam: no lugar da velocidade vão o raio e os segundos que faltam;
+  // Marcas de Meteoro, Agarrar e Zona não andam: no lugar da velocidade vão raio e segundos restantes;
   // o Elo manda a posição de quem lançou (o cliente desenha o fio até ela); a cópia da Ilusão, o índice do dono e para onde olha
   for (const q of w.projectiles) {
-    const still = q.kind === 'meteor' || q.kind === 'warpzone' ? q.kind : null;
+    const still = q.kind === 'meteor' || q.kind === 'warpzone' || q.kind === 'grip' ? q.kind : null;
     const tail = q.kind === 'link' ? w.wizards.find((z) => z.id === q.owner)?.pos : q.kind === 'illusion' ? v(w.wizards.findIndex((z) => z.id === q.owner), Math.atan2(q.vel.y, q.vel.x)) : undefined;
     const a = still ? spellLevel(still, q.level, w.book).radius : (tail ?? q.vel).x;
     const b = still ? Math.max(0, q.until - w.t) : (tail ?? q.vel).y;
     p.push(q.id, PROJ_KINDS.indexOf(q.kind), r2(q.pos.x), r2(q.pos.y), r2(a), r2(b));
   }
   const cd = SPELL_IDS.map((s) => (me ? r2(Math.max(0, me.cd[s] - w.t)) : 0));
-  const icd = ACTIVE_ITEMS.map((i) => (me ? r2(Math.max(0, me.itemCd[i] - w.t)) : 0));
-  const snap: Snap = { t: 'snap', time: r2(w.t * 1000) / 1000, r: r2(w.arenaR), s: r2(w.shrinkAt), w: wz, p, cd, icd, sp: r2(me?.speed ?? 0), pl: w.pillars.flatMap((q) => [r2(q.pos.x), r2(q.pos.y), q.alive ? (Number.isFinite(q.hp) ? Math.ceil((q.hp / OBSTACLES[q.kind].hp) * 100) : 100) : 0, OBSTACLE_KINDS.indexOf(q.kind)]), ack };
+  const snap: Snap = { t: 'snap', time: r2(w.t * 1000) / 1000, r: r2(w.arenaR), s: r2(w.shrinkAt), w: wz, p, cd, sp: r2(me?.speed ?? 0), pl: w.pillars.flatMap((q) => [r2(q.pos.x), r2(q.pos.y), q.alive ? (Number.isFinite(q.hp) ? Math.ceil((q.hp / OBSTACLES[q.kind].hp) * 100) : 100) : 0, OBSTACLE_KINDS.indexOf(q.kind)]), ack };
   // deathmatch: segundos até cada mago voltar (0 = vivo), na ordem de room.ids; o limite cobre o expulso, que não volta
   if (w.dm) snap.rs = w.wizards.map((z) => (z.alive ? 0 : r2(Math.min(99, Math.max(0, z.respawnAt - w.t)))));
   if (w.loots.length) {
@@ -71,6 +70,22 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   if (ab.some((x) => x > 0)) snap.ab = ab;
   // Campanha: brasa de cada mago (0 a 1 até reacender; −1 sem brasa ou apagada), na ordem de room.ids
   if (w.wizards.some((z) => z.ember && !z.ember.out)) snap.em = w.wizards.map((z) => (z.ember && !z.ember.out ? r2(Math.min(1, z.ember.prog / z.ember.need)) : -1));
+  // efeitos com prazo de quem recebe: bit (o mesmo de w) e segundos que faltam; os sem prazo (queimando, atordoado, Elo) ficam só no bit
+  if (me) {
+    const fx: number[] = [];
+    const left = (bit: number, until: number) => w.t < until && fx.push(bit, r2(until - w.t));
+    left(32, me.invulnUntil);
+    left(64, me.pactUntil);
+    left(128, me.gripUntil);
+    left(256, me.rushUntil);
+    left(4, me.slowUntil);
+    left(1024, me.windUntil);
+    left(4096, Math.max(me.hasteUntil, me.shockUntil));
+    left(me.magnet > 0 ? 8192 : 16384, me.magnetUntil);
+    left(32768, me.alterUntil);
+    if (me.rune) left(RUNE_BIT[me.rune], me.runeUntil);
+    if (fx.length) snap.fx = fx;
+  }
   // chão dos choques: x, y, raio, tipo, segundos que faltam
   if (w.zones.length) snap.zn = w.zones.flatMap((z) => [r2(z.pos.x), r2(z.pos.y), r2(z.r), ZONE_KINDS.indexOf(z.kind), r2(Math.max(0, z.until - w.t))]);
   // ilhas de refúgio: x, y, raio (raio 0 = afundada)
@@ -81,7 +96,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
 }
 
 export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number; rushLeft?: number };
-// meteor e warpzone: vel = (raio, segundos que faltam); link: vel = posição de quem lançou; illusion: vel = (índice do dono, para onde olha)
+// meteor, grip e warpzone: vel = (raio, segundos que faltam); link: posição do dono; illusion: índice do dono e direção
 export type ProjView = { id: number; kind: ProjKind; pos: Vec; vel: Vec };
 export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
 export type RuneView = { pos: Vec; kind: RuneKind };

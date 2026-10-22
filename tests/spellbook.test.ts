@@ -36,7 +36,7 @@ describe('magias da Campanha separadas dos outros modos', () => {
       const w = world([[0, 0], [3, 0]], { ...noSpells(), [s]: 1 }, [], () => 0.5, false, [0, 1]);
       w.book = slow;
       stepWorld(w, [{ id: 'p0', kind: 'cast', spell: s, at: v(3, 0) }]);
-      for (let i = 0; i < 20; i++) stepWorld(w, []);
+      for (let i = 0; i < 60; i++) stepWorld(w, []); // 1 s: cobre o preparo mais longo (Flagelo, 0,5 s)
       expect(w.wizards[0].cd[s] - w.t, s).toBeGreaterThan(90);
     }
   });

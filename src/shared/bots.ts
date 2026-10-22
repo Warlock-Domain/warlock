@@ -2,8 +2,8 @@
 import { edge, inArena, inward, middle, pathStep, roomAt, safeInside } from './arena.ts';
 import { DT, FRICTION, ISLAND, OBSTACLES, PROJ_R, WIZ_R } from './constants.ts';
 import type { Cmd, Projectile, Wizard, World } from './sim.ts';
-import { ITEM_IDS, SCOURGE, itemPrice, type ItemId } from './items.ts';
-import { CAST_POINT, MAX_SPELLS, METEOR_DELAY, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
+import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
+import { CAST_POINT, FREE_SPELLS, GRIP, MAX_SPELLS, METEOR_DELAY, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export type BotPick = { kind: 'spell'; id: SpellId } | { kind: 'item'; id: ItemId };
@@ -28,10 +28,10 @@ function shuffle<T>(a: T[], rand: () => number): T[] {
   return a;
 }
 
-// sorteia 2 a 5 magias (além da Bola de fogo) e 0 a 3 itens, em ordem sorteada (sempre começa por uma magia)
+// sorteia 2 a 6 magias (além da Bola de fogo e do Flagelo, até encher as 8) e 0 a 3 itens, em ordem sorteada (sempre começa por uma magia)
 export function randomPlan(rand: () => number): BotPlan {
-  const spells = shuffle(SPELL_IDS.filter((s) => s !== 'fireball'), rand).slice(0, 2 + Math.floor(rand() * (MAX_SPELLS - 2)));
-  const items = shuffle(ITEM_IDS.filter((i) => i !== 'scourge'), rand).slice(0, Math.floor(rand() * 4));
+  const spells = shuffle(SPELL_IDS.filter((s) => !FREE_SPELLS.includes(s)), rand).slice(0, 2 + Math.floor(rand() * (MAX_SPELLS - FREE_SPELLS.length - 1)));
+  const items = shuffle([...ITEM_IDS], rand).slice(0, Math.floor(rand() * 4));
   const buys: BotPick[] = spells.map((id) => ({ kind: 'spell', id }));
   for (const id of items) buys.splice(1 + Math.floor(rand() * buys.length), 0, { kind: 'item', id });
   return { buys, upgrade: (['lowest', 'first', 'random'] as const)[Math.floor(rand() * 3)] };
@@ -42,11 +42,12 @@ export function randomPlan(rand: () => number): BotPlan {
 const DAMAGE: SpellId[] = ['lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'snowball', 'drain', 'splitter', 'gravity', 'thrust'];
 const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration', 'warpzone', 'rockpillar', 'illusion'];
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize'];
-const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden', 'pact'];
+const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
   const [first, ...more] = take(DAMAGE, 1 + Math.floor(rand() * 2));
-  const spells = [first, ...take(ESCAPE, 1), ...more, ...(rand() < 0.5 ? take(CONTROL, 1) : [])];
+  // o Pacto era 1 de 8 itens úteis (1 ou 2 sorteados): virou magia em 21/10 (#217) com chance parecida
+  const spells = [first, ...take(ESCAPE, 1), ...more, ...(rand() < 0.5 ? take(CONTROL, 1) : []), ...(rand() < 0.2 ? ['pact' as const] : [])];
   const items = take(GEAR, 1 + Math.floor(rand() * 2));
   // dano e fuga primeiro; os itens entre as outras magias
   const buys: BotPick[] = spells.map((id) => ({ kind: 'spell', id }));
@@ -98,17 +99,19 @@ export type BotSkill = {
   lootSafe: number; // ...se não houver inimigo mais perto que isso (m; 0 = não liga)
   smart: number; // chance de comprar uma combinação que funciona (senão sorteia o plano)
 };
-export const BOT_SKILL = {
+const BASE = {
   easy: { aim: 1.5, lag: 0.3, delay: 0.6, waitMin: 2, waitMax: 4, rate: 1.5, dodge: 0.3, shield: 0.12, react: 0.35, cast: 0.7, combo: 0.3, range: 6, flee: 1, hunt: 0, edge: 1, slip: 0.2, vision: 10, loot: 0, lootSafe: 0, smart: 0 },
   normal: { aim: 1, lag: 0.3, delay: 0.4, waitMin: 1, waitMax: 2, rate: 2.5, dodge: 0.55, shield: 0.35, react: 1, cast: 0.7, combo: 0.6, range: 4.5, flee: 0, hunt: 0, edge: 1.5, slip: 0.08, vision: 12, loot: 5, lootSafe: 4, smart: 1 },
   hard: { aim: 0.6, lag: 0.3, delay: 0.25, waitMin: 0.5, waitMax: 1, rate: 4, dodge: 0.8, shield: 0.52, react: 1.5, cast: 0.9, combo: 0.9, range: 3, flee: 0, hunt: 1, edge: 2, slip: 0.02, vision: 15, loot: 8, lootSafe: 0, smart: 1 },
 } satisfies Record<string, BotSkill>;
 // k de −1 (Fácil) a 1 (Difícil), 0 = Normal; o modo Automático usa os valores do meio (as chances também se misturam)
 export function skillAt(k: number): BotSkill {
-  const to: BotSkill = k < 0 ? BOT_SKILL.easy : BOT_SKILL.hard;
+  const to: BotSkill = k < 0 ? BASE.easy : BASE.hard;
   const t = Math.min(1, Math.abs(k));
-  return Object.fromEntries(Object.entries(BOT_SKILL.normal).map(([key, n]) => [key, n * (1 - t) + to[key as keyof BotSkill] * t])) as BotSkill;
+  return Object.fromEntries(Object.entries(BASE.normal).map(([key, n]) => [key, n * (1 - t) + to[key as keyof BotSkill] * t])) as BotSkill;
 }
+// Casual e Veterano na metade do caminho entre os vizinhos (Fernando, 21/10: mais 2 níveis de dificuldade com valores intermediários)
+export const BOT_SKILL = { easy: BASE.easy, casual: skillAt(-0.5), normal: BASE.normal, veteran: skillAt(0.5), hard: BASE.hard };
 // pensa D.rate vezes por segundo; i espalha os bots para não pensarem todos no mesmo passo
 export function botThinks(step: number, i: number, D: BotSkill): boolean {
   const n = Math.max(1, Math.round(1 / (DT * D.rate)));
@@ -150,8 +153,8 @@ export function threatTo(w: World, me: Wizard, visible: (p: Projectile) => boole
     // não ameaçam: Gravidade (só puxa), Zona de dobra (parada), cópia da Ilusão, cura do Drenar e volta da Recarga, Elo já preso
     if ((owner && (owner === me || (me.team !== null && owner.team === me.team))) || p.kind === 'gravity' || p.kind === 'warpzone' || p.kind === 'illusion' || (p.back && (p.kind === 'drain' || p.kind === 'recharge'))) continue;
     if (p.kind === 'link' && (p.target || p.pillar !== undefined)) continue;
-    if (p.kind === 'meteor') {
-      if (dist(p.pos, me.pos) < spellLevel('meteor', p.level, w.book).radius + WIZ_R && p.until - w.t < tHit) [threat, tHit] = [p, p.until - w.t];
+    if (p.kind === 'meteor' || p.kind === 'grip') {
+      if (dist(p.pos, me.pos) < spellLevel(p.kind, p.level, w.book).radius + WIZ_R && p.until - w.t < tHit) [threat, tHit] = [p, p.until - w.t];
       continue;
     }
     const rel = sub(me.pos, p.pos);
@@ -184,7 +187,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     return u.at;
   };
   const ready = (s: SpellId) => me.spells[s] > 0 && w.t >= me.cd[s] && w.t >= usableAt(s);
-  const itemReady = (i: ItemId) => me.items[i] > 0 && w.t >= me.itemCd[i];
+  // Flagelo e Pacto eram itens e saíam sem a espera humana de `ready` (usableAt): ficam assim para não mudar o jeito dos bots
+  const free = (s: SpellId) => me.spells[s] > 0 && w.t >= me.cd[s];
   // dentro da pedra com folga (a forma da arena vem de arena.ts); into = direção para dentro a partir do bot
   const inside = (p: Vec, margin: number) => inArena(w, p, margin);
   const into = inward(w, me.pos);
@@ -200,14 +204,14 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     cmds.push({ id, kind: 'cast', spell, at: turn ? add(me.pos, v(r.x * c - r.y * s, r.x * s + r.y * c)) : at });
     return cmds;
   };
-  const use = (item: ItemId, at: Vec) => (cmds.push({ id, kind: 'item', item, at }), cmds);
   // folga da lava que o bot quer aqui (numa ponte ou faixa estreita, o que a pedra deixa; seguindo um caminho estreito,
   // a folga com que o planejou, senão voltaria na boca da ponte); perto da borda não congela
   const fear = Math.max(0.3, Math.min(roomAt(w, me.pos, D.edge), M.route.get(id) ?? Infinity));
   M.route.delete(id);
   if (slip === 'freeze' && inside(me.pos, fear)) {
     M.frozen.set(id, w.t + 0.5);
-    return [{ id, kind: 'stop' }];
+    // hesitar não é apertar S: conjurando, só fica parado (o S cancelaria a magia)
+    return me.casting ? [] : [{ id, kind: 'stop' }];
   }
 
   // projétil que acabou de surgir ainda não deu tempo de ver; longe demais, o bot não enxerga
@@ -216,9 +220,9 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   const threat = th?.p ?? null;
   const tHit = th?.t ?? Infinity;
   // o Flagelo em preparo não deixa sair nada além do Teleporte
-  const winding = me.casting?.item === 'scourge';
+  const winding = me.casting?.spell === 'scourge';
   if (threat) {
-    const meteor = threat.kind === 'meteor';
+    const meteor = threat.kind === 'meteor' || threat.kind === 'grip'; // áreas paradas pedem esquiva radial
     const side = meteor ? norm(sub(me.pos, threat.pos)) : norm(v(-threat.vel.y, threat.vel.x));
     const away = meteor || dot(side, into) > 0 ? side : scale(side, -1); // de lado, para o lado de dentro
     // reação humana: o escudo não sobe sempre nem no último instante (o bot perfeito inflava o Escudo para 1,89×); com o tempo de reação
@@ -408,12 +412,6 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     return add(p, scale(v(-side.y, side.x), (rand() * 2 - 1) * D.aim));
   };
 
-  // Redirecionador: projétil próprio passando perto do alvo sem ir na direção dele
-  if (itemReady('redirector') && reacts(0.5)) { // gente nem sempre percebe a chance (19/10: com reação perfeita vencia 18% acima do justo no Normal e a recarga não mudava isso; assim 1,13)
-    const mine = w.projectiles.find((p) => p.owner === id && p.kind !== 'meteor' && p.kind !== 'illusion' && dist(p.pos, E.pos) < 3.5 && dist(p.pos, E.pos) > 0.5 && dot(norm(p.vel), norm(sub(E.pos, p.pos))) < 0.9);
-    if (mine) return use('redirector', seenNow);
-  }
-
   // Drenar ferido: cura com o dano que causar
   if (ready('drain') && me.hp < me.hpMax * 0.7) {
     const L = spellLevel('drain', me.spells.drain, w.book);
@@ -424,8 +422,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // a lava a até k metros atrás do alvo, na linha do bot até ele
   const lavaBehind = (k: number) => !inside(add(E.pos, scale(dir, k)), 0);
   const slideEnd = add(E.pos, scale(E.vel, 1 / FRICTION));
-  // magia de dano pronta (ou em até 1 s) para emendar no controle
-  const loaded = SPELL_IDS.some((x) => me.spells[x] > 0 && spellLevel(x, me.spells[x], w.book).dmg > 0 && w.t + 1 >= usableAt(x));
+  // magia de dano pronta (ou em até 1 s) para emendar no controle; o Flagelo não conta (era item até 21/10 e só alcança quem encosta)
+  const loaded = SPELL_IDS.some((x) => x !== 'scourge' && me.spells[x] > 0 && spellLevel(x, me.spells[x], w.book).dmg > 0 && w.t + 1 >= usableAt(x));
   // candidatos: cada magia pronta com o alvo no alcance; sorteia uma (a jogada certa da vez, `now`, sai sem sorteio)
   const options: { run: () => Cmd[]; dmg: boolean }[] = [];
   // obstáculo vivo no caminho do bot até o ponto
@@ -439,7 +437,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   let now: (() => Cmd[]) | null = null;
   let meteor: (() => Cmd[]) | null = null;
   for (const s of SPELL_IDS) {
-    if (!ready(s) || s === 'shield' || s === 'swap' || s === 'alteration') continue; // Escudo, Troca e Alteração só na defesa (e na borda)
+    if (!ready(s) || s === 'shield' || s === 'swap' || s === 'alteration' || s === 'scourge' || s === 'pact') continue; // Escudo, Troca e Alteração só na defesa (e na borda); Flagelo e Pacto logo abaixo
     const L = spellLevel(s, me.spells[s], w.book);
     const cp = CAST_POINT[s] ?? 0.1;
     let at: Vec | null = null;
@@ -449,8 +447,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     else if (s === 'meteor') at = d < L.range ? lead(0, cp + METEOR_DELAY) : null;
     else if (s === 'grip') {
       // só com dano pronto para emendar; preso na lava (ou deslizando para ela) não volta andando; e o Agarrar corta o Flagelo em preparo
-      prio = !inside(E.pos, 0.6) || !inside(slideEnd, 0.3) || (E.casting?.item === 'scourge' && d < 3);
-      at = d < L.range * 0.85 && (loaded || prio) ? lead(L.speed, cp) : null;
+      prio = !inside(E.pos, 0.6) || !inside(slideEnd, 0.3) || (E.casting?.spell === 'scourge' && d < 3);
+      at = d < L.range * 0.85 && (loaded || prio) ? lead(0, cp + GRIP.delay) : null;
     }
     else if (s === 'thrust') at = d > 1.5 && d < L.range && inside(add(me.pos, scale(dir, Math.min(d, L.range))), 1.5) ? lead(L.speed, cp) : null;
     else if (s === 'rush') at = d < 3.2 && inside(add(me.pos, scale(dir, 3)), 1) ? seenNow : null;
@@ -500,8 +498,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     options.push({ run: opt, dmg: L.dmg > 0 });
     if (L.dmg > 0) damage = true;
   }
-  if (itemReady('scourge') && d < SCOURGE.radius * 0.8) {
-    options.push({ run: () => use('scourge', me.pos), dmg: true });
+  if (free('scourge') && d < spellLevel('scourge', me.spells.scourge, w.book).radius * 0.8) {
+    options.push({ run: () => cast('scourge', me.pos), dmg: true });
     damage = true;
   }
   if (now) return now();
@@ -515,6 +513,6 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   }
   if (!options.length || rand() >= D.cast) return cmds;
   // Pacto antes de uma magia de dano: ela sai no próximo comando (as duas juntas perderiam o Pacto)
-  if (damage && itemReady('pact') && w.t >= me.pactUntil && rand() < 0.5) return use('pact', me.pos);
+  if (damage && free('pact') && w.t >= me.pactUntil && rand() < 0.5) return cast('pact', me.pos);
   return options[Math.floor(rand() * options.length)].run();
 }

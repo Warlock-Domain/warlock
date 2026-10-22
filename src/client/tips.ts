@@ -1,10 +1,10 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
-import { AEGIS, ITEMS, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, isActive, type ItemId } from '../shared/items.ts';
+import { AEGIS, ITEMS, SHOCK_BOOTS, WIND_BOOTS, type ItemId } from '../shared/items.ts';
 import { LAVA_DPS } from '../shared/constants.ts';
 import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { labelOf } from './keys.ts';
-import { ILLUSION, MAX_SPELL_LEVEL, RECHARGE, RUSH, SPELLS, WARPZONE, spellLevel, type Level, type SpellBook, type SpellId } from '../shared/spells.ts';
+import { CAST_POINT, GRIP, MAX_SPELL_LEVEL, PACT, RECHARGE, RUSH, SPELLS, WARPZONE, spellLevel, type Level, type SpellBook, type SpellId } from '../shared/spells.ts';
 import { RULES_SHORT, n1 } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 
@@ -32,7 +32,7 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   shield: [[DURATION, (l) => s(l.duration)], [t('Raio da bolha', 'Bubble radius'), (l) => m(l.radius)], [CD, (l) => s(l.cd)]],
   teleport: [[RANGE, (l) => m(l.range)], [CD, (l) => s(l.cd)]],
   swap: [[RANGE, (l) => m(l.range)], [CD, (l) => s(l.cd)]],
-  grip: [[t('Tempo preso', 'Time gripped'), (l) => s(l.duration) + t(' ou até o 1º golpe', ' or until the 1st hit')], [t('Empurrão do golpe que solta', 'Knockback of the hit that frees'), (l) => `+${Math.round(l.scale * 100)}%`], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  grip: [[t('Atraso dos cipós', 'Vine delay'), () => s(GRIP.delay)], [RADIUS, (l) => m(l.radius)], [t('Tempo preso', 'Time gripped'), (l) => s(l.duration) + t(' ou até o 1º golpe', ' or until the 1st hit')], [t('Empurrão do golpe que solta', 'Knockback of the hit that frees'), (l) => `+${Math.round(l.scale * 100)}%`], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   meteor: [[t('Dano no centro', 'Center damage'), (l) => n1(l.dmg)], [t('Dano na borda', 'Edge damage'), (l) => n1(l.dmgMin)], [t('Empurrão no centro', 'Center knockback'), (l) => m(l.knock / 1.166)], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   rush: [[t('Avanço', 'Dash'), () => m(RUSH.dash)], [DURATION, (l) => s(l.duration)], [t('Dano absorvido', 'Damage absorbed'), (l) => n1(l.absorb)], [CD, (l) => s(l.cd)]],
   cluster: [[t('Dano por projétil', 'Damage per projectile'), (l) => n1(l.dmg)], [t('Empurrão por projétil', 'Knockback per projectile'), (l) => m(l.knock / 1.166)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
@@ -43,7 +43,7 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   bouncer: [[t('Dano no 1º', 'Damage on the 1st hit'), (l) => n1(l.dmg)], [KNOCK, (l) => m(l.knock / 1.166)], [CD, (l) => s(l.cd)], [t('Alcance por salto', 'Range per bounce'), (l) => m(l.range)]],
   drain: [[t('Dano e cura', 'Damage and healing'), (l) => n1(l.dmg)], [KNOCK, (l) => m(l.knock / 1.166)], [t('Lentidão ou pressa', 'Slow or haste'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [t('Alcance até virar', 'Range until it turns'), (l) => m(l.range)]],
   snowball: [[t('Dano por segundo encostado', 'Damage per second touching'), (l) => n1(l.dot)], [t('Explosão no centro', 'Center blast'), (l) => n1(l.dmg)], [t('Empurrão da explosão', 'Blast knockback'), (l) => m(l.knock / 1.166)], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
-  illusion: [[t('Duração da cópia', 'Copy duration'), (l) => s(l.duration)], [t('Véu', 'Veil'), () => s(ILLUSION.veil)], [CD, (l) => s(l.cd)]],
+  illusion: [[t('Cópia e invisibilidade', 'Copy and invisibility'), (l) => s(l.duration)], [CD, (l) => s(l.cd)]],
   magnetize: [[DURATION, (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   recharge: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => m(l.knock / 1.166)], [t('Por acerto seguido', 'Per consecutive hit'), () => '+' + n1(RECHARGE.perHit)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   alteration: [[DURATION, (l) => s(l.duration)], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)]],
@@ -51,6 +51,8 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   windwalk: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => m(l.knock / 1.166)], [DURATION, (l) => s(l.duration)], [CD, (l) => s(l.cd)]],
   splitter: [[t('Dano por filhote (8)', 'Damage per shard (8)'), (l) => n1(l.dmg)], [t('Empurrão por filhote', 'Knockback per shard'), (l) => m(l.knock / 1.166)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   warpzone: [[t('Tempo dos projéteis', 'Projectile time'), (l) => `${n1(l.scale * 100)}%`], [t('Inimigos andam', 'Enemies move at'), () => t(`${n1(WARPZONE.wizMult * 100)}% da velocidade`, `${n1(WARPZONE.wizMult * 100)}% of normal speed`)], [RADIUS, (l) => m(l.radius)], [DURATION, (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  scourge: [[t('Dano em volta', 'Damage around you'), (l) => n1(l.dmg)], [KNOCK, (l) => m(l.knock / 1.166)], [RADIUS, (l) => m(l.radius)], [t('Preparo', 'Windup'), () => s(CAST_POINT.scourge)], [CD, (l) => s(l.cd)]],
+  pact: [[t('Próxima magia de dano', 'Next damage spell'), () => t(`${n1(PACT.mult)}× dano e empurrão`, `${n1(PACT.mult)}× damage and knockback`)], [t('Janela', 'Window'), (l) => s(l.duration)], [CD, (l) => s(l.cd)]],
 };
 
 function table(rows: [string, string, string | null][]): string {
@@ -94,9 +96,6 @@ export const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string]
   boots: (l) => [[t('Velocidade', 'Speed'), `+${n1(ITEMS.boots.levels[l].speed! * 100) } cm/s`]],
   watch: (l) => [[SLOWS, t(`−${n1(-ITEMS.watch.levels[l].debuff! * 100)}% de duração`, `−${n1(-ITEMS.watch.levels[l].debuff! * 100)}% duration`)]],
   vampire: (l) => [[t('Vida de volta', 'Health back'), t(`${n1(ITEMS.vampire.levels[l].lifesteal! * 100)}% do dano causado`, `${n1(ITEMS.vampire.levels[l].lifesteal! * 100)}% of damage dealt`)]],
-  scourge: (l) => [[t('Dano em volta', 'Damage around you'), n1(SCOURGE.dmg[l])], [RADIUS, m(SCOURGE.radius)], [t('Preparo', 'Windup'), s(SCOURGE.windup)], [CD, s(SCOURGE.cd)]],
-  redirector: () => [[CD, s(REDIRECTOR.cd)], [t('Desvia', 'Deflects'), t('todos os seus projéteis voando', 'all your projectiles in flight')], [t('Sem projétil voando', 'No projectile in flight'), t('não gasta a recarga', 'does not use the cooldown')]],
-  pact: () => [[t('Próxima magia de dano', 'Next damage spell'), t(`${n1(PACT.mult)}× dano e empurrão`, `${n1(PACT.mult)}× damage and knockback`)], [t('Janela', 'Window'), s(PACT.window)], [CD, s(PACT.cd)]],
   lava_boots: (l) => [[t('Dano da lava', 'Lava damage'), t(`−${n1(ITEMS.lava_boots.levels[l].lava! * 100)}% (${n1(LAVA_DPS * (1 - ITEMS.lava_boots.levels[l].lava!))} por segundo)`, `−${n1(ITEMS.lava_boots.levels[l].lava! * 100)}% (${n1(LAVA_DPS * (1 - ITEMS.lava_boots.levels[l].lava!))} per second)`)]],
   warden: (l) => [[t('Dano por golpe', 'Damage per hit'), t(`−${n1(ITEMS.warden.levels[l].ward!)} (no máximo metade do golpe)`, `−${n1(ITEMS.warden.levels[l].ward!)} (at most half the hit)`)], [KNOCK_TAKEN, `+${n1(-ITEMS.warden.levels[l].kb! * 100)}%`]],
   helmet: () => [[KNOCK_TAKEN, `−${n1(ITEMS.helmet.levels[0].kb! * 100)}%`], [t('Alcance das magias', 'Spell range'), `−${n1(-ITEMS.helmet.levels[0].range! * 100)}%`]],
@@ -108,7 +107,7 @@ export const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string]
 export function itemTip(id: ItemId, level: number): string {
   const it = ITEMS[id];
   const max = it.levels.length;
-  const head = `<b>${itemName(id)}</b>${isActive(id) ? ` <span class="k">${labelOf(id)}</span>` : ''}<br><small>${level ? t(`Nível ${level} de ${max}`, `Level ${level} of ${max}`) : t('Ainda não comprado', 'Not bought yet')} · ${isActive(id) ? t('ativo', 'active') : t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}</small>`;
+  const head = `<b>${itemName(id)}</b><br><small>${level ? t(`Nível ${level} de ${max}`, `Level ${level} of ${max}`) : t('Ainda não comprado', 'Not bought yet')} · ${t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}</small>`;
   const rows = ITEM_ROWS[id]!;
   const cur = rows(Math.max(0, level - 1));
   const next = level >= 1 && level < max ? rows(level) : null;
@@ -116,6 +115,24 @@ export function itemTip(id: ItemId, level: number): string {
   return `${demo(id)}${head}<p>${itemText(id)}</p>${body}${next ? `<small class="up">${t('Próximo nível: o que está à direita', 'Next level: shown on the right')}</small>` : level >= max ? `<small>${t('Nível máximo', 'Max level')}</small>` : ''}`;
 }
 
+
+// carta do Ascensão: os números de agora e, à direita, os de depois da carta; sem preço (no modo não há ouro)
+export function spellCardTip(id: SpellId, from: number, to: number, swap = false): string {
+  const sp = SPELLS[id];
+  const after = sp.levels[Math.min(MAX_SPELL_LEVEL, to) - 1];
+  const head = `<b>${spellName(id)}</b><br><small>${from ? t(`Nível ${from} → ${to}`, `Level ${from} → ${to}`) : t(`Magia nova · entra no nível ${to}`, `New spell · comes in at level ${to}`)}</small>`;
+  const rows = SPELL_ROWS[id].map(([k, f]): [string, string, string | null] => (from ? [k, f(sp.levels[from - 1]), f(after)] : [k, f(after), null]));
+  const foot = from ? `<small class="up">${t('Depois da carta: o que está à direita', 'After the card: shown on the right')}</small>` : swap ? `<small class="up">${t('Barra cheia: entra no nível da magia que sair', 'Full bar: comes in at the level of the spell it replaces')}</small>` : '';
+  return `${demo(id)}${head}<p>${RULES_SHORT[id]}</p>${table(rows)}${foot}`;
+}
+export function itemCardTip(id: ItemId, from: number): string {
+  const it = ITEMS[id];
+  const to = Math.min(it.levels.length, from + 1);
+  const rows = ITEM_ROWS[id]!;
+  const head = `<b>${itemName(id)}</b><br><small>${from ? t(`Nível ${from} → ${to}`, `Level ${from} → ${to}`) : t('Item novo · nível 1', 'New item · level 1')} · ${t('passivo', 'passive')}</small>`;
+  const body = table(rows(to - 1).map(([k, v], i): [string, string, string | null] => (from ? [k, rows(from - 1)[i][1], v] : [k, v, null])));
+  return `${demo(id)}${head}<p>${itemText(id)}</p>${body}${from ? `<small class="up">${t('Depois da carta: o que está à direita', 'After the card: shown on the right')}</small>` : ''}`;
+}
 
 let tipEl: HTMLDivElement | null = null;
 let owner: HTMLElement | null = null; // elemento cuja dica está aberta

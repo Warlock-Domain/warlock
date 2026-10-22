@@ -33,10 +33,11 @@ function botMatch(seed: number, steps: number, opts: Partial<MatchOpts> = {}): {
 
 describe('jeito de jogar', () => {
   // valor gravado com o código de antes da medição (972dab7): a medição só lê, então os eventos não mudam.
-  // Muda (e se grava de novo) só quando a jogabilidade muda
+  // Muda (e se grava de novo) só quando a jogabilidade muda. 20/10 (issue #80): o baú sorteia o ouro do monte (3 a 5) ao nascer,
+  // um sorteio a mais na sequência. 21/10 (issue #217): Flagelo e Pacto viram magia, o Redirecionador sai e as compras dos bots mudam
   it('a medição não muda a partida: mesma semente, mesmos eventos de antes', () => {
     const { m, hash } = botMatch(7, 4000);
-    expect(hash).toBe(3654448480);
+    expect(hash).toBe(288817366);
     // e mediu de verdade nessa mesma partida
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);

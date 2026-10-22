@@ -1,5 +1,8 @@
-// Sons: arquivos gravados (CC0, public/sfx, créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
+// Sons: arquivos gravados (CC0 em public/sfx; as provocações do Leonard em public/taunts-local têm só a autorização dele; créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
 // sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
+import { tauntAudioSrc } from '../shared/taunts.ts';
+import { store } from './store.ts';
+
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
   | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover';
 
@@ -10,8 +13,24 @@ const FILES: Partial<Record<SoundKind, string[]>> = {
 // golpe fraco mais agudo, golpe forte mais grave
 const RATE: Partial<Record<SoundKind, number>> = { hitLight: 1.25, hitHeavy: 0.78 };
 
-// volumes de 0 a 1, separados para efeitos e música
-export function createSound(volumes: () => { sfx: number; music: number }) {
+// volumes de 0 a 1, separados para efeitos e música, guardados no navegador: os mesmos no menu inicial e na sala (issue #128).
+// Quem tinha deixado mudo na versão antiga começa em zero
+type Volumes ={ sfx: number; music: number };
+const VOL_KEY = { sfx: 'warlock:vol-sfx', music: 'warlock:vol-music' } as const;
+export function loadVolumes(musicDefault = 0.7): Volumes {
+  const readVol = (k: string, fallback: number) => {
+    const n = Number(store.get(k));
+    return Number.isFinite(n) && store.get(k) !== null ? Math.max(0, Math.min(1, n)) : fallback;
+  };
+  const oldMute = store.get('warlock:mute') === '1';
+  return { sfx: readVol(VOL_KEY.sfx, oldMute ? 0 : 1), music: readVol(VOL_KEY.music, oldMute || store.get('warlock:music') === '0' ? 0 : musicDefault) };
+}
+export const saveVolume = (kind: keyof Volumes, value: number) => store.set(VOL_KEY[kind], String(value));
+
+// musicDefault: volume da música de quem nunca mexeu nele (nas abas de teste em localhost, 0; main.ts)
+export function createSound(musicDefault?: number) {
+  const vol = loadVolumes(musicDefault);
+  const volumes = () => vol;
   let ctx: AudioContext | null = null;
   let noise: AudioBuffer | null = null;
   let master: GainNode | null = null;
@@ -23,9 +42,9 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
   let wantAmbience = false;
   let duck = 1; // na loja a música abaixa um pouco
 
-  async function load(name: string) {
+  async function load(name: string, src = `/sfx/${name}.mp3`) {
     try {
-      const res = await fetch(`/sfx/${name}.mp3`);
+      const res = await fetch(src);
       if (res.ok) buffers.set(name, await ctx!.decodeAudioData(await res.arrayBuffer()));
     } catch {
       // fica o som sintetizado
@@ -48,7 +67,7 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
       const data = noise.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
       const names = new Set([...Object.values(FILES).flat(), 'lava_loop']);
-      void Promise.all([...names].map(load)).then(syncAmbience);
+      void Promise.all([...names].map((name) => load(name))).then(syncAmbience);
     }
     if (ctx.state === 'suspended') void ctx.resume();
     syncAmbience();
@@ -126,17 +145,26 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
     o.stop(t + dur + 0.05);
   }
 
-  return {
+  const api = {
+    volumes,
+    // Configurações (menu e sala): guarda, aplica na hora e toca o clique no volume novo dos efeitos
+    setVolume(kind: keyof Volumes, value: number) {
+      vol[kind] = value;
+      saveVolume(kind, value);
+      syncAmbience();
+      if (kind === 'sfx') api.play('click');
+    },
     setAmbience(on: boolean) {
       wantAmbience = on;
       syncAmbience();
     },
-    refresh: syncAmbience,
-    // taunt: public/sfx/taunt/<nome>.mp3, carregado na primeira vez que alguém usa
+    // taunt: caminho do catálogo (public/sfx/taunt/<nome>.mp3 ou a gravação em public/taunts-local), carregado na primeira vez que alguém usa
     async taunt(name: string) {
+      const src = tauntAudioSrc(name);
+      if (!src) return;
       if (!ctx || volumes().sfx === 0 || ctx.state !== 'running') return;
       const key = 'taunt/' + name;
-      if (!buffers.has(key)) await load(key);
+      if (!buffers.has(key)) await load(key, src);
       file(key, 1);
     },
     play(kind: SoundKind, volume = 1) {
@@ -182,4 +210,26 @@ export function createSound(volumes: () => { sfx: number; music: number }) {
       syncAmbience();
     },
   };
+  return api;
+}
+
+let tauntPreview: HTMLAudioElement | null = null;
+export function stopTauntPreview() {
+  tauntPreview?.pause();
+  tauntPreview = null;
+}
+// Prévia só para quem escolhe a fala (Configurações): não envia nada à sala. Segue o volume de efeitos; mudo (0) toca no máximo, porque quem pede a prévia quer ouvir.
+export async function previewTaunt(name: string): Promise<boolean> {
+  const src = tauntAudioSrc(name);
+  if (!src) return false;
+  stopTauntPreview();
+  const audio = new Audio(src);
+  tauntPreview = audio;
+  audio.volume = loadVolumes().sfx || 1;
+  try {
+    await audio.play();
+    return true;
+  } catch {
+    return tauntPreview !== audio; // trocar de fala interrompe o play pendente; isso não é falha do arquivo
+  }
 }

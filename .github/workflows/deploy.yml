@@ -1,4 +1,4 @@
-# Jogo no ar: todo merge no master (que só recebe o PR de dev → master) publica em https://warlock.fernandorffdev.com
+# Jogo no ar: todo merge no master (PR da tarefa, em squash) publica em https://warlock.fernandorffdev.com
 name: Produção
 
 on:
