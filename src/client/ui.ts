@@ -1384,6 +1384,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         show(saved[i]);
         const use = el('button', { type: 'button', disabled: !saved[i], 'aria-label': t(`Usar a build ${i + 1}`, `Use build ${i + 1}`), onclick: () => {
           const p = saved[i]!;
+          use.disabled = true; // a fila sai do ouro de agora: um segundo clique antes das compras chegarem compraria tudo de novo, acima da build
           for (const b of presetQueue(p, mine.spells, mine.items, mine.gold)) if (b.kind === 'spell') act.buy(b.id); else act.buyItem(b.id);
           presetOrder = { order: p.order, round: r.round };
         } }, t('Usar', 'Use'));
