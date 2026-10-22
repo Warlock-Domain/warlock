@@ -1220,8 +1220,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       }
       share();
     };
-    // o dono manda o que está na tela dele sempre que difere do que a sala tem (na entrada e a cada mudança)
-    const share = () => L && !locked && JSON.stringify([bots, o]) !== JSON.stringify([L.bots, L.opts]) && act.lobby(bots, o);
+    // o dono manda o que está na tela dele sempre que difere do que a sala tem (na entrada e a cada mudança); a comparação é
+    // chave a chave, sem depender da ordem das chaves na volta do servidor (senão vira laço de envio)
+    const share = () => L && !locked && (bots.join() !== L.bots.join() || (Object.keys(OPTION_CHOICES) as OptKey[]).some((k) => o[k] !== L.opts[k])) && act.lobby(bots, o);
     const set = (next: Level[]) => {
       bots = next.slice(0, maxBots);
       save();

@@ -448,7 +448,11 @@ export function resume(m: Match, now: number) {
   m.botDelta ??= 0;
   m.vote = null; // o prazo de uma votação gravada já passou
   if (m.asc) ascResume(m.asc);
-  if (m.mode === 'ascension' && !m.sandbox) m.lobby ??= { owner: m.players.find((p) => !p.bot)?.id ?? null, bots: [], opts: {} }; // salas do Ascensão gravadas antes do dono
+  // salas do Ascensão gravadas antes do dono
+  if (m.mode === 'ascension' && !m.sandbox) {
+    m.lobby ??= { owner: null, bots: [], opts: {} };
+    ascOwner(m);
+  }
   for (const p of m.players) {
     p.character ??= 'mage';
     p.look = fixLook(p.look ?? lookOf(p.character)); // salas gravadas antes da aparência montada ou com peça da Ladina encapuzada (#107)

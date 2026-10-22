@@ -421,6 +421,15 @@ describe('sala do Ascensão: o dono escolhe, todos veem', () => {
     expect(m.lobby!.owner).toBe('cai');
   });
 
+  it('a new owner is preferably a human who plays and is connected', () => {
+    const m = ascRoom();
+    addPlayer(m, 'ana', 'Ana');
+    addPlayer(m, 'bia', 'Bia', false, true); // só assiste
+    addPlayer(m, 'cai', 'Cai');
+    removePlayer(m, 'ana');
+    expect(m.lobby!.owner).toBe('cai');
+  });
+
   it("start uses the owner's bots and options, whoever presses it", () => {
     const m = ascRoom();
     addPlayer(m, 'ana', 'Ana');

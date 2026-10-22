@@ -44,6 +44,11 @@ export const newAsc = (ids: string[]): AscState => ({ xp: {}, todo: Object.fromE
 
 // sala gravada por uma versão anterior do modo (ex.: publicação nova no meio da partida, 21/10: a sala caiu): mantém XP e pontos
 // e refaz a mesa do intervalo, que mudou de formato (escolhas marcadas, uma fileira por tipo)
+export function ascResume(a: AscState) {
+  if (a.todo && a.pick && Object.values(a.offer ?? {}).every((rows) => rows.every(Array.isArray))) return;
+  Object.assign(a, { todo: a.todo ?? {}, offer: {}, pick: {}, fallen: a.fallen ?? [], extra: a.extra ?? {}, rerolls: a.rerolls ?? {} });
+}
+
 // sala do Ascensão: o dono (quem criou; se sair da sala, o próximo que entrou) escolhe os bots e as opções, e todos veem
 // na hora; só ele muda (Fernando, 21/10: "coloque para todos verem a opção que o criador da sala está selecionando e apenas
 // ele pode selecionar as opções"). O Começar usa estas escolhas, venha de quem vier
@@ -56,15 +61,12 @@ export function setAscLobby(m: Match, id: string, bots: AscLobby['bots'], opts: 
   return true;
 }
 
-// quem entra numa sala sem dono vira o dono; o dono que sai passa para o próximo humano da lista
+// quem entra numa sala sem dono vira o dono; o dono que sai passa para o próximo humano da lista, de preferência um que joga
+// e está conectado (quem só assiste ou caiu fica por último)
 export function ascOwner(m: Match) {
   const L = m.lobby;
-  if (L && !m.players.some((p) => p.id === L.owner)) L.owner = m.players.find((p) => !p.bot)?.id ?? null;
-}
-
-export function ascResume(a: AscState) {
-  if (a.todo && a.pick && Object.values(a.offer ?? {}).every((rows) => rows.every(Array.isArray))) return;
-  Object.assign(a, { todo: a.todo ?? {}, offer: {}, pick: {}, fallen: a.fallen ?? [], extra: a.extra ?? {}, rerolls: a.rerolls ?? {} });
+  const humans = m.players.filter((p) => !p.bot);
+  if (L && !m.players.some((p) => p.id === L.owner)) L.owner = (humans.find((p) => p.connected && !p.watch) ?? humans[0])?.id ?? null;
 }
 
 export function xpGain(s: Stat): number {
