@@ -1,7 +1,12 @@
 // Decisões das telas sem DOM (testáveis): resultado do fim da partida e ordem da lista de salas.
 import type { PublicRoom, RoomInfo } from '../shared/protocol.ts';
+import type { WizView } from '../shared/snapshot.ts';
 import { MAX_SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { ACTIVE_ITEMS, type ItemId } from '../shared/items.ts';
+
+// Posição própria já usa o estado recente; pose atrasada faria o mago continuar arremessado enquanto volta a andar.
+export const renderWizardState = (interpolated: WizView, ownLatest: WizView | null): WizView =>
+  ownLatest?.id === interpolated.id ? ownLatest : interpolated;
 
 // Sandbox: o servidor manda todos, e o 8388608 marca quem estaria escondido (Caminhada no vento ou véu da Ilusão).
 // "Ver invisíveis (teste)" ligado só deixa esses translúcidos; desligado, esconde como numa sala normal.

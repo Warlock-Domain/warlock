@@ -6,6 +6,7 @@ import { add, dist, scale, sub, v, type Vec } from '../shared/vec.ts';
 
 export function createPredict() {
   let me: Wizard | null = null;
+  let velocitySource: WizView | null = null;
   let rttSec = 0.1;
   // conjurando: o mago fica parado até holdUntil; o clique de andar nesse meio-tempo fica guardado
   let holdUntil = 0;
@@ -20,6 +21,7 @@ export function createPredict() {
     rtt: () => rttSec,
     reset() {
       me = null;
+      velocitySource = null;
     },
     // velocidade de andar que o servidor diz que o mago tem agora (botas, Investida, preso)
     setSpeed(sp: number) {
@@ -60,6 +62,11 @@ export function createPredict() {
         dead = false;
         me.pos = server.pos;
         me.target = null;
+      }
+      // O residual continua no servidor depois de liberar a caminhada; reler o mesmo snapshot por quadro renovaria o impulso.
+      if (server !== velocitySource) {
+        me.vel = { ...server.vel };
+        velocitySource = server;
       }
       if (!server.alive || isSliding(server)) {
         // empurrado ou morto: quem manda é o servidor
