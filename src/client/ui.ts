@@ -1066,7 +1066,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const xpFill = el('i', {});
   const xpBar = el('div', { class: 'xpbar', role: 'img', hidden: true }, xpFill);
   const xpLv = el('b', { class: 'xp-lv', hidden: true }); // o nível ao lado da vida (Fernando, 21/10)
-  const vitals = el('div', { class: 'vitals', hidden: true }, el('div', { class: 'hp-col' }, el('div', { class: 'hp-row' }, hpBar, xpLv), xpBar), goldNow); // vida só jogando e vivo
+  const vitals = el('div', { class: 'vitals', hidden: true }, el('div', { class: 'hp-col' }, el('div', { class: 'vit-row' }, hpBar, xpLv), xpBar), goldNow); // vida só jogando e vivo
   const heroFace = el('img', { class: 'hero-face', alt: '', width: 72, height: 84 });
   const hero = el('div', { class: 'hero-box' }, heroFace, vitals);
   const barWrap = el('div', { class: 'barwrap' }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, bar, itemGrid)));
