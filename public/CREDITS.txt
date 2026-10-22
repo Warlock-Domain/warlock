@@ -189,3 +189,10 @@ Menu principal (issue #83, PR #85):
     sai do repositório se o autor ou quem tiver os direitos pedir.
   wrench.svg: desenho vetorial original criado para esta contribuição por Codex.
   A logo da barra é o warlock-wars.svg (o mesmo do ícone da aba, já creditado acima).
+
+Gravações de provocações de Leonard (lboesmans), 22/10/2026:
+  taunts-local/{fausto,emafia,meestruparam,usarameabusaram,lanchado}.mp4.
+  O colaborador declarou ter gravado os áudios no próprio celular e ser o autor,
+  não serem extrações de músicas/jogos/vídeos de terceiros, e autorizou envio,
+  uso e redistribuição neste repositório público e no jogo Warlock.
+  Permissão expressa do autor para o projeto; não presumir CC0 nem licença de terceiros.

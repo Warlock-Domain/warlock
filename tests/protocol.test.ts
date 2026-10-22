@@ -77,11 +77,13 @@ describe('protocolo', () => {
     expect(p({ t: 'start', bots: 7, mode: 'deathmatch', opts: { shop: 120, economy: 2, startGold: 100, goal: 7, difficulty: 'normal', arena: 'random' }, setup: Array(7).fill({ spells, items, difficulty: 'normal' }) })).not.toBeNull();
   });
 
-  it('taunt: only the fixed ones (0..9)', () => {
+  it('taunt: only fixed catalog entries including recordings (0..14)', () => {
     expect(p({ t: 'taunt', i: 0 })).toEqual({ t: 'taunt', i: 0 });
     expect(p({ t: 'taunt', i: 8 })).toEqual({ t: 'taunt', i: 8 });
     expect(p({ t: 'taunt', i: 9 })).toEqual({ t: 'taunt', i: 9 });
-    expect(p({ t: 'taunt', i: 10 })).toBeNull();
+    expect(p({ t: 'taunt', i: 10 })).toEqual({ t: 'taunt', i: 10 });
+    expect(p({ t: 'taunt', i: 14 })).toEqual({ t: 'taunt', i: 14 });
+    expect(p({ t: 'taunt', i: 15 })).toBeNull();
     expect(p({ t: 'taunt', i: 99 })).toBeNull();
     expect(p({ t: 'taunt', i: 100 })).toBeNull();
     expect(p({ t: 'taunt', i: -1 })).toBeNull();

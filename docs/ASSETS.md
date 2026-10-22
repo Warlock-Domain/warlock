@@ -7,6 +7,10 @@
 
 ## Identidade visual
 
+### Gravações de provocações de Leonard
+
+Cinco arquivos em `public/taunts-local/`: `fausto.mp4` (Tá pegando fogo!), `emafia.mp4` (Bosta city!), `meestruparam.mp4` (Foi uma delícia...), `usarameabusaram.mp4` (Usaram e abusaram.) e `lanchado.mp4` (Lanchado). Origem: arquivos fornecidos por Leonard/lboesmans, que declarou em 22/10/2026 serem gravações próprias de seu celular, não extrações de obras de terceiros, e autorizou publicação/uso/redistribuição no repositório e jogo. Autorização expressa para o projeto, sem presumir CC0. Crédito em `public/CREDITS.txt`. Catálogo/caminhos fixos em `src/shared/taunts.ts`, reprodução em `src/client/sound.ts` e gestos em `scene.ts`. Disponíveis para todos, sem Loja, moeda, compra ou teste de posse.
+
 - **Tema:** fantasia sombria de pedra escura, lava e ouro. As cores estão todas nas variáveis do `:root` em [`src/client/style.css`](../src/client/style.css): fundo `--bg #140806`, painéis `--panel`/`--panel2`, lava `--lava #ff6a1a`, brasa `--ember #ffb347`, ouro `--gold #ffd666`, texto `--fg #f7ecdf`. Cor solta no código não entra (regra do `CLAUDE.md`).
 - **Cor por grupo de magia:** Ataque `#ff6b4a`, Mobilidade `#8be36a`, Defesa `#5fb0ff`, Controle `#c58bff`, Itens prateado `--item #c9d4e0`.
 - **Painéis:** metal envelhecido com borda dourada fina e rebites nos cantos (`--plate`, `--plate-edge`, `--frame`).

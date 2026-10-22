@@ -1,6 +1,7 @@
 // Sons: arquivos gravados (CC0, public/sfx, créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
 // sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
 import { store } from './store.ts';
+import { tauntAudioSrc } from '../shared/taunts.ts';
 
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
   | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover';
@@ -41,9 +42,9 @@ export function createSound(musicDefault?: number) {
   let wantAmbience = false;
   let duck = 1; // na loja a música abaixa um pouco
 
-  async function load(name: string) {
+  async function load(name: string, src = `/sfx/${name}.mp3`) {
     try {
-      const res = await fetch(`/sfx/${name}.mp3`);
+      const res = await fetch(src);
       if (res.ok) buffers.set(name, await ctx!.decodeAudioData(await res.arrayBuffer()));
     } catch {
       // fica o som sintetizado
@@ -66,7 +67,7 @@ export function createSound(musicDefault?: number) {
       const data = noise.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
       const names = new Set([...Object.values(FILES).flat(), 'lava_loop']);
-      void Promise.all([...names].map(load)).then(syncAmbience);
+      void Promise.all([...names].map((name) => load(name))).then(syncAmbience);
     }
     if (ctx.state === 'suspended') void ctx.resume();
     syncAmbience();
@@ -161,7 +162,7 @@ export function createSound(musicDefault?: number) {
     async taunt(name: string) {
       if (!ctx || volumes().sfx === 0 || ctx.state !== 'running') return;
       const key = 'taunt/' + name;
-      if (!buffers.has(key)) await load(key);
+      if (!buffers.has(key)) await load(key, tauntAudioSrc(name) ?? undefined);
       file(key, 1);
     },
     play(kind: SoundKind, volume = 1) {
