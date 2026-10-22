@@ -11,6 +11,23 @@ export function radialHold() {
   };
 }
 
+// Ordem da roda: permutação de 0..count-1 guardada no navegador. A preferência é só de apresentação (o servidor recebe o índice do
+// catálogo); salvo inválido ou de catálogo menor vira a ordem original, e falas novas entram no fim.
+export function tauntWheelSlots(saved: unknown, count: number): number[] {
+  const slots: number[] = [];
+  for (const n of Array.isArray(saved) ? saved : []) if (Number.isInteger(n) && n >= 0 && n < count && !slots.includes(n)) slots.push(n);
+  for (let i = 0; i < count; i++) if (!slots.includes(i)) slots.push(i);
+  return slots;
+}
+// Põe a fala na posição; quem estava nela vai para onde a fala estava.
+export function assignTauntSlot(slots: number[], position: number, taunt: number): number[] {
+  const from = slots.indexOf(taunt);
+  if (!Number.isInteger(position) || position < 0 || position >= slots.length || from < 0) return slots;
+  const next = [...slots];
+  [next[position], next[from]] = [next[from], next[position]];
+  return next;
+}
+
 // Começa em cima e segue no sentido horário; o centro neutro evita escolher por tremor do analógico.
 export function radialIndex(x: number, y: number, count: number, dead = 0.25): number | null {
   if (count < 1 || Math.hypot(x, y) < dead) return null;
