@@ -268,15 +268,48 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined;
 type ToastKind = 'info' | 'good' | 'bad' | 'gold';
 // msg pode vir com ícones (lista de textos e nós); o de ouro ganha a moeda na frente;
 // top: no alto da tela e com letra maior, para o que todo mundo precisa ler na hora (quem saiu e o bot que assumiu, issue #223)
-export function toast(msg: string | (string | Node)[], kind: ToastKind = 'info', top = false) {
+// fly: o ícone `from` (dentro da msg) sai voando até `to()` e o aviso some junto (runa → ícone do buff, prova de conceito)
+export function toast(msg: string | (string | Node)[], kind: ToastKind = 'info', top = false, fly?: { from: Element; to: () => Element | null }) {
   let t = document.getElementById('toast');
   if (!t) document.body.append((t = el('div', { id: 'toast', role: 'status' })));
+  t.getAnimations().forEach((a) => a.cancel());
+  document.querySelectorAll('.toast-fly').forEach((c) => c.remove());
   t.replaceChildren(...(kind === 'gold' ? [icon(UI_ICON.gold)] : []), el('span', {}, ...[msg].flat()));
   t.dataset.kind = kind;
   t.classList.toggle('top', top);
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t!.classList.remove('show'), 3500);
+  const hide = () => t!.classList.remove('show');
+  // 1,8 s dá para ler o efeito da runa (~70 letras) antes de ele virar o ícone; sem alvo ou com menos movimento, o tempo de sempre
+  toastTimer = fly && !matchMedia('(prefers-reduced-motion: reduce)').matches ? setTimeout(() => flyToast(t!, fly.from, fly.to(), hide), 1800) : setTimeout(hide, 3500);
+}
+
+// 600 ms: rápido o bastante para não atrapalhar a luta, lento para o olho seguir o ícone até a barra
+function flyToast(t: HTMLElement, from: Element, to: Element | null, hide: () => void) {
+  const target = to?.querySelector('.gi') ?? to;
+  if (!target || !t.contains(from)) return hide();
+  const a = from.getBoundingClientRect();
+  const b = target.getBoundingClientRect();
+  const dx = b.left + b.width / 2 - (a.left + a.width / 2);
+  const dy = b.top + b.height / 2 - (a.top + a.height / 2);
+  const clone = from.cloneNode(true) as SVGElement;
+  clone.classList.add('toast-fly');
+  clone.style.cssText = `left:${a.left}px;top:${a.top}px;font-size:${getComputedStyle(from).fontSize}`;
+  document.body.append(clone);
+  (from as SVGElement).style.visibility = 'hidden';
+  // o aviso encolhe na direção do ícone e some na primeira metade; o disco chega cheio e se funde ao ícone nos últimos 20%
+  t.animate([{ transform: 'translateX(-50%)', opacity: 1 }, { transform: `translate(calc(-50% + ${dx * 0.3}px), ${dy * 0.3}px) scale(.6)`, opacity: 0 }], { duration: 300, easing: 'ease-in', fill: 'forwards' });
+  // a curva só no voo (1º trecho): na animação inteira ela adiantava o sumiço e o disco apagava antes de chegar
+  clone.animate([{ transform: 'none', opacity: 1, easing: 'cubic-bezier(.5, 0, .3, 1)' }, { transform: `translate(${dx}px, ${dy}px) scale(${b.width / a.width})`, opacity: 1, offset: 0.8 }, { transform: `translate(${dx}px, ${dy}px) scale(${b.width / a.width})`, opacity: 0 }], { duration: 600, fill: 'forwards' }).onfinish = () => {
+    clone.remove();
+    // sem transição ao tirar o .show: o aviso já está invisível pela animação e não pode reaparecer no lugar antigo
+    t.style.transition = 'none';
+    hide();
+    t.getAnimations().forEach((x) => x.cancel());
+    void t.offsetWidth;
+    t.style.transition = '';
+  };
+  target.animate([{ transform: 'scale(1)' }, { transform: 'scale(1)', offset: 0.75 }, { transform: 'scale(1.5)', offset: 0.88 }, { transform: 'scale(1)' }], { duration: 600 });
 }
 
 // 'win': faixa grande dourada com confete, para quem venceu a rodada ou a partida

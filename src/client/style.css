@@ -652,11 +652,13 @@ button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infini
 #toast[data-kind="gold"] { border-left-color: var(--gold); }
 #toast[data-kind="gold"]::before { content: none; }
 /* ícone dentro do aviso num disco cheio de cor viva, como o i ✓ !: solto em cima do fundo claro ele sumia; símbolo preto nas cores claras e branco nas escuras */
-#toast .gi[data-rune], #toast[data-kind="gold"] > .gi { box-sizing: content-box; padding: .2em; border-radius: 50%; color: var(--ink); vertical-align: -.36em; }
-#toast .gi[data-rune="haste"] { background: var(--rune-haste); }
-#toast .gi[data-rune="fury"] { background: var(--rune-fury); color: var(--white); }
-#toast .gi[data-rune="shield"] { background: var(--rune-shield); }
-#toast .gi[data-rune="recharge"] { background: var(--rune-recharge); }
+:is(#toast .gi, .gi.toast-fly)[data-rune], #toast[data-kind="gold"] > .gi { box-sizing: content-box; padding: .2em; border-radius: 50%; color: var(--ink); vertical-align: -.36em; }
+:is(#toast .gi, .gi.toast-fly)[data-rune="haste"] { background: var(--rune-haste); }
+:is(#toast .gi, .gi.toast-fly)[data-rune="fury"] { background: var(--rune-fury); color: var(--white); }
+:is(#toast .gi, .gi.toast-fly)[data-rune="shield"] { background: var(--rune-shield); }
+:is(#toast .gi, .gi.toast-fly)[data-rune="recharge"] { background: var(--rune-recharge); }
+/* disco da runa voando do aviso até o ícone do buff (ui.ts, flyToast), por cima do aviso */
+.gi.toast-fly { position: fixed; z-index: 21; margin: 0; pointer-events: none; }
 #toast[data-kind="gold"] > .gi { flex: none; font-size: 1rem; background: var(--gold); }
 /* toast(…, top): logo abaixo da barra do topo, entrando de cima (issue #223); id + classe ganha das
    posições de baixo das media queries de #toast, então vale em toda largura de tela */
