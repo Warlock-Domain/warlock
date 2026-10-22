@@ -518,7 +518,11 @@ function startRoom(code: string, name: string) {
   }
 
   // data-rune dá ao ícone o disco da cor da runa no aviso (style.css)
-  const RUNE_TEXT = (k: RuneKind) => { const ic = icon(RUNE_ICON[k]); ic.dataset.rune = k; return [ic, ' ' + RUNE_NAME[k]]; };
+  const RUNE_TEXT = (k: RuneKind) => {
+    const ic = icon(RUNE_ICON[k]);
+    ic.dataset.rune = k;
+    return [ic, ' ' + RUNE_NAME[k]];
+  };
   // o que cada runa faz, com os números do código (pedido do Fernando, 18/10: dizer ao pegar)
   const RUNE_EFFECT: Record<RuneKind, string> = {
     haste: t(`anda ${Math.round(RUNE.haste * 100)}% mais rápido por ${RUNE.secs} s`, `moves ${Math.round(RUNE.haste * 100)}% faster for ${RUNE.secs} s`),
