@@ -4,7 +4,7 @@ export const SPELL_IDS = ['fireball', 'lightning', 'homing', 'shield', 'teleport
   'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone', 'scourge', 'pact'] as const;
 export type SpellId = (typeof SPELL_IDS)[number];
 export const isSpell = (x: unknown): x is SpellId => SPELL_IDS.includes(x as SpellId);
-// 8 magias por mago nas teclas 1 2 3 4 Q W E R (decisão do Fernando, 21/10, issue #217; antes 6); a Bola de fogo e o Flagelo contam
+// 8 magias por mago nas teclas Q W E R A S D F (decisão do Fernando, 21/10, issue #217; antes 6); a Bola de fogo e o Flagelo contam
 export const MAX_SPELLS = 8;
 
 // magias pelo efeito principal: a loja e a ajuda mostram os nomes (rules-text.ts); o sorteio das cartas do Ascensão usa os grupos

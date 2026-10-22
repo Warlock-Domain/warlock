@@ -49,7 +49,7 @@ const RULES_PT = {
       'Roda do mouse: zoom. Espaço + arrastar com o botão esquerdo: mover a câmera; Espaço sozinho volta ao centro.',
       `${k('board')} (segurar): placar; com ele aberto, ← → troca entre Rodada, Partida e Sala.`,
       `${k('taunt')}: provocações. ${sheet}: ficha do mago. ${k('shop')}: loja só para ver durante a rodada (o jogo não pausa; ${k('shop')}, Esc ou ✕ fecham). ${k('rules')}: este grimório.${keyOf('vote') ? ` ${k('vote')}: votar.` : ''}`,
-      'Dá para trocar a tecla de cada magia em Configurações > Lançamento e a de cada atalho em Configurações > Teclas (Esc ou a engrenagem no topo), ou usar 1 2 3 4 Q W E R pela ordem da barra (fica salvo no navegador).',
+      'Dá para trocar a tecla de cada magia em Configurações > Lançamento e a de cada atalho em Configurações > Teclas (Esc ou a engrenagem no topo), ou usar Q W E R A S D F pela ordem da barra (fica salvo no navegador).',
     ];
   },
   get controle() {
@@ -166,7 +166,7 @@ const RULES_EN: typeof RULES_PT = {
       'Mouse wheel: zoom. Space + drag with the left button: move the camera; Space alone recenters.',
       `${k('board')} (hold): scoreboard; with it open, ← → switches between Round, Match and Room.`,
       `${k('taunt')}: taunts. ${sheet}: wizard sheet. ${k('shop')}: view-only shop during the round (the game does not pause; ${k('shop')}, Esc or ✕ close it). ${k('rules')}: this grimoire.${keyOf('vote') ? ` ${k('vote')}: vote.` : ''}`,
-      'You can rebind the key of each spell in Settings > Casting and of each shortcut in Settings > Keys (Esc or the gear at the top), or use 1 2 3 4 Q W E R in bar order (saved in the browser).',
+      'You can rebind the key of each spell in Settings > Casting and of each shortcut in Settings > Keys (Esc or the gear at the top), or use Q W E R A S D F in bar order (saved in the browser).',
     ];
   },
   get controle() {

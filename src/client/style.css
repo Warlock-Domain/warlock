@@ -184,7 +184,7 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
   /* a vida some na contagem e morto: o lugar fica, para a barra não pular */
   .hero-box .vitals[hidden] { display: flex !important; visibility: hidden; }
   .hero-box .vitals { flex-direction: column; align-items: stretch; gap: 6px; }
-  /* 8 magias em 2 fileiras: 1 2 3 4 em cima e Q W E R embaixo (Fernando, 21/10, #217) */
+  /* 8 magias em 2 fileiras (Fernando, 21/10, #217): Q W E R em cima e A S D F embaixo */
   .spellbar { display: grid; grid-template-columns: repeat(4, auto); }
   .hero-box .hpbar { width: 190px; height: 22px; }
   .hero-box .hpbar .hp-text { font-size: .85rem; }

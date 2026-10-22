@@ -50,7 +50,7 @@ describe('controle: botões', () => {
     setPadMode(true);
     expect([labelOf('fireball'), labelOf('homing'), labelOf('lightning'), labelOf('scourge'), labelOf('pact')]).toEqual(['A', 'B', '—', 'LT', 'RT']);
     setPadMode(false);
-    expect(labelOf('fireball')).toBe('1');
+    expect(labelOf('fireball')).toBe('Q');
   });
 
   it('shortens the controller name for the notice', () => {
