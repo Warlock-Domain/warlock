@@ -1328,6 +1328,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let goldOpen = false;
   let sheetOpen = false; // Ficha começa recolhida para a loja caber sem rolagem no PC; abrir/fechar sobrevive ao redesenho
   let buildsOpen = false; // Builds também começa recolhida: menos informação na loja (pedido do Fernando na #185)
+  let armedBuild: number | null = null; // posição com "Substituir?" à espera do segundo clique; fora do DOM para sobreviver ao redesenho da loja
   // ordem da barra do preset em uso: só vale quando as magias dele chegam (antes disso o myLoadout tira da barra o que ainda não tem)
   let presetOrder: { order: (SpellId | null)[]; round: number } | null = null;
   let readyBtn: HTMLElement | null = null;
@@ -1384,14 +1385,17 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         show(saved[i]);
         const use = el('button', { type: 'button', disabled: !saved[i], 'aria-label': t(`Usar a build ${i + 1}`, `Use build ${i + 1}`), onclick: () => {
           const p = saved[i]!;
-          use.disabled = true; // a fila sai do ouro de agora: um segundo clique antes das compras chegarem compraria tudo de novo, acima da build
-          for (const b of presetQueue(p, mine.spells, mine.items, mine.gold)) if (b.kind === 'spell') act.buy(b.id); else act.buyItem(b.id);
+          const queue = presetQueue(p, mine.spells, mine.items, mine.gold);
+          // a fila sai do ouro de agora: um segundo clique antes das compras chegarem compraria tudo de novo, acima da build
+          // (fila vazia não desliga: nenhuma compra chega para redesenhar a loja e o botão ficaria preso)
+          if (queue.length) use.disabled = true;
+          for (const b of queue) if (b.kind === 'spell') act.buy(b.id); else act.buyItem(b.id);
           presetOrder = { order: p.order, round: r.round };
         } }, t('Usar', 'Use'));
         // salvar por cima pede um segundo clique: um clique sem querer apagaria a build guardada
         const save = el('button', { type: 'button', 'aria-label': t(`Salvar na build ${i + 1}`, `Save to build ${i + 1}`), onclick: () => {
-          if (saved[i] && save.dataset.armed !== '1') {
-            save.dataset.armed = '1';
+          if (saved[i] && armedBuild !== i) {
+            armedBuild = i;
             save.textContent = t('Substituir?', 'Replace?');
             return;
           }
@@ -1399,9 +1403,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           store.set(PRESETS_KEY, JSON.stringify(saved));
           show(saved[i]);
           use.disabled = false;
-          save.dataset.armed = '';
+          armedBuild = null;
           save.textContent = t('Salvar', 'Save');
-        } }, t('Salvar', 'Save'));
+        } }, armedBuild === i ? t('Substituir?', 'Replace?') : t('Salvar', 'Save'));
         return el('div', { class: 'keys-row' }, icons, el('span', { class: 'build-acts' }, use, save));
       };
       return el('details', { class: 'sheet-box', open: buildsOpen, ontoggle: (e: Event) => (buildsOpen = (e.target as HTMLDetailsElement).open) },

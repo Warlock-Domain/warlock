@@ -3,7 +3,7 @@ import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { WizView } from '../shared/snapshot.ts';
 import { ITEM_IDS, itemPrice, type ItemId } from '../shared/items.ts';
-import { MAX_SPELLS, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
+import { FREE_SPELLS, MAX_SPELLS, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { store } from './store.ts';
 
 // Posição própria já usa o estado recente; pose atrasada faria o mago continuar arremessado enquanto volta a andar.
@@ -141,7 +141,8 @@ export function readPresets(raw: string | null): (Preset | null)[] {
   return Array.from({ length: PRESET_SLOTS }, (_, i) => {
     const p = Array.isArray(list) ? list[i] : null;
     if (!p || typeof p !== 'object') return null;
-    return { spells: levels(p.spells, isSpell), items: levels(p.items, isItem), order: Array.isArray(p.order) ? p.order.filter(isSpell).slice(0, MAX_SPELLS) : [] };
+    // vaga vazia da barra fica no lugar (null): sem ela as magias da build mudariam de tecla
+    return { spells: levels(p.spells, isSpell), items: levels(p.items, isItem), order: Array.isArray(p.order) ? p.order.slice(0, MAX_SPELLS).map((s: unknown) => (isSpell(s) ? s : null)) : [] };
   });
 }
 
@@ -154,5 +155,11 @@ export function countBuys(used: Record<string, number>, keys: string[]): Record<
   for (const k of keys) out[k] = (out[k] ?? 0) + 1;
   return out;
 }
+// o que eu comprei entre duas atualizações da sala: cada nível novo de magia ou item vira uma chave;
+// o nível 1 grátis (Bola de fogo, Flagelo) não é compra, e vender ou desfazer (nível menor) não conta
+export const boughtKeys = (was: Pick<PublicPlayer, 'spells' | 'items'>, now: Pick<PublicPlayer, 'spells' | 'items'>) => [
+  ...SPELL_IDS.flatMap((x) => Array<string>(Math.max(0, now.spells[x] - Math.max(was.spells[x], FREE_SPELLS.includes(x) ? 1 : 0))).fill('spell:' + x)),
+  ...ITEM_IDS.flatMap((x) => Array<string>(Math.max(0, now.items[x] - was.items[x])).fill('item:' + x)),
+];
 export const topUsed = (used: Record<string, number>, kind: 'spell' | 'item', n = 3) =>
   Object.entries(used).filter(([k]) => k.startsWith(kind + ':')).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k.slice(kind.length + 1));
