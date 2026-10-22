@@ -1,6 +1,6 @@
 // Sons: arquivos gravados (CC0, public/sfx, créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
 // sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
-import { TAUNTS, tauntAudioSrc } from '../shared/taunts.ts';
+import { tauntAudioSrc } from '../shared/taunts.ts';
 import { store } from './store.ts';
 
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
@@ -158,12 +158,13 @@ export function createSound(musicDefault?: number) {
       wantAmbience = on;
       syncAmbience();
     },
-    // taunt: public/sfx/taunt/<nome>.mp3, carregado na primeira vez que alguém usa
+    // taunt: caminho do catálogo (public/sfx/taunt/<nome>.mp3 ou a gravação em public/taunts-local), carregado na primeira vez que alguém usa
     async taunt(name: string) {
-      if (!TAUNTS.some((t) => t.id === name)) return;
+      const src = tauntAudioSrc(name);
+      if (!src) return;
       if (!ctx || volumes().sfx === 0 || ctx.state !== 'running') return;
       const key = 'taunt/' + name;
-      if (!buffers.has(key)) await load(key, tauntAudioSrc(name) ?? undefined);
+      if (!buffers.has(key)) await load(key, src);
       file(key, 1);
     },
     play(kind: SoundKind, volume = 1) {

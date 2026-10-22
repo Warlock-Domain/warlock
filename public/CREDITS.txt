@@ -190,7 +190,7 @@ Menu principal (issue #83, PR #85):
   wrench.svg: desenho vetorial original criado para esta contribuição por Codex.
   A logo da barra é o warlock-wars.svg (o mesmo do ícone da aba, já creditado acima).
 
-Gravações de provocações de Leonard (lboesmans), 22/10/2026:
+Gravações de provocações de Leonard (lboesmans), 21/10/2026 (PR #243, aceitas pelo Fernando):
   taunts-local/{fausto,emafia,meestruparam,usarameabusaram,lanchado}.mp4.
   O colaborador declarou ter gravado os áudios no próprio celular e ser o autor,
   não serem extrações de músicas/jogos/vídeos de terceiros, e autorizou envio,

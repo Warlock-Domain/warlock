@@ -1,6 +1,6 @@
 // Taunts da roda (tecla Y): voz em inglês de pacotes CC0 (Kenney Voiceover Packs; miau e risada do OpenGameArt), legenda em português.
-// O arquivo fica em public/sfx/taunt/<id>.mp3; a mensagem leva só o índice.
-// Gravações do Leonard, autorizadas pelo autor para uso e redistribuição no Warlock; livres de compra.
+// O arquivo fica em public/sfx/taunt/<id>.mp3 (ou no src da gravação); a mensagem leva só o índice.
+// Gravações do Leonard (PR #243): autorizadas pelo autor para uso e redistribuição no Warlock, aceitas pelo Fernando em 21/10.
 export const CUSTOM_TAUNTS = [
   { id: 'fausto', text: 'Tá pegando fogo!', en: "It's on fire!", src: '/taunts-local/fausto.mp4' },
   { id: 'emafia', text: 'Bosta city!', en: 'Crap city!', src: '/taunts-local/emafia.mp4' },
@@ -26,5 +26,6 @@ export const TAUNT_COOLDOWN_MS = 2500;
 // Caminhos vêm só do catálogo fixo: nenhuma URL enviada pelo cliente é carregada.
 export function tauntAudioSrc(id: string): string | null {
   const taunt = TAUNTS.find((t) => t.id === id);
-  return taunt ? ('src' in taunt && typeof taunt.src === 'string' ? taunt.src : `/sfx/taunt/${taunt.id}.mp3`) : null;
+  if (!taunt) return null;
+  return 'src' in taunt ? taunt.src : `/sfx/taunt/${taunt.id}.mp3`;
 }

@@ -7,10 +7,6 @@
 
 ## Identidade visual
 
-### Gravações de provocações de Leonard
-
-Cinco arquivos em `public/taunts-local/`: `fausto.mp4` (Tá pegando fogo!), `emafia.mp4` (Bosta city!), `meestruparam.mp4` (Foi uma delícia...), `usarameabusaram.mp4` (Usaram e abusaram.) e `lanchado.mp4` (Lanchado). Origem: arquivos fornecidos por Leonard/lboesmans, que declarou em 22/10/2026 serem gravações próprias de seu celular, não extrações de obras de terceiros, e autorizou publicação/uso/redistribuição no repositório e jogo. Autorização expressa para o projeto, sem presumir CC0. Crédito em `public/CREDITS.txt`. Catálogo/caminhos fixos em `src/shared/taunts.ts`, reprodução em `src/client/sound.ts` e gestos em `scene.ts`. Disponíveis para todos, sem Loja, moeda, compra ou teste de posse.
-
 - **Tema:** fantasia sombria de pedra escura, lava e ouro. As cores estão todas nas variáveis do `:root` em [`src/client/style.css`](../src/client/style.css): fundo `--bg #140806`, painéis `--panel`/`--panel2`, lava `--lava #ff6a1a`, brasa `--ember #ffb347`, ouro `--gold #ffd666`, texto `--fg #f7ecdf`. Cor solta no código não entra (regra do `CLAUDE.md`).
 - **Cor por grupo de magia:** Ataque `#ff6b4a`, Mobilidade `#8be36a`, Defesa `#5fb0ff`, Controle `#c58bff`, Itens prateado `--item #c9d4e0`.
 - **Painéis:** metal envelhecido com borda dourada fina e rebites nos cantos (`--plate`, `--plate-edge`, `--frame`).
@@ -37,6 +33,7 @@ Cinco arquivos em `public/taunts-local/`: `fausto.mp4` (Tá pegando fogo!), `ema
 | `fx/*.png` (23) | partículas: fogo, chamas, fumaça, faíscas, brilho, círculo, marca de queimado, rastro, redemoinho, estrela, vapor | `src/client/scene.ts` (`/fx/${name}.png`) | Kenney Particle Pack e Smoke Particles, CC0 |
 | `sfx/*.mp3` (10) | efeitos: bola de fogo, explosão, golpe, míssil, raio, escudo, teleporte, laço da lava, clique, confirmar | `src/client/sound.ts` (`/sfx/${name}.mp3`) | Kenney, OpenGameArt e Freesound, CC0 (detalhe no CREDITS) |
 | `sfx/taunt/*.mp3` (10) | vozes das provocações | `src/shared/taunts.ts`, `src/client/sound.ts` | Kenney Voiceover, OpenGameArt, CC0; "Ultra kill" é voz sintética feita para o jogo |
+| `taunts-local/*.mp4` (5) | provocações gravadas pelo Leonard: Tá pegando fogo!, Bosta city!, Foi uma delícia..., Usaram e abusaram., Lanchado | `src/shared/taunts.ts`, `src/client/sound.ts`, `src/client/scene.ts` | gravadas no celular pelo Leonard (lboesmans), que autorizou uso e redistribuição no jogo; sem licença livre, aceito pelo Fernando em 21/10/2026 (PR #243) |
 | `music/battle.mp3` | música da partida (laço) | `src/client/sound.ts` | Emma_MA "Determined Pursuit", CC0 |
 | `icons.svg` | sprite com todos os ícones (magias, itens, runas, efeitos, interface) | `src/client/icons.ts`, `src/client/scene.ts`, `src/client/style.css` | game-icons.net, **CC BY 3.0 (crédito obrigatório)**; montado por `scripts/assets/build-icons.mjs` |
 | `warlock-wars.svg`, `favicon.ico`, `apple-touch-icon.png` | logo W e ícone da aba | `index.html`, `src/client/ui.ts`, `src/client/style.css` | arte própria, por `scripts/assets/favicon.py` (fonte Grenze Gotisch, OFL 1.1) |
