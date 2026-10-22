@@ -104,12 +104,12 @@ describe('runas', () => {
     const w = world([[0, 0], [3, 0]]);
     w.runeAt = Infinity;
     w.wizards[0].cd.lightning = 50;
-    w.wizards[0].itemCd.scourge = 50;
+    w.wizards[0].cd.scourge = 50;
     w.runes = [{ pos: v(0, 0), kind: 'recharge' }];
     run(w, 1 + Math.round(1 / DT));
     // 1 s de jogo com a runa: a recarga andou 1/(1 − 30%) ≈ 1,43 s, ou seja 0,43 s a mais que o relógio
     expect(50 - w.wizards[0].cd.lightning).toBeCloseTo(1 / (1 - RUNE.cdr) - 1, 1);
-    expect(50 - w.wizards[0].itemCd.scourge).toBeCloseTo(1 / (1 - RUNE.cdr) - 1, 1);
+    expect(50 - w.wizards[0].cd.scourge).toBeCloseTo(1 / (1 - RUNE.cdr) - 1, 1);
   });
 
   it('runes and rune effects travel in the snapshot', () => {
