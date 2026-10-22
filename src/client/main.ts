@@ -7,8 +7,8 @@ import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
-import { itemStats } from '../shared/items.ts';
-import { CAST_POINT, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
+import { ITEM_IDS, itemStats } from '../shared/items.ts';
+import { CAST_POINT, FREE_SPELLS, SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
 import { LOOK_EVENT, saveLook, savedLook } from './avatar.ts';
@@ -32,7 +32,7 @@ import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
-import { botLevel, endResult, renderWizardState, sandboxVisibility, seatChanges } from './screen-data.ts';
+import { USED_KEY, botLevel, countBuys, endResult, renderWizardState, sandboxVisibility, seatChanges } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
 declare const __BRANCH__: string;
@@ -659,6 +659,13 @@ function startRoom(code: string, name: string) {
           toast(t(`${p.name} saiu da partida · um bot ${lvl} joga no lugar até voltar`, `${p.name} left the match · a ${lvl} bot plays in their place until they return`), 'info', true);
         }
         for (const p of back) toast(t(`${p.name} voltou para a partida`, `${p.name} is back in the match`), 'good', true);
+      }
+      // mais usados (#185): cada nível novo de magia ou item conta; Sandbox, Desafios, Sombra e Ascensão (cartas, sem loja) ficam fora (Fernando, 21/10)
+      // o nível 1 grátis (Bola de fogo, Flagelo) não é compra. shortcut: desfazer e comprar de novo conta duas vezes; mudar para descontar se o selo começar a errar
+      const was = prev?.players.find((p) => p.id === me), now = room.players.find((p) => p.id === me);
+      if (was && now && !room.sandbox && !shadow && !run && !pending && !now.asc) {
+        const keys = [...SPELL_IDS.flatMap((x) => Array(Math.max(0, now.spells[x] - Math.max(was.spells[x], FREE_SPELLS.includes(x) ? 1 : 0))).fill('spell:' + x)), ...ITEM_IDS.flatMap((x) => Array(Math.max(0, now.items[x] - was.items[x])).fill('item:' + x))];
+        if (keys.length) store.set(USED_KEY, JSON.stringify(countBuys(store.json<Record<string, number>>(USED_KEY) ?? {}, keys)));
       }
       // compra na loja: o ouro caiu → som de moedas
       if (prev?.phase === 'shop' && room.phase === 'shop') {
