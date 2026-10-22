@@ -14,7 +14,7 @@ import { openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCt
 import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
 import { EFFECT_NAME, MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, effectName, effectText, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
-import { SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
+import { ITEM_GROUPS, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, iconButton, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
@@ -1418,7 +1418,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     } }, readyText(mine.ready));
     // compras no meio; ouro, Pronto e placar à direita (pedido do Fernando: loja mais larga; o personagem saiu para o menu principal e as Configurações)
     // título e contagem só aparecem abaixo de 1100×600 (no PC o CSS esconde: a loja ocupa a tela entre as barras)
-    return el('div', { class: 'card shop compact-shop' }, items(), el('div', { class: 'shop-main' },
+    return el('div', { class: 'card shop compact-shop', style: fit }, items(), el('div', { class: 'shop-main' },
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.round === 0 ? t('Loja', 'Shop') : t(`Loja · depois da rodada ${r.round}`, `Shop · after round ${r.round}`)), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells`))),
       ...grid,
       ),
