@@ -13,8 +13,9 @@ export type Kind = Card['kind'];
 export type Choice = { i: number; swap?: SpellId };
 // xp: total da partida; todo: as fileiras do intervalo, pelo tipo; offer: as cartas de cada fileira; pick: a escolha de cada fileira
 // (null = falta escolher; só vale no fim do intervalo e dá para trocar até lá); fallen: ordem de queda da rodada;
-// extra: XP da rodada por derrubar o líder; rerolls: novos sorteios do intervalo (quem está atrás)
-export type AscState = { xp: Record<string, number>; todo: Record<string, Kind[]>; offer: Record<string, Card[][]>; pick: Record<string, (Choice | null)[]>; fallen: string[]; extra: Record<string, number>; rerolls: Record<string, number> };
+// extra: XP da rodada por derrubar o líder; rerolls: novos sorteios do intervalo (quem está atrás); auto: o que o jogo sorteou
+// para a pessoa no último intervalo, por falta de escolha (aviso na tela)
+export type AscState = { xp: Record<string, number>; todo: Record<string, Kind[]>; offer: Record<string, Card[][]>; pick: Record<string, (Choice | null)[]>; fallen: string[]; extra: Record<string, number>; rerolls: Record<string, number>; auto?: Record<string, Card[]> };
 // o que todo intervalo dá, além do subir magia de cada nível ganho
 const EVERY_BREAK: Kind[] = ['spell', 'item'];
 
@@ -135,11 +136,11 @@ export function placePoints(played: string[], fallen: string[], alive: string[])
   return pts;
 }
 
-// escolha automática: tempo esgotado, a de cima; bot (e humano desconectado, que o bot joga) pela dificuldade: Fácil ao acaso,
-// os outros completam primeiro o grupo que falta (defesa, depois mobilidade), senão a de cima.
+// escolha automática: pessoa sem escolha no fim do tempo e bot Fácil, ao acaso; os outros bots
+// completam primeiro o grupo que falta (defesa, depois mobilidade), senão a de cima.
 // Difícil pela força medida no simulador fica para o PR de rebalanceamento (a tabela sai de lá).
 // Só cartas que entram sem troca; magia nova com a barra cheia devolve -1 (mantém as magias, ver keepSpells)
-export function autoPick(p: Player, cards: Card[], how: 'top' | 'easy' | 'normal', rand: () => number): number {
+export function autoPick(p: Player, cards: Card[], how: 'easy' | 'normal', rand: () => number): number {
   const full = spellCount(p.spells) >= MAX_SPELLS;
   const ok = cards.map((_, i) => i).filter((i) => !(full && cards[i].kind === 'spell'));
   if (!ok.length) return -1;
@@ -172,17 +173,23 @@ export function chooseCard(m: Match, id: string, slot: number, i: number, swap?:
 }
 
 // fim do intervalo: aplica as escolhas, e as que faltam pela escolha automática; itens e subir magia antes da magia nova,
-// para a troca não tirar uma magia que ia subir nesta mesma leva sem querer
+// para a troca não tirar uma magia que ia subir nesta mesma leva sem querer. Pessoa (na sala ou fora) sem escolha: sorteio
+// entre as cartas oferecidas, com o rand da simulação (Fernando, 21/10, #224: "quando o tempo acabar, selecione aleatório")
 function applyPicks(m: Match, rand: () => number) {
   const a = m.asc!;
   for (const p of m.players) {
     const offer = a.offer[p.id] ?? [];
-    const how = !p.bot && p.connected ? 'top' : (p.difficulty ?? m.opts.difficulty) === 'easy' ? 'easy' : 'normal';
+    // 'easy' = sorteio uniforme entre as cartas válidas: é o que a pessoa sem escolha recebe (#224); não trocar por 'normal'
+    const how = !p.bot || (p.difficulty ?? m.opts.difficulty) === 'easy' ? 'easy' : 'normal';
+    const auto: Card[] = [];
     const order = offer.map((_, slot) => slot).sort((x, y) => Number(a.todo[p.id][x] === 'spell') - Number(a.todo[p.id][y] === 'spell'));
     for (const slot of order) {
-      const c = a.pick[p.id]?.[slot] ?? { i: autoPick(p, offer[slot], how, rand) };
+      const chosen = a.pick[p.id]?.[slot];
+      const c = chosen ?? { i: autoPick(p, offer[slot], how, rand) };
       if (c.i >= 0) applyCard(p, offer[slot][c.i], c.swap);
+      if (!chosen && !p.bot && c.i >= 0) auto.push(offer[slot][c.i]);
     }
+    if (!p.bot) (a.auto ??= {})[p.id] = auto;
     a.todo[p.id] = [];
     a.offer[p.id] = [];
     a.pick[p.id] = [];
@@ -236,7 +243,7 @@ export function ascShop(m: Match, now: number, rand: () => number) {
       a.pick[p.id] = a.offer[p.id].map(() => null);
     }
     const pick = (a.pick[p.id] ??= a.offer[p.id].map(() => null));
-    if (p.bot || !p.connected) {
+    if (p.bot) {
       const how = (p.difficulty ?? m.opts.difficulty) === 'easy' ? 'easy' : 'normal';
       pick.forEach((c, slot) => (pick[slot] = c ?? { i: autoPick(p, a.offer[p.id][slot], how, rand) }));
     }
@@ -274,5 +281,5 @@ export const ascWinner = (m: Match) => [...m.players].sort((x, y) => y.score - x
 export function ascOf(a: AscState, id: string) {
   const xp = a.xp[id] ?? 0;
   const level = levelOf(xp);
-  return { xp, level, next: xpFor(level + 1), todo: a.todo[id] ?? [], offer: a.offer[id] ?? [], pick: a.pick[id] ?? [], rerolls: a.rerolls[id] ?? 0 };
+  return { xp, level, next: xpFor(level + 1), todo: a.todo[id] ?? [], offer: a.offer[id] ?? [], pick: a.pick[id] ?? [], rerolls: a.rerolls[id] ?? 0, auto: a.auto?.[id] ?? [] };
 }

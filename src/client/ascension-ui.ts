@@ -28,17 +28,20 @@ export function ascLevel(r: PublicRoom, p: PublicPlayer): Child {
     lead ? '◎ ' : '', t(`Nv ${p.asc.level}`, `Lv ${p.asc.level}`));
 }
 
+// nome da carta (magia ou item), na carta e no aviso do sorteio por tempo esgotado (main.ts)
+export const cardName = (c: Card) => (c.kind === 'item' ? itemName(c.id) : spellName(c.id));
+
 function cardFace(c: Card, p: PublicPlayer) {
   if (c.kind === 'item') {
     const lvl = p.items[c.id];
-    return { cls: 'is-item', ico: ITEM_ICON[c.id], kind: lvl ? t(`Item · nível ${lvl + 1}`, `Item · level ${lvl + 1}`) : t('Item novo', 'New item'), name: itemName(c.id), text: itemText(c.id), max: ITEMS[c.id].levels.length, lvl };
+    return { cls: 'is-item', ico: ITEM_ICON[c.id], kind: lvl ? t(`Item · nível ${lvl + 1}`, `Item · level ${lvl + 1}`) : t('Item novo', 'New item'), name: cardName(c), text: itemText(c.id), max: ITEMS[c.id].levels.length, lvl };
   }
   const lvl = p.spells[c.id];
   const to = c.kind === 'up' ? Math.min(MAX_SPELL_LEVEL, lvl + (c.rare ? 2 : 1)) : 1;
   const swap = c.kind === 'spell' && spellCount(p.spells) >= MAX_SPELLS;
   const kind = c.kind === 'up' ? t(`Subir magia · nível ${lvl} → ${to}`, `Spell upgrade · level ${lvl} → ${to}`)
     : swap ? t('Magia nova · troca, herda o nível', 'New spell · swap, keeps the level') : t('Magia nova · nível 1', 'New spell · level 1');
-  return { cls: spellClass(c.id), ico: ICON[c.id], kind, name: spellName(c.id), text: SPELL_USE[c.id], max: MAX_SPELL_LEVEL, lvl };
+  return { cls: spellClass(c.id), ico: ICON[c.id], kind, name: cardName(c), text: SPELL_USE[c.id], max: MAX_SPELL_LEVEL, lvl };
 }
 
 // intervalo do Ascensão: barra de XP, as 3 cartas (ou a espera), novo sorteio para quem está atrás e o placar ao lado

@@ -48,7 +48,7 @@ export type PublicPlayer = {
   dummy?: true; // sandbox: boneco parado
   watch?: true; // assistindo: sem mago a partir da próxima rodada
   turret?: true; // Sandbox: torreta de direção fixa.
-  asc?: { xp: number; level: number; next: number; todo: Kind[]; offer: Card[][]; pick: (Choice | null)[]; rerolls: number }; // só no Ascensão (next: XP do próximo nível)
+  asc?: { xp: number; level: number; next: number; todo: Kind[]; offer: Card[][]; pick: (Choice | null)[]; rerolls: number; auto: Card[] }; // só no Ascensão (next: XP do próximo nível; auto: sorteado por falta de escolha)
 };
 
 export type PublicRoom = {

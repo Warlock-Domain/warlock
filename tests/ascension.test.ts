@@ -146,6 +146,27 @@ describe('partida do Ascensão', () => {
     expect(h.items[itemRow[2].id as ItemId]).toBeGreaterThan(0);
   });
 
+  it('time up without a pick: the game picks a random offered card, the same with the same seed, and tells the player (#224)', () => {
+    const play = (seed: number) => {
+      const m = ascMatch(1, true);
+      tickMatch(m, STEP_MS, [], seeded(seed));
+      const offer = m.asc!.offer.h;
+      run(m, STEP_MS, () => m.phase === 'countdown', seeded(seed));
+      const h = m.players.find((p) => p.id === 'h')!;
+      const got = offer.map((row) => row.findIndex((c) => (c.kind === 'item' ? h.items[c.id] > 0 && c.id !== 'scourge' : h.spells[c.id] > 0)));
+      return { got, auto: publicRoom('R', m, 0).players.find((p) => p.name === 'Ana')!.asc!.auto, offer, spells: { ...h.spells }, items: { ...h.items } };
+    };
+    const runs = Array.from({ length: 12 }, (_, s) => play(s));
+    for (const r of runs) {
+      expect(r.got.every((i) => i >= 0)).toBe(true); // nenhuma fileira fica sem carta
+      expect(r.auto).toHaveLength(2);
+      expect(r.auto).toEqual(expect.arrayContaining(r.got.map((i, row) => r.offer[row][i])));
+    }
+    expect(new Set(runs.map((r) => r.got[0])).size).toBeGreaterThan(1); // sorteio, não sempre a carta de cima
+    const again = play(3);
+    expect([again.spells, again.items]).toEqual([runs[3].spells, runs[3].items]);
+  });
+
   it('every break gives one new spell, one item and one spell upgrade per level gained', () => {
     const m = ascMatch(1, true);
     const ids = m.players.map((p) => p.id);
@@ -308,7 +329,6 @@ describe('recuperação e bots do Ascensão', () => {
     const p = { ...ascMatch(1).players[1], spells: { ...noSpells(), teleport: 1 } };
     const cards: Card[] = [{ kind: 'item', id: 'boots' }, { kind: 'spell', id: 'lightning' }, { kind: 'spell', id: 'shield' }];
     expect(autoPick(p, cards, 'normal', seeded(1))).toBe(2);
-    expect(autoPick(p, cards, 'top', seeded(1))).toBe(0);
     const seen = new Set(Array.from({ length: 50 }, (_, s) => autoPick(p, cards, 'easy', seeded(s))));
     expect(seen.size).toBe(3);
   });
