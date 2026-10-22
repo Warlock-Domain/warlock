@@ -24,6 +24,8 @@ import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { botLevel, endResult, moveLoadout, myLoadout, roomGroups, saveLoadout } from './screen-data.ts';
 import { LOCALE, arenaName, itemName, itemText, spellName, t } from './i18n.ts';
+import { radialPicker } from './radial-picker.ts';
+import { radialHold, tauntWheelSlots } from './taunt-wheel.ts';
 
 const TITLE = 'Warlock';
 // busca pelo nome sem acento nem maiúscula (loja e biblioteca)
@@ -153,7 +155,7 @@ function personagemTab(): HTMLElement {
     el('div', { class: 'settings-grid' }, options, el('div', { class: 'settings-sections' }, ...sections)));
 }
 
-export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onCreateAsc: () => void, onRename: () => void, onTrain: (kind: string) => void, onExit: () => void, sound: Pick<SettingsCtx, 'volumes' | 'setVolume'>) {
+export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onCreateAsc: () => void, onRename: () => void, onTrain: (kind: string) => void, sound: Pick<SettingsCtx, 'volumes' | 'setVolume'>) {
   // no lobby: o volume é o mesmo da sala (issue #128); sem efeitos visuais (só existem na sala); o pixel art fica guardado e vale ao entrar numa sala (só PC)
   const pixelOk = !matchMedia('(pointer: coarse)').matches;
   setSettingsCtx({ name: () => name, rename: onRename, volumes: sound.volumes, setVolume: sound.setVolume, pixel: pixelOk ? savedPixel : undefined, setPixel: (size) => store.set('warlock:pixel', String(size)) });
@@ -236,8 +238,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
       el('nav', { class: 'home-bar', role: 'tablist', 'aria-label': t('Menu principal', 'Main menu') }, settingsBtn,
         el('button', { type: 'button', class: 'home-logo', id: 'home-tab-home', role: 'tab', 'aria-controls': 'home-home', title: t('Início', 'Home'), 'aria-label': t('Voltar ao menu principal', 'Back to home'), onclick: () => show('home') },
           el('img', { src: '/warlock-wars.svg', alt: 'Warlock Wars' })),
-        el('div', { class: 'home-tabs' }, ...btns.filter((b) => b !== settingsBtn),
-          el('button', { type: 'button', class: 'home-tool home-exit', title: t('Sair do jogo', 'Exit game'), 'aria-label': t('Sair do jogo', 'Exit game'), onclick: onExit }, icon(UI_ICON.exit)))),
+        el('div', { class: 'home-tabs' }, ...btns.filter((b) => b !== settingsBtn))),
       stage),
   );
   show('home');
@@ -720,31 +721,77 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     specBtn.setAttribute('aria-label', tip);
     specBtn.setAttribute('aria-pressed', String(on));
   }
-  // provocações (taunts): a tecla (Y no padrão) abre a lista e o número escolhe (ou clique); vale na loja e no jogo.
-  // Só as 10 primeiras têm número (1 a 9 e 0); as gravadas a mais vão por clique
+  // provocações: segurar a tecla (Y no padrão) abre a roda com todas as falas do catálogo, apontar escolhe e soltar envia;
+  // o clique no botão abre a roda parada (clique ou número escolhe). A ordem vem das Configurações (Comunicação); o índice enviado é sempre o do catálogo (TAUNTS).
+  const heldTaunt = radialHold();
   const sendTaunt = (i: number) => {
+    heldTaunt.cancel();
     act.taunt(i);
     tauntPanel.hidden = true;
   };
   const tauntTitle = el('b', {}, t('Provocações', 'Taunts'));
-  const tauntPanel = el('div', { class: 'vol-panel', hidden: true }, tauntTitle,
-    el('div', { class: 'taunt-list' }, ...TAUNTS.map((x, i) => el('button', { type: 'button', onclick: () => sendTaunt(i) }, i < 10 ? `${(i + 1) % 10} · ${t(x.text, x.en)}` : t(x.text, x.en)))));
+  const cancelTaunts = () => { heldTaunt.cancel(); tauntPanel.hidden = true; };
+  const loadSlots = () => tauntWheelSlots(store.json('warlock:taunt-wheel'), TAUNTS.length);
+  let slots = loadSlots();
+  const wheel = radialPicker(tauntTitle, slots.map((j) => t(TAUNTS[j].text, TAUNTS[j].en)), (i) => { if (!heldTaunt.active()) sendTaunt(slots[i]); }, cancelTaunts);
+  const tauntPanel = wheel.panel;
+  const toggleTaunts = (open = tauntPanel.hidden) => {
+    heldTaunt.cancel();
+    wheel.reset();
+    if (open) { // a ordem pode ter mudado nas Configurações desde a última vez
+      slots = loadSlots();
+      wheel.setLabels(slots.map((j) => t(TAUNTS[j].text, TAUNTS[j].en)));
+    }
+    toggle(tauntPanel, null, open);
+  };
+  addEventListener('keydown', (e) => {
+    if (!tauntPanel.isConnected || typing(e) || document.querySelector('.overlay')) return;
+    if (isUiKey(e.code, 'taunt')) {
+      if (!heldTaunt.active()) {
+        if (tauntPanel.hidden) toggleTaunts();
+        wheel.reset();
+        heldTaunt.press(e.code);
+      }
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+    if (tauntPanel.hidden) return;
+    if (e.code === 'Escape') cancelTaunts();
+    else if (/^(Digit|Numpad)[0-9]$/.test(e.code)) {
+      const i = (Number(e.code.slice(-1)) + 9) % 10; // 1..9 e o 0 para a 10ª
+      if (i >= TAUNTS.length) return;
+      if (heldTaunt.active()) wheel.choose(i);
+      else sendTaunt(slots[i]);
+    }
+    else if (e.code === 'ArrowLeft' || e.code === 'ArrowUp') wheel.step(-1);
+    else if (e.code === 'ArrowRight' || e.code === 'ArrowDown') wheel.step(1);
+    else if (e.code === 'Enter') wheel.confirm();
+    else if (e.code === 'Tab') return;
+    // Enquanto escolhe, teclas de magias não atravessam para o jogo.
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
+  addEventListener('keyup', (e) => {
+    if (!heldTaunt.release(e.code)) return;
+    if (tauntPanel.isConnected && !tauntPanel.hidden && !document.querySelector('.overlay')) wheel.confirm();
+    tauntPanel.hidden = true;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
+  // A direção continua selecionável fora da placa; voltar ao centro deixa a roda sem escolha.
+  addEventListener('pointermove', (e) => {
+    if (tauntPanel.isConnected && !tauntPanel.hidden && !document.querySelector('.overlay')) wheel.point(e.clientX, e.clientY);
+  });
+  addEventListener('blur', cancelTaunts);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) cancelTaunts(); });
   const sheetBtn = iconButton(icon(UI_ICON.sheet), t('Ficha do mago', 'Wizard sheet'), () => toggleSheet(), { 'aria-expanded': 'false' });
-  const tauntBtn = iconButton(icon(UI_ICON.taunt), t('Provocações', 'Taunts'), () => toggle(tauntPanel, null), { class: 'icon wide-only' });
+  const tauntBtn = iconButton(icon(UI_ICON.taunt), t('Provocações', 'Taunts'), () => toggleTaunts(), { class: 'icon wide-only' });
   addEventListener('keydown', (e) => {
     if (typing(e)) return;
     if (isUiKey(e.code, 'vote') && voteBtn.checkVisibility()) {
       e.preventDefault();
       voteBtn.click();
-    } else if (isUiKey(e.code, 'taunt')) {
-      toggle(tauntPanel, null);
-      e.preventDefault();
-    } else if (!tauntPanel.hidden && /^(Digit|Numpad)[0-9]$/.test(e.code)) {
-      const i = (Number(e.code.slice(-1)) + 9) % 10; // 1..9 e o 0 para o 10º
-      if (i < TAUNTS.length) sendTaunt(i);
-      // o número não pode também usar o item da mesma tecla
-      e.preventDefault();
-      e.stopImmediatePropagation();
     } else if (e.code === 'Escape' && [votePanel, tauntPanel, sheetPanel, morePanel, sbPanel].some((p) => !p.hidden)) {
       // fechou um painel: este Esc não abre as configurações
       e.preventDefault();
@@ -877,7 +924,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const morePanel = el('div', { class: 'vol-panel more-panel', hidden: true },
     el('button', { type: 'button', onclick: () => openSettings() }, icon(UI_ICON.gear), ' ' + t('Configurações', 'Settings')),
     el('button', { type: 'button', onclick: () => openSettings('som') }, icon(UI_ICON.sound), ' ' + t('Som', 'Sound')),
-    el('button', { type: 'button', onclick: () => toggle(tauntPanel, null, true) }, icon(UI_ICON.taunt), ' ' + t('Provocações', 'Taunts')),
+    el('button', { type: 'button', onclick: () => toggleTaunts(true) }, icon(UI_ICON.taunt), ' ' + t('Provocações', 'Taunts')),
     el('button', { type: 'button', onclick: () => {
       toggle(morePanel, moreBtn, false);
       showRules();

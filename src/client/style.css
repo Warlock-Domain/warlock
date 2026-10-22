@@ -233,10 +233,16 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .dmg.big { color: var(--gold); font-size: 2.2rem; }
 .wiz-label .bubble { background: var(--cream); color: var(--cream-ink); font-weight: 700; font-size: .85rem; padding: 3px 9px; border-radius: var(--r-md); margin-bottom: 4px; white-space: nowrap; box-shadow: var(--shadow-sm); animation: pop .18s ease-out; }
 @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-/* provocações em grade de 2 colunas compacta */
-.taunt-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-.taunt-list button { justify-content: flex-start; text-align: left; min-height: 36px; padding: 4px 10px; font-size: .88rem; }
-.vol-panel:has(.taunt-list) { width: 340px; }
+/* roda de provocações por cima da arena, translúcida; sem panel-in, que sobrescreve o transform da centralização até terminar */
+.vol-panel.radial-picker { position: fixed; inset: 50% auto auto 50%; transform: translate(-50%, -50%); width: min(640px, 96vw, 72vh); max-height: 96vh; text-align: center; overflow: visible; animation: none; background: transparent; border-color: transparent; box-shadow: none; text-shadow: var(--text-shadow); }
+/* círculo de 72% da altura: as 15 falas não encostam na barra de magias embaixo */
+.vol-panel.radial-picker.radial-inline { position: relative; inset: auto; transform: none; width: min(640px, 100%); max-height: none; margin-inline: auto; }
+.radial-stage { position: relative; width: 100%; aspect-ratio: 1; }
+.radial-stage::before { content: ''; position: absolute; inset: 12%; border-radius: 50%; border: 1px solid var(--gold-faint); background: repeating-conic-gradient(from var(--radial-start), color-mix(in srgb, var(--ink) 30%, transparent) 0deg calc(var(--radial-step) - 1deg), transparent calc(var(--radial-step) - 1deg) var(--radial-step)); }
+/* 14% de largura: as 15 falas cabem na volta sem um botão cobrir o vizinho */
+.radial-stage > button { position: absolute; transform: translate(-50%, -50%); width: 14%; min-height: 40px; padding: 2px; font-size: .84rem; font-weight: 700; line-height: 1.15; background: transparent; border-color: transparent; box-shadow: none; text-shadow: var(--text-shadow); }
+.radial-stage > button.on { background: var(--sel-bg); border-color: var(--gold-line); color: var(--gold-pale); }
+.radial-stage > .radial-center { left: 50%; top: 50%; width: 18%; aspect-ratio: 1; border-radius: 50%; font-size: 1.8rem; background: color-mix(in srgb, var(--ink) 40%, transparent); border-color: var(--gold-line); }
 /* painel da sandbox: regras, bots e arena; no celular cabe na largura da tela */
 .sandbox-panel { width: min(300px, calc(100vw - 24px)); }
 .sandbox-check, .sandbox-row { display: flex; align-items: center; gap: 8px; }
@@ -349,6 +355,7 @@ body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: no
 .dialog-head .title { margin: 0; }
 .stats-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .stats-tabs { display: flex; gap: 6px; }
+.taunt-editor .stats-tabs { flex-wrap: wrap; } /* 15 falas não cabem numa linha */
 .stats-tabs button { min-height: 32px; padding: 4px 14px; font-size: .9rem; border-radius: 999px; }
 .stats-bar .stats-tabs button { font-family: var(--display); font-size: .95rem; }
 .stats-wrap { overflow-x: auto; }
@@ -906,13 +913,12 @@ button.train small { font-weight: 400; }
 @media (max-width: 600px) {
   .round { font-size: .85rem; }
   .shop-head { flex-wrap: wrap; row-gap: 2px; }
-  /* provocações e sandbox abrem embaixo, acima da barra de magias: no topo cobriam o botão que as fecha */
-  .vol-panel:has(.taunt-list), .vol-panel.sandbox-panel { top: auto; bottom: calc(84px + var(--safe-b)); width: auto; max-height: calc(100dvh - 160px - var(--safe-t) - var(--safe-b)); }
+  /* sandbox abre embaixo, acima da barra de magias: no topo cobria o botão que o fecha */
+  .vol-panel.sandbox-panel { top: auto; bottom: calc(84px + var(--safe-b)); width: auto; max-height: calc(100dvh - 160px - var(--safe-t) - var(--safe-b)); }
 }
-/* toque: sem as letras do teclado; alvos de 44 px nas provocações */
+/* toque: sem as letras do teclado */
 @media (pointer: coarse) {
   .spell .key { display: none; }
-  .taunt-list button { min-height: 44px; }
 }
 /* toque em pé: magias de 60 px em 3 colunas no canto do polegar (deitado fica a linha, 3 fileiras comeriam metade da altura) */
 @media (pointer: coarse) and (min-height: 501px) {
@@ -968,7 +974,7 @@ body.replaying .peek-shop { display: none; }
 /* logo na barra = o mesmo SVG do ícone da aba (public/warlock-wars.svg; pedido do Fernando, 20/10) */
 .home-logo img { display: block; width: 64px; height: 64px; filter: drop-shadow(0 2px 8px rgba(255, 120, 30, .45)); }
 @media (hover: hover) { .home-logo:hover img { filter: drop-shadow(0 0 6px var(--ember)) drop-shadow(0 0 18px var(--ember)); } }
-.home-tool { flex: 0 0 64px; border: 0; border-right: 1px solid var(--line); border-radius: 0; background: none; padding: 10px; }
+.home-tool { flex: 0 0 64px; border: 0; border-radius: 0; background: none; padding: 10px; }
 .home-tool img { display: block; }
 .home-tool.on { background: var(--sel-bg); box-shadow: inset 0 -3px var(--gold); }
 @media (hover: hover) { .home-tool:hover { background: var(--sel-bg); } }
@@ -979,10 +985,6 @@ body.replaying .peek-shop { display: none; }
 .home-tabs button.on::before { border-bottom-color: var(--gold); background: linear-gradient(180deg, var(--panel2), var(--lava-night)); }
 .home-tabs button:focus-visible { z-index: 1; outline-offset: -5px; }
 @media (hover: hover) { .home-tabs button:hover { color: var(--fg); } .home-tabs button:hover::before { border-bottom-color: var(--bronze); background: var(--plate); } }
-.home-tabs .home-exit { flex: 0 0 64px; padding: 10px; border-right: 1px solid var(--line); }
-.home-tabs .home-exit::before { display: none; }
-.home-tabs .home-exit .gi { display: block; width: 28px; height: 28px; color: var(--muted); }
-@media (max-width: 600px) { .home-tabs .home-exit { flex-basis: 48px; } }
 .home-panel { display: flex; flex-direction: column; gap: 24px; }
 .play-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 32px; align-items: start; }
 .play-content { display: flex; flex-direction: column; gap: 16px; min-width: 0; }

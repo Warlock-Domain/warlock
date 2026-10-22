@@ -10,6 +10,10 @@ import {
 import { avatarPanel } from './avatar.ts';
 import { RULES } from './rules-text.ts';
 import { choice, dialog, showRules, toast } from './ui.ts';
+import { radialPicker } from './radial-picker.ts';
+import { assignTauntSlot, tauntWheelSlots } from './taunt-wheel.ts';
+import { TAUNTS } from '../shared/taunts.ts';
+import { previewTaunt, stopTauntPreview } from './sound.ts';
 import { LANG, setLang, spellName, t, type Lang } from './i18n.ts';
 import { isSpell } from '../shared/spells.ts';
 import { store } from './store.ts';
@@ -261,11 +265,36 @@ function aboutSection(): Node[] {
   ];
 }
 
+function communicationSection(): Node[] {
+  let slots = tauntWheelSlots(store.json('warlock:taunt-wheel'), TAUNTS.length);
+  const labels = () => slots.map((i) => t(TAUNTS[i].text, TAUNTS[i].en));
+  const editor = el('div', { class: 'taunt-editor', hidden: true });
+  const edit = (position: number) => {
+    wheel.choose(position);
+    editor.hidden = false;
+    editor.replaceChildren(el('h3', {}, t(`Trocar provocação da posição ${position + 1}`, `Change taunt in slot ${position + 1}`)),
+      choice(t('Escolha uma provocação', 'Choose a taunt'), TAUNTS.map((x, i) => [i, t(x.text, x.en)]), slots[position], (index) => {
+        void previewTaunt(TAUNTS[index].id).then((ok) => { if (!ok) toast(t('Não foi possível tocar esta provocação.', 'Could not play this taunt.'), 'bad'); });
+        slots = assignTauntSlot(slots, position, index);
+        store.set('warlock:taunt-wheel', JSON.stringify(slots));
+        wheel.setLabels(labels());
+        edit(position);
+      }));
+  };
+  // Na roda o clique escolhe a vaga; no catálogo abaixo ele troca e toca só uma prévia privada.
+  const wheel = radialPicker(el('b', {}, t('Sua roda de provocações', 'Your taunt wheel')), labels(), edit,
+    () => { editor.hidden = true; wheel.reset(); },
+    { inline: true, hint: t('Clique na posição e depois numa fala abaixo para trocar e ouvir a prévia.', 'Click a slot, then a line below to swap it and hear a preview.') });
+  return [el('p', { class: 'muted' }, t('Escolha a ordem das provocações na roda, em sentido horário a partir de cima. Segure o atalho de Provocações (Y por padrão), aponte com o mouse e solte para falar.', 'Choose the order of the taunts on the wheel, clockwise from the top. Hold the Taunts shortcut (Y by default), point with the mouse and release to speak.')),
+    wheel.panel, editor];
+}
+
 type Section = { id: string; title: string; icon: string; render: () => Node[] | null }; // null: a aba não aparece nesta tela
 const SECTIONS: Section[] = [
   { id: 'teclas', title: t('Teclas', 'Keys'), icon: UI_ICON.keys, render: keysSection },
   { id: 'lancamento', title: t('Lançamento', 'Casting'), icon: UI_ICON.aim, render: castSection },
   { id: 'som', title: t('Som', 'Sound'), icon: UI_ICON.sound, render: soundSection },
+  { id: 'comunicacao', title: t('Comunicação', 'Communication'), icon: UI_ICON.taunt, render: communicationSection },
   { id: 'video', title: t('Vídeo e efeitos', 'Video & effects'), icon: UI_ICON.video, render: videoSection },
   { id: 'controle', title: t('Controle', 'Controller'), icon: UI_ICON.pad, render: padSection },
   { id: 'jogador', title: t('Jogador', 'Player'), icon: UI_ICON.person, render: playerSection },
@@ -341,6 +370,7 @@ export function openSettings(id?: string) {
   scroller.append(modal.grid);
   // com o menu aberto o jogo não recebe teclas (o que o navegador faz com Tab, Enter e setas continua)
   ({ overlay, close } = dialog('settings', t('Configurações', 'Settings'), [scroller], { onKey, onClose: () => {
+    stopTauntPreview();
     waiting = null;
     if (padWaiting) waitPad(null);
     overlay = null;
