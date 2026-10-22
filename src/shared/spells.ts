@@ -90,6 +90,7 @@ export const WARPZONE = { wizMult: 0.5 }; // 0,6 → 0,5 em 18/10 (16% abaixo do
 export const GRIP = { castPenalty: 5, delay: 1.3 }; // 1,3 s entre a marca no chão e os cipós: dá para sair da área (pedido do Leonard, estilo do stun do Leshrac)
 // meteoro: 0,55 s parado no ar + 0,60 s caindo (meteor.lua)
 export const METEOR_DELAY = 1.15;
+export const METEOR_SHIELD_KNOCK = 1 / 3; // Protótipo local pedido: Escudo zera o dano do Meteoro, mas deixa um terço do impulso.
 // investida: +35 u/s ao ativar; cada ponto absorvido soma 1,5 u/s (rushmodifier.lua)
 // avanço: 3 m em 0,2 s na direção do mouse (não existe no original; pedido do Fernando, 17/10: "dash não funciona")
 export const RUSH = { bonus: 35 * UNIT, perHp: 1.5 * UNIT, share: 0.5, dash: 3, dashTime: 0.2, dashDmg: 20 }; // ciclo 1 (18/10): dano do avanço 60 → 40 (Investida 1,30×) // dashDmg: dano em quem o avanço encostar (pedido do Fernando, 17/10)

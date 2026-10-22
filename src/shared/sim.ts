@@ -5,7 +5,7 @@ import {
 } from './constants.ts';
 import { SHAPES, edge, inArena, inLavaAt, inward, isleSpot, onIsle, safeInside, type ArenaId, type Isle } from './arena.ts';
 import { ACTIVE_ITEMS, AEGIS, ITEM_CAST, PACT, REDIRECTOR, SCOURGE, SHOCK_BOOTS, WIND_BOOTS, isActive, itemStats, noItems, type ItemId } from './items.ts';
-import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
+import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, METEOR_SHIELD_KNOCK, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export type Wizard = {
@@ -382,11 +382,11 @@ function mark(w: World, target: Wizard, by: string, src: string) {
   target.lastHitAt = w.t;
 }
 
-function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string) {
+function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string, knockDmg = dmg) {
   // invulnerável: sem dano nem empurrão, mas o acerto aparece (explosão e som), senão o projétil sumiria sem efeito
   if (w.t < target.invulnUntil) return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
   // como no mod de Dota 2 (pawn.lua): acima de 100 de dano por golpe o empurrão cresce pela raiz, não em linha reta
-  const mult = knockScale(dmg, target.dmgTaken, target.kbResist);
+  const mult = knockScale(knockDmg, target.dmgTaken, target.kbResist);
   // fogo amigo: só empurra; sem dano, sem roubo de vida e sem crédito de abate para o aliado
   if (allies(anyById(w, by), target)) {
     target.vel = add(target.vel, scale(norm(dir), knock * mult));
@@ -879,7 +879,9 @@ function meteorLand(w: World, p: Projectile) {
     const d = dist(o.pos, p.pos);
     if (d > L.radius + WIZ_R) continue;
     const amount = (L.dmgMin + (L.dmg - L.dmgMin) * Math.max(0, 1 - d / L.radius)) * p.dmgMult;
-    hit(w, o, p.owner, amount, amount * (L.knock / L.dmg), sub(o.pos, p.pos), 'meteor');
+    const blocked = shielded(w, o);
+    // O amortecimento usa o dano original: zerar dano não pode aumentar o impulso protegido acima de um terço.
+    hit(w, o, p.owner, blocked ? 0 : amount, amount * (L.knock / L.dmg) * (blocked ? METEOR_SHIELD_KNOCK : 1), sub(o.pos, p.pos), 'meteor', amount);
     landed = true;
   }
   const owner = anyById(w, p.owner);
