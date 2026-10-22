@@ -32,7 +32,7 @@ describe('bots colados no fim da rodada', () => {
     w.pillars = [];
     [w.wizards[0].pos, w.wizards[1].pos, w.wizards[2].pos] = [v(-0.4, 0), v(0.4, 0), v(0, 0.6)];
     // sem Flagelo e sem ter para onde ir (presos como entre a pedra e o pilar do print): tem de sair Bola de fogo de perto
-    for (const z of w.wizards) [z.invulnUntil, z.itemCd.scourge, z.gripUntil] = [0, 1e9, 1e9];
+    for (const z of w.wizards) [z.invulnUntil, z.cd.scourge, z.gripUntil] = [0, 1e9, 1e9];
     let hits = 0;
     for (let s = 0; s < 4 / DT; s++) {
       botWatch(w);

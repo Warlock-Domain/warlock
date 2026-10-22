@@ -1523,8 +1523,21 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   function onEvents(events: SimEvent[]) {
     for (const e of events) {
-      if (e.k === 'cast') oneShot(e.id, ...castAnim(e.spell));
-      else if (e.k === 'hit') {
+      if (e.k === 'cast') {
+        oneShot(e.id, ...castAnim(e.spell));
+        if (e.spell === 'scourge') {
+          // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
+          const m = mages.get(e.id);
+          if (m) {
+            const at = v(m.root.position.x, m.root.position.z);
+            burst(at, '#ff5a1a', 3, 0.9, 0.6, FX.magic);
+            burst(at, '#ffb347', 1.6, 0.9, 1.2, FX.light);
+          }
+        } else if (e.spell === 'pact') {
+          const m = mages.get(e.id);
+          if (m) burst(v(m.root.position.x, m.root.position.z), '#c2122a', 2.6, 0.6, 1, FX.magic);
+        }
+      } else if (e.k === 'hit') {
         oneShot(e.id, 'Hit_A', 0.45);
         // o acerto do raio tem impacto elétrico próprio: a explosão de fogo cobria o raio e parecia que ele não tinha saído
         if (e.src === 'lightning') zap(v(e.x, e.y));
@@ -1559,18 +1572,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(e.from, '#c49bff', 2.4, 0.45, 0.8, FX.magic);
         burst(e.to, '#c49bff', 2.6, 0.45, 0.8, FX.magic);
         burst(e.to, '#e9d8ff', 1.6, 0.3, 0.8, FX.light);
-      } else if (e.k === 'item' && e.item === 'scourge') {
-        // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
-        oneShot(e.id, ...castAnim('scourge'));
-        const m = mages.get(e.id);
-        if (m) {
-          const at = v(m.root.position.x, m.root.position.z);
-          burst(at, '#ff5a1a', 3, 0.9, 0.6, FX.magic);
-          burst(at, '#ffb347', 1.6, 0.9, 1.2, FX.light);
-        }
-      } else if (e.k === 'item' && e.item === 'pact') {
-        const m = mages.get(e.id);
-        if (m) burst(v(m.root.position.x, m.root.position.z), '#c2122a', 2.6, 0.6, 1, FX.magic);
       } else if (e.k === 'scourge') {
         shockwave(v(e.x, e.y), e.r, '#ff7a1a');
         explosion(v(e.x, e.y));
@@ -1613,8 +1614,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           shockwave(at, e.r, '#b98cff');
           burst(at, '#b98cff', 2.2, 0.4, 0.9, FX.magic);
         }
-      } else if (e.k === 'redirect') {
-        burst(v(e.x, e.y), '#b98cff', 2, 0.35, 0.9, FX.circle);
       } else if (e.k === 'death') {
         const m = mages.get(e.id);
         if (m) {
