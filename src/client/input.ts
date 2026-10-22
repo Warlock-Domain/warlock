@@ -1,7 +1,6 @@
 // Controles do Dota: botão direito anda, Q W E R F lançam na direção do cursor, S para.
 // Três jeitos de lançar pela tecla (keys.ts, getCastMode): na hora, ao soltar (segurar mostra o alcance) ou com clique.
 // No celular: tocar no chão anda; tocar no botão da magia e depois no chão lança.
-import { isActive, type ItemId } from '../shared/items.ts';
 import type { SpellId } from '../shared/spells.ts';
 import { actionFor, getCastMode, isUiKey, typing } from './keys.ts';
 import { setPadGame } from './gamepad.ts';
@@ -12,13 +11,12 @@ export type InputHandlers = {
   move: (to: Vec) => void;
   stop: () => void;
   cast: (spell: SpellId, at: Vec) => boolean | void; // true quando saiu de verdade (sem recarga, com a magia)
-  useItem: (item: ItemId, at: Vec) => boolean | void;
   center: () => void;
   zoom: (deltaY: number) => void;
   pan: (dx: number, dy: number) => void;
-  armedChanged: (armed: SpellId | ItemId | null) => void;
-  preview: (held: SpellId | ItemId | null, at?: Vec) => void; // tecla segurada (círculo de alcance); at: ponto do lançamento no Rápido
-  padRange: (aiming: SpellId | ItemId | null) => void; // controle mirando com o analógico direito
+  armedChanged: (armed: SpellId | null) => void;
+  preview: (held: SpellId | null, at?: Vec) => void; // tecla segurada (círculo de alcance); at: ponto do lançamento no Rápido
+  padRange: (aiming: SpellId | null) => void; // controle mirando com o analógico direito
   // controle: posição do próprio mago (para andar e mirar) e o retículo no chão
   me: () => Vec | null;
   aim: (at: Vec | null) => void;
@@ -26,7 +24,7 @@ export type InputHandlers = {
 
 export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   let cursor = { x: innerWidth / 2, y: innerHeight / 2 };
-  let armed: SpellId | ItemId | null = null;
+  let armed: SpellId | null = null;
   let dragging = false;
   let lastDrag = 0;
   let enabled = false;
@@ -36,14 +34,12 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   let panned = false;
   let panFrom = { x: 0, y: 0 };
 
-  // lança a magia ou usa o item no ponto
-  const fire = (a: SpellId | ItemId, p: Vec) => (isActive(a) ? h.useItem(a, p) : h.cast(a, p));
-  const arm = (s: SpellId | ItemId | null) => {
+  const arm = (s: SpellId | null) => {
     armed = s;
     h.armedChanged(s);
   };
   // tecla de magia segurada: lança ao soltar, no ponto do cursor naquela hora
-  let held: { action: SpellId | ItemId; code: string } | null = null;
+  let held: { action: SpellId; code: string } | null = null;
   let flash: ReturnType<typeof setTimeout> | undefined;
   const cancel = () => {
     held = null;
@@ -53,7 +49,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     const a = held?.action;
     cancel();
     const p = a && enabled ? h.pick(cursor.x, cursor.y) : null;
-    if (a && p) fire(a, p);
+    if (a && p) h.cast(a, p);
   };
   addEventListener('blur', cancel);
 
@@ -93,7 +89,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     const touch = e.pointerType === 'touch';
     if (armed && (e.button === 0 || touch)) {
       // fora do alcance a magia sai na direção do clique, até a borda do alcance (o servidor limita)
-      fire(armed, p);
+      h.cast(armed, p);
       arm(null);
     } else if (e.button === 2 || touch) {
       if (armed) arm(null); // botão direito cancela a magia escolhida (e anda, como no Dota)
@@ -139,7 +135,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       const p = h.pick(cursor.x, cursor.y);
       // Rápido: o anel de alcance pisca por um instante quando a magia sai (issue #61), com a faixa de acerto e a área presas
       // no ponto do lançamento (pedido do Fernando, 21/10: igual ao Segurar, mas sem seguir o mouse depois)
-      if (p && fire(action, p)) {
+      if (p && h.cast(action, p)) {
         h.preview(action, p);
         clearTimeout(flash);
         flash = setTimeout(() => !held && h.preview(null), 400);
@@ -166,8 +162,8 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     },
     // ponto do chão sob o mouse (o Meteoro desenha a explosão ali)
     aimPoint: () => h.pick(cursor.x, cursor.y),
-    // botão da barra (magia ou item): escolhe e o próximo clique (ou toque) no chão lança
-    button(a: SpellId | ItemId) {
+    // botão da barra: escolhe e o próximo clique (ou toque) no chão lança
+    button(a: SpellId) {
       if (enabled) arm(armed === a ? null : a);
     },
   };

@@ -154,10 +154,9 @@ describe('Investida', () => {
 
   it('scourge can start during the dash', () => {
     const w = world([[0, 0], [0, -4]], ['rush']);
-    w.wizards[0].items.scourge = 1;
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'rush', at: v(0, -10) }]);
-    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, -10) }]);
-    expect(w.wizards[0].casting?.item).toBe('scourge');
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'scourge', at: v(0, -10) }]);
+    expect(w.wizards[0].casting?.spell).toBe('scourge');
     run(w, 0.8);
     expect(w.wizards[1].hp).toBeLessThan(HP_MAX);
   });
@@ -232,7 +231,7 @@ describe('snapshot e telemetria', () => {
   });
 });
 
-describe('limite de 6 magias', () => {
+describe('limite de 8 magias', () => {
   const shop = () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
@@ -242,22 +241,24 @@ describe('limite de 6 magias', () => {
     return m;
   };
 
-  it('refuses a 7th different spell; undo frees the slot; upgrades keep working', () => {
+  it('refuses a 9th different spell; undo frees the slot; upgrades keep working', () => {
     const m = shop();
-    const five: SpellId[] = ['lightning', 'homing', 'shield', 'teleport', 'swap'];
-    for (const s of five) expect(buy(m, 'a', s)).toBe(true);
-    expect(MAX_SPELLS).toBe(6);
+    m.players[0].gold = 999;
+    // Bola de fogo e Flagelo já vêm: mais 6 enchem as 8 vagas (21/10, #217)
+    const six: SpellId[] = ['lightning', 'homing', 'shield', 'teleport', 'swap', 'grip'];
+    for (const s of six) expect(buy(m, 'a', s)).toBe(true);
+    expect(MAX_SPELLS).toBe(8);
     const gold = m.players[0].gold;
-    expect(buy(m, 'a', 'grip')).toBe(false);
+    expect(buy(m, 'a', 'meteor')).toBe(false);
     expect(m.players[0].gold).toBe(gold);
-    expect(m.players[0].spells.grip).toBe(0);
+    expect(m.players[0].spells.meteor).toBe(0);
     expect(buy(m, 'a', 'lightning')).toBe(true); // nível 2 da mesma
     expect(undoBuy(m, 'a', 'spell:swap')).toBe(true);
-    expect(buy(m, 'a', 'grip')).toBe(true);
+    expect(buy(m, 'a', 'meteor')).toBe(true);
   });
 
   it('bots stop buying new spells at the limit but still upgrade', () => {
-    const spells = { ...noSpells(), lightning: 1, homing: 1, meteor: 1, cluster: 1, shield: 1 };
+    const spells = { ...noSpells(), lightning: 1, homing: 1, meteor: 1, cluster: 1, shield: 1, teleport: 1 };
     const pick = botBuy({ gold: 99, spells });
     expect(pick?.kind).toBe('spell');
     expect(pick && pick.kind === 'spell' && spells[pick.id] > 0).toBe(true);
@@ -642,8 +643,7 @@ describe('Ilusão', () => {
     q.pos = v(0, 0);
     const walking = { ...q.vel };
     w.wizards[0].pos = v(5, 5);
-    w.wizards[1].items.scourge = 1;
-    run(w, 0.65, [{ id: 'p1', kind: 'item', item: 'scourge', at: v(0, 0) }]);
+    run(w, 0.65, [{ id: 'p1', kind: 'cast', spell: 'scourge', at: v(0, 0) }]);
     expect(q.vel).toEqual(walking);
     expect(q.pushVel?.y).toBeGreaterThan(0);
     expect(copy(w)).toBe(q);
