@@ -366,7 +366,7 @@ const optLabel = (k: OptKey, mode: Mode) => el('div', { class: 'opt-label' }, el
 // resumo de uma linha (loja e votação): "Loja 30 s · Ouro ×1,6 · Vence com 5 rodadas · sem runas"
 function optsLine(o: MatchOpts, mode: Mode): string {
   const off = (['runes', 'sudden', 'chests'] as const).filter((k) => !o[k] && !(mode === 'ascension' && k === 'chests')).map((k) => t('sem ', 'no ') + OPT_NAME[k].toLowerCase());
-  const bots = o.difficulty !== 'normal' ? [{ easy: t('bots fáceis', 'easy bots'), casual: t('bots casuais', 'casual bots'), veteran: t('bots veteranos', 'veteran bots'), hard: t('bots difíceis', 'hard bots'), auto: t('bots automáticos', 'auto bots') }[o.difficulty]] : [];
+  const bots = o.difficulty !== 'auto' ? [{ easy: t('bots fáceis', 'easy bots'), casual: t('bots casuais', 'casual bots'), normal: t('bots normais', 'normal bots'), veteran: t('bots veteranos', 'veteran bots'), hard: t('bots difíceis', 'hard bots') }[o.difficulty]] : [];
   const arena = o.arena !== 'random' ? [t('arena ' + arenaName(o.arena), arenaName(o.arena) + ' arena')] : [];
   const effect = o.effect === 'random' ? [t('efeito sorteado', 'random effect')] : o.effect !== 'off' ? [effectName(o.effect, mode)] : [];
   // Ascensão: sem loja, ouro nem meta (9 rodadas fixas)
@@ -615,8 +615,8 @@ const previewHtml = (title: string, ch: Change[], extra = '') =>
   `<div class="preview"><b>${title}</b>${ch.length ? `<table>${ch.map((c) => `<tr class="${c.worse ? 'worse' : 'better'}"><th>${c.label}</th><td>${c.before ?? '—'} → ${c.after ?? '—'}</td></tr>`).join('')}</table>` : `<small>${t('Nada muda na ficha.', 'Nothing changes on the sheet.')}</small>`}${extra}</div>`;
 
 export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) {
-  // uma dificuldade por bot (pedido do Fernando, 19/10); guardada nesta aba (o número de bots de antes vira 3 Normal)
-  let bots: Level[] = ['normal', 'normal', 'normal'];
+  // uma dificuldade por bot (pedido do Fernando, 19/10); guardada nesta aba (o padrão é 3 Automático, pedido de 21/10)
+  let bots: Level[] = ['auto', 'auto', 'auto'];
   try {
     const saved: unknown = JSON.parse(sessionStorage.getItem('warlock:bots') ?? 'null');
     if (Array.isArray(saved) && saved.every((d) => OPTION_CHOICES.difficulty.includes(d))) bots = saved;
