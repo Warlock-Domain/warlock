@@ -2,7 +2,7 @@
 import type { Terrain } from '../shared/arena.ts';
 import { WIZ_SPEED } from '../shared/constants.ts';
 import { terrainOf, type NightMap } from '../shared/levels.ts';
-import { isSliding, keepOut, moveWizard, type MovementState, type Room } from '../shared/sim.ts';
+import { isStunned, keepOut, moveWizard, type MovementState, type Room } from '../shared/sim.ts';
 import { DASHING_BIT, type WizView } from '../shared/snapshot.ts';
 import { add, dist, scale, sub, v, type Vec } from '../shared/vec.ts';
 
@@ -10,6 +10,7 @@ export function createPredict() {
   let me: MovementState | null = null;
   let velocitySource: WizView | null = null;
   let wasDashing = false;
+  let wasStunned = false;
   let rttSec = 0.1;
   // conjurando: o mago fica parado até holdUntil; o clique de andar nesse meio-tempo fica guardado
   let holdUntil = 0;
@@ -35,6 +36,7 @@ export function createPredict() {
       me = null;
       velocitySource = null;
       wasDashing = false;
+      wasStunned = false;
       // Rodada nova não herda preparo, destino pendente nem morte; a estimativa de rede continua válida.
       holdUntil = 0;
       queued = undefined;
@@ -42,7 +44,7 @@ export function createPredict() {
     },
     // velocidade de andar que o servidor diz que o mago tem agora (botas, Investida, preso)
     setSpeed(sp: number) {
-      if (me && sp > 0) me.speed = sp;
+      if (me && sp >= 0) me.speed = sp;
     },
     hold(secs: number) {
       if (secs <= 0) return;
@@ -86,11 +88,16 @@ export function createPredict() {
       // Fecha no ponto final autoritativo uma vez, sem prolongar visualmente o avanço encerrado.
       if (wasDashing && !dashing) me.pos = { ...server.pos };
       wasDashing = dashing;
+      const stunned = server.stunLeft === undefined ? isStunned(server) : !!(server.status & 16);
+      if (wasStunned && !stunned) me.pos = { ...server.pos };
+      wasStunned = stunned;
       if (server !== velocitySource) {
+        me.stunLeft = server.stunLeft;
         me.vel = { ...server.vel };
         velocitySource = server;
       }
-      if (!server.alive || dashing || isSliding(server)) {
+      if (!server.alive || dashing || stunned) {
+        if (stunned) holdUntil = 0; // conjuração interrompida não mantém espera antiga.
         // empurrado ou morto: quem manda é o servidor
         me.pos = add(me.pos, scale(sub(server.pos, me.pos), 0.35));
         me.vel = v(0, 0);
