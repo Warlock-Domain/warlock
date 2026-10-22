@@ -44,6 +44,12 @@ describe('opções da partida', () => {
     expect(goalOf({ mode: 'deathmatch', opts: { ...DEFAULT_OPTS, goal: 7 } })).toBe(25);
   });
 
+  it('a new room has Auto bots (21/10)', () => {
+    expect(newMatch().opts.difficulty).toBe('auto');
+    const g = game(['a'], 1);
+    expect(g.m.players[1].difficulty ?? g.m.opts.difficulty).toBe('auto');
+  });
+
   it('shop time is the chosen one, and everyone ready still ends it early', () => {
     const g = game(['a', 'b'], 0, { shop: 90 });
     expect(g.m.phaseEnds).toBe(90_000);
