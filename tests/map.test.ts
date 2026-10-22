@@ -60,6 +60,20 @@ describe('mapa da Campanha', () => {
     expect(w.wizards[0].hp).toBe(HP_MAX);
   });
 
+  it('a Smoke servant pushed into the abyss dies there, with the credit to who pushed', () => {
+    const rows = ['##########', '#....****#', '#....****#', '#....****#', '##########'];
+    const w = onMap(rows, [[4.4, 2.5], [1.5, 2.5]]);
+    Object.assign(w.wizards[0], { pitDeath: true, vel: v(8, 0), lastHitBy: 'p1', lastHitAt: 0 });
+    const events = [];
+    for (let i = 0; i < 30; i++) {
+      stepWorld(w, []);
+      events.push(...w.events);
+    }
+    expect(w.wizards[0].alive).toBe(false);
+    expect(events.some((e) => e.k === 'death' && e.id === 'p0' && e.by === 'p1')).toBe(true);
+    expect(events.some((e) => e.k === 'teleport' && e.id === 'p0')).toBe(false); // não volta à beira
+  });
+
   it('pushed into the abyss: back at the edge where you fell, with less health and the credit to who pushed', () => {
     const rows = ['##########', '#....****#', '#....****#', '#....****#', '##########'];
     const w = onMap(rows, [[4.4, 2.5], [1.5, 2.5]]);
