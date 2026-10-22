@@ -1,7 +1,14 @@
-// Decisões das telas sem DOM (testáveis): resultado do fim da partida e ordem da lista de salas.
-import type { PublicRoom, RoomInfo } from '../shared/protocol.ts';
+// Decisões das telas sem DOM (testáveis): resultado do fim da partida, ordem da lista de salas e quem joga como bot.
+import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
+import type { MatchOpts } from '../shared/match.ts';
+import type { WizView } from '../shared/snapshot.ts';
 import { MAX_SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { store } from './store.ts';
+
+// Posição própria já usa o estado recente; pose atrasada faria o mago continuar arremessado enquanto volta a andar.
+// Troca o mago inteiro de propósito: direção, vida e os bits do véu/invisível ficam no mesmo instante da posição prevista.
+export const renderWizardState = (interpolated: WizView, ownLatest: WizView | null): WizView =>
+  ownLatest?.id === interpolated.id ? ownLatest : interpolated;
 
 // Sandbox: o servidor manda todos, e o 8388608 marca quem estaria escondido (Caminhada no vento ou véu da Ilusão).
 // "Ver invisíveis (teste)" ligado só deixa esses translúcidos; desligado, esconde como numa sala normal.
@@ -63,6 +70,23 @@ export function endResult(r: Pick<PublicRoom, 'players' | 'winner' | 'winnerTeam
     : r.players.filter((p) => p.id === r.winner);
   if (!champs.length || !mine) return 'none';
   return champs.includes(mine) ? 'win' : 'loss';
+}
+
+// quem joga como bot agora e com que dificuldade (issue #223): o bot da sala (a dele ou a da partida) e quem saiu no meio
+// da partida, que o servidor passa a jogar com a dificuldade da partida até a pessoa voltar (match.ts, botSkill e o laço
+// dos bots); quem só assiste não tem mago, então não vira bot
+type Seat = Pick<PublicPlayer, 'id' | 'name' | 'bot' | 'connected' | 'difficulty' | 'watch'>;
+export function botLevel(p: Seat, r: Pick<PublicRoom, 'opts'>): MatchOpts['difficulty'] | null {
+  if (p.bot) return p.difficulty ?? r.opts.difficulty;
+  return !p.connected && !p.watch ? r.opts.difficulty : null;
+}
+
+// quem saiu (e um bot assumiu) ou voltou entre dois estados da sala, para o aviso na tela; fora da partida quem sai
+// some da lista em vez de desconectar (removePlayer), então só o meio da partida aparece aqui
+export function seatChanges(prev: { players: Seat[] }, next: { players: Seat[] }): { left: Seat[]; back: Seat[] } {
+  const before = new Map(prev.players.filter((p) => !p.bot).map((p) => [p.id, p.connected]));
+  const humans = next.players.filter((p) => !p.bot && !p.watch && before.has(p.id));
+  return { left: humans.filter((p) => before.get(p.id) && !p.connected), back: humans.filter((p) => !before.get(p.id) && p.connected) };
 }
 
 // lista de salas: esperando começar primeiro, depois as que acabaram e por último as em jogo; vazias à parte
