@@ -6,9 +6,9 @@ import { store } from './store.ts';
 export type Action = SpellId;
 export const ACTIONS: Action[] = [...SPELL_IDS];
 // atalhos da interface (pedido do Fernando, 18/10): trocáveis no mesmo painel das magias; o Votar começa sem tecla
-export const UI_ACTIONS = ['shop', 'board', 'sheet', 'taunt', 'rules', 'library', 'stop', 'vote', 'replay'] as const;
+export const UI_ACTIONS = ['shop', 'board', 'sheet', 'taunt', 'rules', 'library', 'stop', 'vote', 'replay', 'camera'] as const;
 export type UiAction = (typeof UI_ACTIONS)[number];
-export const UI_NAMES: Record<UiAction, string> = { shop: t('Loja só para ver', 'Shop (view only)'), board: t('Placar (segurar)', 'Scoreboard (hold)'), sheet: t('Ficha do mago', 'Wizard sheet'), taunt: t('Provocações', 'Taunts'), rules: t('Grimório (como jogar)', 'Grimoire (how to play)'), library: t('Magias e itens (consulta)', 'Spells and items (lookup)'), stop: t('Parar', 'Stop'), vote: t('Votar', 'Vote'), replay: t('Rever a queda', 'Replay the fall') };
+export const UI_NAMES: Record<UiAction, string> = { shop: t('Loja só para ver', 'Shop (view only)'), board: t('Placar (segurar)', 'Scoreboard (hold)'), sheet: t('Ficha do mago', 'Wizard sheet'), taunt: t('Provocações', 'Taunts'), rules: t('Grimório (como jogar)', 'Grimoire (how to play)'), library: t('Magias e itens (consulta)', 'Spells and items (lookup)'), stop: t('Parar', 'Stop'), vote: t('Votar', 'Vote'), replay: t('Rever a queda', 'Replay the fall'), camera: t('Câmera no mago ou na arena', 'Camera on the wizard or the arena') };
 export type AnyAction = Action | UiAction | PosAction;
 const ALL: AnyAction[] = [...ACTIONS, ...UI_ACTIONS];
 const DEFAULTS: Record<string, string> = {
@@ -19,9 +19,9 @@ const DEFAULTS: Record<string, string> = {
   drain: 'KeyN', snowball: 'KeyO', illusion: 'KeyJ', magnetize: 'KeyM', recharge: 'KeyK', alteration: 'KeyL', link: 'KeyU', windwalk: 'KeyI', splitter: 'KeyP', warpzone: '',
   // Flagelo e Pacto ficam nas teclas que tinham como item (viraram magia em 21/10, #217)
   scourge: 'Digit1', pact: 'Digit3',
-  // loja: o B do Dota é do Bumerangue e as 26 letras já têm dono; 1 a 4 são das magias por posição (21/10, #217), então o 6
-  // (o 5 já era do Rever a queda); ficha: a tecla à esquerda do 1 (' no ABNT2); grimório no F1 (o H é da Gravidade) e a biblioteca no F2
-  shop: 'Digit6', board: 'Tab', sheet: 'Backquote', taunt: 'KeyY', rules: 'F1', library: 'F2', stop: 'KeyS', vote: '', replay: 'Digit5',
+  // loja: o B do Dota é do Bumerangue e as 26 letras já têm dono; 1 a 4 são das magias por posição (21/10, #217), então o 7
+  // (o 5 já era do Rever a queda e o 6 da câmera, #235); ficha: a tecla à esquerda do 1 (' no ABNT2); grimório no F1 (o H é da Gravidade) e a biblioteca no F2
+  shop: 'Digit7', board: 'Tab', sheet: 'Backquote', taunt: 'KeyY', rules: 'F1', library: 'F2', stop: 'KeyS', vote: '', replay: 'Digit5', camera: 'Digit6',
 };
 // fixas: Esc (cancela, fecha e abre as configurações), Enter, Espaço (segurar arrasta a câmera, soltar centraliza) e ← → (placar e espectador)
 export const RESERVED = new Set(['Escape', 'Enter', 'Space', 'ArrowLeft', 'ArrowRight']);
