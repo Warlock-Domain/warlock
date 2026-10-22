@@ -10,6 +10,9 @@ import { store } from './store.ts';
 export const renderWizardState = (interpolated: WizView, ownLatest: WizView | null): WizView =>
   ownLatest?.id === interpolated.id ? ownLatest : interpolated;
 
+// O acerto pode denunciar a posição, mas seu número não deve identificar um alvo oculto ao observador.
+export const showHitDamage = (status: number) => !(status & 2048);
+
 // Sandbox: o servidor manda todos, e o 8388608 marca quem estaria escondido (Caminhada no vento ou véu da Ilusão).
 // "Ver invisíveis (teste)" ligado só deixa esses translúcidos; desligado, esconde como numa sala normal.
 export function sandboxVisibility(status: number, self: boolean, sandbox: boolean, seeInvis = false): number {

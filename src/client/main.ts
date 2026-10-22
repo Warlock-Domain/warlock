@@ -32,7 +32,7 @@ import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
-import { botLevel, endResult, renderWizardState, sandboxVisibility, seatChanges } from './screen-data.ts';
+import { botLevel, endResult, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
 declare const __BRANCH__: string;
@@ -615,7 +615,7 @@ function startRoom(code: string, name: string) {
     if (voice) void sound.taunt(voice);
     if (liveChanged) view.live(live);
     if (run?.state === 'on' && room?.phase === 'playing') finishRun(stepRun(run, 0, events, me, true));
-    if (!rp) scene.onEvents(events); // durante o replay a cena mostra os efeitos do trecho gravado
+    if (!rp) scene.onEvents(events, hiddenDamageTargets(interp.latest())); // durante o replay a cena mostra os efeitos do trecho gravado
   }
 
   // golpe recebido: seta na borda da tela do lado de quem bateu (a câmera não gira, então o ângulo do chão vale na tela)
@@ -882,8 +882,12 @@ function startRoom(code: string, name: string) {
   }
   // eventos do replay: só a cena (clarão, explosão) e a seta do golpe que eu levei
   function replayEvents(events: SimEvent[], rs: SnapView) {
-    scene.onEvents(events);
+    scene.onEvents(events, hiddenDamageTargets(rs));
     for (const e of events) hitArrow(e, rs);
+  }
+  function hiddenDamageTargets(s: SnapView | null): string[] {
+    // Usa o snapshot do evento, não a pose interpolada anterior à entrada no véu.
+    return s?.wizards.filter((w) => !showHitDamage(sandboxVisibility(w.status, w.id === me, !!room?.sandbox, seeInvis))).map((w) => w.id) ?? [];
   }
   void scene.ready.then(() => requestAnimationFrame(frame), () => toast(t('Não deu para carregar o mago. Recarregue a página.', 'Couldn’t load the wizard. Reload the page.')));
 }
