@@ -19,7 +19,7 @@
   --plate: linear-gradient(180deg, var(--panel-top), var(--panel-bot));
   /* pergaminho claro dos avisos: destaca por cima da lava e da pedra escura, que têm o mesmo tom do --plate */
   --paper: linear-gradient(180deg, var(--cream), var(--stone));
-  /* cores dos avisos no pergaminho: azul de informação e vermelho vivo de erro, sem marrom (o resto da tela já é marrom) */
+  /* cores dos avisos no pergaminho: azul de informação e vermelho vivo de erro; letra e ícones em preto (--ink): nada marrom no aviso, o resto da tela já é marrom */
   --toast-info: #2f86e8; --toast-bad: #e8261c;
   --plate-edge: inset 0 0 0 3px var(--panel-bot), inset 0 0 0 4px var(--gold-faint);
   /* moldura de jogo dos painéis: rebite dourado nos 4 cantos e brilho de lava atrás do título (camadas por cima do --plate) */
@@ -286,7 +286,7 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .wiz-label .hp-extra .rush { color: #ff9640; }
 
 /* letra 1,3x do tamanho normal, a mesma do aviso de quem saiu (PR #234), e fundo claro: o aviso aparece por poucos segundos no meio da partida e precisa ser lido de relance */
-#toast { position: fixed; left: 50%; bottom: calc(150px + var(--safe-b)); transform: translateX(-50%); background: var(--paper); color: var(--cream-ink); border: 1px solid var(--gold); box-shadow: var(--shadow-md); padding: 13px 18px; border-radius: var(--r-sm); font-size: 1.3rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
+#toast { position: fixed; left: 50%; bottom: calc(150px + var(--safe-b)); transform: translateX(-50%); background: var(--paper); color: var(--ink); border: 1px solid var(--gold); box-shadow: var(--shadow-md); padding: 13px 18px; border-radius: var(--r-sm); font-size: 1.3rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
 #toast.show { opacity: 1; pointer-events: auto; }
 /* com uma loja aberta o clique atravessa o aviso: ele fica por cima da última fileira de cartas e tapava a compra (issue #208) */
 body:has(.center .shop, .peek-shop:not([hidden]) .shop) #toast { pointer-events: none; }
@@ -616,7 +616,7 @@ button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infini
 #toast::before { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .8rem; font-weight: 800; content: 'i'; background: var(--toast-info); color: var(--white); }
 /* no fundo claro o ícone é um disco cheio da cor do tipo com o símbolo escuro: a cor clara sobre o pergaminho sumia */
 #toast[data-kind="good"] { border-left-color: var(--ok); }
-#toast[data-kind="good"]::before { content: '✓'; background: var(--ok); color: var(--cream-ink); }
+#toast[data-kind="good"]::before { content: '✓'; background: var(--ok); color: var(--ink); }
 #toast[data-kind="bad"] { border-left-color: var(--toast-bad); }
 #toast[data-kind="bad"]::before { content: '!'; background: var(--toast-bad); color: var(--white); }
 #toast[data-kind="gold"] { border-left-color: var(--gold); }
