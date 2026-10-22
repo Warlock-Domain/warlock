@@ -1,6 +1,7 @@
 // Itens da loja, convertidos do Warlock Brawl para Dota 2 (shop.lua ITEM_DEFS e npc_items_custom.txt).
 // Todos passivos: mudam os números do mago (os ativos saíram em 21/10, issue #217: Flagelo e Pacto viraram magia). Até MAX_ITEMS itens por jogador.
 import { UNIT } from './constants.ts';
+import type { SpellId } from './spells.ts';
 
 export const ITEM_IDS = ['ring', 'cursed_ring', 'cape', 'armor', 'boots', 'watch', 'vampire',
   'lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis', 'wind_boots', 'lens', 'piercing', 'affliction'] as const;
@@ -12,6 +13,11 @@ export const MAX_ITEMS = 6;
 // lava: fração de dano da lava a menos; ward: dano a menos por golpe; range: fração a mais (ou a menos) no alcance das magias;
 // crit: chance de crítico no golpe; critDmg: dano a mais no crítico, por cima do CRIT.dmg; afflict: fração a mais na duração das lentidões que você aplica
 type ItemLevel = { hp?: number; regen?: number; kb?: number; speed?: number; debuff?: number; lifesteal?: number; lava?: number; ward?: number; range?: number; crit?: number; critDmg?: number; afflict?: number };
+
+// crítico da Lente Letal: +30% de dano; a Magia Perfurante soma por cima (Lente e Perfurante no nível 3: ×1,8). Antes dos ITEMS: o texto da Lente lê daqui
+export const CRIT = { dmg: 0.3 };
+// magias cujas lentidões e penalidades a Runa da aflição alonga: são os 4 pontos com afflictBy em sim.ts (mudou lá, muda aqui; a dica lê esta lista)
+export const AFFLICT_SPELLS: readonly SpellId[] = ['grip', 'drain', 'snowball', 'magnetize'];
 
 type Item = { name: string; cost: number; text: string; en: string; textEn: string; levels: ItemLevel[] };
 
@@ -34,7 +40,7 @@ export const ITEMS: Record<ItemId, Item> = {
   wind_boots: { name: 'Botas de vento', cost: 7, text: 'Depois de 5 s sem causar nem levar dano, anda mais rápido até o próximo golpe (não soma com outras botas: vale a maior).', en: 'Wind Boots', textEn: 'After 5 s without dealing or taking damage, move faster until the next hit (does not stack with other boots: the higher one counts).', levels: [{}] },
   // consumível desde o ciclo 4: preço, vida e distância não a tiravam de 1,20× (a vida extra é o poder); some ao salvar
   // itens de crítico (issue #184, ideia do Reinaldo): valem para qualquer magia de dano; a Magia Perfurante só soma ao crítico da Lente
-  lens: { name: 'Lente Letal', cost: 6, text: 'Chance de golpe crítico em todo dano de magia, também em cada tique da Gravidade e do Elo: o crítico causa 30% a mais de dano.', en: 'Lethal Lens', textEn: 'Chance of a critical hit on all spell damage, including each tick of Gravity and Link: a critical hit deals 30% more damage.', levels: [0.05, 0.1, 0.15].map((crit) => ({ crit })) },
+  lens: { name: 'Lente Letal', cost: 6, text: `Chance de golpe crítico em todo dano de magia, também em cada tique da Gravidade e do Elo: o crítico causa ${CRIT.dmg * 100}% a mais de dano.`, en: 'Lethal Lens', textEn: `Chance of a critical hit on all spell damage, including each tick of Gravity and Link: a critical hit deals ${CRIT.dmg * 100}% more damage.`, levels: [0.05, 0.1, 0.15].map((crit) => ({ crit })) },
   piercing: { name: 'Magia Perfurante', cost: 4, text: 'Seus golpes críticos causam ainda mais dano (sem a Lente Letal, não há crítico).', en: 'Piercing Magic', textEn: 'Your critical hits deal even more damage (without the Lethal Lens there are no critical hits).', levels: [0.3, 0.4, 0.5].map((critDmg) => ({ critDmg })) },
   affliction: { name: 'Runa da aflição', cost: 3, text: 'As lentidões e penalidades que você aplica duram mais em quem você acerta.', en: 'Rune of Affliction', textEn: 'The slows and penalties you apply last longer on whoever you hit.', levels: [0.05, 0.1].map((afflict) => ({ afflict })) },
   aegis: { name: 'Égide', cost: 7, text: 'Na lava com pouca vida, volta para a pedra. Quebra ao salvar você (compre de novo).', en: 'Aegis', textEn: 'In the lava with low health, sends you back to the rock. Breaks when it saves you (buy it again).', levels: [{}] },
@@ -46,8 +52,6 @@ export const SHOCK_BOOTS = { speed: 30 * UNIT, secs: 3 };
 export const WIND_BOOTS = { speed: 25 * UNIT, calm: 5 };
 // Égide: na lava com até 250 de vida volta para 60% do raio da arena, na mesma direção, parado; uma vez por rodada (por vida no deathmatch)
 export const AEGIS = { hp: 250, back: 0.6 };
-// crítico da Lente Letal: +30% de dano; a Magia Perfurante soma por cima (Lente e Perfurante no nível 3: ×1,8)
-export const CRIT = { dmg: 0.3 };
 
 
 export const noItems = (): Record<ItemId, number> => Object.fromEntries(ITEM_IDS.map((i) => [i, 0])) as Record<ItemId, number>;

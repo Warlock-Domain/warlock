@@ -385,7 +385,7 @@ function mark(w: World, target: Wizard, by: string, src: string) {
   target.lastHitAt = w.t;
 }
 
-// Runa da aflição de quem lançou: alonga as lentidões e penalidades por cima do debuffMult do alvo (Relógio, Anel amaldiçoado)
+// Runa da aflição de quem lançou (as magias desta lista estão em AFFLICT_SPELLS, items.ts, que a dica mostra): alonga as lentidões e penalidades por cima do debuffMult do alvo (Relógio, Anel amaldiçoado)
 const afflictBy = (w: World, id: string) => byId(w, id)?.afflict ?? 1;
 
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string) {
@@ -401,7 +401,8 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   // runa da Fúria de quem bateu
   const att = by !== target.id ? byId(w, by) : undefined;
   if (att && att.rune === 'fury' && w.t < att.runeUntil) dmg *= 1 + RUNE.fury;
-  // crítico (Lente Letal): só sorteia quem tem chance, para as partidas sem o item seguirem com a mesma sequência de sorteios
+  // crítico (Lente Letal) depois da Fúria e antes de Guardião e Escudo: multiplica o golpe já forte (Pacto e Fúria somam sem teto, regra geral)
+  // e as defesas do alvo cortam o golpe já crítico. Só sorteia quem tem chance, para as partidas sem o item seguirem com a mesma sequência de sorteios
   const crit = !!att && att.crit > 0 && dmg > 0 && w.rand() < att.crit;
   if (crit) dmg *= 1 + CRIT.dmg + att!.critDmg;
   // Guardião: tira um pouco de cada golpe, nunca mais que metade dele (senão zerava os tiques da Gravidade e do Elo)
