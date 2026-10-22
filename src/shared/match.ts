@@ -82,7 +82,7 @@ export const OPTION_CHOICES = {
 } as const;
 export type MatchOpts = { [K in keyof typeof OPTION_CHOICES]: (typeof OPTION_CHOICES)[K][number] };
 // os padrões são os números de sempre (SHOP_MS, START_GOLD, WINS_TO_WIN), para o simulador e as salas antigas
-export const DEFAULT_OPTS: MatchOpts = { shop: 30, pace: 'normal', economy: 1, startGold: 30, goal: 5, runes: true, sudden: true, chests: true, difficulty: 'normal', arena: 'random', effect: 'off' };
+export const DEFAULT_OPTS: MatchOpts = { shop: 30, pace: 'normal', economy: 1, startGold: 30, goal: 5, runes: true, sudden: true, chests: true, difficulty: 'auto', arena: 'random', effect: 'off' };
 // 'chave:valor' de um voto de opção → [chave, valor] válidos, ou null
 export function parseOpt(target: string): [keyof MatchOpts, MatchOpts[keyof MatchOpts]] | null {
   const [k, raw] = target.split(':');
@@ -632,11 +632,11 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   }
   m.opts = { ...m.opts, ...m.pendingOpts };
   m.pendingOpts = {};
-  // bots votados (a fase ainda é a loja): o novo entra Normal, com o ouro inicial, e já compra; sai o último bot da lista
+  // bots votados (a fase ainda é a loja): o novo entra no padrão (Automático), seja qual for a da partida, com o ouro inicial, e já compra; sai o último bot da lista
   for (; m.botDelta > 0; m.botDelta--) {
     const b = newBot(m);
     if (!b) break;
-    b.difficulty = 'normal';
+    b.difficulty = DEFAULT_OPTS.difficulty;
     botShop(m, b);
   }
   for (; m.botDelta < 0; m.botDelta++) {

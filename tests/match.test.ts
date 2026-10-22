@@ -413,15 +413,15 @@ describe('dificuldade por bot', () => {
     expect(botSkill(m, b2)).toBe(BOT_SKILL.hard);
   });
 
-  it('bot votado no meio da partida entra Normal, mesmo com a partida em outra dificuldade', () => {
+  it('bot votado no meio da partida entra no padrão (Automático), mesmo com a partida em outra dificuldade', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     startMatch(m, 0, 1, 'rounds', true, Math.random, { difficulty: 'hard' }, [{ difficulty: 'easy' }]);
     expect(startVote(m, 'a', 'addBot', '', 0)).toBe(true);
     toPlaying(m, 0);
     const added = m.players.find((p) => p.id === 'bot-2')!;
-    expect(added.difficulty).toBe('normal');
-    expect(botSkill(m, added)).toBe(BOT_SKILL.normal);
+    expect(added.difficulty).toBe('auto');
+    expect(botSkill(m, added)).toEqual(skillAt(0)); // placar empatado: o meio do caminho
   });
 });
 
