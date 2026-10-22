@@ -61,7 +61,7 @@ describe('Flagelo e Pacto (magias)', () => {
     expect(w.wizards[0].cd.scourge).toBeGreaterThan(w.t);
   });
 
-  // pedido do Fernando (21/10): "ela deve cancelar knockback quando o personagem explode"
+  // pedido do Fernando (21/10): a explosão cancela o empurrão que o mago está sofrendo
   it('the blast stops the knockback the caster is taking', () => {
     const w = world([[0, 0], [1, 0]]);
     stepWorld(w, [scourge()]);

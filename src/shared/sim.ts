@@ -794,7 +794,7 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
 // aqui não custa nada, a pedido do Fernando em 17/10)
 function scourge(w: World, wz: Wizard, L: Level, mult: number) {
   const dmg = L.dmg * mult;
-  // ao explodir, o empurrão que o mago está sofrendo acaba (Fernando, 21/10, issue #217: "deve cancelar knockback quando o personagem explode")
+  // ao explodir, o empurrão que o mago está sofrendo acaba (Fernando, 21/10, issue #217: a explosão cancela o empurrão)
   wz.vel = v(0, 0);
   let landed = false;
   for (const o of w.wizards) {

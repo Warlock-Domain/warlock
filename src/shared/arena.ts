@@ -1,4 +1,4 @@
-// Formatos da arena (pedido do Fernando, 18/10: "formatos novos além do círculo"): círculo, anel com lava no meio,
+// Formatos da arena (pedido do Fernando, 18/10: formatos novos além do círculo): círculo, anel com lava no meio,
 // duas ilhas ligadas por ponte e cruz. Cada forma é desenhada em escala 1 e esticada pelo raio atual (w.arenaR):
 // o encolhimento escala a forma inteira. Todos (simulação, bots, cliente) perguntam aqui o que é dentro da pedra.
 // As áreas ficam perto da do círculo (π em escala 1) para a rodada durar parecido.

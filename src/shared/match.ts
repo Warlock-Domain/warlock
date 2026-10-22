@@ -58,7 +58,7 @@ export type Phase = 'lobby' | 'shop' | 'countdown' | 'playing' | 'roundEnd' | 'e
 const VOTE_KINDS = ['mode', 'kick', 'shuffle', 'opt', 'restart', 'end', 'addBot', 'removeBot', 'skipShop'] as const;
 export type Vote = { kind: (typeof VOTE_KINDS)[number]; target: string; by: string; yes: string[]; no: string[]; ends: number };
 
-// opções da partida (pedido do Fernando, 18/10: "o jogo fluir com mais itens ou menos por rodada"), escolhidas na sala de espera
+// opções da partida (pedido do Fernando, 18/10: ajustar o ritmo do jogo, com mais ou menos itens por rodada), escolhidas na sala de espera
 // por quem começa a partida: segundos de loja, ritmo da contagem e do fim de rodada, multiplicador de toda renda de ouro,
 // ouro inicial (também multiplicado) e rodadas para vencer (no Deathmatch vira DM_GOALS abates)
 export const OPTION_CHOICES = {
@@ -288,8 +288,8 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   }
   // quem assiste não conta: dá para pôr só bots em campo e assistir a partida
   if (playing(m).length < (sandbox ? 1 : 2)) return false;
-  // o Ascensão é um tipo de sala, não um modo a escolher (Fernando, 21/10: "nao como um modo de jogo do principal mas como uma nova opcao no
-  // menu jogar"): sala do Ascensão só joga Ascensão; sala normal e sandbox nunca viram Ascensão
+  // o Ascensão é um tipo de sala, não um modo a escolher (Fernando, 21/10: opção própria no menu
+  // Jogar, fora dos modos da sala principal): sala do Ascensão só joga Ascensão; sala normal e sandbox nunca viram Ascensão
   const kind = m.mode === 'ascension' && !sandbox ? 'ascension' : mode === 'ascension' ? 'rounds' : mode;
   fresh(m, now, kind, teamShuffle, rand);
   return true;

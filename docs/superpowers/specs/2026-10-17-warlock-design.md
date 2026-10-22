@@ -8,7 +8,7 @@ Legenda de origem: **(Fernando)** = decidido por ele no chat de 17/10/2026 · **
 
 Uma versão no navegador do **Warlock**, o mod de arena do Warcraft 3 / Dota: magos numa plataforma redonda cercada de lava, jogando magias para empurrar uns aos outros para fora. Quem fica na lava perde vida; a plataforma encolhe com o tempo; o último vivo vence a rodada.
 
-Pedido do Fernando: "no mesmo estilo que você fez o jogo de sinuca", "para jogar em salas com meus amigos". O modelo é a Sinuquinha do Pix (`D:\Projetos\sinuca`, no ar em `sinuca.fernandorffdev.com`): abre o link, digita o apelido, entra na sala, sem conta e sem instalar nada.
+Pedido do Fernando: um jogo no mesmo estilo do jogo de sinuca, para jogar em salas com os amigos. O modelo é a Sinuquinha do Pix (`D:\Projetos\sinuca`, no ar em `sinuca.fernandorffdev.com`): abre o link, digita o apelido, entra na sala, sem conta e sem instalar nada.
 
 Dá certo quando: ele manda o link no grupo, os amigos entram, a partida começa em menos de um minuto e todo mundo vê a mesma arena, com o mago respondendo ao clique sem atraso perceptível.
 
@@ -22,7 +22,7 @@ Dá certo quando: ele manda o link no grupo, os amigos entram, a partida começa
 - **Servidor calcula 60 vezes por segundo e envia 30 vezes por segundo**; a tela desenha na taxa do monitor (60/144) suavizando entre envios **(Fernando, depois de ver o custo: zero em dinheiro, ~45 MB/hora de internet no celular — estimativa)**.
 - Lobby com **lista de salas** e **link direto** `/#ABCD`, como na sinuca **(minha decisão: mesmo esquema que ele já aprovou na sinuca)**.
 
-**Fora de escopo (v1)**: contas, ranking, histórico, chat, times, modo com mais de 5 magias, anticheat além de validar o formato das mensagens **(minha decisão, seguindo a sinuca: "n vai precisar de conta nem nada de segurança")**.
+**Fora de escopo (v1)**: contas, ranking, histórico, chat, times, modo com mais de 5 magias, anticheat além de validar o formato das mensagens **(minha decisão, seguindo a sinuca: sem conta e sem camada extra de segurança)**.
 
 **Seria fracasso mesmo funcionando**
 - O mago demorar a obedecer o clique, ou "teleportar" aos trancos na tela dos outros.
@@ -86,7 +86,7 @@ Diferente da sinuca (por turnos, quem tacou simulava), aqui **a sala (Durable Ob
 - **Bots** compram com regra simples (a próxima magia mais barata que não têm).
 
 ### 4.6 Pontos e partida
-- **Pontuação do original:** o último vivo ganha **1 ponto** por rodada vencida; abate não vale ponto; vence a partida quem fizer **5** primeiro **(Fernando, 17/10: "Original, até 5 vitórias"; o Warlock Brawl usa 11)**. Rodada sem sobrevivente fica sem ponto. (Antes: 5 rodadas com 3 pontos por vitória e 1 por abate.)
+- **Pontuação do original:** o último vivo ganha **1 ponto** por rodada vencida; abate não vale ponto; vence a partida quem fizer **5** primeiro **(Fernando, 17/10: como no original, até 5 vitórias; o Warlock Brawl usa 11)**. Rodada sem sobrevivente fica sem ponto. (Antes: 5 rodadas com 3 pontos por vitória e 1 por abate.)
 - Placar entre rodadas (na loja) e no fim, com botão "jogar de novo".
 - Rodada com limite de tempo de segurança (a arena encolhe até o mínimo e a lava resolve).
 
@@ -104,7 +104,7 @@ Diferente da sinuca (por turnos, quem tacou simulava), aqui **a sala (Durable Ob
 ### 4.9 Visual e som (o "estilo da sinuca")
 - Lava com brilho e ondulação, pedra com textura, luz quente vinda de baixo, vinheta.
 - **Personagens: 9 modelos KayKit (Adventurers e Skeletons, CC0), cada jogador escolhe o seu na sala, só visual** **(Fernando, 17/10)**. Só o mago tem as roupas tingidas na cor do jogador; os outros usam o anel colorido no chão.
-- Antes disso: **magos com o modelo `Mage.glb` do KayKit Adventurers** (CC0, [GitHub oficial](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0)), o mesmo para todos, com chapéu e manto tingidos na cor do jogador; animações sem uso cortadas para o arquivo ficar leve **(Fernando, 17/10: "pode pegar modelos free da internet em vez de tentar criar seus próprios?")**.
+- Antes disso: **magos com o modelo `Mage.glb` do KayKit Adventurers** (CC0, [GitHub oficial](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0)), o mesmo para todos, com chapéu e manto tingidos na cor do jogador; animações sem uso cortadas para o arquivo ficar leve **(Fernando, 17/10: usar modelos gratuitos da internet em vez de criar os próprios)**.
 - Efeitos: rastro e explosão da bola de fogo, raio com clarão, escudo transparente, sumiço/aparição do teleporte, faíscas ao cair na lava.
 - Avisos grandes como na sinuca ("Rodada 2!", "Fulano caiu na lava!", "Você venceu a rodada!").
 - Som e música gerados no navegador (Web Audio), como a sinuca. Menu de regras curto.
@@ -136,7 +136,7 @@ Diferente da sinuca (por turnos, quem tacou simulava), aqui **a sala (Durable Ob
 ## 7. Fica com o construtor
 Todos os números de jogo (velocidades, dano, empurrão, recargas, preços, ouro, raio e ritmo do encolhimento); formato exato das mensagens; aparência dos magos e efeitos; layout da loja e da barra de magias; comportamento fino dos bots; tempo de lugar reservado e de limpeza da sala.
 
-## 9. Números do original (17/10, pedido do Fernando: "qual o mais original?")
+## 9. Números do original (17/10, pedido do Fernando: os números mais fiéis ao original)
 Valores tirados do código do Warlock Brawl para Dota 2 (github.com/warlockbrawl/warlock: `config.lua`, `arena.lua`, `pawn.lua`, `gamesetup.lua`, `npc_abilities_custom.txt`, `npc_items_custom.txt`, `shop.lua`), convertidos com a arena de 4 magos = 11 m (1 unidade = 0,00647 m) e vida 1000 = 1000 (desde 18/10 a escala é a original: dano e vida ×10 em relação à primeira versão). Fonte da verdade: `src/shared/constants.ts` e `src/shared/spells.ts`.
 - Arena: raio (13 + nº de magos) camadas de 100 unidades; perde uma camada a cada 10 s. Lava 10 de vida/s. Vida volta 0,5/s na pedra.
 - Andar 1,36 m/s. Empurrão = dano × 0,647 m/s × (1 + dano acumulado/100); a lava conta metade. Atrito 0,96 por tique de 0,035 s.

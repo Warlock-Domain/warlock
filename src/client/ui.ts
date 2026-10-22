@@ -634,7 +634,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   }
   const status = el('span', { class: 'dot off', title: t('conexão', 'connection') });
   // latência (ida e volta até a sala) ao lado do ponto de conexão, só na partida
-  // desempenho (Fernando, 19/10: "medidor de fps e lag"): quadros por segundo e ida e volta até a sala
+  // desempenho (Fernando, 19/10: medidor de FPS e de latência): quadros por segundo e ida e volta até a sala
   const fpsEl = el('span', { title: t('Quadros por segundo', 'Frames per second') });
   const msEl = el('span', { title: t('Latência: tempo de ida e volta até a sala', 'Latency: round-trip time to the room') });
   const ping = el('small', { class: 'ping', hidden: true }, fpsEl, msEl);
@@ -1098,7 +1098,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       e.preventDefault(); // fechou o placar fixo: este Esc não abre as configurações
       return pinTab(false);
     }
-    // placar pelo Tab (pedido do Fernando, 17/10; trocável), também na loja (19/10: "na hora de compra o tab não está abrindo o placar")
+    // placar pelo Tab (pedido do Fernando, 17/10; trocável), também na loja (19/10: o Tab não abria o placar durante a compra)
     if (!isUiKey(e.code, 'board') || !room || !TAB_PHASES.includes(room.phase)) return;
     e.preventDefault();
     if (!e.repeat) showTab(true);
@@ -1116,7 +1116,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const hpText = el('span', { class: 'hp-text' });
   const hpBar = el('div', { class: 'hpbar', role: 'img' }, hpFill, hpText);
   const goldNow = el('span', { class: 'gold' });
-  // números do mago embaixo da vida (Fernando, 21/10: "pode colocar mais stats relevantes para completar o espaço vazio"):
+  // números do mago embaixo da vida (Fernando, 21/10: mais stats relevantes para preencher o espaço vazio):
   // os da Ficha do mago que mais mudam a luta, com a origem na dica
   const STAT_ICON: Record<string, string> = { speed: ITEM_ICON.boots, kb: ITEM_ICON.armor, regen: ITEM_ICON.cape, range: UI_ICON.aim };
   const heroStats = el('div', { class: 'hero-stats' });
@@ -1319,7 +1319,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const card = el('div', { class: 'card room-wait' },
       el('div', {}, el('h2', { class: 'title' }, t('Sala ', 'Room ') + r.id), el('p', { class: 'muted' }, t('Mande o link para os amigos entrarem. Até 8 magos.', 'Send the link so your friends can join. Up to 8 wizards.')),
         el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me, r), p.connected || p.bot ? '' : t(' · caiu', ' · dropped'), p.watch ? t(' · assistindo', ' · spectating') : ''), kickBtn(p, act.kick))))),
-      // no PC em colunas, lado a lado (Fernando, 19/10: "tá muito vertical"); no celular uma embaixo da outra
+      // no PC em colunas, lado a lado (Fernando, 19/10: estava vertical demais); no celular uma embaixo da outra
       el('div', { class: 'lobby-cols' },
         el('div', { class: 'lobby-col' },
           el('div', { class: 'bots' }, el('span', {}, 'Bots ', infoButton(t('Dificuldade dos bots', 'Bot difficulty'), () => OPT_INFO.difficulty(mode))),
@@ -1608,7 +1608,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   // abates e dano da rodada somados no cliente a partir dos acertos (a ficha usa o dano levado)
   let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
-  // lista à esquerda (Fernando, 19/10: "não dá pra saber pelo rosto"): nome na cor do jogador, vitórias e dano/abates da rodada; nos Times, um bloco por time
+  // lista à esquerda (Fernando, 19/10: não dava para saber quem é quem pelo rosto): nome na cor do jogador, vitórias e dano/abates da rodada; nos Times, um bloco por time
   // a sala manda o estado a cada segundo: só redesenha quando algo da lista muda (o apagado de quem caiu vem do frame, os números da rodada de live())
   const topCells = new Map<string, { c: HTMLElement; name: string; dmg: HTMLElement; kills: HTMLElement }>();
   let shownDead: string | null = null;

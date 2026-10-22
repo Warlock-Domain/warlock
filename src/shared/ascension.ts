@@ -1,7 +1,7 @@
 // Modo Ascensão (desenho em docs/superpowers/specs/2026-10-19-ascensao-design.md): todo intervalo dá 1 magia nova e 1 item
-// (Fernando, 21/10: "1 magia nova e 1 item"), e cada nível de XP dá 1 subir magia; cada escolha é 1 entre 3 cartas.
-// 9 rodadas e pontos pela ordem de queda. Toda a regra do modo mora aqui (pedido do Fernando, 19/10: "deixe o código do
-// ascension mais separado pois vai mudar muita coisa da core gameplay"); match.ts só chama estas funções atrás de `m.asc`.
+// (Fernando, 21/10), e cada nível de XP dá 1 subir magia; cada escolha é 1 entre 3 cartas.
+// 9 rodadas e pontos pela ordem de queda. Toda a regra do modo mora aqui (pedido do Fernando, 19/10: código do
+// Ascensão separado, porque o modo muda muito a jogabilidade principal); match.ts só chama estas funções atrás de `m.asc`.
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
 import type { Match, MatchOpts, Player, Stat } from './match.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, spellCount, spellGroup, type SpellId } from './spells.ts';
@@ -21,13 +21,13 @@ const EVERY_BREAK: Kind[] = ['spell', 'item'];
 
 export const ASC_ROUNDS = 9;
 // final valendo mais: os pontos da queda valem 1,5× nas rodadas 6 e 7 e o dobro nas 8 e 9, para quem está atrás ainda virar
-// (Fernando, 21/10: "coloque 6 e 7 1.5x e 8 e 9 2x pontos"); arredonda para o placar seguir inteiro (a ordem não muda)
+// (Fernando, 21/10: 1,5× nas rodadas 6 e 7 e 2× nas 8 e 9); arredonda para o placar seguir inteiro (a ordem não muda)
 export const roundMult = (round: number) => (round >= 8 ? 2 : round >= 6 ? 1.5 : 1);
 // números iniciais, a medir no simulador (PRs de rebalanceamento depois); as magias e os itens não mudam (Fernando, 21/10)
 // DMG_XP e LAVA_XP separados: o Fernando está decidindo se a lava continua contando como dano do mago (21/10)
 export const DMG_XP = 1;
 export const LAVA_XP = 1;
-// abate e assistência valem mais que o dano (Fernando, 21/10: "coloque abate 200xp e assist 100xp"); a assistência é de quem
+// abate e assistência valem mais que o dano (Fernando, 21/10: abate 200 XP e assistência 100 XP); a assistência é de quem
 // mais bateu na vítima sem ser quem matou (a mesma do ouro, ASSIST_MIN_DMG de dano no mínimo)
 export const KILL_XP = 200;
 export const ASSIST_XP = 100;
@@ -57,8 +57,8 @@ export function ascResume(a: AscState) {
 }
 
 // sala do Ascensão: o dono (quem criou; se sair da sala, o próximo que entrou) escolhe os bots e as opções, e todos veem
-// na hora; só ele muda (Fernando, 21/10: "coloque para todos verem a opção que o criador da sala está selecionando e apenas
-// ele pode selecionar as opções"). O Começar usa estas escolhas, venha de quem vier
+// na hora; só ele muda (Fernando, 21/10: todos veem o que o criador da sala escolhe e
+// só ele escolhe). O Começar usa estas escolhas, venha de quem vier
 export type AscLobby = { owner: string | null; bots: MatchOpts['difficulty'][]; opts: Partial<MatchOpts> };
 
 export function setAscLobby(m: Match, id: string, bots: AscLobby['bots'], opts: Partial<MatchOpts>): boolean {
@@ -113,7 +113,7 @@ export function drawCards(p: Kit, kind: Kind, rand: () => number, rare = 0): Car
 }
 
 // magia nova com a barra cheia (MAX_SPELLS) troca a `swap`, que precisa ser uma magia que o mago tem; a nova herda o nível dela
-// (Fernando, 21/10: "a magia q vc recebe recebe os niveis q a magia q esta sendo trocada recebeu")
+// (Fernando, 21/10: a magia recebida fica com os níveis da que sai)
 export function applyCard(p: Kit, card: Card, swap?: SpellId): boolean {
   if (card.kind === 'item') {
     if (itemPrice(p.items, card.id) === null) return false;
@@ -167,8 +167,8 @@ export function autoPick(p: Player, cards: Card[], how: 'easy' | 'normal', rand:
 const full = (p: Kit) => spellCount(p.spells) >= MAX_SPELLS;
 
 // escolhe (ou troca a escolha de) uma fileira; só vale no fim do intervalo (applyPicks), então dá para mudar até lá
-// (Fernando, 21/10: "nao fechar os menus dps q vc escolhe"). i = −1: manter as magias, só na fileira de magia nova com a barra cheia
-// (Fernando, 21/10: "troca opcional com a barra cheia"); magia nova com a barra cheia pede a `swap`, uma magia que o mago tem
+// (Fernando, 21/10: os menus não fecham depois da escolha). i = −1: manter as magias, só na fileira de magia nova com a barra cheia
+// (Fernando, 21/10: troca opcional com a barra cheia); magia nova com a barra cheia pede a `swap`, uma magia que o mago tem
 export function chooseCard(m: Match, id: string, slot: number, i: number, swap?: SpellId): boolean {
   const a = m.asc;
   const p = m.players.find((q) => q.id === id);
@@ -184,7 +184,7 @@ export function chooseCard(m: Match, id: string, slot: number, i: number, swap?:
 
 // fim do intervalo: aplica as escolhas, e as que faltam pela escolha automática; itens e subir magia antes da magia nova,
 // para a troca não tirar uma magia que ia subir nesta mesma leva sem querer. Pessoa (na sala ou fora) sem escolha: sorteio
-// entre as cartas oferecidas, com o rand da simulação (Fernando, 21/10, #224: "quando o tempo acabar, selecione aleatório")
+// entre as cartas oferecidas, com o rand da simulação (Fernando, 21/10, #224: tempo esgotado, carta sorteada)
 function applyPicks(m: Match, rand: () => number) {
   const a = m.asc!;
   for (const p of m.players) {
@@ -274,7 +274,7 @@ export function ascEndRound(m: Match, played: string[], alive: string[]) {
   for (const p of inRound) {
     p.score += Math.round(pts[p.id] * roundMult(m.round));
     const before = lv(a, p.id);
-    // Febre arcana: no Ascensão (sem ouro) o efeito de rodada da Febre do ouro multiplica o XP da rodada (Fernando, 21/10: "arcane rush q da 50% mais xp")
+    // Febre arcana: no Ascensão (sem ouro) o efeito de rodada da Febre do ouro multiplica o XP da rodada (Fernando, 21/10: Febre arcana com 50% a mais de XP)
     const rush = m.world?.mods.gold ?? 1;
     const gain = (xpGain(p.stats.round) + (a.extra[p.id] ?? 0)) * rush * (1 + CONSOLATION * Math.max(0, avg - before));
     a.xp[p.id] = (a.xp[p.id] ?? 0) + Math.round(gain);
