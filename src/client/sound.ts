@@ -175,7 +175,7 @@ export function createSound(musicDefault?: number) {
       wantAmbience = on;
       syncAmbience();
     },
-    // teste local dos efeitos sonoros (issue #203, só em localhost): toca public/sfx/<nome>.mp3 pelo mesmo caminho das magias
+    // teste local dos efeitos sonoros (issue #203, em localhost e no ambiente do PR): toca public/sfx/<nome>.mp3 pelo mesmo caminho das magias
     async preview(name: string, volume = 1) {
       if (!ctx || volumes().sfx === 0 || ctx.state !== 'running') return;
       if (!buffers.has(name)) await load(name);

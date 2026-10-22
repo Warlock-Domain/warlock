@@ -31,7 +31,7 @@ import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
-import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
+import { TESTE_SONS, TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
 import { botLevel, endResult, renderWizardState, sandboxVisibility, seatChanges } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
@@ -71,15 +71,15 @@ const SPELL_SOUND: Record<SpellId, SoundKind> = {
   scourge: 'homing', pact: 'shield', // os sons que tinham como item ativo
 };
 
-// teste local dos efeitos sonoros (issue #203, só em localhost): a opção escolhida no painel do Sandbox toca no lançamento da magia
+// teste local dos efeitos sonoros (issue #203, em localhost e no ambiente do PR): a opção escolhida no painel do Sandbox toca no lançamento da magia
 function castSound(sound: ReturnType<typeof createSound>, s: SpellId, volume = 1) {
-  const k = LOCAL ? store.json<Record<string, string>>('warlock:sons-escolha')?.[s] : undefined;
+  const k = TESTE_SONS ? store.json<Record<string, string>>('warlock:sons-escolha')?.[s] : undefined;
   if (k && k !== 'atual') void sound.preview(`${k.startsWith('r') ? 'opcoes-rpg' : 'opcoes'}/${s}-${k.replace('r', '')}`, volume);
   else sound.play(SPELL_SOUND[s], volume);
 }
 // impacto (acertar alguém, o Escudo devolver, o Agarrar prender): toca a opção escolhida em vez do golpe padrão; sem escolha, false
 function impactSound(sound: ReturnType<typeof createSound>, src: string, volume: number) {
-  const k = LOCAL ? store.json<Record<string, string>>('warlock:sons-impacto')?.[src] : undefined;
+  const k = TESTE_SONS ? store.json<Record<string, string>>('warlock:sons-impacto')?.[src] : undefined;
   if (!k || k === 'atual') return false;
   void sound.preview(`opcoes-rpg-impacto/${src}-${k.replace('r', '')}`, volume);
   return true;
@@ -160,8 +160,8 @@ function hoverSound(sound: ReturnType<typeof createSound>) {
 }
 
 async function main() {
-  // teste local dos efeitos sonoros (issue #203, só em localhost): com ?abrir=sandbox não pede apelido
-  const quick = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') && new URLSearchParams(location.search).get('abrir') === 'sandbox';
+  // teste local dos efeitos sonoros (issue #203, em localhost e no ambiente do PR): com ?abrir=sandbox não pede apelido
+  const quick = TESTE_SONS && new URLSearchParams(location.search).get('abrir') === 'sandbox';
   const name = store.get(NAME) || (quick ? 'Teste' : await askName(ui, as));
   store.set(NAME, name);
   const id = location.hash.slice(1).toUpperCase();
@@ -232,8 +232,8 @@ function startLobby(name: string) {
     void create(k, k === 'partida:ascensao');
   } else if (IR_CONFIG) openSettings(IR_CONFIG);
   else if (k) document.getElementById('home-tab-' + k)?.click();
-  // teste local dos efeitos sonoros (issue #203, só em localhost): ?abrir=sandbox entra direto no sandbox
-  if ((location.hostname === 'localhost' || location.hostname === '127.0.0.1') && new URLSearchParams(location.search).get('abrir') === 'sandbox') void create('sandbox');
+  // teste local dos efeitos sonoros (issue #203, em localhost e no ambiente do PR): ?abrir=sandbox entra direto no sandbox
+  if (TESTE_SONS && new URLSearchParams(location.search).get('abrir') === 'sandbox') void create('sandbox');
 }
 
 function startRoom(code: string, name: string) {

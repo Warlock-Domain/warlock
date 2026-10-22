@@ -268,6 +268,9 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined;
 type ToastKind = 'info' | 'good' | 'bad' | 'gold';
 // msg pode vir com ícones (lista de textos e nós); o de ouro ganha a moeda na frente;
 // top: no alto da tela e com letra maior, para o que todo mundo precisa ler na hora (quem saiu e o bot que assumiu, issue #223)
+// teste dos efeitos sonoros (issue #203): painel de escolha e atalho ?abrir=sandbox em localhost e no ambiente de cada PR (pr-<n>-warlock.…)
+export const TESTE_SONS = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || /^pr-\d+-warlock\./.test(location.hostname);
+
 export function toast(msg: string | (string | Node)[], kind: ToastKind = 'info', top = false) {
   let t = document.getElementById('toast');
   if (!t) document.body.append((t = el('div', { id: 'toast', role: 'status' })));
@@ -337,7 +340,7 @@ type RoomActions = {
   spectate: (on: boolean) => void; // assistir (sem mago a partir da próxima rodada) ou voltar a jogar
   seeInvis: (on: boolean) => void; // sandbox: invisíveis meio transparentes (só nesta tela)
   seeHit: (on: boolean) => void; // sandbox: discos da colisão real no chão (só nesta tela)
-  spellSound: (s: SpellId) => void; // teste local dos efeitos sonoros (issue #203, só em localhost)
+  spellSound: (s: SpellId) => void; // teste local dos efeitos sonoros (issue #203, em localhost e no ambiente do PR)
   preview: (name: string) => void;
 };
 
@@ -851,8 +854,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('div', { class: 'sandbox-row', role: 'group', 'aria-label': t('Pôr runa', 'Place rune') }, t('Runa', 'Rune'),
       ...RUNE_KINDS.map((k) => iconButton(icon(RUNE_ICON[k]), t(`Pôr a ${RUNE_NAME[k]} ao seu lado`, `Place the ${RUNE_NAME[k]} next to you`), () => act.sandbox({ op: 'rune', kind: k }), { title: RUNE_NAME[k] }))),
     el('button', { type: 'button', onclick: () => act.sandbox({ op: 'restart' }) }, t('Reiniciar a rodada', 'Restart the round')));
-  // teste local dos efeitos sonoros (issue #203, só em localhost): notas do que mudou, um botão por magia e a escolha da música
-  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+  // teste local dos efeitos sonoros (issue #203, em localhost e no ambiente do PR): notas do que mudou, um botão por magia e a escolha da música
+  if (TESTE_SONS) {
     let run = 0;
     const playAll = () => {
       const me = ++run;
@@ -915,8 +918,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (!sbOpened) {
       sbOpened = true;
       toggle(sbPanel, sbBtn, true);
-      // teste local dos efeitos sonoros (issue #203, só em localhost): o navegador só libera som depois de um clique
-      if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+      // teste local dos efeitos sonoros (issue #203, em localhost e no ambiente do PR): o navegador só libera som depois de um clique
+      if (TESTE_SONS) {
         const go = el('button', { type: 'button', class: 'primary big', style: 'position:fixed;inset:35% 30%;z-index:9999;font-size:1.4rem',
           onclick: () => go.remove() }, '▶ Clique para ligar o som (o navegador pede 1 clique) e escolha os sons no painel à direita');
         document.body.append(go);
