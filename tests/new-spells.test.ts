@@ -204,7 +204,8 @@ describe('snapshot e telemetria', () => {
   it('encodes new statuses and projectile kinds', () => {
     const w = world([[0, 0], [4, 0]], ['rush', 'grip', 'meteor']);
     w.wizards[0].gripUntil = 9;
-    run(w, 0.1, [cast('p0', 'rush', 0, 0), cast('p1', 'meteor', 5, 0)]);
+    w.wizards[0].rushUntil = 9; // testa codificação, não lançamento de mobilidade enquanto preso.
+    run(w, 0.1, [cast('p1', 'meteor', 5, 0)]);
     run(w, 0.2);
     const snap = decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']);
     expect(snap.wizards[0].status & 128).toBe(128);
