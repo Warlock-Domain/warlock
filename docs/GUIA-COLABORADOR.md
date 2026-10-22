@@ -166,7 +166,7 @@ navegador ──WebSocket──▶ Durable Object (uma sala)
 4. Nada de `Math.random` solto na simulação: use o `rand` recebido.
 5. Mensagem nova do navegador validada em `parseClientMessage`.
 6. Celular: fora de foco por enquanto (decisão de 20/10); só não apague as regras de celular que já existem.
-7. Número de magia, item ou bot só com medição do simulador no PR.
+7. Número de magia, item ou bot só com medição do simulador no PR. Sem interação específica entre duas magias ("X faz Y quando encontra Z"): o efeito sai de stats gerais e documentados, iguais contra tudo.
 8. Menos código: reaproveite `el()`, `dialog()`, `iconButton()`, `tabs()`, `choice()`, `searchFilter()`, `withTip`, `store`, `t()`; mudança cirúrgica.
 9. **Interface só com as peças que já existem** (`dialog()`, `iconButton()`, `tabs()`, `choice()`, `searchFilter()`, `withTip`, detalhes em `src/client/CLAUDE.md`), com cores e tamanhos pelas variáveis do `:root`. Precisa de algo que nenhuma peça faz? Primeiro estenda a peça (um parâmetro a mais); só se não couber, crie uma função nova junto das outras e registre em `src/client/CLAUDE.md`. Nada de HTML/CSS repetido nem de cor ou tamanho soltos no código. Peça isso à sua IA no prompt: *"use as peças de interface que já existem (veja src/client/CLAUDE.md) e as variáveis do :root; não crie componente nem CSS novo sem antes tentar estender um existente"*.
 10. Sem segredo: o repositório é público.
