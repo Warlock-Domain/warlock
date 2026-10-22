@@ -32,7 +32,8 @@ const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
 const MAGE_HUE = 255;
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
-export type WizDraw = { xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[] }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago
+// score: pontos da partida ao lado do nome (todos os modos, fora da sandbox)
+export type WizDraw = { score?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[] }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -211,6 +212,7 @@ type Mage = {
   flash: number; // clarão branco do golpe: 1 no acerto, cai até 0
   freezeUntil: number; // hit-stop: animação parada até este instante
   cheering: boolean;
+  scoreEl: HTMLElement; // pontos da partida ao lado do nome
   xpEl: HTMLElement; // Ascensão: nível e barrinha de XP embaixo da vida
   xpLv: HTMLElement;
   xpFill: HTMLElement;
@@ -894,7 +896,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, scoreEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -1891,6 +1893,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.botKey = d.bot ?? '';
         m.botEl.hidden = !d.bot;
         m.botEl.replaceChildren(icon(UI_ICON.bot), d.bot ? BOT_LEVEL[d.bot] : '');
+      }
+      // pontos da partida ao lado do nome, em cima do mago (Fernando, 21/10: "do lado do nome de cada personagem coloque sua pontuacao")
+      const score = d.score === undefined ? '' : String(d.score);
+      if (m.scoreEl.textContent !== score) {
+        m.scoreEl.textContent = score;
+        m.scoreEl.hidden = !score;
       }
       // Ascensão: nível e XP embaixo da vida, para todos; subir de nível ao vivo comemora (Fernando, 21/10: "animacao ao subir de
       // level ao vivo ... inclusive animacao do boneco comemorando")
