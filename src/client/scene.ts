@@ -1596,6 +1596,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(v(e.x, e.y), '#d8c8b8', 1.4, 0.3, 1.2, FX.smoke);
       } else if (e.k === 'clash') {
         const at = v(e.x, e.y);
+        // Amplia só a destruição no ponto do projétil, nunca o feixe nem o raio das regras da magia.
+        if (e.combo === 'pulse') {
+          explosion(at);
+          shockwave(at, Math.max(e.r, 1.5), '#b98cff');
+        }
         groundMark(at, e.combo, e.r);
         if (e.combo !== 'pillar' && e.combo !== 'snow') {
           shake = Math.min(0.6, shake + e.r * 0.15);
