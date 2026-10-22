@@ -80,6 +80,13 @@ export function xpGain(s: Stat): number {
 
 export const xpFor = (level: number) => LEVEL_XP * (level - 1);
 export const levelOf = (xp: number) => 1 + Math.floor(xp / LEVEL_XP);
+// barra de XP na arena (Fernando, 21/10): o XP da partida mais o da rodada ao vivo (dano, abates, segundos vivo); no fim da
+// rodada vale o do servidor, que soma o bônus do líder, a consolação e a Febre arcana. frac: quanto do nível atual já encheu
+export function liveLevel(xp: number, dmg: number, kills: number, alive: number) {
+  const total = Math.round(xp + DMG_XP * dmg + KILL_XP * kills + ALIVE_XP * alive);
+  const level = levelOf(total);
+  return { level, total, next: xpFor(level + 1), frac: (total - xpFor(level)) / LEVEL_XP };
+}
 
 const lv = (a: AscState, id: string) => levelOf(a.xp[id] ?? 0);
 const groupOf = (c: Card) => (c.kind === 'item' ? 'item' : spellGroup(c.id));
