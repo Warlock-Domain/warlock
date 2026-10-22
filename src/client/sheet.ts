@@ -8,7 +8,7 @@ import { n1, pct } from './rules-text.ts';
 import { ITEM_ROWS, SPELL_ROWS } from './tips.ts';
 import { LOCALE, itemName, spellName, t } from './i18n.ts';
 
-export type SheetRow = { group: string; label: string; value: string; from?: string };
+export type SheetRow = { group: string; label: string; value: string; from?: string; key?: string };
 export const BASE = t('Mago', 'Wizard');
 
 const n2 = (x: number) => x.toLocaleString(LOCALE, { maximumFractionDigits: 2 });
@@ -34,7 +34,7 @@ export function sheet(spells: Record<SpellId, number>, items: Record<ItemId, num
     // origem: a parte de cada item que mexe neste campo
     const from = ITEM_IDS.filter((i) => items[i] > 0).map((i) => [i, (itemStats({ ...noItems(), [i]: items[i] }) as Record<string, number>)[k]] as const)
       .filter(([, x]) => x).map(([i, x]) => t(`${part(x)} de ${itemName(i)} nível ${items[i]}`, `${part(x)} from ${itemName(i)} level ${items[i]}`)).join(' · ');
-    return { group: BASE, label, value: total(st[k]), from: from || undefined };
+    return { key: k, group: BASE, label, value: total(st[k]), from: from || undefined };
   });
   const rangeF = 1 + (st.range ?? 0);
   for (const s of SPELL_IDS) {

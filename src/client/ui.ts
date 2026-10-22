@@ -1040,8 +1040,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const hpText = el('span', { class: 'hp-text' });
   const hpBar = el('div', { class: 'hpbar', role: 'img' }, hpFill, hpText);
   const goldNow = el('span', { class: 'gold' });
-  const vitals = el('div', { class: 'vitals', hidden: true }, hpBar, goldNow); // vida só jogando e vivo
-  const heroFace = el('img', { class: 'hero-face', alt: '', width: 72, height: 84 });
+  // números do mago embaixo da vida (Fernando, 21/10: "pode colocar mais stats relevantes para completar o espaço vazio"):
+  // os da Ficha do mago que mais mudam a luta, com a origem na dica
+  const STAT_ICON: Record<string, string> = { speed: ITEM_ICON.boots, kb: ITEM_ICON.armor, regen: ITEM_ICON.cape, range: UI_ICON.aim };
+  const heroStats = el('div', { class: 'hero-stats' });
+  const vitals = el('div', { class: 'vitals', hidden: true }, hpBar, el('div', { class: 'hero-row' }, goldNow, heroStats)); // vida só jogando e vivo
+  const heroFace = el('img', { class: 'hero-face', alt: '', width: 104, height: 120 });
   const hero = el('div', { class: 'hero-box' }, heroFace, vitals);
   const barWrap = el('div', { class: 'barwrap' }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, bar, itemGrid)));
   // a barra some na sala e no fim (update, a cada segundo) e enquanto eu assisto morto (watching, a cada quadro): uma conta só, sem piscar
@@ -1650,6 +1654,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       barOff = r.phase === 'lobby' || r.phase === 'end' || (r.phase === 'shop' && !SHOP_BAR.matches) || !mine;
       syncBar();
       goldNow.replaceChildren(r.mode === 'ascension' ? '' : gold(mine?.gold ?? 0)); // Ascensão: sem ouro
+      const stats = mine ? sheet(mine.spells, mine.items).filter((row) => row.key! in STAT_ICON) : [];
+      const statSig = JSON.stringify(stats);
+      if (heroStats.dataset.sig !== statSig) {
+        heroStats.dataset.sig = statSig;
+        heroStats.replaceChildren(...stats.map((row) => withTip(el('span', { tabindex: 0, 'aria-label': `${row.label}: ${row.value}` }, icon(STAT_ICON[row.key!]), row.value + (row.key === 'regen' ? '/s' : '')),
+          () => `<b>${row.label}</b>: ${row.value}${row.from ? `<br><small>${row.from}</small>` : ''}`)));
+      }
       const tabPhase = TAB_PHASES.includes(r.phase);
       tabBtn.hidden = !tabPhase;
       if (!tabOverlay.hidden) showTab(tabPhase);
