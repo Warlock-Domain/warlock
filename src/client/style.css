@@ -474,7 +474,9 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
 .hpbar .hp-text { font-size: .75rem; }
 /* Ascensão: XP fino embaixo da vida, no azul da Febre arcana */
 .hp-col { display: grid; gap: 3px; }
+.hp-row { display: flex; align-items: center; gap: 6px; }
 .xpbar { height: 6px; border-radius: 3px; background: rgba(0, 0, 0, .75); border: 1px solid var(--bronze); overflow: hidden; }
+.xp-lv { white-space: nowrap; padding: 0 8px; border-radius: 999px; background: var(--panel-glass); color: #8cbcff; font-size: 1rem; text-shadow: var(--text-shadow); }
 .xpbar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #3d7bff, #8cbcff); transition: width .2s; }
 .vitals .gold { padding: 0 10px; border-radius: 999px; background: var(--panel-glass); font-size: 1.1rem; text-shadow: var(--text-shadow); }
 /* celular: configurações, som, provocações e ajuda dentro do "⋯" */
