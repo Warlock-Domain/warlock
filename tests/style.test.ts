@@ -41,7 +41,8 @@ describe('jeito de jogar', () => {
     // Proposta 23/10: bloqueios explícitos de stun/Agarrar mudam as decisões e trajetórias dos bots.
     // Proposta23/10: fim limpo do impulso e retomada50→100% mudam trajetórias.
     // Proposta23/10: Meteoro sem empurrão, com stun fixo1,25s.
-    expect(hash).toBe(904780266);
+    // 23/10: clique único cancela no primeiro contato, inclusive oblíquo, também para destinos dos bots.
+    expect(hash).toBe(359090772);
 
     // e mediu de verdade nessa mesma partida
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);

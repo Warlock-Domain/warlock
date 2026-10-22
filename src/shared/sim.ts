@@ -17,6 +17,8 @@ export type Wizard = {
   stunLeft?: number; // bloqueio de controle separado da velocidade física.
   recoveryLeft?: number; // retomada disparada pelo fim do impulso, não pelo fim de qualquer stun.
   target: Vec | null;
+  moveHeld?: boolean; // direito pressionado preserva tentativa contra obstáculo.
+  blockedMove?: boolean; // destino de clique único cancelado por colisão.
   facing: number;
   hp: number;
   dmgTaken: number; // dano acumulado na rodada: quanto maior, mais longe o mago voa
@@ -122,7 +124,8 @@ export type Projectile = {
 };
 
 export type Cmd =
-  | { id: string; kind: 'move'; to: Vec }
+  | { id: string; kind: 'move'; to: Vec; held?: boolean }
+  | { id: string; kind: 'moveHold'; on: boolean }
   | { id: string; kind: 'stop' }
   | { id: string; kind: 'cast'; spell: SpellId; at: Vec }
 
@@ -578,7 +581,7 @@ function damagePillar(w: World, i: number, dmg: number, by: string | null) {
 }
 
 // magos não atravessam pilares: empurra para fora e corta o deslize na direção do pilar
-function blockPillars(w: World) {
+function blockPillars(w: World, walking?: ReadonlySet<Wizard>) {
   for (const p of w.pillars) {
     if (p.alive && p.until !== undefined && w.t >= p.until) {
       // o Pilar de pedra acaba: some sem explodir (removeObstacle do original); a parede some com uma nuvem só, no meio, do tamanho dela
@@ -598,6 +601,11 @@ function blockPillars(w: World) {
       const l = len(d);
       const min = OBSTACLES[p.kind].r + WIZ_R;
       if (l >= min) continue;
+      // Deslizar pela tangente ainda é bloqueio: clique único para no primeiro contato, sem orbitar o objeto.
+      if (walking?.has(wz) && wz.target && !wz.moveHeld) {
+        wz.target = null;
+        wz.blockedMove = true;
+      }
       const n = l > 1e-6 ? scale(d, 1 / l) : v(1, 0);
       wz.pos = add(p.pos, scale(n, min));
       const into = dot(wz.vel, n);
@@ -1553,7 +1561,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
     if (g > bestGap) [best, bestGap] = [p, g];
   }
   Object.assign(wz, {
-    alive: true, pos: best, vel: v(0, 0), target: null, casting: null, stunLeft: undefined, recoveryLeft: 0, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
+    alive: true, pos: best, vel: v(0, 0), target: null, casting: null, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
     rune: null, runeUntil: 0,
@@ -1631,13 +1639,19 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   for (const c of cmds) {
     const wz = byId(w, c.id);
     if (!wz) continue;
-    if (c.kind === 'move') {
+    if (c.kind === 'moveHold') {
+      wz.moveHeld = c.on;
+    } else if (c.kind === 'move') {
+      wz.moveHeld = c.held ?? false;
+      wz.blockedMove = false;
       if (wz.casting) wz.casting.then = c.to;
       else wz.target = c.to;
     } else if (c.kind === 'stop') {
       // como no Dota (#144): no tempo de lançamento, cancela a magia; a recarga só começa quando ela sai, então fica livre
       wz.casting = null;
       wz.target = null;
+      wz.moveHeld = false;
+      wz.blockedMove = false;
     } else beginCast(w, wz, c.spell, c.at);
   }
   for (const wz of w.wizards) {
@@ -1724,6 +1738,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   }
   w.loots = w.loots.filter((l) => l.left > 0 && w.t < l.until);
   if (w.rules.runes) stepRunes(w, rand);
+  const walking = new Set<Wizard>();
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
     if (w.t < wz.dashUntil) {
@@ -1749,10 +1764,11 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       const d = sub(z.pos, wz.pos);
       if (z.kind === 'pull' && len(d) < z.r + WIZ_R && len(d) > 0.15) wz.pos = add(wz.pos, scale(norm(d), ZONES.pull.speed * DT));
     }
+    if (wz.target && !wz.casting && !isStunned(wz) && wz.speed > 0 && len(wz.vel) < .05) walking.add(wz);
     moveWizard(wz, DT);
   }
   separate(w);
-  blockPillars(w);
+  blockPillars(w, walking);
   stepProjectiles(w);
   clashProjectiles(w);
 

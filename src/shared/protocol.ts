@@ -20,7 +20,8 @@ export type ClientMsg =
   // shuffle: Times sorteados a cada rodada (padrão) ou fixos; opts: opções da partida; setup[i]: dificuldade do bot i+1 e a configuração dele no treino
   | { t: 'start'; bots: number; mode?: Mode; shuffle?: boolean; opts?: Partial<MatchOpts>; setup?: BotSetup[]; sandbox?: true }
   | { t: 'sandbox'; cmd: SandboxCmd } // painel da sandbox (o servidor ignora numa sala normal)
-  | { t: 'move'; x: number; y: number; seq: number }
+  | { t: 'move'; x: number; y: number; seq: number; held?: boolean }
+  | { t: 'moveHold'; on: boolean; seq: number } // soltar o direito não envia outro destino de caminhada.
   | { t: 'stop'; seq: number }
   | { t: 'cast'; spell: SpellId; x: number; y: number; seq: number }
   | { t: 'buy'; spell: SpellId }
@@ -85,7 +86,9 @@ export type PublicRoom = {
 // sp: velocidade de andar dele agora (botas, lentidão), para a previsão; ack: último seq aplicado dele
 // fx: efeitos com prazo de quem recebe, 2 números por efeito: bit de estado (como em w) e segundos que faltam
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
-export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
+// kr: recuperação pós-empurrão restante, por mago; ausente em servidores antigos significa zero.
+// st: duração restante do atordoamento por mago; -1 usa o comportamento antigo baseado na velocidade física.
+export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; kr?: number[]; st?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
 
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
 export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
@@ -196,7 +199,9 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return cmd ? { t: 'sandbox', cmd } : null;
     }
     case 'move':
-      return coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'move', x: m.x, y: m.y, seq: m.seq } : null;
+      return coord(m.x) && coord(m.y) && seq(m.seq) && (m.held === undefined || typeof m.held === 'boolean') ? { t: 'move', x: m.x, y: m.y, seq: m.seq, ...(m.held !== undefined && { held: m.held as boolean }) } : null;
+    case 'moveHold':
+      return typeof m.on === 'boolean' && seq(m.seq) ? { t: 'moveHold', on: m.on, seq: m.seq } : null;
     case 'stop':
       return seq(m.seq) ? { t: 'stop', seq: m.seq } : null;
     case 'cast':

@@ -1,7 +1,7 @@
 // Previsão do próprio mago: anda na hora do clique com o mesmo código do servidor e é corrigido de leve.
 import { WIZ_SPEED } from '../shared/constants.ts';
 import { isStunned, moveWizard, type Wizard } from '../shared/sim.ts';
-import type { WizView } from '../shared/snapshot.ts';
+import { BLOCKED_MOVE_BIT, type WizView } from '../shared/snapshot.ts';
 import { add, dist, scale, sub, v, type Vec } from '../shared/vec.ts';
 
 export function createPredict() {
@@ -71,6 +71,7 @@ export function createPredict() {
       if (wasStunned && !stunned) me.pos = { ...server.pos };
       wasStunned = stunned;
       if (server !== velocitySource) {
+        if (server.status & BLOCKED_MOVE_BIT) { me.target = null; me.pos = { ...server.pos }; }
         me.stunLeft = server.stunLeft;
         me.recoveryLeft = server.recoveryLeft ?? 0;
         me.vel = { ...server.vel };
