@@ -50,7 +50,7 @@ npx vite build                      # build do cliente (dist/)
 
 ## Decisões de produto (não desfazer sem combinar numa issue)
 
-- Menu principal em barra (issue #83): logo W do ícone da aba (leva ao Início) · Jogar · Aprender · Guarda-roupas · Loja (vitrine, sem preço nem compra) · Perfil, com Configurações e Sair como ícones. Menus enxutos.
+- Menu principal em barra (issue #83): logo W do ícone da aba (leva ao Início) · Jogar · Aprender · Guarda-roupas · Loja (vitrine, sem preço nem compra) · Perfil, com Configurações como ícone (o botão de sair saiu em 22/10, issue #201). Menus enxutos.
 - Loja em grade com o nome dentro do ícone e preço com moeda; cores por grupo (Ataque vermelho-laranja, Mobilidade verde, Defesa azul, Controle roxo, Itens prateado); 10 magias de ataque e 5 de cada outro grupo.
 - Sala sem opção de ritmo nem de morte súbita (sempre ligada); dificuldade escolhida bot a bot.
 - Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3; o monte dá 3 a 5 de ouro. Escudo com recarga de 16 s. Drenar só muda depois de partidas reais. Ataques fortes e raros (não encurtar recargas).
@@ -167,6 +167,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 21/10 | **5 provocações gravadas pelo Leonard** (Tá pegando fogo!, Bosta city!, Foi uma delícia..., Usaram e abusaram., Lanchado; PR #243), para todos e sem compra, em `public/taunts-local/`; entram **sem licença livre**, com a autorização de uso e redistribuição declarada pelo autor. Só as 10 primeiras provocações têm atalho de número (1 a 9 e 0); as novas vão por clique na lista | o Fernando aceitou os áudios como estão ("aceite") |
 | 21/10 | **PR que não muda o comportamento do jogo** (refatoração, limpeza, docs, CI) entra sem aba de teste nem "aprovado": basta CI verde, `/ponytail-review` feito e prints antes/depois iguais quando houver tela (antes/depois no PC); amplia a exceção da linha de 20/10 (antes só docs/CI) para refatoração e limpeza de código das sessões do Fernando; PR de colaborador segue as regras dele | o teste em `localhost` serve para ele ver o que muda no jogo; sem mudança não há o que ver |
 | 21/10 | **Revisoras por papel, separadas da orquestradora**, divididas pelo autor do PR (PRs do Fernando e de docs/CI; um colaborador; demais colaboradores) e renovadas todo dia por uma tarefa agendada; a orquestradora não revisa nem mescla | "vc msm gerencia criando as sessoes e arquivando as antigas"; nenhuma sessão fica lotada de contexto ([docs/SESSOES-COM-ORQUESTRADOR.md](docs/SESSOES-COM-ORQUESTRADOR.md)) |
+| 22/10 | **Barra do menu sem o botão de sair e sem a linha entre Configurações e o W** (issue #201): sai o `.home-exit` (e o `onExit`, que fechava a aba) e a borda direita do `.home-tool`; as outras separações da barra ficam | "tirar essa linha entre a logo e a config"; "tirar esse botão de sair também" |
 
 ## Fluxo com agente
 

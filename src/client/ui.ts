@@ -153,7 +153,7 @@ function personagemTab(): HTMLElement {
     el('div', { class: 'settings-grid' }, options, el('div', { class: 'settings-sections' }, ...sections)));
 }
 
-export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onCreateAsc: () => void, onRename: () => void, onTrain: (kind: string) => void, onExit: () => void, sound: Pick<SettingsCtx, 'volumes' | 'setVolume'>) {
+export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onCreateAsc: () => void, onRename: () => void, onTrain: (kind: string) => void, sound: Pick<SettingsCtx, 'volumes' | 'setVolume'>) {
   // no lobby: o volume é o mesmo da sala (issue #128); sem efeitos visuais (só existem na sala); o pixel art fica guardado e vale ao entrar numa sala (só PC)
   const pixelOk = !matchMedia('(pointer: coarse)').matches;
   setSettingsCtx({ name: () => name, rename: onRename, volumes: sound.volumes, setVolume: sound.setVolume, pixel: pixelOk ? savedPixel : undefined, setPixel: (size) => store.set('warlock:pixel', String(size)) });
@@ -236,8 +236,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
       el('nav', { class: 'home-bar', role: 'tablist', 'aria-label': t('Menu principal', 'Main menu') }, settingsBtn,
         el('button', { type: 'button', class: 'home-logo', id: 'home-tab-home', role: 'tab', 'aria-controls': 'home-home', title: t('Início', 'Home'), 'aria-label': t('Voltar ao menu principal', 'Back to home'), onclick: () => show('home') },
           el('img', { src: '/warlock-wars.svg', alt: 'Warlock Wars' })),
-        el('div', { class: 'home-tabs' }, ...btns.filter((b) => b !== settingsBtn),
-          el('button', { type: 'button', class: 'home-tool home-exit', title: t('Sair do jogo', 'Exit game'), 'aria-label': t('Sair do jogo', 'Exit game'), onclick: onExit }, icon(UI_ICON.exit)))),
+        el('div', { class: 'home-tabs' }, ...btns.filter((b) => b !== settingsBtn))),
       stage),
   );
   show('home');
