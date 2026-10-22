@@ -263,6 +263,7 @@ function startRoom(code: string, name: string) {
   let watchId: string | null = null;
   let watchStep = 0;
   let watchCenter = false; // câmera do espectador parada no centro da arena (botão na barra "Assistindo", ui.ts)
+  let camFollow = false; // câmera centrada no próprio mago (botão no topo, ui.ts)
   // replay da queda (em qualquer partida): os últimos 6 s de estados e eventos; ao eu cair, vira o trecho que dá para rever
   let ring: { s: SnapView; e: SimEvent[] }[] = [];
   let clip: typeof ring = [];
@@ -337,6 +338,7 @@ function startRoom(code: string, name: string) {
     spellReady: () => sound.play('ready', 0.8),
     watch: (step) => (watchStep = step),
     watchCenter: (on) => (watchCenter = on),
+    camFollow: (on) => (camFollow = on),
     replay: toggleReplay,
     name: () => myName,
     // o servidor atualiza o apelido de quem já está na sala quando o hello chega de novo (addPlayer)
@@ -809,7 +811,7 @@ function startRoom(code: string, name: string) {
       isles: shown ? shown.isles : [],
       // follow null = centro da arena (0, 0), para onde ela encolhe
       follow: rs ? (rMe && rBy ? scale(add(rMe, rBy), 0.5) : (rMe ?? rBy ?? null)) : watched ? (watchCenter ? null : watched.pos) : follow ? myPos : null,
-      lock: !!rs || (!!watched && !watchCenter),
+      lock: !!rs || (watched ? !watchCenter : camFollow && follow && !!myPos),
       // na loja o room.effect já é o da próxima rodada: o mapa só muda quando ela começa
       effect: room && ['countdown', 'playing', 'roundEnd'].includes(room.phase) ? room.effect : null,
       arcane: room?.mode === 'ascension', // Febre arcana: a Febre do ouro em azul

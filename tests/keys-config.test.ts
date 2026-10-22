@@ -68,6 +68,13 @@ describe('teclas da interface no mesmo painel das magias', () => {
     expect([isUiKey('Digit9', 'replay'), isUiKey('Digit5', 'replay')]).toEqual([true, false]);
   });
 
+  it('Câmera no mago ou na arena começa no 6 e é trocável (issue #222)', () => {
+    expect(isUiKey('Digit6', 'camera')).toBe(true);
+    expect(actionFor('Digit6')).toBeUndefined();
+    expect(setKey('camera', 'Digit8')).toBe(true);
+    expect([isUiKey('Digit8', 'camera'), isUiKey('Digit6', 'camera')]).toEqual([true, false]);
+  });
+
   it('depois de muitas trocas nenhuma tecla aparece em duas ações', () => {
     const all = [...ACTIONS, ...UI_ACTIONS];
     const codes = ['KeyQ', 'KeyS', 'Tab', 'Digit4', 'F1', 'Backquote', 'KeyY', 'Digit1', 'KeyZ', 'F2'];
