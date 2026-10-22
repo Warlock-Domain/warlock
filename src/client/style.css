@@ -18,7 +18,9 @@
   /* metal envelhecido: gradiente sutil e borda dupla dourada fina */
   --plate: linear-gradient(180deg, var(--panel-top), var(--panel-bot));
   /* pergaminho claro dos avisos: destaca por cima da lava e da pedra escura, que têm o mesmo tom do --plate */
-  --paper: linear-gradient(180deg, var(--cream), var(--stone));
+  /* fundo a 70% para ver a arena atrás sem perder a leitura (escolhido entre 100, 90, 80, 70 e 55%, issue #262); borda a 80% e sombra mais leve para o pergaminho não parecer recortado */
+  --paper: linear-gradient(180deg, color-mix(in srgb, var(--cream) 70%, transparent), color-mix(in srgb, var(--stone) 70%, transparent));
+  --gold-toast: color-mix(in srgb, var(--gold) 80%, transparent); --shadow-toast: 0 10px 30px rgba(0, 0, 0, .38);
   /* cores dos avisos no pergaminho: azul de informação e vermelho vivo de erro; letra e ícones em preto (--ink): nada marrom no aviso, o resto da tela já é marrom */
   --toast-info: #2f86e8; --toast-bad: #e8261c; --toast-good: #22c55e;
   /* runas nos avisos: as mesmas cores das runas na arena (RUNE_COLOR em scene.ts) */
@@ -305,7 +307,7 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .wiz-label .hp-extra .rush { color: #ff9640; }
 
 /* letra 1,3x do tamanho normal, a mesma do aviso de quem saiu (PR #234), e fundo claro: o aviso aparece por poucos segundos no meio da partida e precisa ser lido de relance */
-#toast { position: fixed; left: 50%; bottom: calc(150px + var(--safe-b)); transform: translateX(-50%); background: var(--paper); color: var(--ink); border: 1px solid var(--gold); box-shadow: var(--shadow-md); padding: 13px 18px; border-radius: var(--r-sm); font-size: 1.3rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
+#toast { position: fixed; left: 50%; bottom: calc(150px + var(--safe-b)); transform: translateX(-50%); background: var(--paper); color: var(--ink); border: 1px solid var(--gold-toast); box-shadow: var(--shadow-toast); padding: 13px 18px; border-radius: var(--r-sm); font-size: 1.3rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
 #toast.show { opacity: 1; pointer-events: auto; }
 /* com uma loja aberta o clique atravessa o aviso: ele fica por cima da última fileira de cartas e tapava a compra (issue #208) */
 body:has(.center .shop, .peek-shop:not([hidden]) .shop) #toast { pointer-events: none; }
