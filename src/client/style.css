@@ -50,7 +50,6 @@ button.icon.off { opacity: .4; text-decoration: line-through; }
 .gi { width: 1em; height: 1em; flex: none; fill: currentColor; vertical-align: -.14em; }
 button.icon .gi { font-size: 1.3rem; vertical-align: middle; }
 .spell .ico { display: flex; color: var(--ember); }
-.spell.item .ico { color: var(--gold-pale); }
 .vol { position: relative; }
 .vol-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 6; background: var(--plate); border: 1px solid var(--gold-line); border-radius: var(--r-md); padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 240px; box-shadow: var(--plate-edge), var(--shadow-md); max-height: calc(100vh - 64px - var(--safe-t) - var(--safe-b)); max-height: calc(100dvh - 64px - var(--safe-t) - var(--safe-b)); overflow-y: auto; }
 .vol-row { display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 8px; font-size: .9rem; }
@@ -164,10 +163,13 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .dota-bar, .skills { display: flex; align-items: center; gap: 14px; }
 .dota-bar { padding: 10px 16px; border-radius: var(--r-frame); background: var(--frame), var(--plate); border: 2px solid var(--bronze); box-shadow: var(--plate-edge), var(--shadow-md); }
 .hero-box { display: flex; align-items: center; gap: 10px; }
-.hero-face { width: 72px; height: 84px; object-fit: cover; object-position: top; border-radius: var(--r-sm); border: 2px solid var(--bronze); background: var(--panel-bot); }
-.item-grid { display: grid; grid-template-columns: repeat(3, 42px); grid-auto-rows: 42px; gap: 4px; }
+.hero-face { width: 104px; height: 120px; object-fit: cover; object-position: top; border-radius: var(--r-sm); border: 2px solid var(--bronze); background: var(--panel-bot); }
+.item-grid { display: grid; grid-template-columns: repeat(3, 56px); grid-auto-rows: 56px; gap: 6px; }
 .item-grid .passive { display: flex; align-items: center; justify-content: center; opacity: .6; border-color: var(--line); cursor: default; }
-.item-grid .passive .ico { color: var(--gold-pale); font-size: 1.1rem; }
+.item-grid .passive .ico { color: var(--gold-pale); font-size: 1.6rem; }
+/* números do mago só no PC (bloco abaixo); no celular o ouro fica na linha da vida, como antes */
+.hero-row { display: contents; }
+.hero-stats { display: none; }
 .item-grid .passive small { position: absolute; right: 3px; bottom: 1px; font-size: .7rem; color: var(--ember); font-weight: 800; }
 .slot-empty { border-radius: var(--r-sm); background: rgba(0, 0, 0, .35); border: 1px dashed var(--line); }
 /* efeitos em mim acima da barra (mesmos ícones de cima do mago) */
@@ -182,12 +184,27 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
   /* a vida some na contagem e morto: o lugar fica, para a barra não pular */
   .hero-box .vitals[hidden] { display: flex !important; visibility: hidden; }
   .hero-box .vitals { flex-direction: column; align-items: stretch; gap: 6px; }
+  /* 8 magias em 2 fileiras: 1 2 3 4 em cima e Q W E R embaixo (Fernando, 21/10, #217) */
+  .spellbar { display: grid; grid-template-columns: repeat(4, auto); }
   .hero-box .hpbar { width: 190px; height: 22px; }
   .hero-box .hpbar .hp-text { font-size: .85rem; }
-  .item-grid .spell { width: 42px; height: 42px; border-radius: var(--r-sm); }
-  .item-grid .spell .ico { font-size: 1.25rem; }
-  .item-grid .spell .key { left: 2px; top: 1px; padding: 0 3px; font-size: .65rem; }
-  .item-grid .spell .cd { font-size: .95rem; }
+  .item-grid .spell { width: 56px; height: 56px; border-radius: var(--r-sm); }
+  .item-grid .spell .ico { font-size: 1.6rem; }
+  /* ouro e números do mago embaixo da vida, em 2 colunas (preenchem o vão ao lado do retrato maior) */
+  .hero-row { display: flex; flex-direction: column; gap: 4px; }
+  .hero-row .gold { align-self: flex-start; }
+  .hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: .9rem; color: var(--gold-pale); font-variant-numeric: tabular-nums; }
+  .hero-stats span { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+}
+/* tela baixa (até 800 px de altura, como 1280×720): barra de 2 fileiras compacta, para a loja caber acima dela sem rolagem */
+@media (min-width: 601px) and (min-height: 501px) and (max-height: 800px) {
+  .dota-bar { padding: 6px 12px; }
+  .spellbar { gap: 6px; }
+  .spellbar .spell { width: 52px; height: 52px; }
+  .spellbar .spell .ico { font-size: 1.35rem; }
+  .hero-face { width: 92px; height: 106px; }
+  .item-grid { grid-template-columns: repeat(3, 50px); grid-auto-rows: 50px; }
+  .item-grid .spell { width: 50px; height: 50px; }
 }
 .spell { position: relative; width: 64px; height: 64px; min-height: 0; padding: 0; flex-direction: column; gap: 0; border-radius: var(--r-md); background: var(--plate); border: 2px solid var(--bronze); box-shadow: inset 0 0 0 2px var(--panel-bot), inset 0 0 0 3px var(--gold-faint); overflow: hidden; touch-action: manipulation; }
 .spell .ico { font-size: 1.6rem; line-height: 1; }
@@ -239,6 +256,12 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .obstacle-hp > div { height: 100%; background: var(--stone); }
 .obstacle-hp { opacity: .95; height: 4px; width: 40px; }
 .obstacle-hp.chest > div { background: var(--gold); }
+/* Ascensão: nível e XP embaixo da vida; ao subir de nível o número cresce e brilha */
+.wiz-label .wiz-xp { display: flex; align-items: center; gap: 3px; font-size: .62rem; line-height: 1; color: #8cbcff; }
+.wiz-label .xp-track { width: 46px; height: 4px; border-radius: 2px; background: rgba(0, 0, 0, .6); overflow: hidden; }
+.wiz-label .xp-track > div { height: 100%; background: linear-gradient(90deg, #3d7bff, #8cbcff); transition: width .2s; }
+.wiz-label.lvup .wiz-xp b { animation: lvup 1.2s ease-out; }
+@keyframes lvup { 0% { transform: scale(2.2); color: #fff; text-shadow: 0 0 8px #8cbcff; } 100% { transform: scale(1); } }
 .wiz-label .loot-bar { width: 46px; height: 5px; margin-top: 3px; border-radius: 2px; background: rgba(0, 0, 0, .6); overflow: hidden; }
 .wiz-label .loot-bar > div { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-pale)); }
 .hp-text { position: absolute; inset: 0; display: grid; place-items: center; font-size: .7rem; font-weight: 800; line-height: 1; color: var(--white); text-shadow: 0 1px 2px var(--ink), 0 0 2px var(--ink); font-variant-numeric: tabular-nums; }
@@ -472,6 +495,12 @@ button.keycap.wait { border-color: var(--ember); color: var(--ember); }
 .hpbar { position: relative; width: min(280px, 62vw); height: 18px; border-radius: var(--r-xs); background: rgba(0, 0, 0, .75); border: 2px solid var(--bronze); box-shadow: inset 0 0 0 1px var(--panel-bot), 0 0 0 1px var(--gold-faint), var(--shadow-sm); overflow: hidden; }
 .hpbar > i { display: block; height: 100%; background: linear-gradient(180deg, var(--red), var(--lava-deep) 60%, var(--lava-dark)); transition: width .15s; }
 .hpbar .hp-text { font-size: .75rem; }
+/* Ascensão: XP fino embaixo da vida, no azul da Febre arcana */
+.hp-col { display: grid; gap: 3px; }
+.vit-row { display: flex; align-items: center; gap: 6px; }
+.xpbar { height: 6px; border-radius: 3px; background: rgba(0, 0, 0, .75); border: 1px solid var(--bronze); overflow: hidden; }
+.xp-lv { white-space: nowrap; padding: 0 8px; border-radius: 999px; background: var(--panel-glass); color: #8cbcff; font-size: 1rem; text-shadow: var(--text-shadow); }
+.xpbar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #3d7bff, #8cbcff); transition: width .2s; }
 .vitals .gold { padding: 0 10px; border-radius: 999px; background: var(--panel-glass); font-size: 1.1rem; text-shadow: var(--text-shadow); }
 /* celular: configurações, som, provocações e ajuda dentro do "⋯" */
 .more-wrap { display: none; }
@@ -599,6 +628,10 @@ button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infini
 #toast[data-kind="gold"] { border-left-color: var(--gold); }
 #toast[data-kind="gold"]::before { content: none; }
 #toast[data-kind="gold"] > .gi { flex: none; font-size: 1.3rem; color: var(--gold); }
+/* toast(…, top): logo abaixo da barra do topo, com letra maior, entrando de cima (issue #223); id + classe ganha das
+   posições de baixo das media queries de #toast, então vale em toda largura de tela */
+#toast.top { top: calc(64px + var(--safe-t)); bottom: auto; font-size: 1.3rem; padding: 13px 18px; transform: translate(-50%, -8px); }
+#toast.top.show { transform: translateX(-50%); }
 /* golpe crítico: número claro com brilho de brasa */
 .dmg.crit { color: var(--gold-pale); -webkit-text-stroke: 1px var(--lava-dark); text-shadow: 0 0 12px rgba(255, 170, 40, .9), var(--text-shadow); }
 /* VITÓRIA: dourado em degradê, maior, com confete saindo do centro */
@@ -892,9 +925,6 @@ body.replaying .peek-shop { display: none; }
 .shop-items { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .shop-items .shop-head h3 { color: var(--item); }
 .shop-items .shop-group .shop-head { border-bottom-color: var(--item-line); }
-/* na barra da partida, os itens também prateados */
-.spellbar .spell.item { border-color: var(--item-line); }
-.spellbar .spell.item .ico { color: var(--item); filter: drop-shadow(0 0 4px rgba(201, 212, 224, .4)); }
 
 /* uma cor por grupo de magia (Fernando, 19/10): Ataque vermelho-laranja, Mobilidade verde, Defesa azul, Controle roxo */
 .g-ataque { --g: #ff6b4a; } .g-mobilidade { --g: #8be36a; } .g-defesa { --g: #5fb0ff; } .g-controle { --g: #c58bff; }
@@ -1054,8 +1084,6 @@ body.replaying .peek-shop { display: none; }
 body:has(.drag-ghost) .tip { display: none; } /* a dica cobria a vaga de destino durante o arraste */
 .drop-target { outline: 2px solid var(--gold); outline-offset: 2px; background: color-mix(in srgb, var(--gold) 14%, var(--plate)); }
 .spellbar .slot-empty { position: relative; display: flex; }
-.item-grid .slot-empty[data-loadout-slot] { display: block; position: relative; width: 42px; height: 42px; }
-.item-grid .slot-empty .key { position: absolute; top: 2px; left: 4px; font-size: .65rem; color: var(--muted); }
 
 /* Ataque em 2 fileiras de 5, cada outro grupo em 1 (Fernando, 19/10) */
 .shop .shop-main .shop-grid { grid-template-columns: repeat(5, 76px); }
@@ -1071,12 +1099,12 @@ body:has(.drag-ghost) .tip { display: none; } /* a dica cobria a vaga de destino
 .tile-acts { min-height: 26px; }
 @media (min-width: 861px) {
   .shop .shop-main .shop-grid { grid-template-columns: repeat(5, 118px); column-gap: 10px; }
-  /* itens em 3 colunas (Fernando, 20/10: 2 ficava muito vertical); 3fr e 5fr dão a largura de um cartão de magia a cada item
-     (Fernando, 21/10: "todo desalinhado os cards") */
+  /* itens em 3 colunas (Fernando, 20/10: 2 ficava muito vertical), em cartões menos largos que os de magia: 2,5fr contra 5fr
+     (Fernando, 21/10: "deixe 3 por linha mas deixe o card menos largo") */
   .shop-items .shop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 8px; }
   .shop-items .shop-item { width: auto; }
   .shop-items .shop-tile { width: 100%; }
-  .shop { grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) 270px; }
+  .shop { grid-template-columns: minmax(0, 2.5fr) minmax(0, 5fr) 270px; }
 }
 /* tela estreita (celular, gaveta): cartões ocupam a largura em colunas iguais */
 @media (max-width: 860px) {
@@ -1087,7 +1115,7 @@ body:has(.drag-ghost) .tip { display: none; } /* a dica cobria a vaga de destino
 .peek-shop.drawer .shop .shop-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
 .peek-shop.drawer .shop-item { width: auto; }
 .peek-shop.drawer .shop-tile { width: 100%; }
-@media (min-width: 1500px) { .shop { grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) 290px; } .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 1500px) { .shop { grid-template-columns: minmax(0, 2.5fr) minmax(0, 5fr) 290px; } .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); } }
 /* loja só para ver: o ícone é um div, não botão; recebe o mesmo arranjo e a mesma moldura do botão */
 .shop-tile { display: flex; align-items: center; }
 div.shop-tile { border-color: var(--line); box-sizing: border-box; }
@@ -1123,14 +1151,16 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
 }
 /* Mesmo formato compacto em toda compra; a gaveta estreita não comporta o catálogo sem rolagem. */
 @media (min-width: 1100px) and (min-height: 600px) {
-  /* a loja termina acima da barra de baixo, onde se troca a ordem das magias: --bar-space = barra (112 px) + 10 px de margem + 8 de folga */
-  .hud { --bar-space: 130px; }
+  /* a loja termina acima da barra de baixo, onde se troca a ordem das magias: --bar-space = barra + 10 px de margem + 8 de folga.
+     Barra de 2 fileiras (#217): 160 px; em tela baixa ela encolhe para 118 px (bloco de max-height: 800px abaixo) */
+  .hud { --bar-space: 178px; }
+  @media (max-height: 800px) { .hud { --bar-space: 136px; } }
   /* centrada no espaço livre entre a barra de cima e a de baixo (Fernando, 21/10): topo e fundo presos, altura do conteúdo e margem automática */
   .center:has(.compact-shop), .peek-shop:has(.compact-shop) { top: calc(76px + var(--safe-t)); bottom: calc(var(--bar-space) + var(--safe-b)); height: fit-content; margin-block: auto;
     max-height: calc(100% - 76px - var(--bar-space) - var(--safe-t) - var(--safe-b)); }
   .center:has(.compact-shop) { transform: translateX(-50%); }
   /* --gap-v: espaço vertical entre fileiras, grupos e blocos; cresce com a altura da tela (3 px em 720, 26 px em 1080) para a loja usar a altura livre (Fernando, 21/10) */
-  .compact-shop { padding: 24px; gap: 16px; --acts-w: 24px; --gap-v: clamp(3px, calc((100dvh - 680px) / 15), 26px); --tile-h: clamp(50px, calc((100dvh - 470px - 9 * var(--gap-v)) / 5), 84px); }
+  .compact-shop { padding: 24px; gap: 16px; --acts-w: 24px; --gap-v: clamp(3px, calc((100dvh - 680px) / 15), 26px); --tile-h: clamp(50px, calc((100dvh - 240px - var(--bar-space) - var(--heads) * 25px - (var(--heads) - 1) * 1.5 * var(--gap-v) - (var(--rows) - 1) * 5px) / var(--rows)), 84px); }
   .compact-shop .shop-main, .compact-shop .shop-items { gap: var(--gap-v); }
   .compact-shop .shop-group { gap: calc(var(--gap-v) / 2 + 2px); }
   .compact-shop .shop-head { gap: 4px 8px; }
@@ -1140,10 +1170,10 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
   .shop.compact-shop .shop-main > .shop-head { display: contents; }
   .shop.compact-shop .shop-main > .shop-head > :not(.peek-close) { display: none; }
   .shop.compact-shop .peek-close { position: absolute; top: 4px; right: 4px; z-index: 2; width: 32px; min-height: 32px; margin: 0; }
-  .shop.compact-shop .shop-grid { gap: var(--gap-v) 5px; }
+  .shop.compact-shop .shop-grid { gap: 5px; } /* fileiras da mesma categoria coladas; entre categorias fica o --gap-v (Fernando, 21/10) */
   .shop.compact-shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   /* um cartão só para itens e magias (Fernando, 21/10): o ícone num quadro da cor do grupo à esquerda; nome, nível e preço empilhados à direita.
-     470 px: altura do que fica acima e abaixo do catálogo (topo, título, busca, barra de baixo); as 5 fileiras de magias dividem o resto.
+     240 px + --bar-space + 25 px por título: o que fica acima e abaixo do catálogo (topo, títulos e a barra de baixo); as fileiras da coluna mais alta (--rows e --heads, de ui.ts) dividem o resto.
      A altura segue a largura (9 por 4) dentro desse teto: em 16:9 e em ultrawide o cartão tem o mesmo formato (Fernando, 21/10).
      Padding igual nos quatro lados; à direita fica a coluna dos botões (comprar ou subir, vender, desfazer) */
   .compact-shop .shop-tile { --well: min(calc(var(--tile-h) - 18px), calc(40cqi - 18px), 52px); display: grid; grid-template-columns: var(--well) minmax(0, 1fr); grid-template-rows: 1fr auto auto auto 1fr;
@@ -1184,14 +1214,14 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
   .compact-shop .first-tip { padding: 6px 8px; gap: 6px; font-size: .8rem; }
   /* No PC a compra durante a rodada usa a mesma largura da inicial, inclusive para quem caiu (#121) */
   .peek-shop:has(.compact-shop) { left: 50%; right: auto; transform: translateX(-50%); width: min(1860px, calc(100% - 24px)); }
-  .peek-shop.drawer .compact-shop { grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) 270px; }
+  .peek-shop.drawer .compact-shop { grid-template-columns: minmax(0, 2.5fr) minmax(0, 5fr) 270px; }
   .peek-shop.drawer .compact-shop .shop-items { order: initial; }
   .peek-shop.drawer .compact-shop .shop-side { display: flex; }
   .peek-shop.drawer .compact-shop .shop-side > .gold.big { position: static; margin: 0; padding: 0; background: none; border: 0; }
   .peek-shop.drawer .compact-shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .peek-shop.drawer .compact-shop .shop-items .shop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (min-width: 1500px) and (min-height: 600px) { .peek-shop.drawer .compact-shop { grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) 290px; } } /* coluna da direita um pouco mais larga em tela grande */
+@media (min-width: 1500px) and (min-height: 600px) { .peek-shop.drawer .compact-shop { grid-template-columns: minmax(0, 2.5fr) minmax(0, 5fr) 290px; } } /* coluna da direita um pouco mais larga em tela grande */
 @media all {
   .shop-item { position: relative; }
   .tile-acts { position: absolute; top: 4px; right: 4px; min-height: 0; z-index: 1; }

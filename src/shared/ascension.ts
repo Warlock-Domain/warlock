@@ -20,11 +20,17 @@ export type AscState = { xp: Record<string, number>; todo: Record<string, Kind[]
 const EVERY_BREAK: Kind[] = ['spell', 'item'];
 
 export const ASC_ROUNDS = 9;
+// final valendo mais: os pontos da queda valem 1,5× nas rodadas 6 e 7 e o dobro nas 8 e 9, para quem está atrás ainda virar
+// (Fernando, 21/10: "coloque 6 e 7 1.5x e 8 e 9 2x pontos"); arredonda para o placar seguir inteiro (a ordem não muda)
+export const roundMult = (round: number) => (round >= 8 ? 2 : round >= 6 ? 1.5 : 1);
 // números iniciais, a medir no simulador (PRs de rebalanceamento depois); as magias e os itens não mudam (Fernando, 21/10)
 // DMG_XP e LAVA_XP separados: o Fernando está decidindo se a lava continua contando como dano do mago (21/10)
 export const DMG_XP = 1;
 export const LAVA_XP = 1;
-export const KILL_XP = 100;
+// abate e assistência valem mais que o dano (Fernando, 21/10: "coloque abate 200xp e assist 100xp"); a assistência é de quem
+// mais bateu na vítima sem ser quem matou (a mesma do ouro, ASSIST_MIN_DMG de dano no mínimo)
+export const KILL_XP = 200;
+export const ASSIST_XP = 100;
 export const ALIVE_XP = 2; // por segundo vivo
 // cada nível custa o mesmo; 1 100 (escolha do Fernando, 21/10, pela simulação de 1 430 partidas): 1,3 subir magia por intervalo
 // (com 600 eram 2,8, umas 5 cartas por intervalo)
@@ -77,6 +83,13 @@ export function xpGain(s: Stat): number {
 
 export const xpFor = (level: number) => LEVEL_XP * (level - 1);
 export const levelOf = (xp: number) => 1 + Math.floor(xp / LEVEL_XP);
+// barra de XP na arena (Fernando, 21/10): o XP da partida mais o da rodada ao vivo (dano, abates, segundos vivo); no fim da
+// rodada vale o do servidor, que soma o bônus do líder, a consolação e a Febre arcana. frac: quanto do nível atual já encheu
+export function liveLevel(xp: number, dmg: number, kills: number, alive: number) {
+  const total = Math.round(xp + DMG_XP * dmg + KILL_XP * kills + ALIVE_XP * alive);
+  const level = levelOf(total);
+  return { level, total, next: xpFor(level + 1), frac: (total - xpFor(level)) / LEVEL_XP };
+}
 
 const lv = (a: AscState, id: string) => levelOf(a.xp[id] ?? 0);
 const groupOf = (c: Card) => (c.kind === 'item' ? 'item' : spellGroup(c.id));
@@ -203,9 +216,10 @@ export function reroll(m: Match, id: string): boolean {
 }
 
 // queda: a ordem vale pontos; derrubar o líder (maior nível, à frente de quem derrubou) rende XP extra
-export function ascDeath(m: Match, victim: string, by: string | null) {
+export function ascDeath(m: Match, victim: string, by: string | null, helper?: string) {
   const a = m.asc!;
   a.fallen.push(victim);
+  if (helper) a.extra[helper] = (a.extra[helper] ?? 0) + ASSIST_XP;
   const top = Math.max(...m.players.map((p) => lv(a, p.id)));
   if (by && by !== victim && lv(a, victim) === top && top > lv(a, by)) a.extra[by] = (a.extra[by] ?? 0) + LEADER_KILL_XP * (top - lv(a, by));
 }
@@ -224,7 +238,7 @@ export function ascMark(m: Match) {
   if (z && lead) z.kbResist -= MARK_KB * lead.above;
 }
 
-// a cada passo do intervalo: põe as fileiras na mesa (bots e quem saiu escolhem na hora); quando todo humano escolheu tudo, o
+// a cada passo do intervalo: põe as fileiras na mesa (os bots escolhem na hora; quem saiu recebe o sorteio no fim); quando todo humano escolheu tudo, o
 // intervalo encurta para LAST_CALL_MS; no fim do tempo aplica as escolhas (applyPicks) e a partida segue para a contagem
 export function ascShop(m: Match, now: number, rand: () => number) {
   const a = m.asc!;
@@ -258,7 +272,7 @@ export function ascEndRound(m: Match, played: string[], alive: string[]) {
   const inRound = m.players.filter((p) => played.includes(p.id));
   const avg = inRound.reduce((t, p) => t + lv(a, p.id), 0) / Math.max(1, inRound.length);
   for (const p of inRound) {
-    p.score += pts[p.id];
+    p.score += Math.round(pts[p.id] * roundMult(m.round));
     const before = lv(a, p.id);
     // Febre arcana: no Ascensão (sem ouro) o efeito de rodada da Febre do ouro multiplica o XP da rodada (Fernando, 21/10: "arcane rush q da 50% mais xp")
     const rush = m.world?.mods.gold ?? 1;

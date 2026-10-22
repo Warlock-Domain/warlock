@@ -87,17 +87,18 @@ describe('previsão', () => {
   });
 });
 
-describe('teclas Q W E R D F', () => {
-  it('in slot mode the equipped spells and active items follow the bar order', () => {
+describe('teclas 1 2 3 4 Q W E R', () => {
+  it('in slot mode the equipped spells follow the bar order', () => {
     setSlotMode(true);
-    setSlots(['fireball', 'gravity', 'swap'], ['redirector', 'pact']);
-    expect(actionFor('KeyQ')).toBe('fireball');
-    expect(actionFor('KeyW')).toBe('gravity');
-    expect(actionFor('KeyE')).toBe('swap');
-    expect(actionFor('KeyR')).toBeUndefined();
-    expect([actionFor('Digit1'), actionFor('Digit2'), actionFor('Digit3')]).toEqual(['redirector', 'pact', undefined]);
-    expect(labelOf('pact')).toBe('2');
-    expect(labelOf('gravity')).toBe('W');
+    setSlots(['fireball', 'gravity', 'swap', null, 'pact']);
+    expect(actionFor('Digit1')).toBe('fireball');
+    expect(actionFor('Digit2')).toBe('gravity');
+    expect(actionFor('Digit3')).toBe('swap');
+    expect(actionFor('Digit4')).toBeUndefined();
+    expect(actionFor('KeyQ')).toBe('pact');
+    expect(actionFor('KeyW')).toBeUndefined();
+    expect(labelOf('pact')).toBe('Q');
+    expect(labelOf('gravity')).toBe('2');
     setSlotMode(false);
     expect(actionFor('KeyW')).toBe('lightning');
   });
