@@ -4,7 +4,7 @@ import {
 } from '../shared/constants.ts';
 import { DEFAULT_OPTS, DM_GOALS, OPTION_CHOICES } from '../shared/match.ts';
 import { CLASH } from '../shared/sim.ts';
-import { ITEMS, MAX_ITEMS, SCOURGE } from '../shared/items.ts';
+import { ITEMS, MAX_ITEMS, SCOURGE, type ItemId } from '../shared/items.ts';
 import { keyLabel, keyOf, padButtonName, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
 import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, RECHARGE, RUSH, SPELLS, SPELL_GROUP_IDS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
 import { LANG, LOCALE, spellName, t } from './i18n.ts';
@@ -355,6 +355,12 @@ export const SPELL_GROUPS = LANG === 'en' ? SPELL_GROUPS_EN : SPELL_GROUPS_PT;
 const GROUP_CLASS_EN: Record<string, string> = { attack: 'ataque', mobility: 'mobilidade', defense: 'defesa', control: 'controle' };
 export const groupClass = (name: string) => 'g-' + (GROUP_CLASS_EN[name.toLowerCase()] ?? name.toLowerCase());
 export const spellClass = (s: SpellId) => groupClass(SPELL_GROUPS.find(([, , ids]) => ids.includes(s))?.[0] ?? '');
+// loja: itens passivos em seções como as magias (Fernando, 21/10), pelo efeito principal
+type ItemGroups = [name: string, hint: string, items: ItemId[]][];
+const IG: Record<string, ItemId[]> = { life: ['ring', 'cape', 'vampire'], move: ['boots', 'shock_boots', 'wind_boots', 'lava_boots'], guard: ['armor', 'helmet', 'warden', 'cursed_ring', 'aegis', 'watch'] };
+const ITEM_GROUPS_PT: ItemGroups = [['Vida', 'mais vida e cura', IG.life], ['Movimento', 'correr e pisar na lava', IG.move], ['Proteção', 'menos empurrão, dano e lentidão', IG.guard]];
+const ITEM_GROUPS_EN: ItemGroups = [['Health', 'more health and healing', IG.life], ['Movement', 'run and step on lava', IG.move], ['Protection', 'less knockback, damage and slows', IG.guard]];
+export const ITEM_GROUPS = LANG === 'en' ? ITEM_GROUPS_EN : ITEM_GROUPS_PT;
 
 // para que serve, em uma linha (cartão da loja)
 const SPELL_USE_PT: Record<SpellId, string> = {
