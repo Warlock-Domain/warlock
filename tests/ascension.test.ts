@@ -153,7 +153,7 @@ describe('partida do Ascensão', () => {
       const offer = m.asc!.offer.h;
       run(m, STEP_MS, () => m.phase === 'countdown', seeded(seed));
       const h = m.players.find((p) => p.id === 'h')!;
-      const got = offer.map((row) => row.findIndex((c) => (c.kind === 'item' ? h.items[c.id] > 0 && c.id !== 'scourge' : h.spells[c.id] > 0)));
+      const got = offer.map((row) => row.findIndex((c) => (c.kind === 'item' ? h.items[c.id] > 0 : h.spells[c.id] > 0)));
       return { got, auto: publicRoom('R', m, 0).players.find((p) => p.name === 'Ana')!.asc!.auto, offer, spells: { ...h.spells }, items: { ...h.items } };
     };
     const runs = Array.from({ length: 12 }, (_, s) => play(s));
