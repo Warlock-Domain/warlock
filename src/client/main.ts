@@ -20,7 +20,7 @@ import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t } from './i18n.ts';
 import { cardName } from './ascension-ui.ts';
-import { effectName } from './opt-info.ts';
+import { SKILL_NAME, effectName } from './opt-info.ts';
 import { getCastMode, isPadMode, labelOf, onFreeEsc } from './keys.ts';
 import { openSettings, savedPixel } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
@@ -32,7 +32,7 @@ import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
-import { endResult, sandboxVisibility } from './screen-data.ts';
+import { botLevel, endResult, sandboxVisibility, seatChanges } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
 declare const __BRANCH__: string;
@@ -646,6 +646,15 @@ function startRoom(code: string, name: string) {
       arenaId = room.arena ?? arenaId; // na loja não há rodada: fica a última arena
       view.update(room, me, online);
       begin(room);
+      // alguém saiu no meio da partida e um bot assumiu o mago, ou a pessoa voltou (issue #223)
+      if (prev) {
+        const { left, back } = seatChanges(prev, room);
+        for (const p of left) {
+          const lvl = SKILL_NAME[botLevel(p, room) ?? room.opts.difficulty];
+          toast(t(`${p.name} saiu da partida · um bot ${lvl} joga no lugar até voltar`, `${p.name} left the match · a ${lvl} bot plays in their place until they return`), 'info', true);
+        }
+        for (const p of back) toast(t(`${p.name} voltou para a partida`, `${p.name} is back in the match`), 'good', true);
+      }
       // compra na loja: o ouro caiu → som de moedas
       if (prev?.phase === 'shop' && room.phase === 'shop') {
         const was = prev.players.find((p) => p.id === me)?.gold, now = room.players.find((p) => p.id === me)?.gold;
@@ -870,7 +879,7 @@ function startRoom(code: string, name: string) {
       const moving = len(w.vel) < STUN_SPEED && w.alive && (!prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
       if (live && w.alive && room?.phase === 'playing') aliveAt[w.id] = s.time;
-      return { ...w, xp: live && p ? xpOf(p) : null, status, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', place: placeOf(p), shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
+      return { ...w, xp: live && p ? xpOf(p) : null, status, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p && room ? botLevel(p, room) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', score: room?.sandbox ? undefined : p?.score, shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
     });
   }
   // eventos do replay: só a cena (clarão, explosão) e a seta do golpe que eu levei

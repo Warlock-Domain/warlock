@@ -278,12 +278,9 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .wiz-label .shield-bar { width: 64px; height: 4px; margin-top: 2px; border-radius: 2px; background: rgba(0, 0, 0, .6); overflow: hidden; }
 .wiz-label .shield-bar > div { height: 100%; background: #8fd3ff; }
 .dmg.heal { color: #6ee787; -webkit-text-stroke: 1px #0f3d22; }
+/* pontos da partida ao lado do nome, em cima do mago */
+.wiz-score { margin-left: 4px; padding: 0 4px; border-radius: 3px; background: rgba(0, 0, 0, .55); color: var(--gold); font-size: .72rem; vertical-align: middle; }
 /* bot: robô e dificuldade ao lado do nome (rótulo do mago e placar do canto) */
-/* medalha da colocação (1 a 3) à esquerda do nome, em cima do mago */
-.wiz-medal { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-right: 4px; border-radius: 50%; font-size: .62rem; font-weight: 800; line-height: 1; color: #2a1d17; text-shadow: none; vertical-align: middle; box-shadow: 0 0 0 1px rgba(0, 0, 0, .6), inset 0 -2px 0 rgba(0, 0, 0, .2); }
-.wiz-medal.medal-1 { background: radial-gradient(circle at 35% 30%, #fff3b0, #f2c200 60%, #a07800); }
-.wiz-medal.medal-2 { background: radial-gradient(circle at 35% 30%, #ffffff, #bfc5cc 60%, #7b828a); }
-.wiz-medal.medal-3 { background: radial-gradient(circle at 35% 30%, #f3c9a0, #c07a3a 60%, #7a4419); }
 .bot-tag { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; font-size: .68rem; font-weight: 700; color: var(--muted); vertical-align: middle; }
 /* números pequenos à direita da barra: regeneração e escudos (sem mexer no tamanho da barra) */
 .wiz-label .hp-extra { position: absolute; left: 100%; top: 50%; margin-left: 3px; transform: translateY(-50%); display: flex; gap: 4px; font-size: .66rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
@@ -633,6 +630,10 @@ button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infini
 #toast[data-kind="gold"] { border-left-color: var(--gold); }
 #toast[data-kind="gold"]::before { content: none; }
 #toast[data-kind="gold"] > .gi { flex: none; font-size: 1.3rem; color: var(--gold); }
+/* toast(…, top): logo abaixo da barra do topo, com letra maior, entrando de cima (issue #223); id + classe ganha das
+   posições de baixo das media queries de #toast, então vale em toda largura de tela */
+#toast.top { top: calc(64px + var(--safe-t)); bottom: auto; font-size: 1.3rem; padding: 13px 18px; transform: translate(-50%, -8px); }
+#toast.top.show { transform: translateX(-50%); }
 /* golpe crítico: número claro com brilho de brasa */
 .dmg.crit { color: var(--gold-pale); -webkit-text-stroke: 1px var(--lava-dark); text-shadow: 0 0 12px rgba(255, 170, 40, .9), var(--text-shadow); }
 /* VITÓRIA: dourado em degradê, maior, com confete saindo do centro */
