@@ -851,6 +851,8 @@ function startRoom(code: string, name: string) {
     const on = room?.phase === 'playing';
     return liveLevel(p.asc.xp, on ? (live[p.id]?.dmg ?? 0) : 0, on ? (live[p.id]?.kills ?? 0) : 0, on ? (aliveAt[p.id] ?? 0) : 0);
   };
+  // colocação no placar para a medalha em cima do mago: só quem já fez ponto; empate divide a colocação; fora na sandbox
+  const placeOf = (p?: PublicPlayer) => (!p?.score || !room || room.sandbox ? undefined : 1 + room.players.filter((q) => !q.watch && q.score > p.score).length);
   function wizardsOf(s: SnapView, live: boolean, dt: number): WizDraw[] {
     const byId = new Map(room?.players.map((p) => [p.id, p]) ?? []);
     // modo Times: cor do time no anel e na barra; no fim da rodada o time vencedor inteiro comemora
@@ -868,7 +870,7 @@ function startRoom(code: string, name: string) {
       const moving = len(w.vel) < STUN_SPEED && w.alive && (!prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
       if (live && w.alive && room?.phase === 'playing') aliveAt[w.id] = s.time;
-      return { ...w, xp: live && p ? xpOf(p) : null, status, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', score: room?.sandbox ? undefined : p?.score, shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
+      return { ...w, xp: live && p ? xpOf(p) : null, status, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p?.bot ? (p.difficulty ?? room?.opts.difficulty) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', place: placeOf(p), shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
     });
   }
   // eventos do replay: só a cena (clarão, explosão) e a seta do golpe que eu levei
