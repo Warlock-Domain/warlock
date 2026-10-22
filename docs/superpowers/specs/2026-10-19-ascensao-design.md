@@ -4,7 +4,7 @@ Decidido com o Fernando em 19/10/2026 (chat da sessão "🎮🔥 Warlock online"
 
 ## Intenção
 
-Um quarto modo de partida, "meio roguelike, tipo o ARAM do LoL com as cartinhas de upgrade" (palavras dele): o mago começa fraco e fica mais forte a cada rodada, escolhendo cartas. Quem fica mais tempo vivo e causa mais dano sobe mais rápido, mas há mecanismos de recuperação para quem fica para trás, para a partida não se decidir cedo.
+Um quarto modo de partida, meio roguelike, como o ARAM do LoL com cartas de melhoria: o mago começa fraco e fica mais forte a cada rodada, escolhendo cartas. Quem fica mais tempo vivo e causa mais dano sobe mais rápido, mas há mecanismos de recuperação para quem fica para trás, para a partida não se decidir cedo.
 
 ## Objetivos
 
@@ -41,11 +41,11 @@ Um quarto modo de partida, "meio roguelike, tipo o ARAM do LoL com as cartinhas 
 | Recuperação | As 4: recompensa por derrubar o líder, XP de consolação, cartas melhores para quem está atrás, líder marcado leva mais empurrão |
 | Baús | Não existem no Ascensão (a opção some da sala nesse modo) |
 | Bots | Escolhem pela dificuldade: Fácil ao acaso; Normal completa grupos que faltam (defesa/mobilidade antes de mais ataque); Difícil escolhe a carta que mais vence no simulador |
-| Crédito de abate por controle (21/10) | Troca, Agarrar e Magnetizar contam como golpe para o crédito do abate (janela de 5 s), **em todos os modos**: "no jogo normal tbm deve contar". Fica em issue própria, fora do Ascensão; o modo só herda |
-| Cartas por intervalo (21/10) | Todo intervalo dá 1 magia nova e 1 item ("no modo assencao todo round deve ganhar ... 1 magia nova e 1 item"); cada nível de XP dá 1 subir magia. Cada escolha é 1 entre 3 cartas do mesmo tipo. Substitui "cada nível = 1 carta de qualquer tipo" |
+| Crédito de abate por controle (21/10) | Troca, Agarrar e Magnetizar contam como golpe para o crédito do abate (janela de 5 s), **em todos os modos**, também no jogo normal. Fica em issue própria, fora do Ascensão; o modo só herda |
+| Cartas por intervalo (21/10) | Todo intervalo dá 1 magia nova e 1 item (pedido do Fernando); cada nível de XP dá 1 subir magia. Cada escolha é 1 entre 3 cartas do mesmo tipo. Substitui "cada nível = 1 carta de qualquer tipo" |
 | Ritmo e troca (21/10, pela simulação de 1 430 partidas) | Nível custa 1 100 XP (1,3 subir magia por intervalo; com 600 eram 2,8). Com a barra cheia, a fileira de magia nova pode ser recusada ("Manter as minhas magias"); o tempo esgotado e os bots mantêm em vez de trocar |
-| Intervalo (21/10, depois de jogar) | As fileiras não fecham depois da escolha: a carta fica marcada e dá para trocar; as escolhas só valem no fim do intervalo. Quando todos escolheram, o intervalo acaba em 5 s. Na troca com a barra cheia, a magia nova herda o nível da que sai ("nao fechar os menus dps q vc escolhe", "countdown de 5 segundos", "a magia q vc recebe recebe os niveis q a magia q esta sendo trocada recebeu") |
-| Magias no modo (21/10) | "Por enquanto o modo Ascension vai ser sem skills rebalanceadas": mesmos números de `spells.ts` e `items.ts` dos outros modos |
+| Intervalo (21/10, depois de jogar) | As fileiras não fecham depois da escolha: a carta fica marcada e dá para trocar; as escolhas só valem no fim do intervalo. Quando todos escolheram, o intervalo acaba em 5 s. Na troca com a barra cheia, a magia nova herda o nível da que sai (pedidos do Fernando: menus abertos depois da escolha, contagem de 5 s e a magia nova com os níveis da que sai) |
+| Magias no modo (21/10) | Por enquanto, o Ascensão fica sem magias rebalanceadas: mesmos números de `spells.ts` e `items.ts` dos outros modos |
 
 ## Como funciona
 
@@ -98,7 +98,7 @@ Curva de níveis calibrada para dar em média 1 a 2 escolhas por intervalo.
 - Quem lidera em nível na rodada 3 vence entre 25% e 50% das partidas.
 - Nenhuma carta escolhida em mais de 40% das vezes em que aparece (sinal de carta forte demais).
 
-## Código separado (pedido do Fernando, 19/10: "deixe o código do ascension mais separado pois vai mudar muita coisa da core gameplay")
+## Código separado (pedido do Fernando, 19/10: código do Ascensão separado, porque o modo muda muito a jogabilidade principal)
 
 - Toda a regra do modo mora em `src/shared/ascension.ts` (XP, níveis, cartas, pontos, recuperação, escolha dos bots) e a tela em `src/client/ascension-ui.ts`.
 - `match.ts`, `sim.ts`, `protocol.ts`, `room-do.ts` e `ui.ts` ganham só ganchos curtos do tipo `if (m.mode === 'ascension') return asc.algo(...)`.

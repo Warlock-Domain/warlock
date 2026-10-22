@@ -34,7 +34,7 @@ export const PROJ_SPAWN = WIZ_R + PROJ_R + 0.05;
 // (raio, vida e explosão em OBSTACLES.pillar)
 export const PILLAR = { spread: 1000 * UNIT, min: 2, max: 8 };
 
-// tipos de obstáculo (pedido do Fernando, 17/10: "não só esses pilares"); o pilar segue o original, os outros são meus:
+// tipos de obstáculo (pedido do Fernando, 17/10: mais tipos além dos pilares); o pilar segue o original, os outros são meus:
 // rocha grande que não quebra, árvore morta frágil e altar de velas que explode em fogo. weight = chance relativa no sorteio
 export const OBSTACLE_KINDS = ['pillar', 'rock', 'tree', 'shrine', 'chest', 'rockpillar'] as const;
 export type ObstacleKind = (typeof OBSTACLE_KINDS)[number];
@@ -62,17 +62,17 @@ export const ROUND_GOLD = 10;
 // vender devolve sempre 100% do que pagou (Fernando, 19/10); antes perdia 5% por rodada até 75%
 export const SELL_DECAY = 0;
 export const SELL_FLOOR = 0.75;
-// baú de ouro no meio da rodada (pedidos do Fernando, 17/10: "incentivar a treta"): aparece a cada 15 s, as magias quebram
+// baú de ouro no meio da rodada (pedidos do Fernando, 17/10: incentivar o confronto): aparece a cada 15 s, as magias quebram
 // (vida em OBSTACLES.chest) e ele vira um monte de ouro; quem fica em cima ganha 1 a cada 2 s até o monte (3 a 5, sorteado quando o baú nasce; Fernando, 20/10, issue #80; antes 10) acabar; sair zera o progresso
-// primeiro aos 8 s, depois um a cada 12 s mesmo que o anterior não tenha sido quebrado, até 2 baús de pé (Fernando, 17/10: "não aparece mais baú")
-// perRound: no máximo metade dos magos + 1 baús por rodada, nunca mais que 3 (Fernando, 19/10: "muitos baús nos rounds")
+// primeiro aos 8 s, depois um a cada 12 s mesmo que o anterior não tenha sido quebrado, até 2 baús de pé (Fernando, 17/10: o baú deixava de aparecer)
+// perRound: no máximo metade dos magos + 1 baús por rodada, nunca mais que 3 (Fernando, 19/10: baús demais nas rodadas)
 export const CHEST = { first: 8, every: 12, maxUp: 2, perRound: 3, pile: [3, 5] as const, goldEvery: 2, reach: 0.75, pileSecs: 45, spread: 0.6 };
 // chão depois do choque de projéteis (pedido do Fernando, 17/10): fogo queima, arcano deixa lento, pulso puxa para o centro
 export const ZONES = { burn: { dps: 20, secs: 4.5 }, slow: { mult: 0.6, secs: 4.5 }, pull: { speed: 2.2, secs: 3 }, size: 0.75 };
 // assistência: quem causou mais dano em quem morreu, sem ser quem matou (anti-roubo de abate do Warlock original, versão 082)
 export const ASSIST_GOLD = 2;
 export const ASSIST_MIN_DMG = 30;
-// recuperação (pedido do Fernando, 17/10: "evitar a galera ficar muito atrás"):
+// recuperação (pedido do Fernando, 17/10: evitar que os jogadores fiquem muito para trás):
 // quem ganhou menos ouro na partida que a média recebe metade da diferença no fim da rodada (até 8);
 // abater o líder do placar vale +3 por vitória de vantagem dele sobre a média (até 10); o líder que vence ganha só 5
 export const RECOVERY = { share: 0.5, max: 8 };
@@ -91,7 +91,7 @@ export const DM_SPAWN_GAP = 2; // ao voltar, pelo menos 2 m de inimigos vivos e 
 export const COUNTDOWN_MS = 3_000;
 export const ROUND_END_MS = 2_500;
 export const VOTE_MS = 20_000; // votação na partida (trocar o modo, expulsar alguém) fecha em 20 s; pedido do Fernando (17/10)
-// mecânicas novas de 18/10 (o Fernando liberou "novas mecânicas legais"):
+// mecânicas novas de 18/10 (o Fernando liberou mecânicas novas):
 // morte súbita nas Rodadas e nos Times: passados 90 s, a arena encolhe a cada 5 s em vez de 10 (as rodadas duram ~97 s na simulação)
 // collapse: depois disso a arena continua encolhendo até sumir (nenhuma rodada fica sem fim; antes ~1 em 2.000 partidas de bots travava)
 export const SUDDEN = { at: 90, every: 5, collapse: 150 };
@@ -106,7 +106,7 @@ export const RUNE = { first: 15, every: 20, secs: 8, reach: 0.6, spread: 0.6, ha
 // todos; heal = toda vida recuperada (regeneração, Drenar, Roubo de vida); shrink = quanto do encolhimento normal acontece (abaixo de 1
 // a arena para antes, até o SUDDEN.collapse); swords = a borda vira parede de espinhos (SWORDS) em vez de lava.
 // Histórico: Vendaval era "lentidões −20%" e virou velocidade (+30% medido, +50% pedido pelo Fernando depois de jogar); a Caçada (hoje Febre do ouro) foi
-// juntada à Arena e separada de novo, e passou de "ouro do abate" a todo ouro da rodada; a Fonte da vida curava só a regeneração (×1,3, "fraquinho") e passou a ×1,5 em toda cura.
+// juntada à Arena e separada de novo, e passou de "ouro do abate" a todo ouro da rodada; a Fonte da vida curava só a regeneração (×1,3, fraca demais) e passou a ×1,5 em toda cura.
 // Arena encolhendo só metade: sem encolher, rodada média de 181 s no Normal (simulador), porque ninguém cai mais na lava
 // clear (Campo aberto) não tem multiplicador: a partida tira os obstáculos sorteados da arena (match.ts)
 export const ROUND_EFFECT_IDS = ['lava', 'swords', 'gold', 'speed', 'regen', 'clear'] as const;

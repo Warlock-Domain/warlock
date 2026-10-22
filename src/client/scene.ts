@@ -211,6 +211,7 @@ type Mage = {
   burnAt: number; // morreu na lava neste instante (−1 = não está queimando)
   bones: THREE.Object3D | null; // esqueleto escuro que sobra da queima
   flash: number; // clarão branco do golpe: 1 no acerto, cai até 0
+  burning: boolean; // vivo e na lava (issue #225): o corpo pulsa em brasa e solta faíscas
   freezeUntil: number; // hit-stop: animação parada até este instante
   cheering: boolean;
   medalEl: HTMLElement; // medalha de ouro, prata ou bronze com a colocação, à esquerda do nome
@@ -461,14 +462,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // efeito pedido pelo Fernando (21/10): espinhos na borda, pontos verdes subindo da pedra, vento e chuva; poucos, transparentes e
   // sem sombra, para não brigar com as magias. No modo leve (lite) só a cor da faixa fica.
   const EMBER_COLOR: Partial<Record<RoundEffectId, string>> = { swords: '#c9ccd2', gold: '#ffd34d', speed: '#d6ecff', regen: '#7dffa8', lava: '#ffb27a' };
-  // Febre arcana (Ascensão): a Febre do ouro em azul (Fernando, 21/10: "com o msm efeito so q azul")
+  // Febre arcana (Ascensão): a Febre do ouro em azul (Fernando, 21/10: o mesmo efeito, só que azul)
   const ARCANE = { tint: '#3d7bff', ember: '#8cbcff', coin: '#6fa8ff' };
   const SHORE_TINT: Partial<Record<RoundEffectId, [string, number]>> = { swords: ['#050403', 0.75], gold: ['#ffe11a', 0.7], speed: ['#bfe6ff', 0.45], regen: ['#3dff8a', 0.45], lava: ['#7a2a10', 0.5] };
   let tintK = 0;
   const emberBase = emberMat.color.clone();
   let heat = 1;
   // borda da Arena de espinhos: parede caótica de espinhos de ferro apontando para todos os lados, em 3 fileiras (pedido do Fernando,
-  // 21/10: "bater aqui machuca"; as armas KayKit espalhadas ficaram feias e saíram). Sorteio por índice (semente fixa): não pisca ao refazer
+  // 21/10: precisa parecer que bater ali machuca; as armas KayKit espalhadas ficaram feias e saíram). Sorteio por índice (semente fixa): não pisca ao refazer
   const SPIKE_GAP = 0.16, SPIKE_ROWS = 3, SPIKE_MAX = 2400;
   const spikes = new THREE.InstancedMesh(new THREE.ConeGeometry(0.055, 0.5, 5).translate(0, 0.25, 0), new THREE.MeshStandardMaterial({ color: '#555b63', metalness: 0.55, roughness: 0.45, emissive: '#3a0a02', emissiveIntensity: 0.45, flatShading: true }), SPIKE_MAX);
   spikes.count = 0;
@@ -897,7 +898,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -1835,8 +1836,28 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (d.cheer && !m.cheering) victoryBurst(d.pos);
         if (d.cheer && !lite && Math.random() < 0.2) burst(v(d.pos.x + (Math.random() - 0.5) * 1.4, d.pos.y + (Math.random() - 0.5) * 1.4), Math.random() < 0.5 ? '#ffd84a' : '#fff2a0', 0.7, 1.2, 0.4, FX.star, 2.6);
       }
+      // queimando na lava (issue #225): de cima não se via que o mago estava tomando dano; faíscas e labaredas pequenas nos pés
+      // (no modo leve, poucas: com muitos magos na lava o teto de partículas FX_CAP segura o resto)
+      const burning = d.alive && !hidden && inLavaAt(shownArena, shownR, shownIsles, d.pos);
+      if (burning) {
+        const feet = () => v(d.pos.x + (Math.random() - 0.5) * 0.7, d.pos.y + (Math.random() - 0.5) * 0.7);
+        if (Math.random() < (lite ? 0.05 : 0.25)) burst(feet(), Math.random() < 0.5 ? '#ff8a2a' : '#ffd060', 0.35, 0.8, 0.2, glow, 1.4);
+        if (!lite && Math.random() < 0.15) burst(feet(), Math.random() < 0.5 ? '#ff7a1a' : '#ffb347', 0.35, 0.8, 0.1, FLAMES[Math.floor(Math.random() * FLAMES.length)], 0.7); // as mesmas chamas do chão de fogo
+      }
       m.cheering = d.cheer && d.alive;
       m.invuln = invuln;
+      // brasa pulsando enquanto queima (o clarão do golpe passa por cima); parou de queimar vivo ou morrendo fora da lava: volta
+      // a cor própria; morreu na lava (burnAt marcado neste quadro): o burnCorpse cuida da cor do corpo
+      if (m.flash <= 0 && (burning || (m.burning && m.burnAt < 0))) for (const x of m.mats) {
+        if (burning) {
+          x.m.emissive.copy(EMBER);
+          x.m.emissiveIntensity = 0.35 + 0.25 * Math.sin(now * 9);
+        } else {
+          x.m.emissive.copy(x.c);
+          x.m.emissiveIntensity = x.i;
+        }
+      }
+      m.burning = burning;
       // clarão branco do golpe: some em ~0,15 s
       if (m.flash > 0) {
         m.flash = Math.max(0, m.flash - 0.12);
@@ -1913,16 +1934,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.botEl.hidden = !d.bot;
         m.botEl.replaceChildren(icon(UI_ICON.bot), d.bot ? BOT_LEVEL[d.bot] : '');
       }
-      // medalha de ouro, prata ou bronze com a colocação, à esquerda do nome (Fernando, 21/10: "do lado esquerdo do nome da pessoa
-      // ... coloque uma medalinha de ouro, prata e bronze com o numero dentro")
+      // medalha de ouro, prata ou bronze com a colocação, à esquerda do nome (Fernando, 21/10: medalha
+      // com o número dentro, no lugar da pontuação)
       const place = d.place && d.place <= 3 ? String(d.place) : '';
       if (m.medalEl.textContent !== place) {
         m.medalEl.textContent = place;
         m.medalEl.className = `wiz-medal medal-${place}`;
         m.medalEl.hidden = !place;
       }
-      // Ascensão: nível e XP embaixo da vida, para todos; subir de nível ao vivo comemora (Fernando, 21/10: "animacao ao subir de
-      // level ao vivo ... inclusive animacao do boneco comemorando")
+      // Ascensão: nível e XP embaixo da vida, para todos; subir de nível ao vivo comemora (Fernando, 21/10: animação ao subir
+      // de nível ao vivo, com o boneco comemorando)
       m.xpEl.hidden = !d.xp;
       if (d.xp) {
         m.xpFill.style.width = `${(d.xp.frac * 100).toFixed(1)}%`;
