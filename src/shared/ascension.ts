@@ -227,7 +227,7 @@ export function ascMark(m: Match) {
   if (z && lead) z.kbResist -= MARK_KB * lead.above;
 }
 
-// a cada passo do intervalo: põe as fileiras na mesa (bots e quem saiu escolhem na hora); quando todo humano escolheu tudo, o
+// a cada passo do intervalo: põe as fileiras na mesa (os bots escolhem na hora; quem saiu recebe o sorteio no fim); quando todo humano escolheu tudo, o
 // intervalo encurta para LAST_CALL_MS; no fim do tempo aplica as escolhas (applyPicks) e a partida segue para a contagem
 export function ascShop(m: Match, now: number, rand: () => number) {
   const a = m.asc!;
