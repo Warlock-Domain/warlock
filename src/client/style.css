@@ -67,7 +67,7 @@ h2.title { font-family: var(--display); font-size: 1.6rem; text-transform: none;
 h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font-size: .55em; vertical-align: .25em; color: var(--lava); text-shadow: 0 0 8px rgba(255, 106, 26, .6); }
 
 /* um só jeito de mostrar "selecionado": modo, aba, personagem e magia escolhida */
-.pick.on, .stats-tabs button.on, .watching button.on, .spell.armed { border-color: var(--ember); background: var(--sel-bg); box-shadow: 0 0 0 1px var(--ember); color: var(--fg); }
+.pick.on, .stats-tabs button.on, .watching button.on, .hud-right .icon.on, .spell.armed { border-color: var(--ember); background: var(--sel-bg); box-shadow: 0 0 0 1px var(--ember); color: var(--fg); }
 
 .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: var(--overlay); padding: 16px; z-index: 10; }
 .panel { background: var(--frame), var(--plate); border: 2px solid var(--bronze); box-shadow: var(--plate-edge), var(--shadow-lg); border-radius: var(--r-frame); padding: 24px; width: min(380px, 100%); display: flex; flex-direction: column; gap: 12px; }
@@ -1083,12 +1083,12 @@ body:has(.drag-ghost) .tip { display: none; } /* a dica cobria a vaga de destino
 .tile-acts { min-height: 26px; }
 @media (min-width: 861px) {
   .shop .shop-main .shop-grid { grid-template-columns: repeat(5, 118px); column-gap: 10px; }
-  /* itens em 3 colunas (Fernando, 20/10: 2 ficava muito vertical); 3fr e 5fr dão a largura de um cartão de magia a cada item
-     (Fernando, 21/10: "todo desalinhado os cards") */
+  /* itens em 3 colunas (Fernando, 20/10: 2 ficava muito vertical), em cartões menos largos que os de magia: 2,5fr contra 5fr
+     (Fernando, 21/10: "deixe 3 por linha mas deixe o card menos largo") */
   .shop-items .shop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 8px; }
   .shop-items .shop-item { width: auto; }
   .shop-items .shop-tile { width: 100%; }
-  .shop { grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) 270px; }
+  .shop { grid-template-columns: minmax(0, 2.5fr) minmax(0, 5fr) 270px; }
 }
 /* tela estreita (celular, gaveta): cartões ocupam a largura em colunas iguais */
 @media (max-width: 860px) {
@@ -1099,7 +1099,7 @@ body:has(.drag-ghost) .tip { display: none; } /* a dica cobria a vaga de destino
 .peek-shop.drawer .shop .shop-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
 .peek-shop.drawer .shop-item { width: auto; }
 .peek-shop.drawer .shop-tile { width: 100%; }
-@media (min-width: 1500px) { .shop { grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) 290px; } .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 1500px) { .shop { grid-template-columns: minmax(0, 2.5fr) minmax(0, 5fr) 290px; } .peek-shop.drawer .shop { grid-template-columns: minmax(0, 1fr); } }
 /* loja só para ver: o ícone é um div, não botão; recebe o mesmo arranjo e a mesma moldura do botão */
 .shop-tile { display: flex; align-items: center; }
 div.shop-tile { border-color: var(--line); box-sizing: border-box; }
@@ -1142,7 +1142,7 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
     max-height: calc(100% - 76px - var(--bar-space) - var(--safe-t) - var(--safe-b)); }
   .center:has(.compact-shop) { transform: translateX(-50%); }
   /* --gap-v: espaço vertical entre fileiras, grupos e blocos; cresce com a altura da tela (3 px em 720, 26 px em 1080) para a loja usar a altura livre (Fernando, 21/10) */
-  .compact-shop { padding: 24px; gap: 16px; --acts-w: 24px; --gap-v: clamp(3px, calc((100dvh - 680px) / 15), 26px); --tile-h: clamp(50px, calc((100dvh - 470px - 9 * var(--gap-v)) / 5), 84px); }
+  .compact-shop { padding: 24px; gap: 16px; --acts-w: 24px; --gap-v: clamp(3px, calc((100dvh - 680px) / 15), 26px); --tile-h: clamp(50px, calc((100dvh - 370px - var(--heads) * 25px - (var(--heads) - 1) * 1.5 * var(--gap-v) - (var(--rows) - 1) * 5px) / var(--rows)), 84px); }
   .compact-shop .shop-main, .compact-shop .shop-items { gap: var(--gap-v); }
   .compact-shop .shop-group { gap: calc(var(--gap-v) / 2 + 2px); }
   .compact-shop .shop-head { gap: 4px 8px; }
@@ -1152,10 +1152,10 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
   .shop.compact-shop .shop-main > .shop-head { display: contents; }
   .shop.compact-shop .shop-main > .shop-head > :not(.peek-close) { display: none; }
   .shop.compact-shop .peek-close { position: absolute; top: 4px; right: 4px; z-index: 2; width: 32px; min-height: 32px; margin: 0; }
-  .shop.compact-shop .shop-grid { gap: var(--gap-v) 5px; }
+  .shop.compact-shop .shop-grid { gap: 5px; } /* fileiras da mesma categoria coladas; entre categorias fica o --gap-v (Fernando, 21/10) */
   .shop.compact-shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   /* um cartão só para itens e magias (Fernando, 21/10): o ícone num quadro da cor do grupo à esquerda; nome, nível e preço empilhados à direita.
-     470 px: altura do que fica acima e abaixo do catálogo (topo, título, busca, barra de baixo); as 5 fileiras de magias dividem o resto.
+     370 px + 25 px por título: o que fica acima e abaixo do catálogo; as fileiras da coluna mais alta (--rows e --heads, de ui.ts) dividem o resto.
      A altura segue a largura (9 por 4) dentro desse teto: em 16:9 e em ultrawide o cartão tem o mesmo formato (Fernando, 21/10).
      Padding igual nos quatro lados; à direita fica a coluna dos botões (comprar ou subir, vender, desfazer) */
   .compact-shop .shop-tile { --well: min(calc(var(--tile-h) - 18px), calc(40cqi - 18px), 52px); display: grid; grid-template-columns: var(--well) minmax(0, 1fr); grid-template-rows: 1fr auto auto auto 1fr;
@@ -1196,14 +1196,14 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
   .compact-shop .first-tip { padding: 6px 8px; gap: 6px; font-size: .8rem; }
   /* No PC a compra durante a rodada usa a mesma largura da inicial, inclusive para quem caiu (#121) */
   .peek-shop:has(.compact-shop) { left: 50%; right: auto; transform: translateX(-50%); width: min(1860px, calc(100% - 24px)); }
-  .peek-shop.drawer .compact-shop { grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) 270px; }
+  .peek-shop.drawer .compact-shop { grid-template-columns: minmax(0, 2.5fr) minmax(0, 5fr) 270px; }
   .peek-shop.drawer .compact-shop .shop-items { order: initial; }
   .peek-shop.drawer .compact-shop .shop-side { display: flex; }
   .peek-shop.drawer .compact-shop .shop-side > .gold.big { position: static; margin: 0; padding: 0; background: none; border: 0; }
   .peek-shop.drawer .compact-shop .shop-main .shop-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .peek-shop.drawer .compact-shop .shop-items .shop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (min-width: 1500px) and (min-height: 600px) { .peek-shop.drawer .compact-shop { grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) 290px; } } /* coluna da direita um pouco mais larga em tela grande */
+@media (min-width: 1500px) and (min-height: 600px) { .peek-shop.drawer .compact-shop { grid-template-columns: minmax(0, 2.5fr) minmax(0, 5fr) 290px; } } /* coluna da direita um pouco mais larga em tela grande */
 @media all {
   .shop-item { position: relative; }
   .tile-acts { position: absolute; top: 4px; right: 4px; min-height: 0; z-index: 1; }

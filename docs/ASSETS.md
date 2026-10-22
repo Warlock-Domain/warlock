@@ -45,6 +45,9 @@
 - [`assets/kaykit/`](../assets/kaykit/README.md): todos os packs grátis do KayKit (23 pastas, 2307 modelos, ~115 MB, CC0): personagens, armas, masmorra, cemitério, floresta, hexágonos medievais, cidade, base espacial, móveis, restaurante, tabuleiro, plataforma, blocos, recursos, ferramentas, Natal e animações extras do mesmo esqueleto dos bonecos.
   - O que cada pack é, origem e licença: [`assets/kaykit/README.md`](../assets/kaykit/README.md).
   - Nome de cada modelo, pasta por pasta: [`assets/kaykit/INDICE.md`](../assets/kaykit/INDICE.md). Procure ali antes de pedir um modelo novo (ex.: `torch`, `barrel`, `skull`, `tree`).
+- [`assets/sons-rpg/`](../assets/sons-rpg/README.md): 532 efeitos sonoros de RPG em `.wav` (~31 MB): magias por grupo (Human, Orc, NightElf, Undead, Demon, Other, Items), projéteis de armas e golpes de combate. Para quem trabalha nos efeitos sonoros (#202, #203, #205).
+  - **Origem e licença não informadas:** o pacote veio sem autor nem licença e entrou por decisão do Fernando em 21/10/2026. Nenhum som daqui vai para `public/` sem antes achar a origem e uma licença livre. Detalhe e dúvida registrada: [`assets/sons-rpg/README.md`](../assets/sons-rpg/README.md).
+  - Nome de cada arquivo, por categoria: [`assets/sons-rpg/INDICE.md`](../assets/sons-rpg/INDICE.md) (ex.: `FlameStrike`, `FireBallMissile`, `MetalHeavySlice`).
 - Para levar um modelo ao jogo: copie para `public/models/`, corte o que não usa, ponha o crédito no `public/CREDITS.txt` e uma linha na tabela "No jogo" acima.
 
 ## Regra: todo asset novo é indexado, explicado e referenciado

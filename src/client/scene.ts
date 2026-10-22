@@ -2372,8 +2372,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         target = target.lerp(c, celebrate);
       }
       focus.lerp(target, Math.min(1, dt * 3));
-      // aproxima conforme a arena encolhe
-      const dist = Math.min(44, Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
+      // aproxima conforme a arena encolhe. Teto 54: as Ilhas com 8 magos (48,5) e no máximo da sandbox (53) cabem
+      // inteiras; com 44 uma ilha saía pela lateral (issue #222). Seguindo um mago (lock), o teto é 25, o da arena de 4 magos:
+      // em mapa grande ele não encolhe na tela
+      const dist = Math.min(state.lock ? 25 : 54, Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
       lastDist = dist;
       // olha um pouco à frente do centro para a borda de baixo não ficar atrás da barra de magias
       let lookX = focus.x, lookZ = focus.z + dist * 0.06;
@@ -2392,8 +2394,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       if (shift !== pixelShift) canvas.style.transform = labels.style.transform = pixelShift = shift;
       camera.position.set(lookX, dist * 0.74 * camK, lookZ + dist * 0.67 * camK);
-      // a névoa conta da câmera: com ela mais longe, empurra junto
-      Object.assign(scene.fog!, { near: 30 + (camK - 1) * dist, far: 70 + (camK - 1) * dist });
+      // a névoa conta da câmera: com ela mais longe, empurra junto (acima do teto antigo de 44 também, senão a borda
+      // de trás das Ilhas grandes some na névoa)
+      const fogPush = (camK - 1) * dist + Math.max(0, dist - 44);
+      Object.assign(scene.fog!, { near: 30 + fogPush, far: 70 + fogPush });
       camera.lookAt(lookX, 0, lookZ);
       if (shake > 0.01 && !lite) {
         camera.position.x += (Math.random() - 0.5) * shake;
