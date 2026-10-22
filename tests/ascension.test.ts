@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ASC_ROUNDS, CONSOLATION, LEADER_KILL_XP, MARK_KB, applyCard, setAscLobby, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
+import { ASC_ROUNDS, CONSOLATION, DOUBLE_FROM, LEADER_KILL_XP, MARK_KB, applyCard, setAscLobby, ascDeath, ascEndRound, autoPick, chooseCard, drawCards, LAST_CALL_MS, levelOf, placePoints, reroll, xpFor, xpGain, type Card } from '../src/shared/ascension.ts';
 import { addPlayer, buy, castBallot, newMatch, removePlayer, resume, setReady, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
 import { gearOf } from '../src/shared/sim.ts';
@@ -454,5 +454,24 @@ describe('sala do Ascensão: o dono escolhe, todos veem', () => {
     addPlayer(m, 'ana', 'Ana');
     resume(m, 0);
     expect(m.lobby?.owner).toBe('ana');
+  });
+});
+
+describe('final em dobro', () => {
+  it('rounds 7 to 9 are worth double points, earlier rounds normal points', () => {
+    expect(DOUBLE_FROM).toBe(7);
+    const pointsAt = (round: number) => {
+      const m = ascMatch(1, true);
+      m.round = round;
+      const ids = m.players.map((p) => p.id);
+      m.asc!.fallen = ids.slice(0, 3);
+      m.players.forEach((p) => (p.score = 0));
+      ascEndRound(m, ids, [ids[3]]);
+      return m.players.map((p) => p.score);
+    };
+    expect(pointsAt(6).some((x) => x > 0)).toBe(true);
+    expect(pointsAt(7)).toEqual(pointsAt(6).map((x) => x * 2));
+    expect(pointsAt(9)).toEqual(pointsAt(7));
+    expect(pointsAt(1)).toEqual(pointsAt(6));
   });
 });

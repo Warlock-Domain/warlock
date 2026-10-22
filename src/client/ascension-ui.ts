@@ -1,6 +1,6 @@
 // Tela do modo Ascensão: as 3 cartas do intervalo (no lugar da loja), o nível no placar e o líder marcado.
 // A regra do modo mora em src/shared/ascension.ts; aqui só se desenha o que a sala manda em PublicPlayer.asc.
-import { ASC_ROUNDS, MARK_KB, markedLeader, type Card, type Kind } from '../shared/ascension.ts';
+import { ASC_ROUNDS, DOUBLE_FROM, MARK_KB, markedLeader, type Card, type Kind } from '../shared/ascension.ts';
 import { ITEMS } from '../shared/items.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, spellCount, type SpellId } from '../shared/spells.ts';
@@ -13,8 +13,8 @@ export type AscActions = { card: (slot: number, i: number, swap?: SpellId) => vo
 type Dialog = (cls: string, title: string, body: Node[]) => { close: () => void };
 
 export const ASC_MODE_TEXT = t(
-  `${ASC_ROUNDS} rodadas. Todo intervalo dá 1 magia nova e 1 item; golpes dão XP e cada nível sobe 1 magia (cada escolha é 1 carta entre 3). Sem ouro nem loja. Pontos pela ordem de queda; vence a maior soma.`,
-  `${ASC_ROUNDS} rounds. Every break gives 1 new spell and 1 item; hits give XP and each level upgrades 1 spell (each pick is 1 card out of 3). No gold or shop. Points by fall order; highest total wins.`,
+  `${ASC_ROUNDS} rodadas. Todo intervalo dá 1 magia nova e 1 item; golpes dão XP e cada nível sobe 1 magia (cada escolha é 1 carta entre 3). Sem ouro nem loja. Pontos pela ordem de queda, em dobro nas rodadas ${DOUBLE_FROM} a ${ASC_ROUNDS}; vence a maior soma.`,
+  `${ASC_ROUNDS} rounds. Every break gives 1 new spell and 1 item; hits give XP and each level upgrades 1 spell (each pick is 1 card out of 3). No gold or shop. Points by fall order, doubled in rounds ${DOUBLE_FROM} to ${ASC_ROUNDS}; highest total wins.`,
 );
 
 const KIND_TITLE: Record<Kind, string> = { spell: t('Magia nova', 'New spell'), item: t('Item', 'Item'), up: t('Subir magia (nível ganho)', 'Spell upgrade (level up)') };
