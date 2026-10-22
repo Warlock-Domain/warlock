@@ -51,13 +51,13 @@ describe('S (parar)', () => {
   });
 
   it('no preparo do Flagelo cancela a explosão sem gastar a recarga', () => {
-    const w = world([[0, 0], [1, 0]], noSpells(), [{ scourge: 1 }], half);
-    stepWorld(w, [{ id: 'p0', kind: 'item', item: 'scourge', at: v(0, 0) }], half);
+    const w = world([[0, 0], [1, 0]], noSpells(), [], half);
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'scourge', at: v(0, 0) }], half);
     steps(w, 5);
     stepWorld(w, [{ id: 'p0', kind: 'stop' }], half);
     expect(w.wizards[0].casting).toBeNull();
     steps(w, 40);
     expect(w.wizards[1].hp).toBe(HP_MAX);
-    expect(w.wizards[0].itemCd.scourge).toBe(0);
+    expect(w.wizards[0].cd.scourge).toBe(0);
   });
 });

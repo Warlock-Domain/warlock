@@ -150,7 +150,7 @@ navegador ──WebSocket──▶ Durable Object (uma sala)
 
 ## Mapa do código
 
-`src/shared`: `sim.ts` (simulação), `spells.ts` (25 magias), `items.ts` (16 itens), `constants.ts` (arena, lava, baús, runas), `match.ts` (fases, loja, ouro, votações), `bots.ts` (`BOT_SKILL` por dificuldade), `protocol.ts` (mensagens e validação), `arena.ts`, `snapshot.ts`, `characters.ts` (9 bonecos e o look de 7 peças), `telemetry.ts`.
+`src/shared`: `sim.ts` (simulação), `spells.ts` (27 magias), `items.ts` (13 itens), `constants.ts` (arena, lava, baús, runas), `match.ts` (fases, loja, ouro, votações), `bots.ts` (`BOT_SKILL` por dificuldade), `protocol.ts` (mensagens e validação), `arena.ts`, `snapshot.ts`, `characters.ts` (9 bonecos e o look de 7 peças), `telemetry.ts`.
 
 `src/client`: `main.ts` (laço), `ui.ts` (menus, sala, loja, barra da partida, placar), `scene.ts` (3D), `style.css`, `i18n.ts`, `rules-text.ts`, `grimoire.ts` e `demo.ts` (grimório e demonstrações), `tips.ts`, `sheet.ts`, `settings.ts`, `keys.ts`, `gamepad.ts`, `avatar.ts` (criador de personagem), `train.ts`, `challenges.ts`, `mimic.ts`, `coach.ts`, `predict.ts`, `interp.ts`, `net.ts`.
 
@@ -166,7 +166,7 @@ navegador ──WebSocket──▶ Durable Object (uma sala)
 4. Nada de `Math.random` solto na simulação: use o `rand` recebido.
 5. Mensagem nova do navegador validada em `parseClientMessage`.
 6. Celular: fora de foco por enquanto (decisão de 20/10); só não apague as regras de celular que já existem.
-7. Número de magia, item ou bot só com medição do simulador no PR.
+7. Número de magia, item ou bot só com medição do simulador no PR. Sem interação específica entre duas magias ("X faz Y quando encontra Z"): o efeito sai de stats gerais e documentados, iguais contra tudo.
 8. Menos código: reaproveite `el()`, `dialog()`, `iconButton()`, `tabs()`, `choice()`, `searchFilter()`, `withTip`, `store`, `t()`; mudança cirúrgica.
 9. **Interface só com as peças que já existem** (`dialog()`, `iconButton()`, `tabs()`, `choice()`, `searchFilter()`, `withTip`, detalhes em `src/client/CLAUDE.md`), com cores e tamanhos pelas variáveis do `:root`. Precisa de algo que nenhuma peça faz? Primeiro estenda a peça (um parâmetro a mais); só se não couber, crie uma função nova junto das outras e registre em `src/client/CLAUDE.md`. Nada de HTML/CSS repetido nem de cor ou tamanho soltos no código. Peça isso à sua IA no prompt: *"use as peças de interface que já existem (veja src/client/CLAUDE.md) e as variáveis do :root; não crie componente nem CSS novo sem antes tentar estender um existente"*.
 10. Sem segredo: o repositório é público.
@@ -259,7 +259,7 @@ Não desfaça sem combinar numa issue.
 - **Mobilidade (5):** Teleporte, Troca, Investida, Estocada, Caminhada no vento
 - **Defesa (5):** Escudo, Alteração, Zona de dobra, Barricada, Ilusão
 - **Controle (5):** Agarrar, Gravidade, Elo, Magnetizar, Drenar
-- **Itens (16):** Anel de vida, Anel amaldiçoado, Capa, Armadura, Botas, Relógio de bolso, Roubo de vida, Botas de lava, Guardião, Elmo, Botas de choque, Égide, Botas de vento, Flagelo (ativo), Redirecionador (ativo), Pacto (ativo)
+- **Itens (13):** Anel de vida, Anel amaldiçoado, Capa, Armadura, Botas, Relógio de bolso, Roubo de vida, Botas de lava, Guardião, Elmo, Botas de choque, Égide, Botas de vento (todos passivos; Flagelo e Pacto viraram magia e o Redirecionador saiu em 21/10, #217)
 
 **Ilusão:** cria uma cópia visível que segue reto na direção do movimento por 2 s. O jogador pode se mover livremente enquanto fica invisível; usar outra magia o revela, sem encerrar a cópia. Jogador e cópia podem ser atingidos; a cópia pode ser empurrada, mas não destruída antes do fim do prazo.
 

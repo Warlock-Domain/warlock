@@ -1,12 +1,10 @@
 // Itens da loja, convertidos do Warlock Brawl para Dota 2 (shop.lua ITEM_DEFS e npc_items_custom.txt).
-// Passivos mudam os números do mago; os 3 ativos usam as teclas 1, 2 e 3. Até MAX_ITEMS itens por jogador.
+// Todos passivos: mudam os números do mago (os ativos saíram em 21/10, issue #217: Flagelo e Pacto viraram magia). Até MAX_ITEMS itens por jogador.
 import { UNIT } from './constants.ts';
 
-export const ITEM_IDS = ['ring', 'cursed_ring', 'cape', 'armor', 'boots', 'watch', 'vampire', 'scourge', 'redirector', 'pact',
+export const ITEM_IDS = ['ring', 'cursed_ring', 'cape', 'armor', 'boots', 'watch', 'vampire',
   'lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis', 'wind_boots'] as const;
 export type ItemId = (typeof ITEM_IDS)[number];
-export const ACTIVE_ITEMS: ItemId[] = ['scourge', 'redirector', 'pact'];
-export const isActive = (x: unknown): x is ItemId => ACTIVE_ITEMS.includes(x as ItemId);
 export const MAX_ITEMS = 6;
 
 // hp: vida máxima a mais; regen: vida por segundo a mais; kb: fração de empurrão a menos; speed: m/s a mais;
@@ -25,9 +23,6 @@ export const ITEMS: Record<ItemId, Item> = {
   watch: { name: 'Relógio de bolso', cost: 2, text: 'Lentidões e penalidades duram menos.', en: 'Pocket Watch', textEn: 'Slows and penalties wear off sooner.', levels: [{ debuff: -0.35 }, { debuff: -0.45 }] },
   // era a maestria Roubo de vida do original (shop.lua MASTERY_GAIN: +9/8/7/6/5/4% por nível, 5 de ouro cada); virou item em 17/10
   vampire: { name: 'Roubo de vida', cost: 5, text: 'Recupera parte do dano que você causa.', en: 'Lifesteal', textEn: 'Heals you for part of the damage you deal.', levels: [0.09, 0.17, 0.24, 0.3, 0.35, 0.39].map((lifesteal) => ({ lifesteal })) },
-  scourge: { name: 'Flagelo', cost: 7, text: 'Explode em volta depois de 0,5 s e empurra quem estiver perto.', en: 'Scourge', textEn: 'Explodes around you after 0.5 s and knocks back anyone close.', levels: [{}, {}, {}] },
-  redirector: { name: 'Redirecionador', cost: 8, text: 'Desvia todos os seus projéteis voando para o cursor.', en: 'Redirector', textEn: 'Turns all your flying projectiles toward the cursor.', levels: [{}] },
-  pact: { name: 'Pacto', cost: 10, text: 'Próxima magia de dano em 5 s faz 2× de dano e empurrão.', en: 'Pact', textEn: 'Your next damage spell within 5 s deals 2× damage and knockback.', levels: [{}] },
   // itens novos de 18/10, do catálogo docs/itens-candidatos.md (Warlock CE); números conservadores até a simulação dizer
   lava_boots: { name: 'Botas de lava', cost: 4, text: 'A lava machuca menos.', en: 'Lava Boots', textEn: 'Lava hurts less.', levels: [{ lava: 0.18 }, { lava: 0.3 }] }, // ciclo 2: nv 2 0,6 → 0,5; 18/10 bots humanos: 0,35/0,5 → 0,25/0,4 → 0,18/0,3 (26% e 22% acima do justo)
   // Guardião do CE: −0,1 por nível; aqui os golpes são maiores (−0,4 por nível na escala antiga de vida 100, −4 na de 1000), mas nunca corta mais que metade do golpe
@@ -47,16 +42,6 @@ export const WIND_BOOTS = { speed: 25 * UNIT, calm: 5 };
 // Égide: na lava com até 250 de vida volta para 60% do raio da arena, na mesma direção, parado; uma vez por rodada (por vida no deathmatch)
 export const AEGIS = { hp: 250, back: 0.6 };
 
-// ativos (originais): Flagelo dano 100/110/120 de 1000 em 250 unidades, 0,9 s de preparo, recarga 3 s;
-// Redirecionador recarga 24 s, +30% de empurrão por 8 s; Pacto no original: recarga 30 s, 5 s para usar, 1,5×, lentidão de 66 por 6 s
-// 17/10 (pedido do Fernando): área 250 → 325 e dano 100/130/160 → 80/100/120
-export const SCOURGE = { dmg: [80, 100, 120], radius: 325 * UNIT, windup: 0.5, cd: 5 }; // recarga 3 s no original; 5 s no balanceamento de 17/10 // preparo: 0,9 s no original, 0,5 s a pedido do Fernando (17/10)
-// tempo de conjuração dos ativos (o do Flagelo é o preparo)
-export const ITEM_CAST: Partial<Record<ItemId, number>> = { scourge: SCOURGE.windup, redirector: 0.1, pact: 0.1 };
-// consertado em 18/10 (pedido do Fernando): sem a penalidade de +30% de empurrão por 8 s, desvia todos e não gasta sem projétil
-export const REDIRECTOR = { cd: 20, extraLife: 0.5 }; // 12 → 16 → 20 s: com bots humanos vencia 23% e depois 20% acima do justo
-// balanceamento de 17/10 (5 rodadas com ele, 0 vitórias): 2×, sem lentidão, recarga 20 s
-export const PACT = { cd: 20, window: 5, mult: 2 };
 
 export const noItems = (): Record<ItemId, number> => Object.fromEntries(ITEM_IDS.map((i) => [i, 0])) as Record<ItemId, number>;
 

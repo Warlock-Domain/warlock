@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
-import { chooseCard, reroll } from '../shared/ascension.ts';
+import { chooseCard, reroll, setAscLobby } from '../shared/ascension.ts';
 import { lookOf } from '../shared/characters.ts';
 import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
 import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
@@ -80,7 +80,8 @@ export class Room extends DurableObject<Env> {
   async init(id: string, ascension = false) {
     if (await this.load()) return;
     this.saved = { id, match: newMatch() };
-    if (ascension) this.saved.match.mode = 'ascension'; // sala do Ascensão: o lobby já mostra o modo e a partida só pode ser dele
+    // sala do Ascensão: o lobby já mostra o modo e a partida só pode ser dele; o primeiro a entrar vira o dono
+    if (ascension) Object.assign(this.saved.match, { mode: 'ascension', lobby: { owner: null, bots: [], opts: {} } });
     await this.persist();
     // sala criada e nunca aberta também é limpa
     await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS);
@@ -128,11 +129,10 @@ export class Room extends DurableObject<Env> {
       case 'move':
       case 'stop':
       case 'cast':
-      case 'item':
         // comandos de jogo só valem com a rodada rolando (fora dela a fila cresceria sem limite)
         if (m.phase !== 'playing') return;
         this.cmds.push(msg.t === 'move' ? { id, kind: 'move', to: v(msg.x, msg.y) } : msg.t === 'stop' ? { id, kind: 'stop' }
-          : msg.t === 'cast' ? { id, kind: 'cast', spell: msg.spell, at: v(msg.x, msg.y) } : { id, kind: 'item', item: msg.item, at: v(msg.x, msg.y) });
+          : { id, kind: 'cast', spell: msg.spell, at: v(msg.x, msg.y) });
         this.acks.set(id, msg.seq);
         return;
       case 'start':
@@ -201,6 +201,9 @@ export class Room extends DurableObject<Env> {
         return;
       case 'ready':
         if (setReady(m, id)) await this.changed();
+        return;
+      case 'lobby':
+        if (setAscLobby(m, id, msg.bots, msg.opts)) await this.changed();
         return;
     }
   }

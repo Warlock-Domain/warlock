@@ -33,6 +33,7 @@
 | `fx/*.png` (23) | partículas: fogo, chamas, fumaça, faíscas, brilho, círculo, marca de queimado, rastro, redemoinho, estrela, vapor | `src/client/scene.ts` (`/fx/${name}.png`) | Kenney Particle Pack e Smoke Particles, CC0 |
 | `sfx/*.mp3` (10) | efeitos: bola de fogo, explosão, golpe, míssil, raio, escudo, teleporte, laço da lava, clique, confirmar | `src/client/sound.ts` (`/sfx/${name}.mp3`) | Kenney, OpenGameArt e Freesound, CC0 (detalhe no CREDITS) |
 | `sfx/taunt/*.mp3` (10) | vozes das provocações | `src/shared/taunts.ts`, `src/client/sound.ts` | Kenney Voiceover, OpenGameArt, CC0; "Ultra kill" é voz sintética feita para o jogo |
+| `taunts-local/*.mp4` (5) | provocações gravadas pelo Leonard: Tá pegando fogo!, Bosta city!, Foi uma delícia..., Usaram e abusaram., Lanchado | `src/shared/taunts.ts`, `src/client/sound.ts`, `src/client/scene.ts` | gravadas no celular pelo Leonard (lboesmans), que autorizou uso e redistribuição no jogo; sem licença livre, aceito pelo Fernando em 21/10/2026 (PR #243) |
 | `music/battle.mp3` | música da partida (laço) | `src/client/sound.ts` | Emma_MA "Determined Pursuit", CC0 |
 | `icons.svg` | sprite com todos os ícones (magias, itens, runas, efeitos, interface) | `src/client/icons.ts`, `src/client/scene.ts`, `src/client/style.css` | game-icons.net, **CC BY 3.0 (crédito obrigatório)**; montado por `scripts/assets/build-icons.mjs` |
 | `warlock-wars.svg`, `favicon.ico`, `apple-touch-icon.png` | logo W e ícone da aba | `index.html`, `src/client/ui.ts`, `src/client/style.css` | arte própria, por `scripts/assets/favicon.py` (fonte Grenze Gotisch, OFL 1.1) |
@@ -45,6 +46,9 @@
 - [`assets/kaykit/`](../assets/kaykit/README.md): todos os packs grátis do KayKit (23 pastas, 2307 modelos, ~115 MB, CC0): personagens, armas, masmorra, cemitério, floresta, hexágonos medievais, cidade, base espacial, móveis, restaurante, tabuleiro, plataforma, blocos, recursos, ferramentas, Natal e animações extras do mesmo esqueleto dos bonecos.
   - O que cada pack é, origem e licença: [`assets/kaykit/README.md`](../assets/kaykit/README.md).
   - Nome de cada modelo, pasta por pasta: [`assets/kaykit/INDICE.md`](../assets/kaykit/INDICE.md). Procure ali antes de pedir um modelo novo (ex.: `torch`, `barrel`, `skull`, `tree`).
+- [`assets/sons-rpg/`](../assets/sons-rpg/README.md): 532 efeitos sonoros de RPG em `.wav` (~31 MB): magias por grupo (Human, Orc, NightElf, Undead, Demon, Other, Items), projéteis de armas e golpes de combate. Para quem trabalha nos efeitos sonoros (#202, #203, #205).
+  - **Origem e licença não informadas:** o pacote veio sem autor nem licença e entrou por decisão do Fernando em 21/10/2026. Nenhum som daqui vai para `public/` sem antes achar a origem e uma licença livre. Detalhe e dúvida registrada: [`assets/sons-rpg/README.md`](../assets/sons-rpg/README.md).
+  - Nome de cada arquivo, por categoria: [`assets/sons-rpg/INDICE.md`](../assets/sons-rpg/INDICE.md) (ex.: `FlameStrike`, `FireBallMissile`, `MetalHeavySlice`).
 - Para levar um modelo ao jogo: copie para `public/models/`, corte o que não usa, ponha o crédito no `public/CREDITS.txt` e uma linha na tabela "No jogo" acima.
 
 ## Regra: todo asset novo é indexado, explicado e referenciado
