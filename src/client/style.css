@@ -264,7 +264,8 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .wiz-label .hp-extra .rune { color: #93c5fd; }
 .wiz-label .hp-extra .rush { color: #ff9640; }
 
-#toast { position: fixed; left: 50%; bottom: calc(150px + var(--safe-b)); transform: translateX(-50%); background: var(--plate); border: 1px solid var(--gold-line); padding: 10px 14px; border-radius: var(--r-sm); opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
+/* letra 1,3x do tamanho normal, a mesma do aviso de quem saiu (PR #234): o aviso aparece por poucos segundos no meio da partida e precisa ser lido de relance */
+#toast { position: fixed; left: 50%; bottom: calc(150px + var(--safe-b)); transform: translateX(-50%); background: var(--plate); border: 1px solid var(--gold-line); padding: 13px 18px; border-radius: var(--r-sm); font-size: 1.3rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
 #toast.show { opacity: 1; pointer-events: auto; }
 /* com uma loja aberta o clique atravessa o aviso: ele fica por cima da última fileira de cartas e tapava a compra (issue #208) */
 body:has(.center .shop, .peek-shop:not([hidden]) .shop) #toast { pointer-events: none; }
