@@ -275,7 +275,7 @@ function communicationSection(): Node[] {
     editor.replaceChildren(el('h3', {}, t(`Trocar provocação da posição ${position + 1}`, `Change taunt in slot ${position + 1}`)),
       choice(t('Escolha uma provocação', 'Choose a taunt'), TAUNTS.map((x, i) => [i, t(x.text, x.en)]), slots[position], (index) => {
         void previewTaunt(TAUNTS[index].id).then((ok) => { if (!ok) toast(t('Não foi possível tocar esta provocação.', 'Could not play this taunt.'), 'bad'); });
-        slots = assignTauntSlot(slots, position, index);
+        slots = assignTauntSlot(slots, position, index, TAUNTS.length);
         store.set('warlock:taunt-wheel', JSON.stringify(slots));
         wheel.setLabels(labels());
         edit(position);
@@ -285,7 +285,7 @@ function communicationSection(): Node[] {
   const wheel = radialPicker(el('b', {}, t('Sua roda de provocações', 'Your taunt wheel')), labels(), edit,
     () => { editor.hidden = true; wheel.reset(); },
     { inline: true, hint: t('Clique na posição e depois numa fala abaixo para trocar e ouvir a prévia.', 'Click a slot, then a line below to swap it and hear a preview.') });
-  return [el('p', { class: 'muted' }, t('Escolha a ordem das provocações na roda, em sentido horário a partir de cima. Segure o atalho de Provocações (Y por padrão), aponte com o mouse e solte para falar.', 'Choose the order of the taunts on the wheel, clockwise from the top. Hold the Taunts shortcut (Y by default), point with the mouse and release to speak.')),
+  return [el('p', { class: 'muted' }, t('Escolha oito provocações para a roda, em sentido horário a partir de cima. Segure o atalho de Provocações (Y por padrão), aponte com o mouse e solte para falar.', 'Choose eight taunts for the wheel, clockwise from the top. Hold the Taunts shortcut (Y by default), point with the mouse and release to speak.')),
     wheel.panel, editor];
 }
 

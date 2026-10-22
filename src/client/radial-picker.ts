@@ -2,8 +2,7 @@ import { el, icon, iconButton, UI_ICON } from './icons.ts';
 import { t } from './i18n.ts';
 import { radialIndex } from './taunt-wheel.ts';
 
-// Roda de escolha: o mesmo índice serve ao mouse, ao teclado e ao analógico. Só as 10 primeiras posições
-// levam número, porque o atalho de dígitos vai de 1 a 9 e 0.
+// Roda de escolha: o mesmo índice serve ao mouse, ao teclado e ao analógico.
 // `inline` embute a roda numa tela (Configurações): não abre sobre a partida, não escolhe só por foco e leva a dica própria.
 export function radialPicker(title: HTMLElement, labels: string[], pick: (i: number) => void, cancel: () => void, options: { inline?: boolean; hint?: string } = {}) {
   let selected: number | null = null;
@@ -11,7 +10,7 @@ export function radialPicker(title: HTMLElement, labels: string[], pick: (i: num
     selected = i;
     buttons.forEach((b, j) => { b.classList.toggle('on', j === i); b.setAttribute('aria-pressed', String(j === i)); });
   };
-  const text = (i: number, label: string) => (i < 10 ? `${(i + 1) % 10} · ${label}` : label);
+  const text = (i: number, label: string) => `${i + 1} · ${label}`;
   const buttons = labels.map((label, i) => {
     const angle = i / labels.length * Math.PI * 2;
     return el('button', { type: 'button', 'aria-pressed': 'false',
