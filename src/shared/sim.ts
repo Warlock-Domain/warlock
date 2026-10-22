@@ -8,12 +8,14 @@ import { AEGIS, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from 
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 import { castBlocked } from './spells.ts';
+import { KNOCK_RECOVERY } from './constants.ts';
 
 export type Wizard = {
   id: string;
   pos: Vec;
   vel: Vec; // só o empurrão; andar não entra aqui
   stunLeft?: number; // bloqueio de controle separado da velocidade física.
+  recoveryLeft?: number; // retomada disparada pelo fim do impulso, não pelo fim de qualquer stun.
   target: Vec | null;
   facing: number;
   hp: number;
@@ -342,10 +344,13 @@ export const bootsBonus = (w: World, wz: Wizard) =>
   Math.max(w.t < wz.shockUntil ? wz.shockBonus : 0, wz.windBonus > 0 && w.t - wz.calmSince >= WIND_BOOTS.calm ? wz.windBonus : 0);
 
 export function moveWizard(wz: Wizard, dt: number) {
+  const sliding = isSliding(wz);
+  const left = wz.recoveryLeft ?? 0;
+  const recovery = left > 1e-8 ? KNOCK_RECOVERY.start + KNOCK_RECOVERY.step * Math.floor((KNOCK_RECOVERY.seconds - left + 1e-8) / KNOCK_RECOVERY.interval) : 1;
   if (wz.target && !isStunned(wz)) {
     const d = sub(wz.target, wz.pos);
     const l = len(d);
-    const step = (wz.speed ?? WIZ_SPEED) * dt;
+    const step = (wz.speed ?? WIZ_SPEED) * recovery * dt;
     if (l <= step) {
       wz.pos = wz.target;
       wz.target = null;
@@ -356,6 +361,11 @@ export function moveWizard(wz: Wizard, dt: number) {
   }
   wz.pos = add(wz.pos, scale(wz.vel, dt));
   wz.vel = scale(wz.vel, Math.exp(-FRICTION * dt));
+  if (sliding && !isSliding(wz)) {
+    // A caminhada retoma sem somar impulso residual; stun sem impulso nunca entra neste ramo.
+    wz.vel = v(0, 0);
+    wz.recoveryLeft = KNOCK_RECOVERY.seconds;
+  } else wz.recoveryLeft = sliding ? 0 : Math.max(0, left - dt);
   if (len(wz.vel) < 0.05) wz.vel = v(0, 0);
   if (wz.stunLeft !== undefined) wz.stunLeft = Math.max(0, wz.stunLeft - dt);
 }
@@ -1479,7 +1489,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
     if (g > bestGap) [best, bestGap] = [p, g];
   }
   Object.assign(wz, {
-    alive: true, pos: best, vel: v(0, 0), target: null, casting: null, stunLeft: undefined, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
+    alive: true, pos: best, vel: v(0, 0), target: null, casting: null, stunLeft: undefined, recoveryLeft: 0, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
     rune: null, runeUntil: 0,

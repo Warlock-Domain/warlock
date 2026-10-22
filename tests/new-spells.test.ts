@@ -818,7 +818,7 @@ describe('Caminhada no vento', () => {
     expect(decodeSnap(encodeSnap(w, 'p0', 0, []), ids).wizards[0].status & 1024).toBe(1024); // quem anda vê o efeito
     const ev = runEvents(w, 1.5);
     expect(hitsOf(ev, 'windwalk')[0]?.dmg).toBeCloseTo(spellLevel('windwalk', 1).dmg, 5);
-    expect(w.wizards[1].vel.x).toBeGreaterThan(0);
+    expect(w.wizards[1].pos.x).toBeGreaterThan(3); // houve empurrão; o residual termina ao liberar o controle.
     expect(w.wizards[0].windUntil).toBe(0);
   });
 });
