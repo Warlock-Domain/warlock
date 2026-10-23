@@ -4,6 +4,8 @@ import type { MatchOpts } from '../shared/match.ts';
 import type { WizView } from '../shared/snapshot.ts';
 import { MAX_SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { store } from './store.ts';
+// Pulso suave; modo reduzido fica estático.
+export const electroPulse = (active: boolean, seconds: number, reduced: boolean) => active ? reduced ? .25 : .25 + .12 * Math.sin(seconds * Math.PI * 4) : 0;
 
 // Posição própria já usa o estado recente; pose atrasada faria o mago continuar arremessado enquanto volta a andar.
 // Troca o mago inteiro de propósito: direção, vida e os bits do véu/invisível ficam no mesmo instante da posição prevista.

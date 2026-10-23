@@ -11,6 +11,7 @@ import { SHIELD, castBlocked } from './spells.ts';
 import { KNOCK_RECOVERY } from './constants.ts';
 
 export type Wizard = {
+  electroUntil?: number; // duração da eletrificação.
   id: string;
   pos: Vec;
   vel: Vec; // só o empurrão; andar não entra aqui
@@ -380,6 +381,11 @@ const byId = (w: World, id: string | null) => w.wizards.find((z) => z.id === id 
 const anyById = (w: World, id: string | null) => w.wizards.find((z) => z.id === id); // vivo ou morto
 const shielded = (w: World, wz: Wizard) => w.t < wz.shieldUntil;
 export const statusDuration = (w: World, wz: Wizard, seconds: number) => seconds * (shielded(w, wz) ? SHIELD.statusDuration : 1);
+export const incapacitatedUntil = (wz: Wizard, _now = Infinity) => wz.electroUntil ?? 0;
+export function applyElectrocution(w: World, wz: Wizard) {
+  if (w.t < wz.invulnUntil) return;
+  wz.electroUntil = Math.max(wz.electroUntil ?? 0, w.t + statusDuration(w, wz, LIGHTNING.debuffDuration * wz.debuffMult));
+}
 function stun(w: World, wz: Wizard, seconds: number) {
   if (w.t < wz.invulnUntil) return;
   wz.stunLeft = Math.max(wz.stunLeft ?? 0, statusDuration(w, wz, seconds * wz.debuffMult));
@@ -779,10 +785,12 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
         w.events.push({ k: 'reflect', id: target.id, x: target.pos.x, y: target.pos.y });
         w.events.push({ k: 'lightning', from: target.pos, to: wz.pos });
         hit(w, wz, target.id, L.dmg * power, L.knock * power, sub(wz.pos, target.pos), 'lightning', L.dmg * dmgMult);
+        applyElectrocution(w, wz);
         break; // preserva reflexão para o lançador, sem gerar outra cadeia a partir do Escudo.
       }
       // Mantém o soft-cap do golpe original: reduzir dano não pode fazer o impulso do salto cair menos que50%.
       hit(w, target, wz.id, L.dmg * power, L.knock * power, sub(target.pos, from), 'lightning', L.dmg * dmgMult);
+      if (!allies(wz, target)) applyElectrocution(w, target);
       if (!landed) w.events.push({ k: 'land', id: wz.id, src: 'lightning' });
       landed = true;
       from = target.pos;
@@ -1597,7 +1605,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
     alive: true, pos: best, vel: v(0, 0), target: null, casting: null, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
-    rune: null, runeUntil: 0,
+    rune: null, runeUntil: 0, electroUntil: 0,
   });
 }
 
@@ -1714,11 +1722,12 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     const extra = (w.t < wz.rushUntil ? wz.rushBonus : 0) + (w.t < wz.hasteUntil ? wz.haste : 0) + (w.t < wz.windUntil ? WINDWALK.speed : 0) + bootsBonus(w, wz) - (w.t < wz.slowUntil ? wz.slow : 0);
     const haste = wz.rune === 'haste' && w.t < wz.runeUntil ? 1 + RUNE.haste : 1;
     // runa da Recarga: as recargas correm 1/(1 − 30%) vezes mais rápido enquanto dura
-    if (wz.rune === 'recharge' && w.t < wz.runeUntil) {
+    if (wz.rune === 'recharge' && w.t < wz.runeUntil && w.t >= incapacitatedUntil(wz, w.t)) {
       const extraT = DT * (1 / (1 - RUNE.cdr) - 1);
       for (const s of SPELL_IDS) if (wz.cd[s] > w.t) wz.cd[s] -= extraT;
     }
     wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1) * (inWarp(w, wz) ? WARPZONE.wizMult : 1) * haste * w.mods.speed);
+    if (w.t < (wz.electroUntil ?? 0)) wz.speed *= 1 - LIGHTNING.slow;
     if (rooted) wz.target = null;
   }
 
@@ -1849,6 +1858,11 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     const credited = wz.lastHitBy !== null && w.t - wz.lastHitAt <= CREDIT_WINDOW;
     const by = credited ? wz.lastHitBy : null;
     w.events.push({ k: 'death', id: wz.id, by, src: credited ? wz.lastHitSrc : 'lava' });
+  }
+  // Depois dos comandos e impactos, pausa a passagem natural sem bloquear habilidades prontas.
+  for (const wz of w.wizards) if (wz.alive) {
+    const pause = Math.min(DT, Math.max(0, incapacitatedUntil(wz, w.t) - w.t));
+    if (pause > 0) for (const s of SPELL_IDS) if (wz.cd[s] > w.t) wz.cd[s] += pause;
   }
   w.t += DT;
 }
