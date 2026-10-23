@@ -2,12 +2,12 @@
 import type { Terrain } from '../shared/arena.ts';
 import { WIZ_SPEED } from '../shared/constants.ts';
 import { terrainOf, type NightMap } from '../shared/levels.ts';
-import { isSliding, keepOut, moveWizard, type Room, type Wizard } from '../shared/sim.ts';
+import { isSliding, keepOut, moveWizard, type MovementState, type Room } from '../shared/sim.ts';
 import { DASHING_BIT, type WizView } from '../shared/snapshot.ts';
 import { add, dist, scale, sub, v, type Vec } from '../shared/vec.ts';
 
 export function createPredict() {
-  let me: Wizard | null = null;
+  let me: MovementState | null = null;
   let velocitySource: WizView | null = null;
   let wasDashing = false;
   let rttSec = 0.1;
@@ -35,6 +35,10 @@ export function createPredict() {
       me = null;
       velocitySource = null;
       wasDashing = false;
+      // Rodada nova não herda preparo, destino pendente nem morte; a estimativa de rede continua válida.
+      holdUntil = 0;
+      queued = undefined;
+      dead = false;
     },
     // velocidade de andar que o servidor diz que o mago tem agora (botas, Investida, preso)
     setSpeed(sp: number) {
@@ -67,7 +71,7 @@ export function createPredict() {
     // server = o estado mais novo do próprio mago que chegou (cerca de meia ida e volta atrás)
     frame(server: WizView, dt: number): Vec {
       if (!me) {
-        me = { id: server.id, pos: server.pos, vel: v(0, 0), target: null } as Wizard;
+        me = { pos: { ...server.pos }, vel: v(0, 0), target: null, facing: server.facing, speed: WIZ_SPEED };
       }
       if (!server.alive) dead = true;
       else if (dead) {
