@@ -29,6 +29,8 @@ export const KNOCK_HP_SCALE = 0; // 22/10: dano histórico não amplifica empurr
 export const LAVA_KB_FACTOR = 0.5;
 export const CREDIT_WINDOW = 5; // o abate vai para quem acertou nos últimos 5 s
 export const PROJ_R = 0.2;
+export const INCAPACITATED_BIT = 268435456; // recargas pausadas; habilidades prontas continuam utilizáveis.
+export const ELECTROCUTED_BIT = 536870912; // efeito elétrico visual.
 // o projétil nasce na frente do mago, com o centro a esta distância do centro dele
 export const PROJ_SPAWN = WIZ_R + PROJ_R + 0.05;
 
