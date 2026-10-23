@@ -67,7 +67,8 @@ a.send({ t: 'ready' });
 b.send({ t: 'ready' });
 const cd = await a.waitFor((m) => m.t === 'room' && m.room.phase === 'countdown', 'countdown');
 if (cd.room.ids.length !== 4) fail('expected 4 wizards, got ' + cd.room.ids.length);
-await a.waitFor((m) => m.t === 'room' && m.room.phase === 'playing', 'playing', 6000);
+// a contagem dura 3 s (medido: 2,98 a 3,00 s); 6 s de espera falhava com um soluço da rede do runner (#245), 10 s ainda pega sala travada
+await a.waitFor((m) => m.t === 'room' && m.room.phase === 'playing', 'playing', 10000);
 
 // taxa de envio: conta os snaps em 2 s
 const n0 = a.msgs.filter((m) => m.t === 'snap').length;
@@ -84,9 +85,15 @@ const tSent = Date.now();
 a.send({ t: 'move', x: 0, y: 0, seq: 7 });
 const acked = await a.waitFor((m) => m.t === 'snap' && m.ack === 7, 'ack 7');
 console.log('ida e volta do comando (ms):', acked.at - tSent);
-await sleep(500);
-const [x1, y1] = pos();
-if (Math.hypot(x1 - x0, y1 - y0) < 0.5) fail('wizard did not move');
+// espera o mago andar 0,5 m em até 2 s: em 0,5 s fixos ele anda ~0,70 m (25 medições, mínimo 0,51), e um obstáculo
+// ou um bot no caminho derrubava abaixo de 0,5 sem nada quebrado (#245); mago que não anda nunca continua reprovando
+let moved = 0;
+for (let t = 0; t < 2000 && moved < 0.5; t += 100) {
+  await sleep(100);
+  const [x1, y1] = pos();
+  moved = Math.hypot(x1 - x0, y1 - y0);
+}
+if (moved < 0.5) fail('wizard did not move: ' + moved.toFixed(2) + ' m in 2 s');
 
 // cai e volta: continua o mesmo mago, com o ouro
 b.ws.close();
