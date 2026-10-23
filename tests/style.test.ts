@@ -40,7 +40,7 @@ describe('jeito de jogar', () => {
     const { m, hash } = botMatch(7, 4000);
     // 22/10: fim da amplificação por dano histórico altera intencionalmente as trajetórias.
     // Proposta 23/10: bloqueios explícitos de stun/Agarrar mudam as decisões e trajetórias dos bots.
-    expect(hash).toBe(5082089);
+    expect(hash).toBe(3863679776);
     // e mediu de verdade nessa mesma partida
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);
