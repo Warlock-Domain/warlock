@@ -414,11 +414,11 @@ function mark(w: World, target: Wizard, by: string, src: string) {
   target.lastHitAt = w.t;
 }
 
-function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string) {
+function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string, knockDmg = dmg) {
   // invulnerável: sem dano nem empurrão, mas o acerto aparece (explosão e som), senão o projétil sumiria sem efeito
   if (w.t < target.invulnUntil) return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
   // como no mod de Dota 2 (pawn.lua): acima de 100 de dano por golpe o empurrão cresce pela raiz, não em linha reta
-  const mult = knockScale(dmg, target.dmgTaken, target.kbResist);
+  const mult = knockScale(knockDmg, target.dmgTaken, target.kbResist);
   // fogo amigo: só empurra; sem dano, sem roubo de vida e sem crédito de abate para o aliado
   if (allies(anyById(w, by), target)) {
     addKnock(w, target, scale(norm(dir), knock * mult));
@@ -755,7 +755,11 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     const found = firstOnSegment(w, wz.pos, end, WIZ_R + LIGHTNING.width, wz.id);
     const pil = firstPillarOnSegment(w, wz.pos, end, 0.1);
     const stop = pil && (!found || pil.t < found.t) ? w.pillars[pil.i].pos : found ? found.wz.pos : end;
-    for (const q of enemyDecoys(w, wz.id)) if (segT(wz.pos, sub(stop, wz.pos), q.pos)[1] <= WIZ_R + LIGHTNING.width) pushDecoy(q, scale(dir, L.knock * dmgMult), L.dmg * dmgMult);
+    const struckDecoys = new Set<number>();
+    for (const q of enemyDecoys(w, wz.id)) if (segT(wz.pos, sub(stop, wz.pos), q.pos)[1] <= WIZ_R + LIGHTNING.width) {
+      struckDecoys.add(q.id);
+      pushDecoy(q, scale(dir, L.knock * dmgMult), L.dmg * dmgMult);
+    }
     clearProjectilesOnSegment(w, wz.pos, stop);
     if (pil && (!found || pil.t < found.t)) {
       const at = w.pillars[pil.i].pos;
@@ -764,15 +768,44 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
       return;
     }
     if (!found) return void w.events.push({ k: 'lightning', from: wz.pos, to: end });
-    const target = found.wz;
-    w.events.push({ k: 'lightning', from: wz.pos, to: target.pos });
-    if (shielded(w, target)) {
-      w.events.push({ k: 'reflect', id: target.id, x: target.pos.x, y: target.pos.y });
-      w.events.push({ k: 'lightning', from: target.pos, to: wz.pos });
-      hit(w, wz, target.id, L.dmg * dmgMult, L.knock * dmgMult, scale(dir, -1), 'lightning');
-    } else {
-      hit(w, target, wz.id, L.dmg * dmgMult, L.knock * dmgMult, dir, 'lightning');
-      w.events.push({ k: 'land', id: wz.id, src: 'lightning' });
+    let target: Wizard | undefined = found.wz;
+    let from = wz.pos, reach = L.range * wz.rangeF, power = dmgMult;
+    const struck = new Set<string>([wz.id]);
+    let landed = false;
+    while (target) {
+      struck.add(target.id); // cada corpo é atingido uma vez; o conjunto encerra a cadeia sem teto artificial de saltos.
+      w.events.push({ k: 'lightning', from, to: target.pos });
+      if (shielded(w, target)) {
+        w.events.push({ k: 'reflect', id: target.id, x: target.pos.x, y: target.pos.y });
+        w.events.push({ k: 'lightning', from: target.pos, to: wz.pos });
+        hit(w, wz, target.id, L.dmg * power, L.knock * power, sub(wz.pos, target.pos), 'lightning', L.dmg * dmgMult);
+        break; // preserva reflexão para o lançador, sem gerar outra cadeia a partir do Escudo.
+      }
+      // Mantém o soft-cap do golpe original: reduzir dano não pode fazer o impulso do salto cair menos que50%.
+      hit(w, target, wz.id, L.dmg * power, L.knock * power, sub(target.pos, from), 'lightning', L.dmg * dmgMult);
+      if (!landed) w.events.push({ k: 'land', id: wz.id, src: 'lightning' });
+      landed = true;
+      from = target.pos;
+      power *= LIGHTNING.jumpPower;
+      let closest = reach;
+      target = undefined;
+      for (const other of w.wizards) {
+        if (!other.alive || struck.has(other.id) || allies(wz, other)) continue;
+        const distance = dist(from, other.pos);
+        if (distance > closest || firstPillarOnSegment(w, from, other.pos, .1)) continue;
+        // Empate mantém a ordem dos magos; não usa sorteio para escolher o próximo inimigo.
+        if (target && distance === closest) continue;
+        target = other;
+        closest = distance;
+      }
+      if (target) {
+        clearProjectilesOnSegment(w, from, target.pos);
+        const d = sub(target.pos, from);
+        for (const q of enemyDecoys(w, wz.id)) if (!struckDecoys.has(q.id) && segT(from, d, q.pos)[1] <= WIZ_R + LIGHTNING.width) {
+          struckDecoys.add(q.id);
+          pushDecoy(q, scale(norm(d), L.knock * power), L.dmg * power);
+        }
+      }
     }
   } else if (spell === 'shield') {
     wz.shieldUntil = w.t + L.duration;

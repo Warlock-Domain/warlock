@@ -6,7 +6,7 @@ import { ITEMS, noItems, type ItemId } from '../shared/items.ts';
 import { newWorld, snowR, spellOf, stepWorld, type Cmd, type SimEvent, type World } from '../shared/sim.ts';
 import { CAST_POINT, GRIP, isSpell, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, scale, v, type Vec } from '../shared/vec.ts';
-import { t } from './i18n.ts';
+import { spellName, t } from './i18n.ts';
 
 // alvo do passo: ponto fixo ou a posição atual do mago com esse índice
 type At = Vec | number;
@@ -27,7 +27,8 @@ const VINE_COLOR = '#8ed64b';
 // mago 0 é "você" (com a magia ou o item da página); 1 e 2 são de treino e só têm a Bola de fogo
 export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   fireball: { end: 3.2, steps: [[0.4, A, 'fireball', B]] },
-  lightning: { end: 2.6, steps: [[0.4, A, 'lightning', B]] },
+  // Três inimigos mostram a cadeia100/50/25; o primeiro salto já exige o alcance fixo completo.
+  lightning: { pos: [v(-4, 0), v(-1, 0), v(4, 0), v(4, 3)], end: 3.5, steps: [[0.4, A, 'lightning', B]], prep: (w) => { w.pillars = []; } },
   homing: { end: 3.6, steps: [[0.2, B, 'move', v(2, 4)], [0.4, A, 'homing', B]] },
   shield: { end: 2.8, steps: [[0.3, B, 'fireball', A], [0.7, A, 'shield', B]] },
   teleport: { end: 2.4, steps: [[0.3, B, 'fireball', A], [0.75, A, 'teleport', v(-3, 3.5)]] },
@@ -62,7 +63,7 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 export function demoWorld(id: DemoId): DemoState {
   const script = SCRIPTS[id]!;
   const pos = script.pos ?? [v(-3, 0), v(2, 0), v(2.6, 1.6)];
-  const ids = pos.map((_, i) => 'abc'[i]);
+  const ids = pos.map((_, i) => i < 3 ? 'abc'[i] : `demo${i}`);
   const spell = isSpell(id) ? { [id]: 1 } : {};
   const item = id in ITEMS ? { [id]: 1 } : {};
   const w = newWorld(ids, Object.fromEntries(ids.map((k, i) => [k, { ...noSpells(), ...(i === A ? spell : {}) }])), { a: { ...noItems(), ...item } }, 0, () => 0.5, false, {}, RULES, 'circle');
@@ -157,6 +158,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     const k = (Math.min(cw, ch) / 13) * dpr; // pixels por metro: a arena de 6 m inteira no quadro
     ctx.setTransform(k, 0, 0, k, canvas.width / 2, canvas.height / 2);
     drawStone(ctx, w.arena, w.arenaR, 0.08);
+    if (id === 'lightning') text(spellName('lightning'), v(0, -4.8), '#cfe8ff', .4);
     for (const z of w.zones) circle(z.pos, z.r, ZONE_COLOR[z.kind]);
     for (const p of w.pillars) if (p.alive) circle(p.pos, OBSTACLES[p.kind].r, '#8a7a6a', '#d9c3a5');
     for (const p of w.projectiles) {
