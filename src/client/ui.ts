@@ -273,7 +273,8 @@ export function toast(msg: string | (string | Node)[], kind: ToastKind = 'info',
   let t = document.getElementById('toast');
   if (!t) document.body.append((t = el('div', { id: 'toast', role: 'status' })));
   t.getAnimations().forEach((a) => a.cancel());
-  document.querySelectorAll('.toast-fly').forEach((c) => c.remove());
+  // cancelar antes de remover: o onfinish do voo anterior esconderia o aviso novo (cancel não dispara o onfinish)
+  document.querySelectorAll('.toast-fly').forEach((c) => (c.getAnimations().forEach((a) => a.cancel()), c.remove()));
   t.replaceChildren(...(kind === 'gold' ? [icon(UI_ICON.gold)] : []), el('span', {}, ...[msg].flat()));
   t.dataset.kind = kind;
   t.classList.toggle('top', top);

@@ -576,7 +576,8 @@ function startRoom(code: string, name: string) {
         const rune = RUNE_TEXT(e.kind);
         // a sua runa vira o ícone do buff acima da barra (o mesmo desenho, na fileira de efeitos)
         const fly = e.id === me ? { from: rune[0] as Element, to: () => document.querySelector(`.barwrap .hud-status use[href$="#${RUNE_ICON[e.kind]}"]`)?.closest('i') ?? null } : undefined;
-        toast([e.id === me ? t('Você pegou ', 'You picked up ') : (who.get(e.id) ?? '?') + t(' pegou ', ' picked up '), ...rune, `: ${RUNE_EFFECT[e.kind]}`], e.id === me ? 'good' : 'info', false, fly);
+        // quem desligou os avisos de runa nas Configurações não vê o próprio; o de quem pegou outra runa continua
+        if (e.id !== me || runeNoticesOn()) toast([e.id === me ? t('Você pegou ', 'You picked up ') : (who.get(e.id) ?? '?') + t(' pegou ', ' picked up '), ...rune, `: ${RUNE_EFFECT[e.kind]}`], e.id === me ? 'good' : 'info', false, fly);
       } else if (e.k === 'streak') {
         const name = e.id === me ? t('Você', 'You') : (who.get(e.id) ?? '?');
         // uma voz por lote de eventos: o Quebra-combo vem primeiro, depois o multi e por último a Matança
