@@ -7,6 +7,7 @@ import type { Isle } from './arena.ts';
 import { dist, v, type Vec } from './vec.ts';
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
+export const DASHING_BIT = 33554432; // avanço curto, distinto do buff de velocidade/absorção.
 const ZONE_KINDS = ['burn', 'slow', 'pull'] as const;
 const RUNE_BIT: Record<RuneKind, number> = { haste: 262144, fury: 524288, shield: 1048576, recharge: 4194304 };
 export type ZoneKind = (typeof ZONE_KINDS)[number];

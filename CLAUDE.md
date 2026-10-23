@@ -183,7 +183,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 
 Ambiente sugerido: uma sessão orquestradora e uma sessão filha por issue, cada uma no seu worktree; explicação, vantagens (economia de tokens, paralelismo) e passo a passo em [docs/SESSOES-COM-ORQUESTRADOR.md](docs/SESSOES-COM-ORQUESTRADOR.md).
 
-Skills (plugins `superpowers@claude-plugins-official` e `ponytail@ponytail`): brainstorming antes de coisa nova → writing-plans para vários passos → TDD em `src/shared` → systematic-debugging antes de corrigir bug → verification-before-completion antes de dizer pronto → `/ponytail-review` no diff antes do PR. Guia completo do colaborador (máquina, prompts, testes, problemas comuns): [docs/GUIA-COLABORADOR.md](docs/GUIA-COLABORADOR.md).
+Skills (plugins `superpowers@claude-plugins-official` e `ponytail@ponytail`): brainstorming antes de coisa nova → writing-plans para vários passos → TDD em `src/shared` → systematic-debugging antes de corrigir bug → verification-before-completion antes de dizer pronto → `/ponytail-review` no diff antes do PR. Use `/pr-review` (Claude Code) ou `$pr-review` (Codex) para revisar um PR com os critérios compartilhados em `.agents/skills/pr-review/SKILL.md`; essa revisão não publica comentários nem aprova por conta própria. Guia completo do colaborador (máquina, prompts, testes, problemas comuns): [docs/GUIA-COLABORADOR.md](docs/GUIA-COLABORADOR.md).
 
 Armadilhas: depois de `vite build`, reinicie o `wrangler dev` (senão página branca/404); trabalhe em branch deste repositório, não em fork (em fork o CI espera aprovação manual e a revisão automática não roda); todo PR (rascunho também) publica em `https://pr-<n>-warlock.fernandorffdev.com`.
 
@@ -210,7 +210,7 @@ Todo PR do próprio repositório, rascunho também, publica em `https://pr-<n>-w
 | Ambiente do PR | `pr-env.yml` | PR aberto, push novo, reaberto e fechado (só PR do próprio repositório) | build, publica `warlock-pr-<n>` em `pr-<n>-warlock.fernandorffdev.com`, espera o domínio responder, roda o teste rápido e edita o comentário fixo com o link; ao fechar, apaga o Worker (o domínio sai junto) | build quebrado: nada é publicado e a versão anterior do PR continua; teste rápido falhou: a versão nova já está no ar com problema, veja o log; limpeza falhou: o Worker fica no ar, rode o job de novo (*Re-run*) em Actions |
 | Produção | `deploy.yml` | push no `master` (merge do PR da tarefa) | gates, publica o jogo no ar, confere se o site serve o build novo e roda o teste rápido | falhou antes do deploy: nada muda no ar; falhou depois: o jogo no ar está com a versão nova, veja o log |
 
-Logs: https://github.com/fernandorff/warlock/actions.
+Logs: https://github.com/Warlock-Domain/warlock/actions.
 
 ## Balanceamento (como se decide número de magia e item)
 

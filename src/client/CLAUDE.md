@@ -42,6 +42,8 @@ Uma página só, de seções empilhadas com sumário (`stackedPage`), usada na a
 
 ## Cena (`scene.ts`)
 
+- Números de dano não aparecem sobre alvos ocultos ao observador. O impacto público da magia permanece. `main.ts` passa os alvos ocultos pelo snapshot do evento/replay e pela opção de visão da Sandbox, sem depender da pose interpolada anterior.
+
 - **Pixel art** (`setPixel`, issue #79): troca o `RenderPass` pelo `RenderPixelatedPass` (blocos de `pixelSize` px: 2 ou 3, 0 desliga). Nesse modo a câmera fica mais longe com ângulo menor (`camK`) e é presa à grade; a sobra desliza o canvas e os nomes (`pixelShift`). Quem mexer no posicionamento da câmera mantém os dois, senão o chão volta a tremer. Só existe no PC (precisa do `EffectComposer`, que o celular não cria); a escolha fica em `warlock:pixel` (`savedPixel`).
 
 ## O que não vai para `ui.ts`

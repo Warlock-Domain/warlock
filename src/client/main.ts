@@ -53,7 +53,7 @@ const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica'
 
 // ?ir=<lugar> (issue #140): em localhost e no ambiente de cada PR (TEST_LINK, abaixo) a aba de teste já abre no ponto a testar
 // (pedido do Fernando, 20/10); no jogo no ar nada muda.
-// Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, controle, jogador,
+// Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, interface, controle, jogador,
 // personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando), partida:loja (contra 1 bot, na loja da rodada 1, com 120 s)
 // e partida:ascensao (Ascensão contra 3 bots, na carta inicial, com 120 s).
 // Sala e seção juntas, com vírgula (as Configurações de dentro da partida): sandbox,config:som
@@ -584,7 +584,8 @@ function startRoom(code: string, name: string) {
       } else if (e.k === 'rune') toast([...RUNE_TEXT(e.kind), t(` apareceu na arena (${RUNE_EFFECT[e.kind]})`, ` appeared in the arena (${RUNE_EFFECT[e.kind]})`)], 'info');
       else if (e.k === 'runeTake') {
         sound.play('shield', e.id === me ? 1 : 0.5);
-        toast([e.id === me ? t('Você pegou ', 'You picked up ') : (who.get(e.id) ?? '?') + t(' pegou ', ' picked up '), ...RUNE_TEXT(e.kind), `: ${RUNE_EFFECT[e.kind]}`], e.id === me ? 'good' : 'info');
+        // quem desligou os avisos de runa nas Configurações não vê o próprio; o de quem pegou outra runa continua
+        if (e.id !== me || runeNoticesOn()) toast([e.id === me ? t('Você pegou ', 'You picked up ') : (who.get(e.id) ?? '?') + t(' pegou ', ' picked up '), ...RUNE_TEXT(e.kind), `: ${RUNE_EFFECT[e.kind]}`], e.id === me ? 'good' : 'info');
       } else if (e.k === 'streak') {
         const name = e.id === me ? t('Você', 'You') : (who.get(e.id) ?? '?');
         // uma voz por lote de eventos: o Quebra-combo vem primeiro, depois o multi e por último a Matança
@@ -685,9 +686,13 @@ function startRoom(code: string, name: string) {
         const { left, back } = seatChanges(prev, room);
         for (const p of left) {
           const lvl = SKILL_NAME[botLevel(p, room) ?? room.opts.difficulty];
-          toast(t(`${p.name} saiu da partida · um bot ${lvl} joga no lugar até voltar`, `${p.name} left the match · a ${lvl} bot plays in their place until they return`), 'info', true);
+          const name = playerName(p);
+          toast(t(`${name} saiu da partida · um bot ${lvl} joga no lugar até voltar`, `${name} left the match · a ${lvl} bot plays in their place until they return`), 'info', true);
         }
-        for (const p of back) toast(t(`${p.name} voltou para a partida`, `${p.name} is back in the match`), 'good', true);
+        for (const p of back) {
+          const name = playerName(p);
+          toast(t(`${name} voltou para a partida`, `${name} is back in the match`), 'good', true);
+        }
       }
       // compra na loja: o ouro caiu → som de moedas
       if (prev?.phase === 'shop' && room.phase === 'shop') {
@@ -716,7 +721,10 @@ function startRoom(code: string, name: string) {
       if (!taunt) return;
       const text = t(taunt.text, taunt.en);
       void sound.taunt(taunt.id);
-      if (!scene.bubble(m.id, text, taunt.id)) toast(`${room?.players.find((p) => p.id === m.id)?.name ?? '?'}: ${text}`);
+      if (!scene.bubble(m.id, text, taunt.id)) {
+        const p = room?.players.find((p) => p.id === m.id);
+        toast(`${p ? playerName(p) : '?'}: ${text}`);
+      }
       return;
     }
     lastSnap = m;
@@ -791,7 +799,10 @@ function startRoom(code: string, name: string) {
       if (w && room.players.some((p) => p.id === me)) sound.play(won ? 'winRound' : 'loseRound');
       if (won) banner(room.mode === 'teams' && w!.team !== null ? t(`Vitória do time ${TEAM_NAMES[w!.team]}!`, `${TEAM_NAMES[w!.team]} team wins!`) : room.mode === 'deathmatch' ? t('Vitória! Mais abates', 'Victory! Most kills') : t('Vitória!', 'Victory!'), 'win');
       else if (room.mode === 'teams' && w && w.team !== null) banner(t(`Time ${TEAM_NAMES[w.team]} venceu a rodada!`, `${TEAM_NAMES[w.team]} team won the round!`));
-      else banner(!w ? (room.mode === 'deathmatch' ? t('Fim da rodada', 'Round over') : t('Ninguém sobrou!', 'Nobody is left!')) : room.mode === 'deathmatch' ? (w.id === me ? t('Você fez mais abates!', 'You got the most kills!') : t(`${w.name} fez mais abates!`, `${w.name} got the most kills!`)) : w.id === me ? t('Você venceu a rodada!', 'You won the round!') : t(`${w.name} venceu a rodada!`, `${w.name} won the round!`), w?.id === me ? 'good' : '');
+      else {
+        const winnerName = w ? playerName(w) : '?';
+        banner(!w ? (room.mode === 'deathmatch' ? t('Fim da rodada', 'Round over') : t('Ninguém sobrou!', 'Nobody is left!')) : room.mode === 'deathmatch' ? (w.id === me ? t('Você fez mais abates!', 'You got the most kills!') : t(`${winnerName} fez mais abates!`, `${winnerName} got the most kills!`)) : w.id === me ? t('Você venceu a rodada!', 'You won the round!') : t(`${winnerName} venceu a rodada!`, `${winnerName} won the round!`), w?.id === me ? 'good' : '');
+      }
     } else if (room.phase === 'end' && left) view.toRoom();
     else if (room.phase === 'end' && prev) {
       // mesmo resultado do cabeçalho do cartão (Vitória, Derrota ou Fim de jogo); quem só assistia não ouve nada
