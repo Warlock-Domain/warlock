@@ -193,7 +193,7 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .slot-empty { border-radius: var(--r-sm); background: rgba(0, 0, 0, .35); border: 1px dashed var(--line); }
 /* efeitos em mim acima da barra (mesmos ícones de cima do mago) */
 /* sem a pílula escura atrás (o disco dentro dela parecia um alvo, pedido do Sky): só os discos soltos, com 16 px entre eles para os anéis não se tocarem */
-.barwrap .hud-status { gap: 16px; padding: 4px; }
+.barwrap .hud-status { gap: 16px; padding: 4px; pointer-events: none; }
 .hud-status:empty { display: none; }
 .barwrap .hud-status i { font-size: 1.3rem; position: relative; isolation: isolate; filter: none; }
 /* ícone do buff num disco de cor, igual ao do aviso (1,3rem e .2em de borda): o aviso da runa vira este ícone (flyToast em ui.ts) */
@@ -324,13 +324,12 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .wiz-label .hp-extra .rush { color: #ff9640; }
 
 /* letra 1,3x do tamanho normal, a mesma do aviso de quem saiu (PR #234), e fundo claro: o aviso aparece por poucos segundos no meio da partida e precisa ser lido de relance */
-#toast { position: fixed; left: 50%; bottom: calc(188px + var(--safe-b)); transform: translateX(-50%); background: var(--paper); color: var(--ink); border: 1px solid var(--gold-toast); box-shadow: var(--shadow-toast); padding: 13px 18px; border-radius: var(--r-sm); font-size: 1.3rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
-#toast.show { opacity: 1; pointer-events: auto; }
+#toast { position: fixed; left: 50%; bottom: calc(188px + var(--safe-b)); transform: translateX(-50%); background: var(--paper); color: var(--ink); border: 1px solid var(--gold-toast); box-shadow: var(--shadow-toast); padding: 13px 18px; border-radius: var(--r-sm); font-size: 1.3rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; }
+/* o clique atravessa o aviso e os ícones dos buffs (.hud-status) para não cortar o andar nem o lançamento na arena atrás deles; nenhum aviso tem botão (pedido do Sky, issue #332) */
+#toast.show { opacity: 1; }
 /* o aviso fica acima dos ícones dos buffs ativos (.hud-status, 44 px acima da barra), com 8 px de folga, para não tapá-los (issue #262);
    acima de 800 px de altura a barra de baixo tem 160 px + 10 de margem em vez de 118 + 10, então o aviso sobe junto */
 @media (min-width: 601px) and (min-height: 801px) { #toast { bottom: calc(222px + var(--safe-b)); } }
-/* com uma loja aberta o clique atravessa o aviso: ele fica por cima da última fileira de cartas e tapava a compra (issue #208) */
-body:has(.center .shop, .peek-shop:not([hidden]) .shop) #toast { pointer-events: none; }
 body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, .55) 100%); z-index: 1; }
 .banner { position: fixed; left: 50%; top: 24%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none; font-family: var(--display); font-size: clamp(1.8rem, 6vw, 3.6rem); color: var(--fg); text-shadow: 0 4px 24px rgba(0, 0, 0, .8), 0 0 2px var(--ink); animation: banner-pop 1.6s ease-out forwards; white-space: nowrap; }
 .banner.bad { color: var(--red); }
