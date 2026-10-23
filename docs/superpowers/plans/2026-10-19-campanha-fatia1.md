@@ -141,7 +141,7 @@
 - [ ] **Step 1: testes que falham:** `every Ilse line and fragment has pt and en`; `Ilse line advances with nights played` (função pura que escolhe a fala pelo contador); `lore pile reveals after 3 s and gives no gold`; `fragment clearing has exactly one lore pile`.
 - [ ] **Step 2:** FAIL → implementar → PASS; gates.
 - [ ] **Step 3:** cliente: fala da Ilse no intervalo (1 a 2 frases, botão pular); fragmento revelado para todos; tela de fim "A vela pingou" / "A Charneca respira", com estágio alcançado e quem caiu mais; contador local `warlock:campaign` por `store`.
-- [ ] **Step 4:** atualizar `README.md` (modos), `docs/GUIA-COLABORADOR.md` (modos, mapa do código), `CLAUDE.md` (Mapa do código: `campaign.ts`, `cards.ts`, `bosses.ts`, `rng.ts`) e `src/shared/CLAUDE.md` (onde mexer para chefe e estágio novos).
+- [ ] **Step 4:** atualizar `README.md` (modos), `CONTRIBUTING.md` (modos, mapa do código), `CLAUDE.md` (Mapa do código: `campaign.ts`, `cards.ts`, `bosses.ts`, `rng.ts`) e `src/shared/CLAUDE.md` (onde mexer para chefe e estágio novos).
 - [ ] **Step 5:** PR `feat: Santuário da Cera, fragmentos e fim da noite`.
 
 ### Task 6 (PR 6): Campanha no simulador

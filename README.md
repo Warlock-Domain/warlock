@@ -35,9 +35,9 @@ npx vitest run     # testes
 ## Contribuir
 
 - Trabalhar com agentes de IA: [docs/SESSOES-COM-ORQUESTRADOR.md](docs/SESSOES-COM-ORQUESTRADOR.md) (uma sessão orquestradora e uma por tarefa)
-- Guia completo: [docs/GUIA-COLABORADOR.md](docs/GUIA-COLABORADOR.md) (máquina, Claude Code e skills, fluxo, testes, balanceamento, decisões já tomadas)
+- Guia de contribuição em inglês: [CONTRIBUTING.md](CONTRIBUTING.md) (máquina, agentes e skills, fluxo, testes, balanceamento e revisão)
 - Regras do código para gente e para agentes de IA (Claude Code, Codex, Cursor): [CLAUDE.md](CLAUDE.md), também lido via [AGENTS.md](AGENTS.md); cada pasta principal tem o seu `CLAUDE.md`
-- Fluxo de Git: [CONTRIBUTING.md](CONTRIBUTING.md). Fluxo: branch da tarefa no próprio repositório (não fork) a partir do `master` → PR para o `master` com o modelo, CI verde → jogo no ar, publicado sozinho. Todo PR recebe a revisão automática do Claude; comente `@claude` num PR ou issue para pedir ajuda
+- Fluxo de Git (detalhes no guia de contribuição): branch da tarefa no próprio repositório (não fork) a partir do `master` → PR para o `master` com o modelo, CI verde → jogo no ar, publicado sozinho. Todo PR recebe a revisão automática do Claude; comente `@claude` num PR ou issue para pedir ajuda
 - Ambiente de cada PR: todo PR (rascunho também) publica em `https://pr-<n>-warlock.fernandorffdev.com`, apagado quando o PR fecha (`CLAUDE.md`, seção "Ambiente por PR")
 - O jogo no ar é publicado sozinho quando o PR entra no `master`
 
