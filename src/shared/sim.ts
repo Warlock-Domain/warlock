@@ -7,7 +7,7 @@ import { CELL, SHAPES, cellAt, edge, inArena, inLavaAt, inward, isleSpot, onIsle
 import { AEGIS, CRIT, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellBook, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
-import { castBlocked } from './spells.ts';
+import { SHIELD, castBlocked } from './spells.ts';
 import { KNOCK_RECOVERY } from './constants.ts';
 
 export type Wizard = {
@@ -401,13 +401,15 @@ export function moveWizard(wz: MovementState, dt: number) {
 const byId = (w: World, id: string | null) => w.wizards.find((z) => z.id === id && z.alive); // só os vivos
 const anyById = (w: World, id: string | null) => w.wizards.find((z) => z.id === id); // vivo ou morto
 const shielded = (w: World, wz: Wizard) => w.t < wz.shieldUntil;
+export const statusDuration = (w: World, wz: Wizard, seconds: number) => seconds * (shielded(w, wz) ? SHIELD.statusDuration : 1);
 function stun(w: World, wz: Wizard, seconds: number) {
   if (w.t < wz.invulnUntil) return;
-  wz.stunLeft = Math.max(wz.stunLeft ?? 0, seconds * wz.debuffMult);
+  wz.stunLeft = Math.max(wz.stunLeft ?? 0, statusDuration(w, wz, seconds * wz.debuffMult));
   wz.casting = null;
   wz.dashUntil = wz.thrustUntil = 0; // encerra avanço voluntário, mas preserva forças externas.
 }
 function addKnock(w: World, wz: Wizard, impulse: Vec) {
+  if (shielded(w, wz)) impulse = scale(impulse, SHIELD.knock);
   wz.vel = add(wz.vel, impulse);
   if (len(impulse) <= 0 || !isSliding(wz)) return;
   // O relógio de controle não precisa carregar o resto do impulso depois do limite de caminhada.
@@ -455,6 +457,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   // runa da Fúria de quem bateu
   const att = by !== target.id ? byId(w, by) : undefined;
   if (att && att.rune === 'fury' && w.t < att.runeUntil) dmg *= 1 + RUNE.fury;
+  if (shielded(w, target)) dmg = 0; // áreas e golpes não refletidos também respeitam a proteção geral.
   // crítico (Lente Letal) depois da Fúria e antes de Guardião e Escudo: multiplica o golpe já forte (Pacto e Fúria somam sem teto, regra geral)
   // e as defesas do alvo cortam o golpe já crítico. Só sorteia quem tem chance, para as partidas sem o item seguirem com a mesma sequência de sorteios
   const crit = !!att && att.crit > 0 && dmg > 0 && w.rand() < att.crit;
@@ -663,7 +666,7 @@ function heal(w: World, wz: Wizard, amount: number) {
 // ponytail: duas lentidões juntas valem a maior (no original somavam); somar pede uma lista de efeitos por mago
 function slowDown(w: World, wz: Wizard, amount: number, secs: number) {
   wz.slow = w.t < wz.slowUntil ? Math.max(wz.slow, amount) : amount;
-  wz.slowUntil = Math.max(wz.slowUntil, w.t + secs);
+  wz.slowUntil = Math.max(wz.slowUntil, w.t + statusDuration(w, wz, secs));
 }
 
 // quantos 'fire' cada lançamento conta (a Rajada sai com 4 e o Divisor com 8 filhotes); as outras, 1
@@ -904,8 +907,8 @@ function gripLand(w: World, p: Projectile) {
   const L = spellLevel('grip', p.level, w.book);
   let landed = false;
   for (const z of w.wizards) {
-    if (!z.alive || z.id === p.owner || allies(anyById(w, p.owner), z) || w.t < z.invulnUntil || shielded(w, z) || dist(z.pos, p.pos) > L.radius + WIZ_R) continue;
-    z.gripUntil = w.t + L.duration * z.debuffMult * afflictBy(w, p.owner);
+    if (!z.alive || z.id === p.owner || allies(anyById(w, p.owner), z) || w.t < z.invulnUntil || dist(z.pos, p.pos) > L.radius + WIZ_R) continue;
+    z.gripUntil = Math.max(z.gripUntil, w.t + statusDuration(w, z, L.duration * z.debuffMult * afflictBy(w, p.owner)));
     if (z.casting && castBlocked(false, true, z.casting.spell)) z.casting = null;
     z.dashUntil = z.thrustUntil = 0;
     z.gripBonus = L.scale;
@@ -1731,7 +1734,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     // chão do choque: lento no arcano, queima no fogo (como a lava, mas fraco)
     wz.zone = 0;
     for (const z of w.zones) if (dist(z.pos, wz.pos) < z.r + WIZ_R * 0.5 && zoneReaches(w, z, wz)) wz.zone |= z.kind === 'slow' ? 1 : z.kind === 'burn' ? 2 : 0;
-    if (wz.zone & 2 && w.t >= wz.invulnUntil) {
+    if (wz.zone & 2 && w.t >= wz.invulnUntil && !shielded(w, wz)) {
       wz.hp -= ZONES.burn.dps * DT;
       wz.calmSince = w.t;
     }
@@ -1854,7 +1857,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       else if (c !== CELL.lava) wz.safe = wz.pos; // quem cai no abismo não volta para dentro da lava
     }
     if (inLava(w, wz.pos)) {
-      if (w.t < wz.invulnUntil) continue;
+      if (w.t < wz.invulnUntil || shielded(w, wz)) continue;
       const dmg = LAVA_DPS * DT * (1 - wz.lavaCut) * w.mods.lava, burn = Math.min(Math.max(0, wz.hp), dmg);
       wz.hp -= dmg;
       wz.calmSince = w.t;
