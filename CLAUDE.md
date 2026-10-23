@@ -171,6 +171,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 22/10 | **Roda de provocações** no lugar da lista (PRs #239, #238 e #240, do Leonard): segurar Y abre a roda, apontar escolhe e soltar envia (o clique no botão abre a roda parada); mostra **todas** as provocações do catálogo (15), os números 1 a 9 e 0 escolhem as 10 primeiras; nas Configurações, Comunicação troca a posição de cada fala; no controle, ← abre | o Fernando liberou a roda desde que as 15 fiquem ao alcance e as peças repetidas dos 3 PRs virem uma só |
 | 22/10 | **Mago queimando na lava** (issue #225): vivo e na lava, o corpo pulsa em laranja-brasa e soltam faíscas e as chamas do chão de fogo nos pés; some ao sair. Só visual (`scene.ts`, sem número de jogo nem mensagem nova); no modo leve, poucas faíscas e sem chamas | pedido do Fernando, em issue nova, de animação de queimadura enquanto o mago toma dano da lava: de cima não se via que o mago estava queimando |
 | 22/10 | **Gestos novos ao lançar** (issue #207, `CAST_ANIM` em `scene.ts`): Bumerangue, Elo e Bola de neve com o arremesso (`Throw`, o mesmo ponto do clip do Agarrar); Pacto e Recarga canalizando (`Spellcast_Long`, como o Drenar). Os outros projéteis seguem no disparo padrão; só clipes que os bonecos já carregam (peso igual) | pedido do Fernando: melhorar as animações dos bonecos, já que os assets oferecem várias |
+| 23/10 | **Repositório na organização `Warlock-Domain`** (plano Free): `fernandorff/warlock` virou `Warlock-Domain/warlock` (o endereço antigo redireciona). Colaboradores entram como membros da organização; time **Colaboradores** com Write no `warlock`; Arthur (arthurbaquit) com Admin no repositório; o Fernando é o único Owner da organização. O repositório segue público, porque a proteção do `master` na organização grátis só vale em repositório público | decisão do Fernando |
 
 ## Fluxo com agente
 
@@ -203,7 +204,7 @@ Todo PR do próprio repositório, rascunho também, publica em `https://pr-<n>-w
 | Ambiente do PR | `pr-env.yml` | PR aberto, push novo, reaberto e fechado (só PR do próprio repositório) | build, publica `warlock-pr-<n>` em `pr-<n>-warlock.fernandorffdev.com`, espera o domínio responder, roda o teste rápido e edita o comentário fixo com o link; ao fechar, apaga o Worker (o domínio sai junto) | build quebrado: nada é publicado e a versão anterior do PR continua; teste rápido falhou: a versão nova já está no ar com problema, veja o log; limpeza falhou: o Worker fica no ar, rode o job de novo (*Re-run*) em Actions |
 | Produção | `deploy.yml` | push no `master` (merge do PR da tarefa) | gates, publica o jogo no ar, confere se o site serve o build novo e roda o teste rápido | falhou antes do deploy: nada muda no ar; falhou depois: o jogo no ar está com a versão nova, veja o log |
 
-Logs: https://github.com/fernandorff/warlock/actions.
+Logs: https://github.com/Warlock-Domain/warlock/actions.
 
 ## Balanceamento (como se decide número de magia e item)
 

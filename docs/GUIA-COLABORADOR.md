@@ -7,11 +7,11 @@ Tudo para contribuir com o jogo usando um agente de IA (Claude Code, Codex, Curs
 Warlock Wars é um remake web do mod **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): magos numa arena de pedra cercada de lava que encolhe. Ninguém morre de dano: você empurra os outros para a lava com magias. O último de pé vence a rodada; entre rodadas, uma loja vende magias e itens. O público são jogadores de Dota, então a interface segue o jeito do Dota.
 
 - Jogar: https://warlock.fernandorffdev.com (jogue algumas partidas antes de mexer no código)
-- Código: https://github.com/fernandorff/warlock; tarefas saem do `master` e voltam para ele por PR; o `master` é o jogo no ar
+- Código: https://github.com/Warlock-Domain/warlock; tarefas saem do `master` e voltam para ele por PR; o `master` é o jogo no ar
 
 Primeiro dia:
 
-1. Aceite o convite de colaborador (e-mail ou https://github.com/fernandorff/warlock/invitations). Trabalhe em branches deste repositório, não num fork: em fork o CI precisa de aprovação manual, a revisão automática não roda e o ambiente dev não publica.
+1. Aceite o convite da organização Warlock-Domain (e-mail ou https://github.com/orgs/Warlock-Domain/invitation). Trabalhe em branches deste repositório, não num fork: em fork o CI precisa de aprovação manual, a revisão automática não roda e o ambiente dev não publica.
 2. Prepare a máquina e rode o jogo localmente.
 3. Instale o Claude Code e as skills.
 4. Jogue e abra o grimório (<kbd>F1</kbd>) e a biblioteca de magias e itens (<kbd>F2</kbd>).
@@ -28,7 +28,7 @@ Primeiro dia:
 | Google Chrome | instalado | scripts de teste no navegador |
 
 ```bash
-git clone https://github.com/fernandorff/warlock.git
+git clone https://github.com/Warlock-Domain/warlock.git
 cd warlock
 npm ci
 npx wrangler dev            # servidor + jogo em http://localhost:8787
@@ -60,7 +60,7 @@ Todo PR, rascunho também, publica em `https://pr-<n>-warlock.fernandorffdev.com
 | Ambiente do PR | `pr-env.yml` | PR aberto, push novo, reaberto e fechado (só PR do próprio repositório) | build, publica `warlock-pr-<n>` em `pr-<n>-warlock.fernandorffdev.com`, espera o domínio responder, roda o teste rápido e edita o comentário fixo com o link; ao fechar, apaga o Worker (o domínio sai junto) | build quebrado: nada é publicado e a versão anterior do PR continua; teste rápido falhou: a versão nova já está no ar com problema, veja o log; limpeza falhou: o Worker fica no ar, rode o job de novo (*Re-run*) em Actions |
 | Produção | `deploy.yml` | push no `master` (merge do PR da tarefa) | gates, publica o jogo no ar, confere se o site serve o build novo e roda o teste rápido | falhou antes do deploy: nada muda no ar; falhou depois: o jogo no ar está com a versão nova, veja o log |
 
-Logs: https://github.com/fernandorff/warlock/actions.
+Logs: https://github.com/Warlock-Domain/warlock/actions.
 
 ## Claude Code e as skills
 
