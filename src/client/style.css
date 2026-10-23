@@ -125,6 +125,17 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 .mode { display: grid; gap: 6px; }
 /* relógio com fundo de vidro: sem ele o vermelho dos últimos 3 s some na lava (1,8:1) */
 .timer:not(.countdown):not(:empty) { padding: 2px 12px; border-radius: 999px; background: var(--panel-glass); }
+.ilse { position: absolute; left: max(16px, var(--safe-l, 0px)); bottom: calc(150px + var(--safe-b)); z-index: 4; max-width: min(420px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border-radius: var(--r-md); background: var(--panel-solid); border: 1px solid var(--ember); box-shadow: 0 0 16px rgba(255, 179, 71, .3); animation: fade-in .25s ease-out; }
+.ilse .ilse-name { font-family: var(--display); color: var(--ember); }
+.ilse .ilse-text { line-height: 1.35; }
+.ilse .ilse-skip { align-self: flex-end; min-height: 32px; padding: 2px 10px; font-size: .8rem; }
+@media (max-width: 600px) { .ilse { left: 12px; right: 12px; max-width: none; bottom: auto; top: calc(56px + var(--safe-t)); font-size: .9rem; } }
+@media (max-width: 600px) { .hud:has(.boss-bar:not([hidden])) > .ilse { top: calc(96px + var(--safe-t) + var(--tops-h, 0px)); } } /* abaixo da barra do chefe */
+@media (pointer: coarse) { .ilse .ilse-skip { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .ilse { animation: none; } }
+.boss-bar { position: absolute; left: 50%; top: calc(46px + var(--safe-t) + var(--tops-h, 0px)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; }
+.boss-bar .boss-name { font-family: var(--display); font-size: .95rem; color: var(--ember); text-shadow: var(--text-shadow); white-space: nowrap; }
+.boss-bar .hpbar { width: min(420px, 80vw); height: 16px; }
 .timer.soon { color: var(--red); animation: pulse-bad .5s ease-in-out infinite alternate; }
 @media (prefers-reduced-motion: reduce) { .timer.soon { animation: none; } }
 /* faixa de queda de conexão: só aparece se a queda durar mais de 1,5 s */
@@ -281,6 +292,9 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 @keyframes lvup { 0% { transform: scale(2.2); color: #fff; text-shadow: 0 0 8px #8cbcff; } 100% { transform: scale(1); } }
 .wiz-label .loot-bar { width: 46px; height: 5px; margin-top: 3px; border-radius: 2px; background: rgba(0, 0, 0, .6); overflow: hidden; }
 .wiz-label .loot-bar > div { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-pale)); }
+.wiz-label.ember .hp-row, .wiz-label.ember .shield-bar { display: none; }
+.wiz-label.ember .loot-bar { width: 60px; height: 7px; box-shadow: 0 0 6px var(--ember); }
+.wiz-label.ember .loot-bar > div { background: var(--ember); }
 .hp-text { position: absolute; inset: 0; display: grid; place-items: center; font-size: .7rem; font-weight: 800; line-height: 1; color: var(--white); text-shadow: 0 1px 2px var(--ink), 0 0 2px var(--ink); font-variant-numeric: tabular-nums; }
 .hp-fill { height: 100%; width: 100%; }
 .wiz-label .hp { display: flex; transition: box-shadow .2s, border-color .2s; }

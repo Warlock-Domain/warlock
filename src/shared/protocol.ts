@@ -1,7 +1,9 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
-import { ARENA_IDS, type ArenaId } from './arena.ts';
+import { ARENA_IDS, type ArenaId, type Terrain } from './arena.ts';
 import { ascOf, type AscLobby, type Card, type Choice, type Kind } from './ascension.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
+import type { Night, ServoKind } from './campaign.ts';
+import { fightOf, nightMap } from './levels.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type RuneKind } from './constants.ts';
 import { ITEM_IDS, type ItemId } from './items.ts';
@@ -9,6 +11,7 @@ import { MODES, OPTION_CHOICES, TURRET_DIR, goalOf, parseOpt, votesNeeded, type 
 import type { SimEvent } from './sim.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
+import { v, type Vec } from './vec.ts';
 
 // treino: magias, itens e jeito de jogar escolhidos para um bot (só vale com um humano na sala; ver startMatch);
 // difficulty: a dificuldade deste bot, escolhida na sala (vale em qualquer sala)
@@ -45,6 +48,8 @@ export type PublicPlayer = {
   spells: Record<SpellId, number>; items: Record<ItemId, number>; stats: Stats; bought: string[]; held: Record<string, number[]>; ready: boolean; connected: boolean; team: number | null;
   difficulty?: MatchOpts['difficulty']; // só bots: a dificuldade dele
   dummy?: true; // sandbox: boneco parado
+  servo?: ServoKind; // Campanha: vaga do Fumo e o tipo de servo da onda
+  hpMax?: number; // vida máxima quando não é a de sempre (servos)
   watch?: true; // assistindo: sem mago a partir da próxima rodada
   turret?: true; // Sandbox: torreta de direção fixa.
   asc?: { xp: number; level: number; next: number; todo: Kind[]; offer: Card[][]; pick: (Choice | null)[]; rerolls: number; auto: Card[] }; // só no Ascensão (next: XP do próximo nível; auto: sorteado por falta de escolha)
@@ -73,6 +78,9 @@ export type PublicRoom = {
   arena: ArenaId | null; // formato da arena desta rodada (null sem rodada)
   effect: RoundEffectId | null; // efeito desta rodada; na loja, o da próxima (null desligado, sem rodada e na sandbox)
   sandbox?: Sandbox; // só nas salas sandbox: as regras ligadas
+  // só na Campanha: semente (o navegador monta o mesmo mapa), sala do encontro aberto e a onda dele (contando de 0), salas com
+  // o encontro vencido e como a noite acabou
+  night?: { stage: number; seed: number; fight: number | null; wave: number; waves: number; done: number[]; result: Night['result'] };
   lobby?: AscLobby; // só na sala do Ascensão: dono (id público) e os bots e opções que ele escolheu
 };
 
@@ -81,11 +89,12 @@ export type PublicRoom = {
 // cd: recarga restante das magias de quem recebe, na ordem de SPELL_IDS;
 // ch: montes de ouro dos baús (3 números por monte: x, y, quanto falta); lp: progresso de cada mago (0 a 1) até o próximo ouro do monte, na ordem de room.ids
 // pl: 4 números por obstáculo: x, y, vida em % (0 = quebrado), tipo (índice em OBSTACLE_KINDS)
+// em: só na Campanha com Aceso caído, 1 número por mago na ordem de room.ids: progresso do reacender (0 a 1; −1 sem brasa)
 // rs: só no deathmatch, 1 número por mago na ordem de room.ids: segundos até voltar (0 = vivo)
 // sp: velocidade de andar dele agora (botas, lentidão), para a previsão; ack: último seq aplicado dele
 // fx: efeitos com prazo de quem recebe, 2 números por efeito: bit de estado (como em w) e segundos que faltam
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
-export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; rs?: number[]; ch?: number[]; lp?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
+export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
 
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
 export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
@@ -98,12 +107,21 @@ export type ServerMsg =
   | { t: 'error'; code: ErrorCode; msg: string }
   | { t: 'taunt'; id: string; i: number };
 
-const MAX_COORD = 30; // a maior arena (8 magos, forma mais larga: 1,63 × 13,6 m) chega a ~22 m do centro; o resto é folga para clique na lava
+// o parser não sabe a sala: aceita até o mapa da Campanha, que vai de (0, 0) até a sala mais longe (hoje até 190 × 24 m),
+// com folga para salas maiores (tests/campaign.test.ts confere 300 noites); o limite real de cada sala fica em cmdTarget
+const MAX_COORD = 400;
+const ARENA_COORD = 30; // a maior arena (8 magos, forma mais larga: 1,63 × 13,6 m) chega a ~22 m do centro; o resto é folga para clique na lava
 const MAX_MSG = 2048; // 'start' com 7 bots configurados: ~1,0 KB só com magias, ~1,7 KB com magias e itens (medido em 19/10)
 
 type Obj = Record<string, unknown>;
 const isObj = (x: unknown): x is Obj => typeof x === 'object' && x !== null && !Array.isArray(x);
 const coord = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= MAX_COORD;
+// alvo de andar ou lançar dentro do mundo da sala (room-do.ts): na arena, fora de ±ARENA_COORD é recusado, como antes da Campanha;
+// no mapa da Campanha fica preso ao retângulo do mapa, para o clique na beira não virar erro
+export function cmdTarget(map: Terrain | undefined, x: number, y: number): Vec | null {
+  if (map) return v(Math.min(Math.max(x, 0), map.w), Math.min(Math.max(y, 0), map.h));
+  return Math.abs(x) <= ARENA_COORD && Math.abs(y) <= ARENA_COORD ? v(x, y) : null;
+}
 const seq = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 0 && (x as number) < 2 ** 31;
 // publicId: hash de 32 bits em base 36 cabe em 7 caracteres
 const pubId = (x: unknown): x is string => typeof x === 'string' && /^p[0-9a-z]{1,8}$/.test(x);
@@ -267,7 +285,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     mode: m.mode,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy, turret, watch }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }), ...(turret && { turret: true as const }), ...(watch && { watch: true as const }), ...(m.asc && { asc: ascOf(m.asc, id) }) })),
+    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy, turret, watch, servo, hpMax }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }), ...(turret && { turret: true as const }), ...(watch && { watch: true as const }), ...(servo && { servo }), ...(hpMax && { hpMax }), ...(m.asc && { asc: ascOf(m.asc, id) }) })),
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),
@@ -291,6 +309,12 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     arena: m.world?.arena ?? null,
     effect: (m.phase === 'shop' ? shopEffect(m) : m.world?.effect) ?? null,
     ...(m.sandbox && { sandbox: m.sandbox }),
+    ...(m.night && { night: publicNight(m.night) }),
     ...(m.lobby && { lobby: { ...m.lobby, owner: m.lobby.owner && pub(m.lobby.owner) } }),
   };
+}
+
+function publicNight(n: Night): NonNullable<PublicRoom['night']> {
+  const waves = n.fight === null ? 0 : fightOf(nightMap(n.seed, n.stage), n.fight, n.seed, n.stage).waves.length;
+  return { stage: n.stage, seed: n.seed, fight: n.fight, wave: n.wave, waves, done: n.done, result: n.result };
 }

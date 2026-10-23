@@ -1,9 +1,13 @@
-// Decisões das telas sem DOM (testáveis): resultado do fim da partida, ordem da lista de salas e quem joga como bot.
+// Decisões das telas sem DOM (testáveis): resultado do fim da partida, ordem da lista de salas, quem joga como bot e textos da Campanha.
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { WizView } from '../shared/snapshot.ts';
 import { MAX_SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { store } from './store.ts';
+import type { ServoKind } from '../shared/campaign.ts';
+import { HP_MAX } from '../shared/constants.ts';
+import { itemStats } from '../shared/items.ts';
+import { t } from './i18n.ts';
 
 // Posição própria já usa o estado recente; pose atrasada faria o mago continuar arremessado enquanto volta a andar.
 // Troca o mago inteiro de propósito: direção, vida e os bits do véu/invisível ficam no mesmo instante da posição prevista.
@@ -65,8 +69,10 @@ export function moveLoadout(order: LoadoutOrder, from: number, to: number): Load
 
 // fim da partida para quem olha: 'none' sem vencedor ou para quem só assistia
 export type EndResult = 'win' | 'loss' | 'none';
-export function endResult(r: Pick<PublicRoom, 'players' | 'winner' | 'winnerTeam' | 'mode' | 'goal'>, me: string): EndResult {
+export function endResult(r: Pick<PublicRoom, 'players' | 'winner' | 'winnerTeam' | 'mode' | 'goal' | 'night'>, me: string): EndResult {
   const mine = r.players.find((p) => p.id === me);
+  // Campanha: todos os Acesos vencem ou perdem juntos
+  if (r.night) return !mine || !r.night.result ? 'none' : r.night.result === 'won' ? 'win' : 'loss';
   // Times fixos: vence o time; sorteados a cada rodada: todos que chegaram à meta juntos (como em winTitle)
   const champs = r.winnerTeam !== null ? r.players.filter((p) => p.team === r.winnerTeam)
     : r.mode === 'teams' && r.players.filter((p) => p.score >= r.goal).length > 1 ? r.players.filter((p) => p.score >= r.goal)
@@ -80,8 +86,9 @@ export function endResult(r: Pick<PublicRoom, 'players' | 'winner' | 'winnerTeam
 // dos bots); quem só assiste não tem mago, então não vira bot
 type Seat = Pick<PublicPlayer, 'id' | 'name' | 'bot' | 'connected' | 'difficulty' | 'watch'>;
 // O nome guardado continua sendo o da pessoa. O marcador só explica na tela que,
-// enquanto ela caiu, o servidor está jogando no lugar dela com o bot.
-export function playerName(p: Pick<Seat, 'name' | 'bot' | 'connected' | 'watch'>): string {
+// enquanto ela caiu, o servidor está jogando no lugar dela com o bot. Servo da Campanha mostra o nome do tipo (SERVO_NAME).
+export function playerName(p: Pick<PublicPlayer, 'name' | 'bot' | 'connected' | 'watch' | 'servo'>): string {
+  if (p.servo) return SERVO_NAME[p.servo];
   return !p.bot && !p.connected && !p.watch ? `${p.name} (BOT)` : p.name;
 }
 export function botLevel(p: Seat, r: Pick<PublicRoom, 'opts'>): MatchOpts['difficulty'] | null {
@@ -102,4 +109,14 @@ const RANK: Record<string, number> = { lobby: 0, end: 1 };
 export function roomGroups(rooms: RoomInfo[]) {
   const rank = (r: RoomInfo) => RANK[r.phase] ?? 2;
   return { live: rooms.filter((r) => r.players > 0).sort((a, b) => rank(a) - rank(b)), empty: rooms.filter((r) => !r.players) };
+}
+
+// Campanha: nome dos servos (o servidor manda em português), nome do estágio e a linha de onde a noite está
+const SERVO_NAME: Record<ServoKind, string> = { ash: t('Cinzento', 'Ashen'), archer: t('Arqueiro de Fuligem', 'Soot Archer'), watcher: t('Vigia Oco', 'Hollow Watcher'), hound: t('Cão de Brasa', 'Ember Hound'), odran: t('Sir Odran, o Elmo Vazio', 'Sir Odran, the Empty Helm') };
+export const STAGE_NAME = [t('Charneca Cinzenta', 'Ashen Moor')];
+// vida máxima: a do servo, ou a de sempre com os itens
+export const maxHp = (p: Pick<PublicPlayer, 'hpMax' | 'items'> | undefined) => p?.hpMax ?? HP_MAX + (p ? itemStats(p.items).hp : 0);
+export function nightLine(n: NonNullable<PublicRoom['night']>, playing: boolean): string {
+  const where = t(`Campanha · ${STAGE_NAME[n.stage]}`, `Campaign · ${STAGE_NAME[n.stage]}`);
+  return playing && n.fight !== null ? where + t(` · encontro · onda ${n.wave + 1} de ${n.waves}`, ` · encounter · wave ${n.wave + 1} of ${n.waves}`) : where;
 }

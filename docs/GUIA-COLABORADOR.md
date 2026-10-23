@@ -264,7 +264,7 @@ Não desfaça sem combinar numa issue.
 
 **Ilusão:** cria uma cópia visível que segue reto na direção do movimento por 2 s. O jogador pode se mover livremente enquanto fica invisível; usar outra magia o revela, sem encerrar a cópia. Jogador e cópia podem ser atingidos; a cópia pode ser empurrada, mas não destruída antes do fim do prazo.
 
-Modos: Rodadas (vence quem fizer 5), Deathmatch (volta em 10 s), Times (Azul × Vermelho), Ascensão (9 rodadas, cartas por nível). Arenas: Círculo, Anel, Ilhas, Cruz. Efeito de rodada (opção da sala, desligado por padrão; Sortear ou um fixo): Tempo chuvoso, Arena de espinhos, Febre do ouro, Vendaval, Fonte da vida, Campo aberto; na sandbox, pelo painel. Atalhos: <kbd>F1</kbd> grimório, <kbd>F2</kbd> biblioteca, <kbd>Tab</kbd> placar, <kbd>4</kbd> loja, <kbd>5</kbd> replay da queda, <kbd>Esc</kbd> configurações.
+Modos: Rodadas (vence quem fizer 5), Deathmatch (volta em 10 s), Times (Azul × Vermelho), Ascensão (9 rodadas, cartas por nível), Campanha (1 a 4 jogadores contra o Fumo num mapa de salas; em construção, formato das salas em `docs/campanha/charneca-salas.md`). Arenas: Círculo, Anel, Ilhas, Cruz. Efeito de rodada (opção da sala, desligado por padrão; Sortear ou um fixo): Tempo chuvoso, Arena de espinhos, Febre do ouro, Vendaval, Fonte da vida, Campo aberto; na sandbox, pelo painel. Atalhos: <kbd>F1</kbd> grimório, <kbd>F2</kbd> biblioteca, <kbd>Tab</kbd> placar, <kbd>4</kbd> loja, <kbd>5</kbd> replay da queda, <kbd>Esc</kbd> configurações.
 
 ## Problemas comuns
 
