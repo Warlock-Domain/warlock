@@ -45,6 +45,9 @@ export const savedPixel = () => {
   return n === 1 ? 2 : n === 2 || n === 3 ? n : 0;
 };
 
+// aviso ao pegar runa (issue #265): ligado por padrão para ninguém perder o aviso sem querer; quem já sabe as runas desliga
+export const runeNoticesOn = () => store.get('warlock:rune-notices') !== '0';
+
 const nameOf = (a: AnyAction) => (isPos(a) ? PAD_ACTION_NAMES[a] : a in UI_NAMES ? UI_NAMES[a as UiAction] : actionName(a as Action));
 const padActionName = (p: PadAction) => {
   const s = p.startsWith('slot') ? slotSpell(Number(p.slice(4)) - 1) : undefined;
@@ -161,6 +164,15 @@ function videoSection(): Node[] | null {
     choice(t('Efeitos visuais', 'Visual effects'), [[false, t('Completo', 'Full')], [true, t('Leve', 'Light')]], fxLite(), (lite) => (setFxLite(lite), draw())),
     el('p', { class: 'muted' }, t('Leve desliga o tremor da tela, a pausa no golpe forte e as partículas extras (bom para PC fraco e para quem enjoa). Começa no Leve quando o sistema pede menos movimento.', 'Light turns off the screen shake, the hit pause on heavy blows and the extra particles (good for weak PCs and for anyone who gets motion sick). It starts on Light when the system asks for less motion.')),
     ...pixelArt,
+  ];
+}
+
+// Interface (issue #265): avisos e HUD separados de Vídeo e efeitos, que é dos gráficos, como no Dota
+function interfaceSection(): Node[] {
+  return [
+    el('h3', {}, t('Avisos', 'Notices')),
+    check('rune-notices', runeNoticesOn(), t('Avisos de runa', 'Rune notices'), (on) => store.set('warlock:rune-notices', on ? '1' : '0')),
+    el('p', { class: 'muted' }, t('Mostra o efeito da runa ao pegá-la. O ícone do efeito em cima do mago continua aparecendo.', 'Shows the rune effect when you pick it up. The effect icon above the wizard still shows.')),
   ];
 }
 
@@ -296,6 +308,7 @@ const SECTIONS: Section[] = [
   { id: 'som', title: t('Som', 'Sound'), icon: UI_ICON.sound, render: soundSection },
   { id: 'comunicacao', title: t('Comunicação', 'Communication'), icon: UI_ICON.taunt, render: communicationSection },
   { id: 'video', title: t('Vídeo e efeitos', 'Video & effects'), icon: UI_ICON.video, render: videoSection },
+  { id: 'interface', title: 'Interface', icon: UI_ICON.tip, render: interfaceSection },
   { id: 'controle', title: t('Controle', 'Controller'), icon: UI_ICON.pad, render: padSection },
   { id: 'jogador', title: t('Jogador', 'Player'), icon: UI_ICON.person, render: playerSection },
   { id: 'personagem', title: t('Personagem', 'Character'), icon: UI_ICON.person, render: () => [avatarPanel()] },
