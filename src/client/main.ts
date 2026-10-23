@@ -29,6 +29,7 @@ import { connect } from './net.ts';
 import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
+import { BRACING_BIT } from '../shared/constants.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
@@ -366,7 +367,7 @@ function startRoom(code: string, name: string) {
   const myWizard = (s: SnapView | null) => s?.wizards.find((w) => w.id === me) ?? null;
 
   let attackCancelSeq = 0;
-  function command(msg: { t: 'move'; x: number; y: number; held?: boolean } | { t: 'moveHold'; on: boolean } | { t: 'basic'; x: number; y: number; target?: string | number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
+  function command(msg: { t: 'move'; x: number; y: number; held?: boolean } | { t: 'moveHold'; on: boolean } | { t: 'brace'; on: boolean } | { t: 'basic'; x: number; y: number; target?: string | number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
     seq++;
     if (msg.t === 'move' || msg.t === 'stop' || msg.t === 'cast') attackCancelSeq = seq;
     sentAt.set(seq, performance.now());
@@ -378,11 +379,13 @@ function startRoom(code: string, name: string) {
   const input = createInput(canvas, {
     pick: (x, y) => scene.pick(x, y),
     move(to, held = false) {
+      if ((myWizard(interp.latest())?.status ?? 0) & BRACING_BIT) return;
       command({ t: 'move', x: to.x, y: to.y, held });
       predict.move(to);
       scene.clickMarker(to, false);
     },
     holdMove: (on) => command({ t: 'moveHold', on }),
+    brace: (on) => command({ t: 'brace', on }),
     pickAttack: (x, y) => scene.pickMage(x, y),
     attackArmedChanged: (on) => { canvas.style.cursor = on ? 'crosshair' : ''; },
     basic(at, clicked) {

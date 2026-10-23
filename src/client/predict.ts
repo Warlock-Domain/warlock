@@ -1,5 +1,5 @@
 // Previsão do próprio mago: anda na hora do clique com o mesmo código do servidor e é corrigido de leve.
-import { WIZ_SPEED } from '../shared/constants.ts';
+import { BRACING_BIT, WIZ_SPEED } from '../shared/constants.ts';
 import { isStunned, moveWizard, type Wizard } from '../shared/sim.ts';
 import { BLOCKED_MOVE_BIT, type WizView } from '../shared/snapshot.ts';
 import { add, dist, scale, sub, v, type Vec } from '../shared/vec.ts';
@@ -97,6 +97,7 @@ export function createPredict() {
         queued = undefined;
       }
       if (server.status & 128) me.target = null; // preso (Agarrar): não anda
+      if (server.status & BRACING_BIT) { me.target = null; queued = undefined; }
       moveWizard(me, dt);
       const slack = WIZ_SPEED * (rttSec / 2) + 0.3;
       if (dist(me.pos, server.pos) > slack) me.pos = add(me.pos, scale(sub(server.pos, me.pos), 0.15));
