@@ -1536,7 +1536,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     burst(hand, '#9fd0ff', 1.2, 0.2, 0.9, FX.light);
   }
 
-  function onEvents(events: SimEvent[]) {
+  function onEvents(events: SimEvent[], hiddenDamageTargets: readonly string[] = []) {
     for (const e of events) {
       if (e.k === 'cast') {
         oneShot(e.id, ...castAnim(e.spell));
@@ -1558,7 +1558,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (e.src === 'lightning') zap(v(e.x, e.y));
         else explosion(v(e.x, e.y));
         scorch(v(e.x, e.y));
-        damageNumber(v(e.x, e.y), e.dmg);
+        // Mantém o impacto público da magia, mas não o número sobre o jogador invisível.
+        if (!hiddenDamageTargets.includes(e.id)) damageNumber(v(e.x, e.y), e.dmg);
         // dano 0 (invulnerável, aliado) não sacode nem acende
         if (e.dmg > 0) impact(e.id, v(e.x, e.y), e.dmg);
       } else if (e.k === 'gold') goldNumber(v(e.x, e.y), e.n);
