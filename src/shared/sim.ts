@@ -967,6 +967,7 @@ function meteorLand(w: World, p: Projectile) {
     if (d > L.radius + WIZ_R) continue;
     const amount = (L.dmgMin + (L.dmg - L.dmgMin) * Math.max(0, 1 - d / L.radius)) * p.dmgMult;
     hit(w, o, p.owner, amount, amount * (L.knock / L.dmg), sub(o.pos, p.pos), 'meteor');
+    stun(w, o, L.duration);
     landed = true;
   }
   const owner = anyById(w, p.owner);

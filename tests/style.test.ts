@@ -43,7 +43,8 @@ describe('jeito de jogar', () => {
     // Proposta23/10: fim limpo do impulso e retomada50→100% mudam trajetórias.
     // Proposta 23/10: colisões gerais e Raio contínuo alteram intencionalmente os eventos.
     // 23/10: clique único cancela no primeiro contato, inclusive oblíquo, também para destinos dos bots.
-    expect(hash).toBe(3904531419);
+    // Proposta 23/10: Meteoro sem empurrão, com stun fixo 1,25 s.
+    expect(hash).toBe(2979891989);
     // e mediu de verdade nessa mesma partida
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);
