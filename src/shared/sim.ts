@@ -364,7 +364,9 @@ export const isSliding = (wz: { vel: Vec }) => len(wz.vel) > STUN_SPEED;
 export const bootsBonus = (w: World, wz: Wizard) =>
   Math.max(w.t < wz.shockUntil ? wz.shockBonus : 0, wz.windBonus > 0 && w.t - wz.calmSince >= WIND_BOOTS.calm ? wz.windBonus : 0);
 
-export function moveWizard(wz: Wizard, dt: number) {
+export type MovementState = Pick<Wizard, 'pos' | 'vel' | 'target' | 'facing' | 'speed' | 'safe'>;
+
+export function moveWizard(wz: MovementState, dt: number) {
   if (wz.target && !isSliding(wz)) {
     const d = sub(wz.target, wz.pos);
     const l = len(d);
