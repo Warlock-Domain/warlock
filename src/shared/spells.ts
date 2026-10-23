@@ -35,7 +35,7 @@ const steps = (from: number, by: number) => Array.from({ length: MAX_SPELL_LEVEL
 
 export const SPELLS: Record<SpellId, Spell> = {
   fireball: { name: 'Bola de fogo', en: 'Fireball', cost: 0, up: [7, 7, 7, 7, 7, 7], levels: [70, 77, 84, 91, 98, 105, 112].map((d) => L({ cd: 4.8, dmg: d, speed: 1000 * UNIT, range: 1000 * UNIT })) },
-  lightning: { name: 'Raio', en: 'Lightning', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 15.5, 15, 14.5, 14, 13.5, 13], [70, 78, 86, 94, 102, 110, 118]).map(([cd, d]) => L({ cd: Math.round(cd * 14) / 10, dmg: d, kbf: 0.92, range: 800 * UNIT })) /* números pelo simulador (18/10, escolha do Fernando): recarga ×1,4 (1,32 → 1,13) */ }, // balanceamento de 17/10: recarga ×0,7 e alcance 600 → 800 (acertava 21%)
+  lightning: { name: 'Eletrocutar', en: 'Electrocute', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 15.5, 15, 14.5, 14, 13.5, 13], [70, 78, 86, 94, 102, 110, 118]).map(([cd, d]) => L({ cd: Math.round(cd * 14) / 10, dmg: d, kbf: 0.92, range: 800 * UNIT })) /* números pelo simulador (18/10, escolha do Fernando): recarga ×1,4 (1,32 → 1,13) */ }, // balanceamento de 17/10: recarga ×0,7 e alcance 600 → 800 (acertava 21%)
   homing: { name: 'Míssil teleguiado', en: 'Homing Missile', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [70, 80, 90, 100, 110, 120, 130]).map(([cd, d]) => L({ cd, dmg: d * 0.34, speed: 1000 * UNIT, duration: 4.5 })) /* números pelo simulador (18/10): dano ×0,34 e curva 3 → 2,5 rad/s (1,34 → 1,13) */ },
   shield: { name: 'Escudo', en: 'Shield', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [14, 13, 12, 11, 10, 9, 8].map((cd, i) => L({ cd: (cd * 16) / 14 /* 19/10, escolha do Fernando: 14 → 16 s no nível 1 (Difícil 1,18 → 1,16; Normal 0,96 → 0,97) */, duration: 1.2, radius: (200 + 10 * i) * UNIT })) }, // original (Fernando, 18/10: volta ao original até ter partidas reais; nos bots vence 46% acima do justo, eles reagem melhor que gente) // bolha de 200 a 260 (abil.txt do original)
   teleport: { name: 'Teleporte', en: 'Teleport', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([16, 13.5, 11.5, 10, 9, 8, 7], [770, 840, 910, 980, 1050, 1120, 1190]).map(([cd, r]) => L({ cd: cd * 1.1, range: r * UNIT })) }, // 18/10 com as ilhas de refúgio: recarga ×1,1 (18% acima do justo no Normal)
@@ -113,10 +113,10 @@ export const HOMING_TURN = 2.5; // rad/s
 export const BOOMERANG = { side: 300 * UNIT, minDist: 300 * UNIT, back: 1000 * UNIT, turn: 1000 * UNIT, bounce: 500 * UNIT, bounceWall: 750 * UNIT, gap: 10 * UNIT, life: 6 };
 // estocada (thrust.lua, thrustmodifier.lua): sai a 77% da velocidade e acelera até ela (aceleração que empata com o atrito);
 // dura o caminho + 0,09 s; sem acertar, freia para 20%; reach: a bolha da estocada tem 30 u a mais que o mago
-// Raio: além do corpo do mago, pega quem passa a `width` da linha (21/10, exceção decidida pelo Fernando sem passar pelo simulador:
+// Eletrocutar: além do corpo do mago, pega quem passa a `width` da linha (21/10, exceção decidida pelo Fernando sem passar pelo simulador:
 // "o hitbox ainda está muito fino"; antes só quem o corpo cruzava a linha)
 // A ampliação visual da destruição fica na cena, sem alterar o feixe ou os eventos da simulação.
-export const LIGHTNING = { width: 0.15, destroysProjectiles: true, destroyFxRadius: .6 }; // teste local: limpa o trajeto sem ser consumido por projéteis.
+export const LIGHTNING = { width: 0.15, destroysProjectiles: true, destroyFxRadius: .6, jumpPower: .5 }; // alcance fixo por salto; potência cai pela metade, sem repetir alvo por uso.
 // Stats gerais de colisão: null é área/efeito persistente; plain se anula sem criar dano extra de combinação.
 // Os elementos antigos conservam seus efeitos; não há exceção entre pares de nomes de magia.
 export const PROJECTILE_COLLISION = {
