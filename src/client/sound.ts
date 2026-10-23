@@ -8,7 +8,7 @@ export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'telepo
 
 const FILES: Partial<Record<SoundKind, string[]>> = {
   fireball: ['fireball'], lightning: ['lightning'], homing: ['homing'], shield: ['shield'], teleport: ['teleport'],
-  hit: ['hit', 'explode'], hitLight: ['hit'], hitHeavy: ['hit', 'explode'], reflect: ['shield'], death: ['explode'], click: ['click'], go: ['confirm'],
+  hit: ['hit', 'explode'], hitLight: ['hit'], hitHeavy: ['hit', 'explode'], reflect: ['shield'], death: ['explode'], go: ['confirm'],
 };
 // golpe fraco mais agudo, golpe forte mais grave
 const RATE: Partial<Record<SoundKind, number>> = { hitLight: 1.25, hitHeavy: 0.78 };
@@ -187,7 +187,8 @@ export function createSound(musicDefault?: number) {
         case 'shrink': tone('sawtooth', 80, 40, 1.2, 0.2 * v); hiss('lowpass', 400, 80, 1.2, 0.5 * v); break;
         case 'beep': tone('square', 660, 660, 0.12, 0.08 * v); break;
         case 'go': tone('square', 990, 990, 0.3, 0.1 * v); break;
-        case 'click': tone('triangle', 900, 700, 0.05, 0.05 * v); break;
+        // Tambor curto gerado aqui, sem gravação externa; queda de afinação imita a pele e evita clique agudo.
+        case 'click': tone('sine', 180, 70, .14, .18 * v); tone('sine', 360, 140, .035, .035 * v); break;
         // mouse em cima de um botão: tique mais curto e baixo que o clique
         case 'hover': tone('sine', 1500, 1300, 0.03, 0.02 * v); break;
         case 'hitLight': hiss('lowpass', 1400, 300, 0.18, 0.6 * v); tone('sine', 200, 90, 0.15, 0.2 * v); break;
