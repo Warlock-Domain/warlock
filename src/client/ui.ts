@@ -23,7 +23,7 @@ import { botSetupPanel, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
-import { botLevel, endResult, moveLoadout, myLoadout, playerName, presetQueue, PRESETS_KEY, readPresets, roomGroups, saveLoadout, topUsed, USED_KEY, type Preset } from './screen-data.ts';
+import { botLevel, endResult, moveLoadout, myLoadout, nightLine, playerName, presetQueue, PRESETS_KEY, readPresets, roomGroups, saveLoadout, topUsed, USED_KEY, type Preset } from './screen-data.ts';
 import { LOCALE, arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 import { radialPicker } from './radial-picker.ts';
 import { radialHold, tauntWheelSlots } from './taunt-wheel.ts';
@@ -1486,7 +1486,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     type Offer = { key: string; ico: string; name: string; hotkey: string | null; use: string; lvl: number; max: number; price: number | null; blocked: string | null; buy: () => void; tip: () => string;
       // a ficha depois de comprar mais um nível e depois de vender tudo (prévia na dica)
       bought: () => SheetRow[]; sold: () => SheetRow[] };
-    const now = sheet(mine.spells, mine.items);
+    const now = sheet(mine.spells, mine.items, book());
     if (presetOrder && presetOrder.round !== r.round) presetOrder = null; // o ouro não deu para tudo: não mexe na barra da próxima loja
     // gravar no desenho é seguro: o myLoadout (barra e teclas) já grava a ordem durante o desenho, e este é o primeiro desenho com as magias da build
     if (presetOrder?.order.every((s) => !s || mine.spells[s] > 0)) {

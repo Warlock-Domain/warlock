@@ -178,3 +178,13 @@ export const boughtKeys = (was: Pick<PublicPlayer, 'spells' | 'items'>, now: Pic
 ];
 export const topUsed = (used: Record<string, number>, kind: 'spell' | 'item', n = 3) =>
   Object.entries(used).filter(([k]) => k.startsWith(kind + ':')).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k.slice(kind.length + 1));
+
+// Campanha: nome dos servos (o servidor manda em português), nome do estágio e a linha de onde a noite está
+const SERVO_NAME: Record<ServoKind, string> = { ash: t('Cinzento', 'Ashen'), archer: t('Arqueiro de Fuligem', 'Soot Archer'), watcher: t('Vigia Oco', 'Hollow Watcher'), hound: t('Cão de Brasa', 'Ember Hound'), odran: t('Sir Odran, o Elmo Vazio', 'Sir Odran, the Empty Helm') };
+export const STAGE_NAME = [t('Charneca Cinzenta', 'Ashen Moor')];
+// vida máxima: a do servo, ou a de sempre com os itens
+export const maxHp = (p: Pick<PublicPlayer, 'hpMax' | 'items'> | undefined) => p?.hpMax ?? HP_MAX + (p ? itemStats(p.items).hp : 0);
+export function nightLine(n: NonNullable<PublicRoom['night']>, playing: boolean): string {
+  const where = t(`Campanha · ${STAGE_NAME[n.stage]}`, `Campaign · ${STAGE_NAME[n.stage]}`);
+  return playing && n.fight !== null ? where + t(` · encontro · onda ${n.wave + 1} de ${n.waves}`, ` · encounter · wave ${n.wave + 1} of ${n.waves}`) : where;
+}
