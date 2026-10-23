@@ -218,7 +218,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false, watch
   // Quem entra para jogar no meio da partida chega à loja seguinte com a renda
   // garantida das rodadas perdidas (#281). Espectador continua sem essa compra.
   const gold = !bot && !watching && m.phase !== 'lobby' && m.phase !== 'end' ? lateJoinGold(m) : startGold(m);
-  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold, spells: noSpells(), items: noItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
+  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold, economy: newEconomy(gold), spells: noSpells(), items: noItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
   enter(m, m.players[m.players.length - 1]);
   ascOwner(m);
   return true;
