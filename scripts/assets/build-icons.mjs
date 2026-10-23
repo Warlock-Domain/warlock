@@ -11,6 +11,7 @@ const ICONS = [
   // itens
   'delapouite/diamond-ring', 'lorc/skull-ring', 'delapouite/cape', 'lorc/breastplate', 'lorc/leather-boot', 'skoll/pocket-watch', 'delapouite/bat', 'delapouite/flail',
   'lorc/divert', 'lorc/chalice-drops', 'delapouite/metal-boot', 'delapouite/stone-bust', 'delapouite/spartan-helmet', 'lorc/winged-leg', 'lorc/angel-wings', 'lorc/feather',
+  'lorc/magnifying-glass', 'lorc/pierced-heart', 'lorc/rune-stone', // crítico (issue #184)
   // runas, efeitos e causas de morte
   'delapouite/rabbit', 'delapouite/enrage', 'lorc/checked-shield', 'lorc/energise', 'lorc/star-swirl', 'lorc/broken-shield', 'lorc/sunbeams', 'lorc/padlock', 'lorc/snail',
   'lorc/small-fire', 'lorc/magnet-blast', 'lorc/ghost', 'lorc/run', 'lorc/volcano', 'skoll/knockout', 'lorc/uncertainty',

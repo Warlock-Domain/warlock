@@ -4,7 +4,7 @@ import {
   ISLAND, NO_MODS, PROJ_SPAWN, RUNE, RUNE_KINDS, SUDDEN, SWORDS, WALL_GAP, WIZ_R, WIZ_SPEED, arenaRadius, type RoundEffectId, type RoundMods, type RuneKind,
 } from './constants.ts';
 import { SHAPES, edge, inArena, inLavaAt, inward, isleSpot, onIsle, safeInside, type ArenaId, type Isle } from './arena.ts';
-import { AEGIS, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
+import { AEGIS, CRIT, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
@@ -33,6 +33,9 @@ export type Wizard = {
   baseSpeed: number;
   speed: number; // velocidade de andar agora (botas, Investida, preso)
   debuffMult: number; // duração de lentidões e penalidades
+  crit: number; // chance de crítico no golpe (Lente Letal)
+  critDmg: number; // dano a mais do crítico, por cima do CRIT.dmg (Magia Perfurante)
+  afflict: number; // duração das lentidões e penalidades que aplica nos outros (Runa da aflição)
   pactUntil: number; // Pacto armado até este instante
   gripUntil: number; // preso (Agarrar): não anda até o primeiro golpe com dano
   gripBonus: number; // empurrão a mais desse golpe (pelo nível do Agarrar de quem prendeu)
@@ -121,7 +124,7 @@ export type Cmd =
 
 export type SimEvent =
   | { k: 'cast'; id: string; spell: SpellId }
-  | { k: 'hit'; id: string; by: string; x: number; y: number; dmg: number; src: string }
+  | { k: 'hit'; id: string; by: string; x: number; y: number; dmg: number; src: string; crit?: true }
   | { k: 'reflect'; id: string; x: number; y: number }
   | { k: 'lightning'; from: Vec; to: Vec }
   | { k: 'teleport'; id: string; from: Vec; to: Vec }
@@ -179,6 +182,9 @@ export type World = {
   lavaCredit: Record<string, Record<string, number>>;
   nextId: number;
   dm: boolean; // deathmatch: a arena não encolhe e quem morre volta depois de DM_RESPAWN s
+  // sorteio do passo: stepWorld grava o rand que recebeu, para o crítico sortear dentro de hit() sem passar o rand pelas 18 chamadas;
+  // é sempre o mesmo do passo (determinismo) e fica no servidor: o snapshot monta campo a campo e a sala salva o mundo como null
+  rand: () => number;
   shrink?: boolean; // sandbox (mundo de deathmatch): a arena encolhe mesmo assim
 };
 
@@ -197,6 +203,9 @@ export function gearOf(items: Partial<Record<ItemId, number>> = {}) {
     kbResist: st.kb,
     baseSpeed: WIZ_SPEED + st.speed,
     debuffMult: Math.max(0, 1 + st.debuff),
+    crit: st.crit,
+    critDmg: st.critDmg,
+    afflict: 1 + st.afflict,
     windBonus: own.wind_boots ? Math.max(0, WIND_BOOTS.speed - st.speed) : 0, // como as de choque: vale a maior das botas
     rangeF: 1 + st.range, // Elmo: −10%
     lifesteal: st.lifesteal,
@@ -284,7 +293,7 @@ export function newWorld(
     const d = ISLAND.near + rand() * (ISLAND.far - ISLAND.near);
     return { a, d, r: ISLAND.r, pos: isleSpot({ arena, arenaR }, a, d) };
   });
-  return { t: 0, arena, effect: null, mods: NO_MODS, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars, zones: [], loots: [], chestAt: CHEST.first, chestsLeft: Math.min(CHEST.perRound, Math.floor(ids.length / 2) + 1), runes: [], runeAt: RUNE.first, isles, sudden: false, rules: { ...rules }, events: [], lavaCredit: {}, nextId: 1, dm };
+  return { t: 0, arena, effect: null, mods: NO_MODS, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars, zones: [], loots: [], chestAt: CHEST.first, chestsLeft: Math.min(CHEST.perRound, Math.floor(ids.length / 2) + 1), runes: [], runeAt: RUNE.first, isles, sudden: false, rules: { ...rules }, events: [], lavaCredit: {}, nextId: 1, dm, rand };
 }
 
 export const inLava = (w: World, p: Vec) => inLavaAt(w.arena, w.arenaR, w.isles, p);
@@ -376,6 +385,9 @@ function mark(w: World, target: Wizard, by: string, src: string) {
   target.lastHitAt = w.t;
 }
 
+// Runa da aflição de quem lançou (as magias desta lista estão em AFFLICT_SPELLS, items.ts, que a dica mostra): alonga as lentidões e penalidades por cima do debuffMult do alvo (Relógio, Anel amaldiçoado)
+const afflictBy = (w: World, id: string) => byId(w, id)?.afflict ?? 1;
+
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string) {
   // invulnerável: sem dano nem empurrão, mas o acerto aparece (explosão e som), senão o projétil sumiria sem efeito
   if (w.t < target.invulnUntil) return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
@@ -389,6 +401,10 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   // runa da Fúria de quem bateu
   const att = by !== target.id ? byId(w, by) : undefined;
   if (att && att.rune === 'fury' && w.t < att.runeUntil) dmg *= 1 + RUNE.fury;
+  // crítico (Lente Letal) depois da Fúria e antes de Guardião e Escudo: multiplica o golpe já forte (Pacto e Fúria somam sem teto, regra geral)
+  // e as defesas do alvo cortam o golpe já crítico. Só sorteia quem tem chance, para as partidas sem o item seguirem com a mesma sequência de sorteios
+  const crit = !!att && att.crit > 0 && dmg > 0 && w.rand() < att.crit;
+  if (crit) dmg *= 1 + CRIT.dmg + att!.critDmg;
   // Guardião: tira um pouco de cada golpe, nunca mais que metade dele (senão zerava os tiques da Gravidade e do Elo)
   dmg = Math.max(dmg * 0.5, dmg - target.ward);
   // runa do Escudo: menos dano levado (o empurrão do golpe continua)
@@ -416,7 +432,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   mark(w, target, by, src);
   // roubo de vida: quem acertou recupera parte do dano (e, como no original, a cura reduz o dano acumulado pela metade dela)
   if (att && att.lifesteal > 0) heal(w, att, dmg * att.lifesteal);
-  w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg), src });
+  w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg), src, ...(crit && { crit: true as const }) });
 }
 
 // ponto do segmento a→a+d mais perto de p: a fração t em [0,1] ao longo dele e a distância de p até ele
@@ -829,7 +845,7 @@ function gripLand(w: World, p: Projectile) {
   let landed = false;
   for (const z of w.wizards) {
     if (!z.alive || z.id === p.owner || allies(anyById(w, p.owner), z) || w.t < z.invulnUntil || shielded(w, z) || dist(z.pos, p.pos) > L.radius + WIZ_R) continue;
-    z.gripUntil = w.t + L.duration * z.debuffMult;
+    z.gripUntil = w.t + L.duration * z.debuffMult * afflictBy(w, p.owner);
     z.gripBonus = L.scale;
     mark(w, z, p.owner, 'grip'); // crédito do abate sem dano (#179)
     z.target = null;
@@ -1078,7 +1094,7 @@ function drainHit(w: World, p: Projectile, wz: Wizard, L: Level) {
     return;
   }
   hit(w, wz, p.owner, amount, L.knock * p.dmgMult, p.vel, 'drain');
-  slowDown(w, wz, DRAIN.slow, L.duration * wz.debuffMult);
+  slowDown(w, wz, DRAIN.slow, L.duration * wz.debuffMult * afflictBy(w, p.owner));
   land(w, p, 'drain');
   w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'drain', owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + DRAIN.life, target: p.owner, dmgMult: p.dmgMult, caster: p.caster, back: true });
 }
@@ -1096,7 +1112,7 @@ function snowRoll(w: World, p: Projectile, at: Vec) {
     if (c > 0) o.vel = add(o.vel, scale(dir, c));
     if (o.snow) continue;
     o.snow = { until: w.t + SNOWBALL.period, by: p.owner, dmg: L.dot * SNOWBALL.period * p.dmgMult };
-    slowDown(w, o, SNOWBALL.slow, SNOWBALL.period);
+    slowDown(w, o, SNOWBALL.slow, SNOWBALL.period * afflictBy(w, p.owner));
     land(w, p, 'snowball', true);
   }
 }
@@ -1379,7 +1395,7 @@ function stepProjectiles(w: World) {
         // inimigo: atrai os projéteis dos inimigos dele; aliado ou quem lançou (depois de quicar): repele
         const enemy = wz.id !== p.owner && !allies(anyById(w, p.owner), wz);
         wz.magnet = enemy ? 1 : -1;
-        wz.magnetUntil = w.t + L.duration * (enemy ? wz.debuffMult : 1);
+        wz.magnetUntil = w.t + L.duration * (enemy ? wz.debuffMult * afflictBy(w, p.owner) : 1);
         if (enemy) {
           mark(w, wz, p.owner, 'magnetize');
           land(w, p, 'magnetize');
@@ -1541,6 +1557,7 @@ function toStone(w: World, wz: Wizard) {
 }
 
 export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.random) {
+  w.rand = rand;
   w.events = [];
   w.lavaCredit = {};
   for (const c of cmds) {

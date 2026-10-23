@@ -978,9 +978,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const overHead = (at: Vec) => w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0));
 
   // número de dano: o tamanho cresce com o golpe (30 de dano ≈ 1,3rem, 170 ≈ 2,9rem)
-  function damageNumber(at: Vec, dmg: number) {
+  // golpe crítico de verdade (Lente Letal, #184) usa o mesmo destaque do golpe muito forte
+  function damageNumber(at: Vec, dmg: number, critHit = false) {
     if (dmg < 5) return;
-    const crit = dmg >= CRIT_HIT;
+    const crit = critHit || dmg >= CRIT_HIT;
     floatText('dmg' + (crit ? ' crit' : dmg >= BIG_HIT ? ' big' : ''), overHead(at), `${Math.min(3, 0.95 + dmg / 90).toFixed(2)}rem`, crit ? 0.9 : dmg >= BIG_HIT ? 0.55 : 0.3, '-' + Math.round(dmg) + (crit ? '!' : ''));
   }
 
@@ -1558,7 +1559,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         else explosion(v(e.x, e.y));
         scorch(v(e.x, e.y));
         // Mantém o impacto público da magia, mas não o número sobre o jogador invisível.
-        if (!hiddenDamageTargets.includes(e.id)) damageNumber(v(e.x, e.y), e.dmg);
+        if (!hiddenDamageTargets.includes(e.id)) damageNumber(v(e.x, e.y), e.dmg, e.crit);
         // dano 0 (invulnerável, aliado) não sacode nem acende
         if (e.dmg > 0) impact(e.id, v(e.x, e.y), e.dmg);
       } else if (e.k === 'gold') goldNumber(v(e.x, e.y), e.n);
