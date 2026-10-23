@@ -13,7 +13,7 @@ import { choice, dialog, showRules, toast } from './ui.ts';
 import { radialPicker } from './radial-picker.ts';
 import { assignTauntSlot, tauntWheelSlots } from './taunt-wheel.ts';
 import { TAUNTS } from '../shared/taunts.ts';
-import { previewTaunt, stopTauntPreview } from './sound.ts';
+import { isAudioMuted, previewTaunt, stopTauntPreview, type Volumes, type VolumeKind } from './sound.ts';
 import { LANG, setLang, spellName, t, type Lang } from './i18n.ts';
 import { isSpell } from '../shared/spells.ts';
 import { store } from './store.ts';
@@ -26,15 +26,15 @@ declare const __BUILD__: string;
 export type SettingsCtx = {
   name: () => string;
   rename: () => void;
-  volumes: () => { sfx: number; music: number };
-  setVolume: (kind: 'sfx' | 'music', value: number) => void;
+  volumes: () => Volumes;
+  setVolume: (kind: VolumeKind, value: number) => void;
   fxLite?: () => boolean;
   setFxLite?: (lite: boolean) => void;
   pixel?: () => number;
   setPixel?: (size: number) => void;
   closePanels?: () => void; // um painel por vez: abrir o menu fecha os do topo
 };
-let ctx: SettingsCtx = { name: () => '', rename: () => {}, volumes: () => ({ sfx: 0, music: 0 }), setVolume: () => {} };
+let ctx: SettingsCtx = { name: () => '', rename: () => {}, volumes: () => ({ master: 0, sfx: 0, music: 0, taunts: 0 }), setVolume: () => {} };
 export function setSettingsCtx(c: SettingsCtx) {
   ctx = c;
   if (overlay) draw();
@@ -127,11 +127,11 @@ function castSection(): Node[] {
 }
 
 // som: lembra o volume de antes para o "Ligar o som" voltar onde estava
-let beforeMute = { sfx: 1, music: 0.7 };
+let beforeMute: Volumes = { master: 1, sfx: 1, music: 0.7, taunts: 1 };
 function soundSection(): Node[] {
   const { volumes, setVolume } = ctx;
-  const slider = (kind: 'sfx' | 'music', label: string) => {
-    const input = el('input', { type: 'range', id: 'vol-' + kind, min: 0, max: 100, step: 5, value: Math.round(volumes()[kind] * 100) }) as HTMLInputElement;
+  const slider = (kind: VolumeKind, label: string) => {
+    const input = el('input', { type: 'range', id: 'vol-' + kind, min: 0, max: 100, step: 1, value: Math.round(volumes()[kind] * 100) }) as HTMLInputElement;
     const out = el('span', { class: 'vol-value' }, input.value + '%');
     input.addEventListener('input', () => {
       out.textContent = input.value + '%';
@@ -140,16 +140,19 @@ function soundSection(): Node[] {
     });
     return el('label', { class: 'vol-row', for: 'vol-' + kind }, el('span', {}, label), input, out);
   };
-  const muted = () => volumes().sfx + volumes().music === 0;
+  const muted = () => isAudioMuted(volumes());
   const muteText = () => (muted() ? t('Ligar o som', 'Turn sound on') : t('Silenciar tudo', 'Mute all'));
   const muteBtn = el('button', { type: 'button', onclick: () => {
-    const next = muted() ? beforeMute : { sfx: 0, music: 0 };
-    if (!muted()) beforeMute = { ...volumes() };
-    setVolume('sfx', next.sfx);
-    setVolume('music', next.music);
+    if (!muted()) { beforeMute = { ...volumes() }; setVolume('master', 0); }
+    else {
+      if (volumes().sfx + volumes().music + volumes().taunts === 0) {
+        for (const kind of ['sfx', 'music', 'taunts'] as const) setVolume(kind, beforeMute[kind]);
+      }
+      setVolume('master', beforeMute.master || 1);
+    }
     draw();
   } }, muteText());
-  return [slider('sfx', t('Efeitos', 'Effects')), slider('music', t('Música', 'Music')), muteBtn];
+  return [slider('master', t('Volume geral', 'Master volume')), slider('sfx', t('Efeitos sonoros', 'Sound effects')), slider('music', t('Música', 'Music')), slider('taunts', t('Provocações', 'Taunts')), muteBtn];
 }
 
 function videoSection(): Node[] | null {
