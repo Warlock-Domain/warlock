@@ -260,7 +260,7 @@ export const RULES = LANG === 'en' ? RULES_EN : RULES_PT;
 type SpellTips = Record<SpellId, [use: string, vs: string]>;
 const SPELL_TIPS_PT: SpellTips = {
   fireball: ['Mire um pouco à frente de quem anda. Perto da borda, um acerto já joga na lava.', 'O Escudo devolve; Teleporte e Troca escapam. Eletrocutar destrói a bola no ar e duas bolas que se chocam viram chão em chamas.'],
-  lightning: ['Quica sem repetir inimigo por lançamento, com alcance fixo e 50% menos dano e empurrão a cada salto. Destrói os projéteis que atingir no caminho, sem ser interrompido por eles.', `Obstáculos bloqueiam; o Escudo devolve a descarga para você. Alcance curto (${n1(L1('lightning').range)} m no nível 1).`],
+  lightning: ['Instantâneo: quica sem repetir alvos por lançamento, com alcance fixo e 50% menos dano e empurrão por salto. Por 2 s, aplica lentidão de 25% e Incapacitar: pausa recargas, sem impedir habilidades prontas. Destrói projéteis no trajeto.', `Obstáculos bloqueiam; o Escudo devolve a descarga para você e encerra a cadeia. Alcance de ${n1(L1('lightning').range)} m por trecho no nível 1. Outro lançamento pode acertar os mesmos alvos.`],
   homing: ['Bom contra quem foge e desvia: mire perto do alvo, ele persegue o inimigo mais perto da mira.', 'O Escudo devolve e ele passa a perseguir você; obstáculos o param. Com uma Bola de fogo inimiga, vira chão lento.'],
   shield: [`Ligue quando o projétil estiver chegando: dura só ${n1(L1('shield').duration)} s. Devolve mirando quem lançou.`, 'Impede dano enquanto ativo e reduz em 40% os novos empurrões e a duração dos status recebidos nesse período. Não altera efeitos anteriores. Devolve projéteis e Eletrocutar; barra Troca; Bumerangue e Elo quicam.'],
   teleport: ['Volte da lava para a pedra ou saia da frente de um projétil. É a única magia que sai durante o preparo do seu Flagelo (e o cancela).', `Quem lê o salto atira no ponto de chegada. Recarga longa no começo (${n1(L1('teleport').cd)} s).`],
@@ -290,7 +290,7 @@ const SPELL_TIPS_PT: SpellTips = {
 
 const SPELL_TIPS_EN: SpellTips = {
   fireball: ['Aim a little ahead of anyone who is moving. Near the edge, one hit already sends them into the lava.', 'The Shield reflects it; Teleport and Swap escape it. Electrocute destroys the ball in the air and two balls that collide become burning ground.'],
-  lightning: ['Jumps without repeating enemies per cast, with fixed range and 50% less damage and knockback per jump. Destroys projectiles it hits along its path without being stopped by them.', `Obstacles block it; the Shield sends the bolt back at you. Short range (${n1(L1('lightning').range)} m at level 1).`],
+  lightning: ['Instant: jumps without repeating targets per cast, with fixed range and 50% less damage and knockback per jump. For 2 s, applies 25% slow and Incapacitate: pauses cooldowns without blocking ready abilities. Destroys projectiles along its path.', `Obstacles block it; Shield sends the bolt back at you and ends the chain. Range per segment: ${n1(L1('lightning').range)} m at level 1. A new cast can hit the same targets again.`],
   homing: ['Good against anyone who runs and dodges: aim near the target, it chases the enemy closest to your aim.', 'The Shield reflects it and it starts chasing you; obstacles stop it. With an enemy Fireball, it becomes slow ground.'],
   shield: [`Turn it on when the projectile is about to arrive: it lasts only ${n1(L1('shield').duration)} s. It sends it back aimed at whoever cast it.`, 'Prevents damage while active and reduces new knockback impulses and newly received status durations by 40%. Existing effects are unchanged. Reflects projectiles and Electrocute; blocks Swap; Boomerang and Link bounce off.'],
   teleport: ['Get back from the lava to the rock or get out of a projectile\'s path. It is the only spell that goes off during your Scourge windup (and cancels it).', `Whoever reads the jump shoots at the landing point. Long cooldown at the start (${n1(L1('teleport').cd)} s).`],
@@ -364,7 +364,7 @@ export const ITEM_GROUPS = LANG === 'en' ? ITEM_GROUPS_EN : ITEM_GROUPS_PT;
 // para que serve, em uma linha (cartão da loja)
 const SPELL_USE_PT: Record<SpellId, string> = {
   fireball: 'Ataque básico: empurra de longe.',
-  lightning: 'Instantâneo: quica sem repetir alvo por uso; alcance fixo, dano e empurrão caem 50% por salto. Destrói os projéteis no caminho sem ser interrompido por eles.',
+  lightning: 'Acerta na hora e quica sem repetir inimigo no mesmo lançamento. Alcance fixo; cada salto perde 50% do dano e empurrão. Por 2 s: lentidão de 25% e Incapacitar (pausa recargas, sem bloquear habilidades prontas). Destrói projéteis no caminho.',
   homing: 'Persegue quem foge ou desvia.',
   meteor: 'Pune grupos e quem fica parado.',
   cluster: 'Muito dano de perto.',
@@ -393,7 +393,7 @@ const SPELL_USE_PT: Record<SpellId, string> = {
 };
 const SPELL_USE_EN: Record<SpellId, string> = {
   fireball: 'Basic attack: knocks back from afar.',
-  lightning: 'Instant: jumps without repeating targets per cast; fixed range, damage and knockback drop 50% per jump. Destroys projectiles along its path without being stopped by them.',
+  lightning: 'Hits instantly and jumps without repeating enemies in the same cast. Fixed range; each jump loses 50% of damage and knockback. For 2 s: 25% slow and Incapacitate (pauses cooldowns without blocking ready abilities). Destroys projectiles along its path.',
   homing: 'Chases anyone who flees or dodges.',
   meteor: 'Punishes groups and anyone standing still.',
   cluster: 'Lots of damage up close.',
@@ -425,7 +425,7 @@ export const SPELL_USE = LANG === 'en' ? SPELL_USE_EN : SPELL_USE_PT;
 
 const RULES_SHORT_PT: Record<SpellId, string> = {
   fireball: 'Projétil reto. Dano e empurrão médios.',
-  lightning: 'Instantâneo. Atinge o primeiro mago na linha e quica sem repetir inimigos por uso. Alcance fixo; dano e empurrão caem 50% por salto. Destrói projéteis no caminho sem ser interrompido por eles.',
+  lightning: 'Instantâneo. Do primeiro mago na linha, quica para inimigos próximos sem repetir alvo no mesmo lançamento e sem limite fixo de saltos. Alcance fixo; cada salto conserva 50% do dano e empurrão anteriores. Por 2 s: efeito elétrico, lentidão de 25% e Incapacitar, que pausa recargas sem impedir habilidades prontas. Outro lançamento pode acertar os mesmos alvos. Destrói projéteis no trajeto.',
   homing: `Persegue por ${n1(L1('homing').duration)} s o inimigo mais perto da mira, virando devagar.`,
   shield: `Por ${n1(L1('shield').duration)} s, impede dano, devolve projéteis e Eletrocutar e reduz em 40% a duração dos novos status.`,
   teleport: 'Salta até o cursor (alcance curto).',
@@ -454,7 +454,7 @@ const RULES_SHORT_PT: Record<SpellId, string> = {
 };
 const RULES_SHORT_EN: Record<SpellId, string> = {
   fireball: 'Straight projectile. Medium damage and knockback.',
-  lightning: 'Instant. Hits the first wizard in line and jumps without repeating enemies per cast. Fixed range; damage and knockback drop 50% per jump. Destroys projectiles along its path without being stopped by them.',
+  lightning: 'Instant. From the first wizard in line, jumps to nearby enemies without repeating targets in the same cast or a fixed jump limit. Fixed range; each jump keeps 50% of the previous damage and knockback. For 2 s: electrical effect, 25% slow and Incapacitate, which pauses cooldowns without blocking ready abilities. A new cast can hit the same targets. Destroys projectiles along its path.',
   homing: `Chases the enemy closest to your aim for ${n1(L1('homing').duration)} s, turning slowly.`,
   shield: `For ${n1(L1('shield').duration)} s, prevents damage, reflects projectiles and Electrocute, and reduces new status durations by 40%.`,
   teleport: 'Jumps to the cursor (short range).',

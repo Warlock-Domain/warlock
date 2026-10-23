@@ -1,6 +1,7 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
 import type { Snap } from './protocol.ts';
-import { PROJ_KINDS, bootsBonus, isSliding, isStunned, zoneReaches, type ProjKind, type SimEvent, type World } from './sim.ts';
+import { PROJ_KINDS, bootsBonus, incapacitatedUntil, isSliding, isStunned, zoneReaches, type ProjKind, type SimEvent, type World } from './sim.ts';
+import { INCAPACITATED_BIT, ELECTROCUTED_BIT } from './constants.ts';
 import { CHEST, OBSTACLES, OBSTACLE_KINDS, RUNE_KINDS, WIZ_R, type ObstacleKind, type RuneKind } from './constants.ts';
 import { SPELL_IDS, spellLevel } from './spells.ts';
 import type { Isle } from './arena.ts';
@@ -50,7 +51,9 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
       | (w.t < z.veilUntil ? (z.id === forId ? 1024 : seeAll ? 8388608 : 2048) : 0)
       | (z.alive && w.t < z.dashUntil ? DASHING_BIT : 0)
       | (z.alive && z.target && dist(z.target, z.pos) > .01 && z.speed > 0 && !z.casting && !isStunned(z) && w.t >= z.dashUntil && w.t >= z.thrustUntil ? WALKING_BIT : 0)
-      | (z.moveHeld ? HOLDING_MOVE_BIT : 0) | (z.blockedMove ? BLOCKED_MOVE_BIT : 0);
+      | (z.moveHeld ? HOLDING_MOVE_BIT : 0) | (z.blockedMove ? BLOCKED_MOVE_BIT : 0)
+      | (w.t < incapacitatedUntil(z, w.t) ? INCAPACITATED_BIT : 0)
+      | (w.t < (z.electroUntil ?? 0) ? ELECTROCUTED_BIT | 4 : 0);
     // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão
     const dash = w.t < z.dashUntil ? z.dashVel : { x: 0, y: 0 };
     wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x + dash.x), r2(z.vel.y + dash.y), Math.ceil(z.hp), r2(z.facing), bits);
@@ -89,7 +92,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     left(64, me.pactUntil);
     left(128, me.gripUntil);
     left(256, me.rushUntil);
-    left(4, me.slowUntil);
+    left(4, Math.max(me.slowUntil, me.electroUntil ?? 0));
+    left(INCAPACITATED_BIT, incapacitatedUntil(me, w.t));
     left(1024, me.windUntil);
     left(4096, Math.max(me.hasteUntil, me.shockUntil));
     left(me.magnet > 0 ? 8192 : 16384, me.magnetUntil);
