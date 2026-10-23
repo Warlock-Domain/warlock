@@ -26,6 +26,7 @@ beforeAll(async () => {
     pick: (x, y): Vec => ({ x, y }),
     move: (to) => log.push(`move ${to.x},${to.y}`),
     stop: () => log.push('stop'),
+    basic: (at) => log.push(`basic ${at.x},${at.y}`),
     cast: (s, at) => (log.push(`cast ${s} ${at.x},${at.y}`), ok),
     center: () => {},
     zoom: () => {},
@@ -48,6 +49,16 @@ beforeEach(() => {
 });
 
 describe('jeitos de lançar no PC', () => {
+  it('A arma Atacar; clique esquerdo envia uma ordem manual', () => {
+    key('keydown', 'KeyA');
+    expect(log).toEqual([]);
+    click(0, 30, 40);
+    expect(log).toEqual(['basic 30,40']);
+  });
+  it.each(['Escape', 'KeyS', 'KeyQ'])('%s cancela Atacar escolhido', (code) => {
+    key('keydown', 'KeyA'); key('keydown', code); click(0);
+    expect(log.some((s) => s.startsWith('basic'))).toBe(false);
+  });
   it.each(['blur', 'pointercancel'])('não envia movimento fantasma após %s interromper o botão direito', (event) => {
     vi.spyOn(performance, 'now').mockReturnValue(1000000 + performance.now());
     click(2);
