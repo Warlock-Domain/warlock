@@ -11,3 +11,5 @@ Vale junto com o `CLAUDE.md` da raiz.
 - **`slim-character.mjs <original.glb> public/models/<id>.glb [nós a remover] [glbs do pacote]`** corta um boneco KayKit: fica só o que está no `KEEP` (clips do próprio boneco) e no `PACK` (copiados osso a osso dos glbs do KayKit Character Animations 1.1, `Rig_Medium`). Clip novo entra numa das listas e ganha gatilho em `CAST_ANIM`/`TAUNT_ANIM` (`src/client/scene.ts`); regere os 9 bonecos e depois rode `scripts/assets/hood.mjs` (capuz no `rogue.glb`).
 - `scripts/assets/` monta `public/icons.svg` e outros ativos: rode à mão e commite o resultado, com crédito em `public/CREDITS.txt` e uma linha em `docs/ASSETS.md`.
 - **`assets/kaykit-index.mjs`** refaz `assets/kaykit/INDICE.md` (nome de cada modelo por pack); rode sempre que um pack entrar, sair ou mudar.
+
+`node scripts/room-cleanup.mjs` (Node 24) testa a classe Room real com armazenamento/socket simulados: limpeza normal, retry do lobby e entrada/saída durante o RPC. Não substitui os testes de runtime.
