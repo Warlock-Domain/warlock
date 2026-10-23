@@ -48,10 +48,11 @@ const RULES_PT = {
     const k = (a: UiAction) => uiLabel(a);
     const sheet = keyOf('sheet') === 'Backquote' ? "Tecla à esquerda do 1 (' no teclado brasileiro)" : k('sheet');
     return [
-      `Botão direito no chão: andar (segure para arrastar o destino). ${k('stop')}: parar (durante o lançamento, cancela a magia sem gastar a recarga). Esc: cancela a magia escolhida, fecha o que estiver aberto e, sem nada aberto, abre as configurações.`,
+      `Botão direito no chão: andar (segure para arrastar o destino). ${k('stop')}: parar (durante o lançamento, cancela a magia sem gastar a recarga). Segurar por 0,5 s ativa Manter base: reduz empurrão em 15%, mas pausa suas recargas (Incapacitar); habilidades prontas continuam disponíveis. Enquanto ativo, não caminha nem guarda cliques de movimento: solte a tecla e dê nova ordem para andar. Empurrões externos continuam. Pose e estrondo curto avisam a ativação; soltar antes cancela. Esc: cancela a magia escolhida, fecha o que estiver aberto e, sem nada aberto, abre as configurações.`,
       'Tecla da magia: três jeitos de lançar, escolhidos em Configurações > Lançamento. Rápido (padrão): lança na hora na direção do mouse; o círculo de alcance aparece ao passar o mouse na magia da barra.',
       'Ao soltar: segurando a tecla aparece o círculo de alcance; ao soltar, a magia sai (Esc cancela). Com clique: a tecla escolhe a magia e mostra o alcance, o clique esquerdo lança (fora do alcance, vai até a borda); botão direito ou Esc cancelam.',
       'Clicar no botão da magia e depois no chão também lança.',
+      ATTACK_TEXT,
       'Roda do mouse: zoom. Espaço + arrastar com o botão esquerdo: mover a câmera; Espaço sozinho volta ao centro.',
       `${k('board')} (segurar): placar; com ele aberto, ← → troca entre Rodada, Partida e Sala.`,
       `${k('taunt')}: provocações. ${sheet}: ficha do mago. ${k('shop')}: loja só para ver durante a rodada (o jogo não pausa; ${k('shop')}, Esc ou ✕ fecham). ${k('rules')}: este grimório.${keyOf('vote') ? ` ${k('vote')}: votar.` : ''}`,
@@ -165,10 +166,11 @@ const RULES_EN: typeof RULES_PT = {
     const k = (a: UiAction) => uiLabel(a);
     const sheet = keyOf('sheet') === 'Backquote' ? 'Key left of the 1 (` on a US keyboard)' : k('sheet');
     return [
-      `Right-click the ground: walk (hold to drag the destination). ${k('stop')}: stop (while casting, cancels the spell without spending the cooldown). Esc: cancels the chosen spell, closes whatever is open and, with nothing open, opens the settings.`,
+      `Right-click the ground: walk (hold to drag the destination). ${k('stop')}: stop (while casting, cancels the spell without spending the cooldown). Hold for 0.5 s to activate Hold ground: 15% less knockback, but your cooldowns pause (Incapacitate); ready abilities remain available. While active, walking commands are ignored, not queued: release the key and give a new order to walk. External knockback still applies. Pose and a short sonic boom signal activation; releasing early cancels it. Esc: cancels the chosen spell, closes whatever is open and, with nothing open, opens the settings.`,
       'Spell key: three ways to cast, chosen in Settings > Casting. Quick (default): casts instantly toward the mouse; the range circle shows when you hover the spell on the bar.',
       'On release: holding the key shows the range circle; when you release, the spell goes off (Esc cancels). With click: the key picks the spell and shows the range, left click casts (out of range, it goes to the edge); right click or Esc cancel.',
       'Clicking the spell button and then the ground also casts.',
+      ATTACK_TEXT,
       'Mouse wheel: zoom. Space + drag with the left button: move the camera; Space alone recenters.',
       `${k('board')} (hold): scoreboard; with it open, ← → switches between Round, Match and Room.`,
       `${k('taunt')}: taunts. ${sheet}: wizard sheet. ${k('shop')}: view-only shop during the round (the game does not pause; ${k('shop')}, Esc or ✕ close it). ${k('rules')}: this grimoire.${keyOf('vote') ? ` ${k('vote')}: vote.` : ''}`,

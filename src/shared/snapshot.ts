@@ -1,7 +1,7 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
 import type { Snap } from './protocol.ts';
-import { PROJ_KINDS, bootsBonus, incapacitatedUntil, isSliding, isStunned, zoneReaches, type ProjKind, type SimEvent, type World } from './sim.ts';
-import { INCAPACITATED_BIT, ELECTROCUTED_BIT } from './constants.ts';
+import { PROJ_KINDS, bootsBonus, bracingActive, incapacitatedUntil, isSliding, isStunned, zoneReaches, type ProjKind, type SimEvent, type World } from './sim.ts';
+import { INCAPACITATED_BIT, ELECTROCUTED_BIT, BRACING_BIT } from './constants.ts';
 import { CHEST, OBSTACLES, OBSTACLE_KINDS, RUNE_KINDS, WIZ_R, type ObstacleKind, type RuneKind } from './constants.ts';
 import { SPELL_IDS, spellLevel } from './spells.ts';
 import type { Isle } from './arena.ts';
@@ -53,7 +53,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
       | (z.alive && z.target && dist(z.target, z.pos) > .01 && z.speed > 0 && !z.casting && !isStunned(z) && w.t >= z.dashUntil && w.t >= z.thrustUntil ? WALKING_BIT : 0)
       | (z.moveHeld ? HOLDING_MOVE_BIT : 0) | (z.blockedMove ? BLOCKED_MOVE_BIT : 0)
       | (w.t < incapacitatedUntil(z, w.t) ? INCAPACITATED_BIT : 0)
-      | (w.t < (z.electroUntil ?? 0) ? ELECTROCUTED_BIT | 4 : 0);
+      | (w.t < (z.electroUntil ?? 0) ? ELECTROCUTED_BIT | 4 : 0)
+      | (z.alive && bracingActive(w, z) ? BRACING_BIT : 0);
     // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão
     const dash = w.t < z.dashUntil ? z.dashVel : { x: 0, y: 0 };
     wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x + dash.x), r2(z.vel.y + dash.y), Math.ceil(z.hp), r2(z.facing), bits);
