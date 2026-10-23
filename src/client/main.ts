@@ -1,5 +1,5 @@
 import { inLavaAt, type ArenaId } from '../shared/arena.ts';
-import { ARENA_MIN, BASIC_ATTACK, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
+import { ARENA_MIN, BASIC_ATTACK, BRACING_BIT, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
 import { liveLevel, roundMult } from '../shared/ascension.ts';
 import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
@@ -381,7 +381,7 @@ function startRoom(code: string, name: string) {
   const volumeOf = (id: string) => volumeAt(interp.latest()?.wizards.find((w) => w.id === id)?.pos);
 
   let attackCancelSeq = 0;
-  function command(msg: { t: 'move'; x: number; y: number; held?: boolean } | { t: 'moveHold'; on: boolean } | { t: 'basic'; x: number; y: number; target?: string | number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
+  function command(msg: { t: 'move'; x: number; y: number; held?: boolean } | { t: 'moveHold'; on: boolean } | { t: 'brace'; on: boolean } | { t: 'basic'; x: number; y: number; target?: string | number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
     seq++;
     if (msg.t === 'move' || msg.t === 'stop' || msg.t === 'cast') attackCancelSeq = seq;
     sentAt.set(seq, performance.now());
@@ -393,11 +393,13 @@ function startRoom(code: string, name: string) {
   const input = createInput(canvas, {
     pick: (x, y) => scene.pick(x, y),
     move(to, held = false) {
+      if ((myWizard(interp.latest())?.status ?? 0) & BRACING_BIT) return;
       command({ t: 'move', x: to.x, y: to.y, held });
       predict.move(to);
       scene.clickMarker(to, false);
     },
     holdMove: (on) => command({ t: 'moveHold', on }),
+    brace: (on) => command({ t: 'brace', on }),
     pickAttack: (x, y) => scene.pickMage(x, y),
     attackArmedChanged: (on) => { canvas.style.cursor = on ? 'crosshair' : ''; },
     basic(at, clicked) {

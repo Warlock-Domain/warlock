@@ -1,6 +1,6 @@
 // Previsão do próprio mago: anda na hora do clique com o mesmo código do servidor e é corrigido de leve.
 import type { Terrain } from '../shared/arena.ts';
-import { WIZ_SPEED } from '../shared/constants.ts';
+import { BRACING_BIT, WIZ_SPEED } from '../shared/constants.ts';
 import { terrainOf, type NightMap } from '../shared/levels.ts';
 import { isStunned, keepOut, moveWizard, type MovementState, type Room } from '../shared/sim.ts';
 import { BLOCKED_MOVE_BIT, DASHING_BIT, type WizView } from '../shared/snapshot.ts';
@@ -116,6 +116,7 @@ export function createPredict() {
         queued = undefined;
       }
       if (server.status & 128) me.target = null; // preso (Agarrar): não anda
+      if (server.status & BRACING_BIT) { me.target = null; queued = undefined; }
       moveWizard(me, dt);
       if (terrain) keepOut(terrain, me, lock);
       const slack = WIZ_SPEED * (rttSec / 2) + 0.3;
