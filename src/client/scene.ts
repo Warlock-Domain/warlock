@@ -81,6 +81,22 @@ export function cloneAppearance(source: THREE.Group): THREE.Group {
   return model;
 }
 
+export type AppearanceInstance = { model: THREE.Object3D; mixer: THREE.AnimationMixer };
+// Só clones de cloneAppearance: geometrias e mapas pertencem aos GLB/prefabs; ossos e materiais pertencem à instância.
+export function disposeAppearance({ model, mixer }: AppearanceInstance) {
+  mixer.stopAllAction();
+  mixer.uncacheRoot(model);
+  model.removeFromParent();
+  const skeletons = new Set<THREE.Skeleton>();
+  const materials = new Set<THREE.Material>();
+  model.traverse((o) => {
+    if (o instanceof THREE.SkinnedMesh) skeletons.add(o.skeleton);
+    if (o instanceof THREE.Mesh) for (const mat of Array.isArray(o.material) ? o.material : [o.material]) materials.add(mat);
+  });
+  for (const skeleton of skeletons) skeleton.dispose();
+  for (const material of materials) material.dispose();
+}
+
 export function assemble(look: string, file: (id: CharacterId) => Model): Model {
   const base = file(lookBody(look));
   const root = base.scene.clone();
@@ -219,7 +235,7 @@ type Mage = {
   ghostMats: { m: THREE.Material; transparent: boolean; opacity: number }[];
   model: THREE.Object3D; // o boneco (some no fim da queima, quando fica só o esqueleto)
   burnAt: number; // morreu na lava neste instante (−1 = não está queimando)
-  bones: THREE.Object3D | null; // esqueleto escuro que sobra da queima
+  bones: AppearanceInstance | null; // esqueleto escuro que sobra da queima
   flash: number; // clarão branco do golpe: 1 no acerto, cai até 0
   burning: boolean; // vivo e na lava (issue #225): o corpo pulsa em brasa e solta faíscas
   freezeUntil: number; // hit-stop: animação parada até este instante
@@ -804,7 +820,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.root.position.y = -BURN.sink * k;
     } else {
       if (!m.bones) {
-        m.bones = makeBones(m) ?? m.model; // sem o esqueleto, fica o corpo carbonizado
+        m.bones = makeBones(m) ?? { model: m.model, mixer: m.mixer }; // sem o esqueleto, fica o corpo carbonizado
         burst(at, '#ff7a2a', 1.6, 0.6, 0.4, FX.spark, 0.8);
         smoke(at, 1.6, 2);
       }
@@ -821,25 +837,26 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     if (!lite && t < BURN.swap + 1 && Math.random() < 0.08) burst(v(at.x + (Math.random() - 0.5) * 0.6, at.y + (Math.random() - 0.5) * 0.6), '#ff8a2a', 0.3, 0.9, 0.3, glow, 1.2);
   }
   // esqueleto deitado na pose final da morte, com os materiais carbonizados; se o modelo ainda não chegou (ou já é um esqueleto), o próprio corpo carbonizado
-  function makeBones(m: Mage): THREE.Object3D | null {
+  function makeBones(m: Mage): AppearanceInstance | null {
     const src = files.get(BONES);
     if (!src || lookBody(m.look).startsWith('skeleton')) return null;
-    const b = cloneSkinned(src.scene) as THREE.Group;
+    const b = cloneAppearance(src.scene);
     b.scale.setScalar(mageScale);
     b.rotation.copy(m.model.rotation);
     b.traverse((o) => {
       const mesh = o as THREE.Mesh;
-      if (!mesh.isMesh || Array.isArray(mesh.material)) return;
-      const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
-      mat.color = charred(mat.color);
-      mat.emissive = EMBER.clone();
-      mat.emissiveIntensity = 0.06;
-      mat.roughness = 1;
-      mesh.material = mat;
+      if (!mesh.isMesh) return;
+      for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        if (!(mat instanceof THREE.MeshStandardMaterial)) continue;
+        mat.color.copy(charred(mat.color));
+        mat.emissive.copy(EMBER);
+        mat.emissiveIntensity = 0.06;
+        mat.roughness = 1;
+      }
     });
+    const mixer = new THREE.AnimationMixer(b);
     const clip = src.clips.find((c) => c.name === 'Death_A');
     if (clip) {
-      const mixer = new THREE.AnimationMixer(b);
       const a = mixer.clipAction(clip);
       a.setLoop(THREE.LoopOnce, 1);
       a.clampWhenFinished = true;
@@ -848,7 +865,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     }
     m.model.visible = false;
     m.root.add(b);
-    return b;
+    return { model: b, mixer };
   }
   // voltou (deathmatch) ou rodada nova: o boneco como era
   function unburn(m: Mage) {
@@ -864,15 +881,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
     }
     m.burnAt = -1;
-    if (m.bones === m.model) m.bones = null;
-    if (m.bones) {
-      m.root.remove(m.bones);
-      m.bones.traverse((o) => {
-        const mesh = o as THREE.Mesh;
-        if (mesh.isMesh) (mesh.material as THREE.Material).dispose();
-      });
-      m.bones = null;
-    }
+    // O fallback usa o corpo original, que ainda será animado após renascer.
+    if (m.bones && m.bones.model !== m.model) disposeAppearance(m.bones);
+    m.bones = null;
   }
 
   function makeMage(d: WizDraw, look: string): Mage | null {
@@ -1862,7 +1873,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           scene.remove(m.root);
           dispose(m.vines); // Os cipós procedurais pertencem à aparência que está sendo substituída.
           for (const o of [m.ring, m.shield, m.aura]) (o.material as THREE.Material).dispose();
-          for (const x of m.mats) x.m.dispose();
+          disposeAppearance(m);
           m.label.remove();
         }
         if (made) mages.set(d.id, (m = made));
