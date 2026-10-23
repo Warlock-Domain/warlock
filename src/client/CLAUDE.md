@@ -57,6 +57,8 @@ Uma página só, de seções empilhadas com sumário (`stackedPage`), usada na a
 
 ## O que não vai para `ui.ts`
 
+- **Distância sonora:** `sound-distance.ts` calcula a atenuação pela posição do próprio mago, não pela câmera (intensidade inteira até 2 m, queda quadrática até silêncio em 24 m). `main.ts` aplica a eventos de mundo e provocações manuais; música, menu e avisos globais não dependem de distância. A provocação reconsulta a posição após carregar o áudio. Espectador sem mago usa nível neutro 0,6; fonte ausente não produz som.
+
 - **Nivelamento de áudio:** `audio-level.ts` mede RMS em janelas ativas de 50 ms, mirando 0,12 com pico até 0,8. `sound.ts` mede arquivos e síntese pré-renderizada, compensa camadas de impacto e mantém prévia de provocações no mesmo nível da partida. Síntese imediata continua como reserva até o cache ficar pronto; a conferência auditiva humana continua necessária.
 
 `ui.ts` usa `document`/`matchMedia` ao carregar e não roda no Vitest. Decisão de tela que precisa de teste vai para função pura em `screen-data.ts` (ou `rules-text.ts`, `tips.ts`, `icons.ts`, `keys.ts`, `sheet.ts`, `reach.ts`, que não mexem no DOM ao carregar).
