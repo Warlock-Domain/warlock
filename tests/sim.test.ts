@@ -162,12 +162,12 @@ describe('magias', () => {
     expect(wz(w, 0).pos.x).toBeCloseTo(SPELLS.teleport.levels[0].range);
   });
 
-  it('knockback grows as hp drops', () => {
+  it('knockback não aumenta com dano histórico', () => {
     const fresh = world([[0, 0], [3, 0]]);
     const hurt = world([[0, 0], [3, 0]]);
     wz(hurt, 1).dmgTaken = 800;
     for (const w of [fresh, hurt]) run(w, 2.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
-    expect(wz(hurt, 1).pos.x - 3).toBeGreaterThan((wz(fresh, 1).pos.x - 3) * 1.5);
+    expect(wz(hurt, 1).pos.x).toBeCloseTo(wz(fresh, 1).pos.x, 9);
   });
 
   it('death credits last hitter within 5s', () => {

@@ -24,7 +24,7 @@ function fireballHit(prepare: (w: World) => void = () => {}, pact = false) {
   stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
   for (let i = 0; i < 120 && !w.events.some((e) => e.k === 'hit'); i++) stepWorld(w, []);
   const hit = w.events.find((e) => e.k === 'hit');
-  return { z: w.wizards[1], dmg: hit?.k === 'hit' ? hit.dmg : 0 };
+  return { w, z: w.wizards[1], dmg: hit?.k === 'hit' ? hit.dmg : 0 };
 }
 
 describe('escala ×10 (vida 1000): o jogo continua igual', () => {
@@ -41,9 +41,49 @@ describe('escala ×10 (vida 1000): o jogo continua igual', () => {
     expect(len(z.vel)).toBeCloseTo(4.529, 9);
   });
 
-  it('damage taken scales the push the same way (40% of the max life: ×1,4)', () => {
-    const { z } = fireballHit((w) => (w.wizards[1].dmgTaken = HP_MAX * 0.4));
-    expect(len(z.vel)).toBeCloseTo(4.529 * 1.4, 9);
+  it.each([0, 400, 7000, 70000])('dano histórico %s não amplifica o empurrão', (taken) => {
+    const { z } = fireballHit((w) => (w.wizards[1].dmgTaken = taken));
+    expect(len(z.vel)).toBeCloseTo(4.529, 9);
+  });
+
+  it.each([false, true])('cem impactos não aumentam o impulso, vida infinita=%s', (god) => {
+    const w = newWorld(['p0', 'p1'], { p0: noSpells(), p1: noSpells() }, {}, 0, () => 0.5);
+    w.pillars = [];
+    w.shrinkAt = Infinity;
+    const target = w.wizards[1];
+    target.god = god;
+    for (const z of w.wizards) z.invulnUntil = 0;
+    for (let hit = 0; hit < 100; hit++) {
+      w.wizards[0].pos = v(0, 0);
+      w.wizards[0].cd.fireball = 0;
+      target.pos = v(3, 0);
+      target.vel = v(0, 0);
+      target.hp = target.hpMax; // cura entre golpes no modo normal; o histórico não é zerado.
+      stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: target.pos }], () => 0.5);
+      for (let i = 0; i < 120 && !w.events.some((e) => e.k === 'hit'); i++) stepWorld(w, [], () => 0.5);
+      expect(w.events.some((e) => e.k === 'hit'), `impacto ${hit}`).toBe(true);
+      expect(len(target.vel), `impacto ${hit}`).toBeCloseTo(4.529, 9);
+    }
+    expect(target.dmgTaken).toBe(7000);
+  });
+
+  it('mantém resistência ao empurrão sem depender do histórico', () => {
+    const { z } = fireballHit((w) => { w.wizards[1].dmgTaken = 70000; w.wizards[1].kbResist = .35; });
+    expect(len(z.vel)).toBeCloseTo(4.529 * .65, 9);
+  });
+
+  it('atingir um jogador parado não cria destino de caminhada nem movimento depois que o impulso termina', () => {
+    const { w, z } = fireballHit();
+    expect(len(z.vel)).toBeGreaterThan(0); // o empurrão legítimo não foi removido.
+    for (let i = 0; i < 600 && len(z.vel) > 0; i++) {
+      expect(z.target).toBeNull();
+      stepWorld(w, [], () => .5);
+    }
+    expect(z.vel).toEqual(v(0, 0));
+    const stopped = { ...z.pos };
+    for (let i = 0; i < 60; i++) stepWorld(w, [], () => .5);
+    expect(z.pos).toEqual(stopped);
+    expect(z.target).toBeNull();
   });
 
   it('a hit above the soft cap still pushes by the square root (Pact: 14 → 140 of damage)', () => {

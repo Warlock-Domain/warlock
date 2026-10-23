@@ -28,6 +28,8 @@ Mensagem nova do cliente: variante em `ClientMsg` → `case` em `parseClientMess
 
 ## Snapshot (`snapshot.ts`)
 
+- Dano histórico não amplifica knockback (`KNOCK_HP_SCALE=0`); continua registrado para estatísticas. `WALKING_BIT` só marca destino voluntário válido; deslocamento físico/reconciliação não anima caminhada. Botão direito não fica preso após blur/pointercancel.
+
 Listas achatadas de números (layout no comentário de `protocol.ts`), valores com `r2`, campos opcionais só quando há conteúdo, estado novo por mago como bit documentado em `bits`. Inserir no meio de `PROJ_KINDS` quebra cliente aberto.
 
 ## Aparência (`characters.ts`)
