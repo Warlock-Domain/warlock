@@ -3,11 +3,10 @@ import { DT, SEND_EVERY } from '../shared/constants.ts';
 import { chooseCard, reroll, setAscLobby } from '../shared/ascension.ts';
 import { lookOf } from '../shared/characters.ts';
 import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
-import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
+import { cmdTarget, parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
 import { roundRecord } from '../shared/telemetry.ts';
-import { v } from '../shared/vec.ts';
 import { TAUNT_COOLDOWN_MS } from '../shared/taunts.ts';
 
 const STEP_MS = DT * 1000;
@@ -131,8 +130,13 @@ export class Room extends DurableObject<Env> {
       case 'cast':
         // comandos de jogo só valem com a rodada rolando (fora dela a fila cresceria sem limite)
         if (m.phase !== 'playing') return;
-        this.cmds.push(msg.t === 'move' ? { id, kind: 'move', to: v(msg.x, msg.y) } : msg.t === 'stop' ? { id, kind: 'stop' }
-          : { id, kind: 'cast', spell: msg.spell, at: v(msg.x, msg.y) });
+        if (msg.t === 'stop') this.cmds.push({ id, kind: 'stop' });
+        else {
+          // o limite da coordenada depende da sala (arena ou mapa da Campanha), por isso não cabe no parser
+          const at = cmdTarget(m.world?.map, msg.x, msg.y);
+          if (!at) return send(ws, { t: 'error', code: 'bad_msg', msg: 'Mensagem inválida.' });
+          this.cmds.push(msg.t === 'move' ? { id, kind: 'move', to: at } : { id, kind: 'cast', spell: msg.spell, at });
+        }
         this.acks.set(id, msg.seq);
         return;
       case 'start':

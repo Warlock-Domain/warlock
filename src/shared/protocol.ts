@@ -1,5 +1,5 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
-import { ARENA_IDS, type ArenaId } from './arena.ts';
+import { ARENA_IDS, type ArenaId, type Terrain } from './arena.ts';
 import { ascOf, type AscLobby, type Card, type Choice, type Kind } from './ascension.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
 import type { Night, ServoKind } from './campaign.ts';
@@ -11,6 +11,7 @@ import { MODES, OPTION_CHOICES, TURRET_DIR, goalOf, parseOpt, votesNeeded, type 
 import type { SimEvent } from './sim.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
+import { v, type Vec } from './vec.ts';
 
 // treino: magias, itens e jeito de jogar escolhidos para um bot (só vale com um humano na sala; ver startMatch);
 // difficulty: a dificuldade deste bot, escolhida na sala (vale em qualquer sala)
@@ -106,14 +107,21 @@ export type ServerMsg =
   | { t: 'error'; code: ErrorCode; msg: string }
   | { t: 'taunt'; id: string; i: number };
 
-// arena: a maior (8 magos, forma mais larga: 1,63 × 13,6 m) chega a ~22 m do centro; o mapa da Campanha vai de (0, 0) até
-// a sala mais longe (hoje até 190 × 24 m): folga para salas maiores sem deixar passar número absurdo (tests/campaign.test.ts confere 300 noites)
+// o parser não sabe a sala: aceita até o mapa da Campanha, que vai de (0, 0) até a sala mais longe (hoje até 190 × 24 m),
+// com folga para salas maiores (tests/campaign.test.ts confere 300 noites); o limite real de cada sala fica em cmdTarget
 const MAX_COORD = 400;
+const ARENA_COORD = 30; // a maior arena (8 magos, forma mais larga: 1,63 × 13,6 m) chega a ~22 m do centro; o resto é folga para clique na lava
 const MAX_MSG = 2048; // 'start' com 7 bots configurados: ~1,0 KB só com magias, ~1,7 KB com magias e itens (medido em 19/10)
 
 type Obj = Record<string, unknown>;
 const isObj = (x: unknown): x is Obj => typeof x === 'object' && x !== null && !Array.isArray(x);
 const coord = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= MAX_COORD;
+// alvo de andar ou lançar dentro do mundo da sala (room-do.ts): na arena, fora de ±ARENA_COORD é recusado, como antes da Campanha;
+// no mapa da Campanha fica preso ao retângulo do mapa, para o clique na beira não virar erro
+export function cmdTarget(map: Terrain | undefined, x: number, y: number): Vec | null {
+  if (map) return v(Math.min(Math.max(x, 0), map.w), Math.min(Math.max(y, 0), map.h));
+  return Math.abs(x) <= ARENA_COORD && Math.abs(y) <= ARENA_COORD ? v(x, y) : null;
+}
 const seq = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 0 && (x as number) < 2 ** 31;
 // publicId: hash de 32 bits em base 36 cabe em 7 caracteres
 const pubId = (x: unknown): x is string => typeof x === 'string' && /^p[0-9a-z]{1,8}$/.test(x);
