@@ -11,6 +11,8 @@ export const DASHING_BIT = 33554432; // avanço curto, distinto do buff de veloc
 const ZONE_KINDS = ['burn', 'slow', 'pull'] as const;
 // A pose segue um destino autoritativo, não deslocamento residual ou correção de rede.
 export const WALKING_BIT = 16777216;
+export const HOLDING_MOVE_BIT = 67108864;
+export const BLOCKED_MOVE_BIT = 134217728; // cancela também destino da previsão.
 const RUNE_BIT: Record<RuneKind, number> = { haste: 262144, fury: 524288, shield: 1048576, recharge: 4194304 };
 export type ZoneKind = (typeof ZONE_KINDS)[number];
 
@@ -47,7 +49,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
       | (z.alive && w.zones.some((q) => q.kind === 'pull' && dist(q.pos, z.pos) < q.r + WIZ_R && zoneReaches(w, q, z)) ? 2097152 : 0)
       | (w.t < z.veilUntil ? (z.id === forId ? 1024 : seeAll ? 8388608 : 2048) : 0)
       | (z.alive && w.t < z.dashUntil ? DASHING_BIT : 0)
-      | (z.alive && z.target && dist(z.target, z.pos) > .01 && z.speed > 0 && !z.casting && !isStunned(z) && w.t >= z.dashUntil && w.t >= z.thrustUntil ? WALKING_BIT : 0);
+      | (z.alive && z.target && dist(z.target, z.pos) > .01 && z.speed > 0 && !z.casting && !isStunned(z) && w.t >= z.dashUntil && w.t >= z.thrustUntil ? WALKING_BIT : 0)
+      | (z.moveHeld ? HOLDING_MOVE_BIT : 0) | (z.blockedMove ? BLOCKED_MOVE_BIT : 0);
     // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão
     const dash = w.t < z.dashUntil ? z.dashVel : { x: 0, y: 0 };
     wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x + dash.x), r2(z.vel.y + dash.y), Math.ceil(z.hp), r2(z.facing), bits);
