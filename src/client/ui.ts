@@ -22,7 +22,7 @@ import { botSetupPanel, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
-import { botLevel, endResult, moveLoadout, myLoadout, presetQueue, PRESETS_KEY, readPresets, roomGroups, saveLoadout, topUsed, USED_KEY, type Preset } from './screen-data.ts';
+import { botLevel, endResult, moveLoadout, myLoadout, playerName, presetQueue, PRESETS_KEY, readPresets, roomGroups, saveLoadout, topUsed, USED_KEY, type Preset } from './screen-data.ts';
 import { LOCALE, arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 import { radialPicker } from './radial-picker.ts';
 import { radialHold, tauntWheelSlots } from './taunt-wheel.ts';

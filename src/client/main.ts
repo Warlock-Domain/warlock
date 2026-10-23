@@ -32,7 +32,7 @@ import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
-import { USED_KEY, botLevel, boughtKeys, countBuys, endResult, renderWizardState, sandboxVisibility, seatChanges } from './screen-data.ts';
+import { USED_KEY, botLevel, boughtKeys, countBuys, endResult, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
 declare const __BRANCH__: string;
