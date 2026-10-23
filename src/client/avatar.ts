@@ -38,16 +38,22 @@ const W = 200, H = 240;
 let panel: HTMLElement | null = null;
 let look = '';
 let sync = () => {};
-let running = false;
+let frameId: number | null = null;
+let visible = false;
 
 // um painel só (um contexto WebGL só): as Configurações redesenham as abas a cada mudança e chamam isto de novo
 export function avatarPanel(): HTMLElement {
-  if (!panel) panel = build();
-  sync();
-  if (!running) {
-    running = true;
-    requestAnimationFrame(frame);
+  if (!panel) {
+    panel = build();
+    // O observer acompanha abas ocultas, rolagem e remontagens sem medir o layout em cada quadro.
+    new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting && entry.intersectionRect.width > 0 && entry.intersectionRect.height > 0;
+      updateActivity();
+    }).observe(panel);
+    document.addEventListener('visibilitychange', updateActivity);
   }
+  sync();
+  updateActivity();
   return panel;
 }
 
@@ -61,9 +67,16 @@ let orbitYaw = 0;
 let orbitPitch = 0.04;
 let orbitDistance = 4.6;
 let cameraTouched = false;
+function updateActivity() {
+  if (!visible || document.hidden || !panel?.isConnected) {
+    if (frameId !== null) cancelAnimationFrame(frameId);
+    frameId = null;
+    last = 0; // Retomar não avança a animação pelo tempo em que a prévia ficou escondida.
+  } else if (frameId === null) frameId = requestAnimationFrame(frame);
+}
 function frame(now: number) {
-  // parado enquanto o painel não está na tela; volta na próxima chamada de avatarPanel()
-  if (!panel?.isConnected) return void (running = false);
+  frameId = null;
+  if (!visible || document.hidden || !panel?.isConnected) return updateActivity();
   const dt = Math.min(0.1, (now - (last || now)) / 1000);
   last = now;
   if (shown) {
@@ -71,7 +84,7 @@ function frame(now: number) {
     if (!cameraTouched) shown.model.rotation.y += dt * 0.5;
   }
   renderer.render(stage, camera);
-  requestAnimationFrame(frame);
+  frameId = requestAnimationFrame(frame);
 }
 
 // Mesma montagem e mesmos materiais originais da partida; só os materiais clonados pertencem à prévia.
