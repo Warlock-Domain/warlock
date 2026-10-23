@@ -32,7 +32,7 @@ import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
-import { botLevel, endResult, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
+import { botLevel, endResult, playerName, renderWizardState, sandboxVisibility, seatChanges } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 
 declare const __BRANCH__: string;
@@ -508,7 +508,7 @@ function startRoom(code: string, name: string) {
   }
 
   function names() {
-    return new Map(room?.players.map((p) => [p.id, p.name]) ?? []);
+    return new Map(room?.players.map((p) => [p.id, playerName(p)]) ?? []);
   }
 
   // data-rune dá ao ícone o disco da cor da runa no aviso (style.css)
@@ -616,7 +616,7 @@ function startRoom(code: string, name: string) {
     if (voice) void sound.taunt(voice);
     if (liveChanged) view.live(live);
     if (run?.state === 'on' && room?.phase === 'playing') finishRun(stepRun(run, 0, events, me, true));
-    if (!rp) scene.onEvents(events, hiddenDamageTargets(interp.latest())); // durante o replay a cena mostra os efeitos do trecho gravado
+    if (!rp) scene.onEvents(events); // durante o replay a cena mostra os efeitos do trecho gravado
   }
 
   // golpe recebido: seta na borda da tela do lado de quem bateu (a câmera não gira, então o ângulo do chão vale na tela)
@@ -651,9 +651,13 @@ function startRoom(code: string, name: string) {
         const { left, back } = seatChanges(prev, room);
         for (const p of left) {
           const lvl = SKILL_NAME[botLevel(p, room) ?? room.opts.difficulty];
-          toast(t(`${p.name} saiu da partida · um bot ${lvl} joga no lugar até voltar`, `${p.name} left the match · a ${lvl} bot plays in their place until they return`), 'info', true);
+          const name = playerName(p);
+          toast(t(`${name} saiu da partida · um bot ${lvl} joga no lugar até voltar`, `${name} left the match · a ${lvl} bot plays in their place until they return`), 'info', true);
         }
-        for (const p of back) toast(t(`${p.name} voltou para a partida`, `${p.name} is back in the match`), 'good', true);
+        for (const p of back) {
+          const name = playerName(p);
+          toast(t(`${name} voltou para a partida`, `${name} is back in the match`), 'good', true);
+        }
       }
       // compra na loja: o ouro caiu → som de moedas
       if (prev?.phase === 'shop' && room.phase === 'shop') {
@@ -677,7 +681,10 @@ function startRoom(code: string, name: string) {
       if (!taunt) return;
       const text = t(taunt.text, taunt.en);
       void sound.taunt(taunt.id);
-      if (!scene.bubble(m.id, text, taunt.id)) toast(`${room?.players.find((p) => p.id === m.id)?.name ?? '?'}: ${text}`);
+      if (!scene.bubble(m.id, text, taunt.id)) {
+        const p = room?.players.find((p) => p.id === m.id);
+        toast(`${p ? playerName(p) : '?'}: ${text}`);
+      }
       return;
     }
     lastSnap = m;
@@ -747,7 +754,10 @@ function startRoom(code: string, name: string) {
       if (w && room.players.some((p) => p.id === me)) sound.play(won ? 'winRound' : 'loseRound');
       if (won) banner(room.mode === 'teams' && w!.team !== null ? t(`Vitória do time ${TEAM_NAMES[w!.team]}!`, `${TEAM_NAMES[w!.team]} team wins!`) : room.mode === 'deathmatch' ? t('Vitória! Mais abates', 'Victory! Most kills') : t('Vitória!', 'Victory!'), 'win');
       else if (room.mode === 'teams' && w && w.team !== null) banner(t(`Time ${TEAM_NAMES[w.team]} venceu a rodada!`, `${TEAM_NAMES[w.team]} team won the round!`));
-      else banner(!w ? (room.mode === 'deathmatch' ? t('Fim da rodada', 'Round over') : t('Ninguém sobrou!', 'Nobody is left!')) : room.mode === 'deathmatch' ? (w.id === me ? t('Você fez mais abates!', 'You got the most kills!') : t(`${w.name} fez mais abates!`, `${w.name} got the most kills!`)) : w.id === me ? t('Você venceu a rodada!', 'You won the round!') : t(`${w.name} venceu a rodada!`, `${w.name} won the round!`), w?.id === me ? 'good' : '');
+      else {
+        const winnerName = w ? playerName(w) : '?';
+        banner(!w ? (room.mode === 'deathmatch' ? t('Fim da rodada', 'Round over') : t('Ninguém sobrou!', 'Nobody is left!')) : room.mode === 'deathmatch' ? (w.id === me ? t('Você fez mais abates!', 'You got the most kills!') : t(`${winnerName} fez mais abates!`, `${winnerName} got the most kills!`)) : w.id === me ? t('Você venceu a rodada!', 'You won the round!') : t(`${winnerName} venceu a rodada!`, `${winnerName} won the round!`), w?.id === me ? 'good' : '');
+      }
     } else if (room.phase === 'end' && left) view.toRoom();
     else if (room.phase === 'end' && prev) {
       // mesmo resultado do cabeçalho do cartão (Vitória, Derrota ou Fim de jogo); quem só assistia não ouve nada
@@ -878,17 +888,13 @@ function startRoom(code: string, name: string) {
       const moving = len(state.vel) < STUN_SPEED && state.alive && (!prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
       if (live && w.alive && room?.phase === 'playing') aliveAt[w.id] = s.time;
-      return { ...state, xp: live && p ? xpOf(p) : null, status, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p && room ? botLevel(p, room) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p?.name ?? '?', place: placeOf(p), shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
+      return { ...state, xp: live && p ? xpOf(p) : null, status, pos, hpMax: HP_MAX + (p ? itemStats(p.items).hp : 0), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p && room ? botLevel(p, room) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p ? playerName(p) : '?', place: placeOf(p), shieldR: p?.spells.shield ? SPELLS.shield.levels[p.spells.shield - 1].radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
     });
   }
   // eventos do replay: só a cena (clarão, explosão) e a seta do golpe que eu levei
   function replayEvents(events: SimEvent[], rs: SnapView) {
-    scene.onEvents(events, hiddenDamageTargets(rs));
+    scene.onEvents(events);
     for (const e of events) hitArrow(e, rs);
-  }
-  function hiddenDamageTargets(s: SnapView | null): string[] {
-    // Usa o snapshot do evento, não a pose interpolada anterior à entrada no véu.
-    return s?.wizards.filter((w) => !showHitDamage(sandboxVisibility(w.status, w.id === me, !!room?.sandbox, seeInvis))).map((w) => w.id) ?? [];
   }
   void scene.ready.then(() => requestAnimationFrame(frame), () => toast(t('Não deu para carregar o mago. Recarregue a página.', 'Couldn’t load the wizard. Reload the page.')));
 }
