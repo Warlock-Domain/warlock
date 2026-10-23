@@ -28,8 +28,6 @@ export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#
 export const TEAM_COLORS = ['#3b82f6', '#ef4444'];
 // dificuldade dos bots, curta (rótulo em cima do mago e placar do canto)
 export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), casual: 'Casual', normal: 'Normal', veteran: t('Veterano', 'Veteran'), hard: t('Difícil', 'Hard'), auto: 'Auto' };
-const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
-const MAGE_HUE = 255;
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
@@ -71,6 +69,17 @@ export function lookModel(look: string): Model | null {
   prefabs.set(look, m);
   return m;
 }
+// Prévia e partida usam a mesma cópia, sem recolorir roupas pela vaga do jogador; efeitos só alteram materiais próprios.
+export function cloneAppearance(source: THREE.Group): THREE.Group {
+  const model = cloneSkinned(source) as THREE.Group;
+  model.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
+  });
+  return model;
+}
+
 export function assemble(look: string, file: (id: CharacterId) => Model): Model {
   const base = file(lookBody(look));
   const root = base.scene.clone();
@@ -684,29 +693,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // cada jogador ganha um clone da aparência dele. O mago define a escala (os pacotes KayKit usam a mesma medida) e as peças
   // do mago (chapéu, tronco, capa) são tingidas na cor do jogador
   let mageScale = 1;
-  const tinted = new Map<number, THREE.Texture>();
   const ready = loadFile('mage').then((g) => {
     if (!g) return;
     const box = new THREE.Box3().setFromObject(g.scene);
     mageScale = 1.9 / (box.max.y - box.min.y);
   });
-
-  function tintFor(color: number, base: THREE.Texture): THREE.Texture {
-    const hit = tinted.get(color);
-    if (hit) return hit;
-    const img = base.image as CanvasImageSource & { width: number; height: number };
-    const c = document.createElement('canvas');
-    c.width = img.width;
-    c.height = img.height;
-    const g = c.getContext('2d')!;
-    g.filter = `hue-rotate(${HUES[color] - MAGE_HUE}deg) saturate(1.25)`;
-    g.drawImage(img, 0, 0);
-    const tex = new THREE.CanvasTexture(c);
-    tex.flipY = base.flipY;
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tinted.set(color, tex);
-    return tex;
-  }
 
   const mages = new Map<string, Mage>();
   const decor = createDecor(scene, ready.then(() => mageScale), FX.flame);
@@ -827,7 +818,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   function makeMage(d: WizDraw, look: string): Mage | null {
     const src = lookModel(look);
     if (!src) return null;
-    const model = cloneSkinned(src.scene) as THREE.Group;
+    const model = cloneAppearance(src.scene);
     model.scale.setScalar(mageScale);
     const mats: Mage['mats'] = [];
     const ghostMats: Mage['ghostMats'] = [];
@@ -835,18 +826,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       mesh.castShadow = true;
-      // material próprio de cada boneco: o clarão do golpe não pode acender os outros magos do mesmo modelo
+      // cloneAppearance já isola os materiais; guarda só os valores necessários para restaurar efeitos temporários.
       if (Array.isArray(mesh.material)) {
-        mesh.material = mesh.material.map((source) => {
-          const mat = source.clone();
-          ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });
-          return mat;
-        });
+        for (const mat of mesh.material) ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });
         return;
       }
-      const mat = mesh.material.clone();
-      if (mat instanceof THREE.MeshStandardMaterial && /^Mage_(Hat|Body|Cape)$/.test(mesh.name) && mat.map) mat.map = tintFor(d.color, mat.map);
-      mesh.material = mat;
+      const mat = mesh.material;
       ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });
       if (mat instanceof THREE.MeshStandardMaterial) mats.push({ m: mat, c: mat.emissive.clone(), i: mat.emissiveIntensity, col: mat.color.clone(), rough: mat.roughness });
     });
