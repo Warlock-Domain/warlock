@@ -87,6 +87,7 @@ Dentro do Claude Code:
 | `superpowers:verification-before-completion` | antes de dizer "pronto": rodar a checagem que prova |
 | `ponytail` | ao implementar: precisa existir? já existe no projeto? a biblioteca padrão faz? cabe em uma linha? |
 | `/ponytail-review` | no diff, antes de abrir o PR |
+| `/pr-review` (Claude Code) / `$pr-review` (Codex) | revisão independente de PR com critérios em `.agents/skills/pr-review/SKILL.md`; não comenta nem aprova automaticamente |
 
 Os padrões do projeto (`CLAUDE.md`) vencem as skills.
 
