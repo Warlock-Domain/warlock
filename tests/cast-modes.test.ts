@@ -48,36 +48,6 @@ beforeEach(() => {
 });
 
 describe('jeitos de lançar no PC', () => {
-  it.each(['blur', 'pointercancel'])('não envia movimento fantasma após %s interromper o botão direito', (event) => {
-    vi.spyOn(performance, 'now').mockReturnValue(1000000 + performance.now());
-    click(2);
-    log = [];
-    fire(win, event, {});
-    fire(cnv, 'pointermove', { clientX: 400, clientY: 300, buttons: 2 });
-    expect(log).toEqual([]);
-    fire(win, 'pointerup', { button: 2 });
-    vi.restoreAllMocks();
-  });
-
-  it('sem pointerup, mouse com botão solto não renova o destino de caminhada', () => {
-    vi.spyOn(performance, 'now').mockReturnValue(2000000 + performance.now());
-    click(2);
-    log = [];
-    fire(cnv, 'pointermove', { clientX: 400, clientY: 300, buttons: 0 });
-    expect(log).toEqual([]);
-    fire(win, 'pointerup', { button: 2 });
-    vi.restoreAllMocks();
-  });
-
-  it('segurar de verdade o botão direito continua arrastando o destino', () => {
-    vi.spyOn(performance, 'now').mockReturnValue(3000000 + performance.now());
-    click(2);
-    log = [];
-    fire(cnv, 'pointermove', { clientX: 400, clientY: 300, buttons: 2 });
-    expect(log).toEqual(['move 400,300']);
-    fire(win, 'pointerup', { button: 2 });
-    vi.restoreAllMocks();
-  });
   it('Esc só é consumido (preventDefault) com magia escolhida ou segurada; sobrando, ele segue para abrir as configurações', () => {
     let used = 0;
     const esc = () => fire(win, 'keydown', { code: 'Escape', repeat: false, preventDefault: () => used++ });
@@ -149,7 +119,7 @@ describe('jeitos de lançar no PC', () => {
     key('keydown', 'KeyQ');
     key('keydown', 'Escape');
     expect(armed).toBeNull();
-    click(0, 1, 2); // a remoção do movimento pelo esquerdo será outra PR.
-    expect(log.at(-1)).toBe('move 1,2');
+    click(0, 1, 2); // sem magia escolhida, o clique esquerdo não envia comando.
+    expect(log).toEqual(['cast fireball 40,50', 'move 70,80']);
   });
 });

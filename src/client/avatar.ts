@@ -1,11 +1,10 @@
 // Criação de personagem (pedido do Fernando, 19/10): 7 peças misturando os bonecos KayKit, com prévia 3D girando. Salva neste navegador
 // e avisa a sala pelo evento 'warlock:look' (main.ts manda ao servidor, que vale até no meio da partida).
 import * as THREE from 'three';
-import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { CHARACTERS, LOOK_PARTS, PRESETS, fixLook, isCharacter, isLook, isRetired, lookHead, lookOf, randomLook, type Piece } from '../shared/characters.ts';
 import { t } from './i18n.ts';
 import { el, iconButton } from './icons.ts';
-import { loadFile, loadLook, lookModel } from './scene.ts';
+import { cloneAppearance, disposeAppearance, loadFile, loadLook, lookModel, type AppearanceInstance } from './scene.ts';
 import { store } from './store.ts';
 
 // ?as=nome (várias abas na mesma máquina) também separa a aparência, como o apelido e o personagem em main.ts
@@ -39,32 +38,45 @@ const W = 200, H = 240;
 let panel: HTMLElement | null = null;
 let look = '';
 let sync = () => {};
-let running = false;
+let frameId: number | null = null;
+let visible = false;
 
 // um painel só (um contexto WebGL só): as Configurações redesenham as abas a cada mudança e chamam isto de novo
 export function avatarPanel(): HTMLElement {
-  if (!panel) panel = build();
-  sync();
-  if (!running) {
-    running = true;
-    requestAnimationFrame(frame);
+  if (!panel) {
+    panel = build();
+    // O observer acompanha abas ocultas, rolagem e remontagens sem medir o layout em cada quadro.
+    new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting && entry.intersectionRect.width > 0 && entry.intersectionRect.height > 0;
+      updateActivity();
+    }).observe(panel);
+    document.addEventListener('visibilitychange', updateActivity);
   }
+  sync();
+  updateActivity();
   return panel;
 }
 
 let renderer: THREE.WebGLRenderer;
 let stage: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
-let shown: { model: THREE.Object3D; mixer: THREE.AnimationMixer } | null = null;
+let shown: AppearanceInstance | null = null;
 let last = 0;
 let scale = 0;
 let orbitYaw = 0;
 let orbitPitch = 0.04;
 let orbitDistance = 4.6;
 let cameraTouched = false;
+function updateActivity() {
+  if (!visible || document.hidden || !panel?.isConnected) {
+    if (frameId !== null) cancelAnimationFrame(frameId);
+    frameId = null;
+    last = 0; // Retomar não avança a animação pelo tempo em que a prévia ficou escondida.
+  } else if (frameId === null) frameId = requestAnimationFrame(frame);
+}
 function frame(now: number) {
-  // parado enquanto o painel não está na tela; volta na próxima chamada de avatarPanel()
-  if (!panel?.isConnected) return void (running = false);
+  frameId = null;
+  if (!visible || document.hidden || !panel?.isConnected) return updateActivity();
   const dt = Math.min(0.1, (now - (last || now)) / 1000);
   last = now;
   if (shown) {
@@ -72,10 +84,10 @@ function frame(now: number) {
     if (!cameraTouched) shown.model.rotation.y += dt * 0.5;
   }
   renderer.render(stage, camera);
-  requestAnimationFrame(frame);
+  frameId = requestAnimationFrame(frame);
 }
 
-// boneco da prévia: clone da montagem de scene.ts (geometria e material divididos; nada a descartar)
+// Mesma montagem e mesmos materiais originais da partida; só os materiais clonados pertencem à prévia.
 function show(want: string) {
   void Promise.all([loadLook(want), loadFile('mage')]).then(([, mage]) => {
     const src = lookModel(want);
@@ -83,8 +95,8 @@ function show(want: string) {
     // mesma escala do jogo: o mago mede 1,9 m (scene.ts)
     if (mage && !scale) scale = 1.9 / new THREE.Box3().setFromObject(mage.scene).getSize(new THREE.Vector3()).y;
     const rot = shown?.model.rotation.y ?? 0.6;
-    if (shown) stage.remove(shown.model);
-    const model = cloneSkinned(src.scene);
+    if (shown) disposeAppearance(shown);
+    const model = cloneAppearance(src.scene);
     model.scale.setScalar(scale || 1);
     model.rotation.y = rot;
     stage.add(model);

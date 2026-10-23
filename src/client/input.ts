@@ -100,9 +100,6 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       if (armed) arm(null); // botão direito cancela a magia escolhida (e anda, como no Dota)
       h.move(p);
       dragging = e.button === 2;
-    } else if (e.button === 0 && armed === null) {
-      // clique esquerdo no chão sem magia escolhida também anda (ajuda quem joga com trackpad)
-      h.move(p);
     }
   });
   addEventListener('pointerup', (e) => {

@@ -7,8 +7,8 @@ Remake web do mod de arena **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): m
 ## O que tem
 
 - 27 magias do Warlock Brawl (números do código original do mod de Dota 2, ajustados pelo simulador): 12 de ataque, 5 de mobilidade, 5 de defesa e 5 de controle; até 8 por mago nas teclas 1 2 3 4 Q W E R, com a Bola de fogo e o Flagelo de graça
-- 13 itens passivos, loja em grade no estilo do Dota com venda e desfazer; a ordem das magias se troca arrastando na barra de baixo
-- Modos Rodadas, Deathmatch e Times; Ascensão como opção própria no menu Jogar (9 rodadas; todo intervalo 1 magia nova e 1 item, e cada nível de XP sobe 1 magia; sem ouro); arenas Círculo, Anel, Ilhas e Cruz, que encolhem até a morte súbita
+- 16 itens passivos (3 de crítico), loja em grade no estilo do Dota com venda e desfazer, 3 builds salvas no navegador (Usar compra a build sozinho) e selo ★ nos mais comprados; a ordem das magias se troca arrastando na barra de baixo
+- Modos Rodadas, Deathmatch, Times e Campanha (1 a 4 jogadores juntos contra os servos do Fumo, em construção); Ascensão como opção própria no menu Jogar (9 rodadas; todo intervalo 1 magia nova e 1 item, e cada nível de XP sobe 1 magia; sem ouro); arenas Círculo, Anel, Ilhas e Cruz, que encolhem até a morte súbita
 - Efeito de rodada, opção da sala (desligado por padrão; Sortear ou um fixo): Tempo chuvoso, Arena de espinhos, Febre do ouro, Vendaval, Fonte da vida e Campo aberto
 - Bots em 3 dificuldades (escolhida bot a bot), que jogam "como gente": mira com erro, tempo de reação, hesitação
 - Aba Jogar: sala online, partida contra bots (dificuldade escolhida bot a bot), treino, desafios, Sombra (bot que joga como você) Assistir (entrar numa sala sem mago, pela lista de salas ou pelo botão na sala, e voltar a jogar se houver vaga) e sandbox com vida e ouro sem fim (com vida infinita, a lava não tira do lugar), arena à escolha (começa redonda e nunca sorteia), pedra que cresce e diminui pelo painel e torreta de treino (Bola de fogo numa direção fixa)
@@ -35,9 +35,9 @@ npx vitest run     # testes
 ## Contribuir
 
 - Trabalhar com agentes de IA: [docs/SESSOES-COM-ORQUESTRADOR.md](docs/SESSOES-COM-ORQUESTRADOR.md) (uma sessão orquestradora e uma por tarefa)
-- Guia completo: [docs/GUIA-COLABORADOR.md](docs/GUIA-COLABORADOR.md) (máquina, Claude Code e skills, fluxo, testes, balanceamento, decisões já tomadas)
+- Guia de contribuição em inglês: [CONTRIBUTING.md](CONTRIBUTING.md) (máquina, agentes e skills, fluxo, testes, balanceamento e revisão)
 - Regras do código para gente e para agentes de IA (Claude Code, Codex, Cursor): [CLAUDE.md](CLAUDE.md), também lido via [AGENTS.md](AGENTS.md); cada pasta principal tem o seu `CLAUDE.md`
-- Fluxo de Git: [CONTRIBUTING.md](CONTRIBUTING.md). Fluxo: branch da tarefa no próprio repositório (não fork) a partir do `master` → PR para o `master` com o modelo, CI verde → jogo no ar, publicado sozinho. Todo PR recebe a revisão automática do Claude; comente `@claude` num PR ou issue para pedir ajuda
+- Fluxo de Git (detalhes no guia de contribuição): branch da tarefa no próprio repositório (não fork) a partir do `master` → PR para o `master` com o modelo, CI verde → jogo no ar, publicado sozinho. Todo PR recebe a revisão automática do Claude; comente `@claude` num PR ou issue para pedir ajuda
 - Ambiente de cada PR: todo PR (rascunho também) publica em `https://pr-<n>-warlock.fernandorffdev.com`, apagado quando o PR fecha (`CLAUDE.md`, seção "Ambiente por PR")
 - O jogo no ar é publicado sozinho quando o PR entra no `master`
 
