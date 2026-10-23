@@ -14,6 +14,12 @@ export function connect(path: string, onMsg: (m: any) => void, onOpen: () => voi
   let lastSeen = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
+  const detach = (socket: WebSocket) => {
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onclose = null;
+  };
+
   function open() {
     clearTimeout(timer);
     if (stopped || (ws && ws.readyState <= WebSocket.OPEN)) return;
@@ -22,18 +28,20 @@ export function connect(path: string, onMsg: (m: any) => void, onOpen: () => voi
     lastSeen = Date.now();
     // os handlers ignoram um socket que já foi trocado por outro
     self.onopen = () => {
-      if (ws !== self) return;
+      if (stopped || ws !== self) return;
       tries = 0;
       onStatus(true);
-      onOpen();
+      if (!stopped && ws === self) onOpen();
     };
     self.onmessage = (e) => {
-      if (ws !== self) return;
+      if (stopped || ws !== self) return;
       lastSeen = Date.now();
       if (e.data !== 'pong') onMsg(JSON.parse(e.data));
     };
     self.onclose = () => {
-      if (ws !== self) return;
+      if (stopped || ws !== self) return;
+      detach(self);
+      ws = null;
       onStatus(false);
       if (stopped) return;
       timer = setTimeout(open, BACKOFF[Math.min(tries++, BACKOFF.length - 1)]);
@@ -44,20 +52,22 @@ export function connect(path: string, onMsg: (m: any) => void, onOpen: () => voi
     if (stopped || !ws || ws.readyState !== WebSocket.OPEN || Date.now() - lastSeen < DEAD_MS) return;
     const dead = ws;
     ws = null;
+    detach(dead);
     dead.close();
     onStatus(false);
     open();
   }
 
-  setInterval(() => {
+  const heartbeat = setInterval(() => {
     replaceIfDead();
     if (ws?.readyState === WebSocket.OPEN) ws.send('ping');
   }, PING_MS);
-  document.addEventListener('visibilitychange', () => {
+  const onVisibility = () => {
     if (document.visibilityState !== 'visible') return;
     replaceIfDead();
     open();
-  });
+  };
+  document.addEventListener('visibilitychange', onVisibility);
   open();
 
   return {
@@ -65,9 +75,18 @@ export function connect(path: string, onMsg: (m: any) => void, onOpen: () => voi
       if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m));
     },
     stop() {
+      if (stopped) return;
       stopped = true;
       clearTimeout(timer);
-      ws?.close();
+      clearInterval(heartbeat);
+      document.removeEventListener('visibilitychange', onVisibility);
+      // Invalidar antes de fechar também bloqueia eventos já enfileirados pelo navegador.
+      const socket = ws;
+      ws = null;
+      if (socket) {
+        detach(socket);
+        socket.close();
+      }
     },
   };
 }
