@@ -13,3 +13,5 @@ Vale junto com o `CLAUDE.md` da raiz.
 - **`assets/kaykit-index.mjs`** refaz `assets/kaykit/INDICE.md` (nome de cada modelo por pack); rode sempre que um pack entrar, sair ou mudar.
 
 `node scripts/room-cleanup.mjs` (Node 24) testa a classe Room real com armazenamento/socket simulados: limpeza normal, retry do lobby e entrada/saída durante o RPC. Não substitui os testes de runtime.
+
+`node scripts/lobby-reconcile.mjs` (Node 24) tests bounded orphan-room reconciliation, occupancy repair, RPC failure retry, and concurrent lobby updates.

@@ -3,7 +3,7 @@ import { DT, SEND_EVERY } from '../shared/constants.ts';
 import { chooseCard, reroll, setAscLobby } from '../shared/ascension.ts';
 import { lookOf } from '../shared/characters.ts';
 import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
-import { cmdTarget, parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
+import { cmdTarget, parseClientMessage, publicId, publicRoom, type RoomInfo, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
 import { roundRecord } from '../shared/telemetry.ts';
@@ -229,6 +229,20 @@ export class Room extends DurableObject<Env> {
     if (!s) return;
     removePlayer(s.match, id);
     await this.changed(ws);
+  }
+
+  async inspect(): Promise<RoomInfo | null> {
+    const s = await this.load();
+    if (!s) return null;
+    if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS);
+    return {
+      id: s.id,
+      players: this.humans(),
+      phase: s.match.phase,
+      mode: s.match.mode,
+      round: s.match.round,
+      bots: s.match.players.filter((p) => p.bot && !p.servo).length,
+    };
   }
 
   async alarm() {
