@@ -1,7 +1,7 @@
 // Ficha do mago: os números de agora (vida, velocidade, empurrão, magias e itens) e de onde vem cada um.
 // Sem DOM: a loja e a partida desenham a partir daqui, e a prévia de compra ou venda compara duas fichas.
 import { HP_MAX, HP_REGEN, LAVA_DPS, WIZ_SPEED } from '../shared/constants.ts';
-import { ITEM_IDS, itemStats, noItems, type ItemId } from '../shared/items.ts';
+import { CRIT, ITEM_IDS, itemStats, noItems, type ItemId } from '../shared/items.ts';
 import { SPELLS, SPELL_IDS, spellLevel, type SpellBook, type SpellId } from '../shared/spells.ts';
 import { labelOf } from './keys.ts';
 import { n1, pct } from './rules-text.ts';

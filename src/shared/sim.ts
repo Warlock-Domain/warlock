@@ -4,7 +4,7 @@ import {
   ISLAND, NO_MODS, PIT, PROJ_SPAWN, RUNE, RUNE_KINDS, SUDDEN, SWORDS, WALL_GAP, WAX, WIZ_R, WIZ_SPEED, arenaRadius, type RoundEffectId, type RoundMods, type RuneKind,
 } from './constants.ts';
 import { CELL, SHAPES, cellAt, edge, inArena, inLavaAt, inward, isleSpot, onIsle, safeInside, type ArenaId, type Isle, type Terrain } from './arena.ts';
-import { AEGIS, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
+import { AEGIS, CRIT, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellBook, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
