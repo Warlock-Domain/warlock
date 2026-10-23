@@ -29,6 +29,7 @@ import { connect } from './net.ts';
 import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
+import { distanceVolume } from './sound-distance.ts';
 import { BRACING_BIT } from '../shared/constants.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
@@ -365,6 +366,8 @@ function startRoom(code: string, name: string) {
   const predict = createPredict();
 
   const myWizard = (s: SnapView | null) => s?.wizards.find((w) => w.id === me) ?? null;
+  const volumeAt = (source?: Vec) => distanceVolume(myWizard(interp.latest())?.pos, source);
+  const volumeOf = (id: string) => volumeAt(interp.latest()?.wizards.find((w) => w.id === id)?.pos);
 
   let attackCancelSeq = 0;
   function command(msg: { t: 'move'; x: number; y: number; held?: boolean } | { t: 'moveHold'; on: boolean } | { t: 'brace'; on: boolean } | { t: 'basic'; x: number; y: number; target?: string | number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
@@ -547,8 +550,7 @@ function startRoom(code: string, name: string) {
   let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
   let aliveAt: Record<string, number> = {}; // Ascensão: segundos que cada mago ficou vivo na rodada (XP ao vivo)
   function onEvents(events: SimEvent[]) {
-    const pos = myWizard(interp.latest())?.pos;
-    const near = (x: number, y: number) => (pos ? Math.max(0.25, 1 - dist(pos, { x, y }) / 20) : 0.6);
+    const near = (x: number, y: number) => volumeAt({ x, y });
     const who = names();
     let liveChanged = false;
     let shout = '';
@@ -574,8 +576,7 @@ function startRoom(code: string, name: string) {
       if (e.k === 'hit' && e.id === me && e.dmg >= 60) rumble(Math.min(1, e.dmg / 160), 200);
       else if (e.k === 'death' && e.id === me) rumble(1, 500);
       if (e.k === 'cast' && e.id !== me) {
-        const w = interp.latest()?.wizards.find((z) => z.id === e.id);
-        sound.play(SPELL_SOUND[e.spell], w ? near(w.pos.x, w.pos.y) : 0.5);
+        sound.play(SPELL_SOUND[e.spell], volumeOf(e.id));
       } else if (e.k === 'hit') sound.play(e.dmg >= 100 ? 'hitHeavy' : e.dmg < 50 ? 'hitLight' : 'hit', near(e.x, e.y));
       else if (e.k === 'pillar') sound.play('hit', near(e.x, e.y) * 0.6);
       else if (e.k === 'grip') sound.play('hit', near(e.x, e.y));
@@ -592,7 +593,7 @@ function startRoom(code: string, name: string) {
         banner([icon(SOURCE_ICON.lava), t(' Morte súbita! A arena encolhe a cada 5 s', ' Sudden death! The arena shrinks every 5 s')], 'bad');
       } else if (e.k === 'rune') toast([...RUNE_TEXT(e.kind), t(` apareceu na arena (${RUNE_EFFECT[e.kind]})`, ` appeared in the arena (${RUNE_EFFECT[e.kind]})`)], 'info');
       else if (e.k === 'runeTake') {
-        sound.play('shield', e.id === me ? 1 : 0.5);
+        sound.play('shield', volumeOf(e.id));
         // quem desligou os avisos de runa nas Configurações não vê o próprio; o de quem pegou outra runa continua
         if (e.id !== me || runeNoticesOn()) toast([e.id === me ? t('Você pegou ', 'You picked up ') : (who.get(e.id) ?? '?') + t(' pegou ', ' picked up '), ...RUNE_TEXT(e.kind), `: ${RUNE_EFFECT[e.kind]}`], e.id === me ? 'good' : 'info');
       } else if (e.k === 'streak') {
@@ -612,14 +613,14 @@ function startRoom(code: string, name: string) {
           say('combo_breaker');
         }
       } else if (e.k === 'aegis') {
-        sound.play('shield');
+        sound.play('shield', volumeOf(e.id));
         banner([icon(ITEM_ICON.aegis), e.id === me ? t(' A Égide te tirou da lava e quebrou', ' The Aegis pulled you out of the lava and broke') : t(` A Égide tirou ${who.get(e.id) ?? '?'} da lava`, ` The Aegis pulled ${who.get(e.id) ?? '?'} out of the lava`)], e.id === me ? 'good' : '');
       }
       else if (e.k === 'death') {
         // fora da pedra: mergulho na lava (chiado e bolhas) em vez da explosão
         const snap = interp.latest();
         const w = snap?.wizards.find((z) => z.id === e.id);
-        sound.play(w && snap && inLavaAt(arenaId, snap.arenaR, snap.isles, w.pos, 0.3) ? 'splash' : 'death', w ? near(w.pos.x, w.pos.y) : 1);
+        sound.play(w && snap && inLavaAt(arenaId, snap.arenaR, snap.isles, w.pos, 0.3) ? 'splash' : 'death', volumeOf(e.id));
         const dead = who.get(e.id) ?? '?';
         if (e.id === me) {
           clip = ring.slice();
@@ -700,7 +701,7 @@ function startRoom(code: string, name: string) {
       const taunt = TAUNTS[m.i];
       if (!taunt) return;
       const text = t(taunt.text, taunt.en);
-      void sound.taunt(taunt.id);
+      void sound.taunt(taunt.id, () => volumeOf(m.id));
       if (!scene.bubble(m.id, text, taunt.id)) {
         const p = room?.players.find((p) => p.id === m.id);
         toast(`${p ? playerName(p) : '?'}: ${text}`);

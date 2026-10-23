@@ -50,6 +50,13 @@ describe('normalização na reprodução', () => {
     expect(sources).toHaveLength(count + 1); // efeitos mudos não silenciam o canal de provocações.
     const voiceGain = sources.at(-1)!.next as { next: { gain: { value: number } } };
     expect(voiceGain.next.gain.value).toBeCloseTo(.3);
+    await sound.taunt('laugh', 0);
+    expect(sources).toHaveLength(count + 1);
+    let distanceGain = 1;
+    const pendingVoice = sound.taunt('meow', () => distanceGain);
+    distanceGain = 0; // jogador se afastou enquanto a gravação era carregada.
+    await pendingVoice;
+    expect(sources).toHaveLength(count + 1);
     sound.setVolume('master', 0);
     await sound.taunt('laugh');
     sound.play('click');

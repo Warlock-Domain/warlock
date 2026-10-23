@@ -219,13 +219,14 @@ export function createSound(musicDefault?: number) {
       syncAmbience();
     },
     // taunt: caminho do catálogo (public/sfx/taunt/<nome>.mp3 ou a gravação em public/taunts-local), carregado na primeira vez que alguém usa
-    async taunt(name: string) {
+    async taunt(name: string, level: number | (() => number) = 1) {
+      const levelNow = () => Math.max(0, Math.min(1, typeof level === 'function' ? level() : level));
       const src = tauntAudioSrc(name);
       if (!src) return;
-      if (!ctx || channelVolume(volumes(), 'taunts') === 0 || ctx.state !== 'running') return;
+      if (!ctx || channelVolume(volumes(), 'taunts') === 0 || levelNow() === 0 || ctx.state !== 'running') return;
       const key = 'taunt/' + name;
       if (!buffers.has(key)) await load(key, src);
-      if (channelVolume(volumes(), 'taunts') > 0) file(key, 1);
+      if (channelVolume(volumes(), 'taunts') > 0 && levelNow() > 0) file(key, levelNow());
     },
     play(kind: SoundKind, volume = 1) {
       if (!ctx || !noise || channelVolume(volumes(), 'sfx') === 0 || ctx.state !== 'running') return;
