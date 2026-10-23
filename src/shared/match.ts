@@ -279,7 +279,11 @@ export function removePlayer(m: Match, id: string) {
 // sandbox: a sala vira sandbox (começa até sozinho, os bots entram pelo painel)
 export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'rounds', teamShuffle = true, rand: () => number = Math.random, opts: Partial<MatchOpts> = {}, setup: BotSetup[] = [], sandbox = false): boolean {
   if (m.phase !== 'lobby' && m.phase !== 'end') return false;
-  const campaign = mode === 'campaign';
+  // o modo que vale sai antes de tudo: o Ascensão é um tipo de sala, não um modo a escolher (Fernando, 21/10: opção própria
+  // no menu Jogar, fora dos modos da sala principal): sala do Ascensão só joga Ascensão, venha o pedido que vier (um
+  // "start" com outro modo não monta a Campanha por cima do elenco do dono); sala normal e sandbox nunca viram Ascensão
+  const kind: Mode = m.mode === 'ascension' && !sandbox ? 'ascension' : mode === 'ascension' ? 'rounds' : mode;
+  const campaign = kind === 'campaign';
   // Campanha: de 1 a 4 humanos, sem bots aliados nem sandbox; as vagas do Fumo entram depois
   // quem assiste não conta (fica sem mago, como nos outros modos)
   if (campaign && (sandbox || playing(m).filter((p) => !p.bot && p.connected).length > CAMPAIGN.humans)) return false;
@@ -306,9 +310,6 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   if (campaign && m.players.length) for (let k = 1; k <= CAMPAIGN.slots; k++) if (addPlayer(m, 'fumo-' + k, '', true)) dress(m, m.players[m.players.length - 1], 'ash');
   // quem assiste não conta: dá para pôr só bots em campo e assistir a partida
   if (playing(m).length < (sandbox ? 1 : 2)) return false;
-  // o Ascensão é um tipo de sala, não um modo a escolher (Fernando, 21/10: opção própria no menu
-  // Jogar, fora dos modos da sala principal): sala do Ascensão só joga Ascensão; sala normal e sandbox nunca viram Ascensão
-  const kind = m.mode === 'ascension' && !sandbox ? 'ascension' : mode === 'ascension' ? 'rounds' : mode;
   fresh(m, now, kind, teamShuffle, rand);
   return true;
 }
