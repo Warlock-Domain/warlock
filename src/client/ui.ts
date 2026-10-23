@@ -1379,6 +1379,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let armedBuild: number | null = null; // posição com "Substituir?" à espera do segundo clique; fora do DOM para sobreviver ao redesenho da loja
   // ordem da barra do preset em uso: só vale quando as magias dele chegam (antes disso o myLoadout tira da barra o que ainda não tem)
   let presetOrder: { order: (SpellId | null)[]; round: number } | null = null;
+  // Usar em andamento: os botões Usar ficam desligados até a sala mostrar a build comprada (fila refeita vazia), mesmo com redesenhos
+  // no meio (compra de outro jogador, primeira compra da fila); o prazo só destrava quando nada chega (servidor recusou ou caiu)
+  let buying: { slot: number; round: number; timer: ReturnType<typeof setTimeout> } | null = null;
   let readyBtn: HTMLElement | null = null;
   // cartão de primeira vez na loja da rodada 0: some ao fechar ou ao apertar Pronto, e fica guardado no navegador
   const FIRST = 'warlock:firstshop';
@@ -1428,6 +1431,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // presets de build (#185): 3 posições guardadas neste navegador; Usar compra sozinho, em ordem, até acabar o ouro (Fernando, 21/10)
     const buildsBox = () => {
       const saved = readPresets(store.get(PRESETS_KEY));
+      if (buying && (buying.round !== r.round || !saved[buying.slot] || !presetQueue(saved[buying.slot]!, mine.spells, mine.items, mine.gold).length)) {
+        clearTimeout(buying.timer);
+        buying = null;
+      }
       // magias pela ordem da barra e depois itens: o mesmo conteúdo vira os ícones da linha e os nomes da dica
       const parts = (p: Preset) => [...p.order.filter((s): s is SpellId => !!s).map((s) => [icon(ICON[s]), spellName(s)] as const), ...ITEM_IDS.filter((x) => p.items[x]).map((x) => [icon(ITEM_ICON[x]), itemName(x)] as const)];
       const saves: HTMLElement[] = []; // botões Salvar das 3 posições: armar ou salvar uma volta as outras para "Salvar"
@@ -1437,14 +1444,22 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         const icons = withTip(el('span', { class: 'build-icons' }), () => (saved[i] ? parts(saved[i]!).map(([, name]) => name).join(' · ') : t('Posição vazia: Salvar guarda o que você tem agora', 'Empty slot: Save stores what you have now')));
         const show = (p: Preset | null) => icons.replaceChildren(...(p ? parts(p).map(([ico]) => ico) : [t('Vazia', 'Empty')]));
         show(saved[i]);
-        const use = el('button', { type: 'button', disabled: !saved[i], 'aria-label': t(`Usar a build ${i + 1}`, `Use build ${i + 1}`), onclick: () => {
+        const use = el('button', { type: 'button', disabled: !saved[i] || !!buying, 'aria-label': t(`Usar a build ${i + 1}`, `Use build ${i + 1}`), onclick: () => {
           const p = saved[i]!;
           const queue = presetQueue(p, mine.spells, mine.items, mine.gold);
           // a fila sai do ouro de agora: um segundo clique antes das compras chegarem compraria tudo de novo, acima da build
-          // (fila vazia não desliga: nenhuma compra chega para redesenhar a loja e o botão ficaria preso)
-          if (queue.length) use.disabled = true;
-          // se o servidor recusar todas (ouro mudou, loja fechou), nada chega para redesenhar: o botão volta sozinho
-          setTimeout(() => (use.disabled = false), 2000);
+          // (fila vazia não trava: nenhuma compra chega para destravar)
+          if (queue.length) {
+            const timer = setTimeout(() => {
+              if (buying?.timer !== timer) return;
+              buying = null;
+              drawCenter();
+              drawPeek();
+            }, 5000);
+            buying = { slot: i, round: r.round, timer };
+            drawCenter(); // desliga os 3 Usar na hora
+            drawPeek();
+          }
           for (const b of queue) if (b.kind === 'spell') act.buy(b.id); else act.buyItem(b.id);
           presetOrder = { order: p.order, round: r.round };
         } }, t('Usar', 'Use'));
@@ -1459,7 +1474,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           saved[i] = { spells: Object.fromEntries(SPELL_IDS.filter((x) => mine.spells[x]).map((x) => [x, mine.spells[x]])), items: Object.fromEntries(ITEM_IDS.filter((x) => mine.items[x]).map((x) => [x, mine.items[x]])), order: myLoadout(mine.spells).spells };
           store.set(PRESETS_KEY, JSON.stringify(saved));
           show(saved[i]);
-          use.disabled = false;
+          use.disabled = !!buying;
           armedBuild = null;
           disarm();
         } }, armedBuild === i ? t('Substituir?', 'Replace?') : t('Salvar', 'Save'));

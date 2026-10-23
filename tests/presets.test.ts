@@ -21,6 +21,17 @@ describe('presets de build', () => {
     expect(presetQueue(preset, { ...noSpells(), fireball: 3, lightning: 1 }, { ...noItems(), boots: 2 }, 999)).toEqual([]);
   });
 
+  it('Usar trava até a sala mostrar a build: a fila refeita só fica vazia depois que todas as compras chegam', () => {
+    const spells = { ...noSpells(), fireball: 1 }, items = noItems();
+    const gold = priceOf('lightning', 0)! + priceOf('fireball', 1)!; // dá só para as 2 magias, nada sobra para as botas
+    const q = presetQueue(preset, spells, items, gold);
+    expect(q).toEqual([{ kind: 'spell', id: 'lightning' }, { kind: 'spell', id: 'fireball' }]);
+    // só a primeira compra chegou (redesenho no meio): a fila refeita ainda tem a segunda, o botão segue travado
+    expect(presetQueue(preset, { ...spells, lightning: 1 }, items, gold - priceOf('lightning', 0)!)).toEqual([{ kind: 'spell', id: 'fireball' }]);
+    // as duas chegaram: o ouro que sobrou não paga as botas, a fila refeita fica vazia e o botão volta
+    expect(presetQueue(preset, { ...spells, lightning: 1, fireball: 2 }, items, 0)).toEqual([]);
+  });
+
   it('lê o salvo velho ou estragado sem quebrar: posição inválida vira vazia', () => {
     expect(readPresets('lixo')).toEqual([null, null, null]);
     const saved = JSON.stringify([preset, { spells: { nada: 3 }, items: 7, order: 'x' }]);
