@@ -21,9 +21,9 @@ import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
 import { botSetupPanel, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
-import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
+import { toSkill, savedProfile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
-import { botLevel, endResult, moveLoadout, myLoadout, nightLine, playerName, presetQueue, PRESETS_KEY, readPresets, roomGroups, saveLoadout, topUsed, USED_KEY, type Preset } from './screen-data.ts';
+import { botLevel, endResult, moveLoadout, myLoadout, nightLine, playerName, presetQueue, PRESETS_KEY, readPresets, readShopSize, readUsed, roomGroups, saveLoadout, topUsed, USED_KEY, type Preset } from './screen-data.ts';
 import { LOCALE, arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 import { radialPicker } from './radial-picker.ts';
 import { radialHold, tauntWheelSlots } from './taunt-wheel.ts';
@@ -79,7 +79,7 @@ const roomPhase = (r: RoomInfo) => r.phase === 'lobby' ? t('esperando começar',
 
 // Opções de partida à direita, com o conteúdo da escolha ao lado.
 function playMenu(roomList: HTMLElement, onCreate: () => void, onCreateAsc: () => void, onTrain: (kind: string) => void): HTMLElement {
-  const skill = toSkill(store.json<Profile>(PROFILE_KEY));
+  const skill = toSkill(savedProfile());
   const labels = [t('Jogar online', 'Play online'), t('Ascensão', 'Ascension'), t('Jogar contra bots', 'Play against bots'), 'Sandbox', t('Desafios', 'Challenges')];
   const sections = [
     el('section', { class: 'play-content' }, el('h2', {}, labels[0]),
@@ -1494,7 +1494,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       presetOrder = null;
     }
     // os 3 mais comprados de magias e de itens (só partidas de verdade contam, main.ts) ganham um selo
-    const used = store.json<Record<string, number>>(USED_KEY) ?? {};
+    const used = readUsed(store.json(USED_KEY));
     const favs = new Set([...topUsed(used, 'spell').map((s) => 'spell-' + s), ...topUsed(used, 'item').map((i) => 'item-' + i)]);
     // presets de build (#185): 3 posições guardadas neste navegador; Usar compra sozinho, em ordem, até acabar o ouro (Fernando, 21/10)
     const buildsBox = () => {
@@ -1743,7 +1743,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     center.classList.toggle('asc-open', r.phase === 'shop' && r.mode === 'ascension');
     if (shopOpen !== center.classList.contains('shop-open')) {
       center.classList.toggle('shop-open', shopOpen);
-      const size = shopOpen ? store.json<[string, string]>(SHOP_SIZE) : null;
+      const size = shopOpen ? readShopSize(store.json(SHOP_SIZE)) : null;
       center.style.width = size?.[0] ?? '';
       center.style.height = size?.[1] ?? '';
     }

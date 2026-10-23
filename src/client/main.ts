@@ -15,7 +15,7 @@ import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
 import { LOOK_EVENT, saveLook, savedLook } from './avatar.ts';
 import { coachTip } from './coach.ts';
-import { PROFILE_KEY, addRound, toSkill, type Profile } from './mimic.ts';
+import { PROFILE_KEY, addRound, toSkill, savedProfile } from './mimic.ts';
 import { n1 } from './rules-text.ts';
 import { aimOf, hitR, reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
@@ -34,7 +34,7 @@ import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
-import { STAGE_NAME, USED_KEY, botLevel, boughtKeys, countBuys, endResult, maxHp, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
+import { STAGE_NAME, USED_KEY, botLevel, boughtKeys, countBuys, readUsed, endResult, maxHp, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, setIlse, type IlseCtx } from './ilse.ts';
 
@@ -464,7 +464,7 @@ function startRoom(code: string, name: string) {
     if (IR_CONFIG) openSettings(IR_CONFIG); // ?ir=sandbox,config:som (só localhost)
     if (r.phase !== 'lobby' || r.players.some((p) => !p.bot && p.id !== me)) return;
     const c = CHALLENGES.find((x) => x.id === k);
-    const skill = toSkill(store.json<Profile>(PROFILE_KEY));
+    const skill = toSkill(savedProfile());
     if (c) startChallenge(c);
     else if (k === 'shadow' && skill) startShadow(skill);
     else if (k === 'sandbox') startSandbox();
@@ -575,6 +575,8 @@ function startRoom(code: string, name: string) {
       } else if (e.k === 'hit') sound.play(e.dmg >= 100 ? 'hitHeavy' : e.dmg < 50 ? 'hitLight' : 'hit', near(e.x, e.y));
       else if (e.k === 'pillar') sound.play('hit', near(e.x, e.y) * 0.6);
       else if (e.k === 'grip') sound.play('hit', near(e.x, e.y));
+      // Mesmo som de impacto/explosão para colisão entre magias e destruição por Raio, inclusive quando não houve dano.
+      else if (e.k === 'clash') sound.play('hitHeavy', near(e.x, e.y));
       else if (e.k === 'reflect') sound.play('reflect', near(e.x, e.y));
       else if (e.k === 'teleport' && e.id === me) predict.teleported(e.to);
       else if (e.k === 'scourge') sound.play('death', near(e.x, e.y));
@@ -712,7 +714,7 @@ function startRoom(code: string, name: string) {
       const mineBefore = prev?.players.find((p) => p.id === me), mineNow = room.players.find((p) => p.id === me);
       if (!fresh && mineBefore && mineNow && !room.sandbox && !shadow && !run && !pending && !mineNow.asc) {
         const keys = boughtKeys(mineBefore, mineNow);
-        if (keys.length) store.set(USED_KEY, JSON.stringify(countBuys(store.json<Record<string, number>>(USED_KEY) ?? {}, keys)));
+        if (keys.length) store.set(USED_KEY, JSON.stringify(countBuys(readUsed(store.json(USED_KEY)), keys)));
       }
       // compra na loja: o ouro caiu → som de moedas
       if (prev?.phase === 'shop' && room.phase === 'shop') {
@@ -771,7 +773,7 @@ function startRoom(code: string, name: string) {
     if (run && prev?.phase === 'playing') finishRun(endRun(run, room.lastRoundWinner === me));
     // a sombra aprende com as rodadas jogadas fora dos desafios (alive > 0: fora o deathmatch, que não conta o tempo vivo)
     const mine = room.players.find((p) => p.id === me)?.stats.round;
-    if (room.phase === 'roundEnd' && prev?.phase === 'playing' && !run && !pending && !room.sandbox && mine && mine.alive > 0) store.set(PROFILE_KEY, JSON.stringify(addRound(store.json<Profile>(PROFILE_KEY), mine, rttSeen ? predict.rtt() : 0)));
+    if (room.phase === 'roundEnd' && prev?.phase === 'playing' && !run && !pending && !room.sandbox && mine && mine.alive > 0) store.set(PROFILE_KEY, JSON.stringify(addRound(savedProfile(), mine, rttSeen ? predict.rtt() : 0)));
     // cortina ao entrar na partida ou voltar para a sala (sala e fim são telas de menu; o resto é a arena)
     const menu = (p: string) => p === 'lobby' || p === 'end';
     if (prev && menu(prev.phase) !== menu(room.phase)) curtain();
