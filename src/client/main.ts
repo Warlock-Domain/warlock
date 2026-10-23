@@ -699,6 +699,10 @@ function startRoom(code: string, name: string) {
       if (!scene.bubble(m.id, text, taunt.id)) toast(`${room?.players.find((p) => p.id === m.id)?.name ?? '?'}: ${text}`);
       return;
     }
+    const ownIndex = room?.ids.indexOf(me) ?? -1;
+    const braceNow = ownIndex >= 0 && !!(m.w[ownIndex * 7 + 6] & BRACING_BIT);
+    const braceBefore = ownIndex >= 0 && !!((lastSnap?.w[ownIndex * 7 + 6] ?? 0) & BRACING_BIT);
+    if (braceNow && !braceBefore) sound.play('brace'); // ativa junto dos efeitos autoritativos, nunca durante o preparo.
     lastSnap = m;
     predict.setSpeed(m.sp);
     const acked = sentAt.get(m.ack);

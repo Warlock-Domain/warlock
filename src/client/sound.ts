@@ -1,12 +1,13 @@
-// Sons: arquivos gravados (CC0 em public/sfx; as provocações do Leonard em public/taunts-local têm só a autorização dele; créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
+// Sons: arquivos gravados com licenças e créditos individuais em public/CREDITS.txt e, enquanto não carregam ou se faltarem,
 // sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
 import { tauntAudioSrc } from '../shared/taunts.ts';
 import { store } from './store.ts';
 
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
-  | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover';
+  | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover' | 'brace';
 
 const FILES: Partial<Record<SoundKind, string[]>> = {
+  brace: ['brace_whoosh_trial'],
   fireball: ['fireball'], lightning: ['lightning'], homing: ['homing'], shield: ['shield'], teleport: ['teleport'],
   hit: ['hit', 'explode'], hitLight: ['hit'], hitHeavy: ['hit', 'explode'], reflect: ['shield'], death: ['explode'], click: ['click'], go: ['confirm'],
 };
@@ -104,7 +105,7 @@ export function createSound(musicDefault?: number) {
     if (!buf) return false;
     const src = ctx!.createBufferSource();
     src.buffer = buf;
-    src.playbackRate.value = rate * (0.94 + Math.random() * 0.12); // variação leve para não cansar
+    src.playbackRate.value = name === 'brace_whoosh_trial' ? 1 : rate * (0.94 + Math.random() * 0.12); // mantém o timbre da gravação escolhida.
     const g = ctx!.createGain();
     g.gain.value = volume;
     src.connect(g).connect(master!);
@@ -176,6 +177,7 @@ export function createSound(musicDefault?: number) {
       if (kind === 'hitHeavy') tone('sine', 110, 36, 0.4, 0.5 * v);
       if (played) return;
       switch (kind) {
+        case 'brace': break; // não usa as sínteses anteriores recusadas se a gravação ainda não carregou.
         case 'fireball': hiss('lowpass', 2400, 300, 0.45, 0.5 * v); tone('sawtooth', 160, 60, 0.3, 0.08 * v); break;
         case 'lightning': hiss('highpass', 3000, 800, 0.25, 0.7 * v); tone('square', 900, 120, 0.18, 0.08 * v); break;
         case 'homing': tone('sine', 300, 900, 0.4, 0.15 * v); hiss('bandpass', 1500, 2500, 0.4, 0.15 * v); break;
