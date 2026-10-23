@@ -1613,7 +1613,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     } else if (e.what === 'phase2') shockwave(at, 5, '#ffb347');
   }
 
-  function onEvents(events: SimEvent[]) {
+  function onEvents(events: SimEvent[], hiddenDamageTargets: readonly string[] = []) {
     for (const e of events) {
       if (e.k === 'boss') bossFx(e);
       else if (e.k === 'cast') {

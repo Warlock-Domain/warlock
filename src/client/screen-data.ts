@@ -86,8 +86,9 @@ export function endResult(r: Pick<PublicRoom, 'players' | 'winner' | 'winnerTeam
 // dos bots); quem só assiste não tem mago, então não vira bot
 type Seat = Pick<PublicPlayer, 'id' | 'name' | 'bot' | 'connected' | 'difficulty' | 'watch'>;
 // O nome guardado continua sendo o da pessoa. O marcador só explica na tela que,
-// enquanto ela caiu, o servidor está jogando no lugar dela com o bot.
-export function playerName(p: Pick<Seat, 'name' | 'bot' | 'connected' | 'watch'>): string {
+// enquanto ela caiu, o servidor está jogando no lugar dela com o bot. Servo da Campanha mostra o nome do tipo (SERVO_NAME).
+export function playerName(p: Pick<PublicPlayer, 'name' | 'bot' | 'connected' | 'watch' | 'servo'>): string {
+  if (p.servo) return SERVO_NAME[p.servo];
   return !p.bot && !p.connected && !p.watch ? `${p.name} (BOT)` : p.name;
 }
 export function botLevel(p: Seat, r: Pick<PublicRoom, 'opts'>): MatchOpts['difficulty'] | null {
@@ -113,7 +114,6 @@ export function roomGroups(rooms: RoomInfo[]) {
 // Campanha: nome dos servos (o servidor manda em português), nome do estágio e a linha de onde a noite está
 const SERVO_NAME: Record<ServoKind, string> = { ash: t('Cinzento', 'Ashen'), archer: t('Arqueiro de Fuligem', 'Soot Archer'), watcher: t('Vigia Oco', 'Hollow Watcher'), hound: t('Cão de Brasa', 'Ember Hound'), odran: t('Sir Odran, o Elmo Vazio', 'Sir Odran, the Empty Helm') };
 export const STAGE_NAME = [t('Charneca Cinzenta', 'Ashen Moor')];
-export const playerName = (p: Pick<PublicPlayer, 'name' | 'servo'>) => (p.servo ? SERVO_NAME[p.servo] : p.name);
 // vida máxima: a do servo, ou a de sempre com os itens
 export const maxHp = (p: Pick<PublicPlayer, 'hpMax' | 'items'> | undefined) => p?.hpMax ?? HP_MAX + (p ? itemStats(p.items).hp : 0);
 export function nightLine(n: NonNullable<PublicRoom['night']>, playing: boolean): string {

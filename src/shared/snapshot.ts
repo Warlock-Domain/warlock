@@ -43,7 +43,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
       | (w.t < z.alterUntil ? 32768 : 0) | (linked.has(z.id) ? 65536 : 0) | (z.aegis ? 131072 : 0)
       | (w.t < z.runeUntil && z.rune ? RUNE_BIT[z.rune] : 0)
       | (z.alive && w.zones.some((q) => q.kind === 'pull' && dist(q.pos, z.pos) < q.r + WIZ_R && zoneReaches(w, q, z)) ? 2097152 : 0)
-      | (w.t < z.veilUntil ? (z.id === forId ? 1024 : seeAll ? 8388608 : 2048) : 0);
+      | (w.t < z.veilUntil ? (z.id === forId ? 1024 : seeAll ? 8388608 : 2048) : 0)
+      | (z.alive && w.t < z.dashUntil ? DASHING_BIT : 0);
     // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão
     const dash = w.t < z.dashUntil ? z.dashVel : { x: 0, y: 0 };
     wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x + dash.x), r2(z.vel.y + dash.y), Math.ceil(z.hp), r2(z.facing), bits);

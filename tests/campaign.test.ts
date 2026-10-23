@@ -382,9 +382,9 @@ describe('Campanha: partida no mapa', () => {
 
 describe('Campanha: tela', () => {
   it('servants are named in the player language, people keep their nickname', () => {
-    expect(playerName({ name: 'Cinzento', servo: 'ash' })).toBe('Cinzento');
-    expect(playerName({ name: 'Arqueiro de Fuligem', servo: 'archer' })).toBe('Arqueiro de Fuligem');
-    expect(playerName({ name: 'Lucas' })).toBe('Lucas');
+    expect(playerName({ name: 'Cinzento', servo: 'ash', bot: true, connected: true })).toBe('Cinzento');
+    expect(playerName({ name: 'Arqueiro de Fuligem', servo: 'archer', bot: true, connected: true })).toBe('Arqueiro de Fuligem');
+    expect(playerName({ name: 'Lucas', bot: false, connected: true })).toBe('Lucas');
   });
 
   it('health bar uses the servant max health', () => {

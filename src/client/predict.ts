@@ -3,7 +3,7 @@ import type { Terrain } from '../shared/arena.ts';
 import { WIZ_SPEED } from '../shared/constants.ts';
 import { terrainOf, type NightMap } from '../shared/levels.ts';
 import { isSliding, keepOut, moveWizard, type Room, type Wizard } from '../shared/sim.ts';
-import type { WizView } from '../shared/snapshot.ts';
+import { DASHING_BIT, type WizView } from '../shared/snapshot.ts';
 import { add, dist, scale, sub, v, type Vec } from '../shared/vec.ts';
 
 export function createPredict() {

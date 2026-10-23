@@ -579,7 +579,7 @@ function goldInfo(p: PublicPlayer, opts: MatchOpts, open: boolean, onToggle: (op
 
 // botão de expulsar: só para bots e para quem caiu e não voltou
 const kickBtn = (p: PublicPlayer, kick?: (id: string) => void) =>
-  kick && !p.servo && (p.bot || !p.connected) ? iconButton('✕', t(`Expulsar ${p.name}`, `Kick ${p.name}`), () => kick(p.id), { class: 'kick' }) : null;
+  kick && !p.servo && (p.bot || !p.connected) ? iconButton('✕', t(`Expulsar ${playerName(p)}`, `Kick ${playerName(p)}`), () => kick(p.id), { class: 'kick' }) : null;
 
 // fim da partida: com times fixos vence o time; sorteados a cada rodada, todos que chegaram à meta juntos
 function winTitle(r: PublicRoom): Child[] {
@@ -1581,7 +1581,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       group(t('Jogadores', 'Players'),
         !r.night && r.players.length + Math.max(0, r.botDelta) < MAX_PLAYERS ? btn(t('Pôr um bot', 'Add a bot'), 'addBot') : '',
         !r.night && bots > 0 ? btn(t('Tirar um bot', 'Remove a bot'), 'removeBot') : '',
-        ...r.players.filter((p) => !p.bot && p.id !== me).map((p) => btn(t(`Expulsar ${p.name}`, `Kick ${p.name}`), 'kick', p.id))),
+        ...r.players.filter((p) => !p.bot && p.id !== me).map((p) => btn(t(`Expulsar ${playerName(p)}`, `Kick ${playerName(p)}`), 'kick', p.id))),
       el('small', { class: 'muted' }, r.night ? t('Passa com mais da metade dos jogadores.', 'Passes with more than half of the players.') : t('Passa com mais da metade dos jogadores. Modo, regras e bots valem na próxima rodada; o modo novo zera os pontos, o ouro fica.', 'Passes with more than half of the players. Mode, rules and bots apply next round; a new mode resets the points, gold stays.')));
     // fim da votação: aprovada se o que ela muda mudou
     const was = prev?.vote;

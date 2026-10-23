@@ -40,7 +40,7 @@ const newEconomy = (goldStart: number): Economy => ({ goldStart, goldEarned: 0, 
 export const economyOf = (p: Player): Economy => p.economy ??= newEconomy(p.gold);
 // toda renda passa por aqui e é multiplicada pela economia da sala (scaled = false: o valor já vem na escala dela); devolve o ganho
 // a parte quebrada fica guardada no jogador (Fernando, 20/10, issue #88: no ×1,5 o monte paga 1, 2, 1, 2…); o 1e-9 segura o erro das contas com decimal
-function earn(m: Match, p: Player, gold: number, scaled = true): number {
+function earn(m: Match, p: Player, gold: number, scaled = true, recovery = false): number {
   if (m.asc || m.night) return 0; // Ascensão e Campanha: sem ouro (Ascensão pelas cartas; a Campanha não tem loja)
   let n = gold;
   if (scaled) {
@@ -215,7 +215,8 @@ export function addPlayer(m: Match, id: string, name: string, bot = false, watch
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
   // a Campanha não tem ouro (nem para quem entra no meio da noite)
-  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold: m.night ? 0 : startGold(m), spells: noSpells(), items: noItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
+  const gold = m.night ? 0 : startGold(m);
+  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold, economy: newEconomy(gold), spells: noSpells(), items: noItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
   enter(m, m.players[m.players.length - 1]);
   ascOwner(m);
   return true;
@@ -731,9 +732,9 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
 }
 
 // ganho de ouro com o "+N" subindo em cima do mago: prêmios do fim da rodada (o mundo ainda existe até a loja), abate, assistência e monte de ouro
-function bonus(m: Match, p: Player, gold: number, scaled = true) {
+function bonus(m: Match, p: Player, gold: number, scaled = true, recovery = false) {
   if (gold <= 0 || m.night) return; // a Campanha não tem ouro
-  const n = earn(m, p, gold, scaled);
+  const n = earn(m, p, gold, scaled, recovery);
   const z = m.world?.wizards.find((q) => q.id === p.id);
   if (z && n > 0) m.world!.events.push({ k: 'gold', id: p.id, n, x: z.pos.x, y: z.pos.y });
 }

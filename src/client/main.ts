@@ -24,7 +24,7 @@ import { t } from './i18n.ts';
 import { cardName } from './ascension-ui.ts';
 import { SKILL_NAME, effectName } from './opt-info.ts';
 import { getCastMode, isPadMode, labelOf, onFreeEsc, uiLabel } from './keys.ts';
-import { openSettings, savedPixel } from './settings.ts';
+import { openSettings, runeNoticesOn, savedPixel } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
 import { DELAY, REPLAY_MAX, createInterp, keepLast } from './interp.ts';
 import { connect } from './net.ts';
@@ -34,7 +34,7 @@ import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
-import { STAGE_NAME, botLevel, endResult, maxHp, playerName, renderWizardState, sandboxVisibility, seatChanges } from './screen-data.ts';
+import { STAGE_NAME, botLevel, endResult, maxHp, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, setIlse, type IlseCtx } from './ilse.ts';
 
