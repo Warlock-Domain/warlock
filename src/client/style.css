@@ -181,13 +181,16 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .item-grid .passive small { position: absolute; right: 3px; bottom: 1px; font-size: .7rem; color: var(--ember); font-weight: 800; }
 .slot-empty { border-radius: var(--r-sm); background: rgba(0, 0, 0, .35); border: 1px dashed var(--line); }
 /* efeitos em mim acima da barra (mesmos ícones de cima do mago) */
-.barwrap .hud-status { gap: 10px; padding: 3px 12px; border-radius: 999px; background: var(--panel-glass); }
+/* sem a pílula escura atrás (o disco dentro dela parecia um alvo, pedido do Sky): só os discos soltos, com 16 px entre eles para os anéis não se tocarem */
+.barwrap .hud-status { gap: 16px; padding: 4px; }
 .hud-status:empty { display: none; }
-.barwrap .hud-status i { font-size: 1.3rem; position: relative; flex-direction: column; align-items: center; }
-/* duração do efeito: segundos embaixo do ícone e um filete que esvazia (--left vem de ui.ts) */
-.barwrap .hud-status i small { font-size: .5em; font-weight: 700; color: var(--fg); margin-top: 1px; }
-.barwrap .hud-status i small:empty { display: none; }
-.barwrap .hud-status i::after { content: ''; position: absolute; left: 0; bottom: -2px; height: 2px; width: calc(var(--left, 0) * 100%); border-radius: 1px; background: currentColor; opacity: .7; }
+.barwrap .hud-status i { font-size: 1.3rem; position: relative; isolation: isolate; filter: none; }
+/* ícone do buff num disco de cor, igual ao do aviso (1,3rem e .2em de borda): o aviso da runa vira este ícone (flyToast em ui.ts) */
+.barwrap .hud-status .gi { box-sizing: content-box; padding: .2em; border-radius: 50%; background: var(--toast-good); color: var(--ink); box-shadow: var(--shadow-sm); }
+.barwrap .hud-status i.bad .gi { background: var(--toast-bad); color: var(--white); }
+/* duração do efeito: anel claro de 3 px em volta do disco que esvazia no sentido horário (--left vem de ui.ts), sem o número (escolha do Sky entre número, anel e os dois);
+   sem prazo (Égide pronta) fica só o aro escuro, que separa o disco da arena */
+.barwrap .hud-status i::after { content: ''; position: absolute; inset: -3px; z-index: -1; border-radius: 50%; background: conic-gradient(var(--cream) calc(var(--left, 0) * 1turn), color-mix(in srgb, var(--ink) 85%, transparent) 0); }
 @media (min-width: 601px) and (min-height: 501px) {
   /* a vida some na contagem e morto: o lugar fica, para a barra não pular */
   .hero-box .vitals[hidden] { display: flex !important; visibility: hidden; }
@@ -653,11 +656,14 @@ button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infini
 #toast[data-kind="gold"] { border-left-color: var(--gold); }
 #toast[data-kind="gold"]::before { content: none; }
 /* ícone dentro do aviso num disco cheio de cor viva, como o i ✓ !: solto em cima do fundo claro ele sumia; símbolo preto nas cores claras e branco nas escuras */
-#toast .gi[data-rune], #toast[data-kind="gold"] > .gi { box-sizing: content-box; padding: .2em; border-radius: 50%; color: var(--ink); vertical-align: -.36em; }
-#toast .gi[data-rune="haste"] { background: var(--rune-haste); }
-#toast .gi[data-rune="fury"] { background: var(--rune-fury); color: var(--white); }
-#toast .gi[data-rune="shield"] { background: var(--rune-shield); }
-#toast .gi[data-rune="recharge"] { background: var(--rune-recharge); }
+:is(#toast .gi, .gi.toast-fly)[data-rune], #toast[data-kind="gold"] > .gi { box-sizing: content-box; padding: .2em; border-radius: 50%; color: var(--ink); vertical-align: -.36em; }
+/* a cor de cada runa, uma regra só para o aviso, o disco que voa e o ícone do buff acima da barra (data-rune no ícone: RUNE_TEXT em main.ts e a fileira de efeitos em ui.ts) */
+:is(#toast .gi, .gi.toast-fly, .barwrap .hud-status .gi)[data-rune="haste"] { background: var(--rune-haste); }
+:is(#toast .gi, .gi.toast-fly, .barwrap .hud-status .gi)[data-rune="fury"] { background: var(--rune-fury); color: var(--white); }
+:is(#toast .gi, .gi.toast-fly, .barwrap .hud-status .gi)[data-rune="shield"] { background: var(--rune-shield); }
+:is(#toast .gi, .gi.toast-fly, .barwrap .hud-status .gi)[data-rune="recharge"] { background: var(--rune-recharge); }
+/* disco da runa voando do aviso até o ícone do buff (ui.ts, flyToast), por cima do aviso */
+.gi.toast-fly { position: fixed; z-index: 21; margin: 0; pointer-events: none; }
 #toast[data-kind="gold"] > .gi { flex: none; font-size: 1rem; background: var(--gold); }
 /* toast(…, top): logo abaixo da barra do topo, entrando de cima (issue #223); id + classe ganha das
    posições de baixo das media queries de #toast, então vale em toda largura de tela */

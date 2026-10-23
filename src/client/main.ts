@@ -573,8 +573,13 @@ function startRoom(code: string, name: string) {
       } else if (e.k === 'rune') toast([...RUNE_TEXT(e.kind), t(` apareceu na arena (${RUNE_EFFECT[e.kind]})`, ` appeared in the arena (${RUNE_EFFECT[e.kind]})`)], 'info');
       else if (e.k === 'runeTake') {
         sound.play('shield', e.id === me ? 1 : 0.5);
+        const rune = RUNE_TEXT(e.kind);
+        // a sua runa vira o ícone do buff acima da barra (o mesmo desenho, na fileira de efeitos)
+        // RUNE_TEXT devolve o ícone na posição 0; se esse formato mudar, não há ícone para voar e o aviso some no tempo de sempre (o hide() do toast)
+        const ic = rune[0];
+        const fly = e.id === me && ic instanceof Element ? { from: ic, to: () => document.querySelector(`.barwrap .hud-status use[href$="#${RUNE_ICON[e.kind]}"]`)?.closest('i') ?? null } : undefined;
         // quem desligou os avisos de runa nas Configurações não vê o próprio; o de quem pegou outra runa continua
-        if (e.id !== me || runeNoticesOn()) toast([e.id === me ? t('Você pegou ', 'You picked up ') : (who.get(e.id) ?? '?') + t(' pegou ', ' picked up '), ...RUNE_TEXT(e.kind), `: ${RUNE_EFFECT[e.kind]}`], e.id === me ? 'good' : 'info');
+        if (e.id !== me || runeNoticesOn()) toast([e.id === me ? t('Você pegou ', 'You picked up ') : (who.get(e.id) ?? '?') + t(' pegou ', ' picked up '), ...rune, `: ${RUNE_EFFECT[e.kind]}`], e.id === me ? 'good' : 'info', false, fly);
       } else if (e.k === 'streak') {
         const name = e.id === me ? t('Você', 'You') : (who.get(e.id) ?? '?');
         // uma voz por lote de eventos: o Quebra-combo vem primeiro, depois o multi e por último a Matança
