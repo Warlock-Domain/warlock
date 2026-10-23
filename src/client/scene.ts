@@ -28,8 +28,6 @@ export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#
 export const TEAM_COLORS = ['#3b82f6', '#ef4444'];
 // dificuldade dos bots, curta (rótulo em cima do mago e placar do canto)
 export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), casual: 'Casual', normal: 'Normal', veteran: t('Veterano', 'Veteran'), hard: t('Difícil', 'Hard'), auto: 'Auto' };
-const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
-const MAGE_HUE = 255;
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
@@ -71,6 +69,17 @@ export function lookModel(look: string): Model | null {
   prefabs.set(look, m);
   return m;
 }
+// Prévia e partida usam a mesma cópia, sem recolorir roupas pela vaga do jogador; efeitos só alteram materiais próprios.
+export function cloneAppearance(source: THREE.Group): THREE.Group {
+  const model = cloneSkinned(source) as THREE.Group;
+  model.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
+  });
+  return model;
+}
+
 export function assemble(look: string, file: (id: CharacterId) => Model): Model {
   const base = file(lookBody(look));
   const root = base.scene.clone();
@@ -684,29 +693,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // cada jogador ganha um clone da aparência dele. O mago define a escala (os pacotes KayKit usam a mesma medida) e as peças
   // do mago (chapéu, tronco, capa) são tingidas na cor do jogador
   let mageScale = 1;
-  const tinted = new Map<number, THREE.Texture>();
   const ready = loadFile('mage').then((g) => {
     if (!g) return;
     const box = new THREE.Box3().setFromObject(g.scene);
     mageScale = 1.9 / (box.max.y - box.min.y);
   });
-
-  function tintFor(color: number, base: THREE.Texture): THREE.Texture {
-    const hit = tinted.get(color);
-    if (hit) return hit;
-    const img = base.image as CanvasImageSource & { width: number; height: number };
-    const c = document.createElement('canvas');
-    c.width = img.width;
-    c.height = img.height;
-    const g = c.getContext('2d')!;
-    g.filter = `hue-rotate(${HUES[color] - MAGE_HUE}deg) saturate(1.25)`;
-    g.drawImage(img, 0, 0);
-    const tex = new THREE.CanvasTexture(c);
-    tex.flipY = base.flipY;
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tinted.set(color, tex);
-    return tex;
-  }
 
   const mages = new Map<string, Mage>();
   const decor = createDecor(scene, ready.then(() => mageScale), FX.flame);
@@ -827,7 +818,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   function makeMage(d: WizDraw, look: string): Mage | null {
     const src = lookModel(look);
     if (!src) return null;
-    const model = cloneSkinned(src.scene) as THREE.Group;
+    const model = cloneAppearance(src.scene);
     model.scale.setScalar(mageScale);
     const mats: Mage['mats'] = [];
     const ghostMats: Mage['ghostMats'] = [];
@@ -835,18 +826,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       mesh.castShadow = true;
-      // material próprio de cada boneco: o clarão do golpe não pode acender os outros magos do mesmo modelo
+      // cloneAppearance já isola os materiais; guarda só os valores necessários para restaurar efeitos temporários.
       if (Array.isArray(mesh.material)) {
-        mesh.material = mesh.material.map((source) => {
-          const mat = source.clone();
-          ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });
-          return mat;
-        });
+        for (const mat of mesh.material) ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });
         return;
       }
-      const mat = mesh.material.clone();
-      if (mat instanceof THREE.MeshStandardMaterial && /^Mage_(Hat|Body|Cape)$/.test(mesh.name) && mat.map) mat.map = tintFor(d.color, mat.map);
-      mesh.material = mat;
+      const mat = mesh.material;
       ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });
       if (mat instanceof THREE.MeshStandardMaterial) mats.push({ m: mat, c: mat.emissive.clone(), i: mat.emissiveIntensity, col: mat.color.clone(), rough: mat.roughness });
     });
@@ -1099,7 +1084,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     g.rotation.y = -Math.atan2(along.y, along.x); // o comprimento (x do modelo) no rumo dos pedaços
     return g;
   }
-  const pillarMeshes: { obj: THREE.Object3D; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number }[] = [];
+  const pillarMeshes: { obj: THREE.Object3D; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number; fallAt?: number }[] = [];
   // baú: caixa simples com tampa dourada e brilho (é um obstáculo: as magias quebram)
   const chestWood = new THREE.MeshStandardMaterial({ color: '#7a4a22', roughness: 0.7 });
   const chestGold = new THREE.MeshStandardMaterial({ color: '#ffcc33', emissive: '#a06a00', metalness: 0.6, roughness: 0.3 });
@@ -1423,6 +1408,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const changed = list.length !== pillarMeshes.length || list.some((p, i) => p.pos.x !== pillarMeshes[i].pos.x || p.pos.y !== pillarMeshes[i].pos.y);
     const radius = (p: PillarView) => OBSTACLES[p.kind].r;
     if (changed) {
+      // paredes que já estavam na tela: só a que acabou de surgir cai do céu (issue #206)
+      const before = new Set(pillarMeshes.map((m) => `${m.pos.x},${m.pos.y}`));
       for (const p of pillarMeshes) {
         scene.remove(p.obj);
         p.bar?.remove();
@@ -1454,7 +1441,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           labels.append(bar);
         }
         const height = new THREE.Box3().setFromObject(obj).max.y;
-        pillarMeshes.push({ obj, pos: p.pos, bar, fill, height });
+        const fallAt = wall && p.hp > 0 && !before.has(`${p.pos.x},${p.pos.y}`) ? performance.now() / 1000 : undefined;
+        pillarMeshes.push({ obj, pos: p.pos, bar, fill, height, fallAt });
         // a lista muda no meio da rodada (baú, Pilar de pedra): o que já tinha quebrado não afunda de novo
         if (p.hp <= 0) obj.position.y = -3;
       });
@@ -1466,6 +1454,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.obj.visible = m.obj.position.y > -2.9;
         if (m.bar) m.bar.hidden = true;
       } else {
+        // queda da parede nova: 4 m em 0,2 s, acelerando, e poeira ao bater (a colisão e o dano já valem desde o lançamento)
+        if (m.fallAt !== undefined) {
+          const k = Math.min(1, (performance.now() / 1000 - m.fallAt) / 0.2);
+          m.obj.position.y = 4 * (1 - k * k);
+          if (k >= 1) {
+            m.fallAt = undefined;
+            shockwave(p.pos, 1.6, '#c8b8a0');
+            // Math.random só no desenho da poeira (fora da simulação, como o resto da cena)
+            if (!lite) for (let j = 0; j < 4; j++) puff(v(p.pos.x + (Math.random() - 0.5) * 1.6, p.pos.y + (Math.random() - 0.5) * 1.6), 0.8, 1.2);
+          }
+        }
         // tremida curta quando apanha
         const shake = p.hp < 100 ? (100 - p.hp) / 100 : 0;
         if (m.fill) m.fill.style.width = `${p.hp}%`;
@@ -1597,6 +1596,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(v(e.x, e.y), '#d8c8b8', 1.4, 0.3, 1.2, FX.smoke);
       } else if (e.k === 'clash') {
         const at = v(e.x, e.y);
+        // Amplia só a destruição no ponto do projétil, nunca o feixe nem o raio das regras da magia.
+        if (e.combo === 'pulse') {
+          explosion(at);
+          shockwave(at, Math.max(e.r, 1.5), '#b98cff');
+        }
         groundMark(at, e.combo, e.r);
         if (e.combo !== 'pillar' && e.combo !== 'snow') {
           shake = Math.min(0.6, shake + e.r * 0.15);
