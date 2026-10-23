@@ -1683,7 +1683,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     kill(by: string | null, id: string, src: string) {
       const who = (pid: string) => {
         const p = room?.players.find((q) => q.id === pid);
-        return el('b', { style: `color:${COLORS[p?.color ?? 0]}` }, pid === me ? t('Você', 'You') : p ? playerName(p) : '?');
+        return el('b', { style: `color:${COLORS[p?.color ?? 0]}` }, pid === me ? t('Você', 'You') : (p ? playerName(p) : '?'));
       };
       const killer = by && by !== id ? by : null;
       const li = el('li', { class: killer === me || id === me ? 'me' : '' }, killer ? who(killer) : null,
