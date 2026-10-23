@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { CHARACTERS, LOOK_PARTS, PRESETS, fixLook, isCharacter, isLook, isRetired, lookHead, lookOf, randomLook, type Piece } from '../shared/characters.ts';
 import { t } from './i18n.ts';
 import { el, iconButton } from './icons.ts';
-import { cloneAppearance, loadFile, loadLook, lookModel } from './scene.ts';
+import { cloneAppearance, disposeAppearance, loadFile, loadLook, lookModel, type AppearanceInstance } from './scene.ts';
 import { store } from './store.ts';
 
 // ?as=nome (várias abas na mesma máquina) também separa a aparência, como o apelido e o personagem em main.ts
@@ -54,7 +54,7 @@ export function avatarPanel(): HTMLElement {
 let renderer: THREE.WebGLRenderer;
 let stage: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
-let shown: { model: THREE.Object3D; mixer: THREE.AnimationMixer } | null = null;
+let shown: AppearanceInstance | null = null;
 let last = 0;
 let scale = 0;
 let orbitYaw = 0;
@@ -82,13 +82,7 @@ function show(want: string) {
     // mesma escala do jogo: o mago mede 1,9 m (scene.ts)
     if (mage && !scale) scale = 1.9 / new THREE.Box3().setFromObject(mage.scene).getSize(new THREE.Vector3()).y;
     const rot = shown?.model.rotation.y ?? 0.6;
-    if (shown) {
-      stage.remove(shown.model);
-      shown.model.traverse((o) => {
-        const mesh = o as THREE.Mesh;
-        if (mesh.isMesh) for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) mat.dispose();
-      }); // geometrias e texturas continuam compartilhadas com os modelos originais.
-    }
+    if (shown) disposeAppearance(shown);
     const model = cloneAppearance(src.scene);
     model.scale.setScalar(scale || 1);
     model.rotation.y = rot;
