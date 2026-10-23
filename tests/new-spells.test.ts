@@ -80,7 +80,7 @@ describe('Agarrar', () => {
     expect(w.wizards[1].pos.y).toBeGreaterThan(0.5);
   });
 
-  it('the first damaging hit frees the gripped target and knocks it further (by grip level); cancels the target cast', () => {
+  it('the first damaging hit frees the gripped target and knocks it further (by grip level); keeps a non-mobility cast', () => {
     const a = world([[0, 0], [4, 0]], ['fireball']);
     const g = world([[0, 0], [4, 0]], ['fireball']);
     Object.assign(g.wizards[1], { gripUntil: 99, gripBonus: 0.3 });
@@ -104,7 +104,9 @@ describe('Agarrar', () => {
     stepWorld(c, [cast('p1', 'meteor', 0, 0)]);
     expect(c.wizards[1].casting).not.toBeNull();
     run(c, .08);
-    expect(c.wizards[1].casting).toBeNull();
+    // Agarrar só bloqueia Mobilidade: a conjuração de Controle segue (PR #272).
+    expect(c.wizards[1].gripUntil).toBeGreaterThan(c.t);
+    expect(c.wizards[1].casting?.spell === 'meteor' || c.projectiles.some((p) => p.kind === 'meteor' && p.owner === 'p1')).toBe(true);
   });
 });
 
@@ -204,7 +206,8 @@ describe('snapshot e telemetria', () => {
   it('encodes new statuses and projectile kinds', () => {
     const w = world([[0, 0], [4, 0]], ['rush', 'grip', 'meteor']);
     w.wizards[0].gripUntil = 9;
-    run(w, 0.1, [cast('p0', 'rush', 0, 0), cast('p1', 'meteor', 5, 0)]);
+    w.wizards[0].rushUntil = 9; // testa codificação, não lançamento de mobilidade enquanto preso.
+    run(w, 0.1, [cast('p1', 'meteor', 5, 0)]);
     run(w, 0.2);
     const snap = decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']);
     expect(snap.wizards[0].status & 128).toBe(128);

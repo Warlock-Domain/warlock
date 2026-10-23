@@ -31,7 +31,7 @@ const RULES_PT = {
   empurrao: [
     'Cada golpe empurra na direção dele. O número de empurrão das magias é a distância, em metros, que um mago sem resistência desliza.',
     'O dano recebido anteriormente não aumenta o empurrão. A força depende da magia e das resistências; impulsos simultâneos ainda podem se somar.',
-    'Deslizando rápido você não consegue andar: espere parar ou use uma magia de movimento.',
+    'Atordoado você não pode andar nem lançar magias. Agarrar impede andar e magias de movimento; outras magias continuam disponíveis.',
     `O abate vai para quem acertou você por último nos ${CREDIT_WINDOW} s antes da morte. Cair sozinho na lava não dá abate a ninguém.`,
     `Lava conta como dano de quem empurrou: metade da vida que a lava tira de quem você acertou nos últimos ${CREDIT_WINDOW} s entra no seu dano (placar, top dano e assistência).`,
     `Abates com até ${STREAK.window} s entre eles viram Abate duplo, Abate triplo e Massacre. Abates sem morrer (contam de uma rodada para outra): ${STREAK.spree[0]} é Matança, ${STREAK.spree[1]} Fúria assassina, ${STREAK.spree[2]} Imparável e ${STREAK.spree[3]} Lendária.`,
@@ -149,7 +149,7 @@ const RULES_EN: typeof RULES_PT = {
   empurrao: [
     "Each hit knocks back in the direction it travels. A spell's knockback number is the distance, in meters, that a wizard without resistance slides.",
     'Previously received damage does not increase knockback. Strength depends on the spell and resistances; simultaneous impulses can still add together.',
-    'While sliding fast you cannot walk: wait until you stop or use a movement spell.',
+    'While stunned you cannot walk or cast spells. Grip prevents walking and movement spells; other spells remain available.',
     `The kill goes to whoever hit you last in the ${CREDIT_WINDOW} s before the death. Falling into the lava on your own gives no kill to anyone.`,
     `Lava counts as damage from whoever knocked you in: half of the health the lava takes from someone you hit in the last ${CREDIT_WINDOW} s is added to your damage (scoreboard, top damage and assists).`,
     `Kills within ${STREAK.window} s of each other become a Double kill, Triple kill and Ultra kill. Kills without dying (carried over from one round to the next): ${STREAK.spree[0]} is a Killing spree, ${STREAK.spree[1]} a Rampage, ${STREAK.spree[2]} Unstoppable and ${STREAK.spree[3]} Godlike.`,

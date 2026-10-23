@@ -15,6 +15,8 @@ export const SPELL_GROUP_IDS = {
   control: ['grip', 'gravity', 'link', 'magnetize', 'drain'],
 } as const satisfies Record<string, readonly SpellId[]>;
 export type SpellGroup = keyof typeof SPELL_GROUP_IDS;
+// Servidor e entrada do cliente usam a mesma classificação de mobilidade para o agarramento.
+export const castBlocked = (stunned: boolean, rooted: boolean, spell: SpellId) => stunned || (rooted && spellGroup(spell) === 'mobility');
 export const spellGroup = (s: SpellId) => (Object.keys(SPELL_GROUP_IDS) as SpellGroup[]).find((g) => (SPELL_GROUP_IDS[g] as readonly SpellId[]).includes(s))!;
 
 // radius: raio da explosão do Meteoro (e do dano da Gravidade); dmgMin: dano na borda dele; absorb: dano que a Investida converte em velocidade;
