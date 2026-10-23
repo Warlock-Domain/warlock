@@ -45,5 +45,15 @@ describe('normalização na reprodução', () => {
     sound.setVolume('sfx', 0);
     sound.play('brace');
     expect(sources).toHaveLength(count);
+    sound.setVolume('taunts', .5);
+    await sound.taunt('laugh');
+    expect(sources).toHaveLength(count + 1); // efeitos mudos não silenciam o canal de provocações.
+    const voiceGain = sources.at(-1)!.next as { next: { gain: { value: number } } };
+    expect(voiceGain.next.gain.value).toBeCloseTo(.3);
+    sound.setVolume('master', 0);
+    await sound.taunt('laugh');
+    sound.play('click');
+    expect(sources).toHaveLength(count + 1);
+    expect(voiceGain.next.gain.value).toBe(0);
   });
 });

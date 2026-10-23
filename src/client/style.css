@@ -60,8 +60,9 @@ button.icon .gi { font-size: 1.3rem; vertical-align: middle; }
 .spell .ico { display: flex; color: var(--ember); }
 .vol { position: relative; }
 .vol-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 6; background: var(--plate); border: 1px solid var(--gold-line); border-radius: var(--r-md); padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 240px; box-shadow: var(--plate-edge), var(--shadow-md); max-height: calc(100vh - 64px - var(--safe-t) - var(--safe-b)); max-height: calc(100dvh - 64px - var(--safe-t) - var(--safe-b)); overflow-y: auto; }
-.vol-row { display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 8px; font-size: .9rem; }
-.vol-row input { width: 100%; accent-color: var(--lava); }
+.vol-row { display: grid; grid-template-columns: 1fr 40px; align-items: center; gap: 8px; font-size: .9rem; }
+.vol-row input { width: 100%; accent-color: var(--lava); grid-column: 1 / -1; grid-row: 2; }
+.vol-row .vol-value { grid-column: 2; grid-row: 1; text-align: right; }
 .vol-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
 button:focus-visible, .button:focus-visible, input:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
 small { font-size: max(.8em, 11px); color: var(--muted); }
@@ -885,7 +886,7 @@ button.train small { font-weight: 400; }
 .settings-body > * { flex-shrink: 0; }
 .settings-body > button { align-self: flex-start; }
 .settings-body .keys-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px 18px; }
-.settings-body .vol-row { grid-template-columns: 80px 1fr 48px; max-width: 460px; }
+.settings-body .vol-row { grid-template-columns: 1fr 48px; }
 .settings-body .slot-row { margin: 0; }
 /* "Teclas de cada magia" em Lançamento (Q W E R D F desligado): botão que abre a lista ali mesmo */
 .spell-keys > summary { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel2); cursor: pointer; }
