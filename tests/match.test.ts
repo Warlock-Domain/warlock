@@ -217,6 +217,27 @@ describe('partida', () => {
     expect(m.world!.wizards.some((z) => z.id === 'c')).toBe(true);
   });
 
+  it('late joiner gets the guaranteed gold from completed rounds', () => {
+    const m = twoPlayers();
+    let now = toPlaying(m, 0);
+    kill(m, 'b', null);
+    now = until(m, now, () => m.phase === 'shop');
+    addPlayer(m, 'c', 'Caio');
+    expect(m.players.find((p) => p.id === 'c')!.gold).toBe(START_GOLD + ROUND_GOLD);
+  });
+
+  it('late join gold follows the room economy', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'Ana');
+    addPlayer(m, 'b', 'Bia');
+    startMatch(m, 0, 0, 'rounds', true, () => 0.5, { economy: 1.5 });
+    let now = toPlaying(m, 0);
+    kill(m, 'b', null);
+    now = until(m, now, () => m.phase === 'shop');
+    addPlayer(m, 'c', 'Caio');
+    expect(m.players.find((p) => p.id === 'c')!.gold).toBe((START_GOLD + ROUND_GOLD) * 1.5);
+  });
+
   it('disconnect keeps the player during the match', () => {
     const m = twoPlayers();
     removePlayer(m, 'b');

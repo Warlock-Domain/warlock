@@ -99,6 +99,15 @@ export const DM_GOALS = { 3: 10, 5: 15, 7: 25 }; // 15 = DM_KILLS_TO_WIN
 export const goalOf = (m: Pick<Match, 'mode' | 'opts'>) => (m.mode === 'ascension' ? ASC_ROUNDS : m.mode === 'deathmatch' ? DM_GOALS[m.opts.goal] : m.opts.goal);
 const startGold = (m: Match) => Math.round(m.opts.startGold * m.opts.economy);
 
+// Quem entra depois recebe só a renda garantida das rodadas que já acabaram:
+// no meio da rodada atual ela ainda não foi conquistada. Na loja/fim da rodada,
+// m.round já é o número de rodadas concluídas; no countdown/jogo, é a atual.
+function lateJoinGold(m: Match) {
+  if (m.mode === 'deathmatch' || m.asc) return startGold(m);
+  const finished = m.phase === 'shop' || m.phase === 'roundEnd' ? m.round : Math.max(0, m.round - 1);
+  return startGold(m) + finished * Math.round(ROUND_GOLD * m.opts.economy);
+}
+
 export type Player = {
   id: string;
   name: string;
@@ -206,7 +215,9 @@ export function addPlayer(m: Match, id: string, name: string, bot = false, watch
   const watching = !bot && (full || (watch && !watchersFull));
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
-  const gold = startGold(m);
+  // Quem entra para jogar no meio da partida chega à loja seguinte com a renda
+  // garantida das rodadas perdidas (#281). Espectador continua sem essa compra.
+  const gold = !bot && !watching && m.phase !== 'lobby' && m.phase !== 'end' ? lateJoinGold(m) : startGold(m);
   m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold, economy: newEconomy(gold), spells: noSpells(), items: noItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
   enter(m, m.players[m.players.length - 1]);
   ascOwner(m);

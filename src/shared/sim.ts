@@ -694,6 +694,14 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     const way = len(sub(at, wz.pos)) > 1e-6 ? norm(sub(at, wz.pos)) : v(Math.cos(wz.facing), Math.sin(wz.facing));
     const side = v(-way.y, way.x), mid = w.pillars.length;
     for (const k of [0, -1, 1]) w.pillars.push({ pos: add(pos, scale(side, k * WALL_GAP)), hp: OBSTACLES.rockpillar.hp, alive: true, kind: 'rockpillar', until: w.t + L.duration, wall: mid });
+    // cai do céu (issue #206): quem está embaixo da parede leva o golpe e é jogado para o lado de fora da linha dela.
+    // A parede continua surgindo na hora (é defesa: com atraso não seguraria o projétil que já vem); a queda é só visual
+    const a = sub(pos, scale(side, WALL_GAP)), seg = scale(side, 2 * WALL_GAP);
+    for (const z of w.wizards) {
+      if (!z.alive || z === wz || segT(a, seg, z.pos)[1] > OBSTACLES.rockpillar.r + WIZ_R) continue;
+      const away = dot(sub(z.pos, pos), way) < 0 ? scale(way, -1) : way;
+      hit(w, z, wz.id, L.dmg * dmgMult, L.knock * dmgMult, away, 'rockpillar');
+    }
   } else if (spell === 'drain') {
     // drain.lua: reto até o ponto (no máximo o alcance), depois vira para o mago mais perto e voa mais 1,2 s
     const turn = Math.min(len(sub(at, wz.pos)), L.range * wz.rangeF) / L.speed;
