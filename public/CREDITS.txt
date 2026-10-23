@@ -139,6 +139,9 @@ warlock-wars.svg (vetorial, o W em <path>), favicon.ico (16, 32 e 48 px) e apple
     Botas de choque: lorc/winged-leg.svg, Lorc (http://lorcblog.blogspot.com)
     Égide: lorc/angel-wings.svg, Lorc (http://lorcblog.blogspot.com)
     Botas de vento: lorc/feather.svg, Lorc (http://lorcblog.blogspot.com)
+    Lente Letal: lorc/magnifying-glass.svg, Lorc (http://lorcblog.blogspot.com)
+    Magia Perfurante: lorc/pierced-heart.svg, Lorc (http://lorcblog.blogspot.com)
+    Runa da aflição: lorc/rune-stone.svg, Lorc (http://lorcblog.blogspot.com)
   Runas:
     Pressa: delapouite/rabbit.svg, Delapouite (http://delapouite.com)
     Fúria: delapouite/enrage.svg, Delapouite (http://delapouite.com)

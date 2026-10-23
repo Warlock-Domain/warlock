@@ -104,6 +104,15 @@ export const DM_GOALS = { 3: 10, 5: 15, 7: 25 }; // 15 = DM_KILLS_TO_WIN
 export const goalOf = (m: Pick<Match, 'mode' | 'opts'>) => (m.mode === 'ascension' ? ASC_ROUNDS : m.mode === 'deathmatch' ? DM_GOALS[m.opts.goal] : m.opts.goal);
 const startGold = (m: Match) => Math.round(m.opts.startGold * m.opts.economy);
 
+// Quem entra depois recebe só a renda garantida das rodadas que já acabaram:
+// no meio da rodada atual ela ainda não foi conquistada. Na loja/fim da rodada,
+// m.round já é o número de rodadas concluídas; no countdown/jogo, é a atual.
+function lateJoinGold(m: Match) {
+  if (m.mode === 'deathmatch' || m.asc) return startGold(m);
+  const finished = m.phase === 'shop' || m.phase === 'roundEnd' ? m.round : Math.max(0, m.round - 1);
+  return startGold(m) + finished * Math.round(ROUND_GOLD * m.opts.economy);
+}
+
 export type Player = {
   id: string;
   name: string;

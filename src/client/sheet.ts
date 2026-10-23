@@ -25,11 +25,16 @@ const FIELDS: Record<string, [label: string, total: (x: number) => string, part:
   lava: [t('Dano da lava', 'Lava damage'), (x) => t(`${n1(LAVA_DPS * (1 - x))} por segundo`, `${n1(LAVA_DPS * (1 - x))} per second`), (x) => signed(-x, pct)],
   ward: [t('Dano a menos por golpe', 'Damage reduced per hit'), (x) => t(`${n1(x)} (até metade do golpe)`, `${n1(x)} (up to half the hit)`), (x) => signed(x, n1)],
   range: [t('Alcance das magias', 'Spell range'), (x) => pct(1 + x), (x) => signed(x, pct)],
+  crit: [t('Chance de crítico', 'Critical chance'), (x) => pct(x), (x) => signed(x, pct)],
+  // sem chance de crítico o dano do crítico não vale nada: mostra o total só com a Lente (CRIT.dmg + Magia Perfurante)
+  critDmg: [t('Dano do crítico', 'Critical damage'), (x) => '+' + pct(CRIT.dmg + x), (x) => signed(x, pct)],
+  afflict: [t('Duração das lentidões que você aplica', 'Duration of the slows you apply'), (x) => pct(1 + x), (x) => signed(x, pct)],
 };
 
 export function sheet(spells: Record<SpellId, number>, items: Record<ItemId, number>, book?: SpellBook): SheetRow[] {
   const st = itemStats(items) as Record<string, number>;
-  const rows: SheetRow[] = Object.keys(st).map((k) => {
+  // sem a Lente Letal não há crítico: as linhas do crítico só aparecem com chance (senão a Perfurante parecia dar dano)
+  const rows: SheetRow[] = Object.keys(st).filter((k) => st.crit > 0 || (k !== 'crit' && k !== 'critDmg')).map((k) => {
     const [label, total, part] = FIELDS[k] ?? [k, (x: number) => n2(x), (x: number) => signed(x, n2)];
     // origem: a parte de cada item que mexe neste campo
     const from = ITEM_IDS.filter((i) => items[i] > 0).map((i) => [i, (itemStats({ ...noItems(), [i]: items[i] }) as Record<string, number>)[k]] as const)

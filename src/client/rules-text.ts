@@ -356,9 +356,9 @@ export const groupClass = (name: string) => 'g-' + (GROUP_CLASS_EN[name.toLowerC
 export const spellClass = (s: SpellId) => groupClass(SPELL_GROUPS.find(([, , ids]) => ids.includes(s))?.[0] ?? '');
 // loja: itens passivos em seções como as magias (Fernando, 21/10), pelo efeito principal
 type ItemGroups = [name: string, hint: string, items: ItemId[]][];
-const IG: Record<string, ItemId[]> = { life: ['ring', 'cape', 'vampire'], move: ['boots', 'shock_boots', 'wind_boots', 'lava_boots'], guard: ['armor', 'helmet', 'warden', 'cursed_ring', 'aegis', 'watch'] };
-const ITEM_GROUPS_PT: ItemGroups = [['Vida', 'mais vida e cura', IG.life], ['Movimento', 'correr e pisar na lava', IG.move], ['Proteção', 'menos empurrão, dano e lentidão', IG.guard]];
-const ITEM_GROUPS_EN: ItemGroups = [['Health', 'more health and healing', IG.life], ['Movement', 'run and step on lava', IG.move], ['Protection', 'less knockback, damage and slows', IG.guard]];
+const IG: Record<string, ItemId[]> = { life: ['ring', 'cape', 'vampire'], move: ['boots', 'shock_boots', 'wind_boots', 'lava_boots'], guard: ['armor', 'helmet', 'warden', 'cursed_ring', 'aegis', 'watch'], crit: ['lens', 'piercing', 'affliction'] };
+const ITEM_GROUPS_PT: ItemGroups = [['Vida', 'mais vida e cura', IG.life], ['Movimento', 'correr e pisar na lava', IG.move], ['Proteção', 'menos empurrão, dano e lentidão', IG.guard], ['Crítico', 'golpes mais fortes e lentidões mais longas', IG.crit]];
+const ITEM_GROUPS_EN: ItemGroups = [['Health', 'more health and healing', IG.life], ['Movement', 'run and step on lava', IG.move], ['Protection', 'less knockback, damage and slows', IG.guard], ['Critical', 'stronger hits and longer slows', IG.crit]];
 export const ITEM_GROUPS = LANG === 'en' ? ITEM_GROUPS_EN : ITEM_GROUPS_PT;
 
 // para que serve, em uma linha (cartão da loja)
@@ -437,7 +437,7 @@ const RULES_SHORT_PT: Record<SpellId, string> = {
   boomerang: 'Vai em curva até o ponto e volta para você; acerta na ida e na volta.',
   thrust: 'Você dispara até o ponto; o primeiro inimigo que tocar leva dano conforme a sua velocidade.',
   gravity: 'Orbe lento que puxa magos inimigos e projéteis e queima quem fica perto.',
-  rockpillar: `Ergue uma barricada baixa (2 m) atravessada no caminho por ${n1(L1('rockpillar').duration)} s: bloqueia magos e projéteis.`,
+  rockpillar: `Uma barricada baixa (2 m) cai do céu atravessada no caminho e fica ${n1(L1('rockpillar').duration)} s: bloqueia magos e projéteis, e quem estiver embaixo leva ${n1(L1('rockpillar').dmg)} de dano e é jogado para o lado.`,
   bouncer: `Acerta e pula para o mago mais perto, perdendo ${pct(1 - BOUNCER.decay)} do dano a cada inimigo.`,
   drain: 'Vai até o ponto e vira para o mago mais perto: no inimigo, dano, lentidão e a vida volta para você; no aliado, cura e acelera.',
   snowball: 'Bola lenta que atravessa e arrasta quem encosta, com dano, e explode no fim do caminho.',
@@ -466,7 +466,7 @@ const RULES_SHORT_EN: Record<SpellId, string> = {
   boomerang: 'Curves to the point and comes back to you; hits on the way out and on the way back.',
   thrust: 'You dash to the point; the first enemy you touch takes damage based on your speed.',
   gravity: 'Slow orb that pulls enemy wizards and projectiles and burns anyone close.',
-  rockpillar: `Raises a low barricade (2 m) across the path for ${n1(L1('rockpillar').duration)} s: blocks wizards and projectiles.`,
+  rockpillar: `A low barricade (2 m) falls from the sky across the path and stays ${n1(L1('rockpillar').duration)} s: it blocks wizards and projectiles, and whoever is under it takes ${n1(L1('rockpillar').dmg)} damage and is thrown aside.`,
   bouncer: `Hits and jumps to the nearest wizard, losing ${pct(1 - BOUNCER.decay)} of the damage per enemy.`,
   drain: 'Goes to the point and turns to the nearest wizard: on an enemy, damage, slow and the health comes back to you; on an ally, heal and haste.',
   snowball: 'Slow ball that passes through and drags anyone it touches, with damage, and explodes at the end of the path.',

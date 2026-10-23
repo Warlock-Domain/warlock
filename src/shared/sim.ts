@@ -33,6 +33,9 @@ export type Wizard = {
   baseSpeed: number;
   speed: number; // velocidade de andar agora (botas, Investida, preso)
   debuffMult: number; // duração de lentidões e penalidades
+  crit: number; // chance de crítico no golpe (Lente Letal)
+  critDmg: number; // dano a mais do crítico, por cima do CRIT.dmg (Magia Perfurante)
+  afflict: number; // duração das lentidões e penalidades que aplica nos outros (Runa da aflição)
   pactUntil: number; // Pacto armado até este instante
   gripUntil: number; // preso (Agarrar): não anda até o primeiro golpe com dano
   gripBonus: number; // empurrão a mais desse golpe (pelo nível do Agarrar de quem prendeu)
@@ -127,7 +130,7 @@ export type Cmd =
 
 export type SimEvent =
   | { k: 'cast'; id: string; spell: SpellId }
-  | { k: 'hit'; id: string; by: string; x: number; y: number; dmg: number; src: string }
+  | { k: 'hit'; id: string; by: string; x: number; y: number; dmg: number; src: string; crit?: true }
   | { k: 'reflect'; id: string; x: number; y: number }
   | { k: 'lightning'; from: Vec; to: Vec }
   | { k: 'teleport'; id: string; from: Vec; to: Vec }
@@ -189,6 +192,9 @@ export type World = {
   lavaCredit: Record<string, Record<string, number>>;
   nextId: number;
   dm: boolean; // deathmatch: a arena não encolhe e quem morre volta depois de DM_RESPAWN s
+  // sorteio do passo: stepWorld grava o rand que recebeu, para o crítico sortear dentro de hit() sem passar o rand pelas 18 chamadas;
+  // é sempre o mesmo do passo (determinismo) e fica no servidor: o snapshot monta campo a campo e a sala salva o mundo como null
+  rand: () => number;
   shrink?: boolean; // sandbox (mundo de deathmatch): a arena encolhe mesmo assim
   map?: Terrain; // Campanha: mapa explorável no lugar da arena (sem lava nem encolhimento)
   book?: SpellBook; // números de magia próprios do modo (Campanha); sem o campo, os de SPELLS
@@ -213,6 +219,9 @@ export function gearOf(items: Partial<Record<ItemId, number>> = {}) {
     kbResist: st.kb,
     baseSpeed: WIZ_SPEED + st.speed,
     debuffMult: Math.max(0, 1 + st.debuff),
+    crit: st.crit,
+    critDmg: st.critDmg,
+    afflict: 1 + st.afflict,
     windBonus: own.wind_boots ? Math.max(0, WIND_BOOTS.speed - st.speed) : 0, // como as de choque: vale a maior das botas
     rangeF: 1 + st.range, // Elmo: −10%
     lifesteal: st.lifesteal,
@@ -300,7 +309,7 @@ export function newWorld(
     const d = ISLAND.near + rand() * (ISLAND.far - ISLAND.near);
     return { a, d, r: ISLAND.r, pos: isleSpot({ arena, arenaR }, a, d) };
   });
-  return { t: 0, arena, effect: null, mods: NO_MODS, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars, zones: [], loots: [], chestAt: CHEST.first, chestsLeft: Math.min(CHEST.perRound, Math.floor(ids.length / 2) + 1), runes: [], runeAt: RUNE.first, isles, sudden: false, rules: { ...rules }, events: [], lavaCredit: {}, nextId: 1, dm };
+  return { t: 0, arena, effect: null, mods: NO_MODS, arenaR, shrinkAt: SHRINK_EVERY, wizards, projectiles: [], pillars, zones: [], loots: [], chestAt: CHEST.first, chestsLeft: Math.min(CHEST.perRound, Math.floor(ids.length / 2) + 1), runes: [], runeAt: RUNE.first, isles, sudden: false, rules: { ...rules }, events: [], lavaCredit: {}, nextId: 1, dm, rand };
 }
 
 // no mapa da Campanha a lava é chão desenhado (^): o mesmo dano, crédito e queima da arena (Lucas, 22/10)
@@ -401,6 +410,9 @@ function mark(w: World, target: Wizard, by: string, src: string) {
   target.lastHitAt = w.t;
 }
 
+// Runa da aflição de quem lançou (as magias desta lista estão em AFFLICT_SPELLS, items.ts, que a dica mostra): alonga as lentidões e penalidades por cima do debuffMult do alvo (Relógio, Anel amaldiçoado)
+const afflictBy = (w: World, id: string) => byId(w, id)?.afflict ?? 1;
+
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string) {
   if (spares(w, anyById(w, by), target)) return; // aliado não é atingido (nem empurrado)
   // invulnerável: sem dano nem empurrão, mas o acerto aparece (explosão e som), senão o projétil sumiria sem efeito
@@ -415,6 +427,10 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   // runa da Fúria de quem bateu
   const att = by !== target.id ? byId(w, by) : undefined;
   if (att && att.rune === 'fury' && w.t < att.runeUntil) dmg *= 1 + RUNE.fury;
+  // crítico (Lente Letal) depois da Fúria e antes de Guardião e Escudo: multiplica o golpe já forte (Pacto e Fúria somam sem teto, regra geral)
+  // e as defesas do alvo cortam o golpe já crítico. Só sorteia quem tem chance, para as partidas sem o item seguirem com a mesma sequência de sorteios
+  const crit = !!att && att.crit > 0 && dmg > 0 && w.rand() < att.crit;
+  if (crit) dmg *= 1 + CRIT.dmg + att!.critDmg;
   // Guardião: tira um pouco de cada golpe, nunca mais que metade dele (senão zerava os tiques da Gravidade e do Elo)
   dmg = Math.max(dmg * 0.5, dmg - target.ward);
   // runa do Escudo: menos dano levado (o empurrão do golpe continua)
@@ -442,7 +458,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   mark(w, target, by, src);
   // roubo de vida: quem acertou recupera parte do dano (e, como no original, a cura reduz o dano acumulado pela metade dela)
   if (att && att.lifesteal > 0) heal(w, att, dmg * att.lifesteal);
-  w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg), src });
+  w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg), src, ...(crit && { crit: true as const }) });
 }
 
 // ponto do segmento a→a+d mais perto de p: a fração t em [0,1] ao longo dele e a distância de p até ele
@@ -709,6 +725,14 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     const way = len(sub(at, wz.pos)) > 1e-6 ? norm(sub(at, wz.pos)) : v(Math.cos(wz.facing), Math.sin(wz.facing));
     const side = v(-way.y, way.x), mid = w.pillars.length;
     for (const k of [0, -1, 1]) w.pillars.push({ pos: add(pos, scale(side, k * WALL_GAP)), hp: OBSTACLES.rockpillar.hp, alive: true, kind: 'rockpillar', until: w.t + L.duration, wall: mid });
+    // cai do céu (issue #206): quem está embaixo da parede leva o golpe e é jogado para o lado de fora da linha dela.
+    // A parede continua surgindo na hora (é defesa: com atraso não seguraria o projétil que já vem); a queda é só visual
+    const a = sub(pos, scale(side, WALL_GAP)), seg = scale(side, 2 * WALL_GAP);
+    for (const z of w.wizards) {
+      if (!z.alive || z === wz || segT(a, seg, z.pos)[1] > OBSTACLES.rockpillar.r + WIZ_R) continue;
+      const away = dot(sub(z.pos, pos), way) < 0 ? scale(way, -1) : way;
+      hit(w, z, wz.id, L.dmg * dmgMult, L.knock * dmgMult, away, 'rockpillar');
+    }
   } else if (spell === 'drain') {
     // drain.lua: reto até o ponto (no máximo o alcance), depois vira para o mago mais perto e voa mais 1,2 s
     const turn = Math.min(len(sub(at, wz.pos)), L.range * wz.rangeF) / L.speed;
@@ -852,7 +876,7 @@ function gripLand(w: World, p: Projectile) {
   let landed = false;
   for (const z of w.wizards) {
     if (!z.alive || z.id === p.owner || allies(anyById(w, p.owner), z) || w.t < z.invulnUntil || shielded(w, z) || dist(z.pos, p.pos) > L.radius + WIZ_R) continue;
-    z.gripUntil = w.t + L.duration * z.debuffMult;
+    z.gripUntil = w.t + L.duration * z.debuffMult * afflictBy(w, p.owner);
     z.gripBonus = L.scale;
     mark(w, z, p.owner, 'grip'); // crédito do abate sem dano (#179)
     z.target = null;
@@ -1101,7 +1125,7 @@ function drainHit(w: World, p: Projectile, wz: Wizard, L: Level) {
     return;
   }
   hit(w, wz, p.owner, amount, L.knock * p.dmgMult, p.vel, 'drain');
-  slowDown(w, wz, DRAIN.slow, L.duration * wz.debuffMult);
+  slowDown(w, wz, DRAIN.slow, L.duration * wz.debuffMult * afflictBy(w, p.owner));
   land(w, p, 'drain');
   w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'drain', owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + DRAIN.life, target: p.owner, dmgMult: p.dmgMult, caster: p.caster, back: true });
 }
@@ -1119,7 +1143,7 @@ function snowRoll(w: World, p: Projectile, at: Vec) {
     if (c > 0) o.vel = add(o.vel, scale(dir, c));
     if (o.snow) continue;
     o.snow = { until: w.t + SNOWBALL.period, by: p.owner, dmg: L.dot * SNOWBALL.period * p.dmgMult };
-    slowDown(w, o, SNOWBALL.slow, SNOWBALL.period);
+    slowDown(w, o, SNOWBALL.slow, SNOWBALL.period * afflictBy(w, p.owner));
     land(w, p, 'snowball', true);
   }
 }
@@ -1402,7 +1426,7 @@ function stepProjectiles(w: World) {
         // inimigo: atrai os projéteis dos inimigos dele; aliado ou quem lançou (depois de quicar): repele
         const enemy = wz.id !== p.owner && !allies(anyById(w, p.owner), wz);
         wz.magnet = enemy ? 1 : -1;
-        wz.magnetUntil = w.t + L.duration * (enemy ? wz.debuffMult : 1);
+        wz.magnetUntil = w.t + L.duration * (enemy ? wz.debuffMult * afflictBy(w, p.owner) : 1);
         if (enemy) {
           mark(w, wz, p.owner, 'magnetize');
           land(w, p, 'magnetize');
@@ -1648,6 +1672,7 @@ function wallClip(w: World, a: Vec, b: Vec): Vec {
 }
 
 export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.random) {
+  w.rand = rand;
   w.events = [];
   w.lavaCredit = {};
   for (const c of cmds) {
