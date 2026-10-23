@@ -334,7 +334,8 @@ export const ITEM_DEMO = LANG === 'en' ? ITEM_DEMO_EN : ITEM_DEMO_PT;
 // loja e ajuda: magias agrupadas pelo efeito principal (o que cada uma faz está em RULES_SHORT)
 type SpellGroups = [name: string, hint: string, spells: SpellId[]][];
 // as listas moram em spells.ts (SPELL_GROUP_IDS), que o sorteio das cartas do Ascensão também usa
-const G = SPELL_GROUP_IDS;
+// Reclassificação visual na loja/consulta, sem mudar pesos do sorteio de cartas da Ascensão.
+const G = { ...SPELL_GROUP_IDS, attack: SPELL_GROUP_IDS.attack.filter((s) => s !== 'meteor'), control: [...SPELL_GROUP_IDS.control, 'meteor' as const] };
 const SPELL_GROUPS_PT: SpellGroups = [
   ['Ataque', 'dano e empurrão', [...G.attack]],
   ['Mobilidade', 'sair do lugar', [...G.mobility]],

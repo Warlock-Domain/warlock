@@ -1,11 +1,10 @@
 // Criação de personagem (pedido do Fernando, 19/10): 7 peças misturando os bonecos KayKit, com prévia 3D girando. Salva neste navegador
 // e avisa a sala pelo evento 'warlock:look' (main.ts manda ao servidor, que vale até no meio da partida).
 import * as THREE from 'three';
-import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { CHARACTERS, LOOK_PARTS, PRESETS, fixLook, isCharacter, isLook, isRetired, lookHead, lookOf, randomLook, type Piece } from '../shared/characters.ts';
 import { t } from './i18n.ts';
 import { el, iconButton } from './icons.ts';
-import { loadFile, loadLook, lookModel } from './scene.ts';
+import { cloneAppearance, loadFile, loadLook, lookModel } from './scene.ts';
 import { store } from './store.ts';
 
 // ?as=nome (várias abas na mesma máquina) também separa a aparência, como o apelido e o personagem em main.ts
@@ -75,7 +74,7 @@ function frame(now: number) {
   requestAnimationFrame(frame);
 }
 
-// boneco da prévia: clone da montagem de scene.ts (geometria e material divididos; nada a descartar)
+// Mesma montagem e mesmos materiais originais da partida; só os materiais clonados pertencem à prévia.
 function show(want: string) {
   void Promise.all([loadLook(want), loadFile('mage')]).then(([, mage]) => {
     const src = lookModel(want);
@@ -83,8 +82,14 @@ function show(want: string) {
     // mesma escala do jogo: o mago mede 1,9 m (scene.ts)
     if (mage && !scale) scale = 1.9 / new THREE.Box3().setFromObject(mage.scene).getSize(new THREE.Vector3()).y;
     const rot = shown?.model.rotation.y ?? 0.6;
-    if (shown) stage.remove(shown.model);
-    const model = cloneSkinned(src.scene);
+    if (shown) {
+      stage.remove(shown.model);
+      shown.model.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (mesh.isMesh) for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) mat.dispose();
+      }); // geometrias e texturas continuam compartilhadas com os modelos originais.
+    }
+    const model = cloneAppearance(src.scene);
     model.scale.setScalar(scale || 1);
     model.rotation.y = rot;
     stage.add(model);
