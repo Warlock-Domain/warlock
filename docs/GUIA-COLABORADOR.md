@@ -151,7 +151,7 @@ navegador ──WebSocket──▶ Durable Object (uma sala)
 
 ## Mapa do código
 
-`src/shared`: `sim.ts` (simulação), `spells.ts` (27 magias), `items.ts` (13 itens), `constants.ts` (arena, lava, baús, runas), `match.ts` (fases, loja, ouro, votações), `bots.ts` (`BOT_SKILL` por dificuldade), `protocol.ts` (mensagens e validação), `arena.ts`, `snapshot.ts`, `characters.ts` (9 bonecos e o look de 7 peças), `telemetry.ts`.
+`src/shared`: `sim.ts` (simulação), `spells.ts` (27 magias), `items.ts` (16 itens), `constants.ts` (arena, lava, baús, runas), `match.ts` (fases, loja, ouro, votações), `bots.ts` (`BOT_SKILL` por dificuldade), `protocol.ts` (mensagens e validação), `arena.ts`, `snapshot.ts`, `characters.ts` (9 bonecos e o look de 7 peças), `telemetry.ts`.
 
 `src/client`: `main.ts` (laço), `ui.ts` (menus, sala, loja com builds salvas, barra da partida, placar), `scene.ts` (3D), `style.css`, `i18n.ts`, `rules-text.ts`, `grimoire.ts` e `demo.ts` (grimório e demonstrações), `tips.ts`, `sheet.ts`, `settings.ts`, `keys.ts`, `gamepad.ts`, `avatar.ts` (criador de personagem), `train.ts`, `challenges.ts`, `mimic.ts`, `coach.ts`, `predict.ts`, `interp.ts`, `net.ts`.
 
@@ -264,7 +264,7 @@ Não desfaça sem combinar numa issue.
 
 **Ilusão:** cria uma cópia visível que segue reto na direção do movimento por 2 s. O jogador pode se mover livremente enquanto fica invisível; usar outra magia o revela, sem encerrar a cópia. Jogador e cópia podem ser atingidos; a cópia pode ser empurrada, mas não destruída antes do fim do prazo.
 
-Modos: Rodadas (vence quem fizer 5), Deathmatch (volta em 10 s), Times (Azul × Vermelho), Ascensão (9 rodadas, cartas por nível). Arenas: Círculo, Anel, Ilhas, Cruz. Efeito de rodada (opção da sala, desligado por padrão; Sortear ou um fixo): Tempo chuvoso, Arena de espinhos, Febre do ouro, Vendaval, Fonte da vida, Campo aberto; na sandbox, pelo painel. Atalhos: <kbd>F1</kbd> grimório, <kbd>F2</kbd> biblioteca, <kbd>Tab</kbd> placar, <kbd>4</kbd> loja, <kbd>5</kbd> replay da queda, <kbd>Esc</kbd> configurações.
+Modos: Rodadas (vence quem fizer 5), Deathmatch (volta em 10 s), Times (Azul × Vermelho), Ascensão (9 rodadas, cartas por nível), Campanha (1 a 4 jogadores contra o Fumo num mapa de salas; em construção, formato das salas em `docs/campanha/charneca-salas.md`). Arenas: Círculo, Anel, Ilhas, Cruz. Efeito de rodada (opção da sala, desligado por padrão; Sortear ou um fixo): Tempo chuvoso, Arena de espinhos, Febre do ouro, Vendaval, Fonte da vida, Campo aberto; na sandbox, pelo painel. Atalhos: <kbd>F1</kbd> grimório, <kbd>F2</kbd> biblioteca, <kbd>Tab</kbd> placar, <kbd>4</kbd> loja, <kbd>5</kbd> replay da queda, <kbd>Esc</kbd> configurações.
 
 ## Problemas comuns
 

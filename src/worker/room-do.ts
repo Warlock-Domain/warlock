@@ -3,11 +3,10 @@ import { DT, SEND_EVERY } from '../shared/constants.ts';
 import { chooseCard, reroll, setAscLobby } from '../shared/ascension.ts';
 import { lookOf } from '../shared/characters.ts';
 import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
-import { parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
+import { cmdTarget, parseClientMessage, publicId, publicRoom, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
 import { roundRecord } from '../shared/telemetry.ts';
-import { v } from '../shared/vec.ts';
 import { TAUNT_COOLDOWN_MS } from '../shared/taunts.ts';
 
 const STEP_MS = DT * 1000;
@@ -131,8 +130,13 @@ export class Room extends DurableObject<Env> {
       case 'cast':
         // comandos de jogo só valem com a rodada rolando (fora dela a fila cresceria sem limite)
         if (m.phase !== 'playing') return;
-        this.cmds.push(msg.t === 'move' ? { id, kind: 'move', to: v(msg.x, msg.y) } : msg.t === 'stop' ? { id, kind: 'stop' }
-          : { id, kind: 'cast', spell: msg.spell, at: v(msg.x, msg.y) });
+        if (msg.t === 'stop') this.cmds.push({ id, kind: 'stop' });
+        else {
+          // o limite da coordenada depende da sala (arena ou mapa da Campanha), por isso não cabe no parser
+          const at = cmdTarget(m.world?.map, msg.x, msg.y);
+          if (!at) return send(ws, { t: 'error', code: 'bad_msg', msg: 'Mensagem inválida.' });
+          this.cmds.push(msg.t === 'move' ? { id, kind: 'move', to: at } : { id, kind: 'cast', spell: msg.spell, at });
+        }
         this.acks.set(id, msg.seq);
         return;
       case 'start':
@@ -275,7 +279,7 @@ export class Room extends DurableObject<Env> {
     if (!s) return;
     await this.ctx.storage.put('room', { id: s.id, match: { ...s.match, world: null } });
     // o lobby é um objeto só para o site todo: só avisa quando muda o que a lista mostra
-    const info = { id: s.id, players: s.match.players.filter((p) => !p.bot && p.connected).length, phase: s.match.phase, mode: s.match.mode, round: s.match.round, bots: s.match.players.filter((p) => p.bot).length };
+    const info = { id: s.id, players: s.match.players.filter((p) => !p.bot && p.connected).length, phase: s.match.phase, mode: s.match.mode, round: s.match.round, bots: s.match.players.filter((p) => p.bot && !p.servo).length }; // as vagas do Fumo não são bots da sala
     const key = `${info.players}:${info.phase}:${info.mode}:${info.round}:${info.bots}`;
     if (key === this.lobbyKey) return;
     try {
@@ -319,10 +323,11 @@ export class Room extends DurableObject<Env> {
     this.acc = Math.min(this.acc + now - this.last, STEP_MS * MAX_CATCHUP);
     this.last = now;
     // a votação entra na conta para o fim por tempo (e a troca de modo) chegar aos clientes
+    // na Campanha, encontro e onda novos trocam o tipo (aparência, vida) das vagas do Fumo: avisa na hora
     // Ascensão: as cartas entram na mesa no passo do intervalo (ascShop), então a mesa também
     // os 5 s finais (todos escolheram) mudam o fim do intervalo: o relógio da tela precisa saber
     const asc = () => (m.asc ? `${Object.values(m.asc.offer).map((o) => o.length).join()}:${m.phaseEnds}` : '');
-    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}:${asc()}`;
+    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}:${asc()}:${m.night?.fight ?? ''}:${m.night?.wave ?? ''}`;
     const before = sig();
     while (this.acc >= STEP_MS) {
       this.acc -= STEP_MS;
@@ -332,8 +337,8 @@ export class Room extends DurableObject<Env> {
       this.events.push(...tickMatch(m, now, cmds));
       if (++this.steps % SEND_EVERY === 0) this.sendSnaps();
     }
-    // a sandbox não grava telemetria (e a rodada dela nem acaba)
-    if (m.phase === 'roundEnd' && before.startsWith('playing') && !m.sandbox) this.lobby().record(roundRecord(m, now)).catch(() => {});
+    // a sandbox não grava telemetria (e a rodada dela nem acaba); a Campanha também não (PvE, outros números)
+    if (m.phase === 'roundEnd' && before.startsWith('playing') && !m.sandbox && !m.night) this.lobby().record(roundRecord(m, now)).catch(() => {});
     // sandbox não encerra por inatividade: quem testa fica parado mirando ou lendo; sem ninguém conectado o laço já para (shouldRun) e o alarme apaga a sala
     if (!m.sandbox && now - this.lastCmdAt > IDLE_MS) endIdle(m);
     if (sig() !== before) void this.changed();

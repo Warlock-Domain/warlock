@@ -1,6 +1,6 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
 import type { Snap } from './protocol.ts';
-import { PROJ_KINDS, bootsBonus, isSliding, type ProjKind, type SimEvent, type World } from './sim.ts';
+import { PROJ_KINDS, bootsBonus, isSliding, zoneReaches, type ProjKind, type SimEvent, type World } from './sim.ts';
 import { CHEST, OBSTACLES, OBSTACLE_KINDS, RUNE_KINDS, WIZ_R, type ObstacleKind, type RuneKind } from './constants.ts';
 import { SPELL_IDS, spellLevel } from './spells.ts';
 import type { Isle } from './arena.ts';
@@ -42,7 +42,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
       | (w.t < z.windUntil ? (hidden ? 2048 : 1024) : 0) | (w.t < z.hasteUntil || bootsBonus(w, z) > 0 ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)
       | (w.t < z.alterUntil ? 32768 : 0) | (linked.has(z.id) ? 65536 : 0) | (z.aegis ? 131072 : 0)
       | (w.t < z.runeUntil && z.rune ? RUNE_BIT[z.rune] : 0)
-      | (z.alive && w.zones.some((q) => q.kind === 'pull' && dist(q.pos, z.pos) < q.r + WIZ_R) ? 2097152 : 0)
+      | (z.alive && w.zones.some((q) => q.kind === 'pull' && dist(q.pos, z.pos) < q.r + WIZ_R && zoneReaches(w, q, z)) ? 2097152 : 0)
       | (w.t < z.veilUntil ? (z.id === forId ? 1024 : seeAll ? 8388608 : 2048) : 0)
       | (z.alive && w.t < z.dashUntil ? DASHING_BIT : 0);
     // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão
@@ -57,7 +57,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   for (const q of w.projectiles) {
     const still = q.kind === 'meteor' || q.kind === 'warpzone' || q.kind === 'grip' ? q.kind : null;
     const tail = q.kind === 'link' ? w.wizards.find((z) => z.id === q.owner)?.pos : q.kind === 'illusion' ? v(w.wizards.findIndex((z) => z.id === q.owner), Math.atan2(q.vel.y, q.vel.x)) : undefined;
-    const a = still ? spellLevel(still, q.level).radius : (tail ?? q.vel).x;
+    const a = still ? spellLevel(still, q.level, w.book).radius : (tail ?? q.vel).x;
     const b = still ? Math.max(0, q.until - w.t) : (tail ?? q.vel).y;
     p.push(q.id, PROJ_KINDS.indexOf(q.kind), r2(q.pos.x), r2(q.pos.y), r2(a), r2(b));
   }
@@ -70,6 +70,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     snap.lp = w.wizards.map((z) => r2(z.lootProg / CHEST.goldEvery));
   }
   if (ab.some((x) => x > 0)) snap.ab = ab;
+  // Campanha: brasa de cada mago (0 a 1 até reacender; −1 sem brasa ou apagada), na ordem de room.ids
+  if (w.wizards.some((z) => z.ember && !z.ember.out)) snap.em = w.wizards.map((z) => (z.ember && !z.ember.out ? r2(Math.min(1, z.ember.prog / z.ember.need)) : -1));
   // efeitos com prazo de quem recebe: bit (o mesmo de w) e segundos que faltam; os sem prazo (queimando, atordoado, Elo) ficam só no bit
   if (me) {
     const fx: number[] = [];

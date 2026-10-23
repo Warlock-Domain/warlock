@@ -16,6 +16,7 @@ Vale junto com o `CLAUDE.md` da raiz.
 - Ajuste de balanceamento fica **inline sobre o número original**, com comentário de data e medição: `cd: cd * 0.7 /* 18/10: … (0,86 → 0,97) */`.
 - Constante extra de mecânica vira objeto `NOME = { … * UNIT }` abaixo da tabela, com o arquivo `.lua` de origem no comentário. Nada de número mágico solto em `sim.ts`.
 - Número só muda com medição do simulador (ver raiz).
+- **Campanha tem números próprios:** magia diferente na Campanha entra em `CAMPAIGN_BOOK` (`campaign.ts`, com `retune`), nunca em `spells.ts`; o mundo dela leva esse livro em `World.book`. Quem lê número de magia usa `spellLevel(id, nível, w.book)`, nunca `SPELLS[id].levels` direto (`tests/spellbook.test.ts` acusa). O que não está no livro segue `SPELLS`. O livro cobre só a tabela de níveis (`Level`): constante de mecânica (`RUSH`, `THRUST`…), `CAST_POINT` e itens ainda são de todos os modos; para mudar um deles só na Campanha, primeiro estenda o livro (mesma ideia, no `World`), nunca edite a constante compartilhada.
 
 ## Magia nova: onde mexer
 

@@ -142,7 +142,10 @@ export const CAST_POINT: Record<SpellId, number> = { fireball: 0.1, lightning: 0
   drain: 0.1, snowball: 0.1, illusion: 0, magnetize: 0.1, recharge: 0.1, alteration: 0, link: 0.1, windwalk: 0, splitter: 0, warpzone: 0.1,
   scourge: 0.5, pact: 0.1 }; // Flagelo: o preparo de 0,5 s do item (0,9 s no original; Fernando, 17/10) // Alteração, Caminhada e Divisor: 0 no original; Ilusão 0 (defesa, como o Escudo) // original 0,2 s (Estocada 0); 0,1 s a pedido do Fernando (17/10)
 
-export const spellLevel = (id: SpellId, level: number): Level => SPELLS[id].levels[Math.max(1, Math.min(MAX_SPELL_LEVEL, level)) - 1];
+// tabela de níveis própria de um modo (World.book; hoje só a Campanha, em campaign.ts): o que não está nela vem de SPELLS.
+// Assim mudar magia na Campanha não mexe nos outros modos, e quem lê número de magia passa o book do mundo
+export type SpellBook = Partial<Record<SpellId, Level[]>>;
+export const spellLevel = (id: SpellId, level: number, book?: SpellBook): Level => (book?.[id] ?? SPELLS[id].levels)[Math.max(1, Math.min(MAX_SPELL_LEVEL, level)) - 1];
 
 // preço para subir do nível atual para o próximo; null = já no máximo
 export function priceOf(id: SpellId, level: number): number | null {

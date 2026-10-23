@@ -17,6 +17,7 @@ import { previewTaunt, stopTauntPreview } from './sound.ts';
 import { LANG, setLang, spellName, t, type Lang } from './i18n.ts';
 import { isSpell } from '../shared/spells.ts';
 import { store } from './store.ts';
+import { ilseOn, setIlse } from './ilse.ts';
 
 declare const __BUILD__: string;
 
@@ -262,6 +263,7 @@ function playerSection(): Node[] {
       close();
       ctx.rename();
     } }, t('Trocar', 'Change'))),
+    check('ilse-on', ilseOn(), t('Falas da Ilse na Charneca (o tutorial da Campanha)', 'Ilse\'s lines on the Moor (the Campaign tutorial)'), setIlse),
   ];
 }
 

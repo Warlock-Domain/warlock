@@ -16,6 +16,9 @@ src/shared/   lógica do jogo, roda igual no servidor e no navegador
   protocol.ts   mensagens cliente↔servidor e a validação delas (fronteira de confiança)
   arena.ts      formatos de arena, borda, caminho dentro da pedra
   characters.ts personagens e o "look" de 7 peças (criador de personagem)
+  campaign.ts   modo Campanha: estágios, servos do Fumo, noite gerada por semente (rng.ts)
+  bosses.ts     chefes da Campanha: perfil e cérebro próprio (Sir Odran)
+  levels.ts     salas da Campanha em ASCII (levels/*.ts) e a montagem do mapa da noite (formato em docs/campanha/)
 src/worker/   Cloudflare Workers + Durable Objects (uma sala por objeto; lobby.ts guarda a telemetria)
 src/client/   navegador: main.ts (laço), scene.ts (Three.js), ui.ts (HUD, menus, loja), ascension-ui.ts (cartas do Ascensão), i18n.ts, grimoire.ts…
 scripts/      balance-sim.ts (simulador de balanceamento), build-tournament.ts (torneio de compras), smoke.mjs
