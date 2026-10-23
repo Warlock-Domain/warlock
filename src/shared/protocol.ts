@@ -23,7 +23,8 @@ export type ClientMsg =
   // shuffle: Times sorteados a cada rodada (padrão) ou fixos; opts: opções da partida; setup[i]: dificuldade do bot i+1 e a configuração dele no treino
   | { t: 'start'; bots: number; mode?: Mode; shuffle?: boolean; opts?: Partial<MatchOpts>; setup?: BotSetup[]; sandbox?: true }
   | { t: 'sandbox'; cmd: SandboxCmd } // painel da sandbox (o servidor ignora numa sala normal)
-  | { t: 'move'; x: number; y: number; seq: number }
+  | { t: 'move'; x: number; y: number; seq: number; held?: boolean }
+  | { t: 'moveHold'; on: boolean; seq: number } // soltar o direito não envia outro destino de caminhada.
   | { t: 'stop'; seq: number }
   | { t: 'cast'; spell: SpellId; x: number; y: number; seq: number }
   | { t: 'buy'; spell: SpellId }
@@ -214,7 +215,9 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return cmd ? { t: 'sandbox', cmd } : null;
     }
     case 'move':
-      return coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'move', x: m.x, y: m.y, seq: m.seq } : null;
+      return coord(m.x) && coord(m.y) && seq(m.seq) && (m.held === undefined || typeof m.held === 'boolean') ? { t: 'move', x: m.x, y: m.y, seq: m.seq, ...(m.held !== undefined && { held: m.held as boolean }) } : null;
+    case 'moveHold':
+      return typeof m.on === 'boolean' && seq(m.seq) ? { t: 'moveHold', on: m.on, seq: m.seq } : null;
     case 'stop':
       return seq(m.seq) ? { t: 'stop', seq: m.seq } : null;
     case 'cast':

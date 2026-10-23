@@ -8,7 +8,8 @@ import type { Vec } from '../shared/vec.ts';
 
 export type InputHandlers = {
   pick: (x: number, y: number) => Vec | null;
-  move: (to: Vec) => void;
+  move: (to: Vec, held?: boolean) => void;
+  holdMove?: (on: boolean) => void;
   stop: () => void;
   cast: (spell: SpellId, at: Vec) => boolean | void; // true quando saiu de verdade (sem recarga, com a magia)
   center: () => void;
@@ -51,7 +52,8 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     const p = a && enabled ? h.pick(cursor.x, cursor.y) : null;
     if (a && p) h.cast(a, p);
   };
-  const cancelPointer = () => { dragging = panning = space = panned = false; };
+  const releaseMove = () => { if (dragging) h.holdMove?.(false); dragging = false; };
+  const cancelPointer = () => { releaseMove(); panning = space = panned = false; };
   // Perder foco pode suprimir pointerup; não renovar um comando de movimento já solto.
   addEventListener('blur', () => { cancel(); cancelPointer(); });
   addEventListener('pointercancel', cancelPointer);
@@ -66,7 +68,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   }, { passive: false });
   canvas.addEventListener('pointermove', (e) => {
     cursor = { x: e.clientX, y: e.clientY };
-    if (!(e.buttons & 2)) dragging = false;
+    if (!(e.buttons & 2)) releaseMove();
     if (!(e.buttons & 1)) panning = false;
     if (panning) {
       h.pan(e.clientX - panFrom.x, e.clientY - panFrom.y);
@@ -78,7 +80,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     if (dragging && enabled && performance.now() - lastDrag > 100) {
       lastDrag = performance.now();
       const p = h.pick(e.clientX, e.clientY);
-      if (p) h.move(p);
+      if (p) h.move(p, true);
     }
   });
   canvas.addEventListener('pointerdown', (e) => {
@@ -98,12 +100,12 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       arm(null);
     } else if (e.button === 2 || touch) {
       if (armed) arm(null); // botão direito cancela a magia escolhida (e anda, como no Dota)
-      h.move(p);
+      h.move(p, e.button === 2);
       dragging = e.button === 2;
     }
   });
   addEventListener('pointerup', (e) => {
-    if (e.button === 2) dragging = false;
+    if (e.button === 2) releaseMove();
     if (e.button === 0) panning = false;
   });
   addEventListener('keyup', (e) => {
@@ -157,7 +159,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     setEnabled(on: boolean) {
       enabled = on;
       if (!on) {
-        dragging = false;
+        releaseMove();
         cancel();
         arm(null);
       }
