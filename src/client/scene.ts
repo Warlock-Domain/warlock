@@ -1125,41 +1125,66 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
   }
 
+  // Só recursos registrados na criação são próprios; clones GLTF e texturas continuam no cache.
+  class ObstacleVisual {
+    private readonly owned = new Set<THREE.BufferGeometry | THREE.Material>();
+    constructor(readonly obj: THREE.Object3D = new THREE.Group()) {}
+    own<T extends THREE.BufferGeometry | THREE.Material>(resource: T): T {
+      this.owned.add(resource);
+      return resource;
+    }
+    dispose() {
+      this.obj.removeFromParent();
+      for (const resource of this.owned) resource.dispose();
+      this.owned.clear();
+    }
+  }
+
   // obstáculos da rodada: modelo KayKit de cada tipo, treme quando apanha e afunda ao quebrar
   const OBSTACLE_MODEL: Record<string, string> = { pillar: 'pillar_decorated', rock: 'rubble_large', tree: 'tree_dead_large', shrine: 'shrine_candles' };
   // parede do Pilar de pedra (KayKit Dungeon barrier_half): um modelo no pedaço do meio, atravessado como os 3 círculos da simulação
   let wallModel: THREE.Object3D | null = null;
   void loadFile('barrier_half').then((g) => (wallModel = g?.scene ?? null));
   function makeWall(along: Vec) {
-    const o = wallModel?.clone(true) ?? new THREE.Mesh(new THREE.BoxGeometry(2, 1.1, 0.5), new THREE.MeshStandardMaterial({ color: '#6b625c' }));
+    const visual = new ObstacleVisual();
+    const o = wallModel?.clone(true) ?? new THREE.Mesh(visual.own(new THREE.BoxGeometry(2, 1.1, 0.5)), visual.own(new THREE.MeshStandardMaterial({ color: '#6b625c' })));
     o.traverse((m) => {
       if ((m as THREE.Mesh).isMesh) m.castShadow = m.receiveShadow = true;
     });
     const box = new THREE.Box3().setFromObject(o);
-    const g = new THREE.Group();
+    const g = visual.obj;
     const k = 2 / Math.max(0.01, box.max.x - box.min.x); // 2 m de ponta a ponta
     o.scale.setScalar(k);
     // a origem do modelo fica numa ponta: centra no pedaço do meio e apoia no chão
     o.position.set((-(box.min.x + box.max.x) / 2) * k, -box.min.y * k, (-(box.min.z + box.max.z) / 2) * k);
     g.add(o);
     g.rotation.y = -Math.atan2(along.y, along.x); // o comprimento (x do modelo) no rumo dos pedaços
-    return g;
+    return visual;
   }
-  const pillarMeshes: { obj: THREE.Object3D; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number; fallAt?: number }[] = [];
+  const pillarMeshes: { visual: ObstacleVisual; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number; fallAt?: number }[] = [];
   // baú: caixa simples com tampa dourada e brilho (é um obstáculo: as magias quebram)
   const chestWood = new THREE.MeshStandardMaterial({ color: '#7a4a22', roughness: 0.7 });
   const chestGold = new THREE.MeshStandardMaterial({ color: '#ffcc33', emissive: '#a06a00', metalness: 0.6, roughness: 0.3 });
   function makeChest() {
-    const g = new THREE.Group();
-    const wood = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.32, 0.38), chestWood);
+    const visual = new ObstacleVisual();
+    const g = visual.obj;
+    const wood = new THREE.Mesh(visual.own(new THREE.BoxGeometry(0.55, 0.32, 0.38)), chestWood);
     wood.position.y = 0.16;
-    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.12, 0.4), chestGold);
+    const lid = new THREE.Mesh(visual.own(new THREE.BoxGeometry(0.58, 0.12, 0.4)), chestGold);
     lid.position.y = 0.38;
-    const glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: '#ffd84a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const glowSprite = new THREE.Sprite(visual.own(new THREE.SpriteMaterial({ map: glow, color: '#ffd84a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })));
     glowSprite.scale.setScalar(1.2);
     glowSprite.position.y = 0.3;
     g.add(wood, lid, glowSprite);
-    return g;
+    return visual;
+  }
+  function makeObstacle(p: PillarView) {
+    if (p.kind === 'chest') return makeChest();
+    const model = decor.clone(OBSTACLE_MODEL[p.kind]);
+    if (model) return new ObstacleVisual(model);
+    const visual = new ObstacleVisual();
+    visual.obj.add(new THREE.Mesh(visual.own(new THREE.CylinderGeometry(OBSTACLES[p.kind].r, OBSTACLES[p.kind].r, 2.2, 12)), visual.own(new THREE.MeshStandardMaterial({ color: '#6b625c' }))));
+    return visual;
   }
   // monte de ouro do baú quebrado: moedas no chão com brilho baixo e fraco que pulsa (não cobre quem passa por cima)
   const pile = new THREE.Group();
@@ -1472,7 +1497,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // paredes que já estavam na tela: só a que acabou de surgir cai do céu (issue #206)
       const before = new Set(pillarMeshes.map((m) => `${m.pos.x},${m.pos.y}`));
       for (const p of pillarMeshes) {
-        scene.remove(p.obj);
+        p.visual.dispose();
         p.bar?.remove();
       }
       pillarMeshes.length = 0;
@@ -1481,17 +1506,19 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         run = p.kind === 'rockpillar' ? run + 1 : 0;
         const wall = p.kind === 'rockpillar' && run % 3 === 1 && list[i + 2]?.kind === 'rockpillar';
         const side = p.kind === 'rockpillar' && !wall; // os lados não têm modelo nem barra (a vida é a da parede)
-        let obj: THREE.Object3D;
-        if (wall) obj = makeWall(v(list[i + 2].pos.x - list[i + 1].pos.x, list[i + 2].pos.y - list[i + 1].pos.y));
-        else if (side) obj = new THREE.Group();
+        let visual: ObstacleVisual;
+        if (wall) visual = makeWall(v(list[i + 2].pos.x - list[i + 1].pos.x, list[i + 2].pos.y - list[i + 1].pos.y));
+        else if (side) visual = new ObstacleVisual();
         else {
-          obj = (p.kind === 'chest' ? makeChest() : decor.clone(OBSTACLE_MODEL[p.kind])) ?? new THREE.Mesh(new THREE.CylinderGeometry(radius(p), radius(p), 2.2, 12), new THREE.MeshStandardMaterial({ color: '#6b625c' }));
+          visual = makeObstacle(p);
+          const obj = visual.obj;
           // ajusta a largura do modelo ao raio de colisão do pilar
           const box = new THREE.Box3().setFromObject(obj);
           const width = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) || 1;
           // árvore é fina no tronco e larga nos galhos: mede pelo tronco (menos que a copa)
           obj.scale.multiplyScalar((radius(p) * (p.kind === 'tree' ? 6 : 2.3)) / width);
         }
+        const obj = visual.obj;
         obj.position.copy(w3(p.pos, 0));
         scene.add(obj);
         // barra de vida em tudo que quebra (pedido do Fernando, 17/10: sempre visível)
@@ -1503,22 +1530,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         }
         const height = new THREE.Box3().setFromObject(obj).max.y;
         const fallAt = wall && p.hp > 0 && !before.has(`${p.pos.x},${p.pos.y}`) ? performance.now() / 1000 : undefined;
-        pillarMeshes.push({ obj, pos: p.pos, bar, fill, height, fallAt });
+        pillarMeshes.push({ visual, pos: p.pos, bar, fill, height, fallAt });
         // a lista muda no meio da rodada (baú, Pilar de pedra): o que já tinha quebrado não afunda de novo
         if (p.hp <= 0) obj.position.y = -3;
       });
     }
     list.forEach((p, i) => {
       const m = pillarMeshes[i];
+      const obj = m.visual.obj;
       if (p.hp <= 0) {
-        m.obj.position.y = Math.max(-3, m.obj.position.y - 0.05);
-        m.obj.visible = m.obj.position.y > -2.9;
+        obj.position.y = Math.max(-3, obj.position.y - 0.05);
+        obj.visible = obj.position.y > -2.9;
         if (m.bar) m.bar.hidden = true;
       } else {
         // queda da parede nova: 4 m em 0,2 s, acelerando, e poeira ao bater (a colisão e o dano já valem desde o lançamento)
         if (m.fallAt !== undefined) {
           const k = Math.min(1, (performance.now() / 1000 - m.fallAt) / 0.2);
-          m.obj.position.y = 4 * (1 - k * k);
+          obj.position.y = 4 * (1 - k * k);
           if (k >= 1) {
             m.fallAt = undefined;
             shockwave(p.pos, 1.6, '#c8b8a0');
@@ -1529,7 +1557,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         // tremida curta quando apanha
         const shake = p.hp < 100 ? (100 - p.hp) / 100 : 0;
         if (m.fill) m.fill.style.width = `${p.hp}%`;
-        m.obj.rotation.z = Math.sin(performance.now() / 40) * 0.02 * shake;
+        obj.rotation.z = Math.sin(performance.now() / 40) * 0.02 * shake;
       }
     });
   }
@@ -2578,7 +2606,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // barras dos obstáculos, logo acima de cada um
       for (const p of pillarMeshes) {
         if (!p.bar || p.bar.hidden) continue;
-        const [x, y] = toScreen(p.obj.position.clone().setY(p.height + 0.15));
+        const [x, y] = toScreen(p.visual.obj.position.clone().setY(p.height + 0.15));
         p.bar.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
       }
 
