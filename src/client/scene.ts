@@ -1558,7 +1558,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (e.src === 'lightning') zap(v(e.x, e.y));
         else explosion(v(e.x, e.y));
         scorch(v(e.x, e.y));
-        damageNumber(v(e.x, e.y), e.dmg, e.crit);
+        // Mantém o impacto público da magia, mas não o número sobre o jogador invisível.
+        if (!hiddenDamageTargets.includes(e.id)) damageNumber(v(e.x, e.y), e.dmg, e.crit);
         // dano 0 (invulnerável, aliado) não sacode nem acende
         if (e.dmg > 0) impact(e.id, v(e.x, e.y), e.dmg);
       } else if (e.k === 'gold') goldNumber(v(e.x, e.y), e.n);
