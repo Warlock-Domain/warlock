@@ -268,7 +268,7 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined;
 type ToastKind = 'info' | 'good' | 'bad' | 'gold';
 // msg pode vir com ícones (lista de textos e nós); o de ouro ganha a moeda na frente;
 // top: no alto da tela e com letra maior, para o que todo mundo precisa ler na hora (quem saiu e o bot que assumiu, issue #223)
-// fly: o ícone `from` (dentro da msg) sai voando até `to()` e o aviso some junto (runa → ícone do buff, prova de conceito)
+// fly: o ícone `from` (dentro da msg) sai voando até `to()` e o aviso some junto (runa → ícone do buff: o jogador vê para onde foi o efeito que acabou de pegar)
 export function toast(msg: string | (string | Node)[], kind: ToastKind = 'info', top = false, fly?: { from: Element; to: () => Element | null }) {
   let t = document.getElementById('toast');
   if (!t) document.body.append((t = el('div', { id: 'toast', role: 'status' })));
@@ -1104,7 +1104,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   }
   // efeitos ativos em mim, numa fileira pequena acima da barra
   const statusRow = el('div', { class: 'status-icons hud-status', role: 'group', 'aria-label': t('Efeitos', 'Effects') });
-  const fxCells = new Map<number, HTMLElement>(); // bit → número de segundos embaixo do ícone
+  const fxCells = new Map<number, { i: HTMLElement; name: string }>(); // bit → ícone do efeito e o nome (o rótulo ganha os segundos)
   const clock = fxClock();
   // segurar Tab durante a partida mostra o placar; o 📊 (toque) e o botão Placar da loja deixam aberto até fechar
   const tabOverlay = el('div', { class: 'tab-overlay', hidden: true });
@@ -1837,18 +1837,24 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         // como em cima do mago (scene.ts), com o nome no rótulo; a Égide pronta também aparece aqui
         fxCells.clear();
         statusRow.replaceChildren(...STATUS_ICONS.filter(([bit]) => status & bit).map(([bit, ico, name]) => {
-          const s = el('small', { 'aria-hidden': 'true' });
-          fxCells.set(bit, s);
-          // data-rune: o disco do buff na cor da runa, o mesmo do aviso (style.css)
+          // data-rune no ícone, como no aviso (RUNE_TEXT em main.ts): o disco do buff na cor da runa (style.css)
+          const g = icon(ico);
           const rune = RUNE_KINDS.find((k) => RUNE_ICON[k] === ico);
-          return el('i', { class: BAD_STATUS.includes(bit) ? 'bad' : 'good', title: name, role: 'img', 'aria-label': name, ...(rune ? { 'data-rune': rune } : {}) }, icon(ico), s);
+          if (rune) g.dataset.rune = rune;
+          const i = el('i', { class: BAD_STATUS.includes(bit) ? 'bad' : 'good', title: name, role: 'img', 'aria-label': name }, g);
+          fxCells.set(bit, { i, name });
+          return i;
         }));
       }
-      // segundos que faltam de cada efeito com prazo e o filete que esvazia (--left: fração que falta, como a recarga)
-      for (const [bit, s] of fxCells) {
+      // o anel que esvazia (--left: fração que falta, como a recarga); os segundos ficam só no rótulo, sem número na tela
+      for (const [bit, { i, name }] of fxCells) {
         const c = clock(fx, bit);
-        s.textContent = c?.text ?? '';
-        s.parentElement!.style.setProperty('--left', c ? c.frac.toFixed(3) : '0');
+        i.style.setProperty('--left', c ? c.frac.toFixed(3) : '0');
+        const label = c ? `${name} · ${c.text} s` : name;
+        if (i.title !== label) {
+          i.title = label;
+          i.setAttribute('aria-label', label);
+        }
       }
       vitals.hidden = !hp;
       const hpLabel = hp ? `${Math.max(0, Math.ceil(hp.now))}/${hp.max}` : '';
