@@ -405,7 +405,7 @@ const botTag = (p: PublicPlayer, r: Pick<PublicRoom, 'opts'>) => {
   const lvl = botLevel(p, r);
   return lvl ? el('small', { class: 'muted' }, ' ', icon(UI_ICON.bot), ` bot · ${SKILL_NAME[lvl]}`) : null;
 };
-const nameOf = (p: PublicPlayer, me: string, r: Pick<PublicRoom, 'opts'>) => el('span', {}, p.name + (p.id === me ? t(' (você)', ' (you)') : ''), botTag(p, r));
+const nameOf = (p: PublicPlayer, me: string, r: Pick<PublicRoom, 'opts'>) => el('span', {}, playerName(p) + (p.id === me ? t(' (você)', ' (you)') : ''), botTag(p, r));
 
 // placar de estatísticas: ouro ganho, dano causado e precisão de cada magia de dano (acertos / lançamentos)
 type Scope = 'round' | 'match' | 'room';
@@ -491,14 +491,14 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
     if (vals.every((n) => n === b)) return null;
     return c.best === 'max' && b <= 0 ? null : b;
   });
-  const who = (p: PublicPlayer) => el('span', { class: 'who' }, portrait(p), teamTag(room, p), el('span', { class: 'who-name' }, p.name, p.id === me ? el('small', {}, t(' (você)', ' (you)')) : null, p.bot ? el('small', {}, ' ', icon(UI_ICON.bot)) : null));
+  const who = (p: PublicPlayer) => el('span', { class: 'who' }, portrait(p), teamTag(room, p), el('span', { class: 'who-name' }, playerName(p), p.id === me ? el('small', {}, t(' (você)', ' (you)')) : null, p.bot ? el('small', {}, ' ', icon(UI_ICON.bot)) : null));
   // destaques: quem foi o melhor em cada coisa (só com valor acima de zero)
   const leader = (c: (p: PublicPlayer) => number) => {
     const top = [...rows].sort((a, b) => c(b) - c(a))[0];
     return top && c(top) > 0 ? top : null;
   };
   const card = (ico: string, label: string, p: PublicPlayer | null, value: string) =>
-    el('div', { class: 'stat-card' }, p ? portrait(p) : el('span', { class: 'stat-ico' }, icon(ico)), el('small', {}, icon(ico), ' ', label), el('b', {}, p ? p.name : '–'), el('span', { class: 'stat-val' }, p ? value : ''));
+    el('div', { class: 'stat-card' }, p ? portrait(p) : el('span', { class: 'stat-ico' }, icon(ico)), el('small', {}, icon(ico), ' ', label), el('b', {}, p ? playerName(p) : '–'), el('span', { class: 'stat-val' }, p ? value : ''));
   const mostDmg = leader((p) => st(p).dmg);
   const mostKills = leader((p) => st(p).kills ?? 0);
   const sharp = leader((p) => (shots(p) >= 5 ? aim(p) : -1));
@@ -578,15 +578,15 @@ function goldInfo(p: PublicPlayer, opts: MatchOpts, open: boolean, onToggle: (op
 
 // botão de expulsar: só para bots e para quem caiu e não voltou
 const kickBtn = (p: PublicPlayer, kick?: (id: string) => void) =>
-  kick && (p.bot || !p.connected) ? iconButton('✕', t(`Expulsar ${p.name}`, `Kick ${p.name}`), () => kick(p.id), { class: 'kick' }) : null;
+  kick && (p.bot || !p.connected) ? iconButton('✕', t(`Expulsar ${playerName(p)}`, `Kick ${playerName(p)}`), () => kick(p.id), { class: 'kick' }) : null;
 
 // fim da partida: com times fixos vence o time; sorteados a cada rodada, todos que chegaram à meta juntos
 function winTitle(r: PublicRoom): Child[] {
   if (r.winnerTeam !== null) return [icon(UI_ICON.wins), t(` Time ${TEAM_NAMES[r.winnerTeam]} venceu!`, ` ${TEAM_NAMES[r.winnerTeam]} team wins!`)];
   const champs = r.mode === 'teams' ? r.players.filter((p) => p.score >= r.goal) : [];
-  if (champs.length > 1) return [icon(UI_ICON.wins), t(` ${champs.map((p) => p.name).join(', ').replace(/, ([^,]*)$/, ' e $1')} venceram!`, ` ${champs.map((p) => p.name).join(', ').replace(/, ([^,]*)$/, ' and $1')} win!`)];
-  const winner = r.players.find((p) => p.id === r.winner)?.name ?? '?';
-  return r.winner ? [icon(UI_ICON.wins), t(` ${winner} venceu!`, ` ${winner} wins!`)] : [t('Partida encerrada', 'Match ended')];
+  if (champs.length > 1) return [icon(UI_ICON.wins), t(` ${champs.map(playerName).join(', ').replace(/, ([^,]*)$/, ' e $1')} venceram!`, ` ${champs.map(playerName).join(', ').replace(/, ([^,]*)$/, ' and $1')} win!`)];
+  const winner = r.players.find((p) => p.id === r.winner);
+  return r.winner ? [icon(UI_ICON.wins), t(` ${winner ? playerName(winner) : '?'} venceu!`, ` ${winner ? playerName(winner) : '?'} wins!`)] : [t('Partida encerrada', 'Match ended')];
 }
 
 // pódio do fim da partida: 2º, 1º e 3º lado a lado, com o retrato; empate nos pontos desempata pelo dano da partida
@@ -597,7 +597,7 @@ function podium(room: PublicRoom, me: string) {
   const unit = room.mode === 'deathmatch' || room.mode === 'ascension' ? [t('ponto', 'point'), t('pontos', 'points')] : [t('vitória', 'win'), t('vitórias', 'wins')];
   const step = (p: PublicPlayer, place: number) => el('div', { class: `podium-step p${place}` + (p.id === me ? ' me' : '') },
     el('img', { class: 'podium-face', src: `/chars/${p.character}.webp`, alt: '', width: 64, height: 64 }),
-    el('b', {}, p.name), el('small', {}, `${p.score} ${unit[p.score === 1 ? 0 : 1]}`),
+    el('b', {}, playerName(p)), el('small', {}, `${p.score} ${unit[p.score === 1 ? 0 : 1]}`),
     el('span', { class: 'podium-block', 'aria-label': t(`${place}º lugar`, `${['1st', '2nd', '3rd'][place - 1]} place`) }, icon(UI_ICON.wins)));
   return el('div', { class: 'podium', 'aria-label': t('Pódio', 'Podium') }, step(top[1], 2), step(top[0], 1), top[2] ? step(top[2], 3) : null);
 }
@@ -1312,7 +1312,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const optsBlock = el('details', { class: 'match-opts', open: optsOpen, ontoggle: (e: Event) => (optsOpen = (e.target as HTMLDetailsElement).open) }, el('summary', {}, t('Opções da partida', 'Match options') + ' · ', el('small', { class: 'muted' }, optsLine(o, mode))),
       el('div', { class: 'opt-grid' }, ...optKeys(mode).map((k) => el('div', { class: 'opt-row' }, optLabel(k, mode),
         choice(OPT_NAME[k], (OPTION_CHOICES[k] as readonly MatchOpts[OptKey][]).map((val): [MatchOpts[OptKey], string] => [val, optText(k, val, mode)]), o[k], (val) => (Object.assign(o, { [k]: val }), drawCenter()), locked ? () => true : undefined)))));
-    const ownerName = r.players.find((p) => p.id === L?.owner)?.name ?? '';
+    const owner = r.players.find((p) => p.id === L?.owner);
+    const ownerName = owner ? playerName(owner) : '';
     const whoPicks = L && el('small', { class: 'muted' }, locked ? t(`Quem escolhe os bots e as opções é ${ownerName}, que criou a sala.`, `${ownerName}, who created the room, picks the bots and options.`)
       : t('Você criou a sala: só você muda os bots e as opções, e todos veem na hora.', 'You created the room: only you change the bots and options, and everyone sees them live.'));
     share();
@@ -1604,7 +1605,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       group(t('Jogadores', 'Players'),
         r.players.length + Math.max(0, r.botDelta) < MAX_PLAYERS ? btn(t('Pôr um bot', 'Add a bot'), 'addBot') : '',
         bots > 0 ? btn(t('Tirar um bot', 'Remove a bot'), 'removeBot') : '',
-        ...r.players.filter((p) => !p.bot && p.id !== me).map((p) => btn(t(`Expulsar ${p.name}`, `Kick ${p.name}`), 'kick', p.id))),
+        ...r.players.filter((p) => !p.bot && p.id !== me).map((p) => btn(t(`Expulsar ${playerName(p)}`, `Kick ${playerName(p)}`), 'kick', p.id))),
       el('small', { class: 'muted' }, t('Passa com mais da metade dos jogadores. Modo, regras e bots valem na próxima rodada; o modo novo zera os pontos, o ouro fica.', 'Passes with more than half of the players. Mode, rules and bots apply next round; a new mode resets the points, gold stays.')));
     // fim da votação: aprovada se o que ela muda mudou
     const was = prev?.vote;
@@ -1615,7 +1616,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     voteBar.hidden = !v;
     if (!v) return;
     voteEndsAt = performance.now() + v.left;
-    const name = (id: string) => r.players.find((p) => p.id === id)?.name ?? '?';
+    const name = (id: string) => {
+      const p = r.players.find((p) => p.id === id);
+      return p ? playerName(p) : '?';
+    };
     const can = human && !v.yes.includes(me) && !v.no.includes(me);
     voteBar.replaceChildren(
       el('span', {}, t(`${name(v.by)} quer ${voteText(v, r.pendingMode ?? r.mode, name)} · SIM ${v.yes.length} / precisa ${v.need}`, `${name(v.by)} wants to ${voteText(v, r.pendingMode ?? r.mode, name)} · YES ${v.yes.length} / needs ${v.need}`)),
@@ -1682,11 +1686,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const unit = (n: number) => r.mode === 'deathmatch' || r.mode === 'ascension' ? (n === 1 ? t('ponto', 'point') : t('pontos', 'points')) : n === 1 ? t('vitória', 'win') : t('vitórias', 'wins');
     const cell = (p: PublicPlayer) => {
       const lvl = botLevel(p, r);
-      const name = `${p.name}${p.id === me ? t(' (você)', ' (you)') : ''}${lvl ? ` (bot · ${SKILL_NAME[lvl]})` : ''}: ${p.score} ${unit(p.score)}`;
+      const name = `${playerName(p)}${p.id === me ? t(' (você)', ' (you)') : ''}${lvl ? ` (bot · ${SKILL_NAME[lvl]})` : ''}: ${p.score} ${unit(p.score)}`;
       const dmg = el('span', {}, String(Math.round(live[p.id]?.dmg ?? 0)));
       const kills = el('span', {}, String(live[p.id]?.kills ?? 0));
       const c = el('li', { class: 'top-p' + (p.id === me ? ' me' : ''), style: `--pc:${COLORS[p.color]}`, title: name, 'aria-label': name },
-        el('span', { class: 'top-name' }, p.name, lvl ? icon(UI_ICON.bot) : null), ascLevel(r, p), el('b', { class: 'top-wins', title: unit(p.score) }, String(p.score)),
+        el('span', { class: 'top-name' }, playerName(p), lvl ? icon(UI_ICON.bot) : null), ascLevel(r, p), el('b', { class: 'top-wins', title: unit(p.score) }, String(p.score)),
         el('span', { class: 'top-stat', title: t('Dano na rodada', 'Damage this round') }, icon(UI_ICON.dmg), dmg),
         el('span', { class: 'top-stat', title: t('Abates na rodada', 'Kills this round') }, icon(UI_ICON.kills), kills));
       topCells.set(p.id, { c, name, dmg, kills });
@@ -1703,7 +1707,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     kill(by: string | null, id: string, src: string) {
       const who = (pid: string) => {
         const p = room?.players.find((q) => q.id === pid);
-        return el('b', { style: `color:${COLORS[p?.color ?? 0]}` }, pid === me ? t('Você', 'You') : (p?.name ?? '?'));
+        return el('b', { style: `color:${COLORS[p?.color ?? 0]}` }, pid === me ? t('Você', 'You') : (p ? playerName(p) : '?'));
       };
       const killer = by && by !== id ? by : null;
       const li = el('li', { class: killer === me || id === me ? 'me' : '' }, killer ? who(killer) : null,

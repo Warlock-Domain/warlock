@@ -30,9 +30,13 @@ function addStat(p: Player, f: (s: Stat) => void) {
   f(p.stats.match);
   f(p.stats.room);
 }
+export type Economy = { goldStart: number; goldEarned: number; goldSpent: number; goldRefunded: number; goldRecovery: number };
+const newEconomy = (goldStart: number): Economy => ({ goldStart, goldEarned: 0, goldSpent: 0, goldRefunded: 0, goldRecovery: 0 });
+// Salas antigas começam a medição com o ouro atual do jogador.
+export const economyOf = (p: Player): Economy => p.economy ??= newEconomy(p.gold);
 // toda renda passa por aqui e é multiplicada pela economia da sala (scaled = false: o valor já vem na escala dela); devolve o ganho
 // a parte quebrada fica guardada no jogador (Fernando, 20/10, issue #88: no ×1,5 o monte paga 1, 2, 1, 2…); o 1e-9 segura o erro das contas com decimal
-function earn(m: Match, p: Player, gold: number, scaled = true): number {
+function earn(m: Match, p: Player, gold: number, scaled = true, recovery = false): number {
   if (m.asc) return 0; // Ascensão: sem ouro (magias e itens vêm pelas cartas)
   let n = gold;
   if (scaled) {
@@ -42,6 +46,8 @@ function earn(m: Match, p: Player, gold: number, scaled = true): number {
     p.goldCarry = total - n;
   }
   p.gold += n;
+  economyOf(p).goldEarned += n;
+  if (recovery) economyOf(p).goldRecovery += n;
   addStat(p, (s) => (s.gold += n));
   return n;
 }
@@ -103,6 +109,7 @@ export type Player = {
   score: number; // rodadas vencidas (deathmatch: abates)
   gold: number;
   goldCarry?: number; // fração de ouro ainda não paga (ver earn)
+  economy?: Economy; // contadores da rodada para a telemetria
   spells: Record<SpellId, number>;
   items: Record<ItemId, number>;
   stats: Stats;
@@ -199,7 +206,8 @@ export function addPlayer(m: Match, id: string, name: string, bot = false, watch
   const watching = !bot && (full || (watch && !watchersFull));
   // bots ganham um personagem diferente cada um, na ordem da lista (sem sorteio, para os testes)
   const character = bot ? CHARACTERS[(m.players.length + 1) % CHARACTERS.length].id : 'mage';
-  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold: startGold(m), spells: noSpells(), items: noItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
+  const gold = startGold(m);
+  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold, economy: newEconomy(gold), spells: noSpells(), items: noItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
   enter(m, m.players[m.players.length - 1]);
   ascOwner(m);
   return true;
@@ -299,6 +307,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
 function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: () => number) {
   for (const p of m.players) {
     Object.assign(p, { score: 0, gold: startGold(m), goldCarry: 0, spells: noSpells(), items: noItems() });
+    p.economy = newEconomy(p.gold);
     p.held = {};
     p.stats.match = newStat();
     p.stats.round = newStat();
@@ -338,6 +347,7 @@ function pay(m: Match, id: string, key: string, price: (p: Player) => number | n
   const cost = price(p);
   if (cost === null || p.gold < cost || !can(p)) return null;
   p.gold -= cost;
+  economyOf(p).goldSpent += cost;
   p.bought.push({ key, price: cost });
   (p.held[key] ??= []).push(m.round);
   return p;
@@ -376,6 +386,7 @@ export function undoBuy(m: Match, id: string, key: string): boolean {
   if (kind === 'spell') p.spells[what as SpellId]--;
   else if (kind === 'item') p.items[what as ItemId]--;
   p.gold += p.bought[i].price;
+  economyOf(p).goldRefunded += p.bought[i].price;
   p.bought.splice(i, 1);
   p.held[key]?.pop();
   refit(m, p);
@@ -417,6 +428,7 @@ export function sell(m: Match, id: string, key: string): boolean {
   if (kind === 'spell') p.spells[what as SpellId] = 0;
   else p.items[what as ItemId] = noItems()[what as ItemId];
   p.gold += value;
+  economyOf(p).goldRefunded += value;
   p.bought = p.bought.filter((b) => b.key !== key);
   delete p.held[key];
   refit(m, p);
@@ -583,7 +595,10 @@ export const shouldRun = (m: Match, humansConnected: number) => humansConnected 
 
 function enterShop(m: Match, now: number) {
   m.phase = 'shop';
-  for (const p of m.players) p.bought = [];
+  for (const p of m.players) {
+    p.bought = [];
+    p.economy = newEconomy(p.gold);
+  }
   m.phaseEnds = now + m.opts.shop * 1000;
   m.world = null;
   for (const p of m.players) {
@@ -688,9 +703,9 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
 }
 
 // ganho de ouro com o "+N" subindo em cima do mago: prêmios do fim da rodada (o mundo ainda existe até a loja), abate, assistência e monte de ouro
-function bonus(m: Match, p: Player, gold: number, scaled = true) {
+function bonus(m: Match, p: Player, gold: number, scaled = true, recovery = false) {
   if (gold <= 0) return;
-  const n = earn(m, p, gold, scaled);
+  const n = earn(m, p, gold, scaled, recovery);
   const z = m.world?.wizards.find((q) => q.id === p.id);
   if (z && n > 0) m.world!.events.push({ k: 'gold', id: p.id, n, x: z.pos.x, y: z.pos.y });
 }
@@ -722,7 +737,7 @@ function endRound(m: Match, now: number, winner: string | null) {
   // recuperação: quem ganhou menos ouro na partida que a média recebe metade da diferença
   const avg = inRound.reduce((sum, q) => sum + q.stats.match.gold, 0) / Math.max(1, inRound.length);
   // o ouro da partida já está na escala da economia: só o teto é multiplicado
-  for (const q of inRound) bonus(m, q, Math.min(Math.round(RECOVERY.max * m.opts.economy), Math.floor((avg - q.stats.match.gold) * RECOVERY.share)), false);
+  for (const q of inRound) bonus(m, q, Math.min(Math.round(RECOVERY.max * m.opts.economy), Math.floor((avg - q.stats.match.gold) * RECOVERY.share)), false, true);
   m.lastRoundWinner = winner;
   m.emptyRounds = winner || dm ? 0 : m.emptyRounds + 1;
   m.phase = 'roundEnd';
