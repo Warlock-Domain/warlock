@@ -5,6 +5,7 @@ Vale junto com o `CLAUDE.md` da raiz.
 - Os `.ts` rodam direto com `node scripts/x.ts` (sem ts-node/tsx): imports com extensão `.ts` e só TypeScript apagável (sem `enum`, sem `namespace`). Argumentos por `parseArgs` de `node:util`; argumento inválido vira `throw` no começo.
 - **`balance-sim.ts`:** `--minutes`, `--seed`, `--difficulty easy|casual|normal|veteran|hard`, `--plan random|classic|smart`, `--arena`, `--rounds`, `--every`, `--out`; juntar processos com `--merge --out <total> <p1> <p2>…`. Grava `summary.json` e `report.md` em `balance/` (fora do git).
 - **`build-tournament.ts`:** `--pop`, `--keep`, `--gen` além de `--minutes`/`--seed`/`--difficulty`/`--out`; roda com prioridade baixa.
+- **`tournament-plan.ts`:** normalização, mutação e cruzamento puros do torneio; desconta `FREE_SPELLS.length` das vagas de magia e permite `MAX_ITEMS` itens, com regressões em `tests/tournament-plan.test.ts`.
 - **`sim-lib.ts`** é a base comum: `seedRandom(seed)` (mulberry32, também troca `Math.random`), `playMatch`, `adjusted` (vitória ajustada pelo ouro), `writeAtomic`.
 - **Navegador:** os `*-headless.mjs` importam `openChrome` de `scripts/lib/browser.mjs` (perfil temporário; `PW_PROFILE=<pasta>` para perfil fixo; `PW_CHANNEL=chromium` para o Chromium do Playwright). Argumentos `base pasta [largura altura]`; abaixo de 700 px vira celular com toque. Script novo de navegador usa o mesmo `openChrome`.
 - **`smoke.mjs <url>`** usa WebSocket nativo (sem Playwright); falha com `SMOKE FAIL` e código 1. Roda no domínio depois de toda publicação.
