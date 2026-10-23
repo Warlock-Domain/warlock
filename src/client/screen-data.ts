@@ -10,6 +10,9 @@ import { store } from './store.ts';
 export const renderWizardState = (interpolated: WizView, ownLatest: WizView | null): WizView =>
   ownLatest?.id === interpolated.id ? ownLatest : interpolated;
 
+// O acerto pode denunciar a posição, mas seu número não deve identificar um alvo oculto ao observador.
+export const showHitDamage = (status: number) => !(status & 2048);
+
 // Sandbox: o servidor manda todos, e o 8388608 marca quem estaria escondido (Caminhada no vento ou véu da Ilusão).
 // "Ver invisíveis (teste)" ligado só deixa esses translúcidos; desligado, esconde como numa sala normal.
 export function sandboxVisibility(status: number, self: boolean, sandbox: boolean, seeInvis = false): number {
@@ -76,6 +79,11 @@ export function endResult(r: Pick<PublicRoom, 'players' | 'winner' | 'winnerTeam
 // da partida, que o servidor passa a jogar com a dificuldade da partida até a pessoa voltar (match.ts, botSkill e o laço
 // dos bots); quem só assiste não tem mago, então não vira bot
 type Seat = Pick<PublicPlayer, 'id' | 'name' | 'bot' | 'connected' | 'difficulty' | 'watch'>;
+// O nome guardado continua sendo o da pessoa. O marcador só explica na tela que,
+// enquanto ela caiu, o servidor está jogando no lugar dela com o bot.
+export function playerName(p: Pick<Seat, 'name' | 'bot' | 'connected' | 'watch'>): string {
+  return !p.bot && !p.connected && !p.watch ? `${p.name} (BOT)` : p.name;
+}
 export function botLevel(p: Seat, r: Pick<PublicRoom, 'opts'>): MatchOpts['difficulty'] | null {
   if (p.bot) return p.difficulty ?? r.opts.difficulty;
   return !p.connected && !p.watch ? r.opts.difficulty : null;
