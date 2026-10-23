@@ -1084,7 +1084,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     g.rotation.y = -Math.atan2(along.y, along.x); // o comprimento (x do modelo) no rumo dos pedaços
     return g;
   }
-  const pillarMeshes: { obj: THREE.Object3D; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number }[] = [];
+  const pillarMeshes: { obj: THREE.Object3D; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number; fallAt?: number }[] = [];
   // baú: caixa simples com tampa dourada e brilho (é um obstáculo: as magias quebram)
   const chestWood = new THREE.MeshStandardMaterial({ color: '#7a4a22', roughness: 0.7 });
   const chestGold = new THREE.MeshStandardMaterial({ color: '#ffcc33', emissive: '#a06a00', metalness: 0.6, roughness: 0.3 });
@@ -1408,6 +1408,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const changed = list.length !== pillarMeshes.length || list.some((p, i) => p.pos.x !== pillarMeshes[i].pos.x || p.pos.y !== pillarMeshes[i].pos.y);
     const radius = (p: PillarView) => OBSTACLES[p.kind].r;
     if (changed) {
+      // paredes que já estavam na tela: só a que acabou de surgir cai do céu (issue #206)
+      const before = new Set(pillarMeshes.map((m) => `${m.pos.x},${m.pos.y}`));
       for (const p of pillarMeshes) {
         scene.remove(p.obj);
         p.bar?.remove();
@@ -1439,7 +1441,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           labels.append(bar);
         }
         const height = new THREE.Box3().setFromObject(obj).max.y;
-        pillarMeshes.push({ obj, pos: p.pos, bar, fill, height });
+        const fallAt = wall && p.hp > 0 && !before.has(`${p.pos.x},${p.pos.y}`) ? performance.now() / 1000 : undefined;
+        pillarMeshes.push({ obj, pos: p.pos, bar, fill, height, fallAt });
         // a lista muda no meio da rodada (baú, Pilar de pedra): o que já tinha quebrado não afunda de novo
         if (p.hp <= 0) obj.position.y = -3;
       });
@@ -1451,6 +1454,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.obj.visible = m.obj.position.y > -2.9;
         if (m.bar) m.bar.hidden = true;
       } else {
+        // queda da parede nova: 4 m em 0,2 s, acelerando, e poeira ao bater (a colisão e o dano já valem desde o lançamento)
+        if (m.fallAt !== undefined) {
+          const k = Math.min(1, (performance.now() / 1000 - m.fallAt) / 0.2);
+          m.obj.position.y = 4 * (1 - k * k);
+          if (k >= 1) {
+            m.fallAt = undefined;
+            shockwave(p.pos, 1.6, '#c8b8a0');
+            // Math.random só no desenho da poeira (fora da simulação, como o resto da cena)
+            if (!lite) for (let j = 0; j < 4; j++) puff(v(p.pos.x + (Math.random() - 0.5) * 1.6, p.pos.y + (Math.random() - 0.5) * 1.6), 0.8, 1.2);
+          }
+        }
         // tremida curta quando apanha
         const shake = p.hp < 100 ? (100 - p.hp) / 100 : 0;
         if (m.fill) m.fill.style.width = `${p.hp}%`;
