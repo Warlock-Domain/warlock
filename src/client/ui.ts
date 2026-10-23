@@ -23,7 +23,7 @@ import { botSetupPanel, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { PROFILE_KEY, toSkill, type Profile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
-import { botLevel, endResult, moveLoadout, myLoadout, nightLine, playerName, roomGroups, saveLoadout } from './screen-data.ts';
+import { botLevel, endResult, moveLoadout, myLoadout, nightLine, playerName, presetQueue, PRESETS_KEY, readPresets, roomGroups, saveLoadout, topUsed, USED_KEY, type Preset } from './screen-data.ts';
 import { LOCALE, arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 import { radialPicker } from './radial-picker.ts';
 import { radialHold, tauntWheelSlots } from './taunt-wheel.ts';
@@ -1429,6 +1429,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // estado da loja que sobrevive ao redesenho (a sala manda o estado a cada compra de qualquer jogador)
   let goldOpen = false;
   let sheetOpen = false; // Ficha começa recolhida para a loja caber sem rolagem no PC; abrir/fechar sobrevive ao redesenho
+  let buildsOpen = false; // Builds também começa recolhida: menos informação na loja (pedido do Fernando na #185)
+  let armedBuild: number | null = null; // posição com "Substituir?" à espera do segundo clique; fora do DOM para sobreviver ao redesenho da loja
+  // ordem da barra do preset em uso: só vale quando as magias dele chegam (antes disso o myLoadout tira da barra o que ainda não tem)
+  let presetOrder: { order: (SpellId | null)[]; round: number } | null = null;
+  // Usar em andamento: os botões Usar ficam desligados até a sala mostrar a build comprada (fila refeita vazia), mesmo com redesenhos
+  // no meio (compra de outro jogador, primeira compra da fila); o prazo só destrava quando nada chega (servidor recusou ou caiu)
+  let buying: { slot: number; round: number; timer: ReturnType<typeof setTimeout> } | null = null;
   let readyBtn: HTMLElement | null = null;
   // cartão de primeira vez na loja da rodada 0: some ao fechar ou ao apertar Pronto, e fica guardado no navegador
   const FIRST = 'warlock:firstshop';
@@ -1480,6 +1487,71 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       // a ficha depois de comprar mais um nível e depois de vender tudo (prévia na dica)
       bought: () => SheetRow[]; sold: () => SheetRow[] };
     const now = sheet(mine.spells, mine.items, book());
+    if (presetOrder && presetOrder.round !== r.round) presetOrder = null; // o ouro não deu para tudo: não mexe na barra da próxima loja
+    // gravar no desenho é seguro: o myLoadout (barra e teclas) já grava a ordem durante o desenho, e este é o primeiro desenho com as magias da build
+    if (presetOrder?.order.every((s) => !s || mine.spells[s] > 0)) {
+      saveLoadout({ spells: presetOrder.order });
+      presetOrder = null;
+    }
+    // os 3 mais comprados de magias e de itens (só partidas de verdade contam, main.ts) ganham um selo
+    const used = store.json<Record<string, number>>(USED_KEY) ?? {};
+    const favs = new Set([...topUsed(used, 'spell').map((s) => 'spell-' + s), ...topUsed(used, 'item').map((i) => 'item-' + i)]);
+    // presets de build (#185): 3 posições guardadas neste navegador; Usar compra sozinho, em ordem, até acabar o ouro (Fernando, 21/10)
+    const buildsBox = () => {
+      const saved = readPresets(store.get(PRESETS_KEY));
+      if (buying && (buying.round !== r.round || !saved[buying.slot] || !presetQueue(saved[buying.slot]!, mine.spells, mine.items, mine.gold).length)) {
+        clearTimeout(buying.timer);
+        buying = null;
+      }
+      // magias pela ordem da barra e depois itens: o mesmo conteúdo vira os ícones da linha e os nomes da dica
+      const parts = (p: Preset) => [...p.order.filter((s): s is SpellId => !!s).map((s) => [icon(ICON[s]), spellName(s)] as const), ...ITEM_IDS.filter((x) => p.items[x]).map((x) => [icon(ITEM_ICON[x]), itemName(x)] as const)];
+      const saves: HTMLElement[] = []; // botões Salvar das 3 posições: armar ou salvar uma volta as outras para "Salvar"
+      const disarm = () => saves.forEach((b) => (b.textContent = t('Salvar', 'Save')));
+      const row = (i: number) => {
+        // dica com os nomes: só os ícones não dizem o que a build guarda
+        const icons = withTip(el('span', { class: 'build-icons' }), () => (saved[i] ? parts(saved[i]!).map(([, name]) => name).join(' · ') : t('Posição vazia: Salvar guarda o que você tem agora', 'Empty slot: Save stores what you have now')));
+        const show = (p: Preset | null) => icons.replaceChildren(...(p ? parts(p).map(([ico]) => ico) : [t('Vazia', 'Empty')]));
+        show(saved[i]);
+        const use = el('button', { type: 'button', disabled: !saved[i] || !!buying, 'aria-label': t(`Usar a build ${i + 1}`, `Use build ${i + 1}`), onclick: () => {
+          const p = saved[i]!;
+          const queue = presetQueue(p, mine.spells, mine.items, mine.gold);
+          // a fila sai do ouro de agora: um segundo clique antes das compras chegarem compraria tudo de novo, acima da build
+          // (fila vazia não trava: nenhuma compra chega para destravar)
+          if (queue.length) {
+            const timer = setTimeout(() => {
+              if (buying?.timer !== timer) return;
+              buying = null;
+              drawCenter();
+              drawPeek();
+            }, 5000);
+            buying = { slot: i, round: r.round, timer };
+            drawCenter(); // desliga os 3 Usar na hora
+            drawPeek();
+          }
+          for (const b of queue) if (b.kind === 'spell') act.buy(b.id); else act.buyItem(b.id);
+          presetOrder = { order: p.order, round: r.round };
+        } }, t('Usar', 'Use'));
+        // salvar por cima pede um segundo clique: um clique sem querer apagaria a build guardada
+        const save = el('button', { type: 'button', 'aria-label': t(`Salvar na build ${i + 1}`, `Save to build ${i + 1}`), onclick: () => {
+          if (saved[i] && armedBuild !== i) {
+            armedBuild = i;
+            disarm();
+            save.textContent = t('Substituir?', 'Replace?');
+            return;
+          }
+          saved[i] = { spells: Object.fromEntries(SPELL_IDS.filter((x) => mine.spells[x]).map((x) => [x, mine.spells[x]])), items: Object.fromEntries(ITEM_IDS.filter((x) => mine.items[x]).map((x) => [x, mine.items[x]])), order: myLoadout(mine.spells).spells };
+          store.set(PRESETS_KEY, JSON.stringify(saved));
+          show(saved[i]);
+          use.disabled = !!buying;
+          armedBuild = null;
+          disarm();
+        } }, armedBuild === i ? t('Substituir?', 'Replace?') : t('Salvar', 'Save'));
+        saves.push(save);
+        return el('div', { class: 'keys-row' }, icons, el('span', { class: 'build-acts' }, use, save));
+      };
+      return el('details', { class: 'sheet-box', open: buildsOpen, ontoggle: (e: Event) => (buildsOpen = (e.target as HTMLDetailsElement).open) },
+        el('summary', {}, t('Builds salvas', 'Saved builds')), ...saved.map((_, i) => row(i)));
+    };
     const sheetBox = () => el('details', { class: 'sheet-box', open: sheetOpen, ontoggle: (e: Event) => (sheetOpen = (e.target as HTMLDetailsElement).open) },
       el('summary', {}, t('Ficha do mago', 'Wizard sheet')), sheetEl(now, el('small', { class: 'muted' }, t('Passe o mouse num item para ver o que muda.', 'Hover an item to see what changes.'))));
     const offer = (o: Offer) => {
@@ -1502,11 +1574,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           : el('button', { type: 'button', class: 'shop-tile', 'data-key': o.key, disabled: !can, 'aria-label': `${o.name}: ${full}`, onclick: o.buy }, ...face),
         // tecla só do que está equipado, numa bolinha por cima do canto, fora do arranjo do cartão (Fernando, 21/10)
         o.lvl && o.hotkey ? el('span', { class: 'key', 'aria-hidden': 'true' }, o.hotkey) : null,
+        favs.has(o.key) ? el('span', { class: 'key fav', 'aria-hidden': 'true' }, '★') : null,
         // comprar ou subir de nível, vender e desfazer numa coluna à direita do cartão (Fernando, 21/10); o clique no cartão continua comprando
         el('div', { class: 'tile-acts' }, !peek && open ? iconButton(icon(o.lvl ? UI_ICON.upgrade : UI_ICON.buy), full, o.buy, { class: 'buy', 'data-key': 'buy-' + o.key, disabled: !can }) : null, sellBtn(key), undoBtn(key)),
       ), () => {
         const sell = peek ? 0 : sellValue(mine, r.round, key);
-        return o.tip() + (o.key.startsWith('spell') ? `<p><i>${o.use}</i></p>` : '')
+        return o.tip() + (favs.has(o.key) ? `<p class="up">★ ${t('Um dos que você mais compra', 'One of the ones you buy the most')}</p>` : '') + (o.key.startsWith('spell') ? `<p><i>${o.use}</i></p>` : '')
           + (peek && can ? `<p class="up">${t('Você pode comprar isto na próxima loja.', 'You can buy this in the next shop.')}</p>` : '')
           // magia: a própria dica já mostra o nível atual → o próximo
           + (o.key.startsWith('spell') || o.blocked ? '' : previewHtml(o.lvl ? t('Se subir de nível', 'If you level up') : t('Se comprar', 'If you buy'), diff(now, o.bought())))
@@ -1544,7 +1617,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.sandbox ? t('Loja · sandbox', 'Shop · sandbox') : deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${r.sandbox ? 'ouro sem fim: compre e venda, vale na hora' : deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${r.sandbox ? 'endless gold: buy and sell, it applies right away' : deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
         iconButton('✕', t('Fechar a loja', 'Close the shop'), () => togglePeek(false), { class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`) })),
       ...grid),
-      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), sheetBox()));
+      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), peek ? null : buildsBox(), sheetBox()));
     readyBtn = el('button', { type: 'button', class: 'primary big', 'data-key': 'ready', disabled: mine.ready, onclick: () => {
       if (r.round === 0) seeFirst();
       act.ready();
@@ -1560,6 +1633,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         el('span', { class: 'gold big' }, gold(mine.gold)),
         readyBtn,
         el('button', { type: 'button', 'data-key': 'placar', onclick: () => pinTab(true) }, icon(UI_ICON.board), ' ' + t('Placar', 'Scoreboard')),
+        buildsBox(),
         sheetBox(),
         goldInfo(mine, r.opts, goldOpen, (open) => (goldOpen = open)),
         nextModePicker(r),

@@ -34,7 +34,7 @@ import { createSound, type SoundKind } from './sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
-import { STAGE_NAME, botLevel, endResult, maxHp, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
+import { STAGE_NAME, USED_KEY, botLevel, boughtKeys, countBuys, endResult, maxHp, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, setIlse, type IlseCtx } from './ilse.ts';
 
@@ -434,6 +434,7 @@ function startRoom(code: string, name: string) {
 
   // a aparência escolhida fica salva e é reenviada ao entrar em qualquer sala; trocada nas Configurações, vale na hora
   const net = connect('/ws/room/' + code, onMsg, () => {
+    rejoined = true;
     net.send({ t: 'hello', playerId, name: myName, ...(watchJoin && { watch: true as const }) });
     net.send({ t: 'look', look: savedLook() });
   }, (on) => {
@@ -667,6 +668,7 @@ function startRoom(code: string, name: string) {
   }
 
   let lastPhase = '';
+  let rejoined = false; // conexão (re)aberta: a primeira sala depois dela não conta compras
   function onMsg(m: ServerMsg) {
     if (m.t === 'error') {
       if (m.code === 'not_found') return screen(ui, t('Sala não encontrada', 'Room not found'), t('Ela pode ter fechado por ficar vazia.', 'It may have closed for being empty.'), t('Ver salas', 'View rooms'), () => (location.hash = ''));
@@ -698,6 +700,17 @@ function startRoom(code: string, name: string) {
           const name = playerName(p);
           toast(t(`${name} voltou para a partida`, `${name} is back in the match`), 'good', true);
         }
+      }
+      // mais usados (#185): cada nível novo de magia ou item conta; Sandbox, Desafios, Sombra e Ascensão (cartas, sem loja) ficam fora (Fernando, 21/10)
+      // shortcut: desfazer e comprar de novo conta duas vezes; mudar para descontar se o selo começar a errar
+      // depois de reconectar, a diferença para a sala de antes inclui o que o bot comprou no seu lugar (#223): pula essa sala
+      // (uma compra sua que chegou só junto com ela também fica fora; erra para menos, nunca para mais)
+      const fresh = rejoined;
+      rejoined = false;
+      const mineBefore = prev?.players.find((p) => p.id === me), mineNow = room.players.find((p) => p.id === me);
+      if (!fresh && mineBefore && mineNow && !room.sandbox && !shadow && !run && !pending && !mineNow.asc) {
+        const keys = boughtKeys(mineBefore, mineNow);
+        if (keys.length) store.set(USED_KEY, JSON.stringify(countBuys(store.json<Record<string, number>>(USED_KEY) ?? {}, keys)));
       }
       // compra na loja: o ouro caiu → som de moedas
       if (prev?.phase === 'shop' && room.phase === 'shop') {

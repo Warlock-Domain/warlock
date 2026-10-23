@@ -2,7 +2,8 @@
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { WizView } from '../shared/snapshot.ts';
-import { MAX_SPELLS, SPELL_IDS, type SpellId } from '../shared/spells.ts';
+import { ITEM_IDS, itemPrice, type ItemId } from '../shared/items.ts';
+import { FREE_SPELLS, MAX_SPELLS, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { store } from './store.ts';
 import type { ServoKind } from '../shared/campaign.ts';
 import { HP_MAX } from '../shared/constants.ts';
@@ -110,6 +111,73 @@ export function roomGroups(rooms: RoomInfo[]) {
   const rank = (r: RoomInfo) => RANK[r.phase] ?? 2;
   return { live: rooms.filter((r) => r.players > 0).sort((a, b) => rank(a) - rank(b)), empty: rooms.filter((r) => !r.players) };
 }
+
+// presets de build (issue #185): magias e itens com o nível e a ordem da barra, guardados só neste navegador
+export type Preset = { spells: Partial<Record<SpellId, number>>; items: Partial<Record<ItemId, number>>; order: (SpellId | null)[] };
+export type Buy = { kind: 'spell'; id: SpellId } | { kind: 'item'; id: ItemId };
+export const PRESET_SLOTS = 3;
+export const PRESETS_KEY = 'warlock:presets';
+export const USED_KEY = 'warlock:usados';
+
+// "Usar" (decisão do Fernando, 21/10): compra sozinho, em ordem, até acabar o ouro; magias pela ordem da barra, depois itens.
+// Para na primeira compra que o ouro não paga (pular para uma mais barata mudaria a build); o servidor valida cada compra de novo
+export function presetQueue(p: Preset, spells: Record<SpellId, number>, items: Record<ItemId, number>, gold: number): Buy[] {
+  const sp = { ...spells }, it = { ...items }, out: Buy[] = [];
+  const spellOrder = [...new Set([...p.order.filter(isSpell), ...SPELL_IDS])];
+  for (const id of spellOrder) {
+    if (!sp[id] && spellCount(sp) >= MAX_SPELLS) continue; // barra cheia: a magia nova não cabe
+    while (sp[id] < (p.spells[id] ?? 0)) {
+      const price = priceOf(id, sp[id]);
+      if (price === null) break;
+      if (price > gold) return out;
+      gold -= price;
+      sp[id]++;
+      out.push({ kind: 'spell', id });
+    }
+  }
+  for (const id of ITEM_IDS) while (it[id] < (p.items[id] ?? 0)) {
+    const price = itemPrice(it, id);
+    if (price === null) break; // nível máximo ou sem espaço de item
+    if (price > gold) return out;
+    gold -= price;
+    it[id]++;
+    out.push({ kind: 'item', id });
+  }
+  return out;
+}
+
+// salvo velho ou estragado não pode quebrar a loja: só fica o que é magia ou item de verdade, com nível inteiro
+const levels = <K extends string>(o: unknown, ok: (k: string) => k is K) =>
+  Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([k, n]) => ok(k) && Number.isInteger(n) && (n as number) > 0)) as Partial<Record<K, number>>;
+const isItem = (k: string): k is ItemId => (ITEM_IDS as readonly string[]).includes(k);
+export function readPresets(raw: string | null): (Preset | null)[] {
+  let list: unknown = null;
+  try { list = JSON.parse(raw ?? 'null'); } catch { /* fica vazio */ }
+  return Array.from({ length: PRESET_SLOTS }, (_, i) => {
+    const p = Array.isArray(list) ? list[i] : null;
+    if (!p || typeof p !== 'object') return null;
+    // vaga vazia da barra fica no lugar (null): sem ela as magias da build mudariam de tecla
+    return { spells: levels(p.spells, isSpell), items: levels(p.items, isItem), order: Array.isArray(p.order) ? p.order.slice(0, MAX_SPELLS).map((s: unknown) => (isSpell(s) ? s : null)) : [] };
+  });
+}
+
+// mais usados: cada lote de compras primeiro desbota o que já havia (as recentes pesam mais) e soma 1 por compra;
+// 0,97 por lote esquece devagar (uma partida tem umas 20 compras); o que fica abaixo de 0,05 sai para a chave não crescer sem fim
+const FADE = 0.97;
+export function countBuys(used: Record<string, number>, keys: string[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, n] of Object.entries(used)) if (n * FADE >= 0.05) out[k] = n * FADE;
+  for (const k of keys) out[k] = (out[k] ?? 0) + 1;
+  return out;
+}
+// o que eu comprei entre duas atualizações da sala: cada nível novo de magia ou item vira uma chave;
+// o nível 1 grátis (Bola de fogo, Flagelo) não é compra, e vender ou desfazer (nível menor) não conta
+export const boughtKeys = (was: Pick<PublicPlayer, 'spells' | 'items'>, now: Pick<PublicPlayer, 'spells' | 'items'>) => [
+  ...SPELL_IDS.flatMap((x) => Array<string>(Math.max(0, now.spells[x] - Math.max(was.spells[x], FREE_SPELLS.includes(x) ? 1 : 0))).fill('spell:' + x)),
+  ...ITEM_IDS.flatMap((x) => Array<string>(Math.max(0, now.items[x] - was.items[x])).fill('item:' + x)),
+];
+export const topUsed = (used: Record<string, number>, kind: 'spell' | 'item', n = 3) =>
+  Object.entries(used).filter(([k]) => k.startsWith(kind + ':')).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k.slice(kind.length + 1));
 
 // Campanha: nome dos servos (o servidor manda em português), nome do estágio e a linha de onde a noite está
 const SERVO_NAME: Record<ServoKind, string> = { ash: t('Cinzento', 'Ashen'), archer: t('Arqueiro de Fuligem', 'Soot Archer'), watcher: t('Vigia Oco', 'Hollow Watcher'), hound: t('Cão de Brasa', 'Ember Hound'), odran: t('Sir Odran, o Elmo Vazio', 'Sir Odran, the Empty Helm') };

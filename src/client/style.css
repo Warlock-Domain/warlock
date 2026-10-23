@@ -1102,6 +1102,11 @@ body.replaying .peek-shop { display: none; }
 .shop-tile .ico { display: flex; font-size: 1.9rem; color: var(--g, var(--ember)); }
 .shop-item > .key { position: absolute; top: -6px; left: -6px; z-index: 2; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; display: grid; place-items: center;
   border-radius: var(--r-lg); background: var(--g, var(--ember)); color: var(--panel-bot); font-size: .68rem; font-weight: 700; line-height: 1; box-shadow: 0 0 0 2px var(--panel-solid); pointer-events: none; }
+/* selo dos mais comprados (#185): a bolinha da tecla, no canto de baixo e dourada */
+.shop-item > .key.fav { top: auto; bottom: -6px; background: var(--gold); }
+/* presets de build na coluna da direita da loja: ícones da build e os botões Usar e Salvar */
+.build-icons { display: flex; flex-wrap: wrap; gap: 2px; min-width: 0; color: var(--muted); }
+.build-acts { display: flex; gap: 4px; flex: none; }
 .shop-tile .pips i { width: 9px; height: 3px; }
 .shop-tile .pips i.on { background: var(--g, var(--ember)); }
 .tile-price { display: inline-flex; align-items: center; gap: 2px; font-family: var(--display); font-weight: 700; font-size: .8rem; line-height: 1; white-space: nowrap; color: var(--muted); }
