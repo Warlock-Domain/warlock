@@ -343,7 +343,7 @@ export const ITEM_DEMO = LANG === 'en' ? ITEM_DEMO_EN : ITEM_DEMO_PT;
 type SpellGroups = [name: string, hint: string, spells: SpellId[]][];
 // as listas moram em spells.ts (SPELL_GROUP_IDS), que o sorteio das cartas do Ascensão também usa
 // Reclassificação visual; a Ascensão mantém os pesos de cartas atuais.
-const G = { ...SPELL_GROUP_IDS, attack: SPELL_GROUP_IDS.attack.filter((s) => s !== 'lightning'), control: [...SPELL_GROUP_IDS.control, 'lightning' as const] };
+const G = { ...SPELL_GROUP_IDS, attack: SPELL_GROUP_IDS.attack.filter((s) => s !== 'lightning' && s !== 'meteor'), control: [...SPELL_GROUP_IDS.control, 'meteor' as const, 'lightning' as const] };
 const SPELL_GROUPS_PT: SpellGroups = [
   ['Ataque', 'dano e empurrão', [...G.attack]],
   ['Mobilidade', 'sair do lugar', [...G.mobility]],

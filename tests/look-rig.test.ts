@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { CHARACTERS, encodeLook, type CharacterId } from '../src/shared/characters.ts';
-import { assemble, type Model } from '../src/client/scene.ts';
+import { assemble, cloneAppearance, type Model } from '../src/client/scene.ts';
 
 // o projeto não tem @types/node: só o tipo do que o teste usa
 const { readFileSync } = (await import('node:fs' as string)) as { readFileSync(p: string): Uint8Array };
@@ -53,6 +53,28 @@ function sample(src: Model, name: string, t: number): number[] {
 }
 
 describe('montagem da aparência (scene.ts)', () => {
+  it('prévia e partida conservam modelos, cores e texturas, isolando os materiais de cada cópia', () => {
+    const original = new THREE.Group();
+    const texture = new THREE.Texture();
+    for (const name of ['Mage_Hat', 'Mage_Body', 'Mage_Cape', 'Knight_Cape']) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial({ color: '#ff0000', map: texture }));
+      mesh.name = name;
+      original.add(mesh);
+    }
+    const preview = cloneAppearance(original), game = cloneAppearance(original);
+    for (const name of ['Mage_Hat', 'Mage_Body', 'Mage_Cape', 'Knight_Cape']) {
+      const source = original.getObjectByName(name) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+      const a = preview.getObjectByName(name) as typeof source, b = game.getObjectByName(name) as typeof source;
+      expect(b.geometry).toBe(source.geometry);
+      expect(b.material.color.equals(a.material.color)).toBe(true);
+      expect(b.material.color.equals(source.material.color)).toBe(true);
+      expect(b.material.map).toBe(texture);
+      expect(b.material).not.toBe(a.material);
+      b.material.color.set('#00ff00'); // efeitos temporários não contaminam a prévia nem outro jogador.
+      expect(a.material.color.getHexString()).toBe('ff0000');
+      expect(source.material.color.getHexString()).toBe('ff0000');
+    }
+  });
   it('peça de outro boneco fica no mesmo lugar que no original, animada', async () => {
     const files = new Map<CharacterId, Model>();
     for (const c of CHARACTERS) files.set(c.id, await load(c.id));

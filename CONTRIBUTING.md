@@ -44,17 +44,17 @@ Todo PR, rascunho também, ganha um jogo só dele na internet: `https://pr-<n>-w
 - **Quando sair do rascunho:** gates verdes, o que dá para testar testado e prints de PC se a tela mudou. Rascunho é só para trabalho em andamento ou teste com o grupo: a revisão automática não roda em rascunho e ninguém revisa nem mescla.
 - **Sua IA não consegue testar no navegador?** Saia do rascunho mesmo assim e escreva no PR, em "Como testei", o que não foi testado e como testar (passos e o que esperar). Quem revisa testa no ambiente do PR (link acima) e tira os prints que faltarem. Não deixe o PR parado em rascunho só por isso.
 - **Quando some:** ao fechar o PR (mesclado ou não) o ambiente é apagado sozinho e o comentário avisa. Reabrir o PR publica de novo.
-- **Acompanhar:** aba [Actions](https://github.com/fernandorff/warlock/actions), pipeline **Ambiente do PR**. Ela faz o build, publica, espera o link responder e roda o teste rápido (uma sala de verdade).
+- **Acompanhar:** aba [Actions](https://github.com/Warlock-Domain/warlock/actions), pipeline **Ambiente do PR**. Ela faz o build, publica, espera o link responder e roda o teste rápido (uma sala de verdade).
 - **Se der errado:** build quebrado não publica nada e a versão anterior do PR continua. Teste rápido vermelho quer dizer que a versão nova já está no ar com problema: veja o log.
 - **PR de fork** não ganha ambiente: o GitHub não passa os segredos de publicação para fork.
 
 ## Pipelines
 
-Tabela completa no [CLAUDE.md](CLAUDE.md#pipelines): CI, título do PR, revisão do Claude, `@claude` e ambiente do PR. Logs em https://github.com/fernandorff/warlock/actions.
+Tabela completa no [CLAUDE.md](CLAUDE.md#pipelines): CI, título do PR, revisão do Claude, `@claude` e ambiente do PR. Logs em https://github.com/Warlock-Domain/warlock/actions.
 
 ## Issues
 
-Toda issue sai de um dos dois modelos (a issue em branco está desligada): https://github.com/fernandorff/warlock/issues/new/choose
+Toda issue sai de um dos dois modelos (a issue em branco está desligada): https://github.com/Warlock-Domain/warlock/issues/new/choose
 
 | Modelo | Quando | O que pede |
 |---|---|---|

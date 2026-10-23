@@ -1,13 +1,14 @@
 // Previsão do próprio mago: anda na hora do clique com o mesmo código do servidor e é corrigido de leve.
 import { BRACING_BIT, WIZ_SPEED } from '../shared/constants.ts';
 import { isStunned, moveWizard, type Wizard } from '../shared/sim.ts';
-import { BLOCKED_MOVE_BIT, type WizView } from '../shared/snapshot.ts';
+import { BLOCKED_MOVE_BIT, DASHING_BIT, type WizView } from '../shared/snapshot.ts';
 import { add, dist, scale, sub, v, type Vec } from '../shared/vec.ts';
 
 export function createPredict() {
   let me: Wizard | null = null;
   let velocitySource: WizView | null = null;
   let wasStunned = false;
+  let wasDashing = false;
   let rttSec = 0.1;
   // conjurando: o mago fica parado até holdUntil; o clique de andar nesse meio-tempo fica guardado
   let holdUntil = 0;
@@ -78,6 +79,9 @@ export function createPredict() {
       const stunned = server.stunLeft === undefined ? isStunned(server) : !!(server.status & 16);
       if (wasStunned && !stunned) me.pos = { ...server.pos };
       wasStunned = stunned;
+      const dashing = server.alive && !!(server.status & DASHING_BIT);
+      if (wasDashing && !dashing) me.pos = { ...server.pos };
+      wasDashing = dashing;
       if (server !== velocitySource) {
         if (server.status & BLOCKED_MOVE_BIT) { me.target = null; me.pos = { ...server.pos }; }
         me.stunLeft = server.stunLeft;
@@ -85,7 +89,7 @@ export function createPredict() {
         me.vel = { ...server.vel };
         velocitySource = server;
       }
-      if (!server.alive || stunned) {
+      if (!server.alive || stunned || dashing) {
         if (stunned) holdUntil = 0; // conjuração interrompida não mantém espera antiga.
         // empurrado ou morto: quem manda é o servidor
         me.pos = add(me.pos, scale(sub(server.pos, me.pos), 0.35));

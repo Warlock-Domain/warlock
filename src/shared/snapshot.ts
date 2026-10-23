@@ -8,6 +8,7 @@ import type { Isle } from './arena.ts';
 import { dist, v, type Vec } from './vec.ts';
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
+export const DASHING_BIT = 33554432; // avanço curto, distinto do buff de velocidade/absorção.
 const ZONE_KINDS = ['burn', 'slow', 'pull'] as const;
 // A pose segue um destino autoritativo, não deslocamento residual ou correção de rede.
 export const WALKING_BIT = 16777216;
@@ -49,6 +50,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
       | (z.alive && w.zones.some((q) => q.kind === 'pull' && dist(q.pos, z.pos) < q.r + WIZ_R) ? 2097152 : 0)
       | (w.t < z.veilUntil ? (z.id === forId ? 1024 : seeAll ? 8388608 : 2048) : 0)
       | (z.alive && z.target && dist(z.target, z.pos) > .01 && z.speed > 0 && !z.casting && !isStunned(z) && w.t >= z.dashUntil && w.t >= z.thrustUntil ? WALKING_BIT : 0)
+      | (z.alive && w.t < z.dashUntil ? DASHING_BIT : 0)
       | (z.moveHeld ? HOLDING_MOVE_BIT : 0) | (z.blockedMove ? BLOCKED_MOVE_BIT : 0)
       | (w.t < incapacitatedUntil(z, w.t) ? INCAPACITATED_BIT : 0)
       | (w.t < (z.electroUntil ?? 0) ? ELECTROCUTED_BIT | 4 : 0)
