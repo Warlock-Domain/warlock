@@ -1,4 +1,4 @@
-// Opt-in: node scripts/resource-regression.mjs --base http://127.0.0.1:8848 --gc.
+// Opcional: node scripts/resource-regression.mjs --base http://127.0.0.1:8848 --gc.
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
@@ -126,7 +126,7 @@ try {
   await page.evaluate((n) => connectionCycles(n), cycles);
   const final = await sample('after connection cycles', completed);
   await snapshot('final');
-  // Caches aquecidos ficam; a tolerância é crescimento de zero recursos possuídos, não um teto arbitrário de memória.
+  // Os caches ficam; depois do aquecimento, recursos possuídos e ouvintes temporários não podem crescer.
   for (const metric of ['textures', 'buffers']) {
     const growth = final.resources.gpu[metric].active - baseline.resources.gpu[metric].active;
     if (growth > 0) report.failures.push(`${metric} grew by ${growth} after warmup`);
@@ -138,7 +138,7 @@ try {
   for (const metric of ['visibilityListeners', 'intervals', 'timeouts']) if (final.resources[metric] !== beforeConnections.resources[metric]) report.failures.push(`Connection stop leaked ${metric} (#302)`);
   for (const type of Object.keys(final.retained)) {
     const growth = final.retained[type] - baseline.retained[type];
-    // Duas aparências podem ter números diferentes de malhas; a baseline e o fim usam a mesma paridade.
+    // Aparências diferentes variam o número de malhas; baseline e fim usam a mesma paridade.
     if (growth > 0) report.failures.push(`Retained ${type} grew by ${growth} after GC`);
   }
   await page.screenshot({ path: `${values.out}/final.png` });

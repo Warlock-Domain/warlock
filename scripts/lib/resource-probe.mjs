@@ -1,4 +1,4 @@
-// Instrumentação só no navegador de teste; WeakRef evita manter vivos os objetos que estamos medindo.
+// A instrumentação roda só no navegador de teste; WeakRef não mantém vivos os objetos medidos.
 export function installResourceProbe({ mutation }) {
   let nextId = 0;
   const ids = new WeakMap();
