@@ -93,6 +93,7 @@ export function createPredict() {
       wasStunned = stunned;
       if (server !== velocitySource) {
         me.stunLeft = server.stunLeft;
+        me.recoveryLeft = server.recoveryLeft ?? 0;
         me.vel = { ...server.vel };
         velocitySource = server;
       }
