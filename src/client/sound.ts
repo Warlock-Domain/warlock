@@ -16,15 +16,21 @@ const RATE: Partial<Record<SoundKind, number>> = { hitLight: 1.25, hitHeavy: 0.7
 
 // volumes de 0 a 1, separados para efeitos e música, guardados no navegador: os mesmos no menu inicial e na sala (issue #128).
 // Quem tinha deixado mudo na versão antiga começa em zero
-type Volumes ={ sfx: number; music: number };
-const VOL_KEY = { sfx: 'warlock:vol-sfx', music: 'warlock:vol-music' } as const;
+export type Volumes = { master: number; sfx: number; music: number; taunts: number };
+export type VolumeKind = keyof Volumes;
+const VOL_KEY = { master: 'warlock:vol-master', sfx: 'warlock:vol-sfx', music: 'warlock:vol-music', taunts: 'warlock:vol-taunts' } as const;
+export const channelVolume = (v: Volumes, kind: 'sfx' | 'music' | 'taunts') => v.master * v[kind];
+export const isAudioMuted = (v: Volumes) => v.master === 0 || v.sfx + v.music + v.taunts === 0;
 export function loadVolumes(musicDefault = 0.7): Volumes {
   const readVol = (k: string, fallback: number) => {
     const n = Number(store.get(k));
     return Number.isFinite(n) && store.get(k) !== null ? Math.max(0, Math.min(1, n)) : fallback;
   };
   const oldMute = store.get('warlock:mute') === '1';
-  return { sfx: readVol(VOL_KEY.sfx, oldMute ? 0 : 1), music: readVol(VOL_KEY.music, oldMute || store.get('warlock:music') === '0' ? 0 : musicDefault) };
+  const sfx = readVol(VOL_KEY.sfx, oldMute ? 0 : 1);
+  if (store.get(VOL_KEY.taunts) === null) store.set(VOL_KEY.taunts, String(sfx));
+  // Geral neutro e provocações herdando Efeitos preservam a mistura anterior na migração.
+  return { master: readVol(VOL_KEY.master, 1), sfx, music: readVol(VOL_KEY.music, oldMute || store.get('warlock:music') === '0' ? 0 : musicDefault), taunts: readVol(VOL_KEY.taunts, sfx) };
 }
 export const saveVolume = (kind: keyof Volumes, value: number) => store.set(VOL_KEY[kind], String(value));
 
@@ -35,6 +41,7 @@ export function createSound(musicDefault?: number) {
   let ctx: AudioContext | null = null;
   let noise: AudioBuffer | null = null;
   let master: GainNode | null = null;
+  let tauntMaster: GainNode | null = null;
   const buffers = new Map<string, AudioBuffer>();
   const gains = new Map<string, number>();
   let musicLevelStarted = false;
@@ -67,9 +74,12 @@ export function createSound(musicDefault?: number) {
       }
       // compressor + volume geral abaixo de 1: vários sons juntos (golpe + explosão) não estouram
       master = ctx.createGain();
-      master.gain.value = 0.6 * volumes().sfx;
+      master.gain.value = 0.6 * channelVolume(volumes(), 'sfx');
+      tauntMaster = ctx.createGain();
+      tauntMaster.gain.value = 0.6 * channelVolume(volumes(), 'taunts');
       const comp = ctx.createDynamicsCompressor();
       master.connect(comp).connect(ctx.destination);
+      tauntMaster.connect(comp);
       noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
       const data = noise.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
@@ -98,10 +108,11 @@ export function createSound(musicDefault?: number) {
   // música e lava tocam só dentro da partida e com som ligado
   function syncAmbience() {
     const vol = volumes();
-    if (master) master.gain.value = 0.6 * vol.sfx;
-    music.volume = Math.min(1, 0.35 * vol.music * duck);
+    if (master) master.gain.value = 0.6 * channelVolume(vol, 'sfx');
+    if (tauntMaster) tauntMaster.gain.value = 0.6 * channelVolume(vol, 'taunts');
+    music.volume = Math.min(1, 0.35 * channelVolume(vol, 'music') * duck);
     const on = wantAmbience && !!ctx && ctx.state === 'running';
-    if (on && vol.music > 0 && !musicLevelStarted && typeof ctx!.createMediaElementSource === 'function') {
+    if (on && channelVolume(vol, 'music') > 0 && !musicLevelStarted && typeof ctx!.createMediaElementSource === 'function') {
       musicLevelStarted = true;
       const gain = ctx!.createGain();
       gain.gain.value = 1;
@@ -109,7 +120,7 @@ export function createSound(musicDefault?: number) {
       // Só mede a faixa quando a música é solicitada; não baixa música ao abrir o menu.
       void load('music', '/music/battle.mp3').then(() => { gain.gain.value = gains.get('music') ?? 1; });
     }
-    if (on && vol.music > 0) void music.play().catch(() => {});
+    if (on && channelVolume(vol, 'music') > 0) void music.play().catch(() => {});
     else music.pause();
     const buf = buffers.get('lava_loop');
     if (on && vol.sfx > 0 && buf && !lava) {
@@ -135,7 +146,7 @@ export function createSound(musicDefault?: number) {
     src.playbackRate.value = name.startsWith('synth/') ? 1 : rate * (0.94 + Math.random() * 0.12); // síntese pré-renderizada sem variação de timbre.
     const g = ctx!.createGain();
     g.gain.value = volume * (gains.get(name) ?? 1);
-    src.connect(g).connect(master!);
+    src.connect(g).connect(name.startsWith('taunt/') ? tauntMaster! : master!);
     src.start();
     return true;
   }
@@ -210,10 +221,11 @@ export function createSound(musicDefault?: number) {
     volumes,
     // Configurações (menu e sala): guarda, aplica na hora e toca o clique no volume novo dos efeitos
     setVolume(kind: keyof Volumes, value: number) {
-      vol[kind] = value;
-      saveVolume(kind, value);
+      vol[kind] = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+      saveVolume(kind, vol[kind]);
       syncAmbience();
-      if (kind === 'sfx') api.play('click');
+      if (tauntPreview) tauntPreview.volume = channelVolume(vol, 'taunts') * (previewUsesWebAudio ? 1 : .6);
+      if (kind === 'sfx' || kind === 'master') api.play('click');
     },
     setAmbience(on: boolean) {
       wantAmbience = on;
@@ -223,13 +235,13 @@ export function createSound(musicDefault?: number) {
     async taunt(name: string) {
       const src = tauntAudioSrc(name);
       if (!src) return;
-      if (!ctx || volumes().sfx === 0 || ctx.state !== 'running') return;
+      if (!ctx || channelVolume(volumes(), 'taunts') === 0 || ctx.state !== 'running') return;
       const key = 'taunt/' + name;
       if (!buffers.has(key)) await load(key, src);
-      file(key, 1);
+      if (channelVolume(volumes(), 'taunts') > 0) file(key, 1);
     },
     play(kind: SoundKind, volume = 1) {
-      if (!ctx || !noise || volumes().sfx === 0 || ctx.state !== 'running') return;
+      if (!ctx || !noise || channelVolume(volumes(), 'sfx') === 0 || ctx.state !== 'running') return;
       const v = Math.max(0, Math.min(1, volume));
       if (!v) return;
       const names = FILES[kind];
@@ -251,21 +263,23 @@ export function createSound(musicDefault?: number) {
 }
 
 let tauntPreview: HTMLAudioElement | null = null;
+let previewUsesWebAudio = false;
 let previewCleanup: (() => void) | null = null;
 export function stopTauntPreview() {
   tauntPreview?.pause();
   tauntPreview = null;
+  previewUsesWebAudio = false;
   previewCleanup?.();
   previewCleanup = null;
 }
-// Prévia só para quem escolhe a fala (Configurações): não envia nada à sala. Segue o volume de efeitos; mudo (0) toca no máximo, porque quem pede a prévia quer ouvir.
+// Prévia privada: respeita Geral × Provocações, inclusive mudo; nunca envia à sala.
 export async function previewTaunt(name: string): Promise<boolean> {
   const src = tauntAudioSrc(name);
   if (!src) return false;
   stopTauntPreview();
   const audio = new Audio(src);
   tauntPreview = audio;
-  audio.volume = loadVolumes().sfx || 1;
+  audio.volume = channelVolume(loadVolumes(), 'taunts');
   try {
     if (typeof AudioContext !== 'undefined') {
       const c = new AudioContext();
@@ -279,6 +293,8 @@ export async function previewTaunt(name: string): Promise<boolean> {
       const source = c.createMediaElementSource(audio), gain = c.createGain();
       gain.gain.value = .6 * audioLevel(buffer).gain; // mesmo nível/volume geral da fala na partida.
       source.connect(gain).connect(c.createDynamicsCompressor()).connect(c.destination);
+      previewUsesWebAudio = true;
+      audio.volume = channelVolume(loadVolumes(), 'taunts');
     } else audio.volume *= .6;
     await audio.play();
     return true;

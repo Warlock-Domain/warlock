@@ -19,6 +19,7 @@ import { ITEM_GROUPS, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass }
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, iconButton, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
+import { isAudioMuted, type Volumes, type VolumeKind } from './sound.ts';
 import { botSetupPanel, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { toSkill, savedProfile } from './mimic.ts';
@@ -352,8 +353,8 @@ type RoomActions = {
   keep: (slot: number) => void; // Ascensão: manter as magias (barra cheia)
   lobby: (bots: Level[], opts: MatchOpts) => void; // sala do Ascensão: o dono manda os bots e as opções para todos verem
   spell: (s: SpellId) => void;
-  volumes: () => { sfx: number; music: number };
-  setVolume: (kind: 'sfx' | 'music', value: number) => void;
+  volumes: () => Volumes;
+  setVolume: (kind: VolumeKind, value: number) => void;
   click: () => void;
   // Efeitos: true = Leve
   fxLite: () => boolean;
@@ -695,7 +696,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     b?.setAttribute('aria-expanded', String(open));
   }
   // teclas, volume e efeitos moraram em painéis aqui; agora são abas do menu de configurações (settings.ts) e os botões abrem a aba
-  const volIcon = () => volBtn.replaceChildren(icon(act.volumes().sfx + act.volumes().music === 0 ? UI_ICON.mute : UI_ICON.sound));
+  const volIcon = () => volBtn.replaceChildren(icon(isAudioMuted(act.volumes()) ? UI_ICON.mute : UI_ICON.sound));
   setSettingsCtx({
     name: act.name, rename: act.rename, volumes: act.volumes, fxLite: act.fxLite, setFxLite: act.setFxLite, pixel: act.pixel, setPixel: act.setPixel, closePanels: () => solo(null),
     setVolume: (kind, v) => {
@@ -729,7 +730,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     toggleCam();
   });
   act.camFollow(camFollow);
-  const volBtn = iconButton(icon(act.volumes().sfx + act.volumes().music === 0 ? UI_ICON.mute : UI_ICON.sound), t('Som', 'Sound'), () => openSettings('som'), { class: 'icon wide-only' });
+  const volBtn = iconButton(icon(isAudioMuted(act.volumes()) ? UI_ICON.mute : UI_ICON.sound), t('Som', 'Sound'), () => openSettings('som'), { class: 'icon wide-only' });
   // votação na partida: o botão abre as opções; a faixa no topo mostra a votação aberta para todos
   const votePanel = el('div', { class: 'vol-panel', hidden: true });
   const voteBtn = el('button', { type: 'button', class: 'vote-btn', title: t('Votar: trocar o modo ou expulsar alguém', 'Vote: change the mode or kick someone'), 'aria-label': t('Votar', 'Vote'), 'aria-expanded': 'false', onclick: () => toggle(votePanel, voteBtn) },
