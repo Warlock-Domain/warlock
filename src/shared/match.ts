@@ -1007,6 +1007,13 @@ function stepNight(m: Match, now: number, w: World) {
     n.result = 'lost';
     return endRound(m, now, null);
   }
+  // Lucas, 24/10: when only dropped players are still standing, their stand-in bots would play the night alone and could
+  // stall it forever; after a grace period to reload the page, the night is lost
+  if (w.wizards.some((z) => z.alive && z.team === 0 && player(m, z.id)?.connected)) n.orphan = undefined;
+  else if (w.t - (n.orphan ??= w.t) >= CAMPAIGN.orphan) {
+    n.result = 'lost';
+    return endRound(m, now, null);
+  }
   if (n.fight !== null) {
     crack(m, w, map, n.fight);
     if (n.boss) bossStep(m, w, map, n.fight, n.boss);

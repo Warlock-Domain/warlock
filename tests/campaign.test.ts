@@ -341,6 +341,24 @@ describe('Campanha: partida no mapa', () => {
     expect(wiz(m, 'b').team).toBe(0);
   });
 
+  it('when only dropped humans are standing, the night is lost after the grace period; reconnecting in time keeps it', () => {
+    const m = night(['a', 'b']);
+    let now = toPlaying(m, 0);
+    wiz(m, 'a').invulnUntil = 0;
+    kill(m, 'a', null);
+    wiz(m, 'a').ember = { prog: 0, need: 99, since: 0 }; // nobody rekindles a
+    removePlayer(m, 'b');
+    now = step(m, now, 60 * (CAMPAIGN.orphan - 1));
+    expect(m.night!.result).toBe(null);
+    addPlayer(m, 'b', 'b'); // back in time: the countdown restarts
+    now = step(m, now, 60 * 2);
+    expect(m.night!.result).toBe(null);
+    removePlayer(m, 'b');
+    now = step(m, now, 60 * CAMPAIGN.orphan + 2);
+    expect(m.phase).toBe('roundEnd');
+    expect(m.night!.result).toBe('lost');
+  });
+
   it('no mode, bot or kick votes against the Smoke; switching into the campaign is not voted', () => {
     const m = night(['a', 'b']);
     expect(startVote(m, 'a', 'mode', 'rounds', 0)).toBe(false);

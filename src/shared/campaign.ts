@@ -6,7 +6,8 @@ import { nightRand } from './rng.ts';
 import { SPELLS, type Level, type SpellBook, type SpellId } from './spells.ts';
 
 // humanos no máximo; as outras vagas da sala (MAX_PLAYERS) são dos servos
-export const CAMPAIGN = { humans: 4, slots: 4 };
+// orphan: seconds the night waits when every standing Aceso belongs to a dropped player (time to reload the page)
+export const CAMPAIGN = { humans: 4, slots: 4, orphan: 15 };
 
 // servos do Fumo: magos fracos com a IA de bot (vida 200 nos esqueletos: Lucas, 20/10; o resto são números iniciais, a medir)
 export const SERVO_KINDS = ['ash', 'archer', 'watcher', 'hound', 'odran'] as const;
@@ -65,4 +66,4 @@ export function roomWaves(seed: number, stage: number, room: number, depth: numb
 // boss: estado do chefe na luta aberta (bosses.ts; só existe na arena dele); falls: quedas de cada Aceso no encontro aberto
 export const NIGHT_RESULTS = ['won', 'lost'] as const;
 export type NightResult = (typeof NIGHT_RESULTS)[number] | null;
-export type Night = { seed: number; stage: number; fight: number | null; wave: number; since: number; cracked: number; done: number[]; result: NightResult; boss?: BossState; falls?: Record<string, number> };
+export type Night = { seed: number; stage: number; fight: number | null; wave: number; since: number; cracked: number; done: number[]; result: NightResult; boss?: BossState; falls?: Record<string, number>; orphan?: number };
