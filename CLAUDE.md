@@ -56,7 +56,7 @@ npx vite build                      # build do cliente (dist/)
 - Loja em grade com o nome dentro do ícone e preço com moeda; cores por grupo (Ataque vermelho-laranja, Mobilidade dourado, Defesa azul, Controle roxo, Suporte verde, Itens prateado); cada grupo tem 5 magias como base e pode ter mais por decisão do Fernando (Ataque passou de 10 em 21/10, PR #236; Defesa e Controle com 6 desde 24/10, PRs #347 e #348).
 - Sala sem opção de ritmo nem de morte súbita (sempre ligada); dificuldade escolhida bot a bot.
 - Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3; o monte dá 3 a 5 de ouro. Escudo com recarga de 16 s. Drenar só muda depois de partidas reais. Ataques fortes e raros (não encurtar recargas).
-- Recusados: ranking/perfil e itens que só ajudam uma magia específica.
+- Recusados: ranking/perfil, itens que só ajudam uma magia específica e classes com passiva no jogo base (ficam para a Campanha).
 
 ## Registro de decisões do Fernando
 
@@ -202,6 +202,8 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 24/10 | **Sand Blast** (PR #348, Leonard's idea): Rajada becomes a 3×2 m sand cone with no knockback that blinds and incapacitates, and it moves from Attack to Control (Attack 11 spells, Control 6) | Fernando approved the swap on 24/10 (enters with the owner exception for new spells; numbers measured later) |
 | 24/10 | **Link damage halved**: 2.5× the base per level instead of 5× (30 to 150 per second instead of 60 to 300); pull, cooldown and release rule unchanged. Applied **without the simulator** (owner exception); Link joins the balance batch | the group found Link too strong; measured: with an obstacle on the pull line the hold never releases and kills (3.6 to 7.2 s at level 7, 1,020 to 1,680 damage). Releasing the hold when blocked is left out and may come later |
 | 24/10 | **Continuous lava crackle removed** (PR #280, Leonard's request): `lava_loop.mp3` no longer loads or plays; music, spell and impact sounds and taunts stay. The file and its credit stay in the repository for possible later use | Fernando listened in the PR environment and approved the removal |
+| 24/10 | **Own spell icons**: Geyser uses `water-splash` instead of the provisional drawing (replaces "Leonard makes the icon" in the Geyser row); Closed Body uses `aura` instead of `checked-shield`, which the Shield rune also uses (both Lorc, game-icons.net) | Fernando's choice; the shared icon was confusing on the spell bar |
+| 24/10 | **Declined: class passives in the core game** (issue #17, PR #195, Reinaldo's idea): no passive bonus chosen by the character's torso; the core game stays as it is | classes with passives belong to Lucas's Campaign mode |
 
 ## Fluxo com agente
 

@@ -7,7 +7,7 @@ const ICONS = [
   // magias
   'lorc/fire-ray', 'lorc/focused-lightning', 'lorc/on-target', 'lorc/shield-reflect', 'lorc/teleport', 'lorc/body-swapping', 'lorc/grab', 'lorc/meteor-impact',
   'lorc/sprint', 'lorc/striking-splinter', 'delapouite/boomerang', 'lorc/knife-thrust', 'lorc/vortex', 'delapouite/menhir', 'heavenly-dog/defensive-wall', 'caro-asercion/ricochet', 'lorc/life-tap',
-  'lorc/frozen-orb', 'lorc/two-shadows', 'lorc/magnet', 'lorc/cycle', 'delapouite/card-exchange', 'lorc/harpoon-chain', 'lorc/wind-slap', 'delapouite/split-arrows', 'lorc/time-trap',
+  'lorc/frozen-orb', 'lorc/two-shadows', 'lorc/magnet', 'lorc/cycle', 'delapouite/card-exchange', 'lorc/harpoon-chain', 'lorc/wind-slap', 'delapouite/split-arrows', 'lorc/time-trap', 'lorc/water-splash', 'lorc/aura',
   // itens
   'delapouite/diamond-ring', 'lorc/skull-ring', 'delapouite/cape', 'lorc/breastplate', 'lorc/leather-boot', 'skoll/pocket-watch', 'delapouite/bat', 'delapouite/flail',
   'lorc/divert', 'lorc/chalice-drops', 'delapouite/metal-boot', 'delapouite/stone-bust', 'delapouite/spartan-helmet', 'lorc/winged-leg', 'lorc/angel-wings', 'lorc/feather',
@@ -35,8 +35,6 @@ for (const path of ICONS) {
 }
 // Project-drawn cross: Heal needs no extra downloaded asset.
 symbols.push('<symbol id="healing-cross" viewBox="0 0 512 512"><path d="M208 64h96v144h144v96H304v144h-96V304H64v-96h144z"/></symbol>');
-// Project-drawn geyser (pool, jet and drops), provisional: Leonard can replace it with his own drawing (Fernando, 24/10)
-symbols.push('<symbol id="water-geyser" viewBox="0 0 512 512"><path d="M76 440a180 40 0 1 0 360 0a180 40 0 1 0-360 0zM286 420c-4-120 16-200 30-270-34 20-86 20-120 0 14 70 34 150 30 270zM128 112a22 22 0 1 0 44 0a22 22 0 1 0-44 0zM228 64a28 28 0 1 0 56 0a28 28 0 1 0-56 0zM340 112a22 22 0 1 0 44 0a22 22 0 1 0-44 0z"/></symbol>');
 const ids = symbols.map((s) => s.match(/id="([^"]+)"/)[1]);
 if (new Set(ids).size !== ids.length) throw new Error('id repetido no sprite');
 writeFileSync(new URL('../../public/icons.svg', import.meta.url), `<svg xmlns="http://www.w3.org/2000/svg">\n${symbols.join('\n')}\n</svg>\n`);
