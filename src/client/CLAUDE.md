@@ -79,3 +79,9 @@ Uma página só, de seções empilhadas com sumário (`stackedPage`), usada na a
 - **Nivelamento de áudio:** `audio-level.ts` mede RMS em janelas ativas de 50 ms, mirando 0,12 com pico até 0,8. `sound.ts` mede arquivos e síntese pré-renderizada, compensa camadas de impacto e mantém prévia de provocações no mesmo nível da partida. Síntese imediata continua como reserva até o cache ficar pronto; a conferência auditiva humana continua necessária.
 
 `ui.ts` usa `document`/`matchMedia` ao carregar e não roda no Vitest. Decisão de tela que precisa de teste vai para função pura em `screen-data.ts` (ou `rules-text.ts`, `tips.ts`, `icons.ts`, `keys.ts`, `sheet.ts`, `reach.ts`, que não mexem no DOM ao carregar).
+
+## Snapshot interpolation (`interp.ts`)
+
+- `SnapshotInterpolator` owns a bounded snapshot buffer, its capacity, and the smoothed server/local clock offset. Live rendering and replay use independent instances through `createInterp(max)`.
+- Preserve bound `push`, `latest`, `sample`, and `reset` callbacks. Reset clears history and clock offset; simulation clock rollback also starts new history. Keep interpolation math and `keepLast()` as module helpers.
+- Preserve snapshot references, interpolation delay/smoothing, and replay limits. Compatibility, round-reset, capacity, and instance-isolation coverage lives in `tests/client.test.ts`.

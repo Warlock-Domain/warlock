@@ -11,6 +11,33 @@ const wiz = (x: number, extra: Partial<WizView> = {}): WizView => ({ id: 'a', po
 const snap = (time: number, x: number): SnapView => ({ time, arenaR: 11, shrinkAt: 15, wizards: [wiz(x)], projectiles: [], pillars: [], loots: [], runes: [] });
 
 describe('interpolação', () => {
+  it('preserves detached callbacks through reset and a new clock', () => {
+    const { push, latest, sample, reset } = createInterp();
+    push(snap(1, 0), 10);
+    push(snap(1.1, 1), 10.1);
+    expect(sample(10.116)!.wizards[0].pos.x).toBeCloseTo(.5, 5);
+    expect(latest()!.time).toBe(1.1);
+    reset();
+    expect(latest()).toBeNull();
+    expect(sample(10.2)).toBeNull();
+    push(snap(0, 3), 100);
+    expect(sample(100 + DELAY)!.wizards[0].pos.x).toBe(3);
+  });
+
+  it('keeps live and replay capacities, clocks, and reset state independent', () => {
+    const live = createInterp(2), replay = createInterp(3);
+    for (let i = 0; i < 4; i++) {
+      live.push(snap(i, i), 100 + i);
+      replay.push(snap(i, 10 + i), i);
+    }
+    expect(live.sample(100 + DELAY)!.wizards[0].pos.x).toBe(2);
+    expect(replay.sample(DELAY)!.wizards[0].pos.x).toBe(11);
+    live.reset();
+    expect(live.latest()).toBeNull();
+    expect(replay.latest()!.wizards[0].pos.x).toBe(13);
+    expect(replay.sample(2.5 + DELAY)!.wizards[0].pos.x).toBeCloseTo(12.5, 8);
+  });
+
   it('draws between two server states, 66 ms in the past', () => {
     const it = createInterp();
     it.push(snap(1.0, 0), 10.0);
