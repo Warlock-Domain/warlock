@@ -2,13 +2,14 @@
 // arena em levels/charneca.ts): investe em linha reta; se bater num pilar, o pilar cai e ele fica atordoado 3 s (a janela
 // de dano). Pisão (Meteoro no próprio pé) em quem chega perto, Varredura (leque próprio, SWEEP) a meia distância. Com os 4 pilares no
 // chão começa a fase 2: entram 2 Cinzentos e cada investida espalha cera pela arena. Números iniciais, a medir
-import { DT, KB_PER_DMG, OBSTACLES, PROJ_SPAWN, UNIT, WIZ_R } from './constants.ts';
+import { DT, KB_PER_DMG, OBSTACLES, PROJ_SPAWN, UNIT } from './constants.ts';
 import { CLUSTER_FAN, type Level } from './spells.ts';
-import type { Cmd, World, Wizard } from './sim.ts';
+import { bodyR, type Cmd, type World, type Wizard } from './sim.ts';
 import { add, dist, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export const ODRAN = {
   perAceso: 0.5, // vida +50% por Aceso além do primeiro
+  size: 2.5, // giant undead (Lucas, 24/10): body and model 2.5× a wizard; easier to hit, and his charge meets the pillars sooner
   kbResist: 0.7, // empurrão a menos: pesado, mas sai do lugar
   // investida cega: para e mira (windup s, com a linha no chão), depois corre reach m a speed m/s; quem ela atropelar leva dmg
   // every: s entre uma investida e a próxima; first: a primeira, depois que ele entra; min: não investe em quem está colado nele
@@ -95,7 +96,7 @@ export function afterBoss(w: World, z: Wizard, s: BossState, pillars: number[]):
     Object.assign(z, { dashUntil: 0, vel: v(0, 0), dashDmg: undefined });
     Object.assign(s, { charging: false, next });
   };
-  const hit = pillars.find((i) => w.pillars[i].alive && dist(w.pillars[i].pos, z.pos) < OBSTACLES[w.pillars[i].kind].r + WIZ_R + 0.15);
+  const hit = pillars.find((i) => w.pillars[i].alive && dist(w.pillars[i].pos, z.pos) < OBSTACLES[w.pillars[i].kind].r + bodyR(z) + 0.15);
   if (hit !== undefined) {
     const q = w.pillars[hit];
     q.alive = false;

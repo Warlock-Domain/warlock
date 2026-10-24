@@ -40,7 +40,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { closedBodyLeft?: number; geyserLeft?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { closedBodyLeft?: number; geyserLeft?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -1954,6 +1954,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       m.root.position.copy(w3(tk < 1 ? add(m.tpFrom, scale(m.tpDir, tk * TP_SLIDE)) : tk < 2 ? add(m.tpTo, scale(m.tpDir, (tk - 2) * TP_SLIDE)) : d.pos));
       m.root.rotation.y = Math.PI / 2 - d.facing;
+      m.root.scale.setScalar(d.size ?? 1); // model, ring and aura grow with the body (the server uses the same scale for collisions)
       m.vines.visible = d.alive && !!(d.status & 128);
       // Escudo: bolha no raio real que vai apagando, e a barrinha do tempo que falta
       if (d.shield && !m.shield.visible) m.shieldSince = now;
@@ -2721,7 +2722,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       for (const m of mages.values()) {
         if (m.label.hidden) continue;
         m.label.style.visibility = obscured(m.root.position) ? 'hidden' : '';
-        const [x, y] = toScreen(m.root.position.clone().setY(2.1 + m.model.position.y));
+        const [x, y] = toScreen(m.root.position.clone().setY(2.1 * m.root.scale.y + m.model.position.y));
         m.label.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
       }
 

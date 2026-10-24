@@ -14,7 +14,8 @@ export const CAMPAIGN = { humans: 4, slots: 4, orphan: 15 };
 export const SERVO_KINDS = ['ash', 'archer', 'watcher', 'hound', 'odran'] as const;
 export type ServoKind = (typeof SERVO_KINDS)[number];
 // name e plural: como as salas escrevem o servo nas linhas de onda (levels/*.ts); speed: multiplica a velocidade de andar
-export const SERVOS: Record<ServoKind, { name: string; plural: string; look: CharacterId; hp: number; spells: Partial<Record<SpellId, number>>; speed?: number; boss?: true }> = {
+// outfit: a look code (characters.ts) when the servant wears pieces of several models; otherwise the ready look of `look`
+export const SERVOS: Record<ServoKind, { name: string; plural: string; look: CharacterId; outfit?: string; hp: number; spells: Partial<Record<SpellId, number>>; speed?: number; boss?: true }> = {
   ash: { name: 'Cinzento', plural: 'Cinzentos', look: 'skeleton_minion', hp: 200, spells: { fireball: 1 } },
   // o Raio passa por cima da mureta: atira de longe por trás da cobertura baixa
   archer: { name: 'Arqueiro de Fuligem', plural: 'Arqueiros de Fuligem', look: 'skeleton_rogue', hp: 200, spells: { lightning: 1 } },
@@ -23,8 +24,9 @@ export const SERVOS: Record<ServoKind, { name: string; plural: string; look: Cha
   // rápido e de perto: Investida (sem modelo de cão ainda; o esqueleto guerreiro faz o papel)
   hound: { name: 'Cão de Brasa', plural: 'Cães de Brasa', look: 'skeleton_warrior', hp: 250, spells: { rush: 1 }, speed: 1.4 },
   // chefe do estágio 1 (Lucas, 20/10): vida com 1 Aceso (+50% por Aceso a mais, bosses.ts); Pisão = Meteoro no próprio pé,
-  // Varredura = Rajada; a Investida cega é do cérebro dele (bosses.ts), não a magia. Sem modelo próprio ainda: o cavaleiro
-  odran: { name: 'Sir Odran, o Elmo Vazio', plural: 'Sir Odran, o Elmo Vazio', look: 'knight', hp: 3000, spells: { meteor: 4, cluster: 3 }, speed: 0.85, boss: true },
+  // Varredura = Rajada; a Investida cega é do cérebro dele (bosses.ts), não a magia. Undead knight (Lucas, 24/10): the
+  // Skeleton Warrior wearing the Knight's helmet, cape, sword and shield (KayKit, CC0), drawn ODRAN.size times bigger
+  odran: { name: 'Sir Odran, o Elmo Vazio', plural: 'Sir Odran, o Elmo Vazio', look: 'skeleton_warrior', outfit: '8288822', hp: 3000, spells: { meteor: 4, cluster: 3 }, speed: 0.85, boss: true },
 };
 
 // magias na Campanha: o que muda aqui vale só na Campanha (World.book); o que não está aqui segue SPELLS, inclusive
