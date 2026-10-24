@@ -195,6 +195,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 24/10 | **Geyser** (PR #346, Leonard's idea): Support spell aimed at the ground like Grip; the jet lifts everyone in the area for 2.5 s (invulnerable, no actions, projectiles pass beneath); 20 s cooldown at level 1, −1 s per level like Heal | Fernando approved the idea on 24/10; Leonard makes the icon |
 | 24/10 | **Closed Body** (PR #347, Leonard's idea): Defense spell usable only while Hold ground is active; cuts damage, knockback and status by 90% for 3.5 s at level 1 (+0.75 s per level), 20 s cooldown. Defense becomes the second group with 6 spells (the first exception was Attack, 21/10). Bots cast it on an active guard | Fernando's decision (enters with the owner exception for new spells; numbers measured later) |
 | 24/10 | **Spells per group: 5 is the base, not a ceiling**: a group can grow by owner decision (Defense and Control with 6, PRs #347 and #348). Replaces "10 Attack spells and 5 in each other group" | Fernando's decision |
+| 24/10 | **Sand Blast** (PR #348, Leonard's idea): Rajada becomes a 3×2 m sand cone with no knockback that blinds and incapacitates, and it moves from Attack to Control (Attack 11 spells, Control 6) | Fernando approved the swap on 24/10 (enters with the owner exception for new spells; numbers measured later) |
 
 ## Fluxo com agente
 
