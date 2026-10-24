@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AIM_MIN, AIM_RANGE, BTN, aimPoint, nextFocus, padAction, padName, stick, type Rect } from '../src/client/gamepad.ts';
+import { AIM_MIN, AIM_RANGE, BTN, aimPoint, nextFocus, padAction, padName, padTarget, stick, type Rect } from '../src/client/gamepad.ts';
 import { labelOf, setPadMode, setSlots } from '../src/client/keys.ts';
 
 // controle simulado: só o que o jogo lê (eixos e botões apertados)
@@ -77,5 +77,11 @@ describe('controle: foco nos menus', () => {
     expect(nextFocus(cell(0, 2), all, 'right')).toBe(6);
     expect(nextFocus(cell(0, 0), all, 'left')).toBe(-1);
     expect(nextFocus(cell(0, 0), all, 'up')).toBe(-1);
+  });
+  it('Heal with the right stick released targets yourself; aimed, it goes where the stick points', () => {
+    const me = { x: 1, y: 2 }, at = { x: 4, y: 2 };
+    expect(padTarget('heal', false, me, at)).toBe(me);
+    expect(padTarget('heal', true, me, at)).toBe(at);
+    expect(padTarget('fireball', false, me, at)).toBe(at);
   });
 });
