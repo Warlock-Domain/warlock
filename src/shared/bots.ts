@@ -174,6 +174,8 @@ export function threatTo(w: World, me: Wizard, visible: (p: Projectile) => boole
 export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = BOT_SKILL.normal, scores: Record<string, number> = {}): Cmd[] {
   const me = w.wizards.find((z) => z.id === id && z.alive);
   if (!me) return [];
+  if ((me.geyserLeft ?? 0) > 0) return [];
+  const vision = w.t < (me.blindUntil ?? 0) ? 3 : D.vision;
   const M = mind(w);
   if (w.t < (M.frozen.get(id) ?? -1)) return []; // parado por erro
   const cmds: Cmd[] = [];
@@ -217,7 +219,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   }
 
   // projétil que acabou de surgir ainda não deu tempo de ver; longe demais, o bot não enxerga
-  const seen = (p: Projectile) => w.t - (p.born ?? -Infinity) >= D.delay && dist(p.pos, me.pos) <= D.vision;
+  const seen = (p: Projectile) => w.t - (p.born ?? -Infinity) >= D.delay && dist(p.pos, me.pos) <= vision;
   const th = threatTo(w, me, seen);
   // Hold ground (Fernando's decision, 24/10, in the CLAUDE.md register): with no escape spell ready the bot holds S like a player.
   // The 0.5 s windup must finish before the hit, so it looks up to 0.9 s ahead (windup + one Normal think, 0.4 s); the old 0.6 s
@@ -228,6 +230,9 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   if (Math.max(1, Math.round(1 / (DT * D.rate))) * DT < BRACE.lease && !me.casting && !ESCAPE.some((s) => ready(s))) {
     const hb = threatTo(w, me, seen, BRACE.windup + 0.4);
     const area = hb && (hb.p.kind === 'meteor' || hb.p.kind === 'grip');
+    // Closed body only works while Hold ground is active: cast it on the guard that is already up, with the hit still coming
+    const braced = w.t + 1e-8 >= (me.braceReadyAt ?? Infinity) && w.t < (me.braceUntil ?? 0);
+    if (hb && !area && braced && ready('closedbody')) return (cmds.push({ id, kind: 'brace', on: true }), cast('closedbody', me.pos));
     if (hb && !area && (w.t < (me.braceUntil ?? 0) || (hb.t >= BRACE.windup && rand() >= D.dodge))) return [{ id, kind: 'brace', on: true }];
   }
   const threat = th?.p ?? null;
@@ -268,9 +273,9 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // a cópia parece o dono (mesma vida e efeitos): o bot não sabe qual é a falsa e fica com a mais perto
   const decoys = w.projectiles.flatMap((p) => {
     const o = p.kind === 'illusion' && p.until > w.t ? w.wizards.find((z) => z.id === p.owner && z.alive && !ally(z)) : undefined;
-    return o && dist(p.pos, me.pos) <= D.vision ? [{ ...o, id: decoyId(p), pos: p.pos, vel: v(0, 0) }] : [];
+    return o && dist(p.pos, me.pos) <= vision ? [{ ...o, id: decoyId(p), pos: p.pos, vel: v(0, 0) }] : [];
   });
-  const foes = [...w.wizards.filter((z) => z.alive && !ally(z) && w.t >= z.windUntil && w.t >= z.veilUntil && dist(z.pos, me.pos) <= D.vision), ...decoys];
+  const foes = [...w.wizards.filter((z) => z.alive && !ally(z) && w.t >= z.windUntil && w.t >= z.veilUntil && dist(z.pos, me.pos) <= vision), ...decoys];
   const nearest = (zs: Wizard[]) => zs.reduce<Wizard | null>((a, z) => (!a || dist(z.pos, me.pos) < dist(a.pos, me.pos) ? z : a), null);
   // o Difícil caça: quem está fraco, perto da lava ou na frente do placar (a até 8 m); senão, o mais perto
   const top = Math.max(0, ...Object.values(scores));
@@ -456,14 +461,14 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // Atacar (decisão do Fernando, 24/10): sem nenhuma magia pronta, com o inimigo a até 6 m e sem obstáculo no meio, o bot usa o
   // ataque livre como o jogador; sem isso o humano teria um golpe que o bot nunca usa e o simulador não mediria o Atacar.
   // Desvio já decidido neste comando vem antes: parar 0,4 s para atacar jogaria fora a esquiva
-  if (!veiled && !me.basicCasting && w.t >= (me.basicReadyAt ?? 0) && d <= BASIC_ATTACK.range && !blocked(E.pos) && !SPELL_IDS.some((x) => ready(x))) {
+  if (!veiled && !me.basicCasting && w.t >= (me.basicReadyAt ?? 0) && d <= BASIC_ATTACK.range && !blocked(E.pos) && !SPELL_IDS.some((x) => x !== 'closedbody' && ready(x))) { // Closed body waits for Hold ground, so it never blocks the Attack
     return [...cmds, { id, kind: 'basic', at: E.pos, target: E.id }];
   }
   let damage = false;
   let now: (() => Cmd[]) | null = null;
   let meteor: (() => Cmd[]) | null = null;
   for (const s of SPELL_IDS) {
-    if (!ready(s) || s === 'shield' || s === 'swap' || s === 'alteration' || s === 'scourge' || s === 'pact') continue; // Escudo, Troca e Alteração só na defesa (e na borda); Flagelo e Pacto logo abaixo
+    if (!ready(s) || s === 'closedbody' || s === 'shield' || s === 'swap' || s === 'alteration' || s === 'scourge' || s === 'pact') continue; // Escudo, Troca e Alteração só na defesa (e na borda); Flagelo e Pacto logo abaixo
     const L = spellLevel(s, me.spells[s], w.book);
     const cp = CAST_POINT[s] ?? 0.1;
     let at: Vec | null = null;
@@ -471,6 +476,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     if (s === 'fireball') at = d < L.range + 1 ? lead(L.speed, cp) : null; // colado também (18/10: no fim da rodada os bots se prendiam sem se bater)
     else if (s === 'homing') at = d < 12 ? seenNow : null;
     else if (s === 'meteor') at = d < L.range ? lead(0, cp + METEOR_DELAY) : null;
+    else if (s === 'geyser') at = E.casting && d < L.range ? E.pos : null; // interrompe preparo; não protege inimigo à toa.
     else if (s === 'grip') {
       // só com dano pronto para emendar; preso na lava (ou deslizando para ela) não volta andando; e o Agarrar corta o Flagelo em preparo
       prio = !inside(E.pos, 0.6) || !inside(slideEnd, 0.3) || (E.casting?.spell === 'scourge' && d < 3);

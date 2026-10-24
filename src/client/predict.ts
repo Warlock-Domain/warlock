@@ -57,6 +57,7 @@ export function createPredict() {
       if (me) me.target = null;
     },
     move(to: Vec) {
+      if (velocitySource && (velocitySource.geyserLeft ?? 0) > 0) return;
       if (attackHold) { holdUntil = 0; queued = undefined; attackHold = false; }
       if (now() < holdUntil) queued = to;
       else if (me) me.target = to;
@@ -94,7 +95,9 @@ export function createPredict() {
       // Fecha no ponto final autoritativo uma vez, sem prolongar visualmente o avanço encerrado.
       if (wasDashing && !dashing) me.pos = { ...server.pos };
       wasDashing = dashing;
-      const stunned = server.stunLeft === undefined ? isStunned(server) : !!(server.status & 16);
+      const suspended = (server.geyserLeft ?? 0) > 0;
+      const stunned = suspended || (server.stunLeft === undefined ? isStunned(server) : !!(server.status & 16));
+      if (suspended) { me.target = null; queued = undefined; }
       if (wasStunned && !stunned) me.pos = { ...server.pos };
       wasStunned = stunned;
       if (server !== velocitySource) {

@@ -4,6 +4,8 @@ CRÉDITOS DOS ASSETS (os ícones são CC BY 3.0, com crédito obrigatório, ver 
 
 Coral “ooooh” de Curar: síntese original por osciladores/harmônicos/vibrato em src/client/sound.ts; sem gravação, voz de pessoa ou asset externo.
 
+Gêiser: ícone water-geyser original em SVG; jato/espuma/poça gerados proceduralmente com Three.js. Sem novo asset externo; reutiliza partículas/áudio já creditados.
+
 == Modelos 3D ==
 models/decor.glb
   Junção (scripts/assets/merge-decor.mjs) de modelos de:
@@ -196,6 +198,10 @@ Menu principal (issue #83, PR #85):
     sai do repositório se o autor ou quem tiver os direitos pedir.
   wrench.svg: desenho vetorial original criado para esta contribuição por Codex.
   A logo da barra é o warlock-wars.svg (o mesmo do ícone da aba, já creditado acima).
+
+Áudios do Corpo fechado, enviados por Leonard (lboesmans), 24/10/2026, declarados CC0 pelo autor:
+  sfx/closed_body_start.mp3 ("corpo fechado começo.mp3") e sfx/closed_body_end.mp3 ("corpo fechado fim.mp3"),
+  começo e fim do Corpo fechado, no nivelamento comum do mixer.
 
 Gravações de provocações de Leonard (lboesmans), 21/10/2026 (PR #243, aceitas pelo Fernando):
   taunts-local/{fausto,emafia,meestruparam,usarameabusaram,lanchado}.mp4.
