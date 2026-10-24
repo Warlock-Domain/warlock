@@ -32,13 +32,12 @@ assets/       biblioteca de modelos para quem contribui (kaykit/: todos os packs
 ```bash
 npm install
 npx wrangler dev                    # servidor + cliente em http://localhost:8787
-npx tsc --noEmit -p .               # tipos do cliente e do compartilhado
-npx tsc --noEmit -p src/worker      # tipos do servidor
+npm run typecheck                   # cliente, servidor e scripts de balanceamento
 npx vitest run                      # testes
 npx vite build                      # build do cliente (dist/)
 ```
 
-**Gates antes de qualquer commit:** os dois `tsc`, `vitest run` e `vite build`, todos limpos.
+**Gates antes de qualquer commit:** os três `tsc`, `vitest run` e `vite build`, todos limpos.
 
 ## Regras do código
 
@@ -81,6 +80,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 19/10 | Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3 | baú demais por rodada |
 | 19/10 | Sandbox no Treino (vida e ouro sem fim, bots e boneco pelo painel) | testar magias e interações |
 | 19/10 | `master` protegido (PR + CI + aprovação); revisão automática do Claude em todo PR; ambiente `<nome>-dev` por colaborador; guia do colaborador no repositório | entrada de colaboradores |
+| 24/10 | `scripts/CLAUDE.md` em inglês; os demais `CLAUDE.md` mantêm o idioma já usado na pasta | instruções de scripts compartilhadas com amigos que não leem português |
 | 19/10 | Os `CLAUDE.md` (raiz e pastas) são atualizados a cada decisão nova | todo dev com o mesmo contexto do dono |
 | 19/10 | PR passa pela revisão automática do Claude (comentário com veredito) e pode ser ajustado e mesclado pelo agente do dono, inclusive PR de colaborador; comente `@claude` num PR ou issue para pedir ajuda | mesclar rápido sem o dono revisar à mão |
 | 19/10 | Cada colaborador tem um ambiente dev próprio (`<usuário do GitHub>-dev`, em minúsculas) publicado sozinho a cada push | testar com outras pessoas antes do PR, sem tocar no jogo no ar |
@@ -184,7 +184,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 23/10 | **Repositório na organização `Warlock-Domain`** (plano Free): `fernandorff/warlock` virou `Warlock-Domain/warlock` (o endereço antigo redireciona). Colaboradores entram como membros da organização; time **Colaboradores** com Write no `warlock`; Arthur (arthurbaquit) com Admin no repositório; o Fernando é o único Owner da organização. O repositório segue público, porque a proteção do `master` na organização grátis só vale em repositório público | decisão do Fernando |
 | 23/10 | **Quadro dos admins** (https://github.com/orgs/Warlock-Domain/projects/1, privado, só o time **Admins**: Fernando e Arthur): antes de começar qualquer tarefa, a sessão de um admin confere o quadro; ao começar, põe um card com dono e Status **Fazendo**; ao terminar, move para **Em teste** ou **Feito**. Se o outro admin já tem card em Fazendo no mesmo assunto, não duplica e avisa o dono. Os bots do Telegram não conversam entre si (o Telegram bloqueia bot lendo bot), então o quadro é a fonte de verdade | decisão do Fernando |
 | 23/10 | **Guia de contribuição único, em inglês**: o `CONTRIBUTING.md` reúne máquina, fluxo, testes, revisão e balanceamento para gente e para agentes, e o `docs/GUIA-COLABORADOR.md` sai. Commits, comentários de código e o registro de decisões seguem em português; o jogo segue nas duas línguas | decisão do Fernando: um guia só, sem duas cópias que se desencontram |
-| 24/10 | `scripts/CLAUDE.md` em inglês; os demais `CLAUDE.md` mantêm o idioma já usado na pasta | manter o guia de scripts alinhado ao idioma de comunicação pedido pelo Fernando |
+| 24/10 | `scripts/CLAUDE.md` em inglês; os demais `CLAUDE.md` mantêm o idioma já usado na pasta | manter o guia de scripts alinhado ao idioma de comunicação pedido pelo Fernando ([confirmação](https://github.com/Warlock-Domain/warlock/pull/339#issuecomment-6383246205)) |
 
 ## Fluxo com agente
 
@@ -208,7 +208,7 @@ Todo PR do próprio repositório, rascunho também, publica em `https://pr-<n>-w
 
 | Pipeline | Arquivo | Quando roda | O que faz | Se der errado |
 |---|---|---|---|---|
-| CI | `ci.yml` | todo PR e todo push no `master` | os dois `tsc`, `vitest run`, `vite build` | o PR não entra; abra o log em Actions e corrija na mesma branch |
+| CI | `ci.yml` | todo PR e todo push no `master` | os três `tsc`, `vitest run`, `vite build` | o PR não entra; abra o log em Actions e corrija na mesma branch |
 | Título do PR | `pr-title.yml` | ao abrir ou editar o PR | confere o formato `tipo: o que muda` | edite o título; roda de novo sozinho |
 | Revisão do Claude | `claude-review.yml` | PR aberto, commit novo, saiu de rascunho | comenta veredito, checagens e pontos (não aprova nem mescla) | não bloqueia; não roda em fork nem no PR que altera o próprio workflow |
 | `@claude` | `claude.yml` | comentário com `@claude` num PR ou issue | responde e ajuda no próprio PR/issue | — |
@@ -231,7 +231,7 @@ Prints com Playwright headless contra `npx wrangler dev`; confira no PC (1280×7
 
 ## Git
 
-Fluxo completo em [CONTRIBUTING.md](CONTRIBUTING.md): uma branch por tarefa a partir do `master` (`feat/`, `fix/`, `balance/`, `style/`, `docs/`, `refactor/`), commits em português com o tipo na frente (`feat: …`), pull request com o modelo de `.github/`, CI verde (`.github/workflows/ci.yml`: os dois `tsc`, `vitest`, `vite build`) e *squash and merge*. PR da tarefa vai direto para o `master`. Agente: nunca dê push direto no `master`; abra PR.
+Fluxo completo em [CONTRIBUTING.md](CONTRIBUTING.md): uma branch por tarefa a partir do `master` (`feat/`, `fix/`, `balance/`, `style/`, `docs/`, `refactor/`), commits em português com o tipo na frente (`feat: …`), pull request com o modelo de `.github/`, CI verde (`.github/workflows/ci.yml`: os três `tsc`, `vitest`, `vite build`) e *squash and merge*. PR da tarefa vai direto para o `master`. Agente: nunca dê push direto no `master`; abra PR.
 
 ## Publicar
 
