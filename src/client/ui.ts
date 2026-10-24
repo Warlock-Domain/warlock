@@ -242,8 +242,9 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
       stage),
   );
   show('home');
-  // grimório e biblioteca moram na aba Aprender; o módulo carrega só aqui, para não pesar o começo do jogo
+  // grimoire and library live in the Learn tab; the module loads only here so it does not weigh on game startup
   void import('./grimoire.ts').then((m) => {
+    learn?.book.dispose(); // a rebuilt lobby (rename) drops the old book: release its matchMedia listener
     const book = m.grimoire();
     const lib = m.library((id) => {
       book.goTo(id);
@@ -255,16 +256,17 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   });
 }
 
-// aba Aprender montada (só existe com o menu inicial na tela)
-let learn: { book: { goTo: () => void }; lib: HTMLElement } | null = null;
+// Learn tab once built (only exists while the main menu is on screen)
+let learn: { book: { root: HTMLElement; goTo: () => void; dispose: () => void }; lib: HTMLElement } | null = null;
 const inMenu = () => !!learn?.lib.isConnected;
 const openLearn = () => document.getElementById('home-tab-library')?.click();
 
-// grimório (Como jogar): no menu inicial abre a aba Aprender no sumário; na partida, o livro num diálogo (módulo carregado só quando abre)
+// grimoire (How to play): in the main menu opens the Learn tab on the table of contents; in a match, the book in a dialog (module loaded only when opened)
 export function showRules() {
   if (inMenu()) {
     openLearn();
     learn!.book.goTo();
+    learn!.book.root.focus({ preventScroll: true }); // ← → turn pages right away, as they did in the dialog
   } else void import('./grimoire.ts').then((m) => m.openGrimoire());
 }
 // atalho do grimório (F1 no padrão) em qualquer tela; com ele já aberto, nada (o Esc fecha)
@@ -273,7 +275,7 @@ addEventListener('keydown', (e) => {
   e.preventDefault(); // F1: não abre a ajuda do navegador
   if (!document.querySelector('.grimoire-overlay')) showRules();
 });
-// biblioteca de magias e itens (F2 no padrão): no menu inicial é a aba Aprender na busca; na partida, por cima da tela (a própria tecla ou o Esc fecham)
+// spells and items library (F2 by default): in the main menu it is the Learn tab on the search box; in a match, over the screen (the same key or Esc closes it)
 const showLibrary = () => {
   if (!inMenu()) return void import('./grimoire.ts').then((m) => m.openLibrary());
   openLearn();

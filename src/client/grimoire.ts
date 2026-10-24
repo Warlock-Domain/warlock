@@ -1,7 +1,7 @@
-// Grimório (pedido do Fernando, 18/10): o "Como jogar" virou um livro aberto com sumário, uma página por magia e por item
-// e demonstração animada rodando a simulação de verdade (demo.ts). Duas páginas no PC, uma no celular; ← → ou deslizar viram.
-// Mora na aba Aprender do menu principal e, dentro da partida, num diálogo (F1 ou o botão "?"). Carregado sob demanda
-// (import dinâmico em ui.ts), para não pesar o começo do jogo.
+// Grimoire (Fernando's request, 18/10): "How to play" became an open book with a table of contents, one page per spell and item
+// and an animated demo running the real simulation (demo.ts). Two pages on desktop, one on mobile; ← → or a swipe turn pages.
+// Lives in the main menu's Learn tab and, inside a match, in a dialog (F1 or the "?" button). Loaded on demand
+// (dynamic import in ui.ts) so it does not weigh on game startup.
 import { ARENA_IDS, SHAPES, type ArenaId } from '../shared/arena.ts';
 import { ARENA_R0, HP_MAX, RUNE_KINDS } from '../shared/constants.ts';
 import { ITEMS, ITEM_IDS, type ItemId } from '../shared/items.ts';
@@ -111,7 +111,7 @@ const PAGES: Page[] = [
 const CHAPTERS = [...new Set(PAGES.map((p) => p.chapter))].slice(1);
 const pageOf = (pred: (p: Page) => boolean) => PAGES.findIndex(pred);
 
-// grimório num diálogo, para dentro da partida (no menu inicial ele mora na aba Aprender)
+// grimoire in a dialog, for use inside a match (in the main menu it lives in the Learn tab)
 export function openGrimoire(to?: SpellId | ItemId | GuideId) {
   document.querySelector('.grimoire-overlay')?.remove();
   const book = grimoire();
@@ -119,7 +119,7 @@ export function openGrimoire(to?: SpellId | ItemId | GuideId) {
   dialog('grimoire', t('Grimório', 'Grimoire'), [book.root], { ico: UI_ICON.help, onKey: book.onKey, onClose: book.dispose });
 }
 
-// página de uma magia, item, mecânica ou status (0 = sumário)
+// page of a spell, item, mechanic or status (0 = table of contents)
 function pageFor(to?: SpellId | ItemId | GuideId): number {
   const mechanic = MECHANIC_GUIDES.find((g) => g.id === to);
   const status = NEGATIVE_GUIDES.find((g) => g.id === to);
@@ -127,7 +127,7 @@ function pageFor(to?: SpellId | ItemId | GuideId): number {
   return Math.max(page, 0);
 }
 
-// O livro como peça solta: a aba Aprender o põe na página e a partida o põe num diálogo (openGrimoire).
+// The book as a standalone piece: the Learn tab puts it on the page and a match puts it in a dialog (openGrimoire).
 // Reopening always starts at the table of contents (Fernando's decision, 24/10); explicit links via goTo open the requested page
 export function grimoire() {
   let at = 0;
@@ -167,7 +167,7 @@ export function grimoire() {
       else body.push(fig);
       const d = createDemo(canvas, p.demo, [COLORS[0], COLORS[1], COLORS[2]]);
       live.push(d);
-      // sai do DOM (✕, Esc ou o B do controle fecham o diálogo) ou vira a página: para; com a aba Aprender escondida só pausa
+      // leaves the DOM (✕, Esc or the gamepad B close the dialog) or the page turns: stops; with the Learn tab hidden it only pauses
       runDemo((now) => root.closest('[hidden]') || d.tick(now), () => root.isConnected && live.includes(d));
     }
     return el('article', { class: 'g-page', 'aria-label': t(`Página ${i + 1}: ${p.title}`, `Page ${i + 1}: ${p.title}`) },
@@ -202,7 +202,7 @@ export function grimoire() {
     go(first + step * per);
   }
 
-  // no diálogo, ← → não chegam ao placar nem à câmera de quem assiste (ele segura todas as teclas); na aba, valem com o foco no livro
+  // in the dialog, ← → never reach the scoreboard or the spectator camera (it captures every key); in the tab, they work while the book has focus
   const onKey = (e: KeyboardEvent) => {
     const k = e.key;
     if (k === 'ArrowRight' || k === 'PageDown') turn(1);
@@ -228,9 +228,9 @@ export function grimoire() {
   return { root, onKey, dispose: () => ac.abort(), goTo: (to?: SpellId | ItemId | GuideId) => go(pageFor(to)) };
 }
 
-// Biblioteca "Magias e itens" (decisão do Fernando, 19/10; como a de heróis e itens do Dota): grade de ícones por grupo,
-// busca pelo nome e filtro por grupo; o mouse em cima mostra a dica da loja e o clique abre a página no grimório (open).
-// Mora na aba Aprender do menu principal e no overlay da tecla (F2 no padrão)
+// "Spells and items" library (Fernando's decision, 19/10; like Dota's heroes and items library): icon grid by group,
+// search by name and filter by group; hovering shows the shop tooltip and a click opens the page in the grimoire (open).
+// Lives in the main menu's Learn tab and in the hotkey overlay (F2 by default)
 export function library(open: (id: SpellId | ItemId) => void): HTMLElement {
   const tile = (id: SpellId | ItemId, ico: string, tip: () => string) => withTip(el('button', { type: 'button', class: 'lib-tile', 'data-name': norm(actionName(id)), onclick: () => {
     hideTip();
