@@ -70,6 +70,7 @@ jobs:
 
             Use inline comments only for specific actionable line findings. This workflow authorizes these review
             comments. Never approve, request changes formally, merge, or push.
+          show_full_output: true
           claude_args: |
             --model claude-opus-5-5
             --max-turns 40
