@@ -448,8 +448,8 @@ function startRoom(code: string, name: string) {
       // conjurando, o mago fica parado e o clique de andar espera a magia sair (o servidor faz o mesmo)
       predict.hold(CAST_POINT[spell]);
       scene.castLocal(me, spell, at);
-      if (spell !== 'heal') scene.clickMarker(at, true); // o marcador ofensivo laranja não pertence à cura.
-      if (spell !== 'heal') sound.play(SPELL_SOUND[spell]); // cura toca uma vez, na confirmação e posição do alvo.
+      if (spell !== 'heal') scene.clickMarker(at, true); // the orange attack marker does not belong to Heal
+      if (spell !== 'heal') sound.play(SPELL_SOUND[spell]); // Heal plays once, on confirmation, at the target
       return true;
     },
     center: () => {

@@ -154,7 +154,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     // teclas trocáveis pelo jogador (keys.ts)
     const action = actionFor(e.code);
     if (action) {
-      // Curar sempre pede confirmação no corpo do alvo, sem herdar Rápido/Ao soltar.
+      // Heal always asks for a click on the target body, whatever the cast mode.
       if (action === 'heal') { e.preventDefault(); cancel(); return arm(action); }
       if (armed === 'heal') arm(null);
       if (attackArmed) arm(null);

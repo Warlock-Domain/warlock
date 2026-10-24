@@ -190,7 +190,7 @@ export function createSound(musicDefault?: number) {
     const playTone = (type: OscillatorType, f0: number, f1: number, dur: number, gain: number, at = 0) => toneAt(type, f0, f1, dur, gain, at, c, output);
     const playHiss = (type: BiquadFilterType, f0: number, f1: number, dur: number, gain: number, at = 0) => hissAt(type, f0, f1, dur, gain, at, c, output);
       switch (kind) {
-        // Harmônicos arredondados, ataque suave e vibrato imitam um coral em “ooooh”, sem gravação externa.
+        // Rounded harmonics, soft attack and vibrato imitate an "ooh" choir, with no external recording.
         case 'heal':
           [261.63, 329.63, 392].forEach((note, voice) => {
             [1, 2, 3, 7].forEach((harmonic, i) => {

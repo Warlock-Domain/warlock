@@ -18,10 +18,9 @@
 
 ## No jogo (`public/`)
 
-Curar (teste local24/10): coral “ooooh” original sintetizado em `src/client/sound.ts`, três vozes com harmônicos, vibrato e envelope suave; sem gravação externa. Aura verde em `scene.ts`/`heal-fx.ts` reutiliza anel e partículas Kenney já creditadas. A demo usa a mesma duração/cor. Nivelamento e volumes existentes preservados.
-
 | Arquivo | O que é | Onde é usado | Origem e licença |
 |---|---|---|---|
+| Curar: coral sintetizado e aura verde | efeito sonoro de três vozes com harmônicos e vibrato; aura verde reaproveitando anel e partículas Kenney já creditadas | `src/client/sound.ts` (`heal`), `src/client/scene.ts`, `src/client/heal-fx.ts`; a demo usa a mesma duração e cor | gerado em código pelo projeto, sem asset externo |
 | `icons.svg#healing-cross` | cruz geométrica de Curar | `src/client/icons.ts`; regenerada em `scripts/assets/build-icons.mjs` | geometria original do projeto, sem asset externo |
 | `models/mage.glb`, `knight`, `barbarian`, `rogue`, `rogue_hooded`, `skeleton_mage`, `skeleton_minion`, `skeleton_rogue`, `skeleton_warrior` | os 9 bonecos (1 MB cada), com 21 animações | `src/client/scene.ts` (`/models/${id}.glb`), lista em `src/shared/characters.ts` | KayKit Adventurers e Skeletons, CC0; cortados por `scripts/slim-character.mjs`, capuz por `scripts/assets/hood.mjs` |
 | `models/KAYKIT-LICENSE.txt`, `KAYKIT-SKELETONS-LICENSE.txt` | licenças dos bonecos | — | KayKit, CC0 |
