@@ -7,27 +7,24 @@ import { CELL, SHAPES, cellAt, edge, inArena, inLavaAt, inward, isleSpot, onIsle
 import { AEGIS, CRIT, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, PROJECTILE_COLLISION, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellBook, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
-import { KNOCK_RECOVERY } from './constants.ts';
 import { SHIELD, castBlocked } from './spells.ts';
-import { BASIC_ATTACK, BRACE } from './constants.ts';
+import { BASIC_ATTACK, KNOCK_RECOVERY } from './constants.ts';
 
 export type Wizard = {
+  electroUntil?: number; // duração da eletrificação.
   id: string;
   pos: Vec;
   vel: Vec; // só o empurrão; andar não entra aqui
-  recoveryLeft?: number; // segundos de recuperação após encerrar um impulso; enviado à previsão.
-  basicReadyAt?: number;
-  basicCasting?: { target: string | number; fireAt: number; melee: boolean };
-  braceUntil?: number; // resistência somente a novos impulsos durante o S mantido.
-  braceReadyAt?: number; // efeitos só entram depois do preparo contínuo de0,5s.
-  electroUntil?: number; // lentidão elétrica e Incapacitar, sem bloquear habilidades já prontas.
-  stunLeft?: number; // bloqueio de ações separado da força física, para resistência reduzir só a duração.
+  stunLeft?: number; // bloqueio de controle separado da velocidade física.
+  recoveryLeft?: number; // retomada disparada pelo fim do impulso, não pelo fim de qualquer stun.
+  basicReadyAt?: number; // Attack cooldown
+  basicCasting?: { target: string | number; fireAt: number; melee: boolean }; // Attack windup in progress
   target: Vec | null;
-  moveHeld?: boolean; // direito mantido: continua tentando andar mesmo impedido por obstáculo.
-  blockedMove?: boolean; // destino de clique único cancelado por obstáculo; reconcilia também a previsão.
+  moveHeld?: boolean; // direito pressionado preserva tentativa contra obstáculo.
+  blockedMove?: boolean; // destino de clique único cancelado por colisão.
   facing: number;
   hp: number;
-  dmgTaken: number; // histórico mantido para as leituras existentes; não amplifica empurrão neste teste local.
+  dmgTaken: number; // dano acumulado na rodada: quanto maior, mais longe o mago voa
   alive: boolean;
   shieldUntil: number;
   lastHitBy: string | null;
@@ -129,9 +126,9 @@ export type Projectile = {
   back?: boolean; // Bumerangue voltando ao dono
   prev?: string; // Ricochete: último mago tocado (não bate nele de novo em seguida)
   tick?: number; // Gravidade: próximo dano
-  lockOn?: string | number; // mira travada num corpo (mago ou cópia da Ilusão): persegue só ele e só acerta nele
-  stats?: Level; // números próprios quando o projétil não sai de uma magia (Atacar)
-  src?: string; // fonte do golpe quando não é magia: aparece no acerto e não conta precisão de magia
+  lockOn?: string | number; // locked on one body (wizard or Illusion copy): chases it and can only hit it
+  stats?: Level; // own numbers when the projectile does not come from a spell (Attack)
+  src?: string; // hit source when it is not a spell: shown on the hit, not counted as spell accuracy
   landed?: boolean; // já contou 'land' (Bumerangue e Ricochete acertam mais de uma vez)
   turnAt?: number; // Drenar: quando vira para o mago mais perto; Elo: quando recolhe
   bonus?: number; // Recarga: dano a mais pelos acertos seguidos
@@ -143,7 +140,6 @@ export type Cmd =
   | { id: string; kind: 'move'; to: Vec; held?: boolean }
   | { id: string; kind: 'moveHold'; on: boolean }
   | { id: string; kind: 'stop' }
-  | { id: string; kind: 'brace'; on: boolean }
   | { id: string; kind: 'basic'; at: Vec; target?: string | number }
   | { id: string; kind: 'cast'; spell: SpellId; at: Vec }
 
@@ -425,8 +421,7 @@ const byId = (w: World, id: string | null) => w.wizards.find((z) => z.id === id 
 const anyById = (w: World, id: string | null) => w.wizards.find((z) => z.id === id); // vivo ou morto
 const shielded = (w: World, wz: Wizard) => w.t < wz.shieldUntil;
 export const statusDuration = (w: World, wz: Wizard, seconds: number) => seconds * (shielded(w, wz) ? SHIELD.statusDuration : 1);
-export const bracingActive = (w: World, wz: Wizard) => w.t + 1e-8 >= (wz.braceReadyAt ?? Infinity) && w.t < (wz.braceUntil ?? 0);
-export const incapacitatedUntil = (wz: Wizard, now = Infinity) => Math.max(wz.electroUntil ?? 0, now + 1e-8 >= (wz.braceReadyAt ?? Infinity) ? wz.braceUntil ?? 0 : 0);
+export const incapacitatedUntil = (wz: Wizard, _now = Infinity) => wz.electroUntil ?? 0;
 export function applyElectrocution(w: World, wz: Wizard) {
   if (w.t < wz.invulnUntil) return;
   wz.electroUntil = Math.max(wz.electroUntil ?? 0, w.t + statusDuration(w, wz, LIGHTNING.debuffDuration * wz.debuffMult));
@@ -436,15 +431,13 @@ function stun(w: World, wz: Wizard, seconds: number) {
   wz.stunLeft = Math.max(wz.stunLeft ?? 0, statusDuration(w, wz, seconds * wz.debuffMult));
   wz.casting = null;
   wz.basicCasting = undefined;
-  wz.dashUntil = 0; // o bloqueio encerra avanços voluntários, não forças externas já recebidas.
-  wz.thrustUntil = 0;
+  wz.dashUntil = wz.thrustUntil = 0; // encerra avanço voluntário, mas preserva forças externas.
 }
 function addKnock(w: World, wz: Wizard, impulse: Vec) {
-  if (bracingActive(w, wz)) impulse = scale(impulse, 1 - BRACE.resistance);
   if (shielded(w, wz)) impulse = scale(impulse, SHIELD.knock);
   wz.vel = add(wz.vel, impulse);
   if (len(impulse) <= 0 || !isSliding(wz)) return;
-  // O prazo de controle também usa a resistência do instante do impacto, sem recalcular efeitos anteriores.
+  // O relógio de controle não precisa carregar o resto do impulso depois do limite de caminhada.
   stun(w, wz, Math.log(len(wz.vel) / STUN_SPEED) / FRICTION);
 }
 const bubble = (w: World, wz: Wizard) => (shielded(w, wz) ? Math.max(0, wz.shieldR - WIZ_R) : 0); // quanto a bolha do escudo passa do mago
@@ -1134,10 +1127,10 @@ function windTouch(w: World, wz: Wizard) {
 // Marcas de chão não são desviadas por habilidades; a cópia da Ilusão continua móvel.
 const fixed = (p: Projectile) => p.kind === 'meteor' || p.kind === 'warpzone' || p.kind === 'grip';
 const returning = (p: Projectile) => !!p.back && (p.kind === 'drain' || p.kind === 'recharge'); // bolinha voltando a quem lançou
-export const spellOf = (k: ProjKind): SpellId => (k === 'shard' ? 'splitter' : k === 'basic' ? 'fireball' : k); // Atacar usa o visual da Bola de fogo; números e fonte do golpe vêm do próprio projétil (stats, src)
+export const spellOf = (k: ProjKind): SpellId => (k === 'shard' ? 'splitter' : k === 'basic' ? 'fireball' : k); // Attack reuses the Fireball visuals; numbers and hit source come from the projectile (stats, src)
 // acerto conta para quem lançou ('land'), não para quem devolveu; once: só o primeiro (os que acertam mais de uma vez)
 function land(w: World, p: Projectile, src: SpellId, once = false) {
-  if (p.src) return; // golpe fora das magias não conta precisão
+  if (p.src) return; // hits outside spells do not count accuracy
   if (p.owner === p.caster && !(once && p.landed)) w.events.push({ k: 'land', id: p.caster, src });
   if (once) p.landed = true;
 }
@@ -1427,7 +1420,7 @@ function stepProjectiles(w: World) {
     if (fake && (!found || fake.t <= found.t) && (!pil || fake.t < pil.t)) {
       pushDecoy(fake.q, scale(norm(p.vel), L.knock * p.dmgMult), L.dmg * p.dmgMult);
       p.decoy = fake.q.id;
-      if (p.lockOn !== undefined) continue; // mira travada termina na cópia escolhida, como no corpo real.
+      if (p.lockOn !== undefined) continue; // a locked shot ends on the chosen copy, like on the real body
     }
     // a Bola de neve atravessa magos (arrastando) e só para em obstáculo ou escudo
     if (p.kind === 'snowball' && found && !shielded(w, found.wz) && (!pil || found.t <= pil.t)) {
@@ -1498,7 +1491,7 @@ function stepProjectiles(w: World) {
         const back = shooter ? norm(sub(shooter.pos, p.pos)) : scale(norm(p.vel), -1);
         p.vel = scale(back, len(p.vel));
         p.target = p.kind === 'homing' ? ((shooter && !allies(shooter, wz) ? shooter.id : null) ?? nearestEnemy(w, p.pos, wz.id)?.id ?? null) : null;
-        if (p.lockOn !== undefined) p.lockOn = shooter?.id; // devolvido trava em quem atirou
+        if (p.lockOn !== undefined) p.lockOn = shooter?.id; // reflected: locks on the shooter
         p.owner = wz.id;
         p.until = w.t + (p.kind === 'homing' ? L.duration : L.range / L.speed);
         w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
@@ -1645,7 +1638,7 @@ export function revive(w: World, wz: Wizard, pos: Vec) {
     alive: true, pos, vel: v(0, 0), target: null, casting: null, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
-    rune: null, runeUntil: 0, braceUntil: 0, braceReadyAt: 0, electroUntil: 0, basicCasting: undefined,
+    rune: null, runeUntil: 0, electroUntil: 0, basicCasting: undefined,
   });
 }
 
@@ -1782,7 +1775,7 @@ function wallClip(w: World, a: Vec, b: Vec): Vec {
   return b;
 }
 
-// cópias da Ilusão em jogo de quem não é aliado de `id`
+// live Illusion copies of players who are not allies of `id`
 function enemyDecoys(w: World, id: string): Projectile[] {
   const me = anyById(w, id);
   return w.projectiles.filter((q) => { const o = q.kind === 'illusion' && q.until > w.t && q.owner !== id ? anyById(w, q.owner) : undefined; return !!o && !allies(me, o); });
@@ -1793,10 +1786,10 @@ function attackBody(w: World, by: Wizard, target: string | number, visible = tru
   const z = byId(w, target);
   return z && z !== by && !allies(by, z) && (!visible || w.t >= Math.max(z.veilUntil, z.windUntil)) ? z : undefined;
 }
-// Atacar não é magia: os números vêm de BASIC_ATTACK, sem herdar nada da Bola de fogo
+// Attack is not a spell: numbers come from BASIC_ATTACK, nothing inherited from Fireball
 const BASIC_STATS: Level = { cd: BASIC_ATTACK.cd, dmg: BASIC_ATTACK.dmg, knock: BASIC_ATTACK.knock, speed: BASIC_ATTACK.speed, range: BASIC_ATTACK.range, duration: 0, radius: 0, dmgMin: 0, absorb: 0, pull: 0, scale: 0, dot: 0 };
 function beginBasic(w: World, wz: Wizard, c: Extract<Cmd, { kind: 'basic' }>) {
-  if (isStunned(wz) || wz.casting || wz.basicCasting || w.t < (wz.basicReadyAt ?? 0)) return;
+  if (!wz.alive || isStunned(wz) || wz.casting || wz.basicCasting || w.t < (wz.basicReadyAt ?? 0)) return;
   // Clique num corpo tem prioridade; no chão escolhe o mais próximo do atacante, sem caça automática.
   const bodies: (Wizard | Projectile)[] = [...w.wizards.filter((z) => attackBody(w, wz, z.id)), ...enemyDecoys(w, wz.id)];
   const clicked = bodies.filter((z) => dist(z.pos, c.at) <= WIZ_R * 2).sort((a, b) => dist(a.pos, c.at) - dist(b.pos, c.at))[0];
@@ -1833,15 +1826,11 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   for (const c of cmds) {
     const wz = byId(w, c.id);
     if (!wz) continue;
-    if (c.kind === 'brace') {
-      if (c.on && w.t >= (wz.braceUntil ?? 0)) wz.braceReadyAt = w.t + BRACE.windup;
-      wz.braceUntil = c.on ? w.t + BRACE.lease : 0;
-    } else if (c.kind === 'basic') {
+    if (c.kind === 'basic') {
       beginBasic(w, wz, c);
     } else if (c.kind === 'moveHold') {
-      wz.moveHeld = c.on && !bracingActive(w, wz);
+      wz.moveHeld = c.on;
     } else if (c.kind === 'move') {
-      if (bracingActive(w, wz)) continue; // não guarda uma caminhada para disparar quando S for solto.
       wz.basicCasting = undefined;
       wz.moveHeld = c.held ?? false;
       wz.blockedMove = false;
@@ -1892,11 +1881,6 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1) * (w.map && cellAt(w.map, wz.pos.x, wz.pos.y) === CELL.wax ? WAX.mult : 1) * (inWarp(w, wz) ? WARPZONE.wizMult : 1) * haste * w.mods.speed);
     if (w.t < (wz.electroUntil ?? 0)) wz.speed *= 1 - LIGHTNING.slow;
     if (rooted) wz.target = null;
-    if (bracingActive(w, wz)) {
-      wz.target = null;
-      wz.moveHeld = false;
-      if (wz.casting) wz.casting.then = undefined;
-    }
   }
 
   // morte súbita: rodada longa passa a encolher mais rápido (o próximo encolhimento vem em no máximo 5 s)
