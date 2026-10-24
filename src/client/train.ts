@@ -1,12 +1,11 @@
 // Sandbox: escolher as magias do bot (decisão do Fernando, 18/10). Sorteio = o bot compra sozinho, como sempre.
 // A sala contra bots não escolhe mais: lá os bots sempre compram sozinhos (Fernando, 20/10).
-import type { BotSetup } from '../shared/protocol.ts';
 import { BOT_SKILL, type BotSkill } from '../shared/bots.ts';
 import { ITEMS, ITEM_IDS } from '../shared/items.ts';
 import { MAX_PLAYERS } from '../shared/constants.ts';
 import { OPTION_CHOICES } from '../shared/match.ts';
 import { isRecord, readLevels } from './saved-data.ts';
-import type { SandboxCmd } from '../shared/match.ts';
+import type { BotSetup, SandboxCmd } from '../shared/match.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, noSpells, spellCount, type SpellId } from '../shared/spells.ts';
 import { ICON, el, icon } from './icons.ts';
 import { store } from './store.ts';

@@ -7,15 +7,11 @@ import { fightOf, nightMap } from './levels.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type RuneKind } from './constants.ts';
 import { ITEM_IDS, type ItemId } from './items.ts';
-import { MODES, OPTION_CHOICES, TURRET_DIR, goalOf, parseOpt, votesNeeded, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
+import { MODES, OPTION_CHOICES, TURRET_DIR, goalOf, parseOpt, votesNeeded, type BotSetup, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
 import { v, type Vec } from './vec.ts';
-
-// treino: magias, itens e jeito de jogar escolhidos para um bot (só vale com um humano na sala; ver startMatch);
-// difficulty: a dificuldade deste bot, escolhida na sala (vale em qualquer sala)
-export type BotSetup = { spells?: Partial<Record<SpellId, number>>; items?: Partial<Record<ItemId, number>>; skill?: Partial<BotSkill>; difficulty?: MatchOpts['difficulty'] };
 
 export type ClientMsg =
   | { t: 'hello'; playerId: string; name: string; watch?: true } // watch: entra assistindo (botão Assistir da lista de salas)
