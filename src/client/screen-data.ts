@@ -10,6 +10,7 @@ import type { ServoKind } from '../shared/campaign.ts';
 import { HP_MAX } from '../shared/constants.ts';
 import { itemStats } from '../shared/items.ts';
 import { t } from './i18n.ts';
+import type { Vec } from '../shared/vec.ts';
 // Pulso suave; modo reduzido fica estático.
 export const electroPulse = (active: boolean, seconds: number, reduced: boolean) => active ? reduced ? .25 : .25 + .12 * Math.sin(seconds * Math.PI * 4) : 0;
 
@@ -201,4 +202,22 @@ export const maxHp = (p: Pick<PublicPlayer, 'hpMax' | 'items'> | undefined) => p
 export function nightLine(n: NonNullable<PublicRoom['night']>, playing: boolean): string {
   const where = t(`Campanha · ${STAGE_NAME[n.stage]}`, `Campaign · ${STAGE_NAME[n.stage]}`);
   return playing && n.fight !== null ? where + t(` · encontro · onda ${n.wave + 1} de ${n.waves}`, ` · encounter · wave ${n.wave + 1} of ${n.waves}`) : where;
+}
+
+// espectador: continua em quem eu assistia; senão, o vivo com mais vida; step (← →) anda na lista e dá a volta
+export function pickWatched<W extends { id: string; hp: number }>(alive: W[], watchId: string | null, step: number): W | undefined {
+  let watched = alive.find((w) => w.id === watchId);
+  if (!watched && alive.length) watched = alive.reduce((a, w) => (w.hp > a.hp ? w : a));
+  if (step && watched) watched = alive[(alive.indexOf(watched) + step + alive.length) % alive.length];
+  return watched;
+}
+
+// Ilusão: a cópia usa o visual do dono, mas tem identidade visual própria: sempre visível e sólida, e não herda o arremessado (16).
+// No snapshot o projétil da cópia leva o índice do dono em vel.x e a direção em vel.y
+export function illusionCopies<D extends { id: string; status: number }>(projectiles: { kind: string; pos: Vec; vel: Vec }[], ids: string[], drawn: D[]) {
+  return projectiles.flatMap((q) => {
+    const ownerId = q.kind === 'illusion' ? ids[q.vel.x] : undefined;
+    const o = drawn.find((d) => d.id === ownerId);
+    return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(16 | 1024 | 2048 | 8388608), basicLeft: 0, moving: true, cheer: false, illusion: true, ghost: false }] : [];
+  });
 }
