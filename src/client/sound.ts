@@ -8,7 +8,7 @@ export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'telepo
   | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover' | 'brace' | 'heal' | 'closedbody' | 'closedbodyEnd';
 
 const FILES: Partial<Record<SoundKind, string[]>> = {
-  brace: ['brace_activation'], closedbody: ['closed_body_start'], closedbodyEnd: ['closed_body_end'],
+  brace: ['brace_whoosh_trial'], closedbody: ['closed_body_start'], closedbodyEnd: ['closed_body_end'],
   fireball: ['fireball'], lightning: ['lightning'], homing: ['homing'], shield: ['shield'], teleport: ['teleport'],
   hit: ['hit', 'explode'], hitLight: ['hit'], hitHeavy: ['hit', 'explode'], reflect: ['shield'], death: ['explode'], go: ['confirm'],
 };
@@ -129,7 +129,7 @@ export function createSound(musicDefault?: number) {
     if (!buf) return false;
     const src = ctx!.createBufferSource();
     src.buffer = buf;
-    src.playbackRate.value = name === 'brace_whoosh_trial' || name === 'brace_activation' || name.startsWith('closed_body') || name.startsWith('synth/') ? 1 : rate * (0.94 + Math.random() * 0.12); // não altera o timbre da gravação escolhida.
+    src.playbackRate.value = name === 'brace_whoosh_trial' || name.startsWith('closed_body') || name.startsWith('synth/') ? 1 : rate * (0.94 + Math.random() * 0.12); // não altera o timbre da gravação escolhida.
     const g = ctx!.createGain();
     g.gain.value = volume * (gains.get(name) ?? 1);
     src.connect(g).connect(name.startsWith('taunt/') ? tauntMaster! : master!);

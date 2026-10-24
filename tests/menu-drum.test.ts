@@ -44,7 +44,7 @@ describe('clique de menu com tambor sintetizado', () => {
       expect(oscillators[0].frequency.setValueAtTime).toHaveBeenCalledWith(261.63, 0);
       expect(oscillators.every(o => o.stop.mock.calls[0][0] <= 1.71)).toBe(true);
     } else {
-      const path = kind === 'closedbody' ? '/sfx/closed_body_start.mp3' : kind === 'closedbodyEnd' ? '/sfx/closed_body_end.mp3' : '/sfx/brace_activation.mp3';
+      const path = kind === 'closedbody' ? '/sfx/closed_body_start.mp3' : kind === 'closedbodyEnd' ? '/sfx/closed_body_end.mp3' : '/sfx/brace_whoosh_trial.mp3';
       expect(fetch.mock.calls.some(([src]) => src === path)).toBe(true);
       expect(fetch.mock.calls.some(([src]) => src === '/sfx/sonic_boom.mp3')).toBe(false);
       expect(oscillators).toHaveLength(0); // aviso usa gravação real, não a síntese recusada.

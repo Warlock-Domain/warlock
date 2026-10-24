@@ -4,7 +4,7 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Interface
 
-- Corpo fechado escurece materiais clonados e restaura ao terminar; sons próprios no começo/fim confirmados. Manter base usa brace_activation.mp3. Gravações fornecidas pelo usuário, declaradas CC0, respeitam mixer/distância.
+- Corpo fechado escurece materiais clonados e restaura ao terminar; sons próprios no começo/fim confirmados. Gravações fornecidas pelo Leonard, declaradas CC0, respeitam mixer/distância.
 
 - Gêiser em Suporte: mira no chão como Agarrar; jato azul eleva o alvo e bloqueia previsão/comandos durante a suspensão. Ficha e demonstração PT/EN seguem os stats compartilhados.
 
