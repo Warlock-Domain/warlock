@@ -7,11 +7,13 @@ import { join } from 'node:path';
 import { constants, setPriority } from 'node:os';
 import { parseArgs } from 'node:util';
 import { botConfig, randomPlan, type BotPick, type BotPlan } from '../src/shared/bots.ts';
-import { ITEMS, ITEM_IDS, MAX_ITEMS } from '../src/shared/items.ts';
+import { ITEMS, ITEM_IDS } from '../src/shared/items.ts';
 import { type MatchOpts } from '../src/shared/match.ts';
-import { FREE_SPELLS, MAX_SPELLS, SPELLS, SPELL_IDS } from '../src/shared/spells.ts';
+import { FREE_SPELLS, SPELLS } from '../src/shared/spells.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
-import { addCell, adjusted, f, goldBand, pct, playMatch, seedRandom, writeAtomic, type Bands } from './sim-lib.ts';
+import { addCell, adjusted, f, goldBand, pct, playMatch, seedRandom, writeAtomic } from './sim-lib.ts';
+import type { Bands } from './balance-summary.ts';
+import { SPELL_POOL, crossPlans, mutatePlan } from './tournament-plan.ts';
 
 const { values: arg } = parseArgs({
   options: {
@@ -35,9 +37,7 @@ mkdirSync(outDir, { recursive: true });
 setPriority(constants.priority.PRIORITY_LOW);
 
 const rng = seedRandom(Number(arg.seed));
-const SPELL_POOL = SPELL_IDS.filter((s) => !FREE_SPELLS.includes(s));
-const POOL: BotPick[] = [...SPELL_POOL.map((id): BotPick => ({ kind: 'spell', id })), ...ITEM_IDS.map((id): BotPick => ({ kind: 'item', id }))];
-const pick = <T>(a: T[]) => a[Math.floor(rng() * a.length)];
+const pick = <T>(a: readonly T[]) => a[Math.floor(rng() * a.length)];
 const key = (b: BotPick) => b.kind + ':' + b.id;
 const sig = (p: BotPlan) => p.buys.map(key).join(',') + '/' + p.upgrade;
 
@@ -54,38 +54,6 @@ const fit = (b: Bands) => {
   const k = raw(b).n;
   return Number.isFinite(a) ? (a * k + SHRINK) / (k + SHRINK) : 1;
 };
-
-// cabe no jogo: até MAX_SPELLS magias (com a Bola de fogo) e MAX_ITEMS itens (com o Flagelo), sem repetir
-function legal(buys: BotPick[]): BotPick[] {
-  const seen = new Set<string>();
-  let spells = 0;
-  let items = 0;
-  return buys.filter((b) => {
-    if (seen.has(key(b))) return false;
-    if (b.kind === 'spell' ? spells >= MAX_SPELLS - 1 : items >= MAX_ITEMS - 1) return false;
-    seen.add(key(b));
-    if (b.kind === 'spell') spells++;
-    else items++;
-    return true;
-  });
-}
-// mutação: troca uma compra por outra que não está no plano, insere uma, ou tira uma; às vezes muda a regra de melhoria
-function mutate(p: BotPlan): BotPlan {
-  const buys = [...p.buys];
-  const fresh = POOL.filter((b) => !buys.some((x) => key(x) === key(b)));
-  const r = rng();
-  if (r < 0.45 && buys.length) buys[Math.floor(rng() * buys.length)] = pick(fresh);
-  else if (r < 0.85) buys.splice(Math.floor(rng() * (buys.length + 1)), 0, pick(fresh));
-  else if (buys.length > 1) buys.splice(Math.floor(rng() * buys.length), 1);
-  const upgrade = rng() < 0.1 ? pick(['lowest', 'first', 'random'] as const) : p.upgrade;
-  return { buys: legal(buys), upgrade };
-}
-// cruzamento: começo de um pai e fim do outro
-function cross(a: BotPlan, b: BotPlan): BotPlan {
-  const head = a.buys.slice(0, 1 + Math.floor(rng() * a.buys.length));
-  const tail = b.buys.slice(Math.floor(rng() * b.buys.length));
-  return { buys: legal([...head, ...tail]), upgrade: rng() < 0.5 ? a.upgrade : b.upgrade };
-}
 
 const name = (b: BotPick) => (b.kind === 'spell' ? SPELLS[b.id].name : ITEMS[b.id].name);
 const history: { gen: number; rounds: number; best: number; keepMean: number; top: string }[] = [];
@@ -131,7 +99,7 @@ Como ler: **aptidão** = vitória ajustada pelo ouro (vit ÷ esp comparando só 
 Os planos que sobrevivem acumulam partidas de gerações anteriores, contra adversários que iam ficando melhores.
 
 ## As 10 combinações mais vencedoras (população atual)
-| # | magias (além da Bola de fogo) | itens | aptidão | ajustada | vit ÷ esp | vitória | n | planos |
+| # | magias (além de ${FREE_SPELLS.map((id) => SPELLS[id].name).join(' e ')}) | itens | aptidão | ajustada | vit ÷ esp | vitória | n | planos |
 |--:|---|---|--:|--:|--:|--:|--:|--:|
 ${top.map((c, i) => { const r = raw(c.bands); return `| ${i + 1} | ${c.spells} | ${c.items} | **${f(fit(c.bands))}** | ${f(adjusted(c.bands, base))} | ${f(r.w / r.e)} | ${pct(r.w / Math.max(1, r.n))} | ${r.n} | ${c.plans} |`; }).join('\n')}
 
@@ -190,8 +158,8 @@ while (Date.now() < deadline) {
   const seen = new Set(next.map((e) => sig(e.plan)));
   while (next.length < POP) {
     const a = pick(elite).plan;
-    let child = mutate(rng() < 0.5 ? cross(a, pick(elite).plan) : a);
-    for (let i = 0; i < 5 && (seen.has(sig(child)) || !child.buys.length); i++) child = mutate(child);
+    let child = mutatePlan(rng() < 0.5 ? crossPlans(a, pick(elite).plan, rng) : a, rng);
+    for (let i = 0; i < 5 && (seen.has(sig(child)) || !child.buys.length); i++) child = mutatePlan(child, rng);
     if (!child.buys.length) continue;
     seen.add(sig(child));
     next.push({ plan: child, bands: {}, gens: 0 });

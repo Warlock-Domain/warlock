@@ -146,7 +146,7 @@ Os outros (Nyra, Calvass, Dama Sem Sombra, Vesk, Morvane) ficam descritos no plo
 - `src/client`: seletor de classe na sala; barra do chefe; brasa e barra de reacender na cena; caixa de fala (pulável); fragmento; tela de fim da noite; `campaign-text.ts` com todo texto em `_PT`/`_EN`; Campanha como opção de modo na sala (sem aba nova no menu: menus enxutos).
 - `scripts/balance-sim.ts`: rodar a Campanha com bots no lugar dos humanos (grupo de 2 a 4) para medir tempo de noite, taxa de vitória por estágio e por classe.
 - `tests/`: geração determinística por semente; clareira acaba quando o último servo cai; reacender (tempo, distância, custo crescente); chefe volta da lava com dano; noite perdida com todos caídos; filtro de cartas por classe; cada classe tem passiva, árvore e textos nas duas línguas (teste de completude, como `ui-data`).
-- `CLAUDE.md` (Registro de decisões, Mapa do código), `README.md`, `docs/GUIA-COLABORADOR.md`.
+- `CLAUDE.md` (Registro de decisões, Mapa do código), `README.md`, `CONTRIBUTING.md`.
 
 ## Fatia 1 (primeiro PR jogável na `lucascvalle-dev`)
 

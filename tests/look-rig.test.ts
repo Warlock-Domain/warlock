@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { CHARACTERS, encodeLook, type CharacterId } from '../src/shared/characters.ts';
-import { assemble, cloneAppearance, type Model } from '../src/client/scene.ts';
+import { assemble, cloneAppearance, disposeAppearance, type Model } from '../src/client/scene.ts';
 
 // o projeto não tem @types/node: só o tipo do que o teste usa
 const { readFileSync } = (await import('node:fs' as string)) as { readFileSync(p: string): Uint8Array };
@@ -74,6 +74,70 @@ describe('montagem da aparência (scene.ts)', () => {
       expect(a.material.color.getHexString()).toBe('ff0000');
       expect(source.material.color.getHexString()).toBe('ff0000');
     }
+  });
+  it('descarta ossos, materiais e animações da instância sem afetar os recursos compartilhados', async () => {
+    const src = await load('mage');
+    const texture = new THREE.Texture();
+    const textureDispose = vi.fn();
+    texture.addEventListener('dispose', textureDispose);
+    src.scene.traverse((o) => {
+      if (o instanceof THREE.Mesh && o.material instanceof THREE.MeshStandardMaterial) o.material.map = texture;
+    });
+    const preview = cloneAppearance(src.scene), game = cloneAppearance(src.scene);
+    const stage = new THREE.Scene();
+    stage.add(preview, game);
+    const mixer = new THREE.AnimationMixer(preview);
+    const action = mixer.clipAction(src.clips.find((c) => c.name === 'Idle')!).play();
+    mixer.update(0.2);
+    const skeletons = new Set<THREE.Skeleton>();
+    const materials = new Set<THREE.Material>();
+    const sharedDisposals: ReturnType<typeof vi.fn>[] = [];
+    for (const root of [src.scene, game]) root.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      for (const resource of [o.geometry, ...(Array.isArray(o.material) ? o.material : [o.material])]) {
+        const disposed = vi.fn();
+        resource.addEventListener('dispose', disposed);
+        sharedDisposals.push(disposed);
+      }
+      if (o instanceof THREE.SkinnedMesh) {
+        o.skeleton.computeBoneTexture();
+        const disposed = vi.fn();
+        o.skeleton.boneTexture!.addEventListener('dispose', disposed);
+        sharedDisposals.push(disposed);
+      }
+    });
+    preview.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      for (const mat of Array.isArray(o.material) ? o.material : [o.material]) materials.add(mat);
+      if (o instanceof THREE.SkinnedMesh) skeletons.add(o.skeleton);
+    });
+    // Malhas podem dividir o mesmo esqueleto e materiais; a limpeza precisa visitar cada recurso só uma vez.
+    const mesh = preview.getObjectByProperty('isSkinnedMesh', true) as THREE.SkinnedMesh;
+    const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+    const extra = new THREE.SkinnedMesh(mesh.geometry, [material, material]);
+    extra.skeleton = mesh.skeleton;
+    preview.add(extra);
+    const skeletonDisposals = [...skeletons].map((skeleton) => {
+      skeleton.computeBoneTexture();
+      const textureDispose = vi.fn();
+      skeleton.boneTexture!.addEventListener('dispose', textureDispose);
+      return { skeleton, dispose: vi.spyOn(skeleton, 'dispose'), textureDispose };
+    });
+    const materialDisposals = [...materials].map((mat) => vi.spyOn(mat, 'dispose'));
+    disposeAppearance({ model: preview, mixer });
+    expect(preview.parent).toBeNull();
+    expect(game.parent).toBe(stage);
+    expect(textureDispose).not.toHaveBeenCalled();
+    expect(action.isRunning()).toBe(false);
+    expect(mixer.stats.actions.total).toBe(0);
+    expect(mixer.stats.bindings.total).toBe(0);
+    for (const { skeleton, dispose, textureDispose } of skeletonDisposals) {
+      expect(dispose).toHaveBeenCalledExactlyOnceWith();
+      expect(textureDispose).toHaveBeenCalledOnce();
+      expect(skeleton.boneTexture).toBeNull();
+    }
+    for (const dispose of materialDisposals) expect(dispose).toHaveBeenCalledExactlyOnceWith();
+    for (const dispose of sharedDisposals) expect(dispose).not.toHaveBeenCalled();
   });
   it('peça de outro boneco fica no mesmo lugar que no original, animada', async () => {
     const files = new Map<CharacterId, Model>();

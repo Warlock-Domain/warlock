@@ -8,7 +8,8 @@ import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, spellCount, spellGroup, type Sp
 
 // rare: carta rara (só de subir magia): sobe 2 níveis
 export type Card = { kind: 'spell'; id: SpellId } | { kind: 'up'; id: SpellId; rare?: true } | { kind: 'item'; id: ItemId };
-export type Kind = Card['kind'];
+export const CARD_KINDS = ['spell', 'up', 'item'] as const;
+export type Kind = (typeof CARD_KINDS)[number];
 // escolha de uma fileira: carta i (−1 = manter as magias, só com a barra cheia) e a magia que sai na troca
 export type Choice = { i: number; swap?: SpellId };
 // xp: total da partida; todo: as fileiras do intervalo, pelo tipo; offer: as cartas de cada fileira; pick: a escolha de cada fileira
