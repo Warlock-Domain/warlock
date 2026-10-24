@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ODRAN } from '../src/shared/bosses.ts';
+import { ODRAN, SWEEP } from '../src/shared/bosses.ts';
 import { SERVOS } from '../src/shared/campaign.ts';
 import { STAGE_ROOMS, fightOf, nightMap, parseRooms, type NightMap } from '../src/shared/levels.ts';
 import { addPlayer, newMatch, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
@@ -84,6 +84,27 @@ describe('Sir Odran: investida', () => {
     const hp = a.hp;
     now = step(m, now, events, 60);
     expect(hp - a.hp).toBeGreaterThanOrEqual(ODRAN.charge.dmg * 0.9);
+  });
+
+  it('his Sweep is his own fan with knockback and full reach: no Sand Blast cone, Blindness or Incapacitate', () => {
+    const { m, now: t0, events } = arena();
+    let now = t0;
+    const a = wiz(m, 'a');
+    a.invulnUntil = 0;
+    // 5 m away: past the 3 m sand cone, inside his 7 m Sweep; the next charge pushed far away
+    const z = odran(m);
+    z.pos = v(a.pos.x + 5, a.pos.y);
+    m.night!.boss!.next = 1e9;
+    for (let i = 0; i < 60 * 4 && !events.some((e) => e.k === 'fire' && e.src === 'cluster'); i++) now = step(m, now, events);
+    expect(events.filter((e) => e.k === 'fire' && e.src === 'cluster')).toHaveLength(4);
+    expect(m.world!.projectiles.filter((p) => p.kind === 'cluster' && p.stats === SWEEP)).toHaveLength(4);
+    const hp = a.hp;
+    now = step(m, now, events, 60);
+    expect(hp - a.hp).toBeGreaterThan(0);
+    expect(events.some((e) => e.k === 'hit' && e.id === 'a' && e.by === z.id)).toBe(true);
+    expect(events.some((e) => e.k === 'sand')).toBe(false);
+    expect(a.blindUntil ?? 0).toBe(0);
+    expect(a.incapacitateUntil ?? 0).toBe(0);
   });
 
   it('a charge into a pillar brings it down and stuns him for 3 s; the 4th pillar starts phase 2 with 2 Ashen', () => {
