@@ -92,8 +92,8 @@ export const OPTION_CHOICES = {
   effect: ['off', 'random', ...ROUND_EFFECT_IDS],
 } as const;
 export type MatchOpts = { [K in keyof typeof OPTION_CHOICES]: (typeof OPTION_CHOICES)[K][number] };
-// treino: magias, itens e jeito de jogar escolhidos para um bot (só vale com um humano na sala; ver startMatch);
-// difficulty: a dificuldade deste bot, escolhida na sala (vale em qualquer sala)
+// training: spells, items and play style chosen for one bot (only applies with one human in the room; see startMatch);
+// difficulty: this bot's difficulty, chosen in the room (applies in any room)
 export type BotSetup = { spells?: Partial<Record<SpellId, number>>; items?: Partial<Record<ItemId, number>>; skill?: Partial<BotSkill>; difficulty?: MatchOpts['difficulty'] };
 // os padrões são os números de sempre (SHOP_MS, START_GOLD, WINS_TO_WIN), para o simulador e as salas antigas
 export const DEFAULT_OPTS: MatchOpts = { shop: 30, pace: 'normal', economy: 1, startGold: 30, goal: 5, runes: true, sudden: true, chests: true, difficulty: 'auto', arena: 'random', effect: 'off' };

@@ -18,7 +18,7 @@ const branch = git('rev-parse --abbrev-ref HEAD');
 
 export default defineConfig({
   // only this checkout's tests: without it the run also sweeps the agent worktrees under .claude/
-  test: { include: ['tests/**/*.test.ts'], setupFiles: ['tests/setup.ts'] }, // idioma pt nos testes
+  test: { include: ['tests/**/*.test.ts'], setupFiles: ['tests/setup.ts'] }, // tests run in Portuguese
   define: { __BUILD__: JSON.stringify(new Date().toISOString().slice(0, 10) + (commit ? ` · ${commit}` : '')), __BRANCH__: JSON.stringify(branch) },
   server: {
     proxy: {
