@@ -809,15 +809,6 @@ function startRoom(code: string, name: string) {
       }
       return;
     }
-    const ownIndex = room?.ids.indexOf(me) ?? -1;
-    const braceNow = ownIndex >= 0 && !!(m.w[ownIndex * 7 + 6] & BRACING_BIT);
-    const braceBefore = ownIndex >= 0 && !!((lastSnap?.w[ownIndex * 7 + 6] ?? 0) & BRACING_BIT);
-    if (braceNow && !braceBefore) sound.play('brace'); // ativa junto dos efeitos autoritativos, nunca durante o preparo.
-    // Percorre os ids, não só cb: o campo some no último término. Invisibilidade não denuncia posição.
-    room?.ids.forEach((id, i) => {
-      const cue = closedBodySound(lastSnap?.cb?.[i], m.cb?.[i]);
-      if (cue && !(m.w[i * 7 + 6] & 2048)) sound.play(cue, volumeOf(id));
-    });
     lastSnap = m;
     predict.setSpeed(m.sp);
     const acked = sentAt.get(m.ack);
