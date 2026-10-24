@@ -54,12 +54,6 @@
 
 ## Regra: todo asset novo é indexado, explicado e referenciado
 
-### Aviso de Manter base
-
-| Arquivo | Uso | Origem e licença |
-|---|---|---|
-| `public/sfx/brace_whoosh_trial.mp3` | Heavy Whoosh 02, aviso único após os0,5s de ativação; `sound.ts` carrega/reproduz inteiro em velocidade1 e `main.ts` dispara pela transição BRACING_BIT. Não é som de Atacar. | DRAGON-STUDIO, [Pixabay414578](https://pixabay.com/sound-effects/heavy-whoosh-02-414578/), arquivo enviado por Leonard. [Pixabay Content License](https://pixabay.com/service/license-summary/): recurso integrado ao jogo, não distribuição avulsa; não rotular CC0. Crédito em CREDITS.txt. |
-
 Decisão do Fernando em 21/10. Vale para quem contribui e para toda IA.
 
 1. **Indexado:** o arquivo ganha uma linha nesta página, na tabela "No jogo" se estiver em `public/` ou na seção "Biblioteca" se estiver em `assets/`. Pack novo em `assets/kaykit/` também entra no `README.md` dela, e o `INDICE.md` é refeito com `node scripts/assets/kaykit-index.mjs`.
