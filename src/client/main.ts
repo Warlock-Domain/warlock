@@ -61,7 +61,7 @@ const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica'
 // (pedido do Fernando, 20/10); no jogo no ar nada muda.
 // Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, interface, controle, jogador,
 // personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando), partida:loja (contra 1 bot, na loja da rodada 1, com 120 s)
-// e partida:ascensao (Ascensão contra 3 bots, na carta inicial, com 120 s).
+// e partida:ascensao (Ascensão contra 3 bots, na carta inicial, com 120 s); campanha (a noite da Campanha, sozinho).
 // Sala e seção juntas, com vírgula (as Configurações de dentro da partida): sandbox,config:som
 // Porta nova não tem apelido guardado: o ?apelido= (ou o ?aba=) pula o pedido de nome, ver TEST_NAME abaixo (issue #175).
 // ?ir= e ?apelido= valem também no ambiente de cada PR (pr-<n>-warlock…, issue #125): o link mandado ao colaborador já cai no ponto
@@ -211,7 +211,7 @@ function startLobby(name: string) {
   });
   draw();
   const k = IR[0];
-  if (k === 'sandbox' || k?.startsWith('partida')) {
+  if (k === 'sandbox' || k === 'campanha' || k?.startsWith('partida')) {
     // a sala sai da URL (só a seção fica): ao voltar ao menu (location.hash = '') a página não cria outra sala
     const url = new URL(location.href);
     if (IR.length > 1) url.searchParams.set('ir', IR.slice(1).join(','));
@@ -536,6 +536,7 @@ function startRoom(code: string, name: string) {
       net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
       if (k === 'partida') net.send({ t: 'ready' });
     }
+    else if (k === 'campanha') net.send({ t: 'start', bots: 0, mode: 'campaign', shuffle: true, opts: DEFAULT_OPTS }); // ?ir=campanha: the night, alone
     else if (k === 'partida:ascensao') {
       // sala do Ascensão: o Começar usa os bots e as opções do dono (quem abriu o atalho)
       net.send({ t: 'lobby', bots: ['normal', 'normal', 'normal'], opts: { ...DEFAULT_OPTS, shop: 120 } });

@@ -26,6 +26,7 @@ import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
 import { add, clampLen, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
+import { nightProps } from './night-decor.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
 import { BLINDNESS, LIGHTNING, SPELLS } from '../shared/spells.ts';
@@ -2417,6 +2418,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         mapKey = state.map.key;
         buildMap(state.map.night);
       }
+      decor.night(state.map ? mapKey : '', () => (state.map ? nightProps(state.map.night) : null)); // same key: nothing to do
       mapGroup.visible = voidPlane.visible = onMap;
       lava.visible = arena.visible = warn.visible = !onMap;
       for (const c of cpMarks) c.mat.opacity = state.map?.done.includes(c.room) ? 0.15 : 0.55 + 0.35 * Math.sin(now * 3);
