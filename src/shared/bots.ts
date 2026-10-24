@@ -229,6 +229,9 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   if (Math.max(1, Math.round(1 / (DT * D.rate))) * DT < BRACE.lease && !me.casting && !ESCAPE.some((s) => ready(s))) {
     const hb = threatTo(w, me, seen, BRACE.windup + 0.4);
     const area = hb && (hb.p.kind === 'meteor' || hb.p.kind === 'grip');
+    // Closed body only works while Hold ground is active: cast it on the guard that is already up, with the hit still coming
+    const braced = w.t + 1e-8 >= (me.braceReadyAt ?? Infinity) && w.t < (me.braceUntil ?? 0);
+    if (hb && !area && braced && ready('closedbody')) return (cmds.push({ id, kind: 'brace', on: true }), cast('closedbody', me.pos));
     if (hb && !area && (w.t < (me.braceUntil ?? 0) || (hb.t >= BRACE.windup && rand() >= D.dodge))) return [{ id, kind: 'brace', on: true }];
   }
   const threat = th?.p ?? null;
@@ -457,14 +460,14 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // Atacar (decisão do Fernando, 24/10): sem nenhuma magia pronta, com o inimigo a até 6 m e sem obstáculo no meio, o bot usa o
   // ataque livre como o jogador; sem isso o humano teria um golpe que o bot nunca usa e o simulador não mediria o Atacar.
   // Desvio já decidido neste comando vem antes: parar 0,4 s para atacar jogaria fora a esquiva
-  if (!veiled && !me.basicCasting && w.t >= (me.basicReadyAt ?? 0) && d <= BASIC_ATTACK.range && !blocked(E.pos) && !SPELL_IDS.some((x) => ready(x))) {
+  if (!veiled && !me.basicCasting && w.t >= (me.basicReadyAt ?? 0) && d <= BASIC_ATTACK.range && !blocked(E.pos) && !SPELL_IDS.some((x) => x !== 'closedbody' && ready(x))) { // Closed body waits for Hold ground, so it never blocks the Attack
     return [...cmds, { id, kind: 'basic', at: E.pos, target: E.id }];
   }
   let damage = false;
   let now: (() => Cmd[]) | null = null;
   let meteor: (() => Cmd[]) | null = null;
   for (const s of SPELL_IDS) {
-    if (!ready(s) || s === 'shield' || s === 'swap' || s === 'alteration' || s === 'scourge' || s === 'pact') continue; // Escudo, Troca e Alteração só na defesa (e na borda); Flagelo e Pacto logo abaixo
+    if (!ready(s) || s === 'closedbody' || s === 'shield' || s === 'swap' || s === 'alteration' || s === 'scourge' || s === 'pact') continue; // Escudo, Troca e Alteração só na defesa (e na borda); Flagelo e Pacto logo abaixo
     const L = spellLevel(s, me.spells[s], w.book);
     const cp = CAST_POINT[s] ?? 0.1;
     let at: Vec | null = null;
