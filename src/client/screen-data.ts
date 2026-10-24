@@ -78,7 +78,7 @@ export function moveLoadout(order: LoadoutOrder, from: number, to: number): Load
 }
 
 // fim da partida para quem olha: 'none' sem vencedor ou para quem só assistia
-export type EndResult = 'win' | 'loss' | 'none';
+type EndResult = 'win' | 'loss' | 'none';
 export function endResult(r: Pick<PublicRoom, 'players' | 'winner' | 'winnerTeam' | 'mode' | 'goal' | 'night'>, me: string): EndResult {
   const mine = r.players.find((p) => p.id === me);
   // Campanha: todos os Acesos vencem ou perdem juntos
@@ -124,7 +124,7 @@ export function roomGroups(rooms: RoomInfo[]) {
 // presets de build (issue #185): magias e itens com o nível e a ordem da barra, guardados só neste navegador
 export type Preset = { spells: Partial<Record<SpellId, number>>; items: Partial<Record<ItemId, number>>; order: (SpellId | null)[] };
 export type Buy = { kind: 'spell'; id: SpellId } | { kind: 'item'; id: ItemId };
-export const PRESET_SLOTS = 3;
+const PRESET_SLOTS = 3;
 export const PRESETS_KEY = 'warlock:presets';
 export const USED_KEY = 'warlock:usados';
 

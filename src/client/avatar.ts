@@ -9,7 +9,7 @@ import { store } from './store.ts';
 
 // ?as=nome (várias abas na mesma máquina) também separa a aparência, como o apelido e o personagem em main.ts
 const as = new URLSearchParams(location.search).get('as')?.replace(/[^a-z0-9]/gi, '').slice(0, 12) ?? '';
-export const LOOK_KEY = 'warlock:look' + (as && ':' + as);
+const LOOK_KEY = 'warlock:look' + (as && ':' + as);
 const CHAR_KEY = 'warlock:char' + (as && ':' + as);
 export const LOOK_EVENT = 'warlock:look';
 
