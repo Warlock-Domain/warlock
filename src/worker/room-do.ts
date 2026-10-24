@@ -128,6 +128,7 @@ export class Room extends DurableObject<Env> {
         return;
       case 'resources': {
         const attachment = ws.deserializeAttachment() as Attachment;
+        // Enforce a server-side floor in case a modified client reports more often than intended.
         if (m.phase !== 'playing' || m.sandbox || m.night || !m.players.some((p) => p.id === id && !p.bot) || now - (attachment.resourceAt ?? 0) < 30_000) return;
         ws.serializeAttachment({ ...attachment, resourceAt: now } satisfies Attachment);
         const sample: ResourceSample = {

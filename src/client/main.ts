@@ -456,6 +456,7 @@ function startRoom(code: string, name: string) {
   setInterval(() => {
     if (room && room.phase !== 'lobby' && room.phase !== 'end') net.send({ t: 'alive' });
     if (room?.phase !== 'playing' || Date.now() - resourceAt < 60_000) return;
+    // One-minute samples show sustained growth without sending per-frame noise.
     resourceAt = Date.now();
     const resources = scene.resourceStats();
     const heapBytes = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize;
