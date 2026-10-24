@@ -927,8 +927,8 @@ function startRoom(code: string, name: string) {
     const lava = !!meW?.alive && !!latest && (room?.night ? mapLava(meW.pos) : inLavaAt(arenaId, latest.arenaR, latest.isles, meW.pos));
     view.danger(low, lava);
     const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' && !room.night && (!room.sandbox || room.sandbox.shrink) ? s.shrinkAt - s.time : null;
-    // espectador: morto na rodada (ou só assistindo), a câmera segue o vivo com mais vida; ← → ou os botões trocam.
-    // Quem está invisível para mim (2048) fica de fora: a câmera entregaria onde ele está
+    // Spectators follow the living wizard with the most HP; arrows or buttons switch targets.
+    // Exclude wizards hidden from this viewer (2048), since following them would reveal their position.
     const alive = room?.phase === 'playing' && s && !meW?.alive ? wizards.filter((w) => w.alive && w.id !== me && !(w.status & 2048)) : [];
     const watched = pickWatched(alive, watchId, watchStep);
     watchStep = 0;

@@ -238,7 +238,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / GRIP.delay), 'rgba(100,180,50,.3)');
     } else if (p.kind === 'warpzone') circle(p.pos, L.radius, 'rgba(138,123,255,.25)', col);
     else if (p.kind === 'illusion') {
-      // a cópia: um mago meio apagado na cor do dono
+      // Draw the copy as a translucent wizard in its owner's color
       ctx.globalAlpha = 0.5;
       circle(p.pos, WIZ_R, colors[w.wizards.findIndex((z) => z.id === p.owner) % colors.length], '#1a0c08');
       ctx.globalAlpha = 1;
@@ -278,14 +278,14 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       ctx.globalAlpha = 1;
       text(t('lento · recargas pausadas', 'slowed · cooldowns paused'), v(z.pos.x, z.pos.y + .8), '#6ee6ff', .25);
     }
-    ctx.globalAlpha = w.t < z.windUntil || w.t < z.veilUntil ? 0.35 : 1; // no véu, quem treina ainda vê o próprio mago como no Windwalk
+    ctx.globalAlpha = w.t < z.windUntil || w.t < z.veilUntil ? 0.35 : 1; // The trainee still sees their own veiled wizard, as with Windwalk
     if (w.t < z.shieldUntil) circle(z.pos, z.shieldR, 'rgba(255,214,102,.15)', '#ffd666');
     if (w.t < z.alterUntil) circle(z.pos, spellLevel('alteration', z.spells.alteration || 1).radius, 'rgba(110,230,255,.12)', '#6ee6ff', true);
     if (w.t < z.gripUntil) vines(z.pos, WIZ_R + .18);
     if (isStunned(z)) circle(z.pos, WIZ_R + .3, null, '#ffd666', true);
     if (bracingActive(w, z)) {
       circle(z.pos, WIZ_R + .12, null, '#9be7ff');
-      // Silhueta esquemática de braço apoiado: a pose 3D continua sendo a do jogo, não reproduzida por este canvas.
+      // This schematic arm does not reproduce the game's 3D bracing pose.
       // schematic braced arm: short stub up-right of the body, thin enough not to hide the wizard on the small canvas
       line(z.pos, add(z.pos, v(.55, .3)), '#9be7ff', .12);
       circle(add(z.pos, v(.55, .3)), .1, '#9be7ff');
@@ -295,7 +295,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     if (w.t < z.rushUntil) circle(z.pos, WIZ_R + 0.12, null, '#ffb347');
     circle(z.pos, WIZ_R, w.t < (z.closedBodyUntil ?? 0) && bracingActive(w,z) ? '#090909' : colors[i % colors.length], i === A ? '#ffd666' : '#1a0c08');
     line(z.pos, add(z.pos, scale(v(Math.cos(z.facing), Math.sin(z.facing)), WIZ_R)), '#1a0c08', 0.06);
-    // vida em cima do mago
+    // Health above the wizard
     ctx.fillStyle = '#1a0c08';
     ctx.fillRect(z.pos.x - 0.45, z.pos.y - 0.7, 0.9, 0.12);
     ctx.fillStyle = z.hp / z.hpMax > 0.35 ? '#6fdc8c' : '#ff6a4d';

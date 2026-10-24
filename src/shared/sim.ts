@@ -771,14 +771,14 @@ function castCluster(w: World, wz: Wizard, L: Level, dir: Vec, dmgMult: number) 
 
 // Barricade: a 3-stone wall at the target that hits whoever stands under it
 function castRockpillar(w: World, wz: Wizard, L: Level, at: Vec, dmgMult: number) {
-  // rockpillar.lua: obstáculo no ponto (até o alcance) que some depois da duração
+  // rockpillar.lua: place an obstacle within range that expires after its duration
   const pos = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
-  // parede atravessada no caminho mago → ponto: o do meio no ponto, os outros dois para os lados
+  // Place the wall across the caster-to-target path, with one stone at the target and one on each side
   const way = len(sub(at, wz.pos)) > 1e-6 ? norm(sub(at, wz.pos)) : v(Math.cos(wz.facing), Math.sin(wz.facing));
   const side = v(-way.y, way.x), mid = w.pillars.length;
   for (const k of [0, -1, 1]) w.pillars.push({ pos: add(pos, scale(side, k * WALL_GAP)), hp: OBSTACLES.rockpillar.hp, alive: true, kind: 'rockpillar', until: w.t + L.duration, wall: mid });
-  // cai do céu (issue #206): quem está embaixo da parede leva o golpe e é jogado para o lado de fora da linha dela.
-  // A parede continua surgindo na hora (é defesa: com atraso não seguraria o projétil que já vem); a queda é só visual
+  // Falls from above (#206): anyone under the wall takes a hit and is pushed away from its line.
+  // The wall blocks immediately so it can defend against incoming projectiles; only the fall is visual
   const a = sub(pos, scale(side, WALL_GAP)), seg = scale(side, 2 * WALL_GAP);
   for (const z of w.wizards) {
     if (!z.alive || z === wz || segT(a, seg, z.pos)[1] > OBSTACLES.rockpillar.r + WIZ_R) continue;
@@ -807,16 +807,16 @@ function castLightning(w: World, wz: Wizard, L: Level, dir: Vec, dmgMult: number
   const struck = new Set<string>([wz.id]);
   let landed = false;
   while (target) {
-    struck.add(target.id); // cada corpo é atingido uma vez; o conjunto encerra a cadeia sem teto artificial de saltos.
+    struck.add(target.id); // Each body is hit once; the set terminates the chain without an arbitrary jump limit.
     w.events.push({ k: 'lightning', from, to: target.pos });
     if (shielded(w, target)) {
       w.events.push({ k: 'reflect', id: target.id, x: target.pos.x, y: target.pos.y });
       w.events.push({ k: 'lightning', from: target.pos, to: wz.pos });
       hit(w, wz, target.id, L.dmg * power, L.knock * power, sub(wz.pos, target.pos), 'lightning', L.dmg * dmgMult);
       applyElectrocution(w, wz);
-      break; // preserva reflexão para o lançador, sem gerar outra cadeia a partir do Escudo.
+      break; // Reflect back to the caster without starting another chain from the shield.
     }
-    // Mantém o soft-cap do golpe original: reduzir dano não pode fazer o impulso do salto cair menos que50%.
+    // Use the original hit's soft cap so reduced damage also reduces each jump's impulse by 50%.
     hit(w, target, wz.id, L.dmg * power, L.knock * power, sub(target.pos, from), 'lightning', L.dmg * dmgMult);
     if (!allies(wz, target)) applyElectrocution(w, target);
     if (!landed) w.events.push({ k: 'land', id: wz.id, src: 'lightning' });
@@ -829,7 +829,7 @@ function castLightning(w: World, wz: Wizard, L: Level, dir: Vec, dmgMult: number
       if (!other.alive || isSuspended(other) || struck.has(other.id) || allies(wz, other)) continue;
       const distance = dist(from, other.pos);
       if (distance > closest || firstPillarOnSegment(w, from, other.pos, .1)) continue;
-      // Empate mantém a ordem dos magos; não usa sorteio para escolher o próximo inimigo.
+      // Ties preserve wizard order; choosing the next enemy consumes no random draws.
       if (target && distance === closest) continue;
       target = other;
       closest = distance;
@@ -1467,30 +1467,30 @@ function steer(w: World, p: Projectile, L: Level, dt: number): boolean {
   if (p.lockOn !== undefined) {
     const owner = anyById(w, p.owner);
     const aim = owner && attackBody(w, owner, p.lockOn, false);
-    if (!aim) return false; // não troca de alvo nem persegue uma vida nova após a morte.
+    if (!aim) return false; // Do not switch targets or follow a new life after death.
     // A target lifted by the jet does not make the projectile stop or turn around under it
     if (!p.target || !isSuspended(anyById(w, p.target) ?? {})) p.vel = scale(norm(sub(aim.pos, p.pos)), L.speed);
   }
   if (p.kind === 'boomerang' && (w.t >= p.until || !steerBoomerang(w, p, dt))) return false;
   if (p.kind === 'link' && w.t >= (p.turnAt ?? Infinity)) {
-    // o Elo recolhe: volta a quem lançou e some perto dele (linkprojectile.lua)
+    // Link recalls toward its caster and disappears nearby (linkprojectile.lua)
     const owner = byId(w, p.owner);
     if (!owner || dist(owner.pos, p.pos) < LINK.gone) return false;
     p.back = true;
     p.vel = scale(norm(sub(owner.pos, p.pos)), L.speed);
   }
   if (p.kind === 'drain' && w.t >= (p.turnAt ?? Infinity)) {
-    // o Drenar vira para o mago mais perto, aliado ou inimigo (drainprojectile.lua)
+    // Drain turns toward the nearest wizard, ally or enemy (drainprojectile.lua)
     p.turnAt = undefined;
     let to: Wizard | null = null;
     for (const z of w.wizards) if (z.alive && !isSuspended(z) && z.id !== p.owner && (!to || dist(z.pos, p.pos) < dist(to.pos, p.pos))) to = z;
     p.vel = scale(to ? norm(sub(to.pos, p.pos)) : norm(p.vel), DRAIN.turnSpeed);
   }
-  // Ilusão: o míssil que perseguia o dono persegue a cópia enquanto ela existir
+  // Illusion redirects a missile chasing its owner toward the copy while it exists
   const chase = p.kind === 'homing' ? byId(w, p.target) : undefined;
   const target = chase && !isSuspended(chase) && (w.projectiles.find((q) => q.kind === 'illusion' && q.owner === chase.id && q.until > w.t) ?? chase);
   if (target) {
-    // gira no máximo HOMING_TURN rad/s em direção ao alvo: o atraso faz o míssil rodear antes de acertar
+    // Turn toward the target by at most HOMING_TURN rad/s; the lag makes the missile circle before hitting
     const cur = Math.atan2(p.vel.y, p.vel.x);
     const want = Math.atan2(target.pos.y - p.pos.y, target.pos.x - p.pos.x);
     const diff = Math.atan2(Math.sin(want - cur), Math.cos(want - cur));
@@ -1504,27 +1504,27 @@ function steer(w: World, p: Projectile, L: Level, dt: number): boolean {
 // Projectile reached an obstacle before any wizard; true keeps it in the world
 function hitPillar(w: World, p: Projectile, pil: { i: number; t: number }, L: Level): boolean {
   const q = w.pillars[pil.i];
-  // Gravidade, Ricochete, Drenar, Magnetizar e Recarga quicam no obstáculo; o Bumerangue quica mais forte e volta ao dono
+  // Gravity, Bouncer, Drain, Magnetize and Recharge bounce off obstacles; Boomerang bounces harder and returns to its owner
   if (p.kind === 'gravity' || p.kind === 'bouncer' || p.kind === 'boomerang' || p.kind === 'drain' || p.kind === 'magnetize' || p.kind === 'recharge') {
     bounceOff(p, q.pos, OBSTACLES[q.kind].r, p.kind === 'boomerang' ? BOOMERANG.bounceWall : undefined);
     if (p.kind === 'boomerang') [p.curve, p.back] = [undefined, true];
-    if (p.kind === 'magnetize') p.prev = ''; // depois de quicar pode pegar quem lançou (repele)
-    // Ricochete: do obstáculo segue para o inimigo mais perto (pedido do Fernando, 18/10)
+    if (p.kind === 'magnetize') p.prev = ''; // After bouncing it can hit its caster and repel projectiles
+    // Bouncer follows the nearest enemy after an obstacle hit (Fernando, 18/10)
     if (p.kind === 'bouncer') {
       const nextTo = nearestEnemy(w, p.pos, p.owner);
       if (nextTo) p.vel = scale(norm(sub(nextTo.pos, p.pos)), len(p.vel));
     }
-    // o Bumerangue também quebra o baú (pedido do Fernando, 17/10; no original não batia em obstáculo)
+    // Boomerang also breaks chests (Fernando, 17/10; the original ignored obstacles)
     if (p.kind === 'boomerang' && q.kind === 'chest') damagePillar(w, pil.i, spellLevel('boomerang', p.level, w.book).dmg * p.dmgMult, p.owner);
     return true;
   }
   if (p.kind === 'link') {
-    // Elo no obstáculo: quem lançou é que é puxado até ele
+    // Link on an obstacle pulls the caster toward it
     [p.pillar, p.pos, p.vel] = [pil.i, q.pos, v(0, 0)];
     return true;
   }
   if (p.kind === 'splitter') {
-    // splitterprojectile.lua: volta pelo caminho, fora do obstáculo, e solta os filhotes para trás
+    // splitterprojectile.lua: move outside the obstacle, reverse course and release shards backward
     p.pos = add(q.pos, scale(norm(sub(p.pos, q.pos)), OBSTACLES[q.kind].r + PROJ_R + BOOMERANG.gap));
     p.vel = scale(p.vel, -1);
     split(w, p);
@@ -1544,12 +1544,12 @@ function hitPillar(w: World, p: Projectile, pil: { i: number; t: number }, L: Le
 function hitWizard(w: World, p: Projectile, found: { wz: Wizard; t: number }, L: Level, dt: number): boolean {
   const wz = found.wz;
   if (shielded(w, wz)) {
-    // a Troca não faz mal a ninguém: o escudo só a barra, ninguém sai do lugar
+    // Swap harms nobody: a shield blocks it without moving either wizard
     if (p.kind === 'swap') {
       w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
       return false;
     }
-    // o Bumerangue e o Elo quicam no escudo sem trocar de dono e voltam (shieldmodifier.lua)
+    // Boomerang and Link bounce back from shields without changing owner (shieldmodifier.lua)
     if (p.kind === 'boomerang' || p.kind === 'link') {
       bounceOff(p, wz.pos, Math.max(WIZ_R, wz.shieldR));
       [p.curve, p.back] = [undefined, true];
@@ -1558,8 +1558,8 @@ function hitWizard(w: World, p: Projectile, found: { wz: Wizard; t: number }, L:
       return true;
     }
     if (p.kind === 'bouncer') p.prev = wz.id;
-    // devolve mirando onde quem atirou está agora (pedido do Fernando, 17/10: deixa o escudo mais forte);
-    // se ele já morreu, volta pelo mesmo caminho. O projétil passa a ser de quem refletiu.
+    // Reflect toward the current caster position (Fernando, 17/10, to strengthen shields);
+    // if the caster is dead, reverse course. The reflecting wizard becomes the projectile owner.
     const shooter = byId(w, p.owner);
     const back = shooter ? norm(sub(shooter.pos, p.pos)) : scale(norm(p.vel), -1);
     p.vel = scale(back, len(p.vel));
@@ -1575,15 +1575,15 @@ function hitWizard(w: World, p: Projectile, found: { wz: Wizard; t: number }, L:
     if (!allies(anyById(w, p.owner), wz)) mark(w, wz, p.owner, 'swap');
     w.events.push({ k: 'land', id: p.caster, src: 'swap' });
   } else if (p.kind === 'boomerang') {
-    // bate, quica a 500 u/s e volta ao dono; pode acertar de novo na volta
+    // Hit, bounce at 500 original units/s and return to the owner; can hit again on the way back
     hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, sub(wz.pos, p.pos), 'boomerang');
     land(w, p, 'boomerang', true);
     bounceOff(p, wz.pos, WIZ_R, BOOMERANG.bounce);
     [p.curve, p.back] = [undefined, true];
     return true;
   } else if (p.kind === 'bouncer') {
-    // bouncerprojectile.lua: dano só em inimigo (e −30% a cada um); segue ao inimigo mais perto, nunca de volta a quem lançou (18/10)
-    // com 1 s de vida renovada, até o dano ficar abaixo de 10
+    // bouncerprojectile.lua: damage enemies only (−30% per hit); follow the nearest enemy, excluding the caster (18/10)
+    // Renew its lifetime by 1 s until damage falls below 10
     if (wz.id !== p.owner) {
       hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel, 'bouncer');
       land(w, p, 'bouncer', true);
@@ -1599,7 +1599,7 @@ function hitWizard(w: World, p: Projectile, found: { wz: Wizard; t: number }, L:
   } else if (p.kind === 'drain') {
     drainHit(w, p, wz, L);
   } else if (p.kind === 'magnetize') {
-    // inimigo: atrai os projéteis dos inimigos dele; aliado ou quem lançou (depois de quicar): repele
+    // Enemies attract their enemies' projectiles; allies or the caster (after a bounce) repel them
     const enemy = wz.id !== p.owner && !allies(anyById(w, p.owner), wz);
     wz.magnet = enemy ? 1 : -1;
     wz.magnetUntil = w.t + (enemy ? statusDuration(w, wz, L.duration * wz.debuffMult * afflictBy(w, p.owner)) : L.duration);
@@ -1608,7 +1608,7 @@ function hitWizard(w: World, p: Projectile, found: { wz: Wizard; t: number }, L:
       land(w, p, 'magnetize');
     }
   } else if (p.kind === 'recharge') {
-    // dano + 1 por acerto seguido; acerto sem reflexo soma, o resto zera; a recarga volta para quem a lançou por último
+    // Damage +1 per consecutive unreflected hit; other hits reset the streak. Recharge returns to its last caster
     const dmg = L.dmg + (p.bonus ?? 0);
     hit(w, wz, p.owner, dmg * p.dmgMult, L.knock * (dmg / L.dmg) * p.dmgMult, p.vel, 'recharge');
     const caster = anyById(w, p.caster);
@@ -1617,12 +1617,12 @@ function hitWizard(w: World, p: Projectile, found: { wz: Wizard; t: number }, L:
     if (enemy) land(w, p, 'recharge');
     if (enemy) w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'recharge', owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + RECHARGE.life, target: p.owner, dmgMult: 1, caster: p.caster, back: true });
   } else if (p.kind === 'link') {
-    // preso: fica no mago até soltar (linkHold)
+    // Stay attached to the wizard until released (linkHold)
     [p.target, p.pos, p.vel, p.tick] = [wz.id, wz.pos, v(0, 0), w.t + LINK.tick];
     if (!allies(anyById(w, p.owner), wz)) land(w, p, 'link');
     return true;
   } else if (p.kind === 'splitter') {
-    split(w, p); // não causa dano: só estoura em filhotes
+    split(w, p); // No direct damage; only bursts into shards
     return true;
   } else {
     const src = spellOf(p.kind);
@@ -2010,7 +2010,7 @@ function applyCmds(w: World, cmds: Cmd[]) {
       if (wz.casting) wz.casting.then = c.to;
       else wz.target = c.to;
     } else if (c.kind === 'stop') {
-      // como no Dota (#144): no tempo de lançamento, cancela a magia; a recarga só começa quando ela sai, então fica livre
+      // Like Dota (#144): cancel during windup without spending cooldown, which starts only when the spell fires
       wz.casting = null;
       wz.basicCasting = undefined;
       wz.target = null;
@@ -2025,7 +2025,7 @@ function prepWizards(w: World, rand: () => number) {
   for (const wz of w.wizards) {
     if (!wz.alive && w.dm && w.t >= wz.respawnAt) respawn(w, wz, rand);
     if (!wz.alive) continue;
-    if (!bracingActive(w, wz)) wz.closedBodyUntil = 0; // soltar S ou perder a postura encerra; segurar novamente não renova.
+    if (!bracingActive(w, wz)) wz.closedBodyUntil = 0; // Releasing S or losing the stance ends it; holding again does not renew it.
     if (isStunned(wz)) wz.basicCasting = undefined;
     if (wz.basicCasting && w.t + 1e-8 >= wz.basicCasting.fireAt) finishBasic(w, wz);
     if (wz.casting && w.t >= wz.casting.fireAt) {
@@ -2034,16 +2034,16 @@ function prepWizards(w: World, rand: () => number) {
       cast(w, wz, c.spell, c.at);
       if (c.then !== undefined) wz.target = c.then;
     }
-    // preso: velocidade zero e o destino de andar some; a Investida soma velocidade
+    // Rooting clears walking speed and destination; Rush still adds velocity
     const rooted = w.t < wz.gripUntil;
-    // chão do choque: lento no arcano, queima no fogo (como a lava, mas fraco)
+    // Clash ground zones: arcane slows, fire burns like weaker lava
     wz.zone = 0;
     for (const z of w.zones) if (dist(z.pos, wz.pos) < z.r + WIZ_R * 0.5 && zoneReaches(w, z, wz)) wz.zone |= z.kind === 'slow' ? 1 : z.kind === 'burn' ? 2 : 0;
     if (wz.zone & 2 && w.t >= wz.invulnUntil && !shielded(w, wz)) {
       wz.hp -= ZONES.burn.dps * DT * damageFactor(w, wz);
       wz.calmSince = w.t;
     }
-    // Bola de neve: o efeito de 0,5 s acaba e o dano marcado sai, sem empurrão (snowballmodifier.lua)
+    // Snowball applies stored damage without knockback when its 0.5 s effect ends (snowballmodifier.lua)
     if (wz.snow && w.t >= wz.snow.until) {
       const s = wz.snow;
       wz.snow = null;
@@ -2051,7 +2051,7 @@ function prepWizards(w: World, rand: () => number) {
     }
     const extra = (w.t < wz.rushUntil ? wz.rushBonus : 0) + (w.t < wz.hasteUntil ? wz.haste : 0) + (w.t < wz.windUntil ? WINDWALK.speed : 0) + bootsBonus(w, wz) - (w.t < wz.slowUntil ? wz.slow : 0);
     const haste = wz.rune === 'haste' && w.t < wz.runeUntil ? 1 + RUNE.haste : 1;
-    // runa da Recarga: as recargas correm 1/(1 − 30%) vezes mais rápido enquanto dura
+    // Recharge rune advances cooldowns at 1/(1 − 30%) speed while active
     if (wz.rune === 'recharge' && w.t < wz.runeUntil && w.t >= incapacitatedUntil(wz, w.t)) {
       const extraT = DT * (1 / (1 - RUNE.cdr) - 1);
       for (const s of SPELL_IDS) if (wz.cd[s] > w.t) wz.cd[s] -= extraT;
@@ -2069,17 +2069,17 @@ function prepWizards(w: World, rand: () => number) {
 
 // Arena shrink and sudden death
 function shrinkArena(w: World) {
-  // morte súbita: rodada longa passa a encolher mais rápido (o próximo encolhimento vem em no máximo 5 s)
+  // Sudden death accelerates shrinking in long rounds; the next shrink is at most 5 s away
   if (!w.dm && w.rules.sudden && !w.sudden && w.t >= SUDDEN.at) {
     w.sudden = true;
     w.shrinkAt = Math.min(w.shrinkAt, w.t + SUDDEN.every);
     w.events.push({ k: 'sudden' });
   }
-  // passou de SUDDEN.collapse: o tamanho mínimo deixa de valer e a arena some aos poucos (vale mesmo com a morte súbita desligada)
+  // After SUDDEN.collapse, remove the minimum size and gradually collapse the arena even with sudden death disabled
   const collapsing = w.t >= SUDDEN.collapse;
-  const minR = collapsing && !w.dm ? 0 : ARENA_MIN; // a sandbox encolhe até o mínimo, sem sumir
-  // Arena de espinhos: para depois de mods.shrink do caminho entre o tamanho inicial e o mínimo; passado o SUDDEN.collapse some como
-  // sempre (sem lava ninguém cai, e no simulador rodadas sem esse fim passavam de 10 min)
+  const minR = collapsing && !w.dm ? 0 : ARENA_MIN; // Sandbox shrinks to the minimum without disappearing
+  // Spikes arena stops at mods.shrink of the initial-to-minimum distance, then collapses after SUDDEN.collapse
+  // as usual; without lava nobody falls, and simulated rounds exceeded 10 minutes without this ending
   const start = arenaRadius(w.wizards.length);
   const floor = w.mods.shrink < 1 && !collapsing ? Math.max(ARENA_MIN, start - (start - ARENA_MIN) * w.mods.shrink) : minR;
   if (!w.dm && collapsing && w.shrinkAt > w.t + SUDDEN.every) w.shrinkAt = w.t + SUDDEN.every;
@@ -2090,7 +2090,7 @@ function shrinkArena(w: World) {
 }
 
 function stepChests(w: World, rand: () => number) {
-  // baú: aparece num ponto sorteado longe dos obstáculos; as magias quebram e ele vira um monte de ouro
+  // Chests spawn at random positions away from obstacles; spells break them into gold piles
   const chestsUp = w.pillars.filter((q) => q.kind === 'chest' && q.alive).length;
   if (w.rules.chests && chestsUp < CHEST.maxUp && w.chestsLeft > 0 && w.t >= w.chestAt) {
     const at = freeSpot(w, rand, CHEST.spread);
@@ -2102,7 +2102,7 @@ function stepChests(w: World, rand: () => number) {
       w.chestsLeft--;
     } else w.chestAt = w.t + 1;
   }
-  // monte de ouro: cada mago em cima enche a própria barra e ganha 1 a cada 2 s; quem sai perde o progresso
+  // Each wizard on a gold pile fills a personal bar and earns 1 every 2 s; leaving resets progress
   for (const z of w.wizards) {
     const loot = z.alive ? w.loots.find((l) => l.left > 0 && dist(z.pos, l.pos) <= CHEST.reach) : undefined;
     if (!loot) {
@@ -2126,8 +2126,8 @@ function moveAll(w: World): Set<Wizard> {
     if (!wz.alive) continue;
     if (isSuspended(wz)) { moveWizard(wz, DT); continue; }
     if (w.t < wz.dashUntil) {
-      wz.pos = add(wz.pos, scale(wz.dashVel, DT)); // avançando: não anda, mas o empurrão ainda soma
-      // quem o avanço encostar leva dano e é empurrado na direção do avanço (uma vez por avanço)
+      wz.pos = add(wz.pos, scale(wz.dashVel, DT)); // Dashing disables walking but still adds knockback
+      // Dash contact deals damage and pushes along the dash direction, once per target per dash
       for (const o of w.wizards) {
         if (!o.alive || o === wz || spares(w, wz, o) || wz.dashHit.includes(o.id) || dist(o.pos, wz.pos) > 2 * WIZ_R + 0.1) continue;
         wz.dashHit.push(o.id);
@@ -2144,7 +2144,7 @@ function moveAll(w: World): Set<Wizard> {
     }
     stepThrust(w, wz);
     if (w.t < wz.windUntil) windTouch(w, wz);
-    // redemoinho do choque de pulso: puxa devagar para o centro
+    // Pulse clash vortex slowly pulls toward the center
     for (const z of w.zones) {
       const d = sub(z.pos, wz.pos);
       if (z.kind === 'pull' && len(d) < z.r + WIZ_R && len(d) > 0.15 && zoneReaches(w, z, wz)) wz.pos = add(wz.pos, scale(norm(d), ZONES.pull.speed * DT));
@@ -2159,19 +2159,19 @@ function moveAll(w: World): Set<Wizard> {
 function stepGround(w: World) {
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
-    // Arena de espinhos: quem passa da borda volta para dentro empurrado e ferido, mais quanto mais rápido bateu (SWORDS); o crédito
-    // fica com quem empurrou por último, como na lava. Antes do "vida infinita" para valer também na sandbox
+    // Spikes push and damage wizards crossing the edge, scaling with impact speed (SWORDS); credit goes to the last
+    // attacker as with lava. Run before infinite HP handling so it also applies in Sandbox
     if (isSuspended(wz)) { wz.pos = { ...wz.geyserAt! }; wz.vel = v(0, 0); }
     if (!isSuspended(wz) && w.mods.swords && edge(w, wz.pos) < SWORDS.inset && !onIsle(w.isles, wz.pos)) {
       const n = inward(w, wz.pos);
       const out = dot(wz.vel, n);
-      if (out < 0) wz.vel = sub(wz.vel, scale(n, out)); // tira o que ia para fora; o empurrão do golpe põe para dentro
+      if (out < 0) wz.vel = sub(wz.vel, scale(n, out)); // Remove outward velocity; the hit pushes inward
       wz.pos = safeInside(w, wz.pos, SWORDS.inset + WIZ_R);
       const by = wz.lastHitBy && w.t - wz.lastHitAt <= CREDIT_WINDOW ? wz.lastHitBy : wz.id;
       const dmg = SWORDS.base + SWORDS.perSpeed * Math.max(0, -out);
-      hit(w, wz, by, dmg, dmg * KB_PER_DMG, n, 'espinhos'); // o nome da fonte aparece cru no placar e no replay, como o 'choque'
+      hit(w, wz, by, dmg, dmg * KB_PER_DMG, n, 'espinhos'); // The source name appears verbatim in the scoreboard and replay, like 'choque'
     }
-    // sandbox: vida infinita não morre; na lava fica onde está (sem voltar para a pedra), só com a vida cheia
+    // Sandbox infinite HP prevents death; in lava, stay in place with full HP instead of returning to stone
     if (wz.god) {
       wz.hp = wz.hpMax;
       continue;
@@ -2179,20 +2179,20 @@ function stepGround(w: World) {
     if (w.map) {
       const c = cellAt(w.map, wz.pos.x, wz.pos.y);
       if (c === CELL.pit) fall(w, wz);
-      else if (c !== CELL.lava) wz.safe = wz.pos; // quem cai no abismo não volta para dentro da lava
+      else if (c !== CELL.lava) wz.safe = wz.pos; // Falling into a pit must not return a wizard to lava
     }
     if (inLava(w, wz.pos)) {
       if (w.t < wz.invulnUntil || shielded(w, wz)) continue;
       const dmg = LAVA_DPS * DT * (1 - wz.lavaCut) * w.mods.lava * damageFactor(w, wz), burn = Math.min(Math.max(0, wz.hp), dmg);
       wz.hp -= dmg;
       wz.calmSince = w.t;
-      // metade da vida que a lava tira conta como dano de quem acertou por último (mesma janela do abate); a partida soma no placar
+      // Half of lava HP loss counts as damage from the last attacker within the kill-credit window; Match adds it to the scoreboard
       if (wz.lastHitBy && wz.lastHitBy !== wz.id && w.t - wz.lastHitAt <= CREDIT_WINDOW) {
         const c = (w.lavaCredit[wz.lastHitBy] ??= {});
         c[wz.id] = (c[wz.id] ?? 0) + burn / 2;
       }
-      wz.dmgTaken += LAVA_DPS * DT * LAVA_KB_FACTOR; // as Botas de lava poupam a vida, não o empurrão acumulado (ciclo 2)
-      // Égide: com pouca vida na lava, volta parado para dentro da pedra na mesma direção (uma vez)
+      wz.dmgTaken += LAVA_DPS * DT * LAVA_KB_FACTOR; // Lava Boots protect HP, not accumulated knockback (cycle 2)
+      // Aegis returns a low-HP wizard from lava to stone in the same direction, stationary, once
       if (wz.aegis && wz.hp > 0 && wz.hp <= AEGIS.hp) {
         wz.aegis = false;
         toStone(w, wz);
@@ -2229,7 +2229,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   if (w.map) dropWalled(w);
   clashProjectiles(w);
   stepGround(w);
-  // Depois dos comandos e impactos, pausa a passagem natural sem bloquear habilidades prontas.
+  // After commands and impacts, pause cooldown progress without blocking ready abilities.
   for (const wz of w.wizards) if (wz.alive) {
     const pause = Math.min(DT, Math.max(0, incapacitatedUntil(wz, w.t) - w.t));
     if (pause > 0) for (const s of SPELL_IDS) if (wz.cd[s] > w.t) wz.cd[s] += pause;
