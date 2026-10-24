@@ -37,17 +37,20 @@ export function randomPlan(rand: () => number): BotPlan {
   return { buys, upgrade: (['lowest', 'first', 'random'] as const)[Math.floor(rand() * 3)] };
 }
 
-// combinação que funciona (Normal e Difícil, 18/10): 1 ou 2 magias de dano, 1 de fuga ou defesa, às vezes 1 de controle,
+// combinação que funciona (Normal e Difícil, 18/10): 1 ou 2 magias de dano, 1 de fuga ou defesa, às vezes 1 de controle e 1 situacional,
 // e 1 ou 2 itens úteis; tudo sorteado dentro de cada grupo para os bots não ficarem iguais
-const DAMAGE: SpellId[] = ['lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'snowball', 'drain', 'splitter', 'gravity', 'thrust'];
+const DAMAGE: SpellId[] = ['lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'snowball', 'drain', 'splitter', 'gravity', 'thrust', 'recharge'];
 const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration', 'warpzone', 'rockpillar', 'illusion'];
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize'];
+// Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
+// so they come on top of the escape spell instead of replacing it
+const SITUATIONAL: SpellId[] = ['heal', 'geyser', 'closedbody', 'swap'];
 const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
   const [first, ...more] = take(DAMAGE, 1 + Math.floor(rand() * 2));
   // o Pacto era 1 de 8 itens úteis (1 ou 2 sorteados): virou magia em 21/10 (#217) com chance parecida
-  const spells = [first, ...take(ESCAPE, 1), ...more, ...(rand() < 0.5 ? take(CONTROL, 1) : []), ...(rand() < 0.2 ? ['pact' as const] : [])];
+  const spells = [first, ...take(ESCAPE, 1), ...more, ...(rand() < 0.5 ? take(CONTROL, 1) : []), ...(rand() < 0.5 ? take(SITUATIONAL, 1) : []), ...(rand() < 0.2 ? ['pact' as const] : [])];
   const items = take(GEAR, 1 + Math.floor(rand() * 2));
   // dano e fuga primeiro; os itens entre as outras magias
   const buys: BotPick[] = spells.map((id) => ({ kind: 'spell', id }));

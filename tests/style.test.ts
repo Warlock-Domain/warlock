@@ -46,7 +46,8 @@ describe('jeito de jogar', () => {
     // Proposta 23/10: Meteoro sem empurrão, com stun fixo 1,25 s.
     // 24/10: bots use the manual Attack (no spell ready, enemy within 6 m, clear line).
     // 24/10: bots hold ground (hit 0.5 to 0.9 s away so the windup finishes, no escape spell ready, not dodging on foot; keep holding while it closes in; lease 0.5 s).
-    expect(hash).toBe(2606694574);
+    // 24/10 (issue #373): bot shopping plans include Recharge, Heal, Geyser, Closed Body and Swap.
+    expect(hash).toBe(4126304566);
     // e mediu de verdade nessa mesma partida
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);
