@@ -80,7 +80,6 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 19/10 | Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3 | baú demais por rodada |
 | 19/10 | Sandbox no Treino (vida e ouro sem fim, bots e boneco pelo painel) | testar magias e interações |
 | 19/10 | `master` protegido (PR + CI + aprovação); revisão automática do Claude em todo PR; ambiente `<nome>-dev` por colaborador; guia do colaborador no repositório | entrada de colaboradores |
-| 24/10 | `scripts/CLAUDE.md` em inglês; os demais `CLAUDE.md` mantêm o idioma já usado na pasta | instruções de scripts compartilhadas com amigos que não leem português |
 | 19/10 | Os `CLAUDE.md` (raiz e pastas) são atualizados a cada decisão nova | todo dev com o mesmo contexto do dono |
 | 19/10 | PR passa pela revisão automática do Claude (comentário com veredito) e pode ser ajustado e mesclado pelo agente do dono, inclusive PR de colaborador; comente `@claude` num PR ou issue para pedir ajuda | mesclar rápido sem o dono revisar à mão |
 | 19/10 | Cada colaborador tem um ambiente dev próprio (`<usuário do GitHub>-dev`, em minúsculas) publicado sozinho a cada push | testar com outras pessoas antes do PR, sem tocar no jogo no ar |
@@ -184,7 +183,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 23/10 | **Repositório na organização `Warlock-Domain`** (plano Free): `fernandorff/warlock` virou `Warlock-Domain/warlock` (o endereço antigo redireciona). Colaboradores entram como membros da organização; time **Colaboradores** com Write no `warlock`; Arthur (arthurbaquit) com Admin no repositório; o Fernando é o único Owner da organização. O repositório segue público, porque a proteção do `master` na organização grátis só vale em repositório público | decisão do Fernando |
 | 23/10 | **Quadro dos admins** (https://github.com/orgs/Warlock-Domain/projects/1, privado, só o time **Admins**: Fernando e Arthur): antes de começar qualquer tarefa, a sessão de um admin confere o quadro; ao começar, põe um card com dono e Status **Fazendo**; ao terminar, move para **Em teste** ou **Feito**. Se o outro admin já tem card em Fazendo no mesmo assunto, não duplica e avisa o dono. Os bots do Telegram não conversam entre si (o Telegram bloqueia bot lendo bot), então o quadro é a fonte de verdade | decisão do Fernando |
 | 23/10 | **Guia de contribuição único, em inglês**: o `CONTRIBUTING.md` reúne máquina, fluxo, testes, revisão e balanceamento para gente e para agentes, e o `docs/GUIA-COLABORADOR.md` sai. Commits, comentários de código e o registro de decisões seguem em português; o jogo segue nas duas línguas | decisão do Fernando: um guia só, sem duas cópias que se desencontram |
-| 24/10 | `scripts/CLAUDE.md` em inglês; os demais `CLAUDE.md` mantêm o idioma já usado na pasta | manter o guia de scripts alinhado ao idioma de comunicação pedido pelo Fernando ([confirmação](https://github.com/Warlock-Domain/warlock/pull/339#issuecomment-6383246205)) |
+| 24/10 | `scripts/CLAUDE.md` em inglês; os demais `CLAUDE.md` mantêm o idioma já usado na pasta | pedido explícito do Fernando durante a revisão do PR #339: “the claude file you can change it all to english” |
 
 ## Fluxo com agente
 
