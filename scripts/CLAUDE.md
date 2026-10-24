@@ -15,3 +15,6 @@ These instructions apply together with the repository root `CLAUDE.md`.
 - **`slim-character.mjs <original.glb> public/models/<id>.glb [nodes to remove] [pack glbs]`** trims a KayKit character: keep only its own clips (`KEEP`) and clips copied bone by bone from KayKit Character Animations 1.1 (`PACK`, `Rig_Medium`). Add new clips to one of those lists and add a trigger to `CAST_ANIM`/`TAUNT_ANIM` in `src/client/scene.ts`; regenerate all nine characters, then run `scripts/assets/hood.mjs` (hood for `rogue.glb`).
 - `scripts/assets/` builds `public/icons.svg` and other assets: run the script manually and commit the output, with credit in `public/CREDITS.txt` and an entry in `docs/ASSETS.md`.
 - **`assets/kaykit-index.mjs`** rebuilds `assets/kaykit/INDICE.md` (model names by pack); run it whenever a pack is added, removed, or changed.
+
+
+`node scripts/room-cleanup.mjs` (Node 24) exercises the real Room class with mocked storage and sockets: normal cleanup, lobby retry, and join/leave during the RPC. It does not replace runtime tests.
