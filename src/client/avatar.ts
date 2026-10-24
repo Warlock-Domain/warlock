@@ -35,159 +35,173 @@ const optName = (o: Piece, part: string) => {
 };
 
 const W = 200, H = 240;
-let panel: HTMLElement | null = null;
-let look = '';
-let sync = () => {};
-let frameId: number | null = null;
-let visible = false;
 
-// um painel só (um contexto WebGL só): as Configurações redesenham as abas a cada mudança e chamam isto de novo
-export function avatarPanel(): HTMLElement {
-  if (!panel) {
-    panel = build();
-    // O observer acompanha abas ocultas, rolagem e remontagens sem medir o layout em cada quadro.
+// The single character preview (one WebGL context): owns the renderer, the orbit camera, the shown model and the frame
+// loop, which only runs while the panel is on screen and the tab is visible.
+class AvatarPreview {
+  readonly panel: HTMLElement;
+  private readonly renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); // transparent: the gradient comes from the canvas CSS
+  private readonly stage = new THREE.Scene();
+  private readonly camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 20);
+  private shown: AppearanceInstance | null = null;
+  private look = '';
+  private sync = () => {};
+  private frameId: number | null = null;
+  private visible = false;
+  private last = 0;
+  private scale = 0;
+  private orbitYaw = 0;
+  private orbitPitch = 0.04;
+  private orbitDistance = 4.6;
+  private cameraTouched = false;
+
+  constructor() {
+    this.panel = this.build();
+    // The observer follows hidden tabs, scrolling and remounts without measuring the layout every frame.
     new IntersectionObserver(([entry]) => {
-      visible = entry.isIntersecting && entry.intersectionRect.width > 0 && entry.intersectionRect.height > 0;
-      updateActivity();
-    }).observe(panel);
-    document.addEventListener('visibilitychange', updateActivity);
+      this.visible = entry.isIntersecting && entry.intersectionRect.width > 0 && entry.intersectionRect.height > 0;
+      this.updateActivity();
+    }).observe(this.panel);
+    document.addEventListener('visibilitychange', this.updateActivity);
   }
-  sync();
-  updateActivity();
-  return panel;
-}
 
-let renderer: THREE.WebGLRenderer;
-let stage: THREE.Scene;
-let camera: THREE.PerspectiveCamera;
-let shown: AppearanceInstance | null = null;
-let last = 0;
-let scale = 0;
-let orbitYaw = 0;
-let orbitPitch = 0.04;
-let orbitDistance = 4.6;
-let cameraTouched = false;
-function updateActivity() {
-  if (!visible || document.hidden || !panel?.isConnected) {
-    if (frameId !== null) cancelAnimationFrame(frameId);
-    frameId = null;
-    last = 0; // Retomar não avança a animação pelo tempo em que a prévia ficou escondida.
-  } else if (frameId === null) frameId = requestAnimationFrame(frame);
-}
-function frame(now: number) {
-  frameId = null;
-  if (!visible || document.hidden || !panel?.isConnected) return updateActivity();
-  const dt = Math.min(0.1, (now - (last || now)) / 1000);
-  last = now;
-  if (shown) {
-    shown.mixer.update(dt);
-    if (!cameraTouched) shown.model.rotation.y += dt * 0.5;
+  // Settings redraws its tabs on every change and asks for the panel again: reread the saved look and resume if visible
+  refresh() {
+    this.sync();
+    this.updateActivity();
   }
-  renderer.render(stage, camera);
-  frameId = requestAnimationFrame(frame);
-}
 
-// Mesma montagem e mesmos materiais originais da partida; só os materiais clonados pertencem à prévia.
-function show(want: string) {
-  void Promise.all([loadLook(want), loadFile('mage')]).then(([, mage]) => {
-    const src = lookModel(want);
-    if (want !== look || !src) return;
-    // mesma escala do jogo: o mago mede 1,9 m (scene.ts)
-    if (mage && !scale) scale = 1.9 / new THREE.Box3().setFromObject(mage.scene).getSize(new THREE.Vector3()).y;
-    const rot = shown?.model.rotation.y ?? 0.6;
-    if (shown) disposeAppearance(shown);
-    const model = cloneAppearance(src.scene);
-    model.scale.setScalar(scale || 1);
-    model.rotation.y = rot;
-    stage.add(model);
-    const mixer = new THREE.AnimationMixer(model);
-    const idle = src.clips.find((c) => c.name === 'Idle');
-    if (idle) mixer.clipAction(idle).play();
-    shown = { model, mixer };
-  });
-}
+  private updateActivity = () => {
+    if (!this.visible || document.hidden || !this.panel.isConnected) {
+      if (this.frameId !== null) cancelAnimationFrame(this.frameId);
+      this.frameId = null;
+      this.last = 0; // resuming does not advance the animation by the time the preview was hidden
+    } else if (this.frameId === null) this.frameId = requestAnimationFrame(this.frame);
+  };
 
-function build(): HTMLElement {
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); // fundo transparente: o degradê vem do CSS do canvas
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setSize(W, H);
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  stage = new THREE.Scene();
-  stage.add(new THREE.HemisphereLight('#fff4e0', '#3a2a22', 2.2));
-  const sun = new THREE.DirectionalLight('#ffffff', 2.4);
-  sun.position.set(2, 4, 3);
-  stage.add(sun);
-  camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 20);
-  const aimCamera = () => {
+  private frame = (now: number) => {
+    this.frameId = null;
+    if (!this.visible || document.hidden || !this.panel.isConnected) return this.updateActivity();
+    const dt = Math.min(0.1, (now - (this.last || now)) / 1000);
+    this.last = now;
+    if (this.shown) {
+      this.shown.mixer.update(dt);
+      if (!this.cameraTouched) this.shown.model.rotation.y += dt * 0.5;
+    }
+    this.renderer.render(this.stage, this.camera);
+    this.frameId = requestAnimationFrame(this.frame);
+  };
+
+  // Same assembly and original materials as the match; only the cloned materials belong to the preview.
+  private show(want: string) {
+    void Promise.all([loadLook(want), loadFile('mage')]).then(([, mage]) => {
+      const src = lookModel(want);
+      if (want !== this.look || !src) return;
+      // same scale as the game: the mage is 1.9 m tall (scene.ts)
+      if (mage && !this.scale) this.scale = 1.9 / new THREE.Box3().setFromObject(mage.scene).getSize(new THREE.Vector3()).y;
+      const rot = this.shown?.model.rotation.y ?? 0.6;
+      if (this.shown) disposeAppearance(this.shown);
+      const model = cloneAppearance(src.scene);
+      model.scale.setScalar(this.scale || 1);
+      model.rotation.y = rot;
+      this.stage.add(model);
+      const mixer = new THREE.AnimationMixer(model);
+      const idle = src.clips.find((c) => c.name === 'Idle');
+      if (idle) mixer.clipAction(idle).play();
+      this.shown = { model, mixer };
+    });
+  }
+
+  private aimCamera() {
     const targetY = 0.95;
-    camera.position.set(orbitDistance * Math.sin(orbitYaw) * Math.cos(orbitPitch), targetY + orbitDistance * Math.sin(orbitPitch), orbitDistance * Math.cos(orbitYaw) * Math.cos(orbitPitch));
-    camera.lookAt(0, targetY, 0);
-  };
-  aimCamera();
-  let drag: { id: number; x: number; y: number } | null = null;
-  renderer.domElement.tabIndex = 0;
-  renderer.domElement.setAttribute('aria-label', t('Prévia 3D do personagem. Arraste para mover a câmera e use a roda do mouse para aproximar.', '3D character preview. Drag to move the camera and use the mouse wheel to zoom.'));
-  renderer.domElement.addEventListener('pointerdown', (e) => {
-    drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
-    renderer.domElement.setPointerCapture(e.pointerId);
-    renderer.domElement.style.cursor = 'grabbing';
-  });
-  renderer.domElement.addEventListener('pointermove', (e) => {
-    if (!drag || drag.id !== e.pointerId) return;
-    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    drag.x = e.clientX;
-    drag.y = e.clientY;
-    if (dx || dy) cameraTouched = true;
-    orbitYaw -= dx * 0.008;
-    orbitPitch = Math.max(-0.45, Math.min(0.75, orbitPitch + dy * 0.008));
-    aimCamera();
-  });
-  const endDrag = (e: PointerEvent) => {
-    if (!drag || drag.id !== e.pointerId) return;
-    drag = null;
-    renderer.domElement.style.cursor = 'grab';
-  };
-  renderer.domElement.addEventListener('pointerup', endDrag);
-  renderer.domElement.addEventListener('pointercancel', endDrag);
-  renderer.domElement.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    orbitDistance = Math.max(2.8, Math.min(8, orbitDistance * Math.exp(e.deltaY * 0.001)));
-    cameraTouched = true;
-    aimCamera();
-  }, { passive: false }); // sem passive: false o preventDefault não segura a rolagem da página enquanto aproxima
+    const { orbitDistance: d, orbitYaw: yaw, orbitPitch: pitch } = this;
+    this.camera.position.set(d * Math.sin(yaw) * Math.cos(pitch), targetY + d * Math.sin(pitch), d * Math.cos(yaw) * Math.cos(pitch));
+    this.camera.lookAt(0, targetY, 0);
+  }
 
-  const names = LOOK_PARTS.map(() => el('b', { class: 'avatar-name' }));
-  const set = (next: string) => {
-    if (next === look) return;
-    saveLook(next);
-    sync();
-  };
-  const step = (i: number, d: number) => {
-    const { opts } = LOOK_PARTS[i];
-    let k = Number(look[i]);
-    do k = (k + d + opts.length) % opts.length;
-    while (isRetired(opts[k]));
-    set(look.slice(0, i) + k + look.slice(i + 1));
-  };
-  const rows = LOOK_PARTS.map((p, i) => el('div', { class: 'keys-row' }, el('span', {}, t(p.name, p.en)),
-    el('span', { class: 'avatar-pick' },
-      iconButton('‹', t(`${p.name}: anterior`, `${p.en}: previous`), () => step(i, -1)),
-      names[i],
-      iconButton('›', t(`${p.name}: próxima`, `${p.en}: next`), () => step(i, 1)))));
-  // os bonecos originais como atalho: um clique monta o boneco inteiro (Fernando, 19/10); uma Ladina só, o capuz é chapéu (#107)
-  const presets = PRESETS.map((c) => el('button', { type: 'button', class: 'avatar-preset', title: t(c.name, c.en), 'aria-label': t(c.name, c.en), onclick: () => set(lookOf(c.id)) },
-    el('img', { src: `/chars/${lookHead(lookOf(c.id))}.webp`, alt: '', width: 48, height: 64 }))); // a Ladina pronta mostra o retrato com o Capuz
-  sync = () => {
-    const now = look;
-    look = savedLook();
-    LOOK_PARTS.forEach((p, i) => (names[i].textContent = optName(p.opts[Number(look[i])], p.id)));
-    presets.forEach((b, i) => b.setAttribute('aria-pressed', String(look === lookOf(PRESETS[i].id))));
-    if (look !== now || !shown) show(look);
-  };
-  return el('div', { class: 'avatar' },
-    el('style', {}, `.avatar{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}.avatar-view{width:${W}px;max-width:100%;display:flex;flex-direction:column;gap:4px}.avatar canvas{width:${W}px;height:${H}px;max-width:100%;border-radius:12px;background:radial-gradient(circle at 50% 40%,#3a2a40,#15101a);touch-action:none;cursor:grab}.avatar-parts{flex:1;min-width:220px;display:flex;flex-direction:column;gap:4px}.avatar-pick{display:flex;align-items:center;gap:6px}.avatar-name{min-width:9em;text-align:center}.avatar-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}.avatar-preset{padding:2px;min-height:0;border-radius:8px}.avatar-preset[aria-pressed=true]{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}`),
-    el('div', { class: 'avatar-view' }, renderer.domElement, el('small', { class: 'muted' }, t('Arraste para orbitar · role para aproximar', 'Drag to orbit · scroll to zoom'))),
-    el('div', { class: 'avatar-parts' }, el('small', { class: 'muted' }, t('Prontos', 'Presets')), el('div', { class: 'avatar-presets' }, ...presets), ...rows,
-      el('button', { type: 'button', onclick: () => set(randomLook()) }, t('Aleatório', 'Random')),
-      el('small', { class: 'muted' }, t('Vale na hora, até no meio da partida, e os outros jogadores veem. Fica salvo neste navegador.', 'Applies right away, even mid-match, and the other players see it. Saved in this browser.'))));
+  private build(): HTMLElement {
+    const { renderer, stage } = this;
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(W, H);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    stage.add(new THREE.HemisphereLight('#fff4e0', '#3a2a22', 2.2));
+    const sun = new THREE.DirectionalLight('#ffffff', 2.4);
+    sun.position.set(2, 4, 3);
+    stage.add(sun);
+    this.aimCamera();
+    let drag: { id: number; x: number; y: number } | null = null;
+    renderer.domElement.tabIndex = 0;
+    renderer.domElement.setAttribute('aria-label', t('Prévia 3D do personagem. Arraste para mover a câmera e use a roda do mouse para aproximar.', '3D character preview. Drag to move the camera and use the mouse wheel to zoom.'));
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      renderer.domElement.setPointerCapture(e.pointerId);
+      renderer.domElement.style.cursor = 'grabbing';
+    });
+    renderer.domElement.addEventListener('pointermove', (e) => {
+      if (!drag || drag.id !== e.pointerId) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      drag.x = e.clientX;
+      drag.y = e.clientY;
+      if (dx || dy) this.cameraTouched = true;
+      this.orbitYaw -= dx * 0.008;
+      this.orbitPitch = Math.max(-0.45, Math.min(0.75, this.orbitPitch + dy * 0.008));
+      this.aimCamera();
+    });
+    const endDrag = (e: PointerEvent) => {
+      if (!drag || drag.id !== e.pointerId) return;
+      drag = null;
+      renderer.domElement.style.cursor = 'grab';
+    };
+    renderer.domElement.addEventListener('pointerup', endDrag);
+    renderer.domElement.addEventListener('pointercancel', endDrag);
+    renderer.domElement.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      this.orbitDistance = Math.max(2.8, Math.min(8, this.orbitDistance * Math.exp(e.deltaY * 0.001)));
+      this.cameraTouched = true;
+      this.aimCamera();
+    }, { passive: false }); // without passive: false, preventDefault does not stop the page from scrolling while zooming
+
+    const names = LOOK_PARTS.map(() => el('b', { class: 'avatar-name' }));
+    const set = (next: string) => {
+      if (next === this.look) return;
+      saveLook(next);
+      this.sync();
+    };
+    const step = (i: number, d: number) => {
+      const { opts } = LOOK_PARTS[i];
+      let k = Number(this.look[i]);
+      do k = (k + d + opts.length) % opts.length;
+      while (isRetired(opts[k]));
+      set(this.look.slice(0, i) + k + this.look.slice(i + 1));
+    };
+    const rows = LOOK_PARTS.map((p, i) => el('div', { class: 'keys-row' }, el('span', {}, t(p.name, p.en)),
+      el('span', { class: 'avatar-pick' },
+        iconButton('‹', t(`${p.name}: anterior`, `${p.en}: previous`), () => step(i, -1)),
+        names[i],
+        iconButton('›', t(`${p.name}: próxima`, `${p.en}: next`), () => step(i, 1)))));
+    // the original characters as shortcuts: one click builds the whole character (Fernando, 19/10); one Rogue only, the hood is a hat (#107)
+    const presets = PRESETS.map((c) => el('button', { type: 'button', class: 'avatar-preset', title: t(c.name, c.en), 'aria-label': t(c.name, c.en), onclick: () => set(lookOf(c.id)) },
+      el('img', { src: `/chars/${lookHead(lookOf(c.id))}.webp`, alt: '', width: 48, height: 64 }))); // the Rogue preset shows the portrait with the Hood
+    this.sync = () => {
+      const now = this.look;
+      this.look = savedLook();
+      LOOK_PARTS.forEach((p, i) => (names[i].textContent = optName(p.opts[Number(this.look[i])], p.id)));
+      presets.forEach((b, i) => b.setAttribute('aria-pressed', String(this.look === lookOf(PRESETS[i].id))));
+      if (this.look !== now || !this.shown) this.show(this.look);
+    };
+    return el('div', { class: 'avatar' },
+      el('style', {}, `.avatar{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}.avatar-view{width:${W}px;max-width:100%;display:flex;flex-direction:column;gap:4px}.avatar canvas{width:${W}px;height:${H}px;max-width:100%;border-radius:12px;background:radial-gradient(circle at 50% 40%,#3a2a40,#15101a);touch-action:none;cursor:grab}.avatar-parts{flex:1;min-width:220px;display:flex;flex-direction:column;gap:4px}.avatar-pick{display:flex;align-items:center;gap:6px}.avatar-name{min-width:9em;text-align:center}.avatar-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}.avatar-preset{padding:2px;min-height:0;border-radius:8px}.avatar-preset[aria-pressed=true]{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}`),
+      el('div', { class: 'avatar-view' }, renderer.domElement, el('small', { class: 'muted' }, t('Arraste para orbitar · role para aproximar', 'Drag to orbit · scroll to zoom'))),
+      el('div', { class: 'avatar-parts' }, el('small', { class: 'muted' }, t('Prontos', 'Presets')), el('div', { class: 'avatar-presets' }, ...presets), ...rows,
+        el('button', { type: 'button', onclick: () => set(randomLook()) }, t('Aleatório', 'Random')),
+        el('small', { class: 'muted' }, t('Vale na hora, até no meio da partida, e os outros jogadores veem. Fica salvo neste navegador.', 'Applies right away, even mid-match, and the other players see it. Saved in this browser.'))));
+  }
+}
+
+// one panel only (one WebGL context): Settings redraws its tabs on every change and calls this again
+let preview: AvatarPreview | null = null;
+export function avatarPanel(): HTMLElement {
+  preview ??= new AvatarPreview();
+  preview.refresh();
+  return preview.panel;
 }
