@@ -5,7 +5,7 @@ import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { labelOf } from './keys.ts';
 import { CAST_POINT, GRIP, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, RECHARGE, RUSH, SHIELD, SPELLS, WARPZONE, spellLevel, type Level, type SpellBook, type SpellId } from '../shared/spells.ts';
-import { RULES_SHORT, n1 } from './rules-text.ts';
+import { RULES_SHORT, n1, n2 } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 
 const m = (x: number) => `${n1(x)} m`;
@@ -45,7 +45,7 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   teleport: [[RANGE, (l) => m(l.range)], [CD, (l) => s(l.cd)]],
   swap: [[RANGE, (l) => m(l.range)], [CD, (l) => s(l.cd)]],
   grip: [[t('Atraso dos cipós', 'Vine delay'), () => s(GRIP.delay)], [RADIUS, (l) => m(l.radius)], [t('Tempo preso', 'Time gripped'), (l) => s(l.duration) + t(' ou até o 1º golpe', ' or until the 1st hit')], [t('Empurrão do golpe que solta', 'Knockback of the hit that frees'), (l) => `+${Math.round(l.scale * 100)}%`], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
-  meteor: [[t('Dano no centro', 'Center damage'), (l) => n1(l.dmg)], [t('Dano na borda', 'Edge damage'), (l) => n1(l.dmgMin)], [t('Atraso após marcar', 'Delay after marking'), () => s(METEOR_DELAY)], [t('Atordoamento', 'Stun'), (l) => s(l.duration)], [KNOCK, () => m(0)], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  meteor: [[t('Dano no centro', 'Center damage'), (l) => n1(l.dmg)], [t('Dano na borda', 'Edge damage'), (l) => n1(l.dmgMin)], [t('Atraso após marcar', 'Delay after marking'), () => `${n2(METEOR_DELAY)} s`], [t('Atordoamento', 'Stun'), (l) => `${n2(l.duration)} s`], [KNOCK, () => m(0)], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   rush: [[t('Avanço', 'Dash'), () => m(RUSH.dash)], [t('Tempo do avanço', 'Dash time'), () => s(RUSH.dashTime)], [t('Dano do avanço', 'Dash damage'), () => n1(RUSH.dashDmg)], [DURATION, (l) => s(l.duration)], [t('Limite de dano absorvido', 'Damage absorption cap'), (l) => n1(l.absorb)], [CD, (l) => s(l.cd)]],
   cluster: [[t('Dano por projétil', 'Damage per projectile'), (l) => n1(l.dmg)], [t('Empurrão por projétil', 'Knockback per projectile'), (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   boomerang: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
