@@ -203,6 +203,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 24/10 | **Continuous lava crackle removed** (PR #280, Leonard's request): `lava_loop.mp3` no longer loads or plays; music, spell and impact sounds and taunts stay. The file and its credit stay in the repository for possible later use | Fernando listened in the PR environment and approved the removal |
 | 24/10 | **Own spell icons**: Geyser uses `water-splash` instead of the provisional drawing (replaces "Leonard makes the icon" in the Geyser row); Closed Body uses `aura` instead of `checked-shield`, which the Shield rune also uses (both Lorc, game-icons.net) | Fernando's choice; the shared icon was confusing on the spell bar |
 | 24/10 | **Declined: class passives in the core game** (issue #17, PR #195, Reinaldo's idea): no passive bonus chosen by the character's torso; the core game stays as it is | classes with passives belong to Lucas's Campaign mode |
+| 24/10 | **Test and voting forum** (issue #366, 7 steps), step 1 skeleton: `/forum` is a second Vite page (`forum.html`) served by the assets binding; `/api/forum` talks to a new SQLite Durable Object (`Forum`, migration v2) | Fernando approved the 7-step plan on 24/10; the forum is where testers vote and discuss PRs |
 
 ## Fluxo com agente
 
