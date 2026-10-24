@@ -44,6 +44,7 @@ export type ClientMsg =
   | { t: 'ready' }
   | { t: 'alive' };
 
+// A validação das mensagens recebidas pelo navegador fica em `src/client/net-message.ts`; mantenha-a em sincronia com estes tipos.
 export type PublicPlayer = {
   id: string; name: string; bot: boolean; color: number; character: CharacterId; look: string; score: number; gold: number;
   spells: Record<SpellId, number>; items: Record<ItemId, number>; stats: Stats; bought: string[]; held: Record<string, number[]>; ready: boolean; connected: boolean; team: number | null;
