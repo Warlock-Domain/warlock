@@ -1,5 +1,5 @@
 export const FORUM_NOTE_MAX = 200;
-// the endpoint is public and unauthenticated until login lands (step 3), so the table keeps only a short tail
+// the endpoint is public and unauthenticated until login lands (step 2), so the table keeps only a short tail
 export const FORUM_KEEP = 20;
 
 export type ForumNote = { id: number; text: string; at: number };
