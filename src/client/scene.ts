@@ -1,7 +1,8 @@
 // Cena 3D: lava, arena de pedra que encolhe, magos (KayKit), projéteis e efeitos.
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
 import * as THREE from 'three';
-import { ELECTROCUTED_BIT } from '../shared/constants.ts';
+import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
+import { createBraceClip } from './brace-pose.ts';
 import { createAttackClip } from './attack-pose.ts';
 import { electroPulse } from './screen-data.ts';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -39,6 +40,8 @@ export type WizDraw = { place?: number; xp?: { level: number; frac: number } | n
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
+// the Hold ground pose depends only on the source skeleton: build it once per source model (clone + IK per wizard is costly)
+const braceClips = new WeakMap<Model, THREE.AnimationClip | null>();
 const files = new Map<string, Model>();
 const loading = new Map<string, Promise<Model | null>>();
 const failed = new Set<string>();
@@ -182,7 +185,7 @@ function bandGeo(pairs: [Vec[], Vec[]][], keep: (m: Vec) => boolean = () => true
 }
 
 // clips que repetem (o resto toca uma vez e para no último quadro)
-const LOOPS = ['Idle', 'Running_A', 'Jump_Idle', 'Cheer', 'Waving'];
+const LOOPS = ['Idle', 'Running_A', 'Jump_Idle', 'Cheer', 'Waving', 'Brace'];
 // gesto da provocação pelo tom: deboche, festa ou aviso [clip, segundos]
 const TEASE: [string, number] = ['Skeletons_Taunt', 1.03], PARTY: [string, number] = ['Cheer', 1.67], CALL: [string, number] = ['Waving', 2.1];
 const TAUNT_ANIM: Record<(typeof TAUNTS)[number]['id'], [string, number]> = {
@@ -933,6 +936,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const mixer = new THREE.AnimationMixer(model);
     const actions: Record<string, THREE.AnimationAction> = {};
     for (const c of src.clips) actions[c.name] = mixer.clipAction(c);
+    const idle = src.clips.find((c) => c.name === 'Idle');
+    if (idle && !braceClips.has(src)) braceClips.set(src, createBraceClip(model, idle));
+    const brace = braceClips.get(src);
+    if (brace) actions.Brace = mixer.clipAction(brace);
     const invoke = src.clips.find((c) => c.name === 'Spellcast_Shoot');
     if (invoke) actions.Attack_Invoke = mixer.clipAction(createAttackClip(invoke));
     // tudo toca uma vez e para no último quadro, menos o que repete
@@ -1954,7 +1961,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           action.paused = true;
           action.time = Math.max(0, action.getClip().duration - d.basicLeft!);
           m.oneShotUntil = 0; // o snapshot encerra a pose na soltura ou no cancelamento, sem terminar o gesto à força.
-        } else if (m.current === 'Attack_Invoke' || now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
+        } else if (m.current === 'Attack_Invoke' || now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & BRACING_BIT && m.actions.Brace ? 'Brace' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
         // vencedor: estouro dourado ao começar a comemorar e faíscas subindo enquanto dura
         if (d.cheer && !m.cheering) victoryBurst(d.pos);
         if (d.cheer && !lite && Math.random() < 0.2) burst(v(d.pos.x + (Math.random() - 0.5) * 1.4, d.pos.y + (Math.random() - 0.5) * 1.4), Math.random() < 0.5 ? '#ffd84a' : '#fff2a0', 0.7, 1.2, 0.4, FX.star, 2.6);
