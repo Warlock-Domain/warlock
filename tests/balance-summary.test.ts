@@ -65,6 +65,16 @@ describe('validação e junção dos resumos de balanceamento', () => {
       seed: '2',
       startedAt: '2026-10-24T09:00:00.000Z',
       seconds: 10,
+      owned: {
+        'spell:fireball': {
+          ...summary().owned['spell:fireball'],
+          by: { all: { '10': { n: 1, w: 1, e: 1 } } },
+        },
+      },
+      sources: {
+        fireball: { fired: 2, landed: 1, dmg: 20 },
+        lightning: { fired: 1, landed: 1, dmg: 5 },
+      },
     });
 
     const merged = mergeSummaries([first, second]);
@@ -72,8 +82,21 @@ describe('validação e junção dos resumos de balanceamento', () => {
     expect(merged.seed).toBe('1, 2');
     expect(merged.rounds).toBe(2);
     expect(merged.owned['spell:fireball'].n).toBe(4);
+    expect(merged.owned['spell:fireball'].by?.all['0'].n).toBe(2);
+    expect(merged.owned['spell:fireball'].by?.all['10'].n).toBe(1);
+    expect(merged.sources.lightning).toEqual({ fired: 1, landed: 1, dmg: 5 });
     expect(merged.seconds).toBe(20);
     expect(merged.startedAt).toBe('2026-10-24T09:00:00.000Z');
+  });
+
+  it('não altera o resumo original ao juntar uma única execução', () => {
+    const input = summary({ seconds: 20 });
+
+    const merged = mergeSummaries([input]);
+
+    expect(merged).not.toBe(input);
+    expect(merged.seconds).toBe(20);
+    expect(input.seconds).toBe(20);
   });
 
   it('rejeita resumos com configurações incompatíveis e entrada vazia', () => {

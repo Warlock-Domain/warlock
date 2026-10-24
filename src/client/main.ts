@@ -41,6 +41,7 @@ import { TAUNTS } from '../shared/taunts.ts';
 import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, setIlse, type IlseCtx } from './ilse.ts';
 
 declare const __BRANCH__: string;
+declare const __BUILD__: string;
 
 // aba de teste diz qual é o teste (pedido do Fernando, 20/10): várias sessões abrem localhost e todas as abas tinham o mesmo
 // título. Em localhost vira "🧪 <branch> · Warlock Wars"; ?aba=<nome> na URL troca o nome. No ar nada muda.
@@ -461,8 +462,19 @@ function startRoom(code: string, name: string) {
     view.setOnline(on);
   });
   addEventListener(LOOK_EVENT, (e) => net.send({ t: 'look', look: (e as CustomEvent<string>).detail }));
-  // a sala conta a CPU entre mensagens; o "estou aqui" a cada 5 s mantém a conta zerada durante a partida
-  setInterval(() => room && room.phase !== 'lobby' && room.phase !== 'end' && net.send({ t: 'alive' }), 5000);
+  // The room counts CPU time between messages; this five-second heartbeat keeps the connection active during a match.
+  const resourceSession = crypto.randomUUID();
+  let resourceAt = 0;
+  setInterval(() => {
+    if (room && room.phase !== 'lobby' && room.phase !== 'end') net.send({ t: 'alive' });
+    if (room?.phase !== 'playing' || Date.now() - resourceAt < 60_000) return;
+    // One-minute samples show sustained growth without sending per-frame noise.
+    resourceAt = Date.now();
+    const resources = scene.resourceStats();
+    const heapBytes = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize;
+    const reportedHeap = heapBytes !== undefined && Number.isFinite(heapBytes) ? Math.round(heapBytes) : undefined;
+    net.send({ t: 'resources', session: resourceSession, build: __BUILD__, ...resources, ...(reportedHeap !== undefined && { heapBytes: reportedHeap }) });
+  }, 5000);
 
   // sombra: 1 bot que joga como você; o que não foi medido fica no Normal (mimic.ts)
   function startShadow(skill: Partial<BotSkill>) {

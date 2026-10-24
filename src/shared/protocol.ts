@@ -42,6 +42,7 @@ export type ClientMsg =
   | { t: 'ballot'; yes: boolean }
   | { t: 'lobby'; bots: MatchOpts['difficulty'][]; opts: Partial<MatchOpts> } // sala do Ascensão: o dono escolhe bots e opções
   | { t: 'taunt'; i: number }
+  | { t: 'resources'; session: string; build: string; geometries: number; textures: number; heapBytes?: number }
   | { t: 'ready' }
   | { t: 'alive' };
 
@@ -254,6 +255,13 @@ export function parseClientMessage(raw: string): ClientMsg | null {
     }
     case 'taunt':
       return Number.isInteger(m.i) && (m.i as number) >= 0 && (m.i as number) < TAUNTS.length ? { t: 'taunt', i: m.i as number } : null;
+    case 'resources':
+      if (typeof m.session !== 'string' || !/^[\da-f-]{36}$/.test(m.session)) return null;
+      if (typeof m.build !== 'string' || m.build.length > 64) return null;
+      if (!Number.isInteger(m.geometries) || (m.geometries as number) < 0 || (m.geometries as number) > 100_000) return null;
+      if (!Number.isInteger(m.textures) || (m.textures as number) < 0 || (m.textures as number) > 100_000) return null;
+      if (m.heapBytes !== undefined && (!Number.isInteger(m.heapBytes) || (m.heapBytes as number) < 0 || (m.heapBytes as number) > 8_000_000_000)) return null;
+      return { t: 'resources', session: m.session, build: m.build, geometries: m.geometries as number, textures: m.textures as number, ...(m.heapBytes !== undefined && { heapBytes: m.heapBytes as number }) };
     case 'buyItem':
       return ITEM_IDS.includes(m.item as ItemId) ? { t: 'buyItem', item: m.item as ItemId } : null;
     case 'keep':
