@@ -1,16 +1,19 @@
-// Sons: arquivos gravados (CC0 em public/sfx; as provocações do Leonard em public/taunts-local têm só a autorização dele; créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
-// sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
+// Sounds: recorded files, each with its license or owner acceptance in public/CREDITS.txt, and, while they load or if they are
+// missing, sounds synthesized on the fly (Web Audio). Music and lava crackle loop. The browser only unlocks audio after a tap.
 import { tauntAudioSrc } from '../shared/taunts.ts';
 import { audioLevel, layerVolume } from './audio-level.ts';
 import { store } from './store.ts';
 
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
-  | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover';
+  | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover' | 'brace';
 
 const FILES: Partial<Record<SoundKind, string[]>> = {
+  brace: ['brace_start'],
   fireball: ['fireball'], lightning: ['lightning'], homing: ['homing'], shield: ['shield'], teleport: ['teleport'],
   hit: ['hit', 'explode'], hitLight: ['hit'], hitHeavy: ['hit', 'explode'], reflect: ['shield'], death: ['explode'], go: ['confirm'],
 };
+// recordings that always play at their original speed (the timbre was chosen that way)
+const STEADY = new Set(['brace_start']);
 // golpe fraco mais agudo, golpe forte mais grave
 const RATE: Partial<Record<SoundKind, number>> = { hitLight: 1.25, hitHeavy: 0.78 };
 
@@ -143,7 +146,7 @@ export function createSound(musicDefault?: number) {
     if (!buf) return false;
     const src = ctx!.createBufferSource();
     src.buffer = buf;
-    src.playbackRate.value = name.startsWith('synth/') ? 1 : rate * (0.94 + Math.random() * 0.12); // síntese pré-renderizada sem variação de timbre.
+    src.playbackRate.value = name.startsWith('synth/') || STEADY.has(name) ? 1 : rate * (0.94 + Math.random() * 0.12); // pre-rendered synthesis and chosen recordings keep their timbre
     const g = ctx!.createGain();
     g.gain.value = volume * (gains.get(name) ?? 1);
     src.connect(g).connect(name.startsWith('taunt/') ? tauntMaster! : master!);
