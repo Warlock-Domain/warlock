@@ -34,6 +34,12 @@ Vale junto com o `CLAUDE.md` da raiz.
 - `connect()` remains the entry point for lobby and room callers. Its `send` and `stop` callbacks stay bound to the instance; `stop()` is terminal and idempotent, including when browser events are already queued.
 - Preserve socket identity guards when replacing a connection. Lifecycle regressions live in `tests/net-lifecycle.test.ts`.
 
+## Movement prediction (`predict.ts`)
+
+- `MovementPredictor` owns predicted movement, snapshot identity, queued input, cast holds, dash/stun/death transitions, RTT smoothing, and Campaign terrain/room-lock configuration.
+- Keep `createPredict()` and its bound public callbacks compatible. `reset()` clears transient movement and input state while preserving RTT and map configuration.
+- Use the shared movement/collision helpers and preserve transition order. Read authoritative residual velocity once per new snapshot; repeated render frames must not renew an impulse. Prediction/reset, obstacle, dash, suspension, and recovery regressions cover this boundary.
+
 ## Idioma
 
 - Todo texto visível com `t('português', 'English')` (`i18n.ts`). Nomes por `spellName`, `itemName`, `arenaName`; textos de item por `itemText`; números com `LOCALE` (helpers `n1`/`pct`).
