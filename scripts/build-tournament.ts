@@ -11,7 +11,8 @@ import { ITEMS, ITEM_IDS } from '../src/shared/items.ts';
 import { type MatchOpts } from '../src/shared/match.ts';
 import { FREE_SPELLS, SPELLS } from '../src/shared/spells.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
-import { addCell, adjusted, f, goldBand, pct, playMatch, seedRandom, writeAtomic, type Bands } from './sim-lib.ts';
+import { addCell, adjusted, f, goldBand, pct, playMatch, seedRandom, writeAtomic } from './sim-lib.ts';
+import type { Bands } from './balance-summary.ts';
 import { SPELL_POOL, crossPlans, mutatePlan } from './tournament-plan.ts';
 
 const { values: arg } = parseArgs({
