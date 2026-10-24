@@ -1,6 +1,6 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
 import { ASC_ROUNDS } from '../shared/ascension.ts';
-import { ASC_MODE_TEXT, ascLevel, ascPanel } from './ascension-ui.ts';
+import { ASC_MODE_TEXT, ascLevel, ascPanel, cardButton } from './ascension-ui.ts';
 import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_EFFECT_IDS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD, type RoundEffectId } from '../shared/constants.ts';
 import { ARENA_IDS, type ArenaId } from '../shared/arena.ts';
@@ -352,6 +352,7 @@ type RoomActions = {
   card: (slot: number, i: number, swap?: SpellId) => void; // Ascensão: carta i da escolha slot (swap = magia que sai com a barra cheia)
   reroll: () => void; // Ascensão: novo sorteio
   keep: (slot: number) => void; // Ascensão: manter as magias (barra cheia)
+  nightCard: (i: number) => void; // Campaign: level-up card i
   lobby: (bots: Level[], opts: MatchOpts) => void; // sala do Ascensão: o dono manda os bots e as opções para todos verem
   spell: (s: SpellId) => void;
   volumes: () => Volumes;
@@ -1005,6 +1006,21 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const bossName = el('span', { class: 'boss-name' });
   const bossFill = el('i', {});
   const bossText = el('span', { class: 'hp-text' });
+  // Campaign level-up: the cards stay on the HUD (no dialog: the game keeps running and keys keep moving the wizard)
+  // until one is picked; hidden while an encounter is open, since the server only accepts the pick between rooms
+  const lvCards = el('section', { class: 'lv-cards', hidden: true, 'aria-live': 'polite' });
+  let lvShown = '';
+  const drawLv = (r: PublicRoom, mine: PublicPlayer | undefined) => {
+    const lv = r.phase === 'playing' && r.night?.fight === null ? mine?.lv : undefined;
+    const key = lv?.offer.length ? JSON.stringify([lv.offer, lv.owed, mine!.spells]) : '';
+    lvCards.hidden = !key;
+    if (key === lvShown) return;
+    lvShown = key;
+    if (!lv || !key) return void lvCards.replaceChildren();
+    lvCards.replaceChildren(el('h3', {}, t(`Nível ${lv.level - lv.owed + 1}: escolha 1 carta`, `Level ${lv.level - lv.owed + 1}: pick 1 card`),
+      lv.owed > 1 ? el('small', { class: 'muted' }, t(` (mais ${lv.owed - 1} depois desta)`, ` (${lv.owed - 1} more after this one)`)) : null),
+      el('div', { class: 'asc-cards' }, ...lv.offer.map((c, i) => cardButton(c, mine!, false, `lv-${i}`, () => act.nightCard(i)))));
+  };
   const bossBar = el('div', { class: 'boss-bar', hidden: true }, bossName, el('div', { class: 'hpbar', role: 'img' }, bossFill, bossText));
   // a janela da loja pode ser alargada pela alça do canto (PC); o tamanho fica salvo neste navegador (pedido do Fernando, 18/10)
   const SHOP_SIZE = 'warlock:shopSize';
@@ -1257,7 +1273,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     e.preventDefault();
     act.replay();
   });
-  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, bossBar, ilseBox, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
+  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, bossBar, ilseBox, lvCards, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
@@ -1924,6 +1940,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       drawSpectate(r);
       if (sheetBtn.hidden) sheetPanel.hidden = true;
       drawSheet();
+      drawLv(r, mine);
     },
     setOnline(on: boolean) {
       const changed = on !== online;

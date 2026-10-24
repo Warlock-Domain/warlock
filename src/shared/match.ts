@@ -1,9 +1,9 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { afterBoss, bossCmds, bossHp, newBoss, ODRAN } from './bosses.ts';
-import { CAMPAIGN, CAMPAIGN_BOOK, EMBER, SERVOS, type Night, type ServoKind } from './campaign.ts';
+import { CAMPAIGN, CAMPAIGN_BOOK, EMBER, SERVOS, nightCards, nightCount, nightLevel, xpShare, type Night, type ServoKind } from './campaign.ts';
 import { fightOf, nightMap, obstaclesOf, roomRect, terrainOf, type NightMap, type Spawn } from './levels.ts';
-import { ASC_ROUNDS, ascDeath, ascEndRound, ascMark, ascOwner, ascResume, ascShop, ascWinner, newAsc, type AscLobby, type AscState } from './ascension.ts';
+import { ASC_ROUNDS, applyCard, ascDeath, ascEndRound, ascMark, ascOwner, ascResume, ascShop, ascWinner, newAsc, type AscLobby, type AscState } from './ascension.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
 import { CHARACTERS, fixLook, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
@@ -889,23 +889,88 @@ function summon(m: Match, w: World, p: Player, kind: ServoKind, at: Vec) {
   }
 }
 
-// onda: cada servo entra pelo E que a sala pede (vários pelo mesmo E nascem lado a lado); as vagas que sobram ficam de fora
+// every Aceso of the night, standing or not: the group size that scales the servants and splits the XP
+const acesosOf = (w: World) => w.wizards.filter((z) => z.team === 0).length;
+
+// onda: cada servo entra pelo E que a sala pede (vários pelo mesmo E nascem lado a lado); as vagas que sobram ficam de fora.
+// A bigger group brings more of the same servants (nightCount); whoever does not fit in the slots waits in the queue and
+// enters through its E when a slot frees up. The boss wave does not grow: his health already does (bosses.ts)
 function sendWave(m: Match, w: World, wave: Spawn[], spots: Vec[]) {
-  m.players.filter((p) => p.servo).forEach((p, i) => {
-    if (i >= wave.length) return void Object.assign(w.wizards.find((q) => q.id === p.id) ?? {}, { alive: false, hp: 0 });
-    const e = wave[i].e % spots.length, same = wave.filter((s) => s.e % spots.length === e);
-    summon(m, w, p, wave[i].kind, around(spots[e], same.indexOf(wave[i]), same.length));
+  const boss = wave.some((q) => SERVOS[q.kind].boss);
+  const all = boss ? wave : [...wave, ...Array.from({ length: nightCount(wave.length, acesosOf(w)) - wave.length }, (_, k) => wave[k % wave.length])];
+  const slots = m.players.filter((p) => p.servo), now = all.slice(0, slots.length);
+  m.night!.queue = all.slice(slots.length);
+  slots.forEach((p, i) => {
+    if (i >= now.length) return void Object.assign(w.wizards.find((q) => q.id === p.id) ?? {}, { alive: false, hp: 0 });
+    const e = now[i].e % spots.length, same = now.filter((s) => s.e % spots.length === e);
+    summon(m, w, p, now[i].kind, around(spots[e], same.indexOf(now[i]), same.length));
   });
+}
+
+// queued servants of the open wave take the free slots, one per slot, at their E
+function reinforce(m: Match, w: World, spots: Vec[]) {
+  const q = m.night!.queue;
+  for (const p of m.players.filter((p) => p.servo && !w.wizards.find((z) => z.id === p.id)?.alive)) {
+    const next = q?.shift();
+    if (!next) return;
+    summon(m, w, p, next.kind, spots[next.e % spots.length]);
+  }
+}
+
+// a fallen servant gives XP to every Aceso of the night (fallen ones too: the group earns together)
+function nightXp(m: Match, w: World) {
+  const n = m.night!;
+  for (const e of w.events) {
+    const kind = e.k === 'death' ? player(m, e.id)?.servo : undefined;
+    if (!kind) continue;
+    for (const z of w.wizards.filter((q) => q.team === 0)) (n.xp ??= {})[z.id] = (n.xp[z.id] ?? 0) + xpShare(kind, acesosOf(w));
+  }
+}
+
+// room cleared: each level gained since the last pick becomes a card to pick (one level at a time, so two rows never offer the
+// same spell); the cards are drawn here, with the match rand, while no encounter is open
+function nightCardsDue(m: Match, w: World, rand: () => number) {
+  const n = m.night!;
+  for (const z of w.wizards.filter((q) => q.team === 0)) {
+    const p = player(m, z.id);
+    if (!p || n.offer?.[z.id]) continue;
+    if (!(n.owed?.[z.id] ?? 0)) continue;
+    const cards = nightCards(p, rand);
+    if (cards.length) (n.offer ??= {})[z.id] = cards;
+    else n.owed![z.id] = 0; // nothing left to learn or raise
+  }
+}
+// levels gained since the last cleared room become picks owed (got: levels already turned into picks)
+function grantLevels(m: Match, w: World) {
+  const n = m.night!;
+  for (const z of w.wizards.filter((q) => q.team === 0)) {
+    const due = nightLevel(n.xp?.[z.id] ?? 0) - 1 - (n.got?.[z.id] ?? 0);
+    if (due <= 0) continue;
+    (n.got ??= {})[z.id] = (n.got[z.id] ?? 0) + due;
+    (n.owed ??= {})[z.id] = (n.owed[z.id] ?? 0) + due;
+  }
+}
+
+// Campaign card pick: card i of the table, applied at once (the night has no interval), only while no encounter is open
+export function nightPick(m: Match, id: string, i: number): boolean {
+  const n = m.night, p = player(m, id), card = n?.offer?.[id]?.[i];
+  const z = m.world?.wizards.find((q) => q.id === id);
+  if (!n || !p || !card || n.fight !== null || m.phase !== 'playing' || !applyCard(p, card)) return false;
+  if (z) z.spells[card.id as SpellId] = p.spells[card.id as SpellId]; // the wizard on the map learns it now
+  delete n.offer![id];
+  n.owed![id]--;
+  return true;
 }
 
 // lápides (cemitério): a cada `every` s do encontro uma lápide da sala racha e solta um servo, se houver vaga, até `max`;
 // sem lápide de pé, não sobra nenhuma para rachar
 function crack(m: Match, w: World, map: NightMap, i: number) {
   const n = m.night!, t = fight(n, map, i).tombs;
-  if (!t || n.cracked >= t.max || w.t < n.since + t.every * (n.cracked + 1)) return;
+  const max = t && nightCount(t.max, acesosOf(w)); // more Acesos, more tombstones crack (same scale as the waves)
+  if (!t || n.cracked >= max! || w.t < n.since + t.every * (n.cracked + 1)) return;
   const tombs = map.marks.filter((q) => q.room === i && q.kind === 'statue').map((q) => v(q.x + (q.w ?? 1) / 2, q.y + (q.h ?? 1) / 2));
   const standing = w.pillars.map((q, k) => ({ q, k })).filter(({ q }) => q.alive && tombs.some((s) => dist(s, q.pos) < 0.01));
-  if (!standing.length) return void (n.cracked = t.max);
+  if (!standing.length) return void (n.cracked = max!);
   const slot = m.players.find((p) => p.servo && !w.wizards.find((z) => z.id === p.id)?.alive);
   if (!slot) return; // sem vaga: racha quando um servo cair
   const { q, k } = standing[Math.floor(nightRand(n.seed, n.stage, 1000 + i * 16 + n.cracked)() * standing.length)];
@@ -1000,9 +1065,10 @@ function stepEmbers(m: Match, w: World, map: NightMap) {
 
 // a cada passo: todos os humanos caídos perdem a noite; encontro aberto solta a próxima onda e, limpo, destranca a sala
 // (o do chefe vence a noite); sem encontro, procura quem pisou num ponto de controle
-function stepNight(m: Match, now: number, w: World) {
+function stepNight(m: Match, now: number, w: World, rand: () => number) {
   const n = m.night!, map = mapOf(n);
   stepEmbers(m, w, map);
+  nightXp(m, w);
   if (!w.wizards.some((z) => z.alive && z.team === 0)) {
     n.result = 'lost';
     return endRound(m, now, null);
@@ -1015,12 +1081,13 @@ function stepNight(m: Match, now: number, w: World) {
     return endRound(m, now, null);
   }
   if (n.fight !== null) {
+    reinforce(m, w, spawnsOf(map, n.fight));
     crack(m, w, map, n.fight);
     if (n.boss) bossStep(m, w, map, n.fight, n.boss);
-    if (w.wizards.some((z) => z.alive && z.team === 1)) return;
+    if (w.wizards.some((z) => z.alive && z.team === 1) || n.queue?.length) return;
     const f = fight(n, map, n.fight);
     if (n.wave + 1 < f.waves.length) return sendWave(m, w, f.waves[++n.wave], spawnsOf(map, n.fight));
-    if (f.tombs && n.cracked < f.tombs.max) return; // ainda vai rachar lápide: o encontro continua
+    if (f.tombs && n.cracked < nightCount(f.tombs.max, acesosOf(w))) return; // ainda vai rachar lápide: o encontro continua
     n.done.push(n.fight);
     w.lock = undefined;
     if (isBoss(map, n.fight)) {
@@ -1028,8 +1095,9 @@ function stepNight(m: Match, now: number, w: World) {
       return endRound(m, now, null);
     }
     n.fight = null;
-    return;
+    grantLevels(m, w);
   }
+  nightCardsDue(m, w, rand);
   for (const z of w.wizards) {
     const hit = z.alive && z.team === 0 ? trigger(map, n.done, z.pos) : null;
     if (hit) return startFight(m, w, map, hit.i, hit.at);
@@ -1345,7 +1413,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   }
   if (sb) return w.events; // a rodada da sandbox não acaba
   if (m.night) {
-    stepNight(m, now, w);
+    stepNight(m, now, w, rand);
     return w.events;
   }
   if (m.mode === 'deathmatch') {

@@ -127,6 +127,9 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 /* relógio com fundo de vidro: sem ele o vermelho dos últimos 3 s some na lava (1,8:1) */
 .timer:not(.countdown):not(:empty) { padding: 2px 12px; border-radius: 999px; background: var(--panel-glass); }
 .ilse { position: absolute; left: max(16px, var(--safe-l, 0px)); bottom: calc(150px + var(--safe-b)); z-index: 4; max-width: min(420px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border-radius: var(--r-md); background: var(--panel-solid); border: 1px solid var(--ember); box-shadow: 0 0 16px rgba(255, 179, 71, .3); animation: fade-in .25s ease-out; }
+.lv-cards { position: absolute; right: max(16px, var(--safe-r, 0px)); bottom: calc(150px + var(--safe-b)); z-index: 4; width: min(560px, calc(100% - 32px)); /* right side: the Ilse box holds the bottom-left */ padding: 10px 14px; border-radius: var(--r-md); background: var(--panel-solid); border: 1px solid var(--gold); animation: fade-in .25s ease-out; }
+.lv-cards h3 { margin: 0 0 8px; font-family: var(--display); color: var(--gold); }
+@media (prefers-reduced-motion: reduce) { .lv-cards { animation: none; } }
 .ilse .ilse-name { font-family: var(--display); color: var(--ember); }
 .ilse .ilse-text { line-height: 1.35; }
 .ilse .ilse-skip { align-self: flex-end; min-height: 32px; padding: 2px 10px; font-size: .8rem; }

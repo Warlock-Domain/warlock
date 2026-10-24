@@ -1,9 +1,10 @@
 // Modo Campanha (desenho em docs/superpowers/specs/2026-10-19-campanha-design.md): 1 a 4 Acesos contra o Fumo.
 // Uma noite = estágios; um estágio = um mapa de salas (levels.ts) com encontros nos pontos de controle.
+import { drawCards, type Card } from './ascension.ts';
 import type { CharacterId } from './characters.ts';
 import type { BossState } from './bosses.ts';
 import { nightRand } from './rng.ts';
-import { SPELLS, type Level, type SpellBook, type SpellId } from './spells.ts';
+import { MAX_SPELLS, SPELLS, spellCount, type Level, type SpellBook, type SpellId } from './spells.ts';
 
 // humanos no máximo; as outras vagas da sala (MAX_PLAYERS) são dos servos
 // orphan: seconds the night waits when every standing Aceso belongs to a dropped player (time to reload the page)
@@ -37,6 +38,24 @@ export const CAMPAIGN_BOOK: SpellBook = {};
 // traz o Aceso de volta com hp da vida e os 2 s de invulnerável de sempre; afastar zera; na arena do chefe a brasa apaga em out s
 export const EMBER = { base: 3, perFall: 1, reach: 1, hp: 0.5, out: 20 };
 
+// progression (Lucas, 24/10): the night plays like the shop modes, everyone starting with Fireball and Scourge; each fallen
+// servant gives XP and each level is 1 card out of 3 (new spell or +1 level, the Ascension cards), picked once the room is
+// clear. More Acesos bring more servants (+perAceso of each wave per extra Aceso) and split the XP, with +bonus per extra
+// Aceso so nobody levels slower in a group. level and servo: the 22 servants of the Charneca give 3950 XP alone (3785, 3950
+// and 4398 per head with 2, 3 and 4 Acesos), so the group meets Sir Odran at level 5 (Lucas, 24/10), 3700 to 4624 XP
+export const NIGHT_XP = { level: 925, perAceso: 0.5, bonus: 0.25, servo: { ash: 150, archer: 200, watcher: 200, hound: 250, odran: 0 } as Record<ServoKind, number> };
+export const nightLevel = (xp: number) => 1 + Math.floor(xp / NIGHT_XP.level);
+// how many servants a wave or the tombs bring with this many Acesos
+export const nightCount = (n: number, acesos: number) => Math.round(n * (1 + NIGHT_XP.perAceso * (Math.max(1, acesos) - 1)));
+// XP each Aceso takes from a fallen servant: split by the group, plus the group bonus
+export const xpShare = (kind: ServoKind, acesos: number) => Math.round((NIGHT_XP.servo[kind] * (1 + NIGHT_XP.bonus * (Math.max(1, acesos) - 1))) / Math.max(1, acesos));
+// one level's cards: up to 2 new spells and 1 upgrade, from the Ascension pools (no items: Lucas, 24/10); a full bar only upgrades
+export function nightCards(p: { spells: Record<SpellId, number>; items: Parameters<typeof drawCards>[0]['items'] }, rand: () => number): Card[] {
+  const up = drawCards(p, 'up', rand).slice(0, 1);
+  const fresh = spellCount(p.spells) >= MAX_SPELLS ? [] : drawCards(p, 'spell', rand).slice(0, 3 - up.length);
+  return [...fresh, ...up];
+}
+
 // padrão de cada estágio: ondas dos encontros, da mais fácil para a mais difícil (o mapa vem das salas, levels.ts)
 // order: salas do meio sempre nesta sequência (estágio tutorial); só a direção de cada uma sai da semente
 type StagePattern = { id: string; waves: [number, number]; pool: ServoKind[][]; order?: string[] };
@@ -64,6 +83,8 @@ export function roomWaves(seed: number, stage: number, room: number, depth: numb
 // aberto, wave = onda atual dele, since = w.t em que ele abriu, cracked = lápides que já racharam nele, done = salas com o
 // encontro vencido
 // boss: estado do chefe na luta aberta (bosses.ts; só existe na arena dele); falls: quedas de cada Aceso no encontro aberto
+// queue: servants of the open wave still waiting for a free slot; orphan: since when only dropped players stand
+// xp: night XP per Aceso; got: levels already turned into picks; owed: levels not yet picked; offer: the cards on the table (one level at a time)
 export const NIGHT_RESULTS = ['won', 'lost'] as const;
 export type NightResult = (typeof NIGHT_RESULTS)[number] | null;
-export type Night = { seed: number; stage: number; fight: number | null; wave: number; since: number; cracked: number; done: number[]; result: NightResult; boss?: BossState; falls?: Record<string, number>; orphan?: number };
+export type Night = { seed: number; stage: number; fight: number | null; wave: number; since: number; cracked: number; done: number[]; result: NightResult; boss?: BossState; falls?: Record<string, number>; orphan?: number; queue?: { kind: ServoKind; e: number }[]; xp?: Record<string, number>; owed?: Record<string, number>; got?: Record<string, number>; offer?: Record<string, Card[]> };

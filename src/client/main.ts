@@ -7,7 +7,7 @@ import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
-import { CAMPAIGN_BOOK, SERVOS } from '../shared/campaign.ts';
+import { CAMPAIGN_BOOK, NIGHT_XP, SERVOS } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
 import { itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
@@ -329,6 +329,7 @@ function startRoom(code: string, name: string) {
     card: (slot, i, swap) => net.send({ t: 'card', slot, i, ...(swap && { swap }) }),
     reroll: () => net.send({ t: 'reroll' }),
     keep: (slot) => net.send({ t: 'keep', slot }),
+    nightCard: (i) => net.send({ t: 'nightCard', i }),
     sandbox: (cmd) => net.send({ t: 'sandbox', cmd }),
     spectate: (on) => net.send({ t: 'watch', on }),
     seeInvis: (on) => (seeInvis = on),
@@ -1013,6 +1014,7 @@ function startRoom(code: string, name: string) {
       const line = here && ILSE_ROOMS[here.room.id];
       if (here && line) ilseSay(here.room.id, line(ilseCtx()));
       if (room!.night!.fight !== null) ilseSay('fight', ILSE_MOMENTS.fight(ilseCtx())); // primeiro encontro: magias e teclas
+      if (room!.players.find((p) => p.id === me)?.lv?.offer.length && room!.night!.fight === null) ilseSay('level', ILSE_MOMENTS.level()); // first level-up cards
       if (room!.night!.result === 'won') {
         ilseSay('won', ILSE_MOMENTS.won());
         setIlse(false); // venceu a Charneca: o tutorial acabou neste navegador
@@ -1032,6 +1034,8 @@ function startRoom(code: string, name: string) {
   // Ascensão: XP da partida mais o da rodada ao vivo (dano, abates, segundos vivo até a queda); fora da rodada o servidor já somou
   // a rodada em asc.xp, então vale só ele. null fora do modo
   const xpOf = (p: PublicPlayer) => {
+    // Campaign: the night XP comes whole from the server (each fallen servant), no live estimate
+    if (p.lv) return { level: p.lv.level, total: p.lv.xp, next: p.lv.next, frac: (p.lv.xp % NIGHT_XP.level) / NIGHT_XP.level };
     if (!p.asc) return null;
     const on = room?.phase === 'playing';
     return liveLevel(p.asc.xp, on ? (live[p.id]?.dmg ?? 0) : 0, on ? (live[p.id]?.kills ?? 0) : 0, on ? (aliveAt[p.id] ?? 0) : 0);
