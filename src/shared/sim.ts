@@ -7,25 +7,24 @@ import { CELL, SHAPES, cellAt, edge, inArena, inLavaAt, inward, isleSpot, onIsle
 import { AEGIS, CRIT, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, PROJECTILE_COLLISION, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellBook, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
-import { KNOCK_RECOVERY } from './constants.ts';
 import { SHIELD, castBlocked } from './spells.ts';
-import { BASIC_ATTACK } from './constants.ts';
+import { BASIC_ATTACK, KNOCK_RECOVERY } from './constants.ts';
 
 export type Wizard = {
+  electroUntil?: number; // duração da eletrificação.
   id: string;
   pos: Vec;
   vel: Vec; // só o empurrão; andar não entra aqui
-  recoveryLeft?: number; // segundos de recuperação após encerrar um impulso; enviado à previsão.
-  basicReadyAt?: number;
-  basicCasting?: { target: string | number; fireAt: number; melee: boolean };
-  electroUntil?: number; // lentidão elétrica e Incapacitar, sem bloquear habilidades já prontas.
-  stunLeft?: number; // bloqueio de ações separado da força física, para resistência reduzir só a duração.
+  stunLeft?: number; // bloqueio de controle separado da velocidade física.
+  recoveryLeft?: number; // retomada disparada pelo fim do impulso, não pelo fim de qualquer stun.
+  basicReadyAt?: number; // Attack cooldown
+  basicCasting?: { target: string | number; fireAt: number; melee: boolean }; // Attack windup in progress
   target: Vec | null;
-  moveHeld?: boolean; // direito mantido: continua tentando andar mesmo impedido por obstáculo.
-  blockedMove?: boolean; // destino de clique único cancelado por obstáculo; reconcilia também a previsão.
+  moveHeld?: boolean; // direito pressionado preserva tentativa contra obstáculo.
+  blockedMove?: boolean; // destino de clique único cancelado por colisão.
   facing: number;
   hp: number;
-  dmgTaken: number; // histórico mantido para as leituras existentes; não amplifica empurrão neste teste local.
+  dmgTaken: number; // dano acumulado na rodada: quanto maior, mais longe o mago voa
   alive: boolean;
   shieldUntil: number;
   lastHitBy: string | null;
@@ -432,14 +431,13 @@ function stun(w: World, wz: Wizard, seconds: number) {
   wz.stunLeft = Math.max(wz.stunLeft ?? 0, statusDuration(w, wz, seconds * wz.debuffMult));
   wz.casting = null;
   wz.basicCasting = undefined;
-  wz.dashUntil = 0; // o bloqueio encerra avanços voluntários, não forças externas já recebidas.
-  wz.thrustUntil = 0;
+  wz.dashUntil = wz.thrustUntil = 0; // encerra avanço voluntário, mas preserva forças externas.
 }
 function addKnock(w: World, wz: Wizard, impulse: Vec) {
   if (shielded(w, wz)) impulse = scale(impulse, SHIELD.knock);
   wz.vel = add(wz.vel, impulse);
   if (len(impulse) <= 0 || !isSliding(wz)) return;
-  // O prazo de controle também usa a resistência do instante do impacto, sem recalcular efeitos anteriores.
+  // O relógio de controle não precisa carregar o resto do impulso depois do limite de caminhada.
   stun(w, wz, Math.log(len(wz.vel) / STUN_SPEED) / FRICTION);
 }
 const bubble = (w: World, wz: Wizard) => (shielded(w, wz) ? Math.max(0, wz.shieldR - WIZ_R) : 0); // quanto a bolha do escudo passa do mago
@@ -1791,7 +1789,7 @@ function attackBody(w: World, by: Wizard, target: string | number, visible = tru
 // Attack is not a spell: numbers come from BASIC_ATTACK, nothing inherited from Fireball
 const BASIC_STATS: Level = { cd: BASIC_ATTACK.cd, dmg: BASIC_ATTACK.dmg, knock: BASIC_ATTACK.knock, speed: BASIC_ATTACK.speed, range: BASIC_ATTACK.range, duration: 0, radius: 0, dmgMin: 0, absorb: 0, pull: 0, scale: 0, dot: 0 };
 function beginBasic(w: World, wz: Wizard, c: Extract<Cmd, { kind: 'basic' }>) {
-  if (isStunned(wz) || wz.casting || wz.basicCasting || w.t < (wz.basicReadyAt ?? 0)) return;
+  if (!wz.alive || isStunned(wz) || wz.casting || wz.basicCasting || w.t < (wz.basicReadyAt ?? 0)) return;
   // Clique num corpo tem prioridade; no chão escolhe o mais próximo do atacante, sem caça automática.
   const bodies: (Wizard | Projectile)[] = [...w.wizards.filter((z) => attackBody(w, wz, z.id)), ...enemyDecoys(w, wz.id)];
   const clicked = bodies.filter((z) => dist(z.pos, c.at) <= WIZ_R * 2).sort((a, b) => dist(a.pos, c.at) - dist(b.pos, c.at))[0];
