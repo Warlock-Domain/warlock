@@ -120,8 +120,8 @@ export type Projectile = {
   decoy?: number; // Ilusão: id da cópia que este projétil já empurrou (empurra uma vez só ao atravessar)
   decoyTarget?: number; // estado de Elo preso a uma cópia, não considerado projétil em voo.
   pushVel?: Vec; // Ilusão: empurrão da cópia, separado da caminhada e de para onde ela olha
-  recoveryLeft?: number; // usa a mesma retomada do corpo real.
-  stunLeft?: number; // só bloqueia caminhada da cópia, sem matá-la ou ocultá-la.
+  recoveryLeft?: number; // the same recovery as the real body
+  stunLeft?: number; // only blocks the copy's walk, never kills or hides it
   decoyDamage?: number; // Ilusão: dano que a cópia já levou (só aumenta o empurrão; ela não morre)
   decoyResist?: number; // Ilusão: resistência a empurrão do dono no momento do lançamento
   curve?: { acc: Vec; next: Vec; flipAt: number; stopAt: number }; // Bumerangue indo: aceleração agora, a da volta e quando trocam
@@ -1057,7 +1057,7 @@ function gravityPull(w: World, g: Projectile) {
   }
   for (const q of w.projectiles) {
     if (q.kind === 'illusion') {
-      // A cópia tem corpo de mago: não acumula aceleração de projétil nem muda sua caminhada.
+      // The copy has a wizard body: it does not gain projectile acceleration or change its walk
       const copyOwner = anyById(w, q.owner);
       if (q.owner !== g.owner && !(copyOwner && allies(owner, copyOwner))) pullBody(q);
       continue;
@@ -1272,7 +1272,7 @@ function snowRoll(w: World, p: Projectile, at: Vec) {
   for (const q of w.projectiles) {
     const copyOwner = q.kind === 'illusion' ? anyById(w, q.owner) : undefined;
     if (!copyOwner || q.owner === p.owner || allies(owner, copyOwner) || dist(at, q.pos) > WIZ_R + snowR(p.level)) continue;
-    // Contato arrasta até a velocidade fixa; não usa o dano/empurrão da explosão de fim do voo.
+    // Contact drags up to the fixed speed; it does not use the end-of-flight explosion's damage or push
     const push = q.pushVel ?? v(0, 0), extra = SNOWBALL.drag - dot(dir, push);
     if (extra > 0) {
       q.pushVel = add(push, scale(dir, extra));
@@ -1299,7 +1299,7 @@ function snowBlast(w: World, p: Projectile) {
   w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'snow', r: L.radius });
 }
 
-// empurra a cópia da Ilusão com a mesma escala do mago (teto por golpe e resistência do dono); ela nunca morre
+// pushes the Illusion copy on the same scale as the wizard (per-hit cap and the owner's resistance); it never dies
 function pushDecoy(q: Projectile, impulse: Vec, dmg: number) {
   const taken = q.decoyDamage ?? 0;
   q.pushVel = add(q.pushVel ?? v(0, 0), scale(impulse, knockScale(dmg, taken, q.decoyResist ?? 0)));
@@ -1374,9 +1374,9 @@ function linkHold(w: World, p: Projectile): boolean {
 }
 
 function stepProjectiles(w: World) {
-  // Todos os corpos andam antes dos impactos; a ordem na lista não pode dar um passo extra de impulso à cópia.
+  // Every body moves before impacts, so list order cannot give the copy an extra push step
   for (const p of w.projectiles) if (p.kind === 'illusion') {
-    const body = { pos: p.pos, vel: p.pushVel ?? v(0, 0), target: len(p.vel) > 0 ? add(p.pos, scale(norm(p.vel), 100)) : null, speed: len(p.vel), facing: 0, recoveryLeft: p.recoveryLeft, stunLeft: p.stunLeft } as Wizard;
+    const body: MovementState = { pos: p.pos, vel: p.pushVel ?? v(0, 0), target: len(p.vel) > 0 ? add(p.pos, scale(norm(p.vel), 100)) : null, speed: len(p.vel), facing: 0, recoveryLeft: p.recoveryLeft, stunLeft: p.stunLeft };
     moveWizard(body, DT);
     if (!firstPillarOnSegment(w, p.pos, body.pos, WIZ_R)) p.pos = body.pos;
     p.pushVel = len(body.vel) > 0 ? body.vel : undefined;
@@ -2009,7 +2009,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
         const key = `copy:${q.id}`;
         if (wz.dashHit.includes(key) || dist(q.pos, wz.pos) > 2 * WIZ_R + .1) continue;
         wz.dashHit.push(key);
-        pushDecoy(q, scale(norm(wz.dashVel), RUSH.dashDmg * KB_PER_DMG), RUSH.dashDmg);
+        pushDecoy(q, scale(norm(wz.dashVel), (wz.dashDmg ?? RUSH.dashDmg) * KB_PER_DMG), wz.dashDmg ?? RUSH.dashDmg); // same dash damage as the real-body branch (boss dashes too)
       }
     }
     stepThrust(w, wz);
