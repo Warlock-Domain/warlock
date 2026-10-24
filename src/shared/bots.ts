@@ -37,8 +37,8 @@ export function randomPlan(rand: () => number): BotPlan {
   return { buys, upgrade: (['lowest', 'first', 'random'] as const)[Math.floor(rand() * 3)] };
 }
 
-// combinação que funciona (Normal e Difícil, 18/10): 1 ou 2 magias de dano, 1 de fuga ou defesa, às vezes 1 de controle e 1 situacional,
-// e 1 ou 2 itens úteis; tudo sorteado dentro de cada grupo para os bots não ficarem iguais
+// a build that works (Normal and Hard, 18/10): 1 or 2 damage spells, 1 escape or defense spell, sometimes 1 control and 1 situational,
+// and 1 or 2 useful items; each pick is drawn inside its group so bots do not all look the same
 const DAMAGE: SpellId[] = ['lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'snowball', 'drain', 'splitter', 'gravity', 'thrust', 'recharge'];
 const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration', 'warpzone', 'rockpillar', 'illusion'];
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize'];
