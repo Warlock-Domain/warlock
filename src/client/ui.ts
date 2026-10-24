@@ -195,16 +195,13 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   // a lista chega de novo a cada mudança numa sala: só ela é redesenhada (as abas ficam como estão, com o foco)
   const old = root.querySelector<HTMLElement>('.lobby');
   if (old?.dataset.name === name) return old.querySelector('.lobby-rooms')!.replaceWith(roomList);
+  const learnContent = el('section', { class: 'home-learn' }, el('h2', {}, t('Como jogar', 'How to play')));
   const libraryContent = el('section', { class: 'home-library' }, el('h2', {}, t('Magias e itens', 'Spells and items')));
   const panel = (k: HomeTab, ...kids: Child[]) => el('div', { class: 'home-panel', id: 'home-' + k, role: 'tabpanel', 'aria-labelledby': 'home-tab-' + k }, ...kids);
   const panels: Record<HomeTab, HTMLElement> = {
     home: panel('home'),
     play: panel('play', playMenu(roomList, onCreate, onCreateAsc, onTrain)),
-    library: panel('library',
-      el('section', { class: 'home-learn' }, el('h2', {}, t('Como jogar', 'How to play')),
-        el('p', { class: 'muted' }, t('O grimório explica o jogo, os controles, os modos, a loja e cada magia e item, com demonstração.', 'The grimoire explains the game, the controls, the modes, the shop and every spell and item, with demos.')),
-        el('button', { type: 'button', onclick: showRules }, icon(UI_ICON.help), ' ' + t('Abrir o grimório', 'Open the grimoire'))),
-      libraryContent),
+    library: panel('library', learnContent, libraryContent),
     char: panel('char', personagemTab()),
     shop: panel('shop', el('section', { class: 'home-learn' }, el('h2', {}, t('Loja', 'Shop')),
       el('p', { class: 'muted' }, t('Roupas e visuais para o seu personagem. Prévia do catálogo com os modelos atuais; moeda, preços e compras ainda não foram definidos. Os visuais existentes continuam disponíveis no Guarda-roupas.', 'Outfits and looks for your character. Catalog preview using current models; currency, prices and purchases have not been defined yet. Existing looks remain available in the Wardrobe.'))),
@@ -245,12 +242,32 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
       stage),
   );
   show('home');
-  void import('./grimoire.ts').then((m) => libraryContent.append(m.library()));
+  // grimoire and library live in the Learn tab; the module loads only here so it does not weigh on game startup
+  void import('./grimoire.ts').then((m) => {
+    learn?.book.dispose(); // a rebuilt lobby (rename) drops the old book: release its matchMedia listener
+    const book = m.grimoire();
+    const lib = m.library((id) => {
+      book.goTo(id);
+      learnContent.scrollIntoView({ behavior: 'smooth' });
+    });
+    learnContent.append(book.root);
+    libraryContent.append(lib);
+    learn = { book, lib };
+  });
 }
 
-// grimório (Como jogar): módulo carregado só quando abre, para não pesar o começo do jogo
+// Learn tab once built (only exists while the main menu is on screen)
+let learn: { book: { root: HTMLElement; goTo: () => void; dispose: () => void }; lib: HTMLElement } | null = null;
+const inMenu = () => !!learn?.lib.isConnected;
+const openLearn = () => document.getElementById('home-tab-library')?.click();
+
+// grimoire (How to play): in the main menu opens the Learn tab on the table of contents; in a match, the book in a dialog (module loaded only when opened)
 export function showRules() {
-  void import('./grimoire.ts').then((m) => m.openGrimoire());
+  if (inMenu()) {
+    openLearn();
+    learn!.book.goTo();
+    learn!.book.root.focus({ preventScroll: true }); // ← → turn pages right away, as they did in the dialog
+  } else void import('./grimoire.ts').then((m) => m.openGrimoire());
 }
 // atalho do grimório (F1 no padrão) em qualquer tela; com ele já aberto, nada (o Esc fecha)
 addEventListener('keydown', (e) => {
@@ -258,8 +275,13 @@ addEventListener('keydown', (e) => {
   e.preventDefault(); // F1: não abre a ajuda do navegador
   if (!document.querySelector('.grimoire-overlay')) showRules();
 });
-// biblioteca de magias e itens por cima de qualquer tela (F2 no padrão); aberta, a própria tecla ou o Esc fecham
-const showLibrary = () => void import('./grimoire.ts').then((m) => m.openLibrary());
+// spells and items library (F2 by default): in the main menu it is the Learn tab on the search box; in a match, over the screen (the same key or Esc closes it)
+const showLibrary = () => {
+  if (!inMenu()) return void import('./grimoire.ts').then((m) => m.openLibrary());
+  openLearn();
+  learn!.lib.scrollIntoView({ behavior: 'smooth' });
+  learn!.lib.querySelector('input')?.focus({ preventScroll: true });
+};
 addEventListener('keydown', (e) => {
   if (!isUiKey(e.code, 'library') || e.repeat || (e.target as HTMLElement)?.tagName === 'INPUT') return;
   e.preventDefault();
