@@ -32,18 +32,18 @@ describe('normalização na reprodução', () => {
     sound.setVolume('sfx', 1);
     listeners.get('pointerdown')!();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    sound.play('brace');
+    sound.play('fireball');
     const recorded = sources.at(-1)!;
     expect((recorded.next as { gain: { value: number } }).gain.value).toBeCloseTo(.2);
     sound.play('click');
     expect((sources.at(-1)!.next as { gain: { value: number } }).gain.value).toBeCloseTo(3);
     const count = sources.length;
-    sound.play('brace', 0);
+    sound.play('fireball', 0);
     expect(sources).toHaveLength(count);
     expect(await previewTaunt('laugh')).toBe(true);
     expect(gains.at(-1)!.gain.value).toBeCloseTo(.12); // .2 de normalização × .6 do master da partida.
     sound.setVolume('sfx', 0);
-    sound.play('brace');
+    sound.play('fireball');
     expect(sources).toHaveLength(count);
     sound.setVolume('taunts', .5);
     await sound.taunt('laugh');

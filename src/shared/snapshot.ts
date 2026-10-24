@@ -1,7 +1,7 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
 import type { Snap } from './protocol.ts';
-import { PROJ_KINDS, bootsBonus, bracingActive, incapacitatedUntil, isStunned, type ProjKind, type SimEvent, type World } from './sim.ts';
-import { INCAPACITATED_BIT, ELECTROCUTED_BIT, BRACING_BIT } from './constants.ts';
+import { PROJ_KINDS, bootsBonus, incapacitatedUntil, isSliding, isStunned, zoneReaches, type ProjKind, type SimEvent, type World } from './sim.ts';
+import { INCAPACITATED_BIT, ELECTROCUTED_BIT } from './constants.ts';
 import { CHEST, OBSTACLES, OBSTACLE_KINDS, RUNE_KINDS, WIZ_R, type ObstacleKind, type RuneKind } from './constants.ts';
 import { SPELL_IDS, spellLevel } from './spells.ts';
 import type { Isle } from './arena.ts';
@@ -47,14 +47,13 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
       | (w.t < z.windUntil ? (hidden ? 2048 : 1024) : 0) | (w.t < z.hasteUntil || bootsBonus(w, z) > 0 ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)
       | (w.t < z.alterUntil ? 32768 : 0) | (linked.has(z.id) ? 65536 : 0) | (z.aegis ? 131072 : 0)
       | (w.t < z.runeUntil && z.rune ? RUNE_BIT[z.rune] : 0)
-      | (z.alive && w.zones.some((q) => q.kind === 'pull' && dist(q.pos, z.pos) < q.r + WIZ_R) ? 2097152 : 0)
+      | (z.alive && w.zones.some((q) => q.kind === 'pull' && dist(q.pos, z.pos) < q.r + WIZ_R && zoneReaches(w, q, z)) ? 2097152 : 0)
       | (w.t < z.veilUntil ? (z.id === forId ? 1024 : seeAll ? 8388608 : 2048) : 0)
-      | (z.alive && z.target && dist(z.target, z.pos) > .01 && z.speed > 0 && !z.casting && !isStunned(z) && w.t >= z.dashUntil && w.t >= z.thrustUntil ? WALKING_BIT : 0)
       | (z.alive && w.t < z.dashUntil ? DASHING_BIT : 0)
+      | (z.alive && z.target && dist(z.target, z.pos) > .01 && z.speed > 0 && !z.casting && !isStunned(z) && w.t >= z.dashUntil && w.t >= z.thrustUntil ? WALKING_BIT : 0)
       | (z.moveHeld ? HOLDING_MOVE_BIT : 0) | (z.blockedMove ? BLOCKED_MOVE_BIT : 0)
       | (w.t < incapacitatedUntil(z, w.t) ? INCAPACITATED_BIT : 0)
-      | (w.t < (z.electroUntil ?? 0) ? ELECTROCUTED_BIT | 4 : 0)
-      | (z.alive && bracingActive(w, z) ? BRACING_BIT : 0);
+      | (w.t < (z.electroUntil ?? 0) ? ELECTROCUTED_BIT | 4 : 0);
     // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão
     const dash = w.t < z.dashUntil ? z.dashVel : { x: 0, y: 0 };
     wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x + dash.x), r2(z.vel.y + dash.y), Math.ceil(z.hp), r2(z.facing), bits);
@@ -67,7 +66,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   for (const q of w.projectiles) {
     const still = q.kind === 'meteor' || q.kind === 'warpzone' || q.kind === 'grip' ? q.kind : null;
     const tail = q.kind === 'link' ? w.wizards.find((z) => z.id === q.owner)?.pos : q.kind === 'illusion' ? v(w.wizards.findIndex((z) => z.id === q.owner), Math.atan2(q.vel.y, q.vel.x)) : undefined;
-    const a = still ? spellLevel(still, q.level).radius : (tail ?? q.vel).x;
+    const a = still ? spellLevel(still, q.level, w.book).radius : (tail ?? q.vel).x;
     const b = still ? Math.max(0, q.until - w.t) : (tail ?? q.vel).y;
     p.push(q.id, PROJ_KINDS.indexOf(q.kind), r2(q.pos.x), r2(q.pos.y), r2(a), r2(b));
   }
@@ -80,6 +79,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     snap.lp = w.wizards.map((z) => r2(z.lootProg / CHEST.goldEvery));
   }
   if (ab.some((x) => x > 0)) snap.ab = ab;
+  // Campanha: brasa de cada mago (0 a 1 até reacender; −1 sem brasa ou apagada), na ordem de room.ids
+  if (w.wizards.some((z) => z.ember && !z.ember.out)) snap.em = w.wizards.map((z) => (z.ember && !z.ember.out ? r2(Math.min(1, z.ember.prog / z.ember.need)) : -1));
   if (w.wizards.some((z) => z.basicCasting)) snap.ba = w.wizards.flatMap((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) && z.basicCasting ? [r2(Math.max(0, z.basicCasting.fireAt - w.t)), +z.basicCasting.melee] : [0, 0]);
   if (w.wizards.some((z) => (z.recoveryLeft ?? 0) > 0)) snap.kr = w.wizards.map((z) => r2(z.recoveryLeft ?? 0));
   if (w.wizards.some((z) => z.stunLeft !== undefined)) snap.st = w.wizards.map((z) => z.stunLeft === undefined ? -1 : r2(z.stunLeft));
@@ -94,7 +95,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     left(256, me.rushUntil);
     left(4, Math.max(me.slowUntil, me.electroUntil ?? 0));
     left(INCAPACITATED_BIT, incapacitatedUntil(me, w.t));
-    left(1024, me.windUntil);
+    left(2, me.shieldUntil);
+    left(1024, Math.max(me.windUntil, me.veilUntil)); // o dono da Ilusão recebe o mesmo bit 1024 (ver bits)
     left(4096, Math.max(me.hasteUntil, me.shockUntil));
     left(me.magnet > 0 ? 8192 : 16384, me.magnetUntil);
     left(32768, me.alterUntil);

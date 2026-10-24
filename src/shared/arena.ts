@@ -92,8 +92,45 @@ export function edgeAt(id: ArenaId, R: number, p: Vec): number {
   return -R * SHAPES[id].sdf(p.x / R, p.y / R);
 }
 
-type Arena = { arena: ArenaId; arenaR: number };
-export const edge = (w: Arena, p: Vec) => edgeAt(w.arena, w.arenaR, p);
+// mapa explorável da Campanha (levels.ts): casas de 1 m a partir de (0, 0); fora do mapa é parede. Com mapa, a "borda" é
+// a distância até a casa mais perto em que não se pode estar (parede, mureta, abismo): os bots desviam dela como da lava
+// tudo acima de wax é "fora" para a borda dos bots (o campo de distância): lava conta como a lava da arena
+export const CELL = { floor: 0, wax: 1, low: 2, wall: 3, pit: 4, lava: 5 } as const;
+export type Terrain = { w: number; h: number; cells: Uint8Array; home: Vec }; // home: onde os bots sem o que fazer passeiam
+export const cellAt = (t: Terrain, x: number, y: number) => {
+  const cx = Math.floor(x), cy = Math.floor(y);
+  return cx < 0 || cy < 0 || cx >= t.w || cy >= t.h ? CELL.wall : t.cells[cy * t.w + cx];
+};
+const FAR = 6; // a distância da borda no mapa não passa disso (os bots não pedem folga maior)
+// distância com sinal do meio de cada casa até a borda (dentro do que bloqueia, negativa), medida uma vez por mapa
+const fields = new WeakMap<Terrain, Float32Array>();
+function fieldOf(t: Terrain): Float32Array {
+  let f = fields.get(t);
+  if (f) return f;
+  f = new Float32Array(t.w * t.h);
+  for (let cy = 0; cy < t.h; cy++) for (let cx = 0; cx < t.w; cx++) {
+    const inside = cellAt(t, cx, cy) > CELL.wax;
+    let best = FAR;
+    for (let y = cy - FAR; y <= cy + FAR; y++) for (let x = cx - FAR; x <= cx + FAR; x++) {
+      if (cellAt(t, x, y) > CELL.wax === inside) continue;
+      best = Math.min(best, Math.hypot(Math.max(x - cx - 0.5, 0, cx + 0.5 - x - 1), Math.max(y - cy - 0.5, 0, cy + 0.5 - y - 1)));
+    }
+    f[cy * t.w + cx] = inside ? -best : best;
+  }
+  fields.set(t, f);
+  return f;
+}
+// entre os meios das casas, interpolada (contínua: os bots acham o rumo para dentro pela diferença)
+function mapEdge(t: Terrain, p: Vec): number {
+  const f = fieldOf(t), x = p.x - 0.5, y = p.y - 0.5, x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+  const at = (cx: number, cy: number) => (cx < 0 || cy < 0 || cx >= t.w || cy >= t.h ? -FAR : f[cy * t.w + cx]);
+  return (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) + (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy;
+}
+
+type Arena = { arena: ArenaId; arenaR: number; map?: Terrain };
+export const edge = (w: Arena, p: Vec) => (w.map ? mapEdge(w.map, p) : edgeAt(w.arena, w.arenaR, p));
+// meio do lugar onde se luta: o centro da arena, ou o ponto do mapa que a partida escolheu
+export const middle = (w: Arena) => w.map?.home ?? v(0, 0);
 export const inArena = (w: Arena, p: Vec, margin = 0) => edge(w, p) > margin;
 
 // direção para dentro da pedra (para onde a distância até a borda cresce)
@@ -142,28 +179,40 @@ export function pathStep(w: Arena, a: Vec, b: Vec, want: number, avoid: { pos: V
     return true;
   };
   if (clear(a, b)) return b;
-  const R = w.arenaR, ext = SHAPES[w.arena].reach * R + 0.5, cell = (2 * ext) / N;
-  const at = (c: number) => v(((c % N) + 0.5) * cell - ext, (Math.floor(c / N) + 0.5) * cell - ext);
+  // grade: na arena, N × N em volta do centro; no mapa, uma célula por casa
+  const R = w.arenaR, ext = SHAPES[w.arena].reach * R + 0.5, cell = w.map ? 1 : (2 * ext) / N;
+  const nx = w.map?.w ?? N, ny = w.map?.h ?? N, x0 = w.map ? 0 : -ext, y0 = w.map ? 0 : -ext;
+  const at = (c: number) => v(x0 + ((c % nx) + 0.5) * cell, y0 + (Math.floor(c / nx) + 0.5) * cell);
   const idx = (p: Vec) => {
-    const k = (x: number) => Math.min(N - 1, Math.max(0, Math.floor((x + ext) / cell)));
-    return k(p.x) + N * k(p.y);
+    const k = (x: number, n: number, o: number) => Math.min(n - 1, Math.max(0, Math.floor((x - o) / cell)));
+    return k(p.x, nx, x0) + nx * k(p.y, ny, y0);
   };
   // a grade só muda com o raio (o encolhimento) e a folga pedida
   const list = grids.get(w) ?? grids.set(w, []).get(w)!;
   if (list.length && list[0].R !== R) list.length = 0;
   let g = list.find((x) => x.want === want);
-  if (!g) list.push((g = { R, want, ok: Uint8Array.from({ length: N * N }, (_, c) => (free(at(c)) ? 1 : 0)) }));
-  const ok = (c: number) => g.ok[c] === 1 && !hits(at(c));
+  if (!g) {
+    if (list.length >= 32) list.shift(); // a folga pedida varia: guarda só as últimas grades
+    list.push((g = { R, want, ok: Uint8Array.from({ length: nx * ny }, (_, c) => (free(at(c)) ? 1 : 0)) }));
+  }
+  // casas com o meio dentro de algum obstáculo a desviar, marcadas uma vez (o mesmo teste de hits, só que sem repetir por vizinho)
+  const near = new Uint8Array(nx * ny);
+  for (const o of avoid) {
+    const k = (x: number, n: number, o0: number) => Math.min(n - 1, Math.max(0, Math.floor((x - o0) / cell)));
+    for (let cy = k(o.pos.y - o.r, ny, y0); cy <= k(o.pos.y + o.r, ny, y0); cy++) for (let cx = k(o.pos.x - o.r, nx, x0); cx <= k(o.pos.x + o.r, nx, x0); cx++)
+      if (dist(at(cx + nx * cy), o.pos) < o.r) near[cx + nx * cy] = 1;
+  }
+  const ok = (c: number) => g.ok[c] === 1 && !near[c];
   const from = idx(a), to = idx(b);
-  const prev = new Int32Array(N * N).fill(-1);
+  const prev = new Int32Array(nx * ny).fill(-1);
   prev[from] = from;
   const queue = [from];
   for (let k = 0; k < queue.length && prev[to] < 0; k++) {
-    const c = queue[k], x = c % N, y = (c - x) / N;
+    const c = queue[k], x = c % nx, y = (c - x) / nx;
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-      const nx = x + dx, ny = y + dy, n = nx + ny * N;
-      if ((!dx && !dy) || nx < 0 || ny < 0 || nx >= N || ny >= N || prev[n] >= 0 || (n !== to && !ok(n))) continue;
-      if (dx && dy && !(ok(nx + y * N) && ok(x + ny * N))) continue; // na diagonal, sem cortar quina
+      const ax = x + dx, ay = y + dy, n = ax + ay * nx;
+      if ((!dx && !dy) || ax < 0 || ay < 0 || ax >= nx || ay >= ny || prev[n] >= 0 || (n !== to && !ok(n))) continue;
+      if (dx && dy && !(ok(ax + y * nx) && ok(x + ay * nx))) continue; // na diagonal, sem cortar quina
       prev[n] = c;
       queue.push(n);
     }

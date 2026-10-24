@@ -81,7 +81,7 @@ describe('Agarrar', () => {
     expect(w.wizards[1].pos.y).toBeGreaterThan(0.5);
   });
 
-  it('the first damaging hit frees the gripped target and knocks it further (by grip level); cancels the target cast', () => {
+  it('the first damaging hit frees the gripped target and knocks it further (by grip level); keeps a non-mobility cast', () => {
     const a = world([[0, 0], [4, 0]], ['fireball']);
     const g = world([[0, 0], [4, 0]], ['fireball']);
     Object.assign(g.wizards[1], { gripUntil: 99, gripBonus: 0.3 });
@@ -105,7 +105,9 @@ describe('Agarrar', () => {
     stepWorld(c, [cast('p1', 'meteor', 0, 0)]);
     expect(c.wizards[1].casting).not.toBeNull();
     run(c, .08);
-    expect(c.wizards[1].casting).toBeNull();
+    // Agarrar só bloqueia Mobilidade: a conjuração de Controle segue (PR #272).
+    expect(c.wizards[1].gripUntil).toBeGreaterThan(c.t);
+    expect(c.wizards[1].casting?.spell === 'meteor' || c.projectiles.some((p) => p.kind === 'meteor' && p.owner === 'p1')).toBe(true);
   });
 });
 

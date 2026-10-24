@@ -472,6 +472,18 @@ describe('sala do Ascensão: o dono escolhe, todos veem', () => {
     expect(setAscLobby(m, 'ana', [], {})).toBe(false); // com a partida rolando, nada muda
   });
 
+  it("a campaign start in an Ascension room keeps the owner's cast and plays Ascension", () => {
+    const m = ascRoom();
+    addPlayer(m, 'ana', 'Ana');
+    addPlayer(m, 'bia', 'Bia');
+    setAscLobby(m, 'ana', ['easy', 'hard'], {});
+    expect(startMatch(m, 0, 0, 'campaign', true, seeded(1))).toBe(true);
+    expect(m.mode).toBe('ascension');
+    expect(m.night).toBeUndefined();
+    expect(m.players.filter((p) => p.bot).map((p) => [p.id, p.difficulty])).toEqual([['bot-1', 'easy'], ['bot-2', 'hard']]);
+    expect(m.players.some((p) => p.servo)).toBe(false);
+  });
+
   it('lobby message only with valid difficulties and options', () => {
     expect(parseClientMessage(JSON.stringify({ t: 'lobby', bots: ['easy'], opts: { pace: 'short' } }))).toEqual({ t: 'lobby', bots: ['easy'], opts: { pace: 'short' } });
     expect(parseClientMessage(JSON.stringify({ t: 'lobby', bots: ['god'], opts: {} }))).toBe(null);

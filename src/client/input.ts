@@ -7,11 +7,10 @@ import { setPadGame } from './gamepad.ts';
 import type { Vec } from '../shared/vec.ts';
 
 export type InputHandlers = {
-  pick: (x: number, y: number, spell?: SpellId) => Vec | null;
+  pick: (x: number, y: number) => Vec | null;
   move: (to: Vec, held?: boolean) => void;
   holdMove?: (on: boolean) => void;
   stop: () => void;
-  brace?: (on: boolean) => void;
   basic?: (at: Vec, target?: string) => void;
   pickAttack?: (x: number, y: number) => string | undefined;
   attackArmedChanged?: (on: boolean) => void;
@@ -34,13 +33,6 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   let dragging = false;
   let lastDrag = 0;
   let enabled = false;
-  let braceCode: string | null = null;
-  let braceTimer: ReturnType<typeof setInterval> | undefined;
-  const releaseBrace = () => {
-    if (braceCode) h.brace?.(false);
-    braceCode = null;
-    clearInterval(braceTimer);
-  };
   // Espaço segurado + botão esquerdo arrasta a câmera; Espaço solto sem arrastar volta ao centro
   let space = false;
   let panning = false;
@@ -63,20 +55,13 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   const release = () => {
     const a = held?.action;
     cancel();
-    const p = a && enabled ? h.pick(cursor.x, cursor.y, a) : null;
+    const p = a && enabled ? h.pick(cursor.x, cursor.y) : null;
     if (a && p) h.cast(a, p);
   };
   const releaseMove = () => { if (dragging) h.holdMove?.(false); dragging = false; };
   const cancelPointer = () => { releaseMove(); panning = space = panned = false; };
-  // Ao perder foco/cancelar o ponteiro pode não chegar pointerup: não deixar o mouse virar um comando fantasma.
-  addEventListener('blur', () => { cancel(); arm(null); cancelPointer(); releaseBrace(); });
-  addEventListener('visibilitychange', () => { if (document.hidden) releaseBrace(); });
-  // Diálogos capturam teclas: a soltura precisa chegar antes deles, senão o intervalo renovaria a defesa.
-  addEventListener('keyup', (e) => { if (e.code === braceCode) releaseBrace(); }, { capture: true });
-  addEventListener('keydown', (e) => {
-    if (e.code === 'Escape' || (['shop', 'sheet', 'rules', 'library', 'taunt'] as const).some((a) => isUiKey(e.code, a))) releaseBrace();
-  }, { capture: true });
-  addEventListener('pointerdown', (e) => { if (e.target !== canvas) releaseBrace(); }, { capture: true });
+  // Perder foco pode suprimir pointerup; não renovar um comando de movimento já solto.
+  addEventListener('blur', () => { cancel(); cancelPointer(); });
   addEventListener('pointercancel', cancelPointer);
 
   // o controle usa os mesmos comandos, liberados só durante a rodada
@@ -112,7 +97,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       return;
     }
     if (!enabled) return;
-    const p = h.pick(e.clientX, e.clientY, e.button === 0 || e.pointerType === 'touch' ? armed ?? undefined : undefined);
+    const p = h.pick(e.clientX, e.clientY);
     if (!p) return;
     const touch = e.pointerType === 'touch';
     if (attackArmed && e.button === 0) {
@@ -120,16 +105,12 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       arm(null); // uma ordem manual por golpe; segurar A/clique não repete.
     } else if (armed && (e.button === 0 || touch)) {
       // fora do alcance a magia sai na direção do clique, até a borda do alcance (o servidor limita)
-      const chosen = armed;
-      const cast = h.cast(chosen, p);
-      if (chosen !== 'heal' || cast) arm(null);
+      h.cast(armed, p);
+      arm(null);
     } else if (e.button === 2 || touch) {
       if (armed || attackArmed) arm(null); // botão direito cancela a ação escolhida (e anda, como no Dota)
       h.move(p, e.button === 2);
       dragging = e.button === 2;
-    } else if (e.button === 0 && armed === null) {
-      // clique esquerdo no chão sem magia escolhida também anda (ajuda quem joga com trackpad)
-      h.move(p);
     }
   });
   addEventListener('pointerup', (e) => {
@@ -137,7 +118,6 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     if (e.button === 0) panning = false;
   });
   addEventListener('keyup', (e) => {
-    if (e.code === braceCode) releaseBrace();
     if (held && e.code === held.code) return release();
     if (e.code !== 'Space') return;
     space = false;
@@ -157,9 +137,6 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     // teclas trocáveis pelo jogador (keys.ts)
     const action = actionFor(e.code);
     if (action) {
-      // Curar sempre pede confirmação no corpo do alvo, sem herdar Rápido/Ao soltar.
-      if (action === 'heal') { e.preventDefault(); cancel(); return arm(action); }
-      if (armed === 'heal') arm(null);
       if (attackArmed) arm(null);
       e.preventDefault();
       const mode = getCastMode();
@@ -169,7 +146,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
         held = { action, code: e.code };
         return h.preview(action);
       }
-      const p = h.pick(cursor.x, cursor.y, action);
+      const p = h.pick(cursor.x, cursor.y);
       // Rápido: o anel de alcance pisca por um instante quando a magia sai (issue #61), com a faixa de acerto e a área presas
       // no ponto do lançamento (pedido do Fernando, 21/10: igual ao Segurar, mas sem seguir o mouse depois)
       if (p && h.cast(action, p)) {
@@ -183,10 +160,6 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       e.preventDefault();
       if (!e.repeat) {
         cancel(); arm(null); releaseMove(); h.stop();
-        releaseBrace();
-        braceCode = e.code;
-        h.brace?.(true);
-        braceTimer = setInterval(() => h.brace?.(true), 100);
       }
     } else if (isUiKey(e.code, 'basic')) {
       e.preventDefault();
@@ -204,7 +177,6 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     setEnabled(on: boolean) {
       enabled = on;
       if (!on) {
-        releaseBrace();
         releaseMove();
         cancel();
         arm(null);
@@ -214,7 +186,6 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     aimPoint: () => h.pick(cursor.x, cursor.y),
     // botão da barra: escolhe e o próximo clique (ou toque) no chão lança
     button(a: SpellId) {
-      if (a === 'heal') cancel();
       if (enabled) arm(armed === a ? null : a);
     },
   };

@@ -47,11 +47,12 @@ export const ICON: Record<SpellId, string> = named<SpellId>({ fireball: ['fire-r
   teleport: ['teleport', '✨'], swap: ['body-swapping', '🔄'], grip: ['grab', '⛓️'], meteor: ['meteor-impact', '☄️'], rush: ['sprint', '💨'], cluster: ['striking-splinter', '🔱'],
   boomerang: ['boomerang', '🪃'], thrust: ['knife-thrust', '🗡️'], gravity: ['vortex', '🌀'], rockpillar: ['defensive-wall', '🧱'], bouncer: ['ricochet', '🏓'], drain: ['life-tap', '🧛'],
   snowball: ['frozen-orb', '❄️'], illusion: ['two-shadows', '👥'], magnetize: ['magnet', '🧲'], recharge: ['cycle', '🔋'], alteration: ['card-exchange', '🔀'], link: ['harpoon-chain', '🔗'],
-  windwalk: ['wind-slap', '👻'], splitter: ['split-arrows', '💠'], warpzone: ['time-trap', '⏳'], scourge: ['flail', '💥'], pact: ['chalice-drops', '🩸'], heal: ['healing-cross', '✚'] });
+  windwalk: ['wind-slap', '👻'], splitter: ['split-arrows', '💠'], warpzone: ['time-trap', '⏳'], scourge: ['flail', '💥'], pact: ['chalice-drops', '🩸'] });
 // Armadura e Roubo de vida tinham o mesmo emoji de Agarrar e de Drenar; agora cada um tem desenho próprio
 export const ITEM_ICON: Record<ItemId, string> = named<ItemId>({ ring: ['diamond-ring', '💍'], cursed_ring: ['skull-ring', '🧿'], cape: ['cape', '🧣'], armor: ['breastplate', '🦺'],
   boots: ['leather-boot', '👢'], watch: ['pocket-watch', '⏱️'], vampire: ['bat', '🦇'],
-  lava_boots: ['metal-boot', '🥾'], warden: ['stone-bust', '🗿'], helmet: ['spartan-helmet', '🪖'], shock_boots: ['winged-leg', '🌩️'], aegis: ['angel-wings', '👼'], wind_boots: ['feather', '🪶'] });
+  lava_boots: ['metal-boot', '🥾'], warden: ['stone-bust', '🗿'], helmet: ['spartan-helmet', '🪖'], shock_boots: ['winged-leg', '🌩️'], aegis: ['angel-wings', '👼'], wind_boots: ['feather', '🪶'],
+  lens: ['magnifying-glass', '🔍'], piercing: ['pierced-heart', '💘'], affliction: ['rune-stone', '🔮'] });
 export const RUNE_ICON: Record<RuneKind, string> = named<RuneKind>({ haste: ['rabbit', '🐇'], fury: ['enrage', '😡'], shield: ['checked-shield', '🔰'], recharge: ['energise', '🔋'] });
 export const RUNE_NAME: Record<RuneKind, string> = { haste: t('Runa da Pressa', 'Haste Rune'), fury: t('Runa da Fúria', 'Fury Rune'), shield: t('Runa do Escudo', 'Shield Rune'), recharge: t('Runa da Recarga', 'Recharge Rune') };
 // o que derrubou alguém, além de magias e itens (placar)
@@ -68,9 +69,9 @@ export const actionName = (a: SpellId | ItemId) => (isSpell(a) ? spellName(a) : 
 // efeitos em cima do mago (bits do snapshot, ver shared/snapshot.ts); negativos primeiro. Também listados na ficha do mago
 const fx = named({ stun: ['star-swirl', '💫'], invuln: ['sunbeams', '🌟'], locked: ['padlock', '🔒'], slow: ['snail', '🐌'], burn: ['small-fire', '🔥'],
   repel: ['magnet-blast', '🌬️'], invis: ['ghost', '👻'], fast: ['run', '🏃'] });
-export const STATUS_ICONS: [bit: number, icon: string, name: string][] = [[INCAPACITATED_BIT, ICON.warpzone, t('incapacitado: recargas pausadas', 'incapacitated: cooldowns paused')], [16, fx.stun, t('atordoado', 'stunned')], [32, fx.invuln, t('invulnerável', 'invulnerable')], [64, ICON.pact, t('Pacto armado', 'Pact armed')],
+export const STATUS_ICONS: [bit: number, icon: string, name: string][] = [[INCAPACITATED_BIT, ICON.warpzone, t('incapacitado: recargas pausadas', 'incapacitated: cooldowns paused')], [16, fx.stun, t('atordoado', 'stunned')], [32, fx.invuln, t('invulnerável', 'invulnerable')], [2, ICON.shield, t('Escudo', 'Shield')], [64, ICON.pact, t('Pacto armado', 'Pact armed')],
   [128, fx.locked, t('preso', 'gripped')], [256, ICON.rush, t('Investida', 'Rush')], [4, fx.slow, t('lento', 'slowed')], [512, fx.burn, t('queimando', 'burning')], [65536, ICON.link, t('preso pelo Elo', 'held by Link')], [8192, ICON.magnetize, t('magnetizado: atrai projéteis', 'magnetized: attracts projectiles')],
-  [16384, fx.repel, t('magnetizado: afasta projéteis', 'magnetized: repels projectiles')], [1024, fx.invis, t('invisível (Caminhada no vento)', 'invisible (Windwalk)')], [4096, fx.fast, t('acelerado', 'hasted')], [32768, ICON.alteration, t('Alteração', 'Alteration')], [131072, ITEM_ICON.aegis, t('Égide pronta', 'Aegis ready')],
+  [16384, fx.repel, t('magnetizado: afasta projéteis', 'magnetized: repels projectiles')], [1024, fx.invis, t('invisível (Caminhada no vento ou Ilusão)', 'invisible (Windwalk or Illusion)')], [4096, fx.fast, t('acelerado', 'hasted')], [32768, ICON.alteration, t('Alteração', 'Alteration')], [131072, ITEM_ICON.aegis, t('Égide pronta', 'Aegis ready')],
   [262144, RUNE_ICON.haste, t('Runa da Pressa', 'Haste Rune')], [524288, RUNE_ICON.fury, t('Runa da Fúria', 'Fury Rune')], [1048576, RUNE_ICON.shield, t('Runa do Escudo', 'Shield Rune')], [4194304, RUNE_ICON.recharge, t('Runa da Recarga', 'Recharge Rune')], [2097152, ICON.gravity, t('no redemoinho', 'in the vortex')]];
 export const BAD_STATUS = [INCAPACITATED_BIT, 16, 4, 128, 65536, 8192, 512, 2097152];
 // relógio de um efeito com prazo (snap.fx: pares bit, segundos): texto dos segundos e fração que falta (o total é o maior tempo
