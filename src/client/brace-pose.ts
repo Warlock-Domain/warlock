@@ -1,4 +1,4 @@
-// Pose própria sobre o esqueleto KayKit: abaixa quadril, mantém pés e apoia a mão livre, sem editar o asset.
+// Own pose on the KayKit skeleton: lowers the hips, keeps the feet and rests the free hand, without editing the asset.
 import * as T from 'three';
 import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
@@ -38,7 +38,7 @@ export function createBraceClip(model: T.Object3D, idle: T.AnimationClip): T.Ani
   hips.position.sub(localDown);
   hips.updateWorldMatrix(false, true);
   worldTurn(spine, new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), .75));
-  // Olhar um pouco acima do repouso: só a cabeça sobe, tronco e mão continuam apoiados.
+  // Look slightly above rest: only the head rises; torso and hand stay braced.
   if (head && headFacing) {
     const forward = new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), -.2).multiply(headFacing);
     worldTurn(head, forward.multiply(head.getWorldQuaternion(new T.Quaternion()).invert()));

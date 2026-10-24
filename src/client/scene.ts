@@ -41,6 +41,8 @@ export type WizDraw = { place?: number; xp?: { level: number; frac: number } | n
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
+// the Hold ground pose depends only on the source skeleton: build it once per source model (clone + IK per wizard is costly)
+const braceClips = new WeakMap<Model, THREE.AnimationClip | null>();
 const files = new Map<string, Model>();
 const loading = new Map<string, Promise<Model | null>>();
 const failed = new Set<string>();
@@ -936,7 +938,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const actions: Record<string, THREE.AnimationAction> = {};
     for (const c of src.clips) actions[c.name] = mixer.clipAction(c);
     const idle = src.clips.find((c) => c.name === 'Idle');
-    const brace = idle && createBraceClip(model, idle);
+    if (idle && !braceClips.has(src)) braceClips.set(src, createBraceClip(model, idle));
+    const brace = braceClips.get(src);
     if (brace) actions.Brace = mixer.clipAction(brace);
     const invoke = src.clips.find((c) => c.name === 'Spellcast_Shoot');
     if (invoke) actions.Attack_Invoke = mixer.clipAction(createAttackClip(invoke));

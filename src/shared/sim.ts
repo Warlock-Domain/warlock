@@ -1852,7 +1852,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     } else if (c.kind === 'moveHold') {
       wz.moveHeld = c.on && !bracingActive(w, wz);
     } else if (c.kind === 'move') {
-      if (bracingActive(w, wz)) continue; // não guarda uma caminhada para disparar quando S for solto.
+      if (bracingActive(w, wz)) continue; // do not queue a walk that would fire when S is released
       wz.basicCasting = undefined;
       wz.moveHeld = c.held ?? false;
       wz.blockedMove = false;
