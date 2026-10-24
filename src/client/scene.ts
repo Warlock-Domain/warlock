@@ -775,6 +775,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     for (const c of [...mapGroup.children]) {
       mapGroup.remove(c);
       if (c instanceof THREE.Mesh && !c.userData.shared) c.geometry.dispose();
+      if (c instanceof THREE.InstancedMesh) c.dispose(); // the per-instance matrix buffer, one per mesh and night
     }
     for (const c of cpMarks) c.mat.dispose();
     for (const f of fogs) (f.material as THREE.Material).dispose();
@@ -828,6 +829,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       for (const box of [floorBox, wallBox]) {
         mapGroup.remove(box);
         box.geometry.dispose();
+        box.dispose();
       }
     });
     inst(new THREE.BoxGeometry(1, 0.5, 1), mapMats.low, at((g) => g === 'low'), 0.25, true);

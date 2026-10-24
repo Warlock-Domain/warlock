@@ -7,7 +7,7 @@
 import { mkdirSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { autoPick } from '../src/shared/ascension.ts';
-import { BOT_SKILL, botCmds, botWatch } from '../src/shared/bots.ts';
+import { BOT_SKILL, botCmds, botThinks } from '../src/shared/bots.ts';
 import { nightLevel } from '../src/shared/campaign.ts';
 import { DT } from '../src/shared/constants.ts';
 import { nightMap, type NightMap } from '../src/shared/levels.ts';
@@ -116,7 +116,6 @@ function playNight(size: number, seed: number): NightLog {
       log.levelAtBoss = Math.min(...ids.map((id) => nightLevel(n.xp?.[id] ?? 0)));
       log.spellsAtBoss = Math.min(...ids.map((id) => spellCount(m.players.find((q) => q.id === id)!.spells)));
     }
-    botWatch(w);
     const cmds: Cmd[] = [];
     const embers = w.wizards.filter((z) => z.team === 0 && !z.alive && z.ember && !z.ember.out);
     const nextRoom = map.rooms.findIndex((r, i) => !n.done.includes(i) && (r.room.fight || r.room.boss));
@@ -132,7 +131,8 @@ function playNight(size: number, seed: number): NightLog {
         continue;
       }
       if (n.fight !== null || foeNear) {
-        cmds.push(...botCmds(w, id, rand, D, {}));
+        // same thinking rate as a real bot (tickMatch's botThinks; botWatch already ran in the last step)
+        if (botThinks(m.steps, m.players.findIndex((p) => p.id === id), D)) cmds.push(...botCmds(w, id, rand, D, {}));
         continue;
       }
       // between encounters: the chest of a won room, the candle until healed (before the boss), then the next checkpoint
