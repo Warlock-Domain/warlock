@@ -72,9 +72,20 @@ async function reconciliationIsBatched() {
   assert.equal(inspected.size, 10);
 }
 
+async function roomRevisionsDoNotAccumulate() {
+  const f = fixture({}, async (id) => info(id, 1));
+  for (let i = 0; i < 100; i++) await f.lobby.upsert(info(`LIVE${i}`, 1));
+  assert.equal(f.lobby.revisions.size, 0, 'occupied room updates must not retain revision entries');
+
+  await f.lobby.upsert(info('EMPTY'));
+  await f.lobby.alarm();
+  assert.equal(f.lobby.revisions.size, 0, 'completed room inspections must release their revision entries');
+}
+
 await orphanIsRemoved();
 await occupiedRoomIsRepaired();
 await inspectionFailureRetries();
 await concurrentUpsertWins();
 await reconciliationIsBatched();
-console.log('Lobby reconciliation: 5 lifecycle regressions passed.');
+await roomRevisionsDoNotAccumulate();
+console.log('Lobby reconciliation: 6 lifecycle regressions passed.');

@@ -10,6 +10,9 @@ export class Lobby extends DurableObject<Env> {
   // Invalida resultados antigos de inspect enquanto o alarme aguarda o RPC da sala.
   private revisions = new Map<string, number>();
 
+  // Só mantém revisões enquanto um inspect está em andamento; salas ocupadas podem mudar sem crescer este mapa.
+  private inspecting = new Set<string>();
+
   private revision = 0;
 
   private changed(id: string) {
@@ -47,6 +50,7 @@ export class Lobby extends DurableObject<Env> {
     const rooms = await this.rooms();
     rooms[info.id] = info;
     await this.save(rooms);
+    if (!this.inspecting.has(info.id)) this.revisions.delete(info.id);
     if (info.players === 0) await this.armReconciliation();
   }
 
@@ -56,7 +60,7 @@ export class Lobby extends DurableObject<Env> {
     if (this.currentRevision(id) !== version) return;
     delete rooms[id];
     await this.save(rooms);
-    if (this.currentRevision(id) === version) this.revisions.delete(id);
+    if (this.currentRevision(id) === version && !this.inspecting.has(id)) this.revisions.delete(id);
   }
 
   async alarm() {
@@ -73,7 +77,9 @@ export class Lobby extends DurableObject<Env> {
     await this.ctx.storage.put('reconcileCursor', batch.at(-1)!.id);
 
     for (const listed of batch) {
-      const version = this.revisions.get(listed.id) ?? 0;
+      this.inspecting.add(listed.id);
+      const version = this.currentRevision(listed.id);
+      this.revisions.set(listed.id, version);
       try {
         const current = await this.rooms();
         if (this.currentRevision(listed.id) !== version || current[listed.id]?.players !== 0) continue;
@@ -91,6 +97,9 @@ export class Lobby extends DurableObject<Env> {
         }
       } catch {
         // Mantém a entrada e o alarme já armado para tentar novamente no próximo lote.
+      } finally {
+        this.inspecting.delete(listed.id);
+        this.revisions.delete(listed.id);
       }
     }
 
