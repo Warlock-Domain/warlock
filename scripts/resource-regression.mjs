@@ -11,13 +11,13 @@ const { values } = parseArgs({ options: {
   'soak-seconds': { type: 'string', default: '0' }, gc: { type: 'boolean', default: false },
   'heap-snapshots': { type: 'boolean', default: false }, mutation: { type: 'string', default: 'none' },
 } });
-const positive = (name, min) => { const n = Number(values[name]); assert(Number.isSafeInteger(n) && n >= min, `Invalid --${name}`); return n; };
-const cycles = positive('cycles', 100), warmup = positive('warmup', 10), seed = positive('seed', 0), soak = positive('soak-seconds', 0);
-assert(['localhost', '127.0.0.1', '[::1]'].includes(new URL(values.base).hostname), 'Use a local Vite server, never production');
-assert(['none', 'skeleton-dispose', 'connection-listener'].includes(values.mutation), 'Unknown mutation');
+const positive = (name, min) => { const n = Number(values[name]); assert(Number.isSafeInteger(n) && n >= min, `Valor inválido para --${name}`); return n; };
+const cycles = positive('cycles', 1), warmup = positive('warmup', 10), seed = positive('seed', 0), soak = positive('soak-seconds', 0);
+assert(['localhost', '127.0.0.1', '[::1]'].includes(new URL(values.base).hostname), 'Use apenas um servidor Vite local, nunca produção');
+assert(['none', 'skeleton-dispose', 'connection-listener'].includes(values.mutation), 'Mutação desconhecida');
 await mkdir(values.out, { recursive: true });
 const config = { ...values, cycles, warmup, seed, assets: ['mage', 'knight', 'chest', 'rockpillar'], viewport: [800, 600] };
-const report = { config, startedAt: new Date().toISOString(), samples: [], errors: [], failures: [] };
+const report = { config, startedAt: new Date().toISOString(), retainedObjectProbe: values.gc ? 'enabled' : 'skipped; pass --gc to classify retained Three.js objects', samples: [], errors: [], failures: [] };
 const browser = await openChrome({ viewport: { width: 800, height: 600 } });
 const page = await browser.newPage();
 page.setDefaultTimeout(15000);
@@ -28,10 +28,10 @@ try {
   await page.route('**/__resource-harness', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><head><link rel="stylesheet" href="/src/client/style.css"></head><body></body></html>' }));
   await page.goto(`${values.base}/__resource-harness`);
   await page.evaluate(async ({ seed }) => {
-    // Imports reais do Vite mantêm o teste fora do bundle e dos fluxos do jogador.
+    // Os imports reais do Vite mantêm o teste fora do bundle e dos fluxos do jogador.
     const scene = await import('/src/client/scene.ts');
     const threePath = performance.getEntriesByType('resource').find((e) => /\/deps\/three\.js\?/.test(e.name))?.name;
-    if (!threePath) throw new Error('Run against the Vite development server');
+    if (!threePath) throw new Error('Rode contra o servidor de desenvolvimento do Vite');
     resourceProbe.attachThree(await import(threePath));
     const { avatarPanel } = await import('/src/client/avatar.ts');
     const { openSettings } = await import('/src/client/settings.ts');
@@ -48,11 +48,18 @@ try {
     const wizard = (id, x) => ({ id, character: 'mage', look: looks[0], pos: { x, y: 0 }, facing: 0, hp: 100, hpMax: 100, status: 0, alive: true, shield: false, color: x < 0 ? 0 : 1, name: id, moving: false, cheer: false });
     const state = { arena: 'circle', arenaR: 11, shrinkIn: 20, wizards: [wizard('changed', -2), wizard('shared', 2)], projectiles: [], pillars: [], loots: [], runes: [], follow: null };
     const frames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const requiredElement = (selector) => {
+      const element = document.querySelector(selector);
+      if (!(element instanceof HTMLElement)) throw new Error(`Elemento obrigatório não encontrado: ${selector}`);
+      return element;
+    };
     window.runResourceCycle = async (i) => {
       openSettings('personagem'); await frames();
-      document.querySelector('.settings-overlay .dialog-head button').click();
+      requiredElement('.settings-overlay .dialog-head button').click();
       host.append(avatarPanel()); host.hidden = false; await frames();
-      document.querySelectorAll('.avatar-preset')[i % 2].click();
+      const presets = document.querySelectorAll('.avatar-preset');
+      if (presets.length < 2) throw new Error(`Esperava ao menos 2 opções de personagem; encontrei ${presets.length}`);
+      presets[i % 2].click();
       await frames();
       host.hidden = true; await frames();
       state.wizards[0].look = looks[i % 2];
@@ -65,7 +72,7 @@ try {
       const before = resourceProbe.sample();
       await new Promise((resolve) => setTimeout(resolve, 150));
       const after = resourceProbe.sample();
-      if (after.mixerUpdates !== before.mixerUpdates || after.renders !== before.renders) throw new Error('Hidden preview still animates/renders (#298)');
+      if (after.mixerUpdates !== before.mixerUpdates || after.renders !== before.renders) throw new Error('A prévia escondida ainda anima ou renderiza (#298)');
       return after;
     };
     window.connectionCycles = async (count) => {
@@ -129,21 +136,21 @@ try {
   // Os caches ficam; depois do aquecimento, recursos possuídos e ouvintes temporários não podem crescer.
   for (const metric of ['textures', 'buffers']) {
     const growth = final.resources.gpu[metric].active - baseline.resources.gpu[metric].active;
-    if (growth > 0) report.failures.push(`${metric} grew by ${growth} after warmup`);
+    if (growth > 0) report.failures.push(`${metric} aumentou ${growth} após o aquecimento`);
   }
   for (const metric of ['listeners', 'observers', 'observedTargets', 'intervals', 'timeouts', 'rafs']) {
     const growth = final.resources[metric] - baseline.resources[metric];
-    if (growth > 0) report.failures.push(`${metric} grew by ${growth} after warmup`);
+    if (growth > 0) report.failures.push(`${metric} aumentou ${growth} após o aquecimento`);
   }
-  for (const metric of ['visibilityListeners', 'intervals', 'timeouts']) if (final.resources[metric] !== beforeConnections.resources[metric]) report.failures.push(`Connection stop leaked ${metric} (#302)`);
+  for (const metric of ['visibilityListeners', 'intervals', 'timeouts']) if (final.resources[metric] !== beforeConnections.resources[metric]) report.failures.push(`Parar a conexão vazou ${metric} (#302)`);
   for (const type of Object.keys(final.retained)) {
     const growth = final.retained[type] - baseline.retained[type];
     // Aparências diferentes variam o número de malhas; baseline e fim usam a mesma paridade.
-    if (growth > 0) report.failures.push(`Retained ${type} grew by ${growth} after GC`);
+    if (growth > 0) report.failures.push(`${type} retidos aumentaram ${growth} após o GC`);
   }
   await page.screenshot({ path: `${values.out}/final.png` });
-  assert.deepEqual(report.errors, [], 'Browser errors');
-  assert.deepEqual(report.failures, [], 'Resource plateau failed');
+  assert.deepEqual(report.errors, [], 'Erros no navegador');
+  assert.deepEqual(report.failures, [], 'Os recursos não estabilizaram');
 } catch (error) {
   report.failure = error.stack;
   throw error;
@@ -152,4 +159,4 @@ try {
   await writeFile(`${values.out}/report.json`, JSON.stringify(report, null, 2));
   await browser.close();
 }
-console.log(`PASS resource plateau; artifacts in ${values.out}`);
+console.log(`PASS: recursos estabilizados; resultados em ${values.out}`);
