@@ -178,7 +178,10 @@ export function grimoire() {
   function show(dir: number) {
     const [per, first] = view();
     live = [];
+    // a clicked contents link is replaced below: hand focus back to the book so ← → keep working in the Learn tab
+    const hadFocus = spread.contains(document.activeElement);
     spread.replaceChildren(...Array.from({ length: per }, (_, k) => render(first + k)));
+    if (hadFocus) root.focus({ preventScroll: true });
     spread.scrollTop = 0;
     spread.querySelectorAll('.g-page').forEach((p) => (p.scrollTop = 0));
     prev.disabled = first === 0;
