@@ -5,7 +5,7 @@ import type { ProjKind } from '../shared/sim.ts';
 
 // Each projectile body has its own low-poly shape instead of the same light ball (Fernando's request, 17/10;
 // there are no ready CC0 spell models, so they are built here from Three.js geometries)
-export const jitter = (g: THREE.BufferGeometry, amount: number) => {
+const jitter = (g: THREE.BufferGeometry, amount: number) => {
   const pos = g.attributes.position;
   for (let i = 0; i < pos.count; i++) pos.setXYZ(i, pos.getX(i) * (1 + (Math.random() - 0.5) * amount), pos.getY(i) * (1 + (Math.random() - 0.5) * amount), pos.getZ(i) * (1 + (Math.random() - 0.5) * amount));
   g.computeVertexNormals();
