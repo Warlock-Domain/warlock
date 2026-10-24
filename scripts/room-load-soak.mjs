@@ -25,6 +25,7 @@ const report = {
   runtimeMetrics: { worker: null, note: 'Wrangler dev does not expose Durable Object CPU or memory counters through this app.' },
 };
 const started = Date.now(), cpuStart = process.cpuUsage(), memoryStart = process.memoryUsage();
+const EMPTY_ROOM_ALARM_MS = 5 * 60_000; // O alarme do servidor remove a sala vazia após cinco minutos.
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const percentile = (values, p) => values.length ? values.slice().sort((a, b) => a - b)[Math.min(values.length - 1, Math.ceil(values.length * p) - 1)] : null;
 const roomSnapshot = () => Object.fromEntries([...lobby.rooms].map(([id, info]) => [id, info.players]));
@@ -173,7 +174,7 @@ try {
   }
 
   // Dez segundos antes do prazo exercita a corrida entre entrada e alarme de sala vazia.
-  const lateJoinAt = started + 5 * 60_000 - 10_000;
+  const lateJoinAt = started + EMPTY_ROOM_ALARM_MS - 10_000;
   let didLateJoin = false;
   while (Date.now() - started < duration * 1000) {
     if (!didLateJoin && Date.now() >= lateJoinAt) {
@@ -199,7 +200,7 @@ try {
   report.soakLobby = roomSnapshot();
 
   for (const c of clients) c.close();
-  const cleanupAt = Date.now() + 5 * 60_000 + cleanupGrace;
+  const cleanupAt = Date.now() + EMPTY_ROOM_ALARM_MS + cleanupGrace;
   while (Date.now() < cleanupAt) await sleep(Math.min(1000, cleanupAt - Date.now()));
   report.finalLobby = roomSnapshot();
   for (const id of allRoomIds) assert.equal(lobby.rooms.has(id), false, `A sala vazia ${id} continua no lobby após a retenção`);
