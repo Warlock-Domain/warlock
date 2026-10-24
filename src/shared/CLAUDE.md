@@ -4,6 +4,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Simulação
 
+- IA sob véu da Ilusão: ready/free recusam qualquer conjuração até veilUntil; movimento permanece permitido. Humanos conservam a regra de se revelar ao usar outra magia. Isso não declara resolvido risco residual Ilusão×Flagelo ao reviver.
+- Nomes dos bots: catálogo de sete nomes escolhido pelo usuário, mesma ordem na sala e na partida; não muda IA nem balanceamento.
 - **Sorteio só pelo `rand: () => number` recebido.** Assinatura pública tem `rand = Math.random` como padrão (`newWorld`, `stepWorld`, `tickMatch`); funções internas repassam o `rand`. Nunca `Math.random` solto. Mudar a ordem dos sorteios muda o hash de `tests/style.test.ts`.
 - **O `World` é mutado no lugar** (`stepWorld` zera `w.events` e escreve em `wz.hp`, `wz.cd`, `w.projectiles`). Não clone. O bot é a exceção: `botCmds` só lê o mundo e devolve `Cmd[]`.
 - Fase, ouro e compras moram em `Match` (`match.ts`). O `World` não é gravado no disco (a sala grava `world: null`).
@@ -12,10 +14,13 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Números de magia e item (`spells.ts`, `items.ts`, `constants.ts`)
 
+- Proposta Meteoro em revisão: preserva dano/área e substitui empurrão por duration=1,25s em todos os níveis. Usa o bloqueio geral de stun e resistências do alvo; não aciona recuperação pós-knockback sem impulso. Medição/decisão do dono pendente antes de integrar.
+
 - 7 níveis por `L({...})`; séries irregulares com `zip([...], [...])`, lineares com `steps(de, passo)`.
 - Ajuste de balanceamento fica **inline sobre o número original**, com comentário de data e medição: `cd: cd * 0.7 /* 18/10: … (0,86 → 0,97) */`.
 - Constante extra de mecânica vira objeto `NOME = { … * UNIT }` abaixo da tabela, com o arquivo `.lua` de origem no comentário. Nada de número mágico solto em `sim.ts`.
 - Número só muda com medição do simulador (ver raiz).
+- **Campanha tem números próprios:** magia diferente na Campanha entra em `CAMPAIGN_BOOK` (`campaign.ts`, com `retune`), nunca em `spells.ts`; o mundo dela leva esse livro em `World.book`. Quem lê número de magia usa `spellLevel(id, nível, w.book)`, nunca `SPELLS[id].levels` direto (`tests/spellbook.test.ts` acusa). O que não está no livro segue `SPELLS`. O livro cobre só a tabela de níveis (`Level`): constante de mecânica (`RUSH`, `THRUST`…), `CAST_POINT` e itens ainda são de todos os modos; para mudar um deles só na Campanha, primeiro estenda o livro (mesma ideia, no `World`), nunca edite a constante compartilhada.
 
 ## Magia nova: onde mexer
 
@@ -23,7 +28,7 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Protocolo (`protocol.ts`)
 
-Mensagem nova do cliente: variante em `ClientMsg` → `case` em `parseClientMessage` que devolve `null` em qualquer dúvida, usando `isObj`, `coord`, `seq`, `pubId`, `isSpell` → devolver o objeto **reconstruído** com campos conhecidos, nunca o cru → objeto de entrada só com chaves permitidas (veja `parseOpts`, `parseSandbox`) → respeitar `MAX_MSG` → ramo em `room-do.ts` e teste em `tests/protocol.test.ts`.
+Mensagem nova do cliente: variante em `ClientMsg` → `case` em `parseClientMessage` que devolve `null` em qualquer dúvida, usando `isObj`, `coord`, `seq`, `pubId`, `isSpell` → devolver o objeto **reconstruído** com campos conhecidos, nunca o cru → objeto de entrada só com chaves permitidas (veja `parseOpts`, `parseSandbox`) → respeitar `MAX_MSG` → ramo em `room-do.ts` e teste em `tests/protocol.test.ts`. Resource reports (`resources`) must have bounded numeric values and remain optional telemetry, never gameplay input.
 
 ## Snapshot (`snapshot.ts`)
 

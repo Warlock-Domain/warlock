@@ -8,9 +8,14 @@ import type { Vec } from '../shared/vec.ts';
 
 export type InputHandlers = {
   pick: (x: number, y: number) => Vec | null;
-  move: (to: Vec) => void;
+  move: (to: Vec, held?: boolean) => void;
+  holdMove?: (on: boolean) => void;
   stop: () => void;
-  cast: (spell: SpellId, at: Vec) => boolean | void; // true quando saiu de verdade (sem recarga, com a magia)
+  basic?: (at: Vec, target?: string) => void;
+  pickAttack?: (x: number, y: number) => string | undefined;
+  attackArmedChanged?: (on: boolean) => void;
+  cast: (spell: SpellId, at: Vec) => boolean | void; // true when the spell actually casts (owned and off cooldown)
+  checkCooldown?: (spell: SpellId) => boolean;
   center: () => void;
   zoom: (deltaY: number) => void;
   pan: (dx: number, dy: number) => void;
@@ -25,6 +30,7 @@ export type InputHandlers = {
 export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   let cursor = { x: innerWidth / 2, y: innerHeight / 2 };
   let armed: SpellId | null = null;
+  let attackArmed = false;
   let dragging = false;
   let lastDrag = 0;
   let enabled = false;
@@ -35,6 +41,8 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   let panFrom = { x: 0, y: 0 };
 
   const arm = (s: SpellId | null) => {
+    attackArmed = false;
+    h.attackArmedChanged?.(false);
     armed = s;
     h.armedChanged(s);
   };
@@ -51,7 +59,8 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     const p = a && enabled ? h.pick(cursor.x, cursor.y) : null;
     if (a && p) h.cast(a, p);
   };
-  const cancelPointer = () => { dragging = panning = space = panned = false; };
+  const releaseMove = () => { if (dragging) h.holdMove?.(false); dragging = false; };
+  const cancelPointer = () => { releaseMove(); panning = space = panned = false; };
   // Perder foco pode suprimir pointerup; não renovar um comando de movimento já solto.
   addEventListener('blur', () => { cancel(); cancelPointer(); });
   addEventListener('pointercancel', cancelPointer);
@@ -66,7 +75,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   }, { passive: false });
   canvas.addEventListener('pointermove', (e) => {
     cursor = { x: e.clientX, y: e.clientY };
-    if (!(e.buttons & 2)) dragging = false;
+    if (!(e.buttons & 2)) releaseMove();
     if (!(e.buttons & 1)) panning = false;
     if (panning) {
       h.pan(e.clientX - panFrom.x, e.clientY - panFrom.y);
@@ -78,7 +87,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     if (dragging && enabled && performance.now() - lastDrag > 100) {
       lastDrag = performance.now();
       const p = h.pick(e.clientX, e.clientY);
-      if (p) h.move(p);
+      if (p) h.move(p, true);
     }
   });
   canvas.addEventListener('pointerdown', (e) => {
@@ -92,21 +101,21 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     const p = h.pick(e.clientX, e.clientY);
     if (!p) return;
     const touch = e.pointerType === 'touch';
-    if (armed && (e.button === 0 || touch)) {
+    if (attackArmed && e.button === 0) {
+      h.basic?.(p, h.pickAttack?.(e.clientX, e.clientY));
+      arm(null); // uma ordem manual por golpe; segurar A/clique não repete.
+    } else if (armed && (e.button === 0 || touch)) {
       // fora do alcance a magia sai na direção do clique, até a borda do alcance (o servidor limita)
       h.cast(armed, p);
       arm(null);
     } else if (e.button === 2 || touch) {
-      if (armed) arm(null); // botão direito cancela a magia escolhida (e anda, como no Dota)
-      h.move(p);
+      if (armed || attackArmed) arm(null); // botão direito cancela a ação escolhida (e anda, como no Dota)
+      h.move(p, e.button === 2);
       dragging = e.button === 2;
-    } else if (e.button === 0 && armed === null) {
-      // clique esquerdo no chão sem magia escolhida também anda (ajuda quem joga com trackpad)
-      h.move(p);
     }
   });
   addEventListener('pointerup', (e) => {
-    if (e.button === 2) dragging = false;
+    if (e.button === 2) releaseMove();
     if (e.button === 0) panning = false;
   });
   addEventListener('keyup', (e) => {
@@ -129,11 +138,16 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     // teclas trocáveis pelo jogador (keys.ts)
     const action = actionFor(e.code);
     if (action) {
+      if (attackArmed) arm(null);
       e.preventDefault();
       const mode = getCastMode();
-      if (mode === 'click') return arm(action); // escolhe e mostra o alcance; o clique esquerdo lança
+      if (mode === 'click') {
+        if (h.checkCooldown && !h.checkCooldown(action)) return arm(null);
+        return arm(action); // select the spell and show its range; left click casts
+      }
       if (mode === 'release') {
-        if (held) release(); // outra tecla com uma segurada: a primeira sai antes
+        if (held) release(); // cast the first spell before starting to hold another
+        if (h.checkCooldown && !h.checkCooldown(action)) return;
         held = { action, code: e.code };
         return h.preview(action);
       }
@@ -147,10 +161,18 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       }
       return;
     }
-    if (isUiKey(e.code, 'stop')) h.stop();
+    if (isUiKey(e.code, 'stop')) {
+      e.preventDefault();
+      if (!e.repeat) {
+        cancel(); arm(null); releaseMove(); h.stop();
+      }
+    } else if (isUiKey(e.code, 'basic')) {
+      e.preventDefault();
+      if (!e.repeat) { cancel(); arm(null); attackArmed = true; h.attackArmedChanged?.(true); }
+    }
     else if (e.code === 'Escape') {
       // só consome o Esc se havia magia escolhida ou segurada; senão ele segue para abrir as configurações
-      if (armed || held) e.preventDefault();
+      if (armed || held || attackArmed) e.preventDefault();
       cancel();
       arm(null);
     }
@@ -160,16 +182,19 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     setEnabled(on: boolean) {
       enabled = on;
       if (!on) {
-        dragging = false;
+        releaseMove();
         cancel();
         arm(null);
       }
     },
     // ponto do chão sob o mouse (o Meteoro desenha a explosão ali)
     aimPoint: () => h.pick(cursor.x, cursor.y),
-    // botão da barra: escolhe e o próximo clique (ou toque) no chão lança
+    // The toolbar selects a spell; the next ground click or tap casts it.
     button(a: SpellId) {
-      if (enabled) arm(armed === a ? null : a);
+      if (!enabled) return;
+      if (armed === a) return arm(null);
+      if (h.checkCooldown && !h.checkCooldown(a)) return arm(null);
+      arm(a);
     },
   };
 }

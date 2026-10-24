@@ -35,13 +35,17 @@ describe('jeito de jogar', () => {
   // valor gravado com o código de antes da medição (972dab7): a medição só lê, então os eventos não mudam.
   // Muda (e se grava de novo) só quando a jogabilidade muda. 20/10 (issue #80): o baú sorteia o ouro do monte (3 a 5) ao nascer,
   // um sorteio a mais na sequência. 21/10 (issue #217): Flagelo e Pacto viram magia, o Redirecionador sai e as compras dos bots mudam
+  // 22/10 (issue #206): a Barricada cai do céu e dá dano em quem está embaixo, e os bots a usam
   it('a medição não muda a partida: mesma semente, mesmos eventos de antes', () => {
     const { m, hash } = botMatch(7, 4000);
     // 22/10: fim da amplificação por dano histórico altera intencionalmente as trajetórias.
     // Proposta 23/10: bloqueios explícitos de stun/Agarrar mudam as decisões e trajetórias dos bots.
     // Proposta23/10: fim limpo do impulso e retomada50→100% mudam trajetórias.
-    expect(hash).toBe(2407774018);
-
+    // Proposta 23/10: colisões gerais e Raio contínuo alteram intencionalmente os eventos.
+    // 23/10: clique único cancela no primeiro contato, inclusive oblíquo, também para destinos dos bots.
+    // Proposta 23/10: Meteoro sem empurrão, com stun fixo 1,25 s.
+    // 24/10: bots use the manual Attack (no spell ready, enemy within 6 m, clear line).
+    expect(hash).toBe(1496471436);
     // e mediu de verdade nessa mesma partida
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);

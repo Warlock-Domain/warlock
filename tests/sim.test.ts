@@ -103,11 +103,11 @@ describe('magias', () => {
     expect(w.events.some((e) => e.k === 'lightning')).toBe(false);
   });
 
-  it('lightning hits first wizard on the line within range', () => {
+  it('lightning hits first wizard on the line then jumps with half damage', () => {
     const w = world([[0, 0], [2.5, 0], [3.5, 0]]);
     run(w, 0.25, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(6, 0) }]);
     expect(wz(w, 1).hp).toBeLessThan(HP_MAX);
-    expect(wz(w, 2).hp).toBe(HP_MAX);
+    expect(wz(w, 2).hp).toBeLessThan(HP_MAX);
   });
 
   it('lightning does not reach past its range', () => {
@@ -269,15 +269,17 @@ describe('choque de magias', () => {
     for (let i = 0; i < 16; i++) stepWorld(w, []);
     const fb = w.projectiles[0].pos;
     const seen: string[] = [];
+    const secondary: number[] = [];
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(fb.x, fb.y) }]);
     for (let i = 0; i < 14; i++) {
       stepWorld(w, []);
       for (const e of w.events) if (e.k === 'clash') seen.push(e.combo);
+      for (const e of w.events) if (e.k === 'hit' && e.id === 'p2') secondary.push(e.dmg);
     }
     expect(seen).toContain('pulse');
     expect(seen).not.toContain('detonate');
     expect(w.projectiles.length).toBe(0);
-    expect(wz(w, 2).hp).toBe(HP_MAX);
+    expect(secondary).toEqual([35]); // salto legítimo, não detonação em área.
   });
 });
 

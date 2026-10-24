@@ -1,18 +1,19 @@
 // Demonstração animada do grimório: um canvas 2D visto de cima rodando a simulação de verdade (newWorld/stepWorld)
 // com magos de treino e um roteiro fixo em loop. Como usa os números do jogo, a demo acompanha qualquer balanceamento.
 import { SHAPES, type ArenaId } from '../shared/arena.ts';
-import { DT, OBSTACLES, PROJ_R, WIZ_R } from '../shared/constants.ts';
+import { BASIC_ATTACK, DT, OBSTACLES, PROJ_R, WIZ_R } from '../shared/constants.ts';
 import { ITEMS, noItems, type ItemId } from '../shared/items.ts';
 import { newWorld, snowR, spellOf, stepWorld, type Cmd, type SimEvent, type World } from '../shared/sim.ts';
 import { CAST_POINT, GRIP, isSpell, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, scale, v, type Vec } from '../shared/vec.ts';
-import { t } from './i18n.ts';
+import { LOCALE, spellName, t } from './i18n.ts';
+import { electroPulse } from './screen-data.ts';
 
 // alvo do passo: ponto fixo ou a posição atual do mago com esse índice
 type At = Vec | number;
-type Step = [t: number, who: number, what: SpellId | 'move', at: At];
+type Step = [t: number, who: number, what: SpellId | 'move' | 'basic', at: At];
 type Script = { pos?: Vec[]; end: number; steps: Step[]; prep?: (w: World) => void };
-export type DemoId = SpellId | ItemId | 'clash';
+export type DemoId = SpellId | ItemId | 'clash' | 'basic';
 
 const A = 0, B = 1, C = 2;
 // arena menor que a de verdade para a lava aparecer no quadro
@@ -26,8 +27,10 @@ const VINE_COLOR = '#8ed64b';
 
 // mago 0 é "você" (com a magia ou o item da página); 1 e 2 são de treino e só têm a Bola de fogo
 export const SCRIPTS: Partial<Record<DemoId, Script>> = {
+  basic: { pos: [v(-2, 0), v(-1, 0), v(4, 0)], end: 3.5, steps: [[.4, A, 'basic', B], [1.8, A, 'basic', C]], prep: (w) => { w.pillars = []; } },
   fireball: { end: 3.2, steps: [[0.4, A, 'fireball', B]] },
-  lightning: { end: 2.6, steps: [[0.4, A, 'lightning', B]] },
+  // Três inimigos mostram a cadeia100/50/25; o primeiro salto já exige o alcance fixo completo.
+  lightning: { pos: [v(-4, 0), v(-1, 0), v(4, 0), v(4, 3)], end: 3.5, steps: [[0.4, A, 'lightning', B]], prep: (w) => { w.pillars = []; for (const z of w.wizards.slice(1)) z.cd.fireball = 3; } },
   homing: { end: 3.6, steps: [[0.2, B, 'move', v(2, 4)], [0.4, A, 'homing', B]] },
   shield: { end: 2.8, steps: [[0.3, B, 'fireball', A], [0.7, A, 'shield', B]] },
   teleport: { end: 2.4, steps: [[0.3, B, 'fireball', A], [0.75, A, 'teleport', v(-3, 3.5)]] },
@@ -39,7 +42,8 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   boomerang: { end: 3.4, steps: [[0.4, A, 'boomerang', B]] },
   thrust: { end: 2.6, steps: [[0.4, A, 'thrust', B]] },
   gravity: { end: 3.4, steps: [[0.4, A, 'gravity', v(2, 0.8)]] },
-  rockpillar: { end: 2.6, steps: [[0.2, B, 'fireball', A], [0.3, A, 'rockpillar', v(-1.2, 0)]] },
+  // o terceiro fica onde a parede cai (#206): leva o golpe da queda e voa para o lado, e a parede ainda segura a Bola de fogo
+  rockpillar: { pos: [v(-3, 0), v(2, 0), v(-1.2, 0.3)], end: 2.6, steps: [[0.2, B, 'fireball', A], [0.3, A, 'rockpillar', v(-1.2, 0)]] },
   bouncer: { pos: [v(-3, 0), v(1.5, 0), v(2.5, 1.8)], end: 3, steps: [[0.4, A, 'bouncer', B]] },
   drain: { pos: [v(-3, 0), v(2, 0.6), v(2.6, -1.8)], end: 3.6, steps: [[0.4, A, 'drain', v(1.5, 0)]], prep: (w) => (w.wizards[A].hp = 700) },
   snowball: { pos: [v(-3, 0), v(-0.6, 0.1), v(0.3, -0.5)], end: 3, steps: [[0.4, A, 'snowball', v(1, 0)]] },
@@ -62,7 +66,7 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 export function demoWorld(id: DemoId): DemoState {
   const script = SCRIPTS[id]!;
   const pos = script.pos ?? [v(-3, 0), v(2, 0), v(2.6, 1.6)];
-  const ids = pos.map((_, i) => 'abc'[i]);
+  const ids = pos.map((_, i) => i < 3 ? 'abc'[i] : `demo${i}`);
   const spell = isSpell(id) ? { [id]: 1 } : {};
   const item = id in ITEMS ? { [id]: 1 } : {};
   const w = newWorld(ids, Object.fromEntries(ids.map((k, i) => [k, { ...noSpells(), ...(i === A ? spell : {}) }])), { a: { ...noItems(), ...item } }, 0, () => 0.5, false, {}, RULES, 'circle');
@@ -81,7 +85,7 @@ export function demoStep(s: DemoState) {
     const [, who, what, at] = script.steps[s.next];
     const id = w.wizards[who].id;
     const to = typeof at === 'number' ? { ...w.wizards[at].pos } : at;
-    cmds.push(what === 'move' ? { id, kind: 'move', to } : { id, kind: 'cast', spell: what, at: to });
+    cmds.push(what === 'move' ? { id, kind: 'move', to } : what === 'basic' ? { id, kind: 'basic', at: to, target: typeof at === 'number' ? w.wizards[at].id : undefined } : { id, kind: 'cast', spell: what, at: to });
   }
   stepWorld(w, cmds, () => 0.5);
   s.events = w.events;
@@ -123,6 +127,7 @@ export function drawStone(ctx: CanvasRenderingContext2D, id: ArenaId, R: number,
 }
 
 export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string[]) {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const ctx = canvas.getContext('2d')!;
   let s = demoWorld(id);
   let fx: Fx[] = [];
@@ -157,6 +162,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     const k = (Math.min(cw, ch) / 13) * dpr; // pixels por metro: a arena de 6 m inteira no quadro
     ctx.setTransform(k, 0, 0, k, canvas.width / 2, canvas.height / 2);
     drawStone(ctx, w.arena, w.arenaR, 0.08);
+    if (id === 'lightning') text(spellName('lightning'), v(0, -4.8), '#cfe8ff', .4);
     for (const z of w.zones) circle(z.pos, z.r, ZONE_COLOR[z.kind]);
     for (const p of w.pillars) if (p.alive) circle(p.pos, OBSTACLES[p.kind].r, '#8a7a6a', '#d9c3a5');
     for (const p of w.projectiles) {
@@ -184,6 +190,22 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     }
     w.wizards.forEach((z, i) => {
       if (!z.alive) return;
+      if (z.basicCasting) {
+        circle(z.pos, .6, null, '#9be7ff');
+        const left = Math.max(0, z.basicCasting.fireAt - w.t);
+        text(t('preparo ', 'windup ') + left.toLocaleString(LOCALE, { maximumFractionDigits: 1 }) + ' s', v(z.pos.x, z.pos.y + 1), '#9be7ff', .28);
+        circle(z.pos, .15 + .25 * (1 - left / BASIC_ATTACK.windup), 'rgba(155,231,255,.3)');
+      }
+      if (id === 'lightning' && i !== A) {
+        const cd = Math.max(0, z.cd.fireball - w.t).toLocaleString(LOCALE, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        text(t(`recarga: ${cd} s`, `cooldown: ${cd} s`), v(z.pos.x, z.pos.y + 1.15), '#c4a693', .25);
+      }
+      if (w.t < (z.electroUntil ?? 0)) {
+        ctx.globalAlpha = electroPulse(true, w.t, reduced);
+        circle(z.pos, WIZ_R + .2, '#6ee6ff', '#6ee6ff');
+        ctx.globalAlpha = 1;
+        text(t('lento · recargas pausadas', 'slowed · cooldowns paused'), v(z.pos.x, z.pos.y + .8), '#6ee6ff', .25);
+      }
       ctx.globalAlpha = w.t < z.windUntil || w.t < z.veilUntil ? 0.35 : 1; // no véu, quem treina ainda vê o próprio mago como no Windwalk
       if (w.t < z.shieldUntil) circle(z.pos, z.shieldR, 'rgba(255,214,102,.15)', '#ffd666');
       if (w.t < z.alterUntil) circle(z.pos, spellLevel('alteration', z.spells.alteration || 1).radius, 'rgba(110,230,255,.12)', '#6ee6ff', true);

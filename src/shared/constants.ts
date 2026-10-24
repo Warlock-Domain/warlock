@@ -29,6 +29,10 @@ export const KNOCK_HP_SCALE = 0; // 22/10: dano histórico não amplifica empurr
 export const LAVA_KB_FACTOR = 0.5;
 export const CREDIT_WINDOW = 5; // o abate vai para quem acertou nos últimos 5 s
 export const PROJ_R = 0.2;
+// Protótipo local do Leonard: ataque leve separado da build; números iniciais para teste, não balanceados.
+export const BASIC_ATTACK = { dmg: 15, knock: .8, speed: 8, range: 6, cd: .8, windup: .4, melee: 1.2 };
+export const INCAPACITATED_BIT = 268435456; // recargas pausadas; habilidades prontas continuam utilizáveis.
+export const ELECTROCUTED_BIT = 536870912; // efeito elétrico visual.
 // o projétil nasce na frente do mago, com o centro a esta distância do centro dele
 export const PROJ_SPAWN = WIZ_R + PROJ_R + 0.05;
 
@@ -52,6 +56,11 @@ export const OBSTACLES: Record<ObstacleKind, { r: number; hp: number; blastR: nu
   // Some sozinho (Pillar.until)
   rockpillar: { r: 0.35, hp: 200, blastR: 300 * UNIT, blastDmg: 10, weight: 0 },
 };
+
+// mapa da Campanha (levels.ts; Lucas, 19/10): empurrado para o abismo, o mago perde parte da vida máxima e volta à beira de
+// onde caiu; a cera deixa lento como o chão arcano (números iniciais, a medir)
+export const PIT = { hit: 0.15 };
+export const WAX = { mult: 0.6 };
 
 export const WALL_GAP = 0.65; // centro a centro dos 3 pedaços da parede: 2 × 0,65 + 2 × 0,35 = 2 m, a largura do modelo
 

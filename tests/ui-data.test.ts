@@ -4,7 +4,7 @@ import { SPELLS, SPELL_IDS, type Level } from '../src/shared/spells.ts';
 import { ITEM_GROUPS, RULES_SHORT, SPELL_GROUPS, SPELL_USE } from '../src/client/rules-text.ts';
 import { ITEM_ROWS, SPELL_ROWS } from '../src/client/tips.ts';
 import { ICON, ITEM_ICON, STATUS_ICONS } from '../src/client/icons.ts';
-import { botLevel, endResult, roomGroups, seatChanges } from '../src/client/screen-data.ts';
+import { botLevel, endResult, playerName, roomGroups, seatChanges } from '../src/client/screen-data.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../src/shared/protocol.ts';
 
 describe('loja: dados para decidir', () => {
@@ -89,6 +89,13 @@ describe('bot no lugar de quem saiu (issue #223)', () => {
     expect(botLevel(seat('a', { connected: false }), room)).toBe('veteran');
     expect(botLevel(seat('a'), room)).toBeNull();
     expect(botLevel(seat('w', { connected: false, watch: true }), room)).toBeNull();
+  });
+
+  it('marca só na tela a pessoa que caiu e está sendo controlada pelo bot', () => {
+    expect(playerName(seat('a'))).toBe('A');
+    expect(playerName(seat('a', { connected: false }))).toBe('A (BOT)');
+    expect(playerName(seat('bot-1', { bot: true, connected: false }))).toBe('BOT-1');
+    expect(playerName(seat('w', { connected: false, watch: true }))).toBe('W');
   });
 
   it('acha quem saiu e quem voltou entre dois estados da sala, sem contar bots, espectadores nem quem entrou agora', () => {

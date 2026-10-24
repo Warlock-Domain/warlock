@@ -12,11 +12,12 @@ import { RULES } from './rules-text.ts';
 import { choice, dialog, showRules, toast } from './ui.ts';
 import { radialPicker } from './radial-picker.ts';
 import { assignTauntSlot, tauntWheelSlots } from './taunt-wheel.ts';
-import { TAUNTS } from '../shared/taunts.ts';
-import { previewTaunt, stopTauntPreview } from './sound.ts';
+import { TAUNTS, tauntAudioSrc } from '../shared/taunts.ts';
+import { isAudioMuted, previewTaunt, stopTauntPreview, type Volumes, type VolumeKind } from './sound.ts';
 import { LANG, setLang, spellName, t, type Lang } from './i18n.ts';
 import { isSpell } from '../shared/spells.ts';
 import { store } from './store.ts';
+import { ilseOn, setIlse } from './ilse.ts';
 
 declare const __BUILD__: string;
 
@@ -25,15 +26,15 @@ declare const __BUILD__: string;
 export type SettingsCtx = {
   name: () => string;
   rename: () => void;
-  volumes: () => { sfx: number; music: number };
-  setVolume: (kind: 'sfx' | 'music', value: number) => void;
+  volumes: () => Volumes;
+  setVolume: (kind: VolumeKind, value: number) => void;
   fxLite?: () => boolean;
   setFxLite?: (lite: boolean) => void;
   pixel?: () => number;
   setPixel?: (size: number) => void;
   closePanels?: () => void; // um painel por vez: abrir o menu fecha os do topo
 };
-let ctx: SettingsCtx = { name: () => '', rename: () => {}, volumes: () => ({ sfx: 0, music: 0 }), setVolume: () => {} };
+let ctx: SettingsCtx = { name: () => '', rename: () => {}, volumes: () => ({ master: 0, sfx: 0, music: 0, taunts: 0 }), setVolume: () => {} };
 export function setSettingsCtx(c: SettingsCtx) {
   ctx = c;
   if (overlay) draw();
@@ -44,6 +45,9 @@ export const savedPixel = () => {
   const n = Number(store.get('warlock:pixel'));
   return n === 1 ? 2 : n === 2 || n === 3 ? n : 0;
 };
+
+// aviso ao pegar runa (issue #265): ligado por padrão para ninguém perder o aviso sem querer; quem já sabe as runas desliga
+export const runeNoticesOn = () => store.get('warlock:rune-notices') !== '0';
 
 const nameOf = (a: AnyAction) => (isPos(a) ? PAD_ACTION_NAMES[a] : a in UI_NAMES ? UI_NAMES[a as UiAction] : actionName(a as Action));
 const padActionName = (p: PadAction) => {
@@ -123,11 +127,11 @@ function castSection(): Node[] {
 }
 
 // som: lembra o volume de antes para o "Ligar o som" voltar onde estava
-let beforeMute = { sfx: 1, music: 0.7 };
+let beforeMute: Volumes = { master: 1, sfx: 1, music: 0.7, taunts: 1 };
 function soundSection(): Node[] {
   const { volumes, setVolume } = ctx;
-  const slider = (kind: 'sfx' | 'music', label: string) => {
-    const input = el('input', { type: 'range', id: 'vol-' + kind, min: 0, max: 100, step: 5, value: Math.round(volumes()[kind] * 100) }) as HTMLInputElement;
+  const slider = (kind: VolumeKind, label: string) => {
+    const input = el('input', { type: 'range', id: 'vol-' + kind, min: 0, max: 100, step: 1, value: Math.round(volumes()[kind] * 100) }) as HTMLInputElement;
     const out = el('span', { class: 'vol-value' }, input.value + '%');
     input.addEventListener('input', () => {
       out.textContent = input.value + '%';
@@ -136,16 +140,19 @@ function soundSection(): Node[] {
     });
     return el('label', { class: 'vol-row', for: 'vol-' + kind }, el('span', {}, label), input, out);
   };
-  const muted = () => volumes().sfx + volumes().music === 0;
+  const muted = () => isAudioMuted(volumes());
   const muteText = () => (muted() ? t('Ligar o som', 'Turn sound on') : t('Silenciar tudo', 'Mute all'));
   const muteBtn = el('button', { type: 'button', onclick: () => {
-    const next = muted() ? beforeMute : { sfx: 0, music: 0 };
-    if (!muted()) beforeMute = { ...volumes() };
-    setVolume('sfx', next.sfx);
-    setVolume('music', next.music);
+    if (!muted()) { beforeMute = { ...volumes() }; setVolume('master', 0); }
+    else {
+      if (volumes().sfx + volumes().music + volumes().taunts === 0) {
+        for (const kind of ['sfx', 'music', 'taunts'] as const) setVolume(kind, beforeMute[kind]);
+      }
+      setVolume('master', beforeMute.master || 1);
+    }
     draw();
   } }, muteText());
-  return [slider('sfx', t('Efeitos', 'Effects')), slider('music', t('Música', 'Music')), muteBtn];
+  return [slider('master', t('Volume geral', 'Master volume')), slider('sfx', t('Efeitos sonoros', 'Sound effects')), slider('music', t('Música', 'Music')), slider('taunts', t('Provocações', 'Taunts')), muteBtn];
 }
 
 function videoSection(): Node[] | null {
@@ -161,6 +168,15 @@ function videoSection(): Node[] | null {
     choice(t('Efeitos visuais', 'Visual effects'), [[false, t('Completo', 'Full')], [true, t('Leve', 'Light')]], fxLite(), (lite) => (setFxLite(lite), draw())),
     el('p', { class: 'muted' }, t('Leve desliga o tremor da tela, a pausa no golpe forte e as partículas extras (bom para PC fraco e para quem enjoa). Começa no Leve quando o sistema pede menos movimento.', 'Light turns off the screen shake, the hit pause on heavy blows and the extra particles (good for weak PCs and for anyone who gets motion sick). It starts on Light when the system asks for less motion.')),
     ...pixelArt,
+  ];
+}
+
+// Interface (issue #265): avisos e HUD separados de Vídeo e efeitos, que é dos gráficos, como no Dota
+function interfaceSection(): Node[] {
+  return [
+    el('h3', {}, t('Avisos', 'Notices')),
+    check('rune-notices', runeNoticesOn(), t('Avisos de runa', 'Rune notices'), (on) => store.set('warlock:rune-notices', on ? '1' : '0')),
+    el('p', { class: 'muted' }, t('Mostra o efeito da runa ao pegá-la. O ícone do efeito em cima do mago continua aparecendo.', 'Shows the rune effect when you pick it up. The effect icon above the wizard still shows.')),
   ];
 }
 
@@ -250,6 +266,7 @@ function playerSection(): Node[] {
       close();
       ctx.rename();
     } }, t('Trocar', 'Change'))),
+    check('ilse-on', ilseOn(), t('Falas da Ilse na Charneca (o tutorial da Campanha)', 'Ilse\'s lines on the Moor (the Campaign tutorial)'), setIlse),
   ];
 }
 
@@ -274,7 +291,8 @@ function communicationSection(): Node[] {
     editor.hidden = false;
     editor.replaceChildren(el('h3', {}, t(`Trocar provocação da posição ${position + 1}`, `Change taunt in slot ${position + 1}`)),
       choice(t('Escolha uma provocação', 'Choose a taunt'), TAUNTS.map((x, i) => [i, t(x.text, x.en)]), slots[position], (index) => {
-        void previewTaunt(TAUNTS[index].id).then((ok) => { if (!ok) toast(t('Não foi possível tocar esta provocação.', 'Could not play this taunt.'), 'bad'); });
+        if (tauntAudioSrc(TAUNTS[index].id)) void previewTaunt(TAUNTS[index].id).then((ok) => { if (!ok) toast(t('Não foi possível tocar esta provocação.', 'Could not play this taunt.'), 'bad'); })
+        else stopTauntPreview(); // a text-only taunt has no audio; stop a recording still previewing
         slots = assignTauntSlot(slots, position, index);
         store.set('warlock:taunt-wheel', JSON.stringify(slots));
         wheel.setLabels(labels());
@@ -296,6 +314,7 @@ const SECTIONS: Section[] = [
   { id: 'som', title: t('Som', 'Sound'), icon: UI_ICON.sound, render: soundSection },
   { id: 'comunicacao', title: t('Comunicação', 'Communication'), icon: UI_ICON.taunt, render: communicationSection },
   { id: 'video', title: t('Vídeo e efeitos', 'Video & effects'), icon: UI_ICON.video, render: videoSection },
+  { id: 'interface', title: 'Interface', icon: UI_ICON.tip, render: interfaceSection },
   { id: 'controle', title: t('Controle', 'Controller'), icon: UI_ICON.pad, render: padSection },
   { id: 'jogador', title: t('Jogador', 'Player'), icon: UI_ICON.person, render: playerSection },
   { id: 'personagem', title: t('Personagem', 'Character'), icon: UI_ICON.person, render: () => [avatarPanel()] },
@@ -306,7 +325,7 @@ const SECTIONS: Section[] = [
 // as seções empilhadas numa página, com o sumário fixo à esquerda e a seção visível destacada, como as opções do Dota 2 (issue #59 no
 // menu inicial, #70 na partida); no celular o sumário recolhe no topo. No menu inicial Personagem vira atalho para a aba dele:
 // a prévia 3D é uma só (avatarPanel) e sairia de lá
-type Page = { body: HTMLElement; grid: HTMLElement; fill: () => void; jump: (id: string) => void };
+type Page = { body: HTMLElement; grid: HTMLElement; fill: () => void; jump: (id: string) => void; dispose: () => void };
 let home: Page | null = null;
 let modal: Page | null = null; // a página dentro do diálogo da partida
 const charLink = () => [el('p', { class: 'muted' }, t('O visual do seu mago fica na aba Personagem.', 'Your wizard\'s look is in the Character tab.')),
@@ -316,13 +335,16 @@ function stackedPage(scroller: HTMLElement | null, lobby: boolean): Page {
   const body = el('div', { class: 'settings-sections' });
   const narrow = matchMedia('(max-width: 600px)');
   const toc = el('details', { class: 'settings-toc', open: !narrow.matches }, el('summary', {}, t('Sumário', 'Contents')));
-  narrow.addEventListener('change', (e) => (toc.open = !e.matches)); // girar o celular: no PC o sumário fica sempre aberto
+  const onNarrow = (e: MediaQueryListEvent) => (toc.open = !e.matches);
+  narrow.addEventListener('change', onNarrow); // girar o celular: no PC o sumário fica sempre aberto
   const mark = (id: string) => toc.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
   // a seção que passa pela faixa de cima é a destacada; depois de um clique no sumário, o destaque fica na escolhida
   // enquanto a página rola (as últimas seções nem sempre chegam ao topo)
   let hold = 0;
-  const spy = new IntersectionObserver((entries) => Date.now() > hold && entries.forEach((e) => e.isIntersecting && mark(e.target.id.slice(4))), { root: scroller, rootMargin: '0px 0px -70% 0px' });
+  let disposed = false;
+  const spy = new IntersectionObserver((entries) => !disposed && Date.now() > hold && entries.forEach((e) => e.isIntersecting && mark(e.target.id.slice(4))), { root: scroller, rootMargin: '0px 0px -70% 0px' });
   const fill = () => {
+    if (disposed) return;
     const shown = SECTIONS.map((s) => [s, lobby && s.id === 'personagem' ? charLink() : s.render()] as const).filter(([, b]) => b);
     // fill troca a página inteira: devolve o foco ao campo pelo id (quem usa teclado não perde o lugar), por isso campo novo leva id fixo
     const focusId = (document.activeElement as HTMLElement | null)?.id;
@@ -340,9 +362,15 @@ function stackedPage(scroller: HTMLElement | null, lobby: boolean): Page {
   };
   fill();
   toc.append(...SECTIONS.filter((s) => body.querySelector('#set-' + s.id)).map((s) => el('button', { type: 'button', 'data-id': s.id, onclick: () => jump(s.id) }, icon(s.icon), el('span', {}, s.title))));
-  return { body, grid: el('div', { class: 'settings-grid' }, toc, body), fill, jump };
+  return { body, grid: el('div', { class: 'settings-grid' }, toc, body), fill, jump, dispose: () => {
+    if (disposed) return;
+    disposed = true; // callbacks já enfileirados não podem reativar a página que saiu.
+    spy.disconnect();
+    narrow.removeEventListener('change', onNarrow);
+  } };
 }
 export function settingsPage(): HTMLElement {
+  home?.dispose();
   home = stackedPage(null, true);
   return el('div', { class: 'home-settings' }, el('h2', {}, t('Configurações', 'Settings')), home.grid);
 }
@@ -370,6 +398,7 @@ export function openSettings(id?: string) {
   scroller.append(modal.grid);
   // com o menu aberto o jogo não recebe teclas (o que o navegador faz com Tab, Enter e setas continua)
   ({ overlay, close } = dialog('settings', t('Configurações', 'Settings'), [scroller], { onKey, onClose: () => {
+    modal?.dispose();
     stopTauntPreview();
     waiting = null;
     if (padWaiting) waitPad(null);

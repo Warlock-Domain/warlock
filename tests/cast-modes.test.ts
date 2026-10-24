@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InputHandlers } from '../src/client/input.ts';
 import { setCastMode, setSlotMode } from '../src/client/keys.ts';
+import type { SpellId } from '../src/shared/spells.ts';
 import type { Vec } from '../src/shared/vec.ts';
 
 // janela e canvas de mentira: só guardam os ouvintes para disparar eventos à mão (os testes rodam sem navegador)
@@ -17,7 +18,8 @@ let ok = true; // false: a magia não sai (recarga ou sem a magia)
 let preview: string | null = null;
 let previewAt: Vec | undefined;
 let armed: string | null = null;
-let input: { setEnabled: (on: boolean) => void };
+let available = true;
+let input: { setEnabled: (on: boolean) => void; button: (spell: SpellId) => void };
 
 beforeAll(async () => {
   Object.assign(globalThis, { addEventListener: on(win), innerWidth: 800, innerHeight: 600 });
@@ -26,7 +28,9 @@ beforeAll(async () => {
     pick: (x, y): Vec => ({ x, y }),
     move: (to) => log.push(`move ${to.x},${to.y}`),
     stop: () => log.push('stop'),
+    basic: (at) => log.push(`basic ${at.x},${at.y}`),
     cast: (s, at) => (log.push(`cast ${s} ${at.x},${at.y}`), ok),
+    checkCooldown: () => available,
     center: () => {},
     zoom: () => {},
     pan: () => {},
@@ -42,12 +46,23 @@ beforeAll(async () => {
 });
 beforeEach(() => {
   log = [];
+  available = true;
   key('keydown', 'Escape');
   preview = armed = null;
   fire(cnv, 'pointermove', { clientX: 300, clientY: 200 });
 });
 
 describe('jeitos de lançar no PC', () => {
+  it('A arma Atacar; clique esquerdo envia uma ordem manual', () => {
+    key('keydown', 'KeyA');
+    expect(log).toEqual([]);
+    click(0, 30, 40);
+    expect(log).toEqual(['basic 30,40']);
+  });
+  it.each(['Escape', 'KeyS', 'KeyQ'])('%s cancela Atacar escolhido', (code) => {
+    key('keydown', 'KeyA'); key('keydown', code); click(0);
+    expect(log.some((s) => s.startsWith('basic'))).toBe(false);
+  });
   it.each(['blur', 'pointercancel'])('não envia movimento fantasma após %s interromper o botão direito', (event) => {
     vi.spyOn(performance, 'now').mockReturnValue(1000000 + performance.now());
     click(2);
@@ -149,7 +164,19 @@ describe('jeitos de lançar no PC', () => {
     key('keydown', 'KeyQ');
     key('keydown', 'Escape');
     expect(armed).toBeNull();
-    click(0, 1, 2); // a remoção do movimento pelo esquerdo será outra PR.
-    expect(log.at(-1)).toBe('move 1,2');
+    click(0, 1, 2); // sem magia escolhida, o clique esquerdo não envia comando.
+    expect(log).toEqual(['cast fireball 40,50', 'move 70,80']);
+  });
+
+  it('não seleciona uma magia em recarga pelo botão nem pela tecla', () => {
+    setCastMode('click');
+    key('keydown', 'KeyQ');
+    expect(armed).toBe('fireball');
+    available = false;
+    input.button('lightning');
+    expect(armed).toBeNull();
+    key('keydown', 'KeyQ');
+    expect(armed).toBeNull();
+    expect(log).toEqual([]);
   });
 });

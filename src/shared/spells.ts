@@ -35,7 +35,7 @@ const steps = (from: number, by: number) => Array.from({ length: MAX_SPELL_LEVEL
 
 export const SPELLS: Record<SpellId, Spell> = {
   fireball: { name: 'Bola de fogo', en: 'Fireball', cost: 0, up: [7, 7, 7, 7, 7, 7], levels: [70, 77, 84, 91, 98, 105, 112].map((d) => L({ cd: 4.8, dmg: d, speed: 1000 * UNIT, range: 1000 * UNIT })) },
-  lightning: { name: 'Raio', en: 'Lightning', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 15.5, 15, 14.5, 14, 13.5, 13], [70, 78, 86, 94, 102, 110, 118]).map(([cd, d]) => L({ cd: Math.round(cd * 14) / 10, dmg: d, kbf: 0.92, range: 800 * UNIT })) /* números pelo simulador (18/10, escolha do Fernando): recarga ×1,4 (1,32 → 1,13) */ }, // balanceamento de 17/10: recarga ×0,7 e alcance 600 → 800 (acertava 21%)
+  lightning: { name: 'Eletrocutar', en: 'Electrocute', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 15.5, 15, 14.5, 14, 13.5, 13], [70, 78, 86, 94, 102, 110, 118]).map(([cd, d]) => L({ cd: Math.round(cd * 14) / 10, dmg: d, kbf: 0.92, range: 800 * UNIT })) /* números pelo simulador (18/10, escolha do Fernando): recarga ×1,4 (1,32 → 1,13) */ }, // balanceamento de 17/10: recarga ×0,7 e alcance 600 → 800 (acertava 21%)
   homing: { name: 'Míssil teleguiado', en: 'Homing Missile', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [70, 80, 90, 100, 110, 120, 130]).map(([cd, d]) => L({ cd, dmg: d * 0.34, speed: 1000 * UNIT, duration: 4.5 })) /* números pelo simulador (18/10): dano ×0,34 e curva 3 → 2,5 rad/s (1,34 → 1,13) */ },
   shield: { name: 'Escudo', en: 'Shield', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [14, 13, 12, 11, 10, 9, 8].map((cd, i) => L({ cd: (cd * 16) / 14 /* 19/10, escolha do Fernando: 14 → 16 s no nível 1 (Difícil 1,18 → 1,16; Normal 0,96 → 0,97) */, duration: 1.2, radius: (200 + 10 * i) * UNIT })) }, // original (Fernando, 18/10: volta ao original até ter partidas reais; nos bots vence 46% acima do justo, eles reagem melhor que gente) // bolha de 200 a 260 (abil.txt do original)
   teleport: { name: 'Teleporte', en: 'Teleport', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([16, 13.5, 11.5, 10, 9, 8, 7], [770, 840, 910, 980, 1050, 1120, 1190]).map(([cd, r]) => L({ cd: cd * 1.1, range: r * UNIT })) }, // 18/10 com as ilhas de refúgio: recarga ×1,1 (18% acima do justo no Normal)
@@ -45,8 +45,8 @@ export const SPELLS: Record<SpellId, Spell> = {
   // Agarrar em área (decisão do Fernando, 21/10, #168): cipós com raio de 1,5 m no ponto mirado, sem simulador (exceção como a Ilusão); duration é o tempo preso.
   // Agarrar prende metade do tempo do original (nerf pedido pelo Fernando, 17/10)
   grip: { name: 'Agarrar', en: 'Grip', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [24, 19, 15, 12, 10, 8.5, 7].map((cd, i) => L({ cd: cd * 0.8, duration: 2.25, radius: 1.5, range: 1100 * UNIT, scale: steps(0.3, 0.1)[i] })) /* 18/10: tempo preso fixo, preso sem proteção de empurrão (0,81 → 0,91); Agarrar novo (18/10): scale = empurrão a mais do golpe que solta, +30% a +90% */ },
-  // meteoro: dano de 40 na borda (aqui 60) até o máximo no centro; empurrão 0,66
-  meteor: { name: 'Meteoro', en: 'Meteor', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([20, 19.5, 19, 18.5, 18, 17.5, 17], [110, 120, 130, 140, 150, 160, 170]).map(([cd, d], i) => L({ cd: cd * 0.9, dmg: d, dmgMin: 60, kbf: 0.66, /* ciclo 1: recarga ×0,9 (0,94×) */ /* borda 40 → 60 em 17/10 */ radius: [225, 240, 255, 269, 282, 294, 304][i] * UNIT, range: 1000 * UNIT })) },
+  // Teste local 22/10: dano preservado, mas troca empurrão por 1,25 s de atordoamento em todos os níveis.
+  meteor: { name: 'Meteoro', en: 'Meteor', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([20, 19.5, 19, 18.5, 18, 17.5, 17], [110, 120, 130, 140, 150, 160, 170]).map(([cd, d], i) => L({ cd: cd * 0.9, dmg: d, dmgMin: 60, kbf: 0, duration: 1.25, /* ciclo 1: recarga ×0,9 (0,94×) */ /* borda 40 → 60 em 17/10 */ radius: [225, 240, 255, 269, 282, 294, 304][i] * UNIT, range: 1000 * UNIT })) },
   // investida: absorve até `absorb` de dano (metade de cada golpe) e vira velocidade
   rush: { name: 'Investida', en: 'Rush', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([21, 20, 19, 18, 17, 16, 15], [6, 6.5, 7, 7.5, 8, 8.5, 9]).map(([cd, duration], i) => L({ cd: cd * 1.2, duration, absorb: (50 + 20 * i) * 0.25 })) }, // 18/10: absorve ¼ e recarga ×1,2; avanço 40 → 20 (1,36 → 1,13)
   // rajada: 4 projéteis em leque de 844 u/s e 672 u de alcance; empurrão 0,65
@@ -59,7 +59,7 @@ export const SPELLS: Record<SpellId, Spell> = {
   // gravidade: orbe de 450 u/s por 900 u; dmg = dano por segundo em quem está a 250 u; pull = força em 550 u (sem empurrão)
   gravity: { name: 'Gravidade', en: 'Gravity', cost: 12, up: [7, 8, 9, 10, 11, 12], levels: zip([21, 20.5, 20, 19.5, 19, 18.5, 18], [20, 33.33, 46.67, 60, 73.33, 86.67, 100]).map(([cd, d], i) => L({ cd, dmg: d * 2, kbf: 0, speed: 450 * UNIT, range: 900 * UNIT, radius: 250 * UNIT, /* 18/10: dano por segundo ×2 (0,89 → 0,97) */ pull: (500 + 30 * i) * UNIT })) },
   // pilar de pedra: obstáculo de 4 s no original a até 650..1100 u; recarga = AbilityCooldown (o cooldown2 do mesmo arquivo diz 24..12 e só aparece na dica)
-  rockpillar: { name: 'Barricada', en: 'Barricade', cost: 13, up: [5, 6, 7, 8, 9, 10], levels: zip([26, 24, 22, 20, 18, 16, 14], [650, 725, 800, 875, 950, 1025, 1100]).map(([cd, r]) => L({ cd: cd * 0.7, duration: 5, range: r * UNIT })) /* 18/10: recarga ×0,7 e 5 s (0,86 → 0,97) */ },
+  rockpillar: { name: 'Barricada', en: 'Barricade', cost: 13, up: [5, 6, 7, 8, 9, 10], levels: zip([26, 24, 22, 20, 18, 16, 14], [650, 725, 800, 875, 950, 1025, 1100]).map(([cd, r]) => L({ cd: cd * 0.7, duration: 5, range: r * UNIT, dmg: 50 })) /* 18/10: recarga ×0,7 e 5 s (0,86 → 0,97); 22/10 (#206): cai do céu e dá 50 em quem está embaixo, com o empurrão do dano */ },
   // ricochete: 900 u/s, vive 1 s e renova a cada mago tocado; perde 30% a cada inimigo acertado; empurrão 1,2
   bouncer: { name: 'Ricochete', en: 'Bouncer', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([19, 18, 17, 16, 15, 14, 13], [54, 62, 70, 78, 86, 94, 102]).map(([cd, d]) => L({ cd, dmg: d, kbf: 1.2, speed: 900 * UNIT, range: 900 * UNIT })) },
   // as dez restantes do Warlock Brawl (dono do jogo, 17/10): npc_abilities_custom.txt, base/shop.lua, spells/, projectiles/ e modifiers/
@@ -116,10 +116,11 @@ export const BOOMERANG = { side: 300 * UNIT, minDist: 300 * UNIT, back: 1000 * U
 // Raio: além do corpo do mago, pega quem passa a `width` da linha (21/10, exceção decidida pelo Fernando sem passar pelo simulador:
 // "o hitbox ainda está muito fino"; antes só quem o corpo cruzava a linha)
 // A ampliação visual da destruição fica na cena, sem alterar o feixe ou os eventos da simulação.
-export const LIGHTNING = { width: 0.15, destroysProjectiles: true, destroyFxRadius: .6 }; // teste local: limpa o trajeto sem ser consumido por projéteis.
-// Stats gerais de colisão: null é área/efeito persistente; plain se anula sem criar dano extra de combinação.
+export const LIGHTNING = { width: 0.15, destroysProjectiles: true, destroyFxRadius: .6, jumpPower: .5, debuffDuration: 2, slow: .25 }; // protótipo local: alcance fixo, potência×.5;2s de lentidão25% e pausa das recargas.
+// Stats gerais: null é efeito persistente; plain se anula; fragile some no choque sem destruir o outro projétil.
 // Os elementos antigos conservam seus efeitos; não há exceção entre pares de nomes de magia.
 export const PROJECTILE_COLLISION = {
+  basic: 'fragile',
   fireball: 'fire', homing: 'pulse', cluster: 'plain', swap: 'plain', boomerang: 'plain', gravity: 'plain',
   bouncer: 'plain', drain: 'plain', snowball: 'plain', magnetize: 'plain', recharge: 'plain', link: 'plain',
   splitter: 'plain', shard: 'plain', grip: null, meteor: null, illusion: null, warpzone: null,
@@ -153,7 +154,10 @@ export const CAST_POINT: Record<SpellId, number> = { fireball: 0.1, lightning: 0
   drain: 0.1, snowball: 0.1, illusion: 0, magnetize: 0.1, recharge: 0.1, alteration: 0, link: 0.1, windwalk: 0, splitter: 0, warpzone: 0.1,
   scourge: 0.5, pact: 0.1 }; // Flagelo: o preparo de 0,5 s do item (0,9 s no original; Fernando, 17/10) // Alteração, Caminhada e Divisor: 0 no original; Ilusão 0 (defesa, como o Escudo) // original 0,2 s (Estocada 0); 0,1 s a pedido do Fernando (17/10)
 
-export const spellLevel = (id: SpellId, level: number): Level => SPELLS[id].levels[Math.max(1, Math.min(MAX_SPELL_LEVEL, level)) - 1];
+// tabela de níveis própria de um modo (World.book; hoje só a Campanha, em campaign.ts): o que não está nela vem de SPELLS.
+// Assim mudar magia na Campanha não mexe nos outros modos, e quem lê número de magia passa o book do mundo
+export type SpellBook = Partial<Record<SpellId, Level[]>>;
+export const spellLevel = (id: SpellId, level: number, book?: SpellBook): Level => (book?.[id] ?? SPELLS[id].levels)[Math.max(1, Math.min(MAX_SPELL_LEVEL, level)) - 1];
 
 // preço para subir do nível atual para o próximo; null = já no máximo
 export function priceOf(id: SpellId, level: number): number | null {
