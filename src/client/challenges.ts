@@ -5,6 +5,7 @@ import type { BotSetup } from '../shared/protocol.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import type { SpellId } from '../shared/spells.ts';
 import { t } from './i18n.ts';
+import { isSavedNumber, readNumberMap } from './saved-data.ts';
 import { store } from './store.ts';
 
 // bots: quantos; setup: um por bot (mesmo vazio, para a rodada sair marcada na telemetria e não somar no perfil);
@@ -67,11 +68,16 @@ export function runText(r: Run): string {
 }
 
 const KEY = 'warlock:challenges';
-export const bestOf = (id: string): number | null => store.json<Record<string, number>>(KEY)?.[id] ?? null;
+export function bestOf(id: string): number | null {
+  const scores = readNumberMap(store.json(KEY));
+  return Object.hasOwn(scores, id) ? scores[id] : null;
+}
 // more: maior é melhor; true = recorde novo (guardado)
 export function saveBest(id: string, score: number, more: boolean): boolean {
-  const old = bestOf(id);
+  if (!isSavedNumber(score)) return false;
+  const scores = readNumberMap(store.json(KEY));
+  const old = Object.hasOwn(scores, id) ? scores[id] : null;
   if (old !== null && (more ? score <= old : score >= old)) return false;
-  store.set(KEY, JSON.stringify({ ...store.json<Record<string, number>>(KEY), [id]: score }));
+  store.set(KEY, JSON.stringify({ ...scores, [id]: score }));
   return true;
 }

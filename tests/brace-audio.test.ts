@@ -32,12 +32,12 @@ describe('gravação do aviso de Manter base', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     sound.play(kind);
     {
-      expect(fetch.mock.calls.some(([src]) => src === '/sfx/brace_whoosh_trial.mp3')).toBe(true);
+      expect(fetch.mock.calls.some(([src]) => src === '/sfx/brace_start.mp3')).toBe(true);
       expect(fetch.mock.calls.some(([src]) => src === '/sfx/sonic_boom.mp3')).toBe(false);
-      expect(oscillators).toHaveLength(0); // aviso usa gravação real, não a síntese recusada.
+      expect(oscillators).toHaveLength(0); // the cue uses the recording, not synthesis
       expect(sources).toHaveLength(1);
       expect(sources[0].playbackRate.value).toBe(1);
-      expect(sources[0].start).toHaveBeenCalledWith(); // arquivo escolhido inteiro, sem recorte do estrondo anterior.
+      expect(sources[0].start).toHaveBeenCalledWith(); // plays the whole file
     }
     const count = oscillators.length + sources.length;
     sound.setVolume('sfx', 0);

@@ -7,6 +7,7 @@ import { bracingActive, incapacitatedUntil, isStunned, newWorld, snowR, spellOf,
 import { CAST_POINT, GRIP, METEOR_DELAY, SHIELD, isSpell, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, scale, v, type Vec } from '../shared/vec.ts';
 import { LOCALE, spellName, t } from './i18n.ts';
+import { n1 } from './rules-text.ts';
 import { electroPulse } from './screen-data.ts';
 import { HEAL_FX, healAura } from './heal-fx.ts';
 import { GEYSER_FX } from './geyser-fx.ts';
@@ -58,7 +59,8 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   boomerang: { end: 3.4, steps: [[0.4, A, 'boomerang', B]] },
   thrust: { end: 2.6, steps: [[0.4, A, 'thrust', B]] },
   gravity: { end: 3.4, steps: [[0.4, A, 'gravity', v(2, 0.8)]] },
-  rockpillar: { end: 2.6, steps: [[0.2, B, 'fireball', A], [0.3, A, 'rockpillar', v(-1.2, 0)]] },
+  // o terceiro fica onde a parede cai (#206): leva o golpe da queda e voa para o lado, e a parede ainda segura a Bola de fogo
+  rockpillar: { pos: [v(-3, 0), v(2, 0), v(-1.2, 0.3)], end: 2.6, steps: [[0.2, B, 'fireball', A], [0.3, A, 'rockpillar', v(-1.2, 0)]] },
   bouncer: { pos: [v(-3, 0), v(1.5, 0), v(2.5, 1.8)], end: 3, steps: [[0.4, A, 'bouncer', B]] },
   drain: { pos: [v(-3, 0), v(2, 0.6), v(2.6, -1.8)], end: 3.6, steps: [[0.4, A, 'drain', v(1.5, 0)]], prep: (w) => (w.wizards[A].hp = 700) },
   snowball: { pos: [v(-3, 0), v(-0.6, 0.1), v(0.3, -0.5)], end: 3, steps: [[0.4, A, 'snowball', v(1, 0)]] },
@@ -82,10 +84,10 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 export function demoStatus(w: World, z: Wizard): string[] {
   if (w.t < (z.closedBodyUntil ?? 0) && bracingActive(w,z)) return [t('Corpo fechado · dano/empurrão/status −90%', 'Closed Body · damage/knockback/status −90%')];
   if ((z.geyserLeft ?? 0) > 0) return [t('suspenso · invulnerável · sem ações', 'suspended · invulnerable · no actions')];
-  const left = (until: number) => Math.max(0, until - w.t).toLocaleString(LOCALE, { maximumFractionDigits: 1 });
+  const left = (until: number) => n1(Math.max(0, until - w.t));
   const labels: string[] = [];
   if (w.t < z.shieldUntil) labels.push(t(`dano 0 · empurrão/status ${Math.round(SHIELD.knock * 100)}%`, `damage 0 · knockback/status ${Math.round(SHIELD.knock * 100)}%`));
-  if (isStunned(z)) labels.push(z.stunLeft === undefined ? t('atordoado durante o deslize · sem ações', 'stunned while sliding · no actions') : t(`atordoado ${Math.max(0, z.stunLeft).toLocaleString(LOCALE, { maximumFractionDigits: 1 })} s · sem ações`, `stunned ${Math.max(0, z.stunLeft).toLocaleString(LOCALE, { maximumFractionDigits: 1 })} s · no actions`));
+  if (isStunned(z)) labels.push(z.stunLeft === undefined ? t('atordoado durante o deslize · sem ações', 'stunned while sliding · no actions') : t(`atordoado ${n1(Math.max(0, z.stunLeft))} s · sem ações`, `stunned ${n1(Math.max(0, z.stunLeft))} s · no actions`));
   if (w.t < z.gripUntil) labels.push(t(`preso ${left(z.gripUntil)} s · sem mobilidade`, `gripped ${left(z.gripUntil)} s · no mobility`));
   if (w.t < z.slowUntil || z.zone & 1 || w.t < (z.electroUntil ?? 0)) labels.push(t('lentidão · caminhada reduzida', 'slow · reduced walking speed'));
   if (w.t < incapacitatedUntil(z, w.t)) labels.push(t('incapacitado · recargas pausadas', 'incapacitated · cooldowns paused'));
@@ -242,7 +244,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       if (z.basicCasting) {
         circle(z.pos, .6, null, '#9be7ff');
         const left = Math.max(0, z.basicCasting.fireAt - w.t);
-        text(t('preparo ', 'windup ') + left.toLocaleString(LOCALE, { maximumFractionDigits: 1 }) + ' s', v(z.pos.x, z.pos.y + 1), '#9be7ff', .28);
+        text(t('preparo ', 'windup ') + n1(left) + ' s', v(z.pos.x, z.pos.y + 1), '#9be7ff', .28);
         circle(z.pos, .15 + .25 * (1 - left / BASIC_ATTACK.windup), 'rgba(155,231,255,.3)');
       }
       if ((id === 'lightning' && i !== A) || (id === 'brace' && i === A)) {
@@ -263,6 +265,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       if (bracingActive(w, z)) {
         circle(z.pos, WIZ_R + .12, null, '#9be7ff');
         // Silhueta esquemática de braço apoiado: a pose 3D continua sendo a do jogo, não reproduzida por este canvas.
+        // schematic braced arm: short stub up-right of the body, thin enough not to hide the wizard on the small canvas
         line(z.pos, add(z.pos, v(.55, .3)), '#9be7ff', .12);
         circle(add(z.pos, v(.55, .3)), .1, '#9be7ff');
       }

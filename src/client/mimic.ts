@@ -2,6 +2,8 @@
 // e cada métrica vira a força de uma parte do bot, comparada com o que os bots fazem em cada dificuldade (REF).
 import { skillAt, type BotSkill } from '../shared/bots.ts';
 import type { Stat } from '../shared/match.ts';
+import { store } from './store.ts';
+import { isRecord, isSavedNumber } from './saved-data.ts';
 import { DELAY } from './interp.ts';
 
 export const PROFILE_KEY = 'warlock:perfil';
@@ -10,6 +12,15 @@ export type Profile = {
   n: number; fired: number; landed: number; alive: number; threats: number; struck: number; shieldable: number; shielded: number;
   reactSum: number; reactN: number; nearSum: number; nearN: number; rtt: number;
 };
+export function readProfile(value: unknown): Profile | null {
+  if (!isRecord(value)) return null;
+  const { n, fired, landed, alive, threats, struck, shieldable, shielded, reactSum, reactN, nearSum, nearN, rtt } = value;
+  if (!isSavedNumber(n) || !Number.isSafeInteger(n) || n >= Number.MAX_SAFE_INTEGER || !isSavedNumber(fired) || !isSavedNumber(landed)
+    || !isSavedNumber(alive) || !isSavedNumber(threats) || !isSavedNumber(struck) || !isSavedNumber(shieldable) || !isSavedNumber(shielded)
+    || !isSavedNumber(reactSum) || !isSavedNumber(reactN) || !isSavedNumber(nearSum) || !isSavedNumber(nearN) || !isSavedNumber(rtt)) return null;
+  return { n, fired, landed, alive, threats, struck, shieldable, shielded, reactSum, reactN, nearSum, nearN, rtt };
+}
+export const savedProfile = () => readProfile(store.json(PROFILE_KEY));
 const SUMS = ['alive', 'threats', 'struck', 'shieldable', 'shielded', 'reactSum', 'reactN', 'nearSum', 'nearN'] as const;
 const DECAY = 0.9; // cada rodada vale 90% da seguinte: pesa a forma recente
 
