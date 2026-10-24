@@ -1,19 +1,19 @@
 // Sounds: recorded files, each with its license or owner acceptance in public/CREDITS.txt, and, while they load or if they are
-// missing, sounds synthesized on the fly (Web Audio). Music and lava crackle loop. The browser only unlocks audio after a tap.
+// missing, sounds synthesized on the fly (Web Audio). Music loops. The browser only unlocks audio after a tap.
 import { tauntAudioSrc } from '../shared/taunts.ts';
 import { audioLevel, layerVolume } from './audio-level.ts';
 import { store } from './store.ts';
 
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
-  | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover' | 'brace' | 'heal';
+  | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover' | 'brace' | 'heal' | 'closedbody' | 'closedbodyEnd' | 'sand';
 
 const FILES: Partial<Record<SoundKind, string[]>> = {
-  brace: ['brace_start'],
+  brace: ['brace_start'], closedbody: ['closed_body_start'], closedbodyEnd: ['closed_body_end'],
   fireball: ['fireball'], lightning: ['lightning'], homing: ['homing'], shield: ['shield'], teleport: ['teleport'],
   hit: ['hit', 'explode'], hitLight: ['hit'], hitHeavy: ['hit', 'explode'], reflect: ['shield'], death: ['explode'], go: ['confirm'],
 };
 // recordings that always play at their original speed (the timbre was chosen that way)
-const STEADY = new Set(['brace_start']);
+const STEADY = new Set(['brace_start', 'closed_body_start', 'closed_body_end']);
 // golpe fraco mais agudo, golpe forte mais grave
 const RATE: Partial<Record<SoundKind, number>> = { hitLight: 1.25, hitHeavy: 0.78 };
 
@@ -51,7 +51,6 @@ export function createSound(musicDefault?: number) {
   const music = new Audio('/music/battle.mp3');
   music.loop = true;
   music.preload = 'none'; // só baixa quando a partida toca (o lobby também cria o som, para o hover e o clique)
-  let lava: AudioBufferSourceNode | null = null;
   let wantAmbience = false;
   let duck = 1; // na loja a música abaixa um pouco
 
@@ -88,7 +87,7 @@ export function createSound(musicDefault?: number) {
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
       // Pré-renderiza a síntese fora do caminho de reprodução para medi-la pelo mesmo critério dos arquivos.
       if (typeof OfflineAudioContext !== 'undefined') {
-        const kinds: SoundKind[] = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'hit', 'hitLight', 'hitHeavy', 'reflect', 'death', 'splash', 'shrink', 'beep', 'go', 'click', 'winRound', 'loseRound', 'buy', 'error', 'ready', 'hover', 'heal'];
+        const kinds: SoundKind[] = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'hit', 'hitLight', 'hitHeavy', 'reflect', 'death', 'splash', 'shrink', 'beep', 'go', 'click', 'winRound', 'loseRound', 'buy', 'error', 'ready', 'hover', 'heal', 'sand'];
         for (const kind of kinds) {
           const offline = new OfflineAudioContext(1, ctx.sampleRate * 2, ctx.sampleRate);
           synth(kind, 1, offline, offline.destination);
@@ -99,7 +98,7 @@ export function createSound(musicDefault?: number) {
           }).catch(() => {}); // a síntese imediata continua disponível enquanto prepara.
         }
       }
-      const names = new Set([...Object.values(FILES).flat(), 'lava_loop']);
+      const names = new Set(Object.values(FILES).flat());
       void Promise.all([...names].map((name) => load(name))).then(syncAmbience);
     }
     if (ctx.state === 'suspended') void ctx.resume();
@@ -108,7 +107,7 @@ export function createSound(musicDefault?: number) {
   addEventListener('pointerdown', unlock);
   addEventListener('keydown', unlock);
 
-  // música e lava tocam só dentro da partida e com som ligado
+  // music plays only inside a match with sound on; the continuous lava crackle was removed (owner decision, 24/10)
   function syncAmbience() {
     const vol = volumes();
     if (master) master.gain.value = 0.6 * channelVolume(vol, 'sfx');
@@ -125,20 +124,6 @@ export function createSound(musicDefault?: number) {
     }
     if (on && channelVolume(vol, 'music') > 0) void music.play().catch(() => {});
     else music.pause();
-    const buf = buffers.get('lava_loop');
-    if (on && vol.sfx > 0 && buf && !lava) {
-      const src = ctx!.createBufferSource();
-      src.buffer = buf;
-      src.loop = true;
-      const gain = ctx!.createGain();
-      gain.gain.value = 0.12;
-      src.connect(gain).connect(master!);
-      src.start();
-      lava = src;
-    } else if ((!on || vol.sfx === 0) && lava) {
-      lava.stop();
-      lava = null;
-    }
   }
 
   function file(name: string, volume: number, rate = 1) {
@@ -190,6 +175,7 @@ export function createSound(musicDefault?: number) {
     const playTone = (type: OscillatorType, f0: number, f1: number, dur: number, gain: number, at = 0) => toneAt(type, f0, f1, dur, gain, at, c, output);
     const playHiss = (type: BiquadFilterType, f0: number, f1: number, dur: number, gain: number, at = 0) => hissAt(type, f0, f1, dur, gain, at, c, output);
       switch (kind) {
+      case 'sand': playHiss('bandpass',1800,600,.4,.4*v); break;
         // Rounded harmonics, soft attack and vibrato imitate an "ooh" choir, with no external recording.
         case 'heal':
           [261.63, 329.63, 392].forEach((note, voice) => {

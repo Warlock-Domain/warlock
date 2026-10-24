@@ -3,7 +3,7 @@ import { createSound } from '../src/client/sound.ts';
 
 afterEach(() => vi.unstubAllGlobals());
 describe('clique de menu com tambor sintetizado', () => {
-  it.each(['click', 'heal'] as const)('som original %s sintetizado, respeitando volume e mudo', async (kind) => {
+  it.each(['click', 'heal', 'closedbody', 'closedbodyEnd'] as const)('som original %s sintetizado, respeitando volume e mudo', async (kind) => {
     const listeners = new Map<string, () => void>();
     const oscillators: { type: string; frequency: { setValueAtTime: ReturnType<typeof vi.fn> }; stop: ReturnType<typeof vi.fn> }[] = [];
     const sources: { start: ReturnType<typeof vi.fn>; playbackRate: { value: number } }[] = [];
@@ -37,12 +37,19 @@ describe('clique de menu com tambor sintetizado', () => {
       expect(oscillators.map((o) => o.type)).toEqual(['sine', 'sine']);
       expect(oscillators[0].frequency.setValueAtTime).toHaveBeenCalledWith(180, 0);
       expect(oscillators.every((o) => o.stop.mock.calls[0][0] <= .2)).toBe(true);
-    } else {
+    } else if (kind === 'heal') {
       expect(fetch.mock.calls.some(([src]) => src === '/sfx/heal.mp3')).toBe(false);
       expect(oscillators).toHaveLength(24); // três vozes, quatro harmônicos e um vibrato por harmônico.
       expect(oscillators.every(o => o.type === 'sine')).toBe(true);
       expect(oscillators[0].frequency.setValueAtTime).toHaveBeenCalledWith(261.63, 0);
       expect(oscillators.every(o => o.stop.mock.calls[0][0] <= 1.71)).toBe(true);
+    } else {
+      const path = kind === 'closedbody' ? '/sfx/closed_body_start.mp3' : '/sfx/closed_body_end.mp3';
+      expect(fetch.mock.calls.some(([src]) => src === path)).toBe(true);
+      expect(oscillators).toHaveLength(0); // the cue is a real recording, not synthesis
+      expect(sources).toHaveLength(1);
+      expect(sources[0].playbackRate.value).toBe(1);
+      expect(sources[0].start).toHaveBeenCalledWith(); // the whole chosen file, untrimmed
     }
     const count = oscillators.length + sources.length;
     sound.setVolume('sfx', 0);

@@ -33,6 +33,7 @@ import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
 import { distanceVolume } from './sound-distance.ts';
+import { closedBodySound } from './closed-body-sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
@@ -70,9 +71,11 @@ const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 
 // som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
+  closedbody: 'closedbody',
+  geyser: 'splash',
   heal: 'heal',
   fireball: 'fireball', lightning: 'lightning', homing: 'homing', shield: 'shield', teleport: 'teleport',
-  swap: 'teleport', grip: 'lightning', meteor: 'fireball', rush: 'shield', cluster: 'fireball',
+  swap: 'teleport', grip: 'lightning', meteor: 'fireball', rush: 'shield', cluster: 'sand',
   boomerang: 'homing', thrust: 'teleport', gravity: 'homing', rockpillar: 'shield', bouncer: 'lightning',
   drain: 'homing', snowball: 'fireball', illusion: 'teleport', magnetize: 'lightning', recharge: 'homing',
   alteration: 'teleport', link: 'lightning', windwalk: 'shield', splitter: 'fireball', warpzone: 'shield',
@@ -409,6 +412,7 @@ function startRoom(code: string, name: string) {
       return scene.pick(x, y);
     },
     move(to, held = false) {
+      if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       if ((myWizard(interp.latest())?.status ?? 0) & BRACING_BIT) return;
       command({ t: 'move', x: to.x, y: to.y, held });
       predict.move(to);
@@ -420,6 +424,7 @@ function startRoom(code: string, name: string) {
     pickAttack: (x, y) => scene.pickMage(x, y),
     attackArmedChanged: (on) => { canvas.style.cursor = on ? 'crosshair' : ''; },
     basic(at, clicked) {
+      if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       if ((myWizard(interp.latest())?.status ?? 0) & 16) return;
       const target = clicked?.endsWith('~ilusao') ? interp.latest()?.projectiles.find((q) => q.kind === 'illusion' && room?.ids[q.vel.x] === clicked.slice(0, -7))?.id : clicked;
       command({ t: 'basic', x: at.x, y: at.y, target });
@@ -433,10 +438,12 @@ function startRoom(code: string, name: string) {
       scourgeUntil = 0; // o S cancela o Flagelo em preparo
     },
     cast(spell, at) {
+      if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       const mine = room?.players.find((p) => p.id === me);
       if (!mine?.spells[spell]) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
       if (!checkCooldown(spell)) return;
       const state = myWizard(interp.latest())?.status ?? 0;
+      if (spell === 'closedbody' && !(state & BRACING_BIT)) return toast(t('Ative Manter base antes de usar Corpo fechado.', 'Activate Hold Ground before using Closed Body.'));
       if (castBlocked(!!(state & 16), !!(state & 128), spell)) return;
       if (spell === 'heal') {
         const units = interp.latest()?.wizards.map(w => ({ ...w, team: room?.players.find(p => p.id === w.id)?.team })) ?? [];
@@ -456,8 +463,8 @@ function startRoom(code: string, name: string) {
       // Hold movement during casting; the server applies the same delay.
       predict.hold(CAST_POINT[spell]);
       scene.castLocal(me, spell, at);
-      if (spell !== 'heal') scene.clickMarker(at, true); // the orange attack marker does not belong to Heal
-      if (spell !== 'heal') sound.play(SPELL_SOUND[spell]); // Heal plays once, on confirmation, at the target
+      if (spell !== 'heal' && spell !== 'closedbody') scene.clickMarker(at, true); // the orange attack marker does not belong to Heal or Closed body
+      if (spell !== 'heal' && spell !== 'closedbody') sound.play(SPELL_SOUND[spell]); // Heal plays once, on confirmation, at the target
       return true;
     },
     center: () => {
@@ -623,7 +630,7 @@ function startRoom(code: string, name: string) {
       if (e.k === 'hit' && e.id === me && e.dmg >= 60) rumble(Math.min(1, e.dmg / 160), 200);
       else if (e.k === 'death' && e.id === me) rumble(1, 500);
       if (e.k === 'heal') sound.play('heal', near(e.x, e.y));
-      else if (e.k === 'cast' && e.id !== me && e.spell !== 'heal') {
+      else if (e.k === 'cast' && e.id !== me && e.spell !== 'heal' && e.spell !== 'closedbody') {
         sound.play(SPELL_SOUND[e.spell], volumeOf(e.id));
       } else if (e.k === 'hit') sound.play(e.dmg >= 100 ? 'hitHeavy' : e.dmg < 50 ? 'hitLight' : 'hit', near(e.x, e.y));
       else if (e.k === 'pillar') sound.play('hit', near(e.x, e.y) * 0.6);
@@ -802,6 +809,11 @@ function startRoom(code: string, name: string) {
       }
       return;
     }
+    // Percorre os ids, não só cb: o campo some no último término. Invisibilidade não denuncia posição.
+    room?.ids.forEach((id, i) => {
+      const cue = closedBodySound(lastSnap?.cb?.[i], m.cb?.[i]);
+      if (cue && !(m.w[i * 7 + 6] & 2048)) sound.play(cue, volumeOf(id));
+    });
     lastSnap = m;
     predict.setSpeed(m.sp);
     const acked = sentAt.get(m.ack);
@@ -951,6 +963,7 @@ function startRoom(code: string, name: string) {
     else if (training && room) view.coach(meP ? coachTip({ phase: room.phase, round: room.round, playingFor: (nowMs - playingAt) / 1000, shrinkIn, low, lava, alive: !!meW?.alive, touch: TOUCH, fireKey: isPadMode() ? 'A' : labelOf('fireball'), fire: meP.spells.fireball > 0 }) : null);
     else view.coach(null);
     scene.render({
+      blindAt: !rs && meW?.alive && (myWizard(interp.latest())?.blindLeft ?? 0) > 0 ? myPos : null,
       arena: arenaId,
       arenaR: (rs ?? s)?.arenaR ?? 11,
       shrinkIn: shrinkIn ?? SHRINK_EVERY,
@@ -981,6 +994,7 @@ function startRoom(code: string, name: string) {
     const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, frozen?.from ?? myPos, aimAt) : null;
     scene.range(showing && myPos ? myPos : null, reach, shape?.blastAt ?? null, shape?.blastR ?? 0);
     scene.bands(shape?.segs ?? [], shape?.half ?? 0);
+    scene.cone(shape?.cone ?? null);
     // nas posições desenhadas (as mesmas da tela), para ver se o erro foi mira, desvio ou a bola no ar enganando
     scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;

@@ -6,6 +6,9 @@ import { createBraceClip } from './brace-pose.ts';
 import { createAttackClip } from './attack-pose.ts';
 import { electroPulse } from './screen-data.ts';
 import { HEAL_FX, healAura } from './heal-fx.ts';
+import { blindnessMask } from './blindness-fx.ts';
+import { conePoints } from '../shared/sand-cone.ts';
+import { GEYSER_FX, geyserHeight } from './geyser-fx.ts';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -25,7 +28,7 @@ import { add, clampLen, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
-import { LIGHTNING, SPELLS } from '../shared/spells.ts';
+import { BLINDNESS, LIGHTNING, SPELLS } from '../shared/spells.ts';
 import type { TAUNTS } from '../shared/taunts.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
@@ -37,7 +40,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { closedBodyLeft?: number; geyserLeft?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -580,6 +583,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // aparência de cada projétil: corpo, cor do brilho e do rastro, textura do rastro e tamanho
   // a cópia da Ilusão não entra: é desenhada como mago (main.ts)
   const LOOK: Record<Exclude<ProjKind, 'illusion'>, { mat: THREE.Material; halo: string; trail: string; tex: THREE.Texture; size: number }> = {
+    geyser: { mat: swapMat, halo: GEYSER_FX.color, trail: GEYSER_FX.foam, tex: FX.light, size: 1 },
     basic: { mat: swapMat, halo: '#dcfffb', trail: '#2fe0d0', tex: FX.spark, size: .45 },
     fireball: { mat: fireMat, halo: '#ffb000', trail: '#ff8a00', tex: FX.flame, size: 1.15 },
     homing: { mat: homingMat, halo: '#c23cff', trail: '#b040ff', tex: FX.magic, size: 1.1 },
@@ -705,6 +709,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     link: () => new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.04, 6, 16), flat('#bfe6ff', '#2a7aff', 1.2)),
     splitter: () => new THREE.Mesh(new THREE.DodecahedronGeometry(0.22, 0), flat('#a0f0ff', '#2080ff', 1.2)),
     shard: () => new THREE.Mesh(new THREE.TetrahedronGeometry(0.13), flat('#d0f4ff', '#40a0ff', 1.4)),
+    geyser: () => {
+      const g = new THREE.Group();
+      const jet = new THREE.Mesh(new THREE.CylinderGeometry(.65, .3, GEYSER_FX.height, 12, 1, true), new THREE.MeshBasicMaterial({ color: GEYSER_FX.color, transparent: true, opacity: .45, side: THREE.DoubleSide, depthWrite: false }));
+      jet.position.y = GEYSER_FX.height / 2;
+      const foam = new THREE.Mesh(new THREE.TorusGeometry(.7, .12, 6, 20), new THREE.MeshBasicMaterial({ color: GEYSER_FX.foam, transparent: true, opacity: .75, depthWrite: false }));
+      foam.rotation.x = -Math.PI / 2; foam.position.y = GEYSER_FX.height;
+      const pool = new THREE.Mesh(new THREE.RingGeometry(.7, 1, 32), new THREE.MeshBasicMaterial({ color: GEYSER_FX.color, transparent: true, opacity: .45, side: THREE.DoubleSide, depthWrite: false }));
+      pool.rotation.x = -Math.PI / 2; pool.position.y = .04;
+      g.add(jet, foam, pool);
+      return g;
+    },
     warpzone: () => {
       // cúpula de vidro com borda no chão; raio 1 aqui, o tamanho real vem do servidor
       const g = new THREE.Group();
@@ -986,9 +1001,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const SUMMON: [string, number, number] = ['Ranged_Magic_Summon', 0.8, 3.1];
   const SPIN: [string, number] = ['2H_Melee_Attack_Spinning', 0.67];
   const CAST_ANIM: Record<string, [string, number, number?]> = {
-    shield: ['Block', 0.6], rush: ['Dodge_Forward', 0.4], teleport: ['Dodge_Forward', 0.4], windwalk: ['Dodge_Backward', 0.4], grip: ['Throw', 0.6, 0.45],
+    closedbody: ['Block', 0.6], shield: ['Block', 0.6], rush: ['Dodge_Forward', 0.4], teleport: ['Dodge_Forward', 0.4], windwalk: ['Dodge_Backward', 0.4], grip: ['Throw', 0.6, 0.45],
     meteor: SUMMON, rockpillar: SUMMON, warpzone: SUMMON, drain: ['Spellcast_Long', 0.9, 0.3], thrust: ['Unarmed_Melee_Attack_Kick', 0.5, 0.2],
-    gravity: SPIN, cluster: SPIN,
+    gravity: SPIN, cluster: ['Throw', .5, .1],
     // Flagelo: o giro mais forte vai de ~0,6 a ~0,9 s do clip; começando em 0,15 ele cai junto com a explosão (preparo de 0,5 s)
     scourge: ['2H_Melee_Attack_Spin', 0.85, 0.15],
     // issue #207: o que é jogado sai de arremesso, do mesmo ponto do clip que o Agarrar (a soltura cai no preparo de 0,1 s);
@@ -1671,6 +1686,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   function onEvents(events: SimEvent[], hiddenDamageTargets: readonly string[] = []) {
     for (const e of events) {
+      if (e.k === 'sand') {
+        const from=v(e.x,e.y),dir=v(e.dx,e.dy),pts=conePoints(from,dir,e.length,e.width);
+        const geo=new THREE.BufferGeometry().setFromPoints(pts.map(p=>w3(p,.12)));
+        const mat=new THREE.MeshBasicMaterial({color:'#c9ab70',transparent:true,opacity:.5,side:THREE.DoubleSide,depthWrite:false});
+        const fan=new THREE.Mesh(geo,mat); scene.add(fan);
+        addFx(fan,.5,k=>{ mat.opacity=.5*(1-k); });
+        for(let i=0;i<(lite?12:35);i++) { const d=Math.random()*e.length,side=(Math.random()-.5)*e.width*d/e.length; burst(v(e.x+dir.x*d-dir.y*side,e.y+dir.y*d+dir.x*side),'#d7bc85',.4,.4,.2+Math.random()*.6,FX.spark); }
+      }
       if (e.k === 'boss') bossFx(e);
       else if (e.k === 'cast') {
         oneShot(e.id, ...castAnim(e.spell));
@@ -1808,6 +1831,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           core.scale.setScalar(p.vel.x); // vel.x = raio
           halo.visible = false;
         }
+        if (p.kind === 'geyser') { core.scale.set(p.vel.x, 1, p.vel.x); halo.visible = false; }
         // fogo de verdade: chama animada em volta dos projéteis de fogo; redemoinho na Gravidade e na Zona de dobra
         if (FIRE_KINDS.has(p.kind)) {
           const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: FLAMES[0], color: '#ffc060', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -1844,6 +1868,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         (warn.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.sin(performance.now() / 70);
       } else if (p.kind === 'grip') g.position.copy(w3(p.pos, .045));
       else if (p.kind === 'warpzone') g.position.copy(w3(p.pos, 0));
+      else if (p.kind === 'geyser') g.position.copy(w3(p.pos, 0));
       else g.position.copy(w3(p.pos, 0.9));
       if (p.kind === 'link') {
         const dx = p.vel.x - p.pos.x, dz = p.vel.y - p.pos.y;
@@ -1855,7 +1880,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // giro e direção: aponta para onde voa; anéis, bumerangue e pedras giram
       const body = g.children[0];
       const t = performance.now() / 1000;
-      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
+      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'geyser' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
+      if (p.kind === 'geyser') {
+        body.rotation.y = t * .8;
+        if (Math.random() < (lite ? .15 : .45)) burst(v(p.pos.x + (Math.random() - .5) * p.vel.x, p.pos.y + (Math.random() - .5) * p.vel.x), GEYSER_FX.foam, .35, .6, .2, FX.light, 2.1);
+      }
       if (p.kind === 'boomerang') body.rotation.y = t * 18;
       else if (p.kind === 'fireball' || p.kind === 'meteor' || p.kind === 'cluster' || p.kind === 'bouncer' || p.kind === 'snowball' || p.kind === 'splitter' || p.kind === 'shard') body.rotation.set(t * 3, t * 4, 0);
       else if (p.kind === 'link') body.rotation.y = t * 6;
@@ -1872,7 +1901,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (swirl) swirl.material.rotation = -t * 4;
       // rastro: brasas que ficam para trás e somem
       const look = LOOK[p.kind];
-      if (p.kind !== 'warpzone' && p.kind !== 'grip' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
+      if (p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'geyser' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
@@ -1912,6 +1941,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       const hidden = !d.illusion && (d.status & 2048) > 0; // a cópia é sempre visível; os inimigos não veem o jogador velado
       m.root.visible = !hidden;
+      m.model.position.y = d.alive ? geyserHeight(d.geyserLeft ?? 0) : 0;
       // A cópia é sólida e visível; a invisibilidade vale somente para o jogador real.
       const ghost = !!d.ghost || (d.status & (1024 | 8388608)) > 0; // Caminhada no vento e o véu visto por si ou pela visão de teste da sandbox
       // Teleporte: tk de 0 a 1 sumindo e deslizando rumo ao destino, de 1 a 2 chegando de um pouco atrás; 2 = sem efeito
@@ -1940,7 +1970,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.aura.scale.setScalar(healing.visible ? healing.scale : 1.45);
       if (m.aura.visible) {
         const mat = m.aura.material as THREE.MeshBasicMaterial;
-        mat.color.set(healing.visible ? HEAL_FX.color : invuln ? '#ffd36a' : RUNE_COLOR.shield);
+        mat.color.set(healing.visible ? HEAL_FX.color : (d.geyserLeft ?? 0) > 0 ? GEYSER_FX.color : invuln ? '#ffd36a' : RUNE_COLOR.shield);
         mat.opacity = healing.visible ? healing.opacity : invuln ? 0.55 + 0.3 * Math.sin(now * 8) : 0.8;
       }
       m.ring.visible = d.alive;
@@ -1962,9 +1992,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           unburn(m);
         }
         // nasceu (começo da rodada ou volta no deathmatch): a invulnerabilidade do começo acabou de ligar
-        if (invuln && !m.invuln) oneShot(d.id, 'Spawn_Ground', 1.3);
+        if (invuln && !m.invuln && !(d.geyserLeft ?? 0)) oneShot(d.id, 'Spawn_Ground', 1.3);
         // atordoado (16: arremessado por um golpe) voa de braços abertos
-        if ((d.basicLeft ?? 0) > 0 && !(d.status & 16) && m.actions.Attack_Invoke) {
+        if ((d.geyserLeft ?? 0) > 0) { m.oneShotUntil = 0; play(m, 'Jump_Idle', .05); }
+        else if ((d.basicLeft ?? 0) > 0 && !(d.status & 16) && m.actions.Attack_Invoke) {
           play(m, 'Attack_Invoke', .03);
           const action = m.actions.Attack_Invoke;
           action.paused = true;
@@ -2000,6 +2031,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           x.m.emissiveIntensity = x.i;
         }
       }
+      // Materiais clonados: escurece só este mago e restaura a cor própria ao terminar.
+      if (d.alive) for (const x of m.mats) x.m.color.copy(x.col).multiplyScalar((d.closedBodyLeft ?? 0) > 0 ? .08 : 1);
       m.burning = burning;
       m.electro = electro;
       // clarão branco do golpe: some em ~0,15 s
@@ -2015,6 +2048,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           }
         }
       }
+      if (d.alive && (d.closedBodyLeft ?? 0) > 0) for (const x of m.mats) x.m.emissiveIntensity = 0;
       // Campanha: o caído com brasa mostra o rótulo só com a barra do reacender, e solta brasas
       const ember = !d.alive && d.ember !== undefined && d.ember >= 0;
       m.label.hidden = (!d.alive && !ember) || hidden;
@@ -2189,6 +2223,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const bandBody = new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0).rotateX(-Math.PI / 2);
   const bandCap = new THREE.CircleGeometry(1, 24, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2);
   const bands: THREE.Group[] = [];
+  const coneGeo = new THREE.BufferGeometry();
+  coneGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(9),3));
+  const coneAim = new THREE.Mesh(coneGeo,new THREE.MeshBasicMaterial({color:'#d5b474',transparent:true,opacity:.25,side:THREE.DoubleSide,depthWrite:false}));
+  coneAim.visible=false; coneAim.renderOrder=9; scene.add(coneAim);
+  const blindMask = blindnessMask(camera); scene.add(blindMask);
 
   return {
     ready,
@@ -2226,6 +2265,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       });
     },
     // trechos de faixa [de, até] com meia largura `half`; lista vazia esconde
+    cone(points: [Vec,Vec,Vec] | null) {
+      coneAim.visible=!!points;
+      if(points) { const a=coneGeo.getAttribute('position'); points.forEach((p,i)=>a.setXYZ(i,p.x,.04,p.y)); a.needsUpdate=true; coneGeo.computeBoundingSphere(); }
+    },
     bands(segs: [Vec, Vec][], half: number) {
       for (let i = bands.length; i < segs.length; i++) {
         const g = new THREE.Group();
@@ -2349,7 +2392,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const m = mages.get(id);
       if (!m || m.dead) return;
       // brilho na mão (um pouco à frente do mago, na cor da magia) e linha de mira fraca até o ponto
-      const color = spell === 'heal' ? HEAL_FX.color : LOOK[spell as keyof typeof LOOK]?.halo ?? '#ffb347';
+      const color = spell === 'cluster' ? '#d7bc85' : spell === 'heal' ? HEAL_FX.color : LOOK[spell as keyof typeof LOOK]?.halo ?? '#ffb347';
       const from = v(m.root.position.x, m.root.position.z);
       const dir = at ? Math.atan2(at.y - from.y, at.x - from.x) : Math.PI / 2 - m.root.rotation.y;
       const hand = v(from.x + Math.cos(dir) * 0.45, from.y + Math.sin(dir) * 0.45);
@@ -2359,10 +2402,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[] } | null }) {
+    render(state: { blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[] } | null }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
+      blindMask.visible=!!state.blindAt;
+      if(state.blindAt) blindMask.material.uniforms.center.value.set(state.blindAt.x,state.blindAt.y);
       lavaMat.uniforms.uTime.value = now;
       // Campanha: o mapa no lugar da arena e da lava
       const onMap = !!state.map;
@@ -2648,6 +2693,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const q = p.project(camera);
         return [(q.x * innerWidth) / 2 + innerWidth / 2, (-q.y * innerHeight) / 2 + innerHeight / 2];
       };
+      const obscured = (p: THREE.Vector3) => !!state.blindAt && Math.hypot(p.x-state.blindAt.x,p.z-state.blindAt.y)>BLINDNESS.radius;
       // números de dano: sobem 1,2 m em 0,9 s e somem
       for (let i = numbers.length - 1; i >= 0; i--) {
         const d = numbers[i];
@@ -2660,11 +2706,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const [x, y] = toScreen(d.at.clone().setY(d.at.y + k * 1.2));
         d.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${1 + (d.pop ?? 0.3) * Math.max(0, 0.2 - k) * 5})`;
         d.el.style.opacity = String(Math.min(1, (1 - k) * 2.5));
+        d.el.style.visibility = obscured(d.at) ? 'hidden' : '';
       }
 
       // barras dos obstáculos, logo acima de cada um
       for (const p of pillarMeshes) {
         if (!p.bar || p.bar.hidden) continue;
+        p.bar.style.visibility = obscured(p.visual.obj.position) ? 'hidden' : '';
         const [x, y] = toScreen(p.visual.obj.position.clone().setY(p.height + 0.15));
         p.bar.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
       }
@@ -2672,7 +2720,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // nome e vida em cima de cada mago
       for (const m of mages.values()) {
         if (m.label.hidden) continue;
-        const [x, y] = toScreen(m.root.position.clone().setY(2.1));
+        m.label.style.visibility = obscured(m.root.position) ? 'hidden' : '';
+        const [x, y] = toScreen(m.root.position.clone().setY(2.1 + m.model.position.y));
         m.label.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
       }
 
