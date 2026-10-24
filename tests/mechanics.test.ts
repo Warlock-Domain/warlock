@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ARENA_R0, DT, KILL_GOLD, RUNE, STREAK, SHRINK_EVERY, SUDDEN, WIZ_R, type RuneKind } from '../src/shared/constants.ts';
+import { ARENA_R0, BOUNTY, DT, KILL_GOLD, RUNE, STREAK, SHRINK_EVERY, SUDDEN, WIZ_R, type RuneKind } from '../src/shared/constants.ts';
 import { addPlayer, newMatch, setReady, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { newWorld, stepWorld, type SimEvent, type World } from '../src/shared/sim.ts';
 import { encodeSnap, decodeSnap, publicEvents } from '../src/shared/snapshot.ts';
@@ -163,6 +163,21 @@ describe('sequências de abate', () => {
       return a.gold - before;
     });
     expect(paid).toEqual([KILL_GOLD, KILL_GOLD * 1.2, KILL_GOLD * 1.4]);
+  });
+
+  it('the streak multiplies only the kill gold, not the leader bounty', () => {
+    const g = playing(['a', 'b', 'c', 'd', 'e']);
+    for (const z of g.m.world!.wizards) z.invulnUntil = 0;
+    const a = g.m.players.find((p) => p.id === 'a')!;
+    g.m.players.find((p) => p.id === 'd')!.score = 3;
+    kill(g, 'b', 'a');
+    kill(g, 'c', 'a');
+    const before = a.gold;
+    kill(g, 'd', 'a');
+    const avg = 3 / g.m.players.length;
+    const head = Math.min(BOUNTY.max, Math.round(BOUNTY.perWin * (3 - avg)));
+    expect(head).toBeGreaterThan(0);
+    expect(a.gold - before).toBe(KILL_GOLD * 1.4 + head);
   });
 
   it('kills more than 4 s apart are not a multi kill', () => {
