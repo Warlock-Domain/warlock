@@ -4,6 +4,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Interface
 
+- Corpo fechado escurece materiais clonados e restaura ao terminar; sons próprios no começo/fim confirmados. Gravações fornecidas pelo Leonard, declaradas CC0, respeitam mixer/distância.
+
 - Gêiser em Suporte: mira no chão como Agarrar; jato azul eleva o alvo e bloqueia previsão/comandos durante a suspensão. Ficha e demonstração PT/EN seguem os stats compartilhados.
 - Curar: a tecla ou a barra seleciona e o clique no modelo confirma, em qualquer modo de lançamento (Rápido ou Ao soltar). Clique no chão não cura; alvo inválido mantém a seleção, e Esc, S ou o botão direito cancelam. No controle, com o analógico direito solto, cura você mesmo (`padTarget`). A aura verde de 1,5 s e o coral sintetizado tocam no evento confirmado, com o mixer e a distância. Textos PT/EN, ficha, demo e ícone próprio seguem os números.
 

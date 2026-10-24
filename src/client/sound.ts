@@ -5,15 +5,15 @@ import { audioLevel, layerVolume } from './audio-level.ts';
 import { store } from './store.ts';
 
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
-  | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover' | 'brace' | 'heal';
+  | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover' | 'brace' | 'heal' | 'closedbody' | 'closedbodyEnd';
 
 const FILES: Partial<Record<SoundKind, string[]>> = {
-  brace: ['brace_start'],
+  brace: ['brace_start'], closedbody: ['closed_body_start'], closedbodyEnd: ['closed_body_end'],
   fireball: ['fireball'], lightning: ['lightning'], homing: ['homing'], shield: ['shield'], teleport: ['teleport'],
   hit: ['hit', 'explode'], hitLight: ['hit'], hitHeavy: ['hit', 'explode'], reflect: ['shield'], death: ['explode'], go: ['confirm'],
 };
 // recordings that always play at their original speed (the timbre was chosen that way)
-const STEADY = new Set(['brace_start']);
+const STEADY = new Set(['brace_start', 'closed_body_start', 'closed_body_end']);
 // golpe fraco mais agudo, golpe forte mais grave
 const RATE: Partial<Record<SoundKind, number>> = { hitLight: 1.25, hitHeavy: 0.78 };
 
