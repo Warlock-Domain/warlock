@@ -3,8 +3,8 @@ import { createSound } from '../src/client/sound.ts';
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe('ambiente sem crepitar contínuo da lava', () => {
-  it('não carrega nem inicia o loop de fogo, preservando música e efeitos pontuais', async () => {
+describe('ambience without the continuous lava crackle', () => {
+  it('neither loads nor starts the fire loop, and keeps music and one-shot effects', async () => {
     const listeners = new Map<string, () => void>();
     const sources: { loop: boolean; start: ReturnType<typeof vi.fn> }[] = [];
     const music = { loop: false, preload: '', volume: 0, play: vi.fn(async () => {}), pause: vi.fn() };
