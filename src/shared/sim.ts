@@ -9,6 +9,7 @@ import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMI
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 import { SHIELD, castBlocked } from './spells.ts';
 import { BASIC_ATTACK, BRACE, KNOCK_RECOVERY } from './constants.ts';
+import { healTarget } from './heal-target.ts';
 
 export type Wizard = {
   electroUntil?: number; // duração da eletrificação.
@@ -147,6 +148,7 @@ export type Cmd =
   | { id: string; kind: 'cast'; spell: SpellId; at: Vec }
 
 export type SimEvent =
+  | { k: 'heal'; id: string; x: number; y: number; amount: number }
   | { k: 'attack'; id: string; melee: boolean }
   | { k: 'cast'; id: string; spell: SpellId }
   | { k: 'hit'; id: string; by: string; x: number; y: number; dmg: number; src: string; crit?: true }
@@ -721,7 +723,16 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   const level = wz.spells[spell];
   if (!level || w.t < wz.cd[spell]) return;
   const L = spellLevel(spell, level, w.book);
+  const recipient = spell === 'heal' ? healTarget(w.wizards, wz, at, L.range * wz.rangeF) : undefined;
+  if (spell === 'heal' && !recipient) return;
   wz.cd[spell] = w.t + L.cd;
+  if (recipient) {
+    const before = recipient.hp;
+    heal(w, recipient, L.heal);
+    wz.windUntil = 0;
+    w.events.push({ k: 'heal', id: recipient.id, x: recipient.pos.x, y: recipient.pos.y, amount: recipient.hp - before });
+    return;
+  }
   for (let i = 0; i < (SHOTS[spell] ?? 1); i++) w.events.push({ k: 'fire', id: wz.id, src: spell });
   wz.windUntil = 0; // qualquer magia acaba com a Caminhada no vento (windwalkmodifier.lua)
   // Elo: teleportar ou trocar para fora da arena solta o mago ligado (linkmodifier.lua)
@@ -915,6 +926,8 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     wz.casting = null;
   }
   if (!wz.spells[spell] || w.t < wz.cd[spell]) return;
+  // An invalid target neither reveals the wizard nor cancels another action.
+  if (spell === 'heal' && !healTarget(w.wizards, wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF)) return;
   wz.basicCasting = undefined; // só uma conjuração válida cancela o ataque em preparo.
   const delay = CAST_POINT[spell];
   const d = sub(at, wz.pos);
@@ -1792,7 +1805,7 @@ function attackBody(w: World, by: Wizard, target: string | number, visible = tru
   return z && z !== by && !allies(by, z) && (!visible || w.t >= Math.max(z.veilUntil, z.windUntil)) ? z : undefined;
 }
 // Attack is not a spell: numbers come from BASIC_ATTACK, nothing inherited from Fireball
-const BASIC_STATS: Level = { cd: BASIC_ATTACK.cd, dmg: BASIC_ATTACK.dmg, knock: BASIC_ATTACK.knock, speed: BASIC_ATTACK.speed, range: BASIC_ATTACK.range, duration: 0, radius: 0, dmgMin: 0, absorb: 0, pull: 0, scale: 0, dot: 0 };
+const BASIC_STATS: Level = { heal: 0, cd: BASIC_ATTACK.cd, dmg: BASIC_ATTACK.dmg, knock: BASIC_ATTACK.knock, speed: BASIC_ATTACK.speed, range: BASIC_ATTACK.range, duration: 0, radius: 0, dmgMin: 0, absorb: 0, pull: 0, scale: 0, dot: 0 };
 function beginBasic(w: World, wz: Wizard, c: Extract<Cmd, { kind: 'basic' }>) {
   if (!wz.alive || isStunned(wz) || wz.casting || wz.basicCasting || w.t < (wz.basicReadyAt ?? 0)) return;
   // Clique num corpo tem prioridade; no chão escolhe o mais próximo do atacante, sem caça automática.
