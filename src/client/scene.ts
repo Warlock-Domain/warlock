@@ -27,6 +27,7 @@ import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shar
 import { add, clampLen, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 import { nightProps } from './night-decor.ts';
+import { CANDLE } from '../shared/campaign.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
 import { BLINDNESS, LIGHTNING, SPELLS } from '../shared/spells.ts';
@@ -803,6 +804,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       mapGroup.add(ring);
       return { room: m.room, mat };
     });
+    // Sanctuary candle: a golden circle the size of its healing area (room -1: never 'done', so it keeps pulsing)
+    for (const m of n.marks.filter((q) => q.kind === 'candle')) {
+      const mat = new THREE.MeshBasicMaterial({ map: FX.circle, color: '#ffc861', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+      const ring = ground(new THREE.Mesh(new THREE.PlaneGeometry(2 * CANDLE.r, 2 * CANDLE.r), mat), 0.03);
+      ring.position.x = m.x + 0.5;
+      ring.position.z = m.y + 0.5;
+      mapGroup.add(ring);
+      cpMarks.push({ room: -1, mat });
+    }
   }
 
   // geometrias de efeito compartilhadas: criar uma por efeito vazava memória de vídeo
@@ -2404,7 +2414,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[] } | null }) {
+    render(state: { blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[] } | null }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
@@ -2418,7 +2428,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         mapKey = state.map.key;
         buildMap(state.map.night);
       }
-      decor.night(state.map ? mapKey : '', () => (state.map ? nightProps(state.map.night) : null)); // same key: nothing to do
+      decor.night(state.map ? `${mapKey}|${state.map.opened.join()}` : '', () => (state.map ? nightProps(state.map.night, state.map.opened) : null)); // same key: nothing to do; an opened chest rebuilds the props (twice a night)
       mapGroup.visible = voidPlane.visible = onMap;
       lava.visible = arena.visible = warn.visible = !onMap;
       for (const c of cpMarks) c.mat.opacity = state.map?.done.includes(c.room) ? 0.15 : 0.55 + 0.35 * Math.sin(now * 3);

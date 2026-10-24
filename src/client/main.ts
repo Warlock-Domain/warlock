@@ -645,7 +645,11 @@ function startRoom(code: string, name: string) {
       else if (e.k === 'teleport' && e.id === me) predict.teleported(e.to);
       else if (e.k === 'scourge') sound.play('death', near(e.x, e.y));
       else if (e.k === 'shrink') sound.play('shrink');
-      else if (e.k === 'chest') toast(t('Baú de ouro na arena! Quebre e fique em cima do ouro', 'Gold chest in the arena! Break it and stand on the gold'), 'gold');
+      else if (e.k === 'relic') {
+        // Campaign chest: the opener's own card (Lucas, 25/10)
+        if (e.id === me) banner(t('Baú aberto: uma carta a mais para você', 'Chest opened: one more card for you'), 'good');
+        else toast(t(`${who.get(e.id) ?? '?'} abriu um baú`, `${who.get(e.id) ?? '?'} opened a chest`));
+      } else if (e.k === 'chest') toast(t('Baú de ouro na arena! Quebre e fique em cima do ouro', 'Gold chest in the arena! Break it and stand on the gold'), 'gold');
       else if (e.k === 'loot') sound.play('go', near(e.x, e.y));
       else if (e.k === 'sudden') {
         sound.play('shrink');
@@ -984,7 +988,7 @@ function startRoom(code: string, name: string) {
       // na loja o room.effect já é o da próxima rodada: o mapa só muda quando ela começa
       effect: room && ['countdown', 'playing', 'roundEnd'].includes(room.phase) ? room.effect : null,
       arcane: room?.mode === 'ascension', // Febre arcana: a Febre do ouro em azul
-      map: nm && playing ? { night: nm, key: `${room!.night!.seed}:${room!.night!.stage}`, done: room!.night!.done } : null,
+      map: nm && playing ? { night: nm, key: `${room!.night!.seed}:${room!.night!.stage}`, done: room!.night!.done, opened: room!.night!.opened } : null,
     });
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;

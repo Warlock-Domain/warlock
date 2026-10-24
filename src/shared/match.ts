@@ -1,7 +1,7 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { afterBoss, bossCmds, bossHp, newBoss, ODRAN } from './bosses.ts';
-import { CAMPAIGN, CAMPAIGN_BOOK, EMBER, SERVOS, nightCards, nightCount, nightLevel, xpShare, type Night, type ServoKind } from './campaign.ts';
+import { CAMPAIGN, CAMPAIGN_BOOK, CANDLE, CHEST_REACH, EMBER, SERVOS, nightCards, nightCount, nightLevel, xpShare, type Night, type ServoKind } from './campaign.ts';
 import { fightOf, nightMap, obstaclesOf, roomRect, terrainOf, type NightMap, type Spawn } from './levels.ts';
 import { ASC_ROUNDS, applyCard, ascDeath, ascEndRound, ascMark, ascOwner, ascResume, ascShop, ascWinner, newAsc, type AscLobby, type AscState } from './ascension.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
@@ -942,6 +942,29 @@ function nightCardsDue(m: Match, w: World, rand: () => number) {
     else n.owed![z.id] = 0; // nothing left to learn or raise
   }
 }
+// the Sanctuary candle heals the standing Acesos around it (not the fallen: an ember still needs an ally)
+function candle(w: World, map: NightMap) {
+  for (const c of map.marks.filter((q) => q.kind === 'candle')) {
+    const at = center(c.x, c.y);
+    for (const z of w.wizards) if (z.alive && z.team === 0 && dist(z.pos, at) <= CANDLE.r) z.hp = Math.min(z.hpMax, z.hp + CANDLE.regen * DT);
+  }
+}
+
+// a standing Aceso touching an unopened chest opens it and owes himself one more card (drawn when no encounter is open);
+// wizards are checked in world order, so two touching it in the same step always give it to the same one
+function openChests(m: Match, w: World, map: NightMap) {
+  const n = m.night!;
+  map.marks.filter((q) => q.kind === 'chest').forEach((c, k) => {
+    if (n.opened?.includes(k)) return;
+    const at = center(c.x, c.y);
+    const z = w.wizards.find((q) => q.alive && q.team === 0 && dist(q.pos, at) <= CHEST_REACH);
+    if (!z) return;
+    (n.opened ??= []).push(k);
+    (n.owed ??= {})[z.id] = (n.owed[z.id] ?? 0) + 1;
+    w.events.push({ k: 'relic', id: z.id, x: at.x, y: at.y });
+  });
+}
+
 // levels gained since the last cleared room become picks owed (got: levels already turned into picks)
 function grantLevels(m: Match, w: World) {
   const n = m.night!;
@@ -1071,6 +1094,8 @@ function stepNight(m: Match, now: number, w: World, rand: () => number) {
   const n = m.night!, map = mapOf(n);
   stepEmbers(m, w, map);
   nightXp(m, w);
+  candle(w, map);
+  openChests(m, w, map);
   if (!w.wizards.some((z) => z.alive && z.team === 0)) {
     n.result = 'lost';
     return endRound(m, now, null);

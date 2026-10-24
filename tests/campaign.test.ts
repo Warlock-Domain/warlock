@@ -376,7 +376,7 @@ describe('Campanha: partida no mapa', () => {
   it('room shows the seed, the open fight and its waves, and the max health of the servants', () => {
     const m = night();
     let now = toPlaying(m, 0);
-    expect(publicRoom('ABCD', m, 0).night).toEqual({ stage: 0, seed: m.night!.seed, fight: null, wave: 0, waves: 0, done: [], result: null });
+    expect(publicRoom('ABCD', m, 0).night).toEqual({ stage: 0, seed: m.night!.seed, fight: null, wave: 0, waves: 0, done: [], result: null, opened: [] });
     now = stepOn(m, now, 'a', checkpoint(mapOf(m), 0));
     const room = publicRoom('ABCD', m, 0);
     expect(room.night).toMatchObject({ fight: 0, wave: 0, waves: fightIn(m, 0).waves.length });
@@ -419,7 +419,7 @@ describe('Campanha: tela', () => {
   });
 
   it('night line says the stage and, during an encounter, the wave', () => {
-    const n = { stage: 0, seed: 1, fight: null, wave: 0, waves: 0, done: [], result: null };
+    const n = { stage: 0, seed: 1, fight: null, wave: 0, waves: 0, done: [], result: null, opened: [] };
     expect(nightLine(n, true)).toBe('Campanha · Charneca Cinzenta');
     expect(nightLine({ ...n, fight: 2, waves: 3 }, true)).toBe('Campanha · Charneca Cinzenta · encontro · onda 1 de 3');
     expect(nightLine({ ...n, fight: 2, waves: 3 }, false)).toBe('Campanha · Charneca Cinzenta');

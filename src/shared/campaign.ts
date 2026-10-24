@@ -40,6 +40,13 @@ export const CAMPAIGN_BOOK: SpellBook = {};
 // traz o Aceso de volta com hp da vida e os 2 s de invulnerável de sempre; afastar zera; na arena do chefe a brasa apaga em out s
 export const EMBER = { base: 3, perFall: 1, reach: 1, hp: 0.5, out: 20 };
 
+// Sanctuary candle (Lucas, 25/10): in the boss's antechamber ('+' of the gate room) the Acesos within r m heal regen hp/s,
+// so the group can walk into Sir Odran whole (a full bar in 25 s)
+export const CANDLE = { r: 3, regen: 40 };
+// chests ('$' of the rooms, Lucas 25/10): whoever touches one first (reach m) earns one card, like a level of their own;
+// in a group only the opener gets it. No runes: a rune bought with nothing to hit is wasted
+export const CHEST_REACH = 1.2;
+
 // progression (Lucas, 24/10): the night plays like the shop modes, everyone starting with Fireball and Scourge; each fallen
 // servant gives XP and each level is 1 card out of 3 (new spell or +1 level, the Ascension cards), picked once the room is
 // clear. More Acesos bring more servants (+perAceso of each wave per extra Aceso) and split the XP, with +bonus per extra
@@ -97,8 +104,9 @@ export function roomWaves(seed: number, stage: number, room: number, depth: numb
 // aberto, wave = onda atual dele, since = w.t em que ele abriu, cracked = lápides que já racharam nele, done = salas com o
 // encontro vencido
 // boss: estado do chefe na luta aberta (bosses.ts; só existe na arena dele); falls: quedas de cada Aceso no encontro aberto
-// queue: servants of the open wave still waiting for a free slot; orphan: since when only dropped players stand
+// queue: servants of the open wave still waiting for a free slot; orphan: since when only dropped players stand;
+// opened: chests already opened (their index among the map's chest marks)
 // xp: night XP per Aceso; got: levels already turned into picks; owed: levels not yet picked; offer: the cards on the table (one level at a time)
 export const NIGHT_RESULTS = ['won', 'lost'] as const;
 export type NightResult = (typeof NIGHT_RESULTS)[number] | null;
-export type Night = { seed: number; stage: number; fight: number | null; wave: number; since: number; cracked: number; done: number[]; result: NightResult; boss?: BossState; falls?: Record<string, number>; orphan?: number; queue?: { kind: ServoKind; e: number }[]; xp?: Record<string, number>; owed?: Record<string, number>; got?: Record<string, number>; offer?: Record<string, Card[]> };
+export type Night = { seed: number; stage: number; fight: number | null; wave: number; since: number; cracked: number; done: number[]; result: NightResult; boss?: BossState; falls?: Record<string, number>; orphan?: number; opened?: number[]; queue?: { kind: ServoKind; e: number }[]; xp?: Record<string, number>; owed?: Record<string, number>; got?: Record<string, number>; offer?: Record<string, Card[]> };

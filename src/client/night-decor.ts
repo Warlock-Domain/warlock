@@ -23,8 +23,11 @@ const DENSITY = 4, CLEAR = 2, TORCHES = 9;
 
 const hash = (x: number, y: number) => (Math.imul(x, 73856093) ^ Math.imul(y, 19349663)) >>> 0;
 
-export function nightProps(n: NightMap): NightProp[] {
+// opened: chests already opened (index among the chest marks): a closed one is golden and glows, an opened one is plain
+export function nightProps(n: NightMap, opened: number[] = []): NightProp[] {
   const out: NightProp[] = [];
+  n.marks.filter((m) => m.kind === 'chest').forEach((m, k) => out.push({ name: opened.includes(k) ? 'chest' : 'chest_gold', x: m.x + 0.5, y: m.y + 0.5, rot: 0 }));
+  for (const m of n.marks.filter((q) => q.kind === 'candle')) out.push({ name: 'shrine_candles', x: m.x + 0.5, y: m.y + 0.5, rot: 0 });
   const at = (x: number, y: number) => n.ground[y]?.[x] ?? 'wall';
   n.rooms.forEach((p, i) => {
     const theme = THEMES.find(([id]) => p.room.id.startsWith(id))?.[1] ?? DEFAULT;

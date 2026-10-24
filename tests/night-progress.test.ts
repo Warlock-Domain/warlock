@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPAIGN, NIGHT_XP, STAGES, SERVOS, nightCards, nightCount, nightLevel, nightXpAt, xpShare } from '../src/shared/campaign.ts';
+import { CAMPAIGN, CANDLE, NIGHT_XP, STAGES, SERVOS, nightCards, nightCount, nightLevel, nightXpAt, xpShare } from '../src/shared/campaign.ts';
 import { STAGE_ROOMS, fightOf, nightMap, type NightMap } from '../src/shared/levels.ts';
 import { addPlayer, newMatch, nightPick, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
@@ -8,6 +8,7 @@ import { MAX_SPELLS, noSpells } from '../src/shared/spells.ts';
 import { noItems } from '../src/shared/items.ts';
 import { parseServerMessage } from '../src/client/net-message.ts';
 import { v } from '../src/shared/vec.ts';
+import type { SimEvent } from '../src/shared/sim.ts';
 import { STEP_MS, toPlaying } from './helpers.ts';
 
 function night(humans: string[], seed = 1): Match {
@@ -180,5 +181,42 @@ describe('Campanha: progressão da noite', () => {
     bad.room.players.find((p: { lv?: unknown }) => p.lv).lv.offer = [{ kind: 'spell', id: 'nope' }];
     expect(parseServerMessage(bad)).toBe(null);
     expect(SERVOS.odran.boss).toBe(true);
+  });
+});
+
+describe('Campanha: vela e baús', () => {
+  it('the Sanctuary candle in the gate room heals the standing Acesos around it', () => {
+    const m = night(['a', 'b']);
+    let now = toPlaying(m, 0);
+    const c = mapOf(m).marks.find((q) => q.kind === 'candle')!;
+    expect(mapOf(m).rooms[c.room].room.pool).toBe('portão');
+    Object.assign(wiz(m, 'a'), { pos: v(c.x + 0.5 + CANDLE.r - 0.5, c.y + 0.5), hp: 300 });
+    Object.assign(wiz(m, 'b'), { pos: v(c.x + 0.5 + CANDLE.r + 2, c.y + 0.5), hp: 300 });
+    now = step(m, now, 60);
+    expect(wiz(m, 'a').hp).toBeGreaterThan(300 + CANDLE.regen * 0.9);
+    expect(wiz(m, 'b').hp).toBeLessThan(300 + CANDLE.regen * 0.5);
+    now = step(m, now, 60 * 30);
+    expect(wiz(m, 'a').hp).toBe(wiz(m, 'a').hpMax);
+  });
+
+  it('a chest gives one card to whoever opens it, only to them, and only once', () => {
+    const m = night(['a', 'b']);
+    let now = toPlaying(m, 0);
+    const chests = mapOf(m).marks.filter((q) => q.kind === 'chest');
+    expect(chests.length).toBeGreaterThan(0);
+    const c = chests[0];
+    const events: SimEvent[] = [];
+    wiz(m, 'b').pos = v(c.x + 0.5, c.y + 0.5);
+    for (let i = 0; i < 2; i++) events.push(...tickMatch(m, (now += STEP_MS), [], () => 0.5));
+    expect(m.night!.opened).toEqual([0]);
+    expect(m.night!.owed).toEqual({ b: 1 });
+    expect(m.night!.offer!.b.length).toBe(3);
+    expect(m.night!.offer!.a).toBeUndefined();
+    expect(events.filter((e) => e.k === 'relic' && e.id === 'b').length).toBe(1);
+    expect(publicRoom('ROOM', m, now).night!.opened).toEqual([0]);
+    // the card comes as a level of their own: picking it does not move the XP
+    expect(nightPick(m, 'b', 0)).toBe(true);
+    expect(m.night!.xp?.b ?? 0).toBe(0);
+    expect(m.night!.owed!.b).toBe(0);
   });
 });

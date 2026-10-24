@@ -16,9 +16,9 @@ const FLOOR: [string, number, number][] = [
 ];
 // entulho do Dungeon tem 4 a 8 unidades de largura: reduzido para caber como detalhe
 const SCALE: Record<string, number> = { rubble_large: 0.35, rubble_half: 0.4 };
-const FLAME_ON = new Set(['torch_lit', 'lantern_standing', 'skull_candle', 'shrine_candles', 'candle_triple', 'candle_melted', 'post_lantern']);
+const FLAME_ON = new Set(['torch_lit', 'lantern_standing', 'skull_candle', 'shrine_candles', 'candle_triple', 'candle_melted', 'post_lantern', 'chest_gold']); // the closed Campaign chest glows too
 // Campaign props (night-decor.ts) that are several cells wide in KayKit units: shrunk to fit against a 1 m wall cell
-const NIGHT_SCALE: Record<string, number> = { rubble_half: 0.35, crates_stacked: 0.55, grave_A_destroyed: 0.6, post_lantern: 0.7, sword_shield_broken: 0.8 };
+const NIGHT_SCALE: Record<string, number> = { chest: 0.6, chest_gold: 0.6, rubble_half: 0.35, crates_stacked: 0.55, grave_A_destroyed: 0.6, post_lantern: 0.7, sword_shield_broken: 0.8 };
 // sombra em toda malha do modelo
 const shadows = (o: THREE.Object3D) => o.traverse((m) => {
   if ((m as THREE.Mesh).isMesh) m.castShadow = m.receiveShadow = true;

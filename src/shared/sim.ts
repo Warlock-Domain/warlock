@@ -178,6 +178,7 @@ export type SimEvent =
   // chefe da Campanha (bosses.ts): aim = parou e mira a investida até (tx, ty); stun = derrubou um pilar; phase2; down = caiu
   | { k: 'boss'; id: string; what: BossEventKind; x: number; y: number; tx?: number; ty?: number }
   | { k: 'ember'; id: string; what: EmberEventKind; x: number; y: number } // Campanha: reacendido pelo grupo, ou a brasa apagou
+  | { k: 'relic'; id: string; x: number; y: number } // Campaign: id opened the chest at (x, y) and earned a card
   | { k: 'sudden' } // morte súbita: a arena passa a encolher mais rápido
   // sequência de abate (vem da partida): multi = abates seguidos rápidos, spree = abates sem morrer, breaker = acabou com a sequência de victim
   | { k: 'streak'; id: string; kind: StreakKind; n: number; victim?: string }

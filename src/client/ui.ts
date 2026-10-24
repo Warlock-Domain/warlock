@@ -1017,7 +1017,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (key === lvShown) return;
     lvShown = key;
     if (!lv || !key) return void lvCards.replaceChildren();
-    lvCards.replaceChildren(el('h3', {}, t(`Nível ${lv.level - lv.owed + 1}: escolha 1 carta`, `Level ${lv.level - lv.owed + 1}: pick 1 card`),
+    // a pick can come from a level or a chest (the opener's own card), so the title does not name a level
+    lvCards.replaceChildren(el('h3', {}, t('Escolha 1 carta', 'Pick 1 card'),
       lv.owed > 1 ? el('small', { class: 'muted' }, t(` (mais ${lv.owed - 1} depois desta)`, ` (${lv.owed - 1} more after this one)`)) : null),
       el('div', { class: 'asc-cards' }, ...lv.offer.map((c, i) => cardButton(c, mine!, false, `lv-${i}`, () => act.nightCard(i)))));
   };
