@@ -305,7 +305,7 @@ function tick(toast: (msg: string) => void) {
     game?.aim(null);
     game?.padRange(null);
     const buttons = [...panel.querySelectorAll<HTMLButtonElement>('.radial-stage > button:not(.radial-center)')];
-    // Analógico aponta pela roda; o direcional anda ±1 por toque (com as 15 falas, 8 direções não chegariam a todas).
+    // Analógico aponta pela roda; o direcional anda ±1 por toque (with more than 8 taunts, 8 directions could not reach them all).
     const s = len(aimS) ? aimS : mv;
     let selected = radialIndex(s.x, s.y, buttons.length);
     if (selected === null && !openedTaunts) {

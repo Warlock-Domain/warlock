@@ -8,7 +8,7 @@ export const CUSTOM_TAUNTS = [
   { id: 'usarameabusaram', text: 'Usaram e abusaram.', en: 'Used and abused.', src: '/taunts-local/usarameabusaram.mp4' },
   { id: 'lanchado', text: 'Lanchado', en: 'Lanchado', src: '/taunts-local/lanchado.mp4' },
 ] as const;
-// Só texto com emoji (issue #351): sem áudio, só balão; ficam depois das gravações para não mudar os índices que já existem.
+// Text-only taunts (issue #351): bubble, no audio; appended after the recordings so existing indices keep their meaning.
 export const TEXT_TAUNTS = [
   { id: 'noob', text: 'Noob 🤡', en: 'Noob 🤡' },
   { id: 'get_him', text: 'Pega ele! 🔥', en: 'Get him! 🔥' },
