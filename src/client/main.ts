@@ -809,6 +809,11 @@ function startRoom(code: string, name: string) {
       }
       return;
     }
+    // Percorre os ids, não só cb: o campo some no último término. Invisibilidade não denuncia posição.
+    room?.ids.forEach((id, i) => {
+      const cue = closedBodySound(lastSnap?.cb?.[i], m.cb?.[i]);
+      if (cue && !(m.w[i * 7 + 6] & 2048)) sound.play(cue, volumeOf(id));
+    });
     lastSnap = m;
     predict.setSpeed(m.sp);
     const acked = sentAt.get(m.ack);
