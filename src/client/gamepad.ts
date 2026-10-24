@@ -24,6 +24,8 @@ export function stick(x: number, y: number, dead = 0.2, curve = 1.6): Vec {
 // a câmera olha para o norte sem girar: direita do analógico = +x, para cima (eixo negativo) = −y
 export const AIM_RANGE = SPELLS.fireball.levels[0].range;
 export const AIM_MIN = 1;
+// Heal needs a body under the aim, and the stick aim never comes closer than AIM_MIN: with the right stick released it heals yourself
+export const padTarget = (action: string, aiming: boolean, me: Vec, at: Vec) => (action === 'heal' && !aiming ? me : at);
 export function aimPoint(me: Vec, s: Vec, range = AIM_RANGE): Vec {
   const m = len(s);
   return m ? add(me, scale(norm(s), AIM_MIN + (range - AIM_MIN) * Math.min(1, m))) : me;
@@ -250,7 +252,7 @@ function play(g: PadGame, hit: (b: number) => boolean, mv: Vec, aimS: Vec) {
     const a = padAction(b);
     if (!a || !at) continue;
     lastCast = a;
-    g.cast(a, at);
+    g.cast(a, me ? padTarget(a, m > 0, me, at) : at);
   }
 }
 

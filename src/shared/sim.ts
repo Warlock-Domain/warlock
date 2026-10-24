@@ -971,7 +971,7 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   }
   if (!wz.spells[spell] || w.t < wz.cd[spell]) return;
   // An invalid target neither reveals the wizard nor cancels another action.
-  if (spell === 'heal' && !healTarget(w.wizards, wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF)) return;
+  if (spell === 'heal' && !healTarget(w.wizards, wz, at, spellLevel(spell, wz.spells[spell], w.book).range * wz.rangeF)) return;
   wz.basicCasting = undefined; // só uma conjuração válida cancela o ataque em preparo.
   const delay = CAST_POINT[spell];
   const d = sub(at, wz.pos);

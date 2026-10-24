@@ -90,7 +90,7 @@ export const SPELLS: Record<SpellId, Spell> = {
   scourge: { name: 'Flagelo', en: 'Scourge', cost: 0, up: [7, 7, 7, 7, 7, 7], levels: steps(80, 10).map((d) => L({ cd: 5, dmg: d, radius: 325 * UNIT })) },
   // Pacto: a próxima magia de dano em `duration` s sai PACT.mult× mais forte; a subida só encurta a recarga
   pact: { name: 'Pacto', en: 'Pact', cost: 10, up: [6, 7, 8, 9, 10, 11], levels: steps(20, -1).map((cd) => L({ cd, duration: 5 })) },
-  // Heal, cooldown and range set by the requester; provisional common cost, not balanced yet.
+  // Heal: measured on 24/10 (1.07 on Normal and Hard) and approved by Fernando; cost follows the other Support spells
   heal: { name: 'Curar', en: 'Heal', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(45, 6).map((heal, i) => L({ heal, cd: 20 - i, range: 10 })) },
   //24/10: área−25% pede raio×√0,75, não raio−25%; alcance reduzido a10m. CD/preço continuam provisórios.
   closedbody: { name: 'Corpo fechado', en: 'Closed Body', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(3.5, .75).map(duration => L({ cd: 20, duration })) }, // duration per level as requested; cost and cooldown under the owner exception, measured later in the batch
