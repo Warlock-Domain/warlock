@@ -19,13 +19,16 @@ async function refresh() {
 
 async function send(e: Event) {
   e.preventDefault();
-  const res = await fetch('/api/forum', { method: 'POST', body: JSON.stringify({ text: input.value }) });
-  status.textContent = res.ok ? '' : t('Registro recusado.', 'Record rejected.');
-  if (res.ok) input.value = '';
+  const res = await fetch('/api/forum', { method: 'POST', body: JSON.stringify({ text: input.value }) }).catch(() => null);
+  status.textContent = res?.ok ? '' : t('Registro recusado.', 'Record rejected.');
+  if (!res?.ok) return;
+  input.value = '';
   await refresh();
 }
 
-const aba = new URLSearchParams(location.search).get('aba');
+// ?aba= names the test tab only on localhost, like main.ts: on the live site the title never changes
+const LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+const aba = LOCAL && new URLSearchParams(location.search).get('aba');
 document.title = `${aba ? `🧪 ${aba} · ` : ''}${t('Fórum', 'Forum')} · Warlock Wars`;
 document.getElementById('forum')!.append(
   el('h1', {}, t('Fórum de testes', 'Test forum')),
