@@ -47,6 +47,8 @@ Uma página só, de seções empilhadas com sumário (`stackedPage`), usada na a
 
 ## Cena (`scene.ts`)
 
+- `resourceStats()` exposes Three.js geometry and texture counts for low-frequency telemetry. These are resource counts, not GPU memory in bytes; keep collection outside the render loop and do not add listeners or timers that outlive the room.
+
 - Destruição simples (`clash/pulse`) amplia só explosão/onda no ponto do projétil, sem mudar feixe do Raio, alcance, dano ou colisão.
 
 - `cloneAppearance` mantém cores/texturas da montagem do Guarda-roupas na partida; cor da vaga fica no anel/barra/nome, sem tingir roupa. Clona materiais/esqueleto, compartilha geometrias/texturas. Ao trocar a prévia, descarte só seus materiais próprios.

@@ -11,9 +11,8 @@ import { ITEMS, ITEM_IDS, type ItemId } from '../src/shared/items.ts';
 import { OPTION_CHOICES, type Match, type MatchOpts } from '../src/shared/match.ts';
 import { FREE_SPELLS, SPELLS, SPELL_IDS, type SpellId } from '../src/shared/spells.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
-import { isSummary, mergeSummaries, type Agg, type Summary } from './balance-summary.ts';
+import { isSummary, mergeSummaries, type Agg, type Bands, type Summary } from './balance-summary.ts';
 import { addCell, adjusted, f, goldBand, pct, playMatch, seedRandom, simNow, writeAtomic } from './sim-lib.ts';
-import type { Bands } from './balance-types.ts';
 
 const { values: arg, positionals } = parseArgs({
   allowPositionals: true,
@@ -46,6 +45,8 @@ const rng = seedRandom(seed);
 // smart = as combinações que funcionam (para a escolha por magia dizer algo)
 botConfig.planner = arg.plan === 'classic' ? () => CLASSIC_PLAN : arg.plan === 'smart' ? smartPlan : randomPlan;
 
+// Each owned key (spell, item, pair, etc.) tracks player-rounds, wins, expected wins, and averages.
+// `by` is limited to all, spell, and item keys, with buckets for mode, lobby size, rounds, teams, and gold spent.
 const S: Summary = {
   seed: String(seed), plan: arg.plan, difficulty: arg.difficulty, arena: arg.arena, effect: arg.effect, startedAt: new Date().toISOString(), seconds: 0, roundsPerMin: 0,
   matches: 0, rounds: 0, playerRounds: 0, noWinner: 0, stalled: 0,
@@ -302,7 +303,6 @@ process.on('SIGINT', () => {
 
 // --merge: soma os summary.json das pastas dadas (todos os campos são somas) e grava um report.md único em --out
 if (arg.merge) {
-  if (!positionals.length) throw new Error('--merge exige ao menos uma pasta de resumo');
   const parts = positionals.map(readSummary);
   const merged = mergeSummaries(parts);
   Object.assign(S, merged);

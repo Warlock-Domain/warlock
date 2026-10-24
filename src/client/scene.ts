@@ -2167,6 +2167,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   return {
     ready,
     onEvents,
+    resourceStats() {
+      return { geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures };
+    },
     // centro no mago e raio em metros; null (ou raio 0) esconde. blastAt/blastR: o círculo da explosão no ponto mirado
     range(at: Vec | null, r: number, blastAt: Vec | null = null, blastR = 0) {
       blastRing.visible = !!blastAt && blastR > 0;

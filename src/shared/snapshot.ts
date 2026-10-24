@@ -94,7 +94,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     left(256, me.rushUntil);
     left(4, Math.max(me.slowUntil, me.electroUntil ?? 0));
     left(INCAPACITATED_BIT, incapacitatedUntil(me, w.t));
-    left(1024, me.windUntil);
+    left(2, me.shieldUntil);
+    left(1024, Math.max(me.windUntil, me.veilUntil)); // o dono da Ilusão recebe o mesmo bit 1024 (ver bits)
     left(4096, Math.max(me.hasteUntil, me.shockUntil));
     left(me.magnet > 0 ? 8192 : 16384, me.magnetUntil);
     left(32768, me.alterUntil);
