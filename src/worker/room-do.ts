@@ -6,7 +6,7 @@ import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, 
 import { cmdTarget, parseClientMessage, publicId, publicRoom, type RoomInfo, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
-import { roundRecord } from '../shared/telemetry.ts';
+import { roundRecord, type ResourceSample } from '../shared/telemetry.ts';
 import { TAUNT_COOLDOWN_MS } from '../shared/taunts.ts';
 
 const STEP_MS = DT * 1000;
@@ -18,7 +18,7 @@ const DEAD_MS = 90_000;
 
 type Saved = { id: string; match: Match };
 const KICKED: ServerMsg = { t: 'error', code: 'kicked', msg: 'Você foi removido da sala por votação.' };
-type Attachment = { playerId: string | null; at?: number }; // at: hora do hello
+type Attachment = { playerId: string | null; at?: number; resourceAt?: number }; // at: hello time; resourceAt: resource report rate limit
 
 // Uma sala: guarda a partida na memória e roda a simulação enquanto houver alguém conectado.
 // Só grava no disco quando muda a fase ou a lista de jogadores (o mundo da rodada não é gravado).
@@ -119,13 +119,26 @@ export class Room extends DurableObject<Env> {
 
     const id = this.playerOf(ws);
     if (!id) return send(ws, { t: 'error', code: 'bad_msg', msg: 'Envie hello primeiro.' });
-    // 'alive' é só o pulso do cliente (main.ts): se contasse como comando, partida com todos parados nunca acabaria por IDLE_MS
-    if (msg.t !== 'alive') this.lastCmdAt = now;
+    // Background heartbeats and resource samples are not player commands; idle rooms must still expire.
+    if (msg.t !== 'alive' && msg.t !== 'resources') this.lastCmdAt = now;
     // o cliente só conhece o id público: acha o jogador correspondente
     const byPublic = (pub?: string) => m.players.find((p) => publicId(s.id, p.id) === pub);
     switch (msg.t) {
       case 'alive':
         return;
+      case 'resources': {
+        const attachment = ws.deserializeAttachment() as Attachment;
+        if (m.phase !== 'playing' || m.sandbox || m.night || !m.players.some((p) => p.id === id && !p.bot) || now - (attachment.resourceAt ?? 0) < 30_000) return;
+        ws.serializeAttachment({ ...attachment, resourceAt: now } satisfies Attachment);
+        const sample: ResourceSample = {
+          at: now, session: msg.session, build: msg.build, mode: m.mode, round: m.round,
+          players: m.players.length, projectiles: m.world?.projectiles.length ?? 0,
+          geometries: msg.geometries, textures: msg.textures, ...(msg.heapBytes !== undefined && { heapBytes: msg.heapBytes }),
+        };
+        // Resource reporting is optional; a failed write must not interrupt the match.
+        this.lobby().recordResources(sample).catch(() => {});
+        return;
+      }
       case 'move':
       case 'moveHold':
       case 'stop':
