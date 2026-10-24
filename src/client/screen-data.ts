@@ -204,7 +204,7 @@ export function nightLine(n: NonNullable<PublicRoom['night']>, playing: boolean)
   return playing && n.fight !== null ? where + t(` · encontro · onda ${n.wave + 1} de ${n.waves}`, ` · encounter · wave ${n.wave + 1} of ${n.waves}`) : where;
 }
 
-// espectador: continua em quem eu assistia; senão, o vivo com mais vida; step (← →) anda na lista e dá a volta
+// Spectator: keep the watched wizard; otherwise the living one with most HP; step (← →) walks the list and wraps
 export function pickWatched<W extends { id: string; hp: number }>(alive: W[], watchId: string | null, step: number): W | undefined {
   let watched = alive.find((w) => w.id === watchId);
   if (!watched && alive.length) watched = alive.reduce((a, w) => (w.hp > a.hp ? w : a));
@@ -212,8 +212,8 @@ export function pickWatched<W extends { id: string; hp: number }>(alive: W[], wa
   return watched;
 }
 
-// Ilusão: a cópia usa o visual do dono, mas tem identidade visual própria: sempre visível e sólida, e não herda o arremessado (16).
-// No snapshot o projétil da cópia leva o índice do dono em vel.x e a direção em vel.y
+// Illusion: the copy uses the owner's look but stays visible and solid and never inherits the thrown state (16).
+// In the snapshot the copy projectile carries the owner index in vel.x and its facing in vel.y
 export function illusionCopies<D extends { id: string; status: number }>(projectiles: { kind: string; pos: Vec; vel: Vec }[], ids: string[], drawn: D[]) {
   return projectiles.flatMap((q) => {
     const ownerId = q.kind === 'illusion' ? ids[q.vel.x] : undefined;

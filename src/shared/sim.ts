@@ -754,7 +754,7 @@ function geyserLift(w: World, p: Projectile) {
   }
 }
 
-// Rajada: cone de areia que fere, deixa sem agir e cega quem estiver nele
+// Sand cone: damages, incapacitates and blinds every enemy inside it
 function castCluster(w: World, wz: Wizard, L: Level, dir: Vec, dmgMult: number) {
   const length = L.range * wz.rangeF, width = L.width * wz.rangeF;
   w.events.push({ k: 'sand', id: wz.id, x: wz.pos.x, y: wz.pos.y, dx: dir.x, dy: dir.y, length, width });
@@ -769,7 +769,7 @@ function castCluster(w: World, wz: Wizard, L: Level, dir: Vec, dmgMult: number) 
   if (landed) w.events.push({k:'land',id:wz.id,src:'cluster'});
 }
 
-// Barricada: parede de 3 pedras no ponto, que fere quem estiver embaixo
+// Barricade: a 3-stone wall at the target that hits whoever stands under it
 function castRockpillar(w: World, wz: Wizard, L: Level, at: Vec, dmgMult: number) {
   // rockpillar.lua: obstáculo no ponto (até o alcance) que some depois da duração
   const pos = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
@@ -787,7 +787,7 @@ function castRockpillar(w: World, wz: Wizard, L: Level, at: Vec, dmgMult: number
   }
 }
 
-// Raio: acerta o primeiro mago ou obstáculo na linha e salta para o inimigo mais perto de cada atingido
+// Lightning: hits the first wizard or obstacle on the line, then jumps to the nearest enemy of each one struck
 function castLightning(w: World, wz: Wizard, L: Level, dir: Vec, dmgMult: number) {
   const end = wallClip(w, wz.pos, add(wz.pos, scale(dir, L.range * wz.rangeF)));
   const found = firstOnSegment(w, wz.pos, end, WIZ_R + LIGHTNING.width, wz.id, wz);
@@ -1462,7 +1462,7 @@ function linkHold(w: World, p: Projectile): boolean {
   return true;
 }
 
-// curva do passo: mira travada, Bumerangue, volta do Elo, virada do Drenar e Míssil; false = o projétil some
+// Per-step steering: locked aim, Boomerang, Link recall, Drain turn and Homing; false removes the projectile
 function steer(w: World, p: Projectile, L: Level, dt: number): boolean {
   if (p.lockOn !== undefined) {
     const owner = anyById(w, p.owner);
@@ -1501,7 +1501,7 @@ function steer(w: World, p: Projectile, L: Level, dt: number): boolean {
   return true;
 }
 
-// projétil bateu num obstáculo antes de qualquer mago; true = continua no mundo
+// Projectile reached an obstacle before any wizard; true keeps it in the world
 function hitPillar(w: World, p: Projectile, pil: { i: number; t: number }, L: Level): boolean {
   const q = w.pillars[pil.i];
   // Gravidade, Ricochete, Drenar, Magnetizar e Recarga quicam no obstáculo; o Bumerangue quica mais forte e volta ao dono
@@ -1540,7 +1540,7 @@ function hitPillar(w: World, p: Projectile, pil: { i: number; t: number }, L: Le
   return false;
 }
 
-// projétil acertou um mago (o escudo devolve; cada magia faz o seu); true = continua no mundo
+// Projectile reached a wizard (a shield reflects it; each spell applies its own effect); true keeps it in the world
 function hitWizard(w: World, p: Projectile, found: { wz: Wizard; t: number }, L: Level, dt: number): boolean {
   const wz = found.wz;
   if (shielded(w, wz)) {
@@ -1989,7 +1989,7 @@ function finishBasic(w: World, wz: Wizard) {
   w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'basic', owner: wz.id, caster: wz.id, pos: add(wz.pos, scale(d, PROJ_SPAWN)), vel: scale(d, BASIC_ATTACK.speed), level: 1, until: w.t + BASIC_ATTACK.range / BASIC_ATTACK.speed, target: null, lockOn: target.id, stats: BASIC_STATS, src: 'basic', dmgMult: 1 });
 }
 
-// comandos do passo: andar, parar, postura, ataque básico e magias (beginCast)
+// Step commands: move, stop, brace, basic attack and spells (beginCast)
 function applyCmds(w: World, cmds: Cmd[]) {
   for (const c of cmds) {
     const wz = byId(w, c.id);
@@ -2020,7 +2020,7 @@ function applyCmds(w: World, cmds: Cmd[]) {
   }
 }
 
-// estado de cada mago antes de andar: volta no deathmatch, lançamento que sai, chão, efeitos e velocidade
+// Per-wizard state before movement: deathmatch respawn, finished casts, ground zones, effects and speed
 function prepWizards(w: World, rand: () => number) {
   for (const wz of w.wizards) {
     if (!wz.alive && w.dm && w.t >= wz.respawnAt) respawn(w, wz, rand);
@@ -2067,7 +2067,7 @@ function prepWizards(w: World, rand: () => number) {
   }
 }
 
-// encolhimento da arena e morte súbita
+// Arena shrink and sudden death
 function shrinkArena(w: World) {
   // morte súbita: rodada longa passa a encolher mais rápido (o próximo encolhimento vem em no máximo 5 s)
   if (!w.dm && w.rules.sudden && !w.sudden && w.t >= SUDDEN.at) {
@@ -2119,7 +2119,7 @@ function stepChests(w: World, rand: () => number) {
   w.loots = w.loots.filter((l) => l.left > 0 && w.t < l.until);
 }
 
-// movimento dos magos (avanço, estocada, vento, redemoinho); devolve quem está andando para blockPillars
+// Wizard movement (dash, thrust, wind, pull zones); returns the walking wizards for blockPillars
 function moveAll(w: World): Set<Wizard> {
   const walking = new Set<Wizard>();
   for (const wz of w.wizards) {
@@ -2155,7 +2155,7 @@ function moveAll(w: World): Set<Wizard> {
   return walking;
 }
 
-// depois dos impactos: espinhos, lava, abismo, regeneração e morte
+// After impacts: spikes, lava, pits, regeneration and death
 function stepGround(w: World) {
   for (const wz of w.wizards) {
     if (!wz.alive) continue;

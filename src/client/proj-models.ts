@@ -1,10 +1,10 @@
-// Formas dos projéteis e das Vinhas: só geometria e material do Three.js, sem o estado da cena (saíram de createScene em scene.ts)
+// Projectile and Vine shapes: Three.js geometry and materials only, no scene state (moved out of createScene in scene.ts)
 import * as THREE from 'three';
 import { GEYSER_FX } from './geyser-fx.ts';
 import type { ProjKind } from '../shared/sim.ts';
 
-// corpo de cada projétil: formas low-poly próprias em vez da mesma bola de luz (pedido do Fernando, 17/10;
-// não há modelos CC0 prontos para magias, então são feitas aqui com as geometrias do Three.js)
+// Each projectile body has its own low-poly shape instead of the same light ball (Fernando's request, 17/10;
+// there are no ready CC0 spell models, so they are built here from Three.js geometries)
 export const jitter = (g: THREE.BufferGeometry, amount: number) => {
   const pos = g.attributes.position;
   for (let i = 0; i < pos.count; i++) pos.setXYZ(i, pos.getX(i) * (1 + (Math.random() - 0.5) * amount), pos.getY(i) * (1 + (Math.random() - 0.5) * amount), pos.getZ(i) * (1 + (Math.random() - 0.5) * amount));
@@ -34,7 +34,7 @@ export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
   cluster: () => new THREE.Mesh(new THREE.TetrahedronGeometry(0.2), flat('#ffe066', '#ff9a00', 1.2)),
   homing: () => {
     const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), flat('#e7b8ff', '#9a30ff', 1.2));
-    m.scale.set(0.8, 0.8, 2); // cristal comprido apontando para onde voa
+    m.scale.set(0.8, 0.8, 2); // long crystal pointing where it flies
     return m;
   },
   swap: () => {
@@ -52,7 +52,7 @@ export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
   },
   meteor: () => new THREE.Mesh(jitter(new THREE.DodecahedronGeometry(0.3, 0), 0.4), flat('#4a2c20', '#ff4a00', 0.9)),
   boomerang: () => {
-    // V de dois braços, extrudado, girando
+    // two-armed V, extruded, spinning
     const s = new THREE.Shape();
     s.moveTo(-0.38, 0.16);
     s.lineTo(0, -0.12);
@@ -84,12 +84,12 @@ export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
   bouncer: () => new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), flat('#7dffb8', '#10c070', 1.2)),
   drain: () => {
     const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.18), flat('#c8ff9a', '#3a9a10', 1.2));
-    m.scale.set(0.7, 0.7, 1.7); // espinho verde apontando para onde voa
+    m.scale.set(0.7, 0.7, 1.7); // green thorn pointing where it flies
     return m;
   },
   snowball: () => new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.42, 1), 0.15), flat('#f4fbff', '#9ad8ff', 0.35)),
   magnetize: () => {
-    // ímã em U: arco vermelho com pontas prateadas
+    // U magnet: red arc with silver tips
     const g = new THREE.Group();
     const arc = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.06, 6, 16, Math.PI), flat('#ff4a4a', '#a00000', 0.8));
     arc.rotation.x = -Math.PI / 2;
@@ -103,7 +103,7 @@ export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
   },
   recharge: () => {
     const m = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.36, 8), flat('#9ae6ff', '#1a90ff', 1.3));
-    m.rotation.x = Math.PI / 2; // pilha deitada apontando para a frente
+    m.rotation.x = Math.PI / 2; // battery lying down, pointing forward
     return m;
   },
   link: () => new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.04, 6, 16), flat('#bfe6ff', '#2a7aff', 1.2)),
@@ -121,7 +121,7 @@ export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
     return g;
   },
   warpzone: () => {
-    // cúpula de vidro com borda no chão; raio 1 aqui, o tamanho real vem do servidor
+    // glass dome with a rim on the ground; radius 1 here, the real size comes from the server
     const g = new THREE.Group();
     g.add(new THREE.Mesh(new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#7ad8ff', transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide })));
     const rim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.02, 4, 48), new THREE.MeshBasicMaterial({ color: '#bfefff', transparent: true, opacity: 0.6 }));
