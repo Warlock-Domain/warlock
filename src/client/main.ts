@@ -251,6 +251,7 @@ function startRoom(code: string, name: string) {
   let seq = 0;
   const sentAt = new Map<number, number>();
   let lastSnap: Snap | null = null;
+  let wasBracing = false;
   // a latência só existe depois do primeiro comando confirmado (antes, predict.rtt() é um chute)
   let rttSeen = false;
   // modo treino (só para quem apertou o botão): dicas nas primeiras rodadas; playingAt marca o "Já!"
@@ -777,10 +778,6 @@ function startRoom(code: string, name: string) {
       }
       return;
     }
-    const ownIndex = room?.ids.indexOf(me) ?? -1;
-    const braceNow = ownIndex >= 0 && !!(m.w[ownIndex * 7 + 6] & BRACING_BIT);
-    const braceBefore = ownIndex >= 0 && !!((lastSnap?.w[ownIndex * 7 + 6] ?? 0) & BRACING_BIT);
-    if (braceNow && !braceBefore) sound.play('brace'); // ativa junto dos efeitos autoritativos, nunca durante o preparo.
     lastSnap = m;
     predict.setSpeed(m.sp);
     const acked = sentAt.get(m.ack);
@@ -791,6 +788,10 @@ function startRoom(code: string, name: string) {
     }
     if (!room) return;
     const sv = decodeSnap(m, room.ids);
+    // the cue follows the authoritative Hold ground edge, never the windup
+    const bracing = !!((sv.wizards.find((z) => z.id === me)?.status ?? 0) & BRACING_BIT);
+    if (bracing && !wasBracing) sound.play('brace');
+    wasBracing = bracing;
     interp.push(sv, performance.now() / 1000);
     keepLast(ring, { s: sv, e: m.e ?? [] }, REPLAY_MAX); // antes do onEvents: o estado da queda entra no trecho
     if (m.e) onEvents(m.e);
