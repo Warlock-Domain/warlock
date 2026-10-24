@@ -26,6 +26,7 @@ export type ClientMsg =
   | { t: 'move'; x: number; y: number; seq: number; held?: boolean }
   | { t: 'moveHold'; on: boolean; seq: number } // soltar o direito não envia outro destino de caminhada.
   | { t: 'stop'; seq: number }
+  | { t: 'brace'; on: boolean; seq: number }
   | { t: 'basic'; x: number; y: number; target?: string | number; seq: number }
   | { t: 'cast'; spell: SpellId; x: number; y: number; seq: number }
   | { t: 'buy'; spell: SpellId }
@@ -226,6 +227,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return typeof m.on === 'boolean' && seq(m.seq) ? { t: 'moveHold', on: m.on, seq: m.seq } : null;
     case 'stop':
       return seq(m.seq) ? { t: 'stop', seq: m.seq } : null;
+    case 'brace':
+      return typeof m.on === 'boolean' && seq(m.seq) && Object.keys(m).every((k) => ['t', 'on', 'seq'].includes(k)) ? { t: 'brace', on: m.on, seq: m.seq } : null;
     case 'basic':
       if (!coord(m.x) || !coord(m.y) || !seq(m.seq) || !Object.keys(m).every((k) => ['t', 'x', 'y', 'seq', 'target'].includes(k))) return null;
       if (m.target !== undefined && !pubId(m.target) && !(typeof m.target === 'number' && seq(m.target))) return null;
