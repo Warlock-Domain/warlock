@@ -4,6 +4,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Interface
 
+- Curar: tecla/barra seleciona e clique no modelo confirma, independente de modo Rápido/Ao soltar. Sem fallback do chão; inválido mantém seleção, Esc/S/direito cancelam. Aura verde1,5s e coral sintetizado original tocam no evento confirmado, respeitando mixer/distância. PT/EN/ficha/demo/ícone próprio acompanham stats.
+
 - **DOM sempre com `el(tag, props, ...filhos)`** de `icons.ts` (`on*` vira listener, `class` vira `className`, filho `null`/`false` some). Não crie outro helper de DOM. Ícones: `icon(id)` com `ICON`, `ITEM_ICON`, `UI_ICON`.
 - **Grupos de magia** (`SPELL_GROUPS` em `rules-text.ts`, cor em `.g-<grupo>` no `style.css`): Suporte (verde) aparece mesmo vazio e Mobilidade é dourada (decisão de 24/10, PR #343); `searchFilter(..., keepEmpty)` mantém o grupo vazio visível sem busca, para o jogador ver que a categoria existe antes das magias dela.
 - Reuse `choice(...)` (fileira de botões com `aria-pressed`), `tabs(...)` (`role=tab`) e `withTip(elemento, () => html)` (dica no hover e no foco).
@@ -21,6 +23,10 @@ Vale junto com o `CLAUDE.md` da raiz.
 - **Roda de provocações** (`radialPicker`, `radial-picker.ts`, PRs #239/#238/#240): botões em volta de um centro que cancela, feitos com `el`/`iconButton`; mouse, setas, números e analógico escolhem pelo mesmo índice (`radialIndex`). A matemática e a tecla segurada (`radialHold`) ficam em `taunt-wheel.ts`, sem DOM, com teste. Mostra todas as falas de `TAUNTS` (15 hoje): fala nova entra sozinha na roda. A ordem é preferência de apresentação (`warlock:taunt-wheel`, permutação das falas em `tauntWheelSlots`/`assignTauntSlot`, editada em Configurações → Comunicação): a roda relê a ordem ao abrir e o servidor sempre recebe o índice do catálogo. `{ inline: true, hint }` embute a mesma roda nas Configurações (sem abrir sobre a partida e sem escolher só por foco); `setLabels` troca os rótulos.
 
 ## Idioma
+
+- Grimório: `MECHANIC_GUIDES` contém Atacar/Manter base com prévias; `NEGATIVE_GUIDES` contém nove status independentes, somente texto e sem magia/demo anexada. Ambos aparecem apenas no livro, fora de Aprender/loja. Abertura normal começa no sumário, sem persistir página; links explícitos de habilidade permanecem diretos. Recuperação50→100% fica em Empurrão.
+
+- Auditoria de guias: fichas preservam centésimos e `knockDistance` usa amortecimento/soft-cap/corte de `moveWizard`, sem amplificação por dano histórico. Roteiros demonstram bloqueios de stun/Agarrar, Escudo contra área/reflexão, colisões da Rajada e trajetórias da Ilusão. `demoStatus` lê estados reais. Canvas instrumentado não substitui inspeção visual no navegador.
 
 - Todo texto visível com `t('português', 'English')` (`i18n.ts`). Nomes por `spellName`, `itemName`, `arenaName`; textos de item por `itemText`; números com `LOCALE` (helpers `n1`/`pct`).
 - O idioma é lido uma vez ao carregar (`setLang` grava e recarrega), então listas de texto podem ficar em constantes de módulo.

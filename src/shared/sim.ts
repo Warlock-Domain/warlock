@@ -8,7 +8,8 @@ import { AEGIS, CRIT, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId }
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, PROJECTILE_COLLISION, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellBook, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 import { SHIELD, castBlocked } from './spells.ts';
-import { BASIC_ATTACK, KNOCK_RECOVERY } from './constants.ts';
+import { BASIC_ATTACK, BRACE, KNOCK_RECOVERY } from './constants.ts';
+import { healTarget } from './heal-target.ts';
 
 export type Wizard = {
   electroUntil?: number; // duração da eletrificação.
@@ -19,6 +20,8 @@ export type Wizard = {
   recoveryLeft?: number; // retomada disparada pelo fim do impulso, não pelo fim de qualquer stun.
   basicReadyAt?: number; // Attack cooldown
   basicCasting?: { target: string | number; fireAt: number; melee: boolean }; // Attack windup in progress
+  braceUntil?: number; // Hold ground: resists only new impulses while S is held
+  braceReadyAt?: number; // effects start only after the continuous 0.5 s windup
   target: Vec | null;
   moveHeld?: boolean; // direito pressionado preserva tentativa contra obstáculo.
   blockedMove?: boolean; // destino de clique único cancelado por colisão.
@@ -140,10 +143,12 @@ export type Cmd =
   | { id: string; kind: 'move'; to: Vec; held?: boolean }
   | { id: string; kind: 'moveHold'; on: boolean }
   | { id: string; kind: 'stop' }
+  | { id: string; kind: 'brace'; on: boolean }
   | { id: string; kind: 'basic'; at: Vec; target?: string | number }
   | { id: string; kind: 'cast'; spell: SpellId; at: Vec }
 
 export type SimEvent =
+  | { k: 'heal'; id: string; x: number; y: number; amount: number }
   | { k: 'attack'; id: string; melee: boolean }
   | { k: 'cast'; id: string; spell: SpellId }
   | { k: 'hit'; id: string; by: string; x: number; y: number; dmg: number; src: string; crit?: true }
@@ -421,7 +426,8 @@ const byId = (w: World, id: string | null) => w.wizards.find((z) => z.id === id 
 const anyById = (w: World, id: string | null) => w.wizards.find((z) => z.id === id); // vivo ou morto
 const shielded = (w: World, wz: Wizard) => w.t < wz.shieldUntil;
 export const statusDuration = (w: World, wz: Wizard, seconds: number) => seconds * (shielded(w, wz) ? SHIELD.statusDuration : 1);
-export const incapacitatedUntil = (wz: Wizard, _now = Infinity) => wz.electroUntil ?? 0;
+export const bracingActive = (w: World, wz: Wizard) => w.t + 1e-8 >= (wz.braceReadyAt ?? Infinity) && w.t < (wz.braceUntil ?? 0);
+export const incapacitatedUntil = (wz: Wizard, now = Infinity) => Math.max(wz.electroUntil ?? 0, now + 1e-8 >= (wz.braceReadyAt ?? Infinity) ? wz.braceUntil ?? 0 : 0);
 export function applyElectrocution(w: World, wz: Wizard) {
   if (w.t < wz.invulnUntil) return;
   wz.electroUntil = Math.max(wz.electroUntil ?? 0, w.t + statusDuration(w, wz, LIGHTNING.debuffDuration * wz.debuffMult));
@@ -434,6 +440,7 @@ function stun(w: World, wz: Wizard, seconds: number) {
   wz.dashUntil = wz.thrustUntil = 0; // encerra avanço voluntário, mas preserva forças externas.
 }
 function addKnock(w: World, wz: Wizard, impulse: Vec) {
+  if (bracingActive(w, wz)) impulse = scale(impulse, 1 - BRACE.resistance);
   if (shielded(w, wz)) impulse = scale(impulse, SHIELD.knock);
   wz.vel = add(wz.vel, impulse);
   if (len(impulse) <= 0 || !isSliding(wz)) return;
@@ -716,7 +723,16 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   const level = wz.spells[spell];
   if (!level || w.t < wz.cd[spell]) return;
   const L = spellLevel(spell, level, w.book);
+  const recipient = spell === 'heal' ? healTarget(w.wizards, wz, at, L.range * wz.rangeF) : undefined;
+  if (spell === 'heal' && !recipient) return;
   wz.cd[spell] = w.t + L.cd;
+  if (recipient) {
+    const before = recipient.hp;
+    heal(w, recipient, L.heal);
+    wz.windUntil = 0;
+    w.events.push({ k: 'heal', id: recipient.id, x: recipient.pos.x, y: recipient.pos.y, amount: recipient.hp - before });
+    return;
+  }
   for (let i = 0; i < (SHOTS[spell] ?? 1); i++) w.events.push({ k: 'fire', id: wz.id, src: spell });
   wz.windUntil = 0; // qualquer magia acaba com a Caminhada no vento (windwalkmodifier.lua)
   // Elo: teleportar ou trocar para fora da arena solta o mago ligado (linkmodifier.lua)
@@ -910,6 +926,8 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     wz.casting = null;
   }
   if (!wz.spells[spell] || w.t < wz.cd[spell]) return;
+  // Alvo inválido não revela o mago nem cancela outra ação.
+  if (spell === 'heal' && !healTarget(w.wizards, wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF)) return;
   wz.basicCasting = undefined; // só uma conjuração válida cancela o ataque em preparo.
   const delay = CAST_POINT[spell];
   const d = sub(at, wz.pos);
@@ -1638,7 +1656,7 @@ export function revive(w: World, wz: Wizard, pos: Vec) {
     alive: true, pos, vel: v(0, 0), target: null, casting: null, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
-    rune: null, runeUntil: 0, electroUntil: 0, basicCasting: undefined,
+    rune: null, runeUntil: 0, braceUntil: 0, braceReadyAt: 0, electroUntil: 0, basicCasting: undefined,
   });
 }
 
@@ -1787,7 +1805,7 @@ function attackBody(w: World, by: Wizard, target: string | number, visible = tru
   return z && z !== by && !allies(by, z) && (!visible || w.t >= Math.max(z.veilUntil, z.windUntil)) ? z : undefined;
 }
 // Attack is not a spell: numbers come from BASIC_ATTACK, nothing inherited from Fireball
-const BASIC_STATS: Level = { cd: BASIC_ATTACK.cd, dmg: BASIC_ATTACK.dmg, knock: BASIC_ATTACK.knock, speed: BASIC_ATTACK.speed, range: BASIC_ATTACK.range, duration: 0, radius: 0, dmgMin: 0, absorb: 0, pull: 0, scale: 0, dot: 0 };
+const BASIC_STATS: Level = { heal: 0, cd: BASIC_ATTACK.cd, dmg: BASIC_ATTACK.dmg, knock: BASIC_ATTACK.knock, speed: BASIC_ATTACK.speed, range: BASIC_ATTACK.range, duration: 0, radius: 0, dmgMin: 0, absorb: 0, pull: 0, scale: 0, dot: 0 };
 function beginBasic(w: World, wz: Wizard, c: Extract<Cmd, { kind: 'basic' }>) {
   if (!wz.alive || isStunned(wz) || wz.casting || wz.basicCasting || w.t < (wz.basicReadyAt ?? 0)) return;
   // Clique num corpo tem prioridade; no chão escolhe o mais próximo do atacante, sem caça automática.
@@ -1826,11 +1844,15 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   for (const c of cmds) {
     const wz = byId(w, c.id);
     if (!wz) continue;
-    if (c.kind === 'basic') {
+    if (c.kind === 'brace') {
+      if (c.on && w.t >= (wz.braceUntil ?? 0)) wz.braceReadyAt = w.t + BRACE.windup;
+      wz.braceUntil = c.on ? w.t + BRACE.lease : 0;
+    } else if (c.kind === 'basic') {
       beginBasic(w, wz, c);
     } else if (c.kind === 'moveHold') {
-      wz.moveHeld = c.on;
+      wz.moveHeld = c.on && !bracingActive(w, wz);
     } else if (c.kind === 'move') {
+      if (bracingActive(w, wz)) continue; // não guarda uma caminhada para disparar quando S for solto.
       wz.basicCasting = undefined;
       wz.moveHeld = c.held ?? false;
       wz.blockedMove = false;
@@ -1881,6 +1903,11 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1) * (w.map && cellAt(w.map, wz.pos.x, wz.pos.y) === CELL.wax ? WAX.mult : 1) * (inWarp(w, wz) ? WARPZONE.wizMult : 1) * haste * w.mods.speed);
     if (w.t < (wz.electroUntil ?? 0)) wz.speed *= 1 - LIGHTNING.slow;
     if (rooted) wz.target = null;
+    if (bracingActive(w, wz)) {
+      wz.target = null;
+      wz.moveHeld = false;
+      if (wz.casting) wz.casting.then = undefined;
+    }
   }
 
   // morte súbita: rodada longa passa a encolher mais rápido (o próximo encolhimento vem em no máximo 5 s)

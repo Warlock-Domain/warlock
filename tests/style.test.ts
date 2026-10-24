@@ -45,7 +45,8 @@ describe('jeito de jogar', () => {
     // 23/10: clique único cancela no primeiro contato, inclusive oblíquo, também para destinos dos bots.
     // Proposta 23/10: Meteoro sem empurrão, com stun fixo 1,25 s.
     // 24/10: bots use the manual Attack (no spell ready, enemy within 6 m, clear line).
-    expect(hash).toBe(1496471436);
+    // 24/10: bots hold ground (projectile within 0.6 s, no escape spell ready, not dodging on foot).
+    expect(hash).toBe(4073551526);
     // e mediu de verdade nessa mesma partida
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);

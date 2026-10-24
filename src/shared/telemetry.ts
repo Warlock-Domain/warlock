@@ -92,7 +92,8 @@ export function roundRecord(m: Match, now: number): RoundRecord {
       character: p.character,
       won: teams ? winTeam !== null && p.team === winTeam : p.id === m.lastRoundWinner,
       team: teams ? p.team : undefined,
-      spells: p.spells,
+      // only owned spells: each new spell would otherwise grow every stored record (2 MB storage budget)
+      spells: Object.fromEntries(Object.entries(p.spells).filter(([, lvl]) => lvl > 0)),
       items: p.items,
       dmg: Math.round(p.stats.round.dmg * 10) / 10,
       dmgBy: p.stats.round.dmgBy,

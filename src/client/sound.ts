@@ -1,16 +1,19 @@
-// Sons: arquivos gravados (CC0 em public/sfx; as provocações do Leonard em public/taunts-local têm só a autorização dele; créditos em public/CREDITS.txt) e, enquanto não carregam ou se faltarem,
+// Sons: arquivos gravados com licenças e créditos individuais em public/CREDITS.txt e, enquanto não carregam ou se faltarem,
 // sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
 import { tauntAudioSrc } from '../shared/taunts.ts';
 import { audioLevel, layerVolume } from './audio-level.ts';
 import { store } from './store.ts';
 
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
-  | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover';
+  | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover' | 'brace' | 'heal';
 
 const FILES: Partial<Record<SoundKind, string[]>> = {
+  brace: ['brace_start'],
   fireball: ['fireball'], lightning: ['lightning'], homing: ['homing'], shield: ['shield'], teleport: ['teleport'],
   hit: ['hit', 'explode'], hitLight: ['hit'], hitHeavy: ['hit', 'explode'], reflect: ['shield'], death: ['explode'], go: ['confirm'],
 };
+// gravações que tocam sempre na velocidade original (o timbre foi escolhido assim)
+const STEADY = new Set(['brace_start']);
 // golpe fraco mais agudo, golpe forte mais grave
 const RATE: Partial<Record<SoundKind, number>> = { hitLight: 1.25, hitHeavy: 0.78 };
 
@@ -85,7 +88,7 @@ export function createSound(musicDefault?: number) {
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
       // Pré-renderiza a síntese fora do caminho de reprodução para medi-la pelo mesmo critério dos arquivos.
       if (typeof OfflineAudioContext !== 'undefined') {
-        const kinds: SoundKind[] = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'hit', 'hitLight', 'hitHeavy', 'reflect', 'death', 'splash', 'shrink', 'beep', 'go', 'click', 'winRound', 'loseRound', 'buy', 'error', 'ready', 'hover'];
+        const kinds: SoundKind[] = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'hit', 'hitLight', 'hitHeavy', 'reflect', 'death', 'splash', 'shrink', 'beep', 'go', 'click', 'winRound', 'loseRound', 'buy', 'error', 'ready', 'hover', 'heal'];
         for (const kind of kinds) {
           const offline = new OfflineAudioContext(1, ctx.sampleRate * 2, ctx.sampleRate);
           synth(kind, 1, offline, offline.destination);
@@ -143,7 +146,7 @@ export function createSound(musicDefault?: number) {
     if (!buf) return false;
     const src = ctx!.createBufferSource();
     src.buffer = buf;
-    src.playbackRate.value = name.startsWith('synth/') ? 1 : rate * (0.94 + Math.random() * 0.12); // síntese pré-renderizada sem variação de timbre.
+    src.playbackRate.value = name.startsWith('synth/') || STEADY.has(name) ? 1 : rate * (0.94 + Math.random() * 0.12); // síntese pré-renderizada e gravações escolhidas sem variação de timbre
     const g = ctx!.createGain();
     g.gain.value = volume * (gains.get(name) ?? 1);
     src.connect(g).connect(name.startsWith('taunt/') ? tauntMaster! : master!);
@@ -187,6 +190,29 @@ export function createSound(musicDefault?: number) {
     const playTone = (type: OscillatorType, f0: number, f1: number, dur: number, gain: number, at = 0) => toneAt(type, f0, f1, dur, gain, at, c, output);
     const playHiss = (type: BiquadFilterType, f0: number, f1: number, dur: number, gain: number, at = 0) => hissAt(type, f0, f1, dur, gain, at, c, output);
       switch (kind) {
+        // Harmônicos arredondados, ataque suave e vibrato imitam um coral em “ooooh”, sem gravação externa.
+        case 'heal':
+          [261.63, 329.63, 392].forEach((note, voice) => {
+            [1, 2, 3, 7].forEach((harmonic, i) => {
+              const at = c.currentTime + voice * .03;
+              const o = c.createOscillator(), vibrato = c.createOscillator();
+              const depth = c.createGain(), envelope = c.createGain();
+              o.type = vibrato.type = 'sine';
+              o.frequency.setValueAtTime(note * harmonic, at);
+              vibrato.frequency.setValueAtTime(5.2 + voice * .17, at);
+              depth.gain.value = harmonic * 1.2;
+              vibrato.connect(depth).connect(o.frequency);
+              const gain = [.065, .022, .008, .0015][i] * v;
+              envelope.gain.setValueAtTime(.0001, at);
+              envelope.gain.exponentialRampToValueAtTime(Math.max(.0001, gain), at + .18);
+              envelope.gain.exponentialRampToValueAtTime(Math.max(.0001, gain * .85), at + .65);
+              envelope.gain.exponentialRampToValueAtTime(.0001, at + 1.6);
+              o.connect(envelope).connect(output);
+              o.start(at); vibrato.start(at);
+              o.stop(at + 1.65); vibrato.stop(at + 1.65);
+            });
+          });
+          break;
         case 'fireball': playHiss('lowpass', 2400, 300, 0.45, 0.5 * v); playTone('sawtooth', 160, 60, 0.3, 0.08 * v); break;
         case 'lightning': playHiss('highpass', 3000, 800, 0.25, 0.7 * v); playTone('square', 900, 120, 0.18, 0.08 * v); break;
         case 'homing': playTone('sine', 300, 900, 0.4, 0.15 * v); playHiss('bandpass', 1500, 2500, 0.4, 0.15 * v); break;
