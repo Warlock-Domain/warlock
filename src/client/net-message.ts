@@ -39,6 +39,10 @@ function player(x: unknown): x is PublicPlayer {
     const a = x.asc;
     if (!object(a) || !integer(a.xp) || !integer(a.level) || !integer(a.next) || !Array.isArray(a.todo) || !a.todo.every((k) => (CARD_KINDS as readonly unknown[]).includes(k)) || !Array.isArray(a.offer) || !a.offer.every((row) => Array.isArray(row) && row.every(card)) || !Array.isArray(a.pick) || !a.pick.every((pick) => pick === null || object(pick) && integer(pick.i) && (pick.swap === undefined || isSpell(pick.swap))) || !integer(a.rerolls) || !Array.isArray(a.auto) || !a.auto.every(card)) return false;
   }
+  if (x.lv !== undefined) {
+    const l = x.lv;
+    if (!object(l) || !integer(l.xp) || !integer(l.level) || !integer(l.next) || !integer(l.owed) || !Array.isArray(l.offer) || !l.offer.every(card)) return false;
+  }
   return true;
 }
 

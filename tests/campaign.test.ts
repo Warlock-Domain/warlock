@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPAIGN, SERVOS, roomWaves } from '../src/shared/campaign.ts';
+import { CAMPAIGN, NIGHT_XP, SERVOS, nightCount, nightLevel, roomWaves, xpShare } from '../src/shared/campaign.ts';
 import { fightOf, nightMap, type NightMap } from '../src/shared/levels.ts';
 import { WIZ_SPEED } from '../src/shared/constants.ts';
 import { addPlayer, endIdle, setWatch, kick, newMatch, removePlayer, resume, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
@@ -127,7 +127,10 @@ describe('Campanha: partida no mapa', () => {
     for (const id of ['a', 'b']) expect(inside(n, room, wiz(m, id).pos), id).toBe(true);
     const wave = fightIn(m, room).waves[0];
     const alive = foes(m).filter((z) => z.alive);
-    expect(alive.length).toBe(wave.length);
+    // 2 Acesos bring half a wave more; whoever does not fit in the 4 slots waits in the queue
+    const total = nightCount(wave.length, 2);
+    expect(alive.length).toBe(Math.min(CAMPAIGN.slots, total));
+    expect(m.night!.queue!.length).toBe(total - alive.length);
     const entries = n.marks.filter((q) => q.room === room && q.kind === 'entry').map((q) => v(q.x + 0.5, q.y + 0.5));
     for (const z of alive) {
       expect(z.hpMax).toBe(SERVOS[m.players.find((p) => p.id === z.id)!.servo!].hp);
@@ -339,6 +342,24 @@ describe('Campanha: partida no mapa', () => {
     expect(b.connected).toBe(false);
     expect(b.servo).toBeUndefined();
     expect(wiz(m, 'b').team).toBe(0);
+  });
+
+  it('when only dropped humans are standing, the night is lost after the grace period; reconnecting in time keeps it', () => {
+    const m = night(['a', 'b']);
+    let now = toPlaying(m, 0);
+    wiz(m, 'a').invulnUntil = 0;
+    kill(m, 'a', null);
+    wiz(m, 'a').ember = { prog: 0, need: 99, since: 0 }; // nobody rekindles a
+    removePlayer(m, 'b');
+    now = step(m, now, 60 * (CAMPAIGN.orphan - 1));
+    expect(m.night!.result).toBe(null);
+    addPlayer(m, 'b', 'b'); // back in time: the countdown restarts
+    now = step(m, now, 60 * 2);
+    expect(m.night!.result).toBe(null);
+    removePlayer(m, 'b');
+    now = step(m, now, 60 * CAMPAIGN.orphan + 2);
+    expect(m.phase).toBe('roundEnd');
+    expect(m.night!.result).toBe('lost');
   });
 
   it('no mode, bot or kick votes against the Smoke; switching into the campaign is not voted', () => {

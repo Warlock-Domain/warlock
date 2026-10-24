@@ -45,6 +45,8 @@ export const ILSE_MOMENTS = {
     t('Cada vaga da barra embaixo tem a sua tecla (1 2 3 4 Q W E R). Arraste uma magia para a vaga que preferir.', 'Each slot of the bar below has its key (1 2 3 4 Q W E R). Drag a spell to the slot you prefer.'),
     t('Quanto mais dano um servo leva, mais longe ele voa. Empurre-o para a lava.', 'The more damage a servant takes, the farther it flies. Push it into the lava.'),
   ],
+  // first level-up after a cleared room (Lucas, 24/10: XP from the servants, a card per level)
+  level: () => [t('Cada servo que cai dá experiência ao grupo. Subiu de nível: escolha uma carta à direita, magia nova ou um nível a mais numa que você já tem.', 'Every servant that falls gives the group experience. You levelled up: pick a card on the right, a new spell or one more level on one you already have.')],
   fall: () => [t('O abismo cobra caro: cada queda tira um pedaço da sua vida.', 'The abyss charges dearly: every fall takes a piece of your life.')],
   won: () => [t('A primeira vela segue acesa. Daqui em diante eu falo menos: vocês já sabem o caminho.', 'The first candle still burns. From here on I will speak less: you know the way now.')],
 };

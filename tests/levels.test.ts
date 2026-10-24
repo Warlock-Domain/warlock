@@ -56,8 +56,8 @@ describe('Campanha: salas da Charneca', () => {
   });
 
   it('exits are the openings drawn on the border', () => {
-    expect(room('charneca-entrada-01').exits).toEqual([{ letter: 'L', edge: 'right', from: 4, to: 6 }]);
-    expect(room('vilarejo-queimado-02').exits.map((e) => e.letter).sort()).toEqual(['L', 'N', 'O']);
+    expect(room('charneca-entrada-01').exits).toEqual([{ letter: 'N', edge: 'top', from: 13, to: 16 }, { letter: 'L', edge: 'right', from: 4, to: 6 }, { letter: 'S', edge: 'bottom', from: 13, to: 16 }]);
+    expect(room('vilarejo-queimado-02').exits.map((e) => e.letter).sort()).toEqual(['L', 'N', 'O', 'S']);
     expect(room('arena-odran-01').exits).toEqual([{ letter: 'X', edge: 'left', from: 6, to: 8 }]);
   });
 
@@ -103,7 +103,8 @@ describe('Campanha: montagem da noite', () => {
     const ids = (s: number) => layoutStage(s, 0).map((p) => `${p.room.id}@${p.x},${p.y}`).join(' ');
     expect(ids(42)).toBe(ids(42));
     // a Charneca tem ordem fixa: a semente vira as salas (espelho) e muda para que lado o caminho segue
-    expect(new Set(SEEDS.slice(0, 30).map(ids)).size).toBeGreaterThanOrEqual(4);
+    // N/S openings (Lucas, 24/10): with only E/W exits the 30 seeds gave 4 shapes; now most seeds give their own
+    expect(new Set(SEEDS.slice(0, 30).map(ids)).size).toBeGreaterThanOrEqual(15);
   });
 
   it('the Charneca (tutorial) always goes entrance, the 4 middle rooms in order, gate, boss', () => {

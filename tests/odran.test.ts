@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { ODRAN, SWEEP } from '../src/shared/bosses.ts';
 import { SERVOS } from '../src/shared/campaign.ts';
+import { LOOK_PARTS, decodeLook } from '../src/shared/characters.ts';
 import { STAGE_ROOMS, fightOf, nightMap, parseRooms, type NightMap } from '../src/shared/levels.ts';
 import { addPlayer, newMatch, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { mulberry32 } from '../src/shared/rng.ts';
 import type { SimEvent } from '../src/shared/sim.ts';
 import { dist, v } from '../src/shared/vec.ts';
-import { STEP_MS, toPlaying } from './helpers.ts';
+import { STEP_MS, run, toPlaying, world } from './helpers.ts';
+import { WIZ_R } from '../src/shared/constants.ts';
+import { noSpells } from '../src/shared/spells.ts';
 
 // noite com os humanos dados, já jogando, com o primeiro dentro da arena do Sir Odran (a luta abre no passo)
 function arena(humans = ['a']): { m: Match; now: number; n: NightMap; b: number; events: SimEvent[] } {
@@ -127,7 +130,8 @@ describe('Sir Odran: investida', () => {
       // atordoado: não anda nem lança por 3 s
       const at = { ...z.pos }, cd = { ...z.cd };
       now = step(m, now, events, 60 * ODRAN.stun - 10);
-      expect(dist(z.pos, at), `pilar ${k}`).toBeLessThan(0.3);
+      // the 4th pillar brings the phase-2 Ashen in where the pillars stood: next to his giant body, they nudge him a little
+      expect(dist(z.pos, at), `pilar ${k}`).toBeLessThan(k < 3 ? 0.3 : 0.5);
       expect(z.cd).toEqual(cd);
       expect(m.night!.boss!.phase).toBe(k < 3 ? 1 : 2);
     }
@@ -160,4 +164,52 @@ describe('Sir Odran: investida', () => {
     expect(m.night!.result).toBe('won');
   });
 
+});
+
+describe('Sir Odran gigante', () => {
+  it('his outfit is a valid look: skeleton body with the Knight helmet, cape, sword and shield', () => {
+    const look = decodeLook(SERVOS.odran.outfit);
+    expect(look).not.toBe(null);
+    const piece = (part: string) => LOOK_PARTS.find((p) => p.id === part)!.opts[look![LOOK_PARTS.findIndex((p) => p.id === part)]];
+    expect(piece('body')?.from).toBe('skeleton_warrior');
+    expect(piece('hat')?.nodes).toEqual(['Knight_Helmet']);
+    expect(piece('cape')?.nodes).toEqual(['Knight_Cape']);
+  });
+});
+
+describe('Sir Odran: corpo 2,5×', () => {
+  it('he enters with the giant body; a Fireball passing 0,8 m from his centre hits him but misses a wizard', () => {
+    const { m } = arena();
+    expect(odran(m).r).toBeCloseTo(WIZ_R * ODRAN.size);
+    for (const r of [undefined, WIZ_R * ODRAN.size]) {
+      const w = world([[0, 0], [5, 0.8]], { ...noSpells(), fireball: 1 }, [], () => 0.5);
+      w.wizards[1].r = r;
+      const hp = w.wizards[1].hp;
+      run(w, 1.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(10, 0) }]);
+      expect(w.wizards[1].hp < hp, String(r)).toBe(r !== undefined);
+    }
+  });
+
+  // bodies stay bodyR + bodyR apart (separate), so touch spells must reach the giant's edge, not a wizard's
+  it.each(['windwalk', 'thrust'] as const)('%s walking into the giant body hits him', (spell) => {
+    const w = world([[0, 0], [3, 0]], { ...noSpells(), [spell]: 1 }, [], () => 0.5);
+    w.wizards[1].r = WIZ_R * ODRAN.size;
+    const hp = w.wizards[1].hp;
+    run(w, 1.5, [{ id: 'p0', kind: 'cast', spell, at: v(3, 0) }, { id: 'p0', kind: 'move', to: v(3, 0) }]);
+    expect(w.wizards[1].hp).toBeLessThan(hp);
+  });
+
+  it('Link pulls the giant body to the caster and lets go on contact, not after its whole life', () => {
+    const w = world([[0, 0], [5, 0]], { ...noSpells(), link: 1 }, [], () => 0.5);
+    w.wizards[1].r = WIZ_R * ODRAN.size;
+    run(w, 3, [{ id: 'p0', kind: 'cast', spell: 'link', at: v(5, 0) }]);
+    expect(w.projectiles).toHaveLength(0);
+  });
+
+  it('two bodies keep the sum of their radii apart', () => {
+    const w = world([[0, 0], [0.5, 0]], noSpells(), [], () => 0.5);
+    w.wizards[0].r = WIZ_R * ODRAN.size;
+    run(w, 0.2);
+    expect(dist(w.wizards[0].pos, w.wizards[1].pos)).toBeGreaterThanOrEqual(WIZ_R * ODRAN.size + WIZ_R - 0.01);
+  });
 });

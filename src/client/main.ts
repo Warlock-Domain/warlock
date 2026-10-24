@@ -7,7 +7,8 @@ import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
-import { CAMPAIGN_BOOK, SERVOS } from '../shared/campaign.ts';
+import { ODRAN } from '../shared/bosses.ts';
+import { CAMPAIGN_BOOK, NIGHT_XP, SERVOS } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
 import { itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
@@ -60,7 +61,7 @@ const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica'
 // (pedido do Fernando, 20/10); no jogo no ar nada muda.
 // Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, interface, controle, jogador,
 // personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando), partida:loja (contra 1 bot, na loja da rodada 1, com 120 s)
-// e partida:ascensao (Ascensão contra 3 bots, na carta inicial, com 120 s).
+// e partida:ascensao (Ascensão contra 3 bots, na carta inicial, com 120 s); campanha (a noite da Campanha, sozinho).
 // Sala e seção juntas, com vírgula (as Configurações de dentro da partida): sandbox,config:som
 // Porta nova não tem apelido guardado: o ?apelido= (ou o ?aba=) pula o pedido de nome, ver TEST_NAME abaixo (issue #175).
 // ?ir= e ?apelido= valem também no ambiente de cada PR (pr-<n>-warlock…, issue #125): o link mandado ao colaborador já cai no ponto
@@ -210,7 +211,7 @@ function startLobby(name: string) {
   });
   draw();
   const k = IR[0];
-  if (k === 'sandbox' || k?.startsWith('partida')) {
+  if (k === 'sandbox' || k === 'campanha' || k?.startsWith('partida')) {
     // a sala sai da URL (só a seção fica): ao voltar ao menu (location.hash = '') a página não cria outra sala
     const url = new URL(location.href);
     if (IR.length > 1) url.searchParams.set('ir', IR.slice(1).join(','));
@@ -329,6 +330,7 @@ function startRoom(code: string, name: string) {
     card: (slot, i, swap) => net.send({ t: 'card', slot, i, ...(swap && { swap }) }),
     reroll: () => net.send({ t: 'reroll' }),
     keep: (slot) => net.send({ t: 'keep', slot }),
+    nightCard: (i) => net.send({ t: 'nightCard', i }),
     sandbox: (cmd) => net.send({ t: 'sandbox', cmd }),
     spectate: (on) => net.send({ t: 'watch', on }),
     seeInvis: (on) => (seeInvis = on),
@@ -534,6 +536,7 @@ function startRoom(code: string, name: string) {
       net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
       if (k === 'partida') net.send({ t: 'ready' });
     }
+    else if (k === 'campanha') net.send({ t: 'start', bots: 0, mode: 'campaign', shuffle: true, opts: DEFAULT_OPTS }); // ?ir=campanha: the night, alone
     else if (k === 'partida:ascensao') {
       // sala do Ascensão: o Começar usa os bots e as opções do dono (quem abriu o atalho)
       net.send({ t: 'lobby', bots: ['normal', 'normal', 'normal'], opts: { ...DEFAULT_OPTS, shop: 120 } });
@@ -1013,6 +1016,7 @@ function startRoom(code: string, name: string) {
       const line = here && ILSE_ROOMS[here.room.id];
       if (here && line) ilseSay(here.room.id, line(ilseCtx()));
       if (room!.night!.fight !== null) ilseSay('fight', ILSE_MOMENTS.fight(ilseCtx())); // primeiro encontro: magias e teclas
+      if (room!.players.find((p) => p.id === me)?.lv?.offer.length && room!.night!.fight === null) ilseSay('level', ILSE_MOMENTS.level()); // first level-up cards
       if (room!.night!.result === 'won') {
         ilseSay('won', ILSE_MOMENTS.won());
         setIlse(false); // venceu a Charneca: o tutorial acabou neste navegador
@@ -1032,6 +1036,8 @@ function startRoom(code: string, name: string) {
   // Ascensão: XP da partida mais o da rodada ao vivo (dano, abates, segundos vivo até a queda); fora da rodada o servidor já somou
   // a rodada em asc.xp, então vale só ele. null fora do modo
   const xpOf = (p: PublicPlayer) => {
+    // Campaign: the night XP comes whole from the server (each fallen servant), no live estimate
+    if (p.lv) return { level: p.lv.level, total: p.lv.xp, next: p.lv.next, frac: (p.lv.xp % NIGHT_XP.level) / NIGHT_XP.level };
     if (!p.asc) return null;
     const on = room?.phase === 'playing';
     return liveLevel(p.asc.xp, on ? (live[p.id]?.dmg ?? 0) : 0, on ? (live[p.id]?.kills ?? 0) : 0, on ? (aliveAt[p.id] ?? 0) : 0);
@@ -1057,7 +1063,7 @@ function startRoom(code: string, name: string) {
       const moving = !!(state.status & WALKING_BIT) && state.alive && (!!(state.status & HOLDING_MOVE_BIT) || !prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
       if (live && w.alive && room?.phase === 'playing') aliveAt[w.id] = s.time;
-      return { ...state, xp: live && p ? xpOf(p) : null, status, pos, hpMax: maxHp(p), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p && room ? botLevel(p, room) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p ? playerName(p) : '?', place: placeOf(p), shieldR: p?.spells.shield ? spellLevel('shield', p.spells.shield, room?.night ? CAMPAIGN_BOOK : undefined).radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, ember: live && !w.alive ? lastSnap?.em?.[room?.ids.indexOf(w.id) ?? -1] : undefined, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined };
+      return { ...state, xp: live && p ? xpOf(p) : null, status, pos, hpMax: maxHp(p), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p && room ? botLevel(p, room) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p ? playerName(p) : '?', place: placeOf(p), shieldR: p?.spells.shield ? spellLevel('shield', p.spells.shield, room?.night ? CAMPAIGN_BOOK : undefined).radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, ember: live && !w.alive ? lastSnap?.em?.[room?.ids.indexOf(w.id) ?? -1] : undefined, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined, size: p?.servo && SERVOS[p.servo].boss ? ODRAN.size : undefined };
     });
   }
   // eventos do replay: só a cena (clarão, explosão) e a seta do golpe que eu levei
