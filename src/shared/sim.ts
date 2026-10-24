@@ -127,6 +127,9 @@ export type Projectile = {
   back?: boolean; // Bumerangue voltando ao dono
   prev?: string; // Ricochete: último mago tocado (não bate nele de novo em seguida)
   tick?: number; // Gravidade: próximo dano
+  lockOn?: string | number; // mira travada num corpo (mago ou cópia da Ilusão): persegue só ele e só acerta nele
+  stats?: Level; // números próprios quando o projétil não sai de uma magia (Atacar)
+  src?: string; // fonte do golpe quando não é magia: aparece no acerto e não conta precisão de magia
   landed?: boolean; // já contou 'land' (Bumerangue e Ricochete acertam mais de uma vez)
   turnAt?: number; // Drenar: quando vira para o mago mais perto; Elo: quando recolhe
   bonus?: number; // Recarga: dano a mais pelos acertos seguidos
@@ -1126,10 +1129,10 @@ function windTouch(w: World, wz: Wizard) {
 // Marcas de chão não são desviadas por habilidades; a cópia da Ilusão continua móvel.
 const fixed = (p: Projectile) => p.kind === 'meteor' || p.kind === 'warpzone' || p.kind === 'grip';
 const returning = (p: Projectile) => !!p.back && (p.kind === 'drain' || p.kind === 'recharge'); // bolinha voltando a quem lançou
-export const spellOf = (k: ProjKind): SpellId => (k === 'shard' ? 'splitter' : k === 'basic' ? 'fireball' : k); // básico reusa só a classificação visual; stats e precisão próprios abaixo.
+export const spellOf = (k: ProjKind): SpellId => (k === 'shard' ? 'splitter' : k === 'basic' ? 'fireball' : k); // Atacar usa o visual da Bola de fogo; números e fonte do golpe vêm do próprio projétil (stats, src)
 // acerto conta para quem lançou ('land'), não para quem devolveu; once: só o primeiro (os que acertam mais de uma vez)
 function land(w: World, p: Projectile, src: SpellId, once = false) {
-  if (p.kind === 'basic') return; // ataque livre não infla a precisão de Bola de fogo.
+  if (p.src) return; // golpe fora das magias não conta precisão
   if (p.owner === p.caster && !(once && p.landed)) w.events.push({ k: 'land', id: p.caster, src });
   if (once) p.landed = true;
 }
@@ -1368,12 +1371,12 @@ function stepProjectiles(w: World) {
       if (spawnShards(w, p, dt)) keep.push(p);
       continue;
     }
-    const L = p.kind === 'basic' ? { ...spellLevel('fireball', 1), ...BASIC_ATTACK } : spellLevel(spellOf(p.kind), p.level, w.book);
-    if (p.kind === 'basic' && (p.target || p.decoyTarget !== undefined)) {
+    const L = p.stats ?? spellLevel(spellOf(p.kind), p.level, w.book);
+    if (p.lockOn !== undefined) {
       const owner = anyById(w, p.owner);
-      const aim = owner && attackBody(w, owner, p.decoyTarget ?? p.target!, false);
+      const aim = owner && attackBody(w, owner, p.lockOn, false);
       if (!aim) continue; // não troca de alvo nem persegue uma vida nova após a morte.
-      p.vel = scale(norm(sub(aim.pos, p.pos)), BASIC_ATTACK.speed);
+      p.vel = scale(norm(sub(aim.pos, p.pos)), L.speed);
     }
     if (p.kind === 'boomerang' && (w.t >= p.until || !steerBoomerang(w, p, dt))) continue;
     if (p.kind === 'link' && w.t >= (p.turnAt ?? Infinity)) {
@@ -1411,15 +1414,15 @@ function stepProjectiles(w: World) {
     // a Gravidade não bate em mago; o Ricochete não repete o último mago tocado (pode voltar em quem lançou);
     // o Magnetizar só pega quem lançou depois de quicar; a Bola de neve é grande
     const r = p.kind === 'snowball' ? snowR(p.level) : PROJ_R;
-    let found = p.kind === 'gravity' ? null : firstOnSegment(w, p.pos, next, WIZ_R + r, p.kind === 'bouncer' || p.kind === 'magnetize' ? (p.prev ?? p.owner) : p.owner, HELP.has(p.kind) ? undefined : anyById(w, p.owner), p.kind === 'basic' && p.decoyTarget !== undefined ? '' : p.kind === 'basic' && p.target ? p.target : undefined);
+    let found = p.kind === 'gravity' ? null : firstOnSegment(w, p.pos, next, WIZ_R + r, p.kind === 'bouncer' || p.kind === 'magnetize' ? (p.prev ?? p.owner) : p.owner, HELP.has(p.kind) ? undefined : anyById(w, p.owner), p.lockOn === undefined ? undefined : typeof p.lockOn === 'string' ? p.lockOn : '');
     const pil = firstPillarOnSegment(w, p.pos, next, r);
     // Ilusão: projéteis não a destroem; ao acertá-la, transferem o empurrão e continuam o trajeto
     let fake = p.kind === 'gravity' ? null : decoyOnSegment(w, p, next, WIZ_R + r);
-    if (p.kind === 'basic' && (p.target || p.decoyTarget !== undefined) && fake?.q.id !== p.decoyTarget) fake = null;
+    if (p.lockOn !== undefined && fake?.q.id !== p.lockOn) fake = null;
     if (fake && (!found || fake.t <= found.t) && (!pil || fake.t < pil.t)) {
       pushDecoy(fake.q, scale(norm(p.vel), L.knock * p.dmgMult), L.dmg * p.dmgMult);
       p.decoy = fake.q.id;
-      if (p.kind === 'basic') continue; // ataque direcionado termina na cópia escolhida, como no corpo real.
+      if (p.lockOn !== undefined) continue; // mira travada termina na cópia escolhida, como no corpo real.
     }
     // a Bola de neve atravessa magos (arrastando) e só para em obstáculo ou escudo
     if (p.kind === 'snowball' && found && !shielded(w, found.wz) && (!pil || found.t <= pil.t)) {
@@ -1489,8 +1492,8 @@ function stepProjectiles(w: World) {
         const shooter = byId(w, p.owner);
         const back = shooter ? norm(sub(shooter.pos, p.pos)) : scale(norm(p.vel), -1);
         p.vel = scale(back, len(p.vel));
-        p.target = p.kind === 'homing' ? ((shooter && !allies(shooter, wz) ? shooter.id : null) ?? nearestEnemy(w, p.pos, wz.id)?.id ?? null) : p.kind === 'basic' ? shooter?.id ?? null : null;
-        if (p.kind === 'basic') p.decoyTarget = undefined;
+        p.target = p.kind === 'homing' ? ((shooter && !allies(shooter, wz) ? shooter.id : null) ?? nearestEnemy(w, p.pos, wz.id)?.id ?? null) : null;
+        if (p.lockOn !== undefined) p.lockOn = shooter?.id; // devolvido trava em quem atirou
         p.owner = wz.id;
         p.until = w.t + (p.kind === 'homing' ? L.duration : L.range / L.speed);
         w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
@@ -1553,7 +1556,7 @@ function stepProjectiles(w: World) {
         keep.push(p);
       } else {
         const src = spellOf(p.kind);
-        hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel, p.kind === 'basic' ? 'basic' : src);
+        hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel, p.src ?? src);
         land(w, p, src);
       }
       continue;
@@ -1785,6 +1788,8 @@ function attackBody(w: World, by: Wizard, target: string | number, visible = tru
   const z = byId(w, target);
   return z && z !== by && !allies(by, z) && (!visible || w.t >= Math.max(z.veilUntil, z.windUntil)) ? z : undefined;
 }
+// Atacar não é magia: os números vêm de BASIC_ATTACK, sem herdar nada da Bola de fogo
+const BASIC_STATS: Level = { cd: BASIC_ATTACK.cd, dmg: BASIC_ATTACK.dmg, knock: BASIC_ATTACK.knock, speed: BASIC_ATTACK.speed, range: BASIC_ATTACK.range, duration: 0, radius: 0, dmgMin: 0, absorb: 0, pull: 0, scale: 0, dot: 0 };
 function beginBasic(w: World, wz: Wizard, c: Extract<Cmd, { kind: 'basic' }>) {
   if (isStunned(wz) || wz.casting || wz.basicCasting || w.t < (wz.basicReadyAt ?? 0)) return;
   // Clique num corpo tem prioridade; no chão escolhe o mais próximo do atacante, sem caça automática.
@@ -1813,7 +1818,7 @@ function finishBasic(w: World, wz: Wizard) {
     else pushDecoy(target, scale(d, BASIC_ATTACK.knock), BASIC_ATTACK.dmg);
     return;
   }
-  w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'basic', owner: wz.id, caster: wz.id, pos: add(wz.pos, scale(d, PROJ_SPAWN)), vel: scale(d, BASIC_ATTACK.speed), level: 1, until: w.t + BASIC_ATTACK.range / BASIC_ATTACK.speed, target: typeof target.id === 'string' ? target.id : null, decoyTarget: typeof target.id === 'number' ? target.id : undefined, dmgMult: 1 });
+  w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'basic', owner: wz.id, caster: wz.id, pos: add(wz.pos, scale(d, PROJ_SPAWN)), vel: scale(d, BASIC_ATTACK.speed), level: 1, until: w.t + BASIC_ATTACK.range / BASIC_ATTACK.speed, target: null, lockOn: target.id, stats: BASIC_STATS, src: 'basic', dmgMult: 1 });
 }
 
 export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.random) {
