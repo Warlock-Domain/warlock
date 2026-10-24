@@ -201,6 +201,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 24/10 | **Sand Blast** (PR #348, Leonard's idea): Rajada becomes a 3×2 m sand cone with no knockback that blinds and incapacitates, and it moves from Attack to Control (Attack 11 spells, Control 6) | Fernando approved the swap on 24/10 (enters with the owner exception for new spells; numbers measured later) |
 | 24/10 | **Link damage halved**: 2.5× the base per level instead of 5× (30 to 150 per second instead of 60 to 300); pull, cooldown and release rule unchanged. Applied **without the simulator** (owner exception); Link joins the balance batch | the group found Link too strong; measured: with an obstacle on the pull line the hold never releases and kills (3.6 to 7.2 s at level 7, 1,020 to 1,680 damage). Releasing the hold when blocked is left out and may come later |
 | 24/10 | **Continuous lava crackle removed** (PR #280, Leonard's request): `lava_loop.mp3` no longer loads or plays; music, spell and impact sounds and taunts stay. The file and its credit stay in the repository for possible later use | Fernando listened in the PR environment and approved the removal |
+| 24/10 | **Own spell icons**: Geyser uses `water-splash` instead of the provisional drawing (replaces "Leonard makes the icon" in the Geyser row); Closed Body uses `aura` instead of `checked-shield`, which the Shield rune also uses (both Lorc, game-icons.net) | Fernando's choice; the shared icon was confusing on the spell bar |
 
 ## Fluxo com agente
 
