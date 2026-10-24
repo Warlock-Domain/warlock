@@ -8,6 +8,8 @@ import { newMatch, startMatch, tickMatch, type Match, type MatchOpts, type Playe
 import { mulberry32 } from '../src/shared/rng.ts';
 import type { SimEvent } from '../src/shared/sim.ts';
 import { SPELLS, SPELL_IDS } from '../src/shared/spells.ts';
+import type { Bands } from './balance-types.ts';
+export type { Bands } from './balance-types.ts';
 
 // mulberry32; a partida usa Math.random direto (pilares, mundo, plano dos bots), então ele também vira o sorteio com semente
 export function seedRandom(seed: number): () => number {
@@ -30,8 +32,6 @@ export const f = (x: number, dec = 2) => (Number.isFinite(x) ? x.toFixed(dec).re
 export const pct = (x: number) => f(100 * x, 1) + '%';
 
 // por faixa de ouro gasto: jogadores-rodada, vitórias e vitórias esperadas
-type Cell = { n: number; w: number; e: number };
-export type Bands = Record<string, Cell>;
 export function addCell(b: Bands, band: string, won: boolean, exp: number) {
   const c = (b[band] ??= { n: 0, w: 0, e: 0 });
   c.n++;
