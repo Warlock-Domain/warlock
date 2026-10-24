@@ -38,6 +38,7 @@ Gêiser (teste local24/10): ícone `icons.svg#water-geyser` é desenho SVG origi
 | `sfx/*.mp3` (10) | efeitos: bola de fogo, explosão, golpe, míssil, raio, escudo, teleporte, laço da lava, clique, confirmar | `src/client/sound.ts` (`/sfx/${name}.mp3`) | Kenney, OpenGameArt e Freesound, CC0 (detalhe no CREDITS) |
 | `sfx/brace_start.mp3` | aviso único do Manter base, depois dos 0,5 s de preparo; toca inteiro, na velocidade original | `src/client/sound.ts` (`brace`), disparado em `src/client/main.ts` | gravação enviada por Leonard, declarada CC0 por ele; origem a confirmar no PR #293 (detalhe no CREDITS) |
 | `sfx/taunt/*.mp3` (10) | vozes das provocações | `src/shared/taunts.ts`, `src/client/sound.ts` | Kenney Voiceover, OpenGameArt, CC0; "Ultra kill" é voz sintética feita para o jogo |
+| `sfx/closed_body_start.mp3`, `sfx/closed_body_end.mp3` | começo e fim do Corpo fechado | `src/client/sound.ts` (`closedbody`, `closedbodyEnd`) | gravados por Leonard (lboesmans), 24/10/2026, declarados CC0 pelo autor |
 | `taunts-local/*.mp4` (5) | provocações gravadas pelo Leonard: Tá pegando fogo!, Bosta city!, Foi uma delícia..., Usaram e abusaram., Lanchado | `src/shared/taunts.ts`, `src/client/sound.ts`, `src/client/scene.ts` | gravadas no celular pelo Leonard (lboesmans), que autorizou uso e redistribuição no jogo; sem licença livre, aceito pelo Fernando em 21/10/2026 (PR #243) |
 | `music/battle.mp3` | música da partida (laço) | `src/client/sound.ts` | Emma_MA "Determined Pursuit", CC0 |
 | `icons.svg` | sprite com todos os ícones (magias, itens, runas, efeitos, interface) | `src/client/icons.ts`, `src/client/scene.ts`, `src/client/style.css` | game-icons.net, **CC BY 3.0 (crédito obrigatório)**; montado por `scripts/assets/build-icons.mjs` |
@@ -55,15 +56,6 @@ Gêiser (teste local24/10): ícone `icons.svg#water-geyser` é desenho SVG origi
   - **Origem e licença não informadas:** o pacote veio sem autor nem licença e entrou por decisão do Fernando em 21/10/2026. Nenhum som daqui vai para `public/` sem antes achar a origem e uma licença livre. Detalhe e dúvida registrada: [`assets/sons-rpg/README.md`](../assets/sons-rpg/README.md).
   - Nome de cada arquivo, por categoria: [`assets/sons-rpg/INDICE.md`](../assets/sons-rpg/INDICE.md) (ex.: `FlameStrike`, `FireBallMissile`, `MetalHeavySlice`).
 - Para levar um modelo ao jogo: copie para `public/models/`, corte o que não usa, ponha o crédito no `public/CREDITS.txt` e uma linha na tabela "No jogo" acima.
-
-## Áudios enviados em24/10
-
-| Asset | Uso | Origem/licença |
-|---|---|---|
-| public/sfx/closed_body.mp3 | Gravação anterior preservada, não pré-carregada | "corpo fechado.mp3", enviado pelo usuário, declarado CC0 |
-| public/sfx/closed_body_start.mp3 | sound.ts: começo confirmado de Corpo fechado | "corpo fechado começo.mp3", enviado pelo usuário como substituição do áudio CC0 |
-| public/sfx/closed_body_end.mp3 | sound.ts: término confirmado, expiração ou soltura | "corpo fechado fim.mp3", enviado pelo usuário como substituição do áudio CC0 |
-| public/sfx/brace_activation.mp3 | sound.ts: ativação de Manter base após0,5s | "manter base.mp3", enviado pelo usuário, declarado CC0; substitui whoosh anterior |
 
 ## Regra: todo asset novo é indexado, explicado e referenciado
 
