@@ -1,5 +1,5 @@
 // Sounds: recorded files, each with its license or owner acceptance in public/CREDITS.txt, and, while they load or if they are
-// missing, sounds synthesized on the fly (Web Audio). Music and lava crackle loop. The browser only unlocks audio after a tap.
+// missing, sounds synthesized on the fly (Web Audio). Music loops. The browser only unlocks audio after a tap.
 import { tauntAudioSrc } from '../shared/taunts.ts';
 import { audioLevel, layerVolume } from './audio-level.ts';
 import { store } from './store.ts';
@@ -98,7 +98,7 @@ export function createSound(musicDefault?: number) {
           }).catch(() => {}); // a síntese imediata continua disponível enquanto prepara.
         }
       }
-      const names = new Set([...Object.values(FILES).flat(), 'lava_loop']);
+      const names = new Set(Object.values(FILES).flat());
       void Promise.all([...names].map((name) => load(name))).then(syncAmbience);
     }
     if (ctx.state === 'suspended') void ctx.resume();
