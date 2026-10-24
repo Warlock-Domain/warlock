@@ -120,6 +120,7 @@ export class Lobby extends DurableObject<Env> {
   recordResources(sample: ResourceSample): Promise<void> {
     const write = this.resourceWrite.then(async () => {
       const samples = (await this.ctx.storage.get<ResourceSample[]>('resource-samples')) ?? [];
+      // The bounded SQLite-backed key is simple to query; serialize updates so concurrent room reports are not lost.
       await this.ctx.storage.put('resource-samples', addResourceSample(samples, sample));
     });
     this.resourceWrite = write.catch(() => {});
