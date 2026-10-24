@@ -1,7 +1,6 @@
 // Desafios curtos do treino (decisão do Fernando, 18/10): uma tarefa por partida, contada no cliente pelos eventos da rodada.
 import type { BotSkill } from '../shared/bots.ts';
-import { DEFAULT_OPTS, type MatchOpts } from '../shared/match.ts';
-import type { BotSetup } from '../shared/protocol.ts';
+import { DEFAULT_OPTS, type BotSetup, type MatchOpts } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import type { SpellId } from '../shared/spells.ts';
 import { t } from './i18n.ts';

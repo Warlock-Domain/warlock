@@ -29,6 +29,44 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('ciclo da conexão', () => {
+  it('invokes caller callbacks without exposing the connection as their receiver', () => {
+    const receivers: unknown[] = [];
+    function recordReceiver(this: unknown) { receivers.push(this); }
+    const net = connect('/ws/lobby', parseTag, recordReceiver, recordReceiver, recordReceiver);
+    const socket = Socket.instances[0];
+    socket.opened();
+    socket.onmessage?.({ data: '{"t":"room"}' });
+    socket.close();
+    expect(receivers).toEqual([undefined, undefined, undefined, undefined]);
+    net.stop();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('keeps detached callbacks bound to their connection without stopping another instance', () => {
+    const onMsg = vi.fn();
+    const first = connect('/ws/lobby', parseTag, vi.fn(), vi.fn());
+    const second = connect('/ws/room/ABCD', parseTag, onMsg, vi.fn());
+    const [firstSocket, secondSocket] = Socket.instances;
+    firstSocket.opened();
+    secondSocket.opened();
+
+    const { send, stop } = first;
+    send({ t: 'alive' });
+    expect(firstSocket.send).toHaveBeenCalledWith('{"t":"alive"}');
+    expect(secondSocket.send).not.toHaveBeenCalled();
+    stop();
+    stop();
+    send({ t: 'alive' });
+    expect(firstSocket.send).toHaveBeenCalledOnce();
+    expect(firstSocket.close).toHaveBeenCalledOnce();
+    expect(secondSocket.close).not.toHaveBeenCalled();
+    secondSocket.onmessage?.({ data: '{"t":"room"}' });
+    expect(onMsg).toHaveBeenCalledWith({ t: 'room' });
+    vi.advanceTimersByTime(10000);
+    expect(secondSocket.send).toHaveBeenCalledWith('ping');
+    expect(vi.getTimerCount()).toBe(1);
+    second.stop();
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it('libera heartbeat, reconexão, ouvinte e handlers mesmo com stop repetido e eventos atrasados', () => {
     const add = vi.spyOn(document, 'addEventListener'), remove = vi.spyOn(document, 'removeEventListener');
     const onMsg = vi.fn(), onOpen = vi.fn(), onStatus = vi.fn();

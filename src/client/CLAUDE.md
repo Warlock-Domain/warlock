@@ -28,6 +28,12 @@ Vale junto com o `CLAUDE.md` da raiz.
 - Auditoria de guias: fichas usam `n2` (centésimos) só no atraso e no atordoamento do Meteoro, o resto `n1`; `knockDistance` usa amortecimento/soft-cap/corte de `moveWizard`, sem amplificação por dano histórico. Roteiros demonstram bloqueios de stun/Agarrar, Escudo contra área/reflexão, colisões da Rajada e trajetórias da Ilusão. `demoStatus` lê estados reais. Canvas instrumentado não substitui inspeção visual no navegador.
 - Grimório: `MECHANIC_GUIDES` contém Atacar/Manter base com prévias; `NEGATIVE_GUIDES` contém nove status independentes, somente texto e sem magia/demo anexada. Ambos aparecem apenas no livro, fora de Aprender/loja. Abertura normal começa no sumário, sem persistir página; links explícitos de habilidade permanecem diretos. Recuperação50→100% fica em Empurrão.
 
+## Connection lifecycle (`net.ts`)
+
+- `Connection<T>` owns its socket, reconnect timer, heartbeat, visibility listener, and parser warning state. Keep that state private and specific to the instance.
+- `connect()` remains the entry point for lobby and room callers. Its `send` and `stop` callbacks stay bound to the instance; `stop()` is terminal and idempotent, including when browser events are already queued.
+- Preserve socket identity guards when replacing a connection. Lifecycle regressions live in `tests/net-lifecycle.test.ts`.
+
 ## Idioma
 
 - Todo texto visível com `t('português', 'English')` (`i18n.ts`). Nomes por `spellName`, `itemName`, `arenaName`; textos de item por `itemText`; números com `LOCALE` (helpers `n1`/`pct`).
