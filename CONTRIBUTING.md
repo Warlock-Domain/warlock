@@ -84,14 +84,14 @@ The release flow is **task branch → PR to `master` → automatic production de
 3. Make small commits using `type: description`. Accepted types are `feat`, `fix`, `balance`, `style`, `refactor`, `docs`, `ci`, and `test`. The repository convention is a Portuguese description; follow explicit maintainer instructions for the task's language. Agent commits do not add `Co-Authored-By` trailers.
 4. Run `npm run typecheck`, `npx vitest run`, and `npx vite build` before committing. Add meaningful regression coverage for behavior changes and verify changed screens in the browser.
 5. Open the PR against `master` using [.github/pull_request_template.md](.github/pull_request_template.md): motivation, changes, screenshots when relevant, validation, and balance evidence when required. Use `Closes #n` for its issue. The title follows the same `type: description` format and becomes the squash commit title.
-6. Keep the branch current after each merge to `master`: `git fetch origin` followed by `git merge origin/master`. Run the gates and restart the local server. After review starts, respond with new commits rather than rebasing or force-pushing.
+6. Before the first push for a PR and before every later push to its branch, run `/pr-review` (Claude Code) or `$pr-review` (Codex) on the full diff against its base. Resolve every **Blocker** before pushing; **Nits** are optional and must not hold a PR. After each merge to `master`, keep the branch current with `git fetch origin` and `git merge origin/master`, rerun the gates, and restart the local server. Once review starts, respond with new commits rather than rebasing or force-pushing.
 7. Reviewers use the project's criteria, and approved PRs enter `master` through **squash and merge**. The branch is then deleted and Production deploys automatically.
 
 The `master` branch requires a PR, green CI, and a valid title. Do not push directly to it or force-push. The owner can override approval on their own PR as an administrator; this does not replace the review/test rules.
 
 ### Review and owner approval
 
-The automated Claude review posts a verdict and findings. Mention `@claude` in a PR or issue for help. An authorized owner agent can adjust and merge collaborator PRs.
+The automated Claude review posts its findings in English. The `review` status check is required by `master` protection and fails while any **Blocker** remains; **Nits** are optional and do not prevent merge. The bot never approves or merges. Mention `@claude` in a PR or issue for help. An authorized owner agent can adjust and merge collaborator PRs after blockers are resolved and required human gates pass.
 
 - Small collaborator PRs can be approved/merged by review without waiting for Fernando.
 - Large collaborator PRs require Fernando's approval on the PR as well as the issue decision.

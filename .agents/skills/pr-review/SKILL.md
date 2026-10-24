@@ -60,6 +60,10 @@ Lead with confirmed findings, ordered by severity. For each finding include:
 - The concrete scenario that causes the problem and its impact.
 - A practical correction, preferably the smallest one.
 
+Classify every actionable finding as a **Blocker** or a **Nit** for merge readiness. A blocker is a confirmed defect or unmet required decision/validation gate that could materially affect correctness, security, data integrity, reliability, agreed behavior, or a project invariant; it must be resolved or explicitly accepted by the owner before merge. A nit is an optional improvement with no material impact on those concerns; it must never hold a PR. Do not downgrade a real defect to a nit to make the PR appear ready.
+
+End the review with exactly one machine-readable line: `**Merge gate:** BLOCKED — <reason>` when any blocker remains, or `**Merge gate:** CLEAR — no blockers` when none remain. Include explicit **Blockers** and **Nits** sections; write `None` when either has no entries. For a new commit, check prior review comments and keep unresolved blockers in the current report until the current diff demonstrably resolves them.
+
 Only report actionable issues supported by the code or a reproducible check. Do not report style preferences, speculative risks, praise, or a checklist of things that already work. If a suspected issue cannot be verified, label it as an open question instead of a finding.
 
 After findings, summarize:
