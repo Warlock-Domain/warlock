@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InputHandlers } from '../src/client/input.ts';
-import { setCastMode, setSlotMode, setKey } from '../src/client/keys.ts';
+import { setCastMode, setSlotMode } from '../src/client/keys.ts';
+import type { SpellId } from '../src/shared/spells.ts';
 import type { Vec } from '../src/shared/vec.ts';
 
 // janela e canvas de mentira: só guardam os ouvintes para disparar eventos à mão (os testes rodam sem navegador)
@@ -17,19 +18,20 @@ let ok = true; // false: a magia não sai (recarga ou sem a magia)
 let preview: string | null = null;
 let previewAt: Vec | undefined;
 let armed: string | null = null;
-let emptyTarget = false;
-let input: { setEnabled: (on: boolean) => void; button: (s: 'heal') => void };
+let available = true;
+let input: { setEnabled: (on: boolean) => void; button: (spell: SpellId) => void };
 
 beforeAll(async () => {
   Object.assign(globalThis, { addEventListener: on(win), innerWidth: 800, innerHeight: 600 });
   const { createInput } = await import('../src/client/input.ts');
   const h: InputHandlers = {
-    pick: (x, y, spell): Vec | null => spell === 'heal' && emptyTarget ? null : ({ x, y }),
+    pick: (x, y): Vec => ({ x, y }),
     move: (to) => log.push(`move ${to.x},${to.y}`),
     stop: () => log.push('stop'),
     brace: (on) => log.push(`brace ${on}`),
     basic: (at) => log.push(`basic ${at.x},${at.y}`),
     cast: (s, at) => (log.push(`cast ${s} ${at.x},${at.y}`), ok),
+    checkCooldown: () => available,
     center: () => {},
     zoom: () => {},
     pan: () => {},
@@ -44,47 +46,14 @@ beforeAll(async () => {
   setSlotMode(false); // Q = Bola de fogo
 });
 beforeEach(() => {
-  emptyTarget = false; ok = true;
   log = [];
+  available = true;
   key('keydown', 'Escape');
   preview = armed = null;
   fire(cnv, 'pointermove', { clientX: 300, clientY: 200 });
 });
 
 describe('jeitos de lançar no PC', () => {
-  it.each(['quick', 'release', 'click'] as const)('Curar exige clique no alvo, mesmo em%s', mode => {
-    setKey('heal', 'KeyH'); setCastMode(mode);
-    key('keydown', 'KeyH'); key('keyup', 'KeyH');
-    expect(log).toEqual([]);
-    expect(armed).toBe('heal');
-    click(0, 40, 50); click(0, 60, 70);
-    expect(log.filter(s=>s.startsWith('cast '))).toEqual(['cast heal 40,50']); // clique neutro segue a regra da base; não repete a cura.
-    expect(armed).toBeNull();
-    setKey('heal', '');
-  });
-  it('Curar ignora chão e mantém seleção após alvo recusado; direito cancela mesmo sobre chão', () => {
-    input.button('heal'); emptyTarget = true;
-    click(0); expect(log).toEqual([]); expect(armed).toBe('heal');
-    emptyTarget = false; ok = false;
-    click(0); expect(armed).toBe('heal');
-    emptyTarget = true; click(2, 70, 80);
-    expect(armed).toBeNull(); expect(log.at(-1)).toBe('move 70,80');
-  });
-  it.each(['Escape', 'KeyS', 'KeyQ'])('%s cancela Curar escolhida sem autocura posterior', code => {
-    setCastMode('quick'); input.button('heal');
-    key('keydown', code); key('keyup', code); click(0);
-    expect(log.some(s => s.startsWith('cast heal'))).toBe(false);
-    expect(armed).toBeNull();
-    if (code === 'KeyS') key('keyup', 'KeyS');
-  });
-  it('escolher Curar cancela magia segurada sem dispará-la ao soltar', () => {
-    setKey('heal', 'KeyH'); setCastMode('release');
-    key('keydown', 'KeyQ'); key('keydown', 'KeyH');
-    key('keyup', 'KeyQ'); key('keyup', 'KeyH');
-    expect(log).toEqual([]); expect(armed).toBe('heal');
-    setKey('heal', '');
-  });
-
   it('S para uma vez, renova a defesa e libera ao soltar', () => {
     vi.useFakeTimers();
     key('keydown', 'KeyS');
@@ -211,5 +180,17 @@ describe('jeitos de lançar no PC', () => {
     expect(armed).toBeNull();
     click(0, 1, 2); // sem magia escolhida, o clique esquerdo não envia comando.
     expect(log).toEqual(['cast fireball 40,50', 'move 70,80']);
+  });
+
+  it('não seleciona uma magia em recarga pelo botão nem pela tecla', () => {
+    setCastMode('click');
+    key('keydown', 'KeyQ');
+    expect(armed).toBe('fireball');
+    available = false;
+    input.button('lightning');
+    expect(armed).toBeNull();
+    key('keydown', 'KeyQ');
+    expect(armed).toBeNull();
+    expect(log).toEqual([]);
   });
 });
