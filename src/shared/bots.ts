@@ -224,8 +224,9 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // The 0.5 s windup must finish before the hit, so it looks up to 0.9 s ahead (windup + one Normal think, 0.4 s); the old 0.6 s
   // trigger almost never finished the windup (6 bots: 28 uses, 0 active ticks). Once holding it renews without a new roll while the
   // shot closes in; before that, the chance to dodge on foot decides (Hold ground locks walking). Bots that think no faster than
-  // the lease (Easy 0.67 s, Casual 0.5 s) skip it: their renewal would land on or after expiry and restart the windup forever
-  if (1 / D.rate < BRACE.lease && !me.casting && !ESCAPE.some((s) => ready(s))) {
+  // the lease (Easy 0.67 s, Casual 0.5 s) skip it: their renewal would land on or after expiry and restart the windup forever.
+  // The real think interval rounds to whole steps (botThinks), so compare that, not 1 / rate
+  if (Math.max(1, Math.round(1 / (DT * D.rate))) * DT < BRACE.lease && !me.casting && !ESCAPE.some((s) => ready(s))) {
     const hb = threatTo(w, me, seen, BRACE.windup + 0.4);
     const area = hb && (hb.p.kind === 'meteor' || hb.p.kind === 'grip');
     // Closed body only works while Hold ground is active: cast it on the guard that is already up, with the hit still coming

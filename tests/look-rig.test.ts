@@ -1,36 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { CHARACTERS, encodeLook, type CharacterId } from '../src/shared/characters.ts';
+import { loadModel as load } from './glb.ts';
 import { assemble, cloneAppearance, disposeAppearance, type Model } from '../src/client/scene.ts';
 
-// o projeto não tem @types/node: só o tipo do que o teste usa
-const { readFileSync } = (await import('node:fs' as string)) as { readFileSync(p: string): Uint8Array };
-
-// GLB sem as texturas (o node não decodifica imagem): refaz o arquivo com o JSON limpo e o mesmo bloco binário
-async function load(id: string): Promise<Model> {
-  const b = readFileSync(`public/models/${id}.glb`);
-  const dv = new DataView(b.buffer, b.byteOffset);
-  const len = dv.getUint32(12, true);
-  const j = JSON.parse(new TextDecoder().decode(b.subarray(20, 20 + len)));
-  delete j.images;
-  delete j.textures;
-  for (const m of j.materials) delete m.pbrMetallicRoughness?.baseColorTexture;
-  const json = new TextEncoder().encode(JSON.stringify(j).padEnd(Math.ceil(JSON.stringify(j).length / 4) * 4));
-  const bin = b.subarray(20 + len);
-  const out = new Uint8Array(20 + json.length + bin.length);
-  const o = new DataView(out.buffer);
-  o.setUint32(0, 0x46546c67, true); // glTF
-  o.setUint32(4, 2, true);
-  o.setUint32(8, out.length, true);
-  o.setUint32(12, json.length, true);
-  o.setUint32(16, 0x4e4f534a, true); // JSON
-  out.set(json, 20);
-  out.set(bin, 20 + json.length); // tamanho e tipo do bloco BIN vêm junto
-  const g = await new GLTFLoader().parseAsync(out.buffer, '');
-  return { scene: g.scene, clips: g.animations };
-}
 
 // boneco clonado (como cada mago) na pose de Running_A aos t s; posição no mundo de ~25 vértices de uma malha
 function sample(src: Model, name: string, t: number): number[] {
