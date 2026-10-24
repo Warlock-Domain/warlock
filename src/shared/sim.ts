@@ -754,6 +754,92 @@ function geyserLift(w: World, p: Projectile) {
   }
 }
 
+// Rajada: cone de areia que fere, deixa sem agir e cega quem estiver nele
+function castCluster(w: World, wz: Wizard, L: Level, dir: Vec, dmgMult: number) {
+  const length = L.range * wz.rangeF, width = L.width * wz.rangeF;
+  w.events.push({ k: 'sand', id: wz.id, x: wz.pos.x, y: wz.pos.y, dx: dir.x, dy: dir.y, length, width });
+  let landed = false;
+  for (const z of w.wizards) {
+    if (!z.alive || z === wz || allies(wz,z) || isSuspended(z) || w.t < z.invulnUntil || !inCone(wz.pos,dir,length,width,z.pos,WIZ_R) || firstPillarOnSegment(w,wz.pos,z.pos,0) || wallClip(w,wz.pos,z.pos) !== z.pos) continue; // Campaign walls block it like Lightning
+    hit(w,z,wz.id,L.dmg*dmgMult,0,dir,'cluster');
+    z.incapacitateUntil = Math.max(z.incapacitateUntil ?? 0,w.t+statusDuration(w,z,L.incapacitate*z.debuffMult));
+    z.blindUntil = Math.max(z.blindUntil ?? 0,w.t+statusDuration(w,z,L.blind*z.debuffMult));
+    landed = true;
+  }
+  if (landed) w.events.push({k:'land',id:wz.id,src:'cluster'});
+}
+
+// Barricada: parede de 3 pedras no ponto, que fere quem estiver embaixo
+function castRockpillar(w: World, wz: Wizard, L: Level, at: Vec, dmgMult: number) {
+  // rockpillar.lua: obstáculo no ponto (até o alcance) que some depois da duração
+  const pos = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
+  // parede atravessada no caminho mago → ponto: o do meio no ponto, os outros dois para os lados
+  const way = len(sub(at, wz.pos)) > 1e-6 ? norm(sub(at, wz.pos)) : v(Math.cos(wz.facing), Math.sin(wz.facing));
+  const side = v(-way.y, way.x), mid = w.pillars.length;
+  for (const k of [0, -1, 1]) w.pillars.push({ pos: add(pos, scale(side, k * WALL_GAP)), hp: OBSTACLES.rockpillar.hp, alive: true, kind: 'rockpillar', until: w.t + L.duration, wall: mid });
+  // cai do céu (issue #206): quem está embaixo da parede leva o golpe e é jogado para o lado de fora da linha dela.
+  // A parede continua surgindo na hora (é defesa: com atraso não seguraria o projétil que já vem); a queda é só visual
+  const a = sub(pos, scale(side, WALL_GAP)), seg = scale(side, 2 * WALL_GAP);
+  for (const z of w.wizards) {
+    if (!z.alive || z === wz || segT(a, seg, z.pos)[1] > OBSTACLES.rockpillar.r + WIZ_R) continue;
+    const away = dot(sub(z.pos, pos), way) < 0 ? scale(way, -1) : way;
+    hit(w, z, wz.id, L.dmg * dmgMult, L.knock * dmgMult, away, 'rockpillar');
+  }
+}
+
+// Raio: acerta o primeiro mago ou obstáculo na linha e salta para o inimigo mais perto de cada atingido
+function castLightning(w: World, wz: Wizard, L: Level, dir: Vec, dmgMult: number) {
+  const end = wallClip(w, wz.pos, add(wz.pos, scale(dir, L.range * wz.rangeF)));
+  const found = firstOnSegment(w, wz.pos, end, WIZ_R + LIGHTNING.width, wz.id, wz);
+  const pil = firstPillarOnSegment(w, wz.pos, end, 0.1);
+  const stop = pil && (!found || pil.t < found.t) ? w.pillars[pil.i].pos : found ? found.wz.pos : end;
+  for (const q of enemyDecoys(w, wz.id)) if (segT(wz.pos, sub(stop, wz.pos), q.pos)[1] <= WIZ_R + LIGHTNING.width) pushDecoy(q, scale(dir, L.knock * dmgMult), L.dmg * dmgMult);
+  clearProjectilesOnSegment(w, wz.pos, stop, wz.id);
+  if (pil && (!found || pil.t < found.t)) {
+    const at = w.pillars[pil.i].pos;
+    w.events.push({ k: 'lightning', from: wz.pos, to: at });
+    damagePillar(w, pil.i, L.dmg * dmgMult, wz.id);
+    return;
+  }
+  if (!found) return void w.events.push({ k: 'lightning', from: wz.pos, to: end });
+  let target: Wizard | undefined = found.wz;
+  let from = wz.pos, reach = L.range * wz.rangeF, power = dmgMult;
+  const struck = new Set<string>([wz.id]);
+  let landed = false;
+  while (target) {
+    struck.add(target.id); // cada corpo é atingido uma vez; o conjunto encerra a cadeia sem teto artificial de saltos.
+    w.events.push({ k: 'lightning', from, to: target.pos });
+    if (shielded(w, target)) {
+      w.events.push({ k: 'reflect', id: target.id, x: target.pos.x, y: target.pos.y });
+      w.events.push({ k: 'lightning', from: target.pos, to: wz.pos });
+      hit(w, wz, target.id, L.dmg * power, L.knock * power, sub(wz.pos, target.pos), 'lightning', L.dmg * dmgMult);
+      applyElectrocution(w, wz);
+      break; // preserva reflexão para o lançador, sem gerar outra cadeia a partir do Escudo.
+    }
+    // Mantém o soft-cap do golpe original: reduzir dano não pode fazer o impulso do salto cair menos que50%.
+    hit(w, target, wz.id, L.dmg * power, L.knock * power, sub(target.pos, from), 'lightning', L.dmg * dmgMult);
+    if (!allies(wz, target)) applyElectrocution(w, target);
+    if (!landed) w.events.push({ k: 'land', id: wz.id, src: 'lightning' });
+    landed = true;
+    from = target.pos;
+    power *= LIGHTNING.jumpPower;
+    let closest = reach;
+    target = undefined;
+    for (const other of w.wizards) {
+      if (!other.alive || isSuspended(other) || struck.has(other.id) || allies(wz, other)) continue;
+      const distance = dist(from, other.pos);
+      if (distance > closest || firstPillarOnSegment(w, from, other.pos, .1)) continue;
+      // Empate mantém a ordem dos magos; não usa sorteio para escolher o próximo inimigo.
+      if (target && distance === closest) continue;
+      target = other;
+      closest = distance;
+    }
+    if (target) {
+      clearProjectilesOnSegment(w, from, target.pos, wz.id);
+    }
+  }
+}
+
 function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   const level = wz.spells[spell];
   if (!level || w.t < wz.cd[spell]) return;
@@ -799,17 +885,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     const homing = spell === 'homing';
     launch(spell, dir, homing ? L.duration * wz.rangeF : flight, homing ? (nearestEnemy(w, at, wz.id)?.id ?? null) : null);
   } else if (spell === 'cluster') {
-    const length = L.range * wz.rangeF, width = L.width * wz.rangeF;
-    w.events.push({ k: 'sand', id: wz.id, x: wz.pos.x, y: wz.pos.y, dx: dir.x, dy: dir.y, length, width });
-    let landed = false;
-    for (const z of w.wizards) {
-      if (!z.alive || z === wz || allies(wz,z) || isSuspended(z) || w.t < z.invulnUntil || !inCone(wz.pos,dir,length,width,z.pos,WIZ_R) || firstPillarOnSegment(w,wz.pos,z.pos,0) || wallClip(w,wz.pos,z.pos) !== z.pos) continue; // Campaign walls block it like Lightning
-      hit(w,z,wz.id,L.dmg*dmgMult,0,dir,'cluster');
-      z.incapacitateUntil = Math.max(z.incapacitateUntil ?? 0,w.t+statusDuration(w,z,L.incapacitate*z.debuffMult));
-      z.blindUntil = Math.max(z.blindUntil ?? 0,w.t+statusDuration(w,z,L.blind*z.debuffMult));
-      landed = true;
-    }
-    if (landed) w.events.push({k:'land',id:wz.id,src:'cluster'});
+    castCluster(w, wz, L, dir, dmgMult);
   } else if (spell === 'grip') {
     const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
     w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'grip', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + GRIP.delay, target: null, dmgMult, caster: wz.id });
@@ -855,20 +931,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     wz.thrustMult = dmgMult;
     wz.target = null;
   } else if (spell === 'rockpillar') {
-    // rockpillar.lua: obstáculo no ponto (até o alcance) que some depois da duração
-    const pos = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
-    // parede atravessada no caminho mago → ponto: o do meio no ponto, os outros dois para os lados
-    const way = len(sub(at, wz.pos)) > 1e-6 ? norm(sub(at, wz.pos)) : v(Math.cos(wz.facing), Math.sin(wz.facing));
-    const side = v(-way.y, way.x), mid = w.pillars.length;
-    for (const k of [0, -1, 1]) w.pillars.push({ pos: add(pos, scale(side, k * WALL_GAP)), hp: OBSTACLES.rockpillar.hp, alive: true, kind: 'rockpillar', until: w.t + L.duration, wall: mid });
-    // cai do céu (issue #206): quem está embaixo da parede leva o golpe e é jogado para o lado de fora da linha dela.
-    // A parede continua surgindo na hora (é defesa: com atraso não seguraria o projétil que já vem); a queda é só visual
-    const a = sub(pos, scale(side, WALL_GAP)), seg = scale(side, 2 * WALL_GAP);
-    for (const z of w.wizards) {
-      if (!z.alive || z === wz || segT(a, seg, z.pos)[1] > OBSTACLES.rockpillar.r + WIZ_R) continue;
-      const away = dot(sub(z.pos, pos), way) < 0 ? scale(way, -1) : way;
-      hit(w, z, wz.id, L.dmg * dmgMult, L.knock * dmgMult, away, 'rockpillar');
-    }
+    castRockpillar(w, wz, L, at, dmgMult);
   } else if (spell === 'drain') {
     // drain.lua: reto até o ponto (no máximo o alcance), depois vira para o mago mais perto e voa mais 1,2 s
     const turn = Math.min(len(sub(at, wz.pos)), L.range * wz.rangeF) / L.speed;
@@ -903,55 +966,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
     w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'warpzone', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + L.duration, target: null, dmgMult, caster: wz.id });
   } else if (spell === 'lightning') {
-    const end = wallClip(w, wz.pos, add(wz.pos, scale(dir, L.range * wz.rangeF)));
-    const found = firstOnSegment(w, wz.pos, end, WIZ_R + LIGHTNING.width, wz.id, wz);
-    const pil = firstPillarOnSegment(w, wz.pos, end, 0.1);
-    const stop = pil && (!found || pil.t < found.t) ? w.pillars[pil.i].pos : found ? found.wz.pos : end;
-    for (const q of enemyDecoys(w, wz.id)) if (segT(wz.pos, sub(stop, wz.pos), q.pos)[1] <= WIZ_R + LIGHTNING.width) pushDecoy(q, scale(dir, L.knock * dmgMult), L.dmg * dmgMult);
-    clearProjectilesOnSegment(w, wz.pos, stop, wz.id);
-    if (pil && (!found || pil.t < found.t)) {
-      const at = w.pillars[pil.i].pos;
-      w.events.push({ k: 'lightning', from: wz.pos, to: at });
-      damagePillar(w, pil.i, L.dmg * dmgMult, wz.id);
-      return;
-    }
-    if (!found) return void w.events.push({ k: 'lightning', from: wz.pos, to: end });
-    let target: Wizard | undefined = found.wz;
-    let from = wz.pos, reach = L.range * wz.rangeF, power = dmgMult;
-    const struck = new Set<string>([wz.id]);
-    let landed = false;
-    while (target) {
-      struck.add(target.id); // cada corpo é atingido uma vez; o conjunto encerra a cadeia sem teto artificial de saltos.
-      w.events.push({ k: 'lightning', from, to: target.pos });
-      if (shielded(w, target)) {
-        w.events.push({ k: 'reflect', id: target.id, x: target.pos.x, y: target.pos.y });
-        w.events.push({ k: 'lightning', from: target.pos, to: wz.pos });
-        hit(w, wz, target.id, L.dmg * power, L.knock * power, sub(wz.pos, target.pos), 'lightning', L.dmg * dmgMult);
-        applyElectrocution(w, wz);
-        break; // preserva reflexão para o lançador, sem gerar outra cadeia a partir do Escudo.
-      }
-      // Mantém o soft-cap do golpe original: reduzir dano não pode fazer o impulso do salto cair menos que50%.
-      hit(w, target, wz.id, L.dmg * power, L.knock * power, sub(target.pos, from), 'lightning', L.dmg * dmgMult);
-      if (!allies(wz, target)) applyElectrocution(w, target);
-      if (!landed) w.events.push({ k: 'land', id: wz.id, src: 'lightning' });
-      landed = true;
-      from = target.pos;
-      power *= LIGHTNING.jumpPower;
-      let closest = reach;
-      target = undefined;
-      for (const other of w.wizards) {
-        if (!other.alive || isSuspended(other) || struck.has(other.id) || allies(wz, other)) continue;
-        const distance = dist(from, other.pos);
-        if (distance > closest || firstPillarOnSegment(w, from, other.pos, .1)) continue;
-        // Empate mantém a ordem dos magos; não usa sorteio para escolher o próximo inimigo.
-        if (target && distance === closest) continue;
-        target = other;
-        closest = distance;
-      }
-      if (target) {
-        clearProjectilesOnSegment(w, from, target.pos, wz.id);
-      }
-    }
+    castLightning(w, wz, L, dir, dmgMult);
   } else if (spell === 'shield') {
     wz.shieldUntil = w.t + L.duration;
     wz.shieldR = L.radius;
