@@ -18,6 +18,8 @@
 
 ## No jogo (`public/`)
 
+Gêiser (teste local24/10): ícone `icons.svg#water-geyser` é desenho SVG original, mantido em `scripts/assets/build-icons.mjs`. Jato, espuma e poça são geometrias procedurais Three.js em `scene.ts`, com partículas já existentes e creditadas. Altura/cor em `geyser-fx.ts`; som reutiliza `splash`. Sem novos assets externos.
+
 | Arquivo | O que é | Onde é usado | Origem e licença |
 |---|---|---|---|
 | Curar: coral sintetizado e aura verde | efeito sonoro de três vozes com harmônicos e vibrato; aura verde reaproveitando anel e partículas Kenney já creditadas | `src/client/sound.ts` (`heal`), `src/client/scene.ts`, `src/client/heal-fx.ts`; a demo usa a mesma duração e cor | gerado em código pelo projeto, sem asset externo |

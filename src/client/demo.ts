@@ -10,6 +10,7 @@ import { LOCALE, spellName, t } from './i18n.ts';
 import { n1 } from './rules-text.ts';
 import { electroPulse } from './screen-data.ts';
 import { HEAL_FX, healAura } from './heal-fx.ts';
+import { GEYSER_FX } from './geyser-fx.ts';
 
 // alvo do passo: ponto fixo ou a posição atual do mago com esse índice
 type At = Vec | number;
@@ -29,6 +30,9 @@ const VINE_COLOR = '#8ed64b';
 
 // mago 0 é "você" (com a magia ou o item da página); 1 e 2 são de treino e só têm a Bola de fogo
 export const SCRIPTS: Partial<Record<DemoId, Script>> = {
+  geyser: { pos: [v(-1.5, 0), v(0, 0), v(1.5, 0), v(-4, 0)], end: 4.5,
+    steps: [[.4,A,'geyser',v(0,0)],[.9,B,'move',v(0,4)],[.9,3,'fireball',v(4,0)],[1,B,'fireball',A],[3.3,B,'move',v(0,3)]],
+    prep: w => { w.pillars=[]; w.wizards[A].team=w.wizards[B].team=0; w.wizards[C].team=1; } },
   heal: { pos: [v(-3, 0), v(2, 0), v(2, 2)], end: 3, steps: [[.4, A, 'heal', B], [1.4, B, 'heal', B]],
     prep: w => { w.pillars = []; w.wizards[A].team = w.wizards[B].team = 0; w.wizards[C].team = 1; w.wizards[B].spells.heal = 1; for (const z of w.wizards) { z.hp = 700; z.regen = 0; } } },
   knockback: { pos: [v(-3, 0), v(0, 0)], end: 3.5, steps: [[.4, A, 'fireball', B], [.85, B, 'move', v(0, 4)]], prep: (w) => { w.pillars = []; } },
@@ -74,6 +78,7 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 
 // Rótulos seguem os estados reais para a prévia não sugerir que stun, prisão e postura têm o mesmo bloqueio.
 export function demoStatus(w: World, z: Wizard): string[] {
+  if ((z.geyserLeft ?? 0) > 0) return [t('suspenso · invulnerável · sem ações', 'suspended · invulnerable · no actions')];
   const left = (until: number) => n1(Math.max(0, until - w.t));
   const labels: string[] = [];
   if (w.t < z.shieldUntil) labels.push(t(`dano 0 · empurrão/status ${Math.round(SHIELD.knock * 100)}%`, `damage 0 · knockback/status ${Math.round(SHIELD.knock * 100)}%`));
@@ -214,6 +219,9 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
         circle(p.pos, WIZ_R, colors[w.wizards.findIndex((z) => z.id === p.owner) % colors.length], '#1a0c08');
         ctx.globalAlpha = 1;
         text(t('cópia · recebe empurrão', 'copy · takes knockback'), v(p.pos.x, p.pos.y - .75), '#9be7ff', .25);
+      } else if (p.kind === 'geyser') {
+        circle(p.pos, L.radius, 'rgba(115,217,255,.25)', GEYSER_FX.color);
+        circle(p.pos, L.radius * (.65 + .1 * Math.sin(w.t * 8)), null, GEYSER_FX.foam);
       } else if (p.kind === 'gravity') {
         circle(p.pos, L.radius, 'rgba(160,107,255,.15)', col, true);
         circle(p.pos, PROJ_R * 1.4, col);
@@ -224,6 +232,10 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     }
     w.wizards.forEach((z, i) => {
       if (!z.alive) return;
+      if ((z.geyserLeft ?? 0) > 0) {
+        circle(z.pos, WIZ_R + .2, null, GEYSER_FX.color);
+        text('↑', v(z.pos.x, z.pos.y - 1.3), GEYSER_FX.foam, .65);
+      }
       if (z.basicCasting) {
         circle(z.pos, .6, null, '#9be7ff');
         const left = Math.max(0, z.basicCasting.fireAt - w.t);
