@@ -61,6 +61,8 @@ export const pct = (x: number) => `${Math.round(x * 100)}%`;
 export const n1 = (x: number) => x.toLocaleString(LOCALE, { maximumFractionDigits: 1 });
 // Two decimals only where the rule itself is in hundredths (Meteor delay 1.15 s, stun 1.25 s); n1 keeps shop and level tables at one decimal
 export const n2 = (x: number) => x.toLocaleString(LOCALE, { maximumFractionDigits: 2 });
+export const cooldownNotice = (spell: SpellId, seconds: number) =>
+  t(`${spellName(spell)} ainda está em recarga: ${n1(seconds)} s restantes.`, `${spellName(spell)} is still on cooldown: ${n1(seconds)} s remaining.`);
 const join = (xs: readonly (string | number)[], last: string) => xs.map(String).join(', ').replace(/, ([^,]*)$/, ` ${last} $1`);
 const list = (xs: readonly (string | number)[]) => join(xs, t('ou', 'or'));
 const L1 = (id: SpellId) => SPELLS[id].levels[0];
@@ -91,7 +93,7 @@ const RULES_PT = {
     const k = (a: UiAction) => uiLabel(a);
     const sheet = keyOf('sheet') === 'Backquote' ? "Tecla à esquerda do 1 (' no teclado brasileiro)" : k('sheet');
     return [
-      `Botão direito no chão: andar (segure para arrastar o destino). ${k('stop')}: parar (durante o lançamento, cancela a magia sem gastar a recarga). Segurar por 0,5 s ativa Manter base: reduz empurrão em 15%, mas pausa suas recargas (Incapacitar); habilidades prontas continuam disponíveis. Enquanto ativo, não caminha nem guarda cliques de movimento: solte a tecla e dê nova ordem para andar. Empurrões externos continuam. Pose e estrondo curto avisam a ativação; soltar antes cancela. Esc: cancela a magia escolhida, fecha o que estiver aberto e, sem nada aberto, abre as configurações.`,
+      `Botão direito no chão: andar (segure para arrastar o destino). ${k('stop')}: parar (durante o lançamento, cancela a magia sem gastar a recarga). Segurar por 0,5 s ativa Manter base: reduz empurrão em 15%, mas pausa suas recargas (Incapacitar); habilidades prontas continuam disponíveis. Enquanto ativo, não caminha nem guarda cliques de movimento: solte a tecla e dê nova ordem para andar. Empurrões externos continuam. A pose e um aviso sonoro avisam a ativação; soltar antes cancela. Esc: cancela a magia escolhida, fecha o que estiver aberto e, sem nada aberto, abre as configurações.`,
       'Tecla da magia: três jeitos de lançar, escolhidos em Configurações > Lançamento. Rápido (padrão): lança na hora na direção do mouse; o círculo de alcance aparece ao passar o mouse na magia da barra.',
       'Ao soltar: segurando a tecla aparece o círculo de alcance; ao soltar, a magia sai (Esc cancela). Com clique: a tecla escolhe a magia e mostra o alcance, o clique esquerdo lança (fora do alcance, vai até a borda); botão direito ou Esc cancelam.',
       'Clicar no botão da magia e depois no chão também lança.',
@@ -209,7 +211,7 @@ const RULES_EN: typeof RULES_PT = {
     const k = (a: UiAction) => uiLabel(a);
     const sheet = keyOf('sheet') === 'Backquote' ? 'Key left of the 1 (` on a US keyboard)' : k('sheet');
     return [
-      `Right-click the ground: walk (hold to drag the destination). ${k('stop')}: stop (while casting, cancels the spell without spending the cooldown). Hold for 0.5 s to activate Hold ground: 15% less knockback, but your cooldowns pause (Incapacitate); ready abilities remain available. While active, walking commands are ignored, not queued: release the key and give a new order to walk. External knockback still applies. Pose and a short sonic boom signal activation; releasing early cancels it. Esc: cancels the chosen spell, closes whatever is open and, with nothing open, opens the settings.`,
+      `Right-click the ground: walk (hold to drag the destination). ${k('stop')}: stop (while casting, cancels the spell without spending the cooldown). Hold for 0.5 s to activate Hold ground: 15% less knockback, but your cooldowns pause (Incapacitate); ready abilities remain available. While active, walking commands are ignored, not queued: release the key and give a new order to walk. External knockback still applies. The pose and a sound cue signal activation; releasing early cancels it. Esc: cancels the chosen spell, closes whatever is open and, with nothing open, opens the settings.`,
       'Spell key: three ways to cast, chosen in Settings > Casting. Quick (default): casts instantly toward the mouse; the range circle shows when you hover the spell on the bar.',
       'On release: holding the key shows the range circle; when you release, the spell goes off (Esc cancels). With click: the key picks the spell and shows the range, left click casts (out of range, it goes to the edge); right click or Esc cancel.',
       'Clicking the spell button and then the ground also casts.',
@@ -392,6 +394,7 @@ const SPELL_GROUPS_PT: SpellGroups = [
   ['Mobilidade', 'sair do lugar', [...G.mobility]],
   ['Defesa', 'parar o que vem', [...G.defense]],
   ['Controle', 'prender, puxar, atrasar', [...G.control]],
+  ['Suporte', 'sem magias por enquanto', []],
 ];
 export type GuideId = (typeof MECHANIC_GUIDES)[number]['id'] | (typeof NEGATIVE_GUIDES)[number]['id'];
 const SPELL_GROUPS_EN: SpellGroups = [
@@ -399,18 +402,19 @@ const SPELL_GROUPS_EN: SpellGroups = [
   ['Mobility', 'get out of the way', [...G.mobility]],
   ['Defense', 'stop what is coming', [...G.defense]],
   ['Control', 'grip, pull, slow', [...G.control]],
+  ['Support', 'no spells yet', []],
 ];
 export { SPELL_GROUPS_EN, SPELL_GROUPS_PT };
 export const SPELL_GROUPS = LANG === 'en' ? SPELL_GROUPS_EN : SPELL_GROUPS_PT;
 // classe de cor do grupo (Fernando, 19/10: uma cor por setor): g-ataque, g-mobilidade, g-defesa, g-controle (o rótulo em inglês cai na mesma classe)
-const GROUP_CLASS_EN: Record<string, string> = { attack: 'ataque', mobility: 'mobilidade', defense: 'defesa', control: 'controle' };
+const GROUP_CLASS_EN: Record<string, string> = { attack: 'ataque', mobility: 'mobilidade', defense: 'defesa', control: 'controle', support: 'suporte' };
 export const groupClass = (name: string) => 'g-' + (GROUP_CLASS_EN[name.toLowerCase()] ?? name.toLowerCase());
 export const spellClass = (s: SpellId) => groupClass(SPELL_GROUPS.find(([, , ids]) => ids.includes(s))?.[0] ?? '');
 // loja: itens passivos em seções como as magias (Fernando, 21/10), pelo efeito principal
 type ItemGroups = [name: string, hint: string, items: ItemId[]][];
-const IG: Record<string, ItemId[]> = { life: ['ring', 'cape', 'vampire'], move: ['boots', 'shock_boots', 'wind_boots', 'lava_boots'], guard: ['armor', 'helmet', 'warden', 'cursed_ring', 'aegis', 'watch'] };
-const ITEM_GROUPS_PT: ItemGroups = [['Vida', 'mais vida e cura', IG.life], ['Movimento', 'correr e pisar na lava', IG.move], ['Proteção', 'menos empurrão, dano e lentidão', IG.guard]];
-const ITEM_GROUPS_EN: ItemGroups = [['Health', 'more health and healing', IG.life], ['Movement', 'run and step on lava', IG.move], ['Protection', 'less knockback, damage and slows', IG.guard]];
+const IG: Record<string, ItemId[]> = { life: ['ring', 'cape', 'vampire'], move: ['boots', 'shock_boots', 'wind_boots', 'lava_boots'], guard: ['armor', 'helmet', 'warden', 'cursed_ring', 'aegis', 'watch'], crit: ['lens', 'piercing', 'affliction'] };
+const ITEM_GROUPS_PT: ItemGroups = [['Vida', 'mais vida e cura', IG.life], ['Movimento', 'correr e pisar na lava', IG.move], ['Proteção', 'menos empurrão, dano e lentidão', IG.guard], ['Crítico', 'golpes mais fortes e lentidões mais longas', IG.crit]];
+const ITEM_GROUPS_EN: ItemGroups = [['Health', 'more health and healing', IG.life], ['Movement', 'run and step on lava', IG.move], ['Protection', 'less knockback, damage and slows', IG.guard], ['Critical', 'stronger hits and longer slows', IG.crit]];
 export const ITEM_GROUPS = LANG === 'en' ? ITEM_GROUPS_EN : ITEM_GROUPS_PT;
 
 // para que serve, em uma linha (cartão da loja)
@@ -489,7 +493,7 @@ const RULES_SHORT_PT: Record<SpellId, string> = {
   boomerang: 'Vai em curva até o ponto e volta para você; acerta na ida e na volta.',
   thrust: 'Você dispara até o ponto; o primeiro inimigo que tocar leva dano conforme a sua velocidade.',
   gravity: 'Orbe lento que puxa magos inimigos e projéteis e queima quem fica perto.',
-  rockpillar: `Ergue uma barricada baixa (2 m) atravessada no caminho por ${n1(L1('rockpillar').duration)} s: bloqueia magos e projéteis.`,
+  rockpillar: `Uma barricada baixa (2 m) cai do céu atravessada no caminho e fica ${n1(L1('rockpillar').duration)} s: bloqueia magos e projéteis, e quem estiver embaixo leva ${n1(L1('rockpillar').dmg)} de dano e é jogado para o lado.`,
   bouncer: `Acerta e pula para o mago mais perto, perdendo ${pct(1 - BOUNCER.decay)} do dano a cada inimigo.`,
   drain: 'Vai até o ponto e vira para o mago mais perto: no inimigo, dano, lentidão e a vida volta para você; no aliado, cura e acelera.',
   snowball: 'Bola lenta que atravessa e arrasta quem encosta, com dano, e explode no fim do caminho.',
@@ -518,7 +522,7 @@ const RULES_SHORT_EN: Record<SpellId, string> = {
   boomerang: 'Curves to the point and comes back to you; hits on the way out and on the way back.',
   thrust: 'You dash to the point; the first enemy you touch takes damage based on your speed.',
   gravity: 'Slow orb that pulls enemy wizards and projectiles and burns anyone close.',
-  rockpillar: `Raises a low barricade (2 m) across the path for ${n1(L1('rockpillar').duration)} s: blocks wizards and projectiles.`,
+  rockpillar: `A low barricade (2 m) falls from the sky across the path and stays ${n1(L1('rockpillar').duration)} s: it blocks wizards and projectiles, and whoever is under it takes ${n1(L1('rockpillar').dmg)} damage and is thrown aside.`,
   bouncer: `Hits and jumps to the nearest wizard, losing ${pct(1 - BOUNCER.decay)} of the damage per enemy.`,
   drain: 'Goes to the point and turns to the nearest wizard: on an enemy, damage, slow and the health comes back to you; on an ally, heal and haste.',
   snowball: 'Slow ball that passes through and drags anyone it touches, with damage, and explodes at the end of the path.',

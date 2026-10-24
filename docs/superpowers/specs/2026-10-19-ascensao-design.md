@@ -113,7 +113,7 @@ Curva de níveis calibrada para dar em média 1 a 2 escolhas por intervalo.
 - `src/client`: tela das 3 cartas no intervalo (ícones existentes, cores por grupo, itens prateados), barra de XP, marca do líder, seletor de modo na sala; textos em `t('pt','en')`.
 - `scripts/balance-sim.ts`: rodar o modo novo.
 - `tests/`: XP, sorteio com semente, catch-up, fim na rodada 9.
-- `CLAUDE.md` (Registro de decisões), `README.md` e `docs/GUIA-COLABORADOR.md`.
+- `CLAUDE.md` (Registro de decisões), `README.md` e `CONTRIBUTING.md`.
 
 ## Fica com o builder
 

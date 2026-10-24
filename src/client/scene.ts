@@ -16,6 +16,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SHAPES as ARENAS, edgeAt, inLavaAt, type ArenaId, type Isle } from '../shared/arena.ts';
 import { ARENA_STEP, CHEST, ISLAND, OBSTACLES, RUNE, SHRINK_WARN, SWORDS, WIZ_R, type RoundEffectId, type RuneKind } from '../shared/constants.ts';
 import { lookBody, lookOf, lookPieces, type CharacterId } from '../shared/characters.ts';
+import type { NightMap } from '../shared/levels.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
@@ -35,10 +36,12 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[] }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago
+export type WizDraw = { place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
+// the Hold ground pose depends only on the source skeleton: build it once per source model (clone + IK per wizard is costly)
+const braceClips = new WeakMap<Model, THREE.AnimationClip | null>();
 const files = new Map<string, Model>();
 const loading = new Map<string, Promise<Model | null>>();
 const failed = new Set<string>();
@@ -82,6 +85,22 @@ export function cloneAppearance(source: THREE.Group): THREE.Group {
     mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
   });
   return model;
+}
+
+export type AppearanceInstance = { model: THREE.Object3D; mixer: THREE.AnimationMixer };
+// Só clones de cloneAppearance: geometrias e mapas pertencem aos GLB/prefabs; ossos e materiais pertencem à instância.
+export function disposeAppearance({ model, mixer }: AppearanceInstance) {
+  mixer.stopAllAction();
+  mixer.uncacheRoot(model);
+  model.removeFromParent();
+  const skeletons = new Set<THREE.Skeleton>();
+  const materials = new Set<THREE.Material>();
+  model.traverse((o) => {
+    if (o instanceof THREE.SkinnedMesh) skeletons.add(o.skeleton);
+    if (o instanceof THREE.Mesh) for (const mat of Array.isArray(o.material) ? o.material : [o.material]) materials.add(mat);
+  });
+  for (const skeleton of skeletons) skeleton.dispose();
+  for (const material of materials) material.dispose();
 }
 
 export function assemble(look: string, file: (id: CharacterId) => Model): Model {
@@ -222,7 +241,7 @@ type Mage = {
   ghostMats: { m: THREE.Material; transparent: boolean; opacity: number }[];
   model: THREE.Object3D; // o boneco (some no fim da queima, quando fica só o esqueleto)
   burnAt: number; // morreu na lava neste instante (−1 = não está queimando)
-  bones: THREE.Object3D | null; // esqueleto escuro que sobra da queima
+  bones: AppearanceInstance | null; // esqueleto escuro que sobra da queima
   flash: number; // clarão branco do golpe: 1 no acerto, cai até 0
   burning: boolean; // vivo e na lava (issue #225): o corpo pulsa em brasa e solta faíscas
   electro?: boolean;
@@ -708,6 +727,65 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const mages = new Map<string, Mage>();
   const decor = createDecor(scene, ready.then(() => mageScale), FX.flame);
 
+  // mapa explorável da Campanha (levels.ts): ladrilhos de ardósia, paredes, muretas e cera em malhas instanciadas, sobre um
+  // vazio escuro (o abismo). Montado uma vez por noite; os pontos de controle acendem até o encontro deles ser vencido
+  const mapGroup = new THREE.Group();
+  mapGroup.visible = false;
+  scene.add(mapGroup);
+  const voidPlane = ground(new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshBasicMaterial({ color: '#07080b' })), -0.8);
+  voidPlane.visible = false;
+  scene.add(voidPlane);
+  const mapMats = {
+    floor: new THREE.MeshStandardMaterial({ map: tex('/tex/stone.jpg'), color: '#e6ddd6', roughness: 0.95 }),
+    wall: new THREE.MeshStandardMaterial({ color: '#6a5d56', roughness: 1 }),
+    low: new THREE.MeshStandardMaterial({ color: '#a08a72', roughness: 1 }),
+    wax: new THREE.MeshStandardMaterial({ color: '#d9b866', roughness: 0.6, emissive: '#3a2a08', transparent: true, opacity: 0.85 }),
+    // lava do mapa (^): brilho próprio, para ler como a lava da arena mesmo na noite escura da Campanha
+    lava: new THREE.MeshStandardMaterial({ color: '#ff5a1a', emissive: '#ff3a0a', emissiveIntensity: 1.4, roughness: 0.5 }),
+  };
+  let mapKey = '';
+  // mapa da Campanha em cena: lá a lava é o chão desenhado (^), não a borda da arena (as coordenadas do mapa ficam longe do centro)
+  let curMap: NightMap | null = null;
+  const lavaAt = (p: Vec, pad = 0) => (curMap ? curMap.ground[Math.floor(p.y)]?.[Math.floor(p.x)] === 'lava' : inLavaAt(shownArena, shownR, shownIsles, p, pad));
+  let cpMarks: { room: number; mat: THREE.MeshBasicMaterial }[] = [];
+  function buildMap(n: NightMap) {
+    for (const c of [...mapGroup.children]) {
+      mapGroup.remove(c);
+      if (c instanceof THREE.Mesh) c.geometry.dispose();
+    }
+    for (const c of cpMarks) c.mat.dispose();
+    const at = (test: (g: string, x: number, y: number) => boolean) => n.ground.flatMap((row, y) => row.flatMap((g, x) => (test(g, x, y) ? [[x, y] as const] : [])));
+    const inst = (geo: THREE.BufferGeometry, mat: THREE.Material, cells: (readonly [number, number])[], y: number, cast = false) => {
+      const m = new THREE.InstancedMesh(geo, mat, Math.max(1, cells.length));
+      m.count = cells.length;
+      const o = new THREE.Object3D();
+      cells.forEach(([x, z], i) => {
+        o.position.set(x + 0.5, y, z + 0.5);
+        o.updateMatrix();
+        m.setMatrixAt(i, o.matrix);
+      });
+      m.receiveShadow = true;
+      m.castShadow = cast;
+      mapGroup.add(m);
+    };
+    const wall = (x: number, y: number) => (n.ground[y]?.[x] ?? 'wall') === 'wall';
+    // da parede só a casca (casas de parede encostadas em algo que não é parede): o miolo nunca aparece
+    inst(new THREE.BoxGeometry(1, 0.1, 1), mapMats.floor, at((g) => g !== 'wall' && g !== 'pit' && g !== 'lava'), -0.05);
+    inst(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mapMats.wax, at((g) => g === 'wax'), 0.01);
+    inst(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mapMats.lava, at((g) => g === 'lava'), -0.12);
+    // 1 m de altura: a câmera olha do sul e uma parede mais alta esconderia quem está logo atrás dela
+    inst(new THREE.BoxGeometry(1, 1, 1), mapMats.wall, at((g, x, y) => g === 'wall' && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => !wall(x + dx, y + dy))), 0.5, true);
+    inst(new THREE.BoxGeometry(1, 0.5, 1), mapMats.low, at((g) => g === 'low'), 0.25, true);
+    cpMarks = n.marks.filter((m) => m.kind === 'checkpoint').map((m) => {
+      const mat = new THREE.MeshBasicMaterial({ map: FX.circle, color: '#5dff9a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+      const ring = ground(new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), mat), 0.03);
+      ring.position.x = m.x + 1;
+      ring.position.z = m.y + 0.5;
+      mapGroup.add(ring);
+      return { room: m.room, mat };
+    });
+  }
+
   // geometrias de efeito compartilhadas: criar uma por efeito vazava memória de vídeo
   const ringGeo = new THREE.RingGeometry(WIZ_R * 0.9, WIZ_R * 1.25, 40);
   const discGeo = new THREE.CircleGeometry(1, 48);
@@ -750,7 +828,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.root.position.y = -BURN.sink * k;
     } else {
       if (!m.bones) {
-        m.bones = makeBones(m) ?? m.model; // sem o esqueleto, fica o corpo carbonizado
+        m.bones = makeBones(m) ?? { model: m.model, mixer: m.mixer }; // sem o esqueleto, fica o corpo carbonizado
         burst(at, '#ff7a2a', 1.6, 0.6, 0.4, FX.spark, 0.8);
         smoke(at, 1.6, 2);
       }
@@ -767,25 +845,26 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     if (!lite && t < BURN.swap + 1 && Math.random() < 0.08) burst(v(at.x + (Math.random() - 0.5) * 0.6, at.y + (Math.random() - 0.5) * 0.6), '#ff8a2a', 0.3, 0.9, 0.3, glow, 1.2);
   }
   // esqueleto deitado na pose final da morte, com os materiais carbonizados; se o modelo ainda não chegou (ou já é um esqueleto), o próprio corpo carbonizado
-  function makeBones(m: Mage): THREE.Object3D | null {
+  function makeBones(m: Mage): AppearanceInstance | null {
     const src = files.get(BONES);
     if (!src || lookBody(m.look).startsWith('skeleton')) return null;
-    const b = cloneSkinned(src.scene) as THREE.Group;
+    const b = cloneAppearance(src.scene);
     b.scale.setScalar(mageScale);
     b.rotation.copy(m.model.rotation);
     b.traverse((o) => {
       const mesh = o as THREE.Mesh;
-      if (!mesh.isMesh || Array.isArray(mesh.material)) return;
-      const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
-      mat.color = charred(mat.color);
-      mat.emissive = EMBER.clone();
-      mat.emissiveIntensity = 0.06;
-      mat.roughness = 1;
-      mesh.material = mat;
+      if (!mesh.isMesh) return;
+      for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        if (!(mat instanceof THREE.MeshStandardMaterial)) continue;
+        mat.color.copy(charred(mat.color));
+        mat.emissive.copy(EMBER);
+        mat.emissiveIntensity = 0.06;
+        mat.roughness = 1;
+      }
     });
+    const mixer = new THREE.AnimationMixer(b);
     const clip = src.clips.find((c) => c.name === 'Death_A');
     if (clip) {
-      const mixer = new THREE.AnimationMixer(b);
       const a = mixer.clipAction(clip);
       a.setLoop(THREE.LoopOnce, 1);
       a.clampWhenFinished = true;
@@ -794,7 +873,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     }
     m.model.visible = false;
     m.root.add(b);
-    return b;
+    return { model: b, mixer };
   }
   // voltou (deathmatch) ou rodada nova: o boneco como era
   function unburn(m: Mage) {
@@ -810,15 +889,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
     }
     m.burnAt = -1;
-    if (m.bones === m.model) m.bones = null;
-    if (m.bones) {
-      m.root.remove(m.bones);
-      m.bones.traverse((o) => {
-        const mesh = o as THREE.Mesh;
-        if (mesh.isMesh) (mesh.material as THREE.Material).dispose();
-      });
-      m.bones = null;
-    }
+    // O fallback usa o corpo original, que ainda será animado após renascer.
+    if (m.bones && m.bones.model !== m.model) disposeAppearance(m.bones);
+    m.bones = null;
   }
 
   function makeMage(d: WizDraw, look: string): Mage | null {
@@ -863,7 +936,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const actions: Record<string, THREE.AnimationAction> = {};
     for (const c of src.clips) actions[c.name] = mixer.clipAction(c);
     const idle = src.clips.find((c) => c.name === 'Idle');
-    const brace = idle && createBraceClip(model, idle);
+    if (idle && !braceClips.has(src)) braceClips.set(src, createBraceClip(model, idle));
+    const brace = braceClips.get(src);
     if (brace) actions.Brace = mixer.clipAction(brace);
     const invoke = src.clips.find((c) => c.name === 'Spellcast_Shoot');
     if (invoke) actions.Attack_Invoke = mixer.clipAction(createAttackClip(invoke));
@@ -989,9 +1063,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const overHead = (at: Vec) => w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0));
 
   // número de dano: o tamanho cresce com o golpe (30 de dano ≈ 1,3rem, 170 ≈ 2,9rem)
-  function damageNumber(at: Vec, dmg: number) {
+  // golpe crítico de verdade (Lente Letal, #184) usa o mesmo destaque do golpe muito forte
+  function damageNumber(at: Vec, dmg: number, critHit = false) {
     if (dmg < 5) return;
-    const crit = dmg >= CRIT_HIT;
+    const crit = critHit || dmg >= CRIT_HIT;
     floatText('dmg' + (crit ? ' crit' : dmg >= BIG_HIT ? ' big' : ''), overHead(at), `${Math.min(3, 0.95 + dmg / 90).toFixed(2)}rem`, crit ? 0.9 : dmg >= BIG_HIT ? 0.55 : 0.3, '-' + Math.round(dmg) + (crit ? '!' : ''));
   }
 
@@ -1075,41 +1150,66 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
   }
 
+  // Só recursos registrados na criação são próprios; clones GLTF e texturas continuam no cache.
+  class ObstacleVisual {
+    private readonly owned = new Set<THREE.BufferGeometry | THREE.Material>();
+    constructor(readonly obj: THREE.Object3D = new THREE.Group()) {}
+    own<T extends THREE.BufferGeometry | THREE.Material>(resource: T): T {
+      this.owned.add(resource);
+      return resource;
+    }
+    dispose() {
+      this.obj.removeFromParent();
+      for (const resource of this.owned) resource.dispose();
+      this.owned.clear();
+    }
+  }
+
   // obstáculos da rodada: modelo KayKit de cada tipo, treme quando apanha e afunda ao quebrar
   const OBSTACLE_MODEL: Record<string, string> = { pillar: 'pillar_decorated', rock: 'rubble_large', tree: 'tree_dead_large', shrine: 'shrine_candles' };
   // parede do Pilar de pedra (KayKit Dungeon barrier_half): um modelo no pedaço do meio, atravessado como os 3 círculos da simulação
   let wallModel: THREE.Object3D | null = null;
   void loadFile('barrier_half').then((g) => (wallModel = g?.scene ?? null));
   function makeWall(along: Vec) {
-    const o = wallModel?.clone(true) ?? new THREE.Mesh(new THREE.BoxGeometry(2, 1.1, 0.5), new THREE.MeshStandardMaterial({ color: '#6b625c' }));
+    const visual = new ObstacleVisual();
+    const o = wallModel?.clone(true) ?? new THREE.Mesh(visual.own(new THREE.BoxGeometry(2, 1.1, 0.5)), visual.own(new THREE.MeshStandardMaterial({ color: '#6b625c' })));
     o.traverse((m) => {
       if ((m as THREE.Mesh).isMesh) m.castShadow = m.receiveShadow = true;
     });
     const box = new THREE.Box3().setFromObject(o);
-    const g = new THREE.Group();
+    const g = visual.obj;
     const k = 2 / Math.max(0.01, box.max.x - box.min.x); // 2 m de ponta a ponta
     o.scale.setScalar(k);
     // a origem do modelo fica numa ponta: centra no pedaço do meio e apoia no chão
     o.position.set((-(box.min.x + box.max.x) / 2) * k, -box.min.y * k, (-(box.min.z + box.max.z) / 2) * k);
     g.add(o);
     g.rotation.y = -Math.atan2(along.y, along.x); // o comprimento (x do modelo) no rumo dos pedaços
-    return g;
+    return visual;
   }
-  const pillarMeshes: { obj: THREE.Object3D; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number }[] = [];
+  const pillarMeshes: { visual: ObstacleVisual; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number; fallAt?: number }[] = [];
   // baú: caixa simples com tampa dourada e brilho (é um obstáculo: as magias quebram)
   const chestWood = new THREE.MeshStandardMaterial({ color: '#7a4a22', roughness: 0.7 });
   const chestGold = new THREE.MeshStandardMaterial({ color: '#ffcc33', emissive: '#a06a00', metalness: 0.6, roughness: 0.3 });
   function makeChest() {
-    const g = new THREE.Group();
-    const wood = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.32, 0.38), chestWood);
+    const visual = new ObstacleVisual();
+    const g = visual.obj;
+    const wood = new THREE.Mesh(visual.own(new THREE.BoxGeometry(0.55, 0.32, 0.38)), chestWood);
     wood.position.y = 0.16;
-    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.12, 0.4), chestGold);
+    const lid = new THREE.Mesh(visual.own(new THREE.BoxGeometry(0.58, 0.12, 0.4)), chestGold);
     lid.position.y = 0.38;
-    const glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: '#ffd84a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const glowSprite = new THREE.Sprite(visual.own(new THREE.SpriteMaterial({ map: glow, color: '#ffd84a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })));
     glowSprite.scale.setScalar(1.2);
     glowSprite.position.y = 0.3;
     g.add(wood, lid, glowSprite);
-    return g;
+    return visual;
+  }
+  function makeObstacle(p: PillarView) {
+    if (p.kind === 'chest') return makeChest();
+    const model = decor.clone(OBSTACLE_MODEL[p.kind]);
+    if (model) return new ObstacleVisual(model);
+    const visual = new ObstacleVisual();
+    visual.obj.add(new THREE.Mesh(visual.own(new THREE.CylinderGeometry(OBSTACLES[p.kind].r, OBSTACLES[p.kind].r, 2.2, 12)), visual.own(new THREE.MeshStandardMaterial({ color: '#6b625c' }))));
+    return visual;
   }
   // monte de ouro do baú quebrado: moedas no chão com brilho baixo e fraco que pulsa (não cobre quem passa por cima)
   const pile = new THREE.Group();
@@ -1419,8 +1519,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const changed = list.length !== pillarMeshes.length || list.some((p, i) => p.pos.x !== pillarMeshes[i].pos.x || p.pos.y !== pillarMeshes[i].pos.y);
     const radius = (p: PillarView) => OBSTACLES[p.kind].r;
     if (changed) {
+      // paredes que já estavam na tela: só a que acabou de surgir cai do céu (issue #206)
+      const before = new Set(pillarMeshes.map((m) => `${m.pos.x},${m.pos.y}`));
       for (const p of pillarMeshes) {
-        scene.remove(p.obj);
+        p.visual.dispose();
         p.bar?.remove();
       }
       pillarMeshes.length = 0;
@@ -1429,17 +1531,19 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         run = p.kind === 'rockpillar' ? run + 1 : 0;
         const wall = p.kind === 'rockpillar' && run % 3 === 1 && list[i + 2]?.kind === 'rockpillar';
         const side = p.kind === 'rockpillar' && !wall; // os lados não têm modelo nem barra (a vida é a da parede)
-        let obj: THREE.Object3D;
-        if (wall) obj = makeWall(v(list[i + 2].pos.x - list[i + 1].pos.x, list[i + 2].pos.y - list[i + 1].pos.y));
-        else if (side) obj = new THREE.Group();
+        let visual: ObstacleVisual;
+        if (wall) visual = makeWall(v(list[i + 2].pos.x - list[i + 1].pos.x, list[i + 2].pos.y - list[i + 1].pos.y));
+        else if (side) visual = new ObstacleVisual();
         else {
-          obj = (p.kind === 'chest' ? makeChest() : decor.clone(OBSTACLE_MODEL[p.kind])) ?? new THREE.Mesh(new THREE.CylinderGeometry(radius(p), radius(p), 2.2, 12), new THREE.MeshStandardMaterial({ color: '#6b625c' }));
+          visual = makeObstacle(p);
+          const obj = visual.obj;
           // ajusta a largura do modelo ao raio de colisão do pilar
           const box = new THREE.Box3().setFromObject(obj);
           const width = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) || 1;
           // árvore é fina no tronco e larga nos galhos: mede pelo tronco (menos que a copa)
           obj.scale.multiplyScalar((radius(p) * (p.kind === 'tree' ? 6 : 2.3)) / width);
         }
+        const obj = visual.obj;
         obj.position.copy(w3(p.pos, 0));
         scene.add(obj);
         // barra de vida em tudo que quebra (pedido do Fernando, 17/10: sempre visível)
@@ -1450,22 +1554,35 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           labels.append(bar);
         }
         const height = new THREE.Box3().setFromObject(obj).max.y;
-        pillarMeshes.push({ obj, pos: p.pos, bar, fill, height });
+        const fallAt = wall && p.hp > 0 && !before.has(`${p.pos.x},${p.pos.y}`) ? performance.now() / 1000 : undefined;
+        pillarMeshes.push({ visual, pos: p.pos, bar, fill, height, fallAt });
         // a lista muda no meio da rodada (baú, Pilar de pedra): o que já tinha quebrado não afunda de novo
         if (p.hp <= 0) obj.position.y = -3;
       });
     }
     list.forEach((p, i) => {
       const m = pillarMeshes[i];
+      const obj = m.visual.obj;
       if (p.hp <= 0) {
-        m.obj.position.y = Math.max(-3, m.obj.position.y - 0.05);
-        m.obj.visible = m.obj.position.y > -2.9;
+        obj.position.y = Math.max(-3, obj.position.y - 0.05);
+        obj.visible = obj.position.y > -2.9;
         if (m.bar) m.bar.hidden = true;
       } else {
+        // queda da parede nova: 4 m em 0,2 s, acelerando, e poeira ao bater (a colisão e o dano já valem desde o lançamento)
+        if (m.fallAt !== undefined) {
+          const k = Math.min(1, (performance.now() / 1000 - m.fallAt) / 0.2);
+          obj.position.y = 4 * (1 - k * k);
+          if (k >= 1) {
+            m.fallAt = undefined;
+            shockwave(p.pos, 1.6, '#c8b8a0');
+            // Math.random só no desenho da poeira (fora da simulação, como o resto da cena)
+            if (!lite) for (let j = 0; j < 4; j++) puff(v(p.pos.x + (Math.random() - 0.5) * 1.6, p.pos.y + (Math.random() - 0.5) * 1.6), 0.8, 1.2);
+          }
+        }
         // tremida curta quando apanha
         const shake = p.hp < 100 ? (100 - p.hp) / 100 : 0;
         if (m.fill) m.fill.style.width = `${p.hp}%`;
-        m.obj.rotation.z = Math.sin(performance.now() / 40) * 0.02 * shake;
+        obj.rotation.z = Math.sin(performance.now() / 40) * 0.02 * shake;
       }
     });
   }
@@ -1532,9 +1649,27 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     burst(hand, '#9fd0ff', 1.2, 0.2, 0.9, FX.light);
   }
 
+  // chefe da Campanha: a faixa vermelha no chão é o caminho da investida enquanto ele mira; pilar derrubado = atordoado
+  const chargeGeo = new THREE.PlaneGeometry(1, 1);
+  function bossFx(e: Extract<SimEvent, { k: 'boss' }>) {
+    const at = v(e.x, e.y);
+    if (e.what === 'aim' && e.tx !== undefined && e.ty !== undefined) {
+      const to = v(e.tx, e.ty), len = Math.hypot(to.x - at.x, to.y - at.y);
+      const strip = new THREE.Mesh(chargeGeo, new THREE.MeshBasicMaterial({ color: '#ff3b2f', transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+      strip.rotation.set(-Math.PI / 2, 0, -Math.atan2(to.y - at.y, to.x - at.x));
+      strip.scale.set(len, 1.3, 1);
+      strip.position.copy(w3(v((at.x + to.x) / 2, (at.y + to.y) / 2), 0.05));
+      addFx(strip, 0.95, (k) => ((strip.material as THREE.MeshBasicMaterial).opacity = 0.15 + 0.35 * k));
+    } else if (e.what === 'stun') {
+      shockwave(at, 2.2, '#ffd36b');
+      for (let i = 0; i < 6; i++) burst(v(at.x + Math.cos(i) * 0.5, at.y + Math.sin(i) * 0.5), '#ffe9a8', 0.9, 1.2, 1.9, FX.star, 0.4);
+    } else if (e.what === 'phase2') shockwave(at, 5, '#ffb347');
+  }
+
   function onEvents(events: SimEvent[], hiddenDamageTargets: readonly string[] = []) {
     for (const e of events) {
-      if (e.k === 'cast') {
+      if (e.k === 'boss') bossFx(e);
+      else if (e.k === 'cast') {
         oneShot(e.id, ...castAnim(e.spell));
         if (e.spell === 'scourge') {
           // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
@@ -1555,7 +1690,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         else explosion(v(e.x, e.y));
         scorch(v(e.x, e.y));
         // Mantém o impacto público da magia, mas não o número sobre o jogador invisível.
-        if (!hiddenDamageTargets.includes(e.id)) damageNumber(v(e.x, e.y), e.dmg);
+        if (!hiddenDamageTargets.includes(e.id)) damageNumber(v(e.x, e.y), e.dmg, e.crit);
         // dano 0 (invulnerável, aliado) não sacode nem acende
         if (e.dmg > 0) impact(e.id, v(e.x, e.y), e.dmg);
       } else if (e.k === 'gold') goldNumber(v(e.x, e.y), e.n);
@@ -1593,6 +1728,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(v(e.x, e.y), '#d8c8b8', 1.4, 0.3, 1.2, FX.smoke);
       } else if (e.k === 'clash') {
         const at = v(e.x, e.y);
+        // Amplia só a destruição no ponto do projétil, nunca o feixe nem o raio das regras da magia.
+        if (e.combo === 'pulse') {
+          explosion(at);
+          shockwave(at, Math.max(e.r, 1.5), '#b98cff');
+        }
         groundMark(at, e.combo, e.r);
         if (e.combo !== 'pillar' && e.combo !== 'snow') {
           shake = Math.min(0.6, shake + e.r * 0.15);
@@ -1631,7 +1771,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (m) {
           const at = v(m.root.position.x, m.root.position.z);
           // fora da pedra: caiu na lava (respingo); em cima dela: estoura em fogo
-          if (inLavaAt(shownArena, shownR, shownIsles, at, 0.3)) lavaSplash(at);
+          if (lavaAt(at, 0.3)) lavaSplash(at);
           else {
             burst(at, '#ffcf5a', 4, 0.6, 0.3, FX.fire);
             smoke(at, 2.6, 1.6);
@@ -1747,7 +1887,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           scene.remove(m.root);
           dispose(m.vines); // Os cipós procedurais pertencem à aparência que está sendo substituída.
           for (const o of [m.ring, m.shield, m.aura]) (o.material as THREE.Material).dispose();
-          for (const x of m.mats) x.m.dispose();
+          disposeAppearance(m);
           m.label.remove();
         }
         if (made) mages.set(d.id, (m = made));
@@ -1798,7 +1938,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (!m.dead) {
           m.dead = true;
           // caiu na lava (fora da pedra e fora das ilhas): Death_A, que é a pose dos ossos, e o corpo queima; na pedra, Death_B (cai de costas)
-          const lava = inLavaAt(shownArena, shownR, shownIsles, d.pos);
+          const lava = lavaAt(d.pos);
           play(m, lava ? 'Death_A' : 'Death_B', 0.1);
           if (lava) {
             m.burnAt = now;
@@ -1827,7 +1967,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       // queimando na lava (issue #225): de cima não se via que o mago estava tomando dano; faíscas e labaredas pequenas nos pés
       // (no modo leve, poucas: com muitos magos na lava o teto de partículas FX_CAP segura o resto)
-      const burning = d.alive && !hidden && inLavaAt(shownArena, shownR, shownIsles, d.pos);
+      const burning = d.alive && !hidden && lavaAt(d.pos);
       if (burning) {
         const feet = () => v(d.pos.x + (Math.random() - 0.5) * 0.7, d.pos.y + (Math.random() - 0.5) * 0.7);
         if (Math.random() < (lite ? 0.05 : 0.25)) burst(feet(), Math.random() < 0.5 ? '#ff8a2a' : '#ffd060', 0.35, 0.8, 0.2, glow, 1.4);
@@ -1865,7 +2005,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           }
         }
       }
-      m.label.hidden = !d.alive || hidden;
+      // Campanha: o caído com brasa mostra o rótulo só com a barra do reacender, e solta brasas
+      const ember = !d.alive && d.ember !== undefined && d.ember >= 0;
+      m.label.hidden = (!d.alive && !ember) || hidden;
+      m.label.classList.toggle('ember', ember);
+      if (ember && !lite && Math.random() < 0.08) burst(v(d.pos.x + (Math.random() - 0.5) * 0.5, d.pos.y + (Math.random() - 0.5) * 0.5), Math.random() < 0.5 ? '#ffb347' : '#ff7a2f', 0.5, 0.9, 0.2, FX.light, 0.9);
       // ícones de efeito em cima do mago (negativos primeiro)
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
@@ -1953,8 +2097,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           m.level = d.xp.level;
         }
       }
-      m.lootBar.hidden = !d.loot;
-      if (d.loot) m.lootFill.style.width = `${Math.min(100, d.loot * 100)}%`;
+      const prog = ember ? d.ember! : d.loot;
+      m.lootBar.hidden = !ember && !d.loot;
+      if (prog !== undefined) m.lootFill.style.width = `${Math.min(100, prog * 100)}%`;
     }
     for (const [id, m] of mages) if (!seen.has(id)) {
       m.root.visible = false;
@@ -2038,6 +2183,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   return {
     ready,
     onEvents,
+    resourceStats() {
+      return { geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures };
+    },
     // centro no mago e raio em metros; null (ou raio 0) esconde. blastAt/blastR: o círculo da explosão no ponto mirado
     range(at: Vec | null, r: number, blastAt: Vec | null = null, blastR = 0) {
       blastRing.visible = !!blastAt && blastR > 0;
@@ -2201,11 +2349,21 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean }) {
+    render(state: { arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[] } | null }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
       lavaMat.uniforms.uTime.value = now;
+      // Campanha: o mapa no lugar da arena e da lava
+      const onMap = !!state.map;
+      curMap = state.map ? state.map.night : null;
+      if (state.map && state.map.key !== mapKey) {
+        mapKey = state.map.key;
+        buildMap(state.map.night);
+      }
+      mapGroup.visible = voidPlane.visible = onMap;
+      lava.visible = arena.visible = warn.visible = !onMap;
+      for (const c of cpMarks) c.mat.opacity = state.map?.done.includes(c.room) ? 0.15 : 0.55 + 0.35 * Math.sin(now * 3);
 
       // arena nova (sorteada a cada rodada): troca o chão e a borda
       if (state.arena !== shownArena) {
@@ -2218,7 +2376,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         warnR = -1;
       }
       // a decoração em volta se afasta da pedra quando a arena muda ou cresce (rodada nova); no encolhimento fica
-      if (state.arena !== decorArena || state.arenaR > decorR + 0.3) decor.layout((p) => edgeAt(state.arena, state.arenaR, p));
+      if (state.arena !== decorArena || state.arenaR > decorR + 0.3) decor.layout((p) => (onMap ? -1 : edgeAt(state.arena, state.arenaR, p)));
       decorR = state.arena !== decorArena || state.arenaR > decorR + 0.3 ? state.arenaR : Math.min(decorR, state.arenaR);
       decorArena = state.arena;
       shownR += (state.arenaR - shownR) * Math.min(1, dt * 4);
@@ -2234,7 +2392,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       tintK += ((tint?.[1] ?? 0) - tintK) * Math.min(1, dt * 3);
       shoreU.uTintK.value = tintK;
       lavaMat.uniforms.uHeat.value = heat;
-      under.intensity = (52 + Math.sin(now * 2) * 9 + Math.sin(now * 7.3) * 3) * heat;
+      under.intensity = onMap ? 0 : (52 + Math.sin(now * 2) * 9 + Math.sin(now * 7.3) * 3) * heat;
       const ec = arcane ? ARCANE.ember : state.effect && EMBER_COLOR[state.effect];
       if (ec) emberMat.color.set(ec);
       else emberMat.color.copy(emberBase);
@@ -2245,6 +2403,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       shoreU.uWarn.value = warning ? 0.5 + 0.5 * Math.sin(now * 14) : 0;
       // brasas: sobem da lava em volta da pedra, cada uma com seu ritmo
       if (!lite) for (const s of embers) {
+        if (onMap) {
+          s.visible = false; // no mapa não há lava
+          continue;
+        }
         const u = s.userData as { a: number; r: number; vy: number; size: number; wait: number };
         if (!s.visible) {
           u.wait -= dt;
@@ -2403,7 +2565,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       syncIsles(shownIsles, now, dt);
       // hit-stop: quem acabou de apanhar fica com a animação parada por ~60 ms
       for (const m of mages.values()) if (now >= m.freezeUntil) m.mixer.update(dt);
-      decor.update((p) => edgeAt(shownArena, shownR, p), now);
+      decor.update((p) => (onMap ? -1 : edgeAt(shownArena, shownR, p)), now); // no mapa a decoração da arena afunda
       for (let i = fx.length - 1; i >= 0; i--) {
         const f = fx[i];
         const k = (now - f.born) / (f.until - f.born);
@@ -2417,7 +2579,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // câmera inclinada estilo Dota, seguindo de leve o próprio mago
       // em pé a arena não cabe na largura: a câmera acompanha mais o próprio mago
       // assistindo outro mago (lock): centra nele
-      let target = (state.follow ? w3(state.follow).multiplyScalar(state.lock ? 1 : camera.aspect < 1 ? 0.65 : 0.3) : new THREE.Vector3()).add(pan);
+      // no mapa, sem ninguém para seguir (todos caíram), a câmera fica onde estava em vez de ir para a quina (0, 0)
+      let target = (state.follow ? w3(state.follow).multiplyScalar(state.lock ? 1 : camera.aspect < 1 ? 0.65 : 0.3) : onMap ? focus.clone().sub(pan) : new THREE.Vector3()).add(pan);
       // fim da rodada: a câmera vai devagar até quem comemora (no modo Times, o meio do time) e aproxima um pouco
       const champs = state.wizards.filter((w) => w.cheer && w.alive);
       celebrate += ((champs.length ? 1 : 0) - celebrate) * Math.min(1, dt * 1.5);
@@ -2429,7 +2592,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // aproxima conforme a arena encolhe. Teto 54: as Ilhas com 8 magos (48,5) e no máximo da sandbox (53) cabem
       // inteiras; com 44 uma ilha saía pela lateral (issue #222). Seguindo um mago (lock), o teto é 25, o da arena de 4 magos:
       // em mapa grande ele não encolhe na tela
-      const dist = Math.min(state.lock ? 25 : 54, Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
+      const dist = Math.min(state.lock ? 25 : 54, (onMap ? 15 : Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2)) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
+      // no mapa a sombra do sol acompanha a câmera (a janela de sombra é de 28 m)
+      if (onMap) {
+        voidPlane.position.set(focus.x, -0.8, focus.z); // o fundo do abismo acompanha a câmera: nunca acaba antes do mapa
+        sun.position.set(focus.x - 8, 20, focus.z + 6);
+        sun.target.position.set(focus.x, 0, focus.z);
+        sun.target.updateMatrixWorld();
+      } else if (sun.target.position.x || sun.target.position.z) {
+        sun.position.set(-8, 20, 6);
+        sun.target.position.set(0, 0, 0);
+        sun.target.updateMatrixWorld();
+      }
       lastDist = dist;
       // olha um pouco à frente do centro para a borda de baixo não ficar atrás da barra de magias
       let lookX = focus.x, lookZ = focus.z + dist * 0.06;
@@ -2481,7 +2655,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // barras dos obstáculos, logo acima de cada um
       for (const p of pillarMeshes) {
         if (!p.bar || p.bar.hidden) continue;
-        const [x, y] = toScreen(p.obj.position.clone().setY(p.height + 0.15));
+        const [x, y] = toScreen(p.visual.obj.position.clone().setY(p.height + 0.15));
         p.bar.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
       }
 
