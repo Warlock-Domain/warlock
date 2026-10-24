@@ -220,11 +220,12 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // projétil que acabou de surgir ainda não deu tempo de ver; longe demais, o bot não enxerga
   const seen = (p: Projectile) => w.t - (p.born ?? -Infinity) >= D.delay && dist(p.pos, me.pos) <= D.vision;
   const th = threatTo(w, me, seen);
-  // Manter base (decisão do Fernando, 24/10): sem magia de fuga pronta, o bot segura S como o jogador. Precisa começar com o
-  // preparo de 0,5 s inteiro antes do golpe, então olha até 0,9 s (preparo + um pensamento do Normal, 0,4 s): com o gatilho
-  // antigo (até 0,6 s) o preparo quase nunca terminava (6 bots: 28 usos, 0 tiques ativos). Já segurando, renova sem novo
-  // sorteio enquanto o tiro vem; antes disso, a chance de desviar andando decide (Manter base trava o passo)
-  if (!me.casting && !ESCAPE.some((s) => ready(s))) {
+  // Hold ground (Fernando's decision, 24/10, in the CLAUDE.md register): with no escape spell ready the bot holds S like a player.
+  // The 0.5 s windup must finish before the hit, so it looks up to 0.9 s ahead (windup + one Normal think, 0.4 s); the old 0.6 s
+  // trigger almost never finished the windup (6 bots: 28 uses, 0 active ticks). Once holding it renews without a new roll while the
+  // shot closes in; before that, the chance to dodge on foot decides (Hold ground locks walking). Bots that think no faster than
+  // the lease (Easy 0.67 s, Casual 0.5 s) skip it: their renewal would land on or after expiry and restart the windup forever
+  if (1 / D.rate < BRACE.lease && !me.casting && !ESCAPE.some((s) => ready(s))) {
     const hb = threatTo(w, me, seen, BRACE.windup + 0.4);
     const area = hb && (hb.p.kind === 'meteor' || hb.p.kind === 'grip');
     if (hb && !area && (w.t < (me.braceUntil ?? 0) || (hb.t >= BRACE.windup && rand() >= D.dodge))) return [{ id, kind: 'brace', on: true }];
