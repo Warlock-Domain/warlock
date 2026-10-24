@@ -1,6 +1,7 @@
 // Grimório (pedido do Fernando, 18/10): o "Como jogar" virou um livro aberto com sumário, uma página por magia e por item
 // e demonstração animada rodando a simulação de verdade (demo.ts). Duas páginas no PC, uma no celular; ← → ou deslizar viram.
-// Carregado sob demanda pelo botão "?" (import dinâmico em ui.ts), para não pesar o começo do jogo.
+// Mora na aba Aprender do menu principal e, dentro da partida, num diálogo (F1 ou o botão "?"). Carregado sob demanda
+// (import dinâmico em ui.ts), para não pesar o começo do jogo.
 import { ARENA_IDS, SHAPES, type ArenaId } from '../shared/arena.ts';
 import { ARENA_R0, HP_MAX, RUNE_KINDS } from '../shared/constants.ts';
 import { ITEMS, ITEM_IDS, type ItemId } from '../shared/items.ts';
@@ -110,15 +111,26 @@ const PAGES: Page[] = [
 const CHAPTERS = [...new Set(PAGES.map((p) => p.chapter))].slice(1);
 const pageOf = (pred: (p: Page) => boolean) => PAGES.findIndex(pred);
 
-// to: abre direto na página daquela magia ou item (biblioteca)
+// grimório num diálogo, para dentro da partida (no menu inicial ele mora na aba Aprender)
 export function openGrimoire(to?: SpellId | ItemId | GuideId) {
   document.querySelector('.grimoire-overlay')?.remove();
-  // Reopening from the button always starts at the table of contents (Fernando's decision, 24/10); explicit links still open the requested page
-  let at = 0;
+  const book = grimoire();
+  book.goTo(to);
+  dialog('grimoire', t('Grimório', 'Grimoire'), [book.root], { ico: UI_ICON.help, onKey: book.onKey, onClose: book.dispose });
+}
+
+// página de uma magia, item, mecânica ou status (0 = sumário)
+function pageFor(to?: SpellId | ItemId | GuideId): number {
   const mechanic = MECHANIC_GUIDES.find((g) => g.id === to);
   const status = NEGATIVE_GUIDES.find((g) => g.id === to);
   const page = status ? pageOf((p) => p.guideId === status.id) : mechanic ? pageOf((p) => p.demo === mechanic.id) : to ? pageOf((p) => (p.chapter === CH.spells || p.chapter === CH.items) && p.title === actionName(to as SpellId | ItemId)) : -1;
-  if (page >= 0) at = page;
+  return Math.max(page, 0);
+}
+
+// O livro como peça solta: a aba Aprender o põe na página e a partida o põe num diálogo (openGrimoire).
+// Reopening always starts at the table of contents (Fernando's decision, 24/10); explicit links via goTo open the requested page
+export function grimoire() {
+  let at = 0;
   const wide = matchMedia('(min-width: 900px)');
   const ac = new AbortController();
   let live: object[] = []; // demos da vista atual
@@ -155,8 +167,8 @@ export function openGrimoire(to?: SpellId | ItemId | GuideId) {
       else body.push(fig);
       const d = createDemo(canvas, p.demo, [COLORS[0], COLORS[1], COLORS[2]]);
       live.push(d);
-      // fechou (✕, Esc ou o B do controle tira o overlay) ou virou a página: para
-      runDemo(d.tick, () => overlay.isConnected && live.includes(d));
+      // sai do DOM (✕, Esc ou o B do controle fecham o diálogo) ou vira a página: para; com a aba Aprender escondida só pausa
+      runDemo((now) => root.closest('[hidden]') || d.tick(now), () => root.isConnected && live.includes(d));
     }
     return el('article', { class: 'g-page', 'aria-label': t(`Página ${i + 1}: ${p.title}`, `Page ${i + 1}: ${p.title}`) },
       p.chapter !== CH.toc ? el('small', { class: 'g-chapter' }, p.chapter) : null, ...body, el('span', { class: 'g-num' }, String(i + 1)));
@@ -190,7 +202,7 @@ export function openGrimoire(to?: SpellId | ItemId | GuideId) {
     go(first + step * per);
   }
 
-  // ← → não chegam ao placar nem à câmera de quem assiste (o diálogo segura todas as teclas)
+  // no diálogo, ← → não chegam ao placar nem à câmera de quem assiste (ele segura todas as teclas); na aba, valem com o foco no livro
   const onKey = (e: KeyboardEvent) => {
     const k = e.key;
     if (k === 'ArrowRight' || k === 'PageDown') turn(1);
@@ -199,8 +211,8 @@ export function openGrimoire(to?: SpellId | ItemId | GuideId) {
     else return;
     e.preventDefault();
   };
-  const { overlay } = dialog('grimoire', t('Grimório', 'Grimoire'), [spread, nav], { ico: UI_ICON.help, onKey, onClose: () => ac.abort() });
-  wide.addEventListener('change', () => (overlay.isConnected ? show(0) : ac.abort()), { signal: ac.signal });
+  const root = el('div', { class: 'g-book', tabindex: -1, onkeydown: onKey }, spread, nav);
+  wide.addEventListener('change', () => (root.isConnected ? show(0) : ac.abort()), { signal: ac.signal });
   // deslizar o dedo para os lados vira a página (o rolar de cima para baixo continua com o navegador)
   let start: { x: number; y: number } | null = null;
   spread.addEventListener('pointerdown', (e) => (start = e.pointerType === 'mouse' ? null : { x: e.clientX, y: e.clientY }));
@@ -213,16 +225,16 @@ export function openGrimoire(to?: SpellId | ItemId | GuideId) {
   spread.addEventListener('pointercancel', () => (start = null));
 
   show(0);
+  return { root, onKey, dispose: () => ac.abort(), goTo: (to?: SpellId | ItemId | GuideId) => go(pageFor(to)) };
 }
 
 // Biblioteca "Magias e itens" (decisão do Fernando, 19/10; como a de heróis e itens do Dota): grade de ícones por grupo,
-// busca pelo nome e filtro por grupo; o mouse em cima mostra a dica da loja e o clique abre a página no grimório.
-// Mora na aba do menu principal e no overlay da tecla (F2 no padrão); onOpen fecha o overlay antes de abrir o grimório
-export function library(onOpen?: () => void): HTMLElement {
+// busca pelo nome e filtro por grupo; o mouse em cima mostra a dica da loja e o clique abre a página no grimório (open).
+// Mora na aba Aprender do menu principal e no overlay da tecla (F2 no padrão)
+export function library(open: (id: SpellId | ItemId) => void): HTMLElement {
   const tile = (id: SpellId | ItemId, ico: string, tip: () => string) => withTip(el('button', { type: 'button', class: 'lib-tile', 'data-name': norm(actionName(id)), onclick: () => {
     hideTip();
-    onOpen?.();
-    openGrimoire(id);
+    open(id);
   } }, el('span', { class: 'ico' }, icon(ico)), el('small', {}, actionName(id))), tip);
   const section = (key: string, title: string, cls: string, tiles: HTMLElement[]) =>
     el('section', { class: 'lib-group ' + cls, 'data-filter': key }, el('h3', {}, title), el('div', { class: 'lib-grid' }, ...tiles));
@@ -248,7 +260,7 @@ export function library(onOpen?: () => void): HTMLElement {
 // a mesma biblioteca por cima de qualquer tela, só para consultar (no meio da partida também); Esc ou a mesma tecla fecham
 export function openLibrary() {
   if (document.querySelector('.library-box')) return;
-  const body = library(() => close());
+  const body = library((id) => (close(), openGrimoire(id)));
   const { close } = dialog('library-box', t('Magias e itens', 'Spells and items'), [body], {
     onKey: (e) => isUiKey(e.code, 'library') && (e.preventDefault(), close()),
     onClose: hideTip,
