@@ -242,6 +242,7 @@ export class Room extends DurableObject<Env> {
       await this.dropped(ws); // antes do forget, que apaga o playerId do attachment
       forget(ws, 'dead');
     }
+    // Reconfere a cada 5 min para remover conexões-fantasma mesmo enquanto a sala está ocupada.
     if (this.humans() > 0) return void (await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS));
     this.stopLoop();
     const revision = this.revision;
