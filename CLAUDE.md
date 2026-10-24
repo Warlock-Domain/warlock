@@ -199,6 +199,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 24/10 | **Closed Body** (PR #347, Leonard's idea): Defense spell usable only while Hold ground is active; cuts damage, knockback and status by 90% for 3.5 s at level 1 (+0.75 s per level), 20 s cooldown. Defense becomes the second group with 6 spells (the first exception was Attack, 21/10). Bots cast it on an active guard | Fernando's decision (enters with the owner exception for new spells; numbers measured later) |
 | 24/10 | **Spells per group: 5 is the base, not a ceiling**: a group can grow by owner decision (Defense and Control with 6, PRs #347 and #348). Replaces "10 Attack spells and 5 in each other group" | Fernando's decision |
 | 24/10 | **Sand Blast** (PR #348, Leonard's idea): Rajada becomes a 3×2 m sand cone with no knockback that blinds and incapacitates, and it moves from Attack to Control (Attack 11 spells, Control 6) | Fernando approved the swap on 24/10 (enters with the owner exception for new spells; numbers measured later) |
+| 24/10 | **Continuous lava crackle removed** (PR #280, Leonard's request): `lava_loop.mp3` no longer loads or plays; music, spell and impact sounds and taunts stay. The file and its credit stay in the repository for possible later use | Fernando listened in the PR environment and approved the removal |
 
 ## Fluxo com agente
 

@@ -107,7 +107,7 @@ export function createSound(musicDefault?: number) {
   addEventListener('pointerdown', unlock);
   addEventListener('keydown', unlock);
 
-  // Música toca só dentro da partida e com som ligado; sem crepitar ambiente contínuo.
+  // music plays only inside a match with sound on; the continuous lava crackle was removed (owner decision, 24/10)
   function syncAmbience() {
     const vol = volumes();
     if (master) master.gain.value = 0.6 * channelVolume(vol, 'sfx');

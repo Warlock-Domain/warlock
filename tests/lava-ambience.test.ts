@@ -27,7 +27,7 @@ describe('ambiente sem crepitar contínuo da lava', () => {
     const sound = createSound(1);
     sound.setVolume('sfx', 1); sound.setVolume('music', 1);
     listeners.get('pointerdown')!();
-    // Aguarda também a decodificação dos arquivos, não apenas o início do download.
+    // also waits for the files to decode, not just for the download to start
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(fetch).toHaveBeenCalled();
     sound.setAmbience(true);
