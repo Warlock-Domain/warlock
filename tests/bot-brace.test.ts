@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { botCmds } from '../src/shared/bots.ts';
+import { BOT_SKILL, botCmds } from '../src/shared/bots.ts';
 import { noSpells } from '../src/shared/spells.ts';
 import { world } from './helpers.ts';
 
@@ -23,6 +23,9 @@ describe('bots hold ground', () => {
     const w = threatened(noSpells(), 1.5);
     w.wizards[0].braceUntil = w.t + .3;
     expect(botCmds(w, 'p0', () => .3)).toEqual([{ id: 'p0', kind: 'brace', on: true }]);
+  });
+  it('Easy and Casual skip it: they think no faster than the lease, so the windup would restart forever', () => {
+    for (const D of [BOT_SKILL.easy, BOT_SKILL.casual]) expect(botCmds(threatened(), 'p0', () => .99, D).some((c) => c.kind === 'brace')).toBe(false);
   });
   it('does not hold ground with an escape spell ready', () => {
     const w = threatened({ ...noSpells(), shield: 1 });
