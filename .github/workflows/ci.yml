@@ -18,4 +18,5 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npx vitest run
+      - run: node scripts/room-cleanup.mjs
       - run: npx vite build

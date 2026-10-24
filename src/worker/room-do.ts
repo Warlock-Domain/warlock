@@ -36,6 +36,7 @@ export class Room extends DurableObject<Env> {
   private taunted = new Map<string, number>();
   private looked = new Map<string, number>();
   private watched = new Map<string, number>();
+  private revision = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -243,13 +244,21 @@ export class Room extends DurableObject<Env> {
       await this.dropped(ws); // antes do forget, que apaga o playerId do attachment
       forget(ws, 'dead');
     }
+    // Reconfere a cada 5 min para remover conexões-fantasma mesmo enquanto a sala está ocupada.
     if (this.humans() > 0) return void (await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS));
     this.stopLoop();
+    const revision = this.revision;
     // tira do lobby primeiro; se falhar, tenta de novo daqui a 1 minuto (antes a sala sumia do disco e ficava na lista)
     try {
       await this.lobby().remove(s.id);
     } catch {
       return void (await this.ctx.storage.setAlarm(Date.now() + 60_000));
+    }
+    // RPC externo libera outras mensagens: alguém pode ter entrado (e até saído) durante o remove.
+    if (this.saved !== s || this.revision !== revision || this.humans() > 0) {
+      this.lobbyKey = ''; // o remove pode ter apagado o upsert do hello; publica de novo mesmo com dados iguais
+      await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS);
+      return this.persist();
     }
     this.saved = null;
     await this.ctx.storage.deleteAll();
@@ -259,6 +268,7 @@ export class Room extends DurableObject<Env> {
   private async changed(closing?: WebSocket) {
     const s = this.saved;
     if (!s) return;
+    this.revision++;
     // expulso por votação: avisa e fecha o socket dele (antes de contar quem está na sala)
     for (const ws of this.live(closing)) {
       if (!s.match.banned.includes(this.playerOf(ws)!)) continue;

@@ -63,4 +63,6 @@ export function roomWaves(seed: number, stage: number, room: number, depth: numb
 // aberto, wave = onda atual dele, since = w.t em que ele abriu, cracked = lápides que já racharam nele, done = salas com o
 // encontro vencido
 // boss: estado do chefe na luta aberta (bosses.ts; só existe na arena dele); falls: quedas de cada Aceso no encontro aberto
-export type Night = { seed: number; stage: number; fight: number | null; wave: number; since: number; cracked: number; done: number[]; result: 'won' | 'lost' | null; boss?: BossState; falls?: Record<string, number> };
+export const NIGHT_RESULTS = ['won', 'lost'] as const;
+export type NightResult = (typeof NIGHT_RESULTS)[number] | null;
+export type Night = { seed: number; stage: number; fight: number | null; wave: number; since: number; cracked: number; done: number[]; result: NightResult; boss?: BossState; falls?: Record<string, number> };
