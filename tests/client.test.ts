@@ -10,7 +10,7 @@ import { fxClock } from '../src/client/icons.ts';
 const wiz = (x: number, extra: Partial<WizView> = {}): WizView => ({ id: 'a', pos: v(x, 0), vel: v(0, 0), hp: 100, facing: 0, alive: true, shield: false, status: 1, ...extra });
 const snap = (time: number, x: number): SnapView => ({ time, arenaR: 11, shrinkAt: 15, wizards: [wiz(x)], projectiles: [], pillars: [], loots: [], runes: [] });
 
-describe('interpolação', () => {
+describe('snapshot interpolation', () => {
   it('preserves detached callbacks through reset and a new clock', () => {
     const { push, latest, sample, reset } = createInterp();
     push(snap(1, 0), 10);
@@ -42,7 +42,7 @@ describe('interpolação', () => {
     const it = createInterp();
     it.push(snap(1.0, 0), 10.0);
     it.push(snap(1.1, 1), 10.1);
-    // agora = 10.116 → tempo do servidor 1.116 − 0.066 = 1.05: metade do caminho
+    // Local 10.116 maps to server 1.05 after the 66 ms delay: halfway between the samples.
     expect(it.sample(10.116)!.wizards[0].pos.x).toBeCloseTo(0.5, 1);
   });
 
@@ -55,31 +55,31 @@ describe('interpolação', () => {
   });
 });
 
-describe('relógio dos efeitos', () => {
+describe('effect timers', () => {
   it('shows the seconds left and the fraction of the longest time seen; renewing restarts it', () => {
     const clock = fxClock();
     expect(clock([4, 6], 4)).toEqual({ text: '6', frac: 1 });
     expect(clock([4, 3], 4)).toEqual({ text: '3', frac: 0.5 });
     expect(clock([4, 0.4], 4)).toEqual({ text: '0.4', frac: 0.4 / 6 });
-    expect(clock([], 4)).toBeNull(); // acabou (ou efeito sem prazo)
-    expect(clock([4, 2], 4)).toEqual({ text: '2', frac: 1 }); // renovou: novo total
-    // dois relógios com os mesmos dados dão os mesmos números (barra de baixo e em cima do mago)
+    expect(clock([], 4)).toBeNull(); // Expired or without a duration.
+    expect(clock([4, 2], 4)).toEqual({ text: '2', frac: 1 }); // Renewal sets a new total.
+    // The HUD and overhead timers must produce the same values for identical data.
     const a = fxClock(), b = fxClock();
     for (const fx of [[1024, 3], [1024, 1.5], [1024, 0.2]]) expect(a(fx, 1024)).toEqual(b(fx, 1024));
   });
 });
 
-describe('replay da queda', () => {
-  it('o trecho guarda 180 estados (6 s) e interpola no meio, no tempo do servidor', () => {
+describe('death replay', () => {
+  it('keeps 180 server snapshots (6 seconds) and interpolates in server time', () => {
     expect(REPLAY_MAX).toBe(180);
     const it = createInterp(REPLAY_MAX);
     for (let i = 0; i <= 200; i++) it.push(snap(i / 30, i), i / 30);
-    // o estado 0 saiu (201 entraram): pedir o começo devolve o mais antigo que ficou, o 21
+    // With 201 snapshots inserted, the oldest of the retained 180 is snapshot 21.
     expect(it.sample(0 + DELAY)!.wizards[0].pos.x).toBe(21);
     expect(it.sample(100.5 / 30 + DELAY)!.wizards[0].pos.x).toBeCloseTo(100.5, 5);
   });
 
-  it('o buffer da partida fica só com os últimos 6 s', () => {
+  it('keeps only the last six seconds in the live buffer', () => {
     const ring: SnapView[] = [];
     for (let i = 0; i < 600; i++) keepLast(ring, snap(i / 30, 0), REPLAY_MAX);
     expect(ring.length).toBe(180);
@@ -88,7 +88,7 @@ describe('replay da queda', () => {
   });
 });
 
-describe('previsão', () => {
+describe('movement prediction', () => {
   it('walks immediately on click', () => {
     const p = createPredict();
     p.frame(wiz(0), 0.016);
@@ -114,7 +114,7 @@ describe('previsão', () => {
   });
 });
 
-describe('teclas 1 2 3 4 Q W E R', () => {
+describe('1 2 3 4 Q W E R slot keys', () => {
   it('in slot mode the equipped spells follow the bar order', () => {
     setSlotMode(true);
     setSlots(['fireball', 'gravity', 'swap', null, 'pact']);

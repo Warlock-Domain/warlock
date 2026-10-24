@@ -144,6 +144,7 @@ cause, make a focused fix, and run all required verification. Open a PR to maste
 - Use `t('português', 'English')` for visible text; use `spellName`, `itemName`, and `arenaName`, and format numbers with `LOCALE`.
 - Reuse `el`, `dialog`, `iconButton`, `tabs`, `choice`, `searchFilter`, `withTip`, and `store`. Extend a suitable UI piece before adding another; document a new piece in `src/client/CLAUDE.md`. Use `:root` color/size variables.
 - Write new or updated code comments in English. Translate relevant legacy Portuguese comments when changing their code; leave unrelated comments untouched. Existing documentation will be translated after all currently open PRs merge.
+- When editing a test file, translate all suite/test names (`describe`, `it`, `test`) and explanatory comments throughout that file to English, including legacy ones. Preserve localized fixtures and expected UI strings in the language each test requires.
 - Keep changes surgical. Explain non-obvious decisions with a short English comment about why. Update a comment when its decision changes; keep imports at the top.
 - Put testable UI decisions in pure modules such as `screen-data.ts`; `ui.ts` touches browser globals during import and is not a Vitest entry point.
 - Spell behavior comes from documented general stats. Do not introduce interactions specific to a pair of spells; follow the decision register.

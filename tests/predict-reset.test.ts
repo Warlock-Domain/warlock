@@ -8,7 +8,7 @@ import { v } from '../src/shared/vec.ts';
 const snapshot = (x = 0, alive = true, vx = 0): WizView => ({ id: 'p', pos: v(x, 0), vel: v(vx, 0), hp: 1000, facing: 0, alive, shield: false, status: alive ? 1 : 0 });
 afterEach(() => vi.restoreAllMocks());
 
-describe('estado da previsão entre rodadas', () => {
+describe('prediction state between rounds', () => {
   it('keeps detached public callbacks bound to the predictor state', () => {
     let ms = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => ms);
@@ -77,7 +77,7 @@ describe('estado da previsão entre rodadas', () => {
     expect(p.frame(s, 1).x).toBeGreaterThan(4 - WIZ_R);
   });
 
-  it('descarta o destino enfileirado durante um preparo da rodada anterior', () => {
+  it('discards a target queued during a cast in the previous round', () => {
     let ms = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => ms);
     const p = createPredict(), s = snapshot();
@@ -91,7 +91,7 @@ describe('estado da previsão entre rodadas', () => {
     expect(p.frame(s, DT).x).toBeGreaterThan(0);
   });
 
-  it('aceita uma ordem nova sem esperar o preparo antigo terminar', () => {
+  it('accepts new movement without waiting for the previous windup', () => {
     vi.spyOn(performance, 'now').mockReturnValue(0);
     const p = createPredict(), s = snapshot();
     p.frame(s, 0);
@@ -102,7 +102,7 @@ describe('estado da previsão entre rodadas', () => {
     expect(p.frame(s, DT).y).toBeGreaterThan(0);
   });
 
-  it('reinicia a vida no novo nascimento e usa só o novo impulso', () => {
+  it('starts alive at the new spawn and uses only the new impulse', () => {
     const p = createPredict();
     p.frame(snapshot(0, true, 1), DT);
     p.frame(snapshot(5, false), DT);
@@ -112,7 +112,7 @@ describe('estado da previsão entre rodadas', () => {
     expect(s.pos).toEqual(v(10, 0));
   });
 
-  it('preserva a estimativa de rede entre rodadas', () => {
+  it('preserves the network estimate between rounds', () => {
     const p = createPredict();
     p.setRtt(200);
     const rtt = p.rtt();
