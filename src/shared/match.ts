@@ -208,7 +208,7 @@ const player = (m: Match, id: string | null) => m.players.find((p) => p.id === i
 export const playing = (m: Match) => m.players.filter((p) => !p.watch);
 
 // o bot i+1 da partida recebe BOT_NAMES[i] (a sala mostra a lista nesta ordem)
-export const BOT_NAMES = ['Gul’dan', 'Merlim', 'Morgana', 'Rasputin', 'Zatanna', 'Mandrake', 'Gandalfo'];
+export const BOT_NAMES = ['Rasputinho', 'Gandalfo', 'Mendigo Ocultista', "Gul'Dan", 'Soldado do Lula', 'Robô do Bolsonaro', 'Merlim'];
 
 // watch: entra assistindo; sem vaga de mago, a pessoa também entra assistindo (até MAX_WATCHERS)
 export function addPlayer(m: Match, id: string, name: string, bot = false, watch = false, rand: () => number = Math.random): boolean {
