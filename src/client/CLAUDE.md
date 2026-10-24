@@ -8,8 +8,7 @@ Vale junto com o `CLAUDE.md` da raiz.
 - Corpo fechado escurece materiais clonados e restaura ao terminar; sons próprios no começo/fim confirmados. Gravações fornecidas pelo Leonard, declaradas CC0, respeitam mixer/distância.
 
 - Gêiser em Suporte: mira no chão como Agarrar; jato azul eleva o alvo e bloqueia previsão/comandos durante a suspensão. Ficha e demonstração PT/EN seguem os stats compartilhados.
-
-- Curar: tecla/barra seleciona e clique no modelo confirma, independente de modo Rápido/Ao soltar. Sem fallback do chão; inválido mantém seleção, Esc/S/direito cancelam. Aura verde1,5s e coral sintetizado original tocam no evento confirmado, respeitando mixer/distância. PT/EN/ficha/demo/ícone próprio acompanham stats.
+- Curar: a tecla ou a barra seleciona e o clique no modelo confirma, em qualquer modo de lançamento (Rápido ou Ao soltar). Clique no chão não cura; alvo inválido mantém a seleção, e Esc, S ou o botão direito cancelam. No controle, com o analógico direito solto, cura você mesmo (`padTarget`). A aura verde de 1,5 s e o coral sintetizado tocam no evento confirmado, com o mixer e a distância. Textos PT/EN, ficha, demo e ícone próprio seguem os números.
 
 - **DOM sempre com `el(tag, props, ...filhos)`** de `icons.ts` (`on*` vira listener, `class` vira `className`, filho `null`/`false` some). Não crie outro helper de DOM. Ícones: `icon(id)` com `ICON`, `ITEM_ICON`, `UI_ICON`.
 - **Grupos de magia** (`SPELL_GROUPS` em `rules-text.ts`, cor em `.g-<grupo>` no `style.css`): Suporte (verde) aparece mesmo vazio e Mobilidade é dourada (decisão de 24/10, PR #343); `searchFilter(..., keepEmpty)` mantém o grupo vazio visível sem busca, para o jogador ver que a categoria existe antes das magias dela.
