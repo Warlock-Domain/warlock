@@ -186,9 +186,11 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     if (!u || u.cd !== me.cd[s]) M.usable.set(key, (u = { cd: me.cd[s], at: me.cd[s] + D.waitMin + rand() * (D.waitMax - D.waitMin) }));
     return u.at;
   };
-  const ready = (s: SpellId) => me.spells[s] > 0 && w.t >= me.cd[s] && w.t >= usableAt(s);
+  // Aproveita o véu inteiro para reposicionar; outra magia revelaria o bot.
+  const veiled = w.t < me.veilUntil;
+  const ready = (s: SpellId) => !veiled && me.spells[s] > 0 && w.t >= me.cd[s] && w.t >= usableAt(s);
   // Flagelo e Pacto eram itens e saíam sem a espera humana de `ready` (usableAt): ficam assim para não mudar o jeito dos bots
-  const free = (s: SpellId) => me.spells[s] > 0 && w.t >= me.cd[s];
+  const free = (s: SpellId) => !veiled && me.spells[s] > 0 && w.t >= me.cd[s];
   // dentro da pedra com folga (a forma da arena vem de arena.ts); into = direção para dentro a partir do bot
   const inside = (p: Vec, margin: number) => inArena(w, p, margin);
   const into = inward(w, me.pos);
