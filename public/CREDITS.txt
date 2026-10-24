@@ -129,6 +129,7 @@ warlock-wars.svg (vetorial, o W em <path>), favicon.ico (16, 32 e 48 px) e apple
     Divisor: delapouite/split-arrows.svg, Delapouite (http://delapouite.com)
     Zona de dobra: lorc/time-trap.svg, Lorc (http://lorcblog.blogspot.com)
     Gêiser: lorc/water-splash.svg, Lorc (http://lorcblog.blogspot.com)
+    Corpo fechado: lorc/aura.svg, Lorc (http://lorcblog.blogspot.com)
   Itens:
     Anel de vida: delapouite/diamond-ring.svg, Delapouite (http://delapouite.com)
     Anel amaldiçoado: lorc/skull-ring.svg, Lorc (http://lorcblog.blogspot.com)
