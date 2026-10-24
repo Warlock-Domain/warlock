@@ -1,5 +1,5 @@
-// Sons: arquivos gravados com licenças e créditos individuais em public/CREDITS.txt e, enquanto não carregam ou se faltarem,
-// sons sintetizados na hora (Web Audio). Música e crepitar da lava em loop. O navegador só libera áudio depois de um toque.
+// Sounds: recorded files, each with its license or owner acceptance in public/CREDITS.txt, and, while they load or if they are
+// missing, sounds synthesized on the fly (Web Audio). Music and lava crackle loop. The browser only unlocks audio after a tap.
 import { tauntAudioSrc } from '../shared/taunts.ts';
 import { audioLevel, layerVolume } from './audio-level.ts';
 import { store } from './store.ts';
