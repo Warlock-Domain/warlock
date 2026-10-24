@@ -7,7 +7,7 @@ describe('desenho das prévias com estados reais', () => {
     ['brace', 'Manter base'], ['meteor', 'atordoado'], ['grip', 'preso'],
     ['shield', 'empurrão/status 60%'], ['illusion', 'cópia'], ['rush', 'avanço encerrado'],
     ['knockback', 'recuperação'], ['lightning', 'incapacitado'], ['drain', 'lentidão'],
-    ['clash', 'queimando'], ['link', 'Elo'], ['magnetize', 'magnetizado'], ['cluster','diâmetro6m'], ['heal', '+45'], ['geyser', 'suspenso'], ['closedbody', 'Corpo fechado'],
+    ['clash', 'queimando'], ['link', 'Elo'], ['magnetize', 'magnetizado'], ['cluster', 'diâmetro 6 m'], ['heal', '+45'], ['geyser', 'suspenso'], ['closedbody', 'Corpo fechado'],
   ] as [DemoId, string][])('%s desenha sua explicação sem coordenadas inválidas', (id, label) => {
     const texts: string[] = [];
     vi.stubGlobal('matchMedia', () => ({ matches: false }));

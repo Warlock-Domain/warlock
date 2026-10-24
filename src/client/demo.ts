@@ -83,7 +83,7 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 
 // Rótulos seguem os estados reais para a prévia não sugerir que stun, prisão e postura têm o mesmo bloqueio.
 export function demoStatus(w: World, z: Wizard): string[] {
-  if(w.t < (z.blindUntil ?? 0)) return [t('cegueira · visão3m','blindness · sight3m'), ...(w.t < (z.incapacitateUntil ?? 0) ? [t('incapacitado · recargas pausadas','incapacitated · cooldowns paused')] : [])];
+  if(w.t < (z.blindUntil ?? 0)) return [t('cegueira · visão 3 m','blindness · sight 3 m'), ...(w.t < (z.incapacitateUntil ?? 0) ? [t('incapacitado · recargas pausadas','incapacitated · cooldowns paused')] : [])];
   if (w.t < (z.closedBodyUntil ?? 0) && bracingActive(w,z)) return [t('Corpo fechado · dano/empurrão/status −90%', 'Closed Body · damage/knockback/status −90%')];
   if ((z.geyserLeft ?? 0) > 0) return [t('suspenso · invulnerável · sem ações', 'suspended · invulnerable · no actions')];
   const left = (until: number) => n1(Math.max(0, until - w.t));
@@ -210,7 +210,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     if(id==='cluster') {
       const a=w.wizards[A],l=spellLevel('cluster',1),dir=v(Math.cos(a.facing),Math.sin(a.facing)),pts=conePoints(a.pos,dir,l.range,l.width);
       ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); ctx.lineTo(pts[1].x,pts[1].y); ctx.lineTo(pts[2].x,pts[2].y); ctx.closePath();ctx.fillStyle='rgba(205,175,110,.25)';ctx.fill();ctx.strokeStyle='#cfb17b';ctx.stroke();
-      text(t('areia3m×2m · sem empurrão','sand3m×2m · no knockback'),v(0,-4.5),'#cfb17b',.3);
+      text(t('areia 3 m × 2 m · sem empurrão','sand 3 m × 2 m · no knockback'),v(0,-4.5),'#cfb17b',.3);
     }
     if (id === 'lightning') text(spellName('lightning'), v(0, -4.8), '#cfe8ff', .4);
     for (const z of w.zones) circle(z.pos, z.r, ZONE_COLOR[z.kind]);
@@ -317,7 +317,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     if(blinded && w.t<(blinded.blindUntil??0)) {
       const p=blinded.pos,g=ctx.createRadialGradient(p.x,p.y,BLINDNESS.radius-BLINDNESS.feather,p.x,p.y,BLINDNESS.radius);
       g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'#000000');ctx.fillStyle=g;ctx.fillRect(-30,-30,60,60);
-      text(t('visão do alvo cegado · diâmetro6m','blinded target view · diameter6m'),v(0,-4.8),'#cfb17b',.3);
+      text(t('visão do alvo cegado · diâmetro 6 m','blinded target view · diameter 6 m'),v(0,-4.8),'#cfb17b',.3);
     }
   }
 
