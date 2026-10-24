@@ -403,6 +403,13 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   }
   // na Caminhada no vento qualquer magia a encerra: só corre para encostar no inimigo
   if (w.t < me.windUntil) return enemy ? [...cmds.filter((c) => c.kind !== 'move'), { id, kind: 'move', to: enemy.pos }] : cmds;
+  // Heal after the escape and dodge branches: a hurt bot first gets out of danger, then heals the most hurt ally in range
+  if (!me.casting && ready('heal')) {
+    const L = spellLevel('heal', me.spells.heal, w.book);
+    const hurt = w.wizards.filter((z) => z.alive && ally(z) && z.hpMax - z.hp >= L.heal && dist(z.pos, me.pos) <= L.range * me.rangeF)
+      .sort((a, b) => a.hp / a.hpMax - b.hp / b.hpMax)[0];
+    if (hurt) return cast('heal', hurt.pos);
+  }
   // baú perto e nenhum inimigo por perto: quebra com a Bola de fogo
   if (box && !me.casting && ready('fireball') && dist(box, me.pos) < 6 && (!enemy || dist(enemy.pos, me.pos) > 6)) return cast('fireball', box);
   if (!enemy || me.casting) return cmds;
