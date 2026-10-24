@@ -17,7 +17,8 @@ const commit = git('rev-parse --short HEAD');
 const branch = git('rev-parse --abbrev-ref HEAD');
 
 export default defineConfig({
-  test: { setupFiles: ['tests/setup.ts'] }, // idioma pt nos testes
+  // only this checkout's tests: without it the run also sweeps the agent worktrees under .claude/
+  test: { include: ['tests/**/*.test.ts'], setupFiles: ['tests/setup.ts'] }, // tests run in Portuguese
   define: { __BUILD__: JSON.stringify(new Date().toISOString().slice(0, 10) + (commit ? ` · ${commit}` : '')), __BRANCH__: JSON.stringify(branch) },
   // /forum is a second page: the assets binding serves dist/forum.html at /forum, so the worker needs no route for it.
   // The game key stays `index`: entry chunks take the key's name and deploy.yml checks the served index-*.js
