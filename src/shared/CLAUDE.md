@@ -15,6 +15,7 @@ Vale junto com o `CLAUDE.md` da raiz.
 - Fase, ouro e compras moram em `Match` (`match.ts`). O `World` não é gravado no disco (a sala grava `world: null`).
 - **Unidades:** distância em metros, tempo em segundos, vida na escala 1000. Números do Warlock original entram multiplicados por `UNIT` (`speed: 1000 * UNIT`). `DT = 1/60`. Recarga guardada como instante (`w.t + cd`). Milissegundos (`*_MS`, `Date.now()`) só na camada de partida e do servidor.
 - **Eventos:** `w.events.push({ k: '...', ... })` durante o passo; tipo novo entra na união `SimEvent` e o cliente consome em `main.ts`. Ids secretos viram públicos em `publicEvents` (`snapshot.ts`).
+- Ilusão recebe forças pelo mesmo moveWizard do corpo real; copy.walk e pushVel separados. Gravidade usa puxão de corpo, Magnetizar não vira a caminhada, Bola de neve usa arraste no contato e explosão só ao explodir. Movimenta cópias antes dos impactos para não ganhar passo extra pela ordem da lista. Não mata nem oculta a cópia ao receber dano.
 
 ## Números de magia e item (`spells.ts`, `items.ts`, `constants.ts`)
 
