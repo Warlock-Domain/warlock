@@ -46,6 +46,16 @@ describe('forças recebidas pela cópia da Ilusão', () => {
       expect(fake.q.pos.y).toBeCloseTo(real.w.wizards[0].pos.y, 8);
     }
   });
+  it('the copy slide stun follows the owner debuff multiplier, like the wizard', () => {
+    const fake = setup(), real = setup();
+    real.w.projectiles = []; fake.w.wizards[0].pos = v(-5, -5);
+    fake.q.decoyDebuff = real.w.wizards[0].debuffMult = 2;
+    fake.q.decoyDamage = real.w.wizards[0].dmgTaken = 10000;
+    for (const { w } of [fake, real]) w.projectiles.push({ id: w.nextId++, kind: 'fireball', owner: 'p2', caster: 'p2', pos: v(-.6, 0), vel: v(20, 0), until: 10, level: 7, target: null, dmgMult: 1 });
+    stepWorld(fake.w, [], () => .5); stepWorld(real.w, [], () => .5);
+    expect(real.w.wizards[0].stunLeft ?? 0).toBeGreaterThan(0);
+    expect(fake.q.stunLeft ?? 0).toBeCloseTo(real.w.wizards[0].stunLeft ?? 0, 8);
+  });
   it.each([1, 4, 7])('Bola de neve nível %s usa arraste, não o empurrão da explosão no contato', (level) => {
     const fake = setup(), real = setup();
     real.w.projectiles = []; fake.w.wizards[0].pos = v(-5, -5);

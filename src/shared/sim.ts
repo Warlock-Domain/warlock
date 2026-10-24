@@ -126,6 +126,7 @@ export type Projectile = {
   stunLeft?: number; // only blocks the copy's walk, never kills or hides it
   decoyDamage?: number; // Ilusão: dano que a cópia já levou (só aumenta o empurrão; ela não morre)
   decoyResist?: number; // Ilusão: resistência a empurrão do dono no momento do lançamento
+  decoyDebuff?: number; // Illusion: the owner's status-duration multiplier at cast, so the copy's stun lasts like the wizard's
   curve?: { acc: Vec; next: Vec; flipAt: number; stopAt: number }; // Bumerangue indo: aceleração agora, a da volta e quando trocam
   back?: boolean; // Bumerangue voltando ao dono
   prev?: string; // Ricochete: último mago tocado (não bate nele de novo em seguida)
@@ -821,6 +822,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     const copy = launch('illusion', moveDir, L.duration, null, wz.pos);
     copy.decoyDamage = wz.dmgTaken;
     copy.decoyResist = wz.kbResist;
+    copy.decoyDebuff = wz.debuffMult;
     wz.veilUntil = w.t + L.duration;
   } else if (spell === 'recharge') {
     launch('recharge', dir, flight).bonus = RECHARGE.perHit * wz.streak;
@@ -1281,7 +1283,7 @@ function snowRoll(w: World, p: Projectile, at: Vec) {
     const push = q.pushVel ?? v(0, 0), extra = SNOWBALL.drag - dot(dir, push);
     if (extra > 0) {
       q.pushVel = add(push, scale(dir, extra));
-      if (isSliding({ vel: q.pushVel })) q.stunLeft = Math.max(q.stunLeft ?? 0, Math.log(len(q.pushVel) / STUN_SPEED) / FRICTION);
+      if (isSliding({ vel: q.pushVel })) q.stunLeft = Math.max(q.stunLeft ?? 0, decoyStun(q));
     }
   }
 }
@@ -1305,10 +1307,12 @@ function snowBlast(w: World, p: Projectile) {
 }
 
 // pushes the Illusion copy on the same scale as the wizard (per-hit cap and the owner's resistance); it never dies
+// slide stun of the copy: same formula as the wizard's stun(), scaled by the owner's debuff multiplier (no Shield on a copy)
+const decoyStun = (q: Projectile) => (Math.log(len(q.pushVel!) / STUN_SPEED) / FRICTION) * (q.decoyDebuff ?? 1);
 function pushDecoy(q: Projectile, impulse: Vec, dmg: number) {
   const taken = q.decoyDamage ?? 0;
   q.pushVel = add(q.pushVel ?? v(0, 0), scale(impulse, knockScale(dmg, taken, q.decoyResist ?? 0)));
-  if (len(impulse) > 0 && isSliding({ vel: q.pushVel })) q.stunLeft = Math.max(q.stunLeft ?? 0, Math.log(len(q.pushVel) / STUN_SPEED) / FRICTION);
+  if (len(impulse) > 0 && isSliding({ vel: q.pushVel })) q.stunLeft = Math.max(q.stunLeft ?? 0, decoyStun(q));
   q.decoyDamage = taken + dmg;
 }
 
