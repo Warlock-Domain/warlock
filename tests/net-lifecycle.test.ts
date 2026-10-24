@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { connect } from '../src/client/net.ts';
 
+const parseTag = (value: unknown): { t: string } | null => typeof value === 'object' && value !== null && 't' in value && typeof value.t === 'string' ? { t: value.t } : null;
+
 class Socket {
   static OPEN = 1;
   static instances: Socket[] = [];
@@ -31,7 +33,7 @@ describe('ciclo da conexão', () => {
     const add = vi.spyOn(document, 'addEventListener'), remove = vi.spyOn(document, 'removeEventListener');
     const onMsg = vi.fn(), onOpen = vi.fn(), onStatus = vi.fn();
     for (let i = 0; i < 10; i++) {
-      const net = connect('/ws/lobby', onMsg, onOpen, onStatus);
+      const net = connect('/ws/lobby', parseTag, onMsg, onOpen, onStatus);
       const socket = Socket.instances.at(-1)!;
       const late = { open: socket.onopen!, message: socket.onmessage!, close: socket.onclose! };
       socket.opened();
@@ -57,7 +59,7 @@ describe('ciclo da conexão', () => {
   });
   it('reconecta com backoff, substitui socket morto e recupera ao voltar à aba visível', () => {
     const onMsg = vi.fn(), onStatus = vi.fn();
-    const net = connect('/ws/room/ABCD', onMsg, vi.fn(), onStatus);
+    const net = connect('/ws/room/ABCD', parseTag, onMsg, vi.fn(), onStatus);
     const first = Socket.instances[0];
     first.opened();
     vi.advanceTimersByTime(10000);
@@ -95,7 +97,7 @@ describe('ciclo da conexão', () => {
   });
   it('stop antes de abrir impede callbacks pendentes e novos envios', () => {
     const onOpen = vi.fn(), onMsg = vi.fn();
-    const net = connect('/ws/lobby', onMsg, onOpen);
+    const net = connect('/ws/lobby', parseTag, onMsg, onOpen);
     const socket = Socket.instances[0], lateOpen = socket.onopen!, lateMsg = socket.onmessage!;
     net.stop();
     socket.readyState = Socket.OPEN;
@@ -105,5 +107,16 @@ describe('ciclo da conexão', () => {
     expect(onMsg).not.toHaveBeenCalled();
     expect(socket.send).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
+  });
+  it('avisa uma vez por tipo de mensagem rejeitada na mesma conexão', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const net = connect('/ws/room/ABCD', parseTag, vi.fn(), vi.fn());
+    const socket = Socket.instances[0];
+    socket.onmessage?.({ data: '{"bad":true}' });
+    socket.onmessage?.({ data: '{"bad":true}' });
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith('Rejected invalid server message (type: (unknown); reason: schema validation failed)');
+    net.stop();
+    warn.mockRestore();
   });
 });

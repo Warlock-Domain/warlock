@@ -10,6 +10,7 @@ Vale junto com o `CLAUDE.md` da raiz. Tipos à parte: `npx tsc --noEmit -p src/w
 - Regra de negócio é de `match.ts`: o worker chama a função e, se ela devolve `true`, faz `await this.changed()`.
 - **Limite por jogador** para mensagem que grava a sala: siga o padrão do `look` (mapa por jogador + janela em ms, 100 ms) e do taunt (`TAUNT_COOLDOWN_MS`).
 - **Gravar só em `changed()` → `persist()`**, nunca no laço de 16 ms. `persist` grava a partida sem o `World`. Em `changed()`: avisa clientes, liga ou desliga o laço, arma o alarme, só então grava disco e lobby (falha do lobby não congela a sala). Chamada que pode falhar vai em `try/catch` com comentário.
+- **Limpeza de sala:** depois de `await` em RPC do lobby, confira de novo a revisão e as conexões antes de apagar o disco. Um `hello` pode entrar durante o RPC; republique a sala se a revisão mudou. `node scripts/room-cleanup.mjs` reproduz essa corrida sem esperar 5 min.
 - **Telemetria:** fim de rodada fora da sandbox chama `lobby().record(roundRecord(...))` com `.catch(() => {})`. A agregação mora em `src/shared/telemetry.ts`, não aqui. Sandbox não grava telemetria.
 - **Rotas** (`index.ts`): fila de `if` por `url.pathname`. Leitura nova segue `GET /api/telemetry` (JSON com `cache-control: no-store`). Resto devolve 404.
 - Cada PR publica um Worker separado (`warlock-pr-<n>`, `.github/workflows/pr-env.yml`): o `wrangler.jsonc` não muda por ambiente; a pipeline troca só nome e rota.

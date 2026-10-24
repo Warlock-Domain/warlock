@@ -28,6 +28,7 @@ import { openSettings, runeNoticesOn, savedPixel } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
 import { DELAY, REPLAY_MAX, createInterp, keepLast } from './interp.ts';
 import { connect } from './net.ts';
+import { parseLobbyMessage, parseServerMessage } from './net-message.ts';
 import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
@@ -190,9 +191,8 @@ function startLobby(name: string) {
       toast(t('Não deu para criar a sala. Tente de novo.', 'Couldn’t create the room. Try again.'));
     }
   }
-  const lobbyNet = connect('/ws/lobby', (m) => {
-    if (m.t !== 'rooms') return;
-    rooms = m.rooms as RoomInfo[]; // a ordem e as vazias recolhidas ficam com renderLobby (screen-data.ts)
+  const lobbyNet = connect('/ws/lobby', parseLobbyMessage, (m) => {
+    rooms = m.rooms; // a ordem e as vazias recolhidas ficam com renderLobby (screen-data.ts)
     draw();
   }, () => {}, (on) => {
     servidor(on);
@@ -436,7 +436,7 @@ function startRoom(code: string, name: string) {
   });
 
   // a aparência escolhida fica salva e é reenviada ao entrar em qualquer sala; trocada nas Configurações, vale na hora
-  const net = connect('/ws/room/' + code, onMsg, () => {
+  const net = connect('/ws/room/' + code, parseServerMessage, onMsg, () => {
     rejoined = true;
     net.send({ t: 'hello', playerId, name: myName, ...(watchJoin && { watch: true as const }) });
     net.send({ t: 'look', look: savedLook() });
