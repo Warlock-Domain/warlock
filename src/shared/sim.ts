@@ -153,13 +153,13 @@ export type SimEvent =
   | { k: 'rune'; kind: RuneKind; x: number; y: number } // runa apareceu
   | { k: 'runeTake'; id: string; kind: RuneKind } // alguém pegou a runa
   // chefe da Campanha (bosses.ts): aim = parou e mira a investida até (tx, ty); stun = derrubou um pilar; phase2; down = caiu
-  | { k: 'boss'; id: string; what: 'aim' | 'stun' | 'phase2' | 'start' | 'down'; x: number; y: number; tx?: number; ty?: number }
-  | { k: 'ember'; id: string; what: 'lit' | 'out'; x: number; y: number } // Campanha: reacendido pelo grupo, ou a brasa apagou
+  | { k: 'boss'; id: string; what: BossEventKind; x: number; y: number; tx?: number; ty?: number }
+  | { k: 'ember'; id: string; what: EmberEventKind; x: number; y: number } // Campanha: reacendido pelo grupo, ou a brasa apagou
   | { k: 'sudden' } // morte súbita: a arena passa a encolher mais rápido
   // sequência de abate (vem da partida): multi = abates seguidos rápidos, spree = abates sem morrer, breaker = acabou com a sequência de victim
-  | { k: 'streak'; id: string; kind: 'multi' | 'spree' | 'breaker'; n: number; victim?: string }
+  | { k: 'streak'; id: string; kind: StreakKind; n: number; victim?: string }
   | { k: 'scourge'; id: string; x: number; y: number; r: number }
-  | { k: 'clash'; x: number; y: number; combo: Combo; r: number }
+  | { k: 'clash'; x: number; y: number; combo: ComboKind; r: number }
   | { k: 'pillar'; i: number; x: number; y: number }
   | { k: 'chest'; x: number; y: number } // baú apareceu
   | { k: 'loot'; id: string; x: number; y: number } // alguém ganhou 1 de ouro em cima do monte
@@ -170,7 +170,14 @@ export type SimEvent =
 // as de utilidade (teleport, shield, swap, grip, rush, pact) contam uso em 'fire' e, quando pegam alguém, 'land'
 
 // choque de magias: fogo×fogo, fogo×míssil, míssil×míssil, e o raio detonando uma bola de fogo
-type Combo = 'fire' | 'arcane' | 'pulse' | 'detonate' | 'pillar' | 'snow'; // snow: explosão da Bola de neve
+export const BOSS_EVENT_KINDS = ['aim', 'stun', 'phase2', 'start', 'down'] as const;
+export type BossEventKind = (typeof BOSS_EVENT_KINDS)[number];
+export const EMBER_EVENT_KINDS = ['lit', 'out'] as const;
+export type EmberEventKind = (typeof EMBER_EVENT_KINDS)[number];
+export const STREAK_KINDS = ['multi', 'spree', 'breaker'] as const;
+export type StreakKind = (typeof STREAK_KINDS)[number];
+export const COMBO_KINDS = ['fire', 'arcane', 'pulse', 'detonate', 'pillar', 'snow'] as const; // snow: explosão da Bola de neve
+export type ComboKind = (typeof COMBO_KINDS)[number];
 
 // until: some sozinho (Pilar de pedra); wall: índice do pedaço do meio da parede do Pilar de pedra (os 3 dividem a vida); gold: ouro do monte do baú
 export type Pillar = { pos: Vec; hp: number; alive: boolean; kind: ObstacleKind; until?: number; wall?: number; gold?: number };
@@ -541,7 +548,7 @@ function clearProjectilesOnSegment(w: World, a: Vec, b: Vec, caster: string) {
 }
 
 // explosão em área: dano e empurrão em todos dentro do raio (inclusive donos), caindo até zero na borda
-function area(w: World, at: Vec, radius: number, dmg: number, kbFactor: number, by: string | null, combo: Combo) {
+function area(w: World, at: Vec, radius: number, dmg: number, kbFactor: number, by: string | null, combo: ComboKind) {
   for (const o of w.wizards) {
     if (!o.alive) continue;
     const d = dist(o.pos, at);

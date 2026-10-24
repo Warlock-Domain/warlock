@@ -1,3 +1,4 @@
+import { decodeMessage } from './net-message.ts';
 import type { ClientMsg } from '../shared/protocol.ts';
 
 const BACKOFF = [1000, 2000, 5000];
@@ -6,13 +7,14 @@ const PING_MS = 10_000;
 const DEAD_MS = 25_000;
 
 // WebSocket que se reconecta sozinho (o celular derruba a conexão quando a tela bloqueia)
-export function connect(path: string, onMsg: (m: any) => void, onOpen: () => void, onStatus: (on: boolean) => void = () => {}) {
+export function connect<T>(path: string, parse: (value: unknown) => T | null, onMsg: (m: T) => void, onOpen: () => void, onStatus: (on: boolean) => void = () => {}) {
   const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${path}`;
   let ws: WebSocket | null = null;
   let tries = 0;
   let stopped = false;
   let lastSeen = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const warnedTypes = new Set<string>();
 
   const detach = (socket: WebSocket) => {
     socket.onopen = null;
@@ -36,7 +38,14 @@ export function connect(path: string, onMsg: (m: any) => void, onOpen: () => voi
     self.onmessage = (e) => {
       if (stopped || ws !== self) return;
       lastSeen = Date.now();
-      if (e.data !== 'pong') onMsg(JSON.parse(e.data));
+      const raw: unknown = e.data;
+      if (raw === 'pong') return;
+      const parsed = decodeMessage(raw, parse, (type, reason) => {
+        if (warnedTypes.has(type)) return;
+        warnedTypes.add(type);
+        console.warn(`Rejected invalid server message (type: ${type}; reason: ${reason})`);
+      });
+      if (parsed !== null) onMsg(parsed);
     };
     self.onclose = () => {
       if (stopped || ws !== self) return;
