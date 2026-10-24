@@ -193,6 +193,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 24/10 | **Grimório always reopens at the table of contents** (PR #309): the book no longer remembers the last open page; spell, item, control or status links still open their own page. Controls (Attack, Hold ground) and statuses live only in the Grimório, not in Aprender or the shop | Fernando's decision when reviewing PR #309 (chosen over keeping the last page) |
 | 24/10 | **Geyser, Closed Body and Sand Blast enter without the simulator** (PRs #346, #347, #348): owner exception, like the Illusion on 20/10; their numbers are measured later in the measurement batch. It does not cover Hold ground (#292) or the Illusion forces (#277) | Fernando's decision |
 | 24/10 | **Geyser** (PR #346, Leonard's idea): Support spell aimed at the ground like Grip; the jet lifts everyone in the area for 2.5 s (invulnerable, no actions, projectiles pass beneath); 20 s cooldown at level 1, −1 s per level like Heal | Fernando approved the idea on 24/10; Leonard makes the icon |
+| 24/10 | **Closed Body** (PR #347, Leonard's idea): Defense spell usable only while Hold ground is active; cuts damage, knockback and status by 90% for 3.5 s at level 1 (+0.75 s per level), 20 s cooldown. Defense becomes the second group with 6 spells (the first exception was Attack, 21/10). Bots cast it on an active guard | Fernando's decision (enters with the owner exception for new spells; numbers measured later) |
 
 ## Fluxo com agente
 
