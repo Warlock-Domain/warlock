@@ -1447,6 +1447,176 @@ function linkHold(w: World, p: Projectile): boolean {
   return true;
 }
 
+// curva do passo: mira travada, Bumerangue, volta do Elo, virada do Drenar e Míssil; false = o projétil some
+function steer(w: World, p: Projectile, L: Level, dt: number): boolean {
+  if (p.lockOn !== undefined) {
+    const owner = anyById(w, p.owner);
+    const aim = owner && attackBody(w, owner, p.lockOn, false);
+    if (!aim) return false; // não troca de alvo nem persegue uma vida nova após a morte.
+    // A target lifted by the jet does not make the projectile stop or turn around under it
+    if (!p.target || !isSuspended(anyById(w, p.target) ?? {})) p.vel = scale(norm(sub(aim.pos, p.pos)), L.speed);
+  }
+  if (p.kind === 'boomerang' && (w.t >= p.until || !steerBoomerang(w, p, dt))) return false;
+  if (p.kind === 'link' && w.t >= (p.turnAt ?? Infinity)) {
+    // o Elo recolhe: volta a quem lançou e some perto dele (linkprojectile.lua)
+    const owner = byId(w, p.owner);
+    if (!owner || dist(owner.pos, p.pos) < LINK.gone) return false;
+    p.back = true;
+    p.vel = scale(norm(sub(owner.pos, p.pos)), L.speed);
+  }
+  if (p.kind === 'drain' && w.t >= (p.turnAt ?? Infinity)) {
+    // o Drenar vira para o mago mais perto, aliado ou inimigo (drainprojectile.lua)
+    p.turnAt = undefined;
+    let to: Wizard | null = null;
+    for (const z of w.wizards) if (z.alive && !isSuspended(z) && z.id !== p.owner && (!to || dist(z.pos, p.pos) < dist(to.pos, p.pos))) to = z;
+    p.vel = scale(to ? norm(sub(to.pos, p.pos)) : norm(p.vel), DRAIN.turnSpeed);
+  }
+  // Ilusão: o míssil que perseguia o dono persegue a cópia enquanto ela existir
+  const chase = p.kind === 'homing' ? byId(w, p.target) : undefined;
+  const target = chase && !isSuspended(chase) && (w.projectiles.find((q) => q.kind === 'illusion' && q.owner === chase.id && q.until > w.t) ?? chase);
+  if (target) {
+    // gira no máximo HOMING_TURN rad/s em direção ao alvo: o atraso faz o míssil rodear antes de acertar
+    const cur = Math.atan2(p.vel.y, p.vel.x);
+    const want = Math.atan2(target.pos.y - p.pos.y, target.pos.x - p.pos.x);
+    const diff = Math.atan2(Math.sin(want - cur), Math.cos(want - cur));
+    const a = cur + Math.max(-HOMING_TURN * dt, Math.min(HOMING_TURN * dt, diff));
+    const speed = len(p.vel);
+    p.vel = v(Math.cos(a) * speed, Math.sin(a) * speed);
+  }
+  return true;
+}
+
+// projétil bateu num obstáculo antes de qualquer mago; true = continua no mundo
+function hitPillar(w: World, p: Projectile, pil: { i: number; t: number }, L: Level): boolean {
+  const q = w.pillars[pil.i];
+  // Gravidade, Ricochete, Drenar, Magnetizar e Recarga quicam no obstáculo; o Bumerangue quica mais forte e volta ao dono
+  if (p.kind === 'gravity' || p.kind === 'bouncer' || p.kind === 'boomerang' || p.kind === 'drain' || p.kind === 'magnetize' || p.kind === 'recharge') {
+    bounceOff(p, q.pos, OBSTACLES[q.kind].r, p.kind === 'boomerang' ? BOOMERANG.bounceWall : undefined);
+    if (p.kind === 'boomerang') [p.curve, p.back] = [undefined, true];
+    if (p.kind === 'magnetize') p.prev = ''; // depois de quicar pode pegar quem lançou (repele)
+    // Ricochete: do obstáculo segue para o inimigo mais perto (pedido do Fernando, 18/10)
+    if (p.kind === 'bouncer') {
+      const nextTo = nearestEnemy(w, p.pos, p.owner);
+      if (nextTo) p.vel = scale(norm(sub(nextTo.pos, p.pos)), len(p.vel));
+    }
+    // o Bumerangue também quebra o baú (pedido do Fernando, 17/10; no original não batia em obstáculo)
+    if (p.kind === 'boomerang' && q.kind === 'chest') damagePillar(w, pil.i, spellLevel('boomerang', p.level, w.book).dmg * p.dmgMult, p.owner);
+    return true;
+  }
+  if (p.kind === 'link') {
+    // Elo no obstáculo: quem lançou é que é puxado até ele
+    [p.pillar, p.pos, p.vel] = [pil.i, q.pos, v(0, 0)];
+    return true;
+  }
+  if (p.kind === 'splitter') {
+    // splitterprojectile.lua: volta pelo caminho, fora do obstáculo, e solta os filhotes para trás
+    p.pos = add(q.pos, scale(norm(sub(p.pos, q.pos)), OBSTACLES[q.kind].r + PROJ_R + BOOMERANG.gap));
+    p.vel = scale(p.vel, -1);
+    split(w, p);
+    return true;
+  }
+  if (p.kind === 'snowball') {
+    damagePillar(w, pil.i, L.dmg * p.dmgMult, p.owner);
+    snowBlast(w, p);
+    return false;
+  }
+  if (p.kind === 'swap') swapEnd(w, p);
+  else if (L.dmg > 0) damagePillar(w, pil.i, L.dmg * p.dmgMult, p.owner);
+  return false;
+}
+
+// projétil acertou um mago (o escudo devolve; cada magia faz o seu); true = continua no mundo
+function hitWizard(w: World, p: Projectile, found: { wz: Wizard; t: number }, L: Level, dt: number): boolean {
+  const wz = found.wz;
+  if (shielded(w, wz)) {
+    // a Troca não faz mal a ninguém: o escudo só a barra, ninguém sai do lugar
+    if (p.kind === 'swap') {
+      w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
+      return false;
+    }
+    // o Bumerangue e o Elo quicam no escudo sem trocar de dono e voltam (shieldmodifier.lua)
+    if (p.kind === 'boomerang' || p.kind === 'link') {
+      bounceOff(p, wz.pos, Math.max(WIZ_R, wz.shieldR));
+      [p.curve, p.back] = [undefined, true];
+      if (p.kind === 'link') p.turnAt = w.t;
+      w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
+      return true;
+    }
+    if (p.kind === 'bouncer') p.prev = wz.id;
+    // devolve mirando onde quem atirou está agora (pedido do Fernando, 17/10: deixa o escudo mais forte);
+    // se ele já morreu, volta pelo mesmo caminho. O projétil passa a ser de quem refletiu.
+    const shooter = byId(w, p.owner);
+    const back = shooter ? norm(sub(shooter.pos, p.pos)) : scale(norm(p.vel), -1);
+    p.vel = scale(back, len(p.vel));
+    p.target = p.kind === 'homing' ? ((shooter && !allies(shooter, wz) ? shooter.id : null) ?? nearestEnemy(w, p.pos, wz.id)?.id ?? null) : null;
+    if (p.lockOn !== undefined) p.lockOn = shooter?.id; // reflected: locks on the shooter
+    p.owner = wz.id;
+    p.until = w.t + (p.kind === 'homing' ? L.duration : L.range / L.speed);
+    w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
+    return true;
+  }
+  if (p.kind === 'swap') {
+    swapPlaces(w, p, wz);
+    if (!allies(anyById(w, p.owner), wz)) mark(w, wz, p.owner, 'swap');
+    w.events.push({ k: 'land', id: p.caster, src: 'swap' });
+  } else if (p.kind === 'boomerang') {
+    // bate, quica a 500 u/s e volta ao dono; pode acertar de novo na volta
+    hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, sub(wz.pos, p.pos), 'boomerang');
+    land(w, p, 'boomerang', true);
+    bounceOff(p, wz.pos, WIZ_R, BOOMERANG.bounce);
+    [p.curve, p.back] = [undefined, true];
+    return true;
+  } else if (p.kind === 'bouncer') {
+    // bouncerprojectile.lua: dano só em inimigo (e −30% a cada um); segue ao inimigo mais perto, nunca de volta a quem lançou (18/10)
+    // com 1 s de vida renovada, até o dano ficar abaixo de 10
+    if (wz.id !== p.owner) {
+      hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel, 'bouncer');
+      land(w, p, 'bouncer', true);
+      p.dmgMult *= BOUNCER.decay;
+    }
+    if (L.dmg * p.dmgMult < BOUNCER.minDmg) return false;
+    p.prev = wz.id;
+    p.pos = add(p.pos, scale(p.vel, dt * found.t));
+    const nextTo = nearestEnemy(w, p.pos, wz.id, p.owner);
+    if (nextTo) p.vel = scale(norm(sub(nextTo.pos, p.pos)), L.speed);
+    p.until = w.t + (L.range / L.speed) * (byId(w, p.caster)?.rangeF ?? 1);
+    return true;
+  } else if (p.kind === 'drain') {
+    drainHit(w, p, wz, L);
+  } else if (p.kind === 'magnetize') {
+    // inimigo: atrai os projéteis dos inimigos dele; aliado ou quem lançou (depois de quicar): repele
+    const enemy = wz.id !== p.owner && !allies(anyById(w, p.owner), wz);
+    wz.magnet = enemy ? 1 : -1;
+    wz.magnetUntil = w.t + (enemy ? statusDuration(w, wz, L.duration * wz.debuffMult * afflictBy(w, p.owner)) : L.duration);
+    if (enemy) {
+      mark(w, wz, p.owner, 'magnetize');
+      land(w, p, 'magnetize');
+    }
+  } else if (p.kind === 'recharge') {
+    // dano + 1 por acerto seguido; acerto sem reflexo soma, o resto zera; a recarga volta para quem a lançou por último
+    const dmg = L.dmg + (p.bonus ?? 0);
+    hit(w, wz, p.owner, dmg * p.dmgMult, L.knock * (dmg / L.dmg) * p.dmgMult, p.vel, 'recharge');
+    const caster = anyById(w, p.caster);
+    const enemy = !allies(anyById(w, p.owner), wz);
+    if (caster) caster.streak = p.owner === p.caster && enemy ? caster.streak + 1 : 0;
+    if (enemy) land(w, p, 'recharge');
+    if (enemy) w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'recharge', owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + RECHARGE.life, target: p.owner, dmgMult: 1, caster: p.caster, back: true });
+  } else if (p.kind === 'link') {
+    // preso: fica no mago até soltar (linkHold)
+    [p.target, p.pos, p.vel, p.tick] = [wz.id, wz.pos, v(0, 0), w.t + LINK.tick];
+    if (!allies(anyById(w, p.owner), wz)) land(w, p, 'link');
+    return true;
+  } else if (p.kind === 'splitter') {
+    split(w, p); // não causa dano: só estoura em filhotes
+    return true;
+  } else {
+    const src = spellOf(p.kind);
+    hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel, p.src ?? src);
+    land(w, p, src);
+  }
+  return false;
+}
+
 function stepProjectiles(w: World) {
   // Every body moves before impacts, so list order cannot give the copy an extra push step
   for (const p of w.projectiles) if (p.kind === 'illusion') {
@@ -1502,40 +1672,7 @@ function stepProjectiles(w: World) {
       continue;
     }
     const L = p.stats ?? spellLevel(spellOf(p.kind), p.level, w.book);
-    if (p.lockOn !== undefined) {
-      const owner = anyById(w, p.owner);
-      const aim = owner && attackBody(w, owner, p.lockOn, false);
-      if (!aim) continue; // não troca de alvo nem persegue uma vida nova após a morte.
-      // A target lifted by the jet does not make the projectile stop or turn around under it
-      if (!p.target || !isSuspended(anyById(w, p.target) ?? {})) p.vel = scale(norm(sub(aim.pos, p.pos)), L.speed);
-    }
-    if (p.kind === 'boomerang' && (w.t >= p.until || !steerBoomerang(w, p, dt))) continue;
-    if (p.kind === 'link' && w.t >= (p.turnAt ?? Infinity)) {
-      // o Elo recolhe: volta a quem lançou e some perto dele (linkprojectile.lua)
-      const owner = byId(w, p.owner);
-      if (!owner || dist(owner.pos, p.pos) < LINK.gone) continue;
-      p.back = true;
-      p.vel = scale(norm(sub(owner.pos, p.pos)), L.speed);
-    }
-    if (p.kind === 'drain' && w.t >= (p.turnAt ?? Infinity)) {
-      // o Drenar vira para o mago mais perto, aliado ou inimigo (drainprojectile.lua)
-      p.turnAt = undefined;
-      let to: Wizard | null = null;
-      for (const z of w.wizards) if (z.alive && !isSuspended(z) && z.id !== p.owner && (!to || dist(z.pos, p.pos) < dist(to.pos, p.pos))) to = z;
-      p.vel = scale(to ? norm(sub(to.pos, p.pos)) : norm(p.vel), DRAIN.turnSpeed);
-    }
-    // Ilusão: o míssil que perseguia o dono persegue a cópia enquanto ela existir
-    const chase = p.kind === 'homing' ? byId(w, p.target) : undefined;
-    const target = chase && !isSuspended(chase) && (w.projectiles.find((q) => q.kind === 'illusion' && q.owner === chase.id && q.until > w.t) ?? chase);
-    if (target) {
-      // gira no máximo HOMING_TURN rad/s em direção ao alvo: o atraso faz o míssil rodear antes de acertar
-      const cur = Math.atan2(p.vel.y, p.vel.x);
-      const want = Math.atan2(target.pos.y - p.pos.y, target.pos.x - p.pos.x);
-      const diff = Math.atan2(Math.sin(want - cur), Math.cos(want - cur));
-      const a = cur + Math.max(-HOMING_TURN * dt, Math.min(HOMING_TURN * dt, diff));
-      const speed = len(p.vel);
-      p.vel = v(Math.cos(a) * speed, Math.sin(a) * speed);
-    }
+    if (!steer(w, p, L, dt)) continue;
     // a Troca anda só o que falta no último passo, para parar exatamente no ponto da mira (até - agora = tempo de voo que falta)
     const next = add(p.pos, scale(p.vel, p.kind === 'swap' ? Math.min(dt, Math.max(0, p.until - w.t - DT + dt)) : dt));
     if (alter(w, p, next)) {
@@ -1569,135 +1706,11 @@ function stepProjectiles(w: World) {
       if (found && !shielded(w, found.wz)) found = null;
     }
     if (pil && (!found || pil.t < found.t)) {
-      const q = w.pillars[pil.i];
-      // Gravidade, Ricochete, Drenar, Magnetizar e Recarga quicam no obstáculo; o Bumerangue quica mais forte e volta ao dono
-      if (p.kind === 'gravity' || p.kind === 'bouncer' || p.kind === 'boomerang' || p.kind === 'drain' || p.kind === 'magnetize' || p.kind === 'recharge') {
-        bounceOff(p, q.pos, OBSTACLES[q.kind].r, p.kind === 'boomerang' ? BOOMERANG.bounceWall : undefined);
-        if (p.kind === 'boomerang') [p.curve, p.back] = [undefined, true];
-        if (p.kind === 'magnetize') p.prev = ''; // depois de quicar pode pegar quem lançou (repele)
-        // Ricochete: do obstáculo segue para o inimigo mais perto (pedido do Fernando, 18/10)
-        if (p.kind === 'bouncer') {
-          const nextTo = nearestEnemy(w, p.pos, p.owner);
-          if (nextTo) p.vel = scale(norm(sub(nextTo.pos, p.pos)), len(p.vel));
-        }
-        // o Bumerangue também quebra o baú (pedido do Fernando, 17/10; no original não batia em obstáculo)
-        if (p.kind === 'boomerang' && q.kind === 'chest') damagePillar(w, pil.i, spellLevel('boomerang', p.level, w.book).dmg * p.dmgMult, p.owner);
-        keep.push(p);
-        continue;
-      }
-      if (p.kind === 'link') {
-        // Elo no obstáculo: quem lançou é que é puxado até ele
-        [p.pillar, p.pos, p.vel] = [pil.i, q.pos, v(0, 0)];
-        keep.push(p);
-        continue;
-      }
-      if (p.kind === 'splitter') {
-        // splitterprojectile.lua: volta pelo caminho, fora do obstáculo, e solta os filhotes para trás
-        p.pos = add(q.pos, scale(norm(sub(p.pos, q.pos)), OBSTACLES[q.kind].r + PROJ_R + BOOMERANG.gap));
-        p.vel = scale(p.vel, -1);
-        split(w, p);
-        keep.push(p);
-        continue;
-      }
-      if (p.kind === 'snowball') {
-        damagePillar(w, pil.i, L.dmg * p.dmgMult, p.owner);
-        snowBlast(w, p);
-        continue;
-      }
-      if (p.kind === 'swap') swapEnd(w, p);
-      else if (L.dmg > 0) damagePillar(w, pil.i, L.dmg * p.dmgMult, p.owner);
+      if (hitPillar(w, p, pil, L)) keep.push(p);
       continue;
     }
     if (found) {
-      const wz = found.wz;
-      if (shielded(w, wz)) {
-        // a Troca não faz mal a ninguém: o escudo só a barra, ninguém sai do lugar
-        if (p.kind === 'swap') {
-          w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
-          continue;
-        }
-        // o Bumerangue e o Elo quicam no escudo sem trocar de dono e voltam (shieldmodifier.lua)
-        if (p.kind === 'boomerang' || p.kind === 'link') {
-          bounceOff(p, wz.pos, Math.max(WIZ_R, wz.shieldR));
-          [p.curve, p.back] = [undefined, true];
-          if (p.kind === 'link') p.turnAt = w.t;
-          w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
-          keep.push(p);
-          continue;
-        }
-        if (p.kind === 'bouncer') p.prev = wz.id;
-        // devolve mirando onde quem atirou está agora (pedido do Fernando, 17/10: deixa o escudo mais forte);
-        // se ele já morreu, volta pelo mesmo caminho. O projétil passa a ser de quem refletiu.
-        const shooter = byId(w, p.owner);
-        const back = shooter ? norm(sub(shooter.pos, p.pos)) : scale(norm(p.vel), -1);
-        p.vel = scale(back, len(p.vel));
-        p.target = p.kind === 'homing' ? ((shooter && !allies(shooter, wz) ? shooter.id : null) ?? nearestEnemy(w, p.pos, wz.id)?.id ?? null) : null;
-        if (p.lockOn !== undefined) p.lockOn = shooter?.id; // reflected: locks on the shooter
-        p.owner = wz.id;
-        p.until = w.t + (p.kind === 'homing' ? L.duration : L.range / L.speed);
-        w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
-        keep.push(p);
-        continue;
-      }
-      if (p.kind === 'swap') {
-        swapPlaces(w, p, wz);
-        if (!allies(anyById(w, p.owner), wz)) mark(w, wz, p.owner, 'swap');
-        w.events.push({ k: 'land', id: p.caster, src: 'swap' });
-      } else if (p.kind === 'boomerang') {
-        // bate, quica a 500 u/s e volta ao dono; pode acertar de novo na volta
-        hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, sub(wz.pos, p.pos), 'boomerang');
-        land(w, p, 'boomerang', true);
-        bounceOff(p, wz.pos, WIZ_R, BOOMERANG.bounce);
-        [p.curve, p.back] = [undefined, true];
-        keep.push(p);
-      } else if (p.kind === 'bouncer') {
-        // bouncerprojectile.lua: dano só em inimigo (e −30% a cada um); segue ao inimigo mais perto, nunca de volta a quem lançou (18/10)
-        // com 1 s de vida renovada, até o dano ficar abaixo de 10
-        if (wz.id !== p.owner) {
-          hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel, 'bouncer');
-          land(w, p, 'bouncer', true);
-          p.dmgMult *= BOUNCER.decay;
-        }
-        if (L.dmg * p.dmgMult < BOUNCER.minDmg) continue;
-        p.prev = wz.id;
-        p.pos = add(p.pos, scale(p.vel, dt * found.t));
-        const nextTo = nearestEnemy(w, p.pos, wz.id, p.owner);
-        if (nextTo) p.vel = scale(norm(sub(nextTo.pos, p.pos)), L.speed);
-        p.until = w.t + (L.range / L.speed) * (byId(w, p.caster)?.rangeF ?? 1);
-        keep.push(p);
-      } else if (p.kind === 'drain') {
-        drainHit(w, p, wz, L);
-      } else if (p.kind === 'magnetize') {
-        // inimigo: atrai os projéteis dos inimigos dele; aliado ou quem lançou (depois de quicar): repele
-        const enemy = wz.id !== p.owner && !allies(anyById(w, p.owner), wz);
-        wz.magnet = enemy ? 1 : -1;
-        wz.magnetUntil = w.t + (enemy ? statusDuration(w, wz, L.duration * wz.debuffMult * afflictBy(w, p.owner)) : L.duration);
-        if (enemy) {
-          mark(w, wz, p.owner, 'magnetize');
-          land(w, p, 'magnetize');
-        }
-      } else if (p.kind === 'recharge') {
-        // dano + 1 por acerto seguido; acerto sem reflexo soma, o resto zera; a recarga volta para quem a lançou por último
-        const dmg = L.dmg + (p.bonus ?? 0);
-        hit(w, wz, p.owner, dmg * p.dmgMult, L.knock * (dmg / L.dmg) * p.dmgMult, p.vel, 'recharge');
-        const caster = anyById(w, p.caster);
-        const enemy = !allies(anyById(w, p.owner), wz);
-        if (caster) caster.streak = p.owner === p.caster && enemy ? caster.streak + 1 : 0;
-        if (enemy) land(w, p, 'recharge');
-        if (enemy) w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'recharge', owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + RECHARGE.life, target: p.owner, dmgMult: 1, caster: p.caster, back: true });
-      } else if (p.kind === 'link') {
-        // preso: fica no mago até soltar (linkHold)
-        [p.target, p.pos, p.vel, p.tick] = [wz.id, wz.pos, v(0, 0), w.t + LINK.tick];
-        if (!allies(anyById(w, p.owner), wz)) land(w, p, 'link');
-        keep.push(p);
-      } else if (p.kind === 'splitter') {
-        split(w, p); // não causa dano: só estoura em filhotes
-        keep.push(p);
-      } else {
-        const src = spellOf(p.kind);
-        hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, p.vel, p.src ?? src);
-        land(w, p, src);
-      }
+      if (hitWizard(w, p, found, L, dt)) keep.push(p);
       continue;
     }
     p.pos = next;
