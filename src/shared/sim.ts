@@ -564,7 +564,7 @@ function firstOnSegment(w: World, a: Vec, b: Vec, radius: number, skip: string, 
     if (!wz.alive || isSuspended(wz) || wz.id === skip || spares(w, through, wz) || (only !== undefined && wz.id !== only)) continue;
     const [t, gap] = segT(a, d, wz.pos);
     // com escudo, a bolha (maior que o mago) é que encosta
-    if (gap > radius + bubble(w, wz) + bodyR(wz) - WIZ_R) continue; // radius already counts a WIZ_R body
+    if (gap > radius + bubble(w, wz) + (bodyR(wz) - WIZ_R)) continue; // radius already counts a WIZ_R body; the parentheses add exactly 0 in PvP
     if (!best || t < best.t) best = { wz, t };
   }
   return best;
@@ -805,7 +805,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     w.events.push({ k: 'sand', id: wz.id, x: wz.pos.x, y: wz.pos.y, dx: dir.x, dy: dir.y, length, width });
     let landed = false;
     for (const z of w.wizards) {
-      if (!z.alive || z === wz || allies(wz,z) || isSuspended(z) || w.t < z.invulnUntil || !inCone(wz.pos,dir,length,width,z.pos,WIZ_R) || firstPillarOnSegment(w,wz.pos,z.pos,0) || wallClip(w,wz.pos,z.pos) !== z.pos) continue; // Campaign walls block it like Lightning
+      if (!z.alive || z === wz || allies(wz,z) || isSuspended(z) || w.t < z.invulnUntil || !inCone(wz.pos,dir,length,width,z.pos,bodyR(z)) || firstPillarOnSegment(w,wz.pos,z.pos,0) || wallClip(w,wz.pos,z.pos) !== z.pos) continue; // Campaign walls block it like Lightning
       hit(w,z,wz.id,L.dmg*dmgMult,0,dir,'cluster');
       z.incapacitateUntil = Math.max(z.incapacitateUntil ?? 0,w.t+statusDuration(w,z,L.incapacitate*z.debuffMult));
       z.blindUntil = Math.max(z.blindUntil ?? 0,w.t+statusDuration(w,z,L.blind*z.debuffMult));
@@ -1180,7 +1180,7 @@ function stepThrust(w: World, wz: Wizard) {
   for (const o of w.wizards) {
     if (!o.alive || o === wz || spares(w, wz, o)) continue; // passa pelo aliado sem parar
     const n = norm(sub(o.pos, wz.pos));
-    if (dist(o.pos, wz.pos) > 2 * WIZ_R + THRUST.reach + bubble(w, o)) continue;
+    if (dist(o.pos, wz.pos) > bodyR(wz) + bodyR(o) + THRUST.reach + bubble(w, o)) continue; // the giant boss is touched at its own edge
     if (shielded(w, o)) {
       const into = dot(wz.vel, n);
       if (into > 0) {
@@ -1211,7 +1211,7 @@ function stepThrust(w: World, wz: Wizard) {
 function windTouch(w: World, wz: Wizard) {
   const L = spellLevel('windwalk', wz.spells.windwalk, w.book);
   for (const o of w.wizards) {
-    if (!o.alive || o === wz || allies(wz, o) || dist(o.pos, wz.pos) > 2 * WIZ_R + WINDWALK.reach) continue;
+    if (!o.alive || o === wz || allies(wz, o) || dist(o.pos, wz.pos) > bodyR(wz) + bodyR(o) + WINDWALK.reach) continue;
     wz.windUntil = 0;
     hit(w, o, wz.id, L.dmg * wz.windMult, L.knock * wz.windMult, sub(o.pos, wz.pos), 'windwalk');
     w.events.push({ k: 'land', id: wz.id, src: 'windwalk' });
@@ -1439,7 +1439,7 @@ function linkHold(w: World, p: Projectile): boolean {
     return true;
   }
   const o = byId(w, p.target);
-  if (!o || shielded(w, o) || w.t < o.rushUntil || dist(owner.pos, o.pos) < 2 * WIZ_R + LINK.wizGap) return false;
+  if (!o || shielded(w, o) || w.t < o.rushUntil || dist(owner.pos, o.pos) < bodyR(owner) + bodyR(o) + LINK.wizGap) return false;
   o.vel = add(o.vel, scale(norm(sub(owner.pos, o.pos)), L.pull * DT));
   p.pos = o.pos;
   if (w.t >= (p.tick ?? 0)) {

@@ -190,6 +190,22 @@ describe('Sir Odran: corpo 2,5×', () => {
     }
   });
 
+  // bodies stay bodyR + bodyR apart (separate), so touch spells must reach the giant's edge, not a wizard's
+  it.each(['windwalk', 'thrust'] as const)('%s walking into the giant body hits him', (spell) => {
+    const w = world([[0, 0], [3, 0]], { ...noSpells(), [spell]: 1 }, [], () => 0.5);
+    w.wizards[1].r = WIZ_R * ODRAN.size;
+    const hp = w.wizards[1].hp;
+    run(w, 1.5, [{ id: 'p0', kind: 'cast', spell, at: v(3, 0) }, { id: 'p0', kind: 'move', to: v(3, 0) }]);
+    expect(w.wizards[1].hp).toBeLessThan(hp);
+  });
+
+  it('Link pulls the giant body to the caster and lets go on contact, not after its whole life', () => {
+    const w = world([[0, 0], [5, 0]], { ...noSpells(), link: 1 }, [], () => 0.5);
+    w.wizards[1].r = WIZ_R * ODRAN.size;
+    run(w, 3, [{ id: 'p0', kind: 'cast', spell: 'link', at: v(5, 0) }]);
+    expect(w.projectiles).toHaveLength(0);
+  });
+
   it('two bodies keep the sum of their radii apart', () => {
     const w = world([[0, 0], [0.5, 0]], noSpells(), [], () => 0.5);
     w.wizards[0].r = WIZ_R * ODRAN.size;

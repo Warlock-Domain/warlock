@@ -23,8 +23,8 @@ export const SERVOS: Record<ServoKind, { name: string; plural: string; look: Cha
   watcher: { name: 'Vigia Oco', plural: 'Vigias Ocos', look: 'skeleton_mage', hp: 150, spells: { homing: 1 } },
   // rápido e de perto: Investida (sem modelo de cão ainda; o esqueleto guerreiro faz o papel)
   hound: { name: 'Cão de Brasa', plural: 'Cães de Brasa', look: 'skeleton_warrior', hp: 250, spells: { rush: 1 }, speed: 1.4 },
-  // chefe do estágio 1 (Lucas, 20/10): vida com 1 Aceso (+50% por Aceso a mais, bosses.ts); Pisão = Meteoro no próprio pé,
-  // Varredura = Rajada; a Investida cega é do cérebro dele (bosses.ts), não a magia. Undead knight (Lucas, 24/10): the
+  // stage 1 boss (Lucas, 20/10): health with 1 Aceso (+50% per extra Aceso, bosses.ts); Stomp = Meteor on his own feet,
+  // Sweep = Sand Blast; the blind Charge is his brain (bosses.ts), not the spell. Undead knight (Lucas, 24/10): the
   // Skeleton Warrior wearing the Knight's helmet, cape, sword and shield (KayKit, CC0), drawn ODRAN.size times bigger
   odran: { name: 'Sir Odran, o Elmo Vazio', plural: 'Sir Odran, o Elmo Vazio', look: 'skeleton_warrior', outfit: '8288822', hp: 3000, spells: { meteor: 4, cluster: 3 }, speed: 0.85, boss: true },
 };

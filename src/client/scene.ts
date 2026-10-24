@@ -2724,7 +2724,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       for (const m of mages.values()) {
         if (m.label.hidden) continue;
         m.label.style.visibility = obscured(m.root.position) ? 'hidden' : '';
-        const [x, y] = toScreen(m.root.position.clone().setY(2.1 * m.root.scale.y + m.model.position.y));
+        const [x, y] = toScreen(m.root.position.clone().setY(m.root.scale.y * (2.1 + m.model.position.y)));
         m.label.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
       }
 

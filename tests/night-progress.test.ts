@@ -50,6 +50,9 @@ describe('Campanha: progressão da noite', () => {
     expect(total).toBeGreaterThan(wave.length);
     expect(foes(m).filter((z) => z.alive).length).toBe(CAMPAIGN.slots);
     expect(m.night!.queue!.length).toBe(total - CAMPAIGN.slots);
+    // a twin of a servant spawns beside it, not on the same spot
+    const spots = foes(m).filter((z) => z.alive).map((z) => `${z.pos.x.toFixed(3)},${z.pos.y.toFixed(3)}`);
+    expect(new Set(spots).size).toBe(spots.length);
     // one falls: a queued servant takes the slot at its E in the same step, and the encounter stays open
     const first = foes(m).find((z) => z.alive)!;
     Object.assign(first, { hp: -1, invulnUntil: 0 });

@@ -892,12 +892,12 @@ function summon(m: Match, w: World, p: Player, kind: ServoKind, at: Vec) {
 // every Aceso of the night, standing or not: the group size that scales the servants and splits the XP
 const acesosOf = (w: World) => w.wizards.filter((z) => z.team === 0).length;
 
-// onda: cada servo entra pelo E que a sala pede (vários pelo mesmo E nascem lado a lado); as vagas que sobram ficam de fora.
+// wave: each servant enters through the E the room asks for (several at the same E spawn side by side); spare slots stay out.
 // A bigger group brings more of the same servants (nightCount); whoever does not fit in the slots waits in the queue and
 // enters through its E when a slot frees up. The boss wave does not grow: his health already does (bosses.ts)
 function sendWave(m: Match, w: World, wave: Spawn[], spots: Vec[]) {
   const boss = wave.some((q) => SERVOS[q.kind].boss);
-  const all = boss ? wave : [...wave, ...Array.from({ length: nightCount(wave.length, acesosOf(w)) - wave.length }, (_, k) => wave[k % wave.length])];
+  const all = boss ? wave : [...wave, ...Array.from({ length: nightCount(wave.length, acesosOf(w)) - wave.length }, (_, k) => ({ ...wave[k % wave.length] }))]; // copies: indexOf below spreads twins of a servant instead of stacking them
   const slots = m.players.filter((p) => p.servo), now = all.slice(0, slots.length);
   m.night!.queue = all.slice(slots.length);
   slots.forEach((p, i) => {
