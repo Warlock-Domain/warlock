@@ -68,10 +68,10 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   };
   const releaseMove = () => { if (dragging) h.holdMove?.(false); dragging = false; };
   const cancelPointer = () => { releaseMove(); panning = space = panned = false; };
-  // Ao perder foco/cancelar o ponteiro pode não chegar pointerup: não deixar o mouse virar um comando fantasma.
+  // On blur/pointer cancel a pointerup may never arrive: do not let the mouse turn into a ghost command.
   addEventListener('blur', () => { cancel(); arm(null); cancelPointer(); releaseBrace(); });
   addEventListener('visibilitychange', () => { if (document.hidden) releaseBrace(); });
-  // Diálogos capturam teclas: a soltura precisa chegar antes deles, senão o intervalo renovaria a defesa.
+  // Dialogs capture keys: the release must arrive before them, or the interval would renew the guard.
   addEventListener('keyup', (e) => { if (e.code === braceCode) releaseBrace(); }, { capture: true });
   addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || (['shop', 'sheet', 'rules', 'library', 'taunt'] as const).some((a) => isUiKey(e.code, a))) releaseBrace();
@@ -133,7 +133,6 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     if (e.button === 0) panning = false;
   });
   addEventListener('keyup', (e) => {
-    if (e.code === braceCode) releaseBrace();
     if (held && e.code === held.code) return release();
     if (e.code !== 'Space') return;
     space = false;
