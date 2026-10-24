@@ -135,7 +135,6 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     if (e.button === 0) panning = false;
   });
   addEventListener('keyup', (e) => {
-    if (e.code === braceCode) releaseBrace();
     if (held && e.code === held.code) return release();
     if (e.code !== 'Space') return;
     space = false;
