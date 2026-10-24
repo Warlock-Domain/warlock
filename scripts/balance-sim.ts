@@ -365,24 +365,14 @@ function isSummary(value: unknown): value is Summary {
 function readSummary(directory: string): Summary {
   const file = join(directory, 'summary.json');
   const value: unknown = JSON.parse(readFileSync(file, 'utf8'));
-  if (!isSummary(value)) throw new Error(`${file} does not match the balance summary schema`);
+  if (!isSummary(value)) throw new Error(`${file} não corresponde ao formato do resumo de balanceamento`);
   return value;
 }
 
 function mergeSummaryValues(left: SummaryValue | undefined, right: SummaryValue): SummaryValue {
-  if (typeof right === 'number') {
-    if (left === undefined) return right;
-    if (typeof left !== 'number') throw new Error('Cannot merge incompatible balance summary values');
-    return left + right;
-  }
-  if (typeof right === 'string') {
-    if (left === undefined || left === right) return right;
-    if (typeof left !== 'string') throw new Error('Cannot merge incompatible balance summary values');
-    return `${left}, ${right}`;
-  }
-  if (typeof right !== 'object') throw new Error('Cannot merge unsupported balance summary value');
-  if (left !== undefined && typeof left !== 'object') throw new Error('Cannot merge incompatible balance summary values');
-  const previous = left ?? {};
+  if (typeof right === 'number') return (typeof left === 'number' ? left : 0) + right;
+  if (typeof right === 'string') return left === undefined || left === right ? right : `${left}, ${right}`;
+  const previous = typeof left === 'object' && left !== null ? left : {};
   const keys = new Set([...Object.keys(previous), ...Object.keys(right)]);
   return Object.fromEntries([...keys].map((key) => [key, key in right
     ? mergeSummaryValues(previous[key], right[key])
@@ -396,17 +386,17 @@ process.on('SIGINT', () => {
 
 // --merge: soma os summary.json das pastas dadas (todos os campos são somas) e grava um report.md único em --out
 if (arg.merge) {
-  if (!positionals.length) throw new Error('--merge requires at least one summary directory');
+  if (!positionals.length) throw new Error('--merge exige ao menos uma pasta de resumo');
   const parts = positionals.map(readSummary);
   const reference = parts[0];
   for (const part of parts.slice(1)) {
     for (const key of ['plan', 'difficulty', 'arena', 'effect'] as const) {
-      if (part[key] !== reference[key]) throw new Error(`Cannot merge summaries with different ${key} values`);
+      if (part[key] !== reference[key]) throw new Error(`Não é possível juntar resumos com ${key} diferentes`);
     }
   }
-  let merged: SummaryValue | undefined;
-  for (const part of parts) merged = mergeSummaryValues(merged, part);
-  if (!merged || typeof merged !== 'object') throw new Error('Merged balance summaries are empty');
+  const [first, ...rest] = parts;
+  let merged: SummaryValue = first;
+  for (const part of rest) merged = mergeSummaryValues(merged, part);
   Object.assign(S, merged);
   // tempo real: o do processo mais longo; rodadas/min: a soma dos processos (vazão total)
   S.seconds = Math.max(...parts.map((p) => p.seconds));
