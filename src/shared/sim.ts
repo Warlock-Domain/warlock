@@ -8,7 +8,7 @@ import { AEGIS, CRIT, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId }
 import { BOOMERANG, BOUNCER, CAST_POINT, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, PROJECTILE_COLLISION, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellBook, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 import { SHIELD, castBlocked } from './spells.ts';
-import { BASIC_ATTACK, KNOCK_RECOVERY } from './constants.ts';
+import { BASIC_ATTACK, BRACE, KNOCK_RECOVERY } from './constants.ts';
 
 export type Wizard = {
   electroUntil?: number; // duração da eletrificação.
@@ -19,6 +19,8 @@ export type Wizard = {
   recoveryLeft?: number; // retomada disparada pelo fim do impulso, não pelo fim de qualquer stun.
   basicReadyAt?: number; // Attack cooldown
   basicCasting?: { target: string | number; fireAt: number; melee: boolean }; // Attack windup in progress
+  braceUntil?: number; // Hold ground: resists only new impulses while S is held
+  braceReadyAt?: number; // effects start only after the continuous 0.5 s windup
   target: Vec | null;
   moveHeld?: boolean; // direito pressionado preserva tentativa contra obstáculo.
   blockedMove?: boolean; // destino de clique único cancelado por colisão.
@@ -142,6 +144,7 @@ export type Cmd =
   | { id: string; kind: 'move'; to: Vec; held?: boolean }
   | { id: string; kind: 'moveHold'; on: boolean }
   | { id: string; kind: 'stop' }
+  | { id: string; kind: 'brace'; on: boolean }
   | { id: string; kind: 'basic'; at: Vec; target?: string | number }
   | { id: string; kind: 'cast'; spell: SpellId; at: Vec }
 
@@ -423,7 +426,8 @@ const byId = (w: World, id: string | null) => w.wizards.find((z) => z.id === id 
 const anyById = (w: World, id: string | null) => w.wizards.find((z) => z.id === id); // vivo ou morto
 const shielded = (w: World, wz: Wizard) => w.t < wz.shieldUntil;
 export const statusDuration = (w: World, wz: Wizard, seconds: number) => seconds * (shielded(w, wz) ? SHIELD.statusDuration : 1);
-export const incapacitatedUntil = (wz: Wizard, _now = Infinity) => wz.electroUntil ?? 0;
+export const bracingActive = (w: World, wz: Wizard) => w.t + 1e-8 >= (wz.braceReadyAt ?? Infinity) && w.t < (wz.braceUntil ?? 0);
+export const incapacitatedUntil = (wz: Wizard, now = Infinity) => Math.max(wz.electroUntil ?? 0, now + 1e-8 >= (wz.braceReadyAt ?? Infinity) ? wz.braceUntil ?? 0 : 0);
 export function applyElectrocution(w: World, wz: Wizard) {
   if (w.t < wz.invulnUntil) return;
   wz.electroUntil = Math.max(wz.electroUntil ?? 0, w.t + statusDuration(w, wz, LIGHTNING.debuffDuration * wz.debuffMult));
@@ -436,6 +440,7 @@ function stun(w: World, wz: Wizard, seconds: number) {
   wz.dashUntil = wz.thrustUntil = 0; // encerra avanço voluntário, mas preserva forças externas.
 }
 function addKnock(w: World, wz: Wizard, impulse: Vec) {
+  if (bracingActive(w, wz)) impulse = scale(impulse, 1 - BRACE.resistance);
   if (shielded(w, wz)) impulse = scale(impulse, SHIELD.knock);
   wz.vel = add(wz.vel, impulse);
   if (len(impulse) <= 0 || !isSliding(wz)) return;
@@ -1698,7 +1703,7 @@ export function revive(w: World, wz: Wizard, pos: Vec) {
     alive: true, pos, vel: v(0, 0), target: null, casting: null, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
-    rune: null, runeUntil: 0, electroUntil: 0, basicCasting: undefined,
+    rune: null, runeUntil: 0, braceUntil: 0, braceReadyAt: 0, electroUntil: 0, basicCasting: undefined,
   });
 }
 
@@ -1886,11 +1891,15 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   for (const c of cmds) {
     const wz = byId(w, c.id);
     if (!wz) continue;
-    if (c.kind === 'basic') {
+    if (c.kind === 'brace') {
+      if (c.on && w.t >= (wz.braceUntil ?? 0)) wz.braceReadyAt = w.t + BRACE.windup;
+      wz.braceUntil = c.on ? w.t + BRACE.lease : 0;
+    } else if (c.kind === 'basic') {
       beginBasic(w, wz, c);
     } else if (c.kind === 'moveHold') {
-      wz.moveHeld = c.on;
+      wz.moveHeld = c.on && !bracingActive(w, wz);
     } else if (c.kind === 'move') {
+      if (bracingActive(w, wz)) continue; // do not queue a walk that would fire when S is released
       wz.basicCasting = undefined;
       wz.moveHeld = c.held ?? false;
       wz.blockedMove = false;
@@ -1941,6 +1950,11 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1) * (w.map && cellAt(w.map, wz.pos.x, wz.pos.y) === CELL.wax ? WAX.mult : 1) * (inWarp(w, wz) ? WARPZONE.wizMult : 1) * haste * w.mods.speed);
     if (w.t < (wz.electroUntil ?? 0)) wz.speed *= 1 - LIGHTNING.slow;
     if (rooted) wz.target = null;
+    if (bracingActive(w, wz)) {
+      wz.target = null;
+      wz.moveHeld = false;
+      if (wz.casting) wz.casting.then = undefined;
+    }
   }
 
   // morte súbita: rodada longa passa a encolher mais rápido (o próximo encolhimento vem em no máximo 5 s)
