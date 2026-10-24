@@ -19,7 +19,6 @@ jobs:
       contents: read
       issues: read
       pull-requests: write
-      issues: read
       checks: read
       actions: read
       id-token: write
