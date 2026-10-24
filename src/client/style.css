@@ -128,6 +128,7 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 .timer:not(.countdown):not(:empty) { padding: 2px 12px; border-radius: 999px; background: var(--panel-glass); }
 .ilse { position: absolute; left: max(16px, var(--safe-l, 0px)); bottom: calc(150px + var(--safe-b)); z-index: 4; max-width: min(420px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border-radius: var(--r-md); background: var(--panel-solid); border: 1px solid var(--ember); box-shadow: 0 0 16px rgba(255, 179, 71, .3); animation: fade-in .25s ease-out; }
 .lv-cards { position: absolute; right: max(16px, var(--safe-r, 0px)); bottom: calc(150px + var(--safe-b)); z-index: 4; width: min(560px, calc(100% - 32px)); /* right side: the Ilse box holds the bottom-left */ padding: 10px 14px; border-radius: var(--r-md); background: var(--panel-solid); border: 1px solid var(--gold); animation: fade-in .25s ease-out; }
+.minimap { position: absolute; right: max(16px, var(--safe-r, 0px)); top: calc(64px + var(--safe-t)); z-index: 3; width: 220px; height: 150px; border-radius: var(--r-sm); background: var(--panel-glass); border: 1px solid var(--line); pointer-events: none; }
 .lv-cards h3 { margin: 0 0 8px; font-family: var(--display); color: var(--gold); }
 .lv-cards .asc-cards { grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .lv-cards .asc-card { min-height: 0; padding: 8px 10px; }

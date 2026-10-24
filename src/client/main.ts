@@ -40,6 +40,7 @@ import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
 import { STAGE_NAME, USED_KEY, botLevel, boughtKeys, countBuys, readUsed, endResult, maxHp, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
+import { seenRooms } from './minimap.ts';
 import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, setIlse, type IlseCtx } from './ilse.ts';
 import { healTarget } from '../shared/heal-target.ts';
 
@@ -242,6 +243,7 @@ function startRoom(code: string, name: string) {
   // fala da Ilse (Campanha): quais já saíram nesta noite (pela semente) e até quando a atual fica na tela
   let ilseNight = '', ilseQ = newIlseQueue();
   let lvNight = '', lvShown = 1; // Campaign: last level announced on this night
+  let seenNight = '', seen: number[] = []; // Campaign: rooms the group has seen on this night (fog and minimap)
   // a fala da frente fica até o botão; o botão passa para a próxima da fila
   const ilseShow = (): void => view.ilse(ilseQ.lines[0] ?? null, () => (ilseNext(ilseQ), ilseShow()));
   const ilseSay = (key: string, lines: string[]) => ilsePush(ilseQ, key, lines) && ilseShow();
@@ -956,6 +958,12 @@ function startRoom(code: string, name: string) {
     view.replay(canReplay && !rp, rs ? (killer ? t(`Replay · ${names().get(killer) ?? '?'} te derrubou com ${srcName(fall.src)}`, `Replay · ${names().get(killer) ?? '?'} took you down with ${srcName(fall.src)}`) : room?.night ? t('Replay · Você caiu', 'Replay · You fell') : t('Replay · Você caiu na lava sozinho', 'Replay · You fell into the lava on your own')) : null);
     const shown = rs ?? (playing ? s : null);
     const drawWiz = rs ? wizardsOf(rs, false, dt) : wizards;
+    if (nm && room?.night) {
+      const key = `${room.night.seed}:${room.night.stage}`;
+      if (key !== seenNight) [seenNight, seen] = [key, []];
+      const next = seenRooms(nm, wizards.filter((d) => d.alive && d.team === 0).map((d) => d.pos), room.night.done, seen);
+      if (next.length !== seen.length) seen = next; // same array otherwise: the scene compares it to skip work
+    }
     // replay: câmera travada no meio entre mim e quem me derrubou
     const rMe = rs ? drawWiz.find((w) => w.id === me)?.pos : undefined;
     const rBy = killer ? drawWiz.find((w) => w.id === killer)?.pos : undefined;
@@ -988,8 +996,9 @@ function startRoom(code: string, name: string) {
       // na loja o room.effect já é o da próxima rodada: o mapa só muda quando ela começa
       effect: room && ['countdown', 'playing', 'roundEnd'].includes(room.phase) ? room.effect : null,
       arcane: room?.mode === 'ascension', // Febre arcana: a Febre do ouro em azul
-      map: nm && playing ? { night: nm, key: `${room!.night!.seed}:${room!.night!.stage}`, done: room!.night!.done, opened: room!.night!.opened } : null,
+      map: nm && playing ? { night: nm, key: `${room!.night!.seed}:${room!.night!.stage}`, done: room!.night!.done, opened: room!.night!.opened, seen } : null,
     });
+    view.minimap(nm && playing ? { map: nm, seen, done: room!.night!.done, fight: room!.night!.fight, dots: drawWiz.filter((d) => d.alive && !d.illusion).map((d) => ({ pos: d.pos, me: d.id === me, foe: d.team === 1 })) } : null);
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
     const reach = showing && meP ? reachOf(showing, meP.spells, meP.items, room?.night ? CAMPAIGN_BOOK : undefined) : 0;

@@ -1,6 +1,8 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
 import { ASC_ROUNDS } from '../shared/ascension.ts';
 import { ASC_MODE_TEXT, ascLevel, ascPanel, cardButton } from './ascension-ui.ts';
+import { drawMinimap, type MiniDot } from './minimap.ts';
+import type { NightMap } from '../shared/levels.ts';
 import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_EFFECT_IDS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD, type RoundEffectId } from '../shared/constants.ts';
 import { ARENA_IDS, type ArenaId } from '../shared/arena.ts';
@@ -1022,6 +1024,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       lv.owed > 1 ? el('small', { class: 'muted' }, t(` (mais ${lv.owed - 1} depois desta)`, ` (${lv.owed - 1} more after this one)`)) : null),
       el('div', { class: 'asc-cards' }, ...lv.offer.map((c, i) => cardButton(c, mine!, false, `lv-${i}`, () => act.nightCard(i)))));
   };
+  // Campaign minimap (minimap.ts): redrawn at most every 100 ms, the dots move slowly at this scale
+  const miniCanvas = el('canvas', { class: 'minimap', width: 220, height: 150, hidden: true, 'aria-hidden': 'true' }) as HTMLCanvasElement;
+  let miniAt = 0;
+  const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   const bossBar = el('div', { class: 'boss-bar', hidden: true }, bossName, el('div', { class: 'hpbar', role: 'img' }, bossFill, bossText));
   // a janela da loja pode ser alargada pela alça do canto (PC); o tamanho fica salvo neste navegador (pedido do Fernando, 18/10)
   const SHOP_SIZE = 'warlock:shopSize';
@@ -1274,7 +1280,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     e.preventDefault();
     act.replay();
   });
-  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, bossBar, ilseBox, lvCards, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
+  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, bossBar, miniCanvas, ilseBox, lvCards, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
@@ -1954,6 +1960,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (!text) return void (ilseBox.hidden = true);
       if (ilseText.textContent !== text || ilseBox.hidden) ilseText.textContent = text;
       ilseBox.hidden = false;
+    },
+    // every frame: the Campaign minimap (null hides it)
+    minimap(m: { map: NightMap; seen: number[]; done: number[]; fight: number | null; dots: MiniDot[] } | null) {
+      miniCanvas.hidden = !m;
+      const now = performance.now();
+      if (!m || now - miniAt < 100) return;
+      miniAt = now;
+      const ctx = miniCanvas.getContext('2d');
+      if (ctx) drawMinimap(ctx, m.map, m.seen, m.done, m.fight, m.dots, { floor: cssVar('--panel2'), wall: cssVar('--line'), lava: cssVar('--lava'), wax: cssVar('--ember'), done: cssVar('--off-bg'), fight: cssVar('--red'), me: cssVar('--gold'), ally: cssVar('--cream'), foe: cssVar('--red') });
     },
     // a cada quadro: vida do chefe da Campanha (null esconde)
     boss(b: { name: string; now: number; max: number } | null) {

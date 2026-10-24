@@ -84,6 +84,10 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
   scene.add(night);
   let nightFile: Promise<Map<string, THREE.Object3D>> | null = null;
   let nightKey = '';
+  const loadNight = () => (nightFile ??= Promise.all([new GLTFLoader().loadAsync('/models/charneca.glb'), unitScale]).then(([g, k]) => {
+    unit = k;
+    return new Map(g.scene.children.map((c) => [c.name.replace(/\.gltf$/, ''), c] as const));
+  }));
   const clearNight = () => {
     for (const c of [...night.children]) {
       night.remove(c);
@@ -102,11 +106,7 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
       clearNight();
       const props = propsOf(); // built once per map, not every frame
       if (!props) return;
-      nightFile ??= Promise.all([new GLTFLoader().loadAsync('/models/charneca.glb'), unitScale]).then(([g, k]) => {
-        unit = k;
-        return new Map(g.scene.children.map((c) => [c.name.replace(/\.gltf$/, ''), c] as const));
-      });
-      nightFile.then((byName) => {
+      loadNight().then((byName) => {
         if (nightKey !== key) return; // another map came in while the file loaded
         for (const p of props) {
           const src = byName.get(p.name);
@@ -128,6 +128,14 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
           }
         }
       }).catch(() => console.warn('cenário da Campanha não carregou; o mapa segue sem ele'));
+    },
+    // Campaign: the first mesh of a model of the Charneca GLB (floor tiles and wall blocks, instanced by the scene); null if missing
+    nightMesh(name: string): Promise<THREE.Mesh | null> {
+      return loadNight().then((byName) => {
+        let mesh: THREE.Mesh | null = null;
+        byName.get(name)?.traverse((o) => (mesh ??= (o as THREE.Mesh).isMesh ? (o as THREE.Mesh) : null));
+        return mesh;
+      }).catch(() => null);
     },
     // cópia de um modelo da decoração (para os pilares da arena), já na escala do jogo; null se ainda não carregou
     clone(name: string): THREE.Object3D | null {
