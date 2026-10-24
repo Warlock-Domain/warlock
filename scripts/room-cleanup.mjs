@@ -23,6 +23,7 @@ function fixture() {
     storage: {
       get: async (key) => structuredClone(records.get(key)),
       put: async (key, value) => records.set(key, structuredClone(value)),
+      getAlarm: async () => alarmAt,
       setAlarm: async (at) => { alarmAt = at; },
       deleteAll: async () => { records.clear(); deletes++; },
     },
