@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPAIGN, NIGHT_XP, STAGES, SERVOS, nightCards, nightCount, nightLevel, xpShare } from '../src/shared/campaign.ts';
+import { CAMPAIGN, NIGHT_XP, STAGES, SERVOS, nightCards, nightCount, nightLevel, nightXpAt, xpShare } from '../src/shared/campaign.ts';
 import { STAGE_ROOMS, fightOf, nightMap, type NightMap } from '../src/shared/levels.ts';
 import { addPlayer, newMatch, nightPick, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
@@ -89,11 +89,36 @@ describe('Campanha: progressão da noite', () => {
     }
   });
 
+  it('the 3 Ashen of the entrance already give a solo Aceso level 2 and its cards (Lucas, 25/10), in a group too', () => {
+    const room = STAGE_ROOMS[0].find((r) => r.id === 'charneca-entrada-01')!;
+    for (const acesos of [1, 2, 3, 4]) {
+      const wave = room.fight!.waves[0];
+      let xp = 0;
+      for (let k = 0; k < nightCount(wave.length, acesos); k++) xp += xpShare(wave[k % wave.length].kind, acesos);
+      expect(nightLevel(xp), `${acesos} Acesos, ${xp} XP`).toBe(2);
+    }
+    const m = night(['a']);
+    let now = toPlaying(m, 0);
+    now = openEntrance(m, now).now;
+    for (let i = 0; i < 5 && m.night!.fight !== null; i++) now = killFoes(m, now);
+    expect(m.night!.xp!.a).toBe(3 * NIGHT_XP.servo.ash);
+    expect(m.night!.owed!.a).toBe(1);
+    expect(m.night!.offer!.a.length).toBe(3);
+  });
+
+  it('the XP table: level 1 from 0, each level above the last step again', () => {
+    expect([1, 2, 3].map(nightXpAt)).toEqual([0, NIGHT_XP.levels[0], NIGHT_XP.levels[1]]);
+    const t = NIGHT_XP.levels, step = t[t.length - 1] - t[t.length - 2];
+    expect(nightXpAt(t.length + 2)).toBe(t[t.length - 1] + step);
+    expect(nightLevel(nightXpAt(4) - 1)).toBe(3);
+    expect(nightLevel(nightXpAt(4))).toBe(4);
+  });
+
   it('a level gained shows its cards only once the room is clear; the pick teaches the spell at once', () => {
     const m = night(['a']);
     let now = toPlaying(m, 0);
     now = openEntrance(m, now).now;
-    m.night!.xp = { a: NIGHT_XP.level }; // level 2 in the middle of the fight
+    m.night!.xp = { a: nightXpAt(2) }; // level 2 in the middle of the fight
     now = step(m, now);
     expect(m.night!.offer?.a).toBeUndefined();
     expect(nightPick(m, 'a', 0)).toBe(false);
@@ -119,7 +144,7 @@ describe('Campanha: progressão da noite', () => {
     const m = night(['a']);
     let now = toPlaying(m, 0);
     now = openEntrance(m, now).now;
-    m.night!.xp = { a: 2 * NIGHT_XP.level };
+    m.night!.xp = { a: nightXpAt(3) };
     for (let i = 0; i < 5 && m.night!.fight !== null; i++) now = killFoes(m, now);
     expect(m.night!.owed!.a).toBe(2);
     const first = m.night!.offer!.a, i = first.findIndex((c) => c.kind === 'spell');
@@ -147,7 +172,7 @@ describe('Campanha: progressão da noite', () => {
     const m = night(['a']);
     let now = toPlaying(m, 0);
     now = openEntrance(m, now).now;
-    m.night!.xp = { a: NIGHT_XP.level };
+    m.night!.xp = { a: nightXpAt(2) };
     for (let i = 0; i < 5 && m.night!.fight !== null; i++) now = killFoes(m, now);
     const room = publicRoom('ROOM', m, now);
     expect(parseServerMessage(JSON.parse(JSON.stringify({ t: 'room', room, you: 'x' })))).not.toBe(null);

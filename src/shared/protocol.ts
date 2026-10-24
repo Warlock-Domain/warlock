@@ -2,7 +2,7 @@
 import { ARENA_IDS, type ArenaId, type Terrain } from './arena.ts';
 import { ascOf, type AscLobby, type Card, type Choice, type Kind } from './ascension.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
-import { NIGHT_XP, nightLevel, type Night, type ServoKind } from './campaign.ts';
+import { nightLevel, nightXpAt, type Night, type ServoKind } from './campaign.ts';
 import { fightOf, nightMap } from './levels.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type RuneKind } from './constants.ts';
@@ -343,7 +343,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
 
 function nightLv(n: Night, id: string): NonNullable<PublicPlayer['lv']> {
   const xp = n.xp?.[id] ?? 0, level = nightLevel(xp);
-  return { xp, level, next: level * NIGHT_XP.level, owed: n.owed?.[id] ?? 0, offer: n.offer?.[id] ?? [] };
+  return { xp, level, next: nightXpAt(level + 1), owed: n.owed?.[id] ?? 0, offer: n.offer?.[id] ?? [] };
 }
 
 function publicNight(n: Night): NonNullable<PublicRoom['night']> {

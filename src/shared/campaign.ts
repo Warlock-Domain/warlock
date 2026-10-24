@@ -43,10 +43,22 @@ export const EMBER = { base: 3, perFall: 1, reach: 1, hp: 0.5, out: 20 };
 // progression (Lucas, 24/10): the night plays like the shop modes, everyone starting with Fireball and Scourge; each fallen
 // servant gives XP and each level is 1 card out of 3 (new spell or +1 level, the Ascension cards), picked once the room is
 // clear. More Acesos bring more servants (+perAceso of each wave per extra Aceso) and split the XP, with +bonus per extra
-// Aceso so nobody levels slower in a group. level and servo: the 22 servants of the Charneca give 3950 XP alone (3785, 3950
-// and 4398 per head with 2, 3 and 4 Acesos), so the group meets Sir Odran at level 5 (Lucas, 24/10), 3700 to 4624 XP
-export const NIGHT_XP = { level: 925, perAceso: 0.5, bonus: 0.25, servo: { ash: 150, archer: 200, watcher: 200, hound: 250, odran: 0 } as Record<ServoKind, number> };
-export const nightLevel = (xp: number) => 1 + Math.floor(xp / NIGHT_XP.level);
+// Aceso so nobody levels slower in a group.
+// levels: total XP to reach level 2, 3, 4…; past the table each level costs the last step again. Lucas, 25/10: the 3 Ashen
+// of the entrance (450 XP) already make a solo Aceso level 2 before the stronger rooms; the whole Charneca (3950 XP alone,
+// 3785, 3950 and 4398 per head with 2, 3 and 4 Acesos) still meets Sir Odran at level 5 (3700 to 4999 XP)
+export const NIGHT_XP = { levels: [450, 1400, 2500, 3700, 5000], perAceso: 0.5, bonus: 0.25, servo: { ash: 150, archer: 200, watcher: 200, hound: 250, odran: 0 } as Record<ServoKind, number> };
+// total XP that reaches this level (1 → 0)
+export function nightXpAt(level: number): number {
+  const t = NIGHT_XP.levels, k = level - 2;
+  if (k < 0) return 0;
+  return k < t.length ? t[k] : t[t.length - 1] + (k - t.length + 1) * (t[t.length - 1] - t[t.length - 2]);
+}
+export function nightLevel(xp: number): number {
+  let level = 1;
+  while (xp >= nightXpAt(level + 1)) level++;
+  return level;
+}
 // how many servants a wave or the tombs bring with this many Acesos
 export const nightCount = (n: number, acesos: number) => Math.round(n * (1 + NIGHT_XP.perAceso * (Math.max(1, acesos) - 1)));
 // XP each Aceso takes from a fallen servant: split by the group, plus the group bonus

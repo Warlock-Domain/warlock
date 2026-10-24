@@ -8,7 +8,7 @@ import { DEFAULT_OPTS } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
 import { ODRAN } from '../shared/bosses.ts';
-import { CAMPAIGN_BOOK, NIGHT_XP, SERVOS } from '../shared/campaign.ts';
+import { CAMPAIGN_BOOK, SERVOS, nightXpAt } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
 import { itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
@@ -241,6 +241,7 @@ function startRoom(code: string, name: string) {
   const mapLava = (p: Vec) => !!room?.night && nightMap(room.night.seed, room.night.stage).ground[Math.floor(p.y)]?.[Math.floor(p.x)] === 'lava';
   // fala da Ilse (Campanha): quais já saíram nesta noite (pela semente) e até quando a atual fica na tela
   let ilseNight = '', ilseQ = newIlseQueue();
+  let lvNight = '', lvShown = 1; // Campaign: last level announced on this night
   // a fala da frente fica até o botão; o botão passa para a próxima da fila
   const ilseShow = (): void => view.ilse(ilseQ.lines[0] ?? null, () => (ilseNext(ilseQ), ilseShow()));
   const ilseSay = (key: string, lines: string[]) => ilsePush(ilseQ, key, lines) && ilseShow();
@@ -1003,6 +1004,14 @@ function startRoom(code: string, name: string) {
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
     // Campanha: falas da Ilse no tutorial (Charneca): a sala onde eu estou e a vitória; cada fala uma vez por noite
     const nightKey = room?.night ? String(room.night.seed) : '';
+    // Campaign level-up banner (Lucas, 25/10: the XP progress has to show when it happens, not only on the cards)
+    const myLv = room?.night ? room.players.find((p) => p.id === me)?.lv : undefined;
+    if (nightKey !== lvNight) [lvNight, lvShown] = [nightKey, myLv?.level ?? 1];
+    else if (myLv && myLv.level > lvShown) {
+      lvShown = myLv.level;
+      banner(room!.night!.fight === null ? t(`Nível ${myLv.level}! Escolha uma carta à direita`, `Level ${myLv.level}! Pick a card on the right`)
+        : t(`Nível ${myLv.level}! A carta vem quando a sala estiver limpa`, `Level ${myLv.level}! Your card comes once the room is clear`), 'good');
+    }
     if (nightKey !== ilseNight) {
       ilseNight = nightKey;
       ilseQ = newIlseQueue();
@@ -1037,7 +1046,7 @@ function startRoom(code: string, name: string) {
   // a rodada em asc.xp, então vale só ele. null fora do modo
   const xpOf = (p: PublicPlayer) => {
     // Campaign: the night XP comes whole from the server (each fallen servant), no live estimate
-    if (p.lv) return { level: p.lv.level, total: p.lv.xp, next: p.lv.next, frac: (p.lv.xp % NIGHT_XP.level) / NIGHT_XP.level };
+    if (p.lv) return { level: p.lv.level, total: p.lv.xp, next: p.lv.next, frac: (p.lv.xp - nightXpAt(p.lv.level)) / Math.max(1, p.lv.next - nightXpAt(p.lv.level)) };
     if (!p.asc) return null;
     const on = room?.phase === 'playing';
     return liveLevel(p.asc.xp, on ? (live[p.id]?.dmg ?? 0) : 0, on ? (live[p.id]?.kills ?? 0) : 0, on ? (aliveAt[p.id] ?? 0) : 0);
