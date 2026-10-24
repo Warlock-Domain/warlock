@@ -1,6 +1,6 @@
 // Bots: usam qualquer magia e item ativo que tiverem e compram seguindo um plano sorteado no começo da partida.
 import { edge, inArena, inward, middle, pathStep, roomAt, safeInside } from './arena.ts';
-import { BASIC_ATTACK, DT, FRICTION, ISLAND, OBSTACLES, PROJ_R, WIZ_R } from './constants.ts';
+import { BASIC_ATTACK, BRACE, DT, FRICTION, ISLAND, OBSTACLES, PROJ_R, WIZ_R } from './constants.ts';
 import type { Cmd, Projectile, Wizard, World } from './sim.ts';
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
 import { CAST_POINT, FREE_SPELLS, GRIP, MAX_SPELLS, METEOR_DELAY, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
@@ -144,7 +144,7 @@ export function botWatch(w: World) {
 
 // projétil inimigo que vai passar perto de `me` em até 0,6 s (ou meteoro caindo em cima) e em quanto tempo;
 // visible: o que este observador enxerga (o bot, com tempo de reação e alcance; a medição do jeito de jogar, tudo)
-export function threatTo(w: World, me: Wizard, visible: (p: Projectile) => boolean): { p: Projectile; t: number } | null {
+export function threatTo(w: World, me: Wizard, visible: (p: Projectile) => boolean, horizon = 0.6): { p: Projectile; t: number } | null {
   let threat: Projectile | null = null;
   let tHit = Infinity;
   for (const p of w.projectiles) {
@@ -165,7 +165,7 @@ export function threatTo(w: World, me: Wizard, visible: (p: Projectile) => boole
     }
     const vv = dot(p.vel, p.vel);
     const t = vv > 1e-6 ? dot(rel, p.vel) / vv : -1;
-    if (t < 0 || t > 0.6 || t >= tHit || len(sub(rel, scale(p.vel, t))) > WIZ_R + PROJ_R + 0.25) continue;
+    if (t < 0 || t > horizon || t >= tHit || len(sub(rel, scale(p.vel, t))) > WIZ_R + PROJ_R + 0.25) continue;
     [threat, tHit] = [p, t];
   }
   return threat ? { p: threat, t: tHit } : null;
@@ -219,6 +219,15 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // projétil que acabou de surgir ainda não deu tempo de ver; longe demais, o bot não enxerga
   const seen = (p: Projectile) => w.t - (p.born ?? -Infinity) >= D.delay && dist(p.pos, me.pos) <= D.vision;
   const th = threatTo(w, me, seen);
+  // Manter base (decisão do Fernando, 24/10): sem magia de fuga pronta, o bot segura S como o jogador. Precisa começar com o
+  // preparo de 0,5 s inteiro antes do golpe, então olha até 0,9 s (preparo + um pensamento do Normal, 0,4 s): com o gatilho
+  // antigo (até 0,6 s) o preparo quase nunca terminava (6 bots: 28 usos, 0 tiques ativos). Já segurando, renova sem novo
+  // sorteio enquanto o tiro vem; antes disso, a chance de desviar andando decide (Manter base trava o passo)
+  if (!me.casting && !ESCAPE.some((s) => ready(s))) {
+    const hb = threatTo(w, me, seen, BRACE.windup + 0.4);
+    const area = hb && (hb.p.kind === 'meteor' || hb.p.kind === 'grip');
+    if (hb && !area && (w.t < (me.braceUntil ?? 0) || (hb.t >= BRACE.windup && rand() >= D.dodge))) return [{ id, kind: 'brace', on: true }];
+  }
   const threat = th?.p ?? null;
   const tHit = th?.t ?? Infinity;
   // o Flagelo em preparo não deixa sair nada além do Teleporte
@@ -248,10 +257,6 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     // Caminhada no vento: mais rápido para sair do caminho
     if (!winding && ready('windwalk') && reacts(0.4)) return (cast('windwalk', me.pos), cmds.push({ id, kind: 'move', to: add(me.pos, scale(away, 3)) }), cmds);
     if (rand() < D.dodge) cmds.push({ id, kind: 'move', to: add(me.pos, scale(away, 2)) });
-    // Manter base (decisão do Fernando, 24/10): projétil que acerta em até 0,6 s e nenhuma magia de fuga pronta, o bot segura S como o
-    // jogador; só quando não decidiu desviar andando (Manter base trava o passo). Renova a cada pensamento (≤ 0,25 s), dentro da
-    // validade de 0,4 s do comando
-    else if (!meteor && !winding && tHit <= 0.6 && !ESCAPE.some((s) => ready(s))) return [{ id, kind: 'brace', on: true }];
   }
   // Bola de fogo no Míssil teleguiado que ainda vem longe: o choque estoura longe do bot (às vezes: precisa de mira)
   const far = !threat && ready('fireball') && w.projectiles.find((p) => p.kind === 'homing' && seen(p) && p.target === id && dot(p.vel, sub(me.pos, p.pos)) > 0 && dist(p.pos, me.pos) > 4 && dist(p.pos, me.pos) < 6.5);
