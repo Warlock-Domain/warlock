@@ -15,7 +15,8 @@ export type InputHandlers = {
   basic?: (at: Vec, target?: string) => void;
   pickAttack?: (x: number, y: number) => string | undefined;
   attackArmedChanged?: (on: boolean) => void;
-  cast: (spell: SpellId, at: Vec) => boolean | void; // true quando saiu de verdade (sem recarga, com a magia)
+  cast: (spell: SpellId, at: Vec) => boolean | void; // true when the spell actually casts (owned and off cooldown)
+  checkCooldown?: (spell: SpellId) => boolean;
   center: () => void;
   zoom: (deltaY: number) => void;
   pan: (dx: number, dy: number) => void;
@@ -155,9 +156,13 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       if (attackArmed) arm(null);
       e.preventDefault();
       const mode = getCastMode();
-      if (mode === 'click') return arm(action); // escolhe e mostra o alcance; o clique esquerdo lança
+      if (mode === 'click') {
+        if (h.checkCooldown && !h.checkCooldown(action)) return arm(null);
+        return arm(action); // select the spell and show its range; left click casts
+      }
       if (mode === 'release') {
-        if (held) release(); // outra tecla com uma segurada: a primeira sai antes
+        if (held) release(); // cast the first spell before starting to hold another
+        if (h.checkCooldown && !h.checkCooldown(action)) return;
         held = { action, code: e.code };
         return h.preview(action);
       }
@@ -204,9 +209,12 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     },
     // ponto do chão sob o mouse (o Meteoro desenha a explosão ali)
     aimPoint: () => h.pick(cursor.x, cursor.y),
-    // botão da barra: escolhe e o próximo clique (ou toque) no chão lança
+    // The toolbar selects a spell; the next ground click or tap casts it.
     button(a: SpellId) {
-      if (enabled) arm(armed === a ? null : a);
+      if (!enabled) return;
+      if (armed === a) return arm(null);
+      if (h.checkCooldown && !h.checkCooldown(a)) return arm(null);
+      arm(a);
     },
   };
 }

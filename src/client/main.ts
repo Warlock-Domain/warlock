@@ -16,7 +16,7 @@ import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge
 import { LOOK_EVENT, saveLook, savedLook } from './avatar.ts';
 import { coachTip } from './coach.ts';
 import { PROFILE_KEY, addRound, toSkill, savedProfile } from './mimic.ts';
-import { n1 } from './rules-text.ts';
+import { cooldownNotice, n1 } from './rules-text.ts';
 import { aimOf, hitR, reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
@@ -391,6 +391,13 @@ function startRoom(code: string, name: string) {
     net.send({ ...msg, seq });
   }
 
+  const checkCooldown = (spell: SpellId) => {
+    const cooldown = lastSnap?.cd[SPELL_IDS.indexOf(spell)] ?? 0;
+    if (cooldown <= 0.1) return true;
+    toast(cooldownNotice(spell, cooldown), 'bad');
+    return false;
+  };
+
   const input = createInput(canvas, {
     pick: (x, y) => scene.pick(x, y),
     move(to, held = false) {
@@ -401,6 +408,7 @@ function startRoom(code: string, name: string) {
     },
     holdMove: (on) => command({ t: 'moveHold', on }),
     brace: (on) => command({ t: 'brace', on }),
+    checkCooldown,
     pickAttack: (x, y) => scene.pickMage(x, y),
     attackArmedChanged: (on) => { canvas.style.cursor = on ? 'crosshair' : ''; },
     basic(at, clicked) {
@@ -417,20 +425,20 @@ function startRoom(code: string, name: string) {
       scourgeUntil = 0; // o S cancela o Flagelo em preparo
     },
     cast(spell, at) {
-      const state = myWizard(interp.latest())?.status ?? 0;
-      if (castBlocked(!!(state & 16), !!(state & 128), spell)) return;
-      const i = SPELL_IDS.indexOf(spell);
       const mine = room?.players.find((p) => p.id === me);
       if (!mine?.spells[spell]) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
-      if ((lastSnap?.cd[i] ?? 0) > 0.1 || performance.now() < (justCast.get(spell) ?? 0) || (performance.now() < scourgeUntil && spell !== 'teleport')) return;
-      if (spell === 'teleport') scourgeUntil = 0; // o Teleporte cancela o Flagelo em preparo
-      // Flagelo em preparo: o servidor ignora outras magias até ele explodir
+      if (!checkCooldown(spell)) return;
+      const state = myWizard(interp.latest())?.status ?? 0;
+      if (castBlocked(!!(state & 16), !!(state & 128), spell)) return;
+      if (performance.now() < (justCast.get(spell) ?? 0) || (performance.now() < scourgeUntil && spell !== 'teleport')) return;
+      if (spell === 'teleport') scourgeUntil = 0; // Teleport cancels a Scourge that is still charging.
+      // The server ignores other spells until Scourge explodes; Teleport cancels the charge.
       if (spell === 'scourge') scourgeUntil = performance.now() + CAST_POINT.scourge * 1000;
-      if (spell === 'rush') predict.stop(); // o avanço esquece o destino de andar, como no servidor
-      // até a recarga chegar do servidor, não repete a mesma magia (senão a animação e o som tocam sem sair nada)
+      if (spell === 'rush') predict.stop(); // Rush clears the queued movement target, as it does on the server.
+      // Avoid repeat casts before the server snapshot reports the cooldown.
       justCast.set(spell, performance.now() + 120 + CAST_POINT[spell] * 1000 + predict.rtt() * 1000);
       command({ t: 'cast', spell, x: at.x, y: at.y });
-      // conjurando, o mago fica parado e o clique de andar espera a magia sair (o servidor faz o mesmo)
+      // Hold movement during casting; the server applies the same delay.
       predict.hold(CAST_POINT[spell]);
       scene.castLocal(me, spell, at);
       scene.clickMarker(at, true);
