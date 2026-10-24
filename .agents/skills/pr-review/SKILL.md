@@ -28,6 +28,8 @@ First restate the intended outcome in your own words. Compare the implementation
 
 Trace the affected behavior through its callers, state transitions, server/client boundary, and failure paths. Consider whether the change preserves existing behavior where required and follows this repository's invariants, including determinism, validated client messages, localization, asset licensing, UI components, and balance simulation when applicable.
 
+For player-facing client changes, verify localization explicitly: route every visible string through `t('Portuguese', 'English')`, use `spellName`, `itemName`, `itemText`, and `arenaName` for catalog content, and format numbers with `LOCALE` and the existing helpers such as `n1`/`pct`. Read both language values and confirm each is meaningful; raw English-only or Portuguese-only UI text is a finding. CI runs `tests/i18n.test.ts`, which checks empty sides in literal `t(...)` calls in client TypeScript and required English catalog entries. It does not detect every untranslated string or prove that all UI paths are localized, so inspect changed UI code for raw player-facing text as part of review.
+
 English is the repository default for commits, code comments, PR titles and descriptions, and new documentation. In the reviewed code scope, require new and edited comments to be in English; translate relevant legacy Portuguese comments when changing their code and preserve their rationale. Leave unrelated comments untouched. Existing documentation translation is scheduled after all currently open PRs merge; do not expand a PR into that repository-wide task.
 
 Assess the design in the context of this codebase:

@@ -60,6 +60,7 @@ jobs:
             Publish one concise general comment with this exact structure:
             **Automated review (Claude)** · commit <7-character COMMIT prefix>
             **Verdict:** Ready | Ready with nits | Blocked — <one-line reason>
+            **Ruler:** `/pr-review` — quote the first heading and one checklist item from `.agents/skills/pr-review/SKILL.md` as read in this run (proof that the file was opened).
             **Checks:** applicable checks and their results; say when CI is still running.
             **Blockers:** `None` or bullets `Blocker — file:line — scenario and impact → smallest correction`.
             **Nits:** `None` or optional bullets `Nit — file:line — suggestion`.
@@ -70,6 +71,8 @@ jobs:
             Use inline comments only for specific actionable line findings. This workflow authorizes these review
             comments. Never approve, request changes formally, merge, or push.
           claude_args: |
+            --model claude-opus-5-5
+            --effort high
             --max-turns 40
             --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr checks:*)"
 
