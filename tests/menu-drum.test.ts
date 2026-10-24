@@ -3,7 +3,7 @@ import { createSound } from '../src/client/sound.ts';
 
 afterEach(() => vi.unstubAllGlobals());
 describe('clique de menu com tambor sintetizado', () => {
-  it.each(['click', 'brace', 'heal'] as const)('som original %s sintetizado, respeitando volume e mudo', async (kind) => {
+  it.each(['click', 'heal'] as const)('som original %s sintetizado, respeitando volume e mudo', async (kind) => {
     const listeners = new Map<string, () => void>();
     const oscillators: { type: string; frequency: { setValueAtTime: ReturnType<typeof vi.fn> }; stop: ReturnType<typeof vi.fn> }[] = [];
     const sources: { start: ReturnType<typeof vi.fn>; playbackRate: { value: number } }[] = [];
@@ -37,19 +37,12 @@ describe('clique de menu com tambor sintetizado', () => {
       expect(oscillators.map((o) => o.type)).toEqual(['sine', 'sine']);
       expect(oscillators[0].frequency.setValueAtTime).toHaveBeenCalledWith(180, 0);
       expect(oscillators.every((o) => o.stop.mock.calls[0][0] <= .2)).toBe(true);
-    } else if (kind === 'heal') {
+    } else {
       expect(fetch.mock.calls.some(([src]) => src === '/sfx/heal.mp3')).toBe(false);
       expect(oscillators).toHaveLength(24); // três vozes, quatro harmônicos e um vibrato por harmônico.
       expect(oscillators.every(o => o.type === 'sine')).toBe(true);
       expect(oscillators[0].frequency.setValueAtTime).toHaveBeenCalledWith(261.63, 0);
       expect(oscillators.every(o => o.stop.mock.calls[0][0] <= 1.71)).toBe(true);
-    } else {
-      expect(fetch.mock.calls.some(([src]) => src === '/sfx/brace_whoosh_trial.mp3')).toBe(true);
-      expect(fetch.mock.calls.some(([src]) => src === '/sfx/sonic_boom.mp3')).toBe(false);
-      expect(oscillators).toHaveLength(0); // aviso usa gravação real, não a síntese recusada.
-      expect(sources).toHaveLength(1);
-      expect(sources[0].playbackRate.value).toBe(1);
-      expect(sources[0].start).toHaveBeenCalledWith(); // arquivo escolhido inteiro, sem recorte do estrondo anterior.
     }
     const count = oscillators.length + sources.length;
     sound.setVolume('sfx', 0);

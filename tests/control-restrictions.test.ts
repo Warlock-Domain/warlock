@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { stepWorld } from '../src/shared/sim.ts';
+import { DT } from '../src/shared/constants.ts';
 import { SPELL_IDS, castBlocked, noSpells, spellGroup } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
-import { world } from './helpers.ts';
+import { run, world } from './helpers.ts';
 
 describe('stun e agarramento: bloqueios autoritativos', () => {
   it.each(SPELL_IDS)('stun impede %s sem gastar recarga', (spell) => {
@@ -21,5 +22,18 @@ describe('stun e agarramento: bloqueios autoritativos', () => {
     expect(castBlocked(false, true, spell)).toBe(blocked);
     expect(w.events.some((e) => e.k === 'cast')).toBe(!blocked);
     expect(z.pos).toEqual(v(0, 0));
+  });
+  it('cipós chegando durante a conjuração de Bola de fogo não a cancelam (só Mobilidade é bloqueada)', () => {
+    const spell = 'fireball';
+    const w = world([[0, 0], [4, 0]], { ...noSpells(), grip: 1, fireball: 1 }, [], () => .5);
+    w.pillars = [];
+    run(w, .2, [{ id: 'p0', kind: 'cast', spell: 'grip', at: v(4, 0) }]);
+    const p = w.projectiles.find((q) => q.kind === 'grip')!, z = w.wizards[1];
+    while (w.t < p.until - DT) stepWorld(w, [], () => .5);
+    stepWorld(w, [{ id: z.id, kind: 'cast', spell, at: v(8, 0) }], () => .5);
+    expect(z.casting?.spell).toBe(spell);
+    stepWorld(w, [], () => .5);
+    expect(z.gripUntil).toBeGreaterThan(w.t);
+    expect(z.casting?.spell).toBe(spell);
   });
 });
