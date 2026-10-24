@@ -11,6 +11,7 @@ export type InputHandlers = {
   move: (to: Vec, held?: boolean) => void;
   holdMove?: (on: boolean) => void;
   stop: () => void;
+  brace?: (on: boolean) => void;
   basic?: (at: Vec, target?: string) => void;
   pickAttack?: (x: number, y: number) => string | undefined;
   attackArmedChanged?: (on: boolean) => void;
@@ -34,6 +35,13 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   let dragging = false;
   let lastDrag = 0;
   let enabled = false;
+  let braceCode: string | null = null;
+  let braceTimer: ReturnType<typeof setInterval> | undefined;
+  const releaseBrace = () => {
+    if (braceCode) h.brace?.(false);
+    braceCode = null;
+    clearInterval(braceTimer);
+  };
   // Espaço segurado + botão esquerdo arrasta a câmera; Espaço solto sem arrastar volta ao centro
   let space = false;
   let panning = false;
@@ -61,8 +69,15 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   };
   const releaseMove = () => { if (dragging) h.holdMove?.(false); dragging = false; };
   const cancelPointer = () => { releaseMove(); panning = space = panned = false; };
-  // Perder foco pode suprimir pointerup; não renovar um comando de movimento já solto.
-  addEventListener('blur', () => { cancel(); cancelPointer(); });
+  // On blur/pointer cancel a pointerup may never arrive: do not let the mouse turn into a ghost command.
+  addEventListener('blur', () => { cancel(); arm(null); cancelPointer(); releaseBrace(); });
+  addEventListener('visibilitychange', () => { if (document.hidden) releaseBrace(); });
+  // Dialogs capture keys: the release must arrive before them, or the interval would renew the guard.
+  addEventListener('keyup', (e) => { if (e.code === braceCode) releaseBrace(); }, { capture: true });
+  addEventListener('keydown', (e) => {
+    if (e.code === 'Escape' || (['shop', 'sheet', 'rules', 'library', 'taunt'] as const).some((a) => isUiKey(e.code, a))) releaseBrace();
+  }, { capture: true });
+  addEventListener('pointerdown', (e) => { if (e.target !== canvas) releaseBrace(); }, { capture: true });
   addEventListener('pointercancel', cancelPointer);
 
   // o controle usa os mesmos comandos, liberados só durante a rodada
@@ -165,6 +180,10 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       e.preventDefault();
       if (!e.repeat) {
         cancel(); arm(null); releaseMove(); h.stop();
+        releaseBrace();
+        braceCode = e.code;
+        h.brace?.(true);
+        braceTimer = setInterval(() => h.brace?.(true), 100);
       }
     } else if (isUiKey(e.code, 'basic')) {
       e.preventDefault();
@@ -182,6 +201,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     setEnabled(on: boolean) {
       enabled = on;
       if (!on) {
+        releaseBrace();
         releaseMove();
         cancel();
         arm(null);

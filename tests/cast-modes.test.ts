@@ -28,6 +28,7 @@ beforeAll(async () => {
     pick: (x, y): Vec => ({ x, y }),
     move: (to) => log.push(`move ${to.x},${to.y}`),
     stop: () => log.push('stop'),
+    brace: (on) => log.push(`brace ${on}`),
     basic: (at) => log.push(`basic ${at.x},${at.y}`),
     cast: (s, at) => (log.push(`cast ${s} ${at.x},${at.y}`), ok),
     checkCooldown: () => available,
@@ -53,6 +54,19 @@ beforeEach(() => {
 });
 
 describe('jeitos de lançar no PC', () => {
+  it('S para uma vez, renova a defesa e libera ao soltar', () => {
+    vi.useFakeTimers();
+    key('keydown', 'KeyS');
+    expect(log).toEqual(['stop', 'brace true']);
+    vi.advanceTimersByTime(210);
+    expect(log.filter((s) => s === 'brace true')).toHaveLength(3);
+    key('keyup', 'KeyS');
+    expect(log.at(-1)).toBe('brace false');
+    const count = log.length;
+    vi.advanceTimersByTime(500);
+    expect(log).toHaveLength(count);
+    vi.useRealTimers();
+  });
   it('A arma Atacar; clique esquerdo envia uma ordem manual', () => {
     key('keydown', 'KeyA');
     expect(log).toEqual([]);
