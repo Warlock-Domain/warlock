@@ -1,6 +1,6 @@
 // Bots: usam qualquer magia e item ativo que tiverem e compram seguindo um plano sorteado no começo da partida.
 import { edge, inArena, inward, middle, pathStep, roomAt, safeInside } from './arena.ts';
-import { DT, FRICTION, ISLAND, OBSTACLES, PROJ_R, WIZ_R } from './constants.ts';
+import { BASIC_ATTACK, BRACE, DT, FRICTION, ISLAND, OBSTACLES, PROJ_R, WIZ_R } from './constants.ts';
 import type { Cmd, Projectile, Wizard, World } from './sim.ts';
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
 import { CAST_POINT, FREE_SPELLS, GRIP, MAX_SPELLS, METEOR_DELAY, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
@@ -144,7 +144,7 @@ export function botWatch(w: World) {
 
 // projétil inimigo que vai passar perto de `me` em até 0,6 s (ou meteoro caindo em cima) e em quanto tempo;
 // visible: o que este observador enxerga (o bot, com tempo de reação e alcance; a medição do jeito de jogar, tudo)
-export function threatTo(w: World, me: Wizard, visible: (p: Projectile) => boolean): { p: Projectile; t: number } | null {
+export function threatTo(w: World, me: Wizard, visible: (p: Projectile) => boolean, horizon = 0.6): { p: Projectile; t: number } | null {
   let threat: Projectile | null = null;
   let tHit = Infinity;
   for (const p of w.projectiles) {
@@ -165,7 +165,7 @@ export function threatTo(w: World, me: Wizard, visible: (p: Projectile) => boole
     }
     const vv = dot(p.vel, p.vel);
     const t = vv > 1e-6 ? dot(rel, p.vel) / vv : -1;
-    if (t < 0 || t > 0.6 || t >= tHit || len(sub(rel, scale(p.vel, t))) > WIZ_R + PROJ_R + 0.25) continue;
+    if (t < 0 || t > horizon || t >= tHit || len(sub(rel, scale(p.vel, t))) > WIZ_R + PROJ_R + 0.25) continue;
     [threat, tHit] = [p, t];
   }
   return threat ? { p: threat, t: tHit } : null;
@@ -186,9 +186,11 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     if (!u || u.cd !== me.cd[s]) M.usable.set(key, (u = { cd: me.cd[s], at: me.cd[s] + D.waitMin + rand() * (D.waitMax - D.waitMin) }));
     return u.at;
   };
-  const ready = (s: SpellId) => me.spells[s] > 0 && w.t >= me.cd[s] && w.t >= usableAt(s);
+  // Aproveita o véu inteiro para reposicionar; outra magia revelaria o bot.
+  const veiled = w.t < me.veilUntil;
+  const ready = (s: SpellId) => !veiled && me.spells[s] > 0 && w.t >= me.cd[s] && w.t >= usableAt(s);
   // Flagelo e Pacto eram itens e saíam sem a espera humana de `ready` (usableAt): ficam assim para não mudar o jeito dos bots
-  const free = (s: SpellId) => me.spells[s] > 0 && w.t >= me.cd[s];
+  const free = (s: SpellId) => !veiled && me.spells[s] > 0 && w.t >= me.cd[s];
   // dentro da pedra com folga (a forma da arena vem de arena.ts); into = direção para dentro a partir do bot
   const inside = (p: Vec, margin: number) => inArena(w, p, margin);
   const into = inward(w, me.pos);
@@ -217,6 +219,17 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // projétil que acabou de surgir ainda não deu tempo de ver; longe demais, o bot não enxerga
   const seen = (p: Projectile) => w.t - (p.born ?? -Infinity) >= D.delay && dist(p.pos, me.pos) <= D.vision;
   const th = threatTo(w, me, seen);
+  // Hold ground (Fernando's decision, 24/10, in the CLAUDE.md register): with no escape spell ready the bot holds S like a player.
+  // The 0.5 s windup must finish before the hit, so it looks up to 0.9 s ahead (windup + one Normal think, 0.4 s); the old 0.6 s
+  // trigger almost never finished the windup (6 bots: 28 uses, 0 active ticks). Once holding it renews without a new roll while the
+  // shot closes in; before that, the chance to dodge on foot decides (Hold ground locks walking). Bots that think no faster than
+  // the lease (Easy 0.67 s, Casual 0.5 s) skip it: their renewal would land on or after expiry and restart the windup forever.
+  // The real think interval rounds to whole steps (botThinks), so compare that, not 1 / rate
+  if (Math.max(1, Math.round(1 / (DT * D.rate))) * DT < BRACE.lease && !me.casting && !ESCAPE.some((s) => ready(s))) {
+    const hb = threatTo(w, me, seen, BRACE.windup + 0.4);
+    const area = hb && (hb.p.kind === 'meteor' || hb.p.kind === 'grip');
+    if (hb && !area && (w.t < (me.braceUntil ?? 0) || (hb.t >= BRACE.windup && rand() >= D.dodge))) return [{ id, kind: 'brace', on: true }];
+  }
   const threat = th?.p ?? null;
   const tHit = th?.t ?? Infinity;
   // o Flagelo em preparo não deixa sair nada além do Teleporte
@@ -390,6 +403,13 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   }
   // na Caminhada no vento qualquer magia a encerra: só corre para encostar no inimigo
   if (w.t < me.windUntil) return enemy ? [...cmds.filter((c) => c.kind !== 'move'), { id, kind: 'move', to: enemy.pos }] : cmds;
+  // Heal after the escape and dodge branches: a hurt bot first gets out of danger, then heals the most hurt ally in range
+  if (!me.casting && ready('heal')) {
+    const L = spellLevel('heal', me.spells.heal, w.book);
+    const hurt = w.wizards.filter((z) => z.alive && ally(z) && z.hpMax - z.hp >= L.heal && dist(z.pos, me.pos) <= L.range * me.rangeF)
+      .sort((a, b) => a.hp / a.hpMax - b.hp / b.hpMax)[0];
+    if (hurt) return cast('heal', hurt.pos);
+  }
   // baú perto e nenhum inimigo por perto: quebra com a Bola de fogo
   if (box && !me.casting && ready('fireball') && dist(box, me.pos) < 6 && (!enemy || dist(enemy.pos, me.pos) > 6)) return cast('fireball', box);
   if (!enemy || me.casting) return cmds;
@@ -433,6 +453,12 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     const t = Math.max(0, Math.min(1, dot(sub(q.pos, me.pos), ab) / Math.max(1e-6, dot(ab, ab))));
     return dist(add(me.pos, scale(ab, t)), q.pos) < OBSTACLES[q.kind].r + PROJ_R + 0.1;
   });
+  // Atacar (decisão do Fernando, 24/10): sem nenhuma magia pronta, com o inimigo a até 6 m e sem obstáculo no meio, o bot usa o
+  // ataque livre como o jogador; sem isso o humano teria um golpe que o bot nunca usa e o simulador não mediria o Atacar.
+  // Desvio já decidido neste comando vem antes: parar 0,4 s para atacar jogaria fora a esquiva
+  if (!veiled && !me.basicCasting && w.t >= (me.basicReadyAt ?? 0) && d <= BASIC_ATTACK.range && !blocked(E.pos) && !SPELL_IDS.some((x) => ready(x))) {
+    return [...cmds, { id, kind: 'basic', at: E.pos, target: E.id }];
+  }
   let damage = false;
   let now: (() => Cmd[]) | null = null;
   let meteor: (() => Cmd[]) | null = null;

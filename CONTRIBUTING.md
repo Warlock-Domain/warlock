@@ -81,17 +81,17 @@ The release flow is **task branch → PR to `master` → automatic production de
 
 1. Create a branch from current `master`: `feat/<topic>`, `fix/<topic>`, `balance/<topic>`, `style/<topic>`, `docs/<topic>`, or `refactor/<topic>`. One branch/PR covers one subject.
 2. Use a branch in this repository when you have contributor access. Fork PRs require CI approval, do not get the automatic review, and cannot use deployment secrets or PR environments.
-3. Make small commits using `type: description`. Accepted types are `feat`, `fix`, `balance`, `style`, `refactor`, `docs`, `ci`, and `test`. The repository convention is a Portuguese description; follow explicit maintainer instructions for the task's language. Agent commits do not add `Co-Authored-By` trailers.
-4. Run all four required gates before committing. Add meaningful regression coverage for behavior changes and verify changed screens in the browser.
+3. Make small commits using an English `type: description`. Accepted types are `feat`, `fix`, `balance`, `style`, `refactor`, `docs`, `ci`, and `test`. Agent commits do not add `Co-Authored-By` trailers.
+4. Run `npm run typecheck`, `npx vitest run`, and `npx vite build` before committing. Add meaningful regression coverage for behavior changes and verify changed screens in the browser.
 5. Open the PR against `master` using [.github/pull_request_template.md](.github/pull_request_template.md): motivation, changes, screenshots when relevant, validation, and balance evidence when required. Use `Closes #n` for its issue. The title follows the same `type: description` format and becomes the squash commit title.
-6. Keep the branch current after each merge to `master`: `git fetch origin` followed by `git merge origin/master`. Run the gates and restart the local server. After review starts, respond with new commits rather than rebasing or force-pushing.
+6. Before the first push for a PR and before every later push to its branch, run `/pr-review` (Claude Code) or `$pr-review` (Codex) on the full diff against its base. Resolve every **Blocker** before pushing; **Nits** are optional and must not hold a PR. After each merge to `master`, keep the branch current with `git fetch origin` and `git merge origin/master`, rerun the gates, and restart the local server. Once review starts, respond with new commits rather than rebasing or force-pushing.
 7. Reviewers use the project's criteria, and approved PRs enter `master` through **squash and merge**. The branch is then deleted and Production deploys automatically.
 
 The `master` branch requires a PR, green CI, and a valid title. Do not push directly to it or force-push. The owner can override approval on their own PR as an administrator; this does not replace the review/test rules.
 
 ### Review and owner approval
 
-The automated Claude review posts a verdict and findings. Mention `@claude` in a PR or issue for help. An authorized owner agent can adjust and merge collaborator PRs.
+The automated Claude review posts its findings in English. It runs on Claude Opus 5.5 at high effort, and each comment carries a **Ruler** line quoting `.agents/skills/pr-review/SKILL.md` as proof that the shared checklist was read. The `review` status check is required by `master` protection and fails while any **Blocker** remains; **Nits** are optional and do not prevent merge. The bot never approves or merges. Mention `@claude` in a PR or issue for help. An authorized owner agent can adjust and merge collaborator PRs after blockers are resolved and required human gates pass.
 
 - Small collaborator PRs can be approved/merged by review without waiting for Fernando.
 - Large collaborator PRs require Fernando's approval on the PR as well as the issue decision.
@@ -134,7 +134,7 @@ spell/item balance without the required simulator evidence.
 
 ```text
 Bug: [actual behavior], expected [behavior], steps [steps]. Reproduce it, identify the
-cause, make a focused fix, and run the four gates. Open a PR to master using the template.
+cause, make a focused fix, and run all required verification. Open a PR to master using the template.
 ```
 
 ## Code rules that every change must satisfy
@@ -143,7 +143,8 @@ cause, make a focused fix, and run the four gates. Open a PR to master using the
 - Validate new client messages in `parseClientMessage`; the server remains authoritative.
 - Use `t('português', 'English')` for visible text; use `spellName`, `itemName`, and `arenaName`, and format numbers with `LOCALE`.
 - Reuse `el`, `dialog`, `iconButton`, `tabs`, `choice`, `searchFilter`, `withTip`, and `store`. Extend a suitable UI piece before adding another; document a new piece in `src/client/CLAUDE.md`. Use `:root` color/size variables.
-- Keep changes surgical. Explain non-obvious decisions with a short Portuguese comment about why, following the area's convention. Update a comment when its decision changes; keep imports at the top.
+- Write new or updated code comments in English. Translate relevant legacy Portuguese comments when changing their code; leave unrelated comments untouched. Existing documentation will be translated after all currently open PRs merge.
+- Keep changes surgical. Explain non-obvious decisions with a short English comment about why. Update a comment when its decision changes; keep imports at the top.
 - Put testable UI decisions in pure modules such as `screen-data.ts`; `ui.ts` touches browser globals during import and is not a Vitest entry point.
 - Spell behavior comes from documented general stats. Do not introduce interactions specific to a pair of spells; follow the decision register.
 - Never commit secrets. The repository is public.
@@ -152,11 +153,10 @@ cause, make a focused fix, and run the four gates. Open a PR to master using the
 
 ## Required verification
 
-All four gates must pass before a commit:
+All repository checks must pass before a commit:
 
 ```bash
-npx tsc --noEmit -p .
-npx tsc --noEmit -p src/worker
+npm run typecheck
 npx vitest run
 npx vite build
 ```

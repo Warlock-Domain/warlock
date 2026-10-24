@@ -46,6 +46,27 @@ export type Totals = {
   recent: RoundRecord[]; // últimas rodadas, para análise fina
 };
 
+export type ResourceSample = {
+  at: number;
+  session: string;
+  build: string;
+  mode: Mode;
+  round: number;
+  players: number;
+  projectiles: number;
+  geometries: number;
+  textures: number;
+  heapBytes?: number;
+};
+
+export const RESOURCE_SAMPLE_MAX = 1000;
+
+export function addResourceSample(samples: ResourceSample[], sample: ResourceSample): ResourceSample[] {
+  samples.push(sample);
+  if (samples.length > RESOURCE_SAMPLE_MAX) samples.splice(0, samples.length - RESOURCE_SAMPLE_MAX);
+  return samples;
+}
+
 // O limite de 200 rodadas é conferido em telemetry.test.ts com oito jogadores e payload abaixo de 2 MB.
 const RECENT_MAX = 200;
 
@@ -71,7 +92,8 @@ export function roundRecord(m: Match, now: number): RoundRecord {
       character: p.character,
       won: teams ? winTeam !== null && p.team === winTeam : p.id === m.lastRoundWinner,
       team: teams ? p.team : undefined,
-      spells: p.spells,
+      // only owned spells: each new spell would otherwise grow every stored record (2 MB storage budget)
+      spells: Object.fromEntries(Object.entries(p.spells).filter(([, lvl]) => lvl > 0)),
       items: p.items,
       dmg: Math.round(p.stats.round.dmg * 10) / 10,
       dmgBy: p.stats.round.dmgBy,

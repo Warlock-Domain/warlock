@@ -13,7 +13,7 @@ describe('prévia privada da provocação', () => {
     });
     expect(await previewTaunt('laugh')).toBe(true);
     expect(audios[0].src).toBe('/sfx/taunt/laugh.mp3');
-    expect(audios[0].volume).toBe(1);
+    expect(audios[0].volume).toBe(.6);
     expect(await previewTaunt('meow')).toBe(true);
     expect(audios[0].pause).toHaveBeenCalledOnce();
     expect(audios[1].src).toBe('/sfx/taunt/meow.mp3');

@@ -1,5 +1,5 @@
 import { inLavaAt, type ArenaId } from '../shared/arena.ts';
-import { ARENA_MIN, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, STUN_SPEED, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
+import { ARENA_MIN, BASIC_ATTACK, BRACING_BIT, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
 import { liveLevel, roundMult } from '../shared/ascension.ts';
 import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
@@ -16,7 +16,7 @@ import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge
 import { LOOK_EVENT, saveLook, savedLook } from './avatar.ts';
 import { coachTip } from './coach.ts';
 import { PROFILE_KEY, addRound, toSkill, savedProfile } from './mimic.ts';
-import { n1 } from './rules-text.ts';
+import { cooldownNotice, n1 } from './rules-text.ts';
 import { aimOf, hitR, reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
@@ -28,17 +28,21 @@ import { openSettings, runeNoticesOn, savedPixel } from './settings.ts';
 import { rumble, startPad } from './gamepad.ts';
 import { DELAY, REPLAY_MAX, createInterp, keepLast } from './interp.ts';
 import { connect } from './net.ts';
+import { parseLobbyMessage, parseServerMessage } from './net-message.ts';
 import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
 import { createSound, type SoundKind } from './sound.ts';
+import { distanceVolume } from './sound-distance.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
 import { STAGE_NAME, USED_KEY, botLevel, boughtKeys, countBuys, readUsed, endResult, maxHp, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, setIlse, type IlseCtx } from './ilse.ts';
+import { healTarget } from '../shared/heal-target.ts';
 
 declare const __BRANCH__: string;
+declare const __BUILD__: string;
 
 // aba de teste diz qual é o teste (pedido do Fernando, 20/10): várias sessões abrem localhost e todas as abas tinham o mesmo
 // título. Em localhost vira "🧪 <branch> · Warlock Wars"; ?aba=<nome> na URL troca o nome. No ar nada muda.
@@ -66,6 +70,7 @@ const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 
 // som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
+  heal: 'heal',
   fireball: 'fireball', lightning: 'lightning', homing: 'homing', shield: 'shield', teleport: 'teleport',
   swap: 'teleport', grip: 'lightning', meteor: 'fireball', rush: 'shield', cluster: 'fireball',
   boomerang: 'homing', thrust: 'teleport', gravity: 'homing', rockpillar: 'shield', bouncer: 'lightning',
@@ -190,9 +195,8 @@ function startLobby(name: string) {
       toast(t('Não deu para criar a sala. Tente de novo.', 'Couldn’t create the room. Try again.'));
     }
   }
-  const lobbyNet = connect('/ws/lobby', (m) => {
-    if (m.t !== 'rooms') return;
-    rooms = m.rooms as RoomInfo[]; // a ordem e as vazias recolhidas ficam com renderLobby (screen-data.ts)
+  const lobbyNet = connect('/ws/lobby', parseLobbyMessage, (m) => {
+    rooms = m.rooms; // a ordem e as vazias recolhidas ficam com renderLobby (screen-data.ts)
     draw();
   }, () => {}, (on) => {
     servidor(on);
@@ -249,6 +253,7 @@ function startRoom(code: string, name: string) {
   let seq = 0;
   const sentAt = new Map<number, number>();
   let lastSnap: Snap | null = null;
+  let wasBracing = false;
   // a latência só existe depois do primeiro comando confirmado (antes, predict.rtt() é um chute)
   let rttSeen = false;
   // modo treino (só para quem apertou o botão): dicas nas primeiras rodadas; playingAt marca o "Já!"
@@ -375,47 +380,84 @@ function startRoom(code: string, name: string) {
   const predict = createPredict();
 
   const myWizard = (s: SnapView | null) => s?.wizards.find((w) => w.id === me) ?? null;
+  const volumeAt = (source?: Vec) => distanceVolume(myWizard(interp.latest())?.pos, source);
+  const volumeOf = (id: string) => volumeAt(interp.latest()?.wizards.find((w) => w.id === id)?.pos);
 
-  function command(msg: { t: 'move'; x: number; y: number; held?: boolean } | { t: 'moveHold'; on: boolean } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
+  let attackCancelSeq = 0;
+  function command(msg: { t: 'move'; x: number; y: number; held?: boolean } | { t: 'moveHold'; on: boolean } | { t: 'brace'; on: boolean } | { t: 'basic'; x: number; y: number; target?: string | number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
     seq++;
+    if (msg.t === 'move' || msg.t === 'stop' || msg.t === 'cast') attackCancelSeq = seq;
     sentAt.set(seq, performance.now());
     // teto do mapa de latência: o snapshot só confirma o último seq (e nada fora da rodada), então muito comando nunca tem ack
     if (sentAt.size > 50) sentAt.delete(sentAt.keys().next().value!);
     net.send({ ...msg, seq });
   }
 
+  const checkCooldown = (spell: SpellId) => {
+    const cooldown = lastSnap?.cd[SPELL_IDS.indexOf(spell)] ?? 0;
+    if (cooldown <= 0.1) return true;
+    toast(cooldownNotice(spell, cooldown), 'bad');
+    return false;
+  };
+
   const input = createInput(canvas, {
-    pick: (x, y) => scene.pick(x, y),
+    pick: (x, y, spell) => {
+      if (spell === 'heal') {
+        const id = scene.pickMage(x, y);
+        return interp.latest()?.wizards.find(w => w.id === id)?.pos ?? null;
+      }
+      return scene.pick(x, y);
+    },
     move(to, held = false) {
+      if ((myWizard(interp.latest())?.status ?? 0) & BRACING_BIT) return;
       command({ t: 'move', x: to.x, y: to.y, held });
       predict.move(to);
       scene.clickMarker(to, false);
     },
     holdMove: (on) => command({ t: 'moveHold', on }),
+    brace: (on) => command({ t: 'brace', on }),
+    checkCooldown,
+    pickAttack: (x, y) => scene.pickMage(x, y),
+    attackArmedChanged: (on) => { canvas.style.cursor = on ? 'crosshair' : ''; },
+    basic(at, clicked) {
+      if ((myWizard(interp.latest())?.status ?? 0) & 16) return;
+      const target = clicked?.endsWith('~ilusao') ? interp.latest()?.projectiles.find((q) => q.kind === 'illusion' && room?.ids[q.vel.x] === clicked.slice(0, -7))?.id : clicked;
+      command({ t: 'basic', x: at.x, y: at.y, target });
+      predict.stop();
+      predict.hold(BASIC_ATTACK.windup, true);
+      scene.clickMarker(at, true);
+    },
     stop() {
       command({ t: 'stop' });
       predict.stop();
       scourgeUntil = 0; // o S cancela o Flagelo em preparo
     },
     cast(spell, at) {
-      const state = myWizard(interp.latest())?.status ?? 0;
-      if (castBlocked(!!(state & 16), !!(state & 128), spell)) return;
-      const i = SPELL_IDS.indexOf(spell);
       const mine = room?.players.find((p) => p.id === me);
       if (!mine?.spells[spell]) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
-      if ((lastSnap?.cd[i] ?? 0) > 0.1 || performance.now() < (justCast.get(spell) ?? 0) || (performance.now() < scourgeUntil && spell !== 'teleport')) return;
-      if (spell === 'teleport') scourgeUntil = 0; // o Teleporte cancela o Flagelo em preparo
-      // Flagelo em preparo: o servidor ignora outras magias até ele explodir
+      if (!checkCooldown(spell)) return;
+      const state = myWizard(interp.latest())?.status ?? 0;
+      if (castBlocked(!!(state & 16), !!(state & 128), spell)) return;
+      if (spell === 'heal') {
+        const units = interp.latest()?.wizards.map(w => ({ ...w, team: room?.players.find(p => p.id === w.id)?.team })) ?? [];
+        const self = units.find(w => w.id === me);
+        const target = self && healTarget(units, self, at, SPELLS.heal.levels[mine.spells.heal - 1].range * (1 + itemStats(mine.items).range));
+        if (!target) return toast(t('Selecione você ou um aliado vivo dentro do alcance.', 'Target yourself or a living ally within range.'));
+        at = target.pos;
+      }
+      if (performance.now() < (justCast.get(spell) ?? 0) || (performance.now() < scourgeUntil && spell !== 'teleport')) return;
+      if (spell === 'teleport') scourgeUntil = 0; // Teleport cancels a Scourge that is still charging.
+      // The server ignores other spells until Scourge explodes; Teleport cancels the charge.
       if (spell === 'scourge') scourgeUntil = performance.now() + CAST_POINT.scourge * 1000;
-      if (spell === 'rush') predict.stop(); // o avanço esquece o destino de andar, como no servidor
-      // até a recarga chegar do servidor, não repete a mesma magia (senão a animação e o som tocam sem sair nada)
+      if (spell === 'rush') predict.stop(); // Rush clears the queued movement target, as it does on the server.
+      // Avoid repeat casts before the server snapshot reports the cooldown.
       justCast.set(spell, performance.now() + 120 + CAST_POINT[spell] * 1000 + predict.rtt() * 1000);
       command({ t: 'cast', spell, x: at.x, y: at.y });
-      // conjurando, o mago fica parado e o clique de andar espera a magia sair (o servidor faz o mesmo)
+      // Hold movement during casting; the server applies the same delay.
       predict.hold(CAST_POINT[spell]);
       scene.castLocal(me, spell, at);
-      scene.clickMarker(at, true);
-      sound.play(SPELL_SOUND[spell]);
+      if (spell !== 'heal') scene.clickMarker(at, true); // the orange attack marker does not belong to Heal
+      if (spell !== 'heal') sound.play(SPELL_SOUND[spell]); // Heal plays once, on confirmation, at the target
       return true;
     },
     center: () => {
@@ -424,7 +466,7 @@ function startRoom(code: string, name: string) {
     },
     zoom: (d) => scene.zoomBy(d),
     pan: (dx, dy) => scene.panBy(dx, dy),
-    armedChanged: (s) => (armed = s),
+    armedChanged: (s) => { armed = s; canvas.style.cursor = s === 'heal' ? 'crosshair' : ''; },
     preview: (s, at) => {
       held = s;
       const from = drawn.get(me);
@@ -436,7 +478,7 @@ function startRoom(code: string, name: string) {
   });
 
   // a aparência escolhida fica salva e é reenviada ao entrar em qualquer sala; trocada nas Configurações, vale na hora
-  const net = connect('/ws/room/' + code, onMsg, () => {
+  const net = connect('/ws/room/' + code, parseServerMessage, onMsg, () => {
     rejoined = true;
     net.send({ t: 'hello', playerId, name: myName, ...(watchJoin && { watch: true as const }) });
     net.send({ t: 'look', look: savedLook() });
@@ -446,8 +488,19 @@ function startRoom(code: string, name: string) {
     view.setOnline(on);
   });
   addEventListener(LOOK_EVENT, (e) => net.send({ t: 'look', look: (e as CustomEvent<string>).detail }));
-  // a sala conta a CPU entre mensagens; o "estou aqui" a cada 5 s mantém a conta zerada durante a partida
-  setInterval(() => room && room.phase !== 'lobby' && room.phase !== 'end' && net.send({ t: 'alive' }), 5000);
+  // The room counts CPU time between messages; this five-second heartbeat keeps the connection active during a match.
+  const resourceSession = crypto.randomUUID();
+  let resourceAt = 0;
+  setInterval(() => {
+    if (room && room.phase !== 'lobby' && room.phase !== 'end') net.send({ t: 'alive' });
+    if (room?.phase !== 'playing' || Date.now() - resourceAt < 60_000) return;
+    // One-minute samples show sustained growth without sending per-frame noise.
+    resourceAt = Date.now();
+    const resources = scene.resourceStats();
+    const heapBytes = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize;
+    const reportedHeap = heapBytes !== undefined && Number.isFinite(heapBytes) ? Math.round(heapBytes) : undefined;
+    net.send({ t: 'resources', session: resourceSession, build: __BUILD__, ...resources, ...(reportedHeap !== undefined && { heapBytes: reportedHeap }) });
+  }, 5000);
 
   // sombra: 1 bot que joga como você; o que não foi medido fica no Normal (mimic.ts)
   function startShadow(skill: Partial<BotSkill>) {
@@ -544,8 +597,7 @@ function startRoom(code: string, name: string) {
   let live: Record<string, { dmg: number; kills: number; taken?: number }> = {};
   let aliveAt: Record<string, number> = {}; // Ascensão: segundos que cada mago ficou vivo na rodada (XP ao vivo)
   function onEvents(events: SimEvent[]) {
-    const pos = myWizard(interp.latest())?.pos;
-    const near = (x: number, y: number) => (pos ? Math.max(0.25, 1 - dist(pos, { x, y }) / 20) : 0.6);
+    const near = (x: number, y: number) => volumeAt({ x, y });
     const who = names();
     let liveChanged = false;
     let shout = '';
@@ -570,9 +622,9 @@ function startRoom(code: string, name: string) {
       // controle: vibra ao levar golpe forte e ao morrer
       if (e.k === 'hit' && e.id === me && e.dmg >= 60) rumble(Math.min(1, e.dmg / 160), 200);
       else if (e.k === 'death' && e.id === me) rumble(1, 500);
-      if (e.k === 'cast' && e.id !== me) {
-        const w = interp.latest()?.wizards.find((z) => z.id === e.id);
-        sound.play(SPELL_SOUND[e.spell], w ? near(w.pos.x, w.pos.y) : 0.5);
+      if (e.k === 'heal') sound.play('heal', near(e.x, e.y));
+      else if (e.k === 'cast' && e.id !== me && e.spell !== 'heal') {
+        sound.play(SPELL_SOUND[e.spell], volumeOf(e.id));
       } else if (e.k === 'hit') sound.play(e.dmg >= 100 ? 'hitHeavy' : e.dmg < 50 ? 'hitLight' : 'hit', near(e.x, e.y));
       else if (e.k === 'pillar') sound.play('hit', near(e.x, e.y) * 0.6);
       else if (e.k === 'grip') sound.play('hit', near(e.x, e.y));
@@ -589,7 +641,7 @@ function startRoom(code: string, name: string) {
         banner([icon(SOURCE_ICON.lava), t(' Morte súbita! A arena encolhe a cada 5 s', ' Sudden death! The arena shrinks every 5 s')], 'bad');
       } else if (e.k === 'rune') toast([...RUNE_TEXT(e.kind), t(` apareceu na arena (${RUNE_EFFECT[e.kind]})`, ` appeared in the arena (${RUNE_EFFECT[e.kind]})`)], 'info');
       else if (e.k === 'runeTake') {
-        sound.play('shield', e.id === me ? 1 : 0.5);
+        sound.play('shield', volumeOf(e.id));
         const rune = RUNE_TEXT(e.kind);
         // a sua runa vira o ícone do buff acima da barra (o mesmo desenho, na fileira de efeitos)
         // RUNE_TEXT devolve o ícone na posição 0; se esse formato mudar, não há ícone para voar e o aviso some no tempo de sempre (o hide() do toast)
@@ -636,14 +688,14 @@ function startRoom(code: string, name: string) {
         if (e.id === me) banner(t('Você caiu no abismo!', 'You fell into the abyss!'));
         if (e.id === me && room?.night?.stage === 0 && ilseOn()) ilseSay('fall', ILSE_MOMENTS.fall());
       } else if (e.k === 'aegis') {
-        sound.play('shield');
+        sound.play('shield', volumeOf(e.id));
         banner([icon(ITEM_ICON.aegis), e.id === me ? t(' A Égide te tirou da lava e quebrou', ' The Aegis pulled you out of the lava and broke') : t(` A Égide tirou ${who.get(e.id) ?? '?'} da lava`, ` The Aegis pulled ${who.get(e.id) ?? '?'} out of the lava`)], e.id === me ? 'good' : '');
       }
       else if (e.k === 'death') {
         // fora da pedra: mergulho na lava (chiado e bolhas) em vez da explosão
         const snap = interp.latest();
         const w = snap?.wizards.find((z) => z.id === e.id);
-        sound.play(w && snap && (room?.night ? mapLava(w.pos) : inLavaAt(arenaId, snap.arenaR, snap.isles, w.pos, 0.3)) ? 'splash' : 'death', w ? near(w.pos.x, w.pos.y) : 1);
+        sound.play(w && snap && (room?.night ? mapLava(w.pos) : inLavaAt(arenaId, snap.arenaR, snap.isles, w.pos, 0.3)) ? 'splash' : 'death', volumeOf(e.id));
         const dead = who.get(e.id) ?? '?';
         if (e.id === me) {
           clip = ring.slice();
@@ -743,7 +795,7 @@ function startRoom(code: string, name: string) {
       const taunt = TAUNTS[m.i];
       if (!taunt) return;
       const text = t(taunt.text, taunt.en);
-      void sound.taunt(taunt.id);
+      void sound.taunt(taunt.id, () => volumeOf(m.id));
       if (!scene.bubble(m.id, text, taunt.id)) {
         const p = room?.players.find((p) => p.id === m.id);
         toast(`${p ? playerName(p) : '?'}: ${text}`);
@@ -760,6 +812,10 @@ function startRoom(code: string, name: string) {
     }
     if (!room) return;
     const sv = decodeSnap(m, room.ids);
+    // the cue follows the authoritative Hold ground edge, never the windup
+    const bracing = !!((sv.wizards.find((z) => z.id === me)?.status ?? 0) & BRACING_BIT);
+    if (bracing && !wasBracing) sound.play('brace');
+    wasBracing = bracing;
     interp.push(sv, performance.now() / 1000);
     keepLast(ring, { s: sv, e: m.e ?? [] }, REPLAY_MAX); // antes do onEvents: o estado da queda entra no trecho
     if (m.e) onEvents(m.e);
@@ -887,7 +943,7 @@ function startRoom(code: string, name: string) {
     const copies: WizDraw[] = (shown ? shown.projectiles : []).flatMap((q) => {
       const ownerId = q.kind === 'illusion' ? room?.ids[q.vel.x] : undefined;
       const o = drawWiz.find((d) => d.id === ownerId);
-      return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(16 | 1024 | 2048 | 8388608), moving: true, cheer: false, illusion: true, ghost: false }] : [];
+      return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(16 | 1024 | 2048 | 8388608), basicLeft: 0, moving: true, cheer: false, illusion: true, ghost: false }] : [];
     });
     // o desafio conta o tempo só com a rodada rolando; o progresso dele fica no lugar da dica do treino
     if (run?.state === 'on' && room?.phase === 'playing') finishRun(stepRun(run, dt, [], me, meW?.alive !== false));
@@ -978,7 +1034,8 @@ function startRoom(code: string, name: string) {
     const prev = live ? drawn : replayDrawn;
     return s.wizards.map((w) => {
       const p = byId.get(w.id);
-      const state = renderWizardState(w, server);
+      const state = { ...renderWizardState(w, server) };
+      if (live && w.id === me && (lastSnap?.ack ?? 0) < attackCancelSeq) state.basicLeft = 0;
       const status = sandboxVisibility(state.status, w.id === me, !!room?.sandbox, seeInvis);
       const pos = w.id === me && server ? predict.frame(server, dt) : w.pos;
       const prevDraw = prev.get(w.id);

@@ -24,6 +24,8 @@ export type Stat = {
   gold: number; dmg: number; kills: number; dmgBy: Record<string, number>; fired: Record<string, number>; landed: Record<string, number>; deaths: number; deathBy: Record<string, number>; alive: number;
   threats: number; struck: number; shieldable: number; shielded: number; reactSum: number; reactN: number; nearSum: number; nearN: number;
 };
+export const STAT_NUMBER_KEYS = ['gold', 'dmg', 'kills', 'deaths', 'alive', 'threats', 'struck', 'shieldable', 'shielded', 'reactSum', 'reactN', 'nearSum', 'nearN'] as const satisfies readonly (keyof Stat)[];
+export const STAT_MAP_KEYS = ['dmgBy', 'fired', 'landed', 'deathBy'] as const satisfies readonly (keyof Stat)[];
 export type Stats = { round: Stat; match: Stat; room: Stat };
 const newStat = (): Stat => ({ gold: 0, dmg: 0, kills: 0, dmgBy: {}, fired: {}, landed: {}, deaths: 0, deathBy: {}, alive: 0, threats: 0, struck: 0, shieldable: 0, shielded: 0, reactSum: 0, reactN: 0, nearSum: 0, nearN: 0 }); // alive: segundos vivo
 const newStats = (): Stats => ({ round: newStat(), match: newStat(), room: newStat() });
@@ -61,12 +63,13 @@ function earn(m: Match, p: Player, gold: number, scaled = true, recovery = false
 // campaign: 1 a 4 humanos contra os servos do Fumo (campaign.ts); clareira = rodada, intervalo = loja
 export const MODES = ['rounds', 'deathmatch', 'teams', 'ascension', 'campaign'] as const;
 export type Mode = (typeof MODES)[number];
-export type Phase = 'lobby' | 'shop' | 'countdown' | 'playing' | 'roundEnd' | 'end';
+export const PHASES = ['lobby', 'shop', 'countdown', 'playing', 'roundEnd', 'end'] as const;
+export type Phase = (typeof PHASES)[number];
 // votação na partida: trocar o modo (target = modo novo), expulsar um humano (target = id dele),
 // trocar o sorteio dos times (target = 'round' sorteados a cada rodada, 'match' fixos na partida),
 // mudar uma opção da partida (target = 'chave:valor', ex.: 'shop:60', 'runes:false'; vale na próxima rodada),
 // reiniciar, encerrar agora, pôr ou tirar um bot (na próxima rodada) e pular a loja (target vazio)
-const VOTE_KINDS = ['mode', 'kick', 'shuffle', 'opt', 'restart', 'end', 'addBot', 'removeBot', 'skipShop'] as const;
+export const VOTE_KINDS = ['mode', 'kick', 'shuffle', 'opt', 'restart', 'end', 'addBot', 'removeBot', 'skipShop'] as const;
 export type Vote = { kind: (typeof VOTE_KINDS)[number]; target: string; by: string; yes: string[]; no: string[]; ends: number };
 
 // opções da partida (pedido do Fernando, 18/10: ajustar o ritmo do jogo, com mais ou menos itens por rodada), escolhidas na sala de espera
@@ -205,7 +208,7 @@ const player = (m: Match, id: string | null) => m.players.find((p) => p.id === i
 export const playing = (m: Match) => m.players.filter((p) => !p.watch);
 
 // o bot i+1 da partida recebe BOT_NAMES[i] (a sala mostra a lista nesta ordem)
-export const BOT_NAMES = ['Gul’dan', 'Merlim', 'Morgana', 'Rasputin', 'Zatanna', 'Mandrake', 'Gandalfo'];
+export const BOT_NAMES = ['Rasputinho', 'Gandalfo', 'Mendigo Ocultista', "Gul'Dan", 'Soldado do Lula', 'Robô do Bolsonaro', 'Merlim'];
 
 // watch: entra assistindo; sem vaga de mago, a pessoa também entra assistindo (até MAX_WATCHERS)
 export function addPlayer(m: Match, id: string, name: string, bot = false, watch = false, rand: () => number = Math.random): boolean {

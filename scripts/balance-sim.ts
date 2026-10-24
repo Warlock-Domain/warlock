@@ -11,7 +11,8 @@ import { ITEMS, ITEM_IDS, type ItemId } from '../src/shared/items.ts';
 import { OPTION_CHOICES, type Match, type MatchOpts } from '../src/shared/match.ts';
 import { FREE_SPELLS, SPELLS, SPELL_IDS, type SpellId } from '../src/shared/spells.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
-import { addCell, adjusted, f, goldBand, pct, playMatch, seedRandom, simNow, writeAtomic, type Bands } from './sim-lib.ts';
+import { isSummary, mergeSummaries, type Agg, type Bands, type Summary } from './balance-summary.ts';
+import { addCell, adjusted, f, goldBand, pct, playMatch, seedRandom, simNow, writeAtomic } from './sim-lib.ts';
 
 const { values: arg, positionals } = parseArgs({
   allowPositionals: true,
@@ -44,10 +45,9 @@ const rng = seedRandom(seed);
 // smart = as combinações que funcionam (para a escolha por magia dizer algo)
 botConfig.planner = arg.plan === 'classic' ? () => CLASSIC_PLAN : arg.plan === 'smart' ? smartPlan : randomPlan;
 
-// por chave ('spell:lightning', 'item:armor@2', 'pair:grip+meteor'...): jogadores-rodada com aquilo, vitórias, vitórias esperadas e médias
-// by (só em all, spell:* e item:*): por recorte (all, small 2–4 magos, large 5–8, rounds, teams), as faixas de ouro gasto
-type Agg = { n: number; wins: number; exp: number; dmg: number; kills: number; deaths: number; alive: number; gold: number; by?: Record<string, Bands> };
-const S = {
+// Each owned key (spell, item, pair, etc.) tracks player-rounds, wins, expected wins, and averages.
+// `by` is limited to all, spell, and item keys, with buckets for mode, lobby size, rounds, teams, and gold spent.
+const S: Summary = {
   seed: String(seed), plan: arg.plan, difficulty: arg.difficulty, arena: arg.arena, effect: arg.effect, startedAt: new Date().toISOString(), seconds: 0, roundsPerMin: 0,
   matches: 0, rounds: 0, playerRounds: 0, noWinner: 0, stalled: 0,
   modes: {} as Record<string, number>, sizes: {} as Record<string, number>,
@@ -288,6 +288,14 @@ function save() {
 function write() {
   writeAtomic(outDir, [['summary.json', JSON.stringify(S, null, 1)], ['report.md', report()]]);
 }
+
+function readSummary(directory: string): Summary {
+  const file = join(directory, 'summary.json');
+  const value: unknown = JSON.parse(readFileSync(file, 'utf8'));
+  if (!isSummary(value)) throw new Error(`${file} não corresponde ao formato do resumo de balanceamento`);
+  return value;
+}
+
 process.on('SIGINT', () => {
   save();
   process.exit(130);
@@ -295,15 +303,9 @@ process.on('SIGINT', () => {
 
 // --merge: soma os summary.json das pastas dadas (todos os campos são somas) e grava um report.md único em --out
 if (arg.merge) {
-  const sum = (a: any, b: any): any =>
-    typeof b === 'number' ? (a ?? 0) + b
-    : b && typeof b === 'object' ? Object.fromEntries([...new Set([...Object.keys(a ?? {}), ...Object.keys(b)])].map((k) => [k, k in b ? sum(a?.[k], b[k]) : a[k]]))
-    : a === undefined || a === b ? b : `${a}, ${b}`;
-  const parts = positionals.map((d) => JSON.parse(readFileSync(join(d, 'summary.json'), 'utf8')));
-  Object.assign(S, parts.reduce(sum, undefined));
-  // tempo real: o do processo mais longo; rodadas/min: a soma dos processos (vazão total)
-  S.seconds = Math.max(...parts.map((p) => p.seconds));
-  S.startedAt = parts.map((p) => p.startedAt).sort()[0];
+  const parts = positionals.map(readSummary);
+  const merged = mergeSummaries(parts);
+  Object.assign(S, merged);
   write();
   console.log(`juntou ${parts.length} pastas: ${S.rounds} rodadas → ${join(outDir, 'report.md')}`);
   process.exit(0);

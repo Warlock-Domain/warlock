@@ -9,25 +9,23 @@ import { SCRIPTS, createDemo, drawStone, runDemo, type DemoId } from './demo.ts'
 import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
 import { ACTIONS, UI_ACTIONS, UI_NAMES, isPadMode, isSlotMode, isUiKey, labelOf, uiLabel } from './keys.ts';
 import { MODE_INFO, OPT_INFO } from './opt-info.ts';
-import { ITEM_DEMO, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, groupClass, n1 } from './rules-text.ts';
+import { ITEM_DEMO, MECHANIC_GUIDES, NEGATIVE_GUIDES, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, groupClass, n1, type GuideId } from './rules-text.ts';
 import { COLORS } from './scene.ts';
-import { store } from './store.ts';
 import { hideTip, itemLevels, itemTip, spellLevels, spellTip, withTip } from './tips.ts';
 import { choice, dialog, norm, searchFilter } from './ui.ts';
 import { arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
-type Page = { chapter: string; title: string; body: () => (Node | string | null)[]; demo?: DemoId };
+type Page = { chapter: string; title: string; body: () => (Node | string | null)[]; demo?: DemoId; guideId?: string };
 
-const STORE = 'warlock:grimoire';
 const html = (s: string) => Object.assign(document.createElement('div'), { className: 'g-html', innerHTML: s });
 const ul = (xs: string[]) => el('ul', {}, ...xs.map((x) => el('li', {}, x)));
 const LEGEND = t(
-  `Dano: vida que tira (cada mago tem ${HP_MAX}). Empurrão: metros que um mago sem dano acumulado desliza (+10% a cada 100 de dano já levado). Recarga: segundos até lançar de novo. Alcance e raio em metros (a arena de 4 magos tem ${n1(ARENA_R0)} m de raio).`,
-  `Damage: health it takes away (each wizard has ${HP_MAX}). Knockback: meters a wizard with no accumulated damage slides (+10% per 100 damage already taken). Cooldown: seconds until you can cast again. Range and radius in meters (the 4-wizard arena has a ${n1(ARENA_R0)} m radius).`,
+  `Dano: vida que tira (cada mago tem ${HP_MAX}). Empurrão: deslocamento de referência sem resistência; dano histórico não amplifica a força. Recarga: segundos até lançar de novo. Alcance e raio em metros (a arena de 4 magos tem ${n1(ARENA_R0)} m de raio).`,
+  `Damage: health it takes away (each wizard has ${HP_MAX}). Knockback: reference displacement without resistance; historical damage does not amplify force. Cooldown: seconds until you can cast again. Range and radius in meters (the 4-wizard arena has a ${n1(ARENA_R0)} m radius).`,
 );
 // capítulos: o texto mostrado também serve de chave nas comparações abaixo
 const CH = {
-  toc: t('Sumário', 'Contents'), spells: t('Magias', 'Spells'), items: t('Itens', 'Items'),
+  toc: t('Sumário', 'Contents'), spells: t('Magias', 'Spells'), items: t('Itens', 'Items'), statuses: t('Status negativos', 'Negative statuses'),
 };
 // magia fora da barra não tem tecla no modo 1 2 3 4 Q W E R nem no controle (vale a posição na barra)
 const keyText = (a: SpellId) => labelOf(a) !== '—' ? t(`tecla ${labelOf(a)}`, `key ${labelOf(a)}`) : isSlotMode() || isPadMode() ? t('tecla pela posição na barra', 'key by position in the bar') : t('sem tecla (escolha em Configurações > Lançamento)', 'no key (pick one in Settings > Casting)');
@@ -83,6 +81,7 @@ const PAGES: Page[] = [
   text(t('Como jogar', 'How to play'), t('Objetivo', 'Goal'), RULES.objetivo),
   text(t('Como jogar', 'How to play'), t('Empurrão, lava e abates', 'Knockback, lava and kills'), RULES.empurrao),
   text(t('Controles', 'Controls'), t('No PC', 'On PC'), () => RULES.pc),
+  ...MECHANIC_GUIDES.map((g): Page => ({ ...text(t('Controles', 'Controls'), g.title, [g.text]), demo: g.id })),
   {
     chapter: t('Controles', 'Controls'), title: t('Suas teclas', 'Your keys'),
     body: () => [el('h2', {}, isSlotMode() ? t('Suas teclas (1 2 3 4 Q W E R pela ordem da barra)', 'Your keys (1 2 3 4 Q W E R in bar order)') : t('Suas teclas', 'Your keys')),
@@ -93,6 +92,7 @@ const PAGES: Page[] = [
   },
   text(t('Controles', 'Controls'), t('No celular', 'On mobile'), RULES.celular),
   text(t('Controles', 'Controls'), t('Com controle', 'With a controller'), () => RULES.controle),
+  ...NEGATIVE_GUIDES.map((g): Page => ({ ...text(CH.statuses, g.title, [g.text]), guideId: g.id })),
   text(t('Modos', 'Modes'), t('Rodadas', 'Rounds'), RULES.rodadas, () => [html(MODE_INFO())]),
   text(t('Modos', 'Modes'), 'Deathmatch', RULES.deathmatch),
   text(t('Modos', 'Modes'), t('Times', 'Teams'), RULES.times),
@@ -111,10 +111,13 @@ const CHAPTERS = [...new Set(PAGES.map((p) => p.chapter))].slice(1);
 const pageOf = (pred: (p: Page) => boolean) => PAGES.findIndex(pred);
 
 // to: abre direto na página daquela magia ou item (biblioteca)
-export function openGrimoire(to?: SpellId | ItemId) {
+export function openGrimoire(to?: SpellId | ItemId | GuideId) {
   document.querySelector('.grimoire-overlay')?.remove();
-  let at = Math.min(PAGES.length - 1, Math.max(0, Number(store.get(STORE)) || 0));
-  const page = to ? pageOf((p) => (p.chapter === CH.spells || p.chapter === CH.items) && p.title === actionName(to)) : -1;
+  // Reopening from the button always starts at the table of contents (Fernando's decision, 24/10); explicit links still open the requested page
+  let at = 0;
+  const mechanic = MECHANIC_GUIDES.find((g) => g.id === to);
+  const status = NEGATIVE_GUIDES.find((g) => g.id === to);
+  const page = status ? pageOf((p) => p.guideId === status.id) : mechanic ? pageOf((p) => p.demo === mechanic.id) : to ? pageOf((p) => (p.chapter === CH.spells || p.chapter === CH.items) && p.title === actionName(to as SpellId | ItemId)) : -1;
   if (page >= 0) at = page;
   const wide = matchMedia('(min-width: 900px)');
   const ac = new AbortController();
@@ -174,7 +177,6 @@ export function openGrimoire(to?: SpellId | ItemId) {
       void spread.offsetWidth; // reinicia a animação
       spread.classList.add(dir > 0 ? 'turn-next' : 'turn-prev');
     }
-    store.set(STORE, String(at));
   }
   function go(i: number) {
     const to = Math.min(PAGES.length - 1, Math.max(0, i));
@@ -236,7 +238,7 @@ export function library(onOpen?: () => void): HTMLElement {
   const filters = el('div', {});
   function apply() {
     filters.replaceChildren(choice(t('Grupo', 'Group'), [['all', t('Todos', 'All')], ...SPELL_GROUPS.map(([g]): [string, string] => [g, g]), ['items', CH.items]], only, (k) => ((only = k), apply())));
-    searchFilter(groups, '.lib-tile', search.value, (g) => only !== 'all' && g.dataset.filter !== only);
+    searchFilter(groups, '.lib-tile', search.value, (g) => only !== 'all' && g.dataset.filter !== only, true);
     none.hidden = groups.some((g) => !g.hidden);
   }
   apply();

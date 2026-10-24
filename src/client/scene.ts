@@ -1,8 +1,11 @@
 // Cena 3D: lava, arena de pedra que encolhe, magos (KayKit), projéteis e efeitos.
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
 import * as THREE from 'three';
-import { ELECTROCUTED_BIT } from '../shared/constants.ts';
+import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
+import { createBraceClip } from './brace-pose.ts';
+import { createAttackClip } from './attack-pose.ts';
 import { electroPulse } from './screen-data.ts';
+import { HEAL_FX, healAura } from './heal-fx.ts';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -34,10 +37,12 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
+// the Hold ground pose depends only on the source skeleton: build it once per source model (clone + IK per wizard is costly)
+const braceClips = new WeakMap<Model, THREE.AnimationClip | null>();
 const files = new Map<string, Model>();
 const loading = new Map<string, Promise<Model | null>>();
 const failed = new Set<string>();
@@ -181,13 +186,14 @@ function bandGeo(pairs: [Vec[], Vec[]][], keep: (m: Vec) => boolean = () => true
 }
 
 // clips que repetem (o resto toca uma vez e para no último quadro)
-const LOOPS = ['Idle', 'Running_A', 'Jump_Idle', 'Cheer', 'Waving'];
+const LOOPS = ['Idle', 'Running_A', 'Jump_Idle', 'Cheer', 'Waving', 'Brace'];
 // gesto da provocação pelo tom: deboche, festa ou aviso [clip, segundos]
 const TEASE: [string, number] = ['Skeletons_Taunt', 1.03], PARTY: [string, number] = ['Cheer', 1.67], CALL: [string, number] = ['Waving', 2.1];
 const TAUNT_ANIM: Record<(typeof TAUNTS)[number]['id'], [string, number]> = {
   loser: TEASE, laugh: TEASE, meow: TEASE, flawless: PARTY, combo_breaker: PARTY, multi_kill: PARTY, ultra_kill: PARTY, congrats: PARTY,
   fire_in_the_hole: CALL, look_out: CALL,
   fausto: CALL, emafia: TEASE, meestruparam: TEASE, usarameabusaram: TEASE, lanchado: PARTY,
+  noob: TEASE, get_him: CALL, bye_lava: TEASE, too_easy: TEASE, gg: PARTY, tough_luck: TEASE, melted: TEASE, stay_in_lava: TEASE,
 };
 // Teleporte (só visual): some em TP s deslizando TP_SLIDE m rumo ao destino e reaparece em TP s chegando na mesma direção
 const TP = 0.12, TP_SLIDE = 0.6;
@@ -213,6 +219,7 @@ type Mage = {
   prevHp: number; // cura: vida do quadro anterior, quando subiu e o que somou no último segundo
   prevAlive: boolean;
   healAt: number;
+  healingUntil?: number;
   healSum: number;
   healFlushAt: number;
   lootBar: HTMLDivElement;
@@ -573,6 +580,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // aparência de cada projétil: corpo, cor do brilho e do rastro, textura do rastro e tamanho
   // a cópia da Ilusão não entra: é desenhada como mago (main.ts)
   const LOOK: Record<Exclude<ProjKind, 'illusion'>, { mat: THREE.Material; halo: string; trail: string; tex: THREE.Texture; size: number }> = {
+    basic: { mat: swapMat, halo: '#dcfffb', trail: '#2fe0d0', tex: FX.spark, size: .45 },
     fireball: { mat: fireMat, halo: '#ffb000', trail: '#ff8a00', tex: FX.flame, size: 1.15 },
     homing: { mat: homingMat, halo: '#c23cff', trail: '#b040ff', tex: FX.magic, size: 1.1 },
     cluster: { mat: fireMat, halo: '#fff066', trail: '#ffd23a', tex: FX.spark, size: 0.65 },
@@ -930,6 +938,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const mixer = new THREE.AnimationMixer(model);
     const actions: Record<string, THREE.AnimationAction> = {};
     for (const c of src.clips) actions[c.name] = mixer.clipAction(c);
+    const idle = src.clips.find((c) => c.name === 'Idle');
+    if (idle && !braceClips.has(src)) braceClips.set(src, createBraceClip(model, idle));
+    const brace = braceClips.get(src);
+    if (brace) actions.Brace = mixer.clipAction(brace);
+    const invoke = src.clips.find((c) => c.name === 'Spellcast_Shoot');
+    if (invoke) actions.Attack_Invoke = mixer.clipAction(createAttackClip(invoke));
     // tudo toca uma vez e para no último quadro, menos o que repete
     for (const [n, a] of Object.entries(actions)) if (!LOOPS.includes(n)) {
       a.setLoop(THREE.LoopOnce, 1);
@@ -1672,6 +1686,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           const m = mages.get(e.id);
           if (m) burst(v(m.root.position.x, m.root.position.z), '#c2122a', 2.6, 0.6, 1, FX.magic);
         }
+      } else if (e.k === 'heal') {
+        const m = mages.get(e.id);
+        if (m) m.healingUntil = performance.now() / 1000 + HEAL_FX.seconds;
+        burst(v(e.x, e.y), HEAL_FX.color, 2.6, HEAL_FX.seconds, .6, FX.light, .6);
+        burst(v(e.x, e.y), HEAL_FX.glow, 1.5, HEAL_FX.seconds, .3, FX.magic, 1.2);
       } else if (e.k === 'hit') {
         oneShot(e.id, 'Hit_A', 0.45);
         // o acerto do raio tem impacto elétrico próprio: a explosão de fogo cobria o raio e parecia que ele não tinha saído
@@ -1916,11 +1935,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (m.shield.visible) m.shieldFill.style.width = `${shieldLeft * 100}%`;
       // anel no chão: dourado pulsando invulnerável (começo da rodada), azul da runa com Escudo de runa
       const invuln = (d.status & 32) > 0, armor = (d.status & 1048576) > 0; // runa do Escudo: −30% de dano
-      m.aura.visible = d.alive && (invuln || armor);
+      const healing = healAura(m.healingUntil ?? 0, now);
+      m.aura.visible = d.alive && (healing.visible || invuln || armor);
+      m.aura.scale.setScalar(healing.visible ? healing.scale : 1.45);
       if (m.aura.visible) {
         const mat = m.aura.material as THREE.MeshBasicMaterial;
-        mat.color.set(invuln ? '#ffd36a' : RUNE_COLOR.shield);
-        mat.opacity = invuln ? 0.55 + 0.3 * Math.sin(now * 8) : 0.8;
+        mat.color.set(healing.visible ? HEAL_FX.color : invuln ? '#ffd36a' : RUNE_COLOR.shield);
+        mat.opacity = healing.visible ? healing.opacity : invuln ? 0.55 + 0.3 * Math.sin(now * 8) : 0.8;
       }
       m.ring.visible = d.alive;
       if (!d.alive) {
@@ -1943,7 +1964,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         // nasceu (começo da rodada ou volta no deathmatch): a invulnerabilidade do começo acabou de ligar
         if (invuln && !m.invuln) oneShot(d.id, 'Spawn_Ground', 1.3);
         // atordoado (16: arremessado por um golpe) voa de braços abertos
-        if (now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
+        if ((d.basicLeft ?? 0) > 0 && !(d.status & 16) && m.actions.Attack_Invoke) {
+          play(m, 'Attack_Invoke', .03);
+          const action = m.actions.Attack_Invoke;
+          action.paused = true;
+          action.time = Math.max(0, action.getClip().duration - d.basicLeft!);
+          m.oneShotUntil = 0; // o snapshot encerra a pose na soltura ou no cancelamento, sem terminar o gesto à força.
+        } else if (m.current === 'Attack_Invoke' || now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & BRACING_BIT && m.actions.Brace ? 'Brace' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
         // vencedor: estouro dourado ao começar a comemorar e faíscas subindo enquanto dura
         if (d.cheer && !m.cheering) victoryBurst(d.pos);
         if (d.cheer && !lite && Math.random() < 0.2) burst(v(d.pos.x + (Math.random() - 0.5) * 1.4, d.pos.y + (Math.random() - 0.5) * 1.4), Math.random() < 0.5 ? '#ffd84a' : '#fff2a0', 0.7, 1.2, 0.4, FX.star, 2.6);
@@ -2166,6 +2193,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   return {
     ready,
     onEvents,
+    resourceStats() {
+      return { geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures };
+    },
     // centro no mago e raio em metros; null (ou raio 0) esconde. blastAt/blastR: o círculo da explosão no ponto mirado
     range(at: Vec | null, r: number, blastAt: Vec | null = null, blastR = 0) {
       blastRing.visible = !!blastAt && blastR > 0;
@@ -2234,6 +2264,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       raycaster.setFromCamera(ndc, camera);
       const hit = new THREE.Vector3();
       return raycaster.ray.intersectPlane(floorPlane, hit) ? v(hit.x, hit.z) : null;
+    },
+    pickMage(clientX: number, clientY: number): string | undefined {
+      raycaster.setFromCamera(new THREE.Vector2((clientX / innerWidth) * 2 - 1, -(clientY / innerHeight) * 2 + 1), camera);
+      let found: { id: string; distance: number } | undefined;
+      for (const [id, m] of mages) {
+        if (!m.root.visible || m.dead) continue;
+        const hit = raycaster.intersectObject(m.model, true)[0];
+        if (hit && (!found || hit.distance < found.distance)) found = { id, distance: hit.distance };
+      }
+      return found?.id;
     },
     clickMarker(at: Vec, cast: boolean) {
       const ring = new THREE.Mesh(markerGeo, new THREE.MeshBasicMaterial({ color: cast ? '#ffb347' : '#7dff9a', transparent: true, depthWrite: false }));
@@ -2309,12 +2349,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const m = mages.get(id);
       if (!m || m.dead) return;
       // brilho na mão (um pouco à frente do mago, na cor da magia) e linha de mira fraca até o ponto
-      const color = LOOK[spell as keyof typeof LOOK]?.halo ?? '#ffb347';
+      const color = spell === 'heal' ? HEAL_FX.color : LOOK[spell as keyof typeof LOOK]?.halo ?? '#ffb347';
       const from = v(m.root.position.x, m.root.position.z);
       const dir = at ? Math.atan2(at.y - from.y, at.x - from.x) : Math.PI / 2 - m.root.rotation.y;
       const hand = v(from.x + Math.cos(dir) * 0.45, from.y + Math.sin(dir) * 0.45);
       burst(hand, color, 1.3, 0.35, 1.15, FX.light);
-      burst(hand, '#ffffff', 0.6, 0.2, 1.15, FX.light);
+      burst(hand, spell === 'heal' ? HEAL_FX.glow : '#ffffff', 0.6, 0.2, 1.15, FX.light);
       if (!at || Math.hypot(at.x - from.x, at.y - from.y) < 0.8) return;
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));

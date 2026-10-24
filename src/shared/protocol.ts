@@ -26,6 +26,8 @@ export type ClientMsg =
   | { t: 'move'; x: number; y: number; seq: number; held?: boolean }
   | { t: 'moveHold'; on: boolean; seq: number } // soltar o direito não envia outro destino de caminhada.
   | { t: 'stop'; seq: number }
+  | { t: 'brace'; on: boolean; seq: number }
+  | { t: 'basic'; x: number; y: number; target?: string | number; seq: number }
   | { t: 'cast'; spell: SpellId; x: number; y: number; seq: number }
   | { t: 'buy'; spell: SpellId }
   | { t: 'pick'; character: CharacterId } // um dos 9 prontos: vira a aparência equivalente
@@ -41,9 +43,11 @@ export type ClientMsg =
   | { t: 'ballot'; yes: boolean }
   | { t: 'lobby'; bots: MatchOpts['difficulty'][]; opts: Partial<MatchOpts> } // sala do Ascensão: o dono escolhe bots e opções
   | { t: 'taunt'; i: number }
+  | { t: 'resources'; session: string; build: string; geometries: number; textures: number; heapBytes?: number }
   | { t: 'ready' }
   | { t: 'alive' };
 
+// A validação das mensagens recebidas pelo navegador fica em `src/client/net-message.ts`; mantenha-a em sincronia com estes tipos.
 export type PublicPlayer = {
   id: string; name: string; bot: boolean; color: number; character: CharacterId; look: string; score: number; gold: number;
   spells: Record<SpellId, number>; items: Record<ItemId, number>; stats: Stats; bought: string[]; held: Record<string, number[]>; ready: boolean; connected: boolean; team: number | null;
@@ -95,12 +99,16 @@ export type PublicRoom = {
 // sp: velocidade de andar dele agora (botas, lentidão), para a previsão; ack: último seq aplicado dele
 // fx: efeitos com prazo de quem recebe, 2 números por efeito: bit de estado (como em w) e segundos que faltam
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
-export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
+// ba: dois números por mago: preparo de Atacar restante em segundos e corpo a corpo (1/0); ausente = sem preparo.
+export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
 
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
 export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
+export type LobbyMessage = { t: 'rooms'; rooms: RoomInfo[] };
 
-type ErrorCode = 'not_found' | 'other_tab' | 'full' | 'bad_msg' | 'kicked';
+export const ERROR_CODES = ['not_found', 'other_tab', 'full', 'bad_msg', 'kicked'] as const;
+export type ErrorCode = (typeof ERROR_CODES)[number];
+export const SANDBOX_KEYS: (keyof Sandbox)[] = ['god', 'noCd', 'shrink'];
 
 export type ServerMsg =
   | { t: 'room'; room: PublicRoom; you: string }
@@ -165,7 +173,6 @@ function parseSetup(x: unknown): BotSetup[] | null {
 }
 
 // comando do painel da sandbox: só as operações e os valores conhecidos (o bot passa pela mesma checagem do treino)
-const SANDBOX_KEYS: (keyof Sandbox)[] = ['god', 'noCd', 'shrink'];
 function parseSandbox(c: unknown): SandboxCmd | null {
   if (!isObj(c)) return null;
   if (c.op === 'set') return SANDBOX_KEYS.includes(c.key as keyof Sandbox) && typeof c.on === 'boolean' ? { op: 'set', key: c.key as keyof Sandbox, on: c.on } : null;
@@ -220,6 +227,12 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return typeof m.on === 'boolean' && seq(m.seq) ? { t: 'moveHold', on: m.on, seq: m.seq } : null;
     case 'stop':
       return seq(m.seq) ? { t: 'stop', seq: m.seq } : null;
+    case 'brace':
+      return typeof m.on === 'boolean' && seq(m.seq) && Object.keys(m).every((k) => ['t', 'on', 'seq'].includes(k)) ? { t: 'brace', on: m.on, seq: m.seq } : null;
+    case 'basic':
+      if (!coord(m.x) || !coord(m.y) || !seq(m.seq) || !Object.keys(m).every((k) => ['t', 'x', 'y', 'seq', 'target'].includes(k))) return null;
+      if (m.target !== undefined && !pubId(m.target) && !(typeof m.target === 'number' && seq(m.target))) return null;
+      return { t: 'basic', x: m.x, y: m.y, seq: m.seq, ...(m.target === undefined ? {} : { target: m.target as string | number }) };
     case 'cast':
       return isSpell(m.spell) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'cast', spell: m.spell, x: m.x, y: m.y, seq: m.seq } : null;
     case 'buy':
@@ -245,6 +258,13 @@ export function parseClientMessage(raw: string): ClientMsg | null {
     }
     case 'taunt':
       return Number.isInteger(m.i) && (m.i as number) >= 0 && (m.i as number) < TAUNTS.length ? { t: 'taunt', i: m.i as number } : null;
+    case 'resources':
+      if (typeof m.session !== 'string' || !/^[\da-f-]{36}$/.test(m.session)) return null;
+      if (typeof m.build !== 'string' || m.build.length > 64) return null;
+      if (!Number.isInteger(m.geometries) || (m.geometries as number) < 0 || (m.geometries as number) > 100_000) return null;
+      if (!Number.isInteger(m.textures) || (m.textures as number) < 0 || (m.textures as number) > 100_000) return null;
+      if (m.heapBytes !== undefined && (!Number.isInteger(m.heapBytes) || (m.heapBytes as number) < 0 || (m.heapBytes as number) > 8_000_000_000)) return null;
+      return { t: 'resources', session: m.session, build: m.build, geometries: m.geometries as number, textures: m.textures as number, ...(m.heapBytes !== undefined && { heapBytes: m.heapBytes as number }) };
     case 'buyItem':
       return ITEM_IDS.includes(m.item as ItemId) ? { t: 'buyItem', item: m.item as ItemId } : null;
     case 'keep':
