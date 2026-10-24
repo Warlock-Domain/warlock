@@ -51,6 +51,7 @@ export class MovementPredictor {
     this.attackHold = false;
   };
 
+  // The walk speed the server reports right now (boots, Rush, Grip).
   setSpeed = (sp: number) => {
     if (this.me && sp >= 0) this.me.speed = sp;
   };
@@ -82,7 +83,7 @@ export class MovementPredictor {
   teleported = (to: Vec) => {
     if (!this.me) return;
     this.me.pos = to;
-    this.me.target = null;
+    this.me.target = null; // the server also forgets the destination on teleport
     this.holdUntil = 0; // Teleport cancels Scourge's windup, allowing movement immediately.
     this.queued = undefined;
   };
