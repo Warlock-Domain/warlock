@@ -224,7 +224,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // trigger almost never finished the windup (6 bots: 28 uses, 0 active ticks). Once holding it renews without a new roll while the
   // shot closes in; before that, the chance to dodge on foot decides (Hold ground locks walking). Bots that think no faster than
   // the lease (Easy 0.67 s, Casual 0.5 s) skip it: their renewal would land on or after expiry and restart the windup forever
-  if (1 / D.rate < BRACE.lease && !me.casting && !ESCAPE.some((s) => ready(s))) {
+  // the real think interval rounds to whole steps (botThinks), so compare that, not 1 / rate
+  if (Math.max(1, Math.round(1 / (DT * D.rate))) * DT < BRACE.lease && !me.casting && !ESCAPE.some((s) => ready(s))) {
     const hb = threatTo(w, me, seen, BRACE.windup + 0.4);
     const area = hb && (hb.p.kind === 'meteor' || hb.p.kind === 'grip');
     if (hb && !area && (w.t < (me.braceUntil ?? 0) || (hb.t >= BRACE.windup && rand() >= D.dodge))) return [{ id, kind: 'brace', on: true }];

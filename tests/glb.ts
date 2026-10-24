@@ -23,7 +23,7 @@ export async function loadModel(id: string): Promise<Model> {
   o.setUint32(12, json.length, true);
   o.setUint32(16, 0x4e4f534a, true); // JSON
   out.set(json, 20);
-  out.set(bin, 20 + json.length); // tamanho e tipo do bloco BIN vêm junto
+  out.set(bin, 20 + json.length); // the BIN chunk length and type come with it
   const g = await new GLTFLoader().parseAsync(out.buffer, '');
   return { scene: g.scene, clips: g.animations };
 }
