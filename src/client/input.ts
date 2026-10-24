@@ -7,7 +7,7 @@ import { setPadGame } from './gamepad.ts';
 import type { Vec } from '../shared/vec.ts';
 
 export type InputHandlers = {
-  pick: (x: number, y: number) => Vec | null;
+  pick: (x: number, y: number, spell?: SpellId) => Vec | null;
   move: (to: Vec, held?: boolean) => void;
   holdMove?: (on: boolean) => void;
   stop: () => void;
@@ -64,7 +64,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   const release = () => {
     const a = held?.action;
     cancel();
-    const p = a && enabled ? h.pick(cursor.x, cursor.y) : null;
+    const p = a && enabled ? h.pick(cursor.x, cursor.y, a) : null;
     if (a && p) h.cast(a, p);
   };
   const releaseMove = () => { if (dragging) h.holdMove?.(false); dragging = false; };
@@ -113,7 +113,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       return;
     }
     if (!enabled) return;
-    const p = h.pick(e.clientX, e.clientY);
+    const p = h.pick(e.clientX, e.clientY, e.button === 0 || e.pointerType === 'touch' ? armed ?? undefined : undefined);
     if (!p) return;
     const touch = e.pointerType === 'touch';
     if (attackArmed && e.button === 0) {
@@ -121,8 +121,9 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       arm(null); // uma ordem manual por golpe; segurar A/clique não repete.
     } else if (armed && (e.button === 0 || touch)) {
       // fora do alcance a magia sai na direção do clique, até a borda do alcance (o servidor limita)
-      h.cast(armed, p);
-      arm(null);
+      const chosen = armed;
+      const cast = h.cast(chosen, p);
+      if (chosen !== 'heal' || cast) arm(null);
     } else if (e.button === 2 || touch) {
       if (armed || attackArmed) arm(null); // botão direito cancela a ação escolhida (e anda, como no Dota)
       h.move(p, e.button === 2);
@@ -134,6 +135,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     if (e.button === 0) panning = false;
   });
   addEventListener('keyup', (e) => {
+    if (e.code === braceCode) releaseBrace();
     if (held && e.code === held.code) return release();
     if (e.code !== 'Space') return;
     space = false;
@@ -153,6 +155,9 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     // teclas trocáveis pelo jogador (keys.ts)
     const action = actionFor(e.code);
     if (action) {
+      // Heal always asks for a click on the target body, whatever the cast mode.
+      if (action === 'heal') { e.preventDefault(); cancel(); return arm(action); }
+      if (armed === 'heal') arm(null);
       if (attackArmed) arm(null);
       e.preventDefault();
       const mode = getCastMode();
@@ -166,7 +171,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
         held = { action, code: e.code };
         return h.preview(action);
       }
-      const p = h.pick(cursor.x, cursor.y);
+      const p = h.pick(cursor.x, cursor.y, action);
       // Rápido: o anel de alcance pisca por um instante quando a magia sai (issue #61), com a faixa de acerto e a área presas
       // no ponto do lançamento (pedido do Fernando, 21/10: igual ao Segurar, mas sem seguir o mouse depois)
       if (p && h.cast(action, p)) {
@@ -211,6 +216,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     aimPoint: () => h.pick(cursor.x, cursor.y),
     // The toolbar selects a spell; the next ground click or tap casts it.
     button(a: SpellId) {
+      if (a === 'heal') cancel();
       if (!enabled) return;
       if (armed === a) return arm(null);
       if (h.checkCooldown && !h.checkCooldown(a)) return arm(null);

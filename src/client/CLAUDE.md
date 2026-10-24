@@ -4,6 +4,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Interface
 
+- Curar: a tecla ou a barra seleciona e o clique no modelo confirma, em qualquer modo de lançamento (Rápido ou Ao soltar). Clique no chão não cura; alvo inválido mantém a seleção, e Esc, S ou o botão direito cancelam. No controle, com o analógico direito solto, cura você mesmo (`padTarget`). A aura verde de 1,5 s e o coral sintetizado tocam no evento confirmado, com o mixer e a distância. Textos PT/EN, ficha, demo e ícone próprio seguem os números.
+
 - **DOM sempre com `el(tag, props, ...filhos)`** de `icons.ts` (`on*` vira listener, `class` vira `className`, filho `null`/`false` some). Não crie outro helper de DOM. Ícones: `icon(id)` com `ICON`, `ITEM_ICON`, `UI_ICON`.
 - **Grupos de magia** (`SPELL_GROUPS` em `rules-text.ts`, cor em `.g-<grupo>` no `style.css`): Suporte (verde) aparece mesmo vazio e Mobilidade é dourada (decisão de 24/10, PR #343); `searchFilter(..., keepEmpty)` mantém o grupo vazio visível sem busca, para o jogador ver que a categoria existe antes das magias dela.
 - Reuse `choice(...)` (fileira de botões com `aria-pressed`), `tabs(...)` (`role=tab`) e `withTip(elemento, () => html)` (dica no hover e no foco).
