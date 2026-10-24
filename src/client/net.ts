@@ -14,6 +14,7 @@ export function connect<T>(path: string, parse: (value: unknown) => T | null, on
   let stopped = false;
   let lastSeen = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const warnedTypes = new Set<string>();
 
   const detach = (socket: WebSocket) => {
     socket.onopen = null;
@@ -39,7 +40,11 @@ export function connect<T>(path: string, parse: (value: unknown) => T | null, on
       lastSeen = Date.now();
       const raw: unknown = e.data;
       if (raw === 'pong') return;
-      const parsed = decodeMessage(raw, parse);
+      const parsed = decodeMessage(raw, parse, (type, reason) => {
+        if (warnedTypes.has(type)) return;
+        warnedTypes.add(type);
+        console.warn(`Rejected invalid server message (type: ${type}; reason: ${reason})`);
+      });
       if (parsed !== null) onMsg(parsed);
     };
     self.onclose = () => {

@@ -1,9 +1,11 @@
 import { ARENA_IDS } from '../shared/arena.ts';
 import { isCharacter } from '../shared/characters.ts';
-import { MODES, OPTION_CHOICES } from '../shared/match.ts';
+import { MODES, OPTION_CHOICES, VOTE_KINDS } from '../shared/match.ts';
 import { RUNE_KINDS, ROUND_EFFECT_IDS } from '../shared/constants.ts';
 import { ITEM_IDS } from '../shared/items.ts';
-import type { PublicPlayer, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
+import { ERROR_CODES, type PublicPlayer, type PublicRoom, type RoomInfo, type ServerMsg, type Snap } from '../shared/protocol.ts';
+import { SERVO_KINDS } from '../shared/campaign.ts';
+import { TAUNTS } from '../shared/taunts.ts';
 import { SPELL_IDS, isSpell } from '../shared/spells.ts';
 import type { SimEvent } from '../shared/sim.ts';
 
@@ -28,10 +30,10 @@ function player(x: unknown): x is PublicPlayer {
   if (!object(x.spells) || !Object.entries(x.spells).every(([id, n]) => isSpell(id) && integer(n)) || !object(x.items) || !Object.entries(x.items).every(([id, n]) => ITEM_IDS.some((item) => item === id) && integer(n)) || !stats(x.stats)) return false;
   if (!stringArray(x.bought) || !object(x.held) || !Object.values(x.held).every((levels) => Array.isArray(levels) && levels.every(integer))) return false;
   if (typeof x.ready !== 'boolean' || typeof x.connected !== 'boolean' || (x.team !== null && !integer(x.team))) return false;
-  if (x.difficulty !== undefined && !['easy', 'casual', 'normal', 'veteran', 'hard', 'auto'].includes(String(x.difficulty))) return false;
+  if (x.difficulty !== undefined && !(OPTION_CHOICES.difficulty as readonly unknown[]).includes(x.difficulty)) return false;
   if (x.dummy !== undefined && x.dummy !== true || x.turret !== undefined && x.turret !== true || x.watch !== undefined && x.watch !== true) return false;
   if (x.hpMax !== undefined && !finite(x.hpMax)) return false;
-  if (x.servo !== undefined && !['ash', 'archer', 'watcher', 'hound', 'odran'].includes(String(x.servo))) return false;
+  if (x.servo !== undefined && !(SERVO_KINDS as readonly unknown[]).includes(x.servo)) return false;
   if (x.asc !== undefined) {
     const a = x.asc;
     if (!object(a) || !integer(a.xp) || !integer(a.level) || !integer(a.next) || !Array.isArray(a.todo) || !a.todo.every((k) => ['spell', 'up', 'item'].includes(String(k))) || !Array.isArray(a.offer) || !a.offer.every((row) => Array.isArray(row) && row.every(card)) || !Array.isArray(a.pick) || !a.pick.every((pick) => pick === null || object(pick) && integer(pick.i) && (pick.swap === undefined || isSpell(pick.swap))) || !integer(a.rerolls) || !Array.isArray(a.auto) || !a.auto.every(card)) return false;
@@ -50,7 +52,7 @@ function room(x: unknown): x is PublicRoom {
   if (!object(x) || !string(x.id) || !phase(x.phase) || !mode(x.mode) || !integer(x.round) || !finite(x.phaseLeft) || !Array.isArray(x.players) || !x.players.every(player) || !stringArray(x.ids)) return false;
   if (!nullableString(x.winner) || !nullableString(x.lastRoundWinner) || !(x.pendingMode === null || mode(x.pendingMode)) || typeof x.teamShuffle !== 'boolean' || !(x.pendingShuffle === null || typeof x.pendingShuffle === 'boolean') || !(x.winnerTeam === null || integer(x.winnerTeam))) return false;
   if (!validOpts(x.opts) || !validOpts(x.pendingOpts, true) || !integer(x.botDelta) || !integer(x.goal) || !(x.arena === null || (ARENA_IDS as readonly unknown[]).includes(x.arena)) || !(x.effect === null || (ROUND_EFFECT_IDS as readonly unknown[]).includes(x.effect))) return false;
-  if (x.vote !== null && (!object(x.vote) || !['mode', 'kick', 'shuffle', 'opt', 'restart', 'end', 'addBot', 'removeBot', 'skipShop'].includes(String(x.vote.kind)) || !string(x.vote.target) || !string(x.vote.by) || !stringArray(x.vote.yes) || !stringArray(x.vote.no) || !finite(x.vote.left) || !integer(x.vote.need))) return false;
+  if (x.vote !== null && (!object(x.vote) || !(VOTE_KINDS as readonly unknown[]).includes(x.vote.kind) || !string(x.vote.target) || !string(x.vote.by) || !stringArray(x.vote.yes) || !stringArray(x.vote.no) || !finite(x.vote.left) || !integer(x.vote.need))) return false;
   if (x.sandbox !== undefined) {
     const sandbox = x.sandbox;
     if (!object(sandbox) || !['god', 'noCd', 'shrink'].every((k) => typeof sandbox[k] === 'boolean')) return false;
@@ -97,8 +99,8 @@ function snap(x: Obj): x is Obj & Snap {
   if (!finite(x.time) || !finite(x.r) || !finite(x.s) || !finite(x.sp) || !integer(x.ack) || !fields(x, ['w', 'p', 'cd', 'pl'], ['rs', 'ch', 'lp', 'em', 'ru', 'ab', 'zn', 'il', 'fx'])) return false;
   const count = (x.w as number[]).length / 7;
   if (!Number.isInteger(count) || (x.p as number[]).length % 6 || (x.pl as number[]).length % 4 || (x.cd as number[]).length !== SPELL_IDS.length) return false;
-  if (['rs', 'lp', 'em', 'ab'].some((k) => x[k] !== undefined && (x[k] as number[]).length !== count) || ['ch', 'ru', 'fx'].some((k) => x[k] !== undefined && (x[k] as number[]).length % 3 && k !== 'fx') || (x.zn !== undefined && (x.zn as number[]).length % 5) || (x.il !== undefined && (x.il as number[]).length % 3) || (x.fx !== undefined && (x.fx as number[]).length % 2)) return false;
-  return x.e === undefined || Array.isArray(x.e) && x.e.every(event);
+  if (['rs', 'lp', 'em', 'ab', 'st', 'kr'].some((k) => x[k] !== undefined && (x[k] as number[]).length !== count) || ['ch', 'ru'].some((k) => x[k] !== undefined && (x[k] as number[]).length % 3) || (x.zn !== undefined && (x.zn as number[]).length % 5) || (x.il !== undefined && (x.il as number[]).length % 3) || (x.fx !== undefined && (x.fx as number[]).length % 2)) return false;
+  return x.e === undefined || Array.isArray(x.e);
 }
 
 export type LobbyMessage = { t: 'rooms'; rooms: RoomInfo[] };
@@ -112,18 +114,24 @@ export function parseLobbyMessage(x: unknown): LobbyMessage | null {
 export function parseServerMessage(x: unknown): ServerMsg | null {
   if (!object(x)) return null;
   if (x.t === 'room' && room(x.room) && string(x.you)) return x as unknown as ServerMsg; // `room` valida o estado público sem reconstruir arrays a cada atualização.
-  if (x.t === 'snap' && snap(x)) return x as unknown as ServerMsg; // Mantém os vetores compactos do snapshot sem cópia a 30 Hz.
-  if (x.t === 'taunt' && string(x.id) && integer(x.i) && x.i >= 0 && x.i < 64) return x as unknown as ServerMsg;
-  if (x.t === 'error' && ['not_found', 'other_tab', 'full', 'bad_msg', 'kicked'].includes(String(x.code)) && string(x.msg)) return x as unknown as ServerMsg;
+  if (x.t === 'snap' && snap(x)) {
+    const events = (x.e as unknown[] | undefined)?.filter(event);
+    return (events && events.length !== (x.e as unknown[]).length ? { ...x, e: events } : x) as unknown as ServerMsg;
+  } // Mantém vetores sem cópia; eventos desconhecidos são cosméticos e podem ser descartados.
+  if (x.t === 'taunt' && string(x.id) && integer(x.i) && x.i >= 0 && x.i < TAUNTS.length) return x as unknown as ServerMsg;
+  if (x.t === 'error' && (ERROR_CODES as readonly unknown[]).includes(x.code) && string(x.msg)) return x as unknown as ServerMsg;
   return null;
 }
 
-export function decodeMessage<T>(raw: unknown, parse: (value: unknown) => T | null): T | null {
-  if (typeof raw !== 'string' || raw.length > 1_000_000) return null;
+export function decodeMessage<T>(raw: unknown, parse: (value: unknown) => T | null, onInvalid?: (type: string, reason: string) => void): T | null {
+  if (typeof raw !== 'string' || raw.length > 1_000_000) { onInvalid?.('(invalid payload)', 'expected text under 1 MB'); return null; }
   try {
     const value: unknown = JSON.parse(raw);
-    return parse(value);
+    const parsed = parse(value);
+    if (parsed === null) onInvalid?.(object(value) && string(value.t) ? value.t : '(unknown)', 'schema validation failed');
+    return parsed;
   } catch {
+    onInvalid?.('(invalid JSON)', 'JSON parsing failed');
     return null;
   }
 }

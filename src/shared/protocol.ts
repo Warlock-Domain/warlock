@@ -100,7 +100,8 @@ export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[];
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
 export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
 
-type ErrorCode = 'not_found' | 'other_tab' | 'full' | 'bad_msg' | 'kicked';
+export const ERROR_CODES = ['not_found', 'other_tab', 'full', 'bad_msg', 'kicked'] as const;
+export type ErrorCode = (typeof ERROR_CODES)[number];
 
 export type ServerMsg =
   | { t: 'room'; room: PublicRoom; you: string }
