@@ -23,7 +23,7 @@ Closes #<!-- número da issue, se houver; a palavra tem de ser em inglês (Close
 
 ## Como testei
 
-- [ ] `npx tsc --noEmit -p .` e `npx tsc --noEmit -p src/worker`
+- [ ] `npm run typecheck` (cliente, servidor e scripts)
 - [ ] `npx vitest run`
 - [ ] `npx vite build`
 - [ ] Joguei no navegador (`npx wrangler dev`) no PC

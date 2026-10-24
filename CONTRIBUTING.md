@@ -82,7 +82,7 @@ The release flow is **task branch → PR to `master` → automatic production de
 1. Create a branch from current `master`: `feat/<topic>`, `fix/<topic>`, `balance/<topic>`, `style/<topic>`, `docs/<topic>`, or `refactor/<topic>`. One branch/PR covers one subject.
 2. Use a branch in this repository when you have contributor access. Fork PRs require CI approval, do not get the automatic review, and cannot use deployment secrets or PR environments.
 3. Make small commits using `type: description`. Accepted types are `feat`, `fix`, `balance`, `style`, `refactor`, `docs`, `ci`, and `test`. The repository convention is a Portuguese description; follow explicit maintainer instructions for the task's language. Agent commits do not add `Co-Authored-By` trailers.
-4. Run all four required gates before committing. Add meaningful regression coverage for behavior changes and verify changed screens in the browser.
+4. Run `npm run typecheck`, `npx vitest run`, and `npx vite build` before committing. Add meaningful regression coverage for behavior changes and verify changed screens in the browser.
 5. Open the PR against `master` using [.github/pull_request_template.md](.github/pull_request_template.md): motivation, changes, screenshots when relevant, validation, and balance evidence when required. Use `Closes #n` for its issue. The title follows the same `type: description` format and becomes the squash commit title.
 6. Keep the branch current after each merge to `master`: `git fetch origin` followed by `git merge origin/master`. Run the gates and restart the local server. After review starts, respond with new commits rather than rebasing or force-pushing.
 7. Reviewers use the project's criteria, and approved PRs enter `master` through **squash and merge**. The branch is then deleted and Production deploys automatically.
@@ -134,7 +134,7 @@ spell/item balance without the required simulator evidence.
 
 ```text
 Bug: [actual behavior], expected [behavior], steps [steps]. Reproduce it, identify the
-cause, make a focused fix, and run the four gates. Open a PR to master using the template.
+cause, make a focused fix, and run all required verification. Open a PR to master using the template.
 ```
 
 ## Code rules that every change must satisfy
@@ -152,11 +152,10 @@ cause, make a focused fix, and run the four gates. Open a PR to master using the
 
 ## Required verification
 
-All four gates must pass before a commit:
+All repository checks must pass before a commit:
 
 ```bash
-npx tsc --noEmit -p .
-npx tsc --noEmit -p src/worker
+npm run typecheck
 npx vitest run
 npx vite build
 ```

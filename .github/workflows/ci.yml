@@ -16,8 +16,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx tsc --noEmit -p .
-      - run: npx tsc --noEmit -p src/worker
+      - run: npm run typecheck
       - run: npx vitest run
       - run: node scripts/room-cleanup.mjs
       - run: node scripts/lobby-reconcile.mjs
