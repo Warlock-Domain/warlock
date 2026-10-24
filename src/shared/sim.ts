@@ -127,9 +127,9 @@ export type Projectile = {
   back?: boolean; // Bumerangue voltando ao dono
   prev?: string; // Ricochete: último mago tocado (não bate nele de novo em seguida)
   tick?: number; // Gravidade: próximo dano
-  lockOn?: string | number; // mira travada num corpo (mago ou cópia da Ilusão): persegue só ele e só acerta nele
-  stats?: Level; // números próprios quando o projétil não sai de uma magia (Atacar)
-  src?: string; // fonte do golpe quando não é magia: aparece no acerto e não conta precisão de magia
+  lockOn?: string | number; // locked on one body (wizard or Illusion copy): chases it and can only hit it
+  stats?: Level; // own numbers when the projectile does not come from a spell (Attack)
+  src?: string; // hit source when it is not a spell: shown on the hit, not counted as spell accuracy
   landed?: boolean; // já contou 'land' (Bumerangue e Ricochete acertam mais de uma vez)
   turnAt?: number; // Drenar: quando vira para o mago mais perto; Elo: quando recolhe
   bonus?: number; // Recarga: dano a mais pelos acertos seguidos
@@ -1129,10 +1129,10 @@ function windTouch(w: World, wz: Wizard) {
 // Marcas de chão não são desviadas por habilidades; a cópia da Ilusão continua móvel.
 const fixed = (p: Projectile) => p.kind === 'meteor' || p.kind === 'warpzone' || p.kind === 'grip';
 const returning = (p: Projectile) => !!p.back && (p.kind === 'drain' || p.kind === 'recharge'); // bolinha voltando a quem lançou
-export const spellOf = (k: ProjKind): SpellId => (k === 'shard' ? 'splitter' : k === 'basic' ? 'fireball' : k); // Atacar usa o visual da Bola de fogo; números e fonte do golpe vêm do próprio projétil (stats, src)
+export const spellOf = (k: ProjKind): SpellId => (k === 'shard' ? 'splitter' : k === 'basic' ? 'fireball' : k); // Attack reuses the Fireball visuals; numbers and hit source come from the projectile (stats, src)
 // acerto conta para quem lançou ('land'), não para quem devolveu; once: só o primeiro (os que acertam mais de uma vez)
 function land(w: World, p: Projectile, src: SpellId, once = false) {
-  if (p.src) return; // golpe fora das magias não conta precisão
+  if (p.src) return; // hits outside spells do not count accuracy
   if (p.owner === p.caster && !(once && p.landed)) w.events.push({ k: 'land', id: p.caster, src });
   if (once) p.landed = true;
 }
@@ -1422,7 +1422,7 @@ function stepProjectiles(w: World) {
     if (fake && (!found || fake.t <= found.t) && (!pil || fake.t < pil.t)) {
       pushDecoy(fake.q, scale(norm(p.vel), L.knock * p.dmgMult), L.dmg * p.dmgMult);
       p.decoy = fake.q.id;
-      if (p.lockOn !== undefined) continue; // mira travada termina na cópia escolhida, como no corpo real.
+      if (p.lockOn !== undefined) continue; // a locked shot ends on the chosen copy, like on the real body
     }
     // a Bola de neve atravessa magos (arrastando) e só para em obstáculo ou escudo
     if (p.kind === 'snowball' && found && !shielded(w, found.wz) && (!pil || found.t <= pil.t)) {
@@ -1493,7 +1493,7 @@ function stepProjectiles(w: World) {
         const back = shooter ? norm(sub(shooter.pos, p.pos)) : scale(norm(p.vel), -1);
         p.vel = scale(back, len(p.vel));
         p.target = p.kind === 'homing' ? ((shooter && !allies(shooter, wz) ? shooter.id : null) ?? nearestEnemy(w, p.pos, wz.id)?.id ?? null) : null;
-        if (p.lockOn !== undefined) p.lockOn = shooter?.id; // devolvido trava em quem atirou
+        if (p.lockOn !== undefined) p.lockOn = shooter?.id; // reflected: locks on the shooter
         p.owner = wz.id;
         p.until = w.t + (p.kind === 'homing' ? L.duration : L.range / L.speed);
         w.events.push({ k: 'reflect', id: wz.id, x: p.pos.x, y: p.pos.y });
@@ -1777,7 +1777,7 @@ function wallClip(w: World, a: Vec, b: Vec): Vec {
   return b;
 }
 
-// cópias da Ilusão em jogo de quem não é aliado de `id`
+// live Illusion copies of players who are not allies of `id`
 function enemyDecoys(w: World, id: string): Projectile[] {
   const me = anyById(w, id);
   return w.projectiles.filter((q) => { const o = q.kind === 'illusion' && q.until > w.t && q.owner !== id ? anyById(w, q.owner) : undefined; return !!o && !allies(me, o); });
@@ -1788,7 +1788,7 @@ function attackBody(w: World, by: Wizard, target: string | number, visible = tru
   const z = byId(w, target);
   return z && z !== by && !allies(by, z) && (!visible || w.t >= Math.max(z.veilUntil, z.windUntil)) ? z : undefined;
 }
-// Atacar não é magia: os números vêm de BASIC_ATTACK, sem herdar nada da Bola de fogo
+// Attack is not a spell: numbers come from BASIC_ATTACK, nothing inherited from Fireball
 const BASIC_STATS: Level = { cd: BASIC_ATTACK.cd, dmg: BASIC_ATTACK.dmg, knock: BASIC_ATTACK.knock, speed: BASIC_ATTACK.speed, range: BASIC_ATTACK.range, duration: 0, radius: 0, dmgMin: 0, absorb: 0, pull: 0, scale: 0, dot: 0 };
 function beginBasic(w: World, wz: Wizard, c: Extract<Cmd, { kind: 'basic' }>) {
   if (isStunned(wz) || wz.casting || wz.basicCasting || w.t < (wz.basicReadyAt ?? 0)) return;
