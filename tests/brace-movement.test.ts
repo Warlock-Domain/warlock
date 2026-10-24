@@ -13,8 +13,8 @@ const setup = () => {
   z.braceReadyAt = 0; z.braceUntil = 5;
   return { w, z };
 };
-describe('Manter base bloqueia caminhada enquanto ativo', () => {
-  it('ignora clique e direito mantido, sem caminhar depois de soltar S', () => {
+describe('Hold ground locks walking while active', () => {
+  it('ignores clicks and a held right button, no walking after releasing S', () => {
     const { w, z } = setup();
     z.target = v(3, 0); z.moveHeld = true;
     run(w, .1, [{ id: z.id, kind: 'move', to: v(4, 0), held: true }]);
@@ -24,12 +24,12 @@ describe('Manter base bloqueia caminhada enquanto ativo', () => {
     run(w, .2, [{ id: z.id, kind: 'move', to: v(4, 0) }]);
     expect(z.pos.x).toBeGreaterThan(0);
   });
-  it('não remove impulso externo, nem bloqueia uma magia pronta', () => {
+  it('does not remove external impulse or block a ready spell', () => {
     const { w, z } = setup(); z.vel = v(.8, 0); z.spells.shield = 1;
     run(w, .15, [{ id: z.id, kind: 'cast', spell: 'shield', at: v(0, 0) }]);
     expect(z.pos.x).toBeGreaterThan(0); expect(z.shieldUntil).toBeGreaterThan(w.t);
   });
-  it('previsão também descarta movimento, sem reativá-lo ao sair da postura', () => {
+  it('prediction also drops movement, without reviving it when leaving the pose', () => {
     const { w } = setup(); const p = createPredict();
     const s = decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']).wizards[0];
     expect(s.status & BRACING_BIT).not.toBe(0);
