@@ -70,6 +70,14 @@ type Summary = {
   picked: Record<string, number>;
 };
 type SummaryValue = string | number | { [key: string]: SummaryValue };
+const SUMMARY_FIELD_GROUPS = {
+  strings: ['seed', 'plan', 'difficulty', 'arena', 'effect', 'startedAt'],
+  numbers: ['seconds', 'roundsPerMin', 'matches', 'rounds', 'playerRounds', 'noWinner', 'stalled', 'botMatches'],
+  objects: ['modes', 'sizes', 'duration', 'owned', 'sources', 'deathBy', 'arenaDur', 'picked'],
+} as const satisfies Record<string, readonly (keyof Summary)[]>;
+type SummaryField = (typeof SUMMARY_FIELD_GROUPS)[keyof typeof SUMMARY_FIELD_GROUPS][number];
+const summaryFieldsAreComplete: Exclude<keyof Summary, SummaryField> extends never ? true : never = true;
+void summaryFieldsAreComplete;
 
 // por chave ('spell:lightning', 'item:armor@2', 'pair:grip+meteor'...): jogadores-rodada com aquilo, vitórias, vitórias esperadas e médias
 // by (só em all, spell:* e item:*): por recorte (all, small 2–4 magos, large 5–8, rounds, teams), as faixas de ouro gasto
@@ -341,10 +349,8 @@ function isAgg(value: unknown): value is Agg {
 // Os arquivos ficam fora do git; valide o formato antes de combinar dados antigos com novas medições.
 function isSummary(value: unknown): value is Summary {
   if (!isRecord(value)) return false;
-  // Ao mudar Summary, atualize também esta lista para aceitar o novo formato.
-  const strings = ['seed', 'plan', 'difficulty', 'arena', 'effect', 'startedAt'];
-  const numbers = ['seconds', 'roundsPerMin', 'matches', 'rounds', 'playerRounds', 'noWinner', 'stalled', 'botMatches'];
-  const fields = new Set([...strings, ...numbers, 'modes', 'sizes', 'duration', 'owned', 'sources', 'deathBy', 'arenaDur', 'picked']);
+  const { strings, numbers, objects } = SUMMARY_FIELD_GROUPS;
+  const fields = new Set<string>([...strings, ...numbers, ...objects]);
   const duration = value.duration;
   const sources = value.sources;
   const arenaDur = value.arenaDur;
