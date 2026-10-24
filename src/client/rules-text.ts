@@ -12,6 +12,8 @@ import { LANG, LOCALE, spellName, t } from './i18n.ts';
 // formatação dos números nos textos (também usada pela loja, ficha, dicas e opções)
 export const pct = (x: number) => `${Math.round(x * 100)}%`;
 export const n1 = (x: number) => x.toLocaleString(LOCALE, { maximumFractionDigits: 1 });
+export const cooldownNotice = (spell: SpellId, seconds: number) =>
+  t(`${spellName(spell)} ainda está em recarga: ${n1(seconds)} s restantes.`, `${spellName(spell)} is still on cooldown: ${n1(seconds)} s remaining.`);
 const join = (xs: readonly (string | number)[], last: string) => xs.map(String).join(', ').replace(/, ([^,]*)$/, ` ${last} $1`);
 const list = (xs: readonly (string | number)[]) => join(xs, t('ou', 'or'));
 const L1 = (id: SpellId) => SPELLS[id].levels[0];
