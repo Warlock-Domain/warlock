@@ -8,6 +8,12 @@ import { ITEMS, MAX_ITEMS, type ItemId } from '../shared/items.ts';
 import { keyLabel, keyOf, padButtonName, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
 import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, RECHARGE, RUSH, SPELLS, SPELL_GROUP_IDS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
 import { LANG, LOCALE, spellName, t } from './i18n.ts';
+import { BASIC_ATTACK } from '../shared/constants.ts';
+
+export const ATTACK_TEXT = t(
+  `Atacar: aperte a tecla do ataque (A por padrão) e clique com o esquerdo num inimigo; no chão, escolhe o inimigo visível mais próximo de você dentro de ${BASIC_ATTACK.range} m. Até ${BASIC_ATTACK.melee.toLocaleString(LOCALE)} m usa corpo a corpo; mais longe, projétil direcionado. Preparo de ${BASIC_ATTACK.windup.toLocaleString(LOCALE)} s: S, movimento, conjuração ou stun cancelam antes do golpe, sem gastar recarga. Cada golpe exige nova ordem; não persegue nem repete sozinho. Causa ${BASIC_ATTACK.dmg} de dano e empurrão leve; o projétil não destrói magias.`,
+  `Attack: press the attack key (A by default), then left-click an enemy; on the ground, selects the visible enemy closest to you within ${BASIC_ATTACK.range} m. Within ${BASIC_ATTACK.melee} m uses melee; farther away, a targeted projectile. A ${BASIC_ATTACK.windup} s windup: S, movement, casting or stun cancel before release without spending the cooldown. Each hit requires a new order; no automatic chasing or repeating. Deals ${BASIC_ATTACK.dmg} damage and light knockback; the projectile does not destroy spells.`
+);
 
 // formatação dos números nos textos (também usada pela loja, ficha, dicas e opções)
 export const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -343,17 +349,19 @@ const SPELL_GROUPS_PT: SpellGroups = [
   ['Mobilidade', 'sair do lugar', [...G.mobility]],
   ['Defesa', 'parar o que vem', [...G.defense]],
   ['Controle', 'prender, puxar, atrasar', [...G.control]],
+  ['Suporte', 'sem magias por enquanto', []],
 ];
 const SPELL_GROUPS_EN: SpellGroups = [
   ['Attack', 'damage and knockback', [...G.attack]],
   ['Mobility', 'get out of the way', [...G.mobility]],
   ['Defense', 'stop what is coming', [...G.defense]],
   ['Control', 'grip, pull, slow', [...G.control]],
+  ['Support', 'no spells yet', []],
 ];
 export { SPELL_GROUPS_EN, SPELL_GROUPS_PT };
 export const SPELL_GROUPS = LANG === 'en' ? SPELL_GROUPS_EN : SPELL_GROUPS_PT;
 // classe de cor do grupo (Fernando, 19/10: uma cor por setor): g-ataque, g-mobilidade, g-defesa, g-controle (o rótulo em inglês cai na mesma classe)
-const GROUP_CLASS_EN: Record<string, string> = { attack: 'ataque', mobility: 'mobilidade', defense: 'defesa', control: 'controle' };
+const GROUP_CLASS_EN: Record<string, string> = { attack: 'ataque', mobility: 'mobilidade', defense: 'defesa', control: 'controle', support: 'suporte' };
 export const groupClass = (name: string) => 'g-' + (GROUP_CLASS_EN[name.toLowerCase()] ?? name.toLowerCase());
 export const spellClass = (s: SpellId) => groupClass(SPELL_GROUPS.find(([, , ids]) => ids.includes(s))?.[0] ?? '');
 // loja: itens passivos em seções como as magias (Fernando, 21/10), pelo efeito principal
