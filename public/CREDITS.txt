@@ -139,6 +139,9 @@ warlock-wars.svg (vetorial, o W em <path>), favicon.ico (16, 32 e 48 px) e apple
     Botas de choque: lorc/winged-leg.svg, Lorc (http://lorcblog.blogspot.com)
     Égide: lorc/angel-wings.svg, Lorc (http://lorcblog.blogspot.com)
     Botas de vento: lorc/feather.svg, Lorc (http://lorcblog.blogspot.com)
+    Lente Letal: lorc/magnifying-glass.svg, Lorc (http://lorcblog.blogspot.com)
+    Magia Perfurante: lorc/pierced-heart.svg, Lorc (http://lorcblog.blogspot.com)
+    Runa da aflição: lorc/rune-stone.svg, Lorc (http://lorcblog.blogspot.com)
   Runas:
     Pressa: delapouite/rabbit.svg, Delapouite (http://delapouite.com)
     Fúria: delapouite/enrage.svg, Delapouite (http://delapouite.com)
@@ -197,10 +200,5 @@ Gravações de provocações de Leonard (lboesmans), 21/10/2026 (PR #243, aceita
   uso e redistribuição neste repositório público e no jogo Warlock.
   Permissão expressa do autor para o projeto; não presumir CC0 nem licença de terceiros.
 
-Manter base: Heavy Whoosh 02, DRAGON-STUDIO (Pixabay, 10/10/2025).
-  public/sfx/brace_whoosh_trial.mp3: arquivo fornecido por Leonard para o aviso da postura.
-  Fonte: https://pixabay.com/sound-effects/heavy-whoosh-02-414578/
-  Licença da fonte: Pixabay Content License (não é uma declaração CC0).
-  https://pixabay.com/service/license-summary/
-  Uso como recurso integrado ao jogo; não redistribuir como biblioteca/arquivo avulso.
-  O asset conserva sua licença própria, não a licença do código do repositório.
+Manter base: public/sfx/brace_start.mp3, gravação enviada por Leonard (lboesmans), declarada CC0 por ele.
+  Origem do áudio: a confirmar pelo autor no PR #293.

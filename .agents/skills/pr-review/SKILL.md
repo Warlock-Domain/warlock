@@ -28,6 +28,10 @@ First restate the intended outcome in your own words. Compare the implementation
 
 Trace the affected behavior through its callers, state transitions, server/client boundary, and failure paths. Consider whether the change preserves existing behavior where required and follows this repository's invariants, including determinism, validated client messages, localization, asset licensing, UI components, and balance simulation when applicable.
 
+For player-facing client changes, verify localization explicitly: route every visible string through `t('Portuguese', 'English')`, use `spellName`, `itemName`, `itemText`, and `arenaName` for catalog content, and format numbers with `LOCALE` and the existing helpers such as `n1`/`pct`. Read both language values and confirm each is meaningful; raw English-only or Portuguese-only UI text is a finding. CI runs `tests/i18n.test.ts`, which checks empty sides in literal `t(...)` calls in client TypeScript and required English catalog entries. It does not detect every untranslated string or prove that all UI paths are localized, so inspect changed UI code for raw player-facing text as part of review.
+
+English is the repository default for commits, code comments, PR titles and descriptions, and new documentation. In the reviewed code scope, require new and edited comments to be in English; translate relevant legacy Portuguese comments when changing their code and preserve their rationale. Leave unrelated comments untouched. Existing documentation translation is scheduled after all currently open PRs merge; do not expand a PR into that repository-wide task.
+
 Assess the design in the context of this codebase:
 
 - Does it reuse established helpers and patterns, or duplicate behavior that already exists?
@@ -58,6 +62,10 @@ Lead with confirmed findings, ordered by severity. For each finding include:
 - The concrete scenario that causes the problem and its impact.
 - A practical correction, preferably the smallest one.
 
+Classify every actionable finding as a **Blocker** or a **Nit** for merge readiness. A blocker is a confirmed defect or unmet required decision/validation gate that could materially affect correctness, security, data integrity, reliability, agreed behavior, or a project invariant; it must be resolved or explicitly accepted by the owner before merge. A nit is an optional improvement with no material impact on those concerns; it must never hold a PR. Do not downgrade a real defect to a nit to make the PR appear ready.
+
+End the review with exactly one machine-readable line: `**Merge gate:** BLOCKED — <reason>` when any blocker remains, or `**Merge gate:** CLEAR — no blockers` when none remain. Include explicit **Blockers** and **Nits** sections; write `None` when either has no entries. For a new commit, check prior review comments and keep unresolved blockers in the current report until the current diff demonstrably resolves them.
+
 Only report actionable issues supported by the code or a reproducible check. Do not report style preferences, speculative risks, praise, or a checklist of things that already work. If a suspected issue cannot be verified, label it as an open question instead of a finding.
 
 After findings, summarize:
@@ -67,7 +75,7 @@ After findings, summarize:
 - **Coverage gaps:** important behavior not exercised by the available tests.
 - **Recommendation:** ready for approval, hold for named gates, or changes needed for named findings.
 
-If no actionable code findings remain, say so explicitly. Do not approve, request changes, comment publicly, merge, push, or edit the PR unless the user separately asks for that action. Use the user's requested language for the report.
+If no actionable code findings remain, say so explicitly. Do not approve, request changes, comment publicly, merge, push, or edit the PR unless the user separately asks for that action. Write the report in English unless the user explicitly requests another language.
 
 ## Primary references
 

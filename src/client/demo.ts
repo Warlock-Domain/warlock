@@ -48,7 +48,8 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   boomerang: { end: 3.4, steps: [[0.4, A, 'boomerang', B]] },
   thrust: { end: 2.6, steps: [[0.4, A, 'thrust', B]] },
   gravity: { end: 3.4, steps: [[0.4, A, 'gravity', v(2, 0.8)]] },
-  rockpillar: { end: 2.6, steps: [[0.2, B, 'fireball', A], [0.3, A, 'rockpillar', v(-1.2, 0)]] },
+  // o terceiro fica onde a parede cai (#206): leva o golpe da queda e voa para o lado, e a parede ainda segura a Bola de fogo
+  rockpillar: { pos: [v(-3, 0), v(2, 0), v(-1.2, 0.3)], end: 2.6, steps: [[0.2, B, 'fireball', A], [0.3, A, 'rockpillar', v(-1.2, 0)]] },
   bouncer: { pos: [v(-3, 0), v(1.5, 0), v(2.5, 1.8)], end: 3, steps: [[0.4, A, 'bouncer', B]] },
   drain: { pos: [v(-3, 0), v(2, 0.6), v(2.6, -1.8)], end: 3.6, steps: [[0.4, A, 'drain', v(1.5, 0)]], prep: (w) => (w.wizards[A].hp = 700) },
   snowball: { pos: [v(-3, 0), v(-0.6, 0.1), v(0.3, -0.5)], end: 3, steps: [[0.4, A, 'snowball', v(1, 0)]] },

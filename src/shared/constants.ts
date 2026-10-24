@@ -23,19 +23,20 @@ export const FRICTION = -Math.log(0.96) / 0.035; // 0,96 por tique de 0,035 s: a
 export const KB_SOFT_CAP = 100; // golpe acima disso empurra pela raiz (como no original, pawn.lua do mod de Dota 2)
 export const KB_PER_DMG = 10 * UNIT; // empurrão (m/s) por ponto de dano: 10 unidades/s por dano, como no original
 export const STUN_SPEED = 1.5; // deslizando mais rápido que isso, o mago não anda
-// Teste local pedido pelo Leonard: retomada em degraus, sem carregar impulso residual para a caminhada.
+// Retomada escolhida pelo Leonard: 50%, +10pp a cada0,2s, chegando a100% em1s.
 export const KNOCK_RECOVERY = { seconds: 1, start: .5, step: .1, interval: .2 };
-export const KNOCK_HP_SCALE = 0; // teste local 22/10, opção 3 do Leonard: dano histórico não amplifica o empurrão.
+export const KNOCK_HP_SCALE = 0; // 22/10: dano histórico não amplifica empurrão; impulsos e resistência continuam valendo.
 export const LAVA_KB_FACTOR = 0.5;
 export const CREDIT_WINDOW = 5; // o abate vai para quem acertou nos últimos 5 s
 export const PROJ_R = 0.2;
 // Protótipo local do Leonard: ataque leve separado da build; números iniciais para teste, não balanceados.
 export const BASIC_ATTACK = { dmg: 15, knock: .8, speed: 8, range: 6, cd: .8, windup: .4, melee: 1.2 };
-// Renovação curta evita manter a defesa se a aba perder foco ou o socket sumir sem enviar soltura.
-export const BRACE = { resistance: .15, lease: .4, windup: .5 };
+// A short lease stops the guard from sticking if the tab loses focus or the socket drops without a release. 0.5 s, above the
+// Normal bot's 0.4 s think: at 0.4 the bot's renewal landed exactly on expiry and restarted the windup every time
+export const BRACE = { resistance: .15, lease: .5, windup: .5 };
 export const INCAPACITATED_BIT = 268435456; // recargas pausadas; habilidades prontas continuam utilizáveis.
 export const ELECTROCUTED_BIT = 536870912; // efeito elétrico visual.
-export const BRACING_BIT = 1073741824; // Manter base ativo, sincronizado com a pose.
+export const BRACING_BIT = 1073741824; // Hold ground active, kept in sync with the pose.
 // o projétil nasce na frente do mago, com o centro a esta distância do centro dele
 export const PROJ_SPAWN = WIZ_R + PROJ_R + 0.05;
 
@@ -59,6 +60,11 @@ export const OBSTACLES: Record<ObstacleKind, { r: number; hp: number; blastR: nu
   // Some sozinho (Pillar.until)
   rockpillar: { r: 0.35, hp: 200, blastR: 300 * UNIT, blastDmg: 10, weight: 0 },
 };
+
+// mapa da Campanha (levels.ts; Lucas, 19/10): empurrado para o abismo, o mago perde parte da vida máxima e volta à beira de
+// onde caiu; a cera deixa lento como o chão arcano (números iniciais, a medir)
+export const PIT = { hit: 0.15 };
+export const WAX = { mult: 0.6 };
 
 export const WALL_GAP = 0.65; // centro a centro dos 3 pedaços da parede: 2 × 0,65 + 2 × 0,35 = 2 m, a largura do modelo
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanName, parseClientMessage } from '../src/shared/protocol.ts';
+import { cleanName, cmdTarget, parseClientMessage } from '../src/shared/protocol.ts';
 import { newWorld, stepWorld } from '../src/shared/sim.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
 import { noSpells } from '../src/shared/spells.ts';
@@ -20,6 +20,18 @@ describe('protocolo', () => {
     expect(p({ t: 'vote', kind: 'shuffle', target: 'x' })).toEqual({ t: 'vote', kind: 'shuffle' });
     expect(p({ t: 'vote', kind: 'kick', target: 'p1a2b3' })).toEqual({ t: 'vote', kind: 'kick', target: 'p1a2b3' });
     expect(p({ t: 'ballot', yes: false })).toEqual({ t: 'ballot', yes: false });
+    expect(p({ t: 'resources', session: '12345678-1234-1234-1234-123456789abc', build: '2026-10-24 · 123abcd', geometries: 42, textures: 18, heapBytes: 12_345_678 }))
+      .toEqual({ t: 'resources', session: '12345678-1234-1234-1234-123456789abc', build: '2026-10-24 · 123abcd', geometries: 42, textures: 18, heapBytes: 12_345_678 });
+  });
+
+  it('keeps move/cast targets inside the room: ±30 m in the arena, the map rectangle in the Campaign', () => {
+    // a sala normal recusa fora da arena como antes da Campanha (o parser agora aceita até 400 m por causa do mapa da noite)
+    expect(cmdTarget(undefined, 35, 0)).toBeNull();
+    expect(cmdTarget(undefined, 0, -31)).toBeNull();
+    expect(cmdTarget(undefined, 30, -30)).toEqual(v(30, -30));
+    const map = { w: 190, h: 24, cells: new Uint8Array(190 * 24), home: v(1, 1) };
+    expect(cmdTarget(map, 35, 10)).toEqual(v(35, 10));
+    expect(cmdTarget(map, 500, -3)).toEqual(v(190, 0));
   });
 
   it('rejects bad commands', () => {
@@ -38,6 +50,10 @@ describe('protocolo', () => {
     expect(p({ t: 'vote', kind: 'mode', target: 'x' })).toBeNull();
     expect(p({ t: 'vote', kind: 'mode' })).toBeNull();
     expect(p({ t: 'ballot', yes: 'sim' })).toBeNull();
+    expect(p({ t: 'resources', session: 'player-id', build: 'dev', geometries: 1, textures: 1 })).toBeNull();
+    expect(p({ t: 'resources', session: '12345678-1234-1234-1234-123456789abc', build: 'dev', geometries: -1, textures: 1 })).toBeNull();
+    expect(p({ t: 'resources', session: '12345678-1234-1234-1234-123456789abc', build: 'dev', geometries: 1, textures: 100_001 })).toBeNull();
+    expect(p({ t: 'resources', session: '12345678-1234-1234-1234-123456789abc', build: 'dev', geometries: 1, textures: 1, heapBytes: 8_000_000_001 })).toBeNull();
     expect(parseClientMessage('nada')).toBeNull();
     expect(p([1, 2])).toBeNull();
   });

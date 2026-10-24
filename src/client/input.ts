@@ -15,7 +15,8 @@ export type InputHandlers = {
   basic?: (at: Vec, target?: string) => void;
   pickAttack?: (x: number, y: number) => string | undefined;
   attackArmedChanged?: (on: boolean) => void;
-  cast: (spell: SpellId, at: Vec) => boolean | void; // true quando saiu de verdade (sem recarga, com a magia)
+  cast: (spell: SpellId, at: Vec) => boolean | void; // true when the spell actually casts (owned and off cooldown)
+  checkCooldown?: (spell: SpellId) => boolean;
   center: () => void;
   zoom: (deltaY: number) => void;
   pan: (dx: number, dy: number) => void;
@@ -68,10 +69,10 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   };
   const releaseMove = () => { if (dragging) h.holdMove?.(false); dragging = false; };
   const cancelPointer = () => { releaseMove(); panning = space = panned = false; };
-  // Ao perder foco/cancelar o ponteiro pode não chegar pointerup: não deixar o mouse virar um comando fantasma.
+  // On blur/pointer cancel a pointerup may never arrive: do not let the mouse turn into a ghost command.
   addEventListener('blur', () => { cancel(); arm(null); cancelPointer(); releaseBrace(); });
   addEventListener('visibilitychange', () => { if (document.hidden) releaseBrace(); });
-  // Diálogos capturam teclas: a soltura precisa chegar antes deles, senão o intervalo renovaria a defesa.
+  // Dialogs capture keys: the release must arrive before them, or the interval would renew the guard.
   addEventListener('keyup', (e) => { if (e.code === braceCode) releaseBrace(); }, { capture: true });
   addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || (['shop', 'sheet', 'rules', 'library', 'taunt'] as const).some((a) => isUiKey(e.code, a))) releaseBrace();
@@ -126,9 +127,6 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       if (armed || attackArmed) arm(null); // botão direito cancela a ação escolhida (e anda, como no Dota)
       h.move(p, e.button === 2);
       dragging = e.button === 2;
-    } else if (e.button === 0 && armed === null) {
-      // clique esquerdo no chão sem magia escolhida também anda (ajuda quem joga com trackpad)
-      h.move(p);
     }
   });
   addEventListener('pointerup', (e) => {
@@ -136,7 +134,6 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     if (e.button === 0) panning = false;
   });
   addEventListener('keyup', (e) => {
-    if (e.code === braceCode) releaseBrace();
     if (held && e.code === held.code) return release();
     if (e.code !== 'Space') return;
     space = false;
@@ -159,9 +156,13 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       if (attackArmed) arm(null);
       e.preventDefault();
       const mode = getCastMode();
-      if (mode === 'click') return arm(action); // escolhe e mostra o alcance; o clique esquerdo lança
+      if (mode === 'click') {
+        if (h.checkCooldown && !h.checkCooldown(action)) return arm(null);
+        return arm(action); // select the spell and show its range; left click casts
+      }
       if (mode === 'release') {
-        if (held) release(); // outra tecla com uma segurada: a primeira sai antes
+        if (held) release(); // cast the first spell before starting to hold another
+        if (h.checkCooldown && !h.checkCooldown(action)) return;
         held = { action, code: e.code };
         return h.preview(action);
       }
@@ -208,9 +209,12 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     },
     // ponto do chão sob o mouse (o Meteoro desenha a explosão ali)
     aimPoint: () => h.pick(cursor.x, cursor.y),
-    // botão da barra: escolhe e o próximo clique (ou toque) no chão lança
+    // The toolbar selects a spell; the next ground click or tap casts it.
     button(a: SpellId) {
-      if (enabled) arm(armed === a ? null : a);
+      if (!enabled) return;
+      if (armed === a) return arm(null);
+      if (h.checkCooldown && !h.checkCooldown(a)) return arm(null);
+      arm(a);
     },
   };
 }
