@@ -2,6 +2,9 @@
 
 Vale junto com o `CLAUDE.md` da raiz.
 
+- `balance-sim.ts`, `build-tournament.ts`, `sim-lib.ts`, `style-ref.ts` e `tournament-plan.ts` are checked by `tsconfig.scripts.json` with strict NodeNext settings and explicit Node 24 declarations. Keep source syntax erasable so Node 24 can execute the files directly.
+- Balance `summary.json` files use the `Summary` type in `balance-sim.ts`. The `--merge` boundary parses as `unknown`, validates every aggregate before merging, and rejects malformed or incompatible files.
+
 - Os `.ts` rodam direto com `node scripts/x.ts` (sem ts-node/tsx): imports com extensão `.ts` e só TypeScript apagável (sem `enum`, sem `namespace`). Argumentos por `parseArgs` de `node:util`; argumento inválido vira `throw` no começo.
 - **`balance-sim.ts`:** `--minutes`, `--seed`, `--difficulty easy|casual|normal|veteran|hard`, `--plan random|classic|smart`, `--arena`, `--rounds`, `--every`, `--out`; juntar processos com `--merge --out <total> <p1> <p2>…`. Grava `summary.json` e `report.md` em `balance/` (fora do git).
 - **`build-tournament.ts`:** `--pop`, `--keep`, `--gen` além de `--minutes`/`--seed`/`--difficulty`/`--out`; roda com prioridade baixa.

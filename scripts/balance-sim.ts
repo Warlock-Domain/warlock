@@ -44,10 +44,35 @@ const rng = seedRandom(seed);
 // smart = as combinações que funcionam (para a escolha por magia dizer algo)
 botConfig.planner = arg.plan === 'classic' ? () => CLASSIC_PLAN : arg.plan === 'smart' ? smartPlan : randomPlan;
 
+type Agg = { n: number; wins: number; exp: number; dmg: number; kills: number; deaths: number; alive: number; gold: number; by?: Record<string, Bands> };
+type Summary = {
+  seed: string;
+  plan: string;
+  difficulty: string;
+  arena: string;
+  effect: string;
+  startedAt: string;
+  seconds: number;
+  roundsPerMin: number;
+  matches: number;
+  rounds: number;
+  playerRounds: number;
+  noWinner: number;
+  stalled: number;
+  modes: Record<string, number>;
+  sizes: Record<string, number>;
+  duration: { sum: number; by10s: Record<string, number> };
+  owned: Record<string, Agg>;
+  sources: Record<string, { fired: number; landed: number; dmg: number }>;
+  deathBy: Record<string, number>;
+  arenaDur: Record<string, { rounds: number; sum: number }>;
+  botMatches: number;
+  picked: Record<string, number>;
+};
+
 // por chave ('spell:lightning', 'item:armor@2', 'pair:grip+meteor'...): jogadores-rodada com aquilo, vitórias, vitórias esperadas e médias
 // by (só em all, spell:* e item:*): por recorte (all, small 2–4 magos, large 5–8, rounds, teams), as faixas de ouro gasto
-type Agg = { n: number; wins: number; exp: number; dmg: number; kills: number; deaths: number; alive: number; gold: number; by?: Record<string, Bands> };
-const S = {
+const S: Summary = {
   seed: String(seed), plan: arg.plan, difficulty: arg.difficulty, arena: arg.arena, effect: arg.effect, startedAt: new Date().toISOString(), seconds: 0, roundsPerMin: 0,
   matches: 0, rounds: 0, playerRounds: 0, noWinner: 0, stalled: 0,
   modes: {} as Record<string, number>, sizes: {} as Record<string, number>,
@@ -288,6 +313,79 @@ function save() {
 function write() {
   writeAtomic(outDir, [['summary.json', JSON.stringify(S, null, 1)], ['report.md', report()]]);
 }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isNumberRecord(value: unknown): value is Record<string, number> {
+  return isRecord(value) && Object.values(value).every(isFiniteNumber);
+}
+
+function isBands(value: unknown): value is Bands {
+  return isRecord(value) && Object.values(value).every((cell) =>
+    isRecord(cell) && isFiniteNumber(cell.n) && isFiniteNumber(cell.w) && isFiniteNumber(cell.e));
+}
+
+function isAgg(value: unknown): value is Agg {
+  return isRecord(value)
+    && ['n', 'wins', 'exp', 'dmg', 'kills', 'deaths', 'alive', 'gold'].every((key) => isFiniteNumber(value[key]))
+    && (value.by === undefined || (isRecord(value.by) && Object.values(value.by).every(isBands)));
+}
+
+// Summary JSONs are persisted outside git, so validate their full aggregation shape before merging untrusted files.
+function isSummary(value: unknown): value is Summary {
+  if (!isRecord(value)) return false;
+  const strings = ['seed', 'plan', 'difficulty', 'arena', 'effect', 'startedAt'];
+  const numbers = ['seconds', 'roundsPerMin', 'matches', 'rounds', 'playerRounds', 'noWinner', 'stalled', 'botMatches'];
+  const duration = value.duration;
+  const sources = value.sources;
+  const arenaDur = value.arenaDur;
+  return strings.every((key) => typeof value[key] === 'string')
+    && numbers.every((key) => isFiniteNumber(value[key]))
+    && isNumberRecord(value.modes)
+    && isNumberRecord(value.sizes)
+    && isRecord(duration) && isFiniteNumber(duration.sum) && isNumberRecord(duration.by10s)
+    && isRecord(value.owned) && Object.values(value.owned).every(isAgg)
+    && isRecord(sources) && Object.values(sources).every((source) =>
+      isRecord(source) && isFiniteNumber(source.fired) && isFiniteNumber(source.landed) && isFiniteNumber(source.dmg))
+    && isNumberRecord(value.deathBy)
+    && isRecord(arenaDur) && Object.values(arenaDur).every((entry) =>
+      isRecord(entry) && isFiniteNumber(entry.rounds) && isFiniteNumber(entry.sum))
+    && isNumberRecord(value.picked);
+}
+
+function readSummary(directory: string): Summary {
+  const file = join(directory, 'summary.json');
+  const value: unknown = JSON.parse(readFileSync(file, 'utf8'));
+  if (!isSummary(value)) throw new Error(`${file} does not match the balance summary schema`);
+  return value;
+}
+
+function mergeSummaryValues(left: unknown, right: unknown): unknown {
+  if (typeof right === 'number') {
+    if (left === undefined) return right;
+    if (typeof left !== 'number') throw new Error('Cannot merge incompatible balance summary values');
+    return left + right;
+  }
+  if (typeof right === 'string') {
+    if (left === undefined || left === right) return right;
+    if (typeof left !== 'string') throw new Error('Cannot merge incompatible balance summary values');
+    return `${left}, ${right}`;
+  }
+  if (!isRecord(right)) throw new Error('Cannot merge unsupported balance summary value');
+  if (left !== undefined && !isRecord(left)) throw new Error('Cannot merge incompatible balance summary values');
+  const previous = left ?? {};
+  const keys = new Set([...Object.keys(previous), ...Object.keys(right)]);
+  return Object.fromEntries([...keys].map((key) => [key, key in right
+    ? mergeSummaryValues(previous[key], right[key])
+    : previous[key]]));
+}
+
 process.on('SIGINT', () => {
   save();
   process.exit(130);
@@ -295,12 +393,12 @@ process.on('SIGINT', () => {
 
 // --merge: soma os summary.json das pastas dadas (todos os campos são somas) e grava um report.md único em --out
 if (arg.merge) {
-  const sum = (a: any, b: any): any =>
-    typeof b === 'number' ? (a ?? 0) + b
-    : b && typeof b === 'object' ? Object.fromEntries([...new Set([...Object.keys(a ?? {}), ...Object.keys(b)])].map((k) => [k, k in b ? sum(a?.[k], b[k]) : a[k]]))
-    : a === undefined || a === b ? b : `${a}, ${b}`;
-  const parts = positionals.map((d) => JSON.parse(readFileSync(join(d, 'summary.json'), 'utf8')));
-  Object.assign(S, parts.reduce(sum, undefined));
+  if (!positionals.length) throw new Error('--merge requires at least one summary directory');
+  const parts = positionals.map(readSummary);
+  let merged: unknown;
+  for (const part of parts) merged = mergeSummaryValues(merged, part);
+  if (!isSummary(merged)) throw new Error('Merged balance summaries do not match the summary schema');
+  Object.assign(S, merged);
   // tempo real: o do processo mais longo; rodadas/min: a soma dos processos (vazão total)
   S.seconds = Math.max(...parts.map((p) => p.seconds));
   S.startedAt = parts.map((p) => p.startedAt).sort()[0];

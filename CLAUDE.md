@@ -34,11 +34,13 @@ npm install
 npx wrangler dev                    # servidor + cliente em http://localhost:8787
 npx tsc --noEmit -p .               # tipos do cliente e do compartilhado
 npx tsc --noEmit -p src/worker      # tipos do servidor
+npx tsc --noEmit -p tsconfig.scripts.json # scripts de balanceamento (Node 24)
+npm run typecheck                  # os três typechecks
 npx vitest run                      # testes
 npx vite build                      # build do cliente (dist/)
 ```
 
-**Gates antes de qualquer commit:** os dois `tsc`, `vitest run` e `vite build`, todos limpos.
+**Gates antes de qualquer commit:** os três `tsc`, `vitest run` e `vite build`, todos limpos.
 
 ## Regras do código
 
@@ -207,7 +209,7 @@ Todo PR do próprio repositório, rascunho também, publica em `https://pr-<n>-w
 
 | Pipeline | Arquivo | Quando roda | O que faz | Se der errado |
 |---|---|---|---|---|
-| CI | `ci.yml` | todo PR e todo push no `master` | os dois `tsc`, `vitest run`, `vite build` | o PR não entra; abra o log em Actions e corrija na mesma branch |
+| CI | `ci.yml` | todo PR e todo push no `master` | os três `tsc`, `vitest run`, `vite build` | o PR não entra; abra o log em Actions e corrija na mesma branch |
 | Título do PR | `pr-title.yml` | ao abrir ou editar o PR | confere o formato `tipo: o que muda` | edite o título; roda de novo sozinho |
 | Revisão do Claude | `claude-review.yml` | PR aberto, commit novo, saiu de rascunho | comenta veredito, checagens e pontos (não aprova nem mescla) | não bloqueia; não roda em fork nem no PR que altera o próprio workflow |
 | `@claude` | `claude.yml` | comentário com `@claude` num PR ou issue | responde e ajuda no próprio PR/issue | — |
@@ -230,7 +232,7 @@ Prints com Playwright headless contra `npx wrangler dev`; confira no PC (1280×7
 
 ## Git
 
-Fluxo completo em [CONTRIBUTING.md](CONTRIBUTING.md): uma branch por tarefa a partir do `master` (`feat/`, `fix/`, `balance/`, `style/`, `docs/`, `refactor/`), commits em português com o tipo na frente (`feat: …`), pull request com o modelo de `.github/`, CI verde (`.github/workflows/ci.yml`: os dois `tsc`, `vitest`, `vite build`) e *squash and merge*. PR da tarefa vai direto para o `master`. Agente: nunca dê push direto no `master`; abra PR.
+Fluxo completo em [CONTRIBUTING.md](CONTRIBUTING.md): uma branch por tarefa a partir do `master` (`feat/`, `fix/`, `balance/`, `style/`, `docs/`, `refactor/`), commits em português com o tipo na frente (`feat: …`), pull request com o modelo de `.github/`, CI verde (`.github/workflows/ci.yml`: os três `tsc`, `vitest`, `vite build`) e *squash and merge*. PR da tarefa vai direto para o `master`. Agente: nunca dê push direto no `master`; abra PR.
 
 ## Publicar
 

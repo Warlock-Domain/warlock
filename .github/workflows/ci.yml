@@ -18,5 +18,6 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit -p .
       - run: npx tsc --noEmit -p src/worker
+      - run: npx tsc --noEmit -p tsconfig.scripts.json
       - run: npx vitest run
       - run: npx vite build
