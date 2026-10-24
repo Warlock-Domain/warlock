@@ -1,12 +1,13 @@
 import { DurableObject } from 'cloudflare:workers';
 import type { RoomInfo } from '../shared/protocol.ts';
-import { addRecord, emptyTotals, type RoundRecord, type Totals } from '../shared/telemetry.ts';
+import { addRecord, addResourceSample, emptyTotals, type ResourceSample, type RoundRecord, type Totals } from '../shared/telemetry.ts';
 
 const RECONCILE_MS = 60_000; // Atualiza entradas órfãs sem fazer RPC a cada mudança do lobby.
 const RECONCILE_BATCH = 8; // Limita o trabalho por alarme; o cursor continua no lote seguinte.
 
 // Lista de salas abertas: um único objeto ('lobby') que todo navegador na tela inicial escuta.
 export class Lobby extends DurableObject<Env> {
+  private resourceWrite: Promise<void> = Promise.resolve();
   // Invalida resultados antigos de inspect enquanto o alarme aguarda o RPC da sala.
   private revisions = new Map<string, number>();
 
@@ -114,6 +115,20 @@ export class Lobby extends DurableObject<Env> {
 
   async telemetry(): Promise<Totals> {
     return (await this.ctx.storage.get<Totals>('telemetry')) ?? emptyTotals();
+  }
+
+  recordResources(sample: ResourceSample): Promise<void> {
+    const write = this.resourceWrite.then(async () => {
+      const samples = (await this.ctx.storage.get<ResourceSample[]>('resource-samples')) ?? [];
+      // The bounded SQLite-backed key is simple to query; serialize updates so concurrent room reports are not lost.
+      await this.ctx.storage.put('resource-samples', addResourceSample(samples, sample));
+    });
+    this.resourceWrite = write.catch(() => {});
+    return write;
+  }
+
+  async resourceSamples(): Promise<ResourceSample[]> {
+    return (await this.ctx.storage.get<ResourceSample[]>('resource-samples')) ?? [];
   }
 
   async has(id: string): Promise<boolean> {

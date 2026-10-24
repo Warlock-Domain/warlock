@@ -2,10 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { addPlayer, buyItem, newMatch, sell, setReady, startMatch, tickMatch, undoBuy } from '../src/shared/match.ts';
 import { ITEM_IDS, MAX_ITEMS } from '../src/shared/items.ts';
 import { MAX_SPELLS, SPELL_IDS } from '../src/shared/spells.ts';
-import { addRecord, emptyTotals, roundRecord, styleRows } from '../src/shared/telemetry.ts';
+import { addRecord, addResourceSample, emptyTotals, RESOURCE_SAMPLE_MAX, roundRecord, styleRows } from '../src/shared/telemetry.ts';
 import { kill, toPlaying, until } from './helpers.ts';
 
 describe('dados de balanceamento', () => {
+  it('keeps only a bounded tail of resource samples', () => {
+    const samples = Array.from({ length: RESOURCE_SAMPLE_MAX }, (_, i) => ({
+      at: i, session: '12345678-1234-1234-1234-123456789abc', build: 'dev', mode: 'rounds' as const,
+      round: 1, players: 2, projectiles: 0, geometries: 10, textures: 5,
+    }));
+    addResourceSample(samples, { ...samples[0], at: RESOURCE_SAMPLE_MAX });
+    expect(samples).toHaveLength(RESOURCE_SAMPLE_MAX);
+    expect(samples[0].at).toBe(1);
+    expect(samples.at(-1)?.at).toBe(RESOURCE_SAMPLE_MAX);
+  });
+
   it('a played round adds usage, damage by source and ownership with wins', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');

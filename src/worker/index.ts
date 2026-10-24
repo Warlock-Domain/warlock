@@ -17,6 +17,7 @@ export default {
 
     if (url.pathname === '/api/health') return new Response('ok');
     if (url.pathname === '/api/telemetry') return Response.json(await lobby.telemetry(), { headers: { 'cache-control': 'no-store' } });
+    if (url.pathname === '/api/telemetry/resources') return Response.json(await lobby.resourceSamples(), { headers: { 'cache-control': 'no-store' } });
     // jeito de jogar: uma linha por humano e por dificuldade dos bots (telemetry.ts styleRows)
     if (url.pathname === '/api/telemetry/style') return Response.json(styleRows(await lobby.telemetry()), { headers: { 'cache-control': 'no-store' } });
 
