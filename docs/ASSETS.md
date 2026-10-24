@@ -20,7 +20,7 @@
 
 ## No jogo (`public/`)
 
-Gêiser: ícone `icons.svg#water-splash` (Lorc, game-icons.net, CC BY 3.0), escolhido pelo Fernando em 24/10 no lugar do desenho provisório. Jato, espuma e poça são geometrias procedurais Three.js em `scene.ts`, com partículas já existentes e creditadas. Altura/cor em `geyser-fx.ts`; som reutiliza `splash`. Sem novos assets externos.
+Gêiser: ícone `icons.svg#water-splash` (Lorc, game-icons.net, CC BY 3.0), escolhido pelo Fernando em 24/10 no lugar do desenho provisório. Jato, espuma e poça são geometrias procedurais Three.js em `scene.ts`, com partículas já existentes e creditadas. Altura/cor em `geyser-fx.ts`; som reutiliza `splash`. Sem outro asset externo além do ícone.
 
 | Arquivo | O que é | Onde é usado | Origem e licença |
 |---|---|---|---|
