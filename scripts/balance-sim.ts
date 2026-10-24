@@ -390,13 +390,12 @@ process.on('SIGINT', () => {
 if (arg.merge) {
   if (!positionals.length) throw new Error('--merge exige ao menos uma pasta de resumo');
   const parts = positionals.map(readSummary);
-  const reference = parts[0];
-  for (const part of parts.slice(1)) {
+  const [first, ...rest] = parts;
+  for (const part of rest) {
     for (const key of ['plan', 'difficulty', 'arena', 'effect'] as const) {
-      if (part[key] !== reference[key]) throw new Error(`Não é possível juntar resumos com ${key} diferentes`);
+      if (part[key] !== first[key]) throw new Error(`Não é possível juntar resumos com ${key} diferentes`);
     }
   }
-  const [first, ...rest] = parts;
   let merged: SummaryValue = first;
   for (const part of rest) merged = mergeSummaryValues(merged, part);
   Object.assign(S, merged);

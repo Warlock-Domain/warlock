@@ -134,7 +134,7 @@ spell/item balance without the required simulator evidence.
 
 ```text
 Bug: [actual behavior], expected [behavior], steps [steps]. Reproduce it, identify the
-cause, make a focused fix, and run the four gates. Open a PR to master using the template.
+cause, make a focused fix, and run all required verification. Open a PR to master using the template.
 ```
 
 ## Code rules that every change must satisfy

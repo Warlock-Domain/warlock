@@ -80,6 +80,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 19/10 | Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3 | baú demais por rodada |
 | 19/10 | Sandbox no Treino (vida e ouro sem fim, bots e boneco pelo painel) | testar magias e interações |
 | 19/10 | `master` protegido (PR + CI + aprovação); revisão automática do Claude em todo PR; ambiente `<nome>-dev` por colaborador; guia do colaborador no repositório | entrada de colaboradores |
+| 24/10 | `scripts/CLAUDE.md` em inglês; os demais `CLAUDE.md` mantêm o idioma já usado na pasta | instruções de scripts compartilhadas com amigos que não leem português |
 | 19/10 | Os `CLAUDE.md` (raiz e pastas) são atualizados a cada decisão nova | todo dev com o mesmo contexto do dono |
 | 19/10 | PR passa pela revisão automática do Claude (comentário com veredito) e pode ser ajustado e mesclado pelo agente do dono, inclusive PR de colaborador; comente `@claude` num PR ou issue para pedir ajuda | mesclar rápido sem o dono revisar à mão |
 | 19/10 | Cada colaborador tem um ambiente dev próprio (`<usuário do GitHub>-dev`, em minúsculas) publicado sozinho a cada push | testar com outras pessoas antes do PR, sem tocar no jogo no ar |
