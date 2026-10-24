@@ -31,4 +31,11 @@ describe('bots hold ground', () => {
     const w = threatened({ ...noSpells(), shield: 1 });
     expect(botCmds(w, 'p0', () => .99).some((c) => c.kind === 'brace')).toBe(false);
   });
+  it('casts Closed body on an active guard while the hit is still coming', () => {
+    const w = threatened({ ...noSpells(), closedbody: 1 });
+    Object.assign(w.wizards[0], { braceReadyAt: w.t, braceUntil: w.t + .3 });
+    const cmds = botCmds(w, 'p0', () => .99);
+    expect(cmds.some((c) => c.kind === 'cast' && c.spell === 'closedbody')).toBe(true);
+    expect(cmds.some((c) => c.kind === 'brace')).toBe(true);
+  });
 });

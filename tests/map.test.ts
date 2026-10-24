@@ -52,6 +52,18 @@ describe('mapa da Campanha', () => {
     }
   });
 
+  it('a wall stops the sand cone (no damage, Blindness or Incapacitate behind it)', () => {
+    const rows = ['##########', '#....#...#', '#....#...#', '#....#...#', '##########'];
+    const w = onMap(rows, [[4.3, 2.5], [6.7, 2.5]], { ...noSpells(), cluster: 1 });
+    run(w, 1, [{ id: 'p0', kind: 'cast', spell: 'cluster', at: v(6.7, 2.5) }]);
+    expect(w.wizards[1].hp).toBe(HP_MAX);
+    expect(w.wizards[1].blindUntil ?? 0).toBe(0);
+    expect(w.wizards[1].incapacitateUntil ?? 0).toBe(0);
+    const open = onMap(ROOM, [[4.3, 2.5], [6.7, 2.5]], { ...noSpells(), cluster: 1 });
+    run(open, 1, [{ id: 'p0', kind: 'cast', spell: 'cluster', at: v(6.7, 2.5) }]);
+    expect(open.wizards[1].hp).toBeLessThan(HP_MAX);
+  });
+
   it('walking into the abyss stops at the edge: only a push makes you fall', () => {
     const rows = ['##########', '#....****#', '#....****#', '#....****#', '##########'];
     const w = onMap(rows, [[2.5, 2.5], [2.5, 1.5]]);

@@ -4,6 +4,11 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Simulação
 
+- Rajada de areia (cluster) em Controle: cone3×2m, dano20+8/nível, Incapacitar1+0,25s/nível e Cegueira2+0,5s/nível. Status independentes respeitam resistências gerais; sem projéteis nem knockback. Cegueira limita visão a3m do alvo (diâmetro6m), inclusive IA.
+
+- Corpo fechado em Defesa: exige Manter base ativo, termina ao soltar S ou no limite3,5+0,75s/nível. Reduz dano, novas durações negativas e novos impulsos em90%; nunca imunidade nem limpeza retroativa. Expirar mantendo S preserva Manter base.
+
+- Gêiser: alvo no chão até10m, área25% menor (raio1,5×√0,75), dura2,5s e suspende qualquer unidade viva atingida; invulnerável, imóvel e sem ações. Projéteis passam sob corpos suspensos, sem exceção entre magias.
 - Curar (Heal): magia de Suporte com alvo em você ou num aliado vivo (de time definido). Cura 45 no nível 1 e +6 por nível, alcance de 10 m, recarga de 20 s e −1 s por nível, com o teto e os modificadores gerais de cura. Alvo inválido não gasta a recarga, não cancela outra ação e não revela o mago. Conjuração instantânea; custo 12, subidas de 6 a 11.
 
 - IA sob véu da Ilusão: ready/free recusam qualquer conjuração até veilUntil; movimento permanece permitido. Humanos conservam a regra de se revelar ao usar outra magia. Isso não declara resolvido risco residual Ilusão×Flagelo ao reviver.

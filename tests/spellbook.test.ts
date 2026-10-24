@@ -35,6 +35,7 @@ describe('magias da Campanha separadas dos outros modos', () => {
     for (const s of SPELL_IDS) {
       const w = world([[0, 0], [3, 0]], { ...noSpells(), [s]: 1 }, [], () => 0.5, false, [0, 1]);
       w.book = slow;
+      if (s === 'closedbody') Object.assign(w.wizards[0], { braceReadyAt: w.t, braceUntil: w.t + 9 }); // Closed body needs an active Hold ground
       stepWorld(w, [{ id: 'p0', kind: 'cast', spell: s, at: s === 'heal' ? v(0, 0) : v(3, 0) }]); // Heal targets the caster or an ally
       for (let i = 0; i < 60; i++) stepWorld(w, []); // 1 s: cobre o preparo mais longo (Flagelo, 0,5 s)
       expect(w.wizards[0].cd[s] - w.t, s).toBeGreaterThan(90);

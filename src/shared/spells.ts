@@ -1,7 +1,7 @@
 import { FRICTION, KB_PER_DMG, UNIT, WIZ_SPEED } from './constants.ts';
 
 export const SPELL_IDS = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap', 'grip', 'meteor', 'rush', 'cluster', 'boomerang', 'thrust', 'gravity', 'rockpillar', 'bouncer',
-  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone', 'scourge', 'pact', 'heal'] as const;
+  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone', 'scourge', 'pact', 'heal', 'geyser', 'closedbody'] as const;
 export type SpellId = (typeof SPELL_IDS)[number];
 export const isSpell = (x: unknown): x is SpellId => SPELL_IDS.includes(x as SpellId);
 // 8 magias por mago nas teclas 1 2 3 4 Q W E R (decisão do Fernando, 21/10, issue #217; antes 6); a Bola de fogo e o Flagelo contam
@@ -9,11 +9,11 @@ export const MAX_SPELLS = 8;
 
 // magias pelo efeito principal: a loja e a ajuda mostram os nomes (rules-text.ts); o sorteio das cartas do Ascensão usa os grupos
 export const SPELL_GROUP_IDS = {
-  attack: ['fireball', 'lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball', 'scourge', 'pact'],
+  attack: ['fireball', 'lightning', 'homing', 'meteor', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball', 'scourge', 'pact'],
   mobility: ['teleport', 'swap', 'rush', 'thrust', 'windwalk'],
-  defense: ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion'],
-  control: ['grip', 'gravity', 'link', 'magnetize', 'drain'],
-  support: ['heal'],
+  defense: ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion', 'closedbody'],
+  control: ['grip', 'gravity', 'link', 'magnetize', 'drain', 'cluster'],
+  support: ['heal', 'geyser'],
 } as const satisfies Record<string, readonly SpellId[]>;
 export type SpellGroup = keyof typeof SPELL_GROUP_IDS;
 export const SHIELD = { statusDuration: .6, knock: .6 }; // proposta: reduz novos status/impulsos em40%, nunca recalcula os anteriores.
@@ -23,14 +23,14 @@ export const spellGroup = (s: SpellId) => (Object.keys(SPELL_GROUP_IDS) as Spell
 
 // radius: raio da explosão do Meteoro (e do dano da Gravidade); dmgMin: dano na borda dele; absorb: dano que a Investida converte em velocidade;
 // pull: puxão da Gravidade nos magos (m/s²); scale: tempo dos projéteis inimigos na Zona de dobra; dot: dano por segundo da Bola de neve encostada
-export type Level = { cd: number; dmg: number; heal: number; knock: number; speed: number; range: number; duration: number; radius: number; dmgMin: number; absorb: number; pull: number; scale: number; dot: number };
+export type Level = { cd: number; dmg: number; heal: number; blind: number; incapacitate: number; width: number; knock: number; speed: number; range: number; duration: number; radius: number; dmgMin: number; absorb: number; pull: number; scale: number; dot: number };
 type Spell = { name: string; en: string; cost: number; up: number[]; levels: Level[] };
 
 export const MAX_SPELL_LEVEL = 7;
 
 // os 7 níveis do original (npc_abilities_custom.txt e npc_items_custom.txt); dano na escala de vida 1000 (a do original), distâncias em metros (UNIT)
 // kbf = fator de empurrão da magia no original (o raio empurra 0,92 do normal)
-const L = ({ kbf = 1, ...l }: Partial<Level> & { kbf?: number }): Level => ({ cd: 0, dmg: 0, heal: 0, speed: 0, range: 0, duration: 0, radius: 0, dmgMin: 0, absorb: 0, pull: 0, scale: 0, dot: 0, ...l, knock: (l.dmg ?? 0) * KB_PER_DMG * kbf });
+const L = ({ kbf = 1, ...l }: Partial<Level> & { kbf?: number }): Level => ({ cd: 0, dmg: 0, heal: 0, blind: 0, incapacitate: 0, width: 0, speed: 0, range: 0, duration: 0, radius: 0, dmgMin: 0, absorb: 0, pull: 0, scale: 0, dot: 0, ...l, knock: (l.dmg ?? 0) * KB_PER_DMG * kbf });
 const zip = (a: number[], b: number[]) => a.map((x, i) => [x, b[i]]);
 const steps = (from: number, by: number) => Array.from({ length: MAX_SPELL_LEVEL }, (_, i) => Math.round((from + by * i) * 100) / 100);
 
@@ -50,8 +50,8 @@ export const SPELLS: Record<SpellId, Spell> = {
   meteor: { name: 'Meteoro', en: 'Meteor', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([20, 19.5, 19, 18.5, 18, 17.5, 17], [110, 120, 130, 140, 150, 160, 170]).map(([cd, d], i) => L({ cd: cd * 0.9, dmg: d, dmgMin: 60, kbf: 0, duration: 1.25, /* ciclo 1: recarga ×0,9 (0,94×) */ /* borda 40 → 60 em 17/10 */ radius: [225, 240, 255, 269, 282, 294, 304][i] * UNIT, range: 1000 * UNIT })) },
   // investida: absorve até `absorb` de dano (metade de cada golpe) e vira velocidade
   rush: { name: 'Investida', en: 'Rush', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([21, 20, 19, 18, 17, 16, 15], [6, 6.5, 7, 7.5, 8, 8.5, 9]).map(([cd, duration], i) => L({ cd: cd * 1.2, duration, absorb: (50 + 20 * i) * 0.25 })) }, // 18/10: absorve ¼ e recarga ×1,2; avanço 40 → 20 (1,36 → 1,13)
-  // rajada: 4 projéteis em leque de 844 u/s e 672 u de alcance; empurrão 0,65
-  cluster: { name: 'Rajada', en: 'Cluster', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([15.5, 14.75, 14, 13.25, 12.5, 11.75, 11], [33, 36, 39, 42, 45, 48, 51]).map(([cd, d]) => L({ cd, dmg: d, kbf: 0.65, speed: 844 * UNIT, range: 672 * UNIT })) },
+  // Cone de areia substitui os quatro projéteis; custo e recarga anteriores preservados.
+  cluster: { name: 'Rajada de areia', en: 'Sand Blast', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(15.5, -.75).map((cd, i) => L({ cd, dmg: 20 + 8 * i, kbf: 0, range: 3, width: 2, incapacitate: 1 + .25 * i, blind: 2 + .5 * i })) },
   // as cinco do Warlock Brawl de 17/10 (decisão do Fernando): npc_abilities_custom.txt, base/shop.lua, spells/, projectiles/ e modifiers/
   // bumerangue: curva até o ponto (300 a 800 u) e volta ao dono; empurrão 0,95
   boomerang: { name: 'Bumerangue', en: 'Boomerang', cost: 11, up: [7, 8, 9, 10, 11, 12], levels: zip([16, 13.9, 12.5, 11.7, 11, 10.3, 9.6], [70, 76, 82, 88, 94, 100, 106]).map(([cd, d]) => L({ cd, dmg: d, kbf: 0.95, speed: 1500 * UNIT, range: 800 * UNIT })) },
@@ -78,7 +78,7 @@ export const SPELLS: Record<SpellId, Spell> = {
   alteration: { name: 'Alteração', en: 'Alteration', cost: 11, up: [5, 6, 7, 8, 9, 10], levels: steps(19, -1.5).map((cd) => L({ cd, duration: 2, radius: 120 * UNIT })) },
   // elo: 950 u/s por 860 u e volta; preso, puxa a 1550 u/s²; dmg = dano por segundo no inimigo (sem empurrão).
   // AbilityCooldown do original tem só 6 valores (17 a 7): o nível 7 repete o 7, como o Dota faz
-  link: { name: 'Elo', en: 'Link', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([17, 15, 13, 11, 9, 7, 7], [12, 20, 28, 36, 44, 52, 60]).map(([cd, d]) => L({ cd: cd * 0.64, dmg: d * 5, kbf: 0, speed: 950 * UNIT, range: 860 * UNIT, pull: 1550 * 1.4 * UNIT })) /* 18/10: dano ×5, puxada ×1,4 e recarga ×0,64 (20% abaixo do justo com bots humanos) */ },
+  link: { name: 'Elo', en: 'Link', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([17, 15, 13, 11, 9, 7, 7], [12, 20, 28, 36, 44, 52, 60]).map(([cd, d]) => L({ cd: cd * 0.64, dmg: d * 2.5, kbf: 0, speed: 950 * UNIT, range: 860 * UNIT, pull: 1550 * 1.4 * UNIT })) /* 18/10: damage ×5, pull ×1.4 and cooldown ×0.64 (20% below fair against human-like bots); 24/10: damage halved (×2.5, 30 to 150 per second), owner exception without the simulator: held behind an obstacle, Link never released and killed */ },
   // caminhada no vento: 2,6 s invisível e +200 u/s; o primeiro inimigo encostado leva o dano (empurrão normal)
   windwalk: { name: 'Caminhada no vento', en: 'Windwalk', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([29, 26, 23.5, 21, 19.5, 18.5, 17.5], [54, 60, 66, 72, 78, 84, 90]).map(([cd, d]) => L({ cd: cd * 1.25, dmg: d, duration: 2.6 })) }, // 18/10 bots humanos: recarga ×1,25 (16% e depois 19% acima no Normal)
   // divisor: 700 u/s por até 1 s (ou até o ponto); dmg = dano de cada um dos 8 filhotes
@@ -92,6 +92,9 @@ export const SPELLS: Record<SpellId, Spell> = {
   pact: { name: 'Pacto', en: 'Pact', cost: 10, up: [6, 7, 8, 9, 10, 11], levels: steps(20, -1).map((cd) => L({ cd, duration: 5 })) },
   // Heal: measured on 24/10 (1.07 on Normal and Hard) and approved by Fernando; cost follows the other Support spells
   heal: { name: 'Curar', en: 'Heal', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(45, 6).map((heal, i) => L({ heal, cd: 20 - i, range: 10 })) },
+  //24/10: área−25% pede raio×√0,75, não raio−25%; alcance reduzido a10m. CD/preço continuam provisórios.
+  closedbody: { name: 'Corpo fechado', en: 'Closed Body', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(3.5, .75).map(duration => L({ cd: 20, duration })) }, // duration per level as requested; cost and cooldown under the owner exception, measured later in the batch
+  geyser: { name: 'Gêiser', en: 'Geyser', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(20, -1).map(cd => L({ cd, duration: 2.5, radius: 1.5 * Math.sqrt(.75), range: 10 })) }, // −1 s cooldown per level like Heal, so upgrades buy something (owner exception: measured later in the batch)
 };
 
 // agarrar (ideia do Fernando, 18/10): o preso fica no lugar até o primeiro golpe com dano (ou o fim do tempo), e esse golpe
@@ -107,6 +110,7 @@ export const METEOR_DELAY = 1.15;
 // avanço: 3 m em 0,2 s na direção do mouse (não existe no original; pedido do Fernando, 17/10: o avanço não funcionava)
 export const RUSH = { bonus: 35 * UNIT, perHp: 1.5 * UNIT, share: 0.5, dash: 3, dashTime: 0.2, dashDmg: 20 }; // ciclo 1 (18/10): dano do avanço 60 → 40 (Investida 1,30×) // dashDmg: dano em quem o avanço encostar (pedido do Fernando, 17/10)
 // rajada: ângulos do leque em radianos (cluster.lua)
+export const BLINDNESS = { radius: 3, feather: .6 }; // diâmetro6m no mundo, independente do zoom.
 export const CLUSTER_FAN = [-0.18, -0.06, 0.06, 0.18];
 
 export const HOMING_TURN = 2.5; // rad/s
@@ -126,7 +130,7 @@ export const PROJECTILE_COLLISION = {
   basic: 'fragile',
   fireball: 'fire', homing: 'pulse', cluster: 'plain', swap: 'plain', boomerang: 'plain', gravity: 'plain',
   bouncer: 'plain', drain: 'plain', snowball: 'plain', magnetize: 'plain', recharge: 'plain', link: 'plain',
-  splitter: 'plain', shard: 'plain', grip: null, meteor: null, illusion: null, warpzone: null,
+  splitter: 'plain', shard: 'plain', grip: null, meteor: null, illusion: null, warpzone: null, geyser: null,
 } as const;
 export const THRUST = { start: 0.77, accel: FRICTION, extra: 0.09, endSlow: 0.2, reach: 30 * UNIT, full: 0.8 };
 // gravidade (gravity.lua, gravityprojectile.lua): puxa magos inimigos até 550 u e projéteis até 600 u (1650 u/s², de qualquer dono)
@@ -155,7 +159,7 @@ export const SPLITTER = { spawnSpeed: 250 * UNIT, spawnLife: 0.48, waves: 4, chi
 // tempo de conjuração: a magia sai esse tempo depois da tecla (AbilityCastPoint do original era 0,2 s)
 export const CAST_POINT: Record<SpellId, number> = { fireball: 0.1, lightning: 0.1, homing: 0.1, shield: 0, teleport: 0, swap: 0, grip: 0.1, meteor: 0.1, rush: 0, cluster: 0.1, boomerang: 0.1, thrust: 0, gravity: 0.1, rockpillar: 0, bouncer: 0.1,
   drain: 0.1, snowball: 0.1, illusion: 0, magnetize: 0.1, recharge: 0.1, alteration: 0, link: 0.1, windwalk: 0, splitter: 0, warpzone: 0.1,
-  scourge: 0.5, pact: 0.1, heal: 0 }; // Heal is instant; Scourge keeps its windup.
+  scourge: 0.5, pact: 0.1, heal: 0, geyser: 0.1, closedbody: 0 }; // Heal and Closed body are instant; Scourge keeps its windup; Geyser uses the common 0.1 s windup.
 
 // tabela de níveis própria de um modo (World.book; hoje só a Campanha, em campaign.ts): o que não está nela vem de SPELLS.
 // Assim mudar magia na Campanha não mexe nos outros modos, e quem lê número de magia passa o book do mundo
@@ -173,3 +177,4 @@ export const FREE_SPELLS: SpellId[] = ['fireball', 'scourge'];
 export const noSpells = (): Record<SpellId, number> => ({ ...Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), fireball: 1, scourge: 1 }) as Record<SpellId, number>;
 
 export const spellCount = (spells: Record<SpellId, number>) => SPELL_IDS.filter((s) => spells[s] > 0).length;
+export const CLOSED_BODY = { damage: .1, statusDuration: .1, knock: .1 }; // resistência de90% aos novos efeitos; não limpa os anteriores.
