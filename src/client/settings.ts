@@ -291,7 +291,8 @@ function communicationSection(): Node[] {
     editor.hidden = false;
     editor.replaceChildren(el('h3', {}, t(`Trocar provocação da posição ${position + 1}`, `Change taunt in slot ${position + 1}`)),
       choice(t('Escolha uma provocação', 'Choose a taunt'), TAUNTS.map((x, i) => [i, t(x.text, x.en)]), slots[position], (index) => {
-        if (tauntAudioSrc(TAUNTS[index].id)) void previewTaunt(TAUNTS[index].id).then((ok) => { if (!ok) toast(t('Não foi possível tocar esta provocação.', 'Could not play this taunt.'), 'bad'); });
+        if (tauntAudioSrc(TAUNTS[index].id)) void previewTaunt(TAUNTS[index].id).then((ok) => { if (!ok) toast(t('Não foi possível tocar esta provocação.', 'Could not play this taunt.'), 'bad'); })
+        else stopTauntPreview(); // a text-only taunt has no audio; stop a recording still previewing
         slots = assignTauntSlot(slots, position, index);
         store.set('warlock:taunt-wheel', JSON.stringify(slots));
         wheel.setLabels(labels());
