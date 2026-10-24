@@ -1,19 +1,15 @@
-# scripts — simulador, testes no navegador e ativos
+# scripts — simulation, browser tests, and assets
 
-Vale junto com o `CLAUDE.md` da raiz.
+These instructions apply together with the repository root `CLAUDE.md`.
 
-- Os `.ts` rodam direto com `node scripts/x.ts` (sem ts-node/tsx): imports com extensão `.ts` e só TypeScript apagável (sem `enum`, sem `namespace`). Argumentos por `parseArgs` de `node:util`; argumento inválido vira `throw` no começo.
-- **`balance-sim.ts`:** `--minutes`, `--seed`, `--difficulty easy|casual|normal|veteran|hard`, `--plan random|classic|smart`, `--arena`, `--rounds`, `--every`, `--out`; juntar processos com `--merge --out <total> <p1> <p2>…`. Grava `summary.json` e `report.md` em `balance/` (fora do git).
-- **`build-tournament.ts`:** `--pop`, `--keep`, `--gen` além de `--minutes`/`--seed`/`--difficulty`/`--out`; roda com prioridade baixa.
-- **`sim-lib.ts`** é a base comum: `seedRandom(seed)` (mulberry32, também troca `Math.random`), `playMatch`, `adjusted` (vitória ajustada pelo ouro), `writeAtomic`.
-- **Navegador:** os `*-headless.mjs` importam `openChrome` de `scripts/lib/browser.mjs` (perfil temporário; `PW_PROFILE=<pasta>` para perfil fixo; `PW_CHANNEL=chromium` para o Chromium do Playwright). Argumentos `base pasta [largura altura]`; abaixo de 700 px vira celular com toque. Script novo de navegador usa o mesmo `openChrome`.
-- **`smoke.mjs <url>`** usa WebSocket nativo (sem Playwright); falha com `SMOKE FAIL` e código 1. Roda no domínio depois de toda publicação.
-- **`slim-character.mjs <original.glb> public/models/<id>.glb [nós a remover] [glbs do pacote]`** corta um boneco KayKit: fica só o que está no `KEEP` (clips do próprio boneco) e no `PACK` (copiados osso a osso dos glbs do KayKit Character Animations 1.1, `Rig_Medium`). Clip novo entra numa das listas e ganha gatilho em `CAST_ANIM`/`TAUNT_ANIM` (`src/client/scene.ts`); regere os 9 bonecos e depois rode `scripts/assets/hood.mjs` (capuz no `rogue.glb`).
-- `scripts/assets/` monta `public/icons.svg` e outros ativos: rode à mão e commite o resultado, com crédito em `public/CREDITS.txt` e uma linha em `docs/ASSETS.md`.
-- **`assets/kaykit-index.mjs`** refaz `assets/kaykit/INDICE.md` (nome de cada modelo por pack); rode sempre que um pack entrar, sair ou mudar.
-
-`node scripts/room-cleanup.mjs` (Node 24) testa a classe Room real com armazenamento/socket simulados: limpeza normal, retry do lobby e entrada/saída durante o RPC. Não substitui os testes de runtime.
-
-`node scripts/lobby-reconcile.mjs` (Node 24) tests bounded orphan-room reconciliation, occupancy repair, RPC failure retry, and concurrent lobby updates.
-
-- **`room-load-soak.mjs`** (Node 24, local Wrangler only) accepts `--rooms`, `--clients`, `--duration-seconds`, `--command-ms`, `--cleanup-grace-seconds`, and `--out`. A full default run takes about 11 minutes: concurrent room traffic, reconnect, missing-close ghost, join 10 s before empty-room cleanup, then five-minute empty-room retention plus tolerance. It writes snapshot/ack latency, lobby lifecycle, and driver CPU/memory measurements; Worker CPU/memory stays unavailable unless the runtime exposes it.
+- TypeScript scripts run directly with `node scripts/x.ts` (no ts-node/tsx). Imports use `.ts` extensions and only erasable TypeScript syntax; do not use `enum` or `namespace`. Parse CLI arguments with `parseArgs` from `node:util`; reject invalid values at startup.
+- **`balance-sim.ts`:** supports `--minutes`, `--seed`, `--difficulty easy|casual|normal|veteran|hard`, `--plan random|classic|smart`, `--arena`, `--rounds`, `--every`, and `--out`; merge runs with `--merge --out <total> <p1> <p2>…`. It writes `summary.json` and `report.md` under `balance/` (outside git).
+- **`build-tournament.ts`:** supports `--pop`, `--keep`, and `--gen` in addition to `--minutes`, `--seed`, `--difficulty`, and `--out`; it runs at low process priority.
+- **`sim-lib.ts`** is shared by the balance tools: `seedRandom(seed)` (mulberry32, also replaces `Math.random`), `playMatch`, `adjusted` (gold-adjusted wins), and `writeAtomic`.
+- **Browser:** `*-headless.mjs` scripts import `openChrome` from `scripts/lib/browser.mjs` (temporary profile; set `PW_PROFILE=<directory>` for a fixed profile or `PW_CHANNEL=chromium` for Playwright Chromium). Arguments are `base directory [width height]`; widths below 700 px use mobile touch mode. New browser scripts should use the same `openChrome` helper.
+- **`smoke.mjs <url>`** uses native WebSocket without Playwright; it prints `SMOKE FAIL` and exits with code 1 on failure. Run it against the deployed domain after every publication.
+- **`slim-character.mjs <original.glb> public/models/<id>.glb [nodes to remove] [pack glbs]`** trims a KayKit character: keep only its own clips (`KEEP`) and clips copied bone by bone from KayKit Character Animations 1.1 (`PACK`, `Rig_Medium`). Add new clips to one of those lists and add a trigger to `CAST_ANIM`/`TAUNT_ANIM` in `src/client/scene.ts`; regenerate all nine characters, then run `scripts/assets/hood.mjs` (hood for `rogue.glb`).
+- `scripts/assets/` builds `public/icons.svg` and other assets: run the script manually and commit the output, with credit in `public/CREDITS.txt` and an entry in `docs/ASSETS.md`.
+- **`assets/kaykit-index.mjs`** rebuilds `assets/kaykit/INDICE.md` (model names by pack); run it whenever a pack is added, removed, or changed.
+- **`room-cleanup.mjs`** and **`lobby-reconcile.mjs`** (Node 24) run deterministic regressions against the real `Room` and `Lobby` classes with simulated storage and RPCs. CI runs both; they do not replace a real Durable Object runtime soak.
+- **`room-load-soak.mjs`** runs only against local Wrangler. Example: `node scripts/room-load-soak.mjs --base http://127.0.0.1:8787 --rooms 3 --clients 2 --duration-seconds 360`. Options: `--base`, `--rooms`, `--clients`, `--duration-seconds` (minimum 300), `--command-ms` (minimum 100), `--cleanup-grace-seconds` (minimum 5), `--skip-ghost`, and `--out`. It tests concurrent play, reconnect, a missing-close ghost, an empty unjoined room, a late join 10 seconds before cleanup, and room teardown. It records workload, lobby state, per-client snapshot rates, command acknowledgement latency/counts, disconnects, and driver CPU/memory. The 60 Hz simulation and 30 Hz snapshot targets are recorded without unmeasured pass/fail thresholds. Wrangler dev does not expose Durable Object CPU/memory counters through the app. A full run takes about 12 minutes including cleanup observation.
