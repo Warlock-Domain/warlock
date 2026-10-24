@@ -461,7 +461,7 @@ function startRoom(code: string, name: string) {
     const resources = scene.resourceStats();
     const heapBytes = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize;
     const reportedHeap = heapBytes !== undefined && Number.isFinite(heapBytes) ? Math.round(heapBytes) : undefined;
-    net.send({ t: 'resources', session: resourceSession, build: typeof __BUILD__ === 'string' ? __BUILD__ : 'dev', ...resources, ...(reportedHeap !== undefined && { heapBytes: reportedHeap }) });
+    net.send({ t: 'resources', session: resourceSession, build: __BUILD__, ...resources, ...(reportedHeap !== undefined && { heapBytes: reportedHeap }) });
   }, 5000);
 
   // sombra: 1 bot que joga como você; o que não foi medido fica no Normal (mimic.ts)
