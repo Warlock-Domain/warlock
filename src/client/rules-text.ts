@@ -19,13 +19,13 @@ export const BRACE_TEXT = t(
   `Manter base: segure a tecla de Parar (S por padrão) por ${BRACE.windup.toLocaleString(LOCALE)} s. Parar é imediato; a resistência de ${Math.round(BRACE.resistance * 100)}%, a postura e o aviso sonoro só ativam após o preparo. Enquanto mantém a tecla, não caminha nem guarda destinos e recebe Incapacitar: as recargas ficam pausadas, mas magias prontas podem ser usadas. Reduz apenas novos empurrões, multiplicando outras resistências; não apaga um impulso anterior nem reduz dano. Solte a tecla e dê nova ordem para caminhar.`,
   `Hold ground: hold the Stop key (S by default) for ${BRACE.windup} s. Stopping is immediate; ${Math.round(BRACE.resistance * 100)}% resistance, pose and sound activate only after the windup. While held, walking commands are ignored, not queued, and Incapacitate pauses cooldowns; ready spells remain usable. Only reduces new knockback, multiplying other resistances; does not erase previous momentum or reduce damage. Release the key and give a new order to walk.`
 );
-// Mesmos dados alimentam Aprender, páginas do Grimório e ajuda da loja; controles não são produtos compráveis.
+// Controls appear only as Grimório pages (not in Aprender or the shop): they are not buyable products
 export const MECHANIC_GUIDES = [
   { id: 'basic' as const, title: t('Atacar', 'Attack'), text: ATTACK_TEXT },
   { id: 'brace' as const, title: t('Manter base', 'Hold ground'), text: BRACE_TEXT },
 ];
 
-// Status descrevem o efeito em si, sem anexar uma magia ou demonstração.
+// Statuses describe the effect itself, with no spell or demo attached (general stats, no spell-pair rules)
 export const NEGATIVE_GUIDES = [
   { id: 'status-knockback', title: t('Empurrão (knockback)', 'Knockback'), text: t(
     `Deslocamento forçado por um impacto. O dano histórico não aumenta sua força; impactos simultâneos e resistências ainda alteram o resultado. Ao terminar o impulso, o residual é encerrado: uma ordem de caminhada guardada usa a posição atual, sem ordem não há caminhada automática. A recuperação começa em ${KNOCK_RECOVERY.start * 100}% da velocidade e ganha ${KNOCK_RECOVERY.step * 100} pontos percentuais a cada ${KNOCK_RECOVERY.interval.toLocaleString(LOCALE)} s, voltando a 100% em ${KNOCK_RECOVERY.seconds} s. Essa recuperação não é um novo stun.`,
@@ -393,6 +393,7 @@ const SPELL_GROUPS_PT: SpellGroups = [
   ['Defesa', 'parar o que vem', [...G.defense]],
   ['Controle', 'prender, puxar, atrasar', [...G.control]],
 ];
+export type GuideId = (typeof MECHANIC_GUIDES)[number]['id'] | (typeof NEGATIVE_GUIDES)[number]['id'];
 const SPELL_GROUPS_EN: SpellGroups = [
   ['Attack', 'damage and knockback', [...G.attack]],
   ['Mobility', 'get out of the way', [...G.mobility]],

@@ -9,14 +9,13 @@ import { SCRIPTS, createDemo, drawStone, runDemo, type DemoId } from './demo.ts'
 import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
 import { ACTIONS, UI_ACTIONS, UI_NAMES, isPadMode, isSlotMode, isUiKey, labelOf, uiLabel } from './keys.ts';
 import { MODE_INFO, OPT_INFO } from './opt-info.ts';
-import { ITEM_DEMO, MECHANIC_GUIDES, NEGATIVE_GUIDES, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, groupClass, n1 } from './rules-text.ts';
+import { ITEM_DEMO, MECHANIC_GUIDES, NEGATIVE_GUIDES, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, groupClass, n1, type GuideId } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 import { hideTip, itemLevels, itemTip, spellLevels, spellTip, withTip } from './tips.ts';
 import { choice, dialog, norm, searchFilter } from './ui.ts';
 import { arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
 type Page = { chapter: string; title: string; body: () => (Node | string | null)[]; demo?: DemoId; guideId?: string };
-
 
 const html = (s: string) => Object.assign(document.createElement('div'), { className: 'g-html', innerHTML: s });
 const ul = (xs: string[]) => el('ul', {}, ...xs.map((x) => el('li', {}, x)));
@@ -112,9 +111,9 @@ const CHAPTERS = [...new Set(PAGES.map((p) => p.chapter))].slice(1);
 const pageOf = (pred: (p: Page) => boolean) => PAGES.findIndex(pred);
 
 // to: abre direto na página daquela magia ou item (biblioteca)
-export function openGrimoire(to?: SpellId | ItemId | (typeof MECHANIC_GUIDES)[number]['id'] | (typeof NEGATIVE_GUIDES)[number]['id']) {
+export function openGrimoire(to?: SpellId | ItemId | GuideId) {
   document.querySelector('.grimoire-overlay')?.remove();
-  // Reabrir pelo botão começa no sumário; links explícitos de magia continuam indo à página pedida.
+  // Reopening from the button always starts at the table of contents (Fernando's decision, 24/10); explicit links still open the requested page
   let at = 0;
   const mechanic = MECHANIC_GUIDES.find((g) => g.id === to);
   const status = NEGATIVE_GUIDES.find((g) => g.id === to);
@@ -177,7 +176,8 @@ export function openGrimoire(to?: SpellId | ItemId | (typeof MECHANIC_GUIDES)[nu
       spread.classList.remove('turn-next', 'turn-prev');
       void spread.offsetWidth; // reinicia a animação
       spread.classList.add(dir > 0 ? 'turn-next' : 'turn-prev');
-    }  }
+    }
+  }
   function go(i: number) {
     const to = Math.min(PAGES.length - 1, Math.max(0, i));
     const dir = Math.sign(to - at);
