@@ -99,9 +99,11 @@ export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[];
 
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
 export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
+export type LobbyMessage = { t: 'rooms'; rooms: RoomInfo[] };
 
 export const ERROR_CODES = ['not_found', 'other_tab', 'full', 'bad_msg', 'kicked'] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
+export const SANDBOX_KEYS: (keyof Sandbox)[] = ['god', 'noCd', 'shrink'];
 
 export type ServerMsg =
   | { t: 'room'; room: PublicRoom; you: string }
@@ -166,7 +168,6 @@ function parseSetup(x: unknown): BotSetup[] | null {
 }
 
 // comando do painel da sandbox: só as operações e os valores conhecidos (o bot passa pela mesma checagem do treino)
-const SANDBOX_KEYS: (keyof Sandbox)[] = ['god', 'noCd', 'shrink'];
 function parseSandbox(c: unknown): SandboxCmd | null {
   if (!isObj(c)) return null;
   if (c.op === 'set') return SANDBOX_KEYS.includes(c.key as keyof Sandbox) && typeof c.on === 'boolean' ? { op: 'set', key: c.key as keyof Sandbox, on: c.on } : null;

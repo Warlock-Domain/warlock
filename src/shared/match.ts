@@ -24,6 +24,8 @@ export type Stat = {
   gold: number; dmg: number; kills: number; dmgBy: Record<string, number>; fired: Record<string, number>; landed: Record<string, number>; deaths: number; deathBy: Record<string, number>; alive: number;
   threats: number; struck: number; shieldable: number; shielded: number; reactSum: number; reactN: number; nearSum: number; nearN: number;
 };
+export const STAT_NUMBER_KEYS = ['gold', 'dmg', 'kills', 'deaths', 'alive', 'threats', 'struck', 'shieldable', 'shielded', 'reactSum', 'reactN', 'nearSum', 'nearN'] as const satisfies readonly (keyof Stat)[];
+export const STAT_MAP_KEYS = ['dmgBy', 'fired', 'landed', 'deathBy'] as const satisfies readonly (keyof Stat)[];
 export type Stats = { round: Stat; match: Stat; room: Stat };
 const newStat = (): Stat => ({ gold: 0, dmg: 0, kills: 0, dmgBy: {}, fired: {}, landed: {}, deaths: 0, deathBy: {}, alive: 0, threats: 0, struck: 0, shieldable: 0, shielded: 0, reactSum: 0, reactN: 0, nearSum: 0, nearN: 0 }); // alive: segundos vivo
 const newStats = (): Stats => ({ round: newStat(), match: newStat(), room: newStat() });
@@ -61,7 +63,8 @@ function earn(m: Match, p: Player, gold: number, scaled = true, recovery = false
 // campaign: 1 a 4 humanos contra os servos do Fumo (campaign.ts); clareira = rodada, intervalo = loja
 export const MODES = ['rounds', 'deathmatch', 'teams', 'ascension', 'campaign'] as const;
 export type Mode = (typeof MODES)[number];
-export type Phase = 'lobby' | 'shop' | 'countdown' | 'playing' | 'roundEnd' | 'end';
+export const PHASES = ['lobby', 'shop', 'countdown', 'playing', 'roundEnd', 'end'] as const;
+export type Phase = (typeof PHASES)[number];
 // votação na partida: trocar o modo (target = modo novo), expulsar um humano (target = id dele),
 // trocar o sorteio dos times (target = 'round' sorteados a cada rodada, 'match' fixos na partida),
 // mudar uma opção da partida (target = 'chave:valor', ex.: 'shop:60', 'runes:false'; vale na próxima rodada),

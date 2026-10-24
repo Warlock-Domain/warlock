@@ -108,4 +108,15 @@ describe('ciclo da conexão', () => {
     expect(socket.send).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
   });
+  it('avisa uma vez por tipo de mensagem rejeitada na mesma conexão', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const net = connect('/ws/room/ABCD', parseTag, vi.fn(), vi.fn());
+    const socket = Socket.instances[0];
+    socket.onmessage?.({ data: '{"bad":true}' });
+    socket.onmessage?.({ data: '{"bad":true}' });
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith('Rejected invalid server message (type: (unknown); reason: schema validation failed)');
+    net.stop();
+    warn.mockRestore();
+  });
 });
