@@ -1,5 +1,9 @@
 CRÉDITOS DOS ASSETS (os ícones são CC BY 3.0, com crédito obrigatório, ver "Ícones"; o resto é CC0 / domínio público, créditos por cortesia)
 
+Ícone healing-cross (Curar): cruz geométrica original do projeto, desenhada em SVG no repositório; sem asset externo.
+
+Coral “ooooh” de Curar: síntese original por osciladores/harmônicos/vibrato em src/client/sound.ts; sem gravação, voz de pessoa ou asset externo.
+
 == Modelos 3D ==
 models/decor.glb
   Junção (scripts/assets/merge-decor.mjs) de modelos de:
@@ -139,6 +143,9 @@ warlock-wars.svg (vetorial, o W em <path>), favicon.ico (16, 32 e 48 px) e apple
     Botas de choque: lorc/winged-leg.svg, Lorc (http://lorcblog.blogspot.com)
     Égide: lorc/angel-wings.svg, Lorc (http://lorcblog.blogspot.com)
     Botas de vento: lorc/feather.svg, Lorc (http://lorcblog.blogspot.com)
+    Lente Letal: lorc/magnifying-glass.svg, Lorc (http://lorcblog.blogspot.com)
+    Magia Perfurante: lorc/pierced-heart.svg, Lorc (http://lorcblog.blogspot.com)
+    Runa da aflição: lorc/rune-stone.svg, Lorc (http://lorcblog.blogspot.com)
   Runas:
     Pressa: delapouite/rabbit.svg, Delapouite (http://delapouite.com)
     Fúria: delapouite/enrage.svg, Delapouite (http://delapouite.com)
@@ -196,3 +203,7 @@ Gravações de provocações de Leonard (lboesmans), 21/10/2026 (PR #243, aceita
   não serem extrações de músicas/jogos/vídeos de terceiros, e autorizou envio,
   uso e redistribuição neste repositório público e no jogo Warlock.
   Permissão expressa do autor para o projeto; não presumir CC0 nem licença de terceiros.
+
+Manter base: public/sfx/brace_start.mp3, gravação enviada por Leonard (lboesmans), 24/10/2026 (PR #293):
+  origem e licença não informadas pelo colaborador; o Fernando aceitou o uso como está (decisão do dono de 24/10,
+  registrada no CLAUDE.md), do mesmo jeito que as provocações do PR #243.

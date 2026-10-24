@@ -3,17 +3,17 @@
 import { OBSTACLES, PROJ_R, PROJ_SPAWN, WALL_GAP, WIZ_R } from '../shared/constants.ts';
 import { itemStats, type ItemId } from '../shared/items.ts';
 import { snowR, type ProjKind } from '../shared/sim.ts';
-import { CLUSTER_FAN, LIGHTNING, RUSH, SPLITTER, THRUST, spellLevel, type SpellId } from '../shared/spells.ts';
+import { CLUSTER_FAN, LIGHTNING, RUSH, SPLITTER, THRUST, spellLevel, type SpellBook, type SpellId } from '../shared/spells.ts';
 import { add, clampLen, len, norm, scale, sub, v, type Vec } from '../shared/vec.ts';
 
 // projéteis que saem na frente do mago e voam o alcance: o anel marca até onde a ponta chega, então inimigo que encosta
 // no anel é atingido (Fernando, 20/10, issue #82; antes ficava 0,8 m curto)
 const FLIES = new Set<SpellId>(['fireball', 'cluster', 'snowball', 'magnetize', 'gravity', 'bouncer', 'drain', 'recharge', 'link', 'splitter']);
 
-export function reachOf(a: SpellId, spells: Record<SpellId, number>, items: Record<ItemId, number>): number {
+export function reachOf(a: SpellId, spells: Record<SpellId, number>, items: Record<ItemId, number>, book?: SpellBook): number {
   const lvl = spells[a];
   if (!lvl) return 0;
-  const L = spellLevel(a, lvl);
+  const L = spellLevel(a, lvl, book);
   if (a === 'scourge') return L.radius; // Flagelo: o raio da explosão
   // sem alcance fixo, o raio do efeito: a bolha do Escudo e o avanço da Investida
   if (a === 'shield') return L.radius;
@@ -51,7 +51,7 @@ export function aimOf(a: SpellId, spells: Record<SpellId, number>, items: Record
   // magias de área (Meteoro, Agarrar, Zona de dobra, Barricada): só o círculo no ponto mirado; Teleporte: o corpo onde você aparece
   const blastR = blastOf(a, spells);
   if (blastR) return { ...none, blastAt: aimed, blastR };
-  if (a === 'teleport') return { ...none, blastAt: aimed, blastR: WIZ_R };
+  if (a === 'teleport' || a === 'heal') return { ...none, blastAt: aimed, blastR: WIZ_R };
   // Drenar vira para o mago mais perto no ponto mirado: a reta só vale até ali
   if (a === 'drain') return line(aimed, HALF.drain!);
   // Investida avança RUSH.dash e acerta quem fica a 2 WIZ_R + 0,1 (sim.ts, dashHit): pelo corpo do inimigo, WIZ_R + 0,1 de cada lado

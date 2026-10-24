@@ -6,7 +6,7 @@ import { ITEMS, ITEM_IDS } from '../src/shared/items.ts';
 import { SPELLS, SPELL_IDS } from '../src/shared/spells.ts';
 import { TAUNTS } from '../src/shared/taunts.ts';
 import { LANG, LANG_KEY, LOCALE, pickLang, setLang, t } from '../src/client/i18n.ts';
-import { n1 } from '../src/client/rules-text.ts';
+import { cooldownNotice, n1 } from '../src/client/rules-text.ts';
 import { store } from '../src/client/store.ts';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -32,6 +32,10 @@ describe('idioma', () => {
     expect(LOCALE).toBe('pt-BR');
     expect(t('Loja', 'Shop')).toBe('Loja');
     expect(n1(1.5)).toBe('1,5');
+  });
+
+  it('avisa quanto falta para a magia sair da recarga', () => {
+    expect(cooldownNotice('fireball', 3.5)).toBe('Bola de fogo ainda está em recarga: 3,5 s restantes.');
   });
 
   it('trocar o idioma grava no navegador e recarrega', () => {

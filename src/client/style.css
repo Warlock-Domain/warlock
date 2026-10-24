@@ -18,7 +18,9 @@
   /* metal envelhecido: gradiente sutil e borda dupla dourada fina */
   --plate: linear-gradient(180deg, var(--panel-top), var(--panel-bot));
   /* pergaminho claro dos avisos: destaca por cima da lava e da pedra escura, que têm o mesmo tom do --plate */
-  --paper: linear-gradient(180deg, var(--cream), var(--stone));
+  /* fundo a 60% para ver a arena atrás sem perder a leitura (issue #262: escolhido 60% depois de ver o 70% no ambiente do PR); borda a 70% e sombra mais leve para o pergaminho não parecer recortado */
+  --paper: linear-gradient(180deg, color-mix(in srgb, var(--cream) 60%, transparent), color-mix(in srgb, var(--stone) 60%, transparent));
+  --gold-toast: color-mix(in srgb, var(--gold) 70%, transparent); --shadow-toast: 0 10px 30px rgba(0, 0, 0, .33);
   /* cores dos avisos no pergaminho: azul de informação e vermelho vivo de erro; letra e ícones em preto (--ink): nada marrom no aviso, o resto da tela já é marrom */
   --toast-info: #2f86e8; --toast-bad: #e8261c; --toast-good: #22c55e;
   /* runas nos avisos: as mesmas cores das runas na arena (RUNE_COLOR em scene.ts) */
@@ -58,8 +60,9 @@ button.icon .gi { font-size: 1.3rem; vertical-align: middle; }
 .spell .ico { display: flex; color: var(--ember); }
 .vol { position: relative; }
 .vol-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 6; background: var(--plate); border: 1px solid var(--gold-line); border-radius: var(--r-md); padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 240px; box-shadow: var(--plate-edge), var(--shadow-md); max-height: calc(100vh - 64px - var(--safe-t) - var(--safe-b)); max-height: calc(100dvh - 64px - var(--safe-t) - var(--safe-b)); overflow-y: auto; }
-.vol-row { display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 8px; font-size: .9rem; }
-.vol-row input { width: 100%; accent-color: var(--lava); }
+.vol-row { display: grid; grid-template-columns: 1fr 40px; align-items: center; gap: 8px; font-size: .9rem; }
+.vol-row input { width: 100%; accent-color: var(--lava); grid-column: 1 / -1; grid-row: 2; }
+.vol-row .vol-value { grid-column: 2; grid-row: 1; text-align: right; }
 .vol-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
 button:focus-visible, .button:focus-visible, input:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
 small { font-size: max(.8em, 11px); color: var(--muted); }
@@ -123,6 +126,17 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 .mode { display: grid; gap: 6px; }
 /* relógio com fundo de vidro: sem ele o vermelho dos últimos 3 s some na lava (1,8:1) */
 .timer:not(.countdown):not(:empty) { padding: 2px 12px; border-radius: 999px; background: var(--panel-glass); }
+.ilse { position: absolute; left: max(16px, var(--safe-l, 0px)); bottom: calc(150px + var(--safe-b)); z-index: 4; max-width: min(420px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border-radius: var(--r-md); background: var(--panel-solid); border: 1px solid var(--ember); box-shadow: 0 0 16px rgba(255, 179, 71, .3); animation: fade-in .25s ease-out; }
+.ilse .ilse-name { font-family: var(--display); color: var(--ember); }
+.ilse .ilse-text { line-height: 1.35; }
+.ilse .ilse-skip { align-self: flex-end; min-height: 32px; padding: 2px 10px; font-size: .8rem; }
+@media (max-width: 600px) { .ilse { left: 12px; right: 12px; max-width: none; bottom: auto; top: calc(56px + var(--safe-t)); font-size: .9rem; } }
+@media (max-width: 600px) { .hud:has(.boss-bar:not([hidden])) > .ilse { top: calc(96px + var(--safe-t) + var(--tops-h, 0px)); } } /* abaixo da barra do chefe */
+@media (pointer: coarse) { .ilse .ilse-skip { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .ilse { animation: none; } }
+.boss-bar { position: absolute; left: 50%; top: calc(46px + var(--safe-t) + var(--tops-h, 0px)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; }
+.boss-bar .boss-name { font-family: var(--display); font-size: .95rem; color: var(--ember); text-shadow: var(--text-shadow); white-space: nowrap; }
+.boss-bar .hpbar { width: min(420px, 80vw); height: 16px; }
 .timer.soon { color: var(--red); animation: pulse-bad .5s ease-in-out infinite alternate; }
 @media (prefers-reduced-motion: reduce) { .timer.soon { animation: none; } }
 /* faixa de queda de conexão: só aparece se a queda durar mais de 1,5 s */
@@ -179,13 +193,16 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .item-grid .passive small { position: absolute; right: 3px; bottom: 1px; font-size: .7rem; color: var(--ember); font-weight: 800; }
 .slot-empty { border-radius: var(--r-sm); background: rgba(0, 0, 0, .35); border: 1px dashed var(--line); }
 /* efeitos em mim acima da barra (mesmos ícones de cima do mago) */
-.barwrap .hud-status { gap: 10px; padding: 3px 12px; border-radius: 999px; background: var(--panel-glass); }
+/* sem a pílula escura atrás (o disco dentro dela parecia um alvo, pedido do Sky): só os discos soltos, com 16 px entre eles para os anéis não se tocarem */
+.barwrap .hud-status { gap: 16px; padding: 4px; pointer-events: none; }
 .hud-status:empty { display: none; }
-.barwrap .hud-status i { font-size: 1.3rem; position: relative; flex-direction: column; align-items: center; }
-/* duração do efeito: segundos embaixo do ícone e um filete que esvazia (--left vem de ui.ts) */
-.barwrap .hud-status i small { font-size: .5em; font-weight: 700; color: var(--fg); margin-top: 1px; }
-.barwrap .hud-status i small:empty { display: none; }
-.barwrap .hud-status i::after { content: ''; position: absolute; left: 0; bottom: -2px; height: 2px; width: calc(var(--left, 0) * 100%); border-radius: 1px; background: currentColor; opacity: .7; }
+.barwrap .hud-status i { font-size: 1.3rem; position: relative; isolation: isolate; filter: none; }
+/* ícone do buff num disco de cor, igual ao do aviso (1,3rem e .2em de borda): o aviso da runa vira este ícone (flyToast em ui.ts) */
+.barwrap .hud-status .gi { box-sizing: content-box; padding: .2em; border-radius: 50%; background: var(--toast-good); color: var(--ink); box-shadow: var(--shadow-sm); }
+.barwrap .hud-status i.bad .gi { background: var(--toast-bad); color: var(--white); }
+/* duração do efeito: anel claro de 3 px em volta do disco que esvazia no sentido horário (--left vem de ui.ts), sem o número (escolha do Sky entre número, anel e os dois);
+   sem prazo (Égide pronta) fica só o aro escuro, que separa o disco da arena */
+.barwrap .hud-status i::after { content: ''; position: absolute; inset: -3px; z-index: -1; border-radius: 50%; background: conic-gradient(var(--cream) calc(var(--left, 0) * 1turn), color-mix(in srgb, var(--ink) 85%, transparent) 0); }
 @media (min-width: 601px) and (min-height: 501px) {
   /* a vida some na contagem e morto: o lugar fica, para a barra não pular */
   .hero-box .vitals[hidden] { display: flex !important; visibility: hidden; }
@@ -235,12 +252,15 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 /* roda de provocações por cima da arena, translúcida; sem panel-in, que sobrescreve o transform da centralização até terminar */
 .vol-panel.radial-picker { position: fixed; inset: 50% auto auto 50%; transform: translate(-50%, -50%); width: min(640px, 96vw, 72vh); max-height: 96vh; text-align: center; overflow: visible; animation: none; background: transparent; border-color: transparent; box-shadow: none; text-shadow: var(--text-shadow); }
-/* círculo de 72% da altura: as 15 falas não encostam na barra de magias embaixo */
+/* the wider ring of a crowded wheel (radial-picker.ts) reaches about 3% lower; lift the overlay so the bottom labels stay clear of the spell bar at 1280×720 */
+.vol-panel.radial-picker:not(.radial-inline):has(> .radial-crowded) { transform: translate(-50%, -53%); }
+/* circle at 72% of the height: the taunt labels stay clear of the spell bar below */
 .vol-panel.radial-picker.radial-inline { position: relative; inset: auto; transform: none; width: min(640px, 100%); max-height: none; margin-inline: auto; }
 .radial-stage { position: relative; width: 100%; aspect-ratio: 1; }
 .radial-stage::before { content: ''; position: absolute; inset: 12%; border-radius: 50%; border: 1px solid var(--gold-faint); background: repeating-conic-gradient(from var(--radial-start), color-mix(in srgb, var(--ink) 30%, transparent) 0deg calc(var(--radial-step) - 1deg), transparent calc(var(--radial-step) - 1deg) var(--radial-step)); }
-/* 14% de largura: as 15 falas cabem na volta sem um botão cobrir o vizinho */
-.radial-stage > button { position: absolute; transform: translate(-50%, -50%); width: 14%; min-height: 40px; padding: 2px; font-size: .84rem; font-weight: 700; line-height: 1.15; background: transparent; border-color: transparent; box-shadow: none; text-shadow: var(--text-shadow); }
+/* width comes from radialPicker (--radial-w): at most 14%, narrower when more taunts share the ring */
+.radial-stage > button { position: absolute; transform: translate(-50%, -50%); width: var(--radial-w, 14%); min-height: 40px; padding: 2px; font-size: .84rem; font-weight: 700; line-height: 1.15; background: transparent; border-color: transparent; box-shadow: none; text-shadow: var(--text-shadow); }
+.radial-crowded > button { min-height: 0; font-size: .76rem; line-height: 1.1; } /* narrower buttons: smaller text keeps labels to two lines */
 .radial-stage > button.on { background: var(--sel-bg); border-color: var(--gold-line); color: var(--gold-pale); }
 .radial-stage > .radial-center { left: 50%; top: 50%; width: 18%; aspect-ratio: 1; border-radius: 50%; font-size: 1.8rem; background: color-mix(in srgb, var(--ink) 40%, transparent); border-color: var(--gold-line); }
 /* painel da sandbox: regras, bots e arena; no celular cabe na largura da tela */
@@ -276,6 +296,9 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 @keyframes lvup { 0% { transform: scale(2.2); color: #fff; text-shadow: 0 0 8px #8cbcff; } 100% { transform: scale(1); } }
 .wiz-label .loot-bar { width: 46px; height: 5px; margin-top: 3px; border-radius: 2px; background: rgba(0, 0, 0, .6); overflow: hidden; }
 .wiz-label .loot-bar > div { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-pale)); }
+.wiz-label.ember .hp-row, .wiz-label.ember .shield-bar { display: none; }
+.wiz-label.ember .loot-bar { width: 60px; height: 7px; box-shadow: 0 0 6px var(--ember); }
+.wiz-label.ember .loot-bar > div { background: var(--ember); }
 .hp-text { position: absolute; inset: 0; display: grid; place-items: center; font-size: .7rem; font-weight: 800; line-height: 1; color: var(--white); text-shadow: 0 1px 2px var(--ink), 0 0 2px var(--ink); font-variant-numeric: tabular-nums; }
 .hp-fill { height: 100%; width: 100%; }
 .wiz-label .hp { display: flex; transition: box-shadow .2s, border-color .2s; }
@@ -305,10 +328,12 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .wiz-label .hp-extra .rush { color: #ff9640; }
 
 /* letra 1,3x do tamanho normal, a mesma do aviso de quem saiu (PR #234), e fundo claro: o aviso aparece por poucos segundos no meio da partida e precisa ser lido de relance */
-#toast { position: fixed; left: 50%; bottom: calc(150px + var(--safe-b)); transform: translateX(-50%); background: var(--paper); color: var(--ink); border: 1px solid var(--gold); box-shadow: var(--shadow-md); padding: 13px 18px; border-radius: var(--r-sm); font-size: 1.3rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; user-select: text; }
-#toast.show { opacity: 1; pointer-events: auto; }
-/* com uma loja aberta o clique atravessa o aviso: ele fica por cima da última fileira de cartas e tapava a compra (issue #208) */
-body:has(.center .shop, .peek-shop:not([hidden]) .shop) #toast { pointer-events: none; }
+#toast { position: fixed; left: 50%; bottom: calc(188px + var(--safe-b)); transform: translateX(-50%); background: var(--paper); color: var(--ink); border: 1px solid var(--gold-toast); box-shadow: var(--shadow-toast); padding: 13px 18px; border-radius: var(--r-sm); font-size: 1.3rem; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; }
+/* o clique atravessa o aviso e os ícones dos buffs (.hud-status) para não cortar o andar nem o lançamento na arena atrás deles; nenhum aviso tem botão (pedido do Sky, issue #332) */
+#toast.show { opacity: 1; }
+/* o aviso fica acima dos ícones dos buffs ativos (.hud-status, 44 px acima da barra), com 8 px de folga, para não tapá-los (issue #262);
+   acima de 800 px de altura a barra de baixo tem 160 px + 10 de margem em vez de 118 + 10, então o aviso sobe junto */
+@media (min-width: 601px) and (min-height: 801px) { #toast { bottom: calc(222px + var(--safe-b)); } }
 body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, .55) 100%); z-index: 1; }
 .banner { position: fixed; left: 50%; top: 24%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none; font-family: var(--display); font-size: clamp(1.8rem, 6vw, 3.6rem); color: var(--fg); text-shadow: 0 4px 24px rgba(0, 0, 0, .8), 0 0 2px var(--ink); animation: banner-pop 1.6s ease-out forwards; white-space: nowrap; }
 .banner.bad { color: var(--red); }
@@ -355,7 +380,7 @@ body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: no
 .dialog-head .title { margin: 0; }
 .stats-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .stats-tabs { display: flex; gap: 6px; }
-.taunt-editor .stats-tabs { flex-wrap: wrap; } /* 15 falas não cabem numa linha */
+.taunt-editor .stats-tabs { flex-wrap: wrap; } /* all taunts do not fit on one line */
 .stats-tabs button { min-height: 32px; padding: 4px 14px; font-size: .9rem; border-radius: 999px; }
 .stats-bar .stats-tabs button { font-family: var(--display); font-size: .95rem; }
 .stats-wrap { overflow-x: auto; }
@@ -648,11 +673,14 @@ button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infini
 #toast[data-kind="gold"] { border-left-color: var(--gold); }
 #toast[data-kind="gold"]::before { content: none; }
 /* ícone dentro do aviso num disco cheio de cor viva, como o i ✓ !: solto em cima do fundo claro ele sumia; símbolo preto nas cores claras e branco nas escuras */
-#toast .gi[data-rune], #toast[data-kind="gold"] > .gi { box-sizing: content-box; padding: .2em; border-radius: 50%; color: var(--ink); vertical-align: -.36em; }
-#toast .gi[data-rune="haste"] { background: var(--rune-haste); }
-#toast .gi[data-rune="fury"] { background: var(--rune-fury); color: var(--white); }
-#toast .gi[data-rune="shield"] { background: var(--rune-shield); }
-#toast .gi[data-rune="recharge"] { background: var(--rune-recharge); }
+:is(#toast .gi, .gi.toast-fly)[data-rune], #toast[data-kind="gold"] > .gi { box-sizing: content-box; padding: .2em; border-radius: 50%; color: var(--ink); vertical-align: -.36em; }
+/* a cor de cada runa, uma regra só para o aviso, o disco que voa e o ícone do buff acima da barra (data-rune no ícone: RUNE_TEXT em main.ts e a fileira de efeitos em ui.ts) */
+:is(#toast .gi, .gi.toast-fly, .barwrap .hud-status .gi)[data-rune="haste"] { background: var(--rune-haste); }
+:is(#toast .gi, .gi.toast-fly, .barwrap .hud-status .gi)[data-rune="fury"] { background: var(--rune-fury); color: var(--white); }
+:is(#toast .gi, .gi.toast-fly, .barwrap .hud-status .gi)[data-rune="shield"] { background: var(--rune-shield); }
+:is(#toast .gi, .gi.toast-fly, .barwrap .hud-status .gi)[data-rune="recharge"] { background: var(--rune-recharge); }
+/* disco da runa voando do aviso até o ícone do buff (ui.ts, flyToast), por cima do aviso */
+.gi.toast-fly { position: fixed; z-index: 21; margin: 0; pointer-events: none; }
 #toast[data-kind="gold"] > .gi { flex: none; font-size: 1rem; background: var(--gold); }
 /* toast(…, top): logo abaixo da barra do topo, entrando de cima (issue #223); id + classe ganha das
    posições de baixo das media queries de #toast, então vale em toda largura de tela */
@@ -880,7 +908,7 @@ button.train small { font-weight: 400; }
 .settings-body > * { flex-shrink: 0; }
 .settings-body > button { align-self: flex-start; }
 .settings-body .keys-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px 18px; }
-.settings-body .vol-row { grid-template-columns: 80px 1fr 48px; max-width: 460px; }
+.settings-body .vol-row { grid-template-columns: 1fr 48px; }
 .settings-body .slot-row { margin: 0; }
 /* "Teclas de cada magia" em Lançamento (Q W E R D F desligado): botão que abre a lista ali mesmo */
 .spell-keys > summary { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel2); cursor: pointer; }
@@ -951,8 +979,8 @@ body.replaying .peek-shop { display: none; }
 .shop-items .shop-head h3 { color: var(--item); }
 .shop-items .shop-group .shop-head { border-bottom-color: var(--item-line); }
 
-/* uma cor por grupo de magia (Fernando, 19/10): Ataque vermelho-laranja, Mobilidade verde, Defesa azul, Controle roxo */
-.g-ataque { --g: #ff6b4a; } .g-mobilidade { --g: #8be36a; } .g-defesa { --g: #5fb0ff; } .g-controle { --g: #c58bff; }
+/* uma cor por grupo de magia (Fernando, 19/10): Ataque vermelho-laranja, Mobilidade dourado (24/10), Defesa azul, Controle roxo, Suporte verde */
+.g-ataque { --g: #ff6b4a; } .g-mobilidade { --g: var(--gold); } .g-defesa { --g: #5fb0ff; } .g-controle { --g: #c58bff; } .g-suporte { --g: #8be36a; }
 .shop-group[class*="g-"] .shop-head h3 { color: var(--g); }
 .shop-group[class*="g-"] .shop-head { border-bottom-color: color-mix(in srgb, var(--g) 45%, transparent); }
 .spellbar .spell[class*="g-"] { border-color: color-mix(in srgb, var(--g) 55%, transparent); }
@@ -1077,6 +1105,11 @@ body.replaying .peek-shop { display: none; }
 .shop-tile .ico { display: flex; font-size: 1.9rem; color: var(--g, var(--ember)); }
 .shop-item > .key { position: absolute; top: -6px; left: -6px; z-index: 2; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; display: grid; place-items: center;
   border-radius: var(--r-lg); background: var(--g, var(--ember)); color: var(--panel-bot); font-size: .68rem; font-weight: 700; line-height: 1; box-shadow: 0 0 0 2px var(--panel-solid); pointer-events: none; }
+/* selo dos mais comprados (#185): a bolinha da tecla, no canto de baixo e dourada */
+.shop-item > .key.fav { top: auto; bottom: -6px; background: var(--gold); }
+/* presets de build na coluna da direita da loja: ícones da build e os botões Usar e Salvar */
+.build-icons { display: flex; flex-wrap: wrap; gap: 2px; min-width: 0; color: var(--muted); }
+.build-acts { display: flex; gap: 4px; flex: none; }
 .shop-tile .pips i { width: 9px; height: 3px; }
 .shop-tile .pips i.on { background: var(--g, var(--ember)); }
 .tile-price { display: inline-flex; align-items: center; gap: 2px; font-family: var(--display); font-weight: 700; font-size: .8rem; line-height: 1; white-space: nowrap; color: var(--muted); }

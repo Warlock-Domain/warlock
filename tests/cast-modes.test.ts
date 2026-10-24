@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InputHandlers } from '../src/client/input.ts';
-import { setCastMode, setSlotMode } from '../src/client/keys.ts';
+import { setCastMode, setSlotMode, setKey } from '../src/client/keys.ts';
+import type { SpellId } from '../src/shared/spells.ts';
 import type { Vec } from '../src/shared/vec.ts';
 
 // janela e canvas de mentira: só guardam os ouvintes para disparar eventos à mão (os testes rodam sem navegador)
@@ -17,16 +18,21 @@ let ok = true; // false: a magia não sai (recarga ou sem a magia)
 let preview: string | null = null;
 let previewAt: Vec | undefined;
 let armed: string | null = null;
-let input: { setEnabled: (on: boolean) => void };
+let available = true;
+let emptyTarget = false;
+let input: { setEnabled: (on: boolean) => void; button: (spell: SpellId) => void };
 
 beforeAll(async () => {
   Object.assign(globalThis, { addEventListener: on(win), innerWidth: 800, innerHeight: 600 });
   const { createInput } = await import('../src/client/input.ts');
   const h: InputHandlers = {
-    pick: (x, y): Vec => ({ x, y }),
+    pick: (x, y, spell): Vec | null => spell === 'heal' && emptyTarget ? null : ({ x, y }),
     move: (to) => log.push(`move ${to.x},${to.y}`),
     stop: () => log.push('stop'),
+    brace: (on) => log.push(`brace ${on}`),
+    basic: (at) => log.push(`basic ${at.x},${at.y}`),
     cast: (s, at) => (log.push(`cast ${s} ${at.x},${at.y}`), ok),
+    checkCooldown: () => available,
     center: () => {},
     zoom: () => {},
     pan: () => {},
@@ -41,13 +47,101 @@ beforeAll(async () => {
   setSlotMode(false); // Q = Bola de fogo
 });
 beforeEach(() => {
+  emptyTarget = false; ok = true;
   log = [];
+  available = true;
   key('keydown', 'Escape');
   preview = armed = null;
   fire(cnv, 'pointermove', { clientX: 300, clientY: 200 });
 });
 
 describe('jeitos de lançar no PC', () => {
+  it.each(['quick', 'release', 'click'] as const)('Curar exige clique no alvo, mesmo em%s', mode => {
+    setKey('heal', 'KeyH'); setCastMode(mode);
+    key('keydown', 'KeyH'); key('keyup', 'KeyH');
+    expect(log).toEqual([]);
+    expect(armed).toBe('heal');
+    click(0, 40, 50); click(0, 60, 70);
+    expect(log.filter(s=>s.startsWith('cast '))).toEqual(['cast heal 40,50']); // clique neutro segue a regra da base; não repete a cura.
+    expect(armed).toBeNull();
+    setKey('heal', '');
+  });
+  it('Curar ignora chão e mantém seleção após alvo recusado; direito cancela mesmo sobre chão', () => {
+    input.button('heal'); emptyTarget = true;
+    click(0); expect(log).toEqual([]); expect(armed).toBe('heal');
+    emptyTarget = false; ok = false;
+    click(0); expect(armed).toBe('heal');
+    emptyTarget = true; click(2, 70, 80);
+    expect(armed).toBeNull(); expect(log.at(-1)).toBe('move 70,80');
+  });
+  it.each(['Escape', 'KeyS', 'KeyQ'])('%s cancela Curar escolhida sem autocura posterior', code => {
+    setCastMode('quick'); input.button('heal');
+    key('keydown', code); key('keyup', code); click(0);
+    expect(log.some(s => s.startsWith('cast heal'))).toBe(false);
+    expect(armed).toBeNull();
+    if (code === 'KeyS') key('keyup', 'KeyS');
+  });
+  it('escolher Curar cancela magia segurada sem dispará-la ao soltar', () => {
+    setKey('heal', 'KeyH'); setCastMode('release');
+    key('keydown', 'KeyQ'); key('keydown', 'KeyH');
+    key('keyup', 'KeyQ'); key('keyup', 'KeyH');
+    expect(log).toEqual([]); expect(armed).toBe('heal');
+    setKey('heal', '');
+  });
+
+  it('S para uma vez, renova a defesa e libera ao soltar', () => {
+    vi.useFakeTimers();
+    key('keydown', 'KeyS');
+    expect(log).toEqual(['stop', 'brace true']);
+    vi.advanceTimersByTime(210);
+    expect(log.filter((s) => s === 'brace true')).toHaveLength(3);
+    key('keyup', 'KeyS');
+    expect(log.at(-1)).toBe('brace false');
+    const count = log.length;
+    vi.advanceTimersByTime(500);
+    expect(log).toHaveLength(count);
+    vi.useRealTimers();
+  });
+  it('A arma Atacar; clique esquerdo envia uma ordem manual', () => {
+    key('keydown', 'KeyA');
+    expect(log).toEqual([]);
+    click(0, 30, 40);
+    expect(log).toEqual(['basic 30,40']);
+  });
+  it.each(['Escape', 'KeyS', 'KeyQ'])('%s cancela Atacar escolhido', (code) => {
+    key('keydown', 'KeyA'); key('keydown', code); click(0);
+    expect(log.some((s) => s.startsWith('basic'))).toBe(false);
+  });
+  it.each(['blur', 'pointercancel'])('não envia movimento fantasma após %s interromper o botão direito', (event) => {
+    vi.spyOn(performance, 'now').mockReturnValue(1000000 + performance.now());
+    click(2);
+    log = [];
+    fire(win, event, {});
+    fire(cnv, 'pointermove', { clientX: 400, clientY: 300, buttons: 2 });
+    expect(log).toEqual([]);
+    fire(win, 'pointerup', { button: 2 });
+    vi.restoreAllMocks();
+  });
+
+  it('sem pointerup, mouse com botão solto não renova o destino de caminhada', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(2000000 + performance.now());
+    click(2);
+    log = [];
+    fire(cnv, 'pointermove', { clientX: 400, clientY: 300, buttons: 0 });
+    expect(log).toEqual([]);
+    fire(win, 'pointerup', { button: 2 });
+    vi.restoreAllMocks();
+  });
+
+  it('segurar de verdade o botão direito continua arrastando o destino', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(3000000 + performance.now());
+    click(2);
+    log = [];
+    fire(cnv, 'pointermove', { clientX: 400, clientY: 300, buttons: 2 });
+    expect(log).toEqual(['move 400,300']);
+    fire(win, 'pointerup', { button: 2 });
+    vi.restoreAllMocks();
+  });
   it('Esc só é consumido (preventDefault) com magia escolhida ou segurada; sobrando, ele segue para abrir as configurações', () => {
     let used = 0;
     const esc = () => fire(win, 'keydown', { code: 'Escape', repeat: false, preventDefault: () => used++ });
@@ -119,7 +213,19 @@ describe('jeitos de lançar no PC', () => {
     key('keydown', 'KeyQ');
     key('keydown', 'Escape');
     expect(armed).toBeNull();
-    click(0, 1, 2); // sem magia escolhida, o clique esquerdo só anda
-    expect(log.at(-1)).toBe('move 1,2');
+    click(0, 1, 2); // sem magia escolhida, o clique esquerdo não envia comando.
+    expect(log).toEqual(['cast fireball 40,50', 'move 70,80']);
+  });
+
+  it('não seleciona uma magia em recarga pelo botão nem pela tecla', () => {
+    setCastMode('click');
+    key('keydown', 'KeyQ');
+    expect(armed).toBe('fireball');
+    available = false;
+    input.button('lightning');
+    expect(armed).toBeNull();
+    key('keydown', 'KeyQ');
+    expect(armed).toBeNull();
+    expect(log).toEqual([]);
   });
 });
