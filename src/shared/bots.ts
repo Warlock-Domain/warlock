@@ -248,6 +248,10 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     // Caminhada no vento: mais rápido para sair do caminho
     if (!winding && ready('windwalk') && reacts(0.4)) return (cast('windwalk', me.pos), cmds.push({ id, kind: 'move', to: add(me.pos, scale(away, 3)) }), cmds);
     if (rand() < D.dodge) cmds.push({ id, kind: 'move', to: add(me.pos, scale(away, 2)) });
+    // Manter base (decisão do Fernando, 24/10): projétil que acerta em até 0,6 s e nenhuma magia de fuga pronta, o bot segura S como o
+    // jogador; só quando não decidiu desviar andando (Manter base trava o passo). Renova a cada pensamento (≤ 0,25 s), dentro da
+    // validade de 0,4 s do comando
+    else if (!meteor && !winding && tHit <= 0.6 && !ESCAPE.some((s) => ready(s))) return [{ id, kind: 'brace', on: true }];
   }
   // Bola de fogo no Míssil teleguiado que ainda vem longe: o choque estoura longe do bot (às vezes: precisa de mira)
   const far = !threat && ready('fireball') && w.projectiles.find((p) => p.kind === 'homing' && seen(p) && p.target === id && dot(p.vel, sub(me.pos, p.pos)) > 0 && dist(p.pos, me.pos) > 4 && dist(p.pos, me.pos) < 6.5);
