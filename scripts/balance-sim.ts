@@ -341,6 +341,7 @@ function isAgg(value: unknown): value is Agg {
 // Os arquivos ficam fora do git; valide o formato antes de combinar dados antigos com novas medições.
 function isSummary(value: unknown): value is Summary {
   if (!isRecord(value)) return false;
+  // Ao mudar Summary, atualize também esta lista para aceitar o novo formato.
   const strings = ['seed', 'plan', 'difficulty', 'arena', 'effect', 'startedAt'];
   const numbers = ['seconds', 'roundsPerMin', 'matches', 'rounds', 'playerRounds', 'noWinner', 'stalled', 'botMatches'];
   const fields = new Set([...strings, ...numbers, 'modes', 'sizes', 'duration', 'owned', 'sources', 'deathBy', 'arenaDur', 'picked']);
@@ -371,6 +372,7 @@ function readSummary(directory: string): Summary {
 
 function mergeSummaryValues(left: SummaryValue | undefined, right: SummaryValue): SummaryValue {
   if (typeof right === 'number') return (typeof left === 'number' ? left : 0) + right;
+  // Sementes diferentes são esperadas ao juntar processos com as mesmas opções.
   if (typeof right === 'string') return left === undefined || left === right ? right : `${left}, ${right}`;
   const previous = typeof left === 'object' && left !== null ? left : {};
   const keys = new Set([...Object.keys(previous), ...Object.keys(right)]);

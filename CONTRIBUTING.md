@@ -152,11 +152,10 @@ cause, make a focused fix, and run the four gates. Open a PR to master using the
 
 ## Required verification
 
-All four gates must pass before a commit:
+All repository checks must pass before a commit:
 
 ```bash
-npx tsc --noEmit -p .
-npx tsc --noEmit -p src/worker
+npm run typecheck
 npx vitest run
 npx vite build
 ```
