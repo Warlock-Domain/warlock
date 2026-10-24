@@ -19,4 +19,5 @@ jobs:
       - run: npx tsc --noEmit -p .
       - run: npx tsc --noEmit -p src/worker
       - run: npx vitest run
+      - run: node scripts/room-cleanup.mjs
       - run: npx vite build
