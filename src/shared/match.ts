@@ -24,6 +24,8 @@ export type Stat = {
   gold: number; dmg: number; kills: number; dmgBy: Record<string, number>; fired: Record<string, number>; landed: Record<string, number>; deaths: number; deathBy: Record<string, number>; alive: number;
   threats: number; struck: number; shieldable: number; shielded: number; reactSum: number; reactN: number; nearSum: number; nearN: number;
 };
+export const STAT_NUMBER_KEYS = ['gold', 'dmg', 'kills', 'deaths', 'alive', 'threats', 'struck', 'shieldable', 'shielded', 'reactSum', 'reactN', 'nearSum', 'nearN'] as const satisfies readonly (keyof Stat)[];
+export const STAT_MAP_KEYS = ['dmgBy', 'fired', 'landed', 'deathBy'] as const satisfies readonly (keyof Stat)[];
 export type Stats = { round: Stat; match: Stat; room: Stat };
 const newStat = (): Stat => ({ gold: 0, dmg: 0, kills: 0, dmgBy: {}, fired: {}, landed: {}, deaths: 0, deathBy: {}, alive: 0, threats: 0, struck: 0, shieldable: 0, shielded: 0, reactSum: 0, reactN: 0, nearSum: 0, nearN: 0 }); // alive: segundos vivo
 const newStats = (): Stats => ({ round: newStat(), match: newStat(), room: newStat() });
@@ -61,12 +63,13 @@ function earn(m: Match, p: Player, gold: number, scaled = true, recovery = false
 // campaign: 1 a 4 humanos contra os servos do Fumo (campaign.ts); clareira = rodada, intervalo = loja
 export const MODES = ['rounds', 'deathmatch', 'teams', 'ascension', 'campaign'] as const;
 export type Mode = (typeof MODES)[number];
-export type Phase = 'lobby' | 'shop' | 'countdown' | 'playing' | 'roundEnd' | 'end';
+export const PHASES = ['lobby', 'shop', 'countdown', 'playing', 'roundEnd', 'end'] as const;
+export type Phase = (typeof PHASES)[number];
 // votação na partida: trocar o modo (target = modo novo), expulsar um humano (target = id dele),
 // trocar o sorteio dos times (target = 'round' sorteados a cada rodada, 'match' fixos na partida),
 // mudar uma opção da partida (target = 'chave:valor', ex.: 'shop:60', 'runes:false'; vale na próxima rodada),
 // reiniciar, encerrar agora, pôr ou tirar um bot (na próxima rodada) e pular a loja (target vazio)
-const VOTE_KINDS = ['mode', 'kick', 'shuffle', 'opt', 'restart', 'end', 'addBot', 'removeBot', 'skipShop'] as const;
+export const VOTE_KINDS = ['mode', 'kick', 'shuffle', 'opt', 'restart', 'end', 'addBot', 'removeBot', 'skipShop'] as const;
 export type Vote = { kind: (typeof VOTE_KINDS)[number]; target: string; by: string; yes: string[]; no: string[]; ends: number };
 
 // opções da partida (pedido do Fernando, 18/10: ajustar o ritmo do jogo, com mais ou menos itens por rodada), escolhidas na sala de espera
@@ -208,7 +211,7 @@ export const playing = (m: Match) => m.players.filter((p) => !p.watch);
 export const BOT_NAMES = ['Gul’dan', 'Merlim', 'Morgana', 'Rasputin', 'Zatanna', 'Mandrake', 'Gandalfo'];
 
 // watch: entra assistindo; sem vaga de mago, a pessoa também entra assistindo (até MAX_WATCHERS)
-export function addPlayer(m: Match, id: string, name: string, bot = false, watch = false): boolean {
+export function addPlayer(m: Match, id: string, name: string, bot = false, watch = false, rand: () => number = Math.random): boolean {
   if (m.banned.includes(id)) return false;
   const known = player(m, id);
   if (known) {
@@ -227,7 +230,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false, watch
   // partida chega à loja seguinte com a renda garantida das rodadas perdidas (#281); espectador continua sem essa compra.
   const gold = m.night ? 0 : !bot && !watching && m.phase !== 'lobby' && m.phase !== 'end' ? lateJoinGold(m) : startGold(m);
   m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold, economy: newEconomy(gold), spells: noSpells(), items: noItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
-  enter(m, m.players[m.players.length - 1]);
+  enter(m, m.players[m.players.length - 1], rand);
   ascOwner(m);
   return true;
 }
@@ -240,7 +243,7 @@ function freeColor(m: Match): number {
 
 // assistir ou voltar a jogar: vale a partir da próxima rodada (o mundo de cada rodada só tem quem joga);
 // voltar precisa de vaga de mago. Na sandbox, que não tem fim de rodada, vale na hora
-export function setWatch(m: Match, id: string, on: boolean): boolean {
+export function setWatch(m: Match, id: string, on: boolean, rand: () => number = Math.random): boolean {
   const p = player(m, id);
   if (!p || p.bot || !!p.watch === on) return false;
   if (!on && playing(m).length >= MAX_PLAYERS) return false;
@@ -254,16 +257,16 @@ export function setWatch(m: Match, id: string, on: boolean): boolean {
   }
   delete p.watch;
   if (playing(m).some((q) => q !== p && q.color === p.color)) p.color = freeColor(m);
-  enter(m, p);
+  enter(m, p, rand);
   return true;
 }
 
 // sandbox: quem entra no meio da rodada ganha um mago, que nasce no próximo passo (como quem volta no deathmatch);
 // Campanha: o estágio é um mundo só, então quem chega entra na hora, como Aceso, onde o grupo está
-function enter(m: Match, p: Player) {
+function enter(m: Match, p: Player, rand: () => number) {
   const w = (m.sandbox || m.night) && m.world;
   if (!w || p.watch || w.wizards.some((z) => z.id === p.id)) return;
-  const z = newWorld([p.id], { [p.id]: p.spells }, { [p.id]: p.items }).wizards[0];
+  const z = newWorld([p.id], { [p.id]: p.spells }, { [p.id]: p.items }, 0, rand).wizards[0];
   if (!m.night) return void w.wizards.push(Object.assign(z, { alive: false, respawnAt: 0 }));
   p.team = 0;
   w.wizards.push(Object.assign(z, { team: 0, pos: w.map!.home, invulnUntil: w.t + INVULN_TIME }));
@@ -276,9 +279,9 @@ function refit(m: Match, p: Player) {
 }
 
 // bot novo com o primeiro id livre (bot-1…bot-8); undefined com a sala cheia
-function newBot(m: Match): Player | undefined {
+function newBot(m: Match, rand: () => number): Player | undefined {
   const n = [1, 2, 3, 4, 5, 6, 7, 8].find((k) => !m.players.some((p) => p.id === 'bot-' + k)) ?? 0;
-  return n && addPlayer(m, 'bot-' + n, BOT_NAMES[(n - 1) % BOT_NAMES.length], true) ? m.players[m.players.length - 1] : undefined;
+  return n && addPlayer(m, 'bot-' + n, BOT_NAMES[(n - 1) % BOT_NAMES.length], true, false, rand) ? m.players[m.players.length - 1] : undefined;
 }
 
 // no lobby e no fim sai da lista; no meio da partida o mago fica parado esperando a pessoa voltar
@@ -318,14 +321,14 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   m.players = m.players.filter((p) => !p.bot && p.connected);
   const solo = m.players.length === 1;
   for (let i = 0; playing(m).length < MAX_PLAYERS && i < (campaign ? 0 : bots); i++) {
-    addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true);
+    addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true, false, rand);
     const bot = m.players[m.players.length - 1];
     const { difficulty, ...rest } = setup[i] ?? {};
     if (difficulty) bot.difficulty = difficulty;
     // só a dificuldade não é treino (a rodada não sai marcada na telemetria)
     if (solo && setup[i] && (!difficulty || Object.keys(rest).length)) bot.setup = rest;
   }
-  if (campaign && m.players.length) for (let k = 1; k <= CAMPAIGN.slots; k++) if (addPlayer(m, 'fumo-' + k, '', true)) dress(m, m.players[m.players.length - 1], 'ash');
+  if (campaign && m.players.length) for (let k = 1; k <= CAMPAIGN.slots; k++) if (addPlayer(m, 'fumo-' + k, '', true, false, rand)) dress(m, m.players[m.players.length - 1], 'ash');
   // quem assiste não conta: dá para pôr só bots em campo e assistir a partida
   if (playing(m).length < (sandbox ? 1 : 2)) return false;
   fresh(m, now, kind, teamShuffle, rand);
@@ -351,7 +354,7 @@ function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: ()
   m.night = mode === 'campaign' ? { seed: Math.floor(rand() * 2 ** 31), stage: 0, fight: null, wave: 0, since: 0, cracked: 0, done: [], result: null } : undefined;
   if (m.night) for (const p of m.players) Object.assign(p, { gold: 0, team: p.servo ? 1 : 0 });
   m.nextEffect = m.sandbox || m.night ? null : drawEffect(m, rand, null);
-  enterShop(m, now);
+  enterShop(m, now, rand);
 }
 
 // efeito de uma rodada: fixo pela opção ou sorteado sem repetir o anterior (rodadas seguidas iguais cansam); null desligado e na sandbox.
@@ -475,7 +478,7 @@ export function setReady(m: Match, id: string): boolean {
 }
 
 // a sala reiniciou (o mundo da rodada só vive na memória): repete a rodada a partir da loja
-export function resume(m: Match, now: number) {
+export function resume(m: Match, now: number, rand: () => number = Math.random) {
   // salas gravadas antes da escolha de personagem e do deathmatch existirem
   m.emptyRounds ??= 0;
   m.mode ??= 'rounds';
@@ -515,8 +518,8 @@ export function resume(m: Match, now: number) {
   }
   if (m.phase === 'countdown' || m.phase === 'playing') {
     m.round--;
-    enterShop(m, now);
-  } else if (m.phase === 'roundEnd') afterRound(m, now);
+    enterShop(m, now, rand);
+  } else if (m.phase === 'roundEnd') afterRound(m, now, rand);
 }
 
 // expulsa um bot ou alguém que caiu e não voltou (gente conectada não pode ser expulsa por outro)
@@ -546,7 +549,7 @@ const voters = (m: Match) => m.players.filter((p) => !p.bot && p.connected).map(
 export const votesNeeded = (humans: number) => Math.floor(humans / 2) + 1;
 
 // abre uma votação (uma por vez, só com a partida rolando); quem abre já conta como SIM
-export function startVote(m: Match, id: string, kind: Vote['kind'], target: string, now: number): boolean {
+export function startVote(m: Match, id: string, kind: Vote['kind'], target: string, now: number, rand: () => number = Math.random): boolean {
   if (m.vote || !VOTE_PHASES.includes(m.phase) || !voters(m).includes(id)) return false;
   // a Campanha começa e termina pela sala: sem troca de modo para dentro ou para fora dela, e sem bots aliados
   if ((kind === 'mode' && (target === 'campaign' || m.mode === 'campaign')) || (m.night && (kind === 'addBot' || kind === 'removeBot' || kind === 'shuffle'))) return false;
@@ -569,20 +572,20 @@ export function startVote(m: Match, id: string, kind: Vote['kind'], target: stri
     target = '';
   }
   m.vote = { kind, target, by: id, yes: [id], no: [], ends: now + VOTE_MS };
-  settleVote(m, now);
+  settleVote(m, now, rand);
   return true;
 }
 
-export function castBallot(m: Match, id: string, yes: boolean, now: number): boolean {
+export function castBallot(m: Match, id: string, yes: boolean, now: number, rand: () => number = Math.random): boolean {
   const v = m.vote;
   if (!v || !voters(m).includes(id) || v.yes.includes(id) || v.no.includes(id)) return false;
   (yes ? v.yes : v.no).push(id);
-  settleVote(m, now);
+  settleVote(m, now, rand);
   return true;
 }
 
 // fecha a votação: passa com maioria; falha se os NÃO a tornam impossível, se o prazo acabou ou se a partida acabou
-function settleVote(m: Match, now: number) {
+function settleVote(m: Match, now: number, rand: () => number) {
   const v = m.vote;
   if (!v) return;
   const who = voters(m);
@@ -599,7 +602,7 @@ function settleVote(m: Match, now: number) {
       const [k, val] = parseOpt(v.target)!;
       if (m.opts[k] === val) delete m.pendingOpts[k];
       else Object.assign(m.pendingOpts, { [k]: val });
-    } else if (v.kind === 'restart') fresh(m, now, m.mode, m.teamShuffle, Math.random);
+    } else if (v.kind === 'restart') fresh(m, now, m.mode, m.teamShuffle, rand);
     else if (v.kind === 'end') {
       // vence quem tem mais pontos; empate no topo = ninguém
       const [best, top] = atTop(m.players, (p) => p.score);
@@ -630,7 +633,7 @@ export function endIdle(m: Match) {
 
 export const shouldRun = (m: Match, humansConnected: number) => humansConnected > 0 && m.phase !== 'lobby' && m.phase !== 'end';
 
-function enterShop(m: Match, now: number) {
+function enterShop(m: Match, now: number, rand: () => number) {
   m.phase = 'shop';
   for (const p of m.players) {
     p.bought = [];
@@ -643,14 +646,14 @@ function enterShop(m: Match, now: number) {
     // treino: bot configurado entra exatamente com as magias e itens pedidos, sem compra automática
     const s = p.setup;
     if (s?.spells || s?.items) Object.assign(p, { spells: { ...noSpells(), ...s.spells }, items: { ...noItems(), ...s.items } });
-    else botShop(m, p);
+    else botShop(m, p, rand);
   }
 }
 
 // o bot compra o que o plano dele pede enquanto o ouro der (botBuy roda mesmo para gente, como sempre rodou: gasta o sorteio)
-function botShop(m: Match, p: Player) {
+function botShop(m: Match, p: Player, rand: () => number) {
   if (p.servo) return;
-  for (let b = botBuy(p, Math.random, botSkill(m, p)); p.bot && b && (b.kind === 'spell' ? buy(m, p.id, b.id) : buyItem(m, p.id, b.id)); b = botBuy(p, Math.random, botSkill(m, p)));
+  for (let b = botBuy(p, rand, botSkill(m, p)); p.bot && b && (b.kind === 'spell' ? buy(m, p.id, b.id) : buyItem(m, p.id, b.id)); b = botBuy(p, rand, botSkill(m, p)));
 }
 
 // 2 times de tamanhos iguais (com número ímpar, um tem 1 a mais; qual deles também é sorteado)
@@ -701,10 +704,10 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   m.pendingOpts = {};
   // bots votados (a fase ainda é a loja): o novo entra no padrão (Automático), seja qual for a da partida, com o ouro inicial, e já compra; sai o último bot da lista
   for (; m.botDelta > 0; m.botDelta--) {
-    const b = newBot(m);
+    const b = newBot(m, rand);
     if (!b) break;
     b.difficulty = DEFAULT_OPTS.difficulty;
-    botShop(m, b);
+    botShop(m, b, rand);
   }
   for (; m.botDelta < 0; m.botDelta++) {
     const bot = m.players.filter((p) => p.bot).pop();
@@ -790,18 +793,18 @@ function endRound(m: Match, now: number, winner: string | null) {
 }
 
 // como no original: ganha quem vencer goalOf(m) rodadas primeiro (padrão WINS_TO_WIN)
-function afterRound(m: Match, now: number) {
+function afterRound(m: Match, now: number, rand: () => number) {
   const n = m.night;
   if (n) {
     // nesta versão o estágio 1 é a noite inteira: a rodada só acaba com a noite vencida ou perdida
-    if (!n.result) return enterShop(m, now);
+    if (!n.result) return enterShop(m, now, rand);
     m.phase = 'end';
     m.winner = null;
     m.world = null;
     return closeNight(m);
   }
   if (m.asc) {
-    if (m.round < ASC_ROUNDS) return enterShop(m, now);
+    if (m.round < ASC_ROUNDS) return enterShop(m, now, rand);
     m.phase = 'end';
     m.winner = ascWinner(m);
     m.world = null;
@@ -810,7 +813,7 @@ function afterRound(m: Match, now: number) {
   if (m.mode === 'deathmatch') {
     // a meta só vale no fim da rodada (a rodada sempre dura os 60 s); empate no topo joga mais uma rodada
     const [best, top] = atTop(m.players, (p) => p.score);
-    if (best < goalOf(m) || top.length > 1) return enterShop(m, now);
+    if (best < goalOf(m) || top.length > 1) return enterShop(m, now, rand);
     m.phase = 'end';
     m.winner = top[0].id;
     m.world = null;
@@ -818,7 +821,7 @@ function afterRound(m: Match, now: number) {
   }
   const champion = m.players.find((p) => p.score >= goalOf(m));
   // 3 rodadas seguidas sem ninguém sobrar: todo mundo parado, a partida acaba (e o laço da sala para)
-  if (!champion && m.emptyRounds < EMPTY_ROUNDS_END) return enterShop(m, now);
+  if (!champion && m.emptyRounds < EMPTY_ROUNDS_END) return enterShop(m, now, rand);
   m.phase = 'end';
   m.winner = champion?.id ?? null;
   // com times fixos quem vence é o time; sorteados a cada rodada, cada um por si
@@ -1028,12 +1031,12 @@ function stepNight(m: Match, now: number, w: World) {
 
 // painel da sandbox: ligar/desligar regras, pôr bot (tirar é o 'kick'), pôr runa, trocar a arena, mudar o tamanho da pedra e reiniciar a rodada; fora da sandbox não faz nada
 // id: quem mandou (a runa nasce ao lado dele)
-export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boolean {
+export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = '', rand: () => number = Math.random): boolean {
   const sb = m.sandbox;
   if (!sb || m.phase === 'lobby' || m.phase === 'end') return false;
   // runa: só o mundo muda (vai no snapshot, não é gravado), então devolve false para a sala não gravar a cada clique
   if (cmd.op === 'rune') {
-    if (m.world) placeRune(m.world, cmd.kind, m.world.wizards.find((z) => z.id === id && z.alive)?.pos ?? null);
+    if (m.world) placeRune(m.world, cmd.kind, m.world.wizards.find((z) => z.id === id && z.alive)?.pos ?? null, rand);
     return false;
   }
   if (cmd.op === 'set') {
@@ -1055,7 +1058,7 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boo
     return true;
   }
   if (cmd.op === 'turret') {
-    const b = newBot(m);
+    const b = newBot(m, rand);
     if (!b) return false;
     b.turret = cmd.direction;
     b.dummy = true;
@@ -1066,7 +1069,7 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boo
     return true;
   }
   if (cmd.op === 'bot') {
-    const b = newBot(m);
+    const b = newBot(m, rand);
     if (!b) return false;
     // como no treino: com magias ou itens escolhidos entra exatamente com eles; sem, compra sozinho
     const { difficulty = 'normal', ...rest } = cmd.bot ?? {};
@@ -1074,7 +1077,7 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boo
     if (cmd.dummy) b.dummy = true;
     if (Object.keys(rest).length) b.setup = rest;
     if (rest.spells || rest.items) Object.assign(b, { spells: { ...noSpells(), ...rest.spells }, items: { ...noItems(), ...rest.items } });
-    else if (!cmd.dummy) botShop(m, b); // o boneco fica sem compras: dano e empurrão de referência
+    else if (!cmd.dummy) botShop(m, b, rand); // o boneco fica sem compras: dano e empurrão de referência
     refit(m, b);
     return true;
   }
@@ -1088,7 +1091,7 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = ''): boo
   }
   if (cmd.op === 'arena') m.opts = { ...m.opts, arena: cmd.arena };
   // reiniciar (e trocar a arena): mundo novo com todos no ponto de partida e vida cheia, depois da contagem
-  enterCountdown(m, now, Math.random);
+  enterCountdown(m, now, rand);
   return true;
 }
 
@@ -1106,7 +1109,7 @@ function topKiller(m: Match): string | null {
 
 export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number = Math.random): SimEvent[] {
   const events = stepMatch(m, now, cmds, rand);
-  settleVote(m, now); // prazo, quem caiu e o fim da partida também fecham a votação
+  settleVote(m, now, rand); // prazo, quem caiu e o fim da partida também fecham a votação
   return events;
 }
 
@@ -1184,7 +1187,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
     return [];
   }
   if (m.phase === 'roundEnd') {
-    if (now >= m.phaseEnds) afterRound(m, now);
+    if (now >= m.phaseEnds) afterRound(m, now, rand);
     return [];
   }
   if (m.phase !== 'playing' || !m.world) return [];

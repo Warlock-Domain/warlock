@@ -38,7 +38,13 @@ describe('jeito de jogar', () => {
   // 22/10 (issue #206): a Barricada cai do céu e dá dano em quem está embaixo, e os bots a usam
   it('a medição não muda a partida: mesma semente, mesmos eventos de antes', () => {
     const { m, hash } = botMatch(7, 4000);
-    expect(hash).toBe(256877893);
+    // 22/10: fim da amplificação por dano histórico altera intencionalmente as trajetórias.
+    // Proposta 23/10: bloqueios explícitos de stun/Agarrar mudam as decisões e trajetórias dos bots.
+    // Proposta23/10: fim limpo do impulso e retomada50→100% mudam trajetórias.
+    // Proposta 23/10: colisões gerais e Raio contínuo alteram intencionalmente os eventos.
+    // 23/10: clique único cancela no primeiro contato, inclusive oblíquo, também para destinos dos bots.
+    // Proposta 23/10: Meteoro sem empurrão, com stun fixo 1,25 s.
+    expect(hash).toBe(2979891989);
     // e mediu de verdade nessa mesma partida
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);

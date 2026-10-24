@@ -12,6 +12,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Números de magia e item (`spells.ts`, `items.ts`, `constants.ts`)
 
+- Proposta Meteoro em revisão: preserva dano/área e substitui empurrão por duration=1,25s em todos os níveis. Usa o bloqueio geral de stun e resistências do alvo; não aciona recuperação pós-knockback sem impulso. Medição/decisão do dono pendente antes de integrar.
+
 - 7 níveis por `L({...})`; séries irregulares com `zip([...], [...])`, lineares com `steps(de, passo)`.
 - Ajuste de balanceamento fica **inline sobre o número original**, com comentário de data e medição: `cd: cd * 0.7 /* 18/10: … (0,86 → 0,97) */`.
 - Constante extra de mecânica vira objeto `NOME = { … * UNIT }` abaixo da tabela, com o arquivo `.lua` de origem no comentário. Nada de número mágico solto em `sim.ts`.
@@ -27,6 +29,14 @@ Vale junto com o `CLAUDE.md` da raiz.
 Mensagem nova do cliente: variante em `ClientMsg` → `case` em `parseClientMessage` que devolve `null` em qualquer dúvida, usando `isObj`, `coord`, `seq`, `pubId`, `isSpell` → devolver o objeto **reconstruído** com campos conhecidos, nunca o cru → objeto de entrada só com chaves permitidas (veja `parseOpts`, `parseSandbox`) → respeitar `MAX_MSG` → ramo em `room-do.ts` e teste em `tests/protocol.test.ts`.
 
 ## Snapshot (`snapshot.ts`)
+
+- Proposta Escudo: impede dano e recebe60%dos novos impulsos e durações de stun/root/slow. `statusDuration` decide no instante do impacto; ativar depois não recalcula efeitos prévios. Proteção geral, não exceção entre duas magias. Sem mudança do Meteoro nesta PR.
+
+- Recuperação pós-knockback (`kr`) só começa quando impulso físico cruza STUN_SPEED: zera residual e retoma50→100% em1s, +10pp/0,2s. Terminar um stun sem impulso não aciona recuperação; teste dedicado cobre essa separação. Cliente relê kr só por snapshot novo, nunca por quadro.
+
+- Proposta em revisão: `stunLeft` é relógio de bloqueio de ações separado da velocidade física (`st` no snapshot, -1 usa regra antiga). `castBlocked` bloqueia tudo sob stun e só magias de Mobilidade sob Agarrar. Não modifica Meteoro, Escudo nem regra de recuperação de velocidade nesta etapa.
+
+- Dano histórico não amplifica knockback (`KNOCK_HP_SCALE=0`); continua registrado para estatísticas. `WALKING_BIT` só marca destino voluntário válido; deslocamento físico/reconciliação não anima caminhada. Botão direito não fica preso após blur/pointercancel.
 
 Listas achatadas de números (layout no comentário de `protocol.ts`), valores com `r2`, campos opcionais só quando há conteúdo, estado novo por mago como bit documentado em `bits`. Inserir no meio de `PROJ_KINDS` quebra cliente aberto.
 

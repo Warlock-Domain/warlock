@@ -51,7 +51,9 @@ describe('Agarrar com cipós em área', () => {
     w.wizards[1].shieldUntil = 5;
     w.wizards[2].invulnUntil = 5;
     run(w, 1.3);
-    expect(w.wizards.every((z) => z.gripUntil === 0)).toBe(true);
+    expect(w.wizards[0].gripUntil).toBe(0);
+    expect(w.wizards[1].gripUntil).toBeGreaterThan(w.t); // Escudo agora reduz duração, não dá imunidade aos cipós.
+    expect(w.wizards[2].gripUntil).toBe(0);
   });
 
   it('envia o raio e a contagem ao cliente e limita a marca ao alcance', () => {

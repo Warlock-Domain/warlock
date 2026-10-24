@@ -17,10 +17,10 @@ export const store = {
       // só na memória
     }
   },
-  // JSON guardado; ausente ou inválido = null
-  json<T>(k: string): T | null {
+  // Ausente ou sintaxe inválida = null; cada consumidor valida o formato antes de usar.
+  json(k: string): unknown {
     try {
-      return JSON.parse(store.get(k) ?? 'null') as T;
+      return JSON.parse(store.get(k) ?? 'null');
     } catch {
       return null;
     }

@@ -1,6 +1,7 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
 import type { Snap } from './protocol.ts';
-import { PROJ_KINDS, bootsBonus, isSliding, zoneReaches, type ProjKind, type SimEvent, type World } from './sim.ts';
+import { PROJ_KINDS, bootsBonus, incapacitatedUntil, isSliding, isStunned, zoneReaches, type ProjKind, type SimEvent, type World } from './sim.ts';
+import { INCAPACITATED_BIT, ELECTROCUTED_BIT } from './constants.ts';
 import { CHEST, OBSTACLES, OBSTACLE_KINDS, RUNE_KINDS, WIZ_R, type ObstacleKind, type RuneKind } from './constants.ts';
 import { SPELL_IDS, spellLevel } from './spells.ts';
 import type { Isle } from './arena.ts';
@@ -9,6 +10,10 @@ import { dist, v, type Vec } from './vec.ts';
 const r2 = (x: number) => Math.round(x * 100) / 100;
 export const DASHING_BIT = 33554432; // avanço curto, distinto do buff de velocidade/absorção.
 const ZONE_KINDS = ['burn', 'slow', 'pull'] as const;
+// A pose segue um destino autoritativo, não deslocamento residual ou correção de rede.
+export const WALKING_BIT = 16777216;
+export const HOLDING_MOVE_BIT = 67108864;
+export const BLOCKED_MOVE_BIT = 134217728; // cancela também destino da previsão.
 const RUNE_BIT: Record<RuneKind, number> = { haste: 262144, fury: 524288, shield: 1048576, recharge: 4194304 };
 export type ZoneKind = (typeof ZONE_KINDS)[number];
 
@@ -37,14 +42,18 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     // Ilusão: só o dono recebe 1024 (Caminhada no vento); os outros recebem 2048, salvo a visão de teste da sandbox (8388608)
     const hidden = !seeAll && z.id !== forId && !(me && me.team !== null && me.team === z.team);
     const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0)
-      | (isSliding(z) ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
+      | (isStunned(z) ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
       | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 || w.t < z.slowUntil ? 4 : 0) | (z.zone & 2 ? 512 : 0)
       | (w.t < z.windUntil ? (hidden ? 2048 : 1024) : 0) | (w.t < z.hasteUntil || bootsBonus(w, z) > 0 ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)
       | (w.t < z.alterUntil ? 32768 : 0) | (linked.has(z.id) ? 65536 : 0) | (z.aegis ? 131072 : 0)
       | (w.t < z.runeUntil && z.rune ? RUNE_BIT[z.rune] : 0)
       | (z.alive && w.zones.some((q) => q.kind === 'pull' && dist(q.pos, z.pos) < q.r + WIZ_R && zoneReaches(w, q, z)) ? 2097152 : 0)
       | (w.t < z.veilUntil ? (z.id === forId ? 1024 : seeAll ? 8388608 : 2048) : 0)
-      | (z.alive && w.t < z.dashUntil ? DASHING_BIT : 0);
+      | (z.alive && w.t < z.dashUntil ? DASHING_BIT : 0)
+      | (z.alive && z.target && dist(z.target, z.pos) > .01 && z.speed > 0 && !z.casting && !isStunned(z) && w.t >= z.dashUntil && w.t >= z.thrustUntil ? WALKING_BIT : 0)
+      | (z.moveHeld ? HOLDING_MOVE_BIT : 0) | (z.blockedMove ? BLOCKED_MOVE_BIT : 0)
+      | (w.t < incapacitatedUntil(z, w.t) ? INCAPACITATED_BIT : 0)
+      | (w.t < (z.electroUntil ?? 0) ? ELECTROCUTED_BIT | 4 : 0);
     // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão
     const dash = w.t < z.dashUntil ? z.dashVel : { x: 0, y: 0 };
     wz.push(r2(z.pos.x), r2(z.pos.y), r2(z.vel.x + dash.x), r2(z.vel.y + dash.y), Math.ceil(z.hp), r2(z.facing), bits);
@@ -72,15 +81,19 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   if (ab.some((x) => x > 0)) snap.ab = ab;
   // Campanha: brasa de cada mago (0 a 1 até reacender; −1 sem brasa ou apagada), na ordem de room.ids
   if (w.wizards.some((z) => z.ember && !z.ember.out)) snap.em = w.wizards.map((z) => (z.ember && !z.ember.out ? r2(Math.min(1, z.ember.prog / z.ember.need)) : -1));
+  if (w.wizards.some((z) => (z.recoveryLeft ?? 0) > 0)) snap.kr = w.wizards.map((z) => r2(z.recoveryLeft ?? 0));
+  if (w.wizards.some((z) => z.stunLeft !== undefined)) snap.st = w.wizards.map((z) => z.stunLeft === undefined ? -1 : r2(z.stunLeft));
   // efeitos com prazo de quem recebe: bit (o mesmo de w) e segundos que faltam; os sem prazo (queimando, atordoado, Elo) ficam só no bit
   if (me) {
     const fx: number[] = [];
+    if ((me.stunLeft ?? 0) > 0) fx.push(16, r2(me.stunLeft!));
     const left = (bit: number, until: number) => w.t < until && fx.push(bit, r2(until - w.t));
     left(32, me.invulnUntil);
     left(64, me.pactUntil);
     left(128, me.gripUntil);
     left(256, me.rushUntil);
-    left(4, me.slowUntil);
+    left(4, Math.max(me.slowUntil, me.electroUntil ?? 0));
+    left(INCAPACITATED_BIT, incapacitatedUntil(me, w.t));
     left(1024, me.windUntil);
     left(4096, Math.max(me.hasteUntil, me.shockUntil));
     left(me.magnet > 0 ? 8192 : 16384, me.magnetUntil);
@@ -97,7 +110,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   return snap;
 }
 
-export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number; rushLeft?: number };
+export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number; rushLeft?: number; stunLeft?: number; recoveryLeft?: number };
 // meteor, grip e warpzone: vel = (raio, segundos que faltam); link: posição do dono; illusion: índice do dono e direção
 export type ProjView = { id: number; kind: ProjKind; pos: Vec; vel: Vec };
 export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
@@ -110,7 +123,7 @@ const rows = (a: number[] | undefined, n: number) => Array.from({ length: Math.f
 
 export function decodeSnap(s: Snap, ids: string[]): SnapView {
   const wizards = rows(s.w, 7).slice(0, ids.length).map(([x, y, vx, vy, hp, facing, bits], i): WizView =>
-    ({ id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0, status: bits, rushLeft: s.ab?.[i] ?? 0 }));
+    ({ id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0, status: bits, rushLeft: s.ab?.[i] ?? 0, stunLeft: s.st && s.st[i] >= 0 ? s.st[i] : undefined, recoveryLeft: s.kr?.[i] ?? 0 }));
   const projectiles = rows(s.p, 6).map(([id, kind, x, y, vx, vy]): ProjView => ({ id, kind: PROJ_KINDS[kind] ?? 'fireball', pos: v(x, y), vel: v(vx, vy) }));
   const pillars = rows(s.pl, 4).map(([x, y, hp, k]): PillarView => ({ pos: v(x, y), hp, kind: OBSTACLE_KINDS[k] ?? 'pillar' }));
   const runes = rows(s.ru, 3).map(([x, y, k]): RuneView => ({ pos: v(x, y), kind: RUNE_KINDS[k] ?? 'haste' }));

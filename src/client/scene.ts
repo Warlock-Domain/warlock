@@ -1,6 +1,8 @@
 // Cena 3D: lava, arena de pedra que encolhe, magos (KayKit), projéteis e efeitos.
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
 import * as THREE from 'three';
+import { ELECTROCUTED_BIT } from '../shared/constants.ts';
+import { electroPulse } from './screen-data.ts';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -238,6 +240,7 @@ type Mage = {
   bones: AppearanceInstance | null; // esqueleto escuro que sobra da queima
   flash: number; // clarão branco do golpe: 1 no acerto, cai até 0
   burning: boolean; // vivo e na lava (issue #225): o corpo pulsa em brasa e solta faíscas
+  electro?: boolean;
   freezeUntil: number; // hit-stop: animação parada até este instante
   cheering: boolean;
   medalEl: HTMLElement; // medalha de ouro, prata ou bronze com a colocação, à esquerda do nome
@@ -1957,8 +1960,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.invuln = invuln;
       // brasa pulsando enquanto queima (o clarão do golpe passa por cima); parou de queimar vivo ou morrendo fora da lava: volta
       // a cor própria; morreu na lava (burnAt marcado neste quadro): o burnCorpse cuida da cor do corpo
-      if (m.flash <= 0 && (burning || (m.burning && m.burnAt < 0))) for (const x of m.mats) {
-        if (burning) {
+      const electro = d.alive && !!(d.status & ELECTROCUTED_BIT);
+      if (m.flash <= 0 && (electro || m.electro || burning || (m.burning && m.burnAt < 0))) for (const x of m.mats) {
+        if (electro) {
+          x.m.emissive.setRGB(.3, .7, 1);
+          x.m.emissiveIntensity = electroPulse(true, now, lite);
+        } else if (burning) {
           x.m.emissive.copy(EMBER);
           x.m.emissiveIntensity = 0.35 + 0.25 * Math.sin(now * 9);
         } else {
@@ -1967,6 +1974,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         }
       }
       m.burning = burning;
+      m.electro = electro;
       // clarão branco do golpe: some em ~0,15 s
       if (m.flash > 0) {
         m.flash = Math.max(0, m.flash - 0.12);

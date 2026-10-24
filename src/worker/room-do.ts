@@ -127,16 +127,18 @@ export class Room extends DurableObject<Env> {
       case 'alive':
         return;
       case 'move':
+      case 'moveHold':
       case 'stop':
       case 'cast':
         // comandos de jogo só valem com a rodada rolando (fora dela a fila cresceria sem limite)
         if (m.phase !== 'playing') return;
         if (msg.t === 'stop') this.cmds.push({ id, kind: 'stop' });
+        else if (msg.t === 'moveHold') this.cmds.push({ id, kind: 'moveHold', on: msg.on });
         else {
           // o limite da coordenada depende da sala (arena ou mapa da Campanha), por isso não cabe no parser
           const at = cmdTarget(m.world?.map, msg.x, msg.y);
           if (!at) return send(ws, { t: 'error', code: 'bad_msg', msg: 'Mensagem inválida.' });
-          this.cmds.push(msg.t === 'move' ? { id, kind: 'move', to: at } : { id, kind: 'cast', spell: msg.spell, at });
+          this.cmds.push(msg.t === 'move' ? { id, kind: 'move', to: at, held: msg.held } : { id, kind: 'cast', spell: msg.spell, at });
         }
         this.acks.set(id, msg.seq);
         return;
@@ -261,6 +263,7 @@ export class Room extends DurableObject<Env> {
       await this.dropped(ws); // antes do forget, que apaga o playerId do attachment
       forget(ws, 'dead');
     }
+    // Reconfere a cada 5 min para remover conexões-fantasma mesmo enquanto a sala está ocupada.
     if (this.humans() > 0) return void (await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS));
     this.stopLoop();
     const revision = this.revision;

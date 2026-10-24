@@ -15,6 +15,9 @@ export const SPELL_GROUP_IDS = {
   control: ['grip', 'gravity', 'link', 'magnetize', 'drain'],
 } as const satisfies Record<string, readonly SpellId[]>;
 export type SpellGroup = keyof typeof SPELL_GROUP_IDS;
+export const SHIELD = { statusDuration: .6, knock: .6 }; // proposta: reduz novos status/impulsos em40%, nunca recalcula os anteriores.
+// Servidor e entrada do cliente usam a mesma classificação de mobilidade para o agarramento.
+export const castBlocked = (stunned: boolean, rooted: boolean, spell: SpellId) => stunned || (rooted && spellGroup(spell) === 'mobility');
 export const spellGroup = (s: SpellId) => (Object.keys(SPELL_GROUP_IDS) as SpellGroup[]).find((g) => (SPELL_GROUP_IDS[g] as readonly SpellId[]).includes(s))!;
 
 // radius: raio da explosão do Meteoro (e do dano da Gravidade); dmgMin: dano na borda dele; absorb: dano que a Investida converte em velocidade;
@@ -32,7 +35,7 @@ const steps = (from: number, by: number) => Array.from({ length: MAX_SPELL_LEVEL
 
 export const SPELLS: Record<SpellId, Spell> = {
   fireball: { name: 'Bola de fogo', en: 'Fireball', cost: 0, up: [7, 7, 7, 7, 7, 7], levels: [70, 77, 84, 91, 98, 105, 112].map((d) => L({ cd: 4.8, dmg: d, speed: 1000 * UNIT, range: 1000 * UNIT })) },
-  lightning: { name: 'Raio', en: 'Lightning', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 15.5, 15, 14.5, 14, 13.5, 13], [70, 78, 86, 94, 102, 110, 118]).map(([cd, d]) => L({ cd: Math.round(cd * 14) / 10, dmg: d, kbf: 0.92, range: 800 * UNIT })) /* números pelo simulador (18/10, escolha do Fernando): recarga ×1,4 (1,32 → 1,13) */ }, // balanceamento de 17/10: recarga ×0,7 e alcance 600 → 800 (acertava 21%)
+  lightning: { name: 'Eletrocutar', en: 'Electrocute', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 15.5, 15, 14.5, 14, 13.5, 13], [70, 78, 86, 94, 102, 110, 118]).map(([cd, d]) => L({ cd: Math.round(cd * 14) / 10, dmg: d, kbf: 0.92, range: 800 * UNIT })) /* números pelo simulador (18/10, escolha do Fernando): recarga ×1,4 (1,32 → 1,13) */ }, // balanceamento de 17/10: recarga ×0,7 e alcance 600 → 800 (acertava 21%)
   homing: { name: 'Míssil teleguiado', en: 'Homing Missile', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [70, 80, 90, 100, 110, 120, 130]).map(([cd, d]) => L({ cd, dmg: d * 0.34, speed: 1000 * UNIT, duration: 4.5 })) /* números pelo simulador (18/10): dano ×0,34 e curva 3 → 2,5 rad/s (1,34 → 1,13) */ },
   shield: { name: 'Escudo', en: 'Shield', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [14, 13, 12, 11, 10, 9, 8].map((cd, i) => L({ cd: (cd * 16) / 14 /* 19/10, escolha do Fernando: 14 → 16 s no nível 1 (Difícil 1,18 → 1,16; Normal 0,96 → 0,97) */, duration: 1.2, radius: (200 + 10 * i) * UNIT })) }, // original (Fernando, 18/10: volta ao original até ter partidas reais; nos bots vence 46% acima do justo, eles reagem melhor que gente) // bolha de 200 a 260 (abil.txt do original)
   teleport: { name: 'Teleporte', en: 'Teleport', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([16, 13.5, 11.5, 10, 9, 8, 7], [770, 840, 910, 980, 1050, 1120, 1190]).map(([cd, r]) => L({ cd: cd * 1.1, range: r * UNIT })) }, // 18/10 com as ilhas de refúgio: recarga ×1,1 (18% acima do justo no Normal)
@@ -42,8 +45,8 @@ export const SPELLS: Record<SpellId, Spell> = {
   // Agarrar em área (decisão do Fernando, 21/10, #168): cipós com raio de 1,5 m no ponto mirado, sem simulador (exceção como a Ilusão); duration é o tempo preso.
   // Agarrar prende metade do tempo do original (nerf pedido pelo Fernando, 17/10)
   grip: { name: 'Agarrar', en: 'Grip', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: [24, 19, 15, 12, 10, 8.5, 7].map((cd, i) => L({ cd: cd * 0.8, duration: 2.25, radius: 1.5, range: 1100 * UNIT, scale: steps(0.3, 0.1)[i] })) /* 18/10: tempo preso fixo, preso sem proteção de empurrão (0,81 → 0,91); Agarrar novo (18/10): scale = empurrão a mais do golpe que solta, +30% a +90% */ },
-  // meteoro: dano de 40 na borda (aqui 60) até o máximo no centro; empurrão 0,66
-  meteor: { name: 'Meteoro', en: 'Meteor', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([20, 19.5, 19, 18.5, 18, 17.5, 17], [110, 120, 130, 140, 150, 160, 170]).map(([cd, d], i) => L({ cd: cd * 0.9, dmg: d, dmgMin: 60, kbf: 0.66, /* ciclo 1: recarga ×0,9 (0,94×) */ /* borda 40 → 60 em 17/10 */ radius: [225, 240, 255, 269, 282, 294, 304][i] * UNIT, range: 1000 * UNIT })) },
+  // Teste local 22/10: dano preservado, mas troca empurrão por 1,25 s de atordoamento em todos os níveis.
+  meteor: { name: 'Meteoro', en: 'Meteor', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([20, 19.5, 19, 18.5, 18, 17.5, 17], [110, 120, 130, 140, 150, 160, 170]).map(([cd, d], i) => L({ cd: cd * 0.9, dmg: d, dmgMin: 60, kbf: 0, duration: 1.25, /* ciclo 1: recarga ×0,9 (0,94×) */ /* borda 40 → 60 em 17/10 */ radius: [225, 240, 255, 269, 282, 294, 304][i] * UNIT, range: 1000 * UNIT })) },
   // investida: absorve até `absorb` de dano (metade de cada golpe) e vira velocidade
   rush: { name: 'Investida', en: 'Rush', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([21, 20, 19, 18, 17, 16, 15], [6, 6.5, 7, 7.5, 8, 8.5, 9]).map(([cd, duration], i) => L({ cd: cd * 1.2, duration, absorb: (50 + 20 * i) * 0.25 })) }, // 18/10: absorve ¼ e recarga ×1,2; avanço 40 → 20 (1,36 → 1,13)
   // rajada: 4 projéteis em leque de 844 u/s e 672 u de alcance; empurrão 0,65
@@ -110,9 +113,17 @@ export const HOMING_TURN = 2.5; // rad/s
 export const BOOMERANG = { side: 300 * UNIT, minDist: 300 * UNIT, back: 1000 * UNIT, turn: 1000 * UNIT, bounce: 500 * UNIT, bounceWall: 750 * UNIT, gap: 10 * UNIT, life: 6 };
 // estocada (thrust.lua, thrustmodifier.lua): sai a 77% da velocidade e acelera até ela (aceleração que empata com o atrito);
 // dura o caminho + 0,09 s; sem acertar, freia para 20%; reach: a bolha da estocada tem 30 u a mais que o mago
-// Raio: além do corpo do mago, pega quem passa a `width` da linha (21/10, exceção decidida pelo Fernando sem passar pelo simulador:
+// Eletrocutar: além do corpo do mago, pega quem passa a `width` da linha (21/10, exceção decidida pelo Fernando sem passar pelo simulador:
 // "o hitbox ainda está muito fino"; antes só quem o corpo cruzava a linha)
-export const LIGHTNING = { width: 0.15 };
+// A ampliação visual da destruição fica na cena, sem alterar o feixe ou os eventos da simulação.
+export const LIGHTNING = { width: 0.15, destroysProjectiles: true, destroyFxRadius: .6, jumpPower: .5, debuffDuration: 2, slow: .25 }; // protótipo: 2s de lentidão25% e pausa das recargas.
+// Stats gerais de colisão: null é área/efeito persistente; plain se anula sem criar dano extra de combinação.
+// Os elementos antigos conservam seus efeitos; não há exceção entre pares de nomes de magia.
+export const PROJECTILE_COLLISION = {
+  fireball: 'fire', homing: 'pulse', cluster: 'plain', swap: 'plain', boomerang: 'plain', gravity: 'plain',
+  bouncer: 'plain', drain: 'plain', snowball: 'plain', magnetize: 'plain', recharge: 'plain', link: 'plain',
+  splitter: 'plain', shard: 'plain', grip: null, meteor: null, illusion: null, warpzone: null,
+} as const;
 export const THRUST = { start: 0.77, accel: FRICTION, extra: 0.09, endSlow: 0.2, reach: 30 * UNIT, full: 0.8 };
 // gravidade (gravity.lua, gravityprojectile.lua): puxa magos inimigos até 550 u e projéteis até 600 u (1650 u/s², de qualquer dono)
 export const GRAVITY = { wizR: 550 * UNIT, projR: 600 * UNIT, projPull: 1650 * UNIT, tick: 0.2 };

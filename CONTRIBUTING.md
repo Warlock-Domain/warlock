@@ -4,7 +4,6 @@ This is the contributor guide for humans and AI agents. It covers setup, coordin
 
 - [Play the game](https://warlock.fernandorffdev.com): try a few matches, the grimoire (F1), and the spell/item library (F2) before changing gameplay.
 - [Repository](https://github.com/Warlock-Domain/warlock): `master` is the live game. Contributors work on task branches in this repository.
-- [Sessions and worktrees](docs/SESSOES-COM-ORQUESTRADOR.md): guidance for coordinating an orchestrator, task sessions, and independent reviewers.
 
 ## Getting started
 
@@ -101,7 +100,7 @@ The automated Claude review posts a verdict and findings. Mention `@claude` in a
 
 ## Working with AI agents
 
-Start each task by reading root and area-specific guidance and the issue's acceptance criteria. Understand the intended outcome, plan multi-step work, implement the smallest coherent change, verify it, and ask an independent reviewer to challenge the diff. Use a separate worktree per task; the [session guide](docs/SESSOES-COM-ORQUESTRADOR.md) covers ownership of branches, ports, browsers, and handoffs.
+Start each task by reading root and area-specific guidance and the issue's acceptance criteria. Understand the intended outcome, plan multi-step work, implement the smallest coherent change, verify it, and ask an independent reviewer to challenge the diff. Use a separate worktree per task.
 
 Claude Code plugins used by this project:
 

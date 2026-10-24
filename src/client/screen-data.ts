@@ -2,13 +2,16 @@
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { WizView } from '../shared/snapshot.ts';
-import { ITEM_IDS, itemPrice, type ItemId } from '../shared/items.ts';
-import { FREE_SPELLS, MAX_SPELLS, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
+import { ITEMS, ITEM_IDS, itemPrice, type ItemId } from '../shared/items.ts';
+import { FREE_SPELLS, MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
+import { isRecord, readLevels, readNumberMap } from './saved-data.ts';
 import { store } from './store.ts';
 import type { ServoKind } from '../shared/campaign.ts';
 import { HP_MAX } from '../shared/constants.ts';
 import { itemStats } from '../shared/items.ts';
 import { t } from './i18n.ts';
+// Pulso suave; modo reduzido fica estático.
+export const electroPulse = (active: boolean, seconds: number, reduced: boolean) => active ? reduced ? .25 : .25 + .12 * Math.sin(seconds * Math.PI * 4) : 0;
 
 // Posição própria já usa o estado recente; pose atrasada faria o mago continuar arremessado enquanto volta a andar.
 // Troca o mago inteiro de propósito: direção, vida e os bits do véu/invisível ficam no mesmo instante da posição prevista.
@@ -49,11 +52,16 @@ export function loadoutSlots(spells: Record<SpellId, number>, order?: LoadoutOrd
   return { spells: result };
 }
 
+export function readLoadout(value: unknown): LoadoutOrder | undefined {
+  if (!isRecord(value) || !Array.isArray(value.spells)) return undefined;
+  return { spells: value.spells.slice(0, MAX_SPELLS).map((id: unknown) => isSpell(id) ? id : null) };
+}
+
 const ORDER_KEY = 'warlock:loadout-order';
 // ordem do meu equipamento, gravada a cada mudança (#226): gravada só ao arrastar, a compra seguinte reordenava
 // pela lista de magias e as teclas por posição trocavam de magia sozinhas
 export function myLoadout(spells: Record<SpellId, number>) {
-  const saved = store.json<LoadoutOrder>(ORDER_KEY) ?? undefined;
+  const saved = readLoadout(store.json(ORDER_KEY));
   const order = loadoutSlots(spells, saved);
   if (JSON.stringify(order) !== JSON.stringify(saved)) saveLoadout(order);
   return order;
@@ -146,18 +154,24 @@ export function presetQueue(p: Preset, spells: Record<SpellId, number>, items: R
   return out;
 }
 
-// salvo velho ou estragado não pode quebrar a loja: só fica o que é magia ou item de verdade, com nível inteiro
-const levels = <K extends string>(o: unknown, ok: (k: string) => k is K) =>
-  Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([k, n]) => ok(k) && Number.isInteger(n) && (n as number) > 0)) as Partial<Record<K, number>>;
-const isItem = (k: string): k is ItemId => (ITEM_IDS as readonly string[]).includes(k);
+// Contagens estragadas ou de habilidades que saíram não podem contaminar o selo dos mais usados.
+export const readUsed = (value: unknown): Record<string, number> => Object.fromEntries(Object.entries(readNumberMap(value)).filter(([key]) =>
+  key.startsWith('spell:') ? isSpell(key.slice(6)) : key.startsWith('item:') && ITEM_IDS.some((id) => id === key.slice(5))));
+
+export function readShopSize(value: unknown): [string, string] | null {
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  const size = (x: unknown): x is string => typeof x === 'string' && (x === '' || /^\d+(?:\.\d+)?px$/.test(x) && Number.parseFloat(x) > 0 && Number.parseFloat(x) <= Number.MAX_SAFE_INTEGER);
+  return size(value[0]) && size(value[1]) ? [value[0], value[1]] : null;
+}
+// Salvo velho ou estragado não pode quebrar a loja: só ficam ids conhecidos com níveis suportados.
 export function readPresets(raw: string | null): (Preset | null)[] {
   let list: unknown = null;
   try { list = JSON.parse(raw ?? 'null'); } catch { /* fica vazio */ }
   return Array.from({ length: PRESET_SLOTS }, (_, i) => {
-    const p = Array.isArray(list) ? list[i] : null;
-    if (!p || typeof p !== 'object') return null;
+    const p: unknown = Array.isArray(list) ? list[i] : null;
+    if (!isRecord(p)) return null;
     // vaga vazia da barra fica no lugar (null): sem ela as magias da build mudariam de tecla
-    return { spells: levels(p.spells, isSpell), items: levels(p.items, isItem), order: Array.isArray(p.order) ? p.order.slice(0, MAX_SPELLS).map((s: unknown) => (isSpell(s) ? s : null)) : [] };
+    return { spells: readLevels(p.spells, SPELL_IDS, () => MAX_SPELL_LEVEL), items: readLevels(p.items, ITEM_IDS, (id) => ITEMS[id].levels.length), order: Array.isArray(p.order) ? p.order.slice(0, MAX_SPELLS).map((s: unknown) => (isSpell(s) ? s : null)) : [] };
   });
 }
 
