@@ -2,11 +2,12 @@ import { DurableObject } from 'cloudflare:workers';
 import type { RoomInfo } from '../shared/protocol.ts';
 import { addRecord, emptyTotals, type RoundRecord, type Totals } from '../shared/telemetry.ts';
 
-const RECONCILE_MS = 60_000;
-const RECONCILE_BATCH = 8;
+const RECONCILE_MS = 60_000; // Atualiza entradas órfãs sem fazer RPC a cada mudança do lobby.
+const RECONCILE_BATCH = 8; // Limita o trabalho por alarme; o cursor continua no lote seguinte.
 
 // Lista de salas abertas: um único objeto ('lobby') que todo navegador na tela inicial escuta.
 export class Lobby extends DurableObject<Env> {
+  // Invalida resultados antigos de inspect enquanto o alarme aguarda o RPC da sala.
   private revisions = new Map<string, number>();
 
   private revision = 0;

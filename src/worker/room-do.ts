@@ -231,18 +231,23 @@ export class Room extends DurableObject<Env> {
     await this.changed(ws);
   }
 
-  async inspect(): Promise<RoomInfo | null> {
-    const s = await this.load();
-    if (!s) return null;
-    if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS);
+  private roomInfo(s: Saved, players: number): RoomInfo {
     return {
       id: s.id,
-      players: this.humans(),
+      players,
       phase: s.match.phase,
       mode: s.match.mode,
       round: s.match.round,
       bots: s.match.players.filter((p) => p.bot && !p.servo).length,
     };
+  }
+
+  async inspect(): Promise<RoomInfo | null> {
+    const s = await this.load();
+    if (!s) return null;
+    const players = this.humans();
+    if (players === 0 && (await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS);
+    return this.roomInfo(s, players);
   }
 
   async alarm() {
@@ -302,7 +307,7 @@ export class Room extends DurableObject<Env> {
     if (!s) return;
     await this.ctx.storage.put('room', { id: s.id, match: { ...s.match, world: null } });
     // o lobby é um objeto só para o site todo: só avisa quando muda o que a lista mostra
-    const info = { id: s.id, players: s.match.players.filter((p) => !p.bot && p.connected).length, phase: s.match.phase, mode: s.match.mode, round: s.match.round, bots: s.match.players.filter((p) => p.bot && !p.servo).length }; // as vagas do Fumo não são bots da sala
+    const info = this.roomInfo(s, s.match.players.filter((p) => !p.bot && p.connected).length); // as vagas do Fumo não são bots da sala
     const key = `${info.players}:${info.phase}:${info.mode}:${info.round}:${info.bots}`;
     if (key === this.lobbyKey) return;
     try {
