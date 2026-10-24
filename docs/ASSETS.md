@@ -20,7 +20,7 @@
 
 ## No jogo (`public/`)
 
-Gêiser (teste local24/10): ícone `icons.svg#water-geyser` é desenho SVG original, mantido em `scripts/assets/build-icons.mjs`. Jato, espuma e poça são geometrias procedurais Three.js em `scene.ts`, com partículas já existentes e creditadas. Altura/cor em `geyser-fx.ts`; som reutiliza `splash`. Sem novos assets externos.
+Gêiser (teste local24/10): ícone `icons.svg#water-geyser` é desenho SVG provisório feito no projeto (poça, jato e gotas), mantido em `scripts/assets/build-icons.mjs`; o Leonard pode trocar depois (Fernando, 24/10). Jato, espuma e poça são geometrias procedurais Three.js em `scene.ts`, com partículas já existentes e creditadas. Altura/cor em `geyser-fx.ts`; som reutiliza `splash`. Sem novos assets externos.
 
 | Arquivo | O que é | Onde é usado | Origem e licença |
 |---|---|---|---|
