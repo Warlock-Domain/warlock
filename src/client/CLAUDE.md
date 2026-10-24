@@ -4,9 +4,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Interface
 
-- Categoria Suporte/Support vazia no catálogo, verde anterior de Mobilidade; Mobilidade amarela. searchFilter aceita keepEmpty para preservar categoria vazia sem pesquisa, respeitando o filtro. Aprender/loja/Grimório usam o catálogo comum; magias futuras entram em PRs próprias.
-
 - **DOM sempre com `el(tag, props, ...filhos)`** de `icons.ts` (`on*` vira listener, `class` vira `className`, filho `null`/`false` some). Não crie outro helper de DOM. Ícones: `icon(id)` com `ICON`, `ITEM_ICON`, `UI_ICON`.
+- **Grupos de magia** (`SPELL_GROUPS` em `rules-text.ts`, cor em `.g-<grupo>` no `style.css`): Suporte (verde) aparece mesmo vazio e Mobilidade é dourada (decisão de 24/10, PR #343); `searchFilter(..., keepEmpty)` mantém o grupo vazio visível sem busca, para o jogador ver que a categoria existe antes das magias dela.
 - Reuse `choice(...)` (fileira de botões com `aria-pressed`), `tabs(...)` (`role=tab`) e `withTip(elemento, () => html)` (dica no hover e no foco).
 - **Botão só de ícone (✕, ⋯, ‹ ›, engrenagem) só com `iconButton(filho, nome, onclick, props?)`** (`icons.ts`): o nome vira `title` e `aria-label`; `props` sobrescreve (`class: 'icon wide-only'`, `title` com a tecla, `aria-expanded`, `hidden`). Visual diferente do ✕ só pela classe: `kick` (pequeno e vermelho) e `info-close` (canto do ⓘ).
 - **Diálogo por cima da tela só com `dialog(cls, título, corpo, { ico, onKey, onClose })`** (`ui.ts`, issue #110): fundo `<cls>-overlay` (camada e celular no CSS), cabeçalho `.dialog-head` com título e ✕; ✕, clique fora, Esc e o B do controle fecham. Segura todas as teclas na captura (nada chega ao jogo); `onKey` vê cada tecla antes e, com `preventDefault`, o Esc não fecha. Devolve `{ overlay, close }`; foco inicial no ✕ (quem chama pode mudar). Padronização da interface com funções no DOM puro, uma por PR (decisão de 20/10, issue #91).
