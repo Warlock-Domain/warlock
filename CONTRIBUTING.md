@@ -91,7 +91,7 @@ The `master` branch requires a PR, green CI, and a valid title. Do not push dire
 
 ### Review and owner approval
 
-The automated Claude review posts its findings in English. The `review` status check is required by `master` protection and fails while any **Blocker** remains; **Nits** are optional and do not prevent merge. The bot never approves or merges. Mention `@claude` in a PR or issue for help. An authorized owner agent can adjust and merge collaborator PRs after blockers are resolved and required human gates pass.
+The automated Claude review posts its findings in English. It runs on Claude Opus 5.5 at high effort, and each comment carries a **Ruler** line quoting `.agents/skills/pr-review/SKILL.md` as proof that the shared checklist was read. The `review` status check is required by `master` protection and fails while any **Blocker** remains; **Nits** are optional and do not prevent merge. The bot never approves or merges. Mention `@claude` in a PR or issue for help. An authorized owner agent can adjust and merge collaborator PRs after blockers are resolved and required human gates pass.
 
 - Small collaborator PRs can be approved/merged by review without waiting for Fernando.
 - Large collaborator PRs require Fernando's approval on the PR as well as the issue decision.
