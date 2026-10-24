@@ -28,7 +28,7 @@ First restate the intended outcome in your own words. Compare the implementation
 
 Trace the affected behavior through its callers, state transitions, server/client boundary, and failure paths. Consider whether the change preserves existing behavior where required and follows this repository's invariants, including determinism, validated client messages, localization, asset licensing, UI components, and balance simulation when applicable.
 
-For code comments in the reviewed scope, require new and edited comments to be in English. When a PR changes code that has a relevant legacy comment in Portuguese, translate that comment to English as part of the same focused change and preserve its rationale. This is a PR-review-specific exception to the repository's general comment-language convention. Do not expand the change to unrelated comments or documentation, and do not propose a repository-wide translation for aesthetics alone.
+English is the repository default for commits, code comments, PR titles and descriptions, and new documentation. In the reviewed code scope, require new and edited comments to be in English; translate relevant legacy Portuguese comments when changing their code and preserve their rationale. Leave unrelated comments untouched. Existing documentation translation is scheduled after all currently open PRs merge; do not expand a PR into that repository-wide task.
 
 Assess the design in the context of this codebase:
 
@@ -73,7 +73,7 @@ After findings, summarize:
 - **Coverage gaps:** important behavior not exercised by the available tests.
 - **Recommendation:** ready for approval, hold for named gates, or changes needed for named findings.
 
-If no actionable code findings remain, say so explicitly. Do not approve, request changes, comment publicly, merge, push, or edit the PR unless the user separately asks for that action. Use the user's requested language for the report.
+If no actionable code findings remain, say so explicitly. Do not approve, request changes, comment publicly, merge, push, or edit the PR unless the user separately asks for that action. Write the report in English unless the user explicitly requests another language.
 
 ## Primary references
 

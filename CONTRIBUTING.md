@@ -81,7 +81,7 @@ The release flow is **task branch → PR to `master` → automatic production de
 
 1. Create a branch from current `master`: `feat/<topic>`, `fix/<topic>`, `balance/<topic>`, `style/<topic>`, `docs/<topic>`, or `refactor/<topic>`. One branch/PR covers one subject.
 2. Use a branch in this repository when you have contributor access. Fork PRs require CI approval, do not get the automatic review, and cannot use deployment secrets or PR environments.
-3. Make small commits using `type: description`. Accepted types are `feat`, `fix`, `balance`, `style`, `refactor`, `docs`, `ci`, and `test`. The repository convention is a Portuguese description; follow explicit maintainer instructions for the task's language. Agent commits do not add `Co-Authored-By` trailers.
+3. Make small commits using an English `type: description`. Accepted types are `feat`, `fix`, `balance`, `style`, `refactor`, `docs`, `ci`, and `test`. Agent commits do not add `Co-Authored-By` trailers.
 4. Run `npm run typecheck`, `npx vitest run`, and `npx vite build` before committing. Add meaningful regression coverage for behavior changes and verify changed screens in the browser.
 5. Open the PR against `master` using [.github/pull_request_template.md](.github/pull_request_template.md): motivation, changes, screenshots when relevant, validation, and balance evidence when required. Use `Closes #n` for its issue. The title follows the same `type: description` format and becomes the squash commit title.
 6. Before the first push for a PR and before every later push to its branch, run `/pr-review` (Claude Code) or `$pr-review` (Codex) on the full diff against its base. Resolve every **Blocker** before pushing; **Nits** are optional and must not hold a PR. After each merge to `master`, keep the branch current with `git fetch origin` and `git merge origin/master`, rerun the gates, and restart the local server. Once review starts, respond with new commits rather than rebasing or force-pushing.
@@ -143,8 +143,8 @@ cause, make a focused fix, and run all required verification. Open a PR to maste
 - Validate new client messages in `parseClientMessage`; the server remains authoritative.
 - Use `t('português', 'English')` for visible text; use `spellName`, `itemName`, and `arenaName`, and format numbers with `LOCALE`.
 - Reuse `el`, `dialog`, `iconButton`, `tabs`, `choice`, `searchFilter`, `withTip`, and `store`. Extend a suitable UI piece before adding another; document a new piece in `src/client/CLAUDE.md`. Use `:root` color/size variables.
-- Code comments stay Portuguese by default. In PRs reviewed with `/pr-review`, write new or updated comments in English and translate relevant legacy Portuguese comments in the code already being changed. Leave unrelated comments and docs as they are; see the scoped rule in [CLAUDE.md](CLAUDE.md#regras-do-código).
-- Keep changes surgical. Explain non-obvious decisions with a short Portuguese comment about why, following the area's convention. Update a comment when its decision changes; keep imports at the top.
+- Write new or updated code comments in English. Translate relevant legacy Portuguese comments when changing their code; leave unrelated comments untouched. Existing documentation will be translated after all currently open PRs merge.
+- Keep changes surgical. Explain non-obvious decisions with a short English comment about why. Update a comment when its decision changes; keep imports at the top.
 - Put testable UI decisions in pure modules such as `screen-data.ts`; `ui.ts` touches browser globals during import and is not a Vitest entry point.
 - Spell behavior comes from documented general stats. Do not introduce interactions specific to a pair of spells; follow the decision register.
 - Never commit secrets. The repository is public.
