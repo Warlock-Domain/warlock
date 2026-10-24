@@ -56,7 +56,7 @@ npx vite build                      # build do cliente (dist/)
 - Loja em grade com o nome dentro do ícone e preço com moeda; cores por grupo (Ataque vermelho-laranja, Mobilidade dourado, Defesa azul, Controle roxo, Suporte verde, Itens prateado); 10 magias de ataque e 5 de cada outro grupo.
 - Sala sem opção de ritmo nem de morte súbita (sempre ligada); dificuldade escolhida bot a bot.
 - Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3; o monte dá 3 a 5 de ouro. Escudo com recarga de 16 s. Drenar só muda depois de partidas reais. Ataques fortes e raros (não encurtar recargas).
-- Recusados: ranking/perfil e itens que só ajudam uma magia específica.
+- Recusados: ranking/perfil, itens que só ajudam uma magia específica e classes com passiva no jogo base (ficam para a Campanha).
 
 ## Registro de decisões do Fernando
 
@@ -194,6 +194,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 24/10 | **Illusion copy takes the same forces as the wizard** (PR #277, theme 6 of the list Leonard had approved): pushes reach the copy through the same movement as the real body (Gravity, Magnetize, Snowball, Lightning, Rush), and the copy now counters Windwalk (touching it ends the invisibility), stops Thrust and catches Link. Enters without a measurement; Illusion goes to the measurement batch | Fernando's decision: the new counterplay is accepted |
 | 24/10 | **Grimório always reopens at the table of contents** (PR #309): the book no longer remembers the last open page; spell, item, control or status links still open their own page. Controls (Attack, Hold ground) and statuses live only in the Grimório, not in Aprender or the shop | Fernando's decision when reviewing PR #309 (chosen over keeping the last page) |
 | 24/10 | **Heal** (PR #345, Leonard's idea): first Support spell; the key or bar picks it and a click on yourself or a living ally in range confirms; heals 45 at level 1 (+6 per level), 20 s cooldown (−1 s per level); bots heal the most hurt ally in range after escaping danger. Measured on 24/10 (#309 head × PR, 14 min, seed 3): Heal 1.07 on Normal and Hard, rounds 119.7 s and 92.0 s; Gravity went from 1.10 to 1.18 on Hard and goes to the measurement batch | Fernando approved the idea on 24/10 and asked for the simulator and rounds of 60 to 120 s before the merge; he accepted the Gravity outlier for the batch |
+| 24/10 | **Declined: class passives in the core game** (issue #17, PR #195, Reinaldo's idea): no passive bonus chosen by the character's torso; the core game stays as it is | classes with passives belong to Lucas's Campaign mode |
 
 ## Fluxo com agente
 
