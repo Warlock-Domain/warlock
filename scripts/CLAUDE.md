@@ -15,3 +15,5 @@ Vale junto com o `CLAUDE.md` da raiz.
 `node scripts/room-cleanup.mjs` (Node 24) testa a classe Room real com armazenamento/socket simulados: limpeza normal, retry do lobby e entrada/saída durante o RPC. Não substitui os testes de runtime.
 
 `node scripts/lobby-reconcile.mjs` (Node 24) tests bounded orphan-room reconciliation, occupancy repair, RPC failure retry, and concurrent lobby updates.
+
+- **`room-load-soak.mjs`** (Node 24, local Wrangler only) accepts `--rooms`, `--clients`, `--duration-seconds`, `--command-ms`, `--cleanup-grace-seconds`, and `--out`. A full default run takes about 11 minutes: concurrent room traffic, reconnect, missing-close ghost, join 10 s before empty-room cleanup, then five-minute empty-room retention plus tolerance. It writes snapshot/ack latency, lobby lifecycle, and driver CPU/memory measurements; Worker CPU/memory stays unavailable unless the runtime exposes it.
