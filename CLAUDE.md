@@ -53,7 +53,7 @@ npx vite build                      # build do cliente (dist/)
 ## Decisões de produto (não desfazer sem combinar numa issue)
 
 - Menu principal em barra (issue #83): logo W do ícone da aba (leva ao Início) · Jogar · Aprender · Guarda-roupas · Loja (vitrine, sem preço nem compra) · Perfil, com Configurações como ícone (o botão de sair saiu em 22/10, issue #201). Menus enxutos.
-- Loja em grade com o nome dentro do ícone e preço com moeda; cores por grupo (Ataque vermelho-laranja, Mobilidade dourado, Defesa azul, Controle roxo, Suporte verde, Itens prateado); 10 magias de ataque e 5 de cada outro grupo.
+- Loja em grade com o nome dentro do ícone e preço com moeda; cores por grupo (Ataque vermelho-laranja, Mobilidade dourado, Defesa azul, Controle roxo, Suporte verde, Itens prateado); cada grupo tem 5 magias como base e pode ter mais por decisão do Fernando (Ataque passou de 10 em 21/10, PR #236; Defesa e Controle com 6 desde 24/10, PRs #347 e #348).
 - Sala sem opção de ritmo nem de morte súbita (sempre ligada); dificuldade escolhida bot a bot.
 - Baús: no máximo metade dos magos + 1 por rodada, nunca mais que 3; o monte dá 3 a 5 de ouro. Escudo com recarga de 16 s. Drenar só muda depois de partidas reais. Ataques fortes e raros (não encurtar recargas).
 - Recusados: ranking/perfil e itens que só ajudam uma magia específica.
@@ -194,6 +194,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 24/10 | **Hold ground, Geyser, Closed Body and Sand Blast enter without a full simulator measurement** (PRs #292, #346, #347, #348): owner exception, like the Illusion on 20/10; their numbers are measured later in the measurement batch (for Hold ground, the batch list in its row). It does not cover the Illusion forces (#277) | Fernando's decision |
 | 24/10 | **Geyser** (PR #346, Leonard's idea): Support spell aimed at the ground like Grip; the jet lifts everyone in the area for 2.5 s (invulnerable, no actions, projectiles pass beneath); 20 s cooldown at level 1, −1 s per level like Heal | Fernando approved the idea on 24/10; Leonard makes the icon |
 | 24/10 | **Closed Body** (PR #347, Leonard's idea): Defense spell usable only while Hold ground is active; cuts damage, knockback and status by 90% for 3.5 s at level 1 (+0.75 s per level), 20 s cooldown. Defense becomes the second group with 6 spells (the first exception was Attack, 21/10). Bots cast it on an active guard | Fernando's decision (enters with the owner exception for new spells; numbers measured later) |
+| 24/10 | **Spells per group: 5 is the base, not a ceiling**: a group can grow by owner decision (Defense and Control with 6, PRs #347 and #348). Replaces "10 Attack spells and 5 in each other group" | Fernando's decision |
 
 ## Fluxo com agente
 
