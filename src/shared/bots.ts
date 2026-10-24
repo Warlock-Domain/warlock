@@ -49,10 +49,10 @@ const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
   const [first, ...more] = take(DAMAGE, 1 + Math.floor(rand() * 2));
-  // o Pacto era 1 de 8 itens úteis (1 ou 2 sorteados): virou magia em 21/10 (#217) com chance parecida
+  // Pact used to be 1 of 8 useful items (1 or 2 drawn): it became a spell on 21/10 (#217) with a similar chance
   const spells = [first, ...take(ESCAPE, 1), ...more, ...(rand() < 0.5 ? take(CONTROL, 1) : []), ...(rand() < 0.5 ? take(SITUATIONAL, 1) : []), ...(rand() < 0.2 ? ['pact' as const] : [])];
   const items = take(GEAR, 1 + Math.floor(rand() * 2));
-  // dano e fuga primeiro; os itens entre as outras magias
+  // damage and escape first; the items go between the other spells
   const buys: BotPick[] = spells.map((id) => ({ kind: 'spell', id }));
   items.forEach((id, i) => buys.splice(2 + i * 2, 0, { kind: 'item', id }));
   return { buys, upgrade: rand() < 0.5 ? 'first' : 'lowest' };
