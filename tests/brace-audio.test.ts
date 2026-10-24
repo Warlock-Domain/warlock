@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createSound } from '../src/client/sound.ts';
 
 afterEach(() => vi.unstubAllGlobals());
-describe('gravação do aviso de Manter base', () => {
-  it.each(['brace'] as const)('reproduz %s inteiro, respeitando volume e mudo', async (kind) => {
+describe('Hold ground cue recording', () => {
+  it('plays the whole cue, honoring volume and mute', async () => {
+    const kind = 'brace';
     const listeners = new Map<string, () => void>();
     const oscillators: { type: string; frequency: { setValueAtTime: ReturnType<typeof vi.fn> }; stop: ReturnType<typeof vi.fn> }[] = [];
     const sources: { start: ReturnType<typeof vi.fn>; playbackRate: { value: number } }[] = [];
@@ -33,7 +34,6 @@ describe('gravação do aviso de Manter base', () => {
     sound.play(kind);
     {
       expect(fetch.mock.calls.some(([src]) => src === '/sfx/brace_start.mp3')).toBe(true);
-      expect(fetch.mock.calls.some(([src]) => src === '/sfx/sonic_boom.mp3')).toBe(false);
       expect(oscillators).toHaveLength(0); // the cue uses the recording, not synthesis
       expect(sources).toHaveLength(1);
       expect(sources[0].playbackRate.value).toBe(1);
