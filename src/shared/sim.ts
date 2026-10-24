@@ -1974,10 +1974,8 @@ function finishBasic(w: World, wz: Wizard) {
   w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'basic', owner: wz.id, caster: wz.id, pos: add(wz.pos, scale(d, PROJ_SPAWN)), vel: scale(d, BASIC_ATTACK.speed), level: 1, until: w.t + BASIC_ATTACK.range / BASIC_ATTACK.speed, target: null, lockOn: target.id, stats: BASIC_STATS, src: 'basic', dmgMult: 1 });
 }
 
-export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.random) {
-  w.rand = rand;
-  w.events = [];
-  w.lavaCredit = {};
+// comandos do passo: andar, parar, postura, ataque básico e magias (beginCast)
+function applyCmds(w: World, cmds: Cmd[]) {
   for (const c of cmds) {
     const wz = byId(w, c.id);
     if (!wz || isSuspended(wz)) continue;
@@ -2005,6 +2003,10 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       wz.blockedMove = false;
     } else beginCast(w, wz, c.spell, c.at);
   }
+}
+
+// estado de cada mago antes de andar: volta no deathmatch, lançamento que sai, chão, efeitos e velocidade
+function prepWizards(w: World, rand: () => number) {
   for (const wz of w.wizards) {
     if (!wz.alive && w.dm && w.t >= wz.respawnAt) respawn(w, wz, rand);
     if (!wz.alive) continue;
@@ -2048,7 +2050,10 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
       if (wz.casting) wz.casting.then = undefined;
     }
   }
+}
 
+// encolhimento da arena e morte súbita
+function shrinkArena(w: World) {
   // morte súbita: rodada longa passa a encolher mais rápido (o próximo encolhimento vem em no máximo 5 s)
   if (!w.dm && w.rules.sudden && !w.sudden && w.t >= SUDDEN.at) {
     w.sudden = true;
@@ -2067,9 +2072,9 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     resizeArena(w, Math.max(floor, w.arenaR - ARENA_STEP));
     w.shrinkAt += w.sudden || collapsing ? SUDDEN.every : SHRINK_EVERY;
   }
+}
 
-  w.zones = w.zones.filter((z) => z.until > w.t);
-  stepIsles(w);
+function stepChests(w: World, rand: () => number) {
   // baú: aparece num ponto sorteado longe dos obstáculos; as magias quebram e ele vira um monte de ouro
   const chestsUp = w.pillars.filter((q) => q.kind === 'chest' && q.alive).length;
   if (w.rules.chests && chestsUp < CHEST.maxUp && w.chestsLeft > 0 && w.t >= w.chestAt) {
@@ -2097,7 +2102,10 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     }
   }
   w.loots = w.loots.filter((l) => l.left > 0 && w.t < l.until);
-  if (w.rules.runes) stepRunes(w, rand);
+}
+
+// movimento dos magos (avanço, estocada, vento, redemoinho); devolve quem está andando para blockPillars
+function moveAll(w: World): Set<Wizard> {
   const walking = new Set<Wizard>();
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
@@ -2129,13 +2137,11 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     if (wz.target && !wz.casting && !isStunned(wz) && wz.speed > 0 && len(wz.vel) < .05) walking.add(wz);
     moveWizard(wz, DT);
   }
-  separate(w);
-  blockPillars(w, walking);
-  if (w.map) for (const z of w.wizards) if (z.alive) keepOut(w.map, z, w.lock);
-  stepProjectiles(w);
-  if (w.map) dropWalled(w);
-  clashProjectiles(w);
+  return walking;
+}
 
+// depois dos impactos: espinhos, lava, abismo, regeneração e morte
+function stepGround(w: World) {
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
     // Arena de espinhos: quem passa da borda volta para dentro empurrado e ferido, mais quanto mais rápido bateu (SWORDS); o crédito
@@ -2187,6 +2193,27 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     const by = credited ? wz.lastHitBy : null;
     w.events.push({ k: 'death', id: wz.id, by, src: credited ? wz.lastHitSrc : 'lava' });
   }
+}
+
+export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.random) {
+  w.rand = rand;
+  w.events = [];
+  w.lavaCredit = {};
+  applyCmds(w, cmds);
+  prepWizards(w, rand);
+  shrinkArena(w);
+  w.zones = w.zones.filter((z) => z.until > w.t);
+  stepIsles(w);
+  stepChests(w, rand);
+  if (w.rules.runes) stepRunes(w, rand);
+  const walking = moveAll(w);
+  separate(w);
+  blockPillars(w, walking);
+  if (w.map) for (const z of w.wizards) if (z.alive) keepOut(w.map, z, w.lock);
+  stepProjectiles(w);
+  if (w.map) dropWalled(w);
+  clashProjectiles(w);
+  stepGround(w);
   // Depois dos comandos e impactos, pausa a passagem natural sem bloquear habilidades prontas.
   for (const wz of w.wizards) if (wz.alive) {
     const pause = Math.min(DT, Math.max(0, incapacitatedUntil(wz, w.t) - w.t));
