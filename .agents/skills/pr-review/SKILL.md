@@ -28,6 +28,8 @@ First restate the intended outcome in your own words. Compare the implementation
 
 Trace the affected behavior through its callers, state transitions, server/client boundary, and failure paths. Consider whether the change preserves existing behavior where required and follows this repository's invariants, including determinism, validated client messages, localization, asset licensing, UI components, and balance simulation when applicable.
 
+For code comments in the reviewed scope, require new and edited comments to be in English. When a PR changes code that has a relevant legacy comment in Portuguese, translate that comment to English as part of the same focused change and preserve its rationale. This is a PR-review-specific exception to the repository's general comment-language convention. Do not expand the change to unrelated comments or documentation, and do not propose a repository-wide translation for aesthetics alone.
+
 Assess the design in the context of this codebase:
 
 - Does it reuse established helpers and patterns, or duplicate behavior that already exists?
