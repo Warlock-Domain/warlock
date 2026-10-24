@@ -69,6 +69,7 @@ type Summary = {
   botMatches: number;
   picked: Record<string, number>;
 };
+type SummaryValue = string | number | { [key: string]: SummaryValue };
 
 // por chave ('spell:lightning', 'item:armor@2', 'pair:grip+meteor'...): jogadores-rodada com aquilo, vitórias, vitórias esperadas e médias
 // by (só em all, spell:* e item:*): por recorte (all, small 2–4 magos, large 5–8, rounds, teams), as faixas de ouro gasto
@@ -337,15 +338,17 @@ function isAgg(value: unknown): value is Agg {
     && (value.by === undefined || (isRecord(value.by) && Object.values(value.by).every(isBands)));
 }
 
-// Summary JSONs are persisted outside git, so validate their full aggregation shape before merging untrusted files.
+// Os arquivos ficam fora do git; valide o formato antes de combinar dados antigos com novas medições.
 function isSummary(value: unknown): value is Summary {
   if (!isRecord(value)) return false;
   const strings = ['seed', 'plan', 'difficulty', 'arena', 'effect', 'startedAt'];
   const numbers = ['seconds', 'roundsPerMin', 'matches', 'rounds', 'playerRounds', 'noWinner', 'stalled', 'botMatches'];
+  const fields = new Set([...strings, ...numbers, 'modes', 'sizes', 'duration', 'owned', 'sources', 'deathBy', 'arenaDur', 'picked']);
   const duration = value.duration;
   const sources = value.sources;
   const arenaDur = value.arenaDur;
-  return strings.every((key) => typeof value[key] === 'string')
+  return Object.keys(value).every((key) => fields.has(key))
+    && strings.every((key) => typeof value[key] === 'string')
     && numbers.every((key) => isFiniteNumber(value[key]))
     && isNumberRecord(value.modes)
     && isNumberRecord(value.sizes)
@@ -366,7 +369,7 @@ function readSummary(directory: string): Summary {
   return value;
 }
 
-function mergeSummaryValues(left: unknown, right: unknown): unknown {
+function mergeSummaryValues(left: SummaryValue | undefined, right: SummaryValue): SummaryValue {
   if (typeof right === 'number') {
     if (left === undefined) return right;
     if (typeof left !== 'number') throw new Error('Cannot merge incompatible balance summary values');
@@ -377,8 +380,8 @@ function mergeSummaryValues(left: unknown, right: unknown): unknown {
     if (typeof left !== 'string') throw new Error('Cannot merge incompatible balance summary values');
     return `${left}, ${right}`;
   }
-  if (!isRecord(right)) throw new Error('Cannot merge unsupported balance summary value');
-  if (left !== undefined && !isRecord(left)) throw new Error('Cannot merge incompatible balance summary values');
+  if (typeof right !== 'object') throw new Error('Cannot merge unsupported balance summary value');
+  if (left !== undefined && typeof left !== 'object') throw new Error('Cannot merge incompatible balance summary values');
   const previous = left ?? {};
   const keys = new Set([...Object.keys(previous), ...Object.keys(right)]);
   return Object.fromEntries([...keys].map((key) => [key, key in right
@@ -395,9 +398,15 @@ process.on('SIGINT', () => {
 if (arg.merge) {
   if (!positionals.length) throw new Error('--merge requires at least one summary directory');
   const parts = positionals.map(readSummary);
-  let merged: unknown;
+  const reference = parts[0];
+  for (const part of parts.slice(1)) {
+    for (const key of ['plan', 'difficulty', 'arena', 'effect'] as const) {
+      if (part[key] !== reference[key]) throw new Error(`Cannot merge summaries with different ${key} values`);
+    }
+  }
+  let merged: SummaryValue | undefined;
   for (const part of parts) merged = mergeSummaryValues(merged, part);
-  if (!isSummary(merged)) throw new Error('Merged balance summaries do not match the summary schema');
+  if (!merged || typeof merged !== 'object') throw new Error('Merged balance summaries are empty');
   Object.assign(S, merged);
   // tempo real: o do processo mais longo; rodadas/min: a soma dos processos (vazão total)
   S.seconds = Math.max(...parts.map((p) => p.seconds));

@@ -32,10 +32,7 @@ assets/       biblioteca de modelos para quem contribui (kaykit/: todos os packs
 ```bash
 npm install
 npx wrangler dev                    # servidor + cliente em http://localhost:8787
-npx tsc --noEmit -p .               # tipos do cliente e do compartilhado
-npx tsc --noEmit -p src/worker      # tipos do servidor
-npx tsc --noEmit -p tsconfig.scripts.json # scripts de balanceamento (Node 24)
-npm run typecheck                  # os três typechecks
+npm run typecheck                   # cliente, servidor e scripts de balanceamento
 npx vitest run                      # testes
 npx vite build                      # build do cliente (dist/)
 ```
