@@ -3,14 +3,14 @@
 // Opening settings does not pause the match.
 // Add sections in SECTIONS.
 import { isRumbleOn, setPadCapture, setRumble } from './gamepad.ts';
-import { UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
+import { UI_ICON, actionIcon, actionName, choice, el, icon } from './icons.ts';
 import {
   ACTIONS, CAST_MODES, PAD_ACTIONS, PAD_ACTION_NAMES, PAD_NAMES, PAD_START, POS_ACTIONS, RESERVED, UI_ACTIONS, UI_NAMES, getCastMode, isPos, isSlotMode, keyLabel, keyOf, padButtonName,
   onKeysChange, padActionAt, padButtonOf, resetKeys, resetPad, setCastMode, setKey, setPadButton, setSlotMode, slotSpell, whoUses, type Action, type AnyAction, type CastMode, type PadAction, type UiAction,
 } from './keys.ts';
 import { avatarPanel } from './avatar.ts';
 import { RULES } from './rules-text.ts';
-import { choice, dialog, showRules, toast } from './ui.ts';
+import { dialog, showRules, toast } from './ui.ts';
 import { radialPicker } from './radial-picker.ts';
 import { assignTauntSlot, tauntWheelSlots } from './taunt-wheel.ts';
 import { TAUNTS, tauntAudioSrc } from '../shared/taunts.ts';

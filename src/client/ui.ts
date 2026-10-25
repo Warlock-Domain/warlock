@@ -18,7 +18,7 @@ import { hideTip, itemTip, mechanicTip, spellTip, withTip } from './tips.ts';
 import { EFFECT_NAME, MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, effectName, effectText, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
 import { ALT_TEXT, ITEM_GROUPS, MECHANIC_GUIDES, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
-import { BAD_STATUS, ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, iconButton, type Child } from './icons.ts';
+import { BAD_STATUS, ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, choice, el, fxClock, icon, iconButton, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
 import { isAudioMuted, type Volumes, type VolumeKind } from './sound.ts';
@@ -225,8 +225,14 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   const stage = el('div', { class: 'home-stage' },
     el('div', { class: 'home-backdrop', 'aria-hidden': 'true' }, el('img', { class: 'home-art', src: '/home-cat.jpg', alt: '', width: 736, height: 736 })),
     ...Object.values(panels));
-  const btns = HOME_TABS.map(([k, label]) => el('button', { type: 'button', role: 'tab', id: 'home-tab-' + k, 'aria-controls': 'home-' + k, onclick: () => show(k) }, el('span', {}, label)));
+  const homeTabs = tabs(null, HOME_TABS, HOME_TABS[0][0], show, 'home-tabs', null);
+  const btns = [...homeTabs.querySelectorAll<HTMLButtonElement>('button')];
+  HOME_TABS.forEach(([k], i) => {
+    btns[i].id = 'home-tab-' + k;
+    btns[i].setAttribute('aria-controls', 'home-' + k);
+  });
   const settingsBtn = btns[HOME_TABS.findIndex(([k]) => k === 'settings')];
+  homeTabs.removeChild(settingsBtn);
   settingsBtn.classList.add('home-tool');
   settingsBtn.title = t('Configurações', 'Settings');
   settingsBtn.setAttribute('aria-label', t('Configurações', 'Settings'));
@@ -246,7 +252,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
       el('nav', { class: 'home-bar', role: 'tablist', 'aria-label': t('Menu principal', 'Main menu') }, settingsBtn,
         el('button', { type: 'button', class: 'home-logo', id: 'home-tab-home', role: 'tab', 'aria-controls': 'home-home', title: t('Início', 'Home'), 'aria-label': t('Voltar ao menu principal', 'Back to home'), onclick: () => show('home') },
           el('img', { src: '/warlock-wars.svg', alt: 'Warlock Wars' })),
-        el('div', { class: 'home-tabs' }, ...btns.filter((b) => b !== settingsBtn))),
+        homeTabs),
       stage),
   );
   show('home');
@@ -493,11 +499,9 @@ export const srcName = (k: string) => (k === 'lava' ? 'lava' : isSpell(k) ? spel
 type View = 'summary' | 'spells';
 const VIEWS: [View, string][] = [['summary', t('Resumo', 'Summary')], ['spells', t('Magias', 'Spells')]];
 const portrait = (p: PublicPlayer) => el('img', { class: 'face', src: `/chars/${p.character}.webp`, alt: '', width: 32, height: 32, loading: 'lazy' });
-// fileira de botões com um marcado (opções da partida, modo, jeito de lançar); off: botão desligado
-export const choice = <T>(label: string, items: [T, string][], on: T, pick: (v: T) => void, off?: (v: T) => boolean) => el('div', { class: 'stats-tabs', role: 'group', 'aria-label': label },
-  ...items.map(([v, text]) => el('button', { type: 'button', 'aria-pressed': String(v === on), class: v === on ? 'on' : '', disabled: off?.(v), onclick: () => pick(v) }, text)));
-const tabs = <T extends string>(label: string, list: [T, string][], on: T, set: (k: T) => void) =>
-  el('div', { class: 'stats-tabs', role: 'tablist', 'aria-label': label }, ...list.map(([k, text]) =>
+// Tabs use ARIA tab roles and allow a caller-selected layout class and parent-owned tablist.
+export const tabs = <T extends string>(label: string | null, list: [T, string][], on: T, set: (k: T) => void, cls = 'stats-tabs', role: 'tablist' | null = 'tablist') =>
+  el('div', { class: cls, role, 'aria-label': role ? label : null }, ...list.map(([k, text]) =>
     el('button', { type: 'button', role: 'tab', 'aria-selected': String(k === on), class: k === on ? 'on' : '', onclick: () => set(k) }, text)));
 
 // diálogo por cima de qualquer tela (Configurações, Grimório, Biblioteca): fundo, título e ✕; ✕, clique fora e Esc fecham.
