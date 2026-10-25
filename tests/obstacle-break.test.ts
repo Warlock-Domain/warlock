@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { LAVA_DPS, OBSTACLES, type ObstacleKind } from '../src/shared/constants.ts';
+import { nightMap, obstaclesOf } from '../src/shared/levels.ts';
 import { stepWorld } from '../src/shared/sim.ts';
-import { noSpells } from '../src/shared/spells.ts';
+import { noSpells, spellLevel } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
-import { world } from './helpers.ts';
+import { run, world } from './helpers.ts';
 
 // one obstacle in the lava (outside the stone) and one on the stone; wizards stay in the middle
 function setup(kind: ObstacleKind) {
@@ -12,6 +13,28 @@ function setup(kind: ObstacleKind) {
   w.pillars = [put(w.arenaR + 3), put(0)];
   return w;
 }
+
+describe('Large rock', () => {
+  it('takes damage from a Fireball outside the Campaign', () => {
+    const w = world([[0, 0], [0, 6]], noSpells(), [], () => 0.5);
+    w.pillars = [{ pos: v(3, 0), hp: OBSTACLES.rock.hp, alive: true, kind: 'rock' }];
+    run(w, 1, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: { x: 3, y: 0 } }]);
+    expect(Number.isFinite(OBSTACLES.rock.hp)).toBe(true);
+    expect(w.pillars[0].hp).toBeCloseTo(OBSTACLES.rock.hp - spellLevel('fireball', 1).dmg, 5);
+  });
+
+  it('never breaks in the Campaign (room blocks and Sir Odran pillars)', () => {
+    const rocks = obstaclesOf(nightMap(1, 0)).filter((q) => q.kind === 'rock');
+    expect(rocks.length).toBeGreaterThan(0);
+    for (const q of rocks) expect(q.hp).toBe(Infinity);
+  });
+
+  it('burns in the lava and breaks', () => {
+    const w = setup('rock');
+    for (let i = 0; i < 5 * 60; i++) stepWorld(w, [], () => 0.5); // 400 health at 100 per second: 4 s
+    expect(w.pillars.map((p) => p.alive)).toEqual([false, true]);
+  });
+});
 
 describe('Obstacles in the lava', () => {
   it('a pillar in the lava loses health at the lava rate, without a hit effect every step', () => {

@@ -280,8 +280,9 @@ export function terrainOf(n: NightMap): Terrain {
 // obstáculos que já existem no jogo: árvore queimada vira árvore; estátua ou lápide de uma casa vira pilar de pedra (quebra,
 // como as lápides que racham); bloco maior (os pilares 2×2 da arena) vira Barricada, que não quebra; cada casa de destroço
 // vira um pilar que quebra
+// The large rock breaks in the arena modes but not here: it is the room block and Sir Odran's pillar (Fernando, 25/10)
 export function obstaclesOf(n: NightMap): Pillar[] {
-  const put = (kind: ObstacleKind, x: number, y: number): Pillar => ({ pos: v(x, y), hp: OBSTACLES[kind].hp, alive: true, kind });
+  const put = (kind: ObstacleKind, x: number, y: number): Pillar => ({ pos: v(x, y), hp: kind === 'rock' ? Infinity : OBSTACLES[kind].hp, alive: true, kind });
   const out = n.marks.filter((m) => m.kind === 'tree' || m.kind === 'statue').map((m) => {
     const w = m.w ?? 1, h = m.h ?? 1;
     return m.kind === 'tree' ? put('tree', m.x + 0.5, m.y + 0.5) : put(w * h > 1 ? 'rock' : 'pillar', m.x + w / 2, m.y + h / 2);

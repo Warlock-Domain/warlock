@@ -45,13 +45,15 @@ export const PROJ_SPAWN = WIZ_R + PROJ_R + 0.05;
 export const PILLAR = { spread: 1000 * UNIT, min: 2, max: 8 };
 
 // tipos de obstáculo (pedido do Fernando, 17/10: mais tipos além dos pilares); o pilar segue o original, os outros são meus:
-// rocha grande que não quebra, árvore morta frágil e altar de velas que explode em fogo. weight = chance relativa no sorteio
+// rocha grande e resistente, árvore morta frágil e altar de velas que explode em fogo. weight = chance relativa no sorteio
 export const OBSTACLE_KINDS = ['pillar', 'rock', 'tree', 'shrine', 'chest', 'rockpillar'] as const;
 export type ObstacleKind = (typeof OBSTACLE_KINDS)[number];
 // vida pela metade em 18/10 (pedido do Fernando: obstáculos com menos vida)
 export const OBSTACLES: Record<ObstacleKind, { r: number; hp: number; blastR: number; blastDmg: number; weight: number }> = {
   pillar: { r: 0.5, hp: 200, blastR: 300 * UNIT, blastDmg: 10, weight: 4 },
-  rock: { r: 0.85, hp: Infinity, blastR: 0, blastDmg: 0, weight: 2 },
+  // Breaks outside the Campaign with twice the pillar's health (Fernando, 25/10; unmeasured, in the measurement batch).
+  // The Campaign keeps it unbreakable in obstaclesOf (levels.ts): room blocks and Sir Odran's pillars
+  rock: { r: 0.85, hp: 400, blastR: 0, blastDmg: 0, weight: 2 },
   tree: { r: 0.35, hp: 75, blastR: 0, blastDmg: 0, weight: 2 },
   shrine: { r: 0.45, hp: 50, blastR: 1.6, blastDmg: 60, weight: 1 },
   chest: { r: 0.4, hp: 1, blastR: 0, blastDmg: 0, weight: 0 }, // baú de ouro: não sai no sorteio, aparece no meio da rodada; abre com 1 golpe (Fernando, 18/10)
