@@ -71,11 +71,13 @@ Provocações no controle: ← por padrão, remapeável; se uma preferência ant
 
 Teclas por posição (padrão): as magias usam a tecla da **posição** na barra (`POS_ACTIONS`: Magia 1 a 8 em 1 2 3 4 Q W E R, guardadas em `warlock:poskeys8`; sem itens ativos desde 21/10, #217); `keyOf`/`actionFor`/`whoUses` já resolvem o modo. A ordem das posições vem de `loadoutSlots`/`moveLoadout` (`screen-data.ts`, guardada em `warlock:loadout-order`) e chega às teclas e ao controle por `setSlots`; vaga vazia é `null`. Posições e atalhos da interface nunca repetem tecla (`setKey` troca). Trocar qualquer tecla fixa o modo em uso no navegador.
 
-## Configurações (`settings.ts`)
+## Settings page (`settings.ts`)
 
-Som tem quatro volumes persistidos: Geral multiplica Efeitos, Música e Provocações. `channelVolume` e `isAudioMuted` centralizam a mistura e o ícone de mudo. Na migração, Geral começa neutro e Provocações herda Efeitos uma única vez; prévia privada também respeita Geral × Provocações. As barras usam o mesmo slider em Configurações do menu e da partida.
-
-Uma página só, de seções empilhadas com sumário (`stackedPage`), usada na aba Configurações do menu inicial (`settingsPage`) e no diálogo da partida (`openSettings`). Seção nova = item em `SECTIONS`; o `render` devolve `null` quando a tela não oferece aquilo (efeitos visuais só existem na sala, via `setSettingsCtx`). O som vale em toda tela: `volumes`/`setVolume` são obrigatórios no `SettingsCtx` e vêm do `createSound` (`sound.ts`), que guarda o volume no navegador, o mesmo no menu inicial e na sala (issue #128). No menu inicial, Esc e Start abrem a aba em vez do diálogo: duas cópias da página repetiriam os ids dos campos. `draw()` refaz a página inteira a cada mudança e devolve o foco pelo id, então campo novo leva `id` fixo. Cada `Page` tem `dispose()` idempotente: desconecta o observador e remove o listener de mídia ao fechar o diálogo ou substituir a página inicial. A prévia do Personagem é uma só (`avatarPanel`, um contexto WebGL): no menu inicial a seção vira atalho para a aba Personagem.
+- `SettingsPage` owns the sections/body, table of contents, responsive media listener, `IntersectionObserver`, highlight hold, and `fill`/`jump`/`dispose` lifecycle. `settingsPage()` and `openSettings()` keep the home-versus-dialog coordinator outside the page and retain their existing entry points.
+- `dispose()` is idempotent, disconnects observed section nodes, removes the media listener, and makes queued observer callbacks inert. Dispose the old home page before replacing it and the modal page when the dialog closes. Field redraw restores focus by stable ID; keep IDs unique because home settings and the dialog are never shown together.
+- A page receives whether it is the home page: in the lobby, the Character section links to the single `avatarPanel` WebGL preview; in the match, it renders that section directly. Section content stays in `SECTIONS` and its existing builders; `null` continues to hide match-only effects in the lobby.
+- Sound has four persisted volumes: master multiplies SFX, music and taunts. `channelVolume` and `isAudioMuted` centralize mixing and mute state. Master starts neutral in the migration; taunts inherit SFX once, and private previews respect master × taunts. The same sliders work in home settings and the match dialog.
+- Sound sliders use required `volumes`/`setVolume` callbacks from `SettingsCtx`, supplied by the current lobby or room `createSound()` instance. Persisted preferences intentionally survive page replacement.
 
 ## Cena (`scene.ts`)
 
