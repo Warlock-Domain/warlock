@@ -5,7 +5,7 @@ import { LOOK_PARTS, decodeLook } from '../src/shared/characters.ts';
 import { STAGE_ROOMS, fightOf, nightMap, parseRooms, type NightMap } from '../src/shared/levels.ts';
 import { addPlayer, newMatch, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { mulberry32 } from '../src/shared/rng.ts';
-import type { SimEvent } from '../src/shared/sim.ts';
+import { stepWorld, type SimEvent } from '../src/shared/sim.ts';
 import { dist, v } from '../src/shared/vec.ts';
 import { STEP_MS, run, toPlaying, world } from './helpers.ts';
 import { WIZ_R } from '../src/shared/constants.ts';
@@ -225,6 +225,19 @@ describe('Sir Odran: 2.5× body', () => {
       const hp = w.wizards[1].hp;
       run(w, 1, [{ id: 'p0', kind: 'cast', spell: 'cluster', at: v(3, 0) }]);
       expect(w.wizards[1].hp < hp, String(r)).toBe(r !== undefined);
+    }
+  });
+
+  it('the Attack reaches the giant body in melee at its edge, where a wizard only gets the shot', () => {
+    for (const r of [undefined, WIZ_R * ODRAN.size]) {
+      const w = world([[0, 0], [1.3, 0]], noSpells(), [], () => 0.5);
+      w.wizards[1].r = r;
+      const melee: boolean[] = [];
+      for (let i = 0; i < 60; i++) {
+        stepWorld(w, i ? [] : [{ id: 'p0', kind: 'basic', at: v(1.3, 0) }]);
+        for (const e of w.events) if (e.k === 'attack') melee.push(e.melee);
+      }
+      expect(melee, String(r)).toEqual([r !== undefined]);
     }
   });
 
