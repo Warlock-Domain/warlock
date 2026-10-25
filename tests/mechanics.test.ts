@@ -19,7 +19,7 @@ const run = (w: World, n: number) => {
   return out;
 };
 
-describe('morte súbita', () => {
+describe('sudden death', () => {
   it('after 90 s the arena shrinks every 5 s, with one warning', () => {
     const w = world([[0, 0], [2, 0]]);
     w.t = SUDDEN.at - 0.5;
@@ -46,7 +46,7 @@ describe('morte súbita', () => {
   });
 });
 
-describe('runas', () => {
+describe('runes', () => {
   const take = (kind: RuneKind) => {
     const w = world([[0, 0], [3, 0]]);
     w.runeAt = Infinity;
@@ -107,7 +107,7 @@ describe('runas', () => {
     w.wizards[0].cd.scourge = 50;
     w.runes = [{ pos: v(0, 0), kind: 'recharge' }];
     run(w, 1 + Math.round(1 / DT));
-    // 1 s de jogo com a runa: a recarga andou 1/(1 − 30%) ≈ 1,43 s, ou seja 0,43 s a mais que o relógio
+    // 1 s of play with the rune: the cooldown ran 1/(1 − 30%) ≈ 1.43 s, i.e. 0.43 s more than the clock
     expect(50 - w.wizards[0].cd.lightning).toBeCloseTo(1 / (1 - RUNE.cdr) - 1, 1);
     expect(50 - w.wizards[0].cd.scourge).toBeCloseTo(1 / (1 - RUNE.cdr) - 1, 1);
   });
@@ -122,7 +122,7 @@ describe('runas', () => {
   });
 });
 
-describe('sequências de abate', () => {
+describe('kill streaks', () => {
   const STEP_MS = DT * 1000;
   function playing(ids: string[]): { m: Match; now: number } {
     const m = newMatch();
@@ -133,7 +133,7 @@ describe('sequências de abate', () => {
     for (let i = 0; i < 1000 && m.phase !== 'playing'; i++) tickMatch(m, (now += STEP_MS), [], half);
     return { m, now };
   }
-  // mata na hora (na lava, com o último golpe de `by`) e devolve os eventos daquele passo
+  // kills at once (in the lava, with the last hit from `by`) and returns that step's events
   function kill(g: { m: Match; now: number }, id: string, by: string): SimEvent[] {
     const wz = g.m.world!.wizards.find((z) => z.id === id)!;
     Object.assign(wz, { hp: 0.01, lastHitBy: by, lastHitAt: g.m.world!.t, pos: v(ARENA_R0 * 3, 0) });
@@ -196,7 +196,7 @@ describe('sequências de abate', () => {
     expect(kill(g, 'a', 'e')).toEqual([{ k: 'streak', id: 'e', kind: 'breaker', n: 3, victim: 'a' }]);
     expect(g.m.streaks!.a.kills).toBe(0);
     expect(g.m.players.find((p) => p.id === 'e')!.gold - gold).toBeGreaterThanOrEqual(STREAK.breakGold);
-    // o id da vítima também vira público no evento enviado
+    // the victim id also becomes public in the sent event
     const [pub] = publicEvents([{ k: 'streak', id: 'e', kind: 'breaker', n: 3, victim: 'a' }], (id) => 'pub-' + id);
     expect(pub).toMatchObject({ id: 'pub-e', victim: 'pub-a' });
   });
@@ -212,7 +212,7 @@ describe('sequências de abate', () => {
   });
 });
 
-describe('rodada sem fim', () => {
+describe('endless round', () => {
   it('after the collapse time the arena keeps shrinking to nothing, so a round always ends', () => {
     const w = newWorld(['a', 'b'], { a: noSpells(), b: noSpells() });
     w.pillars = [];
@@ -223,8 +223,8 @@ describe('rodada sem fim', () => {
   });
 });
 
-describe('largura do acerto do Raio (21/10, exceção decidida pelo Fernando)', () => {
-  it('pega quem tem o corpo a até LIGHTNING.width da linha, não mais', () => {
+describe('Lightning hit width (21/10, exception decided by Fernando)', () => {
+  it('hits a body up to LIGHTNING.width from the line, no farther', () => {
     const hits = (gap: number) => {
       const w = newWorld(['a', 'b'], { a: { ...noSpells(), lightning: 1 }, b: noSpells() }, {}, 0, () => 0.5);
       const [a, b] = w.wizards;
