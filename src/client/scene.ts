@@ -5,9 +5,7 @@ import { ELECTROCUTED_BIT, BRACING_BIT, MELEE_ARC } from '../shared/constants.ts
 import { createBraceClip } from './brace-pose.ts';
 import { createAttackClip, playAnimation as play } from './attack-pose.ts';
 import { electroPulse } from './screen-data.ts';
-import { sniperRig, updateSniperRig, SNIPER_FX } from './sniper-fx.ts';
 import { HEAL_FX, healAura } from './heal-fx.ts';
-import { sniperFocusMask } from './sniper-focus.ts';
 import { blindnessMask } from './blindness-fx.ts';
 import { conePoints } from '../shared/sand-cone.ts';
 import { GEYSER_FX, geyserHeight } from './geyser-fx.ts';
@@ -32,9 +30,8 @@ import { createDecor } from './decor.ts';
 import { cellHash, nightProps } from './night-decor.ts';
 import { CANDLE } from '../shared/campaign.ts';
 import { t } from './i18n.ts';
-import { n1 } from './rules-text.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
-import { BLINDNESS, CAST_POINT, LIGHTNING, SPELLS } from '../shared/spells.ts';
+import { BLINDNESS, LIGHTNING, SPELLS } from '../shared/spells.ts';
 import type { TAUNTS } from '../shared/taunts.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
@@ -46,7 +43,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { sniperLeft?: number; sniperAt?: Vec; closedBodyLeft?: number; geyserLeft?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: giant Campaign body scale; ghost: translucent; fx: own status timers; ember: Campaign rekindle progress (negative/absent means none).
+export type WizDraw = { channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -209,7 +206,6 @@ const TP = 0.12, TP_SLIDE = 0.6;
 
 type Mage = {
   root: THREE.Group;
-  sniper: THREE.Group;
   mixer: THREE.AnimationMixer;
   actions: Record<string, THREE.AnimationAction>;
   current: string;
@@ -869,7 +865,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
     const root = new THREE.Group();
     root.add(model);
-    const sniper=sniperRig(); root.add(sniper);
     const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: COLORS[d.color], transparent: true, opacity: 0.85, depthWrite: false }));
     ground(ring, 0.03);
     root.add(ring);
@@ -923,7 +918,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, sniper, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   // animação de conjurar [clip, segundos, início no clip]; o resto atira (Spellcast_Shoot). Quando o gesto forte vem no meio
@@ -1631,14 +1626,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   function onEvents(events: SimEvent[], hiddenDamageTargets: readonly string[] = []) {
     for (const e of events) {
-      if (e.k === 'snipe') {
-        const from=w3(e.from,.95),to=w3(e.to,.95),delta=to.clone().sub(from);
-        const mat=new THREE.MeshBasicMaterial({color:SNIPER_FX.flash,transparent:true,depthWrite:false});
-        const tracer=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,delta.length(),8),mat);
-        tracer.position.copy(from).lerp(to,.5); tracer.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());
-        addFx(tracer,.18,k=>{mat.opacity=1-k;});
-        burst(e.from,SNIPER_FX.flash,1.3,.2,.95,FX.spark);
-      }
       if (e.k === 'sand') {
         const from=v(e.x,e.y),dir=v(e.dx,e.dy),pts=conePoints(from,dir,e.length,e.width);
         const geo=new THREE.BufferGeometry().setFromPoints(pts.map(p=>w3(p,.12)));
@@ -1648,8 +1635,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         for(let i=0;i<(lite?12:35);i++) { const d=Math.random()*e.length,side=(Math.random()-.5)*e.width*d/e.length; burst(v(e.x+dir.x*d-dir.y*side,e.y+dir.y*d+dir.x*side),'#d7bc85',.4,.4,.2+Math.random()*.6,FX.spark); }
       }
       if (e.k === 'boss') bossFx(e);
-      // The sniper's held aim pose comes from snapshots; the default one-shot gesture would flash before it.
-      else if (e.k === 'cast' && e.spell !== 'sniper') {
+      else if (e.k === 'cast') {
         oneShot(e.id, ...castAnim(e.spell));
         if (e.spell === 'scourge') {
           // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
@@ -1876,7 +1862,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (made && m) {
           unburn(m);
           scene.remove(m.root);
-          dispose(m.sniper);
           dispose(m.vines); // Os cipós procedurais pertencem à aparência que está sendo substituída.
           for (const o of [m.ring, m.shield, m.aura]) (o.material as THREE.Material).dispose();
           disposeAppearance(m);
@@ -1894,14 +1879,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.hpFill.style.background = tint;
         m.nameEl.style.color = d.team != null ? COLORS[d.color] : '';
       }
-      const sniperLabel=m.label.querySelector('.sniper-clock');
-      if(d.alive && (d.sniperLeft ?? 0)>0) {
-        const c=sniperLabel ?? el('span',{class:'bubble sniper-clock'});
-        c.textContent=t(`Solução deselegante · ${n1(d.sniperLeft!)} s`,`Inelegant Solution · ${n1(d.sniperLeft!)} s`);
-        if(!sniperLabel) m.label.prepend(c);
-      } else sniperLabel?.remove();
-      m.sniper.visible=d.alive && (d.sniperLeft ?? 0)>0 && !!d.sniperAt;
-      if(m.sniper.visible) updateSniperRig(m.sniper,Math.hypot(d.sniperAt!.x-d.pos.x,d.sniperAt!.y-d.pos.y),d.sniperLeft!);
+      const channelLabel = m.label.querySelector('.channel-clock');
+      if (d.alive && d.channelElapsed !== undefined) {
+        const c = channelLabel ?? el('span', { class: 'bubble channel-clock' });
+        c.textContent = d.channelElapsed < 1 ? t('Canalizando…', 'Channeling…') : t(`Canalização +${Math.round(d.channelElapsed*50)}% · aguardando lançamento`, `Channeling +${Math.round(d.channelElapsed*50)}% · awaiting cast`);
+        if (!channelLabel) m.label.prepend(c);
+      } else channelLabel?.remove();
       const hidden = !d.illusion && (d.status & 2048) > 0; // a cópia é sempre visível; os inimigos não veem o jogador velado
       m.root.visible = !hidden;
       m.model.position.y = d.alive ? geyserHeight(d.geyserLeft ?? 0) : 0;
@@ -1959,9 +1942,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (invuln && !m.invuln && !(d.geyserLeft ?? 0)) oneShot(d.id, 'Spawn_Ground', 1.3);
         // atordoado (16: arremessado por um golpe) voa de braços abertos
         if ((d.geyserLeft ?? 0) > 0) { m.oneShotUntil = 0; play(m, 'Jump_Idle', .05); }
-        else if ((d.sniperLeft ?? 0)>0 && !(d.status&16) && m.actions.Attack_Invoke) {
-          play(m,'Attack_Invoke',.05); const action=m.actions.Attack_Invoke;
-          action.paused=true; action.time=action.getClip().duration*.6; m.oneShotUntil=0;
+        else if (d.channelElapsed !== undefined && !(d.status & 16) && m.actions.Attack_Invoke) {
+          play(m, 'Attack_Invoke', .05);
+          const action = m.actions.Attack_Invoke;
+          action.paused = true; action.time = action.getClip().duration * Math.min(1, d.channelElapsed / 2);
+          m.oneShotUntil = 0;
+          if (!lite && Math.random() < .12) burst(d.pos, '#bfa4ff', .6, .35, 1.2, FX.light);
         }
         else if (d.basicArc && (d.basicLeft ?? 0) > 0 && !(d.status & 16)) {
           const [clip, secs, from] = meleeAnim(d.look);
@@ -2206,7 +2192,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const arcHalf = (MELEE_ARC.angle / 2) * Math.PI / 180;
   const arcAim = new THREE.Mesh(new THREE.RingGeometry(0, 1, 32, 1, -arcHalf, 2 * arcHalf).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }));
   arcAim.renderOrder = 9; arcAim.visible = false; arcAim.scale.setScalar(MELEE_ARC.range); scene.add(arcAim);
-  const sniperScreen=sniperFocusMask(); scene.add(sniperScreen);
 
   return {
     ready,
@@ -2374,7 +2359,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       pan.set(0, 0, 0);
     },
     castLocal(id: string, spell: string, at?: Vec) {
-      if (spell === 'sniper') return; // Aim and shots come only from confirmed snapshots/events.
       oneShot(id, ...castAnim(spell));
       const m = mages.get(id);
       if (!m || m.dead) return;
@@ -2390,17 +2374,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { sniperFocus?: {left:number;shot:number}; blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[]; seen: number[] } | null }) {
+    render(state: { blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[]; seen: number[] } | null }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
-      const sf=state.sniperFocus;
-      sniperScreen.visible=!!sf && (sf.left>0 || (!lite && sf.shot>0));
-      sniperScreen.material.uniforms.clock.value=now;
-      sniperScreen.material.uniforms.still.value=lite?1:0;
-      sniperScreen.material.uniforms.power.value=sf?Math.max(0,Math.min(1,1-sf.left/CAST_POINT.sniper)):0;
-      sniperScreen.material.uniforms.shot.value=lite?0:sf?.shot ?? 0;
-      sniperScreen.material.uniforms.gain.value=sf && sf.left>0?1:sf?.shot ?? 0;
       blindMask.visible=!!state.blindAt;
       if(state.blindAt) blindMask.material.uniforms.center.value.set(state.blindAt.x,state.blindAt.y);
       lavaMat.uniforms.uTime.value = now;

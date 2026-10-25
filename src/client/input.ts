@@ -13,6 +13,8 @@ export type InputHandlers = {
   stop: () => void;
   brace?: (on: boolean) => void;
   basic?: (at: Vec, target?: string) => void;
+  canChannel?: () => boolean;
+  channel?: (spell: SpellId) => boolean;
   pickAttack?: (x: number, y: number) => string | undefined;
   attackArmedChanged?: (on: boolean) => void;
   meleeArc?: () => boolean; // golpe em arco escolhido na loja (issue #402): a tecla golpeia na hora rumo ao cursor, sem escolher alvo
@@ -33,6 +35,8 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   let cursor = { x: innerWidth / 2, y: innerHeight / 2 };
   let armed: SpellId | null = null;
   let attackArmed = false;
+  let attackHeldCode: string | null = null;
+  let channelArmed = false;
   let dragging = false;
   let lastDrag = 0;
   let enabled = false;
@@ -51,6 +55,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
 
   const arm = (s: SpellId | null) => {
     attackArmed = false;
+    channelArmed = false;
     h.attackArmedChanged?.(false);
     armed = s;
     h.armedChanged(s);
@@ -70,13 +75,13 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   };
   const releaseMove = () => { if (dragging) h.holdMove?.(false); dragging = false; };
   const cancelPointer = () => { releaseMove(); panning = space = panned = false; };
-  // On blur/pointer cancel a pointerup may never arrive: do not let the mouse turn into a ghost command.
-  addEventListener('blur', () => { cancel(); arm(null); cancelPointer(); releaseBrace(); });
-  addEventListener('visibilitychange', () => { if (document.hidden) releaseBrace(); });
-  // Dialogs capture keys: the release must arrive before them, or the interval would renew the guard.
+  // Cancel active charge on lost focus so no ghost command survives.
+  addEventListener('blur', () => { if (channelArmed) h.stop(); attackHeldCode = null; cancel(); arm(null); cancelPointer(); releaseBrace(); });
+  addEventListener('visibilitychange', () => { if (document.hidden) { if (channelArmed) { h.stop(); arm(null); } releaseBrace(); } });
+  // Capture key release before dialogs can swallow it.
   addEventListener('keyup', (e) => { if (e.code === braceCode) releaseBrace(); }, { capture: true });
   addEventListener('keydown', (e) => {
-    if (e.code === 'Escape' || (['shop', 'sheet', 'rules', 'library', 'taunt'] as const).some((a) => isUiKey(e.code, a))) releaseBrace();
+    if (e.code === 'Escape' || (['shop', 'sheet', 'rules', 'library', 'taunt'] as const).some((a) => isUiKey(e.code, a))) { if (channelArmed) { h.stop(); arm(null); } releaseBrace(); }
   }, { capture: true });
   addEventListener('pointerdown', (e) => { if (e.target !== canvas) releaseBrace(); }, { capture: true });
   addEventListener('pointercancel', cancelPointer);
@@ -124,7 +129,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       // fora do alcance a magia sai na direção do clique, até a borda do alcance (o servidor limita)
       const chosen = armed;
       const cast = h.cast(chosen, p);
-      if ((chosen !== 'heal' && chosen !== 'sniper') || cast) arm(null);
+      if (channelArmed ? cast : chosen !== 'heal' || cast) arm(null);
     } else if (e.button === 2 || touch) {
       if (armed || attackArmed) arm(null); // botão direito cancela a ação escolhida (e anda, como no Dota)
       h.move(p, e.button === 2);
@@ -136,6 +141,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     if (e.button === 0) panning = false;
   });
   addEventListener('keyup', (e) => {
+    if (e.code === attackHeldCode) attackHeldCode = null;
     if (held && e.code === held.code) return release();
     if (e.code !== 'Space') return;
     space = false;
@@ -155,9 +161,17 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     // teclas trocáveis pelo jogador (keys.ts)
     const action = actionFor(e.code);
     if (action) {
-      // Targeted spells always asks for a click on the target body, whatever the cast mode.
-      if ((action === 'heal' || action === 'sniper')) { e.preventDefault(); cancel(); return arm(action); }
-      if (armed === 'heal' || armed === 'sniper') arm(null);
+      if (action === 'channel') { e.preventDefault(); cancel(); return arm(action); }
+      if (h.canChannel?.() && (attackHeldCode || attackArmed || armed === 'channel')) {
+        e.preventDefault(); if (e.repeat) return;
+        cancel();
+        if (h.channel?.(action)) { arm(action); channelArmed = true; }
+        return;
+      }
+      if (channelArmed && action === armed) { e.preventDefault(); return; }
+      // Heal always requires a click on the target body.
+      if (action === 'heal') { e.preventDefault(); cancel(); return arm(action); }
+      if (armed === 'heal') arm(null);
       if (attackArmed) arm(null);
       e.preventDefault();
       const mode = getCastMode();
@@ -193,8 +207,8 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     } else if (isUiKey(e.code, 'basic')) {
       e.preventDefault();
       if (e.repeat) return;
-      cancel(); arm(null);
-      if (h.meleeArc?.()) {
+      cancel(); arm(null); attackHeldCode = e.code;
+      if (!h.canChannel?.() && h.meleeArc?.()) {
         const p = h.pick(cursor.x, cursor.y);
         if (p) h.basic?.(p);
       } else { attackArmed = true; h.attackArmedChanged?.(true); }
@@ -208,9 +222,12 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
   });
 
   return {
+    setChannelState(on: boolean) { if (!on && channelArmed) arm(null); },
     setEnabled(on: boolean) {
       enabled = on;
       if (!on) {
+        if (channelArmed) h.stop();
+        attackHeldCode = null;
         releaseBrace();
         releaseMove();
         cancel();
@@ -221,7 +238,10 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     aimPoint: () => h.pick(cursor.x, cursor.y),
     // The toolbar selects a spell; the next ground click or tap casts it.
     button(a: SpellId) {
-      if ((a === 'heal' || a === 'sniper')) cancel();
+      if (enabled && a !== 'channel' && h.canChannel?.() && (attackArmed || armed === 'channel')) {
+        cancel(); if (h.channel?.(a)) { arm(a); channelArmed = true; } return;
+      }
+      if (a === 'heal') cancel();
       if (!enabled) return;
       if (armed === a) return arm(null);
       if (h.checkCooldown && !h.checkCooldown(a)) return arm(null);

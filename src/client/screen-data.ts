@@ -3,7 +3,7 @@ import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { WizView } from '../shared/snapshot.ts';
 import { ITEMS, ITEM_IDS, itemPrice, type ItemId } from '../shared/items.ts';
-import { FREE_SPELLS, MAX_SPELLS, spellMaxLevel, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
+import { FREE_SPELLS, MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { isRecord, readLevels, readNumberMap } from './saved-data.ts';
 import { store } from './store.ts';
 import type { ServoKind } from '../shared/campaign.ts';
@@ -172,7 +172,7 @@ export function readPresets(raw: string | null): (Preset | null)[] {
     const p: unknown = Array.isArray(list) ? list[i] : null;
     if (!isRecord(p)) return null;
     // vaga vazia da barra fica no lugar (null): sem ela as magias da build mudariam de tecla
-    return { spells: readLevels(p.spells, SPELL_IDS, spellMaxLevel), items: readLevels(p.items, ITEM_IDS, (id) => ITEMS[id].levels.length), order: Array.isArray(p.order) ? p.order.slice(0, MAX_SPELLS).map((s: unknown) => (isSpell(s) ? s : null)) : [] };
+    return { spells: readLevels(p.spells, SPELL_IDS, () => MAX_SPELL_LEVEL), items: readLevels(p.items, ITEM_IDS, (id) => ITEMS[id].levels.length), order: Array.isArray(p.order) ? p.order.slice(0, MAX_SPELLS).map((s: unknown) => (isSpell(s) ? s : null)) : [] };
   });
 }
 
@@ -218,6 +218,6 @@ export function illusionCopies<D extends { id: string; status: number }>(project
   return projectiles.flatMap((q) => {
     const ownerId = q.kind === 'illusion' ? ids[q.vel.x] : undefined;
     const o = drawn.find((d) => d.id === ownerId);
-    return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(16 | 1024 | 2048 | 8388608), sniperLeft: undefined, sniperAt: undefined, basicLeft: 0, moving: true, cheer: false, illusion: true, ghost: false }] : [];
+    return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(16 | 1024 | 2048 | 8388608), channelElapsed: undefined, channelSpell: undefined, basicLeft: 0, moving: true, cheer: false, illusion: true, ghost: false }] : [];
   });
 }

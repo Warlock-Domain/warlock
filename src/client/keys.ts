@@ -19,7 +19,7 @@ const DEFAULTS: Record<string, string> = {
   // as dez últimas: sobraram 9 letras livres; a Zona de dobra fica sem tecla padrão (teclas por posição ou painel de teclas)
   drain: 'KeyN', snowball: 'KeyO', illusion: 'KeyJ', magnetize: 'KeyM', recharge: 'KeyK', alteration: 'KeyL', link: 'KeyU', windwalk: 'KeyI', splitter: 'KeyP', warpzone: '',
   // Flagelo e Pacto ficam nas teclas que tinham como item (viraram magia em 21/10, #217)
-  scourge: 'Digit1', pact: 'Digit3', heal: '', geyser: '', closedbody: '', sniper: '',
+  scourge: 'Digit1', pact: 'Digit3', heal: '', geyser: '', closedbody: '', channel: '',
   // Shop: Dota's B belongs to Boomerang and all 26 letters are taken; 1 to 4 were position keys from 21/10 to 25/10 (#217), hence 7
   // (5 was already Replay the fall and 6 the camera, #235); sheet: the key left of 1 (' on ABNT2); Grimoire on F1 (H is Gravity) and the library on F2
   shop: 'Digit7', board: 'Tab', sheet: 'Backquote', taunt: 'KeyY', rules: 'F1', library: 'F2', stop: 'KeyS', vote: '', replay: 'Digit5', camera: 'Digit6',

@@ -5,7 +5,7 @@ import { SPELL_IDS, castBlocked, noSpells, spellGroup } from '../src/shared/spel
 import { v } from '../src/shared/vec.ts';
 import { run, world } from './helpers.ts';
 
-describe('stun and Grip: authoritative restrictions', () => {
+describe('stun and root: authoritative restrictions', () => {
   it.each(SPELL_IDS)('stun blocks %s without spending cooldown', (spell) => {
     const w = world([[0, 0]], { ...noSpells(), [spell]: 1 }, [], () => .5);
     const z = w.wizards[0]; z.stunLeft = 1;
@@ -14,18 +14,17 @@ describe('stun and Grip: authoritative restrictions', () => {
     expect(z.casting).toBeNull();
     expect(z.pos).toEqual(v(0, 0));
   });
-  it.each(SPELL_IDS)('Grip applies mobility classification to %s', (spell) => {
+  it.each(SPELL_IDS)('Grip applies movement restrictions to %s', (spell) => {
     const w = world([[0, 0]], { ...noSpells(), [spell]: 1 }, [], () => .5);
     const z = w.wizards[0]; z.gripUntil = 5;
-    if (spell === 'sniper') { const enemy = world([[3,0]], noSpells(), [], () => .5).wizards[0]; enemy.id='enemy'; w.wizards.push(enemy); }
     if (spell === 'closedbody') { z.braceReadyAt = 0; z.braceUntil = 1; }
     stepWorld(w, [{ id: z.id, kind: 'cast', spell, at: spell === 'heal' ? z.pos : v(3, 0) }], () => .5);
     const blocked = spellGroup(spell) === 'mobility';
     expect(castBlocked(false, true, spell)).toBe(blocked);
-    expect(w.events.some((e) => e.k === 'cast')).toBe(!blocked);
+    expect(w.events.some((e) => e.k === 'cast')).toBe(!blocked && spell !== 'channel');
     expect(z.pos).toEqual(v(0, 0));
   });
-  it('vines arriving during Fireball windup do not cancel it (only Mobility is blocked)', () => {
+  it('roots arriving during Fireball windup do not cancel it (only mobility is blocked)', () => {
     const spell = 'fireball';
     const w = world([[0, 0], [4, 0]], { ...noSpells(), grip: 1, fireball: 1 }, [], () => .5);
     w.pillars = [];

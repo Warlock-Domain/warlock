@@ -319,7 +319,7 @@ export const RULES = LANG === 'en' ? RULES_EN : RULES_PT;
 // grimório: como usar cada magia e contra o quê ela funciona (lido do comportamento em shared/sim.ts)
 type SpellTips = Record<SpellId, [use: string, vs: string]>;
 const SPELL_TIPS_PT: SpellTips = {
-  sniper: [`Selecione a magia e clique num inimigo a até ${n1(L1('sniper').range)} m; o mago fica parado mirando por ${n1(CAST_POINT.sniper)} s e dispara automaticamente.`, 'Linha vermelha e retículo indicam o alvo; linhas de tensão nas bordas aparecem para quem conjura e para espectadores seguindo esse jogador. Movimento/S/stun cancelam; alvo invisível, morto ou fora do alcance interrompe.'],
+  channel: ['Atacar + tecla da magia inicia a carga; clique esquerdo lança após 1 s.', 'Aos 2 s mantém+100% e aguarda seu comando, sem disparo automático. Ataque básico desabilitado; S/movimento/stun cancelam.'],
   closedbody: ['Ative Manter base antes de lançar e continue segurando S. Mantém a direção da postura, sem virar para o mouse.', 'Duração máxima 3,5 s no nível 1, +0,75 s por nível, até 8 s no nível 7; soltar S encerra antes. Reduz dano, novos empurrões e duração dos novos status em 90%, sem remover efeitos anteriores. Ao expirar, Manter base continua se S estiver pressionado.'],
   geyser: ['Mire no chão: o jato sustenta você, aliados e inimigos que tocarem a área até o fim do gêiser.', 'Suspensos ficam imóveis e invulneráveis, sem atacar nem conjurar. O jato não causa dano; cuidado ao proteger também inimigos.'],
   heal: ['Aperte a tecla de Curar e clique com o botão esquerdo em você ou num aliado vivo dentro do alcance. Aura verde e coral curto confirmam a cura. Esc, S ou botão direito cancelam.', 'Atordoamento impede a conjuração. Não cura inimigos nem revive mortos; não causa dano nem empurrão.'],
@@ -353,7 +353,7 @@ const SPELL_TIPS_PT: SpellTips = {
 };
 
 const SPELL_TIPS_EN: SpellTips = {
-  sniper: [`Select the spell and click an enemy within ${n1(L1('sniper').range)} m; stand still and aim for ${n1(CAST_POINT.sniper)} s, then fire automatically.`, 'A red line and reticle mark the target; tension lines along the screen edges appear for the caster and spectators following that player. Movement/Stop/stun cancel; invisible, dead or out-of-range target interrupts.'],
+  channel: ['Attack + a spell key starts charging; left-click casts after 1 s.', 'At 2 s holds+100% and awaits your command; never fires automatically. Basic attacks disabled; Stop/movement/stun cancels.'],
   closedbody: ['Activate Hold Ground before casting and keep holding S. Preserves the stance facing without turning toward the mouse.', 'Maximum duration 3.5 s at level 1, +0.75 s per level, up to 8 s at level 7; releasing S ends it early. Reduces damage, new knockback and new status duration by 90%, without cleansing existing effects. Hold Ground remains active after expiry if S stays held.'],
   geyser: ['Aim at the ground: the jet suspends you, allies and enemies touching its area until the geyser ends.', 'Suspended units are immobile and invulnerable, unable to attack or cast. Deals no damage; beware of protecting enemies too.'],
   heal: ['Press Heal, then left-click yourself or a living ally within range. A green aura and a short choir confirm healing. Esc, S or right-click cancels.', 'Stun prevents casting. Cannot heal enemies or revive the dead; deals no damage or knockback.'],
@@ -434,7 +434,7 @@ export const ITEM_GROUPS = LANG === 'en' ? ITEM_GROUPS_EN : ITEM_GROUPS_PT;
 
 // para que serve, em uma linha (cartão da loja)
 const SPELL_USE_PT: Record<SpellId, string> = {
-  sniper: `Mira com uma sniper e dispara ${n1(L1('sniper').dmg)} de dano após ${n1(CAST_POINT.sniper)} s.`,
+  channel: 'Carrega outra magia para aumentar dano, alcance, velocidade e empurrão.',
   closedbody: 'Resiste a dano, empurrões e novos status enquanto mantém a base.',
   geyser: 'Sustenta unidades num jato d’água invulnerável.',
   heal: 'Cura você ou um aliado.',
@@ -467,7 +467,7 @@ const SPELL_USE_PT: Record<SpellId, string> = {
   pact: 'Dobra o próximo golpe de dano.',
 };
 const SPELL_USE_EN: Record<SpellId, string> = {
-  sniper: `Aim a sniper rifle and fire for ${n1(L1('sniper').dmg)} damage after ${n1(CAST_POINT.sniper)} s.`,
+  channel: 'Charges another spell to increase damage, range, speed and knockback.',
   closedbody: 'Resists damage, knockback and new status effects while holding ground.',
   geyser: 'Suspends units in an invulnerable water jet.',
   heal: 'Heals you or an ally.',
@@ -503,7 +503,7 @@ export { SPELL_USE_EN, SPELL_USE_PT };
 export const SPELL_USE = LANG === 'en' ? SPELL_USE_EN : SPELL_USE_PT;
 
 const RULES_SHORT_PT: Record<SpellId, string> = {
-  sniper: `Linhas de tensão animadas nas bordas da tela aparecem para quem usa a magia e espectadores seguindo esse jogador. Saca uma sniper e acompanha o inimigo selecionado por ${n1(CAST_POINT.sniper)} s, parado. Ao terminar, dispara um tiro instantâneo de ${n1(L1('sniper').dmg)} de dano base, sem empurrão. Alcance ${n1(L1('sniper').range)} m; custo ${SPELLS.sniper.cost} de ouro e recarga ${n1(L1('sniper').cd)} s após o disparo. Sem progressão de nível. Movimento, S, stun ou suspensão interrompem; perder o alvo (morto, invisível ou fora do alcance) cancela sem gastar recarga. Obstáculos bloqueiam o tiro; respeita invulnerabilidade, Escudo e reduções gerais de dano.`,
+  channel: 'Compre Canalização e pressione Atacar + tecla de outra magia que possui. Fica parado carregando; clique esquerdo lança após pelo menos 1 s. Aos 1 s: +50% de dano, alcance, velocidade do projétil e empurrão; cresce linearmente até +100% aos 2 s. Não lança sozinha: mantém a carga máxima até você lançar. S, movimento ou stun cancelam. Sem recarga própria; a magia escolhida usa sua recarga normal. Comprar Canalização desabilita o ataque básico. Só modifica atributos existentes, sem aumentar cura, duração ou tempo de status.',
 closedbody: `Só pode ser ativada com Manter base ativo. Por até ${n1(L1('closedbody').duration)} s no nível 1 (+0,75 s por nível, até 8 s no nível 7), reduz o dano recebido, a força dos novos empurrões e a duração dos novos status negativos em 90%. Não remove efeitos nem impulsos anteriores; combina com as resistências existentes. Ainda recebe 10% do dano: não é invulnerabilidade. Soltar S encerra antes; ao expirar com S pressionado, Manter base continua. O corpo fica bem escuro e mantém a direção de Manter base, sem virar para o mouse. Recarga ${n1(L1('closedbody').cd)} s.`,
 geyser: `Invoca no chão um gêiser por ${n1(L1('geyser').duration)} s, a até ${n1(L1('geyser').range)} m, numa área de ${n1(L1('geyser').radius)} m de raio. Atinge você, aliados e inimigos: ficam sustentados pelo jato, imóveis e invulneráveis, sem atacar ou conjurar, até o jato terminar. Quem entra depois fica suspenso apenas pelo tempo restante. Projéteis passam por baixo das unidades suspensas sem colidir com elas. Não causa dano nem empurrão. Recarga ${n1(L1('geyser').cd)} s.`,
   heal: `Selecione Curar pela tecla ou pela barra e clique com o botão esquerdo no corpo do alvo (point and click), mesmo no modo Rápido/Ao soltar. Cura instantaneamente ${n1(L1('heal').heal)} de vida em você ou um aliado a até ${n1(L1('heal').range)} m, sem ultrapassar a vida máxima. +6 de cura e −1 s de recarga por nível (20→14 s). Não cura inimigos, cópias ou mortos; clicar no chão não lança. Segue modificadores gerais de cura e alcance.`,
@@ -536,7 +536,7 @@ geyser: `Invoca no chão um gêiser por ${n1(L1('geyser').duration)} s, a até $
   pact: `A próxima magia de dano em ${n1(L1('pact').duration)} s faz ${n1(PACT.mult)}× de dano e empurrão.`,
 };
 const RULES_SHORT_EN: Record<SpellId, string> = {
-  sniper: `Animated tension lines along the screen edges appear for the caster and spectators following that player. Draw a sniper rifle and track the selected enemy for ${n1(CAST_POINT.sniper)} s while stationary. Then fire an instant shot for ${n1(L1('sniper').dmg)} base damage, with no knockback. Range ${n1(L1('sniper').range)} m; costs ${SPELLS.sniper.cost} gold with a ${n1(L1('sniper').cd)} s cooldown after firing. No level progression. Movement, Stop, stun or suspension interrupts; losing the target (dead, invisible or out of range) cancels without cooldown. Obstacles block the shot; respects invulnerability, Shield and general damage reductions.`,
+  channel: 'Buy Channeling and press Attack + the key of another owned spell. Stand still while charging; left-click to cast after at least 1 s. At 1 s: +50% damage, range, projectile speed and knockback, increasing linearly to +100% at 2 s. Never fires automatically: holds maximum charge until you cast. Stop, movement or stun cancels. No cooldown of its own; the selected spell uses its normal cooldown. Buying Channeling disables basic attacks. Only existing attributes change, not healing, duration or status time.',
   closedbody: `Requires active Hold Ground. For up to ${n1(L1('closedbody').duration)} s at level 1 (+0.75 s per level, up to 8 s at level 7), reduces incoming damage, new knockback force and newly received negative status durations by 90%. Does not remove existing effects or impulses; stacks with existing resistances. Still takes 10% damage: not invulnerability. Releasing S ends it early; Hold Ground remains active after expiry while S stays held. Darkens the body and preserves Hold Ground facing, without turning toward the mouse. Cooldown ${n1(L1('closedbody').cd)} s.`,
   geyser: `Summons a ground geyser for ${n1(L1('geyser').duration)} s within ${n1(L1('geyser').range)} m, covering a ${n1(L1('geyser').radius)} m radius. Hits yourself, allies and enemies: the jet suspends them, immobile and invulnerable, unable to attack or cast until it ends. Units entering later are suspended only for the remaining time. Projectiles pass beneath suspended units without colliding with them. Deals no damage or knockback. Cooldown ${n1(L1('geyser').cd)} s.`,
   heal: `Select Heal using its key or the spell bar, then left-click the target's body (point and click), even in Quick/On release mode. Instantly restores ${n1(L1('heal').heal)} health to yourself or an ally within ${n1(L1('heal').range)} m, up to their maximum health. +6 healing and −1 s cooldown per level (20→14 s). Cannot heal enemies, copies or dead units; clicking the ground does not cast. Uses general healing and range modifiers.`,
