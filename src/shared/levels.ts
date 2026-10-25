@@ -14,7 +14,7 @@ import { v } from './vec.ts';
 export type Ground = 'wall' | 'floor' | 'low' | 'debris' | 'wax' | 'pit' | 'lava';
 const GROUND: Record<string, Ground> = { '#': 'wall', '.': 'floor', ':': 'low', '%': 'debris', '~': 'wax', '*': 'pit', '=': 'floor', '^': 'lava' };
 // marcas ficam em cima do chão: árvore e estátua são obstáculos; o resto é ponto de jogo
-export type MarkKind = 'tree' | 'statue' | 'chest' | 'start' | 'candle' | 'entry' | 'boss' | 'checkpoint';
+type MarkKind = 'tree' | 'statue' | 'chest' | 'start' | 'candle' | 'entry' | 'boss' | 'checkpoint';
 const MARK: Record<string, MarkKind> = { T: 'tree', I: 'statue', $: 'chest', '@': 'start', '+': 'candle', E: 'entry', B: 'boss' };
 // x, y: canto da casa (o centro é +0,5); w, h: estátuas encostadas viram um bloco só (os pilares 2×2 da arena)
 export type Mark = { kind: MarkKind; x: number; y: number; w?: number; h?: number; id?: string };
@@ -22,11 +22,11 @@ export type Mark = { kind: MarkKind; x: number; y: number; w?: number; h?: numbe
 // saída: letras na borda (N, S, O, L; X é a passagem para a arena do chefe e só liga com outro X)
 type Edge = 'top' | 'bottom' | 'left' | 'right';
 export type Exit = { letter: string; edge: Edge; from: number; to: number }; // casas da borda ocupadas pela abertura
-export type Pool = 'entrada' | 'meio' | 'portão' | 'chefe';
+type Pool = 'entrada' | 'meio' | 'portão' | 'chefe';
 // encontro desenhado: cada onda diz quem entra por qual E (e = índice do E na ordem de leitura, 0 = E1); tombs: lápides que
 // rachem de tempos em tempos e soltam mais um servo
 export type Spawn = { kind: ServoKind; e: number };
-export type Fight = { waves: Spawn[][]; tombs?: { kind: ServoKind; every: number; max: number } };
+type Fight = { waves: Spawn[][]; tombs?: { kind: ServoKind; every: number; max: number } };
 export type Room = { id: string; stage: string; pool: Pool; w: number; h: number; ground: Ground[][]; marks: Mark[]; exits: Exit[]; notes: string; fight?: Fight; boss?: ServoKind }; // boss: o chefe do cabeçalho "chefe:" (arena)
 
 // linha de grade: sem espaço (o texto das notas e o cabeçalho têm espaços)
@@ -147,7 +147,7 @@ export const STAGE_ROOMS: Room[][] = [parseRooms(CHARNECA)];
 
 // --- montagem da noite ---------------------------------------------------------------------------------------------
 
-export type Placed = { room: Room; x: number; y: number; side: boolean; used: Exit[] };
+type Placed = { room: Room; x: number; y: number; side: boolean; used: Exit[] };
 export type NightMap = { w: number; h: number; ground: Ground[][]; marks: (Mark & { room: number })[]; rooms: Placed[] };
 
 const FACING: Record<Edge, Edge> = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
@@ -190,8 +190,8 @@ const overlaps = (a: { x: number; y: number; room: Room }, b: { x: number; y: nu
   a.x < b.x + b.room.w && b.x < a.x + a.room.w && a.y < b.y + b.room.h && b.y < a.y + a.room.h;
 
 // salas do meio no caminho principal (o resto do pool pode virar sala lateral)
-export const MAIN_MIDDLE: [number, number] = [2, 3];
-export const MAX_SIDE = 2;
+const MAIN_MIDDLE: [number, number] = [2, 3];
+const MAX_SIDE = 2;
 
 // a mesma semente monta sempre o mesmo mapa; sem saída que encaixe, tenta outra ordem (busca com volta atrás)
 export function layoutStage(seed: number, stage: number): Placed[] {

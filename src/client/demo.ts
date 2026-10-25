@@ -3,7 +3,7 @@
 import { SHAPES, type ArenaId } from '../shared/arena.ts';
 import { BASIC_ATTACK, BRACE, DT, KNOCK_RECOVERY, OBSTACLES, PROJ_R, WIZ_R } from '../shared/constants.ts';
 import { ITEMS, noItems, type ItemId } from '../shared/items.ts';
-import { bracingActive, incapacitatedUntil, isStunned, newWorld, snowR, spellOf, stepWorld, type Cmd, type SimEvent, type Wizard, type World } from '../shared/sim.ts';
+import { bracingActive, incapacitatedUntil, isStunned, newWorld, snowR, spellOf, stepWorld, type Cmd, type Projectile, type SimEvent, type Wizard, type World } from '../shared/sim.ts';
 import { BLINDNESS, CAST_POINT, GRIP, METEOR_DELAY, SHIELD, isSpell, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, scale, v, type Vec } from '../shared/vec.ts';
 import { LOCALE, spellName, t } from './i18n.ts';
@@ -215,110 +215,119 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     if (id === 'lightning') text(spellName('lightning'), v(0, -4.8), '#cfe8ff', .4);
     for (const z of w.zones) circle(z.pos, z.r, ZONE_COLOR[z.kind]);
     for (const p of w.pillars) if (p.alive) circle(p.pos, OBSTACLES[p.kind].r, '#8a7a6a', '#d9c3a5');
-    for (const p of w.projectiles) {
-      const L = spellLevel(spellOf(p.kind), p.level);
-      const col = PROJ_COLOR[p.kind] ?? '#fff';
-      if (p.kind === 'meteor') {
-        circle(p.pos, L.radius, 'rgba(255,90,26,.18)', col, true);
-        circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / METEOR_DELAY), 'rgba(255,90,26,.35)');
-      } else if (p.kind === 'grip') {
-        circle(p.pos, L.radius, 'rgba(100,180,50,.12)', VINE_COLOR, true);
-        circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / GRIP.delay), 'rgba(100,180,50,.3)');
-      } else if (p.kind === 'warpzone') circle(p.pos, L.radius, 'rgba(138,123,255,.25)', col);
-      else if (p.kind === 'illusion') {
-        // a cópia: um mago meio apagado na cor do dono
-        ctx.globalAlpha = 0.5;
-        circle(p.pos, WIZ_R, colors[w.wizards.findIndex((z) => z.id === p.owner) % colors.length], '#1a0c08');
-        ctx.globalAlpha = 1;
-        text(t('cópia · recebe empurrão', 'copy · takes knockback'), v(p.pos.x, p.pos.y - .75), '#9be7ff', .25);
-      } else if (p.kind === 'geyser') {
-        circle(p.pos, L.radius, 'rgba(115,217,255,.25)', GEYSER_FX.color);
-        circle(p.pos, L.radius * (.65 + .1 * Math.sin(w.t * 8)), null, GEYSER_FX.foam);
-      } else if (p.kind === 'gravity') {
-        circle(p.pos, L.radius, 'rgba(160,107,255,.15)', col, true);
-        circle(p.pos, PROJ_R * 1.4, col);
-      } else {
-        if (p.kind === 'link') line(w.wizards.find((z) => z.id === p.owner)?.pos ?? p.pos, p.pos, col, 0.05);
-        circle(p.pos, p.kind === 'snowball' ? snowR(p.level) : p.kind === 'shard' ? PROJ_R * 0.7 : PROJ_R, col);
-      }
-    }
-    w.wizards.forEach((z, i) => {
-      if (!z.alive) return;
-      if ((z.geyserLeft ?? 0) > 0) {
-        circle(z.pos, WIZ_R + .2, null, GEYSER_FX.color);
-        text('↑', v(z.pos.x, z.pos.y - 1.3), GEYSER_FX.foam, .65);
-      }
-      if (z.basicCasting) {
-        circle(z.pos, .6, null, '#9be7ff');
-        const left = Math.max(0, z.basicCasting.fireAt - w.t);
-        text(t('preparo ', 'windup ') + n1(left) + ' s', v(z.pos.x, z.pos.y + 1), '#9be7ff', .28);
-        circle(z.pos, .15 + .25 * (1 - left / BASIC_ATTACK.windup), 'rgba(155,231,255,.3)');
-      }
-      if ((id === 'lightning' && i !== A) || (id === 'brace' && i === A)) {
-        const cd = Math.max(0, z.cd.fireball - w.t).toLocaleString(LOCALE, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-        text(t(`recarga: ${cd} s`, `cooldown: ${cd} s`), v(z.pos.x, z.pos.y + 1.15), '#c4a693', .25);
-      }
-      if (w.t < (z.electroUntil ?? 0)) {
-        ctx.globalAlpha = electroPulse(true, w.t, reduced);
-        circle(z.pos, WIZ_R + .2, '#6ee6ff', '#6ee6ff');
-        ctx.globalAlpha = 1;
-        text(t('lento · recargas pausadas', 'slowed · cooldowns paused'), v(z.pos.x, z.pos.y + .8), '#6ee6ff', .25);
-      }
-      ctx.globalAlpha = w.t < z.windUntil || w.t < z.veilUntil ? 0.35 : 1; // no véu, quem treina ainda vê o próprio mago como no Windwalk
-      if (w.t < z.shieldUntil) circle(z.pos, z.shieldR, 'rgba(255,214,102,.15)', '#ffd666');
-      if (w.t < z.alterUntil) circle(z.pos, spellLevel('alteration', z.spells.alteration || 1).radius, 'rgba(110,230,255,.12)', '#6ee6ff', true);
-      if (w.t < z.gripUntil) vines(z.pos, WIZ_R + .18);
-      if (isStunned(z)) circle(z.pos, WIZ_R + .3, null, '#ffd666', true);
-      if (bracingActive(w, z)) {
-        circle(z.pos, WIZ_R + .12, null, '#9be7ff');
-        // Silhueta esquemática de braço apoiado: a pose 3D continua sendo a do jogo, não reproduzida por este canvas.
-        // schematic braced arm: short stub up-right of the body, thin enough not to hide the wizard on the small canvas
-        line(z.pos, add(z.pos, v(.55, .3)), '#9be7ff', .12);
-        circle(add(z.pos, v(.55, .3)), .1, '#9be7ff');
-      }
-      if (w.t < z.slowUntil) circle(z.pos, WIZ_R + 0.1, null, '#78aaff');
-      if (w.t < z.magnetUntil) circle(z.pos, WIZ_R + 0.22, null, z.magnet > 0 ? '#ff5ad1' : '#9be7ff', true);
-      if (w.t < z.rushUntil) circle(z.pos, WIZ_R + 0.12, null, '#ffb347');
-      circle(z.pos, WIZ_R, w.t < (z.closedBodyUntil ?? 0) && bracingActive(w,z) ? '#090909' : colors[i % colors.length], i === A ? '#ffd666' : '#1a0c08');
-      line(z.pos, add(z.pos, scale(v(Math.cos(z.facing), Math.sin(z.facing)), WIZ_R)), '#1a0c08', 0.06);
-      // vida em cima do mago
-      ctx.fillStyle = '#1a0c08';
-      ctx.fillRect(z.pos.x - 0.45, z.pos.y - 0.7, 0.9, 0.12);
-      ctx.fillStyle = z.hp / z.hpMax > 0.35 ? '#6fdc8c' : '#ff6a4d';
-      ctx.fillRect(z.pos.x - 0.45, z.pos.y - 0.7, 0.9 * Math.max(0, z.hp / z.hpMax), 0.12);
-      ctx.globalAlpha = 1;
-      text(i === A ? t('você', 'you') : t('treino', 'practice'), v(z.pos.x, z.pos.y - 0.85), i === A ? '#ffd666' : '#c4a693', 0.32);
-      demoStatus(w, z).forEach((label, index) => text(label, v(z.pos.x, z.pos.y + 1.5 + index * .3), '#fff2a0', .22));
-    });
-    for (const { e, until } of fx) {
-      const life = until - w.t;
-      if (e.k === 'heal') {
-        const aura = healAura(until, w.t), at = w.wizards.find(z => z.id === e.id)?.pos ?? v(e.x, e.y);
-        ctx.globalAlpha = aura.opacity;
-        circle(at, WIZ_R * aura.scale, HEAL_FX.color, HEAL_FX.glow);
-        ctx.globalAlpha = 1;
-        text('+' + Math.round(e.amount), v(at.x, at.y - 1.1 - (HEAL_FX.seconds - life) * .5), HEAL_FX.color, .42);
-        text(t('clique no alvo', 'click target'), v(at.x, at.y + .9), HEAL_FX.color, .3);
-      }
-      else if (e.k === 'lightning') line(e.from, e.to, '#cfe8ff', 0.09);
-      else if (e.k === 'vines') {
-        circle(v(e.x, e.y), e.r, null, VINE_COLOR);
-        ctx.globalAlpha = Math.min(1, life / .3);
-        vines(v(e.x, e.y), e.r);
-        ctx.globalAlpha = 1;
-      }
-      else if (e.k === 'teleport') line(e.from, e.to, 'rgba(255,214,102,.6)', 0.05, true);
-      else if (e.k === 'reflect') circle(v(e.x, e.y), 0.5, null, '#ffd666');
-      else if (e.k === 'scourge' || e.k === 'clash') circle(v(e.x, e.y), e.r, null, e.k === 'clash' ? CLASH_COLOR[e.combo] : '#ff6a4d');
-      else if (e.k === 'hit' && e.dmg > 0.5) text('−' + Math.round(e.dmg), v(e.x, e.y - 1.1 - (0.8 - life) * 0.8), '#fff2a0', 0.42);
-      else if (e.k === 'death') text('✕', w.wizards.find((z) => z.id === e.id)?.pos ?? v(0, 0), '#ff6a4d', 0.6);
-    }
+    for (const p of w.projectiles) drawProjectile(p);
+    w.wizards.forEach(drawWizard);
+    for (const f of fx) drawFx(f);
     const blinded=id==='cluster'?w.wizards[B]:null;
     if(blinded && w.t<(blinded.blindUntil??0)) {
       const p=blinded.pos,g=ctx.createRadialGradient(p.x,p.y,BLINDNESS.radius-BLINDNESS.feather,p.x,p.y,BLINDNESS.radius);
       g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'#000000');ctx.fillStyle=g;ctx.fillRect(-30,-30,60,60);
       text(t('visão do alvo cegado · diâmetro 6 m','blinded target view · diameter 6 m'),v(0,-4.8),'#cfb17b',.3);
     }
+  }
+
+  function drawProjectile(p: Projectile) {
+    const { w } = s;
+    const L = spellLevel(spellOf(p.kind), p.level);
+    const col = PROJ_COLOR[p.kind] ?? '#fff';
+    if (p.kind === 'meteor') {
+      circle(p.pos, L.radius, 'rgba(255,90,26,.18)', col, true);
+      circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / METEOR_DELAY), 'rgba(255,90,26,.35)');
+    } else if (p.kind === 'grip') {
+      circle(p.pos, L.radius, 'rgba(100,180,50,.12)', VINE_COLOR, true);
+      circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / GRIP.delay), 'rgba(100,180,50,.3)');
+    } else if (p.kind === 'warpzone') circle(p.pos, L.radius, 'rgba(138,123,255,.25)', col);
+    else if (p.kind === 'illusion') {
+      // Draw the copy as a translucent wizard in its owner's color
+      ctx.globalAlpha = 0.5;
+      circle(p.pos, WIZ_R, colors[w.wizards.findIndex((z) => z.id === p.owner) % colors.length], '#1a0c08');
+      ctx.globalAlpha = 1;
+      text(t('cópia · recebe empurrão', 'copy · takes knockback'), v(p.pos.x, p.pos.y - .75), '#9be7ff', .25);
+    } else if (p.kind === 'geyser') {
+      circle(p.pos, L.radius, 'rgba(115,217,255,.25)', GEYSER_FX.color);
+      circle(p.pos, L.radius * (.65 + .1 * Math.sin(w.t * 8)), null, GEYSER_FX.foam);
+    } else if (p.kind === 'gravity') {
+      circle(p.pos, L.radius, 'rgba(160,107,255,.15)', col, true);
+      circle(p.pos, PROJ_R * 1.4, col);
+    } else {
+      if (p.kind === 'link') line(w.wizards.find((z) => z.id === p.owner)?.pos ?? p.pos, p.pos, col, 0.05);
+      circle(p.pos, p.kind === 'snowball' ? snowR(p.level) : p.kind === 'shard' ? PROJ_R * 0.7 : PROJ_R, col);
+    }
+  }
+
+  function drawWizard(z: Wizard, i: number) {
+    const { w } = s;
+    if (!z.alive) return;
+    if ((z.geyserLeft ?? 0) > 0) {
+      circle(z.pos, WIZ_R + .2, null, GEYSER_FX.color);
+      text('↑', v(z.pos.x, z.pos.y - 1.3), GEYSER_FX.foam, .65);
+    }
+    if (z.basicCasting) {
+      circle(z.pos, .6, null, '#9be7ff');
+      const left = Math.max(0, z.basicCasting.fireAt - w.t);
+      text(t('preparo ', 'windup ') + n1(left) + ' s', v(z.pos.x, z.pos.y + 1), '#9be7ff', .28);
+      circle(z.pos, .15 + .25 * (1 - left / BASIC_ATTACK.windup), 'rgba(155,231,255,.3)');
+    }
+    if ((id === 'lightning' && i !== A) || (id === 'brace' && i === A)) {
+      const cd = Math.max(0, z.cd.fireball - w.t).toLocaleString(LOCALE, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      text(t(`recarga: ${cd} s`, `cooldown: ${cd} s`), v(z.pos.x, z.pos.y + 1.15), '#c4a693', .25);
+    }
+    if (w.t < (z.electroUntil ?? 0)) {
+      ctx.globalAlpha = electroPulse(true, w.t, reduced);
+      circle(z.pos, WIZ_R + .2, '#6ee6ff', '#6ee6ff');
+      ctx.globalAlpha = 1;
+      text(t('lento · recargas pausadas', 'slowed · cooldowns paused'), v(z.pos.x, z.pos.y + .8), '#6ee6ff', .25);
+    }
+    ctx.globalAlpha = w.t < z.windUntil || w.t < z.veilUntil ? 0.35 : 1; // The trainee still sees their own veiled wizard, as with Windwalk
+    if (w.t < z.shieldUntil) circle(z.pos, z.shieldR, 'rgba(255,214,102,.15)', '#ffd666');
+    if (w.t < z.alterUntil) circle(z.pos, spellLevel('alteration', z.spells.alteration || 1).radius, 'rgba(110,230,255,.12)', '#6ee6ff', true);
+    if (w.t < z.gripUntil) vines(z.pos, WIZ_R + .18);
+    if (isStunned(z)) circle(z.pos, WIZ_R + .3, null, '#ffd666', true);
+    if (bracingActive(w, z)) {
+      circle(z.pos, WIZ_R + .12, null, '#9be7ff');
+      // This schematic arm does not reproduce the game's 3D bracing pose.
+      // schematic braced arm: short stub up-right of the body, thin enough not to hide the wizard on the small canvas
+      line(z.pos, add(z.pos, v(.55, .3)), '#9be7ff', .12);
+      circle(add(z.pos, v(.55, .3)), .1, '#9be7ff');
+    }
+    if (w.t < z.slowUntil) circle(z.pos, WIZ_R + 0.1, null, '#78aaff');
+    if (w.t < z.magnetUntil) circle(z.pos, WIZ_R + 0.22, null, z.magnet > 0 ? '#ff5ad1' : '#9be7ff', true);
+    if (w.t < z.rushUntil) circle(z.pos, WIZ_R + 0.12, null, '#ffb347');
+    circle(z.pos, WIZ_R, w.t < (z.closedBodyUntil ?? 0) && bracingActive(w,z) ? '#090909' : colors[i % colors.length], i === A ? '#ffd666' : '#1a0c08');
+    line(z.pos, add(z.pos, scale(v(Math.cos(z.facing), Math.sin(z.facing)), WIZ_R)), '#1a0c08', 0.06);
+    // Health above the wizard
+    ctx.fillStyle = '#1a0c08';
+    ctx.fillRect(z.pos.x - 0.45, z.pos.y - 0.7, 0.9, 0.12);
+    ctx.fillStyle = z.hp / z.hpMax > 0.35 ? '#6fdc8c' : '#ff6a4d';
+    ctx.fillRect(z.pos.x - 0.45, z.pos.y - 0.7, 0.9 * Math.max(0, z.hp / z.hpMax), 0.12);
+    ctx.globalAlpha = 1;
+    text(i === A ? t('você', 'you') : t('treino', 'practice'), v(z.pos.x, z.pos.y - 0.85), i === A ? '#ffd666' : '#c4a693', 0.32);
+    demoStatus(w, z).forEach((label, index) => text(label, v(z.pos.x, z.pos.y + 1.5 + index * .3), '#fff2a0', .22));
+  }
+
+  function drawFx({ e, until }: Fx) {
+    const { w } = s;
+    const life = until - w.t;
+    if (e.k === 'heal') {
+      const aura = healAura(until, w.t), at = w.wizards.find(z => z.id === e.id)?.pos ?? v(e.x, e.y);
+      ctx.globalAlpha = aura.opacity;
+      circle(at, WIZ_R * aura.scale, HEAL_FX.color, HEAL_FX.glow);
+      ctx.globalAlpha = 1;
+      text('+' + Math.round(e.amount), v(at.x, at.y - 1.1 - (HEAL_FX.seconds - life) * .5), HEAL_FX.color, .42);
+      text(t('clique no alvo', 'click target'), v(at.x, at.y + .9), HEAL_FX.color, .3);
+    }
+    else if (e.k === 'lightning') line(e.from, e.to, '#cfe8ff', 0.09);
+    else if (e.k === 'vines') {
+      circle(v(e.x, e.y), e.r, null, VINE_COLOR);
+      ctx.globalAlpha = Math.min(1, life / .3);
+      vines(v(e.x, e.y), e.r);
+      ctx.globalAlpha = 1;
+    }
+    else if (e.k === 'teleport') line(e.from, e.to, 'rgba(255,214,102,.6)', 0.05, true);
+    else if (e.k === 'reflect') circle(v(e.x, e.y), 0.5, null, '#ffd666');
+    else if (e.k === 'scourge' || e.k === 'clash') circle(v(e.x, e.y), e.r, null, e.k === 'clash' ? CLASH_COLOR[e.combo] : '#ff6a4d');
+    else if (e.k === 'hit' && e.dmg > 0.5) text('−' + Math.round(e.dmg), v(e.x, e.y - 1.1 - (0.8 - life) * 0.8), '#fff2a0', 0.42);
+    else if (e.k === 'death') text('✕', w.wizards.find((z) => z.id === e.id)?.pos ?? v(0, 0), '#ff6a4d', 0.6);
   }
 
   function vines(at: Vec, radius: number) {
