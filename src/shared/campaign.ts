@@ -1,4 +1,4 @@
-// Modo Campanha (desenho em docs/superpowers/specs/2026-10-19-campanha-design.md): 1 a 4 Acesos contra o Fumo.
+// Modo Campanha (desenho em docs/plans/2026-10-19-campanha-design.md): 1 a 4 Acesos contra o Fumo.
 // Uma noite = estágios; um estágio = um mapa de salas (levels.ts) com encontros nos pontos de controle.
 import { drawCards, type Card } from './ascension.ts';
 import type { CharacterId } from './characters.ts';
