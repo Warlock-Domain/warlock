@@ -2268,6 +2268,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // brilho na mão (um pouco à frente do mago, na cor da magia) e linha de mira fraca até o ponto
       const color = spell === 'cluster' ? '#d7bc85' : spell === 'heal' ? HEAL_FX.color : LOOK[spell as keyof typeof LOOK]?.halo ?? '#ffb347';
       const from = v(m.root.position.x, m.root.position.z);
+      if (spell === 'closedbody') at = undefined; // Keep the effect on the stance, without a cursor aim line.
       const dir = at ? Math.atan2(at.y - from.y, at.x - from.x) : Math.PI / 2 - m.root.rotation.y;
       const hand = v(from.x + Math.cos(dir) * 0.45, from.y + Math.sin(dir) * 0.45);
       burst(hand, color, 1.3, 0.35, 1.15, FX.light);

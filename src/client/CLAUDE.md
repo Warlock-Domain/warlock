@@ -4,6 +4,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Interface
 
+- Closed Body keeps its local effect aligned with the current stance, without a cursor aim line. PT/EN descriptions and the off-axis demo explain the preserved facing.
+
 - Cegueira: vinheta ancorada no chão pelo raio3m do jogador afetado, não pela câmera; oculta entidades e rótulos além do limite. Capítulo de status somente texto no Grimório; Rajada de areia tem ficha e demo próprias PT/EN em Controle.
 - Corpo fechado escurece materiais clonados e restaura ao terminar; sons próprios no começo/fim confirmados. Gravações fornecidas pelo Leonard, declaradas CC0, respeitam mixer/distância.
 
