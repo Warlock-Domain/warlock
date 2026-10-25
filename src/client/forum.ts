@@ -21,9 +21,12 @@ async function refresh() {
 async function send(e: Event) {
   e.preventDefault();
   const res = await fetch('/api/forum', { method: 'POST', body: JSON.stringify({ text: input.value }) }).catch(() => null);
+  // only a 400 is about the text; a network error or 5xx gets the plain retry message
   status.textContent = res?.ok
     ? ''
-    : t(`Não foi possível gravar. Escreva de 1 a ${FORUM_NOTE_MAX} caracteres e tente de novo.`, `Could not save. Write 1 to ${FORUM_NOTE_MAX} characters and try again.`);
+    : res?.status === 400
+      ? t(`Não foi possível gravar. Escreva de 1 a ${FORUM_NOTE_MAX} caracteres e tente de novo.`, `Could not save. Write 1 to ${FORUM_NOTE_MAX} characters and try again.`)
+      : t('Não foi possível gravar. Tente de novo.', 'Could not save. Try again.');
   if (!res?.ok) return;
   input.value = '';
   await refresh();
