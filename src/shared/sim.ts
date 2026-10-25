@@ -762,7 +762,7 @@ function castCluster(w: World, wz: Wizard, L: Level, dir: Vec, dmgMult: number) 
   w.events.push({ k: 'sand', id: wz.id, x: wz.pos.x, y: wz.pos.y, dx: dir.x, dy: dir.y, length, width });
   let landed = false;
   for (const z of w.wizards) {
-    if (!z.alive || z === wz || allies(wz,z) || isSuspended(z) || w.t < z.invulnUntil || !inCone(wz.pos,dir,length,width,z.pos,WIZ_R) || firstPillarOnSegment(w,wz.pos,z.pos,0) || wallClip(w,wz.pos,z.pos) !== z.pos) continue; // Campaign walls block it like Lightning
+    if (!z.alive || z === wz || allies(wz,z) || isSuspended(z) || w.t < z.invulnUntil || !inCone(wz.pos,dir,length,width,z.pos,bodyR(z)) || firstPillarOnSegment(w,wz.pos,z.pos,0) || wallClip(w,wz.pos,z.pos) !== z.pos) continue; // Campaign walls block it like Lightning
     hit(w,z,wz.id,L.dmg*dmgMult,0,dir,'cluster');
     z.incapacitateUntil = Math.max(z.incapacitateUntil ?? 0,w.t+statusDuration(w,z,L.incapacitate*z.debuffMult));
     z.blindUntil = Math.max(z.blindUntil ?? 0,w.t+statusDuration(w,z,L.blind*z.debuffMult));
@@ -1580,7 +1580,7 @@ function hitWizard(w: World, p: Projectile, found: { wz: Wizard; t: number }, L:
     // Hit, bounce at 500 original units/s and return to the owner; can hit again on the way back
     hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, sub(wz.pos, p.pos), 'boomerang');
     land(w, p, 'boomerang', true);
-    bounceOff(p, wz.pos, WIZ_R, BOOMERANG.bounce);
+    bounceOff(p, wz.pos, bodyR(wz), BOOMERANG.bounce); // bodyR: with WIZ_R the bounce restarted inside the giant body and hit again on the next step
     [p.curve, p.back] = [undefined, true];
     return true;
   } else if (p.kind === 'bouncer') {
