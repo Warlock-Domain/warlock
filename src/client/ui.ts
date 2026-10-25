@@ -1,7 +1,7 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
 import { ASC_ROUNDS } from '../shared/ascension.ts';
 import { ASC_MODE_TEXT, ascLevel, ascPanel, cardButton } from './ascension-ui.ts';
-import { drawMinimap, type MiniDot } from './minimap.ts';
+import { drawMinimap, type MiniColors, type MiniDot } from './minimap.ts';
 import type { NightMap } from '../shared/levels.ts';
 import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_EFFECT_IDS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD, type RoundEffectId } from '../shared/constants.ts';
@@ -1030,7 +1030,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // Campaign minimap (minimap.ts): redrawn at most every 100 ms, the dots move slowly at this scale
   const miniCanvas = el('canvas', { class: 'minimap', width: 220, height: 150, hidden: true, 'aria-hidden': 'true' }) as HTMLCanvasElement;
   let miniAt = 0;
-  const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  let miniColors: MiniColors | undefined; // read once: the :root colors do not change during a match
   const bossBar = el('div', { class: 'boss-bar', hidden: true }, bossName, el('div', { class: 'hpbar', role: 'img' }, bossFill, bossText));
   // a janela da loja pode ser alargada pela alça do canto (PC); o tamanho fica salvo neste navegador (pedido do Fernando, 18/10)
   const SHOP_SIZE = 'warlock:shopSize';
@@ -1970,7 +1970,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (!m || now - miniAt < 100) return;
       miniAt = now;
       const ctx = miniCanvas.getContext('2d');
-      if (ctx) drawMinimap(ctx, m.map, m.seen, m.done, m.fight, m.dots, { floor: cssVar('--panel2'), wall: cssVar('--line'), lava: cssVar('--lava'), wax: cssVar('--ember'), done: cssVar('--off-bg'), fight: cssVar('--red'), me: cssVar('--gold'), ally: cssVar('--cream'), foe: cssVar('--red') });
+      if (!ctx) return;
+      const css = getComputedStyle(document.documentElement), cv = (name: string) => css.getPropertyValue(name).trim();
+      // contrast on the floor: wall 5.2:1, won-room dash 7.4:1; the black rim keeps a foe on the lava at 6.5:1
+      miniColors ??= { floor: cv('--panel2'), wall: cv('--off-fg'), lava: cv('--lava'), wax: cv('--ember'), done: cv('--toast-good'), fight: cv('--red'), me: cv('--gold'), ally: cv('--cream'), foe: cv('--red'), outline: cv('--ink') };
+      drawMinimap(ctx, m.map, m.seen, m.done, m.fight, m.dots, miniColors);
     },
     // a cada quadro: vida do chefe da Campanha (null esconde)
     boss(b: { name: string; now: number; max: number } | null) {
