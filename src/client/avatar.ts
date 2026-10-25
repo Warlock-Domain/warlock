@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { CHARACTERS, LOOK_PARTS, PRESETS, fixLook, isCharacter, isLook, isRetired, lookHead, lookOf, randomLook, type Piece } from '../shared/characters.ts';
 import { t } from './i18n.ts';
-import { el, iconButton } from './icons.ts';
+import { el } from './icons.ts';
 import { cloneAppearance, disposeAppearance, loadFile, loadLook, lookModel, type AppearanceInstance } from './scene.ts';
 import { store } from './store.ts';
 
@@ -20,7 +20,7 @@ export function savedLook(): string {
   const c = store.get(CHAR_KEY);
   return lookOf(isCharacter(c) ? c : 'mage');
 }
-// cliques seguidos nas setas: guarda na hora e manda ao servidor só o último, 250 ms depois do último clique
+// rapid clicks on the thumbnails: save at once, but send only the last one to the server, 250 ms after the last click
 let sendTimer: ReturnType<typeof setTimeout> | undefined;
 export function saveLook(look: string) {
   store.set(LOOK_KEY, look);
@@ -181,7 +181,7 @@ class AvatarPreview {
       if (this.look !== now || !this.shown) this.show(this.look);
     };
     return el('div', { class: 'avatar' },
-      el('style', {}, `.avatar{display:flex;gap:var(--sp-16);flex-wrap:wrap;align-items:flex-start}.avatar-view{width:${W}px;max-width:100%;display:flex;flex-direction:column;gap:4px}.avatar canvas{width:${W}px;height:${H}px;max-width:100%;border-radius:12px;background:radial-gradient(circle at 50% 40%,#3a2a40,#15101a);touch-action:none;cursor:grab}.avatar-parts{flex:1;min-width:300px;display:flex;flex-direction:column;gap:var(--sp-6)}.avatar-top{display:flex;justify-content:space-between;align-items:flex-end;gap:var(--sp-8)}.avatar-presets,.avatar-tiles{display:flex;flex-wrap:wrap;gap:4px}.avatar-row{display:flex;align-items:center;gap:var(--sp-8)}.avatar-row>span{width:5.5em;flex:none;font-size:var(--fs-90)}.avatar-preset{padding:2px;min-height:0;border-radius:8px}.avatar-none{width:30px;height:40px;display:grid;place-items:center}.avatar-preset[aria-pressed=true]{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}`),
+      el('style', {}, `.avatar{display:flex;gap:var(--sp-16);flex-wrap:wrap;align-items:flex-start}.avatar-view{width:${W}px;max-width:100%;display:flex;flex-direction:column;gap:4px}.avatar canvas{width:${W}px;height:${H}px;max-width:100%;border-radius:12px;background:radial-gradient(circle at 50% 40%,#3a2a40,#15101a);touch-action:none;cursor:grab}.avatar-parts{flex:1;min-width:300px;display:flex;flex-direction:column;gap:var(--sp-6)}.avatar-top{display:flex;justify-content:space-between;align-items:flex-end;gap:var(--sp-8)}.avatar-presets,.avatar-tiles{display:flex;flex-wrap:wrap;gap:var(--sp-4)}.avatar-row{display:flex;align-items:center;gap:var(--sp-8)}.avatar-row>span{width:5.5em;flex:none;font-size:var(--fs-90)}.avatar-preset{padding:2px;min-height:0;border-radius:8px}.avatar-none{width:30px;height:40px;display:grid;place-items:center}.avatar-preset[aria-pressed=true]{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}`),
       el('div', { class: 'avatar-view' }, renderer.domElement, el('small', { class: 'muted' }, t('Arraste para orbitar · role para aproximar', 'Drag to orbit · scroll to zoom'))),
       el('div', { class: 'avatar-parts' },
         el('div', { class: 'avatar-top' }, el('div', {}, el('small', { class: 'muted' }, t('Prontos', 'Presets')), el('div', { class: 'avatar-presets' }, ...presets)),
