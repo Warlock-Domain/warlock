@@ -1507,7 +1507,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         scene.add(obj);
         // barra de vida em tudo que quebra (pedido do Fernando, 17/10: sempre visível)
         let bar: HTMLDivElement | null = null, fill: HTMLDivElement | null = null;
-        if (Number.isFinite(OBSTACLES[p.kind].hp) && !side) {
+        if (Number.isFinite(OBSTACLES[p.kind].hp) && !side && !(p.kind === 'rock' && curMap)) { // the Campaign rock never breaks (levels.ts obstaclesOf)
           fill = el('div');
           bar = el('div', { class: 'obstacle-hp' + (p.kind === 'chest' ? ' chest' : '') }, fill);
           labels.append(bar);
