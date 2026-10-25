@@ -52,14 +52,30 @@ export const POS_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6'
 type PosAction = (typeof POS_ACTIONS)[number];
 const POS_DEFAULTS: Record<PosAction, string> = { slot1: 'KeyQ', slot2: 'KeyW', slot3: 'KeyE', slot4: 'KeyR', slot5: 'KeyD', slot6: 'KeyF' };
 export const isPos = (a: AnyAction): a is PosAction => a in POS_DEFAULTS;
-// New key on 25/10, as on 21/10: slots saved in the 8-slot layout (1 2 3 4 first) would bring the digits back and clash with Q W E R D F,
-// so older saves start from the defaults; the old warlock:poskeys8 entry is left untouched
 const POS_STORE = 'warlock:poskeys6';
+const usable = (code: unknown): code is string => typeof code === 'string' && !!code && !RESERVED.has(code);
 let posMap: Record<PosAction, string> = { ...POS_DEFAULTS };
 const savedPositions = store.json(POS_STORE);
 if (isRecord(savedPositions)) for (const a of POS_ACTIONS) {
   const code = savedPositions[a];
   if (typeof code === 'string' && !RESERVED.has(code)) posMap[a] = code;
+}
+else posMap = migratePositions(store.json('warlock:poskeys8'));
+// One-time migration of the 8-slot layout (Fernando, 25/10, #401): old slots 5 to 8 (the Q W E R row) become new slots 1 to 4,
+// the old 1 to 4 (digits) are dropped and D F keep their defaults. A migrated key that clashes with a shortcut (A, S…) or with
+// another slot goes back to that slot's default, or stays unbound if the default is taken too. The old entry is never deleted.
+function migratePositions(old: unknown): Record<PosAction, string> {
+  const next = { ...POS_DEFAULTS };
+  if (!isRecord(old)) return next;
+  const taken = new Set([...UI_ACTIONS.map((u) => map[u]), next.slot5, next.slot6]);
+  const fallback: PosAction[] = [];
+  POS_ACTIONS.slice(0, 4).forEach((a, i) => {
+    const code = old[`slot${i + 5}`];
+    if (usable(code) && !taken.has(code)) { next[a] = code; taken.add(code); } else fallback.push(a);
+  });
+  for (const a of fallback) taken.has(next[a]) ? (next[a] = '') : taken.add(next[a]);
+  store.set(POS_STORE, JSON.stringify(next));
+  return next;
 }
 const SLOT_STORE = 'warlock:slotkeys';
 // ligado por padrão (Fernando, 20/10), menos para quem já tem teclas salvas: o modo ignoraria as teclas das magias e prenderia as teclas das posições
