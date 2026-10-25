@@ -186,7 +186,9 @@ export function grimoire() {
     spread.querySelectorAll('.g-page').forEach((p) => (p.scrollTop = 0));
     prev.disabled = first === 0;
     next.disabled = first + per >= PAGES.length;
-    if (hadFocus && !root.contains(document.activeElement)) root.focus({ preventScroll: true });
+    // Chrome moves focus off a disabled button only on the next rendering update, so check `disabled` too
+    const active = document.activeElement as HTMLButtonElement | null;
+    if (hadFocus && (!root.contains(active) || active?.disabled)) root.focus({ preventScroll: true });
     where.textContent = per === 2 && first + 1 < PAGES.length ? t(`${first + 1}–${first + 2} de ${PAGES.length}`, `${first + 1}–${first + 2} of ${PAGES.length}`) : t(`${first + 1} de ${PAGES.length}`, `${first + 1} of ${PAGES.length}`);
     if (dir) {
       spread.classList.remove('turn-next', 'turn-prev');
