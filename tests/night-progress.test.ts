@@ -40,7 +40,7 @@ function openEntrance(m: Match, now: number): { now: number; room: number } {
   return { now: step(m, now), room };
 }
 
-describe('Campanha: progressão da noite', () => {
+describe('Campaign: night progression', () => {
   it('a bigger group brings more of the same servants; the extras wait for a slot and the wave lasts until they fall', () => {
     const m = night(['a', 'b', 'c']);
     let now = toPlaying(m, 0);
@@ -184,7 +184,7 @@ describe('Campanha: progressão da noite', () => {
   });
 });
 
-describe('Campanha: vela e baús', () => {
+describe('Campaign: candle and chests', () => {
   it('the Sanctuary candle in the gate room heals the standing Acesos around it', () => {
     const m = night(['a', 'b']);
     let now = toPlaying(m, 0);

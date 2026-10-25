@@ -3,7 +3,7 @@ import { seenRooms } from '../src/client/minimap.ts';
 import { nightMap } from '../src/shared/levels.ts';
 import { v } from '../src/shared/vec.ts';
 
-describe('Campanha: névoa e minimapa', () => {
+describe('Campaign: fog and minimap', () => {
   it('a room is seen once an Aceso stands in it, stays seen, and won rooms count as seen', () => {
     const n = nightMap(7, 0);
     const entry = n.rooms.findIndex((r) => r.room.pool === 'entrada');

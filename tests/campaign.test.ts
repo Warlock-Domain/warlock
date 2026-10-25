@@ -9,7 +9,7 @@ import { dist, v } from '../src/shared/vec.ts';
 import { endResult, maxHp, nightLine, playerName } from '../src/client/screen-data.ts';
 import { STEP_MS, toPlaying, until } from './helpers.ts';
 
-// noite de Campanha com os humanos dados e semente fixa
+// Campaign night with the given humans and a fixed seed
 function night(humans = ['a'], seed = 1): Match {
   const m = newMatch();
   for (const id of humans) addPlayer(m, id, id);
@@ -24,7 +24,7 @@ const step = (m: Match, now: number, n = 1) => {
   for (let i = 0; i < n; i++) tickMatch(m, (now += STEP_MS), [], () => 0.5);
   return now;
 };
-// centro do ponto de controle da sala i (entre o "C" e o número)
+// center of the checkpoint of room i (between the "C" and the number)
 const checkpoint = (n: NightMap, i: number) => {
   const c = n.marks.find((q) => q.room === i && q.kind === 'checkpoint')!;
   return v(c.x + 1, c.y + 0.5);
@@ -34,14 +34,14 @@ const inside = (n: NightMap, i: number, p: { x: number; y: number }) => {
   return p.x > r.x && p.y > r.y && p.x < r.x + r.room.w && p.y < r.y + r.room.h;
 };
 const bossRoom = (n: NightMap) => n.rooms.findIndex((r) => r.room.pool === 'chefe');
-// leva o humano para o ponto e espera o passo em que o encontro abre
+// moves the human to the point and waits for the step where the encounter opens
 function stepOn(m: Match, now: number, id: string, at: { x: number; y: number }): number {
   wiz(m, id).pos = v(at.x, at.y);
   return step(m, now);
 }
-// no mapa não há lava: derruba direto, com o crédito para `by` (morre no passo seguinte)
+// no lava on the map: knocks down directly, crediting `by` (dies on the next step)
 const kill = (m: Match, id: string, by: string | null) => Object.assign(wiz(m, id), { hp: -1, lastHitBy: by, lastHitAt: m.world!.t });
-// derruba todos os servos vivos (crédito para o primeiro humano; sem os 2 s de invulnerabilidade de quem acabou de entrar)
+// knocks down every living servant (credit to the first human; skips the 2 s invulnerability of whoever just entered)
 function clearWave(m: Match, now: number): number {
   for (const z of foes(m)) if (z.alive) {
     z.invulnUntil = 0;
@@ -54,7 +54,7 @@ function clearFight(m: Match, now: number): number {
   return now;
 }
 const fightIn = (m: Match, i: number) => fightOf(mapOf(m), i, m.night!.seed, 0);
-// noite (semente fixa) cujo mapa tem a sala `id`, e o índice dela
+// night (fixed seed) whose map has room `id`, and its index
 function nightWith(id: string, humans = ['a']): { m: Match; i: number } {
   for (let seed = 1; ; seed++) {
     const m = night(humans, seed);
@@ -62,12 +62,12 @@ function nightWith(id: string, humans = ['a']): { m: Match; i: number } {
     if (i >= 0) return { m, i };
   }
 }
-// humanos invulneráveis enquanto o teste avança (os servos atiram)
+// humans stay invulnerable while the test advances (the servants shoot)
 const shelter = (m: Match) => {
   for (const z of m.world!.wizards) if (z.team === 0) z.invulnUntil = 1e9;
 };
 
-describe('Campanha: ondas', () => {
+describe('Campaign: waves', () => {
   it('waves of a room come from the seed, fit the slots, and the boss arena has one more', () => {
     expect(roomWaves(42, 0, 2, 2, false)).toEqual(roomWaves(42, 0, 2, 2, false));
     for (let s = 0; s < 50; s++) {
@@ -79,7 +79,7 @@ describe('Campanha: ondas', () => {
   });
 });
 
-describe('Campanha: partida no mapa', () => {
+describe('Campaign: match on the map', () => {
   it('starts with one human and the Smoke slots on team 1, without gold', () => {
     const m = night();
     expect(m.mode).toBe('campaign');
@@ -109,7 +109,7 @@ describe('Campanha: partida no mapa', () => {
     const start = n.marks.find((q) => q.kind === 'start')!;
     for (const id of ['a', 'b']) expect(dist(wiz(m, id).pos, v(start.x + 0.5, start.y + 0.5))).toBeLessThan(1.5);
     expect(foes(m).some((z) => z.alive)).toBe(false);
-    expect(w.pillars.length).toBeGreaterThan(0); // árvores, estátuas e destroços do desenho
+    expect(w.pillars.length).toBeGreaterThan(0); // trees, statues and debris from the layout
     now = step(m, now, 60 * 20);
     expect(m.world!.arenaR).toBe(3);
     expect(m.phase).toBe('playing');
@@ -133,7 +133,7 @@ describe('Campanha: partida no mapa', () => {
     const entries = n.marks.filter((q) => q.room === room && q.kind === 'entry').map((q) => v(q.x + 0.5, q.y + 0.5));
     for (const z of alive) {
       expect(z.hpMax).toBe(SERVOS[m.players.find((p) => p.id === z.id)!.servo!].hp);
-      expect(z.regen).toBe(0); // servo não regenera
+      expect(z.regen).toBe(0); // servants do not regenerate
       expect(Math.min(...entries.map((e) => dist(e, z.pos)))).toBeLessThan(1.5);
     }
   });
@@ -174,7 +174,7 @@ describe('Campanha: partida no mapa', () => {
     shelter(m);
     const standing = () => m.world!.pillars.filter((q) => q.alive && inside(n, i, q.pos)).length;
     const before = standing();
-    now = clearWave(m, now); // a primeira onda cai na hora: o encontro continua pelas lápides
+    now = clearWave(m, now); // the first wave falls at once: the encounter goes on through the tombstones
     expect(m.night!.fight).toBe(i);
     expect(foes(m).some((z) => z.alive)).toBe(false);
     now = step(m, now, 60 * 10);
@@ -188,7 +188,7 @@ describe('Campanha: partida no mapa', () => {
     }
     expect(m.night!.cracked).toBe(3);
     expect(standing()).toBe(before - 3);
-    expect(m.night!.done).toContain(i); // as 3 lápides racharam e o último vigia caiu: sala vencida
+    expect(m.night!.done).toContain(i); // the 3 tombstones cracked and the last watcher fell: room won
   });
 
   it('nobody leaves the sealed room', () => {
@@ -290,7 +290,7 @@ describe('Campanha: partida no mapa', () => {
     expect(startMatch(m, 0, 0, 'campaign', true, mulberry32(1))).toBe(true);
     let now = toPlaying(m, 0);
     expect(m.world!.wizards.some((z) => z.id === 'c')).toBe(false);
-    // a passa a assistir e b cai: não sobra Aceso, a noite é perdida
+    // a starts watching and b falls: no Aceso is left, the night is lost
     setWatch(m, 'a', true);
     expect(m.world!.wizards.some((z) => z.id === 'a')).toBe(false);
     Object.assign(wiz(m, 'b'), { hp: -1, invulnUntil: 0 });
@@ -400,7 +400,7 @@ describe('Campanha: partida no mapa', () => {
   });
 });
 
-describe('Campanha: tela', () => {
+describe('Campaign: screen', () => {
   it('servants are named in the player language, people keep their nickname', () => {
     expect(playerName({ name: 'Cinzento', servo: 'ash', bot: true, connected: true })).toBe('Cinzento');
     expect(playerName({ name: 'Arqueiro de Fuligem', servo: 'archer', bot: true, connected: true })).toBe('Arqueiro de Fuligem');

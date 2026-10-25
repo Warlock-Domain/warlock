@@ -6,12 +6,12 @@ import { noSpells } from '../src/shared/spells.ts';
 import { dist, v } from '../src/shared/vec.ts';
 import { run, world } from './helpers.ts';
 
-// mapa de teste desenhado como as salas: # parede, : mureta, * abismo, ~ cera, . chão (1 caractere = 1 m)
+// test map drawn like the rooms: # wall, : low wall, * abyss, ~ wax, . floor (1 character = 1 m)
 function terrain(rows: string[]): Terrain {
   const code: Record<string, number> = { '.': CELL.floor, '~': CELL.wax, ':': CELL.low, '#': CELL.wall, '*': CELL.pit, '^': CELL.lava };
   return { w: rows[0].length, h: rows.length, cells: Uint8Array.from(rows.join(''), (c) => code[c]), home: v(1.5, 1.5) };
 }
-// mundo de dois magos (p0, p1) num mapa, sem obstáculos nem ilhas
+// world of two wizards (p0, p1) on a map, with no obstacles or islands
 function onMap(rows: string[], spots: [number, number][], spells = noSpells()): World {
   const w = world(spots, spells);
   return Object.assign(w, { map: terrain(rows), arenaR: 3, isles: [], pillars: [] });
@@ -24,7 +24,7 @@ const ROOM = [
   '##########',
 ];
 
-describe('mapa da Campanha', () => {
+describe('Campaign map', () => {
   it('walking into a wall stops at the wall', () => {
     const w = onMap(ROOM, [[2.5, 2.5], [5, 3.5]]);
     run(w, 6, [{ id: 'p0', kind: 'move', to: v(20, 2.5) }]);
@@ -79,7 +79,7 @@ describe('mapa da Campanha', () => {
     run(w, 1);
     expect(w.wizards[0].hp).toBeLessThan(HP_MAX - 50);
     expect(w.wizards[0].safe).toEqual(v(4, 2.5));
-    expect(w.wizards[1].hp).toBe(HP_MAX); // na pedra não queima
+    expect(w.wizards[1].hp).toBe(HP_MAX); // does not burn on stone
   });
 
   it('a Smoke servant pushed into the abyss dies there, with the credit to who pushed', () => {
@@ -93,13 +93,13 @@ describe('mapa da Campanha', () => {
     }
     expect(w.wizards[0].alive).toBe(false);
     expect(events.some((e) => e.k === 'death' && e.id === 'p0' && e.by === 'p1')).toBe(true);
-    expect(events.some((e) => e.k === 'teleport' && e.id === 'p0')).toBe(false); // não volta à beira
+    expect(events.some((e) => e.k === 'teleport' && e.id === 'p0')).toBe(false); // does not go back to the edge
   });
 
   it('pushed into the abyss: back at the edge where you fell, with less health and the credit to who pushed', () => {
     const rows = ['##########', '#....****#', '#....****#', '#....****#', '##########'];
     const w = onMap(rows, [[4.4, 2.5], [1.5, 2.5]]);
-    w.wizards[0].vel = v(8, 0); // empurrão forte para dentro
+    w.wizards[0].vel = v(8, 0); // strong push inward
     w.wizards[0].lastHitBy = 'p1';
     w.wizards[0].lastHitAt = 0;
     const events = [];
@@ -112,7 +112,7 @@ describe('mapa da Campanha', () => {
     expect(z.pos.x).toBeLessThan(5);
     expect(z.pos.x).toBeGreaterThan(4);
     expect(z.hp).toBeCloseTo(HP_MAX * (1 - PIT.hit), -1);
-    // caindo várias vezes, morre e o abate é de quem empurrou
+    // falling several times, he dies and the kill goes to whoever pushed
     z.hp = 10;
     z.vel = v(8, 0);
     z.lastHitAt = w.t;
@@ -155,9 +155,9 @@ describe('mapa da Campanha', () => {
     const rows = ['############', '#....#.....#', '#....#.....#', '#....#.....#', '#..........#', '############'];
     const w = onMap(rows, [[2.5, 2.5], [8.5, 2.5]]);
     const next = pathStep(w, v(2.5, 2.5), v(8.5, 2.5), 0.3)!;
-    expect(next).not.toEqual(v(8.5, 2.5)); // não atravessa a parede
-    expect(next.y).toBeGreaterThan(3); // desce para a passagem de baixo
-    expect(edge(w, v(4.5, 2.5))).toBeCloseTo(0.5, 5); // a 0,5 m da parede
-    expect(edge(w, v(5.5, 2.5))).toBeLessThan(0); // dentro dela
+    expect(next).not.toEqual(v(8.5, 2.5)); // does not cross the wall
+    expect(next.y).toBeGreaterThan(3); // goes down to the lower passage
+    expect(edge(w, v(4.5, 2.5))).toBeCloseTo(0.5, 5); // 0.5 m from the wall
+    expect(edge(w, v(5.5, 2.5))).toBeLessThan(0); // inside it
   });
 });

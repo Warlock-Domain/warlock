@@ -49,7 +49,7 @@ describe('Sir Odran: arena', () => {
       const { m, events } = arena([...humans]);
       const z = odran(m);
       expect(z, String(humans.length)).toMatchObject({ alive: true, hp, hpMax: hp, kbResist: ODRAN.kbResist, regen: 0 });
-      expect(m.players.find((p) => p.servo === 'odran')!.hpMax).toBe(hp); // a barra do navegador
+      expect(m.players.find((p) => p.servo === 'odran')!.hpMax).toBe(hp); // the browser bar
       expect(events.some((e) => e.k === 'boss' && e.what === 'start')).toBe(true);
     }
     expect(SERVOS.odran.hp).toBe(3000);
@@ -178,7 +178,7 @@ describe('Giant Sir Odran', () => {
 });
 
 describe('Sir Odran: 2.5× body', () => {
-  it('he enters with the giant body; a Fireball passing 0,8 m from his centre hits him but misses a wizard', () => {
+  it('he enters with the giant body; a Fireball passing 0.8 m from his centre hits him but misses a wizard', () => {
     const { m } = arena();
     expect(odran(m).r).toBeCloseTo(WIZ_R * ODRAN.size);
     for (const r of [undefined, WIZ_R * ODRAN.size]) {

@@ -939,7 +939,7 @@ function nightCardsDue(m: Match, w: World, rand: () => number) {
     if (!(n.owed?.[z.id] ?? 0)) continue;
     const cards = nightCards(p, rand);
     if (cards.length) (n.offer ??= {})[z.id] = cards;
-    else n.owed![z.id] = 0; // nothing left to learn or raise
+    else if (n.owed) n.owed[z.id] = 0; // nothing left to learn or raise
   }
 }
 // the Sanctuary candle heals the standing Acesos around it (not the fallen: an ember still needs an ally)
@@ -982,8 +982,8 @@ export function nightPick(m: Match, id: string, i: number): boolean {
   const z = m.world?.wizards.find((q) => q.id === id);
   if (!n || !p || !card || n.fight !== null || m.phase !== 'playing' || !applyCard(p, card)) return false;
   if (z) z.spells[card.id as SpellId] = p.spells[card.id as SpellId]; // the wizard on the map learns it now
-  delete n.offer![id];
-  n.owed![id]--;
+  if (n.offer) delete n.offer[id];
+  if (n.owed?.[id]) n.owed[id]--; // never below 0, even if an offer outlived its debt
   return true;
 }
 
@@ -991,11 +991,12 @@ export function nightPick(m: Match, id: string, i: number): boolean {
 // sem lápide de pé, não sobra nenhuma para rachar
 function crack(m: Match, w: World, map: NightMap, i: number) {
   const n = m.night!, t = fight(n, map, i).tombs;
-  const max = t && nightCount(t.max, acesosOf(w)); // more Acesos, more tombstones crack (same scale as the waves)
-  if (!t || n.cracked >= max! || w.t < n.since + t.every * (n.cracked + 1)) return;
+  if (!t) return;
+  const max = nightCount(t.max, acesosOf(w)); // more Acesos, more tombstones crack (same scale as the waves)
+  if (n.cracked >= max || w.t < n.since + t.every * (n.cracked + 1)) return;
   const tombs = map.marks.filter((q) => q.room === i && q.kind === 'statue').map((q) => v(q.x + (q.w ?? 1) / 2, q.y + (q.h ?? 1) / 2));
   const standing = w.pillars.map((q, k) => ({ q, k })).filter(({ q }) => q.alive && tombs.some((s) => dist(s, q.pos) < 0.01));
-  if (!standing.length) return void (n.cracked = max!);
+  if (!standing.length) return void (n.cracked = max);
   const slot = m.players.find((p) => p.servo && !w.wizards.find((z) => z.id === p.id)?.alive);
   if (!slot) return; // sem vaga: racha quando um servo cair
   const { q, k } = standing[Math.floor(nightRand(n.seed, n.stage, 1000 + i * 16 + n.cracked)() * standing.length)];

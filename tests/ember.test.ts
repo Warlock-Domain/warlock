@@ -20,10 +20,10 @@ function step(m: Match, now: number, n = 1, events: SimEvent[] = []): number {
   for (let i = 0; i < n; i++) events.push(...tickMatch(m, (now += STEP_MS), [], () => 0.5));
   return now;
 }
-// derruba o Aceso (no mapa não há lava)
+// knocks the Aceso down (no lava on the map)
 const down = (m: Match, id: string) => Object.assign(wiz(m, id), { hp: -1, invulnUntil: 0 });
 
-describe('reacender', () => {
+describe('rekindle', () => {
   it('a fallen Aceso becomes an ember; an ally next to it for 3 s brings him back with half health', () => {
     let { m, now } = night();
     const a = wiz(m, 'a'), b = wiz(m, 'b');
@@ -33,10 +33,10 @@ describe('reacender', () => {
     expect(a.alive).toBe(false);
     expect(a.ember).toMatchObject({ prog: 0, need: EMBER.base });
     expect(encodeSnap(m.world!, 'b', 0, []).em?.[m.world!.wizards.indexOf(a)]).toBe(0);
-    // longe: nada acontece
+    // far away: nothing happens
     now = step(m, now, 60 * 4);
     expect(a.alive).toBe(false);
-    // perto por 3 s
+    // close for 3 s
     b.pos = add(a.pos, v(0.8, 0));
     const events: SimEvent[] = [];
     now = step(m, now, 60 * EMBER.base - 5, events);
@@ -73,13 +73,13 @@ describe('reacender', () => {
     expect(a.ember!.prog).toBe(0);
     b.pos = add(a.pos, v(0.5, 0));
     now = step(m, now, 60 * 2);
-    expect(a.alive).toBe(false); // recomeçou do zero
+    expect(a.alive).toBe(false); // started over from zero
   });
 
   it('each fall in the same encounter costs 1 s more', () => {
     let { m, now } = night();
     const a = wiz(m, 'a'), b = wiz(m, 'b');
-    // abre o encontro da entrada; os servos ficam sem atirar para não derrubar ninguém por conta própria
+    // opens the entrance encounter; the servants do not shoot so they never knock anyone down on their own
     const n = nightMap(m.night!.seed, m.night!.stage), cp = n.marks.find((q) => q.kind === 'checkpoint')!;
     b.invulnUntil = 1e9;
     a.pos = v(cp.x + 1, cp.y + 0.5);
@@ -120,9 +120,9 @@ describe('reacender', () => {
     let { m, now } = night(['a', 'b', 'c']);
     const n = nightMap(m.night!.seed, m.night!.stage), r = n.rooms.find((q) => q.room.pool === 'chefe')!;
     for (const id of ['a', 'b', 'c']) Object.assign(wiz(m, id), { pos: v(r.x + 5, r.y + 4), invulnUntil: 1e9 });
-    now = step(m, now); // a luta abre e puxa todos para dentro
+    now = step(m, now); // the fight opens and pulls everyone in
     const a = wiz(m, 'a'), b = wiz(m, 'b');
-    for (const z of m.world!.wizards.filter((q) => q.team === 1)) z.invulnUntil = 1e9; // o chefe fica, mas não importa aqui
+    for (const z of m.world!.wizards.filter((q) => q.team === 1)) z.invulnUntil = 1e9; // the boss stays, but it does not matter here
     down(m, 'a');
     now = step(m, now);
     b.pos = add(a.pos, v(6, 0));
@@ -130,7 +130,7 @@ describe('reacender', () => {
     now = step(m, now, 60 * (EMBER.out + 1), events);
     expect(a.ember?.out).toBe(true);
     expect(events.some((e) => e.k === 'ember' && e.what === 'out' && e.id === 'a')).toBe(true);
-    // apagada: nem perto volta
+    // put out: even close by it does not come back
     b.pos = add(a.pos, v(0.5, 0));
     now = step(m, now, 60 * 5);
     expect(a.alive).toBe(false);

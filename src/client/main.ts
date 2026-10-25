@@ -1031,7 +1031,7 @@ function startRoom(code: string, name: string) {
       const line = here && ILSE_ROOMS[here.room.id];
       if (here && line) ilseSay(here.room.id, line(ilseCtx()));
       if (room!.night!.fight !== null) ilseSay('fight', ILSE_MOMENTS.fight(ilseCtx())); // primeiro encontro: magias e teclas
-      if (room!.players.find((p) => p.id === me)?.lv?.offer.length && room!.night!.fight === null) ilseSay('level', ILSE_MOMENTS.level()); // first level-up cards
+      if (myLv?.offer.length && room!.night!.fight === null) ilseSay('level', ILSE_MOMENTS.level()); // first level-up cards
       if (myPos && nm.marks.some((q) => q.kind === 'candle' && Math.hypot(myPos.x - q.x - 0.5, myPos.y - q.y - 0.5) <= CANDLE.r)) ilseSay('candle', ILSE_MOMENTS.candle());
       if (room!.night!.result === 'won') {
         ilseSay('won', ILSE_MOMENTS.won());

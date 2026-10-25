@@ -27,7 +27,7 @@ import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
 import { add, clampLen, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
-import { nightProps } from './night-decor.ts';
+import { cellHash, nightProps } from './night-decor.ts';
 import { CANDLE } from '../shared/campaign.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
@@ -682,7 +682,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     // the cell, so every player sees the same floor; most of the moor is dirt, with old paving and broken slabs
     const key = mapKey;
     const kinds = ['floor_dirt_small_A', 'floor_dirt_small_A', 'floor_tile_small', 'floor_tile_small_broken_A'];
-    const cellKind = ([x, y]: readonly [number, number]) => kinds[((Math.imul(x, 73856093) ^ Math.imul(y, 19349663)) >>> 0) % kinds.length];
+    const cellKind = ([x, y]: readonly [number, number]) => kinds[cellHash(x, y) % kinds.length];
     void Promise.all([...new Set(kinds), 'bricks_A'].map((k) => decor.nightMesh(k).then((m) => [k, m] as const))).then((pairs) => {
       if (mapKey !== key || pairs.some(([, m]) => !m)) return; // another map came in, or the GLB failed: keep the boxes
       const mesh = new Map(pairs);

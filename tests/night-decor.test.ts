@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { nightProps } from '../src/client/night-decor.ts';
 import { nightMap } from '../src/shared/levels.ts';
 
-describe('Campanha: cenário', () => {
+describe('Campaign: scenery', () => {
   it('props stand on floor against a wall, away from marks and openings, and the same map gives the same props', () => {
     const n = nightMap(7, 0);
     const props = nightProps(n);

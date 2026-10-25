@@ -146,7 +146,7 @@ function playNight(size: number, seed: number): NightLog {
         const r = map.rooms[nextRoom];
         goal = cp ? v(cp.x + 1, cp.y + 0.5) : v(r.x + 6, r.y + r.room.h / 2);
       }
-      if (goal && (dist(z.pos, goal) > 0.6 || goal !== null && nextRoom === boss && !hurt)) cmds.push({ id, kind: 'move', to: stepToward(map, key, z.pos, goal) });
+      if (goal && (dist(z.pos, goal) > 0.6 || nextRoom === boss && !hurt)) cmds.push({ id, kind: 'move', to: stepToward(map, key, z.pos, goal) });
     }
     const events = tickMatch(m, (now += STEP), cmds, rand);
     for (const e of events) {
