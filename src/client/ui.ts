@@ -1152,6 +1152,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     draggableSlot(b, 0, true);
     return b;
   }));
+  // Attack (A) and Hold ground (S) open the bottom row: Q W E R on top, A S D F below (Fernando, 25/10, issue #401). Faded and
+  // aria-disabled because they cannot be moved or sold; they only show the tip, the keys still do the work. No touch: no A/S keys there
+  const fixedBtns = TOUCH ? [] : MECHANIC_GUIDES.map((g) => {
+    const ui: UiAction = g.id === 'basic' ? 'basic' : 'stop';
+    return withTip(el('button', { type: 'button', class: 'spell fixed-skill', 'aria-disabled': 'true', 'aria-label': g.title },
+      el('span', { class: 'key', 'data-ui': ui }, uiLabel(ui)), el('span', { class: 'ico' }, icon(MECHANIC_ICON[g.id]))), () => mechanicTip(g));
+  });
+  const ROW = 4; // slots per row: the fixed pair goes right after Q W E R
   // grade 3×2 de itens à direita da barra, como a do Dota (MAX_ITEMS = 6): os comprados (todos passivos desde 21/10, #217) e o resto vazio
   const itemGrid = el('div', { class: 'item-grid', role: 'group', 'aria-label': t('Itens', 'Items') });
   function refreshEquipment() {
@@ -1163,12 +1171,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (bar.dataset.order !== sig) {
       bar.dataset.order = sig;
       const empty = (index: number) => draggableSlot(el('span', { class: 'spell slot-empty', 'aria-label': t('Posição vazia', 'Empty slot') }, el('span', { class: 'key', 'data-position': index }, keyLabel(keyOf(POS_ACTIONS[index])))), index, false);
-      bar.replaceChildren(...order.spells.map((s, i) => {
+      const slots = order.spells.map((s, i) => {
         if (!s) return empty(i);
         const node = buttons.get(s)!.b;
         node.dataset.loadoutSlot = String(i);
         return node;
-      }));
+      });
+      bar.replaceChildren(...slots.slice(0, ROW), ...fixedBtns, ...slots.slice(ROW));
       itemGrid.replaceChildren(...passive.map((i) => withTip(el('span', { class: 'spell passive', tabindex: 0, 'aria-label': t(`${itemName(i)} (passivo) nível ${mine!.items[i]}`, `${itemName(i)} (passive) level ${mine!.items[i]}`) }, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0))),
       ...Array.from({ length: Math.max(0, MAX_ITEMS - passive.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
       hideTip(bar); hideTip(itemGrid);
@@ -1234,14 +1243,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const vitals = el('div', { class: 'vitals', hidden: true }, el('div', { class: 'hp-col' }, el('div', { class: 'vit-row' }, hpBar, xpLv), xpBar), el('div', { class: 'hero-row' }, goldNow, heroStats)); // vida só jogando e vivo
   const heroFace = el('img', { class: 'hero-face', alt: '', width: 104, height: 120 });
   const hero = el('div', { class: 'hero-box' }, heroFace, vitals);
-  // Attack (A) and Hold ground (S) fixed beside the 8 slots (Fernando, 25/10, issue #401): a column left of the 2 rows, faded and
-  // aria-disabled because they cannot be moved or sold; they only show the tip, the keys still do the work. No touch: no A/S keys there
-  const fixedCol = TOUCH ? null : el('div', { class: 'fixed-skills', role: 'group', 'aria-label': t('Ações fixas', 'Fixed actions') }, ...MECHANIC_GUIDES.map((g) => {
-    const ui: UiAction = g.id === 'basic' ? 'basic' : 'stop';
-    return withTip(el('button', { type: 'button', class: 'spell', 'aria-disabled': 'true', 'aria-label': g.title },
-      el('span', { class: 'key', 'data-ui': ui }, uiLabel(ui)), el('span', { class: 'ico' }, icon(MECHANIC_ICON[g.id]))), () => mechanicTip(g));
-  }));
-  const barWrap = el('div', { class: 'barwrap' }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, fixedCol, bar, itemGrid)));
+  const barWrap = el('div', { class: 'barwrap' }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, bar, itemGrid)));
   // a barra some na sala e no fim (update, a cada segundo) e enquanto eu assisto morto (watching, a cada quadro): uma conta só, sem piscar
   let barOff = true;
   let watchingNow = false;

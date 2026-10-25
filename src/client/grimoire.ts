@@ -30,7 +30,7 @@ const LEGEND = t(
 const CH = {
   toc: t('Sumário', 'Contents'), spells: t('Magias', 'Spells'), items: t('Itens', 'Items'), statuses: t('Status negativos', 'Negative statuses'),
 };
-// magia fora da barra não tem tecla no modo 1 2 3 4 Q W E R nem no controle (vale a posição na barra)
+// a spell off the bar has no key in Q W E R D F mode nor on the controller (the bar slot decides)
 const keyText = (a: SpellId) => labelOf(a) !== '—' ? t(`tecla ${labelOf(a)}`, `key ${labelOf(a)}`) : isSlotMode() || isPadMode() ? t('tecla pela posição na barra', 'key by position in the bar') : t('sem tecla (escolha em Configurações > Lançamento)', 'no key (pick one in Settings > Casting)');
 
 // contorno da arena num canvas pequeno (página das arenas)
@@ -87,7 +87,7 @@ const PAGES: Page[] = [
   ...MECHANIC_GUIDES.map((g): Page => ({ ...text(t('Controles', 'Controls'), g.title, [g.text]), demo: g.id, ref: g.id })),
   {
     chapter: t('Controles', 'Controls'), title: t('Suas teclas', 'Your keys'),
-    body: () => [el('h2', {}, isSlotMode() ? t('Suas teclas (1 2 3 4 Q W E R pela ordem da barra)', 'Your keys (1 2 3 4 Q W E R in bar order)') : t('Suas teclas', 'Your keys')),
+    body: () => [el('h2', {}, isSlotMode() ? t('Suas teclas (Q W E R D F pela ordem da barra)', 'Your keys (Q W E R D F in bar order)') : t('Suas teclas', 'Your keys')),
       el('div', { class: 'keys-grid' }, ...ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, labelOf(a)), ' ', icon(actionIcon(a)), ' ', actionName(a)))),
       el('h3', {}, t('Atalhos', 'Shortcuts')),
       el('div', { class: 'keys-grid' }, ...UI_ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, uiLabel(a)), ' ', UI_NAMES[a])), el('span', {}, el('span', { class: 'key' }, 'Esc'), ' ', t('Configurações', 'Settings'))),
