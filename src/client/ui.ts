@@ -760,8 +760,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     specBtn.setAttribute('aria-label', tip);
     specBtn.setAttribute('aria-pressed', String(on));
   }
-  // provocações: segurar a tecla (Y no padrão) abre as oito falas escolhidas nas Configurações, apontar escolhe e soltar envia;
-  // o clique no botão abre a roda parada (clique ou número escolhe). A ordem vem das Configurações (Comunicação); o índice enviado é sempre o do catálogo (TAUNTS).
+  // taunts: holding the key (Y by default) opens the eight taunts picked in Settings, pointing selects and releasing sends;
+  // clicking the button opens the wheel still (a click or a digit picks). The slots come from Settings (Communication); the index sent is always the catalog's (TAUNTS).
   const heldTaunt = radialHold();
   const sendTaunt = (i: number) => {
     heldTaunt.cancel();
@@ -799,7 +799,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (e.code === 'Escape') cancelTaunts();
     else if (/^(Digit|Numpad)[0-9]$/.test(e.code)) {
       const i = (Number(e.code.slice(-1)) + 9) % 10;
-      // 9 e 0 não têm vaga: consumir a tecla evita lançar magia por baixo da roda aberta.
+      // 9 and 0 have no slot: consuming the key keeps a spell from being cast under the open wheel.
       if (i >= slots.length) { e.preventDefault(); e.stopImmediatePropagation(); return; }
       if (heldTaunt.active()) wheel.choose(i);
       else sendTaunt(slots[i]);

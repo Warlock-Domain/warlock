@@ -252,15 +252,12 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 /* roda de provocações por cima da arena, translúcida; sem panel-in, que sobrescreve o transform da centralização até terminar */
 .vol-panel.radial-picker { position: fixed; inset: 50% auto auto 50%; transform: translate(-50%, -50%); width: min(640px, 96vw, 72vh); max-height: 96vh; text-align: center; overflow: visible; animation: none; background: transparent; border-color: transparent; box-shadow: none; text-shadow: var(--text-shadow); }
-/* the wider ring of a crowded wheel (radial-picker.ts) reaches about 3% lower; lift the overlay so the bottom labels stay clear of the spell bar at 1280×720 */
-.vol-panel.radial-picker:not(.radial-inline):has(> .radial-crowded) { transform: translate(-50%, -53%); }
 /* circle at 72% of the height: the taunt labels stay clear of the spell bar below */
 .vol-panel.radial-picker.radial-inline { position: relative; inset: auto; transform: none; width: min(640px, 100%); max-height: none; margin-inline: auto; }
 .radial-stage { position: relative; width: 100%; aspect-ratio: 1; }
 .radial-stage::before { content: ''; position: absolute; inset: 12%; border-radius: 50%; border: 1px solid var(--gold-faint); background: repeating-conic-gradient(from var(--radial-start), color-mix(in srgb, var(--ink) 30%, transparent) 0deg calc(var(--radial-step) - 1deg), transparent calc(var(--radial-step) - 1deg) var(--radial-step)); }
-/* width comes from radialPicker (--radial-w): at most 14%, narrower when more taunts share the ring */
-.radial-stage > button { position: absolute; transform: translate(-50%, -50%); width: var(--radial-w, 14%); min-height: 40px; padding: 2px; font-size: .84rem; font-weight: 700; line-height: 1.15; background: transparent; border-color: transparent; box-shadow: none; text-shadow: var(--text-shadow); }
-.radial-crowded > button { min-height: 0; font-size: .76rem; line-height: 1.1; } /* narrower buttons: smaller text keeps labels to two lines */
+/* 22% wide: with eight slots the chord between neighbouring centres is about 31% of the stage, so labels never overlap */
+.radial-stage > button { position: absolute; transform: translate(-50%, -50%); width: 22%; min-height: 40px; padding: 2px; font-size: .95rem; font-weight: 700; line-height: 1.15; background: transparent; border-color: transparent; box-shadow: none; text-shadow: var(--text-shadow); }
 .radial-stage > button.on { background: var(--sel-bg); border-color: var(--gold-line); color: var(--gold-pale); }
 .radial-stage > .radial-center { left: 50%; top: 50%; width: 18%; aspect-ratio: 1; border-radius: 50%; font-size: 1.8rem; background: color-mix(in srgb, var(--ink) 40%, transparent); border-color: var(--gold-line); }
 /* painel da sandbox: regras, bots e arena; no celular cabe na largura da tela */

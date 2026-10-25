@@ -11,9 +11,9 @@ export function radialHold() {
   };
 }
 
-// O catálogo pode crescer sem aumentar a roda: oito escolhas mantêm as direções legíveis e iguais às do teste local.
+// The catalog can grow without growing the wheel: eight slots keep the directions readable (PR #261).
 export const TAUNT_WHEEL_SIZE = 8;
-// Preferência só de apresentação: migra a roda antiga mantendo as primeiras oito escolhas válidas, sem mudar índices do servidor.
+// Presentation-only preference: an old saved wheel keeps its first eight valid picks; the server indices never change.
 export function tauntWheelSlots(saved: unknown, count: number): number[] {
   const slots: number[] = [];
   const size = Math.min(TAUNT_WHEEL_SIZE, count);
@@ -24,7 +24,7 @@ export function tauntWheelSlots(saved: unknown, count: number): number[] {
   for (let i = 0; i < count && slots.length < size; i++) if (!slots.includes(i)) slots.push(i);
   return slots;
 }
-// Troca falas já equipadas; uma fala fora da roda substitui só a posição escolhida, sem criar uma nona vaga.
+// A taunt already on the wheel swaps places; one from outside replaces only the chosen slot, never adding a ninth.
 export function assignTauntSlot(slots: number[], position: number, taunt: number, count = slots.length): number[] {
   if (!Number.isInteger(position) || position < 0 || position >= slots.length || position >= TAUNT_WHEEL_SIZE || !Number.isInteger(taunt) || taunt < 0 || taunt >= count) return slots;
   const from = slots.indexOf(taunt);
