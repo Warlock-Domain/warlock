@@ -204,6 +204,7 @@ Toda decisão nova entra aqui (data, decisão, porquê); se mudar o jeito de cod
 | 24/10 | **Own spell icons**: Geyser uses `water-splash` instead of the provisional drawing (replaces "Leonard makes the icon" in the Geyser row); Closed Body uses `aura` instead of `checked-shield`, which the Shield rune also uses (both Lorc, game-icons.net) | Fernando's choice; the shared icon was confusing on the spell bar |
 | 24/10 | **Declined: class passives in the core game** (issue #17, PR #195, Reinaldo's idea): no passive bonus chosen by the character's torso; the core game stays as it is | classes with passives belong to Lucas's Campaign mode |
 | 24/10 | **English names in edited test files** (PR #385, Arthur): a PR that edits a test file translates every suite/test name (`describe`, `it`, `test`) and explanatory comment in that file to English, legacy ones included; localized fixtures and expected UI strings keep the language each test needs | extends the English default of 24/10 to tests; the class migrations left files with mixed-language names |
+| 24/10 | **Kill-streak gold** (PR #341, Reinaldo's idea, issue #340): each kill in a streak without dying pays +20% of the base kill gold per earlier kill in that streak (2nd ×1.2, 3rd ×1.4, …; 5th = 5 × 1.8 = 9); the leader bounty is added on top without the multiplier. Approved; it joins the measurement batch and merges only after the balance simulator shows adjusted wins between 0.85 and 1.15 on Normal and Hard | approved by Fernando on 24/10 |
 
 ## Fluxo com agente
 
