@@ -36,7 +36,7 @@ try {
     if (round.includes('Rodada 2') && timer.startsWith('A arena')) {
       await page.waitForTimeout(1500);
       await page.screenshot({ path: `${out}/long-rodada2.png` });
-      console.log('rodada 2 rodando; placar:', (await page.locator('.players').innerText()).replace(/\n+/g, ' '));
+      console.log('rodada 2 rodando; placar:', (await page.locator('.tops').innerText()).replace(/\n+/g, ' '));
       break;
     }
     await page.waitForTimeout(250);
