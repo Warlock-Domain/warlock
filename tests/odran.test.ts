@@ -8,7 +8,7 @@ import { mulberry32 } from '../src/shared/rng.ts';
 import { stepWorld, type SimEvent } from '../src/shared/sim.ts';
 import { dist, v } from '../src/shared/vec.ts';
 import { STEP_MS, run, toPlaying, world } from './helpers.ts';
-import { WIZ_R } from '../src/shared/constants.ts';
+import { OBSTACLES, WIZ_R } from '../src/shared/constants.ts';
 import { noSpells } from '../src/shared/spells.ts';
 
 // a night with the given humans, already playing, the first one inside Sir Odran's arena (the fight opens on the step)
@@ -238,6 +238,16 @@ describe('Sir Odran: 2.5× body', () => {
         for (const e of w.events) if (e.k === 'attack') melee.push(e.melee);
       }
       expect(melee, String(r)).toEqual([r !== undefined]);
+    }
+  });
+
+  it('a Barricade falling past the edge of a wizard still lands on the giant body', () => {
+    for (const r of [undefined, WIZ_R * ODRAN.size]) {
+      const w = world([[0, 0], [3 + OBSTACLES.rockpillar.r + WIZ_R + 0.3, 0]], { ...noSpells(), rockpillar: 1 }, [], () => 0.5);
+      w.wizards[1].r = r;
+      const hp = w.wizards[1].hp;
+      run(w, 0.5, [{ id: 'p0', kind: 'cast', spell: 'rockpillar', at: v(3, 0) }]);
+      expect(w.wizards[1].hp < hp, String(r)).toBe(r !== undefined);
     }
   });
 

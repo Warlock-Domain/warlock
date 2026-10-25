@@ -769,7 +769,7 @@ function castRockpillar(w: World, wz: Wizard, L: Level, at: Vec, dmgMult: number
   // The wall blocks immediately so it can defend against incoming projectiles; only the fall is visual
   const a = sub(pos, scale(side, WALL_GAP)), seg = scale(side, 2 * WALL_GAP);
   for (const z of w.wizards) {
-    if (!z.alive || z === wz || segT(a, seg, z.pos)[1] > OBSTACLES.rockpillar.r + WIZ_R) continue;
+    if (!z.alive || z === wz || segT(a, seg, z.pos)[1] > OBSTACLES.rockpillar.r + bodyR(z)) continue;
     const away = dot(sub(z.pos, pos), way) < 0 ? scale(way, -1) : way;
     hit(w, z, wz.id, L.dmg * dmgMult, L.knock * dmgMult, away, 'rockpillar');
   }
