@@ -1425,6 +1425,8 @@ body.forum-page {
 .fm-cand.won { border-color: var(--fm-accent); }
 .fm-cand-name { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
 .fm-cand-name small, .fm-comments small, .fm-votes { color: var(--fm-muted); }
+.fm-rank { display: inline-grid; place-items: center; min-width: 22px; height: 22px; margin-right: var(--sp-6); border-radius: 50%; background: var(--fm-tag); color: var(--fm-tag-ink); font-size: var(--fs-75); font-weight: 700; }
+.fm-why { display: block; color: var(--fm-muted); }
 .fm-try { display: inline-flex; align-items: center; gap: var(--sp-4); color: var(--fm-muted); font-size: var(--fs-90); }
 .fm-add { margin-top: var(--sp-10); }
 .fm-add summary { cursor: pointer; font-weight: 600; color: var(--fm-accent-hi); }

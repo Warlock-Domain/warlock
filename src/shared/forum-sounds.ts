@@ -1,3 +1,4 @@
+import { SOUND_PICKS } from './sound-picks.ts';
 import { SPELL_IDS, isSpell, spellLevel, type SpellId } from './spells.ts';
 
 // Forum sound lab (issue #366, docs/plans/2026-10-25-forum-sound-lab-design.md): per spell, a cast and an impact sound effect.
@@ -38,6 +39,9 @@ export type SoundState = {
 export type PackEntry = { path: string; s: number };
 
 export const pairKey = (spell: SpellId, moment: SoundMoment) => `${spell}:${moment}`;
+// the AI's ranked suggestions from the pack (sound-picks.ts): always options of their pair, before anything members add
+export const picksFor = (spell: SpellId, moment: SoundMoment) => (SOUND_PICKS[pairKey(spell, moment)] ?? []).map(([path, pt, en]) => ({ src: `pack:${path}`, pt, en }));
+export const isPick = (spell: SpellId, moment: SoundMoment, src: string) => picksFor(spell, moment).some((p) => p.src === src);
 
 function obj(raw: string): Record<string, unknown> | null {
   try {

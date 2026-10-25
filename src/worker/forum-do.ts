@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { GAME_SOUND, SOUND_UPLOADS_PER_PERSON, SOUND_UPLOADS_TOTAL, pairKey, type SoundMoment, type SoundState } from '../shared/forum-sounds.ts';
+import { GAME_SOUND, SOUND_UPLOADS_PER_PERSON, SOUND_UPLOADS_TOTAL, isPick, pairKey, type SoundMoment, type SoundState } from '../shared/forum-sounds.ts';
 import type { ForumUser } from '../shared/forum.ts';
 import type { SpellId } from '../shared/spells.ts';
 
@@ -73,6 +73,6 @@ export class Forum extends DurableObject<Env> {
   }
 
   private isOption(spell: SpellId, moment: SoundMoment, src: string) {
-    return src === GAME_SOUND || this.sql.exec('SELECT 1 FROM sound_candidates WHERE spell = ? AND moment = ? AND src = ?', spell, moment, src).toArray().length > 0;
+    return src === GAME_SOUND || isPick(spell, moment, src) || this.sql.exec('SELECT 1 FROM sound_candidates WHERE spell = ? AND moment = ? AND src = ?', spell, moment, src).toArray().length > 0;
   }
 }

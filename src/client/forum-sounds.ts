@@ -1,6 +1,6 @@
 import type { ForumUser } from '../shared/forum.ts';
 import {
-  GAME_SOUND, SOUND_COMMENT_MAX, SOUND_UPLOAD_MAX_BYTES, SOUND_UPLOAD_MAX_S, UPLOAD_TYPES, hasMoment, pairKey, soundKey,
+  GAME_SOUND, SOUND_COMMENT_MAX, SOUND_UPLOAD_MAX_BYTES, SOUND_UPLOAD_MAX_S, UPLOAD_TYPES, hasMoment, pairKey, picksFor, soundKey,
   type PackEntry, type SoundMoment, type SoundState,
 } from '../shared/forum-sounds.ts';
 import { SPELL_IDS, type SpellId } from '../shared/spells.ts';
@@ -67,7 +67,8 @@ export function soundLab(user: ForumUser) {
     void sound.playReady(moment === 'cast' ? SPELL_SOUND[spell] : 'hit');
   }
 
-  function candidateRow(moment: SoundMoment, src: string, by: string | null) {
+  // pick: the AI's rank (1 = best fit) and reason, shown under the name
+  function candidateRow(moment: SoundMoment, src: string, by: string | null, pick?: { rank: number; why: string }) {
     const key = pairKey(spell, moment);
     const mine = state!.mine[key] === src;
     const winner = state!.winners[key];
@@ -75,7 +76,8 @@ export function soundLab(user: ForumUser) {
     const label = src === GAME_SOUND ? t('Atual do jogo', 'Current in-game') : src.startsWith('pack:') ? packLabel(src.slice(5)) : t('Arquivo enviado', 'Uploaded file');
     return el('li', { class: `fm-cand${winner === src ? ' won' : ''}` },
       el('button', { type: 'button', class: 'fm-btn', 'aria-label': t(`Ouvir ${label}`, `Listen to ${label}`), onclick: () => listen(moment, src) }, '▶'),
-      el('span', { class: 'fm-cand-name' }, label, by && el('small', {}, t(` · por ${by}`, ` · by ${by}`))),
+      el('span', { class: 'fm-cand-name' }, pick && el('span', { class: 'fm-rank' }, `${pick.rank}`), label, by && el('small', {}, t(` · por ${by}`, ` · by ${by}`)),
+        pick && el('small', { class: 'fm-why' }, pick.why)),
       el('label', { class: 'fm-try' },
         el('input', { type: 'radio', name: `try-${key}`, checked: playing(moment) === src, onchange: () => (trying[key] = src) }),
         t('Na arena', 'In the arena')),
@@ -127,14 +129,19 @@ export function soundLab(user: ForumUser) {
   function momentBlock(moment: SoundMoment) {
     const key = pairKey(spell, moment);
     const winner = state!.winners[key];
-    const cands = state!.candidates.filter((c) => c.spell === spell && c.moment === moment);
+    const picks = picksFor(spell, moment);
+    const cands = state!.candidates.filter((c) => c.spell === spell && c.moment === moment && !picks.some((p) => p.src === c.src));
     return el('section', { class: 'fm-moment', 'aria-labelledby': `m-${moment}` },
       el('h3', { id: `m-${moment}` }, MOMENT_NAME[moment]),
       winner
         ? el('p', { class: 'fm-note' }, t('Votação fechada.', 'Voting closed.'),
           user.admin && el('button', { type: 'button', class: 'fm-btn', onclick: () => send('/vencedor', { spell, moment, src: null }) }, t('Reabrir votação', 'Reopen voting')))
         : !(key in state!.mine) && el('p', { class: 'fm-note' }, t('Os votos aparecem depois que você vota.', 'The vote count shows after you vote.')),
-      el('ul', { class: 'fm-cands' }, candidateRow(moment, GAME_SOUND, null), ...cands.map((c) => candidateRow(moment, c.src, c.by))),
+      el('ul', { class: 'fm-cands' }, candidateRow(moment, GAME_SOUND, null),
+        ...picks.map((p, i) => candidateRow(moment, p.src, null, { rank: i + 1, why: t(p.pt, p.en) })),
+        ...cands.map((c) => candidateRow(moment, c.src, c.by))),
+      picks.length > 0 && el('p', { class: 'fm-note' }, t('Os números são a ordem de encaixe sugerida pela IA (1 = melhor), pelo tempo e tipo da magia e pela duração e timbre do arquivo.',
+        "The numbers are the AI's suggested fit order (1 = best), from the spell's timing and kind and the file's length and tone.")),
       !winner && adder(moment));
   }
 

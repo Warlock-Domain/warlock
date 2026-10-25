@@ -1,5 +1,8 @@
+import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GAME_SOUND, HIT_SPELLS, SOUND_COMMENT_MAX, hasMoment, isSoundKey, isSoundSrc, parsePair, parseSoundComment, parseSoundPick, soundKey } from '../src/shared/forum-sounds.ts';
+import { GAME_SOUND, HIT_SPELLS, SOUND_COMMENT_MAX, SOUND_MOMENTS, hasMoment, isPick, isSoundKey, isSoundSrc, pairKey, parsePair, parseSoundComment, parseSoundPick, picksFor, soundKey } from '../src/shared/forum-sounds.ts';
+import { SOUND_PICKS } from '../src/shared/sound-picks.ts';
+import { SPELL_IDS } from '../src/shared/spells.ts';
 
 const UP = 'up:abcdefghijklmnopqrstuv.mp3';
 
@@ -45,5 +48,31 @@ describe('sound lab bodies', () => {
     expect(parseSoundComment(JSON.stringify({ spell: 'meteor', text: '  bom  ' }))).toEqual({ spell: 'meteor', text: 'bom' });
     expect(parseSoundComment(JSON.stringify({ spell: 'meteor', text: 'x'.repeat(SOUND_COMMENT_MAX + 1) }))).toBeNull();
     for (const bad of ['{}', JSON.stringify({ spell: 'meteor', text: '   ' }), JSON.stringify({ spell: 'x', text: 'a' })]) expect(parseSoundComment(bad), bad).toBeNull();
+  });
+});
+
+describe('sound lab AI picks', () => {
+  it('gives every effect at least 10 distinct pack files that exist', () => {
+    for (const spell of SPELL_IDS) for (const moment of SOUND_MOMENTS) {
+      const key = pairKey(spell, moment);
+      if (!hasMoment(spell, moment)) {
+        expect(SOUND_PICKS[key], key).toBeUndefined();
+        continue;
+      }
+      const picks = picksFor(spell, moment);
+      expect(picks.length, key).toBeGreaterThanOrEqual(10);
+      expect(new Set(picks.map((p) => p.src)).size, key).toBe(picks.length);
+      for (const p of picks) {
+        expect(isSoundSrc(p.src), p.src).toBe(true);
+        expect(existsSync(`assets/sons-rpg/${p.src.slice(5)}.wav`), p.src).toBe(true);
+        expect(p.pt && p.en, p.src).toBeTruthy();
+      }
+    }
+  });
+
+  it('counts a pick as an option of its own pair only', () => {
+    const [first] = picksFor('fireball', 'cast');
+    expect(isPick('fireball', 'cast', first.src)).toBe(true);
+    expect(isPick('fireball', 'hit', first.src)).toBe(false);
   });
 });

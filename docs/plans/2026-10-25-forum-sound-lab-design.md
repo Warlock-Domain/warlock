@@ -12,7 +12,7 @@ The 30 spells reuse a handful of sound effects (`SPELL_SOUND` in `src/client/mai
 - **R2 bucket now** (25/10): the 532-sound pack (`assets/sons-rpg`, converted to mp3) and member uploads live in R2. Two buckets: live and PR environments.
 - **New local mini arena, no server** (25/10, chosen over reusing the sandbox): the game's simulation (`newWorld`/`stepWorld`) and 3D scene (`createScene`) run in the browser; the player's wizard and a dummy that takes hits and knockback and comes back from the lava; game controls; no cooldown.
 - **Two moments per spell**: cast (today `SPELL_SOUND`) and impact (today one generic hit sound by damage; per spell from the `src` of the `hit` event, no simulation change). Impact only for spells that hit.
-- **Candidates**: the current sound is always an option; members add any file from the pack or upload their own (mp3/ogg/wav, up to 1 MB and 5 s). The AI's 3–5 suggestions per spell wait for the AI API (step 3, Fernando 25/10).
+- **Candidates**: the current sound is always an option; then at least 10 AI picks per effect from the pack, ranked best first with a short reason (Fernando, 25/10, replacing the earlier "wait for the AI API"); members add any other file from the pack or upload their own (mp3/ogg/wav, up to 1 MB and 5 s).
 - **Voting**: one vote per person per spell and moment, changeable; the tally appears after you vote; open until Fernando confirms a winner.
 - Portuguese and English via `t()`; light forum theme (`--fm-*`).
 
@@ -37,6 +37,7 @@ The 30 spells reuse a handful of sound effects (`SPELL_SOUND` in `src/client/mai
 - **Game hook**: `sound.ts` gains `playUrl(url, volume)` (same decode cache and volume chain). The arena calls it for the chosen candidate; the live game does not change.
 - **Arena**: a module on the forum page (`src/client/sound-lab.ts`), loaded only when the person opens the lab (dynamic import keeps Three.js out of the forum's first load). Circle arena, the player with their saved look, one dummy; right click moves, left click or Q casts the spell being tested at the cursor, S stops and holding S is Hold ground (Closed Body needs it); every spell at level 1, cooldowns cleared each step; dead dummy or player respawns.
 - **Winner panel** (Fernando, 25/10: in this PR): an admin sees a Confirm button next to each candidate and a Reopen button on a closed pair. Admin = the org role `admin` from the same membership call at sign-in (today only Fernando, the org's single Owner), kept in the signed session. On PR environments every tester is an admin, so the panel can be tested there (the data there is throwaway).
+- **AI picks**: `scripts/assets/sound-picks.mjs` holds the hand-made ranking per effect with a theme per file, measures each file (audible length without the trailing silence, energy below 250 Hz and above 3 kHz), drops files longer than the effect's window (about 2 s for a cast, set against the game's own files, longer for long effects and big blasts) and writes `src/shared/sound-picks.ts`; a test keeps 10 or more existing, distinct files per effect.
 - **Out of this PR**: AI suggestions and AI tally (step 3), shipping winners into `public/sfx/`.
 
 ## Fernando's part
