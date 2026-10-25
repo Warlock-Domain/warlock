@@ -44,6 +44,7 @@ Applies together with the root `CLAUDE.md`.
 
 - `AvatarPreview` owns the renderer, camera, current appearance and visibility-aware frame loop. `avatarPanel()` lazily creates one instance and reuses its panel across Wardrobe and Settings, keeping one WebGL context for the browser session.
 - Its observer and visibility listener live as long as that shared panel. Hiding or detaching the panel pauses animation and rendering; remounting must not create a second frame loop. Keep the visibility-aware RAF scheduler so hidden previews do no work.
+- Wardrobe layout (issue #204, proposal A): a 300×400 preview on the left; each piece is a row of thumbnails (`.avatar-tile`, reusing `.avatar-preset`) showing the portrait of the character the option comes from (the Hood shows the hooded Rogue, ∅ for none), the chosen one with `aria-pressed` and a gold border; presets sit in one row with Random beside them. No new UI piece: plain buttons, `:root` variables.
 - Replacing the appearance calls `disposeAppearance` for its owned materials, skeletons and mixer. Cached source geometry and textures remain shared with the match. Ignore asynchronous loads for a look that is no longer selected.
 
 ## Controller input (`gamepad.ts`)
