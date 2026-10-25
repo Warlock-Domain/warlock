@@ -131,7 +131,7 @@ export function applyCard(p: Kit, card: Card, swap?: SpellId): boolean {
   let level = 1;
   if (spellCount(p.spells) >= MAX_SPELLS) {
     if (!swap || p.spells[swap] === 0) return false;
-    level = p.spells[swap];
+    level = Math.min(spellMax(card.id), p.spells[swap]);
     p.spells[swap] = 0;
   }
   p.spells[card.id] = level;
