@@ -652,12 +652,12 @@ function firstPillarOnSegment(w: World, a: Vec, b: Vec, radius: number): { i: nu
   return best;
 }
 
-function damagePillar(w: World, i: number, dmg: number, by: string | null) {
+function damagePillar(w: World, i: number, dmg: number, by: string | null, quiet = false) {
   const p = w.pillars[i];
   // parede: os 3 pedaços compartilham a vida, quebram juntos e explodem uma vez só, no meio
   const mates = p.wall === undefined ? [p] : w.pillars.filter((q) => q.wall === p.wall && q.alive);
   for (const q of mates) q.hp -= dmg;
-  w.events.push({ k: 'pillar', i, x: p.pos.x, y: p.pos.y });
+  if (!quiet) w.events.push({ k: 'pillar', i, x: p.pos.x, y: p.pos.y });
   if (p.hp > 0) return;
   for (const q of mates) q.alive = false;
   const at = p.wall === undefined ? p.pos : w.pillars[p.wall].pos;
@@ -670,6 +670,7 @@ function damagePillar(w: World, i: number, dmg: number, by: string | null) {
 
 // magos não atravessam pilares: empurra para fora e corta o deslize na direção do pilar
 function blockPillars(w: World, walking?: ReadonlySet<Wizard>) {
+  const burnt = new Set<number>();
   for (const p of w.pillars) {
     if (p.alive && p.until !== undefined && w.t >= p.until) {
       // o Pilar de pedra acaba: some sem explodir (removeObstacle do original); a parede some com uma nuvem só, no meio, do tamanho dela
@@ -682,6 +683,14 @@ function blockPillars(w: World, walking?: ReadonlySet<Wizard>) {
     if (p.kind === 'chest' && edge(w, p.pos) < 0) {
       damagePillar(w, w.pillars.indexOf(p), p.hp, null);
       continue;
+    }
+    // An obstacle the shrinking arena left in the lava burns at a wizard's lava rate (round effect included) until it breaks;
+    // quiet: no hit flash or sound every step, only the usual break effect at the end (Fernando, 25/10).
+    // The wall's pieces share one health, so it burns once per step however many pieces are in the lava
+    if (inLava(w, p.pos) && (p.wall === undefined || !burnt.has(p.wall))) {
+      if (p.wall !== undefined) burnt.add(p.wall);
+      damagePillar(w, w.pillars.indexOf(p), LAVA_DPS * DT * w.mods.lava, null, true);
+      if (!p.alive) continue;
     }
     for (const wz of w.wizards) {
       if (!wz.alive || isSuspended(wz)) continue;
