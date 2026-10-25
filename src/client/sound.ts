@@ -284,7 +284,7 @@ type ActiveTauntPreview = {
 class TauntPreviewSession {
   private active: ActiveTauntPreview | null = null;
   private request = 0;
-  private volume = channelVolume(loadVolumes(), 'taunts');
+  private volume = 0;
 
   setVolume(volume: number) {
     this.volume = volume;
@@ -329,9 +329,9 @@ class TauntPreviewSession {
       await active.audio.play();
       return true;
     } catch {
-      if (!this.isCurrent(active, request)) return true;
+      if (!this.isCurrent(active, request)) return true; // A replaced request succeeds from its caller's perspective.
       this.stop();
-      return false; // Replacing a preview interrupts its pending play; that is not a file failure.
+      return false;
     }
   }
 
