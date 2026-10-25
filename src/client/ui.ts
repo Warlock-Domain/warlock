@@ -14,11 +14,11 @@ import { ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/it
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { POS_ACTIONS, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
 import { openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
-import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
+import { hideTip, itemTip, mechanicTip, spellTip, withTip } from './tips.ts';
 import { EFFECT_NAME, MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, effectName, effectText, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
-import { ITEM_GROUPS, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
-import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, iconButton, type Child } from './icons.ts';
+import { ITEM_GROUPS, MECHANIC_GUIDES, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
+import { BAD_STATUS, ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, iconButton, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
 import { isAudioMuted, type Volumes, type VolumeKind } from './sound.ts';
@@ -745,6 +745,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   onKeysChange(() => {
     barWrap.querySelectorAll<HTMLElement>('[data-action]').forEach((k) => (k.textContent = labelOf(k.dataset.action as Action)));
     barWrap.querySelectorAll<HTMLElement>('[data-position]').forEach((k) => (k.textContent = keyLabel(keyOf(POS_ACTIONS[Number(k.dataset.position)]))));
+    barWrap.querySelectorAll<HTMLElement>('[data-ui]').forEach((k) => (k.textContent = uiLabel(k.dataset.ui as UiAction)));
     drawCenter();
     drawHints();
   });
@@ -1233,7 +1234,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const vitals = el('div', { class: 'vitals', hidden: true }, el('div', { class: 'hp-col' }, el('div', { class: 'vit-row' }, hpBar, xpLv), xpBar), el('div', { class: 'hero-row' }, goldNow, heroStats)); // vida só jogando e vivo
   const heroFace = el('img', { class: 'hero-face', alt: '', width: 104, height: 120 });
   const hero = el('div', { class: 'hero-box' }, heroFace, vitals);
-  const barWrap = el('div', { class: 'barwrap' }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, bar, itemGrid)));
+  // Attack (A) and Hold ground (S) fixed beside the 8 slots (Fernando, 25/10, issue #401): a column left of the 2 rows, faded and
+  // aria-disabled because they cannot be moved or sold; they only show the tip, the keys still do the work. No touch: no A/S keys there
+  const fixedCol = TOUCH ? null : el('div', { class: 'fixed-skills', role: 'group', 'aria-label': t('Ações fixas', 'Fixed actions') }, ...MECHANIC_GUIDES.map(({ id, title }) => {
+    const ui: UiAction = id === 'basic' ? 'basic' : 'stop';
+    return withTip(el('button', { type: 'button', class: 'spell', 'aria-disabled': 'true', 'aria-label': title },
+      el('span', { class: 'key', 'data-ui': ui }, uiLabel(ui)), el('span', { class: 'ico' }, icon(MECHANIC_ICON[id]))), () => mechanicTip(id));
+  }));
+  const barWrap = el('div', { class: 'barwrap' }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, fixedCol, bar, itemGrid)));
   // a barra some na sala e no fim (update, a cada segundo) e enquanto eu assisto morto (watching, a cada quadro): uma conta só, sem piscar
   let barOff = true;
   let watchingNow = false;

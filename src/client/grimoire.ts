@@ -7,12 +7,12 @@ import { ARENA_R0, HP_MAX, RUNE_KINDS } from '../shared/constants.ts';
 import { ITEMS, ITEM_IDS, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import { SCRIPTS, createDemo, drawStone, runDemo, type DemoId } from './demo.ts';
-import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
+import { ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
 import { ACTIONS, UI_ACTIONS, UI_NAMES, isPadMode, isSlotMode, isUiKey, labelOf, uiLabel } from './keys.ts';
 import { MODE_INFO, OPT_INFO } from './opt-info.ts';
 import { ITEM_DEMO, MECHANIC_GUIDES, NEGATIVE_GUIDES, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, groupClass, n1, type GuideId } from './rules-text.ts';
 import { COLORS } from './scene.ts';
-import { hideTip, itemLevels, itemTip, spellLevels, spellTip, withTip } from './tips.ts';
+import { hideTip, itemLevels, itemTip, mechanicTip, spellLevels, spellTip, withTip } from './tips.ts';
 import { choice, dialog, norm, searchFilter } from './ui.ts';
 import { arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
@@ -246,19 +246,23 @@ export function grimoire(o: { side?: boolean; onShow?: (refs: Ref[]) => void } =
   return { root, contents, onKey, dispose: () => ac.abort(), goTo: (to?: Ref) => go(pageFor(to)) };
 }
 
+const FIXED = t('Ações fixas', 'Fixed actions');
 // "Spells and items" library (Fernando's decision, 19/10; like Dota's heroes and items library): icon grid by group,
 // search by name and filter by group; hovering shows the shop tooltip and a click opens the page in the grimoire (open).
 // Lives in the main menu's Learn tab and in the hotkey overlay (F2 by default)
-export function library(open: (id: SpellId | ItemId) => void): HTMLElement {
-  const tile = (id: SpellId | ItemId, ico: string, tip: () => string) => withTip(el('button', { type: 'button', class: 'lib-tile', 'data-name': norm(actionName(id)), 'data-ref': id, onclick: () => {
+export function library(open: (id: Ref) => void): HTMLElement {
+  const tile = (id: Ref, ico: string, tip: () => string, name = actionName(id as SpellId | ItemId)) => withTip(el('button', { type: 'button', class: 'lib-tile', 'data-name': norm(name), 'data-ref': id, onclick: () => {
     hideTip();
     open(id);
-  } }, el('span', { class: 'ico' }, icon(ico)), el('small', {}, actionName(id))), tip);
+  } }, el('span', { class: 'ico' }, icon(ico)), el('small', {}, name)), tip);
   // the group's one-line purpose used to live only on the book's page 2, which the Learn tab no longer shows
   const section = (key: string, title: string, hint: string | null, cls: string, tiles: HTMLElement[]) =>
     el('section', { class: 'lib-group ' + cls, 'data-filter': key }, el('h3', {}, title, hint ? el('small', {}, hint) : null), el('div', { class: 'lib-grid' }, ...tiles));
   const items = (ids: ItemId[]) => ids.map((i) => tile(i, ITEM_ICON[i], () => itemTip(i, 0)));
+  // Attack and Hold ground first, as on the match bar (issue #401): every wizard has them, so they come before what is bought
+  const fixedTiles = MECHANIC_GUIDES.map((g) => tile(g.id, MECHANIC_ICON[g.id], () => mechanicTip(g.id), g.title));
   const groups = [
+    section('fixed', FIXED, null, 'lib-fixed', fixedTiles),
     ...SPELL_GROUPS.map(([g, hint, ids]) => section(g, g, hint, groupClass(g), ids.map((s) => tile(s, ICON[s], () => spellTip(s, 0))))),
     section('items', CH.items, null, 'lib-items', items([...ITEM_IDS])),
   ];
@@ -268,7 +272,7 @@ export function library(open: (id: SpellId | ItemId) => void): HTMLElement {
     oninput: () => apply() }) as HTMLInputElement;
   const filters = el('div', {});
   function apply() {
-    filters.replaceChildren(choice(t('Grupo', 'Group'), [['all', t('Todos', 'All')], ...SPELL_GROUPS.map(([g]): [string, string] => [g, g]), ['items', CH.items]], only, (k) => ((only = k), apply())));
+    filters.replaceChildren(choice(t('Grupo', 'Group'), [['all', t('Todos', 'All')], ['fixed', FIXED], ...SPELL_GROUPS.map(([g]): [string, string] => [g, g]), ['items', CH.items]], only, (k) => ((only = k), apply())));
     searchFilter(groups, '.lib-tile', search.value, (g) => only !== 'all' && g.dataset.filter !== only, true);
     none.hidden = groups.some((g) => !g.hidden);
   }
