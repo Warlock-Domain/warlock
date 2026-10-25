@@ -1,5 +1,5 @@
 // Settings (Fernando, 18/10): one dialog from any screen for controls, casting, audio, video, player and about.
-// Esc, the toolbar gear or controller Start opens the sections and table of contents.
+// Esc (when nothing else is open, handled in main.ts), the toolbar gear or controller Start opens the sections and table of contents.
 // Opening settings does not pause the match.
 // Add sections in SECTIONS.
 import { isRumbleOn, setPadCapture, setRumble } from './gamepad.ts';
