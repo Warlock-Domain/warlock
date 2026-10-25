@@ -91,8 +91,8 @@ export const SPELLS: Record<SpellId, Spell> = {
   scourge: { name: 'Flagelo', en: 'Scourge', cost: 0, up: [7, 7, 7, 7, 7, 7], levels: steps(80, 10).map((d) => L({ cd: 5, dmg: d, radius: 325 * UNIT })) },
   // Pacto: a próxima magia de dano em `duration` s sai PACT.mult× mais forte; a subida só encurta a recarga
   pact: { name: 'Pacto', en: 'Pact', cost: 10, up: [6, 7, 8, 9, 10, 11], levels: steps(20, -1).map((cd) => L({ cd, duration: 5 })) },
-  // User proposal: targeted shot after 4.5 s, with no level progression.
-  sniper: { name: 'Solução deselegante', en: 'Inelegant Solution', cost: 30, up: [], levels: steps(35,0).map(cd => L({ cd, dmg: 500, kbf: 0, range: 20 })) },
+  // Accepted 25/10 with 350 damage (owner cut from the proposed 500), no simulator by owner exception; single level.
+  sniper: { name: 'Solução deselegante', en: 'Inelegant Solution', cost: 30, up: [], levels: steps(35,0).map(cd => L({ cd, dmg: 350, kbf: 0, range: 20 })) },
   // Heal: measured on 24/10 (1.07 on Normal and Hard) and approved by Fernando; cost follows the other Support spells
   heal: { name: 'Curar', en: 'Heal', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(45, 6).map((heal, i) => L({ heal, cd: 20 - i, range: 10 })) },
   //24/10: área−25% pede raio×√0,75, não raio−25%; alcance reduzido a10m. CD/preço continuam provisórios.

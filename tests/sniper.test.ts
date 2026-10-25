@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { world, run } from './helpers.ts';
 import { stepWorld, type Cmd } from '../src/shared/sim.ts';
-import { CAST_POINT, noSpells, priceOf, spellLevel, spellMaxLevel } from '../src/shared/spells.ts';
+import { CAST_POINT, noSpells, priceOf, spellLevel, spellMax } from '../src/shared/spells.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
 import { sniperTarget } from '../src/shared/sniper-target.ts';
 import { demoStep, demoWorld } from '../src/client/demo.ts';
@@ -29,7 +29,7 @@ describe('Inelegant Solution',()=>{
     const w=setup(),a=w.wizards[0],b=w.wizards[1];stepWorld(w,[aim],()=>.5);
     const c=world([[15,0]],noSpells(),[],()=>.5).wizards[0];c.id='other';c.regen=0;
     w.wizards=[a,c,b];run(w,4.6);
-    expect(b.hp).toBe(500);expect(c.hp).toBe(1000);
+    expect(b.hp).toBe(650);expect(c.hp).toBe(1000);
   });
   it.each([3,7.5])('stops at the nearest Campaign wall or obstacle at %s',obstacleX=>{
     const w=setup();w.wizards[0].pos={x:1.5,y:2.5};w.wizards[1].pos={x:9.5,y:2.5};
@@ -38,7 +38,7 @@ describe('Inelegant Solution',()=>{
     stepWorld(w,[{...aim,at:{x:9.5,y:2.5}}],()=>.5);
     const events=[];for(let i=0;i<280;i++){stepWorld(w,[],()=>.5);events.push(...w.events);}
     expect(w.wizards[1].hp).toBe(1000);
-    expect(w.pillars[0].hp).toBe(obstacleX<4?9499:9999);
+    expect(w.pillars[0].hp).toBe(obstacleX<4?9649:9999);
     const shot=events.find(e=>e.k==='snipe');expect(shot?.to.x).toBeLessThan(4);
   });
   it('accepts clicks on the edge of larger Campaign bodies',()=>{
@@ -47,17 +47,17 @@ describe('Inelegant Solution',()=>{
   });
   it('costs 30, cools down for 35 s, aims for 4.5 s and has no progression',()=>{
     expect(priceOf('sniper',0)).toBe(30);expect(priceOf('sniper',1)).toBeNull();
-    expect(spellMaxLevel('sniper')).toBe(1);expect(CAST_POINT.sniper).toBe(4.5);
-    for(let level=1;level<=7;level++) expect(spellLevel('sniper',level)).toMatchObject({dmg:500,range:20,knock:0,cd:35});
+    expect(spellMax('sniper')).toBe(1);expect(CAST_POINT.sniper).toBe(4.5);
+    for(let level=1;level<=7;level++) expect(spellLevel('sniper',level)).toMatchObject({dmg:350,range:20,knock:0,cd:35});
     expect(spellLevels('sniper')).not.toContain('<th>2</th>');expect(spellTip('sniper',1)).not.toContain('Próximo nível');
   });
-  it('waits stationary for 4.5 s and fires exactly one 500 damage shot without knockback',()=>{
+  it('waits stationary for 4.5 s and fires exactly one 350 damage shot without knockback',()=>{
     const w=setup(),a=w.wizards[0],b=w.wizards[1];a.target={x:2,y:0};stepWorld(w,[aim],()=>.5);
     run(w,4.4);expect(b.hp).toBe(1000);expect(a.cd.sniper).toBe(0);expect(a.pos).toEqual({x:0,y:0});
     const events=[];for(let i=0;i<15;i++){stepWorld(w,[],()=>.5);events.push(...w.events);}
-    expect(b.hp).toBe(500);expect(b.vel).toEqual({x:0,y:0});expect(a.cd.sniper-w.t).toBeCloseTo(34.85,1);
+    expect(b.hp).toBe(650);expect(b.vel).toEqual({x:0,y:0});expect(a.cd.sniper-w.t).toBeCloseTo(34.85,1);
     expect(events.filter(e=>e.k==='snipe')).toHaveLength(1);expect(events.filter(e=>e.k==='hit')).toHaveLength(1);
-    run(w,1);expect(b.hp).toBe(500);
+    run(w,1);expect(b.hp).toBe(650);
   });
   it.each([20,20.01])('validates the range boundary at %s metres',distance=>{
     const w=setup();w.wizards[1].pos.x=distance;stepWorld(w,[{...aim,at:{x:distance,y:0}}],()=>.5);
@@ -65,7 +65,7 @@ describe('Inelegant Solution',()=>{
   });
   it('tracks the moving target until firing rather than the clicked position',()=>{
     const w=setup(),b=w.wizards[1];stepWorld(w,[aim],()=>.5);run(w,2);b.pos={x:10,y:8};
-    stepWorld(w,[],()=>.5);expect(w.wizards[0].casting?.at).toEqual(b.pos);run(w,3);expect(b.hp).toBe(500);
+    stepWorld(w,[],()=>.5);expect(w.wizards[0].casting?.at).toEqual(b.pos);run(w,3);expect(b.hp).toBe(650);
   });
   it.each(['move','stop','stun','dead','invisible','range','geyser'] as const)('%s cancels without firing or cooldown',reason=>{
     const w=setup(),a=w.wizards[0],b=w.wizards[1];stepWorld(w,[aim],()=>.5);run(w,1);
@@ -89,7 +89,7 @@ describe('Inelegant Solution',()=>{
       const w=setup(),b=w.wizards[1];stepWorld(w,[aim],()=>.5);
       if(kind==='shield')b.shieldUntil=10;if(kind==='invuln')b.invulnUntil=10;
       if(kind==='closed'){b.braceReadyAt=0;b.braceUntil=10;b.closedBodyUntil=10;}
-      run(w,4.6);expect(b.hp).toBe(kind==='closed'?950:1000);
+      run(w,4.6);expect(b.hp).toBe(kind==='closed'?965:1000);
     }
   });
   it('obstacles block the shot without hitting the target behind them',()=>{
@@ -106,6 +106,6 @@ describe('Inelegant Solution',()=>{
   });
   it('demo uses the real simulation and fires once after the windup',()=>{
     const s=demoWorld('sniper');const events=[];for(let i=0;i<Math.ceil(6/DT);i++){demoStep(s);events.push(...s.w.events);}
-    expect(events.filter(e=>e.k==='snipe')).toHaveLength(1);expect(s.w.wizards[1].hp).toBe(500);
+    expect(events.filter(e=>e.k==='snipe')).toHaveLength(1);expect(s.w.wizards[1].hp).toBe(650);
   });
 });
