@@ -6,7 +6,7 @@ import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, 
 import { ARENA_IDS, type ArenaId } from '../shared/arena.ts';
 import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/characters.ts';
 import { CAMPAIGN, CAMPAIGN_BOOK } from '../shared/campaign.ts';
-import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
+import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, isRoomMode, sellValue, type MatchOpts, type Mode, type RoomMode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
@@ -79,18 +79,24 @@ export function askName(root: HTMLElement, current: string): Promise<string> {
 const roomPhase = (r: RoomInfo) => r.phase === 'lobby' ? t('esperando começar', 'waiting to start') : r.phase === 'end' ? t('partida acabou, dá para começar outra', 'match over, you can start another')
   : t(`jogando${r.round ? ` a rodada ${r.round}` : ''} · você entra na próxima rodada`, `playing${r.round ? ` round ${r.round}` : ''} · you join next round`);
 
+const CAMPAIGN_MODE_TEXT = t('Juntos contra o Fumo: explorem a Charneca Cinzenta e vençam os encontros. Magia não pega aliado. Se todos caírem, a noite recomeça diferente.', 'Together against the Smoke: explore the Ashen Moor and win the encounters. Spells never hit allies. If everyone falls, the night starts over, different.');
+
 // Opções de partida à direita, com o conteúdo da escolha ao lado.
-function playMenu(roomList: HTMLElement, onCreate: () => void, onCreateAsc: () => void, onTrain: (kind: string) => void): HTMLElement {
+function playMenu(roomList: HTMLElement, onCreate: () => void, onCreateRoom: (mode: RoomMode) => void, onTrain: (kind: string) => void): HTMLElement {
   const skill = toSkill(savedProfile());
-  const labels = [t('Jogar online', 'Play online'), t('Ascensão', 'Ascension'), t('Jogar contra bots', 'Play against bots'), 'Sandbox', t('Desafios', 'Challenges')];
+  const labels = [t('Jogar online', 'Play online'), t('Ascensão', 'Ascension'), t('Campanha', 'Campaign'), t('Jogar contra bots', 'Play against bots'), 'Sandbox', t('Desafios', 'Challenges')];
   const sections = [
     el('section', { class: 'play-content' }, el('h2', {}, labels[0]),
       el('button', { type: 'button', class: 'primary big', onclick: onCreate }, t('Criar sala', 'Create room')), roomList),
     // Ascensão: opção própria, separada dos modos de loja livre (Fernando, 21/10); a sala nasce presa ao modo e o link leva os amigos a ela
     el('section', { class: 'play-content' }, el('h2', {}, labels[1]),
       el('p', { class: 'muted' }, ASC_MODE_TEXT),
-      el('button', { type: 'button', class: 'primary big', onclick: onCreateAsc }, t('Criar sala do Ascensão', 'Create Ascension room'))),
+      el('button', { type: 'button', class: 'primary big', onclick: () => onCreateRoom('ascension') }, t('Criar sala do Ascensão', 'Create Ascension room'))),
+    // Campaign: its own option like the Ascension, not a mode of a normal room (Fernando, 24/10)
     el('section', { class: 'play-content' }, el('h2', {}, labels[2]),
+      el('p', { class: 'muted' }, CAMPAIGN_MODE_TEXT),
+      el('button', { type: 'button', class: 'primary big', onclick: () => onCreateRoom('campaign') }, t('Criar sala da Campanha', 'Create Campaign room'))),
+    el('section', { class: 'play-content' }, el('h2', {}, labels[3]),
       el('p', { class: 'muted' }, t('Prepare a partida: escolha os bots e a dificuldade antes de começar.', 'Set up the match: choose bots and difficulty before starting.')),
       el('button', { type: 'button', class: 'primary big', onclick: () => onTrain('bots') }, t('Criar partida contra bots', 'Create bot match')),
       el('button', { type: 'button', disabled: !skill, onclick: () => skill && onTrain('shadow') }, t('Treinar contra a sua sombra', 'Practice against your shadow')),
@@ -98,7 +104,7 @@ function playMenu(roomList: HTMLElement, onCreate: () => void, onCreateAsc: () =
     el('section', { class: 'play-content' }, el('h2', {}, 'Sandbox'),
       el('p', { class: 'muted' }, t('Vida e ouro sem fim, loja a qualquer hora e bots no painel.', 'Endless health and gold, shop any time and bots in the panel.')),
       el('button', { type: 'button', class: 'primary big', onclick: () => onTrain('sandbox') }, t('Abrir sandbox', 'Open sandbox'))),
-    el('section', { class: 'play-content' }, el('h2', {}, labels[4]),
+    el('section', { class: 'play-content' }, el('h2', {}, labels[5]),
       ...CHALLENGES.map((c) => {
         const best = bestOf(c.id);
         return el('button', { type: 'button', class: 'train', onclick: () => onTrain(c.id) }, c.name,
@@ -158,7 +164,7 @@ function personagemTab(): HTMLElement {
     el('div', { class: 'settings-grid' }, options, el('div', { class: 'settings-sections' }, ...sections)));
 }
 
-export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onCreateAsc: () => void, onRename: () => void, onTrain: (kind: string) => void, sound: Pick<SettingsCtx, 'volumes' | 'setVolume'>) {
+export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onCreateRoom: (mode: RoomMode) => void, onRename: () => void, onTrain: (kind: string) => void, sound: Pick<SettingsCtx, 'volumes' | 'setVolume'>) {
   // no lobby: o volume é o mesmo da sala (issue #128); sem efeitos visuais (só existem na sala); o pixel art fica guardado e vale ao entrar numa sala (só PC)
   const pixelOk = !matchMedia('(pointer: coarse)').matches;
   setSettingsCtx({ name: () => name, rename: onRename, volumes: sound.volumes, setVolume: sound.setVolume, pixel: pixelOk ? savedPixel : undefined, setPixel: (size) => store.set('warlock:pixel', String(size)) });
@@ -200,7 +206,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   const panel = (k: HomeTab, ...kids: Child[]) => el('div', { class: 'home-panel', id: 'home-' + k, role: 'tabpanel', 'aria-labelledby': 'home-tab-' + k }, ...kids);
   const panels: Record<HomeTab, HTMLElement> = {
     home: panel('home'),
-    play: panel('play', playMenu(roomList, onCreate, onCreateAsc, onTrain)),
+    play: panel('play', playMenu(roomList, onCreate, onCreateRoom, onTrain)),
     library: panel('library', el('div', { class: 'learn-grid' }, learnContent, libraryContent)),
     char: panel('char', personagemTab()),
     shop: panel('shop', el('section', { class: 'home-learn' }, el('h2', {}, t('Loja', 'Shop')),
@@ -1329,6 +1335,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   function lobbyPanel(r: PublicRoom) {
     const humans = r.players.filter((p) => !p.bot && !p.watch).length; // quem assiste não ocupa vaga nem conta para começar
+    // Ascension and Campaign rooms (created by their Play menu options): the mode is the room's, with no picker
+    const fixed = isRoomMode(r.mode) ? r.mode : null;
+    if (fixed) mode = fixed;
     const campaign = mode === 'campaign';
     const maxBots = MAX_PLAYERS - humans;
     // sala do Ascensão: os bots e as opções são os do dono, iguais na tela de todos; só ele muda (Fernando, 21/10)
@@ -1378,15 +1387,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       ['rounds', MODE_NAME.rounds, t(`O último vivo ganha a rodada. Vence quem fizer ${o.goal} rodadas.`, `The last one alive wins the round. First to win ${o.goal} rounds wins.`)],
       ['deathmatch', MODE_NAME.deathmatch, t(`Rodadas de 60 s, quem cai volta em 10 s. Cada abate vale 1 ponto; vence quem chegar a ${DM_GOALS[o.goal]}.`, `60 s rounds, whoever falls comes back after 10 s. Each kill is worth 1 point; first to ${DM_GOALS[o.goal]} wins.`)],
       ['teams', MODE_NAME.teams, t(`Azul contra Vermelho. A rodada acaba quando só sobra um time, e todos dele ganham 1 ponto; vence quem fizer ${o.goal}. Magia em aliado só empurra.`, `Blue vs Red. The round ends when only one team is left, and everyone on it gets 1 point; first to ${o.goal} wins. Spells on allies only knock back.`)],
-      ['campaign', MODE_NAME.campaign, humans > CAMPAIGN.humans ? t(`A Campanha é para 1 a ${CAMPAIGN.humans} jogadores.`, `The Campaign is for 1 to ${CAMPAIGN.humans} players.`)
-        : t('Juntos contra o Fumo: explorem a Charneca Cinzenta e vençam os encontros. Magia não pega aliado. Se todos caírem, a noite recomeça diferente.', 'Together against the Smoke: explore the Ashen Moor and win the encounters. Spells never hit allies. If everyone falls, the night starts over, different.')],
     ];
-    // sala do Ascensão (criada pela opção do menu Jogar): o modo é o da sala, sem seletor
-    const ascRoom = r.mode === 'ascension';
-    if (ascRoom) mode = 'ascension';
+    const fixedText = fixed === 'ascension' ? ASC_MODE_TEXT : humans > CAMPAIGN.humans ? t(`A Campanha é para 1 a ${CAMPAIGN.humans} jogadores.`, `The Campaign is for 1 to ${CAMPAIGN.humans} players.`) : CAMPAIGN_MODE_TEXT;
     // Times: o grupo escolhe se os times mudam a cada rodada ou ficam até o fim
     const shufflePicker = mode !== 'teams' ? null : choice(t('Sorteio dos times', 'Team shuffle'), [[true, t('Sorteados a cada rodada', 'Shuffled every round')], [false, t('Fixos na partida', 'Fixed for the match')]], shuffle, (k) => ((shuffle = k), drawCenter()));
-    const modePicker = ascRoom ? el('div', { class: 'mode' }, el('b', {}, MODE_NAME.ascension), el('small', { class: 'muted' }, ASC_MODE_TEXT)) : el('div', { class: 'mode' },
+    const modePicker = fixed ? el('div', { class: 'mode' }, el('b', {}, MODE_NAME[fixed]), el('small', { class: 'muted' }, fixedText)) : el('div', { class: 'mode' },
       el('div', { class: 'opt-label' }, choice(t('Modo de jogo', 'Game mode'), modes.map(([k, label]): [Mode, string] => [k, label]), mode, (k) => ((mode = k), drawCenter())), infoButton(t('Modos de jogo', 'Game modes'), MODE_INFO)),
       el('small', { class: 'muted' }, modes.find(([k]) => k === mode)![2]), shufflePicker);
     // opções da partida: uma fileira de botões por opção, como o seletor de modo; vão junto com o "Começar"
@@ -1678,7 +1683,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     return el('div', { class: 'mode' },
       el('small', { class: 'opts-line' }, optsLine({ ...r.opts, ...r.pendingOpts }, next)),
       el('small', { class: 'muted' }, t('Modo da próxima rodada', 'Next round mode')),
-      choice(t('Modo da próxima rodada', 'Next round mode'), MODES.filter((k) => k !== 'ascension').map((k): [Mode, string] => [k, MODE_NAME[k]]), next, (k) => k !== next && act.vote('mode', k), (k) => !!r.vote && k !== next),
+      choice(t('Modo da próxima rodada', 'Next round mode'), MODES.filter((k) => !isRoomMode(k)).map((k): [Mode, string] => [k, MODE_NAME[k]]), next, (k) => k !== next && act.vote('mode', k), (k) => !!r.vote && k !== next),
       next === 'teams' ? el('button', { type: 'button', disabled: !!r.vote, onclick: () => act.vote('shuffle') }, t(`Times ${SHUFFLE_NAME(r.pendingShuffle ?? r.teamShuffle)} · trocar`, `Teams ${SHUFFLE_NAME(r.pendingShuffle ?? r.teamShuffle)} · change`)) : null,
       r.pendingMode ? el('small', {}, t(`Próxima rodada: ${MODE_NAME[r.pendingMode]} (os pontos zeram)`, `Next round: ${MODE_NAME[r.pendingMode]} (points reset)`)) : null,
       r.vote ? el('small', { class: 'muted' }, t('Votação aberta no topo da tela.', 'Vote open at the top of the screen.')) : null);
@@ -1709,7 +1714,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         btn(t('Reiniciar a partida', 'Restart the match'), 'restart'),
         btn(r.night ? t('Encerrar a noite (conta como derrota)', 'End the night (counts as a defeat)') : t('Encerrar agora (vence quem tem mais pontos)', 'End now (whoever has the most points wins)'), 'end'),
         r.phase === 'shop' ? btn(t('Pular a loja', 'Skip the shop'), 'skipShop') : '',
-        ...(r.mode === 'ascension' || r.night ? [] : MODES.filter((k) => k !== next && k !== 'ascension' && k !== 'campaign')).map((k) => btn(t(`Trocar para ${MODE_NAME[k]}`, `Switch to ${MODE_NAME[k]}`), 'mode', k)),
+        ...(isRoomMode(r.mode) ? [] : MODES.filter((k) => k !== next && !isRoomMode(k))).map((k) => btn(t(`Trocar para ${MODE_NAME[k]}`, `Switch to ${MODE_NAME[k]}`), 'mode', k)),
         next === 'teams' ? btn(t(`Times ${SHUFFLE_NAME(!(r.pendingShuffle ?? r.teamShuffle))}`, `Teams ${SHUFFLE_NAME(!(r.pendingShuffle ?? r.teamShuffle))}`), 'shuffle') : ''),
       r.night ? '' : group(t('Regras', 'Rules'),
         el('small', { class: 'muted' }, optsLine(nextOpts, next)),

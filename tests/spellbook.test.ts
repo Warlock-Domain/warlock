@@ -12,7 +12,7 @@ import { spellTip } from '../src/client/tips.ts';
 import { noItems } from '../src/shared/items.ts';
 import { run, toPlaying, world } from './helpers.ts';
 
-// p0 lança a Bola de fogo em p1 (inimigo) a 3 m
+// p0 casts Fireball at p1 (an enemy) 3 m away
 function shot(book?: SpellBook): number {
   const w = world([[0, 0], [3, 0]], noSpells(), [], () => 0.5, false, [0, 1]);
   w.book = book;
@@ -21,13 +21,13 @@ function shot(book?: SpellBook): number {
   return HP_MAX - w.wizards[1].hp;
 }
 
-describe('magias da Campanha separadas dos outros modos', () => {
+describe('Campaign spells kept apart from the other modes', () => {
   it('a book changes the spell only in the world that carries it', () => {
     const before = JSON.stringify(SPELLS);
     const strong: SpellBook = { fireball: retune('fireball', (l) => ({ ...l, dmg: l.dmg * 2 })) };
     expect(shot(strong)).toBeCloseTo(2 * shot(), 5);
     expect(shot()).toBeCloseTo(spellLevel('fireball', 1).dmg, 5);
-    expect(JSON.stringify(SPELLS)).toBe(before); // a tabela de todos não muda
+    expect(JSON.stringify(SPELLS)).toBe(before); // the shared table does not change
   });
 
   it('every spell cast reads its cooldown from the book', () => {
@@ -37,14 +37,14 @@ describe('magias da Campanha separadas dos outros modos', () => {
       w.book = slow;
       if (s === 'closedbody') Object.assign(w.wizards[0], { braceReadyAt: w.t, braceUntil: w.t + 9 }); // Closed body needs an active Hold ground
       stepWorld(w, [{ id: 'p0', kind: 'cast', spell: s, at: s === 'heal' ? v(0, 0) : v(3, 0) }]); // Heal targets the caster or an ally
-      for (let i = 0; i < 60; i++) stepWorld(w, []); // 1 s: cobre o preparo mais longo (Flagelo, 0,5 s)
+      for (let i = 0; i < 60; i++) stepWorld(w, []); // 1 s: covers the longest windup (Scourge, 0.5 s)
       expect(w.wizards[0].cd[s] - w.t, s).toBeGreaterThan(90);
     }
   });
 
   it('only the Campaign world carries the Campaign book', () => {
     const match = (mode: 'rounds' | 'deathmatch' | 'teams' | 'campaign', sandbox = false): Match => {
-      const m = newMatch();
+      const m = Object.assign(newMatch(), { mode }); // a Campaign match needs a Campaign room
       addPlayer(m, 'a', 'a');
       startMatch(m, 0, mode === 'campaign' ? 0 : 1, mode, true, mulberry32(1), {}, [], sandbox);
       toPlaying(m, 0);
@@ -75,7 +75,7 @@ describe('magias da Campanha separadas dos outros modos', () => {
   });
 
   it('no game code reads the spell table around the book', () => {
-    // número de magia na simulação sai de spellLevel(id, nível, w.book); SPELLS[...] direto pularia a Campanha
+    // spell numbers in the simulation come from spellLevel(id, level, w.book); reading SPELLS[...] directly would skip the Campaign
     const files = import.meta.glob<string>(['../src/shared/*.ts', '../src/worker/*.ts', '!../src/shared/spells.ts', '!../src/shared/campaign.ts'], { query: '?raw', import: 'default', eager: true });
     expect(Object.keys(files).length).toBeGreaterThan(10);
     for (const [f, src] of Object.entries(files)) expect(src, f).not.toMatch(/SPELLS(\[|\.\w+\.levels)/);

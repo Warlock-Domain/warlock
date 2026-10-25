@@ -1,4 +1,5 @@
 import { parseForumPost } from '../shared/forum.ts';
+import { ROOM_MODE_PARAM, type RoomMode } from '../shared/match.ts';
 import { styleRows } from '../shared/telemetry.ts';
 
 export { Forum } from './forum-do.ts';
@@ -42,8 +43,9 @@ export default {
     if (url.pathname === '/api/rooms' && req.method === 'POST') {
       let id = newCode();
       while (await lobby.has(id)) id = newCode();
-      // sala do Ascensão: opção própria no menu Jogar (Fernando, 21/10), presa ao modo
-      await roomStub(id).init(id, url.searchParams.get('modo') === 'ascensao');
+      // Ascension and Campaign rooms: their own Play menu options, locked to the mode (?modo=ascensao | campanha)
+      const modo = url.searchParams.get('modo');
+      await roomStub(id).init(id, (Object.keys(ROOM_MODE_PARAM) as RoomMode[]).find((k) => ROOM_MODE_PARAM[k] === modo));
       return Response.json({ id });
     }
 
