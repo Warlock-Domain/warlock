@@ -191,6 +191,9 @@ export function grimoire(o: { side?: boolean; onShow?: (refs: Ref[]) => void } =
     spread.querySelectorAll('.g-page').forEach((p) => (p.scrollTop = 0));
     prev.disabled = first <= min;
     next.disabled = first + per >= PAGES.length;
+    // Chrome moves focus off a disabled button only on the next rendering update, so check `disabled` too
+    const active = document.activeElement as HTMLButtonElement | null;
+    if (hadFocus && (!root.contains(active) || active?.disabled)) root.focus({ preventScroll: true });
     const shown = PAGES.slice(first, first + per);
     chapterBtns.forEach((b, i) => {
       const on = shown.some((p) => p.chapter === CHAPTERS[i]);
