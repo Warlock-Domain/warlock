@@ -5,6 +5,7 @@ Vale junto com o `CLAUDE.md` da raiz.
 ## Simulação
 
 - Channeling proposal (25/10): learned Attack modifier,12gold, no own cooldown; Attack+owned spell starts stationary authoritative charge. At1s1.5×, at2s2× damage/range/projectile speed/knockback, held indefinitely without auto-fire. Explicit cast releases; original spell cooldown starts then. Stop/move/stun/suspension/death/lost ownership cancel; basic attacks disabled while learned. Captured power follows projectiles/reflection/shards. Healing/status/duration/radius unchanged. Identical bonuses across levels pending a progression decision. Preserve Campaign walls/body radii and custom projectile stats.
+- **Obstacles take every attack** (Fernando, 25/10): a new blast calls `blastPillars` (falloff by closeness, a wall hit once); a projectile that hits or bounces off an obstacle calls `damagePillar` in `hitPillar`; burning in the lava uses `damagePillar(..., quiet)`. The Campaign rock is unbreakable through `obstaclesOf`, not through a mode check in `sim.ts`.
 
 - Closed Body preserves the current stance facing when cast; the cursor does not turn the wizard. Other spells retain their normal aiming behavior. No stat or resistance changes.
 
@@ -23,6 +24,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 - **Unidades:** distância em metros, tempo em segundos, vida na escala 1000. Números do Warlock original entram multiplicados por `UNIT` (`speed: 1000 * UNIT`). `DT = 1/60`. Recarga guardada como instante (`w.t + cd`). Milissegundos (`*_MS`, `Date.now()`) só na camada de partida e do servidor.
 - **Eventos:** `w.events.push({ k: '...', ... })` durante o passo; tipo novo entra na união `SimEvent` e o cliente consome em `main.ts`. Ids secretos viram públicos em `publicEvents` (`snapshot.ts`).
 - Ilusão recebe forças pelo mesmo moveWizard do corpo real; copy.walk e pushVel separados. Gravidade usa puxão de corpo, Magnetizar não vira a caminhada, Bola de neve usa arraste no contato e explosão só ao explodir. Movimenta cópias antes dos impactos para não ganhar passo extra pela ordem da lista. Não mata nem oculta a cópia ao receber dano.
+
+- **Test versions of Attack and Hold ground** (issue #402): `Wizard.arc` and `Wizard.guard` come only from `setAlt` (shop, `alt` message) and the round start in `match.ts`; bots never set them, so the style hash stays the same. Every change of behaviour sits behind these flags (`finishArc`, `braceResistance`, the extra freeze of `basicReadyAt`); the arc restores the target's `casting` after `hit` on purpose.
 
 ## Números de magia e item (`spells.ts`, `items.ts`, `constants.ts`)
 

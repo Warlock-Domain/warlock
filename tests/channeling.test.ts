@@ -23,6 +23,14 @@ const charge: Cmd = { id:'p0',kind:'channel',spell:'fireball' };
 const cast: Cmd = { id:'p0',kind:'cast',spell:'fireball',at:{x:30,y:0} };
 
 describe('Channeling',()=>{
+  it('does not let charged bots target outside current blindness vision',()=>{
+    const w=setup(),z=w.wizards[0]; z.channel={spell:'fireball',since:-3}; z.blindUntil=10;
+    expect(botCmds(w,z.id,()=>.5)).toEqual([{id:z.id,kind:'stop'}]);
+    z.blindUntil=0;
+    expect(botCmds(w,z.id,()=>.5)).toEqual([{id:z.id,kind:'stop'}]);
+    w.wizards[1].pos={x:2,y:0};
+    expect(botCmds(w,z.id,()=>.5)).toEqual([{id:z.id,kind:'cast',spell:'fireball',at:{x:2,y:0}}]);
+  });
   it('validates bounded charge snapshots and does not give copies the held pose',()=>{
     const w=setup();w.shrinkAt=120;stepWorld(w,[charge],()=>.5);const snap=encodeSnap(w,'p0',0,[]);
     expect(parseServerMessage(snap)).not.toBeNull();
@@ -99,7 +107,7 @@ describe('Channeling',()=>{
     expect(reachOf('fireball',sp,noItems(),2)-base).toBeCloseTo(spellLevel('fireball',1).range);
   });
   it('AI holds charge then issues an explicit cast command rather than auto-firing',()=>{
-    const w=setup(),z=w.wizards[0]; stepWorld(w,[charge],()=>.5);
+    const w=setup(),z=w.wizards[0]; w.wizards[1].pos={x:10,y:0}; stepWorld(w,[charge],()=>.5);
     expect(botCmds(w,z.id,()=>.5)).toEqual([]);run(w,2);
     expect(botCmds(w,z.id,()=>.5)[0]).toMatchObject({kind:'cast',spell:'fireball'});
     expect(w.projectiles).toHaveLength(0);

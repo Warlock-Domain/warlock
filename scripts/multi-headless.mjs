@@ -23,27 +23,27 @@ try {
   const [a, b, c] = pages;
   const lobbyText = await a.locator('.center').innerText();
   console.log('sala de espera da Ana:', lobbyText.replace(/\n+/g, ' | '));
-  // sem bots: só os 3
-  for (let i = 0; i < 3; i++) await a.getByRole('button', { name: '−' }).click();
+  // no bots, only the three people; the "−" text is the same in both languages, unlike the aria-label
+  for (let i = 0; i < 3; i++) await a.locator('button', { hasText: /^−$/ }).click();
   await a.getByRole('button', { name: 'Começar partida' }).click();
   for (const p of pages) await p.getByRole('button', { name: /^Pronto/ }).click();
   await a.waitForTimeout(3600);
   await a.mouse.click(500, 320, { button: 'right' });
   await a.mouse.move(600, 250);
-  await a.keyboard.press('KeyQ');
+  await a.keyboard.press('KeyQ'); // first bar slot (Q W E R D F since #401)
   await a.waitForTimeout(900);
   for (const [i, p] of pages.entries()) {
     await p.bringToFront();
     await p.waitForTimeout(150);
     await p.screenshot({ path: `${out}/multi-${['ana', 'bia', 'caio'][i]}.png` });
   }
-  for (const p of pages) console.log((await p.locator('.players').innerText()).replace(/\n+/g, ' '));
-  // Bia fecha e volta: o mesmo mago
+  for (const p of pages) console.log((await p.locator('.tops').innerText()).replace(/\n+/g, ' '));
+  // Bia closes and rejoins: same wizard
   await b.close();
   const b2 = await ctx.newPage();
   await b2.goto(base + '/?as=bia#' + id);
   await b2.waitForTimeout(1500);
-  console.log('Bia voltou:', (await b2.locator('.players').innerText()).replace(/\n+/g, ' '), '| magos na tela:', await b2.locator('.wiz-label:not([hidden])').count());
+  console.log('Bia voltou:', (await b2.locator('.tops').innerText()).replace(/\n+/g, ' '), '| magos na tela:', await b2.locator('.wiz-label:not([hidden])').count());
 } finally {
   console.log(logs.slice(0, 20).join('\n'));
   await ctx.close();

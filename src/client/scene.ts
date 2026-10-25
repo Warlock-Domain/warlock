@@ -1,7 +1,7 @@
 // Cena 3D: lava, arena de pedra que encolhe, magos (KayKit), projéteis e efeitos.
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
 import * as THREE from 'three';
-import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
+import { ELECTROCUTED_BIT, BRACING_BIT, MELEE_ARC } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
 import { createAttackClip, playAnimation as play } from './attack-pose.ts';
 import { electroPulse } from './screen-data.ts';
@@ -43,7 +43,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: giant Campaign body scale; ghost: translucent; fx: own status timers; ember: Campaign rekindle progress (0..1; negative or absent means none).
+export type WizDraw = { channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -937,6 +937,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     pact: ['Spellcast_Long', 0.9, 0.3], recharge: ['Spellcast_Long', 0.9, 0.3],
   };
   const castAnim = (spell: string) => CAST_ANIM[spell] ?? (['Spellcast_Shoot', 0.55] as const);
+  // golpe em arco (issue #402) pela arma do criador; os modelos não têm 1H_Melee_Attack_* nem soco, então vai o clip mais parecido,
+  // começando onde o gesto forte cai perto do fim do preparo de 0,4 s: cajado gira o 2H, espada/machado/facas descem o braço, sem arma chuta
+  const meleeAnim = (look?: string): [string, number, number] => {
+    const nodes = look ? lookPieces(look).flatMap((p) => p.nodes) : [];
+    return nodes.includes('2H_Staff') ? ['2H_Melee_Attack_Spin', 0.7, 0.3] : nodes.some((n) => /^(1H_|Knife)/.test(n)) ? ['Throw', 0.7, 0.25] : ['Unarmed_Melee_Attack_Kick', 0.6, 0];
+  };
   function oneShot(id: string, name: string, secs: number, from = 0) {
     const m = mages.get(id);
     if (!m || m.dead) return;
@@ -1388,7 +1394,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const isleBaseGeo = new THREE.CylinderGeometry(1, 1.15, 0.6, 28);
   const isleTopGeo = new THREE.CylinderGeometry(1, 1, 0.06, 28);
   const rockModels: THREE.Object3D[] = [];
-  for (const k of ['A', 'B', 'C', 'D', 'E']) gltf.loadAsync(`/models/hex/rock_single_${k}.gltf`).then((g) => rockModels.push(g.scene)).catch(() => {});
+  // The five .gltf files define the same hexagons_medieval material, but each parse makes its own copy of the
+  // 1024² atlas: sharing the first one keeps a single texture on the GPU (issue #378). Promise.all keeps A..E in order,
+  // so each isle gets the same rocks whichever file arrives first
+  Promise.all(['A', 'B', 'C', 'D', 'E'].map((k) => gltf.loadAsync(`/models/hex/rock_single_${k}.gltf`))).then((gs) => {
+    let mat: THREE.Mesh['material'] | undefined;
+    for (const g of gs) {
+      g.scene.traverse((o) => { if (o instanceof THREE.Mesh) o.material = mat ??= o.material; });
+      rockModels.push(g.scene);
+    }
+  }).catch(() => {});
   type IsleDraw = { g: THREE.Group; top: THREE.Mesh; rocks: THREE.Group; r: number; seen: number; shrinkAt: number };
   const isleDraws: IsleDraw[] = [];
   function isleDraw(i: number): IsleDraw {
@@ -1491,7 +1506,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         scene.add(obj);
         // barra de vida em tudo que quebra (pedido do Fernando, 17/10: sempre visível)
         let bar: HTMLDivElement | null = null, fill: HTMLDivElement | null = null;
-        if (Number.isFinite(OBSTACLES[p.kind].hp) && !side) {
+        if (Number.isFinite(OBSTACLES[p.kind].hp) && !side && !(p.kind === 'rock' && curMap)) { // the Campaign rock never breaks (levels.ts obstaclesOf)
           fill = el('div');
           bar = el('div', { class: 'obstacle-hp' + (p.kind === 'chest' ? ' chest' : '') }, fill);
           labels.append(bar);
@@ -1934,13 +1949,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           m.oneShotUntil = 0;
           if (!lite && Math.random() < .12) burst(d.pos, '#bfa4ff', .6, .35, 1.2, FX.light);
         }
-        else if ((d.basicLeft ?? 0) > 0 && !(d.status & 16) && m.actions.Attack_Invoke) {
+        else if (d.basicArc && (d.basicLeft ?? 0) > 0 && !(d.status & 16)) {
+          const [clip, secs, from] = meleeAnim(d.look);
+          if (m.current !== clip) oneShot(d.id, clip, secs, from);
+        } else if ((d.basicLeft ?? 0) > 0 && !(d.status & 16) && m.actions.Attack_Invoke) {
           play(m, 'Attack_Invoke', .03);
           const action = m.actions.Attack_Invoke;
           action.paused = true;
           action.time = Math.max(0, action.getClip().duration - d.basicLeft!);
           m.oneShotUntil = 0; // o snapshot encerra a pose na soltura ou no cancelamento, sem terminar o gesto à força.
-        } else if (m.current === 'Attack_Invoke' || now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & BRACING_BIT && m.actions.Brace ? 'Brace' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
+        } else if (m.current === 'Attack_Invoke' || now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & BRACING_BIT && d.guard && m.actions.Block ? 'Block' : d.status & BRACING_BIT && m.actions.Brace ? 'Brace' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
         // vencedor: estouro dourado ao começar a comemorar e faíscas subindo enquanto dura
         if (d.cheer && !m.cheering) victoryBurst(d.pos);
         if (d.cheer && !lite && Math.random() < 0.2) burst(v(d.pos.x + (Math.random() - 0.5) * 1.4, d.pos.y + (Math.random() - 0.5) * 1.4), Math.random() < 0.5 ? '#ffd84a' : '#fff2a0', 0.7, 1.2, 0.4, FX.star, 2.6);
@@ -2170,6 +2188,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const coneAim = new THREE.Mesh(coneGeo,new THREE.MeshBasicMaterial({color:'#d5b474',transparent:true,opacity:.25,side:THREE.DoubleSide,depthWrite:false}));
   coneAim.visible=false; coneAim.renderOrder=9; scene.add(coneAim);
   const blindMask = blindnessMask(camera); scene.add(blindMask);
+  // prévia do golpe em arco (issue #402): setor de MELEE_ARC.angle e raio 1, centrado em +x, escalado pelo alcance e girado só em y
+  const arcHalf = (MELEE_ARC.angle / 2) * Math.PI / 180;
+  const arcAim = new THREE.Mesh(new THREE.RingGeometry(0, 1, 32, 1, -arcHalf, 2 * arcHalf).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }));
+  arcAim.renderOrder = 9; arcAim.visible = false; arcAim.scale.setScalar(MELEE_ARC.range); scene.add(arcAim);
 
   return {
     ready,
@@ -2210,6 +2232,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     cone(points: [Vec,Vec,Vec] | null) {
       coneAim.visible=!!points;
       if(points) { const a=coneGeo.getAttribute('position'); points.forEach((p,i)=>a.setXYZ(i,p.x,.04,p.y)); a.needsUpdate=true; coneGeo.computeBoundingSphere(); }
+    },
+    // golpe em arco: setor no chão em volta do mago, virado para facing; null esconde
+    arc(at: Vec | null, facing: number) {
+      arcAim.visible = !!at;
+      if (!at) return;
+      arcAim.position.copy(w3(at, 0.04));
+      arcAim.rotation.y = -facing;
     },
     bands(segs: [Vec, Vec][], half: number) {
       for (let i = bands.length; i < segs.length; i++) {

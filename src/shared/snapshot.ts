@@ -88,7 +88,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   if (w.wizards.some((z) => w.t < (z.blindUntil ?? 0))) snap.bl = w.wizards.map((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) ? r2(Math.max(0, (z.blindUntil ?? 0) - w.t)) : 0);
   // Separate optional timer: suspension is not a stun and does not take another bit of the 32-bit status
   if (w.wizards.some(isSuspended)) snap.gy = w.wizards.map((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) ? r2(z.geyserLeft ?? 0) : 0);
-  if (w.wizards.some((z) => z.basicCasting)) snap.ba = w.wizards.flatMap((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) && z.basicCasting ? [r2(Math.max(0, z.basicCasting.fireAt - w.t)), +z.basicCasting.melee] : [0, 0]);
+  if (w.wizards.some((z) => z.basicCasting)) snap.ba = w.wizards.flatMap((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) && z.basicCasting ? [r2(Math.max(0, z.basicCasting.fireAt - w.t)), z.basicCasting.arc !== undefined ? 2 : +z.basicCasting.melee] : [0, 0]);
   if (w.wizards.some((z) => (z.recoveryLeft ?? 0) > 0)) snap.kr = w.wizards.map((z) => r2(z.recoveryLeft ?? 0));
   if (w.wizards.some((z) => z.stunLeft !== undefined)) snap.st = w.wizards.map((z) => z.stunLeft === undefined ? -1 : r2(z.stunLeft));
   // efeitos com prazo de quem recebe: bit (o mesmo de w) e segundos que faltam; os sem prazo ficam só no bit.
@@ -119,7 +119,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   return snap;
 }
 
-export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number; channelElapsed?: number; channelSpell?: SpellId; blindLeft?: number; closedBodyLeft?: number; geyserLeft?: number; rushLeft?: number; recoveryLeft?: number; stunLeft?: number; basicLeft?: number; basicMelee?: boolean };
+export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number; channelElapsed?: number; channelSpell?: SpellId; blindLeft?: number; closedBodyLeft?: number; geyserLeft?: number; rushLeft?: number; recoveryLeft?: number; stunLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean };
 // meteor, grip e warpzone: vel = (raio, segundos que faltam); link: posição do dono; illusion: índice do dono e direção
 export type ProjView = { id: number; kind: ProjKind; pos: Vec; vel: Vec };
 export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
@@ -132,7 +132,7 @@ const rows = (a: number[] | undefined, n: number) => Array.from({ length: Math.f
 
 export function decodeSnap(s: Snap, ids: string[]): SnapView {
   const wizards = rows(s.w, 7).slice(0, ids.length).map(([x, y, vx, vy, hp, facing, bits], i): WizView =>
-    ({ id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0, status: bits, channelElapsed: s.cn && s.cn[i*2] >= 0 ? s.cn[i*2+1] : undefined, channelSpell: s.cn && s.cn[i*2] >= 0 ? SPELL_IDS[s.cn[i*2]] : undefined, blindLeft: s.bl?.[i] ?? 0, closedBodyLeft: s.cb?.[i] ?? 0, geyserLeft: s.gy?.[i] ?? 0, rushLeft: s.ab?.[i] ?? 0, recoveryLeft: s.kr?.[i] ?? 0, stunLeft: s.st && s.st[i] >= 0 ? s.st[i] : undefined, basicLeft: s.ba?.[i * 2] ?? 0, basicMelee: !!s.ba?.[i * 2 + 1] }));
+    ({ id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0, status: bits, channelElapsed: s.cn && s.cn[i*2] >= 0 ? s.cn[i*2+1] : undefined, channelSpell: s.cn && s.cn[i*2] >= 0 ? SPELL_IDS[s.cn[i*2]] : undefined, blindLeft: s.bl?.[i] ?? 0, closedBodyLeft: s.cb?.[i] ?? 0, geyserLeft: s.gy?.[i] ?? 0, rushLeft: s.ab?.[i] ?? 0, recoveryLeft: s.kr?.[i] ?? 0, stunLeft: s.st && s.st[i] >= 0 ? s.st[i] : undefined, basicLeft: s.ba?.[i * 2] ?? 0, basicMelee: !!s.ba?.[i * 2 + 1], ...(s.ba?.[i * 2 + 1] === 2 && { basicArc: true }) }));
   const projectiles = rows(s.p, 6).map(([id, kind, x, y, vx, vy]): ProjView => ({ id, kind: PROJ_KINDS[kind] ?? 'fireball', pos: v(x, y), vel: v(vx, vy) }));
   const pillars = rows(s.pl, 4).map(([x, y, hp, k]): PillarView => ({ pos: v(x, y), hp, kind: OBSTACLE_KINDS[k] ?? 'pillar' }));
   const runes = rows(s.ru, 3).map(([x, y, k]): RuneView => ({ pos: v(x, y), kind: RUNE_KINDS[k] ?? 'haste' }));

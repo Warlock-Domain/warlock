@@ -178,13 +178,13 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   const me = w.wizards.find((z) => z.id === id && z.alive);
   if (!me) return [];
   if ((me.geyserLeft ?? 0) > 0) return [];
+  const vision = w.t < (me.blindUntil ?? 0) ? 3 : D.vision;
   if (me.channel) {
     if (w.t - me.channel.since < 2) return [];
-    const target = w.wizards.filter(z => z.alive && z !== me && (me.team === null || z.team !== me.team) && !(w.t < z.veilUntil || w.t < z.windUntil))
+    const target = w.wizards.filter(z => z.alive && z !== me && dist(z.pos,me.pos) <= vision && (me.team === null || z.team !== me.team) && !(w.t < z.veilUntil || w.t < z.windUntil))
       .sort((a,b) => dist(a.pos,me.pos)-dist(b.pos,me.pos))[0];
     return target ? [{ id, kind: 'cast', spell: me.channel.spell, at: target.pos }] : [{ id, kind: 'stop' }];
   }
-  const vision = w.t < (me.blindUntil ?? 0) ? 3 : D.vision;
   const M = mind(w);
   if (w.t < (M.frozen.get(id) ?? -1)) return []; // parado por erro
   const cmds: Cmd[] = [];

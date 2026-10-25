@@ -1,56 +1,61 @@
 import { describe, expect, it } from 'vitest';
-import { loadoutSlots, moveLoadout, type LoadoutOrder } from '../src/client/screen-data.ts';
+import { loadoutSlots, moveLoadout, readLoadout, type LoadoutOrder } from '../src/client/screen-data.ts';
 import { actionFor, labelOf, setPadMode, setSlotMode, setSlots } from '../src/client/keys.ts';
 import { BTN, padAction } from '../src/client/gamepad.ts';
 import { MAX_SPELLS, noSpells, SPELL_IDS } from '../src/shared/spells.ts';
 
-// sem o Flagelo (que todo mundo ganha) para as posições ficarem curtas de ler
+// without Scourge (everyone gets it) so the slots stay short to read
 const kit = (more: Partial<ReturnType<typeof noSpells>>) => ({ ...noSpells(), scourge: 0, ...more });
 
-describe('posições de equipamento na loja', () => {
-  it('troca posições ocupadas e move para uma tecla vazia sem compactar', () => {
+describe('equipment slots in the shop', () => {
+  it('swaps occupied slots and moves to an empty key without compacting', () => {
     const p = kit({ illusion: 1 });
     const original = loadoutSlots(p);
-    const moved = moveLoadout(original, 0, 7);
-    expect(moved.spells).toEqual([null, 'illusion', null, null, null, null, null, 'fireball']);
+    const moved = moveLoadout(original, 0, 5);
+    expect(moved.spells).toEqual([null, 'illusion', null, null, null, 'fireball']);
     expect(original.spells[0]).toBe('fireball');
-    const swapped = moveLoadout(moved, 1, 7);
+    const swapped = moveLoadout(moved, 1, 5);
     expect(swapped.spells[1]).toBe('fireball');
-    expect(swapped.spells[7]).toBe('illusion');
+    expect(swapped.spells[5]).toBe('illusion');
     expect(loadoutSlots(p, swapped).spells).toEqual(swapped.spells);
   });
-  it('não move vazio e recusa índices inválidos', () => {
+  it('does not move an empty slot and refuses invalid indices', () => {
     const order = loadoutSlots(kit({}));
-    for (const [from, to] of [[0, 8], [8, 0], [-1, 0], [0, 1.5], [2, 3]]) expect(moveLoadout(order, from, to)).toBe(order);
+    for (const [from, to] of [[0, 6], [6, 0], [-1, 0], [0, 1.5], [2, 3]]) expect(moveLoadout(order, from, to)).toBe(order);
   });
-  it('reconcilia compras e vendas sem duplicar ou manter magias não compradas', () => {
-    const order = { spells: ['illusion', 'illusion', 'shield', null, null, 'fireball'] } as unknown as LoadoutOrder; // ids repetidos de propósito
+  it('reconciles purchases and sales without duplicating or keeping spells not bought', () => {
+    const order = { spells: ['illusion', 'illusion', 'shield', null, null, 'fireball'] } as unknown as LoadoutOrder; // ids repeated on purpose
     const next = loadoutSlots(kit({ illusion: 1, teleport: 1 }), order);
-    expect(next.spells).toEqual(['illusion', 'teleport', null, null, null, 'fireball', null, null]);
+    expect(next.spells).toEqual(['illusion', 'teleport', null, null, null, 'fireball']);
   });
-  it('ordem salva antes das 8 vagas (6 magias e itens ativos) vale e ganha as 2 vagas novas vazias', () => {
+  it('an order saved in the 8-slot layout (#217) is cut to 6; an owned spell past slot 6 takes the first empty slot', () => {
+    const old = readLoadout({ spells: ['fireball', null, 'illusion', null, null, null, null, 'teleport'] });
+    expect(old?.spells).toHaveLength(MAX_SPELLS);
+    expect(loadoutSlots(kit({ illusion: 1, teleport: 1 }), old).spells).toEqual(['fireball', 'teleport', 'illusion', null, null, null]);
+  });
+  it('an order saved before 21/10 (6 spells and active items) still applies', () => {
     const old = { spells: ['fireball', null, null, null, null, 'illusion'], items: ['scourge', null, 'pact'] } as unknown as LoadoutOrder;
-    expect(loadoutSlots(kit({ illusion: 1 }), old).spells).toEqual(['fireball', null, null, null, null, 'illusion', null, null]);
+    expect(loadoutSlots(kit({ illusion: 1 }), old).spells).toEqual(['fireball', null, null, null, null, 'illusion']);
   });
-  it('teclado e controle usam a nova posição inclusive com vagas vazias', () => {
+  it('keyboard and controller use the new slot even with empty slots', () => {
     setSlotMode(true);
-    setSlots([null, 'illusion', null, null, null, 'fireball', null, 'pact']);
-    expect(actionFor('Digit1')).toBeUndefined();
-    expect(actionFor('KeyW')).toBe('fireball');
-    expect(actionFor('KeyR')).toBe('pact');
+    setSlots([null, 'illusion', null, 'fireball', null, 'pact']);
     expect(actionFor('KeyQ')).toBeUndefined();
-    expect(padAction(BTN.RB)).toBe('fireball');
-    expect(padAction(BTN.LT)).toBeUndefined();
-    expect(padAction(BTN.RT)).toBe('pact');
+    expect(actionFor('KeyR')).toBe('fireball');
+    expect(actionFor('KeyF')).toBe('pact');
+    expect(actionFor('KeyD')).toBeUndefined();
+    expect(padAction(BTN.Y)).toBe('fireball');
+    expect(padAction(BTN.LB)).toBeUndefined();
+    expect(padAction(BTN.RB)).toBe('pact');
     setPadMode(true);
-    expect(labelOf('pact')).toBe('RT');
+    expect(labelOf('pact')).toBe('RB');
     setPadMode(false);
     setSlotMode(false);
   });
-  it('mostra as oito vagas mesmo sem compras', () => {
-    expect(loadoutSlots(kit({ fireball: 0 })).spells).toEqual(Array(MAX_SPELLS).fill(null));
+  it('shows the six slots even without purchases', () => {
+    expect(loadoutSlots(kit({ fireball: 0 })).spells).toEqual(Array(6).fill(null));
   });
-  it('segue a ordem da lista de magias quando não há ordem salva', () => {
+  it('follows the spell list order when there is no saved order', () => {
     const spells = { ...noSpells(), fireball: 2, illusion: 1 };
     const slots = loadoutSlots(spells);
     expect(slots.spells.filter(Boolean)).toEqual(SPELL_IDS.filter((s) => spells[s] > 0));

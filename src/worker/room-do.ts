@@ -2,7 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
 import { chooseCard, reroll, setAscLobby } from '../shared/ascension.ts';
 import { lookOf } from '../shared/characters.ts';
-import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, nightPick, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match, type RoomMode } from '../shared/match.ts';
+import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, nightPick, undoBuy, removePlayer, resume, sandboxCmd, sell, setAlt, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match, type RoomMode } from '../shared/match.ts';
 import { cmdTarget, parseClientMessage, publicId, publicRoom, type RoomInfo, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
@@ -35,6 +35,7 @@ export class Room extends DurableObject<Env> {
   private roomSentAt = 0;
   private taunted = new Map<string, number>();
   private looked = new Map<string, number>();
+  private alted = new Map<string, number>(); // última troca de versão alternativa (issue #402), por jogador
   private watched = new Map<string, number>();
   private revision = 0;
 
@@ -173,6 +174,12 @@ export class Room extends DurableObject<Env> {
         return;
       case 'buy':
         if (buy(m, id, msg.spell)) await this.changed();
+        return;
+      case 'alt':
+        // grava a sala: no máximo uma troca a cada 100 ms por jogador, como o 'look'
+        if (now - (this.alted.get(id) ?? 0) < 100) return;
+        this.alted.set(id, now);
+        if (setAlt(m, id, msg.arc, msg.guard)) await this.changed();
         return;
       case 'undo':
         if (undoBuy(m, id, msg.key)) await this.changed();

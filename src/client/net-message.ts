@@ -32,7 +32,7 @@ function player(x: unknown): x is PublicPlayer {
   if (!stringArray(x.bought) || !object(x.held) || !Object.values(x.held).every((levels) => Array.isArray(levels) && levels.every(integer))) return false;
   if (typeof x.ready !== 'boolean' || typeof x.connected !== 'boolean' || (x.team !== null && !integer(x.team))) return false;
   if (x.difficulty !== undefined && !(OPTION_CHOICES.difficulty as readonly unknown[]).includes(x.difficulty)) return false;
-  if (x.dummy !== undefined && x.dummy !== true || x.turret !== undefined && x.turret !== true || x.watch !== undefined && x.watch !== true) return false;
+  if (x.dummy !== undefined && x.dummy !== true || x.turret !== undefined && x.turret !== true || x.watch !== undefined && x.watch !== true || x.arc !== undefined && x.arc !== true || x.guard !== undefined && x.guard !== true) return false;
   if (x.hpMax !== undefined && !finite(x.hpMax)) return false;
   if (x.servo !== undefined && !(SERVO_KINDS as readonly unknown[]).includes(x.servo)) return false;
   if (x.asc !== undefined) {
