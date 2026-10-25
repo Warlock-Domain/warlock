@@ -37,6 +37,7 @@ const github = (url: string, token: string) =>
 type GithubUser = { id: number; login: string; name: string | null; avatar_url: string };
 const isGithubUser = (u: unknown): u is GithubUser =>
   typeof u === 'object' && u !== null && typeof (u as GithubUser).id === 'number' && typeof (u as GithubUser).login === 'string'
+  && ((u as GithubUser).name === null || typeof (u as GithubUser).name === 'string')
   && typeof (u as GithubUser).avatar_url === 'string';
 
 async function readLimitedText(req: Request, maxBytes: number): Promise<string | null> {

@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FORUM_NAME_MAX, parseTesterName, type ForumUser } from '../src/shared/forum.ts';
 import { SESSION_COOKIE, SESSION_TTL_S, STATE_COOKIE, cookie, isActiveMember, newState, readCookie, signSession, verifySession } from '../src/worker/forum-auth.ts';
 import { forumApi } from '../src/worker/forum-api.ts';
 
 const USER: ForumUser = { id: 'gh-1', login: 'fernandorff', name: 'Fernando', avatar: 'https://avatars.githubusercontent.com/u/1' };
 const KEY = 'test-key';
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe('forum session', () => {
   it('round-trips a signed user', async () => {
@@ -46,6 +48,25 @@ describe('forum membership', () => {
     expect(isActiveMember(200, { state: 'pending' })).toBe(false);
     expect(isActiveMember(404, { state: 'active' })).toBe(false);
     expect(isActiveMember(200, null)).toBe(false);
+  });
+
+  it('rejects a GitHub profile with a non-string name before signing a session', async () => {
+    const state = newState();
+    const responses = [
+      new Response(JSON.stringify({ access_token: 'token' })),
+      new Response(JSON.stringify({ id: 1, login: 'user', name: { invalid: true }, avatar_url: 'https://example.test/avatar' })),
+      new Response(JSON.stringify({ state: 'active' })),
+    ];
+    vi.stubGlobal('fetch', vi.fn(async () => responses.shift()!));
+    const url = new URL(`https://example.test/api/forum/callback?code=code&state=${state}`);
+    const request = new Request(url, { headers: { cookie: `${STATE_COOKIE}=${state}` } });
+
+    const response = await forumApi(request, {
+      GITHUB_CLIENT_ID: 'id', GITHUB_CLIENT_SECRET: 'secret', FORUM_SESSION_KEY: KEY,
+    }, url);
+
+    expect(response.headers.get('location')).toBe('/forum?erro=github');
+    expect(response.headers.get('set-cookie')).not.toContain(`${SESSION_COOKIE}=`);
   });
 });
 
