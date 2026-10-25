@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { BASIC_ATTACK, DT, GUARD } from '../src/shared/constants.ts';
-import { parseClientMessage } from '../src/shared/protocol.ts';
+import { addPlayer, newMatch, setAlt, startMatch } from '../src/shared/match.ts';
+import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
+import { parseServerMessage } from '../src/client/net-message.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
 import { braceResistance, bracingActive, inArc, stepWorld, type Cmd, type World } from '../src/shared/sim.ts';
 import { noSpells } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
-import { run, world } from './helpers.ts';
+import { run, toPlaying, world } from './helpers.ts';
 
 // Alternative versions of Attack and Hold ground (issue #402): off by default, chosen per player in the shop
 const arena = (spots: [number, number][]) => {
@@ -121,5 +123,25 @@ describe('alt message', () => {
     expect(parse({ t: 'alt', arc: true })).toBeNull();
     expect(parse({ t: 'alt', arc: 1, guard: false })).toBeNull();
     expect(parse({ t: 'alt', arc: true, guard: false, dmg: 99 })).toBeNull();
+  });
+});
+
+describe('per-player choice', () => {
+  it('only humans choose; the choice reaches the room state the client accepts and the round wizard', () => {
+    const m = newMatch();
+    addPlayer(m, 'ana', 'Ana');
+    startMatch(m, 0, 1, 'rounds', true, () => .5);
+    const bot = m.players.find((p) => p.bot)!;
+    expect(setAlt(m, bot.id, true, true)).toBe(false);
+    expect(setAlt(m, 'ana', true, false)).toBe(true);
+    expect(setAlt(m, 'ana', true, false)).toBe(false); // no change, no room write
+    const ana = publicRoom('ABCD', m, 0).players.find((p) => p.name === 'Ana')!;
+    expect(ana.arc).toBe(true);
+    expect(ana.guard).toBeUndefined();
+    expect(parseServerMessage({ t: 'room', room: publicRoom('ABCD', m, 0), you: 'ana' })).not.toBeNull();
+    expect(parseServerMessage({ t: 'room', room: { ...publicRoom('ABCD', m, 0), players: [{ ...ana, arc: 1 }] }, you: 'ana' })).toBeNull();
+    toPlaying(m, 0, () => .5);
+    expect(m.world!.wizards.find((z) => z.id === 'ana')?.arc).toBe(true);
+    expect(m.world!.wizards.find((z) => z.id === bot.id)?.arc).toBeUndefined();
   });
 });
