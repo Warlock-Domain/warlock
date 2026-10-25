@@ -1,7 +1,7 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { afterBoss, bossCmds, bossHp, newBoss, ODRAN } from './bosses.ts';
-import { CAMPAIGN, CAMPAIGN_BOOK, EMBER, SERVOS, nightCards, nightCount, nightLevel, servoHp, xpShare, type Night, type ServoKind } from './campaign.ts';
+import { CAMPAIGN, CANDLE, CHEST_REACH, EMBER, SERVOS, nightCards, nightCount, nightLevel, servoHp, xpShare, type Night, type ServoKind } from './campaign.ts';
 import { fightOf, nightMap, obstaclesOf, roomRect, terrainOf, type NightMap, type Spawn } from './levels.ts';
 import { ASC_ROUNDS, applyCard, ascDeath, ascEndRound, ascMark, ascOwner, ascResume, ascShop, ascWinner, newAsc, type AscLobby, type AscState } from './ascension.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
@@ -864,14 +864,14 @@ const around = (p: Vec, i: number, n: number) => (n === 1 ? p : v(p.x + Math.cos
 // estágio novo: o mapa inteiro da noite num mundo só; o grupo no início, as vagas do Fumo fora até um encontro
 function enterStage(m: Match, now: number, rand: () => number) {
   const n = m.night!, map = mapOf(n);
-  Object.assign(n, { fight: null, wave: 0, boss: undefined, orphan: undefined, queue: undefined }); // orphan: a time of the old world's clock
+  Object.assign(n, { fight: null, wave: 0, boss: undefined, orphan: undefined, queue: undefined, opened: undefined }); // orphan: a time of the old world's clock; opened: chest indexes belong to the old map
   for (const p of m.players) if (!p.servo) p.team = 0; // quem entrou no meio da noite também é Aceso
   // quem assiste não ganha mago (como nos outros modos)
   const ids = playing(m).map((p) => p.id);
   const teams = Object.fromEntries(playing(m).map((p) => [p.id, p.servo ? 1 : 0]));
   const w = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), 0, rand, false, teams, { runes: false, sudden: false, chests: false });
   // arenaR pequeno: os bots usam frações dele como folga das paredes
-  Object.assign(w, { map: terrainOf(map), arenaR: 3, isles: [], pillars: obstaclesOf(map), friendly: 'none', book: CAMPAIGN_BOOK }); // magia não pega aliado (Lucas, 20/10)
+  Object.assign(w, { map: terrainOf(map), arenaR: 3, isles: [], pillars: obstaclesOf(map) }); // allied spells push without damage, as in Teams (Fernando, 24/10)
   const acesos = w.wizards.filter((z) => z.team === 0);
   acesos.forEach((z, i) => (z.pos = around(w.map!.home, i, acesos.length)));
   for (const z of w.wizards) if (z.team === 1) Object.assign(z, { alive: false, hp: 0, pos: v(-50, -50) }); // fora do mapa até a primeira onda
@@ -945,9 +945,32 @@ function nightCardsDue(m: Match, w: World, rand: () => number) {
     if (!(n.owed?.[z.id] ?? 0)) continue;
     const cards = nightCards(p, rand);
     if (cards.length) (n.offer ??= {})[z.id] = cards;
-    else n.owed![z.id] = 0; // nothing left to learn or raise
+    else if (n.owed) n.owed[z.id] = 0; // nothing left to learn or raise
   }
 }
+// the Sanctuary candle heals the standing Acesos around it (not the fallen: an ember still needs an ally)
+function candle(w: World, map: NightMap) {
+  for (const c of map.marks.filter((q) => q.kind === 'candle')) {
+    const at = center(c.x, c.y);
+    for (const z of w.wizards) if (z.alive && z.team === 0 && dist(z.pos, at) <= CANDLE.r) z.hp = Math.min(z.hpMax, z.hp + CANDLE.regen * DT);
+  }
+}
+
+// a standing Aceso touching an unopened chest opens it and owes himself one more card (drawn when no encounter is open);
+// wizards are checked in world order, so two touching it in the same step always give it to the same one
+function openChests(m: Match, w: World, map: NightMap) {
+  const n = m.night!;
+  map.marks.filter((q) => q.kind === 'chest').forEach((c, k) => {
+    if (n.opened?.includes(k)) return;
+    const at = center(c.x, c.y);
+    const z = w.wizards.find((q) => q.alive && q.team === 0 && dist(q.pos, at) <= CHEST_REACH);
+    if (!z) return;
+    (n.opened ??= []).push(k);
+    (n.owed ??= {})[z.id] = (n.owed[z.id] ?? 0) + 1;
+    w.events.push({ k: 'relic', id: z.id, x: at.x, y: at.y });
+  });
+}
+
 // levels gained since the last cleared room become picks owed (got: levels already turned into picks)
 function grantLevels(m: Match, w: World) {
   const n = m.night!;
@@ -965,8 +988,8 @@ export function nightPick(m: Match, id: string, i: number): boolean {
   const z = m.world?.wizards.find((q) => q.id === id);
   if (!n || !p || !card || n.fight !== null || m.phase !== 'playing' || !applyCard(p, card)) return false;
   if (z) z.spells[card.id as SpellId] = p.spells[card.id as SpellId]; // the wizard on the map learns it now
-  delete n.offer![id];
-  n.owed![id]--;
+  if (n.offer) delete n.offer[id];
+  if (n.owed?.[id]) n.owed[id]--; // never below 0, even if an offer outlived its debt
   return true;
 }
 
@@ -974,11 +997,12 @@ export function nightPick(m: Match, id: string, i: number): boolean {
 // sem lápide de pé, não sobra nenhuma para rachar
 function crack(m: Match, w: World, map: NightMap, i: number) {
   const n = m.night!, t = fight(n, map, i).tombs;
-  const max = t && nightCount(t.max, acesosOf(w)); // more Acesos, more tombstones crack (same scale as the waves)
-  if (!t || n.cracked >= max! || w.t < n.since + t.every * (n.cracked + 1)) return;
+  if (!t) return;
+  const max = nightCount(t.max, acesosOf(w)); // more Acesos, more tombstones crack (same scale as the waves)
+  if (n.cracked >= max || w.t < n.since + t.every * (n.cracked + 1)) return;
   const tombs = map.marks.filter((q) => q.room === i && q.kind === 'statue').map((q) => v(q.x + (q.w ?? 1) / 2, q.y + (q.h ?? 1) / 2));
   const standing = w.pillars.map((q, k) => ({ q, k })).filter(({ q }) => q.alive && tombs.some((s) => dist(s, q.pos) < 0.01));
-  if (!standing.length) return void (n.cracked = max!);
+  if (!standing.length) return void (n.cracked = max);
   const slot = m.players.find((p) => p.servo && !w.wizards.find((z) => z.id === p.id)?.alive);
   if (!slot) return; // sem vaga: racha quando um servo cair
   const { q, k } = standing[Math.floor(nightRand(n.seed, n.stage, 1000 + i * 16 + n.cracked)() * standing.length)];
@@ -1077,6 +1101,8 @@ function stepNight(m: Match, now: number, w: World, rand: () => number) {
   const n = m.night!, map = mapOf(n);
   stepEmbers(m, w, map);
   nightXp(m, w);
+  candle(w, map);
+  openChests(m, w, map);
   if (!w.wizards.some((z) => z.alive && z.team === 0)) {
     n.result = 'lost';
     return endRound(m, now, null);
@@ -1095,7 +1121,7 @@ function stepNight(m: Match, now: number, w: World, rand: () => number) {
     if (w.wizards.some((z) => z.alive && z.team === 1) || n.queue?.length) return;
     const f = fight(n, map, n.fight);
     if (n.wave + 1 < f.waves.length) return sendWave(m, w, f.waves[++n.wave], spawnsOf(map, n.fight));
-    if (f.tombs && n.cracked < nightCount(f.tombs.max, acesosOf(w))) return; // ainda vai rachar lápide: o encontro continua
+    if (f.tombs && n.cracked < nightCount(f.tombs.max, acesosOf(w))) return; // a tombstone will still crack: the encounter goes on
     n.done.push(n.fight);
     w.lock = undefined;
     if (isBoss(map, n.fight)) {
@@ -1212,7 +1238,7 @@ function watchStyle(m: Match, w: World, all: Cmd[]) {
     const p = self(id);
     if (!p || w.t - th.at > 1) continue;
     // fora da linha do tiro (do meteoro: fora do raio)
-    const out = (to: Vec) => th.p.kind === 'meteor' ? dist(to, th.p.pos) >= spellLevel('meteor', th.p.level, w.book).radius + WIZ_R
+    const out = (to: Vec) => th.p.kind === 'meteor' ? dist(to, th.p.pos) >= spellLevel('meteor', th.p.level).radius + WIZ_R
       : Math.abs((to.x - th.p.pos.x) * th.p.vel.y - (to.y - th.p.pos.y) * th.p.vel.x) / Math.max(1e-6, len(th.p.vel)) > WIZ_R + PROJ_R + 0.25;
     const cast = w.events.find((e) => e.k === 'cast' && e.id === id && DEFENSE.includes(e.spell));
     if (!th.reacted && (cast || all.some((c) => c.id === id && c.kind === 'move' && out(c.to)))) {

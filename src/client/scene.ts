@@ -27,7 +27,8 @@ import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
 import { add, clampLen, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
-import { nightProps } from './night-decor.ts';
+import { cellHash, nightProps } from './night-decor.ts';
+import { CANDLE } from '../shared/campaign.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
 import { BLINDNESS, LIGHTNING, SPELLS } from '../shared/spells.ts';
@@ -641,12 +642,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   let curMap: NightMap | null = null;
   const lavaAt = (p: Vec, pad = 0) => (curMap ? curMap.ground[Math.floor(p.y)]?.[Math.floor(p.x)] === 'lava' : inLavaAt(shownArena, shownR, shownIsles, p, pad));
   let cpMarks: { room: number; mat: THREE.MeshBasicMaterial }[] = [];
+  // exploration fog (minimap.ts): one dark lid per room, above the walls, that fades once the group has seen the room
+  let fogs: THREE.Mesh[] = [];
+  const fogMat = new THREE.MeshBasicMaterial({ color: '#07080b', transparent: true, depthWrite: false });
   function buildMap(n: NightMap) {
     for (const c of [...mapGroup.children]) {
       mapGroup.remove(c);
-      if (c instanceof THREE.Mesh) c.geometry.dispose();
+      if (c instanceof THREE.Mesh && !c.userData.shared) c.geometry.dispose();
+      if (c instanceof THREE.InstancedMesh) c.dispose(); // the per-instance matrix buffer, one per mesh and night
     }
     for (const c of cpMarks) c.mat.dispose();
+    for (const f of fogs) (f.material as THREE.Material).dispose();
     const at = (test: (g: string, x: number, y: number) => boolean) => n.ground.flatMap((row, y) => row.flatMap((g, x) => (test(g, x, y) ? [[x, y] as const] : [])));
     const inst = (geo: THREE.BufferGeometry, mat: THREE.Material, cells: (readonly [number, number])[], y: number, cast = false) => {
       const m = new THREE.InstancedMesh(geo, mat, Math.max(1, cells.length));
@@ -660,14 +666,46 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.receiveShadow = true;
       m.castShadow = cast;
       mapGroup.add(m);
+      return m;
     };
     const wall = (x: number, y: number) => (n.ground[y]?.[x] ?? 'wall') === 'wall';
+    const shell = at((g, x, y) => g === 'wall' && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => !wall(x + dx, y + dy)));
+    const floor = at((g) => g !== 'wall' && g !== 'pit' && g !== 'lava');
     // da parede só a casca (casas de parede encostadas em algo que não é parede): o miolo nunca aparece
-    inst(new THREE.BoxGeometry(1, 0.1, 1), mapMats.floor, at((g) => g !== 'wall' && g !== 'pit' && g !== 'lava'), -0.05);
+    const floorBox = inst(new THREE.BoxGeometry(1, 0.1, 1), mapMats.floor, floor, -0.05);
     inst(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mapMats.wax, at((g) => g === 'wax'), 0.01);
     inst(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mapMats.lava, at((g) => g === 'lava'), -0.12);
     // 1 m de altura: a câmera olha do sul e uma parede mais alta esconderia quem está logo atrás dela
-    inst(new THREE.BoxGeometry(1, 1, 1), mapMats.wall, at((g, x, y) => g === 'wall' && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => !wall(x + dx, y + dy))), 0.5, true);
+    const wallBox = inst(new THREE.BoxGeometry(1, 1, 1), mapMats.wall, shell, 0.5, true);
+    // KayKit textures (Lucas, 25/10): dungeon floor tiles and brick blocks replace the plain boxes once the Charneca GLB loads
+    // (the boxes stay as the fallback). Models are 2 KayKit units wide: half scale fills a 1 m cell. The tile kind comes from
+    // the cell, so every player sees the same floor; most of the moor is dirt, with old paving and broken slabs
+    const key = mapKey;
+    const kinds = ['floor_dirt_small_A', 'floor_dirt_small_A', 'floor_tile_small', 'floor_tile_small_broken_A'];
+    const cellKind = ([x, y]: readonly [number, number]) => kinds[cellHash(x, y) % kinds.length];
+    void Promise.all([...new Set(kinds), 'bricks_A'].map((k) => decor.nightMesh(k).then((m) => [k, m] as const))).then((pairs) => {
+      if (mapKey !== key || pairs.some(([, m]) => !m)) return; // another map came in, or the GLB failed: keep the boxes
+      const mesh = new Map(pairs);
+      const tiled = (name: string, cells: (readonly [number, number])[], y: number, cast: boolean) => {
+        const src = mesh.get(name)!;
+        const m = inst(src.geometry, src.material as THREE.Material, cells, y, cast);
+        m.userData.shared = true; // the GLB owns the geometry: buildMap must not dispose it
+        const o = new THREE.Object3D();
+        cells.forEach(([x, z], i) => {
+          o.position.set(x + 0.5, y, z + 0.5);
+          o.scale.setScalar(0.5);
+          o.updateMatrix();
+          m.setMatrixAt(i, o.matrix);
+        });
+      };
+      for (const k of new Set(kinds)) tiled(k, floor.filter((c) => cellKind(c) === k), -0.025, false);
+      tiled('bricks_A', shell, 0.5, true);
+      for (const box of [floorBox, wallBox]) {
+        mapGroup.remove(box);
+        box.geometry.dispose();
+        box.dispose();
+      }
+    });
     inst(new THREE.BoxGeometry(1, 0.5, 1), mapMats.low, at((g) => g === 'low'), 0.25, true);
     cpMarks = n.marks.filter((m) => m.kind === 'checkpoint').map((m) => {
       const mat = new THREE.MeshBasicMaterial({ map: FX.circle, color: '#5dff9a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -677,6 +715,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       mapGroup.add(ring);
       return { room: m.room, mat };
     });
+    fogs = n.rooms.map((p) => {
+      const lid = ground(new THREE.Mesh(new THREE.PlaneGeometry(p.room.w, p.room.h), fogMat.clone()), 1.4); // 1.4 m: over the 1 m walls
+      lid.position.x = p.x + p.room.w / 2;
+      lid.position.z = p.y + p.room.h / 2;
+      lid.renderOrder = 2;
+      mapGroup.add(lid);
+      return lid;
+    });
+    // Sanctuary candle: a golden circle the size of its healing area (room -1: never 'done', so it keeps pulsing)
+    for (const m of n.marks.filter((q) => q.kind === 'candle')) {
+      const mat = new THREE.MeshBasicMaterial({ map: FX.circle, color: '#ffc861', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+      const ring = ground(new THREE.Mesh(new THREE.PlaneGeometry(2 * CANDLE.r, 2 * CANDLE.r), mat), 0.03);
+      ring.position.x = m.x + 0.5;
+      ring.position.z = m.y + 0.5;
+      mapGroup.add(ring);
+      cpMarks.push({ room: -1, mat });
+    }
   }
 
   // geometrias de efeito compartilhadas: criar uma por efeito vazava memória de vídeo
@@ -2279,7 +2334,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[] } | null }) {
+    render(state: { blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[]; seen: number[] } | null }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
@@ -2293,10 +2348,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         mapKey = state.map.key;
         buildMap(state.map.night);
       }
-      decor.night(state.map ? mapKey : '', () => (state.map ? nightProps(state.map.night) : null)); // same key: nothing to do
+      decor.night(state.map ? `${mapKey}|${state.map.opened.join()}` : '', () => (state.map ? nightProps(state.map.night, state.map.opened) : null)); // same key: nothing to do; an opened chest rebuilds the props (twice a night)
       mapGroup.visible = voidPlane.visible = onMap;
       lava.visible = arena.visible = warn.visible = !onMap;
       for (const c of cpMarks) c.mat.opacity = state.map?.done.includes(c.room) ? 0.15 : 0.55 + 0.35 * Math.sin(now * 3);
+      fogs.forEach((f, i) => {
+        const mat = f.material as THREE.MeshBasicMaterial, goal = state.map?.seen.includes(i) ? 0 : 0.97;
+        mat.opacity += (goal - mat.opacity) * 0.08; // about half a second to lift
+        f.visible = mat.opacity > 0.01;
+      });
 
       // arena nova (sorteada a cada rodada): troca o chão e a borda
       if (state.arena !== shownArena) {

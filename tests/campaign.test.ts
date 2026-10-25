@@ -27,7 +27,7 @@ const step = (m: Match, now: number, n = 1) => {
   for (let i = 0; i < n; i++) tickMatch(m, (now += STEP_MS), [], () => 0.5);
   return now;
 };
-// center of room i's checkpoint (between the "C" and the number)
+// center of the checkpoint of room i (between the "C" and the number)
 const checkpoint = (n: NightMap, i: number) => {
   const c = n.marks.find((q) => q.room === i && q.kind === 'checkpoint')!;
   return v(c.x + 1, c.y + 0.5);
@@ -37,14 +37,14 @@ const inside = (n: NightMap, i: number, p: { x: number; y: number }) => {
   return p.x > r.x && p.y > r.y && p.x < r.x + r.room.w && p.y < r.y + r.room.h;
 };
 const bossRoom = (n: NightMap) => n.rooms.findIndex((r) => r.room.pool === 'chefe');
-// takes the human to the checkpoint and waits for the step in which the encounter opens
+// moves the human to the point and waits for the step where the encounter opens
 function stepOn(m: Match, now: number, id: string, at: { x: number; y: number }): number {
   wiz(m, id).pos = v(at.x, at.y);
   return step(m, now);
 }
-// knocks down directly instead of walking into the lava, credited to `by` (dies on the next step)
+// no lava on the map: knocks down directly, crediting `by` (dies on the next step)
 const kill = (m: Match, id: string, by: string | null) => Object.assign(wiz(m, id), { hp: -1, lastHitBy: by, lastHitAt: m.world!.t });
-// knocks down every living servant (credit to the first human; without the 2 s of invulnerability of those who just entered)
+// knocks down every living servant (credit to the first human; skips the 2 s invulnerability of whoever just entered)
 function clearWave(m: Match, now: number): number {
   for (const z of foes(m)) if (z.alive) {
     z.invulnUntil = 0;
@@ -65,7 +65,7 @@ function nightWith(id: string, humans = ['a']): { m: Match; i: number } {
     if (i >= 0) return { m, i };
   }
 }
-// humans invulnerable while the test runs (the servants shoot)
+// humans stay invulnerable while the test advances (the servants shoot)
 const shelter = (m: Match) => {
   for (const z of m.world!.wizards) if (z.team === 0) z.invulnUntil = 1e9;
 };
@@ -112,8 +112,7 @@ describe('Campaign: match on the map', () => {
     const start = n.marks.find((q) => q.kind === 'start')!;
     for (const id of ['a', 'b']) expect(dist(wiz(m, id).pos, v(start.x + 0.5, start.y + 0.5))).toBeLessThan(1.5);
     expect(foes(m).some((z) => z.alive)).toBe(false);
-    expect(w.pillars.length).toBeGreaterThan(0); // trees, statues and rubble from the design
-    expect(w.friendly).toBe('none'); // spells never hit allies (not even among the servants)
+    expect(w.pillars.length).toBeGreaterThan(0); // trees, statues and debris from the layout
     now = step(m, now, 60 * 20);
     expect(m.world!.arenaR).toBe(3);
     expect(m.phase).toBe('playing');
@@ -390,7 +389,7 @@ describe('Campaign: match on the map', () => {
   it('room shows the seed, the open fight and its waves, and the max health of the servants', () => {
     const m = night();
     let now = toPlaying(m, 0);
-    expect(publicRoom('ABCD', m, 0).night).toEqual({ stage: 0, seed: m.night!.seed, fight: null, wave: 0, waves: 0, done: [], result: null });
+    expect(publicRoom('ABCD', m, 0).night).toEqual({ stage: 0, seed: m.night!.seed, fight: null, wave: 0, waves: 0, done: [], result: null, opened: [] });
     now = stepOn(m, now, 'a', checkpoint(mapOf(m), 0));
     const room = publicRoom('ABCD', m, 0);
     expect(room.night).toMatchObject({ fight: 0, wave: 0, waves: fightIn(m, 0).waves.length });
@@ -438,7 +437,7 @@ describe('Campaign: screen', () => {
   });
 
   it('night line says the stage and, during an encounter, the wave', () => {
-    const n = { stage: 0, seed: 1, fight: null, wave: 0, waves: 0, done: [], result: null };
+    const n = { stage: 0, seed: 1, fight: null, wave: 0, waves: 0, done: [], result: null, opened: [] };
     expect(nightLine(n, true)).toBe('Campanha · Charneca Cinzenta');
     expect(nightLine({ ...n, fight: 2, waves: 3 }, true)).toBe('Campanha · Charneca Cinzenta · encontro · onda 1 de 3');
     expect(nightLine({ ...n, fight: 2, waves: 3 }, false)).toBe('Campanha · Charneca Cinzenta');

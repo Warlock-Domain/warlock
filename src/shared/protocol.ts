@@ -83,7 +83,7 @@ export type PublicRoom = {
   sandbox?: Sandbox; // só nas salas sandbox: as regras ligadas
   // só na Campanha: semente (o navegador monta o mesmo mapa), sala do encontro aberto e a onda dele (contando de 0), salas com
   // o encontro vencido e como a noite acabou
-  night?: { stage: number; seed: number; fight: number | null; wave: number; waves: number; done: number[]; result: Night['result'] };
+  night?: { stage: number; seed: number; fight: number | null; wave: number; waves: number; done: number[]; result: Night['result']; opened: number[] }; // opened: chests already opened
   lobby?: AscLobby; // só na sala do Ascensão: dono (id público) e os bots e opções que ele escolheu
 };
 
@@ -344,5 +344,5 @@ function nightLv(n: Night, id: string): NonNullable<PublicPlayer['lv']> {
 
 function publicNight(n: Night): NonNullable<PublicRoom['night']> {
   const waves = n.fight === null ? 0 : fightOf(nightMap(n.seed, n.stage), n.fight, n.seed, n.stage).waves.length;
-  return { stage: n.stage, seed: n.seed, fight: n.fight, wave: n.wave, waves, done: n.done, result: n.result };
+  return { stage: n.stage, seed: n.seed, fight: n.fight, wave: n.wave, waves, done: n.done, result: n.result, opened: n.opened ?? [] };
 }
