@@ -4,8 +4,9 @@ import { el } from './icons.ts';
 
 // Skeleton page (step 1 of issue #366): proves the page, the worker route and the storage round-trip.
 const list = el('ul');
-const input = el('input', { maxlength: FORUM_NOTE_MAX, placeholder: t('Registro de teste', 'Test record') });
-const status = el('p');
+const label = t('Registro de teste', 'Test record');
+const input = el('input', { maxlength: FORUM_NOTE_MAX, placeholder: label, 'aria-label': label });
+const status = el('p', { role: 'status' });
 
 async function refresh() {
   try {
@@ -13,14 +14,16 @@ async function refresh() {
     list.replaceChildren(...notes.map((n) => el('li', {}, n.text)));
     status.textContent = '';
   } catch {
-    status.textContent = t('Não foi possível carregar.', 'Could not load.');
+    status.textContent = t('Não foi possível carregar o fórum. Recarregue a página.', 'Could not load the forum. Reload the page.');
   }
 }
 
 async function send(e: Event) {
   e.preventDefault();
   const res = await fetch('/api/forum', { method: 'POST', body: JSON.stringify({ text: input.value }) }).catch(() => null);
-  status.textContent = res?.ok ? '' : t('Registro recusado.', 'Record rejected.');
+  status.textContent = res?.ok
+    ? ''
+    : t(`Não foi possível gravar. Escreva de 1 a ${FORUM_NOTE_MAX} caracteres e tente de novo.`, `Could not save. Write 1 to ${FORUM_NOTE_MAX} characters and try again.`);
   if (!res?.ok) return;
   input.value = '';
   await refresh();
