@@ -1399,7 +1399,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   Promise.all(['A', 'B', 'C', 'D', 'E'].map((k) => gltf.loadAsync(`/models/hex/rock_single_${k}.gltf`))).then((gs) => {
     let mat: THREE.Mesh['material'] | undefined;
     for (const g of gs) {
-      g.scene.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = mat ??= (o as THREE.Mesh).material; });
+      g.scene.traverse((o) => { if (o instanceof THREE.Mesh) o.material = mat ??= o.material; });
       rockModels.push(g.scene);
     }
   }).catch(() => {});
