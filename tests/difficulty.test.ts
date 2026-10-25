@@ -5,7 +5,7 @@ import { DT } from '../src/shared/constants.ts';
 import { noItems } from '../src/shared/items.ts';
 import { addPlayer, botSkill, newMatch, parseOpt, startMatch } from '../src/shared/match.ts';
 import { newWorld, stepWorld, type Cmd, type World } from '../src/shared/sim.ts';
-import { noSpells, type SpellId } from '../src/shared/spells.ts';
+import { FREE_SPELLS, SPELL_IDS, noSpells, type SpellId } from '../src/shared/spells.ts';
 import { dist, v, type Vec } from '../src/shared/vec.ts';
 
 function seeded(seed: number) {
@@ -285,6 +285,12 @@ describe('dificuldade dos bots', () => {
     botConfig.planner = () => ({ buys: [], upgrade: 'lowest' });
     expect(first(BOT_SKILL.hard).buys).toEqual([]);
     botConfig.planner = null;
+  });
+
+  it('compras: o plano do Normal e do Difícil chega a toda magia comprável (issue #373)', () => {
+    const rand = seeded(9);
+    const planned = new Set(Array.from({ length: 400 }, () => smartPlan(rand).buys.flatMap((b) => (b.kind === 'spell' ? [b.id] : []))).flat());
+    for (const id of SPELL_IDS.filter((s) => !FREE_SPELLS.includes(s))) expect(planned.has(id), id).toBe(true);
   });
 
   it('procura: em ilhas opostas, os dois se encontram em até 25 s, pela ponte e desviando dos obstáculos, sem pisar na lava nem ficar parado > 2 s', () => {

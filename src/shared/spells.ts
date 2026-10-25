@@ -15,7 +15,7 @@ export const SPELL_GROUP_IDS = {
   control: ['grip', 'gravity', 'link', 'magnetize', 'drain', 'cluster'],
   support: ['heal', 'geyser'],
 } as const satisfies Record<string, readonly SpellId[]>;
-export type SpellGroup = keyof typeof SPELL_GROUP_IDS;
+type SpellGroup = keyof typeof SPELL_GROUP_IDS;
 export const SHIELD = { statusDuration: .6, knock: .6 }; // proposta: reduz novos status/impulsos em40%, nunca recalcula os anteriores.
 // Servidor e entrada do cliente usam a mesma classificação de mobilidade para o agarramento.
 export const castBlocked = (stunned: boolean, rooted: boolean, spell: SpellId) => stunned || (rooted && spellGroup(spell) === 'mobility');

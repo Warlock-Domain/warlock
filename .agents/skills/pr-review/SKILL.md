@@ -32,6 +32,8 @@ For player-facing client changes, verify localization explicitly: route every vi
 
 English is the repository default for commits, code comments, PR titles and descriptions, and new documentation. In the reviewed code scope, require new and edited comments to be in English; translate relevant legacy Portuguese comments when changing their code and preserve their rationale. Leave unrelated comments untouched. Existing documentation translation is scheduled after all currently open PRs merge; do not expand a PR into that repository-wide task.
 
+For every test file changed by the PR, require all suite/test names (`describe`, `it`, `test`) and explanatory comments throughout that file to be in English, including legacy names and comments outside the edited tests. Keep localized fixtures and expected UI strings in the language required by each test. Flag mixed-language test names as a repository-convention finding.
+
 Assess the design in the context of this codebase:
 
 - Does it reuse established helpers and patterns, or duplicate behavior that already exists?

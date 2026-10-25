@@ -2,9 +2,9 @@
 
 Vale junto com o `CLAUDE.md` da raiz.
 
-- **Um arquivo por assunto** (`deathmatch.test.ts`, `new-spells.test.ts`). `describe` em português; nos `it`, siga o idioma dos vizinhos do arquivo.
+- **One file per subject** (`deathmatch.test.ts`, `new-spells.test.ts`). Whenever a test file is edited, translate all suite/test names (`describe`, `it`, `test`) and explanatory comments in that file to English, including legacy names and comments outside the edited tests.
 - **Helpers em `tests/helpers.ts`:** `until` (avança a partida por passos), `toPlaying` (todos prontos até `playing`), `kill` (morte por lava com crédito), `world(posições, magias, itens?, rand?)` (mundo pronto, sem invulnerabilidade inicial), `run(w, segundos, cmds?)`. Atalhos de um arquivo só ficam no próprio arquivo (`twoPlayers` em `match.test.ts`).
-- `tests/setup.ts` fixa o idioma em português: os testes conferem texto em português.
+- `tests/setup.ts` defaults to Portuguese. Keep localized fixtures and expected UI strings in the language required by each test; English test names do not change those assertions.
 - **Determinismo:** `style.test.ts` roda uma partida de bots com semente 7 por 4000 passos e compara o hash dos eventos. Hash mudou = jogabilidade mudou; regrave só se foi de propósito e explique no PR.
 - **`balance-summary.test.ts`:** cobre a validação de resumos JSON e a junção das medições pelo simulador; a lógica pura fica em `scripts/balance-summary.ts`.
 - **Semente:** passe `rand` explícito (`seeded(s)`, `() => 0.5`) ou use `seedRandom`. Posição com `toBeCloseTo`, contagem e fase com `toBe`; em laço, mensagem no segundo argumento do `expect` (`expect(x, id)`).
