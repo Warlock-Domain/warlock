@@ -12,6 +12,7 @@ import { CANDLE, SERVOS, nightXpAt } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
 import { itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
+import { channelPower } from '../shared/channeling.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
 import { LOOK_EVENT, saveLook, savedLook } from './avatar.ts';
@@ -413,9 +414,9 @@ function startRoom(code: string, name: string) {
 
   let channelRequest: { spell: SpellId; since: number; seq: number } | null = null;
   const input = createInput(canvas, {
-    canChannel: () => (room?.players.find(p => p.id === me)?.spells.channel ?? 0) > 0,
+    canChannel: () => (room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0,
     channel(spell) {
-      const mine = room?.players.find(p => p.id === me);
+      const mine = room?.players.find((p) => p.id === me);
       const self = myWizard(interp.latest());
       if (performance.now() < scourgeUntil || !mine?.spells.channel || !mine.spells[spell] || !self?.alive || self.geyserLeft || castBlocked(!!(self.status & 16), !!(self.status & 128), spell) || (lastSnap?.cd[SPELL_IDS.indexOf(spell)] ?? 0) > .01) return false;
       command({ t: 'channel', spell });
@@ -444,7 +445,7 @@ function startRoom(code: string, name: string) {
     attackArmedChanged: (on) => { canvas.style.cursor = on ? 'crosshair' : ''; },
     meleeArc: () => !!room?.players.find((p) => p.id === me)?.arc,
     basic(at, clicked) {
-      if ((room?.players.find(p => p.id === me)?.spells.channel ?? 0) > 0) return toast(t('Canalização substitui Atacar: use Atacar + tecla da magia.', 'Channeling replaces Attack: use Attack + a spell key.'));
+      if ((room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0) return toast(t('Canalização substitui Atacar: use Atacar + tecla da magia.', 'Channeling replaces Attack: use Attack + a spell key.'));
       if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       if ((myWizard(interp.latest())?.status ?? 0) & 16) return;
       const target = clicked?.endsWith('~ilusao') ? interp.latest()?.projectiles.find((q) => q.kind === 'illusion' && room?.ids[q.vel.x] === clicked.slice(0, -7))?.id : clicked;
@@ -475,7 +476,7 @@ function startRoom(code: string, name: string) {
       if (spell === 'heal') {
         const units = interp.latest()?.wizards.map(w => ({ ...w, team: room?.players.find(p => p.id === w.id)?.team })) ?? [];
         const self = units.find(w => w.id === me);
-        const target = self && healTarget(units, self, at, SPELLS.heal.levels[mine.spells.heal - 1].range * (1 + itemStats(mine.items).range) * (channelRequest?.spell === spell ? 1 + Math.min(2, myWizard(interp.latest())?.channelElapsed ?? 0)/2 : 1));
+        const target = self && healTarget(units, self, at, SPELLS.heal.levels[mine.spells.heal - 1].range * (1 + itemStats(mine.items).range));
         if (!target) return toast(t('Selecione você ou um aliado vivo dentro do alcance.', 'Target yourself or a living ally within range.'));
         at = target.pos;
       }
@@ -847,7 +848,7 @@ function startRoom(code: string, name: string) {
       const cue = closedBodySound(lastSnap?.cb?.[i], m.cb?.[i]);
       if (cue && !(m.w[i * 7 + 6] & 2048)) sound.play(cue, volumeOf(id));
     });
-    const ownIndex=room?.ids.indexOf(me) ?? -1;
+    const ownIndex = room?.ids.indexOf(me) ?? -1;
     if (channelRequest && m.ack >= channelRequest.seq && !(m.cn && m.cn[ownIndex*2] >= 0)) { channelRequest = null; input.setChannelState(false); }
     lastSnap = m;
     predict.setSpeed(m.sp);
@@ -1019,7 +1020,7 @@ function startRoom(code: string, name: string) {
     view.minimap(nm && playing ? { map: nm, seen, done: room!.night!.done, fight: room!.night!.fight, dots: drawWiz.filter((d) => d.alive && !d.illusion).map((d) => ({ pos: d.pos, me: d.id === me, foe: d.team === 1 })) } : null);
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
-    const channelBoost = showing && meW?.channelSpell === showing && meW.channelElapsed !== undefined ? 1 + Math.min(2,meW.channelElapsed)/2 : 1;
+    const channelBoost = showing && meW?.channelSpell === showing && meW.channelElapsed !== undefined ? channelPower(meW.channelElapsed) || 1 : 1;
     const reach = showing && meP ? reachOf(showing, meP.spells, meP.items, channelBoost) : 0;
     // mira de verdade (tecla segurada no Segurar, magia escolhida ou controle): faixa de acerto e explosão rumo ao cursor ou retículo.
     // No Rápido a tecla é o piscar depois de lançar: a faixa fica parada onde a magia saiu (flashAim), e o mouse na barra não aponta

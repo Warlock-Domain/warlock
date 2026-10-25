@@ -10,12 +10,12 @@ export function createAttackClip(source: AnimationClip): AnimationClip {
   return clip;
 }
 
-export function playAnimation(m: {current:string;actions:Record<string,AnimationAction>},name:string,fade=.15) {
-  if(m.current===name || !m.actions[name]) return;
-  const previous=m.actions[m.current];
+export function playAnimation(m: { current: string; actions: Record<string, AnimationAction> }, name: string, fade = 0.15) {
+  if (m.current === name || !m.actions[name]) return;
+  const previous = m.actions[m.current];
   // A held pose must not keep blending into the walking skeleton.
-  if(m.current==='Attack_Invoke' && previous?.paused) previous.stop();
+  if (m.current === 'Attack_Invoke' && previous?.paused) previous.stop();
   else previous?.fadeOut(fade);
   m.actions[name].reset().fadeIn(fade).play();
-  m.current=name;
+  m.current = name;
 }

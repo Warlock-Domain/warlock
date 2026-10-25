@@ -414,7 +414,7 @@ export const bootsBonus = (w: World, wz: Wizard) =>
 export type MovementState = Pick<Wizard, 'pos' | 'vel' | 'target' | 'facing' | 'speed' | 'safe' | 'stunLeft' | 'recoveryLeft' | 'geyserLeft' | 'geyserAt' | 'channel'>;
 
 export function moveWizard(wz: MovementState, dt: number) {
-  if(wz.channel) wz.target=null;
+  if (wz.channel) wz.target = null;
   if (isSuspended(wz)) {
     wz.target = null; wz.vel = v(0, 0);
     if (wz.geyserAt) wz.pos = { ...wz.geyserAt };
@@ -932,7 +932,7 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number)
     wz.rushPower = power;
     wz.rushBonus = RUSH.bonus;
     wz.dashUntil = w.t + RUSH.dashTime - DT / 2; // meio passo de folga: o arredondamento daria um passo a mais
-    wz.dashVel = scale(dir, RUSH.dash * power / RUSH.dashTime);
+    wz.dashVel = scale(dir, RUSH.dash / RUSH.dashTime);
     wz.dashHit = [];
     wz.target = null;
   } else if (spell === 'boomerang') {
@@ -1027,7 +1027,7 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   }
   if (!wz.spells[spell] || w.t < wz.cd[spell]) return;
   // An invalid target neither reveals the wizard nor cancels another action.
-  if (spell === 'heal' && !healTarget(w.wizards, wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF * (wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1))) return;
+  if (spell === 'heal' && !healTarget(w.wizards, wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF)) return;
   let power = 1;
   if (wz.channel?.spell === spell) {
     power = channelPower(w.t - wz.channel.since);
@@ -1717,7 +1717,7 @@ function stepProjectiles(w: World) {
       if (spawnShards(w, p, dt)) keep.push(p);
       continue;
     }
-    const L = channelLevel(p.stats ?? spellLevel(spellOf(p.kind), p.level),p.power);
+    const L = channelLevel(p.stats ?? spellLevel(spellOf(p.kind), p.level), p.power);
     if (!steer(w, p, L, dt)) continue;
     // a Troca anda só o que falta no último passo, para parar exatamente no ponto da mira (até - agora = tempo de voo que falta)
     const next = add(p.pos, scale(p.vel, p.kind === 'swap' ? Math.min(dt, Math.max(0, p.until - w.t - DT + dt)) : dt));
@@ -2198,7 +2198,7 @@ function moveAll(w: World): Set<Wizard> {
       for (const o of w.wizards) {
         if (!o.alive || o === wz || wz.dashHit.includes(o.id) || dist(o.pos, wz.pos) > bodyR(wz) + bodyR(o) + 0.1) continue;
         wz.dashHit.push(o.id);
-        const dmg = (wz.dashDmg ?? RUSH.dashDmg)*(wz.rushPower ?? 1);
+        const dmg = (wz.dashDmg ?? RUSH.dashDmg) * (wz.rushPower ?? 1);
         hit(w, o, wz.id, dmg, dmg * KB_PER_DMG, wz.dashVel, 'rush');
         w.events.push({ k: 'land', id: wz.id, src: 'rush' });
       }
@@ -2206,7 +2206,7 @@ function moveAll(w: World): Set<Wizard> {
         const key = `copy:${q.id}`;
         if (wz.dashHit.includes(key) || dist(q.pos, wz.pos) > 2 * WIZ_R + .1) continue;
         wz.dashHit.push(key);
-        pushDecoy(q, scale(norm(wz.dashVel), ((wz.dashDmg ?? RUSH.dashDmg)*(wz.rushPower ?? 1)) * KB_PER_DMG), (wz.dashDmg ?? RUSH.dashDmg)*(wz.rushPower ?? 1)); // same dash damage as the real-body branch (boss dashes too)
+        pushDecoy(q, scale(norm(wz.dashVel), (wz.dashDmg ?? RUSH.dashDmg) * (wz.rushPower ?? 1) * KB_PER_DMG), (wz.dashDmg ?? RUSH.dashDmg) * (wz.rushPower ?? 1)); // same dash damage as the real-body branch (boss dashes too)
       }
     }
     stepThrust(w, wz);

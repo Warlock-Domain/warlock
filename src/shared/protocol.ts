@@ -235,7 +235,7 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       if (m.target !== undefined && !pubId(m.target) && !(typeof m.target === 'number' && seq(m.target))) return null;
       return { t: 'basic', x: m.x, y: m.y, seq: m.seq, ...(m.target === undefined ? {} : { target: m.target as string | number }) };
     case 'channel':
-      return isSpell(m.spell) && m.spell !== 'channel' && seq(m.seq) && Object.keys(m).every(k => ['t','spell','seq'].includes(k)) ? { t: 'channel', spell: m.spell, seq: m.seq } : null;
+      return isSpell(m.spell) && m.spell !== 'channel' && seq(m.seq) && Object.keys(m).every((k) => ['t', 'spell', 'seq'].includes(k)) ? { t: 'channel', spell: m.spell, seq: m.seq } : null;
     case 'cast':
       return isSpell(m.spell) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'cast', spell: m.spell, x: m.x, y: m.y, seq: m.seq } : null;
     case 'alt':

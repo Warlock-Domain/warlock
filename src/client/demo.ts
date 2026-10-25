@@ -8,6 +8,7 @@ import { BLINDNESS, CAST_POINT, GRIP, METEOR_DELAY, SHIELD, isSpell, noSpells, s
 import { add, scale, v, type Vec } from '../shared/vec.ts';
 import { LOCALE, spellName, t } from './i18n.ts';
 import { n1 } from './rules-text.ts';
+import { channelPower } from '../shared/channeling.ts';
 import { electroPulse } from './screen-data.ts';
 import { HEAL_FX, healAura } from './heal-fx.ts';
 import { conePoints } from '../shared/sand-cone.ts';
@@ -84,7 +85,11 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 
 // Rótulos seguem os estados reais para a prévia não sugerir que stun, prisão e postura têm o mesmo bloqueio.
 export function demoStatus(w: World, z: Wizard): string[] {
-  if (z.channel) { const elapsed = Math.min(2,w.t-z.channel.since); return [t(`canalizando ${n1(elapsed)} s · +${Math.round(elapsed*50)}% · clique para lançar`, `channeling ${n1(elapsed)} s · +${Math.round(elapsed*50)}% · click to cast`)]; }
+  if (z.channel) {
+    // below 1 s the charge is not ready (power 0): show no bonus until a click would actually fire
+    const elapsed = Math.min(2, w.t - z.channel.since), bonus = Math.round((channelPower(elapsed) - 1) * 100);
+    return [bonus >= 0 ? t(`canalizando ${n1(elapsed)} s · +${bonus}% · clique para lançar`, `channeling ${n1(elapsed)} s · +${bonus}% · click to cast`) : t(`canalizando ${n1(elapsed)} s · lança após 1 s`, `channeling ${n1(elapsed)} s · casts after 1 s`)];
+  }
   if(w.t < (z.blindUntil ?? 0)) return [t('cegueira · visão 3 m','blindness · sight 3 m'), ...(w.t < (z.incapacitateUntil ?? 0) ? [t('incapacitado · recargas pausadas','incapacitated · cooldowns paused')] : [])];
   if (w.t < (z.closedBodyUntil ?? 0) && bracingActive(w,z)) return [t('Corpo fechado · direção mantida · dano/empurrão/status −90%', 'Closed Body · facing preserved · damage/knockback/status −90%')];
   if ((z.geyserLeft ?? 0) > 0) return [t('suspenso · invulnerável · sem ações', 'suspended · invulnerable · no actions')];

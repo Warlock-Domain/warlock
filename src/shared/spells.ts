@@ -35,7 +35,7 @@ const zip = (a: number[], b: number[]) => a.map((x, i) => [x, b[i]]);
 const steps = (from: number, by: number) => Array.from({ length: MAX_SPELL_LEVEL }, (_, i) => Math.round((from + by * i) * 100) / 100);
 
 export const SPELLS: Record<SpellId, Spell> = {
-  channel: { name: 'Canalização', en: 'Channeling', cost: 12, up: [6,7,8,9,10,11], levels: steps(0,0).map(cd => L({ cd })) }, // Local prototype: identical bonuses at every level.
+  channel: { name: 'Canalização', en: 'Channeling', cost: 12, up: [], levels: steps(0, 0).map((cd) => L({ cd })) }, // single level until the owner decides a progression: no paid upgrades with no effect
   fireball: { name: 'Bola de fogo', en: 'Fireball', cost: 0, up: [7, 7, 7, 7, 7, 7], levels: [70, 77, 84, 91, 98, 105, 112].map((d) => L({ cd: 4.8, dmg: d, speed: 1000 * UNIT, range: 1000 * UNIT })) },
   lightning: { name: 'Eletrocutar', en: 'Electrocute', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 15.5, 15, 14.5, 14, 13.5, 13], [70, 78, 86, 94, 102, 110, 118]).map(([cd, d]) => L({ cd: Math.round(cd * 14) / 10, dmg: d, kbf: 0.92, range: 800 * UNIT })) /* números pelo simulador (18/10, escolha do Fernando): recarga ×1,4 (1,32 → 1,13) */ }, // balanceamento de 17/10: recarga ×0,7 e alcance 600 → 800 (acertava 21%)
   homing: { name: 'Míssil teleguiado', en: 'Homing Missile', cost: 11, up: [8, 9, 10, 11, 12, 13], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [70, 80, 90, 100, 110, 120, 130]).map(([cd, d]) => L({ cd, dmg: d * 0.34, speed: 1000 * UNIT, duration: 4.5 })) /* números pelo simulador (18/10): dano ×0,34 e curva 3 → 2,5 rad/s (1,34 → 1,13) */ },
@@ -163,10 +163,12 @@ export const CAST_POINT: Record<SpellId, number> = { fireball: 0.1, lightning: 0
   scourge: 0.5, pact: 0.1, heal: 0, geyser: 0.1, closedbody: 0, channel: 0 }; // Heal and Closed body are instant; Scourge keeps its windup; Geyser uses the common 0.1 s windup.
 
 export const spellLevel = (id: SpellId, level: number): Level => SPELLS[id].levels[Math.max(1, Math.min(MAX_SPELL_LEVEL, level)) - 1];
+// highest level a spell can reach: one more than its upgrade prices (Channeling has a single level)
+export const spellMax = (id: SpellId) => SPELLS[id].up.length + 1;
 
 // preço para subir do nível atual para o próximo; null = já no máximo
 export function priceOf(id: SpellId, level: number): number | null {
-  if (level >= MAX_SPELL_LEVEL) return null;
+  if (level >= spellMax(id)) return null;
   return level === 0 ? SPELLS[id].cost : SPELLS[id].up[level - 1];
 }
 

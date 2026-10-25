@@ -81,7 +81,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     snap.lp = w.wizards.map((z) => r2(z.lootProg / CHEST.goldEvery));
   }
   if (ab.some((x) => x > 0)) snap.ab = ab;
-  if (w.wizards.some(z => z.channel)) snap.cn = w.wizards.flatMap((z,i) => z.alive && !(wz[i*7+6] & 2048) && z.channel ? [SPELL_IDS.indexOf(z.channel.spell), r2(Math.min(2, w.t-z.channel.since))] : [-1,0]);
+  if (w.wizards.some((z) => z.channel)) snap.cn = w.wizards.flatMap((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) && z.channel ? [SPELL_IDS.indexOf(z.channel.spell), r2(Math.min(2, w.t - z.channel.since))] : [-1, 0]);
   // Campanha: brasa de cada mago (0 a 1 até reacender; −1 sem brasa ou apagada), na ordem de room.ids
   if (w.wizards.some((z) => z.ember && !z.ember.out)) snap.em = w.wizards.map((z) => (z.ember && !z.ember.out ? r2(Math.min(1, z.ember.prog / z.ember.need)) : -1));
   if (w.wizards.some((z) => closedBodyActive(w, z))) snap.cb = w.wizards.map((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) && closedBodyActive(w, z) ? r2(z.closedBodyUntil! - w.t) : 0);

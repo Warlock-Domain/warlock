@@ -19,7 +19,7 @@ export function reachOf(a: SpellId, spells: Record<SpellId, number>, items: Reco
   if (a === 'scourge') return L.radius; // Flagelo: o raio da explosão
   // sem alcance fixo, o raio do efeito: a bolha do Escudo e o avanço da Investida
   if (a === 'shield') return L.radius;
-  if (a === 'rush') return RUSH.dash * power;
+  if (a === 'rush') return RUSH.dash;
   if (L.range <= 0) return 0;
   const r = L.range * (1 + itemStats(items).range);
   return FLIES.has(a as SpellId) ? r + PROJ_SPAWN + (a === 'snowball' ? snowR(lvl) : PROJ_R) : r;

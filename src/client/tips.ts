@@ -4,7 +4,7 @@ import { BASIC_ATTACK, BRACE, DT, GUARD, MELEE_ARC, FRICTION, KB_SOFT_CAP, LAVA_
 import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { labelOf, uiLabel } from './keys.ts';
-import { CAST_POINT, GRIP, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, RECHARGE, RUSH, SHIELD, SPELLS, WARPZONE, spellLevel, type Level, type SpellId } from '../shared/spells.ts';
+import { CAST_POINT, GRIP, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, RECHARGE, RUSH, SHIELD, SPELLS, WARPZONE, spellLevel, spellMax, type Level, type SpellId } from '../shared/spells.ts';
 import { MECHANIC_GUIDES, RULES_SHORT, n1, n2 } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 
@@ -78,10 +78,10 @@ function table(rows: [string, string, string | null][]): string {
 export function spellTip(id: SpellId, level: number): string {
   const sp = SPELLS[id];
   const cur = spellLevel(id, level);
-  const next = level >= 1 && level < MAX_SPELL_LEVEL ? spellLevel(id, level + 1) : null;
-  const head = `<b>${spellName(id)}</b> <span class="k">${labelOf(id)}</span><br><small>${level ? t(`Nível ${level} de ${MAX_SPELL_LEVEL}`, `Level ${level} of ${MAX_SPELL_LEVEL}`) : t('Ainda não comprada · preço ', 'Not bought yet · price ') + sp.cost}</small>`;
+  const next = level >= 1 && level < spellMax(id) ? spellLevel(id, level + 1) : null;
+  const head = `<b>${spellName(id)}</b> <span class="k">${labelOf(id)}</span><br><small>${level ? t(`Nível ${level} de ${spellMax(id)}`, `Level ${level} of ${spellMax(id)}`) : t('Ainda não comprada · preço ', 'Not bought yet · price ') + sp.cost}</small>`;
   const rows = SPELL_ROWS[id].map(([k, f]): [string, string, string | null] => [k, f(cur), next ? f(next) : null]);
-  const foot = next ? `<small class="up">${t(`Próximo nível (${sp.up[level - 1]} de ouro): o que está à direita`, `Next level (${sp.up[level - 1]} gold): shown on the right`)}</small>` : level >= MAX_SPELL_LEVEL ? `<small>${t('Nível máximo', 'Max level')}</small>` : '';
+  const foot = next ? `<small class="up">${t(`Próximo nível (${sp.up[level - 1]} de ouro): o que está à direita`, `Next level (${sp.up[level - 1]} gold): shown on the right`)}</small>` : level >= spellMax(id) ? `<small>${t('Nível máximo', 'Max level')}</small>` : '';
   return `${demo(id)}${head}<p>${RULES_SHORT[id]}</p>${table(rows)}${foot}<small class="muted">${t('Empurrão: distância que um mago sem resistência desliza.', 'Knockback: distance a wizard without resistance slides.')}</small>`;
 }
 
@@ -92,7 +92,7 @@ function levelsTable(heads: number, rows: [string, string[]][]): string {
 }
 export function spellLevels(id: SpellId): string {
   const sp = SPELLS[id];
-  return levelsTable(MAX_SPELL_LEVEL, [[t('Ouro', 'Gold'), [sp.cost, ...sp.up].map(String)], ...SPELL_ROWS[id].map(([k, f]): [string, string[]] => [k, sp.levels.map(f)])]);
+  return levelsTable(spellMax(id), [[t('Ouro', 'Gold'), [sp.cost, ...sp.up].map(String)], ...SPELL_ROWS[id].map(([k, f]): [string, string[]] => [k, sp.levels.slice(0, spellMax(id)).map(f)])]);
 }
 export function itemLevels(id: ItemId): string {
   const n = ITEMS[id].levels.length;

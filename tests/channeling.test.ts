@@ -6,7 +6,7 @@ import { noItems } from '../src/shared/items.ts';
 import { reachOf } from '../src/client/reach.ts';
 import { DT } from '../src/shared/constants.ts';
 import { channelLevel, channelPower } from '../src/shared/channeling.ts';
-import { noSpells, spellLevel } from '../src/shared/spells.ts';
+import { noSpells, priceOf, spellLevel, spellMax } from '../src/shared/spells.ts';
 import { stepWorld, type Cmd } from '../src/shared/sim.ts';
 import { parseClientMessage } from '../src/shared/protocol.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
@@ -23,11 +23,11 @@ const charge: Cmd = { id:'p0',kind:'channel',spell:'fireball' };
 const cast: Cmd = { id:'p0',kind:'cast',spell:'fireball',at:{x:30,y:0} };
 
 describe('Channeling',()=>{
-  it('does not let charged bots target outside current blindness vision',()=>{
+  it('charged bots keep holding with no target in sight and release through the normal aim',()=>{
     const w=setup(),z=w.wizards[0]; z.channel={spell:'fireball',since:-3}; z.blindUntil=10;
-    expect(botCmds(w,z.id,()=>.5)).toEqual([{id:z.id,kind:'stop'}]);
+    expect(botCmds(w,z.id,()=>.5)).toEqual([]);
     z.blindUntil=0;
-    expect(botCmds(w,z.id,()=>.5)).toEqual([{id:z.id,kind:'stop'}]);
+    expect(botCmds(w,z.id,()=>.5)).toEqual([]);
     w.wizards[1].pos={x:2,y:0};
     expect(botCmds(w,z.id,()=>.5)).toEqual([{id:z.id,kind:'cast',spell:'fireball',at:{x:2,y:0}}]);
   });
@@ -42,6 +42,13 @@ describe('Channeling',()=>{
   });
   it.each([[.99,0],[1,1.5],[1.5,1.75],[2,2],[10,2]])('time %s gives power %s',(seconds,power)=>{
     expect(channelPower(seconds)).toBeCloseTo(power);
+  });
+  it('keeps the range of spells without damage, so a charged Teleport or Heal reaches the same distance',()=>{
+    expect(channelLevel(spellLevel('teleport',1),2).range).toBe(spellLevel('teleport',1).range);
+    expect(channelLevel(spellLevel('heal',1),2).range).toBe(spellLevel('heal',1).range);
+  });
+  it('has a single level: no paid upgrade without effect',()=>{
+    expect(priceOf('channel',0)).toBe(12); expect(priceOf('channel',1)).toBeNull(); expect(spellMax('channel')).toBe(1);
   });
   it('changes only damage/range/projectile speed/knockback, not status/healing/duration/radius',()=>{
     const l={...spellLevel('fireball',1),heal:45,duration:3,radius:2,blind:2,incapacitate:1};

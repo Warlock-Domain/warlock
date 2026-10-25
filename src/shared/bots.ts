@@ -5,6 +5,7 @@ import type { Cmd, Projectile, Wizard, World } from './sim.ts';
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
 import { CAST_POINT, FREE_SPELLS, GRIP, MAX_SPELLS, METEOR_DELAY, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
+import { CHANNEL, channelLevel, channelPower } from './channeling.ts';
 
 export type BotPick = { kind: 'spell'; id: SpellId } | { kind: 'item'; id: ItemId };
 // plano de compras: o que comprar, na ordem; depois da lista, como gastar o resto (menor nível, ordem do plano ou sorteio)
@@ -44,7 +45,7 @@ const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
-const SITUATIONAL: SpellId[] = ['channel', 'heal', 'geyser', 'closedbody', 'swap'];
+const SITUATIONAL: SpellId[] = ['heal', 'geyser', 'closedbody', 'swap']; // Channeling stays out of bot purchases until the owner decides on it (PR #408)
 const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
@@ -179,12 +180,6 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   if (!me) return [];
   if ((me.geyserLeft ?? 0) > 0) return [];
   const vision = w.t < (me.blindUntil ?? 0) ? 3 : D.vision;
-  if (me.channel) {
-    if (w.t - me.channel.since < 2) return [];
-    const target = w.wizards.filter(z => z.alive && z !== me && dist(z.pos,me.pos) <= vision && (me.team === null || z.team !== me.team) && !(w.t < z.veilUntil || w.t < z.windUntil))
-      .sort((a,b) => dist(a.pos,me.pos)-dist(b.pos,me.pos))[0];
-    return target ? [{ id, kind: 'cast', spell: me.channel.spell, at: target.pos }] : [{ id, kind: 'stop' }];
-  }
   const M = mind(w);
   if (w.t < (M.frozen.get(id) ?? -1)) return []; // parado por erro
   const cmds: Cmd[] = [];
@@ -214,8 +209,11 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // um só lançamento por chamada: um segundo comando de magia no mesmo passo cancelaria o primeiro
   const cast = (spell: SpellId, at: Vec) => {
     const r = sub(at, me.pos), c = Math.cos(turn), s = Math.sin(turn);
-    if (me.spells.channel > 0 && spellLevel(spell,me.spells[spell]).dmg > 0) {
-      cmds.length = 0; cmds.push({ id, kind: 'channel', spell }); return cmds;
+    // Channeling: a damage spell is charged to full first; the release uses this same aim (difficulty error, lead, slip),
+    // and a dodge or walk in the meantime cancels the charge like a player's would
+    if (me.spells.channel > 0 && spellLevel(spell, me.spells[spell]).dmg > 0) {
+      if (!me.channel) return (cmds.length = 0, cmds.push({ id, kind: 'channel', spell }), cmds);
+      if (me.channel.spell !== spell || w.t - me.channel.since < CHANNEL.max) return cmds;
     }
     cmds.push({ id, kind: 'cast', spell, at: turn ? add(me.pos, v(r.x * c - r.y * s, r.x * s + r.y * c)) : at });
     return cmds;
@@ -382,7 +380,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   else if (!M.idle.has(id)) M.idle.set(id, w.t);
   const idle = w.t - (M.idle.get(id) ?? w.t);
   let box: Vec | undefined;
-  if (!threat && !edgeBack) {
+  // charging Channeling holds position like a player would: no loot runs or range keeping (dodges and the edge still move it)
+  if (!threat && !edgeBack && !me.channel) {
     // ouro, baú e runa: o Fácil ignora (só pega se passar por cima); o Normal vai sem inimigo perto; o Difícil vai atrás a até D.loot
     const calm = !closest || dist(closest.pos, me.pos) >= D.lootSafe;
     const chests = w.pillars.filter((q) => q.alive && q.kind === 'chest').map((q) => q.pos);
@@ -480,8 +479,9 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   let now: (() => Cmd[]) | null = null;
   let meteor: (() => Cmd[]) | null = null;
   for (const s of SPELL_IDS) {
-    if (!ready(s) || s === 'closedbody' || s === 'shield' || s === 'swap' || s === 'alteration' || s === 'scourge' || s === 'pact') continue; // Escudo, Troca e Alteração só na defesa (e na borda); Flagelo e Pacto logo abaixo
-    const L = spellLevel(s, me.spells[s]);
+    if (!ready(s) || s === 'closedbody' || s === 'shield' || s === 'swap' || s === 'alteration' || s === 'scourge' || s === 'pact' || (me.channel && s !== me.channel.spell)) continue; // Escudo, Troca e Alteração só na defesa (e na borda); Flagelo e Pacto logo abaixo
+    // the charged spell aims with its charged range and speed
+    const L = channelLevel(spellLevel(s, me.spells[s]), me.channel ? channelPower(w.t - me.channel.since) || 1 : 1);
     const cp = CAST_POINT[s] ?? 0.1;
     let at: Vec | null = null;
     let prio = false;
@@ -542,7 +542,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     options.push({ run: opt, dmg: L.dmg > 0 });
     if (L.dmg > 0) damage = true;
   }
-  if (free('scourge') && d < spellLevel('scourge', me.spells.scourge).radius * 0.8) {
+  if (!me.channel && free('scourge') && d < spellLevel('scourge', me.spells.scourge).radius * 0.8) {
     options.push({ run: () => cast('scourge', me.pos), dmg: true });
     damage = true;
   }
