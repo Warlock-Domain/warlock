@@ -236,7 +236,7 @@ export function createSound(musicDefault?: number) {
       vol[kind] = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
       saveVolume(kind, vol[kind]);
       syncAmbience();
-      if (tauntPreview) tauntPreview.volume = channelVolume(vol, 'taunts') * (previewUsesWebAudio ? 1 : .6);
+      tauntPreviewSession.setVolume(channelVolume(vol, 'taunts'));
       if (kind === 'sfx' || kind === 'master') api.play('click');
     },
     setAmbience(on: boolean) {
@@ -275,45 +275,78 @@ export function createSound(musicDefault?: number) {
   return api;
 }
 
-let tauntPreview: HTMLAudioElement | null = null;
-let previewUsesWebAudio = false;
-let previewCleanup: (() => void) | null = null;
-export function stopTauntPreview() {
-  tauntPreview?.pause();
-  tauntPreview = null;
-  previewUsesWebAudio = false;
-  previewCleanup?.();
-  previewCleanup = null;
-}
-// Prévia privada: respeita Geral × Provocações, inclusive mudo; nunca envia à sala.
-export async function previewTaunt(name: string): Promise<boolean> {
-  const src = tauntAudioSrc(name);
-  if (!src) return false;
-  stopTauntPreview();
-  const audio = new Audio(src);
-  tauntPreview = audio;
-  audio.volume = channelVolume(loadVolumes(), 'taunts');
-  try {
-    if (typeof AudioContext !== 'undefined') {
-      const c = new AudioContext();
-      previewCleanup = () => { void c.close().catch(() => {}); };
-      // Libera no gesto do clique, antes de aguardar download/decodificação.
-      if (c.state === 'suspended') void c.resume();
-      const response = await fetch(src);
-      if (!response.ok) throw new Error('audio');
-      const buffer = await c.decodeAudioData(await response.arrayBuffer());
-      if (tauntPreview !== audio) return true;
-      const source = c.createMediaElementSource(audio), gain = c.createGain();
-      gain.gain.value = .6 * audioLevel(buffer).gain; // mesmo nível/volume geral da fala na partida.
-      source.connect(gain).connect(c.createDynamicsCompressor()).connect(c.destination);
-      previewUsesWebAudio = true;
-      audio.volume = channelVolume(loadVolumes(), 'taunts');
-    } else audio.volume *= .6;
-    await audio.play();
-    return true;
-  } catch {
-    const replaced = tauntPreview !== audio;
-    if (!replaced) stopTauntPreview();
-    return replaced; // trocar de fala interrompe o play pendente; isso não é falha do arquivo
+type ActiveTauntPreview = {
+  audio: HTMLAudioElement;
+  context: AudioContext | null;
+  usesWebAudio: boolean;
+};
+
+class TauntPreviewSession {
+  private active: ActiveTauntPreview | null = null;
+  private request = 0;
+  private volume = channelVolume(loadVolumes(), 'taunts');
+
+  setVolume(volume: number) {
+    this.volume = volume;
+    if (this.active) this.active.audio.volume = this.volume * (this.active.usesWebAudio ? 1 : .6);
   }
+
+  stop() {
+    const active = this.active;
+    this.active = null;
+    this.request++;
+    active?.audio.pause();
+    if (active?.context) void active.context.close().catch(() => {});
+  }
+
+  async play(name: string): Promise<boolean> {
+    const src = tauntAudioSrc(name);
+    if (!src) return false;
+
+    this.stop();
+    const request = this.request;
+    const active: ActiveTauntPreview = { audio: new Audio(src), context: null, usesWebAudio: false };
+    this.active = active;
+    this.setVolume(channelVolume(loadVolumes(), 'taunts'));
+
+    try {
+      if (typeof AudioContext !== 'undefined') {
+        const context = new AudioContext();
+        active.context = context;
+        // Unlock during the click gesture before waiting for download or decoding.
+        if (context.state === 'suspended') void context.resume().catch(() => {});
+        const response = await fetch(src);
+        if (!response.ok) throw new Error('audio');
+        if (!this.isCurrent(active, request)) return true;
+        const buffer = await context.decodeAudioData(await response.arrayBuffer());
+        if (!this.isCurrent(active, request)) return true;
+        const source = context.createMediaElementSource(active.audio), gain = context.createGain();
+        gain.gain.value = .6 * audioLevel(buffer).gain; // Match the normalized in-game taunt level.
+        source.connect(gain).connect(context.createDynamicsCompressor()).connect(context.destination);
+        active.usesWebAudio = true;
+        this.setVolume(this.volume);
+      } else this.setVolume(this.volume);
+      await active.audio.play();
+      return true;
+    } catch {
+      if (!this.isCurrent(active, request)) return true;
+      this.stop();
+      return false; // Replacing a preview interrupts its pending play; that is not a file failure.
+    }
+  }
+
+  private isCurrent(active: ActiveTauntPreview, request: number) {
+    return this.active === active && this.request === request;
+  }
+}
+
+const tauntPreviewSession = new TauntPreviewSession();
+
+// Private preview respects master × taunts, including mute, and never sends to the room.
+export function previewTaunt(name: string): Promise<boolean> {
+  return tauntPreviewSession.play(name);
+}
+
+export function stopTauntPreview() {
+  tauntPreviewSession.stop();
 }
