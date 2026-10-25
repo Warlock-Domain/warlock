@@ -1236,10 +1236,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const hero = el('div', { class: 'hero-box' }, heroFace, vitals);
   // Attack (A) and Hold ground (S) fixed beside the 8 slots (Fernando, 25/10, issue #401): a column left of the 2 rows, faded and
   // aria-disabled because they cannot be moved or sold; they only show the tip, the keys still do the work. No touch: no A/S keys there
-  const fixedCol = TOUCH ? null : el('div', { class: 'fixed-skills', role: 'group', 'aria-label': t('Ações fixas', 'Fixed actions') }, ...MECHANIC_GUIDES.map(({ id, title }) => {
-    const ui: UiAction = id === 'basic' ? 'basic' : 'stop';
-    return withTip(el('button', { type: 'button', class: 'spell', 'aria-disabled': 'true', 'aria-label': title },
-      el('span', { class: 'key', 'data-ui': ui }, uiLabel(ui)), el('span', { class: 'ico' }, icon(MECHANIC_ICON[id]))), () => mechanicTip(id));
+  const fixedCol = TOUCH ? null : el('div', { class: 'fixed-skills', role: 'group', 'aria-label': t('Ações fixas', 'Fixed actions') }, ...MECHANIC_GUIDES.map((g) => {
+    const ui: UiAction = g.id === 'basic' ? 'basic' : 'stop';
+    return withTip(el('button', { type: 'button', class: 'spell', 'aria-disabled': 'true', 'aria-label': g.title },
+      el('span', { class: 'key', 'data-ui': ui }, uiLabel(ui)), el('span', { class: 'ico' }, icon(MECHANIC_ICON[g.id]))), () => mechanicTip(g));
   }));
   const barWrap = el('div', { class: 'barwrap' }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, fixedCol, bar, itemGrid)));
   // a barra some na sala e no fim (update, a cada segundo) e enquanto eu assisto morto (watching, a cada quadro): uma conta só, sem piscar

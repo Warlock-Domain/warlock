@@ -251,19 +251,19 @@ const FIXED = t('Ações fixas', 'Fixed actions');
 // search by name and filter by group; hovering shows the shop tooltip and a click opens the page in the grimoire (open).
 // Lives in the main menu's Learn tab and in the hotkey overlay (F2 by default)
 export function library(open: (id: Ref) => void): HTMLElement {
-  const tile = (id: Ref, ico: string, tip: () => string, name = actionName(id as SpellId | ItemId)) => withTip(el('button', { type: 'button', class: 'lib-tile', 'data-name': norm(name), 'data-ref': id, onclick: () => {
+  const tile = (id: Ref, name: string, ico: string, tip: () => string) => withTip(el('button', { type: 'button', class: 'lib-tile', 'data-name': norm(name), 'data-ref': id, onclick: () => {
     hideTip();
     open(id);
   } }, el('span', { class: 'ico' }, icon(ico)), el('small', {}, name)), tip);
   // the group's one-line purpose used to live only on the book's page 2, which the Learn tab no longer shows
   const section = (key: string, title: string, hint: string | null, cls: string, tiles: HTMLElement[]) =>
     el('section', { class: 'lib-group ' + cls, 'data-filter': key }, el('h3', {}, title, hint ? el('small', {}, hint) : null), el('div', { class: 'lib-grid' }, ...tiles));
-  const items = (ids: ItemId[]) => ids.map((i) => tile(i, ITEM_ICON[i], () => itemTip(i, 0)));
+  const items = (ids: ItemId[]) => ids.map((i) => tile(i, itemName(i), ITEM_ICON[i], () => itemTip(i, 0)));
   // Attack and Hold ground first, as on the match bar (issue #401): every wizard has them, so they come before what is bought
-  const fixedTiles = MECHANIC_GUIDES.map((g) => tile(g.id, MECHANIC_ICON[g.id], () => mechanicTip(g.id), g.title));
+  const fixedTiles = MECHANIC_GUIDES.map((g) => tile(g.id, g.title, MECHANIC_ICON[g.id], () => mechanicTip(g)));
   const groups = [
     section('fixed', FIXED, null, 'lib-fixed', fixedTiles),
-    ...SPELL_GROUPS.map(([g, hint, ids]) => section(g, g, hint, groupClass(g), ids.map((s) => tile(s, ICON[s], () => spellTip(s, 0))))),
+    ...SPELL_GROUPS.map(([g, hint, ids]) => section(g, g, hint, groupClass(g), ids.map((s) => tile(s, spellName(s), ICON[s], () => spellTip(s, 0))))),
     section('items', CH.items, null, 'lib-items', items([...ITEM_IDS])),
   ];
   let only = 'all';

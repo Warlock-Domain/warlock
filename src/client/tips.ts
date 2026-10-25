@@ -134,16 +134,15 @@ export function itemTip(id: ItemId, level: number): string {
 }
 
 // Attack and Hold ground (issue #401): same tip shape as a spell, numbers read from the shared constants so they never drift
-export function mechanicTip(id: 'basic' | 'brace'): string {
+export function mechanicTip({ id, title: name }: (typeof MECHANIC_GUIDES)[number]): string {
   const basic = id === 'basic';
-  const name = MECHANIC_GUIDES.find((g) => g.id === id)?.title;
   const key = uiLabel(basic ? 'basic' : 'stop');
   const text = basic
     ? t(`Aperte ${key} e clique num inimigo: corpo a corpo até ${n1(BASIC_ATTACK.melee)} m, projétil mais longe. Movimento, ${uiLabel('stop')} ou magia cancelam o preparo sem gastar a recarga.`, `Press ${key} and click an enemy: melee within ${n1(BASIC_ATTACK.melee)} m, a projectile farther away. Moving, ${uiLabel('stop')} or a spell cancel the windup without spending the cooldown.`)
     : t(`Segure ${key}: para na hora e, depois do preparo, resiste a novos empurrões. Não anda e as recargas pausam enquanto segura; magias prontas continuam.`, `Hold ${key}: stops at once and, after the windup, resists new knockback. You cannot walk and cooldowns pause while held; ready spells still work.`);
   const rows: [string, string, null][] = basic
     ? [[DMG, n1(BASIC_ATTACK.dmg), null], [t('Preparo', 'Windup'), s(BASIC_ATTACK.windup), null], [CD, s(BASIC_ATTACK.cd), null], [RANGE, m(BASIC_ATTACK.range), null]]
-    : [[t('Preparo', 'Windup'), s(BRACE.windup), null], [t('Empurrão recebido', 'Knockback taken'), `−${n1(BRACE.resistance * 100)}%`, null]];
+    : [[t('Preparo', 'Windup'), s(BRACE.windup), null], [KNOCK_TAKEN, `−${n1(BRACE.resistance * 100)}%`, null]];
   return `${demo(id)}<b>${name}</b> <span class="k">${key}</span><br><small>${t('Fixa: todo mago tem, não troca de posição nem vende', 'Fixed: every wizard has it, it cannot be moved or sold')}</small><p>${text}</p>${table(rows)}`;
 }
 
