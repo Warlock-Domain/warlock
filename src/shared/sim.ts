@@ -1649,7 +1649,7 @@ function stepProjectiles(w: World) {
         // bate, quica a 500 u/s e volta ao dono; pode acertar de novo na volta
         hit(w, wz, p.owner, L.dmg * p.dmgMult, L.knock * p.dmgMult, sub(wz.pos, p.pos), 'boomerang');
         land(w, p, 'boomerang', true);
-        bounceOff(p, wz.pos, WIZ_R, BOOMERANG.bounce);
+        bounceOff(p, wz.pos, bodyR(wz), BOOMERANG.bounce); // bodyR: with WIZ_R the bounce restarted inside the giant body and hit again on the next step
         [p.curve, p.back] = [undefined, true];
         keep.push(p);
       } else if (p.kind === 'bouncer') {

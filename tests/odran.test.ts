@@ -206,6 +206,18 @@ describe('Sir Odran: corpo 2,5×', () => {
     expect(w.projectiles).toHaveLength(0);
   });
 
+  it('a Boomerang bounces off the giant body once, taking what it takes from a wizard', () => {
+    const lost = [undefined, WIZ_R * ODRAN.size].map((r) => {
+      const w = world([[0, 0], [5, 0]], { ...noSpells(), boomerang: 1 }, [], () => 0.5);
+      w.wizards[1].r = r;
+      const hp = w.wizards[1].hp;
+      run(w, 4, [{ id: 'p0', kind: 'cast', spell: 'boomerang', at: v(5, 0) }]);
+      return hp - w.wizards[1].hp;
+    });
+    expect(lost[0]).toBeGreaterThan(0);
+    expect(lost[1]).toBeLessThan(lost[0] * 1.5); // one hit each (regeneration shifts the hp by a little)
+  });
+
   it('two bodies keep the sum of their radii apart', () => {
     const w = world([[0, 0], [0.5, 0]], noSpells(), [], () => 0.5);
     w.wizards[0].r = WIZ_R * ODRAN.size;
