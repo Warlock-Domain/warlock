@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FORUM_NAME_MAX, parseTesterName, type ForumUser } from '../src/shared/forum.ts';
 import { SESSION_COOKIE, SESSION_TTL_S, STATE_COOKIE, cookie, isActiveMember, newState, readCookie, signSession, verifySession } from '../src/worker/forum-auth.ts';
+import { forumApi } from '../src/worker/forum-api.ts';
 
 const USER: ForumUser = { id: 'gh-1', login: 'fernandorff', name: 'Fernando', avatar: 'https://avatars.githubusercontent.com/u/1' };
 const KEY = 'test-key';
@@ -54,5 +55,18 @@ describe('forum tester name', () => {
     expect(parseTesterName(JSON.stringify({ name: 'x'.repeat(FORUM_NAME_MAX) }))).not.toBeNull();
     expect(parseTesterName(JSON.stringify({ name: 'x'.repeat(FORUM_NAME_MAX + 1) }))).toBeNull();
     for (const bad of ['not json', 'null', '[]', '{}', '{"name":5}', '{"name":"  "}']) expect(parseTesterName(bad)).toBeNull();
+  });
+
+  it('rejects an oversized request before parsing the nickname', async () => {
+    const url = new URL('https://example.test/api/forum/tester');
+    const req = new Request(url, {
+      method: 'POST',
+      headers: { origin: url.origin },
+      body: JSON.stringify({ name: 'x'.repeat(2048) }),
+    });
+    const response = await forumApi(req, { FORUM_SESSION_KEY: KEY, FORUM_TESTER: '1' }, url);
+
+    expect(response.status).toBe(413);
+    expect(response.headers.has('set-cookie')).toBe(false);
   });
 });
