@@ -248,6 +248,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
     const book = m.grimoire();
     const lib = m.library((id) => {
       book.goTo(id);
+      book.root.focus({ preventScroll: true }); // ← → keep turning from the opened page, not from the tile
       learnContent.scrollIntoView({ behavior: 'smooth' });
     });
     learnContent.append(book.root);
@@ -267,6 +268,7 @@ export function showRules() {
     openLearn();
     learn!.book.goTo();
     learn!.book.root.focus({ preventScroll: true }); // ← → turn pages right away, as they did in the dialog
+    learn!.book.root.closest('.home-learn')?.scrollIntoView({ behavior: 'smooth' }); // F1 from further down the tab still shows the book
   } else void import('./grimoire.ts').then((m) => m.openGrimoire());
 }
 // atalho do grimório (F1 no padrão) em qualquer tela; com ele já aberto, nada (o Esc fecha)
