@@ -10,6 +10,7 @@ import type { ServoKind } from '../shared/campaign.ts';
 import { HP_MAX } from '../shared/constants.ts';
 import { itemStats } from '../shared/items.ts';
 import { t } from './i18n.ts';
+import type { Vec } from '../shared/vec.ts';
 // Pulso suave; modo reduzido fica estático.
 export const electroPulse = (active: boolean, seconds: number, reduced: boolean) => active ? reduced ? .25 : .25 + .12 * Math.sin(seconds * Math.PI * 4) : 0;
 
@@ -77,7 +78,7 @@ export function moveLoadout(order: LoadoutOrder, from: number, to: number): Load
 }
 
 // fim da partida para quem olha: 'none' sem vencedor ou para quem só assistia
-export type EndResult = 'win' | 'loss' | 'none';
+type EndResult = 'win' | 'loss' | 'none';
 export function endResult(r: Pick<PublicRoom, 'players' | 'winner' | 'winnerTeam' | 'mode' | 'goal' | 'night'>, me: string): EndResult {
   const mine = r.players.find((p) => p.id === me);
   // Campanha: todos os Acesos vencem ou perdem juntos
@@ -123,7 +124,7 @@ export function roomGroups(rooms: RoomInfo[]) {
 // presets de build (issue #185): magias e itens com o nível e a ordem da barra, guardados só neste navegador
 export type Preset = { spells: Partial<Record<SpellId, number>>; items: Partial<Record<ItemId, number>>; order: (SpellId | null)[] };
 export type Buy = { kind: 'spell'; id: SpellId } | { kind: 'item'; id: ItemId };
-export const PRESET_SLOTS = 3;
+const PRESET_SLOTS = 3;
 export const PRESETS_KEY = 'warlock:presets';
 export const USED_KEY = 'warlock:usados';
 
@@ -201,4 +202,22 @@ export const maxHp = (p: Pick<PublicPlayer, 'hpMax' | 'items'> | undefined) => p
 export function nightLine(n: NonNullable<PublicRoom['night']>, playing: boolean): string {
   const where = t(`Campanha · ${STAGE_NAME[n.stage]}`, `Campaign · ${STAGE_NAME[n.stage]}`);
   return playing && n.fight !== null ? where + t(` · encontro · onda ${n.wave + 1} de ${n.waves}`, ` · encounter · wave ${n.wave + 1} of ${n.waves}`) : where;
+}
+
+// Spectator: keep the watched wizard; otherwise the living one with most HP; step (← →) walks the list and wraps
+export function pickWatched<W extends { id: string; hp: number }>(alive: W[], watchId: string | null, step: number): W | undefined {
+  let watched = alive.find((w) => w.id === watchId);
+  if (!watched && alive.length) watched = alive.reduce((a, w) => (w.hp > a.hp ? w : a));
+  if (step && watched) watched = alive[(alive.indexOf(watched) + step + alive.length) % alive.length];
+  return watched;
+}
+
+// Illusion: the copy uses the owner's look but stays visible and solid and never inherits the thrown state (16).
+// In the snapshot the copy projectile carries the owner index in vel.x and its facing in vel.y
+export function illusionCopies<D extends { id: string; status: number }>(projectiles: { kind: string; pos: Vec; vel: Vec }[], ids: string[], drawn: D[]) {
+  return projectiles.flatMap((q) => {
+    const ownerId = q.kind === 'illusion' ? ids[q.vel.x] : undefined;
+    const o = drawn.find((d) => d.id === ownerId);
+    return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(16 | 1024 | 2048 | 8388608), basicLeft: 0, moving: true, cheer: false, illusion: true, ghost: false }] : [];
+  });
 }
