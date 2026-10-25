@@ -13,6 +13,7 @@
   --panel-solid: rgba(34, 17, 12, .96); --panel-glass: rgba(20, 8, 6, .78); --overlay: rgba(12, 5, 3, .84);
   --gold-line: rgba(255, 214, 102, .32); --gold-faint: rgba(255, 214, 102, .14); --sel-bg: rgba(255, 179, 71, .16); --tint: rgba(255, 255, 255, .05);
   --r-xs: 4px; --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+  --minimap-w: 220px; --minimap-h: 150px; /* the canvas in ui.ts has the same pixel size */
   --shadow-lg: 0 12px 50px rgba(0, 0, 0, .5); --shadow-md: 0 10px 30px rgba(0, 0, 0, .55); --shadow-sm: 0 2px 6px rgba(0, 0, 0, .5);
   --text-shadow: 0 2px 6px var(--ink);
   /* metal envelhecido: gradiente sutil e borda dupla dourada fina */
@@ -128,6 +129,9 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 .timer:not(.countdown):not(:empty) { padding: 2px 12px; border-radius: 999px; background: var(--panel-glass); }
 .ilse { position: absolute; left: max(16px, var(--safe-l, 0px)); bottom: calc(150px + var(--safe-b)); z-index: 4; max-width: min(420px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border-radius: var(--r-md); background: var(--panel-solid); border: 1px solid var(--ember); box-shadow: 0 0 16px rgba(255, 179, 71, .3); animation: fade-in .25s ease-out; }
 .lv-cards { position: absolute; right: max(16px, var(--safe-r, 0px)); bottom: calc(150px + var(--safe-b)); z-index: 4; width: min(560px, calc(100% - 32px)); /* right side: the Ilse box holds the bottom-left */ padding: 10px 14px; border-radius: var(--r-md); background: var(--panel-solid); border: 1px solid var(--gold); animation: fade-in .25s ease-out; }
+/* the kill feed goes below the minimap while it shows (Campaign), instead of under it */
+.hud:has(.minimap:not([hidden])) .feed { top: calc(64px + var(--minimap-h) + 8px + var(--safe-t)); }
+.minimap { position: absolute; right: max(16px, var(--safe-r, 0px)); top: calc(64px + var(--safe-t)); z-index: 3; width: var(--minimap-w); height: var(--minimap-h); border-radius: var(--r-sm); background: var(--panel-glass); border: 1px solid var(--line); pointer-events: none; }
 .lv-cards h3 { margin: 0 0 8px; font-family: var(--display); color: var(--gold); }
 .lv-cards .asc-cards { grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .lv-cards .asc-card { min-height: 0; padding: 8px 10px; }

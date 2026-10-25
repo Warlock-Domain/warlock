@@ -21,10 +21,13 @@ const DEFAULT = ['bone_A', 'skull', 'bone_C'];
 // trees and statues are obstacles already, so they only keep their own cell; one wall-top cell in TORCHES gets a torch
 const DENSITY = 4, CLEAR = 2, TORCHES = 9;
 
-const hash = (x: number, y: number) => (Math.imul(x, 73856093) ^ Math.imul(y, 19349663)) >>> 0;
+export const cellHash = (x: number, y: number) => (Math.imul(x, 73856093) ^ Math.imul(y, 19349663)) >>> 0;
 
-export function nightProps(n: NightMap): NightProp[] {
+// opened: chests already opened (index among the chest marks): a closed one is golden and glows, an opened one is plain
+export function nightProps(n: NightMap, opened: number[] = []): NightProp[] {
   const out: NightProp[] = [];
+  n.marks.filter((m) => m.kind === 'chest').forEach((m, k) => out.push({ name: opened.includes(k) ? 'chest' : 'chest_gold', x: m.x + 0.5, y: m.y + 0.5, rot: 0 }));
+  for (const m of n.marks.filter((q) => q.kind === 'candle')) out.push({ name: 'shrine_candles', x: m.x + 0.5, y: m.y + 0.5, rot: 0 });
   const at = (x: number, y: number) => n.ground[y]?.[x] ?? 'wall';
   n.rooms.forEach((p, i) => {
     const theme = THEMES.find(([id]) => p.room.id.startsWith(id))?.[1] ?? DEFAULT;
@@ -38,7 +41,7 @@ export function nightProps(n: NightMap): NightProp[] {
       const walls = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => at(x + dx, y + dy) === 'wall');
       if (!walls.length || keep.some(([kx, ky]) => Math.abs(kx - x) <= CLEAR && Math.abs(ky - y) <= CLEAR)) continue;
       if (solid.some((m) => x >= m.x && y >= m.y && x < m.x + (m.w ?? 1) && y < m.y + (m.h ?? 1))) continue;
-      const h = hash(x, y);
+      const h = cellHash(x, y);
       if (h % DENSITY) continue;
       // back to the wall: faces the room
       const [dx, dy] = walls[0];
@@ -46,7 +49,7 @@ export function nightProps(n: NightMap): NightProp[] {
     }
     // torches along the room's own walls, on the visible shell (a wall cell next to something that is not wall)
     for (let y = p.y; y < p.y + p.room.h; y++) for (let x = p.x; x < p.x + p.room.w; x++) {
-      if (at(x, y) !== 'wall' || hash(y, x) % TORCHES) continue;
+      if (at(x, y) !== 'wall' || cellHash(y, x) % TORCHES) continue;
       if (![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => at(x + dx, y + dy) !== 'wall')) continue;
       out.push({ name: 'torch_lit', x: x + 0.5, y: y + 0.5, rot: 0, h: 1 });
     }

@@ -1,11 +1,13 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
 import { ASC_ROUNDS } from '../shared/ascension.ts';
 import { ASC_MODE_TEXT, ascLevel, ascPanel, cardButton } from './ascension-ui.ts';
+import { drawMinimap, type MiniColors, type MiniDot } from './minimap.ts';
+import type { NightMap } from '../shared/levels.ts';
 import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_EFFECT_IDS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD, type RoundEffectId } from '../shared/constants.ts';
 import { ARENA_IDS, type ArenaId } from '../shared/arena.ts';
 import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/characters.ts';
-import { CAMPAIGN, CAMPAIGN_BOOK } from '../shared/campaign.ts';
+import { CAMPAIGN } from '../shared/campaign.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, isRoomMode, sellValue, type MatchOpts, type Mode, type RoomMode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
@@ -79,7 +81,7 @@ export function askName(root: HTMLElement, current: string): Promise<string> {
 const roomPhase = (r: RoomInfo) => r.phase === 'lobby' ? t('esperando começar', 'waiting to start') : r.phase === 'end' ? t('partida acabou, dá para começar outra', 'match over, you can start another')
   : t(`jogando${r.round ? ` a rodada ${r.round}` : ''} · você entra na próxima rodada`, `playing${r.round ? ` round ${r.round}` : ''} · you join next round`);
 
-const CAMPAIGN_MODE_TEXT = t('Juntos contra o Fumo: explorem a Charneca Cinzenta e vençam os encontros. Magia não pega aliado. Se todos caírem, a noite recomeça diferente.', 'Together against the Smoke: explore the Ashen Moor and win the encounters. Spells never hit allies. If everyone falls, the night starts over, different.');
+const CAMPAIGN_MODE_TEXT = t('Juntos contra o Fumo: explorem a Charneca Cinzenta e vençam os encontros. Magia em aliado só empurra, sem dano. Se todos caírem, a noite recomeça diferente.', 'Together against the Smoke: explore the Ashen Moor and win the encounters. Spells on an ally only push, with no damage. If everyone falls, the night starts over, different.');
 
 // Opções de partida à direita, com o conteúdo da escolha ao lado.
 function playMenu(roomList: HTMLElement, onCreate: () => void, onCreateRoom: (mode: RoomMode) => void, onTrain: (kind: string) => void): HTMLElement {
@@ -543,11 +545,12 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
   };
   type Col = { head: string; title: string; value: (p: PublicPlayer) => number; show: (n: number) => Child; best?: 'max' | 'min' };
   const cols: Col[] = [
-    { head: room.mode === 'deathmatch' ? t('Pontos', 'Points') : t('Vitórias', 'Wins'), title: t('Pontos da partida', 'Match points'), value: (p) => p.score, show: (n) => String(n), best: 'max' },
+    // Campaign: no wins or gold to show, so the tutorial does not hint at a scoring that does not exist there
+    ...(room.night ? [] : [{ head: room.mode === 'deathmatch' ? t('Pontos', 'Points') : t('Vitórias', 'Wins'), title: t('Pontos da partida', 'Match points'), value: (p: PublicPlayer) => p.score, show: (n: number) => String(n), best: 'max' as const }]),
     { head: t('Abates', 'Kills'), title: t('Abates (cair sozinho na lava não conta)', 'Kills (falling into the lava alone does not count)'), value: (p) => st(p).kills ?? 0, show: (n) => String(n), best: 'max' },
     { head: t('Mortes', 'Deaths'), title: t('Mortes', 'Deaths'), value: (p) => st(p).deaths ?? 0, show: (n) => String(n), best: 'min' },
     { head: t('Dano', 'Damage'), title: t('Dano causado', 'Damage dealt'), value: (p) => st(p).dmg, show: (n) => n0(n), best: 'max' },
-    { head: t('Ouro', 'Gold'), title: t('Ouro ganho', 'Gold earned'), value: (p) => st(p).gold, show: (n) => n0(n), best: 'max' },
+    ...(room.night ? [] : [{ head: t('Ouro', 'Gold'), title: t('Ouro ganho', 'Gold earned'), value: (p: PublicPlayer) => st(p).gold, show: (n: number) => n0(n), best: 'max' as const }]),
     { head: t('Precisão', 'Accuracy'), title: t('Acertos ÷ lançamentos das magias de dano', 'Hits ÷ casts of damage spells'), value: aim, best: 'max',
       show: (n) => (n < 0 ? '–' : el('span', { class: 'acc' }, el('span', { class: 'acc-bar' }, el('i', { style: `width:${Math.round(n * 100)}%` })), pct(n))) },
     ...(room.mode === 'deathmatch' ? [] : [{ head: t('Tempo vivo', 'Time alive'), title: t('Segundos vivo nas rodadas', 'Seconds alive in the rounds'), value: (p: PublicPlayer) => st(p).alive ?? 0, show: (n: number) => (n ? `${Math.round(n)} s` : '–'), best: 'max' as const }]),
@@ -1050,10 +1053,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (key === lvShown) return;
     lvShown = key;
     if (!lv || !key) return void lvCards.replaceChildren();
-    lvCards.replaceChildren(el('h3', {}, t(`Nível ${lv.level - lv.owed + 1}: escolha 1 carta`, `Level ${lv.level - lv.owed + 1}: pick 1 card`),
+    // a pick can come from a level or a chest (the opener's own card), so the title does not name a level
+    lvCards.replaceChildren(el('h3', {}, t('Escolha 1 carta', 'Pick 1 card'),
       lv.owed > 1 ? el('small', { class: 'muted' }, t(` (mais ${lv.owed - 1} depois desta)`, ` (${lv.owed - 1} more after this one)`)) : null),
       el('div', { class: 'asc-cards' }, ...lv.offer.map((c, i) => cardButton(c, mine!, false, `lv-${i}`, () => act.nightCard(i)))));
   };
+  // Campaign minimap (minimap.ts): redrawn at most every 100 ms, the dots move slowly at this scale
+  const miniCanvas = el('canvas', { class: 'minimap', width: 220, height: 150, hidden: true, 'aria-hidden': 'true' }) as HTMLCanvasElement;
+  let miniAt = 0;
+  let miniColors: MiniColors | undefined; // read once: the :root colors do not change during a match
   const bossBar = el('div', { class: 'boss-bar', hidden: true }, bossName, el('div', { class: 'hpbar', role: 'img' }, bossFill, bossText));
   // a janela da loja pode ser alargada pela alça do canto (PC); o tamanho fica salvo neste navegador (pedido do Fernando, 18/10)
   const SHOP_SIZE = 'warlock:shopSize';
@@ -1138,7 +1146,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const cd = el('span', { class: 'cd' });
     const pips = el('span', { class: 'pips' });
     const b = withTip(el('button', { type: 'button', class: 'spell ' + spellClass(s), 'aria-label': spellName(s), onclick: () => act.spell(s), onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(s), onpointerleave: () => act.hover(null) },
-      el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0, book()));
+      el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0));
     buttons.set(s, { b, cd, pips });
     draggableSlot(b, 0, true);
     return b;
@@ -1252,7 +1260,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const effects = STATUS_ICONS.filter(([bit]) => myStatus & bit);
     sheetPanel.replaceChildren(
       el('div', { class: 'dialog-head' }, el('h2', { class: 'title' }, t('Ficha do mago', 'Wizard sheet')), iconButton('✕', t('Fechar a ficha', 'Close the sheet'), () => toggleSheet(false))),
-      sheetEl(sheet(mine.spells, mine.items, book()),
+      sheetEl(sheet(mine.spells, mine.items),
         el('section', {}, el('h4', {}, t('Agora', 'Now')), el('dl', {},
           el('dt', {}, t('Dano levado na rodada', 'Damage taken this round')), el('dd', {}, `${Math.round(taken)} · ${t('empurrão', 'knockback')} ×${(1 + (KNOCK_HP_SCALE * taken) / HP_MAX).toLocaleString(LOCALE, { maximumFractionDigits: 2 })}`), el('small', { class: 'from' }, t('Cada ponto de dano levado faz você voar mais longe até o fim da rodada (a lava conta pela metade e não entra nesta conta).', 'Every point of damage taken sends you flying farther until the end of the round (lava counts half and is not included here).')),
           el('dt', {}, t('Efeitos', 'Effects')), el('dd', {}, ...(effects.length ? effects.flatMap(([, ico, name], i) => [i ? ' · ' : '', icon(ico), ' ' + name]) : [t('nenhum', 'none')]))))),
@@ -1306,7 +1314,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     e.preventDefault();
     act.replay();
   });
-  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, bossBar, ilseBox, lvCards, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
+  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, bossBar, miniCanvas, ilseBox, lvCards, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
@@ -1328,7 +1336,6 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   };
 
   let room: PublicRoom | null = null;
-  const book = () => (room?.night ? CAMPAIGN_BOOK : undefined); // na Campanha, os números de magia dela
   let me = '';
   let scope: Scope = 'round';
   let view: View = 'summary';
@@ -1536,7 +1543,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     type Offer = { key: string; ico: string; name: string; hotkey: string | null; use: string; lvl: number; max: number; price: number | null; blocked: string | null; buy: () => void; tip: () => string;
       // a ficha depois de comprar mais um nível e depois de vender tudo (prévia na dica)
       bought: () => SheetRow[]; sold: () => SheetRow[] };
-    const now = sheet(mine.spells, mine.items, book());
+    const now = sheet(mine.spells, mine.items);
     if (presetOrder && presetOrder.round !== r.round) presetOrder = null; // o ouro não deu para tudo: não mexe na barra da próxima loja
     // gravar no desenho é seguro: o myLoadout (barra e teclas) já grava a ordem durante o desenho, e este é o primeiro desenho com as magias da build
     if (presetOrder?.order.every((s) => !s || mine.spells[s] > 0)) {
@@ -1641,15 +1648,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const price = priceOf(s, lvl);
       const full = lvl === 0 && spellCount(mine.spells) >= MAX_SPELLS;
       return offer({ key: 'spell-' + s, ico: ICON[s], name: spellName(s), hotkey: hotkeyOf(s), use: SPELL_USE[s], lvl, max: MAX_SPELL_LEVEL, price,
-        blocked: price === null ? t('Máximo', 'Max') : full ? t(`Limite de ${MAX_SPELLS} magias`, `Limit of ${MAX_SPELLS} spells`) : null, buy: () => act.buy(s), tip: () => spellTip(s, lvl, book()),
-        bought: () => sheet({ ...mine.spells, [s]: lvl + 1 }, mine.items, book()), sold: () => sheet({ ...mine.spells, [s]: 0 }, mine.items, book()) });
+        blocked: price === null ? t('Máximo', 'Max') : full ? t(`Limite de ${MAX_SPELLS} magias`, `Limit of ${MAX_SPELLS} spells`) : null, buy: () => act.buy(s), tip: () => spellTip(s, lvl),
+        bought: () => sheet({ ...mine.spells, [s]: lvl + 1 }, mine.items), sold: () => sheet({ ...mine.spells, [s]: 0 }, mine.items) });
     };
     const itemOffer = (i: ItemId) => {
       const lvl = mine.items[i];
       const price = itemPrice(mine.items, i);
       return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: itemName(i), hotkey: null, use: itemText(i), lvl, max: ITEMS[i].levels.length, price,
         blocked: lvl >= ITEMS[i].levels.length ? t('Máximo', 'Max') : price === null ? t('Sem espaço', 'No room') : null, buy: () => act.buyItem(i), tip: () => itemTip(i, lvl),
-        bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }, book()), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }, book()) });
+        bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }) });
     };
     const group = (title: string, hint: string, cards: HTMLElement[]) =>
       el('section', { class: 'shop-group ' + groupClass(title) }, el('div', { class: 'shop-head' }, el('h3', {}, title), el('small', {}, hint)), el('div', { class: 'shop-grid' }, ...cards));
@@ -1820,11 +1827,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const unit = (n: number) => r.mode === 'deathmatch' || r.mode === 'ascension' ? (n === 1 ? t('ponto', 'point') : t('pontos', 'points')) : n === 1 ? t('vitória', 'win') : t('vitórias', 'wins');
     const cell = (p: PublicPlayer) => {
       const lvl = botLevel(p, r);
-      const name = `${playerName(p)}${p.id === me ? t(' (você)', ' (you)') : ''}${lvl ? ` (bot · ${SKILL_NAME[lvl]})` : ''}: ${p.score} ${unit(p.score)}`;
+      const name = `${playerName(p)}${p.id === me ? t(' (você)', ' (you)') : ''}${lvl ? ` (bot · ${SKILL_NAME[lvl]})` : ''}${r.night ? '' : `: ${p.score} ${unit(p.score)}`}`;
       const dmg = el('span', {}, String(Math.round(live[p.id]?.dmg ?? 0)));
       const kills = el('span', {}, String(live[p.id]?.kills ?? 0));
       const c = el('li', { class: 'top-p' + (p.id === me ? ' me' : ''), style: `--pc:${COLORS[p.color]}`, title: name, 'aria-label': name },
-        el('span', { class: 'top-name' }, playerName(p), lvl ? icon(UI_ICON.bot) : null), ascLevel(r, p), el('b', { class: 'top-wins', title: unit(p.score) }, String(p.score)),
+        el('span', { class: 'top-name' }, playerName(p), lvl ? icon(UI_ICON.bot) : null), ascLevel(r, p), r.night ? null : el('b', { class: 'top-wins', title: unit(p.score) }, String(p.score)),
         el('span', { class: 'top-stat', title: t('Dano na rodada', 'Damage this round') }, icon(UI_ICON.dmg), dmg),
         el('span', { class: 'top-stat', title: t('Abates na rodada', 'Kills this round') }, icon(UI_ICON.kills), kills));
       topCells.set(p.id, { c, name, dmg, kills });
@@ -1955,7 +1962,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       }
       barOff = r.phase === 'lobby' || r.phase === 'end' || (r.phase === 'shop' && !SHOP_BAR.matches) || !mine;
       syncBar();
-      goldNow.replaceChildren(r.mode === 'ascension' ? '' : gold(mine?.gold ?? 0)); // Ascensão: sem ouro
+      goldNow.replaceChildren(r.mode === 'ascension' || r.night ? '' : gold(mine?.gold ?? 0)); // Ascension and Campaign: no gold
       const stats = mine ? sheet(mine.spells, mine.items).filter((row) => row.key! in STAT_ICON) : [];
       const statSig = JSON.stringify(stats);
       if (heroStats.dataset.sig !== statSig) {
@@ -1985,6 +1992,19 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (!text) return void (ilseBox.hidden = true);
       if (ilseText.textContent !== text || ilseBox.hidden) ilseText.textContent = text;
       ilseBox.hidden = false;
+    },
+    // every frame: the Campaign minimap (null hides it)
+    minimap(m: { map: NightMap; seen: number[]; done: number[]; fight: number | null; dots: MiniDot[] } | null) {
+      miniCanvas.hidden = !m;
+      const now = performance.now();
+      if (!m || now - miniAt < 100) return;
+      miniAt = now;
+      const ctx = miniCanvas.getContext('2d');
+      if (!ctx) return;
+      const css = getComputedStyle(document.documentElement), cv = (name: string) => css.getPropertyValue(name).trim();
+      // contrast on the floor: wall 5.2:1, won-room dash 7.4:1; the black rim keeps a foe on the lava at 6.5:1
+      miniColors ??= { floor: cv('--panel2'), wall: cv('--off-fg'), lava: cv('--lava'), wax: cv('--ember'), done: cv('--toast-good'), fight: cv('--red'), me: cv('--gold'), ally: cv('--cream'), foe: cv('--red'), outline: cv('--ink') };
+      drawMinimap(ctx, m.map, m.seen, m.done, m.fight, m.dots, miniColors);
     },
     // a cada quadro: vida do chefe da Campanha (null esconde)
     boss(b: { name: string; now: number; max: number } | null) {
