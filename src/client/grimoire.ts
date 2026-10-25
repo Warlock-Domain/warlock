@@ -16,7 +16,9 @@ import { hideTip, itemLevels, itemTip, spellLevels, spellTip, withTip } from './
 import { choice, dialog, norm, searchFilter } from './ui.ts';
 import { arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
-type Page = { chapter: string; title: string; body: () => (Node | string | null)[]; demo?: DemoId; guideId?: string };
+// ref: the spell, item, mechanic or status a link opens (goTo) and the Learn tab marks in the library
+type Ref = SpellId | ItemId | GuideId;
+type Page = { chapter: string; title: string; body: () => (Node | string | null)[]; demo?: DemoId; ref?: Ref };
 
 const html = (s: string) => Object.assign(document.createElement('div'), { className: 'g-html', innerHTML: s });
 const ul = (xs: string[]) => el('ul', {}, ...xs.map((x) => el('li', {}, x)));
@@ -44,7 +46,7 @@ function arenaThumb(id: ArenaId): HTMLElement {
 function spellPage(id: SpellId, group: string): Page {
   const sp = SPELLS[id];
   return {
-    chapter: CH.spells, title: spellName(id), demo: id,
+    chapter: CH.spells, title: spellName(id), demo: id, ref: id,
     body: () => [
       el('div', { class: 'g-head' }, el('span', { class: 'g-medal' }, icon(ICON[id])),
         el('div', {}, el('h2', {}, spellName(id)), el('small', {}, `${group} · ${keyText(id)} · ${sp.cost ? t(`${sp.cost} de ouro`, `${sp.cost} gold`) : t('grátis no começo', 'free at the start')}`))),
@@ -60,7 +62,7 @@ function spellPage(id: SpellId, group: string): Page {
 function itemPage(id: ItemId): Page {
   const it = ITEMS[id];
   return {
-    chapter: CH.items, title: itemName(id), demo: SCRIPTS[id] ? id : undefined,
+    chapter: CH.items, title: itemName(id), demo: SCRIPTS[id] ? id : undefined, ref: id,
     body: () => [
       el('div', { class: 'g-head' }, el('span', { class: 'g-medal item' }, icon(ITEM_ICON[id])),
         el('div', {}, el('h2', {}, itemName(id)), el('small', {}, `${t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}`))),
@@ -82,7 +84,7 @@ const PAGES: Page[] = [
   text(t('Como jogar', 'How to play'), t('Objetivo', 'Goal'), RULES.objetivo),
   text(t('Como jogar', 'How to play'), t('Empurrão, lava e abates', 'Knockback, lava and kills'), RULES.empurrao),
   text(t('Controles', 'Controls'), t('No PC', 'On PC'), () => RULES.pc),
-  ...MECHANIC_GUIDES.map((g): Page => ({ ...text(t('Controles', 'Controls'), g.title, [g.text]), demo: g.id })),
+  ...MECHANIC_GUIDES.map((g): Page => ({ ...text(t('Controles', 'Controls'), g.title, [g.text]), demo: g.id, ref: g.id })),
   {
     chapter: t('Controles', 'Controls'), title: t('Suas teclas', 'Your keys'),
     body: () => [el('h2', {}, isSlotMode() ? t('Suas teclas (1 2 3 4 Q W E R pela ordem da barra)', 'Your keys (1 2 3 4 Q W E R in bar order)') : t('Suas teclas', 'Your keys')),
@@ -93,7 +95,7 @@ const PAGES: Page[] = [
   },
   text(t('Controles', 'Controls'), t('No celular', 'On mobile'), RULES.celular),
   text(t('Controles', 'Controls'), t('Com controle', 'With a controller'), () => RULES.controle),
-  ...NEGATIVE_GUIDES.map((g): Page => ({ ...text(CH.statuses, g.title, [g.text]), guideId: g.id })),
+  ...NEGATIVE_GUIDES.map((g): Page => ({ ...text(CH.statuses, g.title, [g.text]), ref: g.id })),
   text(t('Modos', 'Modes'), t('Rodadas', 'Rounds'), RULES.rodadas, () => [html(MODE_INFO())]),
   text(t('Modos', 'Modes'), 'Deathmatch', RULES.deathmatch),
   text(t('Modos', 'Modes'), t('Times', 'Teams'), RULES.times),
@@ -112,7 +114,7 @@ const CHAPTERS = [...new Set(PAGES.map((p) => p.chapter))].slice(1);
 const pageOf = (pred: (p: Page) => boolean) => PAGES.findIndex(pred);
 
 // grimoire in a dialog, for use inside a match (in the main menu it lives in the Learn tab)
-export function openGrimoire(to?: SpellId | ItemId | GuideId) {
+export function openGrimoire(to?: Ref) {
   document.querySelector('.grimoire-overlay')?.remove();
   const book = grimoire();
   book.goTo(to);
@@ -120,17 +122,15 @@ export function openGrimoire(to?: SpellId | ItemId | GuideId) {
 }
 
 // page of a spell, item, mechanic or status (0 = table of contents)
-function pageFor(to?: SpellId | ItemId | GuideId): number {
-  const mechanic = MECHANIC_GUIDES.find((g) => g.id === to);
-  const status = NEGATIVE_GUIDES.find((g) => g.id === to);
-  const page = status ? pageOf((p) => p.guideId === status.id) : mechanic ? pageOf((p) => p.demo === mechanic.id) : to ? pageOf((p) => (p.chapter === CH.spells || p.chapter === CH.items) && p.title === actionName(to as SpellId | ItemId)) : -1;
-  return Math.max(page, 0);
-}
+const pageFor = (to?: Ref) => Math.max(to ? pageOf((p) => p.ref === to) : 0, 0);
 
 // The book as a standalone piece: the Learn tab puts it on the page and a match puts it in a dialog (openGrimoire).
-// Reopening always starts at the table of contents (Fernando's decision, 24/10); explicit links via goTo open the requested page
-export function grimoire() {
-  let at = 0;
+// Reopening always starts at the table of contents (Fernando's decision, 24/10); explicit links via goTo open the requested page.
+// side (Learn tab, Fernando's decision of 24/10): a fixed side contents replaces pages 1 and 2, which only repeated it and the library;
+// onShow tells which refs are on view so the library can mark them
+export function grimoire(o: { side?: boolean; onShow?: (refs: Ref[]) => void } = {}) {
+  const min = o.side ? 2 : 0; // pages 1 and 2 are the contents
+  let at = min;
   const wide = matchMedia('(min-width: 900px)');
   const ac = new AbortController();
   let live: object[] = []; // demos da vista atual
@@ -139,7 +139,12 @@ export function grimoire() {
   const where = el('span', { class: 'g-where' });
   const prev = el('button', { type: 'button', class: 'g-turn', 'aria-label': t('Página anterior', 'Previous page'), onclick: () => turn(-1) }, '‹') as HTMLButtonElement;
   const next = el('button', { type: 'button', class: 'g-turn', 'aria-label': t('Próxima página', 'Next page'), onclick: () => turn(1) }, '›') as HTMLButtonElement;
-  const nav = el('nav', { class: 'g-nav' }, prev, el('button', { type: 'button', class: 'g-toc-btn', onclick: () => go(0) }, CH.toc), where, next);
+  const nav = el('nav', { class: 'g-nav' }, prev, o.side ? null : el('button', { type: 'button', class: 'g-toc-btn', onclick: () => go(0) }, CH.toc), where, next);
+  const chapterBtns = o.side ? CHAPTERS.map((c) => el('button', { type: 'button', onclick: () => {
+    go(pageOf((p) => p.chapter === c));
+    root.focus({ preventScroll: true }); // ← → keep turning pages after a click in the contents
+  } }, c)) : [];
+  const contents = o.side ? el('section', { class: 'learn-toc' }, el('h2', {}, CH.toc), el('nav', { class: 'settings-toc', 'aria-label': CH.toc }, ...chapterBtns)) : null;
 
   // página 1: capítulos com o número da página; página 2: atalho para cada magia (por grupo) e cada item
   function toc(i: number): (Node | string)[] {
@@ -184,8 +189,15 @@ export function grimoire() {
     if (hadFocus) root.focus({ preventScroll: true });
     spread.scrollTop = 0;
     spread.querySelectorAll('.g-page').forEach((p) => (p.scrollTop = 0));
-    prev.disabled = first === 0;
+    prev.disabled = first <= min;
     next.disabled = first + per >= PAGES.length;
+    const shown = PAGES.slice(first, first + per);
+    chapterBtns.forEach((b, i) => {
+      const on = shown.some((p) => p.chapter === CHAPTERS[i]);
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-current', String(on));
+    });
+    o.onShow?.(shown.flatMap((p) => (p.ref ? [p.ref] : [])));
     where.textContent = per === 2 && first + 1 < PAGES.length ? t(`${first + 1}–${first + 2} de ${PAGES.length}`, `${first + 1}–${first + 2} of ${PAGES.length}`) : t(`${first + 1} de ${PAGES.length}`, `${first + 1} of ${PAGES.length}`);
     if (dir) {
       spread.classList.remove('turn-next', 'turn-prev');
@@ -194,14 +206,14 @@ export function grimoire() {
     }
   }
   function go(i: number) {
-    const to = Math.min(PAGES.length - 1, Math.max(0, i));
+    const to = Math.min(PAGES.length - 1, Math.max(min, i));
     const dir = Math.sign(to - at);
     at = to;
     show(dir);
   }
   function turn(step: number) {
     const [per, first] = view();
-    if (first + step * per < 0 || first + step * per >= PAGES.length) return;
+    if (first + step * per < min || first + step * per >= PAGES.length) return;
     go(first + step * per);
   }
 
@@ -210,7 +222,7 @@ export function grimoire() {
     const k = e.key;
     if (k === 'ArrowRight' || k === 'PageDown') turn(1);
     else if (k === 'ArrowLeft' || k === 'PageUp') turn(-1);
-    else if (k === 'Home') go(0);
+    else if (k === 'Home') go(min);
     else return;
     e.preventDefault();
   };
@@ -228,23 +240,24 @@ export function grimoire() {
   spread.addEventListener('pointercancel', () => (start = null));
 
   show(0);
-  return { root, onKey, dispose: () => ac.abort(), goTo: (to?: SpellId | ItemId | GuideId) => go(pageFor(to)) };
+  return { root, contents, onKey, dispose: () => ac.abort(), goTo: (to?: Ref) => go(pageFor(to)) };
 }
 
 // "Spells and items" library (Fernando's decision, 19/10; like Dota's heroes and items library): icon grid by group,
 // search by name and filter by group; hovering shows the shop tooltip and a click opens the page in the grimoire (open).
 // Lives in the main menu's Learn tab and in the hotkey overlay (F2 by default)
 export function library(open: (id: SpellId | ItemId) => void): HTMLElement {
-  const tile = (id: SpellId | ItemId, ico: string, tip: () => string) => withTip(el('button', { type: 'button', class: 'lib-tile', 'data-name': norm(actionName(id)), onclick: () => {
+  const tile = (id: SpellId | ItemId, ico: string, tip: () => string) => withTip(el('button', { type: 'button', class: 'lib-tile', 'data-name': norm(actionName(id)), 'data-ref': id, onclick: () => {
     hideTip();
     open(id);
   } }, el('span', { class: 'ico' }, icon(ico)), el('small', {}, actionName(id))), tip);
-  const section = (key: string, title: string, cls: string, tiles: HTMLElement[]) =>
-    el('section', { class: 'lib-group ' + cls, 'data-filter': key }, el('h3', {}, title), el('div', { class: 'lib-grid' }, ...tiles));
+  // the group's one-line purpose used to live only on the book's page 2, which the Learn tab no longer shows
+  const section = (key: string, title: string, hint: string | null, cls: string, tiles: HTMLElement[]) =>
+    el('section', { class: 'lib-group ' + cls, 'data-filter': key }, el('h3', {}, title, hint ? el('small', {}, hint) : null), el('div', { class: 'lib-grid' }, ...tiles));
   const items = (ids: ItemId[]) => ids.map((i) => tile(i, ITEM_ICON[i], () => itemTip(i, 0)));
   const groups = [
-    ...SPELL_GROUPS.map(([g, , ids]) => section(g, g, groupClass(g), ids.map((s) => tile(s, ICON[s], () => spellTip(s, 0))))),
-    section('items', t('Itens passivos', 'Passive items'), 'lib-items', items([...ITEM_IDS])),
+    ...SPELL_GROUPS.map(([g, hint, ids]) => section(g, g, hint, groupClass(g), ids.map((s) => tile(s, ICON[s], () => spellTip(s, 0))))),
+    section('items', CH.items, null, 'lib-items', items([...ITEM_IDS])),
   ];
   let only = 'all';
   const none = el('p', { class: 'muted', hidden: true }, t('Nada com esse nome.', 'Nothing with that name.'));

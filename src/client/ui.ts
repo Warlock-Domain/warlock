@@ -195,13 +195,13 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   // a lista chega de novo a cada mudança numa sala: só ela é redesenhada (as abas ficam como estão, com o foco)
   const old = root.querySelector<HTMLElement>('.lobby');
   if (old?.dataset.name === name) return old.querySelector('.lobby-rooms')!.replaceWith(roomList);
-  const learnContent = el('section', { class: 'home-learn' }, el('h2', {}, t('Como jogar', 'How to play')));
+  const learnContent = el('section', { class: 'home-learn' }, el('h2', {}, t('Grimório', 'Grimoire')));
   const libraryContent = el('section', { class: 'home-library' }, el('h2', {}, t('Magias e itens', 'Spells and items')));
   const panel = (k: HomeTab, ...kids: Child[]) => el('div', { class: 'home-panel', id: 'home-' + k, role: 'tabpanel', 'aria-labelledby': 'home-tab-' + k }, ...kids);
   const panels: Record<HomeTab, HTMLElement> = {
     home: panel('home'),
     play: panel('play', playMenu(roomList, onCreate, onCreateAsc, onTrain)),
-    library: panel('library', learnContent, libraryContent),
+    library: panel('library', el('div', { class: 'learn-grid' }, learnContent, libraryContent)),
     char: panel('char', personagemTab()),
     shop: panel('shop', el('section', { class: 'home-learn' }, el('h2', {}, t('Loja', 'Shop')),
       el('p', { class: 'muted' }, t('Roupas e visuais para o seu personagem. Prévia do catálogo com os modelos atuais; moeda, preços e compras ainda não foram definidos. Os visuais existentes continuam disponíveis no Guarda-roupas.', 'Outfits and looks for your character. Catalog preview using current models; currency, prices and purchases have not been defined yet. Existing looks remain available in the Wardrobe.'))),
@@ -245,11 +245,13 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   // grimoire and library live in the Learn tab; the module loads only here so it does not weigh on game startup
   void import('./grimoire.ts').then((m) => {
     learn?.book.dispose(); // a rebuilt lobby (rename) drops the old book: release its matchMedia listener
-    const book = m.grimoire();
     const lib = m.library((id) => {
       book.goTo(id);
-      learnContent.scrollIntoView({ behavior: 'smooth' });
+      book.root.focus({ preventScroll: true }); // ← → keep turning pages, as after a contents link
+      learnContent.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); // the book sits beside the library on wide screens: no scroll there
     });
+    const book = m.grimoire({ side: true, onShow: (refs) => lib.querySelectorAll<HTMLElement>('.lib-tile').forEach((b) => b.setAttribute('aria-current', String((refs as string[]).includes(b.dataset.ref ?? '')))) });
+    learnContent.before(book.contents!);
     learnContent.append(book.root);
     libraryContent.append(lib);
     learn = { book, lib };
@@ -261,7 +263,7 @@ let learn: { book: { root: HTMLElement; goTo: () => void; dispose: () => void };
 const inMenu = () => !!learn?.lib.isConnected;
 const openLearn = () => document.getElementById('home-tab-library')?.click();
 
-// grimoire (How to play): in the main menu opens the Learn tab on the table of contents; in a match, the book in a dialog (module loaded only when opened)
+// grimoire (How to play): in the main menu opens the Learn tab on its first page (the contents stay beside it); in a match, the book in a dialog (module loaded only when opened)
 export function showRules() {
   if (inMenu()) {
     openLearn();
@@ -279,7 +281,7 @@ addEventListener('keydown', (e) => {
 const showLibrary = () => {
   if (!inMenu()) return void import('./grimoire.ts').then((m) => m.openLibrary());
   openLearn();
-  learn!.lib.scrollIntoView({ behavior: 'smooth' });
+  learn!.lib.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   learn!.lib.querySelector('input')?.focus({ preventScroll: true });
 };
 addEventListener('keydown', (e) => {
