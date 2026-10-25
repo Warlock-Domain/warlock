@@ -37,7 +37,7 @@ export function loadVolumes(musicDefault = 0.7): Volumes {
 }
 export const saveVolume = (kind: keyof Volumes, value: number) => store.set(VOL_KEY[kind], String(value));
 
-// The default music volume is used by the localhost sound demo; main.ts passes its own value.
+// Default music volume for players who have not set one; main.ts passes 0 in localhost test tabs (issue #158).
 export function createSound(musicDefault?: number) {
   return new AudioPlayer(musicDefault).callbacks;
 }
