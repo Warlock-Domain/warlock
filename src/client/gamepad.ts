@@ -300,7 +300,7 @@ class Pad {
   private tauntWheel(panel: HTMLElement, hit: (b: number) => boolean, mv: Vec, aimS: Vec, opened: boolean) {
     this.idle();
     const buttons = [...panel.querySelectorAll<HTMLButtonElement>('.radial-stage > button:not(.radial-center)')];
-    // The stick points around the wheel; the d-pad steps ±1 per press (with more than 8 taunts, 8 directions could not reach them all).
+    // The stick points around the wheel; the d-pad steps one slot per press, without repeating while held.
     const s = len(aimS) ? aimS : mv;
     let selected = radialIndex(s.x, s.y, buttons.length);
     if (selected === null && !opened) {
