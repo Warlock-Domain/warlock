@@ -67,7 +67,7 @@ export function botSetupPanel(n: number, saved: BotSetup[], onChange: (s: BotSet
     };
     return el('div', { class: 'opt-row bot-setup' },
       el('div', { class: 'opt-label' }, el('b', {}, `Bot ${i + 1}`),
-        choice(t(`Bot ${i + 1} spell selection`, `Bot ${i + 1} spell selection`), [['random', t('Sorteio', 'Random')]], picked.length ? 'custom' : 'random', random),
+        choice(t(`Seleção de magias do bot ${i + 1}`, `Bot ${i + 1} spell selection`), [['random', t('Sorteio', 'Random')]], picked.length ? 'custom' : 'random', random),
         el('small', { class: 'muted' }, picked.length ? t(`${picked.length} de ${MAX_SPELLS} magias`, `${picked.length} of ${MAX_SPELLS} spells`) : t('compra sozinho na loja', 'buys on its own in the shop'))),
       el('div', { class: 'bs-spells' }, ...SPELL_IDS.map((s) => {
         const lvl = spells?.[s] ?? 0;

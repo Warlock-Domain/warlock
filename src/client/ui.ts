@@ -31,8 +31,6 @@ import { LOCALE, arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 import { radialPicker } from './radial-picker.ts';
 import { radialHold, tauntWheelSlots } from './taunt-wheel.ts';
 
-export { choice } from './icons.ts';
-
 const TITLE = 'Warlock';
 // busca pelo nome sem acento nem maiúscula (loja e biblioteca)
 export const norm = (x: string) => x.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
@@ -227,7 +225,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   const stage = el('div', { class: 'home-stage' },
     el('div', { class: 'home-backdrop', 'aria-hidden': 'true' }, el('img', { class: 'home-art', src: '/home-cat.jpg', alt: '', width: 736, height: 736 })),
     ...Object.values(panels));
-  const homeTabs = tabs(t('Menu principal', 'Main menu'), HOME_TABS, HOME_TABS[0][0], show, 'home-tabs', null);
+  const homeTabs = tabs(null, HOME_TABS, HOME_TABS[0][0], show, 'home-tabs', null);
   const btns = [...homeTabs.querySelectorAll<HTMLButtonElement>('button')];
   HOME_TABS.forEach(([k], i) => {
     btns[i].id = 'home-tab-' + k;
@@ -502,7 +500,7 @@ type View = 'summary' | 'spells';
 const VIEWS: [View, string][] = [['summary', t('Resumo', 'Summary')], ['spells', t('Magias', 'Spells')]];
 const portrait = (p: PublicPlayer) => el('img', { class: 'face', src: `/chars/${p.character}.webp`, alt: '', width: 32, height: 32, loading: 'lazy' });
 // Tabs use ARIA tab roles and allow a caller-selected layout class and parent-owned tablist.
-export const tabs = <T extends string>(label: string, list: [T, string][], on: T, set: (k: T) => void, cls = 'stats-tabs', role: 'tablist' | null = 'tablist') =>
+export const tabs = <T extends string>(label: string | null, list: [T, string][], on: T, set: (k: T) => void, cls = 'stats-tabs', role: 'tablist' | null = 'tablist') =>
   el('div', { class: cls, role, 'aria-label': role ? label : null }, ...list.map(([k, text]) =>
     el('button', { type: 'button', role: 'tab', 'aria-selected': String(k === on), class: k === on ? 'on' : '', onclick: () => set(k) }, text)));
 

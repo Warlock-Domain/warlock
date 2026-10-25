@@ -7,13 +7,13 @@ import { ARENA_R0, HP_MAX, RUNE_KINDS } from '../shared/constants.ts';
 import { ITEMS, ITEM_IDS, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import { SCRIPTS, createDemo, drawStone, runDemo, type DemoId } from './demo.ts';
-import { ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
+import { ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, choice, el, icon } from './icons.ts';
 import { ACTIONS, UI_ACTIONS, UI_NAMES, isPadMode, isSlotMode, isUiKey, labelOf, uiLabel } from './keys.ts';
 import { MODE_INFO, OPT_INFO } from './opt-info.ts';
 import { ITEM_DEMO, MECHANIC_GUIDES, NEGATIVE_GUIDES, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, groupClass, n1, type GuideId } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 import { hideTip, itemLevels, itemTip, mechanicTip, spellLevels, spellTip, withTip } from './tips.ts';
-import { choice, dialog, norm, searchFilter } from './ui.ts';
+import { dialog, norm, searchFilter } from './ui.ts';
 import { arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
 // ref: the spell, item, mechanic or status a link opens (goTo) and the Learn tab marks in the library
