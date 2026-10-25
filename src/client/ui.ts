@@ -7,7 +7,7 @@ import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_EFFECT_IDS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD, type RoundEffectId } from '../shared/constants.ts';
 import { ARENA_IDS, type ArenaId } from '../shared/arena.ts';
 import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/characters.ts';
-import { CAMPAIGN, CAMPAIGN_BOOK } from '../shared/campaign.ts';
+import { CAMPAIGN } from '../shared/campaign.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
@@ -1114,7 +1114,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const cd = el('span', { class: 'cd' });
     const pips = el('span', { class: 'pips' });
     const b = withTip(el('button', { type: 'button', class: 'spell ' + spellClass(s), 'aria-label': spellName(s), onclick: () => act.spell(s), onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(s), onpointerleave: () => act.hover(null) },
-      el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0, book()));
+      el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0));
     buttons.set(s, { b, cd, pips });
     draggableSlot(b, 0, true);
     return b;
@@ -1228,7 +1228,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const effects = STATUS_ICONS.filter(([bit]) => myStatus & bit);
     sheetPanel.replaceChildren(
       el('div', { class: 'dialog-head' }, el('h2', { class: 'title' }, t('Ficha do mago', 'Wizard sheet')), iconButton('✕', t('Fechar a ficha', 'Close the sheet'), () => toggleSheet(false))),
-      sheetEl(sheet(mine.spells, mine.items, book()),
+      sheetEl(sheet(mine.spells, mine.items),
         el('section', {}, el('h4', {}, t('Agora', 'Now')), el('dl', {},
           el('dt', {}, t('Dano levado na rodada', 'Damage taken this round')), el('dd', {}, `${Math.round(taken)} · ${t('empurrão', 'knockback')} ×${(1 + (KNOCK_HP_SCALE * taken) / HP_MAX).toLocaleString(LOCALE, { maximumFractionDigits: 2 })}`), el('small', { class: 'from' }, t('Cada ponto de dano levado faz você voar mais longe até o fim da rodada (a lava conta pela metade e não entra nesta conta).', 'Every point of damage taken sends you flying farther until the end of the round (lava counts half and is not included here).')),
           el('dt', {}, t('Efeitos', 'Effects')), el('dd', {}, ...(effects.length ? effects.flatMap(([, ico, name], i) => [i ? ' · ' : '', icon(ico), ' ' + name]) : [t('nenhum', 'none')]))))),
@@ -1304,7 +1304,6 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   };
 
   let room: PublicRoom | null = null;
-  const book = () => (room?.night ? CAMPAIGN_BOOK : undefined); // na Campanha, os números de magia dela
   let me = '';
   let scope: Scope = 'round';
   let view: View = 'summary';
@@ -1513,7 +1512,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     type Offer = { key: string; ico: string; name: string; hotkey: string | null; use: string; lvl: number; max: number; price: number | null; blocked: string | null; buy: () => void; tip: () => string;
       // a ficha depois de comprar mais um nível e depois de vender tudo (prévia na dica)
       bought: () => SheetRow[]; sold: () => SheetRow[] };
-    const now = sheet(mine.spells, mine.items, book());
+    const now = sheet(mine.spells, mine.items);
     if (presetOrder && presetOrder.round !== r.round) presetOrder = null; // o ouro não deu para tudo: não mexe na barra da próxima loja
     // gravar no desenho é seguro: o myLoadout (barra e teclas) já grava a ordem durante o desenho, e este é o primeiro desenho com as magias da build
     if (presetOrder?.order.every((s) => !s || mine.spells[s] > 0)) {
@@ -1618,15 +1617,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const price = priceOf(s, lvl);
       const full = lvl === 0 && spellCount(mine.spells) >= MAX_SPELLS;
       return offer({ key: 'spell-' + s, ico: ICON[s], name: spellName(s), hotkey: hotkeyOf(s), use: SPELL_USE[s], lvl, max: MAX_SPELL_LEVEL, price,
-        blocked: price === null ? t('Máximo', 'Max') : full ? t(`Limite de ${MAX_SPELLS} magias`, `Limit of ${MAX_SPELLS} spells`) : null, buy: () => act.buy(s), tip: () => spellTip(s, lvl, book()),
-        bought: () => sheet({ ...mine.spells, [s]: lvl + 1 }, mine.items, book()), sold: () => sheet({ ...mine.spells, [s]: 0 }, mine.items, book()) });
+        blocked: price === null ? t('Máximo', 'Max') : full ? t(`Limite de ${MAX_SPELLS} magias`, `Limit of ${MAX_SPELLS} spells`) : null, buy: () => act.buy(s), tip: () => spellTip(s, lvl),
+        bought: () => sheet({ ...mine.spells, [s]: lvl + 1 }, mine.items), sold: () => sheet({ ...mine.spells, [s]: 0 }, mine.items) });
     };
     const itemOffer = (i: ItemId) => {
       const lvl = mine.items[i];
       const price = itemPrice(mine.items, i);
       return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: itemName(i), hotkey: null, use: itemText(i), lvl, max: ITEMS[i].levels.length, price,
         blocked: lvl >= ITEMS[i].levels.length ? t('Máximo', 'Max') : price === null ? t('Sem espaço', 'No room') : null, buy: () => act.buyItem(i), tip: () => itemTip(i, lvl),
-        bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }, book()), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }, book()) });
+        bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }) });
     };
     const group = (title: string, hint: string, cards: HTMLElement[]) =>
       el('section', { class: 'shop-group ' + groupClass(title) }, el('div', { class: 'shop-head' }, el('h3', {}, title), el('small', {}, hint)), el('div', { class: 'shop-grid' }, ...cards));

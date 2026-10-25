@@ -4,7 +4,7 @@ import { drawCards, type Card } from './ascension.ts';
 import type { CharacterId } from './characters.ts';
 import type { BossState } from './bosses.ts';
 import { nightRand } from './rng.ts';
-import { MAX_SPELLS, SPELLS, spellCount, type Level, type SpellBook, type SpellId } from './spells.ts';
+import { MAX_SPELLS, spellCount, type SpellId } from './spells.ts';
 
 // humanos no máximo; as outras vagas da sala (MAX_PLAYERS) são dos servos
 // orphan: seconds the night waits when every standing Aceso belongs to a dropped player (time to reload the page)
@@ -29,12 +29,6 @@ export const SERVOS: Record<ServoKind, { name: string; plural: string; look: Cha
   odran: { name: 'Sir Odran, o Elmo Vazio', plural: 'Sir Odran, o Elmo Vazio', look: 'skeleton_warrior', outfit: '8288822', hp: 3000, spells: { meteor: 4, cluster: 3 }, speed: 0.85, boss: true },
 };
 
-// magias na Campanha: o que muda aqui vale só na Campanha (World.book); o que não está aqui segue SPELLS, inclusive
-// os ajustes de balanceamento dos outros modos. Nunca mude spells.ts por causa da Campanha: mude aqui. Exemplo:
-//   fireball: retune('fireball', (l) => ({ ...l, cd: 3.5 })),
-// (o empurrão é o campo knock; mudar dmg não muda knock sozinho)
-export const retune = (id: SpellId, f: (l: Level, i: number) => Level): Level[] => SPELLS[id].levels.map((l, i) => f({ ...l }, i)); // cópia: mexer no nível recebido não muda SPELLS
-export const CAMPAIGN_BOOK: SpellBook = {};
 
 // reacender (Lucas, 20/10): aliado a até reach m da brasa por need s (base + perFall por queda anterior na mesma sala)
 // traz o Aceso de volta com hp da vida e os 2 s de invulnerável de sempre; afastar zera; na arena do chefe a brasa apaga em out s

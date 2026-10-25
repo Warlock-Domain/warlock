@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CELL, edge, pathStep, type Terrain } from '../src/shared/arena.ts';
-import { HP_MAX, PIT, WAX, WIZ_R } from '../src/shared/constants.ts';
+import { HP_MAX, PIT, WIZ_R, ZONES } from '../src/shared/constants.ts';
 import { stepWorld, type World } from '../src/shared/sim.ts';
 import { noSpells } from '../src/shared/spells.ts';
 import { dist, v } from '../src/shared/vec.ts';
@@ -130,7 +130,7 @@ describe('mapa da Campanha', () => {
     const slow = onMap(rows, [[1.5, 2.5], [10, 1.5]]);
     run(fast, 1, [{ id: 'p0', kind: 'move', to: v(10, 1.5) }]);
     run(slow, 1, [{ id: 'p0', kind: 'move', to: v(10, 2.5) }]);
-    expect((slow.wizards[0].pos.x - 1.5) / (fast.wizards[0].pos.x - 1.5)).toBeCloseTo(WAX.mult, 1);
+    expect((slow.wizards[0].pos.x - 1.5) / (fast.wizards[0].pos.x - 1.5)).toBeCloseTo(ZONES.slow.mult, 1);
   });
 
   it('teleporting into a wall lands on free ground next to it', () => {

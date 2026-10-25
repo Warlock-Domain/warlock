@@ -62,9 +62,8 @@ export const OBSTACLES: Record<ObstacleKind, { r: number; hp: number; blastR: nu
 };
 
 // mapa da Campanha (levels.ts; Lucas, 19/10): empurrado para o abismo, o mago perde parte da vida máxima e volta à beira de
-// onde caiu; a cera deixa lento como o chão arcano (números iniciais, a medir)
+// onde caiu (número inicial, a medir); a cera deixa lento com a poça de lentidão do jogo (ZONES.slow, Fernando 24/10)
 export const PIT = { hit: 0.15 };
-export const WAX = { mult: 0.6 };
 
 export const WALL_GAP = 0.65; // centro a centro dos 3 pedaços da parede: 2 × 0,65 + 2 × 0,35 = 2 m, a largura do modelo
 

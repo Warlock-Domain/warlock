@@ -8,7 +8,7 @@ import { DEFAULT_OPTS, type BotSetup } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
 import { ODRAN } from '../shared/bosses.ts';
-import { CAMPAIGN_BOOK, SERVOS, nightXpAt } from '../shared/campaign.ts';
+import { SERVOS, nightXpAt } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
 import { itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
@@ -994,7 +994,7 @@ function startRoom(code: string, name: string) {
     view.minimap(nm && playing ? { map: nm, seen, done: room!.night!.done, fight: room!.night!.fight, dots: drawWiz.filter((d) => d.alive && !d.illusion).map((d) => ({ pos: d.pos, me: d.id === me, foe: d.team === 1 })) } : null);
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
-    const reach = showing && meP ? reachOf(showing, meP.spells, meP.items, room?.night ? CAMPAIGN_BOOK : undefined) : 0;
+    const reach = showing && meP ? reachOf(showing, meP.spells, meP.items) : 0;
     // mira de verdade (tecla segurada no Segurar, magia escolhida ou controle): faixa de acerto e explosão rumo ao cursor ou retículo.
     // No Rápido a tecla é o piscar depois de lançar: a faixa fica parada onde a magia saiu (flashAim), e o mouse na barra não aponta
     // o chão: nada segue o mouse
@@ -1078,7 +1078,7 @@ function startRoom(code: string, name: string) {
       const moving = !!(state.status & WALKING_BIT) && state.alive && (!!(state.status & HOLDING_MOVE_BIT) || !prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
       if (live && w.alive && room?.phase === 'playing') aliveAt[w.id] = s.time;
-      return { ...state, xp: live && p ? xpOf(p) : null, status, pos, hpMax: maxHp(p), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p && room ? botLevel(p, room) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p ? playerName(p) : '?', place: placeOf(p), shieldR: p?.spells.shield ? spellLevel('shield', p.spells.shield, room?.night ? CAMPAIGN_BOOK : undefined).radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, ember: live && !w.alive ? lastSnap?.em?.[room?.ids.indexOf(w.id) ?? -1] : undefined, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined, size: p?.servo && SERVOS[p.servo].boss ? ODRAN.size : undefined };
+      return { ...state, xp: live && p ? xpOf(p) : null, status, pos, hpMax: maxHp(p), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p && room ? botLevel(p, room) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p ? playerName(p) : '?', place: placeOf(p), shieldR: p?.spells.shield ? spellLevel('shield', p.spells.shield).radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, ember: live && !w.alive ? lastSnap?.em?.[room?.ids.indexOf(w.id) ?? -1] : undefined, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined, size: p?.servo && SERVOS[p.servo].boss ? ODRAN.size : undefined };
     });
   }
   // eventos do replay: só a cena (clarão, explosão) e a seta do golpe que eu levei

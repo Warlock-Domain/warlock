@@ -110,7 +110,6 @@ describe('Campanha: partida no mapa', () => {
     for (const id of ['a', 'b']) expect(dist(wiz(m, id).pos, v(start.x + 0.5, start.y + 0.5))).toBeLessThan(1.5);
     expect(foes(m).some((z) => z.alive)).toBe(false);
     expect(w.pillars.length).toBeGreaterThan(0); // árvores, estátuas e destroços do desenho
-    expect(w.friendly).toBe('none'); // magia não pega aliado (nem entre os servos)
     now = step(m, now, 60 * 20);
     expect(m.world!.arenaR).toBe(3);
     expect(m.phase).toBe('playing');

@@ -1,7 +1,7 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { afterBoss, bossCmds, bossHp, newBoss, ODRAN } from './bosses.ts';
-import { CAMPAIGN, CAMPAIGN_BOOK, CANDLE, CHEST_REACH, EMBER, SERVOS, nightCards, nightCount, nightLevel, xpShare, type Night, type ServoKind } from './campaign.ts';
+import { CAMPAIGN, CANDLE, CHEST_REACH, EMBER, SERVOS, nightCards, nightCount, nightLevel, xpShare, type Night, type ServoKind } from './campaign.ts';
 import { fightOf, nightMap, obstaclesOf, roomRect, terrainOf, type NightMap, type Spawn } from './levels.ts';
 import { ASC_ROUNDS, applyCard, ascDeath, ascEndRound, ascMark, ascOwner, ascResume, ascShop, ascWinner, newAsc, type AscLobby, type AscState } from './ascension.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
@@ -865,7 +865,7 @@ function enterStage(m: Match, now: number, rand: () => number) {
   const teams = Object.fromEntries(playing(m).map((p) => [p.id, p.servo ? 1 : 0]));
   const w = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), 0, rand, false, teams, { runes: false, sudden: false, chests: false });
   // arenaR pequeno: os bots usam frações dele como folga das paredes
-  Object.assign(w, { map: terrainOf(map), arenaR: 3, isles: [], pillars: obstaclesOf(map), friendly: 'none', book: CAMPAIGN_BOOK }); // magia não pega aliado (Lucas, 20/10)
+  Object.assign(w, { map: terrainOf(map), arenaR: 3, isles: [], pillars: obstaclesOf(map) }); // allied spells push without damage, as in Teams (Fernando, 24/10)
   const acesos = w.wizards.filter((z) => z.team === 0);
   acesos.forEach((z, i) => (z.pos = around(w.map!.home, i, acesos.length)));
   for (const z of w.wizards) if (z.team === 1) Object.assign(z, { alive: false, hp: 0, pos: v(-50, -50) }); // fora do mapa até a primeira onda
@@ -1231,7 +1231,7 @@ function watchStyle(m: Match, w: World, all: Cmd[]) {
     const p = self(id);
     if (!p || w.t - th.at > 1) continue;
     // fora da linha do tiro (do meteoro: fora do raio)
-    const out = (to: Vec) => th.p.kind === 'meteor' ? dist(to, th.p.pos) >= spellLevel('meteor', th.p.level, w.book).radius + WIZ_R
+    const out = (to: Vec) => th.p.kind === 'meteor' ? dist(to, th.p.pos) >= spellLevel('meteor', th.p.level).radius + WIZ_R
       : Math.abs((to.x - th.p.pos.x) * th.p.vel.y - (to.y - th.p.pos.y) * th.p.vel.x) / Math.max(1e-6, len(th.p.vel)) > WIZ_R + PROJ_R + 0.25;
     const cast = w.events.find((e) => e.k === 'cast' && e.id === id && DEFENSE.includes(e.spell));
     if (!th.reacted && (cast || all.some((c) => c.id === id && c.kind === 'move' && out(c.to)))) {
