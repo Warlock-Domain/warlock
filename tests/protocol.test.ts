@@ -7,15 +7,15 @@ import { v } from '../src/shared/vec.ts';
 
 const p = (m: unknown) => parseClientMessage(JSON.stringify(m));
 
-describe('protocolo', () => {
+describe('protocol', () => {
   it('accepts valid commands', () => {
     expect(p({ t: 'hello', playerId: 'abcdefgh-123', name: 'Ana' })).toEqual({ t: 'hello', playerId: 'abcdefgh-123', name: 'Ana' });
     expect(p({ t: 'move', x: 1.5, y: -2, seq: 3 })).toEqual({ t: 'move', x: 1.5, y: -2, seq: 3 });
     expect(p({ t: 'cast', spell: 'homing', x: 0, y: 0, seq: 9 })).toEqual({ t: 'cast', spell: 'homing', x: 0, y: 0, seq: 9 });
     expect(p({ t: 'start', bots: 7 })).toEqual({ t: 'start', bots: 7 });
     expect(p({ t: 'pick', character: 'skeleton_warrior' })).toEqual({ t: 'pick', character: 'skeleton_warrior' });
-    expect(p({ t: 'look', look: '8788874' })).toEqual({ t: 'look', look: '8788874' }); // o maior índice de cada peça
-    expect(p({ t: 'look', look: '4044444' })).toEqual({ t: 'look', look: '3733344' }); // cliente antigo com a Ladina encapuzada: Ladina + Capuz (#107)
+    expect(p({ t: 'look', look: '8788874' })).toEqual({ t: 'look', look: '8788874' }); // the highest index of each piece
+    expect(p({ t: 'look', look: '4044444' })).toEqual({ t: 'look', look: '3733344' }); // old client with the hooded Rogue: Rogue + Hood (#107)
     expect(p({ t: 'vote', kind: 'mode', target: 'teams' })).toEqual({ t: 'vote', kind: 'mode', target: 'teams' });
     expect(p({ t: 'vote', kind: 'shuffle', target: 'x' })).toEqual({ t: 'vote', kind: 'shuffle' });
     expect(p({ t: 'vote', kind: 'kick', target: 'p1a2b3' })).toEqual({ t: 'vote', kind: 'kick', target: 'p1a2b3' });
@@ -25,7 +25,7 @@ describe('protocolo', () => {
   });
 
   it('keeps move/cast targets inside the room: ±30 m in the arena, the map rectangle in the Campaign', () => {
-    // a sala normal recusa fora da arena como antes da Campanha (o parser agora aceita até 400 m por causa do mapa da noite)
+    // a normal room refuses targets outside the arena as before the Campaign (the parser now accepts up to 400 m for the night map)
     expect(cmdTarget(undefined, 35, 0)).toBeNull();
     expect(cmdTarget(undefined, 0, -31)).toBeNull();
     expect(cmdTarget(undefined, 30, -30)).toEqual(v(30, -30));
@@ -58,16 +58,19 @@ describe('protocolo', () => {
     expect(p([1, 2])).toBeNull();
   });
 
-  it('start: configuração dos bots do treino', () => {
-    const spells = { fireball: 0, rockpillar: 7, magnetize: 7, alteration: 7, boomerang: 7, windwalk: 7, splitter: 7 };
+  it('start: training bot setup', () => {
+    // Fireball sold and Scourge free (it counts): 5 more fill the 6 slots (#401)
+    const spells = { fireball: 0, rockpillar: 7, magnetize: 7, alteration: 7, boomerang: 7, windwalk: 7 };
     const items = { ring: 6, cursed_ring: 6, shock_boots: 6, lava_boots: 6, warden: 6, wind_boots: 6 };
     expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 3 } }, {}, { items: { armor: 2 }, skill: { aim: 0.8 } }] }))
       .toEqual({ t: 'start', bots: 3, setup: [{ spells: { lightning: 3 } }, {}, { items: { armor: 2 }, skill: { aim: 0.8 } }] });
-    // 7 bots com 6 magias no nível 7 e 6 itens no 6, e todas as opções: cabe na mensagem
+    // 7 bots with 6 spells at level 7 and 6 items at level 6, and every option: fits in the message
     const full = { t: 'start', bots: 7, mode: 'deathmatch', opts: { shop: 120, economy: 2, startGold: 100, goal: 7, difficulty: 'normal', arena: 'random' }, setup: Array(7).fill({ spells, items }) };
     expect(JSON.stringify(full).length).toBeGreaterThan(1024);
     expect(p(full)).not.toBeNull();
-    // 9 magias (a Bola de fogo e o Flagelo já vêm e contam), nível 8, item com nível 7, chave de skill desconhecida, 8 bots
+    // 7 spells (Fireball and Scourge come free and count), level 8, an item at level 7, an unknown skill key, 8 bots
+    expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 1 } }] })).toBeNull();
+    expect(p({ t: 'start', bots: 3, setup: [{ spells: { fireball: 0, lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 1 } }] })).not.toBeNull();
     expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 1, grip: 1, meteor: 1 } }] })).toBeNull();
     expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 8 } }] })).toBeNull();
     expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 1.5 } }] })).toBeNull();
@@ -78,17 +81,17 @@ describe('protocolo', () => {
     expect(p({ t: 'start', bots: 3, setup: [{ skill: { aim: 'x' } }] })).toBeNull();
     expect(p({ t: 'start', bots: 3, setup: Array(8).fill({}) })).toBeNull();
     expect(p({ t: 'start', bots: 3, setup: {} })).toBeNull();
-    // skill fora da faixa é limitado: rate 999 vira o do Difícil, rate 0 vira o do Fácil, negativo vira 0
+    // an out-of-range skill is clamped: rate 999 becomes Hard's, rate 0 becomes Easy's, a negative becomes 0
     expect(p({ t: 'start', bots: 1, setup: [{ skill: { rate: 999, dodge: -1 } }, { skill: { rate: 0 } }] }))
       .toEqual({ t: 'start', bots: 1, setup: [{ skill: { rate: 4, dodge: 0 } }, { skill: { rate: 1.5 } }] });
   });
 
-  it('start: dificuldade de cada bot (só os valores da lista)', () => {
+  it('start: difficulty of each bot (only the listed values)', () => {
     expect(p({ t: 'start', bots: 2, setup: [{ difficulty: 'easy' }, { difficulty: 'auto', spells: { lightning: 1 } }] }))
       .toEqual({ t: 'start', bots: 2, setup: [{ difficulty: 'easy' }, { spells: { lightning: 1 }, difficulty: 'auto' }] });
     for (const difficulty of ['insane', 1, null, '']) expect(p({ t: 'start', bots: 1, setup: [{ difficulty }] })).toBeNull();
-    // 7 bots com magias, itens e dificuldade: ainda cabe na mensagem
-    const spells = { fireball: 0, rockpillar: 7, magnetize: 7, alteration: 7, boomerang: 7, windwalk: 7, splitter: 7 };
+    // 7 bots with spells, items and difficulty: still fits in the message
+    const spells = { fireball: 0, rockpillar: 7, magnetize: 7, alteration: 7, boomerang: 7, windwalk: 7 };
     const items = { ring: 6, cursed_ring: 6, shock_boots: 6, lava_boots: 6, warden: 6, wind_boots: 6 };
     expect(p({ t: 'start', bots: 7, mode: 'deathmatch', opts: { shop: 120, economy: 2, startGold: 100, goal: 7, difficulty: 'normal', arena: 'random' }, setup: Array(7).fill({ spells, items, difficulty: 'normal' }) })).not.toBeNull();
   });
@@ -122,7 +125,7 @@ describe('protocolo', () => {
     expect(s.wizards[1].alive).toBe(false);
   });
 
-  it('snapshot: absorção da Investida vai só quando existe; runa do Escudo vai como efeito', () => {
+  it('snapshot: Rush absorption is sent only when it exists; the Shield rune goes as an effect', () => {
     const w = newWorld(['a', 'b'], { a: noSpells(), b: noSpells() });
     expect(encodeSnap(w, 'a', 0, []).ab).toBeUndefined();
     Object.assign(w.wizards[0], { rune: 'shield', runeUntil: 5 });
@@ -130,12 +133,12 @@ describe('protocolo', () => {
     const s = decodeSnap(JSON.parse(JSON.stringify(encodeSnap(w, 'a', 0, []))), ['a', 'b']);
     expect([s.wizards[0].rushLeft, s.wizards[1].rushLeft]).toEqual([0, 12]);
     expect(s.wizards[0].status & 1048576).toBeTruthy();
-    // acabou o tempo: some
+    // time is up: it goes away
     w.t = 6;
     expect(encodeSnap(w, 'a', 0, []).ab).toBeUndefined();
   });
 
-  it('snapshot: tempo que falta dos efeitos vai só para quem recebe e só quando existe', () => {
+  it('snapshot: the time left on effects goes only to the receiver and only when it exists', () => {
     const w = newWorld(['a', 'b'], { a: noSpells(), b: noSpells() });
     w.t = 10;
     expect(encodeSnap(w, 'a', 0, []).fx).toBeUndefined();
@@ -147,7 +150,7 @@ describe('protocolo', () => {
     expect(encodeSnap(w, 'a', 0, []).fx).toBeUndefined();
   });
 
-  it('snapshot: chão dos choques e o efeito em quem pisa (queimando, lento, no redemoinho)', () => {
+  it('snapshot: clash zones and the effect on whoever steps on them (burning, slowed, in the vortex)', () => {
     const w = newWorld(['a', 'b', 'c'], { a: noSpells(), b: noSpells(), c: noSpells() });
     expect(encodeSnap(w, 'a', 0, []).zn).toBeUndefined();
     w.wizards[0].pos = v(-3, 0);
@@ -155,7 +158,7 @@ describe('protocolo', () => {
     w.wizards[2].pos = v(3, 0);
     w.zones.push({ pos: v(-3, 0), r: 1.5, kind: 'burn', until: 4.5 }, { pos: v(0, 0), r: 1.95, kind: 'slow', until: 4.5 }, { pos: v(3, 0), r: 1.2, kind: 'pull', until: 3 });
     w.t = 1;
-    stepWorld(w, [], () => 0.5); // o passo da simulação marca quem está em cada chão
+    stepWorld(w, [], () => 0.5); // the simulation step marks who stands on each zone
     w.t = 1;
     const s = decodeSnap(JSON.parse(JSON.stringify(encodeSnap(w, 'a', 0, []))), ['a', 'b', 'c']);
     expect(s.zones).toEqual([
