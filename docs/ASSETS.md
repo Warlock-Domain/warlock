@@ -1,7 +1,5 @@
 # Assets do Warlock Wars
 
-- Channeling proposal: reuses the existing energise icon, invocation clip and normalized shield sound. Charge particles and status label are procedural in scene.ts; no downloaded asset or extra recording.
-
 Índice de tudo o que existe de arte, som e fonte no projeto, para pessoas e IAs saberem o que já tem antes de procurar ou criar algo novo. **Todo asset novo entra aqui** (regra no fim da página).
 
 - O que está em `public/` vai para o jogo no ar a cada deploy; o que está em `assets/` é biblioteca para quem contribui e **não** vai para o ar.

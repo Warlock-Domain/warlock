@@ -4,7 +4,6 @@ Applies together with the root `CLAUDE.md`.
 
 ## Simulation
 
-- Channeling proposal (25/10): learned Attack modifier,12gold, no own cooldown; Attack+owned spell starts stationary authoritative charge. At1s1.5×, at2s2× damage/range/projectile speed/knockback, held indefinitely without auto-fire. Explicit cast releases; original spell cooldown starts then. Stop/move/stun/suspension/death/lost ownership cancel; basic attacks disabled while learned. Captured power follows projectiles/reflection/shards. Healing/status/duration/radius unchanged. Identical bonuses across levels pending a progression decision. Preserve Campaign walls/body radii and custom projectile stats.
 - **Obstacles take every attack** (Fernando, 25/10): a new blast calls `blastPillars` (falloff by closeness, a wall hit once); a projectile that hits or bounces off an obstacle calls `damagePillar` in `hitPillar`; burning in the lava uses `damagePillar(..., quiet)`. The Campaign rock is unbreakable through `obstaclesOf`, not through a mode check in `sim.ts`.
 
 - Closed Body preserves the current stance facing when cast; the cursor does not turn the wizard. Other spells retain their normal aiming behavior. No stat or resistance changes.

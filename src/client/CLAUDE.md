@@ -4,8 +4,6 @@ Applies together with the root `CLAUDE.md`.
 
 ## Interface
 
-- Channeling proposal25/10: Attack+spell (or Channeling bar icon then spell) charges independently of cast mode; left-click confirms after1s, key release never fires. Snapshot cn drives held pose, label and powered reach; own state clears on server cancellation. PT/EN descriptions/stat rows/demo use the shared simulation. Held Attack_Invoke stops before switching to gait/idle/another clip, preventing a frozen pose from remaining mixed into walking.
-
 - Closed Body keeps its local effect aligned with the current stance, without a cursor aim line. PT/EN descriptions and the off-axis demo explain the preserved facing.
 
 - Blindness: vignette anchored to the ground by the affected player's 3 m radius, not by the camera; hides entities and labels beyond the limit. Text-only status chapter in the Grimoire; Sand Blast has its own PT/EN sheet and demo under Control.
