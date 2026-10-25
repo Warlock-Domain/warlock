@@ -30,7 +30,7 @@ export const EFFECT_NAME: Record<RoundEffectId, string> = {
 export const effectName = (e: RoundEffectId, mode?: Mode) => (e === 'gold' && mode === 'ascension' ? t('Febre arcana', 'Arcane rush') : EFFECT_NAME[e]);
 export const effectText = (e: RoundEffectId, mode?: Mode) =>
   e === 'gold' && mode === 'ascension' ? t(`todo XP ganho na rodada vale ${pct(ROUND_EFFECTS.gold.gold! - 1)} mais`, `all XP earned in the round is worth ${pct(ROUND_EFFECTS.gold.gold! - 1)} more`) : EFFECT_TEXT[e];
-export const EFFECT_TEXT: Record<RoundEffectId, string> = {
+const EFFECT_TEXT: Record<RoundEffectId, string> = {
   // os números vêm de ROUND_EFFECTS (constants.ts), para o texto não ficar defasado quando eles mudarem
   lava: t(`dano da lava ${pct(1 - ROUND_EFFECTS.lava.lava!)} menor`, `lava damage ${pct(1 - ROUND_EFFECTS.lava.lava!)} lower`),
   swords: t('a parede de espinhos empurra de volta e fere; a arena encolhe só metade', 'the spike wall knocks you back and hurts; the arena shrinks only halfway'),

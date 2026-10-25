@@ -1,7 +1,6 @@
 // Desafios curtos do treino (decisão do Fernando, 18/10): uma tarefa por partida, contada no cliente pelos eventos da rodada.
 import type { BotSkill } from '../shared/bots.ts';
-import { DEFAULT_OPTS, type MatchOpts } from '../shared/match.ts';
-import type { BotSetup } from '../shared/protocol.ts';
+import { DEFAULT_OPTS, type BotSetup, type MatchOpts } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import type { SpellId } from '../shared/spells.ts';
 import { t } from './i18n.ts';
@@ -16,7 +15,7 @@ export type Run = { c: Challenge; n: number; t: number; state: 'on' | 'won' | 'l
 // opções completas: a sala guarda as da partida anterior, e o recorde só vale com as mesmas regras
 const BASE: Partial<MatchOpts> = { ...DEFAULT_OPTS, runes: false, sudden: false, chests: false };
 // bot que só anda: não lança, não emenda, não reage, não sobe escudo nem desvia
-export const PASSIVE: Partial<BotSkill> = { cast: 0, combo: 0, react: 0, shield: 0, dodge: 0 };
+const PASSIVE: Partial<BotSkill> = { cast: 0, combo: 0, react: 0, shield: 0, dodge: 0 };
 const bots = (n: number, b: BotSetup = {}): BotSetup[] => Array.from({ length: n }, () => b);
 
 export const CHALLENGES: Challenge[] = [

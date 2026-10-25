@@ -136,7 +136,7 @@ export function grimoire(o: { side?: boolean; onShow?: (refs: Ref[]) => void } =
   let live: object[] = []; // demos da vista atual
 
   const spread = el('div', { class: 'g-spread' });
-  const where = el('span', { class: 'g-where' });
+  const where = el('span', { class: 'g-where', 'aria-live': 'polite' }); // screen readers hear the page change
   const prev = el('button', { type: 'button', class: 'g-turn', 'aria-label': t('Página anterior', 'Previous page'), onclick: () => turn(-1) }, '‹') as HTMLButtonElement;
   const next = el('button', { type: 'button', class: 'g-turn', 'aria-label': t('Próxima página', 'Next page'), onclick: () => turn(1) }, '›') as HTMLButtonElement;
   const nav = el('nav', { class: 'g-nav' }, prev, o.side ? null : el('button', { type: 'button', class: 'g-toc-btn', onclick: () => go(0) }, CH.toc), where, next);
@@ -183,10 +183,10 @@ export function grimoire(o: { side?: boolean; onShow?: (refs: Ref[]) => void } =
   function show(dir: number) {
     const [per, first] = view();
     live = [];
-    // a clicked contents link is replaced below: hand focus back to the book so ← → keep working in the Learn tab
-    const hadFocus = spread.contains(document.activeElement);
+    // a clicked contents link is replaced and an end button gets disabled below; either drops focus to <body>,
+    // so hand it back to the book and ← → keep working in the Learn tab
+    const hadFocus = root.contains(document.activeElement);
     spread.replaceChildren(...Array.from({ length: per }, (_, k) => render(first + k)));
-    if (hadFocus) root.focus({ preventScroll: true });
     spread.scrollTop = 0;
     spread.querySelectorAll('.g-page').forEach((p) => (p.scrollTop = 0));
     prev.disabled = first <= min;

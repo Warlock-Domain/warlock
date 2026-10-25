@@ -28,8 +28,46 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-describe('ciclo da conexão', () => {
-  it('libera heartbeat, reconexão, ouvinte e handlers mesmo com stop repetido e eventos atrasados', () => {
+describe('connection lifecycle', () => {
+  it('invokes caller callbacks without exposing the connection as their receiver', () => {
+    const receivers: unknown[] = [];
+    function recordReceiver(this: unknown) { receivers.push(this); }
+    const net = connect('/ws/lobby', parseTag, recordReceiver, recordReceiver, recordReceiver);
+    const socket = Socket.instances[0];
+    socket.opened();
+    socket.onmessage?.({ data: '{"t":"room"}' });
+    socket.close();
+    expect(receivers).toEqual([undefined, undefined, undefined, undefined]);
+    net.stop();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('keeps detached callbacks bound to their connection without stopping another instance', () => {
+    const onMsg = vi.fn();
+    const first = connect('/ws/lobby', parseTag, vi.fn(), vi.fn());
+    const second = connect('/ws/room/ABCD', parseTag, onMsg, vi.fn());
+    const [firstSocket, secondSocket] = Socket.instances;
+    firstSocket.opened();
+    secondSocket.opened();
+
+    const { send, stop } = first;
+    send({ t: 'alive' });
+    expect(firstSocket.send).toHaveBeenCalledWith('{"t":"alive"}');
+    expect(secondSocket.send).not.toHaveBeenCalled();
+    stop();
+    stop();
+    send({ t: 'alive' });
+    expect(firstSocket.send).toHaveBeenCalledOnce();
+    expect(firstSocket.close).toHaveBeenCalledOnce();
+    expect(secondSocket.close).not.toHaveBeenCalled();
+    secondSocket.onmessage?.({ data: '{"t":"room"}' });
+    expect(onMsg).toHaveBeenCalledWith({ t: 'room' });
+    vi.advanceTimersByTime(10000);
+    expect(secondSocket.send).toHaveBeenCalledWith('ping');
+    expect(vi.getTimerCount()).toBe(1);
+    second.stop();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('releases heartbeat, retry timer, listener, and handlers despite repeated stop and late events', () => {
     const add = vi.spyOn(document, 'addEventListener'), remove = vi.spyOn(document, 'removeEventListener');
     const onMsg = vi.fn(), onOpen = vi.fn(), onStatus = vi.fn();
     for (let i = 0; i < 10; i++) {
@@ -57,7 +95,7 @@ describe('ciclo da conexão', () => {
     expect(remove).toHaveBeenCalledTimes(10);
     for (let i = 0; i < 10; i++) expect(remove.mock.calls[i]).toEqual(add.mock.calls[i]);
   });
-  it('reconecta com backoff, substitui socket morto e recupera ao voltar à aba visível', () => {
+  it('reconnects with backoff, replaces dead sockets, and recovers when the tab becomes visible', () => {
     const onMsg = vi.fn(), onStatus = vi.fn();
     const net = connect('/ws/room/ABCD', parseTag, onMsg, vi.fn(), onStatus);
     const first = Socket.instances[0];
@@ -95,7 +133,7 @@ describe('ciclo da conexão', () => {
     net.stop();
     expect(vi.getTimerCount()).toBe(0);
   });
-  it('stop antes de abrir impede callbacks pendentes e novos envios', () => {
+  it('stopping before open blocks pending callbacks and new messages', () => {
     const onOpen = vi.fn(), onMsg = vi.fn();
     const net = connect('/ws/lobby', parseTag, onMsg, onOpen);
     const socket = Socket.instances[0], lateOpen = socket.onopen!, lateMsg = socket.onmessage!;
@@ -108,7 +146,7 @@ describe('ciclo da conexão', () => {
     expect(socket.send).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
   });
-  it('avisa uma vez por tipo de mensagem rejeitada na mesma conexão', () => {
+  it('warns once per rejected message type within a connection', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const net = connect('/ws/room/ABCD', parseTag, vi.fn(), vi.fn());
     const socket = Socket.instances[0];

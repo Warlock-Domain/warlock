@@ -269,6 +269,7 @@ export function showRules() {
     openLearn();
     learn!.book.goTo();
     learn!.book.root.focus({ preventScroll: true }); // ← → turn pages right away, as they did in the dialog
+    learn!.book.root.closest('.home-learn')?.scrollIntoView({ behavior: 'smooth' }); // F1 from further down the tab still shows the book
   } else void import('./grimoire.ts').then((m) => m.openGrimoire());
 }
 // atalho do grimório (F1 no padrão) em qualquer tela; com ele já aberto, nada (o Esc fecha)
@@ -623,6 +624,7 @@ function goldInfo(p: PublicPlayer, opts: MatchOpts, open: boolean, onToggle: (op
     row(t('Cada rodada que você jogou', 'Each round you played'), `+${g(ROUND_GOLD)}`),
     row(t('Vencer a rodada', 'Win the round'), t(`+${g(WIN_GOLD)} (líder: +${g(LEADER_WIN_GOLD)})`, `+${g(WIN_GOLD)} (leader: +${g(LEADER_WIN_GOLD)})`)),
     row(t('Abate', 'Kill'), `+${g(KILL_GOLD)}`),
+    row(t('Cada abate seguido, sem morrer', 'Each kill in a row, without dying'), t(`+${pct(STREAK.killGold)} por abate anterior`, `+${pct(STREAK.killGold)} per earlier kill`)),
     row(t('Abater o líder', 'Kill the leader'), t(`até +${g(BOUNTY.max)} extra`, `up to +${g(BOUNTY.max)} extra`)),
     row(t('Quebra-combo (derrubar quem tem 3+ abates seguidos)', 'Combo breaker (knock down someone on a 3+ kill streak)'), `+${g(STREAK.breakGold)}`),
     row(t('Atrás da média da partida', 'Behind the match average'), t(`até +${g(RECOVERY.max)} por rodada`, `up to +${g(RECOVERY.max)} per round`)),
