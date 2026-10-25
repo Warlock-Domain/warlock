@@ -1121,7 +1121,7 @@ function stepNight(m: Match, now: number, w: World, rand: () => number) {
     if (w.wizards.some((z) => z.alive && z.team === 1) || n.queue?.length) return;
     const f = fight(n, map, n.fight);
     if (n.wave + 1 < f.waves.length) return sendWave(m, w, f.waves[++n.wave], spawnsOf(map, n.fight));
-    if (f.tombs && n.cracked < nightCount(f.tombs.max, acesosOf(w))) return; // ainda vai rachar lápide: o encontro continua
+    if (f.tombs && n.cracked < nightCount(f.tombs.max, acesosOf(w))) return; // a tombstone will still crack: the encounter goes on
     n.done.push(n.fight);
     w.lock = undefined;
     if (isBoss(map, n.fight)) {

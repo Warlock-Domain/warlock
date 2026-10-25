@@ -61,8 +61,8 @@ export const OBSTACLES: Record<ObstacleKind, { r: number; hp: number; blastR: nu
   rockpillar: { r: 0.35, hp: 200, blastR: 300 * UNIT, blastDmg: 10, weight: 0 },
 };
 
-// mapa da Campanha (levels.ts; Lucas, 19/10): empurrado para o abismo, o mago perde parte da vida máxima e volta à beira de
-// onde caiu (número inicial, a medir); a cera deixa lento com a poça de lentidão do jogo (ZONES.slow, Fernando 24/10)
+// Campaign map (levels.ts; Lucas, 19/10): pushed into the abyss, a wizard loses part of its max health and comes back to the
+// edge it fell from (first number, to be measured); wax slows with the game's slow pool (ZONES.slow, Fernando 24/10)
 export const PIT = { hit: 0.15 };
 
 export const WALL_GAP = 0.65; // centro a centro dos 3 pedaços da parede: 2 × 0,65 + 2 × 0,35 = 2 m, a largura do modelo
