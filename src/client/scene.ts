@@ -34,7 +34,7 @@ import { CANDLE } from '../shared/campaign.ts';
 import { t } from './i18n.ts';
 import { n1 } from './rules-text.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
-import { BLINDNESS, LIGHTNING, SPELLS } from '../shared/spells.ts';
+import { BLINDNESS, CAST_POINT, LIGHTNING, SPELLS } from '../shared/spells.ts';
 import type { TAUNTS } from '../shared/taunts.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
@@ -1636,7 +1636,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const mat=new THREE.MeshBasicMaterial({color:SNIPER_FX.flash,transparent:true,depthWrite:false});
         const tracer=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,delta.length(),8),mat);
         tracer.position.copy(from).lerp(to,.5); tracer.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());
-        scene.add(tracer); addFx(tracer,.18,k=>{mat.opacity=1-k;});
+        addFx(tracer,.18,k=>{mat.opacity=1-k;});
         burst(e.from,SNIPER_FX.flash,1.3,.2,.95,FX.spark);
       }
       if (e.k === 'sand') {
@@ -1648,7 +1648,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         for(let i=0;i<(lite?12:35);i++) { const d=Math.random()*e.length,side=(Math.random()-.5)*e.width*d/e.length; burst(v(e.x+dir.x*d-dir.y*side,e.y+dir.y*d+dir.x*side),'#d7bc85',.4,.4,.2+Math.random()*.6,FX.spark); }
       }
       if (e.k === 'boss') bossFx(e);
-      else if (e.k === 'cast') {
+      // The sniper's held aim pose comes from snapshots; the default one-shot gesture would flash before it.
+      else if (e.k === 'cast' && e.spell !== 'sniper') {
         oneShot(e.id, ...castAnim(e.spell));
         if (e.spell === 'scourge') {
           // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
@@ -2397,7 +2398,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       sniperScreen.visible=!!sf && (sf.left>0 || (!lite && sf.shot>0));
       sniperScreen.material.uniforms.clock.value=now;
       sniperScreen.material.uniforms.still.value=lite?1:0;
-      sniperScreen.material.uniforms.power.value=sf?Math.max(0,Math.min(1,1-sf.left/4.5)):0;
+      sniperScreen.material.uniforms.power.value=sf?Math.max(0,Math.min(1,1-sf.left/CAST_POINT.sniper)):0;
       sniperScreen.material.uniforms.shot.value=lite?0:sf?.shot ?? 0;
       sniperScreen.material.uniforms.gain.value=sf && sf.left>0?1:sf?.shot ?? 0;
       blindMask.visible=!!state.blindAt;

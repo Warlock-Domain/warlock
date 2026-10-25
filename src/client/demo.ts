@@ -84,7 +84,7 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 
 // Rótulos seguem os estados reais para a prévia não sugerir que stun, prisão e postura têm o mesmo bloqueio.
 export function demoStatus(w: World, z: Wizard): string[] {
-  if(z.casting?.spell==='sniper') return [t(`mirando · ${n1(z.casting.fireAt-w.t)} s · tiro500`,`aiming · ${n1(z.casting.fireAt-w.t)} s · shot500`)];
+  if(z.casting?.spell==='sniper') return [t(`mirando · ${n1(z.casting.fireAt-w.t)} s · tiro ${spellLevel('sniper',1).dmg}`,`aiming · ${n1(z.casting.fireAt-w.t)} s · shot ${spellLevel('sniper',1).dmg}`)];
   if(w.t < (z.blindUntil ?? 0)) return [t('cegueira · visão 3 m','blindness · sight 3 m'), ...(w.t < (z.incapacitateUntil ?? 0) ? [t('incapacitado · recargas pausadas','incapacitated · cooldowns paused')] : [])];
   if (w.t < (z.closedBodyUntil ?? 0) && bracingActive(w,z)) return [t('Corpo fechado · direção mantida · dano/empurrão/status −90%', 'Closed Body · facing preserved · damage/knockback/status −90%')];
   if ((z.geyserLeft ?? 0) > 0) return [t('suspenso · invulnerável · sem ações', 'suspended · invulnerable · no actions')];
@@ -215,10 +215,6 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       text(t('areia 3 m × 2 m · sem empurrão','sand 3 m × 2 m · no knockback'),v(0,-4.5),'#cfb17b',.3);
     }
     if (id === 'lightning') text(spellName('lightning'), v(0, -4.8), '#cfe8ff', .4);
-    for(const z of w.wizards) if(z.casting?.spell==='sniper') {
-      line(z.pos,z.casting.at,'#ff324e',.035); circle(z.casting.at,.5,null,'#ff324e');
-      line(z.pos,add(z.pos,scale(v(Math.cos(z.facing),Math.sin(z.facing)),1.4)),'#283447',.18);
-    }
     for (const z of w.zones) circle(z.pos, z.r, ZONE_COLOR[z.kind]);
     for (const p of w.pillars) if (p.alive) circle(p.pos, OBSTACLES[p.kind].r, '#8a7a6a', '#d9c3a5');
     for (const p of w.projectiles) drawProjectile(p);

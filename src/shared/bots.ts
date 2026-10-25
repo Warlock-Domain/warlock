@@ -178,8 +178,6 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   const me = w.wizards.find((z) => z.id === id && z.alive);
   if (!me) return [];
   if ((me.geyserLeft ?? 0) > 0) return [];
-  if (me.casting?.spell === 'sniper') return []; // Do not cancel the bot's own aim with a movement decision.
-
   const vision = w.t < (me.blindUntil ?? 0) ? 3 : D.vision;
   const M = mind(w);
   if (w.t < (M.frozen.get(id) ?? -1)) return []; // parado por erro
@@ -226,6 +224,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // projétil que acabou de surgir ainda não deu tempo de ver; longe demais, o bot não enxerga
   const seen = (p: Projectile) => w.t - (p.born ?? -Infinity) >= D.delay && dist(p.pos, me.pos) <= vision;
   const th = threatTo(w, me, seen);
+  // Keep aiming while nothing is coming; with a shot on the way the usual dodge runs and its move cancels the aim, as for a player.
+  if (me.casting?.spell === 'sniper' && !th) return [];
   // Hold ground (Fernando's decision, 24/10, in the CLAUDE.md register): with no escape spell ready the bot holds S like a player.
   // The 0.5 s windup must finish before the hit, so it looks up to 0.9 s ahead (windup + one Normal think, 0.4 s); the old 0.6 s
   // trigger almost never finished the windup (6 bots: 28 uses, 0 active ticks). Once holding it renews without a new roll while the
@@ -463,7 +463,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     const t = Math.max(0, Math.min(1, dot(sub(q.pos, me.pos), ab) / Math.max(1e-6, dot(ab, ab))));
     return dist(add(me.pos, scale(ab, t)), q.pos) < OBSTACLES[q.kind].r + PROJ_R + 0.1;
   });
-  if (ready('sniper') && d<=spellLevel('sniper',me.spells.sniper).range*me.rangeF && !blocked(E.pos)) return cast('sniper',E.pos);
+  // A 4.5 s stationary aim never replaces a dodge already decided this think or starts with a shot on the way.
+  if (!threat && !cmds.length && ready('sniper') && d <= spellLevel('sniper', me.spells.sniper).range * me.rangeF && !blocked(E.pos)) return cast('sniper', E.pos);
   // Atacar (decisão do Fernando, 24/10): sem nenhuma magia pronta, com o inimigo a até 6 m e sem obstáculo no meio, o bot usa o
   // ataque livre como o jogador; sem isso o humano teria um golpe que o bot nunca usa e o simulador não mediria o Atacar.
   // Desvio já decidido neste comando vem antes: parar 0,4 s para atacar jogaria fora a esquiva

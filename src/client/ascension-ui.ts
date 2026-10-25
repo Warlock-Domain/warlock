@@ -3,7 +3,7 @@
 import { ASC_ROUNDS, MARK_KB, markedLeader, type Card, type Kind } from '../shared/ascension.ts';
 import { ITEMS } from '../shared/items.ts';
 import type { PublicPlayer, PublicRoom } from '../shared/protocol.ts';
-import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, spellCount, type SpellId } from '../shared/spells.ts';
+import { MAX_SPELLS, spellMaxLevel, SPELL_IDS, spellCount, type SpellId } from '../shared/spells.ts';
 import { ICON, ITEM_ICON, el, icon, type Child } from './icons.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { SPELL_USE, spellClass } from './rules-text.ts';
@@ -37,18 +37,18 @@ function cardFace(c: Card, p: PublicPlayer) {
     return { cls: 'is-item', ico: ITEM_ICON[c.id], kind: lvl ? t(`Item · nível ${lvl + 1}`, `Item · level ${lvl + 1}`) : t('Item novo', 'New item'), name: cardName(c), text: itemText(c.id), max: ITEMS[c.id].levels.length, lvl };
   }
   const lvl = p.spells[c.id];
-  const to = c.kind === 'up' ? Math.min(MAX_SPELL_LEVEL, lvl + (c.rare ? 2 : 1)) : 1;
+  const to = c.kind === 'up' ? Math.min(spellMaxLevel(c.id), lvl + (c.rare ? 2 : 1)) : 1;
   const swap = c.kind === 'spell' && spellCount(p.spells) >= MAX_SPELLS;
   const kind = c.kind === 'up' ? t(`Subir magia · nível ${lvl} → ${to}`, `Spell upgrade · level ${lvl} → ${to}`)
     : swap ? t('Magia nova · troca, herda o nível', 'New spell · swap, keeps the level') : t('Magia nova · nível 1', 'New spell · level 1');
-  return { cls: spellClass(c.id), ico: ICON[c.id], kind, name: cardName(c), text: SPELL_USE[c.id], max: MAX_SPELL_LEVEL, lvl };
+  return { cls: spellClass(c.id), ico: ICON[c.id], kind, name: cardName(c), text: SPELL_USE[c.id], max: spellMaxLevel(c.id), lvl };
 }
 
 // one card as a button, with the shop tooltip (numbers now → after the card); also the Campaign level-up cards (ui.ts)
 export function cardButton(c: Card, mine: PublicPlayer, on: boolean, key: string, onclick: () => void, extra: Child = null): HTMLElement {
   const f = cardFace(c, mine);
   const full = spellCount(mine.spells) >= MAX_SPELLS;
-  const tip = () => (c.kind === 'item' ? itemCardTip(c.id, mine.items[c.id]) : c.kind === 'up' ? spellCardTip(c.id, mine.spells[c.id], Math.min(MAX_SPELL_LEVEL, mine.spells[c.id] + (c.rare ? 2 : 1))) : spellCardTip(c.id, 0, 1, full));
+  const tip = () => (c.kind === 'item' ? itemCardTip(c.id, mine.items[c.id]) : c.kind === 'up' ? spellCardTip(c.id, mine.spells[c.id], Math.min(spellMaxLevel(c.id), mine.spells[c.id] + (c.rare ? 2 : 1))) : spellCardTip(c.id, 0, 1, full));
   return withTip(el('button', { type: 'button', class: `asc-card ${f.cls}` + (c.kind === 'up' && c.rare ? ' rare' : '') + (on ? ' chosen' : ''), 'aria-pressed': String(on), 'data-key': key, onclick },
     el('span', { class: 'asc-kind' }, f.kind), el('span', { class: 'ico' }, icon(f.ico)), el('b', {}, f.name), el('small', {}, f.text),
     c.kind === 'up' && c.rare ? el('span', { class: 'asc-rare' }, t('Rara: +2 níveis', 'Rare: +2 levels')) : null, extra), tip);

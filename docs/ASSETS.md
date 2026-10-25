@@ -1,9 +1,5 @@
 # Assets do Warlock Wars
 
-- Inelegant Solution tension lines: original black/white/cyan procedural shader in `src/client/sniper-focus.ts`, with a transparent center. Visible to the living caster or a following spectator during aim/shot; no reference bitmap is incorporated.
-
-- Inelegant Solution: original procedural rifle/scope/stock, red laser/reticle and flash in `src/client/sniper-fx.ts`/`scene.ts`; original geometric `sniper-rifle` SVG in the sprite and generator. The 2D demo uses the real simulation. Reference images guide the pose only. Reuses credited `hitHeavy` audio with existing mixing/leveling/distance.
-
 Índice de tudo o que existe de arte, som e fonte no projeto, para pessoas e IAs saberem o que já tem antes de procurar ou criar algo novo. **Todo asset novo entra aqui** (regra no fim da página).
 
 - O que está em `public/` vai para o jogo no ar a cada deploy; o que está em `assets/` é biblioteca para quem contribui e **não** vai para o ar.
@@ -30,6 +26,8 @@ Gêiser: ícone `icons.svg#water-splash` (Lorc, game-icons.net, CC BY 3.0), esco
 |---|---|---|---|
 | Curar: coral sintetizado e aura verde | efeito sonoro de três vozes com harmônicos e vibrato; aura verde reaproveitando anel e partículas Kenney já creditadas | `src/client/sound.ts` (`heal`), `src/client/scene.ts`, `src/client/heal-fx.ts`; a demo usa a mesma duração e cor | gerado em código pelo projeto, sem asset externo |
 | `icons.svg#healing-cross` | cruz geométrica de Curar | `src/client/icons.ts`; regenerada em `scripts/assets/build-icons.mjs` | geometria original do projeto, sem asset externo |
+| Inelegant Solution: rifle, laser, reticle, tracer and screen-edge tension lines | procedural rifle/scope/stock, red laser and reticle, muzzle tracer; black/white/cyan edge-line shader seen by the caster or a spectator following them; shot reuses the credited `hitHeavy` effect | `src/client/sniper-fx.ts`, `src/client/sniper-focus.ts`, `src/client/scene.ts`; the demo draws the same aim | generated in code by the project, no external asset |
+| `icons.svg#sniper-rifle` | geometric rifle icon for Inelegant Solution | `src/client/icons.ts`; regenerated in `scripts/assets/build-icons.mjs` | original project geometry, no external asset |
 | `models/mage.glb`, `knight`, `barbarian`, `rogue`, `rogue_hooded`, `skeleton_mage`, `skeleton_minion`, `skeleton_rogue`, `skeleton_warrior` | os 9 bonecos (1 MB cada), com 21 animações | `src/client/scene.ts` (`/models/${id}.glb`), lista em `src/shared/characters.ts` | KayKit Adventurers e Skeletons, CC0; cortados por `scripts/slim-character.mjs`, capuz por `scripts/assets/hood.mjs` |
 | `models/KAYKIT-LICENSE.txt`, `KAYKIT-SKELETONS-LICENSE.txt` | licenças dos bonecos | — | KayKit, CC0 |
 | `desktop/icon.png` (fora de `public/`) | ícone do app e do instalador para Windows | `desktop/package.json` (`build.win.icon`; o electron-builder converte para o ícone do `.exe`) | gerado do `public/warlock-wars.svg` (o W da aba) em 512×512, recortado em círculo transparente; arte do projeto |

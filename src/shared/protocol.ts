@@ -9,7 +9,7 @@ import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type Run
 import { ITEM_IDS, type ItemId } from './items.ts';
 import { MODES, OPTION_CHOICES, TURRET_DIR, goalOf, parseOpt, votesNeeded, type BotSetup, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
-import { MAX_SPELLS, MAX_SPELL_LEVEL, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
+import { MAX_SPELLS, spellMaxLevel, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
 import { v, type Vec } from './vec.ts';
 
@@ -158,7 +158,7 @@ function parseSetup(x: unknown): BotSetup[] | null {
     if (!isObj(b)) return null;
     const { spells, items, skill, difficulty } = b;
     if (difficulty !== undefined && !OPTION_CHOICES.difficulty.includes(difficulty as MatchOpts['difficulty'])) return null;
-    if (spells !== undefined && (!isObj(spells) || !Object.entries(spells).every(([k, n]) => isSpell(k) && level(n, MAX_SPELL_LEVEL)) || spellCount({ ...noSpells(), ...spells }) > MAX_SPELLS)) return null;
+    if (spells !== undefined && (!isObj(spells) || !Object.entries(spells).every(([k, n]) => isSpell(k) && level(n, spellMaxLevel(k))) || spellCount({ ...noSpells(), ...spells }) > MAX_SPELLS)) return null;
     if (items !== undefined && (!isObj(items) || !Object.entries(items).every(([k, n]) => ITEM_IDS.includes(k as ItemId) && level(n, 6)))) return null;
     if (skill !== undefined && (!isObj(skill) || !Object.entries(skill).every(([k, n]) => SKILL_KEYS.includes(k as keyof BotSkill) && typeof n === 'number' && Number.isFinite(n)))) return null;
     const clamp = (k: keyof BotSkill, n: number) => Math.min(Math.max(...Object.values(BOT_SKILL).map((s) => s[k])), Math.max(k === 'rate' ? BOT_SKILL.easy.rate : 0, n));

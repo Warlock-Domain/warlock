@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { SoundKind } from './sound.ts';
+import { CAST_POINT } from '../shared/spells.ts';
 
 export const sniperShotSound: SoundKind = 'hitHeavy';
 export const SNIPER_FX = { laser: '#ff324e', metal: '#283447', stock: '#534135', flash: '#fff2b5' };
@@ -29,5 +30,5 @@ export function updateSniperRig(rig: THREE.Group, distance: number, left: number
   const laser=rig.getObjectByName('sniper-laser')!;
   laser.position.set(.18,.9,(distance+1.4)/2); laser.scale.y=Math.max(.01,distance-1.4);
   const mark=rig.getObjectByName('sniper-reticle')!;
-  mark.position.set(0,.055,distance); mark.rotation.z=(4.5-left)*1.5;
+  mark.position.set(0,.055,distance); mark.rotation.z=(CAST_POINT.sniper-left)*1.5;
 }

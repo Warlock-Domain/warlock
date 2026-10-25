@@ -4,7 +4,7 @@
 // Ascensão separado, porque o modo muda muito a jogabilidade principal); match.ts só chama estas funções atrás de `m.asc`.
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
 import type { Match, MatchOpts, Player, Stat } from './match.ts';
-import { MAX_SPELLS, MAX_SPELL_LEVEL, spellMaxLevel, SPELL_IDS, spellCount, spellGroup, type SpellId } from './spells.ts';
+import { MAX_SPELLS, spellMaxLevel, SPELL_IDS, spellCount, spellGroup, type SpellId } from './spells.ts';
 
 // rare: carta rara (só de subir magia): sobe 2 níveis
 export type Card = { kind: 'spell'; id: SpellId } | { kind: 'up'; id: SpellId; rare?: true } | { kind: 'item'; id: ItemId };
