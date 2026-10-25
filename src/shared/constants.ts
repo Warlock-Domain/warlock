@@ -44,8 +44,8 @@ export const PROJ_SPAWN = WIZ_R + PROJ_R + 0.05;
 // (raio, vida e explosão em OBSTACLES.pillar)
 export const PILLAR = { spread: 1000 * UNIT, min: 2, max: 8 };
 
-// tipos de obstáculo (pedido do Fernando, 17/10: mais tipos além dos pilares); o pilar segue o original, os outros são meus:
-// rocha grande e resistente, árvore morta frágil e altar de velas que explode em fogo. weight = chance relativa no sorteio
+// Obstacle kinds (Fernando, 17/10: more kinds besides pillars); the pillar follows the original, the others are new:
+// a large sturdy rock, a fragile dead tree and a candle shrine that explodes in fire. weight = relative chance in the draw
 export const OBSTACLE_KINDS = ['pillar', 'rock', 'tree', 'shrine', 'chest', 'rockpillar'] as const;
 export type ObstacleKind = (typeof OBSTACLE_KINDS)[number];
 // vida pela metade em 18/10 (pedido do Fernando: obstáculos com menos vida)

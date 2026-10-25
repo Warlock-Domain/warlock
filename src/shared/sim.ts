@@ -662,7 +662,7 @@ function blastPillars(w: World, at: Vec, radius: number, dmgAt: (k: number) => n
     if (!q.alive || d > reach || (q.wall !== undefined && walls.has(q.wall))) return;
     if (q.wall !== undefined) walls.add(q.wall);
     const dmg = dmgAt(Math.max(0, 1 - d / reach));
-    if (dmg > 0.5) damagePillar(w, i, dmg, by);
+    if (dmg > 0.5 && Number.isFinite(q.hp)) damagePillar(w, i, dmg, by); // no hit effect on an unbreakable Campaign rock
   });
 }
 
