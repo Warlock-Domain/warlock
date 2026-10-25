@@ -1,0 +1,5 @@
+# Testing in the browser
+
+Part of the index in the root [CLAUDE.md](../CLAUDE.md). The recommended test flow for each contributor's agent (test browser, `?aba=`/`?ir=`, music off) is in [CONTRIBUTING.md](../CONTRIBUTING.md), section Required verification.
+
+Screenshots with headless Playwright against `npx wrangler dev`; check on PC (1280×720 and 1920×1080), no phone screenshots for now (phones are not being optimised, decision of 20/10), and both languages (`localStorage.warlock:lang = 'pt' | 'en'`). `node scripts/smoke.mjs <url>` runs the smoke test of a real room. Ready-made scripts: `node scripts/play-headless.mjs <url> <screenshots-folder>` (one round with screenshots), `long-headless.mjs`, `multi-headless.mjs` (3 people), `ghost-socket.mjs` (a connection that vanishes without closing; no browser, ~6 min). They use the installed Chrome (`PW_CHANNEL=chromium` for Playwright's Chromium, after `npx playwright-core install chromium`) and a temporary profile (`PW_PROFILE=<folder>` for a fixed one).

@@ -1,29 +1,29 @@
-name: Ideia
-description: Magia, item, modo, mudança de interface ou de balanceamento
+name: Idea
+description: Spell, item, mode, interface or balance change
 labels: [ideia, precisa de decisão]
 body:
   - type: textarea
     id: oque
     attributes:
-      label: O que
-      description: A ideia em poucas frases.
+      label: What
+      description: The idea in a few sentences.
     validations:
       required: true
   - type: textarea
     id: porque
     attributes:
-      label: Por quê
-      description: Que problema resolve ou o que deixa mais divertido.
+      label: Why
+      description: What problem it solves or what it makes more fun.
     validations:
       required: true
   - type: textarea
     id: como
     attributes:
-      label: Como imagino
-      description: Números, desenho, referência de outro jogo (Dota, Warcraft 3…). Opcional.
+      label: How I picture it
+      description: Numbers, a sketch, a reference from another game (Dota, Warcraft 3…). Optional.
   - type: checkboxes
     id: fazer
     attributes:
-      label: Quem faz
+      label: Who does it
       options:
-        - label: Quero fazer o pull request desta ideia
+        - label: I want to open the pull request for this idea

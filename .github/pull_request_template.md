@@ -1,37 +1,38 @@
 <!--
-Título no formato do commit: `tipo: o que muda, em português` (tipos: feat, fix, balance, style, refactor, docs, ci, test).
-Ex.: `feat: runa de gelo que deixa o inimigo lento por 3 s`. O título vira o commit no `master`.
+Title in commit format: `type: what changes, in English` (types: feat, fix, balance, style, refactor, docs, ci, test).
+E.g. `feat: ice rune that slows the enemy for 3 s`. The title becomes the commit on `master`.
 -->
 
-Closes #<!-- número da issue, se houver; a palavra tem de ser em inglês (Closes, Fixes ou Resolves) para o GitHub fechar a issue sozinho -->
+Closes #<!-- issue number, if any; the keyword must be Closes, Fixes or Resolves for GitHub to close the issue automatically -->
 
-## Por quê
+## Why
 
-<!-- O problema ou a ideia, em uma ou duas frases. -->
+<!-- The problem or the idea, in one or two sentences. -->
 
-## O que muda
+## What changes
 
-<!-- O que o jogador vê de diferente, ou o que muda por dentro. Lista curta. -->
+<!-- What the player sees differently, or what changes inside. Short list. -->
 
-## Prints
+## Screenshots
 
-<!-- Obrigatório se mudou algo na tela: antes e depois, no PC. Sem print de celular por enquanto. Arraste as imagens aqui. -->
+<!-- Required if something changed on screen: before and after, on PC. No phone screenshots for now. Drag the images here. -->
 
-| Antes | Depois |
+| Before | After |
 |---|---|
 |  |  |
 
-## Como testei
+## How I tested
 
-- [ ] `npm run typecheck` (cliente, servidor e scripts)
+- [ ] `npm run typecheck` (client, server and scripts)
 - [ ] `npx vitest run`
 - [ ] `npx vite build`
-- [ ] Joguei no navegador (`npx wrangler dev`) no PC
-- [ ] Textos novos em português e inglês (`t('pt', 'en')`)
-- [ ] Decisão não óbvia com 1 linha de comentário explicando o porquê
-- [ ] Asset novo: licença livre, crédito em `public/CREDITS.txt` e linha em `docs/ASSETS.md` (o que é, onde o código usa, de onde veio)
-- [ ] Interface com as peças que já existem (`dialog()`, `iconButton()`, `tabs()`, `choice()`, `searchFilter()`, `withTip`) e as variáveis do `:root`; peça nova só se nenhuma serve, registrada em `src/client/CLAUDE.md`
+- [ ] Played in the browser (`npx wrangler dev`) on PC
+- [ ] New text in Portuguese and English (`t('pt', 'en')`)
+- [ ] Non-obvious decision with a 1-line English comment explaining why
+- [ ] New decision recorded in `docs/DECISIONS.md` (date, decision, why)
+- [ ] New asset: free licence, credit in `public/CREDITS.txt` and a row in `docs/ASSETS.md` (what it is, where the code uses it, where it came from)
+- [ ] UI with the existing pieces (`dialog()`, `iconButton()`, `tabs()`, `choice()`, `searchFilter()`, `withTip`) and the `:root` variables; a new piece only if none fits, documented in `src/client/CLAUDE.md`
 
-## Balanceamento
+## Balance
 
-<!-- Só se mexeu em número de magia, item ou bot: rodadas simuladas por dificuldade e a vitória ajustada antes → depois (faixa 0,85 a 1,15 no Normal e no Difícil). Senão, apague esta seção. -->
+<!-- Only if you changed a spell, item or bot number: simulated rounds per difficulty and the adjusted win rate before → after (band 0.85 to 1.15 on Normal and Hard). Otherwise, delete this section. -->
