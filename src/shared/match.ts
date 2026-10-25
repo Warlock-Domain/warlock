@@ -1,7 +1,7 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { afterBoss, bossCmds, bossHp, newBoss, ODRAN } from './bosses.ts';
-import { CAMPAIGN, CAMPAIGN_BOOK, EMBER, SERVOS, nightCards, nightCount, nightLevel, xpShare, type Night, type ServoKind } from './campaign.ts';
+import { CAMPAIGN, CAMPAIGN_BOOK, EMBER, SERVOS, nightCards, nightCount, nightLevel, servoHp, xpShare, type Night, type ServoKind } from './campaign.ts';
 import { fightOf, nightMap, obstaclesOf, roomRect, terrainOf, type NightMap, type Spawn } from './levels.ts';
 import { ASC_ROUNDS, applyCard, ascDeath, ascEndRound, ascMark, ascOwner, ascResume, ascShop, ascWinner, newAsc, type AscLobby, type AscState } from './ascension.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
@@ -882,7 +882,7 @@ function summon(m: Match, w: World, p: Player, kind: ServoKind, at: Vec) {
   dress(m, p, kind);
   // chefe: vida pelo tamanho do grupo e pesado (empurrão a menos); a vaga volta ao normal quando vira servo de novo
   const boss = !!SERVOS[kind].boss;
-  if (boss) p.hpMax = bossHp(SERVOS[kind].hp, w.wizards.filter((q) => q.team === 0 && q.alive).length); // Acesos em pé ao entrar
+  p.hpMax = boss ? bossHp(SERVOS[kind].hp, w.wizards.filter((q) => q.team === 0 && q.alive).length) : servoHp(SERVOS[kind].hp, acesosOf(w)); // boss: standing Acesos when he enters
   Object.assign(z, { spells: { ...p.spells }, cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), hpMax: p.hpMax, regen: 0, baseSpeed: WIZ_SPEED * (SERVOS[kind].speed ?? 1), kbResist: boss ? ODRAN.kbResist : 0, dashDmg: undefined, pitDeath: !boss, r: boss ? WIZ_R * ODRAN.size : undefined });
   revive(w, z, at);
   if (boss) {

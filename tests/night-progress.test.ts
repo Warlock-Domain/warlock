@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPAIGN, NIGHT_XP, STAGES, SERVOS, nightCards, nightCount, nightLevel, nightXpAt, xpShare } from '../src/shared/campaign.ts';
+import { CAMPAIGN, NIGHT_XP, SERVO_HP, STAGES, SERVOS, nightCards, nightCount, nightLevel, nightXpAt, xpShare } from '../src/shared/campaign.ts';
 import { STAGE_ROOMS, fightOf, nightMap, type NightMap } from '../src/shared/levels.ts';
 import { addPlayer, newMatch, nightPick, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
@@ -39,7 +39,18 @@ function openEntrance(m: Match, now: number): { now: number; room: number } {
   return { now: step(m, now), room };
 }
 
-describe('Campanha: progressão da noite', () => {
+describe('Campaign: night progression', () => {
+  it('small groups face weaker servants: half health alone, three quarters in a pair, full from 3 Acesos (Fernando, 25/10)', () => {
+    for (const ids of [['a'], ['a', 'b'], ['a', 'b', 'c'], ['a', 'b', 'c', 'd']]) {
+      const m = night(ids);
+      openEntrance(m, toPlaying(m, 0));
+      const out = foes(m).filter((z) => z.alive);
+      expect(out.length, `${ids.length} Acesos`).toBeGreaterThan(0);
+      for (const z of out) expect(z.hpMax, `${ids.length} Acesos`).toBe(Math.round(SERVOS.ash.hp * SERVO_HP[ids.length - 1]));
+    }
+    expect(SERVO_HP.slice(2)).toEqual([1, 1]); // 3 and 4 Acesos as before (19 and 25 of 25 nights won)
+  });
+
   it('a bigger group brings more of the same servants; the extras wait for a slot and the wave lasts until they fall', () => {
     const m = night(['a', 'b', 'c']);
     let now = toPlaying(m, 0);

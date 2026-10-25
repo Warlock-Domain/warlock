@@ -59,6 +59,11 @@ export function nightLevel(xp: number): number {
   while (xp >= nightXpAt(level + 1)) level++;
   return level;
 }
+// servant health by group size (index = Acesos - 1). Fernando, 25/10: Normal bots won 0 of 25 nights alone and in pairs
+// (falling in the Moinho), 19 with 3 and 25 with 4, and the spec asks 60 to 80% for a pair. The waves stay as Lucas wrote
+// them and small groups face weaker servants; 3 and 4 keep full health. To be measured with scripts/campaign-sim.ts
+export const SERVO_HP = [0.5, 0.75, 1, 1];
+export const servoHp = (hp: number, acesos: number) => Math.round(hp * SERVO_HP[Math.min(SERVO_HP.length, Math.max(1, acesos)) - 1]);
 // how many servants a wave or the tombs bring with this many Acesos
 export const nightCount = (n: number, acesos: number) => Math.round(n * (1 + NIGHT_XP.perAceso * (Math.max(1, acesos) - 1)));
 // XP each Aceso takes from a fallen servant: split by the group, plus the group bonus
