@@ -15,7 +15,7 @@ describe('decoding received messages', () => {
     expect(parseLobbyMessage({ t: 'room', rooms: [] })).toBeNull();
   });
 
-  it('aceita snapshots compactos sem copiar os vetores e rejeita comprimentos quebrados', () => {
+  it('accepts compact snapshots without copying the arrays and rejects broken lengths', () => {
     const valid = snap();
     expect(parseServerMessage(valid)).toBe(valid);
     expect(parseServerMessage({ ...valid, w: [0, 0] })).toBeNull();
