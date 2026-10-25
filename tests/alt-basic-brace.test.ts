@@ -8,6 +8,8 @@ import { braceResistance, bracingActive, inArc, stepWorld, type Cmd, type World 
 import { noSpells } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
 import { run, toPlaying, world } from './helpers.ts';
+import { mechanicTip } from '../src/client/tips.ts';
+import { MECHANIC_GUIDES } from '../src/client/rules-text.ts';
 
 // Alternative versions of Attack and Hold ground (issue #402): off by default, chosen per player in the shop
 const arena = (spots: [number, number][]) => {
@@ -143,5 +145,18 @@ describe('per-player choice', () => {
     toPlaying(m, 0, () => .5);
     expect(m.world!.wizards.find((z) => z.id === 'ana')?.arc).toBe(true);
     expect(m.world!.wizards.find((z) => z.id === bot.id)?.arc).toBeUndefined();
+  });
+});
+
+describe('fixed button tips', () => {
+  it('show the active version text and numbers, today’s text otherwise', () => {
+    const [attack, brace] = ['basic', 'brace'].map((id) => MECHANIC_GUIDES.find((g) => g.id === id)!);
+    expect(mechanicTip(attack)).toContain('clique num inimigo');
+    expect(mechanicTip(attack)).not.toContain('120°');
+    expect(mechanicTip(attack, true)).toContain('120°');
+    expect(mechanicTip(attack, true)).not.toContain('clique num inimigo');
+    expect(mechanicTip(brace)).toContain('depois do preparo');
+    expect(mechanicTip(brace, true)).toContain('90%');
+    expect(mechanicTip(brace, true)).not.toContain('depois do preparo');
   });
 });
