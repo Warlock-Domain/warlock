@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LAVA_DPS, OBSTACLES, type ObstacleKind } from '../src/shared/constants.ts';
 import { nightMap, obstaclesOf } from '../src/shared/levels.ts';
-import { stepWorld } from '../src/shared/sim.ts';
+import { stepWorld, type SimEvent } from '../src/shared/sim.ts';
 import { noSpells, spellLevel, type SpellId } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
 import { run, world } from './helpers.ts';
@@ -65,7 +65,7 @@ describe('Every attack hits obstacles', () => {
 describe('Obstacles in the lava', () => {
   it('a pillar in the lava loses health at the lava rate, without a hit effect every step', () => {
     const w = setup('pillar');
-    const events = [];
+    const events: SimEvent[] = [];
     for (let i = 0; i < 60; i++) {
       stepWorld(w, [], () => 0.5);
       events.push(...w.events);
@@ -73,6 +73,13 @@ describe('Obstacles in the lava', () => {
     expect(w.pillars[0].hp).toBeCloseTo(OBSTACLES.pillar.hp - LAVA_DPS, 0);
     expect(w.pillars[1].hp).toBe(OBSTACLES.pillar.hp);
     expect(events.filter((e) => e.k === 'pillar')).toEqual([]);
+  });
+
+  it('the round lava effect (Rainy weather) scales the burn like it does for wizards', () => {
+    const w = setup('pillar');
+    w.mods = { ...w.mods, lava: 0.5 };
+    for (let i = 0; i < 60; i++) stepWorld(w, [], () => 0.5);
+    expect(w.pillars[0].hp).toBeCloseTo(OBSTACLES.pillar.hp - LAVA_DPS * 0.5, 0);
   });
 
   it('a Barricade wall burns once per step, however many pieces are in the lava', () => {
@@ -85,7 +92,7 @@ describe('Obstacles in the lava', () => {
 
   it('breaks with the usual effect when its health runs out', () => {
     const w = setup('tree');
-    const events = [];
+    const events: SimEvent[] = [];
     for (let i = 0; i < 60; i++) {
       stepWorld(w, [], () => 0.5);
       events.push(...w.events);
