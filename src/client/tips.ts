@@ -1,6 +1,6 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
 import { AEGIS, AFFLICT_SPELLS, CRIT, ITEMS, SHOCK_BOOTS, WIND_BOOTS, type ItemId } from '../shared/items.ts';
-import { BASIC_ATTACK, BRACE, DT, FRICTION, KB_SOFT_CAP, LAVA_DPS, STUN_SPEED } from '../shared/constants.ts';
+import { BASIC_ATTACK, BRACE, DT, GUARD, MELEE_ARC, FRICTION, KB_SOFT_CAP, LAVA_DPS, STUN_SPEED } from '../shared/constants.ts';
 import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { labelOf, uiLabel } from './keys.ts';
@@ -134,7 +134,8 @@ export function itemTip(id: ItemId, level: number): string {
 }
 
 // Attack and Hold ground (issue #401): same tip shape as a spell, numbers read from the shared constants so they never drift
-export function mechanicTip({ id, title: name }: (typeof MECHANIC_GUIDES)[number]): string {
+// alt: a versão para teste escolhida na loja (issue #402) está ativa; a dica avisa, porque a tecla passa a fazer outra coisa
+export function mechanicTip({ id, title: name }: (typeof MECHANIC_GUIDES)[number], alt = false): string {
   const basic = id === 'basic';
   const key = uiLabel(basic ? 'basic' : 'stop');
   const text = basic
@@ -143,7 +144,7 @@ export function mechanicTip({ id, title: name }: (typeof MECHANIC_GUIDES)[number
   const rows: [string, string, null][] = basic
     ? [[DMG, n1(BASIC_ATTACK.dmg), null], [t('Preparo', 'Windup'), s(BASIC_ATTACK.windup), null], [CD, s(BASIC_ATTACK.cd), null], [RANGE, m(BASIC_ATTACK.range), null]]
     : [[t('Preparo', 'Windup'), s(BRACE.windup), null], [KNOCK_TAKEN, `−${n1(BRACE.resistance * 100)}%`, null]];
-  return `${demo(id)}<b>${name}</b> <span class="k">${key}</span><br><small>${t('Fixa: todo mago tem, não troca de posição nem vende', 'Fixed: every wizard has it, it cannot be moved or sold')}</small><p>${text}</p>${table(rows)}`;
+  return `${demo(id)}<b>${name}</b> <span class="k">${key}</span><br><small>${t('Fixa: todo mago tem, não troca de posição nem vende', 'Fixed: every wizard has it, it cannot be moved or sold')}</small><p>${text}</p>${table(rows)}${alt ? `<p><b>${t('Versão para teste ativa', 'Test version on')}:</b> ${basic ? t(`corpo a corpo, golpe em arco de ${MELEE_ARC.angle}° e ${n1(MELEE_ARC.range)} m na hora, rumo ao cursor`, `melee, a ${MELEE_ARC.angle}° arc of ${n1(MELEE_ARC.range)} m at once, toward the cursor`) : t(`defesa, vale na hora e reduz o empurrão até ${n1(GUARD.max * 100)}% em ${n1(GUARD.ramp)} s`, `guard, counts at once and cuts knockback up to ${n1(GUARD.max * 100)}% over ${n1(GUARD.ramp)} s`)}. ${t('Troque na loja.', 'Switch in the shop.')}</p>` : ''}`;
 }
 
 

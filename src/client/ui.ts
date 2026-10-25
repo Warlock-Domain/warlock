@@ -17,7 +17,7 @@ import { openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCt
 import { hideTip, itemTip, mechanicTip, spellTip, withTip } from './tips.ts';
 import { EFFECT_NAME, MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, effectName, effectText, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
-import { ITEM_GROUPS, MECHANIC_GUIDES, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
+import { ALT_TEXT, ITEM_GROUPS, MECHANIC_GUIDES, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, iconButton, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
@@ -379,6 +379,7 @@ type RoomActions = {
   ballot: (yes: boolean) => void;
   undo: (key: string) => void;
   sell: (key: string) => void;
+  alt: (arc: boolean, guard: boolean) => void; // versões alternativas do Atacar e do Manter base (issue #402)
   taunt: (i: number) => void;
   pick: (c: CharacterId) => void;
   ready: () => void;
@@ -1157,7 +1158,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const fixedBtns = TOUCH ? [] : MECHANIC_GUIDES.map((g) => {
     const ui: UiAction = g.id === 'basic' ? 'basic' : 'stop';
     return withTip(el('button', { type: 'button', class: 'spell fixed-skill', 'aria-disabled': 'true', 'aria-label': g.title },
-      el('span', { class: 'key', 'data-ui': ui }, uiLabel(ui)), el('span', { class: 'ico' }, icon(MECHANIC_ICON[g.id]))), () => mechanicTip(g));
+      el('span', { class: 'key', 'data-ui': ui }, uiLabel(ui)), el('span', { class: 'ico' }, icon(MECHANIC_ICON[g.id]))), () => mechanicTip(g, !!(g.id === 'basic' ? mine?.arc : mine?.guard)));
   });
   const ROW = 4; // slots per row: the fixed pair goes right after Q W E R
   // grade 3×2 de itens à direita da barra, como a do Dota (MAX_ITEMS = 6): os comprados (todos passivos desde 21/10, #217) e o resto vazio
@@ -1496,6 +1497,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // estado da loja que sobrevive ao redesenho (a sala manda o estado a cada compra de qualquer jogador)
   let goldOpen = false;
   let sheetOpen = false; // Ficha começa recolhida para a loja caber sem rolagem no PC; abrir/fechar sobrevive ao redesenho
+  let altOpen = true; // Versões para teste (issue #402) começa aberta: é o único lugar onde o jogador descobre a escolha
   let buildsOpen = false; // Builds também começa recolhida: menos informação na loja (pedido do Fernando na #185)
   let armedBuild: number | null = null; // posição com "Substituir?" à espera do segundo clique; fora do DOM para sobreviver ao redesenho da loja
   // ordem da barra do preset em uso: só vale quando as magias dele chegam (antes disso o myLoadout tira da barra o que ainda não tem)
@@ -1619,6 +1621,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       return el('details', { class: 'sheet-box', open: buildsOpen, ontoggle: (e: Event) => (buildsOpen = (e.target as HTMLDetailsElement).open) },
         el('summary', {}, t('Builds salvas', 'Saved builds')), ...saved.map((_, i) => row(i)));
     };
+    // versões alternativas do Atacar e do Manter base, só para teste (issue #402): por jogador, a de hoje é o padrão
+    const altBox = () => el('details', { class: 'sheet-box', 'data-key': 'alt', open: altOpen, ontoggle: (e: Event) => (altOpen = (e.target as HTMLDetailsElement).open) },
+      withTip(el('summary', {}, t('Versões para teste', 'Test versions')), () => ALT_TEXT),
+      el('small', { class: 'muted' }, t(`Atacar (${uiLabel('basic')})`, `Attack (${uiLabel('basic')})`)),
+      choice(t('Versão do Atacar', 'Attack version'), [[false, t('À distância', 'Ranged')], [true, t('Corpo a corpo', 'Melee')]], !!mine.arc, (arc) => act.alt(arc, !!mine.guard)),
+      el('small', { class: 'muted' }, t(`Manter base (${uiLabel('stop')})`, `Hold ground (${uiLabel('stop')})`)),
+      choice(t('Versão do Manter base', 'Hold ground version'), [[false, t('De hoje', 'Current')], [true, t('Defesa', 'Guard')]], !!mine.guard, (guard) => act.alt(!!mine.arc, guard)));
     const sheetBox = () => el('details', { class: 'sheet-box', open: sheetOpen, ontoggle: (e: Event) => (sheetOpen = (e.target as HTMLDetailsElement).open) },
       el('summary', {}, t('Ficha do mago', 'Wizard sheet')), sheetEl(now, el('small', { class: 'muted' }, t('Passe o mouse num item para ver o que muda.', 'Hover an item to see what changes.'))));
     const offer = (o: Offer) => {
@@ -1684,7 +1693,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.sandbox ? t('Loja · sandbox', 'Shop · sandbox') : deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${r.sandbox ? 'ouro sem fim: compre e venda, vale na hora' : deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${r.sandbox ? 'endless gold: buy and sell, it applies right away' : deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
         iconButton('✕', t('Fechar a loja', 'Close the shop'), () => togglePeek(false), { class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`) })),
       ...grid),
-      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), peek ? null : buildsBox(), sheetBox()));
+      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), peek ? null : buildsBox(), peek ? null : altBox(), sheetBox()));
     readyBtn = el('button', { type: 'button', class: 'primary big', 'data-key': 'ready', disabled: mine.ready, onclick: () => {
       if (r.round === 0) seeFirst();
       act.ready();
@@ -1701,6 +1710,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         readyBtn,
         el('button', { type: 'button', 'data-key': 'placar', onclick: () => pinTab(true) }, icon(UI_ICON.board), ' ' + t('Placar', 'Scoreboard')),
         buildsBox(),
+        altBox(),
         sheetBox(),
         goldInfo(mine, r.opts, goldOpen, (open) => (goldOpen = open)),
         nextModePicker(r),
