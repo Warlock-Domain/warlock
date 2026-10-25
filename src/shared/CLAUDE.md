@@ -4,6 +4,10 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Simulação
 
+- **Obstacles take every attack** (Fernando, 25/10): a new blast calls `blastPillars` (falloff by closeness, a wall hit once); a projectile that hits or bounces off an obstacle calls `damagePillar` in `hitPillar`; burning in the lava uses `damagePillar(..., quiet)`. The Campaign rock is unbreakable through `obstaclesOf`, not through a mode check in `sim.ts`.
+
+- Closed Body preserves the current stance facing when cast; the cursor does not turn the wizard. Other spells retain their normal aiming behavior. No stat or resistance changes.
+
 - Rajada de areia (cluster) em Controle: cone3×2m, dano20+8/nível, Incapacitar1+0,25s/nível e Cegueira2+0,5s/nível. Status independentes respeitam resistências gerais; sem projéteis nem knockback. Cegueira limita visão a3m do alvo (diâmetro6m), inclusive IA.
 
 - Corpo fechado em Defesa: exige Manter base ativo, termina ao soltar S ou no limite3,5+0,75s/nível. Reduz dano, novas durações negativas e novos impulsos em90%; nunca imunidade nem limpeza retroativa. Expirar mantendo S preserva Manter base.
@@ -20,6 +24,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 - **Eventos:** `w.events.push({ k: '...', ... })` durante o passo; tipo novo entra na união `SimEvent` e o cliente consome em `main.ts`. Ids secretos viram públicos em `publicEvents` (`snapshot.ts`).
 - Ilusão recebe forças pelo mesmo moveWizard do corpo real; copy.walk e pushVel separados. Gravidade usa puxão de corpo, Magnetizar não vira a caminhada, Bola de neve usa arraste no contato e explosão só ao explodir. Movimenta cópias antes dos impactos para não ganhar passo extra pela ordem da lista. Não mata nem oculta a cópia ao receber dano.
 
+- **Test versions of Attack and Hold ground** (issue #402): `Wizard.arc` and `Wizard.guard` come only from `setAlt` (shop, `alt` message) and the round start in `match.ts`; bots never set them, so the style hash stays the same. Every change of behaviour sits behind these flags (`finishArc`, `braceResistance`, the extra freeze of `basicReadyAt`); the arc restores the target's `casting` after `hit` on purpose.
+
 ## Números de magia e item (`spells.ts`, `items.ts`, `constants.ts`)
 
 - Proposta Meteoro em revisão: preserva dano/área e substitui empurrão por duration=1,25s em todos os níveis. Usa o bloqueio geral de stun e resistências do alvo; não aciona recuperação pós-knockback sem impulso. Medição/decisão do dono pendente antes de integrar.
@@ -28,7 +34,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 - Ajuste de balanceamento fica **inline sobre o número original**, com comentário de data e medição: `cd: cd * 0.7 /* 18/10: … (0,86 → 0,97) */`.
 - Constante extra de mecânica vira objeto `NOME = { … * UNIT }` abaixo da tabela, com o arquivo `.lua` de origem no comentário. Nada de número mágico solto em `sim.ts`.
 - Número só muda com medição do simulador (ver raiz).
-- **Campanha tem números próprios:** magia diferente na Campanha entra em `CAMPAIGN_BOOK` (`campaign.ts`, com `retune`), nunca em `spells.ts`; o mundo dela leva esse livro em `World.book`. Quem lê número de magia usa `spellLevel(id, nível, w.book)`, nunca `SPELLS[id].levels` direto (`tests/spellbook.test.ts` acusa). O que não está no livro segue `SPELLS`. O livro cobre só a tabela de níveis (`Level`): constante de mecânica (`RUSH`, `THRUST`…), `CAST_POINT` e itens ainda são de todos os modos; para mudar um deles só na Campanha, primeiro estenda o livro (mesma ideia, no `World`), nunca edite a constante compartilhada.
+- **Body radius:** `Wizard.r` (read through `bodyR`) is the body when it is not `WIZ_R`; only the Campaign boss sets it (`ODRAN.size`). Collisions, projectile hits and blasts against a wizard use `bodyR` of that wizard; a new check of "touching a wizard" uses it too, so the PvP hash stays the same.
+- **The Campaign uses the core numbers** (Fernando, 24/10): no spell table, constant or friendly-fire rule of its own; spell numbers come from `SPELLS` via `spellLevel`, in every mode. A Campaign need is met by a core rule or discussed in an issue first.
 
 ## Magia nova: onde mexer
 

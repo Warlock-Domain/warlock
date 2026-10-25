@@ -4,8 +4,8 @@ export const SPELL_IDS = ['fireball', 'lightning', 'homing', 'shield', 'teleport
   'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone', 'scourge', 'pact', 'heal', 'geyser', 'closedbody'] as const;
 export type SpellId = (typeof SPELL_IDS)[number];
 export const isSpell = (x: unknown): x is SpellId => SPELL_IDS.includes(x as SpellId);
-// 8 magias por mago nas teclas 1 2 3 4 Q W E R (decisão do Fernando, 21/10, issue #217; antes 6); a Bola de fogo e o Flagelo contam
-export const MAX_SPELLS = 8;
+// 6 spells per wizard on Q W E R D F (Fernando's decision, 25/10, issue #401; 8 on 1 2 3 4 Q W E R from 21/10, #217); Fireball and Scourge count
+export const MAX_SPELLS = 6;
 
 // magias pelo efeito principal: a loja e a ajuda mostram os nomes (rules-text.ts); o sorteio das cartas do Ascensão usa os grupos
 export const SPELL_GROUP_IDS = {
@@ -161,10 +161,7 @@ export const CAST_POINT: Record<SpellId, number> = { fireball: 0.1, lightning: 0
   drain: 0.1, snowball: 0.1, illusion: 0, magnetize: 0.1, recharge: 0.1, alteration: 0, link: 0.1, windwalk: 0, splitter: 0, warpzone: 0.1,
   scourge: 0.5, pact: 0.1, heal: 0, geyser: 0.1, closedbody: 0 }; // Heal and Closed body are instant; Scourge keeps its windup; Geyser uses the common 0.1 s windup.
 
-// tabela de níveis própria de um modo (World.book; hoje só a Campanha, em campaign.ts): o que não está nela vem de SPELLS.
-// Assim mudar magia na Campanha não mexe nos outros modos, e quem lê número de magia passa o book do mundo
-export type SpellBook = Partial<Record<SpellId, Level[]>>;
-export const spellLevel = (id: SpellId, level: number, book?: SpellBook): Level => (book?.[id] ?? SPELLS[id].levels)[Math.max(1, Math.min(MAX_SPELL_LEVEL, level)) - 1];
+export const spellLevel = (id: SpellId, level: number): Level => SPELLS[id].levels[Math.max(1, Math.min(MAX_SPELL_LEVEL, level)) - 1];
 
 // preço para subir do nível atual para o próximo; null = já no máximo
 export function priceOf(id: SpellId, level: number): number | null {

@@ -33,8 +33,8 @@ const VINE_COLOR = '#8ed64b';
 // mago 0 é "você" (com a magia ou o item da página); 1 e 2 são de treino e só têm a Bola de fogo
 export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   closedbody: { pos: [v(-1,0), v(3,0)], end: CLOSED_BODY_END + 2,
-    steps: ([...Array.from({length:Math.ceil((CLOSED_BODY_END+1.1)/.1)}, (_,i): Step => [.1+i*.1,A,'braceOn',A]), [.8,A,'closedbody',A], [1,B,'fireball',A], [2,B,'meteor',A], [CLOSED_BODY_END+.2,B,'basic',A], [CLOSED_BODY_END+1.2,A,'braceOff',A]] as Step[]).sort((a,b)=>a[0]-b[0]),
-    prep: w => { w.pillars=[]; w.wizards[B].spells.meteor=1; } },
+    steps: ([...Array.from({length:Math.ceil((CLOSED_BODY_END+1.1)/.1)}, (_,i): Step => [.1+i*.1,A,'braceOn',A]), [.8,A,'closedbody',v(-1,4)], [1,B,'fireball',A], [2,B,'meteor',A], [CLOSED_BODY_END+.2,B,'basic',A], [CLOSED_BODY_END+1.2,A,'braceOff',A]] as Step[]).sort((a,b)=>a[0]-b[0]),
+    prep: w => { w.pillars=[]; w.wizards[A].facing=0; w.wizards[B].spells.meteor=1; } },
   geyser: { pos: [v(-1.5, 0), v(0, 0), v(1.5, 0), v(-4, 0)], end: 4.5,
     steps: [[.4,A,'geyser',v(0,0)],[.9,B,'move',v(0,4)],[.9,3,'fireball',v(4,0)],[1,B,'fireball',A],[3.3,B,'move',v(0,3)]],
     prep: w => { w.pillars=[]; w.wizards[A].team=w.wizards[B].team=0; w.wizards[C].team=1; } },
@@ -84,7 +84,7 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 // Rótulos seguem os estados reais para a prévia não sugerir que stun, prisão e postura têm o mesmo bloqueio.
 export function demoStatus(w: World, z: Wizard): string[] {
   if(w.t < (z.blindUntil ?? 0)) return [t('cegueira · visão 3 m','blindness · sight 3 m'), ...(w.t < (z.incapacitateUntil ?? 0) ? [t('incapacitado · recargas pausadas','incapacitated · cooldowns paused')] : [])];
-  if (w.t < (z.closedBodyUntil ?? 0) && bracingActive(w,z)) return [t('Corpo fechado · dano/empurrão/status −90%', 'Closed Body · damage/knockback/status −90%')];
+  if (w.t < (z.closedBodyUntil ?? 0) && bracingActive(w,z)) return [t('Corpo fechado · direção mantida · dano/empurrão/status −90%', 'Closed Body · facing preserved · damage/knockback/status −90%')];
   if ((z.geyserLeft ?? 0) > 0) return [t('suspenso · invulnerável · sem ações', 'suspended · invulnerable · no actions')];
   const left = (until: number) => n1(Math.max(0, until - w.t));
   const labels: string[] = [];

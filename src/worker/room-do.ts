@@ -2,7 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
 import { chooseCard, reroll, setAscLobby } from '../shared/ascension.ts';
 import { lookOf } from '../shared/characters.ts';
-import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
+import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, nightPick, undoBuy, removePlayer, resume, sandboxCmd, sell, setAlt, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match, type RoomMode } from '../shared/match.ts';
 import { cmdTarget, parseClientMessage, publicId, publicRoom, type RoomInfo, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
@@ -35,6 +35,7 @@ export class Room extends DurableObject<Env> {
   private roomSentAt = 0;
   private taunted = new Map<string, number>();
   private looked = new Map<string, number>();
+  private alted = new Map<string, number>(); // última troca de versão alternativa (issue #402), por jogador
   private watched = new Map<string, number>();
   private revision = 0;
 
@@ -77,11 +78,13 @@ export class Room extends DurableObject<Env> {
     return new Set(this.live(except).map((ws) => this.playerOf(ws))).size;
   }
 
-  async init(id: string, ascension = false) {
+  async init(id: string, mode?: RoomMode) {
     if (await this.load()) return;
     this.saved = { id, match: newMatch() };
-    // sala do Ascensão: o lobby já mostra o modo e a partida só pode ser dele; o primeiro a entrar vira o dono
-    if (ascension) Object.assign(this.saved.match, { mode: 'ascension', lobby: { owner: null, bots: [], opts: {} } });
+    // room locked to a mode: the lobby already shows it and the match can only be it; in Ascension the first to join
+    // becomes the owner who picks bots and options (the Campaign lobby has no owner)
+    if (mode) this.saved.match.mode = mode;
+    if (mode === 'ascension') this.saved.match.lobby = { owner: null, bots: [], opts: {} };
     await this.persist();
     // sala criada e nunca aberta também é limpa
     await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS);
@@ -170,6 +173,12 @@ export class Room extends DurableObject<Env> {
       case 'buy':
         if (buy(m, id, msg.spell)) await this.changed();
         return;
+      case 'alt':
+        // grava a sala: no máximo uma troca a cada 100 ms por jogador, como o 'look'
+        if (now - (this.alted.get(id) ?? 0) < 100) return;
+        this.alted.set(id, now);
+        if (setAlt(m, id, msg.arc, msg.guard)) await this.changed();
+        return;
       case 'undo':
         if (undoBuy(m, id, msg.key)) await this.changed();
         return;
@@ -209,6 +218,9 @@ export class Room extends DurableObject<Env> {
         return;
       case 'card':
         if (chooseCard(m, id, msg.slot, msg.i, msg.swap)) await this.changed();
+        return;
+      case 'nightCard':
+        if (nightPick(m, id, msg.i)) await this.changed();
         return;
       case 'pick':
         if (setLook(m, id, lookOf(msg.character))) await this.changed();
@@ -377,7 +389,9 @@ export class Room extends DurableObject<Env> {
     // Ascensão: as cartas entram na mesa no passo do intervalo (ascShop), então a mesa também
     // os 5 s finais (todos escolheram) mudam o fim do intervalo: o relógio da tela precisa saber
     const asc = () => (m.asc ? `${Object.values(m.asc.offer).map((o) => o.length).join()}:${m.phaseEnds}` : '');
-    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}:${asc()}:${m.night?.fight ?? ''}:${m.night?.wave ?? ''}`;
+    // Campaign: each fallen servant moves the night XP and a cleared room puts level-up cards on the table, both in the step
+    const lv = () => (m.night ? `${Object.values(m.night.xp ?? {}).join()}|${Object.values(m.night.owed ?? {}).join()}|${Object.keys(m.night.offer ?? {}).join()}` : '');
+    const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}:${asc()}:${m.night?.fight ?? ''}:${m.night?.wave ?? ''}:${lv()}`;
     const before = sig();
     while (this.acc >= STEP_MS) {
       this.acc -= STEP_MS;

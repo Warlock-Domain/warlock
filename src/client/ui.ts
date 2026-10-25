@@ -1,22 +1,24 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
 import { ASC_ROUNDS } from '../shared/ascension.ts';
-import { ASC_MODE_TEXT, ascLevel, ascPanel } from './ascension-ui.ts';
+import { ASC_MODE_TEXT, ascLevel, ascPanel, cardButton } from './ascension-ui.ts';
+import { drawMinimap, type MiniColors, type MiniDot } from './minimap.ts';
+import type { NightMap } from '../shared/levels.ts';
 import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_EFFECT_IDS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD, type RoundEffectId } from '../shared/constants.ts';
 import { ARENA_IDS, type ArenaId } from '../shared/arena.ts';
 import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/characters.ts';
-import { CAMPAIGN, CAMPAIGN_BOOK } from '../shared/campaign.ts';
-import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, sellValue, type MatchOpts, type Mode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
+import { CAMPAIGN } from '../shared/campaign.ts';
+import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, isRoomMode, sellValue, type MatchOpts, type Mode, type RoomMode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { POS_ACTIONS, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
 import { openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
-import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
+import { hideTip, itemTip, mechanicTip, spellTip, withTip } from './tips.ts';
 import { EFFECT_NAME, MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, effectName, effectText, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
-import { ITEM_GROUPS, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
-import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, iconButton, type Child } from './icons.ts';
+import { ALT_TEXT, ITEM_GROUPS, MECHANIC_GUIDES, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
+import { BAD_STATUS, ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, iconButton, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
 import { isAudioMuted, type Volumes, type VolumeKind } from './sound.ts';
@@ -79,18 +81,24 @@ export function askName(root: HTMLElement, current: string): Promise<string> {
 const roomPhase = (r: RoomInfo) => r.phase === 'lobby' ? t('esperando começar', 'waiting to start') : r.phase === 'end' ? t('partida acabou, dá para começar outra', 'match over, you can start another')
   : t(`jogando${r.round ? ` a rodada ${r.round}` : ''} · você entra na próxima rodada`, `playing${r.round ? ` round ${r.round}` : ''} · you join next round`);
 
+const CAMPAIGN_MODE_TEXT = t('Juntos contra o Fumo: explorem a Charneca Cinzenta e vençam os encontros. Magia em aliado só empurra, sem dano. Se todos caírem, a noite recomeça diferente.', 'Together against the Smoke: explore the Ashen Moor and win the encounters. Spells on an ally only push, with no damage. If everyone falls, the night starts over, different.');
+
 // Opções de partida à direita, com o conteúdo da escolha ao lado.
-function playMenu(roomList: HTMLElement, onCreate: () => void, onCreateAsc: () => void, onTrain: (kind: string) => void): HTMLElement {
+function playMenu(roomList: HTMLElement, onCreate: () => void, onCreateRoom: (mode: RoomMode) => void, onTrain: (kind: string) => void): HTMLElement {
   const skill = toSkill(savedProfile());
-  const labels = [t('Jogar online', 'Play online'), t('Ascensão', 'Ascension'), t('Jogar contra bots', 'Play against bots'), 'Sandbox', t('Desafios', 'Challenges')];
+  const labels = [t('Jogar online', 'Play online'), t('Ascensão', 'Ascension'), t('Campanha', 'Campaign'), t('Jogar contra bots', 'Play against bots'), 'Sandbox', t('Desafios', 'Challenges')];
   const sections = [
     el('section', { class: 'play-content' }, el('h2', {}, labels[0]),
       el('button', { type: 'button', class: 'primary big', onclick: onCreate }, t('Criar sala', 'Create room')), roomList),
     // Ascensão: opção própria, separada dos modos de loja livre (Fernando, 21/10); a sala nasce presa ao modo e o link leva os amigos a ela
     el('section', { class: 'play-content' }, el('h2', {}, labels[1]),
       el('p', { class: 'muted' }, ASC_MODE_TEXT),
-      el('button', { type: 'button', class: 'primary big', onclick: onCreateAsc }, t('Criar sala do Ascensão', 'Create Ascension room'))),
+      el('button', { type: 'button', class: 'primary big', onclick: () => onCreateRoom('ascension') }, t('Criar sala do Ascensão', 'Create Ascension room'))),
+    // Campaign: its own option like the Ascension, not a mode of a normal room (Fernando, 24/10)
     el('section', { class: 'play-content' }, el('h2', {}, labels[2]),
+      el('p', { class: 'muted' }, CAMPAIGN_MODE_TEXT),
+      el('button', { type: 'button', class: 'primary big', onclick: () => onCreateRoom('campaign') }, t('Criar sala da Campanha', 'Create Campaign room'))),
+    el('section', { class: 'play-content' }, el('h2', {}, labels[3]),
       el('p', { class: 'muted' }, t('Prepare a partida: escolha os bots e a dificuldade antes de começar.', 'Set up the match: choose bots and difficulty before starting.')),
       el('button', { type: 'button', class: 'primary big', onclick: () => onTrain('bots') }, t('Criar partida contra bots', 'Create bot match')),
       el('button', { type: 'button', disabled: !skill, onclick: () => skill && onTrain('shadow') }, t('Treinar contra a sua sombra', 'Practice against your shadow')),
@@ -98,7 +106,7 @@ function playMenu(roomList: HTMLElement, onCreate: () => void, onCreateAsc: () =
     el('section', { class: 'play-content' }, el('h2', {}, 'Sandbox'),
       el('p', { class: 'muted' }, t('Vida e ouro sem fim, loja a qualquer hora e bots no painel.', 'Endless health and gold, shop any time and bots in the panel.')),
       el('button', { type: 'button', class: 'primary big', onclick: () => onTrain('sandbox') }, t('Abrir sandbox', 'Open sandbox'))),
-    el('section', { class: 'play-content' }, el('h2', {}, labels[4]),
+    el('section', { class: 'play-content' }, el('h2', {}, labels[5]),
       ...CHALLENGES.map((c) => {
         const best = bestOf(c.id);
         return el('button', { type: 'button', class: 'train', onclick: () => onTrain(c.id) }, c.name,
@@ -158,7 +166,7 @@ function personagemTab(): HTMLElement {
     el('div', { class: 'settings-grid' }, options, el('div', { class: 'settings-sections' }, ...sections)));
 }
 
-export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onCreateAsc: () => void, onRename: () => void, onTrain: (kind: string) => void, sound: Pick<SettingsCtx, 'volumes' | 'setVolume'>) {
+export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] | null, offline: boolean, onCreate: () => void, onCreateRoom: (mode: RoomMode) => void, onRename: () => void, onTrain: (kind: string) => void, sound: Pick<SettingsCtx, 'volumes' | 'setVolume'>) {
   // no lobby: o volume é o mesmo da sala (issue #128); sem efeitos visuais (só existem na sala); o pixel art fica guardado e vale ao entrar numa sala (só PC)
   const pixelOk = !matchMedia('(pointer: coarse)').matches;
   setSettingsCtx({ name: () => name, rename: onRename, volumes: sound.volumes, setVolume: sound.setVolume, pixel: pixelOk ? savedPixel : undefined, setPixel: (size) => store.set('warlock:pixel', String(size)) });
@@ -195,16 +203,13 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   // a lista chega de novo a cada mudança numa sala: só ela é redesenhada (as abas ficam como estão, com o foco)
   const old = root.querySelector<HTMLElement>('.lobby');
   if (old?.dataset.name === name) return old.querySelector('.lobby-rooms')!.replaceWith(roomList);
+  const learnContent = el('section', { class: 'home-learn' }, el('h2', {}, t('Grimório', 'Grimoire')));
   const libraryContent = el('section', { class: 'home-library' }, el('h2', {}, t('Magias e itens', 'Spells and items')));
   const panel = (k: HomeTab, ...kids: Child[]) => el('div', { class: 'home-panel', id: 'home-' + k, role: 'tabpanel', 'aria-labelledby': 'home-tab-' + k }, ...kids);
   const panels: Record<HomeTab, HTMLElement> = {
     home: panel('home'),
-    play: panel('play', playMenu(roomList, onCreate, onCreateAsc, onTrain)),
-    library: panel('library',
-      el('section', { class: 'home-learn' }, el('h2', {}, t('Como jogar', 'How to play')),
-        el('p', { class: 'muted' }, t('O grimório explica o jogo, os controles, os modos, a loja e cada magia e item, com demonstração.', 'The grimoire explains the game, the controls, the modes, the shop and every spell and item, with demos.')),
-        el('button', { type: 'button', onclick: showRules }, icon(UI_ICON.help), ' ' + t('Abrir o grimório', 'Open the grimoire'))),
-      libraryContent),
+    play: panel('play', playMenu(roomList, onCreate, onCreateRoom, onTrain)),
+    library: panel('library', el('div', { class: 'learn-grid' }, learnContent, libraryContent)),
     char: panel('char', personagemTab()),
     shop: panel('shop', el('section', { class: 'home-learn' }, el('h2', {}, t('Loja', 'Shop')),
       el('p', { class: 'muted' }, t('Roupas e visuais para o seu personagem. Prévia do catálogo com os modelos atuais; moeda, preços e compras ainda não foram definidos. Os visuais existentes continuam disponíveis no Guarda-roupas.', 'Outfits and looks for your character. Catalog preview using current models; currency, prices and purchases have not been defined yet. Existing looks remain available in the Wardrobe.'))),
@@ -245,12 +250,35 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
       stage),
   );
   show('home');
-  void import('./grimoire.ts').then((m) => libraryContent.append(m.library()));
+  // grimoire and library live in the Learn tab; the module loads only here so it does not weigh on game startup
+  void import('./grimoire.ts').then((m) => {
+    learn?.book.dispose(); // a rebuilt lobby (rename) drops the old book: release its matchMedia listener
+    const lib = m.library((id) => {
+      book.goTo(id);
+      book.root.focus({ preventScroll: true }); // ← → keep turning pages, as after a contents link
+      learnContent.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); // the book sits beside the library on wide screens: no scroll there
+    });
+    const book = m.grimoire({ side: true, onShow: (refs) => lib.querySelectorAll<HTMLElement>('.lib-tile').forEach((b) => b.setAttribute('aria-current', String((refs as string[]).includes(b.dataset.ref ?? '')))) });
+    learnContent.before(book.contents!);
+    learnContent.append(book.root);
+    libraryContent.append(lib);
+    learn = { book, lib };
+  });
 }
 
-// grimório (Como jogar): módulo carregado só quando abre, para não pesar o começo do jogo
+// Learn tab once built (only exists while the main menu is on screen)
+let learn: { book: { root: HTMLElement; goTo: () => void; dispose: () => void }; lib: HTMLElement } | null = null;
+const inMenu = () => !!learn?.lib.isConnected;
+const openLearn = () => document.getElementById('home-tab-library')?.click();
+
+// grimoire (How to play): in the main menu opens the Learn tab on its first page (the contents stay beside it); in a match, the book in a dialog (module loaded only when opened)
 export function showRules() {
-  void import('./grimoire.ts').then((m) => m.openGrimoire());
+  if (inMenu()) {
+    openLearn();
+    learn!.book.goTo();
+    learn!.book.root.focus({ preventScroll: true }); // ← → turn pages right away, as they did in the dialog
+    learn!.book.root.closest('.home-learn')?.scrollIntoView({ behavior: 'smooth' }); // F1 from further down the tab still shows the book
+  } else void import('./grimoire.ts').then((m) => m.openGrimoire());
 }
 // atalho do grimório (F1 no padrão) em qualquer tela; com ele já aberto, nada (o Esc fecha)
 addEventListener('keydown', (e) => {
@@ -258,8 +286,13 @@ addEventListener('keydown', (e) => {
   e.preventDefault(); // F1: não abre a ajuda do navegador
   if (!document.querySelector('.grimoire-overlay')) showRules();
 });
-// biblioteca de magias e itens por cima de qualquer tela (F2 no padrão); aberta, a própria tecla ou o Esc fecham
-const showLibrary = () => void import('./grimoire.ts').then((m) => m.openLibrary());
+// spells and items library (F2 by default): in the main menu it is the Learn tab on the search box; in a match, over the screen (the same key or Esc closes it)
+const showLibrary = () => {
+  if (!inMenu()) return void import('./grimoire.ts').then((m) => m.openLibrary());
+  openLearn();
+  learn!.lib.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  learn!.lib.querySelector('input')?.focus({ preventScroll: true });
+};
 addEventListener('keydown', (e) => {
   if (!isUiKey(e.code, 'library') || e.repeat || (e.target as HTMLElement)?.tagName === 'INPUT') return;
   e.preventDefault();
@@ -346,12 +379,14 @@ type RoomActions = {
   ballot: (yes: boolean) => void;
   undo: (key: string) => void;
   sell: (key: string) => void;
+  alt: (arc: boolean, guard: boolean) => void; // versões alternativas do Atacar e do Manter base (issue #402)
   taunt: (i: number) => void;
   pick: (c: CharacterId) => void;
   ready: () => void;
   card: (slot: number, i: number, swap?: SpellId) => void; // Ascensão: carta i da escolha slot (swap = magia que sai com a barra cheia)
   reroll: () => void; // Ascensão: novo sorteio
   keep: (slot: number) => void; // Ascensão: manter as magias (barra cheia)
+  nightCard: (i: number) => void; // Campaign: level-up card i
   lobby: (bots: Level[], opts: MatchOpts) => void; // sala do Ascensão: o dono manda os bots e as opções para todos verem
   spell: (s: SpellId) => void;
   volumes: () => Volumes;
@@ -511,11 +546,12 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
   };
   type Col = { head: string; title: string; value: (p: PublicPlayer) => number; show: (n: number) => Child; best?: 'max' | 'min' };
   const cols: Col[] = [
-    { head: room.mode === 'deathmatch' ? t('Pontos', 'Points') : t('Vitórias', 'Wins'), title: t('Pontos da partida', 'Match points'), value: (p) => p.score, show: (n) => String(n), best: 'max' },
+    // Campaign: no wins or gold to show, so the tutorial does not hint at a scoring that does not exist there
+    ...(room.night ? [] : [{ head: room.mode === 'deathmatch' ? t('Pontos', 'Points') : t('Vitórias', 'Wins'), title: t('Pontos da partida', 'Match points'), value: (p: PublicPlayer) => p.score, show: (n: number) => String(n), best: 'max' as const }]),
     { head: t('Abates', 'Kills'), title: t('Abates (cair sozinho na lava não conta)', 'Kills (falling into the lava alone does not count)'), value: (p) => st(p).kills ?? 0, show: (n) => String(n), best: 'max' },
     { head: t('Mortes', 'Deaths'), title: t('Mortes', 'Deaths'), value: (p) => st(p).deaths ?? 0, show: (n) => String(n), best: 'min' },
     { head: t('Dano', 'Damage'), title: t('Dano causado', 'Damage dealt'), value: (p) => st(p).dmg, show: (n) => n0(n), best: 'max' },
-    { head: t('Ouro', 'Gold'), title: t('Ouro ganho', 'Gold earned'), value: (p) => st(p).gold, show: (n) => n0(n), best: 'max' },
+    ...(room.night ? [] : [{ head: t('Ouro', 'Gold'), title: t('Ouro ganho', 'Gold earned'), value: (p: PublicPlayer) => st(p).gold, show: (n: number) => n0(n), best: 'max' as const }]),
     { head: t('Precisão', 'Accuracy'), title: t('Acertos ÷ lançamentos das magias de dano', 'Hits ÷ casts of damage spells'), value: aim, best: 'max',
       show: (n) => (n < 0 ? '–' : el('span', { class: 'acc' }, el('span', { class: 'acc-bar' }, el('i', { style: `width:${Math.round(n * 100)}%` })), pct(n))) },
     ...(room.mode === 'deathmatch' ? [] : [{ head: t('Tempo vivo', 'Time alive'), title: t('Segundos vivo nas rodadas', 'Seconds alive in the rounds'), value: (p: PublicPlayer) => st(p).alive ?? 0, show: (n: number) => (n ? `${Math.round(n)} s` : '–'), best: 'max' as const }]),
@@ -710,6 +746,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   onKeysChange(() => {
     barWrap.querySelectorAll<HTMLElement>('[data-action]').forEach((k) => (k.textContent = labelOf(k.dataset.action as Action)));
     barWrap.querySelectorAll<HTMLElement>('[data-position]').forEach((k) => (k.textContent = keyLabel(keyOf(POS_ACTIONS[Number(k.dataset.position)]))));
+    barWrap.querySelectorAll<HTMLElement>('[data-ui]').forEach((k) => (k.textContent = uiLabel(k.dataset.ui as UiAction)));
     drawCenter();
     drawHints();
   });
@@ -760,8 +797,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     specBtn.setAttribute('aria-label', tip);
     specBtn.setAttribute('aria-pressed', String(on));
   }
-  // provocações: segurar a tecla (Y no padrão) abre a roda com todas as falas do catálogo, apontar escolhe e soltar envia;
-  // o clique no botão abre a roda parada (clique ou número escolhe). A ordem vem das Configurações (Comunicação); o índice enviado é sempre o do catálogo (TAUNTS).
+  // taunts: holding the key (Y by default) opens the eight taunts picked in Settings, pointing selects and releasing sends;
+  // clicking the button opens the wheel still (a click or a digit picks). The slots come from Settings (Communication); the index sent is always the catalog's (TAUNTS).
   const heldTaunt = radialHold();
   const sendTaunt = (i: number) => {
     heldTaunt.cancel();
@@ -798,8 +835,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (tauntPanel.hidden) return;
     if (e.code === 'Escape') cancelTaunts();
     else if (/^(Digit|Numpad)[0-9]$/.test(e.code)) {
-      const i = (Number(e.code.slice(-1)) + 9) % 10; // 1..9 e o 0 para a 10ª
-      if (i >= TAUNTS.length) return;
+      const i = (Number(e.code.slice(-1)) + 9) % 10;
+      // 9 and 0 have no slot: consuming the key keeps a spell from being cast under the open wheel.
+      if (i >= slots.length) { e.preventDefault(); e.stopImmediatePropagation(); return; }
       if (heldTaunt.active()) wheel.choose(i);
       else sendTaunt(slots[i]);
     }
@@ -1006,6 +1044,26 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const bossName = el('span', { class: 'boss-name' });
   const bossFill = el('i', {});
   const bossText = el('span', { class: 'hp-text' });
+  // Campaign level-up: the cards stay on the HUD (no dialog: the game keeps running and keys keep moving the wizard)
+  // until one is picked; hidden while an encounter is open, since the server only accepts the pick between rooms
+  const lvCards = el('section', { class: 'lv-cards', hidden: true, 'aria-live': 'polite' });
+  let lvShown = '';
+  const drawLv = (r: PublicRoom, mine: PublicPlayer | undefined) => {
+    const lv = r.phase === 'playing' && r.night?.fight === null ? mine?.lv : undefined;
+    const key = lv?.offer.length ? JSON.stringify([lv.offer, lv.owed, mine!.spells]) : '';
+    lvCards.hidden = !key;
+    if (key === lvShown) return;
+    lvShown = key;
+    if (!lv || !key) return void lvCards.replaceChildren();
+    // a pick can come from a level or a chest (the opener's own card), so the title does not name a level
+    lvCards.replaceChildren(el('h3', {}, t('Escolha 1 carta', 'Pick 1 card'),
+      lv.owed > 1 ? el('small', { class: 'muted' }, t(` (mais ${lv.owed - 1} depois desta)`, ` (${lv.owed - 1} more after this one)`)) : null),
+      el('div', { class: 'asc-cards' }, ...lv.offer.map((c, i) => cardButton(c, mine!, false, `lv-${i}`, () => act.nightCard(i)))));
+  };
+  // Campaign minimap (minimap.ts): redrawn at most every 100 ms, the dots move slowly at this scale
+  const miniCanvas = el('canvas', { class: 'minimap', width: 220, height: 150, hidden: true, 'aria-hidden': 'true' }) as HTMLCanvasElement;
+  let miniAt = 0;
+  let miniColors: MiniColors | undefined; // read once: the :root colors do not change during a match
   const bossBar = el('div', { class: 'boss-bar', hidden: true }, bossName, el('div', { class: 'hpbar', role: 'img' }, bossFill, bossText));
   // a janela da loja pode ser alargada pela alça do canto (PC); o tamanho fica salvo neste navegador (pedido do Fernando, 18/10)
   const SHOP_SIZE = 'warlock:shopSize';
@@ -1090,11 +1148,19 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const cd = el('span', { class: 'cd' });
     const pips = el('span', { class: 'pips' });
     const b = withTip(el('button', { type: 'button', class: 'spell ' + spellClass(s), 'aria-label': spellName(s), onclick: () => act.spell(s), onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(s), onpointerleave: () => act.hover(null) },
-      el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0, book()));
+      el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0));
     buttons.set(s, { b, cd, pips });
     draggableSlot(b, 0, true);
     return b;
   }));
+  // Attack (A) and Hold ground (S) open the bottom row: Q W E R on top, A S D F below (Fernando, 25/10, issue #401). Faded and
+  // aria-disabled because they cannot be moved or sold; they only show the tip, the keys still do the work. No touch: no A/S keys there
+  const fixedBtns = TOUCH ? [] : MECHANIC_GUIDES.map((g) => {
+    const ui: UiAction = g.id === 'basic' ? 'basic' : 'stop';
+    return withTip(el('button', { type: 'button', class: 'spell fixed-skill', 'aria-disabled': 'true', 'aria-label': g.title },
+      el('span', { class: 'key', 'data-ui': ui }, uiLabel(ui)), el('span', { class: 'ico' }, icon(MECHANIC_ICON[g.id]))), () => mechanicTip(g, !!(g.id === 'basic' ? mine?.arc : mine?.guard)));
+  });
+  const ROW = 4; // slots per row: the fixed pair goes right after Q W E R
   // grade 3×2 de itens à direita da barra, como a do Dota (MAX_ITEMS = 6): os comprados (todos passivos desde 21/10, #217) e o resto vazio
   const itemGrid = el('div', { class: 'item-grid', role: 'group', 'aria-label': t('Itens', 'Items') });
   function refreshEquipment() {
@@ -1106,12 +1172,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (bar.dataset.order !== sig) {
       bar.dataset.order = sig;
       const empty = (index: number) => draggableSlot(el('span', { class: 'spell slot-empty', 'aria-label': t('Posição vazia', 'Empty slot') }, el('span', { class: 'key', 'data-position': index }, keyLabel(keyOf(POS_ACTIONS[index])))), index, false);
-      bar.replaceChildren(...order.spells.map((s, i) => {
+      const slots = order.spells.map((s, i) => {
         if (!s) return empty(i);
         const node = buttons.get(s)!.b;
         node.dataset.loadoutSlot = String(i);
         return node;
-      }));
+      });
+      bar.replaceChildren(...slots.slice(0, ROW), ...fixedBtns, ...slots.slice(ROW));
       itemGrid.replaceChildren(...passive.map((i) => withTip(el('span', { class: 'spell passive', tabindex: 0, 'aria-label': t(`${itemName(i)} (passivo) nível ${mine!.items[i]}`, `${itemName(i)} (passive) level ${mine!.items[i]}`) }, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0))),
       ...Array.from({ length: Math.max(0, MAX_ITEMS - passive.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
       hideTip(bar); hideTip(itemGrid);
@@ -1204,7 +1271,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const effects = STATUS_ICONS.filter(([bit]) => myStatus & bit);
     sheetPanel.replaceChildren(
       el('div', { class: 'dialog-head' }, el('h2', { class: 'title' }, t('Ficha do mago', 'Wizard sheet')), iconButton('✕', t('Fechar a ficha', 'Close the sheet'), () => toggleSheet(false))),
-      sheetEl(sheet(mine.spells, mine.items, book()),
+      sheetEl(sheet(mine.spells, mine.items),
         el('section', {}, el('h4', {}, t('Agora', 'Now')), el('dl', {},
           el('dt', {}, t('Dano levado na rodada', 'Damage taken this round')), el('dd', {}, `${Math.round(taken)} · ${t('empurrão', 'knockback')} ×${(1 + (KNOCK_HP_SCALE * taken) / HP_MAX).toLocaleString(LOCALE, { maximumFractionDigits: 2 })}`), el('small', { class: 'from' }, t('Cada ponto de dano levado faz você voar mais longe até o fim da rodada (a lava conta pela metade e não entra nesta conta).', 'Every point of damage taken sends you flying farther until the end of the round (lava counts half and is not included here).')),
           el('dt', {}, t('Efeitos', 'Effects')), el('dd', {}, ...(effects.length ? effects.flatMap(([, ico, name], i) => [i ? ' · ' : '', icon(ico), ' ' + name]) : [t('nenhum', 'none')]))))),
@@ -1258,7 +1325,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     e.preventDefault();
     act.replay();
   });
-  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, bossBar, ilseBox, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
+  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, bossBar, miniCanvas, ilseBox, lvCards, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
@@ -1280,7 +1347,6 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   };
 
   let room: PublicRoom | null = null;
-  const book = () => (room?.night ? CAMPAIGN_BOOK : undefined); // na Campanha, os números de magia dela
   let me = '';
   let scope: Scope = 'round';
   let view: View = 'summary';
@@ -1303,6 +1369,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   function lobbyPanel(r: PublicRoom) {
     const humans = r.players.filter((p) => !p.bot && !p.watch).length; // quem assiste não ocupa vaga nem conta para começar
+    // Ascension and Campaign rooms (created by their Play menu options): the mode is the room's, with no picker
+    const fixed = isRoomMode(r.mode) ? r.mode : null;
+    if (fixed) mode = fixed;
     const campaign = mode === 'campaign';
     const maxBots = MAX_PLAYERS - humans;
     // sala do Ascensão: os bots e as opções são os do dono, iguais na tela de todos; só ele muda (Fernando, 21/10)
@@ -1352,15 +1421,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       ['rounds', MODE_NAME.rounds, t(`O último vivo ganha a rodada. Vence quem fizer ${o.goal} rodadas.`, `The last one alive wins the round. First to win ${o.goal} rounds wins.`)],
       ['deathmatch', MODE_NAME.deathmatch, t(`Rodadas de 60 s, quem cai volta em 10 s. Cada abate vale 1 ponto; vence quem chegar a ${DM_GOALS[o.goal]}.`, `60 s rounds, whoever falls comes back after 10 s. Each kill is worth 1 point; first to ${DM_GOALS[o.goal]} wins.`)],
       ['teams', MODE_NAME.teams, t(`Azul contra Vermelho. A rodada acaba quando só sobra um time, e todos dele ganham 1 ponto; vence quem fizer ${o.goal}. Magia em aliado só empurra.`, `Blue vs Red. The round ends when only one team is left, and everyone on it gets 1 point; first to ${o.goal} wins. Spells on allies only knock back.`)],
-      ['campaign', MODE_NAME.campaign, humans > CAMPAIGN.humans ? t(`A Campanha é para 1 a ${CAMPAIGN.humans} jogadores.`, `The Campaign is for 1 to ${CAMPAIGN.humans} players.`)
-        : t('Juntos contra o Fumo: explorem a Charneca Cinzenta e vençam os encontros. Magia não pega aliado. Se todos caírem, a noite recomeça diferente.', 'Together against the Smoke: explore the Ashen Moor and win the encounters. Spells never hit allies. If everyone falls, the night starts over, different.')],
     ];
-    // sala do Ascensão (criada pela opção do menu Jogar): o modo é o da sala, sem seletor
-    const ascRoom = r.mode === 'ascension';
-    if (ascRoom) mode = 'ascension';
+    const fixedText = fixed === 'ascension' ? ASC_MODE_TEXT : humans > CAMPAIGN.humans ? t(`A Campanha é para 1 a ${CAMPAIGN.humans} jogadores.`, `The Campaign is for 1 to ${CAMPAIGN.humans} players.`) : CAMPAIGN_MODE_TEXT;
     // Times: o grupo escolhe se os times mudam a cada rodada ou ficam até o fim
     const shufflePicker = mode !== 'teams' ? null : choice(t('Sorteio dos times', 'Team shuffle'), [[true, t('Sorteados a cada rodada', 'Shuffled every round')], [false, t('Fixos na partida', 'Fixed for the match')]], shuffle, (k) => ((shuffle = k), drawCenter()));
-    const modePicker = ascRoom ? el('div', { class: 'mode' }, el('b', {}, MODE_NAME.ascension), el('small', { class: 'muted' }, ASC_MODE_TEXT)) : el('div', { class: 'mode' },
+    const modePicker = fixed ? el('div', { class: 'mode' }, el('b', {}, MODE_NAME[fixed]), el('small', { class: 'muted' }, fixedText)) : el('div', { class: 'mode' },
       el('div', { class: 'opt-label' }, choice(t('Modo de jogo', 'Game mode'), modes.map(([k, label]): [Mode, string] => [k, label]), mode, (k) => ((mode = k), drawCenter())), infoButton(t('Modos de jogo', 'Game modes'), MODE_INFO)),
       el('small', { class: 'muted' }, modes.find(([k]) => k === mode)![2]), shufflePicker);
     // opções da partida: uma fileira de botões por opção, como o seletor de modo; vão junto com o "Começar"
@@ -1432,6 +1497,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // estado da loja que sobrevive ao redesenho (a sala manda o estado a cada compra de qualquer jogador)
   let goldOpen = false;
   let sheetOpen = false; // Ficha começa recolhida para a loja caber sem rolagem no PC; abrir/fechar sobrevive ao redesenho
+  let altOpen = true; // Versões para teste (issue #402) começa aberta: é o único lugar onde o jogador descobre a escolha
   let buildsOpen = false; // Builds também começa recolhida: menos informação na loja (pedido do Fernando na #185)
   let armedBuild: number | null = null; // posição com "Substituir?" à espera do segundo clique; fora do DOM para sobreviver ao redesenho da loja
   // ordem da barra do preset em uso: só vale quando as magias dele chegam (antes disso o myLoadout tira da barra o que ainda não tem)
@@ -1489,7 +1555,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     type Offer = { key: string; ico: string; name: string; hotkey: string | null; use: string; lvl: number; max: number; price: number | null; blocked: string | null; buy: () => void; tip: () => string;
       // a ficha depois de comprar mais um nível e depois de vender tudo (prévia na dica)
       bought: () => SheetRow[]; sold: () => SheetRow[] };
-    const now = sheet(mine.spells, mine.items, book());
+    const now = sheet(mine.spells, mine.items);
     if (presetOrder && presetOrder.round !== r.round) presetOrder = null; // o ouro não deu para tudo: não mexe na barra da próxima loja
     // gravar no desenho é seguro: o myLoadout (barra e teclas) já grava a ordem durante o desenho, e este é o primeiro desenho com as magias da build
     if (presetOrder?.order.every((s) => !s || mine.spells[s] > 0)) {
@@ -1555,6 +1621,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       return el('details', { class: 'sheet-box', open: buildsOpen, ontoggle: (e: Event) => (buildsOpen = (e.target as HTMLDetailsElement).open) },
         el('summary', {}, t('Builds salvas', 'Saved builds')), ...saved.map((_, i) => row(i)));
     };
+    // versões alternativas do Atacar e do Manter base, só para teste (issue #402): por jogador, a de hoje é o padrão
+    const altBox = () => el('details', { class: 'sheet-box', 'data-key': 'alt', open: altOpen, ontoggle: (e: Event) => (altOpen = (e.target as HTMLDetailsElement).open) },
+      withTip(el('summary', {}, t('Versões para teste', 'Test versions')), () => ALT_TEXT),
+      el('small', { class: 'muted' }, t(`Atacar (${uiLabel('basic')})`, `Attack (${uiLabel('basic')})`)),
+      choice(t('Versão do Atacar', 'Attack version'), [[false, t('À distância', 'Ranged')], [true, t('Corpo a corpo', 'Melee')]], !!mine.arc, (arc) => act.alt(arc, !!mine.guard)),
+      el('small', { class: 'muted' }, t(`Manter base (${uiLabel('stop')})`, `Hold ground (${uiLabel('stop')})`)),
+      choice(t('Versão do Manter base', 'Hold ground version'), [[false, t('De hoje', 'Current')], [true, t('Defesa', 'Guard')]], !!mine.guard, (guard) => act.alt(!!mine.arc, guard)));
     const sheetBox = () => el('details', { class: 'sheet-box', open: sheetOpen, ontoggle: (e: Event) => (sheetOpen = (e.target as HTMLDetailsElement).open) },
       el('summary', {}, t('Ficha do mago', 'Wizard sheet')), sheetEl(now, el('small', { class: 'muted' }, t('Passe o mouse num item para ver o que muda.', 'Hover an item to see what changes.'))));
     const offer = (o: Offer) => {
@@ -1594,15 +1667,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const price = priceOf(s, lvl);
       const full = lvl === 0 && spellCount(mine.spells) >= MAX_SPELLS;
       return offer({ key: 'spell-' + s, ico: ICON[s], name: spellName(s), hotkey: hotkeyOf(s), use: SPELL_USE[s], lvl, max: MAX_SPELL_LEVEL, price,
-        blocked: price === null ? t('Máximo', 'Max') : full ? t(`Limite de ${MAX_SPELLS} magias`, `Limit of ${MAX_SPELLS} spells`) : null, buy: () => act.buy(s), tip: () => spellTip(s, lvl, book()),
-        bought: () => sheet({ ...mine.spells, [s]: lvl + 1 }, mine.items, book()), sold: () => sheet({ ...mine.spells, [s]: 0 }, mine.items, book()) });
+        blocked: price === null ? t('Máximo', 'Max') : full ? t(`Limite de ${MAX_SPELLS} magias`, `Limit of ${MAX_SPELLS} spells`) : null, buy: () => act.buy(s), tip: () => spellTip(s, lvl),
+        bought: () => sheet({ ...mine.spells, [s]: lvl + 1 }, mine.items), sold: () => sheet({ ...mine.spells, [s]: 0 }, mine.items) });
     };
     const itemOffer = (i: ItemId) => {
       const lvl = mine.items[i];
       const price = itemPrice(mine.items, i);
       return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: itemName(i), hotkey: null, use: itemText(i), lvl, max: ITEMS[i].levels.length, price,
         blocked: lvl >= ITEMS[i].levels.length ? t('Máximo', 'Max') : price === null ? t('Sem espaço', 'No room') : null, buy: () => act.buyItem(i), tip: () => itemTip(i, lvl),
-        bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }, book()), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }, book()) });
+        bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }) });
     };
     const group = (title: string, hint: string, cards: HTMLElement[]) =>
       el('section', { class: 'shop-group ' + groupClass(title) }, el('div', { class: 'shop-head' }, el('h3', {}, title), el('small', {}, hint)), el('div', { class: 'shop-grid' }, ...cards));
@@ -1620,7 +1693,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.sandbox ? t('Loja · sandbox', 'Shop · sandbox') : deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${r.sandbox ? 'ouro sem fim: compre e venda, vale na hora' : deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${r.sandbox ? 'endless gold: buy and sell, it applies right away' : deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
         iconButton('✕', t('Fechar a loja', 'Close the shop'), () => togglePeek(false), { class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`) })),
       ...grid),
-      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), peek ? null : buildsBox(), sheetBox()));
+      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), peek ? null : buildsBox(), peek ? null : altBox(), sheetBox()));
     readyBtn = el('button', { type: 'button', class: 'primary big', 'data-key': 'ready', disabled: mine.ready, onclick: () => {
       if (r.round === 0) seeFirst();
       act.ready();
@@ -1637,6 +1710,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         readyBtn,
         el('button', { type: 'button', 'data-key': 'placar', onclick: () => pinTab(true) }, icon(UI_ICON.board), ' ' + t('Placar', 'Scoreboard')),
         buildsBox(),
+        altBox(),
         sheetBox(),
         goldInfo(mine, r.opts, goldOpen, (open) => (goldOpen = open)),
         nextModePicker(r),
@@ -1652,7 +1726,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     return el('div', { class: 'mode' },
       el('small', { class: 'opts-line' }, optsLine({ ...r.opts, ...r.pendingOpts }, next)),
       el('small', { class: 'muted' }, t('Modo da próxima rodada', 'Next round mode')),
-      choice(t('Modo da próxima rodada', 'Next round mode'), MODES.filter((k) => k !== 'ascension').map((k): [Mode, string] => [k, MODE_NAME[k]]), next, (k) => k !== next && act.vote('mode', k), (k) => !!r.vote && k !== next),
+      choice(t('Modo da próxima rodada', 'Next round mode'), MODES.filter((k) => !isRoomMode(k)).map((k): [Mode, string] => [k, MODE_NAME[k]]), next, (k) => k !== next && act.vote('mode', k), (k) => !!r.vote && k !== next),
       next === 'teams' ? el('button', { type: 'button', disabled: !!r.vote, onclick: () => act.vote('shuffle') }, t(`Times ${SHUFFLE_NAME(r.pendingShuffle ?? r.teamShuffle)} · trocar`, `Teams ${SHUFFLE_NAME(r.pendingShuffle ?? r.teamShuffle)} · change`)) : null,
       r.pendingMode ? el('small', {}, t(`Próxima rodada: ${MODE_NAME[r.pendingMode]} (os pontos zeram)`, `Next round: ${MODE_NAME[r.pendingMode]} (points reset)`)) : null,
       r.vote ? el('small', { class: 'muted' }, t('Votação aberta no topo da tela.', 'Vote open at the top of the screen.')) : null);
@@ -1683,7 +1757,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         btn(t('Reiniciar a partida', 'Restart the match'), 'restart'),
         btn(r.night ? t('Encerrar a noite (conta como derrota)', 'End the night (counts as a defeat)') : t('Encerrar agora (vence quem tem mais pontos)', 'End now (whoever has the most points wins)'), 'end'),
         r.phase === 'shop' ? btn(t('Pular a loja', 'Skip the shop'), 'skipShop') : '',
-        ...(r.mode === 'ascension' || r.night ? [] : MODES.filter((k) => k !== next && k !== 'ascension' && k !== 'campaign')).map((k) => btn(t(`Trocar para ${MODE_NAME[k]}`, `Switch to ${MODE_NAME[k]}`), 'mode', k)),
+        ...(isRoomMode(r.mode) ? [] : MODES.filter((k) => k !== next && !isRoomMode(k))).map((k) => btn(t(`Trocar para ${MODE_NAME[k]}`, `Switch to ${MODE_NAME[k]}`), 'mode', k)),
         next === 'teams' ? btn(t(`Times ${SHUFFLE_NAME(!(r.pendingShuffle ?? r.teamShuffle))}`, `Teams ${SHUFFLE_NAME(!(r.pendingShuffle ?? r.teamShuffle))}`), 'shuffle') : ''),
       r.night ? '' : group(t('Regras', 'Rules'),
         el('small', { class: 'muted' }, optsLine(nextOpts, next)),
@@ -1773,11 +1847,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const unit = (n: number) => r.mode === 'deathmatch' || r.mode === 'ascension' ? (n === 1 ? t('ponto', 'point') : t('pontos', 'points')) : n === 1 ? t('vitória', 'win') : t('vitórias', 'wins');
     const cell = (p: PublicPlayer) => {
       const lvl = botLevel(p, r);
-      const name = `${playerName(p)}${p.id === me ? t(' (você)', ' (you)') : ''}${lvl ? ` (bot · ${SKILL_NAME[lvl]})` : ''}: ${p.score} ${unit(p.score)}`;
+      const name = `${playerName(p)}${p.id === me ? t(' (você)', ' (you)') : ''}${lvl ? ` (bot · ${SKILL_NAME[lvl]})` : ''}${r.night ? '' : `: ${p.score} ${unit(p.score)}`}`;
       const dmg = el('span', {}, String(Math.round(live[p.id]?.dmg ?? 0)));
       const kills = el('span', {}, String(live[p.id]?.kills ?? 0));
       const c = el('li', { class: 'top-p' + (p.id === me ? ' me' : ''), style: `--pc:${COLORS[p.color]}`, title: name, 'aria-label': name },
-        el('span', { class: 'top-name' }, playerName(p), lvl ? icon(UI_ICON.bot) : null), ascLevel(r, p), el('b', { class: 'top-wins', title: unit(p.score) }, String(p.score)),
+        el('span', { class: 'top-name' }, playerName(p), lvl ? icon(UI_ICON.bot) : null), ascLevel(r, p), r.night ? null : el('b', { class: 'top-wins', title: unit(p.score) }, String(p.score)),
         el('span', { class: 'top-stat', title: t('Dano na rodada', 'Damage this round') }, icon(UI_ICON.dmg), dmg),
         el('span', { class: 'top-stat', title: t('Abates na rodada', 'Kills this round') }, icon(UI_ICON.kills), kills));
       topCells.set(p.id, { c, name, dmg, kills });
@@ -1908,7 +1982,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       }
       barOff = r.phase === 'lobby' || r.phase === 'end' || (r.phase === 'shop' && !SHOP_BAR.matches) || !mine;
       syncBar();
-      goldNow.replaceChildren(r.mode === 'ascension' ? '' : gold(mine?.gold ?? 0)); // Ascensão: sem ouro
+      goldNow.replaceChildren(r.mode === 'ascension' || r.night ? '' : gold(mine?.gold ?? 0)); // Ascension and Campaign: no gold
       const stats = mine ? sheet(mine.spells, mine.items).filter((row) => row.key! in STAT_ICON) : [];
       const statSig = JSON.stringify(stats);
       if (heroStats.dataset.sig !== statSig) {
@@ -1925,6 +1999,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       drawSpectate(r);
       if (sheetBtn.hidden) sheetPanel.hidden = true;
       drawSheet();
+      drawLv(r, mine);
     },
     setOnline(on: boolean) {
       const changed = on !== online;
@@ -1937,6 +2012,19 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (!text) return void (ilseBox.hidden = true);
       if (ilseText.textContent !== text || ilseBox.hidden) ilseText.textContent = text;
       ilseBox.hidden = false;
+    },
+    // every frame: the Campaign minimap (null hides it)
+    minimap(m: { map: NightMap; seen: number[]; done: number[]; fight: number | null; dots: MiniDot[] } | null) {
+      miniCanvas.hidden = !m;
+      const now = performance.now();
+      if (!m || now - miniAt < 100) return;
+      miniAt = now;
+      const ctx = miniCanvas.getContext('2d');
+      if (!ctx) return;
+      const css = getComputedStyle(document.documentElement), cv = (name: string) => css.getPropertyValue(name).trim();
+      // contrast on the floor: wall 5.2:1, won-room dash 7.4:1; the black rim keeps a foe on the lava at 6.5:1
+      miniColors ??= { floor: cv('--panel2'), wall: cv('--off-fg'), lava: cv('--lava'), wax: cv('--ember'), done: cv('--toast-good'), fight: cv('--red'), me: cv('--gold'), ally: cv('--cream'), foe: cv('--red'), outline: cv('--ink') };
+      drawMinimap(ctx, m.map, m.seen, m.done, m.fight, m.dots, miniColors);
     },
     // a cada quadro: vida do chefe da Campanha (null esconde)
     boss(b: { name: string; now: number; max: number } | null) {

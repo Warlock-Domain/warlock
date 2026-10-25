@@ -26,24 +26,24 @@ function botMatch(seed: number, steps: number, opts: Partial<MatchOpts> = {}): {
 }
 
 describe('play style', () => {
-  // value recorded with the code from before the measurement (972dab7): the measurement only reads, so the events do not change.
-  // It changes (and is recorded again) only when gameplay changes. 20/10 (issue #80): the chest draws the gold pile (3 to 5) when it spawns,
-  // one more draw in the sequence. 21/10 (issue #217): Scourge and Pact become spells, the Redirector leaves and bot shopping changes.
-  // 22/10 (issue #206): the Barricade falls from the sky and damages whoever is underneath, and bots use it
+  // value recorded with the code from before the measurement (972dab7): measuring only reads, so the events do not change.
+  // It changes (and is recorded again) only when gameplay changes. 20/10 (issue #80): the chest draws its pile's gold (3 to 5) when it
+  // spawns, one more draw in the sequence. 21/10 (issue #217): Scourge and Pact become spells, the Redirector leaves and bot purchases change
+  // 22/10 (issue #206): the Barricade falls from the sky and damages whoever is below, and bots use it
   it('measuring does not change the match: same seed, same events as before', () => {
     const { m, hash } = botMatch(7, 4000);
-    // 22/10: removing the accumulated-damage amplification intentionally changes trajectories.
-    // 23/10 proposal: explicit stun/Grip blocks change bot decisions and trajectories.
-    // 23/10 proposal: a clean impulse end and the 50→100% recovery change trajectories.
-    // 23/10 proposal: general collisions and continuous Lightning intentionally change the events.
-    // 23/10: a single click cancels on first contact, oblique included, also for bot destinations.
-    // 23/10 proposal: Meteor without knockback, with a fixed 1.25 s stun.
+    // 22/10: ending the amplification by accumulated damage changes the trajectories on purpose.
+    // Proposal 23/10: explicit stun/Grip locks change the bots' decisions and trajectories.
+    // Proposal 23/10: a clean end of the impulse and the 50→100% recovery change trajectories.
+    // Proposal 23/10: general collisions and continuous Lightning change the events on purpose.
+    // 23/10: a single click cancels on the first contact, oblique included, also for bot destinations.
+    // Proposal 23/10: Meteor without knockback, with a fixed 1.25 s stun.
     // 24/10: bots use the manual Attack (no spell ready, enemy within 6 m, clear line).
     // 24/10: bots hold ground (hit 0.5 to 0.9 s away so the windup finishes, no escape spell ready, not dodging on foot; keep holding while it closes in; lease 0.5 s).
     // 24/10 (issue #373): bot shopping plans include Recharge, Heal, Geyser, Closed Body and Swap.
-    // 25/10: Gravity pulls 30% less within a 2.2 m radius and Windwalk's cooldown is ×1.4 (balance batch).
-    expect(hash).toBe(490756698);
-    // and it really measured in that same match
+    // 25/10 (PR #399): blasts (Meteor, clashes, pillar/shrine) and bouncing projectiles and the Splitter damage obstacles.
+    expect(hash).toBe(1356243192);
+    // and it really measured in this same match
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);
   });
@@ -63,11 +63,11 @@ describe('play style', () => {
     const [ana, ...bots] = r.players;
     expect(bots.reduce((a, p) => a + (p.threats ?? 0), 0)).toBeGreaterThan(0);
     expect(bots.every((p) => (p.nearN ?? 0) > 0)).toBe(true);
-    // played by the bot while disconnected: the bot's style does not enter her row
+    // played by the bot while disconnected: the bot's style does not enter that player's row
     expect([ana.threats, ana.nearN]).toEqual([0, 0]);
   });
 
-  it('styleRows: one row per human (latest nickname) and per difficulty; training, Automatic and old records left out', () => {
+  it('styleRows: one row per human (last nickname) and per difficulty; training, Automatic and old records left out', () => {
     const style = { threats: 10, struck: 4, shieldable: 4, shielded: 1, reactSum: 3, reactN: 6, nearSum: 50, nearN: 10 };
     const pl = (o: Partial<RoundRecord['players'][number]>): RoundRecord['players'][number] =>
       ({ bot: false, character: 'mage', won: false, spells: {}, items: {}, dmg: 0, dmgBy: {}, fired: {}, landed: {}, kills: 0, ...style, ...o });

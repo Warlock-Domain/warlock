@@ -2,7 +2,7 @@
 import { ARENA_IDS, type ArenaId, type Terrain } from './arena.ts';
 import { ascOf, type AscLobby, type Card, type Choice, type Kind } from './ascension.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
-import type { Night, ServoKind } from './campaign.ts';
+import { nightLevel, nightXpAt, type Night, type ServoKind } from './campaign.ts';
 import { fightOf, nightMap } from './levels.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type RuneKind } from './constants.ts';
@@ -26,10 +26,12 @@ export type ClientMsg =
   | { t: 'basic'; x: number; y: number; target?: string | number; seq: number }
   | { t: 'cast'; spell: SpellId; x: number; y: number; seq: number }
   | { t: 'buy'; spell: SpellId }
+  | { t: 'alt'; arc: boolean; guard: boolean } // issue #402: golpe em arco no Atacar e defesa no Manter base (versões alternativas da loja)
   | { t: 'pick'; character: CharacterId } // um dos 9 prontos: vira a aparência equivalente
   | { t: 'reroll' } // Ascensão: novo sorteio das cartas da mesa
   | { t: 'keep'; slot: number } // Ascensão: com a barra cheia, recusa a fileira de magia nova
   | { t: 'card'; slot: number; i: number; swap?: SpellId } // Ascensão: carta i (0 a 2) da escolha slot; swap = magia que sai com a barra cheia
+  | { t: 'nightCard'; i: number } // Campaign: card i (0 to 2) of the level-up table
   | { t: 'look'; look: string } // aparência montada (7 dígitos, ver LOOK_PARTS)
   | { t: 'buyItem'; item: ItemId }
   | { t: 'kick'; target: string }
@@ -53,7 +55,9 @@ export type PublicPlayer = {
   hpMax?: number; // vida máxima quando não é a de sempre (servos)
   watch?: true; // assistindo: sem mago a partir da próxima rodada
   turret?: true; // Sandbox: torreta de direção fixa.
+  arc?: true; guard?: true; // versões alternativas escolhidas na loja (issue #402): golpe em arco e defesa
   asc?: { xp: number; level: number; next: number; todo: Kind[]; offer: Card[][]; pick: (Choice | null)[]; rerolls: number; auto: Card[] }; // só no Ascensão (next: XP do próximo nível; auto: sorteado por falta de escolha)
+  lv?: { xp: number; level: number; next: number; owed: number; offer: Card[] }; // Campaign Acesos: night XP, picks owed and the cards on the table
 };
 
 export type PublicRoom = {
@@ -81,7 +85,7 @@ export type PublicRoom = {
   sandbox?: Sandbox; // só nas salas sandbox: as regras ligadas
   // só na Campanha: semente (o navegador monta o mesmo mapa), sala do encontro aberto e a onda dele (contando de 0), salas com
   // o encontro vencido e como a noite acabou
-  night?: { stage: number; seed: number; fight: number | null; wave: number; waves: number; done: number[]; result: Night['result'] };
+  night?: { stage: number; seed: number; fight: number | null; wave: number; waves: number; done: number[]; result: Night['result']; opened: number[] }; // opened: chests already opened
   lobby?: AscLobby; // só na sala do Ascensão: dono (id público) e os bots e opções que ele escolheu
 };
 
@@ -95,7 +99,7 @@ export type PublicRoom = {
 // sp: velocidade de andar dele agora (botas, lentidão), para a previsão; ack: último seq aplicado dele
 // fx: efeitos com prazo de quem recebe, 2 números por efeito: bit de estado (como em w) e segundos que faltam
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
-// ba: dois números por mago: preparo de Atacar restante em segundos e corpo a corpo (1/0); ausente = sem preparo.
+// ba: dois números por mago: preparo de Atacar restante em segundos e corpo a corpo (1/0; 2 = golpe em arco da versão alternativa, na direção do mago); ausente = sem preparo.
 export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; bl?: number[]; cb?: number[]; gy?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
 
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
@@ -231,6 +235,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return { t: 'basic', x: m.x, y: m.y, seq: m.seq, ...(m.target === undefined ? {} : { target: m.target as string | number }) };
     case 'cast':
       return isSpell(m.spell) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'cast', spell: m.spell, x: m.x, y: m.y, seq: m.seq } : null;
+    case 'alt':
+      return typeof m.arc === 'boolean' && typeof m.guard === 'boolean' && Object.keys(m).every((k) => ['t', 'arc', 'guard'].includes(k)) ? { t: 'alt', arc: m.arc, guard: m.guard } : null;
     case 'buy':
       return isSpell(m.spell) ? { t: 'buy', spell: m.spell } : null;
     case 'sell':
@@ -269,6 +275,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       return Number.isInteger(m.i) && (m.i as number) >= 0 && (m.i as number) < 3 && Number.isInteger(m.slot) && (m.slot as number) >= 0 && (m.slot as number) < 20 && (m.swap === undefined || isSpell(m.swap))
         ? { t: 'card', slot: m.slot as number, i: m.i as number, ...(m.swap !== undefined && { swap: m.swap as SpellId }) }
         : null;
+    case 'nightCard':
+      return Number.isInteger(m.i) && (m.i as number) >= 0 && (m.i as number) < 3 ? { t: 'nightCard', i: m.i as number } : null;
     case 'pick':
       return isCharacter(m.character) ? { t: 'pick', character: m.character } : null;
     case 'look':
@@ -304,7 +312,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     mode: m.mode,
     round: m.round,
     phaseLeft: Math.max(0, m.phaseEnds - now),
-    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy, turret, watch, servo, hpMax }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }), ...(turret && { turret: true as const }), ...(watch && { watch: true as const }), ...(servo && { servo }), ...(hpMax && { hpMax }), ...(m.asc && { asc: ascOf(m.asc, id) }) })),
+    players: m.players.map(({ id, name, bot, color, character, look, score, gold, spells, items, stats, bought, held, ready, connected, team, difficulty, dummy, turret, watch, servo, hpMax, arc, guard }) => ({ id: pub(id), name, bot, color, character, look, score, gold, spells, items, stats, bought: bought.map((b) => b.key), held: held ?? {}, ready, connected, team: team ?? null, ...(bot && { difficulty: difficulty ?? m.opts.difficulty }), ...(dummy && { dummy: true as const }), ...(turret && { turret: true as const }), ...(watch && { watch: true as const }), ...(arc && { arc: true as const }), ...(guard && { guard: true as const }), ...(servo && { servo }), ...(hpMax && { hpMax }), ...(m.asc && { asc: ascOf(m.asc, id) }), ...(m.night && !servo && { lv: nightLv(m.night, id) }) })),
     ids: m.world?.wizards.map((z) => pub(z.id)) ?? [],
     winner: m.winner && pub(m.winner),
     lastRoundWinner: m.lastRoundWinner && pub(m.lastRoundWinner),
@@ -333,7 +341,12 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
   };
 }
 
+function nightLv(n: Night, id: string): NonNullable<PublicPlayer['lv']> {
+  const xp = n.xp?.[id] ?? 0, level = nightLevel(xp);
+  return { xp, level, next: nightXpAt(level + 1), owed: n.owed?.[id] ?? 0, offer: n.offer?.[id] ?? [] };
+}
+
 function publicNight(n: Night): NonNullable<PublicRoom['night']> {
   const waves = n.fight === null ? 0 : fightOf(nightMap(n.seed, n.stage), n.fight, n.seed, n.stage).waves.length;
-  return { stage: n.stage, seed: n.seed, fight: n.fight, wave: n.wave, waves, done: n.done, result: n.result };
+  return { stage: n.stage, seed: n.seed, fight: n.fight, wave: n.wave, waves, done: n.done, result: n.result, opened: n.opened ?? [] };
 }

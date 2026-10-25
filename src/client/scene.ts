@@ -1,7 +1,7 @@
 // Cena 3D: lava, arena de pedra que encolhe, magos (KayKit), projéteis e efeitos.
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
 import * as THREE from 'three';
-import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
+import { ELECTROCUTED_BIT, BRACING_BIT, MELEE_ARC } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
 import { createAttackClip } from './attack-pose.ts';
 import { electroPulse } from './screen-data.ts';
@@ -27,6 +27,8 @@ import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
 import { add, clampLen, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
+import { cellHash, nightProps } from './night-decor.ts';
+import { CANDLE } from '../shared/campaign.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
 import { BLINDNESS, LIGHTNING, SPELLS } from '../shared/spells.ts';
@@ -41,7 +43,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { closedBodyLeft?: number; geyserLeft?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { closedBodyLeft?: number; geyserLeft?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -232,6 +234,7 @@ type Mage = {
   hpFill: HTMLDivElement;
   hpText: HTMLSpanElement;
   nameEl: HTMLSpanElement;
+  nameText: Text; // the name alone, between the medal and the bot tag
   botEl: HTMLElement; // bot: robô e a dificuldade ao lado do nome
   botKey: string;
   tint: string; // cor do anel e da barra (do jogador, ou do time no modo Times)
@@ -640,12 +643,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   let curMap: NightMap | null = null;
   const lavaAt = (p: Vec, pad = 0) => (curMap ? curMap.ground[Math.floor(p.y)]?.[Math.floor(p.x)] === 'lava' : inLavaAt(shownArena, shownR, shownIsles, p, pad));
   let cpMarks: { room: number; mat: THREE.MeshBasicMaterial }[] = [];
+  // exploration fog (minimap.ts): one dark lid per room, above the walls, that fades once the group has seen the room
+  let fogs: THREE.Mesh[] = [];
+  const fogMat = new THREE.MeshBasicMaterial({ color: '#07080b', transparent: true, depthWrite: false });
   function buildMap(n: NightMap) {
     for (const c of [...mapGroup.children]) {
       mapGroup.remove(c);
-      if (c instanceof THREE.Mesh) c.geometry.dispose();
+      if (c instanceof THREE.Mesh && !c.userData.shared) c.geometry.dispose();
+      if (c instanceof THREE.InstancedMesh) c.dispose(); // the per-instance matrix buffer, one per mesh and night
     }
     for (const c of cpMarks) c.mat.dispose();
+    for (const f of fogs) (f.material as THREE.Material).dispose();
     const at = (test: (g: string, x: number, y: number) => boolean) => n.ground.flatMap((row, y) => row.flatMap((g, x) => (test(g, x, y) ? [[x, y] as const] : [])));
     const inst = (geo: THREE.BufferGeometry, mat: THREE.Material, cells: (readonly [number, number])[], y: number, cast = false) => {
       const m = new THREE.InstancedMesh(geo, mat, Math.max(1, cells.length));
@@ -659,14 +667,46 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.receiveShadow = true;
       m.castShadow = cast;
       mapGroup.add(m);
+      return m;
     };
     const wall = (x: number, y: number) => (n.ground[y]?.[x] ?? 'wall') === 'wall';
+    const shell = at((g, x, y) => g === 'wall' && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => !wall(x + dx, y + dy)));
+    const floor = at((g) => g !== 'wall' && g !== 'pit' && g !== 'lava');
     // da parede só a casca (casas de parede encostadas em algo que não é parede): o miolo nunca aparece
-    inst(new THREE.BoxGeometry(1, 0.1, 1), mapMats.floor, at((g) => g !== 'wall' && g !== 'pit' && g !== 'lava'), -0.05);
+    const floorBox = inst(new THREE.BoxGeometry(1, 0.1, 1), mapMats.floor, floor, -0.05);
     inst(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mapMats.wax, at((g) => g === 'wax'), 0.01);
     inst(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mapMats.lava, at((g) => g === 'lava'), -0.12);
     // 1 m de altura: a câmera olha do sul e uma parede mais alta esconderia quem está logo atrás dela
-    inst(new THREE.BoxGeometry(1, 1, 1), mapMats.wall, at((g, x, y) => g === 'wall' && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => !wall(x + dx, y + dy))), 0.5, true);
+    const wallBox = inst(new THREE.BoxGeometry(1, 1, 1), mapMats.wall, shell, 0.5, true);
+    // KayKit textures (Lucas, 25/10): dungeon floor tiles and brick blocks replace the plain boxes once the Charneca GLB loads
+    // (the boxes stay as the fallback). Models are 2 KayKit units wide: half scale fills a 1 m cell. The tile kind comes from
+    // the cell, so every player sees the same floor; most of the moor is dirt, with old paving and broken slabs
+    const key = mapKey;
+    const kinds = ['floor_dirt_small_A', 'floor_dirt_small_A', 'floor_tile_small', 'floor_tile_small_broken_A'];
+    const cellKind = ([x, y]: readonly [number, number]) => kinds[cellHash(x, y) % kinds.length];
+    void Promise.all([...new Set(kinds), 'bricks_A'].map((k) => decor.nightMesh(k).then((m) => [k, m] as const))).then((pairs) => {
+      if (mapKey !== key || pairs.some(([, m]) => !m)) return; // another map came in, or the GLB failed: keep the boxes
+      const mesh = new Map(pairs);
+      const tiled = (name: string, cells: (readonly [number, number])[], y: number, cast: boolean) => {
+        const src = mesh.get(name)!;
+        const m = inst(src.geometry, src.material as THREE.Material, cells, y, cast);
+        m.userData.shared = true; // the GLB owns the geometry: buildMap must not dispose it
+        const o = new THREE.Object3D();
+        cells.forEach(([x, z], i) => {
+          o.position.set(x + 0.5, y, z + 0.5);
+          o.scale.setScalar(0.5);
+          o.updateMatrix();
+          m.setMatrixAt(i, o.matrix);
+        });
+      };
+      for (const k of new Set(kinds)) tiled(k, floor.filter((c) => cellKind(c) === k), -0.025, false);
+      tiled('bricks_A', shell, 0.5, true);
+      for (const box of [floorBox, wallBox]) {
+        mapGroup.remove(box);
+        box.geometry.dispose();
+        box.dispose();
+      }
+    });
     inst(new THREE.BoxGeometry(1, 0.5, 1), mapMats.low, at((g) => g === 'low'), 0.25, true);
     cpMarks = n.marks.filter((m) => m.kind === 'checkpoint').map((m) => {
       const mat = new THREE.MeshBasicMaterial({ map: FX.circle, color: '#5dff9a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -676,6 +716,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       mapGroup.add(ring);
       return { room: m.room, mat };
     });
+    fogs = n.rooms.map((p) => {
+      const lid = ground(new THREE.Mesh(new THREE.PlaneGeometry(p.room.w, p.room.h), fogMat.clone()), 1.4); // 1.4 m: over the 1 m walls
+      lid.position.x = p.x + p.room.w / 2;
+      lid.position.z = p.y + p.room.h / 2;
+      lid.renderOrder = 2;
+      mapGroup.add(lid);
+      return lid;
+    });
+    // Sanctuary candle: a golden circle the size of its healing area (room -1: never 'done', so it keeps pulsing)
+    for (const m of n.marks.filter((q) => q.kind === 'candle')) {
+      const mat = new THREE.MeshBasicMaterial({ map: FX.circle, color: '#ffc861', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+      const ring = ground(new THREE.Mesh(new THREE.PlaneGeometry(2 * CANDLE.r, 2 * CANDLE.r), mat), 0.03);
+      ring.position.x = m.x + 0.5;
+      ring.position.z = m.y + 0.5;
+      mapGroup.add(ring);
+      cpMarks.push({ room: -1, mat });
+    }
   }
 
   // geometrias de efeito compartilhadas: criar uma por efeito vazava memória de vídeo
@@ -842,7 +899,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const hpFill = el('div', { class: 'hp-fill', style: `background: ${COLORS[d.color]}` });
     const botEl = el('small', { class: 'bot-tag', hidden: true });
     const medalEl = el('b', { class: 'wiz-medal', hidden: true });
-    const nameEl = el('span', {}, medalEl, d.name, botEl);
+    const nameText = document.createTextNode(d.name);
+    const nameEl = el('span', {}, medalEl, nameText, botEl);
     const hpText = el('span', { class: 'hp-text' });
     const absRush = el('div', { class: 'hp-abs rush' });
     const bar = el('div', { class: 'hp' }, hpFill, absRush, hpText);
@@ -860,7 +918,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -886,6 +944,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     pact: ['Spellcast_Long', 0.9, 0.3], recharge: ['Spellcast_Long', 0.9, 0.3],
   };
   const castAnim = (spell: string) => CAST_ANIM[spell] ?? (['Spellcast_Shoot', 0.55] as const);
+  // golpe em arco (issue #402) pela arma do criador; os modelos não têm 1H_Melee_Attack_* nem soco, então vai o clip mais parecido,
+  // começando onde o gesto forte cai perto do fim do preparo de 0,4 s: cajado gira o 2H, espada/machado/facas descem o braço, sem arma chuta
+  const meleeAnim = (look?: string): [string, number, number] => {
+    const nodes = look ? lookPieces(look).flatMap((p) => p.nodes) : [];
+    return nodes.includes('2H_Staff') ? ['2H_Melee_Attack_Spin', 0.7, 0.3] : nodes.some((n) => /^(1H_|Knife)/.test(n)) ? ['Throw', 0.7, 0.25] : ['Unarmed_Melee_Attack_Kick', 0.6, 0];
+  };
   function oneShot(id: string, name: string, secs: number, from = 0) {
     const m = mages.get(id);
     if (!m || m.dead) return;
@@ -1337,7 +1401,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const isleBaseGeo = new THREE.CylinderGeometry(1, 1.15, 0.6, 28);
   const isleTopGeo = new THREE.CylinderGeometry(1, 1, 0.06, 28);
   const rockModels: THREE.Object3D[] = [];
-  for (const k of ['A', 'B', 'C', 'D', 'E']) gltf.loadAsync(`/models/hex/rock_single_${k}.gltf`).then((g) => rockModels.push(g.scene)).catch(() => {});
+  // The five .gltf files define the same hexagons_medieval material, but each parse makes its own copy of the
+  // 1024² atlas: sharing the first one keeps a single texture on the GPU (issue #378). Promise.all keeps A..E in order,
+  // so each isle gets the same rocks whichever file arrives first
+  Promise.all(['A', 'B', 'C', 'D', 'E'].map((k) => gltf.loadAsync(`/models/hex/rock_single_${k}.gltf`))).then((gs) => {
+    let mat: THREE.Mesh['material'] | undefined;
+    for (const g of gs) {
+      g.scene.traverse((o) => { if (o instanceof THREE.Mesh) o.material = mat ??= o.material; });
+      rockModels.push(g.scene);
+    }
+  }).catch(() => {});
   type IsleDraw = { g: THREE.Group; top: THREE.Mesh; rocks: THREE.Group; r: number; seen: number; shrinkAt: number };
   const isleDraws: IsleDraw[] = [];
   function isleDraw(i: number): IsleDraw {
@@ -1440,7 +1513,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         scene.add(obj);
         // barra de vida em tudo que quebra (pedido do Fernando, 17/10: sempre visível)
         let bar: HTMLDivElement | null = null, fill: HTMLDivElement | null = null;
-        if (Number.isFinite(OBSTACLES[p.kind].hp) && !side) {
+        if (Number.isFinite(OBSTACLES[p.kind].hp) && !side && !(p.kind === 'rock' && curMap)) { // the Campaign rock never breaks (levels.ts obstaclesOf)
           fill = el('div');
           bar = el('div', { class: 'obstacle-hp' + (p.kind === 'chest' ? ' chest' : '') }, fill);
           labels.append(bar);
@@ -1828,6 +1901,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       m.root.position.copy(w3(tk < 1 ? add(m.tpFrom, scale(m.tpDir, tk * TP_SLIDE)) : tk < 2 ? add(m.tpTo, scale(m.tpDir, (tk - 2) * TP_SLIDE)) : d.pos));
       m.root.rotation.y = Math.PI / 2 - d.facing;
+      m.root.scale.setScalar(d.size ?? 1); // model, ring and aura grow with the body (the server uses the same scale for collisions)
       m.vines.visible = d.alive && !!(d.status & 128);
       // Escudo: bolha no raio real que vai apagando, e a barrinha do tempo que falta
       if (d.shield && !m.shield.visible) m.shieldSince = now;
@@ -1869,13 +1943,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (invuln && !m.invuln && !(d.geyserLeft ?? 0)) oneShot(d.id, 'Spawn_Ground', 1.3);
         // atordoado (16: arremessado por um golpe) voa de braços abertos
         if ((d.geyserLeft ?? 0) > 0) { m.oneShotUntil = 0; play(m, 'Jump_Idle', .05); }
-        else if ((d.basicLeft ?? 0) > 0 && !(d.status & 16) && m.actions.Attack_Invoke) {
+        else if (d.basicArc && (d.basicLeft ?? 0) > 0 && !(d.status & 16)) {
+          const [clip, secs, from] = meleeAnim(d.look);
+          if (m.current !== clip) oneShot(d.id, clip, secs, from);
+        } else if ((d.basicLeft ?? 0) > 0 && !(d.status & 16) && m.actions.Attack_Invoke) {
           play(m, 'Attack_Invoke', .03);
           const action = m.actions.Attack_Invoke;
           action.paused = true;
           action.time = Math.max(0, action.getClip().duration - d.basicLeft!);
           m.oneShotUntil = 0; // o snapshot encerra a pose na soltura ou no cancelamento, sem terminar o gesto à força.
-        } else if (m.current === 'Attack_Invoke' || now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & BRACING_BIT && m.actions.Brace ? 'Brace' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
+        } else if (m.current === 'Attack_Invoke' || now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & BRACING_BIT && d.guard && m.actions.Block ? 'Block' : d.status & BRACING_BIT && m.actions.Brace ? 'Brace' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
         // vencedor: estouro dourado ao começar a comemorar e faíscas subindo enquanto dura
         if (d.cheer && !m.cheering) victoryBurst(d.pos);
         if (d.cheer && !lite && Math.random() < 0.2) burst(v(d.pos.x + (Math.random() - 0.5) * 1.4, d.pos.y + (Math.random() - 0.5) * 1.4), Math.random() < 0.5 ? '#ffd84a' : '#fff2a0', 0.7, 1.2, 0.4, FX.star, 2.6);
@@ -1985,6 +2062,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.prevHp = d.hp;
       m.prevAlive = d.alive;
       m.hpText.textContent = `${Math.max(0, Math.ceil(d.hp))}/${d.hpMax}`;
+      // The label is built once, but the name changes mid-round: "(BOT)" while the server bot plays for a disconnected
+      // player, gone on reconnect (issue #367). Replacing only the text node keeps the medal and bot tag.
+      if (m.nameText.data !== d.name) m.nameText.data = d.name;
       if (m.botKey !== (d.bot ?? '')) {
         m.botKey = d.bot ?? '';
         m.botEl.hidden = !d.bot;
@@ -2102,6 +2182,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const coneAim = new THREE.Mesh(coneGeo,new THREE.MeshBasicMaterial({color:'#d5b474',transparent:true,opacity:.25,side:THREE.DoubleSide,depthWrite:false}));
   coneAim.visible=false; coneAim.renderOrder=9; scene.add(coneAim);
   const blindMask = blindnessMask(camera); scene.add(blindMask);
+  // prévia do golpe em arco (issue #402): setor de MELEE_ARC.angle e raio 1, centrado em +x, escalado pelo alcance e girado só em y
+  const arcHalf = (MELEE_ARC.angle / 2) * Math.PI / 180;
+  const arcAim = new THREE.Mesh(new THREE.RingGeometry(0, 1, 32, 1, -arcHalf, 2 * arcHalf).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }));
+  arcAim.renderOrder = 9; arcAim.visible = false; arcAim.scale.setScalar(MELEE_ARC.range); scene.add(arcAim);
 
   return {
     ready,
@@ -2142,6 +2226,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     cone(points: [Vec,Vec,Vec] | null) {
       coneAim.visible=!!points;
       if(points) { const a=coneGeo.getAttribute('position'); points.forEach((p,i)=>a.setXYZ(i,p.x,.04,p.y)); a.needsUpdate=true; coneGeo.computeBoundingSphere(); }
+    },
+    // golpe em arco: setor no chão em volta do mago, virado para facing; null esconde
+    arc(at: Vec | null, facing: number) {
+      arcAim.visible = !!at;
+      if (!at) return;
+      arcAim.position.copy(w3(at, 0.04));
+      arcAim.rotation.y = -facing;
     },
     bands(segs: [Vec, Vec][], half: number) {
       for (let i = bands.length; i < segs.length; i++) {
@@ -2268,6 +2359,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // brilho na mão (um pouco à frente do mago, na cor da magia) e linha de mira fraca até o ponto
       const color = spell === 'cluster' ? '#d7bc85' : spell === 'heal' ? HEAL_FX.color : LOOK[spell as keyof typeof LOOK]?.halo ?? '#ffb347';
       const from = v(m.root.position.x, m.root.position.z);
+      if (spell === 'closedbody') at = undefined; // Keep the effect on the stance, without a cursor aim line.
       const dir = at ? Math.atan2(at.y - from.y, at.x - from.x) : Math.PI / 2 - m.root.rotation.y;
       const hand = v(from.x + Math.cos(dir) * 0.45, from.y + Math.sin(dir) * 0.45);
       burst(hand, color, 1.3, 0.35, 1.15, FX.light);
@@ -2276,7 +2368,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[] } | null }) {
+    render(state: { blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[]; seen: number[] } | null }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
@@ -2290,9 +2382,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         mapKey = state.map.key;
         buildMap(state.map.night);
       }
+      decor.night(state.map ? `${mapKey}|${state.map.opened.join()}` : '', () => (state.map ? nightProps(state.map.night, state.map.opened) : null)); // same key: nothing to do; an opened chest rebuilds the props (twice a night)
       mapGroup.visible = voidPlane.visible = onMap;
       lava.visible = arena.visible = warn.visible = !onMap;
       for (const c of cpMarks) c.mat.opacity = state.map?.done.includes(c.room) ? 0.15 : 0.55 + 0.35 * Math.sin(now * 3);
+      fogs.forEach((f, i) => {
+        const mat = f.material as THREE.MeshBasicMaterial, goal = state.map?.seen.includes(i) ? 0 : 0.97;
+        mat.opacity += (goal - mat.opacity) * 0.08; // about half a second to lift
+        f.visible = mat.opacity > 0.01;
+      });
 
       // arena nova (sorteada a cada rodada): troca o chão e a borda
       if (state.arena !== shownArena) {
@@ -2595,7 +2693,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       for (const m of mages.values()) {
         if (m.label.hidden) continue;
         m.label.style.visibility = obscured(m.root.position) ? 'hidden' : '';
-        const [x, y] = toScreen(m.root.position.clone().setY(2.1 + m.model.position.y));
+        const [x, y] = toScreen(m.root.position.clone().setY(m.root.scale.y * (2.1 + m.model.position.y)));
         m.label.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
       }
 

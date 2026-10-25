@@ -31,7 +31,7 @@ export function aimPoint(me: Vec, s: Vec, range = AIM_RANGE): Vec {
   return m ? add(me, scale(norm(s), AIM_MIN + (range - AIM_MIN) * Math.min(1, m))) : me;
 }
 
-// magia do botão, pelo mapeamento da aba Controle (padrão: A B X Y LB RB LT RT = magias 1 a 8 da barra)
+// magia do botão, pelo mapeamento da aba Controle (default: A B X Y LB RB = bar spells 1 to 6)
 export function padAction(btn: number): SpellId | undefined {
   const p = padActionAt(btn);
   if (p?.startsWith('slot')) return slotSpell(Number(p.slice(4)) - 1);
@@ -300,7 +300,7 @@ class Pad {
   private tauntWheel(panel: HTMLElement, hit: (b: number) => boolean, mv: Vec, aimS: Vec, opened: boolean) {
     this.idle();
     const buttons = [...panel.querySelectorAll<HTMLButtonElement>('.radial-stage > button:not(.radial-center)')];
-    // The stick points around the wheel; the d-pad steps ±1 per press (with more than 8 taunts, 8 directions could not reach them all).
+    // The stick points around the wheel; the d-pad steps one slot per press, without repeating while held.
     const s = len(aimS) ? aimS : mv;
     let selected = radialIndex(s.x, s.y, buttons.length);
     if (selected === null && !opened) {

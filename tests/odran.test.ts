@@ -1,16 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { ODRAN, SWEEP } from '../src/shared/bosses.ts';
 import { SERVOS } from '../src/shared/campaign.ts';
+import { LOOK_PARTS, decodeLook } from '../src/shared/characters.ts';
 import { STAGE_ROOMS, fightOf, nightMap, parseRooms, type NightMap } from '../src/shared/levels.ts';
 import { addPlayer, newMatch, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { mulberry32 } from '../src/shared/rng.ts';
-import type { SimEvent } from '../src/shared/sim.ts';
+import { stepWorld, type SimEvent } from '../src/shared/sim.ts';
 import { dist, v } from '../src/shared/vec.ts';
-import { STEP_MS, toPlaying } from './helpers.ts';
+import { STEP_MS, run, toPlaying, world } from './helpers.ts';
+import { OBSTACLES, WIZ_R } from '../src/shared/constants.ts';
+import { noSpells } from '../src/shared/spells.ts';
 
-// noite com os humanos dados, já jogando, com o primeiro dentro da arena do Sir Odran (a luta abre no passo)
+// room created by the Campaign option of the Play menu: only it plays the Campaign
+const campaignRoom = () => Object.assign(newMatch(), { mode: 'campaign' as const });
+
+// night with the given humans, already playing, with the first one inside Sir Odran's arena (the fight opens on the step)
 function arena(humans = ['a']): { m: Match; now: number; n: NightMap; b: number; events: SimEvent[] } {
-  const m = newMatch();
+  const m = campaignRoom();
   for (const id of humans) addPlayer(m, id, id);
   startMatch(m, 0, 0, 'campaign', true, mulberry32(1));
   let now = toPlaying(m, 0);
@@ -26,7 +32,7 @@ function step(m: Match, now: number, events: SimEvent[], n = 1): number {
   for (let i = 0; i < n; i++) events.push(...tickMatch(m, (now += STEP_MS), [], () => 0.5));
   return now;
 }
-// pilares da arena (as 4 Barricadas de pedra 2×2 do desenho)
+// arena pillars (the 4 stone 2×2 Barricades of the design)
 const pillarsOf = (m: Match, n: NightMap, b: number) => {
   const r = n.rooms[b];
   return m.world!.pillars.filter((q) => q.kind === 'rock' && q.pos.x > r.x && q.pos.x < r.x + r.room.w && q.pos.y > r.y && q.pos.y < r.y + r.room.h);
@@ -46,14 +52,14 @@ describe('Sir Odran: arena', () => {
       const { m, events } = arena([...humans]);
       const z = odran(m);
       expect(z, String(humans.length)).toMatchObject({ alive: true, hp, hpMax: hp, kbResist: ODRAN.kbResist, regen: 0 });
-      expect(m.players.find((p) => p.servo === 'odran')!.hpMax).toBe(hp); // a barra do navegador
+      expect(m.players.find((p) => p.servo === 'odran')!.hpMax).toBe(hp); // the browser bar
       expect(events.some((e) => e.k === 'boss' && e.what === 'start')).toBe(true);
     }
     expect(SERVOS.odran.hp).toBe(3000);
   });
 
   it('counts only the Acesos standing when he comes in', () => {
-    const m = newMatch();
+    const m = campaignRoom();
     for (const id of ['a', 'b']) addPlayer(m, id, id);
     startMatch(m, 0, 0, 'campaign', true, mulberry32(1));
     let now = toPlaying(m, 0);
@@ -65,19 +71,19 @@ describe('Sir Odran: arena', () => {
   });
 });
 
-describe('Sir Odran: investida', () => {
+describe('Sir Odran: charge', () => {
   it('stops and aims before charging, and the charge hits the Aceso in the way hard', () => {
     const { m, now: t0, events } = arena();
     let now = t0;
     const a = wiz(m, 'a');
     a.invulnUntil = 0;
-    // o Odran no meio da arena, o Aceso a 6 m na frente, sem pilar no caminho
+    // Odran in the middle of the arena, the Aceso 6 m ahead, no pillar in the way
     const z = odran(m);
     z.pos = v(a.pos.x + 6, a.pos.y);
     for (let i = 0; i < 60 * 4 && !events.some((e) => e.k === 'boss' && e.what === 'aim'); i++) now = step(m, now, events);
     const aim = events.find((e) => e.k === 'boss' && e.what === 'aim')!;
     expect(aim).toBeDefined();
-    // parado durante a mira
+    // standing still while aiming
     const at = { ...z.pos };
     now = step(m, now, events, Math.floor(ODRAN.charge.windup * 60) - 2);
     expect(dist(z.pos, at)).toBeLessThan(0.05);
@@ -113,21 +119,22 @@ describe('Sir Odran: investida', () => {
     const a = wiz(m, 'a'), z = odran(m), pillars = pillarsOf(m, n, b);
     expect(pillars.length).toBe(4);
     for (const [k, q] of pillars.entries()) {
-      // o Aceso atrás do pilar, o Odran do outro lado: a linha da investida passa pelo pilar
+      // the Aceso behind the pillar, Odran on the other side: the charge line goes through the pillar
       Object.assign(a, { pos: v(q.pos.x, q.pos.y - 3.2), vel: v(0, 0), target: null });
       Object.assign(z, { pos: v(q.pos.x, q.pos.y + 3.2), vel: v(0, 0), target: null });
       m.night!.boss!.next = 0;
       const before = events.length;
       for (let i = 0; i < 60 * 3 && q.alive; i++) {
         now = step(m, now, events);
-        a.pos = v(q.pos.x, q.pos.y - 3.2); // fica parado atrás do pilar
+        a.pos = v(q.pos.x, q.pos.y - 3.2); // stays behind the pillar
       }
-      expect(q.alive, `pilar ${k}`).toBe(false);
+      expect(q.alive, `pillar ${k}`).toBe(false);
       expect(events.slice(before).some((e) => e.k === 'boss' && e.what === 'stun')).toBe(true);
-      // atordoado: não anda nem lança por 3 s
+      // stunned: does not walk or cast for 3 s
       const at = { ...z.pos }, cd = { ...z.cd };
       now = step(m, now, events, 60 * ODRAN.stun - 10);
-      expect(dist(z.pos, at), `pilar ${k}`).toBeLessThan(0.3);
+      // the 4th pillar brings the phase-2 Ashen, whose spells push him like any ally (Teams rule, 24/10): only check before that
+      if (k < 3) expect(dist(z.pos, at), `pillar ${k}`).toBeLessThan(0.3);
       expect(z.cd).toEqual(cd);
       expect(m.night!.boss!.phase).toBe(k < 3 ? 1 : 2);
     }
@@ -160,4 +167,97 @@ describe('Sir Odran: investida', () => {
     expect(m.night!.result).toBe('won');
   });
 
+});
+
+describe('Giant Sir Odran', () => {
+  it('his outfit is a valid look: skeleton body with the Knight helmet, cape, sword and shield', () => {
+    const look = decodeLook(SERVOS.odran.outfit);
+    expect(look).not.toBe(null);
+    const piece = (part: string) => LOOK_PARTS.find((p) => p.id === part)!.opts[look![LOOK_PARTS.findIndex((p) => p.id === part)]];
+    expect(piece('body')?.from).toBe('skeleton_warrior');
+    expect(piece('hat')?.nodes).toEqual(['Knight_Helmet']);
+    expect(piece('cape')?.nodes).toEqual(['Knight_Cape']);
+  });
+});
+
+describe('Sir Odran: 2.5× body', () => {
+  it('he enters with the giant body; a Fireball passing 0.8 m from his centre hits him but misses a wizard', () => {
+    const { m } = arena();
+    expect(odran(m).r).toBeCloseTo(WIZ_R * ODRAN.size);
+    for (const r of [undefined, WIZ_R * ODRAN.size]) {
+      const w = world([[0, 0], [5, 0.8]], { ...noSpells(), fireball: 1 }, [], () => 0.5);
+      w.wizards[1].r = r;
+      const hp = w.wizards[1].hp;
+      run(w, 1.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(10, 0) }]);
+      expect(w.wizards[1].hp < hp, String(r)).toBe(r !== undefined);
+    }
+  });
+
+  // bodies stay bodyR + bodyR apart (separate), so touch spells must reach the giant's edge, not a wizard's
+  it.each(['windwalk', 'thrust'] as const)('%s walking into the giant body hits him', (spell) => {
+    const w = world([[0, 0], [3, 0]], { ...noSpells(), [spell]: 1 }, [], () => 0.5);
+    w.wizards[1].r = WIZ_R * ODRAN.size;
+    const hp = w.wizards[1].hp;
+    run(w, 1.5, [{ id: 'p0', kind: 'cast', spell, at: v(3, 0) }, { id: 'p0', kind: 'move', to: v(3, 0) }]);
+    expect(w.wizards[1].hp).toBeLessThan(hp);
+  });
+
+  it('Link pulls the giant body to the caster and lets go on contact, not after its whole life', () => {
+    const w = world([[0, 0], [5, 0]], { ...noSpells(), link: 1 }, [], () => 0.5);
+    w.wizards[1].r = WIZ_R * ODRAN.size;
+    run(w, 3, [{ id: 'p0', kind: 'cast', spell: 'link', at: v(5, 0) }]);
+    expect(w.projectiles).toHaveLength(0);
+  });
+
+  it('a Boomerang bounces off the giant body once, taking what it takes from a wizard', () => {
+    const lost = [undefined, WIZ_R * ODRAN.size].map((r) => {
+      const w = world([[0, 0], [5, 0]], { ...noSpells(), boomerang: 1 }, [], () => 0.5);
+      w.wizards[1].r = r;
+      const hp = w.wizards[1].hp;
+      run(w, 4, [{ id: 'p0', kind: 'cast', spell: 'boomerang', at: v(5, 0) }]);
+      return hp - w.wizards[1].hp;
+    });
+    expect(lost[0]).toBeGreaterThan(0);
+    expect(lost[1]).toBeLessThan(lost[0] * 1.5); // one hit each (regeneration shifts the hp by a little)
+  });
+
+  it('a Sand Blast reaches the giant body past the cone edge, where it misses a wizard', () => {
+    for (const r of [undefined, WIZ_R * ODRAN.size]) {
+      const w = world([[0, 0], [2, 2 / 3 + 0.6]], { ...noSpells(), cluster: 1 }, [], () => 0.5);
+      w.wizards[1].r = r;
+      const hp = w.wizards[1].hp;
+      run(w, 1, [{ id: 'p0', kind: 'cast', spell: 'cluster', at: v(3, 0) }]);
+      expect(w.wizards[1].hp < hp, String(r)).toBe(r !== undefined);
+    }
+  });
+
+  it('the Attack reaches the giant body in melee at its edge, where a wizard only gets the shot', () => {
+    for (const r of [undefined, WIZ_R * ODRAN.size]) {
+      const w = world([[0, 0], [1.3, 0]], noSpells(), [], () => 0.5);
+      w.wizards[1].r = r;
+      const melee: boolean[] = [];
+      for (let i = 0; i < 60; i++) {
+        stepWorld(w, i ? [] : [{ id: 'p0', kind: 'basic', at: v(1.3, 0) }]);
+        for (const e of w.events) if (e.k === 'attack') melee.push(e.melee);
+      }
+      expect(melee, String(r)).toEqual([r !== undefined]);
+    }
+  });
+
+  it('a Barricade falling past the edge of a wizard still lands on the giant body', () => {
+    for (const r of [undefined, WIZ_R * ODRAN.size]) {
+      const w = world([[0, 0], [3 + OBSTACLES.rockpillar.r + WIZ_R + 0.3, 0]], { ...noSpells(), rockpillar: 1 }, [], () => 0.5);
+      w.wizards[1].r = r;
+      const hp = w.wizards[1].hp;
+      run(w, 0.5, [{ id: 'p0', kind: 'cast', spell: 'rockpillar', at: v(3, 0) }]);
+      expect(w.wizards[1].hp < hp, String(r)).toBe(r !== undefined);
+    }
+  });
+
+  it('two bodies keep the sum of their radii apart', () => {
+    const w = world([[0, 0], [0.5, 0]], noSpells(), [], () => 0.5);
+    w.wizards[0].r = WIZ_R * ODRAN.size;
+    run(w, 0.2);
+    expect(dist(w.wizards[0].pos, w.wizards[1].pos)).toBeGreaterThanOrEqual(WIZ_R * ODRAN.size + WIZ_R - 0.01);
+  });
 });

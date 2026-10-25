@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { v, type Vec } from '../shared/vec.ts';
+import type { NightProp } from './night-decor.ts';
 
 type Prop = { obj: THREE.Object3D; pos: Vec };
 // distância até a borda da arena (positiva na pedra), da forma desta rodada
@@ -15,7 +16,9 @@ const FLOOR: [string, number, number][] = [
 ];
 // entulho do Dungeon tem 4 a 8 unidades de largura: reduzido para caber como detalhe
 const SCALE: Record<string, number> = { rubble_large: 0.35, rubble_half: 0.4 };
-const FLAME_ON = new Set(['torch_lit', 'lantern_standing', 'skull_candle', 'shrine_candles', 'candle_triple']);
+const FLAME_ON = new Set(['torch_lit', 'lantern_standing', 'skull_candle', 'shrine_candles', 'candle_triple', 'candle_melted', 'post_lantern', 'chest_gold']); // the closed Campaign chest glows too
+// Campaign props (night-decor.ts) that are several cells wide in KayKit units: shrunk to fit against a 1 m wall cell
+const NIGHT_SCALE: Record<string, number> = { chest: 0.6, chest_gold: 0.6, rubble_half: 0.35, crates_stacked: 0.55, grave_A_destroyed: 0.6, post_lantern: 0.7, sword_shield_broken: 0.8 };
 // sombra em toda malha do modelo
 const shadows = (o: THREE.Object3D) => o.traverse((m) => {
   if ((m as THREE.Mesh).isMesh) m.castShadow = m.receiveShadow = true;
@@ -76,7 +79,64 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
     arrange();
   }).catch(() => console.warn('decoração não carregou; a arena segue sem ela'));
 
+  // Campaign scenery: its own GLB, loaded the first time a night map shows up; a new map replaces the old props
+  const night = new THREE.Group();
+  scene.add(night);
+  let nightFile: Promise<Map<string, THREE.Object3D>> | null = null;
+  let nightKey = '';
+  const loadNight = () => (nightFile ??= Promise.all([new GLTFLoader().loadAsync('/models/charneca.glb'), unitScale]).then(([g, k]) => {
+    unit = k;
+    return new Map(g.scene.children.map((c) => [c.name.replace(/\.gltf$/, ''), c] as const));
+  }));
+  const clearNight = () => {
+    for (const c of [...night.children]) {
+      night.remove(c);
+      if ((c as THREE.Sprite).isSprite) {
+        (c as THREE.Sprite).material.dispose();
+        flames.splice(flames.indexOf(c as THREE.Sprite), 1);
+      }
+    }
+  };
+
   return {
+    // Campaign: puts the props of this map (null takes them away); models and textures stay shared with the GLB, never disposed
+    night(key: string, propsOf: () => NightProp[] | null) {
+      if (key === nightKey) return;
+      nightKey = key;
+      clearNight();
+      const props = propsOf(); // built once per map, not every frame
+      if (!props) return;
+      loadNight().then((byName) => {
+        if (nightKey !== key) return; // another map came in while the file loaded
+        for (const p of props) {
+          const src = byName.get(p.name);
+          if (!src) continue;
+          const o = src.clone(true);
+          o.position.set(p.x, 0, p.y);
+          o.rotation.y = p.rot;
+          o.scale.setScalar(unit * (NIGHT_SCALE[p.name] ?? 1));
+          shadows(o);
+          const box = new THREE.Box3().setFromObject(o);
+          o.position.y += (p.h ?? 0) - box.min.y;
+          night.add(o);
+          if (FLAME_ON.has(p.name)) {
+            const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: '#ffae42', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+            f.position.set(p.x, (p.h ?? 0) + box.max.y - box.min.y + 0.05, p.y);
+            f.scale.setScalar(0.9);
+            night.add(f);
+            flames.push(f);
+          }
+        }
+      }).catch(() => console.warn('cenário da Campanha não carregou; o mapa segue sem ele'));
+    },
+    // Campaign: the first mesh of a model of the Charneca GLB (floor tiles and wall blocks, instanced by the scene); null if missing
+    nightMesh(name: string): Promise<THREE.Mesh | null> {
+      return loadNight().then((byName) => {
+        let mesh: THREE.Mesh | null = null;
+        byName.get(name)?.traverse((o) => (mesh ??= (o as THREE.Mesh).isMesh ? (o as THREE.Mesh) : null));
+        return mesh;
+      }).catch(() => null);
+    },
     // cópia de um modelo da decoração (para os pilares da arena), já na escala do jogo; null se ainda não carregou
     clone(name: string): THREE.Object3D | null {
       const src = models.get(name);

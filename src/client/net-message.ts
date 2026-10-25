@@ -32,12 +32,16 @@ function player(x: unknown): x is PublicPlayer {
   if (!stringArray(x.bought) || !object(x.held) || !Object.values(x.held).every((levels) => Array.isArray(levels) && levels.every(integer))) return false;
   if (typeof x.ready !== 'boolean' || typeof x.connected !== 'boolean' || (x.team !== null && !integer(x.team))) return false;
   if (x.difficulty !== undefined && !(OPTION_CHOICES.difficulty as readonly unknown[]).includes(x.difficulty)) return false;
-  if (x.dummy !== undefined && x.dummy !== true || x.turret !== undefined && x.turret !== true || x.watch !== undefined && x.watch !== true) return false;
+  if (x.dummy !== undefined && x.dummy !== true || x.turret !== undefined && x.turret !== true || x.watch !== undefined && x.watch !== true || x.arc !== undefined && x.arc !== true || x.guard !== undefined && x.guard !== true) return false;
   if (x.hpMax !== undefined && !finite(x.hpMax)) return false;
   if (x.servo !== undefined && !(SERVO_KINDS as readonly unknown[]).includes(x.servo)) return false;
   if (x.asc !== undefined) {
     const a = x.asc;
     if (!object(a) || !integer(a.xp) || !integer(a.level) || !integer(a.next) || !Array.isArray(a.todo) || !a.todo.every((k) => (CARD_KINDS as readonly unknown[]).includes(k)) || !Array.isArray(a.offer) || !a.offer.every((row) => Array.isArray(row) && row.every(card)) || !Array.isArray(a.pick) || !a.pick.every((pick) => pick === null || object(pick) && integer(pick.i) && (pick.swap === undefined || isSpell(pick.swap))) || !integer(a.rerolls) || !Array.isArray(a.auto) || !a.auto.every(card)) return false;
+  }
+  if (x.lv !== undefined) {
+    const l = x.lv;
+    if (!object(l) || !integer(l.xp) || !integer(l.level) || !integer(l.next) || !integer(l.owed) || !Array.isArray(l.offer) || !l.offer.every(card)) return false;
   }
   return true;
 }
@@ -58,7 +62,7 @@ function room(x: unknown): x is PublicRoom {
     const sandbox = x.sandbox;
     if (!object(sandbox) || !SANDBOX_KEYS.every((key) => typeof sandbox[key] === 'boolean')) return false;
   }
-  if (x.night !== undefined && (!object(x.night) || !integer(x.night.stage) || !integer(x.night.seed) || !(x.night.fight === null || integer(x.night.fight)) || !integer(x.night.wave) || !integer(x.night.waves) || !Array.isArray(x.night.done) || !x.night.done.every(integer) || !(x.night.result === null || (NIGHT_RESULTS as readonly unknown[]).includes(x.night.result)))) return false;
+  if (x.night !== undefined && (!object(x.night) || !integer(x.night.stage) || !integer(x.night.seed) || !(x.night.fight === null || integer(x.night.fight)) || !integer(x.night.wave) || !integer(x.night.waves) || !Array.isArray(x.night.done) || !x.night.done.every(integer) || !Array.isArray(x.night.opened) || !x.night.opened.every(integer) || !(x.night.result === null || (NIGHT_RESULTS as readonly unknown[]).includes(x.night.result)))) return false;
   if (x.lobby !== undefined) {
     const lobby = x.lobby;
     if (!object(lobby) || !nullableString(lobby.owner) || !Array.isArray(lobby.bots) || !lobby.bots.every((d) => (OPTION_CHOICES.difficulty as readonly unknown[]).includes(d)) || !validOpts(lobby.opts, true)) return false;
@@ -86,6 +90,7 @@ function event(x: unknown): x is SimEvent {
     case 'fall': return id() && num('x', 'y');
     case 'rune': return (RUNE_KINDS as readonly unknown[]).includes(x.kind) && num('x', 'y');
     case 'boss': return id() && (BOSS_EVENT_KINDS as readonly unknown[]).includes(x.what) && num('x', 'y') && (x.tx === undefined || finite(x.tx)) && (x.ty === undefined || finite(x.ty));
+    case 'relic': return id() && num('x', 'y');
     case 'ember': return id() && (EMBER_EVENT_KINDS as readonly unknown[]).includes(x.what) && num('x', 'y');
     case 'streak': return id() && (STREAK_KINDS as readonly unknown[]).includes(x.kind) && integer(x.n) && (x.victim === undefined || string(x.victim));
     case 'clash': return num('x', 'y', 'r') && (COMBO_KINDS as readonly unknown[]).includes(x.combo);

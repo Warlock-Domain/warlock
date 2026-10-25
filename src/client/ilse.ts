@@ -42,9 +42,13 @@ export const ILSE_MOMENTS = {
   fight: (c: IlseCtx) => [
     c.touch ? t('Agora as magias. Toque na Bola de fogo e depois no chão para lançá-la.', 'Now the spells. Tap the Fireball and then the ground to cast it.')
       : t(`Agora as magias. ${c.fireKey} lança a Bola de fogo na direção do mouse; ${c.scourgeKey} é o Flagelo, que explode em volta de você.`, `Now the spells. ${c.fireKey} casts the Fireball toward the mouse; ${c.scourgeKey} is the Scourge, which bursts around you.`),
-    t('Cada vaga da barra embaixo tem a sua tecla (1 2 3 4 Q W E R). Arraste uma magia para a vaga que preferir.', 'Each slot of the bar below has its key (1 2 3 4 Q W E R). Drag a spell to the slot you prefer.'),
+    t('Cada vaga da barra embaixo tem a sua tecla (Q W E R D F). Arraste uma magia para a vaga que preferir.', 'Each slot of the bar below has its key (Q W E R D F). Drag a spell to the slot you prefer.'),
     t('Quanto mais dano um servo leva, mais longe ele voa. Empurre-o para a lava.', 'The more damage a servant takes, the farther it flies. Push it into the lava.'),
   ],
+  // first level-up after a cleared room (Lucas, 24/10: XP from the servants, a card per level)
+  level: () => [t('Cada servo que cai dá experiência ao grupo. Subiu de nível: escolha uma carta à direita, magia nova ou um nível a mais numa que você já tem.', 'Every servant that falls gives the group experience. You levelled up: pick a card on the right, a new spell or one more level on one you already have.')],
+  // first step into the Sanctuary candle's circle: nothing else on screen says that it heals (Fernando, 24/10)
+  candle: () => [t('A vela cura quem fica perto dela. Respire aqui antes do chefe.', 'The candle heals whoever stays close to it. Catch your breath here before the boss.')],
   fall: () => [t('O abismo cobra caro: cada queda tira um pedaço da sua vida.', 'The abyss charges dearly: every fall takes a piece of your life.')],
   won: () => [t('A primeira vela segue acesa. Daqui em diante eu falo menos: vocês já sabem o caminho.', 'The first candle still burns. From here on I will speak less: you know the way now.')],
 };
