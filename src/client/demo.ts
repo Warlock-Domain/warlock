@@ -33,6 +33,7 @@ const VINE_COLOR = '#8ed64b';
 
 // mago 0 é "você" (com a magia ou o item da página); 1 e 2 são de treino e só têm a Bola de fogo
 export const SCRIPTS: Partial<Record<DemoId, Script>> = {
+  sniper: { pos: [v(-4,0),v(3,0)], end:6.2, steps:[[.4,A,'sniper',B],[1,B,'move',v(3,2)]], prep:w=>{w.pillars=[];w.wizards[B].regen=0;} },
   channel: { pos: [v(-4,0),v(3,0)], end: 4.5, steps: [[.3,A,'charge',B],[3,A,'fireball',B]], prep: w => { w.pillars=[]; w.wizards[B].regen=0; } },
   closedbody: { pos: [v(-1,0), v(3,0)], end: CLOSED_BODY_END + 2,
     steps: ([...Array.from({length:Math.ceil((CLOSED_BODY_END+1.1)/.1)}, (_,i): Step => [.1+i*.1,A,'braceOn',A]), [.8,A,'closedbody',v(-1,4)], [1,B,'fireball',A], [2,B,'meteor',A], [CLOSED_BODY_END+.2,B,'basic',A], [CLOSED_BODY_END+1.2,A,'braceOff',A]] as Step[]).sort((a,b)=>a[0]-b[0]),
@@ -85,6 +86,7 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 
 // Rótulos seguem os estados reais para a prévia não sugerir que stun, prisão e postura têm o mesmo bloqueio.
 export function demoStatus(w: World, z: Wizard): string[] {
+  if(z.casting?.spell==='sniper') return [t(`mirando · ${n1(z.casting.fireAt-w.t)} s · tiro ${spellLevel('sniper',1).dmg}`,`aiming · ${n1(z.casting.fireAt-w.t)} s · shot ${spellLevel('sniper',1).dmg}`)];
   if (z.channel) {
     // below 1 s the charge is not ready (power 0): show no bonus until a click would actually fire
     const elapsed = Math.min(2, w.t - z.channel.since), bonus = Math.round((channelPower(elapsed) - 1) * 100);
@@ -269,6 +271,12 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       circle(z.pos, WIZ_R + .2, null, GEYSER_FX.color);
       text('↑', v(z.pos.x, z.pos.y - 1.3), GEYSER_FX.foam, .65);
     }
+    if (z.casting?.spell === 'sniper') {
+      const at=z.casting.at;
+      line(z.pos,at,'#ff324e',.035,true); circle(at,.5,null,'#ff324e');
+      const dir=v(Math.cos(z.facing),Math.sin(z.facing));
+      line(add(z.pos,scale(dir,.3)),add(z.pos,scale(dir,1.35)),'#283447',.15);
+    }
     if (z.basicCasting) {
       circle(z.pos, .6, null, '#9be7ff');
       const left = Math.max(0, z.basicCasting.fireAt - w.t);
@@ -330,6 +338,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       vines(v(e.x, e.y), e.r);
       ctx.globalAlpha = 1;
     }
+    else if (e.k === 'snipe') line(e.from,e.to,'#fff2b5',.08);
     else if (e.k === 'teleport') line(e.from, e.to, 'rgba(255,214,102,.6)', 0.05, true);
     else if (e.k === 'reflect') circle(v(e.x, e.y), 0.5, null, '#ffd666');
     else if (e.k === 'scourge' || e.k === 'clash') circle(v(e.x, e.y), e.r, null, e.k === 'clash' ? CLASH_COLOR[e.combo] : '#ff6a4d');

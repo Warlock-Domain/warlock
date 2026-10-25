@@ -129,7 +129,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       // fora do alcance a magia sai na direção do clique, até a borda do alcance (o servidor limita)
       const chosen = armed;
       const cast = h.cast(chosen, p);
-      if (channelArmed ? cast : chosen !== 'heal' || cast) arm(null);
+      if (channelArmed ? cast : (chosen !== 'heal' && chosen !== 'sniper') || cast) arm(null);
     } else if (e.button === 2 || touch) {
       if (armed || attackArmed) arm(null); // botão direito cancela a ação escolhida (e anda, como no Dota)
       h.move(p, e.button === 2);
@@ -169,9 +169,9 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
         return;
       }
       if (channelArmed && action === armed) { e.preventDefault(); return; }
-      // Heal always requires a click on the target body.
-      if (action === 'heal') { e.preventDefault(); cancel(); return arm(action); }
-      if (armed === 'heal') arm(null);
+      // Heal and Inelegant Solution always require a click on the target body.
+      if (action === 'heal' || action === 'sniper') { e.preventDefault(); cancel(); return arm(action); }
+      if (armed === 'heal' || armed === 'sniper') arm(null);
       if (attackArmed) arm(null);
       e.preventDefault();
       const mode = getCastMode();
@@ -241,7 +241,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       if (enabled && a !== 'channel' && h.canChannel?.() && (attackArmed || armed === 'channel')) {
         cancel(); if (h.channel?.(a)) { arm(a); channelArmed = true; } return;
       }
-      if (a === 'heal') cancel();
+      if (a === 'heal' || a === 'sniper') cancel();
       if (!enabled) return;
       if (armed === a) return arm(null);
       if (h.checkCooldown && !h.checkCooldown(a)) return arm(null);

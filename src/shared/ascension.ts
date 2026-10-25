@@ -134,7 +134,7 @@ export function applyCard(p: Kit, card: Card, swap?: SpellId): boolean {
     level = Math.min(spellMax(card.id), p.spells[swap]);
     p.spells[swap] = 0;
   }
-  p.spells[card.id] = level;
+  p.spells[card.id] = Math.min(level,spellMax(card.id));
   return true;
 }
 

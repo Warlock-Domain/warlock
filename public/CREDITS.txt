@@ -2,6 +2,8 @@ CRÉDITOS DOS ASSETS (os ícones são CC BY 3.0, com crédito obrigatório, ver 
 
 Ícone healing-cross (Curar): cruz geométrica original do projeto, desenhada em SVG no repositório; sem asset externo.
 
+Solução deselegante (Inelegant Solution): ícone sniper-rifle, rifle, laser e linhas de tensão nas bordas da tela são geometria e shader originais do projeto, feitos em código; sem asset externo.
+
 Coral “ooooh” de Curar: síntese original por osciladores/harmônicos/vibrato em src/client/sound.ts; sem gravação, voz de pessoa ou asset externo.
 
 Gêiser: ícone lorc/water-splash do game-icons.net (lista abaixo); jato/espuma/poça gerados proceduralmente com Three.js. Sem outro asset externo além do ícone; reutiliza partículas/áudio já creditados.

@@ -43,6 +43,9 @@ import { STAGE_NAME, USED_KEY, botLevel, boughtKeys, countBuys, readUsed, endRes
 import { TAUNTS } from '../shared/taunts.ts';
 import { seenRooms } from './minimap.ts';
 import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, setIlse, type IlseCtx } from './ilse.ts';
+import { sniperFocusState } from './sniper-focus.ts';
+import { sniperTarget } from '../shared/sniper-target.ts';
+import { sniperShotSound } from './sniper-fx.ts';
 import { healTarget } from '../shared/heal-target.ts';
 
 declare const __BRANCH__: string;
@@ -74,6 +77,7 @@ const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 
 // som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
+  sniper: 'hitHeavy',
   channel: 'shield',
   closedbody: 'closedbody',
   geyser: 'splash',
@@ -280,6 +284,7 @@ function startRoom(code: string, name: string) {
   let playingAt = 0;
   const justCast = new Map<string, number>();
   let scourgeUntil = 0;
+  const sniperShotTimes=new Map<string,number>();
   let follow = true;
   // espectador: quem a câmera segue e o pedido de troca (+1 próximo, −1 anterior) do quadro seguinte
   let watchId: string | null = null;
@@ -412,6 +417,7 @@ function startRoom(code: string, name: string) {
     return false;
   };
 
+  let sniperRequestSeq = 0;
   let channelRequest: { spell: SpellId; since: number; seq: number } | null = null;
   const input = createInput(canvas, {
     canChannel: () => (room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0,
@@ -424,14 +430,14 @@ function startRoom(code: string, name: string) {
       predict.stop(); sound.play('shield'); return true;
     },
     pick: (x, y, spell) => {
-      if (spell === 'heal') {
+      if (spell === 'heal' || spell === 'sniper') {
         const id = scene.pickMage(x, y);
         return interp.latest()?.wizards.find(w => w.id === id)?.pos ?? null;
       }
       return scene.pick(x, y);
     },
     move(to, held = false) {
-      channelRequest = null;
+      channelRequest = null; sniperRequestSeq = 0; justCast.delete('sniper');
       if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       if ((myWizard(interp.latest())?.status ?? 0) & BRACING_BIT) return;
       command({ t: 'move', x: to.x, y: to.y, held });
@@ -458,12 +464,13 @@ function startRoom(code: string, name: string) {
       scene.clickMarker(at, true);
     },
     stop() {
-      channelRequest = null;
+      channelRequest = null; sniperRequestSeq = 0; justCast.delete('sniper');
       command({ t: 'stop' });
       predict.stop();
       scourgeUntil = 0; // o S cancela o Flagelo em preparo
     },
     cast(spell, at) {
+      if ((myWizard(interp.latest())?.sniperLeft ?? 0)>0) return false;
       if (spell === 'channel') return false;
       if (channelRequest?.spell === spell && ((myWizard(interp.latest())?.channelElapsed ?? 0) < 1)) { toast(t('Canalize por pelo menos 1 segundo.', 'Channel for at least 1 second.')); return false; }
       if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
@@ -473,6 +480,13 @@ function startRoom(code: string, name: string) {
       const state = myWizard(interp.latest())?.status ?? 0;
       if (spell === 'closedbody' && !(state & BRACING_BIT)) return toast(t('Ative Manter base antes de usar Corpo fechado.', 'Activate Hold Ground before using Closed Body.'));
       if (castBlocked(!!(state & 16), !!(state & 128), spell)) return;
+      if (spell === 'sniper') {
+        const units = interp.latest()?.wizards.map(w => ({...w, team: room?.players.find(p=>p.id===w.id)?.team, hidden: !!(w.status&2048), suspended: (w.geyserLeft ?? 0)>0})) ?? [];
+        const self = units.find(w=>w.id===me);
+        const target = self && sniperTarget(units,self,at,SPELLS.sniper.levels[0].range*(1+itemStats(mine.items).range) );
+        if (!target) return toast(t('Clique em um inimigo visível dentro do alcance.', 'Click a visible enemy within range.'));
+        at = target.pos;
+      }
       if (spell === 'heal') {
         const units = interp.latest()?.wizards.map(w => ({ ...w, team: room?.players.find(p => p.id === w.id)?.team })) ?? [];
         const self = units.find(w => w.id === me);
@@ -489,11 +503,12 @@ function startRoom(code: string, name: string) {
       justCast.set(spell, performance.now() + 120 + CAST_POINT[spell] * 1000 + predict.rtt() * 1000);
       command({ t: 'cast', spell, x: at.x, y: at.y });
       channelRequest = null;
-      // Hold movement during casting; the server applies the same delay.
-      predict.hold(CAST_POINT[spell]);
+      if(spell==='sniper') sniperRequestSeq=seq;
+      // Sniper movement cancels its aim; ordinary casts retain queued movement.
+      predict.hold(CAST_POINT[spell], spell === 'sniper');
       scene.castLocal(me, spell, at);
-      if (spell !== 'heal' && spell !== 'closedbody') scene.clickMarker(at, true); // the orange attack marker does not belong to Heal or Closed body
-      if (spell !== 'heal' && spell !== 'closedbody') sound.play(SPELL_SOUND[spell]); // Heal plays once, on confirmation, at the target
+      if (spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper') scene.clickMarker(at, true); // Support and aimed casts do not show the generic orange attack marker.
+      if (spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper') sound.play(SPELL_SOUND[spell]); // Heal and the sniper shot play only on authoritative confirmation.
       return true;
     },
     center: () => {
@@ -502,7 +517,7 @@ function startRoom(code: string, name: string) {
     },
     zoom: (d) => scene.zoomBy(d),
     pan: (dx, dy) => scene.panBy(dx, dy),
-    armedChanged: (s) => { armed = s; canvas.style.cursor = s === 'heal' ? 'crosshair' : ''; },
+    armedChanged: (s) => { armed = s; canvas.style.cursor = (s === 'heal' || s === 'sniper') ? 'crosshair' : ''; },
     preview: (s, at) => {
       held = s;
       const from = drawn.get(me);
@@ -659,8 +674,9 @@ function startRoom(code: string, name: string) {
       // controle: vibra ao levar golpe forte e ao morrer
       if (e.k === 'hit' && e.id === me && e.dmg >= 60) rumble(Math.min(1, e.dmg / 160), 200);
       else if (e.k === 'death' && e.id === me) rumble(1, 500);
-      if (e.k === 'heal') sound.play('heal', near(e.x, e.y));
-      else if (e.k === 'cast' && e.id !== me && e.spell !== 'heal' && e.spell !== 'closedbody') {
+      if (e.k === 'snipe') { sniperShotTimes.set(e.id,performance.now()/1000); sound.play(sniperShotSound, volumeOf(e.id)); }
+      else if (e.k === 'heal') sound.play('heal', near(e.x, e.y));
+      else if (e.k === 'cast' && e.id !== me && e.spell !== 'heal' && e.spell !== 'closedbody' && e.spell !== 'sniper') {
         sound.play(SPELL_SOUND[e.spell], volumeOf(e.id));
       } else if (e.k === 'hit') sound.play(e.dmg >= 100 ? 'hitHeavy' : e.dmg < 50 ? 'hitLight' : 'hit', near(e.x, e.y));
       else if (e.k === 'pillar') sound.play('hit', near(e.x, e.y) * 0.6);
@@ -849,6 +865,7 @@ function startRoom(code: string, name: string) {
       if (cue && !(m.w[i * 7 + 6] & 2048)) sound.play(cue, volumeOf(id));
     });
     const ownIndex = room?.ids.indexOf(me) ?? -1;
+    if(sniperRequestSeq && m.ack>=sniperRequestSeq && !(m.sn?.[ownIndex*3] ?? 0)) { justCast.delete('sniper'); sniperRequestSeq=0; }
     if (channelRequest && m.ack >= channelRequest.seq && !(m.cn && m.cn[ownIndex*2] >= 0)) { channelRequest = null; input.setChannelState(false); }
     lastSnap = m;
     predict.setSpeed(m.sp);
@@ -997,7 +1014,11 @@ function startRoom(code: string, name: string) {
     if (run) view.coach(runText(run), run.state === 'on' ? undefined : again, quit);
     else if (training && room) view.coach(meP ? coachTip({ phase: room.phase, round: room.round, playingFor: (nowMs - playingAt) / 1000, shrinkIn, low, lava, alive: !!meW?.alive, touch: TOUCH, fireKey: isPadMode() ? 'A' : labelOf('fireball'), fire: meP.spells.fireball > 0 }) : null);
     else view.coach(null);
+    const ownFocus=myWizard(interp.latest());
+    const followingFocus=!ownFocus?.alive && watched && !watchCenter ? watched.id : null;
+    const focusCaster=ownFocus?.alive?ownFocus:interp.latest()?.wizards.find(w=>w.id===followingFocus);
     scene.render({
+      sniperFocus: sniperFocusState(me,focusCaster,room?.phase==='playing',!!rs,nowMs/1000-(sniperShotTimes.get(focusCaster?.id ?? '') ?? -Infinity),followingFocus),
       blindAt: !rs && meW?.alive && (myWizard(interp.latest())?.blindLeft ?? 0) > 0 ? myPos : null,
       arena: arenaId,
       arenaR: (rs ?? s)?.arenaR ?? 11,

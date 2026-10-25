@@ -7,7 +7,7 @@ import { ITEM_IDS } from '../shared/items.ts';
 import { ERROR_CODES, SANDBOX_KEYS, type LobbyMessage, type PublicPlayer, type PublicRoom, type ServerMsg, type Snap } from '../shared/protocol.ts';
 import { NIGHT_RESULTS, SERVO_KINDS } from '../shared/campaign.ts';
 import { TAUNTS } from '../shared/taunts.ts';
-import { SPELL_IDS, isSpell } from '../shared/spells.ts';
+import { CAST_POINT, SPELL_IDS, isSpell } from '../shared/spells.ts';
 import { BOSS_EVENT_KINDS, COMBO_KINDS, EMBER_EVENT_KINDS, STREAK_KINDS, type SimEvent } from '../shared/sim.ts';
 
 type Obj = Record<string, unknown>;
@@ -81,6 +81,7 @@ function event(x: unknown): x is SimEvent {
     case 'hit': return id() && id('by') && num('x', 'y', 'dmg') && string(x.src) && (x.crit === undefined || x.crit === true);
     case 'reflect': case 'grip': case 'scourge': case 'loot': return id() && num('x', 'y') && (x.k !== 'scourge' || num('r'));
     case 'lightning': return vector(x.from) && vector(x.to);
+    case 'snipe':
     case 'teleport': return id() && vector(x.from) && vector(x.to);
     case 'vines': return num('x', 'y', 'r');
     case 'death': return id() && nullableString(x.by) && string(x.src);
@@ -102,7 +103,7 @@ function event(x: unknown): x is SimEvent {
 }
 
 function snap(x: Obj): x is Obj & Snap {
-  if (!finite(x.time) || !finite(x.r) || !finite(x.s) || !finite(x.sp) || !integer(x.ack) || !fields(x, ['w', 'p', 'cd', 'pl'], ['st', 'kr', 'rs', 'ch', 'lp', 'em', 'ru', 'ab', 'zn', 'il', 'fx', 'cn'])) return false;
+  if (!finite(x.time) || !finite(x.r) || !finite(x.s) || !finite(x.sp) || !integer(x.ack) || !fields(x, ['w', 'p', 'cd', 'pl'], ['st', 'kr', 'rs', 'ch', 'lp', 'em', 'ru', 'ab', 'zn', 'il', 'fx', 'cn', 'sn'])) return false;
   const count = (x.w as number[]).length / 7;
   if (!Number.isInteger(count) || (x.p as number[]).length % 6 || (x.pl as number[]).length % 4 || (x.cd as number[]).length !== SPELL_IDS.length) return false;
   if (['rs', 'lp', 'em', 'ab', 'st', 'kr'].some((k) => x[k] !== undefined && (x[k] as number[]).length !== count) || ['ch', 'ru'].some((k) => x[k] !== undefined && (x[k] as number[]).length % 3) || (x.zn !== undefined && (x.zn as number[]).length % 5) || (x.il !== undefined && (x.il as number[]).length % 3) || (x.fx !== undefined && (x.fx as number[]).length % 2)) return false;
@@ -110,6 +111,7 @@ function snap(x: Obj): x is Obj & Snap {
     const cn = x.cn as number[];
     if (cn.length !== count * 2 || cn.some((n, i) => (i % 2 === 0 ? !Number.isInteger(n) || n < -1 || n >= SPELL_IDS.length : n < 0 || n > 2))) return false;
   }
+  if (x.sn !== undefined && ((x.sn as number[]).length !== count * 3 || (x.sn as number[]).some((n,i) => i % 3 === 0 && (n < 0 || n > CAST_POINT.sniper)))) return false;
   return x.e === undefined || Array.isArray(x.e);
 }
 
