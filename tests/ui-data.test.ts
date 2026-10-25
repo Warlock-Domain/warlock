@@ -7,7 +7,7 @@ import { ICON, ITEM_ICON, STATUS_ICONS } from '../src/client/icons.ts';
 import { botLevel, endResult, playerName, roomGroups, seatChanges } from '../src/client/screen-data.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../src/shared/protocol.ts';
 
-describe('loja: dados para decidir', () => {
+describe('shop: data for choosing', () => {
   it('puts every spell in exactly one group, with a purpose and a description', () => {
     const grouped = SPELL_GROUPS.flatMap(([, , ids]) => ids);
     expect([...grouped].sort()).toEqual([...SPELL_IDS].sort());
@@ -19,11 +19,11 @@ describe('loja: dados para decidir', () => {
 
   it('puts every passive item in exactly one shop section', () => {
     const grouped = ITEM_GROUPS.flatMap(([, , ids]) => ids);
-    expect([...grouped].sort()).toEqual([...ITEM_IDS].sort()); // sem itens ativos (#236): todo item é passivo
+    expect([...grouped].sort()).toEqual([...ITEM_IDS].sort()); // no active items (#236): every item is passive
   });
 
   it('shows a tip row for every level field that is not zero', () => {
-    // velocidade do projétil não aparece na dica; o resto, se existe na magia, tem de mexer em alguma linha
+    // projectile speed is not shown in the tip; any other field the spell has must change some row
     const fields = (Object.keys(SPELLS.fireball.levels[0]) as (keyof Level)[]).filter((f) => f !== 'speed');
     for (const s of SPELL_IDS) {
       const l = SPELLS[s].levels[0];
@@ -31,7 +31,7 @@ describe('loja: dados para decidir', () => {
         if (!l[f]) continue;
         const bumped = { ...l, [f]: l[f] * 2 + 1 };
         const changed = SPELL_ROWS[s].some(([, show]) => show(l) !== show(bumped));
-        expect(changed, `${s}.${f} sem linha na dica`).toBe(true);
+        expect(changed, `${s}.${f} has no tip row`).toBe(true);
       }
     }
   });
@@ -51,7 +51,7 @@ describe('loja: dados para decidir', () => {
   });
 });
 
-describe('telas: fim da partida e lista de salas', () => {
+describe('screens: match end and room list', () => {
   const p = (id: string, score = 0, team: number | null = null) => ({ id, score, team }) as PublicPlayer;
   const room = (over: Partial<PublicRoom>) => ({ players: [p('a', 5), p('b', 2)], winner: 'a', winnerTeam: null, mode: 'rounds', goal: 5, ...over }) as PublicRoom;
 
@@ -66,7 +66,7 @@ describe('telas: fim da partida e lista de salas', () => {
     const players = [p('a', 5, 0), p('b', 5, 0), p('c', 3, 1)];
     expect(endResult(room({ mode: 'teams', players, winnerTeam: 0 }), 'b')).toBe('win');
     expect(endResult(room({ mode: 'teams', players, winnerTeam: 0 }), 'c')).toBe('loss');
-    // sorteados: dois chegaram à meta juntos; o servidor marca só um como winner
+    // shuffled teams: two reached the goal together; the server marks only one as winner
     expect(endResult(room({ mode: 'teams', players, winner: 'a' }), 'b')).toBe('win');
   });
 
@@ -78,12 +78,12 @@ describe('telas: fim da partida e lista de salas', () => {
   });
 });
 
-describe('bot no lugar de quem saiu (issue #223)', () => {
+describe('bot in place of a disconnected player (issue #223)', () => {
   type Seat = Parameters<typeof botLevel>[0];
   const seat = (id: string, extra: Partial<Seat> = {}): Seat => ({ id, name: id.toUpperCase(), bot: false, connected: true, ...extra });
   const room = { opts: { difficulty: 'veteran' } } as Pick<PublicRoom, 'opts'>;
 
-  it('bot mostra a dificuldade dele (ou a da partida); quem saiu vira bot da partida; quem joga ou só assiste, não', () => {
+  it('shows a bot its own difficulty (or the match one); a disconnected player becomes a match bot; players and spectators do not', () => {
     expect(botLevel(seat('b', { bot: true, difficulty: 'easy' }), room)).toBe('easy');
     expect(botLevel(seat('b', { bot: true }), room)).toBe('veteran');
     expect(botLevel(seat('a', { connected: false }), room)).toBe('veteran');
@@ -91,14 +91,25 @@ describe('bot no lugar de quem saiu (issue #223)', () => {
     expect(botLevel(seat('w', { connected: false, watch: true }), room)).toBeNull();
   });
 
-  it('marca só na tela a pessoa que caiu e está sendo controlada pelo bot', () => {
+  it('marks on screen only the disconnected player the bot is controlling', () => {
     expect(playerName(seat('a'))).toBe('A');
     expect(playerName(seat('a', { connected: false }))).toBe('A (BOT)');
     expect(playerName(seat('bot-1', { bot: true, connected: false }))).toBe('BOT-1');
     expect(playerName(seat('w', { connected: false, watch: true }))).toBe('W');
   });
 
-  it('acha quem saiu e quem voltou entre dois estados da sala, sem contar bots, espectadores nem quem entrou agora', () => {
+  // the overhead label of an existing wizard is refreshed from this name every frame (issue #367)
+  it('adds the marker once when the bot takes over and removes it on reconnect, keeping the stored name', () => {
+    const a = seat('a');
+    a.connected = false;
+    expect(playerName(a)).toBe('A (BOT)');
+    expect(playerName(a)).toBe('A (BOT)');
+    a.connected = true;
+    expect(playerName(a)).toBe('A');
+    expect(a.name).toBe('A');
+  });
+
+  it('finds who left and who came back between two room states, ignoring bots, spectators and newcomers', () => {
     const prev = { players: [seat('a'), seat('b', { connected: false }), seat('c'), seat('bot-1', { bot: true }), seat('w', { watch: true })] };
     const next = { players: [seat('a', { connected: false }), seat('b'), seat('c'), seat('bot-1', { bot: true, connected: false }), seat('w', { watch: true, connected: false }), seat('novo', { connected: false })] };
     const { left, back } = seatChanges(prev, next);

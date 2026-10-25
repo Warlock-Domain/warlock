@@ -233,6 +233,7 @@ type Mage = {
   hpFill: HTMLDivElement;
   hpText: HTMLSpanElement;
   nameEl: HTMLSpanElement;
+  nameText: Text; // the name alone, between the medal and the bot tag
   botEl: HTMLElement; // bot: robô e a dificuldade ao lado do nome
   botKey: string;
   tint: string; // cor do anel e da barra (do jogador, ou do time no modo Times)
@@ -843,7 +844,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const hpFill = el('div', { class: 'hp-fill', style: `background: ${COLORS[d.color]}` });
     const botEl = el('small', { class: 'bot-tag', hidden: true });
     const medalEl = el('b', { class: 'wiz-medal', hidden: true });
-    const nameEl = el('span', {}, medalEl, d.name, botEl);
+    const nameText = document.createTextNode(d.name);
+    const nameEl = el('span', {}, medalEl, nameText, botEl);
     const hpText = el('span', { class: 'hp-text' });
     const absRush = el('div', { class: 'hp-abs rush' });
     const bar = el('div', { class: 'hp' }, hpFill, absRush, hpText);
@@ -861,7 +863,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   function play(m: Mage, name: string, fade = 0.15) {
@@ -1987,6 +1989,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.prevHp = d.hp;
       m.prevAlive = d.alive;
       m.hpText.textContent = `${Math.max(0, Math.ceil(d.hp))}/${d.hpMax}`;
+      // The label is built once, but the name changes mid-round: "(BOT)" while the server bot plays for a disconnected
+      // player, gone on reconnect (issue #367). Replacing only the text node keeps the medal and bot tag.
+      if (m.nameText.data !== d.name) m.nameText.data = d.name;
       if (m.botKey !== (d.bot ?? '')) {
         m.botKey = d.bot ?? '';
         m.botEl.hidden = !d.bot;
