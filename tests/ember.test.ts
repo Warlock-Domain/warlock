@@ -20,7 +20,7 @@ function step(m: Match, now: number, n = 1, events: SimEvent[] = []): number {
   for (let i = 0; i < n; i++) events.push(...tickMatch(m, (now += STEP_MS), [], () => 0.5));
   return now;
 }
-// knocks the Aceso down (the map has no lava)
+// knocks the Aceso down directly (no walk into the lava)
 const down = (m: Match, id: string) => Object.assign(wiz(m, id), { hp: -1, invulnUntil: 0 });
 
 describe('rekindle', () => {

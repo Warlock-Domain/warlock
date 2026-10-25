@@ -42,7 +42,7 @@ function stepOn(m: Match, now: number, id: string, at: { x: number; y: number })
   wiz(m, id).pos = v(at.x, at.y);
   return step(m, now);
 }
-// the map has no lava: knocks down directly, credited to `by` (dies on the next step)
+// knocks down directly instead of walking into the lava, credited to `by` (dies on the next step)
 const kill = (m: Match, id: string, by: string | null) => Object.assign(wiz(m, id), { hp: -1, lastHitBy: by, lastHitAt: m.world!.t });
 // knocks down every living servant (credit to the first human; without the 2 s of invulnerability of those who just entered)
 function clearWave(m: Match, now: number): number {
