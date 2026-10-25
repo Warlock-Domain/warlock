@@ -48,7 +48,7 @@ function cardFace(c: Card, p: PublicPlayer) {
 export function cardButton(c: Card, mine: PublicPlayer, on: boolean, key: string, onclick: () => void, extra: Child = null): HTMLElement {
   const f = cardFace(c, mine);
   const full = spellCount(mine.spells) >= MAX_SPELLS;
-  const tip = () => (c.kind === 'item' ? itemCardTip(c.id, mine.items[c.id]) : c.kind === 'up' ? spellCardTip(c.id, mine.spells[c.id], Math.min(MAX_SPELL_LEVEL, mine.spells[c.id] + (c.rare ? 2 : 1))) : spellCardTip(c.id, 0, 1, full));
+  const tip = () => (c.kind === 'item' ? itemCardTip(c.id, mine.items[c.id]) : c.kind === 'up' ? spellCardTip(c.id, mine.spells[c.id], Math.min(spellMax(c.id), mine.spells[c.id] + (c.rare ? 2 : 1))) : spellCardTip(c.id, 0, 1, full));
   return withTip(el('button', { type: 'button', class: `asc-card ${f.cls}` + (c.kind === 'up' && c.rare ? ' rare' : '') + (on ? ' chosen' : ''), 'aria-pressed': String(on), 'data-key': key, onclick },
     el('span', { class: 'asc-kind' }, f.kind), el('span', { class: 'ico' }, icon(f.ico)), el('b', {}, f.name), el('small', {}, f.text),
     c.kind === 'up' && c.rare ? el('span', { class: 'asc-rare' }, t('Rara: +2 níveis', 'Rare: +2 levels')) : null, extra), tip);

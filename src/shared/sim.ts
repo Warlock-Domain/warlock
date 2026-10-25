@@ -10,6 +10,7 @@ import { inCone } from './sand-cone.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 import { SHIELD, castBlocked } from './spells.ts';
 import { BASIC_ATTACK, BRACE, GUARD, KNOCK_RECOVERY, MELEE_ARC } from './constants.ts';
+import { sniperTarget } from './sniper-target.ts';
 import { healTarget } from './heal-target.ts';
 import { channelLevel, channelPower } from './channeling.ts';
 
@@ -101,7 +102,7 @@ export type Wizard = {
   team: number | null; // modo Times: 0 ou 1; fora dele null (ninguém é aliado)
   // magia ou item sendo conjurado: sai em fireAt e o mago fica parado até lá (pedido do Fernando, 17/10:
   // clicar para andar não cancela); o clique de andar fica guardado em `then` e vale quando a magia sai
-  casting: { spell: SpellId; at: Vec; fireAt: number; power?: number; then?: Vec | null } | null;
+  casting: { spell: SpellId; at: Vec; fireAt: number; power?: number; aimedId?: string; then?: Vec | null } | null;
   god?: boolean; // sandbox: vida infinita (não morre; fica na lava com a vida cheia, sem voltar para a pedra: pedido do Fernando, 20/10)
   turretAnchor?: Vec; // sandbox: ponto fixo da torreta nesta rodada
   pitDeath?: boolean; // mapa: cai no abismo e morre (servo do Fumo, Lucas 22/10); sem o campo volta à beira com dano
@@ -171,6 +172,7 @@ export type SimEvent =
   | { k: 'hit'; id: string; by: string; x: number; y: number; dmg: number; src: string; crit?: true }
   | { k: 'reflect'; id: string; x: number; y: number }
   | { k: 'lightning'; from: Vec; to: Vec }
+  | { k: 'snipe'; id: string; from: Vec; to: Vec }
   | { k: 'teleport'; id: string; from: Vec; to: Vec }
   | { k: 'grip'; id: string; x: number; y: number }
   | { k: 'vines'; x: number; y: number; r: number }
@@ -861,13 +863,13 @@ function castLightning(w: World, wz: Wizard, L: Level, dir: Vec, dmgMult: number
   }
 }
 
-function cast(w: World, wz: Wizard, spell: SpellId, at: Vec, power = 1) {
+function cast(w: World, wz: Wizard, spell: SpellId, at: Vec, power = 1, aimedId?: string) {
   const firstId = w.nextId;
-  castSpell(w, wz, spell, at, power);
+  castSpell(w, wz, spell, at, power, aimedId);
   for (const p of w.projectiles) if (p.id >= firstId) p.power = power;
 }
 
-function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number) {
+function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number, aimedId?: string) {
   if (spell === 'channel') return;
   const level = wz.spells[spell];
   if (!level || w.t < wz.cd[spell]) return;
@@ -875,6 +877,8 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number)
   const recipient = spell === 'heal' ? healTarget(w.wizards, wz, at, L.range * wz.rangeF) : undefined;
   if (spell === 'heal' && !recipient) return;
   if (spell === 'closedbody' && !bracingActive(w, wz)) return;
+  const aimed = spell === 'sniper' ? sniperVictim(w,wz,at,L.range*wz.rangeF,aimedId) : undefined;
+  if (spell === 'sniper' && !aimed) return;
   wz.cd[spell] = w.t + L.cd;
   if (recipient) {
     const before = recipient.hp;
@@ -889,6 +893,16 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number)
   if ((spell === 'teleport' || spell === 'swap') && !inArena(w, at)) w.projectiles = w.projectiles.filter((p) => !(p.kind === 'link' && p.owner === wz.id && p.target));
   if (w.t < wz.gripUntil) wz.dmgTaken += GRIP.castPenalty; // preso, cada magia custa mais empurrão
   const dmgMult = L.dmg > 0 ? usePact(w, wz) : 1;
+  if (aimed) {
+    const clipped = wallClip(w,wz.pos,aimed.pos);
+    const pil = firstPillarOnSegment(w,wz.pos,clipped,0);
+    const wallBlocked = clipped !== aimed.pos;
+    const to = pil ? w.pillars[pil.i].pos : clipped;
+    w.events.push({ k: 'snipe', id: wz.id, from: { ...wz.pos }, to: { ...to } });
+    if (pil) damagePillar(w,pil.i,L.dmg*dmgMult,wz.id);
+    else if (!wallBlocked) { hit(w,aimed,wz.id,L.dmg*dmgMult,0,sub(aimed.pos,wz.pos),'sniper'); w.events.push({k:'land',id:wz.id,src:'sniper'}); }
+    return;
+  }
   if (spell === 'scourge') return scourge(w, wz, L, dmgMult);
   if (spell === 'closedbody') {
     wz.closedBodyUntil = w.t + L.duration;
@@ -1013,6 +1027,11 @@ function usePact(w: World, wz: Wizard): number {
   return PACT.mult;
 }
 
+function sniperVictim(w: World, wz: Wizard, at: Vec, range: number, aimedId?: string) {
+  const visible = w.wizards.filter(z => (!aimedId || z.id === aimedId) && w.t >= z.veilUntil && w.t >= z.windUntil && !isSuspended(z) && (w.t >= (wz.blindUntil ?? 0) || dist(wz.pos,z.pos) <= 3));
+  return sniperTarget(visible,wz,at,range);
+}
+
 // começa a conjurar: confere nível e recarga agora; o efeito sai depois do tempo de conjuração
 function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   if (spell === 'channel') return;
@@ -1025,9 +1044,12 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     if (spell !== 'teleport') return;
     wz.casting = null;
   }
+  if (wz.casting?.spell === 'sniper') return; // Finish or cancel the long aim before accepting another spell.
   if (!wz.spells[spell] || w.t < wz.cd[spell]) return;
   // An invalid target neither reveals the wizard nor cancels another action.
   if (spell === 'heal' && !healTarget(w.wizards, wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF * (wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1))) return;
+  const aimed = spell === 'sniper' ? sniperVictim(w,wz,at,spellLevel(spell,wz.spells[spell]).range*wz.rangeF) : undefined;
+  if (spell === 'sniper' && !aimed) return;
   let power = 1;
   if (wz.channel?.spell === spell) {
     power = channelPower(w.t - wz.channel.since);
@@ -1040,10 +1062,11 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   // Closed Body reinforces the current stance instead of aiming at the cursor.
   if (spell !== 'closedbody' && len(d) > 0.01) wz.facing = Math.atan2(d.y, d.x);
   w.events.push({ k: 'cast', id: wz.id, spell });
+  if (spell === 'sniper') wz.windUntil = 0;
   if (spell !== 'illusion') wz.veilUntil = 0; // outra magia revela o dono, mas a cópia continua até o próprio prazo
   if (delay <= 0) return cast(w, wz, spell, at, power);
   wz.target = null;
-  wz.casting = { spell, at, fireAt: w.t + delay, power };
+  wz.casting = { spell, at, fireAt: w.t + delay, power, aimedId: aimed?.id };
 }
 
 // Flagelo: explosão em volta; quanto mais perto do centro, mais empurrão (no original custava a mesma vida a quem usa;
@@ -2058,6 +2081,7 @@ function applyCmds(w: World, cmds: Cmd[]) {
       wz.target = null; wz.moveHeld = false; wz.basicCasting = undefined;
       wz.veilUntil = wz.windUntil = 0;
     } else if (c.kind === 'brace') {
+      if (c.on && wz.casting?.spell === 'sniper') wz.casting = null;
       if (c.on && w.t >= (wz.braceUntil ?? 0)) wz.channel = undefined;
       if (c.on && w.t >= (wz.braceUntil ?? 0)) wz.braceReadyAt = w.t + (wz.guard ? 0 : BRACE.windup); // the guard stance counts at once (grill of 25/10)
       wz.braceUntil = c.on ? w.t + BRACE.lease : 0;
@@ -2072,6 +2096,7 @@ function applyCmds(w: World, cmds: Cmd[]) {
       wz.basicCasting = undefined;
       wz.moveHeld = c.held ?? false;
       wz.blockedMove = false;
+      if (wz.casting?.spell === 'sniper') wz.casting = null; // Moving cancels aim rather than queuing a delayed shot.
       if (wz.casting) wz.casting.then = c.to;
       else wz.target = c.to;
     } else if (c.kind === 'stop') {
@@ -2095,10 +2120,16 @@ function prepWizards(w: World, rand: () => number) {
     if (!wz.spells.channel || isStunned(wz) || (wz.channel && castBlocked(false, w.t < wz.gripUntil, wz.channel.spell))) wz.channel = undefined;
     if (isStunned(wz)) wz.basicCasting = undefined;
     if (wz.basicCasting && w.t + 1e-8 >= wz.basicCasting.fireAt) finishBasic(w, wz);
-    if (wz.casting && w.t >= wz.casting.fireAt) {
+    if (wz.casting?.spell === 'sniper') {
+      const c = wz.casting, target = byId(w,c.aimedId ?? '');
+      const range = spellLevel('sniper',wz.spells.sniper).range*wz.rangeF;
+      if (!wz.spells.sniper || isStunned(wz) || !target || sniperVictim(w,wz,target.pos,range,target.id)?.id !== target.id) wz.casting = null;
+      else { c.at = { ...target.pos }; wz.facing = Math.atan2(target.pos.y-wz.pos.y,target.pos.x-wz.pos.x); }
+    }
+    if (wz.casting && w.t + 1e-8 >= wz.casting.fireAt) {
       const c = wz.casting;
       wz.casting = null;
-      cast(w, wz, c.spell, c.at, c.power);
+      cast(w, wz, c.spell, c.at, c.power, c.aimedId);
       if (c.then !== undefined) wz.target = c.then;
     }
     // Rooting clears walking speed and destination; Rush still adds velocity

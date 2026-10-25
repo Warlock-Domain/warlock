@@ -38,6 +38,7 @@ export function knockDistance(dmg: number, knock: number): number {
 const knockMeters = (l: Level) => m(knockDistance(l.dmg, l.knock));
 // todo campo do nível que muda o jogo tem uma linha (o teste confere)
 export const SPELL_ROWS: Record<SpellId, Row[]> = {
+  sniper: [[DMG,l=>n1(l.dmg)],[RANGE,l=>m(l.range)],[t('Canalização','Channel time'),()=>s(CAST_POINT.sniper)],[CD,l=>s(l.cd)]],
   channel: [[t('Preparo mínimo', 'Minimum charge'), () => '1 s'], [t('Carga máxima', 'Maximum charge'), () => '2 s'], [t('Bônus em 1 s / 2 s', 'Bonus at 1 s / 2 s'), () => '+50% / +100%'], [CD, () => '0 s']],
   closedbody: [[DURATION, l => s(l.duration)], [t('Redução de dano', 'Damage reduction'), () => '90%'], [t('Resistência a novos status', 'New status resistance'), () => '90%'], [t('Resistência a novo empurrão', 'New knockback resistance'), () => '90%'], [CD, l => s(l.cd)]],
   geyser: [[t('Suspensão e invulnerabilidade', 'Suspension and invulnerability'), l => s(l.duration)], [CD, l => s(l.cd)], [RANGE, l => m(l.range)], [t('Raio da área', 'Area radius'), l => m(l.radius)]],
@@ -159,7 +160,7 @@ export function mechanicTip({ id, title: name }: (typeof MECHANIC_GUIDES)[number
 // carta do Ascensão: os números de agora e, à direita, os de depois da carta; sem preço (no modo não há ouro)
 export function spellCardTip(id: SpellId, from: number, to: number, swap = false): string {
   const sp = SPELLS[id];
-  const after = sp.levels[Math.min(MAX_SPELL_LEVEL, to) - 1];
+  const after = sp.levels[Math.min(spellMax(id), to) - 1];
   const head = `<b>${spellName(id)}</b><br><small>${from ? t(`Nível ${from} → ${to}`, `Level ${from} → ${to}`) : t(`Magia nova · entra no nível ${to}`, `New spell · comes in at level ${to}`)}</small>`;
   const rows = SPELL_ROWS[id].map(([k, f]): [string, string, string | null] => (from ? [k, f(sp.levels[from - 1]), f(after)] : [k, f(after), null]));
   const foot = from ? `<small class="up">${t('Depois da carta: o que está à direita', 'After the card: shown on the right')}</small>` : swap ? `<small class="up">${t('Barra cheia: entra no nível da magia que sair', 'Full bar: comes in at the level of the spell it replaces')}</small>` : '';

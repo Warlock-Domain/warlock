@@ -6,7 +6,7 @@ import { MAX_PLAYERS } from '../shared/constants.ts';
 import { OPTION_CHOICES } from '../shared/match.ts';
 import { isRecord, readLevels } from './saved-data.ts';
 import type { BotSetup, SandboxCmd } from '../shared/match.ts';
-import { MAX_SPELLS, spellMaxLevel, SPELL_IDS, noSpells, spellCount, type SpellId } from '../shared/spells.ts';
+import { MAX_SPELLS, spellMax, SPELL_IDS, noSpells, spellCount, type SpellId } from '../shared/spells.ts';
 import { ICON, choice, el, icon } from './icons.ts';
 import { store } from './store.ts';
 import { spellName, t } from './i18n.ts';
@@ -19,7 +19,7 @@ export function readBotSetup(value: unknown): BotSetup[] {
     if (!isRecord(raw)) return {};
     const bot: BotSetup = {};
     if (isRecord(raw.spells)) {
-      const spells = readLevels(raw.spells, SPELL_IDS, spellMaxLevel);
+      const spells = readLevels(raw.spells, SPELL_IDS, spellMax);
       if (spellCount({ ...noSpells(), ...spells }) <= MAX_SPELLS) bot.spells = spells;
     }
     if (isRecord(raw.items)) bot.items = readLevels(raw.items, ITEM_IDS, (id) => ITEMS[id].levels.length);
@@ -74,9 +74,9 @@ export function botSetupPanel(n: number, saved: BotSetup[], onChange: (s: BotSet
         return el('label', { class: 'bs-spell' + (lvl ? ' on' : '') },
           el('input', { type: 'checkbox', checked: lvl > 0, disabled: !lvl && picked.length >= MAX_SPELLS, onchange: () => pick(s, lvl ? 0 : 1, true) }),
           icon(ICON[s]), ' ', spellName(s),
-          lvl ? el('input', { type: 'number', min: 1, max: spellMaxLevel(s), value: lvl, 'aria-label': t(`Nível de ${spellName(s)}`, `${spellName(s)} level`), onchange: (e: Event) => {
+          lvl ? el('input', { type: 'number', min: 1, max: spellMax(s), value: lvl, 'aria-label': t(`Nível de ${spellName(s)}`, `${spellName(s)} level`), onchange: (e: Event) => {
             const t = e.target as HTMLInputElement;
-            t.value = String(Math.max(1, Math.min(spellMaxLevel(s), Math.round(Number(t.value)) || 1)));
+            t.value = String(Math.max(1, Math.min(spellMax(s), Math.round(Number(t.value)) || 1)));
             pick(s, Number(t.value), false);
           } }) : null);
       })));
