@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LAVA_DPS, OBSTACLES, type ObstacleKind } from '../src/shared/constants.ts';
 import { nightMap, obstaclesOf } from '../src/shared/levels.ts';
 import { stepWorld } from '../src/shared/sim.ts';
-import { noSpells, spellLevel } from '../src/shared/spells.ts';
+import { noSpells, spellLevel, type SpellId } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
 import { run, world } from './helpers.ts';
 
@@ -33,6 +33,32 @@ describe('Large rock', () => {
     const w = setup('rock');
     for (let i = 0; i < 5 * 60; i++) stepWorld(w, [], () => 0.5); // 400 health at 100 per second: 4 s
     expect(w.pillars.map((p) => p.alive)).toEqual([false, true]);
+  });
+});
+
+describe('Every attack hits obstacles', () => {
+  // p0 casts at a tree 2.5 m away; p1 stays out of the way
+  function castAt(spell: SpellId, kind: ObstacleKind = 'tree', secs = 1.5) {
+    const w = world([[0, 0], [0, -6]], { ...noSpells(), [spell]: 1 }, [], () => 0.5);
+    w.pillars = [{ pos: v(2.5, 0), hp: OBSTACLES[kind].hp, alive: true, kind }];
+    run(w, secs, [{ id: 'p0', kind: 'cast', spell, at: { x: 2.5, y: 0 } }]);
+    return w.pillars[0];
+  }
+
+  it.each(['gravity', 'bouncer', 'boomerang', 'drain', 'recharge', 'splitter'] as const)('%s damages the obstacle it bounces off', (spell) => {
+    expect(castAt(spell, 'pillar').hp).toBeLessThan(OBSTACLES.pillar.hp);
+  });
+
+  it('the Meteor blast damages obstacles inside it', () => {
+    expect(castAt('meteor', 'pillar', 3).hp).toBeLessThan(OBSTACLES.pillar.hp);
+  });
+
+  it('a breaking shrine blast damages the obstacles around it', () => {
+    const w = world([[0, 0], [0, -6]], noSpells(), [], () => 0.5);
+    w.pillars = [{ pos: v(w.arenaR + 3, 4), hp: 0.5, alive: true, kind: 'shrine' }, { pos: v(w.arenaR + 3, 5), hp: 1000, alive: true, kind: 'pillar' }];
+    stepWorld(w, [], () => 0.5);
+    expect(w.pillars[0].alive).toBe(false);
+    expect(w.pillars[1].hp).toBeLessThan(1000 - LAVA_DPS / 60 - 1);
   });
 });
 

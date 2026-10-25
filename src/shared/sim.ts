@@ -592,6 +592,7 @@ function area(w: World, at: Vec, radius: number, dmg: number, kbFactor: number, 
     const amount = dmg * Math.max(0, 1 - d / (radius + WIZ_R));
     if (amount > 0.5) pushDecoy(q, scale(norm(sub(q.pos, at)), amount * KB_PER_DMG * kbFactor), amount);
   }
+  blastPillars(w, at, radius, (k) => dmg * k, by);
   w.events.push({ k: 'clash', x: at.x, y: at.y, combo, r: radius });
   const kind = combo === 'fire' || combo === 'detonate' ? 'burn' : combo === 'arcane' ? 'slow' : combo === 'pulse' ? 'pull' : null;
   if (kind) w.zones.push({ pos: at, r: radius * ZONES.size, kind, until: w.t + (combo === 'detonate' ? 3.5 : ZONES[kind].secs), by });
@@ -650,6 +651,19 @@ function firstPillarOnSegment(w: World, a: Vec, b: Vec, radius: number): { i: nu
     if (!best || t < best.t) best = { i, t };
   });
   return best;
+}
+
+// Every blast hits the obstacles it reaches, like the wizards (Fernando, 25/10); dmgAt gets the closeness k (1 at the
+// centre, 0 at the edge plus the obstacle's radius). A wall is hit once, however many pieces are inside
+function blastPillars(w: World, at: Vec, radius: number, dmgAt: (k: number) => number, by: string | null) {
+  const walls = new Set<number>();
+  w.pillars.forEach((q, i) => {
+    const reach = radius + OBSTACLES[q.kind].r, d = dist(q.pos, at);
+    if (!q.alive || d > reach || (q.wall !== undefined && walls.has(q.wall))) return;
+    if (q.wall !== undefined) walls.add(q.wall);
+    const dmg = dmgAt(Math.max(0, 1 - d / reach));
+    if (dmg > 0.5) damagePillar(w, i, dmg, by);
+  });
 }
 
 function damagePillar(w: World, i: number, dmg: number, by: string | null, quiet = false) {
@@ -1033,13 +1047,7 @@ function scourge(w: World, wz: Wizard, L: Level, mult: number) {
     }
   }
   // também bate nos obstáculos e no baú dentro da explosão (pedido do Fernando, 17/10)
-  // a parede apanha uma vez, mesmo com mais de um pedaço dentro
-  const walls = new Set<number>();
-  w.pillars.forEach((q, i) => {
-    if (!q.alive || dist(q.pos, wz.pos) > L.radius + OBSTACLES[q.kind].r || (q.wall !== undefined && walls.has(q.wall))) return;
-    if (q.wall !== undefined) walls.add(q.wall);
-    damagePillar(w, i, dmg, wz.id);
-  });
+  blastPillars(w, wz.pos, L.radius, () => dmg, wz.id);
   // também destrói bolas de fogo e mísseis inimigos dentro da explosão (pedido do Fernando, 17/10)
   const caught = w.projectiles.filter((p) => p.owner !== wz.id && p.kind !== 'illusion' && !fixed(p) && p.kind !== 'snowball' && dist(p.pos, wz.pos) <= L.radius + PROJ_R);
   if (caught.length) {
@@ -1090,6 +1098,7 @@ function meteorLand(w: World, p: Projectile) {
     const amount = (L.dmgMin + (L.dmg - L.dmgMin) * Math.max(0, 1 - d / L.radius)) * p.dmgMult;
     pushDecoy(q, scale(norm(sub(q.pos, p.pos)), amount * (L.knock / L.dmg)), amount);
   }
+  blastPillars(w, p.pos, L.radius, (k) => (L.dmgMin + (L.dmg - L.dmgMin) * k) * p.dmgMult, p.owner);
   w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'fire', r: L.radius });
   if (landed) land(w, p, 'meteor');
 }
@@ -1510,8 +1519,8 @@ function hitPillar(w: World, p: Projectile, pil: { i: number; t: number }, L: Le
       const nextTo = nearestEnemy(w, p.pos, p.owner);
       if (nextTo) p.vel = scale(norm(sub(nextTo.pos, p.pos)), len(p.vel));
     }
-    // Boomerang also breaks chests (Fernando, 17/10; the original ignored obstacles)
-    if (p.kind === 'boomerang' && q.kind === 'chest') damagePillar(w, pil.i, spellLevel('boomerang', p.level).dmg * p.dmgMult, p.owner);
+    // Bouncing still damages the obstacle, like any hit (Fernando, 25/10; before only the Boomerang, and only on chests)
+    if (L.dmg > 0) damagePillar(w, pil.i, L.dmg * p.dmgMult, p.owner);
     return true;
   }
   if (p.kind === 'link') {
@@ -1523,6 +1532,7 @@ function hitPillar(w: World, p: Projectile, pil: { i: number; t: number }, L: Le
     // splitterprojectile.lua: move outside the obstacle, reverse course and release shards backward
     p.pos = add(q.pos, scale(norm(sub(p.pos, q.pos)), OBSTACLES[q.kind].r + PROJ_R + BOOMERANG.gap));
     p.vel = scale(p.vel, -1);
+    damagePillar(w, pil.i, L.dmg * p.dmgMult, p.owner);
     split(w, p);
     return true;
   }
