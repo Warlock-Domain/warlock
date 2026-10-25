@@ -1,4 +1,4 @@
-// Modo Ascensão (desenho em docs/superpowers/specs/2026-10-19-ascensao-design.md): todo intervalo dá 1 magia nova e 1 item
+// Modo Ascensão (desenho em docs/plans/2026-10-19-ascensao-design.md): todo intervalo dá 1 magia nova e 1 item
 // (Fernando, 21/10), e cada nível de XP dá 1 subir magia; cada escolha é 1 entre 3 cartas.
 // 9 rodadas e pontos pela ordem de queda. Toda a regra do modo mora aqui (pedido do Fernando, 19/10: código do
 // Ascensão separado, porque o modo muda muito a jogabilidade principal); match.ts só chama estas funções atrás de `m.asc`.

@@ -225,4 +225,4 @@ Gravações de provocações de Leonard (lboesmans), 21/10/2026 (PR #243, aceita
 
 Manter base: public/sfx/brace_start.mp3, gravação enviada por Leonard (lboesmans), 24/10/2026 (PR #293):
   origem e licença não informadas pelo colaborador; o Fernando aceitou o uso como está (decisão do dono de 24/10,
-  registrada no CLAUDE.md), do mesmo jeito que as provocações do PR #243.
+  registrada em docs/DECISIONS.md), do mesmo jeito que as provocações do PR #243.

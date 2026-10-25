@@ -72,7 +72,7 @@ jobs:
             comments. Never approve, request changes formally, merge, or push.
           claude_args: |
             --model claude-opus-5-5
-            --effort high
+            --effort medium
             --max-turns 40
             --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr checks:*)"
 
