@@ -32,6 +32,7 @@ const VINE_COLOR = '#8ed64b';
 
 // mago 0 é "você" (com a magia ou o item da página); 1 e 2 são de treino e só têm a Bola de fogo
 export const SCRIPTS: Partial<Record<DemoId, Script>> = {
+  sniper: { pos: [v(-4,0),v(3,0)], end:6.2, steps:[[.4,A,'sniper',B],[1,B,'move',v(3,2)]], prep:w=>{w.pillars=[];w.wizards[B].regen=0;} },
   closedbody: { pos: [v(-1,0), v(3,0)], end: CLOSED_BODY_END + 2,
     steps: ([...Array.from({length:Math.ceil((CLOSED_BODY_END+1.1)/.1)}, (_,i): Step => [.1+i*.1,A,'braceOn',A]), [.8,A,'closedbody',v(-1,4)], [1,B,'fireball',A], [2,B,'meteor',A], [CLOSED_BODY_END+.2,B,'basic',A], [CLOSED_BODY_END+1.2,A,'braceOff',A]] as Step[]).sort((a,b)=>a[0]-b[0]),
     prep: w => { w.pillars=[]; w.wizards[A].facing=0; w.wizards[B].spells.meteor=1; } },
@@ -83,6 +84,7 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 
 // Rótulos seguem os estados reais para a prévia não sugerir que stun, prisão e postura têm o mesmo bloqueio.
 export function demoStatus(w: World, z: Wizard): string[] {
+  if(z.casting?.spell==='sniper') return [t(`mirando · ${n1(z.casting.fireAt-w.t)} s · tiro500`,`aiming · ${n1(z.casting.fireAt-w.t)} s · shot500`)];
   if(w.t < (z.blindUntil ?? 0)) return [t('cegueira · visão 3 m','blindness · sight 3 m'), ...(w.t < (z.incapacitateUntil ?? 0) ? [t('incapacitado · recargas pausadas','incapacitated · cooldowns paused')] : [])];
   if (w.t < (z.closedBodyUntil ?? 0) && bracingActive(w,z)) return [t('Corpo fechado · direção mantida · dano/empurrão/status −90%', 'Closed Body · facing preserved · damage/knockback/status −90%')];
   if ((z.geyserLeft ?? 0) > 0) return [t('suspenso · invulnerável · sem ações', 'suspended · invulnerable · no actions')];
@@ -213,6 +215,10 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       text(t('areia 3 m × 2 m · sem empurrão','sand 3 m × 2 m · no knockback'),v(0,-4.5),'#cfb17b',.3);
     }
     if (id === 'lightning') text(spellName('lightning'), v(0, -4.8), '#cfe8ff', .4);
+    for(const z of w.wizards) if(z.casting?.spell==='sniper') {
+      line(z.pos,z.casting.at,'#ff324e',.035); circle(z.casting.at,.5,null,'#ff324e');
+      line(z.pos,add(z.pos,scale(v(Math.cos(z.facing),Math.sin(z.facing)),1.4)),'#283447',.18);
+    }
     for (const z of w.zones) circle(z.pos, z.r, ZONE_COLOR[z.kind]);
     for (const p of w.pillars) if (p.alive) circle(p.pos, OBSTACLES[p.kind].r, '#8a7a6a', '#d9c3a5');
     for (const p of w.projectiles) drawProjectile(p);
@@ -261,6 +267,12 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     if ((z.geyserLeft ?? 0) > 0) {
       circle(z.pos, WIZ_R + .2, null, GEYSER_FX.color);
       text('↑', v(z.pos.x, z.pos.y - 1.3), GEYSER_FX.foam, .65);
+    }
+    if (z.casting?.spell === 'sniper') {
+      const at=z.casting.at;
+      line(z.pos,at,'#ff324e',.035,true); circle(at,.5,null,'#ff324e');
+      const dir=v(Math.cos(z.facing),Math.sin(z.facing));
+      line(add(z.pos,scale(dir,.3)),add(z.pos,scale(dir,1.35)),'#283447',.15);
     }
     if (z.basicCasting) {
       circle(z.pos, .6, null, '#9be7ff');
@@ -323,6 +335,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       vines(v(e.x, e.y), e.r);
       ctx.globalAlpha = 1;
     }
+    else if (e.k === 'snipe') line(e.from,e.to,'#fff2b5',.08);
     else if (e.k === 'teleport') line(e.from, e.to, 'rgba(255,214,102,.6)', 0.05, true);
     else if (e.k === 'reflect') circle(v(e.x, e.y), 0.5, null, '#ffd666');
     else if (e.k === 'scourge' || e.k === 'clash') circle(v(e.x, e.y), e.r, null, e.k === 'clash' ? CLASH_COLOR[e.combo] : '#ff6a4d');

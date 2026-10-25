@@ -11,7 +11,7 @@ import { CAMPAIGN } from '../shared/campaign.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, isRoomMode, sellValue, type MatchOpts, type Mode, type RoomMode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
-import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
+import { MAX_SPELLS, MAX_SPELL_LEVEL, spellMaxLevel, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { POS_ACTIONS, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
 import { openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
 import { hideTip, itemTip, mechanicTip, spellTip, withTip } from './tips.ts';
@@ -1666,7 +1666,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const lvl = mine.spells[s];
       const price = priceOf(s, lvl);
       const full = lvl === 0 && spellCount(mine.spells) >= MAX_SPELLS;
-      return offer({ key: 'spell-' + s, ico: ICON[s], name: spellName(s), hotkey: hotkeyOf(s), use: SPELL_USE[s], lvl, max: MAX_SPELL_LEVEL, price,
+      return offer({ key: 'spell-' + s, ico: ICON[s], name: spellName(s), hotkey: hotkeyOf(s), use: SPELL_USE[s], lvl, max: spellMaxLevel(s), price,
         blocked: price === null ? t('Máximo', 'Max') : full ? t(`Limite de ${MAX_SPELLS} magias`, `Limit of ${MAX_SPELLS} spells`) : null, buy: () => act.buy(s), tip: () => spellTip(s, lvl),
         bought: () => sheet({ ...mine.spells, [s]: lvl + 1 }, mine.items), sold: () => sheet({ ...mine.spells, [s]: 0 }, mine.items) });
     };
@@ -1978,7 +1978,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         const { b, pips } = buttons.get(s)!;
         const lvl = mine?.spells[s] ?? 0;
         b.hidden = lvl === 0;
-        pips.replaceChildren(...pipsOf(lvl, MAX_SPELL_LEVEL));
+        pips.replaceChildren(...pipsOf(lvl, spellMaxLevel(s)));
       }
       barOff = r.phase === 'lobby' || r.phase === 'end' || (r.phase === 'shop' && !SHOP_BAR.matches) || !mine;
       syncBar();

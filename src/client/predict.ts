@@ -102,6 +102,8 @@ export class MovementPredictor {
     // Snap once to the authoritative endpoint instead of visually extending a finished dash.
     if (this.wasDashing && !dashing) me.pos = { ...server.pos };
     this.wasDashing = dashing;
+    if ((server.sniperLeft ?? 0)>0) { me.target = null; this.queued = undefined; }
+    if (this.velocitySource && (this.velocitySource.sniperLeft ?? 0)>0 && !(server.sniperLeft ?? 0) && this.attackHold) { this.holdUntil=0; this.attackHold=false; }
     const suspended = (server.geyserLeft ?? 0) > 0;
     const stunned = suspended || (server.stunLeft === undefined ? isStunned(server) : !!(server.status & 16));
     if (suspended) { me.target = null; this.queued = undefined; }

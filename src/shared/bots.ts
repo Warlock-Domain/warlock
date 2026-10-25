@@ -44,7 +44,7 @@ const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
-const SITUATIONAL: SpellId[] = ['heal', 'geyser', 'closedbody', 'swap'];
+const SITUATIONAL: SpellId[] = ['heal', 'geyser', 'closedbody', 'swap', 'sniper'];
 const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
@@ -178,6 +178,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   const me = w.wizards.find((z) => z.id === id && z.alive);
   if (!me) return [];
   if ((me.geyserLeft ?? 0) > 0) return [];
+  if (me.casting?.spell === 'sniper') return []; // Do not cancel the bot's own aim with a movement decision.
+
   const vision = w.t < (me.blindUntil ?? 0) ? 3 : D.vision;
   const M = mind(w);
   if (w.t < (M.frozen.get(id) ?? -1)) return []; // parado por erro
@@ -461,6 +463,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     const t = Math.max(0, Math.min(1, dot(sub(q.pos, me.pos), ab) / Math.max(1e-6, dot(ab, ab))));
     return dist(add(me.pos, scale(ab, t)), q.pos) < OBSTACLES[q.kind].r + PROJ_R + 0.1;
   });
+  if (ready('sniper') && d<=spellLevel('sniper',me.spells.sniper).range*me.rangeF && !blocked(E.pos)) return cast('sniper',E.pos);
   // Atacar (decisão do Fernando, 24/10): sem nenhuma magia pronta, com o inimigo a até 6 m e sem obstáculo no meio, o bot usa o
   // ataque livre como o jogador; sem isso o humano teria um golpe que o bot nunca usa e o simulador não mediria o Atacar.
   // Desvio já decidido neste comando vem antes: parar 0,4 s para atacar jogaria fora a esquiva

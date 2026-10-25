@@ -1,5 +1,7 @@
 # src/client — navegador (Three.js + interface em DOM)
 
+Inelegant Solution proposal: point-and-click enemy aim, authoritative 4.5 s timer, procedural rifle/red reticle, and tension lines for the caster or a following spectator only. Cancellations clear aim without a shot pulse. Reduced FX keeps static lines and suppresses the pulse. Dispose rifle resources with the avatar; held attack poses stop before gait transitions.
+
 Vale junto com o `CLAUDE.md` da raiz.
 
 ## Interface

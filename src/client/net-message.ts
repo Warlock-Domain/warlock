@@ -81,6 +81,7 @@ function event(x: unknown): x is SimEvent {
     case 'hit': return id() && id('by') && num('x', 'y', 'dmg') && string(x.src) && (x.crit === undefined || x.crit === true);
     case 'reflect': case 'grip': case 'scourge': case 'loot': return id() && num('x', 'y') && (x.k !== 'scourge' || num('r'));
     case 'lightning': return vector(x.from) && vector(x.to);
+    case 'snipe':
     case 'teleport': return id() && vector(x.from) && vector(x.to);
     case 'vines': return num('x', 'y', 'r');
     case 'death': return id() && nullableString(x.by) && string(x.src);
@@ -102,10 +103,11 @@ function event(x: unknown): x is SimEvent {
 }
 
 function snap(x: Obj): x is Obj & Snap {
-  if (!finite(x.time) || !finite(x.r) || !finite(x.s) || !finite(x.sp) || !integer(x.ack) || !fields(x, ['w', 'p', 'cd', 'pl'], ['st', 'kr', 'rs', 'ch', 'lp', 'em', 'ru', 'ab', 'zn', 'il', 'fx'])) return false;
+  if (!finite(x.time) || !finite(x.r) || !finite(x.s) || !finite(x.sp) || !integer(x.ack) || !fields(x, ['w', 'p', 'cd', 'pl'], ['st', 'kr', 'rs', 'ch', 'lp', 'em', 'ru', 'ab', 'zn', 'il', 'fx', 'sn'])) return false;
   const count = (x.w as number[]).length / 7;
   if (!Number.isInteger(count) || (x.p as number[]).length % 6 || (x.pl as number[]).length % 4 || (x.cd as number[]).length !== SPELL_IDS.length) return false;
   if (['rs', 'lp', 'em', 'ab', 'st', 'kr'].some((k) => x[k] !== undefined && (x[k] as number[]).length !== count) || ['ch', 'ru'].some((k) => x[k] !== undefined && (x[k] as number[]).length % 3) || (x.zn !== undefined && (x.zn as number[]).length % 5) || (x.il !== undefined && (x.il as number[]).length % 3) || (x.fx !== undefined && (x.fx as number[]).length % 2)) return false;
+  if (x.sn !== undefined && ((x.sn as number[]).length !== count * 3 || (x.sn as number[]).some((n,i) => i % 3 === 0 && (n < 0 || n > 4.5)))) return false;
   return x.e === undefined || Array.isArray(x.e);
 }
 

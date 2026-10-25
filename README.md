@@ -1,5 +1,7 @@
 # Warlock Wars
 
+Proposal: Inelegant Solution is a 30-gold Attack spell that tracks an enemy within 20 m for 4.5 s before a 500-damage shot. Cooldown is 35 s and it has no level upgrades. This branch is for review/testing; it does not establish owner approval or balance acceptance.
+
 Remake web do mod de arena **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): magos numa arena que encolhe sobre lava, magias de empurrão, loja entre rodadas e quem sobrar vence. Feito para jogar em salas com os amigos, direto no navegador, em português ou inglês.
 
 **Jogar:** https://warlock.fernandorffdev.com

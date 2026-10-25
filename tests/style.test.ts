@@ -42,7 +42,8 @@ describe('play style', () => {
     // 24/10: bots hold ground (hit 0.5 to 0.9 s away so the windup finishes, no escape spell ready, not dodging on foot; keep holding while it closes in; lease 0.5 s).
     // 24/10 (issue #373): bot shopping plans include Recharge, Heal, Geyser, Closed Body and Swap.
     // 25/10 (PR #399): blasts (Meteor, clashes, pillar/shrine) and bouncing projectiles and the Splitter damage obstacles.
-    expect(hash).toBe(1356243192);
+    // Inelegant Solution changes seeded bot shopping and combat decisions.
+    expect(hash).toBe(179869608);
     // and it really measured in this same match
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);

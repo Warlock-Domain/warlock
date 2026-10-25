@@ -35,6 +35,7 @@ for (const path of ICONS) {
 }
 // Project-drawn cross: Heal needs no extra downloaded asset.
 symbols.push('<symbol id="healing-cross" viewBox="0 0 512 512"><path d="M208 64h96v144h144v96H304v144h-96V304H64v-96h144z"/></symbol>');
+symbols.push("<symbol id=\"sniper-rifle\" viewBox=\"0 0 512 512\"><path d=\"M32 280h112v-48h176v20h160v28H320v28H210l-24 80h-42l18-80H96l-64 48zM204 176h100v36H204zM224 212h20v24h-20zm56 0h20v24h-20z\"/></symbol>");
 const ids = symbols.map((s) => s.match(/id="([^"]+)"/)[1]);
 if (new Set(ids).size !== ids.length) throw new Error('id repetido no sprite');
 writeFileSync(new URL('../../public/icons.svg', import.meta.url), `<svg xmlns="http://www.w3.org/2000/svg">\n${symbols.join('\n')}\n</svg>\n`);

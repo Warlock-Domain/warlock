@@ -1,5 +1,9 @@
 # Assets do Warlock Wars
 
+- Inelegant Solution tension lines: original black/white/cyan procedural shader in `src/client/sniper-focus.ts`, with a transparent center. Visible to the living caster or a following spectator during aim/shot; no reference bitmap is incorporated.
+
+- Inelegant Solution: original procedural rifle/scope/stock, red laser/reticle and flash in `src/client/sniper-fx.ts`/`scene.ts`; original geometric `sniper-rifle` SVG in the sprite and generator. The 2D demo uses the real simulation. Reference images guide the pose only. Reuses credited `hitHeavy` audio with existing mixing/leveling/distance.
+
 Índice de tudo o que existe de arte, som e fonte no projeto, para pessoas e IAs saberem o que já tem antes de procurar ou criar algo novo. **Todo asset novo entra aqui** (regra no fim da página).
 
 - O que está em `public/` vai para o jogo no ar a cada deploy; o que está em `assets/` é biblioteca para quem contribui e **não** vai para o ar.

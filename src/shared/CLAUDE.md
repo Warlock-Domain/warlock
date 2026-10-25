@@ -1,5 +1,7 @@
 # src/shared — regras do jogo (rodam no servidor e no navegador)
 
+Inelegant Solution proposal: Attack spell, 30 gold, 20 m, 4.5 s stationary enemy tracking, then one 500-damage instant shot with 35 s cooldown and no level progression. Movement/Stop/stun/suspension and lost/dead/hidden/out-of-range target cancel without cooldown. Preserve body radii, walls, obstacles and general damage rules. Owner approval and Normal/Hard balance evidence remain pending.
+
 Vale junto com o `CLAUDE.md` da raiz.
 
 ## Simulação
