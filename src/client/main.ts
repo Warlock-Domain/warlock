@@ -4,7 +4,7 @@ import { lookOf } from '../shared/characters.ts';
 import { liveLevel, roundMult } from '../shared/ascension.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { BotSkill } from '../shared/bots.ts';
-import { DEFAULT_OPTS, type BotSetup } from '../shared/match.ts';
+import { DEFAULT_OPTS, ROOM_MODE_PARAM, type BotSetup, type RoomMode } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
 import { ODRAN } from '../shared/bosses.ts';
@@ -57,15 +57,15 @@ if (LOCAL) {
 // mexeu no volume começa sem música; ?musica=1 volta ao padrão, para testar som. Volume já guardado vale igual. No ar nada muda.
 const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica') !== '1' ? 0 : undefined;
 
-// ?ir=<lugar> (issue #140): em localhost e no ambiente de cada PR (TEST_LINK, abaixo) a aba de teste já abre no ponto a testar
-// (pedido do Fernando, 20/10); no jogo no ar nada muda.
-// Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, interface, controle, jogador,
-// personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando), partida:loja (contra 1 bot, na loja da rodada 1, com 120 s)
-// e partida:ascensao (Ascensão contra 3 bots, na carta inicial, com 120 s); campanha (a noite da Campanha, sozinho).
-// Sala e seção juntas, com vírgula (as Configurações de dentro da partida): sandbox,config:som
-// Porta nova não tem apelido guardado: o ?apelido= (ou o ?aba=) pula o pedido de nome, ver TEST_NAME abaixo (issue #175).
-// ?ir= e ?apelido= valem também no ambiente de cada PR (pr-<n>-warlock…, issue #125): o link mandado ao colaborador já cai no ponto
-// do teste (pedido do Fernando, 21/10). No jogo no ar nada muda
+// ?ir=<place> (issue #140): on localhost and in each PR environment (TEST_LINK, below) the test tab opens right at the point
+// under test (Fernando, 20/10); nothing changes in the live game.
+// Home menu: play, library, char, shop, profile, settings or config:<section> (teclas, lancamento, som, video, interface, controle,
+// jogador, personagem, idioma, sobre). New room: sandbox, partida (against 1 bot, already fighting), partida:loja (against 1 bot, in
+// the round-1 shop, with 120 s), partida:ascensao (Ascension against 3 bots, on the first card, with 120 s) and campanha (a
+// Campaign room, the night started alone). Room and section together, with a comma (the in-match Settings): sandbox,config:som
+// A new port has no saved nickname: ?apelido= (or ?aba=) skips the name prompt, see TEST_NAME below (issue #175).
+// ?ir= and ?apelido= also work in each PR environment (pr-<n>-warlock…, issue #125): the link sent to a collaborator lands on the
+// point under test (Fernando, 21/10). Nothing changes in the live game
 const TEST_LINK = LOCAL || /^pr-\d+-warlock\./.test(location.hostname);
 const IR = (TEST_LINK && new URLSearchParams(location.search).get('ir')?.split(',')) || [];
 const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
@@ -177,16 +177,16 @@ function startLobby(name: string) {
   let rooms: RoomInfo[] | null = null;
   let offline = false;
   const draw = () =>
-    renderLobby(ui, name, rooms, offline, () => create(), () => create(undefined, true), async () => {
+    renderLobby(ui, name, rooms, offline, () => create(), (room) => create(undefined, room), async () => {
       name = await askName(document.body, name);
       store.set(NAME, name);
       draw();
     }, create, sound);
   // train: o treino que começa sozinho na sala nova (sem armazenamento, entra só na sala)
-  // ascension: sala do Ascensão (opção própria no menu Jogar)
-  async function create(train?: string, ascension = false) {
+  // room: Ascension or Campaign room (their own Play menu options), locked to the mode
+  async function create(train?: string, room?: RoomMode) {
     try {
-      const res = await fetch(ascension ? '/api/rooms?modo=ascensao' : '/api/rooms', { method: 'POST' });
+      const res = await fetch(room ? '/api/rooms?modo=' + ROOM_MODE_PARAM[room] : '/api/rooms', { method: 'POST' });
       if (!res.ok) throw new Error(String(res.status));
       const { id } = await res.json();
       try {
@@ -217,7 +217,7 @@ function startLobby(name: string) {
     if (IR.length > 1) url.searchParams.set('ir', IR.slice(1).join(','));
     else url.searchParams.delete('ir');
     history.replaceState(null, '', url);
-    void create(k, k === 'partida:ascensao');
+    void create(k, k === 'partida:ascensao' ? 'ascension' : k === 'campanha' ? 'campaign' : undefined);
   } else if (IR_CONFIG) openSettings(IR_CONFIG);
   else if (k) document.getElementById('home-tab-' + k)?.click();
 }
@@ -543,6 +543,7 @@ function startRoom(code: string, name: string) {
       net.send({ t: 'lobby', bots: ['normal', 'normal', 'normal'], opts: { ...DEFAULT_OPTS, shop: 120 } });
       net.send({ t: 'start', bots: 3, mode: 'ascension', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
     }
+    else if (k === 'campanha') net.send({ t: 'start', bots: 0, mode: 'campaign', shuffle: true, opts: DEFAULT_OPTS }); // ?ir=campanha: the night, alone
   }
   // sandbox: começa com você e um boneco parado; o resto vem pelo painel
   function startSandbox() {
