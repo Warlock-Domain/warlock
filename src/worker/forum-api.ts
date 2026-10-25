@@ -13,10 +13,12 @@ declare global {
     FORUM_ORIGIN?: string;
   }
 }
+type ForumEnv = Pick<Env, 'GITHUB_CLIENT_ID' | 'GITHUB_CLIENT_SECRET' | 'FORUM_SESSION_KEY' | 'FORUM_TESTER' | 'FORUM_ORIGIN'>;
 
 const NO_STORE = { 'cache-control': 'no-store' };
+const TESTER_BODY_MAX_BYTES = 1024;
 
-function loginMode(env: Env): ForumLogin {
+function loginMode(env: ForumEnv): ForumLogin {
   if (!env.FORUM_SESSION_KEY) return 'off';
   if (env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET) return 'github';
   // tester mode never wins over real GitHub keys, so a stray FORUM_TESTER on the live Worker cannot open it
@@ -37,7 +39,39 @@ const isGithubUser = (u: unknown): u is GithubUser =>
   typeof u === 'object' && u !== null && typeof (u as GithubUser).id === 'number' && typeof (u as GithubUser).login === 'string'
   && typeof (u as GithubUser).avatar_url === 'string';
 
-export async function forumApi(req: Request, env: Env, url: URL): Promise<Response> {
+async function readLimitedText(req: Request, maxBytes: number): Promise<string | null> {
+  const body = req.body;
+  if (!body) return '';
+  const length = Number(req.headers.get('content-length'));
+  if (Number.isFinite(length) && length > maxBytes) {
+    await body.cancel().catch(() => {});
+    return null;
+  }
+
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+export async function forumApi(req: Request, env: ForumEnv, url: URL): Promise<Response> {
   const mode = loginMode(env);
   const key = env.FORUM_SESSION_KEY ?? '';
   const callback = `${env.FORUM_ORIGIN ?? url.origin}/api/forum/callback`;
@@ -83,7 +117,9 @@ export async function forumApi(req: Request, env: Env, url: URL): Promise<Respon
   }
 
   if (url.pathname === '/api/forum/tester' && req.method === 'POST' && mode === 'tester') {
-    const name = parseTesterName(await req.text());
+    const raw = await readLimitedText(req, TESTER_BODY_MAX_BYTES);
+    if (raw === null) return new Response('forum request too large', { status: 413, headers: NO_STORE });
+    const name = parseTesterName(raw);
     if (name === null) return new Response('bad tester name', { status: 400, headers: NO_STORE });
     const user: ForumUser = { id: `tester-${newState()}`, login: 'tester', name, avatar: '', tester: true };
     return Response.json(user, { headers: { ...NO_STORE, 'set-cookie': cookie(SESSION_COOKIE, await signSession(user, key), SESSION_TTL_S) } });
