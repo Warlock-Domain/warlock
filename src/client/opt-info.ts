@@ -74,7 +74,7 @@ export const MODE_INFO = () => list([
   t(`Deathmatch: rodadas de ${s(DM_ROUND_MS)}, quem cai volta em ${DM_RESPAWN} s; cada abate vale 1 ponto.`, `Deathmatch: ${s(DM_ROUND_MS)} rounds, whoever falls comes back after ${DM_RESPAWN} s; each kill is worth 1 point.`),
   t('Times: Azul contra Vermelho; a rodada acaba quando só sobra um time e todos dele pontuam. Magia em aliado só empurra.', 'Teams: Blue vs. Red; the round ends when only one team is left and all of them score. Spells on allies only knock back.'),
   t('Ascensão: ', 'Ascension: ') + ASC_MODE_TEXT,
-  t('Campanha: de 1 a 4 jogadores juntos contra os servos do Fumo, sala a sala, sem ouro. Magia não pega aliado (nem empurra). Se todos caírem, a noite recomeça com outro mapa.', 'Campaign: 1 to 4 players together against the servants of the Smoke, room by room, with no gold. Spells never hit (or push) allies. If everyone falls, the night starts over on another map.'),
+  t('Campanha: de 1 a 4 jogadores juntos contra os servos do Fumo, sala a sala, sem ouro. Magia em aliado só empurra, sem dano, como no modo Times. Se todos caírem, a noite recomeça com outro mapa.', 'Campaign: 1 to 4 players together against the servants of the Smoke, room by room, with no gold. Spells on an ally only push, with no damage, as in Teams. If everyone falls, the night starts over on another map.'),
 ]);
 
 // um balão aberto por vez
