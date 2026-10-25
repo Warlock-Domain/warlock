@@ -15,7 +15,7 @@ export type Run = { c: Challenge; n: number; t: number; state: 'on' | 'won' | 'l
 // opções completas: a sala guarda as da partida anterior, e o recorde só vale com as mesmas regras
 const BASE: Partial<MatchOpts> = { ...DEFAULT_OPTS, runes: false, sudden: false, chests: false };
 // bot que só anda: não lança, não emenda, não reage, não sobe escudo nem desvia
-export const PASSIVE: Partial<BotSkill> = { cast: 0, combo: 0, react: 0, shield: 0, dodge: 0 };
+const PASSIVE: Partial<BotSkill> = { cast: 0, combo: 0, react: 0, shield: 0, dodge: 0 };
 const bots = (n: number, b: BotSetup = {}): BotSetup[] => Array.from({ length: n }, () => b);
 
 export const CHALLENGES: Challenge[] = [

@@ -139,7 +139,7 @@ export const emptyTotals = (): Totals => ({ rounds: 0, sources: {}, owned: {}, r
 // uma linha por humano (pelo código anônimo, com o último apelido) e por dificuldade dos bots ('bots normal'): rodadas, ameaças,
 // fração a que reagiu e em quanto tempo (média, s), fração que o atingiu, Escudo usado por Escudo pronto e distância média do inimigo (m).
 // Fora: rodadas de antes da medição, com configuração de treino e bots no Automático (a força muda com o placar)
-export type StyleRow = { who: string; pid?: string; rounds: number; threats: number; reacted: number | null; react: number | null; struck: number | null; shield: number | null; near: number | null };
+type StyleRow = { who: string; pid?: string; rounds: number; threats: number; reacted: number | null; react: number | null; struck: number | null; shield: number | null; near: number | null };
 export function styleRows(t: Totals): StyleRow[] {
   const sums = new Map<string, { who: string; pid?: string; rounds: number } & Record<StyleKey, number>>();
   for (const r of t.recent) {

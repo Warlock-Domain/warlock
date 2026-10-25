@@ -34,6 +34,17 @@ Vale junto com o `CLAUDE.md` da raiz.
 - `connect()` remains the entry point for lobby and room callers. Its `send` and `stop` callbacks stay bound to the instance; `stop()` is terminal and idempotent, including when browser events are already queued.
 - Preserve socket identity guards when replacing a connection. Lifecycle regressions live in `tests/net-lifecycle.test.ts`.
 
+## Character preview (`avatar.ts`)
+
+- `AvatarPreview` owns the renderer, camera, current appearance and visibility-aware frame loop. `avatarPanel()` lazily creates one instance and reuses its panel across Wardrobe and Settings, keeping one WebGL context for the browser session.
+- Its observer and visibility listener live as long as that shared panel. Hiding or detaching the panel pauses animation and rendering; remounting must not create a second frame loop. Keep the visibility-aware RAF scheduler so hidden previews do no work.
+- Replacing the appearance calls `disposeAppearance` for its owned materials, skeletons and mixer. Cached source geometry and textures remain shared with the match. Ignore asynchronous loads for a look that is no longer selected.
+
+## Controller input (`gamepad.ts`)
+
+- `Pad` owns button edges, aiming, menu focus, capture and rumble preferences. The exported functions delegate to one browser-session instance; `main.ts` calls `startPad()` once to install its input listeners and frame loop.
+- Room input registers its current callbacks through `setPadGame()`. Preserve button-release handling during remapping and taunt selection so the scoreboard cannot stay held and menu actions cannot cast or move.
+
 ## Movement prediction (`predict.ts`)
 
 - `MovementPredictor` owns predicted movement, snapshot identity, queued input, cast holds, dash/stun/death transitions, RTT smoothing, and Campaign terrain/room-lock configuration.
@@ -69,6 +80,8 @@ Teclas por posição (padrão): as magias usam a tecla da **posição** na barra
 - Sound sliders use required `volumes`/`setVolume` callbacks from `SettingsCtx`, supplied by the current lobby or room `createSound()` instance. Persisted preferences intentionally survive page replacement.
 
 ## Cena (`scene.ts`)
+
+- `proj-models.ts` contains stateless projectile and vine factories. Each call creates resources owned by the requesting scene; keep disposal in the scene's existing teardown paths rather than disposing shared appearance assets or adding module-level mesh caches.
 
 - `resourceStats()` exposes Three.js geometry and texture counts for low-frequency telemetry. These are resource counts, not GPU memory in bytes; keep collection outside the render loop and do not add listeners or timers that outlive the room.
 

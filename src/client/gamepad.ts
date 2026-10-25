@@ -38,10 +38,6 @@ export function padAction(btn: number): SpellId | undefined {
   return undefined;
 }
 
-// a aba Controle espera um botão para trocar: o próximo apertado vai para ela e não faz mais nada
-let padCapture: ((btn: number) => void) | null = null;
-export const setPadCapture = (f: ((btn: number) => void) | null) => (padCapture = f);
-
 // próximo botão na direção pedida: o mais perto, punindo o desvio para o lado (a grade da loja anda por linhas e colunas)
 export function nextFocus(from: Rect, rects: Rect[], dir: Dir): number {
   const h = dir === 'left' || dir === 'right';
@@ -67,23 +63,12 @@ export function nextFocus(from: Rect, rects: Rect[], dir: Dir): number {
 // nome curto do controle: "Xbox 360 Controller (XInput STANDARD GAMEPAD …)" → "Xbox 360 Controller"
 export const padName = (id: string) => id.replace(/\s*\(.*$/, '').trim() || t('controle', 'controller');
 
-// vibração ao levar golpe forte e ao morrer; desliga em Configurações, aba Controle (guardado no navegador)
+// Rumble on heavy hits and on death; turned off in Settings, Controller tab (saved in the browser)
 const RUMBLE = 'warlock:rumble';
-let rumbleOn = store.get(RUMBLE) !== '0';
-export const isRumbleOn = () => rumbleOn;
-export function setRumble(on: boolean) {
-  rumbleOn = on;
-  store.set(RUMBLE, on ? '1' : '0');
-}
 
 const firstPad = () => [...(navigator.getGamepads?.() ?? [])].find((g) => g?.connected) ?? null;
 
-export function rumble(strong: number, ms: number) {
-  if (!rumbleOn || !padMode) return;
-  void firstPad()?.vibrationActuator?.playEffect('dual-rumble', { duration: ms, strongMagnitude: strong, weakMagnitude: Math.min(1, strong + 0.2) }).catch(() => {});
-}
-
-// a partida: quem cuida de andar, lançar e da câmera (input.ts registra ao entrar na sala)
+// the match: who handles moving, casting and the camera (input.ts registers it when entering the room)
 type PadGame = {
   enabled: () => boolean;
   me: () => Vec | null;
@@ -92,270 +77,315 @@ type PadGame = {
   cast: (spell: SpellId, at: Vec) => void;
   center: () => void;
   aim: (at: Vec | null) => void;
-  padRange: (aiming: SpellId | null) => void; // círculo de alcance enquanto mira
+  padRange: (aiming: SpellId | null) => void; // range circle while aiming
 };
-let game: PadGame | null = null;
-export const setPadGame = (g: PadGame) => (game = g);
 
-let padMode = false;
-function setMode(on: boolean) {
-  if (on === padMode) return;
-  padMode = on;
-  document.documentElement.classList.toggle('pad', on);
-  setPadMode(on);
-  if (!on) game?.aim(null);
-}
-
-// reaproveita os atalhos de teclado que a interface já escuta (placar, ficha, Esc, espectador); cancelável para o placar aberto ficar com as setas
+// Reuses the keyboard shortcuts the UI already listens to (scoreboard, sheet, Esc, spectator); cancelable so an open
+// scoreboard keeps the arrows
 const key = (type: 'keydown' | 'keyup', code: string) => dispatchEvent(new KeyboardEvent(type, { code, bubbles: true, cancelable: true }));
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector<T>(sel);
 
-// botões navegáveis da camada de cima (ajuda, placar fixo ou a tela toda); cartão da loja sem botão ativo também entra, para ver a dica
+// Navigable buttons of the top layer (help, pinned scoreboard or the whole screen); a shop card without an active button
+// also counts, so its tip can be seen
 function targets(): HTMLElement[] {
   const root = [...document.querySelectorAll('.overlay')].pop() ?? $('.tab-overlay.pinned') ?? document;
   return [...root.querySelectorAll<HTMLElement>('button, a[href], input, select, summary, .shop-item')].filter((e) =>
     !(e as HTMLButtonElement).disabled && e.checkVisibility() && (!e.classList.contains('shop-item') || !e.querySelector('button:not([disabled])')));
 }
-let lastRect: Rect | null = null;
-function focus(e: HTMLElement) {
-  if (!e.hasAttribute('tabindex') && e.tabIndex < 0) e.tabIndex = -1;
-  e.focus();
-  e.scrollIntoView({ block: 'nearest' });
-  lastRect = e.getBoundingClientRect();
-}
-// foco atual; se a tela foi redesenhada e o foco sumiu, volta ao botão mais perto de onde estava
-function current(list: HTMLElement[]): HTMLElement | null {
-  const a = document.activeElement as HTMLElement | null;
-  if (a && list.includes(a)) return a;
-  if (!list.length) return null;
-  const at = lastRect;
-  const pick = at
-    ? list.reduce((b, e) => {
-      const r = e.getBoundingClientRect(), q = b.getBoundingClientRect();
-      const d = (x: Rect) => Math.hypot((x.left + x.right - at.left - at.right) / 2, (x.top + x.bottom - at.top - at.bottom) / 2);
-      return d(r) < d(q) ? e : b;
-    })
-    : (list.find((e) => e.classList.contains('primary')) ?? list[0]);
-  focus(pick);
-  return null;
-}
 
-function navigate(dir: Dir) {
-  const list = targets();
-  const a = current(list);
-  if (!a) return;
-  // volume: ← → mexem no controle deslizante
-  if (a instanceof HTMLInputElement && a.type === 'range' && (dir === 'left' || dir === 'right')) {
-    if (dir === 'left') a.stepDown();
-    else a.stepUp();
-    a.dispatchEvent(new Event('input', { bubbles: true }));
-    return;
-  }
-  const others = list.filter((e) => e !== a);
-  const i = nextFocus(a.getBoundingClientRect(), others.map((e) => e.getBoundingClientRect()), dir);
-  if (i >= 0) focus(others[i]);
-}
-
-// B: fecha a camada de cima (diálogo, painel do topo, placar fixo, ficha, grupo aberto)
-function back() {
-  if ($('.dialog-overlay')) return key('keydown', 'Escape');
-  const panel = $('.vol-panel:not([hidden])');
-  if (panel) return (panel.hidden = true);
-  if ($('.tab-overlay.pinned')) return key('keydown', 'Escape');
-  if ($('.sheet-panel:not([hidden])')) return key('keydown', keyOf('sheet'));
-  const open = (document.activeElement as HTMLElement | null)?.closest('details[open]') as HTMLDetailsElement | null;
-  if (open) {
-    open.open = false;
-    focus(open.querySelector('summary')!);
-  }
-}
-
-// Start é o Esc do controle (decisão de 18/10, com o menu de configurações): fecha a camada de cima ou, sem nada aberto,
-// abre e fecha as configurações. O Pronto da loja fica no A (o foco começa nele) e a ficha foi para o L3.
+// Start is the controller's Esc (decision of 18/10, with the settings menu): closes the top layer or, with nothing open,
+// toggles the settings. The shop's Ready is on A (focus starts there) and the sheet moved to L3.
 const start = () => key('keydown', 'Escape');
 
-// LB/RB: troca o período do placar aberto ou pula para o grupo anterior/seguinte da loja
-function group(step: 1 | -1) {
-  if ($('.tab-overlay:not([hidden])')) return key('keydown', step > 0 ? 'ArrowRight' : 'ArrowLeft');
-  const groups = [...document.querySelectorAll<HTMLElement>('.shop-group')];
-  if (!groups.length) return;
-  const at = groups.findIndex((g) => g.contains(document.activeElement));
-  const list = targets();
-  for (let i = at + step; i >= 0 && i < groups.length; i += step) {
-    const first = list.find((e) => groups[i].contains(e));
-    if (first) return focus(first);
-  }
-}
+const MOVE_AHEAD = 2; // meters ahead of the wizard: the destination moves along while the stick is tilted
 
-function menu(hit: (b: number) => boolean) {
-  if (hit(BTN.A)) {
-    const a = current(targets());
-    if (a) {
-      lastRect = a.getBoundingClientRect(); // a loja redesenha depois da compra: o foco volta para perto daqui
-      a.click();
+// One player per browser: this object owns the first connected controller's state (mode, button edges, menu focus,
+// stick memory) and the per-frame loop that startPad begins.
+class Pad {
+  private game: PadGame | null = null;
+  private capture: ((btn: number) => void) | null = null; // the Controller tab waits for the next button to remap
+  private rumbleOn = store.get(RUMBLE) !== '0';
+  private padMode = false;
+  private lastRect: Rect | null = null;
+  private wasMoving = false;
+  private lastMove = 0;
+  private lastAim: Vec = { x: 0, y: -0.7 };
+  private lastCast: SpellId = 'fireball'; // the range circle shows the last spell cast with the controller
+  private prevAim = 0;
+  private prev: boolean[] = [];
+  private seen = '';
+  private navDir: Dir | null = null;
+  private navNext = 0;
+
+  setGame(g: PadGame) {
+    this.game = g;
+  }
+
+  setCapture(f: ((btn: number) => void) | null) {
+    this.capture = f;
+  }
+
+  isRumbleOn() {
+    return this.rumbleOn;
+  }
+
+  setRumble(on: boolean) {
+    this.rumbleOn = on;
+    store.set(RUMBLE, on ? '1' : '0');
+  }
+
+  rumble(strong: number, ms: number) {
+    if (!this.rumbleOn || !this.padMode) return;
+    void firstPad()?.vibrationActuator?.playEffect('dual-rumble', { duration: ms, strongMagnitude: strong, weakMagnitude: Math.min(1, strong + 0.2) }).catch(() => {});
+  }
+
+  start(toast: (msg: string) => void) {
+    // a real key, click or mouse movement goes back to keyboard labels
+    addEventListener('keydown', (e) => e.isTrusted && this.setMode(false), true);
+    addEventListener('pointerdown', (e) => e.isTrusted && this.setMode(false), true);
+    addEventListener('pointermove', (e) => e.isTrusted && (e.movementX || e.movementY) && this.setMode(false), true);
+    const loop = () => {
+      requestAnimationFrame(loop);
+      this.tick(toast);
+    };
+    requestAnimationFrame(loop);
+  }
+
+  private setMode(on: boolean) {
+    if (on === this.padMode) return;
+    this.padMode = on;
+    document.documentElement.classList.toggle('pad', on);
+    setPadMode(on);
+    if (!on) this.game?.aim(null);
+  }
+
+  private focus(e: HTMLElement) {
+    if (!e.hasAttribute('tabindex') && e.tabIndex < 0) e.tabIndex = -1;
+    e.focus();
+    e.scrollIntoView({ block: 'nearest' });
+    this.lastRect = e.getBoundingClientRect();
+  }
+
+  // current focus; if the screen was redrawn and focus was lost, go back to the button nearest to where it was
+  private current(list: HTMLElement[]): HTMLElement | null {
+    const a = document.activeElement as HTMLElement | null;
+    if (a && list.includes(a)) return a;
+    if (!list.length) return null;
+    const at = this.lastRect;
+    const pick = at
+      ? list.reduce((b, e) => {
+        const r = e.getBoundingClientRect(), q = b.getBoundingClientRect();
+        const d = (x: Rect) => Math.hypot((x.left + x.right - at.left - at.right) / 2, (x.top + x.bottom - at.top - at.bottom) / 2);
+        return d(r) < d(q) ? e : b;
+      })
+      : (list.find((e) => e.classList.contains('primary')) ?? list[0]);
+    this.focus(pick);
+    return null;
+  }
+
+  private navigate(dir: Dir) {
+    const list = targets();
+    const a = this.current(list);
+    if (!a) return;
+    // volume: left and right move the slider
+    if (a instanceof HTMLInputElement && a.type === 'range' && (dir === 'left' || dir === 'right')) {
+      if (dir === 'left') a.stepDown();
+      else a.stepUp();
+      a.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
+    const others = list.filter((e) => e !== a);
+    const i = nextFocus(a.getBoundingClientRect(), others.map((e) => e.getBoundingClientRect()), dir);
+    if (i >= 0) this.focus(others[i]);
+  }
+
+  // B: closes the top layer (dialog, top panel, pinned scoreboard, sheet, open group)
+  private back() {
+    if ($('.dialog-overlay')) return key('keydown', 'Escape');
+    const panel = $('.vol-panel:not([hidden])');
+    if (panel) return (panel.hidden = true);
+    if ($('.tab-overlay.pinned')) return key('keydown', 'Escape');
+    if ($('.sheet-panel:not([hidden])')) return key('keydown', keyOf('sheet'));
+    const open = (document.activeElement as HTMLElement | null)?.closest('details[open]') as HTMLDetailsElement | null;
+    if (open) {
+      open.open = false;
+      this.focus(open.querySelector('summary')!);
     }
   }
-  if (hit(BTN.B)) back();
-  // X: desfaz a compra desta loja ou vende o item focado
-  if (hit(BTN.X)) {
-    const card = (document.activeElement as HTMLElement | null)?.closest('.shop-item');
-    if (card) ($('.undo', card) ?? $('.sell', card))?.click();
-  }
-  // Y: mostra ou esconde a dica do item focado
-  if (hit(BTN.Y)) {
-    const tip = $('.tip');
-    if (tip && !tip.hidden) tip.hidden = true;
-    else document.activeElement?.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-  }
-  if (hit(BTN.LB)) group(-1);
-  if (hit(BTN.RB)) group(1);
-}
 
-const MOVE_AHEAD = 2; // metros à frente do mago: o destino anda junto enquanto o analógico está inclinado
-let wasMoving = false;
-let lastMove = 0;
-let lastAim: Vec = { x: 0, y: -0.7 };
-let lastCast: SpellId = 'fireball'; // o círculo de alcance mostra a última magia lançada pelo controle
-let prevAim = 0;
-
-function play(g: PadGame, hit: (b: number) => boolean, mv: Vec, aimS: Vec) {
-  const me = g.me();
-  const now = performance.now();
-  const moving = !!(mv.x || mv.y);
-  // no máximo 10 comandos de andar por segundo, como o arrastar do botão direito; soltar para
-  if (moving && me && now - lastMove > 100) {
-    lastMove = now;
-    const k = MOVE_AHEAD / Math.hypot(mv.x, mv.y);
-    g.move({ x: me.x + mv.x * k, y: me.y + mv.y * k });
-  } else if (!moving && wasMoving) g.stop();
-  wasMoving = moving;
-  // soltando o analógico direito a mira fica onde estava; sem mirar, mira para onde anda
-  const m = len(aimS);
-  if (m > 0 && (m >= 0.5 || m >= prevAim)) lastAim = aimS;
-  else if (!m && moving) lastAim = scale(norm(mv), 0.7);
-  prevAim = m;
-  const at = me ? aimPoint(me, lastAim) : null;
-  g.aim(padMode ? at : null);
-  g.padRange(padMode && m > 0 ? lastCast : null);
-  // morto ou só assistindo: ← → do D-pad trocam quem a câmera segue (com o placar aberto, trocam o período, como no teclado)
-  const watching = !!$('.watching:not([hidden])');
-  if (watching) {
-    if (hit(BTN.LEFT)) key('keydown', 'ArrowLeft');
-    if (hit(BTN.RIGHT)) key('keydown', 'ArrowRight');
-  }
-  // cada botão faz o que a aba Controle diz (o placar, segurado, fica no tick)
-  for (let b = 0; b < PAD_NAMES.length; b++) {
-    if (!hit(b) || (watching && (b === BTN.LEFT || b === BTN.RIGHT))) continue;
-    const p = padActionAt(b);
-    if (p === 'center') g.center();
-    else if (p === 'sheet' || p === 'shop') key('keydown', keyOf(p)); // ficha e loja só para ver: os mesmos atalhos do teclado
-    const a = padAction(b);
-    if (!a || !at) continue;
-    lastCast = a;
-    g.cast(a, me ? padTarget(a, m > 0, me, at) : at);
-  }
-}
-
-let prev: boolean[] = [];
-let seen = '';
-let navDir: Dir | null = null;
-let navNext = 0;
-
-function tick(toast: (msg: string) => void) {
-  const gp = firstPad();
-  if (!gp) {
-    if (seen) {
-      seen = '';
-      prev = [];
-      setMode(false);
-      toast(t('Controle desconectado', 'Controller disconnected'));
+  // LB/RB: switch the open scoreboard's period or jump to the previous/next shop group
+  private group(step: 1 | -1) {
+    if ($('.tab-overlay:not([hidden])')) return key('keydown', step > 0 ? 'ArrowRight' : 'ArrowLeft');
+    const groups = [...document.querySelectorAll<HTMLElement>('.shop-group')];
+    if (!groups.length) return;
+    const at = groups.findIndex((g) => g.contains(document.activeElement));
+    const list = targets();
+    for (let i = at + step; i >= 0 && i < groups.length; i += step) {
+      const first = list.find((e) => groups[i].contains(e));
+      if (first) return this.focus(first);
     }
-    return;
   }
-  if (gp.id !== seen) {
-    seen = gp.id;
-    toast(t(`Controle conectado: ${padName(gp.id)} · Start abre as configurações (a aba Controle troca os botões)`, `Controller connected: ${padName(gp.id)} · Start opens settings (the Controller tab remaps the buttons)`));
-  }
-  const down = gp.buttons.map((b) => b.pressed);
-  const hit = (b: number) => !!down[b] && !prev[b];
-  // placar segurado (View/Select no padrão), nos dois modos; na captura de botão ele ainda solta (senão ficava aberto)
-  const board = padButtonOf('board');
-  if (padCapture) {
-    if (prev[board] && !down[board]) key('keyup', keyOf('board'));
-    const b = down.findIndex((d, i) => d && !prev[i]);
-    prev = down;
-    if (b >= 0) {
-      const f = padCapture;
-      padCapture = null;
-      f(b);
+
+  private menu(hit: (b: number) => boolean) {
+    if (hit(BTN.A)) {
+      const a = this.current(targets());
+      if (a) {
+        this.lastRect = a.getBoundingClientRect(); // the shop redraws after a purchase: focus comes back near here
+        a.click();
+      }
     }
-    return;
+    if (hit(BTN.B)) this.back();
+    // X: undo this shop's purchase or sell the focused item
+    if (hit(BTN.X)) {
+      const card = (document.activeElement as HTMLElement | null)?.closest('.shop-item');
+      if (card) ($('.undo', card) ?? $('.sell', card))?.click();
+    }
+    // Y: show or hide the focused item's tip
+    if (hit(BTN.Y)) {
+      const tip = $('.tip');
+      if (tip && !tip.hidden) tip.hidden = true;
+      else document.activeElement?.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    }
+    if (hit(BTN.LB)) this.group(-1);
+    if (hit(BTN.RB)) this.group(1);
   }
-  const mv = stick(gp.axes[0] ?? 0, gp.axes[1] ?? 0);
-  const aimS = stick(gp.axes[2] ?? 0, gp.axes[3] ?? 0);
-  if (down.some(Boolean) || mv.x || mv.y || aimS.x || aimS.y) setMode(true);
-  const now = performance.now();
-  const tauntPanel = () => $<HTMLElement>('.radial-picker:not([hidden])');
-  const tauntButton = !$('.overlay') ? $('.hud-right .vol:has(.radial-picker) > button') : null;
-  const openedTaunts = !!tauntButton && !tauntPanel() && hit(padButtonOf('taunt'));
-  if (openedTaunts) tauntButton!.click();
-  const panel = !$('.overlay') ? tauntPanel() : null;
-  if (panel) {
-    // Enquanto escolhe uma fala, A/B e os eixos não podem andar, usar item ou lançar magia.
-    if (wasMoving) game?.stop();
-    wasMoving = false;
-    game?.aim(null);
-    game?.padRange(null);
+
+  // stops walking and hides the aim while the pad is not playing (menus, taunt wheel)
+  private idle() {
+    if (this.wasMoving) this.game?.stop();
+    this.wasMoving = false;
+    this.game?.aim(null);
+    this.game?.padRange(null);
+  }
+
+  private play(g: PadGame, hit: (b: number) => boolean, mv: Vec, aimS: Vec) {
+    const me = g.me();
+    const now = performance.now();
+    const moving = !!(mv.x || mv.y);
+    // at most 10 move commands per second, like dragging the right mouse button; releasing stops
+    if (moving && me && now - this.lastMove > 100) {
+      this.lastMove = now;
+      const k = MOVE_AHEAD / Math.hypot(mv.x, mv.y);
+      g.move({ x: me.x + mv.x * k, y: me.y + mv.y * k });
+    } else if (!moving && this.wasMoving) g.stop();
+    this.wasMoving = moving;
+    // releasing the right stick keeps the aim where it was; without aiming, aim where the wizard walks
+    const m = len(aimS);
+    if (m > 0 && (m >= 0.5 || m >= this.prevAim)) this.lastAim = aimS;
+    else if (!m && moving) this.lastAim = scale(norm(mv), 0.7);
+    this.prevAim = m;
+    const at = me ? aimPoint(me, this.lastAim) : null;
+    g.aim(this.padMode ? at : null);
+    g.padRange(this.padMode && m > 0 ? this.lastCast : null);
+    // dead or only watching: D-pad left/right switch who the camera follows (with the scoreboard open, the period, as on the keyboard)
+    const watching = !!$('.watching:not([hidden])');
+    if (watching) {
+      if (hit(BTN.LEFT)) key('keydown', 'ArrowLeft');
+      if (hit(BTN.RIGHT)) key('keydown', 'ArrowRight');
+    }
+    // each button does what the Controller tab says (the held scoreboard lives in tick)
+    for (let b = 0; b < PAD_NAMES.length; b++) {
+      if (!hit(b) || (watching && (b === BTN.LEFT || b === BTN.RIGHT))) continue;
+      const p = padActionAt(b);
+      if (p === 'center') g.center();
+      else if (p === 'sheet' || p === 'shop') key('keydown', keyOf(p)); // sheet and shop only to look: the same keyboard shortcuts
+      const a = padAction(b);
+      if (!a || !at) continue;
+      this.lastCast = a;
+      g.cast(a, me ? padTarget(a, m > 0, me, at) : at);
+    }
+  }
+
+  // Taunt wheel open: A/B and the axes must not walk, use an item or cast a spell while picking a line
+  private tauntWheel(panel: HTMLElement, hit: (b: number) => boolean, mv: Vec, aimS: Vec, opened: boolean) {
+    this.idle();
     const buttons = [...panel.querySelectorAll<HTMLButtonElement>('.radial-stage > button:not(.radial-center)')];
     // The stick points around the wheel; the d-pad steps ±1 per press (with more than 8 taunts, 8 directions could not reach them all).
     const s = len(aimS) ? aimS : mv;
     let selected = radialIndex(s.x, s.y, buttons.length);
-    if (selected === null && !openedTaunts) {
+    if (selected === null && !opened) {
       const step = Number(hit(BTN.RIGHT) || hit(BTN.DOWN)) - Number(hit(BTN.LEFT) || hit(BTN.UP));
       const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
       if (step) selected = (at < 0 ? (step > 0 ? 0 : buttons.length - 1) : at + step + buttons.length) % buttons.length;
     }
     if (selected !== null) buttons[selected]?.focus({ preventScroll: true });
-    if (!openedTaunts && hit(BTN.A) && buttons.includes(document.activeElement as HTMLButtonElement)) (document.activeElement as HTMLButtonElement).click();
-    if ((!openedTaunts && hit(BTN.B)) || hit(BTN.START)) panel.hidden = true;
-    if (prev[board] && !down[board]) key('keyup', keyOf('board'));
-    prev = down;
-    return;
+    if (!opened && hit(BTN.A) && buttons.includes(document.activeElement as HTMLButtonElement)) (document.activeElement as HTMLButtonElement).click();
+    if ((!opened && hit(BTN.B)) || hit(BTN.START)) panel.hidden = true;
   }
-  if (game?.enabled() && !$('.overlay')) {
-    play(game, hit, mv, aimS);
-    navDir = null;
-  } else {
-    if (wasMoving) game?.stop();
-    wasMoving = false;
-    game?.aim(null);
-    game?.padRange(null);
-    // D-pad ou analógico esquerdo: anda já ao apertar e repete segurando
+
+  // Outside the match the D-pad or the left stick walk between buttons: one step on press, then repeats while held
+  private menuStep(down: boolean[], mv: Vec, now: number, hit: (b: number) => boolean) {
+    this.idle();
     const dir: Dir | null = down[BTN.UP] ? 'up' : down[BTN.DOWN] ? 'down' : down[BTN.LEFT] ? 'left' : down[BTN.RIGHT] ? 'right'
       : Math.max(Math.abs(mv.x), Math.abs(mv.y)) < 0.4 ? null : Math.abs(mv.x) > Math.abs(mv.y) ? (mv.x > 0 ? 'right' : 'left') : mv.y > 0 ? 'down' : 'up';
-    if (dir !== navDir) {
-      navDir = dir;
-      navNext = now + 350;
-      if (dir) navigate(dir);
-    } else if (dir && now >= navNext) {
-      navNext = now + 120;
-      navigate(dir);
+    if (dir !== this.navDir) {
+      this.navDir = dir;
+      this.navNext = now + 350;
+      if (dir) this.navigate(dir);
+    } else if (dir && now >= this.navNext) {
+      this.navNext = now + 120;
+      this.navigate(dir);
     }
-    menu(hit);
+    this.menu(hit);
   }
-  if (hit(BTN.START)) start();
-  if (!!down[board] !== !!prev[board]) key(down[board] ? 'keydown' : 'keyup', keyOf('board'));
-  prev = down;
+
+  private tick(toast: (msg: string) => void) {
+    const gp = firstPad();
+    if (!gp) {
+      if (this.seen) {
+        this.seen = '';
+        this.prev = [];
+        this.setMode(false);
+        toast(t('Controle desconectado', 'Controller disconnected'));
+      }
+      return;
+    }
+    if (gp.id !== this.seen) {
+      this.seen = gp.id;
+      toast(t(`Controle conectado: ${padName(gp.id)} · Start abre as configurações (a aba Controle troca os botões)`, `Controller connected: ${padName(gp.id)} · Start opens settings (the Controller tab remaps the buttons)`));
+    }
+    const down = gp.buttons.map((b) => b.pressed);
+    const prev = this.prev;
+    this.prev = down; // every path below reads the previous frame through `prev` and ends with this one stored
+    const hit = (b: number) => !!down[b] && !prev[b];
+    // held scoreboard (View/Select by default), in both modes; while capturing a button it still releases (otherwise it stayed open)
+    const board = padButtonOf('board');
+    if (this.capture) {
+      if (prev[board] && !down[board]) key('keyup', keyOf('board'));
+      const b = down.findIndex((d, i) => d && !prev[i]);
+      if (b >= 0) {
+        const f = this.capture;
+        this.capture = null;
+        f(b);
+      }
+      return;
+    }
+    const mv = stick(gp.axes[0] ?? 0, gp.axes[1] ?? 0);
+    const aimS = stick(gp.axes[2] ?? 0, gp.axes[3] ?? 0);
+    if (down.some(Boolean) || mv.x || mv.y || aimS.x || aimS.y) this.setMode(true);
+    const tauntPanel = () => $<HTMLElement>('.radial-picker:not([hidden])');
+    const tauntButton = !$('.overlay') ? $('.hud-right .vol:has(.radial-picker) > button') : null;
+    const opened = !!tauntButton && !tauntPanel() && hit(padButtonOf('taunt'));
+    if (opened) tauntButton!.click();
+    const panel = !$('.overlay') ? tauntPanel() : null;
+    if (panel) {
+      this.tauntWheel(panel, hit, mv, aimS, opened);
+      if (prev[board] && !down[board]) key('keyup', keyOf('board'));
+      return;
+    }
+    if (this.game?.enabled() && !$('.overlay')) {
+      this.play(this.game, hit, mv, aimS);
+      this.navDir = null;
+    } else this.menuStep(down, mv, performance.now(), hit);
+    if (hit(BTN.START)) start();
+    if (!!down[board] !== !!prev[board]) key(down[board] ? 'keydown' : 'keyup', keyOf('board'));
+  }
 }
 
-export function startPad(toast: (msg: string) => void) {
-  // tecla, clique ou mouse mexendo de verdade: volta aos rótulos de teclado
-  addEventListener('keydown', (e) => e.isTrusted && setMode(false), true);
-  addEventListener('pointerdown', (e) => e.isTrusted && setMode(false), true);
-  addEventListener('pointermove', (e) => e.isTrusted && (e.movementX || e.movementY) && setMode(false), true);
-  const loop = () => {
-    requestAnimationFrame(loop);
-    tick(toast);
-  };
-  requestAnimationFrame(loop);
-}
+const pad = new Pad();
+export const setPadCapture = (f: ((btn: number) => void) | null) => pad.setCapture(f);
+export const isRumbleOn = () => pad.isRumbleOn();
+export const setRumble = (on: boolean) => pad.setRumble(on);
+export const rumble = (strong: number, ms: number) => pad.rumble(strong, ms);
+export const setPadGame = (g: PadGame) => pad.setGame(g);
+export const startPad = (toast: (msg: string) => void) => pad.start(toast);
