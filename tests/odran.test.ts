@@ -8,9 +8,12 @@ import type { SimEvent } from '../src/shared/sim.ts';
 import { dist, v } from '../src/shared/vec.ts';
 import { STEP_MS, toPlaying } from './helpers.ts';
 
-// noite com os humanos dados, já jogando, com o primeiro dentro da arena do Sir Odran (a luta abre no passo)
+// room created by the Campaign option of the Play menu: only it plays the Campaign
+const campaignRoom = () => Object.assign(newMatch(), { mode: 'campaign' as const });
+
+// night with the given humans, already playing, with the first one inside Sir Odran's arena (the fight opens on the step)
 function arena(humans = ['a']): { m: Match; now: number; n: NightMap; b: number; events: SimEvent[] } {
-  const m = newMatch();
+  const m = campaignRoom();
   for (const id of humans) addPlayer(m, id, id);
   startMatch(m, 0, 0, 'campaign', true, mulberry32(1));
   let now = toPlaying(m, 0);
@@ -26,7 +29,7 @@ function step(m: Match, now: number, events: SimEvent[], n = 1): number {
   for (let i = 0; i < n; i++) events.push(...tickMatch(m, (now += STEP_MS), [], () => 0.5));
   return now;
 }
-// pilares da arena (as 4 Barricadas de pedra 2×2 do desenho)
+// arena pillars (the 4 stone 2×2 Barricades of the design)
 const pillarsOf = (m: Match, n: NightMap, b: number) => {
   const r = n.rooms[b];
   return m.world!.pillars.filter((q) => q.kind === 'rock' && q.pos.x > r.x && q.pos.x < r.x + r.room.w && q.pos.y > r.y && q.pos.y < r.y + r.room.h);
@@ -46,14 +49,14 @@ describe('Sir Odran: arena', () => {
       const { m, events } = arena([...humans]);
       const z = odran(m);
       expect(z, String(humans.length)).toMatchObject({ alive: true, hp, hpMax: hp, kbResist: ODRAN.kbResist, regen: 0 });
-      expect(m.players.find((p) => p.servo === 'odran')!.hpMax).toBe(hp); // a barra do navegador
+      expect(m.players.find((p) => p.servo === 'odran')!.hpMax).toBe(hp); // the browser bar
       expect(events.some((e) => e.k === 'boss' && e.what === 'start')).toBe(true);
     }
     expect(SERVOS.odran.hp).toBe(3000);
   });
 
   it('counts only the Acesos standing when he comes in', () => {
-    const m = newMatch();
+    const m = campaignRoom();
     for (const id of ['a', 'b']) addPlayer(m, id, id);
     startMatch(m, 0, 0, 'campaign', true, mulberry32(1));
     let now = toPlaying(m, 0);
@@ -65,19 +68,19 @@ describe('Sir Odran: arena', () => {
   });
 });
 
-describe('Sir Odran: investida', () => {
+describe('Sir Odran: charge', () => {
   it('stops and aims before charging, and the charge hits the Aceso in the way hard', () => {
     const { m, now: t0, events } = arena();
     let now = t0;
     const a = wiz(m, 'a');
     a.invulnUntil = 0;
-    // o Odran no meio da arena, o Aceso a 6 m na frente, sem pilar no caminho
+    // Odran in the middle of the arena, the Aceso 6 m ahead, no pillar in the way
     const z = odran(m);
     z.pos = v(a.pos.x + 6, a.pos.y);
     for (let i = 0; i < 60 * 4 && !events.some((e) => e.k === 'boss' && e.what === 'aim'); i++) now = step(m, now, events);
     const aim = events.find((e) => e.k === 'boss' && e.what === 'aim')!;
     expect(aim).toBeDefined();
-    // parado durante a mira
+    // standing still while aiming
     const at = { ...z.pos };
     now = step(m, now, events, Math.floor(ODRAN.charge.windup * 60) - 2);
     expect(dist(z.pos, at)).toBeLessThan(0.05);
@@ -113,18 +116,18 @@ describe('Sir Odran: investida', () => {
     const a = wiz(m, 'a'), z = odran(m), pillars = pillarsOf(m, n, b);
     expect(pillars.length).toBe(4);
     for (const [k, q] of pillars.entries()) {
-      // o Aceso atrás do pilar, o Odran do outro lado: a linha da investida passa pelo pilar
+      // the Aceso behind the pillar, Odran on the other side: the charge line goes through the pillar
       Object.assign(a, { pos: v(q.pos.x, q.pos.y - 3.2), vel: v(0, 0), target: null });
       Object.assign(z, { pos: v(q.pos.x, q.pos.y + 3.2), vel: v(0, 0), target: null });
       m.night!.boss!.next = 0;
       const before = events.length;
       for (let i = 0; i < 60 * 3 && q.alive; i++) {
         now = step(m, now, events);
-        a.pos = v(q.pos.x, q.pos.y - 3.2); // fica parado atrás do pilar
+        a.pos = v(q.pos.x, q.pos.y - 3.2); // stays still behind the pillar
       }
       expect(q.alive, `pilar ${k}`).toBe(false);
       expect(events.slice(before).some((e) => e.k === 'boss' && e.what === 'stun')).toBe(true);
-      // atordoado: não anda nem lança por 3 s
+      // stunned: does not walk or cast for 3 s
       const at = { ...z.pos }, cd = { ...z.cd };
       now = step(m, now, events, 60 * ODRAN.stun - 10);
       expect(dist(z.pos, at), `pilar ${k}`).toBeLessThan(0.3);

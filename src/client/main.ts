@@ -4,7 +4,7 @@ import { lookOf } from '../shared/characters.ts';
 import { liveLevel, roundMult } from '../shared/ascension.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { BotSkill } from '../shared/bots.ts';
-import { DEFAULT_OPTS, type BotSetup } from '../shared/match.ts';
+import { DEFAULT_OPTS, ROOM_MODE_PARAM, type BotSetup, type RoomMode } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
 import { CAMPAIGN_BOOK, SERVOS } from '../shared/campaign.ts';
@@ -60,7 +60,7 @@ const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica'
 // (pedido do Fernando, 20/10); no jogo no ar nada muda.
 // Menu inicial: play, library, char, shop, profile, settings ou config:<seção> (teclas, lancamento, som, video, interface, controle, jogador,
 // personagem, idioma, sobre). Sala nova: sandbox, partida (contra 1 bot, já lutando), partida:loja (contra 1 bot, na loja da rodada 1, com 120 s)
-// e partida:ascensao (Ascensão contra 3 bots, na carta inicial, com 120 s).
+// e partida:ascensao (Ascensão contra 3 bots, na carta inicial, com 120 s); campanha (a noite da Campanha, sozinho).
 // Sala e seção juntas, com vírgula (as Configurações de dentro da partida): sandbox,config:som
 // Porta nova não tem apelido guardado: o ?apelido= (ou o ?aba=) pula o pedido de nome, ver TEST_NAME abaixo (issue #175).
 // ?ir= e ?apelido= valem também no ambiente de cada PR (pr-<n>-warlock…, issue #125): o link mandado ao colaborador já cai no ponto
@@ -176,16 +176,16 @@ function startLobby(name: string) {
   let rooms: RoomInfo[] | null = null;
   let offline = false;
   const draw = () =>
-    renderLobby(ui, name, rooms, offline, () => create(), () => create(undefined, true), async () => {
+    renderLobby(ui, name, rooms, offline, () => create(), (room) => create(undefined, room), async () => {
       name = await askName(document.body, name);
       store.set(NAME, name);
       draw();
     }, create, sound);
   // train: o treino que começa sozinho na sala nova (sem armazenamento, entra só na sala)
-  // ascension: sala do Ascensão (opção própria no menu Jogar)
-  async function create(train?: string, ascension = false) {
+  // room: Ascension or Campaign room (their own Play menu options), locked to the mode
+  async function create(train?: string, room?: RoomMode) {
     try {
-      const res = await fetch(ascension ? '/api/rooms?modo=ascensao' : '/api/rooms', { method: 'POST' });
+      const res = await fetch(room ? '/api/rooms?modo=' + ROOM_MODE_PARAM[room] : '/api/rooms', { method: 'POST' });
       if (!res.ok) throw new Error(String(res.status));
       const { id } = await res.json();
       try {
@@ -210,13 +210,13 @@ function startLobby(name: string) {
   });
   draw();
   const k = IR[0];
-  if (k === 'sandbox' || k?.startsWith('partida')) {
+  if (k === 'sandbox' || k === 'campanha' || k?.startsWith('partida')) {
     // a sala sai da URL (só a seção fica): ao voltar ao menu (location.hash = '') a página não cria outra sala
     const url = new URL(location.href);
     if (IR.length > 1) url.searchParams.set('ir', IR.slice(1).join(','));
     else url.searchParams.delete('ir');
     history.replaceState(null, '', url);
-    void create(k, k === 'partida:ascensao');
+    void create(k, k === 'partida:ascensao' ? 'ascension' : k === 'campanha' ? 'campaign' : undefined);
   } else if (IR_CONFIG) openSettings(IR_CONFIG);
   else if (k) document.getElementById('home-tab-' + k)?.click();
 }
@@ -539,6 +539,7 @@ function startRoom(code: string, name: string) {
       net.send({ t: 'lobby', bots: ['normal', 'normal', 'normal'], opts: { ...DEFAULT_OPTS, shop: 120 } });
       net.send({ t: 'start', bots: 3, mode: 'ascension', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
     }
+    else if (k === 'campanha') net.send({ t: 'start', bots: 0, mode: 'campaign', shuffle: true, opts: DEFAULT_OPTS }); // ?ir=campanha: the night, alone
   }
   // sandbox: começa com você e um boneco parado; o resto vem pelo painel
   function startSandbox() {

@@ -62,6 +62,11 @@ function earn(m: Match, p: Player, gold: number, scaled = true, recovery = false
 // campaign: 1 a 4 humanos contra os servos do Fumo (campaign.ts); clareira = rodada, intervalo = loja
 export const MODES = ['rounds', 'deathmatch', 'teams', 'ascension', 'campaign'] as const;
 export type Mode = (typeof MODES)[number];
+// Ascension and Campaign are room types, each created by its own Play menu option (Fernando, 21/10 and 24/10): the room
+// is born locked to the mode (?modo=<value> on creation), a normal room never becomes one and they never switch mode
+export const ROOM_MODE_PARAM = { ascension: 'ascensao', campaign: 'campanha' } as const;
+export type RoomMode = keyof typeof ROOM_MODE_PARAM;
+export const isRoomMode = (k: Mode): k is RoomMode => k in ROOM_MODE_PARAM;
 export const PHASES = ['lobby', 'shop', 'countdown', 'playing', 'roundEnd', 'end'] as const;
 export type Phase = (typeof PHASES)[number];
 // votação na partida: trocar o modo (target = modo novo), expulsar um humano (target = id dele),
@@ -302,14 +307,15 @@ export function removePlayer(m: Match, id: string) {
 // sandbox: a sala vira sandbox (começa até sozinho, os bots entram pelo painel)
 export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'rounds', teamShuffle = true, rand: () => number = Math.random, opts: Partial<MatchOpts> = {}, setup: BotSetup[] = [], sandbox = false): boolean {
   if (m.phase !== 'lobby' && m.phase !== 'end') return false;
-  // o modo que vale sai antes de tudo: o Ascensão é um tipo de sala, não um modo a escolher (Fernando, 21/10: opção própria
-  // no menu Jogar, fora dos modos da sala principal): sala do Ascensão só joga Ascensão, venha o pedido que vier (um
-  // "start" com outro modo não monta a Campanha por cima do elenco do dono); sala normal e sandbox nunca viram Ascensão
-  const kind: Mode = m.mode === 'ascension' && !sandbox ? 'ascension' : mode === 'ascension' ? 'rounds' : mode;
+  // the room type decides first (isRoomMode): an Ascension or Campaign room only plays its mode, whatever the request
+  // (a "start" with another mode does not build the Campaign over the Ascension owner's cast); normal rooms never
+  // become one of them, and the sandbox only opens in a normal room (it would drop the room type)
+  const kind: Mode = isRoomMode(m.mode) ? m.mode : isRoomMode(mode) ? 'rounds' : mode;
+  if (sandbox && isRoomMode(kind)) return false;
   const campaign = kind === 'campaign';
-  // Campanha: de 1 a 4 humanos, sem bots aliados nem sandbox; as vagas do Fumo entram depois
+  // Campanha: de 1 a 4 humanos, sem bots aliados; as vagas do Fumo entram depois
   // quem assiste não conta (fica sem mago, como nos outros modos)
-  if (campaign && (sandbox || playing(m).filter((p) => !p.bot && p.connected).length > CAMPAIGN.humans)) return false;
+  if (campaign && playing(m).filter((p) => !p.bot && p.connected).length > CAMPAIGN.humans) return false;
   // sala do Ascensão: valem os bots e as opções que o dono escolheu, venha de quem vier o Começar
   if (m.lobby && !sandbox) {
     opts = m.lobby.opts;
@@ -553,15 +559,15 @@ export const votesNeeded = (humans: number) => Math.floor(humans / 2) + 1;
 // abre uma votação (uma por vez, só com a partida rolando); quem abre já conta como SIM
 export function startVote(m: Match, id: string, kind: Vote['kind'], target: string, now: number, rand: () => number = Math.random): boolean {
   if (m.vote || !VOTE_PHASES.includes(m.phase) || !voters(m).includes(id)) return false;
-  // a Campanha começa e termina pela sala: sem troca de modo para dentro ou para fora dela, e sem bots aliados
-  if ((kind === 'mode' && (target === 'campaign' || m.mode === 'campaign')) || (m.night && (kind === 'addBot' || kind === 'removeBot' || kind === 'shuffle'))) return false;
+  // a Campanha não tem bots aliados nem times sorteados
+  if (m.night && (kind === 'addBot' || kind === 'removeBot' || kind === 'shuffle')) return false;
   if (kind === 'kick') {
     const t = player(m, target);
     if (!t || t.bot || t.id === id) return false; // bot já tem o ✕ direto
   } else if (kind === 'mode') {
     // qualquer um dos modos, menos o que já vale na próxima rodada
     if (!(MODES as readonly string[]).includes(target) || target === (m.pendingMode ?? m.mode)) return false;
-    if (target === 'ascension' || m.mode === 'ascension') return false; // o tipo da sala não muda por votação
+    if (isRoomMode(target as Mode) || isRoomMode(m.mode)) return false; // the room type never changes by vote
   } else if (kind === 'shuffle') target = (m.pendingShuffle ?? m.teamShuffle) ? 'match' : 'round'; // alterna o que valeria na próxima rodada
   else if (kind === 'opt') {
     // uma opção, com valor diferente do que já vale na próxima rodada
