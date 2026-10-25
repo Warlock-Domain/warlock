@@ -99,10 +99,9 @@ describe('bot in place of a disconnected player (issue #223)', () => {
   });
 
   // the overhead label of an existing wizard is refreshed from this name every frame (issue #367)
-  it('adds the marker once when the bot takes over and removes it on reconnect, keeping the stored name', () => {
+  it('round-trips the marker on one seat (bot takes over, then the player reconnects) without changing the stored name', () => {
     const a = seat('a');
     a.connected = false;
-    expect(playerName(a)).toBe('A (BOT)');
     expect(playerName(a)).toBe('A (BOT)');
     a.connected = true;
     expect(playerName(a)).toBe('A');
