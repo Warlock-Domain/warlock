@@ -600,6 +600,7 @@ function goldInfo(p: PublicPlayer, opts: MatchOpts, open: boolean, onToggle: (op
     row(t('Cada rodada que você jogou', 'Each round you played'), `+${g(ROUND_GOLD)}`),
     row(t('Vencer a rodada', 'Win the round'), t(`+${g(WIN_GOLD)} (líder: +${g(LEADER_WIN_GOLD)})`, `+${g(WIN_GOLD)} (leader: +${g(LEADER_WIN_GOLD)})`)),
     row(t('Abate', 'Kill'), `+${g(KILL_GOLD)}`),
+    row(t('Cada abate seguido, sem morrer', 'Each kill in a row, without dying'), t(`+${pct(STREAK.killGold)} por abate anterior`, `+${pct(STREAK.killGold)} per earlier kill`)),
     row(t('Abater o líder', 'Kill the leader'), t(`até +${g(BOUNTY.max)} extra`, `up to +${g(BOUNTY.max)} extra`)),
     row(t('Quebra-combo (derrubar quem tem 3+ abates seguidos)', 'Combo breaker (knock down someone on a 3+ kill streak)'), `+${g(STREAK.breakGold)}`),
     row(t('Atrás da média da partida', 'Behind the match average'), t(`até +${g(RECOVERY.max)} por rodada`, `up to +${g(RECOVERY.max)} per round`)),
@@ -760,8 +761,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     specBtn.setAttribute('aria-label', tip);
     specBtn.setAttribute('aria-pressed', String(on));
   }
-  // provocações: segurar a tecla (Y no padrão) abre a roda com todas as falas do catálogo, apontar escolhe e soltar envia;
-  // o clique no botão abre a roda parada (clique ou número escolhe). A ordem vem das Configurações (Comunicação); o índice enviado é sempre o do catálogo (TAUNTS).
+  // taunts: holding the key (Y by default) opens the eight taunts picked in Settings, pointing selects and releasing sends;
+  // clicking the button opens the wheel still (a click or a digit picks). The slots come from Settings (Communication); the index sent is always the catalog's (TAUNTS).
   const heldTaunt = radialHold();
   const sendTaunt = (i: number) => {
     heldTaunt.cancel();
@@ -798,8 +799,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (tauntPanel.hidden) return;
     if (e.code === 'Escape') cancelTaunts();
     else if (/^(Digit|Numpad)[0-9]$/.test(e.code)) {
-      const i = (Number(e.code.slice(-1)) + 9) % 10; // 1..9 e o 0 para a 10ª
-      if (i >= TAUNTS.length) return;
+      const i = (Number(e.code.slice(-1)) + 9) % 10;
+      // 9 and 0 have no slot: consuming the key keeps a spell from being cast under the open wheel.
+      if (i >= slots.length) { e.preventDefault(); e.stopImmediatePropagation(); return; }
       if (heldTaunt.active()) wheel.choose(i);
       else sendTaunt(slots[i]);
     }

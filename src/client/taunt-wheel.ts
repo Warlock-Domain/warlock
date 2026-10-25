@@ -11,20 +11,26 @@ export function radialHold() {
   };
 }
 
-// Ordem da roda: permutação de 0..count-1 guardada no navegador. A preferência é só de apresentação (o servidor recebe o índice do
-// catálogo); salvo inválido ou de catálogo menor vira a ordem original, e falas novas entram no fim.
+// The catalog can grow without growing the wheel: eight slots keep the directions readable (PR #261).
+export const TAUNT_WHEEL_SIZE = 8;
+// Presentation-only preference: an old saved wheel keeps its first eight valid picks; the server indices never change.
 export function tauntWheelSlots(saved: unknown, count: number): number[] {
   const slots: number[] = [];
-  for (const n of Array.isArray(saved) ? saved : []) if (Number.isInteger(n) && n >= 0 && n < count && !slots.includes(n)) slots.push(n);
-  for (let i = 0; i < count; i++) if (!slots.includes(i)) slots.push(i);
+  const size = Math.min(TAUNT_WHEEL_SIZE, count);
+  for (const n of Array.isArray(saved) ? saved : []) {
+    if (slots.length >= size) break;
+    if (Number.isInteger(n) && n >= 0 && n < count && !slots.includes(n)) slots.push(n);
+  }
+  for (let i = 0; i < count && slots.length < size; i++) if (!slots.includes(i)) slots.push(i);
   return slots;
 }
-// Põe a fala na posição; quem estava nela vai para onde a fala estava.
-export function assignTauntSlot(slots: number[], position: number, taunt: number): number[] {
+// A taunt already on the wheel swaps places; one from outside replaces only the chosen slot, never adding a ninth.
+export function assignTauntSlot(slots: number[], position: number, taunt: number, count = slots.length): number[] {
+  if (!Number.isInteger(position) || position < 0 || position >= slots.length || position >= TAUNT_WHEEL_SIZE || !Number.isInteger(taunt) || taunt < 0 || taunt >= count) return slots;
   const from = slots.indexOf(taunt);
-  if (!Number.isInteger(position) || position < 0 || position >= slots.length || from < 0) return slots;
   const next = [...slots];
-  [next[position], next[from]] = [next[from], next[position]];
+  if (from >= 0) next[from] = next[position];
+  next[position] = taunt;
   return next;
 }
 

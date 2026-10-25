@@ -33,7 +33,7 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Magia nova: onde mexer
 
-`spells.ts` (`SPELL_IDS`, `SPELLS` com `name`/`en`, `CAST_POINT`) · `sim.ts` (`PROJ_KINDS` **no fim da lista**, ramo em `cast()` e comportamento do projétil) · `snapshot.ts` (só se precisar de estado novo, como bit em `bits`) · `bots.ts` (grupo `DAMAGE`/`ESCAPE`/`CONTROL` e uso específico) · `match.ts` (`DEFENSE` se for defesa) · cliente: `icons.ts`, `keys.ts`, `main.ts` (`SPELL_SOUND`), `rules-text.ts` (grupo, uso, regras, dicas nas duas línguas), `tips.ts` (`SPELL_ROWS`), `demo.ts` (`SCRIPTS`), `scene.ts` (`LOOK` se for projétil). Os testes `ui-data`, `grimoire-demo`, `i18n` e `new-spells` acusam o que faltar.
+`spells.ts` (`SPELL_IDS`, `SPELLS` com `name`/`en`, `CAST_POINT`) · `sim.ts` (`PROJ_KINDS` **no fim da lista**, ramo em `cast()` e comportamento do projétil) · `snapshot.ts` (só se precisar de estado novo, como bit em `bits`) · `bots.ts` (grupo `DAMAGE`/`ESCAPE`/`CONTROL`/`SITUATIONAL` e uso específico; o teste de compras em `difficulty.test.ts` acusa magia fora dos grupos) · `match.ts` (`DEFENSE` se for defesa) · cliente: `icons.ts`, `keys.ts`, `main.ts` (`SPELL_SOUND`), `rules-text.ts` (grupo, uso, regras, dicas nas duas línguas), `tips.ts` (`SPELL_ROWS`), `demo.ts` (`SCRIPTS`), `scene.ts` (`LOOK` se for projétil). Os testes `ui-data`, `grimoire-demo`, `i18n` e `new-spells` acusam o que faltar.
 
 ## Protocolo (`protocol.ts`)
 

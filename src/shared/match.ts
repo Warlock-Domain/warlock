@@ -11,7 +11,6 @@ import {
   roundMods, type RoundEffectId, type RuneKind,
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
-import type { BotSetup } from './protocol.ts';
 import { nightRand } from './rng.ts';
 import { gearOf, newWorld, inLava, placeRune, resizeArena, revive, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
 import { FREE_SPELLS, MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
@@ -93,6 +92,9 @@ export const OPTION_CHOICES = {
   effect: ['off', 'random', ...ROUND_EFFECT_IDS],
 } as const;
 export type MatchOpts = { [K in keyof typeof OPTION_CHOICES]: (typeof OPTION_CHOICES)[K][number] };
+// training: spells, items and play style chosen for one bot (only applies with one human in the room; see startMatch);
+// difficulty: this bot's difficulty, chosen in the room (applies in any room)
+export type BotSetup = { spells?: Partial<Record<SpellId, number>>; items?: Partial<Record<ItemId, number>>; skill?: Partial<BotSkill>; difficulty?: MatchOpts['difficulty'] };
 // os padrões são os números de sempre (SHOP_MS, START_GOLD, WINS_TO_WIN), para o simulador e as salas antigas
 export const DEFAULT_OPTS: MatchOpts = { shop: 30, pace: 'normal', economy: 1, startGold: 30, goal: 5, runes: true, sudden: true, chests: true, difficulty: 'auto', arena: 'random', effect: 'off' };
 // 'chave:valor' de um voto de opção → [chave, valor] válidos, ou null
@@ -1395,7 +1397,8 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
         const avgScore = m.players.reduce((sum, q) => sum + q.score, 0) / m.players.length;
         const top = Math.max(...m.players.map((q) => q.score));
         const head = victim && m.mode !== 'deathmatch' && victim.score === top ? Math.min(BOUNTY.max, Math.round(BOUNTY.perWin * (victim.score - avgScore))) : 0;
-        bonus(m, killer, KILL_GOLD + Math.max(0, head));
+        // Only the base kill gold grows with the streak; the leader bounty stays flat (owner decision, 24/10).
+        bonus(m, killer, KILL_GOLD * (1 + STREAK.killGold * (s.kills - 1)) + Math.max(0, head));
       }
     }
     // a Égide quebra ao salvar (consumível): sai do inventário sem valor de venda

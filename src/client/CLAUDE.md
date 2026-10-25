@@ -24,9 +24,32 @@ Vale junto com o `CLAUDE.md` da raiz.
 - **Menus enxutos** (decisão do Fernando): antes de pôr opção nova numa tela, pergunte se ela precisa existir.
 - **Logo do jogo em imagem:** `public/warlock-wars.svg` (o W com moldura dourada da foto do grupo, vetorial, sem depender da fonte) → `el('img', { src: '/warlock-wars.svg', alt: 'Warlock Wars' })` ou `<img src="/warlock-wars.svg">`. Também é o ícone da aba. Gerado por `scripts/assets/favicon.py` (com `favicon.ico` e `apple-touch-icon.png`); não edite à mão.
 - Aba nova do menu inicial: tupla em `HOME_TABS` + chave em `HomeTab` + painel em `panels` com `panel(...)`. Conteúdo pesado carrega sob demanda (`void import('./grimoire.ts')`).
-- **Roda de provocações** (`radialPicker`, `radial-picker.ts`, PRs #239/#238/#240): botões em volta de um centro que cancela, feitos com `el`/`iconButton`; mouse, setas, números e analógico escolhem pelo mesmo índice (`radialIndex`). A matemática e a tecla segurada (`radialHold`) ficam em `taunt-wheel.ts`, sem DOM, com teste. Mostra todas as falas de `TAUNTS` (23 hoje, 8 só de texto com emoji, sem áudio): fala nova entra sozinha na roda. A ordem é preferência de apresentação (`warlock:taunt-wheel`, permutação das falas em `tauntWheelSlots`/`assignTauntSlot`, editada em Configurações → Comunicação): a roda relê a ordem ao abrir e o servidor sempre recebe o índice do catálogo. `{ inline: true, hint }` embute a mesma roda nas Configurações (sem abrir sobre a partida e sem escolher só por foco); `setLabels` troca os rótulos.
+- **Roda de provocações** (`radialPicker`, `radial-picker.ts`, PRs #239/#238/#240): botões em volta de um centro que cancela, feitos com `el`/`iconButton`; mouse, setas, números e analógico escolhem pelo mesmo índice (`radialIndex`). A matemática e a tecla segurada (`radialHold`) ficam em `taunt-wheel.ts`, sem DOM, com teste. Tem oito posições (`TAUNT_WHEEL_SIZE`, PR #261), iguais nas Configurações e na partida; todas as falas de `TAUNTS` (23 hoje, 8 só de texto com emoji, sem áudio) ficam no catálogo para preencher essas posições, e fala nova entra no catálogo, não na roda. A preferência (`warlock:taunt-wheel`, `tauntWheelSlots`/`assignTauntSlot`, editada em Configurações → Comunicação) migra a roda antiga preservando as primeiras oito escolhas válidas; escolher uma fala já equipada troca as posições, escolher outra substitui só a vaga. A roda relê a preferência ao abrir e o servidor sempre recebe o índice do catálogo. Os números 1 a 8 escolhem as posições; 9 e 0 são consumidos com a roda aberta para não lançar magia por baixo. `{ inline: true, hint }` embute a mesma roda nas Configurações (sem abrir sobre a partida e sem escolher só por foco); `setLabels` troca os rótulos.
 - Auditoria de guias: fichas usam `n2` (centésimos) só no atraso e no atordoamento do Meteoro, o resto `n1`; `knockDistance` usa amortecimento/soft-cap/corte de `moveWizard`, sem amplificação por dano histórico. Roteiros demonstram bloqueios de stun/Agarrar, Escudo contra área/reflexão, colisões da Rajada e trajetórias da Ilusão. `demoStatus` lê estados reais. Canvas instrumentado não substitui inspeção visual no navegador.
 - Grimório: `MECHANIC_GUIDES` contém Atacar/Manter base com prévias; `NEGATIVE_GUIDES` contém nove status independentes, somente texto e sem magia/demo anexada. Ambos aparecem apenas no livro, fora de Aprender/loja. Abertura normal começa no sumário, sem persistir página; links explícitos de habilidade permanecem diretos. Recuperação50→100% fica em Empurrão.
+
+## Connection lifecycle (`net.ts`)
+
+- `Connection<T>` owns its socket, reconnect timer, heartbeat, visibility listener, and parser warning state. Keep that state private and specific to the instance.
+- `connect()` remains the entry point for lobby and room callers. Its `send` and `stop` callbacks stay bound to the instance; `stop()` is terminal and idempotent, including when browser events are already queued.
+- Preserve socket identity guards when replacing a connection. Lifecycle regressions live in `tests/net-lifecycle.test.ts`.
+
+## Character preview (`avatar.ts`)
+
+- `AvatarPreview` owns the renderer, camera, current appearance and visibility-aware frame loop. `avatarPanel()` lazily creates one instance and reuses its panel across Wardrobe and Settings, keeping one WebGL context for the browser session.
+- Its observer and visibility listener live as long as that shared panel. Hiding or detaching the panel pauses animation and rendering; remounting must not create a second frame loop. Keep the visibility-aware RAF scheduler so hidden previews do no work.
+- Replacing the appearance calls `disposeAppearance` for its owned materials, skeletons and mixer. Cached source geometry and textures remain shared with the match. Ignore asynchronous loads for a look that is no longer selected.
+
+## Controller input (`gamepad.ts`)
+
+- `Pad` owns button edges, aiming, menu focus, capture and rumble preferences. The exported functions delegate to one browser-session instance; `main.ts` calls `startPad()` once to install its input listeners and frame loop.
+- Room input registers its current callbacks through `setPadGame()`. Preserve button-release handling during remapping and taunt selection so the scoreboard cannot stay held and menu actions cannot cast or move.
+
+## Movement prediction (`predict.ts`)
+
+- `MovementPredictor` owns predicted movement, snapshot identity, queued input, cast holds, dash/stun/death transitions, RTT smoothing, and Campaign terrain/room-lock configuration.
+- Keep `createPredict()` and its bound public callbacks compatible. `reset()` clears transient movement and input state while preserving RTT and map configuration.
+- Use the shared movement/collision helpers and preserve transition order. Read authoritative residual velocity once per new snapshot; repeated render frames must not renew an impulse. Prediction/reset, obstacle, dash, suspension, and recovery regressions cover this boundary.
 
 ## Idioma
 
@@ -42,19 +65,24 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Teclas (`keys.ts`)
 
-Provocações no controle: ← por padrão, remapeável; se uma preferência antiga já ocupa ←, escolhe botão livre sem sobrescrever. O roteamento em `gamepad.ts` abre a roda (o botão da interface), o analógico aponta pela `radialIndex`, o direcional anda ±1 por toque (com as 15 falas, 8 direções não chegariam a todas), A/✕ confirma, B/○ ou Start cancela. Enquanto aberta não envia movimento nem magia; reutiliza o botão e o envio da interface atual.
+Provocações no controle: ← por padrão, remapeável; se uma preferência antiga já ocupa ←, escolhe botão livre sem sobrescrever. O roteamento em `gamepad.ts` abre a roda (o botão da interface), o analógico aponta pela `radialIndex`, o direcional anda ±1 por toque, A/✕ confirma, B/○ ou Start cancela. Enquanto aberta não envia movimento nem magia; reutiliza o botão e o envio da interface atual.
 
 `DEFAULTS` usa `event.code` (`'KeyQ'`, `'Digit1'`, `'F1'`), nunca `event.key`. Ação de interface nova entra em `UI_ACTIONS` e `UI_NAMES` (`''` = sem tecla). Esc, Enter, Espaço e ← → são reservadas. As 26 letras já têm dono.
 
 Teclas por posição (padrão): as magias usam a tecla da **posição** na barra (`POS_ACTIONS`: Magia 1 a 8 em 1 2 3 4 Q W E R, guardadas em `warlock:poskeys8`; sem itens ativos desde 21/10, #217); `keyOf`/`actionFor`/`whoUses` já resolvem o modo. A ordem das posições vem de `loadoutSlots`/`moveLoadout` (`screen-data.ts`, guardada em `warlock:loadout-order`) e chega às teclas e ao controle por `setSlots`; vaga vazia é `null`. Posições e atalhos da interface nunca repetem tecla (`setKey` troca). Trocar qualquer tecla fixa o modo em uso no navegador.
 
-## Configurações (`settings.ts`)
+## Settings page (`settings.ts`)
 
-Som tem quatro volumes persistidos: Geral multiplica Efeitos, Música e Provocações. `channelVolume` e `isAudioMuted` centralizam a mistura e o ícone de mudo. Na migração, Geral começa neutro e Provocações herda Efeitos uma única vez; prévia privada também respeita Geral × Provocações. As barras usam o mesmo slider em Configurações do menu e da partida.
-
-Uma página só, de seções empilhadas com sumário (`stackedPage`), usada na aba Configurações do menu inicial (`settingsPage`) e no diálogo da partida (`openSettings`). Seção nova = item em `SECTIONS`; o `render` devolve `null` quando a tela não oferece aquilo (efeitos visuais só existem na sala, via `setSettingsCtx`). O som vale em toda tela: `volumes`/`setVolume` são obrigatórios no `SettingsCtx` e vêm do `createSound` (`sound.ts`), que guarda o volume no navegador, o mesmo no menu inicial e na sala (issue #128). No menu inicial, Esc e Start abrem a aba em vez do diálogo: duas cópias da página repetiriam os ids dos campos. `draw()` refaz a página inteira a cada mudança e devolve o foco pelo id, então campo novo leva `id` fixo. Cada `Page` tem `dispose()` idempotente: desconecta o observador e remove o listener de mídia ao fechar o diálogo ou substituir a página inicial. A prévia do Personagem é uma só (`avatarPanel`, um contexto WebGL): no menu inicial a seção vira atalho para a aba Personagem.
+- `SettingsPage` owns the sections/body, table of contents, responsive media listener, `IntersectionObserver`, highlight hold, and `fill`/`jump`/`dispose` lifecycle. `settingsPage()` and `openSettings()` keep the home-versus-dialog coordinator outside the page and retain their existing entry points.
+- `dispose()` is idempotent, disconnects observed section nodes, removes the media listener, and makes queued observer callbacks inert. Dispose the old home page before replacing it and the modal page when the dialog closes. Field redraw restores focus by stable ID; keep IDs unique because home settings and the dialog are never shown together.
+- A page receives whether it is the home page: in the lobby, the Character section links to the single `avatarPanel` WebGL preview; in the match, it renders that section directly. Section content stays in `SECTIONS` and its existing builders; `null` continues to hide match-only effects in the lobby.
+- Sound has four persisted volumes: master multiplies SFX, music and taunts. `channelVolume` and `isAudioMuted` centralize mixing and mute state. Master starts neutral in the migration; taunts inherit SFX once, and private previews respect master × taunts. The same sliders work in home settings and the match dialog.
+- Sound sliders use required `volumes`/`setVolume` callbacks from `SettingsCtx`, supplied by the current lobby or room `createSound()` instance. Persisted preferences intentionally survive page replacement.
+- `TauntPreviewSession` owns the private preview element, Web Audio context cleanup, current request identity, and fallback/Web Audio volume mode. Keep `previewTaunt()` and `stopTauntPreview()` as compatibility adapters; route live master/taunt volume changes through the session. A stale download or decode must not play, stop, or close a replacement preview. This session does not own in-match playback or the `createSound()` cache.
 
 ## Cena (`scene.ts`)
+
+- `proj-models.ts` contains stateless projectile and vine factories. Each call creates resources owned by the requesting scene; keep disposal in the scene's existing teardown paths rather than disposing shared appearance assets or adding module-level mesh caches.
 
 - `resourceStats()` exposes Three.js geometry and texture counts for low-frequency telemetry. These are resource counts, not GPU memory in bytes; keep collection outside the render loop and do not add listeners or timers that outlive the room.
 
@@ -73,3 +101,9 @@ Uma página só, de seções empilhadas com sumário (`stackedPage`), usada na a
 - **Nivelamento de áudio:** `audio-level.ts` mede RMS em janelas ativas de 50 ms, mirando 0,12 com pico até 0,8. `sound.ts` mede arquivos e síntese pré-renderizada, compensa camadas de impacto e mantém prévia de provocações no mesmo nível da partida. Síntese imediata continua como reserva até o cache ficar pronto; a conferência auditiva humana continua necessária.
 
 `ui.ts` usa `document`/`matchMedia` ao carregar e não roda no Vitest. Decisão de tela que precisa de teste vai para função pura em `screen-data.ts` (ou `rules-text.ts`, `tips.ts`, `icons.ts`, `keys.ts`, `sheet.ts`, `reach.ts`, que não mexem no DOM ao carregar).
+
+## Snapshot interpolation (`interp.ts`)
+
+- `SnapshotInterpolator` owns a bounded snapshot buffer, its capacity, and the smoothed server/local clock offset. Live rendering and replay use independent instances through `createInterp(max)`.
+- Preserve bound `push`, `latest`, `sample`, and `reset` callbacks. Reset clears history and clock offset; simulation clock rollback also starts new history. Keep interpolation math and `keepLast()` as module helpers.
+- Preserve snapshot references, interpolation delay/smoothing, and replay limits. Compatibility, round-reset, capacity, and instance-isolation coverage lives in `tests/client.test.ts`.

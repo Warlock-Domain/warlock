@@ -2,9 +2,9 @@ import { inLavaAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, BASIC_ATTACK, BRACING_BIT, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
 import { liveLevel, roundMult } from '../shared/ascension.ts';
-import type { BotSetup, PublicPlayer, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
+import type { PublicPlayer, PublicRoom, RoomInfo, ServerMsg, Snap } from '../shared/protocol.ts';
 import type { BotSkill } from '../shared/bots.ts';
-import { DEFAULT_OPTS } from '../shared/match.ts';
+import { DEFAULT_OPTS, type BotSetup } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
 import { ODRAN } from '../shared/bosses.ts';
@@ -38,7 +38,7 @@ import { closedBodySound } from './closed-body-sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
-import { STAGE_NAME, USED_KEY, botLevel, boughtKeys, countBuys, readUsed, endResult, maxHp, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
+import { STAGE_NAME, USED_KEY, botLevel, boughtKeys, countBuys, readUsed, endResult, illusionCopies, maxHp, pickWatched, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, setIlse, type IlseCtx } from './ilse.ts';
 import { healTarget } from '../shared/heal-target.ts';
@@ -931,12 +931,10 @@ function startRoom(code: string, name: string) {
     const lava = !!meW?.alive && !!latest && (room?.night ? mapLava(meW.pos) : inLavaAt(arenaId, latest.arenaR, latest.isles, meW.pos));
     view.danger(low, lava);
     const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' && !room.night && (!room.sandbox || room.sandbox.shrink) ? s.shrinkAt - s.time : null;
-    // espectador: morto na rodada (ou só assistindo), a câmera segue o vivo com mais vida; ← → ou os botões trocam.
-    // Quem está invisível para mim (2048) fica de fora: a câmera entregaria onde ele está
+    // Spectators follow the living wizard with the most HP; arrows or buttons switch targets.
+    // Exclude wizards hidden from this viewer (2048), since following them would reveal their position.
     const alive = room?.phase === 'playing' && s && !meW?.alive ? wizards.filter((w) => w.alive && w.id !== me && !(w.status & 2048)) : [];
-    let watched = alive.find((w) => w.id === watchId);
-    if (!watched && alive.length) watched = alive.reduce((a, w) => (w.hp > a.hp ? w : a));
-    if (watchStep && watched) watched = alive[(alive.indexOf(watched) + watchStep + alive.length) % alive.length];
+    const watched = pickWatched(alive, watchId, watchStep);
     watchStep = 0;
     watchId = watched?.id ?? null;
     view.watching(watched?.name ?? null);
@@ -955,12 +953,7 @@ function startRoom(code: string, name: string) {
     // replay: câmera travada no meio entre mim e quem me derrubou
     const rMe = rs ? drawWiz.find((w) => w.id === me)?.pos : undefined;
     const rBy = killer ? drawWiz.find((w) => w.id === killer)?.pos : undefined;
-    // Ilusão: a cópia usa o visual do dono, mas tem identidade visual própria: sempre visível e sólida, e não herda o arremessado (16)
-    const copies: WizDraw[] = (shown ? shown.projectiles : []).flatMap((q) => {
-      const ownerId = q.kind === 'illusion' ? room?.ids[q.vel.x] : undefined;
-      const o = drawWiz.find((d) => d.id === ownerId);
-      return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(16 | 1024 | 2048 | 8388608), basicLeft: 0, moving: true, cheer: false, illusion: true, ghost: false }] : [];
-    });
+    const copies = illusionCopies(shown ? shown.projectiles : [], room?.ids ?? [], drawWiz);
     // o desafio conta o tempo só com a rodada rolando; o progresso dele fica no lugar da dica do treino
     if (run?.state === 'on' && room?.phase === 'playing') finishRun(stepRun(run, dt, [], me, meW?.alive !== false));
     if (run) view.coach(runText(run), run.state === 'on' ? undefined : again, quit);
