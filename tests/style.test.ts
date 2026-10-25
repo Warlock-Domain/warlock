@@ -11,7 +11,7 @@ function seedRandom(seed: number) {
   return mulberry32(seed);
 }
 
-// partida só de bots com semente fixa; devolve o hash (FNV-1a) de todos os eventos dos passos
+// bot-only match with a fixed seed; returns the FNV-1a hash of every step's events
 function botMatch(seed: number, steps: number, opts: Partial<MatchOpts> = {}): { m: Match; hash: number } {
   const rand = seedRandom(seed);
   const m = newMatch();
@@ -25,34 +25,35 @@ function botMatch(seed: number, steps: number, opts: Partial<MatchOpts> = {}): {
   return { m, hash };
 }
 
-describe('jeito de jogar', () => {
-  // valor gravado com o código de antes da medição (972dab7): a medição só lê, então os eventos não mudam.
-  // Muda (e se grava de novo) só quando a jogabilidade muda. 20/10 (issue #80): o baú sorteia o ouro do monte (3 a 5) ao nascer,
-  // um sorteio a mais na sequência. 21/10 (issue #217): Flagelo e Pacto viram magia, o Redirecionador sai e as compras dos bots mudam
-  // 22/10 (issue #206): a Barricada cai do céu e dá dano em quem está embaixo, e os bots a usam
-  it('a medição não muda a partida: mesma semente, mesmos eventos de antes', () => {
+describe('play style', () => {
+  // value recorded with the code from before the measurement (972dab7): measuring only reads, so the events do not change.
+  // It changes (and is recorded again) only when gameplay changes. 20/10 (issue #80): the chest draws its pile's gold (3 to 5) when it
+  // spawns, one more draw in the sequence. 21/10 (issue #217): Scourge and Pact become spells, the Redirector leaves and bot purchases change
+  // 22/10 (issue #206): the Barricade falls from the sky and damages whoever is below, and bots use it
+  it('measuring does not change the match: same seed, same events as before', () => {
     const { m, hash } = botMatch(7, 4000);
-    // 22/10: fim da amplificação por dano histórico altera intencionalmente as trajetórias.
-    // Proposta 23/10: bloqueios explícitos de stun/Agarrar mudam as decisões e trajetórias dos bots.
-    // Proposta23/10: fim limpo do impulso e retomada50→100% mudam trajetórias.
-    // Proposta 23/10: colisões gerais e Raio contínuo alteram intencionalmente os eventos.
-    // 23/10: clique único cancela no primeiro contato, inclusive oblíquo, também para destinos dos bots.
-    // Proposta 23/10: Meteoro sem empurrão, com stun fixo 1,25 s.
+    // 22/10: ending the amplification by accumulated damage changes the trajectories on purpose.
+    // Proposal 23/10: explicit stun/Grip locks change the bots' decisions and trajectories.
+    // Proposal 23/10: a clean end of the impulse and the 50→100% recovery change trajectories.
+    // Proposal 23/10: general collisions and continuous Lightning change the events on purpose.
+    // 23/10: a single click cancels on the first contact, oblique included, also for bot destinations.
+    // Proposal 23/10: Meteor without knockback, with a fixed 1.25 s stun.
     // 24/10: bots use the manual Attack (no spell ready, enemy within 6 m, clear line).
     // 24/10: bots hold ground (hit 0.5 to 0.9 s away so the windup finishes, no escape spell ready, not dodging on foot; keep holding while it closes in; lease 0.5 s).
     // 24/10 (issue #373): bot shopping plans include Recharge, Heal, Geyser, Closed Body and Swap.
-    expect(hash).toBe(4126304566);
-    // e mediu de verdade nessa mesma partida
+    // 25/10 (PR #399): blasts (Meteor, clashes, pillar/shrine) and bouncing projectiles and the Splitter damage obstacles.
+    expect(hash).toBe(1356243192);
+    // and it really measured in this same match
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);
   });
 
-  it('o registro da rodada leva a dificuldade, o apelido (só de humano) e o jeito de jogar', () => {
+  it('the round record carries the difficulty, the nickname (humans only) and the play style', () => {
     const rand = seedRandom(3);
     const m = newMatch();
     addPlayer(m, 'h', 'Ana', false, false, rand);
     startMatch(m, 0, 3, 'rounds', true, rand, { difficulty: 'hard' });
-    m.players[0].connected = false; // o humano vira bot até voltar: a rodada anda sozinha
+    m.players[0].connected = false; // the human becomes a bot until they return: the round plays on by itself
     let now = 0;
     for (let i = 0; i < 60 * 240 && m.phase !== 'roundEnd'; i++) tickMatch(m, (now += 1000 / 60), [], rand);
     expect(m.phase).toBe('roundEnd');
@@ -62,11 +63,11 @@ describe('jeito de jogar', () => {
     const [ana, ...bots] = r.players;
     expect(bots.reduce((a, p) => a + (p.threats ?? 0), 0)).toBeGreaterThan(0);
     expect(bots.every((p) => (p.nearN ?? 0) > 0)).toBe(true);
-    // jogada pelo bot enquanto caiu: o jeito do bot não entra na linha dela
+    // played by the bot while disconnected: the bot's style does not enter that player's row
     expect([ana.threats, ana.nearN]).toEqual([0, 0]);
   });
 
-  it('styleRows: uma linha por humano (último apelido) e por dificuldade; fora treino, Automático e registros antigos', () => {
+  it('styleRows: one row per human (last nickname) and per difficulty; training, Automatic and old records left out', () => {
     const style = { threats: 10, struck: 4, shieldable: 4, shielded: 1, reactSum: 3, reactN: 6, nearSum: 50, nearN: 10 };
     const pl = (o: Partial<RoundRecord['players'][number]>): RoundRecord['players'][number] =>
       ({ bot: false, character: 'mage', won: false, spells: {}, items: {}, dmg: 0, dmgBy: {}, fired: {}, landed: {}, kills: 0, ...style, ...o });
@@ -82,12 +83,12 @@ describe('jeito de jogar', () => {
       { who: 'Aninha', pid: 'x1', rounds: 3, threats: 30, reacted: 0.6, react: 0.5, struck: 0.4, shield: 0.25, near: 5 },
       { who: 'bots normal', pid: undefined, rounds: 2, threats: 20, reacted: 0.6, react: 0.5, struck: 0.4, shield: 0.25, near: 5 },
     ]);
-    // registro sem os campos (de antes da medição) fica fora
+    // a record without the fields (from before the measurement) is left out
     addRecord(t, rec({}, [{ ...pl({ pid: 'x2' }), threats: undefined }]));
     expect(styleRows(t).length).toBe(2);
   });
 
-  it('Difícil reage mais rápido e a mais ameaças que o Fácil', () => {
+  it('Hard reacts faster and to more threats than Easy', () => {
     const style = (difficulty: 'easy' | 'hard') => {
       const { m } = botMatch(11, 60 * 600, { difficulty });
       const s = (k: 'threats' | 'reactSum' | 'reactN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
@@ -97,5 +98,5 @@ describe('jeito de jogar', () => {
     const hard = style('hard');
     expect(hard.react).toBeLessThan(easy.react);
     expect(hard.reacted).toBeGreaterThan(easy.reacted);
-  }, 30_000); // duas partidas de 10 min simuladas: ~5,5 s no runner do GitHub
+  }, 30_000); // two simulated 10-minute matches: ~5.5 s on the GitHub runner
 });

@@ -4,6 +4,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Simulação
 
+- **Obstacles take every attack** (Fernando, 25/10): a new blast calls `blastPillars` (falloff by closeness, a wall hit once); a projectile that hits or bounces off an obstacle calls `damagePillar` in `hitPillar`; burning in the lava uses `damagePillar(..., quiet)`. The Campaign rock is unbreakable through `obstaclesOf`, not through a mode check in `sim.ts`.
+
 - Closed Body preserves the current stance facing when cast; the cursor does not turn the wizard. Other spells retain their normal aiming behavior. No stat or resistance changes.
 
 - Rajada de areia (cluster) em Controle: cone3×2m, dano20+8/nível, Incapacitar1+0,25s/nível e Cegueira2+0,5s/nível. Status independentes respeitam resistências gerais; sem projéteis nem knockback. Cegueira limita visão a3m do alvo (diâmetro6m), inclusive IA.
