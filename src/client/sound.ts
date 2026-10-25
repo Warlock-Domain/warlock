@@ -53,7 +53,7 @@ class AudioPlayer {
   private musicLevelStarted = false;
   private readonly music: HTMLAudioElement;
   private wantAmbience = false;
-  private duckLevel = 1;
+  private duckLevel = 1; // Shop music is reduced to 45%.
   private readonly unlockOnGesture = () => this.unlock();
 
   readonly callbacks = {
@@ -285,6 +285,7 @@ class AudioPlayer {
     if (!this.file('synth/' + kind, level)) this.synth(kind, level);
   }
 
+  // Lower music in the shop without changing other channels.
   private duck(on: boolean) {
     this.duckLevel = on ? 0.45 : 1;
     this.syncAmbience();
