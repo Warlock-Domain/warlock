@@ -7,6 +7,7 @@ const list = el('ul');
 const label = t('Registro de teste', 'Test record');
 const input = el('input', { maxlength: FORUM_NOTE_MAX, placeholder: label, 'aria-label': label });
 const status = el('p', { role: 'status' });
+const save = el('button', {}, t('Gravar', 'Save'));
 
 async function refresh() {
   try {
@@ -20,7 +21,10 @@ async function refresh() {
 
 async function send(e: Event) {
   e.preventDefault();
+  // a double click would otherwise send two POSTs and save the text twice
+  save.disabled = true;
   const res = await fetch('/api/forum', { method: 'POST', body: JSON.stringify({ text: input.value }) }).catch(() => null);
+  save.disabled = false;
   // only a 400 is about the text; a network error or 5xx gets the plain retry message
   status.textContent = res?.ok
     ? ''
@@ -38,7 +42,7 @@ const aba = LOCAL && new URLSearchParams(location.search).get('aba');
 document.title = `${aba ? `🧪 ${aba} · ` : ''}${t('Fórum', 'Forum')} · Warlock Wars`;
 document.getElementById('forum')!.append(
   el('h1', {}, t('Fórum de testes', 'Test forum')),
-  el('form', { onsubmit: send }, input, el('button', {}, t('Gravar', 'Save'))),
+  el('form', { onsubmit: send }, input, save),
   status,
   list,
 );
