@@ -2,7 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
 import { chooseCard, reroll, setAscLobby } from '../shared/ascension.ts';
 import { lookOf } from '../shared/characters.ts';
-import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, nightPick, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match } from '../shared/match.ts';
+import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, nightPick, undoBuy, removePlayer, resume, sandboxCmd, sell, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match, type RoomMode } from '../shared/match.ts';
 import { cmdTarget, parseClientMessage, publicId, publicRoom, type RoomInfo, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
@@ -77,11 +77,13 @@ export class Room extends DurableObject<Env> {
     return new Set(this.live(except).map((ws) => this.playerOf(ws))).size;
   }
 
-  async init(id: string, ascension = false) {
+  async init(id: string, mode?: RoomMode) {
     if (await this.load()) return;
     this.saved = { id, match: newMatch() };
-    // sala do Ascensão: o lobby já mostra o modo e a partida só pode ser dele; o primeiro a entrar vira o dono
-    if (ascension) Object.assign(this.saved.match, { mode: 'ascension', lobby: { owner: null, bots: [], opts: {} } });
+    // room locked to a mode: the lobby already shows it and the match can only be it; in Ascension the first to join
+    // becomes the owner who picks bots and options (the Campaign lobby has no owner)
+    if (mode) this.saved.match.mode = mode;
+    if (mode === 'ascension') this.saved.match.lobby = { owner: null, bots: [], opts: {} };
     await this.persist();
     // sala criada e nunca aberta também é limpa
     await this.ctx.storage.setAlarm(Date.now() + EMPTY_MS);

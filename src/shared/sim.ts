@@ -989,7 +989,8 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   wz.basicCasting = undefined; // só uma conjuração válida cancela o ataque em preparo.
   const delay = CAST_POINT[spell];
   const d = sub(at, wz.pos);
-  if (len(d) > 0.01) wz.facing = Math.atan2(d.y, d.x);
+  // Closed Body reinforces the current stance instead of aiming at the cursor.
+  if (spell !== 'closedbody' && len(d) > 0.01) wz.facing = Math.atan2(d.y, d.x);
   w.events.push({ k: 'cast', id: wz.id, spell });
   if (spell !== 'illusion') wz.veilUntil = 0; // outra magia revela o dono, mas a cópia continua até o próprio prazo
   if (delay <= 0) return cast(w, wz, spell, at);

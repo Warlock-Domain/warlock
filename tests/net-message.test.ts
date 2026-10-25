@@ -8,14 +8,14 @@ import { decodeMessage, parseLobbyMessage, parseServerMessage } from '../src/cli
 
 const snap = () => ({ t: 'snap', time: 1, r: 10, s: 0, w: [0, 0, 0, 0, 100, 0, 0], p: [], cd: Array(SPELL_IDS.length).fill(0), sp: 1, pl: [], ack: 0 });
 
-describe('decodificação das mensagens recebidas', () => {
-  it('aceita lista de salas válida e rejeita envelopes ou entradas inválidas', () => {
+describe('decoding received messages', () => {
+  it('accepts a valid room list and rejects invalid envelopes or entries', () => {
     expect(parseLobbyMessage({ t: 'rooms', rooms: [{ id: 'ABCD', players: 0, phase: 'lobby' }] })).toEqual({ t: 'rooms', rooms: [{ id: 'ABCD', players: 0, phase: 'lobby' }] });
     expect(parseLobbyMessage({ t: 'rooms', rooms: [{ id: 'ABCD', players: -1, phase: 'lobby' }] })).toBeNull();
     expect(parseLobbyMessage({ t: 'room', rooms: [] })).toBeNull();
   });
 
-  it('aceita snapshots compactos sem copiar os vetores e rejeita comprimentos quebrados', () => {
+  it('accepts compact snapshots without copying the arrays and rejects broken lengths', () => {
     const valid = snap();
     expect(parseServerMessage(valid)).toBe(valid);
     expect(parseServerMessage({ ...valid, w: [0, 0] })).toBeNull();
@@ -25,7 +25,7 @@ describe('decodificação das mensagens recebidas', () => {
     expect((parseServerMessage({ ...valid, e: [{ k: 'not-an-event' }] }) as { e?: unknown[] }).e).toEqual([]);
   });
 
-  it('aceita snapshots produzidos pelo servidor e descarta eventos cosméticos desconhecidos', () => {
+  it('accepts server-produced snapshots and drops unknown cosmetic events', () => {
     const match = newMatch();
     addPlayer(match, 'player', 'Ana');
     addPlayer(match, 'other', 'Bia');
@@ -59,11 +59,11 @@ describe('decodificação das mensagens recebidas', () => {
     expect(parseServerMessage({ t: 'room', room: publicRoom('ABCD', match, 0), you: 'player' })).not.toBeNull();
   });
 
-  it('aceita publicRoom real dos cinco modos, sandbox e sala com votação', () => {
+  it('accepts a real publicRoom of the five modes, the sandbox and a room with a vote', () => {
     const modes: Mode[] = ['rounds', 'deathmatch', 'teams', 'ascension', 'campaign'];
     for (const mode of modes) {
       const match = newMatch();
-      if (mode === 'ascension') match.mode = 'ascension';
+      match.mode = mode; // Ascension and Campaign only start in a room of their type
       addPlayer(match, 'player', 'Ana', false, false, () => 0.5);
       addPlayer(match, 'other', 'Bia', false, false, () => 0.5);
       expect(startMatch(match, 0, 0, mode, true, () => 0.5), mode).toBe(true);
@@ -78,7 +78,7 @@ describe('decodificação das mensagens recebidas', () => {
     expect(parseServerMessage({ t: 'room', room: publicRoom('SANDBOX', sandbox, 0), you: 'player' })).not.toBeNull();
   });
 
-  it('valida o estado público da sala e mensagens pequenas', () => {
+  it('validates the public room state and small messages', () => {
     const match = newMatch();
     addPlayer(match, 'player', 'Ana');
     const room = publicRoom('ABCD', match, 0);
@@ -90,18 +90,18 @@ describe('decodificação das mensagens recebidas', () => {
     expect(parseServerMessage({ t: 'other' })).toBeNull();
   });
 
-  it('ignora JSON inválido, binário e mensagens que o canal não reconhece', () => {
+  it('ignores invalid JSON, binary data and messages the channel does not know', () => {
     expect(decodeMessage('{bad', parseServerMessage)).toBeNull();
     expect(decodeMessage(new ArrayBuffer(2), parseServerMessage)).toBeNull();
     expect(decodeMessage('{"t":"rooms","rooms":[]}', parseServerMessage)).toBeNull();
     expect(decodeMessage('{"t":"rooms","rooms":[]}', parseLobbyMessage)).toEqual({ t: 'rooms', rooms: [] });
   });
 
-  it('passa o tipo e o motivo da rejeição ao callback do decodificador', () => {
+  it('passes the message type and the rejection reason to the decoder callback', () => {
     const onInvalid = vi.fn();
     expect(decodeMessage('{"t":"unexpected"}', parseServerMessage, onInvalid)).toBeNull();
     expect(decodeMessage('{"t":"unexpected"}', parseServerMessage, onInvalid)).toBeNull();
-    expect(onInvalid).toHaveBeenCalledTimes(2); // connect limita o aviso a uma ocorrência por tipo.
+    expect(onInvalid).toHaveBeenCalledTimes(2); // connect limits the warning to one occurrence per type.
     expect(onInvalid).toHaveBeenCalledWith('unexpected', 'schema validation failed');
   });
 });

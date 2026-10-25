@@ -10,7 +10,7 @@ import { add, v } from '../src/shared/vec.ts';
 import { STEP_MS, toPlaying } from './helpers.ts';
 
 function night(humans = ['a', 'b']): { m: Match; now: number } {
-  const m = newMatch();
+  const m = Object.assign(newMatch(), { mode: 'campaign' as const }); // room created by the Campaign option
   for (const id of humans) addPlayer(m, id, id);
   startMatch(m, 0, 0, 'campaign', true, mulberry32(1));
   return { m, now: toPlaying(m, 0) };
@@ -20,7 +20,7 @@ function step(m: Match, now: number, n = 1, events: SimEvent[] = []): number {
   for (let i = 0; i < n; i++) events.push(...tickMatch(m, (now += STEP_MS), [], () => 0.5));
   return now;
 }
-// knocks the Aceso down (no lava on the map)
+// knocks the Aceso down directly (no walk into the lava)
 const down = (m: Match, id: string) => Object.assign(wiz(m, id), { hp: -1, invulnUntil: 0 });
 
 describe('rekindle', () => {

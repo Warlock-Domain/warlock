@@ -837,8 +837,11 @@ button.train small { font-weight: 400; }
   .center.asc-open { top: calc(56px + var(--safe-t)); transform: translateX(-50%); max-height: calc(100% - 56px - 12px - var(--bar-space, 0px) - var(--safe-t) - var(--safe-b)); }
 }
 
-/* grimório (Como jogar): livro aberto de couro com páginas de pergaminho escuro; duas páginas no PC, uma no celular */
-.grimoire { --page: #2a1a11; --page-hi: #33211a; --ink-soft: #d9c3a5; width: min(1180px, 100%); height: min(800px, calc(100dvh - 32px)); display: grid; grid-template-rows: auto 1fr auto; gap: 8px; padding: 10px 14px 12px; border-radius: var(--r-frame); background: var(--frame), linear-gradient(160deg, #4a2414, #2a1209 60%, #1a0a05); border: 2px solid var(--bronze); box-shadow: inset 0 0 0 4px #1a0a05, inset 0 0 0 5px var(--gold-faint), var(--shadow-lg); }
+/* grimoire (How to play): open leather book with dark parchment pages; two pages on desktop, one on mobile */
+.grimoire { width: min(1180px, 100%); height: min(800px, calc(100dvh - 32px)); display: grid; grid-template-rows: auto 1fr; gap: 8px; padding: 10px 14px 12px; border-radius: var(--r-frame); background: var(--frame), linear-gradient(160deg, #4a2414, #2a1209 60%, #1a0a05); border: 2px solid var(--bronze); box-shadow: inset 0 0 0 4px #1a0a05, inset 0 0 0 5px var(--gold-faint), var(--shadow-lg); }
+.g-book { --page: #2a1a11; --page-hi: #33211a; --ink-soft: #d9c3a5; display: grid; grid-template-rows: 1fr auto; gap: 8px; min-height: 0; }
+/* in the Learn tab the book fills the panel width and fits under the menu bar */
+.home-learn .g-book { align-self: stretch; height: min(760px, calc(100dvh - 210px)); min-height: 420px; }
 .grimoire .dialog-head .title { font-size: 1.5rem; color: var(--gold); letter-spacing: .03em; display: inline-flex; align-items: center; gap: 8px; }
 .grimoire .dialog-head .title::before { content: none; } /* o ícone do livro já faz o papel do losango */
 .g-spread { display: grid; grid-template-columns: 1fr 1fr; min-height: 0; border-radius: var(--r-sm); box-shadow: 0 6px 18px rgba(0, 0, 0, .5); perspective: 1600px; }
@@ -850,8 +853,8 @@ button.train small { font-weight: 400; }
 .g-page h3 { font-family: var(--display); font-size: 1.15rem; color: var(--ember); margin: 14px 0 4px; }
 .g-page ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
 .g-page p { margin: 4px 0; }
-.g-chapter { display: block; text-transform: uppercase; letter-spacing: .12em; font-size: .72rem; color: var(--bronze); margin-bottom: 4px; }
-.g-num { display: block; margin-top: 18px; text-align: center; font-family: var(--display); color: var(--bronze); font-size: .9rem; }
+.g-chapter { display: block; text-transform: uppercase; letter-spacing: .12em; font-size: .72rem; color: var(--muted); margin-bottom: 4px; }
+.g-num { display: block; margin-top: 18px; text-align: center; font-family: var(--display); color: var(--muted); font-size: .9rem; }
 .g-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
 .g-head h2 { margin: 0; }
 .g-medal { flex: none; width: 72px; height: 72px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle, var(--lava-night), #120604); border: 2px solid var(--bronze); box-shadow: inset 0 0 0 3px #120604, 0 0 14px rgba(255, 106, 26, .25); color: var(--ember); font-size: 2.6rem; }
@@ -870,7 +873,7 @@ button.train small { font-weight: 400; }
 .g-toc { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .g-link { width: 100%; justify-content: space-between; background: none; border: 0; border-bottom: 1px dotted var(--bronze); border-radius: 0; padding: 6px 2px; min-height: 40px; font-family: var(--display); font-size: 1.15rem; color: var(--fg); }
 .g-link:hover, .g-chip:hover { color: var(--gold); }
-.g-pg { color: var(--bronze); font-size: .95rem; }
+.g-pg { color: var(--muted); font-size: .95rem; }
 .g-sub { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
 .g-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
 .g-chip { min-height: 32px; padding: 3px 8px; font-size: .82rem; background: rgba(0, 0, 0, .25); border-color: var(--line); color: var(--ink-soft); }
@@ -1040,6 +1043,26 @@ body.replaying .peek-shop { display: none; }
 .home-stage.is-subpage > .home-panel { min-height: min(858.176px, 81.62vh, calc(100vw - 32px)); padding: 24px; background: var(--panel-glass); border: 1px solid var(--gold-faint); border-radius: var(--r-md); }
 @media (max-width: 600px) { .home-stage.is-subpage > .home-panel { padding: 16px 12px; } }
 .home-library { display: flex; flex-direction: column; gap: 14px; }
+/* Learn tab (Fernando, 24/10): contents, book and library, wider than the other tabs (up to 2400 px); below 1800 px the library drops under the book */
+.lobby:has(> .home-stage > #home-library:not([hidden])) { max-width: 2400px; }
+.learn-grid { display: grid; grid-template-columns: 200px minmax(0, 1fr); grid-template-areas: 'toc book' 'toc lib'; gap: 24px 28px; align-items: start; }
+.learn-grid > .home-learn { grid-area: book; }
+.learn-grid > .home-library { grid-area: lib; }
+.learn-grid .g-nav { grid-template-columns: auto 1fr auto; } /* no Contents button: the contents sit beside the book */
+.learn-toc { grid-area: toc; position: sticky; top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.lib-group h3 small { margin-left: 10px; font-size: .8rem; color: var(--muted); }
+.lib-tile[aria-current="true"] { border-color: var(--g, var(--gold)); background: color-mix(in srgb, var(--g, var(--gold)) 22%, var(--panel2)); }
+/* wide screens: each column scrolls on its own at screen height, so a library click turns the page beside it */
+@media (min-width: 1800px) {
+  .learn-grid { grid-template-columns: 220px minmax(0, 1280px) minmax(420px, 1fr); grid-template-areas: 'toc book lib'; height: calc(100dvh - 200px); }
+  .learn-grid > .home-learn, .learn-grid > .home-library { height: 100%; min-height: 0; }
+  .learn-grid .g-book { flex: 1; height: auto; }
+  .learn-grid > .home-library > .library { min-height: 0; overflow-y: auto; padding-right: 6px; scrollbar-color: var(--bronze) transparent; }
+  .learn-grid .lib-grid { grid-template-columns: repeat(auto-fill, 88px); }
+  .learn-grid .lib-tile { width: 88px; height: 88px; }
+  .learn-grid .lib-tile small { font-size: .78rem; }
+}
+@media (max-width: 860px) { .learn-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'toc' 'book' 'lib'; } .learn-toc { position: static; } }
 .home-cosmetics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
 .cosmetic-card { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px 12px; text-align: center; background: var(--plate); border: 1px solid var(--gold-line); border-radius: var(--r-md); }
 .cosmetic-card img { object-fit: contain; }

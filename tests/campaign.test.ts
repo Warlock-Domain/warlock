@@ -9,9 +9,12 @@ import { dist, v } from '../src/shared/vec.ts';
 import { endResult, maxHp, nightLine, playerName } from '../src/client/screen-data.ts';
 import { STEP_MS, toPlaying, until } from './helpers.ts';
 
+// room created by the Campaign option of the Play menu: only it plays the Campaign
+const campaignRoom = () => Object.assign(newMatch(), { mode: 'campaign' as const });
+
 // Campaign night with the given humans and a fixed seed
 function night(humans = ['a'], seed = 1): Match {
-  const m = newMatch();
+  const m = campaignRoom();
   for (const id of humans) addPlayer(m, id, id);
   startMatch(m, 0, 0, 'campaign', true, mulberry32(seed));
   return m;
@@ -92,11 +95,11 @@ describe('Campaign: match on the map', () => {
   });
 
   it('ignores ordinary bots and refuses more than 4 humans', () => {
-    const m = newMatch();
+    const m = campaignRoom();
     addPlayer(m, 'a', 'a');
     startMatch(m, 0, 3, 'campaign', true, mulberry32(1));
     expect(m.players.filter((p) => p.bot && !p.servo).length).toBe(0);
-    const crowd = newMatch();
+    const crowd = campaignRoom();
     for (const id of ['a', 'b', 'c', 'd', 'e']) addPlayer(crowd, id, id);
     expect(startMatch(crowd, 0, 0, 'campaign', true, mulberry32(1))).toBe(false);
   });
@@ -275,16 +278,27 @@ describe('Campaign: match on the map', () => {
     expect(idle.players.some((p) => p.servo)).toBe(false);
   });
 
-  it('a match after the night starts with the usual gold', () => {
+  it('a Campaign room only plays the Campaign: a start with another mode is a new night, and no vote changes the mode', () => {
     const m = night(['a', 'b']);
     endIdle(m);
     expect(m.phase).toBe('end');
-    startMatch(m, 0, 1, 'rounds');
-    expect(m.players.filter((p) => !p.bot).map((p) => p.gold)).toEqual([30, 30]);
+    expect(startMatch(m, 0, 1, 'rounds', true, mulberry32(2))).toBe(true);
+    expect([m.mode, !!m.night, m.players.filter((p) => p.bot && !p.servo).length]).toEqual(['campaign', true, 0]);
+    expect(m.players.filter((p) => !p.bot).map((p) => p.gold)).toEqual([0, 0]);
+    expect(startVote(m, 'a', 'mode', 'rounds', 0)).toBe(false);
+    expect(m.mode).toBe('campaign');
+  });
+
+  it('a normal room never becomes the Campaign, by start or by vote', () => {
+    const m = newMatch();
+    for (const id of ['a', 'b']) addPlayer(m, id, id);
+    expect(startMatch(m, 0, 0, 'campaign', true, mulberry32(1))).toBe(true);
+    expect([m.mode, m.night]).toEqual(['rounds', undefined]);
+    expect(startVote(m, 'a', 'mode', 'campaign', 0)).toBe(false);
   });
 
   it('spectators do not count for the 1 to 4 Acesos, and one who starts watching mid-night leaves the map', () => {
-    const m = newMatch();
+    const m = campaignRoom();
     for (const id of ['a', 'b', 'c', 'd', 'e']) addPlayer(m, id, id);
     for (const id of ['c', 'd', 'e']) setWatch(m, id, true);
     expect(startMatch(m, 0, 0, 'campaign', true, mulberry32(1))).toBe(true);
@@ -392,11 +406,16 @@ describe('Campaign: match on the map', () => {
     }
   });
 
-  it('start message accepts the campaign, not in the sandbox', () => {
+  it('start message accepts the campaign; the sandbox never plays it nor opens in a Campaign room', () => {
     expect(parseClientMessage(JSON.stringify({ t: 'start', bots: 0, mode: 'campaign' }))).toMatchObject({ mode: 'campaign' });
     const m = newMatch();
     addPlayer(m, 'a', 'a');
-    expect(startMatch(m, 0, 0, 'campaign', true, Math.random, {}, [], true)).toBe(false);
+    expect(startMatch(m, 0, 0, 'campaign', true, Math.random, {}, [], true)).toBe(true);
+    expect([m.mode, m.night]).toEqual(['rounds', undefined]);
+    const c = campaignRoom();
+    addPlayer(c, 'a', 'a');
+    expect(startMatch(c, 0, 0, 'rounds', true, Math.random, {}, [], true)).toBe(false);
+    expect(c.mode).toBe('campaign');
   });
 });
 
