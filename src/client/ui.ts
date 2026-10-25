@@ -514,11 +514,12 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
   };
   type Col = { head: string; title: string; value: (p: PublicPlayer) => number; show: (n: number) => Child; best?: 'max' | 'min' };
   const cols: Col[] = [
-    { head: room.mode === 'deathmatch' ? t('Pontos', 'Points') : t('Vitórias', 'Wins'), title: t('Pontos da partida', 'Match points'), value: (p) => p.score, show: (n) => String(n), best: 'max' },
+    // Campaign: no wins or gold to show, so the tutorial does not hint at a scoring that does not exist there
+    ...(room.night ? [] : [{ head: room.mode === 'deathmatch' ? t('Pontos', 'Points') : t('Vitórias', 'Wins'), title: t('Pontos da partida', 'Match points'), value: (p: PublicPlayer) => p.score, show: (n: number) => String(n), best: 'max' as const }]),
     { head: t('Abates', 'Kills'), title: t('Abates (cair sozinho na lava não conta)', 'Kills (falling into the lava alone does not count)'), value: (p) => st(p).kills ?? 0, show: (n) => String(n), best: 'max' },
     { head: t('Mortes', 'Deaths'), title: t('Mortes', 'Deaths'), value: (p) => st(p).deaths ?? 0, show: (n) => String(n), best: 'min' },
     { head: t('Dano', 'Damage'), title: t('Dano causado', 'Damage dealt'), value: (p) => st(p).dmg, show: (n) => n0(n), best: 'max' },
-    { head: t('Ouro', 'Gold'), title: t('Ouro ganho', 'Gold earned'), value: (p) => st(p).gold, show: (n) => n0(n), best: 'max' },
+    ...(room.night ? [] : [{ head: t('Ouro', 'Gold'), title: t('Ouro ganho', 'Gold earned'), value: (p: PublicPlayer) => st(p).gold, show: (n: number) => n0(n), best: 'max' as const }]),
     { head: t('Precisão', 'Accuracy'), title: t('Acertos ÷ lançamentos das magias de dano', 'Hits ÷ casts of damage spells'), value: aim, best: 'max',
       show: (n) => (n < 0 ? '–' : el('span', { class: 'acc' }, el('span', { class: 'acc-bar' }, el('i', { style: `width:${Math.round(n * 100)}%` })), pct(n))) },
     ...(room.mode === 'deathmatch' ? [] : [{ head: t('Tempo vivo', 'Time alive'), title: t('Segundos vivo nas rodadas', 'Seconds alive in the rounds'), value: (p: PublicPlayer) => st(p).alive ?? 0, show: (n: number) => (n ? `${Math.round(n)} s` : '–'), best: 'max' as const }]),
@@ -1796,11 +1797,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const unit = (n: number) => r.mode === 'deathmatch' || r.mode === 'ascension' ? (n === 1 ? t('ponto', 'point') : t('pontos', 'points')) : n === 1 ? t('vitória', 'win') : t('vitórias', 'wins');
     const cell = (p: PublicPlayer) => {
       const lvl = botLevel(p, r);
-      const name = `${playerName(p)}${p.id === me ? t(' (você)', ' (you)') : ''}${lvl ? ` (bot · ${SKILL_NAME[lvl]})` : ''}: ${p.score} ${unit(p.score)}`;
+      const name = `${playerName(p)}${p.id === me ? t(' (você)', ' (you)') : ''}${lvl ? ` (bot · ${SKILL_NAME[lvl]})` : ''}${r.night ? '' : `: ${p.score} ${unit(p.score)}`}`;
       const dmg = el('span', {}, String(Math.round(live[p.id]?.dmg ?? 0)));
       const kills = el('span', {}, String(live[p.id]?.kills ?? 0));
       const c = el('li', { class: 'top-p' + (p.id === me ? ' me' : ''), style: `--pc:${COLORS[p.color]}`, title: name, 'aria-label': name },
-        el('span', { class: 'top-name' }, playerName(p), lvl ? icon(UI_ICON.bot) : null), ascLevel(r, p), el('b', { class: 'top-wins', title: unit(p.score) }, String(p.score)),
+        el('span', { class: 'top-name' }, playerName(p), lvl ? icon(UI_ICON.bot) : null), ascLevel(r, p), r.night ? null : el('b', { class: 'top-wins', title: unit(p.score) }, String(p.score)),
         el('span', { class: 'top-stat', title: t('Dano na rodada', 'Damage this round') }, icon(UI_ICON.dmg), dmg),
         el('span', { class: 'top-stat', title: t('Abates na rodada', 'Kills this round') }, icon(UI_ICON.kills), kills));
       topCells.set(p.id, { c, name, dmg, kills });
@@ -1931,7 +1932,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       }
       barOff = r.phase === 'lobby' || r.phase === 'end' || (r.phase === 'shop' && !SHOP_BAR.matches) || !mine;
       syncBar();
-      goldNow.replaceChildren(r.mode === 'ascension' ? '' : gold(mine?.gold ?? 0)); // Ascensão: sem ouro
+      goldNow.replaceChildren(r.mode === 'ascension' || r.night ? '' : gold(mine?.gold ?? 0)); // Ascension and Campaign: no gold
       const stats = mine ? sheet(mine.spells, mine.items).filter((row) => row.key! in STAT_ICON) : [];
       const statSig = JSON.stringify(stats);
       if (heroStats.dataset.sig !== statSig) {
