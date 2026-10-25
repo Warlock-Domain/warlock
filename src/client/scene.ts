@@ -1338,7 +1338,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const isleBaseGeo = new THREE.CylinderGeometry(1, 1.15, 0.6, 28);
   const isleTopGeo = new THREE.CylinderGeometry(1, 1, 0.06, 28);
   const rockModels: THREE.Object3D[] = [];
-  for (const k of ['A', 'B', 'C', 'D', 'E']) gltf.loadAsync(`/models/hex/rock_single_${k}.gltf`).then((g) => rockModels.push(g.scene)).catch(() => {});
+  // The five .gltf files define the same hexagons_medieval material, but each parse makes its own copy of the
+  // 1024² atlas: sharing the first one keeps a single texture on the GPU (issue #378). Promise.all keeps A..E in order,
+  // so each isle gets the same rocks whichever file arrives first
+  Promise.all(['A', 'B', 'C', 'D', 'E'].map((k) => gltf.loadAsync(`/models/hex/rock_single_${k}.gltf`))).then((gs) => {
+    let mat: THREE.Mesh['material'] | undefined;
+    for (const g of gs) {
+      g.scene.traverse((o) => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = mat ??= (o as THREE.Mesh).material; });
+      rockModels.push(g.scene);
+    }
+  }).catch(() => {});
   type IsleDraw = { g: THREE.Group; top: THREE.Mesh; rocks: THREE.Group; r: number; seen: number; shrinkAt: number };
   const isleDraws: IsleDraw[] = [];
   function isleDraw(i: number): IsleDraw {
