@@ -270,7 +270,8 @@ try {
     return data.id;
   };
 
-  // Sala sem nenhum jogador: mede a limpeza da sala criada e nunca aberta.
+  // Start before the request so the join deadline safely precedes the room's five-minute alarm.
+  const orphanCreatedAt = Date.now();
   orphanId = await createRoom();
   report.lifecycle.push({
     at: new Date().toISOString(),
@@ -321,7 +322,6 @@ try {
     return group;
   };
   await Promise.all(activeIds.map(startRoom));
-  const trafficStarted = Date.now();
   report.initialLobby = roomSnapshot();
   assert(
     await lobby.until(() =>
@@ -336,6 +336,7 @@ try {
   actionTimer = setInterval(() => {
     for (const c of clients) c.command();
   }, commandMs);
+  const trafficStarted = Date.now();
 
   if (clients.length) {
     await sleep(1500);
@@ -343,11 +344,27 @@ try {
     await reconnect.reconnect();
   }
 
-  // Dez segundos antes do prazo exercita a corrida entre entrada e alarme de sala vazia.
-  const lateJoinAt = started + EMPTY_ROOM_ALARM_MS - 10_000;
+  // Joining shortly before the room's alarm exercises cleanup racing with new occupancy.
+  const lateJoinAt = orphanCreatedAt + EMPTY_ROOM_ALARM_MS - 10_000;
+  assert(lateJoinAt > Date.now(), "Room setup consumed the late-join window");
+  const soakEndsAt = Math.max(
+    trafficStarted + duration * 1000,
+    lateJoinAt + 10_000,
+  );
+  report.lifecycle.push({
+    at: new Date().toISOString(),
+    event: "soak-window",
+    trafficStartedAt: new Date(trafficStarted).toISOString(),
+    lateJoinAt: new Date(lateJoinAt).toISOString(),
+    soakEndsAt: new Date(soakEndsAt).toISOString(),
+  });
   let didLateJoin = false;
-  while (Date.now() - started < duration * 1000) {
+  while (!didLateJoin || Date.now() < soakEndsAt) {
     if (!didLateJoin && Date.now() >= lateJoinAt) {
+      assert(
+        Date.now() < orphanCreatedAt + EMPTY_ROOM_ALARM_MS,
+        "Late-join deadline passed before the join could run",
+      );
       lateJoin = new PlayerClient(orphanId, "soak-late-join-001");
       clients.push(lateJoin);
       await lateJoin.connect();
@@ -362,6 +379,7 @@ try {
     }
     await sleep(1000);
   }
+  assert(didLateJoin, "Late-join scenario did not run during the soak");
   clearInterval(actionTimer);
   actionTimer = null;
   const trafficStopped = Date.now();
@@ -381,6 +399,17 @@ try {
     event: "post-soak-occupancy",
     roomId: orphanId,
     lobby: roomSnapshot(),
+    lobbySocketState: lobby.ws.readyState,
+    lobbyReceivedRooms: lobby.received,
+    clients: clients.map((c) => ({
+      playerId: c.playerId,
+      roomId: c.roomId,
+      socketState: c.ws?.readyState,
+      closes: c.closes,
+      reconnects: c.reconnects,
+      roomPhase: c.room?.phase,
+      errors: c.errors,
+    })),
     lateJoinSocketState: lateJoin?.ws?.readyState,
     lateJoinCloses: lateJoin?.closes,
     lateJoinRoomPhase: lateJoin?.room?.phase,
@@ -405,10 +434,25 @@ try {
   report.soakLobby = roomSnapshot();
 
   for (const c of clients) c.close();
+  const closeResults = await Promise.all(
+    clients.map((c) => c.until(() => c.ws?.readyState === WebSocket.CLOSED, 10_000)),
+  );
+  report.lifecycle.push({
+    at: new Date().toISOString(),
+    event: "clients-closed",
+    clients: clients.map((c) => ({
+      playerId: c.playerId,
+      roomId: c.roomId,
+      socketState: c.ws?.readyState,
+      closeEvents: c.closes,
+    })),
+  });
+  assert(closeResults.every(Boolean), "Client sockets did not close before cleanup observation");
   const cleanupAt = Date.now() + EMPTY_ROOM_ALARM_MS + cleanupGrace;
   while (Date.now() < cleanupAt)
     await sleep(Math.min(1000, cleanupAt - Date.now()));
   report.finalLobby = roomSnapshot();
+  report.remainingRoomIds = allRoomIds.filter((id) => lobby.rooms.has(id));
   for (const id of allRoomIds)
     assert.equal(
       lobby.rooms.has(id),
