@@ -38,6 +38,7 @@ export function knockDistance(dmg: number, knock: number): number {
 const knockMeters = (l: Level) => m(knockDistance(l.dmg, l.knock));
 // todo campo do nível que muda o jogo tem uma linha (o teste confere)
 export const SPELL_ROWS: Record<SpellId, Row[]> = {
+  channel: [[t('Preparo mínimo', 'Minimum charge'), () => '1 s'], [t('Carga máxima', 'Maximum charge'), () => '2 s'], [t('Bônus em 1 s / 2 s', 'Bonus at 1 s / 2 s'), () => '+50% / +100%'], [CD, () => '0 s']],
   closedbody: [[DURATION, l => s(l.duration)], [t('Redução de dano', 'Damage reduction'), () => '90%'], [t('Resistência a novos status', 'New status resistance'), () => '90%'], [t('Resistência a novo empurrão', 'New knockback resistance'), () => '90%'], [CD, l => s(l.cd)]],
   geyser: [[t('Suspensão e invulnerabilidade', 'Suspension and invulnerability'), l => s(l.duration)], [CD, l => s(l.cd)], [RANGE, l => m(l.range)], [t('Raio da área', 'Area radius'), l => m(l.radius)]],
   heal: [[t('Cura', 'Healing'), l => n1(l.heal)], [CD, l => s(l.cd)], [RANGE, l => m(l.range)]],

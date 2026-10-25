@@ -15,7 +15,7 @@ import { GEYSER_FX } from './geyser-fx.ts';
 
 // alvo do passo: ponto fixo ou a posição atual do mago com esse índice
 type At = Vec | number;
-type Step = [t: number, who: number, what: SpellId | 'move' | 'basic' | 'braceOn' | 'braceOff', at: At];
+type Step = [t: number, who: number, what: SpellId | 'move' | 'basic' | 'braceOn' | 'braceOff' | 'charge', at: At];
 type Script = { pos?: Vec[]; end: number; steps: Step[]; prep?: (w: World) => void };
 export type DemoId = SpellId | ItemId | 'clash' | 'basic' | 'brace' | 'knockback';
 
@@ -32,6 +32,7 @@ const VINE_COLOR = '#8ed64b';
 
 // mago 0 é "você" (com a magia ou o item da página); 1 e 2 são de treino e só têm a Bola de fogo
 export const SCRIPTS: Partial<Record<DemoId, Script>> = {
+  channel: { pos: [v(-4,0),v(3,0)], end: 4.5, steps: [[.3,A,'charge',B],[3,A,'fireball',B]], prep: w => { w.pillars=[]; w.wizards[B].regen=0; } },
   closedbody: { pos: [v(-1,0), v(3,0)], end: CLOSED_BODY_END + 2,
     steps: ([...Array.from({length:Math.ceil((CLOSED_BODY_END+1.1)/.1)}, (_,i): Step => [.1+i*.1,A,'braceOn',A]), [.8,A,'closedbody',v(-1,4)], [1,B,'fireball',A], [2,B,'meteor',A], [CLOSED_BODY_END+.2,B,'basic',A], [CLOSED_BODY_END+1.2,A,'braceOff',A]] as Step[]).sort((a,b)=>a[0]-b[0]),
     prep: w => { w.pillars=[]; w.wizards[A].facing=0; w.wizards[B].spells.meteor=1; } },
@@ -83,6 +84,7 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 
 // Rótulos seguem os estados reais para a prévia não sugerir que stun, prisão e postura têm o mesmo bloqueio.
 export function demoStatus(w: World, z: Wizard): string[] {
+  if (z.channel) { const elapsed = Math.min(2,w.t-z.channel.since); return [t(`canalizando ${elapsed.toFixed(1)}s · +${Math.round(elapsed*50)}% · clique para lançar`, `channeling ${elapsed.toFixed(1)}s · +${Math.round(elapsed*50)}% · click to cast`)]; }
   if(w.t < (z.blindUntil ?? 0)) return [t('cegueira · visão 3 m','blindness · sight 3 m'), ...(w.t < (z.incapacitateUntil ?? 0) ? [t('incapacitado · recargas pausadas','incapacitated · cooldowns paused')] : [])];
   if (w.t < (z.closedBodyUntil ?? 0) && bracingActive(w,z)) return [t('Corpo fechado · direção mantida · dano/empurrão/status −90%', 'Closed Body · facing preserved · damage/knockback/status −90%')];
   if ((z.geyserLeft ?? 0) > 0) return [t('suspenso · invulnerável · sem ações', 'suspended · invulnerable · no actions')];
@@ -130,7 +132,7 @@ export function demoStep(s: DemoState) {
     const [, who, what, at] = script.steps[s.next];
     const id = w.wizards[who].id;
     const to = typeof at === 'number' ? { ...w.wizards[at].pos } : at;
-    cmds.push(what === 'move' ? { id, kind: 'move', to } : what === 'braceOn' || what === 'braceOff' ? { id, kind: 'brace', on: what === 'braceOn' } : what === 'basic' ? { id, kind: 'basic', at: to, target: typeof at === 'number' ? w.wizards[at].id : undefined } : { id, kind: 'cast', spell: what, at: to });
+    cmds.push(what === 'charge' ? { id, kind: 'channel', spell: 'fireball' } : what === 'move' ? { id, kind: 'move', to } : what === 'braceOn' || what === 'braceOff' ? { id, kind: 'brace', on: what === 'braceOn' } : what === 'basic' ? { id, kind: 'basic', at: to, target: typeof at === 'number' ? w.wizards[at].id : undefined } : { id, kind: 'cast', spell: what, at: to });
   }
   stepWorld(w, cmds, () => 0.5);
   s.events = w.events;

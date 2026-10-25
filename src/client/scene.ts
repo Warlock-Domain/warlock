@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
-import { createAttackClip } from './attack-pose.ts';
+import { createAttackClip, playAnimation as play } from './attack-pose.ts';
 import { electroPulse } from './screen-data.ts';
 import { HEAL_FX, healAura } from './heal-fx.ts';
 import { blindnessMask } from './blindness-fx.ts';
@@ -43,7 +43,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { closedBodyLeft?: number; geyserLeft?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: giant Campaign body scale; ghost: translucent; fx: own status timers; ember: Campaign rekindle progress (0..1; negative or absent means none).
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -919,13 +919,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
     return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
-  }
-
-  function play(m: Mage, name: string, fade = 0.15) {
-    if (m.current === name || !m.actions[name]) return;
-    m.actions[m.current]?.fadeOut(fade);
-    m.actions[name].reset().fadeIn(fade).play();
-    m.current = name;
   }
 
   // animação de conjurar [clip, segundos, início no clip]; o resto atira (Spellcast_Shoot). Quando o gesto forte vem no meio
@@ -1871,6 +1864,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.hpFill.style.background = tint;
         m.nameEl.style.color = d.team != null ? COLORS[d.color] : '';
       }
+      const channelLabel = m.label.querySelector('.channel-clock');
+      if (d.alive && d.channelElapsed !== undefined) {
+        const c = channelLabel ?? el('span', { class: 'bubble channel-clock' });
+        c.textContent = d.channelElapsed < 1 ? t('Canalizando…', 'Channeling…') : t(`Canalização +${Math.round(d.channelElapsed*50)}% · aguardando lançamento`, `Channeling +${Math.round(d.channelElapsed*50)}% · awaiting cast`);
+        if (!channelLabel) m.label.prepend(c);
+      } else channelLabel?.remove();
       const hidden = !d.illusion && (d.status & 2048) > 0; // a cópia é sempre visível; os inimigos não veem o jogador velado
       m.root.visible = !hidden;
       m.model.position.y = d.alive ? geyserHeight(d.geyserLeft ?? 0) : 0;
@@ -1928,6 +1927,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (invuln && !m.invuln && !(d.geyserLeft ?? 0)) oneShot(d.id, 'Spawn_Ground', 1.3);
         // atordoado (16: arremessado por um golpe) voa de braços abertos
         if ((d.geyserLeft ?? 0) > 0) { m.oneShotUntil = 0; play(m, 'Jump_Idle', .05); }
+        else if (d.channelElapsed !== undefined && !(d.status & 16) && m.actions.Attack_Invoke) {
+          play(m, 'Attack_Invoke', .05);
+          const action = m.actions.Attack_Invoke;
+          action.paused = true; action.time = action.getClip().duration * Math.min(1, d.channelElapsed / 2);
+          m.oneShotUntil = 0;
+          if (!lite && Math.random() < .12) burst(d.pos, '#bfa4ff', .6, .35, 1.2, FX.light);
+        }
         else if ((d.basicLeft ?? 0) > 0 && !(d.status & 16) && m.actions.Attack_Invoke) {
           play(m, 'Attack_Invoke', .03);
           const action = m.actions.Attack_Invoke;

@@ -11,12 +11,14 @@ import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './
 import { SHIELD, castBlocked } from './spells.ts';
 import { BASIC_ATTACK, BRACE, KNOCK_RECOVERY } from './constants.ts';
 import { healTarget } from './heal-target.ts';
+import { channelLevel, channelPower } from './channeling.ts';
 
 export type Wizard = {
   electroUntil?: number; // duração da eletrificação.
   id: string;
   pos: Vec;
   vel: Vec; // só o empurrão; andar não entra aqui
+  channel?: { spell: SpellId; since: number };
   stunLeft?: number; // bloqueio de controle separado da velocidade física.
   recoveryLeft?: number; // retomada disparada pelo fim do impulso, não pelo fim de qualquer stun.
   basicReadyAt?: number; // Attack cooldown
@@ -59,6 +61,7 @@ export type Wizard = {
   gripBonus: number; // empurrão a mais desse golpe (pelo nível do Agarrar de quem prendeu)
   windBonus: number; // Botas de vento: velocidade a mais depois de WIND_BOOTS.calm s sem dano (0 = não tem)
   calmSince: number; // último instante em que causou ou levou dano
+  rushPower?: number;
   rushUntil: number; // Investida ativa até este instante
   rushLeft: number; // dano que a Investida ainda pode absorver
   rushBonus: number; // velocidade extra da Investida agora (m/s)
@@ -96,7 +99,7 @@ export type Wizard = {
   team: number | null; // modo Times: 0 ou 1; fora dele null (ninguém é aliado)
   // magia ou item sendo conjurado: sai em fireAt e o mago fica parado até lá (pedido do Fernando, 17/10:
   // clicar para andar não cancela); o clique de andar fica guardado em `then` e vale quando a magia sai
-  casting: { spell: SpellId; at: Vec; fireAt: number; then?: Vec | null } | null;
+  casting: { spell: SpellId; at: Vec; fireAt: number; power?: number; then?: Vec | null } | null;
   god?: boolean; // sandbox: vida infinita (não morre; fica na lava com a vida cheia, sem voltar para a pedra: pedido do Fernando, 20/10)
   turretAnchor?: Vec; // sandbox: ponto fixo da torreta nesta rodada
   pitDeath?: boolean; // mapa: cai no abismo e morre (servo do Fumo, Lucas 22/10); sem o campo volta à beira com dano
@@ -123,6 +126,7 @@ export type Projectile = {
   level: number;
   until: number;
   target: string | null;
+  power?: number; // Captured channel strength follows the projectile, even after reflection.
   dmgMult: number; // Pacto
   caster: string; // quem lançou (o dono muda quando um escudo reflete)
   dest?: Vec; // Troca: aonde o mago vai se ela não tocar ninguém (o ponto da mira)
@@ -154,6 +158,7 @@ export type Cmd =
   | { id: string; kind: 'stop' }
   | { id: string; kind: 'brace'; on: boolean }
   | { id: string; kind: 'basic'; at: Vec; target?: string | number }
+  | { id: string; kind: 'channel'; spell: SpellId }
   | { id: string; kind: 'cast'; spell: SpellId; at: Vec }
 
 export type SimEvent =
@@ -404,9 +409,10 @@ export const isStunned = (wz: { vel: Vec; stunLeft?: number; geyserLeft?: number
 export const bootsBonus = (w: World, wz: Wizard) =>
   Math.max(w.t < wz.shockUntil ? wz.shockBonus : 0, wz.windBonus > 0 && w.t - wz.calmSince >= WIND_BOOTS.calm ? wz.windBonus : 0);
 
-export type MovementState = Pick<Wizard, 'pos' | 'vel' | 'target' | 'facing' | 'speed' | 'safe' | 'stunLeft' | 'recoveryLeft' | 'geyserLeft' | 'geyserAt'>;
+export type MovementState = Pick<Wizard, 'pos' | 'vel' | 'target' | 'facing' | 'speed' | 'safe' | 'stunLeft' | 'recoveryLeft' | 'geyserLeft' | 'geyserAt' | 'channel'>;
 
 export function moveWizard(wz: MovementState, dt: number) {
+  if(wz.channel) wz.target=null;
   if (isSuspended(wz)) {
     wz.target = null; wz.vel = v(0, 0);
     if (wz.geyserAt) wz.pos = { ...wz.geyserAt };
@@ -736,7 +742,7 @@ function geyserLift(w: World, p: Projectile) {
     if (!isSuspended(z)) z.geyserAt = { ...z.pos };
     z.geyserLeft = Math.max(z.geyserLeft ?? 0, p.until - w.t);
     z.invulnUntil = Math.max(z.invulnUntil, p.until);
-    z.casting = null; z.basicCasting = undefined; z.target = null;
+    z.channel = undefined; z.casting = null; z.basicCasting = undefined; z.target = null;
     z.dashUntil = z.thrustUntil = 0; z.moveHeld = false;
     z.vel = v(0, 0);
   }
@@ -828,10 +834,17 @@ function castLightning(w: World, wz: Wizard, L: Level, dir: Vec, dmgMult: number
   }
 }
 
-function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
+function cast(w: World, wz: Wizard, spell: SpellId, at: Vec, power = 1) {
+  const firstId = w.nextId;
+  castSpell(w, wz, spell, at, power);
+  for (const p of w.projectiles) if (p.id >= firstId) p.power = power;
+}
+
+function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number) {
+  if (spell === 'channel') return;
   const level = wz.spells[spell];
   if (!level || w.t < wz.cd[spell]) return;
-  const L = spellLevel(spell, level);
+  const L = channelLevel(spellLevel(spell, level), power);
   const recipient = spell === 'heal' ? healTarget(w.wizards, wz, at, L.range * wz.rangeF) : undefined;
   if (spell === 'heal' && !recipient) return;
   if (spell === 'closedbody' && !bracingActive(w, wz)) return;
@@ -889,9 +902,10 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   } else if (spell === 'rush') {
     wz.rushUntil = w.t + L.duration;
     wz.rushLeft = L.absorb;
+    wz.rushPower = power;
     wz.rushBonus = RUSH.bonus;
     wz.dashUntil = w.t + RUSH.dashTime - DT / 2; // meio passo de folga: o arredondamento daria um passo a mais
-    wz.dashVel = scale(dir, RUSH.dash / RUSH.dashTime);
+    wz.dashVel = scale(dir, RUSH.dash * power / RUSH.dashTime);
     wz.dashHit = [];
     wz.target = null;
   } else if (spell === 'boomerang') {
@@ -914,7 +928,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     wz.vel = scale(dir, THRUST.start * L.speed);
     wz.thrustAcc = scale(dir, L.speed * THRUST.accel);
     wz.thrustUntil = w.t + THRUST.extra + d / L.speed;
-    wz.thrustMult = dmgMult;
+    wz.thrustMult = dmgMult * power;
     wz.target = null;
   } else if (spell === 'rockpillar') {
     castRockpillar(w, wz, L, at, dmgMult);
@@ -939,7 +953,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     launch('link', dir, LINK.life).turnAt = w.t + (L.range * wz.rangeF) / L.speed;
   } else if (spell === 'windwalk') {
     wz.windUntil = w.t + L.duration;
-    wz.windMult = dmgMult;
+    wz.windMult = dmgMult * power;
   } else if (spell === 'splitter') {
     // splitter.lua: estoura no ponto se ele estiver mais perto que 1 s de voo; os 8 filhotes contam como 8 tiros (SHOTS)
     launch('splitter', dir, Math.min(L.range * wz.rangeF, len(sub(at, wz.pos))) / L.speed);
@@ -974,6 +988,7 @@ function usePact(w: World, wz: Wizard): number {
 
 // começa a conjurar: confere nível e recarga agora; o efeito sai depois do tempo de conjuração
 function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
+  if (spell === 'channel') return;
   if (castBlocked(isStunned(wz), w.t < wz.gripUntil, spell)) return;
   if (spell === 'closedbody' && !bracingActive(w, wz)) return;
   // a mesma magia já sendo conjurada: ignora a tecla repetida (a recarga só começa quando ela sai)
@@ -985,7 +1000,13 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   }
   if (!wz.spells[spell] || w.t < wz.cd[spell]) return;
   // An invalid target neither reveals the wizard nor cancels another action.
-  if (spell === 'heal' && !healTarget(w.wizards, wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF)) return;
+  if (spell === 'heal' && !healTarget(w.wizards, wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF * (wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1))) return;
+  let power = 1;
+  if (wz.channel?.spell === spell) {
+    power = channelPower(w.t - wz.channel.since);
+    if (!power) return; // A premature click keeps charging instead of firing a weak spell.
+  }
+  wz.channel = undefined;
   wz.basicCasting = undefined; // só uma conjuração válida cancela o ataque em preparo.
   const delay = CAST_POINT[spell];
   const d = sub(at, wz.pos);
@@ -993,9 +1014,9 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   if (spell !== 'closedbody' && len(d) > 0.01) wz.facing = Math.atan2(d.y, d.x);
   w.events.push({ k: 'cast', id: wz.id, spell });
   if (spell !== 'illusion') wz.veilUntil = 0; // outra magia revela o dono, mas a cópia continua até o próprio prazo
-  if (delay <= 0) return cast(w, wz, spell, at);
+  if (delay <= 0) return cast(w, wz, spell, at, power);
   wz.target = null;
-  wz.casting = { spell, at, fireAt: w.t + delay };
+  wz.casting = { spell, at, fireAt: w.t + delay, power };
 }
 
 // Flagelo: explosão em volta; quanto mais perto do centro, mais empurrão (no original custava a mesma vida a quem usa;
@@ -1041,7 +1062,7 @@ function scourge(w: World, wz: Wizard, L: Level, mult: number) {
 }
 
 function gripLand(w: World, p: Projectile) {
-  const L = spellLevel('grip', p.level);
+  const L = channelLevel(spellLevel('grip', p.level), p.power);
   let landed = false;
   for (const z of w.wizards) {
     if (!z.alive || z.id === p.owner || allies(anyById(w, p.owner), z) || w.t < z.invulnUntil || dist(z.pos, p.pos) > L.radius + bodyR(z)) continue;
@@ -1061,7 +1082,7 @@ function gripLand(w: World, p: Projectile) {
 
 // o meteoro cai: dano de dmgMin na borda até o máximo no centro, em todos menos quem lançou
 function meteorLand(w: World, p: Projectile) {
-  const L = spellLevel('meteor', p.level);
+  const L = channelLevel(spellLevel('meteor', p.level), p.power);
   let landed = false;
   for (const o of w.wizards) {
     if (!o.alive || o.id === p.owner) continue;
@@ -1117,7 +1138,7 @@ function bounceOff(p: Projectile, center: Vec, r: number, speed = len(p.vel)) {
 // Gravidade (gravityprojectile.lua): puxa magos inimigos e todos os projéteis (menos meteoro e outra gravidade) e queima
 // quem está perto a cada 0,2 s, sem empurrão
 function gravityPull(w: World, g: Projectile) {
-  const L = spellLevel('gravity', g.level);
+  const L = channelLevel(spellLevel('gravity', g.level), g.power);
   const owner = anyById(w, g.owner);
   const pullBody = (body: { pos: Vec }) => {
     const d = dist(g.pos, body.pos);
@@ -1331,7 +1352,7 @@ export const snowR = (level: number) => SNOWBALL.coll + SNOWBALL.perLevel * (lev
 
 // Bola de neve rolando: arrasta quem encosta e, a cada 0,5 s de contato, deixa lento e marca o dano (só inimigos, como no original)
 function snowRoll(w: World, p: Projectile, at: Vec) {
-  const L = spellLevel('snowball', p.level);
+  const L = channelLevel(spellLevel('snowball', p.level), p.power);
   const owner = anyById(w, p.owner);
   const dir = norm(p.vel);
   for (const o of w.wizards) {
@@ -1357,7 +1378,7 @@ function snowRoll(w: World, p: Projectile, at: Vec) {
 
 // a Bola de neve explode (fim do voo ou obstáculo): 0 na borda até dmg no centro, em todos menos quem lançou (como o Meteoro)
 function snowBlast(w: World, p: Projectile) {
-  const L = spellLevel('snowball', p.level);
+  const L = channelLevel(spellLevel('snowball', p.level), p.power);
   let landed = false;
   for (const o of w.wizards) {
     const k = 1 - dist(o.pos, p.pos) / L.radius;
@@ -1399,7 +1420,7 @@ function decoyOnSegment(w: World, p: Projectile, b: Vec, radius: number): { q: P
 
 // Divisor: o projétil vira o lançador de filhotes (sem colisão), que anda devagar e solta 4 ondas de 2
 function split(w: World, p: Projectile) {
-  p.vel = scale(norm(p.vel), SPLITTER.spawnSpeed);
+  p.vel = scale(norm(p.vel), SPLITTER.spawnSpeed * (p.power ?? 1));
   p.waves = SPLITTER.waves;
   p.tick = w.t + SPLITTER.spawnLife / SPLITTER.waves;
   p.until = Infinity; // acaba na última onda
@@ -1413,7 +1434,7 @@ function spawnShards(w: World, p: Projectile, dt: number): boolean {
   const a = SPLITTER.spawnLife * (p.waves! / SPLITTER.waves);
   for (const s of [-1, 1]) {
     const dir = v((d.x - s * d.y * a) / (1 + a), (d.y + s * d.x * a) / (1 + a));
-    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'shard', owner: p.owner, pos: p.pos, vel: scale(dir, SPLITTER.childSpeed), level: p.level, until: w.t + SPLITTER.childLife, target: null, dmgMult: p.dmgMult, caster: p.caster });
+    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'shard', owner: p.owner, pos: p.pos, vel: scale(dir, SPLITTER.childSpeed * (p.power ?? 1)), power: p.power, level: p.level, until: w.t + SPLITTER.childLife, target: null, dmgMult: p.dmgMult, caster: p.caster });
   }
   p.tick = (p.tick ?? 0) + SPLITTER.spawnLife / SPLITTER.waves;
   return --p.waves! > 0;
@@ -1424,7 +1445,7 @@ function spawnShards(w: World, p: Projectile, dt: number): boolean {
 function linkHold(w: World, p: Projectile): boolean {
   const owner = byId(w, p.owner);
   if (!owner) return false;
-  const L = spellLevel('link', p.level);
+  const L = channelLevel(spellLevel('link', p.level), p.power);
   if (p.decoyTarget !== undefined) {
     const q = w.projectiles.find((copy) => copy.id === p.decoyTarget && copy.until > w.t);
     if (!q || dist(owner.pos, q.pos) < 2 * WIZ_R + LINK.wizGap) return false;
@@ -1502,7 +1523,7 @@ function hitPillar(w: World, p: Projectile, pil: { i: number; t: number }, L: Le
       if (nextTo) p.vel = scale(norm(sub(nextTo.pos, p.pos)), len(p.vel));
     }
     // Boomerang also breaks chests (Fernando, 17/10; the original ignored obstacles)
-    if (p.kind === 'boomerang' && q.kind === 'chest') damagePillar(w, pil.i, spellLevel('boomerang', p.level).dmg * p.dmgMult, p.owner);
+    if (p.kind === 'boomerang' && q.kind === 'chest') damagePillar(w, pil.i, channelLevel(spellLevel('boomerang', p.level),p.power).dmg * p.dmgMult, p.owner);
     return true;
   }
   if (p.kind === 'link') {
@@ -1673,7 +1694,7 @@ function stepProjectiles(w: World) {
       if (spawnShards(w, p, dt)) keep.push(p);
       continue;
     }
-    const L = p.stats ?? spellLevel(spellOf(p.kind), p.level);
+    const L = channelLevel(p.stats ?? spellLevel(spellOf(p.kind), p.level),p.power);
     if (!steer(w, p, L, dt)) continue;
     // a Troca anda só o que falta no último passo, para parar exatamente no ponto da mira (até - agora = tempo de voo que falta)
     const next = add(p.pos, scale(p.vel, p.kind === 'swap' ? Math.min(dt, Math.max(0, p.until - w.t - DT + dt)) : dt));
@@ -1780,7 +1801,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
 // volta vivo em pos (deathmatch e as ondas da Campanha): vida cheia, parado e invulnerável; magias, itens e recargas ficam
 export function revive(w: World, wz: Wizard, pos: Vec) {
   Object.assign(wz, {
-    alive: true, pos, vel: v(0, 0), target: null, casting: null, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
+    alive: true, pos, vel: v(0, 0), target: null, casting: null, channel: undefined, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
     blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
@@ -1936,7 +1957,7 @@ function attackBody(w: World, by: Wizard, target: string | number, visible = tru
 const BASIC_STATS: Level = { heal: 0, cd: BASIC_ATTACK.cd, dmg: BASIC_ATTACK.dmg, knock: BASIC_ATTACK.knock, speed: BASIC_ATTACK.speed, range: BASIC_ATTACK.range, duration: 0, radius: 0, dmgMin: 0, absorb: 0, pull: 0, scale: 0, dot: 0, blind: 0, incapacitate: 0, width: 0 };
 const edgeOf = (z: Wizard | Projectile) => ('alive' in z ? bodyR(z) : WIZ_R); // an Illusion copy has a wizard's body
 function beginBasic(w: World, wz: Wizard, c: Extract<Cmd, { kind: 'basic' }>) {
-  if (!wz.alive || isStunned(wz) || wz.casting || wz.basicCasting || w.t < (wz.basicReadyAt ?? 0)) return;
+  if (!wz.alive || wz.spells.channel > 0 || wz.channel || isStunned(wz) || wz.casting || wz.basicCasting || w.t < (wz.basicReadyAt ?? 0)) return;
   // Clique num corpo tem prioridade; no chão escolhe o mais próximo do atacante, sem caça automática.
   const bodies: (Wizard | Projectile)[] = [...w.wizards.filter((z) => attackBody(w, wz, z.id)), ...enemyDecoys(w, wz.id)];
   const clicked = bodies.filter((z) => dist(z.pos, c.at) <= edgeOf(z) + WIZ_R).sort((a, b) => dist(a.pos, c.at) - dist(b.pos, c.at))[0];
@@ -1971,7 +1992,15 @@ function applyCmds(w: World, cmds: Cmd[]) {
   for (const c of cmds) {
     const wz = byId(w, c.id);
     if (!wz || isSuspended(wz)) continue;
-    if (c.kind === 'brace') {
+    if (c.kind === 'channel') {
+      if (!(wz.spells.channel > 0) || w.t < wz.dashUntil || w.t < wz.thrustUntil || c.spell === 'channel' || !wz.spells[c.spell] || w.t < wz.cd[c.spell] || wz.casting || castBlocked(isStunned(wz), w.t < wz.gripUntil, c.spell)) continue;
+      if (wz.channel?.spell === c.spell) continue; // Key repeat must not reset the server timer.
+      wz.channel = { spell: c.spell, since: w.t };
+      w.events.push({ k: 'cast', id: wz.id, spell: 'channel' });
+      wz.target = null; wz.moveHeld = false; wz.basicCasting = undefined;
+      wz.veilUntil = wz.windUntil = 0;
+    } else if (c.kind === 'brace') {
+      if (c.on && w.t >= (wz.braceUntil ?? 0)) wz.channel = undefined;
       if (c.on && w.t >= (wz.braceUntil ?? 0)) wz.braceReadyAt = w.t + BRACE.windup;
       wz.braceUntil = c.on ? w.t + BRACE.lease : 0;
       if (!c.on) wz.closedBodyUntil = 0;
@@ -1980,6 +2009,7 @@ function applyCmds(w: World, cmds: Cmd[]) {
     } else if (c.kind === 'moveHold') {
       wz.moveHeld = c.on && !bracingActive(w, wz);
     } else if (c.kind === 'move') {
+      wz.channel = undefined;
       if (bracingActive(w, wz)) continue; // do not queue a walk that would fire when S is released
       wz.basicCasting = undefined;
       wz.moveHeld = c.held ?? false;
@@ -1987,6 +2017,7 @@ function applyCmds(w: World, cmds: Cmd[]) {
       if (wz.casting) wz.casting.then = c.to;
       else wz.target = c.to;
     } else if (c.kind === 'stop') {
+      wz.channel = undefined;
       // Like Dota (#144): cancel during windup without spending cooldown, which starts only when the spell fires
       wz.casting = null;
       wz.basicCasting = undefined;
@@ -2003,12 +2034,13 @@ function prepWizards(w: World, rand: () => number) {
     if (!wz.alive && w.dm && w.t >= wz.respawnAt) respawn(w, wz, rand);
     if (!wz.alive) continue;
     if (!bracingActive(w, wz)) wz.closedBodyUntil = 0; // Releasing S or losing the stance ends it; holding again does not renew it.
+    if (!wz.spells.channel || isStunned(wz) || (wz.channel && castBlocked(false, w.t < wz.gripUntil, wz.channel.spell))) wz.channel = undefined;
     if (isStunned(wz)) wz.basicCasting = undefined;
     if (wz.basicCasting && w.t + 1e-8 >= wz.basicCasting.fireAt) finishBasic(w, wz);
     if (wz.casting && w.t >= wz.casting.fireAt) {
       const c = wz.casting;
       wz.casting = null;
-      cast(w, wz, c.spell, c.at);
+      cast(w, wz, c.spell, c.at, c.power);
       if (c.then !== undefined) wz.target = c.then;
     }
     // Rooting clears walking speed and destination; Rush still adds velocity
@@ -2108,7 +2140,7 @@ function moveAll(w: World): Set<Wizard> {
       for (const o of w.wizards) {
         if (!o.alive || o === wz || wz.dashHit.includes(o.id) || dist(o.pos, wz.pos) > bodyR(wz) + bodyR(o) + 0.1) continue;
         wz.dashHit.push(o.id);
-        const dmg = wz.dashDmg ?? RUSH.dashDmg;
+        const dmg = (wz.dashDmg ?? RUSH.dashDmg)*(wz.rushPower ?? 1);
         hit(w, o, wz.id, dmg, dmg * KB_PER_DMG, wz.dashVel, 'rush');
         w.events.push({ k: 'land', id: wz.id, src: 'rush' });
       }
@@ -2116,7 +2148,7 @@ function moveAll(w: World): Set<Wizard> {
         const key = `copy:${q.id}`;
         if (wz.dashHit.includes(key) || dist(q.pos, wz.pos) > 2 * WIZ_R + .1) continue;
         wz.dashHit.push(key);
-        pushDecoy(q, scale(norm(wz.dashVel), (wz.dashDmg ?? RUSH.dashDmg) * KB_PER_DMG), wz.dashDmg ?? RUSH.dashDmg); // same dash damage as the real-body branch (boss dashes too)
+        pushDecoy(q, scale(norm(wz.dashVel), ((wz.dashDmg ?? RUSH.dashDmg)*(wz.rushPower ?? 1)) * KB_PER_DMG), (wz.dashDmg ?? RUSH.dashDmg)*(wz.rushPower ?? 1)); // same dash damage as the real-body branch (boss dashes too)
       }
     }
     stepThrust(w, wz);

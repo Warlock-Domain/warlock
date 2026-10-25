@@ -44,7 +44,7 @@ const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
-const SITUATIONAL: SpellId[] = ['heal', 'geyser', 'closedbody', 'swap'];
+const SITUATIONAL: SpellId[] = ['channel', 'heal', 'geyser', 'closedbody', 'swap'];
 const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
@@ -178,6 +178,12 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   const me = w.wizards.find((z) => z.id === id && z.alive);
   if (!me) return [];
   if ((me.geyserLeft ?? 0) > 0) return [];
+  if (me.channel) {
+    if (w.t - me.channel.since < 2) return [];
+    const target = w.wizards.filter(z => z.alive && z !== me && (me.team === null || z.team !== me.team) && !(w.t < z.veilUntil || w.t < z.windUntil))
+      .sort((a,b) => dist(a.pos,me.pos)-dist(b.pos,me.pos))[0];
+    return target ? [{ id, kind: 'cast', spell: me.channel.spell, at: target.pos }] : [{ id, kind: 'stop' }];
+  }
   const vision = w.t < (me.blindUntil ?? 0) ? 3 : D.vision;
   const M = mind(w);
   if (w.t < (M.frozen.get(id) ?? -1)) return []; // parado por erro
@@ -208,6 +214,9 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // um só lançamento por chamada: um segundo comando de magia no mesmo passo cancelaria o primeiro
   const cast = (spell: SpellId, at: Vec) => {
     const r = sub(at, me.pos), c = Math.cos(turn), s = Math.sin(turn);
+    if (me.spells.channel > 0 && spellLevel(spell,me.spells[spell]).dmg > 0) {
+      cmds.length = 0; cmds.push({ id, kind: 'channel', spell }); return cmds;
+    }
     cmds.push({ id, kind: 'cast', spell, at: turn ? add(me.pos, v(r.x * c - r.y * s, r.x * s + r.y * c)) : at });
     return cmds;
   };

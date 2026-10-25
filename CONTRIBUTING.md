@@ -1,5 +1,7 @@
 # Contributing to Warlock Wars
 
+Channeling proposal: charge state is server-authoritative and separate from the selected spell's cast windup/cooldown. Preserve explicit release and the shared scalar for damage/range/projectile speed/knockback when extending spells; do not increase unrelated duration/status/healing attributes.
+
 This is the contributor guide for humans and AI agents. It covers setup, coordination, implementation, testing, review, and publication. Read [CLAUDE.md](CLAUDE.md) for the current code rules and product decisions, then the `CLAUDE.md` in each area you change. Each `AGENTS.md` points to those same rules.
 
 - [Play the game](https://warlock.fernandorffdev.com): try a few matches, the grimoire (F1), and the spell/item library (F2) before changing gameplay.

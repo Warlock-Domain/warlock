@@ -4,6 +4,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Interface
 
+- Channeling proposal25/10: Attack+spell (or Channeling bar icon then spell) charges independently of cast mode; left-click confirms after1s, key release never fires. Snapshot cn drives held pose, label and powered reach; own state clears on server cancellation. PT/EN descriptions/stat rows/demo use the shared simulation. Held Attack_Invoke stops before switching to gait/idle/another clip, preventing a frozen pose from remaining mixed into walking.
+
 - Closed Body keeps its local effect aligned with the current stance, without a cursor aim line. PT/EN descriptions and the off-axis demo explain the preserved facing.
 
 - Cegueira: vinheta ancorada no chão pelo raio3m do jogador afetado, não pela câmera; oculta entidades e rótulos além do limite. Capítulo de status somente texto no Grimório; Rajada de areia tem ficha e demo próprias PT/EN em Controle.

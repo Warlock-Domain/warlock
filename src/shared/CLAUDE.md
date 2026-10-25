@@ -4,6 +4,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## Simulação
 
+- Channeling proposal (25/10): learned Attack modifier,12gold, no own cooldown; Attack+owned spell starts stationary authoritative charge. At1s1.5×, at2s2× damage/range/projectile speed/knockback, held indefinitely without auto-fire. Explicit cast releases; original spell cooldown starts then. Stop/move/stun/suspension/death/lost ownership cancel; basic attacks disabled while learned. Captured power follows projectiles/reflection/shards. Healing/status/duration/radius unchanged. Identical bonuses across levels pending a progression decision. Preserve Campaign walls/body radii and custom projectile stats.
+
 - Closed Body preserves the current stance facing when cast; the cursor does not turn the wizard. Other spells retain their normal aiming behavior. No stat or resistance changes.
 
 - Rajada de areia (cluster) em Controle: cone3×2m, dano20+8/nível, Incapacitar1+0,25s/nível e Cegueira2+0,5s/nível. Status independentes respeitam resistências gerais; sem projéteis nem knockback. Cegueira limita visão a3m do alvo (diâmetro6m), inclusive IA.

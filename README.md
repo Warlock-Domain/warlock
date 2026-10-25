@@ -1,5 +1,7 @@
 # Warlock Wars
 
+Channeling proposal: buy the Attack modifier, hold Attack plus a spell key to charge, then click to release after at least1s. Damage/range/projectile speed/knockback rise from+50% at1s to+100% at2s; maximum charge waits for an explicit cast. Basic attacks are disabled while learned. Product progression and balance remain review gates.
+
 Remake web do mod de arena **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): magos numa arena que encolhe sobre lava, magias de empurrão, loja entre rodadas e quem sobrar vence. Feito para jogar em salas com os amigos, direto no navegador, em português ou inglês.
 
 **Jogar:** https://warlock.fernandorffdev.com
