@@ -44,9 +44,14 @@ jobs:
             const c = JSON.parse(fs.readFileSync("wrangler.jsonc", "utf8"));
             c.name = process.env.NOME;
             c.routes = [{ pattern: process.env.HOST, custom_domain: true }];
+            // forum: no GitHub sign-in here (one OAuth callback URL cannot cover pr-<n> hosts), only "sign in as tester",
+            // with a fresh session key per deploy (pushing signs testers out). The key goes as a secret: plain vars are
+            // printed in the public deploy log
+            c.vars = { ...c.vars, FORUM_TESTER: "1" };
+            fs.writeFileSync("forum.secrets.json", JSON.stringify({ FORUM_SESSION_KEY: require("crypto").randomBytes(32).toString("hex") }));
             fs.writeFileSync("wrangler.pr.json", JSON.stringify(c, null, 2));
           '
-      - run: npx wrangler deploy -c wrangler.pr.json
+      - run: npx wrangler deploy -c wrangler.pr.json --secrets-file forum.secrets.json
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

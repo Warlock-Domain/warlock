@@ -231,6 +231,8 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   settingsBtn.title = t('Configurações', 'Settings');
   settingsBtn.setAttribute('aria-label', t('Configurações', 'Settings'));
   settingsBtn.replaceChildren(el('img', { src: '/wrench.svg', alt: '', width: 28, height: 28 }));
+  // the forum is its own page (forum.html, issue #366): a link in a new tab, not another menu tab (lean menus, grill of 25/10)
+  const forumLink = el('a', { class: 'home-tool', href: '/forum', target: '_blank', rel: 'noopener', title: t('Fórum', 'Forum'), 'aria-label': t('Fórum (abre numa aba nova)', 'Forum (opens in a new tab)') }, icon(UI_ICON.forum));
   function show(k: HomeTab) {
     stage.classList.toggle('is-subpage', k !== 'home');
     panels.home.hidden = k !== 'home';
@@ -243,7 +245,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   }
   root.replaceChildren(
     el('div', { class: 'lobby', 'data-name': name },
-      el('nav', { class: 'home-bar', role: 'tablist', 'aria-label': t('Menu principal', 'Main menu') }, settingsBtn,
+      el('nav', { class: 'home-bar', role: 'tablist', 'aria-label': t('Menu principal', 'Main menu') }, settingsBtn, forumLink,
         el('button', { type: 'button', class: 'home-logo', id: 'home-tab-home', role: 'tab', 'aria-controls': 'home-home', title: t('Início', 'Home'), 'aria-label': t('Voltar ao menu principal', 'Back to home'), onclick: () => show('home') },
           el('img', { src: '/warlock-wars.svg', alt: 'Warlock Wars' })),
         el('div', { class: 'home-tabs' }, ...btns.filter((b) => b !== settingsBtn))),

@@ -63,6 +63,7 @@ Vale junto com o `CLAUDE.md` da raiz.
 
 ## CSS (`style.css`, arquivo único)
 
+- **Forum exception** (`forum.html`, `body.forum-page`, grill of 25/10): the forum is a classic, clean light page with its own `--fm-*` colour tokens declared on `body.forum-page`; forum rules use those, never the dark palette, and sizes still come from the `:root` scale. Its buttons are `.fm-btn` (`primary`, `big`).
 - Colours and sizes come from the `:root` variables (`--lava`, `--gold`, `--bronze`, `--panel`, `--fg`, `--r-md`…). No loose hex, except the group colour and the Grimoire leather and pages (`.grimoire`, `.g-book`).
 - Font sizes, `gap` and single-value `padding` come from the `:root` scale (`--fs-90` = `.9rem`, `--sp-8` = `8px`; named by value, issue #141): a new rule uses the nearest step instead of inventing a size. Moving an existing size to another step changes the screen and is Fernando's decision.
 - Cor de grupo: `.g-ataque`, `.g-mobilidade`, `.g-defesa`, `.g-controle` (variável `--g`); itens prateados (`--item`). A classe vem de `spellClass(s)` pela posição em `SPELL_GROUPS`: magia nova ganha cor entrando num grupo, sem classe nova. Na loja, os itens passivos ficam em seções por `ITEM_GROUPS` (`rules-text.ts`, mesmo formato, todos prateados): item passivo novo entra num grupo, senão some da loja (teste em `ui-data.test.ts`).
