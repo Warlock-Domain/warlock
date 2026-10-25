@@ -882,7 +882,7 @@ function summon(m: Match, w: World, p: Player, kind: ServoKind, at: Vec) {
   dress(m, p, kind);
   // chefe: vida pelo tamanho do grupo e pesado (empurrão a menos); a vaga volta ao normal quando vira servo de novo
   const boss = !!SERVOS[kind].boss;
-  if (boss) p.hpMax = bossHp(SERVOS[kind].hp, w.wizards.filter((q) => q.team === 0 && q.alive).length); // Acesos em pé ao entrar
+  p.hpMax = boss ? bossHp(SERVOS[kind].hp, w.wizards.filter((q) => q.team === 0 && q.alive).length) : servoHp(SERVOS[kind].hp, acesosOf(w)); // boss: standing Acesos when he enters
   Object.assign(z, { spells: { ...p.spells }, cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), hpMax: p.hpMax, regen: 0, baseSpeed: WIZ_SPEED * (SERVOS[kind].speed ?? 1), kbResist: boss ? ODRAN.kbResist : 0, dashDmg: undefined, pitDeath: !boss, r: boss ? WIZ_R * ODRAN.size : undefined });
   revive(w, z, at);
   if (boss) {

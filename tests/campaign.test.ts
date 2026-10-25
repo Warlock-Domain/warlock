@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPAIGN, NIGHT_XP, SERVOS, nightCount, nightLevel, roomWaves, xpShare } from '../src/shared/campaign.ts';
+import { CAMPAIGN, NIGHT_XP, SERVOS, nightCount, nightLevel, roomWaves, servoHp, xpShare } from '../src/shared/campaign.ts';
 import { fightOf, nightMap, type NightMap } from '../src/shared/levels.ts';
 import { WIZ_SPEED } from '../src/shared/constants.ts';
 import { addPlayer, endIdle, setWatch, kick, newMatch, removePlayer, resume, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
@@ -163,7 +163,7 @@ describe('Campaign: match on the map', () => {
     const hound = foes(m).find((z) => z.alive && m.players.find((p) => p.id === z.id)!.servo === 'hound')!;
     expect(dist(hound.pos, v(house.x + 0.5, house.y + 0.5))).toBeLessThan(0.01);
     expect(hound.baseSpeed).toBeCloseTo(WIZ_SPEED * SERVOS.hound.speed!, 5);
-    expect(hound.hpMax).toBe(SERVOS.hound.hp);
+    expect(hound.hpMax).toBe(servoHp(SERVOS.hound.hp, m.world!.wizards.filter((q) => q.team === 0).length));
   });
 
   it('in the cemetery a tombstone cracks every 10 s and lets out one more Hollow Watcher, up to 3', () => {
@@ -413,7 +413,7 @@ describe('Campaign: screen', () => {
     now = stepOn(m, now, 'a', checkpoint(mapOf(m), 0));
     const room = publicRoom('ABCD', m, 0);
     const servo = room.players.find((p) => p.servo)!;
-    expect(maxHp(servo)).toBe(SERVOS[servo.servo!].hp);
+    expect(maxHp(servo)).toBe(servoHp(SERVOS[servo.servo!].hp, m.world!.wizards.filter((q) => q.team === 0).length));
     expect(maxHp(room.players.find((p) => !p.servo))).toBe(1000);
   });
 
