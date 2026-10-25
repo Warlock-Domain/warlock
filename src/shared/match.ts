@@ -858,7 +858,7 @@ const around = (p: Vec, i: number, n: number) => (n === 1 ? p : v(p.x + Math.cos
 // estágio novo: o mapa inteiro da noite num mundo só; o grupo no início, as vagas do Fumo fora até um encontro
 function enterStage(m: Match, now: number, rand: () => number) {
   const n = m.night!, map = mapOf(n);
-  Object.assign(n, { fight: null, wave: 0, boss: undefined, orphan: undefined, queue: undefined }); // orphan: a time of the old world's clock
+  Object.assign(n, { fight: null, wave: 0, boss: undefined, orphan: undefined, queue: undefined, opened: undefined }); // orphan: a time of the old world's clock; opened: chest indexes belong to the old map
   for (const p of m.players) if (!p.servo) p.team = 0; // quem entrou no meio da noite também é Aceso
   // quem assiste não ganha mago (como nos outros modos)
   const ids = playing(m).map((p) => p.id);
