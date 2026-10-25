@@ -16,9 +16,9 @@ const FLOOR: [string, number, number][] = [
 ];
 // entulho do Dungeon tem 4 a 8 unidades de largura: reduzido para caber como detalhe
 const SCALE: Record<string, number> = { rubble_large: 0.35, rubble_half: 0.4 };
-const FLAME_ON = new Set(['torch_lit', 'lantern_standing', 'skull_candle', 'shrine_candles', 'candle_triple', 'candle_melted', 'post_lantern']);
+const FLAME_ON = new Set(['torch_lit', 'lantern_standing', 'skull_candle', 'shrine_candles', 'candle_triple', 'candle_melted', 'post_lantern', 'chest_gold']); // the closed Campaign chest glows too
 // Campaign props (night-decor.ts) that are several cells wide in KayKit units: shrunk to fit against a 1 m wall cell
-const NIGHT_SCALE: Record<string, number> = { rubble_half: 0.35, crates_stacked: 0.55, grave_A_destroyed: 0.6, post_lantern: 0.7, sword_shield_broken: 0.8 };
+const NIGHT_SCALE: Record<string, number> = { chest: 0.6, chest_gold: 0.6, rubble_half: 0.35, crates_stacked: 0.55, grave_A_destroyed: 0.6, post_lantern: 0.7, sword_shield_broken: 0.8 };
 // sombra em toda malha do modelo
 const shadows = (o: THREE.Object3D) => o.traverse((m) => {
   if ((m as THREE.Mesh).isMesh) m.castShadow = m.receiveShadow = true;
@@ -84,6 +84,10 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
   scene.add(night);
   let nightFile: Promise<Map<string, THREE.Object3D>> | null = null;
   let nightKey = '';
+  const loadNight = () => (nightFile ??= Promise.all([new GLTFLoader().loadAsync('/models/charneca.glb'), unitScale]).then(([g, k]) => {
+    unit = k;
+    return new Map(g.scene.children.map((c) => [c.name.replace(/\.gltf$/, ''), c] as const));
+  }));
   const clearNight = () => {
     for (const c of [...night.children]) {
       night.remove(c);
@@ -102,11 +106,7 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
       clearNight();
       const props = propsOf(); // built once per map, not every frame
       if (!props) return;
-      nightFile ??= Promise.all([new GLTFLoader().loadAsync('/models/charneca.glb'), unitScale]).then(([g, k]) => {
-        unit = k;
-        return new Map(g.scene.children.map((c) => [c.name.replace(/\.gltf$/, ''), c] as const));
-      });
-      nightFile.then((byName) => {
+      loadNight().then((byName) => {
         if (nightKey !== key) return; // another map came in while the file loaded
         for (const p of props) {
           const src = byName.get(p.name);
@@ -128,6 +128,14 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
           }
         }
       }).catch(() => console.warn('cenário da Campanha não carregou; o mapa segue sem ele'));
+    },
+    // Campaign: the first mesh of a model of the Charneca GLB (floor tiles and wall blocks, instanced by the scene); null if missing
+    nightMesh(name: string): Promise<THREE.Mesh | null> {
+      return loadNight().then((byName) => {
+        let mesh: THREE.Mesh | null = null;
+        byName.get(name)?.traverse((o) => (mesh ??= (o as THREE.Mesh).isMesh ? (o as THREE.Mesh) : null));
+        return mesh;
+      }).catch(() => null);
     },
     // cópia de um modelo da decoração (para os pilares da arena), já na escala do jogo; null se ainda não carregou
     clone(name: string): THREE.Object3D | null {

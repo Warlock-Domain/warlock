@@ -6,7 +6,7 @@ const rooms = STAGE_ROOMS[0];
 const room = (id: string) => rooms.find((r) => r.id === id)!;
 const SEEDS = Array.from({ length: 200 }, (_, i) => i * 7919 + 3);
 
-// casas por onde se anda (mureta, destroço, parede e abismo não)
+// cells you can walk on (low wall, debris, wall and abyss are not)
 const WALK: Ground[] = ['floor', 'wax'];
 function reachable(n: NightMap, from: { x: number; y: number }): Set<string> {
   const seen = new Set([`${from.x},${from.y}`]);
@@ -23,7 +23,7 @@ function reachable(n: NightMap, from: { x: number; y: number }): Set<string> {
   return seen;
 }
 
-describe('Campanha: salas da Charneca', () => {
+describe('Campaign: Charneca rooms', () => {
   it('reads the 7 rooms of the level design with their pools', () => {
     expect(rooms.map((r) => [r.id, r.pool])).toEqual([
       ['charneca-entrada-01', 'entrada'], ['moinho-caido-01', 'meio'], ['vilarejo-queimado-02', 'meio'], ['cemiterio-dos-vigias-01', 'meio'],
@@ -35,12 +35,12 @@ describe('Campanha: salas da Charneca', () => {
     const kinds = (id: string) => room(id).marks.map((m) => m.kind);
     expect(kinds('charneca-entrada-01')).toEqual(expect.arrayContaining(['start', 'checkpoint', 'entry']));
     for (const id of ['moinho-caido-01', 'vilarejo-queimado-02', 'cemiterio-dos-vigias-01', 'ponte-dos-enforcados-01']) expect(kinds(id), id).toContain('checkpoint');
-    // todo encontro precisa de onde o Fumo entrar: E nas salas com ponto de controle, B na arena do chefe
+    // every encounter needs somewhere for the Smoke to enter: E in rooms with a checkpoint, B in the boss arena
     for (const r of rooms) if (r.pool === 'chefe' || r.marks.some((m) => m.kind === 'checkpoint')) expect(r.marks.some((m) => m.kind === (r.pool === 'chefe' ? 'boss' : 'entry')), r.id).toBe(true);
     expect(kinds('charneca-portao-01')).toContain('candle');
     expect(kinds('arena-odran-01')).toContain('boss');
     const pillars = room('arena-odran-01').marks.filter((m) => m.kind === 'statue');
-    expect(pillars.map((m) => [m.w, m.h])).toEqual([[2, 2], [2, 2], [2, 2], [2, 2]]); // os 4 pilares de 2×2
+    expect(pillars.map((m) => [m.w, m.h])).toEqual([[2, 2], [2, 2], [2, 2], [2, 2]]); // the 4 pillars of 2×2
     expect(room('cemiterio-dos-vigias-01').marks.filter((m) => m.kind === 'statue').every((m) => m.w === 1 && m.h === 1)).toBe(true);
     expect(room('charneca-entrada-01').marks.find((m) => m.kind === 'checkpoint')!.id).toBe('C1');
   });
@@ -50,8 +50,8 @@ describe('Campanha: salas da Charneca', () => {
     expect(at('charneca-entrada-01', 12, 2)).toBe('low');
     expect(at('moinho-caido-01', 8, 1)).toBe('debris');
     expect(at('vilarejo-queimado-02', 11, 5)).toBe('wax');
-    expect(at('ponte-dos-enforcados-01', 12, 1)).toBe('lava'); // lava sob a ponte (22/10)
-    expect(at('arena-odran-01', 1, 4)).toBe('lava'); // anel de lava da arena
+    expect(at('ponte-dos-enforcados-01', 12, 1)).toBe('lava'); // lava under the bridge (22/10)
+    expect(at('arena-odran-01', 1, 4)).toBe('lava'); // lava ring of the arena
     expect(at('ponte-dos-enforcados-01', 12, 4)).toBe('floor');
   });
 
@@ -73,9 +73,9 @@ describe('Campanha: salas da Charneca', () => {
     ]);
     expect(room('vilarejo-queimado-02').fight!.waves[0]).toContainEqual({ kind: 'hound', e: 0 });
     expect(room('cemiterio-dos-vigias-01').fight!.tombs).toEqual({ kind: 'watcher', every: 10, max: 3 });
-    expect(room('ponte-dos-enforcados-01').fight!.waves).toEqual([[{ kind: 'archer', e: 0 }, { kind: 'archer', e: 1 }]]); // só o que a nota diz
+    expect(room('ponte-dos-enforcados-01').fight!.waves).toEqual([[{ kind: 'archer', e: 0 }, { kind: 'archer', e: 1 }]]); // only what the note says
     expect(room('charneca-portao-01').fight).toBeUndefined();
-    expect(room('arena-odran-01').fight).toBeUndefined(); // até o Sir Odran, a arena usa ondas sorteadas
+    expect(room('arena-odran-01').fight).toBeUndefined(); // until Sir Odran, the arena uses drawn waves
   });
 
   it('points out encounter mistakes with the room name', () => {
@@ -87,7 +87,7 @@ describe('Campanha: salas da Charneca', () => {
     expect(() => parseRooms(base + 'onda 1: dois Cinzentos @E1\n')).toThrow(/não entendi "dois Cinzentos @E1"/);
     expect(() => parseRooms(base + 'lápides: 1 Vigia Oco a cada 10 s, até 3\n')).toThrow(/sem lápide/);
     expect(() => parseRooms(base + 'Onda 1 - 1 Cinzento @E1\n')).toThrow(/não entendi a linha/);
-    // maiúscula e espaço no começo valem igual
+    // a capital letter and leading space count the same
     expect(parseRooms(base + '  Onda 1: 1 Cinzento @E1\n')[0].fight).toEqual({ waves: [[{ kind: 'ash', e: 0 }]] });
   });
 
@@ -98,11 +98,11 @@ describe('Campanha: salas da Charneca', () => {
   });
 });
 
-describe('Campanha: montagem da noite', () => {
+describe('Campaign: night assembly', () => {
   it('same seed same map, and the seeds vary the path', () => {
     const ids = (s: number) => layoutStage(s, 0).map((p) => `${p.room.id}@${p.x},${p.y}`).join(' ');
     expect(ids(42)).toBe(ids(42));
-    // a Charneca tem ordem fixa: a semente vira as salas (espelho) e muda para que lado o caminho segue
+    // the Charneca has a fixed order: the seed mirrors the rooms and changes which way the path goes
     // N/S openings (Lucas, 24/10): with only E/W exits the 30 seeds gave 4 shapes; now most seeds give their own
     expect(new Set(SEEDS.slice(0, 30).map(ids)).size).toBeGreaterThanOrEqual(15);
   });
@@ -120,13 +120,13 @@ describe('Campanha: montagem da noite', () => {
     const m = flip(r, true, true);
     expect(flip(m, true, true)).toEqual(r);
     expect(m.ground[0][0]).toBe(r.ground[r.h - 1][r.w - 1]);
-    // o E1 continua sendo a mesma marca (ordem preservada), só espelhada
+    // E1 is still the same mark (order kept), only mirrored
     const e = (q: typeof r) => q.marks.filter((k) => k.kind === 'entry');
     expect(e(m).map((k) => [k.x, k.y])).toEqual(e(r).map((k) => [r.w - 1 - k.x, r.h - 1 - k.y]));
-    // o centro do ponto de controle (entre o C e o número) vai para o espelho do centro
+    // the checkpoint center (between the C and the number) goes to the mirrored center
     const cp = (q: typeof r) => q.marks.find((k) => k.kind === 'checkpoint')!;
     expect(cp(m).x + 1).toBe(r.w - (cp(r).x + 1));
-    // a saída N vira S, a L vira O, na posição espelhada
+    // the N exit becomes S, the L becomes O, at the mirrored position
     expect(m.exits.find((x) => x.letter === 'S')).toEqual({ letter: 'S', edge: 'bottom', from: r.w - 1 - r.exits.find((x) => x.letter === 'N')!.to, to: r.w - 1 - r.exits.find((x) => x.letter === 'N')!.from });
     expect(m.fight).toBe(r.fight);
   });
@@ -140,7 +140,7 @@ describe('Campanha: montagem da noite', () => {
       const seen = reachable(n, start);
       const boss = n.marks.find((m) => m.kind === 'boss')!;
       expect(seen.has(`${boss.x},${boss.y}`), String(s)).toBe(true);
-      // as salas laterais também são alcançáveis (o baú delas é a recompensa de quem explora)
+      // the side rooms are reachable too (their chest rewards whoever explores)
       for (const p of n.rooms.filter((q) => q.side)) {
         const cp = n.marks.find((m) => m.room === n.rooms.indexOf(p) && m.kind === 'checkpoint')!;
         expect(seen.has(`${cp.x},${cp.y}`), `${s}: ${p.room.id}`).toBe(true);
@@ -152,7 +152,7 @@ describe('Campanha: montagem da noite', () => {
     for (const s of SEEDS.slice(0, 40)) {
       const n = buildNight(s, 0);
       const W = n.ground[0].length;
-      // nenhuma casa andável na borda do mapa inteiro: ninguém sai do mapa
+      // no walkable cell on the border of the whole map: nobody leaves the map
       for (let x = 0; x < W; x++) expect([n.ground[0][x], n.ground[n.h - 1][x]], String(s)).toEqual(['wall', 'wall']);
       for (let y = 0; y < n.h; y++) expect([n.ground[y][0], n.ground[y][W - 1]], String(s)).toEqual(['wall', 'wall']);
     }

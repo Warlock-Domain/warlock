@@ -62,7 +62,7 @@ function room(x: unknown): x is PublicRoom {
     const sandbox = x.sandbox;
     if (!object(sandbox) || !SANDBOX_KEYS.every((key) => typeof sandbox[key] === 'boolean')) return false;
   }
-  if (x.night !== undefined && (!object(x.night) || !integer(x.night.stage) || !integer(x.night.seed) || !(x.night.fight === null || integer(x.night.fight)) || !integer(x.night.wave) || !integer(x.night.waves) || !Array.isArray(x.night.done) || !x.night.done.every(integer) || !(x.night.result === null || (NIGHT_RESULTS as readonly unknown[]).includes(x.night.result)))) return false;
+  if (x.night !== undefined && (!object(x.night) || !integer(x.night.stage) || !integer(x.night.seed) || !(x.night.fight === null || integer(x.night.fight)) || !integer(x.night.wave) || !integer(x.night.waves) || !Array.isArray(x.night.done) || !x.night.done.every(integer) || !Array.isArray(x.night.opened) || !x.night.opened.every(integer) || !(x.night.result === null || (NIGHT_RESULTS as readonly unknown[]).includes(x.night.result)))) return false;
   if (x.lobby !== undefined) {
     const lobby = x.lobby;
     if (!object(lobby) || !nullableString(lobby.owner) || !Array.isArray(lobby.bots) || !lobby.bots.every((d) => (OPTION_CHOICES.difficulty as readonly unknown[]).includes(d)) || !validOpts(lobby.opts, true)) return false;
@@ -90,6 +90,7 @@ function event(x: unknown): x is SimEvent {
     case 'fall': return id() && num('x', 'y');
     case 'rune': return (RUNE_KINDS as readonly unknown[]).includes(x.kind) && num('x', 'y');
     case 'boss': return id() && (BOSS_EVENT_KINDS as readonly unknown[]).includes(x.what) && num('x', 'y') && (x.tx === undefined || finite(x.tx)) && (x.ty === undefined || finite(x.ty));
+    case 'relic': return id() && num('x', 'y');
     case 'ember': return id() && (EMBER_EVENT_KINDS as readonly unknown[]).includes(x.what) && num('x', 'y');
     case 'streak': return id() && (STREAK_KINDS as readonly unknown[]).includes(x.kind) && integer(x.n) && (x.victim === undefined || string(x.victim));
     case 'clash': return num('x', 'y', 'r') && (COMBO_KINDS as readonly unknown[]).includes(x.combo);

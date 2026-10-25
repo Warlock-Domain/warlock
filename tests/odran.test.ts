@@ -5,10 +5,10 @@ import { LOOK_PARTS, decodeLook } from '../src/shared/characters.ts';
 import { STAGE_ROOMS, fightOf, nightMap, parseRooms, type NightMap } from '../src/shared/levels.ts';
 import { addPlayer, newMatch, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { mulberry32 } from '../src/shared/rng.ts';
-import type { SimEvent } from '../src/shared/sim.ts';
+import { stepWorld, type SimEvent } from '../src/shared/sim.ts';
 import { dist, v } from '../src/shared/vec.ts';
 import { STEP_MS, run, toPlaying, world } from './helpers.ts';
-import { WIZ_R } from '../src/shared/constants.ts';
+import { OBSTACLES, WIZ_R } from '../src/shared/constants.ts';
 import { noSpells } from '../src/shared/spells.ts';
 
 // room created by the Campaign option of the Play menu: only it plays the Campaign
@@ -126,15 +126,15 @@ describe('Sir Odran: charge', () => {
       const before = events.length;
       for (let i = 0; i < 60 * 3 && q.alive; i++) {
         now = step(m, now, events);
-        a.pos = v(q.pos.x, q.pos.y - 3.2); // stays still behind the pillar
+        a.pos = v(q.pos.x, q.pos.y - 3.2); // stays behind the pillar
       }
-      expect(q.alive, `pilar ${k}`).toBe(false);
+      expect(q.alive, `pillar ${k}`).toBe(false);
       expect(events.slice(before).some((e) => e.k === 'boss' && e.what === 'stun')).toBe(true);
       // stunned: does not walk or cast for 3 s
       const at = { ...z.pos }, cd = { ...z.cd };
       now = step(m, now, events, 60 * ODRAN.stun - 10);
-      // the 4th pillar brings the phase-2 Ashen in where the pillars stood: next to his giant body, they nudge him a little
-      expect(dist(z.pos, at), `pilar ${k}`).toBeLessThan(k < 3 ? 0.3 : 0.5);
+      // the 4th pillar brings the phase-2 Ashen, whose spells push him like any ally (Teams rule, 24/10): only check before that
+      if (k < 3) expect(dist(z.pos, at), `pillar ${k}`).toBeLessThan(0.3);
       expect(z.cd).toEqual(cd);
       expect(m.night!.boss!.phase).toBe(k < 3 ? 1 : 2);
     }
@@ -181,7 +181,7 @@ describe('Giant Sir Odran', () => {
 });
 
 describe('Sir Odran: 2.5× body', () => {
-  it('he enters with the giant body; a Fireball passing 0,8 m from his centre hits him but misses a wizard', () => {
+  it('he enters with the giant body; a Fireball passing 0.8 m from his centre hits him but misses a wizard', () => {
     const { m } = arena();
     expect(odran(m).r).toBeCloseTo(WIZ_R * ODRAN.size);
     for (const r of [undefined, WIZ_R * ODRAN.size]) {
@@ -227,6 +227,29 @@ describe('Sir Odran: 2.5× body', () => {
       w.wizards[1].r = r;
       const hp = w.wizards[1].hp;
       run(w, 1, [{ id: 'p0', kind: 'cast', spell: 'cluster', at: v(3, 0) }]);
+      expect(w.wizards[1].hp < hp, String(r)).toBe(r !== undefined);
+    }
+  });
+
+  it('the Attack reaches the giant body in melee at its edge, where a wizard only gets the shot', () => {
+    for (const r of [undefined, WIZ_R * ODRAN.size]) {
+      const w = world([[0, 0], [1.3, 0]], noSpells(), [], () => 0.5);
+      w.wizards[1].r = r;
+      const melee: boolean[] = [];
+      for (let i = 0; i < 60; i++) {
+        stepWorld(w, i ? [] : [{ id: 'p0', kind: 'basic', at: v(1.3, 0) }]);
+        for (const e of w.events) if (e.k === 'attack') melee.push(e.melee);
+      }
+      expect(melee, String(r)).toEqual([r !== undefined]);
+    }
+  });
+
+  it('a Barricade falling past the edge of a wizard still lands on the giant body', () => {
+    for (const r of [undefined, WIZ_R * ODRAN.size]) {
+      const w = world([[0, 0], [3 + OBSTACLES.rockpillar.r + WIZ_R + 0.3, 0]], { ...noSpells(), rockpillar: 1 }, [], () => 0.5);
+      w.wizards[1].r = r;
+      const hp = w.wizards[1].hp;
+      run(w, 0.5, [{ id: 'p0', kind: 'cast', spell: 'rockpillar', at: v(3, 0) }]);
       expect(w.wizards[1].hp < hp, String(r)).toBe(r !== undefined);
     }
   });

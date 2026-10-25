@@ -20,10 +20,13 @@ models/charneca.glb
   Cenário da Campanha (src/client/night-decor.ts), junção (scripts/assets/merge-decor.mjs) de modelos de:
   - KayKit Halloween Bits 1.0, por Kay Lousberg (www.kaylousberg.com), CC0
     nós: gravestone, grave_A_destroyed, gravemarker_A, gravemarker_B, fence_broken, fence_pillar_broken, candle_melted, coffin,
-    bone_A, bone_C, skull, ribcage, post_lantern, lantern_standing, tree_dead_small, skull_candle
+    bone_A, bone_C, skull, ribcage, post_lantern, lantern_standing, tree_dead_small, skull_candle, shrine_candles
   - KayKit Dungeon Remastered 1.0, por Kay Lousberg (www.kaylousberg.com), CC0
-    nós: torch_lit, barrel_small, crates_stacked, rubble_half, sword_shield_broken, candle_triple
-  Copiados de assets/kaykit/halloween e assets/kaykit/masmorra; licença lida no LICENSE.txt de cada pack: "License: (Creative Commons Zero, CC0)".
+    nós: torch_lit, barrel_small, crates_stacked, rubble_half, sword_shield_broken, candle_triple, chest, chest_gold,
+    floor_tile_small, floor_tile_small_broken_A, floor_dirt_small_A
+  - KayKit Block Bits 1.0, por Kay Lousberg (www.kaylousberg.com), CC0
+    nós: bricks_A (as paredes do mapa)
+  Copiados de assets/kaykit/halloween, assets/kaykit/masmorra e assets/kaykit/blocos; licença lida no LICENSE.txt de cada pack: "License: (Creative Commons Zero, CC0)".
 models/mage.glb, knight, barbarian, rogue, rogue_hooded e skeleton_*.glb (os 9 bonecos), models/KAYKIT-LICENSE.txt e KAYKIT-SKELETONS-LICENSE.txt
   KayKit Adventurers Character Pack 1.0 e KayKit Character Pack: Skeletons 1.0, por Kay Lousberg (www.kaylousberg.com), CC0
   Cortados por scripts/slim-character.mjs: 17 animações dos próprios originais (Idle, Running_A, Spellcast_Shoot, Hit_A,

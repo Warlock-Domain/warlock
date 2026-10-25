@@ -31,7 +31,7 @@ Vale junto com o `CLAUDE.md` da raiz.
 - Constante extra de mecânica vira objeto `NOME = { … * UNIT }` abaixo da tabela, com o arquivo `.lua` de origem no comentário. Nada de número mágico solto em `sim.ts`.
 - Número só muda com medição do simulador (ver raiz).
 - **Body radius:** `Wizard.r` (read through `bodyR`) is the body when it is not `WIZ_R`; only the Campaign boss sets it (`ODRAN.size`). Collisions, projectile hits and blasts against a wizard use `bodyR` of that wizard; a new check of "touching a wizard" uses it too, so the PvP hash stays the same.
-- **Campanha tem números próprios:** magia diferente na Campanha entra em `CAMPAIGN_BOOK` (`campaign.ts`, com `retune`), nunca em `spells.ts`; o mundo dela leva esse livro em `World.book`. Quem lê número de magia usa `spellLevel(id, nível, w.book)`, nunca `SPELLS[id].levels` direto (`tests/spellbook.test.ts` acusa). O que não está no livro segue `SPELLS`. O livro cobre só a tabela de níveis (`Level`): constante de mecânica (`RUSH`, `THRUST`…), `CAST_POINT` e itens ainda são de todos os modos; para mudar um deles só na Campanha, primeiro estenda o livro (mesma ideia, no `World`), nunca edite a constante compartilhada.
+- **The Campaign uses the core numbers** (Fernando, 24/10): no spell table, constant or friendly-fire rule of its own; spell numbers come from `SPELLS` via `spellLevel`, in every mode. A Campaign need is met by a core rule or discussed in an issue first.
 
 ## Magia nova: onde mexer
 

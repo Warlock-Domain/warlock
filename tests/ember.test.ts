@@ -79,7 +79,7 @@ describe('rekindle', () => {
   it('each fall in the same encounter costs 1 s more', () => {
     let { m, now } = night();
     const a = wiz(m, 'a'), b = wiz(m, 'b');
-    // opens the entrance encounter; the servants hold fire so they do not knock anyone down on their own
+    // opens the entrance encounter; the servants do not shoot so they never knock anyone down on their own
     const n = nightMap(m.night!.seed, m.night!.stage), cp = n.marks.find((q) => q.kind === 'checkpoint')!;
     b.invulnUntil = 1e9;
     a.pos = v(cp.x + 1, cp.y + 0.5);
@@ -130,7 +130,7 @@ describe('rekindle', () => {
     now = step(m, now, 60 * (EMBER.out + 1), events);
     expect(a.ember?.out).toBe(true);
     expect(events.some((e) => e.k === 'ember' && e.what === 'out' && e.id === 'a')).toBe(true);
-    // gone out: not even close by brings it back
+    // put out: even close by it does not come back
     b.pos = add(a.pos, v(0.5, 0));
     now = step(m, now, 60 * 5);
     expect(a.alive).toBe(false);
