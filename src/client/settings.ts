@@ -1,6 +1,7 @@
-// Configurações (pedido do Fernando, 18/10): um diálogo só, aberto de qualquer tela, que junta teclas, lançamento, som, vídeo,
-// controle, jogador e sobre. Seções empilhadas com sumário (stackedPage). Abre pelo Esc quando nada mais está aberto (main.ts),
-// pela engrenagem do topo ou pelo Start do controle; não pausa o jogo. Aba nova = um item em SECTIONS.
+// Settings (Fernando, 18/10): one dialog from any screen for controls, casting, audio, video, player and about.
+// Esc, the toolbar gear or controller Start opens the sections and table of contents.
+// Opening settings does not pause the match.
+// Add sections in SECTIONS.
 import { isRumbleOn, setPadCapture, setRumble } from './gamepad.ts';
 import { UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
 import {
@@ -322,56 +323,70 @@ const SECTIONS: Section[] = [
   { id: 'sobre', title: t('Sobre', 'About'), icon: UI_ICON.info, render: aboutSection },
 ];
 
-// as seções empilhadas numa página, com o sumário fixo à esquerda e a seção visível destacada, como as opções do Dota 2 (issue #59 no
-// menu inicial, #70 na partida); no celular o sumário recolhe no topo. No menu inicial Personagem vira atalho para a aba dele:
-// a prévia 3D é uma só (avatarPanel) e sairia de lá
-type Page = { body: HTMLElement; grid: HTMLElement; fill: () => void; jump: (id: string) => void; dispose: () => void };
-let home: Page | null = null;
-let modal: Page | null = null; // a página dentro do diálogo da partida
+// Stacked settings page with a table of contents and the visible section highlighted (issues #59 and #70).
+// On narrow screens the table of contents moves to the top; the home tab links to its single character preview.
+let home: SettingsPage | null = null;
+let modal: SettingsPage | null = null;
 const charLink = () => [el('p', { class: 'muted' }, t('O visual do seu mago fica na aba Personagem.', 'Your wizard\'s look is in the Character tab.')),
   el('button', { type: 'button', onclick: () => document.getElementById('home-tab-char')?.click() }, icon(UI_ICON.person), ' ', t('Abrir a aba Personagem', 'Open the Character tab'))];
-// scroller: quem rola a página (null = a janela, no menu inicial)
-function stackedPage(scroller: HTMLElement | null, lobby: boolean): Page {
-  const body = el('div', { class: 'settings-sections' });
-  const narrow = matchMedia('(max-width: 600px)');
-  const toc = el('details', { class: 'settings-toc', open: !narrow.matches }, el('summary', {}, t('Sumário', 'Contents')));
-  const onNarrow = (e: MediaQueryListEvent) => (toc.open = !e.matches);
-  narrow.addEventListener('change', onNarrow); // girar o celular: no PC o sumário fica sempre aberto
-  const mark = (id: string) => toc.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
-  // a seção que passa pela faixa de cima é a destacada; depois de um clique no sumário, o destaque fica na escolhida
-  // enquanto a página rola (as últimas seções nem sempre chegam ao topo)
-  let hold = 0;
-  let disposed = false;
-  const spy = new IntersectionObserver((entries) => !disposed && Date.now() > hold && entries.forEach((e) => e.isIntersecting && mark(e.target.id.slice(4))), { root: scroller, rootMargin: '0px 0px -70% 0px' });
-  const fill = () => {
-    if (disposed) return;
-    const shown = SECTIONS.map((s) => [s, lobby && s.id === 'personagem' ? charLink() : s.render()] as const).filter(([, b]) => b);
-    // fill troca a página inteira: devolve o foco ao campo pelo id (quem usa teclado não perde o lugar), por isso campo novo leva id fixo
+class SettingsPage {
+  readonly body = el('div', { class: 'settings-sections' });
+  private readonly narrow = matchMedia('(max-width: 600px)');
+  private readonly toc = el('details', { class: 'settings-toc', open: !this.narrow.matches }, el('summary', {}, t('Sumário', 'Contents')));
+  private hold = 0;
+  private disposed = false;
+  private readonly onNarrow = (e: MediaQueryListEvent) => (this.toc.open = !e.matches);
+  private readonly spy: IntersectionObserver;
+  readonly grid: HTMLElement;
+
+  constructor(scroller: HTMLElement | null, private readonly lobby: boolean) {
+    // Initialize state before registering callbacks that read the instance.
+    this.spy = new IntersectionObserver((entries) => {
+      if (!this.disposed && Date.now() > this.hold) {
+        entries.forEach((e) => e.isIntersecting && this.mark(e.target.id.slice(4)));
+      }
+    }, { root: scroller, rootMargin: '0px 0px -70% 0px' });
+    // Keep the contents list open on wide screens and collapse it at the top on narrow screens.
+    this.narrow.addEventListener('change', this.onNarrow);
+    this.fill();
+    this.toc.append(...SECTIONS.filter((s) => this.body.querySelector('#set-' + s.id)).map((s) => el('button', { type: 'button', 'data-id': s.id, onclick: () => this.jump(s.id) }, icon(s.icon), el('span', {}, s.title))));
+    this.grid = el('div', { class: 'settings-grid' }, this.toc, this.body);
+  }
+
+  private mark(id: string) {
+    this.toc.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
+  }
+
+  fill = () => {
+    if (this.disposed) return;
+    const shown = SECTIONS.map((s) => [s, this.lobby && s.id === 'personagem' ? charLink() : s.render()] as const).filter(([, b]) => b);
+    // Rebuild the sections while restoring focus by ID, so keyboard users keep their place.
     const focusId = (document.activeElement as HTMLElement | null)?.id;
-    body.replaceChildren(...shown.map(([s, b]) => el('section', { class: 'settings-body', id: 'set-' + s.id, 'aria-labelledby': 'set-h-' + s.id },
+    this.body.replaceChildren(...shown.map(([s, b]) => el('section', { class: 'settings-body', id: 'set-' + s.id, 'aria-labelledby': 'set-h-' + s.id },
       el('h3', { class: 'settings-page-title', id: 'set-h-' + s.id }, icon(s.icon), ' ', s.title), ...b!)));
-    spy.disconnect();
-    for (const sec of body.children) spy.observe(sec);
+    this.spy.disconnect();
+    for (const sec of this.body.children) this.spy.observe(sec);
     if (focusId) document.getElementById(focusId)?.focus();
   };
-  const jump = (id: string) => {
-    hold = Date.now() + 1000;
-    body.querySelector('#set-' + id)?.scrollIntoView({ block: 'start' });
-    mark(id);
-    if (narrow.matches) toc.open = false;
+
+  jump = (id: string) => {
+    // Keep the chosen section highlighted while scrolling catches up.
+    this.hold = Date.now() + 1000;
+    this.body.querySelector('#set-' + id)?.scrollIntoView({ block: 'start' });
+    this.mark(id);
+    if (this.narrow.matches) this.toc.open = false;
   };
-  fill();
-  toc.append(...SECTIONS.filter((s) => body.querySelector('#set-' + s.id)).map((s) => el('button', { type: 'button', 'data-id': s.id, onclick: () => jump(s.id) }, icon(s.icon), el('span', {}, s.title))));
-  return { body, grid: el('div', { class: 'settings-grid' }, toc, body), fill, jump, dispose: () => {
-    if (disposed) return;
-    disposed = true; // callbacks já enfileirados não podem reativar a página que saiu.
-    spy.disconnect();
-    narrow.removeEventListener('change', onNarrow);
-  } };
+
+  dispose = () => {
+    if (this.disposed) return;
+    this.disposed = true; // Ignore observer callbacks already queued for this page.
+    this.spy.disconnect();
+    this.narrow.removeEventListener('change', this.onNarrow);
+  };
 }
 export function settingsPage(): HTMLElement {
   home?.dispose();
-  home = stackedPage(null, true);
+  home = new SettingsPage(null, true);
   return el('div', { class: 'home-settings' }, el('h2', {}, t('Configurações', 'Settings')), home.grid);
 }
 
@@ -394,7 +409,7 @@ export function openSettings(id?: string) {
   if (overlay) return id ? modal?.jump(id) : undefined;
   ctx.closePanels?.();
   const scroller = el('div', { class: 'settings-scroll' });
-  modal = stackedPage(scroller, false);
+  modal = new SettingsPage(scroller, false);
   scroller.append(modal.grid);
   // com o menu aberto o jogo não recebe teclas (o que o navegador faz com Tab, Enter e setas continua)
   ({ overlay, close } = dialog('settings', t('Configurações', 'Settings'), [scroller], { onKey, onClose: () => {
