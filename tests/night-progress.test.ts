@@ -11,7 +11,7 @@ import { v } from '../src/shared/vec.ts';
 import { STEP_MS, toPlaying } from './helpers.ts';
 
 function night(humans: string[], seed = 1): Match {
-  const m = newMatch();
+  const m = Object.assign(newMatch(), { mode: 'campaign' as const }); // a Campaign room (the Play option, PR #392)
   for (const id of humans) addPlayer(m, id, id);
   startMatch(m, 0, 0, 'campaign', true, mulberry32(seed));
   return m;

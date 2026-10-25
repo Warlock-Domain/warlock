@@ -137,7 +137,7 @@ describe('Campaign: match on the map', () => {
     const entries = n.marks.filter((q) => q.room === room && q.kind === 'entry').map((q) => v(q.x + 0.5, q.y + 0.5));
     for (const z of alive) {
       expect(z.hpMax).toBe(servoHp(SERVOS[m.players.find((p) => p.id === z.id)!.servo!].hp, m.world!.wizards.filter((q) => q.team === 0).length));
-      expect(z.regen).toBe(0); // servo não regenera
+      expect(z.regen).toBe(0); // servants do not regenerate
       expect(Math.min(...entries.map((e) => dist(e, z.pos)))).toBeLessThan(1.5);
     }
   });
