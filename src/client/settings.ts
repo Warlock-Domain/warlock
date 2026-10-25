@@ -398,8 +398,8 @@ function draw() {
   if (overlay) modal?.fill();
 }
 
-// abre na seção pedida (o atalho do volume abre em Som). No menu inicial as configurações já são uma aba: Esc e Start abrem ela
-// (duas cópias da página repetiriam os ids dos campos)
+// Opens at the requested section (the volume shortcut opens Audio). On the home menu settings are already a tab, so Esc and
+// Start open that tab instead (two copies of the page would repeat the field ids).
 export function openSettings(id?: string) {
   if (home?.body.isConnected) {
     document.getElementById('home-tab-settings')?.click();
@@ -411,7 +411,7 @@ export function openSettings(id?: string) {
   const scroller = el('div', { class: 'settings-scroll' });
   modal = new SettingsPage(scroller, false);
   scroller.append(modal.grid);
-  // com o menu aberto o jogo não recebe teclas (o que o navegador faz com Tab, Enter e setas continua)
+  // While the dialog is open the game gets no keys (the browser's own Tab, Enter and arrow handling still works).
   ({ overlay, close } = dialog('settings', t('Configurações', 'Settings'), [scroller], { onKey, onClose: () => {
     modal?.dispose();
     stopTauntPreview();
