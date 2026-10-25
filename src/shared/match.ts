@@ -313,7 +313,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   const kind: Mode = isRoomMode(m.mode) ? m.mode : isRoomMode(mode) ? 'rounds' : mode;
   if (sandbox && isRoomMode(kind)) return false;
   const campaign = kind === 'campaign';
-  // Campanha: de 1 a 4 humanos, sem bots aliados; as vagas do Fumo entram depois
+  // Campaign: 1 to 4 humans, no allied bots; the Smoke's slots come in later
   // quem assiste não conta (fica sem mago, como nos outros modos)
   if (campaign && playing(m).filter((p) => !p.bot && p.connected).length > CAMPAIGN.humans) return false;
   // sala do Ascensão: valem os bots e as opções que o dono escolheu, venha de quem vier o Começar
@@ -559,7 +559,7 @@ export const votesNeeded = (humans: number) => Math.floor(humans / 2) + 1;
 // abre uma votação (uma por vez, só com a partida rolando); quem abre já conta como SIM
 export function startVote(m: Match, id: string, kind: Vote['kind'], target: string, now: number, rand: () => number = Math.random): boolean {
   if (m.vote || !VOTE_PHASES.includes(m.phase) || !voters(m).includes(id)) return false;
-  // a Campanha não tem bots aliados nem times sorteados
+  // the Campaign has no allied bots and no shuffled teams
   if (m.night && (kind === 'addBot' || kind === 'removeBot' || kind === 'shuffle')) return false;
   if (kind === 'kick') {
     const t = player(m, target);
