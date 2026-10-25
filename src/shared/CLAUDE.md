@@ -1,63 +1,63 @@
-# src/shared — regras do jogo (rodam no servidor e no navegador)
+# src/shared — game rules (run on the server and in the browser)
 
-Vale junto com o `CLAUDE.md` da raiz.
+Applies together with the root `CLAUDE.md`.
 
-## Simulação
+## Simulation
 
 - Channeling proposal (25/10): learned Attack modifier,12gold, no own cooldown; Attack+owned spell starts stationary authoritative charge. At1s1.5×, at2s2× damage/range/projectile speed/knockback, held indefinitely without auto-fire. Explicit cast releases; original spell cooldown starts then. Stop/move/stun/suspension/death/lost ownership cancel; basic attacks disabled while learned. Captured power follows projectiles/reflection/shards. Healing/status/duration/radius unchanged. Identical bonuses across levels pending a progression decision. Preserve Campaign walls/body radii and custom projectile stats.
 - **Obstacles take every attack** (Fernando, 25/10): a new blast calls `blastPillars` (falloff by closeness, a wall hit once); a projectile that hits or bounces off an obstacle calls `damagePillar` in `hitPillar`; burning in the lava uses `damagePillar(..., quiet)`. The Campaign rock is unbreakable through `obstaclesOf`, not through a mode check in `sim.ts`.
 
 - Closed Body preserves the current stance facing when cast; the cursor does not turn the wizard. Other spells retain their normal aiming behavior. No stat or resistance changes.
 
-- Rajada de areia (cluster) em Controle: cone3×2m, dano20+8/nível, Incapacitar1+0,25s/nível e Cegueira2+0,5s/nível. Status independentes respeitam resistências gerais; sem projéteis nem knockback. Cegueira limita visão a3m do alvo (diâmetro6m), inclusive IA.
+- Sand Blast (cluster) in Control: cone 3×2 m, damage 20+8/level, Incapacitate 1+0.25 s/level and Blindness 2+0.5 s/level. Independent statuses respect general resistances; no projectiles or knockback. Blindness limits vision to 3 m from the target (6 m diameter), AI included.
 
-- Corpo fechado em Defesa: exige Manter base ativo, termina ao soltar S ou no limite3,5+0,75s/nível. Reduz dano, novas durações negativas e novos impulsos em90%; nunca imunidade nem limpeza retroativa. Expirar mantendo S preserva Manter base.
+- Closed Body in Defense: requires Hold ground active, ends when S is released or at the limit 3.5+0.75 s/level. Reduces damage, new negative durations and new impulses by 90%; never immunity nor retroactive cleansing. Expiring while holding S preserves Hold ground.
 
-- Gêiser: alvo no chão até10m, área25% menor (raio1,5×√0,75), dura2,5s e suspende qualquer unidade viva atingida; invulnerável, imóvel e sem ações. Projéteis passam sob corpos suspensos, sem exceção entre magias.
-- Curar (Heal): magia de Suporte com alvo em você ou num aliado vivo (de time definido). Cura 45 no nível 1 e +6 por nível, alcance de 10 m, recarga de 20 s e −1 s por nível, com o teto e os modificadores gerais de cura. Alvo inválido não gasta a recarga, não cancela outra ação e não revela o mago. Conjuração instantânea; custo 12, subidas de 6 a 11.
+- Geyser: target on the ground up to 10 m, area 25% smaller (radius 1.5×√0.75), lasts 2.5 s and suspends any living unit hit; invulnerable, immobile and without actions. Projectiles pass under suspended bodies, with no exception between spells.
+- Heal: Support spell with a target on yourself or a living ally (of a defined team). Heals 45 at level 1 and +6 per level, range 10 m, cooldown 20 s and −1 s per level, with the general heal cap and modifiers. An invalid target does not spend the cooldown, does not cancel another action and does not reveal the wizard. Instant cast; cost 12, upgrades 6 to 11.
 
-- IA sob véu da Ilusão: ready/free recusam qualquer conjuração até veilUntil; movimento permanece permitido. Humanos conservam a regra de se revelar ao usar outra magia. Isso não declara resolvido risco residual Ilusão×Flagelo ao reviver.
-- Nomes dos bots: catálogo de sete nomes escolhido pelo usuário, mesma ordem na sala e na partida; não muda IA nem balanceamento.
-- **Sorteio só pelo `rand: () => number` recebido.** Assinatura pública tem `rand = Math.random` como padrão (`newWorld`, `stepWorld`, `tickMatch`); funções internas repassam o `rand`. Nunca `Math.random` solto. Mudar a ordem dos sorteios muda o hash de `tests/style.test.ts`.
-- **O `World` é mutado no lugar** (`stepWorld` zera `w.events` e escreve em `wz.hp`, `wz.cd`, `w.projectiles`). Não clone. O bot é a exceção: `botCmds` só lê o mundo e devolve `Cmd[]`.
-- Fase, ouro e compras moram em `Match` (`match.ts`). O `World` não é gravado no disco (a sala grava `world: null`).
-- **Unidades:** distância em metros, tempo em segundos, vida na escala 1000. Números do Warlock original entram multiplicados por `UNIT` (`speed: 1000 * UNIT`). `DT = 1/60`. Recarga guardada como instante (`w.t + cd`). Milissegundos (`*_MS`, `Date.now()`) só na camada de partida e do servidor.
-- **Eventos:** `w.events.push({ k: '...', ... })` durante o passo; tipo novo entra na união `SimEvent` e o cliente consome em `main.ts`. Ids secretos viram públicos em `publicEvents` (`snapshot.ts`).
-- Ilusão recebe forças pelo mesmo moveWizard do corpo real; copy.walk e pushVel separados. Gravidade usa puxão de corpo, Magnetizar não vira a caminhada, Bola de neve usa arraste no contato e explosão só ao explodir. Movimenta cópias antes dos impactos para não ganhar passo extra pela ordem da lista. Não mata nem oculta a cópia ao receber dano.
+- AI under the Illusion veil: ready/free refuse any cast until veilUntil; movement stays allowed. Humans keep the rule of revealing themselves when using another spell. This does not declare the residual Illusion×Scourge risk on revive as resolved.
+- Bot names: a catalog of seven names chosen by the user, same order in the room and in the match; it changes neither AI nor balance.
+- **Draw only through the `rand: () => number` received.** Public signatures have `rand = Math.random` as default (`newWorld`, `stepWorld`, `tickMatch`); internal functions pass `rand` along. Never a loose `Math.random`. Changing the order of draws changes the hash in `tests/style.test.ts`.
+- **The `World` is mutated in place** (`stepWorld` zeroes `w.events` and writes to `wz.hp`, `wz.cd`, `w.projectiles`). Do not clone. The bot is the exception: `botCmds` only reads the world and returns `Cmd[]`.
+- Phase, gold and purchases live in `Match` (`match.ts`). The `World` is not written to disk (the room stores `world: null`).
+- **Units:** distance in meters, time in seconds, health on the 1000 scale. Numbers from the original Warlock come in multiplied by `UNIT` (`speed: 1000 * UNIT`). `DT = 1/60`. Cooldown stored as an instant (`w.t + cd`). Milliseconds (`*_MS`, `Date.now()`) only in the match and server layer.
+- **Events:** `w.events.push({ k: '...', ... })` during the step; a new type enters the `SimEvent` union and the client consumes it in `main.ts`. Secret ids become public in `publicEvents` (`snapshot.ts`).
+- Illusion receives forces through the same moveWizard as the real body; copy.walk and pushVel are separate. Gravity uses body pull, Magnetize does not turn the walk, Snowball uses drag on contact and explosion only when it explodes. Moves copies before impacts so they do not gain an extra step from list order. It neither kills nor hides the copy when it takes damage.
 
 - **Test versions of Attack and Hold ground** (issue #402): `Wizard.arc` and `Wizard.guard` come only from `setAlt` (shop, `alt` message) and the round start in `match.ts`; bots never set them, so the style hash stays the same. Every change of behaviour sits behind these flags (`finishArc`, `braceResistance`, the extra freeze of `basicReadyAt`); the arc restores the target's `casting` after `hit` on purpose.
 
-## Números de magia e item (`spells.ts`, `items.ts`, `constants.ts`)
+## Spell and item numbers (`spells.ts`, `items.ts`, `constants.ts`)
 
-- Proposta Meteoro em revisão: preserva dano/área e substitui empurrão por duration=1,25s em todos os níveis. Usa o bloqueio geral de stun e resistências do alvo; não aciona recuperação pós-knockback sem impulso. Medição/decisão do dono pendente antes de integrar.
+- Meteor proposal under review: preserves damage/area and replaces knockback with duration=1.25 s at all levels. Uses the general stun block and the target's resistances; does not trigger post-knockback recovery without an impulse. Measurement/owner decision pending before integrating.
 
-- 7 níveis por `L({...})`; séries irregulares com `zip([...], [...])`, lineares com `steps(de, passo)`.
-- Ajuste de balanceamento fica **inline sobre o número original**, com comentário de data e medição: `cd: cd * 0.7 /* 18/10: … (0,86 → 0,97) */`.
-- Constante extra de mecânica vira objeto `NOME = { … * UNIT }` abaixo da tabela, com o arquivo `.lua` de origem no comentário. Nada de número mágico solto em `sim.ts`.
-- Número só muda com medição do simulador (ver raiz).
+- 7 levels via `L({...})`; irregular series with `zip([...], [...])`, linear ones with `steps(de, passo)`.
+- A balance adjustment stays **inline over the original number**, with a date and measurement comment: `cd: cd * 0.7 /* 18/10: … (0,86 → 0,97) */`.
+- An extra mechanic constant becomes an object `NOME = { … * UNIT }` below the table, with the source `.lua` file in the comment. No magic numbers loose in `sim.ts`.
+- A number only changes with simulator measurement (see root).
 - **Body radius:** `Wizard.r` (read through `bodyR`) is the body when it is not `WIZ_R`; only the Campaign boss sets it (`ODRAN.size`). Collisions, projectile hits and blasts against a wizard use `bodyR` of that wizard; a new check of "touching a wizard" uses it too, so the PvP hash stays the same.
 - **The Campaign uses the core numbers** (Fernando, 24/10): no spell table, constant or friendly-fire rule of its own; spell numbers come from `SPELLS` via `spellLevel`, in every mode. A Campaign need is met by a core rule or discussed in an issue first.
 
-## Magia nova: onde mexer
+## New spell: where to touch
 
-`spells.ts` (`SPELL_IDS`, `SPELLS` com `name`/`en`, `CAST_POINT`) · `sim.ts` (`PROJ_KINDS` **no fim da lista**, ramo em `cast()` e comportamento do projétil) · `snapshot.ts` (só se precisar de estado novo, como bit em `bits`) · `bots.ts` (grupo `DAMAGE`/`ESCAPE`/`CONTROL`/`SITUATIONAL` e uso específico; o teste de compras em `difficulty.test.ts` acusa magia fora dos grupos) · `match.ts` (`DEFENSE` se for defesa) · cliente: `icons.ts`, `keys.ts`, `main.ts` (`SPELL_SOUND`), `rules-text.ts` (grupo, uso, regras, dicas nas duas línguas), `tips.ts` (`SPELL_ROWS`), `demo.ts` (`SCRIPTS`), `scene.ts` (`LOOK` se for projétil). Os testes `ui-data`, `grimoire-demo`, `i18n` e `new-spells` acusam o que faltar.
+`spells.ts` (`SPELL_IDS`, `SPELLS` with `name`/`en`, `CAST_POINT`) · `sim.ts` (`PROJ_KINDS` **at the end of the list**, branch in `cast()` and projectile behavior) · `snapshot.ts` (only if new state is needed, such as a bit in `bits`) · `bots.ts` (group `DAMAGE`/`ESCAPE`/`CONTROL`/`SITUATIONAL` and specific use; the purchase test in `difficulty.test.ts` flags a spell outside the groups) · `match.ts` (`DEFENSE` if it is a defense) · client: `icons.ts`, `keys.ts`, `main.ts` (`SPELL_SOUND`), `rules-text.ts` (group, use, rules, tips in both languages), `tips.ts` (`SPELL_ROWS`), `demo.ts` (`SCRIPTS`), `scene.ts` (`LOOK` if it is a projectile). The `ui-data`, `grimoire-demo`, `i18n` and `new-spells` tests flag whatever is missing.
 
-## Protocolo (`protocol.ts`)
+## Protocol (`protocol.ts`)
 
-Mensagem nova do cliente: variante em `ClientMsg` → `case` em `parseClientMessage` que devolve `null` em qualquer dúvida, usando `isObj`, `coord`, `seq`, `pubId`, `isSpell` → devolver o objeto **reconstruído** com campos conhecidos, nunca o cru → objeto de entrada só com chaves permitidas (veja `parseOpts`, `parseSandbox`) → respeitar `MAX_MSG` → ramo em `room-do.ts` e teste em `tests/protocol.test.ts`. Resource reports (`resources`) must have bounded numeric values and remain optional telemetry, never gameplay input.
+New client message: variant in `ClientMsg` → `case` in `parseClientMessage` that returns `null` on any doubt, using `isObj`, `coord`, `seq`, `pubId`, `isSpell` → return the **rebuilt** object with known fields, never the raw one → input object with allowed keys only (see `parseOpts`, `parseSandbox`) → respect `MAX_MSG` → branch in `room-do.ts` and a test in `tests/protocol.test.ts`. Resource reports (`resources`) must have bounded numeric values and remain optional telemetry, never gameplay input.
 
 ## Snapshot (`snapshot.ts`)
 
-- Proposta Escudo: impede dano e recebe60%dos novos impulsos e durações de stun/root/slow. `statusDuration` decide no instante do impacto; ativar depois não recalcula efeitos prévios. Proteção geral, não exceção entre duas magias. Sem mudança do Meteoro nesta PR.
+- Shield proposal: blocks damage and takes 60% of new impulses and stun/root/slow durations. `statusDuration` decides at the moment of impact; activating later does not recompute prior effects. General protection, not an exception between two spells. No Meteor change in this PR.
 
-- Recuperação pós-knockback (`kr`) só começa quando impulso físico cruza STUN_SPEED: zera residual e retoma50→100% em1s, +10pp/0,2s. Terminar um stun sem impulso não aciona recuperação; teste dedicado cobre essa separação. Cliente relê kr só por snapshot novo, nunca por quadro.
+- Post-knockback recovery (`kr`) only starts when a physical impulse crosses STUN_SPEED: zeroes the residual and resumes 50→100% in 1 s, +10 pp/0.2 s. Ending a stun without an impulse does not trigger recovery; a dedicated test covers this separation. The client rereads kr only from a new snapshot, never per frame.
 
-- Proposta em revisão: `stunLeft` é relógio de bloqueio de ações separado da velocidade física (`st` no snapshot, -1 usa regra antiga). `castBlocked` bloqueia tudo sob stun e só magias de Mobilidade sob Agarrar. Não modifica Meteoro, Escudo nem regra de recuperação de velocidade nesta etapa.
+- Proposal under review: `stunLeft` is an action-block clock separate from physical speed (`st` in the snapshot, -1 uses the old rule). `castBlocked` blocks everything under stun and only Mobility spells under Grip. Changes neither Meteor, Shield nor the speed recovery rule at this stage.
 
-- Dano histórico não amplifica knockback (`KNOCK_HP_SCALE=0`); continua registrado para estatísticas. `WALKING_BIT` só marca destino voluntário válido; deslocamento físico/reconciliação não anima caminhada. Botão direito não fica preso após blur/pointercancel.
+- Historical damage does not amplify knockback (`KNOCK_HP_SCALE=0`); it is still recorded for statistics. `WALKING_BIT` only marks a valid voluntary destination; physical displacement/reconciliation does not animate walking. The right button does not stay stuck after blur/pointercancel.
 
-Listas achatadas de números (layout no comentário de `protocol.ts`), valores com `r2`, campos opcionais só quando há conteúdo, estado novo por mago como bit documentado em `bits`. Inserir no meio de `PROJ_KINDS` quebra cliente aberto.
+Flattened lists of numbers (layout in the `protocol.ts` comment), values with `r2`, optional fields only when there is content, new per-wizard state as a documented bit in `bits`. Inserting in the middle of `PROJ_KINDS` breaks an open client.
 
-## Aparência (`characters.ts`)
+## Appearance (`characters.ts`)
 
-O código da aparência guarda a **posição** de cada opção (7 dígitos, um por peça), e ele fica salvo no navegador e nas salas. Opção nova entra **no fim** da lista da peça; opção que sai fica no lugar e vira aposentada (`isRetired`): `decodeLook` troca por outra (a Ladina encapuzada vira Ladina + Capuz, issue #107), o criador e o sorteio pulam. Toda entrada de código passa por `fixLook` (navegador em `savedLook`, mensagem em `parseClientMessage`, sala gravada em `resume`).
+The appearance code stores the **position** of each option (7 digits, one per piece), and it is saved in the browser and in rooms. A new option goes **at the end** of the piece's list; an option that leaves stays in place and becomes retired (`isRetired`): `decodeLook` swaps it for another (the hooded Rogue becomes Rogue + Hood, issue #107), the creator and the draw skip it. Every code input goes through `fixLook` (browser in `savedLook`, message in `parseClientMessage`, stored room in `resume`).
