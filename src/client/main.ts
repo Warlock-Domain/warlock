@@ -476,7 +476,7 @@ function startRoom(code: string, name: string) {
       if (spell === 'heal') {
         const units = interp.latest()?.wizards.map(w => ({ ...w, team: room?.players.find(p => p.id === w.id)?.team })) ?? [];
         const self = units.find(w => w.id === me);
-        const target = self && healTarget(units, self, at, SPELLS.heal.levels[mine.spells.heal - 1].range * (1 + itemStats(mine.items).range));
+        const target = self && healTarget(units, self, at, SPELLS.heal.levels[mine.spells.heal - 1].range * (1 + itemStats(mine.items).range) * (channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1));
         if (!target) return toast(t('Selecione você ou um aliado vivo dentro do alcance.', 'Target yourself or a living ally within range.'));
         at = target.pos;
       }

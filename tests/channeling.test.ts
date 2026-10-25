@@ -43,9 +43,9 @@ describe('Channeling',()=>{
   it.each([[.99,0],[1,1.5],[1.5,1.75],[2,2],[10,2]])('time %s gives power %s',(seconds,power)=>{
     expect(channelPower(seconds)).toBeCloseTo(power);
   });
-  it('keeps the range of spells without damage, so a charged Teleport or Heal reaches the same distance',()=>{
-    expect(channelLevel(spellLevel('teleport',1),2).range).toBe(spellLevel('teleport',1).range);
-    expect(channelLevel(spellLevel('heal',1),2).range).toBe(spellLevel('heal',1).range);
+  it('doubles range on every spell at full charge, Teleport and Heal included',()=>{
+    expect(channelLevel(spellLevel('teleport',1),2).range).toBe(spellLevel('teleport',1).range*2);
+    expect(channelLevel(spellLevel('heal',1),2).range).toBe(spellLevel('heal',1).range*2);
   });
   it('has a single level: no paid upgrade without effect',()=>{
     expect(priceOf('channel',0)).toBe(12); expect(priceOf('channel',1)).toBeNull(); expect(spellMax('channel')).toBe(1);

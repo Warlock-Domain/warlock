@@ -932,7 +932,7 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number)
     wz.rushPower = power;
     wz.rushBonus = RUSH.bonus;
     wz.dashUntil = w.t + RUSH.dashTime - DT / 2; // meio passo de folga: o arredondamento daria um passo a mais
-    wz.dashVel = scale(dir, RUSH.dash / RUSH.dashTime);
+    wz.dashVel = scale(dir, (RUSH.dash * power) / RUSH.dashTime);
     wz.dashHit = [];
     wz.target = null;
   } else if (spell === 'boomerang') {
@@ -1027,7 +1027,7 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   }
   if (!wz.spells[spell] || w.t < wz.cd[spell]) return;
   // An invalid target neither reveals the wizard nor cancels another action.
-  if (spell === 'heal' && !healTarget(w.wizards, wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF)) return;
+  if (spell === 'heal' && !healTarget(w.wizards, wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF * (wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1))) return;
   let power = 1;
   if (wz.channel?.spell === spell) {
     power = channelPower(w.t - wz.channel.since);

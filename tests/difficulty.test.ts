@@ -290,9 +290,7 @@ describe('bot difficulty', () => {
   it('purchases: the Normal and Hard plan reaches every buyable spell (issue #373)', () => {
     const rand = seeded(9);
     const planned = new Set(Array.from({ length: 400 }, () => smartPlan(rand).buys.flatMap((b) => (b.kind === 'spell' ? [b.id] : []))).flat());
-    // Channeling stays out of bot purchases until the owner decides on it (PR #408)
-    expect(planned.has('channel')).toBe(false);
-    for (const id of SPELL_IDS.filter((s) => !FREE_SPELLS.includes(s) && s !== 'channel')) expect(planned.has(id), id).toBe(true);
+    for (const id of SPELL_IDS.filter((s) => !FREE_SPELLS.includes(s))) expect(planned.has(id), id).toBe(true);
   });
 
   it('search: on opposite islands, the two meet within 25 s, over the bridge and around obstacles, never stepping in the lava or standing still > 2 s', () => {
