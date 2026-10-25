@@ -30,7 +30,7 @@ try {
   await a.waitForTimeout(3600);
   await a.mouse.click(500, 320, { button: 'right' });
   await a.mouse.move(600, 250);
-  await a.keyboard.press('Digit1');
+  await a.keyboard.press('KeyQ'); // first bar slot (Q W E R D F since #401)
   await a.waitForTimeout(900);
   for (const [i, p] of pages.entries()) {
     await p.bringToFront();

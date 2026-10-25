@@ -42,7 +42,7 @@ export const ILSE_MOMENTS = {
   fight: (c: IlseCtx) => [
     c.touch ? t('Agora as magias. Toque na Bola de fogo e depois no chão para lançá-la.', 'Now the spells. Tap the Fireball and then the ground to cast it.')
       : t(`Agora as magias. ${c.fireKey} lança a Bola de fogo na direção do mouse; ${c.scourgeKey} é o Flagelo, que explode em volta de você.`, `Now the spells. ${c.fireKey} casts the Fireball toward the mouse; ${c.scourgeKey} is the Scourge, which bursts around you.`),
-    t('Cada vaga da barra embaixo tem a sua tecla (1 2 3 4 Q W E R). Arraste uma magia para a vaga que preferir.', 'Each slot of the bar below has its key (1 2 3 4 Q W E R). Drag a spell to the slot you prefer.'),
+    t('Cada vaga da barra embaixo tem a sua tecla (Q W E R D F). Arraste uma magia para a vaga que preferir.', 'Each slot of the bar below has its key (Q W E R D F). Drag a spell to the slot you prefer.'),
     t('Quanto mais dano um servo leva, mais longe ele voa. Empurre-o para a lava.', 'The more damage a servant takes, the farther it flies. Push it into the lava.'),
   ],
   // first level-up after a cleared room (Lucas, 24/10: XP from the servants, a card per level)

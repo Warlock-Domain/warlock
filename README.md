@@ -6,7 +6,7 @@ Remake web do mod de arena **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): m
 
 ## O que tem
 
-- 29 magias (as do Warlock Brawl, com números do código original do mod de Dota 2 ajustados pelo simulador, mais as novas): 12 de ataque, 5 de mobilidade, 5 de defesa, 5 de controle e 2 de suporte; até 8 por mago nas teclas 1 2 3 4 Q W E R, com a Bola de fogo e o Flagelo de graça
+- 29 magias (as do Warlock Brawl, com números do código original do mod de Dota 2 ajustados pelo simulador, mais as novas): 12 de ataque, 5 de mobilidade, 5 de defesa, 5 de controle e 2 de suporte; até 6 por mago nas teclas Q W E R D F, com a Bola de fogo e o Flagelo de graça; a barra tem Q W E R em cima e A S D F embaixo, com Atacar (A) e Manter base (S) fixos, com dica e demonstração no mouse
 - 16 itens passivos (3 de crítico), loja em grade no estilo do Dota com venda e desfazer, 3 builds salvas no navegador (Usar compra a build sozinho) e selo ★ nos mais comprados; a ordem das magias se troca arrastando na barra de baixo
 - Modos Rodadas, Deathmatch e Times; Campanha (1 a 4 jogadores juntos contra os servos do Fumo, em construção) e Ascensão como opções próprias no menu Jogar (Ascensão: 9 rodadas; todo intervalo 1 magia nova e 1 item, e cada nível de XP sobe 1 magia; sem ouro); arenas Círculo, Anel, Ilhas e Cruz, que encolhem até a morte súbita
 - Efeito de rodada, opção da sala (desligado por padrão; Sortear ou um fixo): Tempo chuvoso, Arena de espinhos, Febre do ouro, Vendaval, Fonte da vida e Campo aberto

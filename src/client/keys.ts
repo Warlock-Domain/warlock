@@ -20,8 +20,8 @@ const DEFAULTS: Record<string, string> = {
   drain: 'KeyN', snowball: 'KeyO', illusion: 'KeyJ', magnetize: 'KeyM', recharge: 'KeyK', alteration: 'KeyL', link: 'KeyU', windwalk: 'KeyI', splitter: 'KeyP', warpzone: '',
   // Flagelo e Pacto ficam nas teclas que tinham como item (viraram magia em 21/10, #217)
   scourge: 'Digit1', pact: 'Digit3', heal: '', geyser: '', closedbody: '',
-  // loja: o B do Dota é do Bumerangue e as 26 letras já têm dono; 1 a 4 são das magias por posição (21/10, #217), então o 7
-  // (o 5 já era do Rever a queda e o 6 da câmera, #235); ficha: a tecla à esquerda do 1 (' no ABNT2); grimório no F1 (o H é da Gravidade) e a biblioteca no F2
+  // Shop: Dota's B belongs to Boomerang and all 26 letters are taken; 1 to 4 were position keys from 21/10 to 25/10 (#217), hence 7
+  // (5 was already Replay the fall and 6 the camera, #235); sheet: the key left of 1 (' on ABNT2); Grimoire on F1 (H is Gravity) and the library on F2
   shop: 'Digit7', board: 'Tab', sheet: 'Backquote', taunt: 'KeyY', rules: 'F1', library: 'F2', stop: 'KeyS', vote: '', replay: 'Digit5', camera: 'Digit6',
 };
 // fixas: Esc (cancela, fecha e abre as configurações), Enter, Espaço (segurar arrasta a câmera, soltar centraliza) e ← → (placar e espectador)
@@ -45,20 +45,37 @@ const save = () => {
   notify();
 };
 
-// teclas por posição (como no Dota; pedido do Fernando, 17/10): as magias usam a tecla da posição na barra.
-// 8 posições em 1 2 3 4 Q W E R, misturando MMO e MOBA (Fernando, 21/10, #217; antes Magia 1 a 6 em Q W E R D F e Item 1 a 3 em 1 2 3),
-// trocáveis (20/10), com os nomes das do controle.
-export const POS_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8'] as const;
+// Position keys (as in Dota; Fernando's request, 17/10): spells use the key of their slot on the bar, rebindable (20/10).
+// 6 slots in Q W E R D F (Fernando, 25/10, issue #401; undoes the 8 slots in 1 2 3 4 Q W E R of 21/10, #217): A and S stay with
+// Attack and Hold ground, fixed on the bottom row of the bar.
+export const POS_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6'] as const;
 type PosAction = (typeof POS_ACTIONS)[number];
-const POS_DEFAULTS: Record<PosAction, string> = { slot1: 'Digit1', slot2: 'Digit2', slot3: 'Digit3', slot4: 'Digit4', slot5: 'KeyQ', slot6: 'KeyW', slot7: 'KeyE', slot8: 'KeyR' };
+const POS_DEFAULTS: Record<PosAction, string> = { slot1: 'KeyQ', slot2: 'KeyW', slot3: 'KeyE', slot4: 'KeyR', slot5: 'KeyD', slot6: 'KeyF' };
 export const isPos = (a: AnyAction): a is PosAction => a in POS_DEFAULTS;
-// chave nova em 21/10: as posições salvas do jeito antigo (Q W E R nas 4 primeiras) repetiriam teclas com as 8 novas
-const POS_STORE = 'warlock:poskeys8';
+const POS_STORE = 'warlock:poskeys6';
+const usable = (code: unknown): code is string => typeof code === 'string' && !!code && !RESERVED.has(code);
 let posMap: Record<PosAction, string> = { ...POS_DEFAULTS };
 const savedPositions = store.json(POS_STORE);
 if (isRecord(savedPositions)) for (const a of POS_ACTIONS) {
   const code = savedPositions[a];
   if (typeof code === 'string' && !RESERVED.has(code)) posMap[a] = code;
+}
+else posMap = migratePositions(store.json('warlock:poskeys8'));
+// One-time migration of the 8-slot layout (Fernando, 25/10, #401): old slots 5 to 8 (the Q W E R row) become new slots 1 to 4,
+// the old 1 to 4 (digits) are dropped and D F keep their defaults. A migrated key that clashes with a shortcut (A, S…) or with
+// another slot goes back to that slot's default, or stays unbound if the default is taken too. The old entry is never deleted.
+function migratePositions(old: unknown): Record<PosAction, string> {
+  const next = { ...POS_DEFAULTS };
+  if (!isRecord(old)) return next;
+  const taken = new Set([...UI_ACTIONS.map((u) => map[u]), next.slot5, next.slot6]);
+  const fallback: PosAction[] = [];
+  POS_ACTIONS.slice(0, 4).forEach((a, i) => {
+    const code = old[`slot${i + 5}`];
+    if (usable(code) && !taken.has(code)) { next[a] = code; taken.add(code); } else fallback.push(a);
+  });
+  for (const a of fallback) taken.has(next[a]) ? (next[a] = '') : taken.add(next[a]);
+  store.set(POS_STORE, JSON.stringify(next));
+  return next;
 }
 const SLOT_STORE = 'warlock:slotkeys';
 // ligado por padrão (Fernando, 20/10), menos para quem já tem teclas salvas: o modo ignoraria as teclas das magias e prenderia as teclas das posições
@@ -99,18 +116,18 @@ export function setCastMode(m: CastMode) {
 }
 
 // controle (gamepad): botão de cada ação, trocável na aba Controle das configurações (pedido do Fernando, 18/10).
-// Padrão: A B X Y LB RB LT RT pela ordem da barra (8 magias desde 21/10); L3 ficha; View placar; ↓ loja; R3 câmera.
+// Default: A B X Y LB RB in bar order (6 spells since 25/10, #401; LT and RT left free); L3 sheet; View scoreboard; ↓ shop; R3 camera.
 // Start fica fora: é o Esc do controle. Índices do mapeamento padrão da Gamepad API (PlayStation nas mesmas posições).
 export const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Start', 'L3', 'R3', '↑', '↓', '←', '→'];
 const PAD_NAMES_PS = ['✕', '○', '□', '△', 'L1', 'R1', 'L2', 'R2', 'Share', 'Options', 'L3', 'R3', '↑', '↓', '←', '→'];
 export const PAD_START = 9;
 // nome do botão nas duas famílias ("A / ✕"); L3, R3 e o D-pad são iguais
 export const padButtonName = (b: number, open = ' / ', close = '') => (PAD_NAMES[b] === PAD_NAMES_PS[b] ? PAD_NAMES[b] : PAD_NAMES[b] + open + PAD_NAMES_PS[b] + close);
-export const PAD_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'sheet', 'board', 'shop', 'center', 'taunt'] as const;
+export const PAD_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'sheet', 'board', 'shop', 'center', 'taunt'] as const;
 export type PadAction = (typeof PAD_ACTIONS)[number];
-const PAD_DEFAULTS: Record<PadAction, number> = { slot1: 0, slot2: 1, slot3: 2, slot4: 3, slot5: 4, slot6: 5, slot7: 6, slot8: 7, sheet: 10, board: 8, shop: 13, center: 11, taunt: 14 };
+const PAD_DEFAULTS: Record<PadAction, number> = { slot1: 0, slot2: 1, slot3: 2, slot4: 3, slot5: 4, slot6: 5, sheet: 10, board: 8, shop: 13, center: 11, taunt: 14 };
 export const PAD_ACTION_NAMES: Record<PadAction, string> = { slot1: t('Magia 1', 'Spell 1'), slot2: t('Magia 2', 'Spell 2'), slot3: t('Magia 3', 'Spell 3'), slot4: t('Magia 4', 'Spell 4'), slot5: t('Magia 5', 'Spell 5'), slot6: t('Magia 6', 'Spell 6'),
-  slot7: t('Magia 7', 'Spell 7'), slot8: t('Magia 8', 'Spell 8'), sheet: t('Ficha do mago', 'Wizard sheet'), board: t('Placar (segurar)', 'Scoreboard (hold)'), shop: t('Loja só para ver', 'Shop (view only)'), center: t('Centralizar a câmera', 'Center the camera'), taunt: t('Provocações', 'Taunts') };
+  sheet: t('Ficha do mago', 'Wizard sheet'), board: t('Placar (segurar)', 'Scoreboard (hold)'), shop: t('Loja só para ver', 'Shop (view only)'), center: t('Centralizar a câmera', 'Center the camera'), taunt: t('Provocações', 'Taunts') };
 const PAD_STORE = 'warlock:pad';
 let padMap: Record<PadAction, number> = { ...PAD_DEFAULTS };
 const savedPad = store.json(PAD_STORE);

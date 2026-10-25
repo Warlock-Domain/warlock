@@ -31,8 +31,8 @@ export function sandboxVisibility(status: number, self: boolean, sandbox: boolea
   return status & (1024 | 8388608) ? (status & ~(1024 | 8388608)) | 2048 : status;
 }
 
-// Mesma ordem da barra da partida; vagas não compradas continuam visíveis.
-// Ordem salva antes de 21/10 (6 magias e os itens ativos): as 2 vagas novas entram vazias e `items` é ignorado.
+// Same order as the match bar; slots not bought stay visible. `items` from orders saved before 21/10 is ignored.
+// An order saved in the 8-slot layout (21/10 to 25/10, #217) is cut to MAX_SPELLS; an owned spell that fell off takes the first empty slot.
 export type LoadoutOrder = { spells: (SpellId | null)[] };
 export function loadoutSlots(spells: Record<SpellId, number>, order?: LoadoutOrder) {
   const owned = SPELL_IDS.filter((s) => spells[s] > 0);
