@@ -1,16 +1,43 @@
 // Sandbox: escolher as magias do bot (decisão do Fernando, 18/10). Sorteio = o bot compra sozinho, como sempre.
 // A sala contra bots não escolhe mais: lá os bots sempre compram sozinhos (Fernando, 20/10).
-import type { BotSetup } from '../shared/protocol.ts';
-import type { SandboxCmd } from '../shared/match.ts';
-import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, type SpellId } from '../shared/spells.ts';
+import { BOT_SKILL, type BotSkill } from '../shared/bots.ts';
+import { ITEMS, ITEM_IDS } from '../shared/items.ts';
+import { MAX_PLAYERS } from '../shared/constants.ts';
+import { OPTION_CHOICES } from '../shared/match.ts';
+import { isRecord, readLevels } from './saved-data.ts';
+import type { BotSetup, SandboxCmd } from '../shared/match.ts';
+import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, noSpells, spellCount, type SpellId } from '../shared/spells.ts';
 import { ICON, el, icon } from './icons.ts';
 import { store } from './store.ts';
 import { spellName, t } from './i18n.ts';
 
-// magia que saiu do jogo (o Gêmeos, 19/10) fica de fora: o servidor recusaria o treino inteiro
+// Campos obsoletos ficam de fora; mantém a posição de cada bot mesmo quando o salvo está estragado.
 const KEY = 'warlock:sandboxbot';
-export const savedBotSetup = (): BotSetup[] =>
-  (store.json<BotSetup[]>(KEY) ?? []).map((b) => (b?.spells ? { ...b, spells: Object.fromEntries(Object.entries(b.spells).filter(([id]) => (SPELL_IDS as readonly string[]).includes(id))) } : b));
+export function readBotSetup(value: unknown): BotSetup[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, MAX_PLAYERS - 1).map((raw: unknown) => {
+    if (!isRecord(raw)) return {};
+    const bot: BotSetup = {};
+    if (isRecord(raw.spells)) {
+      const spells = readLevels(raw.spells, SPELL_IDS, () => MAX_SPELL_LEVEL);
+      if (spellCount({ ...noSpells(), ...spells }) <= MAX_SPELLS) bot.spells = spells;
+    }
+    if (isRecord(raw.items)) bot.items = readLevels(raw.items, ITEM_IDS, (id) => ITEMS[id].levels.length);
+    const difficulty = OPTION_CHOICES.difficulty.find((d) => d === raw.difficulty);
+    if (difficulty) bot.difficulty = difficulty;
+    if (isRecord(raw.skill)) {
+      const skill: Partial<BotSkill> = {};
+      for (const key of Object.keys(BOT_SKILL.normal) as (keyof BotSkill)[]) {
+        const n = raw.skill[key];
+        if (typeof n !== 'number' || !Number.isFinite(n)) continue;
+        skill[key] = Math.min(Math.max(...Object.values(BOT_SKILL).map((s) => s[key])), Math.max(key === 'rate' ? BOT_SKILL.easy.rate : 0, n));
+      }
+      bot.skill = skill;
+    }
+    return bot;
+  });
+}
+export const savedBotSetup = (): BotSetup[] => readBotSetup(store.json(KEY));
 // sandbox nova: você e um boneco parado; torreta só pelo painel (o tiro dela enchia de som ao abrir, Fernando, 21/10)
 export const SANDBOX_START: SandboxCmd[] = [{ op: 'bot', dummy: true }];
 let open = false; // aberto ou fechado sobrevive ao redesenho da sala

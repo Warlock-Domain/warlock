@@ -1,31 +1,25 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { addPlayer, newMatch, startMatch, tickMatch, type Match, type MatchOpts } from '../src/shared/match.ts';
+import { mulberry32 } from '../src/shared/rng.ts';
 import { addRecord, emptyTotals, roundRecord, styleRows, type RoundRecord } from '../src/shared/telemetry.ts';
 
-const realRandom = Math.random;
-afterEach(() => {
-  Math.random = realRandom;
-});
+afterEach(() => vi.restoreAllMocks());
 
-// mulberry32; a partida usa Math.random direto (pilares, mundo, plano dos bots), então ele também vira o sorteio com semente
+// the seeded rand is passed explicitly; a stray Math.random in the match path fails here instead of hiding behind the seed
 function seedRandom(seed: number) {
-  Math.random = () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+  vi.spyOn(Math, 'random').mockImplementation(() => { throw new Error('Math.random outside the received rand'); });
+  return mulberry32(seed);
 }
 
 // partida só de bots com semente fixa; devolve o hash (FNV-1a) de todos os eventos dos passos
 function botMatch(seed: number, steps: number, opts: Partial<MatchOpts> = {}): { m: Match; hash: number } {
-  seedRandom(seed);
+  const rand = seedRandom(seed);
   const m = newMatch();
-  startMatch(m, 0, 4, 'rounds', true, Math.random, opts);
+  startMatch(m, 0, 4, 'rounds', true, rand, opts);
   let now = 0;
   let hash = 0x811c9dc5;
   for (let i = 0; i < steps; i++) {
-    const s = JSON.stringify(tickMatch(m, (now += 1000 / 60), [], Math.random));
+    const s = JSON.stringify(tickMatch(m, (now += 1000 / 60), [], rand));
     for (let j = 0; j < s.length; j++) hash = Math.imul(hash ^ s.charCodeAt(j), 16777619) >>> 0;
   }
   return { m, hash };
@@ -35,22 +29,32 @@ describe('jeito de jogar', () => {
   // valor gravado com o código de antes da medição (972dab7): a medição só lê, então os eventos não mudam.
   // Muda (e se grava de novo) só quando a jogabilidade muda. 20/10 (issue #80): o baú sorteia o ouro do monte (3 a 5) ao nascer,
   // um sorteio a mais na sequência. 21/10 (issue #217): Flagelo e Pacto viram magia, o Redirecionador sai e as compras dos bots mudam
+  // 22/10 (issue #206): a Barricada cai do céu e dá dano em quem está embaixo, e os bots a usam
   it('a medição não muda a partida: mesma semente, mesmos eventos de antes', () => {
     const { m, hash } = botMatch(7, 4000);
-    expect(hash).toBe(288817366);
+    // 22/10: fim da amplificação por dano histórico altera intencionalmente as trajetórias.
+    // Proposta 23/10: bloqueios explícitos de stun/Agarrar mudam as decisões e trajetórias dos bots.
+    // Proposta23/10: fim limpo do impulso e retomada50→100% mudam trajetórias.
+    // Proposta 23/10: colisões gerais e Raio contínuo alteram intencionalmente os eventos.
+    // 23/10: clique único cancela no primeiro contato, inclusive oblíquo, também para destinos dos bots.
+    // Proposta 23/10: Meteoro sem empurrão, com stun fixo 1,25 s.
+    // 24/10: bots use the manual Attack (no spell ready, enemy within 6 m, clear line).
+    // 24/10: bots hold ground (hit 0.5 to 0.9 s away so the windup finishes, no escape spell ready, not dodging on foot; keep holding while it closes in; lease 0.5 s).
+    // 24/10 (issue #373): bot shopping plans include Recharge, Heal, Geyser, Closed Body and Swap.
+    expect(hash).toBe(4126304566);
     // e mediu de verdade nessa mesma partida
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);
   });
 
   it('o registro da rodada leva a dificuldade, o apelido (só de humano) e o jeito de jogar', () => {
-    seedRandom(3);
+    const rand = seedRandom(3);
     const m = newMatch();
-    addPlayer(m, 'h', 'Ana');
-    startMatch(m, 0, 3, 'rounds', true, Math.random, { difficulty: 'hard' });
+    addPlayer(m, 'h', 'Ana', false, false, rand);
+    startMatch(m, 0, 3, 'rounds', true, rand, { difficulty: 'hard' });
     m.players[0].connected = false; // o humano vira bot até voltar: a rodada anda sozinha
     let now = 0;
-    for (let i = 0; i < 60 * 240 && m.phase !== 'roundEnd'; i++) tickMatch(m, (now += 1000 / 60), [], Math.random);
+    for (let i = 0; i < 60 * 240 && m.phase !== 'roundEnd'; i++) tickMatch(m, (now += 1000 / 60), [], rand);
     expect(m.phase).toBe('roundEnd');
     const r = roundRecord(m, now);
     expect(r.difficulty).toBe('hard');

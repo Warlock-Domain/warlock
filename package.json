@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker",
+    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p src/worker && tsc --noEmit -p tsconfig.scripts.json",
     "build": "vite build",
     "dev:worker": "wrangler dev",
     "dev:client": "vite"
@@ -16,6 +16,7 @@
   "devDependencies": {
     "@gltf-transform/core": "^4.5.1",
     "@gltf-transform/functions": "^4.5.1",
+    "@types/node": "^24.19.2",
     "@types/three": "0.186.0",
     "playwright-core": "^1.61.1",
     "typescript": "7.0.2",

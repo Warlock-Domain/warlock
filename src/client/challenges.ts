@@ -1,10 +1,10 @@
 // Desafios curtos do treino (decisão do Fernando, 18/10): uma tarefa por partida, contada no cliente pelos eventos da rodada.
 import type { BotSkill } from '../shared/bots.ts';
-import { DEFAULT_OPTS, type MatchOpts } from '../shared/match.ts';
-import type { BotSetup } from '../shared/protocol.ts';
+import { DEFAULT_OPTS, type BotSetup, type MatchOpts } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import type { SpellId } from '../shared/spells.ts';
 import { t } from './i18n.ts';
+import { isSavedNumber, readNumberMap } from './saved-data.ts';
 import { store } from './store.ts';
 
 // bots: quantos; setup: um por bot (mesmo vazio, para a rodada sair marcada na telemetria e não somar no perfil);
@@ -15,7 +15,7 @@ export type Run = { c: Challenge; n: number; t: number; state: 'on' | 'won' | 'l
 // opções completas: a sala guarda as da partida anterior, e o recorde só vale com as mesmas regras
 const BASE: Partial<MatchOpts> = { ...DEFAULT_OPTS, runes: false, sudden: false, chests: false };
 // bot que só anda: não lança, não emenda, não reage, não sobe escudo nem desvia
-export const PASSIVE: Partial<BotSkill> = { cast: 0, combo: 0, react: 0, shield: 0, dodge: 0 };
+const PASSIVE: Partial<BotSkill> = { cast: 0, combo: 0, react: 0, shield: 0, dodge: 0 };
 const bots = (n: number, b: BotSetup = {}): BotSetup[] => Array.from({ length: n }, () => b);
 
 export const CHALLENGES: Challenge[] = [
@@ -67,11 +67,16 @@ export function runText(r: Run): string {
 }
 
 const KEY = 'warlock:challenges';
-export const bestOf = (id: string): number | null => store.json<Record<string, number>>(KEY)?.[id] ?? null;
+export function bestOf(id: string): number | null {
+  const scores = readNumberMap(store.json(KEY));
+  return Object.hasOwn(scores, id) ? scores[id] : null;
+}
 // more: maior é melhor; true = recorde novo (guardado)
 export function saveBest(id: string, score: number, more: boolean): boolean {
-  const old = bestOf(id);
+  if (!isSavedNumber(score)) return false;
+  const scores = readNumberMap(store.json(KEY));
+  const old = Object.hasOwn(scores, id) ? scores[id] : null;
   if (old !== null && (more ? score <= old : score >= old)) return false;
-  store.set(KEY, JSON.stringify({ ...store.json<Record<string, number>>(KEY), [id]: score }));
+  store.set(KEY, JSON.stringify({ ...scores, [id]: score }));
   return true;
 }

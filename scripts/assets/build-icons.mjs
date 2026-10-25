@@ -7,10 +7,11 @@ const ICONS = [
   // magias
   'lorc/fire-ray', 'lorc/focused-lightning', 'lorc/on-target', 'lorc/shield-reflect', 'lorc/teleport', 'lorc/body-swapping', 'lorc/grab', 'lorc/meteor-impact',
   'lorc/sprint', 'lorc/striking-splinter', 'delapouite/boomerang', 'lorc/knife-thrust', 'lorc/vortex', 'delapouite/menhir', 'heavenly-dog/defensive-wall', 'caro-asercion/ricochet', 'lorc/life-tap',
-  'lorc/frozen-orb', 'lorc/two-shadows', 'lorc/magnet', 'lorc/cycle', 'delapouite/card-exchange', 'lorc/harpoon-chain', 'lorc/wind-slap', 'delapouite/split-arrows', 'lorc/time-trap',
+  'lorc/frozen-orb', 'lorc/two-shadows', 'lorc/magnet', 'lorc/cycle', 'delapouite/card-exchange', 'lorc/harpoon-chain', 'lorc/wind-slap', 'delapouite/split-arrows', 'lorc/time-trap', 'lorc/water-splash', 'lorc/aura',
   // itens
   'delapouite/diamond-ring', 'lorc/skull-ring', 'delapouite/cape', 'lorc/breastplate', 'lorc/leather-boot', 'skoll/pocket-watch', 'delapouite/bat', 'delapouite/flail',
   'lorc/divert', 'lorc/chalice-drops', 'delapouite/metal-boot', 'delapouite/stone-bust', 'delapouite/spartan-helmet', 'lorc/winged-leg', 'lorc/angel-wings', 'lorc/feather',
+  'lorc/magnifying-glass', 'lorc/pierced-heart', 'lorc/rune-stone', // crítico (issue #184)
   // runas, efeitos e causas de morte
   'delapouite/rabbit', 'delapouite/enrage', 'lorc/checked-shield', 'lorc/energise', 'lorc/star-swirl', 'lorc/broken-shield', 'lorc/sunbeams', 'lorc/padlock', 'lorc/snail',
   'lorc/small-fire', 'lorc/magnet-blast', 'lorc/ghost', 'lorc/run', 'lorc/volcano', 'skoll/knockout', 'lorc/uncertainty',
@@ -32,6 +33,8 @@ for (const path of ICONS) {
   const inner = svg.replace(/^[\s\S]*?<svg[^>]*>|<\/svg>\s*$/g, '').replace('<path d="M0 0h512v512H0z"/>', '').replace(/ fill="#fff"/g, '');
   symbols.push(`<symbol id="${path.split('/')[1]}" viewBox="0 0 512 512">${inner}</symbol>`);
 }
+// Project-drawn cross: Heal needs no extra downloaded asset.
+symbols.push('<symbol id="healing-cross" viewBox="0 0 512 512"><path d="M208 64h96v144h144v96H304v144h-96V304H64v-96h144z"/></symbol>');
 const ids = symbols.map((s) => s.match(/id="([^"]+)"/)[1]);
 if (new Set(ids).size !== ids.length) throw new Error('id repetido no sprite');
 writeFileSync(new URL('../../public/icons.svg', import.meta.url), `<svg xmlns="http://www.w3.org/2000/svg">\n${symbols.join('\n')}\n</svg>\n`);

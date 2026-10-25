@@ -1,24 +1,25 @@
 // Teclas de cada magia e atalho da interface, trocáveis pelo jogador (guardadas no navegador), e os botões do controle.
 import { SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { t } from './i18n.ts';
+import { isRecord } from './saved-data.ts';
 import { store } from './store.ts';
 
 export type Action = SpellId;
 export const ACTIONS: Action[] = [...SPELL_IDS];
 // atalhos da interface (pedido do Fernando, 18/10): trocáveis no mesmo painel das magias; o Votar começa sem tecla
-export const UI_ACTIONS = ['shop', 'board', 'sheet', 'taunt', 'rules', 'library', 'stop', 'vote', 'replay', 'camera'] as const;
+export const UI_ACTIONS = ['shop', 'board', 'sheet', 'taunt', 'rules', 'library', 'stop', 'vote', 'replay', 'camera', 'basic'] as const;
 export type UiAction = (typeof UI_ACTIONS)[number];
-export const UI_NAMES: Record<UiAction, string> = { shop: t('Loja só para ver', 'Shop (view only)'), board: t('Placar (segurar)', 'Scoreboard (hold)'), sheet: t('Ficha do mago', 'Wizard sheet'), taunt: t('Provocações', 'Taunts'), rules: t('Grimório (como jogar)', 'Grimoire (how to play)'), library: t('Magias e itens (consulta)', 'Spells and items (lookup)'), stop: t('Parar', 'Stop'), vote: t('Votar', 'Vote'), replay: t('Rever a queda', 'Replay the fall'), camera: t('Câmera no mago ou na arena', 'Camera on the wizard or the arena') };
+export const UI_NAMES: Record<UiAction, string> = { shop: t('Loja só para ver', 'Shop (view only)'), board: t('Placar (segurar)', 'Scoreboard (hold)'), sheet: t('Ficha do mago', 'Wizard sheet'), taunt: t('Provocações', 'Taunts'), rules: t('Grimório (como jogar)', 'Grimoire (how to play)'), library: t('Magias e itens (consulta)', 'Spells and items (lookup)'), stop: t('Parar / Manter base (segurar 0,5 s)', 'Stop / Hold ground (hold 0.5 s)'), basic: t('Atacar', 'Attack'), vote: t('Votar', 'Vote'), replay: t('Rever a queda', 'Replay the fall'), camera: t('Câmera no mago ou na arena', 'Camera on the wizard or the arena') };
 export type AnyAction = Action | UiAction | PosAction;
 const ALL: AnyAction[] = [...ACTIONS, ...UI_ACTIONS];
 const DEFAULTS: Record<string, string> = {
   fireball: 'KeyQ', lightning: 'KeyW', homing: 'KeyE', shield: 'KeyR', teleport: 'KeyF',
   cluster: 'KeyT', swap: 'KeyD', grip: 'KeyG', rush: 'KeyC', meteor: 'KeyV',
-  boomerang: 'KeyB', thrust: 'KeyX', gravity: 'KeyH', rockpillar: 'KeyZ', bouncer: 'KeyA',
+  boomerang: 'KeyB', thrust: 'KeyX', gravity: 'KeyH', rockpillar: 'KeyZ', bouncer: '', basic: 'KeyA',
   // as dez últimas: sobraram 9 letras livres; a Zona de dobra fica sem tecla padrão (teclas por posição ou painel de teclas)
   drain: 'KeyN', snowball: 'KeyO', illusion: 'KeyJ', magnetize: 'KeyM', recharge: 'KeyK', alteration: 'KeyL', link: 'KeyU', windwalk: 'KeyI', splitter: 'KeyP', warpzone: '',
   // Flagelo e Pacto ficam nas teclas que tinham como item (viraram magia em 21/10, #217)
-  scourge: 'Digit1', pact: 'Digit3',
+  scourge: 'Digit1', pact: 'Digit3', heal: '', geyser: '', closedbody: '',
   // loja: o B do Dota é do Bumerangue e as 26 letras já têm dono; 1 a 4 são das magias por posição (21/10, #217), então o 7
   // (o 5 já era do Rever a queda e o 6 da câmera, #235); ficha: a tecla à esquerda do 1 (' no ABNT2); grimório no F1 (o H é da Gravidade) e a biblioteca no F2
   shop: 'Digit7', board: 'Tab', sheet: 'Backquote', taunt: 'KeyY', rules: 'F1', library: 'F2', stop: 'KeyS', vote: '', replay: 'Digit5', camera: 'Digit6',
@@ -28,7 +29,11 @@ export const RESERVED = new Set(['Escape', 'Enter', 'Space', 'ArrowLeft', 'Arrow
 const STORE = 'warlock:keys';
 
 let map: Record<string, string> = { ...DEFAULTS };
-for (const [a, code] of Object.entries(store.json<Record<string, string>>(STORE) ?? {})) if (a in DEFAULTS && typeof code === 'string' && !RESERVED.has(code)) map[a] = code;
+const savedKeys = store.json(STORE);
+if (isRecord(savedKeys)) for (const a of ALL) {
+  const code = savedKeys[a];
+  if (typeof code === 'string' && !RESERVED.has(code)) map[a] = code;
+}
 
 const listeners: (() => void)[] = [];
 const notify = () => listeners.forEach((f) => f());
@@ -44,19 +49,25 @@ const save = () => {
 // 8 posições em 1 2 3 4 Q W E R, misturando MMO e MOBA (Fernando, 21/10, #217; antes Magia 1 a 6 em Q W E R D F e Item 1 a 3 em 1 2 3),
 // trocáveis (20/10), com os nomes das do controle.
 export const POS_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8'] as const;
-export type PosAction = (typeof POS_ACTIONS)[number];
+type PosAction = (typeof POS_ACTIONS)[number];
 const POS_DEFAULTS: Record<PosAction, string> = { slot1: 'Digit1', slot2: 'Digit2', slot3: 'Digit3', slot4: 'Digit4', slot5: 'KeyQ', slot6: 'KeyW', slot7: 'KeyE', slot8: 'KeyR' };
 export const isPos = (a: AnyAction): a is PosAction => a in POS_DEFAULTS;
 // chave nova em 21/10: as posições salvas do jeito antigo (Q W E R nas 4 primeiras) repetiriam teclas com as 8 novas
 const POS_STORE = 'warlock:poskeys8';
 let posMap: Record<PosAction, string> = { ...POS_DEFAULTS };
-for (const [a, code] of Object.entries(store.json<Record<string, string>>(POS_STORE) ?? {})) if (a in POS_DEFAULTS && typeof code === 'string' && !RESERVED.has(code)) posMap[a as PosAction] = code;
+const savedPositions = store.json(POS_STORE);
+if (isRecord(savedPositions)) for (const a of POS_ACTIONS) {
+  const code = savedPositions[a];
+  if (typeof code === 'string' && !RESERVED.has(code)) posMap[a] = code;
+}
 const SLOT_STORE = 'warlock:slotkeys';
 // ligado por padrão (Fernando, 20/10), menos para quem já tem teclas salvas: o modo ignoraria as teclas das magias e prenderia as teclas das posições
 let slotMode = (store.get(SLOT_STORE) ?? (store.get(STORE) ? '0' : '1')) === '1';
 // atalho salvo antes de 21/10 numa tecla que agora é de posição (a Loja no 4): volta ao padrão, senão a tecla abriria a loja e lançaria a magia;
 // sem as teclas por posição nada colide, e o atalho fica onde a pessoa pôs
 if (slotMode) for (const u of UI_ACTIONS) if (Object.values(posMap).includes(map[u])) map[u] = DEFAULTS[u];
+// Ação nova nunca toma a tecla de uma preferência salva, nem de posições vazias.
+if (!(isRecord(savedKeys) && 'basic' in savedKeys) && ((slotMode ? Object.values(posMap).includes(map.basic) : ACTIONS.some((a) => map[a] === map.basic)) || UI_ACTIONS.some((a) => a !== 'basic' && map[a] === map.basic))) map.basic = '';
 let slots: (SpellId | null)[] = [];
 export const isSlotMode = () => slotMode;
 export function setSlotMode(on: boolean) {
@@ -91,7 +102,7 @@ export function setCastMode(m: CastMode) {
 // Padrão: A B X Y LB RB LT RT pela ordem da barra (8 magias desde 21/10); L3 ficha; View placar; ↓ loja; R3 câmera.
 // Start fica fora: é o Esc do controle. Índices do mapeamento padrão da Gamepad API (PlayStation nas mesmas posições).
 export const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Start', 'L3', 'R3', '↑', '↓', '←', '→'];
-export const PAD_NAMES_PS = ['✕', '○', '□', '△', 'L1', 'R1', 'L2', 'R2', 'Share', 'Options', 'L3', 'R3', '↑', '↓', '←', '→'];
+const PAD_NAMES_PS = ['✕', '○', '□', '△', 'L1', 'R1', 'L2', 'R2', 'Share', 'Options', 'L3', 'R3', '↑', '↓', '←', '→'];
 export const PAD_START = 9;
 // nome do botão nas duas famílias ("A / ✕"); L3, R3 e o D-pad são iguais
 export const padButtonName = (b: number, open = ' / ', close = '') => (PAD_NAMES[b] === PAD_NAMES_PS[b] ? PAD_NAMES[b] : PAD_NAMES[b] + open + PAD_NAMES_PS[b] + close);
@@ -102,7 +113,11 @@ export const PAD_ACTION_NAMES: Record<PadAction, string> = { slot1: t('Magia 1',
   slot7: t('Magia 7', 'Spell 7'), slot8: t('Magia 8', 'Spell 8'), sheet: t('Ficha do mago', 'Wizard sheet'), board: t('Placar (segurar)', 'Scoreboard (hold)'), shop: t('Loja só para ver', 'Shop (view only)'), center: t('Centralizar a câmera', 'Center the camera'), taunt: t('Provocações', 'Taunts') };
 const PAD_STORE = 'warlock:pad';
 let padMap: Record<PadAction, number> = { ...PAD_DEFAULTS };
-for (const [a, b] of Object.entries(store.json<Record<string, number>>(PAD_STORE) ?? {})) if (a in PAD_DEFAULTS && Number.isInteger(b) && b >= 0 && b < PAD_NAMES.length && b !== PAD_START) padMap[a as PadAction] = b;
+const savedPad = store.json(PAD_STORE);
+if (isRecord(savedPad)) for (const a of PAD_ACTIONS) {
+  const b = savedPad[a];
+  if (typeof b === 'number' && Number.isInteger(b) && b >= 0 && b < PAD_NAMES.length && b !== PAD_START) padMap[a] = b;
+}
 // Quem já usava ← para outra ação mantém a escolha; a ação nova ocupa um botão ainda livre.
 if (PAD_ACTIONS.some((a) => a !== 'taunt' && padMap[a] === padMap.taunt)) {
   padMap.taunt = PAD_NAMES.findIndex((_, b) => b !== PAD_START && !PAD_ACTIONS.some((a) => a !== 'taunt' && padMap[a] === b));

@@ -8,7 +8,8 @@ import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, spellCount, spellGroup, type Sp
 
 // rare: carta rara (só de subir magia): sobe 2 níveis
 export type Card = { kind: 'spell'; id: SpellId } | { kind: 'up'; id: SpellId; rare?: true } | { kind: 'item'; id: ItemId };
-export type Kind = Card['kind'];
+export const CARD_KINDS = ['spell', 'up', 'item'] as const;
+export type Kind = (typeof CARD_KINDS)[number];
 // escolha de uma fileira: carta i (−1 = manter as magias, só com a barra cheia) e a magia que sai na troca
 export type Choice = { i: number; swap?: SpellId };
 // xp: total da partida; todo: as fileiras do intervalo, pelo tipo; offer: as cartas de cada fileira; pick: a escolha de cada fileira
@@ -25,24 +26,24 @@ export const ASC_ROUNDS = 9;
 export const roundMult = (round: number) => (round >= 8 ? 2 : round >= 6 ? 1.5 : 1);
 // números iniciais, a medir no simulador (PRs de rebalanceamento depois); as magias e os itens não mudam (Fernando, 21/10)
 // DMG_XP e LAVA_XP separados: o Fernando está decidindo se a lava continua contando como dano do mago (21/10)
-export const DMG_XP = 1;
-export const LAVA_XP = 1;
+const DMG_XP = 1;
+const LAVA_XP = 1;
 // abate e assistência valem mais que o dano (Fernando, 21/10: abate 200 XP e assistência 100 XP); a assistência é de quem
 // mais bateu na vítima sem ser quem matou (a mesma do ouro, ASSIST_MIN_DMG de dano no mínimo)
 export const KILL_XP = 200;
 export const ASSIST_XP = 100;
-export const ALIVE_XP = 2; // por segundo vivo
+const ALIVE_XP = 2; // por segundo vivo
 // cada nível custa o mesmo; 1 100 (escolha do Fernando, 21/10, pela simulação de 1 430 partidas): 1,3 subir magia por intervalo
 // (com 600 eram 2,8, umas 5 cartas por intervalo)
-export const LEVEL_XP = 1100;
-export const LAST_ALIVE_PTS = 1; // ponto a mais para o último vivo
+const LEVEL_XP = 1100;
+const LAST_ALIVE_PTS = 1; // ponto a mais para o último vivo
 // recuperação (as 4 do desenho, números iniciais): derrubar o líder rende LEADER_KILL_XP por nível de diferença; abaixo da média de
 // nível, +CONSOLATION do XP da rodada por nível abaixo; atrás do líder, RARE_PER_LEVEL de chance de carta rara por nível (até RARE_MAX)
 // e 1 novo sorteio por intervalo; o líder leva MARK_KB a mais de empurrão por nível acima do 2º
 export const LEADER_KILL_XP = 60;
 export const CONSOLATION = 0.25;
-export const RARE_PER_LEVEL = 0.15;
-export const RARE_MAX = 0.6;
+const RARE_PER_LEVEL = 0.15;
+const RARE_MAX = 0.6;
 export const MARK_KB = 0.05;
 // todos escolheram: o intervalo acaba em 5 s, e até lá dá para trocar (Fernando, 21/10)
 export const LAST_CALL_MS = 5000;

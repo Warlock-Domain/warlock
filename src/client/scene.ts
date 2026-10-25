@@ -1,6 +1,15 @@
 // Cena 3D: lava, arena de pedra que encolhe, magos (KayKit), projéteis e efeitos.
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
 import * as THREE from 'three';
+import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
+import { createBraceClip } from './brace-pose.ts';
+import { createAttackClip } from './attack-pose.ts';
+import { electroPulse } from './screen-data.ts';
+import { HEAL_FX, healAura } from './heal-fx.ts';
+import { blindnessMask } from './blindness-fx.ts';
+import { conePoints } from '../shared/sand-cone.ts';
+import { GEYSER_FX, geyserHeight } from './geyser-fx.ts';
+import { SHAPES, flat, vineModel } from './proj-models.ts';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -12,6 +21,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SHAPES as ARENAS, edgeAt, inLavaAt, type ArenaId, type Isle } from '../shared/arena.ts';
 import { ARENA_STEP, CHEST, ISLAND, OBSTACLES, RUNE, SHRINK_WARN, SWORDS, WIZ_R, type RoundEffectId, type RuneKind } from '../shared/constants.ts';
 import { lookBody, lookOf, lookPieces, type CharacterId } from '../shared/characters.ts';
+import type { NightMap } from '../shared/levels.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
@@ -19,7 +29,7 @@ import { add, clampLen, len, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 import { t } from './i18n.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
-import { LIGHTNING, SPELLS } from '../shared/spells.ts';
+import { BLINDNESS, LIGHTNING, SPELLS } from '../shared/spells.ts';
 import type { TAUNTS } from '../shared/taunts.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
@@ -28,15 +38,15 @@ export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#
 export const TEAM_COLORS = ['#3b82f6', '#ef4444'];
 // dificuldade dos bots, curta (rótulo em cima do mago e placar do canto)
 export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), casual: 'Casual', normal: 'Normal', veteran: t('Veterano', 'Veteran'), hard: t('Difícil', 'Hard'), auto: 'Auto' };
-const HUES = [0, 215, 145, 52, 270, 182, 24, 330];
-const MAGE_HUE = 255;
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[] }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago
+export type WizDraw = { closedBodyLeft?: number; geyserLeft?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number }; // ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
+// the Hold ground pose depends only on the source skeleton: build it once per source model (clone + IK per wizard is costly)
+const braceClips = new WeakMap<Model, THREE.AnimationClip | null>();
 const files = new Map<string, Model>();
 const loading = new Map<string, Promise<Model | null>>();
 const failed = new Set<string>();
@@ -71,6 +81,33 @@ export function lookModel(look: string): Model | null {
   prefabs.set(look, m);
   return m;
 }
+// Prévia e partida usam a mesma cópia, sem recolorir roupas pela vaga do jogador; efeitos só alteram materiais próprios.
+export function cloneAppearance(source: THREE.Group): THREE.Group {
+  const model = cloneSkinned(source) as THREE.Group;
+  model.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
+  });
+  return model;
+}
+
+export type AppearanceInstance = { model: THREE.Object3D; mixer: THREE.AnimationMixer };
+// Só clones de cloneAppearance: geometrias e mapas pertencem aos GLB/prefabs; ossos e materiais pertencem à instância.
+export function disposeAppearance({ model, mixer }: AppearanceInstance) {
+  mixer.stopAllAction();
+  mixer.uncacheRoot(model);
+  model.removeFromParent();
+  const skeletons = new Set<THREE.Skeleton>();
+  const materials = new Set<THREE.Material>();
+  model.traverse((o) => {
+    if (o instanceof THREE.SkinnedMesh) skeletons.add(o.skeleton);
+    if (o instanceof THREE.Mesh) for (const mat of Array.isArray(o.material) ? o.material : [o.material]) materials.add(mat);
+  });
+  for (const skeleton of skeletons) skeleton.dispose();
+  for (const material of materials) material.dispose();
+}
+
 export function assemble(look: string, file: (id: CharacterId) => Model): Model {
   const base = file(lookBody(look));
   const root = base.scene.clone();
@@ -153,13 +190,14 @@ function bandGeo(pairs: [Vec[], Vec[]][], keep: (m: Vec) => boolean = () => true
 }
 
 // clips que repetem (o resto toca uma vez e para no último quadro)
-const LOOPS = ['Idle', 'Running_A', 'Jump_Idle', 'Cheer', 'Waving'];
+const LOOPS = ['Idle', 'Running_A', 'Jump_Idle', 'Cheer', 'Waving', 'Brace'];
 // gesto da provocação pelo tom: deboche, festa ou aviso [clip, segundos]
 const TEASE: [string, number] = ['Skeletons_Taunt', 1.03], PARTY: [string, number] = ['Cheer', 1.67], CALL: [string, number] = ['Waving', 2.1];
 const TAUNT_ANIM: Record<(typeof TAUNTS)[number]['id'], [string, number]> = {
   loser: TEASE, laugh: TEASE, meow: TEASE, flawless: PARTY, combo_breaker: PARTY, multi_kill: PARTY, ultra_kill: PARTY, congrats: PARTY,
   fire_in_the_hole: CALL, look_out: CALL,
   fausto: CALL, emafia: TEASE, meestruparam: TEASE, usarameabusaram: TEASE, lanchado: PARTY,
+  noob: TEASE, get_him: CALL, bye_lava: TEASE, too_easy: TEASE, gg: PARTY, tough_luck: TEASE, melted: TEASE, stay_in_lava: TEASE,
 };
 // Teleporte (só visual): some em TP s deslizando TP_SLIDE m rumo ao destino e reaparece em TP s chegando na mesma direção
 const TP = 0.12, TP_SLIDE = 0.6;
@@ -185,6 +223,7 @@ type Mage = {
   prevHp: number; // cura: vida do quadro anterior, quando subiu e o que somou no último segundo
   prevAlive: boolean;
   healAt: number;
+  healingUntil?: number;
   healSum: number;
   healFlushAt: number;
   lootBar: HTMLDivElement;
@@ -209,9 +248,10 @@ type Mage = {
   ghostMats: { m: THREE.Material; transparent: boolean; opacity: number }[];
   model: THREE.Object3D; // o boneco (some no fim da queima, quando fica só o esqueleto)
   burnAt: number; // morreu na lava neste instante (−1 = não está queimando)
-  bones: THREE.Object3D | null; // esqueleto escuro que sobra da queima
+  bones: AppearanceInstance | null; // esqueleto escuro que sobra da queima
   flash: number; // clarão branco do golpe: 1 no acerto, cai até 0
   burning: boolean; // vivo e na lava (issue #225): o corpo pulsa em brasa e solta faíscas
+  electro?: boolean;
   freezeUntil: number; // hit-stop: animação parada até este instante
   cheering: boolean;
   medalEl: HTMLElement; // medalha de ouro, prata ou bronze com a colocação, à esquerda do nome
@@ -544,6 +584,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // aparência de cada projétil: corpo, cor do brilho e do rastro, textura do rastro e tamanho
   // a cópia da Ilusão não entra: é desenhada como mago (main.ts)
   const LOOK: Record<Exclude<ProjKind, 'illusion'>, { mat: THREE.Material; halo: string; trail: string; tex: THREE.Texture; size: number }> = {
+    geyser: { mat: swapMat, halo: GEYSER_FX.color, trail: GEYSER_FX.foam, tex: FX.light, size: 1 },
+    basic: { mat: swapMat, halo: '#dcfffb', trail: '#2fe0d0', tex: FX.spark, size: .45 },
     fireball: { mat: fireMat, halo: '#ffb000', trail: '#ff8a00', tex: FX.flame, size: 1.15 },
     homing: { mat: homingMat, halo: '#c23cff', trail: '#b040ff', tex: FX.magic, size: 1.1 },
     cluster: { mat: fireMat, halo: '#fff066', trail: '#ffd23a', tex: FX.spark, size: 0.65 },
@@ -562,154 +604,79 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     shard: { mat: swapMat, halo: '#8fd8ff', trail: '#60b8ff', tex: FX.spark, size: 0.6 },
     warpzone: { mat: swapMat, halo: '#7ad8ff', trail: '#7ad8ff', tex: FX.magic, size: 1 },
   };
-  // corpo de cada projétil: formas low-poly próprias em vez da mesma bola de luz (pedido do Fernando, 17/10;
-  // não há modelos CC0 prontos para magias, então são feitas aqui com as geometrias do Three.js)
-  const jitter = (g: THREE.BufferGeometry, amount: number) => {
-    const pos = g.attributes.position;
-    for (let i = 0; i < pos.count; i++) pos.setXYZ(i, pos.getX(i) * (1 + (Math.random() - 0.5) * amount), pos.getY(i) * (1 + (Math.random() - 0.5) * amount), pos.getZ(i) * (1 + (Math.random() - 0.5) * amount));
-    g.computeVertexNormals();
-    return g;
-  };
-  const flat = (color: string, emissive: string, intensity = 0.6) => new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity, flatShading: true, roughness: 0.5 });
-  function vineModel(radius: number) {
-    const group = new THREE.Group();
-    const stem = flat('#3c7023', '#203f0e', .3), leafMat = flat('#8ac34b', '#335d17', .3);
-    for (let i = 0; i < 6; i++) {
-      const points = Array.from({ length: 13 }, (_, j) => {
-        const k = j / 12, a = i * Math.PI / 3 + k * 2.5, r = radius * (1 - k * .55);
-        return new THREE.Vector3(Math.cos(a) * r, k * 1.15, Math.sin(a) * r);
-      });
-      group.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 20, .035, 5, false), stem));
-      for (const j of [4, 9]) {
-        const leaf = new THREE.Mesh(new THREE.SphereGeometry(.09, 5, 3), leafMat);
-        leaf.position.copy(points[j]); leaf.scale.set(.5, 1.8, 1); leaf.rotation.z = i;
-        group.add(leaf);
-      }
-    }
-    return group;
-  }
-  const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
-    fireball: () => new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.24, 1), 0.35), flat('#ffb347', '#ff6a00', 1.4)),
-    cluster: () => new THREE.Mesh(new THREE.TetrahedronGeometry(0.2), flat('#ffe066', '#ff9a00', 1.2)),
-    homing: () => {
-      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), flat('#e7b8ff', '#9a30ff', 1.2));
-      m.scale.set(0.8, 0.8, 2); // cristal comprido apontando para onde voa
-      return m;
-    },
-    swap: () => {
-      const g = new THREE.Group();
-      g.add(new THREE.Mesh(new THREE.OctahedronGeometry(0.2), flat('#cffffb', '#00d8c8', 1.2)));
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.035, 6, 24), flat('#00fff0', '#00b0a8', 1.4));
-      ring.name = 'spin';
-      g.add(ring);
-      return g;
-    },
-    grip: () => {
-      const ring = new THREE.Mesh(new THREE.RingGeometry(.94, 1, 64), new THREE.MeshBasicMaterial({ color: '#8ed64b', side: THREE.DoubleSide, transparent: true, opacity: .8, depthWrite: false }));
-      ring.rotation.x = -Math.PI / 2;
-      return ring;
-    },
-    meteor: () => new THREE.Mesh(jitter(new THREE.DodecahedronGeometry(0.3, 0), 0.4), flat('#4a2c20', '#ff4a00', 0.9)),
-    boomerang: () => {
-      // V de dois braços, extrudado, girando
-      const s = new THREE.Shape();
-      s.moveTo(-0.38, 0.16);
-      s.lineTo(0, -0.12);
-      s.lineTo(0.38, 0.16);
-      s.lineTo(0.3, 0.24);
-      s.lineTo(0, 0.04);
-      s.lineTo(-0.3, 0.24);
-      s.closePath();
-      const geo = new THREE.ExtrudeGeometry(s, { depth: 0.07, bevelEnabled: false });
-      geo.center();
-      const m = new THREE.Mesh(geo, flat('#8fe060', '#3a8a10', 0.7));
-      m.rotation.x = -Math.PI / 2;
-      const g = new THREE.Group();
-      g.add(m);
-      g.name = 'spin';
-      return g;
-    },
-    gravity: () => {
-      const g = new THREE.Group();
-      g.add(new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), new THREE.MeshBasicMaterial({ color: '#05020c' })));
-      for (const tilt of [0.5, -0.9]) {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.03, 6, 32), flat('#8a6cff', '#4a20ff', 1.6));
-        ring.rotation.x = tilt;
-        ring.name = 'spin';
-        g.add(ring);
-      }
-      return g;
-    },
-    bouncer: () => new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), flat('#7dffb8', '#10c070', 1.2)),
-    drain: () => {
-      const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.18), flat('#c8ff9a', '#3a9a10', 1.2));
-      m.scale.set(0.7, 0.7, 1.7); // espinho verde apontando para onde voa
-      return m;
-    },
-    snowball: () => new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.42, 1), 0.15), flat('#f4fbff', '#9ad8ff', 0.35)),
-    magnetize: () => {
-      // ímã em U: arco vermelho com pontas prateadas
-      const g = new THREE.Group();
-      const arc = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.06, 6, 16, Math.PI), flat('#ff4a4a', '#a00000', 0.8));
-      arc.rotation.x = -Math.PI / 2;
-      g.add(arc);
-      for (const x of [-0.2, 0.2]) {
-        const tip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.12), flat('#e0e0e8', '#404050', 0.4));
-        tip.position.set(x, 0, 0.04);
-        g.add(tip);
-      }
-      return g;
-    },
-    recharge: () => {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.36, 8), flat('#9ae6ff', '#1a90ff', 1.3));
-      m.rotation.x = Math.PI / 2; // pilha deitada apontando para a frente
-      return m;
-    },
-    link: () => new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.04, 6, 16), flat('#bfe6ff', '#2a7aff', 1.2)),
-    splitter: () => new THREE.Mesh(new THREE.DodecahedronGeometry(0.22, 0), flat('#a0f0ff', '#2080ff', 1.2)),
-    shard: () => new THREE.Mesh(new THREE.TetrahedronGeometry(0.13), flat('#d0f4ff', '#40a0ff', 1.4)),
-    warpzone: () => {
-      // cúpula de vidro com borda no chão; raio 1 aqui, o tamanho real vem do servidor
-      const g = new THREE.Group();
-      g.add(new THREE.Mesh(new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#7ad8ff', transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide })));
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.02, 4, 48), new THREE.MeshBasicMaterial({ color: '#bfefff', transparent: true, opacity: 0.6 }));
-      rim.rotation.x = -Math.PI / 2;
-      g.add(rim);
-      return g;
-    },
-  };
   const projs = new Map<number, THREE.Group>();
   const fx: Fx[] = [];
 
   // cada jogador ganha um clone da aparência dele. O mago define a escala (os pacotes KayKit usam a mesma medida) e as peças
   // do mago (chapéu, tronco, capa) são tingidas na cor do jogador
   let mageScale = 1;
-  const tinted = new Map<number, THREE.Texture>();
   const ready = loadFile('mage').then((g) => {
     if (!g) return;
     const box = new THREE.Box3().setFromObject(g.scene);
     mageScale = 1.9 / (box.max.y - box.min.y);
   });
 
-  function tintFor(color: number, base: THREE.Texture): THREE.Texture {
-    const hit = tinted.get(color);
-    if (hit) return hit;
-    const img = base.image as CanvasImageSource & { width: number; height: number };
-    const c = document.createElement('canvas');
-    c.width = img.width;
-    c.height = img.height;
-    const g = c.getContext('2d')!;
-    g.filter = `hue-rotate(${HUES[color] - MAGE_HUE}deg) saturate(1.25)`;
-    g.drawImage(img, 0, 0);
-    const tex = new THREE.CanvasTexture(c);
-    tex.flipY = base.flipY;
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tinted.set(color, tex);
-    return tex;
-  }
-
   const mages = new Map<string, Mage>();
   const decor = createDecor(scene, ready.then(() => mageScale), FX.flame);
+
+  // mapa explorável da Campanha (levels.ts): ladrilhos de ardósia, paredes, muretas e cera em malhas instanciadas, sobre um
+  // vazio escuro (o abismo). Montado uma vez por noite; os pontos de controle acendem até o encontro deles ser vencido
+  const mapGroup = new THREE.Group();
+  mapGroup.visible = false;
+  scene.add(mapGroup);
+  const voidPlane = ground(new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshBasicMaterial({ color: '#07080b' })), -0.8);
+  voidPlane.visible = false;
+  scene.add(voidPlane);
+  const mapMats = {
+    floor: new THREE.MeshStandardMaterial({ map: tex('/tex/stone.jpg'), color: '#e6ddd6', roughness: 0.95 }),
+    wall: new THREE.MeshStandardMaterial({ color: '#6a5d56', roughness: 1 }),
+    low: new THREE.MeshStandardMaterial({ color: '#a08a72', roughness: 1 }),
+    wax: new THREE.MeshStandardMaterial({ color: '#d9b866', roughness: 0.6, emissive: '#3a2a08', transparent: true, opacity: 0.85 }),
+    // lava do mapa (^): brilho próprio, para ler como a lava da arena mesmo na noite escura da Campanha
+    lava: new THREE.MeshStandardMaterial({ color: '#ff5a1a', emissive: '#ff3a0a', emissiveIntensity: 1.4, roughness: 0.5 }),
+  };
+  let mapKey = '';
+  // mapa da Campanha em cena: lá a lava é o chão desenhado (^), não a borda da arena (as coordenadas do mapa ficam longe do centro)
+  let curMap: NightMap | null = null;
+  const lavaAt = (p: Vec, pad = 0) => (curMap ? curMap.ground[Math.floor(p.y)]?.[Math.floor(p.x)] === 'lava' : inLavaAt(shownArena, shownR, shownIsles, p, pad));
+  let cpMarks: { room: number; mat: THREE.MeshBasicMaterial }[] = [];
+  function buildMap(n: NightMap) {
+    for (const c of [...mapGroup.children]) {
+      mapGroup.remove(c);
+      if (c instanceof THREE.Mesh) c.geometry.dispose();
+    }
+    for (const c of cpMarks) c.mat.dispose();
+    const at = (test: (g: string, x: number, y: number) => boolean) => n.ground.flatMap((row, y) => row.flatMap((g, x) => (test(g, x, y) ? [[x, y] as const] : [])));
+    const inst = (geo: THREE.BufferGeometry, mat: THREE.Material, cells: (readonly [number, number])[], y: number, cast = false) => {
+      const m = new THREE.InstancedMesh(geo, mat, Math.max(1, cells.length));
+      m.count = cells.length;
+      const o = new THREE.Object3D();
+      cells.forEach(([x, z], i) => {
+        o.position.set(x + 0.5, y, z + 0.5);
+        o.updateMatrix();
+        m.setMatrixAt(i, o.matrix);
+      });
+      m.receiveShadow = true;
+      m.castShadow = cast;
+      mapGroup.add(m);
+    };
+    const wall = (x: number, y: number) => (n.ground[y]?.[x] ?? 'wall') === 'wall';
+    // da parede só a casca (casas de parede encostadas em algo que não é parede): o miolo nunca aparece
+    inst(new THREE.BoxGeometry(1, 0.1, 1), mapMats.floor, at((g) => g !== 'wall' && g !== 'pit' && g !== 'lava'), -0.05);
+    inst(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mapMats.wax, at((g) => g === 'wax'), 0.01);
+    inst(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mapMats.lava, at((g) => g === 'lava'), -0.12);
+    // 1 m de altura: a câmera olha do sul e uma parede mais alta esconderia quem está logo atrás dela
+    inst(new THREE.BoxGeometry(1, 1, 1), mapMats.wall, at((g, x, y) => g === 'wall' && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => !wall(x + dx, y + dy))), 0.5, true);
+    inst(new THREE.BoxGeometry(1, 0.5, 1), mapMats.low, at((g) => g === 'low'), 0.25, true);
+    cpMarks = n.marks.filter((m) => m.kind === 'checkpoint').map((m) => {
+      const mat = new THREE.MeshBasicMaterial({ map: FX.circle, color: '#5dff9a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+      const ring = ground(new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), mat), 0.03);
+      ring.position.x = m.x + 1;
+      ring.position.z = m.y + 0.5;
+      mapGroup.add(ring);
+      return { room: m.room, mat };
+    });
+  }
 
   // geometrias de efeito compartilhadas: criar uma por efeito vazava memória de vídeo
   const ringGeo = new THREE.RingGeometry(WIZ_R * 0.9, WIZ_R * 1.25, 40);
@@ -753,7 +720,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.root.position.y = -BURN.sink * k;
     } else {
       if (!m.bones) {
-        m.bones = makeBones(m) ?? m.model; // sem o esqueleto, fica o corpo carbonizado
+        m.bones = makeBones(m) ?? { model: m.model, mixer: m.mixer }; // sem o esqueleto, fica o corpo carbonizado
         burst(at, '#ff7a2a', 1.6, 0.6, 0.4, FX.spark, 0.8);
         smoke(at, 1.6, 2);
       }
@@ -770,25 +737,26 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     if (!lite && t < BURN.swap + 1 && Math.random() < 0.08) burst(v(at.x + (Math.random() - 0.5) * 0.6, at.y + (Math.random() - 0.5) * 0.6), '#ff8a2a', 0.3, 0.9, 0.3, glow, 1.2);
   }
   // esqueleto deitado na pose final da morte, com os materiais carbonizados; se o modelo ainda não chegou (ou já é um esqueleto), o próprio corpo carbonizado
-  function makeBones(m: Mage): THREE.Object3D | null {
+  function makeBones(m: Mage): AppearanceInstance | null {
     const src = files.get(BONES);
     if (!src || lookBody(m.look).startsWith('skeleton')) return null;
-    const b = cloneSkinned(src.scene) as THREE.Group;
+    const b = cloneAppearance(src.scene);
     b.scale.setScalar(mageScale);
     b.rotation.copy(m.model.rotation);
     b.traverse((o) => {
       const mesh = o as THREE.Mesh;
-      if (!mesh.isMesh || Array.isArray(mesh.material)) return;
-      const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
-      mat.color = charred(mat.color);
-      mat.emissive = EMBER.clone();
-      mat.emissiveIntensity = 0.06;
-      mat.roughness = 1;
-      mesh.material = mat;
+      if (!mesh.isMesh) return;
+      for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        if (!(mat instanceof THREE.MeshStandardMaterial)) continue;
+        mat.color.copy(charred(mat.color));
+        mat.emissive.copy(EMBER);
+        mat.emissiveIntensity = 0.06;
+        mat.roughness = 1;
+      }
     });
+    const mixer = new THREE.AnimationMixer(b);
     const clip = src.clips.find((c) => c.name === 'Death_A');
     if (clip) {
-      const mixer = new THREE.AnimationMixer(b);
       const a = mixer.clipAction(clip);
       a.setLoop(THREE.LoopOnce, 1);
       a.clampWhenFinished = true;
@@ -797,7 +765,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     }
     m.model.visible = false;
     m.root.add(b);
-    return b;
+    return { model: b, mixer };
   }
   // voltou (deathmatch) ou rodada nova: o boneco como era
   function unburn(m: Mage) {
@@ -813,21 +781,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
     }
     m.burnAt = -1;
-    if (m.bones === m.model) m.bones = null;
-    if (m.bones) {
-      m.root.remove(m.bones);
-      m.bones.traverse((o) => {
-        const mesh = o as THREE.Mesh;
-        if (mesh.isMesh) (mesh.material as THREE.Material).dispose();
-      });
-      m.bones = null;
-    }
+    // O fallback usa o corpo original, que ainda será animado após renascer.
+    if (m.bones && m.bones.model !== m.model) disposeAppearance(m.bones);
+    m.bones = null;
   }
 
   function makeMage(d: WizDraw, look: string): Mage | null {
     const src = lookModel(look);
     if (!src) return null;
-    const model = cloneSkinned(src.scene) as THREE.Group;
+    const model = cloneAppearance(src.scene);
     model.scale.setScalar(mageScale);
     const mats: Mage['mats'] = [];
     const ghostMats: Mage['ghostMats'] = [];
@@ -835,18 +797,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       mesh.castShadow = true;
-      // material próprio de cada boneco: o clarão do golpe não pode acender os outros magos do mesmo modelo
+      // cloneAppearance já isola os materiais; guarda só os valores necessários para restaurar efeitos temporários.
       if (Array.isArray(mesh.material)) {
-        mesh.material = mesh.material.map((source) => {
-          const mat = source.clone();
-          ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });
-          return mat;
-        });
+        for (const mat of mesh.material) ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });
         return;
       }
-      const mat = mesh.material.clone();
-      if (mat instanceof THREE.MeshStandardMaterial && /^Mage_(Hat|Body|Cape)$/.test(mesh.name) && mat.map) mat.map = tintFor(d.color, mat.map);
-      mesh.material = mat;
+      const mat = mesh.material;
       ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });
       if (mat instanceof THREE.MeshStandardMaterial) mats.push({ m: mat, c: mat.emissive.clone(), i: mat.emissiveIntensity, col: mat.color.clone(), rough: mat.roughness });
     });
@@ -871,6 +827,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const mixer = new THREE.AnimationMixer(model);
     const actions: Record<string, THREE.AnimationAction> = {};
     for (const c of src.clips) actions[c.name] = mixer.clipAction(c);
+    const idle = src.clips.find((c) => c.name === 'Idle');
+    if (idle && !braceClips.has(src)) braceClips.set(src, createBraceClip(model, idle));
+    const brace = braceClips.get(src);
+    if (brace) actions.Brace = mixer.clipAction(brace);
+    const invoke = src.clips.find((c) => c.name === 'Spellcast_Shoot');
+    if (invoke) actions.Attack_Invoke = mixer.clipAction(createAttackClip(invoke));
     // tudo toca uma vez e para no último quadro, menos o que repete
     for (const [n, a] of Object.entries(actions)) if (!LOOPS.includes(n)) {
       a.setLoop(THREE.LoopOnce, 1);
@@ -913,9 +875,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const SUMMON: [string, number, number] = ['Ranged_Magic_Summon', 0.8, 3.1];
   const SPIN: [string, number] = ['2H_Melee_Attack_Spinning', 0.67];
   const CAST_ANIM: Record<string, [string, number, number?]> = {
-    shield: ['Block', 0.6], rush: ['Dodge_Forward', 0.4], teleport: ['Dodge_Forward', 0.4], windwalk: ['Dodge_Backward', 0.4], grip: ['Throw', 0.6, 0.45],
+    closedbody: ['Block', 0.6], shield: ['Block', 0.6], rush: ['Dodge_Forward', 0.4], teleport: ['Dodge_Forward', 0.4], windwalk: ['Dodge_Backward', 0.4], grip: ['Throw', 0.6, 0.45],
     meteor: SUMMON, rockpillar: SUMMON, warpzone: SUMMON, drain: ['Spellcast_Long', 0.9, 0.3], thrust: ['Unarmed_Melee_Attack_Kick', 0.5, 0.2],
-    gravity: SPIN, cluster: SPIN,
+    gravity: SPIN, cluster: ['Throw', .5, .1],
     // Flagelo: o giro mais forte vai de ~0,6 a ~0,9 s do clip; começando em 0,15 ele cai junto com a explosão (preparo de 0,5 s)
     scourge: ['2H_Melee_Attack_Spin', 0.85, 0.15],
     // issue #207: o que é jogado sai de arremesso, do mesmo ponto do clip que o Agarrar (a soltura cai no preparo de 0,1 s);
@@ -993,9 +955,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const overHead = (at: Vec) => w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0));
 
   // número de dano: o tamanho cresce com o golpe (30 de dano ≈ 1,3rem, 170 ≈ 2,9rem)
-  function damageNumber(at: Vec, dmg: number) {
+  // golpe crítico de verdade (Lente Letal, #184) usa o mesmo destaque do golpe muito forte
+  function damageNumber(at: Vec, dmg: number, critHit = false) {
     if (dmg < 5) return;
-    const crit = dmg >= CRIT_HIT;
+    const crit = critHit || dmg >= CRIT_HIT;
     floatText('dmg' + (crit ? ' crit' : dmg >= BIG_HIT ? ' big' : ''), overHead(at), `${Math.min(3, 0.95 + dmg / 90).toFixed(2)}rem`, crit ? 0.9 : dmg >= BIG_HIT ? 0.55 : 0.3, '-' + Math.round(dmg) + (crit ? '!' : ''));
   }
 
@@ -1079,41 +1042,66 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
   }
 
+  // Só recursos registrados na criação são próprios; clones GLTF e texturas continuam no cache.
+  class ObstacleVisual {
+    private readonly owned = new Set<THREE.BufferGeometry | THREE.Material>();
+    constructor(readonly obj: THREE.Object3D = new THREE.Group()) {}
+    own<T extends THREE.BufferGeometry | THREE.Material>(resource: T): T {
+      this.owned.add(resource);
+      return resource;
+    }
+    dispose() {
+      this.obj.removeFromParent();
+      for (const resource of this.owned) resource.dispose();
+      this.owned.clear();
+    }
+  }
+
   // obstáculos da rodada: modelo KayKit de cada tipo, treme quando apanha e afunda ao quebrar
   const OBSTACLE_MODEL: Record<string, string> = { pillar: 'pillar_decorated', rock: 'rubble_large', tree: 'tree_dead_large', shrine: 'shrine_candles' };
   // parede do Pilar de pedra (KayKit Dungeon barrier_half): um modelo no pedaço do meio, atravessado como os 3 círculos da simulação
   let wallModel: THREE.Object3D | null = null;
   void loadFile('barrier_half').then((g) => (wallModel = g?.scene ?? null));
   function makeWall(along: Vec) {
-    const o = wallModel?.clone(true) ?? new THREE.Mesh(new THREE.BoxGeometry(2, 1.1, 0.5), new THREE.MeshStandardMaterial({ color: '#6b625c' }));
+    const visual = new ObstacleVisual();
+    const o = wallModel?.clone(true) ?? new THREE.Mesh(visual.own(new THREE.BoxGeometry(2, 1.1, 0.5)), visual.own(new THREE.MeshStandardMaterial({ color: '#6b625c' })));
     o.traverse((m) => {
       if ((m as THREE.Mesh).isMesh) m.castShadow = m.receiveShadow = true;
     });
     const box = new THREE.Box3().setFromObject(o);
-    const g = new THREE.Group();
+    const g = visual.obj;
     const k = 2 / Math.max(0.01, box.max.x - box.min.x); // 2 m de ponta a ponta
     o.scale.setScalar(k);
     // a origem do modelo fica numa ponta: centra no pedaço do meio e apoia no chão
     o.position.set((-(box.min.x + box.max.x) / 2) * k, -box.min.y * k, (-(box.min.z + box.max.z) / 2) * k);
     g.add(o);
     g.rotation.y = -Math.atan2(along.y, along.x); // o comprimento (x do modelo) no rumo dos pedaços
-    return g;
+    return visual;
   }
-  const pillarMeshes: { obj: THREE.Object3D; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number }[] = [];
+  const pillarMeshes: { visual: ObstacleVisual; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number; fallAt?: number }[] = [];
   // baú: caixa simples com tampa dourada e brilho (é um obstáculo: as magias quebram)
   const chestWood = new THREE.MeshStandardMaterial({ color: '#7a4a22', roughness: 0.7 });
   const chestGold = new THREE.MeshStandardMaterial({ color: '#ffcc33', emissive: '#a06a00', metalness: 0.6, roughness: 0.3 });
   function makeChest() {
-    const g = new THREE.Group();
-    const wood = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.32, 0.38), chestWood);
+    const visual = new ObstacleVisual();
+    const g = visual.obj;
+    const wood = new THREE.Mesh(visual.own(new THREE.BoxGeometry(0.55, 0.32, 0.38)), chestWood);
     wood.position.y = 0.16;
-    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.12, 0.4), chestGold);
+    const lid = new THREE.Mesh(visual.own(new THREE.BoxGeometry(0.58, 0.12, 0.4)), chestGold);
     lid.position.y = 0.38;
-    const glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: '#ffd84a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const glowSprite = new THREE.Sprite(visual.own(new THREE.SpriteMaterial({ map: glow, color: '#ffd84a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })));
     glowSprite.scale.setScalar(1.2);
     glowSprite.position.y = 0.3;
     g.add(wood, lid, glowSprite);
-    return g;
+    return visual;
+  }
+  function makeObstacle(p: PillarView) {
+    if (p.kind === 'chest') return makeChest();
+    const model = decor.clone(OBSTACLE_MODEL[p.kind]);
+    if (model) return new ObstacleVisual(model);
+    const visual = new ObstacleVisual();
+    visual.obj.add(new THREE.Mesh(visual.own(new THREE.CylinderGeometry(OBSTACLES[p.kind].r, OBSTACLES[p.kind].r, 2.2, 12)), visual.own(new THREE.MeshStandardMaterial({ color: '#6b625c' }))));
+    return visual;
   }
   // monte de ouro do baú quebrado: moedas no chão com brilho baixo e fraco que pulsa (não cobre quem passa por cima)
   const pile = new THREE.Group();
@@ -1423,8 +1411,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const changed = list.length !== pillarMeshes.length || list.some((p, i) => p.pos.x !== pillarMeshes[i].pos.x || p.pos.y !== pillarMeshes[i].pos.y);
     const radius = (p: PillarView) => OBSTACLES[p.kind].r;
     if (changed) {
+      // paredes que já estavam na tela: só a que acabou de surgir cai do céu (issue #206)
+      const before = new Set(pillarMeshes.map((m) => `${m.pos.x},${m.pos.y}`));
       for (const p of pillarMeshes) {
-        scene.remove(p.obj);
+        p.visual.dispose();
         p.bar?.remove();
       }
       pillarMeshes.length = 0;
@@ -1433,17 +1423,19 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         run = p.kind === 'rockpillar' ? run + 1 : 0;
         const wall = p.kind === 'rockpillar' && run % 3 === 1 && list[i + 2]?.kind === 'rockpillar';
         const side = p.kind === 'rockpillar' && !wall; // os lados não têm modelo nem barra (a vida é a da parede)
-        let obj: THREE.Object3D;
-        if (wall) obj = makeWall(v(list[i + 2].pos.x - list[i + 1].pos.x, list[i + 2].pos.y - list[i + 1].pos.y));
-        else if (side) obj = new THREE.Group();
+        let visual: ObstacleVisual;
+        if (wall) visual = makeWall(v(list[i + 2].pos.x - list[i + 1].pos.x, list[i + 2].pos.y - list[i + 1].pos.y));
+        else if (side) visual = new ObstacleVisual();
         else {
-          obj = (p.kind === 'chest' ? makeChest() : decor.clone(OBSTACLE_MODEL[p.kind])) ?? new THREE.Mesh(new THREE.CylinderGeometry(radius(p), radius(p), 2.2, 12), new THREE.MeshStandardMaterial({ color: '#6b625c' }));
+          visual = makeObstacle(p);
+          const obj = visual.obj;
           // ajusta a largura do modelo ao raio de colisão do pilar
           const box = new THREE.Box3().setFromObject(obj);
           const width = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) || 1;
           // árvore é fina no tronco e larga nos galhos: mede pelo tronco (menos que a copa)
           obj.scale.multiplyScalar((radius(p) * (p.kind === 'tree' ? 6 : 2.3)) / width);
         }
+        const obj = visual.obj;
         obj.position.copy(w3(p.pos, 0));
         scene.add(obj);
         // barra de vida em tudo que quebra (pedido do Fernando, 17/10: sempre visível)
@@ -1454,22 +1446,35 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           labels.append(bar);
         }
         const height = new THREE.Box3().setFromObject(obj).max.y;
-        pillarMeshes.push({ obj, pos: p.pos, bar, fill, height });
+        const fallAt = wall && p.hp > 0 && !before.has(`${p.pos.x},${p.pos.y}`) ? performance.now() / 1000 : undefined;
+        pillarMeshes.push({ visual, pos: p.pos, bar, fill, height, fallAt });
         // a lista muda no meio da rodada (baú, Pilar de pedra): o que já tinha quebrado não afunda de novo
         if (p.hp <= 0) obj.position.y = -3;
       });
     }
     list.forEach((p, i) => {
       const m = pillarMeshes[i];
+      const obj = m.visual.obj;
       if (p.hp <= 0) {
-        m.obj.position.y = Math.max(-3, m.obj.position.y - 0.05);
-        m.obj.visible = m.obj.position.y > -2.9;
+        obj.position.y = Math.max(-3, obj.position.y - 0.05);
+        obj.visible = obj.position.y > -2.9;
         if (m.bar) m.bar.hidden = true;
       } else {
+        // queda da parede nova: 4 m em 0,2 s, acelerando, e poeira ao bater (a colisão e o dano já valem desde o lançamento)
+        if (m.fallAt !== undefined) {
+          const k = Math.min(1, (performance.now() / 1000 - m.fallAt) / 0.2);
+          obj.position.y = 4 * (1 - k * k);
+          if (k >= 1) {
+            m.fallAt = undefined;
+            shockwave(p.pos, 1.6, '#c8b8a0');
+            // Math.random só no desenho da poeira (fora da simulação, como o resto da cena)
+            if (!lite) for (let j = 0; j < 4; j++) puff(v(p.pos.x + (Math.random() - 0.5) * 1.6, p.pos.y + (Math.random() - 0.5) * 1.6), 0.8, 1.2);
+          }
+        }
         // tremida curta quando apanha
         const shake = p.hp < 100 ? (100 - p.hp) / 100 : 0;
         if (m.fill) m.fill.style.width = `${p.hp}%`;
-        m.obj.rotation.z = Math.sin(performance.now() / 40) * 0.02 * shake;
+        obj.rotation.z = Math.sin(performance.now() / 40) * 0.02 * shake;
       }
     });
   }
@@ -1536,9 +1541,35 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     burst(hand, '#9fd0ff', 1.2, 0.2, 0.9, FX.light);
   }
 
-  function onEvents(events: SimEvent[]) {
+  // chefe da Campanha: a faixa vermelha no chão é o caminho da investida enquanto ele mira; pilar derrubado = atordoado
+  const chargeGeo = new THREE.PlaneGeometry(1, 1);
+  function bossFx(e: Extract<SimEvent, { k: 'boss' }>) {
+    const at = v(e.x, e.y);
+    if (e.what === 'aim' && e.tx !== undefined && e.ty !== undefined) {
+      const to = v(e.tx, e.ty), len = Math.hypot(to.x - at.x, to.y - at.y);
+      const strip = new THREE.Mesh(chargeGeo, new THREE.MeshBasicMaterial({ color: '#ff3b2f', transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+      strip.rotation.set(-Math.PI / 2, 0, -Math.atan2(to.y - at.y, to.x - at.x));
+      strip.scale.set(len, 1.3, 1);
+      strip.position.copy(w3(v((at.x + to.x) / 2, (at.y + to.y) / 2), 0.05));
+      addFx(strip, 0.95, (k) => ((strip.material as THREE.MeshBasicMaterial).opacity = 0.15 + 0.35 * k));
+    } else if (e.what === 'stun') {
+      shockwave(at, 2.2, '#ffd36b');
+      for (let i = 0; i < 6; i++) burst(v(at.x + Math.cos(i) * 0.5, at.y + Math.sin(i) * 0.5), '#ffe9a8', 0.9, 1.2, 1.9, FX.star, 0.4);
+    } else if (e.what === 'phase2') shockwave(at, 5, '#ffb347');
+  }
+
+  function onEvents(events: SimEvent[], hiddenDamageTargets: readonly string[] = []) {
     for (const e of events) {
-      if (e.k === 'cast') {
+      if (e.k === 'sand') {
+        const from=v(e.x,e.y),dir=v(e.dx,e.dy),pts=conePoints(from,dir,e.length,e.width);
+        const geo=new THREE.BufferGeometry().setFromPoints(pts.map(p=>w3(p,.12)));
+        const mat=new THREE.MeshBasicMaterial({color:'#c9ab70',transparent:true,opacity:.5,side:THREE.DoubleSide,depthWrite:false});
+        const fan=new THREE.Mesh(geo,mat); scene.add(fan);
+        addFx(fan,.5,k=>{ mat.opacity=.5*(1-k); });
+        for(let i=0;i<(lite?12:35);i++) { const d=Math.random()*e.length,side=(Math.random()-.5)*e.width*d/e.length; burst(v(e.x+dir.x*d-dir.y*side,e.y+dir.y*d+dir.x*side),'#d7bc85',.4,.4,.2+Math.random()*.6,FX.spark); }
+      }
+      if (e.k === 'boss') bossFx(e);
+      else if (e.k === 'cast') {
         oneShot(e.id, ...castAnim(e.spell));
         if (e.spell === 'scourge') {
           // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
@@ -1552,13 +1583,19 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           const m = mages.get(e.id);
           if (m) burst(v(m.root.position.x, m.root.position.z), '#c2122a', 2.6, 0.6, 1, FX.magic);
         }
+      } else if (e.k === 'heal') {
+        const m = mages.get(e.id);
+        if (m) m.healingUntil = performance.now() / 1000 + HEAL_FX.seconds;
+        burst(v(e.x, e.y), HEAL_FX.color, 2.6, HEAL_FX.seconds, .6, FX.light, .6);
+        burst(v(e.x, e.y), HEAL_FX.glow, 1.5, HEAL_FX.seconds, .3, FX.magic, 1.2);
       } else if (e.k === 'hit') {
         oneShot(e.id, 'Hit_A', 0.45);
         // o acerto do raio tem impacto elétrico próprio: a explosão de fogo cobria o raio e parecia que ele não tinha saído
         if (e.src === 'lightning') zap(v(e.x, e.y));
         else explosion(v(e.x, e.y));
         scorch(v(e.x, e.y));
-        damageNumber(v(e.x, e.y), e.dmg);
+        // Mantém o impacto público da magia, mas não o número sobre o jogador invisível.
+        if (!hiddenDamageTargets.includes(e.id)) damageNumber(v(e.x, e.y), e.dmg, e.crit);
         // dano 0 (invulnerável, aliado) não sacode nem acende
         if (e.dmg > 0) impact(e.id, v(e.x, e.y), e.dmg);
       } else if (e.k === 'gold') goldNumber(v(e.x, e.y), e.n);
@@ -1596,6 +1633,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(v(e.x, e.y), '#d8c8b8', 1.4, 0.3, 1.2, FX.smoke);
       } else if (e.k === 'clash') {
         const at = v(e.x, e.y);
+        // Amplia só a destruição no ponto do projétil, nunca o feixe nem o raio das regras da magia.
+        if (e.combo === 'pulse') {
+          explosion(at);
+          shockwave(at, Math.max(e.r, 1.5), '#b98cff');
+        }
         groundMark(at, e.combo, e.r);
         if (e.combo !== 'pillar' && e.combo !== 'snow') {
           shake = Math.min(0.6, shake + e.r * 0.15);
@@ -1634,7 +1676,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (m) {
           const at = v(m.root.position.x, m.root.position.z);
           // fora da pedra: caiu na lava (respingo); em cima dela: estoura em fogo
-          if (inLavaAt(shownArena, shownR, shownIsles, at, 0.3)) lavaSplash(at);
+          if (lavaAt(at, 0.3)) lavaSplash(at);
           else {
             burst(at, '#ffcf5a', 4, 0.6, 0.3, FX.fire);
             smoke(at, 2.6, 1.6);
@@ -1663,6 +1705,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           core.scale.setScalar(p.vel.x); // vel.x = raio
           halo.visible = false;
         }
+        if (p.kind === 'geyser') { core.scale.set(p.vel.x, 1, p.vel.x); halo.visible = false; }
         // fogo de verdade: chama animada em volta dos projéteis de fogo; redemoinho na Gravidade e na Zona de dobra
         if (FIRE_KINDS.has(p.kind)) {
           const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: FLAMES[0], color: '#ffc060', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -1699,6 +1742,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         (warn.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.sin(performance.now() / 70);
       } else if (p.kind === 'grip') g.position.copy(w3(p.pos, .045));
       else if (p.kind === 'warpzone') g.position.copy(w3(p.pos, 0));
+      else if (p.kind === 'geyser') g.position.copy(w3(p.pos, 0));
       else g.position.copy(w3(p.pos, 0.9));
       if (p.kind === 'link') {
         const dx = p.vel.x - p.pos.x, dz = p.vel.y - p.pos.y;
@@ -1710,7 +1754,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // giro e direção: aponta para onde voa; anéis, bumerangue e pedras giram
       const body = g.children[0];
       const t = performance.now() / 1000;
-      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
+      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'geyser' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
+      if (p.kind === 'geyser') {
+        body.rotation.y = t * .8;
+        if (Math.random() < (lite ? .15 : .45)) burst(v(p.pos.x + (Math.random() - .5) * p.vel.x, p.pos.y + (Math.random() - .5) * p.vel.x), GEYSER_FX.foam, .35, .6, .2, FX.light, 2.1);
+      }
       if (p.kind === 'boomerang') body.rotation.y = t * 18;
       else if (p.kind === 'fireball' || p.kind === 'meteor' || p.kind === 'cluster' || p.kind === 'bouncer' || p.kind === 'snowball' || p.kind === 'splitter' || p.kind === 'shard') body.rotation.set(t * 3, t * 4, 0);
       else if (p.kind === 'link') body.rotation.y = t * 6;
@@ -1727,7 +1775,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (swirl) swirl.material.rotation = -t * 4;
       // rastro: brasas que ficam para trás e somem
       const look = LOOK[p.kind];
-      if (p.kind !== 'warpzone' && p.kind !== 'grip' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
+      if (p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'geyser' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
@@ -1750,7 +1798,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           scene.remove(m.root);
           dispose(m.vines); // Os cipós procedurais pertencem à aparência que está sendo substituída.
           for (const o of [m.ring, m.shield, m.aura]) (o.material as THREE.Material).dispose();
-          for (const x of m.mats) x.m.dispose();
+          disposeAppearance(m);
           m.label.remove();
         }
         if (made) mages.set(d.id, (m = made));
@@ -1767,6 +1815,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       const hidden = !d.illusion && (d.status & 2048) > 0; // a cópia é sempre visível; os inimigos não veem o jogador velado
       m.root.visible = !hidden;
+      m.model.position.y = d.alive ? geyserHeight(d.geyserLeft ?? 0) : 0;
       // A cópia é sólida e visível; a invisibilidade vale somente para o jogador real.
       const ghost = !!d.ghost || (d.status & (1024 | 8388608)) > 0; // Caminhada no vento e o véu visto por si ou pela visão de teste da sandbox
       // Teleporte: tk de 0 a 1 sumindo e deslizando rumo ao destino, de 1 a 2 chegando de um pouco atrás; 2 = sem efeito
@@ -1790,18 +1839,20 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (m.shield.visible) m.shieldFill.style.width = `${shieldLeft * 100}%`;
       // anel no chão: dourado pulsando invulnerável (começo da rodada), azul da runa com Escudo de runa
       const invuln = (d.status & 32) > 0, armor = (d.status & 1048576) > 0; // runa do Escudo: −30% de dano
-      m.aura.visible = d.alive && (invuln || armor);
+      const healing = healAura(m.healingUntil ?? 0, now);
+      m.aura.visible = d.alive && (healing.visible || invuln || armor);
+      m.aura.scale.setScalar(healing.visible ? healing.scale : 1.45);
       if (m.aura.visible) {
         const mat = m.aura.material as THREE.MeshBasicMaterial;
-        mat.color.set(invuln ? '#ffd36a' : RUNE_COLOR.shield);
-        mat.opacity = invuln ? 0.55 + 0.3 * Math.sin(now * 8) : 0.8;
+        mat.color.set(healing.visible ? HEAL_FX.color : (d.geyserLeft ?? 0) > 0 ? GEYSER_FX.color : invuln ? '#ffd36a' : RUNE_COLOR.shield);
+        mat.opacity = healing.visible ? healing.opacity : invuln ? 0.55 + 0.3 * Math.sin(now * 8) : 0.8;
       }
       m.ring.visible = d.alive;
       if (!d.alive) {
         if (!m.dead) {
           m.dead = true;
           // caiu na lava (fora da pedra e fora das ilhas): Death_A, que é a pose dos ossos, e o corpo queima; na pedra, Death_B (cai de costas)
-          const lava = inLavaAt(shownArena, shownR, shownIsles, d.pos);
+          const lava = lavaAt(d.pos);
           play(m, lava ? 'Death_A' : 'Death_B', 0.1);
           if (lava) {
             m.burnAt = now;
@@ -1815,16 +1866,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           unburn(m);
         }
         // nasceu (começo da rodada ou volta no deathmatch): a invulnerabilidade do começo acabou de ligar
-        if (invuln && !m.invuln) oneShot(d.id, 'Spawn_Ground', 1.3);
+        if (invuln && !m.invuln && !(d.geyserLeft ?? 0)) oneShot(d.id, 'Spawn_Ground', 1.3);
         // atordoado (16: arremessado por um golpe) voa de braços abertos
-        if (now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
+        if ((d.geyserLeft ?? 0) > 0) { m.oneShotUntil = 0; play(m, 'Jump_Idle', .05); }
+        else if ((d.basicLeft ?? 0) > 0 && !(d.status & 16) && m.actions.Attack_Invoke) {
+          play(m, 'Attack_Invoke', .03);
+          const action = m.actions.Attack_Invoke;
+          action.paused = true;
+          action.time = Math.max(0, action.getClip().duration - d.basicLeft!);
+          m.oneShotUntil = 0; // o snapshot encerra a pose na soltura ou no cancelamento, sem terminar o gesto à força.
+        } else if (m.current === 'Attack_Invoke' || now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & BRACING_BIT && m.actions.Brace ? 'Brace' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
         // vencedor: estouro dourado ao começar a comemorar e faíscas subindo enquanto dura
         if (d.cheer && !m.cheering) victoryBurst(d.pos);
         if (d.cheer && !lite && Math.random() < 0.2) burst(v(d.pos.x + (Math.random() - 0.5) * 1.4, d.pos.y + (Math.random() - 0.5) * 1.4), Math.random() < 0.5 ? '#ffd84a' : '#fff2a0', 0.7, 1.2, 0.4, FX.star, 2.6);
       }
       // queimando na lava (issue #225): de cima não se via que o mago estava tomando dano; faíscas e labaredas pequenas nos pés
       // (no modo leve, poucas: com muitos magos na lava o teto de partículas FX_CAP segura o resto)
-      const burning = d.alive && !hidden && inLavaAt(shownArena, shownR, shownIsles, d.pos);
+      const burning = d.alive && !hidden && lavaAt(d.pos);
       if (burning) {
         const feet = () => v(d.pos.x + (Math.random() - 0.5) * 0.7, d.pos.y + (Math.random() - 0.5) * 0.7);
         if (Math.random() < (lite ? 0.05 : 0.25)) burst(feet(), Math.random() < 0.5 ? '#ff8a2a' : '#ffd060', 0.35, 0.8, 0.2, glow, 1.4);
@@ -1834,8 +1892,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.invuln = invuln;
       // brasa pulsando enquanto queima (o clarão do golpe passa por cima); parou de queimar vivo ou morrendo fora da lava: volta
       // a cor própria; morreu na lava (burnAt marcado neste quadro): o burnCorpse cuida da cor do corpo
-      if (m.flash <= 0 && (burning || (m.burning && m.burnAt < 0))) for (const x of m.mats) {
-        if (burning) {
+      const electro = d.alive && !!(d.status & ELECTROCUTED_BIT);
+      if (m.flash <= 0 && (electro || m.electro || burning || (m.burning && m.burnAt < 0))) for (const x of m.mats) {
+        if (electro) {
+          x.m.emissive.setRGB(.3, .7, 1);
+          x.m.emissiveIntensity = electroPulse(true, now, lite);
+        } else if (burning) {
           x.m.emissive.copy(EMBER);
           x.m.emissiveIntensity = 0.35 + 0.25 * Math.sin(now * 9);
         } else {
@@ -1843,7 +1905,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           x.m.emissiveIntensity = x.i;
         }
       }
+      // Materiais clonados: escurece só este mago e restaura a cor própria ao terminar.
+      if (d.alive) for (const x of m.mats) x.m.color.copy(x.col).multiplyScalar((d.closedBodyLeft ?? 0) > 0 ? .08 : 1);
       m.burning = burning;
+      m.electro = electro;
       // clarão branco do golpe: some em ~0,15 s
       if (m.flash > 0) {
         m.flash = Math.max(0, m.flash - 0.12);
@@ -1857,7 +1922,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           }
         }
       }
-      m.label.hidden = !d.alive || hidden;
+      if (d.alive && (d.closedBodyLeft ?? 0) > 0) for (const x of m.mats) x.m.emissiveIntensity = 0;
+      // Campanha: o caído com brasa mostra o rótulo só com a barra do reacender, e solta brasas
+      const ember = !d.alive && d.ember !== undefined && d.ember >= 0;
+      m.label.hidden = (!d.alive && !ember) || hidden;
+      m.label.classList.toggle('ember', ember);
+      if (ember && !lite && Math.random() < 0.08) burst(v(d.pos.x + (Math.random() - 0.5) * 0.5, d.pos.y + (Math.random() - 0.5) * 0.5), Math.random() < 0.5 ? '#ffb347' : '#ff7a2f', 0.5, 0.9, 0.2, FX.light, 0.9);
       // ícones de efeito em cima do mago (negativos primeiro)
       if (m.statusKey !== d.status) {
         m.statusKey = d.status;
@@ -1945,8 +2015,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           m.level = d.xp.level;
         }
       }
-      m.lootBar.hidden = !d.loot;
-      if (d.loot) m.lootFill.style.width = `${Math.min(100, d.loot * 100)}%`;
+      const prog = ember ? d.ember! : d.loot;
+      m.lootBar.hidden = !ember && !d.loot;
+      if (prog !== undefined) m.lootFill.style.width = `${Math.min(100, prog * 100)}%`;
     }
     for (const [id, m] of mages) if (!seen.has(id)) {
       m.root.visible = false;
@@ -2026,10 +2097,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const bandBody = new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0).rotateX(-Math.PI / 2);
   const bandCap = new THREE.CircleGeometry(1, 24, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2);
   const bands: THREE.Group[] = [];
+  const coneGeo = new THREE.BufferGeometry();
+  coneGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(9),3));
+  const coneAim = new THREE.Mesh(coneGeo,new THREE.MeshBasicMaterial({color:'#d5b474',transparent:true,opacity:.25,side:THREE.DoubleSide,depthWrite:false}));
+  coneAim.visible=false; coneAim.renderOrder=9; scene.add(coneAim);
+  const blindMask = blindnessMask(camera); scene.add(blindMask);
 
   return {
     ready,
     onEvents,
+    resourceStats() {
+      return { geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures };
+    },
     // centro no mago e raio em metros; null (ou raio 0) esconde. blastAt/blastR: o círculo da explosão no ponto mirado
     range(at: Vec | null, r: number, blastAt: Vec | null = null, blastR = 0) {
       blastRing.visible = !!blastAt && blastR > 0;
@@ -2060,6 +2139,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       });
     },
     // trechos de faixa [de, até] com meia largura `half`; lista vazia esconde
+    cone(points: [Vec,Vec,Vec] | null) {
+      coneAim.visible=!!points;
+      if(points) { const a=coneGeo.getAttribute('position'); points.forEach((p,i)=>a.setXYZ(i,p.x,.04,p.y)); a.needsUpdate=true; coneGeo.computeBoundingSphere(); }
+    },
     bands(segs: [Vec, Vec][], half: number) {
       for (let i = bands.length; i < segs.length; i++) {
         const g = new THREE.Group();
@@ -2098,6 +2181,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       raycaster.setFromCamera(ndc, camera);
       const hit = new THREE.Vector3();
       return raycaster.ray.intersectPlane(floorPlane, hit) ? v(hit.x, hit.z) : null;
+    },
+    pickMage(clientX: number, clientY: number): string | undefined {
+      raycaster.setFromCamera(new THREE.Vector2((clientX / innerWidth) * 2 - 1, -(clientY / innerHeight) * 2 + 1), camera);
+      let found: { id: string; distance: number } | undefined;
+      for (const [id, m] of mages) {
+        if (!m.root.visible || m.dead) continue;
+        const hit = raycaster.intersectObject(m.model, true)[0];
+        if (hit && (!found || hit.distance < found.distance)) found = { id, distance: hit.distance };
+      }
+      return found?.id;
     },
     clickMarker(at: Vec, cast: boolean) {
       const ring = new THREE.Mesh(markerGeo, new THREE.MeshBasicMaterial({ color: cast ? '#ffb347' : '#7dff9a', transparent: true, depthWrite: false }));
@@ -2173,21 +2266,33 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const m = mages.get(id);
       if (!m || m.dead) return;
       // brilho na mão (um pouco à frente do mago, na cor da magia) e linha de mira fraca até o ponto
-      const color = LOOK[spell as keyof typeof LOOK]?.halo ?? '#ffb347';
+      const color = spell === 'cluster' ? '#d7bc85' : spell === 'heal' ? HEAL_FX.color : LOOK[spell as keyof typeof LOOK]?.halo ?? '#ffb347';
       const from = v(m.root.position.x, m.root.position.z);
       const dir = at ? Math.atan2(at.y - from.y, at.x - from.x) : Math.PI / 2 - m.root.rotation.y;
       const hand = v(from.x + Math.cos(dir) * 0.45, from.y + Math.sin(dir) * 0.45);
       burst(hand, color, 1.3, 0.35, 1.15, FX.light);
-      burst(hand, '#ffffff', 0.6, 0.2, 1.15, FX.light);
+      burst(hand, spell === 'heal' ? HEAL_FX.glow : '#ffffff', 0.6, 0.2, 1.15, FX.light);
       if (!at || Math.hypot(at.x - from.x, at.y - from.y) < 0.8) return;
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean }) {
+    render(state: { blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[] } | null }) {
       const now = performance.now() / 1000;
       const dt = Math.min(0.05, now - lastFrame);
       lastFrame = now;
+      blindMask.visible=!!state.blindAt;
+      if(state.blindAt) blindMask.material.uniforms.center.value.set(state.blindAt.x,state.blindAt.y);
       lavaMat.uniforms.uTime.value = now;
+      // Campanha: o mapa no lugar da arena e da lava
+      const onMap = !!state.map;
+      curMap = state.map ? state.map.night : null;
+      if (state.map && state.map.key !== mapKey) {
+        mapKey = state.map.key;
+        buildMap(state.map.night);
+      }
+      mapGroup.visible = voidPlane.visible = onMap;
+      lava.visible = arena.visible = warn.visible = !onMap;
+      for (const c of cpMarks) c.mat.opacity = state.map?.done.includes(c.room) ? 0.15 : 0.55 + 0.35 * Math.sin(now * 3);
 
       // arena nova (sorteada a cada rodada): troca o chão e a borda
       if (state.arena !== shownArena) {
@@ -2200,7 +2305,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         warnR = -1;
       }
       // a decoração em volta se afasta da pedra quando a arena muda ou cresce (rodada nova); no encolhimento fica
-      if (state.arena !== decorArena || state.arenaR > decorR + 0.3) decor.layout((p) => edgeAt(state.arena, state.arenaR, p));
+      if (state.arena !== decorArena || state.arenaR > decorR + 0.3) decor.layout((p) => (onMap ? -1 : edgeAt(state.arena, state.arenaR, p)));
       decorR = state.arena !== decorArena || state.arenaR > decorR + 0.3 ? state.arenaR : Math.min(decorR, state.arenaR);
       decorArena = state.arena;
       shownR += (state.arenaR - shownR) * Math.min(1, dt * 4);
@@ -2216,7 +2321,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       tintK += ((tint?.[1] ?? 0) - tintK) * Math.min(1, dt * 3);
       shoreU.uTintK.value = tintK;
       lavaMat.uniforms.uHeat.value = heat;
-      under.intensity = (52 + Math.sin(now * 2) * 9 + Math.sin(now * 7.3) * 3) * heat;
+      under.intensity = onMap ? 0 : (52 + Math.sin(now * 2) * 9 + Math.sin(now * 7.3) * 3) * heat;
       const ec = arcane ? ARCANE.ember : state.effect && EMBER_COLOR[state.effect];
       if (ec) emberMat.color.set(ec);
       else emberMat.color.copy(emberBase);
@@ -2227,6 +2332,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       shoreU.uWarn.value = warning ? 0.5 + 0.5 * Math.sin(now * 14) : 0;
       // brasas: sobem da lava em volta da pedra, cada uma com seu ritmo
       if (!lite) for (const s of embers) {
+        if (onMap) {
+          s.visible = false; // no mapa não há lava
+          continue;
+        }
         const u = s.userData as { a: number; r: number; vy: number; size: number; wait: number };
         if (!s.visible) {
           u.wait -= dt;
@@ -2385,7 +2494,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       syncIsles(shownIsles, now, dt);
       // hit-stop: quem acabou de apanhar fica com a animação parada por ~60 ms
       for (const m of mages.values()) if (now >= m.freezeUntil) m.mixer.update(dt);
-      decor.update((p) => edgeAt(shownArena, shownR, p), now);
+      decor.update((p) => (onMap ? -1 : edgeAt(shownArena, shownR, p)), now); // no mapa a decoração da arena afunda
       for (let i = fx.length - 1; i >= 0; i--) {
         const f = fx[i];
         const k = (now - f.born) / (f.until - f.born);
@@ -2399,7 +2508,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // câmera inclinada estilo Dota, seguindo de leve o próprio mago
       // em pé a arena não cabe na largura: a câmera acompanha mais o próprio mago
       // assistindo outro mago (lock): centra nele
-      let target = (state.follow ? w3(state.follow).multiplyScalar(state.lock ? 1 : camera.aspect < 1 ? 0.65 : 0.3) : new THREE.Vector3()).add(pan);
+      // no mapa, sem ninguém para seguir (todos caíram), a câmera fica onde estava em vez de ir para a quina (0, 0)
+      let target = (state.follow ? w3(state.follow).multiplyScalar(state.lock ? 1 : camera.aspect < 1 ? 0.65 : 0.3) : onMap ? focus.clone().sub(pan) : new THREE.Vector3()).add(pan);
       // fim da rodada: a câmera vai devagar até quem comemora (no modo Times, o meio do time) e aproxima um pouco
       const champs = state.wizards.filter((w) => w.cheer && w.alive);
       celebrate += ((champs.length ? 1 : 0) - celebrate) * Math.min(1, dt * 1.5);
@@ -2411,7 +2521,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // aproxima conforme a arena encolhe. Teto 54: as Ilhas com 8 magos (48,5) e no máximo da sandbox (53) cabem
       // inteiras; com 44 uma ilha saía pela lateral (issue #222). Seguindo um mago (lock), o teto é 25, o da arena de 4 magos:
       // em mapa grande ele não encolhe na tela
-      const dist = Math.min(state.lock ? 25 : 54, Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
+      const dist = Math.min(state.lock ? 25 : 54, (onMap ? 15 : Math.max(13, shownR * ARENAS[shownArena].reach * 2.1 + 2)) * (camera.userData.fit as number)) * zoom * (1 - 0.3 * celebrate);
+      // no mapa a sombra do sol acompanha a câmera (a janela de sombra é de 28 m)
+      if (onMap) {
+        voidPlane.position.set(focus.x, -0.8, focus.z); // o fundo do abismo acompanha a câmera: nunca acaba antes do mapa
+        sun.position.set(focus.x - 8, 20, focus.z + 6);
+        sun.target.position.set(focus.x, 0, focus.z);
+        sun.target.updateMatrixWorld();
+      } else if (sun.target.position.x || sun.target.position.z) {
+        sun.position.set(-8, 20, 6);
+        sun.target.position.set(0, 0, 0);
+        sun.target.updateMatrixWorld();
+      }
       lastDist = dist;
       // olha um pouco à frente do centro para a borda de baixo não ficar atrás da barra de magias
       let lookX = focus.x, lookZ = focus.z + dist * 0.06;
@@ -2446,6 +2567,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const q = p.project(camera);
         return [(q.x * innerWidth) / 2 + innerWidth / 2, (-q.y * innerHeight) / 2 + innerHeight / 2];
       };
+      const obscured = (p: THREE.Vector3) => !!state.blindAt && Math.hypot(p.x-state.blindAt.x,p.z-state.blindAt.y)>BLINDNESS.radius;
       // números de dano: sobem 1,2 m em 0,9 s e somem
       for (let i = numbers.length - 1; i >= 0; i--) {
         const d = numbers[i];
@@ -2458,19 +2580,22 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const [x, y] = toScreen(d.at.clone().setY(d.at.y + k * 1.2));
         d.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${1 + (d.pop ?? 0.3) * Math.max(0, 0.2 - k) * 5})`;
         d.el.style.opacity = String(Math.min(1, (1 - k) * 2.5));
+        d.el.style.visibility = obscured(d.at) ? 'hidden' : '';
       }
 
       // barras dos obstáculos, logo acima de cada um
       for (const p of pillarMeshes) {
         if (!p.bar || p.bar.hidden) continue;
-        const [x, y] = toScreen(p.obj.position.clone().setY(p.height + 0.15));
+        p.bar.style.visibility = obscured(p.visual.obj.position) ? 'hidden' : '';
+        const [x, y] = toScreen(p.visual.obj.position.clone().setY(p.height + 0.15));
         p.bar.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
       }
 
       // nome e vida em cima de cada mago
       for (const m of mages.values()) {
         if (m.label.hidden) continue;
-        const [x, y] = toScreen(m.root.position.clone().setY(2.1));
+        m.label.style.visibility = obscured(m.root.position) ? 'hidden' : '';
+        const [x, y] = toScreen(m.root.position.clone().setY(2.1 + m.model.position.y));
         m.label.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
       }
 

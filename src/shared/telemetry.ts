@@ -1,6 +1,6 @@
 // Dados de balanceamento: um resumo por rodada (quem tinha o quê, quanto dano cada fonte causou, precisão, abates,
 // quem venceu) e a soma de todas as rodadas. Guardado no objeto do lobby; leitura em /api/telemetry e, o jeito de jogar, em /api/telemetry/style.
-import type { Match, MatchOpts, Mode, Stat } from './match.ts';
+import { economyOf, type Match, type MatchOpts, type Mode, type Stat } from './match.ts';
 import { publicId } from './protocol.ts';
 
 // jeito de jogar (match.ts watchStyle): somas e contagens da rodada
@@ -11,6 +11,9 @@ export type RoundRecord = {
   at: number;
   humans: number;
   mode?: Mode;
+  round?: number;
+  economy?: number;
+  startGold?: number;
   scale?: number; // 10: vida 1000 e dano na escala do original (desde 18/10); sem o campo, vida 100 (dano ÷10)
   difficulty?: MatchOpts['difficulty']; // da partida (desde 19/10, junto com o jeito de jogar); cada bot pode ter a sua (players[].difficulty)
   setup?: true; // rodada com configuração de treino: fica fora da leitura do jeito de jogar
@@ -32,6 +35,7 @@ export type RoundRecord = {
     deaths?: number;
     deathBy?: Record<string, number>; // 'lava' ou a fonte do último empurrão
     alive?: number; // segundos vivo na rodada
+    gold?: { start: number; end: number; earned: number; spent: number; refunded: number; recovery: number };
   } & Partial<Pick<Stat, StyleKey>>)[];
 };
 
@@ -42,7 +46,28 @@ export type Totals = {
   recent: RoundRecord[]; // últimas rodadas, para análise fina
 };
 
-// cada rodada ocupa ~3,8 KB com 4 jogadores e ~7,9 KB com 8 (medido em 19/10); 200 fica em ~0,8 a 1,6 MB, abaixo do limite de 2 MB da chave do DO
+export type ResourceSample = {
+  at: number;
+  session: string;
+  build: string;
+  mode: Mode;
+  round: number;
+  players: number;
+  projectiles: number;
+  geometries: number;
+  textures: number;
+  heapBytes?: number;
+};
+
+export const RESOURCE_SAMPLE_MAX = 1000;
+
+export function addResourceSample(samples: ResourceSample[], sample: ResourceSample): ResourceSample[] {
+  samples.push(sample);
+  if (samples.length > RESOURCE_SAMPLE_MAX) samples.splice(0, samples.length - RESOURCE_SAMPLE_MAX);
+  return samples;
+}
+
+// O limite de 200 rodadas é conferido em telemetry.test.ts com oito jogadores e payload abaixo de 2 MB.
 const RECENT_MAX = 200;
 
 export function roundRecord(m: Match, now: number): RoundRecord {
@@ -53,6 +78,9 @@ export function roundRecord(m: Match, now: number): RoundRecord {
     at: now,
     humans: m.players.filter((p) => !p.bot).length,
     mode: m.mode,
+    round: m.round,
+    economy: m.opts.economy,
+    startGold: m.opts.startGold,
     scale: 10,
     difficulty: m.opts.difficulty,
     ...(m.players.some((p) => p.setup) && { setup: true as const }),
@@ -64,7 +92,8 @@ export function roundRecord(m: Match, now: number): RoundRecord {
       character: p.character,
       won: teams ? winTeam !== null && p.team === winTeam : p.id === m.lastRoundWinner,
       team: teams ? p.team : undefined,
-      spells: p.spells,
+      // only owned spells: each new spell would otherwise grow every stored record (2 MB storage budget)
+      spells: Object.fromEntries(Object.entries(p.spells).filter(([, lvl]) => lvl > 0)),
       items: p.items,
       dmg: Math.round(p.stats.round.dmg * 10) / 10,
       dmgBy: p.stats.round.dmgBy,
@@ -74,6 +103,14 @@ export function roundRecord(m: Match, now: number): RoundRecord {
       deaths: p.stats.round.deaths,
       deathBy: p.stats.round.deathBy,
       alive: Math.round(p.stats.round.alive * 10) / 10,
+      gold: {
+        start: economyOf(p).goldStart,
+        end: p.gold,
+        earned: economyOf(p).goldEarned,
+        spent: economyOf(p).goldSpent,
+        refunded: economyOf(p).goldRefunded,
+        recovery: economyOf(p).goldRecovery,
+      },
       ...Object.fromEntries(STYLE_KEYS.map((k) => [k, Math.round(p.stats.round[k] * 100) / 100])),
     })),
   };
@@ -102,7 +139,7 @@ export const emptyTotals = (): Totals => ({ rounds: 0, sources: {}, owned: {}, r
 // uma linha por humano (pelo código anônimo, com o último apelido) e por dificuldade dos bots ('bots normal'): rodadas, ameaças,
 // fração a que reagiu e em quanto tempo (média, s), fração que o atingiu, Escudo usado por Escudo pronto e distância média do inimigo (m).
 // Fora: rodadas de antes da medição, com configuração de treino e bots no Automático (a força muda com o placar)
-export type StyleRow = { who: string; pid?: string; rounds: number; threats: number; reacted: number | null; react: number | null; struck: number | null; shield: number | null; near: number | null };
+type StyleRow = { who: string; pid?: string; rounds: number; threats: number; reacted: number | null; react: number | null; struck: number | null; shield: number | null; near: number | null };
 export function styleRows(t: Totals): StyleRow[] {
   const sums = new Map<string, { who: string; pid?: string; rounds: number } & Record<StyleKey, number>>();
   for (const r of t.recent) {

@@ -1,5 +1,11 @@
 CRÉDITOS DOS ASSETS (os ícones são CC BY 3.0, com crédito obrigatório, ver "Ícones"; o resto é CC0 / domínio público, créditos por cortesia)
 
+Ícone healing-cross (Curar): cruz geométrica original do projeto, desenhada em SVG no repositório; sem asset externo.
+
+Coral “ooooh” de Curar: síntese original por osciladores/harmônicos/vibrato em src/client/sound.ts; sem gravação, voz de pessoa ou asset externo.
+
+Gêiser: ícone lorc/water-splash do game-icons.net (lista abaixo); jato/espuma/poça gerados proceduralmente com Three.js. Sem outro asset externo além do ícone; reutiliza partículas/áudio já creditados.
+
 == Modelos 3D ==
 models/decor.glb
   Junção (scripts/assets/merge-decor.mjs) de modelos de:
@@ -122,6 +128,8 @@ warlock-wars.svg (vetorial, o W em <path>), favicon.ico (16, 32 e 48 px) e apple
     Caminhada no vento: lorc/wind-slap.svg, Lorc (http://lorcblog.blogspot.com)
     Divisor: delapouite/split-arrows.svg, Delapouite (http://delapouite.com)
     Zona de dobra: lorc/time-trap.svg, Lorc (http://lorcblog.blogspot.com)
+    Gêiser: lorc/water-splash.svg, Lorc (http://lorcblog.blogspot.com)
+    Corpo fechado: lorc/aura.svg, Lorc (http://lorcblog.blogspot.com)
   Itens:
     Anel de vida: delapouite/diamond-ring.svg, Delapouite (http://delapouite.com)
     Anel amaldiçoado: lorc/skull-ring.svg, Lorc (http://lorcblog.blogspot.com)
@@ -139,6 +147,9 @@ warlock-wars.svg (vetorial, o W em <path>), favicon.ico (16, 32 e 48 px) e apple
     Botas de choque: lorc/winged-leg.svg, Lorc (http://lorcblog.blogspot.com)
     Égide: lorc/angel-wings.svg, Lorc (http://lorcblog.blogspot.com)
     Botas de vento: lorc/feather.svg, Lorc (http://lorcblog.blogspot.com)
+    Lente Letal: lorc/magnifying-glass.svg, Lorc (http://lorcblog.blogspot.com)
+    Magia Perfurante: lorc/pierced-heart.svg, Lorc (http://lorcblog.blogspot.com)
+    Runa da aflição: lorc/rune-stone.svg, Lorc (http://lorcblog.blogspot.com)
   Runas:
     Pressa: delapouite/rabbit.svg, Delapouite (http://delapouite.com)
     Fúria: delapouite/enrage.svg, Delapouite (http://delapouite.com)
@@ -190,9 +201,17 @@ Menu principal (issue #83, PR #85):
   wrench.svg: desenho vetorial original criado para esta contribuição por Codex.
   A logo da barra é o warlock-wars.svg (o mesmo do ícone da aba, já creditado acima).
 
+Áudios do Corpo fechado, enviados por Leonard (lboesmans), 24/10/2026, declarados CC0 pelo autor:
+  sfx/closed_body_start.mp3 ("corpo fechado começo.mp3") e sfx/closed_body_end.mp3 ("corpo fechado fim.mp3"),
+  começo e fim do Corpo fechado, no nivelamento comum do mixer.
+
 Gravações de provocações de Leonard (lboesmans), 21/10/2026 (PR #243, aceitas pelo Fernando):
   taunts-local/{fausto,emafia,meestruparam,usarameabusaram,lanchado}.mp4.
   O colaborador declarou ter gravado os áudios no próprio celular e ser o autor,
   não serem extrações de músicas/jogos/vídeos de terceiros, e autorizou envio,
   uso e redistribuição neste repositório público e no jogo Warlock.
   Permissão expressa do autor para o projeto; não presumir CC0 nem licença de terceiros.
+
+Manter base: public/sfx/brace_start.mp3, gravação enviada por Leonard (lboesmans), 24/10/2026 (PR #293):
+  origem e licença não informadas pelo colaborador; o Fernando aceitou o uso como está (decisão do dono de 24/10,
+  registrada no CLAUDE.md), do mesmo jeito que as provocações do PR #243.

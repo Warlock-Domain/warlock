@@ -51,18 +51,19 @@ describe('escudo contra as magias novas', () => {
     expect(w.projectiles).toHaveLength(0);
   });
 
-  it('reflects Rajada back at the caster without crediting a hit', () => {
-    const w = world([[0, 0], [4, 0]], ['cluster']);
+  it('Escudo reduz novos status da areia sem refletir cone', () => {
+    const w = world([[0, 0], [2.5, 0]], ['cluster']);
     w.wizards[1].shieldUntil = 99;
-    let landed = false;
+    let landed = false, reflected = false;
     stepWorld(w, [cast('p0', 'cluster', 4, 0)]);
     for (let i = 0; i < 60; i++) {
       stepWorld(w, []);
       landed ||= w.events.some((e) => e.k === 'land');
+      reflected ||= w.events.some((e) => e.k === 'reflect');
     }
-    expect(w.projectiles.some((p) => p.kind === 'cluster' && p.owner === 'p1')).toBe(true);
+    expect(reflected).toBe(false);
     expect(w.wizards[1].hp).toBe(HP_MAX);
-    expect(landed).toBe(false);
+    expect(landed).toBe(true);
   });
 });
 
@@ -80,7 +81,7 @@ describe('Agarrar', () => {
     expect(w.wizards[1].pos.y).toBeGreaterThan(0.5);
   });
 
-  it('the first damaging hit frees the gripped target and knocks it further (by grip level); cancels the target cast', () => {
+  it('the first damaging hit frees the gripped target and knocks it further (by grip level); keeps a non-mobility cast', () => {
     const a = world([[0, 0], [4, 0]], ['fireball']);
     const g = world([[0, 0], [4, 0]], ['fireball']);
     Object.assign(g.wizards[1], { gripUntil: 99, gripBonus: 0.3 });
@@ -104,7 +105,9 @@ describe('Agarrar', () => {
     stepWorld(c, [cast('p1', 'meteor', 0, 0)]);
     expect(c.wizards[1].casting).not.toBeNull();
     run(c, .08);
-    expect(c.wizards[1].casting).toBeNull();
+    // Agarrar só bloqueia Mobilidade: a conjuração de Controle segue (PR #272).
+    expect(c.wizards[1].gripUntil).toBeGreaterThan(c.t);
+    expect(c.wizards[1].casting?.spell === 'meteor' || c.projectiles.some((p) => p.kind === 'meteor' && p.owner === 'p1')).toBe(true);
   });
 });
 
@@ -120,7 +123,8 @@ describe('Meteoro', () => {
     expect(w.wizards[1].hp).toBeCloseTo(HP_MAX - L.dmg, -1); // no centro: dano máximo
     expect(w.wizards[2].hp).toBe(HP_MAX); // fora do raio
     expect(w.wizards[0].hp).toBe(HP_MAX); // quem lança não leva
-    expect(len(w.wizards[1].vel)).toBeGreaterThan(0);
+    expect(len(w.wizards[1].vel)).toBe(0); // troca empurrão por stun fixo.
+    expect(w.wizards[1].stunLeft).toBeGreaterThan(0);
   });
 
   it('deals less at the edge', () => {
@@ -177,18 +181,17 @@ describe('Investida', () => {
 });
 
 describe('Rajada', () => {
-  it('spawns 4 projectiles in a fan and each can land', () => {
+  it('aplica cone uma vez sem criar projéteis nem empurrar', () => {
     const w = world([[0, 0], [3, 0]], ['cluster']);
     run(w, 0.15, [cast('p0', 'cluster', 3, 0)]);
-    expect(w.projectiles.filter((p) => p.kind === 'cluster')).toHaveLength(4);
-    const dirs = new Set(w.projectiles.map((p) => Math.round(Math.atan2(p.vel.y, p.vel.x) * 100)));
-    expect(dirs.size).toBe(4);
+    expect(w.projectiles.filter((p) => p.kind === 'cluster')).toHaveLength(0);
+    expect(w.wizards[1].blindUntil).toBeGreaterThan(w.t);
     run(w, 1);
     expect(w.wizards[1].hp).toBeLessThan(HP_MAX);
     expect(w.wizards[1].hp).toBeGreaterThan(HP_MAX - 4 * spellLevel('cluster', 1).dmg - 10);
   });
 
-  it('passes through enemy fireballs instead of clashing', () => {
+  it('não destrói projéteis em voo', () => {
     const w = world([[0, 0], [8, 0]], ['cluster', 'fireball']);
     let clashed = false;
     stepWorld(w, [cast('p0', 'cluster', 8, 0), cast('p1', 'fireball', 0, 0)]);
@@ -204,7 +207,8 @@ describe('snapshot e telemetria', () => {
   it('encodes new statuses and projectile kinds', () => {
     const w = world([[0, 0], [4, 0]], ['rush', 'grip', 'meteor']);
     w.wizards[0].gripUntil = 9;
-    run(w, 0.1, [cast('p0', 'rush', 0, 0), cast('p1', 'meteor', 5, 0)]);
+    w.wizards[0].rushUntil = 9; // testa codificação, não lançamento de mobilidade enquanto preso.
+    run(w, 0.1, [cast('p1', 'meteor', 5, 0)]);
     run(w, 0.2);
     const snap = decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']);
     expect(snap.wizards[0].status & 128).toBe(128);
@@ -276,7 +280,8 @@ describe('bots com as magias novas', () => {
 
   it('cast meteor and cluster at the nearest enemy', () => {
     expect(botCmds(duel({ meteor: 1 }), 'bot', () => 0.3).some((c) => c.kind === 'cast' && c.spell === 'meteor')).toBe(true);
-    expect(botCmds(duel({ cluster: 1 }), 'bot', () => 0.3).some((c) => c.kind === 'cast' && c.spell === 'cluster')).toBe(true);
+    const w=duel({cluster:1}); w.wizards[1].pos=v(2.5,0);
+    expect(botCmds(w,'bot',()=>.3).some(c=>c.kind==='cast'&&c.spell==='cluster')).toBe(true);
   });
 });
 
@@ -817,7 +822,7 @@ describe('Caminhada no vento', () => {
     expect(decodeSnap(encodeSnap(w, 'p0', 0, []), ids).wizards[0].status & 1024).toBe(1024); // quem anda vê o efeito
     const ev = runEvents(w, 1.5);
     expect(hitsOf(ev, 'windwalk')[0]?.dmg).toBeCloseTo(spellLevel('windwalk', 1).dmg, 5);
-    expect(w.wizards[1].vel.x).toBeGreaterThan(0);
+    expect(w.wizards[1].pos.x).toBeGreaterThan(3); // houve empurrão; o residual termina ao liberar o controle.
     expect(w.wizards[0].windUntil).toBe(0);
   });
 });

@@ -103,11 +103,11 @@ describe('magias', () => {
     expect(w.events.some((e) => e.k === 'lightning')).toBe(false);
   });
 
-  it('lightning hits first wizard on the line within range', () => {
+  it('lightning hits first wizard on the line then jumps with half damage', () => {
     const w = world([[0, 0], [2.5, 0], [3.5, 0]]);
     run(w, 0.25, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(6, 0) }]);
     expect(wz(w, 1).hp).toBeLessThan(HP_MAX);
-    expect(wz(w, 2).hp).toBe(HP_MAX);
+    expect(wz(w, 2).hp).toBeLessThan(HP_MAX);
   });
 
   it('lightning does not reach past its range', () => {
@@ -162,12 +162,12 @@ describe('magias', () => {
     expect(wz(w, 0).pos.x).toBeCloseTo(SPELLS.teleport.levels[0].range);
   });
 
-  it('knockback grows as hp drops', () => {
+  it('knockback não aumenta com dano histórico', () => {
     const fresh = world([[0, 0], [3, 0]]);
     const hurt = world([[0, 0], [3, 0]]);
     wz(hurt, 1).dmgTaken = 800;
     for (const w of [fresh, hurt]) run(w, 2.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(3, 0) }]);
-    expect(wz(hurt, 1).pos.x - 3).toBeGreaterThan((wz(fresh, 1).pos.x - 3) * 1.5);
+    expect(wz(hurt, 1).pos.x).toBeCloseTo(wz(fresh, 1).pos.x, 9);
   });
 
   it('death credits last hitter within 5s', () => {
@@ -263,20 +263,23 @@ describe('choque de magias', () => {
     expect(w.projectiles.length).toBe(2);
   });
 
-  it('lightning detonates a fireball in its path', () => {
+  it('Raio destrói uma bola no caminho sem criar a antiga detonação em área', () => {
     const w = world([[0, 0], [3, 2], [2.2, 0.6]]);
     stepWorld(w, [{ id: 'p1', kind: 'cast', spell: 'fireball', at: v(-3, -2) }]);
     for (let i = 0; i < 16; i++) stepWorld(w, []);
     const fb = w.projectiles[0].pos;
     const seen: string[] = [];
+    const secondary: number[] = [];
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(fb.x, fb.y) }]);
     for (let i = 0; i < 14; i++) {
       stepWorld(w, []);
       for (const e of w.events) if (e.k === 'clash') seen.push(e.combo);
+      for (const e of w.events) if (e.k === 'hit' && e.id === 'p2') secondary.push(e.dmg);
     }
-    expect(seen).toContain('detonate');
+    expect(seen).toContain('pulse');
+    expect(seen).not.toContain('detonate');
     expect(w.projectiles.length).toBe(0);
-    expect(wz(w, 2).hp).toBeLessThan(HP_MAX);
+    expect(secondary).toEqual([35]); // salto legítimo, não detonação em área.
   });
 });
 
