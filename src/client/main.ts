@@ -8,7 +8,7 @@ import { DEFAULT_OPTS, type BotSetup } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
 import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
 import { ODRAN } from '../shared/bosses.ts';
-import { SERVOS, nightXpAt } from '../shared/campaign.ts';
+import { CANDLE, SERVOS, nightXpAt } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
 import { itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
@@ -1032,6 +1032,7 @@ function startRoom(code: string, name: string) {
       if (here && line) ilseSay(here.room.id, line(ilseCtx()));
       if (room!.night!.fight !== null) ilseSay('fight', ILSE_MOMENTS.fight(ilseCtx())); // primeiro encontro: magias e teclas
       if (room!.players.find((p) => p.id === me)?.lv?.offer.length && room!.night!.fight === null) ilseSay('level', ILSE_MOMENTS.level()); // first level-up cards
+      if (myPos && nm.marks.some((q) => q.kind === 'candle' && Math.hypot(myPos.x - q.x - 0.5, myPos.y - q.y - 0.5) <= CANDLE.r)) ilseSay('candle', ILSE_MOMENTS.candle());
       if (room!.night!.result === 'won') {
         ilseSay('won', ILSE_MOMENTS.won());
         setIlse(false); // venceu a Charneca: o tutorial acabou neste navegador
