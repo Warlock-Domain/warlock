@@ -323,6 +323,7 @@ function startRoom(code: string, name: string) {
     ballot: (yes) => net.send({ t: 'ballot', yes }),
     undo: (key) => net.send({ t: 'undo', key }),
     sell: (key) => net.send({ t: 'sell', key }),
+    alt: (arc, guard) => net.send({ t: 'alt', arc, guard }),
     taunt: (i) => net.send({ t: 'taunt', i }),
     // personagem pronto da sala: vira a aparência equivalente (o evento abaixo manda ao servidor)
     pick: (character) => {
@@ -392,6 +393,7 @@ function startRoom(code: string, name: string) {
   const volumeOf = (id: string) => volumeAt(interp.latest()?.wizards.find((w) => w.id === id)?.pos);
 
   let attackCancelSeq = 0;
+  let arcPreview: { until: number; facing: number } | null = null; // prévia do golpe em arco (issue #402), em ms de performance.now()
   function command(msg: { t: 'move'; x: number; y: number; held?: boolean } | { t: 'moveHold'; on: boolean } | { t: 'brace'; on: boolean } | { t: 'basic'; x: number; y: number; target?: string | number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
     seq++;
     if (msg.t === 'move' || msg.t === 'stop' || msg.t === 'cast') attackCancelSeq = seq;
@@ -428,11 +430,15 @@ function startRoom(code: string, name: string) {
     checkCooldown,
     pickAttack: (x, y) => scene.pickMage(x, y),
     attackArmedChanged: (on) => { canvas.style.cursor = on ? 'crosshair' : ''; },
+    meleeArc: () => !!room?.players.find((p) => p.id === me)?.arc,
     basic(at, clicked) {
       if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       if ((myWizard(interp.latest())?.status ?? 0) & 16) return;
       const target = clicked?.endsWith('~ilusao') ? interp.latest()?.projectiles.find((q) => q.kind === 'illusion' && room?.ids[q.vel.x] === clicked.slice(0, -7))?.id : clicked;
       command({ t: 'basic', x: at.x, y: at.y, target });
+      // golpe em arco: a prévia aparece na hora, sem esperar o servidor, e dura o preparo
+      const from = myWizard(interp.latest())?.pos;
+      if (room?.players.find((p) => p.id === me)?.arc && from) arcPreview = { until: performance.now() + BASIC_ATTACK.windup * 1000, facing: Math.atan2(at.y - from.y, at.x - from.x) };
       predict.stop();
       predict.hold(BASIC_ATTACK.windup, true);
       scene.clickMarker(at, true);
@@ -1004,6 +1010,7 @@ function startRoom(code: string, name: string) {
     const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, frozen?.from ?? myPos, aimAt) : null;
     scene.range(showing && myPos ? myPos : null, reach, shape?.blastAt ?? null, shape?.blastR ?? 0);
     scene.bands(shape?.segs ?? [], shape?.half ?? 0);
+    scene.arc(arcPreview && nowMs < arcPreview.until && meW?.alive && myPos ? myPos : null, arcPreview?.facing ?? 0);
     scene.cone(shape?.cone ?? null);
     // nas posições desenhadas (as mesmas da tela), para ver se o erro foi mira, desvio ou a bola no ar enganando
     scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
@@ -1079,7 +1086,7 @@ function startRoom(code: string, name: string) {
       const moving = !!(state.status & WALKING_BIT) && state.alive && (!!(state.status & HOLDING_MOVE_BIT) || !prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
       if (live && w.alive && room?.phase === 'playing') aliveAt[w.id] = s.time;
-      return { ...state, xp: live && p ? xpOf(p) : null, status, pos, hpMax: maxHp(p), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p && room ? botLevel(p, room) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p ? playerName(p) : '?', place: placeOf(p), shieldR: p?.spells.shield ? spellLevel('shield', p.spells.shield).radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, ember: live && !w.alive ? lastSnap?.em?.[room?.ids.indexOf(w.id) ?? -1] : undefined, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined, size: p?.servo && SERVOS[p.servo].boss ? ODRAN.size : undefined };
+      return { ...state, xp: live && p ? xpOf(p) : null, status, pos, hpMax: maxHp(p), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p && room ? botLevel(p, room) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p ? playerName(p) : '?', place: placeOf(p), shieldR: p?.spells.shield ? spellLevel('shield', p.spells.shield).radius : 0, loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, ember: live && !w.alive ? lastSnap?.em?.[room?.ids.indexOf(w.id) ?? -1] : undefined, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined, size: p?.servo && SERVOS[p.servo].boss ? ODRAN.size : undefined, guard: !!p?.guard };
     });
   }
   // eventos do replay: só a cena (clarão, explosão) e a seta do golpe que eu levei

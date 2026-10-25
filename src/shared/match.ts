@@ -151,6 +151,9 @@ export type Player = {
   turret?: TurretDir; // Sandbox: tiro fixo, sem dano nem deslocamento.
   // espectador (pedido do Sky, 20/10): sem mago a partir da próxima rodada; pontos, ouro e compras ficam guardados para voltar
   watch?: boolean;
+  // versões alternativas para teste escolhidas na loja (issue #402): golpe em arco no Atacar e defesa no Manter base; bots nunca
+  arc?: true;
+  guard?: true;
 };
 
 // torreta da sandbox: para onde atira em cada direção (passo no plano do chão; y positivo é para baixo na tela)
@@ -409,6 +412,17 @@ export function setLook(m: Match, id: string, look: string): boolean {
   if (!p || p.look === look) return false;
   p.look = look;
   p.character = lookHead(look);
+  return true;
+}
+
+// versões alternativas do Atacar e do Manter base (issue #402): por jogador, na loja; também vale no mundo já aberto, para a Sandbox
+// (sem loja entre rodadas) e para o Deathmatch trocarem sem esperar uma rodada nova
+export function setAlt(m: Match, id: string, arc: boolean, guard: boolean): boolean {
+  const p = player(m, id);
+  if (!p || p.bot || (!!p.arc === arc && !!p.guard === guard)) return false;
+  Object.assign(p, { arc: arc || undefined, guard: guard || undefined });
+  const z = m.world?.wizards.find((q) => q.id === id);
+  if (z) Object.assign(z, { arc: p.arc, guard: p.guard });
   return true;
 }
 
@@ -738,6 +752,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
   const arena = m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
   m.world = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests && !m.asc }, arena);
+  for (const z of m.world.wizards) { const p = player(m, z.id); if (p?.arc || p?.guard) Object.assign(z, { arc: p.arc, guard: p.guard }); } // só quem escolheu: o mundo dos outros fica igual
   if (m.asc) ascMark(m);
   if (m.sandbox) m.world.shrink = m.sandbox.shrink; // a sandbox usa o mundo do deathmatch: não encolhe (a não ser que peçam) e quem morre volta
   // efeito da rodada: o que a loja mostrou (a opção pode ter mudado por votação); o da próxima é sorteado depois do mundo,

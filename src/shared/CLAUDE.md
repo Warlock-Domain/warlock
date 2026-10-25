@@ -24,6 +24,8 @@ Vale junto com o `CLAUDE.md` da raiz.
 - **Eventos:** `w.events.push({ k: '...', ... })` durante o passo; tipo novo entra na união `SimEvent` e o cliente consome em `main.ts`. Ids secretos viram públicos em `publicEvents` (`snapshot.ts`).
 - Ilusão recebe forças pelo mesmo moveWizard do corpo real; copy.walk e pushVel separados. Gravidade usa puxão de corpo, Magnetizar não vira a caminhada, Bola de neve usa arraste no contato e explosão só ao explodir. Movimenta cópias antes dos impactos para não ganhar passo extra pela ordem da lista. Não mata nem oculta a cópia ao receber dano.
 
+- **Test versions of Attack and Hold ground** (issue #402): `Wizard.arc` and `Wizard.guard` come only from `setAlt` (shop, `alt` message) and the round start in `match.ts`; bots never set them, so the style hash stays the same. Every change of behaviour sits behind these flags (`finishArc`, `braceResistance`, the extra freeze of `basicReadyAt`); the arc restores the target's `casting` after `hit` on purpose.
+
 ## Números de magia e item (`spells.ts`, `items.ts`, `constants.ts`)
 
 - Proposta Meteoro em revisão: preserva dano/área e substitui empurrão por duration=1,25s em todos os níveis. Usa o bloqueio geral de stun e resistências do alvo; não aciona recuperação pós-knockback sem impulso. Medição/decisão do dono pendente antes de integrar.

@@ -34,6 +34,11 @@ export const BASIC_ATTACK = { dmg: 15, knock: .8, speed: 8, range: 6, cd: .8, wi
 // A short lease stops the guard from sticking if the tab loses focus or the socket drops without a release. 0.5 s, above the
 // Normal bot's 0.4 s think: at 0.4 the bot's renewal landed exactly on expiry and restarted the windup every time
 export const BRACE = { resistance: .15, lease: .5, windup: .5 };
+// Versões alternativas para teste (issue #402, grill do Fernando de 25/10), desligadas por padrão e escolhidas na loja; sem
+// balanceamento ainda. Golpe em arco: 120° e 2 m na frente, com dano, empurrão, preparo e recarga do BASIC_ATTACK.
+export const MELEE_ARC = { angle: 120, range: 2 };
+// Defesa: vale na hora; a redução do empurrão sobe em linha reta de 0 a 90% em 2,5 s segurando S e zera ao soltar.
+export const GUARD = { max: .9, ramp: 2.5 };
 export const INCAPACITATED_BIT = 268435456; // recargas pausadas; habilidades prontas continuam utilizáveis.
 export const ELECTROCUTED_BIT = 536870912; // efeito elétrico visual.
 export const BRACING_BIT = 1073741824; // Hold ground active, kept in sync with the pose.

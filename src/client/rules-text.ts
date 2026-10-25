@@ -8,11 +8,17 @@ import { ITEMS, MAX_ITEMS, type ItemId } from '../shared/items.ts';
 import { keyLabel, keyOf, padButtonName, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
 import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, RECHARGE, RUSH, SHIELD, SPELLS, SPELL_GROUP_IDS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
 import { LANG, LOCALE, spellName, t } from './i18n.ts';
-import { BASIC_ATTACK, BRACE, KNOCK_RECOVERY } from '../shared/constants.ts';
+import { BASIC_ATTACK, BRACE, GUARD, KNOCK_RECOVERY, MELEE_ARC } from '../shared/constants.ts';
 
 export const ATTACK_TEXT = t(
   `Atacar: aperte a tecla do ataque (A por padrão) e clique com o esquerdo num inimigo; no chão, escolhe o inimigo visível mais próximo de você dentro de ${BASIC_ATTACK.range} m. Até ${BASIC_ATTACK.melee.toLocaleString(LOCALE)} m usa corpo a corpo; mais longe, projétil direcionado. Preparo de ${BASIC_ATTACK.windup.toLocaleString(LOCALE)} s: S, movimento, conjuração ou stun cancelam antes do golpe, sem gastar recarga. Cada golpe exige nova ordem; não persegue nem repete sozinho. Causa ${BASIC_ATTACK.dmg} de dano e empurrão leve; o projétil não destrói magias.`,
   `Attack: press the attack key (A by default), then left-click an enemy; on the ground, selects the visible enemy closest to you within ${BASIC_ATTACK.range} m. Within ${BASIC_ATTACK.melee} m uses melee; farther away, a targeted projectile. A ${BASIC_ATTACK.windup} s windup: S, movement, casting or stun cancel before release without spending the cooldown. Each hit requires a new order; no automatic chasing or repeating. Deals ${BASIC_ATTACK.dmg} damage and light knockback; the projectile does not destroy spells.`
+);
+
+// versões alternativas só para teste, escolhidas na loja (issue #402); a de hoje continua o padrão
+export const ALT_TEXT = t(
+  `Versões para teste, só suas: valem até você trocar. Atacar corpo a corpo: a tecla golpeia na hora rumo ao cursor, num arco de ${MELEE_ARC.angle}° e ${MELEE_ARC.range} m na sua frente; acerta todos os inimigos no arco (${BASIC_ATTACK.dmg} de dano e um empurrãozinho cada) sem cancelar a magia deles. Manter base em defesa: vale na hora, você leva o mesmo dano e o empurrão diminui aos poucos, até ${Math.round(GUARD.max * 100)}% a menos depois de ${GUARD.ramp.toLocaleString(LOCALE)} s segurando; as recargas de magias e do Atacar ficam paradas enquanto segura.`,
+  `Test versions, yours only: they stay until you switch. Melee Attack: the key swings at once toward the cursor, in a ${MELEE_ARC.angle}° arc ${MELEE_ARC.range} m in front of you; it hits every enemy in the arc (${BASIC_ATTACK.dmg} damage and a small push each) without cancelling their spell. Guard Hold ground: it counts at once, you take the same damage and knockback shrinks gradually, down to ${Math.round(GUARD.max * 100)}% less after ${GUARD.ramp} s held; spell and Attack cooldowns stay frozen while held.`
 );
 
 export const BRACE_TEXT = t(
