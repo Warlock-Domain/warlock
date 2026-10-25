@@ -218,6 +218,6 @@ export function illusionCopies<D extends { id: string; status: number }>(project
   return projectiles.flatMap((q) => {
     const ownerId = q.kind === 'illusion' ? ids[q.vel.x] : undefined;
     const o = drawn.find((d) => d.id === ownerId);
-    return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(16 | 1024 | 2048 | 8388608), basicLeft: 0, moving: true, cheer: false, illusion: true, ghost: false }] : [];
+    return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(16 | 1024 | 2048 | 8388608), channelElapsed: undefined, channelSpell: undefined, basicLeft: 0, moving: true, cheer: false, illusion: true, ghost: false }] : [];
   });
 }

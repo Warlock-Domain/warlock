@@ -16,17 +16,17 @@ function seeded(seed: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-// o primeiro sorteio (o do erro humano) não erra; os outros saem todos `r`
+// the first draw (the human-error one) never slips; every other draw returns `r`
 const noSlip = (r: number) => {
   let n = 0;
   return () => (n++ ? r : 0.99);
 };
 const KINDS = ['easy', 'normal', 'hard'] as const;
 type Kind = (typeof KINDS)[number];
-// sem erro humano e lançando sempre que tem jogada: para medir uma coisa só
+// no human error and always casting when there is a play: to measure one thing at a time
 const exact = (k: Kind): BotSkill => ({ ...BOT_SKILL[k], slip: 0, cast: 1 });
 
-// bot em (0,0), inimigo em (4,0), a Bola de fogo do bot em recarga
+// bot at (0,0), enemy at (4,0), the bot's Fireball on cooldown
 function duel(own: Partial<Record<SpellId, number>>, enemyAt = v(4, 0)): World {
   const w = newWorld(['bot', 'x'], { bot: { ...noSpells(), ...own }, x: noSpells() });
   w.wizards[0].pos = v(0, 0);
@@ -34,24 +34,24 @@ function duel(own: Partial<Record<SpellId, number>>, enemyAt = v(4, 0)): World {
   w.wizards[0].cd.fireball = 99;
   return w;
 }
-// Bola de fogo inimiga chegando em ~0,23 s
+// enemy Fireball arriving in ~0.23 s
 const threatened = (own: Partial<Record<SpellId, number>>) => {
   const w = duel(own);
   w.projectiles.push({ id: 1, kind: 'fireball', owner: 'x', caster: 'x', pos: v(1.5, 0), vel: v(-6.47, 0), level: 1, until: 9, target: null, dmgMult: 1 });
   return w;
 };
-// quantas vezes, em 400 pensamentos com sorteios diferentes, o bot fez algo
+// how many times, in 400 thinks with different draws, the bot did something
 function count(make: () => World, skill: BotSkill, did: (c: Cmd[]) => boolean) {
   let n = 0;
   for (let i = 0; i < 400; i++) if (did(botCmds(make(), 'bot', seeded(i), skill))) n++;
   return n;
 }
-// onde saiu o lançamento (ou o destino do primeiro passo)
+// where the cast went (or the destination of the first step)
 const castAt = (c: Cmd[]): Vec | undefined => c.flatMap((x) => (x.kind === 'cast' ? [x.at] : []))[0];
 const moveTo = (c: Cmd[]): Vec | undefined => c.flatMap((x) => (x.kind === 'move' ? [x.to] : []))[0];
 
-describe('dificuldade dos bots', () => {
-  it('os números de cada nível são os decididos (18/10)', () => {
+describe('bot difficulty', () => {
+  it('each level uses the decided numbers (18/10)', () => {
     const pick = (k: keyof BotSkill) => KINDS.map((d) => BOT_SKILL[d][k]);
     expect(pick('aim')).toEqual([1.5, 1, 0.6]);
     expect(pick('delay')).toEqual([0.6, 0.4, 0.25]);
@@ -66,7 +66,7 @@ describe('dificuldade dos bots', () => {
     expect(pick('vision')).toEqual([10, 12, 15]);
   });
 
-  it('Fácil reage menos que Normal, e Normal menos que Difícil, no mesmo projétil chegando', () => {
+  it('Easy reacts less than Normal, and Normal less than Hard, to the same incoming projectile', () => {
     const shield = (c: Cmd[]) => c.some((x) => x.kind === 'cast' && x.spell === 'shield');
     const dodge = (c: Cmd[]) => c.some((x) => x.kind === 'move' || (x.kind === 'cast' && x.spell === 'teleport'));
     const make = () => threatened({ shield: 1, teleport: 1 });
@@ -76,7 +76,7 @@ describe('dificuldade dos bots', () => {
     expect(count(make, BOT_SKILL.easy, shield)).toBeLessThan(count(make, BOT_SKILL.hard, shield));
   });
 
-  it('desvia andando e sobe o Escudo nas chances de cada nível', () => {
+  it('dodges on foot and raises Shield at the chances of each level', () => {
     const moves = (c: Cmd[]) => c.some((x) => x.kind === 'move');
     const shield = (c: Cmd[]) => c.some((x) => x.kind === 'cast' && x.spell === 'shield');
     for (const k of KINDS) {
@@ -86,27 +86,27 @@ describe('dificuldade dos bots', () => {
     }
   });
 
-  it('tempo de reação: projétil que acabou de surgir não é visto; depois do tempo de cada nível, é', () => {
+  it('reaction time: a projectile that just appeared is not seen; after the delay of each level, it is', () => {
     const shield = (c: Cmd[]) => c.some((x) => x.kind === 'cast' && x.spell === 'shield');
     for (const k of KINDS) {
       const w = threatened({ shield: 1 });
-      w.projectiles[0].born = w.t - BOT_SKILL[k].delay + 0.05; // surgiu há pouco
+      w.projectiles[0].born = w.t - BOT_SKILL[k].delay + 0.05; // appeared just now
       expect(shield(botCmds(w, 'bot', noSlip(0.01), BOT_SKILL[k]))).toBe(false);
-      w.projectiles[0].born = w.t - BOT_SKILL[k].delay; // agora deu tempo
+      w.projectiles[0].born = w.t - BOT_SKILL[k].delay; // now there was time
       expect(shield(botCmds(w, 'bot', noSlip(0.01), BOT_SKILL[k]))).toBe(true);
     }
   });
 
-  it('mira não usa o destino do clique do alvo: só o que viu (posição e velocidade de 0,3 s atrás)', () => {
+  it('aim ignores the click destination of the target: only what it saw (position and velocity 0.3 s ago)', () => {
     for (let i = 0; i < 100; i++) {
       const at = castAt(botCmds(duel({ lightning: 1 }), 'bot', seeded(i), exact('normal')));
       expect(at && Math.abs(at.x - 4) < 1e-9 && Math.abs(at.y) <= BOT_SKILL.normal.aim + 1e-9).toBe(true);
     }
-    // parado, acabou de clicar para andar para cima: o bot ainda não sabe
+    // standing still, just clicked to walk up: the bot does not know yet
     const w = duel({ lightning: 1 });
     w.wizards[1].target = v(4, 10);
     expect(Math.abs(castAt(botCmds(w, 'bot', noSlip(0.5), exact('normal')))!.y)).toBeLessThan(1e-9);
-    // andando para cima a 1,4 m/s: o bot viu (há 0,3 s) e mira à frente, mesmo com o clique agora para baixo
+    // walking up at 1.4 m/s: the bot saw it (0.3 s ago) and leads ahead, even with the click now pointing down
     const m = duel({ lightning: 1 });
     for (let i = 0; i < 40; i++) {
       m.wizards[1].pos = v(4, i * DT * 1.4);
@@ -117,12 +117,12 @@ describe('dificuldade dos bots', () => {
     expect(castAt(botCmds(m, 'bot', noSlip(0.5), exact('normal')))!.y).toBeGreaterThan(m.wizards[1].pos.y);
   });
 
-  it('erro de mira: de lado, até ±1,5 / ±1 / ±0,6 m', () => {
+  it('aim error: sideways, up to ±1.5 / ±1 / ±0.6 m', () => {
     for (const k of KINDS) {
       let max = 0;
       for (let i = 0; i < 400; i++) {
         const at = castAt(botCmds(duel({ lightning: 1 }), 'bot', seeded(i), exact(k)))!;
-        expect(Math.abs(at.x - 4)).toBeLessThan(1e-9); // só de lado
+        expect(Math.abs(at.x - 4)).toBeLessThan(1e-9); // sideways only
         max = Math.max(max, Math.abs(at.y));
       }
       expect(max).toBeLessThanOrEqual(BOT_SKILL[k].aim);
@@ -130,12 +130,12 @@ describe('dificuldade dos bots', () => {
     }
   });
 
-  it('a magia só volta a valer um tempo depois da recarga: 2–4 / 1–2 / 0,5–1 s', () => {
+  it('a spell only comes back into play some time after its cooldown: 2–4 / 1–2 / 0.5–1 s', () => {
     for (const k of KINDS) {
       const D = exact(k);
       const at = (t: number) => count(() => {
         const w = duel({ lightning: 1 });
-        w.wizards[0].cd.lightning = 1; // a recarga acaba em 1 s
+        w.wizards[0].cd.lightning = 1; // the cooldown ends in 1 s
         w.t = t;
         return w;
       }, D, (c) => !!castAt(c));
@@ -145,11 +145,11 @@ describe('dificuldade dos bots', () => {
       expect(mid).toBeLessThan(280);
       expect(at(1 + D.waitMax + 0.01)).toBe(400);
     }
-    // a que ainda não foi lançada na rodada já vale
+    // one not yet cast this round is usable at once
     expect(count(() => duel({ lightning: 1 }), exact('easy'), (c) => !!castAt(c))).toBe(400);
   });
 
-  it('pensa 1,5 / 2,5 / 4 vezes por segundo, cada bot num passo diferente', () => {
+  it('thinks 1.5 / 2.5 / 4 times per second, each bot on a different step', () => {
     for (const k of KINDS) {
       let n = 0;
       for (let s = 1; s <= 600; s++) if (botThinks(s, 0, BOT_SKILL[k])) n++;
@@ -159,7 +159,7 @@ describe('dificuldade dos bots', () => {
     }
   });
 
-  it('visão: só vê inimigo a até 10 / 12 / 15 m', () => {
+  it('sight: only sees enemies up to 10 / 12 / 15 m', () => {
     const homing = (k: Kind) => {
       const w = duel({ homing: 1 }, v(5.5, 0));
       w.wizards[0].pos = v(-5.5, 0); // 11 m
@@ -170,7 +170,7 @@ describe('dificuldade dos bots', () => {
     expect(homing('hard')).toBeDefined();
   });
 
-  it('medo da borda: volta para o meio a 1 / 1,5 / 2 m da lava', () => {
+  it('edge fear: walks back to the middle at 1 / 1.5 / 2 m from the lava', () => {
     const back = (k: Kind, e: number) => {
       const w = newWorld(['bot'], { bot: noSpells() });
       w.wizards[0].pos = v(w.arenaR - e, 0);
@@ -180,7 +180,7 @@ describe('dificuldade dos bots', () => {
       expect(back(k, BOT_SKILL[k].edge - 0.1)).toBe(true);
       expect(back(k, BOT_SKILL[k].edge + 0.1)).toBe(false);
     }
-    // arena quase sumindo (não há folga em lugar nenhum): na lava, ainda volta
+    // arena almost gone (no margin anywhere): in the lava, it still walks back
     for (const arena of ['circle', 'islands'] as const) {
       const w = newWorld(['bot'], { bot: noSpells() }, {}, 0, Math.random, false, {}, undefined, arena);
       w.arenaR = 1;
@@ -190,7 +190,7 @@ describe('dificuldade dos bots', () => {
     }
   });
 
-  it('alvo: Fácil e Normal o mais perto; Difícil quem está fraco, perto da lava ou na frente do placar', () => {
+  it('target: Easy and Normal pick the nearest; Hard picks whoever is weak, near the lava or leading the scoreboard', () => {
     const scene = (hp = 1) => {
       const w = newWorld(['bot', 'near', 'weak'], { bot: noSpells(), near: noSpells(), weak: noSpells() });
       w.wizards[0].pos = v(0, 0);
@@ -202,12 +202,12 @@ describe('dificuldade dos bots', () => {
     const aim = (k: Kind, w: World, scores = {}) => castAt(botCmds(w, 'bot', noSlip(0.5), exact(k), scores))!.x;
     expect(aim('easy', scene(0.3))).toBeGreaterThan(0);
     expect(aim('normal', scene(0.3))).toBeGreaterThan(0);
-    expect(aim('hard', scene(0.3))).toBeLessThan(0); // 30% de vida
-    expect(aim('hard', scene())).toBeGreaterThan(0); // ninguém fraco: o mais perto
-    expect(aim('hard', scene(), { bot: 1, near: 1, weak: 3 })).toBeLessThan(0); // o líder do placar, a 4,5 m
+    expect(aim('hard', scene(0.3))).toBeLessThan(0); // 30% health
+    expect(aim('hard', scene())).toBeGreaterThan(0); // nobody weak: the nearest
+    expect(aim('hard', scene(), { bot: 1, near: 1, weak: 3 })).toBeLessThan(0); // the scoreboard leader, 4.5 m away
   });
 
-  it('distância preferida: Fácil foge de quem acabou de acertá-lo; Normal chega a ~4,5 m', () => {
+  it('preferred distance: Easy flees from whoever just hit it; Normal closes to ~4.5 m', () => {
     const w = duel({}, v(6, 0));
     w.wizards[0].lastHitBy = 'x';
     w.wizards[0].lastHitAt = w.t;
@@ -215,10 +215,10 @@ describe('dificuldade dos bots', () => {
     expect(moveTo(botCmds(w, 'bot', noSlip(0.9), BOT_SKILL.normal))).toEqual(v(1.5, 0));
   });
 
-  it('ouro: Fácil ignora; Normal vai sem inimigo a < 4 m; Difícil vai mesmo com inimigo perto; no duelo final, ninguém', () => {
+  it('gold: Easy ignores it; Normal goes with no enemy within 4 m; Hard goes even with an enemy near; in the final duel, nobody', () => {
     const goes = (k: Kind, enemyAt: number, last = false) => {
       const w = duel({}, v(enemyAt, 0));
-      // um terceiro mago vivo, longe: ainda não é o duelo final
+      // a third living wizard, far away: not the final duel yet
       if (!last) w.wizards.push({ ...w.wizards[1], id: 'y', pos: v(-30, -30) });
       w.loots.push({ pos: v(0, 3), left: 10, until: 99 });
       return botCmds(w, 'bot', noSlip(0.9), BOT_SKILL[k]).some((c) => c.kind === 'move' && c.to.x === 0 && c.to.y === 3);
@@ -231,7 +231,7 @@ describe('dificuldade dos bots', () => {
     expect(goes('hard', 3, true)).toBe(false);
   });
 
-  it('ouro colado na borda fica para lá (senão o bot ia e voltava sem parar)', () => {
+  it('gold right at the edge is left there (otherwise the bot went back and forth forever)', () => {
     const goes = (gx: number) => {
       const w = duel({}, v(-9, 0));
       w.wizards.push({ ...w.wizards[1], id: 'y', pos: v(-30, -30) });
@@ -243,9 +243,9 @@ describe('dificuldade dos bots', () => {
     expect(goes(0.3)).toBe(false);
   });
 
-  it('erro humano: o Fácil fica parado bem mais vezes que o Difícil, e parado não decide por 0,5 s', () => {
+  it('human error: Easy freezes far more often than Hard, and a frozen bot decides nothing for 0.5 s', () => {
     const stops = (k: Kind) => count(() => duel({}), BOT_SKILL[k], (c) => c.some((x) => x.kind === 'stop'));
-    expect(stops('easy')).toBeGreaterThan(20); // ~10% (metade dos erros de 20%)
+    expect(stops('easy')).toBeGreaterThan(20); // ~10% (half of the 20% errors)
     expect(stops('hard')).toBeLessThan(15); // ~1%
     const w = duel({ lightning: 1 });
     expect(botCmds(w, 'bot', () => 0.01, BOT_SKILL.easy)).toEqual([{ id: 'bot', kind: 'stop' }]);
@@ -253,7 +253,7 @@ describe('dificuldade dos bots', () => {
     expect(botCmds(w, 'bot', noSlip(0.5), BOT_SKILL.easy)).toEqual([]);
     w.t += 0.2;
     expect(castAt(botCmds(w, 'bot', noSlip(0.5), exact('easy')))).toBeDefined();
-    // o outro erro: lançamento torto até 45°
+    // the other error: a cast bent up to 45°
     let bent = 0;
     for (let i = 0; i < 400; i++) {
       const at = castAt(botCmds(duel({ lightning: 1 }), 'bot', seeded(i), { ...BOT_SKILL.easy, cast: 1, aim: 0 }));
@@ -265,7 +265,7 @@ describe('dificuldade dos bots', () => {
     expect(bent).toBeGreaterThan(20);
   });
 
-  it('compras: Normal e Difícil montam combinação com dano e fuga; o simulador pode fixar o plano', () => {
+  it('purchases: Normal and Hard build a combination with damage and escape; the simulator can fix the plan', () => {
     const escape: string[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration', 'warpzone', 'rockpillar', 'illusion'];
     const rand = seeded(5);
     const plans = Array.from({ length: 50 }, () => smartPlan(rand));
@@ -275,7 +275,7 @@ describe('dificuldade dos bots', () => {
       expect(s.length).toBeGreaterThanOrEqual(2);
       expect(p.buys.some((b) => b.kind === 'item')).toBe(true);
     }
-    expect(new Set(plans.map((p) => JSON.stringify(p.buys))).size).toBeGreaterThan(40); // variam entre bots
+    expect(new Set(plans.map((p) => JSON.stringify(p.buys))).size).toBeGreaterThan(40); // they vary between bots
     const first = (D: BotSkill): BotPlan => {
       const p: { gold: number; spells: Record<SpellId, number>; items: ReturnType<typeof noItems>; plan?: BotPlan } = { gold: 99, spells: noSpells(), items: noItems() };
       botBuy(p, seeded(1), D);
@@ -287,18 +287,18 @@ describe('dificuldade dos bots', () => {
     botConfig.planner = null;
   });
 
-  it('compras: o plano do Normal e do Difícil chega a toda magia comprável (issue #373)', () => {
+  it('purchases: the Normal and Hard plan reaches every buyable spell (issue #373)', () => {
     const rand = seeded(9);
     const planned = new Set(Array.from({ length: 400 }, () => smartPlan(rand).buys.flatMap((b) => (b.kind === 'spell' ? [b.id] : []))).flat());
     for (const id of SPELL_IDS.filter((s) => !FREE_SPELLS.includes(s))) expect(planned.has(id), id).toBe(true);
   });
 
-  it('procura: em ilhas opostas, os dois se encontram em até 25 s, pela ponte e desviando dos obstáculos, sem pisar na lava nem ficar parado > 2 s', () => {
+  it('search: on opposite islands, the two meet within 25 s, over the bridge and around obstacles, never stepping in the lava or standing still > 2 s', () => {
     for (const k of KINDS) {
       const D = BOT_SKILL[k];
       const w = newWorld(['a', 'b'], { a: noSpells(), b: noSpells() }, {}, 0, seeded(1), false, {}, { runes: false, sudden: false, chests: false }, 'islands');
-      for (const z of w.wizards) z.cd.fireball = 1e9; // ninguém atira: só andam
-      // uma rocha no centro de cada ilha, bem no caminho reto até a ponte
+      for (const z of w.wizards) z.cd.fireball = 1e9; // nobody shoots: they only walk
+      // a rock in the middle of each island, right on the straight path to the bridge
       for (const x of [1, -1]) w.pillars.push({ pos: v(x * 0.95 * w.arenaR, 0), hp: Infinity, alive: true, kind: 'rock' });
       expect(dist(w.wizards[0].pos, w.wizards[1].pos)).toBeGreaterThan(24);
       const rand = seeded(2);
@@ -318,19 +318,19 @@ describe('dificuldade dos bots', () => {
     }
   });
 
-  it('Automático: humano perdendo deixa os bots mais fracos, ganhando mais fortes, sem salto', () => {
+  it('Automatic: a losing human makes bots weaker, a winning one stronger, without jumps', () => {
     const m = newMatch();
     addPlayer(m, 'h1', 'Ana');
     startMatch(m, 0, 2, 'rounds', true, Math.random, { difficulty: 'auto' });
     const [h, b1, b2] = m.players;
-    expect(botSkill(m, b1)).toEqual(BOT_SKILL.normal); // 0 a 0
-    b1.score = 4; // humano perdendo feio para o bot 1
+    expect(botSkill(m, b1)).toEqual(BOT_SKILL.normal); // 0 to 0
+    b1.score = 4; // human losing badly to bot 1
     expect(botSkill(m, b1).dodge).toBeLessThan(BOT_SKILL.normal.dodge);
     expect(botSkill(m, b1).aim).toBeGreaterThan(BOT_SKILL.normal.aim);
-    h.score = 3; // humano à frente do bot 2
+    h.score = 3; // human ahead of bot 2
     expect(botSkill(m, b2).dodge).toBeGreaterThan(BOT_SKILL.normal.dodge);
     expect(botSkill(m, b2).aim).toBeLessThan(BOT_SKILL.normal.aim);
-    // suave: 1 ponto de diferença fica no meio do caminho
+    // smooth: a 1-point gap lands halfway
     h.score = 1;
     b2.score = 0;
     const s = botSkill(m, b2);
@@ -340,14 +340,14 @@ describe('dificuldade dos bots', () => {
     expect(skillAt(1)).toEqual(BOT_SKILL.hard);
   });
 
-  it('a dificuldade é uma opção da partida votável', () => {
+  it('difficulty is a votable match option', () => {
     expect(parseOpt('difficulty:hard')).toEqual(['difficulty', 'hard']);
     expect(parseOpt('difficulty:insane')).toBeNull();
   });
 });
 
-describe('dificuldades intermediárias', () => {
-  it('Casual fica entre Fácil e Normal e Veterano entre Normal e Difícil, em todo número', () => {
+describe('intermediate difficulties', () => {
+  it('Casual sits between Easy and Normal and Veteran between Normal and Hard, in every number', () => {
     const between = (x: number, a: number, b: number) => x >= Math.min(a, b) && x <= Math.max(a, b);
     for (const k of Object.keys(BOT_SKILL.normal) as (keyof BotSkill)[]) {
       expect(between(BOT_SKILL.casual[k], BOT_SKILL.easy[k], BOT_SKILL.normal[k])).toBe(true);

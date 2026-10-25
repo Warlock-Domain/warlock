@@ -12,6 +12,7 @@ import { CANDLE, SERVOS, nightXpAt } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
 import { itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
+import { channelPower } from '../shared/channeling.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
 import { LOOK_EVENT, saveLook, savedLook } from './avatar.ts';
@@ -73,6 +74,7 @@ const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 
 // som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
+  channel: 'shield',
   closedbody: 'closedbody',
   geyser: 'splash',
   heal: 'heal',
@@ -394,7 +396,7 @@ function startRoom(code: string, name: string) {
 
   let attackCancelSeq = 0;
   let arcPreview: { until: number; facing: number } | null = null; // prévia do golpe em arco (issue #402), em ms de performance.now()
-  function command(msg: { t: 'move'; x: number; y: number; held?: boolean } | { t: 'moveHold'; on: boolean } | { t: 'brace'; on: boolean } | { t: 'basic'; x: number; y: number; target?: string | number } | { t: 'stop' } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
+  function command(msg: { t: 'move'; x: number; y: number; held?: boolean } | { t: 'moveHold'; on: boolean } | { t: 'brace'; on: boolean } | { t: 'basic'; x: number; y: number; target?: string | number } | { t: 'stop' } | { t: 'channel'; spell: SpellId } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
     seq++;
     if (msg.t === 'move' || msg.t === 'stop' || msg.t === 'cast') attackCancelSeq = seq;
     sentAt.set(seq, performance.now());
@@ -410,7 +412,17 @@ function startRoom(code: string, name: string) {
     return false;
   };
 
+  let channelRequest: { spell: SpellId; since: number; seq: number } | null = null;
   const input = createInput(canvas, {
+    canChannel: () => (room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0,
+    channel(spell) {
+      const mine = room?.players.find((p) => p.id === me);
+      const self = myWizard(interp.latest());
+      if (performance.now() < scourgeUntil || !mine?.spells.channel || !mine.spells[spell] || !self?.alive || self.geyserLeft || castBlocked(!!(self.status & 16), !!(self.status & 128), spell) || (lastSnap?.cd[SPELL_IDS.indexOf(spell)] ?? 0) > .01) return false;
+      command({ t: 'channel', spell });
+      channelRequest = { spell, since: performance.now(), seq };
+      predict.stop(); sound.play('shield'); return true;
+    },
     pick: (x, y, spell) => {
       if (spell === 'heal') {
         const id = scene.pickMage(x, y);
@@ -419,6 +431,7 @@ function startRoom(code: string, name: string) {
       return scene.pick(x, y);
     },
     move(to, held = false) {
+      channelRequest = null;
       if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       if ((myWizard(interp.latest())?.status ?? 0) & BRACING_BIT) return;
       command({ t: 'move', x: to.x, y: to.y, held });
@@ -432,6 +445,7 @@ function startRoom(code: string, name: string) {
     attackArmedChanged: (on) => { canvas.style.cursor = on ? 'crosshair' : ''; },
     meleeArc: () => !!room?.players.find((p) => p.id === me)?.arc,
     basic(at, clicked) {
+      if ((room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0) return toast(t('Canalização substitui Atacar: use Atacar + tecla da magia.', 'Channeling replaces Attack: use Attack + a spell key.'));
       if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       if ((myWizard(interp.latest())?.status ?? 0) & 16) return;
       const target = clicked?.endsWith('~ilusao') ? interp.latest()?.projectiles.find((q) => q.kind === 'illusion' && room?.ids[q.vel.x] === clicked.slice(0, -7))?.id : clicked;
@@ -444,11 +458,14 @@ function startRoom(code: string, name: string) {
       scene.clickMarker(at, true);
     },
     stop() {
+      channelRequest = null;
       command({ t: 'stop' });
       predict.stop();
       scourgeUntil = 0; // o S cancela o Flagelo em preparo
     },
     cast(spell, at) {
+      if (spell === 'channel') return false;
+      if (channelRequest?.spell === spell && ((myWizard(interp.latest())?.channelElapsed ?? 0) < 1)) { toast(t('Canalize por pelo menos 1 segundo.', 'Channel for at least 1 second.')); return false; }
       if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       const mine = room?.players.find((p) => p.id === me);
       if (!mine?.spells[spell]) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
@@ -459,7 +476,7 @@ function startRoom(code: string, name: string) {
       if (spell === 'heal') {
         const units = interp.latest()?.wizards.map(w => ({ ...w, team: room?.players.find(p => p.id === w.id)?.team })) ?? [];
         const self = units.find(w => w.id === me);
-        const target = self && healTarget(units, self, at, SPELLS.heal.levels[mine.spells.heal - 1].range * (1 + itemStats(mine.items).range));
+        const target = self && healTarget(units, self, at, SPELLS.heal.levels[mine.spells.heal - 1].range * (1 + itemStats(mine.items).range) * (channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1));
         if (!target) return toast(t('Selecione você ou um aliado vivo dentro do alcance.', 'Target yourself or a living ally within range.'));
         at = target.pos;
       }
@@ -471,6 +488,7 @@ function startRoom(code: string, name: string) {
       // Avoid repeat casts before the server snapshot reports the cooldown.
       justCast.set(spell, performance.now() + 120 + CAST_POINT[spell] * 1000 + predict.rtt() * 1000);
       command({ t: 'cast', spell, x: at.x, y: at.y });
+      channelRequest = null;
       // Hold movement during casting; the server applies the same delay.
       predict.hold(CAST_POINT[spell]);
       scene.castLocal(me, spell, at);
@@ -830,6 +848,8 @@ function startRoom(code: string, name: string) {
       const cue = closedBodySound(lastSnap?.cb?.[i], m.cb?.[i]);
       if (cue && !(m.w[i * 7 + 6] & 2048)) sound.play(cue, volumeOf(id));
     });
+    const ownIndex = room?.ids.indexOf(me) ?? -1;
+    if (channelRequest && m.ack >= channelRequest.seq && !(m.cn && m.cn[ownIndex*2] >= 0)) { channelRequest = null; input.setChannelState(false); }
     lastSnap = m;
     predict.setSpeed(m.sp);
     const acked = sentAt.get(m.ack);
@@ -1000,14 +1020,15 @@ function startRoom(code: string, name: string) {
     view.minimap(nm && playing ? { map: nm, seen, done: room!.night!.done, fight: room!.night!.fight, dots: drawWiz.filter((d) => d.alive && !d.illusion).map((d) => ({ pos: d.pos, me: d.id === me, foe: d.team === 1 })) } : null);
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
-    const reach = showing && meP ? reachOf(showing, meP.spells, meP.items) : 0;
+    const channelBoost = showing && meW?.channelSpell === showing && meW.channelElapsed !== undefined ? channelPower(meW.channelElapsed) || 1 : 1;
+    const reach = showing && meP ? reachOf(showing, meP.spells, meP.items, channelBoost) : 0;
     // mira de verdade (tecla segurada no Segurar, magia escolhida ou controle): faixa de acerto e explosão rumo ao cursor ou retículo.
     // No Rápido a tecla é o piscar depois de lançar: a faixa fica parada onde a magia saiu (flashAim), e o mouse na barra não aponta
     // o chão: nada segue o mouse
     const frozen = armed || padAiming ? null : flashAim;
     const aiming = showing && (armed ?? padAiming ?? (getCastMode() === 'release' || frozen ? held : null));
     const aimAt = aiming ? (padAiming ? padAt : (frozen?.at ?? input.aimPoint())) : null;
-    const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, frozen?.from ?? myPos, aimAt) : null;
+    const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, frozen?.from ?? myPos, aimAt, channelBoost) : null;
     scene.range(showing && myPos ? myPos : null, reach, shape?.blastAt ?? null, shape?.blastR ?? 0);
     scene.bands(shape?.segs ?? [], shape?.half ?? 0);
     scene.arc(arcPreview && nowMs < arcPreview.until && meW?.alive && myPos ? myPos : null, arcPreview?.facing ?? 0);
