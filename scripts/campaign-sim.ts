@@ -90,7 +90,7 @@ type NightLog = { size: number; seed: number; result: 'won' | 'lost' | 'timeout'
 function playNight(size: number, seed: number): NightLog {
   const rand = seedRandom(seed);
   fields.clear();
-  const m: Match = newMatch();
+  const m: Match = Object.assign(newMatch(), { mode: 'campaign' as const }); // a Campaign room: since PR #392 only it plays the Campaign
   const ids = ['a', 'b', 'c', 'd'].slice(0, size);
   for (const id of ids) addPlayer(m, id, id);
   let now = 0;

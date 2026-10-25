@@ -7,7 +7,7 @@ import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_EFFECT_IDS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD, type RoundEffectId } from '../shared/constants.ts';
 import { ARENA_IDS, type ArenaId } from '../shared/arena.ts';
 import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/characters.ts';
-import { CAMPAIGN, CAMPAIGN_BOOK } from '../shared/campaign.ts';
+import { CAMPAIGN } from '../shared/campaign.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, isRoomMode, sellValue, type MatchOpts, type Mode, type RoomMode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
@@ -81,7 +81,7 @@ export function askName(root: HTMLElement, current: string): Promise<string> {
 const roomPhase = (r: RoomInfo) => r.phase === 'lobby' ? t('esperando começar', 'waiting to start') : r.phase === 'end' ? t('partida acabou, dá para começar outra', 'match over, you can start another')
   : t(`jogando${r.round ? ` a rodada ${r.round}` : ''} · você entra na próxima rodada`, `playing${r.round ? ` round ${r.round}` : ''} · you join next round`);
 
-const CAMPAIGN_MODE_TEXT = t('Juntos contra o Fumo: explorem a Charneca Cinzenta e vençam os encontros. Magia não pega aliado. Se todos caírem, a noite recomeça diferente.', 'Together against the Smoke: explore the Ashen Moor and win the encounters. Spells never hit allies. If everyone falls, the night starts over, different.');
+const CAMPAIGN_MODE_TEXT = t('Juntos contra o Fumo: explorem a Charneca Cinzenta e vençam os encontros. Magia em aliado só empurra, sem dano. Se todos caírem, a noite recomeça diferente.', 'Together against the Smoke: explore the Ashen Moor and win the encounters. Spells on an ally only push, with no damage. If everyone falls, the night starts over, different.');
 
 // Opções de partida à direita, com o conteúdo da escolha ao lado.
 function playMenu(roomList: HTMLElement, onCreate: () => void, onCreateRoom: (mode: RoomMode) => void, onTrain: (kind: string) => void): HTMLElement {
