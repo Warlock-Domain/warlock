@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPAIGN, CANDLE, NIGHT_XP, STAGES, SERVOS, nightCards, nightCount, nightLevel, nightXpAt, xpShare } from '../src/shared/campaign.ts';
+import { CAMPAIGN, CANDLE, NIGHT_XP, SERVO_HP, STAGES, SERVOS, nightCards, nightCount, nightLevel, nightXpAt, xpShare } from '../src/shared/campaign.ts';
 import { STAGE_ROOMS, fightOf, nightMap, type NightMap } from '../src/shared/levels.ts';
 import { addPlayer, newMatch, nightPick, startMatch, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';

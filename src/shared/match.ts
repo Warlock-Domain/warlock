@@ -1,7 +1,7 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
 import { ARENA_IDS, type ArenaId } from './arena.ts';
 import { afterBoss, bossCmds, bossHp, newBoss, ODRAN } from './bosses.ts';
-import { CAMPAIGN, CANDLE, CHEST_REACH, EMBER, SERVOS, nightCards, nightCount, nightLevel, xpShare, type Night, type ServoKind } from './campaign.ts';
+import { CAMPAIGN, CANDLE, CHEST_REACH, EMBER, SERVOS, nightCards, nightCount, nightLevel, servoHp, xpShare, type Night, type ServoKind } from './campaign.ts';
 import { fightOf, nightMap, obstaclesOf, roomRect, terrainOf, type NightMap, type Spawn } from './levels.ts';
 import { ASC_ROUNDS, applyCard, ascDeath, ascEndRound, ascMark, ascOwner, ascResume, ascShop, ascWinner, newAsc, type AscLobby, type AscState } from './ascension.ts';
 import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, type BotPlan, type BotSkill } from './bots.ts';
