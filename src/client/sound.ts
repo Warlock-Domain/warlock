@@ -37,244 +37,260 @@ export function loadVolumes(musicDefault = 0.7): Volumes {
 }
 export const saveVolume = (kind: keyof Volumes, value: number) => store.set(VOL_KEY[kind], String(value));
 
-// musicDefault: volume da música de quem nunca mexeu nele (nas abas de teste em localhost, 0; main.ts)
+// Default music volume for players who have not set one; main.ts passes 0 in localhost test tabs (issue #158).
 export function createSound(musicDefault?: number) {
-  const vol = loadVolumes(musicDefault);
-  const volumes = () => vol;
-  let ctx: AudioContext | null = null;
-  let noise: AudioBuffer | null = null;
-  let master: GainNode | null = null;
-  let tauntMaster: GainNode | null = null;
-  const buffers = new Map<string, AudioBuffer>();
-  const gains = new Map<string, number>();
-  let musicLevelStarted = false;
-  const music = new Audio('/music/battle.mp3');
-  music.loop = true;
-  music.preload = 'none'; // só baixa quando a partida toca (o lobby também cria o som, para o hover e o clique)
-  let wantAmbience = false;
-  let duck = 1; // na loja a música abaixa um pouco
+  return new AudioPlayer(musicDefault).callbacks;
+}
 
-  async function load(name: string, src = `/sfx/${name}.mp3`) {
+class AudioPlayer {
+  private readonly vol: Volumes;
+  private ctx: AudioContext | null = null;
+  private noise: AudioBuffer | null = null;
+  private master: GainNode | null = null;
+  private tauntMaster: GainNode | null = null;
+  private readonly buffers = new Map<string, AudioBuffer>();
+  private readonly gains = new Map<string, number>();
+  private musicLevelStarted = false;
+  private readonly music: HTMLAudioElement;
+  private wantAmbience = false;
+  private duckLevel = 1; // Shop music is reduced to 45%.
+  private readonly unlockOnGesture = () => this.unlock();
+
+  readonly callbacks = {
+    volumes: () => this.vol,
+    setVolume: (kind: keyof Volumes, value: number) => this.setVolume(kind, value),
+    setAmbience: (on: boolean) => this.setAmbience(on),
+    taunt: (name: string, level: number | (() => number) = 1) => this.taunt(name, level),
+    play: (kind: SoundKind, volume = 1) => this.play(kind, volume),
+    duck: (on: boolean) => this.duck(on),
+  };
+
+  constructor(musicDefault?: number) {
+    this.vol = loadVolumes(musicDefault);
+    this.music = new Audio('/music/battle.mp3');
+    this.music.loop = true;
+    this.music.preload = 'none'; // The lobby creates a player for UI sounds, but music loads only when a match requests it.
+    addEventListener('pointerdown', this.unlockOnGesture);
+    addEventListener('keydown', this.unlockOnGesture);
+  }
+
+  private async load(name: string, src = `/sfx/${name}.mp3`) {
     try {
-      const res = await fetch(src);
-      if (res.ok) {
-        const buffer = await ctx!.decodeAudioData(await res.arrayBuffer());
-        buffers.set(name, buffer);
-        gains.set(name, audioLevel(buffer).gain);
-      }
+      const response = await fetch(src);
+      if (!response.ok) return;
+      const buffer = await this.ctx!.decodeAudioData(await response.arrayBuffer());
+      this.buffers.set(name, buffer);
+      this.gains.set(name, audioLevel(buffer).gain);
     } catch {
-      // Demais efeitos têm síntese de reserva; Manter base usa somente a gravação escolhida.
+      // Other effects fall back to synthesis; Hold Ground uses only its selected recording.
     }
   }
 
-  function unlock() {
-    if (!ctx) {
+  private unlock() {
+    if (!this.ctx) {
       try {
-        ctx = new AudioContext();
+        this.ctx = new AudioContext();
       } catch {
         return;
       }
-      // compressor + volume geral abaixo de 1: vários sons juntos (golpe + explosão) não estouram
-      master = ctx.createGain();
-      master.gain.value = 0.6 * channelVolume(volumes(), 'sfx');
-      tauntMaster = ctx.createGain();
-      tauntMaster.gain.value = 0.6 * channelVolume(volumes(), 'taunts');
-      const comp = ctx.createDynamicsCompressor();
-      master.connect(comp).connect(ctx.destination);
-      tauntMaster.connect(comp);
-      noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
-      const data = noise.getChannelData(0);
+      // Leave headroom for simultaneous hit and explosion layers.
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.6 * channelVolume(this.vol, 'sfx');
+      this.tauntMaster = this.ctx.createGain();
+      this.tauntMaster.gain.value = 0.6 * channelVolume(this.vol, 'taunts');
+      const compressor = this.ctx.createDynamicsCompressor();
+      this.master.connect(compressor).connect(this.ctx.destination);
+      this.tauntMaster.connect(compressor);
+      this.noise = this.ctx.createBuffer(1, this.ctx.sampleRate, this.ctx.sampleRate);
+      const data = this.noise.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-      // Pré-renderiza a síntese fora do caminho de reprodução para medi-la pelo mesmo critério dos arquivos.
+      // Pre-render synthesis outside playback so its normalized buffers are ready before use.
       if (typeof OfflineAudioContext !== 'undefined') {
         const kinds: SoundKind[] = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'hit', 'hitLight', 'hitHeavy', 'reflect', 'death', 'splash', 'shrink', 'beep', 'go', 'click', 'winRound', 'loseRound', 'buy', 'error', 'ready', 'hover', 'heal', 'sand'];
         for (const kind of kinds) {
-          const offline = new OfflineAudioContext(1, ctx.sampleRate * 2, ctx.sampleRate);
-          synth(kind, 1, offline, offline.destination);
+          const offline = new OfflineAudioContext(1, this.ctx.sampleRate * 2, this.ctx.sampleRate);
+          this.synth(kind, 1, offline, offline.destination);
           void offline.startRendering().then((buffer) => {
-            buffers.set('synth/' + kind, buffer);
-            // Síntese própria não contém ruído de gravação; pode subir mais, ainda limitada pelo pico.
-            gains.set('synth/' + kind, audioLevel(buffer, Infinity).gain);
-          }).catch(() => {}); // a síntese imediata continua disponível enquanto prepara.
+            this.buffers.set('synth/' + kind, buffer);
+            // Synthesized audio has no recording noise, so it can use more gain while respecting the peak limit.
+            this.gains.set('synth/' + kind, audioLevel(buffer, Infinity).gain);
+          }).catch(() => {}); // Immediate synthesis remains available while the cache warms.
         }
       }
       const names = new Set(Object.values(FILES).flat());
-      void Promise.all([...names].map((name) => load(name))).then(syncAmbience);
+      void Promise.all([...names].map((name) => this.load(name))).then(() => this.syncAmbience());
     }
-    if (ctx.state === 'suspended') void ctx.resume();
-    syncAmbience();
+    if (this.ctx.state === 'suspended') void this.ctx.resume();
+    this.syncAmbience();
   }
-  addEventListener('pointerdown', unlock);
-  addEventListener('keydown', unlock);
 
-  // music plays only inside a match with sound on; the continuous lava crackle was removed (owner decision, 24/10)
-  function syncAmbience() {
-    const vol = volumes();
-    if (master) master.gain.value = 0.6 * channelVolume(vol, 'sfx');
-    if (tauntMaster) tauntMaster.gain.value = 0.6 * channelVolume(vol, 'taunts');
-    music.volume = Math.min(1, 0.35 * channelVolume(vol, 'music') * duck);
-    const on = wantAmbience && !!ctx && ctx.state === 'running';
-    if (on && channelVolume(vol, 'music') > 0 && !musicLevelStarted && typeof ctx!.createMediaElementSource === 'function') {
-      musicLevelStarted = true;
-      const gain = ctx!.createGain();
+  private volumes() {
+    return this.vol;
+  }
+
+  // Music plays only in a match with sound on; continuous lava crackle was removed by the owner on 24/10.
+  private syncAmbience() {
+    const volumes = this.volumes();
+    if (this.master) this.master.gain.value = 0.6 * channelVolume(volumes, 'sfx');
+    if (this.tauntMaster) this.tauntMaster.gain.value = 0.6 * channelVolume(volumes, 'taunts');
+    this.music.volume = Math.min(1, 0.35 * channelVolume(volumes, 'music') * this.duckLevel);
+    const on = this.wantAmbience && !!this.ctx && this.ctx.state === 'running';
+    if (on && channelVolume(volumes, 'music') > 0 && !this.musicLevelStarted && typeof this.ctx!.createMediaElementSource === 'function') {
+      this.musicLevelStarted = true;
+      const gain = this.ctx!.createGain();
       gain.gain.value = 1;
-      ctx!.createMediaElementSource(music).connect(gain).connect(ctx!.createDynamicsCompressor()).connect(ctx!.destination);
-      // Só mede a faixa quando a música é solicitada; não baixa música ao abrir o menu.
-      void load('music', '/music/battle.mp3').then(() => { gain.gain.value = gains.get('music') ?? 1; });
+      this.ctx!.createMediaElementSource(this.music).connect(gain).connect(this.ctx!.createDynamicsCompressor()).connect(this.ctx!.destination);
+      // Measure music on demand; opening the lobby must not download the track.
+      void this.load('music', '/music/battle.mp3').then(() => { gain.gain.value = this.gains.get('music') ?? 1; });
     }
-    if (on && channelVolume(vol, 'music') > 0) void music.play().catch(() => {});
-    else music.pause();
+    if (on && channelVolume(volumes, 'music') > 0) void this.music.play().catch(() => {});
+    else this.music.pause();
   }
 
-  function file(name: string, volume: number, rate = 1) {
-    const buf = buffers.get(name);
-    if (!buf) return false;
-    const src = ctx!.createBufferSource();
-    src.buffer = buf;
-    src.playbackRate.value = name.startsWith('synth/') || STEADY.has(name) ? 1 : rate * (0.94 + Math.random() * 0.12); // pre-rendered synthesis and chosen recordings keep their timbre
-    const g = ctx!.createGain();
-    g.gain.value = volume * (gains.get(name) ?? 1);
-    src.connect(g).connect(name.startsWith('taunt/') ? tauntMaster! : master!);
-    src.start();
+  private file(name: string, volume: number, rate = 1) {
+    const buffer = this.buffers.get(name);
+    if (!buffer) return false;
+    const source = this.ctx!.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.value = name.startsWith('synth/') || STEADY.has(name) ? 1 : rate * (0.94 + Math.random() * 0.12); // Synth and chosen recordings keep their timbre.
+    const gain = this.ctx!.createGain();
+    gain.gain.value = volume * (this.gains.get(name) ?? 1);
+    source.connect(gain).connect(name.startsWith('taunt/') ? this.tauntMaster! : this.master!);
+    source.start();
     return true;
   }
 
-  // ruído filtrado: chiado de fogo, estalo de raio, borbulha de lava
-  function hiss(type: BiquadFilterType, f0: number, f1: number, dur: number, gain: number, at = 0, c: BaseAudioContext = ctx!, output: AudioNode = master!) {
-    const t = c.currentTime + at;
-    const src = c.createBufferSource();
-    src.buffer = noise;
-    const filter = c.createBiquadFilter();
+  private hiss(type: BiquadFilterType, f0: number, f1: number, duration: number, level: number, at = 0, context: BaseAudioContext = this.ctx!, output: AudioNode = this.master!) {
+    const time = context.currentTime + at;
+    const source = context.createBufferSource();
+    source.buffer = this.noise;
+    const filter = context.createBiquadFilter();
     filter.type = type;
-    filter.frequency.setValueAtTime(f0, t);
-    filter.frequency.exponentialRampToValueAtTime(f1, t + dur);
-    const g = c.createGain();
-    g.gain.setValueAtTime(gain, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(filter).connect(g).connect(output);
-    src.start(t, Math.random() * 0.5);
-    src.stop(t + dur + 0.05);
+    filter.frequency.setValueAtTime(f0, time);
+    filter.frequency.exponentialRampToValueAtTime(f1, time + duration);
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(level, time);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+    source.connect(filter).connect(gain).connect(output);
+    source.start(time, Math.random() * 0.5);
+    source.stop(time + duration + 0.05);
   }
 
-  function tone(type: OscillatorType, f0: number, f1: number, dur: number, gain: number, at = 0, c: BaseAudioContext = ctx!, output: AudioNode = master!) {
-    const t = c.currentTime + at;
-    const o = c.createOscillator();
-    o.type = type;
-    o.frequency.setValueAtTime(f0, t);
-    o.frequency.exponentialRampToValueAtTime(f1, t + dur);
-    const g = c.createGain();
-    g.gain.setValueAtTime(gain, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(output);
-    o.start(t);
-    o.stop(t + dur + 0.05);
+  private tone(type: OscillatorType, f0: number, f1: number, duration: number, level: number, at = 0, context: BaseAudioContext = this.ctx!, output: AudioNode = this.master!) {
+    const time = context.currentTime + at;
+    const oscillator = context.createOscillator();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(f0, time);
+    oscillator.frequency.exponentialRampToValueAtTime(f1, time + duration);
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(level, time);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+    oscillator.connect(gain).connect(output);
+    oscillator.start(time);
+    oscillator.stop(time + duration + 0.05);
   }
 
-  function synth(kind: SoundKind, v: number, c: BaseAudioContext = ctx!, output: AudioNode = master!) {
-    const toneAt = tone, hissAt = hiss;
-    const playTone = (type: OscillatorType, f0: number, f1: number, dur: number, gain: number, at = 0) => toneAt(type, f0, f1, dur, gain, at, c, output);
-    const playHiss = (type: BiquadFilterType, f0: number, f1: number, dur: number, gain: number, at = 0) => hissAt(type, f0, f1, dur, gain, at, c, output);
-      switch (kind) {
-      case 'sand': playHiss('bandpass',1800,600,.4,.4*v); break;
-        // Rounded harmonics, soft attack and vibrato imitate an "ooh" choir, with no external recording.
-        case 'heal':
-          [261.63, 329.63, 392].forEach((note, voice) => {
-            [1, 2, 3, 7].forEach((harmonic, i) => {
-              const at = c.currentTime + voice * .03;
-              const o = c.createOscillator(), vibrato = c.createOscillator();
-              const depth = c.createGain(), envelope = c.createGain();
-              o.type = vibrato.type = 'sine';
-              o.frequency.setValueAtTime(note * harmonic, at);
-              vibrato.frequency.setValueAtTime(5.2 + voice * .17, at);
-              depth.gain.value = harmonic * 1.2;
-              vibrato.connect(depth).connect(o.frequency);
-              const gain = [.065, .022, .008, .0015][i] * v;
-              envelope.gain.setValueAtTime(.0001, at);
-              envelope.gain.exponentialRampToValueAtTime(Math.max(.0001, gain), at + .18);
-              envelope.gain.exponentialRampToValueAtTime(Math.max(.0001, gain * .85), at + .65);
-              envelope.gain.exponentialRampToValueAtTime(.0001, at + 1.6);
-              o.connect(envelope).connect(output);
-              o.start(at); vibrato.start(at);
-              o.stop(at + 1.65); vibrato.stop(at + 1.65);
-            });
+  private synth(kind: SoundKind, volume: number, context: BaseAudioContext = this.ctx!, output: AudioNode = this.master!) {
+    const playTone = (type: OscillatorType, f0: number, f1: number, duration: number, level: number, at = 0) => this.tone(type, f0, f1, duration, level, at, context, output);
+    const playHiss = (type: BiquadFilterType, f0: number, f1: number, duration: number, level: number, at = 0) => this.hiss(type, f0, f1, duration, level, at, context, output);
+    switch (kind) {
+      case 'sand': playHiss('bandpass', 1800, 600, 0.4, 0.4 * volume); break;
+      // Rounded harmonics, soft attack and vibrato imitate an "ooh" choir without a recording.
+      case 'heal':
+        [261.63, 329.63, 392].forEach((note, voice) => {
+          [1, 2, 3, 7].forEach((harmonic, i) => {
+            const at = context.currentTime + voice * 0.03;
+            const oscillator = context.createOscillator(), vibrato = context.createOscillator();
+            const depth = context.createGain(), envelope = context.createGain();
+            oscillator.type = vibrato.type = 'sine';
+            oscillator.frequency.setValueAtTime(note * harmonic, at);
+            vibrato.frequency.setValueAtTime(5.2 + voice * 0.17, at);
+            depth.gain.value = harmonic * 1.2;
+            vibrato.connect(depth).connect(oscillator.frequency);
+            const voiceLevel = [0.065, 0.022, 0.008, 0.0015][i] * volume;
+            envelope.gain.setValueAtTime(0.0001, at);
+            envelope.gain.exponentialRampToValueAtTime(Math.max(0.0001, voiceLevel), at + 0.18);
+            envelope.gain.exponentialRampToValueAtTime(Math.max(0.0001, voiceLevel * 0.85), at + 0.65);
+            envelope.gain.exponentialRampToValueAtTime(0.0001, at + 1.6);
+            oscillator.connect(envelope).connect(output);
+            oscillator.start(at); vibrato.start(at);
+            oscillator.stop(at + 1.65); vibrato.stop(at + 1.65);
           });
-          break;
-        case 'fireball': playHiss('lowpass', 2400, 300, 0.45, 0.5 * v); playTone('sawtooth', 160, 60, 0.3, 0.08 * v); break;
-        case 'lightning': playHiss('highpass', 3000, 800, 0.25, 0.7 * v); playTone('square', 900, 120, 0.18, 0.08 * v); break;
-        case 'homing': playTone('sine', 300, 900, 0.4, 0.15 * v); playHiss('bandpass', 1500, 2500, 0.4, 0.15 * v); break;
-        case 'shield': playTone('sine', 520, 780, 0.5, 0.18 * v); playTone('sine', 780, 1170, 0.5, 0.08 * v); break;
-        case 'teleport': playTone('sine', 1400, 200, 0.3, 0.18 * v); playHiss('bandpass', 4000, 600, 0.3, 0.2 * v); break;
-        case 'hit': playHiss('lowpass', 900, 120, 0.3, 0.9 * v); playTone('sine', 120, 45, 0.25, 0.35 * v); break;
-        case 'reflect': playTone('triangle', 1200, 2400, 0.2, 0.2 * v); break;
-        case 'death': playHiss('lowpass', 1500, 100, 1.2, 0.6 * v); playTone('sawtooth', 300, 50, 0.9, 0.1 * v); break;
-        case 'shrink': playTone('sawtooth', 80, 40, 1.2, 0.2 * v); playHiss('lowpass', 400, 80, 1.2, 0.5 * v); break;
-        case 'beep': playTone('square', 660, 660, 0.12, 0.08 * v); break;
-        case 'go': playTone('square', 990, 990, 0.3, 0.1 * v); break;
-        // Tambor curto gerado aqui, sem gravação externa; queda de afinação imita a pele e evita clique agudo.
-        case 'click': playTone('sine', 180, 70, .14, .18 * v); playTone('sine', 360, 140, .035, .035 * v); break;
-        // Mouse sobre botão: timbre curto; a medição mantém o nível próximo dos outros avisos.
-        case 'hover': playTone('sine', 1500, 1300, 0.03, 0.02 * v); break;
-        case 'hitLight': playHiss('lowpass', 1400, 300, 0.18, 0.6 * v); playTone('sine', 200, 90, 0.15, 0.2 * v); break;
-        case 'hitHeavy': playHiss('lowpass', 700, 80, 0.45, 1 * v); break;
-        // mergulho na lava: chiado agudo longo e duas bolhas graves
-        case 'splash': playHiss('highpass', 5000, 1200, 0.9, 0.3 * v); playHiss('lowpass', 600, 90, 0.6, 0.6 * v); playTone('sine', 230, 70, 0.22, 0.25 * v, 0.08); playTone('sine', 170, 55, 0.25, 0.2 * v, 0.32); break;
-        // arpejo maior subindo (vitória) e menor descendo (derrota)
-        case 'winRound': [523, 659, 784, 1047].forEach((f, i) => playTone('triangle', f, f, 0.32, 0.14 * v, i * 0.09)); break;
-        case 'loseRound': [392, 311, 262].forEach((f, i) => playTone('triangle', f, f * 0.98, 0.35, 0.11 * v, i * 0.14)); break;
-        // moedas: dois tilintares agudos
-        case 'buy': playTone('sine', 1320, 1320, 0.09, 0.12 * v); playTone('sine', 1980, 1980, 0.16, 0.1 * v, 0.06); break;
-        case 'error': playTone('square', 170, 120, 0.18, 0.06 * v); playTone('square', 150, 110, 0.18, 0.05 * v, 0.12); break;
-        // recarga pronta: plim suave
-        case 'ready': playTone('sine', 880, 1320, 0.12, 0.05 * v); break;
-      }
+        });
+        break;
+      case 'fireball': playHiss('lowpass', 2400, 300, 0.45, 0.5 * volume); playTone('sawtooth', 160, 60, 0.3, 0.08 * volume); break;
+      case 'lightning': playHiss('highpass', 3000, 800, 0.25, 0.7 * volume); playTone('square', 900, 120, 0.18, 0.08 * volume); break;
+      case 'homing': playTone('sine', 300, 900, 0.4, 0.15 * volume); playHiss('bandpass', 1500, 2500, 0.4, 0.15 * volume); break;
+      case 'shield': playTone('sine', 520, 780, 0.5, 0.18 * volume); playTone('sine', 780, 1170, 0.5, 0.08 * volume); break;
+      case 'teleport': playTone('sine', 1400, 200, 0.3, 0.18 * volume); playHiss('bandpass', 4000, 600, 0.3, 0.2 * volume); break;
+      case 'hit': playHiss('lowpass', 900, 120, 0.3, 0.9 * volume); playTone('sine', 120, 45, 0.25, 0.35 * volume); break;
+      case 'reflect': playTone('triangle', 1200, 2400, 0.2, 0.2 * volume); break;
+      case 'death': playHiss('lowpass', 1500, 100, 1.2, 0.6 * volume); playTone('sawtooth', 300, 50, 0.9, 0.1 * volume); break;
+      case 'shrink': playTone('sawtooth', 80, 40, 1.2, 0.2 * volume); playHiss('lowpass', 400, 80, 1.2, 0.5 * volume); break;
+      case 'beep': playTone('square', 660, 660, 0.12, 0.08 * volume); break;
+      case 'go': playTone('square', 990, 990, 0.3, 0.1 * volume); break;
+      // A short generated drum hit avoids sharp attack through its falling pitch.
+      case 'click': playTone('sine', 180, 70, 0.14, 0.18 * volume); playTone('sine', 360, 140, 0.035, 0.035 * volume); break;
+      // The hover cue is short; its measured level stays close to the other notices.
+      case 'hover': playTone('sine', 1500, 1300, 0.03, 0.02 * volume); break;
+      case 'hitLight': playHiss('lowpass', 1400, 300, 0.18, 0.6 * volume); playTone('sine', 200, 90, 0.15, 0.2 * volume); break;
+      case 'hitHeavy': playHiss('lowpass', 700, 80, 0.45, volume); break;
+      // The lava splash uses a long hiss and two low bubbles.
+      case 'splash': playHiss('highpass', 5000, 1200, 0.9, 0.3 * volume); playHiss('lowpass', 600, 90, 0.6, 0.6 * volume); playTone('sine', 230, 70, 0.22, 0.25 * volume, 0.08); playTone('sine', 170, 55, 0.25, 0.2 * volume, 0.32); break;
+      // Rising major arpeggio for a win, descending minor arpeggio for a loss.
+      case 'winRound': [523, 659, 784, 1047].forEach((f, i) => playTone('triangle', f, f, 0.32, 0.14 * volume, i * 0.09)); break;
+      case 'loseRound': [392, 311, 262].forEach((f, i) => playTone('triangle', f, f * 0.98, 0.35, 0.11 * volume, i * 0.14)); break;
+      // Two high chimes signal a purchase.
+      case 'buy': playTone('sine', 1320, 1320, 0.09, 0.12 * volume); playTone('sine', 1980, 1980, 0.16, 0.1 * volume, 0.06); break;
+      case 'error': playTone('square', 170, 120, 0.18, 0.06 * volume); playTone('square', 150, 110, 0.18, 0.05 * volume, 0.12); break;
+      // A soft chime signals that a cooldown is ready.
+      case 'ready': playTone('sine', 880, 1320, 0.12, 0.05 * volume); break;
+    }
   }
 
-  const api = {
-    volumes,
-    // Configurações (menu e sala): guarda, aplica na hora e toca o clique no volume novo dos efeitos
-    setVolume(kind: keyof Volumes, value: number) {
-      vol[kind] = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
-      saveVolume(kind, vol[kind]);
-      syncAmbience();
-      tauntPreviewSession.setVolume(channelVolume(vol, 'taunts'));
-      if (kind === 'sfx' || kind === 'master') api.play('click');
-    },
-    setAmbience(on: boolean) {
-      wantAmbience = on;
-      syncAmbience();
-    },
-    // taunt: caminho do catálogo (public/sfx/taunt/<nome>.mp3 ou a gravação em public/taunts-local), carregado na primeira vez que alguém usa
-    async taunt(name: string, level: number | (() => number) = 1) {
-      const levelNow = () => Math.max(0, Math.min(1, typeof level === 'function' ? level() : level));
-      const src = tauntAudioSrc(name);
-      if (!src) return;
-      if (!ctx || channelVolume(volumes(), 'taunts') === 0 || levelNow() === 0 || ctx.state !== 'running') return;
-      const key = 'taunt/' + name;
-      if (!buffers.has(key)) await load(key, src);
-      if (channelVolume(volumes(), 'taunts') > 0 && levelNow() > 0) file(key, levelNow());
-    },
-    play(kind: SoundKind, volume = 1) {
-      if (!ctx || !noise || channelVolume(volumes(), 'sfx') === 0 || ctx.state !== 'running') return;
-      const v = Math.max(0, Math.min(1, volume));
-      if (!v) return;
-      const names = FILES[kind];
-      const loaded = names?.filter((name) => buffers.has(name)) ?? [];
-      const each = layerVolume(v, loaded.length + (kind === 'hitHeavy' ? 1 : 0));
-      const played = loaded.map((n) => file(n, each, RATE[kind])).some(Boolean);
-      // camada sintetizada por cima do arquivo: o baque grave do golpe forte
-      if (kind === 'hitHeavy' && played) tone('sine', 110, 36, 0.4, 0.5 * each);
-      if (played) return;
-      if (!file('synth/' + kind, v)) synth(kind, v);
-    },
-    // na loja a música fica a 45%
-    duck(on: boolean) {
-      duck = on ? 0.45 : 1;
-      syncAmbience();
-    },
-  };
-  return api;
-}
+  private setVolume(kind: keyof Volumes, value: number) {
+    this.vol[kind] = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+    saveVolume(kind, this.vol[kind]);
+    this.syncAmbience();
+    tauntPreviewSession.setVolume(channelVolume(this.vol, 'taunts'));
+    if (kind === 'sfx' || kind === 'master') this.play('click');
+  }
 
+  private setAmbience(on: boolean) {
+    this.wantAmbience = on;
+    this.syncAmbience();
+  }
+
+  private async taunt(name: string, level: number | (() => number) = 1) {
+    const levelNow = () => Math.max(0, Math.min(1, typeof level === 'function' ? level() : level));
+    const src = tauntAudioSrc(name);
+    if (!src) return;
+    if (!this.ctx || channelVolume(this.volumes(), 'taunts') === 0 || levelNow() === 0 || this.ctx.state !== 'running') return;
+    const key = 'taunt/' + name;
+    if (!this.buffers.has(key)) await this.load(key, src);
+    if (channelVolume(this.volumes(), 'taunts') > 0 && levelNow() > 0) this.file(key, levelNow());
+  }
+
+  private play(kind: SoundKind, volume = 1) {
+    if (!this.ctx || !this.noise || channelVolume(this.volumes(), 'sfx') === 0 || this.ctx.state !== 'running') return;
+    const level = Math.max(0, Math.min(1, volume));
+    if (!level) return;
+    const names = FILES[kind];
+    const loaded = names?.filter((name) => this.buffers.has(name)) ?? [];
+    const each = layerVolume(level, loaded.length + (kind === 'hitHeavy' ? 1 : 0));
+    const played = loaded.map((name) => this.file(name, each, RATE[kind])).some(Boolean);
+    // Add a low synthetic hit under the recorded strong hit and explosion.
+    if (kind === 'hitHeavy' && played) this.tone('sine', 110, 36, 0.4, 0.5 * each);
+    if (played) return;
+    if (!this.file('synth/' + kind, level)) this.synth(kind, level);
+  }
+
+  // Lower music in the shop without changing other channels.
+  private duck(on: boolean) {
+    this.duckLevel = on ? 0.45 : 1;
+    this.syncAmbience();
+  }
+}
 type ActiveTauntPreview = {
   audio: HTMLAudioElement;
   context: AudioContext | null;

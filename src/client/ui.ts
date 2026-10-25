@@ -14,11 +14,11 @@ import { ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/it
 import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { POS_ACTIONS, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
 import { openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
-import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
+import { hideTip, itemTip, mechanicTip, spellTip, withTip } from './tips.ts';
 import { EFFECT_NAME, MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, effectName, effectText, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
-import { ITEM_GROUPS, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
-import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, iconButton, type Child } from './icons.ts';
+import { ALT_TEXT, ITEM_GROUPS, MECHANIC_GUIDES, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
+import { BAD_STATUS, ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, choice, el, fxClock, icon, iconButton, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
 import { isAudioMuted, type Volumes, type VolumeKind } from './sound.ts';
@@ -225,8 +225,14 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   const stage = el('div', { class: 'home-stage' },
     el('div', { class: 'home-backdrop', 'aria-hidden': 'true' }, el('img', { class: 'home-art', src: '/home-cat.jpg', alt: '', width: 736, height: 736 })),
     ...Object.values(panels));
-  const btns = HOME_TABS.map(([k, label]) => el('button', { type: 'button', role: 'tab', id: 'home-tab-' + k, 'aria-controls': 'home-' + k, onclick: () => show(k) }, el('span', {}, label)));
+  const homeTabs = tabs(null, HOME_TABS, HOME_TABS[0][0], show, 'home-tabs', null);
+  const btns = [...homeTabs.querySelectorAll<HTMLButtonElement>('button')];
+  HOME_TABS.forEach(([k], i) => {
+    btns[i].id = 'home-tab-' + k;
+    btns[i].setAttribute('aria-controls', 'home-' + k);
+  });
   const settingsBtn = btns[HOME_TABS.findIndex(([k]) => k === 'settings')];
+  homeTabs.removeChild(settingsBtn);
   settingsBtn.classList.add('home-tool');
   settingsBtn.title = t('Configurações', 'Settings');
   settingsBtn.setAttribute('aria-label', t('Configurações', 'Settings'));
@@ -248,7 +254,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
       el('nav', { class: 'home-bar', role: 'tablist', 'aria-label': t('Menu principal', 'Main menu') }, settingsBtn, forumLink,
         el('button', { type: 'button', class: 'home-logo', id: 'home-tab-home', role: 'tab', 'aria-controls': 'home-home', title: t('Início', 'Home'), 'aria-label': t('Voltar ao menu principal', 'Back to home'), onclick: () => show('home') },
           el('img', { src: '/warlock-wars.svg', alt: 'Warlock Wars' })),
-        el('div', { class: 'home-tabs' }, ...btns.filter((b) => b !== settingsBtn))),
+        homeTabs),
       stage),
   );
   show('home');
@@ -381,6 +387,7 @@ type RoomActions = {
   ballot: (yes: boolean) => void;
   undo: (key: string) => void;
   sell: (key: string) => void;
+  alt: (arc: boolean, guard: boolean) => void; // versões alternativas do Atacar e do Manter base (issue #402)
   taunt: (i: number) => void;
   pick: (c: CharacterId) => void;
   ready: () => void;
@@ -494,11 +501,9 @@ export const srcName = (k: string) => (k === 'lava' ? 'lava' : isSpell(k) ? spel
 type View = 'summary' | 'spells';
 const VIEWS: [View, string][] = [['summary', t('Resumo', 'Summary')], ['spells', t('Magias', 'Spells')]];
 const portrait = (p: PublicPlayer) => el('img', { class: 'face', src: `/chars/${p.character}.webp`, alt: '', width: 32, height: 32, loading: 'lazy' });
-// fileira de botões com um marcado (opções da partida, modo, jeito de lançar); off: botão desligado
-export const choice = <T>(label: string, items: [T, string][], on: T, pick: (v: T) => void, off?: (v: T) => boolean) => el('div', { class: 'stats-tabs', role: 'group', 'aria-label': label },
-  ...items.map(([v, text]) => el('button', { type: 'button', 'aria-pressed': String(v === on), class: v === on ? 'on' : '', disabled: off?.(v), onclick: () => pick(v) }, text)));
-const tabs = <T extends string>(label: string, list: [T, string][], on: T, set: (k: T) => void) =>
-  el('div', { class: 'stats-tabs', role: 'tablist', 'aria-label': label }, ...list.map(([k, text]) =>
+// Tabs use ARIA tab roles and allow a caller-selected layout class and parent-owned tablist.
+export const tabs = <T extends string>(label: string | null, list: [T, string][], on: T, set: (k: T) => void, cls = 'stats-tabs', role: 'tablist' | null = 'tablist') =>
+  el('div', { class: cls, role, 'aria-label': role ? label : null }, ...list.map(([k, text]) =>
     el('button', { type: 'button', role: 'tab', 'aria-selected': String(k === on), class: k === on ? 'on' : '', onclick: () => set(k) }, text)));
 
 // diálogo por cima de qualquer tela (Configurações, Grimório, Biblioteca): fundo, título e ✕; ✕, clique fora e Esc fecham.
@@ -747,6 +752,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   onKeysChange(() => {
     barWrap.querySelectorAll<HTMLElement>('[data-action]').forEach((k) => (k.textContent = labelOf(k.dataset.action as Action)));
     barWrap.querySelectorAll<HTMLElement>('[data-position]').forEach((k) => (k.textContent = keyLabel(keyOf(POS_ACTIONS[Number(k.dataset.position)]))));
+    barWrap.querySelectorAll<HTMLElement>('[data-ui]').forEach((k) => (k.textContent = uiLabel(k.dataset.ui as UiAction)));
     drawCenter();
     drawHints();
   });
@@ -1153,6 +1159,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     draggableSlot(b, 0, true);
     return b;
   }));
+  // Attack (A) and Hold ground (S) open the bottom row: Q W E R on top, A S D F below (Fernando, 25/10, issue #401). Faded and
+  // aria-disabled because they cannot be moved or sold; they only show the tip, the keys still do the work. No touch: no A/S keys there
+  const fixedBtns = TOUCH ? [] : MECHANIC_GUIDES.map((g) => {
+    const ui: UiAction = g.id === 'basic' ? 'basic' : 'stop';
+    return withTip(el('button', { type: 'button', class: 'spell fixed-skill', 'aria-disabled': 'true', 'aria-label': g.title },
+      el('span', { class: 'key', 'data-ui': ui }, uiLabel(ui)), el('span', { class: 'ico' }, icon(MECHANIC_ICON[g.id]))), () => mechanicTip(g, !!(g.id === 'basic' ? mine?.arc : mine?.guard)));
+  });
+  const ROW = 4; // slots per row: the fixed pair goes right after Q W E R
   // grade 3×2 de itens à direita da barra, como a do Dota (MAX_ITEMS = 6): os comprados (todos passivos desde 21/10, #217) e o resto vazio
   const itemGrid = el('div', { class: 'item-grid', role: 'group', 'aria-label': t('Itens', 'Items') });
   function refreshEquipment() {
@@ -1164,12 +1178,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (bar.dataset.order !== sig) {
       bar.dataset.order = sig;
       const empty = (index: number) => draggableSlot(el('span', { class: 'spell slot-empty', 'aria-label': t('Posição vazia', 'Empty slot') }, el('span', { class: 'key', 'data-position': index }, keyLabel(keyOf(POS_ACTIONS[index])))), index, false);
-      bar.replaceChildren(...order.spells.map((s, i) => {
+      const slots = order.spells.map((s, i) => {
         if (!s) return empty(i);
         const node = buttons.get(s)!.b;
         node.dataset.loadoutSlot = String(i);
         return node;
-      }));
+      });
+      bar.replaceChildren(...slots.slice(0, ROW), ...fixedBtns, ...slots.slice(ROW));
       itemGrid.replaceChildren(...passive.map((i) => withTip(el('span', { class: 'spell passive', tabindex: 0, 'aria-label': t(`${itemName(i)} (passivo) nível ${mine!.items[i]}`, `${itemName(i)} (passive) level ${mine!.items[i]}`) }, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0))),
       ...Array.from({ length: Math.max(0, MAX_ITEMS - passive.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
       hideTip(bar); hideTip(itemGrid);
@@ -1488,6 +1503,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // estado da loja que sobrevive ao redesenho (a sala manda o estado a cada compra de qualquer jogador)
   let goldOpen = false;
   let sheetOpen = false; // Ficha começa recolhida para a loja caber sem rolagem no PC; abrir/fechar sobrevive ao redesenho
+  let altOpen = true; // Versões para teste (issue #402) começa aberta: é o único lugar onde o jogador descobre a escolha
   let buildsOpen = false; // Builds também começa recolhida: menos informação na loja (pedido do Fernando na #185)
   let armedBuild: number | null = null; // posição com "Substituir?" à espera do segundo clique; fora do DOM para sobreviver ao redesenho da loja
   // ordem da barra do preset em uso: só vale quando as magias dele chegam (antes disso o myLoadout tira da barra o que ainda não tem)
@@ -1611,6 +1627,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       return el('details', { class: 'sheet-box', open: buildsOpen, ontoggle: (e: Event) => (buildsOpen = (e.target as HTMLDetailsElement).open) },
         el('summary', {}, t('Builds salvas', 'Saved builds')), ...saved.map((_, i) => row(i)));
     };
+    // versões alternativas do Atacar e do Manter base, só para teste (issue #402): por jogador, a de hoje é o padrão
+    const altBox = () => el('details', { class: 'sheet-box', 'data-key': 'alt', open: altOpen, ontoggle: (e: Event) => (altOpen = (e.target as HTMLDetailsElement).open) },
+      withTip(el('summary', {}, t('Versões para teste', 'Test versions')), () => ALT_TEXT),
+      el('small', { class: 'muted' }, t(`Atacar (${uiLabel('basic')})`, `Attack (${uiLabel('basic')})`)),
+      choice(t('Versão do Atacar', 'Attack version'), [[false, t('À distância', 'Ranged')], [true, t('Corpo a corpo', 'Melee')]], !!mine.arc, (arc) => act.alt(arc, !!mine.guard)),
+      el('small', { class: 'muted' }, t(`Manter base (${uiLabel('stop')})`, `Hold ground (${uiLabel('stop')})`)),
+      choice(t('Versão do Manter base', 'Hold ground version'), [[false, t('De hoje', 'Current')], [true, t('Defesa', 'Guard')]], !!mine.guard, (guard) => act.alt(!!mine.arc, guard)));
     const sheetBox = () => el('details', { class: 'sheet-box', open: sheetOpen, ontoggle: (e: Event) => (sheetOpen = (e.target as HTMLDetailsElement).open) },
       el('summary', {}, t('Ficha do mago', 'Wizard sheet')), sheetEl(now, el('small', { class: 'muted' }, t('Passe o mouse num item para ver o que muda.', 'Hover an item to see what changes.'))));
     const offer = (o: Offer) => {
@@ -1676,7 +1699,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.sandbox ? t('Loja · sandbox', 'Shop · sandbox') : deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${r.sandbox ? 'ouro sem fim: compre e venda, vale na hora' : deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${r.sandbox ? 'endless gold: buy and sell, it applies right away' : deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
         iconButton('✕', t('Fechar a loja', 'Close the shop'), () => togglePeek(false), { class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`) })),
       ...grid),
-      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), peek ? null : buildsBox(), sheetBox()));
+      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), peek ? null : buildsBox(), peek ? null : altBox(), sheetBox()));
     readyBtn = el('button', { type: 'button', class: 'primary big', 'data-key': 'ready', disabled: mine.ready, onclick: () => {
       if (r.round === 0) seeFirst();
       act.ready();
@@ -1693,6 +1716,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         readyBtn,
         el('button', { type: 'button', 'data-key': 'placar', onclick: () => pinTab(true) }, icon(UI_ICON.board), ' ' + t('Placar', 'Scoreboard')),
         buildsBox(),
+        altBox(),
         sheetBox(),
         goldInfo(mine, r.opts, goldOpen, (open) => (goldOpen = open)),
         nextModePicker(r),

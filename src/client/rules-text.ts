@@ -8,11 +8,17 @@ import { ITEMS, MAX_ITEMS, type ItemId } from '../shared/items.ts';
 import { keyLabel, keyOf, padButtonName, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
 import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, RECHARGE, RUSH, SHIELD, SPELLS, SPELL_GROUP_IDS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
 import { LANG, LOCALE, spellName, t } from './i18n.ts';
-import { BASIC_ATTACK, BRACE, KNOCK_RECOVERY } from '../shared/constants.ts';
+import { BASIC_ATTACK, BRACE, GUARD, KNOCK_RECOVERY, MELEE_ARC } from '../shared/constants.ts';
 
 export const ATTACK_TEXT = t(
   `Atacar: aperte a tecla do ataque (A por padrão) e clique com o esquerdo num inimigo; no chão, escolhe o inimigo visível mais próximo de você dentro de ${BASIC_ATTACK.range} m. Até ${BASIC_ATTACK.melee.toLocaleString(LOCALE)} m usa corpo a corpo; mais longe, projétil direcionado. Preparo de ${BASIC_ATTACK.windup.toLocaleString(LOCALE)} s: S, movimento, conjuração ou stun cancelam antes do golpe, sem gastar recarga. Cada golpe exige nova ordem; não persegue nem repete sozinho. Causa ${BASIC_ATTACK.dmg} de dano e empurrão leve; o projétil não destrói magias.`,
   `Attack: press the attack key (A by default), then left-click an enemy; on the ground, selects the visible enemy closest to you within ${BASIC_ATTACK.range} m. Within ${BASIC_ATTACK.melee} m uses melee; farther away, a targeted projectile. A ${BASIC_ATTACK.windup} s windup: S, movement, casting or stun cancel before release without spending the cooldown. Each hit requires a new order; no automatic chasing or repeating. Deals ${BASIC_ATTACK.dmg} damage and light knockback; the projectile does not destroy spells.`
+);
+
+// versões alternativas só para teste, escolhidas na loja (issue #402); a de hoje continua o padrão
+export const ALT_TEXT = t(
+  `Versões para teste, só suas: valem até você trocar. Atacar corpo a corpo: a tecla golpeia na hora rumo ao cursor, num arco de ${MELEE_ARC.angle}° e ${MELEE_ARC.range} m na sua frente; acerta todos os inimigos no arco (${BASIC_ATTACK.dmg} de dano e um empurrãozinho cada) sem cancelar a magia deles. Manter base em defesa: vale na hora, você leva o mesmo dano e o empurrão diminui aos poucos, até ${Math.round(GUARD.max * 100)}% a menos depois de ${GUARD.ramp.toLocaleString(LOCALE)} s segurando; as recargas de magias e do Atacar ficam paradas enquanto segura.`,
+  `Test versions, yours only: they stay until you switch. Melee Attack: the key swings at once toward the cursor, in a ${MELEE_ARC.angle}° arc ${MELEE_ARC.range} m in front of you; it hits every enemy in the arc (${BASIC_ATTACK.dmg} damage and a small push each) without cancelling their spell. Guard Hold ground: it counts at once, you take the same damage and knockback shrinks gradually, down to ${Math.round(GUARD.max * 100)}% less after ${GUARD.ramp} s held; spell and Attack cooldowns stay frozen while held.`
 );
 
 export const BRACE_TEXT = t(
@@ -102,7 +108,7 @@ const RULES_PT = {
       'Roda do mouse: zoom. Espaço + arrastar com o botão esquerdo: mover a câmera; Espaço sozinho volta ao centro.',
       `${k('board')} (segurar): placar; com ele aberto, ← → troca entre Rodada, Partida e Sala.`,
       `${k('taunt')}: provocações. ${sheet}: ficha do mago. ${k('shop')}: loja só para ver durante a rodada (o jogo não pausa; ${k('shop')}, Esc ou ✕ fecham). ${k('rules')}: este grimório.${keyOf('vote') ? ` ${k('vote')}: votar.` : ''}`,
-      'Dá para trocar a tecla de cada magia em Configurações > Lançamento e a de cada atalho em Configurações > Teclas (Esc ou a engrenagem no topo), ou usar 1 2 3 4 Q W E R pela ordem da barra (fica salvo no navegador).',
+      'Dá para trocar a tecla de cada magia em Configurações > Lançamento e a de cada atalho em Configurações > Teclas (Esc ou a engrenagem no topo), ou usar Q W E R D F pela ordem da barra (fica salvo no navegador).',
     ];
   },
   get controle() {
@@ -110,7 +116,7 @@ const RULES_PT = {
     return [
       'Ligue o controle (Xbox ou PlayStation) e aperte qualquer botão: aparece "Controle conectado" e a barra mostra os botões do controle.',
       'Analógico esquerdo: andar. Analógico direito: mirar (o anel dourado no chão mostra onde). Sem mirar, a magia vai para onde você anda.',
-      `${join((['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8'] as const).map(b), 'e')}: as magias pela ordem da barra.`,
+      `${join((['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6'] as const).map(b), 'e')}: as magias pela ordem da barra.`,
       `Start (Options): o Esc do controle (fecha o que estiver aberto; sem nada aberto, abre e fecha as configurações). ${b('board')} segurado: placar. ${b('sheet')}: ficha do mago. ${b('center')}: centraliza a câmera. ${b('shop')}: loja só para ver.`,
       'Os botões da partida se trocam em Configurações > Controle (desenho do controle: clique no botão e aperte o novo).',
       'Menus e loja: D-pad ou analógico esquerdo anda entre os botões, A confirma (o Pronto da loja começa focado), B volta ou fecha, X desfaz ou vende, Y mostra a dica, LB e RB pulam entre os grupos.',
@@ -220,7 +226,7 @@ const RULES_EN: typeof RULES_PT = {
       'Mouse wheel: zoom. Space + drag with the left button: move the camera; Space alone recenters.',
       `${k('board')} (hold): scoreboard; with it open, ← → switches between Round, Match and Room.`,
       `${k('taunt')}: taunts. ${sheet}: wizard sheet. ${k('shop')}: view-only shop during the round (the game does not pause; ${k('shop')}, Esc or ✕ close it). ${k('rules')}: this grimoire.${keyOf('vote') ? ` ${k('vote')}: vote.` : ''}`,
-      'You can rebind the key of each spell in Settings > Casting and of each shortcut in Settings > Keys (Esc or the gear at the top), or use 1 2 3 4 Q W E R in bar order (saved in the browser).',
+      'You can rebind the key of each spell in Settings > Casting and of each shortcut in Settings > Keys (Esc or the gear at the top), or use Q W E R D F in bar order (saved in the browser).',
     ];
   },
   get controle() {
@@ -228,7 +234,7 @@ const RULES_EN: typeof RULES_PT = {
     return [
       'Plug in the controller (Xbox or PlayStation) and press any button: "Controller connected" appears and the bar shows the controller buttons.',
       'Left stick: walk. Right stick: aim (the golden ring on the ground shows where). Without aiming, the spell goes where you walk.',
-      `${join((['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8'] as const).map(b), 'and')}: the spells in bar order.`,
+      `${join((['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6'] as const).map(b), 'and')}: the spells in bar order.`,
       `Start (Options): the controller's Esc (closes whatever is open; with nothing open, opens and closes the settings). ${b('board')} held: scoreboard. ${b('sheet')}: wizard sheet. ${b('center')}: centers the camera. ${b('shop')}: view-only shop.`,
       'The in-match buttons are changed in Settings > Controller (controller drawing: click the button and press the new one).',
       "Menus and shop: D-pad or left stick moves between buttons, A confirms (the shop's Ready starts focused), B goes back or closes, X undoes or sells, Y shows the tip, LB and RB jump between groups.",

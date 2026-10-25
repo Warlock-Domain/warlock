@@ -25,6 +25,11 @@ export function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<
 export const iconButton = (child: Child, name: string, onclick: () => void, props: Record<string, unknown> = {}) =>
   el('button', { type: 'button', class: 'icon', title: name, 'aria-label': name, onclick, ...props }, child);
 
+// Keep shared button groups beside the DOM helpers so feature modules can reuse them without importing the main UI module.
+export const choice = <T>(label: string, items: [T, string][], on: T, pick: (v: T) => void, off?: (v: T) => boolean) =>
+  el('div', { class: 'stats-tabs', role: 'group', 'aria-label': label },
+    ...items.map(([v, text]) => el('button', { type: 'button', 'aria-pressed': String(v === on), class: v === on ? 'on' : '', disabled: off?.(v), onclick: () => pick(v) }, text)));
+
 // símbolo do sprite → <svg> do tamanho da fonte; o emoji antigo fica como texto alternativo
 const ALT: Record<string, string> = {};
 export function icon(id: string): SVGSVGElement {
@@ -62,7 +67,9 @@ export const UI_ICON = named({ board: ['histogram', '📊'], sheet: ['scroll-unf
   help: ['help', '❓'], keys: ['keyboard', '⌨️'], kills: ['skull-crossed-bones', '☠'], dmg: ['spiky-explosion', '💥'], wins: ['trophy', '🏆'], aim: ['archery-target', '🎯'],
   gold: ['two-coins', '🪙'], tip: ['light-bulb', '💡'], bot: ['robot-antennas', '🤖'], person: ['character', '👤'], info: ['info', 'ℹ️'], shop: ['shop', '🏪'],
   gear: ['cog', '⚙️'], pad: ['gamepad', '🎮'], video: ['tv', '📺'], exit: ['exit-door', '🚪'], watch: ['eyeball', '👁️'],
-  buy: ['shopping-cart', '🛒'], upgrade: ['upgrade', '⏫'], undo: ['anticlockwise-rotation', '↩'], forum: ['talk', '💬'] });
+  buy: ['shopping-cart', '🛒'], upgrade: ['upgrade', '⏫'], undo: ['anticlockwise-rotation', '↩'] });
+// Attack and Hold ground (issue #401) reuse sprite icons already shipped: the hit burst and the standing stone, no new download
+export const MECHANIC_ICON = { basic: UI_ICON.dmg, brace: SOURCE_ICON.pillar };
 // ícone e nome de uma magia ou item (teclas, grimório, magia escolhida)
 export const actionIcon = (a: SpellId | ItemId) => (isSpell(a) ? ICON[a] : ITEM_ICON[a]);
 export const actionName = (a: SpellId | ItemId) => (isSpell(a) ? spellName(a) : itemName(a));

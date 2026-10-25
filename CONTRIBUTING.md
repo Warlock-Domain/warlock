@@ -1,6 +1,6 @@
 # Contributing to Warlock Wars
 
-This is the contributor guide for humans and AI agents. It covers setup, coordination, implementation, testing, review, and publication. Read [CLAUDE.md](CLAUDE.md) for the current code rules and product decisions, then the `CLAUDE.md` in each area you change. Each `AGENTS.md` points to those same rules.
+This is the contributor guide for humans and AI agents. It covers setup, coordination, implementation, testing, review, and publication. Read [CLAUDE.md](CLAUDE.md) for the current code rules and the index of smaller documents, [docs/DECISIONS.md](docs/DECISIONS.md) before changing gameplay or undoing a decision, then the `CLAUDE.md` in each area you change. Each `AGENTS.md` points to those same rules.
 
 - [Play the game](https://warlock.fernandorffdev.com): try a few matches, the grimoire (F1), and the spell/item library (F2) before changing gameplay.
 - [Repository](https://github.com/Warlock-Domain/warlock): `master` is the live game. Contributors work on task branches in this repository.
@@ -38,16 +38,16 @@ Warlock Wars is a browser remake of Warlock / Warlock Brawl. Players use spells 
 
 The server is authoritative. Shared gameplay runs at 60 steps per second, with snapshots sent at 30 per second. The client predicts its own movement and interpolates other entities. In the shared simulation, the world is intentionally mutated in place; preserve its RNG and operation order.
 
-Use the decision register in [CLAUDE.md](CLAUDE.md#registro-de-decisões-do-fernando) and the in-game rules as the current source for modes, controls, spell groups, items, and balance exceptions. Keep contributor instructions here, area-specific implementation guidance in the area's `CLAUDE.md`, and feature designs in `docs/`. This avoids maintaining competing copies of changing gameplay tables.
+Use the decision register in [docs/DECISIONS.md](docs/DECISIONS.md) and the in-game rules as the current source for modes, controls, spell groups, items, and balance exceptions. Keep contributor instructions here, area-specific implementation guidance in the area's `CLAUDE.md`, and feature designs and plans in [`docs/plans/`](docs/plans/README.md). This avoids maintaining competing copies of changing gameplay tables.
 
 ## Issues and coordination
 
-Use the repository's [Bug or Ideia templates](https://github.com/Warlock-Domain/warlock/issues/new/choose). Blank issues are disabled.
+Use the repository's [Bug or Idea templates](https://github.com/Warlock-Domain/warlock/issues/new/choose). Blank issues are disabled.
 
 | Template | Include |
 |---|---|
 | **Bug** | Actual and expected behavior, reproduction steps, browser/device, and useful screenshots or video. |
-| **Ideia** | The idea, motivation, proposed behavior or reference, and whether you intend to implement it. It starts with `precisa de decisão`. |
+| **Idea** | The idea, motivation, proposed behavior or reference, and whether you intend to implement it. It starts with `precisa de decisão`. |
 
 Use one subject per issue. Issue titles describe the problem or idea without a commit prefix; `feat:` and `fix:` belong in PR titles. Assign yourself before starting an unowned issue. If it is already assigned, coordinate with its owner. Remove your assignment if you stop working on it. The implementation PR uses `Closes #123`, `Fixes #123`, or `Resolves #123` so GitHub closes the issue after merge.
 
@@ -70,9 +70,9 @@ Admin sessions also check the private [Admins board](https://github.com/orgs/War
 
 Small bug fixes, text corrections, and focused interface/visual adjustments can go directly through normal PR review. A change is large when it changes a spell, item, rule, mode, control, or balance number; removes an existing feature; or takes more than a day. If the scope is unclear, discuss it with the group.
 
-1. Open an **Ideia** issue with `precisa de decisão` and share its link with the group. Keep the discussion in the issue.
-2. Allow roughly two days of discussion. Fernando makes the final decision, considering the feedback; mode-specific ownership is recorded in `CLAUDE.md`.
-3. Record the decision and rationale in the issue, remove the decision label, and update the decision register. Large work also gets a design document in `docs/`.
+1. Open an **Idea** issue with `precisa de decisão` and share its link with the group. Keep the discussion in the issue.
+2. Allow roughly two days of discussion. Fernando makes the final decision, considering the feedback; mode-specific ownership is recorded in [docs/DECISIONS.md](docs/DECISIONS.md).
+3. Record the decision and rationale in the issue, remove the decision label, and add a row to [docs/DECISIONS.md](docs/DECISIONS.md). Large work also gets a design document in [`docs/plans/`](docs/plans/README.md), listed in its index.
 4. Implement the agreed scope and link the PR to the issue. A large PR without a decision waits with `precisa de decisão`.
 
 A local proof of concept uses a `poc/<topic>` branch and screenshots without an issue or PR. It becomes an issue/PR after Fernando decides it is worth pursuing. The decision register also allows an immediate adjustment explicitly requested by Fernando to go straight to a task branch and PR; the PR records the request. Issues are used for work that needs agreement or belongs in the backlog.
@@ -205,7 +205,7 @@ node scripts/balance-sim.ts --minutes 20 --seed 2 --difficulty normal --out bala
 node scripts/balance-sim.ts --merge --difficulty normal --out balance/x/total balance/x/p1 balance/x/p2
 ```
 
-Run the corresponding Hard samples as well. Reports are in each output directory's `report.md`; `balance/` is ignored by Git. Conclusions need tens of thousands of rounds per difficulty: a small sample can vary by ±0.02–0.03. Report sample sizes and before/after results in the PR. Document explicit owner exceptions from `CLAUDE.md`.
+Run the corresponding Hard samples as well. Reports are in each output directory's `report.md`; `balance/` is ignored by Git. Conclusions need tens of thousands of rounds per difficulty: a small sample can vary by ±0.02–0.03. Report sample sizes and before/after results in the PR. Document explicit owner exceptions from [docs/DECISIONS.md](docs/DECISIONS.md).
 
 If a number does not respond to changes, inspect bot behavior: perfect reactions previously masked cooldown changes. `build-tournament.ts` looks for dominant purchase combinations; report its findings before adjusting them. Historical measurements in the decision register are context, not proof of current balance.
 
@@ -224,7 +224,7 @@ Use a draft while work is in progress or the group is trying it. Once gates pass
 | **Ambiente do PR** (`pr-env.yml`) | Builds and deploys the PR environment, checks its domain and smoke test, updates the pinned comment, and removes the Worker/domain after close. |
 | **Produção** (`deploy.yml`) | Push to `master` after merge; runs gates, deploys production, verifies the served build, and runs smoke checks. |
 
-See [Actions logs](https://github.com/Warlock-Domain/warlock/actions) and [CLAUDE.md pipeline details](CLAUDE.md#pipelines). A build failure leaves the previous deployment in place. A post-deployment smoke failure means the new deployment is already serving a problem: inspect its logs. If PR-environment cleanup fails, rerun that cleanup job. Production is published automatically; manual deployment is reserved for an authorized emergency.
+See [Actions logs](https://github.com/Warlock-Domain/warlock/actions) and [pipeline details](docs/WORKFLOW.md#pipelines). A build failure leaves the previous deployment in place. A post-deployment smoke failure means the new deployment is already serving a problem: inspect its logs. If PR-environment cleanup fails, rerun that cleanup job. Production is published automatically; manual deployment is reserved for an authorized emergency.
 
 ## Troubleshooting
 

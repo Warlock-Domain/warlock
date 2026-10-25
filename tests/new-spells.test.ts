@@ -9,12 +9,12 @@ import { MAX_SPELLS, RUSH, SPELLS, SPELL_IDS, WARPZONE, noSpells, spellLevel, ty
 import { dist, len, v } from '../src/shared/vec.ts';
 import { run, world as spotsWorld } from './helpers.ts';
 
-// mundo sem invulnerabilidade inicial; todos os magos com as magias dadas no nível 1
+// world without initial invulnerability; every wizard has the given spells at level 1
 const world = (spots: [number, number][], spells: SpellId[]) => spotsWorld(spots, { ...noSpells(), ...Object.fromEntries(spells.map((s) => [s, 1])) });
 
 const cast = (id: string, spell: SpellId, x: number, y: number): Cmd => ({ id, kind: 'cast', spell, at: v(x, y) });
 
-describe('Troca', () => {
+describe('Swap', () => {
   it('swaps places with the wizard it hits', () => {
     const w = world([[0, 0], [3, 0]], ['swap']);
     run(w, 0.5, [cast('p0', 'swap', 3, 0)]);
@@ -33,7 +33,7 @@ describe('Troca', () => {
   it('with no hit the caster ends where the projectile stopped, up to max range', () => {
     const w = world([[0, 0], [0, -8]], ['swap']);
     run(w, 0.6, [cast('p0', 'swap', 3, 0)]);
-    expect(w.wizards[0].pos.x).toBeCloseTo(1.5, 3); // errou: vai até a metade do caminho até a mira
+    expect(w.wizards[0].pos.x).toBeCloseTo(1.5, 3); // missed: goes halfway to the aim point
     w.wizards[0].cd.swap = 0;
     w.wizards[0].pos = v(0, 0);
     run(w, 1, [cast('p0', 'swap', 50, 0)]);
@@ -41,8 +41,8 @@ describe('Troca', () => {
   });
 });
 
-describe('escudo contra as magias novas', () => {
-  it('blocks Troca: nobody moves and the projectile is gone', () => {
+describe('Shield against the new spells', () => {
+  it('blocks Swap: nobody moves and the projectile is gone', () => {
     const w = world([[0, 0], [3, 0]], ['swap']);
     w.wizards[1].shieldUntil = 99;
     run(w, 0.5, [cast('p0', 'swap', 3, 0)]);
@@ -51,7 +51,7 @@ describe('escudo contra as magias novas', () => {
     expect(w.projectiles).toHaveLength(0);
   });
 
-  it('Escudo reduz novos status da areia sem refletir cone', () => {
+  it('Shield reduces the new sand statuses without reflecting the cone', () => {
     const w = world([[0, 0], [2.5, 0]], ['cluster']);
     w.wizards[1].shieldUntil = 99;
     let landed = false, reflected = false;
@@ -67,7 +67,7 @@ describe('escudo contra as magias novas', () => {
   });
 });
 
-describe('Agarrar', () => {
+describe('Grip', () => {
   it('stops the target from walking while it lasts, then releases', () => {
     const w = world([[0, 0], [4, 0]], ['grip']);
     run(w, 1.5, [cast('p0', 'grip', 4, 0)]);
@@ -85,13 +85,13 @@ describe('Agarrar', () => {
     const a = world([[0, 0], [4, 0]], ['fireball']);
     const g = world([[0, 0], [4, 0]], ['fireball']);
     Object.assign(g.wizards[1], { gripUntil: 99, gripBonus: 0.3 });
-    for (const x of [a, g]) x.wizards[1].invulnUntil = 0; // sem os 2 s de invulnerável do começo
+    for (const x of [a, g]) x.wizards[1].invulnUntil = 0; // without the 2 s of invulnerability at the start
     run(a, 1, [cast('p0', 'fireball', 4, 0)]);
     run(g, 1, [cast('p0', 'fireball', 4, 0)]);
     expect(len(a.wizards[1].vel)).toBeGreaterThan(1);
     expect(len(g.wizards[1].vel)).toBeCloseTo(len(a.wizards[1].vel) * 1.3, 3);
-    expect(g.wizards[1].gripUntil).toBe(0); // solto: o próximo golpe empurra normal
-    // nível 7: +90%
+    expect(g.wizards[1].gripUntil).toBe(0); // released: the next hit knocks back normally
+    // level 7: +90%
     const h = world([[0, 0], [4, 0]], ['grip']);
     h.wizards[0].spells.grip = 7;
     h.wizards[1].invulnUntil = 0;
@@ -105,13 +105,13 @@ describe('Agarrar', () => {
     stepWorld(c, [cast('p1', 'meteor', 0, 0)]);
     expect(c.wizards[1].casting).not.toBeNull();
     run(c, .08);
-    // Agarrar só bloqueia Mobilidade: a conjuração de Controle segue (PR #272).
+    // Grip only blocks Mobility: Control casting continues (PR #272).
     expect(c.wizards[1].gripUntil).toBeGreaterThan(c.t);
     expect(c.wizards[1].casting?.spell === 'meteor' || c.projectiles.some((p) => p.kind === 'meteor' && p.owner === 'p1')).toBe(true);
   });
 });
 
-describe('Meteoro', () => {
+describe('Meteor', () => {
   it('lands only after the delay and hurts only inside the radius', () => {
     const L = spellLevel('meteor', 1);
     const w = world([[0, 0], [4, 0], [4, L.radius + WIZ_R + 1]], ['meteor']);
@@ -120,10 +120,10 @@ describe('Meteoro', () => {
     expect(w.wizards[1].hp).toBe(HP_MAX);
     run(w, 1, []);
     expect(w.projectiles).toHaveLength(0);
-    expect(w.wizards[1].hp).toBeCloseTo(HP_MAX - L.dmg, -1); // no centro: dano máximo
-    expect(w.wizards[2].hp).toBe(HP_MAX); // fora do raio
-    expect(w.wizards[0].hp).toBe(HP_MAX); // quem lança não leva
-    expect(len(w.wizards[1].vel)).toBe(0); // troca empurrão por stun fixo.
+    expect(w.wizards[1].hp).toBeCloseTo(HP_MAX - L.dmg, -1); // at the center: max damage
+    expect(w.wizards[2].hp).toBe(HP_MAX); // outside the radius
+    expect(w.wizards[0].hp).toBe(HP_MAX); // the caster takes none
+    expect(len(w.wizards[1].vel)).toBe(0); // trades knockback for a fixed stun.
     expect(w.wizards[1].stunLeft).toBeGreaterThan(0);
   });
 
@@ -133,21 +133,21 @@ describe('Meteoro', () => {
     run(w, 1.7, [cast('p0', 'meteor', 4, 0)]);
     const lost = HP_MAX - w.wizards[1].hp;
     expect(lost).toBeGreaterThan(L.dmgMin - 2);
-    expect(lost).toBeLessThan(L.dmg * 0.7); // borda 60 desde 17/10 (era 40)
+    expect(lost).toBeLessThan(L.dmg * 0.7); // edge is 60 since 17/10 (was 40)
   });
 });
 
-describe('Investida', () => {
+describe('Rush', () => {
   it('raises walking speed and turns hits into extra speed', () => {
     const w = world([[0, 0], [4, 0]], ['rush', 'fireball']);
-    // avança para (4, 3), de lado, para a bola de fogo ir até lá
+    // advances to (4, 3), sideways, so the Fireball reaches it there
     run(w, 0.3, [cast('p1', 'rush', 4, 9)]);
     const z = w.wizards[1];
     expect(z.speed).toBeCloseTo(WIZ_SPEED + RUSH.bonus, 5);
     const fb = spellLevel('fireball', 1);
     run(w, 1.2, [cast('p0', 'fireball', z.pos.x, z.pos.y)]);
     expect(z.speed).toBeGreaterThan(WIZ_SPEED + RUSH.bonus);
-    expect(HP_MAX - z.hp).toBeCloseTo(fb.dmg - Math.min(spellLevel('rush', 1).absorb, fb.dmg * RUSH.share), -1); // absorveu até metade do golpe
+    expect(HP_MAX - z.hp).toBeCloseTo(fb.dmg - Math.min(spellLevel('rush', 1).absorb, fb.dmg * RUSH.share), -1); // absorbed up to half of the hit
   });
 
   it('the dash damages whoever it touches, once', () => {
@@ -180,8 +180,8 @@ describe('Investida', () => {
   });
 });
 
-describe('Rajada', () => {
-  it('aplica cone uma vez sem criar projéteis nem empurrar', () => {
+describe('Cluster', () => {
+  it('applies the cone once without creating projectiles or knockback', () => {
     const w = world([[0, 0], [3, 0]], ['cluster']);
     run(w, 0.15, [cast('p0', 'cluster', 3, 0)]);
     expect(w.projectiles.filter((p) => p.kind === 'cluster')).toHaveLength(0);
@@ -191,7 +191,7 @@ describe('Rajada', () => {
     expect(w.wizards[1].hp).toBeGreaterThan(HP_MAX - 4 * spellLevel('cluster', 1).dmg - 10);
   });
 
-  it('não destrói projéteis em voo', () => {
+  it('does not destroy projectiles in flight', () => {
     const w = world([[0, 0], [8, 0]], ['cluster', 'fireball']);
     let clashed = false;
     stepWorld(w, [cast('p0', 'cluster', 8, 0), cast('p1', 'fireball', 0, 0)]);
@@ -203,11 +203,11 @@ describe('Rajada', () => {
   });
 });
 
-describe('snapshot e telemetria', () => {
+describe('snapshot and telemetry', () => {
   it('encodes new statuses and projectile kinds', () => {
     const w = world([[0, 0], [4, 0]], ['rush', 'grip', 'meteor']);
     w.wizards[0].gripUntil = 9;
-    w.wizards[0].rushUntil = 9; // testa codificação, não lançamento de mobilidade enquanto preso.
+    w.wizards[0].rushUntil = 9; // tests encoding, not casting mobility while gripped.
     run(w, 0.1, [cast('p1', 'meteor', 5, 0)]);
     run(w, 0.2);
     const snap = decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']);
@@ -235,7 +235,7 @@ describe('snapshot e telemetria', () => {
   });
 });
 
-describe('limite de 8 magias', () => {
+describe('6-spell limit', () => {
   const shop = () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
@@ -245,31 +245,31 @@ describe('limite de 8 magias', () => {
     return m;
   };
 
-  it('refuses a 9th different spell; undo frees the slot; upgrades keep working', () => {
+  it('refuses a 7th different spell; undo frees the slot; upgrades keep working', () => {
     const m = shop();
     m.players[0].gold = 999;
-    // Bola de fogo e Flagelo já vêm: mais 6 enchem as 8 vagas (21/10, #217)
-    const six: SpellId[] = ['lightning', 'homing', 'shield', 'teleport', 'swap', 'grip'];
-    for (const s of six) expect(buy(m, 'a', s)).toBe(true);
-    expect(MAX_SPELLS).toBe(8);
+    // Fireball and Scourge come free: 4 more fill the 6 slots (Q W E R D F, 25/10, #401)
+    const four: SpellId[] = ['lightning', 'homing', 'shield', 'teleport'];
+    for (const s of four) expect(buy(m, 'a', s)).toBe(true);
+    expect(MAX_SPELLS).toBe(6);
     const gold = m.players[0].gold;
     expect(buy(m, 'a', 'meteor')).toBe(false);
     expect(m.players[0].gold).toBe(gold);
     expect(m.players[0].spells.meteor).toBe(0);
-    expect(buy(m, 'a', 'lightning')).toBe(true); // nível 2 da mesma
-    expect(undoBuy(m, 'a', 'spell:swap')).toBe(true);
+    expect(buy(m, 'a', 'lightning')).toBe(true); // level 2 of the same spell
+    expect(undoBuy(m, 'a', 'spell:teleport')).toBe(true);
     expect(buy(m, 'a', 'meteor')).toBe(true);
   });
 
   it('bots stop buying new spells at the limit but still upgrade', () => {
-    const spells = { ...noSpells(), lightning: 1, homing: 1, meteor: 1, cluster: 1, shield: 1, teleport: 1 };
+    const spells = { ...noSpells(), lightning: 1, homing: 1, meteor: 1, cluster: 1 };
     const pick = botBuy({ gold: 99, spells });
     expect(pick?.kind).toBe('spell');
     expect(pick && pick.kind === 'spell' && spells[pick.id] > 0).toBe(true);
   });
 });
 
-describe('bots com as magias novas', () => {
+describe('bots with the new spells', () => {
   const duel = (own: Partial<Record<SpellId, number>>) => {
     const w = newWorld(['bot', 'x'], { bot: { ...noSpells(), ...own }, x: noSpells() });
     w.wizards[0].pos = v(0, 0);
@@ -285,7 +285,7 @@ describe('bots com as magias novas', () => {
   });
 });
 
-// as cinco do Warlock Brawl (17/10): Bumerangue, Estocada, Gravidade, Pilar de pedra e Ricochete
+// the five from Warlock Brawl (17/10): Boomerang, Thrust, Gravity, Rock pillar and Bouncer
 function runEvents(w: World, seconds: number, cmds: Cmd[] = [], each?: () => void) {
   const out: SimEvent[] = [];
   for (let i = 0; i < Math.round(seconds / DT); i++) {
@@ -297,8 +297,8 @@ function runEvents(w: World, seconds: number, cmds: Cmd[] = [], each?: () => voi
 }
 const hitsOf = (ev: SimEvent[], src: string) => ev.filter((e): e is Extract<SimEvent, { k: 'hit' }> => e.k === 'hit' && e.src === src);
 
-describe('Bumerangue', () => {
-  // voo livre até (4, 0): guarda a trajetória e se o bumerangue já estava voltando
+describe('Boomerang', () => {
+  // free flight to (4, 0): records the path and whether the boomerang was already returning
   function freeFlight() {
     const w = world([[0, 0], [0, -8]], ['boomerang']);
     const path: { x: number; y: number; back: boolean }[] = [];
@@ -313,9 +313,9 @@ describe('Bumerangue', () => {
     const { w, path } = freeFlight();
     const far = Math.max(...path.map((q) => q.x));
     expect(far).toBeGreaterThan(3.5);
-    expect(far).toBeLessThan(4.7); // o passo de 1/60 s passa um pouco do ponto
-    expect(path.some((q) => q.y > 0.2)).toBe(true); // ida curva para um lado
-    expect(path.some((q) => q.y < -0.2)).toBe(true); // volta pelo outro
+    expect(far).toBeLessThan(4.7); // the 1/60 s step overshoots the point slightly
+    expect(path.some((q) => q.y > 0.2)).toBe(true); // outbound curves to one side
+    expect(path.some((q) => q.y < -0.2)).toBe(true); // returns on the other
     expect(w.projectiles).toHaveLength(0);
     expect(dist(path[path.length - 1], w.wizards[0].pos)).toBeLessThan(1);
   });
@@ -328,7 +328,7 @@ describe('Bumerangue', () => {
     expect(hits.length).toBeGreaterThanOrEqual(1);
     expect(hits[0].id).toBe('p1');
     expect(hits[0].dmg).toBeCloseTo(SPELLS.boomerang.levels[0].dmg, 5);
-    expect(w.projectiles).toHaveLength(0); // voltou e sumiu no dono
+    expect(w.projectiles).toHaveLength(0); // came back and vanished at the owner
     expect(ev.filter((e) => e.k === 'land')).toHaveLength(1);
   });
 
@@ -344,7 +344,7 @@ describe('Bumerangue', () => {
   });
 });
 
-describe('Estocada', () => {
+describe('Thrust', () => {
   const thrustHit = (gap: number) => {
     const w = world([[0, 0], [gap, 0]], ['thrust']);
     const ev = runEvents(w, 1, [cast('p0', 'thrust', gap, 0)]);
@@ -359,8 +359,8 @@ describe('Estocada', () => {
     expect(far.w.wizards[0].pos.x).toBeGreaterThan(4);
     expect(near.hit.dmg).toBeLessThan(far.hit.dmg);
     expect(far.hit.dmg).toBeLessThanOrEqual(SPELLS.thrust.levels[0].dmg);
-    expect(far.w.wizards[1].vel.x).toBeGreaterThan(0); // empurrou o alvo
-    expect(len(far.w.wizards[0].vel)).toBe(0); // quem estocou para no golpe
+    expect(far.w.wizards[1].vel.x).toBeGreaterThan(0); // knocked the target back
+    expect(len(far.w.wizards[0].vel)).toBe(0); // the thruster stops on the hit
   });
 
   it('without a hit it stops near the click point and slows down', () => {
@@ -372,13 +372,13 @@ describe('Estocada', () => {
   });
 });
 
-describe('Gravidade', () => {
+describe('Gravity', () => {
   it('pulls a nearby enemy and burns it', () => {
     const w = world([[0, 0], [2, 1.5]], ['gravity']);
     run(w, 1, [cast('p0', 'gravity', 5, 0)]);
     expect(w.wizards[1].pos.y).toBeLessThan(1.4);
     expect(w.wizards[1].hp).toBeLessThan(w.wizards[1].hpMax);
-    expect(w.wizards[0].pos).toEqual(v(0, 0)); // quem lançou não é puxado
+    expect(w.wizards[0].pos).toEqual(v(0, 0)); // the caster is not pulled
   });
 
   it('bends a passing projectile', () => {
@@ -392,7 +392,7 @@ describe('Gravidade', () => {
   });
 });
 
-describe('Pilar de pedra', () => {
+describe('Rock pillar', () => {
   it('raises an obstacle at the click point (up to its range) that vanishes after 5 s', () => {
     const w = world([[0, 0], [0, -8]], ['rockpillar']);
     run(w, 0.1, [cast('p0', 'rockpillar', 3, 0)]);
@@ -401,7 +401,7 @@ describe('Pilar de pedra', () => {
     expect(dist(p.pos, v(3, 0))).toBeLessThan(1e-9);
     const view = decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']);
     expect(view.pillars.some((q) => q.kind === 'rockpillar' && q.hp > 0)).toBe(true);
-    run(w, 5); // 4 → 5 s no ciclo 1 de balanceamento
+    run(w, 5); // 4 → 5 s in balancing cycle 1
     expect(p.alive).toBe(false);
     w.wizards[0].cd.rockpillar = 0;
     run(w, 0.1, [cast('p0', 'rockpillar', 50, 0)]);
@@ -413,16 +413,16 @@ describe('Pilar de pedra', () => {
     run(w, 0.1, [cast('p0', 'rockpillar', 3, 0)]);
     const parts = w.pillars.filter((q) => q.kind === 'rockpillar');
     expect(parts).toHaveLength(3);
-    // atravessada: os pedaços em x = 3, espalhados no eixo y (perpendicular ao caminho mago → ponto)
+    // across the line: pieces at x = 3, spread along the y axis (perpendicular to the wizard → point path)
     for (const q of parts) expect(q.pos.x).toBeCloseTo(3, 9);
     const ys = parts.map((q) => q.pos.y).sort((a, b) => a - b);
     expect(ys[2] - ys[0] + 2 * OBSTACLES.rockpillar.r).toBeCloseTo(2, 5);
-    // a Bola de fogo pega um pedaço só: a vida cai nos 3
+    // the Fireball hits only one piece: the hp drops on all 3
     const ev = runEvents(w, 1, [cast('p1', 'fireball', 3, 0.3)]);
     expect(ev.some((e) => e.k === 'pillar')).toBe(true);
     expect(new Set(parts.map((q) => q.hp)).size).toBe(1);
     expect(parts[0].hp).toBeLessThan(OBSTACLES.rockpillar.hp);
-    // quebra junto e explode uma vez
+    // breaks together and explodes once
     w.wizards[1].cd.fireball = 0;
     const blasts: SimEvent[] = [];
     for (let k = 0; k < 6 && parts[0].alive; k++) {
@@ -436,23 +436,23 @@ describe('Pilar de pedra', () => {
   it('a wizard walking into the wall stops at it (no gap between the pieces)', () => {
     const w = world([[0, 0], [0, -8]], ['rockpillar']);
     run(w, 0.1, [cast('p0', 'rockpillar', 2, 0)]);
-    // 4 tentativas de 1,1 s cabem nos 5 s da parede
+    // 4 attempts of 1.1 s fit in the wall's 5 s
     for (const y of [0, 0.33, -0.33, 0.66]) {
       w.wizards[0].pos = v(0.5, y);
       run(w, 1.1, [{ id: 'p0', kind: 'move', to: v(4, y) }]);
-      expect(w.wizards[0].pos.x).toBeLessThan(1.45); // entre dois pedaços a face da parede fica 6 cm mais funda; ninguém passa
+      expect(w.wizards[0].pos.x).toBeLessThan(1.45); // between two pieces the wall face is 6 cm deeper; nobody gets through
     }
   });
 });
 
-describe('Ricochete', () => {
+describe('Bouncer', () => {
   it('after a hit it goes to the nearest enemy, never back to the caster; from an obstacle too', () => {
-    // p0 lança em p1; o próximo mais perto de p1 é o próprio p0 (2 m), mas tem de ir para p2 (3 m)
+    // p0 casts at p1; the nearest to p1 is p0 itself (2 m), but it must go to p2 (3 m)
     const w = world([[0, 0], [2, 0], [2, 3]], ['bouncer']);
     const ev = runEvents(w, 2, [cast('p0', 'bouncer', 2, 0)]);
     const ids = ev.filter((e) => e.k === 'hit' && e.src === 'bouncer').map((e) => (e.k === 'hit' ? e.id : ''));
     expect(ids.slice(0, 2)).toEqual(['p1', 'p2']);
-    // obstáculo no caminho: quica e segue para o inimigo
+    // obstacle in the way: bounces and goes on to the enemy
     const w2 = world([[0, 0], [0, 4]], ['bouncer']);
     w2.pillars = [{ pos: v(2, 0), hp: 999, alive: true, kind: 'rock' }];
     const ev2 = runEvents(w2, 2, [cast('p0', 'bouncer', 2, 0)]);
@@ -461,7 +461,7 @@ describe('Ricochete', () => {
 
   it('jumps to the next wizard with 70% of the damage and stops once it would drop below 10', () => {
     const w = world([[-2, 0], [2, 0], [2, 2]], ['bouncer']);
-    for (const z of w.wizards) z.kbResist = 1; // sem empurrão: os alvos ficam no lugar
+    for (const z of w.wizards) z.kbResist = 1; // no knockback: targets stay in place
     const ev = runEvents(w, 3, [cast('p0', 'bouncer', 2, 0)]);
     const hits = hitsOf(ev, 'bouncer');
     const d0 = SPELLS.bouncer.levels[0].dmg;
@@ -472,7 +472,7 @@ describe('Ricochete', () => {
   });
 });
 
-describe('Bumerangue e baú', () => {
+describe('Boomerang and chest', () => {
   it('the boomerang damages the chest', () => {
     const w = world([[0, 0], [9, 9]], ['boomerang']);
     w.pillars = [{ pos: v(2.5, 0), hp: 250, alive: true, kind: 'chest' }];
@@ -481,8 +481,8 @@ describe('Bumerangue e baú', () => {
   });
 });
 
-// as dez restantes do Warlock Brawl (17/10)
-describe('Drenar', () => {
+// the remaining ten from Warlock Brawl (17/10)
+describe('Drain', () => {
   it('on an enemy: damage, slow and a healing orb that flies back to the caster', () => {
     const w = world([[0, 0], [3, 0]], ['drain']);
     const L = spellLevel('drain', 1);
@@ -493,7 +493,7 @@ describe('Drenar', () => {
     expect(w.projectiles.some((p) => p.kind === 'drain' && p.back)).toBe(true);
     run(w, 1.5);
     expect(w.projectiles).toHaveLength(0);
-    expect(w.wizards[0].hp).toBeGreaterThan(800 + L.dmg - 1); // cura + regeneração
+    expect(w.wizards[0].hp).toBeGreaterThan(800 + L.dmg - 1); // heal + regeneration
   });
 
   it('on an ally (Times): heals and hastes instead of hurting', () => {
@@ -508,49 +508,49 @@ describe('Drenar', () => {
   });
 });
 
-describe('Bola de neve', () => {
+describe('Snowball', () => {
   it('rolls through the target dragging it along, hurts while touching and explodes at the end', () => {
     const w = world([[0, 0], [2, 0]], ['snowball']);
     const L = spellLevel('snowball', 1);
     const ev = runEvents(w, 2.5, [cast('p0', 'snowball', 5, 0)]);
     const hits = hitsOf(ev, 'snowball');
-    expect(w.wizards[1].pos.x).toBeGreaterThan(3); // arrastado
-    expect(hits.filter((h) => h.dmg === L.dot * 0.5).length).toBeGreaterThanOrEqual(1); // dano de quem encostou
-    expect(hits.length).toBeGreaterThanOrEqual(2); // e a explosão
+    expect(w.wizards[1].pos.x).toBeGreaterThan(3); // dragged
+    expect(hits.filter((h) => h.dmg === L.dot * 0.5).length).toBeGreaterThanOrEqual(1); // damage to whoever touched it
+    expect(hits.length).toBeGreaterThanOrEqual(2); // and the explosion
     expect(ev.some((e) => e.k === 'clash' && e.combo === 'snow')).toBe(true);
     expect(w.wizards[0].hp).toBe(HP_MAX);
     expect(w.projectiles).toHaveLength(0);
   });
 });
 
-describe('Ilusão', () => {
+describe('Illusion', () => {
   const L = spellLevel('illusion', 1);
   const copy = (w: World) => w.projectiles.find((p) => p.kind === 'illusion');
 
-  it('números: 2 s de cópia em todos os níveis, recarga 14 a 11 s, custo 12', () => {
+  it('numbers: 2 s of copy at every level, cooldown 14 to 11 s, cost 12', () => {
     expect(SPELLS.illusion.levels.map((l) => [l.duration, l.cd])).toEqual([[2, 14], [2, 13.5], [2, 13], [2, 12.5], [2, 12], [2, 11.5], [2, 11]]);
     expect([SPELLS.illusion.cost, SPELLS.illusion.up]).toEqual([12, [6, 7, 8, 9, 10, 11]]);
   });
 
-  it('a cópia sai do lugar do jogador e segue independente enquanto ele se move invisível', () => {
+  it('the copy leaves the player spot and keeps going independently while the player moves invisible', () => {
     const w = world([[0, 0], [0, -8]], ['illusion']);
     w.wizards[0].vel = v(0, WIZ_SPEED);
-    w.wizards[0].target = v(-5, 0); // velocidade atual prevalece sobre destino e mira da magia
+    w.wizards[0].target = v(-5, 0); // current velocity takes precedence over the destination and the spell aim
     stepWorld(w, [cast('p0', 'illusion', 5, 0)]);
     const copyStart = { ...copy(w)!.pos };
     const copyVel = { ...copy(w)!.vel };
-    w.wizards[0].target = v(5, 0); // o jogador pode escolher outra direção sem redirecionar a cópia
+    w.wizards[0].target = v(5, 0); // the player can pick another direction without redirecting the copy
     run(w, 1);
     expect(copy(w)!.pos.x).toBeCloseTo(copyStart.x + copyVel.x, 2);
     expect(copy(w)!.pos.y).toBeCloseTo(copyStart.y + copyVel.y, 2);
     expect(w.wizards[0].pos.x).toBeGreaterThan(0);
-    expect(w.wizards[0].pos.y).toBeGreaterThan(0); // mantém o movimento próprio iniciado antes da mudança de direção
+    expect(w.wizards[0].pos.y).toBeGreaterThan(0); // keeps its own movement started before the direction change
     expect(copy(w)!.vel.x).toBeCloseTo(copyVel.x, 6);
     expect(copy(w)!.vel.y).toBeCloseTo(copyVel.y, 6);
     expect(w.wizards[0].veilUntil).toBeCloseTo(L.duration, 6);
     const ids = ['p0', 'p1'];
-    expect(decodeSnap(encodeSnap(w, 'p0', 0, []), ids).wizards[0].status & 1024).toBe(1024); // si mesmo vê a versão translúcida da Caminhada no vento
-    expect(decodeSnap(encodeSnap(w, 'p1', 0, []), ids).wizards[0].status & 2048).toBe(2048); // adversário não vê o jogador
+    expect(decodeSnap(encodeSnap(w, 'p0', 0, []), ids).wizards[0].status & 1024).toBe(1024); // the player sees the translucent Windwalk version of itself
+    expect(decodeSnap(encodeSnap(w, 'p1', 0, []), ids).wizards[0].status & 2048).toBe(2048); // the opponent does not see the player
     run(w, L.duration - 1 - 3 * DT);
     expect(copy(w)).toBeTruthy();
     run(w, 6 * DT);
@@ -558,7 +558,7 @@ describe('Ilusão', () => {
     expect(decodeSnap(encodeSnap(w, 'p1', 0, []), ids).wizards[0].status & 2048).toBe(0);
   });
 
-  it('usa o destino de movimento quando o jogador ainda não ganhou velocidade', () => {
+  it('uses the movement destination when the player has not gained speed yet', () => {
     const w = world([[0, 0], [0, -8]], ['illusion']);
     w.wizards[0].target = v(-5, 0);
     stepWorld(w, [cast('p0', 'illusion', 0, 5)]);
@@ -566,14 +566,14 @@ describe('Ilusão', () => {
     expect(Math.abs(copy(w)!.vel.y)).toBeLessThan(1e-6);
   });
 
-  it('adversários não veem o jogador invisível pela Ilusão', () => {
+  it('opponents do not see the player made invisible by Illusion', () => {
     const w = world([[0, 0], [0, -8]], ['illusion']);
     stepWorld(w, [cast('p0', 'illusion', 5, 0)]);
     const bit = decodeSnap(encodeSnap(w, 'p1', 0, []), ['p0', 'p1']).wizards[0].status & 2048;
     expect(bit).toBe(2048);
   });
 
-  it('só o dono vê seu véu; os aliados também recebem o jogador oculto', () => {
+  it('only the owner sees its veil; allies also receive the player hidden', () => {
     const w = world([[0, 0], [0, -8]], ['illusion']);
     w.wizards.forEach((z) => (z.team = 0));
     stepWorld(w, [cast('p0', 'illusion', 5, 0)]);
@@ -582,20 +582,20 @@ describe('Ilusão', () => {
     expect(decodeSnap(encodeSnap(w, 'p1', 0, []), ids).wizards[0].status & 2048).toBe(2048);
   });
 
-  it('o jogador pode ser atingido sem perder a invisibilidade antes dos 2 s', () => {
+  it('the player can be hit without losing invisibility before 2 s', () => {
     const w = world([[0, 0], [0, -8]], ['illusion']);
     stepWorld(w, [cast('p0', 'illusion', 5, 0)]);
     const until = w.wizards[0].veilUntil;
-    copy(w)!.pos = v(5, 5); // o projétil acerta o personagem real, não a cópia
+    copy(w)!.pos = v(5, 5); // the projectile hits the real character, not the copy
     w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'fireball', owner: 'p1', caster: 'p1', pos: v(0, -0.5), vel: v(0, 20), level: 1, until: w.t + 2, target: null, dmgMult: 1 });
     stepWorld(w, []);
-    expect(w.wizards[0].hp).toBeLessThan(HP_MAX); // invisibilidade não é invulnerabilidade
+    expect(w.wizards[0].hp).toBeLessThan(HP_MAX); // invisibility is not invulnerability
     expect(w.wizards[0].veilUntil).toBe(until);
     expect(decodeSnap(encodeSnap(w, 'p1', 0, []), ['p0', 'p1']).wizards[0].status & 2048).toBe(2048);
     expect(copy(w)).toBeTruthy();
   });
 
-  it('usar outra magia revela o jogador, mas não encerra a cópia antes dos 2 s', () => {
+  it('using another spell reveals the player, but does not end the copy before 2 s', () => {
     const w = world([[0, 0], [0, -8]], ['illusion']);
     w.wizards[0].spells.fireball = 1;
     stepWorld(w, [cast('p0', 'illusion', 5, 0)]);
@@ -606,22 +606,22 @@ describe('Ilusão', () => {
     expect(copy(w)).toBeTruthy();
   });
 
-  it('projétil não destrói a cópia e a empurra enquanto o jogador segue livre e invisível', () => {
+  it('a projectile does not destroy the copy and knocks it back while the player moves on, free and invisible', () => {
     const w = world([[0, 0], [5, 0]], ['illusion']);
     stepWorld(w, [cast('p0', 'illusion', 0, 5)]);
     const q = copy(w)!;
     q.pos = v(0, 0);
-    q.vel = v(0, 0); // isola o empurrão do movimento natural da cópia
-    w.wizards[0].pos = v(5, 0); // jogador real já se moveu livremente para longe da cópia
+    q.vel = v(0, 0); // isolates the knockback from the copy's natural movement
+    w.wizards[0].pos = v(5, 0); // the real player has already moved freely away from the copy
     w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'fireball', owner: 'p1', caster: 'p1', pos: v(0, -0.5), vel: v(0, 20), level: 1, until: w.t + 2, target: null, dmgMult: 1 });
     stepWorld(w, []);
-    expect(copy(w)).toBe(q); // o impacto não encerra a duração
-    expect(q.pushVel?.y).toBeGreaterThan(0); // empurrão não vira caminhada
-    expect(w.wizards[0].pos.x).toBeGreaterThan(0); // personagem independente, longe do impacto
+    expect(copy(w)).toBe(q); // the impact does not end the duration
+    expect(q.pushVel?.y).toBeGreaterThan(0); // knockback does not turn into walking
+    expect(w.wizards[0].pos.x).toBeGreaterThan(0); // independent character, away from the impact
     expect(w.wizards[0].hp).toBe(HP_MAX);
   });
 
-  it('empurrão lateral não muda a direção de caminhada da cópia e perde força', () => {
+  it('sideways knockback does not change the copy walking direction and loses strength', () => {
     const w = world([[0, 0], [5, 0]], ['illusion']);
     stepWorld(w, [cast('p0', 'illusion', 5, 0)]);
     const q = copy(w)!;
@@ -641,7 +641,7 @@ describe('Ilusão', () => {
     expect(copy(w)).toBe(q);
   });
 
-  it('Flagelo desloca a cópia sem alterar sua direção de caminhada', () => {
+  it('Scourge displaces the copy without changing its walking direction', () => {
     const w = world([[0, 0], [0, -0.5]], ['illusion']);
     stepWorld(w, [cast('p0', 'illusion', 5, 0)]);
     const q = copy(w)!;
@@ -654,7 +654,7 @@ describe('Ilusão', () => {
     expect(copy(w)).toBe(q);
   });
 
-  it.each([[0, 0], [350, 0.35]])('cópia e jogador recebem o mesmo impulso com dano %s e resistência %s', (taken, resist) => {
+  it.each([[0, 0], [350, 0.35]])('copy and player receive the same impulse with damage %s and resistance %s', (taken, resist) => {
     const w = world([[0, 0], [5, -5], [3, 0]], ['illusion']);
     for (const i of [0, 2]) {
       w.wizards[i].dmgTaken = taken;
@@ -673,33 +673,33 @@ describe('Ilusão', () => {
     expect(q.pos.y - qy).toBeCloseTo(w.wizards[2].pos.y - py, 8);
   });
 
-  it('o projétil que atravessa a cópia a empurra uma vez só', () => {
+  it('a projectile passing through the copy knocks it back only once', () => {
     const w = world([[0, 0], [5, 0]], ['illusion']);
     stepWorld(w, [cast('p0', 'illusion', 0, 5)]);
     const q = copy(w)!;
     q.pos = v(0, 0);
     q.vel = v(0, 0);
-    // na velocidade real: a bola de fogo passa vários passos dentro da cópia
+    // at real speed: the Fireball spends several steps inside the copy
     w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'fireball', owner: 'p1', caster: 'p1', pos: v(0, -0.6), vel: v(0, spellLevel('fireball', 1).speed), level: 1, until: w.t + 2, target: null, dmgMult: 1 });
     run(w, 0.5);
     expect(q.vel).toEqual(v(0, 0));
     expect(q.pushVel!.y).toBeCloseTo(spellLevel('fireball', 1).knock * Math.exp(-FRICTION * (0.5 - DT)), 5);
   });
 
-  it('o Míssil teleguiado inimigo que mirava o dono persegue a cópia enquanto ela existir', () => {
+  it('the enemy Homing missile that aimed at the owner chases the copy while it exists', () => {
     const w = world([[0, 0], [5, 0]], ['illusion', 'homing']);
-    stepWorld(w, [cast('p0', 'illusion', 0, 5)]); // a cópia sobe; o dono fica
-    stepWorld(w, [cast('p1', 'homing', 0, 0)]); // o míssil escolhe o dono, o mais perto da mira
+    stepWorld(w, [cast('p0', 'illusion', 0, 5)]); // the copy goes up; the owner stays
+    stepWorld(w, [cast('p1', 'homing', 0, 0)]); // the missile picks the owner, the closest to the aim
     run(w, 0.5);
     const missile = () => w.projectiles.find((p) => p.kind === 'homing')!;
     expect(missile().target).toBe('p0');
-    expect(missile().vel.y).toBeGreaterThan(0.2 * len(missile().vel)); // virou para a cópia, que está acima do dono
+    expect(missile().vel.y).toBeGreaterThan(0.2 * len(missile().vel)); // turned toward the copy, which is above the owner
     expect(w.wizards[0].hp).toBe(HP_MAX);
-    copy(w)!.until = 0; // a cópia acaba: o míssil volta para o dono e o acerta
+    copy(w)!.until = 0; // the copy ends: the missile goes back to the owner and hits it
     expect(hitsOf(runEvents(w, 1.5), 'homing').some((h) => h.id === 'p0')).toBe(true);
   });
 
-  it('o bot inimigo não enxerga o dono velado e mira a cópia; depois do véu fica com o mais perto', () => {
+  it('the enemy bot cannot see the veiled owner and aims at the copy; after the veil it picks the nearest', () => {
     const w = world([[0, 0], [4, 0]], ['illusion']);
     const aim = () => botCmds(w, 'p1', () => 0.5).find((c) => c.kind === 'cast');
     const step = (secs: number, cmds: Cmd[] = []) => {
@@ -709,23 +709,23 @@ describe('Ilusão', () => {
       }
     };
     step(0.3);
-    expect(aim()).toMatchObject({ spell: 'fireball', at: { y: expect.closeTo(0, 0) } }); // antes: no dono, parado
+    expect(aim()).toMatchObject({ spell: 'fireball', at: { y: expect.closeTo(0, 0) } }); // before: at the owner, standing still
     step(0.45, [cast('p0', 'illusion', 0, 5)]);
     const veiled = aim();
     expect(w.t).toBeLessThan(0.3 + L.duration);
-    expect(veiled?.kind === 'cast' && veiled.at.y).toBeGreaterThan(0.45); // na cópia, que sobe (o dono está em y = 0)
-    step(1.7); // a cópia e a invisibilidade acabam juntas
+    expect(veiled?.kind === 'cast' && veiled.at.y).toBeGreaterThan(0.45); // at the copy, which goes up (the owner is at y = 0)
+    step(1.7); // the copy and the invisibility end together
     const after = aim();
     expect(after?.kind === 'cast' && Math.abs(after.at.y)).toBeLessThan(0.3);
   });
 
-  it('os Gêmeos saíram de tudo; magia desconhecida (salas, mensagens e planos de bot antigos) não quebra', () => {
+  it('the Twins are gone from everything; unknown spell (old rooms, messages and bot plans) does not break', () => {
     expect(SPELL_IDS).not.toContain('twin');
     expect(PROJ_KINDS).not.toContain('twin');
     expect('twin' in SPELLS).toBe(false);
     expect(parseClientMessage(JSON.stringify({ t: 'cast', spell: 'twin', x: 1, y: 1, seq: 1 }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: 'buy', spell: 'twin' }))).toBeNull();
-    // sala gravada com os Gêmeos comprados e um bot que planejava comprá-los
+    // saved room with the Twins bought and a bot that planned to buy them
     const m = newMatch();
     addPlayer(m, 'b', 'Bot', true);
     const p = m.players[0] as (typeof m.players)[number] & { plan?: BotPlan };
@@ -738,7 +738,7 @@ describe('Ilusão', () => {
   });
 });
 
-describe('Magnetizar', () => {
+describe('Magnetize', () => {
   it('a magnetized enemy pulls in a shot that would have missed', () => {
     const shotHits = (magnet: boolean) => {
       const w = world([[0, 0], [4, 0]], ['magnetize']);
@@ -756,18 +756,18 @@ describe('Magnetizar', () => {
   });
 });
 
-describe('Recarga', () => {
+describe('Recharge', () => {
   it('a hit sends back an orb that resets the cooldown, and the next hit deals +10', () => {
     const w = world([[0, 0], [3, 0]], ['recharge']);
     w.wizards[1].kbResist = 1;
     const L = spellLevel('recharge', 1);
     const first = hitsOf(runEvents(w, 2, [cast('p0', 'recharge', 3, 0)]), 'recharge');
     expect(first[0].dmg).toBeCloseTo(L.dmg, 5);
-    expect(w.wizards[0].cd.recharge).toBeLessThanOrEqual(w.t); // recarga zerada pela volta
+    expect(w.wizards[0].cd.recharge).toBeLessThanOrEqual(w.t); // cooldown reset by the return
     expect(w.wizards[0].streak).toBe(1);
     const second = hitsOf(runEvents(w, 1, [cast('p0', 'recharge', 3, 0)]), 'recharge');
     expect(second[0].dmg).toBeCloseTo(L.dmg + 10, 5);
-    // errou: zera
+    // missed: resets
     runEvents(w, 2.5);
     w.wizards[0].cd.recharge = 0;
     runEvents(w, 1.5, [cast('p0', 'recharge', 0, 5)]);
@@ -775,20 +775,20 @@ describe('Recarga', () => {
   });
 });
 
-describe('Alteração', () => {
+describe('Alteration', () => {
   it('swaps places with the first enemy projectile that gets close, unharmed', () => {
     const w = world([[0, 0], [4, 0]], ['alteration']);
     runEvents(w, 0.6, [cast('p1', 'alteration', 4, 0), cast('p0', 'fireball', 4, 0)]);
-    expect(w.wizards[1].pos.x).toBeLessThan(3.4); // foi para onde o projétil estava
+    expect(w.wizards[1].pos.x).toBeLessThan(3.4); // went to where the projectile was
     expect(w.wizards[1].alterUntil).toBe(0);
     const fb = w.projectiles.find((p) => p.kind === 'fireball')!;
-    expect(fb.pos.x).toBeGreaterThan(w.wizards[1].pos.x); // segue em frente, para longe
+    expect(fb.pos.x).toBeGreaterThan(w.wizards[1].pos.x); // keeps going forward, away
     run(w, 1);
     expect(w.wizards[1].hp).toBe(HP_MAX);
   });
 });
 
-describe('Elo', () => {
+describe('Link', () => {
   it('latches onto an enemy, pulls it to the caster with damage, then lets go', () => {
     const w = world([[0, 0], [5, 0]], ['link']);
     let linkedBit = false;
@@ -808,26 +808,26 @@ describe('Elo', () => {
     w.pillars = [{ pos: v(4, 0), hp: 400, alive: true, kind: 'pillar' }];
     let far = 0;
     runEvents(w, 2, [cast('p0', 'link', 4, 0)], () => (far = Math.max(far, w.wizards[0].pos.x)));
-    expect(far).toBeGreaterThan(2.5); // chega no obstáculo (e quica nele)
+    expect(far).toBeGreaterThan(2.5); // reaches the obstacle (and bounces off it)
   });
 });
 
-describe('Caminhada no vento', () => {
+describe('Windwalk', () => {
   it('invisible to enemies and faster; the first enemy touched takes the hit and it ends', () => {
     const w = world([[0, 0], [3, 0]], ['windwalk']);
     run(w, 0.1, [cast('p0', 'windwalk', 0, 0), { id: 'p0', kind: 'move', to: v(6, 0) }]);
     expect(w.wizards[0].speed).toBeGreaterThan(WIZ_SPEED * 1.5);
     const ids = ['p0', 'p1'];
-    expect(decodeSnap(encodeSnap(w, 'p1', 0, []), ids).wizards[0].status & 2048).toBe(2048); // o inimigo não vê
-    expect(decodeSnap(encodeSnap(w, 'p0', 0, []), ids).wizards[0].status & 1024).toBe(1024); // quem anda vê o efeito
+    expect(decodeSnap(encodeSnap(w, 'p1', 0, []), ids).wizards[0].status & 2048).toBe(2048); // the enemy cannot see
+    expect(decodeSnap(encodeSnap(w, 'p0', 0, []), ids).wizards[0].status & 1024).toBe(1024); // the walker sees the effect
     const ev = runEvents(w, 1.5);
     expect(hitsOf(ev, 'windwalk')[0]?.dmg).toBeCloseTo(spellLevel('windwalk', 1).dmg, 5);
-    expect(w.wizards[1].pos.x).toBeGreaterThan(3); // houve empurrão; o residual termina ao liberar o controle.
+    expect(w.wizards[1].pos.x).toBeGreaterThan(3); // there was knockback; the residual ends when control is released.
     expect(w.wizards[0].windUntil).toBe(0);
   });
 });
 
-describe('Divisor', () => {
+describe('Splitter', () => {
   it('splits at the click point into 8 shards that fan out and hit whoever is ahead', () => {
     const w = world([[0, 0], [5, 0]], ['splitter']);
     const shards = new Set<number>();
@@ -840,7 +840,7 @@ describe('Divisor', () => {
   });
 });
 
-describe('Zona de dobra', () => {
+describe('Warp zone', () => {
   it('slows enemy projectiles inside it, not the caster own', () => {
     const fireballX = (zone: boolean, shooter: string) => {
       const w = world([[0, -3], [6, 0]], ['warpzone']);
@@ -849,8 +849,8 @@ describe('Zona de dobra', () => {
       run(w, 0.8, [...(zone ? [cast('p0', 'warpzone', 3, 0)] : []), { id: shooter, kind: 'cast', spell: 'fireball', at }]);
       return w.projectiles.find((p) => p.kind === 'fireball')!.pos.x;
     };
-    expect(fireballX(true, 'p1')).toBeGreaterThan(fireballX(false, 'p1') + 1); // inimigo: anda menos
-    expect(fireballX(true, 'p0')).toBeCloseTo(fireballX(false, 'p0'), 5); // o próprio: igual
+    expect(fireballX(true, 'p1')).toBeGreaterThan(fireballX(false, 'p1') + 1); // enemy: travels less
+    expect(fireballX(true, 'p0')).toBeCloseTo(fireballX(false, 'p0'), 5); // own: same
     const w = world([[0, 0], [9, 9]], ['warpzone']);
     run(w, 0.2, [cast('p0', 'warpzone', 3, 0)]);
     const view = decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']);
@@ -866,10 +866,10 @@ describe('Zona de dobra', () => {
   });
 });
 
-// #179: Troca, Agarrar e Magnetizar não causam dano, mas quem derruba alguém na lava só com elas leva o abate
-describe('crédito do abate sem dano', () => {
+// #179: Swap, Grip and Magnetize deal no damage, but whoever drops someone into the lava with only them gets the kill
+describe('kill credit without damage', () => {
   const lava = ARENA_R0 + 1, stone = ARENA_R0 - 3;
-  // eventos dos passos até a primeira morte
+  // events from the steps up to the first death
   const play = (w: World, seconds: number) => {
     const seen: SimEvent[] = [];
     for (let i = 0; i < Math.round(seconds / DT) && !seen.some((e) => e.k === 'death'); i++) {
@@ -879,20 +879,20 @@ describe('crédito do abate sem dano', () => {
     return seen;
   };
 
-  it('Troca: quem trocou o inimigo para a lava leva o abate', () => {
+  it('Swap: whoever swapped the enemy into the lava gets the kill', () => {
     const w = world([[lava, 0], [stone, 0]], ['swap']);
-    w.wizards[0].god = true; // quem trocou fica na lava antes e não morre
+    w.wizards[0].god = true; // the swapper stands in the lava beforehand and does not die
     w.wizards[1].hp = 1;
     stepWorld(w, [cast('p0', 'swap', stone, 0)]);
     const seen = play(w, 1);
     expect(seen.find((e) => e.k === 'death')).toMatchObject({ id: 'p1', by: 'p0', src: 'swap' });
-    expect(seen.filter((e) => e.k === 'hit')).toHaveLength(0); // a Troca não causa dano: só a lava mata
+    expect(seen.filter((e) => e.k === 'hit')).toHaveLength(0); // Swap deals no damage: only the lava kills
   });
 
-  // vida = segundos de lava até morrer: o Agarrar só prende depois do atraso dos cipós (1,3 s), então a vítima dura mais
-  it.each([['grip', 250], ['magnetize', 100]] as const)('%s num inimigo na lava dá o abate a quem lançou', (spell, hp) => {
+  // hp = seconds of lava until death: Grip only holds after the vines delay (1.3 s), so the victim lasts longer
+  it.each([['grip', 250], ['magnetize', 100]] as const)('%s on an enemy in the lava gives the kill to the caster', (spell, hp) => {
     const w = world([[stone, 0], [lava, 0]], [spell]);
-    w.wizards[1].hp = hp; // morre dentro da janela de 5 s do crédito
+    w.wizards[1].hp = hp; // dies within the 5 s credit window
     stepWorld(w, [cast('p0', spell, lava, 0)]);
     expect(play(w, 4).find((e) => e.k === 'death')).toMatchObject({ id: 'p1', by: 'p0', src: spell });
   });

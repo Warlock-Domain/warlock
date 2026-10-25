@@ -15,6 +15,7 @@ export type InputHandlers = {
   basic?: (at: Vec, target?: string) => void;
   pickAttack?: (x: number, y: number) => string | undefined;
   attackArmedChanged?: (on: boolean) => void;
+  meleeArc?: () => boolean; // golpe em arco escolhido na loja (issue #402): a tecla golpeia na hora rumo ao cursor, sem escolher alvo
   cast: (spell: SpellId, at: Vec) => boolean | void; // true when the spell actually casts (owned and off cooldown)
   checkCooldown?: (spell: SpellId) => boolean;
   center: () => void;
@@ -191,7 +192,12 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       }
     } else if (isUiKey(e.code, 'basic')) {
       e.preventDefault();
-      if (!e.repeat) { cancel(); arm(null); attackArmed = true; h.attackArmedChanged?.(true); }
+      if (e.repeat) return;
+      cancel(); arm(null);
+      if (h.meleeArc?.()) {
+        const p = h.pick(cursor.x, cursor.y);
+        if (p) h.basic?.(p);
+      } else { attackArmed = true; h.attackArmedChanged?.(true); }
     }
     else if (e.code === 'Escape') {
       // só consome o Esc se havia magia escolhida ou segurada; senão ele segue para abrir as configurações

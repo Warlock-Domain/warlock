@@ -1,46 +1,58 @@
 # Warlock Wars
 
-Remake web do mod de arena **Warlock** (Warcraft 3 / Warlock Brawl do Dota 2): magos numa arena que encolhe sobre lava, magias de empurrão, loja entre rodadas e quem sobrar vence. Feito para jogar em salas com os amigos, direto no navegador, em português ou inglês.
+Web remake of the **Warlock** arena mod (Warcraft 3 / Dota 2's Warlock Brawl): wizards on an arena that shrinks over lava, knockback spells, a shop between rounds, and the last one standing wins. Made to play in rooms with friends, right in the browser, in Portuguese or English.
 
-**Jogar:** https://warlock.fernandorffdev.com
+**Play:** https://warlock.fernandorffdev.com
 
-## O que tem
+## What it has
 
-- 29 magias (as do Warlock Brawl, com números do código original do mod de Dota 2 ajustados pelo simulador, mais as novas): 12 de ataque, 5 de mobilidade, 5 de defesa, 5 de controle e 2 de suporte; até 8 por mago nas teclas 1 2 3 4 Q W E R, com a Bola de fogo e o Flagelo de graça
-- 16 itens passivos (3 de crítico), loja em grade no estilo do Dota com venda e desfazer, 3 builds salvas no navegador (Usar compra a build sozinho) e selo ★ nos mais comprados; a ordem das magias se troca arrastando na barra de baixo
-- Modos Rodadas, Deathmatch e Times; Campanha (1 a 4 jogadores juntos contra os servos do Fumo, em construção) e Ascensão como opções próprias no menu Jogar (Ascensão: 9 rodadas; todo intervalo 1 magia nova e 1 item, e cada nível de XP sobe 1 magia; sem ouro); arenas Círculo, Anel, Ilhas e Cruz, que encolhem até a morte súbita
-- Efeito de rodada, opção da sala (desligado por padrão; Sortear ou um fixo): Tempo chuvoso, Arena de espinhos, Febre do ouro, Vendaval, Fonte da vida e Campo aberto
-- Bots em 3 dificuldades (escolhida bot a bot), que jogam "como gente": mira com erro, tempo de reação, hesitação
-- Aba Jogar: sala online, partida contra bots (dificuldade escolhida bot a bot), treino, desafios, Sombra (bot que joga como você) Assistir (entrar numa sala sem mago, pela lista de salas ou pelo botão na sala, e voltar a jogar se houver vaga) e sandbox com vida e ouro sem fim (com vida infinita, a lava não tira do lugar), arena à escolha (começa redonda e nunca sorteia), pedra que cresce e diminui pelo painel e torreta de treino (Bola de fogo numa direção fixa)
-- Criador de personagem de 7 peças com prévia 3D orbitável (arraste para girar, role para aproximar), grimório (F1), consulta de magias e itens (F2), replay da queda (5), placar (Tab)
-- Telemetria do jeito de jogar e simulador de balanceamento (`scripts/balance-sim.ts`)
-- Ilusão: uma cópia visível segue em frente por 2 s enquanto o jogador fica invisível e pode se mover; outra magia revela o jogador, mas a cópia continua até o prazo. Ambos podem ser atingidos; a cópia pode ser empurrada, mas não destruída.
+- 29 spells (the Warlock Brawl ones, with numbers from the original Dota 2 mod code tuned by the simulator, plus new ones): 12 attack, 5 mobility, 5 defense, 5 control and 2 support; up to 6 per wizard on the Q W E R D F keys, with Fireball and Scourge for free; the bar has Q W E R on top and A S D F below, with Attack (A) and Hold ground (S) fixed, with a tip and demo on hover
+- 16 passive items (3 critical), a Dota-style grid shop with sell and undo, 3 builds saved in the browser (Use buys the build by itself) and a ★ badge on the most bought; the spell order is changed by dragging on the bottom bar
+- Rounds, Deathmatch and Teams modes; Campaign (1 to 4 players together against the Smoke's servants, in progress) and Ascension as their own options in the Play menu (Ascension: 9 rounds; every intermission 1 new spell and 1 item, and each XP level upgrades 1 spell; no gold); Circle, Ring, Islands and Cross arenas, which shrink until sudden death
+- Round effect, a room option (off by default; Random or a fixed one): Rainy Weather, Thorn Arena, Gold Fever, Gale, Fountain of Life and Open Field
+- Bots in 3 difficulties (chosen bot by bot) that play "like people": aim with error, reaction time, hesitation
+- Play tab: online room, match against bots (difficulty chosen bot by bot), training, challenges, Shadow (a bot that plays like you), Watch (join a room without a wizard, from the room list or the button in the room, and play again if there is a free slot) and a sandbox with endless health and gold (with infinite health, the lava does not move you), arena of your choice (starts round and is never random), rock that grows and shrinks from the panel, and a training turret (Fireball in a fixed direction)
+- 7-part character creator with an orbitable 3D preview (drag to rotate, scroll to zoom), grimoire (F1), spell and item reference (F2), fall replay (5), scoreboard (Tab)
+- Play-style telemetry and a balance simulator (`scripts/balance-sim.ts`)
+- Illusion: a visible copy keeps walking forward for 2 s while the player turns invisible and can move; another spell reveals the player, but the copy goes on until its time runs out. Both can be hit; the copy can be pushed but not destroyed.
 
 ## Stack
 
-- **Cliente:** TypeScript, Vite, Three.js (WebGL), interface em HTML/CSS puros, Web Audio
-- **Servidor:** Cloudflare Workers + Durable Objects (uma sala por objeto, simulação a 60 passos/s, estado a 30/s por WebSocket)
-- A mesma lógica do jogo (`src/shared`) roda no servidor e no navegador (previsão do próprio mago, interpolação dos outros)
-- **Testes:** Vitest (lógica) e Playwright (navegador)
+- **Client:** TypeScript, Vite, Three.js (WebGL), plain HTML/CSS interface, Web Audio
+- **Server:** Cloudflare Workers + Durable Objects (one room per object, simulation at 60 steps/s, state at 30/s over WebSocket)
+- The same game logic (`src/shared`) runs on the server and in the browser (prediction of your own wizard, interpolation of the others)
+- **Tests:** Vitest (logic) and Playwright (browser)
 
-## Rodar
+## Run
 
 ```bash
 npm ci
-npx wrangler dev   # servidor + cliente em http://localhost:8787
-npm run typecheck  # tipos do cliente, servidor e scripts de balanceamento
-npx vitest run     # testes
-# instalador para Windows (abre o jogo no ar): cd desktop && npm ci && npm run dist
+npx wrangler dev   # server + client at http://localhost:8787
+npm run typecheck  # client, server and balance script types
+npx vitest run     # tests
+# Windows installer (opens the live game): cd desktop && npm ci && npm run dist
 ```
 
-## Contribuir
+## Contribute
 
-- Guia de contribuição em inglês: [CONTRIBUTING.md](CONTRIBUTING.md) (máquina, agentes e skills, fluxo, testes, balanceamento e revisão)
-- Regras do código para gente e para agentes de IA (Claude Code, Codex, Cursor): [CLAUDE.md](CLAUDE.md), também lido via [AGENTS.md](AGENTS.md); cada pasta principal tem o seu `CLAUDE.md`
-- Fluxo de Git (detalhes no guia de contribuição): branch da tarefa no próprio repositório (não fork) a partir do `master` → PR para o `master` com o modelo, CI verde → jogo no ar, publicado sozinho. Todo PR recebe a revisão automática do Claude; comente `@claude` num PR ou issue para pedir ajuda
-- Ambiente de cada PR: todo PR (rascunho também) publica em `https://pr-<n>-warlock.fernandorffdev.com`, apagado quando o PR fecha (`CLAUDE.md`, seção "Ambiente por PR")
-- O jogo no ar é publicado sozinho quando o PR entra no `master`
+- Contributor guide: [CONTRIBUTING.md](CONTRIBUTING.md) (machine, agents and skills, flow, tests, balance and review)
+- Code rules for people and AI agents (Claude Code, Codex, Cursor): [CLAUDE.md](CLAUDE.md), also read through [AGENTS.md](AGENTS.md); it is an index of smaller documents, and each main folder has its own `CLAUDE.md`
+- Every product decision, with its date and reason: [docs/DECISIONS.md](docs/DECISIONS.md)
+- Git flow (details in the contributor guide): task branch in this repository (not a fork) from `master` → PR to `master` with the template, green CI → live game, published automatically. Every PR gets the automatic Claude review; comment `@claude` on a PR or issue to ask for help
+- Each PR's environment: every PR (drafts too) publishes to `https://pr-<n>-warlock.fernandorffdev.com`, deleted when the PR closes ([docs/WORKFLOW.md](docs/WORKFLOW.md#pr-environment))
+- The live game is published automatically when the PR lands in `master`
 
-## Créditos
+## Plans
 
-Modelos, texturas, efeitos, sons e música de uso livre (KayKit, Kenney, ambientCG, Poly Haven, OpenGameArt); lista completa em `public/CREDITS.txt` e índice de todos os assets em [docs/ASSETS.md](docs/ASSETS.md) (todo asset novo entra lá). Biblioteca com todos os modelos grátis do KayKit para quem contribui: `assets/kaykit/`. Baseado no Warlock de Zymoran e Adynathos e no Warlock Brawl (github.com/warlockbrawl/warlock).
+Large plans live in [docs/plans/](docs/plans/README.md) (no wiki). These are long and written in Portuguese; new plans are written in English.
+
+| Plan | Status | Owner |
+|---|---|---|
+| [Warlock online — design](docs/plans/2026-10-17-warlock-design.md) and [build plan](docs/plans/2026-10-17-warlock.md) | done; historical | Fernando |
+| [Ascension mode](docs/plans/2026-10-19-ascensao-design.md) | live; numbers change in balance PRs | Fernando |
+| [Campaign mode — "Last Candle"](docs/plans/2026-10-19-campanha-design.md) | in progress (classes on standby) | Lucas |
+| [Campaign — slice 1](docs/plans/2026-10-19-campanha-fatia1.md) | in progress; partly replaced | Lucas |
+
+## Credits
+
+Free-to-use models, textures, effects, sounds and music (KayKit, Kenney, ambientCG, Poly Haven, OpenGameArt); full list in `public/CREDITS.txt` and an index of every asset in [docs/ASSETS.md](docs/ASSETS.md) (every new asset goes there). Library with all the free KayKit models for contributors: `assets/kaykit/`. Based on Warlock by Zymoran and Adynathos and on Warlock Brawl (github.com/warlockbrawl/warlock).

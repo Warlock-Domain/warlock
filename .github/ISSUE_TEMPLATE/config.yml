@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Jogar
+  - name: Play
     url: https://warlock.fernandorffdev.com
-    about: O jogo no ar, para reproduzir bugs.
+    about: The live game, to reproduce bugs.
