@@ -1,11 +1,25 @@
 // Sounds: recorded files, each with its license or owner acceptance in public/CREDITS.txt, and, while they load or if they are
 // missing, sounds synthesized on the fly (Web Audio). Music loops. The browser only unlocks audio after a tap.
+import type { SpellId } from '../shared/spells.ts';
 import { tauntAudioSrc } from '../shared/taunts.ts';
 import { audioLevel, layerVolume } from './audio-level.ts';
 import { store } from './store.ts';
 
 export type SoundKind = 'fireball' | 'lightning' | 'homing' | 'shield' | 'teleport' | 'hit' | 'hitLight' | 'hitHeavy' | 'reflect' | 'death' | 'splash' | 'shrink' | 'beep' | 'go' | 'click'
   | 'winRound' | 'loseRound' | 'buy' | 'error' | 'ready' | 'hover' | 'brace' | 'heal' | 'closedbody' | 'closedbodyEnd' | 'sand';
+
+// Cast sound of each spell (main.ts and the forum sound lab): newer spells reuse the existing sounds
+export const SPELL_SOUND: Record<SpellId, SoundKind> = {
+  closedbody: 'closedbody',
+  geyser: 'splash',
+  heal: 'heal',
+  fireball: 'fireball', lightning: 'lightning', homing: 'homing', shield: 'shield', teleport: 'teleport',
+  swap: 'teleport', grip: 'lightning', meteor: 'fireball', rush: 'shield', cluster: 'sand',
+  boomerang: 'homing', thrust: 'teleport', gravity: 'homing', rockpillar: 'shield', bouncer: 'lightning',
+  drain: 'homing', snowball: 'fireball', illusion: 'teleport', magnetize: 'lightning', recharge: 'homing',
+  alteration: 'teleport', link: 'lightning', windwalk: 'shield', splitter: 'fireball', warpzone: 'shield',
+  scourge: 'homing', pact: 'shield', // the sounds they had as active items
+};
 
 const FILES: Partial<Record<SoundKind, string[]>> = {
   brace: ['brace_start'], closedbody: ['closed_body_start'], closedbodyEnd: ['closed_body_end'],
@@ -50,6 +64,8 @@ class AudioPlayer {
   private tauntMaster: GainNode | null = null;
   private readonly buffers = new Map<string, AudioBuffer>();
   private readonly gains = new Map<string, number>();
+  private readonly loading = new Map<string, Promise<void>>();
+  private filesReady: Promise<unknown> = Promise.resolve();
   private musicLevelStarted = false;
   private readonly music: HTMLAudioElement;
   private wantAmbience = false;
@@ -62,6 +78,10 @@ class AudioPlayer {
     setAmbience: (on: boolean) => this.setAmbience(on),
     taunt: (name: string, level: number | (() => number) = 1) => this.taunt(name, level),
     play: (kind: SoundKind, volume = 1) => this.play(kind, volume),
+    // forum sound lab (issue #366): any recording by URL, through the same level and volume chain as the game's own files
+    playUrl: (url: string, volume = 1) => this.playUrl(url, volume),
+    // the lab's first click unlocks audio while the game files are still downloading: wait for them instead of the synthesized stand-in
+    playReady: (kind: SoundKind, volume = 1) => this.playReady(kind, volume),
     duck: (on: boolean) => this.duck(on),
   };
 
@@ -118,7 +138,8 @@ class AudioPlayer {
         }
       }
       const names = new Set(Object.values(FILES).flat());
-      void Promise.all([...names].map((name) => this.load(name))).then(() => this.syncAmbience());
+      this.filesReady = Promise.all([...names].map((name) => this.load(name)));
+      void this.filesReady.then(() => this.syncAmbience());
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
     this.syncAmbience();
@@ -152,12 +173,29 @@ class AudioPlayer {
     if (!buffer) return false;
     const source = this.ctx!.createBufferSource();
     source.buffer = buffer;
-    source.playbackRate.value = name.startsWith('synth/') || STEADY.has(name) ? 1 : rate * (0.94 + Math.random() * 0.12); // Synth and chosen recordings keep their timbre.
+    source.playbackRate.value = name.startsWith('synth/') || name.startsWith('url/') || STEADY.has(name) ? 1 : rate * (0.94 + Math.random() * 0.12); // Synth, chosen and lab recordings keep their timbre.
     const gain = this.ctx!.createGain();
     gain.gain.value = volume * (this.gains.get(name) ?? 1);
     source.connect(gain).connect(name.startsWith('taunt/') ? this.tauntMaster! : this.master!);
     source.start();
     return true;
+  }
+
+  private async playReady(kind: SoundKind, volume: number) {
+    this.unlock();
+    await Promise.all([this.filesReady, this.ctx?.resume()]);
+    this.play(kind, volume);
+  }
+
+  private async playUrl(url: string, volume: number) {
+    this.unlock();
+    if (!this.ctx) return;
+    await this.ctx.resume();
+    const name = 'url/' + url;
+    // one download per URL even when it is played again before the first decode ends
+    if (!this.loading.has(name)) this.loading.set(name, this.load(name, url));
+    await this.loading.get(name);
+    this.file(name, volume);
   }
 
   private hiss(type: BiquadFilterType, f0: number, f1: number, duration: number, level: number, at = 0, context: BaseAudioContext = this.ctx!, output: AudioNode = this.master!) {

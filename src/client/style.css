@@ -1408,4 +1408,35 @@ body.forum-page {
 .forum-page .fm-btn.big { min-height: 48px; padding: 0 var(--sp-24); font-size: var(--fs-105); }
 .forum-page :is(.fm-btn, .fm-input, .fm-brand):focus-visible { outline: 2px solid var(--fm-accent); outline-offset: 2px; }
 @media (hover: hover) { .forum-page .fm-btn:hover { background: var(--fm-bg); } .forum-page .fm-btn.primary:hover { background: var(--fm-accent-hi); } }
+/* sound lab (issue #366): spell list on the left, the chosen spell on the right; the arena covers the window like the game */
+.forum-page .fm-main:has(.fm-lab) { max-width: 1200px; }
+.fm-lab h1 { margin: 0 0 var(--sp-8); font-size: var(--fs-160); }
+.fm-lab-grid { display: grid; grid-template-columns: 220px 1fr; gap: var(--sp-24); align-items: start; }
+.fm-spells { display: grid; gap: var(--sp-2); position: sticky; top: var(--sp-16); max-height: calc(100vh - 32px); overflow: auto; }
+.fm-spell { display: flex; align-items: center; gap: var(--sp-8); padding: var(--sp-6) var(--sp-8); border-radius: var(--r-sm); color: inherit; text-decoration: none; }
+.fm-spell .gi, .fm-spell-panel h2 .gi { width: 22px; height: 22px; flex: none; }
+.fm-spell[aria-current] { background: var(--fm-tag); color: var(--fm-tag-ink); font-weight: 700; }
+.fm-done { margin-left: auto; color: var(--fm-muted); font-size: var(--fs-75); }
+.fm-spell-panel h2 { display: flex; align-items: center; gap: var(--sp-10); margin: 0; font-size: var(--fs-130); color: var(--fm-ink); text-transform: none; letter-spacing: normal; }
+.fm-moment { margin-top: var(--sp-24); }
+.fm-moment h3 { margin: 0 0 var(--sp-8); font-size: var(--fs-110); }
+.fm-cands, .fm-pack, .fm-comments { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-6); }
+.fm-cand { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-8); padding: var(--sp-6) var(--sp-8); border: 1px solid var(--fm-line); border-radius: var(--r-sm); }
+.fm-cand.won { border-color: var(--fm-accent); }
+.fm-cand-name { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+.fm-cand-name small, .fm-comments small, .fm-votes { color: var(--fm-muted); }
+.fm-try { display: inline-flex; align-items: center; gap: var(--sp-4); color: var(--fm-muted); font-size: var(--fs-90); }
+.fm-add { margin-top: var(--sp-10); }
+.fm-add summary { cursor: pointer; font-weight: 600; color: var(--fm-accent-hi); }
+.fm-add .fm-input { width: 100%; margin: var(--sp-8) 0; }
+.fm-pack { max-height: 320px; overflow: auto; }
+.fm-comments p { margin: var(--sp-4) 0 0; white-space: pre-wrap; }
+.fm-comments li { padding-bottom: var(--sp-8); border-bottom: 1px solid var(--fm-line); }
+.fm-arena-full { position: fixed; inset: 0; z-index: 20; background: var(--fm-ink); }
+.fm-arena-full[hidden] { display: none; }
+.fm-stage { position: absolute; inset: 0; }
+.fm-arena-hint { position: absolute; left: var(--sp-16); bottom: var(--sp-16); z-index: 3; margin: 0; padding: var(--sp-6) var(--sp-10); border-radius: var(--r-sm); background: var(--fm-card); color: var(--fm-ink); }
+.fm-arena-side { position: absolute; top: var(--sp-16); right: var(--sp-16); bottom: var(--sp-16); z-index: 3; width: min(420px, 45vw); overflow: auto; padding: var(--sp-16); border-radius: var(--r-md); background: var(--fm-card); color: var(--fm-ink); }
+.forum-page :is(.fm-spell, .fm-add summary):focus-visible { outline: 2px solid var(--fm-accent); outline-offset: 2px; }
+@media (max-width: 860px) { .fm-lab-grid { grid-template-columns: 1fr; } .fm-spells { position: static; max-height: 240px; } }
 @media (max-width: 600px) { .fm-brand > span:first-of-type, .fm-user-name { display: none; } }

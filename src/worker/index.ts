@@ -1,6 +1,7 @@
 import { ROOM_MODE_PARAM, type RoomMode } from '../shared/match.ts';
 import { styleRows } from '../shared/telemetry.ts';
 import { forumApi } from './forum-api.ts';
+import { soundsApi } from './forum-sounds-api.ts';
 
 export { Forum } from './forum-do.ts';
 export { Lobby } from './lobby.ts';
@@ -24,6 +25,7 @@ export default {
     // jeito de jogar: uma linha por humano e por dificuldade dos bots (telemetry.ts styleRows)
     if (url.pathname === '/api/telemetry/style') return Response.json(styleRows(await lobby.telemetry()), { headers: { 'cache-control': 'no-store' } });
 
+    if (url.pathname.startsWith('/api/forum/sons')) return soundsApi(req, env, url);
     if (url.pathname.startsWith('/api/forum/')) return forumApi(req, env, url);
 
     // a sala nasce no leste dos EUA (Fernando, 21/10: fixar no leste dos EUA): Durable Object não existe na América do Sul, e sem a

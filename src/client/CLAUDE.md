@@ -34,6 +34,8 @@ Applies together with the root `CLAUDE.md`.
 
 - **Test versions** (issue #402): the shop's `altBox` (two `choice` rows) sends `act.alt`; with the melee arc the attack key swings at once toward the cursor (`meleeArc` in `input.ts`) and `scene.arc` shows the 120° sector during the windup from a local timer (`arcPreview`), not the snapshot. Gesture by weapon in `meleeAnim` (`scene.ts`); guard pose is the `Block` clip. The fixed A and S buttons keep their look; `mechanicTip(g, alt)` (`tips.ts`) swaps to the active version's text and numbers.
 
+- **Forum sound lab** (`forum-sounds.ts` page, `sound-lab.ts` arena loaded with `import()` so Three.js stays out of the forum's first load): the arena runs `newWorld`/`stepWorld` and `createScene` locally and calls back only for the spell under test; the scene sizes itself to the window, so the arena is a full-window overlay and the spell panel moves to its side. Candidate files play through `createSound().playUrl` (same levelling and volumes as the game). `SPELL_SOUND` lives in `sound.ts`, shared by `main.ts` and the lab.
+
 ## Connection lifecycle (`net.ts`)
 
 - `Connection<T>` owns its socket, reconnect timer, heartbeat, visibility listener, and parser warning state. Keep that state private and specific to the instance.

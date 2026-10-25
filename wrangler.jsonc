@@ -11,6 +11,7 @@
       { "name": "FORUM", "class_name": "Forum" }
     ]
   },
+  "r2_buckets": [{ "binding": "SOUNDS", "bucket_name": "warlock-sons" }],
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["Lobby", "Room"] },
     { "tag": "v2", "new_sqlite_classes": ["Forum"] }
