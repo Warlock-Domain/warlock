@@ -78,6 +78,7 @@ Teclas por posição (padrão): as magias usam a tecla da **posição** na barra
 - A page receives whether it is the home page: in the lobby, the Character section links to the single `avatarPanel` WebGL preview; in the match, it renders that section directly. Section content stays in `SECTIONS` and its existing builders; `null` continues to hide match-only effects in the lobby.
 - Sound has four persisted volumes: master multiplies SFX, music and taunts. `channelVolume` and `isAudioMuted` centralize mixing and mute state. Master starts neutral in the migration; taunts inherit SFX once, and private previews respect master × taunts. The same sliders work in home settings and the match dialog.
 - Sound sliders use required `volumes`/`setVolume` callbacks from `SettingsCtx`, supplied by the current lobby or room `createSound()` instance. Persisted preferences intentionally survive page replacement.
+- `TauntPreviewSession` owns the private preview element, Web Audio context cleanup, current request identity, and fallback/Web Audio volume mode. Keep `previewTaunt()` and `stopTauntPreview()` as compatibility adapters; route live master/taunt volume changes through the session. A stale download or decode must not play, stop, or close a replacement preview. This session does not own in-match playback or the `createSound()` cache.
 
 ## Cena (`scene.ts`)
 
