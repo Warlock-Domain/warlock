@@ -44,6 +44,16 @@ function cardFace(c: Card, p: PublicPlayer) {
   return { cls: spellClass(c.id), ico: ICON[c.id], kind, name: cardName(c), text: SPELL_USE[c.id], max: MAX_SPELL_LEVEL, lvl };
 }
 
+// one card as a button, with the shop tooltip (numbers now → after the card); also the Campaign level-up cards (ui.ts)
+export function cardButton(c: Card, mine: PublicPlayer, on: boolean, key: string, onclick: () => void, extra: Child = null): HTMLElement {
+  const f = cardFace(c, mine);
+  const full = spellCount(mine.spells) >= MAX_SPELLS;
+  const tip = () => (c.kind === 'item' ? itemCardTip(c.id, mine.items[c.id]) : c.kind === 'up' ? spellCardTip(c.id, mine.spells[c.id], Math.min(MAX_SPELL_LEVEL, mine.spells[c.id] + (c.rare ? 2 : 1))) : spellCardTip(c.id, 0, 1, full));
+  return withTip(el('button', { type: 'button', class: `asc-card ${f.cls}` + (c.kind === 'up' && c.rare ? ' rare' : '') + (on ? ' chosen' : ''), 'aria-pressed': String(on), 'data-key': key, onclick },
+    el('span', { class: 'asc-kind' }, f.kind), el('span', { class: 'ico' }, icon(f.ico)), el('b', {}, f.name), el('small', {}, f.text),
+    c.kind === 'up' && c.rare ? el('span', { class: 'asc-rare' }, t('Rara: +2 níveis', 'Rare: +2 levels')) : null, extra), tip);
+}
+
 // intervalo do Ascensão: barra de XP, as 3 cartas (ou a espera), novo sorteio para quem está atrás e o placar ao lado
 export function ascPanel(r: PublicRoom, me: string, act: AscActions, dialog: Dialog, side: Child[]): HTMLElement {
   const mine = r.players.find((p) => p.id === me);
@@ -62,16 +72,8 @@ export function ascPanel(r: PublicRoom, me: string, act: AscActions, dialog: Dia
   const rows = a.offer.map((cards, slot) => {
     const pick = a.pick[slot];
     return el('section', { class: 'asc-row' + (pick ? ' done' : '') }, el('h3', {}, KIND_TITLE[a.todo[slot]], pick ? el('span', { class: 'asc-done' }, t(' ✓ escolhida', ' ✓ picked')) : null),
-      el('div', { class: 'asc-cards' }, ...cards.map((c, i) => {
-        const f = cardFace(c, mine);
-        const on = pick?.i === i;
-        // a mesma janelinha da loja: números de agora → depois da carta
-        const tip = () => (c.kind === 'item' ? itemCardTip(c.id, mine.items[c.id]) : c.kind === 'up' ? spellCardTip(c.id, mine.spells[c.id], Math.min(MAX_SPELL_LEVEL, mine.spells[c.id] + (c.rare ? 2 : 1))) : spellCardTip(c.id, 0, 1, full));
-        return withTip(el('button', { type: 'button', class: `asc-card ${f.cls}` + (c.kind === 'up' && c.rare ? ' rare' : '') + (on ? ' chosen' : ''), 'aria-pressed': String(on), 'data-key': `card-${slot}-${i}`, onclick: () => choose(slot, i, c) },
-          el('span', { class: 'asc-kind' }, f.kind), el('span', { class: 'ico' }, icon(f.ico)), el('b', {}, f.name), el('small', {}, f.text),
-          c.kind === 'up' && c.rare ? el('span', { class: 'asc-rare' }, t('Rara: +2 níveis', 'Rare: +2 levels')) : null,
-          on && pick?.swap ? el('span', { class: 'asc-swapped' }, t(`No lugar de ${spellName(pick.swap)}`, `Replaces ${spellName(pick.swap)}`)) : null), tip);
-      })),
+      el('div', { class: 'asc-cards' }, ...cards.map((c, i) => cardButton(c, mine, pick?.i === i, `card-${slot}-${i}`, () => choose(slot, i, c),
+        pick?.i === i && pick?.swap ? el('span', { class: 'asc-swapped' }, t(`No lugar de ${spellName(pick.swap)}`, `Replaces ${spellName(pick.swap)}`)) : null))),
       // barra cheia: magia nova é troca, e trocar é escolha (pode recusar)
       a.todo[slot] === 'spell' && full ? el('button', { type: 'button', class: 'asc-keep' + (pick?.i === -1 ? ' chosen' : ''), 'aria-pressed': String(pick?.i === -1), 'data-key': `keep-${slot}`, onclick: () => act.keep(slot) }, t('Manter as minhas magias', 'Keep my spells')) : null);
   });
