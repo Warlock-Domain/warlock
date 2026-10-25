@@ -2004,7 +2004,7 @@ export function inArc(from: Vec, facing: number, p: Vec, edge: number) {
   const d = sub(p, from), dd = len(d);
   if (dd > MELEE_ARC.range + edge) return false;
   if (dd <= edge) return true; // overlapping bodies always count, whatever the angle
-  const off = Math.abs(Math.atan2(Math.sin(Math.atan2(d.y, d.x) - facing), Math.cos(Math.atan2(d.y, d.x) - facing)));
+  const a = Math.atan2(d.y, d.x) - facing, off = Math.abs(Math.atan2(Math.sin(a), Math.cos(a)));
   return off <= (MELEE_ARC.angle / 2) * Math.PI / 180 + Math.asin(Math.min(1, edge / dd)); // the body's edge entering the arc counts
 }
 function finishArc(w: World, wz: Wizard, facing: number) {
