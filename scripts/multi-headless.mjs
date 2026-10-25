@@ -23,8 +23,8 @@ try {
   const [a, b, c] = pages;
   const lobbyText = await a.locator('.center').innerText();
   console.log('sala de espera da Ana:', lobbyText.replace(/\n+/g, ' | '));
-  // sem bots: só os 3
-  for (let i = 0; i < 3; i++) await a.getByRole('button', { name: 'Menos um bot' }).click();
+  // no bots, only the three people; the "−" text is the same in both languages, unlike the aria-label
+  for (let i = 0; i < 3; i++) await a.locator('button', { hasText: /^−$/ }).click();
   await a.getByRole('button', { name: 'Começar partida' }).click();
   for (const p of pages) await p.getByRole('button', { name: /^Pronto/ }).click();
   await a.waitForTimeout(3600);
@@ -38,7 +38,7 @@ try {
     await p.screenshot({ path: `${out}/multi-${['ana', 'bia', 'caio'][i]}.png` });
   }
   for (const p of pages) console.log((await p.locator('.tops').innerText()).replace(/\n+/g, ' '));
-  // Bia fecha e volta: o mesmo mago
+  // Bia closes and rejoins: same wizard
   await b.close();
   const b2 = await ctx.newPage();
   await b2.goto(base + '/?as=bia#' + id);
