@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DT } from '../src/shared/constants.ts';
 import { CAST_POINT, GRIP, noSpells, SPELLS, spellGroup } from '../src/shared/spells.ts';
-import { stepWorld } from '../src/shared/sim.ts';
+import { revive, stepWorld } from '../src/shared/sim.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
 import { world, run } from './helpers.ts';
 
@@ -117,6 +117,19 @@ describe('Squid Pix (issue #416)', () => {
     run(w2, CAST_POINT.pix + GRIP.delay + DT);
     expect(w2.wizards[2].puppetBy).toBe(p0);
     expect(w2.wizards[0].puppetBy).toBeUndefined();
+  });
+
+  it("a copied Homing Missile never locks on you, and coming back to life frees the target", () => {
+    const w = setup(); control(w);
+    w.wizards[0].spells.homing = 1; w.wizards[2].pos = { x: 30, y: 0 };
+    stepWorld(w, [{ id: p0, kind: 'cast', spell: 'homing', at: { x: -4, y: 0 } }]); // p1's copy is aimed at you
+    run(w, CAST_POINT.homing + DT);
+    const copy = w.projectiles.find((p) => p.kind === 'homing' && p.owner === p1)!;
+    expect(copy.target).not.toBe(p0);
+    const w2 = setup(); control(w2);
+    w2.wizards[1].alive = false;
+    revive(w2, w2.wizards[1], { x: 4, y: 0 });
+    expect(w2.wizards[1].puppetBy).toBeUndefined();
   });
 });
 

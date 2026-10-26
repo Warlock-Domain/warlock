@@ -751,10 +751,10 @@ function blockPillars(w: World, walking?: ReadonlySet<Wizard>) {
 
 // o mais perto, fora skip; nos Times, também fora o time do dono (só inimigos)
 function nearestEnemy(w: World, to: Vec, skip: string, owner = skip): Wizard | null {
-  const team = anyById(w, owner)?.team ?? null;
+  const me = anyById(w, owner);
   let best: Wizard | null = null;
   for (const wz of w.wizards) {
-    if (!wz.alive || isSuspended(wz) || wz.id === skip || wz.id === owner || (team !== null && wz.team === team)) continue;
+    if (!wz.alive || isSuspended(wz) || wz.id === skip || wz.id === owner || allies(me, wz)) continue;
     if (!best || dist(wz.pos, to) < dist(best.pos, to)) best = wz;
   }
   return best;
@@ -1884,7 +1884,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
 export function revive(w: World, wz: Wizard, pos: Vec) {
   Object.assign(wz, {
     alive: true, pos, vel: v(0, 0), target: null, casting: null, channel: undefined, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
-    blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined,
+    blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined, puppetBy: undefined, puppetUntil: 0,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
     rune: null, runeUntil: 0, braceUntil: 0, braceReadyAt: 0, electroUntil: 0, basicCasting: undefined,
