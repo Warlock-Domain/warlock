@@ -6,7 +6,7 @@ import { DT, HP_MAX } from '../shared/constants.ts';
 import { newWorld, stepWorld, type Cmd, type World } from '../shared/sim.ts';
 import { WALKING_BIT, decodeSnap, encodeSnap } from '../shared/snapshot.ts';
 import { SPELL_IDS, type SpellId } from '../shared/spells.ts';
-import { len, v, type Vec } from '../shared/vec.ts';
+import { v, type Vec } from '../shared/vec.ts';
 import { savedLook } from './avatar.ts';
 import { t } from './i18n.ts';
 import { el } from './icons.ts';
@@ -14,11 +14,9 @@ import { createScene, type WizDraw } from './scene.ts';
 
 const IDS = ['me', 'dummy'];
 const RULES = { runes: false, sudden: false, chests: false };
-// the dummy comes back this long after falling, at the same spot in front of the player; both sit left of centre because the
-// spell panel covers the right side of the window
-const RESPAWN_S = 1;
+// the dummy stands still in the middle and takes no knockback (Fernando, 26/10), so every hit lands on the same spot
 const ME_AT = v(-5, 0);
-const DUMMY_AT = v(1, 0);
+const DUMMY_AT = v(0, 0);
 
 function build(): World {
   const all = Object.fromEntries(SPELL_IDS.map((id) => [id, 1])) as Record<SpellId, number>;
@@ -39,7 +37,6 @@ export function openLab(host: HTMLElement, opts: { spell: () => SpellId; play: (
   let w = build();
   let cmds: Cmd[] = [];
   let cursor: Vec | null = null;
-  let deadAt = -1;
   let acc = 0;
   let last = performance.now();
   let paused = false;
@@ -77,8 +74,7 @@ export function openLab(host: HTMLElement, opts: { spell: () => SpellId; play: (
     // no cooldown and no death for the player: the lab is for hearing the spell as often as wanted
     for (const id of SPELL_IDS) me.cd[id] = 0;
     me.hp = HP_MAX;
-    // the dummy only falls to the lava: inside the arena it never runs out of health
-    if (dummy.alive && len(dummy.pos) < w.arenaR) dummy.hp = HP_MAX;
+    dummy.hp = HP_MAX;
     stepWorld(w, cmds, Math.random);
     cmds = [];
     const spell = opts.spell();
@@ -87,13 +83,9 @@ export function openLab(host: HTMLElement, opts: { spell: () => SpellId; play: (
       else if (e.k === 'hit' && e.by === 'me' && e.src === spell) opts.play('hit');
     }
     scene.onEvents(w.events);
-    if (!dummy.alive && deadAt < 0) deadAt = w.t;
-    if (deadAt >= 0 && w.t - deadAt > RESPAWN_S) {
-      const pos = w.wizards[0].pos;
-      w = build();
-      w.wizards[0].pos = pos;
-      deadAt = -1;
-    }
+    // pinned after the step: knockback, pulls and swaps never move it
+    dummy.pos = DUMMY_AT;
+    dummy.vel = v(0, 0);
   }
 
   function frame(now: number) {
@@ -119,7 +111,6 @@ export function openLab(host: HTMLElement, opts: { spell: () => SpellId; play: (
   return {
     reset() {
       w = build();
-      deadAt = -1;
     },
     // the page hides the overlay instead of tearing it down: the scene has no dispose, and a new one per opening would pile up
     // WebGL contexts
