@@ -25,12 +25,14 @@ export function reachOf(a: SpellId, spells: Record<SpellId, number>, items: Reco
   return FLIES.has(a as SpellId) ? r + PROJ_SPAWN + (a === 'snowball' ? snowR(lvl) : PROJ_R) : r;
 }
 
-// Área de efeito no ponto mirado: Meteoro, cipós do Agarrar, Zona de dobra e Barricada (pedido do Fernando, 21/10, PR #169); 0 = não tem.
+// Area of effect at the aimed point (Fernando, 21/10, PR #169); 0 = none. Read from the data, not a list of names: any spell
+// with a range and a radius that does not fly lands at the aimed point (a fixed list left Lula Pix out, 26/10).
 export function blastOf(a: SpellId, spells: Record<SpellId, number>): number {
-  if (!spells[a]) return 0; // magia não comprada
-  // Barricada não tem raio: o círculo cobre a parede de 3 pedaços, que fica atravessada no ponto
+  if (!spells[a]) return 0; // spell not bought
+  // Barricade has no radius: the circle covers the 3-piece wall laid across the point
   if (a === 'rockpillar') return WALL_GAP + OBSTACLES.rockpillar.r;
-  return a === 'meteor' || a === 'grip' || a === 'warpzone' || a === 'geyser' ? spellLevel(a, spells[a]).radius : 0;
+  const L = spellLevel(a, spells[a]);
+  return L.range > 0 && !FLIES.has(a) ? L.radius : 0;
 }
 
 // largura do acerto na mira (pedido do Fernando, 21/10: ninguém sabia quanto o Raio e os projéteis pegam de lado):

@@ -111,7 +111,7 @@ const check = (id: string, on: boolean, text: string, change: (on: boolean) => v
   el('input', { type: 'checkbox', id, checked: on, onchange: (e: Event) => change((e.target as HTMLInputElement).checked) }), el('span', {}, text));
 
 // spell keys live in Casting, next to the Q W E R D F box (Fernando, 20/10): off, the "Keys of each spell" button opens the list
-// (it stays open when the menu redraws); on, spells follow the bar (no active items since 21/10, #217)
+// (it stays open when the menu redraws); on, spells follow the bar (Scourge is the active item since 26/10, #421)
 let spellKeysOpen = false;
 const actionRow = (a: Action) => keyRow(a, [icon(actionIcon(a)), ' ', nameOf(a)]);
 function castOverride(key: string, name: string): HTMLElement {
@@ -147,7 +147,7 @@ function emptyCastingHud(host: HTMLElement) {
   const bar = el('div', { class: 'spellbar' }, ...slots.slice(0, 4), ...fixed, ...slots.slice(4));
   const items = el('div', { class: 'item-grid' }, ...Array.from({ length: MAX_ITEMS }, (_, i) => el('button', { type: 'button', class: 'spell slot-empty', 'aria-label': t(`Item ${i + 1}`, `Item ${i + 1}`), onclick: () => edit(true, i) }, el('span', { class: 'key' }, String(i + 1)))));
   host.append(el('div', { class: 'dota-bar casting-live-hud' }, el('div', { class: 'skills' }, bar, items)), controls,
-    el('small', { class: 'muted' }, t('Sem partida aberta: os espaços representam as posições da HUD. Itens atuais são passivos.', 'No match open: these slots represent HUD positions. Current items are passive.')));
+    el('small', { class: 'muted' }, t('Sem partida aberta: os espaços representam as posições da HUD. Itens passivos não são ativados.', 'No match open: these slots represent HUD positions. Passive items are not activated.')));
   edit(previewSlot.item, previewSlot.index);
 }
 function castSection(): Node[] {
@@ -157,15 +157,15 @@ function castSection(): Node[] {
     ...(host ? [el('p', { class: 'muted' }, t('Clique num espaço da HUD abaixo para configurar seu lançamento. Esta prévia não lança magias nem altera sua barra na partida. Atacar e Manter base continuam ações fixas.', 'Click a slot on the HUD below to configure casting. This preview does not cast spells or change your in-match bar. Attack and Hold ground remain fixed actions.')), host] : []),
     el('p', { class: 'muted' }, t('Configure os atalhos na HUD acima. As seções expansíveis abaixo definem exceções por magia ou item, que têm prioridade sobre o atalho. Usar padrão remove a exceção e preserva suas preferências salvas.', 'Configure shortcuts on the HUD above. The expandable sections below set spell or item exceptions, which take priority over shortcuts. Use default removes an exception and preserves your saved preferences.')),
     el('details', { class: 'spell-keys' }, el('summary', {}, t('Uso por magia individual', 'Casting by individual spell')),
-      el('div', { class: 'keys-list' }, ...ACTIONS.map((spell) => castOverride('spell:' + spell, spellName(spell))))),
+      el('div', { class: 'keys-list' }, ...ACTIONS.filter((spell) => spell !== 'scourge').map((spell) => castOverride('spell:' + spell, spellName(spell))))),
     el('details', { class: 'spell-keys' }, el('summary', {}, t('Uso por item individual', 'Casting by individual item')),
-      el('p', { class: 'muted' }, t('Os itens atuais são passivos. Estas preferências ficam salvas para itens ativáveis futuros e não ativam itens passivos.', 'Current items are passive. These preferences are saved for future active items and do not activate passive items.')),
+      el('p', { class: 'muted' }, t('Escolha o modo dos itens ativos. Itens passivos continuam passivos, independentemente desta preferência.', 'Choose the cast mode for active items. Passive items remain passive regardless of this preference.')),
       el('div', { class: 'keys-list' }, ...ITEM_IDS.map((item) => castOverride('item:' + item, itemName(item))))),
     el('h3', {}, t('Teclas das magias', 'Spell keys')),
     check('slot-keys', isSlotMode(), t('Q W E R D F pela ordem da barra', 'Q W E R D F in bar order'), (on) => (setSlotMode(on), draw())),
     el('p', { class: 'muted' }, t('Ligado, as magias usam a tecla da posição na barra (troque abaixo); desligado, cada magia tem a sua tecla.', 'When on, spells use the key of their position on the bar (change them below); when off, each spell has its own key.')),
     ...(isSlotMode()
-      ? [el('h3', {}, t('Teclas das posições', 'Position keys')), el('div', { class: 'keys-list' }, ...POS_ACTIONS.map((p) => keyRow(p, [padActionName(p)])))]
+      ? [el('h3', {}, t('Teclas das posições', 'Position keys')), el('div', { class: 'keys-list' }, ...POS_ACTIONS.map((p) => keyRow(p, [padActionName(p)])), actionRow('scourge'))] // the Scourge is an item with its own key (26/10, #227)
       : [el('details', { class: 'spell-keys', open: spellKeysOpen, ontoggle: (e: Event) => (spellKeysOpen = (e.target as HTMLDetailsElement).open) },
         el('summary', {}, t('Teclas de cada magia', 'Key for each spell')),
         el('div', { class: 'keys-list' }, ...ACTIONS.map(actionRow)))]),

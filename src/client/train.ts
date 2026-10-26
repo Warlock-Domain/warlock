@@ -6,7 +6,7 @@ import { MAX_PLAYERS } from '../shared/constants.ts';
 import { OPTION_CHOICES } from '../shared/match.ts';
 import { isRecord, readLevels } from './saved-data.ts';
 import type { BotSetup, SandboxCmd } from '../shared/match.ts';
-import { MAX_SPELLS, spellMax, SPELL_IDS, noSpells, spellCount, type SpellId } from '../shared/spells.ts';
+import { BAR_SPELLS, MAX_SPELLS, spellMax, noSpells, spellCount, type SpellId } from '../shared/spells.ts';
 import { ICON, choice, el, icon } from './icons.ts';
 import { store } from './store.ts';
 import { spellName, t } from './i18n.ts';
@@ -19,7 +19,7 @@ export function readBotSetup(value: unknown): BotSetup[] {
     if (!isRecord(raw)) return {};
     const bot: BotSetup = {};
     if (isRecord(raw.spells)) {
-      const spells = readLevels(raw.spells, SPELL_IDS, spellMax);
+      const spells = readLevels(raw.spells, BAR_SPELLS, spellMax);
       if (spellCount({ ...noSpells(), ...spells }) <= MAX_SPELLS) bot.spells = spells;
     }
     if (isRecord(raw.items)) bot.items = readLevels(raw.items, ITEM_IDS, (id) => ITEMS[id].levels.length);
@@ -52,7 +52,7 @@ export function botSetupPanel(n: number, saved: BotSetup[], onChange: (s: BotSet
   const rows = setup.map((_, i) => row(i));
   function row(i: number): HTMLElement {
     const spells = setup[i].spells;
-    const picked = SPELL_IDS.filter((s) => (spells?.[s] ?? 0) > 0);
+    const picked = BAR_SPELLS.filter((s) => (spells?.[s] ?? 0) > 0);
     // Level 0 unchecks a spell; no selected spells means Random, and the bot still starts with Fireball by default.
     const pick = (s: SpellId, lvl: number, redraw: boolean) => {
       const next = Object.fromEntries(Object.entries({ fireball: 0, ...setup[i].spells, [s]: lvl }).filter(([k, l]) => l || k === 'fireball'));
@@ -69,7 +69,7 @@ export function botSetupPanel(n: number, saved: BotSetup[], onChange: (s: BotSet
       el('div', { class: 'opt-label' }, el('b', {}, `Bot ${i + 1}`),
         choice(t(`Seleção de magias do bot ${i + 1}`, `Bot ${i + 1} spell selection`), [['random', t('Sorteio', 'Random')]], picked.length ? 'custom' : 'random', random),
         el('small', { class: 'muted' }, picked.length ? t(`${picked.length} de ${MAX_SPELLS} magias`, `${picked.length} of ${MAX_SPELLS} spells`) : t('compra sozinho na loja', 'buys on its own in the shop'))),
-      el('div', { class: 'bs-spells' }, ...SPELL_IDS.map((s) => {
+      el('div', { class: 'bs-spells' }, ...BAR_SPELLS.map((s) => {
         const lvl = spells?.[s] ?? 0;
         return el('label', { class: 'bs-spell' + (lvl ? ' on' : '') },
           el('input', { type: 'checkbox', checked: lvl > 0, disabled: !lvl && picked.length >= MAX_SPELLS, onchange: () => pick(s, lvl ? 0 : 1, true) }),

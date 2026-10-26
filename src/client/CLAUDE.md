@@ -113,6 +113,11 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 
 `ui.ts` uses `document`/`matchMedia` on load and does not run in Vitest. A screen decision that needs a test goes into a pure function in `screen-data.ts` (or `rules-text.ts`, `tips.ts`, `icons.ts`, `keys.ts`, `sheet.ts`, `reach.ts`, which do not touch the DOM on load).
 
+## Aim preview (`aim-preview.ts`)
+
+- `AimPreview` owns the ground meshes of aiming: range ring, area circle, hit bands, sand cone, melee arc, target lock and controller reticle. `createScene` builds one and exposes it as `scene.preview`; `main.ts` feeds it every frame.
+- What a spell shows comes only from `aimOf`/`blastOf` (`reach.ts`, pure and tested) through `preview.shape(...)`: a new spell shape goes there, never as a spell-name branch in the scene. The area circle is read from the data (range + radius and it does not fly), so a new area spell gets it without touching a list.
+
 ## Snapshot interpolation (`interp.ts`)
 
 - `SnapshotInterpolator` owns a bounded snapshot buffer, its capacity, and the smoothed server/local clock offset. Live rendering and replay use independent instances through `createInterp(max)`.

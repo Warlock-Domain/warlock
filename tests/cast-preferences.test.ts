@@ -1,6 +1,16 @@
 import { afterEach, expect, it, vi } from 'vitest';
 
 afterEach(() => { vi.resetModules(); vi.unstubAllGlobals(); });
+it('uses individual active-item preferences for the Scourge keyboard action', async () => {
+  const { setCastPreference } = await import('../src/client/cast-preferences.ts');
+  const { getCastMode } = await import('../src/client/keys.ts');
+  setCastPreference('key:Digit1', 'click');
+  setCastPreference('item:scourge', 'release');
+  expect(getCastMode('scourge', 'Digit1')).toBe('release');
+  setCastPreference('item:scourge');
+  expect(getCastMode('scourge', 'Digit1')).toBe('click');
+  setCastPreference('key:Digit1');
+});
 it('shares targeted click defaults between the HUD editor and keyboard resolver', async () => {
   const { resolveCastMode, setCastPreference } = await import('../src/client/cast-preferences.ts');
   for (const ability of ['spell:heal', 'spell:sniper']) {

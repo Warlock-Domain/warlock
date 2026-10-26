@@ -10,7 +10,7 @@ import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/character
 import { CAMPAIGN } from '../shared/campaign.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, isRoomMode, sellValue, type MatchOpts, type Mode, type RoomMode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
-import { ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
+import { ITEMS, ITEM_IDS, MAX_ITEMS, castLevel, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, SPELL_IDS, isSpell, priceOf, spellCount, spellMax, type SpellId } from '../shared/spells.ts';
 import { POS_ACTIONS, isSlotMode, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
 import { castModeControl, openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
@@ -1156,9 +1156,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const cd = el('span', { class: 'cd' });
     const pips = el('span', { class: 'pips' });
     const b = withTip(el('button', { type: 'button', class: 'spell ' + spellClass(s), 'aria-label': spellName(s), onclick: () => act.spell(s), onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(s), onpointerleave: () => act.hover(null) },
-      el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0));
+      el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => (s === 'scourge' ? itemTip(s, mine?.items.scourge ?? 0) : spellTip(s, mine?.spells[s] ?? 0)));
     buttons.set(s, { b, cd, pips });
-    draggableSlot(b, 0, true);
+    if (s !== 'scourge') draggableSlot(b, 0, true); // the Scourge sits in the item grid, outside the spell order
     return b;
   }));
   // Attack (A) and Hold ground (S) open the bottom row: Q W E R on top, A S D F below (Fernando, 25/10, issue #401). Faded and
@@ -1175,8 +1175,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (!mine) return setSlots([]); // espectador: teclas e controle não ficam com a ordem de antes
     if (slotDrag) return;
     const order = equipment(mine);
-    const passive = ITEM_IDS.filter((i) => mine!.items[i] > 0);
-    const sig = JSON.stringify([order, passive.map((i) => [i, mine!.items[i]])]);
+    const passive = ITEM_IDS.filter((i) => i !== 'scourge' && mine!.items[i] > 0);
+    const active = mine.items.scourge > 0 ? [buttons.get('scourge')!.b] : []; // the Scourge is the active item button, with key and cooldown (26/10, #227)
+    const sig = JSON.stringify([order, passive.map((i) => [i, mine!.items[i]]), active.length]);
     if (bar.dataset.order !== sig) {
       bar.dataset.order = sig;
       const empty = (index: number) => draggableSlot(el('span', { class: 'spell slot-empty', 'aria-label': t('Posição vazia', 'Empty slot') }, el('span', { class: 'key', 'data-position': index }, keyLabel(keyOf(POS_ACTIONS[index])))), index, false);
@@ -1187,8 +1188,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         return node;
       });
       bar.replaceChildren(...slots.slice(0, ROW), ...fixedBtns, ...slots.slice(ROW));
-      itemGrid.replaceChildren(...passive.map((i) => withTip(el('span', { class: 'spell passive', tabindex: 0, 'aria-label': t(`${itemName(i)} (passivo) nível ${mine!.items[i]}`, `${itemName(i)} (passive) level ${mine!.items[i]}`) }, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0))),
-      ...Array.from({ length: Math.max(0, MAX_ITEMS - passive.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
+      itemGrid.replaceChildren(...active, ...passive.map((i) => withTip(el('span', { class: 'spell passive', tabindex: 0, 'aria-label': t(`${itemName(i)} (passivo) nível ${mine!.items[i]}`, `${itemName(i)} (passive) level ${mine!.items[i]}`) }, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0))),
+      ...Array.from({ length: Math.max(0, MAX_ITEMS - active.length - passive.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
       hideTip(bar); hideTip(itemGrid);
     }
     setSlots(order.spells);
@@ -1272,7 +1273,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       choice(t('Configurar por', 'Configure by'), [['key', t('Atalho', 'Shortcut')], ['ability', t('Magia / item', 'Spell / item')]] as const, castingScope, scope => { castingScope = scope; editCastSlot(castingSelection); }),
       ...(!target.ability && castingScope === 'ability' ? [el('small', { class: 'muted' }, t('Espaço vazio: configurando o atalho.', 'Empty slot: configuring its shortcut.'))] : []),
       castModeControl(individual ? target.ability! : 'key:' + target.code, `${target.name} · ${individual ? t('individual', 'individual') : keyLabel(target.code)}`, target.code, target.ability),
-      el('small', { class: 'muted' }, t('Itens atuais são passivos; estas opções ficam salvas para itens ativáveis futuros.', 'Current items are passive; these preferences are saved for future active items.')));
+      el('small', { class: 'muted' }, t('As opções valem para itens ativos; itens passivos continuam passivos.', 'These options apply to active items; passive items remain passive.')));
   }
   function mountCastHud(host: HTMLElement) {
     castingHost = host;
@@ -1290,10 +1291,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const slot = Number(node.dataset.loadoutSlot), spell = node.querySelector<HTMLElement>('[data-action]')?.dataset.action;
       bind(node, { name: spell && isSpell(spell) ? spellName(spell) : t(`Magia ${slot + 1}`, `Spell ${slot + 1}`), slot, code: keyOf(POS_ACTIONS[slot]), ...(spell && isSpell(spell) && { ability: 'spell:' + spell }) });
     });
-    const items = ITEM_IDS.filter(i => (mine?.items[i] ?? 0) > 0);
+    const items: ItemId[] = [...(mine?.items.scourge ? ['scourge' as const] : []), ...ITEM_IDS.filter(i => i !== 'scourge' && (mine?.items[i] ?? 0) > 0)];
     preview.querySelectorAll<HTMLElement>('.item-grid > *').forEach((node, i) => {
-      bind(node, { name: items[i] ? itemName(items[i]) : t(`Item ${i + 1}`, `Item ${i + 1}`), code: 'Digit' + (i + 1), ...(items[i] && { ability: 'item:' + items[i] }) });
-      node.append(el('span', { class: 'key' }, String(i + 1)));
+      const code = items[i] === 'scourge' ? keyOf('scourge') : 'Digit' + (i + 1);
+      bind(node, { name: items[i] ? itemName(items[i]) : t(`Item ${i + 1}`, `Item ${i + 1}`), code, ...(items[i] && { ability: 'item:' + items[i] }) });
+      node.querySelector('.key')?.remove();
+      node.append(el('span', { class: 'key' }, keyLabel(code)));
     });
     host.append(el('div', { class: 'dota-bar casting-live-hud' }, preview), castingControls);
     editCastSlot(castingSelection);
@@ -1733,7 +1736,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const itemOffer = (i: ItemId) => {
       const lvl = mine.items[i];
       const price = itemPrice(mine.items, i);
-      return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: itemName(i), hotkey: null, use: itemText(i), lvl, max: ITEMS[i].levels.length, price,
+      return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: itemName(i), hotkey: i === 'scourge' ? hotkeyOf('scourge') : null, use: itemText(i), lvl, max: ITEMS[i].levels.length, price,
         blocked: lvl >= ITEMS[i].levels.length ? t('Máximo', 'Max') : price === null ? t('Sem espaço', 'No room') : null, buy: () => act.buyItem(i), tip: () => itemTip(i, lvl),
         bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }) });
     };
@@ -2036,9 +2039,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       refreshEquipment();
       for (const s of SPELL_IDS) {
         const { b, pips } = buttons.get(s)!;
-        const lvl = mine?.spells[s] ?? 0;
+        const lvl = mine ? castLevel(mine, s) : 0;
         b.hidden = lvl === 0;
-        pips.replaceChildren(...pipsOf(lvl, spellMax(s)));
+        pips.replaceChildren(...pipsOf(lvl, s === 'scourge' ? ITEMS.scourge.levels.length : spellMax(s)));
       }
       barOff = r.phase === 'lobby' || r.phase === 'end' || (r.phase === 'shop' && !SHOP_BAR.matches) || !mine;
       syncBar();

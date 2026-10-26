@@ -12,6 +12,7 @@ describe('Casting settings layout', () => {
     expect(casting).toContain("castOverride('item:'");
   });
   it('removes duplicate global/shortcut controls without resetting stored preferences or removing key bindings', () => {
+    expect(casting).toContain("ACTIONS.filter((spell) => spell !== 'scourge')");
     expect(casting).not.toContain('Lançar pela tecla');
     expect(casting).not.toContain('Casting with the key');
     expect(casting).not.toContain('Uso por atalho do teclado');
