@@ -89,6 +89,12 @@ h2.title { font-family: var(--display); font-size: var(--fs-160); text-transform
 /* ornamento antes do título dos painéis (o "/ ''" deixa o leitor de tela calado) */
 h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font-size: .55em; vertical-align: .25em; color: var(--lava); text-shadow: 0 0 8px rgba(255, 106, 26, .6); }
 
+/* Readiness, not an animation timer, owns the transition into the room. */
+.room-loading { background: var(--bg); z-index: 70; }
+.room-loading-active #c { visibility: hidden; }
+.loading-stage { width: min(1200px, 100%); display: grid; place-items: center; }
+.loading-copy { display: flex; flex-direction: column; align-items: center; gap: var(--sp-16); text-align: center; text-shadow: var(--text-shadow); }
+.loading-copy h1 { margin: 0; color: var(--gold); font-family: var(--display); font-size: clamp(2rem, 6vw, 4rem); }
 /* um só jeito de mostrar "selecionado": modo, aba, personagem e magia escolhida */
 .pick.on, .stats-tabs button.on, .watching button.on, .hud-right .icon.on, .spell.armed { border-color: var(--ember); background: var(--sel-bg); box-shadow: 0 0 0 1px var(--ember); color: var(--fg); }
 
