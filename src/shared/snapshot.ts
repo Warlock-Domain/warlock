@@ -81,7 +81,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     snap.lp = w.wizards.map((z) => r2(z.lootProg / CHEST.goldEvery));
   }
   // Authoritative aim never exposes a hidden caster's target.
-  if (w.wizards.some(z=>z.casting?.spell==='sniper')) snap.sn = w.wizards.flatMap((z,i)=>z.alive && !(wz[i*7+6]&2048) && z.casting?.spell==='sniper' ? [r2(Math.max(0,z.casting.fireAt-w.t)),r2(z.casting.at.x),r2(z.casting.at.y)] : [0,0,0]);
+  // Seconds left of the aim; 0.01 = charged, waiting for the key (0 means no aim)
+  if (w.wizards.some(z=>z.casting?.spell==='sniper')) snap.sn = w.wizards.flatMap((z,i)=>z.alive && !(wz[i*7+6]&2048) && z.casting?.spell==='sniper' ? [r2(Math.max(.01,z.casting.fireAt-w.t)),r2(z.casting.at.x),r2(z.casting.at.y)] : [0,0,0]);
   if (ab.some((x) => x > 0)) snap.ab = ab;
   if (w.wizards.some((z) => z.channel)) snap.cn = w.wizards.flatMap((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) && z.channel ? [SPELL_IDS.indexOf(z.channel.spell), r2(Math.min(2, w.t - z.channel.since))] : [-1, 0]);
   // Campanha: brasa de cada mago (0 a 1 até reacender; −1 sem brasa ou apagada), na ordem de room.ids

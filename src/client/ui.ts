@@ -1162,7 +1162,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const fixedBtns = TOUCH ? [] : MECHANIC_GUIDES.map((g) => {
     const ui: UiAction = g.id === 'basic' ? 'basic' : 'stop';
     return withTip(el('button', { type: 'button', class: 'spell fixed-skill', 'aria-disabled': 'true', 'aria-label': g.title },
-      el('span', { class: 'key', 'data-ui': ui }, uiLabel(ui)), el('span', { class: 'ico' }, icon(MECHANIC_ICON[g.id]))), () => mechanicTip(g, !!(g.id === 'basic' ? mine?.arc : mine?.guard)));
+      el('span', { class: 'key', 'data-ui': ui }, uiLabel(ui)), el('span', { class: 'ico' }, icon(MECHANIC_ICON[g.id])), el('span', { class: 'cd' })), () => mechanicTip(g, !!(g.id === 'basic' ? mine?.arc : mine?.guard)));
   });
   const ROW = 4; // slots per row: the fixed pair goes right after Q W E R
   // grade 3×2 de itens à direita da barra, como a do Dota (MAX_ITEMS = 6): os comprados (todos passivos desde 21/10, #217) e o resto vazio
@@ -2045,7 +2045,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // hp: minha vida e o máximo, só jogando e vivo (null esconde a barra grande); dead: ids caídos na rodada, separados por vírgula
     // fx: pares [bit, segundos que faltam] dos meus efeitos com prazo (snap.fx)
     // xp: Ascensão, nível e XP ao vivo (liveLevel); null fora do modo
-    frame(cd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '', fx: number[] = [], xp: { level: number; total: number; next: number; frac: number } | null = null) {
+    frame(cd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '', fx: number[] = [], xp: { level: number; total: number; next: number; frac: number } | null = null, sniperCharge: number | null = null) {
       if (dead !== shownDead) {
         shownDead = dead;
         const down = new Set(dead.split(','));
@@ -2106,6 +2106,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         b.classList.toggle('armed', armed === a);
       };
       SPELL_IDS.forEach((s, i) => tick(s, buttons.get(s)!, cd[i]));
+      // Inelegant Solution aim: the Attack button (A) fills like the bubble's bar and sparks once charged; A then fires (Fernando, 26/10)
+      const attackBtn = fixedBtns[0];
+      if (attackBtn) {
+        attackBtn.classList.toggle('charged', sniperCharge !== null && sniperCharge >= .99);
+        attackBtn.classList.toggle('charging', sniperCharge !== null && sniperCharge < .99);
+        if (sniperCharge !== null) attackBtn.style.setProperty('--cd', Math.max(0, 1 - sniperCharge).toFixed(3));
+      }
       if (!room) return;
       // fps e ping: atualizam 2 vezes por segundo; fps verde a partir de 50, dourado a partir de 30; ping verde até 80 ms, dourado até 150, vermelho acima
       frames++;

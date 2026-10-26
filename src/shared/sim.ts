@@ -1061,13 +1061,19 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   if (castBlocked(isStunned(wz), w.t < wz.gripUntil, spell)) return;
   if (spell === 'closedbody' && !bracingActive(w, wz)) return;
   // a mesma magia já sendo conjurada: ignora a tecla repetida (a recarga só começa quando ela sai)
-  if (wz.casting?.spell === spell) return;
+  if (wz.casting?.spell === spell && spell !== 'sniper') return;
   // Flagelo em preparo: nada mais sai até ele explodir, menos o Teleporte, que cancela a explosão (pedidos do Fernando, 17/10)
   if (wz.casting?.spell === 'scourge') {
     if (spell !== 'teleport') return;
     wz.casting = null;
   }
-  if (wz.casting?.spell === 'sniper') return; // Finish or cancel the long aim before accepting another spell.
+  // Charged aim waits for the player (Fernando, 26/10): the spell key again fires at the tracked target; nothing else is accepted.
+  if (wz.casting?.spell === 'sniper') {
+    if (spell !== 'sniper' || w.t + 1e-8 < wz.casting.fireAt) return;
+    const c = wz.casting;
+    wz.casting = null;
+    return cast(w, wz, 'sniper', c.at, c.power, c.aimedId);
+  }
   if (!wz.spells[spell] || w.t < wz.cd[spell]) return;
   // An invalid target neither reveals the wizard nor cancels another action.
   if (spell === 'heal' && !healTarget(w.wizards, wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF * (wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1))) return;
@@ -2187,7 +2193,7 @@ function prepWizards(w: World, rand: () => number) {
       if (!wz.spells.sniper || isStunned(wz) || !target || sniperVictim(w,wz,target.pos,range,target.id)?.id !== target.id) wz.casting = null;
       else { c.at = { ...target.pos }; wz.facing = Math.atan2(target.pos.y-wz.pos.y,target.pos.x-wz.pos.x); }
     }
-    if (wz.casting && w.t + 1e-8 >= wz.casting.fireAt) {
+    if (wz.casting && wz.casting.spell !== 'sniper' && w.t + 1e-8 >= wz.casting.fireAt) {
       const c = wz.casting;
       wz.casting = null;
       cast(w, wz, c.spell, c.at, c.power, c.aimedId);

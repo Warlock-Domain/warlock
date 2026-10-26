@@ -207,6 +207,7 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
    moved or sold; hover brings some opacity back so the tip does not look like it belongs to something broken */
 .spellbar .fixed-skill { opacity: .5; filter: saturate(.4); cursor: help; }
 .spellbar .fixed-skill:hover, .spellbar .fixed-skill:focus-visible { opacity: .8; }
+.spellbar .fixed-skill.charging, .spellbar .fixed-skill.charged { opacity: 1; filter: none; }
 /* barra da partida estilo Dota (ui.ts): painel com rebites; retrato com vida e ouro, magias no meio e grade de itens 3×2 */
 .dota-bar, .skills { display: flex; align-items: center; gap: var(--sp-14); }
 .dota-bar { padding: 10px 16px; border-radius: var(--r-frame); background: var(--frame), var(--plate); border: 2px solid var(--bronze); box-shadow: var(--plate-edge), var(--shadow-md); }
@@ -268,7 +269,7 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .spell .pips i { width: 9px; height: 3px; }
 .spell .cd { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: var(--fs-120); text-shadow: 0 1px 3px var(--ink); pointer-events: none; }
 /* recarga em varredura: a parte que falta (--cd, de 1 a 0, ui.ts) fica escura e a pronta clareia no sentido do relógio a partir do topo */
-.spell.cooling .cd { background: conic-gradient(rgba(0, 0, 0, .25) calc((1 - var(--cd, 1)) * 360deg), rgba(0, 0, 0, .68) 0); }
+.spell.cooling .cd, .spell.charging .cd { background: conic-gradient(rgba(0, 0, 0, .25) calc((1 - var(--cd, 1)) * 360deg), rgba(0, 0, 0, .68) 0); }
 .spell.locked { opacity: .35; filter: grayscale(1); }
 .spell.armed { box-shadow: 0 0 0 2px var(--ember), 0 0 18px rgba(255, 179, 71, .6); }
 
@@ -322,6 +323,7 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 @keyframes lvup { 0% { transform: scale(2.2); color: var(--white); text-shadow: 0 0 8px var(--xp); } 100% { transform: scale(1); } }
 .wiz-label .loot-bar { width: 46px; height: 5px; margin-top: 3px; border-radius: 2px; background: rgba(0, 0, 0, .6); overflow: hidden; }
 .wiz-label .loot-bar > div { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-pale)); }
+.wiz-label .bubble .loot-bar { width: 100%; }
 .wiz-label.ember .hp-row, .wiz-label.ember .shield-bar { display: none; }
 .wiz-label.ember .loot-bar { width: 60px; height: 7px; box-shadow: 0 0 6px var(--ember); }
 .wiz-label.ember .loot-bar > div { background: var(--ember); }
@@ -676,6 +678,9 @@ button, .button { transition: transform .08s ease-out, filter .12s, background-c
 button:not(:disabled):active, .button:active { transform: translateY(1px) scale(.97); filter: brightness(.92); }
 /* primário afunda: o degrau some e a luz vira sombra por dentro */
 button.primary:not(:disabled):active, .button:active { transform: translateY(2px); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .45), 0 1px 0 var(--lava-night); }
+/* Inelegant Solution charged: little electric sparks until the key fires (Fernando, 26/10) */
+.spell.charged { border-color: var(--shield-hp); box-shadow: 0 0 0 2px var(--shield-hp), 0 0 14px var(--shield-hp); animation: sparks .22s steps(1) infinite; }
+@keyframes sparks { 0% { box-shadow: 0 0 0 2px var(--white), -4px -3px 10px var(--shield-hp), 3px 4px 4px var(--white); } 33% { box-shadow: 0 0 0 2px var(--shield-hp), 4px -4px 12px var(--white), -3px 3px 6px var(--shield-hp); } 66% { box-shadow: 0 0 0 2px var(--white), 2px 4px 14px var(--shield-hp), -4px -2px 3px var(--white); } }
 /* recarga terminou: o botão acende e volta */
 .spell.ready-flash { animation: ready-flash .5s ease-out; }
 @keyframes ready-flash { 0% { transform: scale(1.1); filter: brightness(1.9); box-shadow: 0 0 0 2px var(--gold-pale), 0 0 26px var(--ember); } 100% { transform: none; filter: none; } }
@@ -743,7 +748,7 @@ button.primary.urgent:not(:disabled) { animation: urgent .45s ease-in-out infini
 @keyframes podium-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   button, .button, .shop-tile, #toast { transition: none; }
-  .spell.ready-flash, .center.enter > .card, .vol-panel, .tab-overlay.pinned > .card, .sheet-panel, button.primary.urgent:not(:disabled), .banner.win, .center.enter .podium-step, .peek-shop.drawer, .watching .shop-nudge { animation: none; }
+  .spell.ready-flash, .spell.charged, .center.enter > .card, .vol-panel, .tab-overlay.pinned > .card, .sheet-panel, button.primary.urgent:not(:disabled), .banner.win, .center.enter .podium-step, .peek-shop.drawer, .watching .shop-nudge { animation: none; }
   .banner .confetti, .curtain { display: none; }
   .hpbar > i { transition: none; }
 }

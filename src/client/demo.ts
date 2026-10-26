@@ -39,7 +39,7 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   // you walk up and fire at the third wizard: the controlled one walks the same way and its copy converges on the same point (a V)
   pix: { pos: [v(-3, 0), v(2, 0), v(5, -3)], end: PIX_AT + 4.5, steps: [[.4, A, 'pix', v(2, 0)], [PIX_AT + .2, A, 'move', v(-3, 1.5)], [PIX_AT + 1.2, A, 'fireball', v(5, -3)]],
     prep: (w) => { w.pillars = []; w.wizards[C].regen = 0; } },
-  sniper: { pos: [v(-4,0),v(3,0)], end:6.2, steps:[[.4,A,'sniper',B],[1,B,'move',v(3,2)]], prep:w=>{w.pillars=[];w.wizards[B].regen=0;} },
+  sniper: { pos: [v(-4,0),v(3,0)], end:6.2, steps:[[.4,A,'sniper',B],[1,B,'move',v(3,2)],[.4+CAST_POINT.sniper+.3,A,'sniper',B]], prep:w=>{w.pillars=[];w.wizards[B].regen=0;} },
   channel: { pos: [v(-4,0),v(3,0)], end: 4.5, steps: [[.3,A,'charge',B],[3,A,'fireball',B]], prep: w => { w.pillars=[]; w.wizards[B].regen=0; } },
   closedbody: { pos: [v(-1,0), v(3,0)], end: CLOSED_BODY_END + 2,
     steps: ([...Array.from({length:Math.ceil((CLOSED_BODY_END+1.1)/.1)}, (_,i): Step => [.1+i*.1,A,'braceOn',A]), [.8,A,'closedbody',v(-1,4)], [1,B,'fireball',A], [2,B,'meteor',A], [CLOSED_BODY_END+.2,B,'basic',A], [CLOSED_BODY_END+1.2,A,'braceOff',A]] as Step[]).sort((a,b)=>a[0]-b[0]),
@@ -92,7 +92,7 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 
 // Rótulos seguem os estados reais para a prévia não sugerir que stun, prisão e postura têm o mesmo bloqueio.
 export function demoStatus(w: World, z: Wizard): string[] {
-  if(z.casting?.spell==='sniper') return [t(`mirando · ${n1(z.casting.fireAt-w.t)} s · tiro ${spellLevel('sniper',1).dmg}`,`aiming · ${n1(z.casting.fireAt-w.t)} s · shot ${spellLevel('sniper',1).dmg}`)];
+  if(z.casting?.spell==='sniper') return [t(`mirando · ${n1(Math.max(0,z.casting.fireAt-w.t))} s · tiro ${spellLevel('sniper',1).dmg}`,`aiming · ${n1(Math.max(0,z.casting.fireAt-w.t))} s · shot ${spellLevel('sniper',1).dmg}`)];
   if (z.channel) {
     // below 1 s the charge is not ready (power 0): show no bonus until a click would actually fire
     const elapsed = Math.min(2, w.t - z.channel.since), bonus = Math.round((channelPower(elapsed) - 1) * 100);

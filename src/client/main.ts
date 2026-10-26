@@ -44,7 +44,7 @@ import { TAUNTS } from '../shared/taunts.ts';
 import { seenRooms } from './minimap.ts';
 import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, setIlse, type IlseCtx } from './ilse.ts';
 import { sniperFocusState } from './sniper-focus.ts';
-import { sniperTarget } from '../shared/sniper-target.ts';
+import { attackTarget, sniperTarget } from '../shared/sniper-target.ts';
 import { sniperShotSound } from './sniper-fx.ts';
 import { healTarget } from '../shared/heal-target.ts';
 
@@ -420,6 +420,13 @@ function startRoom(code: string, name: string) {
 
   let sniperRequestSeq = 0;
   let channelRequest: { spell: SpellId; since: number; seq: number } | null = null;
+  // Charged Inelegant Solution: A (Attack), the spell key, its bar button or the controller fire at the tracked enemy (0.01 s left = charged, snapshot.ts)
+  function fireSniper() {
+    const self = myWizard(interp.latest());
+    if (!self?.sniperAt || (self.sniperLeft ?? 0) > .01) return false;
+    command({ t: 'cast', spell: 'sniper', x: self.sniperAt.x, y: self.sniperAt.y });
+    return true;
+  }
   const input = createInput(canvas, {
     canChannel: () => (room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0,
     channel(spell) {
@@ -449,6 +456,7 @@ function startRoom(code: string, name: string) {
     brace: (on) => command({ t: 'brace', on }),
     checkCooldown,
     pickAttack: (x, y) => scene.pickMage(x, y),
+    fireSniper,
     attackArmedChanged: (on) => { canvas.style.cursor = on ? 'crosshair' : ''; },
     meleeArc: () => !!room?.players.find((p) => p.id === me)?.arc,
     basic(at, clicked) {
@@ -471,6 +479,7 @@ function startRoom(code: string, name: string) {
       scourgeUntil = 0; // o S cancela o Flagelo em preparo
     },
     cast(spell, at) {
+      if (spell === 'sniper' && fireSniper()) return true;
       if ((myWizard(interp.latest())?.sniperLeft ?? 0)>0) return false;
       if (spell === 'channel') return false;
       if (channelRequest?.spell === spell && ((myWizard(interp.latest())?.channelElapsed ?? 0) < 1)) { toast(t('Canalize por pelo menos 1 segundo.', 'Channel for at least 1 second.')); return false; }
@@ -484,7 +493,7 @@ function startRoom(code: string, name: string) {
       if (spell === 'sniper') {
         const units = interp.latest()?.wizards.map(w => ({...w, team: room?.players.find(p=>p.id===w.id)?.team, hidden: !!(w.status&2048), suspended: (w.geyserLeft ?? 0)>0})) ?? [];
         const self = units.find(w=>w.id===me);
-        const target = self && sniperTarget(units,self,at,SPELLS.sniper.levels[0].range*(1+itemStats(mine.items).range) );
+        const target = self && sniperTarget(units,self,at,SPELLS.sniper.levels[0].range*(1+itemStats(mine.items).range), input.hovered());
         if (!target) return toast(t('Clique em um inimigo visível dentro do alcance.', 'Click a visible enemy within range.'));
         at = target.pos;
       }
@@ -1055,6 +1064,11 @@ function startRoom(code: string, name: string) {
     scene.bands(shape?.segs ?? [], shape?.half ?? 0);
     scene.arc(arcPreview && nowMs < arcPreview.until && meW?.alive && myPos ? myPos : null, arcPreview?.facing ?? 0);
     scene.cone(shape?.cone ?? null);
+    const attackArmed = !meP?.spells.channel && input.attackArmed();
+    const lockFrom = room?.phase === 'playing' && meW?.alive && meP && (attackArmed || armed === 'sniper') ? drawWiz.filter((d) => !d.illusion).map((d) => ({ ...d, hidden: !!(d.status & 2048), suspended: (d.geyserLeft ?? 0) > 0 })) : null;
+    const lockSelf = lockFrom?.find((d) => d.id === me), lockAt = lockSelf && input.aimPoint();
+    const lockHover = lockAt ? input.hovered() : undefined;
+    scene.lockOn(lockSelf && lockAt ? (armed === 'sniper' ? sniperTarget(lockFrom!, lockSelf, lockAt, SPELLS.sniper.levels[0].range * (1 + itemStats(meP!.items).range), lockHover) : attackTarget(lockFrom!, lockSelf, lockAt, BASIC_ATTACK.range, lockHover))?.pos ?? null : null);
     // nas posições desenhadas (as mesmas da tela), para ver se o erro foi mira, desvio ou a bola no ar enganando
     scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
@@ -1094,7 +1108,7 @@ function startRoom(code: string, name: string) {
     view.boss(bossP && bossW ? { name: playerName(bossP), now: bossW.hp, max: maxHp(bossP) } : null);
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
     view.frame(lastSnap?.cd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
-      wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx, xp); // caídos na rodada: retrato apagado no topo
+      wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx, xp, meW?.alive && meW.sniperLeft ? 1 - meW.sniperLeft / CAST_POINT.sniper : null); // caídos na rodada: retrato apagado no topo
   }
   const drawn = new Map<string, Vec>();
   const replayDrawn = new Map<string, Vec>();
