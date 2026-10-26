@@ -18,7 +18,7 @@ const DEFAULTS: Record<string, string> = {
   boomerang: 'KeyB', thrust: 'KeyX', gravity: 'KeyH', rockpillar: 'KeyZ', bouncer: '', basic: 'KeyA',
   // as dez últimas: sobraram 9 letras livres; a Zona de dobra fica sem tecla padrão (teclas por posição ou painel de teclas)
   drain: 'KeyN', snowball: 'KeyO', illusion: 'KeyJ', magnetize: 'KeyM', recharge: 'KeyK', alteration: 'KeyL', link: 'KeyU', windwalk: 'KeyI', splitter: 'KeyP', warpzone: '',
-  // Flagelo e Pacto ficam nas teclas que tinham como item (viraram magia em 21/10, #217)
+  // Scourge and Pact keep the keys they had as items (they became spells on 21/10, #217); the Scourge is an item again since 26/10 (#227) and stays on 1
   scourge: 'Digit1', pact: 'Digit3', heal: '', geyser: '', closedbody: '', channel: '', sniper: '', pix: '',
   // Shop: Dota's B belongs to Boomerang and all 26 letters are taken; 1 to 4 were position keys from 21/10 to 25/10 (#217), hence 7
   // (5 was already Replay the fall and 6 the camera, #235); sheet: the key left of 1 (' on ABNT2); Grimoire on F1 (H is Gravity) and the library on F2
@@ -123,11 +123,11 @@ const PAD_NAMES_PS = ['✕', '○', '□', '△', 'L1', 'R1', 'L2', 'R2', 'Share
 export const PAD_START = 9;
 // nome do botão nas duas famílias ("A / ✕"); L3, R3 e o D-pad são iguais
 export const padButtonName = (b: number, open = ' / ', close = '') => (PAD_NAMES[b] === PAD_NAMES_PS[b] ? PAD_NAMES[b] : PAD_NAMES[b] + open + PAD_NAMES_PS[b] + close);
-export const PAD_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'sheet', 'board', 'shop', 'center', 'taunt'] as const;
+export const PAD_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'sheet', 'board', 'shop', 'center', 'taunt', 'item'] as const;
 export type PadAction = (typeof PAD_ACTIONS)[number];
-const PAD_DEFAULTS: Record<PadAction, number> = { slot1: 0, slot2: 1, slot3: 2, slot4: 3, slot5: 4, slot6: 5, sheet: 10, board: 8, shop: 13, center: 11, taunt: 14 };
+const PAD_DEFAULTS: Record<PadAction, number> = { slot1: 0, slot2: 1, slot3: 2, slot4: 3, slot5: 4, slot6: 5, sheet: 10, board: 8, shop: 13, center: 11, taunt: 14, item: 6 }; // item: the Scourge on LT, the Item 1 button until 21/10 (26/10, #227)
 export const PAD_ACTION_NAMES: Record<PadAction, string> = { slot1: t('Magia 1', 'Spell 1'), slot2: t('Magia 2', 'Spell 2'), slot3: t('Magia 3', 'Spell 3'), slot4: t('Magia 4', 'Spell 4'), slot5: t('Magia 5', 'Spell 5'), slot6: t('Magia 6', 'Spell 6'),
-  sheet: t('Ficha do mago', 'Wizard sheet'), board: t('Placar (segurar)', 'Scoreboard (hold)'), shop: t('Loja só para ver', 'Shop (view only)'), center: t('Centralizar a câmera', 'Center the camera'), taunt: t('Provocações', 'Taunts') };
+  sheet: t('Ficha do mago', 'Wizard sheet'), board: t('Placar (segurar)', 'Scoreboard (hold)'), shop: t('Loja só para ver', 'Shop (view only)'), center: t('Centralizar a câmera', 'Center the camera'), taunt: t('Provocações', 'Taunts'), item: t('Flagelo (item)', 'Scourge (item)') };
 const PAD_STORE = 'warlock:pad';
 let padMap: Record<PadAction, number> = { ...PAD_DEFAULTS };
 const savedPad = store.json(PAD_STORE);
@@ -138,6 +138,9 @@ if (isRecord(savedPad)) for (const a of PAD_ACTIONS) {
 // Quem já usava ← para outra ação mantém a escolha; a ação nova ocupa um botão ainda livre.
 if (PAD_ACTIONS.some((a) => a !== 'taunt' && padMap[a] === padMap.taunt)) {
   padMap.taunt = PAD_NAMES.findIndex((_, b) => b !== PAD_START && !PAD_ACTIONS.some((a) => a !== 'taunt' && padMap[a] === b));
+}
+if (PAD_ACTIONS.some((a) => a !== 'item' && padMap[a] === padMap.item)) { // same for the Scourge button (26/10, #227)
+  padMap.item = PAD_NAMES.findIndex((_, b) => b !== PAD_START && !PAD_ACTIONS.some((a) => a !== 'item' && padMap[a] === b));
 }
 export const padButtonOf = (a: PadAction) => padMap[a];
 export const padActionAt = (btn: number): PadAction | undefined => PAD_ACTIONS.find((a) => padMap[a] === btn);
@@ -168,6 +171,7 @@ export function setPadMode(on: boolean) {
   notify();
 }
 const padLabel = (a: Action) => {
+  if (a === 'scourge') return PAD_NAMES[padMap.item]; // an item, outside the positions
   const i = slots.indexOf(a);
   return i < 0 ? '—' : PAD_NAMES[padMap[`slot${i + 1}` as PadAction]];
 };
@@ -179,9 +183,10 @@ const posOf = (a: Action): PosAction | undefined => {
   const p = `slot${i + 1}`;
   return i >= 0 && p in POS_DEFAULTS ? (p as PosAction) : undefined;
 };
+// the Scourge is an item (26/10, #227): it stays out of the bar positions and keeps its own key in slot mode too
 export const keyOf = (a: AnyAction): string => {
   if (isPos(a)) return posMap[a];
-  if (!slotMode || isUi(a)) return map[a];
+  if (!slotMode || isUi(a) || a === 'scourge') return map[a];
   const p = posOf(a);
   return p ? posMap[p] : '';
 };
@@ -190,6 +195,7 @@ export const isUiKey = (code: string, a: UiAction) => !!code && map[a] === code;
 // só magias: os atalhos da interface nunca lançam nada
 export const actionFor = (code: string): Action | undefined => {
   if (!slotMode) return ACTIONS.find((a) => map[a] === code) as Action | undefined;
+  if (code && map.scourge === code) return 'scourge';
   const p = code ? POS_ACTIONS.find((q) => posMap[q] === code) : undefined;
   if (!p) return undefined;
   const i = Number(p.slice(4)) - 1;
@@ -212,9 +218,11 @@ export const labelOf = (a: Action) => (pad ? padLabel(a) : keyLabel(keyOf(a)));
 export const uiLabel = (a: UiAction) => keyLabel(map[a]);
 
 // quem usa a tecla agora: com as teclas por posição, as posições e os atalhos; fora delas, as magias e os atalhos
+// in slot mode these keep their own key: the shortcuts and the Scourge (an item, 26/10, #227)
+const FREE_KEYED: (Action | UiAction)[] = [...UI_ACTIONS, 'scourge'];
 export function whoUses(code: string): AnyAction | undefined {
   if (!code) return undefined;
-  if (slotMode) return POS_ACTIONS.find((p) => posMap[p] === code) ?? UI_ACTIONS.find((u) => map[u] === code);
+  if (slotMode) return POS_ACTIONS.find((p) => posMap[p] === code) ?? FREE_KEYED.find((u) => map[u] === code);
   return ALL.find((a) => map[a] === code);
 }
 
@@ -230,13 +238,13 @@ export function setKey(a: AnyAction, code: string): boolean {
   if (isPos(a)) {
     const other = POS_ACTIONS.find((p) => posMap[p] === code);
     if (other && other !== a) posMap[other] = posMap[a];
-    const ui = UI_ACTIONS.find((u) => map[u] === code);
+    const ui = FREE_KEYED.find((u) => map[u] === code);
     if (ui) assign(ui, posMap[a]);
     posMap[a] = code;
   } else {
     const before = map[a];
     assign(a, code);
-    const pos = isUi(a) && POS_ACTIONS.find((p) => posMap[p] === code);
+    const pos = (isUi(a) || a === 'scourge') && POS_ACTIONS.find((p) => posMap[p] === code);
     if (pos) posMap[pos] = before;
   }
   save();

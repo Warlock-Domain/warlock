@@ -34,6 +34,8 @@ Applies together with the root `CLAUDE.md`.
 
 - Meteor proposal under review: preserves damage/area and replaces knockback with duration=1.25 s at all levels. Uses the general stun block and the target's resistances; does not trigger post-knockback recovery without an impulse. Measurement/owner decision pending before integrating.
 
+- **Items have 3 levels each** (Fernando, 26/10, issue #227) and every level costs the item price (`itemPrice`); a new item gets 3 levels. Level-based constants of an item are arrays indexed by `level - 1` (`SHOCK_BOOTS.secs`, `WIND_BOOTS.calm/speed`).
+- **The Scourge is an item that fires through the spell path** (26/10, #227): its level lives only in `items.scourge` (free level 1 from `startItems`), `newWorld` and `refit` copy it into `wizard.spells.scourge`, and `priceOf('scourge')` is always `null`. Lists of spells a player can own use `BAR_SPELLS`; cast, cooldown and snapshot code keep `SPELL_IDS`. Do not "fix" the copied level back into `player.spells`.
 - 7 levels via `L({...})`; irregular series with `zip([...], [...])`, linear ones with `steps(de, passo)`.
 - A balance adjustment stays **inline over the original number**, with a date and measurement comment: `cd: cd * 0.7 /* 18/10: … (0,86 → 0,97) */`.
 - An extra mechanic constant becomes an object `NOME = { … * UNIT }` below the table, with the source `.lua` file in the comment. No magic numbers loose in `sim.ts`.

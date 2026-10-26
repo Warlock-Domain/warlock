@@ -116,19 +116,23 @@ export const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string]
   vampire: (l) => [[t('Vida de volta', 'Health back'), t(`${n1(ITEMS.vampire.levels[l].lifesteal! * 100)}% do dano causado`, `${n1(ITEMS.vampire.levels[l].lifesteal! * 100)}% of damage dealt`)]],
   lava_boots: (l) => [[t('Dano da lava', 'Lava damage'), t(`−${n1(ITEMS.lava_boots.levels[l].lava! * 100)}% (${n1(LAVA_DPS * (1 - ITEMS.lava_boots.levels[l].lava!))} por segundo)`, `−${n1(ITEMS.lava_boots.levels[l].lava! * 100)}% (${n1(LAVA_DPS * (1 - ITEMS.lava_boots.levels[l].lava!))} per second)`)]],
   warden: (l) => [[t('Dano por golpe', 'Damage per hit'), t(`−${n1(ITEMS.warden.levels[l].ward!)} (no máximo metade do golpe)`, `−${n1(ITEMS.warden.levels[l].ward!)} (at most half the hit)`)], [KNOCK_TAKEN, `+${n1(-ITEMS.warden.levels[l].kb! * 100)}%`]],
-  helmet: () => [[KNOCK_TAKEN, `−${n1(ITEMS.helmet.levels[0].kb! * 100)}%`], [t('Alcance das magias', 'Spell range'), `−${n1(-ITEMS.helmet.levels[0].range! * 100)}%`]],
-  wind_boots: () => [[t('5 s sem causar nem levar dano', '5 s without dealing or taking damage'), `+${n1(WIND_BOOTS.speed * 100)} cm/s`], [t('Acaba', 'Ends'), t('ao causar ou levar dano (golpe, lava, fogo)', 'when you deal or take damage (hit, lava, fire)')], [t('Com outras botas', 'With other boots'), WITH_BOOTS_RULE]],
-  shock_boots: () => [[t('Ao levar um golpe', 'When you take a hit'), t(`+${n1(SHOCK_BOOTS.speed * 100)} cm/s por ${s(SHOCK_BOOTS.secs)}`, `+${n1(SHOCK_BOOTS.speed * 100)} cm/s for ${s(SHOCK_BOOTS.secs)}`)], [t('Com Botas', 'With Boots'), WITH_BOOTS_RULE]],
+  helmet: (l) => [[KNOCK_TAKEN, `−${n1(ITEMS.helmet.levels[l].kb! * 100)}%`], [t('Alcance das magias', 'Spell range'), `−${n1(-ITEMS.helmet.levels[l].range! * 100)}%`]],
+  wind_boots: (l) => [[t('Espera sem causar nem levar dano', 'Wait without dealing or taking damage'), s(WIND_BOOTS.calm[l])], [t('Velocidade', 'Speed'), `+${n1(WIND_BOOTS.speed[l] * 100)} cm/s`], [t('Acaba', 'Ends'), t('ao causar ou levar dano (golpe, lava, fogo)', 'when you deal or take damage (hit, lava, fire)')], [t('Com outras botas', 'With other boots'), WITH_BOOTS_RULE]],
+  shock_boots: (l) => [[t('Ao levar um golpe', 'When you take a hit'), t(`+${n1(SHOCK_BOOTS.speed * 100)} cm/s por ${s(SHOCK_BOOTS.secs[l])}`, `+${n1(SHOCK_BOOTS.speed * 100)} cm/s for ${s(SHOCK_BOOTS.secs[l])}`)], [t('Com Botas', 'With Boots'), WITH_BOOTS_RULE]],
   lens: (l) => [[t('Chance de crítico', 'Critical chance'), `${n1(ITEMS.lens.levels[l].crit! * 100)}%`], [t('Dano do crítico', 'Critical damage'), `+${n1(CRIT.dmg * 100)}%`]],
   piercing: (l) => [[t('Dano do crítico', 'Critical damage'), t(`+${n1(ITEMS.piercing.levels[l].critDmg! * 100)}% (soma ao da Lente Letal)`, `+${n1(ITEMS.piercing.levels[l].critDmg! * 100)}% (adds to the Lethal Lens)`)], [t('Sem a Lente Letal', 'Without the Lethal Lens'), t('não há crítico', 'no critical hits')]],
   affliction: (l) => [[t('Lentidões e prisões que você aplica', 'Slows and roots you apply'), t(`+${n1(ITEMS.affliction.levels[l].afflict! * 100)}% de duração`, `+${n1(ITEMS.affliction.levels[l].afflict! * 100)}% duration`)], [t('Vale para', 'Applies to'), AFFLICT_SPELLS.map(spellName).join(', ')]],
-  aegis: () => [[t('Quando', 'When'), t(`na lava com ${AEGIS.hp} de vida ou menos`, `in the lava with ${AEGIS.hp} health or less`)], [t('Efeito', 'Effect'), t(`volta parado para ${n1(AEGIS.back * 100)}% do raio da arena`, `brings you back, standing still, to ${n1(AEGIS.back * 100)}% of the arena radius`)], [t('Usos', 'Uses'), t('1: quebra ao salvar você (compre de novo na loja)', '1: breaks when it saves you (buy again in the shop)')]],
+  aegis: (l) => [[t('Quando', 'When'), t(`na lava com ${AEGIS.hp} de vida ou menos`, `in the lava with ${AEGIS.hp} health or less`)], [t('Efeito', 'Effect'), t(`volta parado para ${n1(AEGIS.back * 100)}% do raio da arena`, `brings you back, standing still, to ${n1(AEGIS.back * 100)}% of the arena radius`)], [t('Salvamentos', 'Saves'), t(`${l + 1}: cada um gasta 1 nível`, `${l + 1}: each one costs 1 level`)]],
+  // Scourge item (26/10, #227): the same rows as the spell tip, read at the item level
+  scourge: (l) => SPELL_ROWS.scourge.map(([k, f]): [string, string] => [k, f(spellLevel('scourge', l + 1))]),
 };
 
+// the Scourge is the only active item (26/10, #227)
+const KIND = (id: ItemId) => (id === 'scourge' ? t('ativo', 'active') : t('passivo', 'passive'));
 export function itemTip(id: ItemId, level: number): string {
   const it = ITEMS[id];
   const max = it.levels.length;
-  const head = `<b>${itemName(id)}</b><br><small>${level ? t(`Nível ${level} de ${max}`, `Level ${level} of ${max}`) : t('Ainda não comprado', 'Not bought yet')} · ${t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}</small>`;
+  const head = `<b>${itemName(id)}</b>${id === 'scourge' ? ` <span class="k">${labelOf('scourge')}</span>` : ''}<br><small>${level ? t(`Nível ${level} de ${max}`, `Level ${level} of ${max}`) : t('Ainda não comprado', 'Not bought yet')} · ${KIND(id)} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}</small>`;
   const rows = ITEM_ROWS[id]!;
   const cur = rows(Math.max(0, level - 1));
   const next = level >= 1 && level < max ? rows(level) : null;
@@ -171,7 +175,7 @@ export function itemCardTip(id: ItemId, from: number): string {
   const it = ITEMS[id];
   const to = Math.min(it.levels.length, from + 1);
   const rows = ITEM_ROWS[id]!;
-  const head = `<b>${itemName(id)}</b><br><small>${from ? t(`Nível ${from} → ${to}`, `Level ${from} → ${to}`) : t('Item novo · nível 1', 'New item · level 1')} · ${t('passivo', 'passive')}</small>`;
+  const head = `<b>${itemName(id)}</b><br><small>${from ? t(`Nível ${from} → ${to}`, `Level ${from} → ${to}`) : t('Item novo · nível 1', 'New item · level 1')} · ${KIND(id)}</small>`;
   const body = table(rows(to - 1).map(([k, v], i): [string, string, string | null] => (from ? [k, rows(from - 1)[i][1], v] : [k, v, null])));
   return `${demo(id)}${head}<p>${itemText(id)}</p>${body}${from ? `<small class="up">${t('Depois da carta: o que está à direita', 'After the card: shown on the right')}</small>` : ''}`;
 }

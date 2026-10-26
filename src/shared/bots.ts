@@ -3,7 +3,7 @@ import { edge, inArena, inward, middle, pathStep, roomAt, safeInside } from './a
 import { BASIC_ATTACK, BRACE, DT, FRICTION, ISLAND, OBSTACLES, PROJ_R, WIZ_R } from './constants.ts';
 import type { Cmd, Projectile, Wizard, World } from './sim.ts';
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
-import { CAST_POINT, FREE_SPELLS, GRIP, MAX_SPELLS, METEOR_DELAY, PIX, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
+import { BAR_SPELLS, CAST_POINT, FREE_SPELLS, GRIP, MAX_SPELLS, METEOR_DELAY, PIX, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 import { CHANNEL, channelLevel, channelPower } from './channeling.ts';
 
@@ -29,9 +29,9 @@ function shuffle<T>(a: T[], rand: () => number): T[] {
   return a;
 }
 
-// sorteia 2 a 6 magias (além da Bola de fogo e do Flagelo, até encher as 8) e 0 a 3 itens, em ordem sorteada (sempre começa por uma magia)
+// draws 2 to 5 spells (besides Fireball, up to the 6 slots) and 0 to 3 items (the Scourge already comes free as an item), in random order (always starting with a spell)
 export function randomPlan(rand: () => number): BotPlan {
-  const spells = shuffle(SPELL_IDS.filter((s) => !FREE_SPELLS.includes(s)), rand).slice(0, 2 + Math.floor(rand() * (MAX_SPELLS - FREE_SPELLS.length - 1)));
+  const spells = shuffle(BAR_SPELLS.filter((s) => !FREE_SPELLS.includes(s)), rand).slice(0, 2 + Math.floor(rand() * (MAX_SPELLS - FREE_SPELLS.length - 1)));
   const items = shuffle([...ITEM_IDS], rand).slice(0, Math.floor(rand() * 4));
   const buys: BotPick[] = spells.map((id) => ({ kind: 'spell', id }));
   for (const id of items) buys.splice(1 + Math.floor(rand() * buys.length), 0, { kind: 'item', id });

@@ -5,10 +5,10 @@ import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
 import { gearOf } from '../src/shared/sim.ts';
 import { ROUND_EFFECTS } from '../src/shared/constants.ts';
 import { STEP_MS, until } from './helpers.ts';
-import { ITEM_IDS, noItems, type ItemId } from '../src/shared/items.ts';
-import { MAX_SPELL_LEVEL, SPELL_GROUP_IDS, SPELL_IDS, noSpells, spellGroup, type SpellId } from '../src/shared/spells.ts';
+import { ITEM_IDS, noItems, startItems, type ItemId } from '../src/shared/items.ts';
+import { BAR_SPELLS, MAX_SPELL_LEVEL, SPELL_GROUP_IDS, SPELL_IDS, noSpells, spellGroup, type SpellId } from '../src/shared/spells.ts';
 
-// gerador com semente (o mesmo mulberry32 dos outros testes)
+// seeded generator (the same mulberry32 as the other tests)
 const seeded = (seed: number) => () => {
   seed = (seed + 0x6d2b79f5) | 0;
   let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
@@ -19,14 +19,14 @@ const mage = (spells: Partial<Record<SpellId, number>> = {}) => ({ spells: { ...
 const group = (c: Card) => (c.kind === 'item' ? 'item' : spellGroup(c.id));
 const stat = (o: object = {}) => ({ gold: 0, dmg: 0, kills: 0, dmgBy: {}, fired: {}, landed: {}, deaths: 0, deathBy: {}, alive: 0, threats: 0, struck: 0, shieldable: 0, shielded: 0, reactSum: 0, reactN: 0, nearSum: 0, nearN: 0, ...o });
 
-describe('grupos de magia', () => {
+describe('spell groups', () => {
   it('every spell has exactly one group', () => {
     const all = Object.values(SPELL_GROUP_IDS).flat();
-    expect([...all].sort()).toEqual([...SPELL_IDS].sort());
+    expect([...all].sort()).toEqual([...BAR_SPELLS].sort()); // the Scourge is an item since 26/10 (#227)
   });
 });
 
-describe('cartas do Ascensão', () => {
+describe('Ascension cards', () => {
   it('drawCards same seed same cards', () => {
     expect(drawCards(mage(), 'spell', seeded(1))).toEqual(drawCards(mage(), 'spell', seeded(1)));
   });
@@ -47,7 +47,7 @@ describe('cartas do Ascensão', () => {
     const p = mage({ fireball: MAX_SPELL_LEVEL, teleport: 2 });
     for (let s = 0; s < 300; s++) {
       for (const c of [...drawCards(p, 'spell', seeded(s)), ...drawCards(p, 'up', seeded(s))]) {
-        if (c.kind === 'up') expect(['teleport', 'scourge']).toContain(c.id); // o Flagelo nv 1 vem de graça
+        if (c.kind === 'up') expect(['teleport', 'scourge']).toContain(c.id); // Scourge level 1 comes free
         if (c.kind === 'spell') expect(['fireball', 'teleport', 'scourge']).not.toContain(c.id);
       }
     }
@@ -65,7 +65,7 @@ describe('cartas do Ascensão', () => {
     expect(applyCard(p, { kind: 'spell', id: 'grip' })).toBe(false);
     expect(applyCard(p, { kind: 'spell', id: 'grip' }, 'meteor')).toBe(false);
     expect(applyCard(p, { kind: 'spell', id: 'grip' }, 'swap')).toBe(true);
-    expect([p.spells.grip, p.spells.swap]).toEqual([2, 0]); // herda o nível 2 da Troca
+    expect([p.spells.grip, p.spells.swap]).toEqual([2, 0]); // inherits Swap's level 2
   });
 
   it('applyCard up raises one level', () => {
@@ -84,7 +84,7 @@ describe('cartas do Ascensão', () => {
   });
 });
 
-describe('XP e pontos do Ascensão', () => {
+describe('Ascension XP and points', () => {
   it('levelOf is monotonic and starts at 1', () => {
     expect(levelOf(0)).toBe(1);
     for (let xp = 0; xp < 5000; xp += 7) expect(levelOf(xp + 7)).toBeGreaterThanOrEqual(levelOf(xp));
@@ -100,35 +100,35 @@ describe('XP e pontos do Ascensão', () => {
 
   it('placement points follow fall order, last alive gets the bonus', () => {
     expect(placePoints(['a', 'b', 'c', 'd'], ['c', 'a', 'd'], ['b'])).toEqual({ c: 0, a: 1, d: 2, b: 4 });
-    // ninguém sobrou (caíram no mesmo passo): só a ordem de queda
+    // nobody left (fell in the same step): fall order only
     expect(placePoints(['a', 'b'], ['b', 'a'], [])).toEqual({ b: 0, a: 1 });
-    // expulso no meio da rodada (sem evento de queda) conta como o primeiro a cair
+    // kicked mid-round (no fall event) counts as the first to fall
     expect(placePoints(['a', 'b', 'c'], ['b'], ['c'])).toEqual({ a: 0, b: 1, c: 3 });
   });
 });
 
-// partida do Ascensão só de bots (ou com o humano h), com o sorteio da partida por semente
+// bots-only Ascension match (or with human h), with the match draw seeded
 function ascMatch(seed: number, human = false): Match {
   const m = newMatch();
-  m.mode = 'ascension'; // sala criada pela opção do Ascensão no menu Jogar
+  m.mode = 'ascension'; // room created by the Ascension option in the Play menu
   if (human) addPlayer(m, 'h', 'Ana');
   startMatch(m, 0, 3, 'ascension', true, seeded(seed), { pace: 'short' });
   return m;
 }
 const run = (m: Match, now: number, cond: () => boolean, rand = seeded(9)) => until(m, now, cond, 60 * 60 * 60, rand);
 
-describe('partida do Ascensão', () => {
-  it('start gives fireball, scourge, one new spell and one item to pick, no gold', () => {
+describe('Ascension match', () => {
+  it('start gives fireball, the Scourge item, one new spell and one item to pick, no gold', () => {
     const m = ascMatch(1, true);
     const h = m.players.find((p) => p.id === 'h')!;
-    expect([h.spells.fireball, h.spells.scourge, h.gold]).toEqual([1, 1, 0]);
+    expect([h.spells.fireball, h.items.scourge, h.gold]).toEqual([1, 1, 0]);
     expect(m.asc!.todo.h).toEqual(['spell', 'item']);
-    // o intervalo não acaba sem as escolhas dele, nem com o Pronto
+    // the break does not end without his picks, not even with Ready
     expect(setReady(m, 'h')).toBe(false);
     tickMatch(m, STEP_MS, [], seeded(2));
     expect(m.asc!.offer.h.map((cards) => cards.length)).toEqual([3, 3]);
     const [spellRow, itemRow] = m.asc!.offer.h;
-    // escolher não aplica nem fecha a fileira: dá para trocar até o fim do intervalo
+    // picking neither applies nor closes the row: it can be changed until the break ends
     expect(chooseCard(m, 'h', 0, 0)).toBe(true);
     expect(chooseCard(m, 'h', 0, 1)).toBe(true);
     expect(m.asc!.offer.h).toEqual([spellRow, itemRow]);
@@ -136,7 +136,7 @@ describe('partida do Ascensão', () => {
     tickMatch(m, 2 * STEP_MS, [], seeded(2));
     expect([m.phase, h.ready]).toEqual(['shop', false]);
     expect(chooseCard(m, 'h', 1, 2)).toBe(true);
-    // todos escolheram: mais LAST_CALL_MS para trocar, e só então a escolha vale
+    // everyone picked: LAST_CALL_MS more to change, and only then does the pick count
     tickMatch(m, 3 * STEP_MS, [], seeded(2));
     expect([m.phase, h.ready, m.phaseEnds]).toEqual(['shop', true, 3 * STEP_MS + LAST_CALL_MS]);
     expect(chooseCard(m, 'h', 0, 2)).toBe(true);
@@ -153,16 +153,16 @@ describe('partida do Ascensão', () => {
       const offer = m.asc!.offer.h;
       run(m, STEP_MS, () => m.phase === 'countdown', seeded(seed));
       const h = m.players.find((p) => p.id === 'h')!;
-      const got = offer.map((row) => row.findIndex((c) => (c.kind === 'item' ? h.items[c.id] > 0 : h.spells[c.id] > 0)));
+      const got = offer.map((row) => row.findIndex((c) => (c.kind === 'item' ? h.items[c.id] > startItems()[c.id] : h.spells[c.id] > 0)));
       return { got, auto: publicRoom('R', m, 0).players.find((p) => p.name === 'Ana')!.asc!.auto, offer, spells: { ...h.spells }, items: { ...h.items } };
     };
     const runs = Array.from({ length: 12 }, (_, s) => play(s));
     for (const r of runs) {
-      expect(r.got.every((i) => i >= 0)).toBe(true); // nenhuma fileira fica sem carta
+      expect(r.got.every((i) => i >= 0)).toBe(true); // no row is left without a card
       expect(r.auto).toHaveLength(2);
       expect(r.auto).toEqual(expect.arrayContaining(r.got.map((i, row) => r.offer[row][i])));
     }
-    expect(new Set(runs.map((r) => r.got[0])).size).toBeGreaterThan(1); // sorteio, não sempre a carta de cima
+    expect(new Set(runs.map((r) => r.got[0])).size).toBeGreaterThan(1); // a random draw, not always the top card
     const again = play(3);
     expect([again.spells, again.items]).toEqual([runs[3].spells, runs[3].items]);
   });
@@ -196,11 +196,11 @@ describe('partida do Ascensão', () => {
     }
     expect(m.phase).toBe('end');
     expect(chests).toBe(0);
-    // pontos de colocação somados no placar; vence o maior
+    // placement points summed on the scoreboard; the highest wins
     const best = Math.max(...m.players.map((p) => p.score));
     expect(m.players.find((p) => p.id === m.winner)!.score).toBe(best);
     expect(best).toBeGreaterThan(0);
-  }, 30_000); // 9 rodadas inteiras: com a suíte em paralelo passa dos 5 s padrão
+  }, 30_000); // 9 full rounds: with the suite in parallel it exceeds the default 5 s
 
   it('bots pick with match rand: same seed, same builds', () => {
     const builds = (m: Match) => m.players.map((p) => JSON.stringify([p.spells, p.items]));
@@ -256,7 +256,7 @@ describe('partida do Ascensão', () => {
   });
 });
 
-describe('mensagem card', () => {
+describe('card message', () => {
   it('card message parses and rejects bad i/swap', () => {
     expect(parseClientMessage(JSON.stringify({ t: 'card', slot: 1, i: 2 }))).toEqual({ t: 'card', slot: 1, i: 2 });
     expect(parseClientMessage(JSON.stringify({ t: 'card', slot: 0, i: 0, swap: 'teleport', x: 1 }))).toEqual({ t: 'card', slot: 0, i: 0, swap: 'teleport' });
@@ -264,7 +264,7 @@ describe('mensagem card', () => {
   });
 });
 
-describe('recuperação e bots do Ascensão', () => {
+describe('Ascension catch-up and bots', () => {
   const twoAt = (levels: number[]) => {
     const m = ascMatch(1, true);
     m.players.forEach((p, i) => (m.asc!.xp[p.id] = xpFor(levels[i] ?? 1)));
@@ -286,7 +286,7 @@ describe('recuperação e bots do Ascensão', () => {
     const [victim, killer, helper] = m.players;
     ascDeath(m, victim.id, killer.id, helper.id);
     expect(m.asc!.extra[helper.id]).toBe(ASSIST_XP);
-    expect(m.asc!.extra[killer.id]).toBeUndefined(); // o abate entra pelo xpGain (stats.kills)
+    expect(m.asc!.extra[killer.id]).toBeUndefined(); // the kill counts through xpGain (stats.kills)
     expect(xpGain({ ...killer.stats.round, dmgBy: {}, kills: 1, alive: 0 })).toBe(KILL_XP);
   });
 
@@ -329,7 +329,7 @@ describe('recuperação e bots do Ascensão', () => {
     const now = run(m, 0, () => m.phase === 'playing');
     const z = m.world!.wizards.find((q) => q.id === m.players[0].id)!;
     const other = m.world!.wizards.find((q) => q.id === m.players[2].id)!;
-    // o item da carta inicial também mexe no empurrão: a marca é o que sobra além dele
+    // the starting card item also changes knockback: the mark is what is left beyond it
     expect(gearOf(m.players[0].items).kbResist - z.kbResist).toBeCloseTo(MARK_KB * 2);
     expect(other.kbResist).toBeCloseTo(gearOf(m.players[2].items).kbResist);
     expect(now).toBeGreaterThan(0);
@@ -350,15 +350,15 @@ describe('recuperação e bots do Ascensão', () => {
     expect(autoPick(h, [{ kind: 'spell', id: 'grip' }, { kind: 'spell', id: 'meteor' }], 'normal', seeded(1))).toBe(-1);
     tickMatch(m, STEP_MS, [], seeded(2));
     expect(m.asc!.todo.h).toEqual(['spell', 'item']);
-    expect(chooseCard(m, 'h', 1, -1)).toBe(false); // a fileira do item não se recusa
+    expect(chooseCard(m, 'h', 1, -1)).toBe(false); // the item row cannot be declined
     expect(chooseCard(m, 'h', 0, -1)).toBe(true);
-    // magia nova com a barra cheia pede a que sai
+    // a new spell with a full bar asks which one leaves
     expect(chooseCard(m, 'h', 0, 0)).toBe(false);
     expect(chooseCard(m, 'h', 0, 0, 'meteor')).toBe(false);
     expect(chooseCard(m, 'h', 0, 0, 'swap')).toBe(true);
     expect(chooseCard(m, 'h', 0, -1)).toBe(true);
     expect(m.asc!.pick.h[0]).toEqual({ i: -1 });
-    // tempo esgotado: mantém as magias e pega o item de cima
+    // time up: keeps the spells and takes the top item
     const n = newMatch();
     n.mode = 'ascension';
     addPlayer(n, 'h', 'Ana');
@@ -367,7 +367,7 @@ describe('recuperação e bots do Ascensão', () => {
     g.spells = { ...noSpells(), lightning: 1, homing: 1, shield: 1, teleport: 1, cluster: 1, swap: 3 };
     run(n, 0, () => n.phase === 'countdown');
     expect(g.spells.swap).toBe(3);
-    expect(Object.values(g.items).reduce((x, y) => x + y)).toBe(1); // só o item da carta (o Flagelo virou magia em 21/10)
+    expect(Object.values(g.items).reduce((x, y) => x + y)).toBe(2); // the card's item and the free Scourge (an item again since 26/10, #227)
   });
 
   it('swap with a full bar: the new spell keeps the level of the one that leaves', () => {
@@ -382,11 +382,11 @@ describe('recuperação e bots do Ascensão', () => {
   });
 });
 
-describe('sala gravada por uma versão anterior do Ascensão', () => {
+describe('room saved by an earlier Ascension version', () => {
   it('resume of an older ascension state does not crash the room', () => {
     const m = ascMatch(3, true);
     run(m, 0, () => m.round === 1 && m.phase === 'playing');
-    // formato da versão anterior: sem as escolhas marcadas e com a mesa de uma fileira só
+    // earlier-version format: no picks marked and a single-row table
     const old = JSON.parse(JSON.stringify({ ...m, world: null }));
     old.asc = { xp: old.asc.xp, picks: { h: 1 }, offer: { h: [{ kind: 'item', id: 'boots' }] }, fallen: [], extra: {}, rerolls: {} };
     resume(old, 1000);
@@ -399,7 +399,7 @@ describe('sala gravada por uma versão anterior do Ascensão', () => {
   });
 });
 
-describe('Febre arcana', () => {
+describe('Arcane Fever', () => {
   it('gold rush effect gives 50% more XP in ascension', () => {
     const gainWith = (effect: 'gold' | null) => {
       const m = ascMatch(1, true);
@@ -415,8 +415,8 @@ describe('Febre arcana', () => {
   });
 });
 
-describe('sala do Ascensão: o dono escolhe, todos veem', () => {
-  // como a sala nasce no servidor (room-do.ts init)
+describe('Ascension room: the owner picks, everyone sees', () => {
+  // how the room is created on the server (room-do.ts init)
   const ascRoom = () => Object.assign(newMatch(), { mode: 'ascension' as const, lobby: { owner: null, bots: [], opts: {} } });
 
   it('the first human is the owner and only the owner changes bots and options', () => {
@@ -454,7 +454,7 @@ describe('sala do Ascensão: o dono escolhe, todos veem', () => {
   it('a new owner is preferably a human who plays and is connected', () => {
     const m = ascRoom();
     addPlayer(m, 'ana', 'Ana');
-    addPlayer(m, 'bia', 'Bia', false, true); // só assiste
+    addPlayer(m, 'bia', 'Bia', false, true); // spectator only
     addPlayer(m, 'cai', 'Cai');
     removePlayer(m, 'ana');
     expect(m.lobby!.owner).toBe('cai');
@@ -469,7 +469,7 @@ describe('sala do Ascensão: o dono escolhe, todos veem', () => {
     expect(m.mode).toBe('ascension');
     expect(m.opts.pace).toBe('short');
     expect(m.players.filter((p) => p.bot).map((p) => p.difficulty)).toEqual(['easy', 'hard']);
-    expect(setAscLobby(m, 'ana', [], {})).toBe(false); // com a partida rolando, nada muda
+    expect(setAscLobby(m, 'ana', [], {})).toBe(false); // with the match running, nothing changes
   });
 
   it("a campaign start in an Ascension room keeps the owner's cast and plays Ascension", () => {
@@ -499,7 +499,7 @@ describe('sala do Ascensão: o dono escolhe, todos veem', () => {
   });
 });
 
-describe('final valendo mais', () => {
+describe('final worth more', () => {
   it('rounds 6 and 7 are worth 1.5x points (rounded) and rounds 8 and 9 double', () => {
     expect([1, 5, 6, 7, 8, 9].map(roundMult)).toEqual([1, 1, 1.5, 1.5, 2, 2]);
     const pointsAt = (round: number) => {
@@ -522,10 +522,10 @@ describe('final valendo mais', () => {
   });
 });
 
-describe('barra de XP na arena', () => {
+describe('XP bar in the arena', () => {
   it('live level adds the round damage, kills and seconds alive to the match XP', () => {
     expect(liveLevel(0, 0, 0, 0)).toEqual({ level: 1, total: 0, next: xpFor(2), frac: 0 });
-    const r = liveLevel(xpFor(2) - (30 + KILL_XP + 20), 30, 1, 10); // 30 de dano + 1 abate + 10 s vivo: fecha o nível 2
+    const r = liveLevel(xpFor(2) - (30 + KILL_XP + 20), 30, 1, 10); // 30 damage + 1 kill + 10 s alive: reaches level 2
     expect([r.level, r.total, r.frac]).toEqual([2, xpFor(2), 0]);
     expect(liveLevel(0, 0, 1, 0).total).toBe(KILL_XP);
     expect(liveLevel(0, 0, 0, 0).frac).toBeLessThan(liveLevel(0, 100, 0, 0).frac);
