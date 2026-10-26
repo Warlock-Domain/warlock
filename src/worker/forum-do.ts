@@ -27,8 +27,7 @@ export class Forum extends DurableObject<Env> {
     }
     const tally: SoundState['tally'] = {};
     for (const r of this.sql.exec<{ spell: SpellId; moment: SoundMoment; src: string; n: number }>('SELECT spell, moment, src, COUNT(*) AS n FROM sound_votes GROUP BY spell, moment, src')) {
-      const k = pairKey(r.spell, r.moment);
-      if (k in mine) (tally[k] ??= {})[r.src] = r.n;
+      (tally[pairKey(r.spell, r.moment)] ??= {})[r.src] = r.n;
     }
     const comments = this.sql.exec<SoundState['comments'][number]>('SELECT id, spell, name, avatar, text, at FROM sound_comments ORDER BY id').toArray();
     return { candidates, mine, tally, comments };

@@ -71,7 +71,7 @@ export function soundLab() {
   function candidateRow(moment: SoundMoment, src: string, by: string | null, pick?: { rank: number; why: string }) {
     const key = pairKey(spell, moment);
     const mine = state!.mine[key] === src;
-    const votes = state!.tally[key]?.[src];
+    const votes = state!.tally[key]?.[src] ?? 0;
     const label = src === GAME_SOUND ? t('Atual do jogo', 'Current in-game') : src.startsWith('pack:') ? packLabel(src.slice(5)) : t('Arquivo enviado', 'Uploaded file');
     return el('li', { class: 'fm-cand' },
       el('button', { type: 'button', class: 'fm-btn', 'aria-label': t(`Ouvir ${label}`, `Listen to ${label}`), onclick: () => listen(moment, src) }, '▶'),
@@ -80,7 +80,7 @@ export function soundLab() {
       el('label', { class: 'fm-try' },
         el('input', { type: 'radio', name: `try-${key}`, checked: playing(moment) === src, onchange: () => (trying[key] = src) }),
         t('Na arena', 'In the arena')),
-      votes !== undefined && el('span', { class: 'fm-votes' }, t(`${votes} ${votes === 1 ? 'voto' : 'votos'}`, `${votes} ${votes === 1 ? 'vote' : 'votes'}`)),
+      el('span', { class: 'fm-votes' }, t(`${votes} ${votes === 1 ? 'voto' : 'votos'}`, `${votes} ${votes === 1 ? 'vote' : 'votes'}`)),
       el('button', { type: 'button', class: `fm-btn${mine ? ' primary' : ''}`, 'aria-pressed': String(mine), onclick: () => send('/voto', { spell, moment, src }) },
         mine ? t('Seu voto', 'Your vote') : t('Votar', 'Vote')));
   }
@@ -124,12 +124,10 @@ export function soundLab() {
   }
 
   function momentBlock(moment: SoundMoment) {
-    const key = pairKey(spell, moment);
     const picks = picksFor(spell, moment);
     const cands = state!.candidates.filter((c) => c.spell === spell && c.moment === moment && !picks.some((p) => p.src === c.src));
     return el('section', { class: 'fm-moment', 'aria-labelledby': `m-${moment}` },
       el('h3', { id: `m-${moment}` }, MOMENT_NAME[moment]),
-      !(key in state!.mine) && el('p', { class: 'fm-note' }, t('Os votos aparecem depois que você vota.', 'The vote count shows after you vote.')),
       el('ul', { class: 'fm-cands' }, candidateRow(moment, GAME_SOUND, null),
         ...picks.map((p, i) => candidateRow(moment, p.src, null, { rank: i + 1, why: t(p.pt, p.en) })),
         ...cands.map((c) => candidateRow(moment, c.src, c.by))),

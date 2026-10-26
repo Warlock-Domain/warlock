@@ -13,7 +13,7 @@ The 30 spells reuse a handful of sound effects (`SPELL_SOUND` in `src/client/mai
 - **New local mini arena, no server** (25/10, chosen over reusing the sandbox): the game's simulation (`newWorld`/`stepWorld`) and 3D scene (`createScene`) run in the browser; the player's wizard and a dummy that takes hits and knockback and comes back from the lava; game controls; no cooldown.
 - **Two moments per spell**: cast (today `SPELL_SOUND`) and impact (today one generic hit sound by damage; per spell from the `src` of the `hit` event, no simulation change). Impact only for spells that hit.
 - **Candidates**: the current sound is always an option; then at least 10 AI picks per effect from the pack, ranked best first with a short reason (Fernando, 25/10, replacing the earlier "wait for the AI API"); members add any other file from the pack or upload their own (mp3/ogg/wav, up to 1 MB and 5 s).
-- **Voting**: one vote per person per spell and moment, changeable; the tally appears after you vote; voting never closes: the group reads the counts and decides (Fernando, 25/10, removing the winner panel).
+- **Voting**: one vote per person per spell and moment, changeable; everyone sees the counts, before voting too (Fernando, 26/10); voting never closes: the group reads the counts and decides (Fernando, 25/10, removing the winner panel).
 - Portuguese and English via `t()`; light forum theme (`--fm-*`).
 
 ## Builder's calls
@@ -24,7 +24,7 @@ The 30 spells reuse a handful of sound effects (`SPELL_SOUND` in `src/client/mai
   - `sound_comments(id, spell, user_id, name, avatar, text, at)`.
   - No AI column yet: step 3 adds the AI tally with the AI API.
 - **Routes** under `/api/forum/sons`, all members only, POSTs with the Origin check of PR #404:
-  - `GET /api/forum/sons` → candidates, my votes, tallies only for spell+moment pairs I voted on, comments.
+  - `GET /api/forum/sons` → candidates, my votes, tallies of every spell+moment pair, comments.
   - `POST /api/forum/sons/candidato` `{spell, moment, src: 'pack:…'}` (the pack file must exist in R2).
   - `POST /api/forum/sons/envio?spell=&moment=` raw audio body (`audio/mpeg|ogg|wav`, ≤ 1 MB) → R2 `up/<random>.<ext>` + candidate row. The server checks size and type; **the 5 s limit is checked in the browser** (`decodeAudioData`) before sending, which a hand-made request can skip. Caps of 30 uploads per person and 300 in all (on PR environments every tester sign-in is a new person), checked in the Durable Object with the insert; a refused upload is deleted from R2 again. Uploads to a closed vote are refused.
   - `POST /api/forum/sons/voto` `{spell, moment, src}` (src must be `game` or an existing candidate).

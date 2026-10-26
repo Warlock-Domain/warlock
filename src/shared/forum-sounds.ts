@@ -28,7 +28,7 @@ export const isSoundKey = (key: string) => /^pack\/[\w-]+(\/[\w-]+){0,6}\.mp3$/.
 
 export type SoundCandidate = { spell: SpellId; moment: SoundMoment; src: string; by: string; at: number };
 export type SoundComment = { id: number; spell: SpellId; name: string; avatar: string; text: string; at: number };
-// tally only for the pairs I voted on (the count appears after voting, Fernando 25/10); key `${spell}:${moment}`
+// tally of every pair, shown to everyone before voting too (Fernando, 26/10); key `${spell}:${moment}`
 export type SoundState = {
   candidates: SoundCandidate[];
   mine: Record<string, string>;
