@@ -322,6 +322,7 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 @keyframes lvup { 0% { transform: scale(2.2); color: var(--white); text-shadow: 0 0 8px var(--xp); } 100% { transform: scale(1); } }
 .wiz-label .loot-bar { width: 46px; height: 5px; margin-top: 3px; border-radius: 2px; background: rgba(0, 0, 0, .6); overflow: hidden; }
 .wiz-label .loot-bar > div { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-pale)); }
+.wiz-label .bubble .loot-bar { width: 100%; }
 .wiz-label.ember .hp-row, .wiz-label.ember .shield-bar { display: none; }
 .wiz-label.ember .loot-bar { width: 60px; height: 7px; box-shadow: 0 0 6px var(--ember); }
 .wiz-label.ember .loot-bar > div { background: var(--ember); }

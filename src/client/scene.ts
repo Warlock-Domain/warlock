@@ -943,6 +943,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     boomerang: ['Throw', 0.6, 0.45], link: ['Throw', 0.6, 0.45], snowball: ['Throw', 0.6, 0.45],
     pact: ['Spellcast_Long', 0.9, 0.3], recharge: ['Spellcast_Long', 0.9, 0.3],
   };
+  // Bubble above the wizard; with `frac` it carries the label's loot-bar as a charge bar.
+  function chargeBubble(m: Mage, cls: string, text: string, frac?: number) {
+    let c = m.label.querySelector('.' + cls);
+    if (!c) m.label.prepend(c = el('div', { class: 'bubble ' + cls }, el('span'), el('div', { class: 'loot-bar' }, el('div'))));
+    c.firstElementChild!.textContent = text;
+    const bar = c.lastElementChild as HTMLElement;
+    bar.hidden = frac === undefined;
+    if (frac !== undefined) (bar.firstElementChild as HTMLElement).style.width = `${Math.min(100, frac * 100)}%`;
+  }
   const castAnim = (spell: string) => CAST_ANIM[spell] ?? (['Spellcast_Shoot', 0.55] as const);
   // golpe em arco (issue #402) pela arma do criador; os modelos não têm 1H_Melee_Attack_* nem soco, então vai o clip mais parecido,
   // começando onde o gesto forte cai perto do fim do preparo de 0,4 s: cajado gira o 2H, espada/machado/facas descem o braço, sem arma chuta
@@ -1901,24 +1910,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.hpFill.style.background = tint;
         m.nameEl.style.color = d.team != null ? COLORS[d.color] : '';
       }
-      const sniperLabel=m.label.querySelector('.sniper-clock');
-      if(d.alive && (d.sniperLeft ?? 0)>0) {
-        const c=sniperLabel ?? el('span',{class:'bubble sniper-clock'});
-        // No countdown: the player holds the aim, so the reticle and the edge lines already show it running.
-        c.textContent=t('Solução deselegante','Inelegant Solution');
-        if(!sniperLabel) m.label.prepend(c);
-      } else sniperLabel?.remove();
+      // Held aim: a charge bar instead of a countdown (Fernando, 26/10).
+      if(d.alive && (d.sniperLeft ?? 0)>0) chargeBubble(m,'sniper-clock',t('Mirando','Aiming'),1-d.sniperLeft!/CAST_POINT.sniper);
+      else m.label.querySelector('.sniper-clock')?.remove();
       const pixLabel = m.label.querySelector('.pix-clock'), pixBy = d.alive && (d.puppetBy ?? -1) >= 0 ? list[d.puppetBy!] : undefined;
       if (d.alive && (d.puppetLeft ?? 0) > 0) {
-        const c = pixLabel ?? el('span', { class: 'bubble pix-clock' });
-        c.textContent = pixBy ? t(`Controlado por ${pixBy.name} · ${n1(d.puppetLeft!)} s`, `Controlled by ${pixBy.name} · ${n1(d.puppetLeft!)} s`) : t(`Controlado · ${n1(d.puppetLeft!)} s`, `Controlled · ${n1(d.puppetLeft!)} s`);
-        if (!pixLabel) m.label.prepend(c);
+        chargeBubble(m, 'pix-clock', pixBy ? t(`Controlado por ${pixBy.name} · ${n1(d.puppetLeft!)} s`, `Controlled by ${pixBy.name} · ${n1(d.puppetLeft!)} s`) : t(`Controlado · ${n1(d.puppetLeft!)} s`, `Controlled · ${n1(d.puppetLeft!)} s`));
         burst(v(d.pos.x + (Math.random() - .5) * .9, d.pos.y + (Math.random() - .5) * .9), PIX_TIE, 0.8, 0.7, 1.4, FX.star, 1.1); // red stars rising from the controlled wizard
       } else if (d.alive && (d.pixSoak ?? 0) > 0) {
         // time inside the coin rain, out of the second that controls
-        const c = pixLabel ?? el('span', { class: 'bubble pix-clock' });
-        c.textContent = t(`Lula Pix · ${n1(d.pixSoak!)}/${n1(PIX.soak)} s`, `Squid Pix · ${n1(d.pixSoak!)}/${n1(PIX.soak)} s`);
-        if (!pixLabel) m.label.prepend(c);
+        chargeBubble(m, 'pix-clock', t('Controlando', 'Controlling'), d.pixSoak! / PIX.soak);
       } else pixLabel?.remove();
       m.sniper.visible=d.alive && (d.sniperLeft ?? 0)>0 && !!d.sniperAt;
       if(m.sniper.visible) updateSniperRig(m.sniper,Math.hypot(d.sniperAt!.x-d.pos.x,d.sniperAt!.y-d.pos.y),d.sniperLeft!);
@@ -2262,6 +2263,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const arcAim = new THREE.Mesh(new THREE.RingGeometry(0, 1, 32, 1, -arcHalf, 2 * arcHalf).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }));
   arcAim.renderOrder = 9; arcAim.visible = false; arcAim.scale.setScalar(MELEE_ARC.range); scene.add(arcAim);
   const sniperScreen=sniperFocusMask(); scene.add(sniperScreen);
+  // Target lock under the wizard the armed Attack or Inelegant Solution would hit (Fernando, 26/10: the aim felt loose)
+  const lockAim = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.76, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: SNIPER_FX.laser, transparent: true, opacity: 0.9, depthWrite: false }));
+  lockAim.renderOrder = 9; lockAim.visible = false; scene.add(lockAim);
 
   return {
     ready,
@@ -2302,6 +2306,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     cone(points: [Vec,Vec,Vec] | null) {
       coneAim.visible=!!points;
       if(points) { const a=coneGeo.getAttribute('position'); points.forEach((p,i)=>a.setXYZ(i,p.x,.04,p.y)); a.needsUpdate=true; coneGeo.computeBoundingSphere(); }
+    },
+    lockOn(at: Vec | null) {
+      lockAim.visible = !!at;
+      if (at) lockAim.position.copy(w3(at, 0.05));
     },
     // golpe em arco: setor no chão em volta do mago, virado para facing; null esconde
     arc(at: Vec | null, facing: number) {

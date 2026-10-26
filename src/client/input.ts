@@ -236,6 +236,9 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     },
     // ponto do chão sob o mouse (o Meteoro desenha a explosão ali)
     aimPoint: () => h.pick(cursor.x, cursor.y),
+    attackArmed: () => attackArmed,
+    // wizard model under the mouse (the click target of Attack and the Inelegant Solution)
+    hovered: () => h.pickAttack?.(cursor.x, cursor.y),
     // The toolbar selects a spell; the next ground click or tap casts it.
     button(a: SpellId) {
       if (enabled && a !== 'channel' && h.canChannel?.() && (attackArmed || armed === 'channel')) {

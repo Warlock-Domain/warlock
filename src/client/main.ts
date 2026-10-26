@@ -44,7 +44,7 @@ import { TAUNTS } from '../shared/taunts.ts';
 import { seenRooms } from './minimap.ts';
 import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, setIlse, type IlseCtx } from './ilse.ts';
 import { sniperFocusState } from './sniper-focus.ts';
-import { sniperTarget } from '../shared/sniper-target.ts';
+import { attackTarget, sniperTarget } from '../shared/sniper-target.ts';
 import { sniperShotSound } from './sniper-fx.ts';
 import { healTarget } from '../shared/heal-target.ts';
 
@@ -484,7 +484,7 @@ function startRoom(code: string, name: string) {
       if (spell === 'sniper') {
         const units = interp.latest()?.wizards.map(w => ({...w, team: room?.players.find(p=>p.id===w.id)?.team, hidden: !!(w.status&2048), suspended: (w.geyserLeft ?? 0)>0})) ?? [];
         const self = units.find(w=>w.id===me);
-        const target = self && sniperTarget(units,self,at,SPELLS.sniper.levels[0].range*(1+itemStats(mine.items).range) );
+        const target = self && sniperTarget(units,self,at,SPELLS.sniper.levels[0].range*(1+itemStats(mine.items).range), input.hovered());
         if (!target) return toast(t('Clique em um inimigo visível dentro do alcance.', 'Click a visible enemy within range.'));
         at = target.pos;
       }
@@ -1055,6 +1055,11 @@ function startRoom(code: string, name: string) {
     scene.bands(shape?.segs ?? [], shape?.half ?? 0);
     scene.arc(arcPreview && nowMs < arcPreview.until && meW?.alive && myPos ? myPos : null, arcPreview?.facing ?? 0);
     scene.cone(shape?.cone ?? null);
+    const attackArmed = !meP?.spells.channel && input.attackArmed();
+    const lockFrom = room?.phase === 'playing' && meW?.alive && meP && (attackArmed || armed === 'sniper') ? drawWiz.filter((d) => !d.illusion).map((d) => ({ ...d, hidden: !!(d.status & 2048), suspended: (d.geyserLeft ?? 0) > 0 })) : null;
+    const lockSelf = lockFrom?.find((d) => d.id === me), lockAt = lockSelf && input.aimPoint();
+    const lockHover = lockAt ? input.hovered() : undefined;
+    scene.lockOn(lockSelf && lockAt ? (armed === 'sniper' ? sniperTarget(lockFrom!, lockSelf, lockAt, SPELLS.sniper.levels[0].range * (1 + itemStats(meP!.items).range), lockHover) : attackTarget(lockFrom!, lockSelf, lockAt, BASIC_ATTACK.range, lockHover))?.pos ?? null : null);
     // nas posições desenhadas (as mesmas da tela), para ver se o erro foi mira, desvio ou a bola no ar enganando
     scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
