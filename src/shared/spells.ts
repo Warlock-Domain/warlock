@@ -4,12 +4,14 @@ export const SPELL_IDS = ['fireball', 'lightning', 'homing', 'shield', 'teleport
   'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone', 'scourge', 'pact', 'heal', 'geyser', 'closedbody', 'channel', 'sniper', 'pix'] as const;
 export type SpellId = (typeof SPELL_IDS)[number];
 export const isSpell = (x: unknown): x is SpellId => SPELL_IDS.includes(x as SpellId);
-// 6 spells per wizard on Q W E R D F (Fernando's decision, 25/10, issue #401; 8 on 1 2 3 4 Q W E R from 21/10, #217); Fireball and Scourge count
+// spells anyone can have on the bar: the Scourge is an item again (26/10, #227) and only fires through the spell path
+export const BAR_SPELLS = SPELL_IDS.filter((s) => s !== 'scourge');
+// 6 spells per wizard on Q W E R D F (Fernando's decision, 25/10, issue #401; 8 on 1 2 3 4 Q W E R from 21/10, #217); Fireball counts, Scourge is an item again since 26/10 (#227)
 export const MAX_SPELLS = 6;
 
 // magias pelo efeito principal: a loja e a ajuda mostram os nomes (rules-text.ts); o sorteio das cartas do Ascensão usa os grupos
 export const SPELL_GROUP_IDS = {
-  attack: ['fireball', 'lightning', 'homing', 'meteor', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball', 'scourge', 'pact', 'channel', 'sniper'],
+  attack: ['fireball', 'lightning', 'homing', 'meteor', 'boomerang', 'bouncer', 'recharge', 'splitter', 'snowball', 'pact', 'channel', 'sniper'],
   mobility: ['teleport', 'swap', 'rush', 'thrust', 'windwalk'],
   defense: ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion', 'closedbody'],
   control: ['grip', 'gravity', 'link', 'magnetize', 'drain', 'cluster', 'pix'],
@@ -86,9 +88,10 @@ export const SPELLS: Record<SpellId, Spell> = {
   splitter: { name: 'Divisor', en: 'Splitter', cost: 15, up: [7, 8, 9, 10, 11, 12], levels: steps(24, -1).map((cd, i) => L({ cd, dmg: 30 + 5 * i, speed: 700 * UNIT, range: 700 * UNIT })) },
   // zona de dobra: esfera de 4,5 s a até 700 u; scale = tempo dos projéteis inimigos dentro dela
   warpzone: { name: 'Zona de dobra', en: 'Warp Zone', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([23, 21, 20, 19, 18, 17, 16], steps(0.4, -0.04)).map(([cd, scale], i) => L({ cd: cd * 0.5, duration: 4.5, scale, /* 18/10: recarga ×0,7 → ×0,6 (19% abaixo com bots humanos) e raio +20 por nível; 19/10: ×0,5 (16% abaixo no Normal) */ radius: (200 + 20 * i) * UNIT, range: 700 * UNIT })) },
-  // Flagelo e Pacto eram itens ativos (issue #217, 21/10): o nível 1 tem os números do item; o resto da subida é ponto de partida do simulador.
-  // Flagelo: explosão em volta (dmg e radius), de graça como a Bola de fogo; +10 de dano por nível, como o item subia (80/100/120 em 3 níveis)
-  scourge: { name: 'Flagelo', en: 'Scourge', cost: 0, up: [7, 7, 7, 7, 7, 7], levels: steps(80, 10).map((d) => L({ cd: 5, dmg: d, radius: 325 * UNIT })) },
+  // Pact was an active item (issue #217, 21/10): level 1 has the item's numbers; the rest of the climb is a simulator starting point.
+  // Scourge: an item again since 26/10 (#227), kept here only to fire through the spell path; the level comes from items.scourge and is
+  // bought in the item shop (priceOf returns null). Blast around with 80/100/120 damage, the item's 3 levels until 21/10
+  scourge: { name: 'Flagelo', en: 'Scourge', cost: 0, up: [7, 7], levels: [80, 100, 120].map((d) => L({ cd: 5, dmg: d, radius: 325 * UNIT })) },
   // Pacto: a próxima magia de dano em `duration` s sai PACT.mult× mais forte; a subida só encurta a recarga
   pact: { name: 'Pacto', en: 'Pact', cost: 10, up: [6, 7, 8, 9, 10, 11], levels: steps(20, -1).map((cd) => L({ cd, duration: 5 })) },
   // Accepted 25/10 with 350 damage (owner cut from the proposed 500), no simulator by owner exception; single level.
@@ -174,13 +177,13 @@ export const spellMax = (id: SpellId) => SPELLS[id].up.length + 1;
 
 // preço para subir do nível atual para o próximo; null = já no máximo
 export function priceOf(id: SpellId, level: number): number | null {
-  if (level >= spellMax(id)) return null;
+  if (level >= spellMax(id) || id === 'scourge') return null; // the Scourge is bought as an item (26/10, #227)
   return level === 0 ? SPELLS[id].cost : SPELLS[id].up[level - 1];
 }
 
-// Bola de fogo e Flagelo de graça para todos (o Flagelo virou magia inicial em 21/10, issue #217)
-export const FREE_SPELLS: SpellId[] = ['fireball', 'scourge'];
-export const noSpells = (): Record<SpellId, number> => ({ ...Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), fireball: 1, scourge: 1 }) as Record<SpellId, number>;
+// Fireball free for everyone; the free Scourge now comes as an item (startItems in items.ts, 26/10, #227)
+export const FREE_SPELLS: SpellId[] = ['fireball'];
+export const noSpells = (): Record<SpellId, number> => ({ ...Object.fromEntries(SPELL_IDS.map((s) => [s, 0])), fireball: 1 }) as Record<SpellId, number>;
 
 export const spellCount = (spells: Record<SpellId, number>) => SPELL_IDS.filter((s) => spells[s] > 0).length;
 export const CLOSED_BODY = { damage: .1, statusDuration: .1, knock: .1 }; // resistência de90% aos novos efeitos; não limpa os anteriores.

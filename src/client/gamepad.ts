@@ -35,7 +35,7 @@ export function aimPoint(me: Vec, s: Vec, range = AIM_RANGE): Vec {
 export function padAction(btn: number): SpellId | undefined {
   const p = padActionAt(btn);
   if (p?.startsWith('slot')) return slotSpell(Number(p.slice(4)) - 1);
-  return undefined;
+  return p === 'item' ? 'scourge' : undefined; // the only active item (26/10, #227)
 }
 
 // próximo botão na direção pedida: o mais perto, punindo o desvio para o lado (a grade da loja anda por linhas e colunas)
