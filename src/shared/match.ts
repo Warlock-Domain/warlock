@@ -10,7 +10,7 @@ import {
   ARENA_MIN, ARENA_STEP, ASSIST_GOLD, DT, INVULN_TIME, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, MAX_WATCHERS, PILLAR, PROJ_R, ROUND_EFFECT_IDS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R, WIZ_SPEED, arenaRadius,
   roundMods, type RoundEffectId, type RuneKind,
 } from './constants.ts';
-import { ITEMS, ITEM_IDS, itemPrice, noItems, type ItemId } from './items.ts';
+import { ITEMS, ITEM_IDS, itemPrice, noItems, startItems, type ItemId } from './items.ts';
 import { nightRand } from './rng.ts';
 import { gearOf, newWorld, inLava, placeRune, resizeArena, revive, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
 import { FREE_SPELLS, MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
@@ -239,7 +239,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false, watch
   // a Campanha não tem ouro (nem para quem entra no meio da noite). Nos outros modos, quem entra para jogar no meio da
   // partida chega à loja seguinte com a renda garantida das rodadas perdidas (#281); espectador continua sem essa compra.
   const gold = m.night ? 0 : !bot && !watching && m.phase !== 'lobby' && m.phase !== 'end' ? lateJoinGold(m) : startGold(m);
-  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold, economy: newEconomy(gold), spells: noSpells(), items: noItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
+  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold, economy: newEconomy(gold), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
   enter(m, m.players[m.players.length - 1], rand);
   ascOwner(m);
   return true;
@@ -285,7 +285,7 @@ function enter(m: Match, p: Player, rand: () => number) {
 // sandbox: compra e venda valem na hora, no mago da rodada
 function refit(m: Match, p: Player) {
   const z = m.sandbox && m.world?.wizards.find((q) => q.id === p.id);
-  if (z) Object.assign(z, gearOf(p.items), { spells: { ...p.spells } });
+  if (z) Object.assign(z, gearOf(p.items), { spells: { ...p.spells, scourge: p.items.scourge } }); // Scourge: the item level, as in newWorld
 }
 
 // bot novo com o primeiro id livre (bot-1…bot-8); undefined com a sala cheia
@@ -349,7 +349,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
 // zera a partida e abre a loja da rodada 1 (começar, ou reiniciar por votação com os mesmos jogadores)
 function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: () => number) {
   for (const p of m.players) {
-    Object.assign(p, { score: 0, gold: startGold(m), goldCarry: 0, spells: noSpells(), items: noItems() });
+    Object.assign(p, { score: 0, gold: startGold(m), goldCarry: 0, spells: noSpells(), items: startItems() });
     p.economy = newEconomy(p.gold);
     p.held = {};
     p.stats.match = newStat();
@@ -459,7 +459,7 @@ export function sellValue(p: { spells: Record<SpellId, number>; items: Record<It
   if (!spell && kind !== 'item') return 0; // só magia e item se vendem
   if (!(spell ? (SPELL_IDS as readonly string[]) : (ITEM_IDS as readonly string[])).includes(what)) return 0;
   const now = spell ? p.spells[what as SpellId] : p.items[what as ItemId];
-  const first = spell ? noSpells()[what as SpellId] : noItems()[what as ItemId];
+  const first = spell ? noSpells()[what as SpellId] : startItems()[what as ItemId]; // the free Scourge level does not sell
   if (now <= first) return 0;
   const when = p.held?.[key] ?? [];
   let total = 0;
@@ -483,7 +483,7 @@ export function sell(m: Match, id: string, key: string): boolean {
   const value = sellValue(p, m.round, key);
   const [kind, what] = key.split(':');
   if (kind === 'spell') p.spells[what as SpellId] = 0;
-  else p.items[what as ItemId] = noItems()[what as ItemId];
+  else p.items[what as ItemId] = startItems()[what as ItemId];
   p.gold += value;
   economyOf(p).goldRefunded += value;
   p.bought = p.bought.filter((b) => b.key !== key);
@@ -529,10 +529,15 @@ export function resume(m: Match, now: number, rand: () => number = Math.random) 
     const plan = (p as { plan?: BotPlan }).plan;
     if (plan) plan.buys = plan.buys.filter((b) => (b.kind === 'item' ? (ITEM_IDS as readonly string[]).includes(b.id) : isSpell(b.id)));
     // salas gravadas antes dos itens novos, ou com os ativos que viraram magia ou saíram (21/10, #217): fica só o que existe
-    p.items = Object.fromEntries(ITEM_IDS.map((i) => [i, p.items[i] ?? 0])) as Record<ItemId, number>;
-    // salas gravadas com a maestria Roubo de vida: vira o item (sem passar do nível máximo)
+    // rooms saved with the Scourge spell (21/10 to 26/10, #227): it becomes the item, up to level 3. Campaign servants never had it
+    const scourge = p.spells.scourge;
+    p.spells.scourge = 0;
+    p.items = Object.fromEntries(ITEM_IDS.map((i) => [i, p.items[i] ?? (i === 'scourge' && !p.servo ? Math.max(1, scourge) : 0)])) as Record<ItemId, number>;
+    // rooms saved with the Lifesteal mastery: it becomes the item
     const old = (p as { masteries?: { lifesteal?: number } }).masteries?.lifesteal ?? 0;
-    if (old && !p.items.vampire) p.items.vampire = Math.min(6, old);
+    if (old && !p.items.vampire) p.items.vampire = old;
+    // every item has 3 levels since 26/10 (#227): saved Ring of Life 5 and Lifesteal 6 drop to the max
+    for (const i of ITEM_IDS) p.items[i] = Math.min(p.items[i], ITEMS[i].levels.length);
     delete (p as { masteries?: unknown }).masteries;
     p.held ??= {}; // salas gravadas antes da venda por rodada
     p.team ??= null;
@@ -667,7 +672,7 @@ function enterShop(m: Match, now: number, rand: () => number) {
     p.ready = p.bot;
     // treino: bot configurado entra exatamente com as magias e itens pedidos, sem compra automática
     const s = p.setup;
-    if (s?.spells || s?.items) Object.assign(p, { spells: { ...noSpells(), ...s.spells }, items: { ...noItems(), ...s.items } });
+    if (s?.spells || s?.items) Object.assign(p, { spells: { ...noSpells(), ...s.spells }, items: { ...startItems(), ...s.items } });
     else botShop(m, p, rand);
   }
 }
@@ -1200,7 +1205,7 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = '', rand
     b.difficulty = difficulty;
     if (cmd.dummy) b.dummy = true;
     if (Object.keys(rest).length) b.setup = rest;
-    if (rest.spells || rest.items) Object.assign(b, { spells: { ...noSpells(), ...rest.spells }, items: { ...noItems(), ...rest.items } });
+    if (rest.spells || rest.items) Object.assign(b, { spells: { ...noSpells(), ...rest.spells }, items: { ...startItems(), ...rest.items } });
     else if (!cmd.dummy) botShop(m, b, rand); // o boneco fica sem compras: dano e empurrão de referência
     refit(m, b);
     return true;
@@ -1448,12 +1453,12 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
         bonus(m, killer, KILL_GOLD * (1 + STREAK.killGold * (s.kills - 1)) + Math.max(0, head));
       }
     }
-    // a Égide quebra ao salvar (consumível): sai do inventário sem valor de venda
+    // the Aegis spends 1 level when it saves (each level is one save)
     if (e.k === 'aegis') {
       const p = player(m, e.id);
       if (p) {
-        p.items.aegis = 0;
-        delete p.held['item:aegis'];
+        p.items.aegis--; // each level is a charge (26/10, #227); the spent level leaves with no sell value
+        p.held['item:aegis']?.pop();
       }
     }
     if (e.k === 'loot') {
