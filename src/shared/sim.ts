@@ -5,7 +5,7 @@ import {
 } from './constants.ts';
 import { CELL, SHAPES, cellAt, edge, inArena, inLavaAt, inward, isleSpot, onIsle, safeInside, type ArenaId, type Isle, type Terrain } from './arena.ts';
 import { AEGIS, CRIT, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
-import { BOOMERANG, BOUNCER, CAST_POINT, CLOSED_BODY, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, PROJECTILE_COLLISION, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
+import { BOOMERANG, BOUNCER, CAST_POINT, CLOSED_BODY, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, PIX, PROJECTILE_COLLISION, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { inCone } from './sand-cone.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 import { SHIELD, castBlocked } from './spells.ts';
@@ -33,6 +33,8 @@ export type Wizard = {
   closedBodyUntil?: number; // Closed body: active until this time
   geyserLeft?: number; // Geyser: seconds left suspended in the jet
   geyserAt?: Vec; // horizontal anchor: external forces do not move a suspended body
+  puppetBy?: string; // Squid Pix: who controls this wizard until puppetUntil
+  puppetUntil?: number;
   target: Vec | null;
   moveHeld?: boolean; // direito pressionado preserva tentativa contra obstáculo.
   blockedMove?: boolean; // destino de clique único cancelado por colisão.
@@ -116,7 +118,7 @@ export type Wizard = {
 // drain e recharge com back voltam a quem lançou (cura, recarga); link fica preso a um mago ou obstáculo; splitter vira lançador de shard;
 // warpzone não anda (zona de tempo lento); illusion é a cópia autônoma do mago, que dura até o prazo mesmo quando atingida
 export const PROJ_KINDS = ['fireball', 'homing', 'swap', 'grip', 'meteor', 'cluster', 'boomerang', 'gravity', 'bouncer',
-  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'link', 'splitter', 'shard', 'warpzone', 'basic', 'geyser'] as const;
+  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'link', 'splitter', 'shard', 'warpzone', 'basic', 'geyser', 'pix'] as const;
 export type ProjKind = (typeof PROJ_KINDS)[number];
 
 export type Projectile = {
@@ -153,6 +155,7 @@ export type Projectile = {
   bonus?: number; // Recarga: dano a mais pelos acertos seguidos
   waves?: number; // Divisor: ondas de filhotes que faltam (lançador)
   pillar?: number; // Elo preso a este obstáculo
+  soak?: Record<string, number>; // Lula Pix rain: seconds each wizard has spent inside
 };
 
 export type Cmd =
@@ -175,6 +178,7 @@ export type SimEvent =
   | { k: 'snipe'; id: string; from: Vec; to: Vec }
   | { k: 'teleport'; id: string; from: Vec; to: Vec }
   | { k: 'grip'; id: string; x: number; y: number }
+  | { k: 'pix'; id: string; x: number; y: number } // Squid Pix: id, at (x, y), now repeats its controller's commands
   | { k: 'vines'; x: number; y: number; r: number }
   | { k: 'death'; id: string; by: string | null; src: string } // src: o que empurrou por último (dentro da janela de crédito) ou 'lava'
   | { k: 'gold'; id: string; n: number; x: number; y: number }
@@ -451,6 +455,11 @@ export function moveWizard(wz: MovementState, dt: number) {
 
 const byId = (w: World, id: string | null) => w.wizards.find((z) => z.id === id && z.alive); // só os vivos
 const anyById = (w: World, id: string | null) => w.wizards.find((z) => z.id === id); // vivo ou morto
+// Squid Pix: the living controller of a wizard under control, or undefined; dying frees the target
+export const puppeteer = (w: World, z: Wizard | undefined) => (z?.puppetBy && w.t < (z.puppetUntil ?? 0) ? byId(w, z.puppetBy) : undefined);
+const puppetsOf = (w: World, wz: Wizard) => w.wizards.filter((z) => z.alive && puppeteer(w, z) === wz);
+// whoever acts through a controlled body is its controller: damage, marks and kill credit go to them
+const actor = (w: World, id: string) => puppeteer(w, anyById(w, id))?.id ?? id;
 const shielded = (w: World, wz: Wizard) => w.t < wz.shieldUntil;
 export const statusDuration = (w: World, wz: Wizard, seconds: number) => seconds * (shielded(w, wz) ? SHIELD.statusDuration : 1) * (closedBodyActive(w, wz) ? CLOSED_BODY.statusDuration : 1);
 export const closedBodyActive = (w: World, wz: Wizard) => w.t < (wz.closedBodyUntil ?? 0) && bracingActive(w, wz);
@@ -481,7 +490,8 @@ function addKnock(w: World, wz: Wizard, impulse: Vec) {
 }
 const bubble = (w: World, wz: Wizard) => (shielded(w, wz) ? Math.max(0, wz.shieldR - WIZ_R) : 0); // quanto a bolha do escudo passa do mago
 // aliados: do mesmo time e não é a própria pessoa (fora dos modos com time, ninguém é aliado)
-const allies = (a: Wizard | undefined, b: Wizard) => !!a && a !== b && a.team !== null && a.team === b.team;
+// a controlled body (a) treats its controller (b) as an ally, so area statuses it casts spare them (Squid Pix); not the other way round
+const allies = (a: Wizard | undefined, b: Wizard) => !!a && a !== b && ((a.team !== null && a.team === b.team) || a.puppetBy === b.id);
 
 // src: o que causou o dano (magia, item, choque ou pilar), para o placar e os dados de balanceamento
 function knockScale(dmg: number, taken: number, resist: number) {
@@ -491,7 +501,7 @@ function knockScale(dmg: number, taken: number, resist: number) {
 
 // último golpe, para o crédito do abate; também o efeito sem dano num inimigo (Troca, Agarrar, Magnetizar; #179)
 function mark(w: World, target: Wizard, by: string, src: string) {
-  target.lastHitBy = by;
+  target.lastHitBy = actor(w, by);
   target.lastHitSrc = src;
   target.lastHitAt = w.t;
 }
@@ -500,6 +510,9 @@ function mark(w: World, target: Wizard, by: string, src: string) {
 const afflictBy = (w: World, id: string) => byId(w, id)?.afflict ?? 1;
 
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string, knockDmg = dmg) {
+  // a controlled body never hurts its controller (Fernando's grill of 25/10: "everything is yours")
+  if (by !== target.id && actor(w, by) === target.id) return;
+  by = actor(w, by);
   // invulnerável: sem dano nem empurrão, mas o acerto aparece (explosão e som), senão o projétil sumiria sem efeito
   if (w.t < target.invulnUntil) return void w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: 0, src });
   // como no mod de Dota 2 (pawn.lua): acima de 100 de dano por golpe o empurrão cresce pela raiz, não em linha reta
@@ -561,7 +574,7 @@ function firstOnSegment(w: World, a: Vec, b: Vec, radius: number, skip: string, 
   let best: { wz: Wizard; t: number } | null = null;
   for (const wz of w.wizards) {
     // A suspended body is out of the projectiles' plane, Shield collision bubble included
-    if (!wz.alive || isSuspended(wz) || wz.id === skip || (only !== undefined && wz.id !== only)) continue;
+    if (!wz.alive || isSuspended(wz) || wz.id === skip || wz === puppeteer(w, anyById(w, skip)) || (only !== undefined && wz.id !== only)) continue;
     const [t, gap] = segT(a, d, wz.pos);
     // com escudo, a bolha (maior que o mago) é que encosta
     if (gap > radius + bubble(w, wz) + (bodyR(wz) - WIZ_R)) continue; // radius already counts a WIZ_R body; the parentheses add exactly 0 in PvP
@@ -739,10 +752,10 @@ function blockPillars(w: World, walking?: ReadonlySet<Wizard>) {
 
 // o mais perto, fora skip; nos Times, também fora o time do dono (só inimigos)
 function nearestEnemy(w: World, to: Vec, skip: string, owner = skip): Wizard | null {
-  const team = anyById(w, owner)?.team ?? null;
+  const me = anyById(w, owner);
   let best: Wizard | null = null;
   for (const wz of w.wizards) {
-    if (!wz.alive || isSuspended(wz) || wz.id === skip || wz.id === owner || (team !== null && wz.team === team)) continue;
+    if (!wz.alive || isSuspended(wz) || wz.id === skip || wz.id === owner || allies(me, wz)) continue;
     if (!best || dist(wz.pos, to) < dist(best.pos, to)) best = wz;
   }
   return best;
@@ -863,23 +876,30 @@ function castLightning(w: World, wz: Wizard, L: Level, dir: Vec, dmgMult: number
   }
 }
 
-function cast(w: World, wz: Wizard, spell: SpellId, at: Vec, power = 1, aimedId?: string) {
-  const firstId = w.nextId;
-  castSpell(w, wz, spell, at, power, aimedId);
+// copy: the controller's level when a controlled body repeats the cast (Squid Pix), without the body's own spells or cooldowns
+function cast(w: World, wz: Wizard, spell: SpellId, at: Vec, power = 1, aimedId?: string, copy?: number) {
+  const firstId = w.nextId, from = wz.pos, ready = wz.cd[spell];
+  castSpell(w, wz, spell, at, power, aimedId, copy);
   for (const p of w.projectiles) if (p.id >= firstId) p.power = power;
+  // only a cast that went out (its cooldown started) is repeated by each controlled body; one level only,
+  // so a controlled wizard's own targets do not repeat the copy
+  if (copy === undefined && wz.cd[spell] !== ready) for (const z of puppetsOf(w, wz)) {
+    // the copy aims at the caster's point (the two shots make a V, Fernando 26/10); standing on it, the caster's direction
+    if (!isSuspended(z) && !castBlocked(isStunned(z), w.t < z.gripUntil, spell)) cast(w, z, spell, dist(at, z.pos) > .01 ? at : add(z.pos, sub(at, from)), power, aimedId, wz.spells[spell]);
+  }
 }
 
-function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number, aimedId?: string) {
+function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number, aimedId?: string, copy?: number) {
   if (spell === 'channel') return;
-  const level = wz.spells[spell];
-  if (!level || w.t < wz.cd[spell]) return;
+  const level = copy ?? wz.spells[spell];
+  if (!level || (copy === undefined && w.t < wz.cd[spell])) return;
   const L = channelLevel(spellLevel(spell, level), power);
   const recipient = spell === 'heal' ? healTarget(w.wizards, wz, at, L.range * wz.rangeF) : undefined;
   if (spell === 'heal' && !recipient) return;
   if (spell === 'closedbody' && !bracingActive(w, wz)) return;
   const aimed = spell === 'sniper' ? sniperVictim(w,wz,at,L.range*wz.rangeF,aimedId) : undefined;
   if (spell === 'sniper' && !aimed) return;
-  wz.cd[spell] = w.t + L.cd;
+  if (copy === undefined) wz.cd[spell] = w.t + L.cd;
   if (recipient) {
     const before = recipient.hp;
     heal(w, recipient, L.heal);
@@ -928,6 +948,9 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
     launch(spell, dir, homing ? L.duration * wz.rangeF : flight, homing ? (nearestEnemy(w, at, wz.id)?.id ?? null) : null);
   } else if (spell === 'cluster') {
     castCluster(w, wz, L, dir, dmgMult);
+  } else if (spell === 'pix') {
+    const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
+    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'pix', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + PIX.rain, target: null, dmgMult, caster: wz.id, soak: {} });
   } else if (spell === 'grip') {
     const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
     w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'grip', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + GRIP.delay, target: null, dmgMult, caster: wz.id });
@@ -1124,6 +1147,25 @@ function gripLand(w: World, p: Projectile) {
   if (landed) land(w, p, 'grip');
 }
 
+// Lula Pix rain: everyone inside but the caster adds up time (allies too, Fernando's grill of 26/10); at PIX.soak s they repeat
+// the caster's commands for the duration and their own actions stop
+function pixRain(w: World, p: Projectile) {
+  const L = channelLevel(spellLevel('pix', p.level), p.power);
+  const by = actor(w, p.owner); // a copied rain hands its targets to the controller too
+  for (const z of w.wizards) {
+    if (!z.alive || z.id === p.owner || z.id === by || isSuspended(z) || w.t < z.invulnUntil || dist(z.pos, p.pos) > L.radius + bodyR(z)) continue;
+    const soak = (p.soak![z.id] = (p.soak![z.id] ?? 0) + DT);
+    if (soak + 1e-8 < PIX.soak) continue;
+    delete p.soak![z.id];
+    z.puppetBy = by;
+    z.puppetUntil = w.t + statusDuration(w, z, L.duration * z.debuffMult * afflictBy(w, p.owner));
+    z.target = null; z.moveHeld = false; z.casting = null; z.channel = undefined; z.basicCasting = undefined; z.braceUntil = 0;
+    mark(w, z, by, 'pix');
+    w.events.push({ k: 'pix', id: z.id, x: z.pos.x, y: z.pos.y });
+    land(w, p, 'pix', true);
+  }
+}
+
 // o meteoro cai: dano de dmgMin na borda até o máximo no centro, em todos menos quem lançou
 function meteorLand(w: World, p: Projectile) {
   const L = channelLevel(spellLevel('meteor', p.level), p.power);
@@ -1293,7 +1335,7 @@ function windTouch(w: World, wz: Wizard) {
 }
 
 // Marcas de chão não são desviadas por habilidades; a cópia da Ilusão continua móvel.
-const fixed = (p: Projectile) => p.kind === 'meteor' || p.kind === 'warpzone' || p.kind === 'grip' || p.kind === 'geyser';
+const fixed = (p: Projectile) => p.kind === 'meteor' || p.kind === 'warpzone' || p.kind === 'grip' || p.kind === 'geyser' || p.kind === 'pix';
 const returning = (p: Projectile) => !!p.back && (p.kind === 'drain' || p.kind === 'recharge'); // bolinha voltando a quem lançou
 export const spellOf = (k: ProjKind): SpellId => (k === 'shard' ? 'splitter' : k === 'basic' ? 'fireball' : k); // Attack reuses the Fireball visuals; numbers and hit source come from the projectile (stats, src)
 // acerto conta para quem lançou ('land'), não para quem devolveu; once: só o primeiro (os que acertam mais de uma vez)
@@ -1707,6 +1749,12 @@ function stepProjectiles(w: World) {
       keep.push(p);
       continue;
     }
+    if (p.kind === 'pix') {
+      if (w.t + 1e-8 >= p.until) continue;
+      pixRain(w, p);
+      keep.push(p);
+      continue;
+    }
     if (p.kind === 'grip') {
       if (w.t >= p.until) gripLand(w, p);
       else keep.push(p);
@@ -1848,7 +1896,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
 export function revive(w: World, wz: Wizard, pos: Vec) {
   Object.assign(wz, {
     alive: true, pos, vel: v(0, 0), target: null, casting: null, channel: undefined, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
-    blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined,
+    blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined, puppetBy: undefined, puppetUntil: 0,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
     rune: null, runeUntil: 0, braceUntil: 0, braceReadyAt: 0, electroUntil: 0, basicCasting: undefined,
@@ -2072,43 +2120,55 @@ function finishArc(w: World, wz: Wizard, facing: number) {
 function applyCmds(w: World, cmds: Cmd[]) {
   for (const c of cmds) {
     const wz = byId(w, c.id);
-    if (!wz || isSuspended(wz)) continue;
-    if (c.kind === 'channel') {
-      if (!(wz.spells.channel > 0) || w.t < wz.dashUntil || w.t < wz.thrustUntil || c.spell === 'channel' || !wz.spells[c.spell] || w.t < wz.cd[c.spell] || wz.casting || castBlocked(isStunned(wz), w.t < wz.gripUntil, c.spell)) continue;
-      if (wz.channel?.spell === c.spell) continue; // Key repeat must not reset the server timer.
-      wz.channel = { spell: c.spell, since: w.t };
-      w.events.push({ k: 'cast', id: wz.id, spell: 'channel' });
-      wz.target = null; wz.moveHeld = false; wz.basicCasting = undefined;
-      wz.veilUntil = wz.windUntil = 0;
-    } else if (c.kind === 'brace') {
-      if (c.on && wz.casting?.spell === 'sniper') wz.casting = null;
-      if (c.on && w.t >= (wz.braceUntil ?? 0)) wz.channel = undefined;
-      if (c.on && w.t >= (wz.braceUntil ?? 0)) wz.braceReadyAt = w.t + (wz.guard ? 0 : BRACE.windup); // the guard stance counts at once (grill of 25/10)
-      wz.braceUntil = c.on ? w.t + BRACE.lease : 0;
-      if (!c.on) wz.closedBodyUntil = 0;
-    } else if (c.kind === 'basic') {
-      beginBasic(w, wz, c);
-    } else if (c.kind === 'moveHold') {
-      wz.moveHeld = c.on && !bracingActive(w, wz);
-    } else if (c.kind === 'move') {
-      wz.channel = undefined;
-      if (bracingActive(w, wz)) continue; // do not queue a walk that would fire when S is released
-      wz.basicCasting = undefined;
-      wz.moveHeld = c.held ?? false;
-      wz.blockedMove = false;
-      if (wz.casting?.spell === 'sniper') wz.casting = null; // Moving cancels aim rather than queuing a delayed shot.
-      if (wz.casting) wz.casting.then = c.to;
-      else wz.target = c.to;
-    } else if (c.kind === 'stop') {
-      wz.channel = undefined;
-      // Like Dota (#144): cancel during windup without spending cooldown, which starts only when the spell fires
-      wz.casting = null;
-      wz.basicCasting = undefined;
-      wz.target = null;
-      wz.moveHeld = false;
-      wz.blockedMove = false;
-    } else beginCast(w, wz, c.spell, c.at);
+    if (!wz || isSuspended(wz) || puppeteer(w, wz)) continue; // a controlled wizard's own commands do nothing
+    applyCmd(w, wz, c);
+    // Squid Pix: walking, stopping and the Attack repeat with the same offset (spells repeat in cast()); Hold ground and Channeling
+    // stay out so the controller cannot freeze the target in place (grill of 25/10)
+    if (c.kind === 'move' || c.kind === 'moveHold' || c.kind === 'stop' || c.kind === 'basic') for (const z of puppetsOf(w, wz)) {
+      if (isSuspended(z)) continue;
+      if (c.kind === 'move') applyCmd(w, z, { ...c, to: add(z.pos, sub(c.to, wz.pos)) });
+      else if (c.kind === 'basic') applyCmd(w, z, { ...c, at: add(z.pos, sub(c.at, wz.pos)), target: c.target === z.id ? undefined : c.target });
+      else applyCmd(w, z, c);
+    }
   }
+}
+
+function applyCmd(w: World, wz: Wizard, c: Cmd) {
+  if (c.kind === 'channel') {
+    if (!(wz.spells.channel > 0) || w.t < wz.dashUntil || w.t < wz.thrustUntil || c.spell === 'channel' || !wz.spells[c.spell] || w.t < wz.cd[c.spell] || wz.casting || castBlocked(isStunned(wz), w.t < wz.gripUntil, c.spell)) return;
+    if (wz.channel?.spell === c.spell) return; // Key repeat must not reset the server timer.
+    wz.channel = { spell: c.spell, since: w.t };
+    w.events.push({ k: 'cast', id: wz.id, spell: 'channel' });
+    wz.target = null; wz.moveHeld = false; wz.basicCasting = undefined;
+    wz.veilUntil = wz.windUntil = 0;
+  } else if (c.kind === 'brace') {
+    if (c.on && wz.casting?.spell === 'sniper') wz.casting = null;
+    if (c.on && w.t >= (wz.braceUntil ?? 0)) wz.channel = undefined;
+    if (c.on && w.t >= (wz.braceUntil ?? 0)) wz.braceReadyAt = w.t + (wz.guard ? 0 : BRACE.windup); // the guard stance counts at once (grill of 25/10)
+    wz.braceUntil = c.on ? w.t + BRACE.lease : 0;
+    if (!c.on) wz.closedBodyUntil = 0;
+  } else if (c.kind === 'basic') {
+    beginBasic(w, wz, c);
+  } else if (c.kind === 'moveHold') {
+    wz.moveHeld = c.on && !bracingActive(w, wz);
+  } else if (c.kind === 'move') {
+    wz.channel = undefined;
+    if (bracingActive(w, wz)) return; // do not queue a walk that would fire when S is released
+    wz.basicCasting = undefined;
+    wz.moveHeld = c.held ?? false;
+    wz.blockedMove = false;
+    if (wz.casting?.spell === 'sniper') wz.casting = null; // Moving cancels aim rather than queuing a delayed shot.
+    if (wz.casting) wz.casting.then = c.to;
+    else wz.target = c.to;
+  } else if (c.kind === 'stop') {
+    wz.channel = undefined;
+    // Like Dota (#144): cancel during windup without spending cooldown, which starts only when the spell fires
+    wz.casting = null;
+    wz.basicCasting = undefined;
+    wz.target = null;
+    wz.moveHeld = false;
+    wz.blockedMove = false;
+  } else beginCast(w, wz, c.spell, c.at);
 }
 
 // Per-wizard state before movement: deathmatch respawn, finished casts, ground zones, effects and speed
@@ -2119,6 +2179,7 @@ function prepWizards(w: World, rand: () => number) {
     if (!bracingActive(w, wz)) wz.closedBodyUntil = 0; // Releasing S or losing the stance ends it; holding again does not renew it.
     if (!wz.spells.channel || isStunned(wz) || (wz.channel && castBlocked(false, w.t < wz.gripUntil, wz.channel.spell))) wz.channel = undefined;
     if (isStunned(wz)) wz.basicCasting = undefined;
+    if (puppeteer(w, wz)) mark(w, wz, wz.puppetBy!, 'pix'); // a fall into the lava while controlled is the controller's kill
     if (wz.basicCasting && w.t + 1e-8 >= wz.basicCasting.fireAt) finishBasic(w, wz);
     if (wz.casting?.spell === 'sniper') {
       const c = wz.casting, target = byId(w,c.aimedId ?? '');
@@ -2334,6 +2395,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
     // the guard stance also freezes the Attack cooldown (grill of 25/10); today's Hold ground leaves it running
     if (wz.guard && bracingActive(w, wz) && (wz.basicReadyAt ?? 0) > w.t) wz.basicReadyAt! += DT;
   }
+  for (const z of w.wizards) if (z.puppetBy && !puppeteer(w, z)) z.puppetBy = undefined; // allies() reads puppetBy without the clock
   for (const z of w.wizards) if (z.geyserLeft !== undefined) {
     z.geyserLeft = Math.max(0, z.geyserLeft - DT);
     if (!isSuspended(z)) { z.geyserLeft = 0; z.geyserAt = undefined; }

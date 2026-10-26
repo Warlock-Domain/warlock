@@ -4,7 +4,7 @@ import { BASIC_ATTACK, BRACE, DT, GUARD, MELEE_ARC, FRICTION, KB_SOFT_CAP, LAVA_
 import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { labelOf, uiLabel } from './keys.ts';
-import { CAST_POINT, GRIP, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, RECHARGE, RUSH, SHIELD, SPELLS, WARPZONE, spellLevel, spellMax, type Level, type SpellId } from '../shared/spells.ts';
+import { CAST_POINT, GRIP, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, PIX, RECHARGE, RUSH, SHIELD, SPELLS, WARPZONE, spellLevel, spellMax, type Level, type SpellId } from '../shared/spells.ts';
 import { MECHANIC_GUIDES, RULES_SHORT, n1, n2 } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 
@@ -38,6 +38,7 @@ export function knockDistance(dmg: number, knock: number): number {
 const knockMeters = (l: Level) => m(knockDistance(l.dmg, l.knock));
 // todo campo do nível que muda o jogo tem uma linha (o teste confere)
 export const SPELL_ROWS: Record<SpellId, Row[]> = {
+  pix: [[t('Chuva de moedas', 'Coin rain'), () => s(PIX.rain)], [RADIUS, (l) => m(l.radius)], [t('Tempo dentro para controlar', 'Time inside to control'), () => s(PIX.soak)], [t('Tempo controlado', 'Time controlled'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   sniper: [[DMG,l=>n1(l.dmg)],[RANGE,l=>m(l.range)],[t('Canalização','Channel time'),()=>s(CAST_POINT.sniper)],[CD,l=>s(l.cd)]],
   channel: [[t('Preparo mínimo', 'Minimum charge'), () => '1 s'], [t('Carga máxima', 'Maximum charge'), () => '2 s'], [t('Bônus em 1 s / 2 s', 'Bonus at 1 s / 2 s'), () => '+50% / +100%'], [CD, () => '0 s']],
   closedbody: [[DURATION, l => s(l.duration)], [t('Redução de dano', 'Damage reduction'), () => '90%'], [t('Resistência a novos status', 'New status resistance'), () => '90%'], [t('Resistência a novo empurrão', 'New knockback resistance'), () => '90%'], [CD, l => s(l.cd)]],

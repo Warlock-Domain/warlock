@@ -7,7 +7,7 @@ const ICONS = [
   // magias
   'lorc/fire-ray', 'lorc/focused-lightning', 'lorc/on-target', 'lorc/shield-reflect', 'lorc/teleport', 'lorc/body-swapping', 'lorc/grab', 'lorc/meteor-impact',
   'lorc/sprint', 'lorc/striking-splinter', 'delapouite/boomerang', 'lorc/knife-thrust', 'lorc/vortex', 'delapouite/menhir', 'heavenly-dog/defensive-wall', 'caro-asercion/ricochet', 'lorc/life-tap',
-  'lorc/frozen-orb', 'lorc/two-shadows', 'lorc/magnet', 'lorc/cycle', 'delapouite/card-exchange', 'lorc/harpoon-chain', 'lorc/wind-slap', 'delapouite/split-arrows', 'lorc/time-trap', 'lorc/water-splash', 'lorc/aura',
+  'lorc/frozen-orb', 'lorc/two-shadows', 'lorc/magnet', 'lorc/cycle', 'delapouite/card-exchange', 'lorc/harpoon-chain', 'lorc/wind-slap', 'delapouite/split-arrows', 'lorc/time-trap', 'lorc/water-splash', 'lorc/aura', 'delapouite/coins-pile',
   // itens
   'delapouite/diamond-ring', 'lorc/skull-ring', 'delapouite/cape', 'lorc/breastplate', 'lorc/leather-boot', 'skoll/pocket-watch', 'delapouite/bat', 'delapouite/flail',
   'lorc/divert', 'lorc/chalice-drops', 'delapouite/metal-boot', 'delapouite/stone-bust', 'delapouite/spartan-helmet', 'lorc/winged-leg', 'lorc/angel-wings', 'lorc/feather',

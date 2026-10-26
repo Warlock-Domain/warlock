@@ -11,6 +11,9 @@ const jitter = (g: THREE.BufferGeometry, amount: number) => {
   g.computeVertexNormals();
   return g;
 };
+// Lula Pix: gold for the coin rain and its mark; red for the thread and the stars of whoever is controlled (Fernando, 26/10)
+export const PIX_COLOR = '#ffd23a';
+export const PIX_TIE = '#ff3b3b';
 export const flat = (color: string, emissive: string, intensity = 0.6) => new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity, flatShading: true, roughness: 0.5 });
 export function vineModel(radius: number) {
   const group = new THREE.Group();
@@ -47,6 +50,11 @@ export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
   },
   grip: () => {
     const ring = new THREE.Mesh(new THREE.RingGeometry(.94, 1, 64), new THREE.MeshBasicMaterial({ color: '#8ed64b', side: THREE.DoubleSide, transparent: true, opacity: .8, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2;
+    return ring;
+  },
+  pix: () => {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(.94, 1, 64), new THREE.MeshBasicMaterial({ color: PIX_COLOR, side: THREE.DoubleSide, transparent: true, opacity: .8, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2;
     return ring;
   },
