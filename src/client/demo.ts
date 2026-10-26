@@ -1,6 +1,7 @@
 // Demonstração animada do grimório: um canvas 2D visto de cima rodando a simulação de verdade (newWorld/stepWorld)
 // com magos de treino e um roteiro fixo em loop. Como usa os números do jogo, a demo acompanha qualquer balanceamento.
 import { SHAPES, type ArenaId } from '../shared/arena.ts';
+import { PIX_COLOR } from './proj-models.ts';
 import { BASIC_ATTACK, BRACE, DT, KNOCK_RECOVERY, OBSTACLES, PROJ_R, WIZ_R } from '../shared/constants.ts';
 import { ITEMS, noItems, type ItemId } from '../shared/items.ts';
 import { bracingActive, incapacitatedUntil, isStunned, newWorld, snowR, spellOf, stepWorld, type Cmd, type Projectile, type SimEvent, type Wizard, type World } from '../shared/sim.ts';
@@ -33,6 +34,9 @@ const VINE_COLOR = '#8ed64b';
 
 // mago 0 é "você" (com a magia ou o item da página); 1 e 2 são de treino e só têm a Bola de fogo
 export const SCRIPTS: Partial<Record<DemoId, Script>> = {
+  // you walk up and fire down: the controlled wizard walks the same way and its copy of the Fireball hits the third wizard
+  pix: { pos: [v(-3, 0), v(2, 0), v(2, -3)], end: GRIP_ROOT_AT + 3, steps: [[GRIP_CAST_AT, A, 'pix', v(2, 0)], [GRIP_ROOT_AT + .2, A, 'move', v(-3, 1.5)], [GRIP_ROOT_AT + 1.2, A, 'fireball', v(-3, -3)]],
+    prep: (w) => { w.pillars = []; w.wizards[C].regen = 0; } },
   sniper: { pos: [v(-4,0),v(3,0)], end:6.2, steps:[[.4,A,'sniper',B],[1,B,'move',v(3,2)]], prep:w=>{w.pillars=[];w.wizards[B].regen=0;} },
   channel: { pos: [v(-4,0),v(3,0)], end: 4.5, steps: [[.3,A,'charge',B],[3,A,'fireball',B]], prep: w => { w.pillars=[]; w.wizards[B].regen=0; } },
   closedbody: { pos: [v(-1,0), v(3,0)], end: CLOSED_BODY_END + 2,
@@ -99,6 +103,7 @@ export function demoStatus(w: World, z: Wizard): string[] {
   const labels: string[] = [];
   if (w.t < z.shieldUntil) labels.push(t(`dano 0 · empurrão/status ${Math.round(SHIELD.knock * 100)}%`, `damage 0 · knockback/status ${Math.round(SHIELD.knock * 100)}%`));
   if (isStunned(z)) labels.push(z.stunLeft === undefined ? t('atordoado durante o deslize · sem ações', 'stunned while sliding · no actions') : t(`atordoado ${n1(Math.max(0, z.stunLeft))} s · sem ações`, `stunned ${n1(Math.max(0, z.stunLeft))} s · no actions`));
+  if (z.puppetBy && w.t < (z.puppetUntil ?? 0)) labels.push(t(`Squid Pix ${left(z.puppetUntil!)} s · repete seus comandos`, `Squid Pix ${left(z.puppetUntil!)} s · repeats your commands`));
   if (w.t < z.gripUntil) labels.push(t(`preso ${left(z.gripUntil)} s · sem mobilidade`, `gripped ${left(z.gripUntil)} s · no mobility`));
   if (w.t < z.slowUntil || z.zone & 1 || w.t < (z.electroUntil ?? 0)) labels.push(t('lentidão · caminhada reduzida', 'slow · reduced walking speed'));
   if (w.t < incapacitatedUntil(z, w.t)) labels.push(t('incapacitado · recargas pausadas', 'incapacitated · cooldowns paused'));
@@ -245,6 +250,9 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     } else if (p.kind === 'grip') {
       circle(p.pos, L.radius, 'rgba(100,180,50,.12)', VINE_COLOR, true);
       circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / GRIP.delay), 'rgba(100,180,50,.3)');
+    } else if (p.kind === 'pix') {
+      circle(p.pos, L.radius, 'rgba(197,139,255,.12)', PIX_COLOR, true);
+      circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / GRIP.delay), 'rgba(197,139,255,.3)');
     } else if (p.kind === 'warpzone') circle(p.pos, L.radius, 'rgba(138,123,255,.25)', col);
     else if (p.kind === 'illusion') {
       // Draw the copy as a translucent wizard in its owner's color
@@ -297,6 +305,8 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     if (w.t < z.shieldUntil) circle(z.pos, z.shieldR, 'rgba(255,214,102,.15)', '#ffd666');
     if (w.t < z.alterUntil) circle(z.pos, spellLevel('alteration', z.spells.alteration || 1).radius, 'rgba(110,230,255,.12)', '#6ee6ff', true);
     if (w.t < z.gripUntil) vines(z.pos, WIZ_R + .18);
+    const by = z.puppetBy && w.t < (z.puppetUntil ?? 0) ? w.wizards.find((o) => o.id === z.puppetBy && o.alive) : undefined;
+    if (by) line(z.pos, by.pos, PIX_COLOR, .06);
     if (isStunned(z)) circle(z.pos, WIZ_R + .3, null, '#ffd666', true);
     if (bracingActive(w, z)) {
       circle(z.pos, WIZ_R + .12, null, '#9be7ff');

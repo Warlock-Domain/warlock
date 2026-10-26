@@ -44,7 +44,8 @@ describe('play style', () => {
     // 25/10 (PR #399): blasts (Meteor, clashes, pillar/shrine) and bouncing projectiles and the Splitter damage obstacles.
     // 25/10 (PR #408, owner's decision): bots may buy Channeling, which changes seeded purchases and decisions.
     // 25/10 (PR #409, owner's decision): bots may buy Inelegant Solution, which changes seeded purchases and decisions.
-    expect(hash).toBe(3389451907);
+    // 25/10 (issue #416, owner's decision): bots may buy Squid Pix; with it out of the bot pool the old hash still matches.
+    expect(hash).toBe(3850153306);
     // and it really measured in this same match
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);

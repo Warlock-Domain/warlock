@@ -319,6 +319,7 @@ export const RULES = LANG === 'en' ? RULES_EN : RULES_PT;
 // grimório: como usar cada magia e contra o quê ela funciona (lido do comportamento em shared/sim.ts)
 type SpellTips = Record<SpellId, [use: string, vs: string]>;
 const SPELL_TIPS_PT: SpellTips = {
+  pix: [`Marque o chão: depois de ${n1(GRIP.delay)} s, os inimigos na área repetem seus comandos por ${n1(L1('pix').duration)} s. Ande e lance magias: eles andam igual e lançam a mesma magia na mesma direção, mesmo sem tê-la.`, 'As magias que saem deles são suas: não acertam você e o dano e os abates contam para você. Se o controlado cair na lava, o abate é seu. Só acaba com o tempo ou com a sua morte; Escudo e Corpo fechado encurtam como qualquer status.'],
   sniper: [`Selecione a magia e clique num inimigo a até ${n1(L1('sniper').range)} m; o mago fica parado mirando por ${n1(CAST_POINT.sniper)} s e dispara automaticamente.`, 'Linha vermelha e retículo indicam o alvo; linhas de tensão nas bordas aparecem para quem conjura e para espectadores seguindo esse jogador. Movimento/S/stun cancelam; alvo invisível, morto ou fora do alcance interrompe.'],
   channel: ['Atacar + tecla da magia inicia a carga; clique esquerdo lança após 1 s.', 'Aos 2 s mantém+100% e aguarda seu comando, sem disparo automático. Ataque básico desabilitado; S/movimento/stun cancelam.'],
   closedbody: ['Ative Manter base antes de lançar e continue segurando S. Mantém a direção da postura, sem virar para o mouse.', 'Duração máxima 3,5 s no nível 1, +0,75 s por nível, até 8 s no nível 7; soltar S encerra antes. Reduz dano, novos empurrões e duração dos novos status em 90%, sem remover efeitos anteriores. Ao expirar, Manter base continua se S estiver pressionado.'],
@@ -354,6 +355,7 @@ const SPELL_TIPS_PT: SpellTips = {
 };
 
 const SPELL_TIPS_EN: SpellTips = {
+  pix: [`Mark the ground: after ${n1(GRIP.delay)} s, enemies in the area repeat your commands for ${n1(L1('pix').duration)} s. Walk and cast: they walk the same way and cast the same spell in the same direction, even without owning it.`, 'Spells coming out of them are yours: they never hit you, and their damage and kills count for you. If the controlled wizard falls into the lava, the kill is yours. It only ends with time or your death; Shield and Closed Body shorten it like any status.'],
   sniper: [`Select the spell and click an enemy within ${n1(L1('sniper').range)} m; stand still and aim for ${n1(CAST_POINT.sniper)} s, then fire automatically.`, 'A red line and reticle mark the target; tension lines along the screen edges appear for the caster and spectators following that player. Movement/Stop/stun cancel; invisible, dead or out-of-range target interrupts.'],
   channel: ['Attack + a spell key starts charging; left-click casts after 1 s.', 'At 2 s holds+100% and awaits your command; never fires automatically. Basic attacks disabled; Stop/movement/stun cancels.'],
   closedbody: ['Activate Hold Ground before casting and keep holding S. Preserves the stance facing without turning toward the mouse.', 'Maximum duration 3.5 s at level 1, +0.75 s per level, up to 8 s at level 7; releasing S ends it early. Reduces damage, new knockback and new status duration by 90%, without cleansing existing effects. Hold Ground remains active after expiry if S stays held.'],
@@ -436,6 +438,7 @@ export const ITEM_GROUPS = LANG === 'en' ? ITEM_GROUPS_EN : ITEM_GROUPS_PT;
 
 // para que serve, em uma linha (cartão da loja)
 const SPELL_USE_PT: Record<SpellId, string> = {
+  pix: 'O inimigo repete seus passos e magias por um tempo.',
   sniper: `Mira com uma sniper e dispara ${n1(L1('sniper').dmg)} de dano após ${n1(CAST_POINT.sniper)} s.`,
   channel: 'Carrega outra magia para aumentar dano, alcance, velocidade e empurrão.',
   closedbody: 'Resiste a dano, empurrões e novos status enquanto mantém a base.',
@@ -470,6 +473,7 @@ const SPELL_USE_PT: Record<SpellId, string> = {
   pact: 'Dobra o próximo golpe de dano.',
 };
 const SPELL_USE_EN: Record<SpellId, string> = {
+  pix: 'The enemy repeats your steps and spells for a while.',
   sniper: `Aim a sniper rifle and fire for ${n1(L1('sniper').dmg)} damage after ${n1(CAST_POINT.sniper)} s.`,
   channel: 'Charges another spell to increase damage, range, speed and knockback.',
   closedbody: 'Resists damage, knockback and new status effects while holding ground.',
@@ -507,6 +511,7 @@ export { SPELL_USE_EN, SPELL_USE_PT };
 export const SPELL_USE = LANG === 'en' ? SPELL_USE_EN : SPELL_USE_PT;
 
 const RULES_SHORT_PT: Record<SpellId, string> = {
+  pix: `Marque o chão: depois de ${n1(GRIP.delay)} s, quem estiver na área repete seus comandos por ${n1(L1('pix').duration)} s. Anda com o mesmo deslocamento que você, para quando você para, usa o Ataque e lança cada magia sua na mesma direção, no seu nível e sem gastar recarga dele. O que sai dele é seu: não acerta você, e dano e abates (lava incluída) contam para você. Acaba só com o tempo ou se você morrer.`,
   sniper: `Linhas de tensão animadas nas bordas da tela aparecem para quem usa a magia e espectadores seguindo esse jogador. Saca uma sniper e acompanha o inimigo selecionado por ${n1(CAST_POINT.sniper)} s, parado. Ao terminar, dispara um tiro instantâneo de ${n1(L1('sniper').dmg)} de dano base, sem empurrão. Alcance ${n1(L1('sniper').range)} m; custo ${SPELLS.sniper.cost} de ouro e recarga ${n1(L1('sniper').cd)} s após o disparo. Sem progressão de nível. Movimento, S, stun ou suspensão interrompem; perder o alvo (morto, invisível ou fora do alcance) cancela sem gastar recarga. Obstáculos bloqueiam o tiro; respeita invulnerabilidade, Escudo e reduções gerais de dano.`,
   channel: 'Compre Canalização e pressione Atacar + tecla de outra magia que possui. Fica parado carregando; clique esquerdo lança após pelo menos 1 s. Aos 1 s: +50% de dano, alcance, velocidade do projétil e empurrão; cresce linearmente até +100% aos 2 s. Não lança sozinha: mantém a carga máxima até você lançar. S, movimento ou stun cancelam. Sem recarga própria; a magia escolhida usa sua recarga normal. Comprar Canalização desabilita o ataque básico. Só modifica atributos existentes, sem aumentar cura, duração ou tempo de status.',
 closedbody: `Só pode ser ativada com Manter base ativo. Por até ${n1(L1('closedbody').duration)} s no nível 1 (+0,75 s por nível, até 8 s no nível 7), reduz o dano recebido, a força dos novos empurrões e a duração dos novos status negativos em 90%. Não remove efeitos nem impulsos anteriores; combina com as resistências existentes. Ainda recebe 10% do dano: não é invulnerabilidade. Soltar S encerra antes; ao expirar com S pressionado, Manter base continua. O corpo fica bem escuro e mantém a direção de Manter base, sem virar para o mouse. Recarga ${n1(L1('closedbody').cd)} s.`,
@@ -541,6 +546,7 @@ geyser: `Invoca no chão um gêiser por ${n1(L1('geyser').duration)} s, a até $
   pact: `A próxima magia de dano em ${n1(L1('pact').duration)} s faz ${n1(PACT.mult)}× de dano e empurrão.`,
 };
 const RULES_SHORT_EN: Record<SpellId, string> = {
+  pix: `Mark the ground: after ${n1(GRIP.delay)} s, whoever is in the area repeats your commands for ${n1(L1('pix').duration)} s. They walk with the same offset as you, stop when you stop, use the Attack and cast each of your spells in the same direction, at your level and without spending their cooldown. What comes out of them is yours: it never hits you, and damage and kills (lava included) count for you. It ends only with time or if you die.`,
   sniper: `Animated tension lines along the screen edges appear for the caster and spectators following that player. Draw a sniper rifle and track the selected enemy for ${n1(CAST_POINT.sniper)} s while stationary. Then fire an instant shot for ${n1(L1('sniper').dmg)} base damage, with no knockback. Range ${n1(L1('sniper').range)} m; costs ${SPELLS.sniper.cost} gold with a ${n1(L1('sniper').cd)} s cooldown after firing. No level progression. Movement, Stop, stun or suspension interrupts; losing the target (dead, invisible or out of range) cancels without cooldown. Obstacles block the shot; respects invulnerability, Shield and general damage reductions.`,
   channel: 'Buy Channeling and press Attack + the key of another owned spell. Stand still while charging; left-click to cast after at least 1 s. At 1 s: +50% damage, range, projectile speed and knockback, increasing linearly to +100% at 2 s. Never fires automatically: holds maximum charge until you cast. Stop, movement or stun cancels. No cooldown of its own; the selected spell uses its normal cooldown. Buying Channeling disables basic attacks. Only existing attributes change, not healing, duration or status time.',
   closedbody: `Requires active Hold Ground. For up to ${n1(L1('closedbody').duration)} s at level 1 (+0.75 s per level, up to 8 s at level 7), reduces incoming damage, new knockback force and newly received negative status durations by 90%. Does not remove existing effects or impulses; stacks with existing resistances. Still takes 10% damage: not invulnerability. Releasing S ends it early; Hold Ground remains active after expiry while S stays held. Darkens the body and preserves Hold Ground facing, without turning toward the mouse. Cooldown ${n1(L1('closedbody').cd)} s.`,
