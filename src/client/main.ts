@@ -10,7 +10,7 @@ import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type SnapView, type WizView 
 import { ODRAN } from '../shared/bosses.ts';
 import { CANDLE, SERVOS, nightXpAt } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
-import { itemStats } from '../shared/items.ts';
+import { castLevel, itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
 import { channelPower } from '../shared/channeling.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
@@ -441,7 +441,7 @@ function startRoom(code: string, name: string) {
     channel(spell) {
       const mine = room?.players.find((p) => p.id === me);
       const self = myWizard(interp.latest());
-      if (performance.now() < scourgeUntil || !mine?.spells.channel || !mine.spells[spell] || !self?.alive || self.geyserLeft || castBlocked(!!(self.status & 16), !!(self.status & 128), spell) || (lastSnap?.cd[SPELL_IDS.indexOf(spell)] ?? 0) > .01) return false;
+      if (performance.now() < scourgeUntil || !mine?.spells.channel || !castLevel(mine, spell) || !self?.alive || self.geyserLeft || castBlocked(!!(self.status & 16), !!(self.status & 128), spell) || (lastSnap?.cd[SPELL_IDS.indexOf(spell)] ?? 0) > .01) return false;
       command({ t: 'channel', spell });
       channelRequest = { spell, since: performance.now(), seq };
       predict.stop(); sound.play('shield'); return true;
@@ -494,7 +494,7 @@ function startRoom(code: string, name: string) {
       if (channelRequest?.spell === spell && ((myWizard(interp.latest())?.channelElapsed ?? 0) < 1)) { toast(t('Canalize por pelo menos 1 segundo.', 'Channel for at least 1 second.')); return false; }
       if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       const mine = room?.players.find((p) => p.id === me);
-      if (!mine?.spells[spell]) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
+      if (!mine || !castLevel(mine, spell)) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
       if (!checkCooldown(spell)) return;
       const state = myWizard(interp.latest())?.status ?? 0;
       if (spell === 'closedbody' && !(state & BRACING_BIT)) return toast(t('Ative Manter base antes de usar Corpo fechado.', 'Activate Hold Ground before using Closed Body.'));
@@ -544,7 +544,7 @@ function startRoom(code: string, name: string) {
     },
     padRange: (s) => (padAiming = s),
     me: () => (myWizard(interp.latest())?.alive ? (drawn.get(me) ?? null) : null),
-    aim: (at) => ((padAt = at), scene.aim(at)),
+    aim: (at) => ((padAt = at), scene.preview.aim(at)),
   });
 
   // a aparência escolhida fica salva e é reenviada ao entrar em qualquer sala; trocada nas Configurações, vale na hora
@@ -770,7 +770,7 @@ function startRoom(code: string, name: string) {
         if (e.id === me && room?.night?.stage === 0 && ilseOn()) ilseSay('fall', ILSE_MOMENTS.fall());
       } else if (e.k === 'aegis') {
         sound.play('shield', volumeOf(e.id));
-        banner([icon(ITEM_ICON.aegis), e.id === me ? t(' A Égide te tirou da lava e quebrou', ' The Aegis pulled you out of the lava and broke') : t(` A Égide tirou ${who.get(e.id) ?? '?'} da lava`, ` The Aegis pulled ${who.get(e.id) ?? '?'} out of the lava`)], e.id === me ? 'good' : '');
+        banner([icon(ITEM_ICON.aegis), e.id === me ? t(' A Égide te tirou da lava e gastou 1 nível', ' The Aegis pulled you out of the lava and spent 1 level') : t(` A Égide tirou ${who.get(e.id) ?? '?'} da lava`, ` The Aegis pulled ${who.get(e.id) ?? '?'} out of the lava`)], e.id === me ? 'good' : '');
       }
       else if (e.k === 'death') {
         // fora da pedra: mergulho na lava (chiado e bolhas) em vez da explosão
@@ -1081,15 +1081,14 @@ function startRoom(code: string, name: string) {
     const aiming = showing && (armed ?? padAiming ?? (getCastMode() === 'release' || frozen ? held : null));
     const aimAt = aiming ? (padAiming ? padAt : (frozen?.at ?? input.aimPoint())) : null;
     const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, frozen?.from ?? myPos, aimAt, channelBoost) : null;
-    scene.range(showing && myPos ? myPos : null, reach, shape?.blastAt ?? null, shape?.blastR ?? 0);
-    scene.bands(shape?.segs ?? [], shape?.half ?? 0);
-    scene.arc(arcPreview && nowMs < arcPreview.until && meW?.alive && myPos ? myPos : null, arcPreview?.facing ?? 0);
-    scene.cone(shape?.cone ?? null);
+    scene.preview.range(showing && myPos ? myPos : null, reach);
+    scene.preview.shape(shape);
+    scene.preview.arc(arcPreview && nowMs < arcPreview.until && meW?.alive && myPos ? myPos : null, arcPreview?.facing ?? 0);
     const attackArmed = !meP?.spells.channel && input.attackArmed();
     const lockFrom = room?.phase === 'playing' && meW?.alive && meP && (attackArmed || armed === 'sniper') ? drawWiz.filter((d) => !d.illusion).map((d) => ({ ...d, hidden: !!(d.status & 2048), suspended: (d.geyserLeft ?? 0) > 0 })) : null;
     const lockSelf = lockFrom?.find((d) => d.id === me), lockAt = lockSelf && input.aimPoint();
     const lockHover = lockAt ? input.hovered() : undefined;
-    scene.lockOn(lockSelf && lockAt ? (armed === 'sniper' ? sniperTarget(lockFrom!, lockSelf, lockAt, SPELLS.sniper.levels[0].range * (1 + itemStats(meP!.items).range), lockHover) : attackTarget(lockFrom!, lockSelf, lockAt, BASIC_ATTACK.range, lockHover))?.pos ?? null : null);
+    scene.preview.lockOn(lockSelf && lockAt ? (armed === 'sniper' ? sniperTarget(lockFrom!, lockSelf, lockAt, SPELLS.sniper.levels[0].range * (1 + itemStats(meP!.items).range), lockHover) : attackTarget(lockFrom!, lockSelf, lockAt, BASIC_ATTACK.range, lockHover))?.pos ?? null : null);
     // nas posições desenhadas (as mesmas da tela), para ver se o erro foi mira, desvio ou a bola no ar enganando
     scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;

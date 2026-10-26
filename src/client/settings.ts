@@ -120,7 +120,7 @@ function castSection(): Node[] {
     check('slot-keys', isSlotMode(), t('Q W E R D F pela ordem da barra', 'Q W E R D F in bar order'), (on) => (setSlotMode(on), draw())),
     el('p', { class: 'muted' }, t('Ligado, as magias usam a tecla da posição na barra (troque abaixo); desligado, cada magia tem a sua tecla.', 'When on, spells use the key of their position on the bar (change them below); when off, each spell has its own key.')),
     ...(isSlotMode()
-      ? [el('h3', {}, t('Teclas das posições', 'Position keys')), el('div', { class: 'keys-list' }, ...POS_ACTIONS.map((p) => keyRow(p, [padActionName(p)])))]
+      ? [el('h3', {}, t('Teclas das posições', 'Position keys')), el('div', { class: 'keys-list' }, ...POS_ACTIONS.map((p) => keyRow(p, [padActionName(p)])), actionRow('scourge'))] // the Scourge is an item with its own key (26/10, #227)
       : [el('details', { class: 'spell-keys', open: spellKeysOpen, ontoggle: (e: Event) => (spellKeysOpen = (e.target as HTMLDetailsElement).open) },
         el('summary', {}, t('Teclas de cada magia', 'Key for each spell')),
         el('div', { class: 'keys-list' }, ...ACTIONS.map(actionRow)))]),

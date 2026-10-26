@@ -2,7 +2,7 @@
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { WizView } from '../shared/snapshot.ts';
-import { ITEMS, ITEM_IDS, itemPrice, type ItemId } from '../shared/items.ts';
+import { ITEMS, ITEM_IDS, itemPrice, startItems, type ItemId } from '../shared/items.ts';
 import { FREE_SPELLS, MAX_SPELLS, spellMax, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { isRecord, readLevels, readNumberMap } from './saved-data.ts';
 import { store } from './store.ts';
@@ -185,11 +185,11 @@ export function countBuys(used: Record<string, number>, keys: string[]): Record<
   for (const k of keys) out[k] = (out[k] ?? 0) + 1;
   return out;
 }
-// o que eu comprei entre duas atualizações da sala: cada nível novo de magia ou item vira uma chave;
-// o nível 1 grátis (Bola de fogo, Flagelo) não é compra, e vender ou desfazer (nível menor) não conta
+// what I bought between two room updates: each new spell or item level becomes a key;
+// the free level 1 (Fireball and, since 26/10, the Scourge item) is not a purchase, and selling or undoing (a lower level) does not count
 export const boughtKeys = (was: Pick<PublicPlayer, 'spells' | 'items'>, now: Pick<PublicPlayer, 'spells' | 'items'>) => [
   ...SPELL_IDS.flatMap((x) => Array<string>(Math.max(0, now.spells[x] - Math.max(was.spells[x], FREE_SPELLS.includes(x) ? 1 : 0))).fill('spell:' + x)),
-  ...ITEM_IDS.flatMap((x) => Array<string>(Math.max(0, now.items[x] - was.items[x])).fill('item:' + x)),
+  ...ITEM_IDS.flatMap((x) => Array<string>(Math.max(0, now.items[x] - Math.max(was.items[x], startItems()[x]))).fill('item:' + x)),
 ];
 export const topUsed = (used: Record<string, number>, kind: 'spell' | 'item', n = 3) =>
   Object.entries(used).filter(([k]) => k.startsWith(kind + ':')).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k.slice(kind.length + 1));
