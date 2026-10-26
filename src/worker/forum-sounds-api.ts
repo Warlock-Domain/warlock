@@ -35,8 +35,8 @@ export async function soundsApi(req: Request, env: Env, url: URL): Promise<Respo
     const pick = parseSoundPick((await readLimitedText(req, PICK_MAX_BYTES)) ?? '');
     if (!pick?.src?.startsWith('pack:')) return bad('bad candidate');
     if (!(await env.SOUNDS.head(soundKey(pick.src)))) return bad('no such pack file', 404);
-    const added = await forum.addCandidate(pick.spell, pick.moment, pick.src, user);
-    return added === 'ok' ? Response.json(await forum.soundState(user.id), { headers: NO_STORE }) : bad('vote closed', 409);
+    await forum.addCandidate(pick.spell, pick.moment, pick.src, user);
+    return Response.json(await forum.soundState(user.id), { headers: NO_STORE });
   }
 
   if (path === '/api/forum/sons/envio') {
@@ -50,20 +50,16 @@ export async function soundsApi(req: Request, env: Env, url: URL): Promise<Respo
     if (!bytes.byteLength) return bad('empty file');
     const src = `up:${newState()}.${ext}`;
     await env.SOUNDS.put(soundKey(src), bytes, { httpMetadata: { contentType: ext === 'wav' ? 'audio/wav' : type } });
-    const added = await forum.addCandidate(pair.spell, pair.moment, src, user);
-    if (added === 'ok') return Response.json(await forum.soundState(user.id), { headers: NO_STORE });
+    if (await forum.addCandidate(pair.spell, pair.moment, src, user)) return Response.json(await forum.soundState(user.id), { headers: NO_STORE });
     // refused after the put (the caps are checked with the insert): the file goes away again
     await env.SOUNDS.delete(soundKey(src));
-    return added === 'limit' ? bad('upload limit reached', 429) : bad('vote closed', 409);
+    return bad('upload limit reached', 429);
   }
 
-  if (path === '/api/forum/sons/voto' || path === '/api/forum/sons/vencedor') {
-    const winner = path.endsWith('vencedor');
-    if (winner && !user.admin) return bad('admins only', 403);
-    const pick = parseSoundPick((await readLimitedText(req, PICK_MAX_BYTES)) ?? '', winner);
+  if (path === '/api/forum/sons/voto') {
+    const pick = parseSoundPick((await readLimitedText(req, PICK_MAX_BYTES)) ?? '');
     if (!pick) return bad('bad vote');
-    const ok = winner ? await forum.setWinner(pick.spell, pick.moment, pick.src, user) : await forum.vote(pick.spell, pick.moment, pick.src!, user.id);
-    return ok ? Response.json(await forum.soundState(user.id), { headers: NO_STORE }) : bad('closed or unknown option', 409);
+    return (await forum.vote(pick.spell, pick.moment, pick.src, user.id)) ? Response.json(await forum.soundState(user.id), { headers: NO_STORE }) : bad('unknown option', 409);
   }
 
   if (path === '/api/forum/sons/comentario') {

@@ -1,8 +1,7 @@
 export const FORUM_ORG = 'Warlock-Domain';
 export const FORUM_NAME_MAX = 24;
 
-// admin: the org role 'admin' at sign-in (today only Fernando, the single Owner); confirms sound-lab winners
-export type ForumUser = { id: string; login: string; name: string; avatar: string; tester?: true; admin?: true };
+export type ForumUser = { id: string; login: string; name: string; avatar: string; tester?: true };
 // How this deployment signs people in: GitHub on localhost and live, a tester button only on PR environments (one OAuth callback
 // URL cannot cover every pr-<n> host; Fernando, 25/10), 'off' when the GitHub secrets are missing (a fresh local checkout)
 export type ForumLogin = 'github' | 'tester' | 'off';

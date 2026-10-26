@@ -48,5 +48,3 @@ export const cookie = (name: string, value: string, maxAge: number) => `${name}=
 // GET /user/memberships/orgs/{org} answers 404 for non-members and state 'pending' for an unaccepted invite.
 export const isActiveMember = (status: number, body: unknown) =>
   status === 200 && typeof body === 'object' && body !== null && (body as { state?: unknown }).state === 'active';
-
-export const isOrgAdmin = (body: unknown) => typeof body === 'object' && body !== null && (body as { role?: unknown }).role === 'admin';

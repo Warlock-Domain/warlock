@@ -1,4 +1,3 @@
-import type { ForumUser } from '../shared/forum.ts';
 import {
   GAME_SOUND, SOUND_COMMENT_MAX, SOUND_UPLOAD_MAX_BYTES, SOUND_UPLOAD_MAX_S, UPLOAD_TYPES, hasMoment, pairKey, picksFor, soundKey,
   type PackEntry, type SoundMoment, type SoundState,
@@ -9,7 +8,8 @@ import { ICON, el, icon } from './icons.ts';
 import { SPELL_SOUND, createSound } from './sound.ts';
 
 // Sound lab of the forum (issue #366, docs/plans/2026-10-25-forum-sound-lab-design.md): per spell, the cast and impact candidates,
-// one vote each, comments, adding from the pack or uploading, and the admin's winner panel. The 3D arena loads on demand.
+// one vote each (always open: the group reads the counts and decides, Fernando 25/10), comments, adding from the pack or uploading.
+// The 3D arena loads on demand.
 const API = '/api/forum/sons';
 const MOMENT_NAME: Record<SoundMoment, string> = { cast: t('Lançamento', 'Cast'), hit: t('Impacto', 'Impact') };
 const PACK_SHOWN = 40;
@@ -20,7 +20,7 @@ const fileUrl = (src: string) => `${API}/arquivo/${soundKey(src)}`;
 const packLabel = (path: string) => path.split('/').slice(-2).join(' / ');
 const seconds = (s: number) => `${s.toLocaleString(LOCALE, { maximumFractionDigits: 1 })} s`;
 
-export function soundLab(user: ForumUser) {
+export function soundLab() {
   let state: SoundState | null = null;
   let pack: PackEntry[] | null = null;
   let spell: SpellId = SPELL_IDS.find((id) => location.hash === `#som/${id}`) ?? 'fireball';
@@ -49,7 +49,7 @@ export function soundLab(user: ForumUser) {
     const res = await fetch(`${API}${path}`, { method: 'POST', headers: { 'content-type': type }, body }).catch(() => null);
     const next: SoundState | null = res?.ok ? await res.json().catch(() => null) : null;
     if (next) return set(next);
-    fail(res?.status === 409 ? t('A votação desta magia foi fechada ou a opção sumiu. Recarregue a página.', 'Voting on this spell was closed or the option is gone. Reload the page.')
+    fail(res?.status === 409 ? t('Essa opção sumiu. Recarregue a página.', 'That option is gone. Reload the page.')
       : res?.status === 429 ? t('Você chegou ao limite de envios.', 'You reached the upload limit.')
       : res?.status === 413 ? t('O arquivo passa de 1 MB.', 'The file is over 1 MB.')
       : t('Não deu certo. Tente de novo.', 'That did not work. Try again.'));
@@ -71,10 +71,9 @@ export function soundLab(user: ForumUser) {
   function candidateRow(moment: SoundMoment, src: string, by: string | null, pick?: { rank: number; why: string }) {
     const key = pairKey(spell, moment);
     const mine = state!.mine[key] === src;
-    const winner = state!.winners[key];
     const votes = state!.tally[key]?.[src];
     const label = src === GAME_SOUND ? t('Atual do jogo', 'Current in-game') : src.startsWith('pack:') ? packLabel(src.slice(5)) : t('Arquivo enviado', 'Uploaded file');
-    return el('li', { class: `fm-cand${winner === src ? ' won' : ''}` },
+    return el('li', { class: 'fm-cand' },
       el('button', { type: 'button', class: 'fm-btn', 'aria-label': t(`Ouvir ${label}`, `Listen to ${label}`), onclick: () => listen(moment, src) }, '▶'),
       el('span', { class: 'fm-cand-name' }, pick && el('span', { class: 'fm-rank' }, `${pick.rank}`), label, by && el('small', {}, t(` · por ${by}`, ` · by ${by}`)),
         pick && el('small', { class: 'fm-why' }, pick.why)),
@@ -82,10 +81,8 @@ export function soundLab(user: ForumUser) {
         el('input', { type: 'radio', name: `try-${key}`, checked: playing(moment) === src, onchange: () => (trying[key] = src) }),
         t('Na arena', 'In the arena')),
       votes !== undefined && el('span', { class: 'fm-votes' }, t(`${votes} ${votes === 1 ? 'voto' : 'votos'}`, `${votes} ${votes === 1 ? 'vote' : 'votes'}`)),
-      winner ? (winner === src && el('span', { class: 'fm-tag' }, t('Vencedor', 'Winner')))
-        : el('button', { type: 'button', class: `fm-btn${mine ? ' primary' : ''}`, 'aria-pressed': String(mine), onclick: () => send('/voto', { spell, moment, src }) },
-          mine ? t('Seu voto', 'Your vote') : t('Votar', 'Vote')),
-      user.admin && !winner && el('button', { type: 'button', class: 'fm-btn', onclick: () => send('/vencedor', { spell, moment, src }) }, t('Confirmar vencedor', 'Confirm winner')));
+      el('button', { type: 'button', class: `fm-btn${mine ? ' primary' : ''}`, 'aria-pressed': String(mine), onclick: () => send('/voto', { spell, moment, src }) },
+        mine ? t('Seu voto', 'Your vote') : t('Votar', 'Vote')));
   }
 
   async function upload(moment: SoundMoment, file: File) {
@@ -128,21 +125,17 @@ export function soundLab(user: ForumUser) {
 
   function momentBlock(moment: SoundMoment) {
     const key = pairKey(spell, moment);
-    const winner = state!.winners[key];
     const picks = picksFor(spell, moment);
     const cands = state!.candidates.filter((c) => c.spell === spell && c.moment === moment && !picks.some((p) => p.src === c.src));
     return el('section', { class: 'fm-moment', 'aria-labelledby': `m-${moment}` },
       el('h3', { id: `m-${moment}` }, MOMENT_NAME[moment]),
-      winner
-        ? el('p', { class: 'fm-note' }, t('Votação fechada.', 'Voting closed.'),
-          user.admin && el('button', { type: 'button', class: 'fm-btn', onclick: () => send('/vencedor', { spell, moment, src: null }) }, t('Reabrir votação', 'Reopen voting')))
-        : !(key in state!.mine) && el('p', { class: 'fm-note' }, t('Os votos aparecem depois que você vota.', 'The vote count shows after you vote.')),
+      !(key in state!.mine) && el('p', { class: 'fm-note' }, t('Os votos aparecem depois que você vota.', 'The vote count shows after you vote.')),
       el('ul', { class: 'fm-cands' }, candidateRow(moment, GAME_SOUND, null),
         ...picks.map((p, i) => candidateRow(moment, p.src, null, { rank: i + 1, why: t(p.pt, p.en) })),
         ...cands.map((c) => candidateRow(moment, c.src, c.by))),
       picks.length > 0 && el('p', { class: 'fm-note' }, t('Os números são a ordem de encaixe sugerida pela IA (1 = melhor), pelo tempo e tipo da magia e pela duração e timbre do arquivo.',
         "The numbers are the AI's suggested fit order (1 = best), from the spell's timing and kind and the file's length and tone.")),
-      !winner && adder(moment));
+      adder(moment));
   }
 
   function comments() {
@@ -182,7 +175,7 @@ export function soundLab(user: ForumUser) {
 
   function render() {
     if (!state) return;
-    const done = (id: SpellId) => (['cast', 'hit'] as const).filter((m) => hasMoment(id, m)).every((m) => pairKey(id, m) in state!.mine || pairKey(id, m) in state!.winners);
+    const done = (id: SpellId) => (['cast', 'hit'] as const).filter((m) => hasMoment(id, m)).every((m) => pairKey(id, m) in state!.mine);
     nav.replaceChildren(...SPELL_IDS.map((id) => el('a', { href: `#som/${id}`, class: 'fm-spell', 'aria-current': id === spell ? 'true' : undefined },
       icon(ICON[id]), el('span', {}, spellName(id)), done(id) && el('small', { class: 'fm-done' }, t('votada', 'voted')))));
     panel.replaceChildren(

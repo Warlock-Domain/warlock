@@ -1422,7 +1422,6 @@ body.forum-page {
 .fm-moment h3 { margin: 0 0 var(--sp-8); font-size: var(--fs-110); }
 .fm-cands, .fm-pack, .fm-comments { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-6); }
 .fm-cand { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-8); padding: var(--sp-6) var(--sp-8); border: 1px solid var(--fm-line); border-radius: var(--r-sm); }
-.fm-cand.won { border-color: var(--fm-accent); }
 .fm-cand-name { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
 .fm-cand-name small, .fm-comments small, .fm-votes { color: var(--fm-muted); }
 .fm-rank { display: inline-grid; place-items: center; min-width: 22px; height: 22px; margin-right: var(--sp-6); border-radius: 50%; background: var(--fm-tag); color: var(--fm-tag-ink); font-size: var(--fs-75); font-weight: 700; }

@@ -86,7 +86,7 @@ async function load() {
       el('p', { class: 'fm-error', role: 'alert' }, t('Não foi possível carregar o fórum. Recarregue a página.', 'Could not load the forum. Reload the page.'))));
     return;
   }
-  root.replaceChildren(header(me.user), el('main', { class: 'fm-main' }, me.user ? soundLab(me.user) : signedOut(me)));
+  root.replaceChildren(header(me.user), el('main', { class: 'fm-main' }, me.user ? soundLab() : signedOut(me)));
 }
 
 void load();

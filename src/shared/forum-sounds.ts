@@ -33,7 +33,6 @@ export type SoundState = {
   candidates: SoundCandidate[];
   mine: Record<string, string>;
   tally: Record<string, Record<string, number>>;
-  winners: Record<string, string>;
   comments: SoundComment[];
 };
 export type PackEntry = { path: string; s: number };
@@ -56,12 +55,10 @@ const pair = (spell: unknown, moment: unknown) => (isSpell(spell) && isMoment(mo
 export const parsePair = (spell: string | null, moment: string | null) => pair(spell, moment);
 
 // Trust boundary of the sound-lab POST bodies: each parser returns null on anything unexpected
-export function parseSoundPick(raw: string, allowNull = false): { spell: SpellId; moment: SoundMoment; src: string | null } | null {
+export function parseSoundPick(raw: string): { spell: SpellId; moment: SoundMoment; src: string } | null {
   const m = obj(raw);
   const p = m && pair(m.spell, m.moment);
-  if (!m || !p) return null;
-  if (allowNull && m.src === null) return { ...p, src: null };
-  return isSoundSrc(m.src) ? { ...p, src: m.src } : null;
+  return m && p && isSoundSrc(m.src) ? { ...p, src: m.src } : null;
 }
 
 export function parseSoundComment(raw: string): { spell: SpellId; text: string } | null {

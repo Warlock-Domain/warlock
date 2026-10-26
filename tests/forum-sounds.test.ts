@@ -1,8 +1,10 @@
-import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GAME_SOUND, HIT_SPELLS, SOUND_COMMENT_MAX, SOUND_MOMENTS, hasMoment, isPick, isSoundKey, isSoundSrc, pairKey, parsePair, parseSoundComment, parseSoundPick, picksFor, soundKey } from '../src/shared/forum-sounds.ts';
 import { SOUND_PICKS } from '../src/shared/sound-picks.ts';
 import { SPELL_IDS } from '../src/shared/spells.ts';
+
+// node:fs through a cast, like tests/look.test.ts: the client tsconfig has no Node types
+const { existsSync } = (await import('node:fs' as string)) as { existsSync(p: string): boolean };
 
 const UP = 'up:abcdefghijklmnopqrstuv.mp3';
 
@@ -38,10 +40,6 @@ describe('sound lab bodies', () => {
     for (const bad of ['x', '[]', '{}', JSON.stringify({ spell: 'fireball', moment: 'cast', src: null }), JSON.stringify({ spell: 'fireball', moment: 'cast', src: 'pack:..' })]) {
       expect(parseSoundPick(bad), bad).toBeNull();
     }
-  });
-
-  it('lets only the winner route clear a pick', () => {
-    expect(parseSoundPick(JSON.stringify({ spell: 'fireball', moment: 'hit', src: null }), true)).toEqual({ spell: 'fireball', moment: 'hit', src: null });
   });
 
   it('trims a comment and caps its length', () => {

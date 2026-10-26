@@ -13,7 +13,7 @@ The 30 spells reuse a handful of sound effects (`SPELL_SOUND` in `src/client/mai
 - **New local mini arena, no server** (25/10, chosen over reusing the sandbox): the game's simulation (`newWorld`/`stepWorld`) and 3D scene (`createScene`) run in the browser; the player's wizard and a dummy that takes hits and knockback and comes back from the lava; game controls; no cooldown.
 - **Two moments per spell**: cast (today `SPELL_SOUND`) and impact (today one generic hit sound by damage; per spell from the `src` of the `hit` event, no simulation change). Impact only for spells that hit.
 - **Candidates**: the current sound is always an option; then at least 10 AI picks per effect from the pack, ranked best first with a short reason (Fernando, 25/10, replacing the earlier "wait for the AI API"); members add any other file from the pack or upload their own (mp3/ogg/wav, up to 1 MB and 5 s).
-- **Voting**: one vote per person per spell and moment, changeable; the tally appears after you vote; open until Fernando confirms a winner.
+- **Voting**: one vote per person per spell and moment, changeable; the tally appears after you vote; voting never closes: the group reads the counts and decides (Fernando, 25/10, removing the winner panel).
 - Portuguese and English via `t()`; light forum theme (`--fm-*`).
 
 ## Builder's calls
@@ -22,7 +22,6 @@ The 30 spells reuse a handful of sound effects (`SPELL_SOUND` in `src/client/mai
   - `sound_candidates(spell, moment, src, by_id, by_name, at)`, primary key `(spell, moment, src)`. `src` is `pack:<path>` or `up:<id>.<ext>`; the current sound is the implicit `game` and has no row.
   - `sound_votes(spell, moment, user_id, src, at)`, primary key `(spell, moment, user_id)`: one vote per person, an upsert changes it.
   - `sound_comments(id, spell, user_id, name, avatar, text, at)`.
-  - `sound_winners(spell, moment, src, by_name, at)`, primary key `(spell, moment)`: a row closes the vote for that pair.
   - No AI column yet: step 3 adds the AI tally with the AI API.
 - **Routes** under `/api/forum/sons`, all members only, POSTs with the Origin check of PR #404:
   - `GET /api/forum/sons` → candidates, my votes, tallies only for spell+moment pairs I voted on, comments.
@@ -30,15 +29,13 @@ The 30 spells reuse a handful of sound effects (`SPELL_SOUND` in `src/client/mai
   - `POST /api/forum/sons/envio?spell=&moment=` raw audio body (`audio/mpeg|ogg|wav`, ≤ 1 MB) → R2 `up/<random>.<ext>` + candidate row. The server checks size and type; **the 5 s limit is checked in the browser** (`decodeAudioData`) before sending, which a hand-made request can skip. Caps of 30 uploads per person and 300 in all (on PR environments every tester sign-in is a new person), checked in the Durable Object with the insert; a refused upload is deleted from R2 again. Uploads to a closed vote are refused.
   - `POST /api/forum/sons/voto` `{spell, moment, src}` (src must be `game` or an existing candidate).
   - `POST /api/forum/sons/comentario` `{spell, text ≤ 1000}`.
-  - `POST /api/forum/sons/vencedor` `{spell, moment, src | null}`, admins only: confirms a winner (closes the vote) or reopens it.
   - `GET /api/forum/sons/arquivo/<key>` streams from R2 (pack and uploads), members only, cached privately.
 - **Pack**: `scripts/assets/sound-pack.mjs` converts the 532 wav files to mono mp3 with ffmpeg, measures duration with ffprobe, writes `pack/index.json` (path, category, seconds) and uploads everything with `wrangler r2 object put`. Run by hand once per bucket; nothing enters `public/` or git.
 - **R2 binding** `SOUNDS` in `wrangler.jsonc` (bucket `warlock-sons`); `pr-env.yml` swaps it for `warlock-sons-pr`, as it swaps the Worker name.
 - **Game hook**: `sound.ts` gains `playUrl(url, volume)` (same decode cache and volume chain). The arena calls it for the chosen candidate; the live game does not change.
 - **Arena**: a module on the forum page (`src/client/sound-lab.ts`), loaded only when the person opens the lab (dynamic import keeps Three.js out of the forum's first load). Circle arena, the player with their saved look, one dummy; right click moves, left click or Q casts the spell being tested at the cursor, S stops and holding S is Hold ground (Closed Body needs it); every spell at level 1, cooldowns cleared each step; dead dummy or player respawns.
-- **Winner panel** (Fernando, 25/10: in this PR): an admin sees a Confirm button next to each candidate and a Reopen button on a closed pair. Admin = the org role `admin` from the same membership call at sign-in (today only Fernando, the org's single Owner), kept in the signed session. On PR environments every tester is an admin, so the panel can be tested there (the data there is throwaway).
 - **AI picks**: `scripts/assets/sound-picks.mjs` holds the hand-made ranking per effect with a theme per file, measures each file (audible length without the trailing silence, energy below 250 Hz and above 3 kHz), drops files longer than the effect's window (about 2 s for a cast, set against the game's own files, longer for long effects and big blasts) and writes `src/shared/sound-picks.ts`; a test keeps 10 or more existing, distinct files per effect.
-- **Out of this PR**: AI suggestions and AI tally (step 3), shipping winners into `public/sfx/`.
+- **Out of this PR**: the AI tally of votes (step 3), shipping the chosen sounds into `public/sfx/`.
 
 ## Fernando's part
 

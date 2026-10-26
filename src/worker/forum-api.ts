@@ -1,5 +1,5 @@
 import { FORUM_ORG, parseTesterName, type ForumLogin, type ForumMe, type ForumUser } from '../shared/forum.ts';
-import { SESSION_COOKIE, SESSION_TTL_S, STATE_COOKIE, cookie, isActiveMember, isOrgAdmin, newState, readCookie, signSession, verifySession } from './forum-auth.ts';
+import { SESSION_COOKIE, SESSION_TTL_S, STATE_COOKIE, cookie, isActiveMember, newState, readCookie, signSession, verifySession } from './forum-auth.ts';
 
 // Secrets: `wrangler secret put` on the live Worker, `.dev.vars` on localhost. PR environments get FORUM_TESTER and a per-deploy
 // FORUM_SESSION_KEY from pr-env.yml instead of GitHub keys. FORUM_ORIGIN is only for `wrangler dev`, which rewrites the request URL
@@ -121,9 +121,8 @@ export async function forumApi(req: Request, env: ForumEnv, url: URL): Promise<R
       const [me, member] = await Promise.all([github('https://api.github.com/user', token), github(`https://api.github.com/user/memberships/orgs/${FORUM_ORG}`, token)]);
       const u: unknown = me.ok ? await me.json() : null;
       if (!isGithubUser(u)) return redirect('/forum?erro=github', clear);
-      const m: unknown = member.ok ? await member.json() : null;
-      if (!isActiveMember(member.status, m)) return redirect('/forum?erro=membro', clear);
-      const user: ForumUser = { id: `gh-${u.id}`, login: u.login, name: u.name || u.login, avatar: u.avatar_url, ...(isOrgAdmin(m) && { admin: true as const }) };
+      if (!isActiveMember(member.status, member.ok ? await member.json() : null)) return redirect('/forum?erro=membro', clear);
+      const user: ForumUser = { id: `gh-${u.id}`, login: u.login, name: u.name || u.login, avatar: u.avatar_url };
       return redirect('/forum', clear, cookie(SESSION_COOKIE, await signSession(user, key), SESSION_TTL_S));
     } catch {
       // GitHub down or answering garbage: the person just tries again
@@ -136,8 +135,7 @@ export async function forumApi(req: Request, env: ForumEnv, url: URL): Promise<R
     if (raw === null) return new Response('forum request too large', { status: 413, headers: NO_STORE });
     const name = parseTesterName(raw);
     if (name === null) return new Response('bad tester name', { status: 400, headers: NO_STORE });
-    // every tester is an admin: PR environments hold throwaway data and the winner panel must be testable there
-    const user: ForumUser = { id: `tester-${newState()}`, login: 'tester', name, avatar: '', tester: true, admin: true };
+    const user: ForumUser = { id: `tester-${newState()}`, login: 'tester', name, avatar: '', tester: true };
     return Response.json(user, { headers: { ...NO_STORE, 'set-cookie': cookie(SESSION_COOKIE, await signSession(user, key), SESSION_TTL_S) } });
   }
 
