@@ -420,7 +420,7 @@ function startRoom(code: string, name: string) {
 
   let sniperRequestSeq = 0;
   let channelRequest: { spell: SpellId; since: number; seq: number } | null = null;
-  // Charged Inelegant Solution: the key, bar button or controller fires at the tracked enemy (0.01 s left = charged, snapshot.ts)
+  // Charged Inelegant Solution: A (Attack), the spell key, its bar button or the controller fire at the tracked enemy (0.01 s left = charged, snapshot.ts)
   function fireSniper() {
     const self = myWizard(interp.latest());
     if (!self?.sniperAt || (self.sniperLeft ?? 0) > .01) return false;

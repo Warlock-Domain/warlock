@@ -209,6 +209,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     } else if (isUiKey(e.code, 'basic')) {
       e.preventDefault();
       if (e.repeat) return;
+      if (h.fireSniper?.()) return; // charged Inelegant Solution: A fires at the marked enemy
       cancel(); arm(null); attackHeldCode = e.code;
       if (!h.canChannel?.() && h.meleeArc?.()) {
         const p = h.pick(cursor.x, cursor.y);

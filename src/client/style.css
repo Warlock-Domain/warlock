@@ -207,6 +207,7 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
    moved or sold; hover brings some opacity back so the tip does not look like it belongs to something broken */
 .spellbar .fixed-skill { opacity: .5; filter: saturate(.4); cursor: help; }
 .spellbar .fixed-skill:hover, .spellbar .fixed-skill:focus-visible { opacity: .8; }
+.spellbar .fixed-skill.charging, .spellbar .fixed-skill.charged { opacity: 1; filter: none; }
 /* barra da partida estilo Dota (ui.ts): painel com rebites; retrato com vida e ouro, magias no meio e grade de itens 3×2 */
 .dota-bar, .skills { display: flex; align-items: center; gap: var(--sp-14); }
 .dota-bar { padding: 10px 16px; border-radius: var(--r-frame); background: var(--frame), var(--plate); border: 2px solid var(--bronze); box-shadow: var(--plate-edge), var(--shadow-md); }
