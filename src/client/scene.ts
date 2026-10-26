@@ -32,7 +32,6 @@ import { createDecor } from './decor.ts';
 import { cellHash, nightProps } from './night-decor.ts';
 import { CANDLE } from '../shared/campaign.ts';
 import { t } from './i18n.ts';
-import { n1 } from './rules-text.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
 import { BLINDNESS, CAST_POINT, LIGHTNING, SPELLS } from '../shared/spells.ts';
 import type { TAUNTS } from '../shared/taunts.ts';
@@ -1897,7 +1896,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const sniperLabel=m.label.querySelector('.sniper-clock');
       if(d.alive && (d.sniperLeft ?? 0)>0) {
         const c=sniperLabel ?? el('span',{class:'bubble sniper-clock'});
-        c.textContent=t(`Solução deselegante · ${n1(d.sniperLeft!)} s`,`Inelegant Solution · ${n1(d.sniperLeft!)} s`);
+        // No countdown: the player holds the aim, so the reticle and the edge lines already show it running.
+        c.textContent=t('Solução deselegante','Inelegant Solution');
         if(!sniperLabel) m.label.prepend(c);
       } else sniperLabel?.remove();
       m.sniper.visible=d.alive && (d.sniperLeft ?? 0)>0 && !!d.sniperAt;
