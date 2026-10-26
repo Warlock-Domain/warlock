@@ -45,15 +45,15 @@ describe('Inelegant Solution',()=>{
     const w=setup(),a=w.wizards[0],b=w.wizards[1];b.r=2;
     expect(sniperTarget(w.wizards,a,{x:16.5,y:0},20)?.id).toBe(b.id);
   });
-  it('costs 30, cools down for 35 s, aims for 4.5 s and has no progression',()=>{
+  it('costs 30, cools down for 35 s, aims for 3 s and has no progression',()=>{
     expect(priceOf('sniper',0)).toBe(30);expect(priceOf('sniper',1)).toBeNull();
-    expect(spellMax('sniper')).toBe(1);expect(CAST_POINT.sniper).toBe(4.5);
+    expect(spellMax('sniper')).toBe(1);expect(CAST_POINT.sniper).toBe(3);
     for(let level=1;level<=7;level++) expect(spellLevel('sniper',level)).toMatchObject({dmg:350,range:20,knock:0,cd:35});
     expect(spellLevels('sniper')).not.toContain('<th>2</th>');expect(spellTip('sniper',1)).not.toContain('Próximo nível');
   });
-  it('waits stationary for 4.5 s and fires exactly one 350 damage shot without knockback',()=>{
+  it('waits stationary for 3 s and fires exactly one 350 damage shot without knockback',()=>{
     const w=setup(),a=w.wizards[0],b=w.wizards[1];a.target={x:2,y:0};stepWorld(w,[aim],()=>.5);
-    run(w,4.4);expect(b.hp).toBe(1000);expect(a.cd.sniper).toBe(0);expect(a.pos).toEqual({x:0,y:0});
+    run(w,2.9);expect(b.hp).toBe(1000);expect(a.cd.sniper).toBe(0);expect(a.pos).toEqual({x:0,y:0});
     const events=[];for(let i=0;i<15;i++){stepWorld(w,[],()=>.5);events.push(...w.events);}
     expect(b.hp).toBe(650);expect(b.vel).toEqual({x:0,y:0});expect(a.cd.sniper-w.t).toBeCloseTo(34.85,1);
     expect(events.filter(e=>e.k==='snipe')).toHaveLength(1);expect(events.filter(e=>e.k==='hit')).toHaveLength(1);
@@ -97,7 +97,7 @@ describe('Inelegant Solution',()=>{
   });
   it('snapshot sends authoritative time and aim, clearing on cancel',()=>{
     const w=setup();stepWorld(w,[aim],()=>.5);run(w,1);
-    const snap=encodeSnap(w,'p0',0,[]),a=decodeSnap(snap,['p0','p1']).wizards[0];expect(a.sniperLeft).toBeCloseTo(3.5,1);expect(a.sniperAt).toEqual({x:15,y:0});
+    const snap=encodeSnap(w,'p0',0,[]),a=decodeSnap(snap,['p0','p1']).wizards[0];expect(a.sniperLeft).toBeCloseTo(CAST_POINT.sniper-1,1);expect(a.sniperAt).toEqual({x:15,y:0});
     stepWorld(w,[{id:'p0',kind:'stop'}],()=>.5);expect(encodeSnap(w,'p0',0,[]).sn).toBeUndefined();
   });
   it('shared helper excludes allies and hidden units and requires a body click',()=>{

@@ -471,7 +471,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     const t = Math.max(0, Math.min(1, dot(sub(q.pos, me.pos), ab) / Math.max(1e-6, dot(ab, ab))));
     return dist(add(me.pos, scale(ab, t)), q.pos) < OBSTACLES[q.kind].r + PROJ_R + 0.1;
   });
-  // A 4.5 s stationary aim never replaces a dodge already decided this think or starts with a shot on the way.
+  // A stationary aim (CAST_POINT.sniper) never replaces a dodge already decided this think or starts with a shot on the way.
   if (!threat && !cmds.length && ready('sniper') && d <= spellLevel('sniper', me.spells.sniper).range * me.rangeF && !blocked(E.pos)) return cast('sniper', E.pos);
   // Atacar (decisão do Fernando, 24/10): sem nenhuma magia pronta, com o inimigo a até 6 m e sem obstáculo no meio, o bot usa o
   // ataque livre como o jogador; sem isso o humano teria um golpe que o bot nunca usa e o simulador não mediria o Atacar.
