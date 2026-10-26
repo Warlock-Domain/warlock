@@ -3,7 +3,7 @@ import { edge, inArena, inward, middle, pathStep, roomAt, safeInside } from './a
 import { BASIC_ATTACK, BRACE, DT, FRICTION, ISLAND, OBSTACLES, PROJ_R, WIZ_R } from './constants.ts';
 import type { Cmd, Projectile, Wizard, World } from './sim.ts';
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
-import { CAST_POINT, FREE_SPELLS, GRIP, MAX_SPELLS, METEOR_DELAY, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
+import { CAST_POINT, FREE_SPELLS, GRIP, MAX_SPELLS, METEOR_DELAY, PIX, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 import { CHANNEL, channelLevel, channelPower } from './channeling.ts';
 
@@ -42,7 +42,7 @@ export function randomPlan(rand: () => number): BotPlan {
 // and 1 or 2 useful items; each pick is drawn inside its group so bots do not all look the same
 const DAMAGE: SpellId[] = ['lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'snowball', 'drain', 'splitter', 'gravity', 'thrust', 'recharge'];
 const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration', 'warpzone', 'rockpillar', 'illusion'];
-const CONTROL: SpellId[] = ['grip', 'link', 'magnetize'];
+const CONTROL: SpellId[] = ['grip', 'link', 'magnetize', 'pix'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
 const SITUATIONAL: SpellId[] = ['channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
@@ -157,7 +157,7 @@ export function threatTo(w: World, me: Wizard, visible: (p: Projectile) => boole
     // não ameaçam: Gravidade (só puxa), Zona de dobra (parada), cópia da Ilusão, cura do Drenar e volta da Recarga, Elo já preso
     if ((owner && (owner === me || (me.team !== null && owner.team === me.team))) || p.kind === 'gravity' || p.kind === 'warpzone' || p.kind === 'illusion' || (p.back && (p.kind === 'drain' || p.kind === 'recharge'))) continue;
     if (p.kind === 'link' && (p.target || p.pillar !== undefined)) continue;
-    if (p.kind === 'meteor' || p.kind === 'grip') {
+    if (p.kind === 'meteor' || p.kind === 'grip' || p.kind === 'pix') {
       if (dist(p.pos, me.pos) < spellLevel(p.kind, p.level).radius + WIZ_R && p.until - w.t < tHit) [threat, tHit] = [p, p.until - w.t];
       continue;
     }
@@ -241,7 +241,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // The real think interval rounds to whole steps (botThinks), so compare that, not 1 / rate
   if (Math.max(1, Math.round(1 / (DT * D.rate))) * DT < BRACE.lease && !me.casting && !ESCAPE.some((s) => ready(s))) {
     const hb = threatTo(w, me, seen, BRACE.windup + 0.4);
-    const area = hb && (hb.p.kind === 'meteor' || hb.p.kind === 'grip');
+    const area = hb && (hb.p.kind === 'meteor' || hb.p.kind === 'grip' || hb.p.kind === 'pix');
     // Closed body only works while Hold ground is active: cast it on the guard that is already up, with the hit still coming
     const braced = w.t + 1e-8 >= (me.braceReadyAt ?? Infinity) && w.t < (me.braceUntil ?? 0);
     if (hb && !area && braced && ready('closedbody')) return (cmds.push({ id, kind: 'brace', on: true }), cast('closedbody', me.pos));
@@ -252,7 +252,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // o Flagelo em preparo não deixa sair nada além do Teleporte
   const winding = me.casting?.spell === 'scourge';
   if (threat) {
-    const meteor = threat.kind === 'meteor' || threat.kind === 'grip'; // áreas paradas pedem esquiva radial
+    const meteor = threat.kind === 'meteor' || threat.kind === 'grip' || threat.kind === 'pix'; // áreas paradas pedem esquiva radial
     const side = meteor ? norm(sub(me.pos, threat.pos)) : norm(v(-threat.vel.y, threat.vel.x));
     const away = meteor || dot(side, into) > 0 ? side : scale(side, -1); // de lado, para o lado de dentro
     // reação humana: o escudo não sobe sempre nem no último instante (o bot perfeito inflava o Escudo para 1,89×); com o tempo de reação
@@ -498,6 +498,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
       prio = !inside(E.pos, 0.6) || !inside(slideEnd, 0.3) || (E.casting?.spell === 'scourge' && d < 3);
       at = d < L.range * 0.85 && (loaded || prio) ? lead(0, cp + GRIP.delay) : null;
     }
+    else if (s === 'pix') at = d < L.range * 0.85 ? lead(0, cp + PIX.soak / 2) : null; // the bot's own walk and spells then repeat through the target
     else if (s === 'thrust') at = d > 1.5 && d < L.range && inside(add(me.pos, scale(dir, Math.min(d, L.range))), 1.5) ? lead(L.speed, cp) : null;
     else if (s === 'rush') at = d < 3.2 && inside(add(me.pos, scale(dir, 3)), 1) ? seenNow : null;
     else if (s === 'teleport') {

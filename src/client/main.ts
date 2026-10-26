@@ -78,6 +78,7 @@ const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 // som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
   sniper: 'hitHeavy',
+  pix: 'lightning', // the same cast effect as Grip, whose mark it shares
   channel: 'shield',
   closedbody: 'closedbody',
   geyser: 'splash',
@@ -680,7 +681,7 @@ function startRoom(code: string, name: string) {
         sound.play(SPELL_SOUND[e.spell], volumeOf(e.id));
       } else if (e.k === 'hit') sound.play(e.dmg >= 100 ? 'hitHeavy' : e.dmg < 50 ? 'hitLight' : 'hit', near(e.x, e.y));
       else if (e.k === 'pillar') sound.play('hit', near(e.x, e.y) * 0.6);
-      else if (e.k === 'grip') sound.play('hit', near(e.x, e.y));
+      else if (e.k === 'grip' || e.k === 'pix') sound.play('hit', near(e.x, e.y));
       // Mesmo som de impacto/explosão para colisão entre magias e destruição por Raio, inclusive quando não houve dano.
       else if (e.k === 'clash') sound.play('hitHeavy', near(e.x, e.y));
       else if (e.k === 'reflect') sound.play('reflect', near(e.x, e.y));

@@ -11,7 +11,7 @@ import { sniperFocusMask } from './sniper-focus.ts';
 import { blindnessMask } from './blindness-fx.ts';
 import { conePoints } from '../shared/sand-cone.ts';
 import { GEYSER_FX, geyserHeight } from './geyser-fx.ts';
-import { SHAPES, flat, vineModel } from './proj-models.ts';
+import { PIX_COLOR, PIX_TIE, SHAPES, flat, vineModel } from './proj-models.ts';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -34,7 +34,7 @@ import { CANDLE } from '../shared/campaign.ts';
 import { t } from './i18n.ts';
 import { n1 } from './rules-text.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
-import { BLINDNESS, CAST_POINT, LIGHTNING, SPELLS } from '../shared/spells.ts';
+import { BLINDNESS, CAST_POINT, LIGHTNING, PIX, SPELLS } from '../shared/spells.ts';
 import type { TAUNTS } from '../shared/taunts.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
@@ -46,7 +46,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -598,6 +598,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     cluster: { mat: fireMat, halo: '#fff066', trail: '#ffd23a', tex: FX.spark, size: 0.65 },
     swap: { mat: swapMat, halo: '#00fff0', trail: '#2fe0d0', tex: FX.magic, size: 1 },
     grip: { mat: gripMat, halo: '#8ed64b', trail: '#4d8f28', tex: FX.magic, size: 1 },
+    pix: { mat: gripMat, halo: PIX_COLOR, trail: PIX_COLOR, tex: FX.magic, size: 1 },
     meteor: { mat: fireMat, halo: '#ff5a1a', trail: '#ff7a20', tex: FX.fire, size: 3 },
     boomerang: { mat: swapMat, halo: '#7dff5a', trail: '#5ad040', tex: FX.spark, size: 0.85 },
     gravity: { mat: homingMat, halo: '#3b2bff', trail: '#6a3cff', tex: FX.magic, size: 1.5 },
@@ -612,6 +613,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     warpzone: { mat: swapMat, halo: '#7ad8ff', trail: '#7ad8ff', tex: FX.magic, size: 1 },
   };
   const projs = new Map<number, THREE.Group>();
+  const threads = new Map<string, THREE.Mesh>(); // Squid Pix threads by controlled wizard id
   const fx: Fx[] = [];
 
   // cada jogador ganha um clone da aparência dele. O mago define a escala (os pacotes KayKit usam a mesma medida) e as peças
@@ -1690,9 +1692,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         addFx(vines, .7, (k) => { vines.scale.y = k < .25 ? k * 4 : Math.max(.01, (1 - k) / .75); });
         shockwave(v(e.x, e.y), e.r, '#8ed64b');
       }
-      else if (e.k === 'grip') {
+      else if (e.k === 'grip' || e.k === 'pix') {
         oneShot(e.id, 'Hit_B', 0.85); // quem foi preso cambaleia para trás
-        burst(v(e.x, e.y), '#6eaf34', 2.4, 0.5, 0.8, FX.magic);
+        burst(v(e.x, e.y), e.k === 'pix' ? PIX_TIE : '#6eaf34', 2.4, 0.5, 0.8, FX.magic);
       }
       else if (e.k === 'teleport') {
         // só o Teleporte lançado (não Troca, Égide nem Alteração) ganha o fade com deslize
@@ -1781,7 +1783,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         halo.scale.setScalar(1.2 * look.size);
         halo.material.opacity = 0.7;
         g.add(core, halo);
-        if (p.kind === 'warpzone' || p.kind === 'grip') {
+        if (p.kind === 'warpzone' || p.kind === 'grip' || p.kind === 'pix') {
           core.scale.setScalar(p.vel.x); // vel.x = raio
           halo.visible = false;
         }
@@ -1820,7 +1822,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const warn = g.getObjectByName('warn') as THREE.Mesh;
         warn.position.y = 0.04 - y;
         (warn.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.sin(performance.now() / 70);
-      } else if (p.kind === 'grip') g.position.copy(w3(p.pos, .045));
+      } else if (p.kind === 'grip' || p.kind === 'pix') g.position.copy(w3(p.pos, .045));
       else if (p.kind === 'warpzone') g.position.copy(w3(p.pos, 0));
       else if (p.kind === 'geyser') g.position.copy(w3(p.pos, 0));
       else g.position.copy(w3(p.pos, 0.9));
@@ -1834,7 +1836,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // giro e direção: aponta para onde voa; anéis, bumerangue e pedras giram
       const body = g.children[0];
       const t = performance.now() / 1000;
-      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'geyser' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
+      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'pix' && p.kind !== 'geyser' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
       if (p.kind === 'geyser') {
         body.rotation.y = t * .8;
         if (Math.random() < (lite ? .15 : .45)) burst(v(p.pos.x + (Math.random() - .5) * p.vel.x, p.pos.y + (Math.random() - .5) * p.vel.x), GEYSER_FX.foam, .35, .6, .2, FX.light, 2.1);
@@ -1853,9 +1855,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       const swirl = g.getObjectByName('swirl') as THREE.Sprite | undefined;
       if (swirl) swirl.material.rotation = -t * 4;
+      // Lula Pix: coins fall from 3.5 m to the ground at random points of the rain (vel.x = radius); visual only, so Math.random is fine here
+      if (p.kind === 'pix') for (let i = 0; i < (lite ? 1 : 2); i++) {
+        const a = Math.random() * Math.PI * 2, r = p.vel.x * Math.sqrt(Math.random());
+        burst(v(p.pos.x + Math.cos(a) * r, p.pos.y + Math.sin(a) * r), PIX_COLOR, 0.7, 0.55, 3.5, FX.spark, -3.3);
+      }
       // rastro: brasas que ficam para trás e somem
       const look = LOOK[p.kind];
-      if (p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'geyser' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
+      if (p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'pix' && p.kind !== 'geyser' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
@@ -1900,6 +1907,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         c.textContent=t(`Solução deselegante · ${n1(d.sniperLeft!)} s`,`Inelegant Solution · ${n1(d.sniperLeft!)} s`);
         if(!sniperLabel) m.label.prepend(c);
       } else sniperLabel?.remove();
+      const pixLabel = m.label.querySelector('.pix-clock'), pixBy = d.alive && (d.puppetBy ?? -1) >= 0 ? list[d.puppetBy!] : undefined;
+      if (d.alive && (d.puppetLeft ?? 0) > 0) {
+        const c = pixLabel ?? el('span', { class: 'bubble pix-clock' });
+        c.textContent = pixBy ? t(`Controlado por ${pixBy.name} · ${n1(d.puppetLeft!)} s`, `Controlled by ${pixBy.name} · ${n1(d.puppetLeft!)} s`) : t(`Controlado · ${n1(d.puppetLeft!)} s`, `Controlled · ${n1(d.puppetLeft!)} s`);
+        if (!pixLabel) m.label.prepend(c);
+        burst(v(d.pos.x + (Math.random() - .5) * .9, d.pos.y + (Math.random() - .5) * .9), PIX_TIE, 0.8, 0.7, 1.4, FX.star, 1.1); // red stars rising from the controlled wizard
+      } else if (d.alive && (d.pixSoak ?? 0) > 0) {
+        // time inside the coin rain, out of the second that controls
+        const c = pixLabel ?? el('span', { class: 'bubble pix-clock' });
+        c.textContent = t(`Lula Pix · ${n1(d.pixSoak!)}/${n1(PIX.soak)} s`, `Squid Pix · ${n1(d.pixSoak!)}/${n1(PIX.soak)} s`);
+        if (!pixLabel) m.label.prepend(c);
+      } else pixLabel?.remove();
       m.sniper.visible=d.alive && (d.sniperLeft ?? 0)>0 && !!d.sniperAt;
       if(m.sniper.visible) updateSniperRig(m.sniper,Math.hypot(d.sniperAt!.x-d.pos.x,d.sniperAt!.y-d.pos.y),d.sniperLeft!);
       const channelLabel = m.label.querySelector('.channel-clock');
@@ -2135,6 +2154,28 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     for (const [id, m] of mages) if (!seen.has(id)) {
       m.root.visible = false;
       m.label.hidden = true;
+    }
+    // Squid Pix: a thread from each controlled wizard to its controller (the snapshot hides it when the controller is hidden)
+    const tied = new Set<string>();
+    for (const d of list) {
+      const by = d.alive && (d.puppetBy ?? -1) >= 0 ? list[d.puppetBy!] : undefined;
+      if (!by) continue;
+      let th = threads.get(d.id);
+      if (!th) {
+        th = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1, 6).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: PIX_TIE, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
+        scene.add(th);
+        threads.set(d.id, th);
+      }
+      const dx = by.pos.x - d.pos.x, dz = by.pos.y - d.pos.y;
+      th.position.copy(w3(v(d.pos.x + dx / 2, d.pos.y + dz / 2), 1.2));
+      th.rotation.y = Math.atan2(dx, dz);
+      th.scale.set(1, 1, Math.max(0.01, Math.hypot(dx, dz)));
+      tied.add(d.id);
+    }
+    for (const [id, th] of threads) if (!tied.has(id)) {
+      scene.remove(th);
+      dispose(th);
+      threads.delete(id);
     }
   }
 
