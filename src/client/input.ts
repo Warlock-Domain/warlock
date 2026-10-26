@@ -170,13 +170,13 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
         return;
       }
       if (channelArmed && action === armed) { e.preventDefault(); return; }
-      // Heal and Inelegant Solution always require a click on the target body; a charged sniper aim fires on the key instead.
+      // Explicit preferences can override targeted click casting; a charged sniper keeps its manual fire action.
       if (action === 'sniper' && h.fireSniper?.()) { e.preventDefault(); return; }
-      if (action === 'heal' || action === 'sniper') { e.preventDefault(); cancel(); return arm(action); }
+      const mode = getCastMode(action, e.code);
+      if (held && getCastMode(held.action, held.code) !== mode) cancel();
       if (armed === 'heal' || armed === 'sniper') arm(null);
       if (attackArmed) arm(null);
       e.preventDefault();
-      const mode = getCastMode();
       if (mode === 'click') {
         if (h.checkCooldown && !h.checkCooldown(action)) return arm(null);
         return arm(action); // select the spell and show its range; left click casts

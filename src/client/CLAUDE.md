@@ -4,6 +4,8 @@ Applies together with the root `CLAUDE.md`.
 
 ## Interface
 
+- Casting settings clone only the existing skills markup, without portrait or gameplay listeners. `SettingsCtx.castingHud` owns mount/release of this settings-only preview; never move the live HUD. `castModeControl` uses the same effective-mode resolver as keyboard input, including targeted click defaults and individual > key > fallback precedence. Passive item preferences save future intent only. Individual spell/item lists stay expandable.
+
 - Closed Body keeps its local effect aligned with the current stance, without a cursor aim line. PT/EN descriptions and the off-axis demo explain the preserved facing.
 
 - Blindness: vignette anchored to the ground by the affected player's 3 m radius, not by the camera; hides entities and labels beyond the limit. Text-only status chapter in the Grimoire; Sand Blast has its own PT/EN sheet and demo under Control.
