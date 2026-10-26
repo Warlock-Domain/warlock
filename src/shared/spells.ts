@@ -93,8 +93,8 @@ export const SPELLS: Record<SpellId, Spell> = {
   pact: { name: 'Pacto', en: 'Pact', cost: 10, up: [6, 7, 8, 9, 10, 11], levels: steps(20, -1).map((cd) => L({ cd, duration: 5 })) },
   // Accepted 25/10 with 350 damage (owner cut from the proposed 500), no simulator by owner exception; single level.
   sniper: { name: 'Solução deselegante', en: 'Inelegant Solution', cost: 30, up: [], levels: steps(35,0).map(cd => L({ cd, dmg: 350, kbf: 0, range: 20 })) },
-  // Squid Pix (issue #416, Fernando's grill of 25/10): Grip's mark and delay, 3 s of control at every level, upgrades only cut the cooldown; owner exception, measured later in the batch
-  pix: { name: 'Squid Pix', en: 'Squid Pix', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(30, -1).map((cd) => L({ cd, duration: 3, radius: 1.5, range: 1100 * UNIT })) },
+  // Lula Pix (issue #416, Fernando's grill of 25 and 26/10): a 2.5 m coin rain up to 11 m away, 3 s of control at every level, upgrades only cut the cooldown; owner exception, measured later in the batch
+  pix: { name: 'Lula Pix', en: 'Squid Pix', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(30, -1).map((cd) => L({ cd, duration: 3, radius: 2.5, range: 1100 * UNIT })) },
   // Heal: measured on 24/10 (1.07 on Normal and Hard) and approved by Fernando; cost follows the other Support spells
   heal: { name: 'Curar', en: 'Heal', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(45, 6).map((heal, i) => L({ heal, cd: 20 - i, range: 10 })) },
   //24/10: área−25% pede raio×√0,75, não raio−25%; alcance reduzido a10m. CD/preço continuam provisórios.
@@ -108,6 +108,8 @@ export const SPELLS: Record<SpellId, Spell> = {
 // Pacto: a próxima magia de dano sai 2× mais forte (balanceamento de 17/10: 5 rodadas com ele, 0 vitórias; no original 1,5× com lentidão)
 export const PACT = { mult: 2 };
 export const WARPZONE = { wizMult: 0.5 }; // 0,6 → 0,5 em 18/10 (16% abaixo do justo com bots humanos)
+// Lula Pix: the coin rain lasts `rain` s; `soak` s inside, added up while it lasts (leaving keeps the time), turn a wizard controlled
+export const PIX = { rain: 3, soak: 1 };
 export const GRIP = { castPenalty: 5, delay: 1.3 }; // 1,3 s entre a marca no chão e os cipós: dá para sair da área (pedido do Leonard, estilo do stun do Leshrac)
 // meteoro: 0,55 s parado no ar + 0,60 s caindo (meteor.lua)
 export const METEOR_DELAY = 1.15;

@@ -11,8 +11,9 @@ const jitter = (g: THREE.BufferGeometry, amount: number) => {
   g.computeVertexNormals();
   return g;
 };
-// Squid Pix mark and thread: the Control group's purple (.g-controle in style.css)
-export const PIX_COLOR = '#c58bff';
+// Lula Pix: gold for the coin rain and its mark; red for the thread and the stars of whoever is controlled (Fernando, 26/10)
+export const PIX_COLOR = '#ffd23a';
+export const PIX_TIE = '#ff3b3b';
 export const flat = (color: string, emissive: string, intensity = 0.6) => new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity, flatShading: true, roughness: 0.5 });
 export function vineModel(radius: number) {
   const group = new THREE.Group();

@@ -5,7 +5,7 @@ import {
 } from './constants.ts';
 import { CELL, SHAPES, cellAt, edge, inArena, inLavaAt, inward, isleSpot, onIsle, safeInside, type ArenaId, type Isle, type Terrain } from './arena.ts';
 import { AEGIS, CRIT, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
-import { BOOMERANG, BOUNCER, CAST_POINT, CLOSED_BODY, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, PROJECTILE_COLLISION, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
+import { BOOMERANG, BOUNCER, CAST_POINT, CLOSED_BODY, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, PIX, PROJECTILE_COLLISION, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { inCone } from './sand-cone.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 import { SHIELD, castBlocked } from './spells.ts';
@@ -155,6 +155,7 @@ export type Projectile = {
   bonus?: number; // Recarga: dano a mais pelos acertos seguidos
   waves?: number; // Divisor: ondas de filhotes que faltam (lançador)
   pillar?: number; // Elo preso a este obstáculo
+  soak?: Record<string, number>; // Lula Pix rain: seconds each wizard has spent inside
 };
 
 export type Cmd =
@@ -880,10 +881,11 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec, power = 1, aimedId?
   const firstId = w.nextId, from = wz.pos, ready = wz.cd[spell];
   castSpell(w, wz, spell, at, power, aimedId, copy);
   for (const p of w.projectiles) if (p.id >= firstId) p.power = power;
-  // only a cast that went out (its cooldown started) is repeated, with the same offset from each controlled body; one level only,
+  // only a cast that went out (its cooldown started) is repeated by each controlled body; one level only,
   // so a controlled wizard's own targets do not repeat the copy
   if (copy === undefined && wz.cd[spell] !== ready) for (const z of puppetsOf(w, wz)) {
-    if (!isSuspended(z) && !castBlocked(isStunned(z), w.t < z.gripUntil, spell)) cast(w, z, spell, add(z.pos, sub(at, from)), power, aimedId, wz.spells[spell]);
+    // the copy aims at the caster's point (the two shots make a V, Fernando 26/10); standing on it, the caster's direction
+    if (!isSuspended(z) && !castBlocked(isStunned(z), w.t < z.gripUntil, spell)) cast(w, z, spell, dist(at, z.pos) > .01 ? at : add(z.pos, sub(at, from)), power, aimedId, wz.spells[spell]);
   }
 }
 
@@ -946,9 +948,12 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
     launch(spell, dir, homing ? L.duration * wz.rangeF : flight, homing ? (nearestEnemy(w, at, wz.id)?.id ?? null) : null);
   } else if (spell === 'cluster') {
     castCluster(w, wz, L, dir, dmgMult);
-  } else if (spell === 'grip' || spell === 'pix') {
+  } else if (spell === 'pix') {
     const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
-    w.projectiles.push({ id: w.nextId++, born: w.t, kind: spell, owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + GRIP.delay, target: null, dmgMult, caster: wz.id });
+    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'pix', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + PIX.rain, target: null, dmgMult, caster: wz.id, soak: {} });
+  } else if (spell === 'grip') {
+    const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
+    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'grip', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + GRIP.delay, target: null, dmgMult, caster: wz.id });
   } else if (spell === 'snowball' || spell === 'magnetize') {
     launch(spell, dir, flight);
   } else if (spell === 'swap') {
@@ -1142,22 +1147,23 @@ function gripLand(w: World, p: Projectile) {
   if (landed) land(w, p, 'grip');
 }
 
-// Squid Pix lands like Grip: every enemy inside repeats the caster's commands for the duration; their own actions stop
-function pixLand(w: World, p: Projectile) {
+// Lula Pix rain: everyone inside but the caster adds up time (allies too, Fernando's grill of 26/10); at PIX.soak s they repeat
+// the caster's commands for the duration and their own actions stop
+function pixRain(w: World, p: Projectile) {
   const L = channelLevel(spellLevel('pix', p.level), p.power);
-  const by = anyById(w, p.owner);
-  let landed = false;
+  const by = actor(w, p.owner); // a copied rain hands its targets to the controller too
   for (const z of w.wizards) {
-    if (!z.alive || z.id === p.owner || allies(by, z) || w.t < z.invulnUntil || dist(z.pos, p.pos) > L.radius + bodyR(z)) continue;
-    const s = statusDuration(w, z, L.duration * z.debuffMult * afflictBy(w, p.owner));
-    z.puppetBy = actor(w, p.owner); // a copied Squid Pix hands its targets to the controller too
-    z.puppetUntil = w.t + s;
+    if (!z.alive || z.id === p.owner || z.id === by || isSuspended(z) || w.t < z.invulnUntil || dist(z.pos, p.pos) > L.radius + bodyR(z)) continue;
+    const soak = (p.soak![z.id] = (p.soak![z.id] ?? 0) + DT);
+    if (soak + 1e-8 < PIX.soak) continue;
+    delete p.soak![z.id];
+    z.puppetBy = by;
+    z.puppetUntil = w.t + statusDuration(w, z, L.duration * z.debuffMult * afflictBy(w, p.owner));
     z.target = null; z.moveHeld = false; z.casting = null; z.channel = undefined; z.basicCasting = undefined; z.braceUntil = 0;
-    mark(w, z, p.owner, 'pix');
+    mark(w, z, by, 'pix');
     w.events.push({ k: 'pix', id: z.id, x: z.pos.x, y: z.pos.y });
-    landed = true;
+    land(w, p, 'pix', true);
   }
-  if (landed) land(w, p, 'pix');
 }
 
 // o meteoro cai: dano de dmgMin na borda até o máximo no centro, em todos menos quem lançou
@@ -1743,8 +1749,14 @@ function stepProjectiles(w: World) {
       keep.push(p);
       continue;
     }
-    if (p.kind === 'grip' || p.kind === 'pix') {
-      if (w.t >= p.until) (p.kind === 'grip' ? gripLand : pixLand)(w, p);
+    if (p.kind === 'pix') {
+      if (w.t + 1e-8 >= p.until) continue;
+      pixRain(w, p);
+      keep.push(p);
+      continue;
+    }
+    if (p.kind === 'grip') {
+      if (w.t >= p.until) gripLand(w, p);
       else keep.push(p);
       continue;
     }

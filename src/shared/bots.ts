@@ -3,7 +3,7 @@ import { edge, inArena, inward, middle, pathStep, roomAt, safeInside } from './a
 import { BASIC_ATTACK, BRACE, DT, FRICTION, ISLAND, OBSTACLES, PROJ_R, WIZ_R } from './constants.ts';
 import type { Cmd, Projectile, Wizard, World } from './sim.ts';
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
-import { CAST_POINT, FREE_SPELLS, GRIP, MAX_SPELLS, METEOR_DELAY, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
+import { CAST_POINT, FREE_SPELLS, GRIP, MAX_SPELLS, METEOR_DELAY, PIX, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 import { CHANNEL, channelLevel, channelPower } from './channeling.ts';
 
@@ -498,7 +498,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
       prio = !inside(E.pos, 0.6) || !inside(slideEnd, 0.3) || (E.casting?.spell === 'scourge' && d < 3);
       at = d < L.range * 0.85 && (loaded || prio) ? lead(0, cp + GRIP.delay) : null;
     }
-    else if (s === 'pix') at = d < L.range * 0.85 ? lead(0, cp + GRIP.delay) : null; // the bot's own walk and spells then repeat through the target
+    else if (s === 'pix') at = d < L.range * 0.85 ? lead(0, cp + PIX.soak / 2) : null; // the bot's own walk and spells then repeat through the target
     else if (s === 'thrust') at = d > 1.5 && d < L.range && inside(add(me.pos, scale(dir, Math.min(d, L.range))), 1.5) ? lead(L.speed, cp) : null;
     else if (s === 'rush') at = d < 3.2 && inside(add(me.pos, scale(dir, 3)), 1) ? seenNow : null;
     else if (s === 'teleport') {
