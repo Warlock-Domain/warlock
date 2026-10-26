@@ -32,6 +32,7 @@ import { createDecor } from './decor.ts';
 import { cellHash, nightProps } from './night-decor.ts';
 import { CANDLE } from '../shared/campaign.ts';
 import { t } from './i18n.ts';
+import { n1 } from './rules-text.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
 import { BLINDNESS, CAST_POINT, LIGHTNING, PIX, SPELLS } from '../shared/spells.ts';
 import type { TAUNTS } from '../shared/taunts.ts';
