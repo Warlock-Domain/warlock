@@ -535,7 +535,7 @@ function startRoom(code: string, name: string) {
     },
     padRange: (s) => (padAiming = s),
     me: () => (myWizard(interp.latest())?.alive ? (drawn.get(me) ?? null) : null),
-    aim: (at) => ((padAt = at), scene.aim(at)),
+    aim: (at) => ((padAt = at), scene.preview.aim(at)),
   });
 
   // a aparência escolhida fica salva e é reenviada ao entrar em qualquer sala; trocada nas Configurações, vale na hora
@@ -1060,15 +1060,14 @@ function startRoom(code: string, name: string) {
     const aiming = showing && (armed ?? padAiming ?? (getCastMode() === 'release' || frozen ? held : null));
     const aimAt = aiming ? (padAiming ? padAt : (frozen?.at ?? input.aimPoint())) : null;
     const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, frozen?.from ?? myPos, aimAt, channelBoost) : null;
-    scene.range(showing && myPos ? myPos : null, reach, shape?.blastAt ?? null, shape?.blastR ?? 0);
-    scene.bands(shape?.segs ?? [], shape?.half ?? 0);
-    scene.arc(arcPreview && nowMs < arcPreview.until && meW?.alive && myPos ? myPos : null, arcPreview?.facing ?? 0);
-    scene.cone(shape?.cone ?? null);
+    scene.preview.range(showing && myPos ? myPos : null, reach);
+    scene.preview.shape(shape);
+    scene.preview.arc(arcPreview && nowMs < arcPreview.until && meW?.alive && myPos ? myPos : null, arcPreview?.facing ?? 0);
     const attackArmed = !meP?.spells.channel && input.attackArmed();
     const lockFrom = room?.phase === 'playing' && meW?.alive && meP && (attackArmed || armed === 'sniper') ? drawWiz.filter((d) => !d.illusion).map((d) => ({ ...d, hidden: !!(d.status & 2048), suspended: (d.geyserLeft ?? 0) > 0 })) : null;
     const lockSelf = lockFrom?.find((d) => d.id === me), lockAt = lockSelf && input.aimPoint();
     const lockHover = lockAt ? input.hovered() : undefined;
-    scene.lockOn(lockSelf && lockAt ? (armed === 'sniper' ? sniperTarget(lockFrom!, lockSelf, lockAt, SPELLS.sniper.levels[0].range * (1 + itemStats(meP!.items).range), lockHover) : attackTarget(lockFrom!, lockSelf, lockAt, BASIC_ATTACK.range, lockHover))?.pos ?? null : null);
+    scene.preview.lockOn(lockSelf && lockAt ? (armed === 'sniper' ? sniperTarget(lockFrom!, lockSelf, lockAt, SPELLS.sniper.levels[0].range * (1 + itemStats(meP!.items).range), lockHover) : attackTarget(lockFrom!, lockSelf, lockAt, BASIC_ATTACK.range, lockHover))?.pos ?? null : null);
     // nas posições desenhadas (as mesmas da tela), para ver se o erro foi mira, desvio ou a bola no ar enganando
     scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
