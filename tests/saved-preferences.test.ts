@@ -28,7 +28,7 @@ describe('preferences coming from unknown JSON', () => {
     expect(store.json('unknown')).toEqual({ shape: 'unchecked' });
   });
 
-  it.each([null, {}, true, 7, 'text'])('sandbox ignora lista no formato errado: %j', (value) => {
+  it.each([null, {}, true, 7, 'text'])('sandbox ignores a list in the wrong format: %j', (value) => {
     saved.set('warlock:sandboxbot', JSON.stringify(value));
     expect(savedBotSetup()).toEqual([]);
   });
@@ -37,7 +37,7 @@ describe('preferences coming from unknown JSON', () => {
     const result = readBotSetup([null, [], { difficulty: 'veteran', obsolete: true,
       spells: { fireball: 0, illusion: 7, removed: 3, shield: 8, teleport: 1.5, lightning: '2', homing: Infinity },
       items: { boots: 3, helmet: 2, removed: 1, armor: -1 }, skill: { aim: 0.2, delay: NaN, removed: 1 } }]);
-    expect(result).toEqual([{}, {}, { difficulty: 'veteran', spells: { fireball: 0, illusion: 7 }, items: { boots: 3 }, skill: { aim: 0.2 } }]);
+    expect(result).toEqual([{}, {}, { difficulty: 'veteran', spells: { fireball: 0, illusion: 7 }, items: { boots: 3, helmet: 2 }, skill: { aim: 0.2 } }]); // Helmet with 3 levels (26/10, #227)
     expect(parseClientMessage(JSON.stringify({ t: 'start', bots: result.length, setup: result }))).not.toBeNull();
   });
 
@@ -94,7 +94,7 @@ describe('preferences coming from unknown JSON', () => {
   it('an old order migrates without losing empty slots and presets keep only supported levels', () => {
     expect(readLoadout({ spells: ['shield', null, 'removed', 'fireball'], items: ['scourge'] })).toEqual({ spells: ['shield', null, null, 'fireball'] });
     for (const value of [null, {}, [], { spells: 'bad' }]) expect(readLoadout(value)).toBeUndefined();
-    expect(readPresets(JSON.stringify([{ spells: { fireball: 8, shield: 2 }, items: { boots: 3, helmet: 2 }, order: ['shield', null] }]))[0]).toEqual({ spells: { shield: 2 }, items: { boots: 3 }, order: ['shield', null] });
+    expect(readPresets(JSON.stringify([{ spells: { fireball: 8, shield: 2 }, items: { boots: 3, helmet: 2 }, order: ['shield', null] }]))[0]).toEqual({ spells: { shield: 2 }, items: { boots: 3, helmet: 2 }, order: ['shield', null] }); // Helmet with 3 levels (26/10, #227)
   });
 
   it('keys and controller ignore wrong structures and keep valid entries on reload', async () => {

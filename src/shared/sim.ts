@@ -272,7 +272,7 @@ export function gearOf(items: Partial<Record<ItemId, number>> = {}) {
     crit: st.crit,
     critDmg: st.critDmg,
     afflict: 1 + st.afflict,
-    windBonus: own.wind_boots ? Math.max(0, WIND_BOOTS.speed - st.speed) : 0, // como as de choque: vale a maior das botas
+    windBonus: own.wind_boots ? Math.max(0, WIND_BOOTS.speed[own.wind_boots - 1] - st.speed) : 0, // como as de choque: vale a maior das botas
     rangeF: 1 + st.range, // Elmo: −10%
     lifesteal: st.lifesteal,
     lavaCut: st.lava,
@@ -314,7 +314,9 @@ export function newWorld(
       shieldR: 0,
       lootProg: 0,
       lastHitAt: -1e9,
-      spells: { ...spells[id] },
+      // the Scourge is an item since 26/10 (#227): cast through the spell path at the item level; without the item, the spells value counts
+      // (only demos and tests build a wizard that way: players always have spells.scourge = 0)
+      spells: { ...spells[id], scourge: gear.items.scourge || (spells[id]?.scourge ?? 0) },
       cd: Object.fromEntries(SPELL_IDS.map((s) => [s, 0])) as Record<SpellId, number>,
       speed: gear.baseSpeed,
       pactUntil: 0,
@@ -415,7 +417,7 @@ export const isSuspended = (wz: { geyserLeft?: number }) => (wz.geyserLeft ?? 0)
 export const isStunned = (wz: { vel: Vec; stunLeft?: number; geyserLeft?: number }) => isSuspended(wz) || (wz.stunLeft === undefined ? isSliding(wz) : wz.stunLeft > 1e-8);
 // velocidade das botas que agem agora: as de choque depois de um golpe, as de vento na calmaria (não somam: vale a maior)
 export const bootsBonus = (w: World, wz: Wizard) =>
-  Math.max(w.t < wz.shockUntil ? wz.shockBonus : 0, wz.windBonus > 0 && w.t - wz.calmSince >= WIND_BOOTS.calm ? wz.windBonus : 0);
+  Math.max(w.t < wz.shockUntil ? wz.shockBonus : 0, wz.windBonus > 0 && w.t - wz.calmSince >= WIND_BOOTS.calm[wz.items.wind_boots - 1] ? wz.windBonus : 0);
 
 export type MovementState = Pick<Wizard, 'pos' | 'vel' | 'target' | 'facing' | 'speed' | 'safe' | 'stunLeft' | 'recoveryLeft' | 'geyserLeft' | 'geyserAt' | 'channel'>;
 
@@ -535,7 +537,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   // runa do Escudo: menos dano levado (o empurrão do golpe continua)
   if (target.rune === 'shield' && w.t < target.runeUntil) dmg *= 1 - RUNE.armor;
   // Botas de choque: golpe de outro mago dá velocidade por alguns segundos
-  if (target.shockBonus > 0 && by !== target.id && dmg > 0) target.shockUntil = w.t + SHOCK_BOOTS.secs;
+  if (target.shockBonus > 0 && by !== target.id && dmg > 0) target.shockUntil = w.t + SHOCK_BOOTS.secs[target.items.shock_boots - 1];
   // Investida: depois do empurrão, absorve metade do golpe (de outro mago) e converte em velocidade
   if (w.t < target.rushUntil && by !== target.id && target.rushLeft > 0) {
     const absorbed = Math.min(target.rushLeft, dmg * RUSH.share);

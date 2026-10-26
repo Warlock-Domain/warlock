@@ -4,7 +4,7 @@
 // Ascensão separado, porque o modo muda muito a jogabilidade principal); match.ts só chama estas funções atrás de `m.asc`.
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
 import type { Match, MatchOpts, Player, Stat } from './match.ts';
-import { MAX_SPELLS, SPELL_IDS, spellCount, spellGroup, spellMax, type SpellId } from './spells.ts';
+import { BAR_SPELLS, MAX_SPELLS, SPELL_IDS, spellCount, spellGroup, spellMax, type SpellId } from './spells.ts';
 
 // rare: carta rara (só de subir magia): sobe 2 níveis
 export type Card = { kind: 'spell'; id: SpellId } | { kind: 'up'; id: SpellId; rare?: true } | { kind: 'item'; id: ItemId };
@@ -99,7 +99,7 @@ type Kit = Pick<Player, 'spells' | 'items'>;
 // até 3 cartas diferentes do tipo pedido que o mago pode usar, sorteadas com o rand da partida; magia nova de pelo menos 2 grupos;
 // cada carta de subir magia vira rara com a chance `rare`
 export function drawCards(p: Kit, kind: Kind, rand: () => number, rare = 0): Card[] {
-  const pool: Card[] = kind === 'spell' ? SPELL_IDS.filter((s) => p.spells[s] === 0).map((id): Card => ({ kind, id }))
+  const pool: Card[] = kind === 'spell' ? BAR_SPELLS.filter((s) => p.spells[s] === 0).map((id): Card => ({ kind, id }))
     : kind === 'up' ? SPELL_IDS.filter((s) => p.spells[s] > 0 && p.spells[s] < spellMax(s)).map((id): Card => ({ kind, id }))
     : ITEM_IDS.filter((i) => itemPrice(p.items, i) !== null).map((id): Card => ({ kind, id }));
   for (let i = pool.length - 1; i > 0; i--) {

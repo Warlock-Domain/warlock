@@ -429,9 +429,9 @@ export const SPELL_GROUPS = LANG === 'en' ? SPELL_GROUPS_EN : SPELL_GROUPS_PT;
 const GROUP_CLASS_EN: Record<string, string> = { attack: 'ataque', mobility: 'mobilidade', defense: 'defesa', control: 'controle', support: 'suporte' };
 export const groupClass = (name: string) => 'g-' + (GROUP_CLASS_EN[name.toLowerCase()] ?? name.toLowerCase());
 export const spellClass = (s: SpellId) => groupClass(SPELL_GROUPS.find(([, , ids]) => ids.includes(s))?.[0] ?? '');
-// loja: itens passivos em seções como as magias (Fernando, 21/10), pelo efeito principal
+// loja: itens em seções como as magias (Fernando, 21/10), pelo efeito principal; the Scourge (active item since 26/10, #227) pushes away whoever gets close: Protection
 type ItemGroups = [name: string, hint: string, items: ItemId[]][];
-const IG: Record<string, ItemId[]> = { life: ['ring', 'cape', 'vampire'], move: ['boots', 'shock_boots', 'wind_boots', 'lava_boots'], guard: ['armor', 'helmet', 'warden', 'cursed_ring', 'aegis', 'watch'], crit: ['lens', 'piercing', 'affliction'] };
+const IG: Record<string, ItemId[]> = { life: ['ring', 'cape', 'vampire'], move: ['boots', 'shock_boots', 'wind_boots', 'lava_boots'], guard: ['scourge', 'armor', 'helmet', 'warden', 'cursed_ring', 'aegis', 'watch'], crit: ['lens', 'piercing', 'affliction'] };
 const ITEM_GROUPS_PT: ItemGroups = [['Vida', 'mais vida e cura', IG.life], ['Movimento', 'correr e pisar na lava', IG.move], ['Proteção', 'menos empurrão, dano e lentidão', IG.guard], ['Crítico', 'golpes mais fortes e lentidões mais longas', IG.crit]];
 const ITEM_GROUPS_EN: ItemGroups = [['Health', 'more health and healing', IG.life], ['Movement', 'run and step on lava', IG.move], ['Protection', 'less knockback, damage and slows', IG.guard], ['Critical', 'stronger hits and longer slows', IG.crit]];
 export const ITEM_GROUPS = LANG === 'en' ? ITEM_GROUPS_EN : ITEM_GROUPS_PT;

@@ -57,7 +57,7 @@ export const ICON: Record<SpellId, string> = named<SpellId>({ fireball: ['fire-r
 export const ITEM_ICON: Record<ItemId, string> = named<ItemId>({ ring: ['diamond-ring', '💍'], cursed_ring: ['skull-ring', '🧿'], cape: ['cape', '🧣'], armor: ['breastplate', '🦺'],
   boots: ['leather-boot', '👢'], watch: ['pocket-watch', '⏱️'], vampire: ['bat', '🦇'],
   lava_boots: ['metal-boot', '🥾'], warden: ['stone-bust', '🗿'], helmet: ['spartan-helmet', '🪖'], shock_boots: ['winged-leg', '🌩️'], aegis: ['angel-wings', '👼'], wind_boots: ['feather', '🪶'],
-  lens: ['magnifying-glass', '🔍'], piercing: ['pierced-heart', '💘'], affliction: ['rune-stone', '🔮'] });
+  lens: ['magnifying-glass', '🔍'], piercing: ['pierced-heart', '💘'], affliction: ['rune-stone', '🔮'], scourge: ['flail', '💥'] }); // Scourge: same drawing as when it was a spell
 export const RUNE_ICON: Record<RuneKind, string> = named<RuneKind>({ haste: ['rabbit', '🐇'], fury: ['enrage', '😡'], shield: ['checked-shield', '🔰'], recharge: ['energise', '🔋'] });
 export const RUNE_NAME: Record<RuneKind, string> = { haste: t('Runa da Pressa', 'Haste Rune'), fury: t('Runa da Fúria', 'Fury Rune'), shield: t('Runa do Escudo', 'Shield Rune'), recharge: t('Runa da Recarga', 'Recharge Rune') };
 // o que derrubou alguém, além de magias e itens (placar)
