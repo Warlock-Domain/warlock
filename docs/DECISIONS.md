@@ -6,6 +6,7 @@ Every new decision gets a row here (date, decision, why) in the same PR as the c
 
 | Date | Decision | Why |
 |---|---|---|
+| 26/10 | **User proposal:** Proposed ranged basic Attack has zero knockback; damage, range, cooldown and melee impulse stay unchanged. Simulator evidence and owner approval remain merge gates for this proposal. | Requested by Leonard; PR preparation is not Fernando approval or merge authorization. |
 | 17/10 | Top-down 3D camera, Dota controls (right button moves); 1 point per round, first to 5 wins | same as the original Warlock, Dota audience |
 | 18/10 | Public repository | so friends can contribute |
 | 18/10 | Rejected: ranking/profile and items that only help one spell (e.g. Fire staff) | focus on the game, free build |

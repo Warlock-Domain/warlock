@@ -45,7 +45,8 @@ describe('play style', () => {
     // 25/10 (PR #408, owner's decision): bots may buy Channeling, which changes seeded purchases and decisions.
     // 25/10 (PR #409, owner's decision): bots may buy Inelegant Solution, which changes seeded purchases and decisions.
     // 25/10 (issue #416, owner's decision): bots may buy Squid Pix; with it out of the bot pool the old hash still matches.
-    expect(hash).toBe(3850153306);
+    // 26/10 proposal: ranged basic Attack no longer pushes, intentionally changing bot trajectories.
+    expect(hash).toBe(1799243761);
     // and it really measured in this same match
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);
