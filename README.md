@@ -6,8 +6,8 @@ Web remake of the **Warlock** arena mod (Warcraft 3 / Dota 2's Warlock Brawl): w
 
 ## What it has
 
-- 29 spells (the Warlock Brawl ones, with numbers from the original Dota 2 mod code tuned by the simulator, plus new ones): 12 attack, 5 mobility, 5 defense, 5 control and 2 support; up to 6 per wizard on the Q W E R D F keys, with Fireball and Scourge for free; the bar has Q W E R on top and A S D F below, with Attack (A) and Hold ground (S) fixed, with a tip and demo on hover
-- 16 passive items (3 critical), a Dota-style grid shop with sell and undo, 3 builds saved in the browser (Use buys the build by itself) and a ★ badge on the most bought; the spell order is changed by dragging on the bottom bar
+- 29 spells (the Warlock Brawl ones, with numbers from the original Dota 2 mod code tuned by the simulator, plus new ones): 12 attack, 5 mobility, 5 defense, 5 control and 2 support; up to 6 per wizard on the Q W E R D F keys, with Fireball for free; the bar has Q W E R on top and A S D F below, with Attack (A) and Hold ground (S) fixed, with a tip and demo on hover
+- 17 items with 3 levels each: 16 passive (3 critical) and the Scourge, the free active item on key 1; a Dota-style grid shop with sell and undo, 3 builds saved in the browser (Use buys the build by itself) and a ★ badge on the most bought; the spell order is changed by dragging on the bottom bar
 - Rounds, Deathmatch and Teams modes; Campaign (1 to 4 players together against the Smoke's servants, in progress) and Ascension as their own options in the Play menu (Ascension: 9 rounds; every intermission 1 new spell and 1 item, and each XP level upgrades 1 spell; no gold); Circle, Ring, Islands and Cross arenas, which shrink until sudden death
 - Round effect, a room option (off by default; Random or a fixed one): Rainy Weather, Thorn Arena, Gold Fever, Gale, Fountain of Life and Open Field
 - Bots in 3 difficulties (chosen bot by bot) that play "like people": aim with error, reaction time, hesitation

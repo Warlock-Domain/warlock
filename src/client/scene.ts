@@ -1,7 +1,7 @@
 // Cena 3D: lava, arena de pedra que encolhe, magos (KayKit), projéteis e efeitos.
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
 import * as THREE from 'three';
-import { ELECTROCUTED_BIT, BRACING_BIT, MELEE_ARC } from '../shared/constants.ts';
+import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
 import { createAttackClip, playAnimation as play } from './attack-pose.ts';
 import { electroPulse } from './screen-data.ts';
@@ -9,6 +9,7 @@ import { sniperRig, updateSniperRig, SNIPER_FX } from './sniper-fx.ts';
 import { HEAL_FX, healAura } from './heal-fx.ts';
 import { sniperFocusMask } from './sniper-focus.ts';
 import { blindnessMask } from './blindness-fx.ts';
+import { AimPreview } from './aim-preview.ts';
 import { conePoints } from '../shared/sand-cone.ts';
 import { GEYSER_FX, geyserHeight } from './geyser-fx.ts';
 import { PIX_COLOR, PIX_TIE, SHAPES, flat, vineModel } from './proj-models.ts';
@@ -2228,44 +2229,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   resize();
 
   let lastFrame = performance.now() / 1000;
-  // retículo do controle: anel dourado com um ponto no meio, no chão onde o analógico direito mira (desenhado por cima de tudo)
-  const aimMat = new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.95, depthTest: false, depthWrite: false });
-  const aimRing = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.62, 40), aimMat);
-  aimRing.add(new THREE.Mesh(new THREE.CircleGeometry(0.12, 16), aimMat));
-  aimRing.rotation.x = -Math.PI / 2;
-  aimRing.renderOrder = 10;
-  aimRing.visible = false;
-  scene.add(aimRing);
-  // círculo de alcance da magia segurada ou escolhida: anel fino e discreto na cor da mira, escalado pelo alcance
-  const rangeRing = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 128), new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.45, depthWrite: false }));
-  rangeRing.rotation.x = -Math.PI / 2;
-  rangeRing.renderOrder = 9;
-  rangeRing.visible = false;
-  scene.add(rangeRing);
-  // explosão do Meteoro no ponto onde ele cai: o mesmo anel, do tamanho da explosão
-  const blastRing = rangeRing.clone();
-  scene.add(blastRing);
-  const hits: THREE.Mesh[] = []; // discos do "Ver hitbox", criados conforme precisa
-  // faixas de acerto da mira (a Rajada e o Divisor saem em leque), bem claras para não esconder o chão: corpo reto para a frente (+x)
-  // e ponta em meio círculo do tamanho da bola, onde ela termina o voo, como a prévia do LoL (pedido do Fernando, 21/10); giradas só
-  // em y e criadas conforme precisa
-  const bandMat = new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.16, depthWrite: false });
-  const bandBody = new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0).rotateX(-Math.PI / 2);
-  const bandCap = new THREE.CircleGeometry(1, 24, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2);
-  const bands: THREE.Group[] = [];
-  const coneGeo = new THREE.BufferGeometry();
-  coneGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(9),3));
-  const coneAim = new THREE.Mesh(coneGeo,new THREE.MeshBasicMaterial({color:'#d5b474',transparent:true,opacity:.25,side:THREE.DoubleSide,depthWrite:false}));
-  coneAim.visible=false; coneAim.renderOrder=9; scene.add(coneAim);
   const blindMask = blindnessMask(camera); scene.add(blindMask);
-  // prévia do golpe em arco (issue #402): setor de MELEE_ARC.angle e raio 1, centrado em +x, escalado pelo alcance e girado só em y
-  const arcHalf = (MELEE_ARC.angle / 2) * Math.PI / 180;
-  const arcAim = new THREE.Mesh(new THREE.RingGeometry(0, 1, 32, 1, -arcHalf, 2 * arcHalf).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }));
-  arcAim.renderOrder = 9; arcAim.visible = false; arcAim.scale.setScalar(MELEE_ARC.range); scene.add(arcAim);
   const sniperScreen=sniperFocusMask(); scene.add(sniperScreen);
-  // Target lock under the wizard the armed Attack or Inelegant Solution would hit (Fernando, 26/10: the aim felt loose)
-  const lockAim = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.76, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: SNIPER_FX.laser, transparent: true, opacity: 0.9, depthWrite: false }));
-  lockAim.renderOrder = 9; lockAim.visible = false; scene.add(lockAim);
+  const preview = new AimPreview(scene);
+  const hits: THREE.Mesh[] = []; // discos do "Ver hitbox", criados conforme precisa
 
   return {
     ready,
@@ -2273,18 +2240,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     resourceStats() {
       return { geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures };
     },
-    // centro no mago e raio em metros; null (ou raio 0) esconde. blastAt/blastR: o círculo da explosão no ponto mirado
-    range(at: Vec | null, r: number, blastAt: Vec | null = null, blastR = 0) {
-      blastRing.visible = !!blastAt && blastR > 0;
-      if (blastAt && blastR > 0) {
-        blastRing.position.copy(w3(blastAt, 0.04));
-        blastRing.scale.setScalar(blastR);
-      }
-      rangeRing.visible = !!at && r > 0;
-      if (!at || r <= 0) return;
-      rangeRing.position.copy(w3(at, 0.04));
-      rangeRing.scale.setScalar(r);
-    },
+    preview,
     // "Ver hitbox (teste)": disco no chão de cada mago (vermelho) e de cada projétil (azul), no tamanho da colisão; null esconde
     hitboxes(list: { pos: Vec; r: number; wiz: boolean }[] | null) {
       for (let i = hits.length; i < (list?.length ?? 0); i++) {
@@ -2301,50 +2257,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.scale.setScalar(h.r);
         (m.material as THREE.MeshBasicMaterial).color.set(h.wiz ? '#ff4040' : '#40c8ff');
       });
-    },
-    // trechos de faixa [de, até] com meia largura `half`; lista vazia esconde
-    cone(points: [Vec,Vec,Vec] | null) {
-      coneAim.visible=!!points;
-      if(points) { const a=coneGeo.getAttribute('position'); points.forEach((p,i)=>a.setXYZ(i,p.x,.04,p.y)); a.needsUpdate=true; coneGeo.computeBoundingSphere(); }
-    },
-    lockOn(at: Vec | null) {
-      lockAim.visible = !!at;
-      if (at) lockAim.position.copy(w3(at, 0.05));
-    },
-    // golpe em arco: setor no chão em volta do mago, virado para facing; null esconde
-    arc(at: Vec | null, facing: number) {
-      arcAim.visible = !!at;
-      if (!at) return;
-      arcAim.position.copy(w3(at, 0.04));
-      arcAim.rotation.y = -facing;
-    },
-    bands(segs: [Vec, Vec][], half: number) {
-      for (let i = bands.length; i < segs.length; i++) {
-        const g = new THREE.Group();
-        const [body, cap] = [new THREE.Mesh(bandBody, bandMat), new THREE.Mesh(bandCap, bandMat)];
-        body.renderOrder = cap.renderOrder = 9;
-        g.add(body, cap);
-        scene.add(g);
-        bands.push(g);
-      }
-      const w = Math.max(half, 0.03); // o Raio (largura 0) vira uma linha de 6 cm para aparecer
-      bands.forEach((g, i) => {
-        const sg = segs[i];
-        g.visible = !!sg;
-        if (!sg) return;
-        const d = sub(sg[1], sg[0]), l = Math.max(len(d) - w, 0);
-        const [body, cap] = g.children;
-        g.position.copy(w3(sg[0], 0.035));
-        g.rotation.y = -Math.atan2(d.y, d.x);
-        body.scale.set(l, 1, 2 * w);
-        cap.position.x = l;
-        cap.scale.set(w, 1, w);
-      });
-    },
-    aim(at: Vec | null) {
-      aimRing.visible = !!at;
-      if (at) aimRing.position.copy(w3(at, 0.05));
-      aimRing.scale.setScalar(1 + 0.08 * Math.sin(performance.now() / 120));
     },
     // baixa antes as peças de quem está na sala, para ninguém aparecer invisível na rodada
     preload(looks: string[]) {

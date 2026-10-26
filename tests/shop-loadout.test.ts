@@ -59,6 +59,6 @@ describe('equipment slots in the shop', () => {
     const spells = { ...noSpells(), fireball: 2, illusion: 1 };
     const slots = loadoutSlots(spells);
     expect(slots.spells.filter(Boolean)).toEqual(SPELL_IDS.filter((s) => spells[s] > 0));
-    expect(slots.spells.filter((s) => s === null)).toHaveLength(MAX_SPELLS - 3);
+    expect(slots.spells.filter((s) => s === null)).toHaveLength(MAX_SPELLS - 2);
   });
 });

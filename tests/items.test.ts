@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { DT, HP_MAX, LAVA_DPS, STUN_SPEED, WIZ_SPEED } from '../src/shared/constants.ts';
-import { AEGIS, ITEMS, ITEM_IDS, MAX_ITEMS, SHOCK_BOOTS, itemPrice, noItems, type ItemId } from '../src/shared/items.ts';
+import { AEGIS, ITEMS, ITEM_IDS, MAX_ITEMS, SHOCK_BOOTS, itemPrice, noItems, startItems, type ItemId } from '../src/shared/items.ts';
 import { addPlayer, buy, buyItem, newMatch, resume, sell, sellValue, startMatch, tickMatch, undoBuy } from '../src/shared/match.ts';
 import { randomPlan } from '../src/shared/bots.ts';
 import { itemTip } from '../src/client/tips.ts';
 import { len } from '../src/shared/vec.ts';
 import { newWorld, stepWorld, type Cmd, type World } from '../src/shared/sim.ts';
-import { CAST_POINT, PACT, SPELLS, noSpells, type SpellId } from '../src/shared/spells.ts';
+import { CAST_POINT, PACT, SPELLS, noSpells, priceOf, type SpellId } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
 import { world as spotsWorld } from './helpers.ts';
 
@@ -17,7 +17,7 @@ const steps = (w: World, n: number) => {
   for (let i = 0; i < n; i++) stepWorld(w, []);
 };
 
-describe('itens passivos', () => {
+describe('passive items', () => {
   it('ring raises max hp', () => {
     const w = world([[0, 0]], [{ ring: 2 }]);
     expect(w.wizards[0].hpMax).toBe(HP_MAX + 190);
@@ -43,8 +43,8 @@ describe('itens passivos', () => {
   });
 });
 
-// Flagelo e Pacto eram itens ativos; viraram magia em 21/10 (#217) e o Redirecionador saiu
-describe('Flagelo e Pacto (magias)', () => {
+// Scourge and Pact were active items; they became spells on 21/10 (#217) and the Redirector was removed
+describe('Scourge and Pact (spells)', () => {
   const scourge = (id = 'p0'): Cmd => ({ id, kind: 'cast', spell: 'scourge', at: v(0, 0) });
   const windup = Math.round(CAST_POINT.scourge / DT);
 
@@ -61,11 +61,11 @@ describe('Flagelo e Pacto (magias)', () => {
     expect(w.wizards[0].cd.scourge).toBeGreaterThan(w.t);
   });
 
-  // pedido do Fernando (21/10): a explosão cancela o empurrão que o mago está sofrendo
+  // Fernando's request (21/10): the blast cancels the knockback the wizard is taking
   it('the blast stops the knockback the caster is taking', () => {
     const w = world([[0, 0], [1, 0]]);
     stepWorld(w, [scourge()]);
-    w.wizards[0].vel = v(-12, 0); // empurrado durante o preparo
+    w.wizards[0].vel = v(-12, 0); // pushed during the windup
     steps(w, windup - 5);
     expect(len(w.wizards[0].vel)).toBeGreaterThan(STUN_SPEED);
     let blasted = false;
@@ -77,10 +77,15 @@ describe('Flagelo e Pacto (magias)', () => {
     expect(len(w.wizards[0].vel)).toBe(0);
   });
 
-  it('every wizard starts with the Scourge at level 1, and it levels up like a spell', () => {
-    expect(noSpells().scourge).toBe(1);
-    expect(SPELLS.scourge.cost).toBe(0);
-    expect(SPELLS.scourge.levels[0].dmg).toBe(80);
+  // an item again since 26/10 (#227): level 1 free, 3 levels of 7 gold, never bought as a spell
+  it('every player starts with the Scourge item at level 1, and it levels up like an item', () => {
+    expect(noSpells().scourge).toBe(0);
+    expect(startItems().scourge).toBe(1);
+    expect(ITEMS.scourge.levels).toHaveLength(3);
+    expect(ITEMS.scourge.cost).toBe(7);
+    expect(priceOf('scourge', 0)).toBeNull();
+    expect(priceOf('scourge', 1)).toBeNull();
+    expect(SPELLS.scourge.levels.map((l) => l.dmg)).toEqual([80, 100, 120]);
     const w = world([[0, 0], [1, 0]]);
     w.wizards[0].spells.scourge = 3;
     stepWorld(w, [scourge()]);
@@ -98,7 +103,7 @@ describe('Flagelo e Pacto (magias)', () => {
 
   it('scourge never kills its caster', () => {
     const w = world([[0, 0]]);
-    w.wizards[0].spells.scourge = 7;
+    w.wizards[0].spells.scourge = 3;
     w.wizards[0].hp = 30;
     stepWorld(w, [scourge()]);
     steps(w, 70);
@@ -114,7 +119,7 @@ describe('Flagelo e Pacto (magias)', () => {
     expect(w.wizards[0].cd.pact).toBeGreaterThan(w.t);
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(2, 0) }]);
     steps(w, 15);
-    // a vida volta um pouco (regeneração) entre o acerto e a conferência
+    // life comes back a little (regeneration) between the hit and the check
     expect(HP_MAX - w.wizards[1].hp).toBeGreaterThan(SPELLS.lightning.levels[0].dmg * PACT.mult - 2);
     steps(w, 2);
     expect(w.wizards[0].speed).toBe(WIZ_SPEED);
@@ -129,7 +134,7 @@ describe('Flagelo e Pacto (magias)', () => {
     expect(w.wizards[0].pos.x).toBeLessThan(-1);
     steps(w, 40);
     expect(w.wizards[1].hp).toBe(HP_MAX);
-    expect(w.wizards[0].cd.scourge).toBe(0); // não saiu: sem recarga
+    expect(w.wizards[0].cd.scourge).toBe(0); // did not go out: no cooldown
   });
 
   it('no spell goes out while the scourge is winding up', () => {
@@ -140,7 +145,7 @@ describe('Flagelo e Pacto (magias)', () => {
     expect(w.wizards[0].casting?.spell).toBe('scourge');
     expect(w.wizards[0].cd.lightning).toBe(0);
     steps(w, 40);
-    expect(w.wizards[1].hp).toBeLessThan(HP_MAX); // o Flagelo saiu mesmo assim
+    expect(w.wizards[1].hp).toBeLessThan(HP_MAX); // the Scourge went out anyway
   });
 
   it('a chest swallowed by the lava breaks on its own and the gold lands on the stone', () => {
@@ -153,7 +158,7 @@ describe('Flagelo e Pacto (magias)', () => {
   });
 
   it('scourge destroys enemy projectiles in the blast', () => {
-    // a bola de fogo chega na área no meio do preparo de 0,5 s
+    // the fireball reaches the area in the middle of the 0.5 s windup
     const w = world([[0, 0], [5.5, 0]]);
     stepWorld(w, [{ id: 'p1', kind: 'cast', spell: 'fireball', at: v(0, 0) }]);
     steps(w, 6);
@@ -172,8 +177,8 @@ describe('Flagelo e Pacto (magias)', () => {
   });
 });
 
-describe('loja de itens', () => {
-  it('buys, upgrades to the max level and respects 6 items', () => {
+describe('item shop', () => {
+  it('buys, upgrades to the max level and respects 6 items (the free Scourge takes one)', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     addPlayer(m, 'b', 'Bia');
@@ -185,14 +190,14 @@ describe('loja de itens', () => {
     expect(buyItem(m, 'a', 'cape')).toBe(true);
     expect(buyItem(m, 'a', 'cape')).toBe(false);
     expect(p.gold).toBe(200 - 3 * ITEMS.cape.cost);
-    for (const i of ['ring', 'armor', 'boots', 'watch', 'vampire'] as ItemId[]) expect(buyItem(m, 'a', i)).toBe(true);
+    for (const i of ['ring', 'armor', 'boots', 'watch'] as ItemId[]) expect(buyItem(m, 'a', i)).toBe(true);
     expect(itemPrice(p.items, 'helmet')).toBeNull();
     expect(buyItem(m, 'a', 'helmet')).toBe(false);
     expect(Object.values(p.items).filter(Boolean).length).toBe(MAX_ITEMS);
   });
 });
 
-describe('desfazer compra', () => {
+describe('undo purchase', () => {
   it('undo refunds the latest purchase of that kind in this shop', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
@@ -210,13 +215,13 @@ describe('desfazer compra', () => {
     expect(p.items.vampire).toBe(0);
     expect(p.gold).toBe(50 - 6);
     expect(undoBuy(m, 'a', 'spell:lightning')).toBe(false);
-    // o Flagelo grátis do começo não pode ser "desfeito" para ganhar ouro
-    expect(undoBuy(m, 'a', 'spell:scourge')).toBe(false);
+    // the free Scourge from the start cannot be "undone" to gain gold
+    expect(undoBuy(m, 'a', 'item:scourge')).toBe(false);
   });
 });
 
-describe('vender na loja', () => {
-  // loja nova: o que já foi comprado fica "de rodadas anteriores"
+describe('selling in the shop', () => {
+  // new shop: what was already bought counts as "from earlier rounds"
   const shop = () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
@@ -226,7 +231,7 @@ describe('vender na loja', () => {
     return { m, p: m.players[0] };
   };
 
-  // desde 19/10 (Fernando): vender devolve sempre 100% do que pagou, em qualquer rodada
+  // since 19/10 (Fernando): selling always refunds 100% of what was paid, in any round
   it('sells for 100% of what was paid, in any round', () => {
     const { m, p } = shop();
     buy(m, 'a', 'lightning'); // 11
@@ -244,9 +249,9 @@ describe('vender na loja', () => {
 
   it('each level counts from the round it was bought', () => {
     const { m, p } = shop();
-    buy(m, 'a', 'lightning'); // 11 na rodada 0
+    buy(m, 'a', 'lightning'); // 11 in round 0
     m.round = 4;
-    buy(m, 'a', 'lightning'); // 8 na rodada 4
+    buy(m, 'a', 'lightning'); // 8 in round 4
     expect(sellValue(p, 4, 'spell:lightning')).toBe(11 + 8);
     expect(undoBuy(m, 'a', 'spell:lightning')).toBe(true);
     expect(p.held['spell:lightning']).toEqual([0]);
@@ -258,7 +263,7 @@ describe('vender na loja', () => {
     expect(sellValue(p, 2, 'spell:lightning')).toBe(11);
   });
 
-  it('items sell the same way; the free Fireball and Scourge levels sell for 0 and free the slot', () => {
+  it('items sell the same way; the free Fireball sells for 0, the free Scourge level does not sell', () => {
     const { m, p } = shop();
     buyItem(m, 'a', 'armor');
     buyItem(m, 'a', 'armor'); // 6 + 6
@@ -266,10 +271,14 @@ describe('vender na loja', () => {
     expect(sell(m, 'a', 'item:armor')).toBe(true);
     expect(p.items.armor).toBe(0);
     const gold = p.gold;
-    expect(sell(m, 'a', 'spell:scourge')).toBe(true); // magia grátis desde 21/10 (#217), como a Bola de fogo
-    expect(p.spells.scourge).toBe(0);
+    expect(sell(m, 'a', 'item:scourge')).toBe(false); // an item again since 26/10 (#227): the free level cannot be sold
+    expect(p.items.scourge).toBe(1);
+    buyItem(m, 'a', 'scourge');
+    expect(sellValue(p, m.round, 'item:scourge')).toBe(7); // only the bought level is refunded
+    expect(sell(m, 'a', 'item:scourge')).toBe(true);
+    expect(p.items.scourge).toBe(1);
     expect(p.gold).toBe(gold);
-    expect(sell(m, 'a', 'spell:fireball')).toBe(true); // nível 1 grátis: volta 0 e libera a vaga
+    expect(sell(m, 'a', 'spell:fireball')).toBe(true); // free level 1: refunds 0 and frees the slot
     expect(p.spells.fireball).toBe(0);
   });
 
@@ -282,8 +291,8 @@ describe('vender na loja', () => {
   });
 });
 
-describe('roubo de vida (item)', () => {
-  it('costs 5 per level, 6 levels, and takes an item slot', () => {
+describe('lifesteal (item)', () => {
+  it('costs 5 per level, 3 levels, and takes an item slot', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     addPlayer(m, 'b', 'Bia');
@@ -292,24 +301,24 @@ describe('roubo de vida (item)', () => {
     p.gold = 100;
     expect(buyItem(m, 'a', 'vampire')).toBe(true);
     expect(p.gold).toBe(95);
-    for (let i = 0; i < 5; i++) buyItem(m, 'a', 'vampire');
-    expect(p.items.vampire).toBe(6);
+    for (let i = 0; i < 2; i++) buyItem(m, 'a', 'vampire');
+    expect(p.items.vampire).toBe(3);
     expect(buyItem(m, 'a', 'vampire')).toBe(false);
   });
 
   it('lifesteal heals the attacker', () => {
-    const w = newWorld(['a', 'b'], { a: allSpells(), b: allSpells() }, { a: with_({ vampire: 6 }) });
+    const w = newWorld(['a', 'b'], { a: allSpells(), b: allSpells() }, { a: with_({ vampire: 3 }) });
     w.wizards[0].pos = v(0, 0);
     w.wizards[1].pos = v(2, 0);
     for (const z of w.wizards) z.invulnUntil = 0;
     w.wizards[0].hp = 500;
     stepWorld(w, [{ id: 'a', kind: 'cast', spell: 'lightning', at: v(2, 0) }]);
     steps(w, 10);
-    expect(w.wizards[0].hp).toBeGreaterThan(520);
+    expect(w.wizards[0].hp).toBeGreaterThan(510); // 24% of 70
   });
 });
 
-describe('itens novos (18/10)', () => {
+describe('new items (18/10)', () => {
   const fireballAt = (w: World, x: number) => stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(x, 0) }]);
   const hits = (w: World, n: number) => {
     const out: number[] = [];
@@ -361,15 +370,20 @@ describe('itens novos (18/10)', () => {
     expect(helmed.projectiles[0].until / plain.projectiles[0].until).toBeCloseTo(0.9, 1);
   });
 
-  it('shock boots speed you up for 3 s after a hit, and only above the regular boots', () => {
+  it('shock boots speed you up for 3, 4 or 5 s after a hit, and only above the regular boots', () => {
     const w = world([[0, 0], [3, 0]], [{}, { shock_boots: 1 }]);
     const base = w.wizards[1].baseSpeed;
     fireballAt(w, 3);
     steps(w, 30);
     expect(w.wizards[1].speed).toBeCloseTo(base + SHOCK_BOOTS.speed, 5);
-    steps(w, Math.round(SHOCK_BOOTS.secs / DT));
+    steps(w, Math.round(SHOCK_BOOTS.secs[0] / DT));
     expect(w.wizards[1].speed).toBeCloseTo(base, 5);
-    // as Botas nível 3 (+40) já passam das de choque (+30): nada a mais
+    // level 3: still fast after 4 s
+    const w3 = world([[0, 0], [3, 0]], [{}, { shock_boots: 3 }]);
+    fireballAt(w3, 3);
+    steps(w3, 30 + Math.round(4 / DT));
+    expect(w3.wizards[1].speed).toBeCloseTo(base + SHOCK_BOOTS.speed, 5);
+    // level 3 Boots (+40) already beat the shock ones (+30): nothing extra
     expect(world([[0, 0]], [{ shock_boots: 1, boots: 3 }]).wizards[0].shockBonus).toBe(0);
     expect(world([[0, 0]], [{ shock_boots: 1, boots: 1 }]).wizards[0].shockBonus).toBeCloseTo(SHOCK_BOOTS.speed - ITEMS.boots.levels[0].speed!);
   });
@@ -380,7 +394,7 @@ describe('itens novos (18/10)', () => {
     z.pos = v(0, w.arenaR + 1);
     z.vel = v(0, 5);
     steps(w, 30);
-    expect(z.pos.y).toBeGreaterThan(w.arenaR); // vida alta: a Égide espera
+    expect(z.pos.y).toBeGreaterThan(w.arenaR); // high life: the Aegis waits
     z.hp = AEGIS.hp + 0.5;
     let saved = false;
     for (let i = 0; i < 5; i++) {
@@ -392,7 +406,7 @@ describe('itens novos (18/10)', () => {
     expect(z.pos.y).toBeGreaterThan(0);
     expect(len(z.vel)).toBe(0);
     expect(z.aegis).toBe(false);
-    // segunda vez na lava: não salva de novo
+    // second time in the lava: it does not save again
     z.pos = v(0, w.arenaR + 1);
     steps(w, 600);
     expect(z.alive).toBe(false);
@@ -407,24 +421,48 @@ describe('itens novos (18/10)', () => {
     for (const id of ['lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis']) expect(planned.has(id)).toBe(true);
   });
 
-  it('aegis breaks after saving you: the item leaves the inventory', () => {
+  // each level is a charge since 26/10 (#227): saving spends 1 level
+  it('aegis spends one level each time it saves you', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'A');
     addPlayer(m, 'b', 'B');
     startMatch(m, 0, 0);
-    m.players[0].items.aegis = 1;
-    m.players[0].held['item:aegis'] = [0];
+    m.players[0].items.aegis = 2;
+    m.players[0].held['item:aegis'] = [0, 0];
     resume(m, 0);
     let now = 0;
     while (m.phase !== 'playing') tickMatch(m, (now = Math.max(now + 17, m.phaseEnds)), []);
     const z = m.world!.wizards.find((q) => q.id === 'a')!;
     expect(z.aegis).toBe(true);
-    z.pos = v(0, m.world!.arenaR * 2); // na lava em qualquer arena
+    z.pos = v(0, m.world!.arenaR * 2); // in the lava in any arena
     z.hp = AEGIS.hp + 5;
-    for (let i = 0; i < 300 && m.players[0].items.aegis; i++) tickMatch(m, (now += 17), []);
+    for (let i = 0; i < 300 && m.players[0].items.aegis > 1; i++) tickMatch(m, (now += 17), []);
     expect(z.alive).toBe(true);
-    expect(m.players[0].items.aegis).toBe(0);
-    expect(m.players[0].held['item:aegis']).toBeUndefined();
+    expect(m.players[0].items.aegis).toBe(1);
+    expect(m.players[0].held['item:aegis']).toEqual([0]);
+  });
+
+  // 26/10 (#227): rooms saved before the 3 levels and with the Scourge as a spell
+  it('rooms saved with the Scourge spell or more than 3 levels move to the 3-level items', () => {
+    const m = newMatch();
+    addPlayer(m, 'a', 'A');
+    addPlayer(m, 'b', 'B');
+    startMatch(m, 0, 0);
+    const p = m.players[0];
+    delete (p.items as Partial<Record<ItemId, number>>).scourge;
+    p.spells.scourge = 5;
+    p.items.ring = 5;
+    p.items.vampire = 6;
+    resume(m, 0);
+    expect(p.spells.scourge).toBe(0);
+    expect(p.items.scourge).toBe(3);
+    expect(p.items.ring).toBe(3);
+    expect(p.items.vampire).toBe(3);
+    expect(m.players[1].items.scourge).toBe(1);
+  });
+
+  it('every item has 3 levels', () => {
+    for (const id of ITEM_IDS) expect(ITEMS[id].levels).toHaveLength(3);
   });
 
   it('rooms saved before the new items get them at level 0', () => {
