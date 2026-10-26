@@ -2045,7 +2045,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // hp: minha vida e o máximo, só jogando e vivo (null esconde a barra grande); dead: ids caídos na rodada, separados por vírgula
     // fx: pares [bit, segundos que faltam] dos meus efeitos com prazo (snap.fx)
     // xp: Ascensão, nível e XP ao vivo (liveLevel); null fora do modo
-    frame(cd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '', fx: number[] = [], xp: { level: number; total: number; next: number; frac: number } | null = null) {
+    frame(cd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '', fx: number[] = [], xp: { level: number; total: number; next: number; frac: number } | null = null, sniperCharge: number | null = null) {
       if (dead !== shownDead) {
         shownDead = dead;
         const down = new Set(dead.split(','));
@@ -2097,6 +2097,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       }
       // recarga de cada botão (itens ativos e magias): número, varredura circular (--cd: fração que falta) e a marca da escolhida
       const tick = (a: string, { b, cd: c }: { b: HTMLElement; cd: HTMLElement }, left = 0) => {
+        // Inelegant Solution aim: the button fills like the bubble's bar and sparks once charged (the key then fires)
+        const charge = a === 'sniper' ? sniperCharge : null;
+        b.classList.toggle('charged', charge !== null && charge >= .99);
+        b.classList.toggle('charging', charge !== null && charge < .99);
+        if (charge !== null) {
+          c.textContent = '';
+          b.style.setProperty('--cd', Math.max(0, 1 - charge).toFixed(3));
+          return;
+        }
         c.textContent = left > 0.05 ? left.toFixed(left < 1 ? 1 : 0) : '';
         if (left > (cdLeft.get(a) ?? 0) + 0.05) cdTotal.set(a, left);
         cdLeft.set(a, left);

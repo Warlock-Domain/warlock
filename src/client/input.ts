@@ -16,6 +16,7 @@ export type InputHandlers = {
   canChannel?: () => boolean;
   channel?: (spell: SpellId) => boolean;
   pickAttack?: (x: number, y: number) => string | undefined;
+  fireSniper?: () => boolean;
   attackArmedChanged?: (on: boolean) => void;
   meleeArc?: () => boolean; // golpe em arco escolhido na loja (issue #402): a tecla golpeia na hora rumo ao cursor, sem escolher alvo
   cast: (spell: SpellId, at: Vec) => boolean | void; // true when the spell actually casts (owned and off cooldown)
@@ -169,7 +170,8 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
         return;
       }
       if (channelArmed && action === armed) { e.preventDefault(); return; }
-      // Heal and Inelegant Solution always require a click on the target body.
+      // Heal and Inelegant Solution always require a click on the target body; a charged sniper aim fires on the key instead.
+      if (action === 'sniper' && h.fireSniper?.()) { e.preventDefault(); return; }
       if (action === 'heal' || action === 'sniper') { e.preventDefault(); cancel(); return arm(action); }
       if (armed === 'heal' || armed === 'sniper') arm(null);
       if (attackArmed) arm(null);
@@ -241,6 +243,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     hovered: () => h.pickAttack?.(cursor.x, cursor.y),
     // The toolbar selects a spell; the next ground click or tap casts it.
     button(a: SpellId) {
+      if (enabled && a === 'sniper' && h.fireSniper?.()) return; // charged aim: the bar button fires at the marked enemy
       if (enabled && a !== 'channel' && h.canChannel?.() && (attackArmed || armed === 'channel')) {
         cancel(); if (h.channel?.(a)) { arm(a); channelArmed = true; } return;
       }

@@ -420,6 +420,13 @@ function startRoom(code: string, name: string) {
 
   let sniperRequestSeq = 0;
   let channelRequest: { spell: SpellId; since: number; seq: number } | null = null;
+  // Charged Inelegant Solution: the key, bar button or controller fires at the tracked enemy (0.01 s left = charged, snapshot.ts)
+  function fireSniper() {
+    const self = myWizard(interp.latest());
+    if (!self?.sniperAt || (self.sniperLeft ?? 0) > .01) return false;
+    command({ t: 'cast', spell: 'sniper', x: self.sniperAt.x, y: self.sniperAt.y });
+    return true;
+  }
   const input = createInput(canvas, {
     canChannel: () => (room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0,
     channel(spell) {
@@ -449,6 +456,7 @@ function startRoom(code: string, name: string) {
     brace: (on) => command({ t: 'brace', on }),
     checkCooldown,
     pickAttack: (x, y) => scene.pickMage(x, y),
+    fireSniper,
     attackArmedChanged: (on) => { canvas.style.cursor = on ? 'crosshair' : ''; },
     meleeArc: () => !!room?.players.find((p) => p.id === me)?.arc,
     basic(at, clicked) {
@@ -471,6 +479,7 @@ function startRoom(code: string, name: string) {
       scourgeUntil = 0; // o S cancela o Flagelo em preparo
     },
     cast(spell, at) {
+      if (spell === 'sniper' && fireSniper()) return true;
       if ((myWizard(interp.latest())?.sniperLeft ?? 0)>0) return false;
       if (spell === 'channel') return false;
       if (channelRequest?.spell === spell && ((myWizard(interp.latest())?.channelElapsed ?? 0) < 1)) { toast(t('Canalize por pelo menos 1 segundo.', 'Channel for at least 1 second.')); return false; }
@@ -1099,7 +1108,7 @@ function startRoom(code: string, name: string) {
     view.boss(bossP && bossW ? { name: playerName(bossP), now: bossW.hp, max: maxHp(bossP) } : null);
     // no tamanho mínimo a arena para de encolher e o aviso some; depois do colapso ela volta a encolher até sumir
     view.frame(lastSnap?.cd ?? [], armed, s && (s.arenaR > ARENA_MIN + 0.01 || s.time >= SUDDEN.collapse) ? shrinkIn : null, respawnIn, myWizard(latest)?.status ?? 0, rttSeen ? predict.rtt() * 1000 : null, meW?.alive && meP ? { now: meW.hp, max: meMax } : null,
-      wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx, xp); // caídos na rodada: retrato apagado no topo
+      wizards.filter((w) => !w.alive).map((w) => w.id).join(), lastSnap?.fx, xp, meW?.alive && meW.sniperLeft ? 1 - meW.sniperLeft / CAST_POINT.sniper : null); // caídos na rodada: retrato apagado no topo
   }
   const drawn = new Map<string, Vec>();
   const replayDrawn = new Map<string, Vec>();
