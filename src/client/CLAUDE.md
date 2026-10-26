@@ -4,6 +4,8 @@ Applies together with the root `CLAUDE.md`.
 
 ## Interface
 
+- `ITEM_GROUPS` classifies passive items visually as Head, Cape, Clothing, Footwear and Accessory in Shop, Library and Grimoire. It does not introduce exclusive equipment slots or change purchase rules.
+
 - Closed Body keeps its local effect aligned with the current stance, without a cursor aim line. PT/EN descriptions and the off-axis demo explain the preserved facing.
 
 - Blindness: vignette anchored to the ground by the affected player's 3 m radius, not by the camera; hides entities and labels beyond the limit. Text-only status chapter in the Grimoire; Sand Blast has its own PT/EN sheet and demo under Control.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ITEM_IDS } from '../src/shared/items.ts';
 import { SPELLS, SPELL_IDS, type Level } from '../src/shared/spells.ts';
-import { ITEM_GROUPS, RULES_SHORT, SPELL_GROUPS, SPELL_USE } from '../src/client/rules-text.ts';
+import { ITEM_GROUPS_PT, ITEM_GROUPS_EN, ITEM_GROUPS, RULES_SHORT, SPELL_GROUPS, SPELL_USE } from '../src/client/rules-text.ts';
 import { ITEM_ROWS, SPELL_ROWS } from '../src/client/tips.ts';
 import { ICON, ITEM_ICON, STATUS_ICONS } from '../src/client/icons.ts';
 import { botLevel, endResult, playerName, roomGroups, seatChanges } from '../src/client/screen-data.ts';
@@ -18,6 +18,10 @@ describe('shop: data for choosing', () => {
   });
 
   it('puts every passive item in exactly one shop section', () => {
+    expect(ITEM_GROUPS_PT.map(([name]) => name)).toEqual(['Cabeça', 'Capa', 'Vestimenta', 'Calçados', 'Acessório']);
+    expect(ITEM_GROUPS_EN.map(([name]) => name)).toEqual(['Head', 'Cape', 'Clothing', 'Footwear', 'Accessory']);
+    expect(ITEM_GROUPS_PT.map(([, , ids]) => ids)).toEqual(ITEM_GROUPS_EN.map(([, , ids]) => ids));
+    expect(ITEM_GROUPS[3][2]).toEqual(['boots', 'shock_boots', 'wind_boots', 'lava_boots']);
     const grouped = ITEM_GROUPS.flatMap(([, , ids]) => ids);
     expect([...grouped].sort()).toEqual([...ITEM_IDS].sort()); // no active items (#236): every item is passive
   });
