@@ -142,6 +142,7 @@ export type Player = {
   held: Record<string, number[]>; // rodada em que cada nível comprado (magia/item) entrou, para o valor de venda
   ready: boolean;
   connected: boolean;
+  reading?: true; // Campaign tutorial: this participant has unread messages.
   team: number | null; // modo Times: 0 = Azul, 1 = Vermelho
   setup?: BotSetup; // treino: magias, itens e jeito de jogar escolhidos para este bot
   difficulty?: MatchOpts['difficulty']; // bot: a dificuldade dele, escolhida na sala (sem ela, a da partida)
@@ -217,6 +218,17 @@ const player = (m: Match, id: string | null) => m.players.find((p) => p.id === i
 // quem joga (tem mago a cada rodada): só esses ocupam as vagas de mago, entram nos times e seguram a loja
 export const playing = (m: Match) => m.players.filter((p) => !p.watch);
 
+// The simulation waits for every connected participant, never for spectators or ghosts.
+export const campaignReaders = (m: Match): Player[] => m.night && m.phase === 'playing'
+  ? m.players.filter((p) => p.reading && p.connected && !p.bot && !p.watch) : [];
+export function setReading(m: Match, id: string, on: boolean): boolean {
+  const p = player(m, id);
+  if (!p || p.bot || p.watch || !p.connected || !m.night || m.phase !== 'playing' || !!p.reading === on) return false;
+  if (on) p.reading = true;
+  else delete p.reading;
+  return true;
+}
+
 // o bot i+1 da partida recebe BOT_NAMES[i] (a sala mostra a lista nesta ordem)
 export const BOT_NAMES = ['Rasputinho', 'Gandalfo', 'Mendigo Ocultista', "Gul'Dan", 'Soldado do Lula', 'Robô do Bolsonaro', 'Merlim'];
 
@@ -260,6 +272,7 @@ export function setWatch(m: Match, id: string, on: boolean, rand: () => number =
   if (on && m.players.length - playing(m).length >= MAX_WATCHERS) return false; // espectadores no limite
   if (on) {
     p.watch = true;
+    delete p.reading;
     p.team = null; // nos Times fixos, ao voltar entra no time menor
     // sandbox e Campanha não têm fim de rodada para o mago sumir: sai na hora (na Campanha, senão ficava parado contando como Aceso vivo)
     if ((m.sandbox || m.night) && m.world) m.world.wizards = m.world.wizards.filter((z) => z.id !== id);
@@ -301,7 +314,7 @@ export function removePlayer(m: Match, id: string) {
     ascOwner(m);
   } else {
     const p = player(m, id);
-    if (p) p.connected = false;
+    if (p) { p.connected = false; delete p.reading; }
   }
 }
 
@@ -349,6 +362,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
 // zera a partida e abre a loja da rodada 1 (começar, ou reiniciar por votação com os mesmos jogadores)
 function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: () => number) {
   for (const p of m.players) {
+    delete p.reading;
     Object.assign(p, { score: 0, gold: startGold(m), goldCarry: 0, spells: noSpells(), items: noItems() });
     p.economy = newEconomy(p.gold);
     p.held = {};
@@ -502,6 +516,7 @@ export function setReady(m: Match, id: string): boolean {
 // a sala reiniciou (o mundo da rodada só vive na memória): repete a rodada a partir da loja
 export function resume(m: Match, now: number, rand: () => number = Math.random) {
   // salas gravadas antes da escolha de personagem e do deathmatch existirem
+  for (const p of m.players) delete p.reading;
   m.emptyRounds ??= 0;
   m.mode ??= 'rounds';
   m.banned ??= []; // salas gravadas antes da votação
@@ -1232,6 +1247,7 @@ function topKiller(m: Match): string | null {
 }
 
 export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number = Math.random): SimEvent[] {
+  if (campaignReaders(m).length) { settleVote(m, now, rand); return []; }
   const events = stepMatch(m, now, cmds, rand);
   settleVote(m, now, rand); // prazo, quem caiu e o fim da partida também fecham a votação
   return events;

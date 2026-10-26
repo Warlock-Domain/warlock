@@ -172,7 +172,7 @@ async function main() {
   if (/^[A-Z]{4}$/.test(id)) startRoom(id, name);
   else startLobby(name);
   // Esc sem nada para cancelar ou fechar abre as configurações (pedido do Fernando, 18/10); por último, depois dos ouvintes da sala
-  onFreeEsc(() => !document.querySelector('.overlay') && openSettings());
+  onFreeEsc(() => !Array.from(document.querySelectorAll('.overlay')).some((p) => p.getClientRects().length > 0) && openSettings());
 }
 
 function startLobby(name: string) {
@@ -248,11 +248,24 @@ function startRoom(code: string, name: string) {
   // Campanha: lava é o chão ^ do mapa da noite
   const mapLava = (p: Vec) => !!room?.night && nightMap(room.night.seed, room.night.stage).ground[Math.floor(p.y)]?.[Math.floor(p.x)] === 'lava';
   // fala da Ilse (Campanha): quais já saíram nesta noite (pela semente) e até quando a atual fica na tela
-  let ilseNight = '', ilseQ = newIlseQueue();
+  let ilseNight = '', ilseQ = newIlseQueue(), readingSent: boolean | null = null;
+  const reading = () => !!room?.night && room.phase === 'playing' && !room.players.find((p) => p.id === me)?.watch && ilseQ.lines.length > 0;
+  const campaignPaused = () => reading() || !!room?.reading?.length;
+  const syncReading = () => {
+    const on = reading();
+    if (readingSent === on) return;
+    readingSent = on;
+    net.send({ t: 'reading', on });
+    input.setEnabled(!campaignPaused() && room?.phase === 'playing');
+  };
   let lvNight = '', lvShown = 1; // Campaign: last level announced on this night
   let seenNight = '', seen: number[] = []; // Campaign: rooms the group has seen on this night (fog and minimap)
   // a fala da frente fica até o botão; o botão passa para a próxima da fila
-  const ilseShow = (): void => view.ilse(ilseQ.lines[0] ?? null, () => (ilseNext(ilseQ), ilseShow()));
+  const ilseShow = (): void => {
+    view.ilse(reading() ? ilseQ.lines[0] : room?.reading?.length ? t('Aguardando os outros jogadores terminarem de ler…', 'Waiting for the other players to finish reading…') : null,
+      reading() ? () => { ilseNext(ilseQ); ilseShow(); } : undefined);
+    syncReading();
+  };
   const ilseSay = (key: string, lines: string[]) => ilsePush(ilseQ, key, lines) && ilseShow();
   const ilseCtx = (): IlseCtx => ({ touch: TOUCH, fireKey: labelOf('fireball'), scourgeKey: labelOf('scourge'), stopKey: uiLabel('stop') });
   let me = playerId;
@@ -541,6 +554,7 @@ function startRoom(code: string, name: string) {
   // a aparência escolhida fica salva e é reenviada ao entrar em qualquer sala; trocada nas Configurações, vale na hora
   const net = connect('/ws/room/' + code, parseServerMessage, onMsg, () => {
     rejoined = true;
+    readingSent = null;
     net.send({ t: 'hello', playerId, name: myName, ...(watchJoin && { watch: true as const }) });
     net.send({ t: 'look', look: savedLook() });
   }, (on) => {
@@ -811,6 +825,7 @@ function startRoom(code: string, name: string) {
       me = m.you;
       arenaId = room.arena ?? arenaId; // na loja não há rodada: fica a última arena
       view.update(room, me, online);
+      input.setEnabled(!campaignPaused() && room.phase === 'playing');
       begin(room);
       // alguém saiu no meio da partida e um bot assumiu o mago, ou a pessoa voltou (issue #223)
       if (prev) {
@@ -910,7 +925,7 @@ function startRoom(code: string, name: string) {
     const menu = (p: string) => p === 'lobby' || p === 'end';
     if (prev && menu(prev.phase) !== menu(room.phase)) curtain();
     // na contagem o servidor ainda não aceita comandos: liberar só quando a rodada começa
-    input.setEnabled(room.phase === 'playing');
+    input.setEnabled(!campaignPaused() && room.phase === 'playing');
     sound.setAmbience(room.phase !== 'lobby' && room.phase !== 'end');
     sound.duck(room.phase === 'shop');
     // Ascensão: o tempo acabou sem a escolha da pessoa e o jogo sorteou (#224)
@@ -971,7 +986,7 @@ function startRoom(code: string, name: string) {
   function frame() {
     requestAnimationFrame(frame);
     const nowMs = performance.now();
-    const dt = Math.min(0.05, (nowMs - lastFrame) / 1000); // aba que volta do segundo plano não dá salto na previsão nem nas animações
+    const dt = campaignPaused() ? 0 : Math.min(0.05, (nowMs - lastFrame) / 1000); // aba que volta do segundo plano não dá salto na previsão nem nas animações
     lastFrame = nowMs;
     const s = interp.sample(nowMs / 1000);
     const latest = interp.latest();
@@ -1028,6 +1043,7 @@ function startRoom(code: string, name: string) {
     const followingFocus=!ownFocus?.alive && watched && !watchCenter ? watched.id : null;
     const focusCaster=ownFocus?.alive?ownFocus:interp.latest()?.wizards.find(w=>w.id===followingFocus);
     scene.render({
+      paused: campaignPaused(),
       sniperFocus: sniperFocusState(me,focusCaster,room?.phase==='playing',!!rs,nowMs/1000-(sniperShotTimes.get(focusCaster?.id ?? '') ?? -Infinity),followingFocus),
       blindAt: !rs && meW?.alive && (myWizard(interp.latest())?.blindLeft ?? 0) > 0 ? myPos : null,
       arena: arenaId,
@@ -1089,8 +1105,9 @@ function startRoom(code: string, name: string) {
     }
     // fora da noite (fim, sala) a fala sai da frente; a fila fica para a mesma noite
     if (!playing) view.ilse(null);
-    else if (ilseQ.lines.length) ilseShow();
-    if (nm && playing && room!.night!.stage === 0 && ilseOn()) {
+    else ilseShow();
+    syncReading();
+    if (nm && room?.phase === 'playing' && !meP?.watch && room.night!.stage === 0 && ilseOn()) {
       const here = myPos && nm.rooms.find((p) => myPos.x > p.x && myPos.y > p.y && myPos.x < p.x + p.room.w && myPos.y < p.y + p.room.h);
       const line = here && ILSE_ROOMS[here.room.id];
       if (here && line) ilseSay(here.room.id, line(ilseCtx()));
@@ -1137,7 +1154,7 @@ function startRoom(code: string, name: string) {
       const state = { ...renderWizardState(w, server) };
       if (live && w.id === me && (lastSnap?.ack ?? 0) < attackCancelSeq) state.basicLeft = 0;
       const status = sandboxVisibility(state.status, w.id === me, !!room?.sandbox, seeInvis);
-      const pos = w.id === me && server ? predict.frame(server, dt) : w.pos;
+      const pos = w.id === me && server ? campaignPaused() ? server.pos : predict.frame(server, dt) : w.pos;
       const prevDraw = prev.get(w.id);
       // Só um comando real pode ligar a corrida; empurrão e reconciliação não são caminhada.
       const moving = !!(state.status & WALKING_BIT) && state.alive && (!!(state.status & HOLDING_MOVE_BIT) || !prevDraw || dist(prevDraw, pos) > 0.004);

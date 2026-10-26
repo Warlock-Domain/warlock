@@ -7,7 +7,7 @@ import { fightOf, nightMap } from './levels.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type RuneKind } from './constants.ts';
 import { ITEM_IDS, type ItemId } from './items.ts';
-import { MODES, OPTION_CHOICES, TURRET_DIR, goalOf, parseOpt, votesNeeded, type BotSetup, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
+import { MODES, OPTION_CHOICES, TURRET_DIR, campaignReaders, goalOf, parseOpt, votesNeeded, type BotSetup, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { MAX_SPELLS, spellMax, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
@@ -15,6 +15,7 @@ import { v, type Vec } from './vec.ts';
 
 export type ClientMsg =
   | { t: 'hello'; playerId: string; name: string; watch?: true } // watch: entra assistindo (botão Assistir da lista de salas)
+  | { t: 'reading'; on: boolean }
   | { t: 'watch'; on: boolean } // assistir (sem mago a partir da próxima rodada) ou voltar a jogar
   // shuffle: Times sorteados a cada rodada (padrão) ou fixos; opts: opções da partida; setup[i]: dificuldade do bot i+1 e a configuração dele no treino
   | { t: 'start'; bots: number; mode?: Mode; shuffle?: boolean; opts?: Partial<MatchOpts>; setup?: BotSetup[]; sandbox?: true }
@@ -66,6 +67,7 @@ export type PublicRoom = {
   phase: Phase;
   mode: Mode;
   round: number;
+  reading?: string[]; // Public ids of Campaign participants still reading tutorial messages.
   phaseLeft: number; // ms até a fase mudar sozinha
   players: PublicPlayer[];
   ids: string[]; // ordem dos magos no estado compacto ('snap')
@@ -204,6 +206,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       if (typeof m.playerId !== 'string' || !/^[\w-]{8,64}$/.test(m.playerId)) return null;
       if (m.watch !== undefined && typeof m.watch !== 'boolean') return null;
       return { t: 'hello', playerId: m.playerId, name: cleanName(m.name), ...(m.watch === true && { watch: true as const }) };
+    case 'reading':
+      return typeof m.on === 'boolean' && Object.keys(m).every((k) => k === 't' || k === 'on') ? { t: 'reading', on: m.on } : null;
     case 'watch':
       return typeof m.on === 'boolean' ? { t: 'watch', on: m.on } : null;
     case 'start': {
@@ -340,6 +344,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     effect: (m.phase === 'shop' ? shopEffect(m) : m.world?.effect) ?? null,
     ...(m.sandbox && { sandbox: m.sandbox }),
     ...(m.night && { night: publicNight(m.night) }),
+    ...(campaignReaders(m).length && { reading: campaignReaders(m).map((p) => pub(p.id)) }),
     ...(m.lobby && { lobby: { ...m.lobby, owner: m.lobby.owner && pub(m.lobby.owner) } }),
   };
 }

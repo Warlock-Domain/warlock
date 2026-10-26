@@ -1,4 +1,5 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
+import { messageSpace } from './message-space.ts';
 import { ASC_ROUNDS } from '../shared/ascension.ts';
 import { ASC_MODE_TEXT, ascLevel, ascPanel, cardButton } from './ascension-ui.ts';
 import { drawMinimap, type MiniColors, type MiniDot } from './minimap.ts';
@@ -1038,12 +1039,22 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), specBtn, voteWrap, camBtn, volBtn, gearBtn, helpBtn, el('div', { class: 'vol more-wrap' }, moreBtn, morePanel), el('div', { class: 'vol' }, sbBtn, sbPanel)),
   );
   const center = el('div', { class: 'center' });
-  // fala da Ilse (tutorial da Campanha): nome, a linha e o botão; só o botão tira a fala (o jogador lê no ritmo dele) e
-  // quem chama decide a próxima; não pausa nada
+  // Campaign messages stay until acknowledged; the server resumes after every participant finishes.
   const ilseText = el('span', { class: 'ilse-text' });
   let ilseDone: (() => void) | null = null;
-  const ilseBox = el('div', { class: 'ilse', role: 'status', hidden: true }, el('b', { class: 'ilse-name' }, 'Ilse'), ilseText,
-    el('button', { type: 'button', class: 'ilse-skip', onclick: () => ilseDone?.() }, t('Entendi', 'Got it')));
+  const ilseName = el('b', { class: 'ilse-name' }, 'Ilse');
+  const ilseSkip = el('button', { type: 'button', class: 'ilse-skip', onclick: () => ilseDone?.() }, t('Entendi · Espaço', 'Got it · Space'));
+  const ilseBox = el('div', { class: 'ilse', role: 'status', hidden: true }, ilseName, ilseText, ilseSkip);
+  const spaceMessage = messageSpace();
+  const messageKey = (e: KeyboardEvent) => {
+    const target = e.target instanceof Element ? e.target : null;
+    const blocked = Array.from(document.querySelectorAll('[role="dialog"]')).some((d) => d.getClientRects().length > 0) || !!target?.closest('input, textarea, select, [contenteditable="true"]');
+    const key = spaceMessage(e, ilseBox.isConnected && !ilseBox.hidden && !!ilseDone, blocked);
+    if (key.consume) { e.preventDefault(); e.stopImmediatePropagation(); }
+    if (key.advance) ilseDone?.();
+  };
+  addEventListener('keydown', messageKey, { capture: true });
+  addEventListener('keyup', messageKey, { capture: true });
   // barra do chefe da Campanha, no topo enquanto ele está em pé
   const bossName = el('span', { class: 'boss-name' });
   const bossFill = el('i', {});
@@ -2010,9 +2021,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       setOnline(on);
       if (changed) drawCenter();
     },
-    // fala da Ilse: mostra a linha até o botão (null esconde); done é chamado no clique
+    // A missing callback shows the party's waiting notice without an advance button.
     ilse(text: string | null, done?: () => void) {
       ilseDone = done ?? null;
+      ilseSkip.hidden = !done;
+      ilseName.textContent = done ? 'Ilse' : t('Campanha pausada', 'Campaign paused');
       if (!text) return void (ilseBox.hidden = true);
       if (ilseText.textContent !== text || ilseBox.hidden) ilseText.textContent = text;
       ilseBox.hidden = false;

@@ -4,6 +4,8 @@ Applies together with the root `CLAUDE.md`.
 
 ## Simulation
 
+- Campaign reading is a transient authoritative pause until every connected human participant finishes. Disconnect, spectating, restart and resume clear reader state; other modes do not pause.
+
 - **Obstacles take every attack** (Fernando, 25/10): a new blast calls `blastPillars` (falloff by closeness, a wall hit once); a projectile that hits or bounces off an obstacle calls `damagePillar` in `hitPillar`; burning in the lava uses `damagePillar(..., quiet)`. The Campaign rock is unbreakable through `obstaclesOf`, not through a mode check in `sim.ts`.
 
 - Closed Body preserves the current stance facing when cast; the cursor does not turn the wizard. Other spells retain their normal aiming behavior. No stat or resistance changes.
