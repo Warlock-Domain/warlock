@@ -75,6 +75,8 @@ describe('Inelegant Solution',()=>{
     const w=setup(),a=w.wizards[0],b=w.wizards[1];stepWorld(w,[aim],()=>.5);run(w,1);stepWorld(w,[aim],()=>.5);
     expect(b.hp).toBe(1000);expect(a.casting?.spell).toBe('sniper');
     run(w,CAST_POINT.sniper);expect(botCmds(w,'p0',()=>.5)).toEqual([{id:'p0',kind:'cast',spell:'sniper',at:b.pos}]);
+    w.projectiles.push({id:99,born:0,kind:'fireball',owner:'p1',pos:{x:2,y:0},vel:{x:-8,y:0},level:1,until:w.t+3,target:null,dmgMult:1,caster:'p1'});
+    expect(botCmds(w,'p0',()=>.5)).toEqual([{id:'p0',kind:'cast',spell:'sniper',at:b.pos}]); // a shot on the way does not waste the charge
   });
   it('tracks the moving target until firing rather than the clicked position',()=>{
     const w=setup(),b=w.wizards[1];stepWorld(w,[aim],()=>.5);run(w,2);b.pos={x:10,y:8};

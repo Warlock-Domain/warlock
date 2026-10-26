@@ -231,9 +231,10 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // projétil que acabou de surgir ainda não deu tempo de ver; longe demais, o bot não enxerga
   const seen = (p: Projectile) => w.t - (p.born ?? -Infinity) >= D.delay && dist(p.pos, me.pos) <= vision;
   const th = threatTo(w, me, seen);
-  // Keep aiming while nothing is coming and press the key once charged; with a shot on the way the usual dodge runs and its move
-  // cancels the aim, as for a player.
-  if (me.casting?.spell === 'sniper' && !th) return w.t + 1e-8 >= me.casting.fireAt ? [{ id, kind: 'cast', spell: 'sniper', at: me.casting.at }] : [];
+  // A charged aim fires at once (the key costs no movement; the dodge comes on the next think). Before that, keep aiming while
+  // nothing is coming; with a shot on the way the usual dodge runs and its move cancels the aim, as for a player.
+  if (me.casting?.spell === 'sniper' && w.t + 1e-8 >= me.casting.fireAt) return [{ id, kind: 'cast', spell: 'sniper', at: me.casting.at }];
+  if (me.casting?.spell === 'sniper' && !th) return [];
   // Hold ground (Fernando's decision, 24/10, in the CLAUDE.md register): with no escape spell ready the bot holds S like a player.
   // The 0.5 s windup must finish before the hit, so it looks up to 0.9 s ahead (windup + one Normal think, 0.4 s); the old 0.6 s
   // trigger almost never finished the windup (6 bots: 28 uses, 0 active ticks). Once holding it renews without a new roll while the
