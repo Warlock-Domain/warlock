@@ -32,7 +32,7 @@ import { connect } from './net.ts';
 import { parseLobbyMessage, parseServerMessage } from './net-message.ts';
 import { createPredict } from './predict.ts';
 import { createScene, type WizDraw } from './scene.ts';
-import { createSound, type SoundKind } from './sound.ts';
+import { SPELL_SOUND, createSound, type SoundKind } from './sound.ts';
 import { distanceVolume } from './sound-distance.ts';
 import { closedBodySound } from './closed-body-sound.ts';
 import { store } from './store.ts';
@@ -70,19 +70,6 @@ const MUSIC_DEFAULT = LOCAL && new URLSearchParams(location.search).get('musica'
 const TEST_LINK = LOCAL || /^pr-\d+-warlock\./.test(location.hostname);
 const IR = (TEST_LINK && new URLSearchParams(location.search).get('ir')?.split(',')) || [];
 const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
-
-// som de cada magia: as novas reaproveitam os sons que já existem
-const SPELL_SOUND: Record<SpellId, SoundKind> = {
-  closedbody: 'closedbody',
-  geyser: 'splash',
-  heal: 'heal',
-  fireball: 'fireball', lightning: 'lightning', homing: 'homing', shield: 'shield', teleport: 'teleport',
-  swap: 'teleport', grip: 'lightning', meteor: 'fireball', rush: 'shield', cluster: 'sand',
-  boomerang: 'homing', thrust: 'teleport', gravity: 'homing', rockpillar: 'shield', bouncer: 'lightning',
-  drain: 'homing', snowball: 'fireball', illusion: 'teleport', magnetize: 'lightning', recharge: 'homing',
-  alteration: 'teleport', link: 'lightning', windwalk: 'shield', splitter: 'fireball', warpzone: 'shield',
-  scourge: 'homing', pact: 'shield', // os sons que tinham como item ativo
-};
 
 // mensagens de erro do servidor (em português, protocolo inalterado) -> inglês
 const SERVER_EN: Record<string, string> = {

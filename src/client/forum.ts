@@ -1,8 +1,9 @@
 import { FORUM_NAME_MAX, FORUM_ORG, type ForumMe, type ForumUser } from '../shared/forum.ts';
 import { t } from './i18n.ts';
+import { soundLab } from './forum-sounds.ts';
 import { el } from './icons.ts';
 
-// Forum shell (step 2 of issue #366): sign-in and the page frame; topics and the spell sound-effect votes arrive in later steps.
+// Forum shell (issue #366): sign-in, the page frame and, signed in, the spell sound-effect lab (forum-sounds.ts); topics arrive later.
 const root = document.getElementById('forum')!;
 
 // ?erro= comes back from the GitHub callback (src/worker/forum-api.ts)
@@ -76,17 +77,6 @@ function signedOut(me: ForumMe) {
     me.login === 'off' && el('p', { class: 'fm-note' }, t('O login ainda não está configurado neste servidor.', 'Sign-in is not set up on this server yet.')));
 }
 
-function signedIn(user: ForumUser) {
-  return el('section', { class: 'fm-card fm-hero' },
-    el('h1', {}, t(`Olá, ${user.name}`, `Hi, ${user.name}`)),
-    el('p', { class: 'fm-lead' }, t('Você está no fórum. Em breve, aqui:', 'You are in the forum. Coming soon, here:')),
-    el('ul', { class: 'fm-soon' },
-      el('li', {}, el('strong', {}, t('Efeitos sonoros das magias', 'Spell sound effects')), ' — ',
-        t('teste cada magia numa mini arena, troque o efeito sonoro e vote no melhor.', 'try each spell in a mini arena, swap its sound effect and vote for the best one.')),
-      el('li', {}, el('strong', {}, t('Tópicos e discussões', 'Topics and discussions')), ' — ',
-        t('ideias, testes de PR e posts, de gente e de IA.', 'ideas, PR tests and posts, from people and from AI.'))));
-}
-
 async function load() {
   let me: ForumMe;
   try {
@@ -96,7 +86,7 @@ async function load() {
       el('p', { class: 'fm-error', role: 'alert' }, t('Não foi possível carregar o fórum. Recarregue a página.', 'Could not load the forum. Reload the page.'))));
     return;
   }
-  root.replaceChildren(header(me.user), el('main', { class: 'fm-main' }, me.user ? signedIn(me.user) : signedOut(me)));
+  root.replaceChildren(header(me.user), el('main', { class: 'fm-main' }, me.user ? soundLab() : signedOut(me)));
 }
 
 void load();

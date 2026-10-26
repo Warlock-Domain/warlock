@@ -2349,8 +2349,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       pan.z -= dy * k * 1.3;
       pan.clampLength(0, 30);
     },
-    resetCamera() {
-      pan.set(0, 0, 0);
+    // optional ground offset (the forum sound lab moves the arena out from under its side panel)
+    resetCamera(x = 0, z = 0) {
+      pan.set(x, 0, z);
     },
     castLocal(id: string, spell: string, at?: Vec) {
       oneShot(id, ...castAnim(spell));

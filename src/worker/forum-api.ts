@@ -13,9 +13,9 @@ declare global {
     FORUM_ORIGIN?: string;
   }
 }
-type ForumEnv = Pick<Env, 'GITHUB_CLIENT_ID' | 'GITHUB_CLIENT_SECRET' | 'FORUM_SESSION_KEY' | 'FORUM_TESTER' | 'FORUM_ORIGIN'>;
+export type ForumEnv = Pick<Env, 'GITHUB_CLIENT_ID' | 'GITHUB_CLIENT_SECRET' | 'FORUM_SESSION_KEY' | 'FORUM_TESTER' | 'FORUM_ORIGIN'>;
 
-const NO_STORE = { 'cache-control': 'no-store' };
+export const NO_STORE = { 'cache-control': 'no-store' };
 const TESTER_BODY_MAX_BYTES = 1024;
 
 function loginMode(env: ForumEnv): ForumLogin {
@@ -40,9 +40,10 @@ const isGithubUser = (u: unknown): u is GithubUser =>
   && ((u as GithubUser).name === null || typeof (u as GithubUser).name === 'string')
   && typeof (u as GithubUser).avatar_url === 'string';
 
-async function readLimitedText(req: Request, maxBytes: number): Promise<string | null> {
+// null: the body is larger than maxBytes (checked on the declared length and again while reading)
+export async function readLimited(req: Request, maxBytes: number): Promise<Uint8Array | null> {
   const body = req.body;
-  if (!body) return '';
+  if (!body) return new Uint8Array();
   const length = Number(req.headers.get('content-length'));
   if (Number.isFinite(length) && length > maxBytes) {
     await body.cancel().catch(() => {});
@@ -69,7 +70,20 @@ async function readLimitedText(req: Request, maxBytes: number): Promise<string |
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return new TextDecoder().decode(bytes);
+  return bytes;
+}
+
+export async function readLimitedText(req: Request, maxBytes: number): Promise<string | null> {
+  const bytes = await readLimited(req, maxBytes);
+  return bytes && new TextDecoder().decode(bytes);
+}
+
+// The signed-in member behind a forum data request (the sound lab, src/worker/forum-sounds-api.ts), or the refusal to send back.
+// Same Origin rule as forumApi: data routes live in their own module so the Vitest graph of this file stays free of R2 types
+export async function forumMember(req: Request, env: ForumEnv, url: URL): Promise<ForumUser | Response> {
+  if (req.method === 'POST' && req.headers.get('origin') !== url.origin) return new Response('bad origin', { status: 403, headers: NO_STORE });
+  const user = loginMode(env) === 'off' ? null : await verifySession(readCookie(req.headers.get('cookie'), SESSION_COOKIE), env.FORUM_SESSION_KEY ?? '');
+  return user ?? new Response('sign in first', { status: 401, headers: NO_STORE });
 }
 
 export async function forumApi(req: Request, env: ForumEnv, url: URL): Promise<Response> {

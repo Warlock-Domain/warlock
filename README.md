@@ -51,6 +51,7 @@ Large plans live in [docs/plans/](docs/plans/README.md) (no wiki). These are lon
 | [Warlock online — design](docs/plans/2026-10-17-warlock-design.md) and [build plan](docs/plans/2026-10-17-warlock.md) | done; historical | Fernando |
 | [Ascension mode](docs/plans/2026-10-19-ascensao-design.md) | live; numbers change in balance PRs | Fernando |
 | [Campaign mode — "Last Candle"](docs/plans/2026-10-19-campanha-design.md) | in progress (classes on standby) | Lucas |
+| [Forum sound lab](docs/plans/2026-10-25-forum-sound-lab-design.md) | in progress (issue #366) | Fernando |
 | [Campaign — slice 1](docs/plans/2026-10-19-campanha-fatia1.md) | in progress; partly replaced | Lucas |
 
 ## Credits

@@ -48,6 +48,8 @@ jobs:
             // with a fresh session key per deploy (pushing signs testers out). The key goes as a secret: plain vars are
             // printed in the public deploy log
             c.vars = { ...c.vars, FORUM_TESTER: "1" };
+            // sound lab: every PR shares one bucket of its own, so testers never write to the live sounds
+            c.r2_buckets = c.r2_buckets.map((b) => ({ ...b, bucket_name: "warlock-sons-pr" }));
             fs.writeFileSync("forum.secrets.json", JSON.stringify({ FORUM_SESSION_KEY: require("crypto").randomBytes(32).toString("hex") }));
             fs.writeFileSync("wrangler.pr.json", JSON.stringify(c, null, 2));
           '
