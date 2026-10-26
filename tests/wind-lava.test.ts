@@ -15,45 +15,54 @@ const duo = (items: Partial<Record<keyof typeof ITEMS, number>>) => {
   return w;
 };
 
-describe('Botas de vento', () => {
-  it('5 s sem dano: anda mais rápido; um golpe acaba; depois de mais 5 s volta', () => {
+describe('Wind Boots', () => {
+  it('5 s without damage: moves faster; a hit ends it; after another 5 s it comes back', () => {
     const w = duo({ wind_boots: 1 });
     const a = w.wizards[0];
     run(w, 4.9);
     expect(a.speed).toBeCloseTo(WIZ_SPEED);
     run(w, 0.2);
-    expect(a.speed).toBeCloseTo(WIZ_SPEED + WIND_BOOTS.speed);
+    expect(a.speed).toBeCloseTo(WIZ_SPEED + WIND_BOOTS.speed[0]);
     stepWorld(w, [{ id: 'b', kind: 'cast', spell: 'fireball', at: v(0, 0) }]);
     run(w, 1);
     expect(a.hp).toBeLessThan(a.hpMax);
     expect(a.speed).toBeCloseTo(WIZ_SPEED);
     run(w, 5);
-    expect(a.speed).toBeCloseTo(WIZ_SPEED + WIND_BOOTS.speed);
+    expect(a.speed).toBeCloseTo(WIZ_SPEED + WIND_BOOTS.speed[0]);
   });
 
-  it('não soma com as Botas: vale a maior', () => {
+  it('does not stack with the Boots: the larger one counts', () => {
     const w = duo({ wind_boots: 1, boots: 1 });
     run(w, 5.1);
-    expect(w.wizards[0].speed).toBeCloseTo(WIZ_SPEED + Math.max(18 * UNIT, WIND_BOOTS.speed));
-    const fast = duo({ wind_boots: 1, boots: 3 }); // 40 de velocidade > 25: as de vento não somam nada
+    expect(w.wizards[0].speed).toBeCloseTo(WIZ_SPEED + Math.max(18 * UNIT, WIND_BOOTS.speed[0]));
+    const fast = duo({ wind_boots: 1, boots: 3 }); // 40 speed > 25: the wind ones add nothing
     run(fast, 5.1);
     expect(fast.wizards[0].speed).toBeCloseTo(WIZ_SPEED + 40 * UNIT);
   });
 
-  it('quem causa dano também perde a calmaria', () => {
+  // 26/10 (#227): level 3 waits 4 s and runs +33
+  it('level 3: kicks in after 4 s, faster', () => {
+    const w = duo({ wind_boots: 3 });
+    run(w, 3.9);
+    expect(w.wizards[0].speed).toBeCloseTo(WIZ_SPEED);
+    run(w, 0.2);
+    expect(w.wizards[0].speed).toBeCloseTo(WIZ_SPEED + 33 * UNIT);
+  });
+
+  it('whoever deals damage also loses the calm', () => {
     const w = duo({});
     w.wizards[1].items.wind_boots = 1;
-    w.wizards[1].windBonus = WIND_BOOTS.speed;
+    w.wizards[1].windBonus = WIND_BOOTS.speed[0];
     w.wizards[0].spells.fireball = 1;
     run(w, 5.1);
-    expect(w.wizards[1].speed).toBeCloseTo(WIZ_SPEED + WIND_BOOTS.speed);
+    expect(w.wizards[1].speed).toBeCloseTo(WIZ_SPEED + WIND_BOOTS.speed[0]);
     stepWorld(w, [{ id: 'a', kind: 'cast', spell: 'fireball', at: v(4, 0) }]);
     run(w, 1);
     expect(w.wizards[1].speed).toBeCloseTo(WIZ_SPEED);
   });
 });
 
-describe('dano da lava para quem empurrou', () => {
+describe('lava damage credited to whoever pushed', () => {
   function playing(): Match {
     const m = newMatch();
     addPlayer(m, 'a', 'A');
@@ -68,7 +77,7 @@ describe('dano da lava para quem empurrou', () => {
     for (let i = 0; i < n; i++) tickMatch(m, 1e6 + i, []);
   };
 
-  it('metade da vida que a lava tira vai para o dano de quem acertou por último (janela de 5 s)', () => {
+  it('half the life the lava takes goes to the damage of whoever hit last (5 s window)', () => {
     const m = playing();
     const b = m.world!.wizards.find((z) => z.id === 'b')!;
     Object.assign(b, { lastHitBy: 'a', lastHitAt: m.world!.t, lastHitSrc: 'fireball', pos: v(m.world!.arenaR + 2, 0) });
@@ -80,13 +89,13 @@ describe('dano da lava para quem empurrou', () => {
     expect(a.stats.round.dmgBy.lava).toBeCloseTo(lost / 2, 6);
     expect(a.stats.round.dmg).toBeCloseTo(lost / 2, 6);
     expect(a.stats.match.dmg).toBeCloseTo(lost / 2, 6);
-    expect(m.dmgOn?.b?.a).toBeCloseTo(lost / 2, 6); // conta na assistência
+    expect(m.dmgOn?.b?.a).toBeCloseTo(lost / 2, 6); // counts toward the assist
     expect(m.players.find((p) => p.id === 'b')!.stats.round.dmg).toBe(0);
-    // não vira evento para o navegador
+    // does not become an event for the browser
     expect(m.world!.events.some((e) => e.k === 'hit')).toBe(false);
   });
 
-  it('sem golpe na janela, a lava não conta para ninguém', () => {
+  it('with no hit in the window, the lava counts for nobody', () => {
     const m = playing();
     const b = m.world!.wizards.find((z) => z.id === 'b')!;
     Object.assign(b, { lastHitBy: 'a', lastHitAt: m.world!.t - 6, pos: v(m.world!.arenaR + 2, 0) });
@@ -95,7 +104,7 @@ describe('dano da lava para quem empurrou', () => {
     expect(m.players.find((p) => p.id === 'a')!.stats.round.dmgBy.lava).toBeUndefined();
   });
 
-  it('a lava não solta o preso nem cura pelo Roubo de vida', () => {
+  it('the lava neither frees the gripped nor heals through Lifesteal', () => {
     const m = playing();
     const [a, b] = ['a', 'b'].map((id) => m.world!.wizards.find((z) => z.id === id)!);
     Object.assign(a, { lifesteal: 0.5, hp: 500 });
@@ -103,6 +112,6 @@ describe('dano da lava para quem empurrou', () => {
     const hpA = a.hp;
     steps(m, 30);
     expect(b.gripUntil).toBeGreaterThan(m.world!.t);
-    expect(a.hp).toBeLessThan(hpA + 30 * 10 * DT); // só a regeneração normal
+    expect(a.hp).toBeLessThan(hpA + 30 * 10 * DT); // only normal regeneration
   });
 });

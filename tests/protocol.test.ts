@@ -59,17 +59,19 @@ describe('protocol', () => {
   });
 
   it('start: training bot setup', () => {
-    // Fireball sold and Scourge free (it counts): 5 more fill the 6 slots (#401)
+    // Fireball sold: 5 more and a free slot (#401; the Scourge is an item since 26/10, #227); items up to level 3
     const spells = { fireball: 0, rockpillar: 7, magnetize: 7, alteration: 7, boomerang: 7, windwalk: 7 };
-    const items = { ring: 6, cursed_ring: 6, shock_boots: 6, lava_boots: 6, warden: 6, wind_boots: 6 };
+    const items = { ring: 3, cursed_ring: 3, shock_boots: 3, lava_boots: 3, warden: 3, wind_boots: 3 };
     expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 3 } }, {}, { items: { armor: 2 }, skill: { aim: 0.8 } }] }))
       .toEqual({ t: 'start', bots: 3, setup: [{ spells: { lightning: 3 } }, {}, { items: { armor: 2 }, skill: { aim: 0.8 } }] });
-    // 7 bots with 6 spells at level 7 and 6 items at level 6, and every option: fits in the message
+    // 7 bots with 5 spells at level 7 and 6 items at level 3, and every option: fits in the message
     const full = { t: 'start', bots: 7, mode: 'deathmatch', opts: { shop: 120, economy: 2, startGold: 100, goal: 7, difficulty: 'normal', arena: 'random' }, setup: Array(7).fill({ spells, items }) };
     expect(JSON.stringify(full).length).toBeGreaterThan(1024);
     expect(p(full)).not.toBeNull();
-    // 7 spells (Fireball and Scourge come free and count), level 8, an item at level 7, an unknown skill key, 8 bots
-    expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 1 } }] })).toBeNull();
+    // 7 spells (Fireball comes free and counts), level 8, an item at level 4, an unknown skill key, 8 bots
+    expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 1, grip: 1 } }] })).toBeNull();
+    expect(p({ t: 'start', bots: 3, setup: [{ spells: { scourge: 1 } }] })).toBeNull(); // the Scourge is not a bar spell
+    expect(p({ t: 'start', bots: 3, setup: [{ items: { ring: 4 } }] })).toBeNull();
     expect(p({ t: 'start', bots: 3, setup: [{ spells: { fireball: 0, lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 1 } }] })).not.toBeNull();
     expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 1, homing: 1, shield: 1, teleport: 1, swap: 1, grip: 1, meteor: 1 } }] })).toBeNull();
     expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 8 } }] })).toBeNull();
@@ -92,7 +94,7 @@ describe('protocol', () => {
     for (const difficulty of ['insane', 1, null, '']) expect(p({ t: 'start', bots: 1, setup: [{ difficulty }] })).toBeNull();
     // 7 bots with spells, items and difficulty: still fits in the message
     const spells = { fireball: 0, rockpillar: 7, magnetize: 7, alteration: 7, boomerang: 7, windwalk: 7 };
-    const items = { ring: 6, cursed_ring: 6, shock_boots: 6, lava_boots: 6, warden: 6, wind_boots: 6 };
+    const items = { ring: 3, cursed_ring: 3, shock_boots: 3, lava_boots: 3, warden: 3, wind_boots: 3 };
     expect(p({ t: 'start', bots: 7, mode: 'deathmatch', opts: { shop: 120, economy: 2, startGold: 100, goal: 7, difficulty: 'normal', arena: 'random' }, setup: Array(7).fill({ spells, items, difficulty: 'normal' }) })).not.toBeNull();
   });
 

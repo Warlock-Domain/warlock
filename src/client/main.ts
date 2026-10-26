@@ -10,7 +10,7 @@ import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type SnapView, type WizView 
 import { ODRAN } from '../shared/bosses.ts';
 import { CANDLE, SERVOS, nightXpAt } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
-import { itemStats } from '../shared/items.ts';
+import { castLevel, itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
 import { channelPower } from '../shared/channeling.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
@@ -432,7 +432,7 @@ function startRoom(code: string, name: string) {
     channel(spell) {
       const mine = room?.players.find((p) => p.id === me);
       const self = myWizard(interp.latest());
-      if (performance.now() < scourgeUntil || !mine?.spells.channel || !mine.spells[spell] || !self?.alive || self.geyserLeft || castBlocked(!!(self.status & 16), !!(self.status & 128), spell) || (lastSnap?.cd[SPELL_IDS.indexOf(spell)] ?? 0) > .01) return false;
+      if (performance.now() < scourgeUntil || !mine?.spells.channel || !castLevel(mine, spell) || !self?.alive || self.geyserLeft || castBlocked(!!(self.status & 16), !!(self.status & 128), spell) || (lastSnap?.cd[SPELL_IDS.indexOf(spell)] ?? 0) > .01) return false;
       command({ t: 'channel', spell });
       channelRequest = { spell, since: performance.now(), seq };
       predict.stop(); sound.play('shield'); return true;
@@ -485,7 +485,7 @@ function startRoom(code: string, name: string) {
       if (channelRequest?.spell === spell && ((myWizard(interp.latest())?.channelElapsed ?? 0) < 1)) { toast(t('Canalize por pelo menos 1 segundo.', 'Channel for at least 1 second.')); return false; }
       if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       const mine = room?.players.find((p) => p.id === me);
-      if (!mine?.spells[spell]) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
+      if (!mine || !castLevel(mine, spell)) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
       if (!checkCooldown(spell)) return;
       const state = myWizard(interp.latest())?.status ?? 0;
       if (spell === 'closedbody' && !(state & BRACING_BIT)) return toast(t('Ative Manter base antes de usar Corpo fechado.', 'Activate Hold Ground before using Closed Body.'));
@@ -756,7 +756,7 @@ function startRoom(code: string, name: string) {
         if (e.id === me && room?.night?.stage === 0 && ilseOn()) ilseSay('fall', ILSE_MOMENTS.fall());
       } else if (e.k === 'aegis') {
         sound.play('shield', volumeOf(e.id));
-        banner([icon(ITEM_ICON.aegis), e.id === me ? t(' A Égide te tirou da lava e quebrou', ' The Aegis pulled you out of the lava and broke') : t(` A Égide tirou ${who.get(e.id) ?? '?'} da lava`, ` The Aegis pulled ${who.get(e.id) ?? '?'} out of the lava`)], e.id === me ? 'good' : '');
+        banner([icon(ITEM_ICON.aegis), e.id === me ? t(' A Égide te tirou da lava e gastou 1 nível', ' The Aegis pulled you out of the lava and spent 1 level') : t(` A Égide tirou ${who.get(e.id) ?? '?'} da lava`, ` The Aegis pulled ${who.get(e.id) ?? '?'} out of the lava`)], e.id === me ? 'good' : '');
       }
       else if (e.k === 'death') {
         // fora da pedra: mergulho na lava (chiado e bolhas) em vez da explosão

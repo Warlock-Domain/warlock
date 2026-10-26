@@ -248,9 +248,9 @@ describe('6-spell limit', () => {
   it('refuses a 7th different spell; undo frees the slot; upgrades keep working', () => {
     const m = shop();
     m.players[0].gold = 999;
-    // Fireball and Scourge come free: 4 more fill the 6 slots (Q W E R D F, 25/10, #401)
-    const four: SpellId[] = ['lightning', 'homing', 'shield', 'teleport'];
-    for (const s of four) expect(buy(m, 'a', s)).toBe(true);
+    // Fireball comes free: 5 more fill the 6 slots (Q W E R D F, 25/10, #401; the Scourge is an item since 26/10, #227)
+    const five: SpellId[] = ['lightning', 'homing', 'shield', 'teleport', 'swap'];
+    for (const s of five) expect(buy(m, 'a', s)).toBe(true);
     expect(MAX_SPELLS).toBe(6);
     const gold = m.players[0].gold;
     expect(buy(m, 'a', 'meteor')).toBe(false);
@@ -262,7 +262,7 @@ describe('6-spell limit', () => {
   });
 
   it('bots stop buying new spells at the limit but still upgrade', () => {
-    const spells = { ...noSpells(), lightning: 1, homing: 1, meteor: 1, cluster: 1 };
+    const spells = { ...noSpells(), lightning: 1, homing: 1, meteor: 1, cluster: 1, swap: 1 };
     const pick = botBuy({ gold: 99, spells });
     expect(pick?.kind).toBe('spell');
     expect(pick && pick.kind === 'spell' && spells[pick.id] > 0).toBe(true);
