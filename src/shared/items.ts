@@ -1,10 +1,12 @@
 // Itens da loja, convertidos do Warlock Brawl para Dota 2 (shop.lua ITEM_DEFS e npc_items_custom.txt).
-// Todos passivos: mudam os números do mago (os ativos saíram em 21/10, issue #217: Flagelo e Pacto viraram magia). Até MAX_ITEMS itens por jogador.
+// Passive items change the wizard's numbers; the Scourge is the only active one (an item again since 26/10, issue #227). Up to MAX_ITEMS items per player.
+// Every item has 3 levels and each level costs the item price (Fernando's decision, 26/10, issue #227).
 import { UNIT } from './constants.ts';
 import type { SpellId } from './spells.ts';
 
+// Scourge last: a new position does not shift saved rooms and preferences
 export const ITEM_IDS = ['ring', 'cursed_ring', 'cape', 'armor', 'boots', 'watch', 'vampire',
-  'lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis', 'wind_boots', 'lens', 'piercing', 'affliction'] as const;
+  'lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis', 'wind_boots', 'lens', 'piercing', 'affliction', 'scourge'] as const;
 export type ItemId = (typeof ITEM_IDS)[number];
 export const MAX_ITEMS = 6;
 
@@ -22,39 +24,48 @@ export const AFFLICT_SPELLS: readonly SpellId[] = ['grip', 'drain', 'snowball', 
 type Item = { name: string; cost: number; text: string; en: string; textEn: string; levels: ItemLevel[] };
 
 export const ITEMS: Record<ItemId, Item> = {
-  ring: { name: 'Anel de vida', cost: 4, text: 'Mais vida máxima.', en: 'Ring of Life', textEn: 'More max health.', levels: [{ hp: 100 }, { hp: 190 }, { hp: 270 }, { hp: 340 }, { hp: 400 }] },
-  cursed_ring: { name: 'Anel amaldiçoado', cost: 4, text: 'Vida e menos empurrão, mas lentidões duram mais.', en: 'Cursed Ring', textEn: 'Health and less knockback, but slows last longer.', levels: [{ hp: 100, kb: 0.07, debuff: 0.25 }, { hp: 200, kb: 0.07, debuff: 0.3 }] } /* 18/10 bots humanos: empurrão 10% → 7% (19% acima) */, // ciclo 1 (18/10): empurrão −15% → −10% (1,19×; o Warlock CE fez o mesmo)
+  ring: { name: 'Anel de vida', cost: 4, text: 'Mais vida máxima.', en: 'Ring of Life', textEn: 'More max health.', levels: [{ hp: 100 }, { hp: 190 }, { hp: 270 }] }, // 26/10 (#227): levels 4 and 5 (340 and 400) removed; the first 3 unchanged
+  cursed_ring: { name: 'Anel amaldiçoado', cost: 4, text: 'Vida e menos empurrão, mas lentidões duram mais.', en: 'Cursed Ring', textEn: 'Health and less knockback, but slows last longer.', levels: [{ hp: 100, kb: 0.07, debuff: 0.25 }, { hp: 200, kb: 0.07, debuff: 0.3 }, { hp: 300, kb: 0.07, debuff: 0.35 }] } /* 26/10 (#227): level 3 on the same step, to be measured (1.14 in Normal on 19/10) */ /* 18/10 bots humanos: empurrão 10% → 7% (19% acima) */, // ciclo 1 (18/10): empurrão −15% → −10% (1,19×; o Warlock CE fez o mesmo)
   cape: { name: 'Capa', cost: 3, text: 'A vida volta mais rápido.', en: 'Cape', textEn: 'Health comes back faster.', levels: [{ regen: 2.2 }, { regen: 3.5 }, { regen: 4.8 }] }, // 1,5/2,5/3,5 no original; +60% em 17/10; −12% em 19/10 (1,14 a 1,16 no Normal em 3 medições)
   armor: { name: 'Armadura', cost: 6, text: 'Menos empurrão.', en: 'Armor', textEn: 'Less knockback.', levels: [{ kb: 0.12 }, { kb: 0.18 }, { kb: 0.22 }] },
   boots: { name: 'Botas', cost: 5, text: 'Anda mais rápido.', en: 'Boots', textEn: 'Move faster.', levels: [{ speed: 18 * UNIT }, { speed: 29 * UNIT }, { speed: 40 * UNIT }] },
-  watch: { name: 'Relógio de bolso', cost: 2, text: 'Lentidões e penalidades duram menos.', en: 'Pocket Watch', textEn: 'Slows and penalties wear off sooner.', levels: [{ debuff: -0.35 }, { debuff: -0.45 }] },
+  watch: { name: 'Relógio de bolso', cost: 2, text: 'Lentidões e penalidades duram menos.', en: 'Pocket Watch', textEn: 'Slows and penalties wear off sooner.', levels: [{ debuff: -0.35 }, { debuff: -0.45 }, { debuff: -0.5 }] }, // 26/10 (#227): level 3 with a smaller step (cheap item), Fernando's choice
   // era a maestria Roubo de vida do original (shop.lua MASTERY_GAIN: +9/8/7/6/5/4% por nível, 5 de ouro cada); virou item em 17/10
-  vampire: { name: 'Roubo de vida', cost: 5, text: 'Recupera parte do dano que você causa.', en: 'Lifesteal', textEn: 'Heals you for part of the damage you deal.', levels: [0.09, 0.17, 0.24, 0.3, 0.35, 0.39].map((lifesteal) => ({ lifesteal })) },
+  vampire: { name: 'Roubo de vida', cost: 5, text: 'Recupera parte do dano que você causa.', en: 'Lifesteal', textEn: 'Heals you for part of the damage you deal.', levels: [0.09, 0.17, 0.24].map((lifesteal) => ({ lifesteal })) }, // 26/10 (#227): levels 4 to 6 (30, 35 and 39%) removed
   // itens novos de 18/10, do catálogo docs/itens-candidatos.md (Warlock CE); números conservadores até a simulação dizer
-  lava_boots: { name: 'Botas de lava', cost: 4, text: 'A lava machuca menos.', en: 'Lava Boots', textEn: 'Lava hurts less.', levels: [{ lava: 0.18 }, { lava: 0.3 }] }, // ciclo 2: nv 2 0,6 → 0,5; 18/10 bots humanos: 0,35/0,5 → 0,25/0,4 → 0,18/0,3 (26% e 22% acima do justo)
+  lava_boots: { name: 'Botas de lava', cost: 4, text: 'A lava machuca menos.', en: 'Lava Boots', textEn: 'Lava hurts less.', levels: [{ lava: 0.18 }, { lava: 0.3 }, { lava: 0.4 }] }, // 26/10 (#227): level 3 below the 0.5 that already won 22% above fair // ciclo 2: nv 2 0,6 → 0,5; 18/10 bots humanos: 0,35/0,5 → 0,25/0,4 → 0,18/0,3 (26% e 22% acima do justo)
   // Guardião do CE: −0,1 por nível; aqui os golpes são maiores (−0,4 por nível na escala antiga de vida 100, −4 na de 1000), mas nunca corta mais que metade do golpe
   warden: { name: 'Guardião', cost: 4, text: 'Cada golpe tira um pouco menos de vida (até metade dele), mas você voa um pouco mais.', en: 'Warden', textEn: 'Each hit takes a little less health (up to half of it), but you fly a little farther.', levels: [1, 2, 3].map((n) => ({ ward: 4 * n, kb: -0.01 * n })) },
-  helmet: { name: 'Elmo', cost: 5, text: 'Menos empurrão, mas suas magias alcançam menos.', en: 'Helmet', textEn: 'Less knockback, but your spells reach less far.', levels: [{ kb: 0.15, range: -0.1 }] },
-  shock_boots: { name: 'Botas de choque', cost: 5, text: 'Ao levar um golpe, anda mais rápido por 3 s (não soma com as Botas: vale a maior).', en: 'Shock Boots', textEn: 'When hit, move faster for 3 s (does not stack with Boots: the higher one counts).', levels: [{}] },
+  helmet: { name: 'Elmo', cost: 5, text: 'Menos empurrão, mas suas magias alcançam menos.', en: 'Helmet', textEn: 'Less knockback, but your spells reach less far.', levels: [0.15, 0.2, 0.24].map((kb) => ({ kb, range: -0.1 })) }, // 26/10 (#227): protection grows, the range penalty stays
+  shock_boots: { name: 'Botas de choque', cost: 5, text: 'Ao levar um golpe, anda mais rápido por alguns segundos (não soma com as Botas: vale a maior).', en: 'Shock Boots', textEn: 'When hit, move faster for a few seconds (does not stack with Boots: the higher one counts).', levels: [{}, {}, {}] },
   // Wind boots do catálogo (docs/itens-candidatos.md); pedido do Fernando, 18/10: item que serve a qualquer jeito de jogar
-  wind_boots: { name: 'Botas de vento', cost: 7, text: 'Depois de 5 s sem causar nem levar dano, anda mais rápido até o próximo golpe (não soma com outras botas: vale a maior).', en: 'Wind Boots', textEn: 'After 5 s without dealing or taking damage, move faster until the next hit (does not stack with other boots: the higher one counts).', levels: [{}] },
+  wind_boots: { name: 'Botas de vento', cost: 7, text: 'Depois de alguns segundos sem causar nem levar dano, anda mais rápido até o próximo golpe (não soma com outras botas: vale a maior).', en: 'Wind Boots', textEn: 'After a few seconds without dealing or taking damage, move faster until the next hit (does not stack with other boots: the higher one counts).', levels: [{}, {}, {}] },
   // itens de crítico (issue #184, ideia do Reinaldo): valem para qualquer magia de dano; a Magia Perfurante só soma ao crítico da Lente
   lens: { name: 'Lente Letal', cost: 6, text: `Chance de golpe crítico em todo dano de magia, também em cada tique da Gravidade e do Elo: o crítico causa ${CRIT.dmg * 100}% a mais de dano.`, en: 'Lethal Lens', textEn: `Chance of a critical hit on all spell damage, including each tick of Gravity and Link: a critical hit deals ${CRIT.dmg * 100}% more damage.`, levels: [0.05, 0.1, 0.15].map((crit) => ({ crit })) },
   piercing: { name: 'Magia Perfurante', cost: 4, text: 'Seus golpes críticos causam ainda mais dano (sem a Lente Letal, não há crítico).', en: 'Piercing Magic', textEn: 'Your critical hits deal even more damage (without the Lethal Lens there are no critical hits).', levels: [0.3, 0.4, 0.5].map((critDmg) => ({ critDmg })) },
-  affliction: { name: 'Runa da aflição', cost: 3, text: 'Todas as lentidões, prisões e penalidades que você aplica duram mais em quem você acerta.', en: 'Rune of Affliction', textEn: 'All slows, roots and penalties you apply last longer on whoever you hit.', levels: [0.05, 0.1].map((afflict) => ({ afflict })) },
-  // consumível desde o ciclo 4: preço, vida e distância não a tiravam de 1,20× (a vida extra é o poder); some ao salvar
-  aegis: { name: 'Égide', cost: 7, text: 'Na lava com pouca vida, volta para a pedra. Quebra ao salvar você (compre de novo).', en: 'Aegis', textEn: 'In the lava with low health, sends you back to the rock. Breaks when it saves you (buy it again).', levels: [{}] },
+  affliction: { name: 'Runa da aflição', cost: 3, text: 'Todas as lentidões, prisões e penalidades que você aplica duram mais em quem você acerta.', en: 'Rune of Affliction', textEn: 'All slows, roots and penalties you apply last longer on whoever you hit.', levels: [0.05, 0.1, 0.2].map((afflict) => ({ afflict })) }, // 26/10 (#227): level 3 with a bigger step, Fernando's choice
+  // consumable since cycle 4: price, health and distance did not move it off 1.20× (the extra life is the power). Since 26/10 (#227) each level is a charge:
+  // a save spends 1 level, so every 7 gold still buys one save
+  aegis: { name: 'Égide', cost: 7, text: 'Na lava com pouca vida, volta para a pedra. Cada nível salva você uma vez: ao salvar, perde 1 nível.', en: 'Aegis', textEn: 'In the lava with low health, sends you back to the rock. Each level saves you once: saving you costs 1 level.', levels: [{}, {}, {}] },
+  // active item since 26/10 (#227, Fernando's decision): every wizard starts with level 1 for free (startItems) and it takes an item slot.
+  // Inside it still fires through the spell path (SPELLS.scourge, cooldown and protocol); the level lives only here and sim.ts copies it
+  scourge: { name: 'Flagelo', cost: 7, text: 'Explode em volta depois de um instante e empurra quem estiver perto.', en: 'Scourge', textEn: 'Blasts around you after a moment and knocks back anyone close.', levels: [{}, {}, {}] },
 };
 
 // Botas de choque: Shock boots do CE (+25 por 3 s); aqui +30 unidades (+14% do passo), contra "quem apanha não consegue fugir"
-export const SHOCK_BOOTS = { speed: 30 * UNIT, secs: 3 };
+export const SHOCK_BOOTS = { speed: 30 * UNIT, secs: [3, 4, 5] }; // 26/10 (#227): the level raises the duration (3/4/5 s), not the speed
 // Botas de vento: Wind boots do CE (+25 com 5 s sem combate); some ao causar ou levar dano (golpe, lava ou chão de fogo)
-export const WIND_BOOTS = { speed: 25 * UNIT, calm: 5 };
+// 26/10 (#227): the level raises both (Fernando's choice): wait 5/4.5/4 s and +25/+29/+33 speed
+export const WIND_BOOTS = { speed: [25, 29, 33].map((n) => n * UNIT), calm: [5, 4.5, 4] };
 // Égide: na lava com até 250 de vida volta para 60% do raio da arena, na mesma direção, parado; uma vez por rodada (por vida no deathmatch)
 export const AEGIS = { hp: 250, back: 0.6 };
 
 
 export const noItems = (): Record<ItemId, number> => Object.fromEntries(ITEM_IDS.map((i) => [i, 0])) as Record<ItemId, number>;
+// every player's match start: the Scourge at level 1 for free (Campaign servants and the training turret use noItems)
+export const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
+// level a player casts with: the Scourge's lives in the items (26/10, #227), every other spell's in the spells
+export const castLevel = (p: { spells: Record<SpellId, number>; items: Record<ItemId, number> }, s: SpellId) => (s === 'scourge' ? p.items.scourge : p.spells[s]);
 
 // preço do próximo nível (no original cada nível custa o preço do item de novo); null = no máximo ou sem espaço
 export function itemPrice(items: Record<ItemId, number>, id: ItemId): number | null {

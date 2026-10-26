@@ -65,7 +65,7 @@ function itemPage(id: ItemId, group: string): Page {
     chapter: CH.items, title: itemName(id), demo: SCRIPTS[id] ? id : undefined, ref: id,
     body: () => [
       el('div', { class: 'g-head' }, el('span', { class: 'g-medal item' }, icon(ITEM_ICON[id])),
-        el('div', {}, el('h2', {}, itemName(id)), el('small', {}, `${group} · ${t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}`))),
+        el('div', {}, el('h2', {}, itemName(id)), el('small', {}, `${group} · ${id === 'scourge' ? t('ativo', 'active') : t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}`))),
       el('p', { class: 'g-lead' }, itemText(id)),
       ITEM_DEMO[id] ? el('p', { class: 'muted' }, ITEM_DEMO[id]) : null,
       null,

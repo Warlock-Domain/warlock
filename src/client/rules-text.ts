@@ -434,7 +434,7 @@ type ItemGroups = [name: string, hint: string, items: ItemId[]][];
 const IG: Record<string, ItemId[]> = {
   head: ['helmet'], cape: ['cape'], clothing: ['armor'],
   footwear: ['boots', 'shock_boots', 'wind_boots', 'lava_boots'],
-  accessory: ['ring', 'cursed_ring', 'watch', 'vampire', 'warden', 'aegis', 'lens', 'piercing', 'affliction'],
+  accessory: ['scourge', 'ring', 'cursed_ring', 'watch', 'vampire', 'warden', 'aegis', 'lens', 'piercing', 'affliction'],
 };
 export const ITEM_GROUPS_PT: ItemGroups = [['Cabeça', 'proteção para a cabeça', IG.head], ['Capa', 'capas e mantos', IG.cape], ['Vestimenta', 'roupas e armaduras', IG.clothing], ['Calçados', 'botas e outros calçados', IG.footwear], ['Acessório', 'anéis, amuletos e outros acessórios', IG.accessory]];
 export const ITEM_GROUPS_EN: ItemGroups = [['Head', 'head protection', IG.head], ['Cape', 'capes and cloaks', IG.cape], ['Clothing', 'clothes and armor', IG.clothing], ['Footwear', 'boots and other footwear', IG.footwear], ['Accessory', 'rings, charms and other accessories', IG.accessory]];
