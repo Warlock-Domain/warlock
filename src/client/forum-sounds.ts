@@ -158,7 +158,8 @@ export function soundLab() {
       stage.replaceChildren(el('p', { class: 'fm-arena-hint' }, t('Carregando a arena…', 'Loading the arena…')));
       void import('./sound-lab.ts').then((m) => {
         stage.replaceChildren();
-        lab = m.openLab(stage, { spell: () => spell, play: (moment) => listen(moment, playing(moment)) });
+        lab = m.openLab(stage, { spell: () => spell, play: (moment) => listen(moment, playing(moment)),
+          inset: () => innerWidth - side.getBoundingClientRect().left });
       }, () => stage.replaceChildren(el('p', { class: 'fm-error' }, t('Não deu para carregar a arena. Recarregue a página.', 'Could not load the arena. Reload the page.'))));
     }
     render();
