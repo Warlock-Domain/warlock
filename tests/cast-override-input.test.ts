@@ -4,9 +4,9 @@ import { setCastMode, setKey, setSlotMode } from '../src/client/keys.ts';
 import type { InputHandlers } from '../src/client/input.ts';
 afterEach(() => {
   vi.unstubAllGlobals();
-  for (const key of ['key:KeyQ', 'spell:heal', 'spell:fireball']) setCastPreference(key);
+  for (const key of ['key:KeyQ', 'key:KeyH', 'spell:heal', 'spell:fireball']) setCastPreference(key);
 });
-it('honors key and targeted-spell overrides instead of forcing point-and-click', async () => {
+it('honors key overrides but keeps Heal on click-to-confirm', async () => {
   type Fn = (e: Record<string, unknown>) => void;
   const win = new Map<string, Fn[]>(), canvas = new Map<string, Fn[]>();
   const listen = (map: Map<string, Fn[]>) => (name: string, fn: Fn) => map.set(name, [...(map.get(name) ?? []), fn]);
@@ -21,13 +21,9 @@ it('honors key and targeted-spell overrides instead of forcing point-and-click',
   setCastPreference('key:KeyQ', 'quick');
   send('keydown', 'KeyQ');
   expect(cast).toHaveBeenCalledWith('fireball', { x: 3, y: 0 });
-  setCastPreference('spell:heal', 'release');
-  cast.mockClear(); send('keydown', 'KeyH');
-  expect(cast).not.toHaveBeenCalled();
-  send('keyup', 'KeyH');
-  expect(cast).toHaveBeenCalledWith('heal', { x: 3, y: 0 });
   setCastPreference('spell:heal', 'quick');
-  cast.mockClear(); send('keydown', 'KeyH');
-  expect(cast).toHaveBeenCalledWith('heal', { x: 3, y: 0 });
+  setCastPreference('key:KeyH', 'quick');
+  cast.mockClear(); send('keydown', 'KeyH'); send('keyup', 'KeyH');
+  expect(cast).not.toHaveBeenCalled();
   input.setEnabled(false);
 });

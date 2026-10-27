@@ -11,17 +11,15 @@ it('uses individual active-item preferences for the Scourge keyboard action', as
   expect(getCastMode('scourge', 'Digit1')).toBe('click');
   setCastPreference('key:Digit1');
 });
-it('shares targeted click defaults between the HUD editor and keyboard resolver', async () => {
+it('keeps Heal and Inelegant Solution on click whatever the preferences', async () => {
   const { resolveCastMode, setCastPreference } = await import('../src/client/cast-preferences.ts');
+  setCastPreference('key:KeyQ', 'release');
   for (const ability of ['spell:heal', 'spell:sniper']) {
-    expect(resolveCastMode('quick', ability, 'KeyQ')).toBe('click');
-    setCastPreference('key:KeyQ', 'release');
-    expect(resolveCastMode('quick', ability, 'KeyQ')).toBe('release');
     setCastPreference(ability, 'quick');
-    expect(resolveCastMode('click', ability, 'KeyQ')).toBe('quick');
+    expect(resolveCastMode('quick', ability, 'KeyQ')).toBe('click');
     setCastPreference(ability);
-    setCastPreference('key:KeyQ');
   }
+  setCastPreference('key:KeyQ');
 });
 it('resolves individual spell/item, shortcut and global modes in priority order', async () => {
   const { castPreference, setCastPreference, resolveCastMode } = await import('../src/client/cast-preferences.ts');

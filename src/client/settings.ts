@@ -2,13 +2,13 @@
 // Esc (when nothing else is open, handled in main.ts), the toolbar gear or controller Start opens the sections and table of contents.
 // Opening settings does not pause the match.
 // Add sections in SECTIONS.
-import { castPreference, resolveCastMode, setCastPreference } from './cast-preferences.ts';
+import { castPreference, clickOnly, resolveCastMode, setCastPreference } from './cast-preferences.ts';
 import { ITEM_IDS, MAX_ITEMS } from '../shared/items.ts';
 import { isRumbleOn, setPadCapture, setRumble } from './gamepad.ts';
 import { MECHANIC_ICON, UI_ICON, actionIcon, actionName, choice, el, icon } from './icons.ts';
 import {
   ACTIONS, CAST_MODES, PAD_ACTIONS, PAD_ACTION_NAMES, PAD_NAMES, PAD_START, POS_ACTIONS, RESERVED, UI_ACTIONS, UI_NAMES, getCastMode, isPos, isSlotMode, keyLabel, keyOf, padButtonName,
-  onKeysChange, padActionAt, padButtonOf, resetKeys, resetPad, setKey, setPadButton, setSlotMode, slotSpell, whoUses, type Action, type AnyAction, type CastMode, type PadAction, type UiAction,
+  onKeysChange, padActionAt, padButtonOf, resetKeys, resetPad, setCastMode, setKey, setPadButton, setSlotMode, slotSpell, whoUses, type Action, type AnyAction, type CastMode, type PadAction, type UiAction,
 } from './keys.ts';
 import { avatarPanel } from './avatar.ts';
 import { RULES } from './rules-text.ts';
@@ -123,6 +123,8 @@ function castOverride(key: string, name: string): HTMLElement {
       el('option', { value, selected: (castPreference(key) ?? '') === value }, label))));
 }
 export function castModeControl(key: string, name: string, code?: string, ability?: string): HTMLElement {
+  if (clickOnly(key)) return el('div', { class: 'casting-mode-control' }, el('b', {}, name),
+    el('small', { class: 'muted' }, t('Sempre com clique no alvo, em qualquer modo.', 'Always confirmed by clicking the target, in any mode.')));
   const current = castPreference(key);
   const effective = resolveCastMode(getCastMode(), key.startsWith('key:') ? ability : key, key.startsWith('key:') ? key.slice(4) : code);
   return el('div', { class: 'casting-mode-control' }, el('b', {}, name),
@@ -154,10 +156,13 @@ function castSection(): Node[] {
   const host = el('div', { class: 'casting-hud-host' });
   ctx.castingHud ? ctx.castingHud.mount(host) : emptyCastingHud(host);
   return [
-    ...(host ? [el('p', { class: 'muted' }, t('Clique num espaço da HUD abaixo para configurar seu lançamento. Esta prévia não lança magias nem altera sua barra na partida. Atacar e Manter base continuam ações fixas.', 'Click a slot on the HUD below to configure casting. This preview does not cast spells or change your in-match bar. Attack and Hold ground remain fixed actions.')), host] : []),
+    el('h3', {}, t('Lançar pela tecla', 'Casting with the key')),
+    choice(t('Jeito de lançar', 'Casting mode'), CAST_MODES.map((k) => [k, CAST_TEXT[k][0]] as [CastMode, string]), getCastMode(), (k) => (setCastMode(k), draw())),
+    el('p', { class: 'muted' }, CAST_TEXT[getCastMode()][1]),
+    el('p', { class: 'muted' }, t('Clique num espaço da HUD abaixo para configurar seu lançamento. Esta prévia não lança magias nem altera sua barra na partida. Atacar e Manter base continuam ações fixas.', 'Click a slot on the HUD below to configure casting. This preview does not cast spells or change your in-match bar. Attack and Hold ground remain fixed actions.')), host,
     el('p', { class: 'muted' }, t('Configure os atalhos na HUD acima. As seções expansíveis abaixo definem exceções por magia ou item, que têm prioridade sobre o atalho. Usar padrão remove a exceção e preserva suas preferências salvas.', 'Configure shortcuts on the HUD above. The expandable sections below set spell or item exceptions, which take priority over shortcuts. Use default removes an exception and preserves your saved preferences.')),
     el('details', { class: 'spell-keys' }, el('summary', {}, t('Uso por magia individual', 'Casting by individual spell')),
-      el('div', { class: 'keys-list' }, ...ACTIONS.filter((spell) => spell !== 'scourge').map((spell) => castOverride('spell:' + spell, spellName(spell))))),
+      el('div', { class: 'keys-list' }, ...ACTIONS.filter((spell) => spell !== 'scourge' && !clickOnly('spell:' + spell)).map((spell) => castOverride('spell:' + spell, spellName(spell))))),
     el('details', { class: 'spell-keys' }, el('summary', {}, t('Uso por item individual', 'Casting by individual item')),
       el('p', { class: 'muted' }, t('Escolha o modo dos itens ativos. Itens passivos continuam passivos, independentemente desta preferência.', 'Choose the cast mode for active items. Passive items remain passive regardless of this preference.')),
       el('div', { class: 'keys-list' }, ...ITEM_IDS.map((item) => castOverride('item:' + item, itemName(item))))),
