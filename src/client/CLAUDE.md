@@ -4,6 +4,8 @@ Applies together with the root `CLAUDE.md`.
 
 ## Interface
 
+- `RoomLoadingGate` owns room startup readiness (scene, joined room, required snapshot). Its settings-independent cat overlay hides HUD/labels/scene and disables gameplay input until ready; when ready the overlay is detached, not hidden, because Esc, the controller and the taunt wheel treat any `.overlay` in the DOM as open.
+
 - Closed Body keeps its local effect aligned with the current stance, without a cursor aim line. PT/EN descriptions and the off-axis demo explain the preserved facing.
 
 - Blindness: vignette anchored to the ground by the affected player's 3 m radius, not by the camera; hides entities and labels beyond the limit. Text-only status chapter in the Grimoire; Sand Blast has its own PT/EN sheet and demo under Control.
