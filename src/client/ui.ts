@@ -938,10 +938,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   };
   let sbLevel: Level = 'normal';
   // bot com a dificuldade escolhida e as magias marcadas abaixo (sem nenhuma, compra sozinho)
-  const addBot = (dummy: boolean) => {
+  const addBot = (dummy: boolean, ally = false) => {
     const spells = savedBotSetup()[0]?.spells;
-    act.sandbox({ op: 'bot', bot: { difficulty: sbLevel, ...(spells && { spells }) }, ...(dummy && { dummy: true }) });
+    act.sandbox({ op: 'bot', bot: { difficulty: sbLevel, ...(spells && { spells }) }, ...(dummy && { dummy: true }), ...(ally && { ally: true }) });
   };
+  const sbAlly = el('button', { type: 'button', onclick: () => addBot(false, true), title: t('Bot do seu time, com a dificuldade e as magias selecionadas', 'A bot on your team, using the selected difficulty and spells') }, t('+ Bot aliado', '+ Allied bot'));
   const sbBots = el('ul', { class: 'sandbox-bots' });
   const sbTurretDirection = el('select', { 'aria-label': t('Direção da torreta', 'Turret direction') },
     ...([['east', t('Direita', 'Right')], ['west', t('Esquerda', 'Left')], ['north', t('Cima', 'Up')], ['south', t('Baixo', 'Down')]] as const)
@@ -961,7 +962,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('div', { class: 'sandbox-row' },
       el('select', { 'aria-label': t('Dificuldade do bot', 'Bot difficulty'), onchange: (e: Event) => (sbLevel = (e.target as HTMLSelectElement).value as Level) },
         ...(['easy', 'casual', 'normal', 'veteran', 'hard'] as const).map((k) => el('option', { value: k, selected: k === sbLevel }, SKILL_NAME[k]))),
-      el('button', { type: 'button', onclick: () => addBot(false) }, t('+ Bot', '+ Bot'))),
+      el('button', { type: 'button', onclick: () => addBot(false) }, t('+ Bot', '+ Bot')), sbAlly),
     el('button', { type: 'button', title: t('Bot que não anda nem atira: bom para testar dano e empurrão', 'A bot that neither moves nor shoots: good for testing damage and knockback'), onclick: () => addBot(true) }, t('+ Boneco parado', '+ Training dummy')),
     el('div', { class: 'sandbox-row' }, sbTurretDirection,
       el('button', { type: 'button', title: t('Dispara bolas de fogo numa direção fixa. Não recebe dano nem empurrão.', 'Fires fireballs in a fixed direction. Takes no damage or knockback.'), onclick: () => act.sandbox({ op: 'turret', direction: sbTurretDirection.value as TurretDir }) }, t('+ Torreta', '+ Turret'))),
@@ -978,7 +979,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('button', { type: 'button', onclick: () => act.sandbox({ op: 'restart' }) }, t('Reiniciar a rodada', 'Restart the round')));
   let sbSig = '';
   let sbOpened = false;
-  function drawSandbox(r: PublicRoom) {
+  function drawSandbox(r: PublicRoom, me: string) {
     sbBtn.hidden = !r.sandbox || !PEEK_PHASES.includes(r.phase);
     if (!r.sandbox || sbBtn.hidden) {
       if (!sbPanel.hidden) toggle(sbPanel, sbBtn, false);
@@ -993,11 +994,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     for (const [k, box] of sbChecks) box.checked = r.sandbox[k];
     if (r.arena && document.activeElement !== sbArena) sbArena.value = r.arena;
     // lista dos bots com o ✕ (tirar): só redesenha quando muda
+    const mine = r.players.find((p) => p.id === me);
+    sbAlly.disabled = !mine || !!mine.watch || !mine.connected || r.players.filter((p) => !p.watch).length >= MAX_PLAYERS;
     const bots = r.players.filter((p) => p.bot);
-    const sig = bots.map((p) => `${p.id}:${p.name}:${p.difficulty}:${p.dummy}:${p.turret}`).join();
+    const sig = `${mine?.team}:` + bots.map((p) => `${p.id}:${p.name}:${p.difficulty}:${p.dummy}:${p.turret}:${p.team}`).join();
     if (sig === sbSig) return;
     sbSig = sig;
-    sbBots.replaceChildren(...bots.map((p) => el('li', {}, el('span', {}, p.turret ? t('Torreta · direção fixa', 'Turret · fixed direction') : `${p.name} · ${p.dummy ? t('boneco', 'dummy') : SKILL_NAME[p.difficulty ?? 'normal']}`),
+    sbBots.replaceChildren(...bots.map((p) => el('li', {}, el('span', {}, p.turret ? t('Torreta · direção fixa', 'Turret · fixed direction') : `${p.name} · ${p.dummy ? t('boneco', 'dummy') : SKILL_NAME[p.difficulty ?? 'normal']} · ${mine?.team != null && p.team === mine.team ? t('aliado', 'ally') : t('inimigo', 'enemy')}`),
       iconButton('✕', t(`Tirar ${p.name}`, `Remove ${p.name}`), () => act.kick(p.id)))));
   }
   const helpBtn = iconButton(icon(UI_ICON.help), t('Como jogar', 'How to play'), showRules, { class: 'icon wide-only' });
@@ -1981,7 +1984,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       peekBtn.hidden = !PEEK_PHASES.includes(r.phase) || r.mode === 'ascension' || !!r.night; // Ascensão e Campanha: sem loja
       if (!peekPanel.hidden && !PEEK_PHASES.includes(r.phase)) togglePeek(false);
       else drawPeek();
-      drawSandbox(r);
+      drawSandbox(r, me);
       roundEl.textContent = [
         // sala de espera e fim da partida: a rodada já não diz nada
         r.sandbox && r.phase !== 'lobby' && r.phase !== 'end' ? t('Sandbox · vida e ouro sem fim', 'Sandbox · endless health and gold')
