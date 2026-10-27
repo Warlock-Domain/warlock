@@ -2055,7 +2055,8 @@ function attackBody(w: World, by: Wizard, target: string | number, visible = tru
   const z = byId(w, target);
   return z && z !== by && !allies(by, z) && (!visible || (!isSuspended(z) && w.t >= Math.max(z.veilUntil, z.windUntil))) ? z : undefined;
 }
-// Attack is not a spell: numbers come from BASIC_ATTACK, nothing inherited from Fireball
+// Attack is not a spell: numbers come from BASIC_ATTACK, nothing inherited from Fireball. The projectile has zero
+// knockback on purpose (PR #426, owner's decision); only the melee hit uses BASIC_ATTACK.knock
 const BASIC_STATS: Level = { heal: 0, cd: BASIC_ATTACK.cd, dmg: BASIC_ATTACK.dmg, knock: 0, speed: BASIC_ATTACK.speed, range: BASIC_ATTACK.range, duration: 0, radius: 0, dmgMin: 0, absorb: 0, pull: 0, scale: 0, dot: 0, blind: 0, incapacitate: 0, width: 0 };
 const edgeOf = (z: Wizard | Projectile) => ('alive' in z ? bodyR(z) : WIZ_R); // an Illusion copy has a wizard's body
 function beginBasic(w: World, wz: Wizard, c: Extract<Cmd, { kind: 'basic' }>) {
