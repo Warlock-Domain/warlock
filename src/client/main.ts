@@ -101,6 +101,7 @@ const SERVER_EN: Record<string, string> = {
   'Sala aberta em outra aba.': 'Room open in another tab.',
   'Sala cheia.': 'Room full.',
   'Você foi removido da sala por votação.': 'You were removed from the room by vote.',
+  'Não deu para começar a partida.': 'Couldn’t start the match.',
 };
 
 // treino escolhido na tela inicial ('bots', 'shadow', 'sandbox' ou o id do desafio): atravessa o recarregar da página ao entrar na sala nova
@@ -172,7 +173,7 @@ async function main() {
   const id = location.hash.slice(1).toUpperCase();
   if (/^[A-Z]{4}$/.test(id)) startRoom(id, name);
   else startLobby(name);
-  // Esc sem nada para cancelar ou fechar abre as configurações (pedido do Fernando, 18/10); por último, depois dos ouvintes da sala
+  // Esc with nothing to cancel or close opens Settings (Fernando's request, 18/10); last, after the room listeners
   onFreeEsc(() => ![...document.querySelectorAll<HTMLElement>('.overlay')].some((node) => !node.hidden) && openSettings());
 }
 
@@ -550,6 +551,8 @@ function startRoom(code: string, name: string) {
   // a aparência escolhida fica salva e é reenviada ao entrar em qualquer sala; trocada nas Configurações, vale na hora
   const net = connect('/ws/room/' + code, parseServerMessage, onMsg, () => {
     rejoined = true;
+    loadingGate.cancelStart(); // a start sent while the socket was down never reached the server
+    syncLoading();
     net.send({ t: 'hello', playerId, name: myName, ...(watchJoin && { watch: true as const }) });
     net.send({ t: 'look', look: savedLook() });
   }, (on) => {
