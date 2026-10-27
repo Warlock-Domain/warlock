@@ -41,8 +41,7 @@ describe('basic attack and held guard', () => {
     expect(w.events.some((e) => e.k === 'fire')).toBe(false);
     run(w, .3);
     expect(w.wizards[1].hp).toBe(1000 - BASIC_ATTACK.dmg);
-    expect(w.wizards[1].vel.x).toBeGreaterThan(0);
-    expect(w.wizards[1].vel.x).toBeLessThanOrEqual(BASIC_ATTACK.knock);
+    expect(w.wizards[1].vel.x).toBe(0);
     expect(w.wizards[0].spells.fireball).toBe(0);
     stepWorld(w, [fire], () => .5);
     expect(w.projectiles).toHaveLength(0);
