@@ -421,6 +421,7 @@ export class Room extends DurableObject<Env> {
     const lv = () => (m.night ? `${Object.values(m.night.xp ?? {}).join()}|${Object.values(m.night.owed ?? {}).join()}|${Object.keys(m.night.offer ?? {}).join()}` : '');
     const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}:${asc()}:${m.night?.fight ?? ''}:${m.night?.wave ?? ''}:${lv()}`;
     const before = sig();
+    const readers = campaignReaders(m).length;
     while (this.acc >= STEP_MS) {
       this.acc -= STEP_MS;
       // o que chegou desde o último tique entra no primeiro passo; nos passos de recuperação a fila já está vazia
@@ -433,6 +434,8 @@ export class Room extends DurableObject<Env> {
     // a sandbox não grava telemetria (e a rodada dela nem acaba); a Campanha também não (PvE, outros números)
     if (m.phase === 'roundEnd' && before.startsWith('playing') && !m.sandbox && !m.night) this.lobby().record(roundRecord(m, now)).catch(() => {});
     // sandbox não encerra por inatividade: quem testa fica parado mirando ou lendo; sem ninguém conectado o laço já para (shouldRun) e o alarme apaga a sala
+    // the reading cap ends a pause inside tickMatch: tell the clients now, not on the next 1 s broadcast
+    if (campaignReaders(m).length < readers) this.readingDirty = true;
     if (!m.sandbox && now - this.lastCmdAt > IDLE_MS) endIdle(m);
     if (sig() !== before) void this.changed();
   }
