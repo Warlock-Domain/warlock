@@ -34,6 +34,14 @@ describe('Sandbox allied bots', () => {
     expect(publicRoom('test', m, now).players.find(p => p.bot)?.team).toBe(human.team);
   });
 
+  it('gives each human their own team, so two humans with allies stay enemies', () => {
+    const { m, now } = setup();
+    addPlayer(m, 'b', 'Bia', false, false, () => .5);
+    sandboxCmd(m, command, now, 'a', () => .5);
+    sandboxCmd(m, command, now, 'b', () => .5);
+    expect(m.players.map(p => p.team)).toEqual([0, 1, 0, 1]);
+  });
+
   it('does not change existing enemy bots, training dummies or turrets', () => {
     const { m, now } = setup();
     sandboxCmd(m, { op: 'bot', dummy: true }, now, 'a', () => .5);

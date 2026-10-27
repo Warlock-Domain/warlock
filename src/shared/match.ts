@@ -1203,8 +1203,8 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = '', rand
     const b = newBot(m, rand);
     if (!b) return false;
     if (owner) {
-      // Derive the team from the authenticated requester, never a client-supplied team/id.
-      owner.team ??= 0;
+      // Derive the team from the authenticated requester, never a client-supplied team/id; each human gets the lowest team nobody else holds.
+      if (owner.team === null) { let t = 0; while (m.players.some((p) => p.id !== owner.id && p.team === t)) t++; owner.team = t; }
       b.team = owner.team;
       for (const z of m.world?.wizards ?? []) if (z.id === owner.id || z.id === b.id) z.team = owner.team;
     }
