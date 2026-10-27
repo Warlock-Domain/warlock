@@ -1252,7 +1252,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const vitals = el('div', { class: 'vitals', hidden: true }, el('div', { class: 'hp-col' }, el('div', { class: 'vit-row' }, hpBar, xpLv), xpBar), el('div', { class: 'hero-row' }, goldNow, heroStats)); // vida só jogando e vivo
   const heroFace = el('img', { class: 'hero-face', alt: '', width: 104, height: 120 });
   const hero = el('div', { class: 'hero-box' }, heroFace, vitals);
-  const barWrap = el('div', { class: 'barwrap' }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, bar, itemGrid)));
+  const barWrap = el('div', { class: 'barwrap', hidden: true }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, bar, itemGrid)));
   // a barra some na sala e no fim (update, a cada segundo) e enquanto eu assisto morto (watching, a cada quadro): uma conta só, sem piscar
   let barOff = true;
   let watchingNow = false;
@@ -1268,6 +1268,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     online = on;
     status.className = 'dot ' + (on ? 'on' : 'off');
     offline.hidden = on;
+    loadingHint.hidden = on;
   }
   const offline = el('div', { class: 'offline', role: 'alert', hidden: true }, t('Sem conexão, tentando de novo…', 'No connection, retrying…'));
   // ficha do mago na partida: tecla ' (à esquerda do 1) ou o botão 📜; no celular vira gaveta de baixo para cima
@@ -1333,7 +1334,18 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     e.preventDefault();
     act.replay();
   });
-  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, bossBar, miniCanvas, ilseBox, lvCards, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
+  let loadingVisible = true;
+  const hud = el('div', { class: 'hud', hidden: true }, danger, top, offline, tops, bossBar, miniCanvas, ilseBox, lvCards, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay);
+  const labels = el('div', { class: 'labels', id: 'labels', hidden: true });
+  const loadingHint = el('small', { class: 'muted', hidden: true }, t('Sem conexão, tentando de novo…', 'No connection, retrying…'));
+  const loading = el('div', { class: 'overlay room-loading', role: 'status', 'aria-live': 'polite' },
+    el('div', { class: 'home-stage is-subpage loading-stage' },
+      el('div', { class: 'home-backdrop', 'aria-hidden': 'true' }, el('img', { class: 'home-art', src: '/home-cat.jpg', alt: '', width: 736, height: 736 })),
+      el('div', { class: 'loading-copy' }, el('h1', {}, t('Carregando', 'Loading')), loadingHint,
+        el('a', { class: 'button', href: '/' }, t('Voltar ao menu', 'Back to menu')))));
+  root.setAttribute('aria-busy', 'true');
+  document.body.classList.add('room-loading-active');
+  root.replaceChildren(hud, labels, loading);
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
@@ -1872,6 +1884,18 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   }
 
   return {
+    loading(on: boolean) {
+      if (loadingVisible === on) return;
+      loadingVisible = on;
+      // detached, not hidden: Esc, the controller and the taunt wheel treat any `.overlay` in the DOM as open
+      if (on) root.append(loading);
+      else loading.remove();
+      hud.hidden = labels.hidden = on;
+      hud.inert = on;
+      root.setAttribute('aria-busy', String(on));
+      document.body.classList.toggle('room-loading-active', on);
+      if (on) { hideTip(); solo(null); }
+    },
     // abate no feed: by null = caiu sozinho na lava; destacado quando envolve você
     kill(by: string | null, id: string, src: string) {
       const who = (pid: string) => {
