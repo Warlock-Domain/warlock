@@ -133,7 +133,7 @@ export class Room extends DurableObject<Env> {
         return;
       case 'reading': {
         const paused = campaignReaders(m).length > 0;
-        if (setReading(m, id, msg.on)) {
+        if (setReading(m, id, msg.on, now)) {
           // A pause must not replay held input afterwards, but releases already queued (anyone's) still apply.
           if (!paused && msg.on) this.cmds = this.cmds.filter((c) => c.kind === 'stop' || ((c.kind === 'brace' || c.kind === 'moveHold') && !c.on));
           // Reading is transient: coalesce broadcasts in tick(), without disk writes or lobby RPCs.

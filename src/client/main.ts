@@ -250,7 +250,8 @@ function startRoom(code: string, name: string) {
   // Ilse's lines (Campaign): which ones this night already showed (by seed) and which one is on screen
   let ilseNight = '', ilseQ = newIlseQueue(), readingSent: boolean | null = null;
   const reading = () => !!room?.night && room.phase === 'playing' && !room.players.find((p) => p.id === me)?.watch && ilseQ.lines.length > 0;
-  const campaignPaused = () => reading() || !!room?.reading?.length;
+  // the server's list is the truth: after the reading cap the world runs again while the line stays on screen
+  const campaignPaused = () => !!room?.reading?.length;
   const syncReading = () => {
     const on = reading();
     if (readingSent === on) return;

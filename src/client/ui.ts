@@ -2026,7 +2026,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     ilse(text: string | null, done?: () => void) {
       ilseDone = done ?? null;
       ilseSkip.hidden = !done;
-      ilseName.textContent = done ? 'Ilse' : t('Campanha pausada', 'Campaign paused');
+      const name = done ? 'Ilse' : t('Campanha pausada', 'Campaign paused');
+      if (ilseName.textContent !== name) ilseName.textContent = name; // called every frame
       if (!text) return void (ilseBox.hidden = true);
       if (ilseText.textContent !== text || ilseBox.hidden) ilseText.textContent = text;
       ilseBox.hidden = false;

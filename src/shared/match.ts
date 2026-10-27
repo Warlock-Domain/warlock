@@ -142,7 +142,7 @@ export type Player = {
   held: Record<string, number[]>; // rodada em que cada nível comprado (magia/item) entrou, para o valor de venda
   ready: boolean;
   connected: boolean;
-  reading?: true; // Campaign tutorial: this participant has unread messages.
+  reading?: number; // Campaign tutorial: when this participant's unread messages paused the world (ms).
   team: number | null; // modo Times: 0 = Azul, 1 = Vermelho
   setup?: BotSetup; // treino: magias, itens e jeito de jogar escolhidos para este bot
   difficulty?: MatchOpts['difficulty']; // bot: a dificuldade dele, escolhida na sala (sem ela, a da partida)
@@ -220,11 +220,14 @@ export const playing = (m: Match) => m.players.filter((p) => !p.watch);
 
 // The simulation waits for every connected participant, never for spectators or ghosts.
 export const campaignReaders = (m: Match): Player[] => m.night && m.phase === 'playing'
-  ? m.players.filter((p) => p.reading && p.connected && !p.bot && !p.watch) : [];
-export function setReading(m: Match, id: string, on: boolean): boolean {
+  ? m.players.filter((p) => p.reading !== undefined && p.connected && !p.bot && !p.watch) : [];
+// Fernando, 27/10: one pause holds the world for at most 20 s, then the night resumes for everyone and the line stays on screen.
+// ponytail: the cap is per pause, so a modified client toggling on/off could chain pauses; add a per-player budget if that shows up.
+export const READ_CAP_MS = 20_000;
+export function setReading(m: Match, id: string, on: boolean, now: number): boolean {
   const p = player(m, id);
-  if (!p || p.bot || p.watch || !p.connected || !m.night || m.phase !== 'playing' || !!p.reading === on) return false;
-  if (on) p.reading = true;
+  if (!p || p.bot || p.watch || !p.connected || !m.night || m.phase !== 'playing' || (p.reading !== undefined) === on) return false;
+  if (on) p.reading = now;
   else delete p.reading;
   return true;
 }
@@ -1252,6 +1255,7 @@ function topKiller(m: Match): string | null {
 }
 
 export function tickMatch(m: Match, now: number, cmds: Cmd[], rand: () => number = Math.random): SimEvent[] {
+  for (const p of m.players) if (p.reading !== undefined && now - p.reading >= READ_CAP_MS) delete p.reading;
   if (campaignReaders(m).length) { settleVote(m, now, rand); return []; }
   const events = stepMatch(m, now, cmds, rand);
   settleVote(m, now, rand); // prazo, quem caiu e o fim da partida também fecham a votação
