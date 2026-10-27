@@ -90,7 +90,7 @@ h2.title { font-family: var(--display); font-size: var(--fs-160); text-transform
 h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font-size: .55em; vertical-align: .25em; color: var(--lava); text-shadow: 0 0 8px rgba(255, 106, 26, .6); }
 
 /* Readiness, not an animation timer, owns the transition into the room. */
-.room-loading { background: var(--bg); z-index: 70; }
+.overlay.room-loading { background: var(--bg); z-index: 70; }
 .room-loading-active #c { visibility: hidden; }
 .loading-stage { width: 100%; display: grid; place-items: center; }
 .loading-copy { display: flex; flex-direction: column; align-items: center; gap: var(--sp-16); text-align: center; text-shadow: var(--text-shadow); }
