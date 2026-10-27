@@ -121,3 +121,5 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - `SnapshotInterpolator` owns a bounded snapshot buffer, its capacity, and the smoothed server/local clock offset. Live rendering and replay use independent instances through `createInterp(max)`.
 - Preserve bound `push`, `latest`, `sample`, and `reset` callbacks. Reset clears history and clock offset; simulation clock rollback also starts new history. Keep interpolation math and `keepLast()` as module helpers.
 - Preserve snapshot references, interpolation delay/smoothing, and replay limits. Compatibility, round-reset, capacity, and instance-isolation coverage lives in `tests/client.test.ts`.
+
+- Proposal port is isolated from unrelated local changes; preserve manual 3-second Sniper, item Scourge and current master catalog rules.
