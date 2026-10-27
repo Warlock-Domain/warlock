@@ -206,12 +206,12 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // erro humano nesta decisão: lança torto (até 45°) ou fica parado 0,5 s
   const slip = rand() < D.slip ? (rand() < 0.5 ? 'freeze' : 'turn') : null;
   const turn = slip === 'turn' ? ((rand() * 2 - 1) * Math.PI) / 4 : 0;
-  // um só lançamento por chamada: um segundo comando de magia no mesmo passo cancelaria o primeiro
-  const cast = (spell: SpellId, at: Vec) => {
+  // Only one spell per call: a second spell command in the same step would cancel the first.
+  const cast = (spell: SpellId, at: Vec, allowChannel = false) => {
     const r = sub(at, me.pos), c = Math.cos(turn), s = Math.sin(turn);
     // Channeling: a damage spell is charged to full first; the release uses this same aim (difficulty error, lead, slip),
     // and a dodge or walk in the meantime cancels the charge like a player's would
-    if (me.spells.channel > 0 && spellLevel(spell, me.spells[spell]).dmg > 0) {
+    if (allowChannel && me.spells.channel > 0 && spellLevel(spell, me.spells[spell]).dmg > 0) {
       if (!me.channel) return (cmds.length = 0, cmds.push({ id, kind: 'channel', spell }), cmds);
       if (me.channel.spell !== spell || w.t - me.channel.since < CHANNEL.max) return cmds;
     }
@@ -448,10 +448,10 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     return add(p, scale(v(-side.y, side.x), (rand() * 2 - 1) * D.aim));
   };
 
-  // Drenar ferido: cura com o dano que causar
+  // Drain when hurt: heal with the damage dealt.
   if (ready('drain') && me.hp < me.hpMax * 0.7) {
     const L = spellLevel('drain', me.spells.drain);
-    if (d < L.range) return cast('drain', lead(L.speed, CAST_POINT.drain));
+    if (d < L.range) return cast('drain', lead(L.speed, CAST_POINT.drain), true);
   }
   // projétil próprio a caminho do alvo (para Magnetizar e Zona de dobra)
   const incoming = w.projectiles.some((p) => p.owner === id && p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'illusion' && dist(p.pos, E.pos) < 4 && dot(p.vel, sub(E.pos, p.pos)) > 0);
@@ -533,17 +533,23 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     else if (L.dmg > 0) at = d < (L.range || 6) ? lead(L.speed, cp) : null;
     if (!at) continue;
     const to = at;
+    const attackAndMove = (move: () => Cmd) => {
+      cast(s, to, true);
+      // Keep follow-up movement with the released spell; sending it during charge cancels the charge immediately.
+      if (cmds.some((c) => c.kind === 'cast' && c.spell === s)) cmds.push(move());
+      return cmds;
+    };
     const opt =
-      s === 'windwalk' ? () => (cast(s, to), cmds.push({ id, kind: 'move', to: E.pos }), cmds)
-      : s === 'link' ? () => (cast(s, to), cmds.push(aside(E)), cmds) // já sai de lado enquanto o Elo voa
-      : () => cast(s, to);
+      s === 'windwalk' ? () => attackAndMove(() => ({ id, kind: 'move', to: E.pos }))
+      : s === 'link' ? () => attackAndMove(() => aside(E)) // Step aside after the charged Link releases.
+      : () => cast(s, to, true);
     if (prio) now ??= opt;
     if (s === 'meteor') meteor = opt;
     options.push({ run: opt, dmg: L.dmg > 0 });
     if (L.dmg > 0) damage = true;
   }
   if (!me.channel && free('scourge') && d < spellLevel('scourge', me.spells.scourge).radius * 0.8) {
-    options.push({ run: () => cast('scourge', me.pos), dmg: true });
+    options.push({ run: () => cast('scourge', me.pos, true), dmg: true });
     damage = true;
   }
   if (now) return now();

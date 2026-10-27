@@ -119,6 +119,29 @@ describe('Channeling',()=>{
     expect(botCmds(w,z.id,()=>.5)[0]).toMatchObject({kind:'cast',spell:'fireball'});
     expect(w.projectiles).toHaveLength(0);
   });
+  it('bots cast Thrust immediately when escaping the lava edge',()=>{
+    const w=setup(),z=w.wizards[0]; z.spells.thrust=1;z.spells.teleport=0;z.pos={x:w.arenaR-.2,y:0};
+    const cmds=botCmds(w,z.id,()=>.5);
+    expect(cmds).toContainEqual(expect.objectContaining({kind:'cast',spell:'thrust'}));
+    expect(cmds.some(c=>c.kind==='channel')).toBe(false);
+  });
+  it('bots cast Windwalk immediately to dodge while owning Channeling',()=>{
+    const w=setup(),z=w.wizards[0];z.spells.windwalk=1;z.spells.shield=0;z.spells.teleport=0;
+    w.projectiles.push({id:1,born:-1,kind:'fireball',owner:'p1',caster:'p1',pos:{x:3.5,y:0},vel:{x:-6.47,y:0},level:1,until:9,target:null,dmgMult:1});
+    const cmds=botCmds(w,z.id,()=>.3);
+    expect(cmds).toContainEqual(expect.objectContaining({kind:'cast',spell:'windwalk'}));
+    expect(cmds.some(c=>c.kind==='channel')).toBe(false);
+  });
+  it('bots wait through an offensive Windwalk charge before moving',()=>{
+    const w=setup(),z=w.wizards[0];z.spells={...noSpells(),channel:1,windwalk:1};w.wizards[1].pos={x:4,y:0};
+    const start=botCmds(w,z.id,()=>.5);
+    expect(start).toEqual([{id:z.id,kind:'channel',spell:'windwalk'}]);
+    stepWorld(w,start,()=>.5);run(w,2);
+    expect(botCmds(w,z.id,()=>.5)).toEqual([
+      {id:z.id,kind:'cast',spell:'windwalk',at:w.wizards[1].pos},
+      {id:z.id,kind:'move',to:w.wizards[1].pos},
+    ]);
+  });
   it('normal spells still cast normally without channeling',()=>{
     const w=setup(); stepWorld(w,[cast],()=>.5); run(w,.15);
     expect(w.projectiles[0].vel.x).toBe(spellLevel('fireball',1).speed);
