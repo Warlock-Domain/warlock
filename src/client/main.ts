@@ -173,8 +173,8 @@ async function main() {
   const id = location.hash.slice(1).toUpperCase();
   if (/^[A-Z]{4}$/.test(id)) startRoom(id, name);
   else startLobby(name);
-  // Esc with nothing to cancel or close opens Settings (Fernando's request, 18/10); last, after the room listeners
-  onFreeEsc(() => ![...document.querySelectorAll<HTMLElement>('.overlay')].some((node) => !node.hidden) && openSettings());
+  // Esc sem nada para cancelar ou fechar abre as configurações (pedido do Fernando, 18/10); por último, depois dos ouvintes da sala
+  onFreeEsc(() => !document.querySelector('.overlay') && openSettings());
 }
 
 function startLobby(name: string) {

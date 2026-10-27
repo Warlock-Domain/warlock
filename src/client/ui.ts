@@ -1884,7 +1884,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     loading(on: boolean) {
       if (loadingVisible === on) return;
       loadingVisible = on;
-      loading.hidden = !on;
+      // detached, not hidden: Esc, the controller and the taunt wheel treat any `.overlay` in the DOM as open
+      if (on) root.append(loading);
+      else loading.remove();
       hud.hidden = labels.hidden = on;
       hud.inert = on;
       root.setAttribute('aria-busy', String(on));
