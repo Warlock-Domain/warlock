@@ -134,7 +134,8 @@ export class Room extends DurableObject<Env> {
       case 'reading': {
         const paused = campaignReaders(m).length > 0;
         if (setReading(m, id, msg.on)) {
-          if (!paused && msg.on) this.cmds = [];
+          // A pause must not replay held input afterwards, but releases already queued (anyone's) still apply.
+          if (!paused && msg.on) this.cmds = this.cmds.filter((c) => c.kind === 'stop' || ((c.kind === 'brace' || c.kind === 'moveHold') && !c.on));
           // Reading is transient: coalesce broadcasts in tick(), without disk writes or lobby RPCs.
           this.readingDirty = true;
         }
@@ -432,7 +433,6 @@ export class Room extends DurableObject<Env> {
     // a sandbox não grava telemetria (e a rodada dela nem acaba); a Campanha também não (PvE, outros números)
     if (m.phase === 'roundEnd' && before.startsWith('playing') && !m.sandbox && !m.night) this.lobby().record(roundRecord(m, now)).catch(() => {});
     // sandbox não encerra por inatividade: quem testa fica parado mirando ou lendo; sem ninguém conectado o laço já para (shouldRun) e o alarme apaga a sala
-    if (campaignReaders(m).length) this.lastCmdAt = now;
     if (!m.sandbox && now - this.lastCmdAt > IDLE_MS) endIdle(m);
     if (sig() !== before) void this.changed();
   }

@@ -357,8 +357,9 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 
 /* letra 1,3x do tamanho normal, a mesma do aviso de quem saiu (PR #234), e fundo claro: o aviso aparece por poucos segundos no meio da partida e precisa ser lido de relance */
 #toast, .ilse { background: var(--paper); color: var(--ink); border: 1px solid var(--gold-toast); box-shadow: var(--shadow-toast); padding: 13px 18px; border-radius: var(--r-sm); font-size: var(--fs-130); overflow-wrap: anywhere; }
-.ilse { border-left: 4px solid var(--toast-info); }
-#toast { position: fixed; left: 50%; bottom: calc(188px + var(--safe-b)); transform: translateX(-50%); opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; }
+#toast { position: fixed; left: 50%; bottom: calc(188px + var(--safe-b)); transform: translateX(-50%); opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); z-index: 20; }
+/* a Campaign message sits where toasts go: toasts move to the top while it shows */
+body:has(.ilse:not([hidden])) #toast { top: calc(64px + var(--safe-t)); bottom: auto; }
 /* o clique atravessa o aviso e os ícones dos buffs (.hud-status) para não cortar o andar nem o lançamento na arena atrás deles; nenhum aviso tem botão (pedido do Sky, issue #332) */
 #toast.show { opacity: 1; }
 /* o aviso fica acima dos ícones dos buffs ativos (.hud-status, 44 px acima da barra), com 8 px de folga, para não tapá-los (issue #262);

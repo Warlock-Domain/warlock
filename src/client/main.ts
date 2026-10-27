@@ -247,7 +247,7 @@ function startRoom(code: string, name: string) {
   let room: PublicRoom | null = null;
   // Campanha: lava é o chão ^ do mapa da noite
   const mapLava = (p: Vec) => !!room?.night && nightMap(room.night.seed, room.night.stage).ground[Math.floor(p.y)]?.[Math.floor(p.x)] === 'lava';
-  // fala da Ilse (Campanha): quais já saíram nesta noite (pela semente) e até quando a atual fica na tela
+  // Ilse's lines (Campaign): which ones this night already showed (by seed) and which one is on screen
   let ilseNight = '', ilseQ = newIlseQueue(), readingSent: boolean | null = null;
   const reading = () => !!room?.night && room.phase === 'playing' && !room.players.find((p) => p.id === me)?.watch && ilseQ.lines.length > 0;
   const campaignPaused = () => reading() || !!room?.reading?.length;
@@ -986,7 +986,7 @@ function startRoom(code: string, name: string) {
   function frame() {
     requestAnimationFrame(frame);
     const nowMs = performance.now();
-    const dt = campaignPaused() ? 0 : Math.min(0.05, (nowMs - lastFrame) / 1000); // aba que volta do segundo plano não dá salto na previsão nem nas animações
+    const dt = campaignPaused() ? 0 : Math.min(0.05, (nowMs - lastFrame) / 1000); // a tab coming back from the background does not jump the prediction or the animations; a Campaign pause freezes both
     lastFrame = nowMs;
     const s = interp.sample(nowMs / 1000);
     const latest = interp.latest();
