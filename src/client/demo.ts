@@ -50,7 +50,7 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   heal: { pos: [v(-3, 0), v(2, 0), v(2, 2)], end: 3, steps: [[.4, A, 'heal', B], [1.4, B, 'heal', B]],
     prep: w => { w.pillars = []; w.wizards[A].team = w.wizards[B].team = 0; w.wizards[C].team = 1; w.wizards[B].spells.heal = 1; for (const z of w.wizards) { z.hp = 700; z.regen = 0; } } },
   knockback: { pos: [v(-3, 0), v(0, 0)], end: 3.5, steps: [[.4, A, 'fireball', B], [.85, B, 'move', v(0, 4)]], prep: (w) => { w.pillars = []; } },
-  basic: { pos: [v(-2, 0), v(-1, 0), v(4, 0)], end: 3.5, steps: [[.4, A, 'basic', B], [1.8, A, 'basic', C]], prep: (w) => { w.pillars = []; } },
+  basic: { pos: [v(-2, 0), v(-1, 0), v(4, 0)], end: 3.5, steps: [[.4, A, 'basic', B], [1.1, B, 'move', v(-1, 2)], [1.8, A, 'basic', C]], prep: (w) => { w.pillars = []; } },
   // Renova o mesmo comando da partida: o preparo e a pausa vêm da simulação, não de uma animação inventada.
   brace: { pos: [v(-1, 0), v(3, 0)], end: 3.5,
     steps: ([...Array.from({ length: 19 }, (_, i): Step => [.4 + i * .1, A, 'braceOn', A]), [1.2, A, 'move', v(-1, 3)], [1.3, B, 'fireball', A], [2.3, A, 'braceOff', A], [2.6, A, 'move', v(-1, 3)]] as Step[]).sort((a, b) => a[0] - b[0]),

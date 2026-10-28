@@ -151,7 +151,7 @@ describe('per-player choice', () => {
 describe('fixed button tips', () => {
   it('show the active version text and numbers, today’s text otherwise', () => {
     const [attack, brace] = ['basic', 'brace'].map((id) => MECHANIC_GUIDES.find((g) => g.id === id)!);
-    expect(mechanicTip(attack)).toContain('clique num inimigo');
+    expect(mechanicTip(attack)).toContain('clique no ponto desejado');
     expect(mechanicTip(attack)).not.toContain('120°');
     expect(mechanicTip(attack, true)).toContain('120°');
     expect(mechanicTip(attack, true)).not.toContain('clique num inimigo');

@@ -46,7 +46,8 @@ describe('play style', () => {
     // 25/10 (PR #409, owner's decision): bots may buy Inelegant Solution, which changes seeded purchases and decisions.
     // 25/10 (issue #416, owner's decision): bots may buy Squid Pix; with it out of the bot pool the old hash still matches.
     // 27/10 (PR #426, owner's decision): the ranged basic Attack no longer pushes, which changes bot trajectories.
-    expect(hash).toBe(1799243761);
+    // Ground-aimed ranged Attack intentionally removes automatic target acquisition and homing.
+    expect(hash).toBe(874970837);
     // and it really measured in this same match
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);

@@ -6,6 +6,7 @@ Every new decision gets a row here (date, decision, why) in the same PR as the c
 
 | Date | Decision | Why |
 |---|---|---|
+| 28/10 | Ground-aimed ranged Attack captures the clicked point instead of acquiring or following a target. A close enemy body under that click retains melee. Windup, cooldown, damage and projectile limits are unchanged; ranged knockback remains zero. | User requested point-and-click Attack before the separate sphere projectile proposal. |
 | 17/10 | Top-down 3D camera, Dota controls (right button moves); 1 point per round, first to 5 wins | same as the original Warlock, Dota audience |
 | 18/10 | Public repository | so friends can contribute |
 | 18/10 | Rejected: ranking/profile and items that only help one spell (e.g. Fire staff) | focus on the game, free build |
