@@ -125,6 +125,7 @@ export const PROJ_KINDS = ['fireball', 'homing', 'swap', 'grip', 'meteor', 'clus
 export type ProjKind = (typeof PROJ_KINDS)[number];
 
 export type Projectile = {
+  element?: ElementalSphere['element']; // Captured sphere identity survives launch and reflection.
   id: number;
   born?: number; // w.t em que surgiu (os bots só reagem depois do tempo de reação deles)
   kind: ProjKind;
@@ -2101,7 +2102,7 @@ function beginBasic(w: World, wz: Wizard, c: Extract<Cmd, { kind: 'basic' }>) {
   wz.moveHeld = false;
 }
 function finishBasic(w: World, wz: Wizard) {
-  const basic = basicStats(w, wz), bonus = elementalBonuses(wz.spheres, w.t);
+  let basic = basicStats(w, wz);
   const pending = wz.basicCasting!;
   wz.basicCasting = undefined;
   if (pending.arc !== undefined) return finishArc(w, wz, pending.arc);
@@ -2118,7 +2119,12 @@ function finishBasic(w: World, wz: Wizard) {
     else pushDecoy(target, scale(d, basic.knock), basic.dmg);
     return;
   }
-  w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'basic', owner: wz.id, caster: wz.id, pos: add(wz.pos, scale(d, PROJ_SPAWN)), vel: scale(d, basic.speed), level: 1, until: w.t + basic.range / basic.speed, target: null, lockOn: target.id, size: 1 + bonus.earth, water: 1 + bonus.water, ki: 1 + bonus.ki, stats: { ...basic, knock: 0 }, src: 'basic', dmgMult: 1 });
+  // Spend on release only; melee and cancelled windups preserve the resource.
+  wz.spheres = wz.spheres?.filter(s => s.until > w.t);
+  const sphere = wz.spheres?.shift(), bonus = elementalBonuses(wz.spheres, w.t);
+  basic = basicStats(w, wz);
+  if (sphere) basic = { ...basic, dmg: ELEMENTAL_SPHERES.damage * (1 + bonus.fire) };
+  w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'basic', element: sphere?.element, owner: wz.id, caster: wz.id, pos: add(wz.pos, scale(d, PROJ_SPAWN)), vel: scale(d, basic.speed), level: 1, until: w.t + basic.range / basic.speed, target: null, lockOn: target.id, size: 1 + bonus.earth, water: 1 + bonus.water, ki: 1 + bonus.ki, stats: { ...basic, knock: 0 }, src: 'basic', dmgMult: 1 });
 }
 
 // Melee arc (issue #402): every enemy body whose edge enters MELEE_ARC.range inside the arc takes the Attack's damage and push.

@@ -109,6 +109,15 @@ function snap(x: Obj): x is Obj & Snap {
   if (!Number.isInteger(count) || (x.p as number[]).length % 6 || (x.pl as number[]).length % 4 || (x.cd as number[]).length !== SPELL_IDS.length) return false;
   if (['rs', 'lp', 'em', 'ab', 'st', 'kr'].some((k) => x[k] !== undefined && (x[k] as number[]).length !== count) || ['ch', 'ru'].some((k) => x[k] !== undefined && (x[k] as number[]).length % 3) || (x.zn !== undefined && (x.zn as number[]).length % 5) || (x.il !== undefined && (x.il as number[]).length % 3) || (x.fx !== undefined && (x.fx as number[]).length % 2)) return false;
   if (x.sr !== undefined && (!numericArray(x.sr) || x.sr.length !== count || x.sr.some(n => n < 0 || n > 20))) return false;
+  if (x.pe !== undefined) {
+    if (!numericArray(x.pe) || x.pe.length % 2 || x.pe.length > (x.p as number[]).length / 3) return false;
+    const ids = new Set<number>(), projectiles = new Set((x.p as number[]).filter((_, i) => i % 6 === 0));
+    for (let i = 0; i < x.pe.length; i += 2) {
+      const [id, element] = x.pe.slice(i, i + 2);
+      if (!integer(id) || !projectiles.has(id) || ids.has(id) || !integer(element) || element < 0 || element >= ELEMENTS.length) return false;
+      ids.add(id);
+    }
+  }
   if (x.ps !== undefined) {
     if (!numericArray(x.ps) || x.ps.length % 2 || x.ps.length > (x.p as number[]).length / 3) return false;
     const ids = new Set<number>(), projectiles = new Set((x.p as number[]).filter((_, i) => i % 6 === 0));

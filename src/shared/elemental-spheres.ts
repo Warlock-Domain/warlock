@@ -4,7 +4,7 @@ import { v } from './vec.ts';
 export const ELEMENTS = ['fire', 'water', 'earth', 'ki', 'void'] as const;
 export type Element = (typeof ELEMENTS)[number];
 export type ElementalSphere = { element: Element; until: number };
-export const ELEMENTAL_SPHERES = { max: 5, orbit: 1, height: 1.1, radius: .16, speed: 1.4 };
+export const ELEMENTAL_SPHERES = { max: 5, orbit: 1, height: 1.1, radius: .16, speed: 1.4, damage: 30 };
 export const ELEMENT_COLORS: Record<Element, string> = {
   fire: '#ed3535', water: '#2788ff', earth: '#8b542b', ki: '#ffffff', void: '#000000',
 };
