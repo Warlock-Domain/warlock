@@ -1,7 +1,6 @@
-// Campanha: a Charneca Cinzenta é o tutorial (Lucas, 22/10). A Ilse ensina em falas curtas, uma de cada vez: cada fala
-// só some pelo botão (pedido do Lucas: o jogador lê no ritmo dele) e a próxima entra em seguida. Primeiro andar e a lava,
-// depois, no primeiro encontro, as magias e as teclas; nas outras salas, uma lição por sala. Nada pausa o jogo. As falas
-// valem até o grupo vencer a Charneca uma vez neste navegador; nas Configurações dá para ligar de novo.
+// Charneca is the Campaign tutorial: one message at a time, advanced by Space or the button.
+// The party waits until all connected readers finish; Esc remains the menu shortcut.
+// Messages default to on until the first victory and can be enabled again in Settings.
 import { t } from './i18n.ts';
 import { store } from './store.ts';
 
