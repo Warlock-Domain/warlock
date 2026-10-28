@@ -166,7 +166,7 @@ export type TurretDir = keyof typeof TURRET_DIR;
 export type Sandbox = { god: boolean; noCd: boolean; shrink: boolean };
 export type SandboxCmd =
   | { op: 'set'; key: keyof Sandbox; on: boolean }
-  | { op: 'bot'; bot?: BotSetup; dummy?: boolean }
+  | { op: 'bot'; bot?: BotSetup; dummy?: boolean; ally?: boolean }
   | { op: 'turret'; direction: TurretDir }
   | { op: 'arena'; arena: ArenaId } // forma escolhida: reinicia a rodada e fica nos reinícios seguintes (pedido do Fernando, 20/10)
   | { op: 'radius'; step: 1 | -1 } // pedra uma faixa maior ou menor, na hora (volta ao padrão no reinício)
@@ -275,8 +275,7 @@ export function setWatch(m: Match, id: string, on: boolean, rand: () => number =
   if (on && m.players.length - playing(m).length >= MAX_WATCHERS) return false; // espectadores no limite
   if (on) {
     p.watch = true;
-    delete p.reading;
-    p.team = null; // nos Times fixos, ao voltar entra no time menor
+    if (!m.sandbox) p.team = null; // Fixed Teams reassign on return; Sandbox allies stay allied.
     // sandbox e Campanha não têm fim de rodada para o mago sumir: sai na hora (na Campanha, senão ficava parado contando como Aceso vivo)
     if ((m.sandbox || m.night) && m.world) m.world.wizards = m.world.wizards.filter((z) => z.id !== id);
     return true;
@@ -293,7 +292,7 @@ function enter(m: Match, p: Player, rand: () => number) {
   const w = (m.sandbox || m.night) && m.world;
   if (!w || p.watch || w.wizards.some((z) => z.id === p.id)) return;
   const z = newWorld([p.id], { [p.id]: p.spells }, { [p.id]: p.items }, 0, rand).wizards[0];
-  if (!m.night) return void w.wizards.push(Object.assign(z, { alive: false, respawnAt: 0 }));
+  if (!m.night) return void w.wizards.push(Object.assign(z, { team: p.team, alive: false, respawnAt: 0 }));
   p.team = 0;
   w.wizards.push(Object.assign(z, { team: 0, pos: w.map!.home, invulnUntil: w.t + INVULN_TIME }));
 }
@@ -771,7 +770,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   m.roundPaid = [];
   if (m.night) return enterStage(m, now, rand);
   const ids = playing(m).map((p) => p.id);
-  const teams = m.mode === 'teams' ? Object.fromEntries(playing(m).map((p) => [p.id, p.team ?? 0])) : {};
+  const teams = m.mode === 'teams' || m.sandbox ? Object.fromEntries(playing(m).filter((p) => p.team !== null).map((p) => [p.id, p.team!])) : {};
   // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
   const arena = m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
   m.world = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests && !m.asc }, arena);
@@ -1216,8 +1215,16 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = '', rand
     return true;
   }
   if (cmd.op === 'bot') {
+    const owner = cmd.ally ? player(m, id) : undefined;
+    if (cmd.ally && (!owner || owner.bot || owner.watch || !owner.connected)) return false;
     const b = newBot(m, rand);
     if (!b) return false;
+    if (owner) {
+      // Derive the team from the authenticated requester, never a client-supplied team/id; each human gets the lowest team nobody else holds.
+      if (owner.team === null) { let t = 0; while (m.players.some((p) => p.id !== owner.id && p.team === t)) t++; owner.team = t; }
+      b.team = owner.team;
+      for (const z of m.world?.wizards ?? []) if (z.id === owner.id || z.id === b.id) z.team = owner.team;
+    }
     // como no treino: com magias ou itens escolhidos entra exatamente com eles; sem, compra sozinho
     const { difficulty = 'normal', ...rest } = cmd.bot ?? {};
     b.difficulty = difficulty;

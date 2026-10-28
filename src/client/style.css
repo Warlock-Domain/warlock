@@ -89,6 +89,12 @@ h2.title { font-family: var(--display); font-size: var(--fs-160); text-transform
 /* ornamento antes do título dos painéis (o "/ ''" deixa o leitor de tela calado) */
 h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font-size: .55em; vertical-align: .25em; color: var(--lava); text-shadow: 0 0 8px rgba(255, 106, 26, .6); }
 
+/* Readiness, not an animation timer, owns the transition into the room. */
+.overlay.room-loading { background: var(--bg); z-index: 70; }
+.room-loading-active #c { visibility: hidden; }
+.loading-stage { width: 100%; display: grid; place-items: center; }
+.loading-copy { display: flex; flex-direction: column; align-items: center; gap: var(--sp-16); text-align: center; text-shadow: var(--text-shadow); }
+.loading-copy h1 { color: var(--gold); }
 /* um só jeito de mostrar "selecionado": modo, aba, personagem e magia escolhida */
 .pick.on, .stats-tabs button.on, .watching button.on, .hud-right .icon.on, .spell.armed { border-color: var(--ember); background: var(--sel-bg); box-shadow: 0 0 0 1px var(--ember); color: var(--fg); }
 
@@ -952,6 +958,18 @@ button.train small { font-weight: 400; }
 .spell-keys > summary::after { content: "▾"; color: var(--muted); }
 .spell-keys[open] > summary { margin-bottom: 10px; }
 .spell-keys[open] > summary::after { content: "▴"; }
+/* Casting config reuses the match grid markup in a settings-only preview, without the portrait. */
+.casting-hud-host, .casting-controls, .casting-mode-control { display: flex; flex-direction: column; gap: var(--sp-10); min-width: 0; }
+.casting-live-hud { overflow-x: auto; justify-content: center; }
+.casting-live-hud .skills { display: flex; flex: none; }
+.casting-live-hud .spellbar { display: grid; grid-template-columns: repeat(4, auto); }
+.casting-live-hud .item-grid { display: grid; grid-template-columns: repeat(3, 56px); grid-auto-rows: 56px; }
+.casting-live-hud .spell, .casting-live-hud .slot-empty { cursor: pointer; }
+.casting-live-hud .item-grid > * { position: relative; }
+.casting-live-hud .item-grid .key { position: absolute; top: var(--sp-2); left: var(--sp-2); }
+.casting-live-hud .fixed-skill { cursor: help; }
+.casting-controls { padding: var(--sp-10); border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel2); }
+.casting-mode-control > button { align-self: flex-start; }
 /* desenho do controle: corpo bronze, botões clicáveis, linha até o nome da ação */
 .pad-svg { width: 100%; max-width: 920px; height: auto; align-self: center; }
 .pad-body { fill: var(--panel2); stroke: var(--bronze); stroke-width: 3; }

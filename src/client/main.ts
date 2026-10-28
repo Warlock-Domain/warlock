@@ -38,6 +38,7 @@ import { distanceVolume } from './sound-distance.ts';
 import { closedBodySound } from './closed-body-sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
+import { RoomLoadingGate } from './room-loading.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
 import { STAGE_NAME, USED_KEY, botLevel, boughtKeys, countBuys, readUsed, endResult, illusionCopies, maxHp, pickWatched, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
@@ -100,6 +101,7 @@ const SERVER_EN: Record<string, string> = {
   'Sala aberta em outra aba.': 'Room open in another tab.',
   'Sala cheia.': 'Room full.',
   'Você foi removido da sala por votação.': 'You were removed from the room by vote.',
+  'Não deu para começar a partida.': 'Couldn’t start the match.',
 };
 
 // treino escolhido na tela inicial ('bots', 'shadow', 'sandbox' ou o id do desafio): atravessa o recarregar da página ao entrar na sala nova
@@ -326,8 +328,10 @@ function startRoom(code: string, name: string) {
   const pixelOk = !matchMedia('(pointer: coarse)').matches;
 
   let autostart = takeAutostart();
+  const loadingGate = new RoomLoadingGate();
   const view = createRoomUi(ui, code, {
     start: (bots, mode, shuffle, opts, again) => {
+      startLoading();
       training = false; // partida normal depois de um treino: sem dicas
       run = pending = null;
       if (!again) {
@@ -441,6 +445,12 @@ function startRoom(code: string, name: string) {
     command({ t: 'cast', spell: 'sniper', x: self.sniperAt.x, y: self.sniperAt.y });
     return true;
   }
+  function syncLoading() {
+    const pending = loadingGate.pending;
+    view.loading(pending);
+    input.setEnabled(!pending && room?.phase === 'playing');
+  }
+  function startLoading() { loadingGate.start(); syncLoading(); }
   const input = createInput(canvas, {
     canChannel: () => (room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0,
     channel(spell) {
@@ -555,7 +565,8 @@ function startRoom(code: string, name: string) {
   // a aparência escolhida fica salva e é reenviada ao entrar em qualquer sala; trocada nas Configurações, vale na hora
   const net = connect('/ws/room/' + code, parseServerMessage, onMsg, () => {
     rejoined = true;
-    readingSent = null;
+    loadingGate.cancelStart(); // a start sent while the socket was down never reached the server
+    syncLoading();
     net.send({ t: 'hello', playerId, name: myName, ...(watchJoin && { watch: true as const }) });
     net.send({ t: 'look', look: savedLook() });
   }, (on) => {
@@ -580,6 +591,7 @@ function startRoom(code: string, name: string) {
 
   // sombra: 1 bot que joga como você; o que não foi medido fica no Normal (mimic.ts)
   function startShadow(skill: Partial<BotSkill>) {
+    startLoading();
     training = true;
     run = pending = null;
     trainSetup = [{ skill }];
@@ -599,19 +611,22 @@ function startRoom(code: string, name: string) {
     else if (k === 'shadow' && skill) startShadow(skill);
     else if (k === 'sandbox') startSandbox();
     else if (k === 'partida' || k === 'partida:loja') {
+      startLoading();
       // ?ir= (só localhost): partida contra 1 bot já começada; 'partida' ainda clica Pronto e pula a loja
       net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
       if (k === 'partida') net.send({ t: 'ready' });
     }
     else if (k === 'partida:ascensao') {
+      startLoading();
       // sala do Ascensão: o Começar usa os bots e as opções do dono (quem abriu o atalho)
       net.send({ t: 'lobby', bots: ['normal', 'normal', 'normal'], opts: { ...DEFAULT_OPTS, shop: 120 } });
       net.send({ t: 'start', bots: 3, mode: 'ascension', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
     }
-    else if (k === 'campanha') net.send({ t: 'start', bots: 0, mode: 'campaign', shuffle: true, opts: DEFAULT_OPTS }); // ?ir=campanha: the night, alone
+    else if (k === 'campanha') { startLoading(); net.send({ t: 'start', bots: 0, mode: 'campaign', shuffle: true, opts: DEFAULT_OPTS }); } // ?ir=campanha: the night, alone
   }
   // sandbox: começa com você e um boneco parado; o resto vem pelo painel
   function startSandbox() {
+    startLoading();
     training = shadow = false;
     run = pending = null;
     trainSetup = undefined;
@@ -620,6 +635,7 @@ function startRoom(code: string, name: string) {
   }
 
   function startChallenge(c: Challenge) {
+    startLoading();
     training = shadow = false;
     run = null;
     pending = c;
@@ -810,6 +826,9 @@ function startRoom(code: string, name: string) {
   let rejoined = false; // conexão (re)aberta: a primeira sala depois dela não conta compras
   function onMsg(m: ServerMsg) {
     if (m.t === 'error') {
+      loadingGate.cancelStart();
+      if (['not_found', 'other_tab', 'full', 'kicked'].includes(m.code)) loadingGate.fail();
+      syncLoading();
       if (m.code === 'not_found') return screen(ui, t('Sala não encontrada', 'Room not found'), t('Ela pode ter fechado por ficar vazia.', 'It may have closed for being empty.'), t('Ver salas', 'View rooms'), () => (location.hash = ''));
       // sem parar a conexão, ela se reconectaria sozinha e derrubaria a outra aba, num vaivém sem fim
       if (m.code === 'other_tab' || m.code === 'full' || m.code === 'kicked') net.stop();
@@ -826,7 +845,7 @@ function startRoom(code: string, name: string) {
       me = m.you;
       arenaId = room.arena ?? arenaId; // na loja não há rodada: fica a última arena
       view.update(room, me, online);
-      input.setEnabled(!campaignPaused() && room.phase === 'playing');
+      loadingGate.setRoom(room.phase, room.players.some((p) => p.id === me));
       begin(room);
       // alguém saiu no meio da partida e um bot assumiu o mago, ou a pessoa voltou (issue #223)
       if (prev) {
@@ -860,6 +879,7 @@ function startRoom(code: string, name: string) {
       scene.preload(room.players.map((p) => p.look));
       if (room.phase !== lastPhase) onPhase(prev);
       lastPhase = room.phase;
+      syncLoading();
       // Campanha: encontro abriu (alguém pisou no ponto de controle) ou acabou
       if (room.phase === 'playing' && room.night && prev?.night && room.night.fight !== prev.night.fight) {
         if (room.night.fight !== null) banner(t('A sala se fechou!', 'The room is sealed!'));
@@ -908,6 +928,8 @@ function startRoom(code: string, name: string) {
     if (bracing && !wasBracing) sound.play('brace');
     wasBracing = bracing;
     interp.push(sv, performance.now() / 1000);
+    loadingGate.setSnapshot();
+    syncLoading();
     keepLast(ring, { s: sv, e: m.e ?? [] }, REPLAY_MAX); // antes do onEvents: o estado da queda entra no trecho
     if (m.e) onEvents(m.e);
   }
@@ -926,7 +948,7 @@ function startRoom(code: string, name: string) {
     const menu = (p: string) => p === 'lobby' || p === 'end';
     if (prev && menu(prev.phase) !== menu(room.phase)) curtain();
     // na contagem o servidor ainda não aceita comandos: liberar só quando a rodada começa
-    input.setEnabled(!campaignPaused() && room.phase === 'playing');
+    input.setEnabled(!loadingGate.pending && room.phase === 'playing');
     sound.setAmbience(room.phase !== 'lobby' && room.phase !== 'end');
     sound.duck(room.phase === 'shop');
     // Ascensão: o tempo acabou sem a escolha da pessoa e o jogo sorteou (#224)
@@ -1074,7 +1096,7 @@ function startRoom(code: string, name: string) {
     // No Rápido a tecla é o piscar depois de lançar: a faixa fica parada onde a magia saiu (flashAim), e o mouse na barra não aponta
     // o chão: nada segue o mouse
     const frozen = armed || padAiming ? null : flashAim;
-    const aiming = showing && (armed ?? padAiming ?? (getCastMode() === 'release' || frozen ? held : null));
+    const aiming = showing && (armed ?? padAiming ?? (getCastMode(showing || undefined) === 'release' || frozen ? held : null));
     const aimAt = aiming ? (padAiming ? padAt : (frozen?.at ?? input.aimPoint())) : null;
     const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, frozen?.from ?? myPos, aimAt, channelBoost) : null;
     scene.preview.range(showing && myPos ? myPos : null, reach);
@@ -1168,7 +1190,15 @@ function startRoom(code: string, name: string) {
     scene.onEvents(events);
     for (const e of events) hitArrow(e, rs);
   }
-  void scene.ready.then(() => requestAnimationFrame(frame), () => toast(t('Não deu para carregar o mago. Recarregue a página.', 'Couldn’t load the wizard. Reload the page.')));
+  void scene.ready.then(() => {
+    loadingGate.setSceneReady();
+    requestAnimationFrame(frame);
+    syncLoading();
+  }, () => {
+    loadingGate.fail();
+    syncLoading();
+    screen(ui, t('Não deu para carregar o mago', 'Couldn’t load the wizard'), t('Recarregue a página para tentar novamente.', 'Reload the page to try again.'), t('Recarregar', 'Reload'), () => location.reload());
+  });
 }
 
 startPad(toast);

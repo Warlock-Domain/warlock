@@ -1904,7 +1904,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!m) continue;
       seen.add(d.id);
       // modo Times: anel e barra na cor do time (pode mudar a cada rodada); o nome fica com a cor do jogador
-      const tint = d.team != null ? TEAM_COLORS[d.team] : COLORS[d.color];
+      const tint = d.team != null ? (TEAM_COLORS[d.team] ?? COLORS[d.color]) : COLORS[d.color]; // Sandbox allies can go past the two Teams colours
       if (m.tint !== tint) {
         m.tint = tint;
         (m.ring.material as THREE.MeshBasicMaterial).color.set(tint);

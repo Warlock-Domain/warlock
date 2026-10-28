@@ -189,6 +189,8 @@ export class Room extends DurableObject<Env> {
         return;
       case 'start':
         if (startMatch(m, now, msg.bots, msg.mode, msg.shuffle ?? true, Math.random, msg.opts, msg.setup, msg.sandbox)) await this.changed();
+        // a silent refusal would leave the sender's loading screen waiting for a room that never comes
+        else if (m.phase === 'lobby' || m.phase === 'end') send(ws, { t: 'error', code: 'bad_msg', msg: 'Não deu para começar a partida.' });
         return;
       case 'sandbox':
         if (sandboxCmd(m, msg.cmd, now, id)) await this.changed();

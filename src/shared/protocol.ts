@@ -185,10 +185,10 @@ function parseSandbox(c: unknown): SandboxCmd | null {
   if (c.op === 'effect') return c.effect === null || ROUND_EFFECT_IDS.includes(c.effect as RoundEffectId) ? { op: 'effect', effect: c.effect as RoundEffectId | null } : null;
   if (c.op === 'restart') return { op: 'restart' };
   if (c.op === 'turret') return Object.hasOwn(TURRET_DIR, c.direction as string) ? { op: 'turret', direction: c.direction as TurretDir } : null;
-  if (c.op !== 'bot' || (c.dummy !== undefined && typeof c.dummy !== 'boolean')) return null;
+  if (c.op !== 'bot' || (c.dummy !== undefined && typeof c.dummy !== 'boolean') || (c.ally !== undefined && typeof c.ally !== 'boolean')) return null;
   const bot = c.bot === undefined ? undefined : parseSetup([c.bot])?.[0];
   if (bot === undefined && c.bot !== undefined) return null;
-  return { op: 'bot', ...(bot && { bot }), ...(c.dummy && { dummy: true }) };
+  return { op: 'bot', ...(bot && { bot }), ...(c.dummy && { dummy: true }), ...(c.ally && { ally: true }) };
 }
 
 export function parseClientMessage(raw: string): ClientMsg | null {
