@@ -71,3 +71,5 @@ Decisão do Fernando em 21/10. Vale para quem contribui e para toda IA.
 2. **Explicado:** a linha diz o que é e para que serve no jogo.
 3. **Referenciado:** a linha diz onde o código usa o arquivo (`arquivo.ts`) e de onde ele veio, com a licença; o crédito vai em `public/CREDITS.txt`.
 4. Asset que sai do jogo sai daqui também. Tudo no mesmo PR do asset.
+
+- Anima Nexus: original linked-heart SVG generated in scripts/assets/build-icons.mjs and public/icons.svg#anima-nexus; procedural green thread reuses Heal colors and Shield sound, with disposal on link removal. No external assets.

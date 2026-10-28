@@ -5,7 +5,7 @@ import scene from '../src/client/scene.ts?raw';
 
 describe('Heal aura and sound', () => {
   it('omits the orange cast marker and uses a green hand glow', () => {
-    expect(main).toContain("if (spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper') scene.clickMarker(at, true)");
+    expect(main).toContain("if (spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper' && spell !== 'nexus') scene.clickMarker(at, true)");
     expect(scene).toContain("spell === 'heal' ? HEAL_FX.color : LOOK[spell as keyof typeof LOOK]?.halo ?? '#ffb347'");
     expect(scene).toContain("spell === 'heal' ? HEAL_FX.glow : '#ffffff'");
   });

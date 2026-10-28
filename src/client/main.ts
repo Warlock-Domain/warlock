@@ -1,3 +1,4 @@
+import { nexusTarget } from '../shared/nexus-target.ts';
 import { inLavaAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, BASIC_ATTACK, BRACING_BIT, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
@@ -77,6 +78,7 @@ const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 
 // som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
+  nexus: 'shield',
   sniper: 'hitHeavy',
   pix: 'lightning', // the same cast effect as Grip, whose mark it shares
   channel: 'shield',
@@ -428,6 +430,7 @@ function startRoom(code: string, name: string) {
     return true;
   }
   const input = createInput(canvas, {
+    cancelNexus() { if ((myWizard(interp.latest())?.nexusTo ?? -1) < 0) return false; command({ t: 'cast', spell: 'nexus', x: 0, y: 0 }); return true; },
     canChannel: () => (room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0,
     channel(spell) {
       const mine = room?.players.find((p) => p.id === me);
@@ -438,7 +441,7 @@ function startRoom(code: string, name: string) {
       predict.stop(); sound.play('shield'); return true;
     },
     pick: (x, y, spell) => {
-      if (spell === 'heal' || spell === 'sniper') {
+      if (spell === 'heal' || spell === 'sniper' || spell === 'nexus') {
         const id = scene.pickMage(x, y);
         return interp.latest()?.wizards.find(w => w.id === id)?.pos ?? null;
       }
@@ -479,6 +482,7 @@ function startRoom(code: string, name: string) {
       scourgeUntil = 0; // o S cancela o Flagelo em preparo
     },
     cast(spell, at) {
+      if (spell === 'nexus' && (myWizard(interp.latest())?.nexusTo ?? -1) >= 0) { command({ t: 'cast', spell, x: at.x, y: at.y }); return true; }
       if (spell === 'sniper' && fireSniper()) return true;
       if ((myWizard(interp.latest())?.sniperLeft ?? 0)>0) return false;
       if (spell === 'channel') return false;
@@ -486,6 +490,13 @@ function startRoom(code: string, name: string) {
       if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       const mine = room?.players.find((p) => p.id === me);
       if (!mine || !castLevel(mine, spell)) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
+      if (spell === 'nexus') {
+        const units = interp.latest()?.wizards.filter(w => !(w.geyserLeft ?? 0)).map(w => ({ ...w, team: room?.players.find(p => p.id === w.id)?.team })) ?? [];
+        const self = units.find(w => w.id === me);
+        const target = self && nexusTarget(units, self, at, reachOf(spell, mine.spells, mine.items, channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1));
+        if (!target) return toast(t('Clique num aliado vivo dentro do alcance; não pode mirar em si mesmo.', 'Click a living ally in range; cannot target yourself.'));
+        at = target.pos;
+      }
       if (!checkCooldown(spell)) return;
       const state = myWizard(interp.latest())?.status ?? 0;
       if (spell === 'closedbody' && !(state & BRACING_BIT)) return toast(t('Ative Manter base antes de usar Corpo fechado.', 'Activate Hold Ground before using Closed Body.'));
@@ -517,7 +528,7 @@ function startRoom(code: string, name: string) {
       // Sniper movement cancels its aim; ordinary casts retain queued movement.
       predict.hold(CAST_POINT[spell], spell === 'sniper');
       scene.castLocal(me, spell, at);
-      if (spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper') scene.clickMarker(at, true); // Support and aimed casts do not show the generic orange attack marker.
+      if (spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper' && spell !== 'nexus') scene.clickMarker(at, true); // Support and aimed casts do not show the generic orange attack marker.
       if (spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper') sound.play(SPELL_SOUND[spell]); // Heal and the sniper shot play only on authoritative confirmation.
       return true;
     },

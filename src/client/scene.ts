@@ -47,7 +47,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { nexusTo?: number; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -2174,6 +2174,20 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       th.rotation.y = Math.atan2(dx, dz);
       th.scale.set(1, 1, Math.max(0.01, Math.hypot(dx, dz)));
       tied.add(d.id);
+    }
+    for (const d of list) {
+      const to = d.alive && (d.nexusTo ?? -1) >= 0 ? list[d.nexusTo!] : undefined;
+      if (!to?.alive || (d.status & 2048) || (to.status & 2048)) continue;
+      const key = 'nexus:' + d.id;
+      let thread = threads.get(key);
+      if (!thread) {
+        thread = new THREE.Mesh(new THREE.CylinderGeometry(.07, .07, 1, 6).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: HEAL_FX.color, transparent: true, opacity: .7, blending: THREE.AdditiveBlending, depthWrite: false }));
+        scene.add(thread); threads.set(key, thread);
+      }
+      const dx = to.pos.x - d.pos.x, dz = to.pos.y - d.pos.y;
+      thread.position.copy(w3(v(d.pos.x + dx / 2, d.pos.y + dz / 2), .8));
+      thread.rotation.y = Math.atan2(dx, dz); thread.scale.set(1, 1, Math.max(.01, Math.hypot(dx, dz)));
+      tied.add(key);
     }
     for (const [id, th] of threads) if (!tied.has(id)) {
       scene.remove(th);

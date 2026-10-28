@@ -10,7 +10,7 @@ import { CHANNEL, channelLevel, channelPower } from './channeling.ts';
 export type BotPick = { kind: 'spell'; id: SpellId } | { kind: 'item'; id: ItemId };
 // plano de compras: o que comprar, na ordem; depois da lista, como gastar o resto (menor nível, ordem do plano ou sorteio)
 export type BotPlan = { buys: BotPick[]; upgrade: 'lowest' | 'first' | 'random' };
-type Buyer = { gold: number; spells: Record<SpellId, number>; items?: Record<ItemId, number>; plan?: BotPlan };
+type Buyer = { gold: number; team?: number | null; spells: Record<SpellId, number>; items?: Record<ItemId, number>; plan?: BotPlan };
 
 // o bot antigo: 5 magias fixas, depois defesa, depois a magia de menor nível
 export const CLASSIC_PLAN: BotPlan = {
@@ -45,7 +45,7 @@ const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize', 'pix'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
-const SITUATIONAL: SpellId[] = ['channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
+const SITUATIONAL: SpellId[] = ['nexus', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
 const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
@@ -68,7 +68,7 @@ export function botBuy(p: Buyer, rand: () => number = Math.random, D: BotSkill =
   const plan = (p.plan ??= (botConfig.planner ?? (rand() < D.smart ? smartPlan : randomPlan))(rand));
   const level = (b: BotPick) => (b.kind === 'spell' ? p.spells[b.id] : (p.items?.[b.id] ?? 0));
   const price = (b: BotPick) =>
-    b.kind === 'spell' ? (p.spells[b.id] === 0 && spellCount(p.spells) >= MAX_SPELLS ? null : priceOf(b.id, p.spells[b.id])) : p.items ? itemPrice(p.items, b.id) : null;
+    b.kind === 'spell' ? (b.id === 'nexus' && p.team == null || p.spells[b.id] === 0 && spellCount(p.spells) >= MAX_SPELLS ? null : priceOf(b.id, p.spells[b.id])) : p.items ? itemPrice(p.items, b.id) : null;
   const next = plan.buys.find((b) => level(b) === 0 && price(b) !== null);
   if (next) return price(next)! <= p.gold ? next : null;
   const seen = new Set<string>();
@@ -424,6 +424,11 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // na Caminhada no vento qualquer magia a encerra: só corre para encostar no inimigo
   if (w.t < me.windUntil) return enemy ? [...cmds.filter((c) => c.kind !== 'move'), { id, kind: 'move', to: enemy.pos }] : cmds;
   // Heal after the escape and dodge branches: a hurt bot first gets out of danger, then heals the most hurt ally in range
+  if (!me.casting && !me.nexus && ready('nexus')) {
+    const range = spellLevel('nexus', me.spells.nexus).range * me.rangeF;
+    const target = w.wizards.find(z => z !== me && z.alive && ally(z) && z.hp < me.hp && dist(z.pos, me.pos) <= range);
+    if (target) return cast('nexus', target.pos);
+  }
   if (!me.casting && ready('heal')) {
     const L = spellLevel('heal', me.spells.heal);
     const hurt = w.wizards.filter((z) => z.alive && ally(z) && z.hpMax - z.hp >= L.heal && dist(z.pos, me.pos) <= L.range * me.rangeF)

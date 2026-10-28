@@ -55,7 +55,7 @@ export function aimOf(a: SpellId, spells: Record<SpellId, number>, items: Record
   // magias de área (Meteoro, Agarrar, Zona de dobra, Barricada): só o círculo no ponto mirado; Teleporte: o corpo onde você aparece
   const blastR = blastOf(a, spells);
   if (blastR) return { ...none, blastAt: aimed, blastR };
-  if (a === 'teleport' || a === 'heal' || a === 'sniper') return { ...none, blastAt: aimed, blastR: WIZ_R };
+  if (a === 'teleport' || a === 'heal' || a === 'sniper' || a === 'nexus') return { ...none, blastAt: aimed, blastR: WIZ_R };
   // Drenar vira para o mago mais perto no ponto mirado: a reta só vale até ali
   if (a === 'drain') return line(aimed, HALF.drain!);
   // Investida avança RUSH.dash e acerta quem fica a 2 WIZ_R + 0,1 (sim.ts, dashHit): pelo corpo do inimigo, WIZ_R + 0,1 de cada lado

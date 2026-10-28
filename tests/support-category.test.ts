@@ -11,7 +11,7 @@ describe('Support category', () => {
     for (const [groups, name] of [[SPELL_GROUPS_PT, 'Suporte'], [SPELL_GROUPS_EN, 'Support']] as const) {
       expect(groups).toHaveLength(5);
       expect(groups[4][0]).toBe(name);
-      expect(groups[4][2]).toEqual(['heal', 'geyser']);
+      expect(groups[4][2]).toEqual(['heal', 'geyser', 'nexus']);
       expect(groups.flatMap(([, , ids]) => ids).sort()).toEqual([...BAR_SPELLS].sort()); // the Scourge is an item (26/10, #227)
       expect(groups[1][2]).toEqual(SPELL_GROUP_IDS.mobility);
       expect(groups[2][2]).toEqual(SPELL_GROUP_IDS.defense);
