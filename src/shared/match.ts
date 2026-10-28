@@ -275,6 +275,7 @@ export function setWatch(m: Match, id: string, on: boolean, rand: () => number =
   if (on && m.players.length - playing(m).length >= MAX_WATCHERS) return false; // espectadores no limite
   if (on) {
     p.watch = true;
+    delete p.reading;
     if (!m.sandbox) p.team = null; // Fixed Teams reassign on return; Sandbox allies stay allied.
     // sandbox e Campanha não têm fim de rodada para o mago sumir: sai na hora (na Campanha, senão ficava parado contando como Aceso vivo)
     if ((m.sandbox || m.night) && m.world) m.world.wizards = m.world.wizards.filter((z) => z.id !== id);

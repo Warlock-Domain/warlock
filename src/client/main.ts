@@ -259,7 +259,7 @@ function startRoom(code: string, name: string) {
     if (readingSent === on) return;
     readingSent = on;
     net.send({ t: 'reading', on });
-    input.setEnabled(!campaignPaused() && room?.phase === 'playing');
+    input.setEnabled(!loadingGate.pending && !campaignPaused() && room?.phase === 'playing');
   };
   let lvNight = '', lvShown = 1; // Campaign: last level announced on this night
   let seenNight = '', seen: number[] = []; // Campaign: rooms the group has seen on this night (fog and minimap)
@@ -448,7 +448,7 @@ function startRoom(code: string, name: string) {
   function syncLoading() {
     const pending = loadingGate.pending;
     view.loading(pending);
-    input.setEnabled(!pending && room?.phase === 'playing');
+    input.setEnabled(!pending && !campaignPaused() && room?.phase === 'playing');
   }
   function startLoading() { loadingGate.start(); syncLoading(); }
   const input = createInput(canvas, {
@@ -565,6 +565,7 @@ function startRoom(code: string, name: string) {
   // a aparência escolhida fica salva e é reenviada ao entrar em qualquer sala; trocada nas Configurações, vale na hora
   const net = connect('/ws/room/' + code, parseServerMessage, onMsg, () => {
     rejoined = true;
+    readingSent = null;
     loadingGate.cancelStart(); // a start sent while the socket was down never reached the server
     syncLoading();
     net.send({ t: 'hello', playerId, name: myName, ...(watchJoin && { watch: true as const }) });
@@ -948,7 +949,7 @@ function startRoom(code: string, name: string) {
     const menu = (p: string) => p === 'lobby' || p === 'end';
     if (prev && menu(prev.phase) !== menu(room.phase)) curtain();
     // na contagem o servidor ainda não aceita comandos: liberar só quando a rodada começa
-    input.setEnabled(!loadingGate.pending && room.phase === 'playing');
+    input.setEnabled(!loadingGate.pending && !campaignPaused() && room.phase === 'playing');
     sound.setAmbience(room.phase !== 'lobby' && room.phase !== 'end');
     sound.duck(room.phase === 'shop');
     // Ascensão: o tempo acabou sem a escolha da pessoa e o jogo sorteou (#224)

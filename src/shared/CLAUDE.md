@@ -5,6 +5,7 @@ Applies together with the root `CLAUDE.md`.
 ## Simulation
 
 - Sandbox allied bots are opt-in: validate `ally`, derive their team from the authenticated requester and preserve Player/Wizard teams through respawn, restart and Watch/Play. Default bots stay enemies.
+- Campaign reading is a transient authoritative pause until every connected human participant finishes, capped at `READ_CAP_MS` (20 s) per pause. Disconnect, spectating, restart and resume clear reader state; other modes do not pause.
 
 - **Obstacles take every attack** (Fernando, 25/10): a new blast calls `blastPillars` (falloff by closeness, a wall hit once); a projectile that hits or bounces off an obstacle calls `damagePillar` in `hitPillar`; burning in the lava uses `damagePillar(..., quiet)`. The Campaign rock is unbreakable through `obstaclesOf`, not through a mode check in `sim.ts`.
 
