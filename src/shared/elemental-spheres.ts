@@ -15,12 +15,19 @@ export function elementalBonuses(spheres: readonly { element: Element; until?: n
   for (const sphere of spheres ?? []) if (sphere.until === undefined ? (sphere.left ?? 0) > 0 : sphere.until > now) bonus[sphere.element] += .05;
   return bonus;
 }
+// Stored element totals are the 5% benefits; their paired penalties are 3% per sphere.
+export const elementalPenalty = (benefit: number) => benefit * .6;
+export const elementalDamage = (bonus: ElementalBonuses) => (1 + bonus.fire) * (1 - elementalPenalty(bonus.water));
+export const elementalKnock = (bonus: ElementalBonuses) => 1 - elementalPenalty(bonus.fire);
+export const elementalArea = (bonus: ElementalBonuses) => 1 - elementalPenalty(bonus.earth);
+export const elementalRange = (bonus: ElementalBonuses) => (1 + bonus.water) * elementalArea(bonus);
 export function elementalLevel(level: Level, bonus: ElementalBonuses): Level {
   return {
-    ...level, heal: level.heal * (1 + bonus.ki), dmg: level.dmg * (1 + bonus.fire), dmgMin: level.dmgMin * (1 + bonus.fire),
-    dot: level.dot * (1 + bonus.fire), knock: level.knock * (1 + bonus.fire),
-    speed: level.speed * (1 + bonus.water), range: level.range * (1 + bonus.water),
-    radius: level.radius * Math.sqrt(1 + bonus.earth), width: level.width * (1 + bonus.earth),
+    ...level, heal: level.heal * (1 + bonus.ki), dmg: level.dmg * elementalDamage(bonus), dmgMin: level.dmgMin * elementalDamage(bonus),
+    dot: level.dot * elementalDamage(bonus), knock: level.knock * elementalKnock(bonus),
+    speed: level.speed * (1 + bonus.water), range: level.range * elementalRange(bonus),
+    radius: level.radius * Math.sqrt(elementalArea(bonus)), width: level.width * elementalArea(bonus),
+    blind: level.blind * (1 + bonus.earth), incapacitate: level.incapacitate * (1 + bonus.earth),
   };
 }
 

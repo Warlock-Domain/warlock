@@ -38,7 +38,7 @@ const PIX_AT = .4 + CAST_POINT.pix + PIX.soak;
 
 // mago 0 é "você" (com a magia ou o item da página); 1 e 2 são de treino e só têm a Bola de fogo
 export const SCRIPTS: Partial<Record<DemoId, Script>> = {
-  elemental: { pos: [v(0, 0), v(4, 0)], end: 31.5, steps: [...Array.from({ length: 6 }, (_, i): Step => [.4 + i * 5.05, A, 'elemental', A]), [27, A, 'basic', B]], prep: w => { w.pillars = []; } },
+  elemental: { pos: [v(0, 0), v(4, 0)], end: 31.5, steps: [...Array.from({ length: 6 }, (_, i): Step => [.4 + i * 5.05, A, 'elemental', A]), [23, B, 'fireball', A], [27, A, 'basic', B]], prep: w => { w.pillars = []; } },
   // you walk up and fire at the third wizard: the controlled one walks the same way and its copy converges on the same point (a V)
   pix: { pos: [v(-3, 0), v(2, 0), v(5, -3)], end: PIX_AT + 4.5, steps: [[.4, A, 'pix', v(2, 0)], [PIX_AT + .2, A, 'move', v(-3, 1.5)], [PIX_AT + 1.2, A, 'fireball', v(5, -3)]],
     prep: (w) => { w.pillars = []; w.wizards[C].regen = 0; } },

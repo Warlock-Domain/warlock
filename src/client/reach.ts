@@ -1,6 +1,6 @@
 // Círculo de alcance (pedido do Fernando, 18/10: o Raio acertava 13% nas partidas reais, suspeita de lançar fora dos 8 m):
 // raio em metros da magia ou item no nível atual, com o multiplicador de alcance dos itens (Elmo); 0 = não mostra.
-import { elementalBonuses, elementalLevel, type ElementalBonuses } from '../shared/elemental-spheres.ts';
+import { elementalBonuses, elementalLevel, elementalRange, elementalArea, type ElementalBonuses } from '../shared/elemental-spheres.ts';
 import { OBSTACLES, PROJ_R, PROJ_SPAWN, WALL_GAP, WIZ_R } from '../shared/constants.ts';
 import { itemStats, type ItemId } from '../shared/items.ts';
 import { snowR, type ProjKind } from '../shared/sim.ts';
@@ -20,10 +20,10 @@ export function reachOf(a: SpellId, spells: Record<SpellId, number>, items: Reco
   if (a === 'scourge') return L.radius; // Flagelo: o raio da explosão
   // sem alcance fixo, o raio do efeito: a bolha do Escudo e o avanço da Investida
   if (a === 'shield') return L.radius;
-  if (a === 'rush') return RUSH.dash * power * (1 + bonus.water);
+  if (a === 'rush') return RUSH.dash * power * elementalRange(bonus);
   if (L.range <= 0) return 0;
   const r = L.range * (1 + itemStats(items).range);
-  return FLIES.has(a as SpellId) ? r + PROJ_SPAWN + (a === 'snowball' ? snowR(lvl) : PROJ_R) * (1 + bonus.earth) : r;
+  return FLIES.has(a as SpellId) ? r + PROJ_SPAWN + (a === 'snowball' ? snowR(lvl) : PROJ_R) : r;
 }
 
 // Area of effect at the aimed point (Fernando, 21/10, PR #169); 0 = none. Read from the data, not a list of names: any spell
@@ -58,14 +58,14 @@ export function aimOf(a: SpellId, spells: Record<SpellId, number>, items: Record
   if (blastR) return { ...none, blastAt: aimed, blastR };
   if (a === 'teleport' || a === 'heal' || a === 'sniper') return { ...none, blastAt: aimed, blastR: WIZ_R };
   // Drenar vira para o mago mais perto no ponto mirado: a reta só vale até ali
-  if (a === 'drain') return line(aimed, HALF.drain! * (1 + bonus.earth));
+  if (a === 'drain') return line(aimed, HALF.drain!);
   // Investida avança RUSH.dash e acerta quem fica a 2 WIZ_R + 0,1 (sim.ts, dashHit): pelo corpo do inimigo, WIZ_R + 0,1 de cada lado
   if (a === 'rush') return line(tip(reach), WIZ_R + 0.1);
   // Estocada vai até o ponto mirado e acerta quem fica a 2 WIZ_R + THRUST.reach: pelo corpo, WIZ_R + THRUST.reach
   if (a === 'thrust') return line(aimed, WIZ_R + THRUST.reach);
   // a Bola de neve explode onde o voo acaba (centro dela, um raio antes da ponta) e pega pelo centro de quem está a menos de
   // radius: pelo corpo, o círculo fica WIZ_R menor
-  if (a === 'snowball') return { ...line(tip(reach), snowR(lvl) * (1 + bonus.earth)), blastAt: tip(reach - snowR(lvl) * (1 + bonus.earth)), blastR: elementalLevel(spellLevel('snowball', lvl), bonus).radius - WIZ_R };
+  if (a === 'snowball') return { ...line(tip(reach), snowR(lvl)), blastAt: tip(reach - snowR(lvl)), blastR: elementalLevel(spellLevel('snowball', lvl), bonus).radius - WIZ_R };
   // a Gravidade não bate em ninguém: queima quem tem o centro a um radius do caminho (pelo corpo, WIZ_R a menos), até o fim do voo
   if (a === 'gravity') {
     const r = elementalLevel(spellLevel('gravity', lvl), bonus).radius - WIZ_R;
@@ -82,10 +82,10 @@ export function aimOf(a: SpellId, spells: Record<SpellId, number>, items: Record
       const s0 = add(split, scale(d, SPLITTER.spawnSpeed * power * (1 + bonus.water) * SPLITTER.spawnLife * (j / SPLITTER.waves)));
       for (const sd of [-1, 1]) segs.push([s0, add(s0, scale(v(d.x - sd * d.y * k, d.y + sd * d.x * k), (SPLITTER.childSpeed * power * (1 + bonus.water) * SPLITTER.childLife) / (1 + k)))]);
     }
-    return { ...none, segs, half: PROJ_R * (1 + bonus.earth) };
+    return { ...none, segs, half: PROJ_R };
   }
   const half = HALF[a as SpellId];
-  return half === undefined ? none : line(tip(reach), half * (1 + bonus.earth));
+  return half === undefined ? none : line(tip(reach), half * (a === 'lightning' ? elementalArea(bonus) : 1));
 }
 
 // "Ver hitbox (teste)" da sandbox: raio no chão de cada coisa, escolhido para que círculos que se encostam = acerto
