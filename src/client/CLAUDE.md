@@ -4,7 +4,7 @@ Applies together with the root `CLAUDE.md`.
 
 ## Interface
 
-- Casting settings clone only the existing skills markup, without portrait or gameplay listeners. `SettingsCtx.castingHud` owns mount/release of this settings-only preview; never move the live HUD. `castModeControl` uses the same effective-mode resolver as keyboard input, with individual > key > global precedence; Heal and Inelegant Solution stay click-only and take no preference. Passive item preferences save future intent only. Individual spell/item lists stay expandable.
+- `RoomLoadingGate` owns room startup readiness (scene, joined room, required snapshot). Its settings-independent cat overlay hides HUD/labels/scene and disables gameplay input until ready; when ready the overlay is detached, not hidden, because Esc, the controller and the taunt wheel treat any `.overlay` in the DOM as open.
 
 - Closed Body keeps its local effect aligned with the current stance, without a cursor aim line. PT/EN descriptions and the off-axis demo explain the preserved facing.
 
