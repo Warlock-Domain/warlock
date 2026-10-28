@@ -1081,7 +1081,7 @@ function startRoom(code: string, name: string) {
     // No Rápido a tecla é o piscar depois de lançar: a faixa fica parada onde a magia saiu (flashAim), e o mouse na barra não aponta
     // o chão: nada segue o mouse
     const frozen = armed || padAiming ? null : flashAim;
-    const aiming = showing && (armed ?? padAiming ?? (getCastMode() === 'release' || frozen ? held : null));
+    const aiming = showing && (armed ?? padAiming ?? (getCastMode(showing || undefined) === 'release' || frozen ? held : null));
     const aimAt = aiming ? (padAiming ? padAt : (frozen?.at ?? input.aimPoint())) : null;
     const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, frozen?.from ?? myPos, aimAt, channelBoost) : null;
     scene.preview.range(showing && myPos ? myPos : null, reach);

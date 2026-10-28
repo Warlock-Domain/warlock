@@ -12,8 +12,8 @@ import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, 
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ITEMS, ITEM_IDS, MAX_ITEMS, castLevel, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, SPELL_IDS, isSpell, priceOf, spellCount, spellMax, type SpellId } from '../shared/spells.ts';
-import { POS_ACTIONS, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
-import { openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
+import { POS_ACTIONS, isSlotMode, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
+import { castModeControl, openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
 import { hideTip, itemTip, mechanicTip, spellTip, withTip } from './tips.ts';
 import { EFFECT_NAME, MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, effectName, effectText, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
@@ -741,6 +741,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const volIcon = () => volBtn.replaceChildren(icon(isAudioMuted(act.volumes()) ? UI_ICON.mute : UI_ICON.sound));
   setSettingsCtx({
     name: act.name, rename: act.rename, volumes: act.volumes, fxLite: act.fxLite, setFxLite: act.setFxLite, pixel: act.pixel, setPixel: act.setPixel, closePanels: () => solo(null),
+    castingHud: { mount: mountCastHud, release: releaseCastHud },
     setVolume: (kind, v) => {
       act.setVolume(kind, v);
       volIcon();
@@ -1082,6 +1083,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const respawn = el('div', { class: 'respawn' });
   const buttons = new Map<SpellId, { b: HTMLElement; cd: HTMLElement; pips: HTMLElement }>();
   let mine: PublicPlayer | undefined;
+  let castingHost: HTMLElement | null = null;
+  let castingSelection: { name: string; code: string; ability?: string; slot?: number } | null = null;
+  let castingScope: 'key' | 'ability' = 'key';
   let slotDrag: { pointer: number; from: number; x: number; y: number; moved: boolean; ghost?: HTMLElement; over?: HTMLElement | null } | null = null;
   const equipment = (p: PublicPlayer) => myLoadout(p.spells);
   function changeSlot(from: number, to: number) {
@@ -1252,7 +1256,61 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const vitals = el('div', { class: 'vitals', hidden: true }, el('div', { class: 'hp-col' }, el('div', { class: 'vit-row' }, hpBar, xpLv), xpBar), el('div', { class: 'hero-row' }, goldNow, heroStats)); // vida só jogando e vivo
   const heroFace = el('img', { class: 'hero-face', alt: '', width: 104, height: 120 });
   const hero = el('div', { class: 'hero-box' }, heroFace, vitals);
-  const barWrap = el('div', { class: 'barwrap', hidden: true }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, bar, itemGrid)));
+  const skills = el('div', { class: 'skills' }, bar, itemGrid);
+  const dotaBar = el('div', { class: 'dota-bar' }, hero, skills);
+  const castingControls = el('div', { class: 'casting-controls' });
+  function editCastSlot(selected: typeof castingSelection) {
+    castingSelection = selected;
+    if (!castingHost) return;
+    const target = { ...(selected ?? { name: t('Magia 1', 'Spell 1'), code: keyOf(POS_ACTIONS[0]), slot: 0 }) };
+    if (target.slot !== undefined) {
+      const spell = target.ability?.startsWith('spell:') ? target.ability.slice(6) as SpellId : undefined;
+      target.code = !isSlotMode() && spell ? keyOf(spell) : keyOf(POS_ACTIONS[target.slot]);
+    }
+    const individual = target.ability && (castingScope === 'ability' || !target.code);
+    if (!individual && !target.code) {
+      castingControls.replaceChildren(el('p', { class: 'muted' }, t('Esta posição está sem atalho. Defina uma tecla abaixo para configurar seu modo.', 'This slot has no shortcut. Assign a key below to configure its mode.')));
+      return;
+    }
+    castingControls.replaceChildren(
+      choice(t('Configurar por', 'Configure by'), [['key', t('Atalho', 'Shortcut')], ['ability', t('Magia / item', 'Spell / item')]] as const, castingScope, scope => { castingScope = scope; editCastSlot(castingSelection); }),
+      ...(!target.ability && castingScope === 'ability' ? [el('small', { class: 'muted' }, t('Espaço vazio: configurando o atalho.', 'Empty slot: configuring its shortcut.'))] : []),
+      castModeControl(individual ? target.ability! : 'key:' + target.code, `${target.name} · ${individual ? t('individual', 'individual') : keyLabel(target.code)}`, target.code, target.ability),
+      el('small', { class: 'muted' }, t('As opções valem para itens ativos; itens passivos continuam passivos.', 'These options apply to active items; passive items remain passive.')));
+  }
+  function mountCastHud(host: HTMLElement) {
+    castingHost = host;
+    // Reuse the HUD's existing markup, not its live nodes or gameplay listeners.
+    const preview = skills.cloneNode(true) as HTMLElement;
+    preview.querySelectorAll<HTMLElement>('[data-action]').forEach(k => k.textContent = labelOf(k.dataset.action as Action));
+    preview.querySelectorAll<HTMLElement>('[data-position]').forEach(k => k.textContent = keyLabel(keyOf(POS_ACTIONS[Number(k.dataset.position)])));
+    const bind = (node: HTMLElement, selected: NonNullable<typeof castingSelection>) => {
+      node.removeAttribute('aria-hidden'); node.setAttribute('role', 'button'); node.tabIndex = 0;
+      node.setAttribute('aria-label', selected.name);
+      node.onclick = () => editCastSlot(selected);
+      node.onkeydown = e => { if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); editCastSlot(selected); } };
+    };
+    preview.querySelectorAll<HTMLElement>('[data-loadout-slot]').forEach(node => {
+      const slot = Number(node.dataset.loadoutSlot), spell = node.querySelector<HTMLElement>('[data-action]')?.dataset.action;
+      bind(node, { name: spell && isSpell(spell) ? spellName(spell) : t(`Magia ${slot + 1}`, `Spell ${slot + 1}`), slot, code: keyOf(POS_ACTIONS[slot]), ...(spell && isSpell(spell) && { ability: 'spell:' + spell }) });
+    });
+    const items: ItemId[] = [...(mine?.items.scourge ? ['scourge' as const] : []), ...ITEM_IDS.filter(i => i !== 'scourge' && (mine?.items[i] ?? 0) > 0)];
+    preview.querySelectorAll<HTMLElement>('.item-grid > *').forEach((node, i) => {
+      const code = items[i] === 'scourge' ? keyOf('scourge') : 'Digit' + (i + 1);
+      bind(node, { name: items[i] ? itemName(items[i]) : t(`Item ${i + 1}`, `Item ${i + 1}`), code, ...(items[i] && { ability: 'item:' + items[i] }) });
+      node.querySelector('.key')?.remove();
+      node.append(el('span', { class: 'key' }, keyLabel(code)));
+    });
+    host.append(el('div', { class: 'dota-bar casting-live-hud' }, preview), castingControls);
+    editCastSlot(castingSelection);
+  }
+  function releaseCastHud() {
+    if (!castingHost) return;
+    castingHost = null;
+    castingSelection = null;
+    castingControls.remove();
+  }
+  const barWrap = el('div', { class: 'barwrap', hidden: true }, armedHint, statusRow, dotaBar);
   // a barra some na sala e no fim (update, a cada segundo) e enquanto eu assisto morto (watching, a cada quadro): uma conta só, sem piscar
   let barOff = true;
   let watchingNow = false;
