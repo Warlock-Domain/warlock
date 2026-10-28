@@ -6,6 +6,7 @@ Every new decision gets a row here (date, decision, why) in the same PR as the c
 
 | Date | Decision | Why |
 |---|---|---|
+| 28/10 | Barricade has one purchasable level,200 shared health and no lifetime; it remains until destroyed or the round resets. Keep the original level-one18.2 s cooldown,650*UNIT range and50 drop damage. Legacy higher saved levels map to those same fixed stats. | User rejected upgrades and approved compatibility with older saved rooms. |
 | 17/10 | Top-down 3D camera, Dota controls (right button moves); 1 point per round, first to 5 wins | same as the original Warlock, Dota audience |
 | 18/10 | Public repository | so friends can contribute |
 | 18/10 | Rejected: ranking/profile and items that only help one spell (e.g. Fire staff) | focus on the game, free build |

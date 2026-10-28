@@ -1,6 +1,6 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
 import { AEGIS, AFFLICT_SPELLS, CRIT, ITEMS, SHOCK_BOOTS, WIND_BOOTS, type ItemId } from '../shared/items.ts';
-import { BASIC_ATTACK, BRACE, DT, GUARD, MELEE_ARC, FRICTION, KB_SOFT_CAP, LAVA_DPS, STUN_SPEED } from '../shared/constants.ts';
+import { BASIC_ATTACK, BRACE, OBSTACLES, DT, GUARD, MELEE_ARC, FRICTION, KB_SOFT_CAP, LAVA_DPS, STUN_SPEED } from '../shared/constants.ts';
 import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { labelOf, uiLabel } from './keys.ts';
@@ -57,7 +57,7 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   boomerang: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   thrust: [[t('Dano máximo', 'Max damage'), (l) => n1(l.dmg)], [t('Empurrão máximo', 'Max knockback'), (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   gravity: [[DPS, (l) => n1(l.dmg)], [PULL, (l) => `${n1(l.pull)} m/s²`], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
-  rockpillar: [[t('Dano em quem está embaixo', 'Damage to whoever is under it'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [DURATION, (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  rockpillar: [[t('Dano em quem está embaixo', 'Damage to whoever is under it'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [t('Vida da parede', 'Wall health'), () => n1(OBSTACLES.rockpillar.hp)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   bouncer: [[t('Dano no 1º', 'Damage on the 1st hit'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [t('Alcance por salto', 'Range per bounce'), (l) => m(l.range)]],
   drain: [[t('Dano e cura', 'Damage and healing'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [t('Lentidão ou pressa', 'Slow or haste'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [t('Alcance até virar', 'Range until it turns'), (l) => m(l.range)]],
   snowball: [[t('Dano por segundo encostado', 'Damage per second touching'), (l) => n1(l.dot)], [t('Explosão no centro', 'Center blast'), (l) => n1(l.dmg)], [t('Empurrão da explosão', 'Blast knockback'), (l) => knockMeters(l)], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
