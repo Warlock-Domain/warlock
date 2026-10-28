@@ -6,6 +6,7 @@ Every new decision gets a row here (date, decision, why) in the same PR as the c
 
 | Date | Decision | Why |
 |---|---|---|
+| 27/10 | **User proposal:** Utility spell,12 gold,one level,5 s cooldown,30 s per randomly chosen sphere,maximum5. Fire/red +5pp damage/knockback;Water/blue +5pp projectile speed/range;Earth/brown +5pp projectile size/actual area;Ki/white +5pp outgoing healing/positive spell duration;Void/black slows spell cooldown recovery5pp. Duplicate elements stack. Capture outgoing stats and sizes at launch; no collision bodies or generic damage bonus. Barricade structure dimensions remain fixed. | Requested/tested locally by Leonard. Opening authorized; Fernando approval and balance/merge gates remain pending. |
 | 17/10 | Top-down 3D camera, Dota controls (right button moves); 1 point per round, first to 5 wins | same as the original Warlock, Dota audience |
 | 18/10 | Public repository | so friends can contribute |
 | 18/10 | Rejected: ranking/profile and items that only help one spell (e.g. Fire staff) | focus on the game, free build |

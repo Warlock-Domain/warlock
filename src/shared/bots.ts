@@ -5,6 +5,7 @@ import type { Cmd, Projectile, Wizard, World } from './sim.ts';
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
 import { BAR_SPELLS, CAST_POINT, FREE_SPELLS, GRIP, MAX_SPELLS, METEOR_DELAY, PIX, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
+import { ELEMENTAL_SPHERES } from './elemental-spheres.ts';
 import { CHANNEL, channelLevel, channelPower } from './channeling.ts';
 
 export type BotPick = { kind: 'spell'; id: SpellId } | { kind: 'item'; id: ItemId };
@@ -45,7 +46,7 @@ const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize', 'pix'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
-const SITUATIONAL: SpellId[] = ['channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
+const SITUATIONAL: SpellId[] = ['elemental', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
 const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
@@ -423,6 +424,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   }
   // na Caminhada no vento qualquer magia a encerra: só corre para encostar no inimigo
   if (w.t < me.windUntil) return enemy ? [...cmds.filter((c) => c.kind !== 'move'), { id, kind: 'move', to: enemy.pos }] : cmds;
+  if (!me.casting && !threat && ready('elemental') && (me.spheres?.length ?? 0) < ELEMENTAL_SPHERES.max) return cast('elemental', me.pos);
   // Heal after the escape and dodge branches: a hurt bot first gets out of danger, then heals the most hurt ally in range
   if (!me.casting && ready('heal')) {
     const L = spellLevel('heal', me.spells.heal);
@@ -478,7 +480,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // Atacar (decisão do Fernando, 24/10): sem nenhuma magia pronta, com o inimigo a até 6 m e sem obstáculo no meio, o bot usa o
   // ataque livre como o jogador; sem isso o humano teria um golpe que o bot nunca usa e o simulador não mediria o Atacar.
   // Desvio já decidido neste comando vem antes: parar 0,4 s para atacar jogaria fora a esquiva
-  if (!veiled && !me.basicCasting && w.t >= (me.basicReadyAt ?? 0) && d <= BASIC_ATTACK.range && !blocked(E.pos) && !SPELL_IDS.some((x) => x !== 'closedbody' && ready(x))) { // Closed body waits for Hold ground, so it never blocks the Attack
+  if (!veiled && !me.basicCasting && w.t >= (me.basicReadyAt ?? 0) && d <= BASIC_ATTACK.range && !blocked(E.pos) && !SPELL_IDS.some((x) => x !== 'closedbody' && x !== 'elemental' && ready(x))) { // Closed body waits for Hold ground, so it never blocks the Attack
     return [...cmds, { id, kind: 'basic', at: E.pos, target: E.id }];
   }
   let damage = false;

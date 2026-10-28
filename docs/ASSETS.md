@@ -71,3 +71,5 @@ Decisão do Fernando em 21/10. Vale para quem contribui e para toda IA.
 2. **Explicado:** a linha diz o que é e para que serve no jogo.
 3. **Referenciado:** a linha diz onde o código usa o arquivo (`arquivo.ts`) e de onde ele veio, com a licença; o crédito vai em `public/CREDITS.txt`.
 4. Asset que sai do jogo sai daqui também. Tudo no mesmo PR do asset.
+
+- Elemental Spheres: procedural Three.js orbit spheres; fire red/water blue/earth brown/ki white/void black. Reuses credited star-swirl icon and Shield sound; no external assets.

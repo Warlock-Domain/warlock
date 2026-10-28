@@ -64,3 +64,5 @@ Flattened lists of numbers (layout in the `protocol.ts` comment), values with `r
 ## Appearance (`characters.ts`)
 
 The appearance code stores the **position** of each option (7 digits, one per piece), and it is saved in the browser and in rooms. A new option goes **at the end** of the piece's list; an option that leaves stays in place and becomes retired (`isRetired`): `decodeLook` swaps it for another (the hooded Rogue becomes Rogue + Hood, issue #107), the creator and the draw skip it. Every code input goes through `fixLook` (browser in `savedLook`, message in `parseClientMessage`, stored room in `resume`).
+
+- Proposal under review: Utility spell,12 gold,one level,5 s cooldown,30 s per randomly chosen sphere,maximum5. Fire/red +5pp damage/knockback;Water/blue +5pp projectile speed/range;Earth/brown +5pp projectile size/actual area;Ki/white +5pp outgoing healing/positive spell duration;Void/black slows spell cooldown recovery5pp. Duplicate elements stack. Capture outgoing stats and sizes at launch; no collision bodies or generic damage bonus. Barricade structure dimensions remain fixed.
