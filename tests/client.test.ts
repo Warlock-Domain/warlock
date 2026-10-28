@@ -114,18 +114,19 @@ describe('movement prediction', () => {
   });
 });
 
-describe('1 2 3 4 Q W E R slot keys', () => {
+describe('Q W E R D F slot keys', () => {
   it('in slot mode the equipped spells follow the bar order', () => {
     setSlotMode(true);
     setSlots(['fireball', 'gravity', 'swap', null, 'pact']);
-    expect(actionFor('Digit1')).toBe('fireball');
-    expect(actionFor('Digit2')).toBe('gravity');
-    expect(actionFor('Digit3')).toBe('swap');
-    expect(actionFor('Digit4')).toBeUndefined();
-    expect(actionFor('KeyQ')).toBe('pact');
-    expect(actionFor('KeyW')).toBeUndefined();
-    expect(labelOf('pact')).toBe('Q');
-    expect(labelOf('gravity')).toBe('2');
+    expect(actionFor('KeyQ')).toBe('fireball');
+    expect(actionFor('KeyW')).toBe('gravity');
+    expect(actionFor('KeyE')).toBe('swap');
+    expect(actionFor('KeyR')).toBeUndefined();
+    expect(actionFor('KeyD')).toBe('pact');
+    expect(actionFor('KeyF')).toBeUndefined();
+    expect(actionFor('Digit1')).toBe('scourge'); // the digits are no longer slot keys; 1 is the Scourge item's own key (26/10, #227)
+    expect(labelOf('pact')).toBe('D');
+    expect(labelOf('gravity')).toBe('W');
     setSlotMode(false);
     expect(actionFor('KeyW')).toBe('lightning');
   });

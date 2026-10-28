@@ -1,13 +1,15 @@
 // Demonstração animada do grimório: um canvas 2D visto de cima rodando a simulação de verdade (newWorld/stepWorld)
 // com magos de treino e um roteiro fixo em loop. Como usa os números do jogo, a demo acompanha qualquer balanceamento.
 import { SHAPES, type ArenaId } from '../shared/arena.ts';
+import { PIX_COLOR, PIX_TIE } from './proj-models.ts';
 import { BASIC_ATTACK, BRACE, DT, KNOCK_RECOVERY, OBSTACLES, PROJ_R, WIZ_R } from '../shared/constants.ts';
 import { ITEMS, noItems, type ItemId } from '../shared/items.ts';
 import { bracingActive, incapacitatedUntil, isStunned, newWorld, snowR, spellOf, stepWorld, type Cmd, type Projectile, type SimEvent, type Wizard, type World } from '../shared/sim.ts';
-import { BLINDNESS, CAST_POINT, GRIP, METEOR_DELAY, SHIELD, isSpell, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
+import { BLINDNESS, CAST_POINT, GRIP, METEOR_DELAY, PIX, SHIELD, isSpell, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, scale, v, type Vec } from '../shared/vec.ts';
 import { LOCALE, spellName, t } from './i18n.ts';
 import { n1 } from './rules-text.ts';
+import { channelPower } from '../shared/channeling.ts';
 import { electroPulse } from './screen-data.ts';
 import { HEAL_FX, healAura } from './heal-fx.ts';
 import { conePoints } from '../shared/sand-cone.ts';
@@ -15,7 +17,7 @@ import { GEYSER_FX } from './geyser-fx.ts';
 
 // alvo do passo: ponto fixo ou a posição atual do mago com esse índice
 type At = Vec | number;
-type Step = [t: number, who: number, what: SpellId | 'move' | 'basic' | 'braceOn' | 'braceOff', at: At];
+type Step = [t: number, who: number, what: SpellId | 'move' | 'basic' | 'braceOn' | 'braceOff' | 'charge', at: At];
 type Script = { pos?: Vec[]; end: number; steps: Step[]; prep?: (w: World) => void };
 export type DemoId = SpellId | ItemId | 'clash' | 'basic' | 'brace' | 'knockback';
 
@@ -29,9 +31,16 @@ const GRIP_ROOT_AT = GRIP_CAST_AT + CAST_POINT.grip + GRIP.delay;
 const CLOSED_BODY_END = .8 + spellLevel('closedbody', 1).duration; // demo acompanha o prazo real do nível1.
 // verde dos cipós do Agarrar: a marca no chão, o anel de quem está preso e as folhas
 const VINE_COLOR = '#8ed64b';
+// Lula Pix: control starts once the target has spent PIX.soak s in the rain
+const PIX_AT = .4 + CAST_POINT.pix + PIX.soak;
 
 // mago 0 é "você" (com a magia ou o item da página); 1 e 2 são de treino e só têm a Bola de fogo
 export const SCRIPTS: Partial<Record<DemoId, Script>> = {
+  // you walk up and fire at the third wizard: the controlled one walks the same way and its copy converges on the same point (a V)
+  pix: { pos: [v(-3, 0), v(2, 0), v(5, -3)], end: PIX_AT + 4.5, steps: [[.4, A, 'pix', v(2, 0)], [PIX_AT + .2, A, 'move', v(-3, 1.5)], [PIX_AT + 1.2, A, 'fireball', v(5, -3)]],
+    prep: (w) => { w.pillars = []; w.wizards[C].regen = 0; } },
+  sniper: { pos: [v(-4,0),v(3,0)], end:6.2, steps:[[.4,A,'sniper',B],[1,B,'move',v(3,2)],[.4+CAST_POINT.sniper+.3,A,'sniper',B]], prep:w=>{w.pillars=[];w.wizards[B].regen=0;} },
+  channel: { pos: [v(-4,0),v(3,0)], end: 4.5, steps: [[.3,A,'charge',B],[3,A,'fireball',B]], prep: w => { w.pillars=[]; w.wizards[B].regen=0; } },
   closedbody: { pos: [v(-1,0), v(3,0)], end: CLOSED_BODY_END + 2,
     steps: ([...Array.from({length:Math.ceil((CLOSED_BODY_END+1.1)/.1)}, (_,i): Step => [.1+i*.1,A,'braceOn',A]), [.8,A,'closedbody',v(-1,4)], [1,B,'fireball',A], [2,B,'meteor',A], [CLOSED_BODY_END+.2,B,'basic',A], [CLOSED_BODY_END+1.2,A,'braceOff',A]] as Step[]).sort((a,b)=>a[0]-b[0]),
     prep: w => { w.pillars=[]; w.wizards[A].facing=0; w.wizards[B].spells.meteor=1; } },
@@ -83,6 +92,12 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 
 // Rótulos seguem os estados reais para a prévia não sugerir que stun, prisão e postura têm o mesmo bloqueio.
 export function demoStatus(w: World, z: Wizard): string[] {
+  if(z.casting?.spell==='sniper') return [t(`mirando · ${n1(Math.max(0,z.casting.fireAt-w.t))} s · tiro ${spellLevel('sniper',1).dmg}`,`aiming · ${n1(Math.max(0,z.casting.fireAt-w.t))} s · shot ${spellLevel('sniper',1).dmg}`)];
+  if (z.channel) {
+    // below 1 s the charge is not ready (power 0): show no bonus until a click would actually fire
+    const elapsed = Math.min(2, w.t - z.channel.since), bonus = Math.round((channelPower(elapsed) - 1) * 100);
+    return [bonus >= 0 ? t(`canalizando ${n1(elapsed)} s · +${bonus}% · clique para lançar`, `channeling ${n1(elapsed)} s · +${bonus}% · click to cast`) : t(`canalizando ${n1(elapsed)} s · lança após 1 s`, `channeling ${n1(elapsed)} s · casts after 1 s`)];
+  }
   if(w.t < (z.blindUntil ?? 0)) return [t('cegueira · visão 3 m','blindness · sight 3 m'), ...(w.t < (z.incapacitateUntil ?? 0) ? [t('incapacitado · recargas pausadas','incapacitated · cooldowns paused')] : [])];
   if (w.t < (z.closedBodyUntil ?? 0) && bracingActive(w,z)) return [t('Corpo fechado · direção mantida · dano/empurrão/status −90%', 'Closed Body · facing preserved · damage/knockback/status −90%')];
   if ((z.geyserLeft ?? 0) > 0) return [t('suspenso · invulnerável · sem ações', 'suspended · invulnerable · no actions')];
@@ -90,6 +105,7 @@ export function demoStatus(w: World, z: Wizard): string[] {
   const labels: string[] = [];
   if (w.t < z.shieldUntil) labels.push(t(`dano 0 · empurrão/status ${Math.round(SHIELD.knock * 100)}%`, `damage 0 · knockback/status ${Math.round(SHIELD.knock * 100)}%`));
   if (isStunned(z)) labels.push(z.stunLeft === undefined ? t('atordoado durante o deslize · sem ações', 'stunned while sliding · no actions') : t(`atordoado ${n1(Math.max(0, z.stunLeft))} s · sem ações`, `stunned ${n1(Math.max(0, z.stunLeft))} s · no actions`));
+  if (z.puppetBy && w.t < (z.puppetUntil ?? 0)) labels.push(t(`Lula Pix ${left(z.puppetUntil!)} s · repete seus comandos`, `Squid Pix ${left(z.puppetUntil!)} s · repeats your commands`));
   if (w.t < z.gripUntil) labels.push(t(`preso ${left(z.gripUntil)} s · sem mobilidade`, `gripped ${left(z.gripUntil)} s · no mobility`));
   if (w.t < z.slowUntil || z.zone & 1 || w.t < (z.electroUntil ?? 0)) labels.push(t('lentidão · caminhada reduzida', 'slow · reduced walking speed'));
   if (w.t < incapacitatedUntil(z, w.t)) labels.push(t('incapacitado · recargas pausadas', 'incapacitated · cooldowns paused'));
@@ -130,7 +146,7 @@ export function demoStep(s: DemoState) {
     const [, who, what, at] = script.steps[s.next];
     const id = w.wizards[who].id;
     const to = typeof at === 'number' ? { ...w.wizards[at].pos } : at;
-    cmds.push(what === 'move' ? { id, kind: 'move', to } : what === 'braceOn' || what === 'braceOff' ? { id, kind: 'brace', on: what === 'braceOn' } : what === 'basic' ? { id, kind: 'basic', at: to, target: typeof at === 'number' ? w.wizards[at].id : undefined } : { id, kind: 'cast', spell: what, at: to });
+    cmds.push(what === 'charge' ? { id, kind: 'channel', spell: 'fireball' } : what === 'move' ? { id, kind: 'move', to } : what === 'braceOn' || what === 'braceOff' ? { id, kind: 'brace', on: what === 'braceOn' } : what === 'basic' ? { id, kind: 'basic', at: to, target: typeof at === 'number' ? w.wizards[at].id : undefined } : { id, kind: 'cast', spell: what, at: to });
   }
   stepWorld(w, cmds, () => 0.5);
   s.events = w.events;
@@ -236,6 +252,9 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     } else if (p.kind === 'grip') {
       circle(p.pos, L.radius, 'rgba(100,180,50,.12)', VINE_COLOR, true);
       circle(p.pos, L.radius * Math.max(0, 1 - (p.until - w.t) / GRIP.delay), 'rgba(100,180,50,.3)');
+    } else if (p.kind === 'pix') {
+      circle(p.pos, L.radius, 'rgba(255,210,58,.12)', PIX_COLOR, true);
+      for (let i = 0; i < 6; i++) circle(add(p.pos, v(Math.cos(i + w.t * 3) * L.radius * .6, Math.sin(i * 2.1 + w.t * 2) * L.radius * .6)), .12, PIX_COLOR); // falling coins
     } else if (p.kind === 'warpzone') circle(p.pos, L.radius, 'rgba(138,123,255,.25)', col);
     else if (p.kind === 'illusion') {
       // Draw the copy as a translucent wizard in its owner's color
@@ -262,6 +281,12 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       circle(z.pos, WIZ_R + .2, null, GEYSER_FX.color);
       text('↑', v(z.pos.x, z.pos.y - 1.3), GEYSER_FX.foam, .65);
     }
+    if (z.casting?.spell === 'sniper') {
+      const at=z.casting.at;
+      line(z.pos,at,'#ff324e',.035,true); circle(at,.5,null,'#ff324e');
+      const dir=v(Math.cos(z.facing),Math.sin(z.facing));
+      line(add(z.pos,scale(dir,.3)),add(z.pos,scale(dir,1.35)),'#283447',.15);
+    }
     if (z.basicCasting) {
       circle(z.pos, .6, null, '#9be7ff');
       const left = Math.max(0, z.basicCasting.fireAt - w.t);
@@ -282,6 +307,8 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     if (w.t < z.shieldUntil) circle(z.pos, z.shieldR, 'rgba(255,214,102,.15)', '#ffd666');
     if (w.t < z.alterUntil) circle(z.pos, spellLevel('alteration', z.spells.alteration || 1).radius, 'rgba(110,230,255,.12)', '#6ee6ff', true);
     if (w.t < z.gripUntil) vines(z.pos, WIZ_R + .18);
+    const by = z.puppetBy && w.t < (z.puppetUntil ?? 0) ? w.wizards.find((o) => o.id === z.puppetBy && o.alive) : undefined;
+    if (by) line(z.pos, by.pos, PIX_TIE, .06);
     if (isStunned(z)) circle(z.pos, WIZ_R + .3, null, '#ffd666', true);
     if (bracingActive(w, z)) {
       circle(z.pos, WIZ_R + .12, null, '#9be7ff');
@@ -323,6 +350,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       vines(v(e.x, e.y), e.r);
       ctx.globalAlpha = 1;
     }
+    else if (e.k === 'snipe') line(e.from,e.to,'#fff2b5',.08);
     else if (e.k === 'teleport') line(e.from, e.to, 'rgba(255,214,102,.6)', 0.05, true);
     else if (e.k === 'reflect') circle(v(e.x, e.y), 0.5, null, '#ffd666');
     else if (e.k === 'scourge' || e.k === 'clash') circle(v(e.x, e.y), e.r, null, e.k === 'clash' ? CLASH_COLOR[e.combo] : '#ff6a4d');

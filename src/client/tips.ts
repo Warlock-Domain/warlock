@@ -1,11 +1,11 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
 import { AEGIS, AFFLICT_SPELLS, CRIT, ITEMS, SHOCK_BOOTS, WIND_BOOTS, type ItemId } from '../shared/items.ts';
-import { DT, FRICTION, KB_SOFT_CAP, LAVA_DPS, STUN_SPEED } from '../shared/constants.ts';
+import { BASIC_ATTACK, BRACE, DT, GUARD, MELEE_ARC, FRICTION, KB_SOFT_CAP, LAVA_DPS, STUN_SPEED } from '../shared/constants.ts';
 import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
-import { labelOf } from './keys.ts';
-import { CAST_POINT, GRIP, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, RECHARGE, RUSH, SHIELD, SPELLS, WARPZONE, spellLevel, type Level, type SpellId } from '../shared/spells.ts';
-import { RULES_SHORT, n1, n2 } from './rules-text.ts';
+import { labelOf, uiLabel } from './keys.ts';
+import { CAST_POINT, GRIP, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, PIX, RECHARGE, RUSH, SHIELD, SPELLS, WARPZONE, spellLevel, spellMax, type Level, type SpellId } from '../shared/spells.ts';
+import { MECHANIC_GUIDES, RULES_SHORT, n1, n2 } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 
 const m = (x: number) => `${n1(x)} m`;
@@ -38,6 +38,9 @@ export function knockDistance(dmg: number, knock: number): number {
 const knockMeters = (l: Level) => m(knockDistance(l.dmg, l.knock));
 // todo campo do nível que muda o jogo tem uma linha (o teste confere)
 export const SPELL_ROWS: Record<SpellId, Row[]> = {
+  pix: [[t('Chuva de moedas', 'Coin rain'), () => s(PIX.rain)], [RADIUS, (l) => m(l.radius)], [t('Tempo dentro para controlar', 'Time inside to control'), () => s(PIX.soak)], [t('Tempo controlado', 'Time controlled'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  sniper: [[DMG,l=>n1(l.dmg)],[RANGE,l=>m(l.range)],[t('Canalização','Channel time'),()=>s(CAST_POINT.sniper)],[CD,l=>s(l.cd)]],
+  channel: [[t('Preparo mínimo', 'Minimum charge'), () => '1 s'], [t('Carga máxima', 'Maximum charge'), () => '2 s'], [t('Bônus em 1 s / 2 s', 'Bonus at 1 s / 2 s'), () => '+50% / +100%'], [CD, () => '0 s']],
   closedbody: [[DURATION, l => s(l.duration)], [t('Redução de dano', 'Damage reduction'), () => '90%'], [t('Resistência a novos status', 'New status resistance'), () => '90%'], [t('Resistência a novo empurrão', 'New knockback resistance'), () => '90%'], [CD, l => s(l.cd)]],
   geyser: [[t('Suspensão e invulnerabilidade', 'Suspension and invulnerability'), l => s(l.duration)], [CD, l => s(l.cd)], [RANGE, l => m(l.range)], [t('Raio da área', 'Area radius'), l => m(l.radius)]],
   heal: [[t('Cura', 'Healing'), l => n1(l.heal)], [CD, l => s(l.cd)], [RANGE, l => m(l.range)]],
@@ -77,10 +80,10 @@ function table(rows: [string, string, string | null][]): string {
 export function spellTip(id: SpellId, level: number): string {
   const sp = SPELLS[id];
   const cur = spellLevel(id, level);
-  const next = level >= 1 && level < MAX_SPELL_LEVEL ? spellLevel(id, level + 1) : null;
-  const head = `<b>${spellName(id)}</b> <span class="k">${labelOf(id)}</span><br><small>${level ? t(`Nível ${level} de ${MAX_SPELL_LEVEL}`, `Level ${level} of ${MAX_SPELL_LEVEL}`) : t('Ainda não comprada · preço ', 'Not bought yet · price ') + sp.cost}</small>`;
+  const next = level >= 1 && level < spellMax(id) ? spellLevel(id, level + 1) : null;
+  const head = `<b>${spellName(id)}</b> <span class="k">${labelOf(id)}</span><br><small>${level ? t(`Nível ${level} de ${spellMax(id)}`, `Level ${level} of ${spellMax(id)}`) : t('Ainda não comprada · preço ', 'Not bought yet · price ') + sp.cost}</small>`;
   const rows = SPELL_ROWS[id].map(([k, f]): [string, string, string | null] => [k, f(cur), next ? f(next) : null]);
-  const foot = next ? `<small class="up">${t(`Próximo nível (${sp.up[level - 1]} de ouro): o que está à direita`, `Next level (${sp.up[level - 1]} gold): shown on the right`)}</small>` : level >= MAX_SPELL_LEVEL ? `<small>${t('Nível máximo', 'Max level')}</small>` : '';
+  const foot = next ? `<small class="up">${t(`Próximo nível (${sp.up[level - 1]} de ouro): o que está à direita`, `Next level (${sp.up[level - 1]} gold): shown on the right`)}</small>` : level >= spellMax(id) ? `<small>${t('Nível máximo', 'Max level')}</small>` : '';
   return `${demo(id)}${head}<p>${RULES_SHORT[id]}</p>${table(rows)}${foot}<small class="muted">${t('Empurrão: distância que um mago sem resistência desliza.', 'Knockback: distance a wizard without resistance slides.')}</small>`;
 }
 
@@ -91,7 +94,7 @@ function levelsTable(heads: number, rows: [string, string[]][]): string {
 }
 export function spellLevels(id: SpellId): string {
   const sp = SPELLS[id];
-  return levelsTable(MAX_SPELL_LEVEL, [[t('Ouro', 'Gold'), [sp.cost, ...sp.up].map(String)], ...SPELL_ROWS[id].map(([k, f]): [string, string[]] => [k, sp.levels.map(f)])]);
+  return levelsTable(spellMax(id), [[t('Ouro', 'Gold'), [sp.cost, ...sp.up].map(String)], ...SPELL_ROWS[id].map(([k, f]): [string, string[]] => [k, sp.levels.slice(0, spellMax(id)).map(f)])]);
 }
 export function itemLevels(id: ItemId): string {
   const n = ITEMS[id].levels.length;
@@ -113,19 +116,23 @@ export const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string]
   vampire: (l) => [[t('Vida de volta', 'Health back'), t(`${n1(ITEMS.vampire.levels[l].lifesteal! * 100)}% do dano causado`, `${n1(ITEMS.vampire.levels[l].lifesteal! * 100)}% of damage dealt`)]],
   lava_boots: (l) => [[t('Dano da lava', 'Lava damage'), t(`−${n1(ITEMS.lava_boots.levels[l].lava! * 100)}% (${n1(LAVA_DPS * (1 - ITEMS.lava_boots.levels[l].lava!))} por segundo)`, `−${n1(ITEMS.lava_boots.levels[l].lava! * 100)}% (${n1(LAVA_DPS * (1 - ITEMS.lava_boots.levels[l].lava!))} per second)`)]],
   warden: (l) => [[t('Dano por golpe', 'Damage per hit'), t(`−${n1(ITEMS.warden.levels[l].ward!)} (no máximo metade do golpe)`, `−${n1(ITEMS.warden.levels[l].ward!)} (at most half the hit)`)], [KNOCK_TAKEN, `+${n1(-ITEMS.warden.levels[l].kb! * 100)}%`]],
-  helmet: () => [[KNOCK_TAKEN, `−${n1(ITEMS.helmet.levels[0].kb! * 100)}%`], [t('Alcance das magias', 'Spell range'), `−${n1(-ITEMS.helmet.levels[0].range! * 100)}%`]],
-  wind_boots: () => [[t('5 s sem causar nem levar dano', '5 s without dealing or taking damage'), `+${n1(WIND_BOOTS.speed * 100)} cm/s`], [t('Acaba', 'Ends'), t('ao causar ou levar dano (golpe, lava, fogo)', 'when you deal or take damage (hit, lava, fire)')], [t('Com outras botas', 'With other boots'), WITH_BOOTS_RULE]],
-  shock_boots: () => [[t('Ao levar um golpe', 'When you take a hit'), t(`+${n1(SHOCK_BOOTS.speed * 100)} cm/s por ${s(SHOCK_BOOTS.secs)}`, `+${n1(SHOCK_BOOTS.speed * 100)} cm/s for ${s(SHOCK_BOOTS.secs)}`)], [t('Com Botas', 'With Boots'), WITH_BOOTS_RULE]],
+  helmet: (l) => [[KNOCK_TAKEN, `−${n1(ITEMS.helmet.levels[l].kb! * 100)}%`], [t('Alcance das magias', 'Spell range'), `−${n1(-ITEMS.helmet.levels[l].range! * 100)}%`]],
+  wind_boots: (l) => [[t('Espera sem causar nem levar dano', 'Wait without dealing or taking damage'), s(WIND_BOOTS.calm[l])], [t('Velocidade', 'Speed'), `+${n1(WIND_BOOTS.speed[l] * 100)} cm/s`], [t('Acaba', 'Ends'), t('ao causar ou levar dano (golpe, lava, fogo)', 'when you deal or take damage (hit, lava, fire)')], [t('Com outras botas', 'With other boots'), WITH_BOOTS_RULE]],
+  shock_boots: (l) => [[t('Ao levar um golpe', 'When you take a hit'), t(`+${n1(SHOCK_BOOTS.speed * 100)} cm/s por ${s(SHOCK_BOOTS.secs[l])}`, `+${n1(SHOCK_BOOTS.speed * 100)} cm/s for ${s(SHOCK_BOOTS.secs[l])}`)], [t('Com Botas', 'With Boots'), WITH_BOOTS_RULE]],
   lens: (l) => [[t('Chance de crítico', 'Critical chance'), `${n1(ITEMS.lens.levels[l].crit! * 100)}%`], [t('Dano do crítico', 'Critical damage'), `+${n1(CRIT.dmg * 100)}%`]],
   piercing: (l) => [[t('Dano do crítico', 'Critical damage'), t(`+${n1(ITEMS.piercing.levels[l].critDmg! * 100)}% (soma ao da Lente Letal)`, `+${n1(ITEMS.piercing.levels[l].critDmg! * 100)}% (adds to the Lethal Lens)`)], [t('Sem a Lente Letal', 'Without the Lethal Lens'), t('não há crítico', 'no critical hits')]],
   affliction: (l) => [[t('Lentidões e prisões que você aplica', 'Slows and roots you apply'), t(`+${n1(ITEMS.affliction.levels[l].afflict! * 100)}% de duração`, `+${n1(ITEMS.affliction.levels[l].afflict! * 100)}% duration`)], [t('Vale para', 'Applies to'), AFFLICT_SPELLS.map(spellName).join(', ')]],
-  aegis: () => [[t('Quando', 'When'), t(`na lava com ${AEGIS.hp} de vida ou menos`, `in the lava with ${AEGIS.hp} health or less`)], [t('Efeito', 'Effect'), t(`volta parado para ${n1(AEGIS.back * 100)}% do raio da arena`, `brings you back, standing still, to ${n1(AEGIS.back * 100)}% of the arena radius`)], [t('Usos', 'Uses'), t('1: quebra ao salvar você (compre de novo na loja)', '1: breaks when it saves you (buy again in the shop)')]],
+  aegis: (l) => [[t('Quando', 'When'), t(`na lava com ${AEGIS.hp} de vida ou menos`, `in the lava with ${AEGIS.hp} health or less`)], [t('Efeito', 'Effect'), t(`volta parado para ${n1(AEGIS.back * 100)}% do raio da arena`, `brings you back, standing still, to ${n1(AEGIS.back * 100)}% of the arena radius`)], [t('Salvamentos', 'Saves'), t(`${l + 1}: cada um gasta 1 nível`, `${l + 1}: each one costs 1 level`)]],
+  // Scourge item (26/10, #227): the same rows as the spell tip, read at the item level
+  scourge: (l) => SPELL_ROWS.scourge.map(([k, f]): [string, string] => [k, f(spellLevel('scourge', l + 1))]),
 };
 
+// the Scourge is the only active item (26/10, #227)
+const KIND = (id: ItemId) => (id === 'scourge' ? t('ativo', 'active') : t('passivo', 'passive'));
 export function itemTip(id: ItemId, level: number): string {
   const it = ITEMS[id];
   const max = it.levels.length;
-  const head = `<b>${itemName(id)}</b><br><small>${level ? t(`Nível ${level} de ${max}`, `Level ${level} of ${max}`) : t('Ainda não comprado', 'Not bought yet')} · ${t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}</small>`;
+  const head = `<b>${itemName(id)}</b>${id === 'scourge' ? ` <span class="k">${labelOf('scourge')}</span>` : ''}<br><small>${level ? t(`Nível ${level} de ${max}`, `Level ${level} of ${max}`) : t('Ainda não comprado', 'Not bought yet')} · ${KIND(id)} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}</small>`;
   const rows = ITEM_ROWS[id]!;
   const cur = rows(Math.max(0, level - 1));
   const next = level >= 1 && level < max ? rows(level) : null;
@@ -133,11 +140,32 @@ export function itemTip(id: ItemId, level: number): string {
   return `${demo(id)}${head}<p>${itemText(id)}</p>${body}${next ? `<small class="up">${t('Próximo nível: o que está à direita', 'Next level: shown on the right')}</small>` : level >= max ? `<small>${t('Nível máximo', 'Max level')}</small>` : ''}`;
 }
 
+// Attack and Hold ground (issue #401): same tip shape as a spell, numbers read from the shared constants so they never drift
+// alt: a versão para teste escolhida na loja (issue #402) está ativa; a dica troca para o texto e os números dela, porque a tecla faz outra coisa
+export function mechanicTip({ id, title: name }: (typeof MECHANIC_GUIDES)[number], alt = false): string {
+  const basic = id === 'basic';
+  const key = uiLabel(basic ? 'basic' : 'stop');
+  const text = basic
+    ? alt
+      ? t(`Aperte ${key} e bata na direção do cursor: golpe em arco de ${MELEE_ARC.angle}° e ${n1(MELEE_ARC.range)} m que acerta todos os inimigos dentro dele, sem cancelar a magia deles. Movimento, ${uiLabel('stop')} ou magia cancelam o preparo sem gastar a recarga.`, `Press ${key} and strike toward the cursor: a ${MELEE_ARC.angle}° arc of ${n1(MELEE_ARC.range)} m that hits every enemy in it, without cancelling their spell. Moving, ${uiLabel('stop')} or a spell cancel the windup without spending the cooldown.`)
+      : t(`Aperte ${key} e clique num inimigo: corpo a corpo até ${n1(BASIC_ATTACK.melee)} m, projétil mais longe. Movimento, ${uiLabel('stop')} ou magia cancelam o preparo sem gastar a recarga.`, `Press ${key} and click an enemy: melee within ${n1(BASIC_ATTACK.melee)} m, a projectile farther away. Moving, ${uiLabel('stop')} or a spell cancel the windup without spending the cooldown.`)
+    : alt
+      ? t(`Segure ${key}: para e defende na hora. Leva o mesmo dano; o empurrão recebido diminui de 0% a ${n1(GUARD.max * 100)}% em ${n1(GUARD.ramp)} s segurando e volta a 0% ao soltar. Não anda e as recargas de magias e do Atacar ficam paradas enquanto segura.`, `Hold ${key}: stops and guards at once. Same damage taken; knockback taken shrinks from 0% to ${n1(GUARD.max * 100)}% less over ${n1(GUARD.ramp)} s held and resets on release. You cannot walk and spell and Attack cooldowns stay frozen while held.`)
+      : t(`Segure ${key}: para na hora e, depois do preparo, resiste a novos empurrões. Não anda e as recargas pausam enquanto segura; magias prontas continuam.`, `Hold ${key}: stops at once and, after the windup, resists new knockback. You cannot walk and cooldowns pause while held; ready spells still work.`);
+  const rows: [string, string, null][] = basic
+    ? [[DMG, n1(BASIC_ATTACK.dmg), null], [t('Preparo', 'Windup'), s(BASIC_ATTACK.windup), null], [CD, s(BASIC_ATTACK.cd), null], [RANGE, alt ? `${MELEE_ARC.angle}° · ${m(MELEE_ARC.range)}` : m(BASIC_ATTACK.range), null]]
+    : alt
+      ? [[t('Preparo', 'Windup'), s(0), null], [KNOCK_TAKEN, `0% → −${n1(GUARD.max * 100)}% (${s(GUARD.ramp)})`, null]]
+      : [[t('Preparo', 'Windup'), s(BRACE.windup), null], [KNOCK_TAKEN, `−${n1(BRACE.resistance * 100)}%`, null]];
+  const tag = alt ? t('Versão para teste (troque na loja)', 'Test version (switch in the shop)') : t('Fixa: todo mago tem, não troca de posição nem vende', 'Fixed: every wizard has it, it cannot be moved or sold');
+  return `${demo(id)}<b>${name}</b> <span class="k">${key}</span><br><small>${tag}</small><p>${text}</p>${table(rows)}`;
+}
+
 
 // carta do Ascensão: os números de agora e, à direita, os de depois da carta; sem preço (no modo não há ouro)
 export function spellCardTip(id: SpellId, from: number, to: number, swap = false): string {
   const sp = SPELLS[id];
-  const after = sp.levels[Math.min(MAX_SPELL_LEVEL, to) - 1];
+  const after = sp.levels[Math.min(spellMax(id), to) - 1];
   const head = `<b>${spellName(id)}</b><br><small>${from ? t(`Nível ${from} → ${to}`, `Level ${from} → ${to}`) : t(`Magia nova · entra no nível ${to}`, `New spell · comes in at level ${to}`)}</small>`;
   const rows = SPELL_ROWS[id].map(([k, f]): [string, string, string | null] => (from ? [k, f(sp.levels[from - 1]), f(after)] : [k, f(after), null]));
   const foot = from ? `<small class="up">${t('Depois da carta: o que está à direita', 'After the card: shown on the right')}</small>` : swap ? `<small class="up">${t('Barra cheia: entra no nível da magia que sair', 'Full bar: comes in at the level of the spell it replaces')}</small>` : '';
@@ -147,7 +175,7 @@ export function itemCardTip(id: ItemId, from: number): string {
   const it = ITEMS[id];
   const to = Math.min(it.levels.length, from + 1);
   const rows = ITEM_ROWS[id]!;
-  const head = `<b>${itemName(id)}</b><br><small>${from ? t(`Nível ${from} → ${to}`, `Level ${from} → ${to}`) : t('Item novo · nível 1', 'New item · level 1')} · ${t('passivo', 'passive')}</small>`;
+  const head = `<b>${itemName(id)}</b><br><small>${from ? t(`Nível ${from} → ${to}`, `Level ${from} → ${to}`) : t('Item novo · nível 1', 'New item · level 1')} · ${KIND(id)}</small>`;
   const body = table(rows(to - 1).map(([k, v], i): [string, string, string | null] => (from ? [k, rows(from - 1)[i][1], v] : [k, v, null])));
   return `${demo(id)}${head}<p>${itemText(id)}</p>${body}${from ? `<small class="up">${t('Depois da carta: o que está à direita', 'After the card: shown on the right')}</small>` : ''}`;
 }

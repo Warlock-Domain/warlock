@@ -3,13 +3,16 @@
 import * as THREE from 'three';
 import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
-import { createAttackClip } from './attack-pose.ts';
+import { createAttackClip, playAnimation as play } from './attack-pose.ts';
 import { electroPulse } from './screen-data.ts';
+import { sniperRig, updateSniperRig, SNIPER_FX } from './sniper-fx.ts';
 import { HEAL_FX, healAura } from './heal-fx.ts';
+import { sniperFocusMask } from './sniper-focus.ts';
 import { blindnessMask } from './blindness-fx.ts';
+import { AimPreview } from './aim-preview.ts';
 import { conePoints } from '../shared/sand-cone.ts';
 import { GEYSER_FX, geyserHeight } from './geyser-fx.ts';
-import { SHAPES, flat, vineModel } from './proj-models.ts';
+import { PIX_COLOR, PIX_TIE, SHAPES, flat, vineModel } from './proj-models.ts';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -30,8 +33,9 @@ import { createDecor } from './decor.ts';
 import { cellHash, nightProps } from './night-decor.ts';
 import { CANDLE } from '../shared/campaign.ts';
 import { t } from './i18n.ts';
+import { n1 } from './rules-text.ts';
 import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
-import { BLINDNESS, LIGHTNING, SPELLS } from '../shared/spells.ts';
+import { BLINDNESS, CAST_POINT, LIGHTNING, PIX, SPELLS } from '../shared/spells.ts';
 import type { TAUNTS } from '../shared/taunts.ts';
 
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
@@ -43,7 +47,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { closedBodyLeft?: number; geyserLeft?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -206,6 +210,7 @@ const TP = 0.12, TP_SLIDE = 0.6;
 
 type Mage = {
   root: THREE.Group;
+  sniper: THREE.Group;
   mixer: THREE.AnimationMixer;
   actions: Record<string, THREE.AnimationAction>;
   current: string;
@@ -594,6 +599,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     cluster: { mat: fireMat, halo: '#fff066', trail: '#ffd23a', tex: FX.spark, size: 0.65 },
     swap: { mat: swapMat, halo: '#00fff0', trail: '#2fe0d0', tex: FX.magic, size: 1 },
     grip: { mat: gripMat, halo: '#8ed64b', trail: '#4d8f28', tex: FX.magic, size: 1 },
+    pix: { mat: gripMat, halo: PIX_COLOR, trail: PIX_COLOR, tex: FX.magic, size: 1 },
     meteor: { mat: fireMat, halo: '#ff5a1a', trail: '#ff7a20', tex: FX.fire, size: 3 },
     boomerang: { mat: swapMat, halo: '#7dff5a', trail: '#5ad040', tex: FX.spark, size: 0.85 },
     gravity: { mat: homingMat, halo: '#3b2bff', trail: '#6a3cff', tex: FX.magic, size: 1.5 },
@@ -608,6 +614,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     warpzone: { mat: swapMat, halo: '#7ad8ff', trail: '#7ad8ff', tex: FX.magic, size: 1 },
   };
   const projs = new Map<number, THREE.Group>();
+  const threads = new Map<string, THREE.Mesh>(); // Squid Pix threads by controlled wizard id
   const fx: Fx[] = [];
 
   // cada jogador ganha um clone da aparência dele. O mago define a escala (os pacotes KayKit usam a mesma medida) e as peças
@@ -865,6 +872,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
     const root = new THREE.Group();
     root.add(model);
+    const sniper=sniperRig(); root.add(sniper);
     const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: COLORS[d.color], transparent: true, opacity: 0.85, depthWrite: false }));
     ground(ring, 0.03);
     root.add(ring);
@@ -918,14 +926,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
-  }
-
-  function play(m: Mage, name: string, fade = 0.15) {
-    if (m.current === name || !m.actions[name]) return;
-    m.actions[m.current]?.fadeOut(fade);
-    m.actions[name].reset().fadeIn(fade).play();
-    m.current = name;
+    return { root, sniper, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   // animação de conjurar [clip, segundos, início no clip]; o resto atira (Spellcast_Shoot). Quando o gesto forte vem no meio
@@ -943,7 +944,22 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     boomerang: ['Throw', 0.6, 0.45], link: ['Throw', 0.6, 0.45], snowball: ['Throw', 0.6, 0.45],
     pact: ['Spellcast_Long', 0.9, 0.3], recharge: ['Spellcast_Long', 0.9, 0.3],
   };
+  // Bubble above the wizard; with `frac` it carries the label's loot-bar as a charge bar.
+  function chargeBubble(m: Mage, cls: string, text: string, frac?: number) {
+    let c = m.label.querySelector('.' + cls);
+    if (!c) m.label.prepend(c = el('div', { class: 'bubble ' + cls }, el('span'), el('div', { class: 'loot-bar' }, el('div'))));
+    c.firstElementChild!.textContent = text;
+    const bar = c.lastElementChild as HTMLElement;
+    bar.hidden = frac === undefined;
+    if (frac !== undefined) (bar.firstElementChild as HTMLElement).style.width = `${Math.min(100, frac * 100)}%`;
+  }
   const castAnim = (spell: string) => CAST_ANIM[spell] ?? (['Spellcast_Shoot', 0.55] as const);
+  // golpe em arco (issue #402) pela arma do criador; os modelos não têm 1H_Melee_Attack_* nem soco, então vai o clip mais parecido,
+  // começando onde o gesto forte cai perto do fim do preparo de 0,4 s: cajado gira o 2H, espada/machado/facas descem o braço, sem arma chuta
+  const meleeAnim = (look?: string): [string, number, number] => {
+    const nodes = look ? lookPieces(look).flatMap((p) => p.nodes) : [];
+    return nodes.includes('2H_Staff') ? ['2H_Melee_Attack_Spin', 0.7, 0.3] : nodes.some((n) => /^(1H_|Knife)/.test(n)) ? ['Throw', 0.7, 0.25] : ['Unarmed_Melee_Attack_Kick', 0.6, 0];
+  };
   function oneShot(id: string, name: string, secs: number, from = 0) {
     const m = mages.get(id);
     if (!m || m.dead) return;
@@ -1395,7 +1411,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const isleBaseGeo = new THREE.CylinderGeometry(1, 1.15, 0.6, 28);
   const isleTopGeo = new THREE.CylinderGeometry(1, 1, 0.06, 28);
   const rockModels: THREE.Object3D[] = [];
-  for (const k of ['A', 'B', 'C', 'D', 'E']) gltf.loadAsync(`/models/hex/rock_single_${k}.gltf`).then((g) => rockModels.push(g.scene)).catch(() => {});
+  // The five .gltf files define the same hexagons_medieval material, but each parse makes its own copy of the
+  // 1024² atlas: sharing the first one keeps a single texture on the GPU (issue #378). Promise.all keeps A..E in order,
+  // so each isle gets the same rocks whichever file arrives first
+  Promise.all(['A', 'B', 'C', 'D', 'E'].map((k) => gltf.loadAsync(`/models/hex/rock_single_${k}.gltf`))).then((gs) => {
+    let mat: THREE.Mesh['material'] | undefined;
+    for (const g of gs) {
+      g.scene.traverse((o) => { if (o instanceof THREE.Mesh) o.material = mat ??= o.material; });
+      rockModels.push(g.scene);
+    }
+  }).catch(() => {});
   type IsleDraw = { g: THREE.Group; top: THREE.Mesh; rocks: THREE.Group; r: number; seen: number; shrinkAt: number };
   const isleDraws: IsleDraw[] = [];
   function isleDraw(i: number): IsleDraw {
@@ -1498,7 +1523,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         scene.add(obj);
         // barra de vida em tudo que quebra (pedido do Fernando, 17/10: sempre visível)
         let bar: HTMLDivElement | null = null, fill: HTMLDivElement | null = null;
-        if (Number.isFinite(OBSTACLES[p.kind].hp) && !side) {
+        if (Number.isFinite(OBSTACLES[p.kind].hp) && !side && !(p.kind === 'rock' && curMap)) { // the Campaign rock never breaks (levels.ts obstaclesOf)
           fill = el('div');
           bar = el('div', { class: 'obstacle-hp' + (p.kind === 'chest' ? ' chest' : '') }, fill);
           labels.append(bar);
@@ -1618,6 +1643,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   function onEvents(events: SimEvent[], hiddenDamageTargets: readonly string[] = []) {
     for (const e of events) {
+      if (e.k === 'snipe') {
+        const from=w3(e.from,.95),to=w3(e.to,.95),delta=to.clone().sub(from);
+        const mat=new THREE.MeshBasicMaterial({color:SNIPER_FX.flash,transparent:true,depthWrite:false});
+        const tracer=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,delta.length(),8),mat);
+        tracer.position.copy(from).lerp(to,.5); tracer.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());
+        addFx(tracer,.18,k=>{mat.opacity=1-k;});
+        burst(e.from,SNIPER_FX.flash,1.3,.2,.95,FX.spark);
+      }
       if (e.k === 'sand') {
         const from=v(e.x,e.y),dir=v(e.dx,e.dy),pts=conePoints(from,dir,e.length,e.width);
         const geo=new THREE.BufferGeometry().setFromPoints(pts.map(p=>w3(p,.12)));
@@ -1627,7 +1660,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         for(let i=0;i<(lite?12:35);i++) { const d=Math.random()*e.length,side=(Math.random()-.5)*e.width*d/e.length; burst(v(e.x+dir.x*d-dir.y*side,e.y+dir.y*d+dir.x*side),'#d7bc85',.4,.4,.2+Math.random()*.6,FX.spark); }
       }
       if (e.k === 'boss') bossFx(e);
-      else if (e.k === 'cast') {
+      // The sniper's held aim pose comes from snapshots; the default one-shot gesture would flash before it.
+      else if (e.k === 'cast' && e.spell !== 'sniper') {
         oneShot(e.id, ...castAnim(e.spell));
         if (e.spell === 'scourge') {
           // preparo do Flagelo: brasa crescendo em volta de quem vai explodir
@@ -1668,9 +1702,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         addFx(vines, .7, (k) => { vines.scale.y = k < .25 ? k * 4 : Math.max(.01, (1 - k) / .75); });
         shockwave(v(e.x, e.y), e.r, '#8ed64b');
       }
-      else if (e.k === 'grip') {
+      else if (e.k === 'grip' || e.k === 'pix') {
         oneShot(e.id, 'Hit_B', 0.85); // quem foi preso cambaleia para trás
-        burst(v(e.x, e.y), '#6eaf34', 2.4, 0.5, 0.8, FX.magic);
+        burst(v(e.x, e.y), e.k === 'pix' ? PIX_TIE : '#6eaf34', 2.4, 0.5, 0.8, FX.magic);
       }
       else if (e.k === 'teleport') {
         // só o Teleporte lançado (não Troca, Égide nem Alteração) ganha o fade com deslize
@@ -1759,7 +1793,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         halo.scale.setScalar(1.2 * look.size);
         halo.material.opacity = 0.7;
         g.add(core, halo);
-        if (p.kind === 'warpzone' || p.kind === 'grip') {
+        if (p.kind === 'warpzone' || p.kind === 'grip' || p.kind === 'pix') {
           core.scale.setScalar(p.vel.x); // vel.x = raio
           halo.visible = false;
         }
@@ -1798,7 +1832,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const warn = g.getObjectByName('warn') as THREE.Mesh;
         warn.position.y = 0.04 - y;
         (warn.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.4 * Math.sin(performance.now() / 70);
-      } else if (p.kind === 'grip') g.position.copy(w3(p.pos, .045));
+      } else if (p.kind === 'grip' || p.kind === 'pix') g.position.copy(w3(p.pos, .045));
       else if (p.kind === 'warpzone') g.position.copy(w3(p.pos, 0));
       else if (p.kind === 'geyser') g.position.copy(w3(p.pos, 0));
       else g.position.copy(w3(p.pos, 0.9));
@@ -1812,7 +1846,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // giro e direção: aponta para onde voa; anéis, bumerangue e pedras giram
       const body = g.children[0];
       const t = performance.now() / 1000;
-      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'geyser' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
+      if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'pix' && p.kind !== 'geyser' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
       if (p.kind === 'geyser') {
         body.rotation.y = t * .8;
         if (Math.random() < (lite ? .15 : .45)) burst(v(p.pos.x + (Math.random() - .5) * p.vel.x, p.pos.y + (Math.random() - .5) * p.vel.x), GEYSER_FX.foam, .35, .6, .2, FX.light, 2.1);
@@ -1831,9 +1865,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       const swirl = g.getObjectByName('swirl') as THREE.Sprite | undefined;
       if (swirl) swirl.material.rotation = -t * 4;
+      // Lula Pix: coins fall from 3.5 m to the ground at random points of the rain (vel.x = radius); visual only, so Math.random is fine here
+      if (p.kind === 'pix') for (let i = 0; i < (lite ? 1 : 2); i++) {
+        const a = Math.random() * Math.PI * 2, r = p.vel.x * Math.sqrt(Math.random());
+        burst(v(p.pos.x + Math.cos(a) * r, p.pos.y + Math.sin(a) * r), PIX_COLOR, 0.7, 0.55, 3.5, FX.spark, -3.3);
+      }
       // rastro: brasas que ficam para trás e somem
       const look = LOOK[p.kind];
-      if (p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'geyser' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
+      if (p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'pix' && p.kind !== 'geyser' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
@@ -1854,6 +1893,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (made && m) {
           unburn(m);
           scene.remove(m.root);
+          dispose(m.sniper);
           dispose(m.vines); // Os cipós procedurais pertencem à aparência que está sendo substituída.
           for (const o of [m.ring, m.shield, m.aura]) (o.material as THREE.Material).dispose();
           disposeAppearance(m);
@@ -1864,13 +1904,32 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!m) continue;
       seen.add(d.id);
       // modo Times: anel e barra na cor do time (pode mudar a cada rodada); o nome fica com a cor do jogador
-      const tint = d.team != null ? TEAM_COLORS[d.team] : COLORS[d.color];
+      const tint = d.team != null ? (TEAM_COLORS[d.team] ?? COLORS[d.color]) : COLORS[d.color]; // Sandbox allies can go past the two Teams colours
       if (m.tint !== tint) {
         m.tint = tint;
         (m.ring.material as THREE.MeshBasicMaterial).color.set(tint);
         m.hpFill.style.background = tint;
         m.nameEl.style.color = d.team != null ? COLORS[d.color] : '';
       }
+      // Held aim: a charge bar instead of a countdown (Fernando, 26/10).
+      if(d.alive && (d.sniperLeft ?? 0)>0) chargeBubble(m,'sniper-clock',t('Mirando','Aiming'),1-d.sniperLeft!/CAST_POINT.sniper);
+      else m.label.querySelector('.sniper-clock')?.remove();
+      const pixLabel = m.label.querySelector('.pix-clock'), pixBy = d.alive && (d.puppetBy ?? -1) >= 0 ? list[d.puppetBy!] : undefined;
+      if (d.alive && (d.puppetLeft ?? 0) > 0) {
+        chargeBubble(m, 'pix-clock', pixBy ? t(`Controlado por ${pixBy.name} · ${n1(d.puppetLeft!)} s`, `Controlled by ${pixBy.name} · ${n1(d.puppetLeft!)} s`) : t(`Controlado · ${n1(d.puppetLeft!)} s`, `Controlled · ${n1(d.puppetLeft!)} s`));
+        burst(v(d.pos.x + (Math.random() - .5) * .9, d.pos.y + (Math.random() - .5) * .9), PIX_TIE, 0.8, 0.7, 1.4, FX.star, 1.1); // red stars rising from the controlled wizard
+      } else if (d.alive && (d.pixSoak ?? 0) > 0) {
+        // time inside the coin rain, out of the second that controls
+        chargeBubble(m, 'pix-clock', t('Controlando', 'Controlling'), d.pixSoak! / PIX.soak);
+      } else pixLabel?.remove();
+      m.sniper.visible=d.alive && (d.sniperLeft ?? 0)>0 && !!d.sniperAt;
+      if(m.sniper.visible) updateSniperRig(m.sniper,Math.hypot(d.sniperAt!.x-d.pos.x,d.sniperAt!.y-d.pos.y),d.sniperLeft!);
+      const channelLabel = m.label.querySelector('.channel-clock');
+      if (d.alive && d.channelElapsed !== undefined) {
+        const c = channelLabel ?? el('span', { class: 'bubble channel-clock' });
+        c.textContent = d.channelElapsed < 1 ? t('Canalizando…', 'Channeling…') : t(`Canalização +${Math.round(d.channelElapsed*50)}% · aguardando lançamento`, `Channeling +${Math.round(d.channelElapsed*50)}% · awaiting cast`);
+        if (!channelLabel) m.label.prepend(c);
+      } else channelLabel?.remove();
       const hidden = !d.illusion && (d.status & 2048) > 0; // a cópia é sempre visível; os inimigos não veem o jogador velado
       m.root.visible = !hidden;
       m.model.position.y = d.alive ? geyserHeight(d.geyserLeft ?? 0) : 0;
@@ -1928,13 +1987,27 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (invuln && !m.invuln && !(d.geyserLeft ?? 0)) oneShot(d.id, 'Spawn_Ground', 1.3);
         // atordoado (16: arremessado por um golpe) voa de braços abertos
         if ((d.geyserLeft ?? 0) > 0) { m.oneShotUntil = 0; play(m, 'Jump_Idle', .05); }
-        else if ((d.basicLeft ?? 0) > 0 && !(d.status & 16) && m.actions.Attack_Invoke) {
+        else if ((d.sniperLeft ?? 0)>0 && !(d.status&16) && m.actions.Attack_Invoke) {
+          play(m,'Attack_Invoke',.05); const action=m.actions.Attack_Invoke;
+          action.paused=true; action.time=action.getClip().duration*.6; m.oneShotUntil=0;
+        }
+        else if (d.channelElapsed !== undefined && !(d.status & 16) && m.actions.Attack_Invoke) {
+          play(m, 'Attack_Invoke', .05);
+          const action = m.actions.Attack_Invoke;
+          action.paused = true; action.time = action.getClip().duration * Math.min(1, d.channelElapsed / 2);
+          m.oneShotUntil = 0;
+          if (!lite && Math.random() < .12) burst(d.pos, '#bfa4ff', .6, .35, 1.2, FX.light);
+        }
+        else if (d.basicArc && (d.basicLeft ?? 0) > 0 && !(d.status & 16)) {
+          const [clip, secs, from] = meleeAnim(d.look);
+          if (m.current !== clip) oneShot(d.id, clip, secs, from);
+        } else if ((d.basicLeft ?? 0) > 0 && !(d.status & 16) && m.actions.Attack_Invoke) {
           play(m, 'Attack_Invoke', .03);
           const action = m.actions.Attack_Invoke;
           action.paused = true;
           action.time = Math.max(0, action.getClip().duration - d.basicLeft!);
           m.oneShotUntil = 0; // o snapshot encerra a pose na soltura ou no cancelamento, sem terminar o gesto à força.
-        } else if (m.current === 'Attack_Invoke' || now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & BRACING_BIT && m.actions.Brace ? 'Brace' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
+        } else if (m.current === 'Attack_Invoke' || now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & BRACING_BIT && d.guard && m.actions.Block ? 'Block' : d.status & BRACING_BIT && m.actions.Brace ? 'Brace' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
         // vencedor: estouro dourado ao começar a comemorar e faíscas subindo enquanto dura
         if (d.cheer && !m.cheering) victoryBurst(d.pos);
         if (d.cheer && !lite && Math.random() < 0.2) burst(v(d.pos.x + (Math.random() - 0.5) * 1.4, d.pos.y + (Math.random() - 0.5) * 1.4), Math.random() < 0.5 ? '#ffd84a' : '#fff2a0', 0.7, 1.2, 0.4, FX.star, 2.6);
@@ -2085,6 +2158,28 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.root.visible = false;
       m.label.hidden = true;
     }
+    // Squid Pix: a thread from each controlled wizard to its controller (the snapshot hides it when the controller is hidden)
+    const tied = new Set<string>();
+    for (const d of list) {
+      const by = d.alive && (d.puppetBy ?? -1) >= 0 ? list[d.puppetBy!] : undefined;
+      if (!by) continue;
+      let th = threads.get(d.id);
+      if (!th) {
+        th = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1, 6).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: PIX_TIE, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
+        scene.add(th);
+        threads.set(d.id, th);
+      }
+      const dx = by.pos.x - d.pos.x, dz = by.pos.y - d.pos.y;
+      th.position.copy(w3(v(d.pos.x + dx / 2, d.pos.y + dz / 2), 1.2));
+      th.rotation.y = Math.atan2(dx, dz);
+      th.scale.set(1, 1, Math.max(0.01, Math.hypot(dx, dz)));
+      tied.add(d.id);
+    }
+    for (const [id, th] of threads) if (!tied.has(id)) {
+      scene.remove(th);
+      dispose(th);
+      threads.delete(id);
+    }
   }
 
   let focus = new THREE.Vector3();
@@ -2134,36 +2229,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   resize();
 
   let lastFrame = performance.now() / 1000;
-  // retículo do controle: anel dourado com um ponto no meio, no chão onde o analógico direito mira (desenhado por cima de tudo)
-  const aimMat = new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.95, depthTest: false, depthWrite: false });
-  const aimRing = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.62, 40), aimMat);
-  aimRing.add(new THREE.Mesh(new THREE.CircleGeometry(0.12, 16), aimMat));
-  aimRing.rotation.x = -Math.PI / 2;
-  aimRing.renderOrder = 10;
-  aimRing.visible = false;
-  scene.add(aimRing);
-  // círculo de alcance da magia segurada ou escolhida: anel fino e discreto na cor da mira, escalado pelo alcance
-  const rangeRing = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 128), new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.45, depthWrite: false }));
-  rangeRing.rotation.x = -Math.PI / 2;
-  rangeRing.renderOrder = 9;
-  rangeRing.visible = false;
-  scene.add(rangeRing);
-  // explosão do Meteoro no ponto onde ele cai: o mesmo anel, do tamanho da explosão
-  const blastRing = rangeRing.clone();
-  scene.add(blastRing);
-  const hits: THREE.Mesh[] = []; // discos do "Ver hitbox", criados conforme precisa
-  // faixas de acerto da mira (a Rajada e o Divisor saem em leque), bem claras para não esconder o chão: corpo reto para a frente (+x)
-  // e ponta em meio círculo do tamanho da bola, onde ela termina o voo, como a prévia do LoL (pedido do Fernando, 21/10); giradas só
-  // em y e criadas conforme precisa
-  const bandMat = new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.16, depthWrite: false });
-  const bandBody = new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0).rotateX(-Math.PI / 2);
-  const bandCap = new THREE.CircleGeometry(1, 24, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2);
-  const bands: THREE.Group[] = [];
-  const coneGeo = new THREE.BufferGeometry();
-  coneGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(9),3));
-  const coneAim = new THREE.Mesh(coneGeo,new THREE.MeshBasicMaterial({color:'#d5b474',transparent:true,opacity:.25,side:THREE.DoubleSide,depthWrite:false}));
-  coneAim.visible=false; coneAim.renderOrder=9; scene.add(coneAim);
   const blindMask = blindnessMask(camera); scene.add(blindMask);
+  const sniperScreen=sniperFocusMask(); scene.add(sniperScreen);
+  const preview = new AimPreview(scene);
+  const hits: THREE.Mesh[] = []; // discos do "Ver hitbox", criados conforme precisa
 
   return {
     ready,
@@ -2171,18 +2240,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     resourceStats() {
       return { geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures };
     },
-    // centro no mago e raio em metros; null (ou raio 0) esconde. blastAt/blastR: o círculo da explosão no ponto mirado
-    range(at: Vec | null, r: number, blastAt: Vec | null = null, blastR = 0) {
-      blastRing.visible = !!blastAt && blastR > 0;
-      if (blastAt && blastR > 0) {
-        blastRing.position.copy(w3(blastAt, 0.04));
-        blastRing.scale.setScalar(blastR);
-      }
-      rangeRing.visible = !!at && r > 0;
-      if (!at || r <= 0) return;
-      rangeRing.position.copy(w3(at, 0.04));
-      rangeRing.scale.setScalar(r);
-    },
+    preview,
     // "Ver hitbox (teste)": disco no chão de cada mago (vermelho) e de cada projétil (azul), no tamanho da colisão; null esconde
     hitboxes(list: { pos: Vec; r: number; wiz: boolean }[] | null) {
       for (let i = hits.length; i < (list?.length ?? 0); i++) {
@@ -2199,39 +2257,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.scale.setScalar(h.r);
         (m.material as THREE.MeshBasicMaterial).color.set(h.wiz ? '#ff4040' : '#40c8ff');
       });
-    },
-    // trechos de faixa [de, até] com meia largura `half`; lista vazia esconde
-    cone(points: [Vec,Vec,Vec] | null) {
-      coneAim.visible=!!points;
-      if(points) { const a=coneGeo.getAttribute('position'); points.forEach((p,i)=>a.setXYZ(i,p.x,.04,p.y)); a.needsUpdate=true; coneGeo.computeBoundingSphere(); }
-    },
-    bands(segs: [Vec, Vec][], half: number) {
-      for (let i = bands.length; i < segs.length; i++) {
-        const g = new THREE.Group();
-        const [body, cap] = [new THREE.Mesh(bandBody, bandMat), new THREE.Mesh(bandCap, bandMat)];
-        body.renderOrder = cap.renderOrder = 9;
-        g.add(body, cap);
-        scene.add(g);
-        bands.push(g);
-      }
-      const w = Math.max(half, 0.03); // o Raio (largura 0) vira uma linha de 6 cm para aparecer
-      bands.forEach((g, i) => {
-        const sg = segs[i];
-        g.visible = !!sg;
-        if (!sg) return;
-        const d = sub(sg[1], sg[0]), l = Math.max(len(d) - w, 0);
-        const [body, cap] = g.children;
-        g.position.copy(w3(sg[0], 0.035));
-        g.rotation.y = -Math.atan2(d.y, d.x);
-        body.scale.set(l, 1, 2 * w);
-        cap.position.x = l;
-        cap.scale.set(w, 1, w);
-      });
-    },
-    aim(at: Vec | null) {
-      aimRing.visible = !!at;
-      if (at) aimRing.position.copy(w3(at, 0.05));
-      aimRing.scale.setScalar(1 + 0.08 * Math.sin(performance.now() / 120));
     },
     // baixa antes as peças de quem está na sala, para ninguém aparecer invisível na rodada
     preload(looks: string[]) {
@@ -2324,6 +2349,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       pan.set(0, 0, 0);
     },
     castLocal(id: string, spell: string, at?: Vec) {
+      if (spell === 'sniper') return; // Aim and shots come only from confirmed snapshots/events.
       oneShot(id, ...castAnim(spell));
       const m = mages.get(id);
       if (!m || m.dead) return;
@@ -2339,10 +2365,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[]; seen: number[] } | null }) {
+    render(state: { paused?: boolean; sniperFocus?: {left:number;shot:number}; blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[]; seen: number[] } | null }) {
       const now = performance.now() / 1000;
-      const dt = Math.min(0.05, now - lastFrame);
+      const dt = state.paused ? 0 : Math.min(0.05, now - lastFrame);
       lastFrame = now;
+      const sf=state.sniperFocus;
+      sniperScreen.visible=!!sf && (sf.left>0 || (!lite && sf.shot>0));
+      sniperScreen.material.uniforms.clock.value=now;
+      sniperScreen.material.uniforms.still.value=lite?1:0;
+      sniperScreen.material.uniforms.power.value=sf?Math.max(0,Math.min(1,1-sf.left/CAST_POINT.sniper)):0;
+      sniperScreen.material.uniforms.shot.value=lite?0:sf?.shot ?? 0;
+      sniperScreen.material.uniforms.gain.value=sf && sf.left>0?1:sf?.shot ?? 0;
       blindMask.visible=!!state.blindAt;
       if(state.blindAt) blindMask.material.uniforms.center.value.set(state.blindAt.x,state.blindAt.y);
       lavaMat.uniforms.uTime.value = now;

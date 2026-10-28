@@ -4,16 +4,16 @@
 // (dynamic import in ui.ts) so it does not weigh on game startup.
 import { ARENA_IDS, SHAPES, type ArenaId } from '../shared/arena.ts';
 import { ARENA_R0, HP_MAX, RUNE_KINDS } from '../shared/constants.ts';
-import { ITEMS, ITEM_IDS, type ItemId } from '../shared/items.ts';
+import { ITEMS, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import { SCRIPTS, createDemo, drawStone, runDemo, type DemoId } from './demo.ts';
-import { ICON, ITEM_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, el, icon } from './icons.ts';
+import { ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, choice, el, icon } from './icons.ts';
 import { ACTIONS, UI_ACTIONS, UI_NAMES, isPadMode, isSlotMode, isUiKey, labelOf, uiLabel } from './keys.ts';
 import { MODE_INFO, OPT_INFO } from './opt-info.ts';
-import { ITEM_DEMO, MECHANIC_GUIDES, NEGATIVE_GUIDES, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, groupClass, n1, type GuideId } from './rules-text.ts';
+import { ITEM_GROUPS, ITEM_DEMO, MECHANIC_GUIDES, NEGATIVE_GUIDES, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, groupClass, n1, type GuideId } from './rules-text.ts';
 import { COLORS } from './scene.ts';
-import { hideTip, itemLevels, itemTip, spellLevels, spellTip, withTip } from './tips.ts';
-import { choice, dialog, norm, searchFilter } from './ui.ts';
+import { hideTip, itemLevels, itemTip, mechanicTip, spellLevels, spellTip, withTip } from './tips.ts';
+import { dialog, norm, searchFilter } from './ui.ts';
 import { arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 
 // ref: the spell, item, mechanic or status a link opens (goTo) and the Learn tab marks in the library
@@ -30,7 +30,7 @@ const LEGEND = t(
 const CH = {
   toc: t('Sumário', 'Contents'), spells: t('Magias', 'Spells'), items: t('Itens', 'Items'), statuses: t('Status negativos', 'Negative statuses'),
 };
-// magia fora da barra não tem tecla no modo 1 2 3 4 Q W E R nem no controle (vale a posição na barra)
+// a spell off the bar has no key in Q W E R D F mode nor on the controller (the bar slot decides)
 const keyText = (a: SpellId) => labelOf(a) !== '—' ? t(`tecla ${labelOf(a)}`, `key ${labelOf(a)}`) : isSlotMode() || isPadMode() ? t('tecla pela posição na barra', 'key by position in the bar') : t('sem tecla (escolha em Configurações > Lançamento)', 'no key (pick one in Settings > Casting)');
 
 // contorno da arena num canvas pequeno (página das arenas)
@@ -59,13 +59,13 @@ function spellPage(id: SpellId, group: string): Page {
   };
 }
 
-function itemPage(id: ItemId): Page {
+function itemPage(id: ItemId, group: string): Page {
   const it = ITEMS[id];
   return {
     chapter: CH.items, title: itemName(id), demo: SCRIPTS[id] ? id : undefined, ref: id,
     body: () => [
       el('div', { class: 'g-head' }, el('span', { class: 'g-medal item' }, icon(ITEM_ICON[id])),
-        el('div', {}, el('h2', {}, itemName(id)), el('small', {}, `${t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}`))),
+        el('div', {}, el('h2', {}, itemName(id)), el('small', {}, `${group} · ${id === 'scourge' ? t('ativo', 'active') : t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}`))),
       el('p', { class: 'g-lead' }, itemText(id)),
       ITEM_DEMO[id] ? el('p', { class: 'muted' }, ITEM_DEMO[id]) : null,
       null,
@@ -87,7 +87,7 @@ const PAGES: Page[] = [
   ...MECHANIC_GUIDES.map((g): Page => ({ ...text(t('Controles', 'Controls'), g.title, [g.text]), demo: g.id, ref: g.id })),
   {
     chapter: t('Controles', 'Controls'), title: t('Suas teclas', 'Your keys'),
-    body: () => [el('h2', {}, isSlotMode() ? t('Suas teclas (1 2 3 4 Q W E R pela ordem da barra)', 'Your keys (1 2 3 4 Q W E R in bar order)') : t('Suas teclas', 'Your keys')),
+    body: () => [el('h2', {}, isSlotMode() ? t('Suas teclas (Q W E R D F pela ordem da barra)', 'Your keys (Q W E R D F in bar order)') : t('Suas teclas', 'Your keys')),
       el('div', { class: 'keys-grid' }, ...ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, labelOf(a)), ' ', icon(actionIcon(a)), ' ', actionName(a)))),
       el('h3', {}, t('Atalhos', 'Shortcuts')),
       el('div', { class: 'keys-grid' }, ...UI_ACTIONS.map((a) => el('span', {}, el('span', { class: 'key' }, uiLabel(a)), ' ', UI_NAMES[a])), el('span', {}, el('span', { class: 'key' }, 'Esc'), ' ', t('Configurações', 'Settings'))),
@@ -104,7 +104,7 @@ const PAGES: Page[] = [
   text(t('Loja e ouro', 'Shop and gold'), t('Loja', 'Shop'), () => RULES.loja),
   text(t('Loja e ouro', 'Shop and gold'), t('Ouro', 'Gold'), RULES.ouro),
   ...SPELL_GROUPS.flatMap(([group, , ids]) => ids.map((id) => spellPage(id, group))),
-  ...ITEM_IDS.map(itemPage),
+  ...ITEM_GROUPS.flatMap(([group, , ids]) => ids.map((id) => itemPage(id, group))),
   text(t('Runas', 'Runes'), t('Runas', 'Runes'), RULES.runas, () => [el('ul', { class: 'g-runes' }, ...RUNE_KINDS.map((k) => el('li', {}, icon(RUNE_ICON[k]), ' ', RULES.runa[k])))]),
   { ...text(t('Chão dos choques', 'Clash zones'), t('Chão dos choques', 'Clash zones'), RULES.choques), demo: 'clash' },
   text(t('Dicas', 'Tips'), t('Dicas', 'Tips'), RULES.dicas),
@@ -155,8 +155,8 @@ export function grimoire(o: { side?: boolean; onShow?: (refs: Ref[]) => void } =
       el('h2', {}, t('Magias e itens', 'Spells and items')),
       ...SPELL_GROUPS.map(([g, hint, ids]) => el('div', { class: 'g-sub ' + groupClass(g) }, el('small', {}, `${g} · ${hint}`),
         el('div', { class: 'g-chips' }, ...ids.map((id) => chip(pageOf((p) => p.chapter === CH.spells && p.demo === id), ICON[id], spellName(id)))))),
-      el('div', { class: 'g-sub' }, el('small', {}, CH.items),
-        el('div', { class: 'g-chips' }, ...ITEM_IDS.map((id) => chip(pageOf((p) => p.chapter === CH.items && p.title === itemName(id)), ITEM_ICON[id], itemName(id))))),
+      ...ITEM_GROUPS.map(([group, , ids]) => el('div', { class: 'g-sub' }, el('small', {}, `${CH.items} · ${group}`),
+        el('div', { class: 'g-chips' }, ...ids.map((id) => chip(pageOf((p) => p.chapter === CH.items && p.title === itemName(id)), ITEM_ICON[id], itemName(id)))))),
     ];
   }
 
@@ -246,21 +246,25 @@ export function grimoire(o: { side?: boolean; onShow?: (refs: Ref[]) => void } =
   return { root, contents, onKey, dispose: () => ac.abort(), goTo: (to?: Ref) => go(pageFor(to)) };
 }
 
+const FIXED = t('Ações fixas', 'Fixed actions');
 // "Spells and items" library (Fernando's decision, 19/10; like Dota's heroes and items library): icon grid by group,
 // search by name and filter by group; hovering shows the shop tooltip and a click opens the page in the grimoire (open).
 // Lives in the main menu's Learn tab and in the hotkey overlay (F2 by default)
-export function library(open: (id: SpellId | ItemId) => void): HTMLElement {
-  const tile = (id: SpellId | ItemId, ico: string, tip: () => string) => withTip(el('button', { type: 'button', class: 'lib-tile', 'data-name': norm(actionName(id)), 'data-ref': id, onclick: () => {
+export function library(open: (id: Ref) => void): HTMLElement {
+  const tile = (id: Ref, name: string, ico: string, tip: () => string) => withTip(el('button', { type: 'button', class: 'lib-tile', 'data-name': norm(name), 'data-ref': id, onclick: () => {
     hideTip();
     open(id);
-  } }, el('span', { class: 'ico' }, icon(ico)), el('small', {}, actionName(id))), tip);
+  } }, el('span', { class: 'ico' }, icon(ico)), el('small', {}, name)), tip);
   // the group's one-line purpose used to live only on the book's page 2, which the Learn tab no longer shows
   const section = (key: string, title: string, hint: string | null, cls: string, tiles: HTMLElement[]) =>
     el('section', { class: 'lib-group ' + cls, 'data-filter': key }, el('h3', {}, title, hint ? el('small', {}, hint) : null), el('div', { class: 'lib-grid' }, ...tiles));
-  const items = (ids: ItemId[]) => ids.map((i) => tile(i, ITEM_ICON[i], () => itemTip(i, 0)));
+  const items = (ids: ItemId[]) => ids.map((i) => tile(i, itemName(i), ITEM_ICON[i], () => itemTip(i, 0)));
+  // Attack and Hold ground first, as on the match bar (issue #401): every wizard has them, so they come before what is bought
+  const fixedTiles = MECHANIC_GUIDES.map((g) => tile(g.id, g.title, MECHANIC_ICON[g.id], () => mechanicTip(g)));
   const groups = [
-    ...SPELL_GROUPS.map(([g, hint, ids]) => section(g, g, hint, groupClass(g), ids.map((s) => tile(s, ICON[s], () => spellTip(s, 0))))),
-    section('items', CH.items, null, 'lib-items', items([...ITEM_IDS])),
+    section('fixed', FIXED, null, 'lib-fixed', fixedTiles),
+    ...SPELL_GROUPS.map(([g, hint, ids]) => section(g, g, hint, groupClass(g), ids.map((s) => tile(s, spellName(s), ICON[s], () => spellTip(s, 0))))),
+    ...ITEM_GROUPS.map(([group, hint, ids]) => section('items', group, hint, 'lib-items', items(ids))),
   ];
   let only = 'all';
   const none = el('p', { class: 'muted', hidden: true }, t('Nada com esse nome.', 'Nothing with that name.'));
@@ -268,7 +272,7 @@ export function library(open: (id: SpellId | ItemId) => void): HTMLElement {
     oninput: () => apply() }) as HTMLInputElement;
   const filters = el('div', {});
   function apply() {
-    filters.replaceChildren(choice(t('Grupo', 'Group'), [['all', t('Todos', 'All')], ...SPELL_GROUPS.map(([g]): [string, string] => [g, g]), ['items', CH.items]], only, (k) => ((only = k), apply())));
+    filters.replaceChildren(choice(t('Grupo', 'Group'), [['all', t('Todos', 'All')], ['fixed', FIXED], ...SPELL_GROUPS.map(([g]): [string, string] => [g, g]), ['items', CH.items]], only, (k) => ((only = k), apply())));
     searchFilter(groups, '.lib-tile', search.value, (g) => only !== 'all' && g.dataset.filter !== only, true);
     none.hidden = groups.some((g) => !g.hidden);
   }

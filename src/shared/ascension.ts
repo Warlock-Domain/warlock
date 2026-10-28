@@ -1,10 +1,10 @@
-// Modo Ascensão (desenho em docs/superpowers/specs/2026-10-19-ascensao-design.md): todo intervalo dá 1 magia nova e 1 item
+// Modo Ascensão (desenho em docs/plans/2026-10-19-ascensao-design.md): todo intervalo dá 1 magia nova e 1 item
 // (Fernando, 21/10), e cada nível de XP dá 1 subir magia; cada escolha é 1 entre 3 cartas.
 // 9 rodadas e pontos pela ordem de queda. Toda a regra do modo mora aqui (pedido do Fernando, 19/10: código do
 // Ascensão separado, porque o modo muda muito a jogabilidade principal); match.ts só chama estas funções atrás de `m.asc`.
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
 import type { Match, MatchOpts, Player, Stat } from './match.ts';
-import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, spellCount, spellGroup, type SpellId } from './spells.ts';
+import { BAR_SPELLS, MAX_SPELLS, SPELL_IDS, spellCount, spellGroup, spellMax, type SpellId } from './spells.ts';
 
 // rare: carta rara (só de subir magia): sobe 2 níveis
 export type Card = { kind: 'spell'; id: SpellId } | { kind: 'up'; id: SpellId; rare?: true } | { kind: 'item'; id: ItemId };
@@ -99,8 +99,8 @@ type Kit = Pick<Player, 'spells' | 'items'>;
 // até 3 cartas diferentes do tipo pedido que o mago pode usar, sorteadas com o rand da partida; magia nova de pelo menos 2 grupos;
 // cada carta de subir magia vira rara com a chance `rare`
 export function drawCards(p: Kit, kind: Kind, rand: () => number, rare = 0): Card[] {
-  const pool: Card[] = kind === 'spell' ? SPELL_IDS.filter((s) => p.spells[s] === 0).map((id): Card => ({ kind, id }))
-    : kind === 'up' ? SPELL_IDS.filter((s) => p.spells[s] > 0 && p.spells[s] < MAX_SPELL_LEVEL).map((id): Card => ({ kind, id }))
+  const pool: Card[] = kind === 'spell' ? BAR_SPELLS.filter((s) => p.spells[s] === 0).map((id): Card => ({ kind, id }))
+    : kind === 'up' ? SPELL_IDS.filter((s) => p.spells[s] > 0 && p.spells[s] < spellMax(s)).map((id): Card => ({ kind, id }))
     : ITEM_IDS.filter((i) => itemPrice(p.items, i) !== null).map((id): Card => ({ kind, id }));
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
@@ -123,18 +123,18 @@ export function applyCard(p: Kit, card: Card, swap?: SpellId): boolean {
   }
   const lv = p.spells[card.id];
   if (card.kind === 'up') {
-    if (lv === 0 || lv >= MAX_SPELL_LEVEL) return false;
-    p.spells[card.id] = Math.min(MAX_SPELL_LEVEL, lv + (card.rare ? 2 : 1));
+    if (lv === 0 || lv >= spellMax(card.id)) return false;
+    p.spells[card.id] = Math.min(spellMax(card.id), lv + (card.rare ? 2 : 1));
     return true;
   }
   if (lv > 0) return false;
   let level = 1;
   if (spellCount(p.spells) >= MAX_SPELLS) {
     if (!swap || p.spells[swap] === 0) return false;
-    level = p.spells[swap];
+    level = Math.min(spellMax(card.id), p.spells[swap]);
     p.spells[swap] = 0;
   }
-  p.spells[card.id] = level;
+  p.spells[card.id] = Math.min(level,spellMax(card.id));
   return true;
 }
 

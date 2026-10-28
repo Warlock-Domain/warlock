@@ -1,4 +1,5 @@
 // Telas em DOM: apelido, lista de salas, sala de espera, loja, barra de magias, placar e avisos.
+import { messageSpace } from './message-space.ts';
 import { ASC_ROUNDS } from '../shared/ascension.ts';
 import { ASC_MODE_TEXT, ascLevel, ascPanel, cardButton } from './ascension-ui.ts';
 import { drawMinimap, type MiniColors, type MiniDot } from './minimap.ts';
@@ -10,15 +11,15 @@ import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/character
 import { CAMPAIGN } from '../shared/campaign.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, isRoomMode, sellValue, type MatchOpts, type Mode, type RoomMode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
-import { ITEMS, ITEM_IDS, MAX_ITEMS, itemPrice, type ItemId } from '../shared/items.ts';
-import { MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
-import { POS_ACTIONS, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
-import { openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
-import { hideTip, itemTip, spellTip, withTip } from './tips.ts';
+import { ITEMS, ITEM_IDS, MAX_ITEMS, castLevel, itemPrice, type ItemId } from '../shared/items.ts';
+import { MAX_SPELLS, SPELL_IDS, isSpell, priceOf, spellCount, spellMax, type SpellId } from '../shared/spells.ts';
+import { POS_ACTIONS, isSlotMode, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
+import { castModeControl, openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
+import { hideTip, itemTip, mechanicTip, spellTip, withTip } from './tips.ts';
 import { EFFECT_NAME, MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, effectName, effectText, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
-import { ITEM_GROUPS, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
-import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, el, fxClock, icon, iconButton, type Child } from './icons.ts';
+import { ALT_TEXT, ITEM_GROUPS, MECHANIC_GUIDES, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
+import { BAD_STATUS, ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, choice, el, fxClock, icon, iconButton, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
 import { isAudioMuted, type Volumes, type VolumeKind } from './sound.ts';
@@ -225,8 +226,14 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   const stage = el('div', { class: 'home-stage' },
     el('div', { class: 'home-backdrop', 'aria-hidden': 'true' }, el('img', { class: 'home-art', src: '/home-cat.jpg', alt: '', width: 736, height: 736 })),
     ...Object.values(panels));
-  const btns = HOME_TABS.map(([k, label]) => el('button', { type: 'button', role: 'tab', id: 'home-tab-' + k, 'aria-controls': 'home-' + k, onclick: () => show(k) }, el('span', {}, label)));
+  const homeTabs = tabs(null, HOME_TABS, HOME_TABS[0][0], show, 'home-tabs', null);
+  const btns = [...homeTabs.querySelectorAll<HTMLButtonElement>('button')];
+  HOME_TABS.forEach(([k], i) => {
+    btns[i].id = 'home-tab-' + k;
+    btns[i].setAttribute('aria-controls', 'home-' + k);
+  });
   const settingsBtn = btns[HOME_TABS.findIndex(([k]) => k === 'settings')];
+  homeTabs.removeChild(settingsBtn);
   settingsBtn.classList.add('home-tool');
   settingsBtn.title = t('Configurações', 'Settings');
   settingsBtn.setAttribute('aria-label', t('Configurações', 'Settings'));
@@ -246,7 +253,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
       el('nav', { class: 'home-bar', role: 'tablist', 'aria-label': t('Menu principal', 'Main menu') }, settingsBtn,
         el('button', { type: 'button', class: 'home-logo', id: 'home-tab-home', role: 'tab', 'aria-controls': 'home-home', title: t('Início', 'Home'), 'aria-label': t('Voltar ao menu principal', 'Back to home'), onclick: () => show('home') },
           el('img', { src: '/warlock-wars.svg', alt: 'Warlock Wars' })),
-        el('div', { class: 'home-tabs' }, ...btns.filter((b) => b !== settingsBtn))),
+        homeTabs),
       stage),
   );
   show('home');
@@ -379,6 +386,7 @@ type RoomActions = {
   ballot: (yes: boolean) => void;
   undo: (key: string) => void;
   sell: (key: string) => void;
+  alt: (arc: boolean, guard: boolean) => void; // versões alternativas do Atacar e do Manter base (issue #402)
   taunt: (i: number) => void;
   pick: (c: CharacterId) => void;
   ready: () => void;
@@ -492,11 +500,9 @@ export const srcName = (k: string) => (k === 'lava' ? 'lava' : isSpell(k) ? spel
 type View = 'summary' | 'spells';
 const VIEWS: [View, string][] = [['summary', t('Resumo', 'Summary')], ['spells', t('Magias', 'Spells')]];
 const portrait = (p: PublicPlayer) => el('img', { class: 'face', src: `/chars/${p.character}.webp`, alt: '', width: 32, height: 32, loading: 'lazy' });
-// fileira de botões com um marcado (opções da partida, modo, jeito de lançar); off: botão desligado
-export const choice = <T>(label: string, items: [T, string][], on: T, pick: (v: T) => void, off?: (v: T) => boolean) => el('div', { class: 'stats-tabs', role: 'group', 'aria-label': label },
-  ...items.map(([v, text]) => el('button', { type: 'button', 'aria-pressed': String(v === on), class: v === on ? 'on' : '', disabled: off?.(v), onclick: () => pick(v) }, text)));
-const tabs = <T extends string>(label: string, list: [T, string][], on: T, set: (k: T) => void) =>
-  el('div', { class: 'stats-tabs', role: 'tablist', 'aria-label': label }, ...list.map(([k, text]) =>
+// Tabs use ARIA tab roles and allow a caller-selected layout class and parent-owned tablist.
+export const tabs = <T extends string>(label: string | null, list: [T, string][], on: T, set: (k: T) => void, cls = 'stats-tabs', role: 'tablist' | null = 'tablist') =>
+  el('div', { class: cls, role, 'aria-label': role ? label : null }, ...list.map(([k, text]) =>
     el('button', { type: 'button', role: 'tab', 'aria-selected': String(k === on), class: k === on ? 'on' : '', onclick: () => set(k) }, text)));
 
 // diálogo por cima de qualquer tela (Configurações, Grimório, Biblioteca): fundo, título e ✕; ✕, clique fora e Esc fecham.
@@ -736,6 +742,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const volIcon = () => volBtn.replaceChildren(icon(isAudioMuted(act.volumes()) ? UI_ICON.mute : UI_ICON.sound));
   setSettingsCtx({
     name: act.name, rename: act.rename, volumes: act.volumes, fxLite: act.fxLite, setFxLite: act.setFxLite, pixel: act.pixel, setPixel: act.setPixel, closePanels: () => solo(null),
+    castingHud: { mount: mountCastHud, release: releaseCastHud },
     setVolume: (kind, v) => {
       act.setVolume(kind, v);
       volIcon();
@@ -745,6 +752,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   onKeysChange(() => {
     barWrap.querySelectorAll<HTMLElement>('[data-action]').forEach((k) => (k.textContent = labelOf(k.dataset.action as Action)));
     barWrap.querySelectorAll<HTMLElement>('[data-position]').forEach((k) => (k.textContent = keyLabel(keyOf(POS_ACTIONS[Number(k.dataset.position)]))));
+    barWrap.querySelectorAll<HTMLElement>('[data-ui]').forEach((k) => (k.textContent = uiLabel(k.dataset.ui as UiAction)));
     drawCenter();
     drawHints();
   });
@@ -932,10 +940,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   };
   let sbLevel: Level = 'normal';
   // bot com a dificuldade escolhida e as magias marcadas abaixo (sem nenhuma, compra sozinho)
-  const addBot = (dummy: boolean) => {
+  const addBot = (dummy: boolean, ally = false) => {
     const spells = savedBotSetup()[0]?.spells;
-    act.sandbox({ op: 'bot', bot: { difficulty: sbLevel, ...(spells && { spells }) }, ...(dummy && { dummy: true }) });
+    act.sandbox({ op: 'bot', bot: { difficulty: sbLevel, ...(spells && { spells }) }, ...(dummy && { dummy: true }), ...(ally && { ally: true }) });
   };
+  const sbAlly = el('button', { type: 'button', onclick: () => addBot(false, true), title: t('Bot do seu time, com a dificuldade e as magias selecionadas', 'A bot on your team, using the selected difficulty and spells') }, t('+ Bot aliado', '+ Allied bot'));
   const sbBots = el('ul', { class: 'sandbox-bots' });
   const sbTurretDirection = el('select', { 'aria-label': t('Direção da torreta', 'Turret direction') },
     ...([['east', t('Direita', 'Right')], ['west', t('Esquerda', 'Left')], ['north', t('Cima', 'Up')], ['south', t('Baixo', 'Down')]] as const)
@@ -955,7 +964,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('div', { class: 'sandbox-row' },
       el('select', { 'aria-label': t('Dificuldade do bot', 'Bot difficulty'), onchange: (e: Event) => (sbLevel = (e.target as HTMLSelectElement).value as Level) },
         ...(['easy', 'casual', 'normal', 'veteran', 'hard'] as const).map((k) => el('option', { value: k, selected: k === sbLevel }, SKILL_NAME[k]))),
-      el('button', { type: 'button', onclick: () => addBot(false) }, t('+ Bot', '+ Bot'))),
+      el('button', { type: 'button', onclick: () => addBot(false) }, t('+ Bot', '+ Bot')), sbAlly),
     el('button', { type: 'button', title: t('Bot que não anda nem atira: bom para testar dano e empurrão', 'A bot that neither moves nor shoots: good for testing damage and knockback'), onclick: () => addBot(true) }, t('+ Boneco parado', '+ Training dummy')),
     el('div', { class: 'sandbox-row' }, sbTurretDirection,
       el('button', { type: 'button', title: t('Dispara bolas de fogo numa direção fixa. Não recebe dano nem empurrão.', 'Fires fireballs in a fixed direction. Takes no damage or knockback.'), onclick: () => act.sandbox({ op: 'turret', direction: sbTurretDirection.value as TurretDir }) }, t('+ Torreta', '+ Turret'))),
@@ -972,7 +981,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('button', { type: 'button', onclick: () => act.sandbox({ op: 'restart' }) }, t('Reiniciar a rodada', 'Restart the round')));
   let sbSig = '';
   let sbOpened = false;
-  function drawSandbox(r: PublicRoom) {
+  function drawSandbox(r: PublicRoom, me: string) {
     sbBtn.hidden = !r.sandbox || !PEEK_PHASES.includes(r.phase);
     if (!r.sandbox || sbBtn.hidden) {
       if (!sbPanel.hidden) toggle(sbPanel, sbBtn, false);
@@ -987,11 +996,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     for (const [k, box] of sbChecks) box.checked = r.sandbox[k];
     if (r.arena && document.activeElement !== sbArena) sbArena.value = r.arena;
     // lista dos bots com o ✕ (tirar): só redesenha quando muda
+    const mine = r.players.find((p) => p.id === me);
+    sbAlly.disabled = !mine || !!mine.watch || !mine.connected || r.players.filter((p) => !p.watch).length >= MAX_PLAYERS;
     const bots = r.players.filter((p) => p.bot);
-    const sig = bots.map((p) => `${p.id}:${p.name}:${p.difficulty}:${p.dummy}:${p.turret}`).join();
+    const sig = `${mine?.team}:` + bots.map((p) => `${p.id}:${p.name}:${p.difficulty}:${p.dummy}:${p.turret}:${p.team}`).join();
     if (sig === sbSig) return;
     sbSig = sig;
-    sbBots.replaceChildren(...bots.map((p) => el('li', {}, el('span', {}, p.turret ? t('Torreta · direção fixa', 'Turret · fixed direction') : `${p.name} · ${p.dummy ? t('boneco', 'dummy') : SKILL_NAME[p.difficulty ?? 'normal']}`),
+    sbBots.replaceChildren(...bots.map((p) => el('li', {}, el('span', {}, p.turret ? t('Torreta · direção fixa', 'Turret · fixed direction') : `${p.name} · ${p.dummy ? t('boneco', 'dummy') : SKILL_NAME[p.difficulty ?? 'normal']} · ${mine?.team != null && p.team === mine.team ? t('aliado', 'ally') : t('inimigo', 'enemy')}`),
       iconButton('✕', t(`Tirar ${p.name}`, `Remove ${p.name}`), () => act.kick(p.id)))));
   }
   const helpBtn = iconButton(icon(UI_ICON.help), t('Como jogar', 'How to play'), showRules, { class: 'icon wide-only' });
@@ -1032,12 +1043,22 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     el('div', { class: 'hud-right' }, peekBtn, tabBtn, sheetBtn, el('div', { class: 'vol' }, tauntBtn, tauntPanel), specBtn, voteWrap, camBtn, volBtn, gearBtn, helpBtn, el('div', { class: 'vol more-wrap' }, moreBtn, morePanel), el('div', { class: 'vol' }, sbBtn, sbPanel)),
   );
   const center = el('div', { class: 'center' });
-  // fala da Ilse (tutorial da Campanha): nome, a linha e o botão; só o botão tira a fala (o jogador lê no ritmo dele) e
-  // quem chama decide a próxima; não pausa nada
+  // Campaign messages stay until acknowledged; the server resumes after every participant finishes.
   const ilseText = el('span', { class: 'ilse-text' });
   let ilseDone: (() => void) | null = null;
-  const ilseBox = el('div', { class: 'ilse', role: 'status', hidden: true }, el('b', { class: 'ilse-name' }, 'Ilse'), ilseText,
-    el('button', { type: 'button', class: 'ilse-skip', onclick: () => ilseDone?.() }, t('Entendi', 'Got it')));
+  const ilseName = el('b', { class: 'ilse-name' }, 'Ilse');
+  const ilseSkip = el('button', { type: 'button', class: 'ilse-skip', onclick: () => ilseDone?.() }, t('Entendi · Espaço', 'Got it · Space'));
+  const ilseBox = el('div', { class: 'ilse', role: 'status', hidden: true }, ilseName, ilseText, ilseSkip);
+  const spaceMessage = messageSpace();
+  const messageKey = (e: KeyboardEvent) => {
+    const target = e.target instanceof Element ? e.target : null;
+    const blocked = Array.from(document.querySelectorAll('[role="dialog"]')).some((d) => d.getClientRects().length > 0) || !!target?.closest('input, textarea, select, [contenteditable="true"]');
+    const key = spaceMessage(e, ilseBox.isConnected && !ilseBox.hidden && !!ilseDone, blocked);
+    if (key.consume) { e.preventDefault(); e.stopImmediatePropagation(); }
+    if (key.advance) ilseDone?.();
+  };
+  addEventListener('keydown', messageKey, { capture: true });
+  addEventListener('keyup', messageKey, { capture: true });
   // barra do chefe da Campanha, no topo enquanto ele está em pé
   const bossName = el('span', { class: 'boss-name' });
   const bossFill = el('i', {});
@@ -1073,6 +1094,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const respawn = el('div', { class: 'respawn' });
   const buttons = new Map<SpellId, { b: HTMLElement; cd: HTMLElement; pips: HTMLElement }>();
   let mine: PublicPlayer | undefined;
+  let castingHost: HTMLElement | null = null;
+  let castingSelection: { name: string; code: string; ability?: string; slot?: number } | null = null;
+  let castingScope: 'key' | 'ability' = 'key';
   let slotDrag: { pointer: number; from: number; x: number; y: number; moved: boolean; ghost?: HTMLElement; over?: HTMLElement | null } | null = null;
   const equipment = (p: PublicPlayer) => myLoadout(p.spells);
   function changeSlot(from: number, to: number) {
@@ -1146,30 +1170,40 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const cd = el('span', { class: 'cd' });
     const pips = el('span', { class: 'pips' });
     const b = withTip(el('button', { type: 'button', class: 'spell ' + spellClass(s), 'aria-label': spellName(s), onclick: () => act.spell(s), onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(s), onpointerleave: () => act.hover(null) },
-      el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => spellTip(s, mine?.spells[s] ?? 0));
+      el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => (s === 'scourge' ? itemTip(s, mine?.items.scourge ?? 0) : spellTip(s, mine?.spells[s] ?? 0)));
     buttons.set(s, { b, cd, pips });
-    draggableSlot(b, 0, true);
+    if (s !== 'scourge') draggableSlot(b, 0, true); // the Scourge sits in the item grid, outside the spell order
     return b;
   }));
+  // Attack (A) and Hold ground (S) open the bottom row: Q W E R on top, A S D F below (Fernando, 25/10, issue #401). Faded and
+  // aria-disabled because they cannot be moved or sold; they only show the tip, the keys still do the work. No touch: no A/S keys there
+  const fixedBtns = TOUCH ? [] : MECHANIC_GUIDES.map((g) => {
+    const ui: UiAction = g.id === 'basic' ? 'basic' : 'stop';
+    return withTip(el('button', { type: 'button', class: 'spell fixed-skill', 'aria-disabled': 'true', 'aria-label': g.title },
+      el('span', { class: 'key', 'data-ui': ui }, uiLabel(ui)), el('span', { class: 'ico' }, icon(MECHANIC_ICON[g.id])), el('span', { class: 'cd' })), () => mechanicTip(g, !!(g.id === 'basic' ? mine?.arc : mine?.guard)));
+  });
+  const ROW = 4; // slots per row: the fixed pair goes right after Q W E R
   // grade 3×2 de itens à direita da barra, como a do Dota (MAX_ITEMS = 6): os comprados (todos passivos desde 21/10, #217) e o resto vazio
   const itemGrid = el('div', { class: 'item-grid', role: 'group', 'aria-label': t('Itens', 'Items') });
   function refreshEquipment() {
     if (!mine) return setSlots([]); // espectador: teclas e controle não ficam com a ordem de antes
     if (slotDrag) return;
     const order = equipment(mine);
-    const passive = ITEM_IDS.filter((i) => mine!.items[i] > 0);
-    const sig = JSON.stringify([order, passive.map((i) => [i, mine!.items[i]])]);
+    const passive = ITEM_IDS.filter((i) => i !== 'scourge' && mine!.items[i] > 0);
+    const active = mine.items.scourge > 0 ? [buttons.get('scourge')!.b] : []; // the Scourge is the active item button, with key and cooldown (26/10, #227)
+    const sig = JSON.stringify([order, passive.map((i) => [i, mine!.items[i]]), active.length]);
     if (bar.dataset.order !== sig) {
       bar.dataset.order = sig;
       const empty = (index: number) => draggableSlot(el('span', { class: 'spell slot-empty', 'aria-label': t('Posição vazia', 'Empty slot') }, el('span', { class: 'key', 'data-position': index }, keyLabel(keyOf(POS_ACTIONS[index])))), index, false);
-      bar.replaceChildren(...order.spells.map((s, i) => {
+      const slots = order.spells.map((s, i) => {
         if (!s) return empty(i);
         const node = buttons.get(s)!.b;
         node.dataset.loadoutSlot = String(i);
         return node;
-      }));
-      itemGrid.replaceChildren(...passive.map((i) => withTip(el('span', { class: 'spell passive', tabindex: 0, 'aria-label': t(`${itemName(i)} (passivo) nível ${mine!.items[i]}`, `${itemName(i)} (passive) level ${mine!.items[i]}`) }, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0))),
-      ...Array.from({ length: Math.max(0, MAX_ITEMS - passive.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
+      });
+      bar.replaceChildren(...slots.slice(0, ROW), ...fixedBtns, ...slots.slice(ROW));
+      itemGrid.replaceChildren(...active, ...passive.map((i) => withTip(el('span', { class: 'spell passive', tabindex: 0, 'aria-label': t(`${itemName(i)} (passivo) nível ${mine!.items[i]}`, `${itemName(i)} (passive) level ${mine!.items[i]}`) }, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0))),
+      ...Array.from({ length: Math.max(0, MAX_ITEMS - active.length - passive.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
       hideTip(bar); hideTip(itemGrid);
     }
     setSlots(order.spells);
@@ -1233,7 +1267,61 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const vitals = el('div', { class: 'vitals', hidden: true }, el('div', { class: 'hp-col' }, el('div', { class: 'vit-row' }, hpBar, xpLv), xpBar), el('div', { class: 'hero-row' }, goldNow, heroStats)); // vida só jogando e vivo
   const heroFace = el('img', { class: 'hero-face', alt: '', width: 104, height: 120 });
   const hero = el('div', { class: 'hero-box' }, heroFace, vitals);
-  const barWrap = el('div', { class: 'barwrap' }, armedHint, statusRow, el('div', { class: 'dota-bar' }, hero, el('div', { class: 'skills' }, bar, itemGrid)));
+  const skills = el('div', { class: 'skills' }, bar, itemGrid);
+  const dotaBar = el('div', { class: 'dota-bar' }, hero, skills);
+  const castingControls = el('div', { class: 'casting-controls' });
+  function editCastSlot(selected: typeof castingSelection) {
+    castingSelection = selected;
+    if (!castingHost) return;
+    const target = { ...(selected ?? { name: t('Magia 1', 'Spell 1'), code: keyOf(POS_ACTIONS[0]), slot: 0 }) };
+    if (target.slot !== undefined) {
+      const spell = target.ability?.startsWith('spell:') ? target.ability.slice(6) as SpellId : undefined;
+      target.code = !isSlotMode() && spell ? keyOf(spell) : keyOf(POS_ACTIONS[target.slot]);
+    }
+    const individual = target.ability && (castingScope === 'ability' || !target.code);
+    if (!individual && !target.code) {
+      castingControls.replaceChildren(el('p', { class: 'muted' }, t('Esta posição está sem atalho. Defina uma tecla abaixo para configurar seu modo.', 'This slot has no shortcut. Assign a key below to configure its mode.')));
+      return;
+    }
+    castingControls.replaceChildren(
+      choice(t('Configurar por', 'Configure by'), [['key', t('Atalho', 'Shortcut')], ['ability', t('Magia / item', 'Spell / item')]] as const, castingScope, scope => { castingScope = scope; editCastSlot(castingSelection); }),
+      ...(!target.ability && castingScope === 'ability' ? [el('small', { class: 'muted' }, t('Espaço vazio: configurando o atalho.', 'Empty slot: configuring its shortcut.'))] : []),
+      castModeControl(individual ? target.ability! : 'key:' + target.code, `${target.name} · ${individual ? t('individual', 'individual') : keyLabel(target.code)}`, target.code, target.ability),
+      el('small', { class: 'muted' }, t('As opções valem para itens ativos; itens passivos continuam passivos.', 'These options apply to active items; passive items remain passive.')));
+  }
+  function mountCastHud(host: HTMLElement) {
+    castingHost = host;
+    // Reuse the HUD's existing markup, not its live nodes or gameplay listeners.
+    const preview = skills.cloneNode(true) as HTMLElement;
+    preview.querySelectorAll<HTMLElement>('[data-action]').forEach(k => k.textContent = labelOf(k.dataset.action as Action));
+    preview.querySelectorAll<HTMLElement>('[data-position]').forEach(k => k.textContent = keyLabel(keyOf(POS_ACTIONS[Number(k.dataset.position)])));
+    const bind = (node: HTMLElement, selected: NonNullable<typeof castingSelection>) => {
+      node.removeAttribute('aria-hidden'); node.setAttribute('role', 'button'); node.tabIndex = 0;
+      node.setAttribute('aria-label', selected.name);
+      node.onclick = () => editCastSlot(selected);
+      node.onkeydown = e => { if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); editCastSlot(selected); } };
+    };
+    preview.querySelectorAll<HTMLElement>('[data-loadout-slot]').forEach(node => {
+      const slot = Number(node.dataset.loadoutSlot), spell = node.querySelector<HTMLElement>('[data-action]')?.dataset.action;
+      bind(node, { name: spell && isSpell(spell) ? spellName(spell) : t(`Magia ${slot + 1}`, `Spell ${slot + 1}`), slot, code: keyOf(POS_ACTIONS[slot]), ...(spell && isSpell(spell) && { ability: 'spell:' + spell }) });
+    });
+    const items: ItemId[] = [...(mine?.items.scourge ? ['scourge' as const] : []), ...ITEM_IDS.filter(i => i !== 'scourge' && (mine?.items[i] ?? 0) > 0)];
+    preview.querySelectorAll<HTMLElement>('.item-grid > *').forEach((node, i) => {
+      const code = items[i] === 'scourge' ? keyOf('scourge') : 'Digit' + (i + 1);
+      bind(node, { name: items[i] ? itemName(items[i]) : t(`Item ${i + 1}`, `Item ${i + 1}`), code, ...(items[i] && { ability: 'item:' + items[i] }) });
+      node.querySelector('.key')?.remove();
+      node.append(el('span', { class: 'key' }, keyLabel(code)));
+    });
+    host.append(el('div', { class: 'dota-bar casting-live-hud' }, preview), castingControls);
+    editCastSlot(castingSelection);
+  }
+  function releaseCastHud() {
+    if (!castingHost) return;
+    castingHost = null;
+    castingSelection = null;
+    castingControls.remove();
+  }
+  const barWrap = el('div', { class: 'barwrap', hidden: true }, armedHint, statusRow, dotaBar);
   // a barra some na sala e no fim (update, a cada segundo) e enquanto eu assisto morto (watching, a cada quadro): uma conta só, sem piscar
   let barOff = true;
   let watchingNow = false;
@@ -1249,6 +1337,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     online = on;
     status.className = 'dot ' + (on ? 'on' : 'off');
     offline.hidden = on;
+    loadingHint.hidden = on;
   }
   const offline = el('div', { class: 'offline', role: 'alert', hidden: true }, t('Sem conexão, tentando de novo…', 'No connection, retrying…'));
   // ficha do mago na partida: tecla ' (à esquerda do 1) ou o botão 📜; no celular vira gaveta de baixo para cima
@@ -1314,7 +1403,18 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     e.preventDefault();
     act.replay();
   });
-  root.replaceChildren(el('div', { class: 'hud' }, danger, top, offline, tops, bossBar, miniCanvas, ilseBox, lvCards, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay), el('div', { class: 'labels', id: 'labels' }));
+  let loadingVisible = true;
+  const hud = el('div', { class: 'hud', hidden: true }, danger, top, offline, tops, bossBar, miniCanvas, ilseBox, lvCards, timer, respawn, feed, coach, watchBadge, replayBar, center, voteBar, barWrap, sheetPanel, peekPanel, tabOverlay);
+  const labels = el('div', { class: 'labels', id: 'labels', hidden: true });
+  const loadingHint = el('small', { class: 'muted', hidden: true }, t('Sem conexão, tentando de novo…', 'No connection, retrying…'));
+  const loading = el('div', { class: 'overlay room-loading', role: 'status', 'aria-live': 'polite' },
+    el('div', { class: 'home-stage is-subpage loading-stage' },
+      el('div', { class: 'home-backdrop', 'aria-hidden': 'true' }, el('img', { class: 'home-art', src: '/home-cat.jpg', alt: '', width: 736, height: 736 })),
+      el('div', { class: 'loading-copy' }, el('h1', {}, t('Carregando', 'Loading')), loadingHint,
+        el('a', { class: 'button', href: '/' }, t('Voltar ao menu', 'Back to menu')))));
+  root.setAttribute('aria-busy', 'true');
+  document.body.classList.add('room-loading-active');
+  root.replaceChildren(hud, labels, loading);
   // clique dos botões da sala e da loja
   root.addEventListener('click', (e) => (e.target as HTMLElement).closest('button') && act.click());
 
@@ -1486,6 +1586,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // estado da loja que sobrevive ao redesenho (a sala manda o estado a cada compra de qualquer jogador)
   let goldOpen = false;
   let sheetOpen = false; // Ficha começa recolhida para a loja caber sem rolagem no PC; abrir/fechar sobrevive ao redesenho
+  let altOpen = true; // Versões para teste (issue #402) começa aberta: é o único lugar onde o jogador descobre a escolha
   let buildsOpen = false; // Builds também começa recolhida: menos informação na loja (pedido do Fernando na #185)
   let armedBuild: number | null = null; // posição com "Substituir?" à espera do segundo clique; fora do DOM para sobreviver ao redesenho da loja
   // ordem da barra do preset em uso: só vale quando as magias dele chegam (antes disso o myLoadout tira da barra o que ainda não tem)
@@ -1609,6 +1710,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       return el('details', { class: 'sheet-box', open: buildsOpen, ontoggle: (e: Event) => (buildsOpen = (e.target as HTMLDetailsElement).open) },
         el('summary', {}, t('Builds salvas', 'Saved builds')), ...saved.map((_, i) => row(i)));
     };
+    // versões alternativas do Atacar e do Manter base, só para teste (issue #402): por jogador, a de hoje é o padrão
+    const altBox = () => el('details', { class: 'sheet-box', 'data-key': 'alt', open: altOpen, ontoggle: (e: Event) => (altOpen = (e.target as HTMLDetailsElement).open) },
+      withTip(el('summary', {}, t('Versões para teste', 'Test versions')), () => ALT_TEXT),
+      el('small', { class: 'muted' }, t(`Atacar (${uiLabel('basic')})`, `Attack (${uiLabel('basic')})`)),
+      choice(t('Versão do Atacar', 'Attack version'), [[false, t('À distância', 'Ranged')], [true, t('Corpo a corpo', 'Melee')]], !!mine.arc, (arc) => act.alt(arc, !!mine.guard)),
+      el('small', { class: 'muted' }, t(`Manter base (${uiLabel('stop')})`, `Hold ground (${uiLabel('stop')})`)),
+      choice(t('Versão do Manter base', 'Hold ground version'), [[false, t('De hoje', 'Current')], [true, t('Defesa', 'Guard')]], !!mine.guard, (guard) => act.alt(!!mine.arc, guard)));
     const sheetBox = () => el('details', { class: 'sheet-box', open: sheetOpen, ontoggle: (e: Event) => (sheetOpen = (e.target as HTMLDetailsElement).open) },
       el('summary', {}, t('Ficha do mago', 'Wizard sheet')), sheetEl(now, el('small', { class: 'muted' }, t('Passe o mouse num item para ver o que muda.', 'Hover an item to see what changes.'))));
     const offer = (o: Offer) => {
@@ -1647,25 +1755,26 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const lvl = mine.spells[s];
       const price = priceOf(s, lvl);
       const full = lvl === 0 && spellCount(mine.spells) >= MAX_SPELLS;
-      return offer({ key: 'spell-' + s, ico: ICON[s], name: spellName(s), hotkey: hotkeyOf(s), use: SPELL_USE[s], lvl, max: MAX_SPELL_LEVEL, price,
+      return offer({ key: 'spell-' + s, ico: ICON[s], name: spellName(s), hotkey: hotkeyOf(s), use: SPELL_USE[s], lvl, max: spellMax(s), price,
         blocked: price === null ? t('Máximo', 'Max') : full ? t(`Limite de ${MAX_SPELLS} magias`, `Limit of ${MAX_SPELLS} spells`) : null, buy: () => act.buy(s), tip: () => spellTip(s, lvl),
         bought: () => sheet({ ...mine.spells, [s]: lvl + 1 }, mine.items), sold: () => sheet({ ...mine.spells, [s]: 0 }, mine.items) });
     };
     const itemOffer = (i: ItemId) => {
       const lvl = mine.items[i];
       const price = itemPrice(mine.items, i);
-      return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: itemName(i), hotkey: null, use: itemText(i), lvl, max: ITEMS[i].levels.length, price,
+      return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: itemName(i), hotkey: i === 'scourge' ? hotkeyOf('scourge') : null, use: itemText(i), lvl, max: ITEMS[i].levels.length, price,
         blocked: lvl >= ITEMS[i].levels.length ? t('Máximo', 'Max') : price === null ? t('Sem espaço', 'No room') : null, buy: () => act.buyItem(i), tip: () => itemTip(i, lvl),
         bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }) });
     };
-    const group = (title: string, hint: string, cards: HTMLElement[]) =>
-      el('section', { class: 'shop-group ' + groupClass(title) }, el('div', { class: 'shop-head' }, el('h3', {}, title), el('small', {}, hint)), el('div', { class: 'shop-grid' }, ...cards));
+    // item sections are all silver (.shop-items): no group class, which in English would also hit the Grimoire's .g-head
+    const group = (title: string, hint: string, cards: HTMLElement[], cls = groupClass(title)) =>
+      el('section', { class: 'shop-group ' + cls }, el('div', { class: 'shop-head' }, el('h3', {}, title), el('small', {}, hint)), el('div', { class: 'shop-grid' }, ...cards));
     const itemCount = t(`${ITEM_IDS.filter((i) => mine.items[i] > 0).length} de ${MAX_ITEMS} itens`, `${ITEM_IDS.filter((i) => mine.items[i] > 0).length} of ${MAX_ITEMS} items`);
     const grid = SPELL_GROUPS.map(([title, hint, ids]) => group(title, hint, ids.map(spellOffer)));
     // itens numa coluna à esquerda, com cor própria (Fernando, 19/10: distintos das magias e loja mais horizontal)
     const items = () => el('div', { class: 'shop-items' },
       // seções como as magias (Fernando, 21/10); a contagem de itens vai na dica da primeira
-      ...ITEM_GROUPS.map(([title, hint, ids], n) => group(title, n ? hint : `${hint} · ${itemCount}`, ids.map(itemOffer))));
+      ...ITEM_GROUPS.map(([title, hint, ids], n) => group(title, n ? hint : `${hint} · ${itemCount}`, ids.map(itemOffer), '')));
     // fileiras e títulos da coluna mais alta (magias em 5 colunas, itens em 3): o --tile-h do CSS divide a altura livre por elas
     const rows = (lists: unknown[][], cols: number) => lists.reduce((n, ids) => n + Math.ceil(ids.length / cols), 0);
     const itemLists = ITEM_GROUPS.map(([, , ids]) => ids);
@@ -1674,7 +1783,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.sandbox ? t('Loja · sandbox', 'Shop · sandbox') : deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${r.sandbox ? 'ouro sem fim: compre e venda, vale na hora' : deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${r.sandbox ? 'endless gold: buy and sell, it applies right away' : deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
         iconButton('✕', t('Fechar a loja', 'Close the shop'), () => togglePeek(false), { class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`) })),
       ...grid),
-      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), peek ? null : buildsBox(), sheetBox()));
+      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), peek ? null : buildsBox(), peek ? null : altBox(), sheetBox()));
     readyBtn = el('button', { type: 'button', class: 'primary big', 'data-key': 'ready', disabled: mine.ready, onclick: () => {
       if (r.round === 0) seeFirst();
       act.ready();
@@ -1691,6 +1800,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         readyBtn,
         el('button', { type: 'button', 'data-key': 'placar', onclick: () => pinTab(true) }, icon(UI_ICON.board), ' ' + t('Placar', 'Scoreboard')),
         buildsBox(),
+        altBox(),
         sheetBox(),
         goldInfo(mine, r.opts, goldOpen, (open) => (goldOpen = open)),
         nextModePicker(r),
@@ -1844,6 +1954,18 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   }
 
   return {
+    loading(on: boolean) {
+      if (loadingVisible === on) return;
+      loadingVisible = on;
+      // detached, not hidden: Esc, the controller and the taunt wheel treat any `.overlay` in the DOM as open
+      if (on) root.append(loading);
+      else loading.remove();
+      hud.hidden = labels.hidden = on;
+      hud.inert = on;
+      root.setAttribute('aria-busy', String(on));
+      document.body.classList.toggle('room-loading-active', on);
+      if (on) { hideTip(); solo(null); }
+    },
     // abate no feed: by null = caiu sozinho na lava; destacado quando envolve você
     kill(by: string | null, id: string, src: string) {
       const who = (pid: string) => {
@@ -1932,7 +2054,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       peekBtn.hidden = !PEEK_PHASES.includes(r.phase) || r.mode === 'ascension' || !!r.night; // Ascensão e Campanha: sem loja
       if (!peekPanel.hidden && !PEEK_PHASES.includes(r.phase)) togglePeek(false);
       else drawPeek();
-      drawSandbox(r);
+      drawSandbox(r, me);
       roundEl.textContent = [
         // sala de espera e fim da partida: a rodada já não diz nada
         r.sandbox && r.phase !== 'lobby' && r.phase !== 'end' ? t('Sandbox · vida e ouro sem fim', 'Sandbox · endless health and gold')
@@ -1956,9 +2078,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       refreshEquipment();
       for (const s of SPELL_IDS) {
         const { b, pips } = buttons.get(s)!;
-        const lvl = mine?.spells[s] ?? 0;
+        const lvl = mine ? castLevel(mine, s) : 0;
         b.hidden = lvl === 0;
-        pips.replaceChildren(...pipsOf(lvl, MAX_SPELL_LEVEL));
+        pips.replaceChildren(...pipsOf(lvl, s === 'scourge' ? ITEMS.scourge.levels.length : spellMax(s)));
       }
       barOff = r.phase === 'lobby' || r.phase === 'end' || (r.phase === 'shop' && !SHOP_BAR.matches) || !mine;
       syncBar();
@@ -1986,9 +2108,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       setOnline(on);
       if (changed) drawCenter();
     },
-    // fala da Ilse: mostra a linha até o botão (null esconde); done é chamado no clique
+    // A missing callback shows the party's waiting notice without an advance button.
     ilse(text: string | null, done?: () => void) {
       ilseDone = done ?? null;
+      ilseSkip.hidden = !done;
+      const name = done ? 'Ilse' : t('Campanha pausada', 'Campaign paused');
+      if (ilseName.textContent !== name) ilseName.textContent = name; // called every frame
       if (!text) return void (ilseBox.hidden = true);
       if (ilseText.textContent !== text || ilseBox.hidden) ilseText.textContent = text;
       ilseBox.hidden = false;
@@ -2021,7 +2146,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // hp: minha vida e o máximo, só jogando e vivo (null esconde a barra grande); dead: ids caídos na rodada, separados por vírgula
     // fx: pares [bit, segundos que faltam] dos meus efeitos com prazo (snap.fx)
     // xp: Ascensão, nível e XP ao vivo (liveLevel); null fora do modo
-    frame(cd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '', fx: number[] = [], xp: { level: number; total: number; next: number; frac: number } | null = null) {
+    frame(cd: number[], armed: string | null, shrinkIn: number | null, respawnIn: number, status = 0, rttMs: number | null = null, hp: { now: number; max: number } | null = null, dead = '', fx: number[] = [], xp: { level: number; total: number; next: number; frac: number } | null = null, sniperCharge: number | null = null) {
       if (dead !== shownDead) {
         shownDead = dead;
         const down = new Set(dead.split(','));
@@ -2082,6 +2207,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         b.classList.toggle('armed', armed === a);
       };
       SPELL_IDS.forEach((s, i) => tick(s, buttons.get(s)!, cd[i]));
+      // Inelegant Solution aim: the Attack button (A) fills like the bubble's bar and sparks once charged; A then fires (Fernando, 26/10)
+      const attackBtn = fixedBtns[0];
+      if (attackBtn) {
+        attackBtn.classList.toggle('charged', sniperCharge !== null && sniperCharge >= .99);
+        attackBtn.classList.toggle('charging', sniperCharge !== null && sniperCharge < .99);
+        if (sniperCharge !== null) attackBtn.style.setProperty('--cd', Math.max(0, 1 - sniperCharge).toFixed(3));
+      }
       if (!room) return;
       // fps e ping: atualizam 2 vezes por segundo; fps verde a partir de 50, dourado a partir de 30; ping verde até 80 ms, dourado até 150, vermelho acima
       frames++;

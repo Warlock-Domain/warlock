@@ -1,7 +1,6 @@
-// Campanha: a Charneca Cinzenta é o tutorial (Lucas, 22/10). A Ilse ensina em falas curtas, uma de cada vez: cada fala
-// só some pelo botão (pedido do Lucas: o jogador lê no ritmo dele) e a próxima entra em seguida. Primeiro andar e a lava,
-// depois, no primeiro encontro, as magias e as teclas; nas outras salas, uma lição por sala. Nada pausa o jogo. As falas
-// valem até o grupo vencer a Charneca uma vez neste navegador; nas Configurações dá para ligar de novo.
+// Charneca is the Campaign tutorial: one message at a time, advanced by Space or the button.
+// The party waits until all connected readers finish; Esc remains the menu shortcut.
+// Messages default to on until the first victory and can be enabled again in Settings.
 import { t } from './i18n.ts';
 import { store } from './store.ts';
 
@@ -42,7 +41,7 @@ export const ILSE_MOMENTS = {
   fight: (c: IlseCtx) => [
     c.touch ? t('Agora as magias. Toque na Bola de fogo e depois no chão para lançá-la.', 'Now the spells. Tap the Fireball and then the ground to cast it.')
       : t(`Agora as magias. ${c.fireKey} lança a Bola de fogo na direção do mouse; ${c.scourgeKey} é o Flagelo, que explode em volta de você.`, `Now the spells. ${c.fireKey} casts the Fireball toward the mouse; ${c.scourgeKey} is the Scourge, which bursts around you.`),
-    t('Cada vaga da barra embaixo tem a sua tecla (1 2 3 4 Q W E R). Arraste uma magia para a vaga que preferir.', 'Each slot of the bar below has its key (1 2 3 4 Q W E R). Drag a spell to the slot you prefer.'),
+    t('Cada vaga da barra embaixo tem a sua tecla (Q W E R D F). Arraste uma magia para a vaga que preferir.', 'Each slot of the bar below has its key (Q W E R D F). Drag a spell to the slot you prefer.'),
     t('Quanto mais dano um servo leva, mais longe ele voa. Empurre-o para a lava.', 'The more damage a servant takes, the farther it flies. Push it into the lava.'),
   ],
   // first level-up after a cleared room (Lucas, 24/10: XP from the servants, a card per level)

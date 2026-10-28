@@ -66,7 +66,7 @@ export class MovementPredictor {
   };
 
   move = (to: Vec) => {
-    if (this.velocitySource && (this.velocitySource.geyserLeft ?? 0) > 0) return;
+    if (this.velocitySource && ((this.velocitySource.geyserLeft ?? 0) > 0 || (this.velocitySource.puppetLeft ?? 0) > 0)) return;
     if (this.attackHold) { this.holdUntil = 0; this.queued = undefined; this.attackHold = false; }
     if (this.now() < this.holdUntil) this.queued = to;
     else if (this.me) this.me.target = to;
@@ -102,7 +102,11 @@ export class MovementPredictor {
     // Snap once to the authoritative endpoint instead of visually extending a finished dash.
     if (this.wasDashing && !dashing) me.pos = { ...server.pos };
     this.wasDashing = dashing;
-    const suspended = (server.geyserLeft ?? 0) > 0;
+    if ((server.sniperLeft ?? 0)>0) { me.target = null; this.queued = undefined; }
+    if (this.velocitySource && (this.velocitySource.sniperLeft ?? 0)>0 && !(server.sniperLeft ?? 0) && this.attackHold) { this.holdUntil=0; this.attackHold=false; }
+    if (server.channelElapsed !== undefined) { me.target = null; this.queued = undefined; }
+    // Squid Pix: the controller's commands walk this wizard on the server, so follow it like a suspension
+    const suspended = (server.geyserLeft ?? 0) > 0 || (server.puppetLeft ?? 0) > 0;
     const stunned = suspended || (server.stunLeft === undefined ? isStunned(server) : !!(server.status & 16));
     if (suspended) { me.target = null; this.queued = undefined; }
     if (this.wasStunned && !stunned) me.pos = { ...server.pos };

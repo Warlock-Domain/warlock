@@ -34,6 +34,11 @@ export const BASIC_ATTACK = { dmg: 15, knock: .8, speed: 8, range: 6, cd: .8, wi
 // A short lease stops the guard from sticking if the tab loses focus or the socket drops without a release. 0.5 s, above the
 // Normal bot's 0.4 s think: at 0.4 the bot's renewal landed exactly on expiry and restarted the windup every time
 export const BRACE = { resistance: .15, lease: .5, windup: .5 };
+// Versões alternativas para teste (issue #402, grill do Fernando de 25/10), desligadas por padrão e escolhidas na loja; sem
+// balanceamento ainda. Golpe em arco: 120° e 2 m na frente, com dano, empurrão, preparo e recarga do BASIC_ATTACK.
+export const MELEE_ARC = { angle: 120, range: 2 };
+// Defesa: vale na hora; a redução do empurrão sobe em linha reta de 0 a 90% em 2,5 s segurando S e zera ao soltar.
+export const GUARD = { max: .9, ramp: 2.5 };
 export const INCAPACITATED_BIT = 268435456; // recargas pausadas; habilidades prontas continuam utilizáveis.
 export const ELECTROCUTED_BIT = 536870912; // efeito elétrico visual.
 export const BRACING_BIT = 1073741824; // Hold ground active, kept in sync with the pose.
@@ -44,14 +49,16 @@ export const PROJ_SPAWN = WIZ_R + PROJ_R + 0.05;
 // (raio, vida e explosão em OBSTACLES.pillar)
 export const PILLAR = { spread: 1000 * UNIT, min: 2, max: 8 };
 
-// tipos de obstáculo (pedido do Fernando, 17/10: mais tipos além dos pilares); o pilar segue o original, os outros são meus:
-// rocha grande que não quebra, árvore morta frágil e altar de velas que explode em fogo. weight = chance relativa no sorteio
+// Obstacle kinds (Fernando, 17/10: more kinds besides pillars); the pillar follows the original, the others are new:
+// a large sturdy rock, a fragile dead tree and a candle shrine that explodes in fire. weight = relative chance in the draw
 export const OBSTACLE_KINDS = ['pillar', 'rock', 'tree', 'shrine', 'chest', 'rockpillar'] as const;
 export type ObstacleKind = (typeof OBSTACLE_KINDS)[number];
 // vida pela metade em 18/10 (pedido do Fernando: obstáculos com menos vida)
 export const OBSTACLES: Record<ObstacleKind, { r: number; hp: number; blastR: number; blastDmg: number; weight: number }> = {
   pillar: { r: 0.5, hp: 200, blastR: 300 * UNIT, blastDmg: 10, weight: 4 },
-  rock: { r: 0.85, hp: Infinity, blastR: 0, blastDmg: 0, weight: 2 },
+  // Breaks outside the Campaign with twice the pillar's health (Fernando, 25/10; unmeasured, in the measurement batch).
+  // The Campaign keeps it unbreakable in obstaclesOf (levels.ts): room blocks and Sir Odran's pillars
+  rock: { r: 0.85, hp: 400, blastR: 0, blastDmg: 0, weight: 2 },
   tree: { r: 0.35, hp: 75, blastR: 0, blastDmg: 0, weight: 2 },
   shrine: { r: 0.45, hp: 50, blastR: 1.6, blastDmg: 60, weight: 1 },
   chest: { r: 0.4, hp: 1, blastR: 0, blastDmg: 0, weight: 0 }, // baú de ouro: não sai no sorteio, aparece no meio da rodada; abre com 1 golpe (Fernando, 18/10)

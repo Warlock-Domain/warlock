@@ -10,7 +10,7 @@
 
 **Tech Stack:** o do projeto (TypeScript, Vitest, Three.js, Workers). Nada novo no `package.json`.
 
-**Spec:** `docs/superpowers/specs/2026-10-19-campanha-design.md`
+**Spec:** `docs/plans/2026-10-19-campanha-design.md`
 
 ## Global Constraints
 

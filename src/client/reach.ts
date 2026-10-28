@@ -4,6 +4,7 @@ import { OBSTACLES, PROJ_R, PROJ_SPAWN, WALL_GAP, WIZ_R } from '../shared/consta
 import { itemStats, type ItemId } from '../shared/items.ts';
 import { snowR, type ProjKind } from '../shared/sim.ts';
 import { conePoints } from '../shared/sand-cone.ts';
+import { channelLevel } from '../shared/channeling.ts';
 import { CLUSTER_FAN, LIGHTNING, RUSH, SPLITTER, THRUST, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, clampLen, len, norm, scale, sub, v, type Vec } from '../shared/vec.ts';
 
@@ -11,25 +12,27 @@ import { add, clampLen, len, norm, scale, sub, v, type Vec } from '../shared/vec
 // no anel é atingido (Fernando, 20/10, issue #82; antes ficava 0,8 m curto)
 const FLIES = new Set<SpellId>(['fireball', 'snowball', 'magnetize', 'gravity', 'bouncer', 'drain', 'recharge', 'link', 'splitter']);
 
-export function reachOf(a: SpellId, spells: Record<SpellId, number>, items: Record<ItemId, number>): number {
+export function reachOf(a: SpellId, spells: Record<SpellId, number>, items: Record<ItemId, number>, power = 1): number {
   const lvl = spells[a];
   if (!lvl) return 0;
-  const L = spellLevel(a, lvl);
+  const L = channelLevel(spellLevel(a, lvl), power);
   if (a === 'scourge') return L.radius; // Flagelo: o raio da explosão
   // sem alcance fixo, o raio do efeito: a bolha do Escudo e o avanço da Investida
   if (a === 'shield') return L.radius;
-  if (a === 'rush') return RUSH.dash;
+  if (a === 'rush') return RUSH.dash * power;
   if (L.range <= 0) return 0;
   const r = L.range * (1 + itemStats(items).range);
   return FLIES.has(a as SpellId) ? r + PROJ_SPAWN + (a === 'snowball' ? snowR(lvl) : PROJ_R) : r;
 }
 
-// Área de efeito no ponto mirado: Meteoro, cipós do Agarrar, Zona de dobra e Barricada (pedido do Fernando, 21/10, PR #169); 0 = não tem.
+// Area of effect at the aimed point (Fernando, 21/10, PR #169); 0 = none. Read from the data, not a list of names: any spell
+// with a range and a radius that does not fly lands at the aimed point (a fixed list left Lula Pix out, 26/10).
 export function blastOf(a: SpellId, spells: Record<SpellId, number>): number {
-  if (!spells[a]) return 0; // magia não comprada
-  // Barricada não tem raio: o círculo cobre a parede de 3 pedaços, que fica atravessada no ponto
+  if (!spells[a]) return 0; // spell not bought
+  // Barricade has no radius: the circle covers the 3-piece wall laid across the point
   if (a === 'rockpillar') return WALL_GAP + OBSTACLES.rockpillar.r;
-  return a === 'meteor' || a === 'grip' || a === 'warpzone' || a === 'geyser' ? spellLevel(a, spells[a]).radius : 0;
+  const L = spellLevel(a, spells[a]);
+  return L.range > 0 && !FLIES.has(a) ? L.radius : 0;
 }
 
 // largura do acerto na mira (pedido do Fernando, 21/10: ninguém sabia quanto o Raio e os projéteis pegam de lado):
@@ -40,8 +43,8 @@ export function blastOf(a: SpellId, spells: Record<SpellId, number>): number {
 const HALF: Partial<Record<SpellId, number>> = { lightning: LIGHTNING.width, ...Object.fromEntries(['fireball', 'cluster', 'magnetize', 'bouncer', 'recharge', 'link', 'swap', 'drain'].map((s) => [s, PROJ_R])) };
 
 // trechos de faixa (de onde a onde) e o círculo da explosão, para a mira de `from` em direção a `at`
-export function aimOf(a: SpellId, spells: Record<SpellId, number>, items: Record<ItemId, number>, from: Vec, at: Vec) {
-  const reach = reachOf(a, spells, items);
+export function aimOf(a: SpellId, spells: Record<SpellId, number>, items: Record<ItemId, number>, from: Vec, at: Vec, power = 1) {
+  const reach = reachOf(a, spells, items, power);
   const lvl = spells[a as SpellId];
   const none = { segs: [] as [Vec, Vec][], half: 0, blastAt: null as Vec | null, blastR: 0, cone: null as [Vec, Vec, Vec] | null };
   if (!reach) return none;
@@ -52,7 +55,7 @@ export function aimOf(a: SpellId, spells: Record<SpellId, number>, items: Record
   // magias de área (Meteoro, Agarrar, Zona de dobra, Barricada): só o círculo no ponto mirado; Teleporte: o corpo onde você aparece
   const blastR = blastOf(a, spells);
   if (blastR) return { ...none, blastAt: aimed, blastR };
-  if (a === 'teleport' || a === 'heal') return { ...none, blastAt: aimed, blastR: WIZ_R };
+  if (a === 'teleport' || a === 'heal' || a === 'sniper') return { ...none, blastAt: aimed, blastR: WIZ_R };
   // Drenar vira para o mago mais perto no ponto mirado: a reta só vale até ali
   if (a === 'drain') return line(aimed, HALF.drain!);
   // Investida avança RUSH.dash e acerta quem fica a 2 WIZ_R + 0,1 (sim.ts, dashHit): pelo corpo do inimigo, WIZ_R + 0,1 de cada lado
@@ -71,12 +74,12 @@ export function aimOf(a: SpellId, spells: Record<SpellId, number>, items: Record
   // Divisor: voa até o ponto mirado e estoura; o lançador segue devagar e solta 2 filhotes por onda, abrindo menos a cada uma
   // (a mesma conta de split/spawnShards em sim.ts: direção não normalizada, então os filhotes de fora vão mais curto)
   if (a === 'splitter') {
-    const split = tip(PROJ_SPAWN + Math.min(spellLevel('splitter', lvl).range * (1 + itemStats(items).range), len(sub(at, from))));
+    const split = tip(PROJ_SPAWN + Math.min(spellLevel('splitter', lvl).range * power * (1 + itemStats(items).range), len(sub(at, from))));
     const segs: [Vec, Vec][] = [[from, split]];
     for (let j = 1; j <= SPLITTER.waves; j++) {
       const k = SPLITTER.spawnLife * ((SPLITTER.waves - j + 1) / SPLITTER.waves);
-      const s0 = add(split, scale(d, SPLITTER.spawnSpeed * SPLITTER.spawnLife * (j / SPLITTER.waves)));
-      for (const sd of [-1, 1]) segs.push([s0, add(s0, scale(v(d.x - sd * d.y * k, d.y + sd * d.x * k), (SPLITTER.childSpeed * SPLITTER.childLife) / (1 + k)))]);
+      const s0 = add(split, scale(d, SPLITTER.spawnSpeed * power * SPLITTER.spawnLife * (j / SPLITTER.waves)));
+      for (const sd of [-1, 1]) segs.push([s0, add(s0, scale(v(d.x - sd * d.y * k, d.y + sd * d.x * k), (SPLITTER.childSpeed * power * SPLITTER.childLife) / (1 + k)))]);
     }
     return { ...none, segs, half: PROJ_R };
   }

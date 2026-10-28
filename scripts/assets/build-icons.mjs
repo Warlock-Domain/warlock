@@ -7,7 +7,7 @@ const ICONS = [
   // magias
   'lorc/fire-ray', 'lorc/focused-lightning', 'lorc/on-target', 'lorc/shield-reflect', 'lorc/teleport', 'lorc/body-swapping', 'lorc/grab', 'lorc/meteor-impact',
   'lorc/sprint', 'lorc/striking-splinter', 'delapouite/boomerang', 'lorc/knife-thrust', 'lorc/vortex', 'delapouite/menhir', 'heavenly-dog/defensive-wall', 'caro-asercion/ricochet', 'lorc/life-tap',
-  'lorc/frozen-orb', 'lorc/two-shadows', 'lorc/magnet', 'lorc/cycle', 'delapouite/card-exchange', 'lorc/harpoon-chain', 'lorc/wind-slap', 'delapouite/split-arrows', 'lorc/time-trap', 'lorc/water-splash', 'lorc/aura',
+  'lorc/frozen-orb', 'lorc/two-shadows', 'lorc/magnet', 'lorc/cycle', 'delapouite/card-exchange', 'lorc/harpoon-chain', 'lorc/wind-slap', 'delapouite/split-arrows', 'lorc/time-trap', 'lorc/water-splash', 'lorc/aura', 'delapouite/coins-pile',
   // itens
   'delapouite/diamond-ring', 'lorc/skull-ring', 'delapouite/cape', 'lorc/breastplate', 'lorc/leather-boot', 'skoll/pocket-watch', 'delapouite/bat', 'delapouite/flail',
   'lorc/divert', 'lorc/chalice-drops', 'delapouite/metal-boot', 'delapouite/stone-bust', 'delapouite/spartan-helmet', 'lorc/winged-leg', 'lorc/angel-wings', 'lorc/feather',
@@ -35,6 +35,7 @@ for (const path of ICONS) {
 }
 // Project-drawn cross: Heal needs no extra downloaded asset.
 symbols.push('<symbol id="healing-cross" viewBox="0 0 512 512"><path d="M208 64h96v144h144v96H304v144h-96V304H64v-96h144z"/></symbol>');
+symbols.push("<symbol id=\"sniper-rifle\" viewBox=\"0 0 512 512\"><path d=\"M32 280h112v-48h176v20h160v28H320v28H210l-24 80h-42l18-80H96l-64 48zM204 176h100v36H204zM224 212h20v24h-20zm56 0h20v24h-20z\"/></symbol>");
 const ids = symbols.map((s) => s.match(/id="([^"]+)"/)[1]);
 if (new Set(ids).size !== ids.length) throw new Error('id repetido no sprite');
 writeFileSync(new URL('../../public/icons.svg', import.meta.url), `<svg xmlns="http://www.w3.org/2000/svg">\n${symbols.join('\n')}\n</svg>\n`);

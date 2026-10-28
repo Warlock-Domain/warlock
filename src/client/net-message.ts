@@ -7,7 +7,7 @@ import { ITEM_IDS } from '../shared/items.ts';
 import { ERROR_CODES, SANDBOX_KEYS, type LobbyMessage, type PublicPlayer, type PublicRoom, type ServerMsg, type Snap } from '../shared/protocol.ts';
 import { NIGHT_RESULTS, SERVO_KINDS } from '../shared/campaign.ts';
 import { TAUNTS } from '../shared/taunts.ts';
-import { SPELL_IDS, isSpell } from '../shared/spells.ts';
+import { CAST_POINT, SPELL_IDS, isSpell } from '../shared/spells.ts';
 import { BOSS_EVENT_KINDS, COMBO_KINDS, EMBER_EVENT_KINDS, STREAK_KINDS, type SimEvent } from '../shared/sim.ts';
 
 type Obj = Record<string, unknown>;
@@ -32,7 +32,7 @@ function player(x: unknown): x is PublicPlayer {
   if (!stringArray(x.bought) || !object(x.held) || !Object.values(x.held).every((levels) => Array.isArray(levels) && levels.every(integer))) return false;
   if (typeof x.ready !== 'boolean' || typeof x.connected !== 'boolean' || (x.team !== null && !integer(x.team))) return false;
   if (x.difficulty !== undefined && !(OPTION_CHOICES.difficulty as readonly unknown[]).includes(x.difficulty)) return false;
-  if (x.dummy !== undefined && x.dummy !== true || x.turret !== undefined && x.turret !== true || x.watch !== undefined && x.watch !== true) return false;
+  if (x.dummy !== undefined && x.dummy !== true || x.turret !== undefined && x.turret !== true || x.watch !== undefined && x.watch !== true || x.arc !== undefined && x.arc !== true || x.guard !== undefined && x.guard !== true) return false;
   if (x.hpMax !== undefined && !finite(x.hpMax)) return false;
   if (x.servo !== undefined && !(SERVO_KINDS as readonly unknown[]).includes(x.servo)) return false;
   if (x.asc !== undefined) {
@@ -63,6 +63,8 @@ function room(x: unknown): x is PublicRoom {
     if (!object(sandbox) || !SANDBOX_KEYS.every((key) => typeof sandbox[key] === 'boolean')) return false;
   }
   if (x.night !== undefined && (!object(x.night) || !integer(x.night.stage) || !integer(x.night.seed) || !(x.night.fight === null || integer(x.night.fight)) || !integer(x.night.wave) || !integer(x.night.waves) || !Array.isArray(x.night.done) || !x.night.done.every(integer) || !Array.isArray(x.night.opened) || !x.night.opened.every(integer) || !(x.night.result === null || (NIGHT_RESULTS as readonly unknown[]).includes(x.night.result)))) return false;
+  const players = x.players;
+  if (x.reading !== undefined && (!x.night || x.phase !== 'playing' || !stringArray(x.reading) || new Set(x.reading).size !== x.reading.length || !x.reading.every((id) => players.some((p) => p.id === id && p.connected && !p.bot && !p.watch)))) return false;
   if (x.lobby !== undefined) {
     const lobby = x.lobby;
     if (!object(lobby) || !nullableString(lobby.owner) || !Array.isArray(lobby.bots) || !lobby.bots.every((d) => (OPTION_CHOICES.difficulty as readonly unknown[]).includes(d)) || !validOpts(lobby.opts, true)) return false;
@@ -81,6 +83,7 @@ function event(x: unknown): x is SimEvent {
     case 'hit': return id() && id('by') && num('x', 'y', 'dmg') && string(x.src) && (x.crit === undefined || x.crit === true);
     case 'reflect': case 'grip': case 'scourge': case 'loot': return id() && num('x', 'y') && (x.k !== 'scourge' || num('r'));
     case 'lightning': return vector(x.from) && vector(x.to);
+    case 'snipe':
     case 'teleport': return id() && vector(x.from) && vector(x.to);
     case 'vines': return num('x', 'y', 'r');
     case 'death': return id() && nullableString(x.by) && string(x.src);
@@ -102,10 +105,15 @@ function event(x: unknown): x is SimEvent {
 }
 
 function snap(x: Obj): x is Obj & Snap {
-  if (!finite(x.time) || !finite(x.r) || !finite(x.s) || !finite(x.sp) || !integer(x.ack) || !fields(x, ['w', 'p', 'cd', 'pl'], ['st', 'kr', 'rs', 'ch', 'lp', 'em', 'ru', 'ab', 'zn', 'il', 'fx'])) return false;
+  if (!finite(x.time) || !finite(x.r) || !finite(x.s) || !finite(x.sp) || !integer(x.ack) || !fields(x, ['w', 'p', 'cd', 'pl'], ['st', 'kr', 'rs', 'ch', 'lp', 'em', 'ru', 'ab', 'zn', 'il', 'fx', 'cn', 'sn'])) return false;
   const count = (x.w as number[]).length / 7;
   if (!Number.isInteger(count) || (x.p as number[]).length % 6 || (x.pl as number[]).length % 4 || (x.cd as number[]).length !== SPELL_IDS.length) return false;
   if (['rs', 'lp', 'em', 'ab', 'st', 'kr'].some((k) => x[k] !== undefined && (x[k] as number[]).length !== count) || ['ch', 'ru'].some((k) => x[k] !== undefined && (x[k] as number[]).length % 3) || (x.zn !== undefined && (x.zn as number[]).length % 5) || (x.il !== undefined && (x.il as number[]).length % 3) || (x.fx !== undefined && (x.fx as number[]).length % 2)) return false;
+  if (x.cn !== undefined) {
+    const cn = x.cn as number[];
+    if (cn.length !== count * 2 || cn.some((n, i) => (i % 2 === 0 ? !Number.isInteger(n) || n < -1 || n >= SPELL_IDS.length : n < 0 || n > 2))) return false;
+  }
+  if (x.sn !== undefined && ((x.sn as number[]).length !== count * 3 || (x.sn as number[]).some((n,i) => i % 3 === 0 && (n < 0 || n > CAST_POINT.sniper)))) return false;
   return x.e === undefined || Array.isArray(x.e);
 }
 

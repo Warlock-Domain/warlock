@@ -1,3 +1,3 @@
-# Instruções para agentes
+# Agent instructions
 
-Leia [CLAUDE.md](CLAUDE.md) desta pasta (padrões de código daqui) e o [CLAUDE.md](../CLAUDE.md) da raiz.
+Read this folder's [CLAUDE.md](CLAUDE.md) (code patterns for this area) and the root [CLAUDE.md](../CLAUDE.md).

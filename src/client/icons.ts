@@ -25,6 +25,11 @@ export function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<
 export const iconButton = (child: Child, name: string, onclick: () => void, props: Record<string, unknown> = {}) =>
   el('button', { type: 'button', class: 'icon', title: name, 'aria-label': name, onclick, ...props }, child);
 
+// Keep shared button groups beside the DOM helpers so feature modules can reuse them without importing the main UI module.
+export const choice = <T>(label: string, items: [T, string][], on: T, pick: (v: T) => void, off?: (v: T) => boolean) =>
+  el('div', { class: 'stats-tabs', role: 'group', 'aria-label': label },
+    ...items.map(([v, text]) => el('button', { type: 'button', 'aria-pressed': String(v === on), class: v === on ? 'on' : '', disabled: off?.(v), onclick: () => pick(v) }, text)));
+
 // símbolo do sprite → <svg> do tamanho da fonte; o emoji antigo fica como texto alternativo
 const ALT: Record<string, string> = {};
 export function icon(id: string): SVGSVGElement {
@@ -47,12 +52,12 @@ export const ICON: Record<SpellId, string> = named<SpellId>({ fireball: ['fire-r
   teleport: ['teleport', '✨'], swap: ['body-swapping', '🔄'], grip: ['grab', '⛓️'], meteor: ['meteor-impact', '☄️'], rush: ['sprint', '💨'], cluster: ['striking-splinter', '🔱'],
   boomerang: ['boomerang', '🪃'], thrust: ['knife-thrust', '🗡️'], gravity: ['vortex', '🌀'], rockpillar: ['defensive-wall', '🧱'], bouncer: ['ricochet', '🏓'], drain: ['life-tap', '🧛'],
   snowball: ['frozen-orb', '❄️'], illusion: ['two-shadows', '👥'], magnetize: ['magnet', '🧲'], recharge: ['cycle', '🔋'], alteration: ['card-exchange', '🔀'], link: ['harpoon-chain', '🔗'],
-  windwalk: ['wind-slap', '👻'], splitter: ['split-arrows', '💠'], warpzone: ['time-trap', '⏳'], scourge: ['flail', '💥'], pact: ['chalice-drops', '🩸'], heal: ['healing-cross', '✚'], geyser: ['water-splash', '⛲'], closedbody: ['aura', '⬛'] });
+  windwalk: ['wind-slap', '👻'], splitter: ['split-arrows', '💠'], warpzone: ['time-trap', '⏳'], scourge: ['flail', '💥'], pact: ['chalice-drops', '🩸'], heal: ['healing-cross', '✚'], geyser: ['water-splash', '⛲'], closedbody: ['aura', '⬛'], channel: ['energise', '🔮'], sniper: ['sniper-rifle', '🎯'], pix: ['coins-pile', '🪙'] });
 // Armadura e Roubo de vida tinham o mesmo emoji de Agarrar e de Drenar; agora cada um tem desenho próprio
 export const ITEM_ICON: Record<ItemId, string> = named<ItemId>({ ring: ['diamond-ring', '💍'], cursed_ring: ['skull-ring', '🧿'], cape: ['cape', '🧣'], armor: ['breastplate', '🦺'],
   boots: ['leather-boot', '👢'], watch: ['pocket-watch', '⏱️'], vampire: ['bat', '🦇'],
   lava_boots: ['metal-boot', '🥾'], warden: ['stone-bust', '🗿'], helmet: ['spartan-helmet', '🪖'], shock_boots: ['winged-leg', '🌩️'], aegis: ['angel-wings', '👼'], wind_boots: ['feather', '🪶'],
-  lens: ['magnifying-glass', '🔍'], piercing: ['pierced-heart', '💘'], affliction: ['rune-stone', '🔮'] });
+  lens: ['magnifying-glass', '🔍'], piercing: ['pierced-heart', '💘'], affliction: ['rune-stone', '🔮'], scourge: ['flail', '💥'] }); // Scourge: same drawing as when it was a spell
 export const RUNE_ICON: Record<RuneKind, string> = named<RuneKind>({ haste: ['rabbit', '🐇'], fury: ['enrage', '😡'], shield: ['checked-shield', '🔰'], recharge: ['energise', '🔋'] });
 export const RUNE_NAME: Record<RuneKind, string> = { haste: t('Runa da Pressa', 'Haste Rune'), fury: t('Runa da Fúria', 'Fury Rune'), shield: t('Runa do Escudo', 'Shield Rune'), recharge: t('Runa da Recarga', 'Recharge Rune') };
 // o que derrubou alguém, além de magias e itens (placar)
@@ -63,6 +68,8 @@ export const UI_ICON = named({ board: ['histogram', '📊'], sheet: ['scroll-unf
   gold: ['two-coins', '🪙'], tip: ['light-bulb', '💡'], bot: ['robot-antennas', '🤖'], person: ['character', '👤'], info: ['info', 'ℹ️'], shop: ['shop', '🏪'],
   gear: ['cog', '⚙️'], pad: ['gamepad', '🎮'], video: ['tv', '📺'], exit: ['exit-door', '🚪'], watch: ['eyeball', '👁️'],
   buy: ['shopping-cart', '🛒'], upgrade: ['upgrade', '⏫'], undo: ['anticlockwise-rotation', '↩'] });
+// Attack and Hold ground (issue #401) reuse sprite icons already shipped: the hit burst and the standing stone, no new download
+export const MECHANIC_ICON = { basic: UI_ICON.dmg, brace: SOURCE_ICON.pillar };
 // ícone e nome de uma magia ou item (teclas, grimório, magia escolhida)
 export const actionIcon = (a: SpellId | ItemId) => (isSpell(a) ? ICON[a] : ITEM_ICON[a]);
 export const actionName = (a: SpellId | ItemId) => (isSpell(a) ? spellName(a) : itemName(a));

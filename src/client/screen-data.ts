@@ -2,8 +2,8 @@
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { WizView } from '../shared/snapshot.ts';
-import { ITEMS, ITEM_IDS, itemPrice, type ItemId } from '../shared/items.ts';
-import { FREE_SPELLS, MAX_SPELLS, MAX_SPELL_LEVEL, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
+import { ITEMS, ITEM_IDS, itemPrice, startItems, type ItemId } from '../shared/items.ts';
+import { FREE_SPELLS, MAX_SPELLS, spellMax, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { isRecord, readLevels, readNumberMap } from './saved-data.ts';
 import { store } from './store.ts';
 import type { ServoKind } from '../shared/campaign.ts';
@@ -31,8 +31,8 @@ export function sandboxVisibility(status: number, self: boolean, sandbox: boolea
   return status & (1024 | 8388608) ? (status & ~(1024 | 8388608)) | 2048 : status;
 }
 
-// Mesma ordem da barra da partida; vagas não compradas continuam visíveis.
-// Ordem salva antes de 21/10 (6 magias e os itens ativos): as 2 vagas novas entram vazias e `items` é ignorado.
+// Same order as the match bar; slots not bought stay visible. `items` from orders saved before 21/10 is ignored.
+// An order saved in the 8-slot layout (21/10 to 25/10, #217) is cut to MAX_SPELLS; an owned spell that fell off takes the first empty slot.
 export type LoadoutOrder = { spells: (SpellId | null)[] };
 export function loadoutSlots(spells: Record<SpellId, number>, order?: LoadoutOrder) {
   const owned = SPELL_IDS.filter((s) => spells[s] > 0);
@@ -172,7 +172,7 @@ export function readPresets(raw: string | null): (Preset | null)[] {
     const p: unknown = Array.isArray(list) ? list[i] : null;
     if (!isRecord(p)) return null;
     // vaga vazia da barra fica no lugar (null): sem ela as magias da build mudariam de tecla
-    return { spells: readLevels(p.spells, SPELL_IDS, () => MAX_SPELL_LEVEL), items: readLevels(p.items, ITEM_IDS, (id) => ITEMS[id].levels.length), order: Array.isArray(p.order) ? p.order.slice(0, MAX_SPELLS).map((s: unknown) => (isSpell(s) ? s : null)) : [] };
+    return { spells: readLevels(p.spells, SPELL_IDS, spellMax), items: readLevels(p.items, ITEM_IDS, (id) => ITEMS[id].levels.length), order: Array.isArray(p.order) ? p.order.slice(0, MAX_SPELLS).map((s: unknown) => (isSpell(s) ? s : null)) : [] };
   });
 }
 
@@ -185,11 +185,11 @@ export function countBuys(used: Record<string, number>, keys: string[]): Record<
   for (const k of keys) out[k] = (out[k] ?? 0) + 1;
   return out;
 }
-// o que eu comprei entre duas atualizações da sala: cada nível novo de magia ou item vira uma chave;
-// o nível 1 grátis (Bola de fogo, Flagelo) não é compra, e vender ou desfazer (nível menor) não conta
+// what I bought between two room updates: each new spell or item level becomes a key;
+// the free level 1 (Fireball and, since 26/10, the Scourge item) is not a purchase, and selling or undoing (a lower level) does not count
 export const boughtKeys = (was: Pick<PublicPlayer, 'spells' | 'items'>, now: Pick<PublicPlayer, 'spells' | 'items'>) => [
   ...SPELL_IDS.flatMap((x) => Array<string>(Math.max(0, now.spells[x] - Math.max(was.spells[x], FREE_SPELLS.includes(x) ? 1 : 0))).fill('spell:' + x)),
-  ...ITEM_IDS.flatMap((x) => Array<string>(Math.max(0, now.items[x] - was.items[x])).fill('item:' + x)),
+  ...ITEM_IDS.flatMap((x) => Array<string>(Math.max(0, now.items[x] - Math.max(was.items[x], startItems()[x]))).fill('item:' + x)),
 ];
 export const topUsed = (used: Record<string, number>, kind: 'spell' | 'item', n = 3) =>
   Object.entries(used).filter(([k]) => k.startsWith(kind + ':')).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k.slice(kind.length + 1));
@@ -218,6 +218,6 @@ export function illusionCopies<D extends { id: string; status: number }>(project
   return projectiles.flatMap((q) => {
     const ownerId = q.kind === 'illusion' ? ids[q.vel.x] : undefined;
     const o = drawn.find((d) => d.id === ownerId);
-    return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(16 | 1024 | 2048 | 8388608), basicLeft: 0, moving: true, cheer: false, illusion: true, ghost: false }] : [];
+    return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(16 | 1024 | 2048 | 8388608), channelElapsed: undefined, channelSpell: undefined, sniperLeft: undefined, sniperAt: undefined, basicLeft: 0, moving: true, cheer: false, illusion: true, ghost: false }] : [];
   });
 }
