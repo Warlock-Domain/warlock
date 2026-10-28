@@ -89,7 +89,7 @@ export class MovementPredictor {
   };
 
   // The newest authoritative snapshot is roughly half a round trip behind the local clock.
-  frame = (server: WizView, dt: number): Vec => {
+  frame = (server: WizView, dt: number, basicCancelled = false): Vec => {
     const me = this.me ??= { pos: { ...server.pos }, vel: v(0, 0), target: null, facing: server.facing, speed: WIZ_SPEED };
     if (!server.alive) this.dead = true;
     else if (this.dead) {
@@ -114,6 +114,8 @@ export class MovementPredictor {
     // Read residual velocity once per snapshot, before the server-controlled branch below.
     // Re-reading it every frame would renew the impulse after walking becomes available again.
     if (server !== this.velocitySource) {
+      // Only an accepted Attack stops walking; a stale confirmation cannot cancel newer input.
+      if ((server.basicLeft ?? 0) > 0 && !basicCancelled) this.stop();
       if (server.status & BLOCKED_MOVE_BIT) { me.target = null; me.pos = { ...server.pos }; }
       me.stunLeft = server.stunLeft;
       me.recoveryLeft = server.recoveryLeft ?? 0;
