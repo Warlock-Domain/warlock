@@ -13,6 +13,12 @@ beforeEach(() => {
 });
 
 describe('interface shortcuts in the same panel as the spells', () => {
+  it('gives Transfusion an explicit empty default when swapping an occupied key', () => {
+    expect(keyOf('transfusion')).toBe('');
+    setKey('transfusion', 'KeyQ');
+    expect(keyOf('fireball')).toBe('');
+    expect(actionFor('KeyQ')).toBe('transfusion');
+  });
   it('taunts start on Y and on the D-pad left, and their button can be changed', () => {
     expect(keyOf('taunt')).toBe('KeyY');
     expect(padButtonOf('taunt')).toBe(BTN.LEFT);

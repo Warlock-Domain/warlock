@@ -6,6 +6,7 @@ Every new decision gets a row here (date, decision, why) in the same PR as the c
 
 | Date | Decision | Why |
 |---|---|---|
+| 27/10 | **User proposal:** Add Mental Transfusion: ally-only sustained cooldown recovery +20 pp/level; caster Incapacitated; range10+1 m/level, cooldown22−1 s/level,25 gold. Stop, walking, attacks, another spell, stun, suspension, death or range loss ends it. | Requested and tested locally by Leonard; PR opening is authorized, owner approval and merge gates remain pending. |
 | 17/10 | Top-down 3D camera, Dota controls (right button moves); 1 point per round, first to 5 wins | same as the original Warlock, Dota audience |
 | 18/10 | Public repository | so friends can contribute |
 | 18/10 | Rejected: ranking/profile and items that only help one spell (e.g. Fire staff) | focus on the game, free build |
