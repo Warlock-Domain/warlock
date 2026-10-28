@@ -809,12 +809,12 @@ function castCluster(w: World, wz: Wizard, L: Level, dir: Vec, dmgMult: number) 
 
 // Barricade: a 3-stone wall at the target that hits whoever stands under it
 function castRockpillar(w: World, wz: Wizard, L: Level, at: Vec, dmgMult: number) {
-  // rockpillar.lua: place an obstacle within range that expires after its duration
+  // The barricade has no expiry; only destruction or the round reset removes it.
   const pos = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
   // Place the wall across the caster-to-target path, with one stone at the target and one on each side
   const way = len(sub(at, wz.pos)) > 1e-6 ? norm(sub(at, wz.pos)) : v(Math.cos(wz.facing), Math.sin(wz.facing));
   const side = v(-way.y, way.x), mid = w.pillars.length;
-  for (const k of [0, -1, 1]) w.pillars.push({ pos: add(pos, scale(side, k * WALL_GAP)), hp: OBSTACLES.rockpillar.hp, alive: true, kind: 'rockpillar', until: w.t + L.duration, wall: mid });
+  for (const k of [0, -1, 1]) w.pillars.push({ pos: add(pos, scale(side, k * WALL_GAP)), hp: OBSTACLES.rockpillar.hp, alive: true, kind: 'rockpillar', wall: mid });
   // Falls from above (#206): anyone under the wall takes a hit and is pushed away from its line.
   // The wall blocks immediately so it can defend against incoming projectiles; only the fall is visual
   const a = sub(pos, scale(side, WALL_GAP)), seg = scale(side, 2 * WALL_GAP);
