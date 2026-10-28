@@ -1755,14 +1755,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         blocked: lvl >= ITEMS[i].levels.length ? t('Máximo', 'Max') : price === null ? t('Sem espaço', 'No room') : null, buy: () => act.buyItem(i), tip: () => itemTip(i, lvl),
         bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }) });
     };
-    const group = (title: string, hint: string, cards: HTMLElement[]) =>
-      el('section', { class: 'shop-group ' + groupClass(title) }, el('div', { class: 'shop-head' }, el('h3', {}, title), el('small', {}, hint)), el('div', { class: 'shop-grid' }, ...cards));
+    // item sections are all silver (.shop-items): no group class, which in English would also hit the Grimoire's .g-head
+    const group = (title: string, hint: string, cards: HTMLElement[], cls = groupClass(title)) =>
+      el('section', { class: 'shop-group ' + cls }, el('div', { class: 'shop-head' }, el('h3', {}, title), el('small', {}, hint)), el('div', { class: 'shop-grid' }, ...cards));
     const itemCount = t(`${ITEM_IDS.filter((i) => mine.items[i] > 0).length} de ${MAX_ITEMS} itens`, `${ITEM_IDS.filter((i) => mine.items[i] > 0).length} of ${MAX_ITEMS} items`);
     const grid = SPELL_GROUPS.map(([title, hint, ids]) => group(title, hint, ids.map(spellOffer)));
     // itens numa coluna à esquerda, com cor própria (Fernando, 19/10: distintos das magias e loja mais horizontal)
     const items = () => el('div', { class: 'shop-items' },
       // seções como as magias (Fernando, 21/10); a contagem de itens vai na dica da primeira
-      ...ITEM_GROUPS.map(([title, hint, ids], n) => group(title, n ? hint : `${hint} · ${itemCount}`, ids.map(itemOffer))));
+      ...ITEM_GROUPS.map(([title, hint, ids], n) => group(title, n ? hint : `${hint} · ${itemCount}`, ids.map(itemOffer), '')));
     // fileiras e títulos da coluna mais alta (magias em 5 colunas, itens em 3): o --tile-h do CSS divide a altura livre por elas
     const rows = (lists: unknown[][], cols: number) => lists.reduce((n, ids) => n + Math.ceil(ids.length / cols), 0);
     const itemLists = ITEM_GROUPS.map(([, , ids]) => ids);

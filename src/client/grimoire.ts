@@ -4,13 +4,13 @@
 // (dynamic import in ui.ts) so it does not weigh on game startup.
 import { ARENA_IDS, SHAPES, type ArenaId } from '../shared/arena.ts';
 import { ARENA_R0, HP_MAX, RUNE_KINDS } from '../shared/constants.ts';
-import { ITEMS, ITEM_IDS, type ItemId } from '../shared/items.ts';
+import { ITEMS, type ItemId } from '../shared/items.ts';
 import { SPELLS, type SpellId } from '../shared/spells.ts';
 import { SCRIPTS, createDemo, drawStone, runDemo, type DemoId } from './demo.ts';
 import { ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, choice, el, icon } from './icons.ts';
 import { ACTIONS, UI_ACTIONS, UI_NAMES, isPadMode, isSlotMode, isUiKey, labelOf, uiLabel } from './keys.ts';
 import { MODE_INFO, OPT_INFO } from './opt-info.ts';
-import { ITEM_DEMO, MECHANIC_GUIDES, NEGATIVE_GUIDES, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, groupClass, n1, type GuideId } from './rules-text.ts';
+import { ITEM_GROUPS, ITEM_DEMO, MECHANIC_GUIDES, NEGATIVE_GUIDES, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, groupClass, n1, type GuideId } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 import { hideTip, itemLevels, itemTip, mechanicTip, spellLevels, spellTip, withTip } from './tips.ts';
 import { dialog, norm, searchFilter } from './ui.ts';
@@ -59,13 +59,13 @@ function spellPage(id: SpellId, group: string): Page {
   };
 }
 
-function itemPage(id: ItemId): Page {
+function itemPage(id: ItemId, group: string): Page {
   const it = ITEMS[id];
   return {
     chapter: CH.items, title: itemName(id), demo: SCRIPTS[id] ? id : undefined, ref: id,
     body: () => [
       el('div', { class: 'g-head' }, el('span', { class: 'g-medal item' }, icon(ITEM_ICON[id])),
-        el('div', {}, el('h2', {}, itemName(id)), el('small', {}, `${t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}`))),
+        el('div', {}, el('h2', {}, itemName(id)), el('small', {}, `${group} · ${id === 'scourge' ? t('ativo', 'active') : t('passivo', 'passive')} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}`))),
       el('p', { class: 'g-lead' }, itemText(id)),
       ITEM_DEMO[id] ? el('p', { class: 'muted' }, ITEM_DEMO[id]) : null,
       null,
@@ -104,7 +104,7 @@ const PAGES: Page[] = [
   text(t('Loja e ouro', 'Shop and gold'), t('Loja', 'Shop'), () => RULES.loja),
   text(t('Loja e ouro', 'Shop and gold'), t('Ouro', 'Gold'), RULES.ouro),
   ...SPELL_GROUPS.flatMap(([group, , ids]) => ids.map((id) => spellPage(id, group))),
-  ...ITEM_IDS.map(itemPage),
+  ...ITEM_GROUPS.flatMap(([group, , ids]) => ids.map((id) => itemPage(id, group))),
   text(t('Runas', 'Runes'), t('Runas', 'Runes'), RULES.runas, () => [el('ul', { class: 'g-runes' }, ...RUNE_KINDS.map((k) => el('li', {}, icon(RUNE_ICON[k]), ' ', RULES.runa[k])))]),
   { ...text(t('Chão dos choques', 'Clash zones'), t('Chão dos choques', 'Clash zones'), RULES.choques), demo: 'clash' },
   text(t('Dicas', 'Tips'), t('Dicas', 'Tips'), RULES.dicas),
@@ -155,8 +155,8 @@ export function grimoire(o: { side?: boolean; onShow?: (refs: Ref[]) => void } =
       el('h2', {}, t('Magias e itens', 'Spells and items')),
       ...SPELL_GROUPS.map(([g, hint, ids]) => el('div', { class: 'g-sub ' + groupClass(g) }, el('small', {}, `${g} · ${hint}`),
         el('div', { class: 'g-chips' }, ...ids.map((id) => chip(pageOf((p) => p.chapter === CH.spells && p.demo === id), ICON[id], spellName(id)))))),
-      el('div', { class: 'g-sub' }, el('small', {}, CH.items),
-        el('div', { class: 'g-chips' }, ...ITEM_IDS.map((id) => chip(pageOf((p) => p.chapter === CH.items && p.title === itemName(id)), ITEM_ICON[id], itemName(id))))),
+      ...ITEM_GROUPS.map(([group, , ids]) => el('div', { class: 'g-sub' }, el('small', {}, `${CH.items} · ${group}`),
+        el('div', { class: 'g-chips' }, ...ids.map((id) => chip(pageOf((p) => p.chapter === CH.items && p.title === itemName(id)), ITEM_ICON[id], itemName(id)))))),
     ];
   }
 
@@ -264,7 +264,7 @@ export function library(open: (id: Ref) => void): HTMLElement {
   const groups = [
     section('fixed', FIXED, null, 'lib-fixed', fixedTiles),
     ...SPELL_GROUPS.map(([g, hint, ids]) => section(g, g, hint, groupClass(g), ids.map((s) => tile(s, spellName(s), ICON[s], () => spellTip(s, 0))))),
-    section('items', CH.items, null, 'lib-items', items([...ITEM_IDS])),
+    ...ITEM_GROUPS.map(([group, hint, ids]) => section('items', group, hint, 'lib-items', items(ids))),
   ];
   let only = 'all';
   const none = el('p', { class: 'muted', hidden: true }, t('Nada com esse nome.', 'Nothing with that name.'));
