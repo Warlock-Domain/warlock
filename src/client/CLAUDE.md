@@ -110,7 +110,7 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 
 - **Sound distance:** `sound-distance.ts` computes attenuation from the player's own wizard position, not the camera (full intensity up to 2 m, quadratic falloff to silence at 24 m). `main.ts` applies it to world events and manual taunts; music, menu and global notices do not depend on distance. The taunt requeries the position after loading the audio. A spectator without a wizard uses a neutral level of 0.6; a missing source produces no sound.
 
-- **Audio levelling:** `audio-level.ts` measures RMS in active 50 ms windows, aiming for 0.12 with a peak up to 0.8. `sound.ts` measures files and pre-rendered synthesis, compensates impact layers and keeps the taunt preview at the same level as the match. Immediate synthesis remains as a fallback until the cache is ready; human listening checks are still necessary.
+- **Audio levelling:** `audio-level.ts` measures perceived loudness as in ITU-R BS.1770 (K-weighting, 400 ms blocks, -70 LUFS and -10 LU gates; issue #202), aiming for a weighted RMS of 0.12 (about -19 LUFS) with a peak up to 0.8; short, peaky sounds stay below, held by the peak cap. `sound.ts` measures files and pre-rendered synthesis, compensates impact layers and keeps the taunt preview at the same level as the match. Immediate synthesis remains as a fallback until the cache is ready; human listening checks are still necessary.
 
 `ui.ts` uses `document`/`matchMedia` on load and does not run in Vitest. A screen decision that needs a test goes into a pure function in `screen-data.ts` (or `rules-text.ts`, `tips.ts`, `icons.ts`, `keys.ts`, `sheet.ts`, `reach.ts`, which do not touch the DOM on load).
 
