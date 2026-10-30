@@ -1,5 +1,7 @@
 # src/client — browser (Three.js + DOM interface)
 
+- Campaign pending-choice warnings reuse the Ilse/PvP notice surface with optional `ilse(text,done,title,top)` heading/placement. Reading messages take priority; pending-choice notices list server-provided public participants and have no acknowledgement action. The passive top placement avoids covering the choice buttons. They block neither input nor choices; only the server's encounter gate waits.
+
 Applies together with the root `CLAUDE.md`.
 
 ## Interface

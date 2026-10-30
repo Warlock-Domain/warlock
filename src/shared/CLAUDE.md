@@ -1,5 +1,7 @@
 # src/shared — game rules (run on the server and in the browser)
 
+- Campaign checkpoints wait for `campaignPickers`: all connected human participants with owed/offered cards finish before the next encounter starts. Exclude bots,spectators and disconnected players; generate/clear offers before checking so exhausted upgrade pools cannot deadlock the group. Exploration keeps running; this is not the reading pause.
+
 Applies together with the root `CLAUDE.md`.
 
 ## Simulation

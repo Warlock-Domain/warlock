@@ -159,6 +159,7 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 @media (prefers-reduced-motion: reduce) { .lv-cards { animation: none; } }
 .ilse .ilse-name { font-family: var(--display); color: var(--toast-info); }
 .ilse .ilse-text { line-height: 1.35; }
+.ilse.notice-top { top: calc(64px + var(--safe-t) + var(--tops-h, 0px)); bottom: auto; pointer-events: none; }
 .ilse .ilse-skip { align-self: flex-end; min-height: 32px; padding: 2px 10px; font-size: var(--fs-80); }
 @media (max-width: 600px) { .ilse { left: 12px; right: 12px; transform: none; width: auto; max-width: none; bottom: auto; top: calc(56px + var(--safe-t)); font-size: var(--fs-90); } }
 @media (max-width: 600px) { .hud:has(.boss-bar:not([hidden])) > .ilse { top: calc(96px + var(--safe-t) + var(--tops-h, 0px)); } } /* abaixo da barra do chefe */

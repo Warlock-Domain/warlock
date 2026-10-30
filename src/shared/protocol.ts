@@ -7,7 +7,7 @@ import { fightOf, nightMap } from './levels.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type RuneKind } from './constants.ts';
 import { ITEMS, ITEM_IDS, type ItemId } from './items.ts';
-import { MODES, OPTION_CHOICES, TURRET_DIR, campaignReaders, goalOf, parseOpt, votesNeeded, type BotSetup, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
+import { MODES, OPTION_CHOICES, TURRET_DIR, campaignReaders, campaignPickers, goalOf, parseOpt, votesNeeded, type BotSetup, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { BAR_SPELLS, MAX_SPELLS, spellMax, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
@@ -68,6 +68,7 @@ export type PublicRoom = {
   mode: Mode;
   round: number;
   reading?: string[]; // Public ids of Campaign participants still reading tutorial messages.
+  choosing?: string[]; // Public ids whose pending choices block the next Campaign encounter.
   phaseLeft: number; // ms até a fase mudar sozinha
   players: PublicPlayer[];
   ids: string[]; // ordem dos magos no estado compacto ('snap')
@@ -345,6 +346,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     ...(m.sandbox && { sandbox: m.sandbox }),
     ...(m.night && { night: publicNight(m.night) }),
     ...(campaignReaders(m).length && { reading: campaignReaders(m).map((p) => pub(p.id)) }),
+    ...(campaignPickers(m).length && { choosing: campaignPickers(m).map(p => pub(p.id)) }),
     ...(m.lobby && { lobby: { ...m.lobby, owner: m.lobby.owner && pub(m.lobby.owner) } }),
   };
 }
