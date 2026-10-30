@@ -1,7 +1,7 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
 import type { Snap } from './protocol.ts';
-import { PROJ_KINDS, bootsBonus, closedBodyActive, bracingActive, incapacitatedUntil, isSliding, isStunned, isSuspended, puppeteer, type ProjKind, type SimEvent, type World } from './sim.ts';
-import { INCAPACITATED_BIT, ELECTROCUTED_BIT, BRACING_BIT } from './constants.ts';
+import { PROJ_KINDS, projectileLevel, bootsBonus, closedBodyActive, bracingActive, incapacitatedUntil, isSliding, isStunned, isSuspended, puppeteer, type ProjKind, type SimEvent, type World } from './sim.ts';
+import { INCAPACITATED_BIT, ELECTROCUTED_BIT, BRACING_BIT, RICOCHET_READY_BIT } from './constants.ts';
 import { CHEST, OBSTACLES, OBSTACLE_KINDS, RUNE_KINDS, WIZ_R, type ObstacleKind, type RuneKind } from './constants.ts';
 import { BLINDNESS, SPELL_IDS, spellLevel, type SpellId } from './spells.ts';
 import type { Isle } from './arena.ts';
@@ -41,7 +41,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     // runas: 262144 Pressa, 524288 Fúria, 1048576 Escudo de runa (−30% de dano); 2097152 no redemoinho (mesma conta do puxão em sim.ts);
     // Ilusão: só o dono recebe 1024 (Caminhada no vento); os outros recebem 2048, salvo a visão de teste da sandbox (8388608)
     const hidden = !seeAll && z.id !== forId && !(me && me.team !== null && me.team === z.team);
-    const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0)
+    const bits = (z.alive ? 1 : 0) | (z.alive && z.ricochetRange ? RICOCHET_READY_BIT : 0) | (w.t < z.shieldUntil ? 2 : 0)
       | (isStunned(z) && !isSuspended(z) ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
       | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 || w.t < z.slowUntil ? 4 : 0) | (z.zone & 2 ? 512 : 0)
       | (w.t < z.windUntil ? (hidden ? 2048 : 1024) : 0) | (w.t < z.hasteUntil || bootsBonus(w, z) > 0 ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)

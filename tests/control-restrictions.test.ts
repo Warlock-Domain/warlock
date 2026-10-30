@@ -19,6 +19,7 @@ describe('stun and root: authoritative restrictions', () => {
     const z = w.wizards[0]; z.gripUntil = 5;
     if (spell === 'sniper') { const enemy = world([[3,0]], noSpells(), [], () => .5).wizards[0]; enemy.id='enemy'; w.wizards.push(enemy); }
     if (spell === 'closedbody') { z.braceReadyAt = 0; z.braceUntil = 1; }
+    if (spell === 'magnetize') w.projectiles.push({ id: w.nextId++, kind: 'fireball', owner: z.id, caster: z.id, pos: v(1, 1), vel: v(1, 0), level: 1, until: 5, target: null, dmgMult: 1 });
     stepWorld(w, [{ id: z.id, kind: 'cast', spell, at: spell === 'heal' ? z.pos : v(3, 0) }], () => .5);
     const blocked = spellGroup(spell) === 'mobility';
     expect(castBlocked(false, true, spell)).toBe(blocked);

@@ -445,32 +445,7 @@ describe('Rock pillar', () => {
   });
 });
 
-describe('Bouncer', () => {
-  it('after a hit it goes to the nearest enemy, never back to the caster; from an obstacle too', () => {
-    // p0 casts at p1; the nearest to p1 is p0 itself (2 m), but it must go to p2 (3 m)
-    const w = world([[0, 0], [2, 0], [2, 3]], ['bouncer']);
-    const ev = runEvents(w, 2, [cast('p0', 'bouncer', 2, 0)]);
-    const ids = ev.filter((e) => e.k === 'hit' && e.src === 'bouncer').map((e) => (e.k === 'hit' ? e.id : ''));
-    expect(ids.slice(0, 2)).toEqual(['p1', 'p2']);
-    // obstacle in the way: bounces and goes on to the enemy
-    const w2 = world([[0, 0], [0, 4]], ['bouncer']);
-    w2.pillars = [{ pos: v(2, 0), hp: 999, alive: true, kind: 'rock' }];
-    const ev2 = runEvents(w2, 2, [cast('p0', 'bouncer', 2, 0)]);
-    expect(ev2.some((e) => e.k === 'hit' && e.src === 'bouncer' && e.id === 'p1')).toBe(true);
-  });
-
-  it('jumps to the next wizard with 70% of the damage and stops once it would drop below 10', () => {
-    const w = world([[-2, 0], [2, 0], [2, 2]], ['bouncer']);
-    for (const z of w.wizards) z.kbResist = 1; // no knockback: targets stay in place
-    const ev = runEvents(w, 3, [cast('p0', 'bouncer', 2, 0)]);
-    const hits = hitsOf(ev, 'bouncer');
-    const d0 = SPELLS.bouncer.levels[0].dmg;
-    expect(hits.map((h) => h.id)).toEqual(['p1', 'p2', 'p1', 'p2', 'p1']);
-    hits.forEach((h, i) => expect(h.dmg).toBeCloseTo(Math.round(d0 * 0.7 ** i), 5));
-    expect(d0 * 0.7 ** 5).toBeLessThan(10);
-    expect(w.projectiles).toHaveLength(0);
-  });
-});
+// The replaced Bouncer projectile is covered by ricochet-buff.test.ts.
 
 describe('Boomerang and chest', () => {
   it('the boomerang damages the chest', () => {
@@ -738,23 +713,7 @@ describe('Illusion', () => {
   });
 });
 
-describe('Magnetize', () => {
-  it('a magnetized enemy pulls in a shot that would have missed', () => {
-    const shotHits = (magnet: boolean) => {
-      const w = world([[0, 0], [4, 0]], ['magnetize']);
-      if (magnet) {
-        run(w, 1, [cast('p0', 'magnetize', 4, 0)]);
-        expect(w.wizards[1].magnetUntil).toBeGreaterThan(w.t);
-      }
-      w.wizards[1].pos = v(4, 0);
-      w.wizards[1].vel = v(0, 0);
-      const ev = runEvents(w, 1.2, [cast('p0', 'fireball', 4, 1.1)]);
-      return hitsOf(ev, 'fireball').length;
-    };
-    expect(shotHits(false)).toBe(0);
-    expect(shotHits(true)).toBe(1);
-  });
-});
+// Direct projectile redirection is covered by magnetize-redirect.test.ts.
 
 describe('Recharge', () => {
   it('a hit sends back an orb that resets the cooldown, and the next hit deals +10', () => {
@@ -890,7 +849,7 @@ describe('kill credit without damage', () => {
   });
 
   // hp = seconds of lava until death: Grip only holds after the vines delay (1.3 s), so the victim lasts longer
-  it.each([['grip', 250], ['magnetize', 100]] as const)('%s on an enemy in the lava gives the kill to the caster', (spell, hp) => {
+  it.each([['grip', 250]] as const)('%s on an enemy in the lava gives the kill to the caster', (spell, hp) => {
     const w = world([[stone, 0], [lava, 0]], [spell]);
     w.wizards[1].hp = hp; // dies within the 5 s credit window
     stepWorld(w, [cast('p0', spell, lava, 0)]);

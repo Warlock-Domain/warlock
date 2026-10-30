@@ -4,7 +4,7 @@ import { BASIC_ATTACK, BRACE, OBSTACLES, DT, GUARD, MELEE_ARC, FRICTION, KB_SOFT
 import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { labelOf, uiLabel } from './keys.ts';
-import { CAST_POINT, GRIP, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, PIX, RECHARGE, RUSH, SHIELD, SPELLS, WARPZONE, spellLevel, spellMax, type Level, type SpellId } from '../shared/spells.ts';
+import { CAST_POINT, GRIP, HOMING_SLOW, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, PIX, RECHARGE, RUSH, SHIELD, SPELLS, WARPZONE, spellLevel, spellMax, type Level, type SpellId } from '../shared/spells.ts';
 import { MECHANIC_GUIDES, RULES_SHORT, n1, n2 } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 
@@ -46,7 +46,7 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   heal: [[t('Cura', 'Healing'), l => n1(l.heal)], [CD, l => s(l.cd)], [RANGE, l => m(l.range)]],
   fireball: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   lightning: [[t('Intervalo entre saltos', 'Jump interval'), () => '0,25 s'], [DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
-  homing: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [t('Tempo de voo', 'Flight time'), (l) => s(l.duration)]],
+  homing: [[t('Lentidão da velocidade base', 'Base speed slow'), () => n1(HOMING_SLOW.fraction * 100) + '%'], [t('Duração da lentidão', 'Slow duration'), () => s(HOMING_SLOW.duration)], [DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [t('Tempo de voo', 'Flight time'), (l) => s(l.duration)]],
   shield: [[DURATION, (l) => s(l.duration)], [t('Dano recebido', 'Damage received'), () => '0'], [t('Novo empurrão recebido', 'New knockback received'), () => `${n1(SHIELD.knock * 100)}%`], [t('Duração dos novos status', 'New status duration'), () => `${n1(SHIELD.statusDuration * 100)}%`], [t('Raio da bolha', 'Bubble radius'), (l) => m(l.radius)], [CD, (l) => s(l.cd)]],
   teleport: [[RANGE, (l) => m(l.range)], [CD, (l) => s(l.cd)]],
   swap: [[RANGE, (l) => m(l.range)], [CD, (l) => s(l.cd)]],
@@ -58,11 +58,11 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   thrust: [[t('Atordoamento por 25 de dano recebido', 'Stun per 25 damage received'), () => '0,25 s'], [t('Dano base', 'Base damage'), (l) => n1(l.dmg)], [t('Empurrão máximo', 'Max knockback'), (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   gravity: [[DPS, (l) => n1(l.dmg)], [PULL, (l) => `${n1(l.pull)} m/s²`], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   rockpillar: [[t('Dano em quem está embaixo', 'Damage to whoever is under it'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [DURATION, (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
-  bouncer: [[t('Dano no 1º', 'Damage on the 1st hit'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [t('Alcance por salto', 'Range per bounce'), (l) => m(l.range)]],
+  bouncer: [[CD, l => s(l.cd)], [t('Alcance do salto', 'Bounce range'), l => m(l.range)]],
   drain: [[t('Dano e cura', 'Damage and healing'), (l) => n1(l.dmg)], [t('Cura base', 'Base healing'), (l) => n1(l.heal)], [KNOCK, (l) => knockMeters(l)], [t('Lentidão ou pressa', 'Slow or haste'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [t('Alcance até virar', 'Range until it turns'), (l) => m(l.range)]],
   snowball: [[t('Dano por segundo encostado', 'Damage per second touching'), (l) => n1(l.dot)], [t('Explosão no centro', 'Center blast'), (l) => n1(l.dmg)], [t('Empurrão da explosão', 'Blast knockback'), (l) => knockMeters(l)], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   illusion: [[t('Cópia e invisibilidade', 'Copy and invisibility'), (l) => s(l.duration)], [CD, (l) => s(l.cd)]],
-  magnetize: [[DURATION, (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  magnetize: [[CD, l => s(l.cd)], [t('Alcance de seleção', 'Selection range'), l => m(l.range)]],
   recharge: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [t('Por acerto seguido', 'Per consecutive hit'), () => '+' + n1(RECHARGE.perHit)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   alteration: [[DURATION, (l) => s(l.duration)], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)]],
   link: [[t('Cura por segundo em aliados', 'Healing per second on allies'), l => n1(l.dmg)], [DPS, (l) => n1(l.dmg)], [PULL, (l) => `${n1(l.pull)} m/s²`], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
