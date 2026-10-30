@@ -1,19 +1,19 @@
-// Escala ×10 de 18/10 (vida 1000, como no Warlock original): só mudou a unidade. Os empurrões abaixo foram medidos
-// na escala antiga (vida 100) antes da troca e têm de continuar iguais.
+// The 18/10 tenfold health conversion changed units only. The impulses below were measured
+// on the former health100 scale; later explicit gameplay changes update their entries.
 import { describe, expect, it } from 'vitest';
 import { HP_MAX, UNIT, WIZ_SPEED } from '../src/shared/constants.ts';
 import { newWorld, stepWorld, type World } from '../src/shared/sim.ts';
 import { RUSH, SPELLS, noSpells, type SpellId } from '../src/shared/spells.ts';
 import { len, v } from '../src/shared/vec.ts';
 
-// empurrão (m/s) por golpe nos níveis 1 e 7, medido na escala antiga
+// knockback metres per second at levels one and seven, measured on the old scale
 const KNOCK_BEFORE: Partial<Record<SpellId, [number, number]>> = {
-  fireball: [4.529, 7.2464], lightning: [4.16668, 7.023832], homing: [3.26088 * 0.34 / 0.72, 6.05592 * 0.34 / 0.72], // balanceamento (18/10): Míssil ×0,72 → ×0,34; Bola de neve (45 + 35 nv) ×1,3 meteor: [4.69722, 7.25934], cluster: [1.387815, 2.144805],
-  boomerang: [4.30255, 6.51529], thrust: [3.882, 6.2112], bouncer: [4.19256, 7.91928], drain: [0.7764, 1.5528], snowball: [2.67858 * 1.3 / 1.15, (8.03574 * (255 * 1.3)) / (135 * 1.15)],
+  fireball: [4.529, 7.2464], lightning: [4.16668, 7.023832], homing: [3.26088 * 0.34 / 0.72, 6.05592 * 0.34 / 0.72], // 18/10 balance: Homing multiplier0.72 to0.34 and Snowball multiplier1.3.
+  boomerang: [4.30255, 6.51529], thrust: [0, 0], bouncer: [4.19256, 7.91928], drain: [0.7764, 1.5528], snowball: [2.67858 * 1.3 / 1.15, (8.03574 * (255 * 1.3)) / (135 * 1.15)],
   recharge: [3.882, 6.5994], windwalk: [3.4938, 5.823], splitter: [1.941, 3.882],
 };
 
-// p0 em (0,0) com o Pacto (se pedir) lança a Bola de fogo em p1, a 3 m; devolve p1 no passo do acerto e o dano do acerto
+// p0 at the origin casts Fireball, optionally empowered by Pact, at p1 three metres away; returns impact state and damage
 function fireballHit(prepare: (w: World) => void = () => {}, pact = false) {
   const w = newWorld(['p0', 'p1'], { p0: { ...noSpells(), pact: pact ? 1 : 0 }, p1: noSpells() });
   [w.wizards[0].pos, w.wizards[1].pos] = [v(0, 0), v(3, 0)];
@@ -27,7 +27,7 @@ function fireballHit(prepare: (w: World) => void = () => {}, pact = false) {
   return { w, z: w.wizards[1], dmg: hit?.k === 'hit' ? hit.dmg : 0 };
 }
 
-describe('escala ×10 (vida 1000): o jogo continua igual', () => {
+describe('Tenfold health scale preserves unchanged game forces', () => {
   it('every damage spell pushes exactly as before', () => {
     for (const [id, [l1, l7]] of Object.entries(KNOCK_BEFORE) as [SpellId, [number, number]][]) {
       expect(SPELLS[id].levels[0].knock, id).toBeCloseTo(l1, 9);
@@ -41,12 +41,12 @@ describe('escala ×10 (vida 1000): o jogo continua igual', () => {
     expect(len(z.vel)).toBeCloseTo(4.529, 9);
   });
 
-  it.each([0, 400, 7000, 70000])('dano histórico %s não amplifica o empurrão', (taken) => {
+  it.each([0, 400, 7000, 70000])('historical damage%s does not amplify knockback', (taken) => {
     const { z } = fireballHit((w) => (w.wizards[1].dmgTaken = taken));
     expect(len(z.vel)).toBeCloseTo(4.529, 9);
   });
 
-  it.each([false, true])('cem impactos não aumentam o impulso, vida infinita=%s', (god) => {
+  it.each([false, true])('one hundred hits do not increase impulse, infinite health=%s', (god) => {
     const w = newWorld(['p0', 'p1'], { p0: noSpells(), p1: noSpells() }, {}, 0, () => 0.5);
     w.pillars = [];
     w.shrinkAt = Infinity;
@@ -58,7 +58,7 @@ describe('escala ×10 (vida 1000): o jogo continua igual', () => {
       w.wizards[0].cd.fireball = 0;
       target.pos = v(3, 0);
       target.vel = v(0, 0);
-      target.hp = target.hpMax; // cura entre golpes no modo normal; o histórico não é zerado.
+      target.hp = target.hpMax; // heal between ordinary hits without resetting history.
       stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: target.pos }], () => 0.5);
       for (let i = 0; i < 120 && !w.events.some((e) => e.k === 'hit'); i++) stepWorld(w, [], () => 0.5);
       expect(w.events.some((e) => e.k === 'hit'), `impacto ${hit}`).toBe(true);
@@ -67,14 +67,14 @@ describe('escala ×10 (vida 1000): o jogo continua igual', () => {
     expect(target.dmgTaken).toBe(7000);
   });
 
-  it('mantém resistência ao empurrão sem depender do histórico', () => {
+  it('preserves knockback resistance independently of history', () => {
     const { z } = fireballHit((w) => { w.wizards[1].dmgTaken = 70000; w.wizards[1].kbResist = .35; });
     expect(len(z.vel)).toBeCloseTo(4.529 * .65, 9);
   });
 
-  it('atingir um jogador parado não cria destino de caminhada nem movimento depois que o impulso termina', () => {
+  it('hitting an idle player creates no walk destination or movement after the impulse ends', () => {
     const { w, z } = fireballHit();
-    expect(len(z.vel)).toBeGreaterThan(0); // o empurrão legítimo não foi removido.
+    expect(len(z.vel)).toBeGreaterThan(0); // the legitimate impact force remains.
     for (let i = 0; i < 600 && len(z.vel) > 0; i++) {
       expect(z.target).toBeNull();
       stepWorld(w, [], () => .5);
@@ -103,7 +103,7 @@ describe('escala ×10 (vida 1000): o jogo continua igual', () => {
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: z.pos }]);
     for (let i = 0; i < 120 && !w.events.some((e) => e.k === 'hit'); i++) stepWorld(w, []);
     stepWorld(w, []);
-    // escala antiga: metade da Bola de fogo (3,5) × 15 unidades/s por ponto, até o que a Investida absorve (12,5 desde o balanceamento de 18/10)
+    // old scale: half Fireball damage times15 speed units per point, capped by Rush absorption since18/10
     expect(z.speed - WIZ_SPEED - RUSH.bonus).toBeCloseTo(Math.min(35, SPELLS.rush.levels[0].absorb) * 1.5 * UNIT, 9);
   });
 

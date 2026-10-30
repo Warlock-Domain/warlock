@@ -1,6 +1,6 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
-import { AEGIS, AFFLICT_SPELLS, CRIT, ITEMS, SHOCK_BOOTS, WIND_BOOTS, type ItemId } from '../shared/items.ts';
-import { BASIC_ATTACK, BRACE, DT, GUARD, MELEE_ARC, FRICTION, KB_SOFT_CAP, LAVA_DPS, STUN_SPEED } from '../shared/constants.ts';
+import { ACTIVE_ITEM_SPELL, AEGIS, AFFLICT_SPELLS, CRIT, ITEMS, SHOCK_BOOTS, WIND_BOOTS, type ItemId } from '../shared/items.ts';
+import { BASIC_ATTACK, BRACE, OBSTACLES, DT, GUARD, MELEE_ARC, FRICTION, KB_SOFT_CAP, LAVA_DPS, STUN_SPEED } from '../shared/constants.ts';
 import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { labelOf, uiLabel } from './keys.ts';
@@ -41,11 +41,11 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   pix: [[t('Chuva de moedas', 'Coin rain'), () => s(PIX.rain)], [RADIUS, (l) => m(l.radius)], [t('Tempo dentro para controlar', 'Time inside to control'), () => s(PIX.soak)], [t('Tempo controlado', 'Time controlled'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   sniper: [[DMG,l=>n1(l.dmg)],[RANGE,l=>m(l.range)],[t('Canalização','Channel time'),()=>s(CAST_POINT.sniper)],[CD,l=>s(l.cd)]],
   channel: [[t('Preparo mínimo', 'Minimum charge'), () => '1 s'], [t('Carga máxima', 'Maximum charge'), () => '2 s'], [t('Bônus em 1 s / 2 s', 'Bonus at 1 s / 2 s'), () => '+50% / +100%'], [CD, () => '0 s']],
-  closedbody: [[DURATION, l => s(l.duration)], [t('Redução de dano', 'Damage reduction'), () => '90%'], [t('Resistência a novos status', 'New status resistance'), () => '90%'], [t('Resistência a novo empurrão', 'New knockback resistance'), () => '90%'], [CD, l => s(l.cd)]],
+  closedbody: [[t('Resistência sem postura', 'Resistance without stance'), () => '22,5%'], [t('Lentidão sem postura', 'Slow without stance'), () => '50%'], [DURATION, l => s(l.duration)], [t('Redução de dano', 'Damage reduction'), () => '90%'], [t('Resistência a novos status', 'New status resistance'), () => '90%'], [t('Resistência a novo empurrão', 'New knockback resistance'), () => '90%'], [CD, l => s(l.cd)]],
   geyser: [[t('Suspensão e invulnerabilidade', 'Suspension and invulnerability'), l => s(l.duration)], [CD, l => s(l.cd)], [RANGE, l => m(l.range)], [t('Raio da área', 'Area radius'), l => m(l.radius)]],
   heal: [[t('Cura', 'Healing'), l => n1(l.heal)], [CD, l => s(l.cd)], [RANGE, l => m(l.range)]],
   fireball: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
-  lightning: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  lightning: [[t('Intervalo entre saltos', 'Jump interval'), () => '0,25 s'], [DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   homing: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [t('Tempo de voo', 'Flight time'), (l) => s(l.duration)]],
   shield: [[DURATION, (l) => s(l.duration)], [t('Dano recebido', 'Damage received'), () => '0'], [t('Novo empurrão recebido', 'New knockback received'), () => `${n1(SHIELD.knock * 100)}%`], [t('Duração dos novos status', 'New status duration'), () => `${n1(SHIELD.statusDuration * 100)}%`], [t('Raio da bolha', 'Bubble radius'), (l) => m(l.radius)], [CD, (l) => s(l.cd)]],
   teleport: [[RANGE, (l) => m(l.range)], [CD, (l) => s(l.cd)]],
@@ -55,17 +55,17 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   rush: [[t('Avanço', 'Dash'), () => m(RUSH.dash)], [t('Tempo do avanço', 'Dash time'), () => s(RUSH.dashTime)], [t('Dano do avanço', 'Dash damage'), () => n1(RUSH.dashDmg)], [DURATION, (l) => s(l.duration)], [t('Limite de dano absorvido', 'Damage absorption cap'), (l) => n1(l.absorb)], [CD, (l) => s(l.cd)]],
   cluster: [[DMG,l=>n1(l.dmg)], [t('Incapacitar','Incapacitate'),l=>s(l.incapacitate)], [t('Cegueira','Blindness'),l=>s(l.blind)], [t('Comprimento do cone','Cone length'),l=>m(l.range)], [t('Largura na ponta','Width at far end'),l=>m(l.width)], [CD,l=>s(l.cd)]],
   boomerang: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
-  thrust: [[t('Dano máximo', 'Max damage'), (l) => n1(l.dmg)], [t('Empurrão máximo', 'Max knockback'), (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  thrust: [[t('Atordoamento por 25 de dano recebido', 'Stun per 25 damage received'), () => '0,25 s'], [t('Dano base', 'Base damage'), (l) => n1(l.dmg)], [t('Empurrão máximo', 'Max knockback'), (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   gravity: [[DPS, (l) => n1(l.dmg)], [PULL, (l) => `${n1(l.pull)} m/s²`], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   rockpillar: [[t('Dano em quem está embaixo', 'Damage to whoever is under it'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [DURATION, (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   bouncer: [[t('Dano no 1º', 'Damage on the 1st hit'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [t('Alcance por salto', 'Range per bounce'), (l) => m(l.range)]],
-  drain: [[t('Dano e cura', 'Damage and healing'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [t('Lentidão ou pressa', 'Slow or haste'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [t('Alcance até virar', 'Range until it turns'), (l) => m(l.range)]],
+  drain: [[t('Dano e cura', 'Damage and healing'), (l) => n1(l.dmg)], [t('Cura base', 'Base healing'), (l) => n1(l.heal)], [KNOCK, (l) => knockMeters(l)], [t('Lentidão ou pressa', 'Slow or haste'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [t('Alcance até virar', 'Range until it turns'), (l) => m(l.range)]],
   snowball: [[t('Dano por segundo encostado', 'Damage per second touching'), (l) => n1(l.dot)], [t('Explosão no centro', 'Center blast'), (l) => n1(l.dmg)], [t('Empurrão da explosão', 'Blast knockback'), (l) => knockMeters(l)], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   illusion: [[t('Cópia e invisibilidade', 'Copy and invisibility'), (l) => s(l.duration)], [CD, (l) => s(l.cd)]],
   magnetize: [[DURATION, (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   recharge: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [t('Por acerto seguido', 'Per consecutive hit'), () => '+' + n1(RECHARGE.perHit)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   alteration: [[DURATION, (l) => s(l.duration)], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)]],
-  link: [[DPS, (l) => n1(l.dmg)], [PULL, (l) => `${n1(l.pull)} m/s²`], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  link: [[t('Cura por segundo em aliados', 'Healing per second on allies'), l => n1(l.dmg)], [DPS, (l) => n1(l.dmg)], [PULL, (l) => `${n1(l.pull)} m/s²`], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   windwalk: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [DURATION, (l) => s(l.duration)], [CD, (l) => s(l.cd)]],
   splitter: [[t('Dano por filhote (8)', 'Damage per shard (8)'), (l) => n1(l.dmg)], [t('Empurrão por filhote', 'Knockback per shard'), (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   warpzone: [[t('Tempo dos projéteis', 'Projectile time'), (l) => `${n1(l.scale * 100)}%`], [t('Inimigos andam', 'Enemies move at'), () => t(`${n1(WARPZONE.wizMult * 100)}% da velocidade`, `${n1(WARPZONE.wizMult * 100)}% of normal speed`)], [RADIUS, (l) => m(l.radius)], [DURATION, (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
@@ -107,6 +107,8 @@ const SLOWS = t('Lentidões', 'Slows');
 const WITH_BOOTS_RULE = t('vale a maior velocidade, não soma', 'the highest speed applies, no stacking');
 
 export const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string][]>> = {
+  glitch_cape: () => [[t('Recarga', 'Cooldown'), '19 s'], [t('Raio', 'Radius'), '0,78 m']],
+  addicted_rings: () => [[t('Dano', 'Damage'), '60'], [t('Recarga', 'Cooldown'), '23,5 s']],
   ring: (l) => [[t('Vida máxima', 'Max health'), '+' + n1(ITEMS.ring.levels[l].hp!)]],
   cursed_ring: (l) => [[t('Vida máxima', 'Max health'), '+' + n1(ITEMS.cursed_ring.levels[l].hp!)], [KNOCK_TAKEN, `−${n1(ITEMS.cursed_ring.levels[l].kb! * 100)}%`], [SLOWS, t(`+${n1(ITEMS.cursed_ring.levels[l].debuff! * 100)}% de duração`, `+${n1(ITEMS.cursed_ring.levels[l].debuff! * 100)}% duration`)]],
   cape: (l) => [[t('Vida por segundo', 'Health per second'), '+' + n1(ITEMS.cape.levels[l].regen!)]],
@@ -117,8 +119,8 @@ export const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string]
   lava_boots: (l) => [[t('Dano da lava', 'Lava damage'), t(`−${n1(ITEMS.lava_boots.levels[l].lava! * 100)}% (${n1(LAVA_DPS * (1 - ITEMS.lava_boots.levels[l].lava!))} por segundo)`, `−${n1(ITEMS.lava_boots.levels[l].lava! * 100)}% (${n1(LAVA_DPS * (1 - ITEMS.lava_boots.levels[l].lava!))} per second)`)]],
   warden: (l) => [[t('Dano por golpe', 'Damage per hit'), t(`−${n1(ITEMS.warden.levels[l].ward!)} (no máximo metade do golpe)`, `−${n1(ITEMS.warden.levels[l].ward!)} (at most half the hit)`)], [KNOCK_TAKEN, `+${n1(-ITEMS.warden.levels[l].kb! * 100)}%`]],
   helmet: (l) => [[KNOCK_TAKEN, `−${n1(ITEMS.helmet.levels[l].kb! * 100)}%`], [t('Alcance das magias', 'Spell range'), `−${n1(-ITEMS.helmet.levels[l].range! * 100)}%`]],
-  wind_boots: (l) => [[t('Espera sem causar nem levar dano', 'Wait without dealing or taking damage'), s(WIND_BOOTS.calm[l])], [t('Velocidade', 'Speed'), `+${n1(WIND_BOOTS.speed[l] * 100)} cm/s`], [t('Acaba', 'Ends'), t('ao causar ou levar dano (golpe, lava, fogo)', 'when you deal or take damage (hit, lava, fire)')], [t('Com outras botas', 'With other boots'), WITH_BOOTS_RULE]],
-  shock_boots: (l) => [[t('Ao levar um golpe', 'When you take a hit'), t(`+${n1(SHOCK_BOOTS.speed * 100)} cm/s por ${s(SHOCK_BOOTS.secs[l])}`, `+${n1(SHOCK_BOOTS.speed * 100)} cm/s for ${s(SHOCK_BOOTS.secs[l])}`)], [t('Com Botas', 'With Boots'), WITH_BOOTS_RULE]],
+  wind_boots: (l) => [[t('Espera sem causar nem levar dano', 'Wait without dealing or taking damage'), s(WIND_BOOTS.calm)], [t('Velocidade', 'Speed'), `+${n1(WIND_BOOTS.speed * 100)} cm/s`], [t('Acaba', 'Ends'), t('ao causar ou levar dano (golpe, lava, fogo)', 'when you deal or take damage (hit, lava, fire)')], [t('Com outras botas', 'With other boots'), WITH_BOOTS_RULE]],
+  shock_boots: (l) => [[t('Ao levar um golpe', 'When you take a hit'), t(`+${n1(SHOCK_BOOTS.speed * 100)} cm/s por ${s(SHOCK_BOOTS.secs)}`, `+${n1(SHOCK_BOOTS.speed * 100)} cm/s for ${s(SHOCK_BOOTS.secs)}`)], [t('Com Botas', 'With Boots'), WITH_BOOTS_RULE]],
   lens: (l) => [[t('Chance de crítico', 'Critical chance'), `${n1(ITEMS.lens.levels[l].crit! * 100)}%`], [t('Dano do crítico', 'Critical damage'), `+${n1(CRIT.dmg * 100)}%`]],
   piercing: (l) => [[t('Dano do crítico', 'Critical damage'), t(`+${n1(ITEMS.piercing.levels[l].critDmg! * 100)}% (soma ao da Lente Letal)`, `+${n1(ITEMS.piercing.levels[l].critDmg! * 100)}% (adds to the Lethal Lens)`)], [t('Sem a Lente Letal', 'Without the Lethal Lens'), t('não há crítico', 'no critical hits')]],
   affliction: (l) => [[t('Lentidões e prisões que você aplica', 'Slows and roots you apply'), t(`+${n1(ITEMS.affliction.levels[l].afflict! * 100)}% de duração`, `+${n1(ITEMS.affliction.levels[l].afflict! * 100)}% duration`)], [t('Vale para', 'Applies to'), AFFLICT_SPELLS.map(spellName).join(', ')]],
@@ -131,13 +133,8 @@ export const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string]
 const KIND = (id: ItemId) => (id === 'scourge' ? t('ativo', 'active') : t('passivo', 'passive'));
 export function itemTip(id: ItemId, level: number): string {
   const it = ITEMS[id];
-  const max = it.levels.length;
-  const head = `<b>${itemName(id)}</b>${id === 'scourge' ? ` <span class="k">${labelOf('scourge')}</span>` : ''}<br><small>${level ? t(`Nível ${level} de ${max}`, `Level ${level} of ${max}`) : t('Ainda não comprado', 'Not bought yet')} · ${KIND(id)} · ${t(`${it.cost} de ouro por nível`, `${it.cost} gold per level`)}</small>`;
-  const rows = ITEM_ROWS[id]!;
-  const cur = rows(Math.max(0, level - 1));
-  const next = level >= 1 && level < max ? rows(level) : null;
-  const body = table(cur.map(([k, v], i): [string, string, string | null] => [k, v, next ? next[i][1] : null]));
-  return `${demo(id)}${head}<p>${itemText(id)}</p>${body}${next ? `<small class="up">${t('Próximo nível: o que está à direita', 'Next level: shown on the right')}</small>` : level >= max ? `<small>${t('Nível máximo', 'Max level')}</small>` : ''}`;
+  const head = '<b>' + itemName(id) + '</b><br><small>' + (level ? t('Comprado', 'Owned') : t('Ainda não comprado', 'Not bought yet')) + ' · ' + (ACTIVE_ITEM_SPELL[id] ? t('ativo', 'active') : t('passivo', 'passive')) + ' · ' + t(it.cost + ' de ouro', it.cost + ' gold') + '</small>';
+  return demo(id) + head + '<p>' + itemText(id) + '</p>' + table(ITEM_ROWS[id]!(0).map(([k, v]): [string, string, null] => [k, v, null]));
 }
 
 // Attack and Hold ground (issue #401): same tip shape as a spell, numbers read from the shared constants so they never drift

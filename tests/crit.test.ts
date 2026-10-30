@@ -5,7 +5,7 @@ import { noSpells, spellLevel } from '../src/shared/spells.ts';
 import { sheet } from '../src/client/sheet.ts';
 import { world } from './helpers.ts';
 
-// duelo p0 → p1 a 4 m com os itens de p0 e o sorteio fixo; devolve o mundo e os acertos em p1
+// a four-metre duel with fixed RNG and attacker equipment; returns world and target hits
 function duel(spell: 'fireball' | 'drain', items: Partial<Record<ItemId, number>>, roll: number, seconds = 2) {
   const w: World = world([[0, 0], [4, 0]], { ...noSpells(), fireball: 1, drain: 1 }, [items], () => roll);
   const hits: { t: number; dmg: number; crit?: boolean }[] = [];
@@ -17,12 +17,12 @@ function duel(spell: 'fireball' | 'drain', items: Partial<Record<ItemId, number>
   return { w, hits };
 }
 
-describe('crítico', () => {
-  it('os itens somam chance, dano do crítico e duração das lentidões aplicadas', () => {
-    expect(itemStats({ ...noItems(), lens: 3, piercing: 2, affliction: 1 })).toMatchObject({ crit: 0.15, critDmg: 0.4, afflict: 0.05 });
+describe('Critical hits', () => {
+  it('items contribute critical chance, critical damage and outgoing slow duration', () => {
+    expect(itemStats({ ...noItems(), lens: 3, piercing: 2, affliction: 1 })).toMatchObject({ crit: 0.05, critDmg: 0.3, afflict: 0.05 });
   });
 
-  it('Lente Letal: sorteio abaixo da chance faz +30%; acima, golpe normal', () => {
+  it('Lethal Lens rolls below its chance deal 30% more damage', () => {
     const plain = duel('fireball', {}, 0).hits[0];
     const crit = duel('fireball', { lens: 1 }, 0.04).hits[0];
     const miss = duel('fireball', { lens: 1 }, 0.06).hits[0];
@@ -32,22 +32,22 @@ describe('crítico', () => {
     expect(miss.crit).toBeUndefined();
   });
 
-  it('Magia Perfurante soma ao +30% da Lente; sozinha não faz nada', () => {
+  it('Piercing Magic adds to the Lens bonus and has no effect alone', () => {
     const plain = duel('fireball', {}, 0).hits[0];
-    expect(duel('fireball', { lens: 3, piercing: 3 }, 0).hits[0].dmg).toBe(Math.round(plain.dmg * 1.8));
+    expect(duel('fireball', { lens: 3, piercing: 3 }, 0).hits[0].dmg).toBe(Math.round(plain.dmg * 1.6));
     expect(duel('fireball', { piercing: 3 }, 0).hits[0]).toMatchObject({ dmg: plain.dmg });
   });
 
-  it('Runa da aflição: a lentidão do Drenar dura 10% a mais em quem você acerta', () => {
+  it('Affliction extends the outgoing slow by five percent', () => {
     const slowFor = (items: Partial<Record<ItemId, number>>) => {
       const { w, hits } = duel('drain', items, 0.5, 1.5);
       expect(hits.length).toBeGreaterThan(0);
       return w.wizards[1].slowUntil - hits[0].t;
     };
-    expect(slowFor({ affliction: 2 })).toBeCloseTo(slowFor({}) * 1.1, 2);
+    expect(slowFor({ affliction: 2 })).toBeCloseTo(slowFor({}) * 1.05, 2);
   });
 
-  it('Runa da aflição: o Agarrar prende 10% mais tempo (outro ponto do afflictBy além do Drenar)', () => {
+  it('Affliction extends Grip by five percent', () => {
     const rootedUntil = (items: Partial<Record<ItemId, number>>) => {
       const w: World = world([[0, 0], [4, 0]], { ...noSpells(), grip: 1 }, [items], () => 0.5);
       stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'grip', at: w.wizards[1].pos }], () => 0.5);
@@ -56,10 +56,10 @@ describe('crítico', () => {
     };
     const plain = rootedUntil({});
     expect(plain).toBeGreaterThan(0);
-    expect(rootedUntil({ affliction: 2 }) - plain).toBeCloseTo(spellLevel('grip', 1).duration * 0.1, 2);
+    expect(rootedUntil({ affliction: 2 }) - plain).toBeCloseTo(spellLevel('grip', 1).duration * 0.05, 2);
   });
 
-  it('a Ficha só mostra o crítico com a Lente Letal', () => {
+  it('the sheet shows critical damage only with Lethal Lens', () => {
     const has = (items: Partial<Record<ItemId, number>>) => sheet(noSpells(), { ...noItems(), ...items }).some((r) => r.label === 'Dano do crítico');
     expect(has({ piercing: 3 })).toBe(false);
     expect(has({ lens: 1, piercing: 1 })).toBe(true);

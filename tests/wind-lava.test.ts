@@ -16,53 +16,44 @@ const duo = (items: Partial<Record<keyof typeof ITEMS, number>>) => {
 };
 
 describe('Wind Boots', () => {
-  it('5 s without damage: moves faster; a hit ends it; after another 5 s it comes back', () => {
+  it('five damage-free seconds grant speed, a hit ends it, and another five seconds restore it', () => {
     const w = duo({ wind_boots: 1 });
     const a = w.wizards[0];
     run(w, 4.9);
     expect(a.speed).toBeCloseTo(WIZ_SPEED);
     run(w, 0.2);
-    expect(a.speed).toBeCloseTo(WIZ_SPEED + WIND_BOOTS.speed[0]);
+    expect(a.speed).toBeCloseTo(WIZ_SPEED + WIND_BOOTS.speed);
     stepWorld(w, [{ id: 'b', kind: 'cast', spell: 'fireball', at: v(0, 0) }]);
     run(w, 1);
     expect(a.hp).toBeLessThan(a.hpMax);
     expect(a.speed).toBeCloseTo(WIZ_SPEED);
     run(w, 5);
-    expect(a.speed).toBeCloseTo(WIZ_SPEED + WIND_BOOTS.speed[0]);
+    expect(a.speed).toBeCloseTo(WIZ_SPEED + WIND_BOOTS.speed);
   });
 
-  it('does not stack with the Boots: the larger one counts', () => {
+  it('does not stack with Boots and uses the greater bonus', () => {
     const w = duo({ wind_boots: 1, boots: 1 });
     run(w, 5.1);
-    expect(w.wizards[0].speed).toBeCloseTo(WIZ_SPEED + Math.max(18 * UNIT, WIND_BOOTS.speed[0]));
-    const fast = duo({ wind_boots: 1, boots: 3 }); // 40 speed > 25: the wind ones add nothing
+    expect(w.wizards[0].speed).toBeCloseTo(WIZ_SPEED + Math.max(18 * UNIT, WIND_BOOTS.speed));
+    const fast = duo({ wind_boots: 1, boots: 3 }); // legacy ranks use fixed Boots speed; Wind Boots supply the greater bonus
     run(fast, 5.1);
-    expect(fast.wizards[0].speed).toBeCloseTo(WIZ_SPEED + 40 * UNIT);
+    expect(fast.wizards[0].speed).toBeCloseTo(WIZ_SPEED + Math.max(18 * UNIT, WIND_BOOTS.speed));
   });
 
-  // 26/10 (#227): level 3 waits 4 s and runs +33
-  it('level 3: kicks in after 4 s, faster', () => {
-    const w = duo({ wind_boots: 3 });
-    run(w, 3.9);
-    expect(w.wizards[0].speed).toBeCloseTo(WIZ_SPEED);
-    run(w, 0.2);
-    expect(w.wizards[0].speed).toBeCloseTo(WIZ_SPEED + 33 * UNIT);
-  });
-
-  it('whoever deals damage also loses the calm', () => {
+  it('dealing damage also ends the calm bonus', () => {
     const w = duo({});
     w.wizards[1].items.wind_boots = 1;
-    w.wizards[1].windBonus = WIND_BOOTS.speed[0];
+    w.wizards[1].windBonus = WIND_BOOTS.speed;
     w.wizards[0].spells.fireball = 1;
     run(w, 5.1);
-    expect(w.wizards[1].speed).toBeCloseTo(WIZ_SPEED + WIND_BOOTS.speed[0]);
+    expect(w.wizards[1].speed).toBeCloseTo(WIZ_SPEED + WIND_BOOTS.speed);
     stepWorld(w, [{ id: 'a', kind: 'cast', spell: 'fireball', at: v(4, 0) }]);
     run(w, 1);
     expect(w.wizards[1].speed).toBeCloseTo(WIZ_SPEED);
   });
 });
 
-describe('lava damage credited to whoever pushed', () => {
+describe('Lava damage credit', () => {
   function playing(): Match {
     const m = newMatch();
     addPlayer(m, 'a', 'A');
@@ -77,7 +68,7 @@ describe('lava damage credited to whoever pushed', () => {
     for (let i = 0; i < n; i++) tickMatch(m, 1e6 + i, []);
   };
 
-  it('half the life the lava takes goes to the damage of whoever hit last (5 s window)', () => {
+  it('half of lava health loss is credited to the last attacker within five seconds', () => {
     const m = playing();
     const b = m.world!.wizards.find((z) => z.id === 'b')!;
     Object.assign(b, { lastHitBy: 'a', lastHitAt: m.world!.t, lastHitSrc: 'fireball', pos: v(m.world!.arenaR + 2, 0) });
@@ -89,13 +80,13 @@ describe('lava damage credited to whoever pushed', () => {
     expect(a.stats.round.dmgBy.lava).toBeCloseTo(lost / 2, 6);
     expect(a.stats.round.dmg).toBeCloseTo(lost / 2, 6);
     expect(a.stats.match.dmg).toBeCloseTo(lost / 2, 6);
-    expect(m.dmgOn?.b?.a).toBeCloseTo(lost / 2, 6); // counts toward the assist
+    expect(m.dmgOn?.b?.a).toBeCloseTo(lost / 2, 6); // counts toward assists
     expect(m.players.find((p) => p.id === 'b')!.stats.round.dmg).toBe(0);
-    // does not become an event for the browser
+    // does not create a browser event
     expect(m.world!.events.some((e) => e.k === 'hit')).toBe(false);
   });
 
-  it('with no hit in the window, the lava counts for nobody', () => {
+  it('lava without a recent hit gives no attacker credit', () => {
     const m = playing();
     const b = m.world!.wizards.find((z) => z.id === 'b')!;
     Object.assign(b, { lastHitBy: 'a', lastHitAt: m.world!.t - 6, pos: v(m.world!.arenaR + 2, 0) });
@@ -104,7 +95,7 @@ describe('lava damage credited to whoever pushed', () => {
     expect(m.players.find((p) => p.id === 'a')!.stats.round.dmgBy.lava).toBeUndefined();
   });
 
-  it('the lava neither frees the gripped nor heals through Lifesteal', () => {
+  it('lava neither releases Grip nor grants Lifesteal', () => {
     const m = playing();
     const [a, b] = ['a', 'b'].map((id) => m.world!.wizards.find((z) => z.id === id)!);
     Object.assign(a, { lifesteal: 0.5, hp: 500 });
@@ -112,6 +103,6 @@ describe('lava damage credited to whoever pushed', () => {
     const hpA = a.hp;
     steps(m, 30);
     expect(b.gripUntil).toBeGreaterThan(m.world!.t);
-    expect(a.hp).toBeLessThan(hpA + 30 * 10 * DT); // only normal regeneration
+    expect(a.hp).toBeLessThan(hpA + 30 * 10 * DT); // normal regeneration only
   });
 });

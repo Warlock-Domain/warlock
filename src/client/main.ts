@@ -10,7 +10,7 @@ import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type SnapView, type WizView 
 import { ODRAN } from '../shared/bosses.ts';
 import { CANDLE, SERVOS, nightXpAt } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
-import { castLevel, itemStats } from '../shared/items.ts';
+import { inventoryOrder, ACTIVE_ITEM_SPELL, castLevel, itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
 import { channelPower } from '../shared/channeling.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
@@ -452,6 +452,13 @@ function startRoom(code: string, name: string) {
   }
   function startLoading() { loadingGate.start(); syncLoading(); }
   const input = createInput(canvas, {
+    itemAt(code) {
+      const index = /^Digit[1-6]$/.test(code) ? Number(code.slice(5)) - 1 : -1;
+      const mine = room?.players.find(p => p.id === me);
+      const id = mine && inventoryOrder(mine.items)[index];
+      const spell = id && ACTIVE_ITEM_SPELL[id];
+      return spell && id ? { spell, id } : undefined;
+    },
     canChannel: () => (room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0,
     channel(spell) {
       const mine = room?.players.find((p) => p.id === me);
@@ -512,7 +519,7 @@ function startRoom(code: string, name: string) {
       if (!mine || !castLevel(mine, spell)) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
       if (!checkCooldown(spell)) return;
       const state = myWizard(interp.latest())?.status ?? 0;
-      if (spell === 'closedbody' && !(state & BRACING_BIT)) return toast(t('Ative Manter base antes de usar Corpo fechado.', 'Activate Hold Ground before using Closed Body.'));
+
       if (castBlocked(!!(state & 16), !!(state & 128), spell)) return;
       if (spell === 'sniper') {
         const units = interp.latest()?.wizards.map(w => ({...w, team: room?.players.find(p=>p.id===w.id)?.team, hidden: !!(w.status&2048), suspended: (w.geyserLeft ?? 0)>0})) ?? [];

@@ -11,7 +11,7 @@ import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/character
 import { CAMPAIGN } from '../shared/campaign.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, isRoomMode, sellValue, type MatchOpts, type Mode, type RoomMode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
-import { ITEMS, ITEM_IDS, MAX_ITEMS, castLevel, itemPrice, type ItemId } from '../shared/items.ts';
+import { inventoryOrder, ACTIVE_ITEM_SPELL, ITEMS, ITEM_IDS, MAX_ITEMS, castLevel, itemPrice, type ItemId } from '../shared/items.ts';
 import { MAX_SPELLS, SPELL_IDS, isSpell, priceOf, spellCount, spellMax, type SpellId } from '../shared/spells.ts';
 import { POS_ACTIONS, isSlotMode, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
 import { castModeControl, openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
@@ -1189,7 +1189,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     if (!mine) return setSlots([]); // espectador: teclas e controle não ficam com a ordem de antes
     if (slotDrag) return;
     const order = equipment(mine);
-    const passive = ITEM_IDS.filter((i) => i !== 'scourge' && mine!.items[i] > 0);
+    const passive = inventoryOrder(mine.items);
     const active = mine.items.scourge > 0 ? [buttons.get('scourge')!.b] : []; // the Scourge is the active item button, with key and cooldown (26/10, #227)
     const sig = JSON.stringify([order, passive.map((i) => [i, mine!.items[i]]), active.length]);
     if (bar.dataset.order !== sig) {
@@ -1202,8 +1202,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         return node;
       });
       bar.replaceChildren(...slots.slice(0, ROW), ...fixedBtns, ...slots.slice(ROW));
-      itemGrid.replaceChildren(...active, ...passive.map((i) => withTip(el('span', { class: 'spell passive', tabindex: 0, 'aria-label': t(`${itemName(i)} (passivo) nível ${mine!.items[i]}`, `${itemName(i)} (passive) level ${mine!.items[i]}`) }, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), el('small', {}, String(mine!.items[i]))), () => itemTip(i, mine?.items[i] ?? 0))),
-      ...Array.from({ length: Math.max(0, MAX_ITEMS - active.length - passive.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
+      itemGrid.replaceChildren(...passive.map((i, index) => {
+        const active = ACTIVE_ITEM_SPELL[i];
+        return withTip(el(active ? 'button' : 'span', { class: 'spell g-itens' + (active ? '' : ' passive'), tabindex: 0, 'data-item': i, 'aria-label': itemName(i), ...(active && { onclick: () => act.spell(active) }) }, el('span', { class: 'key' }, String(index + 1)), el('span', { class: 'ico' }, icon(ITEM_ICON[i])), active ? el('span', { class: 'cd' }) : null), () => itemTip(i, mine?.items[i] ?? 0));
+      }),
+      ...Array.from({ length: Math.max(0, MAX_ITEMS - passive.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
       hideTip(bar); hideTip(itemGrid);
     }
     setSlots(order.spells);
@@ -1305,7 +1308,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const slot = Number(node.dataset.loadoutSlot), spell = node.querySelector<HTMLElement>('[data-action]')?.dataset.action;
       bind(node, { name: spell && isSpell(spell) ? spellName(spell) : t(`Magia ${slot + 1}`, `Spell ${slot + 1}`), slot, code: keyOf(POS_ACTIONS[slot]), ...(spell && isSpell(spell) && { ability: 'spell:' + spell }) });
     });
-    const items: ItemId[] = [...(mine?.items.scourge ? ['scourge' as const] : []), ...ITEM_IDS.filter(i => i !== 'scourge' && (mine?.items[i] ?? 0) > 0)];
+    const items: ItemId[] = inventoryOrder(mine?.items ?? {});
     preview.querySelectorAll<HTMLElement>('.item-grid > *').forEach((node, i) => {
       const code = items[i] === 'scourge' ? keyOf('scourge') : 'Digit' + (i + 1);
       bind(node, { name: items[i] ? itemName(items[i]) : t(`Item ${i + 1}`, `Item ${i + 1}`), code, ...(items[i] && { ability: 'item:' + items[i] }) });
@@ -1762,8 +1765,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const itemOffer = (i: ItemId) => {
       const lvl = mine.items[i];
       const price = itemPrice(mine.items, i);
-      return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: itemName(i), hotkey: i === 'scourge' ? hotkeyOf('scourge') : null, use: itemText(i), lvl, max: ITEMS[i].levels.length, price,
-        blocked: lvl >= ITEMS[i].levels.length ? t('Máximo', 'Max') : price === null ? t('Sem espaço', 'No room') : null, buy: () => act.buyItem(i), tip: () => itemTip(i, lvl),
+      return offer({ key: 'item-' + i, ico: ITEM_ICON[i], name: itemName(i), hotkey: null, use: itemText(i), lvl, max: 0, price,
+        blocked: lvl >= ITEMS[i].levels.length ? t('Comprado', 'Owned') : price === null ? t('Sem espaço', 'No room') : null, buy: () => act.buyItem(i), tip: () => itemTip(i, lvl),
         bought: () => sheet(mine.spells, { ...mine.items, [i]: lvl + 1 }), sold: () => sheet(mine.spells, { ...mine.items, [i]: 0 }) });
     };
     // item sections are all silver (.shop-items): no group class, which in English would also hit the Grimoire's .g-head
@@ -2207,6 +2210,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         b.classList.toggle('armed', armed === a);
       };
       SPELL_IDS.forEach((s, i) => tick(s, buttons.get(s)!, cd[i]));
+      for (const node of itemGrid.querySelectorAll<HTMLElement>('[data-item]')) {
+        const spell = ACTIVE_ITEM_SPELL[node.dataset.item as ItemId], text = node.querySelector<HTMLElement>('.cd');
+        if (spell && text) tick(spell, { b: node, cd: text }, cd[SPELL_IDS.indexOf(spell)]);
+      }
       // Inelegant Solution aim: the Attack button (A) fills like the bubble's bar and sparks once charged; A then fires (Fernando, 26/10)
       const attackBtn = fixedBtns[0];
       if (attackBtn) {

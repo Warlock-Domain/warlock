@@ -1,12 +1,11 @@
 // Itens da loja, convertidos do Warlock Brawl para Dota 2 (shop.lua ITEM_DEFS e npc_items_custom.txt).
-// Passive items change the wizard's numbers; the Scourge is the only active one (an item again since 26/10, issue #227). Up to MAX_ITEMS items per player.
-// Every item has 3 levels and each level costs the item price (Fernando's decision, 26/10, issue #227).
+// Equipment has fixed base attributes; Scourge and Addicted Rings are active.
 import { UNIT } from './constants.ts';
 import type { SpellId } from './spells.ts';
 
 // Scourge last: a new position does not shift saved rooms and preferences
 export const ITEM_IDS = ['ring', 'cursed_ring', 'cape', 'armor', 'boots', 'watch', 'vampire',
-  'lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis', 'wind_boots', 'lens', 'piercing', 'affliction', 'scourge'] as const;
+  'lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis', 'wind_boots', 'lens', 'piercing', 'affliction', 'scourge', 'addicted_rings', 'glitch_cape'] as const;
 export type ItemId = (typeof ITEM_IDS)[number];
 export const MAX_ITEMS = 6;
 
@@ -23,7 +22,10 @@ export const AFFLICT_SPELLS: readonly SpellId[] = ['grip', 'drain', 'snowball', 
 
 type Item = { name: string; cost: number; text: string; en: string; textEn: string; levels: ItemLevel[] };
 
+export const ACTIVE_ITEM_SPELL: Partial<Record<ItemId, SpellId>> = { scourge: 'scourge', addicted_rings: 'recharge' };
 export const ITEMS: Record<ItemId, Item> = {
+  glitch_cape: { name: 'Capa de glitch', en: 'Glitch Cape', cost: 11, text: 'Passivo: troca de lugar com o primeiro projétil inimigo que se aproxima a até 0,78 m. Recarga fixa de 19 s.', textEn: 'Passive: swaps places with the first incoming enemy projectile within 0.78 m. Fixed 19 s cooldown.', levels: [{}] },
+  addicted_rings: { name: 'Anéis viciados', en: 'Addicted Rings', cost: 13, text: 'Ativo: lança um projétil de 60 de dano. Ao acertar um inimigo, retorna e reinicia a própria recarga. Acertos seguidos aumentam o dano; errar encerra a sequência. Recarga fixa de 23,5 s.', textEn: 'Active: fires a projectile for 60 damage. Hitting an enemy returns it and resets its own cooldown. Consecutive hits increase damage; a miss ends the streak. Fixed 23.5 s cooldown.', levels: [{}] },
   ring: { name: 'Anel de vida', cost: 4, text: 'Mais vida máxima.', en: 'Ring of Life', textEn: 'More max health.', levels: [{ hp: 100 }, { hp: 190 }, { hp: 270 }] }, // 26/10 (#227): levels 4 and 5 (340 and 400) removed; the first 3 unchanged
   cursed_ring: { name: 'Anel amaldiçoado', cost: 4, text: 'Vida e menos empurrão, mas lentidões duram mais.', en: 'Cursed Ring', textEn: 'Health and less knockback, but slows last longer.', levels: [{ hp: 100, kb: 0.07, debuff: 0.25 }, { hp: 200, kb: 0.07, debuff: 0.3 }, { hp: 300, kb: 0.07, debuff: 0.35 }] } /* 26/10 (#227): level 3 on the same step, to be measured (1.14 in Normal on 19/10) */ /* 18/10 bots humanos: empurrão 10% → 7% (19% acima) */, // ciclo 1 (18/10): empurrão −15% → −10% (1,19×; o Warlock CE fez o mesmo)
   cape: { name: 'Capa', cost: 3, text: 'A vida volta mais rápido.', en: 'Cape', textEn: 'Health comes back faster.', levels: [{ regen: 2.2 }, { regen: 3.5 }, { regen: 4.8 }] }, // 1,5/2,5/3,5 no original; +60% em 17/10; −12% em 19/10 (1,14 a 1,16 no Normal em 3 medições)
@@ -52,20 +54,26 @@ export const ITEMS: Record<ItemId, Item> = {
   scourge: { name: 'Flagelo', cost: 7, text: 'Explode em volta depois de um instante e empurra quem estiver perto.', en: 'Scourge', textEn: 'Blasts around you after a moment and knocks back anyone close.', levels: [{}, {}, {}] },
 };
 
+// Equipment has one fixed level; retain the authored base stats for every old saved rank.
+export const LEGACY_ITEM_MAX = Object.fromEntries(ITEM_IDS.map(id => [id, ITEMS[id].levels.length])) as Record<ItemId, number>;
+for (const item of Object.values(ITEMS)) item.levels = item.levels.slice(0, 1);
+
 // Botas de choque: Shock boots do CE (+25 por 3 s); aqui +30 unidades (+14% do passo), contra "quem apanha não consegue fugir"
-export const SHOCK_BOOTS = { speed: 30 * UNIT, secs: [3, 4, 5] }; // 26/10 (#227): the level raises the duration (3/4/5 s), not the speed
+export const SHOCK_BOOTS = { speed: 30 * UNIT, secs: 3 }; // Fixed level-one duration.
 // Botas de vento: Wind boots do CE (+25 com 5 s sem combate); some ao causar ou levar dano (golpe, lava ou chão de fogo)
-// 26/10 (#227): the level raises both (Fernando's choice): wait 5/4.5/4 s and +25/+29/+33 speed
-export const WIND_BOOTS = { speed: [25, 29, 33].map((n) => n * UNIT), calm: [5, 4.5, 4] };
+// Fixed level-one movement bonus and calm period.
+export const WIND_BOOTS = { speed: 25 * UNIT, calm: 5 };
 // Égide: na lava com até 250 de vida volta para 60% do raio da arena, na mesma direção, parado; uma vez por rodada (por vida no deathmatch)
 export const AEGIS = { hp: 250, back: 0.6 };
 
 
 export const noItems = (): Record<ItemId, number> => Object.fromEntries(ITEM_IDS.map((i) => [i, 0])) as Record<ItemId, number>;
+// Keep the free Scourge in its established first slot across HUD, settings and number keys.
+export const inventoryOrder = (items: Partial<Record<ItemId, number>>): ItemId[] => [...(items.scourge ? ['scourge' as const] : []), ...ITEM_IDS.filter(id => id !== 'scourge' && (items[id] ?? 0) > 0)];
 // every player's match start: the Scourge at level 1 for free (Campaign servants and the training turret use noItems)
 export const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
 // level a player casts with: the Scourge's lives in the items (26/10, #227), every other spell's in the spells
-export const castLevel = (p: { spells: Record<SpellId, number>; items: Record<ItemId, number> }, s: SpellId) => (s === 'scourge' ? p.items.scourge : p.spells[s]);
+export const castLevel = (p: { spells: Record<SpellId, number>; items: Record<ItemId, number> }, s: SpellId) => (s === 'scourge' ? Math.min(1, p.items.scourge) : s === 'recharge' && p.items.addicted_rings > 0 ? 1 : p.spells[s]);
 
 // preço do próximo nível (no original cada nível custa o preço do item de novo); null = no máximo ou sem espaço
 export function itemPrice(items: Record<ItemId, number>, id: ItemId): number | null {
@@ -81,7 +89,7 @@ export function itemStats(items: Record<ItemId, number>) {
   for (const id of ITEM_IDS) {
     const lvl = items[id];
     if (!lvl) continue;
-    const L = ITEMS[id].levels[lvl - 1];
+    const L = ITEMS[id].levels[0];
     for (const k of Object.keys(s) as (keyof ItemLevel)[]) s[k] += L[k] ?? 0;
   }
   return s;

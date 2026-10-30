@@ -1,7 +1,7 @@
 // Sandbox bot spell selection. Random keeps the bot's existing shop behavior.
 // Bot spell selection is only available in the Sandbox; match bots always buy for themselves.
 import { BOT_SKILL, type BotSkill } from '../shared/bots.ts';
-import { ITEMS, ITEM_IDS } from '../shared/items.ts';
+import { LEGACY_ITEM_MAX, ITEMS, ITEM_IDS } from '../shared/items.ts';
 import { MAX_PLAYERS } from '../shared/constants.ts';
 import { OPTION_CHOICES } from '../shared/match.ts';
 import { isRecord, readLevels } from './saved-data.ts';
@@ -22,7 +22,7 @@ export function readBotSetup(value: unknown): BotSetup[] {
       const spells = readLevels(raw.spells, BAR_SPELLS, spellMax);
       if (spellCount({ ...noSpells(), ...spells }) <= MAX_SPELLS) bot.spells = spells;
     }
-    if (isRecord(raw.items)) bot.items = readLevels(raw.items, ITEM_IDS, (id) => ITEMS[id].levels.length);
+    if (isRecord(raw.items)) bot.items = Object.fromEntries(Object.entries(readLevels(raw.items, ITEM_IDS, id => LEGACY_ITEM_MAX[id])).map(([id, level]) => [id, level ? 1 : 0]));
     const difficulty = OPTION_CHOICES.difficulty.find((d) => d === raw.difficulty);
     if (difficulty) bot.difficulty = difficulty;
     if (isRecord(raw.skill)) {

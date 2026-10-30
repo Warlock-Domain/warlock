@@ -14,8 +14,8 @@ function run(id: DemoId): SimEvent[] {
   return all;
 }
 
-describe('grimório: demonstrações com a simulação de verdade', () => {
-  it('Atacar mostra preparo e as duas distâncias, com uma ordem por golpe', () => {
+describe('Grimoire demonstrations using the real simulation', () => {
+  it('Attack shows windup and both distances with one command per hit', () => {
     const state = demoWorld('basic');
     expect(Math.hypot(state.w.wizards[2].pos.x - state.w.wizards[0].pos.x, state.w.wizards[2].pos.y - state.w.wizards[0].pos.y)).toBe(6);
     let prep = false, projectile = false;
@@ -30,19 +30,19 @@ describe('grimório: demonstrações com a simulação de verdade', () => {
     expect(events.filter((e) => e.k === 'attack').map((e) => e.melee)).toEqual([true, false]);
     expect(state.w.wizards.slice(1).every((z) => z.hp < 1000)).toBe(true);
   });
-  it('prévia do Raio mantém debuffs e recargas pausadas nos três inimigos por2s', () => {
+  it('Lightning preview pauses cooldowns and applies debuffs to three enemies for two seconds', () => {
     const state = demoWorld('lightning');
-    while (state.w.t < 1) demoStep(state);
+    while (state.w.t < 1.1) demoStep(state);
     const left = state.w.wizards.slice(1).map((z) => z.cd.fireball - state.w.t);
-    while (state.w.t < 2) demoStep(state);
+    while (state.w.t < 2.1) demoStep(state);
     for (const [i, z] of state.w.wizards.slice(1).entries()) {
       expect(z.electroUntil).toBeGreaterThan(state.w.t);
       expect(z.cd.fireball - state.w.t).toBeCloseTo(left[i]);
     }
-    while (state.w.t < 3) demoStep(state);
+    while (state.w.t < 3.2) demoStep(state);
     expect(state.w.wizards.slice(1).every((z) => state.w.t >= z.electroUntil!)).toBe(true);
   });
-  it('prévia do Raio mostra três inimigos, saltos de alcance fixo e dano100/50/25 sem repetir', () => {
+  it('Lightning preview shows three enemies with fixed-range jumps and halved damage without repeats', () => {
     const events = run('lightning');
     const hits = events.filter((e): e is Extract<SimEvent, { k: 'hit' }> => e.k === 'hit' && e.src === 'lightning');
     expect(hits.map((e) => e.id)).toEqual(['b', 'c', 'd']);
@@ -67,7 +67,7 @@ describe('grimório: demonstrações com a simulação de verdade', () => {
     expect(run('rockpillar').some((e) => e.k === 'pillar')).toBe(true);
     expect(run('teleport').some((e) => e.k === 'teleport' && e.id === 'a')).toBe(true);
     expect(run('alteration').some((e) => e.k === 'teleport' && e.id === 'a')).toBe(true);
-    expect(run('illusion').some((e) => e.k === 'hit' && e.by === 'a')).toBe(false); // a cópia não causa dano; o inimigo lança um míssil.
+    expect(run('illusion').some((e) => e.k === 'hit' && e.by === 'a')).toBe(false); // the copy deals no damage; the enemy launches a missile.
     expect(run('warpzone').some((e) => e.k === 'hit' && e.id === 'a')).toBe(false);
     expect(run('grip').some((e) => e.k === 'grip')).toBe(true);
     expect(run('scourge').some((e) => e.k === 'scourge' && e.id === 'a')).toBe(true);
@@ -84,8 +84,8 @@ function fakeRaf() {
   return { queue, raf, frame };
 }
 
-describe('dica: demonstração liga ao abrir e desliga ao fechar', () => {
-  it('anima enquanto a dica está aberta e não deixa laço vivo depois de fechar', () => {
+describe('tooltip demo starts on opening and stops on closing', () => {
+  it('animates while the tooltip is open and leaves no live loop after closing', () => {
     const { queue, raf, frame } = fakeRaf();
     const tick = vi.fn();
     let open = true;
@@ -93,14 +93,14 @@ describe('dica: demonstração liga ao abrir e desliga ao fechar', () => {
     frame(16);
     frame(32);
     expect(tick).toHaveBeenCalledTimes(2);
-    expect(queue.length).toBe(1); // próximo quadro já pedido
-    open = false; // fechou a dica (ou trocou: o canvas saiu da página)
+    expect(queue.length).toBe(1); // next frame already requested
+    open = false; // tooltip closed or replaced; canvas left the page
     frame(48);
     expect(tick).toHaveBeenCalledTimes(2);
     expect(queue.length).toBe(0);
   });
 
-  it('com movimento reduzido desenha só o primeiro quadro', () => {
+  it('reduced motion draws only the first frame', () => {
     const { queue, raf, frame } = fakeRaf();
     const tick = vi.fn();
     runDemo(tick, () => true, true, raf);

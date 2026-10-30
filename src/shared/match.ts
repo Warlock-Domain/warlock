@@ -551,13 +551,15 @@ export function resume(m: Match, now: number, rand: () => number = Math.random) 
     const scourge = p.spells.scourge;
     p.spells.scourge = 0;
     p.items = Object.fromEntries(ITEM_IDS.map((i) => [i, p.items[i] ?? (i === 'scourge' && !p.servo ? Math.max(1, scourge) : 0)])) as Record<ItemId, number>;
-    // rooms saved with the Lifesteal mastery: it becomes the item
+    p.items = Object.fromEntries(ITEM_IDS.map((i) => [i, (p.items[i] ?? 0) > 0 ? 1 : 0])) as Record<ItemId, number>;
+    if (p.spells.alteration > 0) { p.items.glitch_cape = 1; p.spells.alteration = 0; }
+    if (p.spells.recharge > 0) { p.items.addicted_rings = 1; p.spells.recharge = 0; }
+    // Saved Lifesteal mastery becomes the fixed-rank item.
     const old = (p as { masteries?: { lifesteal?: number } }).masteries?.lifesteal ?? 0;
-    if (old && !p.items.vampire) p.items.vampire = old;
-    // every item has 3 levels since 26/10 (#227): saved Ring of Life 5 and Lifesteal 6 drop to the max
-    for (const i of ITEM_IDS) p.items[i] = Math.min(p.items[i], ITEMS[i].levels.length);
+    if (old && !p.items.vampire) p.items.vampire = 1;
     delete (p as { masteries?: unknown }).masteries;
-    p.held ??= {}; // salas gravadas antes da venda por rodada
+    p.held ??= {}; // Saved rooms predating purchase history.
+    for (const id of ITEM_IDS) if (p.held['item:' + id]?.length > 1) p.held['item:' + id] = p.held['item:' + id].slice(0, 1);
     p.team ??= null;
     p.stats = fillStats(p.stats);
   }
