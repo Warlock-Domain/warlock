@@ -2,13 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDemo, type DemoId } from '../src/client/demo.ts';
 
 afterEach(() => vi.unstubAllGlobals());
-describe('desenho das prévias com estados reais', () => {
+describe('Guide previews using real simulation states', () => {
   it.each([
     ['brace', 'Manter base'], ['meteor', 'atordoado'], ['grip', 'preso'],
     ['shield', 'empurrão/status 60%'], ['illusion', 'cópia'], ['rush', 'avanço encerrado'],
     ['knockback', 'recuperação'], ['lightning', 'incapacitado'], ['drain', 'lentidão'],
-    ['clash', 'queimando'], ['link', 'Elo'], ['magnetize', 'magnetizado'], ['cluster', 'diâmetro 6 m'], ['heal', '+45'], ['geyser', 'suspenso'], ['closedbody', 'Corpo fechado'],
-  ] as [DemoId, string][])('%s desenha sua explicação sem coordenadas inválidas', (id, label) => {
+    ['clash', 'queimando'], ['link', 'Elo'], ['magnetize', 'redireciona'], ['cluster', 'diâmetro 6 m'], ['heal', '+45'], ['geyser', 'suspenso'], ['closedbody', 'Corpo fechado'],
+  ] as [DemoId, string][])('%s draws its explanation without invalid coordinates', (id, label) => {
     const texts: string[] = [];
     vi.stubGlobal('matchMedia', () => ({ matches: false }));
     vi.stubGlobal('devicePixelRatio', 1);

@@ -71,3 +71,5 @@ Flattened lists of numbers (layout in the `protocol.ts` comment), values with `r
 ## Appearance (`characters.ts`)
 
 The appearance code stores the **position** of each option (7 digits, one per piece), and it is saved in the browser and in rooms. A new option goes **at the end** of the piece's list; an option that leaves stays in place and becomes retired (`isRetired`): `decodeLook` swaps it for another (the hooded Rogue becomes Rogue + Hood, issue #107), the creator and the draw skip it. Every code input goes through `fixLook` (browser in `savedLook`, message in `parseClientMessage`, stored room in `resume`).
+
+- Bouncer is a server-owned next-projectile-spell buff, consumed only when a moving spell projectile releases. Homing slow and Magnetic redirection use ordinary defenses/ownership. Warp Zone remains unchanged.

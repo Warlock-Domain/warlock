@@ -71,11 +71,11 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   gravity: { end: 3.4, steps: [[0.4, A, 'gravity', v(2, 0.8)]] },
   // o terceiro fica onde a parede cai (#206): leva o golpe da queda e voa para o lado, e a parede ainda segura a Bola de fogo
   rockpillar: { pos: [v(-3, 0), v(2, 0), v(-1.2, 0.3)], end: 2.6, steps: [[0.2, B, 'fireball', A], [0.3, A, 'rockpillar', v(-1.2, 0)]] },
-  bouncer: { pos: [v(-3, 0), v(1.5, 0), v(2.5, 1.8)], end: 3, steps: [[0.4, A, 'bouncer', B]] },
+  bouncer: { pos: [v(-3, 0), v(1.5, 0), v(2.5, 1.8)], end: 3, steps: [[0.1, A, 'bouncer', A], [0.4, A, 'fireball', B]] },
   drain: { pos: [v(-3, 0), v(2, 0.6), v(2.6, -1.8)], end: 3.6, steps: [[0.4, A, 'drain', v(1.5, 0)]], prep: (w) => (w.wizards[A].hp = 700) },
   snowball: { pos: [v(-3, 0), v(-0.6, 0.1), v(0.3, -0.5)], end: 3, steps: [[0.4, A, 'snowball', v(1, 0)]] },
   illusion: { end: 3.2, steps: [[.1, A, 'move', v(-3, 3)], [.5, A, 'illusion', B], [.65, A, 'move', v(-1, -2)], [.8, B, 'homing', A]], prep: (w) => { w.pillars = []; w.wizards[B].spells.homing = 1; } }, // dono muda o destino; a cópia continua reta e engana o míssil.
-  magnetize: { end: 3.4, steps: [[0.3, A, 'magnetize', B], [1.4, A, 'fireball', v(2, 1.3)]] },
+  magnetize: { end: 3.4, steps: [[0.1, A, 'fireball', B], [0.4, A, 'magnetize', v(0, 4)]] },
   recharge: { end: 4.6, steps: [[0.4, A, 'recharge', B], ...[2.4, 2.7, 3, 3.3].map((t): Step => [t, A, 'recharge', B])] },
   alteration: { end: 2.6, steps: [[0.3, B, 'fireball', A], [0.5, A, 'alteration', B]] },
   link: { end: 3, steps: [[0.4, A, 'link', B]] },
@@ -110,6 +110,7 @@ export function demoStatus(w: World, z: Wizard): string[] {
   if (w.t < z.slowUntil || z.zone & 1 || w.t < (z.electroUntil ?? 0)) labels.push(t('lentidão · caminhada reduzida', 'slow · reduced walking speed'));
   if (w.t < incapacitatedUntil(z, w.t)) labels.push(t('incapacitado · recargas pausadas', 'incapacitated · cooldowns paused'));
   if (z.zone & 2) labels.push(t('queimando · dano contínuo', 'burning · continuous damage'));
+  if (z.ricochetRange) labels.push(t('Ricochete preparado', 'Bouncer ready'));
   if (w.t < z.magnetUntil && z.magnet > 0) labels.push(t('magnetizado · atrai projéteis', 'magnetized · attracts projectiles'));
   if (w.projectiles.some((p) => p.kind === 'link' && p.target === z.id)) labels.push(t('Elo · puxão', 'tether · pull'));
   if ((z.recoveryLeft ?? 0) > 1e-8) {
@@ -228,6 +229,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); ctx.lineTo(pts[1].x,pts[1].y); ctx.lineTo(pts[2].x,pts[2].y); ctx.closePath();ctx.fillStyle='rgba(205,175,110,.25)';ctx.fill();ctx.strokeStyle='#cfb17b';ctx.stroke();
       text(t('areia 3 m × 2 m · sem empurrão','sand 3 m × 2 m · no knockback'),v(0,-4.5),'#cfb17b',.3);
     }
+    if (id === 'magnetize') text(t('redireciona o projétil mais próximo', 'redirects the nearest projectile'), v(0, -4.8), '#ff5ad1', .32);
     if (id === 'lightning') text(spellName('lightning'), v(0, -4.8), '#cfe8ff', .4);
     for (const z of w.zones) circle(z.pos, z.r, ZONE_COLOR[z.kind]);
     for (const p of w.pillars) if (p.alive) circle(p.pos, OBSTACLES[p.kind].r, '#8a7a6a', '#d9c3a5');

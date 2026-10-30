@@ -65,8 +65,8 @@ export const SPELLS: Record<SpellId, Spell> = {
   gravity: { name: 'Horizonte de eventos', en: 'Event Horizon', cost: 12, up: [7, 8, 9, 10, 11, 12], levels: zip([21, 20.5, 20, 19.5, 19, 18.5, 18], [20, 33.33, 46.67, 60, 73.33, 86.67, 100]).map(([cd, d], i) => L({ cd, dmg: d * 2, kbf: 0, speed: 450 * UNIT, range: 900 * UNIT, radius: 250 * UNIT, /* 18/10: dano por segundo ×2 (0,89 → 0,97) */ pull: (500 + 30 * i) * UNIT })) },
   // pilar de pedra: obstáculo de 4 s no original a até 650..1100 u; recarga = AbilityCooldown (o cooldown2 do mesmo arquivo diz 24..12 e só aparece na dica)
   rockpillar: { name: 'Barricada', en: 'Barricade', cost: 13, up: [5, 6, 7, 8, 9, 10], levels: zip([26, 24, 22, 20, 18, 16, 14], [650, 725, 800, 875, 950, 1025, 1100]).map(([cd, r]) => L({ cd: cd * 0.7, duration: 5, range: r * UNIT, dmg: 50 })) /* 18/10: recarga ×0,7 e 5 s (0,86 → 0,97); 22/10 (#206): cai do céu e dá 50 em quem está embaixo, com o empurrão do dano */ },
-  // ricochete: 900 u/s, vive 1 s e renova a cada mago tocado; perde 30% a cada inimigo acertado; empurrão 1,2
-  bouncer: { name: 'Ricochete', en: 'Bouncer', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([19, 18, 17, 16, 15, 14, 13], [54, 62, 70, 78, 86, 94, 102]).map(([cd, d]) => L({ cd, dmg: d, kbf: 1.2, speed: 900 * UNIT, range: 900 * UNIT })) },
+  // Prepare one extra bounce for the next moving projectile spell; damage comes from that spell.
+  bouncer: { name: 'Ricochete', en: 'Bouncer', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(19, -1).map(cd => L({ cd, range: 900 * UNIT })) },
   // as dez restantes do Warlock Brawl (dono do jogo, 17/10): npc_abilities_custom.txt, base/shop.lua, spells/, projectiles/ e modifiers/
   // drenar: 700 u/s até o ponto (máx. 850 u), depois vira para o mago mais perto; duration = lentidão no inimigo e pressa no aliado; empurrão 0,2
   drain: { name: 'Mandinga', en: 'Mandinga', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(22, -1).map((cd, i) => L({ cd: cd * 1.2 /* 18/10 bots humanos: 16% acima (×1,1); 19/10 bots do fim de rodada: 16% acima de novo (×1,2) */, dmg: 60 + 10 * i, heal: 60 + 10 * i, kbf: 0.2, speed: 700 * UNIT, range: 850 * UNIT, duration: 4 + i })) },
@@ -74,8 +74,8 @@ export const SPELLS: Record<SpellId, Spell> = {
   snowball: { name: 'Bola de neve', en: 'Snowball', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(19, -1).map((cd, i) => L({ cd, dmg: (45 + 35 * i) * 1.3, kbf: 0.8, dot: 30 + 10 * i, /* 18/10: explosão ×1,3, +35 e +10 de lentidão por nível (0,91 → 0,96) */ speed: 400 * UNIT, range: 575 * UNIT, radius: 200 * UNIT })) },
   // ilusão (decisão do Fernando, 19/10; não existe no original): a cópia sai do lugar do mago, anda na direção do movimento por 2 s e pode ser empurrada, mas não destruída
   illusion: { name: 'Ilusão', en: 'Illusion', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(14, -0.5).map((cd) => L({ cd, duration: 2, speed: WIZ_SPEED })) },
-  // magnetizar: projétil de 800 u/s por 1,2 s (960 u); duration = tempo magnetizado
-  magnetize: { name: 'Magnetizar', en: 'Magnetize', cost: 14, up: [5, 6, 7, 8, 9, 10], levels: steps(22, -1).map((cd, i) => L({ cd, duration: (3.5 + 1.5 * i) * 1.25, speed: 800 * UNIT, range: 960 * UNIT })) /* 18/10: +1,5 s por nível (era +0,5; 0,88 → 0,92) */ },
+  // Redirect the nearest moving projectile; preserve its original owner, damage and speed.
+  magnetize: { name: 'Magnetizar', en: 'Magnetize', cost: 14, up: [5, 6, 7, 8, 9, 10], levels: steps(22, -1).map(cd => L({ cd, range: 960 * UNIT })) },
   // recarga: 900 u/s por 1 s; +10 de dano por acerto seguido (RECHARGE)
   recharge: { name: 'Anéis viciados', en: 'Addicted Rings', cost: 13, up: [6, 7, 8, 9, 10, 11], levels: zip([23.5, 22, 21, 20.5, 20, 19.5, 19], [60, 67, 74, 81, 88, 95, 102]).map(([cd, d]) => L({ cd, dmg: d, speed: 900 * UNIT, range: 900 * UNIT })) },
   // alteração: por 2 s, troca de lugar com o primeiro projétil inimigo que entrar na bolha de 120 u indo para o mago
@@ -125,6 +125,7 @@ export const BLINDNESS = { radius: 3, feather: .6 }; // diâmetro6m no mundo, in
 export const CLUSTER_FAN = [-0.18, -0.06, 0.06, 0.18];
 
 export const HOMING_TURN = 2.5; // rad/s
+export const HOMING_SLOW = { fraction: .25, duration: 2 };
 
 // bumerangue (boomerangprojectile.lua): sai a 1500 u/s com 300 u/s de lado, volta mirando o dono a 1000 u/s (virando 1000 u/s²);
 // ao bater em mago quica a 500 u/s (750 em obstáculo); some perto do dono; life: teto de segurança (não existe no original)

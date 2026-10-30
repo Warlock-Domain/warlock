@@ -45,8 +45,7 @@ const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize', 'pix'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
-const SITUATIONAL: SpellId[] = ['channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
-const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
+const SITUATIONAL: SpellId[] = ['magnetize', 'bouncer', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
   const [first, ...more] = take(DAMAGE, 1 + Math.floor(rand() * 2));
@@ -423,6 +422,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   }
   // na Caminhada no vento qualquer magia a encerra: só corre para encostar no inimigo
   if (w.t < me.windUntil) return enemy ? [...cmds.filter((c) => c.kind !== 'move'), { id, kind: 'move', to: enemy.pos }] : cmds;
+  if (!me.casting && enemy && ready('magnetize') && w.projectiles.some(p => p.kind !== 'illusion' && len(p.vel) > .001 && dist(p.pos, me.pos) <= spellLevel('magnetize', me.spells.magnetize).range * me.rangeF)) return cast('magnetize', enemy.pos);
+  if (!me.casting && !me.ricochetRange && ready('bouncer')) return cast('bouncer', me.pos);
   // Heal after the escape and dodge branches: a hurt bot first gets out of danger, then heals the most hurt ally in range
   if (!me.casting && ready('heal')) {
     const L = spellLevel('heal', me.spells.heal);
