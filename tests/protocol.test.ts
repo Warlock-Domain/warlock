@@ -147,7 +147,7 @@ describe('protocol', () => {
     Object.assign(w.wizards[0], { slowUntil: 12.5, rune: 'fury', runeUntil: 30 });
     Object.assign(w.wizards[1], { windUntil: 14 });
     expect(encodeSnap(w, 'a', 0, []).fx).toEqual([4, 2.5, 524288, 20]);
-    expect(encodeSnap(w, 'b', 0, []).fx).toEqual([1024, 4]);
+    expect(encodeSnap(w, 'b', 0, []).fx).toEqual([4096, 4]);
     w.t = 31;
     expect(encodeSnap(w, 'a', 0, []).fx).toBeUndefined();
   });
