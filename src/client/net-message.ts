@@ -65,6 +65,7 @@ function room(x: unknown): x is PublicRoom {
   if (x.night !== undefined && (!object(x.night) || !integer(x.night.stage) || !integer(x.night.seed) || !(x.night.fight === null || integer(x.night.fight)) || !integer(x.night.wave) || !integer(x.night.waves) || !Array.isArray(x.night.done) || !x.night.done.every(integer) || !Array.isArray(x.night.opened) || !x.night.opened.every(integer) || !(x.night.result === null || (NIGHT_RESULTS as readonly unknown[]).includes(x.night.result)))) return false;
   const players = x.players;
   if (x.reading !== undefined && (!x.night || x.phase !== 'playing' || !stringArray(x.reading) || new Set(x.reading).size !== x.reading.length || !x.reading.every((id) => players.some((p) => p.id === id && p.connected && !p.bot && !p.watch)))) return false;
+  if (x.choosing !== undefined && (!x.night || x.phase !== 'playing' || x.night.fight !== null || !stringArray(x.choosing) || new Set(x.choosing).size !== x.choosing.length || !x.choosing.every(id => players.some(p => p.id === id && p.connected && !p.bot && !p.watch && !!p.lv && (p.lv.owed > 0 || p.lv.offer.length > 0))))) return false;
   if (x.lobby !== undefined) {
     const lobby = x.lobby;
     if (!object(lobby) || !nullableString(lobby.owner) || !Array.isArray(lobby.bots) || !lobby.bots.every((d) => (OPTION_CHOICES.difficulty as readonly unknown[]).includes(d)) || !validOpts(lobby.opts, true)) return false;

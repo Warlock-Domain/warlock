@@ -265,8 +265,11 @@ function startRoom(code: string, name: string) {
   let seenNight = '', seen: number[] = []; // Campaign: rooms the group has seen on this night (fog and minimap)
   // a fala da frente fica até o botão; o botão passa para a próxima da fila
   const ilseShow = (): void => {
-    view.ilse(reading() ? ilseQ.lines[0] : room?.reading?.length ? t('Aguardando os outros jogadores terminarem de ler…', 'Waiting for the other players to finish reading…') : null,
-      reading() ? () => { ilseNext(ilseQ); ilseShow(); } : undefined);
+    const choosing = !reading() && !room?.reading?.length && !!room?.choosing?.length;
+    const names = choosing ? room!.players.filter(p => room!.choosing!.includes(p.id)).map(playerName).join(', ') : '';
+    view.ilse(reading() ? ilseQ.lines[0] : room?.reading?.length ? t('Aguardando os outros jogadores terminarem de ler…', 'Waiting for the other players to finish reading…') : choosing ? t(`Todos devem escolher suas magias antes de continuar. Aguardando: ${names}.`, `Everyone must choose their spells before continuing. Waiting for: ${names}.`) : null,
+      reading() ? () => { ilseNext(ilseQ); ilseShow(); } : undefined,
+      choosing ? t('Escolhas pendentes', 'Pending choices') : undefined, choosing);
     syncReading();
   };
   const ilseSay = (key: string, lines: string[]) => ilsePush(ilseQ, key, lines) && ilseShow();
