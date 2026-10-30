@@ -24,6 +24,7 @@ export type ClientMsg =
   | { t: 'stop'; seq: number }
   | { t: 'brace'; on: boolean; seq: number }
   | { t: 'basic'; x: number; y: number; target?: string | number; seq: number }
+  | { t: 'transcendSpell'; spell: SpellId; seq: number }
   | { t: 'channel'; spell: SpellId; seq: number }
   | { t: 'cast'; spell: SpellId; x: number; y: number; seq: number }
   | { t: 'buy'; spell: SpellId }
@@ -105,7 +106,7 @@ export type PublicRoom = {
 // eo: triples of wizard index, element index and seconds left; at most five spheres per visible wizard.
 // ps: projectile id/size pairs captured at launch; default size is one.
 // pe: projectile id/element index pairs; absent for ordinary projectiles.
-export type Snap = { pe?: number[]; sr?: number[]; ps?: number[]; eo?: number[]; t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; sn?: number[]; cn?: number[]; bl?: number[]; cb?: number[]; gy?: number[]; pz?: number[]; pk?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
+export type Snap = { tc?: number[]; pe?: number[]; sr?: number[]; ps?: number[]; eo?: number[]; t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; sn?: number[]; cn?: number[]; bl?: number[]; cb?: number[]; gy?: number[]; pz?: number[]; pk?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
 
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
 export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
@@ -238,6 +239,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       if (!coord(m.x) || !coord(m.y) || !seq(m.seq) || !Object.keys(m).every((k) => ['t', 'x', 'y', 'seq', 'target'].includes(k))) return null;
       if (m.target !== undefined && !pubId(m.target) && !(typeof m.target === 'number' && seq(m.target))) return null;
       return { t: 'basic', x: m.x, y: m.y, seq: m.seq, ...(m.target === undefined ? {} : { target: m.target as string | number }) };
+    case 'transcendSpell':
+      return isSpell(m.spell) && seq(m.seq) && Object.keys(m).every(k => ['t', 'spell', 'seq'].includes(k)) ? { t: 'transcendSpell', spell: m.spell, seq: m.seq } : null;
     case 'channel':
       return isSpell(m.spell) && m.spell !== 'channel' && seq(m.seq) && Object.keys(m).every((k) => ['t', 'spell', 'seq'].includes(k)) ? { t: 'channel', spell: m.spell, seq: m.seq } : null;
     case 'cast':

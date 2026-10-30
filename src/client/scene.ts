@@ -1,7 +1,9 @@
+import { createTranscendClip } from './transcend-pose.ts';
+import { createTranscendFx, transcendLift } from './transcend-fx.ts';
 // Cena 3D: lava, arena de pedra que encolhe, magos (KayKit), projéteis e efeitos.
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
 import * as THREE from 'three';
-import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit, type Element } from '../shared/elemental-spheres.ts';
+import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit, type Element, type Transcendence } from '../shared/elemental-spheres.ts';
 import { ELECTROCUTED_BIT, BRACING_BIT, MELEE_ARC } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
 import { createAttackClip, playAnimation as play } from './attack-pose.ts';
@@ -48,7 +50,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { spheres?: { element: Element; left: number }[]; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { transcendence?: Transcendence; transcendLeft?: number; spheres?: { element: Element; left: number }[]; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -616,6 +618,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   };
   const projs = new Map<number, THREE.Group>();
   const elemental = new Map<string, THREE.Group>();
+  const transcendAuras = new Map<string, ReturnType<typeof createTranscendFx>>();
   const threads = new Map<string, THREE.Mesh>(); // Squid Pix threads by controlled wizard id
   const fx: Fx[] = [];
 
@@ -900,6 +903,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     if (brace) actions.Brace = mixer.clipAction(brace);
     const invoke = src.clips.find((c) => c.name === 'Spellcast_Shoot');
     if (invoke) actions.Attack_Invoke = mixer.clipAction(createAttackClip(invoke));
+    const lying = idle ? createTranscendClip(model, idle) : null;
+    if (lying) { lying.name = 'Transcend_Float'; actions.Transcend_Float = mixer.clipAction(lying); }
     // tudo toca uma vez e para no último quadro, menos o que repete
     for (const [n, a] of Object.entries(actions)) if (!LOOPS.includes(n)) {
       a.setLoop(THREE.LoopOnce, 1);
@@ -1929,14 +1934,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.sniper.visible=d.alive && (d.sniperLeft ?? 0)>0 && !!d.sniperAt;
       if(m.sniper.visible) updateSniperRig(m.sniper,Math.hypot(d.sniperAt!.x-d.pos.x,d.sniperAt!.y-d.pos.y),d.sniperLeft!);
       const channelLabel = m.label.querySelector('.channel-clock');
-      if (d.alive && d.channelElapsed !== undefined) {
+      if (d.alive && (d.channelElapsed !== undefined || (d.transcendence && !d.transcendence.complete))) {
         const c = channelLabel ?? el('span', { class: 'bubble channel-clock' });
-        c.textContent = d.channelElapsed < 1 ? t('Canalizando…', 'Channeling…') : t(`Canalização +${Math.round(d.channelElapsed*50)}% · aguardando lançamento`, `Channeling +${Math.round(d.channelElapsed*50)}% · awaiting cast`);
+        c.textContent = d.transcendence && !d.transcendence.complete ? (d.transcendLeft ?? 0) > 0 ? t('Transcendendo…', 'Transcending…') : t(`Esferas guardadas: ${d.transcendence.saved}/5`, `Saved spheres: ${d.transcendence.saved}/5`) : d.channelElapsed! < 1 ? t('Canalizando…', 'Channeling…') : t(`Canalização +${Math.round(d.channelElapsed!*50)}% · aguardando lançamento`, `Channeling +${Math.round(d.channelElapsed!*50)}% · awaiting cast`);
         if (!channelLabel) m.label.prepend(c);
       } else channelLabel?.remove();
       const hidden = !d.illusion && (d.status & 2048) > 0; // a cópia é sempre visível; os inimigos não veem o jogador velado
       m.root.visible = !hidden;
-      m.model.position.y = d.alive ? geyserHeight(d.geyserLeft ?? 0) : 0;
+      const ritualLift = d.alive ? transcendLift(d.transcendLeft ?? 0) : 0;
+      m.model.position.y = d.alive ? Math.max(geyserHeight(d.geyserLeft ?? 0), ritualLift) : 0;
+      if (!(d.transcendLeft ?? 0) && m.current === 'Transcend_Float') {
+        m.actions.Transcend_Float.stop(); m.current = '';
+      }
       // A cópia é sólida e visível; a invisibilidade vale somente para o jogador real.
       const ghost = !!d.ghost || (d.status & (1024 | 8388608)) > 0; // Caminhada no vento e o véu visto por si ou pela visão de teste da sandbox
       // Teleporte: tk de 0 a 1 sumindo e deslizando rumo ao destino, de 1 a 2 chegando de um pouco atrás; 2 = sem efeito
@@ -1990,7 +1999,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         // nasceu (começo da rodada ou volta no deathmatch): a invulnerabilidade do começo acabou de ligar
         if (invuln && !m.invuln && !(d.geyserLeft ?? 0)) oneShot(d.id, 'Spawn_Ground', 1.3);
         // atordoado (16: arremessado por um golpe) voa de braços abertos
-        if ((d.geyserLeft ?? 0) > 0) { m.oneShotUntil = 0; play(m, 'Jump_Idle', .05); }
+        if ((d.transcendLeft ?? 0) > 0 && m.actions.Transcend_Float) {
+          m.oneShotUntil = 0; play(m, 'Transcend_Float', .15);
+          const action = m.actions.Transcend_Float;
+          action.paused = true; action.time = action.getClip().duration;
+        }
+        else if ((d.geyserLeft ?? 0) > 0) { m.oneShotUntil = 0; play(m, 'Jump_Idle', .05); }
         else if ((d.sniperLeft ?? 0)>0 && !(d.status&16) && m.actions.Attack_Invoke) {
           play(m,'Attack_Invoke',.05); const action=m.actions.Attack_Invoke;
           action.paused=true; action.time=action.getClip().duration*.6; m.oneShotUntil=0;
@@ -1998,7 +2012,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         else if (d.channelElapsed !== undefined && !(d.status & 16) && m.actions.Attack_Invoke) {
           play(m, 'Attack_Invoke', .05);
           const action = m.actions.Attack_Invoke;
-          action.paused = true; action.time = action.getClip().duration * Math.min(1, d.channelElapsed / 2);
+          action.paused = true; action.time = action.getClip().duration * Math.min(1, d.channelElapsed !== undefined ? d.channelElapsed / 2 : 1 - (d.transcendLeft ?? 0) / 2.5);
           m.oneShotUntil = 0;
           if (!lite && Math.random() < .12) burst(d.pos, '#bfa4ff', .6, .35, 1.2, FX.light);
         }
@@ -2162,8 +2176,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.root.visible = false;
       m.label.hidden = true;
     }
-    const sphereOwners = new Set<string>();
+    const auraOwners = new Set<string>();
     for (const d of list) {
+      const state = d.transcendence;
+      if (!d.alive || d.illusion || (d.status & 2048) || !state || (!state.complete && !(d.transcendLeft ?? 0))) continue;
+      auraOwners.add(d.id);
+      let aura = transcendAuras.get(d.id);
+      if (!aura) {
+        aura = createTranscendFx(FX.light);
+        scene.add(aura.root); transcendAuras.set(d.id, aura);
+      }
+      aura.root.position.copy(w3(d.pos, .08));
+      aura.update(state.element, d.transcendLeft ?? 0, now, lite);
+    }
+    for (const [id, aura] of transcendAuras) if (!auraOwners.has(id)) { scene.remove(aura.root); aura.dispose(); transcendAuras.delete(id); }
+    const sphereOwners = new Set<string>();
+    for (const original of list) {
+      const d = original.transcendence && !original.transcendence.complete ? { ...original, spheres: [...(original.spheres ?? []), ...Array.from({ length: original.transcendence.saved }, () => ({ element: original.transcendence!.element, left: 30 }))] } : original;
       if (!d.alive || d.illusion || (d.status & 2048) || !d.spheres?.length) continue;
       sphereOwners.add(d.id);
       let group = elemental.get(d.id);
@@ -2389,7 +2418,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // brilho na mão (um pouco à frente do mago, na cor da magia) e linha de mira fraca até o ponto
       const color = spell === 'cluster' ? '#d7bc85' : spell === 'heal' ? HEAL_FX.color : LOOK[spell as keyof typeof LOOK]?.halo ?? '#ffb347';
       const from = v(m.root.position.x, m.root.position.z);
-      if (spell === 'closedbody' || spell === 'elemental') at = undefined; // Keep the effect on the stance, without a cursor aim line.
+      if (spell === 'closedbody' || spell === 'elemental' || spell === 'transcend') at = undefined; // Keep the effect on the stance, without a cursor aim line.
       const dir = at ? Math.atan2(at.y - from.y, at.x - from.x) : Math.PI / 2 - m.root.rotation.y;
       const hand = v(from.x + Math.cos(dir) * 0.45, from.y + Math.sin(dir) * 0.45);
       burst(hand, color, 1.3, 0.35, 1.15, FX.light);

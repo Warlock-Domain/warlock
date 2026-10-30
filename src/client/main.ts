@@ -21,9 +21,9 @@ import { coachTip } from './coach.ts';
 import { PROFILE_KEY, addRound, toSkill, savedProfile } from './mimic.ts';
 import { cooldownNotice, n1 } from './rules-text.ts';
 import { aimOf, hitR, reachOf } from './reach.ts';
-import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
+import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, ICON, el, icon } from './icons.ts';
 import { createInput } from './input.ts';
-import { t } from './i18n.ts';
+import { t, spellName } from './i18n.ts';
 import { cardName } from './ascension-ui.ts';
 import { SKILL_NAME, effectName } from './opt-info.ts';
 import { getCastMode, isPadMode, labelOf, onFreeEsc, uiLabel } from './keys.ts';
@@ -39,7 +39,7 @@ import { distanceVolume } from './sound-distance.ts';
 import { closedBodySound } from './closed-body-sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
-import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
+import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, dialog, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
 import { STAGE_NAME, USED_KEY, botLevel, boughtKeys, countBuys, readUsed, endResult, illusionCopies, maxHp, pickWatched, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { seenRooms } from './minimap.ts';
@@ -78,6 +78,7 @@ const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 
 // som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
+  transcend: 'shield',
   elemental: 'shield',
   sniper: 'hitHeavy',
   pix: 'lightning', // the same cast effect as Grip, whose mark it shares
@@ -404,7 +405,7 @@ function startRoom(code: string, name: string) {
 
   let attackCancelSeq = 0;
   let arcPreview: { until: number; facing: number } | null = null; // prévia do golpe em arco (issue #402), em ms de performance.now()
-  function command(msg: { t: 'move'; x: number; y: number; held?: boolean } | { t: 'moveHold'; on: boolean } | { t: 'brace'; on: boolean } | { t: 'basic'; x: number; y: number; target?: string | number } | { t: 'stop' } | { t: 'channel'; spell: SpellId } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
+  function command(msg: { t: 'move'; x: number; y: number; held?: boolean } | { t: 'moveHold'; on: boolean } | { t: 'brace'; on: boolean } | { t: 'basic'; x: number; y: number; target?: string | number } | { t: 'stop' } | { t: 'transcendSpell'; spell: SpellId } | { t: 'channel'; spell: SpellId } | { t: 'cast'; spell: SpellId; x: number; y: number }) {
     seq++;
     if (msg.t === 'move' || msg.t === 'stop' || msg.t === 'cast') attackCancelSeq = seq;
     sentAt.set(seq, performance.now());
@@ -481,12 +482,30 @@ function startRoom(code: string, name: string) {
       scourgeUntil = 0; // o S cancela o Flagelo em preparo
     },
     cast(spell, at) {
+      const self = myWizard(interp.latest());
+      if ((self?.transcendLeft ?? 0) > 0) return false;
+      if (spell === 'transcend' && self) {
+        const state = self.transcendence;
+        if (state?.complete) {
+          const mine = room?.players.find(p => p.id === me);
+          const options = SPELL_IDS.filter(s => s !== 'elemental' && s !== 'transcend' && (mine?.spells[s] ?? 0) > 0);
+          const chooser = dialog('settings', t('Escolher magia transcendida', 'Choose a transcended spell'), [
+            el('p', {}, t('Os efeitos individuais ainda não foram definidos. Esta escolha apenas registra a magia.', 'Individual effects are not defined yet. This choice only records the spell.')),
+            el('div', { class: 'choices' }, ...options.map(s => el('button', { 'aria-pressed': state.spell === s, onclick: () => { command({ t: 'transcendSpell', spell: s }); chooser.close(); } }, icon(ICON[s]), spellName(s))))
+          ]);
+          return false;
+        }
+        if (!state && !self.lastElement) { toast(t('Invoque uma esfera primeiro.', 'Summon a sphere first.')); return false; }
+        if (state && state.saved < 5) { toast(t('Esferas guardadas: ', 'Saved spheres: ') + state.saved + '/5.'); return false; }
+        at = self.pos;
+      }
       if (spell === 'sniper' && fireSniper()) return true;
       if ((myWizard(interp.latest())?.sniperLeft ?? 0)>0) return false;
       if (spell === 'channel') return false;
       if (spell === 'elemental') {
         const self = myWizard(interp.latest());
-        if ((self?.spheres?.length ?? 0) >= 5) { toast(t('Você já tem 5 esferas ativas.', 'You already have 5 active spheres.')); return false; }
+        if (self?.transcendence?.complete) { toast(t('Esferas elementais está bloqueada após transcender.', 'Elemental Spheres is unavailable after transcending.')); return false; }
+        if (((self?.transcendence?.saved ?? 0) + (self?.spheres?.length ?? 0)) >= 5) { toast(t('Você já tem 5 esferas ativas.', 'You already have 5 active spheres.')); return false; }
         if (self) at = self.pos;
       }
       if (channelRequest?.spell === spell && ((myWizard(interp.latest())?.channelElapsed ?? 0) < 1)) { toast(t('Canalize por pelo menos 1 segundo.', 'Channel for at least 1 second.')); return false; }
@@ -498,16 +517,16 @@ function startRoom(code: string, name: string) {
       if (spell === 'closedbody' && !(state & BRACING_BIT)) return toast(t('Ative Manter base antes de usar Corpo fechado.', 'Activate Hold Ground before using Closed Body.'));
       if (castBlocked(!!(state & 16), !!(state & 128), spell)) return;
       if (spell === 'sniper') {
-        const units = interp.latest()?.wizards.map(w => ({...w, team: room?.players.find(p=>p.id===w.id)?.team, hidden: !!(w.status&2048), suspended: (w.geyserLeft ?? 0)>0})) ?? [];
+        const units = interp.latest()?.wizards.map(w => ({...w, team: room?.players.find(p=>p.id===w.id)?.team, hidden: !!(w.status&2048), suspended: (w.geyserLeft || w.transcendLeft || 0)>0})) ?? [];
         const self = units.find(w=>w.id===me);
-        const target = self && sniperTarget(units,self,at,reachOf(spell, mine.spells, mine.items, 1, elementalBonuses(self.spheres)), input.hovered());
+        const target = self && sniperTarget(units,self,at,reachOf(spell, mine.spells, mine.items, 1, elementalBonuses(self.spheres, 0, self.transcendence)), input.hovered());
         if (!target) return toast(t('Clique em um inimigo visível dentro do alcance.', 'Click a visible enemy within range.'));
         at = target.pos;
       }
       if (spell === 'heal') {
         const units = interp.latest()?.wizards.map(w => ({ ...w, team: room?.players.find(p => p.id === w.id)?.team })) ?? [];
         const self = units.find(w => w.id === me);
-        const target = self && healTarget(units, self, at, reachOf(spell, mine.spells, mine.items, channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1, elementalBonuses(self.spheres)));
+        const target = self && healTarget(units, self, at, reachOf(spell, mine.spells, mine.items, channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1, elementalBonuses(self.spheres, 0, self.transcendence)));
         if (!target) return toast(t('Selecione você ou um aliado vivo dentro do alcance.', 'Target yourself or a living ally within range.'));
         at = target.pos;
       }
@@ -524,7 +543,7 @@ function startRoom(code: string, name: string) {
       // Sniper movement cancels its aim; ordinary casts retain queued movement.
       predict.hold(CAST_POINT[spell], spell === 'sniper');
       scene.castLocal(me, spell, at);
-      if (spell !== 'elemental' && spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper') scene.clickMarker(at, true); // Support and aimed casts do not show the generic orange attack marker.
+      if (spell !== 'transcend' && spell !== 'elemental' && spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper') scene.clickMarker(at, true); // Support and aimed casts do not show the generic orange attack marker.
       if (spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper') sound.play(SPELL_SOUND[spell]); // Heal and the sniper shot play only on authoritative confirmation.
       return true;
     },
@@ -1059,14 +1078,14 @@ function startRoom(code: string, name: string) {
     // círculo de alcance em volta do próprio mago (some ao lançar ou cancelar)
     const showing = room?.phase === 'playing' && meW?.alive && myPos ? (held ?? armed ?? padAiming ?? hovered) : null;
     const channelBoost = showing && meW?.channelSpell === showing && meW.channelElapsed !== undefined ? channelPower(meW.channelElapsed) || 1 : 1;
-    const reach = showing && meP ? reachOf(showing, meP.spells, meP.items, channelBoost, elementalBonuses(meW?.spheres)) : 0;
+    const reach = showing && meP ? reachOf(showing, meP.spells, meP.items, channelBoost, elementalBonuses(meW?.spheres, 0, meW?.transcendence)) : 0;
     // mira de verdade (tecla segurada no Segurar, magia escolhida ou controle): faixa de acerto e explosão rumo ao cursor ou retículo.
     // No Rápido a tecla é o piscar depois de lançar: a faixa fica parada onde a magia saiu (flashAim), e o mouse na barra não aponta
     // o chão: nada segue o mouse
     const frozen = armed || padAiming ? null : flashAim;
     const aiming = showing && (armed ?? padAiming ?? (getCastMode() === 'release' || frozen ? held : null));
     const aimAt = aiming ? (padAiming ? padAt : (frozen?.at ?? input.aimPoint())) : null;
-    const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, frozen?.from ?? myPos, aimAt, channelBoost, elementalBonuses(meW?.spheres)) : null;
+    const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, frozen?.from ?? myPos, aimAt, channelBoost, elementalBonuses(meW?.spheres, 0, meW?.transcendence)) : null;
     scene.preview.range(showing && myPos ? myPos : null, reach);
     scene.preview.shape(shape);
     scene.preview.arc(arcPreview && nowMs < arcPreview.until && meW?.alive && myPos ? myPos : null, arcPreview?.facing ?? 0);
@@ -1074,7 +1093,7 @@ function startRoom(code: string, name: string) {
     const lockFrom = room?.phase === 'playing' && meW?.alive && meP && (attackArmed || armed === 'sniper') ? drawWiz.filter((d) => !d.illusion).map((d) => ({ ...d, hidden: !!(d.status & 2048), suspended: (d.geyserLeft ?? 0) > 0 })) : null;
     const lockSelf = lockFrom?.find((d) => d.id === me), lockAt = lockSelf && input.aimPoint();
     const lockHover = lockAt ? input.hovered() : undefined;
-    scene.preview.lockOn(lockSelf && lockAt ? (armed === 'sniper' ? sniperTarget(lockFrom!, lockSelf, lockAt, reachOf('sniper', meP!.spells, meP!.items, channelBoost, elementalBonuses(meW?.spheres)), lockHover) : attackTarget(lockFrom!, lockSelf, lockAt, BASIC_ATTACK.range * (1 + elementalBonuses(meW?.spheres).water), lockHover))?.pos ?? null : null);
+    scene.preview.lockOn(lockSelf && lockAt ? (armed === 'sniper' ? sniperTarget(lockFrom!, lockSelf, lockAt, reachOf('sniper', meP!.spells, meP!.items, channelBoost, elementalBonuses(meW?.spheres, 0, meW?.transcendence)), lockHover) : attackTarget(lockFrom!, lockSelf, lockAt, BASIC_ATTACK.range * (1 + elementalBonuses(meW?.spheres, 0, meW?.transcendence).water), lockHover))?.pos ?? null : null);
     // nas posições desenhadas (as mesmas da tela), para ver se o erro foi mira, desvio ou a bola no ar enganando
     scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind) * (p.size ?? 1), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;

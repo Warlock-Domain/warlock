@@ -46,7 +46,7 @@ const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize', 'pix'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
-const SITUATIONAL: SpellId[] = ['elemental', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
+const SITUATIONAL: SpellId[] = ['transcend', 'elemental', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
 const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
@@ -69,7 +69,7 @@ export function botBuy(p: Buyer, rand: () => number = Math.random, D: BotSkill =
   const plan = (p.plan ??= (botConfig.planner ?? (rand() < D.smart ? smartPlan : randomPlan))(rand));
   const level = (b: BotPick) => (b.kind === 'spell' ? p.spells[b.id] : (p.items?.[b.id] ?? 0));
   const price = (b: BotPick) =>
-    b.kind === 'spell' ? (p.spells[b.id] === 0 && spellCount(p.spells) >= MAX_SPELLS ? null : priceOf(b.id, p.spells[b.id])) : p.items ? itemPrice(p.items, b.id) : null;
+    b.kind === 'spell' ? (b.id === 'transcend' && !p.spells.elemental || p.spells[b.id] === 0 && spellCount(p.spells) >= MAX_SPELLS ? null : priceOf(b.id, p.spells[b.id])) : p.items ? itemPrice(p.items, b.id) : null;
   const next = plan.buys.find((b) => level(b) === 0 && price(b) !== null);
   if (next) return price(next)! <= p.gold ? next : null;
   const seen = new Set<string>();
@@ -179,7 +179,7 @@ export function threatTo(w: World, me: Wizard, visible: (p: Projectile) => boole
 export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = BOT_SKILL.normal, scores: Record<string, number> = {}): Cmd[] {
   const me = w.wizards.find((z) => z.id === id && z.alive);
   if (!me) return [];
-  if ((me.geyserLeft ?? 0) > 0) return [];
+  if ((me.geyserLeft ?? 0) > 0 || (me.transcendLeft ?? 0) > 0) return [];
   const vision = w.t < (me.blindUntil ?? 0) ? 3 : D.vision;
   const M = mind(w);
   if (w.t < (M.frozen.get(id) ?? -1)) return []; // parado por erro
@@ -424,7 +424,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   }
   // na Caminhada no vento qualquer magia a encerra: só corre para encostar no inimigo
   if (w.t < me.windUntil) return enemy ? [...cmds.filter((c) => c.kind !== 'move'), { id, kind: 'move', to: enemy.pos }] : cmds;
-  if (!me.casting && !threat && ready('elemental') && (me.spheres?.length ?? 0) < ELEMENTAL_SPHERES.max) return cast('elemental', me.pos);
+  if (!me.casting && !threat && ready('transcend') && me.spells.elemental > 0 && !me.transcendence?.complete && (me.transcendence ? me.transcendence.saved === 5 : me.lastElement !== undefined)) return cast('transcend', me.pos);
+  if (!me.casting && !threat && ready('elemental') && !me.transcendence?.complete && ((me.transcendence?.saved ?? 0) + (me.spheres?.length ?? 0)) < ELEMENTAL_SPHERES.max) return cast('elemental', me.pos);
   // Heal after the escape and dodge branches: a hurt bot first gets out of danger, then heals the most hurt ally in range
   if (!me.casting && ready('heal')) {
     const L = spellLevel('heal', me.spells.heal);
@@ -480,14 +481,14 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // Atacar (decisão do Fernando, 24/10): sem nenhuma magia pronta, com o inimigo a até 6 m e sem obstáculo no meio, o bot usa o
   // ataque livre como o jogador; sem isso o humano teria um golpe que o bot nunca usa e o simulador não mediria o Atacar.
   // Desvio já decidido neste comando vem antes: parar 0,4 s para atacar jogaria fora a esquiva
-  if (!veiled && !me.basicCasting && w.t >= (me.basicReadyAt ?? 0) && d <= BASIC_ATTACK.range && !blocked(E.pos) && !SPELL_IDS.some((x) => x !== 'closedbody' && x !== 'elemental' && ready(x))) { // Closed body waits for Hold ground, so it never blocks the Attack
+  if (!veiled && !me.basicCasting && w.t >= (me.basicReadyAt ?? 0) && d <= BASIC_ATTACK.range && !blocked(E.pos) && !SPELL_IDS.some((x) => x !== 'transcend' && x !== 'closedbody' && x !== 'elemental' && ready(x))) { // Situational abilities must not suppress the Attack while their prerequisites are absent.
     return [...cmds, { id, kind: 'basic', at: E.pos, target: E.id }];
   }
   let damage = false;
   let now: (() => Cmd[]) | null = null;
   let meteor: (() => Cmd[]) | null = null;
   for (const s of SPELL_IDS) {
-    if (!ready(s) || s === 'closedbody' || s === 'shield' || s === 'swap' || s === 'alteration' || s === 'scourge' || s === 'pact' || (me.channel && s !== me.channel.spell)) continue; // Escudo, Troca e Alteração só na defesa (e na borda); Flagelo e Pacto logo abaixo
+    if (!ready(s) || s === 'transcend' || s === 'closedbody' || s === 'shield' || s === 'swap' || s === 'alteration' || s === 'scourge' || s === 'pact' || (me.channel && s !== me.channel.spell)) continue; // Shield, Swap and Alteration are defensive; Transcend has its own resource gate.
     // the charged spell aims with its charged range and speed
     const L = channelLevel(spellLevel(s, me.spells[s]), me.channel ? channelPower(w.t - me.channel.since) || 1 : 1);
     const cp = CAST_POINT[s] ?? 0.1;

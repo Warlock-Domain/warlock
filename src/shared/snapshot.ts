@@ -1,5 +1,5 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
-import { ELEMENTS, type Element } from './elemental-spheres.ts';
+import { ELEMENTS, type Element, type Transcendence } from './elemental-spheres.ts';
 import type { Snap } from './protocol.ts';
 import { PROJ_KINDS, projectileLevel, bootsBonus, closedBodyActive, bracingActive, incapacitatedUntil, isSliding, isStunned, isSuspended, puppeteer, type ProjKind, type SimEvent, type World } from './sim.ts';
 import { INCAPACITATED_BIT, ELECTROCUTED_BIT, BRACING_BIT } from './constants.ts';
@@ -83,6 +83,12 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   }
   const spheres = w.wizards.flatMap((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) ? (z.spheres ?? []).filter(s => s.until > w.t).flatMap(s => [i, ELEMENTS.indexOf(s.element), r2(s.until - w.t)]) : []);
   if (spheres.length) snap.eo = spheres;
+  // Per wizard: element, saved count, phase (last/gathering/ritual/complete), ritual timer, chosen spell.
+  if (w.wizards.some(z => z.transcendence || z.lastElement)) snap.tc = w.wizards.flatMap((z, i) => {
+    if (!z.alive || (wz[i * 7 + 6] & 2048)) return [-1, 0, 0, 0, -1];
+    const state = z.transcendence;
+    return [ELEMENTS.indexOf(state?.element ?? z.lastElement!), state?.saved ?? 0, state?.complete ? 3 : (z.transcendLeft ?? 0) > 0 ? 2 : state ? 1 : 0, r2(z.transcendLeft ?? 0), state?.spell ? SPELL_IDS.indexOf(state.spell) : -1];
+  });
   if (w.wizards.some(z => w.t < z.shieldUntil)) snap.sr = w.wizards.map((z, i) => w.t < z.shieldUntil && !(wz[i * 7 + 6] & 2048) ? r2(z.shieldR) : 0);
   const sizes = w.projectiles.filter(q => (q.size ?? 1) !== 1).flatMap(q => [q.id, r2(q.size!)]);
   if (sizes.length) snap.ps = sizes;
@@ -138,7 +144,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   return snap;
 }
 
-export type WizView = { shieldR?: number; spheres?: { element: Element; left: number }[]; id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; channelSpell?: SpellId; blindLeft?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; rushLeft?: number; recoveryLeft?: number; stunLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean };
+export type WizView = { transcendence?: Transcendence; transcendLeft?: number; lastElement?: Element; shieldR?: number; spheres?: { element: Element; left: number }[]; id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; channelSpell?: SpellId; blindLeft?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; rushLeft?: number; recoveryLeft?: number; stunLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean };
 // meteor, grip e warpzone: vel = (raio, segundos que faltam); link: posição do dono; illusion: índice do dono e direção
 export type ProjView = { element?: Element; size?: number; id: number; kind: ProjKind; pos: Vec; vel: Vec };
 export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
@@ -156,7 +162,7 @@ export function decodeSnap(s: Snap, ids: string[]): SnapView {
     list.push({ element: ELEMENTS[s.eo![k + 1]], left: s.eo![k + 2] }); spheres.set(owner, list);
   }
   const wizards = rows(s.w, 7).slice(0, ids.length).map(([x, y, vx, vy, hp, facing, bits], i): WizView =>
-    ({ shieldR: s.sr?.[i], spheres: spheres.get(i), id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0, status: bits, sniperLeft: s.sn?.[i*3] ?? 0, sniperAt: s.sn && s.sn[i*3]>0 ? v(s.sn[i*3+1],s.sn[i*3+2]) : undefined, channelElapsed: s.cn && s.cn[i*2] >= 0 ? s.cn[i*2+1] : undefined, channelSpell: s.cn && s.cn[i*2] >= 0 ? SPELL_IDS[s.cn[i*2]] : undefined, blindLeft: s.bl?.[i] ?? 0, closedBodyLeft: s.cb?.[i] ?? 0, geyserLeft: s.gy?.[i] ?? 0, puppetBy: s.pz?.[i * 2] ?? -1, puppetLeft: s.pz?.[i * 2 + 1] ?? 0, pixSoak: s.pk?.[i] ?? 0, rushLeft: s.ab?.[i] ?? 0, recoveryLeft: s.kr?.[i] ?? 0, stunLeft: s.st && s.st[i] >= 0 ? s.st[i] : undefined, basicLeft: s.ba?.[i * 2] ?? 0, basicMelee: !!s.ba?.[i * 2 + 1], ...(s.ba?.[i * 2 + 1] === 2 && { basicArc: true }) }));
+    ({ lastElement: s.tc && s.tc[i * 5] >= 0 ? ELEMENTS[s.tc[i * 5]] : undefined, transcendLeft: s.tc?.[i * 5 + 3] ?? 0, transcendence: s.tc && s.tc[i * 5 + 2] > 0 ? { element: ELEMENTS[s.tc[i * 5]], saved: s.tc[i * 5 + 1], complete: s.tc[i * 5 + 2] === 3, spell: SPELL_IDS[s.tc[i * 5 + 4]] } : undefined, shieldR: s.sr?.[i], spheres: spheres.get(i), id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0, status: bits, sniperLeft: s.sn?.[i*3] ?? 0, sniperAt: s.sn && s.sn[i*3]>0 ? v(s.sn[i*3+1],s.sn[i*3+2]) : undefined, channelElapsed: s.cn && s.cn[i*2] >= 0 ? s.cn[i*2+1] : undefined, channelSpell: s.cn && s.cn[i*2] >= 0 ? SPELL_IDS[s.cn[i*2]] : undefined, blindLeft: s.bl?.[i] ?? 0, closedBodyLeft: s.cb?.[i] ?? 0, geyserLeft: s.gy?.[i] ?? 0, puppetBy: s.pz?.[i * 2] ?? -1, puppetLeft: s.pz?.[i * 2 + 1] ?? 0, pixSoak: s.pk?.[i] ?? 0, rushLeft: s.ab?.[i] ?? 0, recoveryLeft: s.kr?.[i] ?? 0, stunLeft: s.st && s.st[i] >= 0 ? s.st[i] : undefined, basicLeft: s.ba?.[i * 2] ?? 0, basicMelee: !!s.ba?.[i * 2 + 1], ...(s.ba?.[i * 2 + 1] === 2 && { basicArc: true }) }));
   const sizes = new Map(rows(s.ps ?? [], 2).map(([id, size]) => [id, size]));
   const elements = new Map(rows(s.pe, 2).map(([id, element]) => [id, ELEMENTS[element]]));
   const projectiles = rows(s.p, 6).map(([id, kind, x, y, vx, vy]): ProjView => ({ element: elements.get(id), size: sizes.get(id), id, kind: PROJ_KINDS[kind] ?? 'fireball', pos: v(x, y), vel: v(vx, vy) }));

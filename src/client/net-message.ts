@@ -127,6 +127,14 @@ function snap(x: Obj): x is Obj & Snap {
       ids.add(id);
     }
   }
+  if (x.tc !== undefined) {
+    if (!numericArray(x.tc) || x.tc.length !== count * 5) return false;
+    for (let i = 0; i < x.tc.length; i += 5) {
+      const [element, saved, phase, left, spell] = x.tc.slice(i, i + 5);
+      if (!integer(element) || element < -1 || element >= ELEMENTS.length || !integer(saved) || saved < 0 || saved > 5 || !integer(phase) || phase < 0 || phase > 3 || left < 0 || left > 2.5 || !integer(spell) || spell < -1 || spell >= SPELL_IDS.length) return false;
+      if (phase === 0 ? saved !== 0 || left !== 0 || spell !== -1 : element < 0 || (phase >= 2 && saved !== 5) || (phase !== 2 && left !== 0) || (phase !== 3 && spell !== -1)) return false;
+    }
+  }
   if (x.eo !== undefined) {
     if (!numericArray(x.eo) || x.eo.length % 3 || x.eo.length > count * ELEMENTAL_SPHERES.max * 3) return false;
     const totals = new Map<number, number>();

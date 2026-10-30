@@ -47,7 +47,8 @@ describe('play style', () => {
     // 25/10 (issue #416, owner's decision): bots may buy Squid Pix; with it out of the bot pool the old hash still matches.
     // 27/10 (PR #426, owner's decision): the ranged basic Attack no longer pushes, which changes bot trajectories.
     // Elemental Spheres intentionally changes bot purchases, summon RNG and impact modifiers.
-    expect(hash).toBe(35262259);
+    // Transcend intentionally changes seeded bot purchases and decisions.
+    expect(hash).toBe(174793371);
     // and it really measured in this same match
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);

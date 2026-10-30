@@ -148,11 +148,13 @@ export class Room extends DurableObject<Env> {
       case 'stop':
       case 'brace':
       case 'basic':
+      case 'transcendSpell':
       case 'channel':
       case 'cast':
         // comandos de jogo só valem com a rodada rolando (fora dela a fila cresceria sem limite)
         if (m.phase !== 'playing') return;
         if (msg.t === 'stop') this.cmds.push({ id, kind: 'stop' });
+        else if (msg.t === 'transcendSpell') this.cmds.push({ id, kind: 'transcendSpell', spell: msg.spell });
         else if (msg.t === 'channel') this.cmds.push({ id, kind: 'channel', spell: msg.spell });
         else if (msg.t === 'moveHold') this.cmds.push({ id, kind: 'moveHold', on: msg.on });
         else if (msg.t === 'brace') this.cmds.push({ id, kind: 'brace', on: msg.on });
