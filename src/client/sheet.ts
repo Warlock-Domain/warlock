@@ -38,7 +38,7 @@ export function sheet(spells: Record<SpellId, number>, items: Record<ItemId, num
     const [label, total, part] = FIELDS[k] ?? [k, (x: number) => n2(x), (x: number) => signed(x, n2)];
     // origem: a parte de cada item que mexe neste campo
     const from = ITEM_IDS.filter((i) => items[i] > 0).map((i) => [i, (itemStats({ ...noItems(), [i]: items[i] }) as Record<string, number>)[k]] as const)
-      .filter(([, x]) => x).map(([i, x]) => t(`${part(x)} de ${itemName(i)} nível ${items[i]}`, `${part(x)} from ${itemName(i)} level ${items[i]}`)).join(' · ');
+      .filter(([, x]) => x).map(([i, x]) => t(`${part(x)} de ${itemName(i)}`, `${part(x)} from ${itemName(i)}`)).join(' · ');
     return { key: k, group: BASE, label, value: total(st[k]), from: from || undefined };
   });
   const rangeF = 1 + (st.range ?? 0);

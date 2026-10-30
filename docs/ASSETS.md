@@ -1,5 +1,7 @@
 # Assets do Warlock Wars
 
+30/10 local: Addicted Rings reuses the existing credited cycle icon and Recharge projectile; Glitch Cape reuses card-exchange and Alteration effects. The original spell IDs remain internal for snapshot/simulation compatibility. No external assets added.
+
 Índice de tudo o que existe de arte, som e fonte no projeto, para pessoas e IAs saberem o que já tem antes de procurar ou criar algo novo. **Todo asset novo entra aqui** (regra no fim da página).
 
 - O que está em `public/` vai para o jogo no ar a cada deploy; o que está em `assets/` é biblioteca para quem contribui e **não** vai para o ar.

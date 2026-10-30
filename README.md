@@ -1,5 +1,7 @@
 # Warlock Wars
 
+30/10 local rework: equipment has fixed base attributes and no upgrades. Addicted Rings is active; Glitch Cape is passive. Bouncer/Swap are Utility; Mandinga is Support. Thrust converts damage received during its knockback-immune dash into stun; Closed Body can move in a weaker mode. Event Horizon and Magic Hook replace Gravity and Link names. Arc jumps are delayed0.25 s. Preserve the existing Transcend visual/pose, team spawns and Campaign choice gate.
+
 Web remake of the **Warlock** arena mod (Warcraft 3 / Dota 2's Warlock Brawl): wizards on an arena that shrinks over lava, knockback spells, a shop between rounds, and the last one standing wins. Made to play in rooms with friends, right in the browser, in Portuguese or English.
 
 **Play:** https://warlock.fernandorffdev.com

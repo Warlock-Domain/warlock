@@ -11,8 +11,8 @@ const setup = () => {
   w.projectiles.push(q);
   return { w, q };
 };
-describe('forças recebidas pela cópia da Ilusão', () => {
-  it('Gravidade desloca cópia e jogador igualmente sem acelerar caminhada da cópia', () => {
+describe('Forces received by Illusion copies', () => {
+  it('Event Horizon moves copy and player equally without accelerating copy walking', () => {
     const { w, q } = setup();
     w.projectiles.push({ id: w.nextId++, kind: 'gravity', owner: 'p2', caster: 'p2', pos: v(2, 0), vel: v(0, 0), until: 10, level: 1, target: null, dmgMult: 1, tick: 10 });
     for (let i = 0; i < 60; i++) {
@@ -21,7 +21,7 @@ describe('forças recebidas pela cópia da Ilusão', () => {
       expect(q.vel).toEqual(v(0, 0));
     }
   });
-  it('Magnetizar não muda a direção ou velocidade autônoma de uma cópia', () => {
+  it('Magnetize preserves autonomous copy direction and speed', () => {
     const { w, q } = setup();
     q.vel = v(1, 0);
     w.wizards[2].pos = v(0, 1);
@@ -29,8 +29,8 @@ describe('forças recebidas pela cópia da Ilusão', () => {
     stepWorld(w, [], () => .5);
     expect(q.vel).toEqual(v(1, 0));
   });
-  it.each((['fireball', 'homing', 'cluster', 'boomerang', 'bouncer', 'drain', 'recharge', 'shard'] as const).flatMap((kind) => [1, 4, 7].flatMap((level) => [0, .35].map((resist) => [kind, level, resist] as const))))('%s nível %s, resistência %s: impulso e percurso iguais', (kind, level, resist) => {
-    // Mundos separados evitam que um alvo bloqueie o projétil destinado ao outro.
+  it.each((['fireball', 'homing', 'cluster', 'boomerang', 'bouncer', 'drain', 'recharge', 'shard'] as const).flatMap((kind) => [1, 4, 7].flatMap((level) => [0, .35].map((resist) => [kind, level, resist] as const))))('%s level %s, resistance %s: equal impulse and travel', (kind, level, resist) => {
+    // Separate worlds prevent either target from blocking the other projectile.
     const fake = setup(), real = setup();
     real.w.projectiles = [];
     fake.w.wizards[0].pos = v(-5, -5);
@@ -56,14 +56,14 @@ describe('forças recebidas pela cópia da Ilusão', () => {
     expect(real.w.wizards[0].stunLeft ?? 0).toBeGreaterThan(0);
     expect(fake.q.stunLeft ?? 0).toBeCloseTo(real.w.wizards[0].stunLeft ?? 0, 8);
   });
-  it.each([1, 4, 7])('Bola de neve nível %s usa arraste, não o empurrão da explosão no contato', (level) => {
+  it.each([1, 4, 7])('Snowball level%s uses drag rather than explosion knockback on contact', (level) => {
     const fake = setup(), real = setup();
     real.w.projectiles = []; fake.w.wizards[0].pos = v(-5, -5);
     for (const { w } of [fake, real]) w.projectiles.push({ id: w.nextId++, kind: 'snowball', owner: 'p2', caster: 'p2', pos: v(-.6, 0), vel: v(2.588, 0), until: 10, level, target: null, dmgMult: 1 });
     stepWorld(fake.w, [], () => .5); stepWorld(real.w, [], () => .5);
     expect(fake.q.pushVel?.x ?? 0).toBeCloseTo(real.w.wizards[0].vel.x, 8);
   });
-  it.each(['lightning', 'scourge', 'windwalk', 'rush', 'thrust'] as const)('%s transfere força também para a cópia', (spell) => {
+  it.each(['lightning', 'scourge', 'windwalk', 'rush'] as const)('%s also transfers force to the copy', (spell) => {
     const pair = () => {
       const w = world([[-.8, 0], [6, 6], [0, 0]], { ...noSpells(), [spell]: 1 }, [], () => .5);
       w.pillars = []; w.wizards.forEach((z) => { z.regen = 0; });
@@ -86,7 +86,7 @@ describe('forças recebidas pela cópia da Ilusão', () => {
     expect(compared).toBe(true);
     expect(fake.projectiles).toContain(q);
   });
-  it('Elo ligado puxa a cópia sem afetar a velocidade de caminhada dela', () => {
+  it('latched Magic Hook pulls the copy without changing its walking speed', () => {
     const { w, q } = setup();
     w.wizards[2].pos = v(-3, 0); w.wizards[0].pos = v(-5, -5);
     w.projectiles.push({ id: w.nextId++, kind: 'link', owner: 'p2', caster: 'p2', pos: v(-.6, 0), vel: v(20, 0), until: 10, level: 1, target: null, dmgMult: 1 });

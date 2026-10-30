@@ -7,6 +7,7 @@ import { setPadGame } from './gamepad.ts';
 import type { Vec } from '../shared/vec.ts';
 
 export type InputHandlers = {
+  itemAt?: (code: string) => { spell: SpellId; id: string } | undefined;
   pick: (x: number, y: number, spell?: SpellId) => Vec | null;
   move: (to: Vec, held?: boolean) => void;
   holdMove?: (on: boolean) => void;
@@ -62,7 +63,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     h.armedChanged(s);
   };
   // tecla de magia segurada: lança ao soltar, no ponto do cursor naquela hora
-  let held: { action: SpellId; code: string } | null = null;
+  let held: { action: SpellId; code: string; ability?: string } | null = null;
   let flash: ReturnType<typeof setTimeout> | undefined;
   const cancel = () => {
     held = null;
@@ -160,10 +161,13 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     }
     if (!enabled || typing(e)) return;
     // teclas trocáveis pelo jogador (keys.ts)
-    const action = actionFor(e.code);
+    const item = h.itemAt?.(e.code);
+    if (h.itemAt && /^Digit[1-6]$/.test(e.code) && !item) { e.preventDefault(); return; }
+    if (item) e.stopImmediatePropagation();
+    const action = item?.spell ?? actionFor(e.code);
     if (action) {
       if (action === 'channel') { e.preventDefault(); cancel(); return arm(action); }
-      if (h.canChannel?.() && (attackHeldCode || attackArmed || armed === 'channel')) {
+      if (!item && h.canChannel?.() && (attackHeldCode || attackArmed || armed === 'channel')) {
         e.preventDefault(); if (e.repeat) return;
         cancel();
         if (h.channel?.(action)) { arm(action); channelArmed = true; }
@@ -172,8 +176,10 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       if (channelArmed && action === armed) { e.preventDefault(); return; }
       // Heal and Inelegant Solution always require a click on the target body; a charged sniper aim fires on the key instead.
       if (action === 'sniper' && h.fireSniper?.()) { e.preventDefault(); return; }
+      const ability = item && 'item:' + item.id;
+      const mode = getCastMode(action, e.code, ability);
+      if (held && getCastMode(held.action, held.code, held.ability) !== mode) cancel();
       if (action === 'heal' || action === 'sniper') { e.preventDefault(); cancel(); return arm(action); }
-      const mode = getCastMode(action, e.code);
       if (held) release(); // modes differ per key: cast the held spell before another key takes over
       if (armed === 'heal' || armed === 'sniper') arm(null);
       if (attackArmed) arm(null);
@@ -184,7 +190,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       }
       if (mode === 'release') {
         if (h.checkCooldown && !h.checkCooldown(action)) return;
-        held = { action, code: e.code };
+        held = { action, code: e.code, ability };
         return h.preview(action);
       }
       const p = h.pick(cursor.x, cursor.y, action);
@@ -222,7 +228,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       cancel();
       arm(null);
     }
-  });
+  }, { capture: true });
 
   return {
     setChannelState(on: boolean) { if (!on && channelArmed) arm(null); },

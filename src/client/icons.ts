@@ -54,7 +54,7 @@ export const ICON: Record<SpellId, string> = named<SpellId>({ fireball: ['fire-r
   snowball: ['frozen-orb', '❄️'], illusion: ['two-shadows', '👥'], magnetize: ['magnet', '🧲'], recharge: ['cycle', '🔋'], alteration: ['card-exchange', '🔀'], link: ['harpoon-chain', '🔗'],
   windwalk: ['wind-slap', '👻'], splitter: ['split-arrows', '💠'], warpzone: ['time-trap', '⏳'], scourge: ['flail', '💥'], pact: ['chalice-drops', '🩸'], heal: ['healing-cross', '✚'], geyser: ['water-splash', '⛲'], closedbody: ['aura', '⬛'], channel: ['energise', '🔮'], sniper: ['sniper-rifle', '🎯'], pix: ['coins-pile', '🪙'] });
 // Armadura e Roubo de vida tinham o mesmo emoji de Agarrar e de Drenar; agora cada um tem desenho próprio
-export const ITEM_ICON: Record<ItemId, string> = named<ItemId>({ ring: ['diamond-ring', '💍'], cursed_ring: ['skull-ring', '🧿'], cape: ['cape', '🧣'], armor: ['breastplate', '🦺'],
+export const ITEM_ICON: Record<ItemId, string> = named<ItemId>({ glitch_cape: ['card-exchange', '🧥'], addicted_rings: ['cycle', '💍'], ring: ['diamond-ring', '💍'], cursed_ring: ['skull-ring', '🧿'], cape: ['cape', '🧣'], armor: ['breastplate', '🦺'],
   boots: ['leather-boot', '👢'], watch: ['pocket-watch', '⏱️'], vampire: ['bat', '🦇'],
   lava_boots: ['metal-boot', '🥾'], warden: ['stone-bust', '🗿'], helmet: ['spartan-helmet', '🪖'], shock_boots: ['winged-leg', '🌩️'], aegis: ['angel-wings', '👼'], wind_boots: ['feather', '🪶'],
   lens: ['magnifying-glass', '🔍'], piercing: ['pierced-heart', '💘'], affliction: ['rune-stone', '🔮'], scourge: ['flail', '💥'] }); // Scourge: same drawing as when it was a spell

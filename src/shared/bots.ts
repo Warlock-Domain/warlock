@@ -194,7 +194,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   };
   // Aproveita o véu inteiro para reposicionar; outra magia revelaria o bot.
   const veiled = w.t < me.veilUntil;
-  const ready = (s: SpellId) => !veiled && me.spells[s] > 0 && w.t >= me.cd[s] && w.t >= usableAt(s);
+  const ready = (s: SpellId) => !veiled && (me.spells[s] > 0 || s === 'recharge' && me.items.addicted_rings > 0) && w.t >= me.cd[s] && w.t >= usableAt(s);
   // Flagelo e Pacto eram itens e saíam sem a espera humana de `ready` (usableAt): ficam assim para não mudar o jeito dos bots
   const free = (s: SpellId) => !veiled && me.spells[s] > 0 && w.t >= me.cd[s];
   // dentro da pedra com folga (a forma da arena vem de arena.ts); into = direção para dentro a partir do bot
@@ -211,7 +211,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     const r = sub(at, me.pos), c = Math.cos(turn), s = Math.sin(turn);
     // Channeling: a damage spell is charged to full first; the release uses this same aim (difficulty error, lead, slip),
     // and a dodge or walk in the meantime cancels the charge like a player's would
-    if (me.spells.channel > 0 && spellLevel(spell, me.spells[spell]).dmg > 0) {
+    if (spell !== 'recharge' && me.spells.channel > 0 && spellLevel(spell, me.spells[spell]).dmg > 0) {
       if (!me.channel) return (cmds.length = 0, cmds.push({ id, kind: 'channel', spell }), cmds);
       if (me.channel.spell !== spell || w.t - me.channel.since < CHANNEL.max) return cmds;
     }

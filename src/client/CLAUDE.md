@@ -1,5 +1,9 @@
 # src/client — browser (Three.js + DOM interface)
 
+30/10 local rework: equipment has fixed base attributes and no upgrades. Addicted Rings is active; Glitch Cape is passive. Bouncer/Swap are Utility; Mandinga is Support. Thrust converts damage received during its knockback-immune dash into stun; Closed Body can move in a weaker mode. Event Horizon and Magic Hook replace Gravity and Link names. Arc jumps are delayed0.25 s. Preserve the existing Transcend visual/pose, team spawns and Campaign choice gate.
+
+Addicted Rings is an active one-level accessory backed by the internal `recharge` simulation/snapshot id. Item ownership grants rank1 without occupying a spell slot. Keep keyboard item overrides ahead of key/global defaults and apply normal server cast/cooldown validation. New spell purchases/cards/shortcuts exclude Recharge; saved spell owners migrate to the item.
+
 Applies together with the root `CLAUDE.md`.
 
 ## Interface

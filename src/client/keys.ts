@@ -7,7 +7,7 @@ import { isRecord } from './saved-data.ts';
 import { store } from './store.ts';
 
 export type Action = SpellId;
-export const ACTIONS: Action[] = [...SPELL_IDS];
+export const ACTIONS: Action[] = SPELL_IDS.filter(s => s !== 'recharge' && s !== 'alteration');
 // atalhos da interface (pedido do Fernando, 18/10): trocáveis no mesmo painel das magias; o Votar começa sem tecla
 export const UI_ACTIONS = ['shop', 'board', 'sheet', 'taunt', 'rules', 'library', 'stop', 'vote', 'replay', 'camera', 'basic'] as const;
 export type UiAction = (typeof UI_ACTIONS)[number];
@@ -108,7 +108,7 @@ export const slotSpell = (i: number): SpellId | undefined => slots[i] ?? undefin
 const CAST_STORE = 'warlock:castmode';
 const savedCast = store.get(CAST_STORE);
 let castMode: CastMode = (CAST_MODES as readonly string[]).includes(savedCast ?? '') ? (savedCast as CastMode) : 'quick';
-export const getCastMode = (spell?: SpellId, code?: string) => resolveCastMode(castMode, spell && (spell === 'scourge' ? 'item:scourge' : 'spell:' + spell), code ?? (spell && keyOf(spell)));
+export const getCastMode = (spell?: SpellId, code?: string, ability?: string) => resolveCastMode(castMode, ability ?? (spell && (spell === 'scourge' ? 'item:scourge' : 'spell:' + spell)), code ?? (spell && keyOf(spell)));
 export function setCastMode(m: CastMode) {
   castMode = m;
   store.set(CAST_STORE, m);

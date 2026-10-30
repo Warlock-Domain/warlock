@@ -8,12 +8,12 @@ import { run, world as spotsWorld } from './helpers.ts';
 
 const all = (): Record<SpellId, number> => ({ ...noSpells(), lightning: 1, homing: 1, shield: 1, teleport: 1 });
 
-// mundo com magos em posições escolhidas, todos com as 5 magias no nível 1
+// world with chosen wizard positions and five spells at level one
 const world = (spots: [number, number][]) => spotsWorld(spots, all());
 
 const wz = (w: World, i: number) => w.wizards[i];
 
-describe('movimento, lava e arena', () => {
+describe('Movement, lava e arena', () => {
   it('walks to target and stops', () => {
     const w = world([[0, 0]]);
     run(w, 3, [{ id: 'p0', kind: 'move', to: v(3, 0) }]);
@@ -72,11 +72,11 @@ describe('movimento, lava e arena', () => {
   });
 });
 
-describe('magias', () => {
+describe('Spells', () => {
   it('fireball hits and pushes away from caster', () => {
     const w = world([[0, 0], [4, 0]]);
     run(w, 1.5, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(4, 0) }]);
-    // a regeneração devolve um pouco da vida depois do acerto
+    // regeneration restores a little health after impact
     expect(wz(w, 1).hp).toBeGreaterThanOrEqual(HP_MAX - SPELLS.fireball.levels[0].dmg);
     expect(wz(w, 1).hp).toBeLessThan(HP_MAX - SPELLS.fireball.levels[0].dmg + 10);
     expect(wz(w, 1).pos.x).toBeGreaterThan(5);
@@ -90,7 +90,7 @@ describe('magias', () => {
   });
 
   it('cannot cast on cooldown', () => {
-    // alvo longe, fora do alcance: a primeira bola ainda está voando quando a segunda é tentada
+    // out-of-range target: the first orb is still flying when the second is attempted
     const w = world([[0, 0], [9, 0]]);
     run(w, 0.25, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(9, 0) }]);
     run(w, 0.25, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(9, 0) }]);
@@ -105,7 +105,7 @@ describe('magias', () => {
 
   it('lightning hits first wizard on the line then jumps with half damage', () => {
     const w = world([[0, 0], [2.5, 0], [3.5, 0]]);
-    run(w, 0.25, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(6, 0) }]);
+    run(w, 0.6, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(6, 0) }]);
     expect(wz(w, 1).hp).toBeLessThan(HP_MAX);
     expect(wz(w, 2).hp).toBeLessThan(HP_MAX);
   });
@@ -134,7 +134,7 @@ describe('magias', () => {
       { id: 'p0', kind: 'cast', spell: 'fireball', at: v(4, 0) },
       { id: 'p1', kind: 'cast', spell: 'shield', at: v(0, 0) },
     ]);
-    // quem atirou foge para o lado logo depois de lançar
+    // the shooter moves sideways immediately after casting
     wz(w, 0).pos = v(0, 2.5);
     run(w, 2);
     expect(wz(w, 1).hp).toBe(HP_MAX);
@@ -162,7 +162,7 @@ describe('magias', () => {
     expect(wz(w, 0).pos.x).toBeCloseTo(SPELLS.teleport.levels[0].range);
   });
 
-  it('knockback não aumenta com dano histórico', () => {
+  it('knockback does not grow with historical damage', () => {
     const fresh = world([[0, 0], [3, 0]]);
     const hurt = world([[0, 0], [3, 0]]);
     wz(hurt, 1).dmgTaken = 800;
@@ -193,7 +193,7 @@ describe('magias', () => {
   });
 });
 
-describe('conjuração e invulnerabilidade', () => {
+describe('Casting and invulnerability', () => {
   it('spells fire after the cast point and stop the caster', () => {
     const w = world([[0, 0], [3, 0]]);
     stepWorld(w, [{ id: 'p0', kind: 'move', to: v(0, 5) }]);
@@ -224,7 +224,7 @@ describe('conjuração e invulnerabilidade', () => {
   });
 });
 
-describe('choque de magias', () => {
+describe('Projectile clashes', () => {
   it('two enemy fireballs meeting explode in an area', () => {
     const w = world([[-3, 0], [3, 0], [0, 0.8]]);
     stepWorld(w, [
@@ -263,7 +263,7 @@ describe('choque de magias', () => {
     expect(w.projectiles.length).toBe(2);
   });
 
-  it('Raio destrói uma bola no caminho sem criar a antiga detonação em área', () => {
+  it('Lightning destroys a projectile in its path without the former area detonation', () => {
     const w = world([[0, 0], [3, 2], [2.2, 0.6]]);
     stepWorld(w, [{ id: 'p1', kind: 'cast', spell: 'fireball', at: v(-3, -2) }]);
     for (let i = 0; i < 16; i++) stepWorld(w, []);
@@ -271,7 +271,7 @@ describe('choque de magias', () => {
     const seen: string[] = [];
     const secondary: number[] = [];
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(fb.x, fb.y) }]);
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 35; i++) {
       stepWorld(w, []);
       for (const e of w.events) if (e.k === 'clash') seen.push(e.combo);
       for (const e of w.events) if (e.k === 'hit' && e.id === 'p2') secondary.push(e.dmg);
@@ -279,11 +279,11 @@ describe('choque de magias', () => {
     expect(seen).toContain('pulse');
     expect(seen).not.toContain('detonate');
     expect(w.projectiles.length).toBe(0);
-    expect(secondary).toEqual([35]); // salto legítimo, não detonação em área.
+    expect(secondary).toEqual([35]); // a valid chain jump rather than an area detonation.
   });
 });
 
-describe('pilares', () => {
+describe('Pillars', () => {
   const withPillar = (spots: [number, number][], pillar: [number, number]) => {
     const w = world(spots);
     w.pillars = [{ pos: v(pillar[0], pillar[1]), hp: OBSTACLES.pillar.hp, alive: true, kind: 'pillar' }];
@@ -335,7 +335,7 @@ describe('pilares', () => {
   });
 });
 
-describe('acerto em invulnerável', () => {
+describe('Hits against invulnerable targets', () => {
   it('a fireball hitting an invulnerable wizard still makes a hit event, without damage', () => {
     const w = world([[0, 0], [3, 0]]);
     wz(w, 1).invulnUntil = 99;
@@ -361,7 +361,7 @@ describe('tecla repetida', () => {
   });
 });
 
-describe('baú e chão do choque', () => {
+describe('Chest and clash ground effects', () => {
   it('the gold pile is drawn from 3 to 5 when the chest appears', () => {
     const gold = (r: number) => {
       const w = world([[0, 5], [0, -5]]);
@@ -415,7 +415,7 @@ describe('baú e chão do choque', () => {
   });
 });
 
-describe('mecânicas do original', () => {
+describe('Original mechanics', () => {
   it('a pushed wizard passes momentum to the one it bumps (elastic)', () => {
     const w = world([[0, 0], [1, 0]]);
     w.pillars = [];
@@ -440,7 +440,7 @@ describe('mecânicas do original', () => {
   });
 });
 
-describe('baús ao longo da rodada', () => {
+describe('Chests throughout the round', () => {
   it('a new chest comes every 12 s even if nobody broke the last one, up to 2 standing', () => {
     const w = world([[0, 0], [6, 6]]);
     w.pillars = [];
