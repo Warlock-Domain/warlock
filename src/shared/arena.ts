@@ -92,6 +92,20 @@ export function edgeAt(id: ArenaId, R: number, p: Vec): number {
   return -R * SHAPES[id].sdf(p.x / R, p.y / R);
 }
 
+// Compact mirrored formations keep allies together without changing player order or drawing RNG.
+export function teamSpawns(arena: ArenaId, R: number, ids: string[], teams: Record<string, number>): Vec[] {
+  const sides = [...new Set(ids.map((id) => teams[id]))].sort((a, b) => a - b);
+  if (sides.length !== 2 || sides.some((side) => side === undefined)) return ids.map((_, i) => SHAPES[arena].spawn(i, ids.length, R));
+  return ids.map((id) => {
+    const allies = ids.filter((other) => teams[other] === teams[id]);
+    const y = (allies.indexOf(id) - (allies.length - 1) / 2) * 1.2;
+    const radius = arena === 'circle' ? R - SPAWN_INSET : arena === 'ring' ? RC * R : 0.36 * R;
+    const x = arena === 'cross' ? 0.85 * R : (arena === 'islands' ? C * R : 0) + Math.sqrt(Math.max(0, radius * radius - y * y));
+    const side = teams[id] === sides[0] ? 1 : -1;
+    return v(side * x, side * y);
+  });
+}
+
 // mapa explorável da Campanha (levels.ts): casas de 1 m a partir de (0, 0); fora do mapa é parede. Com mapa, a "borda" é
 // a distância até a casa mais perto em que não se pode estar (parede, mureta, abismo): os bots desviam dela como da lava
 // tudo acima de wax é "fora" para a borda dos bots (o campo de distância): lava conta como a lava da arena

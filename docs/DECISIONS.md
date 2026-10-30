@@ -6,6 +6,7 @@ Every new decision gets a row here (date, decision, why) in the same PR as the c
 
 | Date | Decision | Why |
 |---|---|---|
+| 28/10 | **Grouped Teams spawns**: allies start together in compact, non-overlapping formations on opposite sides, preserving the established safe spawn depth. Apply before obstacle placement on every round; other modes retain their layouts. | User requested allied teams together and opponents as far apart as practical. |
 | 17/10 | Top-down 3D camera, Dota controls (right button moves); 1 point per round, first to 5 wins | same as the original Warlock, Dota audience |
 | 18/10 | Public repository | so friends can contribute |
 | 18/10 | Rejected: ranking/profile and items that only help one spell (e.g. Fire staff) | focus on the game, free build |
