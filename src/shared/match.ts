@@ -11,6 +11,7 @@ import {
   roundMods, type RoundEffectId, type RuneKind,
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, startItems, type ItemId } from './items.ts';
+import type { Transcendence } from './elemental-spheres.ts';
 import { nightRand } from './rng.ts';
 import { gearOf, newWorld, inLava, placeRune, resizeArena, revive, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
 import { FREE_SPELLS, MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
@@ -124,6 +125,7 @@ function lateJoinGold(m: Match) {
 }
 
 export type Player = {
+  transcendence?: Transcendence;
   id: string;
   name: string;
   bot: boolean;
@@ -277,6 +279,7 @@ function enter(m: Match, p: Player, rand: () => number) {
   const w = (m.sandbox || m.night) && m.world;
   if (!w || p.watch || w.wizards.some((z) => z.id === p.id)) return;
   const z = newWorld([p.id], { [p.id]: p.spells }, { [p.id]: p.items }, 0, rand).wizards[0];
+  z.transcendence = p.transcendence;
   if (!m.night) return void w.wizards.push(Object.assign(z, { alive: false, respawnAt: 0 }));
   p.team = 0;
   w.wizards.push(Object.assign(z, { team: 0, pos: w.map!.home, invulnUntil: w.t + INVULN_TIME }));
@@ -349,6 +352,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
 // zera a partida e abre a loja da rodada 1 (começar, ou reiniciar por votação com os mesmos jogadores)
 function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: () => number) {
   for (const p of m.players) {
+    delete p.transcendence;
     Object.assign(p, { score: 0, gold: startGold(m), goldCarry: 0, spells: noSpells(), items: startItems() });
     p.economy = newEconomy(p.gold);
     p.held = {};
@@ -400,6 +404,7 @@ function pay(m: Match, id: string, key: string, price: (p: Player) => number | n
 }
 
 export function buy(m: Match, id: string, spell: SpellId): boolean {
+  if (spell === 'transcend' && !((player(m, id)?.spells.elemental ?? 0) > 0)) return false;
   const p = pay(m, id, 'spell:' + spell, (p) => priceOf(spell, p.spells[spell]), (p) => p.spells[spell] > 0 || spellCount(p.spells) < MAX_SPELLS);
   if (p) p.spells[spell]++;
   if (p) refit(m, p);
@@ -758,6 +763,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   const arena = m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
   m.world = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests && !m.asc }, arena);
   for (const z of m.world.wizards) { const p = player(m, z.id); if (p?.arc || p?.guard) Object.assign(z, { arc: p.arc, guard: p.guard }); } // só quem escolheu: o mundo dos outros fica igual
+  for (const z of m.world.wizards) z.transcendence = player(m, z.id)?.transcendence;
   if (m.asc) ascMark(m);
   if (m.sandbox) m.world.shrink = m.sandbox.shrink; // a sandbox usa o mundo do deathmatch: não encolhe (a não ser que peçam) e quem morre volta
   // efeito da rodada: o que a loja mostrou (a opção pode ter mudado por votação); o da próxima é sorteado depois do mundo,
@@ -891,6 +897,7 @@ function enterStage(m: Match, now: number, rand: () => number) {
   const teams = Object.fromEntries(playing(m).map((p) => [p.id, p.servo ? 1 : 0]));
   const w = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), 0, rand, false, teams, { runes: false, sudden: false, chests: false });
   // arenaR pequeno: os bots usam frações dele como folga das paredes
+  for (const z of w.wizards) z.transcendence = player(m, z.id)?.transcendence;
   Object.assign(w, { map: terrainOf(map), arenaR: 3, isles: [], pillars: obstaclesOf(map) }); // allied spells push without damage, as in Teams (Fernando, 24/10)
   const acesos = w.wizards.filter((z) => z.team === 0);
   acesos.forEach((z, i) => (z.pos = around(w.map!.home, i, acesos.length)));
@@ -1374,6 +1381,7 @@ function stepMatch(m: Match, now: number, cmds: Cmd[], rand: () => number): SimE
   const human = (id: string) => player(m, id)?.bot === false;
   if (sb) for (const z of w.wizards) z.god = sb.god && human(z.id);
   stepWorld(w, all, rand);
+  for (const z of w.wizards) { const p = player(m, z.id); if (p && z.transcendence) p.transcendence = z.transcendence; }
   pinTurrets();
   if (sb?.noCd) for (const z of w.wizards.filter((q) => human(q.id))) {
     for (const s of SPELL_IDS) z.cd[s] = 0;

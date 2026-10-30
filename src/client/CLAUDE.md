@@ -1,5 +1,7 @@
 # src/client — browser (Three.js + DOM interface)
 
+Transcend ritual (28/10 local): original canvas seal sprite, vertical light column and rising motes in `transcend-fx.ts`, with an original belly-up suspended pose built from Idle: arms hang downward and the head falls back. Use the chosen element color, including white Ki and readable black Void. Ritual fades over the authoritative 2.5 s; completion removes the column and restores the model pose/height, leaving the persistent aura. Own textures/materials/geometries are disposed on removal. No external art copied or added.
+
 Applies together with the root `CLAUDE.md`.
 
 ## Interface
