@@ -112,7 +112,7 @@ export function demoStatus(w: World, z: Wizard): string[] {
   if (z.zone & 2) labels.push(t('queimando · dano contínuo', 'burning · continuous damage'));
   if (z.ricochetRange) labels.push(t('Ricochete preparado', 'Bouncer ready'));
   if (w.t < z.magnetUntil && z.magnet > 0) labels.push(t('magnetizado · atrai projéteis', 'magnetized · attracts projectiles'));
-  if (w.projectiles.some((p) => p.kind === 'link' && p.target === z.id)) labels.push(t('Elo · puxão', 'tether · pull'));
+  if (w.projectiles.some((p) => p.kind === 'link' && p.target === z.id)) labels.push(t('Gancho mágico · puxão', 'Magic Hook · pull'));
   if ((z.recoveryLeft ?? 0) > 1e-8) {
     const fraction = KNOCK_RECOVERY.start + KNOCK_RECOVERY.step * Math.floor((KNOCK_RECOVERY.seconds - z.recoveryLeft! + 1e-8) / KNOCK_RECOVERY.interval);
     labels.push(t(`recuperação · caminhada ${Math.round(fraction * 100)}%`, `recovery · walking ${Math.round(fraction * 100)}%`));

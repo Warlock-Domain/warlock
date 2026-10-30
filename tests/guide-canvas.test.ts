@@ -7,7 +7,7 @@ describe('Guide previews using real simulation states', () => {
     ['brace', 'Manter base'], ['meteor', 'atordoado'], ['grip', 'preso'],
     ['shield', 'empurrão/status 60%'], ['illusion', 'cópia'], ['rush', 'avanço encerrado'],
     ['knockback', 'recuperação'], ['lightning', 'incapacitado'], ['drain', 'lentidão'],
-    ['clash', 'queimando'], ['link', 'Elo'], ['magnetize', 'redireciona'], ['cluster', 'diâmetro 6 m'], ['heal', '+45'], ['geyser', 'suspenso'], ['closedbody', 'Corpo fechado'],
+    ['clash', 'queimando'], ['link', 'Gancho mágico'], ['magnetize', 'redireciona'], ['cluster', 'diâmetro 6 m'], ['heal', '+45'], ['geyser', 'suspenso'], ['closedbody', 'Corpo fechado'],
   ] as [DemoId, string][])('%s draws its explanation without invalid coordinates', (id, label) => {
     const texts: string[] = [];
     vi.stubGlobal('matchMedia', () => ({ matches: false }));
