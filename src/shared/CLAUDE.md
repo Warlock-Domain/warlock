@@ -67,3 +67,5 @@ Flattened lists of numbers (layout in the `protocol.ts` comment), values with `r
 ## Appearance (`characters.ts`)
 
 The appearance code stores the **position** of each option (7 digits, one per piece), and it is saved in the browser and in rooms. A new option goes **at the end** of the piece's list; an option that leaves stays in place and becomes retired (`isRetired`): `decodeLook` swaps it for another (the hooded Rogue becomes Rogue + Hood, issue #107), the creator and the draw skip it. Every code input goes through `fixLook` (browser in `savedLook`, message in `parseClientMessage`, stored room in `resume`).
+
+30/10 local Windwalk revision: windUntil is a visible speed/contact buff, not concealment. Invisibility and targeting exclusions use veilUntil only. Snapshot4096/its clock show the Windwalk speed buff;1024/2048 remain Illusion. Base duration grows2.6s to3.6s at every level; preserve speed, contact damage and existing interruption rules.

@@ -813,13 +813,16 @@ describe('Link', () => {
 });
 
 describe('Windwalk', () => {
-  it('invisible to enemies and faster; the first enemy touched takes the hit and it ends', () => {
+  it('stays visible and faster; the first enemy touched takes the hit and it ends', () => {
     const w = world([[0, 0], [3, 0]], ['windwalk']);
     run(w, 0.1, [cast('p0', 'windwalk', 0, 0), { id: 'p0', kind: 'move', to: v(6, 0) }]);
     expect(w.wizards[0].speed).toBeGreaterThan(WIZ_SPEED * 1.5);
     const ids = ['p0', 'p1'];
-    expect(decodeSnap(encodeSnap(w, 'p1', 0, []), ids).wizards[0].status & 2048).toBe(2048); // the enemy cannot see
-    expect(decodeSnap(encodeSnap(w, 'p0', 0, []), ids).wizards[0].status & 1024).toBe(1024); // the walker sees the effect
+    for (const viewer of ids) {
+      const status = decodeSnap(encodeSnap(w, viewer, 0, []), ids).wizards[0].status;
+      expect(status & (1024 | 2048)).toBe(0);
+      expect(status & 4096).toBe(4096);
+    }
     const ev = runEvents(w, 1.5);
     expect(hitsOf(ev, 'windwalk')[0]?.dmg).toBeCloseTo(spellLevel('windwalk', 1).dmg, 5);
     expect(w.wizards[1].pos.x).toBeGreaterThan(3); // there was knockback; the residual ends when control is released.

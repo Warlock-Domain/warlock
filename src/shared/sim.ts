@@ -86,7 +86,7 @@ export type Wizard = {
   magnetUntil: number; // Magnetizar até este instante
   magnet: number; // 1 atrai, −1 repele os projéteis inimigos
   alterUntil: number; // Alteração ativa até este instante
-  windUntil: number; // Caminhada no vento (invisível) até este instante
+  windUntil: number; // Windwalk speed/contact effect, without invisibility.
   windMult: number; // Pacto na Caminhada no vento
   veilUntil: number; // Ilusão: invisível até a cópia acabar
   streak: number; // Recarga: acertos seguidos
@@ -1053,7 +1053,7 @@ function usePact(w: World, wz: Wizard): number {
 }
 
 function sniperVictim(w: World, wz: Wizard, at: Vec, range: number, aimedId?: string) {
-  const visible = w.wizards.filter(z => (!aimedId || z.id === aimedId) && w.t >= z.veilUntil && w.t >= z.windUntil && !isSuspended(z) && (w.t >= (wz.blindUntil ?? 0) || dist(wz.pos,z.pos) <= 3));
+  const visible = w.wizards.filter(z => (!aimedId || z.id === aimedId) && w.t >= z.veilUntil && !isSuspended(z) && (w.t >= (wz.blindUntil ?? 0) || dist(wz.pos,z.pos) <= 3));
   return sniperTarget(visible,wz,at,range);
 }
 
@@ -2053,7 +2053,7 @@ function enemyDecoys(w: World, id: string): Projectile[] {
 function attackBody(w: World, by: Wizard, target: string | number, visible = true): Wizard | Projectile | undefined {
   if (typeof target === 'number') return enemyDecoys(w, by.id).find((p) => p.id === target);
   const z = byId(w, target);
-  return z && z !== by && !allies(by, z) && (!visible || (!isSuspended(z) && w.t >= Math.max(z.veilUntil, z.windUntil))) ? z : undefined;
+  return z && z !== by && !allies(by, z) && (!visible || (!isSuspended(z) && w.t >= z.veilUntil)) ? z : undefined;
 }
 // Attack is not a spell: numbers come from BASIC_ATTACK, nothing inherited from Fireball. The projectile has zero
 // knockback on purpose (PR #426, owner's decision); only the melee hit uses BASIC_ATTACK.knock

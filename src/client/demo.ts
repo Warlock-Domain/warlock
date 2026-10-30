@@ -110,6 +110,7 @@ export function demoStatus(w: World, z: Wizard): string[] {
   if (w.t < z.slowUntil || z.zone & 1 || w.t < (z.electroUntil ?? 0)) labels.push(t('lentidão · caminhada reduzida', 'slow · reduced walking speed'));
   if (w.t < incapacitatedUntil(z, w.t)) labels.push(t('incapacitado · recargas pausadas', 'incapacitated · cooldowns paused'));
   if (z.zone & 2) labels.push(t('queimando · dano contínuo', 'burning · continuous damage'));
+  if (w.t < z.windUntil) labels.push(t('corrida · visível', 'sprint · visible'));
   if (w.t < z.magnetUntil && z.magnet > 0) labels.push(t('magnetizado · atrai projéteis', 'magnetized · attracts projectiles'));
   if (w.projectiles.some((p) => p.kind === 'link' && p.target === z.id)) labels.push(t('Elo · puxão', 'tether · pull'));
   if ((z.recoveryLeft ?? 0) > 1e-8) {
@@ -303,7 +304,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       ctx.globalAlpha = 1;
       text(t('lento · recargas pausadas', 'slowed · cooldowns paused'), v(z.pos.x, z.pos.y + .8), '#6ee6ff', .25);
     }
-    ctx.globalAlpha = w.t < z.windUntil || w.t < z.veilUntil ? 0.35 : 1; // The trainee still sees their own veiled wizard, as with Windwalk
+    ctx.globalAlpha = w.t < z.veilUntil ? 0.35 : 1; // Only Illusion is translucent.
     if (w.t < z.shieldUntil) circle(z.pos, z.shieldR, 'rgba(255,214,102,.15)', '#ffd666');
     if (w.t < z.alterUntil) circle(z.pos, spellLevel('alteration', z.spells.alteration || 1).radius, 'rgba(110,230,255,.12)', '#6ee6ff', true);
     if (w.t < z.gripUntil) vines(z.pos, WIZ_R + .18);
