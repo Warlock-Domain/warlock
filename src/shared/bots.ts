@@ -5,7 +5,6 @@ import type { Cmd, Projectile, Wizard, World } from './sim.ts';
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
 import { BAR_SPELLS, CAST_POINT, FREE_SPELLS, GRIP, MAX_SPELLS, METEOR_DELAY, PIX, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
-import { ELEMENTAL_SPHERES } from './elemental-spheres.ts';
 import { CHANNEL, channelLevel, channelPower } from './channeling.ts';
 
 export type BotPick = { kind: 'spell'; id: SpellId } | { kind: 'item'; id: ItemId };
@@ -425,7 +424,6 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // na Caminhada no vento qualquer magia a encerra: só corre para encostar no inimigo
   if (w.t < me.windUntil) return enemy ? [...cmds.filter((c) => c.kind !== 'move'), { id, kind: 'move', to: enemy.pos }] : cmds;
   if (!me.casting && !threat && ready('transcend') && me.spells.elemental > 0 && !me.transcendence?.complete && (me.transcendence ? me.transcendence.saved === 5 : me.lastElement !== undefined)) return cast('transcend', me.pos);
-  if (!me.casting && !threat && ready('elemental') && !me.transcendence?.complete && ((me.transcendence?.saved ?? 0) + (me.spheres?.length ?? 0)) < ELEMENTAL_SPHERES.max) return cast('elemental', me.pos);
   // Heal after the escape and dodge branches: a hurt bot first gets out of danger, then heals the most hurt ally in range
   if (!me.casting && ready('heal')) {
     const L = spellLevel('heal', me.spells.heal);

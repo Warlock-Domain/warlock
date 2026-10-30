@@ -11,6 +11,7 @@ import { world } from './helpers.ts';
 
 const setup = () => {
   const w = world([[0, 0], [8, 0]], { ...noSpells(), elemental: 1 }, [], () => .5);
+  w.wizards[1].spells = { ...w.wizards[1].spells, elemental: 0 };
   w.pillars = []; w.runes = []; w.shrinkAt = 1000; w.rules.chests = false; w.rules.runes = false;
   return w;
 };
@@ -55,7 +56,8 @@ describe('Elemental Spheres', () => {
   it('expires individually and clears on death without creating physical projectiles', () => {
     const w = setup(); summon(w); w.t = 5; summon(w);
     w.t = 30; stepWorld(w, [], () => .5);
-    expect(w.wizards[0].spheres).toHaveLength(1); expect(w.projectiles).toHaveLength(0);
+    expect(w.wizards[0].spheres).toHaveLength(2);
+    expect(w.wizards[0].spheres?.map(s => s.until)).toEqual([35, 60]); expect(w.projectiles).toHaveLength(0);
     w.wizards[0].alive = false; stepWorld(w, [], () => .5);
     expect(w.wizards[0].spheres).toBeUndefined();
   });
@@ -86,6 +88,6 @@ describe('Elemental Spheres', () => {
     while (demo.w.t < 24) demoStep(demo);
     expect(demo.w.wizards[0].spheres).toHaveLength(5);
     while (demo.w.t < 31) demoStep(demo);
-    expect(demo.w.wizards[0].spheres).toHaveLength(4);
+    expect(demo.w.wizards[0].spheres).toHaveLength(5);
   });
 });

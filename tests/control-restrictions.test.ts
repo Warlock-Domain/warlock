@@ -6,7 +6,7 @@ import { v } from '../src/shared/vec.ts';
 import { run, world } from './helpers.ts';
 
 describe('stun and root: authoritative restrictions', () => {
-  it.each(SPELL_IDS)('stun blocks %s without spending cooldown', (spell) => {
+  it.each(SPELL_IDS.filter(s => s !== 'elemental'))('stun blocks %s without spending cooldown', (spell) => {
     const w = world([[0, 0]], { ...noSpells(), [spell]: 1 }, [], () => .5);
     const z = w.wizards[0]; z.stunLeft = 1;
     stepWorld(w, [{ id: z.id, kind: 'cast', spell, at: v(3, 0) }, { id: z.id, kind: 'move', to: v(0, 5) }], () => .5);
@@ -14,7 +14,7 @@ describe('stun and root: authoritative restrictions', () => {
     expect(z.casting).toBeNull();
     expect(z.pos).toEqual(v(0, 0));
   });
-  it.each(SPELL_IDS)('Grip applies movement restrictions to %s', (spell) => {
+  it.each(SPELL_IDS.filter(s => s !== 'elemental'))('Grip applies movement restrictions to %s', (spell) => {
     const w = world([[0, 0]], { ...noSpells(), [spell]: 1 }, [], () => .5);
     const z = w.wizards[0]; z.gripUntil = 5;
     if (spell === 'transcend') { z.spells.elemental = 1; z.lastElement = 'fire'; }

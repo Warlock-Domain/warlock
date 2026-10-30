@@ -162,6 +162,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     // teclas trocáveis pelo jogador (keys.ts)
     const action = actionFor(e.code);
     if (action) {
+      if (action === 'elemental') { e.preventDefault(); return; }
       if (action === 'channel') { e.preventDefault(); cancel(); return arm(action); }
       if (h.canChannel?.() && (attackHeldCode || attackArmed || armed === 'channel')) {
         e.preventDefault(); if (e.repeat) return;
@@ -244,6 +245,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     hovered: () => h.pickAttack?.(cursor.x, cursor.y),
     // The toolbar selects a spell; the next ground click or tap casts it.
     button(a: SpellId) {
+      if (a === 'elemental') return;
       if (enabled && a === 'sniper' && h.fireSniper?.()) return; // charged aim: the bar button fires at the marked enemy
       if (enabled && a !== 'channel' && h.canChannel?.() && (attackArmed || armed === 'channel')) {
         cancel(); if (h.channel?.(a)) { arm(a); channelArmed = true; } return;
