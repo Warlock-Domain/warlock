@@ -56,7 +56,7 @@ describe('grimório: demonstrações com a simulação de verdade', () => {
   it('casts the spell of the page, and damage spells hit a training wizard', () => {
     for (const id of SPELL_IDS) {
       const ev = run(id);
-      expect(ev.some((e) => e.k === 'cast' && e.id === 'a' && e.spell === id), `${id} não foi lançada`).toBe(true);
+      expect(ev.some((e) => id === 'elemental' ? e.k === 'fire' && e.id === 'a' && e.src === id : e.k === 'cast' && e.id === 'a' && e.spell === id), `${id} não foi lançada`).toBe(true);
       const L = SPELLS[id as SpellId].levels[0];
       if (L.dmg > 0 || L.dot > 0) expect(ev.some((e) => e.k === 'hit' && e.by === 'a' && e.id !== 'a' && e.dmg > 0), `${id} não acertou ninguém`).toBe(true);
     }

@@ -912,8 +912,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec, power = 1, aimedId?
 const canTranscend = (wz: Wizard) => wz.spells.transcend > 0 && wz.spells.elemental > 0 && !wz.transcendence?.complete && !(wz.transcendLeft! > 0) && (wz.transcendence ? wz.transcendence.saved === 5 : wz.lastElement !== undefined);
 function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number, aimedId?: string, copy?: number) {
   if (spell === 'transcend' && !canTranscend(wz)) return;
-  if (spell === 'channel') return;
-  if (spell === 'elemental' && (wz.transcendence?.complete || ((wz.transcendence?.saved ?? 0) + (wz.spheres?.filter(s => s.until > w.t).length ?? 0)) >= ELEMENTAL_SPHERES.max)) return;
+  if (spell === 'channel' || spell === 'elemental') return;
   const level = copy ?? wz.spells[spell];
   if (!level || (copy === undefined && w.t < wz.cd[spell])) return;
   const bonus = elementalBonuses(wz.spheres, w.t, wz.transcendence);
@@ -961,15 +960,6 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
       wz.channel = undefined; wz.moveHeld = false; wz.braceUntil = 0;
       wz.dashUntil = wz.thrustUntil = 0;
     }
-    return;
-  }
-  if (spell === 'elemental') {
-    const spheres = wz.spheres = (wz.spheres ?? []).filter(s => s.until > w.t);
-    const element = wz.lastElement = ELEMENTS[Math.floor(w.rand() * ELEMENTS.length)];
-    if (wz.transcendence) {
-      if (element === wz.transcendence.element) wz.transcendence.saved = Math.min(5, wz.transcendence.saved + 1);
-      else spheres.push({ element, until: w.t + L.duration });
-    } else spheres.push({ element, until: w.t + L.duration });
     return;
   }
   if (spell === 'scourge') return scourge(w, wz, L, dmgMult);
@@ -1107,8 +1097,8 @@ function sniperVictim(w: World, wz: Wizard, at: Vec, range: number, aimedId?: st
 
 // começa a conjurar: confere nível e recarga agora; o efeito sai depois do tempo de conjuração
 function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
+  if (spell === 'elemental') return;
   if (spell === 'transcend' && !canTranscend(wz)) return;
-  if (spell === 'elemental' && (wz.transcendence?.complete || ((wz.transcendence?.saved ?? 0) + (wz.spheres?.filter(s => s.until > w.t).length ?? 0)) >= ELEMENTAL_SPHERES.max)) return;
   if (spell === 'channel') return;
   if (castBlocked(isStunned(wz), w.t < wz.gripUntil, spell)) return;
   if (spell === 'closedbody' && !bracingActive(w, wz)) return;
@@ -1141,7 +1131,7 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   const delay = CAST_POINT[spell];
   const d = sub(at, wz.pos);
   // Closed Body reinforces the current stance instead of aiming at the cursor.
-  if (spell !== 'closedbody' && spell !== 'elemental' && len(d) > 0.01) wz.facing = Math.atan2(d.y, d.x);
+  if (spell !== 'closedbody' && len(d) > 0.01) wz.facing = Math.atan2(d.y, d.x);
   w.events.push({ k: 'cast', id: wz.id, spell });
   if (spell === 'sniper') wz.windUntil = 0;
   if (spell !== 'illusion') wz.veilUntil = 0; // outra magia revela o dono, mas a cópia continua até o próprio prazo
@@ -2209,6 +2199,7 @@ function applyCmd(w: World, wz: Wizard, c: Cmd) {
     if (wz.transcendence?.complete && wz.spells[c.spell] > 0 && c.spell !== 'transcend' && c.spell !== 'elemental') wz.transcendence.spell = c.spell;
     return;
   }
+  if (c.kind === 'channel' && c.spell === 'elemental') return;
   if (c.kind === 'channel') {
     if (!(wz.spells.channel > 0) || w.t < wz.dashUntil || w.t < wz.thrustUntil || c.spell === 'channel' || !wz.spells[c.spell] || w.t < wz.cd[c.spell] || wz.casting || castBlocked(isStunned(wz), w.t < wz.gripUntil, c.spell)) return;
     if (wz.channel?.spell === c.spell) return; // Key repeat must not reset the server timer.
@@ -2453,6 +2444,17 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   for (const z of w.wizards) if (z.spheres) z.spheres = z.alive ? z.spheres.filter(s => s.until > w.t) : undefined;
   applyCmds(w, cmds);
   prepWizards(w, rand);
+  for (const z of w.wizards) {
+    if (!z.alive || isSuspended(z) || !z.spells.elemental || z.transcendence?.complete || w.t < z.cd.elemental) continue;
+    const spheres = z.spheres = (z.spheres ?? []).filter(s => s.until > w.t);
+    if (spheres.length + (z.transcendence?.saved ?? 0) >= ELEMENTAL_SPHERES.max) continue;
+    const L = wizardLevel(w, z, 'elemental');
+    const element = z.lastElement = ELEMENTS[Math.floor(w.rand() * ELEMENTS.length)];
+    if (z.transcendence?.element === element) z.transcendence.saved++;
+    else spheres.push({ element, until: w.t + L.duration });
+    z.cd.elemental = w.t + L.cd;
+    w.events.push({ k: 'fire', id: z.id, src: 'elemental' });
+  }
   shrinkArena(w);
   w.zones = w.zones.filter((z) => z.until > w.t);
   stepIsles(w);

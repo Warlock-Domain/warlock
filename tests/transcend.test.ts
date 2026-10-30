@@ -13,6 +13,7 @@ import { run, world, toPlaying } from './helpers.ts';
 
 function setup() {
   const w = world([[0, 0], [4, 0]], { ...noSpells(), elemental: 1, transcend: 1, fireball: 1 }, [], () => .5);
+  w.wizards[1].spells = { ...w.wizards[1].spells, elemental: 0 };
   w.pillars = []; w.runes = []; w.rules.runes = false; w.rules.chests = false; w.shrinkAt = 1000;
   w.wizards.forEach(z => z.regen = 0);
   return w;
@@ -38,6 +39,7 @@ describe('Transcend resource and ritual', () => {
     expect(z.spheres).toHaveLength(1);
     cast(w, 'elemental', () => .01); expect(z.transcendence!.saved).toBe(1);
     cast(w, 'elemental', () => .25); expect(z.transcendence!.saved).toBe(2);
+    z.cd.elemental = Infinity; // Isolate expiry and saved resources from automatic replenishment.
     run(w, 31); expect(z.transcendence!.saved).toBe(2);
     run(w, .5, [{ id: z.id, kind: 'basic', at: v(6, 2) }]);
     expect(z.transcendence!.saved).toBe(2);
@@ -67,6 +69,7 @@ describe('Transcend resource and ritual', () => {
     const shot = w.projectiles.find(p => p.kind === 'basic');
     expect(shot?.element).toBe('fire'); expect(shot?.stats?.dmg).toBeCloseTo(29.1);
     expect(z.spheres?.map(s => s.element)).toEqual(['void']); expect(z.transcendence!.saved).toBe(1);
+    z.cd.elemental = Infinity;
     run(w, 31); expect(z.spheres).toHaveLength(0); expect(z.transcendence!.saved).toBe(1);
   });
   it('shares the five-sphere cap between saved and ordinary colors', () => {

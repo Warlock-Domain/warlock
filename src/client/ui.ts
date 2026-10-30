@@ -1151,7 +1151,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const bar = el('div', { class: 'spellbar' }, ...SPELL_IDS.map((s) => {
     const cd = el('span', { class: 'cd' });
     const pips = el('span', { class: 'pips' });
-    const b = withTip(el('button', { type: 'button', class: 'spell ' + spellClass(s), 'aria-label': spellName(s), onclick: () => act.spell(s), onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(s), onpointerleave: () => act.hover(null) },
+    const b = withTip(el('button', { type: 'button', class: 'spell ' + spellClass(s), 'aria-label': spellName(s), 'aria-disabled': s === 'elemental' ? 'true' : 'false', onclick: () => { if (s !== 'elemental') act.spell(s); }, onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(s), onpointerleave: () => act.hover(null) },
       el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => (s === 'scourge' ? itemTip(s, mine?.items.scourge ?? 0) : spellTip(s, mine?.spells[s] ?? 0)));
     buttons.set(s, { b, cd, pips });
     if (s !== 'scourge') draggableSlot(b, 0, true); // the Scourge sits in the item grid, outside the spell order
