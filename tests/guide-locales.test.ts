@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
-describe('guias nas duas línguas', () => {
-  it.each(['pt', 'en'])('descrição, ficha e prévia usam números reais em%s', async (lang) => {
+describe('Guides in both languages', () => {
+  it.each(['pt', 'en'])('description, sheet and preview use actual values in%s', async (lang) => {
     vi.resetModules();
     vi.stubGlobal('localStorage', { getItem: (key: string) => key === 'warlock:lang' ? lang : null });
     const { MECHANIC_GUIDES, NEGATIVE_GUIDES, RULES_SHORT } = await import('../src/client/rules-text.ts');
@@ -25,7 +25,7 @@ describe('guias nas duas línguas', () => {
       expect(g).not.toHaveProperty('demo');
     }
     const knock = NEGATIVE_GUIDES.find((g) => g.id === 'status-knockback')!;
-    expect(knock.title).toBe(lang === 'pt' ? 'Empurrão (knockback)' : 'Knockback');
+    expect(knock.title).toBe(lang === 'pt' ? 'Empurrão' : 'Knockback');
     expect(knock.text).toContain('50%');
     expect(knock.text).toContain('100%');
     expect(knock.text).toContain(lang === 'pt' ? '0,2 s' : '0.2 s');

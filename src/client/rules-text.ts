@@ -33,22 +33,22 @@ export const MECHANIC_GUIDES = [
 
 // Statuses describe the effect itself, with no spell or demo attached (general stats, no spell-pair rules)
 export const NEGATIVE_GUIDES = [
-  {id:'status-blindness',title:t('Cegueira','Blindness'),text:t('Reduz a visão a um círculo de 6 m de diâmetro (3 m de raio) centrado no jogador afetado, com vinheta escura gradual até preto no exterior. Só altera a visão de quem recebe o status; não impede andar, atacar ou conjurar por si só. Duração depende da fonte e das resistências.','Restricts sight to a 6 m diameter circle (3 m radius) centered on the affected player, with a soft dark vignette fading to black outside. Only affects the recipient’s vision; does not itself prevent movement, attacks or casting. Duration depends on the source and resistances.') },
-  { id: 'status-knockback', title: t('Empurrão (knockback)', 'Knockback'), text: t(
-    `Deslocamento forçado por um impacto. O dano histórico não aumenta sua força; impactos simultâneos e resistências ainda alteram o resultado. Ao terminar o impulso, o residual é encerrado: uma ordem de caminhada guardada usa a posição atual, sem ordem não há caminhada automática. A recuperação começa em ${KNOCK_RECOVERY.start * 100}% da velocidade e ganha ${KNOCK_RECOVERY.step * 100} pontos percentuais a cada ${KNOCK_RECOVERY.interval.toLocaleString(LOCALE)} s, voltando a 100% em ${KNOCK_RECOVERY.seconds} s. Essa recuperação não é um novo stun.`,
-    `Forced displacement from an impact. Historical damage does not increase its force; simultaneous impacts and resistances still affect it. When the impulse ends, residual momentum is cleared: a stored walking order uses your current position; without an order there is no automatic walking. Recovery starts at ${KNOCK_RECOVERY.start * 100}% speed and gains ${KNOCK_RECOVERY.step * 100} percentage points every ${KNOCK_RECOVERY.interval} s, returning to 100% in ${KNOCK_RECOVERY.seconds} s. This recovery is not a new stun.`) },
-  { id: 'status-stun', title: t('Atordoamento (stun)', 'Stun'), text: t(
-    'Impede caminhar, conjurar qualquer magia e preparar Atacar enquanto estiver ativo. Forças externas ainda podem deslocar o corpo. Ao terminar, as ações voltam a ficar disponíveis, respeitando outros efeitos que ainda estejam ativos.',
-    'Prevents walking, casting any spell and winding up Attack while active. External forces can still displace the body. When it ends, actions become available again, subject to any other effects that remain active.') },
-  { id: 'status-snare', title: t('Agarramento (snare/root)', 'Root (snare)'), text: t(
+  {id:'status-blindness',title:t('Cego','Blindness'),text:t('Reduz seu campo de visão a um círculo de 6 m de diâmetro (3 m de raio) centrado no jogador afetado, com vinheta escura gradual até preto no exterior. Só altera a visão de quem recebe o status; não impede andar, atacar ou conjurar por si só. Duração depende da fonte e das resistências.','Restricts your field of vision to a 6 m diameter circle (3 m radius) centered on the affected player, with a soft dark vignette fading to black outside. Only affects the recipient’s vision; does not itself prevent movement, attacks or casting. Duration depends on the source and resistances.') },
+  { id: 'status-knockback', title: t('Empurrão', 'Knockback'), text: t(
+    `Empurra os inimigos pelo mapa — de preferência, para a lava! Deslocamento forçado por um impacto. O dano histórico não aumenta sua força; impactos simultâneos e resistências ainda alteram o resultado. Ao terminar o impulso, o residual é encerrado: uma ordem de caminhada guardada usa a posição atual, sem ordem não há caminhada automática. A recuperação começa em ${KNOCK_RECOVERY.start * 100}% da velocidade e ganha ${KNOCK_RECOVERY.step * 100} pontos percentuais a cada ${KNOCK_RECOVERY.interval.toLocaleString(LOCALE)} s, voltando a 100% em ${KNOCK_RECOVERY.seconds} s. Essa recuperação não é um novo stun.`,
+    `Pushes enemies around the map — preferably into the lava! Forced displacement from an impact. Historical damage does not increase its force; simultaneous impacts and resistances still affect it. When the impulse ends, residual momentum is cleared: a stored walking order uses your current position; without an order there is no automatic walking. Recovery starts at ${KNOCK_RECOVERY.start * 100}% speed and gains ${KNOCK_RECOVERY.step * 100} percentage points every ${KNOCK_RECOVERY.interval} s, returning to 100% in ${KNOCK_RECOVERY.seconds} s. This recovery is not a new stun.`) },
+  { id: 'status-stun', title: t('Atordoamento', 'Stun'), text: t(
+    'Um jogador atordoado não pode se mover, usar magias ou preparar Atacar enquanto o efeito estiver ativo. Forças externas ainda podem deslocar o corpo. Ao terminar, as ações voltam a ficar disponíveis, respeitando outros efeitos que ainda estejam ativos.',
+    'A stunned player cannot move, use spells or wind up Attack while the effect is active. External forces can still displace the body. When it ends, actions become available again, subject to any other effects that remain active.') },
+  { id: 'status-snare', title: t('Agarramento', 'Root (snare)'), text: t(
     'Impede caminhar e usar magias de mobilidade, mas permite outras magias e Atacar. Forças externas ainda podem deslocar o alvo. A duração e as condições para encerrar a prisão são definidas pela fonte que aplica o efeito.',
     'Prevents walking and mobility spells, but allows other spells and Attack. External forces can still displace the target. Duration and conditions for ending the root are defined by the source applying the effect.') },
-  { id: 'status-slow', title: t('Lentidão (slow)', 'Slow'), text: t(
-    'Reduz a velocidade de caminhada, sem bloquear conjurações nem pausar recargas por si só. Intensidade e duração dependem da fonte que aplica o efeito. Efeitos de uma área dependem de permanecer dentro dela; não confunda sua duração com a duração de uma lentidão aplicada ao alvo.',
-    'Reduces walking speed without blocking casts or pausing cooldowns by itself. Strength and duration depend on the source applying the effect. Area effects depend on staying inside them; their lifetime is not the same as a timed slow applied to a target.') },
-  { id: 'status-incapacitate', title: t('Incapacitar', 'Incapacitate'), text: t(
-    'Pausa o progresso das recargas enquanto estiver ativo. Magias que já estão prontas podem ser lançadas; não é silêncio e não impede caminhar por si só. Ao terminar, a recarga continua de onde parou.',
-    'Pauses cooldown progress while active. Spells that are already ready can be cast; this is not silence and does not prevent walking by itself. When it ends, cooldowns resume where they stopped.') },
+  { id: 'status-slow', title: t('Desacelerado', 'Slow'), text: t(
+    'Diminui a velocidade de movimentação, sem bloquear conjurações nem pausar recargas por si só. Intensidade e duração dependem da fonte que aplica o efeito. Efeitos de uma área dependem de permanecer dentro dela; não confunda sua duração com a duração de uma lentidão aplicada ao alvo.',
+    'Decreases movement speed without blocking casts or pausing cooldowns by itself. Strength and duration depend on the source applying the effect. Area effects depend on staying inside them; their lifetime is not the same as a timed slow applied to a target.') },
+  { id: 'status-incapacitate', title: t('Incapacitado', 'Incapacitate'), text: t(
+    'Impede que as magias recuperem suas recargas enquanto estiver ativo. Magias que já estão prontas podem ser lançadas; não é silêncio e não impede caminhar por si só. Ao terminar, a recarga continua de onde parou.',
+    'Stops spells from recovering their cooldowns while active. Spells that are already ready can be cast; this is not silence and does not prevent walking by itself. When it ends, cooldowns resume where they stopped.') },
   { id: 'status-burning', title: t('Queimadura', 'Burning'), text: t(
     'Dano contínuo enquanto permanece em chão de fogo ou na lava. Não bloqueia movimento ou conjurações por si só. Sair da área interrompe essa fonte de dano; o chão de fogo e a lava têm valores próprios.',
     'Continuous damage while standing in burning ground or lava. Does not block movement or casting by itself. Leaving the area stops that damage source; burning ground and lava have separate damage values.') },
@@ -78,7 +78,9 @@ const INSTANT = join(SPELL_IDS.filter((s) => CAST_POINT[s] === 0).map((s) => spe
 
 // textos do grimório (Como jogar), por página; os números vêm do código
 const RULES_PT = {
-  objetivo: [
+  objetivo: ["Use suas magias para matar seus inimigos, empurrando-os para a lava ou zerando a vida deles.","Seja o último a restar em terra firme, custe o que custar!"],
+  basico: ["Use ataques básicos para causar um pouco de dano enquanto suas magias não estiverem prontas, ou assuma a postura de Manter base para resistir aos empurrões em direção à lava.","Ganhe ouro a cada rodada e use esse dinheiro para comprar magias e ficar mais forte.","Se estiver à deriva na lava, fuja para as ilhas flutuantes. Mas cuidado: elas só duram alguns segundos!"],
+  sobrevivencia: [
     `Empurre os outros magos para fora da pedra. Na lava a vida cai ${LAVA_DPS} por segundo; na pedra ela volta ${HP_REGEN} por segundo. Cada mago tem ${HP_MAX} de vida.`,
     `A arena encolhe uma faixa a cada ${SHRINK_EVERY} s até ${n1(ARENA_MIN)} m de raio; a faixa que vai afundar pisca em vermelho antes. Ela é maior quanto mais magos tiver (com 4, ${n1(ARENA_R0)} m de raio).`,
     `Com ${SUDDEN.collapse} s de rodada, o tamanho mínimo deixa de valer e a arena some aos poucos (nenhuma rodada fica sem fim).`,
@@ -129,19 +131,9 @@ const RULES_PT = {
     'No topo: o gráfico de barras abre o placar, o pergaminho abre a ficha do mago, o balão manda provocações, a urna (Votar) troca o modo ou expulsa alguém e a engrenagem abre as configurações.',
     'Neste grimório: deslize o dedo para os lados para virar a página.',
   ],
-  rodadas: [
-    `O último vivo ganha a rodada e 1 ponto. Meta padrão: ${DEFAULT_OPTS.goal} rodadas (${list(OPTION_CHOICES.goal)} nas opções).`,
-    `Morte súbita: passados ${SUDDEN.at} s de rodada, a arena encolhe a cada ${SUDDEN.every} s em vez de ${SHRINK_EVERY}.`,
-  ],
-  deathmatch: [
-    `Rodadas de ${DM_ROUND_MS / 1000} s e a arena não encolhe. Quem cai volta ${DM_RESPAWN} s depois, longe dos outros magos (tenta ${DM_SPAWN_GAP} m ou mais), com vida cheia e ${INVULN_TIME} s sem levar dano; magias e itens continuam.`,
-    `Cada abate vale 1 ponto (cair sozinho não vale). A partida acaba no fim da rodada em que alguém chega à meta (${list(Object.values(DM_GOALS))} abates; padrão ${DM_GOALS[DEFAULT_OPTS.goal]}); empate joga mais uma rodada.`,
-  ],
-  times: [
-    'Azul contra Vermelho, times do mesmo tamanho (com número ímpar, um tem 1 a mais). Sorteados a cada rodada ou fixos na partida (escolha da sala, ou votação).',
-    'A rodada acaba quando só sobra gente de um time; todos dele ganham 1 ponto e o ouro da vitória.',
-    'Magia em aliado só empurra: não tira vida nem dá abate. Míssil, Ricochete, Gravidade e Agarrar só pegam inimigos; a Troca com aliado vale.',
-  ],
+  rodadas: ["Todos os jogadores se enfrentam por rodadas. Quem atingir primeiro a meta de vitórias vence a partida."],
+  deathmatch: ["Uma batalha frenética em que o objetivo é conseguir mais abates. Não há rodadas, e jogadores mortos voltam rapidamente à vida. Ganha quem atingir primeiro a meta de abates!"],
+  times: ["Até quatro equipes se enfrentam na arena por rodadas. Vence a equipe que atingir primeiro a meta de rodadas vencidas."],
   opcoes: [
     `Quem começa a partida escolhe o modo e as opções na sala de espera: tempo de loja (${list(OPTION_CHOICES.shop)} s), ouro ganho (×${list(OPTION_CHOICES.economy.map(n1))}), ouro inicial (${list(OPTION_CHOICES.startGold)}), meta e arena. Runas e baús dá para desligar. Embaixo do número de bots, cada bot tem a sua dificuldade (Fácil, Casual, Normal, Veterano, Difícil ou Automático, o padrão); bot votado no meio da partida entra Automático.`,
     `Votar, no topo: trocar o modo, mudar uma opção, sortear ou fixar os times, pôr ou tirar um bot, pular a loja, reiniciar, encerrar ou expulsar alguém. Passa com mais da metade; fecha em ${VOTE_MS / 1000} s e vale na próxima rodada.`,
@@ -194,10 +186,13 @@ const RULES_PT = {
     'Personagens e decoração: KayKit, de Kay Lousberg (kaylousberg.com). Texturas: ambientCG e Poly Haven. Partículas e sons: Kenney e OpenGameArt. Música: "Determined Pursuit", de Emma_MA. Tudo em domínio público (CC0). Ícones: game-icons.net, de Lorc, Delapouite, Skoll, Sbed e Caro Asercion (CC BY 3.0; lista em CREDITS.txt).',
     'Inspirado no Warlock do Warcraft 3 e no Warlock Brawl para Dota 2.',
   ],
+  ascensao: ["Nove rodadas em que o caos domina e ninguém decide exatamente o que vai comprar. Magias, aprimoramentos e equipamentos são oferecidos aleatoriamente ao final de cada rodada. Será que a sorte está do seu lado?"],
 };
 
 const RULES_EN: typeof RULES_PT = {
-  objetivo: [
+  objetivo: ["Use your spells to kill your enemies by pushing them into the lava or reducing their health to zero.","Be the last one standing on solid ground, whatever it takes!"],
+  basico: ["Use basic attacks to deal a little damage while your spells are on cooldown, or take the Hold Ground stance to resist being pushed into the lava.","Earn gold each round and spend it on spells to become stronger.","If you are stranded in the lava, escape to the floating islands. But be careful: they only last a few seconds!"],
+  sobrevivencia: [
     `Knock the other wizards off the rock. In the lava, health drops ${LAVA_DPS} per second; on the rock it comes back ${HP_REGEN} per second. Each wizard has ${HP_MAX} health.`,
     `The arena shrinks one ring every ${SHRINK_EVERY} s down to a radius of ${n1(ARENA_MIN)} m; the ring about to sink flashes red first. It is bigger the more wizards there are (with 4, a radius of ${n1(ARENA_R0)} m).`,
     `At ${SUDDEN.collapse} s into the round, the minimum size no longer applies and the arena crumbles away (no round goes on forever).`,
@@ -247,19 +242,9 @@ const RULES_EN: typeof RULES_PT = {
     'At the top: the bar chart opens the scoreboard, the scroll opens the wizard sheet, the speech bubble sends taunts, the ballot box (Vote) changes the mode or kicks someone and the gear opens the settings.',
     'In this grimoire: swipe sideways to turn the page.',
   ],
-  rodadas: [
-    `The last one alive wins the round and 1 point. Default goal: ${DEFAULT_OPTS.goal} rounds (${list(OPTION_CHOICES.goal)} in the options).`,
-    `Sudden death: after ${SUDDEN.at} s of the round, the arena shrinks every ${SUDDEN.every} s instead of ${SHRINK_EVERY}.`,
-  ],
-  deathmatch: [
-    `Rounds of ${DM_ROUND_MS / 1000} s and the arena does not shrink. Whoever falls comes back ${DM_RESPAWN} s later, away from the other wizards (tries ${DM_SPAWN_GAP} m or more), with full health and ${INVULN_TIME} s without taking damage; spells and items stay.`,
-    `Each kill is worth 1 point (falling on your own does not count). The match ends at the end of the round in which someone reaches the goal (${list(Object.values(DM_GOALS))} kills; default ${DM_GOALS[DEFAULT_OPTS.goal]}); a tie plays one more round.`,
-  ],
-  times: [
-    'Blue against Red, teams of the same size (with an odd number, one has 1 more). Shuffled every round or fixed for the match (room choice, or vote).',
-    'The round ends when only one team has anyone left; all of them get 1 point and the victory gold.',
-    'Spells on an ally only knock back: no damage and no kill. Homing Missile, Bouncer, Gravity and Grip only hit enemies; Swap with an ally works.',
-  ],
+  rodadas: ["All players fight across rounds. The first player to reach the victory target wins the match."],
+  deathmatch: ["A frantic battle to score the most kills. There are no rounds, and defeated players quickly return to life. The first player to reach the kill target wins!"],
+  times: ["Up to four teams fight in the arena across rounds. The first team to reach the round victory target wins."],
   opcoes: [
     `Whoever starts the match picks the mode and options in the lobby: shop time (${list(OPTION_CHOICES.shop)} s), gold earned (×${list(OPTION_CHOICES.economy.map(n1))}), starting gold (${list(OPTION_CHOICES.startGold)}), goal and arena. Runes and chests can be turned off. Below the bot count, each bot has its own difficulty (Easy, Casual, Normal, Veteran, Hard or Auto, the default); a bot voted in mid-match joins on Auto.`,
     `Vote, at the top: change the mode, change an option, shuffle or fix the teams, add or remove a bot, skip the shop, restart, end or kick someone. Passes with more than half; closes in ${VOTE_MS / 1000} s and takes effect next round.`,
@@ -312,6 +297,7 @@ const RULES_EN: typeof RULES_PT = {
     'Characters and decoration: KayKit, by Kay Lousberg (kaylousberg.com). Textures: ambientCG and Poly Haven. Particles and sounds: Kenney and OpenGameArt. Music: "Determined Pursuit", by Emma_MA. All public domain (CC0). Icons: game-icons.net, by Lorc, Delapouite, Skoll, Sbed and Caro Asercion (CC BY 3.0; list in CREDITS.txt).',
     'Inspired by Warlock from Warcraft 3 and Warlock Brawl for Dota 2.',
   ],
+  ascensao: ["Nine rounds of chaos where nobody gets to choose exactly what to buy. Spells, upgrades and equipment are offered at random after each round. Will luck be on your side?"],
 };
 export { RULES_EN, RULES_PT };
 export const RULES = LANG === 'en' ? RULES_EN : RULES_PT;
