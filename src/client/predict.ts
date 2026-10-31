@@ -89,7 +89,7 @@ export class MovementPredictor {
   };
 
   // The newest authoritative snapshot is roughly half a round trip behind the local clock.
-  frame = (server: WizView, dt: number): Vec => {
+  frame = (server: WizView, dt: number, basicCancelled = false): Vec => {
     const me = this.me ??= { pos: { ...server.pos }, vel: v(0, 0), target: null, facing: server.facing, speed: WIZ_SPEED };
     if (!server.alive) this.dead = true;
     else if (this.dead) {
@@ -113,16 +113,20 @@ export class MovementPredictor {
     this.wasStunned = stunned;
     // Read residual velocity once per snapshot, before the server-controlled branch below.
     // Re-reading it every frame would renew the impulse after walking becomes available again.
+    // Only an accepted Attack stops walking; a stale confirmation cannot cancel newer input.
+    const attacking = (server.basicLeft ?? 0) > 0 && !basicCancelled;
     if (server !== this.velocitySource) {
+      if (attacking) this.stop();
       if (server.status & BLOCKED_MOVE_BIT) { me.target = null; me.pos = { ...server.pos }; }
       me.stunLeft = server.stunLeft;
       me.recoveryLeft = server.recoveryLeft ?? 0;
       me.vel = { ...server.vel };
       this.velocitySource = server;
     }
-    if (!server.alive || dashing || stunned) {
+    if (!server.alive || dashing || stunned || attacking) {
       if (stunned) this.holdUntil = 0; // An interrupted cast must not preserve its old wait.
-      // The server controls position while the wizard is dead, stunned, or dashing.
+      // The server controls position while the wizard is dead, stunned, dashing, or winding up an Attack:
+      // the windup arrives a round trip after the key, so this pulls back the steps walked meanwhile.
       me.pos = add(me.pos, scale(sub(server.pos, me.pos), 0.35));
       me.vel = v(0, 0);
       return me.pos;

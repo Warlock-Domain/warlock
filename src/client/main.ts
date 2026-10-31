@@ -490,11 +490,7 @@ function startRoom(code: string, name: string) {
       if ((myWizard(interp.latest())?.status ?? 0) & 16) return;
       const target = clicked?.endsWith('~ilusao') ? interp.latest()?.projectiles.find((q) => q.kind === 'illusion' && room?.ids[q.vel.x] === clicked.slice(0, -7))?.id : clicked;
       command({ t: 'basic', x: at.x, y: at.y, target });
-      // golpe em arco: a prévia aparece na hora, sem esperar o servidor, e dura o preparo
-      const from = myWizard(interp.latest())?.pos;
-      if (room?.players.find((p) => p.id === me)?.arc && from) arcPreview = { until: performance.now() + BASIC_ATTACK.windup * 1000, facing: Math.atan2(at.y - from.y, at.x - from.x) };
-      predict.stop();
-      predict.hold(BASIC_ATTACK.windup, true);
+      // Send immediately, but let the authoritative windup stop movement: invalid targets and cooldowns do not.
       scene.clickMarker(at, true);
     },
     stop() {
@@ -933,6 +929,9 @@ function startRoom(code: string, name: string) {
     }
     if (!room) return;
     const sv = decodeSnap(m, room.ids);
+    const ownAttack = myWizard(sv);
+    arcPreview = m.ack >= attackCancelSeq && ownAttack?.basicArc && (ownAttack.basicLeft ?? 0) > 0
+      ? { until: performance.now() + ownAttack.basicLeft! * 1000, facing: ownAttack.facing } : null;
     // the cue follows the authoritative Hold ground edge, never the windup
     const bracing = !!((sv.wizards.find((z) => z.id === me)?.status ?? 0) & BRACING_BIT);
     if (bracing && !wasBracing) sound.play('brace');
@@ -1186,7 +1185,7 @@ function startRoom(code: string, name: string) {
       const state = { ...renderWizardState(w, server) };
       if (live && w.id === me && (lastSnap?.ack ?? 0) < attackCancelSeq) state.basicLeft = 0;
       const status = sandboxVisibility(state.status, w.id === me, !!room?.sandbox, seeInvis);
-      const pos = w.id === me && server ? campaignPaused() ? server.pos : predict.frame(server, dt) : w.pos;
+      const pos = w.id === me && server ? campaignPaused() ? server.pos : predict.frame(server, dt, (lastSnap?.ack ?? 0) < attackCancelSeq) : w.pos;
       const prevDraw = prev.get(w.id);
       // Só um comando real pode ligar a corrida; empurrão e reconciliação não são caminhada.
       const moving = !!(state.status & WALKING_BIT) && state.alive && (!!(state.status & HOLDING_MOVE_BIT) || !prevDraw || dist(prevDraw, pos) > 0.004);
