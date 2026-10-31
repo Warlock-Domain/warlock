@@ -36,11 +36,17 @@ describe('authoritative Attack movement', () => {
   it.each([false, true])('stops for a confirmed attack, including melee arc=%s', (arc) => {
     const { w, p, snap } = setup();
     w.wizards[0].arc = arc;
+    // The local wizard keeps walking for 200 ms while the confirmation travels.
+    const pre = snap();
+    for (let i = 0; i < 12; i++) p.frame(pre, DT);
     stepWorld(w, [{ id: 'p0', kind: 'basic', at: v(3, 0) }], () => .5);
     expect(snap().basicLeft).toBeGreaterThan(0);
-    const stopped = p.frame(snap(), 0).x;
-    for (let i = 0; i < 10; i++) { stepWorld(w, [], () => .5); p.frame(snap(), DT); }
-    expect(p.frame(snap(), 0).x).toBeCloseTo(stopped, 8);
+    const stopped = w.wizards[0].pos.x;
+    expect(p.frame(snap(), 0).x - snap().pos.x).toBeGreaterThan(.1);
+    // The confirmed windup pulls it back to the server position.
+    for (let i = 0; i < 20; i++) { stepWorld(w, [], () => .5); p.frame(snap(), DT); }
+    expect(w.wizards[0].pos.x).toBeCloseTo(stopped, 8);
+    expect(p.frame(snap(), 0).x).toBeCloseTo(snap().pos.x, 3);
   });
 
   it.each([50, 150, 300])('preserves newer movement across a %s ms delayed confirmation', (latency) => {
@@ -86,6 +92,7 @@ describe('authoritative Attack movement', () => {
     const s = snap();
     p.frame(s, 0);
     p.move(v(-5, 0));
-    expect(p.frame(s, DT).x).toBeLessThan(0);
+    // The move raises attackCancelSeq in main.ts, so frames before its acknowledgement pass basicCancelled.
+    expect(p.frame(s, DT, true).x).toBeLessThan(0);
   });
 });

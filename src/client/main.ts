@@ -1176,7 +1176,7 @@ function startRoom(code: string, name: string) {
       const state = { ...renderWizardState(w, server) };
       if (live && w.id === me && (lastSnap?.ack ?? 0) < attackCancelSeq) state.basicLeft = 0;
       const status = sandboxVisibility(state.status, w.id === me, !!room?.sandbox, seeInvis);
-      const pos = w.id === me && server ? campaignPaused() ? server.pos : predict.frame(server, dt) : w.pos;
+      const pos = w.id === me && server ? campaignPaused() ? server.pos : predict.frame(server, dt, (lastSnap?.ack ?? 0) < attackCancelSeq) : w.pos;
       const prevDraw = prev.get(w.id);
       // Só um comando real pode ligar a corrida; empurrão e reconciliação não são caminhada.
       const moving = !!(state.status & WALKING_BIT) && state.alive && (!!(state.status & HOLDING_MOVE_BIT) || !prevDraw || dist(prevDraw, pos) > 0.004);
