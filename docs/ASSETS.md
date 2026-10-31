@@ -28,6 +28,7 @@ Gêiser: ícone `icons.svg#water-splash` (Lorc, game-icons.net, CC BY 3.0), esco
 | `icons.svg#healing-cross` | cruz geométrica de Curar | `src/client/icons.ts`; regenerada em `scripts/assets/build-icons.mjs` | geometria original do projeto, sem asset externo |
 | Inelegant Solution: rifle, laser, reticle, tracer and screen-edge tension lines | procedural rifle/scope/stock, red laser and reticle, muzzle tracer; black/white/cyan edge-line shader seen by the caster or a spectator following them; shot reuses the credited `hitHeavy` effect | `src/client/sniper-fx.ts`, `src/client/sniper-focus.ts`, `src/client/scene.ts`; the demo draws the same aim | generated in code by the project, no external asset |
 | `icons.svg#coins-pile` | coin pile icon for Squid Pix (Fernando's choice, 25/10: "the little coins icon"), separate from the gold `two-coins` | `src/client/icons.ts`; downloaded by `scripts/assets/build-icons.mjs` | Delapouite, game-icons.net, CC BY 3.0 (credited in `public/CREDITS.txt`) |
+| Elemental Spheres: orbiting spheres | procedural Three.js spheres (fire red, water blue, earth brown, ki white, void black) with a grey silhouette; reuses the credited `star-swirl` icon and the Shield effect | `src/client/scene.ts`, `src/client/demo.ts`, `src/shared/elemental-spheres.ts` | generated in code by the project, no external asset |
 | `icons.svg#sniper-rifle` | geometric rifle icon for Inelegant Solution | `src/client/icons.ts`; regenerated in `scripts/assets/build-icons.mjs` | original project geometry, no external asset |
 | `models/mage.glb`, `knight`, `barbarian`, `rogue`, `rogue_hooded`, `skeleton_mage`, `skeleton_minion`, `skeleton_rogue`, `skeleton_warrior` | os 9 bonecos (1 MB cada), com 21 animações | `src/client/scene.ts` (`/models/${id}.glb`), lista em `src/shared/characters.ts` | KayKit Adventurers e Skeletons, CC0; cortados por `scripts/slim-character.mjs`, capuz por `scripts/assets/hood.mjs` |
 | `models/KAYKIT-LICENSE.txt`, `KAYKIT-SKELETONS-LICENSE.txt` | licenças dos bonecos | — | KayKit, CC0 |
@@ -71,5 +72,3 @@ Decisão do Fernando em 21/10. Vale para quem contribui e para toda IA.
 2. **Explicado:** a linha diz o que é e para que serve no jogo.
 3. **Referenciado:** a linha diz onde o código usa o arquivo (`arquivo.ts`) e de onde ele veio, com a licença; o crédito vai em `public/CREDITS.txt`.
 4. Asset que sai do jogo sai daqui também. Tudo no mesmo PR do asset.
-
-- Elemental Spheres: procedural Three.js orbit spheres; fire red/water blue/earth brown/ki white/void black. Reuses credited star-swirl icon and Shield sound; no external assets.

@@ -10,7 +10,7 @@ import { add, scale, v, type Vec } from '../shared/vec.ts';
 import { LOCALE, spellName, t } from './i18n.ts';
 import { n1 } from './rules-text.ts';
 import { mulberry32 } from '../shared/rng.ts';
-import { ELEMENT_COLORS, elementalOrbit } from '../shared/elemental-spheres.ts';
+import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit } from '../shared/elemental-spheres.ts';
 import { channelPower } from '../shared/channeling.ts';
 import { electroPulse } from './screen-data.ts';
 import { HEAL_FX, healAura } from './heal-fx.ts';
@@ -95,8 +95,8 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[]; r
 
 // Rótulos seguem os estados reais para a prévia não sugerir que stun, prisão e postura têm o mesmo bloqueio.
 export function demoStatus(w: World, z: Wizard): string[] {
-  if (z.spheres?.length) return [t(`${z.spheres.length}/5 esferas · ${n1(Math.max(...z.spheres.map(s => s.until - w.t)))} s`, `${z.spheres.length}/5 spheres · ${n1(Math.max(...z.spheres.map(s => s.until - w.t)))} s`)];
-  if(z.casting?.spell==='sniper') return [t(`mirando · ${n1(z.casting.fireAt-w.t)} s · tiro ${spellLevel('sniper',1).dmg}`,`aiming · ${n1(z.casting.fireAt-w.t)} s · shot ${spellLevel('sniper',1).dmg}`)];
+  if (z.spheres?.length) return [t(`${z.spheres.length}/${ELEMENTAL_SPHERES.max} esferas · ${n1(Math.max(...z.spheres.map(s => s.until - w.t)))} s`, `${z.spheres.length}/${ELEMENTAL_SPHERES.max} spheres · ${n1(Math.max(...z.spheres.map(s => s.until - w.t)))} s`)];
+  if(z.casting?.spell==='sniper') return [t(`mirando · ${n1(Math.max(0,z.casting.fireAt-w.t))} s · tiro ${spellLevel('sniper',1).dmg}`,`aiming · ${n1(Math.max(0,z.casting.fireAt-w.t))} s · shot ${spellLevel('sniper',1).dmg}`)];
   if (z.channel) {
     // below 1 s the charge is not ready (power 0): show no bonus until a click would actually fire
     const elapsed = Math.min(2, w.t - z.channel.since), bonus = Math.round((channelPower(elapsed) - 1) * 100);

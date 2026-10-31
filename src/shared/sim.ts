@@ -902,11 +902,12 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec, power = 1, aimedId?
 
 function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number, aimedId?: string, copy?: number) {
   if (spell === 'channel') return;
-  if (spell === 'elemental' && (wz.spheres?.filter(s => s.until > w.t).length ?? 0) >= ELEMENTAL_SPHERES.max) return;
+  if (spell === 'elemental' && (wz.spheres?.length ?? 0) >= ELEMENTAL_SPHERES.max) return;
   const level = copy ?? wz.spells[spell];
   if (!level || (copy === undefined && w.t < wz.cd[spell])) return;
   const bonus = elementalBonuses(wz.spheres, w.t);
   const L = elementalLevel(channelLevel(spellLevel(spell, level), power), bonus);
+  const mods = { stats: L, size: 1 + bonus.earth, water: 1 + bonus.water, ki: 1 + bonus.ki }; // captured at launch: later spheres do not change a projectile in flight
   const recipient = spell === 'heal' ? healTarget(w.wizards, wz, at, L.range * wz.rangeF) : undefined;
   if (spell === 'heal' && !recipient) return;
   if (spell === 'closedbody' && !bracingActive(w, wz)) return;
@@ -937,8 +938,7 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
     return;
   }
   if (spell === 'elemental') {
-    const spheres = wz.spheres = (wz.spheres ?? []).filter(s => s.until > w.t);
-    spheres.push({ element: ELEMENTS[Math.floor(w.rand() * ELEMENTS.length)], until: w.t + L.duration });
+    (wz.spheres ??= []).push({ element: ELEMENTS[Math.floor(w.rand() * ELEMENTS.length)], until: w.t + L.duration });
     return;
   }
   if (spell === 'scourge') return scourge(w, wz, L, dmgMult);
@@ -956,7 +956,7 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
 
   // projétil reto saindo do mago; life em segundos (já com o alcance do Elmo)
   const launch = (kind: ProjKind, d: Vec, life: number, target: string | null = null, from = add(wz.pos, scale(d, PROJ_SPAWN))) => {
-    const p: Projectile = { id: w.nextId++, born: w.t, kind, owner: wz.id, pos: from, vel: scale(d, L.speed), level, until: w.t + life, target, dmgMult, caster: wz.id, stats: L, size: 1 + bonus.earth, water: 1 + bonus.water, ki: 1 + bonus.ki };
+    const p: Projectile = { id: w.nextId++, born: w.t, kind, owner: wz.id, pos: from, vel: scale(d, L.speed), level, until: w.t + life, target, dmgMult, caster: wz.id, ...mods };
     w.projectiles.push(p);
     return p;
   };
@@ -968,10 +968,10 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
     castCluster(w, wz, L, dir, dmgMult);
   } else if (spell === 'pix') {
     const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
-    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'pix', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + PIX.rain, target: null, dmgMult, caster: wz.id, stats: L, size: 1 + bonus.earth, water: 1 + bonus.water, ki: 1 + bonus.ki, soak: {} });
+    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'pix', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + PIX.rain, target: null, dmgMult, caster: wz.id, ...mods, soak: {} });
   } else if (spell === 'grip') {
     const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
-    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'grip', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + GRIP.delay, target: null, dmgMult, caster: wz.id, stats: L, size: 1 + bonus.earth, water: 1 + bonus.water, ki: 1 + bonus.ki });
+    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'grip', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + GRIP.delay, target: null, dmgMult, caster: wz.id, ...mods });
   } else if (spell === 'snowball' || spell === 'magnetize') {
     launch(spell, dir, flight);
   } else if (spell === 'swap') {
@@ -980,7 +980,7 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
     launch('swap', dir, (L.range * wz.rangeF) / L.speed, null, wz.pos).dest = add(wz.pos, scale(clampLen(sub(at, wz.pos), L.range * wz.rangeF), 0.5));
   } else if (spell === 'meteor') {
     const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
-    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'meteor', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + METEOR_DELAY, target: null, dmgMult, caster: wz.id, stats: L, size: 1 + bonus.earth, water: 1 + bonus.water, ki: 1 + bonus.ki });
+    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'meteor', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + METEOR_DELAY, target: null, dmgMult, caster: wz.id, ...mods });
   } else if (spell === 'rush') {
     wz.rushUntil = w.t + positiveDuration(w, wz, L.duration);
     wz.rushLeft = L.absorb;
@@ -1041,12 +1041,12 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
     launch('splitter', dir, Math.min(L.range * wz.rangeF, len(sub(at, wz.pos))) / L.speed);
   } else if (spell === 'geyser') {
     const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
-    const p: Projectile = { id: w.nextId++, born: w.t, kind: 'geyser', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + L.duration, target: null, dmgMult: 1, caster: wz.id, stats: L, size: 1 + bonus.earth, water: 1 + bonus.water, ki: 1 + bonus.ki };
+    const p: Projectile = { id: w.nextId++, born: w.t, kind: 'geyser', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + L.duration, target: null, dmgMult: 1, caster: wz.id, ...mods };
     w.projectiles.push(p);
     geyserLift(w, p); // suspende já na criação, antes de preparos de outros magos no mesmo passo.
   } else if (spell === 'warpzone') {
     const to = add(wz.pos, clampLen(sub(at, wz.pos), L.range * wz.rangeF));
-    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'warpzone', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + L.duration, target: null, dmgMult, caster: wz.id, stats: L, size: 1 + bonus.earth, water: 1 + bonus.water, ki: 1 + bonus.ki });
+    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'warpzone', owner: wz.id, pos: to, vel: v(0, 0), level, until: w.t + L.duration, target: null, dmgMult, caster: wz.id, ...mods });
   } else if (spell === 'lightning') {
     castLightning(w, wz, L, dir, dmgMult);
   } else if (spell === 'shield') {
@@ -1075,7 +1075,7 @@ function sniperVictim(w: World, wz: Wizard, at: Vec, range: number, aimedId?: st
 
 // começa a conjurar: confere nível e recarga agora; o efeito sai depois do tempo de conjuração
 function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
-  if (spell === 'elemental' && (wz.spheres?.filter(s => s.until > w.t).length ?? 0) >= ELEMENTAL_SPHERES.max) return;
+  if (spell === 'elemental' && (wz.spheres?.length ?? 0) >= ELEMENTAL_SPHERES.max) return;
   if (spell === 'channel') return;
   if (castBlocked(isStunned(wz), w.t < wz.gripUntil, spell)) return;
   if (spell === 'closedbody' && !bracingActive(w, wz)) return;
@@ -1362,6 +1362,7 @@ function windTouch(w: World, wz: Wizard) {
 // Marcas de chão não são desviadas por habilidades; a cópia da Ilusão continua móvel.
 const fixed = (p: Projectile) => p.kind === 'meteor' || p.kind === 'warpzone' || p.kind === 'grip' || p.kind === 'geyser' || p.kind === 'pix';
 const returning = (p: Projectile) => !!p.back && (p.kind === 'drain' || p.kind === 'recharge'); // bolinha voltando a quem lançou
+const inherit = (p: Projectile) => ({ stats: p.stats, size: p.size, water: p.water, ki: p.ki }); // child projectiles keep the parent's captured modifiers
 export const projectileLevel = (p: Projectile): Level => p.stats ?? channelLevel(spellLevel(spellOf(p.kind), p.level), p.power);
 export const projectileRadius = (p: Projectile) => (p.kind === 'snowball' ? snowR(p.level) : PROJ_R) * (p.size ?? 1);
 export const spellOf = (k: ProjKind): SpellId => (k === 'shard' ? 'splitter' : k === 'basic' ? 'fireball' : k); // Attack reuses the Fireball visuals; numbers and hit source come from the projectile (stats, src)
@@ -1459,7 +1460,7 @@ function drainHit(w: World, p: Projectile, wz: Wizard, L: Level) {
   hit(w, wz, p.owner, amount, L.knock * p.dmgMult, p.vel, 'drain');
   slowDown(w, wz, DRAIN.slow, L.duration * wz.debuffMult * afflictBy(w, p.owner));
   land(w, p, 'drain');
-  w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'drain', power: p.power, owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + DRAIN.life, target: p.owner, dmgMult: p.dmgMult, caster: p.caster, stats: p.stats, size: p.size, water: p.water, ki: p.ki, back: true });
+  w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'drain', power: p.power, owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + DRAIN.life, target: p.owner, dmgMult: p.dmgMult, caster: p.caster, ...inherit(p), back: true });
 }
 
 export const snowR = (level: number) => SNOWBALL.coll + SNOWBALL.perLevel * (level - 1);
@@ -1548,7 +1549,7 @@ function spawnShards(w: World, p: Projectile, dt: number): boolean {
   const a = SPLITTER.spawnLife * (p.waves! / SPLITTER.waves);
   for (const s of [-1, 1]) {
     const dir = v((d.x - s * d.y * a) / (1 + a), (d.y + s * d.x * a) / (1 + a));
-    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'shard', owner: p.owner, pos: p.pos, vel: scale(dir, SPLITTER.childSpeed * (p.power ?? 1) * (p.water ?? 1)), power: p.power, stats: p.stats, size: p.size, water: p.water, ki: p.ki, level: p.level, until: w.t + SPLITTER.childLife, target: null, dmgMult: p.dmgMult, caster: p.caster });
+    w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'shard', owner: p.owner, pos: p.pos, vel: scale(dir, SPLITTER.childSpeed * (p.power ?? 1) * (p.water ?? 1)), power: p.power, ...inherit(p), level: p.level, until: w.t + SPLITTER.childLife, target: null, dmgMult: p.dmgMult, caster: p.caster });
   }
   p.tick = (p.tick ?? 0) + SPLITTER.spawnLife / SPLITTER.waves;
   return --p.waves! > 0;
@@ -1738,7 +1739,7 @@ function hitWizard(w: World, p: Projectile, found: { wz: Wizard; t: number }, L:
     const enemy = !allies(anyById(w, p.owner), wz);
     if (caster) caster.streak = p.owner === p.caster && enemy ? caster.streak + 1 : 0;
     if (enemy) land(w, p, 'recharge');
-    if (enemy) w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'recharge', power: p.power, owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + RECHARGE.life, target: p.owner, dmgMult: 1, caster: p.caster, stats: p.stats, size: p.size, water: p.water, ki: p.ki, back: true });
+    if (enemy) w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'recharge', power: p.power, owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + RECHARGE.life, target: p.owner, dmgMult: 1, caster: p.caster, ...inherit(p), back: true });
   } else if (p.kind === 'link') {
     // Stay attached to the wizard until released (linkHold)
     [p.target, p.pos, p.vel, p.tick] = [wz.id, wz.pos, v(0, 0), w.t + LINK.tick];

@@ -103,7 +103,7 @@ export type PublicRoom = {
 // fx: efeitos com prazo de quem recebe, 2 números por efeito: bit de estado (como em w) e segundos que faltam
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
 // ba: dois números por mago: preparo de Atacar restante em segundos e corpo a corpo (1/0; 2 = golpe em arco da versão alternativa, na direção do mago); ausente = sem preparo.
-// mt: two numbers per wizard: linked ally index (-1 inactive), extra cooldown speed (0.2 to 1.4).
+// sr: shield radius per wizard while the Shield is up (0 = none or hidden).
 // eo: triples of wizard index, element index and seconds left; at most five spheres per visible wizard.
 // ps: projectile id/size pairs captured at launch; default size is one.
 export type Snap = { sr?: number[]; ps?: number[]; eo?: number[]; t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; sn?: number[]; cn?: number[]; bl?: number[]; cb?: number[]; gy?: number[]; pz?: number[]; pk?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };

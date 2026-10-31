@@ -1,4 +1,4 @@
-import { elementalBonuses } from '../shared/elemental-spheres.ts';
+import { ELEMENTAL_SPHERES, elementalBonuses } from '../shared/elemental-spheres.ts';
 import { inLavaAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, BASIC_ATTACK, BRACING_BIT, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
@@ -510,7 +510,7 @@ function startRoom(code: string, name: string) {
       if (spell === 'channel') return false;
       if (spell === 'elemental') {
         const self = myWizard(interp.latest());
-        if ((self?.spheres?.length ?? 0) >= 5) { toast(t('Você já tem 5 esferas ativas.', 'You already have 5 active spheres.')); return false; }
+        if ((self?.spheres?.length ?? 0) >= ELEMENTAL_SPHERES.max) { toast(t(`Você já tem ${ELEMENTAL_SPHERES.max} esferas ativas.`, `You already have ${ELEMENTAL_SPHERES.max} active spheres.`)); return false; }
         if (self) at = self.pos;
       }
       if (channelRequest?.spell === spell && ((myWizard(interp.latest())?.channelElapsed ?? 0) < 1)) { toast(t('Canalize por pelo menos 1 segundo.', 'Channel for at least 1 second.')); return false; }
