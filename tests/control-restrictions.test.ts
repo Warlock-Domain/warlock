@@ -17,7 +17,7 @@ describe('stun and root: authoritative restrictions', () => {
   it.each(SPELL_IDS)('Grip applies movement restrictions to %s', (spell) => {
     const w = world([[0, 0]], { ...noSpells(), [spell]: 1 }, [], () => .5);
     const z = w.wizards[0]; z.gripUntil = 5;
-    if (spell === 'transfusion') { const ally = world([[3, 0]], noSpells(), [], () => .5).wizards[0]; ally.id = 'ally'; ally.team = z.team = 0; w.wizards.push(ally); }
+    if (spell === 'transfusion' || spell === 'nexus') { const ally = world([[3, 0]], noSpells(), [], () => .5).wizards[0]; ally.id = 'ally'; ally.team = z.team = 0; w.wizards.push(ally); }
     if (spell === 'sniper') { const enemy = world([[3,0]], noSpells(), [], () => .5).wizards[0]; enemy.id='enemy'; w.wizards.push(enemy); }
     if (spell === 'closedbody') { z.braceReadyAt = 0; z.braceUntil = 1; }
     stepWorld(w, [{ id: z.id, kind: 'cast', spell, at: spell === 'heal' ? z.pos : v(3, 0) }], () => .5);

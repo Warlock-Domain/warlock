@@ -11,7 +11,7 @@ import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './
 import { SHIELD, castBlocked } from './spells.ts';
 import { BASIC_ATTACK, BRACE, GUARD, KNOCK_RECOVERY, MELEE_ARC } from './constants.ts';
 import { sniperTarget } from './sniper-target.ts';
-import { healTarget, transfusionTarget } from './heal-target.ts';
+import { allyTarget, healTarget } from './heal-target.ts';
 import { channelLevel, channelPower } from './channeling.ts';
 
 export type Wizard = {
@@ -473,7 +473,7 @@ function nexusAlly(w: World, caster: Wizard): Wizard | undefined {
 }
 function nexusCaster(w: World, target: Wizard) { return w.wizards.find(z => z.nexus?.target === target.id && nexusAlly(w, z) === target); }
 function validNexusTarget(w: World, caster: Wizard, at: Vec, range: number) {
-  const target = nexusTarget(w.wizards.filter(z => !isSuspended(z)), caster, at, range);
+  const target = allyTarget(w.wizards.filter(z => !isSuspended(z)), caster, at, range);
   if (!target) return;
   const seen = new Set<string>([caster.id]);
   let next: Wizard | undefined = target;
@@ -958,8 +958,10 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
   const level = copy ?? wz.spells[spell];
   if (!level || (copy === undefined && w.t < wz.cd[spell])) return;
   const L = channelLevel(spellLevel(spell, level), power);
-  const mind = spell === 'transfusion' ? transfusionTarget(w.wizards.filter((z) => !isSuspended(z)), wz, at, L.range * wz.rangeF) : undefined;
+  const mind = spell === 'transfusion' ? allyTarget(w.wizards.filter((z) => !isSuspended(z)), wz, at, L.range * wz.rangeF) : undefined;
   if (spell === 'transfusion' && !mind) return;
+  const soul = spell === 'nexus' ? validNexusTarget(w, wz, at, L.range * wz.rangeF) : undefined;
+  if (spell === 'nexus' && !soul) return;
   const recipient = spell === 'heal' ? healTarget(w.wizards, wz, at, L.range * wz.rangeF) : undefined;
   if (spell === 'heal' && !recipient) return;
   if (spell === 'closedbody' && !bracingActive(w, wz)) return;
@@ -974,6 +976,12 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
     return;
   }
   for (let i = 0; i < (SHOTS[spell] ?? 1); i++) w.events.push({ k: 'fire', id: wz.id, src: spell });
+  if (soul) {
+    for (const other of w.wizards) if (other.nexus?.target === soul.id) other.nexus = undefined;
+    wz.nexus = { target: soul.id, range: L.range * wz.rangeF };
+    wz.windUntil = 0;
+    return;
+  }
   if (mind) {
     wz.windUntil = 0;
     wz.transfusion = { target: mind.id, range: L.range * wz.rangeF, level };
@@ -1149,7 +1157,7 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   if (!wz.spells[spell] || w.t < wz.cd[spell]) return;
   if (spell === 'nexus' && !validNexusTarget(w, wz, at, channelLevel(spellLevel(spell, wz.spells[spell]), wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1).range * wz.rangeF)) return;
   // An invalid target neither reveals the wizard nor cancels another action.
-  if (spell === 'transfusion' && !transfusionTarget(w.wizards.filter((z) => !isSuspended(z)), wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF * (wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1))) return;
+  if (spell === 'transfusion' && !allyTarget(w.wizards.filter((z) => !isSuspended(z)), wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF * (wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1))) return;
   if (spell === 'heal' && !healTarget(w.wizards, wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF * (wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1))) return;
   const aimed = spell === 'sniper' ? sniperVictim(w,wz,at,spellLevel(spell,wz.spells[spell]).range*wz.rangeF) : undefined;
   if (spell === 'sniper' && !aimed) return;
@@ -1977,7 +1985,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
 export function revive(w: World, wz: Wizard, pos: Vec) {
   Object.assign(wz, {
     alive: true, pos, vel: v(0, 0), target: null, casting: null, channel: undefined, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
-    transfusion: undefined, blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined, puppetBy: undefined, puppetUntil: 0,
+    nexus: undefined, transfusion: undefined, blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined, puppetBy: undefined, puppetUntil: 0,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
     rune: null, runeUntil: 0, braceUntil: 0, braceReadyAt: 0, electroUntil: 0, basicCasting: undefined,
@@ -2494,6 +2502,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   if (w.map) dropWalled(w);
   clashProjectiles(w);
   stepGround(w);
+  for (const z of w.wizards) if (z.nexus && !nexusAlly(w, z)) z.nexus = undefined;
   advanceTransfusions(w);
   // After commands and impacts, pause cooldown progress without blocking ready abilities.
   for (const wz of w.wizards) if (wz.alive) {

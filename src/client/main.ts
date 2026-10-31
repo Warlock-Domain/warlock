@@ -47,7 +47,7 @@ import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, set
 import { sniperFocusState } from './sniper-focus.ts';
 import { attackTarget, sniperTarget } from '../shared/sniper-target.ts';
 import { sniperShotSound } from './sniper-fx.ts';
-import { healTarget, transfusionTarget } from '../shared/heal-target.ts';
+import { allyTarget, healTarget } from '../shared/heal-target.ts';
 
 declare const __BRANCH__: string;
 declare const __BUILD__: string;
@@ -79,6 +79,7 @@ const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 // som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
   transfusion: 'lightning',
+  nexus: 'shield',
   sniper: 'hitHeavy',
   pix: 'lightning', // the same cast effect as Grip, whose mark it shares
   channel: 'shield',
@@ -464,7 +465,7 @@ function startRoom(code: string, name: string) {
       predict.stop(); sound.play('shield'); return true;
     },
     pick: (x, y, spell) => {
-      if (spell === 'heal' || spell === 'sniper' || spell === 'transfusion') {
+      if (spell === 'heal' || spell === 'sniper' || spell === 'transfusion' || spell === 'nexus') {
         const id = scene.pickMage(x, y);
         return interp.latest()?.wizards.find(w => w.id === id)?.pos ?? null;
       }
@@ -512,7 +513,7 @@ function startRoom(code: string, name: string) {
       if (spell === 'nexus') {
         const units = interp.latest()?.wizards.filter(w => !(w.geyserLeft ?? 0)).map(w => ({ ...w, team: room?.players.find(p => p.id === w.id)?.team })) ?? [];
         const self = units.find(w => w.id === me);
-        const target = self && nexusTarget(units, self, at, reachOf(spell, mine.spells, mine.items, channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1));
+        const target = self && allyTarget(units, self, at, reachOf(spell, mine.spells, mine.items, channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1));
         if (!target) return toast(t('Clique num aliado vivo dentro do alcance; não pode mirar em si mesmo.', 'Click a living ally in range; cannot target yourself.'));
         at = target.pos;
       }
@@ -530,7 +531,7 @@ function startRoom(code: string, name: string) {
       if (spell === 'transfusion') {
         const units = interp.latest()?.wizards.filter((w) => !(w.geyserLeft ?? 0)).map((w) => ({ ...w, team: room?.players.find((p) => p.id === w.id)?.team })) ?? [];
         const self = units.find((w) => w.id === me);
-        const target = self && transfusionTarget(units, self, at, reachOf(spell, mine.spells, mine.items, channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1));
+        const target = self && allyTarget(units, self, at, reachOf(spell, mine.spells, mine.items, channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1));
         if (!target) return toast(t('Clique num aliado vivo dentro do alcance; não pode mirar em si mesmo.', 'Click a living ally in range; cannot target yourself.'));
         at = target.pos;
         predict.stop();
@@ -555,7 +556,7 @@ function startRoom(code: string, name: string) {
       // Sniper movement cancels its aim; ordinary casts retain queued movement.
       predict.hold(CAST_POINT[spell], spell === 'sniper');
       scene.castLocal(me, spell, at);
-      if (spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper' && spell !== 'transfusion') scene.clickMarker(at, true); // Support and aimed casts do not show the generic orange attack marker.
+      if (spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper' && spell !== 'transfusion' && spell !== 'nexus') scene.clickMarker(at, true); // Support and aimed casts do not show the generic orange attack marker.
       if (spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper') sound.play(SPELL_SOUND[spell]); // Heal and the sniper shot play only on authoritative confirmation.
       return true;
     },
@@ -565,7 +566,7 @@ function startRoom(code: string, name: string) {
     },
     zoom: (d) => scene.zoomBy(d),
     pan: (dx, dy) => scene.panBy(dx, dy),
-    armedChanged: (s) => { armed = s; canvas.style.cursor = (s === 'heal' || s === 'sniper' || s === 'transfusion') ? 'crosshair' : ''; },
+    armedChanged: (s) => { armed = s; canvas.style.cursor = (s === 'heal' || s === 'sniper' || s === 'transfusion' || s === 'nexus') ? 'crosshair' : ''; },
     preview: (s, at) => {
       held = s;
       const from = drawn.get(me);
