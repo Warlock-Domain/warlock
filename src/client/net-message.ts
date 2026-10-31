@@ -1,4 +1,3 @@
-import { ELEMENTS, ELEMENTAL_SPHERES } from '../shared/elemental-spheres.ts';
 import { CARD_KINDS } from '../shared/ascension.ts';
 import { ARENA_IDS } from '../shared/arena.ts';
 import { isCharacter } from '../shared/characters.ts';
@@ -83,7 +82,7 @@ function event(x: unknown): x is SimEvent {
     case 'cast': return id() && isSpell(x.spell);
     case 'hit': return id() && id('by') && num('x', 'y', 'dmg') && string(x.src) && (x.crit === undefined || x.crit === true);
     case 'reflect': case 'grip': case 'scourge': case 'loot': return id() && num('x', 'y') && (x.k !== 'scourge' || num('r'));
-    case 'lightning': return vector(x.from) && vector(x.to) && (x.width === undefined || finite(x.width) && x.width > 0 && x.width < 1);
+    case 'lightning': return vector(x.from) && vector(x.to);
     case 'snipe':
     case 'teleport': return id() && vector(x.from) && vector(x.to);
     case 'vines': return num('x', 'y', 'r');
@@ -110,26 +109,7 @@ function snap(x: Obj): x is Obj & Snap {
   const count = (x.w as number[]).length / 7;
   if (!Number.isInteger(count) || (x.p as number[]).length % 6 || (x.pl as number[]).length % 4 || (x.cd as number[]).length !== SPELL_IDS.length) return false;
   if (['rs', 'lp', 'em', 'ab', 'st', 'kr'].some((k) => x[k] !== undefined && (x[k] as number[]).length !== count) || ['ch', 'ru'].some((k) => x[k] !== undefined && (x[k] as number[]).length % 3) || (x.zn !== undefined && (x.zn as number[]).length % 5) || (x.il !== undefined && (x.il as number[]).length % 3) || (x.fx !== undefined && (x.fx as number[]).length % 2)) return false;
-  if (x.sr !== undefined && (!numericArray(x.sr) || x.sr.length !== count || x.sr.some(n => n < 0 || n > 20))) return false;
-  if (x.ps !== undefined) {
-    if (!numericArray(x.ps) || x.ps.length % 2 || x.ps.length > (x.p as number[]).length / 3) return false;
-    const ids = new Set<number>(), projectiles = new Set((x.p as number[]).filter((_, i) => i % 6 === 0));
-    for (let i = 0; i < x.ps.length; i += 2) {
-      const [id, size] = x.ps.slice(i, i + 2);
-      if (!integer(id) || !projectiles.has(id) || ids.has(id) || size < 1 || size > 1.25) return false;
-      ids.add(id);
-    }
-  }
-  if (x.eo !== undefined) {
-    if (!numericArray(x.eo) || x.eo.length % 3 || x.eo.length > count * ELEMENTAL_SPHERES.max * 3) return false;
-    const totals = new Map<number, number>();
-    for (let i = 0; i < x.eo.length; i += 3) {
-      const [owner, element, left] = x.eo.slice(i, i + 3);
-      if (!integer(owner) || owner < 0 || owner >= count || !integer(element) || element < 0 || element >= ELEMENTS.length || left < 0 || left > 30) return false;
-      totals.set(owner, (totals.get(owner) ?? 0) + 1);
-      if (totals.get(owner)! > ELEMENTAL_SPHERES.max) return false;
-    }
-  }
+  if (x.mt !== undefined && (!numericArray(x.mt) || x.mt.length !== count * 2 || x.mt.some((n, i) => i % 2 === 0 ? !Number.isInteger(n) || n < -1 || n >= count : n < 0 || n > 1.4))) return false;
   if (x.cn !== undefined) {
     const cn = x.cn as number[];
     if (cn.length !== count * 2 || cn.some((n, i) => (i % 2 === 0 ? !Number.isInteger(n) || n < -1 || n >= SPELL_IDS.length : n < 0 || n > 2))) return false;

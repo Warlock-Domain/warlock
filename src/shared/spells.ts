@@ -1,7 +1,7 @@
 import { FRICTION, KB_PER_DMG, UNIT, WIZ_SPEED } from './constants.ts';
 
 export const SPELL_IDS = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap', 'grip', 'meteor', 'rush', 'cluster', 'boomerang', 'thrust', 'gravity', 'rockpillar', 'bouncer',
-  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone', 'scourge', 'pact', 'heal', 'geyser', 'closedbody', 'channel', 'sniper', 'pix', 'elemental'] as const;
+  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone', 'scourge', 'pact', 'heal', 'geyser', 'closedbody', 'channel', 'sniper', 'pix', 'transfusion'] as const;
 export type SpellId = (typeof SPELL_IDS)[number];
 export const isSpell = (x: unknown): x is SpellId => SPELL_IDS.includes(x as SpellId);
 // spells anyone can have on the bar: the Scourge is an item again (26/10, #227) and only fires through the spell path
@@ -15,8 +15,8 @@ export const SPELL_GROUP_IDS = {
   mobility: ['teleport', 'swap', 'rush', 'thrust', 'windwalk'],
   defense: ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion', 'closedbody'],
   control: ['grip', 'gravity', 'link', 'magnetize', 'drain', 'cluster', 'pix'],
-  support: ['heal', 'geyser'],
-  utility: ['elemental'],
+  support: ['heal', 'geyser', 'transfusion'],
+  utility: [],
 } as const satisfies Record<string, readonly SpellId[]>;
 type SpellGroup = keyof typeof SPELL_GROUP_IDS;
 export const SHIELD = { statusDuration: .6, knock: .6 }; // proposta: reduz novos status/impulsos em40%, nunca recalcula os anteriores.
@@ -69,7 +69,7 @@ export const SPELLS: Record<SpellId, Spell> = {
   bouncer: { name: 'Ricochete', en: 'Bouncer', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([19, 18, 17, 16, 15, 14, 13], [54, 62, 70, 78, 86, 94, 102]).map(([cd, d]) => L({ cd, dmg: d, kbf: 1.2, speed: 900 * UNIT, range: 900 * UNIT })) },
   // as dez restantes do Warlock Brawl (dono do jogo, 17/10): npc_abilities_custom.txt, base/shop.lua, spells/, projectiles/ e modifiers/
   // drenar: 700 u/s até o ponto (máx. 850 u), depois vira para o mago mais perto; duration = lentidão no inimigo e pressa no aliado; empurrão 0,2
-  drain: { name: 'Drenar', en: 'Drain', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(22, -1).map((cd, i) => L({ cd: cd * 1.2 /* 18/10 bots humanos: 16% acima (×1,1); 19/10 bots do fim de rodada: 16% acima de novo (×1,2) */, dmg: 60 + 10 * i, heal: 60 + 10 * i, kbf: 0.2, speed: 700 * UNIT, range: 850 * UNIT, duration: 4 + i })) },
+  drain: { name: 'Drenar', en: 'Drain', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(22, -1).map((cd, i) => L({ cd: cd * 1.2 /* 18/10 bots humanos: 16% acima (×1,1); 19/10 bots do fim de rodada: 16% acima de novo (×1,2) */, dmg: 60 + 10 * i, kbf: 0.2, speed: 700 * UNIT, range: 850 * UNIT, duration: 4 + i })) },
   // bola de neve: 400 u/s por 575 u; dmg = explosão no centro (damage_max; 0 na borda do raio de 200 u; empurrão 0,8); dot = damage, por segundo encostado
   snowball: { name: 'Bola de neve', en: 'Snowball', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(19, -1).map((cd, i) => L({ cd, dmg: (45 + 35 * i) * 1.3, kbf: 0.8, dot: 30 + 10 * i, /* 18/10: explosão ×1,3, +35 e +10 de lentidão por nível (0,91 → 0,96) */ speed: 400 * UNIT, range: 575 * UNIT, radius: 200 * UNIT })) },
   // ilusão (decisão do Fernando, 19/10; não existe no original): a cópia sai do lugar do mago, anda na direção do movimento por 2 s e pode ser empurrada, mas não destruída
@@ -100,8 +100,8 @@ export const SPELLS: Record<SpellId, Spell> = {
   // Lula Pix (issue #416, Fernando's grill of 25 and 26/10): a 2.5 m coin rain up to 11 m away, 3 s of control at every level, upgrades only cut the cooldown; owner exception, measured later in the batch
   pix: { name: 'Lula Pix', en: 'Squid Pix', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(30, -1).map((cd) => L({ cd, duration: 3, radius: 2.5, range: 1100 * UNIT })) },
   // Heal: measured on 24/10 (1.07 on Normal and Hard) and approved by Fernando; cost follows the other Support spells
-  elemental: { name: 'Esferas elementais', en: 'Elemental Spheres', cost: 12, up: [], levels: steps(5, 0).map(cd => L({ cd, duration: 30 })) },
   heal: { name: 'Curar', en: 'Heal', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(45, 6).map((heal, i) => L({ heal, cd: 20 - i, range: 10 })) },
+  transfusion: { name: 'Transfusão mental', en: 'Mental Transfusion', cost: 25, up: [6, 7, 8, 9, 10, 11], levels: steps(22, -1).map((cd, i) => L({ cd, range: 10 + i, scale: (i + 1) / 5 })) }, // scale: extra ally cooldown seconds per second of the link; Leonard's numbers, owner exception of 31/10, measured later in the batch
   //24/10: área−25% pede raio×√0,75, não raio−25%; alcance reduzido a10m. CD/preço continuam provisórios.
   closedbody: { name: 'Corpo fechado', en: 'Closed Body', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(3.5, .75).map(duration => L({ cd: 20, duration })) }, // duration per level as requested; cost and cooldown under the owner exception, measured later in the batch
   geyser: { name: 'Gêiser', en: 'Geyser', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(20, -1).map(cd => L({ cd, duration: 2.5, radius: 1.5 * Math.sqrt(.75), range: 10 })) }, // −1 s cooldown per level like Heal, so upgrades buy something (owner exception: measured later in the batch)
@@ -171,7 +171,7 @@ export const SPLITTER = { spawnSpeed: 250 * UNIT, spawnLife: 0.48, waves: 4, chi
 // tempo de conjuração: a magia sai esse tempo depois da tecla (AbilityCastPoint do original era 0,2 s)
 export const CAST_POINT: Record<SpellId, number> = { fireball: 0.1, lightning: 0.1, homing: 0.1, shield: 0, teleport: 0, swap: 0, grip: 0.1, meteor: 0.1, rush: 0, cluster: 0.1, boomerang: 0.1, thrust: 0, gravity: 0.1, rockpillar: 0, bouncer: 0.1,
   drain: 0.1, snowball: 0.1, illusion: 0, magnetize: 0.1, recharge: 0.1, alteration: 0, link: 0.1, windwalk: 0, splitter: 0, warpzone: 0.1,
-  scourge: 0.5, pact: 0.1, heal: 0, geyser: 0.1, closedbody: 0, channel: 0, sniper: 3 /* 26/10: 4.5 → 3, Fernando's request, no simulator (same exception as 25/10) */, pix: 0.1, elemental: 0 }; // Heal and Closed body are instant; Scourge keeps its windup; Geyser uses the common 0.1 s windup.
+  scourge: 0.5, pact: 0.1, heal: 0, geyser: 0.1, closedbody: 0, channel: 0, sniper: 3 /* 26/10: 4.5 → 3, Fernando's request, no simulator (same exception as 25/10) */, pix: 0.1, transfusion: 0 }; // Heal and Closed body are instant; Scourge keeps its windup; Geyser uses the common 0.1 s windup.
 
 export const spellLevel = (id: SpellId, level: number): Level => SPELLS[id].levels[Math.max(1, Math.min(MAX_SPELL_LEVEL, level)) - 1];
 // highest level a spell can reach: one more than its upgrade prices (Channeling has a single level)

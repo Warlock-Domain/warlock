@@ -14,7 +14,7 @@ it('uses individual active-item preferences for the Scourge keyboard action', as
 it('keeps Heal and Inelegant Solution on click whatever the preferences', async () => {
   const { resolveCastMode, setCastPreference } = await import('../src/client/cast-preferences.ts');
   setCastPreference('key:KeyQ', 'release');
-  for (const ability of ['spell:heal', 'spell:sniper']) {
+  for (const ability of ['spell:heal', 'spell:sniper', 'spell:transfusion']) {
     setCastPreference(ability, 'quick');
     expect(resolveCastMode('quick', ability, 'KeyQ')).toBe('click');
     setCastPreference(ability);
