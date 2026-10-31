@@ -12,7 +12,7 @@ import { ODRAN } from '../shared/bosses.ts';
 import { CANDLE, SERVOS, nightXpAt } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
 import { castLevel, itemStats } from '../shared/items.ts';
-import { CAST_POINT, SPELLS, SPELL_IDS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
+import { CAST_POINT, SPELLS, SPELL_IDS, UNIT_TARGET_SPELLS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
 import { channelPower } from '../shared/channeling.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
@@ -467,7 +467,7 @@ function startRoom(code: string, name: string) {
       predict.stop(); sound.play('shield'); return true;
     },
     pick: (x, y, spell) => {
-      if (spell === 'heal' || spell === 'sniper' || spell === 'transfusion' || spell === 'nexus') {
+      if (spell && UNIT_TARGET_SPELLS.has(spell)) {
         const id = scene.pickMage(x, y);
         return interp.latest()?.wizards.find(w => w.id === id)?.pos ?? null;
       }
@@ -563,7 +563,7 @@ function startRoom(code: string, name: string) {
       // Sniper movement cancels its aim; ordinary casts retain queued movement.
       predict.hold(CAST_POINT[spell], spell === 'sniper');
       scene.castLocal(me, spell, at);
-      if (spell !== 'elemental' && spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper' && spell !== 'transfusion' && spell !== 'nexus') scene.clickMarker(at, true); // Support and aimed casts do not show the generic orange attack marker.
+      if (spell !== 'elemental' && spell !== 'closedbody' && !UNIT_TARGET_SPELLS.has(spell)) scene.clickMarker(at, true); // Support and aimed casts do not show the generic orange attack marker.
       if (spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper') sound.play(SPELL_SOUND[spell]); // Heal and the sniper shot play only on authoritative confirmation.
       return true;
     },
@@ -573,7 +573,7 @@ function startRoom(code: string, name: string) {
     },
     zoom: (d) => scene.zoomBy(d),
     pan: (dx, dy) => scene.panBy(dx, dy),
-    armedChanged: (s) => { armed = s; canvas.style.cursor = (s === 'heal' || s === 'sniper' || s === 'transfusion' || s === 'nexus') ? 'crosshair' : ''; },
+    armedChanged: (s) => { armed = s; canvas.style.cursor = s && UNIT_TARGET_SPELLS.has(s) ? 'crosshair' : ''; },
     preview: (s, at) => {
       held = s;
       const from = drawn.get(me);

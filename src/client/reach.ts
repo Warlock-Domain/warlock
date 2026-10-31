@@ -6,7 +6,7 @@ import { itemStats, type ItemId } from '../shared/items.ts';
 import { snowR, type ProjKind } from '../shared/sim.ts';
 import { conePoints } from '../shared/sand-cone.ts';
 import { channelLevel } from '../shared/channeling.ts';
-import { CLUSTER_FAN, LIGHTNING, RUSH, SPLITTER, THRUST, spellLevel, type SpellId } from '../shared/spells.ts';
+import { CLUSTER_FAN, LIGHTNING, RUSH, SPLITTER, THRUST, UNIT_TARGET_SPELLS, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, clampLen, len, norm, scale, sub, v, type Vec } from '../shared/vec.ts';
 
 // projéteis que saem na frente do mago e voam o alcance: o anel marca até onde a ponta chega, então inimigo que encosta
@@ -56,7 +56,7 @@ export function aimOf(a: SpellId, spells: Record<SpellId, number>, items: Record
   // magias de área (Meteoro, Agarrar, Zona de dobra, Barricada): só o círculo no ponto mirado; Teleporte: o corpo onde você aparece
   const blastR = blastOf(a, spells, bonus);
   if (blastR) return { ...none, blastAt: aimed, blastR };
-  if (a === 'teleport' || a === 'heal' || a === 'sniper' || a === 'transfusion' || a === 'nexus') return { ...none, blastAt: aimed, blastR: WIZ_R };
+  if (a === 'teleport' || UNIT_TARGET_SPELLS.has(a)) return { ...none, blastAt: aimed, blastR: WIZ_R };
   // Drenar vira para o mago mais perto no ponto mirado: a reta só vale até ali
   if (a === 'drain') return line(aimed, HALF.drain! * (1 + bonus.earth));
   // Investida avança RUSH.dash e acerta quem fica a 2 WIZ_R + 0,1 (sim.ts, dashHit): pelo corpo do inimigo, WIZ_R + 0,1 de cada lado

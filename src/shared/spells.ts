@@ -176,6 +176,9 @@ export const CAST_POINT: Record<SpellId, number> = { fireball: 0.1, lightning: 0
   drain: 0.1, snowball: 0.1, illusion: 0, magnetize: 0.1, recharge: 0.1, alteration: 0, link: 0.1, windwalk: 0, splitter: 0, warpzone: 0.1,
   scourge: 0.5, pact: 0.1, heal: 0, geyser: 0.1, closedbody: 0, channel: 0, sniper: 3 /* 26/10: 4.5 → 3, Fernando's request, no simulator (same exception as 25/10) */, pix: 0.1, transfusion: 0, nexus: 0, elemental: 0 }; // Heal and Closed body are instant; Scourge keeps its windup; Geyser uses the common 0.1 s windup.
 
+// Spells aimed at a wizard's body rather than a ground point: they stay armed until a valid click and show the crosshair.
+export const UNIT_TARGET_SPELLS: ReadonlySet<SpellId> = new Set<SpellId>(['heal', 'sniper', 'transfusion', 'nexus']);
+
 export const spellLevel = (id: SpellId, level: number): Level => SPELLS[id].levels[Math.max(1, Math.min(MAX_SPELL_LEVEL, level)) - 1];
 // highest level a spell can reach: one more than its upgrade prices (Channeling has a single level)
 export const spellMax = (id: SpellId) => SPELLS[id].up.length + 1;
