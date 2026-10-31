@@ -91,7 +91,7 @@ The `master` branch requires a PR, green CI, and a valid title. Do not push dire
 
 ### Review and owner approval
 
-The automated Claude review posts its findings in English. It runs on Claude Opus 5.5 at medium effort, and each comment carries a **Ruler** line quoting `.agents/skills/pr-review/SKILL.md` as proof that the shared checklist was read. The `review` status check is required by `master` protection and fails while any **Blocker** remains; **Nits** are optional and do not prevent merge. The bot never approves or merges. An authorized owner agent can adjust and merge collaborator PRs after blockers are resolved and required human gates pass.
+The automated Claude review posts its findings in English. It runs on Claude Opus 5.5 at medium effort, and each comment carries a **Ruler** line quoting `.agents/skills/pr-review/SKILL.md` as proof that the shared checklist was read. The `review` status check is required by `master` protection and fails while any **Blocker** remains; **Nits** are optional and do not prevent merge. The bot never approves or merges. Mention `@claude` in a PR or issue for help. An authorized owner agent can adjust and merge collaborator PRs after blockers are resolved and required human gates pass.
 
 - Small collaborator PRs can be approved/merged by review without waiting for Fernando.
 - Large collaborator PRs require Fernando's approval on the PR as well as the issue decision.
@@ -218,6 +218,7 @@ Use a draft while work is in progress or the group is trying it. Once gates pass
 | **CI** (`ci.yml`) | Every PR and push to `master`; runs both type checks, Vitest, and Vite. Failures block entry. |
 | **Título do PR** (`pr-title.yml`) | PR open/edit; checks `type: description`. Edit a bad title and it reruns. |
 | **Revisão do Claude** (`claude-review.yml`) | Eligible non-draft PR open/update/ready/reopen; posts findings without approving or merging. It is advisory and does not run on forks or a PR changing that workflow. |
+| **@claude** (`claude.yml`) | Responds to a mention in PR/issue comments. |
 | **Ambiente do PR** (`pr-env.yml`) | Builds and deploys the PR environment, checks its domain and smoke test, updates the pinned comment, and removes the Worker/domain after close. |
 | **Produção** (`deploy.yml`) | Push to `master` after merge; runs gates, deploys production, verifies the served build, and runs smoke checks. |
 

@@ -38,7 +38,7 @@ npx vitest run     # tests
 - Contributor guide: [CONTRIBUTING.md](CONTRIBUTING.md) (machine, agents and skills, flow, tests, balance and review)
 - Code rules for people and AI agents (Claude Code, Codex, Cursor): [CLAUDE.md](CLAUDE.md), also read through [AGENTS.md](AGENTS.md); it is an index of smaller documents, and each main folder has its own `CLAUDE.md`
 - Every product decision, with its date and reason: [docs/DECISIONS.md](docs/DECISIONS.md)
-- Git flow (details in the contributor guide): task branch in this repository (not a fork) from `master` → PR to `master` with the template, green CI → live game, published automatically. Every PR gets the automatic Claude review
+- Git flow (details in the contributor guide): task branch in this repository (not a fork) from `master` → PR to `master` with the template, green CI → live game, published automatically. Every PR gets the automatic Claude review; comment `@claude` on a PR or issue to ask for help
 - Each PR's environment: every PR (drafts too) publishes to `https://pr-<n>-warlock.fernandorffdev.com`, deleted when the PR closes ([docs/WORKFLOW.md](docs/WORKFLOW.md#pr-environment))
 - The live game is published automatically when the PR lands in `master`
 
