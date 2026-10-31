@@ -4,6 +4,9 @@ Applies together with the root `CLAUDE.md`.
 
 ## Interface
 
+- `RoomLoadingGate` owns room startup readiness (scene, joined room, required snapshot). Its settings-independent cat overlay hides HUD/labels/scene and disables gameplay input until ready; when ready the overlay is detached, not hidden, because Esc, the controller and the taunt wheel treat any `.overlay` in the DOM as open.
+- Casting settings clone only the existing skills markup, without portrait or gameplay listeners. `SettingsCtx.castingHud` owns mount/release of this settings-only preview; never move the live HUD. `castModeControl` uses the same effective-mode resolver as keyboard input, with individual > key > global precedence; Heal and Inelegant Solution stay click-only and take no preference. Passive item preferences save future intent only. Individual spell/item lists stay expandable.
+
 - Closed Body keeps its local effect aligned with the current stance, without a cursor aim line. PT/EN descriptions and the off-axis demo explain the preserved facing.
 
 - Blindness: vignette anchored to the ground by the affected player's 3 m radius, not by the camera; hides entities and labels beyond the limit. Text-only status chapter in the Grimoire; Sand Blast has its own PT/EN sheet and demo under Control.
@@ -68,7 +71,7 @@ Applies together with the root `CLAUDE.md`.
 
 - Colours and sizes come from the `:root` variables (`--lava`, `--gold`, `--bronze`, `--panel`, `--fg`, `--r-md`…). No loose hex, except the group colour and the Grimoire leather and pages (`.grimoire`, `.g-book`).
 - Font sizes, `gap` and single-value `padding` come from the `:root` scale (`--fs-90` = `.9rem`, `--sp-8` = `8px`; named by value, issue #141): a new rule uses the nearest step instead of inventing a size. Moving an existing size to another step changes the screen and is Fernando's decision.
-- Group colour: `.g-ataque`, `.g-mobilidade`, `.g-defesa`, `.g-controle` (variable `--g`); silver items (`--item`). The class comes from `spellClass(s)` by position in `SPELL_GROUPS`: a new spell gets its colour by joining a group, with no new class. In the Shop, passive items sit in sections by `ITEM_GROUPS` (`rules-text.ts`, same format, all silver): a new passive item joins a group, otherwise it vanishes from the Shop (test in `ui-data.test.ts`).
+- Group colour: `.g-ataque`, `.g-mobilidade`, `.g-defesa`, `.g-controle` (variable `--g`); silver items (`--item`). The class comes from `spellClass(s)` by position in `SPELL_GROUPS`: a new spell gets its colour by joining a group, with no new class. In the Shop, Library and Grimoire, items sit in sections by `ITEM_GROUPS` (`rules-text.ts`, same format, all silver, no group class): Head, Cape, Clothing, Footwear and Accessory, a display grouping only, with no equipment slots (PR #427). A new item joins a group, otherwise it vanishes from the Shop (test in `ui-data.test.ts`).
 - Mobile (out of focus since 20/10: do not check on every change, just do not delete these rules): `(max-width: 600px)`, `(max-height: 500px)` (landscape), `(pointer: coarse)` with 44 px targets, `(max-width: 860px)` / `(min-width: 861px)`. Hover only inside `(hover: hover)`. New animation with `(prefers-reduced-motion: reduce)`. In JS, `TOUCH` (`ui.ts`).
 
 ## Keys (`keys.ts`)
@@ -107,7 +110,7 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 
 - **Sound distance:** `sound-distance.ts` computes attenuation from the player's own wizard position, not the camera (full intensity up to 2 m, quadratic falloff to silence at 24 m). `main.ts` applies it to world events and manual taunts; music, menu and global notices do not depend on distance. The taunt requeries the position after loading the audio. A spectator without a wizard uses a neutral level of 0.6; a missing source produces no sound.
 
-- **Audio levelling:** `audio-level.ts` measures RMS in active 50 ms windows, aiming for 0.12 with a peak up to 0.8. `sound.ts` measures files and pre-rendered synthesis, compensates impact layers and keeps the taunt preview at the same level as the match. Immediate synthesis remains as a fallback until the cache is ready; human listening checks are still necessary.
+- **Audio levelling:** `audio-level.ts` measures perceived loudness as in ITU-R BS.1770 (K-weighting, 400 ms blocks, -70 LUFS and -10 LU gates; issue #202), aiming for a weighted RMS of 0.12 (about -19 LUFS) with a peak up to 0.8; short, peaky sounds stay below, held by the peak cap. `sound.ts` measures files and pre-rendered synthesis, compensates impact layers and keeps the taunt preview at the same level as the match. Immediate synthesis remains as a fallback until the cache is ready; human listening checks are still necessary.
 
 `ui.ts` uses `document`/`matchMedia` on load and does not run in Vitest. A screen decision that needs a test goes into a pure function in `screen-data.ts` (or `rules-text.ts`, `tips.ts`, `icons.ts`, `keys.ts`, `sheet.ts`, `reach.ts`, which do not touch the DOM on load).
 
