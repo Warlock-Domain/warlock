@@ -15,7 +15,7 @@ export const SPELL_GROUP_IDS = {
   mobility: ['teleport', 'swap', 'rush', 'thrust', 'windwalk'],
   defense: ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion', 'closedbody'],
   control: ['grip', 'gravity', 'link', 'magnetize', 'drain', 'cluster', 'pix'],
-  support: ['heal', 'geyser', 'transfusion'],
+  support: ['heal', 'geyser', 'transfusion', 'nexus'],
   utility: [],
 } as const satisfies Record<string, readonly SpellId[]>;
 type SpellGroup = keyof typeof SPELL_GROUP_IDS;
