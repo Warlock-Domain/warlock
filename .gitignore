@@ -4,3 +4,4 @@ dist
 .superpowers
 balance
 wrangler.dev.json
+.dev.vars

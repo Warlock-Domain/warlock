@@ -67,7 +67,7 @@ export const UI_ICON = named({ board: ['histogram', '📊'], sheet: ['scroll-unf
   help: ['help', '❓'], keys: ['keyboard', '⌨️'], kills: ['skull-crossed-bones', '☠'], dmg: ['spiky-explosion', '💥'], wins: ['trophy', '🏆'], aim: ['archery-target', '🎯'],
   gold: ['two-coins', '🪙'], tip: ['light-bulb', '💡'], bot: ['robot-antennas', '🤖'], person: ['character', '👤'], info: ['info', 'ℹ️'], shop: ['shop', '🏪'],
   gear: ['cog', '⚙️'], pad: ['gamepad', '🎮'], video: ['tv', '📺'], exit: ['exit-door', '🚪'], watch: ['eyeball', '👁️'],
-  buy: ['shopping-cart', '🛒'], upgrade: ['upgrade', '⏫'], undo: ['anticlockwise-rotation', '↩'] });
+  buy: ['shopping-cart', '🛒'], upgrade: ['upgrade', '⏫'], undo: ['anticlockwise-rotation', '↩'], forum: ['talk', '💬'] });
 // Attack and Hold ground (issue #401) reuse sprite icons already shipped: the hit burst and the standing stone, no new download
 export const MECHANIC_ICON = { basic: UI_ICON.dmg, brace: SOURCE_ICON.pillar };
 // ícone e nome de uma magia ou item (teclas, grimório, magia escolhida)
