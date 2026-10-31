@@ -1,5 +1,7 @@
 # src/shared — game rules (run on the server and in the browser)
 
+Teams rounds spawn allies in compact formations on opposite sides of every arena; other modes keep their existing spawn layout.
+
 Applies together with the root `CLAUDE.md`.
 
 ## Simulation
