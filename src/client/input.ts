@@ -173,16 +173,16 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       // Heal and Inelegant Solution always require a click on the target body; a charged sniper aim fires on the key instead.
       if (action === 'sniper' && h.fireSniper?.()) { e.preventDefault(); return; }
       if (action === 'heal' || action === 'sniper') { e.preventDefault(); cancel(); return arm(action); }
+      const mode = getCastMode(action, e.code);
+      if (held) release(); // modes differ per key: cast the held spell before another key takes over
       if (armed === 'heal' || armed === 'sniper') arm(null);
       if (attackArmed) arm(null);
       e.preventDefault();
-      const mode = getCastMode();
       if (mode === 'click') {
         if (h.checkCooldown && !h.checkCooldown(action)) return arm(null);
         return arm(action); // select the spell and show its range; left click casts
       }
       if (mode === 'release') {
-        if (held) release(); // cast the first spell before starting to hold another
         if (h.checkCooldown && !h.checkCooldown(action)) return;
         held = { action, code: e.code };
         return h.preview(action);

@@ -1906,7 +1906,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!m) continue;
       seen.add(d.id);
       // modo Times: anel e barra na cor do time (pode mudar a cada rodada); o nome fica com a cor do jogador
-      const tint = d.team != null ? TEAM_COLORS[d.team] : COLORS[d.color];
+      const tint = d.team != null ? (TEAM_COLORS[d.team] ?? COLORS[d.color]) : COLORS[d.color]; // Sandbox allies can go past the two Teams colours
       if (m.tint !== tint) {
         m.tint = tint;
         (m.ring.material as THREE.MeshBasicMaterial).color.set(tint);
@@ -2396,9 +2396,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { sniperFocus?: {left:number;shot:number}; blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[]; seen: number[] } | null }) {
+    render(state: { paused?: boolean; sniperFocus?: {left:number;shot:number}; blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[]; seen: number[] } | null }) {
       const now = performance.now() / 1000;
-      const dt = Math.min(0.05, now - lastFrame);
+      const dt = state.paused ? 0 : Math.min(0.05, now - lastFrame);
       lastFrame = now;
       const sf=state.sniperFocus;
       sniperScreen.visible=!!sf && (sf.left>0 || (!lite && sf.shot>0));

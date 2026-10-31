@@ -89,6 +89,12 @@ h2.title { font-family: var(--display); font-size: var(--fs-160); text-transform
 /* ornamento antes do título dos painéis (o "/ ''" deixa o leitor de tela calado) */
 h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font-size: .55em; vertical-align: .25em; color: var(--lava); text-shadow: 0 0 8px rgba(255, 106, 26, .6); }
 
+/* Readiness, not an animation timer, owns the transition into the room. */
+.overlay.room-loading { background: var(--bg); z-index: 70; }
+.room-loading-active #c { visibility: hidden; }
+.loading-stage { width: 100%; display: grid; place-items: center; }
+.loading-copy { display: flex; flex-direction: column; align-items: center; gap: var(--sp-16); text-align: center; text-shadow: var(--text-shadow); }
+.loading-copy h1 { color: var(--gold); }
 /* um só jeito de mostrar "selecionado": modo, aba, personagem e magia escolhida */
 .pick.on, .stats-tabs button.on, .watching button.on, .hud-right .icon.on, .spell.armed { border-color: var(--ember); background: var(--sel-bg); box-shadow: 0 0 0 1px var(--ember); color: var(--fg); }
 
@@ -141,7 +147,7 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 .mode { display: grid; gap: var(--sp-6); }
 /* relógio com fundo de vidro: sem ele o vermelho dos últimos 3 s some na lava (1,8:1) */
 .timer:not(.countdown):not(:empty) { padding: 2px 12px; border-radius: 999px; background: var(--panel-glass); }
-.ilse { position: absolute; left: max(16px, var(--safe-l, 0px)); bottom: calc(150px + var(--safe-b)); z-index: 4; max-width: min(420px, calc(100% - 32px)); display: flex; flex-direction: column; gap: var(--sp-4); padding: 10px 14px; border-radius: var(--r-md); background: var(--panel-solid); border: 1px solid var(--ember); box-shadow: 0 0 16px rgba(255, 179, 71, .3); animation: fade-in .25s ease-out; }
+.ilse { position: absolute; left: 50%; bottom: calc(188px + var(--safe-b)); transform: translateX(-50%); z-index: 20; width: min(520px, calc(100% - 32px)); display: flex; flex-direction: column; gap: var(--sp-8); border-left: 4px solid var(--toast-info); pointer-events: auto; }
 .lv-cards { position: absolute; right: max(16px, var(--safe-r, 0px)); bottom: calc(150px + var(--safe-b)); z-index: 4; width: min(560px, calc(100% - 32px)); /* right side: the Ilse box holds the bottom-left */ padding: 10px 14px; border-radius: var(--r-md); background: var(--panel-solid); border: 1px solid var(--gold); animation: fade-in .25s ease-out; }
 /* the kill feed goes below the minimap while it shows (Campaign), instead of under it */
 .hud:has(.minimap:not([hidden])) .feed { top: calc(64px + var(--minimap-h) + 8px + var(--safe-t)); }
@@ -151,10 +157,10 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 .lv-cards .asc-card { min-height: 0; padding: 8px 10px; }
 .lv-cards .asc-card .ico { font-size: var(--fs-160); }
 @media (prefers-reduced-motion: reduce) { .lv-cards { animation: none; } }
-.ilse .ilse-name { font-family: var(--display); color: var(--ember); }
+.ilse .ilse-name { font-family: var(--display); color: var(--toast-info); }
 .ilse .ilse-text { line-height: 1.35; }
 .ilse .ilse-skip { align-self: flex-end; min-height: 32px; padding: 2px 10px; font-size: var(--fs-80); }
-@media (max-width: 600px) { .ilse { left: 12px; right: 12px; max-width: none; bottom: auto; top: calc(56px + var(--safe-t)); font-size: var(--fs-90); } }
+@media (max-width: 600px) { .ilse { left: 12px; right: 12px; transform: none; width: auto; max-width: none; bottom: auto; top: calc(56px + var(--safe-t)); font-size: var(--fs-90); } }
 @media (max-width: 600px) { .hud:has(.boss-bar:not([hidden])) > .ilse { top: calc(96px + var(--safe-t) + var(--tops-h, 0px)); } } /* abaixo da barra do chefe */
 @media (pointer: coarse) { .ilse .ilse-skip { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .ilse { animation: none; } }
@@ -356,12 +362,15 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .wiz-label .hp-extra .rush { color: var(--rush); }
 
 /* letra 1,3x do tamanho normal, a mesma do aviso de quem saiu (PR #234), e fundo claro: o aviso aparece por poucos segundos no meio da partida e precisa ser lido de relance */
-#toast { position: fixed; left: 50%; bottom: calc(188px + var(--safe-b)); transform: translateX(-50%); background: var(--paper); color: var(--ink); border: 1px solid var(--gold-toast); box-shadow: var(--shadow-toast); padding: 13px 18px; border-radius: var(--r-sm); font-size: var(--fs-130); opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); overflow-wrap: anywhere; z-index: 20; }
+#toast, .ilse { background: var(--paper); color: var(--ink); border: 1px solid var(--gold-toast); box-shadow: var(--shadow-toast); padding: 13px 18px; border-radius: var(--r-sm); font-size: var(--fs-130); overflow-wrap: anywhere; }
+#toast { position: fixed; left: 50%; bottom: calc(188px + var(--safe-b)); transform: translateX(-50%); opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); z-index: 20; }
+/* a Campaign message sits where toasts go: toasts move to the top while it shows */
+body:has(.ilse:not([hidden])) #toast { top: calc(64px + var(--safe-t)); bottom: auto; }
 /* o clique atravessa o aviso e os ícones dos buffs (.hud-status) para não cortar o andar nem o lançamento na arena atrás deles; nenhum aviso tem botão (pedido do Sky, issue #332) */
 #toast.show { opacity: 1; }
 /* o aviso fica acima dos ícones dos buffs ativos (.hud-status, 44 px acima da barra), com 8 px de folga, para não tapá-los (issue #262);
    acima de 800 px de altura a barra de baixo tem 160 px + 10 de margem em vez de 118 + 10, então o aviso sobe junto */
-@media (min-width: 601px) and (min-height: 801px) { #toast { bottom: calc(222px + var(--safe-b)); } }
+@media (min-width: 601px) and (min-height: 801px) { #toast, .ilse { bottom: calc(222px + var(--safe-b)); } }
 body.in-room::after { content: ''; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, .55) 100%); z-index: 1; }
 .banner { position: fixed; left: 50%; top: 24%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none; font-family: var(--display); font-size: clamp(1.8rem, 6vw, 3.6rem); color: var(--fg); text-shadow: 0 4px 24px rgba(0, 0, 0, .8), 0 0 2px var(--ink); animation: banner-pop 1.6s ease-out forwards; white-space: nowrap; }
 .banner.bad { color: var(--red); }
@@ -949,6 +958,18 @@ button.train small { font-weight: 400; }
 .spell-keys > summary::after { content: "▾"; color: var(--muted); }
 .spell-keys[open] > summary { margin-bottom: 10px; }
 .spell-keys[open] > summary::after { content: "▴"; }
+/* Casting config reuses the match grid markup in a settings-only preview, without the portrait. */
+.casting-hud-host, .casting-controls, .casting-mode-control { display: flex; flex-direction: column; gap: var(--sp-10); min-width: 0; }
+.casting-live-hud { overflow-x: auto; justify-content: center; }
+.casting-live-hud .skills { display: flex; flex: none; }
+.casting-live-hud .spellbar { display: grid; grid-template-columns: repeat(4, auto); }
+.casting-live-hud .item-grid { display: grid; grid-template-columns: repeat(3, 56px); grid-auto-rows: 56px; }
+.casting-live-hud .spell, .casting-live-hud .slot-empty { cursor: pointer; }
+.casting-live-hud .item-grid > * { position: relative; }
+.casting-live-hud .item-grid .key { position: absolute; top: var(--sp-2); left: var(--sp-2); }
+.casting-live-hud .fixed-skill { cursor: help; }
+.casting-controls { padding: var(--sp-10); border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel2); }
+.casting-mode-control > button { align-self: flex-start; }
 /* desenho do controle: corpo bronze, botões clicáveis, linha até o nome da ação */
 .pad-svg { width: 100%; max-width: 920px; height: auto; align-self: center; }
 .pad-body { fill: var(--panel2); stroke: var(--bronze); stroke-width: 3; }

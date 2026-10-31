@@ -1,4 +1,6 @@
 // Teclas de cada magia e atalho da interface, trocáveis pelo jogador (guardadas no navegador), e os botões do controle.
+import { CAST_MODES, resolveCastMode, type CastMode } from './cast-preferences.ts';
+export { CAST_MODES, type CastMode } from './cast-preferences.ts';
 import { SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { t } from './i18n.ts';
 import { isRecord } from './saved-data.ts';
@@ -103,12 +105,10 @@ export const slotSpell = (i: number): SpellId | undefined => slots[i] ?? undefin
 // jeito de lançar pela tecla no PC (decisão do Fernando, 18/10; os três do Dota), guardado no navegador:
 // quick = lança na hora (padrão, como sempre foi); release = segurar mostra o alcance, soltar lança;
 // click = a tecla escolhe a magia e mostra o alcance, o clique esquerdo lança (direito ou Esc cancelam)
-export const CAST_MODES = ['quick', 'release', 'click'] as const;
-export type CastMode = (typeof CAST_MODES)[number];
 const CAST_STORE = 'warlock:castmode';
 const savedCast = store.get(CAST_STORE);
 let castMode: CastMode = (CAST_MODES as readonly string[]).includes(savedCast ?? '') ? (savedCast as CastMode) : 'quick';
-export const getCastMode = () => castMode;
+export const getCastMode = (spell?: SpellId, code?: string) => resolveCastMode(castMode, spell && (spell === 'scourge' ? 'item:scourge' : 'spell:' + spell), code ?? (spell && keyOf(spell)));
 export function setCastMode(m: CastMode) {
   castMode = m;
   store.set(CAST_STORE, m);
