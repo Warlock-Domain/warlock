@@ -491,10 +491,8 @@ export function statusDuration(w: World, wz: Wizard, seconds: number, clock?: Ne
       if (clock === 'gripUntil') protector.gripBonus = wz.gripBonus;
       const shared = statusDuration(w, protector, seconds * protector.debuffMult / (wz.debuffMult || 1), clock, depth + 1, incomingSlow);
       protector[clock!] = Math.max(protector[clock!] ?? 0, clock === 'stunLeft' ? shared : w.t + shared);
-      if (clock === 'magnetUntil') protector.magnet = wz.magnet;
-      if (clock === 'puppetUntil') protector.puppetBy = wz.puppetBy;
       if (clock === 'stunLeft' || clock === 'puppetUntil') { protector.casting = null; protector.channel = undefined; protector.basicCasting = undefined; protector.dashUntil = protector.thrustUntil = 0; }
-      if (clock === 'gripUntil') { protector.gripBonus = wz.gripBonus; protector.target = null; protector.dashUntil = protector.thrustUntil = 0; if (protector.casting && castBlocked(false, true, protector.casting.spell)) protector.casting = null; }
+      if (clock === 'gripUntil') { protector.target = null; protector.dashUntil = protector.thrustUntil = 0; if (protector.casting && castBlocked(false, true, protector.casting.spell)) protector.casting = null; }
     }
   }
   return seconds * (shielded(w, wz) ? SHIELD.statusDuration : 1) * (closedBodyActive(w, wz) ? CLOSED_BODY.statusDuration : 1);
