@@ -98,6 +98,20 @@ describe('Anima Nexus', () => {
     const afterLava = caster.hp; stepWorld(w, [], () => .5);
     expect(ally.hp).toBe(900); expect(caster.hp).toBeLessThan(afterLava);
   });
+  it('moves lava loss to the protector at 125% with no hit events and no Ward', () => {
+    const loss = (ward: number) => {
+      const w = setup(), [caster, ally] = w.wizards;
+      caster.pos = { x: 0, y: 0 }; ally.pos = { x: 5, y: 0 }; w.arenaR = 3; w.wizards[2].pos = { x: 0, y: 0 };
+      caster.ward = ward;
+      const before = caster.hp;
+      stepWorld(w, [], () => .5);
+      expect(w.events.filter(e => e.k === 'hit')).toEqual([]);
+      expect(ally.hp).toBe(1000);
+      return before - caster.hp;
+    };
+    expect(loss(0)).toBeGreaterThan(0);
+    expect(loss(50)).toBeCloseTo(loss(0));
+  });
   it('carries the new slow payload through a chain of protectors', () => {
     const w = setup(false), [a, b, c] = w.wizards;
     c.team = 0; a.nexus = { target: b.id, range: 7 }; b.nexus = { target: c.id, range: 7 };

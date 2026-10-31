@@ -423,12 +423,13 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   }
   // na Caminhada no vento qualquer magia a encerra: só corre para encostar no inimigo
   if (w.t < me.windUntil) return enemy ? [...cmds.filter((c) => c.kind !== 'move'), { id, kind: 'move', to: enemy.pos }] : cmds;
-  // Heal after the escape and dodge branches: a hurt bot first gets out of danger, then heals the most hurt ally in range
+  // Anima Nexus after the escape and dodge branches: link to an ally in range with less HP than the bot
   if (!me.casting && !me.nexus && ready('nexus')) {
     const range = spellLevel('nexus', me.spells.nexus).range * me.rangeF;
     const target = w.wizards.find(z => z !== me && z.alive && ally(z) && z.hp < me.hp && dist(z.pos, me.pos) <= range);
     if (target) return cast('nexus', target.pos);
   }
+  // Heal after the escape and dodge branches: a hurt bot first gets out of danger, then heals the most hurt ally in range
   if (!me.casting && ready('heal')) {
     const L = spellLevel('heal', me.spells.heal);
     const hurt = w.wizards.filter((z) => z.alive && ally(z) && z.hpMax - z.hp >= L.heal && dist(z.pos, me.pos) <= L.range * me.rangeF)

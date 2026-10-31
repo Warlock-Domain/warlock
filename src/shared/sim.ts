@@ -1,4 +1,3 @@
-import { nexusTarget } from './nexus-target.ts';
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
 import {
   ARENA_MIN, ARENA_STEP, CHEST, CREDIT_WINDOW, ZONES, DM_RESPAWN, DM_SPAWN_GAP, OBSTACLES, OBSTACLE_KINDS, PILLAR, type ObstacleKind, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KB_SOFT_CAP, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
@@ -12,7 +11,7 @@ import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './
 import { SHIELD, castBlocked } from './spells.ts';
 import { BASIC_ATTACK, BRACE, GUARD, KNOCK_RECOVERY, MELEE_ARC } from './constants.ts';
 import { sniperTarget } from './sniper-target.ts';
-import { healTarget } from './heal-target.ts';
+import { healTarget, nexusTarget } from './heal-target.ts';
 import { channelLevel, channelPower } from './channeling.ts';
 
 export type Wizard = {
@@ -500,15 +499,17 @@ export function statusDuration(w: World, wz: Wizard, seconds: number, clock?: Ne
   }
   return seconds * (shielded(w, wz) ? SHIELD.statusDuration : 1) * (closedBodyActive(w, wz) ? CLOSED_BODY.statusDuration : 1);
 }
-function environmentalDamage(w: World, target: Wizard, damage: number, src: string) {
-  const protector = nexusCaster(w, target);
-  if (protector && damage > 0) {
-    const credit = target.lastHitBy && target.lastHitBy !== target.id && w.t - target.lastHitAt <= CREDIT_WINDOW ? { by: target.lastHitBy, src: target.lastHitSrc, at: target.lastHitAt } : null;
-    hit(w, protector, credit?.by ?? target.id, damage * 1.25, 0, v(0, 0), src, damage, true, 0, undefined, credit);
-    return 0;
+// Lava, burn and pit loss go straight to the last protector, with no hit event (it ticks 60 times per second)
+// and no Ward, like the loss itself; each protector's shield, invulnerability and Closed body still apply.
+function environmentalDamage(w: World, target: Wizard, damage: number): [victim: Wizard, lost: number] {
+  for (let i = 0, p = nexusCaster(w, target); p && i < w.wizards.length; i++, p = nexusCaster(w, target)) {
+    if (target.lastHitBy && target.lastHitBy !== target.id && w.t - target.lastHitAt <= CREDIT_WINDOW) Object.assign(p, { lastHitBy: target.lastHitBy, lastHitSrc: target.lastHitSrc, lastHitAt: target.lastHitAt });
+    damage *= w.t < p.invulnUntil || shielded(w, p) ? 0 : 1.25 * damageFactor(w, p);
+    p.calmSince = w.t;
+    target = p;
   }
   target.hp -= damage;
-  return damage;
+  return [target, damage];
 }
 function externalMotion(w: World, target: Wizard, delta: Vec, field: 'pos' | 'vel', depth = 0) {
   const protector = depth < w.wizards.length ? nexusCaster(w, target) : undefined;
@@ -570,7 +571,7 @@ function mark(w: World, target: Wizard, by: string, src: string) {
 // Runa da aflição de quem lançou (as magias desta lista estão em AFFLICT_SPELLS, items.ts, que a dica mostra): alonga as lentidões e penalidades por cima do debuffMult do alvo (Relógio, Anel amaldiçoado)
 const afflictBy = (w: World, id: string) => byId(w, id)?.afflict ?? 1;
 
-function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string, knockDmg = dmg, transferred = false, depth = 0, originAttacker?: Wizard, credit?: { by: string; src: string; at: number } | null) {
+function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string, knockDmg = dmg, transferred = false, depth = 0, originAttacker?: Wizard) {
   // a controlled body never hurts its controller (Fernando's grill of 25/10: "everything is yours")
   if (!transferred && by !== target.id && actor(w, by) === target.id) return;
   by = actor(w, by);
@@ -606,7 +607,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   }
   dmg *= damageFactor(w, target);
   const protector = depth < w.wizards.length ? nexusCaster(w, target) : undefined;
-  if (protector && dmg > 0) { hit(w, protector, by, dmg * 1.25, 0, dir, src, dmg, true, depth + 1, att, credit); dmg = 0; }
+  if (protector && dmg > 0) { hit(w, protector, by, dmg * 1.25, 0, dir, src, dmg, true, depth + 1, att); dmg = 0; }
   target.hp -= dmg;
   target.dmgTaken += dmg;
   // Agarrar: o primeiro golpe com dano de outro mago solta o preso e empurra mais longe
@@ -618,14 +619,12 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
     if (att) att.calmSince = w.t;
   }
   addKnock(w, target, scale(norm(dir), knock * mult * release));
-  if (credit === undefined) mark(w, target, by, src);
-  else if (credit) Object.assign(target, { lastHitBy: credit.by, lastHitSrc: credit.src, lastHitAt: credit.at });
+  mark(w, target, by, src);
   // roubo de vida: quem acertou recupera parte do dano (e, como no original, a cura reduz o dano acumulado pela metade dela)
   if (att && att.lifesteal > 0) heal(w, att, dmg * att.lifesteal);
   w.events.push({ k: 'hit', id: target.id, by, x: target.pos.x, y: target.pos.y, dmg: Math.round(dmg), src, ...(crit && { crit: true as const }) });
 }
 
-// Environmental loss keeps its original rules on the ally; the protector applies its own defenses.
 // ponto do segmento a→a+d mais perto de p: a fração t em [0,1] ao longo dele e a distância de p até ele
 function segT(a: Vec, d: Vec, p: Vec): [t: number, gap: number] {
   const dd = dot(d, d);
@@ -1217,7 +1216,6 @@ function gripLand(w: World, p: Projectile) {
     z.gripUntil = Math.max(z.gripUntil, w.t + statusDuration(w, z, L.duration * z.debuffMult * afflictBy(w, p.owner), 'gripUntil'));
     if (z.casting && castBlocked(false, true, z.casting.spell)) z.casting = null;
     z.dashUntil = z.thrustUntil = 0;
-    z.gripBonus = L.scale;
     mark(w, z, p.owner, 'grip'); // crédito do abate sem dano (#179)
     z.target = null;
     w.events.push({ k: 'grip', id: z.id, x: z.pos.x, y: z.pos.y });
@@ -1624,7 +1622,7 @@ function linkHold(w: World, p: Projectile): boolean {
   if (p.pillar !== undefined) {
     const q = w.pillars[p.pillar];
     if (!q.alive || dist(owner.pos, q.pos) < OBSTACLES[q.kind].r + WIZ_R + LINK.pillarGap) return false;
-    externalMotion(w, owner, scale(norm(sub(q.pos, owner.pos)), L.pull * DT), 'vel');
+    owner.vel = add(owner.vel, scale(norm(sub(q.pos, owner.pos)), L.pull * DT)); // the owner's own pull, not an external force
     return true;
   }
   const o = byId(w, p.target);
@@ -2095,7 +2093,7 @@ function fall(w: World, wz: Wizard) {
     return;
   }
   Object.assign(wz, { pos: wz.safe ?? from, vel: v(0, 0), target: null, dashUntil: 0, thrustUntil: 0 });
-  if (w.t >= wz.invulnUntil) environmentalDamage(w, wz, wz.hpMax * PIT.hit, 'pit');
+  if (w.t >= wz.invulnUntil) environmentalDamage(w, wz, wz.hpMax * PIT.hit);
   wz.calmSince = w.t;
   w.events.push({ k: 'teleport', id: wz.id, from, to: wz.pos }, { k: 'fall', id: wz.id, x: from.x, y: from.y });
 }
@@ -2282,7 +2280,7 @@ function prepWizards(w: World, rand: () => number) {
     wz.zone = 0;
     for (const z of w.zones) if (dist(z.pos, wz.pos) < z.r + WIZ_R * 0.5) wz.zone |= z.kind === 'slow' ? 1 : z.kind === 'burn' ? 2 : 0;
     if (wz.zone & 2 && w.t >= wz.invulnUntil && !shielded(w, wz)) {
-      environmentalDamage(w, wz, ZONES.burn.dps * DT * damageFactor(w, wz), 'burn');
+      environmentalDamage(w, wz, ZONES.burn.dps * DT * damageFactor(w, wz));
       wz.calmSince = w.t;
     }
     // Snowball applies stored damage without knockback when its 0.5 s effect ends (snowballmodifier.lua)
@@ -2426,13 +2424,12 @@ function stepGround(w: World) {
     if (inLava(w, wz.pos)) {
       if (w.t < wz.invulnUntil || shielded(w, wz)) continue;
       const dmg = LAVA_DPS * DT * (1 - wz.lavaCut) * w.mods.lava * damageFactor(w, wz);
-      const before = Math.max(0, wz.hp);
-      const burn = Math.min(before, environmentalDamage(w, wz, dmg, 'lava'));
+      const [victim, lost] = environmentalDamage(w, wz, dmg), burn = Math.min(Math.max(0, victim.hp + lost), lost);
       wz.calmSince = w.t;
       // Half of lava HP loss counts as damage from the last attacker within the kill-credit window; Match adds it to the scoreboard
-      if (wz.lastHitBy && wz.lastHitBy !== wz.id && w.t - wz.lastHitAt <= CREDIT_WINDOW) {
-        const c = (w.lavaCredit[wz.lastHitBy] ??= {});
-        c[wz.id] = (c[wz.id] ?? 0) + burn / 2;
+      if (victim.lastHitBy && victim.lastHitBy !== victim.id && w.t - victim.lastHitAt <= CREDIT_WINDOW) {
+        const c = (w.lavaCredit[victim.lastHitBy] ??= {});
+        c[victim.id] = (c[victim.id] ?? 0) + burn / 2;
       }
       wz.dmgTaken += LAVA_DPS * DT * LAVA_KB_FACTOR; // Lava Boots protect HP, not accumulated knockback (cycle 2)
       // Aegis returns a low-HP wizard from lava to stone in the same direction, stationary, once

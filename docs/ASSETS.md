@@ -29,6 +29,7 @@ Gêiser: ícone `icons.svg#water-splash` (Lorc, game-icons.net, CC BY 3.0), esco
 | Inelegant Solution: rifle, laser, reticle, tracer and screen-edge tension lines | procedural rifle/scope/stock, red laser and reticle, muzzle tracer; black/white/cyan edge-line shader seen by the caster or a spectator following them; shot reuses the credited `hitHeavy` effect | `src/client/sniper-fx.ts`, `src/client/sniper-focus.ts`, `src/client/scene.ts`; the demo draws the same aim | generated in code by the project, no external asset |
 | `icons.svg#coins-pile` | coin pile icon for Squid Pix (Fernando's choice, 25/10: "the little coins icon"), separate from the gold `two-coins` | `src/client/icons.ts`; downloaded by `scripts/assets/build-icons.mjs` | Delapouite, game-icons.net, CC BY 3.0 (credited in `public/CREDITS.txt`) |
 | `icons.svg#sniper-rifle` | geometric rifle icon for Inelegant Solution | `src/client/icons.ts`; regenerated in `scripts/assets/build-icons.mjs` | original project geometry, no external asset |
+| `icons.svg#anima-nexus` | two linked hearts for Anima Nexus; the link is a procedural green thread (`scene.ts`, Heal colour) and the cast reuses the Shield sound effect | `src/client/icons.ts`; regenerated in `scripts/assets/build-icons.mjs` | original project geometry, no external asset |
 | `models/mage.glb`, `knight`, `barbarian`, `rogue`, `rogue_hooded`, `skeleton_mage`, `skeleton_minion`, `skeleton_rogue`, `skeleton_warrior` | os 9 bonecos (1 MB cada), com 21 animações | `src/client/scene.ts` (`/models/${id}.glb`), lista em `src/shared/characters.ts` | KayKit Adventurers e Skeletons, CC0; cortados por `scripts/slim-character.mjs`, capuz por `scripts/assets/hood.mjs` |
 | `models/KAYKIT-LICENSE.txt`, `KAYKIT-SKELETONS-LICENSE.txt` | licenças dos bonecos | — | KayKit, CC0 |
 | `desktop/icon.png` (fora de `public/`) | ícone do app e do instalador para Windows | `desktop/package.json` (`build.win.icon`; o electron-builder converte para o ícone do `.exe`) | gerado do `public/warlock-wars.svg` (o W da aba) em 512×512, recortado em círculo transparente; arte do projeto |
@@ -71,5 +72,3 @@ Decisão do Fernando em 21/10. Vale para quem contribui e para toda IA.
 2. **Explicado:** a linha diz o que é e para que serve no jogo.
 3. **Referenciado:** a linha diz onde o código usa o arquivo (`arquivo.ts`) e de onde ele veio, com a licença; o crédito vai em `public/CREDITS.txt`.
 4. Asset que sai do jogo sai daqui também. Tudo no mesmo PR do asset.
-
-- Anima Nexus: original linked-heart SVG generated in scripts/assets/build-icons.mjs and public/icons.svg#anima-nexus; procedural green thread reuses Heal colors and Shield sound, with disposal on link removal. No external assets.

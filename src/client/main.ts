@@ -1,4 +1,3 @@
-import { nexusTarget } from '../shared/nexus-target.ts';
 import { inLavaAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, BASIC_ATTACK, BRACING_BIT, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
@@ -48,7 +47,7 @@ import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, set
 import { sniperFocusState } from './sniper-focus.ts';
 import { attackTarget, sniperTarget } from '../shared/sniper-target.ts';
 import { sniperShotSound } from './sniper-fx.ts';
-import { healTarget } from '../shared/heal-target.ts';
+import { healTarget, nexusTarget } from '../shared/heal-target.ts';
 
 declare const __BRANCH__: string;
 declare const __BUILD__: string;
@@ -562,7 +561,7 @@ function startRoom(code: string, name: string) {
     },
     zoom: (d) => scene.zoomBy(d),
     pan: (dx, dy) => scene.panBy(dx, dy),
-    armedChanged: (s) => { armed = s; canvas.style.cursor = (s === 'heal' || s === 'sniper') ? 'crosshair' : ''; },
+    armedChanged: (s) => { armed = s; canvas.style.cursor = (s === 'heal' || s === 'sniper' || s === 'nexus') ? 'crosshair' : ''; },
     preview: (s, at) => {
       held = s;
       const from = drawn.get(me);

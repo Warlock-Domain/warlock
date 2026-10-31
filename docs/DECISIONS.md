@@ -6,7 +6,6 @@ Every new decision gets a row here (date, decision, why) in the same PR as the c
 
 | Date | Decision | Why |
 |---|---|---|
-| 27/10 | **User proposal:** Support,25 gold,range7+1 m/level,cooldown15−1 s/level. Link another living ally; transfer125% post-defense incoming damage to the protector, applying its own defenses once. Split new negative durations/external forces50/50. Include environmental loss and continuous pulls. Walking/other spells preserve the link. Toggle even during cooldown/control; range loss or either death ends it; reject cycles and replace prior incoming protector. | Requested/tested locally by Leonard. Opening authorized; Fernando approval and balance/merge gates remain pending. |
 | 17/10 | Top-down 3D camera, Dota controls (right button moves); 1 point per round, first to 5 wins | same as the original Warlock, Dota audience |
 | 18/10 | Public repository | so friends can contribute |
 | 18/10 | Rejected: ranking/profile and items that only help one spell (e.g. Fire staff) | focus on the game, free build |

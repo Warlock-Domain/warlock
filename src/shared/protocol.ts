@@ -103,7 +103,8 @@ export type PublicRoom = {
 // fx: efeitos com prazo de quem recebe, 2 números por efeito: bit de estado (como em w) e segundos que faltam
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
 // ba: dois números por mago: preparo de Atacar restante em segundos e corpo a corpo (1/0; 2 = golpe em arco da versão alternativa, na direção do mago); ausente = sem preparo.
-export type Snap = { nx?: number[]; t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; sn?: number[]; cn?: number[]; bl?: number[]; cb?: number[]; gy?: number[]; pz?: number[]; pk?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
+// nx: only while some Anima Nexus is up, 1 number per wizard: index of the ally it protects (−1 none or hidden from this viewer)
+export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; sn?: number[]; cn?: number[]; bl?: number[]; cb?: number[]; gy?: number[]; pz?: number[]; pk?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; nx?: number[]; ack: number; e?: SimEvent[] };
 
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
 export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
