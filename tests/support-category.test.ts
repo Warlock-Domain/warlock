@@ -9,7 +9,7 @@ const css = readFileSync(new URL('../src/client/style.css', import.meta.url), 'u
 describe('Support category', () => {
   it('contains support spells in Portuguese and English without duplicating other groups', () => {
     for (const [groups, name] of [[SPELL_GROUPS_PT, 'Suporte'], [SPELL_GROUPS_EN, 'Support']] as const) {
-      expect(groups).toHaveLength(5);
+      expect(groups).toHaveLength(6);
       expect(groups[4][0]).toBe(name);
       expect(groups[4][2]).toEqual(['heal', 'geyser', 'transfusion']);
       expect(groups.flatMap(([, , ids]) => ids).sort()).toEqual([...BAR_SPELLS].sort());

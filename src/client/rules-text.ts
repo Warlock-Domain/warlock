@@ -416,6 +416,7 @@ const SPELL_GROUPS_PT: SpellGroups = [
   ['Defesa', 'parar o que vem', [...G.defense]],
   ['Controle', 'prender, puxar, atrasar', [...G.control]],
   ['Suporte', 'cura e ajuda aos aliados', [...G.support]],
+  ['Utilidade', 'ferramentas e efeitos diversos', [...G.utility]],
 ];
 export type GuideId = (typeof MECHANIC_GUIDES)[number]['id'] | (typeof NEGATIVE_GUIDES)[number]['id'];
 const SPELL_GROUPS_EN: SpellGroups = [
@@ -424,11 +425,12 @@ const SPELL_GROUPS_EN: SpellGroups = [
   ['Defense', 'stop what is coming', [...G.defense]],
   ['Control', 'grip, pull, slow', [...G.control]],
   ['Support', 'healing and helping allies', [...G.support]],
+  ['Utility', 'tools and miscellaneous effects', [...G.utility]],
 ];
 export { SPELL_GROUPS_EN, SPELL_GROUPS_PT };
 export const SPELL_GROUPS = LANG === 'en' ? SPELL_GROUPS_EN : SPELL_GROUPS_PT;
-// classe de cor do grupo (Fernando, 19/10: uma cor por setor): g-ataque, g-mobilidade, g-defesa, g-controle (o rótulo em inglês cai na mesma classe)
-const GROUP_CLASS_EN: Record<string, string> = { attack: 'ataque', mobility: 'mobilidade', defense: 'defesa', control: 'controle', support: 'suporte' };
+// group colour class (Fernando, 19/10: one colour per group): g-ataque, g-mobilidade, g-defesa, g-controle, g-suporte, g-utilidade (the English label maps to the same class)
+const GROUP_CLASS_EN: Record<string, string> = { attack: 'ataque', mobility: 'mobilidade', defense: 'defesa', control: 'controle', support: 'suporte', utility: 'utilidade' };
 export const groupClass = (name: string) => 'g-' + (GROUP_CLASS_EN[name.toLowerCase()] ?? name.toLowerCase());
 export const spellClass = (s: SpellId) => groupClass(SPELL_GROUPS.find(([, , ids]) => ids.includes(s))?.[0] ?? '');
 // Visual equipment categories do not add exclusive slots or change purchase rules.
