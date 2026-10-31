@@ -3,7 +3,7 @@ import { DT } from '../src/shared/constants.ts';
 import { incapacitatedUntil, stepWorld } from '../src/shared/sim.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
 import { noSpells, spellLevel } from '../src/shared/spells.ts';
-import { transfusionTarget } from '../src/shared/transfusion-target.ts';
+import { transfusionTarget } from '../src/shared/heal-target.ts';
 import { v } from '../src/shared/vec.ts';
 import { world, run } from './helpers.ts';
 

@@ -47,8 +47,7 @@ import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, set
 import { sniperFocusState } from './sniper-focus.ts';
 import { attackTarget, sniperTarget } from '../shared/sniper-target.ts';
 import { sniperShotSound } from './sniper-fx.ts';
-import { transfusionTarget } from '../shared/transfusion-target.ts';
-import { healTarget } from '../shared/heal-target.ts';
+import { healTarget, transfusionTarget } from '../shared/heal-target.ts';
 
 declare const __BRANCH__: string;
 declare const __BUILD__: string;

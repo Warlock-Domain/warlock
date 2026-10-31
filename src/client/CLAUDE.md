@@ -5,7 +5,7 @@ Applies together with the root `CLAUDE.md`.
 ## Interface
 
 - `RoomLoadingGate` owns room startup readiness (scene, joined room, required snapshot). Its settings-independent cat overlay hides HUD/labels/scene and disables gameplay input until ready; when ready the overlay is detached, not hidden, because Esc, the controller and the taunt wheel treat any `.overlay` in the DOM as open.
-- Casting settings clone only the existing skills markup, without portrait or gameplay listeners. `SettingsCtx.castingHud` owns mount/release of this settings-only preview; never move the live HUD. `castModeControl` uses the same effective-mode resolver as keyboard input, with individual > key > global precedence; Heal and Inelegant Solution stay click-only and take no preference. Passive item preferences save future intent only. Individual spell/item lists stay expandable.
+- Casting settings clone only the existing skills markup, without portrait or gameplay listeners. `SettingsCtx.castingHud` owns mount/release of this settings-only preview; never move the live HUD. `castModeControl` uses the same effective-mode resolver as keyboard input, with individual > key > global precedence; Heal, Inelegant Solution and Mental Transfusion stay click-only and take no preference. Passive item preferences save future intent only. Individual spell/item lists stay expandable.
 
 - Closed Body keeps its local effect aligned with the current stance, without a cursor aim line. PT/EN descriptions and the off-axis demo explain the preserved facing.
 
@@ -124,5 +124,3 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - `SnapshotInterpolator` owns a bounded snapshot buffer, its capacity, and the smoothed server/local clock offset. Live rendering and replay use independent instances through `createInterp(max)`.
 - Preserve bound `push`, `latest`, `sample`, and `reset` callbacks. Reset clears history and clock offset; simulation clock rollback also starts new history. Keep interpolation math and `keepLast()` as module helpers.
 - Preserve snapshot references, interpolation delay/smoothing, and replay limits. Compatibility, round-reset, capacity, and instance-isolation coverage lives in `tests/client.test.ts`.
-
-- Proposal port is isolated from unrelated local changes; preserve manual 3-second Sniper, item Scourge and current master catalog rules.

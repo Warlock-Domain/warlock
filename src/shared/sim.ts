@@ -10,9 +10,8 @@ import { inCone } from './sand-cone.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
 import { SHIELD, castBlocked } from './spells.ts';
 import { BASIC_ATTACK, BRACE, GUARD, KNOCK_RECOVERY, MELEE_ARC } from './constants.ts';
-import { transfusionTarget } from './transfusion-target.ts';
 import { sniperTarget } from './sniper-target.ts';
-import { healTarget } from './heal-target.ts';
+import { healTarget, transfusionTarget } from './heal-target.ts';
 import { channelLevel, channelPower } from './channeling.ts';
 
 export type Wizard = {
