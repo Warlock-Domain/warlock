@@ -3,6 +3,7 @@ import { noSpells, SPELLS, spellLevel, type SpellId } from '../src/shared/spells
 import { stepWorld, statusDuration } from '../src/shared/sim.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
 import { parseServerMessage } from '../src/client/net-message.ts';
+import { roundMods } from '../src/shared/constants.ts';
 import { run, world } from './helpers.ts';
 
 function setup(link = true) {
@@ -111,6 +112,16 @@ describe('Anima Nexus', () => {
     };
     expect(loss(0)).toBeGreaterThan(0);
     expect(loss(50)).toBeCloseTo(loss(0));
+  });
+  it('passes self-damage of the ally on without crediting the ally', () => {
+    const w = setup(), [caster, ally] = w.wizards;
+    w.mods = roundMods('swords');
+    caster.pos = { x: w.arenaR - 3, y: 0 }; ally.pos = { x: w.arenaR + .01, y: 0 }; ally.vel = { x: 4, y: 0 };
+    stepWorld(w, [], () => .5);
+    expect(ally.hp).toBe(1000);
+    expect(caster.hp).toBeLessThan(1000);
+    expect(caster.lastHitBy).not.toBe(ally.id);
+    expect(w.events.filter(e => e.k === 'hit' && e.id === caster.id && e.by === ally.id)).toEqual([]);
   });
   it('carries the new slow payload through a chain of protectors', () => {
     const w = setup(false), [a, b, c] = w.wizards;

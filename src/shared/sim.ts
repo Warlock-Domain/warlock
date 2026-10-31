@@ -605,7 +605,8 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   }
   dmg *= damageFactor(w, target);
   const protector = depth < w.wizards.length ? nexusCaster(w, target) : undefined;
-  if (protector && dmg > 0) { hit(w, protector, by, dmg * 1.25, 0, dir, src, dmg, true, depth + 1, att); dmg = 0; }
+  // self-damage (Spikes with no recent attacker) stays the protector's own, never a teammate's hit
+  if (protector && dmg > 0) { hit(w, protector, by === target.id ? protector.id : by, dmg * 1.25, 0, dir, src, dmg, true, depth + 1, att); dmg = 0; }
   target.hp -= dmg;
   target.dmgTaken += dmg;
   // Agarrar: o primeiro golpe com dano de outro mago solta o preso e empurra mais longe

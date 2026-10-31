@@ -98,7 +98,7 @@ export const SPELLS: Record<SpellId, Spell> = {
   sniper: { name: 'Solução deselegante', en: 'Inelegant Solution', cost: 30, up: [], levels: steps(35,0).map(cd => L({ cd, dmg: 350, kbf: 0, range: 20 })) },
   // Lula Pix (issue #416, Fernando's grill of 25 and 26/10): a 2.5 m coin rain up to 11 m away, 3 s of control at every level, upgrades only cut the cooldown; owner exception, measured later in the batch
   pix: { name: 'Lula Pix', en: 'Squid Pix', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(30, -1).map((cd) => L({ cd, duration: 3, radius: 2.5, range: 1100 * UNIT })) },
-  // Anima Nexus proposal: upgrades change only range and cooldown; owner balance approval is still pending.
+  // Anima Nexus (Leonard's proposal, accepted as proposed on 31/10, PR #433): upgrades change only range and cooldown; measured in the next batch
   nexus: { name: 'Anima nexus', en: 'Anima Nexus', cost: 25, up: [6, 7, 8, 9, 10, 11], levels: steps(15, -1).map((cd, i) => L({ cd, range: 7 + i })) },
   // Heal: measured on 24/10 (1.07 on Normal and Hard) and approved by Fernando; cost follows the other Support spells
   heal: { name: 'Curar', en: 'Heal', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(45, 6).map((heal, i) => L({ heal, cd: 20 - i, range: 10 })) },
