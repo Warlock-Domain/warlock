@@ -1,4 +1,5 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
+import { ELEMENTAL_SPHERES } from '../shared/elemental-spheres.ts';
 import { AEGIS, AFFLICT_SPELLS, CRIT, ITEMS, SHOCK_BOOTS, WIND_BOOTS, type ItemId } from '../shared/items.ts';
 import { BASIC_ATTACK, BRACE, DT, GUARD, MELEE_ARC, FRICTION, KB_SOFT_CAP, LAVA_DPS, STUN_SPEED } from '../shared/constants.ts';
 import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
@@ -39,6 +40,7 @@ const knockMeters = (l: Level) => m(knockDistance(l.dmg, l.knock));
 // todo campo do nível que muda o jogo tem uma linha (o teste confere)
 export const SPELL_ROWS: Record<SpellId, Row[]> = {
   transfusion: [[t('Recargas do aliado', 'Ally cooldown speed'), (l) => '+' + n1(l.scale * 100) + '%'], [t('Duração', 'Duration'), () => t('Até interromper', 'Until interrupted')], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  elemental: [[CD, l => s(l.cd)], [DURATION, l => s(l.duration)], [t('Máximo de esferas', 'Maximum spheres'), () => String(ELEMENTAL_SPHERES.max)]],
   pix: [[t('Chuva de moedas', 'Coin rain'), () => s(PIX.rain)], [RADIUS, (l) => m(l.radius)], [t('Tempo dentro para controlar', 'Time inside to control'), () => s(PIX.soak)], [t('Tempo controlado', 'Time controlled'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   sniper: [[DMG,l=>n1(l.dmg)],[RANGE,l=>m(l.range)],[t('Canalização','Channel time'),()=>s(CAST_POINT.sniper)],[CD,l=>s(l.cd)]],
   channel: [[t('Preparo mínimo', 'Minimum charge'), () => '1 s'], [t('Carga máxima', 'Maximum charge'), () => '2 s'], [t('Bônus em 1 s / 2 s', 'Bonus at 1 s / 2 s'), () => '+50% / +100%'], [CD, () => '0 s']],
@@ -60,7 +62,7 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   gravity: [[DPS, (l) => n1(l.dmg)], [PULL, (l) => `${n1(l.pull)} m/s²`], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   rockpillar: [[t('Dano em quem está embaixo', 'Damage to whoever is under it'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [DURATION, (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   bouncer: [[t('Dano no 1º', 'Damage on the 1st hit'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [t('Alcance por salto', 'Range per bounce'), (l) => m(l.range)]],
-  drain: [[t('Dano e cura', 'Damage and healing'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [t('Lentidão ou pressa', 'Slow or haste'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [t('Alcance até virar', 'Range until it turns'), (l) => m(l.range)]],
+  drain: [[DMG, (l) => n1(l.dmg)], [t('Cura', 'Healing'), (l) => n1(l.heal)], [KNOCK, (l) => knockMeters(l)], [t('Lentidão ou pressa', 'Slow or haste'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [t('Alcance até virar', 'Range until it turns'), (l) => m(l.range)]],
   snowball: [[t('Dano por segundo encostado', 'Damage per second touching'), (l) => n1(l.dot)], [t('Explosão no centro', 'Center blast'), (l) => n1(l.dmg)], [t('Empurrão da explosão', 'Blast knockback'), (l) => knockMeters(l)], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   illusion: [[t('Cópia e invisibilidade', 'Copy and invisibility'), (l) => s(l.duration)], [CD, (l) => s(l.cd)]],
   magnetize: [[DURATION, (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
