@@ -47,6 +47,7 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   geyser: { pos: [v(-1.5, 0), v(0, 0), v(1.5, 0), v(-4, 0)], end: 4.5,
     steps: [[.4,A,'geyser',v(0,0)],[.9,B,'move',v(0,4)],[.9,3,'fireball',v(4,0)],[1,B,'fireball',A],[3.3,B,'move',v(0,3)]],
     prep: w => { w.pillars=[]; w.wizards[A].team=w.wizards[B].team=0; w.wizards[C].team=1; } },
+  transfusion: { pos: [v(-3, 0), v(2, 0)], end: 3.8, steps: [[.4, A, 'transfusion', B], [2.6, B, 'move', v(12, 0)]], prep: (w) => { w.pillars = []; w.wizards[A].team = w.wizards[B].team = 0; w.wizards[B].cd.fireball = 8; w.wizards[A].cd.fireball = 8; } },
   heal: { pos: [v(-3, 0), v(2, 0), v(2, 2)], end: 3, steps: [[.4, A, 'heal', B], [1.4, B, 'heal', B]],
     prep: w => { w.pillars = []; w.wizards[A].team = w.wizards[B].team = 0; w.wizards[C].team = 1; w.wizards[B].spells.heal = 1; for (const z of w.wizards) { z.hp = 700; z.regen = 0; } } },
   knockback: { pos: [v(-3, 0), v(0, 0)], end: 3.5, steps: [[.4, A, 'fireball', B], [.85, B, 'move', v(0, 4)]], prep: (w) => { w.pillars = []; } },
@@ -92,6 +93,7 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
 
 // Rótulos seguem os estados reais para a prévia não sugerir que stun, prisão e postura têm o mesmo bloqueio.
 export function demoStatus(w: World, z: Wizard): string[] {
+  if (z.transfusion) return [t('Transfusão mental · incapacitado · recargas pausadas', 'Mental Transfusion · incapacitated · cooldowns paused')];
   if(z.casting?.spell==='sniper') return [t(`mirando · ${n1(Math.max(0,z.casting.fireAt-w.t))} s · tiro ${spellLevel('sniper',1).dmg}`,`aiming · ${n1(Math.max(0,z.casting.fireAt-w.t))} s · shot ${spellLevel('sniper',1).dmg}`)];
   if (z.channel) {
     // below 1 s the charge is not ready (power 0): show no bonus until a click would actually fire
@@ -280,6 +282,10 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
     if ((z.geyserLeft ?? 0) > 0) {
       circle(z.pos, WIZ_R + .2, null, GEYSER_FX.color);
       text('↑', v(z.pos.x, z.pos.y - 1.3), GEYSER_FX.foam, .65);
+    }
+    if (z.transfusion) {
+      const to = w.wizards.find((q) => q.id === z.transfusion!.target);
+      if (to) line(z.pos, to.pos, HEAL_FX.color, .05, true);
     }
     if (z.casting?.spell === 'sniper') {
       const at=z.casting.at;

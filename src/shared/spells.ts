@@ -1,7 +1,7 @@
 import { FRICTION, KB_PER_DMG, UNIT, WIZ_SPEED } from './constants.ts';
 
 export const SPELL_IDS = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap', 'grip', 'meteor', 'rush', 'cluster', 'boomerang', 'thrust', 'gravity', 'rockpillar', 'bouncer',
-  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone', 'scourge', 'pact', 'heal', 'geyser', 'closedbody', 'channel', 'sniper', 'pix'] as const;
+  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone', 'scourge', 'pact', 'heal', 'geyser', 'closedbody', 'channel', 'sniper', 'pix', 'transfusion'] as const;
 export type SpellId = (typeof SPELL_IDS)[number];
 export const isSpell = (x: unknown): x is SpellId => SPELL_IDS.includes(x as SpellId);
 // spells anyone can have on the bar: the Scourge is an item again (26/10, #227) and only fires through the spell path
@@ -15,8 +15,7 @@ export const SPELL_GROUP_IDS = {
   mobility: ['teleport', 'swap', 'rush', 'thrust', 'windwalk'],
   defense: ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion', 'closedbody'],
   control: ['grip', 'gravity', 'link', 'magnetize', 'drain', 'cluster', 'pix'],
-  support: ['heal', 'geyser'],
-  utility: [],
+  support: ['heal', 'geyser', 'transfusion'],
 } as const satisfies Record<string, readonly SpellId[]>;
 type SpellGroup = keyof typeof SPELL_GROUP_IDS;
 export const SHIELD = { statusDuration: .6, knock: .6 }; // proposta: reduz novos status/impulsos em40%, nunca recalcula os anteriores.
@@ -101,6 +100,7 @@ export const SPELLS: Record<SpellId, Spell> = {
   pix: { name: 'Lula Pix', en: 'Squid Pix', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(30, -1).map((cd) => L({ cd, duration: 3, radius: 2.5, range: 1100 * UNIT })) },
   // Heal: measured on 24/10 (1.07 on Normal and Hard) and approved by Fernando; cost follows the other Support spells
   heal: { name: 'Curar', en: 'Heal', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(45, 6).map((heal, i) => L({ heal, cd: 20 - i, range: 10 })) },
+  transfusion: { name: 'Transfusão mental', en: 'Mental Transfusion', cost: 25, up: [6, 7, 8, 9, 10, 11], levels: steps(22, -1).map((cd, i) => L({ cd, range: 10 + i, scale: (i + 1) / 5 })) }, // scale: extra ally cooldown seconds per second of the link; Leonard's numbers, owner exception of 31/10, measured later in the batch
   //24/10: área−25% pede raio×√0,75, não raio−25%; alcance reduzido a10m. CD/preço continuam provisórios.
   closedbody: { name: 'Corpo fechado', en: 'Closed Body', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(3.5, .75).map(duration => L({ cd: 20, duration })) }, // duration per level as requested; cost and cooldown under the owner exception, measured later in the batch
   geyser: { name: 'Gêiser', en: 'Geyser', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(20, -1).map(cd => L({ cd, duration: 2.5, radius: 1.5 * Math.sqrt(.75), range: 10 })) }, // −1 s cooldown per level like Heal, so upgrades buy something (owner exception: measured later in the batch)
@@ -170,7 +170,7 @@ export const SPLITTER = { spawnSpeed: 250 * UNIT, spawnLife: 0.48, waves: 4, chi
 // tempo de conjuração: a magia sai esse tempo depois da tecla (AbilityCastPoint do original era 0,2 s)
 export const CAST_POINT: Record<SpellId, number> = { fireball: 0.1, lightning: 0.1, homing: 0.1, shield: 0, teleport: 0, swap: 0, grip: 0.1, meteor: 0.1, rush: 0, cluster: 0.1, boomerang: 0.1, thrust: 0, gravity: 0.1, rockpillar: 0, bouncer: 0.1,
   drain: 0.1, snowball: 0.1, illusion: 0, magnetize: 0.1, recharge: 0.1, alteration: 0, link: 0.1, windwalk: 0, splitter: 0, warpzone: 0.1,
-  scourge: 0.5, pact: 0.1, heal: 0, geyser: 0.1, closedbody: 0, channel: 0, sniper: 3 /* 26/10: 4.5 → 3, Fernando's request, no simulator (same exception as 25/10) */, pix: 0.1 }; // Heal and Closed body are instant; Scourge keeps its windup; Geyser uses the common 0.1 s windup.
+  scourge: 0.5, pact: 0.1, heal: 0, geyser: 0.1, closedbody: 0, channel: 0, sniper: 3 /* 26/10: 4.5 → 3, Fernando's request, no simulator (same exception as 25/10) */, pix: 0.1, transfusion: 0 }; // Heal and Closed body are instant; Scourge keeps its windup; Geyser uses the common 0.1 s windup.
 
 export const spellLevel = (id: SpellId, level: number): Level => SPELLS[id].levels[Math.max(1, Math.min(MAX_SPELL_LEVEL, level)) - 1];
 // highest level a spell can reach: one more than its upgrade prices (Channeling has a single level)
