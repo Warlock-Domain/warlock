@@ -2,8 +2,10 @@
 // Esc (when nothing else is open, handled in main.ts), the toolbar gear or controller Start opens the sections and table of contents.
 // Opening settings does not pause the match.
 // Add sections in SECTIONS.
+import { castPreference, clickOnly, resolveCastMode, setCastPreference } from './cast-preferences.ts';
+import { ITEM_IDS, MAX_ITEMS } from '../shared/items.ts';
 import { isRumbleOn, setPadCapture, setRumble } from './gamepad.ts';
-import { UI_ICON, actionIcon, actionName, choice, el, icon } from './icons.ts';
+import { MECHANIC_ICON, UI_ICON, actionIcon, actionName, choice, el, icon } from './icons.ts';
 import {
   ACTIONS, CAST_MODES, PAD_ACTIONS, PAD_ACTION_NAMES, PAD_NAMES, PAD_START, POS_ACTIONS, RESERVED, UI_ACTIONS, UI_NAMES, getCastMode, isPos, isSlotMode, keyLabel, keyOf, padButtonName,
   onKeysChange, padActionAt, padButtonOf, resetKeys, resetPad, setCastMode, setKey, setPadButton, setSlotMode, slotSpell, whoUses, type Action, type AnyAction, type CastMode, type PadAction, type UiAction,
@@ -15,7 +17,7 @@ import { radialPicker } from './radial-picker.ts';
 import { assignTauntSlot, tauntWheelSlots } from './taunt-wheel.ts';
 import { TAUNTS, tauntAudioSrc } from '../shared/taunts.ts';
 import { isAudioMuted, previewTaunt, stopTauntPreview, type Volumes, type VolumeKind } from './sound.ts';
-import { LANG, setLang, spellName, t, type Lang } from './i18n.ts';
+import { LANG, setLang, itemName, spellName, t, type Lang } from './i18n.ts';
 import { isSpell } from '../shared/spells.ts';
 import { store } from './store.ts';
 import { ilseOn, setIlse } from './ilse.ts';
@@ -33,6 +35,7 @@ export type SettingsCtx = {
   setFxLite?: (lite: boolean) => void;
   pixel?: () => number;
   setPixel?: (size: number) => void;
+  castingHud?: { mount: (host: HTMLElement) => void; release: () => void };
   closePanels?: () => void; // um painel por vez: abrir o menu fecha os do topo
 };
 let ctx: SettingsCtx = { name: () => '', rename: () => {}, volumes: () => ({ master: 0, sfx: 0, music: 0, taunts: 0 }), setVolume: () => {} };
@@ -100,22 +103,69 @@ function keysSection(): Node[] {
 
 // how a key casts (Dota's three ways) and the Q W E R D F mode
 const CAST_TEXT: Record<CastMode, [string, string]> = {
-  quick: [t('Rápido', 'Quick'), t('A tecla lança na hora na direção do mouse, e o anel de alcance pisca ao lançar. Passe o mouse na magia da barra para ver o alcance antes.', 'The key casts instantly toward the mouse, and the range ring flashes as it casts. Hover a spell on the bar to see its range beforehand.')],
+  quick: [t('Rápido', 'Quickcast'), t('A tecla lança na hora na direção do mouse, e o anel de alcance pisca ao lançar. Passe o mouse na magia da barra para ver o alcance antes.', 'The key casts instantly toward the mouse, and the range ring flashes as it casts. Hover a spell on the bar to see its range beforehand.')],
   release: [t('Ao soltar', 'On release'), t('Segure a tecla para ver o círculo de alcance; ao soltar, a magia sai. Esc cancela.', 'Hold the key to see the range circle; on release, the spell is cast. Esc cancels.')],
-  click: [t('Com clique', 'With click'), t('A tecla escolhe a magia e mostra o alcance; o clique esquerdo lança (fora do alcance, vai até a borda). Botão direito ou Esc cancelam.', 'The key selects the spell and shows its range; left click casts (out of range, it goes to the edge). Right click or Esc cancels.')],
+  click: [t('Clicar', 'Click'), t('A tecla escolhe a magia e mostra o alcance; o clique esquerdo lança (fora do alcance, vai até a borda). Botão direito ou Esc cancelam.', 'The key selects the spell and shows its range; left click casts (out of range, it goes to the edge). Right click or Esc cancels.')],
 };
 const check = (id: string, on: boolean, text: string, change: (on: boolean) => void) => el('label', { class: 'slot-row', for: id },
   el('input', { type: 'checkbox', id, checked: on, onchange: (e: Event) => change((e.target as HTMLInputElement).checked) }), el('span', {}, text));
 
 // spell keys live in Casting, next to the Q W E R D F box (Fernando, 20/10): off, the "Keys of each spell" button opens the list
-// (it stays open when the menu redraws); on, spells follow the bar (no active items since 21/10, #217)
+// (it stays open when the menu redraws); on, spells follow the bar (Scourge is the active item since 26/10, #421)
 let spellKeysOpen = false;
 const actionRow = (a: Action) => keyRow(a, [icon(actionIcon(a)), ' ', nameOf(a)]);
+function castOverride(key: string, name: string): HTMLElement {
+  return el('label', { class: 'keys-row' }, el('span', {}, name),
+    el('select', { 'aria-label': name + ' · ' + t('Modo de uso', 'Cast mode'), onchange: (e: Event) => {
+      const mode = (e.target as HTMLSelectElement).value;
+      setCastPreference(key, mode ? mode as CastMode : undefined);
+    } }, ...[['', t('Padrão', 'Default')], ...CAST_MODES.map((mode) => [mode, CAST_TEXT[mode][0]])].map(([value, label]) =>
+      el('option', { value, selected: (castPreference(key) ?? '') === value }, label))));
+}
+export function castModeControl(key: string, name: string, code?: string, ability?: string): HTMLElement {
+  if (clickOnly(key)) return el('div', { class: 'casting-mode-control' }, el('b', {}, name),
+    el('small', { class: 'muted' }, t('Sempre com clique no alvo, em qualquer modo.', 'Always confirmed by clicking the target, in any mode.')));
+  const current = castPreference(key);
+  const effective = resolveCastMode(getCastMode(), key.startsWith('key:') ? ability : key, key.startsWith('key:') ? key.slice(4) : code);
+  return el('div', { class: 'casting-mode-control' }, el('b', {}, name),
+    choice(t('Modo de lançamento', 'Casting mode'), (['click', 'quick', 'release'] as const).map(k => [k, CAST_TEXT[k][0]] as [CastMode, string]), effective, k => {
+      setCastPreference(key, k);
+      draw();
+    }),
+    el('button', { type: 'button', onclick: () => { setCastPreference(key, undefined); draw(); } }, t('Usar padrão', 'Use default')),
+    el('small', { class: 'muted' }, current ? CAST_TEXT[current][1] : t('Herdando o modo padrão.', 'Inheriting the default mode.')));
+}
+let previewSlot = { item: false, index: 0 };
+function emptyCastingHud(host: HTMLElement) {
+  const controls = el('div', { class: 'casting-controls' });
+  const edit = (item: boolean, index: number) => {
+    previewSlot = { item, index };
+    const code = item ? 'Digit' + (index + 1) : keyOf(POS_ACTIONS[index]);
+    const name = item ? t(`Item ${index + 1}`, `Item ${index + 1}`) : t(`Magia ${index + 1}`, `Spell ${index + 1}`);
+    controls.replaceChildren(code ? castModeControl('key:' + code, name + ' · ' + keyLabel(code)) : el('p', {}, t('Defina uma tecla para esta posição.', 'Assign a key to this slot.')));
+  };
+  const slots = POS_ACTIONS.map((a, i) => el('button', { type: 'button', class: 'spell slot-empty', 'aria-label': t(`Magia ${i + 1}`, `Spell ${i + 1}`), onclick: () => edit(false, i) }, el('span', { class: 'key' }, keyLabel(keyOf(a)))));
+  const fixed = (['basic', 'stop'] as const).map(a => el('button', { type: 'button', class: 'spell fixed-skill', 'aria-disabled': 'true', 'aria-label': UI_NAMES[a] }, el('span', { class: 'key' }, keyLabel(keyOf(a))), el('span', { class: 'ico' }, icon(MECHANIC_ICON[a === 'basic' ? 'basic' : 'brace']))));
+  const bar = el('div', { class: 'spellbar' }, ...slots.slice(0, 4), ...fixed, ...slots.slice(4));
+  const items = el('div', { class: 'item-grid' }, ...Array.from({ length: MAX_ITEMS }, (_, i) => el('button', { type: 'button', class: 'spell slot-empty', 'aria-label': t(`Item ${i + 1}`, `Item ${i + 1}`), onclick: () => edit(true, i) }, el('span', { class: 'key' }, String(i + 1)))));
+  host.append(el('div', { class: 'dota-bar casting-live-hud' }, el('div', { class: 'skills' }, bar, items)), controls,
+    el('small', { class: 'muted' }, t('Sem partida aberta: os espaços representam as posições da HUD. Itens passivos não são ativados.', 'No match open: these slots represent HUD positions. Passive items are not activated.')));
+  edit(previewSlot.item, previewSlot.index);
+}
 function castSection(): Node[] {
+  const host = el('div', { class: 'casting-hud-host' });
+  ctx.castingHud ? ctx.castingHud.mount(host) : emptyCastingHud(host);
   return [
     el('h3', {}, t('Lançar pela tecla', 'Casting with the key')),
     choice(t('Jeito de lançar', 'Casting mode'), CAST_MODES.map((k) => [k, CAST_TEXT[k][0]] as [CastMode, string]), getCastMode(), (k) => (setCastMode(k), draw())),
     el('p', { class: 'muted' }, CAST_TEXT[getCastMode()][1]),
+    el('p', { class: 'muted' }, t('Clique num espaço da HUD abaixo para configurar seu lançamento. Esta prévia não lança magias nem altera sua barra na partida. Atacar e Manter base continuam ações fixas.', 'Click a slot on the HUD below to configure casting. This preview does not cast spells or change your in-match bar. Attack and Hold ground remain fixed actions.')), host,
+    el('p', { class: 'muted' }, t('Configure os atalhos na HUD acima. As seções expansíveis abaixo definem exceções por magia ou item, que têm prioridade sobre o atalho. Usar padrão remove a exceção e preserva suas preferências salvas.', 'Configure shortcuts on the HUD above. The expandable sections below set spell or item exceptions, which take priority over shortcuts. Use default removes an exception and preserves your saved preferences.')),
+    el('details', { class: 'spell-keys' }, el('summary', {}, t('Uso por magia individual', 'Casting by individual spell')),
+      el('div', { class: 'keys-list' }, ...ACTIONS.filter((spell) => spell !== 'scourge' && !clickOnly('spell:' + spell)).map((spell) => castOverride('spell:' + spell, spellName(spell))))),
+    el('details', { class: 'spell-keys' }, el('summary', {}, t('Uso por item individual', 'Casting by individual item')),
+      el('p', { class: 'muted' }, t('Escolha o modo dos itens ativos. Itens passivos continuam passivos, independentemente desta preferência.', 'Choose the cast mode for active items. Passive items remain passive regardless of this preference.')),
+      el('div', { class: 'keys-list' }, ...ITEM_IDS.map((item) => castOverride('item:' + item, itemName(item))))),
     el('h3', {}, t('Teclas das magias', 'Spell keys')),
     check('slot-keys', isSlotMode(), t('Q W E R D F pela ordem da barra', 'Q W E R D F in bar order'), (on) => (setSlotMode(on), draw())),
     el('p', { class: 'muted' }, t('Ligado, as magias usam a tecla da posição na barra (troque abaixo); desligado, cada magia tem a sua tecla.', 'When on, spells use the key of their position on the bar (change them below); when off, each spell has its own key.')),
@@ -379,7 +429,9 @@ class SettingsPage {
 
   dispose = () => {
     if (this.disposed) return;
-    this.disposed = true; // Ignore observer callbacks already queued for this page.
+    this.disposed = true;
+    ctx.castingHud?.release(); // Release the settings-only preview state; the live HUD was never moved.
+    // Ignore observer callbacks already queued for this page.
     this.spy.disconnect();
     this.narrow.removeEventListener('change', this.onNarrow);
   };
