@@ -2,7 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
 import { chooseCard, reroll, setAscLobby } from '../shared/ascension.ts';
 import { lookOf } from '../shared/characters.ts';
-import { addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, nightPick, undoBuy, removePlayer, resume, sandboxCmd, sell, setAlt, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match, type RoomMode } from '../shared/match.ts';
+import { campaignReaders, setReading, addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, nightPick, undoBuy, removePlayer, resume, sandboxCmd, sell, setAlt, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match, type RoomMode } from '../shared/match.ts';
 import { cmdTarget, parseClientMessage, publicId, publicRoom, type RoomInfo, type ServerMsg } from '../shared/protocol.ts';
 import type { Cmd, SimEvent } from '../shared/sim.ts';
 import { encodeSnap, publicEvents } from '../shared/snapshot.ts';
@@ -33,6 +33,8 @@ export class Room extends DurableObject<Env> {
   private events: SimEvent[] = [];
   private lastCmdAt = Date.now();
   private roomSentAt = 0;
+  private readingDirty = false;
+  private readingSentAt = 0;
   private taunted = new Map<string, number>();
   private looked = new Map<string, number>();
   private alted = new Map<string, number>(); // última troca de versão alternativa (issue #402), por jogador
@@ -129,6 +131,16 @@ export class Room extends DurableObject<Env> {
     switch (msg.t) {
       case 'alive':
         return;
+      case 'reading': {
+        const paused = campaignReaders(m).length > 0;
+        if (setReading(m, id, msg.on, now)) {
+          // A pause must not replay held input afterwards, but releases already queued (anyone's) still apply.
+          if (!paused && msg.on) this.cmds = this.cmds.filter((c) => c.kind === 'stop' || ((c.kind === 'brace' || c.kind === 'moveHold') && !c.on));
+          // Reading is transient: coalesce broadcasts in tick(), without disk writes or lobby RPCs.
+          this.readingDirty = true;
+        }
+        return;
+      }
       case 'resources': {
         const attachment = ws.deserializeAttachment() as Attachment;
         // Enforce a server-side floor in case a modified client reports more often than intended.
@@ -152,6 +164,15 @@ export class Room extends DurableObject<Env> {
       case 'cast':
         // comandos de jogo só valem com a rodada rolando (fora dela a fila cresceria sem limite)
         if (m.phase !== 'playing') return;
+        if (campaignReaders(m).length) {
+          // Preserve releases until the first resumed step; never replay a held input after reading.
+          if (msg.t === 'stop' || ((msg.t === 'brace' || msg.t === 'moveHold') && !msg.on)) {
+            this.cmds = this.cmds.filter((c) => c.id !== id || c.kind !== msg.t);
+            this.cmds.push(msg.t === 'stop' ? { id, kind: 'stop' } : { id, kind: msg.t, on: false });
+            this.acks.set(id, msg.seq);
+          }
+          return;
+        }
         if (msg.t === 'stop') this.cmds.push({ id, kind: 'stop' });
         else if (msg.t === 'channel') this.cmds.push({ id, kind: 'channel', spell: msg.spell });
         else if (msg.t === 'moveHold') this.cmds.push({ id, kind: 'moveHold', on: msg.on });
@@ -168,6 +189,8 @@ export class Room extends DurableObject<Env> {
         return;
       case 'start':
         if (startMatch(m, now, msg.bots, msg.mode, msg.shuffle ?? true, Math.random, msg.opts, msg.setup, msg.sandbox)) await this.changed();
+        // a silent refusal would leave the sender's loading screen waiting for a room that never comes
+        else if (m.phase === 'lobby' || m.phase === 'end') send(ws, { t: 'error', code: 'bad_msg', msg: 'Não deu para começar a partida.' });
         return;
       case 'sandbox':
         if (sandboxCmd(m, msg.cmd, now, id)) await this.changed();
@@ -380,6 +403,11 @@ export class Room extends DurableObject<Env> {
     const m = s.match;
     const now = Date.now();
     // placar ao vivo: durante a rodada a sala manda o estado dos jogadores (estatísticas) uma vez por segundo
+    if (this.readingDirty && now - this.readingSentAt >= 100) {
+      this.readingDirty = false;
+      this.readingSentAt = now;
+      this.broadcastRoom();
+    }
     if (m.phase === 'playing' && now - this.roomSentAt > 1000) {
       this.roomSentAt = now;
       this.broadcastRoom();
@@ -395,17 +423,21 @@ export class Room extends DurableObject<Env> {
     const lv = () => (m.night ? `${Object.values(m.night.xp ?? {}).join()}|${Object.values(m.night.owed ?? {}).join()}|${Object.keys(m.night.offer ?? {}).join()}` : '');
     const sig = () => `${m.phase}:${m.round}:${m.players.length}:${m.vote?.ends ?? 0}:${m.pendingMode}:${m.pendingShuffle}:${asc()}:${m.night?.fight ?? ''}:${m.night?.wave ?? ''}:${lv()}`;
     const before = sig();
+    const readers = campaignReaders(m).length;
     while (this.acc >= STEP_MS) {
       this.acc -= STEP_MS;
       // o que chegou desde o último tique entra no primeiro passo; nos passos de recuperação a fila já está vazia
-      const cmds = this.cmds;
-      this.cmds = [];
+      const paused = campaignReaders(m).length > 0;
+      const cmds = paused ? [] : this.cmds;
+      if (!paused) this.cmds = [];
       this.events.push(...tickMatch(m, now, cmds));
       if (++this.steps % SEND_EVERY === 0) this.sendSnaps();
     }
     // a sandbox não grava telemetria (e a rodada dela nem acaba); a Campanha também não (PvE, outros números)
     if (m.phase === 'roundEnd' && before.startsWith('playing') && !m.sandbox && !m.night) this.lobby().record(roundRecord(m, now)).catch(() => {});
     // sandbox não encerra por inatividade: quem testa fica parado mirando ou lendo; sem ninguém conectado o laço já para (shouldRun) e o alarme apaga a sala
+    // the reading cap ends a pause inside tickMatch: tell the clients now, not on the next 1 s broadcast
+    if (campaignReaders(m).length < readers) this.readingDirty = true;
     if (!m.sandbox && now - this.lastCmdAt > IDLE_MS) endIdle(m);
     if (sig() !== before) void this.changed();
   }
