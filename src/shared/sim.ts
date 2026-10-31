@@ -1172,7 +1172,7 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     return cast(w, wz, 'sniper', c.at, c.power, c.aimedId);
   }
   if (!wz.spells[spell] || w.t < wz.cd[spell]) return;
-  if (spell === 'nexus' && !validNexusTarget(w, wz, at, channelLevel(spellLevel(spell, wz.spells[spell]), wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1).range * wz.rangeF)) return;
+  if (spell === 'nexus' && !validNexusTarget(w, wz, at, wizardLevel(w, wz, spell, wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1).range * wz.rangeF)) return;
   // An invalid target neither reveals the wizard nor cancels another action.
   if (spell === 'transfusion' && !allyTarget(w.wizards.filter((z) => !isSuspended(z)), wz, at, wizardLevel(w, wz, spell, wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1).range * wz.rangeF)) return;
   if (spell === 'heal' && !healTarget(w.wizards, wz, at, wizardLevel(w, wz, spell, wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1).range * wz.rangeF)) return;

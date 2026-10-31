@@ -520,7 +520,7 @@ function startRoom(code: string, name: string) {
       if (spell === 'nexus') {
         const units = interp.latest()?.wizards.filter(w => !(w.geyserLeft ?? 0)).map(w => ({ ...w, team: room?.players.find(p => p.id === w.id)?.team })) ?? [];
         const self = units.find(w => w.id === me);
-        const target = self && allyTarget(units, self, at, reachOf(spell, mine.spells, mine.items, channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1));
+        const target = self && allyTarget(units, self, at, reachOf(spell, mine.spells, mine.items, channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1, elementalBonuses(self.spheres)));
         if (!target) return toast(t('Clique num aliado vivo dentro do alcance; não pode mirar em si mesmo.', 'Click a living ally in range; cannot target yourself.'));
         at = target.pos;
       }
@@ -538,7 +538,7 @@ function startRoom(code: string, name: string) {
       if (spell === 'transfusion') {
         const units = interp.latest()?.wizards.filter((w) => !(w.geyserLeft ?? 0)).map((w) => ({ ...w, team: room?.players.find((p) => p.id === w.id)?.team })) ?? [];
         const self = units.find((w) => w.id === me);
-        const target = self && allyTarget(units, self, at, reachOf(spell, mine.spells, mine.items, channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1));
+        const target = self && allyTarget(units, self, at, reachOf(spell, mine.spells, mine.items, channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1, elementalBonuses(self.spheres)));
         if (!target) return toast(t('Clique num aliado vivo dentro do alcance; não pode mirar em si mesmo.', 'Click a living ally in range; cannot target yourself.'));
         at = target.pos;
         predict.stop();

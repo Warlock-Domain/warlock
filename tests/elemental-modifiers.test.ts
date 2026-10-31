@@ -15,6 +15,15 @@ function setup(elements: Element[]) {
   return w;
 }
 describe('Elemental modifiers agree across simulation, snapshots and aiming', () => {
+  it('lets Water extend the Anima Nexus cast range on the server, like the range ring', () => {
+    for (const [spheres, linked] of [[0, false], [5, true]] as const) {
+      const w = world([[0, 0], [7.2, 0], [20, 0]], { ...noSpells(), nexus: 1 }, [], () => .5, false, [0, 0, 1]);
+      w.pillars = []; w.rules.runes = false; w.rules.chests = false; w.shrinkAt = 1000;
+      w.wizards[0].spheres = Array.from({ length: spheres }, () => ({ element: 'water' as const, until: 30 }));
+      stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'nexus', at: w.wizards[1].pos }], () => .5);
+      expect(!!w.wizards[0].nexus, `${spheres} Water spheres`).toBe(linked);
+    }
+  });
   it('captures Shield radius even after Earth expires and scales Drain/Snowball previews', () => {
     const w = setup(['earth', 'earth', 'earth', 'earth', 'earth']), caster = w.wizards[0];
     caster.spells.shield = 1;
