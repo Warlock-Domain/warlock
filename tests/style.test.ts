@@ -48,7 +48,8 @@ describe('play style', () => {
     // 27/10 (PR #426, owner's decision): the ranged basic Attack no longer pushes, which changes bot trajectories.
     // Mental Transfusion intentionally adds support purchases and decisions to seeded bot matches.
     // 31/10 (PR #433, owner's rule for Leonard's PRs): bots may buy Anima Nexus; adding it to situational plans changes seeded shopping draws, even in FFA where buying it is skipped.
-    expect(hash).toBe(2503456981);
+    // 31/10 (PR #432, accepted as proposed by Leonard): Elemental Spheres intentionally changes bot purchases, summon RNG and impact modifiers.
+    expect(hash).toBe(3078185543);
     // and it really measured in this same match
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);
