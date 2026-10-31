@@ -11,7 +11,7 @@ import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './
 import { SHIELD, castBlocked } from './spells.ts';
 import { BASIC_ATTACK, BRACE, GUARD, KNOCK_RECOVERY, MELEE_ARC } from './constants.ts';
 import { sniperTarget } from './sniper-target.ts';
-import { healTarget } from './heal-target.ts';
+import { healTarget, transfusionTarget } from './heal-target.ts';
 import { channelLevel, channelPower } from './channeling.ts';
 
 export type Wizard = {
@@ -29,6 +29,7 @@ export type Wizard = {
   arc?: boolean; // alternative Attack chosen in the shop: melee arc (MELEE_ARC); bots never set it
   guard?: boolean; // alternative Hold ground chosen in the shop: guard stance (GUARD); bots never set it
   blindUntil?: number; // Blindness: sight limited until this time
+  transfusion?: { target: string; range: number; level: number }; // Sustained allied cooldown acceleration; range captured at cast.
   incapacitateUntil?: number; // Incapacitate: until this time
   closedBodyUntil?: number; // Closed body: active until this time
   geyserLeft?: number; // Geyser: seconds left suspended in the jet
@@ -467,7 +468,7 @@ export const statusDuration = (w: World, wz: Wizard, seconds: number) => seconds
 export const closedBodyActive = (w: World, wz: Wizard) => w.t < (wz.closedBodyUntil ?? 0) && bracingActive(w, wz);
 export const damageFactor = (w: World, wz: Wizard) => closedBodyActive(w, wz) ? CLOSED_BODY.damage : 1;
 export const bracingActive = (w: World, wz: Wizard) => w.t + 1e-8 >= (wz.braceReadyAt ?? Infinity) && w.t < (wz.braceUntil ?? 0);
-export const incapacitatedUntil = (wz: Wizard, now = Infinity) => Math.max(wz.incapacitateUntil ?? 0, wz.electroUntil ?? 0, now + 1e-8 >= (wz.braceReadyAt ?? Infinity) ? wz.braceUntil ?? 0 : 0);
+export const incapacitatedUntil = (wz: Wizard, now = Infinity) => Math.max(wz.transfusion ? now + DT : 0, wz.incapacitateUntil ?? 0, wz.electroUntil ?? 0, now + 1e-8 >= (wz.braceReadyAt ?? Infinity) ? wz.braceUntil ?? 0 : 0);
 export function applyElectrocution(w: World, wz: Wizard) {
   if (w.t < wz.invulnUntil) return;
   wz.electroUntil = Math.max(wz.electroUntil ?? 0, w.t + statusDuration(w, wz, LIGHTNING.debuffDuration * wz.debuffMult));
@@ -896,6 +897,8 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
   const level = copy ?? wz.spells[spell];
   if (!level || (copy === undefined && w.t < wz.cd[spell])) return;
   const L = channelLevel(spellLevel(spell, level), power);
+  const mind = spell === 'transfusion' ? transfusionTarget(w.wizards.filter((z) => !isSuspended(z)), wz, at, L.range * wz.rangeF) : undefined;
+  if (spell === 'transfusion' && !mind) return;
   const recipient = spell === 'heal' ? healTarget(w.wizards, wz, at, L.range * wz.rangeF) : undefined;
   if (spell === 'heal' && !recipient) return;
   if (spell === 'closedbody' && !bracingActive(w, wz)) return;
@@ -910,6 +913,12 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
     return;
   }
   for (let i = 0; i < (SHOTS[spell] ?? 1); i++) w.events.push({ k: 'fire', id: wz.id, src: spell });
+  if (mind) {
+    wz.windUntil = 0;
+    wz.transfusion = { target: mind.id, range: L.range * wz.rangeF, level };
+    wz.target = null; wz.moveHeld = false; wz.basicCasting = undefined;
+    return;
+  }
   wz.windUntil = 0; // qualquer magia acaba com a Caminhada no vento (windwalkmodifier.lua)
   // Elo: teleportar ou trocar para fora da arena solta o mago ligado (linkmodifier.lua)
   if ((spell === 'teleport' || spell === 'swap') && !inArena(w, at)) w.projectiles = w.projectiles.filter((p) => !(p.kind === 'link' && p.owner === wz.id && p.target));
@@ -1078,6 +1087,7 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   }
   if (!wz.spells[spell] || w.t < wz.cd[spell]) return;
   // An invalid target neither reveals the wizard nor cancels another action.
+  if (spell === 'transfusion' && !transfusionTarget(w.wizards.filter((z) => !isSuspended(z)), wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF * (wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1))) return;
   if (spell === 'heal' && !healTarget(w.wizards, wz, at, spellLevel(spell, wz.spells[spell]).range * wz.rangeF * (wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1))) return;
   const aimed = spell === 'sniper' ? sniperVictim(w,wz,at,spellLevel(spell,wz.spells[spell]).range*wz.rangeF) : undefined;
   if (spell === 'sniper' && !aimed) return;
@@ -1087,6 +1097,7 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     if (!power) return; // A premature click keeps charging instead of firing a weak spell.
   }
   wz.channel = undefined;
+  wz.transfusion = undefined;
   wz.basicCasting = undefined; // só uma conjuração válida cancela o ataque em preparo.
   const delay = CAST_POINT[spell];
   const d = sub(at, wz.pos);
@@ -1904,7 +1915,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
 export function revive(w: World, wz: Wizard, pos: Vec) {
   Object.assign(wz, {
     alive: true, pos, vel: v(0, 0), target: null, casting: null, channel: undefined, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
-    blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined, puppetBy: undefined, puppetUntil: 0,
+    transfusion: undefined, blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined, puppetBy: undefined, puppetUntil: 0,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
     rune: null, runeUntil: 0, braceUntil: 0, braceReadyAt: 0, electroUntil: 0, basicCasting: undefined,
@@ -2143,6 +2154,7 @@ function applyCmds(w: World, cmds: Cmd[]) {
 }
 
 function applyCmd(w: World, wz: Wizard, c: Cmd) {
+  if (c.kind === 'move' || c.kind === 'stop' || c.kind === 'basic' || c.kind === 'channel' || (c.kind === 'brace' && c.on)) wz.transfusion = undefined;
   if (c.kind === 'channel') {
     if (!(wz.spells.channel > 0) || w.t < wz.dashUntil || w.t < wz.thrustUntil || c.spell === 'channel' || !wz.spells[c.spell] || w.t < wz.cd[c.spell] || wz.casting || castBlocked(isStunned(wz), w.t < wz.gripUntil, c.spell)) return;
     if (wz.channel?.spell === c.spell) return; // Key repeat must not reset the server timer.
@@ -2180,11 +2192,29 @@ function applyCmd(w: World, wz: Wizard, c: Cmd) {
   } else beginCast(w, wz, c.spell, c.at);
 }
 
+// Validate after movement/impacts so a broken link never grants an extra cooldown tick.
+function transfusionAlly(w: World, caster: Wizard): Wizard | undefined {
+  const link = caster.transfusion;
+  if (!link || !caster.alive || isStunned(caster) || isSuspended(caster) || puppeteer(w, caster)) return;
+  return w.wizards.find((z) => z.id === link.target && z.id !== caster.id && z.alive && !isSuspended(z) && caster.team !== null && z.team === caster.team && dist(caster.pos, z.pos) <= link.range + 1e-9);
+}
+function advanceTransfusions(w: World) {
+  for (const caster of w.wizards) if (caster.transfusion) {
+    const ally = transfusionAlly(w, caster);
+    if (!ally) { caster.transfusion = undefined; continue; }
+    // Incapacitate has priority; an ally cannot bypass their own paused cooldowns.
+    if (w.t < incapacitatedUntil(ally, w.t)) continue;
+    const extra = spellLevel('transfusion', caster.transfusion.level).scale * DT;
+    for (const id of SPELL_IDS) if (ally.cd[id] > w.t) ally.cd[id] = Math.max(w.t, ally.cd[id] - extra);
+  }
+}
+
 // Per-wizard state before movement: deathmatch respawn, finished casts, ground zones, effects and speed
 function prepWizards(w: World, rand: () => number) {
   for (const wz of w.wizards) {
     if (!wz.alive && w.dm && w.t >= wz.respawnAt) respawn(w, wz, rand);
-    if (!wz.alive) continue;
+    if (!wz.alive) { wz.transfusion = undefined; continue; }
+    if (wz.transfusion && !transfusionAlly(w, wz)) wz.transfusion = undefined;
     if (!bracingActive(w, wz)) wz.closedBodyUntil = 0; // Releasing S or losing the stance ends it; holding again does not renew it.
     if (!wz.spells.channel || isStunned(wz) || (wz.channel && castBlocked(false, w.t < wz.gripUntil, wz.channel.spell))) wz.channel = undefined;
     if (isStunned(wz)) wz.basicCasting = undefined;
@@ -2397,6 +2427,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   if (w.map) dropWalled(w);
   clashProjectiles(w);
   stepGround(w);
+  advanceTransfusions(w);
   // After commands and impacts, pause cooldown progress without blocking ready abilities.
   for (const wz of w.wizards) if (wz.alive) {
     const pause = Math.min(DT, Math.max(0, incapacitatedUntil(wz, w.t) - w.t));
