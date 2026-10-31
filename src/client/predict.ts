@@ -104,7 +104,7 @@ export class MovementPredictor {
     this.wasDashing = dashing;
     if ((server.sniperLeft ?? 0)>0) { me.target = null; this.queued = undefined; }
     if (this.velocitySource && (this.velocitySource.sniperLeft ?? 0)>0 && !(server.sniperLeft ?? 0) && this.attackHold) { this.holdUntil=0; this.attackHold=false; }
-    if (server.channelElapsed !== undefined) { me.target = null; this.queued = undefined; }
+    if (server.channelElapsed !== undefined || (server.transfusionTo ?? -1) >= 0) { me.target = null; this.queued = undefined; }
     // Squid Pix: the controller's commands walk this wizard on the server, so follow it like a suspension
     const suspended = (server.geyserLeft ?? 0) > 0 || (server.puppetLeft ?? 0) > 0;
     const stunned = suspended || (server.stunLeft === undefined ? isStunned(server) : !!(server.status & 16));

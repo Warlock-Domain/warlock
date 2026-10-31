@@ -17,8 +17,8 @@ export function setCastPreference(key: string, mode?: CastMode) {
   else overrides[key] = mode;
   store.set(KEY, JSON.stringify(overrides));
 }
-// Heal and Inelegant Solution always confirm on a clicked body (src/client/CLAUDE.md), so no preference reaches them;
+// Heal, Inelegant Solution and Mental Transfusion always confirm on a clicked body (src/client/CLAUDE.md), so no preference reaches them;
 // otherwise individual ability preferences win over keyboard preferences. Passive items only save future intent.
-export const clickOnly = (ability?: string) => ability === 'spell:heal' || ability === 'spell:sniper';
+export const clickOnly = (ability?: string) => ability === 'spell:heal' || ability === 'spell:sniper' || ability === 'spell:transfusion';
 export const resolveCastMode = (fallback: CastMode, ability?: string, code?: string): CastMode =>
   clickOnly(ability) ? 'click' : (ability && overrides[ability]) || (code && overrides['key:' + code]) || fallback;

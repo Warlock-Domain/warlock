@@ -45,7 +45,7 @@ const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize', 'pix'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
-const SITUATIONAL: SpellId[] = ['nexus', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
+const SITUATIONAL: SpellId[] = ['transfusion', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
 const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
@@ -68,7 +68,7 @@ export function botBuy(p: Buyer, rand: () => number = Math.random, D: BotSkill =
   const plan = (p.plan ??= (botConfig.planner ?? (rand() < D.smart ? smartPlan : randomPlan))(rand));
   const level = (b: BotPick) => (b.kind === 'spell' ? p.spells[b.id] : (p.items?.[b.id] ?? 0));
   const price = (b: BotPick) =>
-    b.kind === 'spell' ? (b.id === 'nexus' && p.team == null || p.spells[b.id] === 0 && spellCount(p.spells) >= MAX_SPELLS ? null : priceOf(b.id, p.spells[b.id])) : p.items ? itemPrice(p.items, b.id) : null;
+    b.kind === 'spell' ? (b.id === 'transfusion' && p.team == null || p.spells[b.id] === 0 && spellCount(p.spells) >= MAX_SPELLS ? null : priceOf(b.id, p.spells[b.id])) : p.items ? itemPrice(p.items, b.id) : null;
   const next = plan.buys.find((b) => level(b) === 0 && price(b) !== null);
   if (next) return price(next)! <= p.gold ? next : null;
   const seen = new Set<string>();
@@ -234,7 +234,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // A charged aim fires at once (the key costs no movement; the dodge comes on the next think). Before that, keep aiming while
   // nothing is coming; with a shot on the way the usual dodge runs and its move cancels the aim, as for a player.
   if (me.casting?.spell === 'sniper' && w.t + 1e-8 >= me.casting.fireAt) return [{ id, kind: 'cast', spell: 'sniper', at: me.casting.at }];
-  if (me.casting?.spell === 'sniper' && !th) return [];
+  if ((me.casting?.spell === 'sniper' || me.transfusion) && !th) return [];
   // Hold ground (Fernando's decision, 24/10, in the CLAUDE.md register): with no escape spell ready the bot holds S like a player.
   // The 0.5 s windup must finish before the hit, so it looks up to 0.9 s ahead (windup + one Normal think, 0.4 s); the old 0.6 s
   // trigger almost never finished the windup (6 bots: 28 uses, 0 active ticks). Once holding it renews without a new roll while the
@@ -423,11 +423,11 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   }
   // na Caminhada no vento qualquer magia a encerra: só corre para encostar no inimigo
   if (w.t < me.windUntil) return enemy ? [...cmds.filter((c) => c.kind !== 'move'), { id, kind: 'move', to: enemy.pos }] : cmds;
-  // Anima Nexus after the escape and dodge branches: link to an ally in range with less HP than the bot
-  if (!me.casting && !me.nexus && ready('nexus')) {
-    const range = spellLevel('nexus', me.spells.nexus).range * me.rangeF;
-    const target = w.wizards.find(z => z !== me && z.alive && ally(z) && z.hp < me.hp && dist(z.pos, me.pos) <= range);
-    if (target) return cast('nexus', target.pos);
+  if (!me.casting && ready('transfusion')) {
+    const L = spellLevel('transfusion', me.spells.transfusion);
+    const recipient = w.wizards.filter((z) => z !== me && z.alive && ally(z) && dist(z.pos, me.pos) <= L.range * me.rangeF)
+      .sort((a, b) => Object.values(b.cd).reduce((n, cd) => n + Math.max(0, cd - w.t), 0) - Object.values(a.cd).reduce((n, cd) => n + Math.max(0, cd - w.t), 0))[0];
+    if (recipient && Object.values(recipient.cd).some((cd) => cd - w.t > 2)) return cast('transfusion', recipient.pos);
   }
   // Heal after the escape and dodge branches: a hurt bot first gets out of danger, then heals the most hurt ally in range
   if (!me.casting && ready('heal')) {

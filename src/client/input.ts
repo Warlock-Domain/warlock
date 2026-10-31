@@ -131,7 +131,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       // fora do alcance a magia sai na direção do clique, até a borda do alcance (o servidor limita)
       const chosen = armed;
       const cast = h.cast(chosen, p);
-      if (channelArmed ? cast : (chosen !== 'heal' && chosen !== 'sniper' && chosen !== 'nexus') || cast) arm(null);
+      if (channelArmed ? cast : (chosen !== 'heal' && chosen !== 'sniper' && chosen !== 'transfusion') || cast) arm(null);
     } else if (e.button === 2 || touch) {
       if (armed || attackArmed) arm(null); // botão direito cancela a ação escolhida (e anda, como no Dota)
       h.move(p, e.button === 2);
@@ -173,12 +173,12 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
         return;
       }
       if (channelArmed && action === armed) { e.preventDefault(); return; }
-      // Heal and Inelegant Solution always require a click on the target body; a charged sniper aim fires on the key instead.
+      // Heal and Inelegant Solution always require a click on the target body; Mental Transfusion too; a charged sniper aim fires on the key instead.
       if (action === 'sniper' && h.fireSniper?.()) { e.preventDefault(); return; }
-      if (action === 'heal' || action === 'sniper' || action === 'nexus') { e.preventDefault(); cancel(); return arm(action); }
+      if (action === 'heal' || action === 'sniper' || action === 'transfusion') { e.preventDefault(); cancel(); return arm(action); }
       const mode = getCastMode(action, e.code);
       if (held) release(); // modes differ per key: cast the held spell before another key takes over
-      if (armed === 'heal' || armed === 'sniper' || armed === 'nexus') arm(null);
+      if (armed === 'heal' || armed === 'sniper' || armed === 'transfusion') arm(null);
       if (attackArmed) arm(null);
       e.preventDefault();
       if (mode === 'click') {
@@ -252,7 +252,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       if (enabled && a !== 'channel' && h.canChannel?.() && (attackArmed || armed === 'channel')) {
         cancel(); if (h.channel?.(a)) { arm(a); channelArmed = true; } return;
       }
-      if (a === 'heal' || a === 'sniper' || a === 'nexus') cancel();
+      if (a === 'heal' || a === 'sniper' || a === 'transfusion') cancel();
       if (!enabled) return;
       if (armed === a) return arm(null);
       if (h.checkCooldown && !h.checkCooldown(a)) return arm(null);

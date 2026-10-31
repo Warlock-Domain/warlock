@@ -6,7 +6,7 @@ import { DEFAULT_OPTS, DM_GOALS, OPTION_CHOICES } from '../shared/match.ts';
 import { CLASH } from '../shared/sim.ts';
 import { ITEMS, MAX_ITEMS, type ItemId } from '../shared/items.ts';
 import { keyLabel, keyOf, padButtonName, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
-import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, PIX, RECHARGE, RUSH, SHIELD, SPELLS, SPELL_GROUP_IDS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
+import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, PIX, RECHARGE, RUSH, SHIELD, SPELLS, SPELL_GROUP_IDS, SPELL_IDS, WARPZONE, spellLevel, type SpellId } from '../shared/spells.ts';
 import { LANG, LOCALE, spellName, t } from './i18n.ts';
 import { BASIC_ATTACK, BRACE, GUARD, KNOCK_RECOVERY, MELEE_ARC } from '../shared/constants.ts';
 
@@ -319,6 +319,7 @@ export const RULES = LANG === 'en' ? RULES_EN : RULES_PT;
 // grimório: como usar cada magia e contra o quê ela funciona (lido do comportamento em shared/sim.ts)
 type SpellTips = Record<SpellId, [use: string, vs: string]>;
 const SPELL_TIPS_PT: SpellTips = {
+  transfusion: ['Selecione Transfusão mental e clique num aliado vivo; não pode mirar inimigos nem você mesmo.', 'Mantém um vínculo que acelera as recargas do aliado. Você fica parado e incapacitado (suas recargas pausam). Movimento, S, ataque, outra magia, stun, morte ou alvo fora do alcance interrompem.'],
   pix: [`Marque o chão: cai uma chuva de moedas por ${n1(PIX.rain)} s. Quem somar ${n1(PIX.soak)} s dentro (aliados também, menos você) repete seus comandos por ${n1(L1('pix').duration)} s: anda como você e lança cada magia sua mirando o mesmo ponto que você, mesmo sem tê-la.`, 'Sair da chuva guarda o tempo já somado enquanto ela durar. As magias que saem do controlado são suas: não acertam você e o dano e os abates contam para você; se ele cair na lava, o abate é seu. Só acaba com o tempo ou com a sua morte; Escudo e Corpo fechado encurtam como qualquer status.'],
   sniper: [`Selecione a magia e clique num inimigo a até ${n1(L1('sniper').range)} m; o mago fica parado mirando por ${n1(CAST_POINT.sniper)} s; carregou, o botão Atacar (A) solta faíscas e apertar A atira no marcado.`, 'Linha vermelha e retículo indicam o alvo; linhas de tensão nas bordas aparecem para quem conjura e para espectadores seguindo esse jogador. Movimento/S/stun cancelam; alvo invisível, morto ou fora do alcance interrompe.'],
   channel: ['Atacar + tecla da magia inicia a carga; clique esquerdo lança após 1 s.', 'Aos 2 s mantém+100% e aguarda seu comando, sem disparo automático. Ataque básico desabilitado; S/movimento/stun cancelam.'],
@@ -356,6 +357,7 @@ const SPELL_TIPS_PT: SpellTips = {
 };
 
 const SPELL_TIPS_EN: SpellTips = {
+  transfusion: ['Select Mental Transfusion and click a living ally; cannot target enemies or yourself.', 'Maintains a link that accelerates allied cooldowns. You stand still and are incapacitated (your cooldowns pause). Movement, Stop, attack, another spell, stun, death or an out-of-range target interrupts.'],
   pix: [`Mark the ground: coins rain on it for ${n1(PIX.rain)} s. Whoever adds up ${n1(PIX.soak)} s inside (allies too, never you) repeats your commands for ${n1(L1('pix').duration)} s: walks like you and casts each of your spells at the same point you aim, even without owning it.`, 'Leaving the rain keeps the time already added up while it lasts. Spells coming out of the controlled wizard are yours: they never hit you, and their damage and kills count for you; if they fall into the lava, the kill is yours. It only ends with time or your death; Shield and Closed Body shorten it like any status.'],
   sniper: [`Select the spell and click an enemy within ${n1(L1('sniper').range)} m; stand still and aim for ${n1(CAST_POINT.sniper)} s; once charged, the Attack button (A) sparks and pressing A fires at the marked enemy.`, 'A red line and reticle mark the target; tension lines along the screen edges appear for the caster and spectators following that player. Movement/Stop/stun cancel; invisible, dead or out-of-range target interrupts.'],
   channel: ['Attack + a spell key starts charging; left-click casts after 1 s.', 'At 2 s holds+100% and awaits your command; never fires automatically. Basic attacks disabled; Stop/movement/stun cancels.'],
@@ -444,6 +446,7 @@ export const ITEM_GROUPS = LANG === 'en' ? ITEM_GROUPS_EN : ITEM_GROUPS_PT;
 
 // para que serve, em uma linha (cartão da loja)
 const SPELL_USE_PT: Record<SpellId, string> = {
+  transfusion: 'Acelera as recargas de um aliado enquanto você fica incapacitado.',
   pix: 'O inimigo repete seus passos e magias por um tempo.',
   sniper: `Mira com uma sniper e carrega por ${n1(CAST_POINT.sniper)} s e dispara ${n1(L1('sniper').dmg)} de dano quando você apertar A.`,
   channel: 'Carrega outra magia para aumentar dano, alcance, velocidade e empurrão.',
@@ -480,6 +483,7 @@ const SPELL_USE_PT: Record<SpellId, string> = {
   pact: 'Dobra o próximo golpe de dano.',
 };
 const SPELL_USE_EN: Record<SpellId, string> = {
+  transfusion: 'Speeds up an ally’s cooldowns while you are incapacitated.',
   pix: 'The enemy repeats your steps and spells for a while.',
   sniper: `Aim a sniper rifle and charge for ${n1(CAST_POINT.sniper)} s, then fire for ${n1(L1('sniper').dmg)} damage when you press A.`,
   channel: 'Charges another spell to increase damage, range, speed and knockback.',
@@ -519,6 +523,7 @@ export { SPELL_USE_EN, SPELL_USE_PT };
 export const SPELL_USE = LANG === 'en' ? SPELL_USE_EN : SPELL_USE_PT;
 
 const RULES_SHORT_PT: Record<SpellId, string> = {
+  transfusion: `Precisa de um aliado: não faz nada em todos contra todos. Clique num aliado vivo a até ${n1(L1('transfusion').range)} m (nunca em você nem em inimigos). O vínculo dura até ser interrompido ou o alvo sair do alcance. Acelera as recargas das magias do aliado em +${n1(L1('transfusion').scale * 100)}% no nível 1 e mais ${n1(L1('transfusion').scale * 100)} pontos percentuais por nível (até +${n1(spellLevel('transfusion', MAX_SPELL_LEVEL).scale * 100)}%); não diminui o cooldown-base. Custa ${SPELLS.transfusion.cost} de ouro. Recarga de ${n1(L1('transfusion').cd)} s, −1 s por nível; alcance +1 m por nível. Você fica parado e incapacitado, com suas recargas pausadas. Movimento, S, ataque, outra magia ou stun no conjurador encerram. Morte ou suspensão de qualquer participante também encerram. Incapacitar no aliado continua pausando as recargas dele.`,
   pix: `Marque o chão: cai uma chuva de moedas de ${n1(L1('pix').radius)} m de raio por ${n1(PIX.rain)} s. Quem somar ${n1(PIX.soak)} s dentro dela (aliados também, menos você; sair guarda o tempo) repete seus comandos por ${n1(L1('pix').duration)} s. Anda com o mesmo deslocamento que você, para quando você para, usa o Ataque e lança cada magia sua mirando o mesmo ponto que você (os dois tiros fazem um V), no seu nível e sem gastar recarga dele. O que sai dele é seu: não acerta você, e dano e abates (lava incluída) contam para você. Um fio vermelho liga vocês. Acaba só com o tempo ou se você morrer.`,
   sniper: `Linhas de tensão animadas nas bordas da tela aparecem para quem usa a magia e espectadores seguindo esse jogador. Saca uma sniper e acompanha o inimigo selecionado por ${n1(CAST_POINT.sniper)} s, parado. Carregado, o botão Atacar (A) solta faíscas e apertar A dispara um tiro instantâneo de ${n1(L1('sniper').dmg)} de dano base, sem empurrão. Alcance ${n1(L1('sniper').range)} m; custo ${SPELLS.sniper.cost} de ouro e recarga ${n1(L1('sniper').cd)} s após o disparo. Sem progressão de nível. Movimento, S, stun ou suspensão interrompem; perder o alvo (morto, invisível ou fora do alcance) cancela sem gastar recarga. Obstáculos bloqueiam o tiro; respeita invulnerabilidade, Escudo e reduções gerais de dano.`,
   channel: 'Compre Canalização e pressione Atacar + tecla de outra magia que possui. Fica parado carregando; clique esquerdo lança após pelo menos 1 s. Aos 1 s: +50% de dano, alcance, velocidade do projétil e empurrão; cresce linearmente até +100% aos 2 s. Não lança sozinha: mantém a carga máxima até você lançar. S, movimento ou stun cancelam. Sem recarga própria; a magia escolhida usa sua recarga normal. Comprar Canalização desabilita o ataque básico. Só modifica atributos existentes, sem aumentar cura, duração ou tempo de status.',
@@ -555,6 +560,7 @@ geyser: `Invoca no chão um gêiser por ${n1(L1('geyser').duration)} s, a até $
   pact: `A próxima magia de dano em ${n1(L1('pact').duration)} s faz ${n1(PACT.mult)}× de dano e empurrão.`,
 };
 const RULES_SHORT_EN: Record<SpellId, string> = {
+  transfusion: `Needs an ally: does nothing in free-for-all. Click a living ally within ${n1(L1('transfusion').range)} m (never yourself or enemies). The link lasts until interrupted or the target leaves range. Allied spell cooldowns recover +${n1(L1('transfusion').scale * 100)}% faster at level 1 and ${n1(L1('transfusion').scale * 100)} more percentage points per level (up to +${n1(spellLevel('transfusion', MAX_SPELL_LEVEL).scale * 100)}%); base cooldown values do not change. Costs ${SPELLS.transfusion.cost} gold. Cooldown ${n1(L1('transfusion').cd)} s, −1 s per level; range +1 m per level. You stand still and are incapacitated, pausing your cooldowns. Moving, Stop, attacking, another spell or caster stun ends it. Either participant dying or being suspended also ends it. An incapacitated ally still has paused cooldowns.`,
   pix: `Mark the ground: coins rain on a ${n1(L1('pix').radius)} m radius for ${n1(PIX.rain)} s. Whoever adds up ${n1(PIX.soak)} s inside (allies too, never you; leaving keeps the time) repeats your commands for ${n1(L1('pix').duration)} s. They walk with the same offset as you, stop when you stop, use the Attack and cast each of your spells at the same point you aim (the two shots make a V), at your level and without spending their cooldown. What comes out of them is yours: it never hits you, and damage and kills (lava included) count for you. A red thread ties you together. It ends only with time or if you die.`,
   sniper: `Animated tension lines along the screen edges appear for the caster and spectators following that player. Draw a sniper rifle and track the selected enemy for ${n1(CAST_POINT.sniper)} s while stationary. Once charged, the Attack button (A) sparks and pressing A fires an instant shot for ${n1(L1('sniper').dmg)} base damage, with no knockback. Range ${n1(L1('sniper').range)} m; costs ${SPELLS.sniper.cost} gold with a ${n1(L1('sniper').cd)} s cooldown after firing. No level progression. Movement, Stop, stun or suspension interrupts; losing the target (dead, invisible or out of range) cancels without cooldown. Obstacles block the shot; respects invulnerability, Shield and general damage reductions.`,
   channel: 'Buy Channeling and press Attack + the key of another owned spell. Stand still while charging; left-click to cast after at least 1 s. At 1 s: +50% damage, range, projectile speed and knockback, increasing linearly to +100% at 2 s. Never fires automatically: holds maximum charge until you cast. Stop, movement or stun cancels. No cooldown of its own; the selected spell uses its normal cooldown. Buying Channeling disables basic attacks. Only existing attributes change, not healing, duration or status time.',
