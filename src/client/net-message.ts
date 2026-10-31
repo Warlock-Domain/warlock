@@ -114,6 +114,7 @@ function snap(x: Obj): x is Obj & Snap {
     const cn = x.cn as number[];
     if (cn.length !== count * 2 || cn.some((n, i) => (i % 2 === 0 ? !Number.isInteger(n) || n < -1 || n >= SPELL_IDS.length : n < 0 || n > 2))) return false;
   }
+  if (x.nx !== undefined && (!numericArray(x.nx) || x.nx.length !== count || x.nx.some(n => !integer(n) || n < -1 || n >= count))) return false;
   if (x.sn !== undefined && ((x.sn as number[]).length !== count * 3 || (x.sn as number[]).some((n,i) => i % 3 === 0 && (n < 0 || n > CAST_POINT.sniper)))) return false;
   return x.e === undefined || Array.isArray(x.e);
 }

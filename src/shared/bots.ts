@@ -45,7 +45,7 @@ const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize', 'pix'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
-const SITUATIONAL: SpellId[] = ['transfusion', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
+const SITUATIONAL: SpellId[] = ['nexus', 'transfusion', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
 const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
@@ -68,7 +68,7 @@ export function botBuy(p: Buyer, rand: () => number = Math.random, D: BotSkill =
   const plan = (p.plan ??= (botConfig.planner ?? (rand() < D.smart ? smartPlan : randomPlan))(rand));
   const level = (b: BotPick) => (b.kind === 'spell' ? p.spells[b.id] : (p.items?.[b.id] ?? 0));
   const price = (b: BotPick) =>
-    b.kind === 'spell' ? (b.id === 'transfusion' && p.team == null || p.spells[b.id] === 0 && spellCount(p.spells) >= MAX_SPELLS ? null : priceOf(b.id, p.spells[b.id])) : p.items ? itemPrice(p.items, b.id) : null;
+    b.kind === 'spell' ? ((b.id === 'transfusion' || b.id === 'nexus') && p.team == null || p.spells[b.id] === 0 && spellCount(p.spells) >= MAX_SPELLS ? null : priceOf(b.id, p.spells[b.id])) : p.items ? itemPrice(p.items, b.id) : null;
   const next = plan.buys.find((b) => level(b) === 0 && price(b) !== null);
   if (next) return price(next)! <= p.gold ? next : null;
   const seen = new Set<string>();
@@ -423,6 +423,12 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   }
   // na Caminhada no vento qualquer magia a encerra: só corre para encostar no inimigo
   if (w.t < me.windUntil) return enemy ? [...cmds.filter((c) => c.kind !== 'move'), { id, kind: 'move', to: enemy.pos }] : cmds;
+  // Anima Nexus after the escape and dodge branches: link to an ally in range with less HP than the bot
+  if (!me.casting && !me.nexus && ready('nexus')) {
+    const range = spellLevel('nexus', me.spells.nexus).range * me.rangeF;
+    const target = w.wizards.find(z => z !== me && z.alive && ally(z) && z.hp < me.hp && dist(z.pos, me.pos) <= range);
+    if (target) return cast('nexus', target.pos);
+  }
   if (!me.casting && ready('transfusion')) {
     const L = spellLevel('transfusion', me.spells.transfusion);
     const recipient = w.wizards.filter((z) => z !== me && z.alive && ally(z) && dist(z.pos, me.pos) <= L.range * me.rangeF)

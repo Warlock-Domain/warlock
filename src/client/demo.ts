@@ -48,6 +48,7 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
     steps: [[.4,A,'geyser',v(0,0)],[.9,B,'move',v(0,4)],[.9,3,'fireball',v(4,0)],[1,B,'fireball',A],[3.3,B,'move',v(0,3)]],
     prep: w => { w.pillars=[]; w.wizards[A].team=w.wizards[B].team=0; w.wizards[C].team=1; } },
   transfusion: { pos: [v(-3, 0), v(2, 0)], end: 3.8, steps: [[.4, A, 'transfusion', B], [2.6, B, 'move', v(12, 0)]], prep: (w) => { w.pillars = []; w.wizards[A].team = w.wizards[B].team = 0; w.wizards[B].cd.fireball = 8; w.wizards[A].cd.fireball = 8; } },
+  nexus: { pos: [v(-3, 0), v(0, 0), v(4, 0)], end: 5, steps: [[.4, A, 'nexus', B], [1, C, 'fireball', B], [3, A, 'nexus', B]], prep: w => { w.pillars = []; w.wizards[A].team = w.wizards[B].team = 0; for (const z of w.wizards) z.regen = 0; } },
   heal: { pos: [v(-3, 0), v(2, 0), v(2, 2)], end: 3, steps: [[.4, A, 'heal', B], [1.4, B, 'heal', B]],
     prep: w => { w.pillars = []; w.wizards[A].team = w.wizards[B].team = 0; w.wizards[C].team = 1; w.wizards[B].spells.heal = 1; for (const z of w.wizards) { z.hp = 700; z.regen = 0; } } },
   knockback: { pos: [v(-3, 0), v(0, 0)], end: 3.5, steps: [[.4, A, 'fireball', B], [.85, B, 'move', v(0, 4)]], prep: (w) => { w.pillars = []; } },
@@ -292,6 +293,10 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       line(z.pos,at,'#ff324e',.035,true); circle(at,.5,null,'#ff324e');
       const dir=v(Math.cos(z.facing),Math.sin(z.facing));
       line(add(z.pos,scale(dir,.3)),add(z.pos,scale(dir,1.35)),'#283447',.15);
+    }
+    if (z.nexus) {
+      const ally = w.wizards.find(q => q.id === z.nexus!.target && q.alive);
+      if (ally) line(z.pos, ally.pos, HEAL_FX.color, .07);
     }
     if (z.basicCasting) {
       circle(z.pos, .6, null, '#9be7ff');

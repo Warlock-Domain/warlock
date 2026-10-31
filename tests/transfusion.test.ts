@@ -3,7 +3,7 @@ import { DT } from '../src/shared/constants.ts';
 import { incapacitatedUntil, stepWorld } from '../src/shared/sim.ts';
 import { decodeSnap, encodeSnap } from '../src/shared/snapshot.ts';
 import { noSpells, spellLevel } from '../src/shared/spells.ts';
-import { transfusionTarget } from '../src/shared/heal-target.ts';
+import { allyTarget } from '../src/shared/heal-target.ts';
 import { v } from '../src/shared/vec.ts';
 import { world, run } from './helpers.ts';
 
@@ -19,12 +19,12 @@ describe('Mental Transfusion', () => {
     expect(spellLevel('transfusion', 1)).toMatchObject({ cd: 22, range: 10, scale: .2 });
     expect(spellLevel('transfusion', 7)).toMatchObject({ cd: 16, range: 16, scale: 1.4 });
     const w = setup(), caster = w.wizards[0];
-    expect(transfusionTarget(w.wizards, caster, v(0, 0), 10)).toBeUndefined();
-    expect(transfusionTarget(w.wizards, caster, v(5, 2), 10)).toBeUndefined();
-    expect(transfusionTarget(w.wizards, caster, v(4, 0), 3)).toBeUndefined();
-    expect(transfusionTarget(w.wizards, caster, v(4, 0), 10)?.id).toBe('p1');
+    expect(allyTarget(w.wizards, caster, v(0, 0), 10)).toBeUndefined();
+    expect(allyTarget(w.wizards, caster, v(5, 2), 10)).toBeUndefined();
+    expect(allyTarget(w.wizards, caster, v(4, 0), 3)).toBeUndefined();
+    expect(allyTarget(w.wizards, caster, v(4, 0), 10)?.id).toBe('p1');
     w.wizards[1].alive = false;
-    expect(transfusionTarget(w.wizards, caster, v(4, 0), 10)).toBeUndefined();
+    expect(allyTarget(w.wizards, caster, v(4, 0), 10)).toBeUndefined();
   });
   it('invalid targets spend no cooldown and keep an existing action', () => {
     const w = setup(), caster = w.wizards[0];

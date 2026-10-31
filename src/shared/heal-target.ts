@@ -13,6 +13,6 @@ export function healTarget<T extends Unit>(units: readonly T[], caster: Unit, at
   }
   return best;
 }
-// Mental Transfusion: the same body pick as Heal, never the caster.
-export const transfusionTarget = <T extends Unit>(units: readonly T[], caster: Unit, at: Vec, range: number): T | undefined =>
+// Mental Transfusion and Anima Nexus: the same body pick as Heal, never the caster.
+export const allyTarget = <T extends Unit>(units: readonly T[], caster: Unit, at: Vec, range: number): T | undefined =>
   healTarget(units.filter((z) => z.id !== caster.id), caster, at, range);
