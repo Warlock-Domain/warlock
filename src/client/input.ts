@@ -7,6 +7,7 @@ import { setPadGame } from './gamepad.ts';
 import type { Vec } from '../shared/vec.ts';
 
 export type InputHandlers = {
+  cancelNexus?: () => boolean;
   pick: (x: number, y: number, spell?: SpellId) => Vec | null;
   move: (to: Vec, held?: boolean) => void;
   holdMove?: (on: boolean) => void;
@@ -130,7 +131,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       // fora do alcance a magia sai na direção do clique, até a borda do alcance (o servidor limita)
       const chosen = armed;
       const cast = h.cast(chosen, p);
-      if (channelArmed ? cast : (chosen !== 'heal' && chosen !== 'sniper' && chosen !== 'transfusion') || cast) arm(null);
+      if (channelArmed ? cast : (chosen !== 'heal' && chosen !== 'sniper' && chosen !== 'transfusion' && chosen !== 'nexus') || cast) arm(null);
     } else if (e.button === 2 || touch) {
       if (armed || attackArmed) arm(null); // botão direito cancela a ação escolhida (e anda, como no Dota)
       h.move(p, e.button === 2);
@@ -162,6 +163,8 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     // teclas trocáveis pelo jogador (keys.ts)
     const action = actionFor(e.code);
     if (action) {
+      if (action === 'nexus' && e.repeat) { e.preventDefault(); return; }
+      if (action === 'nexus' && h.cancelNexus?.()) { e.preventDefault(); arm(null); return; }
       if (action === 'channel') { e.preventDefault(); cancel(); return arm(action); }
       if (h.canChannel?.() && (attackHeldCode || attackArmed || armed === 'channel')) {
         e.preventDefault(); if (e.repeat) return;
@@ -172,10 +175,10 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       if (channelArmed && action === armed) { e.preventDefault(); return; }
       // Heal and Inelegant Solution always require a click on the target body; Mental Transfusion too; a charged sniper aim fires on the key instead.
       if (action === 'sniper' && h.fireSniper?.()) { e.preventDefault(); return; }
-      if (action === 'heal' || action === 'sniper' || action === 'transfusion') { e.preventDefault(); cancel(); return arm(action); }
+      if (action === 'heal' || action === 'sniper' || action === 'transfusion' || action === 'nexus') { e.preventDefault(); cancel(); return arm(action); }
       const mode = getCastMode(action, e.code);
       if (held) release(); // modes differ per key: cast the held spell before another key takes over
-      if (armed === 'heal' || armed === 'sniper' || armed === 'transfusion') arm(null);
+      if (armed === 'heal' || armed === 'sniper' || armed === 'transfusion' || armed === 'nexus') arm(null);
       if (attackArmed) arm(null);
       e.preventDefault();
       if (mode === 'click') {
@@ -244,11 +247,12 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     hovered: () => h.pickAttack?.(cursor.x, cursor.y),
     // The toolbar selects a spell; the next ground click or tap casts it.
     button(a: SpellId) {
+      if (enabled && a === 'nexus' && h.cancelNexus?.()) { arm(null); return; }
       if (enabled && a === 'sniper' && h.fireSniper?.()) return; // charged aim: the bar button fires at the marked enemy
       if (enabled && a !== 'channel' && h.canChannel?.() && (attackArmed || armed === 'channel')) {
         cancel(); if (h.channel?.(a)) { arm(a); channelArmed = true; } return;
       }
-      if (a === 'heal' || a === 'sniper' || a === 'transfusion') cancel();
+      if (a === 'heal' || a === 'sniper' || a === 'transfusion' || a === 'nexus') cancel();
       if (!enabled) return;
       if (armed === a) return arm(null);
       if (h.checkCooldown && !h.checkCooldown(a)) return arm(null);

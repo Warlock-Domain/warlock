@@ -1,7 +1,6 @@
 // Cena 3D: lava, arena de pedra que encolhe, magos (KayKit), projéteis e efeitos.
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
 import * as THREE from 'three';
-import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit, type Element } from '../shared/elemental-spheres.ts';
 import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
 import { createAttackClip, playAnimation as play } from './attack-pose.ts';
@@ -48,7 +47,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { spheres?: { element: Element; left: number }[]; transfusionTo?: number; transfusionRate?: number; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { nexusTo?: number; transfusionTo?: number; transfusionRate?: number; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -615,7 +614,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     warpzone: { mat: swapMat, halo: '#7ad8ff', trail: '#7ad8ff', tex: FX.magic, size: 1 },
   };
   const projs = new Map<number, THREE.Group>();
-  const elemental = new Map<string, THREE.Group>();
   const threads = new Map<string, THREE.Mesh>(); // Squid Pix threads by controlled wizard id
   const fx: Fx[] = [];
 
@@ -1593,7 +1591,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     burst(at, '#6fb6ff', 3.8, 0.6, 0.15, FX.circle);
   }
 
-  function bolt(from: Vec, to: Vec, width = LIGHTNING.width) {
+  function bolt(from: Vec, to: Vec) {
     const hand = add(from, clampLen(sub(to, from), 0.45));
     const pts: THREE.Vector3[] = [];
     const n = 28;
@@ -1603,7 +1601,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // trechos curtos que balança até LIGHTNING.width para cada lado, a largura extra do acerto do Raio
       const k = i / n;
       const p = w3(v(hand.x + (to.x - hand.x) * k, hand.y + (to.y - hand.y) * k), 0.9 - 0.65 * k);
-      if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 2 * width, (Math.random() - 0.5) * 0.14, (Math.random() - 0.5) * 2 * width));
+      if (i > 0 && i < n) p.add(new THREE.Vector3((Math.random() - 0.5) * 2 * LIGHTNING.width, (Math.random() - 0.5) * 0.14, (Math.random() - 0.5) * 2 * LIGHTNING.width));
       pts.push(p);
     }
     // traço grosso de cilindros por trecho (linha de WebGL tem 1 px e sumia de longe): miolo branco e brilho azul em volta
@@ -1616,7 +1614,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const m = new THREE.Mesh(boltGeo, mat);
         m.position.copy(a).lerp(b, 0.5);
         m.quaternion.setFromUnitVectors(up, b.clone().sub(a).normalize());
-        m.scale.set(r * width / LIGHTNING.width, a.distanceTo(b), r * width / LIGHTNING.width);
+        m.scale.set(r, a.distanceTo(b), r);
         g.add(m);
       }
       addFx(g, 0.35, (k) => (mat.opacity = op * (1 - k)));
@@ -1697,7 +1695,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(v(e.x, e.y), '#8fd3ff', 2.4, 0.3, 0.8, FX.circle);
         burst(v(e.x, e.y), '#cfeaff', 1.6, 0.25, 0.8, FX.light);
       }
-      else if (e.k === 'lightning') bolt(e.from, e.to, e.width);
+      else if (e.k === 'lightning') bolt(e.from, e.to);
       else if (e.k === 'vines') {
         const vines = vineModel(e.r);
         vines.position.copy(w3(v(e.x, e.y), .03));
@@ -1790,9 +1788,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         g = new THREE.Group();
         const look = LOOK[p.kind];
         const core = SHAPES[p.kind]?.() ?? new THREE.Mesh(ballGeo, look.mat);
-        core.scale.multiplyScalar(look.size * (p.size ?? 1));
+        core.scale.multiplyScalar(look.size);
         const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: FX.light, color: look.halo, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-        halo.scale.setScalar(1.2 * look.size * (p.size ?? 1));
+        halo.scale.setScalar(1.2 * look.size);
         halo.material.opacity = 0.7;
         g.add(core, halo);
         if (p.kind === 'warpzone' || p.kind === 'grip' || p.kind === 'pix') {
@@ -1863,7 +1861,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (flame) {
         flame.material.map = FLAMES[Math.floor(t * 16 + p.id) % FLAMES.length];
         flame.material.rotation = Math.atan2(-p.vel.x, p.vel.y) + Math.PI; // a chama "puxa" para trás
-        flame.scale.setScalar(LOOK[p.kind].size * (p.size ?? 1) * (1.2 + 0.15 * Math.sin(t * 30 + p.id)));
+        flame.scale.setScalar(LOOK[p.kind].size * (1.2 + 0.15 * Math.sin(t * 30 + p.id)));
       }
       const swirl = g.getObjectByName('swirl') as THREE.Sprite | undefined;
       if (swirl) swirl.material.rotation = -t * 4;
@@ -2169,35 +2167,6 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.root.visible = false;
       m.label.hidden = true;
     }
-    const sphereOwners = new Set<string>();
-    for (const d of list) {
-      if (!d.alive || d.illusion || (d.status & 2048) || !d.spheres?.length) continue;
-      sphereOwners.add(d.id);
-      let group = elemental.get(d.id);
-      if (!group) {
-        group = new THREE.Group();
-        for (let i = 0; i < ELEMENTAL_SPHERES.max; i++) {
-          const sphere = new THREE.Group();
-          sphere.add(new THREE.Mesh(new THREE.SphereGeometry(ELEMENTAL_SPHERES.radius, 16, 12), new THREE.MeshBasicMaterial()));
-          // A subtle silhouette keeps the black Void sphere readable against the dark arena.
-          sphere.add(new THREE.Mesh(new THREE.SphereGeometry(ELEMENTAL_SPHERES.radius * 1.1, 16, 12), new THREE.MeshBasicMaterial({ color: '#a0a0a0', side: THREE.BackSide, transparent: true, opacity: .5 })));
-          group.add(sphere);
-        }
-        scene.add(group); elemental.set(d.id, group);
-      }
-      group.position.copy(w3(d.pos, (d.geyserLeft ?? 0) > 0 ? geyserHeight(d.geyserLeft!) : 0));
-      group.children.forEach((node, i) => {
-        const sphere = d.spheres![i];
-        node.visible = !!sphere;
-        if (!sphere) return;
-        const orbit = elementalOrbit(now, i, d.spheres!.length);
-        node.position.set(orbit.x, ELEMENTAL_SPHERES.height, orbit.y);
-        ((node.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).color.set(ELEMENT_COLORS[sphere.element]);
-      });
-    }
-    for (const [id, group] of elemental) if (!sphereOwners.has(id)) {
-      scene.remove(group); dispose(group); elemental.delete(id);
-    }
     // Squid Pix: a thread from each controlled wizard to its controller (the snapshot hides it when the controller is hidden)
     const tied = new Set<string>();
     for (const d of list) {
@@ -2215,17 +2184,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       th.scale.set(1, 1, Math.max(0.01, Math.hypot(dx, dz)));
       tied.add(d.id);
     }
-    for (const d of list) {
-      const to = d.alive && (d.transfusionTo ?? -1) >= 0 ? list[d.transfusionTo!] : undefined;
+    // Mental Transfusion (thin, high) and Anima Nexus (thick, low): green threads to the linked ally
+    for (const d of list) for (const [kind, index, r, opacity, y] of [['mind', d.transfusionTo, .04, .8, 1.2], ['nexus', d.nexusTo, .07, .7, .8]] as const) {
+      const to = d.alive && (index ?? -1) >= 0 ? list[index!] : undefined;
       if (!to?.alive || (d.status & 2048) || (to.status & 2048)) continue;
-      const key = 'mind:' + d.id;
+      const key = kind + ':' + d.id;
       let thread = threads.get(key);
       if (!thread) {
-        thread = new THREE.Mesh(new THREE.CylinderGeometry(.04, .04, 1, 6).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: HEAL_FX.color, transparent: true, opacity: .8, blending: THREE.AdditiveBlending, depthWrite: false }));
+        thread = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 6).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: HEAL_FX.color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false }));
         scene.add(thread); threads.set(key, thread);
       }
       const dx = to.pos.x - d.pos.x, dz = to.pos.y - d.pos.y;
-      thread.position.copy(w3(v(d.pos.x + dx / 2, d.pos.y + dz / 2), 1.2));
+      thread.position.copy(w3(v(d.pos.x + dx / 2, d.pos.y + dz / 2), y));
       thread.rotation.y = Math.atan2(dx, dz); thread.scale.set(1, 1, Math.max(.01, Math.hypot(dx, dz)));
       tied.add(key);
     }
@@ -2410,7 +2380,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // brilho na mão (um pouco à frente do mago, na cor da magia) e linha de mira fraca até o ponto
       const color = spell === 'cluster' ? '#d7bc85' : spell === 'heal' ? HEAL_FX.color : LOOK[spell as keyof typeof LOOK]?.halo ?? '#ffb347';
       const from = v(m.root.position.x, m.root.position.z);
-      if (spell === 'closedbody' || spell === 'elemental') at = undefined; // Keep the effect on the stance, without a cursor aim line.
+      if (spell === 'closedbody') at = undefined; // Keep the effect on the stance, without a cursor aim line.
       const dir = at ? Math.atan2(at.y - from.y, at.x - from.x) : Math.PI / 2 - m.root.rotation.y;
       const hand = v(from.x + Math.cos(dir) * 0.45, from.y + Math.sin(dir) * 0.45);
       burst(hand, color, 1.3, 0.35, 1.15, FX.light);
