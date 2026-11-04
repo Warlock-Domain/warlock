@@ -36,7 +36,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   const linked = new Set(w.projectiles.filter((p) => p.kind === 'link' && p.target).map((p) => p.target));
   for (const z of w.wizards) {
     // bits: 1 vivo, 2 escudo, 4 lento (chão arcano, Drenar, Bola de neve), 512 queimando (chão de fogo), 16 atordoado (arremessado), 32 invulnerável, 64 Pacto armado, 128 preso (Agarrar), 256 Investida,
-    // 1024 Caminhada no vento (quem anda e os aliados veem), 2048 invisível para quem recebe (o cliente esconde), 4096 acelerado (Drenar, Botas de choque ou de vento),
+    // 1024: own Illusion veil, 2048: hidden from this recipient, 4096: speed effects (Windwalk, Drain and boots),
     // 8192 magnetizado atraindo, 16384 magnetizado repelindo, 32768 Alteração, 65536 preso pelo Elo, 131072 Égide pronta,
     // runas: 262144 Pressa, 524288 Fúria, 1048576 Escudo de runa (−30% de dano); 2097152 no redemoinho (mesma conta do puxão em sim.ts);
     // Illusion owns invisibility; Windwalk only accelerates.
