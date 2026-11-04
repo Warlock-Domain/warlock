@@ -916,7 +916,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec, power = 1, aimedId?
   }
 }
 
-function magneticProjectile(w: World, wz: Wizard, at: Vec, range: number) {
+export function magneticProjectile(w: World, wz: Wizard, at: Vec, range: number) {
   return w.projectiles.filter(p => !fixed(p) && p.kind !== 'illusion' && p.waves === undefined && len(p.vel) > .001 && w.t < p.until && dist(wz.pos, p.pos) <= range && dist(at, p.pos) > .01).sort((a, b) => dist(a.pos, wz.pos) - dist(b.pos, wz.pos))[0];
 }
 function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number, aimedId?: string, copy?: number) {
