@@ -48,8 +48,7 @@ describe('play style', () => {
     // 27/10 (PR #426, owner's decision): the ranged basic Attack no longer pushes, which changes bot trajectories.
     // Fixed equipment, revised abilities and delayed Lightning intentionally change seeded events.
     // Homing slow, prepared Ricochet and direct Magnetize intentionally change seeded events.
-    // Bots now wait for a projectile Magnetize can actually redirect instead of repeatedly choosing rejected casts.
-    expect(hash).toBe(4236765653);
+    expect(hash).toBe(2674022856);
     // and it really measured in this same match
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);
