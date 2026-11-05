@@ -144,3 +144,5 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - Elemental sphere models come from element-sphere-model.ts for both orbits and launched attacks. Their geometry already uses ELEMENTAL_SPHERES.radius; do not apply the ordinary basic-bolt size multiplier again. Preserve white Ki/black Void, visibility filters, sphere consumption and authoritative Transcend state. Keep the completed aura near the feet, without a Transcended overhead label.
 
 - arena-rim.ts owns the main arena's procedural low bevel and fissures. Keep all stone vertices inside the shared shape SDF, holes included. The rim is visual relief, never collision or extra safe ground. Replace/dispose its geometries on shape changes, scale it with the shown radius, hide it in Campaign, and preserve warning/round colors. Do not alter refuge-island effects as part of this pass.
+
+- The sculpted rim is background decoration: lava renderOrder -3, floor -2, rock/fissures -1; neither rim layer writes depth. Keep fissures in the opaque pass with brightness-based fading; transparent fissures would render over actors. Combat objects retain their normal depth testing and ordering.
