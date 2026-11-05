@@ -5,6 +5,7 @@ import { createTranscendFx, transcendLift } from './transcend-fx.ts';
 import * as THREE from 'three';
 import { characterRim, contactShadowTexture } from './character-readability.ts';
 import { isleCrackTexture } from './isle-cracks.ts';
+import { createStatusFx } from './status-fx.ts';
 import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit, type Element, type Transcendence } from '../shared/elemental-spheres.ts';
 import { ELECTROCUTED_BIT, BRACING_BIT, MELEE_ARC } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
@@ -52,7 +53,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { transcendence?: Transcendence; transcendLeft?: number; spheres?: { element: Element; left: number }[]; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { blindLeft?: number; transcendence?: Transcendence; transcendLeft?: number; spheres?: { element: Element; left: number }[]; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -251,6 +252,8 @@ type Mage = {
   botKey: string;
   tint: string; // cor do anel e da barra (do jogador, ou do time no modo Times)
   statusEl: HTMLSpanElement;
+  blindEl: HTMLElement;
+  statusFx: ReturnType<typeof createStatusFx>;
   statusKey: number;
   statusClocks: Map<number, HTMLElement>; // bit → reloginho em cima do ícone (só o meu mago tem tempo: d.fx)
   clock: ReturnType<typeof fxClock>;
@@ -899,6 +902,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
     const root = new THREE.Group();
     root.add(model);
+    const statusFx = createStatusFx(FX.star); root.add(statusFx.root);
     const sniper=sniperRig(); root.add(sniper);
     const contactShadow = ground(new THREE.Mesh(contactShadowGeo, new THREE.MeshBasicMaterial({ map: contactShadowMap, transparent: true, depthWrite: false })), 0.012);
     const ringBacking = ground(new THREE.Mesh(ringBackingGeo, new THREE.MeshBasicMaterial({ color: '#140806', transparent: true, opacity: 0.8, depthWrite: false })), 0.022);
@@ -949,7 +953,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const extraEl = el('span', { class: 'hp-extra' });
     const shieldFill = el('div');
     const shieldBar = el('div', { class: 'shield-bar', hidden: true }, shieldFill);
-    const statusEl = el('span', { class: 'status-icons' });
+    const blindEl = el('i', { class: 'bad', title: t('cego', 'blinded'), hidden: true }, icon(UI_ICON.watch));
+    const statusEl = el('span', { class: 'status-icons' }, blindEl);
     // barrinha dourada do monte de ouro: enche a cada 2 s em cima dele
     const lootFill = el('div');
     const lootBar = el('div', { class: 'loot-bar', hidden: true }, lootFill);
@@ -958,7 +963,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, sniper, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, ringBacking, contactShadow, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { root, sniper, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, ringBacking, contactShadow, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, blindEl, statusFx, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   // animação de conjurar [clip, segundos, início no clip]; o resto atira (Spellcast_Shoot). Quando o gesto forte vem no meio
@@ -2003,6 +2008,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (made && m) {
           unburn(m);
           scene.remove(m.root);
+          m.statusFx.dispose();
           dispose(m.sniper);
           dispose(m.vines); // Os cipós procedurais pertencem à aparência que está sendo substituída.
           for (const o of [m.ring, m.ringBacking, m.contactShadow, m.shield, m.aura]) (o.material as THREE.Material).dispose();
@@ -2087,6 +2093,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         mat.color.set(healing.visible ? HEAL_FX.color : (d.geyserLeft ?? 0) > 0 ? GEYSER_FX.color : invuln ? '#ffd36a' : RUNE_COLOR.shield);
         mat.opacity = healing.visible ? healing.opacity : invuln ? 0.55 + 0.3 * Math.sin(now * 8) : 0.8;
       }
+      m.statusFx.update(d.status, d.alive && !hidden && !ghost && !(d.transcendLeft ?? 0), m.model.position.y, now, lite, camera.quaternion);
+      m.blindEl.hidden = !d.alive || !(d.blindLeft ?? 0);
       m.ring.visible = d.alive;
       m.ringBacking.visible = d.alive;
       // Keep the contact cue on the floor while Geyser/Transcend lift the body.
@@ -2202,6 +2210,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           m.statusClocks.set(bit, c);
           return el('i', { title: name, class: BAD_STATUS.includes(bit) ? 'bad' : 'good' }, c, icon(ico));
         }));
+        m.statusEl.append(m.blindEl);
       }
       // reloginho em cima de cada efeito com prazo: os mesmos segundos da fileira acima da barra (mesma conta, fxClock)
       for (const [bit, c] of m.statusClocks) {
