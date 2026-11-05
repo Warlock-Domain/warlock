@@ -308,45 +308,60 @@ ${SHORE_GLSL}
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.0-2.0*f);
   return mix(mix(hash(i), hash(i+vec2(1,0)), u.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), u.x), u.y); }
-float fbm(vec2 p){ float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++){ s += a*noise(p); p = p*2.03 + 1.7; a *= 0.5; } return s; }
-void main(){
-  vec2 p = vPos.xz * 0.18;
-  float t = uTime * 0.08;
-  float n = fbm(p + vec2(t, -t*0.7) + fbm(p*1.7 - t));
-  float veins = smoothstep(0.5, 0.66, n);
-  float core = smoothstep(0.66, 0.8, n);
-  vec3 crust = mix(vec3(0.035, 0.008, 0.004), vec3(0.16, 0.025, 0.008), smoothstep(0.3, 0.5, n));
-  vec3 hot = mix(vec3(0.7, 0.1, 0.01), vec3(1.0, 0.45, 0.06), core);
-  vec3 col = mix(crust, hot, veins);
-  if (uHas > 0.5) {
-    // textura de lava (ambientCG Lava001) em duas camadas que correm em sentidos diferentes
-    vec2 q = vPos.xz * 0.05;
-    vec3 a = texture2D(uMap, q + vec2(t * 0.10, t * 0.04)).rgb;
-    vec3 b = texture2D(uMap, q * 1.7 - vec2(t * 0.06, -t * 0.09)).rgb;
-    vec3 tex = pow(max(a, b * 0.85), vec3(2.2));
-    col = tex * (0.45 + 0.55 * veins) + hot * core * 0.2;
+float fbm(vec2 p){ float s = 0.0, a = 0.5; for (int i = 0; i < 3; i++){ s += a*noise(p); p = p*2.03 + 1.7; a *= 0.5; } return s; }
+// Broad crust plates leave readable molten channels instead of a dense moving texture.
+vec2 lavaCells(vec2 p){
+  vec2 cell = floor(p), local = fract(p), closest = vec2(10.0);
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 offset = vec2(float(x), float(y));
+    vec2 seed = vec2(hash(cell + offset), hash(cell + offset + 19.7));
+    float d = length(offset + 0.2 + seed * 0.6 - local);
+    if (d < closest.x) { closest.y = closest.x; closest.x = d; }
+    else closest.y = min(closest.y, d);
   }
-  // bolhas: uma em cada ~10 células (de ~1,8 m) incha devagar como um domo aceso e estoura num clarão; mais nos veios quentes
-  vec2 bp = vPos.xz * 0.55; vec2 bi = floor(bp);
+  return vec2(closest.x, closest.y - closest.x);
+}
+void main(){
+  vec2 p = vPos.xz * 0.28;
+  float t = uTime * 0.025 * mix(0.25, 1.0, uLick);
+  vec2 flow = vec2(fbm(p * 1.4 + t), fbm(p * 1.4 - t + 11.3));
+  vec2 bends = vec2(noise(p * 4.0 + t), noise(p * 4.0 - t + 7.1)) - 0.5;
+  vec2 cells = lavaCells(p + (flow - 0.4) * 1.8 + bends * 0.22 + vec2(t * 0.15, -t * 0.1));
+  float n = fbm(p * 1.3 + flow);
+  float width = mix(0.06, 0.15, smoothstep(0.2, 0.6, n));
+  float veins = 1.0 - smoothstep(0.015, width, cells.y);
+  float core = 1.0 - smoothstep(0.005, width * 0.35, cells.y);
+  vec3 crust = mix(vec3(0.012, 0.008, 0.008), vec3(0.055, 0.022, 0.014), smoothstep(0.15, 0.65, n) * (0.6 + 0.4 * cells.x));
+  vec3 hot = mix(vec3(0.55, 0.045, 0.005), vec3(1.0, 0.25, 0.025), core) * (0.65 + 0.35 * n);
+  vec3 col = mix(crust, hot, veins) + vec3(0.13, 0.018, 0.002) * exp(-cells.y * 9.0);
+  if (uHas > 0.5) {
+    // Existing ambientCG Lava001 adds restrained surface grain, never the main silhouette.
+    vec3 grain = texture2D(uMap, vPos.xz * 0.025 + vec2(t * 0.04, t * 0.02), 1.5).rgb;
+    float detail = dot(grain, vec3(0.2126, 0.7152, 0.0722));
+    col *= 0.9 + detail * 0.2;
+    col = mix(col, crust * (0.6 + detail * 0.8), (1.0 - veins) * 0.35);
+  }
+  // Sparse slow bubbles stay subordinate to the broad flow.
+  vec2 bp = vPos.xz * 0.35; vec2 bi = floor(bp);
   float bh = hash(bi);
-  float ph = fract(uTime * (0.1 + 0.15 * bh) + bh * 7.0);
-  float br = ph * ph * 0.26 * step(0.9, bh) + 0.001;
+  float ph = fract(uTime * (0.06 + 0.06 * bh) + bh * 7.0);
+  float br = ph * ph * 0.26 * step(0.94, bh) + 0.001;
   float bd = length(fract(bp) - 0.5 - (vec2(hash(bi + 3.1), hash(bi + 7.7)) - 0.5) * 0.4);
   float dome = (1.0 - smoothstep(br * 0.2, br, bd)) * ph * 0.55;
-  float pop = smoothstep(0.94, 1.0, ph) * (1.0 - smoothstep(0.0, br * 1.6, bd)) * 1.6;
-  col += vec3(1.0, 0.5, 0.12) * (dome + pop) * (0.2 + 0.8 * veins) * step(0.9, bh);
+  float pop = smoothstep(0.94, 1.0, ph) * (1.0 - smoothstep(0.0, br * 1.6, bd)) * 0.65;
+  col += vec3(1.0, 0.5, 0.12) * (dome + pop) * (0.2 + 0.8 * veins) * step(0.94, bh);
   // Spatially offset breathing stays gentle, and lite mode disables the added pulse.
   float breathe = 0.94 + 0.06 * sin(uTime * 0.9 + vnoise(vPos.xz * 0.12) * 4.0);
   col *= mix(1.0, breathe, uLick);
   // Fresh lava meets the existing stone seam; warning/round tint remains authoritative.
   float dO = shoreDist(vPos.xz) + shoreLick(vPos.xz);
   float shore = 1.0 - smoothstep(0.0, 1.3, dO);
-  float ripple = 0.65 + 0.35 * sin(dO * 11.0 - uShoreTime * 2.4 * uLick + vnoise(vPos.xz * 1.4) * 5.0);
+  float ripple = 0.75 + 0.25 * sin(dO * 6.0 - uShoreTime * 1.2 * uLick + vnoise(vPos.xz * 0.7) * 3.0);
   vec3 molten = mix(vec3(0.8, 0.17, 0.02), vec3(1.0, 0.4, 0.07), ripple);
-  molten = mix(molten, uTint, uTintK); // efeito da rodada pinta a faixa da borda; o aviso de encolhimento vem depois e manda
+  molten = mix(molten, uTint, uTintK); // Round color precedes the authoritative shrink warning.
   molten = mix(molten, vec3(1.0, 0.16, 0.03), uWarn * 0.6);
   col = mix(col, molten * (0.6 + 0.3 * ripple), shore * shore * 0.6);
-  float scum = smoothstep(0.55, 0.75, vnoise(vPos.xz * 2.3 + uShoreTime * 0.05)) * smoothstep(0.05, 0.4, dO) * shore;
+  float scum = smoothstep(0.55, 0.75, vnoise(vPos.xz * 1.2 + uShoreTime * 0.025)) * smoothstep(0.05, 0.4, dO) * shore;
   col = mix(col, vec3(0.09, 0.025, 0.01), scum * 0.7);
   gl_FragColor = vec4(col * uHeat, 1.0);
   #include <tonemapping_fragment>

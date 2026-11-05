@@ -146,3 +146,5 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - arena-rim.ts owns the main arena's procedural low bevel and fissures. Keep all stone vertices inside the shared shape SDF, holes included. The rim is visual relief, never collision or extra safe ground. Replace/dispose its geometries on shape changes, scale it with the shown radius, hide it in Campaign, and preserve warning/round colors. Do not alter refuge-island effects as part of this pass.
 
 - The sculpted rim is background decoration: lava renderOrder -3, floor -2, rock/fissures -1; neither rim layer writes depth. Keep fissures in the opaque pass with brightness-based fading; transparent fissures would render over actors. Combat objects retain their normal depth testing and ordering.
+
+- Lava art uses broad procedural crust plates with the existing emission texture only as subtle grain. Preserve shore SDF, warning/tint/cooling uniforms, the gentle breathing intensity, refuge-island visuals and lava renderOrder -3. Shader flow never changes gameplay terrain or damage.
