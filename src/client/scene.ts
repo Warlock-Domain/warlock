@@ -1332,17 +1332,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     };
   }
 
-  // chão dos choques, cada tipo com borda nítida no raio real, cor, movimento e ícone próprios; apaga no último 0,8 s
-  // queimando: brasa laranja tremulando; lento: névoa de gelo com borda tracejada; redemoinho: três braços roxos girando para o centro
+  // Exact-radius borders carry the area warning; translucent interiors preserve combat visibility.
   const ZONE_LOOK: Record<ZoneKind, { fill: string; edge: string; tex: THREE.Texture; texColor: string; icon: string; mark: string; add: boolean }> = {
     burn: { fill: '#ff3d0a', edge: '#ffb347', tex: FX.fire, texColor: '#ff5a10', icon: STATUS_ICONS.find(([b]) => b === 512)![1], mark: '#ffe0a0', add: true },
-    slow: { fill: '#2f8cff', edge: '#e2f4ff', tex: FX.smoke, texColor: '#7cc4ff', icon: STATUS_ICONS.find(([b]) => b === 4)![1], mark: '#0b2a4a', add: false },
+    slow: { fill: '#2f8cff', edge: '#e2f4ff', tex: FX.smoke, texColor: '#7cc4ff', icon: STATUS_ICONS.find(([b]) => b === 4)![1], mark: '#e2f4ff', add: false },
     pull: { fill: '#6a2cff', edge: '#c9a8ff', tex: FX.twirl, texColor: '#b48cff', icon: STATUS_ICONS.find(([b]) => b === 2097152)![1], mark: '#f0e6ff', add: true },
   };
-  const edgeGeo = new THREE.RingGeometry(0.93, 1, 64);
-  const dashGeo = mergeGeometries(Array.from({ length: 20 }, (_, i) => new THREE.RingGeometry(0.92, 1, 3, 1, (i / 20) * Math.PI * 2, ((Math.PI * 2) / 20) * 0.55)));
+  const edgeGeo = new THREE.RingGeometry(0.955, 1, 64);
+  const edgeBackingGeo = new THREE.RingGeometry(0.91, 1, 64);
+  const dashGeo = mergeGeometries(Array.from({ length: 20 }, (_, i) => new THREE.RingGeometry(0.95, 1, 3, 1, (i / 20) * Math.PI * 2, ((Math.PI * 2) / 20) * 0.55)));
   const texGeo = new THREE.PlaneGeometry(2, 2);
-  type ZoneDraw = { g: THREE.Group; fill: THREE.MeshBasicMaterial; edge: THREE.Mesh; dash: THREE.Mesh; edgeMat: THREE.MeshBasicMaterial; arms: THREE.Group; texMat: THREE.MeshBasicMaterial; mark: THREE.Mesh; markMat: THREE.MeshBasicMaterial; kind: ZoneKind | null };
+  type ZoneDraw = { g: THREE.Group; fill: THREE.MeshBasicMaterial; edge: THREE.Mesh; dash: THREE.Mesh; edgeMat: THREE.MeshBasicMaterial; backingMat: THREE.MeshBasicMaterial; arms: THREE.Group; texMat: THREE.MeshBasicMaterial; mark: THREE.Mesh; markMat: THREE.MeshBasicMaterial; kind: ZoneKind | null };
   const zoneDraws: ZoneDraw[] = [];
   // ícone do sprite (public/icons.svg) desenhado no chão, por baixo dos magos: um símbolo vira imagem branca uma vez só
   const iconTex = new Map<string, THREE.CanvasTexture>();
@@ -1368,10 +1368,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const flat = (geo: THREE.BufferGeometry, mat: THREE.Material, y: number) => ground(new THREE.Mesh(geo, mat), y);
     const fill = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
     const edgeMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
+    const backingMat = new THREE.MeshBasicMaterial({ color: '#140806', transparent: true, depthWrite: false });
     const texMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
     const edge = flat(edgeGeo, edgeMat, 0.04);
     const dash = flat(dashGeo, edgeMat, 0.04);
-    // gira em torno do centro; o redemoinho usa os três braços, os outros só o primeiro
+    // Pull keeps its three rotating arms; the other areas need only one texture layer.
     const arms = new THREE.Group();
     for (let i = 0; i < 3; i++) {
       const a = flat(texGeo, texMat, 0.037 + i * 0.001);
@@ -1381,9 +1382,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const markMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
     const mark = flat(texGeo, markMat, 0.042);
     const g = new THREE.Group();
-    g.add(flat(discGeo, fill, 0.033), arms, edge, dash, mark);
+    g.add(flat(discGeo, fill, 0.033), arms, flat(edgeBackingGeo, backingMat, 0.039), edge, dash, mark);
     scene.add(g);
-    return { g, fill, edge, dash, edgeMat, arms, texMat, mark, markMat, kind: null };
+    return { g, fill, edge, dash, edgeMat, backingMat, arms, texMat, mark, markMat, kind: null };
   }
   function syncZones(list: ZoneView[], now: number, dt: number) {
     while (zoneDraws.length < list.length) zoneDraws.push(zoneDraw());
@@ -1412,17 +1413,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       d.mark.scale.setScalar(0.42 / z.r); // ícone de ~0,84 m, qualquer que seja o raio
       const fade = Math.min(1, z.left / 0.8);
       const flicker = 0.8 + 0.2 * Math.sin(now * 13 + i) * Math.sin(now * 7.7 + i * 3);
-      d.fill.opacity = (z.kind === 'slow' ? (mobile ? 0.6 : 0.42) : 0.24) * fade;
-      d.edgeMat.opacity = (z.kind === 'burn' ? flicker : 0.95) * fade;
-      d.texMat.opacity = (z.kind === 'pull' ? 0.85 : z.kind === 'burn' ? 0.75 * flicker : 0.4) * fade;
+      d.fill.opacity = (z.kind === 'slow' ? 0.12 : z.kind === 'burn' ? 0.1 : 0.07) * fade;
+      d.backingMat.opacity = 0.7 * fade;
+      d.edgeMat.opacity = 0.95 * fade;
+      d.texMat.opacity = (z.kind === 'pull' ? 0.3 : z.kind === 'burn' ? 0.22 * flicker : 0.12) * fade * (lite ? 0.65 : 1);
       d.arms.rotation.y += (z.kind === 'pull' ? 2.6 : z.kind === 'slow' ? 0.15 : 0.4) * dt;
       if (z.kind === 'slow') d.dash.rotation.z += 0.25 * dt;
-      d.markMat.opacity = 0.9 * fade;
+      d.markMat.opacity = 0.65 * fade;
       // brasas subindo e brilhos de gelo (só no modo completo)
       if (!lite && fade > 0.5) {
         const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * z.r * 0.9;
         const at = v(z.pos.x + Math.cos(a) * rr, z.pos.y + Math.sin(a) * rr);
-        if (z.kind === 'burn' && Math.random() < 0.35 * z.r) burst(at, Math.random() < 0.5 ? '#ff7a1a' : '#ffb347', 0.35, 0.8, 0.1, FLAMES[Math.floor(Math.random() * FLAMES.length)], 0.7);
+        if (z.kind === 'burn' && Math.random() < 0.12 * z.r) burst(at, Math.random() < 0.5 ? '#ff7a1a' : '#ffb347', 0.35, 0.5, 0.1, FLAMES[Math.floor(Math.random() * FLAMES.length)], 0.7);
         else if (z.kind === 'slow' && Math.random() < 0.12 * z.r) burst(at, '#e2f4ff', 0.4, 0.7, 0.15, FX.star);
       }
     });
@@ -1883,9 +1885,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           flame.scale.setScalar(1.3 * look.size);
           g.add(flame);
         } else if (p.kind === 'gravity' || p.kind === 'warpzone') {
-          const swirl = new THREE.Sprite(new THREE.SpriteMaterial({ map: p.kind === 'gravity' ? FX.twirl : FX.twirl2, color: p.kind === 'gravity' ? '#7a5cff' : '#5ab0ff', transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+          const swirl = new THREE.Sprite(new THREE.SpriteMaterial({ map: p.kind === 'gravity' ? FX.twirl : FX.twirl2, color: p.kind === 'gravity' ? '#7a5cff' : '#5ab0ff', transparent: true, opacity: p.kind === 'gravity' ? 0.8 : 0.22, blending: THREE.AdditiveBlending, depthWrite: false }));
           swirl.name = 'swirl';
-          swirl.scale.setScalar(p.kind === 'gravity' ? 1.6 * look.size : p.vel.x * 2.2);
+          swirl.scale.setScalar(p.kind === 'gravity' ? 1.6 * look.size : p.vel.x * 1.9);
           g.add(swirl);
         }
         if (p.kind === 'link') {
