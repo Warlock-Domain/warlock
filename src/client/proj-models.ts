@@ -15,6 +15,15 @@ const jitter = (g: THREE.BufferGeometry, amount: number) => {
 export const PIX_COLOR = '#ffd23a';
 export const PIX_TIE = '#ff3b3b';
 export const flat = (color: string, emissive: string, intensity = 0.6) => new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: intensity, flatShading: true, roughness: 0.5 });
+function areaRim(color: string) {
+  const g = new THREE.Group();
+  for (const [inner, tint, opacity, y] of [[0.91, '#140806', 0.7, 0], [0.955, color, 0.95, 0.002]] as const) {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(inner, 1, 64), new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = y;
+    g.add(ring);
+  }
+  return g;
+}
 export function vineModel(radius: number) {
   const group = new THREE.Group();
   const stem = flat('#3c7023', '#203f0e', .3), leafMat = flat('#8ac34b', '#335d17', .3);
@@ -33,12 +42,31 @@ export function vineModel(radius: number) {
   return group;
 }
 export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
-  fireball: () => new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.24, 1), 0.35), flat('#ffb347', '#ff6a00', 1.4)),
+  basic: () => {
+    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.28), flat('#dcfffb', '#2fe0d0', 1));
+    m.scale.set(0.7, 0.7, 1.35);
+    return m;
+  },
+  fireball: () => {
+    const g = new THREE.Group(), mat = flat('#ffb347', '#ff6a00', 1.4);
+    g.add(new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.24, 1), 0.2), mat));
+    const tongue = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.55, 6), mat);
+    tongue.rotation.x = -Math.PI / 2; tongue.position.z = -0.3;
+    g.add(tongue);
+    return g;
+  },
   cluster: () => new THREE.Mesh(new THREE.TetrahedronGeometry(0.2), flat('#ffe066', '#ff9a00', 1.2)),
   homing: () => {
-    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), flat('#e7b8ff', '#9a30ff', 1.2));
-    m.scale.set(0.8, 0.8, 2); // long crystal pointing where it flies
-    return m;
+    const g = new THREE.Group(), mat = flat('#e7b8ff', '#9a30ff', 1.2);
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), mat);
+    core.scale.set(0.8, 0.8, 2);
+    g.add(core);
+    for (const side of [-1, 1]) {
+      const fin = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), mat);
+      fin.scale.set(1, 0.3, 1.5); fin.position.set(side * 0.2, 0, -0.16);
+      g.add(fin);
+    }
+    return g;
   },
   swap: () => {
     const g = new THREE.Group();
@@ -48,16 +76,8 @@ export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
     g.add(ring);
     return g;
   },
-  grip: () => {
-    const ring = new THREE.Mesh(new THREE.RingGeometry(.94, 1, 64), new THREE.MeshBasicMaterial({ color: '#8ed64b', side: THREE.DoubleSide, transparent: true, opacity: .8, depthWrite: false }));
-    ring.rotation.x = -Math.PI / 2;
-    return ring;
-  },
-  pix: () => {
-    const ring = new THREE.Mesh(new THREE.RingGeometry(.94, 1, 64), new THREE.MeshBasicMaterial({ color: PIX_COLOR, side: THREE.DoubleSide, transparent: true, opacity: .8, depthWrite: false }));
-    ring.rotation.x = -Math.PI / 2;
-    return ring;
-  },
+  grip: () => areaRim('#8ed64b'),
+  pix: () => areaRim(PIX_COLOR),
   meteor: () => new THREE.Mesh(jitter(new THREE.DodecahedronGeometry(0.3, 0), 0.4), flat('#4a2c20', '#ff4a00', 0.9)),
   boomerang: () => {
     // two-armed V, extruded, spinning
@@ -95,7 +115,13 @@ export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
     m.scale.set(0.7, 0.7, 1.7); // green thorn pointing where it flies
     return m;
   },
-  snowball: () => new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.42, 1), 0.15), flat('#f4fbff', '#9ad8ff', 0.35)),
+  snowball: () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.42, 1), 0.1), flat('#f4fbff', '#9ad8ff', 0.35)));
+    const seam = new THREE.Mesh(new THREE.TorusGeometry(0.405, 0.025, 4, 16), flat('#9ad8ff', '#9ad8ff', 0.25));
+    seam.rotation.x = Math.PI / 3; g.add(seam);
+    return g;
+  },
   magnetize: () => {
     // U magnet: red arc with silver tips
     const g = new THREE.Group();
@@ -119,11 +145,11 @@ export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
   shard: () => new THREE.Mesh(new THREE.TetrahedronGeometry(0.13), flat('#d0f4ff', '#40a0ff', 1.4)),
   geyser: () => {
     const g = new THREE.Group();
-    const jet = new THREE.Mesh(new THREE.CylinderGeometry(.65, .3, GEYSER_FX.height, 12, 1, true), new THREE.MeshBasicMaterial({ color: GEYSER_FX.color, transparent: true, opacity: .45, side: THREE.DoubleSide, depthWrite: false }));
+    const jet = new THREE.Mesh(new THREE.CylinderGeometry(.65, .3, GEYSER_FX.height, 12, 1, true), new THREE.MeshBasicMaterial({ color: GEYSER_FX.color, transparent: true, opacity: .25, side: THREE.DoubleSide, depthWrite: false }));
     jet.position.y = GEYSER_FX.height / 2;
     const foam = new THREE.Mesh(new THREE.TorusGeometry(.7, .12, 6, 20), new THREE.MeshBasicMaterial({ color: GEYSER_FX.foam, transparent: true, opacity: .75, depthWrite: false }));
     foam.rotation.x = -Math.PI / 2; foam.position.y = GEYSER_FX.height;
-    const pool = new THREE.Mesh(new THREE.RingGeometry(.7, 1, 32), new THREE.MeshBasicMaterial({ color: GEYSER_FX.color, transparent: true, opacity: .45, side: THREE.DoubleSide, depthWrite: false }));
+    const pool = new THREE.Mesh(new THREE.RingGeometry(.7, 1, 32), new THREE.MeshBasicMaterial({ color: GEYSER_FX.color, transparent: true, opacity: .25, side: THREE.DoubleSide, depthWrite: false }));
     pool.rotation.x = -Math.PI / 2; pool.position.y = .04;
     g.add(jet, foam, pool);
     return g;
@@ -131,9 +157,8 @@ export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
   warpzone: () => {
     // glass dome with a rim on the ground; radius 1 here, the real size comes from the server
     const g = new THREE.Group();
-    g.add(new THREE.Mesh(new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#7ad8ff', transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide })));
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.02, 4, 48), new THREE.MeshBasicMaterial({ color: '#bfefff', transparent: true, opacity: 0.6 }));
-    rim.rotation.x = -Math.PI / 2;
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#7ad8ff', transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide })));
+    const rim = areaRim('#bfefff'); rim.position.y = 0.04;
     g.add(rim);
     return g;
   },

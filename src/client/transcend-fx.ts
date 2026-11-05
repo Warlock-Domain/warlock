@@ -35,7 +35,7 @@ export function createTranscendFx(light: THREE.Texture) {
   const root = new THREE.Group(), ritual = new THREE.Group(), aura = new THREE.Group();
   root.add(ritual, aura);
   const seal = sealTexture(), beam = beamTexture();
-  const material = (opacity: number, map?: THREE.Texture) => new THREE.MeshBasicMaterial({ map, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+  const material = (opacity: number, map?: THREE.Texture) => new THREE.MeshBasicMaterial({ ...(map ? { map } : {}), transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
   const disc = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 3.5), material(.9, seal));
   disc.rotation.x = -Math.PI / 2; ritual.add(disc);
   const column = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.4, 3.8, 40, 1, true), material(.18, beam));
@@ -44,10 +44,12 @@ export function createTranscendFx(light: THREE.Texture) {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: light, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
     ritual.add(sprite); return sprite;
   });
-  for (let i = 0; i < 4; i++) {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(.7, .025, 6, 48), material(.4));
-    ring.rotation.x = Math.PI / 2; ring.position.y = .1 + i * .19; aura.add(ring);
+  for (let i = 0; i < 2; i++) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.68 + i * .1, .018, 6, 48), material(.4));
+    ring.rotation.x = Math.PI / 2; ring.position.y = .08 + i * .12; aura.add(ring);
   }
+  const echo = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.8), material(.22, seal));
+  echo.rotation.x = -Math.PI / 2; echo.position.y = .025; root.add(echo);
   // A neutral outline lets Void remain black while keeping its silhouette readable.
   const outline = new THREE.Mesh(new THREE.TorusGeometry(1.6, .012, 6, 64), new THREE.MeshBasicMaterial({ color: '#a0a0a0', transparent: true, opacity: .3, depthWrite: false }));
   outline.rotation.x = Math.PI / 2; ritual.add(outline);
@@ -58,6 +60,10 @@ export function createTranscendFx(light: THREE.Texture) {
     update(element: Element, left: number, now: number, lite: boolean) {
       const active = left > 0, color = ELEMENT_COLORS[element];
       ritual.visible = active; aura.visible = !active;
+      echo.visible = !active;
+      echo.material.color.set(color); echo.material.opacity = lite ? .16 : .22;
+      echo.material.blending = element === 'void' ? THREE.NormalBlending : THREE.AdditiveBlending;
+      echo.rotation.z = lite ? 0 : now * .12;
       auraEdge.visible = !active && element === 'void';
       const fade = active ? Math.min(1, (2.5 - left) / .15, left / .2) : 1;
       disc.material.color.set(color); disc.material.opacity = .9 * fade;
@@ -74,8 +80,8 @@ export function createTranscendFx(light: THREE.Texture) {
       });
       aura.children.forEach((node, i) => {
         const ring = node as THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>;
-        ring.material.color.set(color); ring.material.opacity = .3 + .1 * Math.sin(now * 2 + i);
-        ring.scale.setScalar(1 + .07 * Math.sin(now * 3 + i));
+        ring.material.color.set(color); ring.material.opacity = lite ? .35 : .35 + .06 * Math.sin(now * 2 + i);
+        ring.scale.setScalar(lite ? 1 : 1 + .03 * Math.sin(now * 2 + i));
         ring.material.blending = element === 'void' ? THREE.NormalBlending : THREE.AdditiveBlending;
       });
       disc.material.blending = column.material.blending = element === 'void' ? THREE.NormalBlending : THREE.AdditiveBlending;

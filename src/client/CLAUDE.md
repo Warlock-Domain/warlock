@@ -125,3 +125,21 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - Preserve snapshot references, interpolation delay/smoothing, and replay limits. Compatibility, round-reset, capacity, and instance-isolation coverage lives in `tests/client.test.ts`.
 
 - New proposal uses server-owned state, existing catalog/demos, PT/EN text and disposable renderer resources. Preserve current manual Sniper and item Scourge rules.
+- Character readability: `character-readability.ts` adds a neutral rim in each owned Standard material's shader without cloning geometry or skeletons. The procedural contact shadow stays on the floor during lift effects and follows authoritative hiding; the existing ring keeps player/team colors with a dark backing. Preserve Wardrobe materials and temporary effect restoration.
+
+- Stun uses three five-point orbiting stars at head height. Do not duplicate bit16 as a glyph in overhead or own-HUD combat status rows; keep its catalogue entry. Lite mode keeps the stars static; visibility/ownership rules are unchanged.
+
+- `status-fx.ts` owns per-character stun/slow/incapacitation markers and disposes its own geometries/materials on appearance replacement, never the shared star texture. Markers inherit authoritative hiding, vanish on death/ghost/Transcend ritual, follow lift and become static in lite mode. Blindness uses the existing received `blindLeft` and status row, without inventing a protocol bit or changing vision.
+
+- Refuge-island cracks are a shared original texture with per-island opacity from the received radius. Chips are capped, short-lived visual effects; never change island timing or collision to match art. Lite mode skips chips and the added lava pulse. Keep heat, warning and round tint paths intact.
+
+- Area readability keeps contours inside the authoritative radius, with a dark inward backing and translucent fill. Preserve dashed Slow versus solid Burn/Pull and the existing final0.8-second fade. Area projectile radius vectors are not motion; transparency changes must not change gameplay, aim or lifetime.
+
+- Arena slate/rim shading uses the existing world-space shore SDF, including holes and shrinking shapes. Preserve the warning/round-effect tint path and the actual floor geometry; do not apply arena-only shading to Campaign tile materials or character lighting.
+
+- Ordinary hits use compact source-colored particles; only fire sources leave scorch marks. Zero damage does not trigger the character hit pose/flash. Knockback streaks derive only from visible alive stunned-character motion with bounded frame interval/speed, excluding teleports, lift and ghosts; lite mode skips them. Keep public impacts separate from hidden-target damage labels and preserve the effect cap.
+
+- Moving projectile tails follow snapshot velocity, including reflections/deflections; fixed areas and Magic Hook's owner-position vector never receive a direction tail. Keep elemental attacks round instead of using the ordinary basic bolt factory. Visual tail length must not affect collision, speed or range.
+
+
+- Elemental sphere models come from element-sphere-model.ts for both orbits and launched attacks. Their geometry already uses ELEMENTAL_SPHERES.radius; do not apply the ordinary basic-bolt size multiplier again. Preserve white Ki/black Void, visibility filters, sphere consumption and authoritative Transcend state. Keep the completed aura near the feet, without a Transcended overhead label.
