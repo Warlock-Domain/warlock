@@ -150,3 +150,5 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - Lava art uses broad procedural crust plates with the existing emission texture only as subtle grain. Preserve shore SDF, warning/tint/cooling uniforms, the gentle breathing intensity, refuge-island visuals and lava renderOrder -3. Shader flow never changes gameplay terrain or damage.
 
 - lava-bubbles.ts owns a bounded procedural dome/ripple pool. Use client-only visual randomness, never simulation RNG. Validate lava clearance on spawn and every update, including new islands/arena shapes; clear in lite mode or Campaign. Domes render behind the floor/actors without writing depth; rings use ordinary depth testing. Reuse meshes and shared geometries rather than allocating per frame.
+
+- Arena lighting uses a cool fill and four shadowless warm points just outside the shared outer contour. Keep light count bounded, scale their reach/intensity with radius/cooling, retain one shadow caster, and preserve the original Campaign sky/key settings with arena-only lights hidden. Do not recolor wardrobe materials or alter visibility rules for lighting.
