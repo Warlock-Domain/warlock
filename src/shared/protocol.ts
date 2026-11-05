@@ -14,6 +14,8 @@ import { TAUNTS } from './taunts.ts';
 import { v, type Vec } from './vec.ts';
 
 export type ClientMsg =
+  | { t: 'team'; team: number | null; bot?: number }
+  | { t: 'teamSetup'; bots: MatchOpts['difficulty'][]; opts: Partial<MatchOpts>; setup: { manual: boolean; shuffle: boolean } | null }
   | { t: 'hello'; playerId: string; name: string; watch?: true } // watch: entra assistindo (botão Assistir da lista de salas)
   | { t: 'reading'; on: boolean }
   | { t: 'watch'; on: boolean } // assistir (sem mago a partir da próxima rodada) ou voltar a jogar
@@ -264,6 +266,16 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       const opts = parseOpts(m.opts);
       const bots = Array.isArray(m.bots) && m.bots.length < MAX_PLAYERS && m.bots.every((d) => OPTION_CHOICES.difficulty.includes(d)) ? (m.bots as MatchOpts['difficulty'][]) : null;
       return opts && bots ? { t: 'lobby', bots, opts } : null;
+    }
+    case 'team':
+      return (m.team === null || (Number.isInteger(m.team) && (m.team as number) >= 0 && (m.team as number) < 4)) && (m.bot === undefined || (Number.isInteger(m.bot) && (m.bot as number) >= 0 && (m.bot as number) < MAX_PLAYERS - 1)) && Object.keys(m).every(k => ['t', 'team', 'bot'].includes(k))
+        ? { t: 'team', team: m.team as number | null, ...(m.bot === undefined ? {} : { bot: m.bot as number }) } : null;
+    case 'teamSetup': {
+      const opts = parseOpts(m.opts);
+      const bots = Array.isArray(m.bots) && m.bots.length < MAX_PLAYERS && m.bots.every(d => OPTION_CHOICES.difficulty.includes(d)) ? m.bots as MatchOpts['difficulty'][] : null;
+      const setup = m.setup;
+      if (!opts || !bots || !(setup === null || (typeof setup === 'object' && setup && 'manual' in setup && 'shuffle' in setup && typeof setup.manual === 'boolean' && typeof setup.shuffle === 'boolean' && Object.keys(setup).every(k => ['manual', 'shuffle'].includes(k))))) return null;
+      return { t: 'teamSetup', bots, opts, setup: setup === null ? null : { manual: setup.manual as boolean, shuffle: setup.shuffle as boolean } };
     }
     case 'taunt':
       return Number.isInteger(m.i) && (m.i as number) >= 0 && (m.i as number) < TAUNTS.length ? { t: 'taunt', i: m.i as number } : null;

@@ -394,7 +394,8 @@ type RoomActions = {
   reroll: () => void; // Ascensão: novo sorteio
   keep: (slot: number) => void; // Ascensão: manter as magias (barra cheia)
   nightCard: (i: number) => void; // Campaign: level-up card i
-  lobby: (bots: Level[], opts: MatchOpts) => void; // sala do Ascensão: o dono manda os bots e as opções para todos verem
+  lobby: (bots: Level[], opts: MatchOpts, teams?: { manual: boolean; shuffle: boolean } | null) => void;
+  team: (team: number | null, bot?: number) => void;
   spell: (s: SpellId) => void;
   volumes: () => Volumes;
   setVolume: (kind: VolumeKind, value: number) => void;
@@ -1454,6 +1455,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   let phaseEndsAt = 0;
   let mode: Mode = 'rounds';
   let shuffle = true; // Times: sorteados a cada rodada ou fixos na partida
+  let manualTeams: boolean | null = null;
   let opts: MatchOpts | null = null; // opções da partida escolhidas aqui; começa com as da sala
   let optsOpen = true;
   let setup = false; // fim da partida: true depois do "Voltar à sala"
@@ -1468,11 +1470,21 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // sala do Ascensão: os bots e as opções são os do dono, iguais na tela de todos; só ele muda (Fernando, 21/10)
     const L = r.lobby;
     const locked = !!L && L.owner !== me;
+    if (L?.teams && manualTeams === null) {
+      bots = [...L.bots]; opts = { ...DEFAULT_OPTS, ...r.opts, ...L.opts, ...FIXED }; shuffle = L.teams.shuffle;
+    }
+    if (L?.teams && (locked || manualTeams === null)) mode = 'teams';
+    manualTeams = locked ? (L?.teams?.manual ?? false) : manualTeams ?? L?.teams?.manual ?? false;
+    if (locked && L?.teams) shuffle = L.teams.shuffle;
     if (locked) {
       bots = [...L.bots];
       opts = { ...DEFAULT_OPTS, ...r.opts, ...L.opts, ...FIXED };
     }
     bots = bots.slice(0, maxBots);
+    const teamSelect = (name: string, selected: number | null, change: (team: number | null) => void, disabled = false) => el('select', {
+      class: 'team-choice', 'aria-label': name, 'data-key': name, disabled, onchange: (e: Event) => { const value = (e.target as HTMLSelectElement).value; change(value === '' ? null : Number(value)); },
+    }, el('option', { value: '', selected: selected === null }, t('Automático', 'Automatic')),
+      ...Array.from({ length: opts?.teams ?? L?.opts.teams ?? r.opts.teams }, (_, team) => el('option', { value: String(team), selected: selected === team }, teamLabel(team))));
     const count = el('b', { class: 'count' }, String(bots.length));
     // uma linha por bot, com o nome que o servidor vai dar (BOT_NAMES, na ordem) e a dificuldade dele
     const rows = () => bots.map((d, i) => {
@@ -1483,7 +1495,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           bots[i] = (e.target as HTMLSelectElement).value as Level;
           save();
         } },
-          ...OPTION_CHOICES.difficulty.map((k) => el('option', { value: k, selected: k === d }, SKILL_NAME[k]))));
+          ...OPTION_CHOICES.difficulty.map((k) => el('option', { value: k, selected: k === d }, SKILL_NAME[k]))),
+        mode === 'teams' && manualTeams ? teamSelect(t(`Equipe de ${name}`, `${name}'s team`), L?.teams?.botTeams[i] ?? null, team => act.team(team, i), locked) : null);
     });
     const list = el('div', { class: 'bot-list' }, ...rows());
     const save = () => {
@@ -1496,7 +1509,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     };
     // o dono manda o que está na tela dele sempre que difere do que a sala tem (na entrada e a cada mudança); a comparação é
     // chave a chave, sem depender da ordem das chaves na volta do servidor (senão vira laço de envio)
-    const share = () => L && !locked && (bots.join() !== L.bots.join() || (Object.keys(OPTION_CHOICES) as OptKey[]).some((k) => o[k] !== L.opts[k])) && act.lobby(bots, o);
+    const share = () => {
+      const owner = L?.owner ?? r.players.find(p => !p.bot && p.connected && !p.watch)?.id;
+      if (owner !== me) return;
+      const teams = mode === 'teams' ? { manual: !!manualTeams, shuffle } : null;
+      if ((mode === 'teams' && !L?.teams) || (!!L?.teams && mode !== 'teams') || (L && (bots.join() !== L.bots.join() || (Object.keys(OPTION_CHOICES) as OptKey[]).some(k => o[k] !== L.opts[k]) || (teams && (teams.manual !== L.teams?.manual || teams.shuffle !== L.teams?.shuffle))))) act.lobby(bots, o, mode === 'teams' || L?.teams ? teams : undefined);
+    };
     const set = (next: Level[]) => {
       bots = next.slice(0, maxBots);
       save();
@@ -1506,7 +1524,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     };
     const o = (opts ??= { ...DEFAULT_OPTS, ...r.opts, ...L?.opts, ...FIXED }); // o que a sala não mostra volta ao padrão (um desafio deixa a morte súbita desligada)
     // Campanha: de 1 a 4 Acesos, sem bots
-    const canStart = () => (campaign ? humans >= 1 && humans <= CAMPAIGN.humans : humans + bots.length >= 2);
+    const choices = [...r.players.filter(p => !p.bot && !p.watch).map(p => p.team), ...bots.map((_, i) => L?.teams?.botTeams[i] ?? null)];
+    const oneTeam = mode === 'teams' && manualTeams && choices.length > 1 && choices.every(team => team !== null && team === choices[0]);
+    const canStart = () => !oneTeam && !(mode === 'teams' && locked) && (campaign ? humans >= 1 && humans <= CAMPAIGN.humans : humans + bots.length >= 2);
     const startBtn = el('button', { type: 'button', class: 'primary big', disabled: !canStart(), onclick: () => act.start(campaign ? [] : bots, mode, shuffle, o) }, campaign ? t('Começar a noite', 'Start the night') : t('Começar partida', 'Start match'));
     const modes: [Mode, string, string][] = [
       ['rounds', MODE_NAME.rounds, t(`O último vivo ganha a rodada. Vence quem fizer ${o.goal} rodadas.`, `The last one alive wins the round. First to win ${o.goal} rounds wins.`)],
@@ -1515,9 +1535,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     ];
     const fixedText = fixed === 'ascension' ? ASC_MODE_TEXT : humans > CAMPAIGN.humans ? t(`A Campanha é para 1 a ${CAMPAIGN.humans} jogadores.`, `The Campaign is for 1 to ${CAMPAIGN.humans} players.`) : CAMPAIGN_MODE_TEXT;
     // Times: o grupo escolhe se os times mudam a cada rodada ou ficam até o fim
-    const shufflePicker = mode !== 'teams' ? null : choice(t('Sorteio dos times', 'Team shuffle'), [[true, t('Sorteados a cada rodada', 'Shuffled every round')], [false, t('Fixos na partida', 'Fixed for the match')]], shuffle, (k) => ((shuffle = k), drawCenter()));
+    const shufflePicker = mode !== 'teams' ? null : choice(t('Formação dos times', 'Team assignment'), [['round', t('Sorteados a cada rodada', 'Shuffled every round')], ['match', t('Sorteados uma vez', 'Shuffled once')], ['manual', t('Escolher na sala', 'Choose in the lobby')]], manualTeams ? 'manual' : shuffle ? 'round' : 'match', k => { manualTeams = k === 'manual'; shuffle = k === 'round'; drawCenter(); }, locked ? () => true : undefined);
     const modePicker = fixed ? el('div', { class: 'mode' }, el('b', {}, MODE_NAME[fixed]), el('small', { class: 'muted' }, fixedText)) : el('div', { class: 'mode' },
-      el('div', { class: 'opt-label' }, choice(t('Modo de jogo', 'Game mode'), modes.map(([k, label]): [Mode, string] => [k, label]), mode, (k) => ((mode = k), drawCenter())), infoButton(t('Modos de jogo', 'Game modes'), MODE_INFO)),
+      el('div', { class: 'opt-label' }, choice(t('Modo de jogo', 'Game mode'), modes.map(([k, label]): [Mode, string] => [k, label]), mode, (k) => ((mode = k), drawCenter()), locked ? () => true : undefined), infoButton(t('Modos de jogo', 'Game modes'), MODE_INFO)),
       el('small', { class: 'muted' }, modes.find(([k]) => k === mode)![2]), shufflePicker);
     // opções da partida: uma fileira de botões por opção, como o seletor de modo; vão junto com o "Começar"
     // abertas por padrão: quem cria a sala vê as opções sem procurar (fechar fica guardado até sair da sala)
@@ -1531,7 +1551,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     share();
     const card = el('div', { class: 'card room-wait' },
       el('div', {}, el('h2', { class: 'title' }, t('Sala ', 'Room ') + r.id), el('p', { class: 'muted' }, t('Mande o link para os amigos entrarem. Até 8 magos.', 'Send the link so your friends can join. Up to 8 wizards.')),
-        el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me, r), p.connected || p.bot ? '' : t(' · caiu', ' · dropped'), p.watch ? t(' · assistindo', ' · spectating') : ''), kickBtn(p, act.kick))))),
+        el('ul', { class: 'board' }, ...r.players.map((p) => el('li', {}, el('span', {}, teamTag(r, p), dot(p.color), ' ', nameOf(p, me, r), p.connected || p.bot ? '' : t(' · caiu', ' · dropped'), p.watch ? t(' · assistindo', ' · spectating') : ''),
+          mode === 'teams' && manualTeams && !p.watch ? (p.id === me ? teamSelect(t('Sua equipe', 'Your team'), p.team, team => act.team(team)) : el('small', {}, p.team === null ? t('Automático', 'Automatic') : teamLabel(p.team))) : null, kickBtn(p, act.kick))))),
+      mode === 'teams' && manualTeams ? el('small', { class: 'muted' }, oneTeam ? t('Escolha pelo menos duas equipes diferentes para começar.', 'Choose at least two different teams to start.') : t('Cada jogador escolhe sua equipe; o criador escolhe a dos bots. Automático preenche as equipes menores. As escolhas ficam fixas na partida.', 'Players choose their team; the creator assigns bots. Automatic fills the smaller teams. Choices stay fixed for the match.')) : null,
       // no PC em colunas, lado a lado (Fernando, 19/10: estava vertical demais); no celular uma embaixo da outra
       el('div', { class: 'lobby-cols' },
         campaign ? null : el('div', { class: 'lobby-col' },

@@ -1400,3 +1400,8 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
 .asc-swap-list button { justify-content: flex-start; border-left: 3px solid var(--g, var(--bronze)); }
 @media (hover: hover) { .asc-card:hover { transform: translateY(-2px); } }
 @media (prefers-reduced-motion: reduce) { .asc-card:hover { transform: none; } }
+
+.room-wait .team-choice { font: inherit; color: var(--fg); background: var(--panel2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: var(--sp-6) var(--sp-8); min-height: 36px; }
+.bot-row:has(.team-choice) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-6); }
+.bot-row:has(.team-choice) > span { grid-column: 1 / -1; }
+.bot-row:has(.team-choice) select { min-width: 0; width: 100%; }

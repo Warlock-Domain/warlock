@@ -251,3 +251,4 @@ See [Actions logs](https://github.com/Warlock-Domain/warlock/actions) and [pipel
 
 Questions about intended game behavior belong in an issue labeled `precisa de decisão`.
 Teams supports 2, 3 or 4 teams selected in room options, with balanced membership and compact allied formations in separated safe regions. Two teams retain their opposite-side spawns; other modes keep their existing layouts.
+Manual Teams setup lets each human choose their own team and the creator choose bot teams. Automatic slots are filled by the server; explicit choices stay fixed for the match.

@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
+import { chooseLobbyTeam, configureTeamLobby } from '../shared/team-lobby.ts';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
 import { chooseCard, reroll, setAscLobby } from '../shared/ascension.ts';
 import { lookOf } from '../shared/characters.ts';
@@ -188,6 +189,7 @@ export class Room extends DurableObject<Env> {
         this.acks.set(id, msg.seq);
         return;
       case 'start':
+        if (m.lobby?.teams && m.lobby.owner !== id) return;
         if (startMatch(m, now, msg.bots, msg.mode, msg.shuffle ?? true, Math.random, msg.opts, msg.setup, msg.sandbox)) await this.changed();
         // a silent refusal would leave the sender's loading screen waiting for a room that never comes
         else if (m.phase === 'lobby' || m.phase === 'end') send(ws, { t: 'error', code: 'bad_msg', msg: 'Não deu para começar a partida.' });
@@ -267,6 +269,12 @@ export class Room extends DurableObject<Env> {
         return;
       case 'lobby':
         if (setAscLobby(m, id, msg.bots, msg.opts)) await this.changed();
+        return;
+      case 'teamSetup':
+        if (configureTeamLobby(m, id, msg.bots, msg.opts, msg.setup)) await this.changed();
+        return;
+      case 'team':
+        if (chooseLobbyTeam(m, id, msg.team, msg.bot)) await this.changed();
         return;
     }
   }
