@@ -3,6 +3,7 @@ import { createTranscendFx, transcendLift } from './transcend-fx.ts';
 // Cena 3D: lava, arena de pedra que encolhe, magos (KayKit), projéteis e efeitos.
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
 import * as THREE from 'three';
+import { characterRim, contactShadowTexture } from './character-readability.ts';
 import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit, type Element, type Transcendence } from '../shared/elemental-spheres.ts';
 import { ELECTROCUTED_BIT, BRACING_BIT, MELEE_ARC } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
@@ -219,6 +220,8 @@ type Mage = {
   current: string;
   oneShotUntil: number;
   ring: THREE.Mesh;
+  ringBacking: THREE.Mesh;
+  contactShadow: THREE.Mesh;
   shield: THREE.Mesh;
   aura: THREE.Mesh; // anel no chão: dourado invulnerável, azul com Escudo de runa
   vines: THREE.Group;
@@ -749,6 +752,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   // geometrias de efeito compartilhadas: criar uma por efeito vazava memória de vídeo
   const ringGeo = new THREE.RingGeometry(WIZ_R * 0.9, WIZ_R * 1.25, 40);
+  const ringBackingGeo = new THREE.RingGeometry(WIZ_R * 0.84, WIZ_R * 1.32, 40);
+  const contactShadowGeo = new THREE.PlaneGeometry(1.9, 1.9);
+  const contactShadowMap = contactShadowTexture();
   const discGeo = new THREE.CircleGeometry(1, 48);
   const shieldGeo = new THREE.SphereGeometry(0.85, 24, 16);
   const markerGeo = new THREE.RingGeometry(0.15, 0.25, 24);
@@ -866,18 +872,21 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       mesh.castShadow = true;
-      // cloneAppearance já isola os materiais; guarda só os valores necessários para restaurar efeitos temporários.
-      if (Array.isArray(mesh.material)) {
-        for (const mat of mesh.material) ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });
-        return;
+      // Appearance materials are isolated; keep their original values for temporary effects.
+      for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });
+        if (mat instanceof THREE.MeshStandardMaterial) {
+          characterRim(mat);
+          mats.push({ m: mat, c: mat.emissive.clone(), i: mat.emissiveIntensity, col: mat.color.clone(), rough: mat.roughness });
+        }
       }
-      const mat = mesh.material;
-      ghostMats.push({ m: mat, transparent: mat.transparent, opacity: mat.opacity });
-      if (mat instanceof THREE.MeshStandardMaterial) mats.push({ m: mat, c: mat.emissive.clone(), i: mat.emissiveIntensity, col: mat.color.clone(), rough: mat.roughness });
     });
     const root = new THREE.Group();
     root.add(model);
     const sniper=sniperRig(); root.add(sniper);
+    const contactShadow = ground(new THREE.Mesh(contactShadowGeo, new THREE.MeshBasicMaterial({ map: contactShadowMap, transparent: true, depthWrite: false })), 0.012);
+    const ringBacking = ground(new THREE.Mesh(ringBackingGeo, new THREE.MeshBasicMaterial({ color: '#140806', transparent: true, opacity: 0.8, depthWrite: false })), 0.022);
+    root.add(contactShadow, ringBacking);
     const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: COLORS[d.color], transparent: true, opacity: 0.85, depthWrite: false }));
     ground(ring, 0.03);
     root.add(ring);
@@ -933,7 +942,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, sniper, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { root, sniper, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, ringBacking, contactShadow, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   // animação de conjurar [clip, segundos, início no clip]; o resto atira (Spellcast_Shoot). Quando o gesto forte vem no meio
@@ -1904,7 +1913,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           scene.remove(m.root);
           dispose(m.sniper);
           dispose(m.vines); // Os cipós procedurais pertencem à aparência que está sendo substituída.
-          for (const o of [m.ring, m.shield, m.aura]) (o.material as THREE.Material).dispose();
+          for (const o of [m.ring, m.ringBacking, m.contactShadow, m.shield, m.aura]) (o.material as THREE.Material).dispose();
           disposeAppearance(m);
           m.label.remove();
         }
@@ -1979,6 +1988,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         mat.opacity = healing.visible ? healing.opacity : invuln ? 0.55 + 0.3 * Math.sin(now * 8) : 0.8;
       }
       m.ring.visible = d.alive;
+      m.ringBacking.visible = d.alive;
+      // Keep the contact cue on the floor while Geyser/Transcend lift the body.
+      m.contactShadow.visible = d.alive && !lavaAt(d.pos);
+      m.contactShadow.scale.setScalar(1 + m.model.position.y * 0.12);
+      (m.contactShadow.material as THREE.MeshBasicMaterial).opacity = (ghost ? 0.4 : 1) / (1 + m.model.position.y * 0.4);
       if (!d.alive) {
         if (!m.dead) {
           m.dead = true;

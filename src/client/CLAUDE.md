@@ -4,6 +4,8 @@ Transcend ritual (28/10 local): original canvas seal sprite, vertical light colu
 
 Applies together with the root `CLAUDE.md`.
 
+- Character readability: `character-readability.ts` adds a neutral rim in each owned Standard material's shader without cloning geometry or skeletons. The procedural contact shadow stays on the floor during lift effects and follows authoritative hiding; the existing ring keeps player/team colors with a dark backing. Preserve Wardrobe materials and temporary effect restoration.
+
 ## Interface
 
 - Closed Body keeps its local effect aligned with the current stance, without a cursor aim line. PT/EN descriptions and the off-axis demo explain the preserved facing.

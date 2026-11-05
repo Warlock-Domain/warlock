@@ -9,6 +9,8 @@ Transcend ritual (28/10 local): original canvas seal sprite, vertical light colu
 
 ## Identidade visual
 
+- **Character readability (30/10 local):** original single-pass material rim and procedural radial contact-shadow texture in `src/client/character-readability.ts`; `scene.ts` adds a dark backing to the existing team/player foot ring. Reuses existing KayKit appearances, animation and team colors; no external assets or generated concept art shipped.
+
 - **Transcend (local prototype, 28/10):** reuses the credited `icons.svg#sunbeams` icon and Shield sound. Original procedural rising torus rings form the ritual and persistent chosen-element aura in `scene.ts`; the canvas demo uses the same element colors. No new external artwork, model or recording. Existing sphere colors, including white Ki, remain unchanged.
 
 - Rajada de areia/Cegueira24/10: partículas e cone3D/mira gerados em scene.ts; vinheta de raio3m via shader próprio blindness-fx.ts. Som de areia por ruído filtrado sintetizado em sound.ts. Sem imagens/gravações externas novas; referência visual do usuário usada apenas como direção.

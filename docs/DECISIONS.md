@@ -6,6 +6,7 @@ Every new decision gets a row here (date, decision, why) in the same PR as the c
 
 | Date | Decision | Why |
 |---|---|---|
+| 30/10 | **Character readability, local visual step one**: subtle neutral rim lighting on existing character materials, soft ground contact shadows, and a dark backing for the existing player/team foot rings. Preserve Wardrobe colors, authoritative visibility, animations, spell effects and gameplay. | User accepted the concept board and requested sequential implementation, beginning with characters. |
 | 28/10 | **Transcend supine pose** supersedes the Death_B reuse: build a dedicated belly-up pose from Idle, with both arms hanging downward and the head tilted back/down. Restore the ordinary action on completion and keep the aura without a completion label. | User clarified the relaxed suspended posture in the reference. |
 | 28/10 | **Transcend completion label**: remove the persistent Transcended label above the character; the aura is sufficient. Collection and active ritual labels remain. | User requested less overhead text after completion. |
 | 28/10 | **Transcend lying pose correction**: the character floats lying on its back, relaxed as if unconscious, using a dedicated held clone of the existing KayKit Death_B animation. Release the held action on completion; death animations remain independent. | User clarified that upright levitation did not match the reference. |
