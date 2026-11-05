@@ -154,3 +154,5 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - Arena lighting uses a cool fill and four shadowless warm points just outside the shared outer contour. Keep light count bounded, scale their reach/intensity with radius/cooling, retain one shadow caster, and preserve the original Campaign sky/key settings with arena-only lights hidden. Do not recolor wardrobe materials or alter visibility rules for lighting.
 
 - Moving projectile trails use soft textured planes in the world ground plane, aligned to authoritative velocity. Keep them off fixed areas and Magic Hook vectors; do not apply Fireball/Snowball factories to elemental attacks. Cold-impact mist follows positive damage and is skipped in lite mode. Preserve the shared particle cap, visibility rules, source colors and ordinary simulation behavior.
+
+- Desktop combat chrome is scoped to the HUD and fine pointers: compact slate frame/slots use combat variables from style.css. Preserve category colors, armed/cooldown/focus/drag states, QWER/ASDF layout, touch media queries and existing shop/dialog components.
