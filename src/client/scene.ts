@@ -7,6 +7,7 @@ import { characterRim, contactShadowTexture } from './character-readability.ts';
 import { isleCrackTexture } from './isle-cracks.ts';
 import { createStatusFx } from './status-fx.ts';
 import { elementSphereModel } from './element-sphere-model.ts';
+import { arenaRimGeometry } from './arena-rim.ts';
 import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit, type Element, type Transcendence } from '../shared/elemental-spheres.ts';
 import { ELECTROCUTED_BIT, BRACING_BIT, MELEE_ARC } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
@@ -463,6 +464,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   );
   arena.receiveShadow = true;
   scene.add(arena);
+  const rimGeometry = arenaRimGeometry(shownArena);
+  const rim = new THREE.Mesh(rimGeometry.stone, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, side: THREE.DoubleSide, flatShading: true }));
+  const fissures = new THREE.LineSegments(rimGeometry.fissures, new THREE.LineBasicMaterial({ color: '#ff7934', transparent: true, opacity: 0.65 }));
+  const fissureWarning = new THREE.Color('#ff270a');
+  rim.receiveShadow = true;
+  scene.add(rim, fissures);
   // The shared signed distance keeps the carved rim, lava seam and warning aligned on every arena shape.
   (arena.material as THREE.MeshStandardMaterial[])[0].onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, shoreU);
@@ -482,7 +489,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       float melt = 1.0 - smoothstep(0.0, 0.22, eIn - shoreLick(vWPos.xz) - 0.12 * (nz - 0.5));
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.08, 0.02, 0.0), melt);
       float rimLight = smoothstep(0.2, 0.32, eIn) * (1.0 - smoothstep(0.32, 0.58, eIn));
-      totalEmissiveRadiance += hot * (crack * band * band * (0.9 + 1.2 * uWarn) + melt * (0.85 + 0.9 * uWarn) + rimLight * 0.12);`)
+      totalEmissiveRadiance += hot * (crack * band * band * (0.5 + 1.2 * uWarn) + melt * (0.35 + 0.9 * uWarn) + rimLight * 0.08);`)
       .replace('#include <opaque_fragment>', `
       // Neutral slate in the fighting space; retain warm lava bounce only near the perimeter.
       float arenaRim = 1.0 - smoothstep(0.15, 1.7, -shoreDist(vWPos.xz));
@@ -2578,6 +2585,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       decor.night(state.map ? `${mapKey}|${state.map.opened.join()}` : '', () => (state.map ? nightProps(state.map.night, state.map.opened) : null)); // same key: nothing to do; an opened chest rebuilds the props (twice a night)
       mapGroup.visible = voidPlane.visible = onMap;
       lava.visible = arena.visible = warn.visible = !onMap;
+      rim.visible = fissures.visible = !onMap;
       for (const c of cpMarks) c.mat.opacity = state.map?.done.includes(c.room) ? 0.15 : 0.55 + 0.35 * Math.sin(now * 3);
       fogs.forEach((f, i) => {
         const mat = f.material as THREE.MeshBasicMaterial, goal = state.map?.seen.includes(i) ? 0 : 0.97;
@@ -2590,6 +2598,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         shownArena = state.arena;
         arena.geometry.dispose();
         arena.geometry = floorGeo(shownArena);
+        rim.geometry.dispose(); fissures.geometry.dispose();
+        const geometry = arenaRimGeometry(shownArena);
+        rim.geometry = geometry.stone; fissures.geometry = geometry.fissures;
         shoreU.uSdf.value.dispose();
         shoreU.uSdf.value = sdfTexture(shownArena);
         shoreU.uSpan.value = sdfSpan(shownArena);
@@ -2601,6 +2612,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       decorArena = state.arena;
       shownR += (state.arenaR - shownR) * Math.min(1, dt * 4);
       arena.scale.set(shownR, 1, shownR);
+      rim.scale.set(shownR, Math.min(1, shownR / 4), shownR);
+      fissures.scale.copy(rim.scale);
       shoreU.uR.value = Math.max(0.01, shownR);
       shoreU.uShoreTime.value = now;
       shoreU.uLick.value = lite ? 0 : 1;
@@ -2621,6 +2634,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       warnMat.opacity = warning ? 0.25 + 0.25 * Math.sin(now * 14) : 0;
       // borda derretida puxa para o vermelho e pulsa quando a arena vai encolher
       shoreU.uWarn.value = warning ? 0.5 + 0.5 * Math.sin(now * 14) : 0;
+      fissures.material.color.set('#ff7934');
+      if (tint) fissures.material.color.lerp(shoreU.uTint.value, tintK);
+      fissures.material.color.lerp(fissureWarning, shoreU.uWarn.value);
+      fissures.material.opacity = (lite ? 0.5 : 0.65) * heat;
       // brasas: sobem da lava em volta da pedra, cada uma com seu ritmo
       if (!lite) for (const s of embers) {
         if (onMap) {
