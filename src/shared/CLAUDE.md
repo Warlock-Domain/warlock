@@ -1,6 +1,6 @@
 # src/shared — game rules (run on the server and in the browser)
 
-Teams rounds spawn allies in compact formations on opposite sides of every arena; other modes keep their existing spawn layout.
+
 
 Applies together with the root `CLAUDE.md`.
 
@@ -69,3 +69,4 @@ Flattened lists of numbers (layout in the `protocol.ts` comment), values with `r
 ## Appearance (`characters.ts`)
 
 The appearance code stores the **position** of each option (7 digits, one per piece), and it is saved in the browser and in rooms. A new option goes **at the end** of the piece's list; an option that leaves stays in place and becomes retired (`isRetired`): `decodeLook` swaps it for another (the hooded Rogue becomes Rogue + Hood, issue #107), the creator and the draw skip it. Every code input goes through `fixLook` (browser in `savedLook`, message in `parseClientMessage`, stored room in `resume`).
+Teams supports 2, 3 or 4 teams through opts.teams (default2, capped by participant count). Preserve two-team RNG and opposite spawns; additional teams use separated safe anchors with compact allies. Fixed-team newcomers join the smallest team; count changes regroup next round. Other modes and Campaign teams remain unchanged.

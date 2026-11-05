@@ -124,3 +124,4 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - `SnapshotInterpolator` owns a bounded snapshot buffer, its capacity, and the smoothed server/local clock offset. Live rendering and replay use independent instances through `createInterp(max)`.
 - Preserve bound `push`, `latest`, `sample`, and `reset` callbacks. Reset clears history and clock offset; simulation clock rollback also starts new history. Keep interpolation math and `keepLast()` as module helpers.
 - Preserve snapshot references, interpolation delay/smoothing, and replay limits. Compatibility, round-reset, capacity, and instance-isolation coverage lives in `tests/client.test.ts`.
+- Teams supports four identities (Blue/Red/Green/Yellow). HUD standings and statistics iterate actual participating teams; never fold every non-blue player into Red. Keep team count in the existing match options picker and vote flow.

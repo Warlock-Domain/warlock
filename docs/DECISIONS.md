@@ -6,6 +6,7 @@ Every new decision gets a row here (date, decision, why) in the same PR as the c
 
 | Date | Decision | Why |
 |---|---|---|
+| 05/11 | **Two to four teams**: the room offers 2, 3 or 4 teams (default2); fewer participants cap the actual number to avoid empty teams. Balance shuffled teams within one player, preserve fixed teams and assign newcomers to the smallest team. A voted count change regroups next round. Three/four team spawns keep allies together at separated safe anchors of each arena. Extend team colors, names, standings and stats; last surviving team scores through the existing rules. | User requested continuing the queued four-team mode after the graphical work. |
 | 28/10 | **Grouped Teams spawns**: allies start together in compact, non-overlapping formations on opposite sides, preserving the established safe spawn depth. Apply before obstacle placement on every round; other modes retain their layouts. | User requested allied teams together and opponents as far apart as practical. |
 | 17/10 | Top-down 3D camera, Dota controls (right button moves); 1 point per round, first to 5 wins | same as the original Warlock, Dota audience |
 | 18/10 | Public repository | so friends can contribute |

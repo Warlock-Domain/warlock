@@ -41,7 +41,7 @@ import type { TAUNTS } from '../shared/taunts.ts';
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
 export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#12c7c7', '#f76b15', '#e93d82'];
 // modo Times: Azul e Vermelho (anel no chão e barra de vida)
-export const TEAM_COLORS = ['#3b82f6', '#ef4444'];
+export const TEAM_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#eab308'];
 // dificuldade dos bots, curta (rótulo em cima do mago e placar do canto)
 export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), casual: 'Casual', normal: 'Normal', veteran: t('Veterano', 'Veteran'), hard: t('Difícil', 'Hard'), auto: 'Auto' };
 
