@@ -455,8 +455,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   );
   arena.receiveShadow = true;
   scene.add(arena);
-  // borda da pedra: escurece e racha nos últimos ~0,9 m, as rachaduras acendem em laranja e, colada na lava, a pedra derrete
-  // (a lava lambe uns centímetros para dentro); no aviso de encolhimento a borda puxa para o vermelho e pulsa
+  // The shared signed distance keeps the carved rim, lava seam and warning aligned on every arena shape.
   (arena.material as THREE.MeshStandardMaterial[])[0].onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, shoreU);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
@@ -467,12 +466,22 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       float nz = vnoise(vWPos.xz * 1.3);
       float band = 1.0 - smoothstep(0.0, 1.3, eIn - 0.4 * (nz - 0.5));
       diffuseColor.rgb *= mix(1.0, 0.3, band);
+      float rimCut = 1.0 - smoothstep(0.025, 0.11, abs(eIn - 0.65 + (nz - 0.5) * 0.08));
+      diffuseColor.rgb *= 1.0 - rimCut * 0.22;
       float crack = max(1.0 - smoothstep(0.0, 0.05, abs(vnoise(vWPos.xz * 1.6 + 7.0) - 0.5)), 0.6 * (1.0 - smoothstep(0.0, 0.04, abs(vnoise(vWPos.xz * 4.1 - 3.0) - 0.5))));
-      // a borda derretida da pedra também pega a cor do efeito da rodada (a lava pinta o lado dela com os mesmos uTint/uTintK)
+      // Round effects and the red shrink warning keep their existing shore colors.
       vec3 hot = mix(mix(vec3(1.0, 0.34, 0.05), uTint, uTintK), vec3(1.0, 0.1, 0.02), uWarn);
       float melt = 1.0 - smoothstep(0.0, 0.22, eIn - shoreLick(vWPos.xz) - 0.12 * (nz - 0.5));
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.08, 0.02, 0.0), melt);
-      totalEmissiveRadiance += hot * (crack * band * band * (0.9 + 1.2 * uWarn) + melt * (0.85 + 0.9 * uWarn));`);
+      float rimLight = smoothstep(0.2, 0.32, eIn) * (1.0 - smoothstep(0.32, 0.58, eIn));
+      totalEmissiveRadiance += hot * (crack * band * band * (0.9 + 1.2 * uWarn) + melt * (0.85 + 0.9 * uWarn) + rimLight * 0.12);`)
+      .replace('#include <opaque_fragment>', `
+      // Neutral slate in the fighting space; retain warm lava bounce only near the perimeter.
+      float arenaRim = 1.0 - smoothstep(0.15, 1.7, -shoreDist(vWPos.xz));
+      float stoneLight = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
+      vec3 coolStone = stoneLight * vec3(0.72, 0.78, 0.88);
+      outgoingLight = mix(coolStone, outgoingLight, arenaRim * 0.8);
+      #include <opaque_fragment>`);
   };
   // ardósia de verdade (Poly Haven Slate Floor 02) quando a textura chegar
   loader.load('/tex/stone.jpg', (t) => {
@@ -483,6 +492,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     t.repeat.set(2.5, 2.5);
     top.map = t;
     top.normalMap = tex('/tex/stone_nor.jpg', false, 2.5);
+    top.normalScale.set(0.55, 0.55);
     top.color.set('#e6ddd6');
     top.needsUpdate = true;
   });
