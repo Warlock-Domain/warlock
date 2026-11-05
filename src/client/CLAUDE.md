@@ -95,6 +95,8 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 
 ## Scene (`scene.ts`)
 
+- Refuge-island cracks are a shared original texture with per-island opacity from the received radius. Chips are capped, short-lived visual effects; never change island timing or collision to match art. Lite mode skips chips and the added lava pulse. Keep heat, warning and round tint paths intact.
+
 - Area readability keeps contours inside the authoritative radius, with a dark inward backing and translucent fill. Preserve dashed Slow versus solid Burn/Pull and the existing final0.8-second fade. Area projectile radius vectors are not motion; transparency changes must not change gameplay, aim or lifetime.
 
 - Arena slate/rim shading uses the existing world-space shore SDF, including holes and shrinking shapes. Preserve the warning/round-effect tint path and the actual floor geometry; do not apply arena-only shading to Campaign tile materials or character lighting.
