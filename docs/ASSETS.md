@@ -104,3 +104,6 @@ Original procedural crust plates and molten channels in the LAVA_FRAG shader in 
 
 ## Sparse lava bubbles (31 October local)
 Original procedural hemispheres and expanding ripple rings in src/client/lava-bubbles.ts. Three reusable slots share geometry; scene.ts places them only in lava with clearance from arena edges and refuge islands. No external assets or sounds.
+
+## Organic spell effects (31 October local)
+Original curved flame geometry and small ice facets in src/client/proj-models.ts. scene.ts reuses credited Kenney flame/smoke/light/star textures for soft directional trails and a short cold-impact mist. No new external artwork. Elemental sphere geometry and colors stay unchanged.

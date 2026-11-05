@@ -1699,10 +1699,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       addFx(ring, 0.24, (k) => { ring.scale.setScalar((0.6 + 0.7 * k) * strength); ring.material.opacity = (1 - k) * 0.65; });
     }
     if (FIRE_KINDS.has(src) && !lite) flameBurst(at, 1.4 * strength, 0.25);
+    if (src === 'snowball' && !lite && fx.length < FX_CAP) {
+      const mist = new THREE.Sprite(new THREE.SpriteMaterial({ map: FX.smoke, color: '#bfe7ff', transparent: true, opacity: 0.22, depthWrite: false }));
+      mist.position.copy(w3(at, 0.75));
+      addFx(mist, 0.45, (k) => {
+        mist.scale.setScalar(strength * (0.45 + 0.7 * k));
+        mist.position.y = 0.75 + 0.2 * k; mist.material.opacity = (1 - k) * 0.22;
+      });
+    }
     const count = lite ? 2 : damage >= BIG_HIT ? 7 : 4;
     for (let i = 0; i < count && fx.length < FX_CAP; i++) {
       const angle = i * Math.PI * 2 / count + Math.random() * 0.3;
-      const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: FX.spark, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: src === 'snowball' ? FX.star : FX.spark, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
       spark.scale.setScalar(0.25 * strength);
       spark.position.copy(w3(at, 1.1));
       addFx(spark, 0.28, (k) => {
@@ -1941,7 +1949,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         halo.material.opacity = readableCores.has(p.kind) ? 0.4 : 0.7;
         g.add(core, halo);
         if (movingKinds.has(p.kind)) {
-          const tail = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.9, 6).rotateX(-Math.PI / 2).translate(0, 0, -0.55), new THREE.MeshBasicMaterial({ color: look.trail, transparent: true, opacity: 0.26, blending: THREE.AdditiveBlending, depthWrite: false }));
+          const tailMap = FIRE_KINDS.has(p.kind) ? FLAMES[0] : p.kind === 'snowball' ? FX.smoke : FX.light;
+          const tail = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 1).rotateX(-Math.PI / 2).translate(0, 0, -0.55), new THREE.MeshBasicMaterial({ map: tailMap, color: look.trail, transparent: true, opacity: 0.26, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
           tail.name = 'direction-tail';
           g.add(tail);
         }
@@ -2005,12 +2014,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       if (p.kind === 'boomerang') body.rotation.y = t * 18;
       else if (p.kind === 'meteor' || p.kind === 'cluster' || p.kind === 'bouncer' || p.kind === 'snowball' || p.kind === 'splitter' || p.kind === 'shard') body.rotation.set(t * 3, t * 4, 0);
-      const tail = g.getObjectByName('direction-tail');
+      const tail = g.getObjectByName('direction-tail') as THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | undefined;
       if (tail) {
         const speed = Math.hypot(p.vel.x, p.vel.y), size = projectileLook(p).size * (p.size ?? 1);
         tail.visible = speed > 0.01;
         tail.rotation.y = Math.atan2(p.vel.x, p.vel.y);
         tail.scale.set(size, size, Math.min(1.2, speed * 0.07) * size * (lite ? 0.65 : 1));
+        tail.material.opacity = (p.kind === 'snowball' ? 0.2 : 0.26) * (lite ? 0.7 : 0.94 + 0.06 * Math.sin(t * 7 + p.id));
+        if (FIRE_KINDS.has(p.kind)) tail.material.map = FLAMES[Math.floor(t * 12 + p.id) % FLAMES.length];
       }
       else if (p.kind === 'link') body.rotation.y = t * 6;
       body.traverse((o) => {
