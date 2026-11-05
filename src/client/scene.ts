@@ -8,6 +8,7 @@ import { isleCrackTexture } from './isle-cracks.ts';
 import { createStatusFx } from './status-fx.ts';
 import { elementSphereModel } from './element-sphere-model.ts';
 import { arenaRimGeometry } from './arena-rim.ts';
+import { createLavaBubbles } from './lava-bubbles.ts';
 import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit, type Element, type Transcendence } from '../shared/elemental-spheres.ts';
 import { ELECTROCUTED_BIT, BRACING_BIT, MELEE_ARC } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
@@ -703,6 +704,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // mapa da Campanha em cena: lá a lava é o chão desenhado (^), não a borda da arena (as coordenadas do mapa ficam longe do centro)
   let curMap: NightMap | null = null;
   const lavaAt = (p: Vec, pad = 0) => (curMap ? curMap.ground[Math.floor(p.y)]?.[Math.floor(p.x)] === 'lava' : inLavaAt(shownArena, shownR, shownIsles, p, pad));
+  const bubbleAllowed = (p: Vec) => edgeAt(shownArena, shownR, p) < -1.3 && shownIsles.every(i => Math.hypot(p.x - i.pos.x, p.y - i.pos.y) > i.r + 1.3);
+  const lavaBubbles = createLavaBubbles(() => {
+    const span = shownR * ARENAS[shownArena].reach + 5;
+    for (let i = 0; i < 12; i++) {
+      const angle = Math.random() * Math.PI * 2, radius = Math.sqrt(Math.random()) * span;
+      const p = v(Math.cos(angle) * radius, Math.sin(angle) * radius);
+      if (bubbleAllowed(p)) return p;
+    }
+    return null;
+  }, bubbleAllowed);
+  scene.add(lavaBubbles.root);
   let cpMarks: { room: number; mat: THREE.MeshBasicMaterial }[] = [];
   // exploration fog (minimap.ts): one dark lid per room, above the walls, that fades once the group has seen the room
   let fogs: THREE.Mesh[] = [];
@@ -2818,6 +2830,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       });
       syncZones(state.zones ?? [], now, dt);
       shownIsles = state.isles ?? [];
+      lavaBubbles.update(now, !onMap, lite, heat);
       syncIsles(shownIsles, now, dt);
       // hit-stop: quem acabou de apanhar fica com a animação parada por ~60 ms
       for (const m of mages.values()) if (now >= m.freezeUntil) m.mixer.update(dt);

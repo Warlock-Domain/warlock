@@ -101,3 +101,6 @@ Original procedural faceted bevel and fissure geometry in src/client/arena-rim.t
 
 ## Broad lava flow (31 October local)
 Original procedural crust plates and molten channels in the LAVA_FRAG shader in src/client/scene.ts. The existing credited ambientCG Lava001 emission map remains as restrained surface grain. No new asset files or external art. Refuge-island artwork and geometry are unchanged.
+
+## Sparse lava bubbles (31 October local)
+Original procedural hemispheres and expanding ripple rings in src/client/lava-bubbles.ts. Three reusable slots share geometry; scene.ts places them only in lava with clearance from arena edges and refuge islands. No external assets or sounds.

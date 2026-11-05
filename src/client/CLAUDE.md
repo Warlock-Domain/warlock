@@ -148,3 +148,5 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - The sculpted rim is background decoration: lava renderOrder -3, floor -2, rock/fissures -1; neither rim layer writes depth. Keep fissures in the opaque pass with brightness-based fading; transparent fissures would render over actors. Combat objects retain their normal depth testing and ordering.
 
 - Lava art uses broad procedural crust plates with the existing emission texture only as subtle grain. Preserve shore SDF, warning/tint/cooling uniforms, the gentle breathing intensity, refuge-island visuals and lava renderOrder -3. Shader flow never changes gameplay terrain or damage.
+
+- lava-bubbles.ts owns a bounded procedural dome/ripple pool. Use client-only visual randomness, never simulation RNG. Validate lava clearance on spawn and every update, including new islands/arena shapes; clear in lite mode or Campaign. Domes render behind the floor/actors without writing depth; rings use ordinary depth testing. Reuse meshes and shared geometries rather than allocating per frame.
