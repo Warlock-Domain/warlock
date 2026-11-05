@@ -2058,9 +2058,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (status !== myStatus) {
         myStatus = status;
         drawSheet();
-        // como em cima do mago (scene.ts), com o nome no rótulo; a Égide pronta também aparece aqui
+        // Match the overhead row; Stun is represented by the orbiting stars, while Aegis stays here.
         fxCells.clear();
-        statusRow.replaceChildren(...STATUS_ICONS.filter(([bit]) => status & bit).map(([bit, ico, name]) => {
+        statusRow.replaceChildren(...STATUS_ICONS.filter(([bit]) => status & bit && bit !== 16).map(([bit, ico, name]) => {
           // data-rune no ícone, como no aviso (RUNE_TEXT em main.ts): o disco do buff na cor da runa (style.css)
           const g = icon(ico);
           const rune = RUNE_KINDS.find((k) => RUNE_ICON[k] === ico);

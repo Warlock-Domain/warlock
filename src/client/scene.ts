@@ -902,7 +902,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
     const root = new THREE.Group();
     root.add(model);
-    const statusFx = createStatusFx(FX.star); root.add(statusFx.root);
+    const statusFx = createStatusFx(); root.add(statusFx.root);
     const sniper=sniperRig(); root.add(sniper);
     const contactShadow = ground(new THREE.Mesh(contactShadowGeo, new THREE.MeshBasicMaterial({ map: contactShadowMap, transparent: true, depthWrite: false })), 0.012);
     const ringBacking = ground(new THREE.Mesh(ringBackingGeo, new THREE.MeshBasicMaterial({ color: '#140806', transparent: true, opacity: 0.8, depthWrite: false })), 0.022);
@@ -2205,7 +2205,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.statusKey = d.status;
         m.statusClocks.clear();
         // Égide pronta (131072) não vira ícone: tem o selo próprio ao lado da barra (aegisEl)
-        m.statusEl.replaceChildren(...STATUS_ICONS.filter(([bit]) => d.status & bit && bit !== 131072).map(([bit, ico, name]) => {
+        m.statusEl.replaceChildren(...STATUS_ICONS.filter(([bit]) => d.status & bit && bit !== 131072 && bit !== 16).map(([bit, ico, name]) => {
           const c = el('b', { class: 'fx-clock', 'aria-hidden': 'true' });
           m.statusClocks.set(bit, c);
           return el('i', { title: name, class: BAD_STATUS.includes(bit) ? 'bad' : 'good' }, c, icon(ico));
