@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { characterRim, contactShadowTexture } from './character-readability.ts';
 import { isleCrackTexture } from './isle-cracks.ts';
 import { createStatusFx } from './status-fx.ts';
+import { elementSphereModel } from './element-sphere-model.ts';
 import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit, type Element, type Transcendence } from '../shared/elemental-spheres.ts';
 import { ELECTROCUTED_BIT, BRACING_BIT, MELEE_ARC } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
@@ -1876,7 +1877,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     }
   }
 
-  const sphereLooks = Object.fromEntries(Object.entries(ELEMENT_COLORS).map(([element, color]) => [element, { ...LOOK.basic, mat: new THREE.MeshBasicMaterial({ color }), halo: element === 'void' ? '#777777' : color, trail: color, size: ELEMENTAL_SPHERES.radius / .28 }]));
+  const sphereLooks = Object.fromEntries(Object.entries(ELEMENT_COLORS).map(([element, color]) => [element, { ...LOOK.basic, halo: element === 'void' ? '#777777' : color, trail: color, size: ELEMENTAL_SPHERES.radius / .28 }]));
   const projectileLook = (p: ProjView) => p.element ? sphereLooks[p.element] : LOOK[p.kind as Exclude<ProjKind, 'illusion'>];
   const movingKinds = new Set<ProjKind>(['basic', 'fireball', 'homing', 'cluster', 'swap', 'boomerang', 'gravity', 'bouncer', 'drain', 'snowball', 'magnetize', 'recharge', 'splitter', 'shard']);
   const readableCores = new Set<ProjKind>(['basic', 'fireball', 'homing', 'snowball']);
@@ -1889,8 +1890,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!g) {
         g = new THREE.Group();
         const look = projectileLook(p);
-        const core = (!p.element && SHAPES[p.kind]?.()) || new THREE.Mesh(ballGeo, look.mat);
-        core.scale.multiplyScalar(look.size * (p.size ?? 1));
+        const core = p.element ? elementSphereModel(p.element) : SHAPES[p.kind]?.() ?? new THREE.Mesh(ballGeo, look.mat);
+        core.scale.multiplyScalar((p.element ? 1 : look.size) * (p.size ?? 1));
         const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: FX.light, color: look.halo, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
         halo.scale.setScalar(1.2 * look.size * (p.size ?? 1));
         halo.material.opacity = readableCores.has(p.kind) ? 0.4 : 0.7;
@@ -2322,22 +2323,25 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!group) {
         group = new THREE.Group();
         for (let i = 0; i < ELEMENTAL_SPHERES.max; i++) {
-          const sphere = new THREE.Group();
-          sphere.add(new THREE.Mesh(new THREE.SphereGeometry(ELEMENTAL_SPHERES.radius, 16, 12), new THREE.MeshBasicMaterial()));
-          // A subtle silhouette keeps the black Void sphere readable against the dark arena.
-          sphere.add(new THREE.Mesh(new THREE.SphereGeometry(ELEMENTAL_SPHERES.radius * 1.1, 16, 12), new THREE.MeshBasicMaterial({ color: '#a0a0a0', side: THREE.BackSide, transparent: true, opacity: .5 })));
-          group.add(sphere);
+          group.add(new THREE.Group());
         }
         scene.add(group); elemental.set(d.id, group);
       }
       group.position.copy(w3(d.pos, (d.geyserLeft ?? 0) > 0 ? geyserHeight(d.geyserLeft!) : 0));
+      const orbitBlend = group.userData.orbitAt === undefined ? 1 : 1 - Math.exp(-Math.min(0.1, Math.max(0, now - group.userData.orbitAt)) * 14);
+      group.userData.orbitAt = now;
       group.children.forEach((node, i) => {
         const sphere = d.spheres![i];
         node.visible = !!sphere;
         if (!sphere) return;
+        if (node.userData.element !== sphere.element) {
+          node.children.forEach(dispose); node.clear();
+          node.add(elementSphereModel(sphere.element)); node.userData.element = sphere.element;
+        }
         const orbit = elementalOrbit(now, i, d.spheres!.length);
-        node.position.set(orbit.x, ELEMENTAL_SPHERES.height, orbit.y);
-        ((node.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).color.set(ELEMENT_COLORS[sphere.element]);
+        node.position.x += (orbit.x - node.position.x) * orbitBlend;
+        node.position.y += (ELEMENTAL_SPHERES.height - node.position.y) * orbitBlend;
+        node.position.z += (orbit.y - node.position.z) * orbitBlend;
       });
     }
     for (const [id, group] of elemental) if (!sphereOwners.has(id)) {
