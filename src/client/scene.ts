@@ -478,9 +478,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       .replace('#include <opaque_fragment>', `
       // Neutral slate in the fighting space; retain warm lava bounce only near the perimeter.
       float arenaRim = 1.0 - smoothstep(0.15, 1.7, -shoreDist(vWPos.xz));
-      float stoneLight = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
-      vec3 coolStone = stoneLight * vec3(0.72, 0.78, 0.88);
-      outgoingLight = mix(coolStone, outgoingLight, arenaRim * 0.8);
+      // outgoingLight already includes the emissive (cracks, round effect, shrink warning): grade only the lit stone or those colors go grey.
+      vec3 litStone = outgoingLight - totalEmissiveRadiance;
+      vec3 coolStone = dot(litStone, vec3(0.2126, 0.7152, 0.0722)) * vec3(0.72, 0.78, 0.88);
+      outgoingLight = mix(coolStone, litStone, arenaRim * 0.8) + totalEmissiveRadiance;
       #include <opaque_fragment>`);
   };
   // ardósia de verdade (Poly Haven Slate Floor 02) quando a textura chegar
