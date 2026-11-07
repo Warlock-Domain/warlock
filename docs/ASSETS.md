@@ -10,6 +10,10 @@ Transcend ritual (28/10 local): original canvas seal sprite, vertical light colu
 
 ## Identidade visual
 
+- **Impact readability (31/10 local):** `scene.ts` reuses credited Kenney light/spark/flame textures for compact spell-colored contacts, original outward spark motion and procedural ground knockback streaks. No external asset added. Explosion/clash visuals remain separate from ordinary hit feedback; hidden targets still do not expose damage labels.
+
+- **Projectile readability (30/10 local):** extended original procedural factories in `src/client/proj-models.ts` for Fireball, Homing Missile, Snowball and the ordinary basic bolt. Short tapered tails in `scene.ts` reuse existing spell colors and Kenney residual particles. No external asset or generated concept image shipped; elemental spheres retain the existing round body and colors.
+
 - **Character readability (30/10 local):** original single-pass material rim and procedural radial contact-shadow texture in `src/client/character-readability.ts`; `scene.ts` adds a dark backing to the existing team/player foot ring. Reuses existing KayKit appearances, animation and team colors; no external assets or generated concept art shipped.
 
 - **Transcend (local prototype, 28/10):** reuses the credited `icons.svg#sunbeams` icon and Shield sound. Original procedural rising torus rings form the ritual and persistent chosen-element aura in `scene.ts`; the canvas demo uses the same element colors. No new external artwork, model or recording. Existing sphere colors, including white Ki, remain unchanged.
