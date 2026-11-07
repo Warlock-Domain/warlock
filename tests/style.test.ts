@@ -46,9 +46,13 @@ describe('play style', () => {
     // 25/10 (PR #409, owner's decision): bots may buy Inelegant Solution, which changes seeded purchases and decisions.
     // 25/10 (issue #416, owner's decision): bots may buy Squid Pix; with it out of the bot pool the old hash still matches.
     // 27/10 (PR #426, owner's decision): the ranged basic Attack no longer pushes, which changes bot trajectories.
-    // Elemental Spheres intentionally changes bot purchases, summon RNG and impact modifiers.
+    // Visible Windwalk lasts one extra second and remains a valid bot target.
+    // Mental Transfusion intentionally adds support purchases and decisions to seeded bot matches.
+    // 31/10 (PR #433, owner's rule for Leonard's PRs): bots may buy Anima Nexus; adding it to situational plans changes seeded shopping draws, even in FFA where buying it is skipped.
+    // 31/10 (PR #432, accepted as proposed by Leonard): Elemental Spheres intentionally changes bot purchases, summon RNG and impact modifiers.
     // Transcend intentionally changes seeded bot purchases and decisions.
-    expect(hash).toBe(174793371);
+    // Fixed equipment, revised abilities and delayed Lightning intentionally change seeded events; bots also stop drawing the spells that became items.
+    expect(hash).toBe(670479791);
     // and it really measured in this same match
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);

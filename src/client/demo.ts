@@ -4,13 +4,13 @@ import { SHAPES, type ArenaId } from '../shared/arena.ts';
 import { PIX_COLOR, PIX_TIE } from './proj-models.ts';
 import { BASIC_ATTACK, BRACE, DT, KNOCK_RECOVERY, OBSTACLES, PROJ_R, WIZ_R } from '../shared/constants.ts';
 import { ITEMS, noItems, type ItemId } from '../shared/items.ts';
-import { bracingActive, incapacitatedUntil, isStunned, newWorld, snowR, spellOf, stepWorld, type Cmd, type Projectile, type SimEvent, type Wizard, type World } from '../shared/sim.ts';
+import { bracingActive, closedBodyActive, incapacitatedUntil, isStunned, newWorld, snowR, spellOf, stepWorld, type Cmd, type Projectile, type SimEvent, type Wizard, type World } from '../shared/sim.ts';
 import { BLINDNESS, CAST_POINT, GRIP, METEOR_DELAY, PIX, SHIELD, isSpell, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, scale, v, type Vec } from '../shared/vec.ts';
 import { LOCALE, spellName, t } from './i18n.ts';
 import { n1 } from './rules-text.ts';
 import { mulberry32 } from '../shared/rng.ts';
-import { ELEMENT_COLORS, elementalOrbit } from '../shared/elemental-spheres.ts';
+import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit } from '../shared/elemental-spheres.ts';
 import { channelPower } from '../shared/channeling.ts';
 import { electroPulse } from './screen-data.ts';
 import { HEAL_FX, healAura } from './heal-fx.ts';
@@ -51,10 +51,12 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   geyser: { pos: [v(-1.5, 0), v(0, 0), v(1.5, 0), v(-4, 0)], end: 4.5,
     steps: [[.4,A,'geyser',v(0,0)],[.9,B,'move',v(0,4)],[.9,3,'fireball',v(4,0)],[1,B,'fireball',A],[3.3,B,'move',v(0,3)]],
     prep: w => { w.pillars=[]; w.wizards[A].team=w.wizards[B].team=0; w.wizards[C].team=1; } },
+  transfusion: { pos: [v(-3, 0), v(2, 0)], end: 3.8, steps: [[.4, A, 'transfusion', B], [2.6, B, 'move', v(12, 0)]], prep: (w) => { w.pillars = []; w.wizards[A].team = w.wizards[B].team = 0; w.wizards[B].cd.fireball = 8; w.wizards[A].cd.fireball = 8; } },
+  nexus: { pos: [v(-3, 0), v(0, 0), v(4, 0)], end: 5, steps: [[.4, A, 'nexus', B], [1, C, 'fireball', B], [3, A, 'nexus', B]], prep: w => { w.pillars = []; w.wizards[A].team = w.wizards[B].team = 0; for (const z of w.wizards) z.regen = 0; } },
   heal: { pos: [v(-3, 0), v(2, 0), v(2, 2)], end: 3, steps: [[.4, A, 'heal', B], [1.4, B, 'heal', B]],
     prep: w => { w.pillars = []; w.wizards[A].team = w.wizards[B].team = 0; w.wizards[C].team = 1; w.wizards[B].spells.heal = 1; for (const z of w.wizards) { z.hp = 700; z.regen = 0; } } },
   knockback: { pos: [v(-3, 0), v(0, 0)], end: 3.5, steps: [[.4, A, 'fireball', B], [.85, B, 'move', v(0, 4)]], prep: (w) => { w.pillars = []; } },
-  basic: { pos: [v(-2, 0), v(-1, 0), v(4, 0)], end: 3.5, steps: [[.4, A, 'basic', B], [1.8, A, 'basic', C]], prep: (w) => { w.pillars = []; } },
+  basic: { pos: [v(-2, 0), v(-1, 0), v(4, 0)], end: 3.5, steps: [[.4, A, 'basic', B], [1.1, B, 'move', v(-1, 2)], [1.8, A, 'basic', C]], prep: (w) => { w.pillars = []; } },
   // Renova o mesmo comando da partida: o preparo e a pausa vêm da simulação, não de uma animação inventada.
   brace: { pos: [v(-1, 0), v(3, 0)], end: 3.5,
     steps: ([...Array.from({ length: 19 }, (_, i): Step => [.4 + i * .1, A, 'braceOn', A]), [1.2, A, 'move', v(-1, 3)], [1.3, B, 'fireball', A], [2.3, A, 'braceOff', A], [2.6, A, 'move', v(-1, 3)]] as Step[]).sort((a, b) => a[0] - b[0]),
@@ -74,7 +76,7 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   thrust: { end: 2.6, steps: [[0.4, A, 'thrust', B]] },
   gravity: { end: 3.4, steps: [[0.4, A, 'gravity', v(2, 0.8)]] },
   // o terceiro fica onde a parede cai (#206): leva o golpe da queda e voa para o lado, e a parede ainda segura a Bola de fogo
-  rockpillar: { pos: [v(-3, 0), v(2, 0), v(-1.2, 0.3)], end: 2.6, steps: [[0.2, B, 'fireball', A], [0.3, A, 'rockpillar', v(-1.2, 0)]] },
+  rockpillar: { pos: [v(-3, 0), v(2, 0), v(-1.2, 0.3)], end: 8.5, steps: [[0.2, B, 'fireball', A], [0.3, A, 'rockpillar', v(-1.2, 0)], [6, A, 'fireball', v(-1.2, 0)], [7.3, A, 'fireball', v(-1.2, 0)]] },
   bouncer: { pos: [v(-3, 0), v(1.5, 0), v(2.5, 1.8)], end: 3, steps: [[0.4, A, 'bouncer', B]] },
   drain: { pos: [v(-3, 0), v(2, 0.6), v(2.6, -1.8)], end: 3.6, steps: [[0.4, A, 'drain', v(1.5, 0)]], prep: (w) => (w.wizards[A].hp = 700) },
   snowball: { pos: [v(-3, 0), v(-0.6, 0.1), v(0.3, -0.5)], end: 3, steps: [[0.4, A, 'snowball', v(1, 0)]] },
@@ -96,15 +98,17 @@ type DemoState = { w: World; script: Script; next: number; events: SimEvent[]; r
 
 // Rótulos seguem os estados reais para a prévia não sugerir que stun, prisão e postura têm o mesmo bloqueio.
 export function demoStatus(w: World, z: Wizard): string[] {
-  if (z.spheres?.length) return [t(`${z.spheres.length}/5 esferas · ${n1(Math.max(...z.spheres.map(s => s.until - w.t)))} s`, `${z.spheres.length}/5 spheres · ${n1(Math.max(...z.spheres.map(s => s.until - w.t)))} s`)];
-  if(z.casting?.spell==='sniper') return [t(`mirando · ${n1(z.casting.fireAt-w.t)} s · tiro ${spellLevel('sniper',1).dmg}`,`aiming · ${n1(z.casting.fireAt-w.t)} s · shot ${spellLevel('sniper',1).dmg}`)];
+  if (z.transfusion) return [t('Transfusão mental · incapacitado · recargas pausadas', 'Mental Transfusion · incapacitated · cooldowns paused')];
+  if (z.spheres?.length) return [t(`${z.spheres.length}/${ELEMENTAL_SPHERES.max} esferas · ${n1(Math.max(...z.spheres.map(s => s.until - w.t)))} s`, `${z.spheres.length}/${ELEMENTAL_SPHERES.max} spheres · ${n1(Math.max(...z.spheres.map(s => s.until - w.t)))} s`)];
+  if(z.casting?.spell==='sniper') return [t(`mirando · ${n1(Math.max(0,z.casting.fireAt-w.t))} s · tiro ${spellLevel('sniper',1).dmg}`,`aiming · ${n1(Math.max(0,z.casting.fireAt-w.t))} s · shot ${spellLevel('sniper',1).dmg}`)];
   if (z.channel) {
     // below 1 s the charge is not ready (power 0): show no bonus until a click would actually fire
     const elapsed = Math.min(2, w.t - z.channel.since), bonus = Math.round((channelPower(elapsed) - 1) * 100);
     return [bonus >= 0 ? t(`canalizando ${n1(elapsed)} s · +${bonus}% · clique para lançar`, `channeling ${n1(elapsed)} s · +${bonus}% · click to cast`) : t(`canalizando ${n1(elapsed)} s · lança após 1 s`, `channeling ${n1(elapsed)} s · casts after 1 s`)];
   }
   if(w.t < (z.blindUntil ?? 0)) return [t('cegueira · visão 3 m','blindness · sight 3 m'), ...(w.t < (z.incapacitateUntil ?? 0) ? [t('incapacitado · recargas pausadas','incapacitated · cooldowns paused')] : [])];
-  if (w.t < (z.closedBodyUntil ?? 0) && bracingActive(w,z)) return [t('Corpo fechado · direção mantida · dano/empurrão/status −90%', 'Closed Body · facing preserved · damage/knockback/status −90%')];
+  if (closedBodyActive(w, z) && z.closedBodyWeak) return [t('Corpo fechado fraco · 50% mais lento · dano/empurrão/status −22,5%', 'Weak Closed Body · 50% slower · damage/knockback/status −22.5%')];
+  if (closedBodyActive(w, z)) return [t('Corpo fechado · direção mantida · dano/empurrão/status −90%', 'Closed Body · facing preserved · damage/knockback/status −90%')];
   if ((z.transcendLeft ?? 0) > 0) return [t('transcendendo · invulnerável · sem ações', 'transcending · invulnerable · no actions')];
   if (z.transcendence?.complete) return [t('transcendido · sem penalidades', 'transcended · no drawbacks')];
   if ((z.geyserLeft ?? 0) > 0) return [t('suspenso · invulnerável · sem ações', 'suspended · invulnerable · no actions')];
@@ -117,8 +121,9 @@ export function demoStatus(w: World, z: Wizard): string[] {
   if (w.t < z.slowUntil || z.zone & 1 || w.t < (z.electroUntil ?? 0)) labels.push(t('lentidão · caminhada reduzida', 'slow · reduced walking speed'));
   if (w.t < incapacitatedUntil(z, w.t)) labels.push(t('incapacitado · recargas pausadas', 'incapacitated · cooldowns paused'));
   if (z.zone & 2) labels.push(t('queimando · dano contínuo', 'burning · continuous damage'));
+  if (w.t < z.windUntil) labels.push(t('corrida · visível', 'sprint · visible'));
   if (w.t < z.magnetUntil && z.magnet > 0) labels.push(t('magnetizado · atrai projéteis', 'magnetized · attracts projectiles'));
-  if (w.projectiles.some((p) => p.kind === 'link' && p.target === z.id)) labels.push(t('Elo · puxão', 'tether · pull'));
+  if (w.projectiles.some((p) => p.kind === 'link' && p.target === z.id)) labels.push(t('Gancho mágico · puxão', 'Magic Hook · pull'));
   if ((z.recoveryLeft ?? 0) > 1e-8) {
     const fraction = KNOCK_RECOVERY.start + KNOCK_RECOVERY.step * Math.floor((KNOCK_RECOVERY.seconds - z.recoveryLeft! + 1e-8) / KNOCK_RECOVERY.interval);
     labels.push(t(`recuperação · caminhada ${Math.round(fraction * 100)}%`, `recovery · walking ${Math.round(fraction * 100)}%`));
@@ -289,6 +294,10 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       circle(z.pos, WIZ_R + .2, null, GEYSER_FX.color);
       text('↑', v(z.pos.x, z.pos.y - 1.3), GEYSER_FX.foam, .65);
     }
+    if (z.transfusion) {
+      const to = w.wizards.find((q) => q.id === z.transfusion!.target);
+      if (to) line(z.pos, to.pos, HEAL_FX.color, .05, true);
+    }
     if (z.transcendence) {
       const state = z.transcendence;
       if (state.complete || (z.transcendLeft ?? 0) > 0) circle(z.pos, .8 + .12 * Math.sin(w.t * 5), null, ELEMENT_COLORS[state.element]);
@@ -300,6 +309,10 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       line(z.pos,at,'#ff324e',.035,true); circle(at,.5,null,'#ff324e');
       const dir=v(Math.cos(z.facing),Math.sin(z.facing));
       line(add(z.pos,scale(dir,.3)),add(z.pos,scale(dir,1.35)),'#283447',.15);
+    }
+    if (z.nexus) {
+      const ally = w.wizards.find(q => q.id === z.nexus!.target && q.alive);
+      if (ally) line(z.pos, ally.pos, HEAL_FX.color, .07);
     }
     if (z.basicCasting) {
       circle(z.pos, .6, null, '#9be7ff');
@@ -317,7 +330,7 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       ctx.globalAlpha = 1;
       text(t('lento · recargas pausadas', 'slowed · cooldowns paused'), v(z.pos.x, z.pos.y + .8), '#6ee6ff', .25);
     }
-    ctx.globalAlpha = w.t < z.windUntil || w.t < z.veilUntil ? 0.35 : 1; // The trainee still sees their own veiled wizard, as with Windwalk
+    ctx.globalAlpha = w.t < z.veilUntil ? 0.35 : 1; // Only Illusion is translucent.
     if (w.t < z.shieldUntil) circle(z.pos, z.shieldR, 'rgba(255,214,102,.15)', '#ffd666');
     if (w.t < z.alterUntil) circle(z.pos, spellLevel('alteration', z.spells.alteration || 1).radius, 'rgba(110,230,255,.12)', '#6ee6ff', true);
     if (w.t < z.gripUntil) vines(z.pos, WIZ_R + .18);

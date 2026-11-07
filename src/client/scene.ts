@@ -9,7 +9,7 @@ import { createStatusFx } from './status-fx.ts';
 import { elementSphereModel } from './element-sphere-model.ts';
 import { arenaRimGeometry } from './arena-rim.ts';
 import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit, type Element, type Transcendence } from '../shared/elemental-spheres.ts';
-import { ELECTROCUTED_BIT, BRACING_BIT, MELEE_ARC } from '../shared/constants.ts';
+import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
 import { createAttackClip, playAnimation as play } from './attack-pose.ts';
 import { electroPulse } from './screen-data.ts';
@@ -49,13 +49,13 @@ import type { TAUNTS } from '../shared/taunts.ts';
 // cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
 export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#12c7c7', '#f76b15', '#e93d82'];
 // modo Times: Azul e Vermelho (anel no chão e barra de vida)
-export const TEAM_COLORS = ['#3b82f6', '#ef4444'];
+export const TEAM_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#eab308'];
 // dificuldade dos bots, curta (rótulo em cima do mago e placar do canto)
 export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), casual: 'Casual', normal: 'Normal', veteran: t('Veterano', 'Veteran'), hard: t('Difícil', 'Hard'), auto: 'Auto' };
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { blindLeft?: number; transcendence?: Transcendence; transcendLeft?: number; spheres?: { element: Element; left: number }[]; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { blindLeft?: number; transcendence?: Transcendence; transcendLeft?: number; spheres?: { element: Element; left: number }[]; nexusTo?: number; transfusionTo?: number; transfusionRate?: number; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -512,9 +512,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       .replace('#include <opaque_fragment>', `
       // Neutral slate in the fighting space; retain warm lava bounce only near the perimeter.
       float arenaRim = 1.0 - smoothstep(0.15, 1.7, -shoreDist(vWPos.xz));
-      float stoneLight = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
-      vec3 coolStone = stoneLight * vec3(0.72, 0.78, 0.88);
-      outgoingLight = mix(coolStone, outgoingLight, arenaRim * 0.8);
+      // outgoingLight already includes the emissive (cracks, round effect, shrink warning): grade only the lit stone or those colors go grey.
+      vec3 litStone = outgoingLight - totalEmissiveRadiance;
+      vec3 coolStone = dot(litStone, vec3(0.2126, 0.7152, 0.0722)) * vec3(0.72, 0.78, 0.88);
+      outgoingLight = mix(coolStone, litStone, arenaRim * 0.8) + totalEmissiveRadiance;
       #include <opaque_fragment>`);
   };
   // ardósia de verdade (Poly Haven Slate Floor 02) quando a textura chegar
@@ -2047,7 +2048,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!m) continue;
       seen.add(d.id);
       // modo Times: anel e barra na cor do time (pode mudar a cada rodada); o nome fica com a cor do jogador
-      const tint = d.team != null ? TEAM_COLORS[d.team] : COLORS[d.color];
+      const tint = d.team != null ? (TEAM_COLORS[d.team] ?? COLORS[d.color]) : COLORS[d.color]; // Sandbox allies can go past the two Teams colours
       if (m.tint !== tint) {
         m.tint = tint;
         (m.ring.material as THREE.MeshBasicMaterial).color.set(tint);
@@ -2057,6 +2058,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // Held aim: a charge bar instead of a countdown (Fernando, 26/10).
       if(d.alive && (d.sniperLeft ?? 0)>0) chargeBubble(m,'sniper-clock',t('Mirando','Aiming'),1-d.sniperLeft!/CAST_POINT.sniper);
       else m.label.querySelector('.sniper-clock')?.remove();
+      const mindLabel = m.label.querySelector('.mind-clock');
+      if (d.alive && (d.transfusionTo ?? -1) >= 0) {
+        const label = mindLabel ?? el('span', { class: 'bubble mind-clock' });
+        label.textContent = t(`Transfusão mental · aliado +${Math.round((d.transfusionRate ?? 0) * 100)}% CD`, `Mental Transfusion · ally +${Math.round((d.transfusionRate ?? 0) * 100)}% CD`);
+        if (!mindLabel) m.label.prepend(label);
+      } else mindLabel?.remove();
       const pixLabel = m.label.querySelector('.pix-clock'), pixBy = d.alive && (d.puppetBy ?? -1) >= 0 ? list[d.puppetBy!] : undefined;
       if (d.alive && (d.puppetLeft ?? 0) > 0) {
         chargeBubble(m, 'pix-clock', pixBy ? t(`Controlado por ${pixBy.name} · ${n1(d.puppetLeft!)} s`, `Controlled by ${pixBy.name} · ${n1(d.puppetLeft!)} s`) : t(`Controlado · ${n1(d.puppetLeft!)} s`, `Controlled · ${n1(d.puppetLeft!)} s`));
@@ -2157,6 +2164,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         else if ((d.sniperLeft ?? 0)>0 && !(d.status&16) && m.actions.Attack_Invoke) {
           play(m,'Attack_Invoke',.05); const action=m.actions.Attack_Invoke;
           action.paused=true; action.time=action.getClip().duration*.6; m.oneShotUntil=0;
+        }
+        else if ((d.transfusionTo ?? -1) >= 0 && !(d.status & 16)) {
+          m.oneShotUntil = 0; play(m, 'Spellcast_Long', .1);
         }
         else if (d.channelElapsed !== undefined && !(d.status & 16) && m.actions.Attack_Invoke) {
           play(m, 'Attack_Invoke', .05);
@@ -2390,6 +2400,21 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       th.scale.set(1, 1, Math.max(0.01, Math.hypot(dx, dz)));
       tied.add(d.id);
     }
+    // Mental Transfusion (thin, high) and Anima Nexus (thick, low): green threads to the linked ally
+    for (const d of list) for (const [kind, index, r, opacity, y] of [['mind', d.transfusionTo, .04, .8, 1.2], ['nexus', d.nexusTo, .07, .7, .8]] as const) {
+      const to = d.alive && (index ?? -1) >= 0 ? list[index!] : undefined;
+      if (!to?.alive || (d.status & 2048) || (to.status & 2048)) continue;
+      const key = kind + ':' + d.id;
+      let thread = threads.get(key);
+      if (!thread) {
+        thread = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 6).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: HEAL_FX.color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false }));
+        scene.add(thread); threads.set(key, thread);
+      }
+      const dx = to.pos.x - d.pos.x, dz = to.pos.y - d.pos.y;
+      thread.position.copy(w3(v(d.pos.x + dx / 2, d.pos.y + dz / 2), y));
+      thread.rotation.y = Math.atan2(dx, dz); thread.scale.set(1, 1, Math.max(.01, Math.hypot(dx, dz)));
+      tied.add(key);
+    }
     for (const [id, th] of threads) if (!tied.has(id)) {
       scene.remove(th);
       dispose(th);
@@ -2580,9 +2605,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { sniperFocus?: {left:number;shot:number}; blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[]; seen: number[] } | null }) {
+    render(state: { paused?: boolean; sniperFocus?: {left:number;shot:number}; blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[]; seen: number[] } | null }) {
       const now = performance.now() / 1000;
-      const dt = Math.min(0.05, now - lastFrame);
+      const dt = state.paused ? 0 : Math.min(0.05, now - lastFrame);
       lastFrame = now;
       const sf=state.sniperFocus;
       sniperScreen.visible=!!sf && (sf.left>0 || (!lite && sf.shot>0));
