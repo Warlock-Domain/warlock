@@ -1796,6 +1796,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   const sphereLooks = Object.fromEntries(Object.entries(ELEMENT_COLORS).map(([element, color]) => [element, { ...LOOK.basic, mat: new THREE.MeshBasicMaterial({ color }), halo: element === 'void' ? '#777777' : color, trail: color, size: ELEMENTAL_SPHERES.radius / .28 }]));
   const projectileLook = (p: ProjView) => p.element ? sphereLooks[p.element] : LOOK[p.kind as Exclude<ProjKind, 'illusion'>];
+  const movingKinds = new Set<ProjKind>(['basic', 'fireball', 'homing', 'cluster', 'swap', 'boomerang', 'gravity', 'bouncer', 'drain', 'snowball', 'magnetize', 'recharge', 'splitter', 'shard']);
+  const readableCores = new Set<ProjKind>(['basic', 'fireball', 'homing', 'snowball']);
   function syncProjectiles(list: ProjView[]) {
     const seen = new Set<number>();
     for (const p of list) {
@@ -1805,12 +1807,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!g) {
         g = new THREE.Group();
         const look = projectileLook(p);
-        const core = SHAPES[p.kind]?.() ?? new THREE.Mesh(ballGeo, look.mat);
+        const core = (!p.element && SHAPES[p.kind]?.()) || new THREE.Mesh(ballGeo, look.mat);
         core.scale.multiplyScalar(look.size * (p.size ?? 1));
         const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: FX.light, color: look.halo, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
         halo.scale.setScalar(1.2 * look.size * (p.size ?? 1));
-        halo.material.opacity = 0.7;
+        halo.material.opacity = readableCores.has(p.kind) ? 0.4 : 0.7;
         g.add(core, halo);
+        if (movingKinds.has(p.kind)) {
+          const tail = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.9, 6).rotateX(-Math.PI / 2).translate(0, 0, -0.55), new THREE.MeshBasicMaterial({ color: look.trail, transparent: true, opacity: 0.26, blending: THREE.AdditiveBlending, depthWrite: false }));
+          tail.name = 'direction-tail';
+          g.add(tail);
+        }
         if (p.kind === 'warpzone' || p.kind === 'grip' || p.kind === 'pix') {
           core.scale.setScalar(p.vel.x); // vel.x = raio
           halo.visible = false;
@@ -1818,7 +1825,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (p.kind === 'geyser') { core.scale.set(p.vel.x, 1, p.vel.x); halo.visible = false; }
         // fogo de verdade: chama animada em volta dos projéteis de fogo; redemoinho na Gravidade e na Zona de dobra
         if (FIRE_KINDS.has(p.kind)) {
-          const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: FLAMES[0], color: '#ffc060', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+          const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: FLAMES[0], color: '#ffc060', transparent: true, opacity: p.kind === 'fireball' ? 0.6 : 1, blending: THREE.AdditiveBlending, depthWrite: false }));
           flame.name = 'flame';
           flame.scale.setScalar(1.3 * look.size);
           g.add(flame);
@@ -1861,7 +1868,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         beam.rotation.y = Math.atan2(dx, dz);
         beam.scale.set(1, 1, Math.hypot(dx, dz));
       }
-      // giro e direção: aponta para onde voa; anéis, bumerangue e pedras giram
+      // Directional bodies and their short tails follow the authoritative velocity after a bounce/deflection.
       const body = g.children[0];
       const t = performance.now() / 1000;
       if (p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'pix' && p.kind !== 'geyser' && p.kind !== 'link' && (p.vel.x || p.vel.y)) body.rotation.y = Math.atan2(p.vel.x, p.vel.y);
@@ -1870,7 +1877,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (Math.random() < (lite ? .15 : .45)) burst(v(p.pos.x + (Math.random() - .5) * p.vel.x, p.pos.y + (Math.random() - .5) * p.vel.x), GEYSER_FX.foam, .35, .6, .2, FX.light, 2.1);
       }
       if (p.kind === 'boomerang') body.rotation.y = t * 18;
-      else if (p.kind === 'fireball' || p.kind === 'meteor' || p.kind === 'cluster' || p.kind === 'bouncer' || p.kind === 'snowball' || p.kind === 'splitter' || p.kind === 'shard') body.rotation.set(t * 3, t * 4, 0);
+      else if (p.kind === 'meteor' || p.kind === 'cluster' || p.kind === 'bouncer' || p.kind === 'snowball' || p.kind === 'splitter' || p.kind === 'shard') body.rotation.set(t * 3, t * 4, 0);
+      const tail = g.getObjectByName('direction-tail');
+      if (tail) {
+        const speed = Math.hypot(p.vel.x, p.vel.y), size = projectileLook(p).size * (p.size ?? 1);
+        tail.visible = speed > 0.01;
+        tail.rotation.y = Math.atan2(p.vel.x, p.vel.y);
+        tail.scale.set(size, size, Math.min(1.2, speed * 0.07) * size * (lite ? 0.65 : 1));
+      }
       else if (p.kind === 'link') body.rotation.y = t * 6;
       body.traverse((o) => {
         if (o !== body && o.name === 'spin') o.rotation.y = t * 6; // anel simétrico: girar no próprio eixo não aparece
@@ -1879,7 +1893,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (flame) {
         flame.material.map = FLAMES[Math.floor(t * 16 + p.id) % FLAMES.length];
         flame.material.rotation = Math.atan2(-p.vel.x, p.vel.y) + Math.PI; // a chama "puxa" para trás
-        flame.scale.setScalar(LOOK[p.kind].size * (p.size ?? 1) * (1.2 + 0.15 * Math.sin(t * 30 + p.id)));
+        flame.scale.setScalar(LOOK[p.kind].size * (p.size ?? 1) * ((p.kind === 'fireball' ? 0.9 : 1.2) + 0.15 * Math.sin(t * 30 + p.id)));
       }
       const swirl = g.getObjectByName('swirl') as THREE.Sprite | undefined;
       if (swirl) swirl.material.rotation = -t * 4;
@@ -1888,9 +1902,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const a = Math.random() * Math.PI * 2, r = p.vel.x * Math.sqrt(Math.random());
         burst(v(p.pos.x + Math.cos(a) * r, p.pos.y + Math.sin(a) * r), PIX_COLOR, 0.7, 0.55, 3.5, FX.spark, -3.3);
       }
-      // rastro: brasas que ficam para trás e somem
+      // Short-lived wisps complement the stable directional tail without hiding nearby bodies.
       const look = projectileLook(p);
-      if (p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'pix' && p.kind !== 'geyser' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
+      if (movingKinds.has(p.kind) && Math.random() < (lite ? 0.18 : 0.4)) burst(p.pos, look.trail, 0.65 * look.size * (p.size ?? 1), 0.18, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
+      else if ((p.kind === 'meteor' || p.kind === 'link') && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, p.kind === 'meteor' ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);

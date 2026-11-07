@@ -33,12 +33,31 @@ export function vineModel(radius: number) {
   return group;
 }
 export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
-  fireball: () => new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.24, 1), 0.35), flat('#ffb347', '#ff6a00', 1.4)),
+  basic: () => {
+    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.28), flat('#dcfffb', '#2fe0d0', 1));
+    m.scale.set(0.7, 0.7, 1.35);
+    return m;
+  },
+  fireball: () => {
+    const g = new THREE.Group(), mat = flat('#ffb347', '#ff6a00', 1.4);
+    g.add(new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.24, 1), 0.2), mat));
+    const tongue = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.55, 6), mat);
+    tongue.rotation.x = -Math.PI / 2; tongue.position.z = -0.3;
+    g.add(tongue);
+    return g;
+  },
   cluster: () => new THREE.Mesh(new THREE.TetrahedronGeometry(0.2), flat('#ffe066', '#ff9a00', 1.2)),
   homing: () => {
-    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), flat('#e7b8ff', '#9a30ff', 1.2));
-    m.scale.set(0.8, 0.8, 2); // long crystal pointing where it flies
-    return m;
+    const g = new THREE.Group(), mat = flat('#e7b8ff', '#9a30ff', 1.2);
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.2), mat);
+    core.scale.set(0.8, 0.8, 2);
+    g.add(core);
+    for (const side of [-1, 1]) {
+      const fin = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), mat);
+      fin.scale.set(1, 0.3, 1.5); fin.position.set(side * 0.2, 0, -0.16);
+      g.add(fin);
+    }
+    return g;
   },
   swap: () => {
     const g = new THREE.Group();
@@ -95,7 +114,13 @@ export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
     m.scale.set(0.7, 0.7, 1.7); // green thorn pointing where it flies
     return m;
   },
-  snowball: () => new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.42, 1), 0.15), flat('#f4fbff', '#9ad8ff', 0.35)),
+  snowball: () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.42, 1), 0.1), flat('#f4fbff', '#9ad8ff', 0.35)));
+    const seam = new THREE.Mesh(new THREE.TorusGeometry(0.405, 0.025, 4, 16), flat('#9ad8ff', '#9ad8ff', 0.25));
+    seam.rotation.x = Math.PI / 3; g.add(seam);
+    return g;
+  },
   magnetize: () => {
     // U magnet: red arc with silver tips
     const g = new THREE.Group();
