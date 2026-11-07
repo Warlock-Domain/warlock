@@ -8,6 +8,8 @@ Transcend ritual (28/10 local): original canvas seal sprite, vertical light colu
 
 Applies together with the root `CLAUDE.md`.
 
+- Character readability: `character-readability.ts` adds a neutral rim in each owned Standard material's shader without cloning geometry or skeletons. The procedural contact shadow stays on the floor during lift effects and follows authoritative hiding; the existing ring keeps player/team colors with a dark backing. Preserve Wardrobe materials and temporary effect restoration.
+
 ## Interface
 
 - `RoomLoadingGate` owns room startup readiness (scene, joined room, required snapshot). Its settings-independent cat overlay hides HUD/labels/scene and disables gameplay input until ready; when ready the overlay is detached, not hidden, because Esc, the controller and the taunt wheel treat any `.overlay` in the DOM as open.
@@ -103,7 +105,11 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 
 ## Scene (`scene.ts`)
 
+- Ordinary hits use compact source-colored particles; only fire sources leave scorch marks. Zero damage does not trigger the character hit pose/flash. Knockback streaks derive only from visible alive stunned-character motion with bounded frame interval/speed, excluding teleports, lift and ghosts; lite mode skips them. Keep public impacts separate from hidden-target damage labels and preserve the effect cap.
+
 - `proj-models.ts` contains stateless projectile and vine factories. Each call creates resources owned by the requesting scene; keep disposal in the scene's existing teardown paths rather than disposing shared appearance assets or adding module-level mesh caches.
+
+- Moving projectile tails follow snapshot velocity, including reflections/deflections; fixed areas and Magic Hook's owner-position vector never receive a direction tail. Keep elemental attacks round instead of using the ordinary basic bolt factory. Visual tail length must not affect collision, speed or range.
 
 - `resourceStats()` exposes Three.js geometry and texture counts for low-frequency telemetry. These are resource counts, not GPU memory in bytes; keep collection outside the render loop and do not add listeners or timers that outlive the room.
 
