@@ -5,7 +5,7 @@ import { noSpells, spellLevel } from '../src/shared/spells.ts';
 import { projectileLevel, stepWorld } from '../src/shared/sim.ts';
 import { encodeSnap, decodeSnap } from '../src/shared/snapshot.ts';
 import { parseServerMessage } from '../src/client/net-message.ts';
-import { aimOf, reachOf } from '../src/client/reach.ts';
+import { aimOf, basicReach, reachOf } from '../src/client/reach.ts';
 import { run, world } from './helpers.ts';
 
 function setup(elements: Element[]) {
@@ -52,6 +52,17 @@ describe('Elemental modifiers agree across simulation, snapshots and aiming', ()
     expect(aim.blastR).toBeCloseTo(projectileLevel(p).radius);
     expect(aim.blastAt?.x).toBeCloseTo(reachOf('meteor', z.spells, noItems(), 1, bonus));
     expect(reachOf('heal', z.spells, noItems(), 1, bonus)).toBeCloseTo(10.5 * .97);
+  });
+  it('locks the basic attack only on targets the simulation accepts', () => {
+    for (const elements of [[], ['earth'], ['water'], ['earth', 'water']] as Element[][]) {
+      const w = setup(elements), z = w.wizards[0], reach = basicReach(elementalBonuses(z.spheres, w.t));
+      for (const d of [reach - .01, reach + .01]) {
+        w.wizards[1].pos = { x: d, y: 0 };
+        z.basicCasting = undefined;
+        stepWorld(w, [{ id: z.id, kind: 'basic', at: { x: d, y: 0 } }], () => .5);
+        expect(!!z.basicCasting, `${elements.join('+')} at ${d}`).toBe(d < reach);
+      }
+    }
   });
   it('earth no longer increases projectile size; snapshot validation still rejects invalid sizes', () => {
     const w = setup(['earth', 'earth']), z = w.wizards[0];

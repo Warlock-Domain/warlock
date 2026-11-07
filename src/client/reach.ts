@@ -1,7 +1,7 @@
 // Círculo de alcance (pedido do Fernando, 18/10: o Raio acertava 13% nas partidas reais, suspeita de lançar fora dos 8 m):
 // raio em metros da magia ou item no nível atual, com o multiplicador de alcance dos itens (Elmo); 0 = não mostra.
 import { elementalBonuses, elementalLevel, elementalRange, elementalArea, type ElementalBonuses } from '../shared/elemental-spheres.ts';
-import { OBSTACLES, PROJ_R, PROJ_SPAWN, WALL_GAP, WIZ_R } from '../shared/constants.ts';
+import { BASIC_ATTACK, OBSTACLES, PROJ_R, PROJ_SPAWN, WALL_GAP, WIZ_R } from '../shared/constants.ts';
 import { itemStats, type ItemId } from '../shared/items.ts';
 import { snowR, type ProjKind } from '../shared/sim.ts';
 import { conePoints } from '../shared/sand-cone.ts';
@@ -25,6 +25,9 @@ export function reachOf(a: SpellId, spells: Record<SpellId, number>, items: Reco
   const r = L.range * (1 + itemStats(items).range);
   return FLIES.has(a as SpellId) ? r + PROJ_SPAWN + (a === 'snowball' ? snowR(lvl) : PROJ_R) : r;
 }
+
+// Attack lock-on: same range as basicStats in sim.ts, or the marker shows on a target the server rejects (brown shortens it).
+export const basicReach = (bonus: ElementalBonuses) => BASIC_ATTACK.range * elementalRange(bonus);
 
 // Area of effect at the aimed point (Fernando, 21/10, PR #169); 0 = none. Read from the data, not a list of names: any spell
 // with a range and a radius that does not fly lands at the aimed point (a fixed list left Lula Pix out, 26/10).
