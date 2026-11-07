@@ -425,17 +425,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   scene.fog = new THREE.Fog('#1a0603', 30, 70);
   const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 200);
 
-  // luz um pouco mais dramática: menos preenchimento, sol mais quente e a lava mais forte por baixo
-  scene.add(new THREE.HemisphereLight('#ffd2b0', '#ff4a10', 0.45));
+  // A cool fill separates materials while warm bounce stays close to the lava.
+  const sky = new THREE.HemisphereLight('#ffd2b0', '#ff4a10', 0.45);
+  scene.add(sky);
   const sun = new THREE.DirectionalLight('#ffe6c8', 1.7);
   sun.position.set(-8, 20, 6);
   sun.castShadow = true;
   sun.shadow.mapSize.set(mobile ? 1024 : 2048, mobile ? 1024 : 2048);
   Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 50 });
   scene.add(sun);
-  const under = new THREE.PointLight('#ff5a1a', 60, 30, 1.6); // brilho da lava por baixo da borda
+  const under = new THREE.PointLight('#ff5a1a', 60, 30, 1.6);
   under.position.set(0, -1.5, 0);
   scene.add(under);
+  const fill = new THREE.DirectionalLight('#91b7ff', 0.55);
+  fill.position.set(10, 9, -8);
+  const shoreLights = Array.from({ length: 4 }, () => new THREE.PointLight('#ff6928', 7, 8, 2));
+  scene.add(fill, ...shoreLights);
+  let lightingMap: boolean | undefined;
 
   // assets CC0 em public/ (créditos em public/CREDITS.txt); enquanto não carregam, fica o visual gerado por código
   const loader = new THREE.TextureLoader();
@@ -2681,7 +2687,29 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       tintK += ((tint?.[1] ?? 0) - tintK) * Math.min(1, dt * 3);
       shoreU.uTintK.value = tintK;
       lavaMat.uniforms.uHeat.value = heat;
-      under.intensity = onMap ? 0 : (52 + Math.sin(now * 2) * 9 + Math.sin(now * 7.3) * 3) * heat;
+      // Preserve Campaign's established lighting; the new palette belongs to the arena.
+      if (lightingMap !== onMap) {
+        lightingMap = onMap;
+        sky.color.set(onMap ? '#ffd2b0' : '#b6ceef');
+        sky.groundColor.set(onMap ? '#ff4a10' : '#5a1c12');
+        sky.intensity = onMap ? 0.45 : 0.65;
+        sun.color.set(onMap ? '#ffe6c8' : '#fff0d8');
+        sun.intensity = onMap ? 1.7 : 1.5;
+        fill.visible = !onMap;
+        for (const light of shoreLights) light.visible = !onMap;
+      }
+      under.intensity = onMap ? 0 : (10 + (lite ? 0 : Math.sin(now * 1.2) * 0.8)) * heat;
+      if (!onMap) {
+        const shape = ARENAS[shownArena], loop = shape.outline[0];
+        shoreLights.forEach((light, i) => {
+          const p = loop[Math.floor(i * loop.length / shoreLights.length)], e = 0.001;
+          const dx = shape.sdf(p.x + e, p.y) - shape.sdf(p.x - e, p.y);
+          const dz = shape.sdf(p.x, p.y + e) - shape.sdf(p.x, p.y - e), length = Math.hypot(dx, dz) || 1;
+          light.position.set(p.x * shownR + dx / length * 0.65, -0.6, p.y * shownR + dz / length * 0.65);
+          light.distance = Math.min(9, shownR * 0.5 + 3);
+          light.intensity = 7 * heat * Math.min(1, shownR / 4);
+        });
+      }
       const ec = arcane ? ARCANE.ember : state.effect && EMBER_COLOR[state.effect];
       if (ec) emberMat.color.set(ec);
       else emberMat.color.copy(emberBase);
