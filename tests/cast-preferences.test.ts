@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { UNIT_TARGET_SPELLS } from '../src/shared/spells.ts';
 import ui from '../src/client/ui.ts?raw';
+import settings from '../src/client/settings.ts?raw';
 
 afterEach(() => { vi.resetModules(); vi.unstubAllGlobals(); });
 it('uses individual active-item preferences for the Scourge keyboard action', async () => {
@@ -58,4 +59,7 @@ it('persists valid preferences and ignores malformed saved fields', async () => 
   expect(castPreference('unknown')).toBeUndefined();
   setCastPreference('item:ring', 'quick');
   expect(JSON.parse(saved['warlock:cast-overrides'])['item:ring']).toBe('quick');
+});
+it('keeps the global casting mode editable in Settings (three layers, decision of 27/10)', () => {
+  expect(settings).toMatch(/choice\(.*CAST_MODES\.map.*getCastMode\(\), \(k\) => \(setCastMode\(k\), draw\(\)\)\)/);
 });
