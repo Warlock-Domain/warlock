@@ -100,6 +100,8 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 
 ## Scene (`scene.ts`)
 
+- Stun uses three five-point orbiting stars at head height. Do not duplicate bit16 as a glyph in overhead or own-HUD combat status rows; keep its catalogue entry. Lite mode keeps the stars static; visibility/ownership rules are unchanged.
+
 - `status-fx.ts` owns per-character stun/slow/incapacitation markers and disposes its own geometries/materials on appearance replacement, never the shared star texture. Markers inherit authoritative hiding, vanish on death/ghost/Transcend ritual, follow lift and become static in lite mode. Blindness uses the existing received `blindLeft` and status row, without inventing a protocol bit or changing vision.
 
 - Refuge-island cracks are a shared original texture with per-island opacity from the received radius. Chips are capped, short-lived visual effects; never change island timing or collision to match art. Lite mode skips chips and the added lava pulse. Keep heat, warning and round tint paths intact.
