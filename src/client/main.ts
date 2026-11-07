@@ -41,7 +41,7 @@ import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { RoomLoadingGate } from './room-loading.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
-import { STAGE_NAME, USED_KEY, botLevel, boughtKeys, countBuys, readUsed, endResult, illusionCopies, maxHp, pickWatched, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
+import { STAGE_NAME, USED_KEY, attackAim, botLevel, boughtKeys, countBuys, readUsed, endResult, illusionCopies, maxHp, pickWatched, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { seenRooms } from './minimap.ts';
 import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, setIlse, type IlseCtx } from './ilse.ts';
@@ -495,9 +495,10 @@ function startRoom(code: string, name: string) {
       if ((room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0) return toast(t('Canalização substitui Atacar: use Atacar + tecla da magia.', 'Channeling replaces Attack: use Attack + a spell key.'));
       if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       if ((myWizard(interp.latest())?.status ?? 0) & 16) return;
-      const target = clicked?.endsWith('~ilusao') ? interp.latest()?.projectiles.find((q) => q.kind === 'illusion' && room?.ids[q.vel.x] === clicked.slice(0, -7))?.id : clicked;
-      command({ t: 'basic', x: at.x, y: at.y, target });
-      // Send immediately, but let the authoritative windup stop movement: invalid targets and cooldowns do not.
+      const snap = interp.latest();
+      if (snap) at = attackAim(snap.wizards.map((w) => ({ ...w, team: room?.players.find((p) => p.id === w.id)?.team })), snap.projectiles, room?.ids ?? [], me, at, clicked);
+      command({ t: 'basic', x: at.x, y: at.y });
+      // Send immediately, but let the authoritative windup stop movement: a blocked melee hit and cooldowns do not.
       scene.clickMarker(at, true);
     },
     stop() {
