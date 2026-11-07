@@ -1210,6 +1210,7 @@ function sniperVictim(w: World, wz: Wizard, at: Vec, range: number, aimedId?: st
 // começa a conjurar: confere nível e recarga agora; o efeito sai depois do tempo de conjuração
 function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   if (spell === 'magnetize' && !magneticProjectile(w, wz, at, wizardLevel(w, wz, spell, wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1).range * wz.rangeF)) return;
+  if (spell === 'elemental') return;
   if (spell === 'transcend' && !canTranscend(wz)) return;
   if (spell === 'channel') return;
   if (castBlocked(isStunned(wz), w.t < wz.gripUntil, spell)) return;
