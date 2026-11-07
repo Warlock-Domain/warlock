@@ -393,7 +393,7 @@ describe('Gravity', () => {
 });
 
 describe('Rock pillar', () => {
-  it('raises an obstacle at the click point (up to its range) that vanishes after 5 s', () => {
+  it('raises an obstacle at the click point (up to its range) that persists beyond five seconds', () => {
     const w = world([[0, 0], [0, -8]], ['rockpillar']);
     run(w, 0.1, [cast('p0', 'rockpillar', 3, 0)]);
     const p = w.pillars.find((q) => q.kind === 'rockpillar')!;
@@ -401,8 +401,9 @@ describe('Rock pillar', () => {
     expect(dist(p.pos, v(3, 0))).toBeLessThan(1e-9);
     const view = decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']);
     expect(view.pillars.some((q) => q.kind === 'rockpillar' && q.hp > 0)).toBe(true);
-    run(w, 5); // 4 → 5 s in balancing cycle 1
-    expect(p.alive).toBe(false);
+    run(w, 5);
+    expect(p.alive).toBe(true);
+    expect(p.until).toBeUndefined();
     w.wizards[0].cd.rockpillar = 0;
     run(w, 0.1, [cast('p0', 'rockpillar', 50, 0)]);
     expect(len(w.pillars[w.pillars.length - 3].pos)).toBeCloseTo(SPELLS.rockpillar.levels[0].range, 5);
