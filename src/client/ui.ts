@@ -2109,10 +2109,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (changed) drawCenter();
     },
     // A missing callback shows the party's waiting notice without an advance button.
-    ilse(text: string | null, done?: () => void) {
+    ilse(text: string | null, done?: () => void, title?: string, top = false) {
       ilseDone = done ?? null;
+      ilseBox.classList.toggle('notice-top', top);
       ilseSkip.hidden = !done;
-      const name = done ? 'Ilse' : t('Campanha pausada', 'Campaign paused');
+      const name = title ?? (done ? 'Ilse' : t('Campanha pausada', 'Campaign paused'));
       if (ilseName.textContent !== name) ilseName.textContent = name; // called every frame
       if (!text) return void (ilseBox.hidden = true);
       if (ilseText.textContent !== text || ilseBox.hidden) ilseText.textContent = text;

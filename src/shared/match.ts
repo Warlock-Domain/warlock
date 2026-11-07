@@ -224,6 +224,8 @@ export const campaignReaders = (m: Match): Player[] => m.night && m.phase === 'p
 // Fernando, 27/10: one pause holds the world for at most 20 s, then the night resumes for everyone and the line stays on screen.
 // ponytail: the cap is per pause, so a modified client toggling on/off could chain pauses; add a per-player budget if that shows up.
 export const READ_CAP_MS = 20_000;
+export const campaignPickers = (m: Match): Player[] => m.night && m.phase === 'playing' && m.night.fight === null
+  ? m.players.filter(p => p.connected && !p.bot && !p.watch && ((m.night!.owed?.[p.id] ?? 0) > 0 || (m.night!.offer?.[p.id]?.length ?? 0) > 0)) : [];
 export function setReading(m: Match, id: string, on: boolean, now: number): boolean {
   const p = player(m, id);
   if (!p || p.bot || p.watch || !p.connected || !m.night || m.phase !== 'playing' || (p.reading !== undefined) === on) return false;
@@ -1170,6 +1172,8 @@ function stepNight(m: Match, now: number, w: World, rand: () => number) {
     grantLevels(m, w);
   }
   nightCardsDue(m, w, rand);
+  // Keep every pending choice accessible before a checkpoint can transport the party.
+  if (campaignPickers(m).length) return;
   for (const z of w.wizards) {
     const hit = z.alive && z.team === 0 ? trigger(map, n.done, z.pos) : null;
     if (hit) return startFight(m, w, map, hit.i, hit.at);

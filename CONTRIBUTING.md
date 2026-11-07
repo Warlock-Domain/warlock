@@ -36,6 +36,8 @@ Warlock Wars is a browser remake of Warlock / Warlock Brawl. Players use spells 
 
 The server is authoritative. Shared gameplay runs at 60 steps per second, with snapshots sent at 30 per second. The client predicts its own movement and interpolates other entities. In the shared simulation, the world is intentionally mutated in place; preserve its RNG and operation order.
 
+The local Campaign prototype gates new encounters on pending spell choices from connected human participants. It keeps exploration running and uses the existing notice surface; see `campaignPickers` and `campaign-choice-gate.test.ts`. This is separate from the full simulation pause for unread tutorial messages.
+
 Use the decision register in [docs/DECISIONS.md](docs/DECISIONS.md) and the in-game rules as the current source for modes, controls, spell groups, items, and balance exceptions. Keep contributor instructions here, area-specific implementation guidance in the area's `CLAUDE.md`, and feature designs and plans in [`docs/plans/`](docs/plans/README.md). This avoids maintaining competing copies of changing gameplay tables.
 
 ## Issues and coordination
