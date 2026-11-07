@@ -42,6 +42,7 @@ const EFFECT_TEXT: Record<RoundEffectId, string> = {
 
 // explicação de cada opção (HTML curto); a meta depende do modo
 export const OPT_INFO: Record<keyof MatchOpts, (mode: Mode) => string> = {
+  teams: () => `<p>${t('Escolha 2, 3 ou 4 equipes. Sem jogadores suficientes, cada participante ocupa uma equipe. Aliados começam juntos em regiões afastadas. Mudar esta opção reorganiza as equipes na próxima rodada.', 'Choose 2, 3 or 4 teams. With fewer players, each participant occupies a team. Allies start together in separated regions. Changing this option regroups teams next round.')}</p>`,
   shop: () => `<p>${t('Tempo da loja entre as rodadas. A loja fecha antes quando todos clicam Pronto.', 'Shop time between rounds. The shop closes early when everyone clicks Ready.')}</p>${list(OPTION_CHOICES.shop.map((v) => `${v >= 120 ? '2 min' : `${v} s`}`))}`,
   pace: () => `<p>${t('Espera antes de cada rodada (contagem) e depois dela (fim de rodada).', 'Wait before each round (countdown) and after it (round end).')}</p>${list((['short', 'normal', 'long'] as const).map((k) =>
     t(`${PACE_NAME[k]}: contagem ${s(COUNTDOWN_MS * PACE[k])}, fim de rodada ${s(ROUND_END_MS * PACE[k])}`, `${PACE_NAME[k]}: countdown ${s(COUNTDOWN_MS * PACE[k])}, round end ${s(ROUND_END_MS * PACE[k])}`)))}`,
@@ -72,7 +73,7 @@ export const OPT_INFO: Record<keyof MatchOpts, (mode: Mode) => string> = {
 export const MODE_INFO = () => list([
   t('Rodadas: o último vivo ganha a rodada e 1 ponto.', 'Rounds: the last one alive wins the round and 1 point.'),
   t(`Deathmatch: rodadas de ${s(DM_ROUND_MS)}, quem cai volta em ${DM_RESPAWN} s; cada abate vale 1 ponto.`, `Deathmatch: ${s(DM_ROUND_MS)} rounds, whoever falls comes back after ${DM_RESPAWN} s; each kill is worth 1 point.`),
-  t('Times: Azul contra Vermelho; a rodada acaba quando só sobra um time e todos dele pontuam. Magia em aliado só empurra.', 'Teams: Blue vs. Red; the round ends when only one team is left and all of them score. Spells on allies only knock back.'),
+  t('Times: de 2 a 4 equipes; a rodada acaba quando só sobra um time e todos dele pontuam. Magia em aliado só empurra.', 'Teams: from 2 to 4 teams; the round ends when only one team is left and all of them score. Spells on allies only knock back.'),
   t('Ascensão: ', 'Ascension: ') + ASC_MODE_TEXT,
   t('Campanha: de 1 a 4 jogadores juntos contra os servos do Fumo, sala a sala, sem ouro. Magia em aliado só empurra, sem dano, como no modo Times. Se todos caírem, a noite recomeça com outro mapa.', 'Campaign: 1 to 4 players together against the servants of the Smoke, room by room, with no gold. Spells on an ally only push, with no damage, as in Teams. If everyone falls, the night starts over on another map.'),
 ]);

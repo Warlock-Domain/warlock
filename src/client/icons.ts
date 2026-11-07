@@ -1,7 +1,7 @@
 // Ícones de magias, itens, runas, efeitos e interface num lugar só: desenhos do game-icons.net (CC BY 3.0, créditos em
 // public/CREDITS.txt) num sprite só (public/icons.svg, montado por scripts/assets/build-icons.mjs). Cor pelo tema (currentColor).
 import type { RuneKind } from '../shared/constants.ts';
-import { INCAPACITATED_BIT } from '../shared/constants.ts';
+import { RICOCHET_READY_BIT, INCAPACITATED_BIT } from '../shared/constants.ts';
 import type { ItemId } from '../shared/items.ts';
 import { isSpell, type SpellId } from '../shared/spells.ts';
 import { itemName, spellName, t } from './i18n.ts';
@@ -52,9 +52,9 @@ export const ICON: Record<SpellId, string> = named<SpellId>({ fireball: ['fire-r
   teleport: ['teleport', '✨'], swap: ['body-swapping', '🔄'], grip: ['grab', '⛓️'], meteor: ['meteor-impact', '☄️'], rush: ['sprint', '💨'], cluster: ['striking-splinter', '🔱'],
   boomerang: ['boomerang', '🪃'], thrust: ['knife-thrust', '🗡️'], gravity: ['vortex', '🌀'], rockpillar: ['defensive-wall', '🧱'], bouncer: ['ricochet', '🏓'], drain: ['life-tap', '🧛'],
   snowball: ['frozen-orb', '❄️'], illusion: ['two-shadows', '👥'], magnetize: ['magnet', '🧲'], recharge: ['cycle', '🔋'], alteration: ['card-exchange', '🔀'], link: ['harpoon-chain', '🔗'],
-  windwalk: ['wind-slap', '👻'], splitter: ['split-arrows', '💠'], warpzone: ['time-trap', '⏳'], scourge: ['flail', '💥'], pact: ['chalice-drops', '🩸'], heal: ['healing-cross', '✚'], geyser: ['water-splash', '⛲'], closedbody: ['aura', '⬛'], channel: ['energise', '🔮'], sniper: ['sniper-rifle', '🎯'], pix: ['coins-pile', '🪙'], elemental: ['star-swirl', '🔮'], transcend: ['sunbeams', '🌟'] });
+  windwalk: ['wind-slap', '🌬️'], splitter: ['split-arrows', '💠'], warpzone: ['time-trap', '⏳'], scourge: ['flail', '💥'], pact: ['chalice-drops', '🩸'], heal: ['healing-cross', '✚'], geyser: ['water-splash', '⛲'], closedbody: ['aura', '⬛'], channel: ['energise', '🔮'], sniper: ['sniper-rifle', '🎯'], pix: ['coins-pile', '🪙'], transfusion: ['light-bulb', '🧠'], nexus: ['anima-nexus', '💞'], elemental: ['star-swirl', '🔮'], transcend: ['sunbeams', '🌟'] });
 // Armadura e Roubo de vida tinham o mesmo emoji de Agarrar e de Drenar; agora cada um tem desenho próprio
-export const ITEM_ICON: Record<ItemId, string> = named<ItemId>({ ring: ['diamond-ring', '💍'], cursed_ring: ['skull-ring', '🧿'], cape: ['cape', '🧣'], armor: ['breastplate', '🦺'],
+export const ITEM_ICON: Record<ItemId, string> = named<ItemId>({ glitch_cape: ['card-exchange', '🧥'], addicted_rings: ['cycle', '💍'], ring: ['diamond-ring', '💍'], cursed_ring: ['skull-ring', '🧿'], cape: ['cape', '🧣'], armor: ['breastplate', '🦺'],
   boots: ['leather-boot', '👢'], watch: ['pocket-watch', '⏱️'], vampire: ['bat', '🦇'],
   lava_boots: ['metal-boot', '🥾'], warden: ['stone-bust', '🗿'], helmet: ['spartan-helmet', '🪖'], shock_boots: ['winged-leg', '🌩️'], aegis: ['angel-wings', '👼'], wind_boots: ['feather', '🪶'],
   lens: ['magnifying-glass', '🔍'], piercing: ['pierced-heart', '💘'], affliction: ['rune-stone', '🔮'], scourge: ['flail', '💥'] }); // Scourge: same drawing as when it was a spell
@@ -67,7 +67,7 @@ export const UI_ICON = named({ board: ['histogram', '📊'], sheet: ['scroll-unf
   help: ['help', '❓'], keys: ['keyboard', '⌨️'], kills: ['skull-crossed-bones', '☠'], dmg: ['spiky-explosion', '💥'], wins: ['trophy', '🏆'], aim: ['archery-target', '🎯'],
   gold: ['two-coins', '🪙'], tip: ['light-bulb', '💡'], bot: ['robot-antennas', '🤖'], person: ['character', '👤'], info: ['info', 'ℹ️'], shop: ['shop', '🏪'],
   gear: ['cog', '⚙️'], pad: ['gamepad', '🎮'], video: ['tv', '📺'], exit: ['exit-door', '🚪'], watch: ['eyeball', '👁️'],
-  buy: ['shopping-cart', '🛒'], upgrade: ['upgrade', '⏫'], undo: ['anticlockwise-rotation', '↩'] });
+  buy: ['shopping-cart', '🛒'], upgrade: ['upgrade', '⏫'], undo: ['anticlockwise-rotation', '↩'], forum: ['talk', '💬'] });
 // Attack and Hold ground (issue #401) reuse sprite icons already shipped: the hit burst and the standing stone, no new download
 export const MECHANIC_ICON = { basic: UI_ICON.dmg, brace: SOURCE_ICON.pillar };
 // ícone e nome de uma magia ou item (teclas, grimório, magia escolhida)
@@ -76,9 +76,9 @@ export const actionName = (a: SpellId | ItemId) => (isSpell(a) ? spellName(a) : 
 // efeitos em cima do mago (bits do snapshot, ver shared/snapshot.ts); negativos primeiro. Também listados na ficha do mago
 const fx = named({ stun: ['star-swirl', '💫'], invuln: ['sunbeams', '🌟'], locked: ['padlock', '🔒'], slow: ['snail', '🐌'], burn: ['small-fire', '🔥'],
   repel: ['magnet-blast', '🌬️'], invis: ['ghost', '👻'], fast: ['run', '🏃'] });
-export const STATUS_ICONS: [bit: number, icon: string, name: string][] = [[INCAPACITATED_BIT, ICON.warpzone, t('incapacitado: recargas pausadas', 'incapacitated: cooldowns paused')], [16, fx.stun, t('atordoado', 'stunned')], [32, fx.invuln, t('invulnerável', 'invulnerable')], [2, ICON.shield, t('Escudo', 'Shield')], [64, ICON.pact, t('Pacto armado', 'Pact armed')],
-  [128, fx.locked, t('preso', 'gripped')], [256, ICON.rush, t('Investida', 'Rush')], [4, fx.slow, t('lento', 'slowed')], [512, fx.burn, t('queimando', 'burning')], [65536, ICON.link, t('preso pelo Elo', 'held by Link')], [8192, ICON.magnetize, t('magnetizado: atrai projéteis', 'magnetized: attracts projectiles')],
-  [16384, fx.repel, t('magnetizado: afasta projéteis', 'magnetized: repels projectiles')], [1024, fx.invis, t('invisível (Caminhada no vento ou Ilusão)', 'invisible (Windwalk or Illusion)')], [4096, fx.fast, t('acelerado', 'hasted')], [32768, ICON.alteration, t('Alteração', 'Alteration')], [131072, ITEM_ICON.aegis, t('Égide pronta', 'Aegis ready')],
+export const STATUS_ICONS: [bit: number, icon: string, name: string][] = [[RICOCHET_READY_BIT, ICON.bouncer, t('Ricochete preparado', 'Bouncer ready')], [INCAPACITATED_BIT, ICON.warpzone, t('incapacitado: recargas pausadas', 'incapacitated: cooldowns paused')], [16, fx.stun, t('atordoado', 'stunned')], [32, fx.invuln, t('invulnerável', 'invulnerable')], [2, ICON.shield, t('Escudo', 'Shield')], [64, ICON.pact, t('Pacto armado', 'Pact armed')],
+  [128, fx.locked, t('preso', 'gripped')], [256, ICON.rush, t('Investida', 'Rush')], [4, fx.slow, t('lento', 'slowed')], [512, fx.burn, t('queimando', 'burning')], [65536, ICON.link, t('preso pelo Gancho mágico', 'held by Magic Hook')], [8192, ICON.magnetize, t('magnetizado: atrai projéteis', 'magnetized: attracts projectiles')],
+  [16384, fx.repel, t('magnetizado: afasta projéteis', 'magnetized: repels projectiles')], [1024, fx.invis, t('invisível (Ilusão)', 'invisible (Illusion)')], [4096, fx.fast, t('acelerado', 'hasted')], [32768, ICON.alteration, t('Alteração', 'Alteration')], [131072, ITEM_ICON.aegis, t('Égide pronta', 'Aegis ready')],
   [262144, RUNE_ICON.haste, t('Runa da Pressa', 'Haste Rune')], [524288, RUNE_ICON.fury, t('Runa da Fúria', 'Fury Rune')], [1048576, RUNE_ICON.shield, t('Runa do Escudo', 'Shield Rune')], [4194304, RUNE_ICON.recharge, t('Runa da Recarga', 'Recharge Rune')], [2097152, ICON.gravity, t('no redemoinho', 'in the vortex')]];
 export const BAD_STATUS = [INCAPACITATED_BIT, 16, 4, 128, 65536, 8192, 512, 2097152];
 // relógio de um efeito com prazo (snap.fx: pares bit, segundos): texto dos segundos e fração que falta (o total é o maior tempo

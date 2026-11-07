@@ -64,7 +64,7 @@ describe('melee arc attack', () => {
     }
   });
 
-  it('without the option the Attack still needs a target (today\'s version)', () => {
+  it('without the option the Attack is not an arc (today\'s version)', () => {
     const w = arena([[0, 0], [1.5, 0]]);
     stepWorld(w, [{ id: 'p0', kind: 'basic', at: v(-10, 0) }], () => .5);
     expect(w.wizards[0].basicCasting?.arc).toBeUndefined();
@@ -151,10 +151,10 @@ describe('per-player choice', () => {
 describe('fixed button tips', () => {
   it('show the active version text and numbers, today’s text otherwise', () => {
     const [attack, brace] = ['basic', 'brace'].map((id) => MECHANIC_GUIDES.find((g) => g.id === id)!);
-    expect(mechanicTip(attack)).toContain('clique num inimigo');
+    expect(mechanicTip(attack)).toContain('clique no ponto desejado');
     expect(mechanicTip(attack)).not.toContain('120°');
     expect(mechanicTip(attack, true)).toContain('120°');
-    expect(mechanicTip(attack, true)).not.toContain('clique num inimigo');
+    expect(mechanicTip(attack, true)).not.toContain('clique no ponto desejado');
     expect(mechanicTip(brace)).toContain('depois do preparo');
     expect(mechanicTip(brace, true)).toContain('90%');
     expect(mechanicTip(brace, true)).not.toContain('depois do preparo');

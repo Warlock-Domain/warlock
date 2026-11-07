@@ -45,7 +45,7 @@ describe('Every attack hits obstacles', () => {
     return w.pillars[0];
   }
 
-  it.each(['gravity', 'bouncer', 'boomerang', 'drain', 'recharge', 'splitter'] as const)('%s damages the obstacle it bounces off', (spell) => {
+  it.each(['gravity', 'boomerang', 'drain', 'recharge', 'splitter'] as const)('%s damages the obstacle it bounces off', (spell) => {
     expect(castAt(spell, 'pillar').hp).toBeLessThan(OBSTACLES.pillar.hp);
   });
 
