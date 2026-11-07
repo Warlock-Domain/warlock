@@ -101,3 +101,6 @@ Original procedural Three.js geometry in src/client/element-sphere-model.ts supp
 
 ## Sculpted arena rim (31 October local)
 Original procedural faceted bevel and fissure geometry in src/client/arena-rim.ts. scene.ts renders low basalt strata entirely inside each arena outline, including holes, with narrow lava-colored seams. No external assets. The existing floor, textures and lava animation are preserved.
+
+## Broad lava flow (31 October local)
+Original procedural crust plates and molten channels in the LAVA_FRAG shader in src/client/scene.ts. The existing credited ambientCG Lava001 emission map remains as restrained surface grain. No new asset files or external art. Refuge-island artwork and geometry are unchanged.
