@@ -7,7 +7,7 @@ const { readFileSync } = await import('node:fs' as string) as { readFileSync(pat
 const css = readFileSync(new URL('../src/client/style.css', import.meta.url), 'utf8');
 
 describe('Support category', () => {
-  it('contains Heal in Portuguese and English, without moving or duplicating the other spells', () => {
+  it('contains support spells in Portuguese and English without duplicating other groups', () => {
     for (const [groups, name] of [[SPELL_GROUPS_PT, 'Suporte'], [SPELL_GROUPS_EN, 'Support']] as const) {
       expect(groups).toHaveLength(6);
       expect(groups[4][0]).toBe(name);
@@ -20,11 +20,11 @@ describe('Support category', () => {
     expect(groupClass('Support')).toBe('g-suporte');
     expect(spellClass(SPELL_GROUP_IDS.mobility[0])).toBe('g-mobilidade');
   });
-  it('moves the previous green to Support and leaves Mobility yellow', () => {
+  it('gives Support the previous green and makes Mobility gold', () => {
     expect(css).toMatch(/\.g-suporte\s*\{\s*--g:\s*#8be36a;/);
     expect(css).toMatch(/\.g-mobilidade\s*\{\s*--g:\s*var\(--gold\);/);
   });
-  it('uses the shared catalog in the shop, Learn and the Grimoire index, keeping empty categories when not searching', () => {
+  it('shares the catalog across Shop, Learn and Grimoire, preserving empty groups without a search', () => {
     expect(shop).toContain('const grid = SPELL_GROUPS.map');
     expect(book).toContain('...SPELL_GROUPS.map(([g, hint, ids])');
     expect(book).toContain("searchFilter(groups, '.lib-tile', search.value, (g) => only !== 'all' && g.dataset.filter !== only, true)");

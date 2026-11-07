@@ -7,7 +7,7 @@ import { fightOf, nightMap } from './levels.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type RuneKind } from './constants.ts';
 import { ITEMS, ITEM_IDS, type ItemId } from './items.ts';
-import { MODES, OPTION_CHOICES, TURRET_DIR, campaignReaders, goalOf, parseOpt, votesNeeded, type BotSetup, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
+import { MODES, OPTION_CHOICES, TURRET_DIR, campaignReaders, campaignPickers, goalOf, parseOpt, votesNeeded, type BotSetup, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { BAR_SPELLS, MAX_SPELLS, spellMax, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
@@ -68,6 +68,7 @@ export type PublicRoom = {
   mode: Mode;
   round: number;
   reading?: string[]; // Public ids of Campaign participants still reading tutorial messages.
+  choosing?: string[]; // Public ids whose pending choices block the next Campaign encounter.
   phaseLeft: number; // ms até a fase mudar sozinha
   players: PublicPlayer[];
   ids: string[]; // ordem dos magos no estado compacto ('snap')
@@ -103,7 +104,12 @@ export type PublicRoom = {
 // fx: efeitos com prazo de quem recebe, 2 números por efeito: bit de estado (como em w) e segundos que faltam
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
 // ba: dois números por mago: preparo de Atacar restante em segundos e corpo a corpo (1/0; 2 = golpe em arco da versão alternativa, na direção do mago); ausente = sem preparo.
-export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; sn?: number[]; cn?: number[]; bl?: number[]; cb?: number[]; gy?: number[]; pz?: number[]; pk?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
+// sr: shield radius per wizard while the Shield is up (0 = none or hidden).
+// eo: triples of wizard index, element index and seconds left; at most five spheres per visible wizard.
+// ps: projectile id/size pairs captured at launch; default size is one.
+// nx: only while some Anima Nexus is up, 1 number per wizard: index of the ally it protects (−1 none or hidden from this viewer)
+// mt: two numbers per wizard: linked ally index (-1 inactive), extra cooldown speed (0.2 to 1.4).
+export type Snap = { mt?: number[]; sr?: number[]; ps?: number[]; eo?: number[]; t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; sn?: number[]; cn?: number[]; bl?: number[]; cb?: number[]; gy?: number[]; pz?: number[]; pk?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; nx?: number[]; ack: number; e?: SimEvent[] };
 
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
 export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
@@ -345,6 +351,7 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     ...(m.sandbox && { sandbox: m.sandbox }),
     ...(m.night && { night: publicNight(m.night) }),
     ...(campaignReaders(m).length && { reading: campaignReaders(m).map((p) => pub(p.id)) }),
+    ...(campaignPickers(m).length && { choosing: campaignPickers(m).map(p => pub(p.id)) }),
     ...(m.lobby && { lobby: { ...m.lobby, owner: m.lobby.owner && pub(m.lobby.owner) } }),
   };
 }

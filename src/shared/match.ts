@@ -85,6 +85,7 @@ export const OPTION_CHOICES = {
   economy: [0.6, 1, 1.5, 2], // Fernando, 20/10 (issue #88): antes ×1,6 e ×2,5
   startGold: [30, 60, 100],
   goal: [3, 5, 7],
+  teams: [2, 3, 4],
   // mecânicas que dá para desligar: runas, morte súbita e baús de ouro
   runes: [true, false],
   sudden: [true, false],
@@ -101,7 +102,7 @@ export type MatchOpts = { [K in keyof typeof OPTION_CHOICES]: (typeof OPTION_CHO
 // difficulty: this bot's difficulty, chosen in the room (applies in any room)
 export type BotSetup = { spells?: Partial<Record<SpellId, number>>; items?: Partial<Record<ItemId, number>>; skill?: Partial<BotSkill>; difficulty?: MatchOpts['difficulty'] };
 // os padrões são os números de sempre (SHOP_MS, START_GOLD, WINS_TO_WIN), para o simulador e as salas antigas
-export const DEFAULT_OPTS: MatchOpts = { shop: 30, pace: 'normal', economy: 1, startGold: 30, goal: 5, runes: true, sudden: true, chests: true, difficulty: 'auto', arena: 'random', effect: 'off' };
+export const DEFAULT_OPTS: MatchOpts = { shop: 30, pace: 'normal', economy: 1, startGold: 30, goal: 5, teams: 2, runes: true, sudden: true, chests: true, difficulty: 'auto', arena: 'random', effect: 'off' };
 // 'chave:valor' de um voto de opção → [chave, valor] válidos, ou null
 export function parseOpt(target: string): [keyof MatchOpts, MatchOpts[keyof MatchOpts]] | null {
   const [k, raw] = target.split(':');
@@ -224,6 +225,8 @@ export const campaignReaders = (m: Match): Player[] => m.night && m.phase === 'p
 // Fernando, 27/10: one pause holds the world for at most 20 s, then the night resumes for everyone and the line stays on screen.
 // ponytail: the cap is per pause, so a modified client toggling on/off could chain pauses; add a per-player budget if that shows up.
 export const READ_CAP_MS = 20_000;
+export const campaignPickers = (m: Match): Player[] => m.night && m.phase === 'playing' && m.night.fight === null
+  ? m.players.filter(p => p.connected && !p.bot && !p.watch && ((m.night!.owed?.[p.id] ?? 0) > 0 || (m.night!.offer?.[p.id]?.length ?? 0) > 0)) : [];
 export function setReading(m: Match, id: string, on: boolean, now: number): boolean {
   const p = player(m, id);
   if (!p || p.bot || p.watch || !p.connected || !m.night || m.phase !== 'playing' || (p.reading !== undefined) === on) return false;
@@ -703,15 +706,16 @@ function botShop(m: Match, p: Player, rand: () => number) {
   for (let b = botBuy(p, rand, botSkill(m, p)); p.bot && b && (b.kind === 'spell' ? buy(m, p.id, b.id) : buyItem(m, p.id, b.id)); b = botBuy(p, rand, botSkill(m, p)));
 }
 
-// 2 times de tamanhos iguais (com número ímpar, um tem 1 a mais; qual deles também é sorteado)
+// Teams differ by at most one player; the larger teams rotate with the random offset.
 function shuffleTeams(m: Match, rand: () => number) {
   const order = [...playing(m)];
   for (let i = order.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
     [order[i], order[j]] = [order[j], order[i]];
   }
-  const first = rand() < 0.5 ? 0 : 1;
-  order.forEach((p, i) => (p.team = (i + first) % 2));
+  const count = Math.min(m.opts.teams, order.length);
+  const first = Math.floor(rand() * count);
+  order.forEach((p, i) => (p.team = (i + first) % count));
 }
 
 // força do bot pela dificuldade (a dele ou a da partida); no treino, o skill configurado vai por cima
@@ -747,6 +751,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
     m.teamShuffle = m.pendingShuffle;
     m.pendingShuffle = null;
   }
+  if (m.pendingOpts.teams !== undefined && m.pendingOpts.teams !== m.opts.teams) for (const p of playing(m)) p.team = null;
   m.opts = { ...m.opts, ...m.pendingOpts };
   m.pendingOpts = {};
   // bots votados (a fase ainda é a loja): o novo entra no padrão (Automático), seja qual for a da partida, com o ouro inicial, e já compra; sai o último bot da lista
@@ -764,7 +769,9 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   if (m.mode === 'teams') {
     // a cada rodada: sorteia de novo; fixos: mantém, e quem entrou depois vai para o time menor
     if (m.teamShuffle || playing(m).every((p) => p.team === null)) shuffleTeams(m, rand);
-    for (const p of playing(m)) if (p.team === null) p.team = teamSize(m, 1) < teamSize(m, 0) ? 1 : 0;
+    const count = Math.min(m.opts.teams, playing(m).length);
+    if (playing(m).some((p) => p.team !== null && p.team >= count)) shuffleTeams(m, rand);
+    for (const p of playing(m)) if (p.team === null) p.team = Array.from({ length: count }, (_, i) => i).reduce((a, b) => teamSize(m, b) < teamSize(m, a) ? b : a);
     // um time inteiro saiu da sala: sorteia de novo, senão a rodada acabaria na hora
     if (new Set(playing(m).map((p) => p.team)).size < 2) shuffleTeams(m, rand);
   }
@@ -776,7 +783,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   const teams = m.mode === 'teams' || m.sandbox ? Object.fromEntries(playing(m).filter((p) => p.team !== null).map((p) => [p.id, p.team!])) : {};
   // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
   const arena = m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
-  m.world = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests && !m.asc }, arena);
+  m.world = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests && !m.asc }, arena, m.mode === 'teams');
   for (const z of m.world.wizards) { const p = player(m, z.id); if (p?.arc || p?.guard) Object.assign(z, { arc: p.arc, guard: p.guard }); } // só quem escolheu: o mundo dos outros fica igual
   if (m.asc) ascMark(m);
   if (m.sandbox) m.world.shrink = m.sandbox.shrink; // a sandbox usa o mundo do deathmatch: não encolhe (a não ser que peçam) e quem morre volta
@@ -1172,6 +1179,8 @@ function stepNight(m: Match, now: number, w: World, rand: () => number) {
     grantLevels(m, w);
   }
   nightCardsDue(m, w, rand);
+  // Keep every pending choice accessible before a checkpoint can transport the party.
+  if (campaignPickers(m).length) return;
   for (const z of w.wizards) {
     const hit = z.alive && z.team === 0 ? trigger(map, n.done, z.pos) : null;
     if (hit) return startFight(m, w, map, hit.i, hit.at);
