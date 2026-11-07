@@ -1,5 +1,7 @@
 # Contributing to Warlock Wars
 
+Teams rounds spawn allies in compact formations on opposite sides of every arena; other modes keep their existing spawn layout.
+
 This is the contributor guide for humans and AI agents. It covers setup, coordination, implementation, testing, review, and publication. Read [CLAUDE.md](CLAUDE.md) for the current code rules and the index of smaller documents, [docs/DECISIONS.md](docs/DECISIONS.md) before changing gameplay or undoing a decision, then the `CLAUDE.md` in each area you change. Each `AGENTS.md` points to those same rules.
 
 - [Play the game](https://warlock.fernandorffdev.com): try a few matches, the grimoire (F1), and the spell/item library (F2) before changing gameplay.

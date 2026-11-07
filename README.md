@@ -1,5 +1,7 @@
 # Warlock Wars
 
+Teams rounds spawn allies in compact formations on opposite sides of every arena; other modes keep their existing spawn layout.
+
 Web remake of the **Warlock** arena mod (Warcraft 3 / Dota 2's Warlock Brawl): wizards on an arena that shrinks over lava, knockback spells, a shop between rounds, and the last one standing wins. Made to play in rooms with friends, right in the browser, in Portuguese or English.
 
 **Play:** https://warlock.fernandorffdev.com

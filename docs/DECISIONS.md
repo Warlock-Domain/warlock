@@ -6,6 +6,7 @@ Every new decision gets a row here (date, decision, why) in the same PR as the c
 
 | Date | Decision | Why |
 |---|---|---|
+| 28/10 | **Grouped Teams spawns**: allies start together in compact, non-overlapping formations on opposite sides, preserving the established safe spawn depth. Apply before obstacle placement on every round; other modes retain their layouts. | User requested allied teams together and opponents as far apart as practical. |
 | 28/10 | Barricade has one purchasable level,200 shared health and no lifetime; it remains until destroyed or the round resets. Keep the original level-one18.2 s cooldown,650*UNIT range and50 drop damage. Legacy higher saved levels map to those same fixed stats. | User rejected upgrades and approved compatibility with older saved rooms. |
 | 28/10 | **Campaign choice gate**: a new encounter cannot open until all connected human participants finish every pending card choice. Spectators,disconnected players and bots do not block. Keep exploration and choices running; only the next checkpoint/transport waits. The existing Campaign notice surface explains that everyone must choose spells before continuing and lists pending players. Reading messages keep priority; the choice notice has no acknowledgement button. | User requested prevention of transport while another player is choosing and a shared warning. |
 | 17/10 | Top-down 3D camera, Dota controls (right button moves); 1 point per round, first to 5 wins | same as the original Warlock, Dota audience |
