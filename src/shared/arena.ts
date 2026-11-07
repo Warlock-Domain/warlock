@@ -95,10 +95,15 @@ export function edgeAt(id: ArenaId, R: number, p: Vec): number {
 // Compact mirrored formations keep allies together without changing player order or drawing RNG.
 export function teamSpawns(arena: ArenaId, R: number, ids: string[], teams: Record<string, number>): Vec[] {
   const sides = [...new Set(ids.map((id) => teams[id]))].sort((a, b) => a - b);
-  if (sides.length !== 2 || sides.some((side) => side === undefined)) return ids.map((_, i) => SHAPES[arena].spawn(i, ids.length, R));
+  if (sides.length < 2 || sides.length > 4 || sides.some((side) => side === undefined)) return ids.map((_, i) => SHAPES[arena].spawn(i, ids.length, R));
   return ids.map((id) => {
     const allies = ids.filter((other) => teams[other] === teams[id]);
     const y = (allies.indexOf(id) - (allies.length - 1) / 2) * 1.2;
+    if (sides.length > 2) {
+      const anchor = SHAPES[arena].spawn(sides.indexOf(teams[id]), sides.length, R);
+      const tangent = norm(v(-anchor.y, anchor.x));
+      return add(anchor, scale(tangent, y));
+    }
     const radius = arena === 'circle' ? R - SPAWN_INSET : arena === 'ring' ? RC * R : 0.36 * R;
     const x = arena === 'cross' ? 0.85 * R : (arena === 'islands' ? C * R : 0) + Math.sqrt(Math.max(0, radius * radius - y * y));
     const side = teams[id] === sides[0] ? 1 : -1;

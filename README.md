@@ -60,3 +60,5 @@ Large plans live in [docs/plans/](docs/plans/README.md) (no wiki). These are lon
 ## Credits
 
 Free-to-use models, textures, effects, sounds and music (KayKit, Kenney, ambientCG, Poly Haven, OpenGameArt); full list in `public/CREDITS.txt` and an index of every asset in [docs/ASSETS.md](docs/ASSETS.md) (every new asset goes there). Library with all the free KayKit models for contributors: `assets/kaykit/`. Based on Warlock by Zymoran and Adynathos and on Warlock Brawl (github.com/warlockbrawl/warlock).
+
+Local Teams mode: select 2, 3 or 4 teams in room options. Allies spawn together; the last surviving team scores. Existing rooms default to 2 teams.
