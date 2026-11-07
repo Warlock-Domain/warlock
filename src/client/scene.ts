@@ -451,6 +451,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     lavaMat.uniforms.uHas.value = 1;
   });
   const lava = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), lavaMat);
+  lava.renderOrder = -3;
   ground(lava, -0.02); // a pedra fica só 2 cm acima
   scene.add(lava);
 
@@ -463,11 +464,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       new THREE.MeshBasicMaterial({ color: '#d2480c' })], // lateral de 4 cm: a cor da pedra derretida, sem risco escuro na emenda
   );
   arena.receiveShadow = true;
+  arena.renderOrder = -2;
   scene.add(arena);
   const rimGeometry = arenaRimGeometry(shownArena);
-  const rim = new THREE.Mesh(rimGeometry.stone, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, side: THREE.DoubleSide, flatShading: true }));
-  const fissures = new THREE.LineSegments(rimGeometry.fissures, new THREE.LineBasicMaterial({ color: '#ff7934', transparent: true, opacity: 0.65 }));
+  const rim = new THREE.Mesh(rimGeometry.stone, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, side: THREE.DoubleSide, flatShading: true, depthWrite: false }));
+  const fissures = new THREE.LineSegments(rimGeometry.fissures, new THREE.LineBasicMaterial({ color: '#ff7934', depthWrite: false }));
   const fissureWarning = new THREE.Color('#ff270a');
+  // Decorative relief follows the floor but never masks actors or transparent combat cues.
+  rim.renderOrder = fissures.renderOrder = -1;
   rim.receiveShadow = true;
   scene.add(rim, fissures);
   // The shared signed distance keeps the carved rim, lava seam and warning aligned on every arena shape.
@@ -2662,7 +2666,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       fissures.material.color.set('#ff7934');
       if (tint) fissures.material.color.lerp(shoreU.uTint.value, tintK);
       fissures.material.color.lerp(fissureWarning, shoreU.uWarn.value);
-      fissures.material.opacity = (lite ? 0.5 : 0.65) * heat;
+      fissures.material.color.multiplyScalar((lite ? 0.5 : 0.65) * heat);
       // brasas: sobem da lava em volta da pedra, cada uma com seu ritmo
       if (!lite) for (const s of embers) {
         if (onMap) {
