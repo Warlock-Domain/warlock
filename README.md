@@ -1,10 +1,14 @@
 # Warlock Wars
 
+Teams rounds spawn allies in compact formations on opposite sides of every arena; other modes keep their existing spawn layout.
+
 Web remake of the **Warlock** arena mod (Warcraft 3 / Dota 2's Warlock Brawl): wizards on an arena that shrinks over lava, knockback spells, a shop between rounds, and the last one standing wins. Made to play in rooms with friends, right in the browser, in Portuguese or English.
 
 **Play:** https://warlock.fernandorffdev.com
 
 ## What it has
+
+- Local Campaign progression waits at the next encounter until all connected participants finish their spell choices; a shared notice lists who is still choosing. Spectators and disconnected players do not block the party.
 
 - 29 spells (the Warlock Brawl ones, with numbers from the original Dota 2 mod code tuned by the simulator, plus new ones): 12 attack, 5 mobility, 5 defense, 5 control and 2 support; up to 6 per wizard on the Q W E R D F keys, with Fireball for free; the bar has Q W E R on top and A S D F below, with Attack (A) and Hold ground (S) fixed, with a tip and demo on hover
 - 17 items with 3 levels each: 16 passive (3 critical) and the Scourge, the free active item on key 1; a Dota-style grid shop with sell and undo, 3 builds saved in the browser (Use buys the build by itself) and a ★ badge on the most bought; the spell order is changed by dragging on the bottom bar
@@ -38,7 +42,7 @@ npx vitest run     # tests
 - Contributor guide: [CONTRIBUTING.md](CONTRIBUTING.md) (machine, agents and skills, flow, tests, balance and review)
 - Code rules for people and AI agents (Claude Code, Codex, Cursor): [CLAUDE.md](CLAUDE.md), also read through [AGENTS.md](AGENTS.md); it is an index of smaller documents, and each main folder has its own `CLAUDE.md`
 - Every product decision, with its date and reason: [docs/DECISIONS.md](docs/DECISIONS.md)
-- Git flow (details in the contributor guide): task branch in this repository (not a fork) from `master` → PR to `master` with the template, green CI → live game, published automatically. Every PR gets the automatic Claude review
+- Git flow (details in the contributor guide): task branch in this repository (not a fork) from `master` → PR to `master` with the template, green CI → live game, published automatically. Every PR gets the automatic Claude review; comment `@claude` on a PR or issue to ask for help
 - Each PR's environment: every PR (drafts too) publishes to `https://pr-<n>-warlock.fernandorffdev.com`, deleted when the PR closes ([docs/WORKFLOW.md](docs/WORKFLOW.md#pr-environment))
 - The live game is published automatically when the PR lands in `master`
 
@@ -56,3 +60,5 @@ Large plans live in [docs/plans/](docs/plans/README.md) (no wiki). These are lon
 ## Credits
 
 Free-to-use models, textures, effects, sounds and music (KayKit, Kenney, ambientCG, Poly Haven, OpenGameArt); full list in `public/CREDITS.txt` and an index of every asset in [docs/ASSETS.md](docs/ASSETS.md) (every new asset goes there). Library with all the free KayKit models for contributors: `assets/kaykit/`. Based on Warlock by Zymoran and Adynathos and on Warlock Brawl (github.com/warlockbrawl/warlock).
+
+Local Teams mode: select 2, 3 or 4 teams in room options. Allies spawn together; the last surviving team scores. Existing rooms default to 2 teams.

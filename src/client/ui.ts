@@ -12,7 +12,7 @@ import { CAMPAIGN } from '../shared/campaign.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, isRoomMode, sellValue, type MatchOpts, type Mode, type RoomMode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ITEMS, ITEM_IDS, MAX_ITEMS, castLevel, itemPrice, type ItemId } from '../shared/items.ts';
-import { MAX_SPELLS, SPELL_IDS, isSpell, priceOf, spellCount, spellMax, type SpellId } from '../shared/spells.ts';
+import { MAX_SPELLS, SPELL_IDS, UNIT_TARGET_SPELLS, isSpell, priceOf, spellCount, spellMax, type SpellId } from '../shared/spells.ts';
 import { POS_ACTIONS, isSlotMode, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
 import { castModeControl, openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
 import { hideTip, itemTip, mechanicTip, spellTip, withTip } from './tips.ts';
@@ -238,6 +238,8 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   settingsBtn.title = t('Configurações', 'Settings');
   settingsBtn.setAttribute('aria-label', t('Configurações', 'Settings'));
   settingsBtn.replaceChildren(el('img', { src: '/wrench.svg', alt: '', width: 28, height: 28 }));
+  // the forum is its own page (forum.html, issue #366): a link in a new tab, not another menu tab (lean menus, grill of 25/10)
+  const forumLink = el('a', { class: 'home-tool', href: '/forum', target: '_blank', rel: 'noopener', title: t('Fórum', 'Forum'), 'aria-label': t('Fórum (abre numa aba nova)', 'Forum (opens in a new tab)') }, icon(UI_ICON.forum));
   function show(k: HomeTab) {
     stage.classList.toggle('is-subpage', k !== 'home');
     panels.home.hidden = k !== 'home';
@@ -250,7 +252,7 @@ export function renderLobby(root: HTMLElement, name: string, rooms: RoomInfo[] |
   }
   root.replaceChildren(
     el('div', { class: 'lobby', 'data-name': name },
-      el('nav', { class: 'home-bar', role: 'tablist', 'aria-label': t('Menu principal', 'Main menu') }, settingsBtn,
+      el('nav', { class: 'home-bar', role: 'tablist', 'aria-label': t('Menu principal', 'Main menu') }, settingsBtn, forumLink,
         el('button', { type: 'button', class: 'home-logo', id: 'home-tab-home', role: 'tab', 'aria-controls': 'home-home', title: t('Início', 'Home'), 'aria-label': t('Voltar ao menu principal', 'Back to home'), onclick: () => show('home') },
           el('img', { src: '/warlock-wars.svg', alt: 'Warlock Wars' })),
         homeTabs),
@@ -420,7 +422,8 @@ type RoomActions = {
 
 type Level = MatchOpts['difficulty'];
 const MODE_NAME: Record<Mode, string> = { rounds: t('Rodadas', 'Rounds'), deathmatch: 'Deathmatch', teams: t('Times', 'Teams'), ascension: t('Ascensão', 'Ascension'), campaign: t('Campanha', 'Campaign') };
-export const TEAM_NAMES = [t('Azul', 'Blue'), t('Vermelho', 'Red')];
+export const TEAM_NAMES = [t('Azul', 'Blue'), t('Vermelho', 'Red'), t('Verde', 'Green'), t('Amarelo', 'Yellow')];
+const activeTeams = (players: PublicPlayer[]) => [...new Set(players.filter((p) => !p.watch && p.team !== null).map((p) => p.team!))].sort((a, b) => a - b);
 const teamLabel = (i: number) => t(`Time ${TEAM_NAMES[i]}`, `${TEAM_NAMES[i]} team`);
 const SHUFFLE_NAME =(shuffle: boolean) => (shuffle ? t('sorteados a cada rodada', 'shuffled every round') : t('fixos na partida', 'fixed for the match'));
 // opções da partida: nome de cada uma e o texto de cada valor (a meta depende do modo)
@@ -431,9 +434,10 @@ const FIXED: Partial<MatchOpts> = { pace: DEFAULT_OPTS.pace, sudden: DEFAULT_OPT
 const OPT_KEYS = (Object.keys(OPTION_CHOICES) as OptKey[]).filter((k) => !(k in FIXED));
 // Ascensão: sem ouro, loja, baús e meta (9 rodadas fixas), então essas opções somem da sala
 const ASC_OFF: OptKey[] = ['shop', 'economy', 'startGold', 'goal', 'chests'];
-const optKeys = (mode: Mode) => (mode === 'ascension' ? OPT_KEYS.filter((k) => !ASC_OFF.includes(k)) : OPT_KEYS);
-const OPT_NAME: Record<OptKey, string> = { shop: t('Tempo de loja', 'Shop time'), pace: t('Contagem e fim de rodada', 'Countdown and round end'), economy: t('Ouro ganho', 'Gold earned'), startGold: t('Ouro inicial', 'Starting gold'), goal: t('Vence com', 'Wins with'), runes: t('Runas', 'Runes'), sudden: t('Morte súbita', 'Sudden death'), chests: t('Baús de ouro', 'Gold chests'), difficulty: t('Dificuldade dos bots', 'Bot difficulty'), arena: 'Arena', effect: t('Efeito de rodada', 'Round effect') };
+const optKeys = (mode: Mode) => OPT_KEYS.filter((k) => (k !== 'teams' || mode === 'teams') && (mode !== 'ascension' || !ASC_OFF.includes(k)));
+const OPT_NAME: Record<OptKey, string> = { teams: t('Número de equipes', 'Number of teams'), shop: t('Tempo de loja', 'Shop time'), pace: t('Contagem e fim de rodada', 'Countdown and round end'), economy: t('Ouro ganho', 'Gold earned'), startGold: t('Ouro inicial', 'Starting gold'), goal: t('Vence com', 'Wins with'), runes: t('Runas', 'Runes'), sudden: t('Morte súbita', 'Sudden death'), chests: t('Baús de ouro', 'Gold chests'), difficulty: t('Dificuldade dos bots', 'Bot difficulty'), arena: 'Arena', effect: t('Efeito de rodada', 'Round effect') };
 function optText(k: OptKey, val: MatchOpts[OptKey], mode: Mode): string {
+  if (k === 'teams') return t(`${val} equipes`, `${val} teams`);
   if (k === 'shop') return (val as number) >= 120 ? '2 min' : `${val} s`;
   if (k === 'pace') return PACE_NAME[val as MatchOpts['pace']];
   if (k === 'economy') return { 0.6: t('Pouco ×0,6', 'Low ×0.6'), 1: 'Normal', 1.5: t('Muito ×1,5', 'High ×1.5'), 2: t('Festa ×2', 'Party ×2') }[val as MatchOpts['economy']];
@@ -455,7 +459,7 @@ function optsLine(o: MatchOpts, mode: Mode): string {
   // Ascensão: sem loja, ouro nem meta (9 rodadas fixas)
   const head = mode === 'ascension' ? [t(`${ASC_ROUNDS} rodadas`, `${ASC_ROUNDS} rounds`)]
     : [t(`Loja ${optText('shop', o.shop, mode)}`, `Shop ${optText('shop', o.shop, mode)}`), t(`Ouro ×${n1(o.economy)}`, `Gold ×${n1(o.economy)}`), t(`Vence com ${optText('goal', o.goal, mode)}`, `Wins with ${optText('goal', o.goal, mode)}`)];
-  return [...head, ...arena, ...effect, ...bots, ...off].join(' · ');
+  return [...head, ...(mode === 'teams' ? [optText('teams', o.teams, mode)] : []), ...arena, ...effect, ...bots, ...off].join(' · ');
 }
 // texto de uma votação aberta
 function voteText(v: { kind: Vote['kind']; target: string }, mode: Mode, name: (id: string) => string): string {
@@ -476,7 +480,7 @@ const dot = (color: number) => el('span', { class: 'dot', style: `background:${C
 // modo Times: quadradinho com a cor do time antes do nome; a lista fica agrupada por time
 const teamTag = (room: PublicRoom, p: PublicPlayer) =>
   room.mode === 'teams' && p.team !== null ? el('span', { class: 'dot', title: teamLabel(p.team), style: `background:${TEAM_COLORS[p.team]};border-radius:2px` }) : null;
-const byTeam = (room: PublicRoom, a: PublicPlayer, b: PublicPlayer) => (room.mode === 'teams' ? (a.team ?? 2) - (b.team ?? 2) : 0) || b.score - a.score;
+const byTeam = (room: PublicRoom, a: PublicPlayer, b: PublicPlayer) => (room.mode === 'teams' ? (a.team ?? 4) - (b.team ?? 4) : 0) || b.score - a.score;
 // bolinhas de nível: as primeiras lvl acesas, de max
 const pipsOf = (lvl: number, max: number) => Array.from({ length: max }, (_, n) => el('i', { class: n < lvl ? 'on' : '' }));
 // quem joga como bot agora (o bot e quem saiu no meio da partida) leva o robô e a dificuldade ao lado do nome (issue #223)
@@ -584,7 +588,7 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
   // modo Times: placar de abates dos dois times no topo e um cabeçalho por time na tabela
   const teamKills = (t: number) => rows.filter((p) => p.team === t).reduce((a, p) => a + (st(p).kills ?? 0), 0);
   const teamHead = room.mode === 'teams' && rows.some((p) => p.team !== null)
-    ? el('p', { class: 'team-score' }, el('b', { style: `color:${TEAM_COLORS[0]}` }, teamLabel(0)), ` ${teamKills(0)} × ${teamKills(1)} `, el('b', { style: `color:${TEAM_COLORS[1]}` }, teamLabel(1)), el('small', {}, t(' · abates', ' · kills')))
+    ? el('p', { class: 'team-score' }, ...activeTeams(rows).map((team) => el('b', { style: `color:${TEAM_COLORS[team]}` }, `${teamLabel(team)}: ${teamKills(team)} `)), el('small', {}, t(' · abates', ' · kills')))
     : null;
   const teamRow = (p: PublicPlayer, i: number, n: number) =>
     room.mode === 'teams' && p.team !== null && rows[i - 1]?.team !== p.team ? el('tr', { class: 'team-row' }, el('td', { colspan: n, style: `border-left:3px solid ${TEAM_COLORS[p.team]}` }, teamLabel(p.team))) : null;
@@ -1509,7 +1513,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     const modes: [Mode, string, string][] = [
       ['rounds', MODE_NAME.rounds, t(`O último vivo ganha a rodada. Vence quem fizer ${o.goal} rodadas.`, `The last one alive wins the round. First to win ${o.goal} rounds wins.`)],
       ['deathmatch', MODE_NAME.deathmatch, t(`Rodadas de 60 s, quem cai volta em 10 s. Cada abate vale 1 ponto; vence quem chegar a ${DM_GOALS[o.goal]}.`, `60 s rounds, whoever falls comes back after 10 s. Each kill is worth 1 point; first to ${DM_GOALS[o.goal]} wins.`)],
-      ['teams', MODE_NAME.teams, t(`Azul contra Vermelho. A rodada acaba quando só sobra um time, e todos dele ganham 1 ponto; vence quem fizer ${o.goal}. Magia em aliado só empurra.`, `Blue vs Red. The round ends when only one team is left, and everyone on it gets 1 point; first to ${o.goal} wins. Spells on allies only knock back.`)],
+      ['teams', MODE_NAME.teams, t(`De 2 a 4 equipes. A rodada acaba quando só sobra um time, e todos dele ganham 1 ponto; vence quem fizer ${o.goal}. Magia em aliado só empurra.`, `From 2 to 4 teams. The round ends when only one team is left, and everyone on it gets 1 point; first to ${o.goal} wins. Spells on allies only knock back.`)],
     ];
     const fixedText = fixed === 'ascension' ? ASC_MODE_TEXT : humans > CAMPAIGN.humans ? t(`A Campanha é para 1 a ${CAMPAIGN.humans} jogadores.`, `The Campaign is for 1 to ${CAMPAIGN.humans} players.`) : CAMPAIGN_MODE_TEXT;
     // Times: o grupo escolhe se os times mudam a cada rodada ou ficam até o fim
@@ -1949,7 +1953,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     };
     const row = (list: PublicPlayer[], team?: number) => el('ul', team === undefined ? {} : { class: 'team', style: `--tc:${TEAM_COLORS[team]}`, 'aria-label': teamLabel(team) }, ...list.map(cell));
     tops.replaceChildren(...(r.mode === 'teams'
-      ? [row(r.players.filter((p) => p.team === 0), 0), el('span', { class: 'vs', 'aria-hidden': 'true' }, '×'), row(r.players.filter((p) => p.team !== 0), 1)]
+      ? activeTeams(r.players).map((team) => row(r.players.filter((p) => !p.watch && p.team === team), team))
       : [row(r.players.filter((p) => !p.servo))]));
   }
 
@@ -2109,10 +2113,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (changed) drawCenter();
     },
     // A missing callback shows the party's waiting notice without an advance button.
-    ilse(text: string | null, done?: () => void) {
+    ilse(text: string | null, done?: () => void, title?: string, top = false) {
       ilseDone = done ?? null;
+      ilseBox.classList.toggle('notice-top', top);
       ilseSkip.hidden = !done;
-      const name = done ? 'Ilse' : t('Campanha pausada', 'Campaign paused');
+      const name = title ?? (done ? 'Ilse' : t('Campanha pausada', 'Campaign paused'));
       if (ilseName.textContent !== name) ilseName.textContent = name; // called every frame
       if (!text) return void (ilseBox.hidden = true);
       if (ilseText.textContent !== text || ilseBox.hidden) ilseText.textContent = text;
@@ -2251,7 +2256,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (armed !== shownArmed) {
         shownArmed = armed;
         armedHint.hidden = !armed;
-        if (armed) armedText.textContent = t(`${TOUCH ? 'Toque' : 'Clique'} no chão para lançar ${actionName(armed as Action)}`, `${TOUCH ? 'Tap' : 'Click'} the ground to cast ${actionName(armed as Action)}`);
+        const onTarget = UNIT_TARGET_SPELLS.has(armed as SpellId); // a click on the ground does nothing for these spells
+        if (armed) armedText.textContent = t(`${TOUCH ? 'Toque' : 'Clique'} ${onTarget ? 'no alvo' : 'no chão'} para lançar ${actionName(armed as Action)}`, `${TOUCH ? 'Tap' : 'Click'} ${onTarget ? 'a target' : 'the ground'} to cast ${actionName(armed as Action)}`);
       }
     },
   };
