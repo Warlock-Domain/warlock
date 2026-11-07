@@ -123,11 +123,11 @@ const PAD_NAMES_PS = ['✕', '○', '□', '△', 'L1', 'R1', 'L2', 'R2', 'Share
 export const PAD_START = 9;
 // nome do botão nas duas famílias ("A / ✕"); L3, R3 e o D-pad são iguais
 export const padButtonName = (b: number, open = ' / ', close = '') => (PAD_NAMES[b] === PAD_NAMES_PS[b] ? PAD_NAMES[b] : PAD_NAMES[b] + open + PAD_NAMES_PS[b] + close);
-export const PAD_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'sheet', 'board', 'shop', 'center', 'taunt', 'item'] as const;
+export const PAD_ACTIONS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'sheet', 'board', 'shop', 'center', 'taunt', 'item', 'item2'] as const;
 export type PadAction = (typeof PAD_ACTIONS)[number];
-const PAD_DEFAULTS: Record<PadAction, number> = { slot1: 0, slot2: 1, slot3: 2, slot4: 3, slot5: 4, slot6: 5, sheet: 10, board: 8, shop: 13, center: 11, taunt: 14, item: 6 }; // item: the Scourge on LT, the Item 1 button until 21/10 (26/10, #227)
+const PAD_DEFAULTS: Record<PadAction, number> = { slot1: 0, slot2: 1, slot3: 2, slot4: 3, slot5: 4, slot6: 5, sheet: 10, board: 8, shop: 13, center: 11, taunt: 14, item: 6, item2: 7 }; // item: the Scourge on LT, the Item 1 button until 21/10 (26/10, #227); item2: Addicted Rings on RT, which was free
 export const PAD_ACTION_NAMES: Record<PadAction, string> = { slot1: t('Magia 1', 'Spell 1'), slot2: t('Magia 2', 'Spell 2'), slot3: t('Magia 3', 'Spell 3'), slot4: t('Magia 4', 'Spell 4'), slot5: t('Magia 5', 'Spell 5'), slot6: t('Magia 6', 'Spell 6'),
-  sheet: t('Ficha do mago', 'Wizard sheet'), board: t('Placar (segurar)', 'Scoreboard (hold)'), shop: t('Loja só para ver', 'Shop (view only)'), center: t('Centralizar a câmera', 'Center the camera'), taunt: t('Provocações', 'Taunts'), item: t('Flagelo (item)', 'Scourge (item)') };
+  sheet: t('Ficha do mago', 'Wizard sheet'), board: t('Placar (segurar)', 'Scoreboard (hold)'), shop: t('Loja só para ver', 'Shop (view only)'), center: t('Centralizar a câmera', 'Center the camera'), taunt: t('Provocações', 'Taunts'), item: t('Flagelo (item)', 'Scourge (item)'), item2: t('Anéis viciados (item)', 'Addicted Rings (item)') };
 const PAD_STORE = 'warlock:pad';
 let padMap: Record<PadAction, number> = { ...PAD_DEFAULTS };
 const savedPad = store.json(PAD_STORE);
@@ -139,8 +139,8 @@ if (isRecord(savedPad)) for (const a of PAD_ACTIONS) {
 if (PAD_ACTIONS.some((a) => a !== 'taunt' && padMap[a] === padMap.taunt)) {
   padMap.taunt = PAD_NAMES.findIndex((_, b) => b !== PAD_START && !PAD_ACTIONS.some((a) => a !== 'taunt' && padMap[a] === b));
 }
-if (PAD_ACTIONS.some((a) => a !== 'item' && padMap[a] === padMap.item)) { // same for the Scourge button (26/10, #227)
-  padMap.item = PAD_NAMES.findIndex((_, b) => b !== PAD_START && !PAD_ACTIONS.some((a) => a !== 'item' && padMap[a] === b));
+for (const it of ['item', 'item2'] as const) if (PAD_ACTIONS.some((a) => a !== it && padMap[a] === padMap[it])) { // same for the active item buttons (26/10, #227)
+  padMap[it] = PAD_NAMES.findIndex((_, b) => b !== PAD_START && !PAD_ACTIONS.some((a) => a !== it && padMap[a] === b));
 }
 export const padButtonOf = (a: PadAction) => padMap[a];
 export const padActionAt = (btn: number): PadAction | undefined => PAD_ACTIONS.find((a) => padMap[a] === btn);
@@ -172,6 +172,7 @@ export function setPadMode(on: boolean) {
 }
 const padLabel = (a: Action) => {
   if (a === 'scourge') return PAD_NAMES[padMap.item]; // an item, outside the positions
+  if (a === 'recharge') return PAD_NAMES[padMap.item2];
   const i = slots.indexOf(a);
   return i < 0 ? '—' : PAD_NAMES[padMap[`slot${i + 1}` as PadAction]];
 };
