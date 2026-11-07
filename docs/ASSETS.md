@@ -9,6 +9,8 @@
 
 ## Identidade visual
 
+- **Transcend (local prototype, 28/10):** reuses the credited `icons.svg#sunbeams` icon and Shield sound. Original procedural rising torus rings form the ritual and persistent chosen-element aura in `scene.ts`; the canvas demo uses the same element colors. No new external artwork, model or recording. Existing sphere colors, including white Ki, remain unchanged.
+
 - Rajada de areia/Cegueira24/10: partículas e cone3D/mira gerados em scene.ts; vinheta de raio3m via shader próprio blindness-fx.ts. Som de areia por ruído filtrado sintetizado em sound.ts. Sem imagens/gravações externas novas; referência visual do usuário usada apenas como direção.
 
 - **Tema:** fantasia sombria de pedra escura, lava e ouro. As cores estão todas nas variáveis do `:root` em [`src/client/style.css`](../src/client/style.css): fundo `--bg #140806`, painéis `--panel`/`--panel2`, lava `--lava #ff6a1a`, brasa `--ember #ffb347`, ouro `--gold #ffd666`, texto `--fg #f7ecdf`. Cor solta no código não entra (regra do `CLAUDE.md`).

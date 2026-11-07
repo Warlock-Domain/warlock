@@ -1,25 +1,31 @@
-import type { Level } from './spells.ts';
+import type { Level, SpellId } from './spells.ts';
 import { v } from './vec.ts';
 
 export const ELEMENTS = ['fire', 'water', 'earth', 'ki', 'void'] as const;
 export type Element = (typeof ELEMENTS)[number];
+export type Transcendence = { element: Element; saved: number; complete: boolean; spell?: SpellId };
+export const TRANSCEND = { duration: 2.5, heal: 300 };
 export type ElementalSphere = { element: Element; until: number };
 export const ELEMENTAL_SPHERES = { max: 5, orbit: 1, height: 1.1, radius: .16, speed: 1.4, damage: 30 };
 export const ELEMENT_COLORS: Record<Element, string> = {
   fire: '#ed3535', water: '#2788ff', earth: '#8b542b', ki: '#ffffff', void: '#000000',
 };
 
-export type ElementalBonuses = { fire: number; water: number; earth: number; ki: number; void: number };
-export function elementalBonuses(spheres: readonly { element: Element; until?: number; left?: number }[] | undefined, now = 0): ElementalBonuses {
+export type ElementalBonuses = { fire: number; water: number; earth: number; ki: number; void: number; pure?: boolean };
+export function elementalBonuses(spheres: readonly { element: Element; until?: number; left?: number }[] | undefined, now = 0, transcendence?: Transcendence): ElementalBonuses {
   const bonus = { fire: 0, water: 0, earth: 0, ki: 0, void: 0 };
   for (const sphere of spheres ?? []) if (sphere.until === undefined ? (sphere.left ?? 0) > 0 : sphere.until > now) bonus[sphere.element] += .05;
+  if (transcendence) {
+    if (transcendence.complete) return { fire: 0, water: 0, earth: 0, ki: 0, void: 0, [transcendence.element]: .25, pure: true };
+    bonus[transcendence.element] += transcendence.saved * .05;
+  }
   return bonus;
 }
 // Stored element totals are the 5% benefits; their paired penalties are 3% per sphere.
-export const elementalPenalty = (benefit: number) => benefit * .6;
-export const elementalDamage = (bonus: ElementalBonuses) => (1 + bonus.fire) * (1 - elementalPenalty(bonus.water));
-export const elementalKnock = (bonus: ElementalBonuses) => 1 - elementalPenalty(bonus.fire);
-export const elementalArea = (bonus: ElementalBonuses) => 1 - elementalPenalty(bonus.earth);
+export const elementalPenalty = (benefit: number, pure = false) => pure ? 0 : benefit * .6;
+export const elementalDamage = (bonus: ElementalBonuses) => (1 + bonus.fire) * (1 - elementalPenalty(bonus.water, bonus.pure));
+export const elementalKnock = (bonus: ElementalBonuses) => 1 - elementalPenalty(bonus.fire, bonus.pure);
+export const elementalArea = (bonus: ElementalBonuses) => 1 - elementalPenalty(bonus.earth, bonus.pure);
 export const elementalRange = (bonus: ElementalBonuses) => (1 + bonus.water) * elementalArea(bonus);
 export function elementalLevel(level: Level, bonus: ElementalBonuses): Level {
   return {

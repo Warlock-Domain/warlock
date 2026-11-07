@@ -39,6 +39,7 @@ export function knockDistance(dmg: number, knock: number): number {
 const knockMeters = (l: Level) => m(knockDistance(l.dmg, l.knock));
 // todo campo do nível que muda o jogo tem uma linha (o teste confere)
 export const SPELL_ROWS: Record<SpellId, Row[]> = {
+  transcend: [[t('Duração do ritual', 'Ritual duration'), () => s(2.5)], [t('Cura ao concluir', 'Completion healing'), () => '300'], [t('Esferas iguais necessárias', 'Matching spheres required'), () => '5']],
   transfusion: [[t('Recargas do aliado', 'Ally cooldown speed'), (l) => '+' + n1(l.scale * 100) + '%'], [t('Duração', 'Duration'), () => t('Até interromper', 'Until interrupted')], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   elemental: [[CD, l => s(l.cd)], [DURATION, l => s(l.duration)], [t('Máximo de esferas', 'Maximum spheres'), () => String(ELEMENTAL_SPHERES.max)]],
   pix: [[t('Chuva de moedas', 'Coin rain'), () => s(PIX.rain)], [RADIUS, (l) => m(l.radius)], [t('Tempo dentro para controlar', 'Time inside to control'), () => s(PIX.soak)], [t('Tempo controlado', 'Time controlled'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
