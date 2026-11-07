@@ -264,6 +264,8 @@ type Mage = {
   burnAt: number; // morreu na lava neste instante (−1 = não está queimando)
   bones: AppearanceInstance | null; // esqueleto escuro que sobra da queima
   flash: number; // clarão branco do golpe: 1 no acerto, cai até 0
+  motionAt?: number;
+  motionFxAt?: number;
   burning: boolean; // vivo e na lava (issue #225): o corpo pulsa em brasa e solta faíscas
   electro?: boolean;
   freezeUntil: number; // hit-stop: animação parada até este instante
@@ -430,7 +432,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     magic: fxTex('magic_02'), light: fxTex('light_01'), circle: fxTex('circle_05'), scorch: fxTex('scorch_02'),
     twirl: fxTex('twirl_01'), twirl2: fxTex('twirl_02'), star: fxTex('star_04'),
   };
-  const FIRE_KINDS = new Set<ProjKind>(['fireball', 'cluster', 'meteor']);
+  const FIRE_KINDS = new Set<string>(['fireball', 'cluster', 'meteor']);
   // distância até a borda e relógio da borda derretida, divididos pela lava e pela pedra
   const shoreU = { uSdf: { value: sdfTexture('circle') }, uSpan: { value: sdfSpan('circle') }, uR: { value: 11 }, uShoreTime: { value: 0 }, uLick: { value: 1 }, uWarn: { value: 0 }, uTint: { value: new THREE.Color() }, uTintK: { value: 0 } };
   const lavaMat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uMap: { value: null }, uHas: { value: 0 }, uHeat: { value: 1 }, ...shoreU }, vertexShader: LAVA_VERT, fragmentShader: LAVA_FRAG });
@@ -1055,7 +1057,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // cura que sobe em verde em cima de quem se curou
   const healNumber = (at: Vec, n: number) => floatText('dmg heal', overHead(at), `${Math.min(2.2, 0.95 + n / 90).toFixed(2)}rem`, undefined, '+' + Math.round(n));
 
-  // impacto no mago: clarão branco, hit-stop curto, tremor pela força (mais perto da câmera, mais forte) e anel no golpe forte
+  // Character flash, short hit-stop and the existing capped camera response.
   function impact(id: string, at: Vec, dmg: number) {
     const m = mages.get(id);
     if (m) {
@@ -1068,8 +1070,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     }
     if (dmg >= BIG_HIT) shockwave(at, dmg >= CRIT_HIT ? 2.2 : 1.5, dmg >= CRIT_HIT ? '#ffe9a8' : '#ffb347');
     if (dmg >= CRIT_HIT && !lite) {
-      burst(at, '#fff6d8', 3.2, 0.22, 1, FX.star);
-      for (let i = 0; i < 5; i++) burst(v(at.x + (Math.random() - 0.5) * 1.2, at.y + (Math.random() - 0.5) * 1.2), '#ffe27a', 0.9, 0.7, 1, FX.star, 1.8);
+      burst(at, '#fff6d8', 1.6, 0.16, 1, FX.star);
+      for (let i = 0; i < 3; i++) burst(v(at.x + (Math.random() - 0.5) * 0.8, at.y + (Math.random() - 0.5) * 0.8), '#ffe27a', 0.65, 0.28, 1, FX.star, 1);
     }
   }
 
@@ -1600,11 +1602,52 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     smoke(at, 2.2, 1.3);
   }
 
+  function hitBurst(at: Vec, src: string, damage: number) {
+    if (fx.length >= FX_CAP) return;
+    const color = LOOK[src as keyof typeof LOOK]?.halo ?? '#ffd27a';
+    const strength = Math.min(1.6, 0.65 + damage / 150);
+    burst(at, '#ffffff', damage > 0 ? 0.9 : 0.5, 0.12, 0.9, FX.light);
+    if (damage <= 0) return;
+    burst(at, color, 1.3 * strength, 0.22, 0.8, FX.spark);
+    if (damage < BIG_HIT) {
+      const ring = ground(new THREE.Mesh(waveGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.65, depthWrite: false })), 0.06);
+      ring.position.x = at.x; ring.position.z = at.y;
+      addFx(ring, 0.24, (k) => { ring.scale.setScalar((0.6 + 0.7 * k) * strength); ring.material.opacity = (1 - k) * 0.65; });
+    }
+    if (FIRE_KINDS.has(src) && !lite) flameBurst(at, 1.4 * strength, 0.25);
+    const count = lite ? 2 : damage >= BIG_HIT ? 7 : 4;
+    for (let i = 0; i < count && fx.length < FX_CAP; i++) {
+      const angle = i * Math.PI * 2 / count + Math.random() * 0.3;
+      const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: FX.spark, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      spark.scale.setScalar(0.25 * strength);
+      spark.position.copy(w3(at, 1.1));
+      addFx(spark, 0.28, (k) => {
+        const distance = (0.45 + k) * strength;
+        spark.position.set(at.x + Math.cos(angle) * distance, 1.1 + Math.sin(k * Math.PI) * 0.25, at.y + Math.sin(angle) * distance);
+        spark.material.opacity = (1 - k) * 0.8;
+      });
+    }
+  }
+
+  function pushStreak(at: Vec, dx: number, dy: number, speed: number) {
+    if (fx.length >= FX_CAP) return;
+    const streaks = new THREE.Group(), length = Math.min(1.6, speed * 0.08);
+    const mat = new THREE.MeshBasicMaterial({ color: '#fff2d0', transparent: true, opacity: 0.5, depthWrite: false });
+    const geo = new THREE.PlaneGeometry(length, 0.035);
+    for (const side of [-1, 1]) {
+      const line = ground(new THREE.Mesh(geo, mat), 0);
+      line.position.set(-length / 2, 0, side * 0.24);
+      streaks.add(line);
+    }
+    streaks.position.copy(w3(at, 0.08));
+    streaks.rotation.y = -Math.atan2(dy, dx);
+    addFx(streaks, 0.16, (k) => { mat.opacity = (1 - k) * 0.5; });
+  }
+
   function zap(at: Vec) {
-    burst(at, '#ffffff', 2.2, 0.18, 1, FX.light);
-    burst(at, '#9fd0ff', 4.4, 0.6, 1, FX.light);
-    burst(at, '#e6f4ff', 2.8, 0.5, 1, FX.spark);
-    burst(at, '#6fb6ff', 3.8, 0.6, 0.15, FX.circle);
+    burst(at, '#ffffff', 1.1, 0.12, 1, FX.light);
+    burst(at, '#9fd0ff', 1.8, 0.22, 1, FX.light);
+    burst(at, '#e6f4ff', 1.4, 0.2, 1, FX.spark);
   }
 
   function bolt(from: Vec, to: Vec, width = LIGHTNING.width) {
@@ -1697,14 +1740,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(v(e.x, e.y), HEAL_FX.color, 2.6, HEAL_FX.seconds, .6, FX.light, .6);
         burst(v(e.x, e.y), HEAL_FX.glow, 1.5, HEAL_FX.seconds, .3, FX.magic, 1.2);
       } else if (e.k === 'hit') {
-        oneShot(e.id, 'Hit_A', 0.45);
-        // o acerto do raio tem impacto elétrico próprio: a explosão de fogo cobria o raio e parecia que ele não tinha saído
-        if (e.src === 'lightning') zap(v(e.x, e.y));
-        else explosion(v(e.x, e.y));
-        scorch(v(e.x, e.y));
-        // Mantém o impacto público da magia, mas não o número sobre o jogador invisível.
+        if (e.dmg > 0) oneShot(e.id, 'Hit_A', 0.25);
+        // Preserve the public spell impact without inventing damage feedback on an invulnerable target.
+        if (e.src === 'lightning' && e.dmg > 0) zap(v(e.x, e.y));
+        else hitBurst(v(e.x, e.y), e.src, e.dmg);
+        if (e.dmg > 0 && FIRE_KINDS.has(e.src)) scorch(v(e.x, e.y));
+        // Public impacts must not reveal a hidden target's damage number.
         if (!hiddenDamageTargets.includes(e.id)) damageNumber(v(e.x, e.y), e.dmg, e.crit);
-        // dano 0 (invulnerável, aliado) não sacode nem acende
+        // Zero damage never shakes or flashes the character.
         if (e.dmg > 0) impact(e.id, v(e.x, e.y), e.dmg);
       } else if (e.k === 'gold') goldNumber(v(e.x, e.y), e.n);
       else if (e.k === 'reflect') {
@@ -1986,6 +2029,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         for (const x of m.ghostMats) Object.assign(x.m, { transparent: ghost || faded || x.transparent, opacity: x.opacity * (ghost ? (d.ghost ? 0.45 : 0.35) : 1) * fade, needsUpdate: true });
         m.label.style.opacity = ghost ? '0.6' : '';
       }
+      const motionDt = now - (m.motionAt ?? now);
+      const motionX = d.pos.x - m.root.position.x, motionY = d.pos.y - m.root.position.z;
+      const pushSpeed = motionDt > 0 ? Math.hypot(motionX, motionY) / motionDt : 0;
+      if (!lite && !hidden && d.alive && m.prevAlive && !ghost && (d.status & 16) && tk >= 2 && !m.model.position.y && motionDt > 0 && motionDt < 0.1 && pushSpeed > 3 && pushSpeed < 40 && now >= (m.motionFxAt ?? 0)) {
+        pushStreak(d.pos, motionX, motionY, pushSpeed);
+        m.motionFxAt = now + 0.08;
+      }
+      m.motionAt = now;
       m.root.position.copy(w3(tk < 1 ? add(m.tpFrom, scale(m.tpDir, tk * TP_SLIDE)) : tk < 2 ? add(m.tpTo, scale(m.tpDir, (tk - 2) * TP_SLIDE)) : d.pos));
       m.root.rotation.y = Math.PI / 2 - d.facing;
       m.root.scale.setScalar(d.size ?? 1); // model, ring and aura grow with the body (the server uses the same scale for collisions)
