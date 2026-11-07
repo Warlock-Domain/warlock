@@ -20,7 +20,7 @@ import { LOOK_EVENT, saveLook, savedLook } from './avatar.ts';
 import { coachTip } from './coach.ts';
 import { PROFILE_KEY, addRound, toSkill, savedProfile } from './mimic.ts';
 import { cooldownNotice, n1 } from './rules-text.ts';
-import { aimOf, hitR, reachOf } from './reach.ts';
+import { aimOf, basicReach, hitR, reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t } from './i18n.ts';
@@ -1137,7 +1137,7 @@ function startRoom(code: string, name: string) {
     const lockFrom = room?.phase === 'playing' && meW?.alive && meP && (attackArmed || armed === 'sniper') ? drawWiz.filter((d) => !d.illusion).map((d) => ({ ...d, hidden: !!(d.status & 2048), suspended: (d.geyserLeft ?? 0) > 0 })) : null;
     const lockSelf = lockFrom?.find((d) => d.id === me), lockAt = lockSelf && input.aimPoint();
     const lockHover = lockAt ? input.hovered() : undefined;
-    scene.preview.lockOn(lockSelf && lockAt ? (armed === 'sniper' ? sniperTarget(lockFrom!, lockSelf, lockAt, reachOf('sniper', meP!.spells, meP!.items, channelBoost, elementalBonuses(meW?.spheres)), lockHover) : attackTarget(lockFrom!, lockSelf, lockAt, BASIC_ATTACK.range * (1 + elementalBonuses(meW?.spheres).water), lockHover))?.pos ?? null : null);
+    scene.preview.lockOn(lockSelf && lockAt ? (armed === 'sniper' ? sniperTarget(lockFrom!, lockSelf, lockAt, reachOf('sniper', meP!.spells, meP!.items, channelBoost, elementalBonuses(meW?.spheres)), lockHover) : attackTarget(lockFrom!, lockSelf, lockAt, basicReach(elementalBonuses(meW?.spheres)), lockHover))?.pos ?? null : null);
     // nas posições desenhadas (as mesmas da tela), para ver se o erro foi mira, desvio ou a bola no ar enganando
     scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind) * (p.size ?? 1), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;

@@ -1780,6 +1780,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     }
   }
 
+  const sphereLooks = Object.fromEntries(Object.entries(ELEMENT_COLORS).map(([element, color]) => [element, { ...LOOK.basic, mat: new THREE.MeshBasicMaterial({ color }), halo: element === 'void' ? '#777777' : color, trail: color, size: ELEMENTAL_SPHERES.radius / .28 }]));
+  const projectileLook = (p: ProjView) => p.element ? sphereLooks[p.element] : LOOK[p.kind as Exclude<ProjKind, 'illusion'>];
   function syncProjectiles(list: ProjView[]) {
     const seen = new Set<number>();
     for (const p of list) {
@@ -1788,7 +1790,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       let g = projs.get(p.id);
       if (!g) {
         g = new THREE.Group();
-        const look = LOOK[p.kind];
+        const look = projectileLook(p);
         const core = SHAPES[p.kind]?.() ?? new THREE.Mesh(ballGeo, look.mat);
         core.scale.multiplyScalar(look.size * (p.size ?? 1));
         const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: FX.light, color: look.halo, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -1873,7 +1875,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         burst(v(p.pos.x + Math.cos(a) * r, p.pos.y + Math.sin(a) * r), PIX_COLOR, 0.7, 0.55, 3.5, FX.spark, -3.3);
       }
       // rastro: brasas que ficam para trás e somem
-      const look = LOOK[p.kind];
+      const look = projectileLook(p);
       if (p.kind !== 'warpzone' && p.kind !== 'grip' && p.kind !== 'pix' && p.kind !== 'geyser' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
