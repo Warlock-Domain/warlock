@@ -149,7 +149,7 @@ describe('Lula Pix / Squid Pix (issue #416)', () => {
     const seen = decodeSnap(encodeSnap(w, p1, 0, []), ids).wizards[1];
     expect(seen.puppetBy).toBe(0);
     expect(seen.puppetLeft).toBeGreaterThan(2.5);
-    w.wizards[0].windUntil = w.t + 2;
+    w.wizards[0].veilUntil = w.t + 2;
     expect(decodeSnap(encodeSnap(w, p1, 0, []), ids).wizards[1].puppetBy).toBe(-1);
   });
 

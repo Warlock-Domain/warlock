@@ -1,12 +1,12 @@
 // Círculo de alcance (pedido do Fernando, 18/10: o Raio acertava 13% nas partidas reais, suspeita de lançar fora dos 8 m):
 // raio em metros da magia ou item no nível atual, com o multiplicador de alcance dos itens (Elmo); 0 = não mostra.
 import { elementalBonuses, elementalLevel, elementalRange, elementalArea, type ElementalBonuses } from '../shared/elemental-spheres.ts';
-import { OBSTACLES, PROJ_R, PROJ_SPAWN, WALL_GAP, WIZ_R } from '../shared/constants.ts';
+import { BASIC_ATTACK, OBSTACLES, PROJ_R, PROJ_SPAWN, WALL_GAP, WIZ_R } from '../shared/constants.ts';
 import { itemStats, type ItemId } from '../shared/items.ts';
 import { snowR, type ProjKind } from '../shared/sim.ts';
 import { conePoints } from '../shared/sand-cone.ts';
 import { channelLevel } from '../shared/channeling.ts';
-import { CLUSTER_FAN, LIGHTNING, RUSH, SPLITTER, THRUST, spellLevel, type SpellId } from '../shared/spells.ts';
+import { CLUSTER_FAN, LIGHTNING, RUSH, SPLITTER, THRUST, UNIT_TARGET_SPELLS, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, clampLen, len, norm, scale, sub, v, type Vec } from '../shared/vec.ts';
 
 // projéteis que saem na frente do mago e voam o alcance: o anel marca até onde a ponta chega, então inimigo que encosta
@@ -25,6 +25,9 @@ export function reachOf(a: SpellId, spells: Record<SpellId, number>, items: Reco
   const r = L.range * (1 + itemStats(items).range);
   return FLIES.has(a as SpellId) ? r + PROJ_SPAWN + (a === 'snowball' ? snowR(lvl) : PROJ_R) : r;
 }
+
+// Attack lock-on: same range as basicStats in sim.ts, or the marker shows on a target the server rejects (brown shortens it).
+export const basicReach = (bonus: ElementalBonuses) => BASIC_ATTACK.range * elementalRange(bonus);
 
 // Area of effect at the aimed point (Fernando, 21/10, PR #169); 0 = none. Read from the data, not a list of names: any spell
 // with a range and a radius that does not fly lands at the aimed point (a fixed list left Lula Pix out, 26/10).
@@ -56,7 +59,7 @@ export function aimOf(a: SpellId, spells: Record<SpellId, number>, items: Record
   // magias de área (Meteoro, Agarrar, Zona de dobra, Barricada): só o círculo no ponto mirado; Teleporte: o corpo onde você aparece
   const blastR = blastOf(a, spells, bonus);
   if (blastR) return { ...none, blastAt: aimed, blastR };
-  if (a === 'teleport' || a === 'heal' || a === 'sniper') return { ...none, blastAt: aimed, blastR: WIZ_R };
+  if (a === 'teleport' || UNIT_TARGET_SPELLS.has(a)) return { ...none, blastAt: aimed, blastR: WIZ_R };
   // Drenar vira para o mago mais perto no ponto mirado: a reta só vale até ali
   if (a === 'drain') return line(aimed, HALF.drain!);
   // Investida avança RUSH.dash e acerta quem fica a 2 WIZ_R + 0,1 (sim.ts, dashHit): pelo corpo do inimigo, WIZ_R + 0,1 de cada lado
