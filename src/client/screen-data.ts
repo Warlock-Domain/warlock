@@ -11,6 +11,7 @@ import { HP_MAX } from '../shared/constants.ts';
 import { itemStats } from '../shared/items.ts';
 import { t } from './i18n.ts';
 import type { Vec } from '../shared/vec.ts';
+import { foe } from '../shared/sniper-target.ts';
 // Pulso suave; modo reduzido fica estático.
 export const electroPulse = (active: boolean, seconds: number, reduced: boolean) => active ? reduced ? .25 : .25 + .12 * Math.sin(seconds * Math.PI * 4) : 0;
 
@@ -220,4 +221,13 @@ export function illusionCopies<D extends { id: string; status: number }>(project
     const o = drawn.find((d) => d.id === ownerId);
     return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(16 | 1024 | 2048 | 8388608), transfusionTo: undefined, transfusionRate: undefined, channelElapsed: undefined, channelSpell: undefined, sniperLeft: undefined, sniperAt: undefined, basicLeft: 0, moving: true, cheer: false, illusion: true, ghost: false }] : [];
   });
+}
+
+// Attack click: the floor point under a tall model falls behind it, so the enemy model under the mouse (or its copy) gives the aim.
+// Floor, allies and the own copy keep the clicked point; the server picks melee from this point alone.
+export function attackAim<D extends { id: string; status: number; pos: Vec; alive: boolean; team?: number | null; geyserLeft?: number }>(wizards: D[], projectiles: { kind: string; pos: Vec; vel: Vec }[], ids: string[], me: string, at: Vec, clicked?: string): Vec {
+  const units = [...wizards, ...illusionCopies(projectiles, ids, wizards)].map((z) => ({ ...z, hidden: !!(z.status & 2048), suspended: (z.geyserLeft ?? 0) > 0 }));
+  const self = units.find((z) => z.id === me);
+  const body = self && clicked !== me + '~ilusao' ? units.find((z) => z.id === clicked && foe(z, self)) : undefined;
+  return body?.pos ?? at;
 }
