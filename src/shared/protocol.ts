@@ -111,7 +111,8 @@ export type PublicRoom = {
 // ps: projectile id/size pairs captured at launch; default size is one.
 // nx: only while some Anima Nexus is up, 1 number per wizard: index of the ally it protects (−1 none or hidden from this viewer)
 // mt: two numbers per wizard: linked ally index (-1 inactive), extra cooldown speed (0.2 to 1.4).
-export type Snap = { mt?: number[]; sr?: number[]; ps?: number[]; eo?: number[]; t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; sn?: number[]; cn?: number[]; bl?: number[]; cb?: number[]; gy?: number[]; pz?: number[]; pk?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; nx?: number[]; ack: number; e?: SimEvent[] };
+// pe: projectile id/element index pairs; absent for ordinary projectiles.
+export type Snap = { pe?: number[]; mt?: number[]; sr?: number[]; ps?: number[]; eo?: number[]; t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; sn?: number[]; cn?: number[]; bl?: number[]; cb?: number[]; gy?: number[]; pz?: number[]; pk?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; nx?: number[]; ack: number; e?: SimEvent[] };
 
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
 export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };

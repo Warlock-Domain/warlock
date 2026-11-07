@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BASIC_ATTACK, DT } from '../src/shared/constants.ts';
+import { ELEMENTAL_SPHERES } from '../src/shared/elemental-spheres.ts';
 import { parseClientMessage } from '../src/shared/protocol.ts';
 import { decodeSnap, encodeSnap, publicEvents } from '../src/shared/snapshot.ts';
 import { stepWorld, type Projectile } from '../src/shared/sim.ts';
@@ -58,8 +59,8 @@ describe('Manual Attack windup', () => {
   it('a ground shot keeps the Elemental Spheres held at release', () => {
     const w = arena(3); w.wizards[0].spheres = (['fire', 'water', 'earth', 'ki'] as const).map((element) => ({ element, until: 30 }));
     run(w, .4 + DT, [{ ...attack, at: v(-10, 0), target: undefined }]);
-    expect(w.projectiles[0]).toMatchObject({ size: 1.05, water: 1.05, ki: 1.05 });
-    expect(w.projectiles[0].stats?.dmg).toBeCloseTo(BASIC_ATTACK.dmg * 1.05);
+    expect(w.projectiles[0]).toMatchObject({ element: 'fire', size: 1, water: 1.05, ki: 1.05, debuff: 1.05 }); // the fire sphere is thrown, the other three stay
+    expect(w.projectiles[0].stats?.dmg).toBeCloseTo(ELEMENTAL_SPHERES.damage * .97); // water drawback
     expect(w.projectiles[0].stats?.knock).toBe(0);
   });
   it.each(['stop', 'move', 'cast'] as const)('%s cancels before release without spending cooldown', (kind) => {

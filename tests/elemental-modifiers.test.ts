@@ -5,7 +5,7 @@ import { noSpells, spellLevel } from '../src/shared/spells.ts';
 import { projectileLevel, stepWorld } from '../src/shared/sim.ts';
 import { encodeSnap, decodeSnap } from '../src/shared/snapshot.ts';
 import { parseServerMessage } from '../src/client/net-message.ts';
-import { aimOf, reachOf } from '../src/client/reach.ts';
+import { aimOf, basicReach, reachOf } from '../src/client/reach.ts';
 import { run, world } from './helpers.ts';
 
 function setup(elements: Element[]) {
@@ -38,15 +38,15 @@ describe('Elemental modifiers agree across simulation, snapshots and aiming', ()
       caster.spells[spell] = 1;
       const base = aimOf(spell, caster.spells, noItems(), caster.pos, { x: 9, y: 0 });
       const boosted = aimOf(spell, caster.spells, noItems(), caster.pos, { x: 9, y: 0 }, 1, bonus);
-      expect(boosted.half).toBeCloseTo(base.half * 1.05);
+      expect(boosted.half).toBeCloseTo(base.half);
     }
   });
   it('stacks only the matching element without a generic per-sphere damage bonus', () => {
     const base = spellLevel('fireball', 1);
     const bonus = elementalBonuses(['fire', 'fire', 'water', 'earth', 'ki'].map(element => ({ element: element as Element, left: 30 })));
     const result = elementalLevel(base, bonus);
-    expect(result.dmg).toBeCloseTo(base.dmg * 1.1);
-    expect(result.knock).toBeCloseTo(base.knock * 1.1);
+    expect(result.dmg).toBeCloseTo(base.dmg * 1.1 * .97);
+    expect(result.knock).toBeCloseTo(base.knock * .94);
     expect(result.speed).toBeCloseTo(base.speed * 1.05);
   });
   it('encodes the actual Meteor area and previews the water-adjusted range', () => {
@@ -60,22 +60,32 @@ describe('Elemental modifiers agree across simulation, snapshots and aiming', ()
     const aim = aimOf('meteor', z.spells, noItems(), z.pos, { x: 99, y: 0 }, 1, bonus);
     expect(aim.blastR).toBeCloseTo(projectileLevel(p).radius);
     expect(aim.blastAt?.x).toBeCloseTo(reachOf('meteor', z.spells, noItems(), 1, bonus));
-    expect(reachOf('heal', z.spells, noItems(), 1, bonus)).toBeCloseTo(10.5);
+    expect(reachOf('heal', z.spells, noItems(), 1, bonus)).toBeCloseTo(10.5 * .97);
   });
-  it('captures projectile size at launch, even after the caster loses the spheres', () => {
+  it('marks the basic attack only as far as the shot really flies', () => {
+    for (const elements of [[], ['earth'], ['water'], ['earth', 'water']] as Element[][]) {
+      const w = setup(['fire', ...elements]), z = w.wizards[0]; // the oldest sphere is thrown, the others set the flight
+      const reach = basicReach(elementalBonuses(z.spheres!.slice(1), w.t));
+      run(w, .4 + 1 / 60, [{ id: z.id, kind: 'basic', at: { x: -9, y: 0 } }]);
+      const shot = w.projectiles.find(p => p.kind === 'basic')!;
+      expect(Math.hypot(shot.vel.x, shot.vel.y) * (shot.until - shot.born!), elements.join('+')).toBeCloseTo(reach);
+    }
+  });
+  it('earth no longer increases projectile size; snapshot validation still rejects invalid sizes', () => {
     const w = setup(['earth', 'earth']), z = w.wizards[0];
     run(w, .12, [{ id: z.id, kind: 'cast', spell: 'fireball', at: { x: 9, y: 0 } }]);
     z.spheres = [];
     const p = w.projectiles.find(p => p.kind === 'fireball')!;
     const snap = encodeSnap(w, z.id, 0, []);
-    expect(snap.ps).toEqual([p.id, 1.1]);
-    expect(decodeSnap(snap, ['p0', 'p1']).projectiles[0].size).toBe(1.1);
+    expect(p.size).toBe(1);
+    expect(snap.ps).toBeUndefined();
+    expect(decodeSnap(snap, ['p0', 'p1']).projectiles[0].size ?? 1).toBe(1);
     for (const ps of [[p.id, 10], [p.id, 1.1, p.id, 1.1], [99999, 1.1], [p.id]]) expect(parseServerMessage({ ...snap, ps })).toBeNull();
   });
-  it('slows spell recovery by five percentage points per void sphere, with Incapacitate taking precedence', () => {
+  it('lengthens cooldowns by three percent per void sphere, with Incapacitate taking precedence', () => {
     const w = setup(['void', 'void']), z = w.wizards[0]; z.cd.fireball = 20;
     run(w, 1);
-    expect(z.cd.fireball - w.t).toBeCloseTo(19.1, 2);
+    expect(z.cd.fireball - w.t).toBeCloseTo(20 - 1 / 1.06, 2);
     z.incapacitateUntil = w.t + 1;
     const remaining = z.cd.fireball - w.t; run(w, .5);
     expect(z.cd.fireball - w.t).toBeCloseTo(remaining, 2);
