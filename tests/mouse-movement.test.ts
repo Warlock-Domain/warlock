@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import source from '../src/client/input.ts?raw';
+import { UNIT_TARGET_SPELLS } from '../src/shared/spells.ts';
 
 describe('left click does not issue a movement order', () => {
   it.each([
@@ -10,8 +11,8 @@ describe('left click does not issue a movement order', () => {
   ])('routing: %j', (test) => {
     const branch = source.split("canvas.addEventListener('pointerdown', (e) => {")[1].split("\n  });")[0];
     const h = { pick: vi.fn(() => ({ x: 0, y: 0 })), move: vi.fn(), cast: vi.fn() };
-    const dispatch = new Function('e', 'h', 'armed', `let cursor, panFrom, dragging, attackArmed = false, channelArmed = false; const space=false, enabled=true; let panning=false; const arm=()=>{}; ${branch}`);
-    dispatch({ button: test.button, pointerType: test.touch ? 'touch' : 'mouse' }, h, test.armed);
+    const dispatch = new Function('e', 'h', 'armed', 'UNIT_TARGET_SPELLS', `let cursor, panFrom, dragging, attackArmed = false, channelArmed = false; const space=false, enabled=true; let panning=false; const arm=()=>{}; ${branch}`);
+    dispatch({ button: test.button, pointerType: test.touch ? 'touch' : 'mouse' }, h, test.armed, UNIT_TARGET_SPELLS);
     expect(h.move).toHaveBeenCalledTimes(test.move);
     expect(h.cast).toHaveBeenCalledTimes(test.cast);
   });

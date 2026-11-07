@@ -1,8 +1,18 @@
 # src/shared — game rules (run on the server and in the browser)
 
+30/10 local rework: equipment has fixed base attributes and no upgrades. Addicted Rings is active; Glitch Cape is passive. Bouncer/Swap are Utility; Mandinga is Support. Thrust converts damage received during its knockback-immune dash into stun; Closed Body can move in a weaker mode. Event Horizon and Magic Hook replace Gravity and Link names. Arc jumps are delayed0.25 s. Preserve the existing Transcend visual/pose, team spawns and Campaign choice gate.
+
+Addicted Rings is an active one-level accessory backed by the internal `recharge` simulation/snapshot id. Item ownership grants rank1 without occupying a spell slot. Keep keyboard item overrides ahead of key/global defaults and apply normal server cast/cooldown validation. New spell purchases/cards/shortcuts exclude Recharge; saved spell owners migrate to the item.
+
+Teams rounds spawn allies in compact formations on opposite sides of every arena; other modes keep their existing spawn layout.
+- Campaign checkpoints wait for `campaignPickers`: all connected human participants with owed/offered cards finish before the next encounter starts. Exclude bots,spectators and disconnected players; generate/clear offers before checking so exhausted upgrade pools cannot deadlock the group. Exploration keeps running; this is not the reading pause.
+
 Applies together with the root `CLAUDE.md`.
 
 ## Simulation
+
+- Sandbox allied bots are opt-in: validate `ally`, derive their team from the authenticated requester and preserve Player/Wizard teams through respawn, restart and Watch/Play. Default bots stay enemies.
+- Campaign reading is a transient authoritative pause until every connected human participant finishes, capped at `READ_CAP_MS` (20 s) per pause. Disconnect, spectating, restart and resume clear reader state; other modes do not pause.
 
 - **Obstacles take every attack** (Fernando, 25/10): a new blast calls `blastPillars` (falloff by closeness, a wall hit once); a projectile that hits or bounces off an obstacle calls `damagePillar` in `hitPillar`; burning in the lava uses `damagePillar(..., quiet)`. The Campaign rock is unbreakable through `obstaclesOf`, not through a mode check in `sim.ts`.
 
@@ -10,7 +20,7 @@ Applies together with the root `CLAUDE.md`.
 
 - Sand Blast (cluster) in Control: cone 3×2 m, damage 20+8/level, Incapacitate 1+0.25 s/level and Blindness 2+0.5 s/level. Independent statuses respect general resistances; no projectiles or knockback. Blindness limits vision to 3 m from the target (6 m diameter), AI included.
 
-- Closed Body in Defense: requires Hold ground active, ends when S is released or at the limit 3.5+0.75 s/level. Reduces damage, new negative durations and new impulses by 90%; never immunity nor retroactive cleansing. Expiring while holding S preserves Hold ground.
+- Closed Body in Defense: with Hold ground active it reduces damage, new negative durations and new impulses by 90% and ends when S is released or at the limit 3.5+0.75 s/level; without the stance it walks 50% slower with a quarter of those resistances and does not need S (`closedBodyWeak`). Never immunity nor retroactive cleansing. Expiring while holding S preserves Hold ground.
 
 - Geyser: target on the ground up to 10 m, area 25% smaller (radius 1.5×√0.75), lasts 2.5 s and suspends any living unit hit; invulnerable, immobile and without actions. Projectiles pass under suspended bodies, with no exception between spells.
 - Heal: Support spell with a target on yourself or a living ally (of a defined team). Heals 45 at level 1 and +6 per level, range 10 m, cooldown 20 s and −1 s per level, with the general heal cap and modifiers. An invalid target does not spend the cooldown, does not cancel another action and does not reveal the wizard. Instant cast; cost 12, upgrades 6 to 11.
@@ -32,7 +42,7 @@ Applies together with the root `CLAUDE.md`.
 
 - Meteor proposal under review: preserves damage/area and replaces knockback with duration=1.25 s at all levels. Uses the general stun block and the target's resistances; does not trigger post-knockback recovery without an impulse. Measurement/owner decision pending before integrating.
 
-- **Items have 3 levels each** (Fernando, 26/10, issue #227) and every level costs the item price (`itemPrice`); a new item gets 3 levels. Level-based constants of an item are arrays indexed by `level - 1` (`SHOCK_BOOTS.secs`, `WIND_BOOTS.calm/speed`).
+- **Items have one fixed level** (30/10 rework; 3 levels from 26/10, issue #227): one purchase at the item price (`itemPrice`), and higher ranks from old saves use the first level's stats (`LEGACY_ITEM_MAX` only reads them).
 - **The Scourge is an item that fires through the spell path** (26/10, #227): its level lives only in `items.scourge` (free level 1 from `startItems`), `newWorld` and `refit` copy it into `wizard.spells.scourge`, and `priceOf('scourge')` is always `null`. Lists of spells a player can own use `BAR_SPELLS`; cast, cooldown and snapshot code keep `SPELL_IDS`. Do not "fix" the copied level back into `player.spells`.
 - 7 levels via `L({...})`; irregular series with `zip([...], [...])`, linear ones with `steps(de, passo)`.
 - A balance adjustment stays **inline over the original number**, with a date and measurement comment: `cd: cd * 0.7 /* 18/10: … (0,86 → 0,97) */`.
@@ -55,7 +65,7 @@ New client message: variant in `ClientMsg` → `case` in `parseClientMessage` th
 
 - Post-knockback recovery (`kr`) only starts when a physical impulse crosses STUN_SPEED: zeroes the residual and resumes 50→100% in 1 s, +10 pp/0.2 s. Ending a stun without an impulse does not trigger recovery; a dedicated test covers this separation. The client rereads kr only from a new snapshot, never per frame.
 
-- Proposal under review: `stunLeft` is an action-block clock separate from physical speed (`st` in the snapshot, -1 uses the old rule). `castBlocked` blocks everything under stun and only Mobility spells under Grip. Changes neither Meteor, Shield nor the speed recovery rule at this stage.
+- Proposal under review: `stunLeft` is an action-block clock separate from physical speed (`st` in the snapshot, -1 uses the old rule). `castBlocked` blocks everything under stun and only Mobility spells and Swap under Grip. Changes neither Meteor, Shield nor the speed recovery rule at this stage.
 
 - Historical damage does not amplify knockback (`KNOCK_HP_SCALE=0`); it is still recorded for statistics. `WALKING_BIT` only marks a valid voluntary destination; physical displacement/reconciliation does not animate walking. The right button does not stay stuck after blur/pointercancel.
 
@@ -65,6 +75,11 @@ Flattened lists of numbers (layout in the `protocol.ts` comment), values with `r
 
 The appearance code stores the **position** of each option (7 digits, one per piece), and it is saved in the browser and in rooms. A new option goes **at the end** of the piece's list; an option that leaves stays in place and becomes retired (`isRetired`): `decodeLook` swaps it for another (the hooded Rogue becomes Rogue + Hood, issue #107), the creator and the draw skip it. Every code input goes through `fixLook` (browser in `savedLook`, message in `parseClientMessage`, stored room in `resume`).
 
+- Bouncer is a server-owned next-projectile-spell buff, consumed only when a moving spell projectile releases. Homing slow and Magnetic redirection use ordinary defenses/ownership. Warp Zone remains unchanged.
+Teams supports 2, 3 or 4 teams through opts.teams (default2, capped by participant count). Preserve two-team RNG and opposite spawns; additional teams use separated safe anchors with compact allies. Fixed-team newcomers join the smallest team; count changes regroup next round. Other modes and Campaign teams remain unchanged.
+
+- team-lobby.ts validates manual Teams setup/ownership. Humans choose only themselves; only the creator assigns bot slots. Preserve explicit parties and fill Automatic slots, reject a single-team start, and keep manual team ids through rounds even when fewer players use nonadjacent colors. Leaving Teams deletes the lobby, so Rounds and Deathmatch stay ownerless. In Teams only, a dropped owner hands off and the returning creator takes the room back.
+30/10 local Windwalk revision: windUntil is a visible speed/contact buff, not concealment. Invisibility and targeting exclusions use veilUntil only. Snapshot4096/its clock show the Windwalk speed buff;1024/2048 remain Illusion. Base duration grows2.6s to3.6s at every level; preserve speed, contact damage and existing interruption rules.
 - Proposal under review: Utility spell,12 gold,one level,5 s cooldown,30 s per randomly chosen sphere,maximum5. Fire/red +5pp damage/knockback;Water/blue +5pp projectile speed/range;Earth/brown +5pp projectile size/actual area;Ki/white +5pp outgoing healing/positive spell duration;Void/black slows spell cooldown recovery5pp. Duplicate elements stack. Capture outgoing stats and sizes at launch; no collision bodies or generic damage bonus. Barricade structure dimensions remain fixed.
 
 - Elemental Spheres is server-owned passive generation on its existing cooldown, preserving Transcend and the combined cap. Manual casts are rejected without interrupting movement.

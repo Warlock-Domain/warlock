@@ -39,6 +39,7 @@ export const BRACE = { resistance: .15, lease: .5, windup: .5 };
 export const MELEE_ARC = { angle: 120, range: 2 };
 // Defesa: vale na hora; a redução do empurrão sobe em linha reta de 0 a 90% em 2,5 s segurando S e zera ao soltar.
 export const GUARD = { max: .9, ramp: 2.5 };
+export const RICOCHET_READY_BIT = 8;
 export const INCAPACITATED_BIT = 268435456; // recargas pausadas; habilidades prontas continuam utilizáveis.
 export const ELECTROCUTED_BIT = 536870912; // efeito elétrico visual.
 export const BRACING_BIT = 1073741824; // Hold ground active, kept in sync with the pose.

@@ -351,15 +351,15 @@ describe('Thrust', () => {
     return { w, hit: hitsOf(ev, 'thrust')[0] };
   };
 
-  it('moves the caster and deals more damage the faster it is going', () => {
+  it('moves the caster and deals at least fifty damage without an impact impulse', () => {
     const near = thrustHit(2);
     const far = thrustHit(5.5);
     expect(near.hit.id).toBe('p1');
     expect(near.w.wizards[0].pos.x).toBeGreaterThan(1);
     expect(far.w.wizards[0].pos.x).toBeGreaterThan(4);
-    expect(near.hit.dmg).toBeLessThan(far.hit.dmg);
+    expect(near.hit.dmg).toBeGreaterThanOrEqual(50);
     expect(far.hit.dmg).toBeLessThanOrEqual(SPELLS.thrust.levels[0].dmg);
-    expect(far.w.wizards[1].vel.x).toBeGreaterThan(0); // knocked the target back
+    expect(far.w.wizards[1].vel.x).toBe(0); // Damage-based stun replaces the former impact impulse.
     expect(len(far.w.wizards[0].vel)).toBe(0); // the thruster stops on the hit
   });
 
@@ -393,7 +393,7 @@ describe('Gravity', () => {
 });
 
 describe('Rock pillar', () => {
-  it('raises an obstacle at the click point (up to its range) that vanishes after 5 s', () => {
+  it('raises an obstacle at the click point (up to its range) that persists beyond five seconds', () => {
     const w = world([[0, 0], [0, -8]], ['rockpillar']);
     run(w, 0.1, [cast('p0', 'rockpillar', 3, 0)]);
     const p = w.pillars.find((q) => q.kind === 'rockpillar')!;
@@ -401,8 +401,9 @@ describe('Rock pillar', () => {
     expect(dist(p.pos, v(3, 0))).toBeLessThan(1e-9);
     const view = decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']);
     expect(view.pillars.some((q) => q.kind === 'rockpillar' && q.hp > 0)).toBe(true);
-    run(w, 5); // 4 → 5 s in balancing cycle 1
-    expect(p.alive).toBe(false);
+    run(w, 5);
+    expect(p.alive).toBe(true);
+    expect(p.until).toBeUndefined();
     w.wizards[0].cd.rockpillar = 0;
     run(w, 0.1, [cast('p0', 'rockpillar', 50, 0)]);
     expect(len(w.pillars[w.pillars.length - 3].pos)).toBeCloseTo(SPELLS.rockpillar.levels[0].range, 5);
@@ -445,32 +446,7 @@ describe('Rock pillar', () => {
   });
 });
 
-describe('Bouncer', () => {
-  it('after a hit it goes to the nearest enemy, never back to the caster; from an obstacle too', () => {
-    // p0 casts at p1; the nearest to p1 is p0 itself (2 m), but it must go to p2 (3 m)
-    const w = world([[0, 0], [2, 0], [2, 3]], ['bouncer']);
-    const ev = runEvents(w, 2, [cast('p0', 'bouncer', 2, 0)]);
-    const ids = ev.filter((e) => e.k === 'hit' && e.src === 'bouncer').map((e) => (e.k === 'hit' ? e.id : ''));
-    expect(ids.slice(0, 2)).toEqual(['p1', 'p2']);
-    // obstacle in the way: bounces and goes on to the enemy
-    const w2 = world([[0, 0], [0, 4]], ['bouncer']);
-    w2.pillars = [{ pos: v(2, 0), hp: 999, alive: true, kind: 'rock' }];
-    const ev2 = runEvents(w2, 2, [cast('p0', 'bouncer', 2, 0)]);
-    expect(ev2.some((e) => e.k === 'hit' && e.src === 'bouncer' && e.id === 'p1')).toBe(true);
-  });
-
-  it('jumps to the next wizard with 70% of the damage and stops once it would drop below 10', () => {
-    const w = world([[-2, 0], [2, 0], [2, 2]], ['bouncer']);
-    for (const z of w.wizards) z.kbResist = 1; // no knockback: targets stay in place
-    const ev = runEvents(w, 3, [cast('p0', 'bouncer', 2, 0)]);
-    const hits = hitsOf(ev, 'bouncer');
-    const d0 = SPELLS.bouncer.levels[0].dmg;
-    expect(hits.map((h) => h.id)).toEqual(['p1', 'p2', 'p1', 'p2', 'p1']);
-    hits.forEach((h, i) => expect(h.dmg).toBeCloseTo(Math.round(d0 * 0.7 ** i), 5));
-    expect(d0 * 0.7 ** 5).toBeLessThan(10);
-    expect(w.projectiles).toHaveLength(0);
-  });
-});
+// The replaced Bouncer projectile is covered by ricochet-buff.test.ts.
 
 describe('Boomerang and chest', () => {
   it('the boomerang damages the chest', () => {
@@ -738,23 +714,7 @@ describe('Illusion', () => {
   });
 });
 
-describe('Magnetize', () => {
-  it('a magnetized enemy pulls in a shot that would have missed', () => {
-    const shotHits = (magnet: boolean) => {
-      const w = world([[0, 0], [4, 0]], ['magnetize']);
-      if (magnet) {
-        run(w, 1, [cast('p0', 'magnetize', 4, 0)]);
-        expect(w.wizards[1].magnetUntil).toBeGreaterThan(w.t);
-      }
-      w.wizards[1].pos = v(4, 0);
-      w.wizards[1].vel = v(0, 0);
-      const ev = runEvents(w, 1.2, [cast('p0', 'fireball', 4, 1.1)]);
-      return hitsOf(ev, 'fireball').length;
-    };
-    expect(shotHits(false)).toBe(0);
-    expect(shotHits(true)).toBe(1);
-  });
-});
+// Direct projectile redirection is covered by magnetize-redirect.test.ts.
 
 describe('Recharge', () => {
   it('a hit sends back an orb that resets the cooldown, and the next hit deals +10', () => {
@@ -813,13 +773,16 @@ describe('Link', () => {
 });
 
 describe('Windwalk', () => {
-  it('invisible to enemies and faster; the first enemy touched takes the hit and it ends', () => {
+  it('stays visible and faster; the first enemy touched takes the hit and it ends', () => {
     const w = world([[0, 0], [3, 0]], ['windwalk']);
     run(w, 0.1, [cast('p0', 'windwalk', 0, 0), { id: 'p0', kind: 'move', to: v(6, 0) }]);
     expect(w.wizards[0].speed).toBeGreaterThan(WIZ_SPEED * 1.5);
     const ids = ['p0', 'p1'];
-    expect(decodeSnap(encodeSnap(w, 'p1', 0, []), ids).wizards[0].status & 2048).toBe(2048); // the enemy cannot see
-    expect(decodeSnap(encodeSnap(w, 'p0', 0, []), ids).wizards[0].status & 1024).toBe(1024); // the walker sees the effect
+    for (const viewer of ids) {
+      const status = decodeSnap(encodeSnap(w, viewer, 0, []), ids).wizards[0].status;
+      expect(status & (1024 | 2048)).toBe(0);
+      expect(status & 4096).toBe(4096);
+    }
     const ev = runEvents(w, 1.5);
     expect(hitsOf(ev, 'windwalk')[0]?.dmg).toBeCloseTo(spellLevel('windwalk', 1).dmg, 5);
     expect(w.wizards[1].pos.x).toBeGreaterThan(3); // there was knockback; the residual ends when control is released.
@@ -890,7 +853,7 @@ describe('kill credit without damage', () => {
   });
 
   // hp = seconds of lava until death: Grip only holds after the vines delay (1.3 s), so the victim lasts longer
-  it.each([['grip', 250], ['magnetize', 100]] as const)('%s on an enemy in the lava gives the kill to the caster', (spell, hp) => {
+  it.each([['grip', 250]] as const)('%s on an enemy in the lava gives the kill to the caster', (spell, hp) => {
     const w = world([[stone, 0], [lava, 0]], [spell]);
     w.wizards[1].hp = hp; // dies within the 5 s credit window
     stepWorld(w, [cast('p0', spell, lava, 0)]);

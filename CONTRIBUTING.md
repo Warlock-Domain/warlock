@@ -1,5 +1,7 @@
 # Contributing to Warlock Wars
 
+
+
 This is the contributor guide for humans and AI agents. It covers setup, coordination, implementation, testing, review, and publication. Read [CLAUDE.md](CLAUDE.md) for the current code rules and the index of smaller documents, [docs/DECISIONS.md](docs/DECISIONS.md) before changing gameplay or undoing a decision, then the `CLAUDE.md` in each area you change. Each `AGENTS.md` points to those same rules.
 
 - [Play the game](https://warlock.fernandorffdev.com): try a few matches, the grimoire (F1), and the spell/item library (F2) before changing gameplay.
@@ -19,6 +21,8 @@ This is the contributor guide for humans and AI agents. It covers setup, coordin
    ```
 
    The game runs at `http://localhost:8787`. Wrangler runs Workers and Durable Objects locally; development does not require a Cloudflare account. Use another tab with `?as=another-player` to simulate a second person on the same machine.
+
+   The forum at `/forum` needs sign-in secrets in a `.dev.vars` file (git-ignored). Without them it shows "sign-in is not set up". To try it without GitHub, write `FORUM_SESSION_KEY=<any long random text>` and `FORUM_TESTER=1`, which turns on "sign in as tester". GitHub sign-in uses the org's localhost OAuth app instead: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `FORUM_SESSION_KEY` and `FORUM_ORIGIN=http://127.0.0.1:<port>`, because `wrangler dev` rewrites the request host to the live domain.
 4. Choose a small issue, such as one labeled `bom primeiro PR`, and agree on its scope before implementing it. Check its assignee and any linked work first.
 
 ## Architecture and where to work
@@ -35,6 +39,8 @@ Warlock Wars is a browser remake of Warlock / Warlock Brawl. Players use spells 
 | [`docs/ASSETS.md`](docs/ASSETS.md) | Asset catalog, origin, usage, licenses, and visual identity. |
 
 The server is authoritative. Shared gameplay runs at 60 steps per second, with snapshots sent at 30 per second. The client predicts its own movement and interpolates other entities. In the shared simulation, the world is intentionally mutated in place; preserve its RNG and operation order.
+
+The local Campaign prototype gates new encounters on pending spell choices from connected human participants. It keeps exploration running and uses the existing notice surface; see `campaignPickers` and `campaign-choice-gate.test.ts`. This is separate from the full simulation pause for unread tutorial messages.
 
 Use the decision register in [docs/DECISIONS.md](docs/DECISIONS.md) and the in-game rules as the current source for modes, controls, spell groups, items, and balance exceptions. Keep contributor instructions here, area-specific implementation guidance in the area's `CLAUDE.md`, and feature designs and plans in [`docs/plans/`](docs/plans/README.md). This avoids maintaining competing copies of changing gameplay tables.
 
@@ -249,3 +255,5 @@ See [Actions logs](https://github.com/Warlock-Domain/warlock/actions) and [pipel
 - [ ] Diff reviewed for excess code and concrete correctness/lifecycle problems.
 
 Questions about intended game behavior belong in an issue labeled `precisa de decisão`.
+Teams supports 2, 3 or 4 teams selected in room options, with balanced membership and compact allied formations in separated safe regions. Two teams retain their opposite-side spawns; other modes keep their existing layouts.
+Manual Teams setup lets each human choose their own team and the creator choose bot teams. Automatic slots are filled by the server; explicit choices stay fixed for the match.
