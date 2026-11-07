@@ -156,8 +156,11 @@ function castSection(): Node[] {
   const host = el('div', { class: 'casting-hud-host' });
   ctx.castingHud ? ctx.castingHud.mount(host) : emptyCastingHud(host);
   return [
+    // the only place that changes the global mode, the fallback of "Default" below: individual > key > global (decision of 27/10)
+    choice(t('Modo de lançamento padrão', 'Default casting mode'), CAST_MODES.map((k) => [k, CAST_TEXT[k][0]] as [CastMode, string]), getCastMode(), (k) => (setCastMode(k), draw())),
+    el('p', { class: 'muted' }, CAST_TEXT[getCastMode()][1]),
     el('p', { class: 'muted' }, t('Clique num espaço da HUD abaixo para configurar seu lançamento. Esta prévia não lança magias nem altera sua barra na partida. Atacar e Manter base continuam ações fixas.', 'Click a slot on the HUD below to configure casting. This preview does not cast spells or change your in-match bar. Attack and Hold ground remain fixed actions.')), host,
-    el('p', { class: 'muted' }, t('Configure os atalhos na HUD acima. As seções expansíveis abaixo definem exceções por magia ou item, que têm prioridade sobre o atalho. Usar padrão remove a exceção e preserva suas preferências salvas.', 'Configure shortcuts on the HUD above. The expandable sections below set spell or item exceptions, which take priority over shortcuts. Use default removes an exception and preserves your saved preferences.')),
+    el('p', { class: 'muted' }, t('As seções expansíveis abaixo definem exceções por magia ou item, que têm prioridade sobre o atalho. Usar padrão remove a exceção e preserva suas preferências salvas.', 'The expandable sections below set spell or item exceptions, which take priority over shortcuts. Use default removes an exception and preserves your saved preferences.')),
     el('details', { class: 'spell-keys' }, el('summary', {}, t('Uso por magia individual', 'Casting by individual spell')),
       el('div', { class: 'keys-list' }, ...ACTIONS.filter((spell) => spell !== 'scourge' && !clickOnly('spell:' + spell)).map((spell) => castOverride('spell:' + spell, spellName(spell))))),
     el('details', { class: 'spell-keys' }, el('summary', {}, t('Uso por item individual', 'Casting by individual item')),
