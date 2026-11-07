@@ -27,7 +27,7 @@ describe('Manual Attack windup', () => {
     run(outside, .5, [attack]); expect(outside.wizards[0].basicReadyAt).toBeGreaterThan(0);
     expect(outside.projectiles[0].lockOn).toBeUndefined();
   });
-  it('fires only after0.4s and a single command does not repeat', () => {
+  it('fires only after 0.4 s and a single command does not repeat', () => {
     const w = arena(); stepWorld(w, [attack], () => .5);
     expect(w.projectiles).toHaveLength(0);
     expect(w.wizards[0].basicCasting?.fireAt).toBeCloseTo(.4);
@@ -54,6 +54,13 @@ describe('Manual Attack windup', () => {
     expect(w.wizards[1].hp).toBe(1000);
     expect(w.projectiles[0].vel.x).toBeLessThan(0);
     expect(w.projectiles[0].vel.y).toBeLessThan(0);
+  });
+  it('a ground shot keeps the Elemental Spheres held at release', () => {
+    const w = arena(3); w.wizards[0].spheres = (['fire', 'water', 'earth', 'ki'] as const).map((element) => ({ element, until: 30 }));
+    run(w, .4 + DT, [{ ...attack, at: v(-10, 0), target: undefined }]);
+    expect(w.projectiles[0]).toMatchObject({ size: 1.05, water: 1.05, ki: 1.05 });
+    expect(w.projectiles[0].stats?.dmg).toBeCloseTo(BASIC_ATTACK.dmg * 1.05);
+    expect(w.projectiles[0].stats?.knock).toBe(0);
   });
   it.each(['stop', 'move', 'cast'] as const)('%s cancels before release without spending cooldown', (kind) => {
     const w = arena(); stepWorld(w, [attack], () => .5); run(w, .2);

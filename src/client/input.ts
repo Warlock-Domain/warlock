@@ -125,7 +125,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     if (!p) return;
     const touch = e.pointerType === 'touch';
     if (attackArmed && e.button === 0) {
-      h.basic?.(p);
+      h.basic?.(p, h.pickAttack?.(e.clientX, e.clientY));
       arm(null); // uma ordem manual por golpe; segurar A/clique não repete.
     } else if (armed && (e.button === 0 || touch)) {
       // fora do alcance a magia sai na direção do clique, até a borda do alcance (o servidor limita)
