@@ -1,5 +1,8 @@
 # src/client — browser (Three.js + DOM interface)
 
+30/10 local rework: equipment has fixed base attributes and no upgrades. Addicted Rings is active; Glitch Cape is passive. Bouncer/Swap are Utility; Mandinga is Support. Thrust converts damage received during its knockback-immune dash into stun; Closed Body can move in a weaker mode. Event Horizon and Magic Hook replace Gravity and Link names. Arc jumps are delayed0.25 s. Preserve the existing Transcend visual/pose, team spawns and Campaign choice gate.
+
+Addicted Rings is an active one-level accessory backed by the internal `recharge` simulation/snapshot id. Item ownership grants rank1 without occupying a spell slot. Keep keyboard item overrides ahead of key/global defaults and apply normal server cast/cooldown validation. New spell purchases/cards/shortcuts exclude Recharge; saved spell owners migrate to the item.
 - Campaign pending-choice warnings reuse the Ilse/PvP notice surface with optional `ilse(text,done,title,top)` heading/placement. Reading messages take priority; pending-choice notices list server-provided public participants and have no acknowledgement action. The passive top placement avoids covering the choice buttons. They block neither input nor choices; only the server's encounter gate waits.
 Transcend ritual (28/10 local): original canvas seal sprite, vertical light column and rising motes in `transcend-fx.ts`, with an original belly-up suspended pose built from Idle: arms hang downward and the head falls back. Use the chosen element color, including white Ki and readable black Void. Ritual fades over the authoritative 2.5 s; completion removes the column and restores the model pose/height, leaving the persistent aura. Own textures/materials/geometries are disposed on removal. No external art copied or added.
 
@@ -83,6 +86,8 @@ Applies together with the root `CLAUDE.md`.
 ## Keys (`keys.ts`)
 
 Taunts on the controller: ← by default, remappable; if an old preference already occupies ←, it picks a free button without overwriting. Routing in `gamepad.ts` opens the wheel (the interface button), the analog stick points via `radialIndex`, the d-pad moves ±1 per tap, A/✕ confirms, B/○ or Start cancels. While open it sends no movement or spell; it reuses the current interface button and send.
+
+Active items: the Scourge keeps its own rebindable key; Addicted Rings answers to its inventory number (`activeItemAt` in `items.ts`; `inventoryOrder` keeps active items first, so it stays on 2, clear of Replay on 5 and Camera on 6) and to `item2` (RT) on the controller. Any other number key follows its saved binding.
 
 `DEFAULTS` uses `event.code` (`'KeyQ'`, `'Digit1'`, `'F1'`), never `event.key`. A new interface action goes into `UI_ACTIONS` and `UI_NAMES` (`''` = no key). Esc, Enter, Space and ← → are reserved. All 26 letters already have an owner.
 

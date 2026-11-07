@@ -351,15 +351,15 @@ describe('Thrust', () => {
     return { w, hit: hitsOf(ev, 'thrust')[0] };
   };
 
-  it('moves the caster and deals more damage the faster it is going', () => {
+  it('moves the caster and deals at least fifty damage without an impact impulse', () => {
     const near = thrustHit(2);
     const far = thrustHit(5.5);
     expect(near.hit.id).toBe('p1');
     expect(near.w.wizards[0].pos.x).toBeGreaterThan(1);
     expect(far.w.wizards[0].pos.x).toBeGreaterThan(4);
-    expect(near.hit.dmg).toBeLessThan(far.hit.dmg);
+    expect(near.hit.dmg).toBeGreaterThanOrEqual(50);
     expect(far.hit.dmg).toBeLessThanOrEqual(SPELLS.thrust.levels[0].dmg);
-    expect(far.w.wizards[1].vel.x).toBeGreaterThan(0); // knocked the target back
+    expect(far.w.wizards[1].vel.x).toBe(0); // Damage-based stun replaces the former impact impulse.
     expect(len(far.w.wizards[0].vel)).toBe(0); // the thruster stops on the hit
   });
 

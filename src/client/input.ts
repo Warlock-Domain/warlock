@@ -7,6 +7,7 @@ import { setPadGame } from './gamepad.ts';
 import type { Vec } from '../shared/vec.ts';
 
 export type InputHandlers = {
+  itemAt?: (code: string) => { spell: SpellId; id: string } | undefined;
   cancelNexus?: () => boolean;
   pick: (x: number, y: number, spell?: SpellId) => Vec | null;
   move: (to: Vec, held?: boolean) => void;
@@ -161,13 +162,14 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     }
     if (!enabled || typing(e)) return;
     // teclas trocáveis pelo jogador (keys.ts)
-    const action = actionFor(e.code);
+    const item = h.itemAt?.(e.code);
+    const action = item?.spell ?? actionFor(e.code);
     if (action) {
       if (action === 'elemental') { e.preventDefault(); return; }
       if (action === 'nexus' && e.repeat) { e.preventDefault(); return; }
       if (action === 'nexus' && h.cancelNexus?.()) { e.preventDefault(); arm(null); return; }
       if (action === 'channel') { e.preventDefault(); cancel(); return arm(action); }
-      if (h.canChannel?.() && (attackHeldCode || attackArmed || armed === 'channel')) {
+      if (!item && h.canChannel?.() && (attackHeldCode || attackArmed || armed === 'channel')) {
         e.preventDefault(); if (e.repeat) return;
         cancel();
         if (h.channel?.(action)) { arm(action); channelArmed = true; }
@@ -176,8 +178,8 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       if (channelArmed && action === armed) { e.preventDefault(); return; }
       // Heal and Inelegant Solution always require a click on the target body; Mental Transfusion too; a charged sniper aim fires on the key instead.
       if (action === 'sniper' && h.fireSniper?.()) { e.preventDefault(); return; }
+      const mode = getCastMode(action, e.code, item && 'item:' + item.id);
       if (UNIT_TARGET_SPELLS.has(action)) { e.preventDefault(); cancel(); return arm(action); }
-      const mode = getCastMode(action, e.code);
       if (held) release(); // modes differ per key: cast the held spell before another key takes over
       if (armed && UNIT_TARGET_SPELLS.has(armed)) arm(null);
       if (attackArmed) arm(null);
@@ -226,7 +228,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       cancel();
       arm(null);
     }
-  });
+  }); // no capture: dialog() and the taunt wheel hold keys in the capture phase, and this listener must stay behind them
 
   return {
     setChannelState(on: boolean) { if (!on && channelArmed) arm(null); },

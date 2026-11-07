@@ -40,8 +40,8 @@ export function randomPlan(rand: () => number): BotPlan {
 
 // a build that works (Normal and Hard, 18/10): 1 or 2 damage spells, 1 escape or defense spell, sometimes 1 control and 1 situational,
 // and 1 or 2 useful items; each pick is drawn inside its group so bots do not all look the same
-const DAMAGE: SpellId[] = ['lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'snowball', 'drain', 'splitter', 'gravity', 'thrust', 'recharge'];
-const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration', 'warpzone', 'rockpillar', 'illusion'];
+const DAMAGE: SpellId[] = ['lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'snowball', 'drain', 'splitter', 'gravity', 'thrust'];
+const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'warpzone', 'rockpillar', 'illusion'];
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize', 'pix'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
@@ -194,7 +194,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   };
   // Aproveita o véu inteiro para reposicionar; outra magia revelaria o bot.
   const veiled = w.t < me.veilUntil;
-  const ready = (s: SpellId) => !veiled && me.spells[s] > 0 && w.t >= me.cd[s] && w.t >= usableAt(s);
+  const ready = (s: SpellId) => !veiled && (me.spells[s] > 0 || s === 'recharge' && me.items.addicted_rings > 0) && w.t >= me.cd[s] && w.t >= usableAt(s);
   // Flagelo e Pacto eram itens e saíam sem a espera humana de `ready` (usableAt): ficam assim para não mudar o jeito dos bots
   const free = (s: SpellId) => !veiled && me.spells[s] > 0 && w.t >= me.cd[s];
   // dentro da pedra com folga (a forma da arena vem de arena.ts); into = direção para dentro a partir do bot
@@ -211,7 +211,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     const r = sub(at, me.pos), c = Math.cos(turn), s = Math.sin(turn);
     // Channeling: a damage spell is charged to full first; the release uses this same aim (difficulty error, lead, slip),
     // and a dodge or walk in the meantime cancels the charge like a player's would
-    if (allowChannel && me.spells.channel > 0 && spellLevel(spell, me.spells[spell]).dmg > 0) {
+    if (allowChannel && spell !== 'recharge' && me.spells.channel > 0 && spellLevel(spell, me.spells[spell]).dmg > 0) {
       if (!me.channel) return (cmds.length = 0, cmds.push({ id, kind: 'channel', spell }), cmds);
       if (me.channel.spell !== spell || w.t - me.channel.since < CHANNEL.max) return cmds;
     }

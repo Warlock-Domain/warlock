@@ -164,7 +164,7 @@ function castSection(): Node[] {
     el('details', { class: 'spell-keys' }, el('summary', {}, t('Uso por magia individual', 'Casting by individual spell')),
       el('div', { class: 'keys-list' }, ...ACTIONS.filter((spell) => spell !== 'scourge' && !clickOnly('spell:' + spell)).map((spell) => castOverride('spell:' + spell, spellName(spell))))),
     el('details', { class: 'spell-keys' }, el('summary', {}, t('Uso por item individual', 'Casting by individual item')),
-      el('p', { class: 'muted' }, t('Escolha o modo dos itens ativos. Itens passivos continuam passivos, independentemente desta preferência.', 'Choose the cast mode for active items. Passive items remain passive regardless of this preference.')),
+      el('p', { class: 'muted' }, t('Estas preferências controlam itens ativos; itens passivos não precisam de ativação.', 'These preferences control active items; passive items need no activation.')),
       el('div', { class: 'keys-list' }, ...ITEM_IDS.map((item) => castOverride('item:' + item, itemName(item))))),
     el('h3', {}, t('Teclas das magias', 'Spell keys')),
     check('slot-keys', isSlotMode(), t('Q W E R D F pela ordem da barra', 'Q W E R D F in bar order'), (on) => (setSlotMode(on), draw())),

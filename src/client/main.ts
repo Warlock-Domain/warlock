@@ -11,7 +11,7 @@ import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type SnapView, type WizView 
 import { ODRAN } from '../shared/bosses.ts';
 import { CANDLE, SERVOS, nightXpAt } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
-import { castLevel, itemStats } from '../shared/items.ts';
+import { activeItemAt, castLevel, itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, UNIT_TARGET_SPELLS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
 import { channelPower } from '../shared/channeling.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
@@ -461,6 +461,10 @@ function startRoom(code: string, name: string) {
   }
   function startLoading() { loadingGate.start(); syncLoading(); }
   const input = createInput(canvas, {
+    itemAt(code) {
+      const mine = room?.players.find(p => p.id === me);
+      return mine && activeItemAt(mine.items, code);
+    },
     cancelNexus() { if ((myWizard(interp.latest())?.nexusTo ?? -1) < 0) return false; command({ t: 'cast', spell: 'nexus', x: 0, y: 0 }); return true; },
     canChannel: () => (room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0,
     channel(spell) {
@@ -551,7 +555,7 @@ function startRoom(code: string, name: string) {
       }
       if (!checkCooldown(spell)) return;
       const state = myWizard(interp.latest())?.status ?? 0;
-      if (spell === 'closedbody' && !(state & BRACING_BIT)) return toast(t('Ative Manter base antes de usar Corpo fechado.', 'Activate Hold Ground before using Closed Body.'));
+
       if (castBlocked(!!(state & 16), !!(state & 128), spell)) return;
       if (spell === 'sniper') {
         const units = interp.latest()?.wizards.map(w => ({...w, team: room?.players.find(p=>p.id===w.id)?.team, hidden: !!(w.status&2048), suspended: (w.geyserLeft || w.transcendLeft || 0)>0})) ?? [];

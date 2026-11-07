@@ -4,7 +4,7 @@ import {
   ISLAND, NO_MODS, PIT, PROJ_SPAWN, RUNE, RUNE_KINDS, SUDDEN, SWORDS, WALL_GAP, WIZ_R, WIZ_SPEED, arenaRadius, type RoundEffectId, type RoundMods, type RuneKind,
 } from './constants.ts';
 import { CELL, SHAPES, teamSpawns, cellAt, edge, inArena, inLavaAt, inward, isleSpot, onIsle, safeInside, type ArenaId, type Isle, type Terrain } from './arena.ts';
-import { AEGIS, CRIT, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
+import { castLevel, AEGIS, CRIT, SHOCK_BOOTS, WIND_BOOTS, itemStats, noItems, type ItemId } from './items.ts';
 import { BOOMERANG, BOUNCER, CAST_POINT, CLOSED_BODY, CLUSTER_FAN, DRAIN, GRAVITY, GRIP, HOMING_TURN, LIGHTNING, LINK, MAGNETIZE, METEOR_DELAY, PACT, PIX, PROJECTILE_COLLISION, RECHARGE, RUSH, SNOWBALL, SPELL_IDS, SPLITTER, THRUST, WARPZONE, WINDWALK, spellLevel, type Level, type SpellId } from './spells.ts';
 import { inCone } from './sand-cone.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
@@ -39,6 +39,7 @@ export type Wizard = {
   blindUntil?: number; // Blindness: sight limited until this time
   transfusion?: { target: string; range: number; level: number }; // Sustained allied cooldown acceleration; range captured at cast.
   incapacitateUntil?: number; // Incapacitate: until this time
+  closedBodyWeak?: boolean;
   closedBodyUntil?: number; // Closed body: active until this time
   geyserLeft?: number; // Geyser: seconds left suspended in the jet
   geyserAt?: Vec; // horizontal anchor: external forces do not move a suspended body
@@ -87,6 +88,7 @@ export type Wizard = {
   r?: number; // body radius when it is not WIZ_R (the giant Campaign boss, ODRAN.size); collisions, hits and blasts read bodyR
   thrustUntil: number; // Estocada em curso até este instante (0 = nenhuma)
   thrustAcc: Vec; // aceleração da Estocada (m/s²)
+  thrustDamage?: number;
   thrustMult: number; // Pacto na Estocada
   slowUntil: number; // lento (Drenar, Bola de neve) até este instante
   slow: number; // m/s a menos enquanto lento
@@ -132,6 +134,7 @@ export const PROJ_KINDS = ['fireball', 'homing', 'swap', 'grip', 'meteor', 'clus
 export type ProjKind = (typeof PROJ_KINDS)[number];
 
 export type Projectile = {
+  healAmount?: number;
   element?: ElementalSphere['element']; // Captured sphere identity survives launch and reflection.
   id: number;
   born?: number; // w.t em que surgiu (os bots só reagem depois do tempo de reação deles)
@@ -236,7 +239,9 @@ export type Pillar = { pos: Vec; hp: number; alive: boolean; kind: ObstacleKind;
 
 export type Zone = { pos: Vec; r: number; kind: 'burn' | 'slow' | 'pull'; until: number; by?: string | null }; // by: quem causou (fogo amigo)
 
+type LightningHop = { at: number; caster: string; target: string; from: Vec; fromId?: string; struck: string[]; power: number; original: number; reach: number; width: number; stats: Level; landed: boolean };
 export type World = {
+  lightningHops?: LightningHop[];
   t: number;
   arena: ArenaId; // formato desta rodada (arena.ts)
   effect: RoundEffectId | null; // efeito sorteado desta rodada (match.ts); null na sandbox e fora da partida
@@ -288,7 +293,7 @@ export function gearOf(items: Partial<Record<ItemId, number>> = {}) {
     crit: st.crit,
     critDmg: st.critDmg,
     afflict: 1 + st.afflict,
-    windBonus: own.wind_boots ? Math.max(0, WIND_BOOTS.speed[own.wind_boots - 1] - st.speed) : 0, // como as de choque: vale a maior das botas
+    windBonus: own.wind_boots ? Math.max(0, WIND_BOOTS.speed - st.speed) : 0, // como as de choque: vale a maior das botas
     rangeF: 1 + st.range, // Elmo: −10%
     lifesteal: st.lifesteal,
     lavaCut: st.lava,
@@ -435,7 +440,7 @@ export const isSuspended = (wz: { geyserLeft?: number; transcendLeft?: number })
 export const isStunned = (wz: { vel: Vec; stunLeft?: number; geyserLeft?: number }) => isSuspended(wz) || (wz.stunLeft === undefined ? isSliding(wz) : wz.stunLeft > 1e-8);
 // velocidade das botas que agem agora: as de choque depois de um golpe, as de vento na calmaria (não somam: vale a maior)
 export const bootsBonus = (w: World, wz: Wizard) =>
-  Math.max(w.t < wz.shockUntil ? wz.shockBonus : 0, wz.windBonus > 0 && w.t - wz.calmSince >= WIND_BOOTS.calm[wz.items.wind_boots - 1] ? wz.windBonus : 0);
+  Math.max(w.t < wz.shockUntil ? wz.shockBonus : 0, wz.windBonus > 0 && w.t - wz.calmSince >= WIND_BOOTS.calm ? wz.windBonus : 0);
 
 export type MovementState = Pick<Wizard, 'pos' | 'vel' | 'target' | 'facing' | 'speed' | 'safe' | 'stunLeft' | 'recoveryLeft' | 'geyserLeft' | 'geyserAt' | 'transcendLeft' | 'transcendAt' | 'channel'>;
 
@@ -512,7 +517,7 @@ export function statusDuration(w: World, wz: Wizard, seconds: number, clock?: Ne
       if (clock === 'gripUntil') { protector.target = null; protector.dashUntil = protector.thrustUntil = 0; if (protector.casting && castBlocked(false, true, protector.casting.spell)) protector.casting = null; }
     }
   }
-  return seconds * (shielded(w, wz) ? SHIELD.statusDuration : 1) * (closedBodyActive(w, wz) ? CLOSED_BODY.statusDuration : 1);
+  return seconds * (shielded(w, wz) ? SHIELD.statusDuration : 1) * (closedBodyActive(w, wz) ? closedBodyFactor(wz, CLOSED_BODY.statusDuration) : 1);
 }
 // Lava, burn and pit loss go straight to the last protector, with no hit event (it ticks 60 times per second)
 // and no Ward, like the loss itself; each protector's shield, invulnerability and Closed body still apply.
@@ -523,10 +528,13 @@ function environmentalDamage(w: World, target: Wizard, damage: number): [victim:
     p.calmSince = w.t;
     target = p;
   }
+  // A body that lost nothing to a protector stores nothing for Thrust: the stun comes from the health the last protector really lost.
+  if (w.t < target.thrustUntil) target.thrustDamage = (target.thrustDamage ?? 0) + Math.max(0, damage);
   target.hp -= damage;
   return [target, damage];
 }
 function externalMotion(w: World, target: Wizard, delta: Vec, field: 'pos' | 'vel', depth = 0) {
+  if (w.t < target.thrustUntil) return; // Thrust ignores external forces, so there is nothing to split with a protector.
   const protector = depth < w.wizards.length ? nexusCaster(w, target) : undefined;
   if (protector) {
     delta = scale(delta, .5);
@@ -534,11 +542,13 @@ function externalMotion(w: World, target: Wizard, delta: Vec, field: 'pos' | 've
   }
   target[field] = add(target[field], scale(delta, 1 - elementalBonuses(target.spheres, w.t, target.transcendence).void)); // each body in a Nexus chain applies its own black spheres
 }
-export const closedBodyActive = (w: World, wz: Wizard) => w.t < (wz.closedBodyUntil ?? 0) && bracingActive(w, wz);
-export const damageFactor = (w: World, wz: Wizard) => (closedBodyActive(w, wz) ? CLOSED_BODY.damage : 1) * (1 - elementalBonuses(wz.spheres, w.t, wz.transcendence).void);
+export const closedBodyActive = (w: World, wz: Wizard) => w.t < (wz.closedBodyUntil ?? 0) && (wz.closedBodyWeak || bracingActive(w, wz));
+export const damageFactor = (w: World, wz: Wizard) => (closedBodyActive(w, wz) ? closedBodyFactor(wz, CLOSED_BODY.damage) : 1) * (1 - elementalBonuses(wz.spheres, w.t, wz.transcendence).void);
 export const bracingActive = (w: World, wz: Wizard) => w.t + 1e-8 >= (wz.braceReadyAt ?? Infinity) && w.t < (wz.braceUntil ?? 0);
 const positiveDuration = (w: World, wz: Wizard, seconds: number) => seconds * (1 + elementalBonuses(wz.spheres, w.t, wz.transcendence).ki);
-const wizardLevel = (w: World, wz: Wizard, spell: SpellId, power = 1) => elementalLevel(channelLevel(spellLevel(spell, wz.spells[spell]), power), elementalBonuses(wz.spheres, w.t, wz.transcendence));
+const closedBodyFactor = (wz: Wizard, factor: number) => wz.closedBodyWeak ? 1 - (1 - factor) * .25 : factor;
+const spellRank = (wz: Wizard, spell: SpellId) => castLevel(wz, spell);
+const wizardLevel = (w: World, wz: Wizard, spell: SpellId, power = 1) => elementalLevel(channelLevel(spellLevel(spell, spellRank(wz, spell)), power), elementalBonuses(wz.spheres, w.t, wz.transcendence));
 export const incapacitatedUntil = (wz: Wizard, now = Infinity) => Math.max(wz.transfusion ? now + DT : 0, wz.incapacitateUntil ?? 0, wz.electroUntil ?? 0, now + 1e-8 >= (wz.braceReadyAt ?? Infinity) ? wz.braceUntil ?? 0 : 0);
 export function applyElectrocution(w: World, wz: Wizard, durationFactor = 1) {
   if (w.t < wz.invulnUntil) return;
@@ -554,6 +564,7 @@ function stun(w: World, wz: Wizard, seconds: number, relay = true) {
 // Resistance to new impulses while Hold ground is active: fixed today; the guard stance grows from 0 to GUARD.max over GUARD.ramp
 export const braceResistance = (w: World, wz: Wizard) => !bracingActive(w, wz) ? 0 : wz.guard ? GUARD.max * Math.min(1, (w.t - (wz.braceReadyAt ?? w.t)) / GUARD.ramp) : BRACE.resistance;
 function addKnock(w: World, wz: Wizard, impulse: Vec, depth = 0) {
+  if (w.t < wz.thrustUntil) return;
   const protector = depth < w.wizards.length ? nexusCaster(w, wz) : undefined;
   if (protector) {
     impulse = scale(impulse, .5);
@@ -561,7 +572,7 @@ function addKnock(w: World, wz: Wizard, impulse: Vec, depth = 0) {
   }
   if (bracingActive(w, wz)) impulse = scale(impulse, 1 - braceResistance(w, wz));
   if (shielded(w, wz)) impulse = scale(impulse, SHIELD.knock);
-  if (closedBodyActive(w, wz)) impulse = scale(impulse, CLOSED_BODY.knock);
+  if (closedBodyActive(w, wz)) impulse = scale(impulse, closedBodyFactor(wz, CLOSED_BODY.knock));
   impulse = scale(impulse, 1 - elementalBonuses(wz.spheres, w.t, wz.transcendence).void);
   wz.vel = add(wz.vel, impulse);
   if (len(impulse) <= 0 || !isSliding(wz)) return;
@@ -615,7 +626,7 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   // runa do Escudo: menos dano levado (o empurrão do golpe continua)
   if (target.rune === 'shield' && w.t < target.runeUntil) dmg *= 1 - RUNE.armor;
   // Botas de choque: golpe de outro mago dá velocidade por alguns segundos
-  if (target.shockBonus > 0 && by !== target.id && dmg > 0) target.shockUntil = w.t + SHOCK_BOOTS.secs[target.items.shock_boots - 1];
+  if (target.shockBonus > 0 && by !== target.id && dmg > 0) target.shockUntil = w.t + SHOCK_BOOTS.secs;
   // Investida: depois do empurrão, absorve metade do golpe (de outro mago) e converte em velocidade
   if (w.t < target.rushUntil && by !== target.id && target.rushLeft > 0) {
     const absorbed = Math.min(target.rushLeft, dmg * RUSH.share);
@@ -627,6 +638,8 @@ function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, d
   const protector = depth < w.wizards.length ? nexusCaster(w, target) : undefined;
   // self-damage (Spikes with no recent attacker) stays the protector's own, never a teammate's hit
   if (protector && dmg > 0) { hit(w, protector, by === target.id ? protector.id : by, dmg * 1.25, 0, dir, src, dmg, true, depth + 1, att); dmg = 0; }
+  // After the Nexus transfer: only damage this body really took feeds its Thrust stun (the recursive hit counts the protector's).
+  if (w.t < target.thrustUntil) target.thrustDamage = (target.thrustDamage ?? 0) + Math.max(0, dmg);
   target.hp -= dmg;
   target.dmgTaken += dmg;
   // Agarrar: o primeiro golpe com dano de outro mago solta o preso e empurra mais longe
@@ -922,41 +935,39 @@ function castLightning(w: World, wz: Wizard, L: Level, dir: Vec, dmgMult: number
     return;
   }
   if (!found) return void w.events.push({ k: 'lightning', width, from: wz.pos, to: end });
-  let target: Wizard | undefined = found.wz;
-  let from = wz.pos, reach = L.range * wz.rangeF, power = dmgMult;
-  const struck = new Set<string>([wz.id]);
-  let landed = false;
-  while (target) {
-    struck.add(target.id); // Each body is hit once; the set terminates the chain without an arbitrary jump limit.
-    w.events.push({ k: 'lightning', width, from, to: target.pos });
-    if (shielded(w, target)) {
-      w.events.push({ k: 'reflect', id: target.id, x: target.pos.x, y: target.pos.y });
-      w.events.push({ k: 'lightning', width, from: target.pos, to: wz.pos });
-      hit(w, wz, target.id, L.dmg * power, L.knock * power, sub(wz.pos, target.pos), 'lightning', L.dmg * dmgMult);
-      applyElectrocution(w, wz, 1 + elementalBonuses(wz.spheres, w.t, wz.transcendence).earth);
-      break; // Reflect back to the caster without starting another chain from the shield.
-    }
-    // Use the original hit's soft cap so reduced damage also reduces each jump's impulse by 50%.
-    hit(w, target, wz.id, L.dmg * power, L.knock * power, sub(target.pos, from), 'lightning', L.dmg * dmgMult);
-    if (!allies(wz, target)) applyElectrocution(w, target, 1 + elementalBonuses(wz.spheres, w.t, wz.transcendence).earth);
-    if (!landed) w.events.push({ k: 'land', id: wz.id, src: 'lightning' });
-    landed = true;
-    from = target.pos;
-    power *= LIGHTNING.jumpPower;
-    let closest = reach;
-    target = undefined;
-    for (const other of w.wizards) {
-      if (!other.alive || isSuspended(other) || struck.has(other.id) || allies(wz, other)) continue;
-      const distance = dist(from, other.pos);
-      if (distance > closest || firstPillarOnSegment(w, from, other.pos, .1)) continue;
-      // Ties preserve wizard order; choosing the next enemy consumes no random draws.
-      if (target && distance === closest) continue;
-      target = other;
-      closest = distance;
-    }
-    if (target) {
-      clearProjectilesOnSegment(w, from, target.pos, width);
-    }
+  lightningHop(w, wz, found.wz, { at: w.t, caster: wz.id, target: found.wz.id, from: { ...wz.pos }, struck: [wz.id], power: dmgMult, original: dmgMult, reach: L.range * wz.rangeF, width, stats: L, landed: false });
+}
+function lightningHop(w: World, caster: Wizard, target: Wizard, hop: LightningHop) {
+  const { stats: L, width, power, from } = hop;
+  const struck = [...hop.struck, target.id];
+  w.events.push({ k: 'lightning', width, from, to: { ...target.pos } });
+  if (shielded(w, target)) {
+    w.events.push({ k: 'reflect', id: target.id, x: target.pos.x, y: target.pos.y }, { k: 'lightning', width, from: { ...target.pos }, to: { ...caster.pos } });
+    if (!caster.alive) return; // a delayed hop can reach a Shield after its caster died: no hit or status on the dead body
+    hit(w, caster, target.id, L.dmg * power, L.knock * power, sub(caster.pos, target.pos), 'lightning', L.dmg * hop.original);
+    applyElectrocution(w, caster, 1 + elementalBonuses(caster.spheres, w.t, caster.transcendence).earth); return;
+  }
+  hit(w, target, caster.id, L.dmg * power, L.knock * power, sub(target.pos, from), 'lightning', L.dmg * hop.original);
+  if (!allies(caster, target)) applyElectrocution(w, target, 1 + elementalBonuses(caster.spheres, w.t, caster.transcendence).earth);
+  if (!hop.landed) w.events.push({ k: 'land', id: caster.id, src: 'lightning' });
+  let next: Wizard | undefined, closest = hop.reach;
+  for (const other of w.wizards) {
+    if (!other.alive || isSuspended(other) || struck.includes(other.id) || allies(caster, other)) continue;
+    const distance = dist(target.pos, other.pos);
+    if (distance > closest || firstPillarOnSegment(w, target.pos, other.pos, .1) || (next && distance === closest)) continue;
+    next = other; closest = distance;
+  }
+  if (next) (w.lightningHops ??= []).push({ ...hop, at: w.t + LIGHTNING.jumpDelay, from: { ...target.pos }, fromId: target.id, target: next.id, struck, power: power * LIGHTNING.jumpPower, landed: true });
+}
+function advanceLightning(w: World) {
+  const queued = w.lightningHops ?? []; w.lightningHops = [];
+  for (const hop of queued) {
+    if (hop.at > w.t + 1e-9) { w.lightningHops.push(hop); continue; }
+    const caster = anyById(w, hop.caster), target = byId(w, hop.target);
+    const from = anyById(w, hop.fromId ?? null)?.pos ?? hop.from;
+    if (!caster || !target || isSuspended(target) || dist(from, target.pos) > hop.reach || firstPillarOnSegment(w, from, target.pos, .1)) continue;
+    clearProjectilesOnSegment(w, from, target.pos, hop.width);
+    lightningHop(w, caster, target, { ...hop, from: { ...from } });
   }
 }
 
@@ -969,7 +980,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec, power = 1, aimedId?
   // so a controlled wizard's own targets do not repeat the copy
   if (copy === undefined && wz.cd[spell] !== ready) for (const z of puppetsOf(w, wz)) {
     // the copy aims at the caster's point (the two shots make a V, Fernando 26/10); standing on it, the caster's direction
-    if (!isSuspended(z) && !castBlocked(isStunned(z), w.t < z.gripUntil, spell)) cast(w, z, spell, dist(at, z.pos) > .01 ? at : add(z.pos, sub(at, from)), power, aimedId, wz.spells[spell]);
+    if (!isSuspended(z) && !castBlocked(isStunned(z), w.t < z.gripUntil, spell)) cast(w, z, spell, dist(at, z.pos) > .01 ? at : add(z.pos, sub(at, from)), power, aimedId, spellRank(wz, spell));
   }
 }
 
@@ -977,7 +988,7 @@ const canTranscend = (wz: Wizard) => wz.spells.transcend > 0 && wz.spells.elemen
 function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number, aimedId?: string, copy?: number) {
   if (spell === 'transcend' && !canTranscend(wz)) return;
   if (spell === 'channel' || spell === 'elemental') return;
-  const level = copy ?? wz.spells[spell];
+  const level = copy ?? spellRank(wz, spell);
   if (!level || (copy === undefined && w.t < wz.cd[spell])) return;
   const bonus = elementalBonuses(wz.spheres, w.t, wz.transcendence);
   const L = elementalLevel(channelLevel(spellLevel(spell, level), power), bonus);
@@ -988,7 +999,7 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
   if (spell === 'nexus' && !soul) return;
   const recipient = spell === 'heal' ? healTarget(w.wizards, wz, at, L.range * wz.rangeF) : undefined;
   if (spell === 'heal' && !recipient) return;
-  if (spell === 'closedbody' && !bracingActive(w, wz)) return;
+
   const aimed = spell === 'sniper' ? sniperVictim(w,wz,at,L.range*wz.rangeF,aimedId) : undefined;
   if (spell === 'sniper' && !aimed) return;
   if (copy === undefined) wz.cd[spell] = w.t + L.cd;
@@ -1045,6 +1056,7 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
   }
   if (spell === 'scourge') return scourge(w, wz, L, dmgMult);
   if (spell === 'closedbody') {
+    wz.closedBodyWeak = !bracingActive(w, wz);
     wz.closedBodyUntil = w.t + positiveDuration(w, wz, L.duration);
     return;
   }
@@ -1113,7 +1125,7 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
     wz.vel = scale(dir, THRUST.start * L.speed);
     wz.thrustAcc = scale(dir, L.speed * THRUST.accel);
     wz.thrustUntil = w.t + THRUST.extra + d / L.speed;
-    wz.thrustStats = L; wz.thrustMult = dmgMult;
+    wz.thrustStats = L; wz.thrustMult = dmgMult; wz.thrustDamage = 0;
     wz.target = null;
   } else if (spell === 'rockpillar') {
     castRockpillar(w, wz, L, at, dmgMult);
@@ -1182,7 +1194,7 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   if (spell === 'transcend' && !canTranscend(wz)) return;
   if (spell === 'channel') return;
   if (castBlocked(isStunned(wz), w.t < wz.gripUntil, spell)) return;
-  if (spell === 'closedbody' && !bracingActive(w, wz)) return;
+
   // a mesma magia já sendo conjurada: ignora a tecla repetida (a recarga só começa quando ela sai)
   if (wz.casting?.spell === spell && spell !== 'sniper') return;
   // Flagelo em preparo: nada mais sai até ele explodir, menos o Teleporte, que cancela a explosão (pedidos do Fernando, 17/10)
@@ -1197,7 +1209,7 @@ function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
     wz.casting = null;
     return cast(w, wz, 'sniper', c.at, c.power, c.aimedId);
   }
-  if (!wz.spells[spell] || w.t < wz.cd[spell]) return;
+  if (!spellRank(wz, spell) || w.t < wz.cd[spell]) return;
   if (spell === 'nexus' && !validNexusTarget(w, wz, at, wizardLevel(w, wz, spell, wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1).range * wz.rangeF)) return;
   // An invalid target neither reveals the wizard nor cancels another action.
   if (spell === 'transfusion' && !allyTarget(w.wizards.filter((z) => !isSuspended(z)), wz, at, wizardLevel(w, wz, spell, wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1).range * wz.rangeF)) return;
@@ -1418,7 +1430,7 @@ function stepThrust(w: World, wz: Wizard) {
   wz.vel = add(wz.vel, scale(wz.thrustAcc, DT));
   const L = wz.thrustStats ?? spellLevel('thrust', wz.spells.thrust);
   for (const o of w.wizards) {
-    if (!o.alive || o === wz) continue;
+    if (!o.alive || o === wz || allies(wz, o) || isSuspended(o)) continue;
     const n = norm(sub(o.pos, wz.pos));
     if (dist(o.pos, wz.pos) > bodyR(wz) + bodyR(o) + THRUST.reach + bubble(w, o)) continue; // the giant boss is touched at its own edge
     if (shielded(w, o)) {
@@ -1432,7 +1444,8 @@ function stepThrust(w: World, wz: Wizard) {
     const k = Math.min(1, dot(wz.vel, wz.vel) / (L.speed * L.speed) / THRUST.full);
     wz.vel = v(0, 0);
     wz.thrustUntil = 0;
-    hit(w, o, wz.id, L.dmg * k * wz.thrustMult, L.knock * k * wz.thrustMult, n, 'thrust');
+    hit(w, o, wz.id, Math.max(50, L.dmg * k) * wz.thrustMult, 0, n, 'thrust');
+    if ((wz.thrustDamage ?? 0) > 0) stun(w, o, wz.thrustDamage! / 100);
     w.events.push({ k: 'land', id: wz.id, src: 'thrust' });
     return;
   }
@@ -1528,11 +1541,13 @@ function alter(w: World, p: Projectile, next: Vec): boolean {
   if (p.kind === 'gravity') return false;
   const owner = anyById(w, p.owner);
   for (const z of w.wizards) {
-    if (!z.alive || isSuspended(z) || w.t >= z.alterUntil || z.id === p.owner || allies(owner, z)) continue;
-    if (dist(next, z.pos) > wizardLevel(w, z, 'alteration').radius + projectileRadius(p) || dot(p.vel, sub(z.pos, p.pos)) <= 0) continue;
+    const passiveReady = z.items.glitch_cape > 0 && w.t >= z.cd.alteration;
+    if (!z.alive || isSuspended(z) || (w.t >= z.alterUntil && !passiveReady) || z.id === p.owner || allies(owner, z)) continue;
+    if (dist(next, z.pos) > (passiveReady ? spellLevel('alteration', 1).radius : wizardLevel(w, z, 'alteration').radius) + projectileRadius(p) || dot(p.vel, sub(z.pos, p.pos)) <= 0) continue;
     const from = z.pos;
     [z.pos, p.pos] = [p.pos, from];
     z.alterUntil = 0;
+    if (passiveReady) z.cd.alteration = w.t + spellLevel('alteration', 1).cd;
     w.events.push({ k: 'teleport', id: z.id, from, to: z.pos }, { k: 'land', id: z.id, src: 'alteration' });
     return true;
   }
@@ -1545,7 +1560,7 @@ function flyBack(w: World, p: Projectile, dt: number): boolean {
   if (!to || w.t >= p.until) return false;
   const drain = p.kind === 'drain';
   if (dist(to.pos, p.pos) < (drain ? DRAIN.reach : RECHARGE.reach)) {
-    if (drain) heal(w, to, projectileLevel(p).heal * p.dmgMult);
+    if (drain) heal(w, to, p.healAmount ?? projectileLevel(p).heal * p.dmgMult);
     else to.cd.recharge = w.t;
     return false;
   }
@@ -1564,10 +1579,14 @@ function drainHit(w: World, p: Projectile, wz: Wizard, L: Level) {
     wz.hasteUntil = w.t + L.duration * (p.ki ?? 1);
     return;
   }
+  const before = wz.hp;
   hit(w, wz, p.owner, amount, L.knock * p.dmgMult, p.vel, 'drain');
+  const dealt = Math.min(before, Math.max(0, before - wz.hp));
   slowDown(w, wz, DRAIN.slow, L.duration * wz.debuffMult * afflictBy(w, p.owner) * (p.debuff ?? 1));
   land(w, p, 'drain');
-  w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'drain', power: p.power, owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + DRAIN.life, target: p.owner, dmgMult: p.dmgMult, caster: p.caster, ...inherit(p), back: true });
+  const recipient = owner && w.wizards.filter(z => z.alive && !isSuspended(z) && (z === owner || allies(owner, z))).sort((a, b) => dist(a.pos, wz.pos) - dist(b.pos, wz.pos))[0];
+  if (!recipient || dealt <= 0) return;
+  w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'drain', healAmount: dealt, power: p.power, owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + DRAIN.life, target: recipient.id, dmgMult: p.dmgMult, caster: p.caster, ...inherit(p), back: true });
 }
 
 export const snowR = (level: number) => SNOWBALL.coll + SNOWBALL.perLevel * (level - 1);
@@ -1678,7 +1697,8 @@ function linkHold(w: World, p: Projectile): boolean {
   if (p.pillar !== undefined) {
     const q = w.pillars[p.pillar];
     if (!q.alive || dist(owner.pos, q.pos) < OBSTACLES[q.kind].r + WIZ_R + LINK.pillarGap) return false;
-    owner.vel = add(owner.vel, scale(norm(sub(q.pos, owner.pos)), L.pull * DT * (1 - elementalBonuses(owner.spheres, w.t, owner.transcendence).void))); // the owner's own pull, not an external force
+    // the owner's own pull, not an external force (a Nexus protector never shares it), and a Thrust dash still ignores it
+    if (w.t >= owner.thrustUntil) owner.vel = add(owner.vel, scale(norm(sub(q.pos, owner.pos)), L.pull * DT * (1 - elementalBonuses(owner.spheres, w.t, owner.transcendence).void)));
     return true;
   }
   const o = byId(w, p.target);
@@ -1687,7 +1707,8 @@ function linkHold(w: World, p: Projectile): boolean {
   p.pos = o.pos;
   if (w.t >= (p.tick ?? 0)) {
     p.tick = w.t + LINK.tick;
-    if (!allies(owner, o)) hit(w, o, p.owner, L.dmg * LINK.tick * p.dmgMult, 0, v(0, 0), 'link');
+    if (allies(owner, o)) heal(w, o, L.dmg * LINK.tick * p.dmgMult);
+    else hit(w, o, p.owner, L.dmg * LINK.tick * p.dmgMult, 0, v(0, 0), 'link');
   }
   return true;
 }
@@ -2031,7 +2052,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
 export function revive(w: World, wz: Wizard, pos: Vec) {
   Object.assign(wz, {
     alive: true, pos, vel: v(0, 0), target: null, casting: null, channel: undefined, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
-    nexus: undefined, transfusion: undefined, transcendLeft: 0, transcendAt: undefined, thrustStats: undefined, windStats: undefined, spheres: undefined, blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined, puppetBy: undefined, puppetUntil: 0,
+    nexus: undefined, transfusion: undefined, transcendLeft: 0, transcendAt: undefined, thrustStats: undefined, windStats: undefined, spheres: undefined, closedBodyWeak: false, blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined, puppetBy: undefined, puppetUntil: 0,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
     rune: null, runeUntil: 0, braceUntil: 0, braceReadyAt: 0, electroUntil: 0, basicCasting: undefined,
@@ -2299,7 +2320,7 @@ function applyCmd(w: World, wz: Wizard, c: Cmd) {
     if (c.on && w.t >= (wz.braceUntil ?? 0)) wz.channel = undefined;
     if (c.on && w.t >= (wz.braceUntil ?? 0)) wz.braceReadyAt = w.t + (wz.guard ? 0 : BRACE.windup); // the guard stance counts at once (grill of 25/10)
     wz.braceUntil = c.on ? w.t + BRACE.lease : 0;
-    if (!c.on) wz.closedBodyUntil = 0;
+    if (!c.on && !wz.closedBodyWeak) wz.closedBodyUntil = 0;
   } else if (c.kind === 'basic') {
     beginBasic(w, wz, c);
   } else if (c.kind === 'moveHold') {
@@ -2347,7 +2368,7 @@ function prepWizards(w: World, rand: () => number) {
     if (!wz.alive && w.dm && w.t >= wz.respawnAt) respawn(w, wz, rand);
     if (!wz.alive) { wz.transfusion = undefined; continue; }
     if (wz.transfusion && !transfusionAlly(w, wz)) wz.transfusion = undefined;
-    if (!bracingActive(w, wz)) wz.closedBodyUntil = 0; // Releasing S or losing the stance ends it; holding again does not renew it.
+    if (!wz.closedBodyWeak && !bracingActive(w, wz)) wz.closedBodyUntil = 0; // Releasing S or losing the stance ends it; holding again does not renew it.
     if (!wz.spells.channel || isStunned(wz) || (wz.channel && castBlocked(false, w.t < wz.gripUntil, wz.channel.spell))) wz.channel = undefined;
     if (isStunned(wz)) wz.basicCasting = undefined;
     if (puppeteer(w, wz)) mark(w, wz, wz.puppetBy!, 'pix'); // a fall into the lava while controlled is the controller's kill
@@ -2387,6 +2408,7 @@ function prepWizards(w: World, rand: () => number) {
       for (const s of SPELL_IDS) if (wz.cd[s] > w.t) wz.cd[s] -= extraT;
     }
     wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1) * (w.map && cellAt(w.map, wz.pos.x, wz.pos.y) === CELL.wax ? ZONES.slow.mult : 1) * (inWarp(w, wz) ? WARPZONE.wizMult : 1) * haste * w.mods.speed);
+    if (wz.closedBodyWeak && closedBodyActive(w, wz)) wz.speed *= .5;
     wz.speed *= 1 - elementalPenalty(elementalBonuses(wz.spheres, w.t, wz.transcendence).ki, wz.transcendence?.complete);
     if (w.t < (wz.electroUntil ?? 0)) wz.speed *= 1 - LIGHTNING.slow;
     if (rooted) wz.target = null;
@@ -2553,6 +2575,7 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   applyCmds(w, cmds);
   for (const z of w.wizards) if (z.nexus && !nexusAlly(w, z)) z.nexus = undefined;
   prepWizards(w, rand);
+  advanceLightning(w);
   for (const z of w.wizards) {
     if (!z.alive || isSuspended(z) || !z.spells.elemental || z.transcendence?.complete || w.t < z.cd.elemental) continue;
     const spheres = z.spheres = (z.spheres ?? []).filter(s => s.until > w.t);

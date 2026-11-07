@@ -4,7 +4,7 @@ import { SHAPES, type ArenaId } from '../shared/arena.ts';
 import { PIX_COLOR, PIX_TIE } from './proj-models.ts';
 import { BASIC_ATTACK, BRACE, DT, KNOCK_RECOVERY, OBSTACLES, PROJ_R, WIZ_R } from '../shared/constants.ts';
 import { ITEMS, noItems, type ItemId } from '../shared/items.ts';
-import { bracingActive, incapacitatedUntil, isStunned, newWorld, snowR, spellOf, stepWorld, type Cmd, type Projectile, type SimEvent, type Wizard, type World } from '../shared/sim.ts';
+import { bracingActive, closedBodyActive, incapacitatedUntil, isStunned, newWorld, snowR, spellOf, stepWorld, type Cmd, type Projectile, type SimEvent, type Wizard, type World } from '../shared/sim.ts';
 import { BLINDNESS, CAST_POINT, GRIP, METEOR_DELAY, PIX, SHIELD, isSpell, noSpells, spellLevel, type SpellId } from '../shared/spells.ts';
 import { add, scale, v, type Vec } from '../shared/vec.ts';
 import { LOCALE, spellName, t } from './i18n.ts';
@@ -107,7 +107,8 @@ export function demoStatus(w: World, z: Wizard): string[] {
     return [bonus >= 0 ? t(`canalizando ${n1(elapsed)} s · +${bonus}% · clique para lançar`, `channeling ${n1(elapsed)} s · +${bonus}% · click to cast`) : t(`canalizando ${n1(elapsed)} s · lança após 1 s`, `channeling ${n1(elapsed)} s · casts after 1 s`)];
   }
   if(w.t < (z.blindUntil ?? 0)) return [t('cegueira · visão 3 m','blindness · sight 3 m'), ...(w.t < (z.incapacitateUntil ?? 0) ? [t('incapacitado · recargas pausadas','incapacitated · cooldowns paused')] : [])];
-  if (w.t < (z.closedBodyUntil ?? 0) && bracingActive(w,z)) return [t('Corpo fechado · direção mantida · dano/empurrão/status −90%', 'Closed Body · facing preserved · damage/knockback/status −90%')];
+  if (closedBodyActive(w, z) && z.closedBodyWeak) return [t('Corpo fechado fraco · 50% mais lento · dano/empurrão/status −22,5%', 'Weak Closed Body · 50% slower · damage/knockback/status −22.5%')];
+  if (closedBodyActive(w, z)) return [t('Corpo fechado · direção mantida · dano/empurrão/status −90%', 'Closed Body · facing preserved · damage/knockback/status −90%')];
   if ((z.transcendLeft ?? 0) > 0) return [t('transcendendo · invulnerável · sem ações', 'transcending · invulnerable · no actions')];
   if (z.transcendence?.complete) return [t('transcendido · sem penalidades', 'transcended · no drawbacks')];
   if ((z.geyserLeft ?? 0) > 0) return [t('suspenso · invulnerável · sem ações', 'suspended · invulnerable · no actions')];
@@ -122,7 +123,7 @@ export function demoStatus(w: World, z: Wizard): string[] {
   if (z.zone & 2) labels.push(t('queimando · dano contínuo', 'burning · continuous damage'));
   if (w.t < z.windUntil) labels.push(t('corrida · visível', 'sprint · visible'));
   if (w.t < z.magnetUntil && z.magnet > 0) labels.push(t('magnetizado · atrai projéteis', 'magnetized · attracts projectiles'));
-  if (w.projectiles.some((p) => p.kind === 'link' && p.target === z.id)) labels.push(t('Elo · puxão', 'tether · pull'));
+  if (w.projectiles.some((p) => p.kind === 'link' && p.target === z.id)) labels.push(t('Gancho mágico · puxão', 'Magic Hook · pull'));
   if ((z.recoveryLeft ?? 0) > 1e-8) {
     const fraction = KNOCK_RECOVERY.start + KNOCK_RECOVERY.step * Math.floor((KNOCK_RECOVERY.seconds - z.recoveryLeft! + 1e-8) / KNOCK_RECOVERY.interval);
     labels.push(t(`recuperação · caminhada ${Math.round(fraction * 100)}%`, `recovery · walking ${Math.round(fraction * 100)}%`));
