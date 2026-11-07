@@ -1404,6 +1404,11 @@ div.shop-tile { border-color: var(--line); box-sizing: border-box; }
 @media (hover: hover) { .asc-card:hover { transform: translateY(-2px); } }
 @media (prefers-reduced-motion: reduce) { .asc-card:hover { transform: none; } }
 
+.room-wait .team-choice { font: inherit; color: var(--fg); background: var(--panel2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: var(--sp-6) var(--sp-8); min-height: 36px; }
+.bot-row:has(.team-choice) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-6); }
+.bot-row:has(.team-choice) > span { grid-column: 1 / -1; }
+.bot-row:has(.team-choice) select { min-width: 0; width: 100%; }
+
 /* Forum (forum.html, issue #366): a classic, clean light page with its own tokens, the one exception to the dark :root palette
    (Fernando, grill of 25/10). Only these --fm-* colours are loose; sizes still come from the :root scale */
 body.forum-page {

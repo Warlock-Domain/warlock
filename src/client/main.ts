@@ -349,7 +349,8 @@ function startRoom(code: string, name: string) {
       net.send({ t: 'start', bots: bots.length, mode, shuffle, opts, setup: bots.map((difficulty, i) => ({ ...trainSetup?.[i], difficulty })) });
     },
     buy: (spell) => net.send({ t: 'buy', spell }),
-    lobby: (bots, opts) => net.send({ t: 'lobby', bots, opts }),
+    lobby: (bots, opts, setup) => net.send(setup === undefined ? { t: 'lobby', bots, opts } : { t: 'teamSetup', bots, opts, setup }),
+    team: (team, bot) => net.send({ t: 'team', team, ...(bot === undefined ? {} : { bot }) }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),
     kick: (target) => net.send({ t: 'kick', target }),
     vote: (kind, target) => net.send({ t: 'vote', kind, target }),

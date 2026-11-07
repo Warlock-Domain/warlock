@@ -70,6 +70,7 @@ function room(x: unknown): x is PublicRoom {
   if (x.lobby !== undefined) {
     const lobby = x.lobby;
     if (!object(lobby) || !nullableString(lobby.owner) || !Array.isArray(lobby.bots) || !lobby.bots.every((d) => (OPTION_CHOICES.difficulty as readonly unknown[]).includes(d)) || !validOpts(lobby.opts, true)) return false;
+    if (lobby.teams !== undefined && (!object(lobby.teams) || typeof lobby.teams.manual !== 'boolean' || typeof lobby.teams.shuffle !== 'boolean' || !Array.isArray(lobby.teams.botTeams) || lobby.teams.botTeams.length !== lobby.bots.length || !lobby.teams.botTeams.every(team => team === null || (integer(team) && team >= 0 && team < 4)))) return false;
   }
   return true;
 }
