@@ -19,14 +19,14 @@ const setup = (range = 3) => {
 };
 
 describe('authoritative Attack movement', () => {
-  it.each(['far', 'dead', 'hidden', 'ally', 'cooldown', 'wall'])('keeps walking after a rejected %s attack', (reason) => {
-    const { w, p, snap } = setup(reason === 'far' ? 10 : 3);
-    if (reason === 'dead') w.wizards[1].alive = false;
-    if (reason === 'hidden') w.wizards[1].veilUntil = 5;
-    if (reason === 'ally') w.wizards.forEach(z => z.team = 1);
+  // A far, dead, hidden or allied click is just a ground shot now (tests/attack-manual.test.ts), so it stops the wizard like any Attack.
+  it.each(['cooldown', 'wall', 'channel'])('keeps walking after a rejected %s attack', (reason) => {
+    const { w, p, snap } = setup();
     if (reason === 'cooldown') w.wizards[0].basicReadyAt = 5;
-    if (reason === 'wall') w.pillars.push({ pos: v(1.5, 0), kind: 'rock', hp: 400, alive: true });
-    stepWorld(w, [{ id: 'p0', kind: 'basic', at: v(3, 0), target: 'p1' }], () => .5);
+    if (reason === 'channel') w.wizards[0].spells.channel = 1;
+    // Melee is the only Attack a wall refuses: the wall stands between the wizard and a close enemy, off the walking line.
+    if (reason === 'wall') { w.wizards[1].pos = v(-.72, .91); w.pillars.push({ pos: v(-.6, .76), kind: 'pillar', hp: 400, alive: true }); }
+    stepWorld(w, [{ id: 'p0', kind: 'basic', at: w.wizards[1].pos, target: 'p1' }], () => .5);
     expect(w.wizards[0].basicCasting).toBeUndefined();
     for (let i = 0; i < 8; i++) { stepWorld(w, [], () => .5); p.frame(snap(), DT); }
     expect(p.frame(snap(), 0).x).toBeCloseTo(w.wizards[0].pos.x, 1);

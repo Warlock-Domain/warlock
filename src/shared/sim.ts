@@ -27,7 +27,7 @@ export type Wizard = {
   stunLeft?: number; // bloqueio de controle separado da velocidade física.
   recoveryLeft?: number; // retomada disparada pelo fim do impulso, não pelo fim de qualquer stun.
   basicReadyAt?: number; // Attack cooldown
-  basicCasting?: { target: string | number; fireAt: number; melee: boolean; arc?: number }; // Attack windup in progress; arc: direction of the melee arc (no target)
+  basicCasting?: { target: string | number; fireAt: number; melee: boolean; arc?: number; at?: Vec }; // Attack windup in progress; arc: direction of the melee arc (no target)
   braceUntil?: number; // Hold ground: resists only new impulses while S is held
   braceReadyAt?: number; // effects start only after the continuous 0.5 s windup
   arc?: boolean; // alternative Attack chosen in the shop: melee arc (MELEE_ARC); bots never set it
@@ -2185,7 +2185,6 @@ const BASIC_STATS: Level = { heal: 0, cd: BASIC_ATTACK.cd, dmg: BASIC_ATTACK.dmg
 const basicStats = (w: World, wz: Wizard) => elementalLevel({ ...BASIC_STATS, knock: BASIC_ATTACK.knock }, elementalBonuses(wz.spheres, w.t));
 const edgeOf = (z: Wizard | Projectile) => ('alive' in z ? bodyR(z) : WIZ_R); // an Illusion copy has a wizard's body
 function beginBasic(w: World, wz: Wizard, c: Extract<Cmd, { kind: 'basic' }>) {
-  const basic = basicStats(w, wz);
   if (!wz.alive || wz.spells.channel > 0 || wz.channel || isStunned(wz) || wz.casting || wz.basicCasting || w.t < (wz.basicReadyAt ?? 0)) return;
   if (wz.arc) {
     // Golpe em arco: sem alvo, na direção do cursor; quem estiver no arco quando o preparo termina leva o golpe
@@ -2195,13 +2194,14 @@ function beginBasic(w: World, wz: Wizard, c: Extract<Cmd, { kind: 'basic' }>) {
     wz.moveHeld = false;
     return;
   }
-  // Clique num corpo tem prioridade; no chão escolhe o mais próximo do atacante, sem caça automática.
+  // A close body under the click selects melee; ground clicks never acquire a different target.
   const bodies: (Wizard | Projectile)[] = [...w.wizards.filter((z) => attackBody(w, wz, z.id)), ...enemyDecoys(w, wz.id)];
   const clicked = bodies.filter((z) => dist(z.pos, c.at) <= edgeOf(z) + WIZ_R).sort((a, b) => dist(a.pos, c.at) - dist(b.pos, c.at))[0];
-  const target = c.target !== undefined ? attackBody(w, wz, c.target) : clicked ?? bodies.filter((z) => dist(z.pos, wz.pos) <= basic.range).sort((a, b) => dist(a.pos, wz.pos) - dist(b.pos, wz.pos))[0];
-  if (!target || dist(target.pos, wz.pos) > basic.range || firstPillarOnSegment(w, wz.pos, target.pos, .05)) return;
-  wz.basicCasting = { target: target.id, fireAt: w.t + BASIC_ATTACK.windup, melee: dist(wz.pos, target.pos) <= BASIC_ATTACK.melee + edgeOf(target) - WIZ_R }; // the giant boss is reached at its own edge
-  wz.facing = Math.atan2(target.pos.y - wz.pos.y, target.pos.x - wz.pos.x);
+  const target = clicked && dist(wz.pos, clicked.pos) <= BASIC_ATTACK.melee + edgeOf(clicked) - WIZ_R ? clicked : undefined; // the giant boss is reached at its own edge
+  if (target && firstPillarOnSegment(w, wz.pos, target.pos, .05)) return;
+  const aim = sub(c.at, wz.pos);
+  if (len(aim) > .001) wz.facing = Math.atan2(aim.y, aim.x);
+  wz.basicCasting = { target: target?.id ?? '', fireAt: w.t + BASIC_ATTACK.windup, melee: !!target, at: { ...c.at } };
   wz.target = null;
   wz.moveHeld = false;
 }
@@ -2210,20 +2210,20 @@ function finishBasic(w: World, wz: Wizard) {
   const pending = wz.basicCasting!;
   wz.basicCasting = undefined;
   if (pending.arc !== undefined) return finishArc(w, wz, pending.arc);
-  const target = attackBody(w, wz, pending.target);
-  const range = pending.melee ? BASIC_ATTACK.melee + (target ? edgeOf(target) : WIZ_R) - WIZ_R : basic.range;
-  if (!target || dist(target.pos, wz.pos) > range || firstPillarOnSegment(w, wz.pos, target.pos, .05)) return;
-  const d = norm(sub(target.pos, wz.pos));
+  const target = pending.melee ? attackBody(w, wz, pending.target) : undefined;
+  if (pending.melee && (!target || dist(target.pos, wz.pos) > BASIC_ATTACK.melee + edgeOf(target) - WIZ_R || firstPillarOnSegment(w, wz.pos, target.pos, .05))) return;
+  const aim = sub(target ? target.pos : pending.at ?? wz.pos, wz.pos);
+  const d = len(aim) > .001 ? norm(aim) : v(Math.cos(wz.facing), Math.sin(wz.facing));
   wz.facing = Math.atan2(d.y, d.x);
   wz.basicReadyAt = w.t + BASIC_ATTACK.cd;
   wz.veilUntil = wz.windUntil = 0; // só o golpe liberado revela; preparo cancelado não gasta recarga.
   w.events.push({ k: 'attack', id: wz.id, melee: pending.melee });
-  if (pending.melee) {
+  if (target) {
     if ('alive' in target) hit(w, target, wz.id, basic.dmg, basic.knock, d, 'basic');
     else pushDecoy(target, scale(d, basic.knock), basic.dmg);
     return;
   }
-  w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'basic', owner: wz.id, caster: wz.id, pos: add(wz.pos, scale(d, PROJ_SPAWN)), vel: scale(d, basic.speed), level: 1, until: w.t + basic.range / basic.speed, target: null, lockOn: target.id, size: 1 + bonus.earth, water: 1 + bonus.water, ki: 1 + bonus.ki, stats: { ...basic, knock: 0 }, src: 'basic', dmgMult: 1 });
+  w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'basic', owner: wz.id, caster: wz.id, pos: add(wz.pos, scale(d, PROJ_SPAWN)), vel: scale(d, basic.speed), level: 1, until: w.t + basic.range / basic.speed, target: null, size: 1 + bonus.earth, water: 1 + bonus.water, ki: 1 + bonus.ki, stats: { ...basic, knock: 0 }, src: 'basic', dmgMult: 1 });
 }
 
 // Melee arc (issue #402): every enemy body whose edge enters MELEE_ARC.range inside the arc takes the Attack's damage and push.

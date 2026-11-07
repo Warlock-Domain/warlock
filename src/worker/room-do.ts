@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
+import { chooseLobbyTeam, configureTeamLobby, teamStartLocked } from '../shared/team-lobby.ts';
 import { DT, SEND_EVERY } from '../shared/constants.ts';
-import { chooseCard, reroll, setAscLobby } from '../shared/ascension.ts';
+import { ascOwner, chooseCard, reroll, setAscLobby } from '../shared/ascension.ts';
 import { lookOf } from '../shared/characters.ts';
 import { campaignReaders, setReading, addPlayer, buy, buyItem, castBallot, endIdle, kick, newMatch, nightPick, undoBuy, removePlayer, resume, sandboxCmd, sell, setAlt, setLook, setReady, setWatch, shouldRun, startMatch, startVote, tickMatch, type Match, type RoomMode } from '../shared/match.ts';
 import { cmdTarget, parseClientMessage, publicId, publicRoom, type RoomInfo, type ServerMsg } from '../shared/protocol.ts';
@@ -56,6 +57,7 @@ export class Room extends DurableObject<Env> {
         // depois de reiniciar, conectado é só quem tem socket vivo agora
         const liveIds = new Set(this.live().map((ws) => this.playerOf(ws)));
         for (const p of this.saved.match.players) if (!p.bot) p.connected = liveIds.has(p.id);
+        ascOwner(this.saved.match); // an owner who vanished during the restart gets no close event
         // a sala reiniciou (ex.: publicação nova) com gente conectada: avisa a fase nova e religa o laço.
         // Sem ninguém (ex.: o alarme de limpeza acordou a sala), não mexe no lobby nem no alarme.
         if (this.live().length) void this.changed();
@@ -188,7 +190,7 @@ export class Room extends DurableObject<Env> {
         this.acks.set(id, msg.seq);
         return;
       case 'start':
-        if (startMatch(m, now, msg.bots, msg.mode, msg.shuffle ?? true, Math.random, msg.opts, msg.setup, msg.sandbox)) await this.changed();
+        if (!teamStartLocked(m.lobby, id) && startMatch(m, now, msg.bots, msg.mode, msg.shuffle ?? true, Math.random, msg.opts, msg.setup, msg.sandbox)) await this.changed();
         // a silent refusal would leave the sender's loading screen waiting for a room that never comes
         else if (m.phase === 'lobby' || m.phase === 'end') send(ws, { t: 'error', code: 'bad_msg', msg: 'Não deu para começar a partida.' });
         return;
@@ -267,6 +269,12 @@ export class Room extends DurableObject<Env> {
         return;
       case 'lobby':
         if (setAscLobby(m, id, msg.bots, msg.opts)) await this.changed();
+        return;
+      case 'teamSetup':
+        if (configureTeamLobby(m, id, msg.bots, msg.opts, msg.setup)) await this.changed();
+        return;
+      case 'team':
+        if (chooseLobbyTeam(m, id, msg.team, msg.bot)) await this.changed();
         return;
     }
   }

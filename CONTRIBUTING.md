@@ -21,6 +21,8 @@ This is the contributor guide for humans and AI agents. It covers setup, coordin
    ```
 
    The game runs at `http://localhost:8787`. Wrangler runs Workers and Durable Objects locally; development does not require a Cloudflare account. Use another tab with `?as=another-player` to simulate a second person on the same machine.
+
+   The forum at `/forum` needs sign-in secrets in a `.dev.vars` file (git-ignored). Without them it shows "sign-in is not set up". To try it without GitHub, write `FORUM_SESSION_KEY=<any long random text>` and `FORUM_TESTER=1`, which turns on "sign in as tester". GitHub sign-in uses the org's localhost OAuth app instead: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `FORUM_SESSION_KEY` and `FORUM_ORIGIN=http://127.0.0.1:<port>`, because `wrangler dev` rewrites the request host to the live domain.
 4. Choose a small issue, such as one labeled `bom primeiro PR`, and agree on its scope before implementing it. Check its assignee and any linked work first.
 
 ## Architecture and where to work
@@ -254,3 +256,4 @@ See [Actions logs](https://github.com/Warlock-Domain/warlock/actions) and [pipel
 
 Questions about intended game behavior belong in an issue labeled `precisa de decisão`.
 Teams supports 2, 3 or 4 teams selected in room options, with balanced membership and compact allied formations in separated safe regions. Two teams retain their opposite-side spawns; other modes keep their existing layouts.
+Manual Teams setup lets each human choose their own team and the creator choose bot teams. Automatic slots are filled by the server; explicit choices stay fixed for the match.

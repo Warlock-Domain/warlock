@@ -74,6 +74,7 @@ Applies together with the root `CLAUDE.md`.
 
 ## CSS (`style.css`, single file)
 
+- **Forum exception** (`forum.html`, `body.forum-page`, grill of 25/10): the forum is a classic, clean light page with its own `--fm-*` colour tokens declared on `body.forum-page`; forum rules use those, never the dark palette, and sizes still come from the `:root` scale. Its buttons are `.fm-btn` (`primary`, `big`).
 - Colours and sizes come from the `:root` variables (`--lava`, `--gold`, `--bronze`, `--panel`, `--fg`, `--r-md`…). No loose hex, except the group colour and the Grimoire leather and pages (`.grimoire`, `.g-book`).
 - Font sizes, `gap` and single-value `padding` come from the `:root` scale (`--fs-90` = `.9rem`, `--sp-8` = `8px`; named by value, issue #141): a new rule uses the nearest step instead of inventing a size. Moving an existing size to another step changes the screen and is Fernando's decision.
 - Group colour: `.g-ataque`, `.g-mobilidade`, `.g-defesa`, `.g-controle`, `.g-suporte`, `.g-utilidade` (variable `--g`); silver items (`--item`). The class comes from `spellClass(s)` by position in `SPELL_GROUPS`: a new spell gets its colour by joining a group, with no new class. In the Shop, Library and Grimoire, items sit in sections by `ITEM_GROUPS` (`rules-text.ts`, same format, all silver, no group class): Head, Cape, Clothing, Footwear and Accessory, a display grouping only, with no equipment slots (PR #427). A new item joins a group, otherwise it vanishes from the Shop (test in `ui-data.test.ts`).
@@ -130,3 +131,5 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - Preserve bound `push`, `latest`, `sample`, and `reset` callbacks. Reset clears history and clock offset; simulation clock rollback also starts new history. Keep interpolation math and `keepLast()` as module helpers.
 - Preserve snapshot references, interpolation delay/smoothing, and replay limits. Compatibility, round-reset, capacity, and instance-isolation coverage lives in `tests/client.test.ts`.
 - Teams supports four identities (Blue/Red/Green/Yellow). HUD standings and statistics iterate actual participating teams; never fold every non-blue player into Red. Keep team count in the existing match options picker and vote flow.
+
+- Teams creation reuses the choice/select controls for random or manual assignment. Shared setup comes from lobby.teams; own team uses the authenticated team message and bot selectors are creator-only. Preserve keyboard refocus via data-key and fit both bot selects in the existing column.

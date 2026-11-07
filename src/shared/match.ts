@@ -197,6 +197,9 @@ export type Match = {
   pendingMode: Mode | null; // modo votado: vale quando a próxima rodada começar
   banned: string[]; // expulsos por votação não voltam a esta sala
   teamShuffle: boolean; // Times: sorteados a cada rodada (true) ou fixos na partida
+  manualTeams?: boolean;
+  teamCreator?: string;
+  teamChoices?: Record<string, number | null>;
   pendingShuffle: boolean | null; // sorteio votado: vale quando a próxima rodada começar
   winnerTeam: number | null; // Times fixos: o time campeão
   opts: MatchOpts;
@@ -207,7 +210,7 @@ export type Match = {
   roundPaid?: string[]; // quem já recebeu o ouro garantido desta rodada (paga na queda)
   nextEffect?: RoundEffectId | null; // efeito da próxima rodada, sorteado antes da loja para cada um comprar sabendo
   asc?: AscState; // só no modo Ascensão: XP, escolhas de carta e ordem de queda (ascension.ts)
-  lobby?: AscLobby; // só na sala do Ascensão: o dono e os bots e opções que ele escolheu (ascension.ts)
+  lobby?: AscLobby; // Ascension and configured Teams rooms: the owner and the bots and options they chose (ascension.ts)
 };
 
 export const newMatch = (): Match => ({
@@ -245,6 +248,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false, watch
   if (known) {
     known.name = name;
     known.connected = true;
+    ascOwner(m);
     return true;
   }
   const full = playing(m).length >= MAX_PLAYERS;
@@ -257,7 +261,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false, watch
   // a Campanha não tem ouro (nem para quem entra no meio da noite). Nos outros modos, quem entra para jogar no meio da
   // partida chega à loja seguinte com a renda garantida das rodadas perdidas (#281); espectador continua sem essa compra.
   const gold = m.night ? 0 : !bot && !watching && m.phase !== 'lobby' && m.phase !== 'end' ? lateJoinGold(m) : startGold(m);
-  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold, economy: newEconomy(gold), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: null, ...(watching && { watch: true }) });
+  m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold, economy: newEconomy(gold), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: m.lobby?.teams && !bot && !watching ? m.teamChoices?.[id] ?? null : null, ...(watching && { watch: true }) });
   enter(m, m.players[m.players.length - 1], rand);
   ascOwner(m);
   return true;
@@ -320,7 +324,7 @@ export function removePlayer(m: Match, id: string) {
     ascOwner(m);
   } else {
     const p = player(m, id);
-    if (p) { p.connected = false; delete p.reading; }
+    if (p) { p.connected = false; delete p.reading; ascOwner(m); }
   }
 }
 
@@ -332,7 +336,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   // the room type decides first (isRoomMode): an Ascension or Campaign room only plays its mode, whatever the request
   // (a "start" with another mode does not build the Campaign over the Ascension owner's cast); normal rooms never
   // become one of them, and the sandbox only opens in a normal room (it would drop the room type)
-  const kind: Mode = isRoomMode(m.mode) ? m.mode : isRoomMode(mode) ? 'rounds' : mode;
+  const kind: Mode = isRoomMode(m.mode) ? m.mode : m.lobby?.teams ? 'teams' : isRoomMode(mode) ? 'rounds' : mode;
   if (sandbox && isRoomMode(kind)) return false;
   const campaign = kind === 'campaign';
   // Campaign: 1 to 4 humans, no allied bots; the Smoke's slots come in later
@@ -345,6 +349,8 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
     bots = setup.length;
   }
   m.opts = { ...m.opts, ...opts };
+  m.manualTeams = kind === 'teams' && !!m.lobby?.teams?.manual && !sandbox;
+  if (m.lobby?.teams && kind === 'teams' && !sandbox) teamShuffle = m.manualTeams ? false : m.lobby.teams.shuffle;
   m.sandbox = sandbox ? { god: true, noCd: true, shrink: false } : undefined; // sem recarga ligado de início (Fernando, 21/10)
   // começa redonda; a forma escolhida no painel fica em m.opts.arena e a sandbox nunca sorteia
   if (sandbox) m.opts = { ...m.opts, arena: 'circle' };
@@ -353,6 +359,7 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   for (let i = 0; playing(m).length < MAX_PLAYERS && i < (campaign ? 0 : bots); i++) {
     addPlayer(m, 'bot-' + (i + 1), BOT_NAMES[i % BOT_NAMES.length], true, false, rand);
     const bot = m.players[m.players.length - 1];
+    if (m.manualTeams) bot.team = m.lobby?.teams?.botTeams[i] ?? null;
     const { difficulty, ...rest } = setup[i] ?? {};
     if (difficulty) bot.difficulty = difficulty;
     // só a dificuldade não é treino (a rodada não sai marcada na telemetria)
@@ -361,6 +368,10 @@ export function startMatch(m: Match, now: number, bots: number, mode: Mode = 'ro
   if (campaign && m.players.length) for (let k = 1; k <= CAMPAIGN.slots; k++) if (addPlayer(m, 'fumo-' + k, '', true, false, rand)) dress(m, m.players[m.players.length - 1], 'ash');
   // quem assiste não conta: dá para pôr só bots em campo e assistir a partida
   if (playing(m).length < (sandbox ? 1 : 2)) return false;
+  if (m.manualTeams) {
+    fillTeamChoices(m);
+    if (new Set(playing(m).map(p => p.team)).size < 2) return false;
+  }
   fresh(m, now, kind, teamShuffle, rand);
   return true;
 }
@@ -374,13 +385,13 @@ function fresh(m: Match, now: number, mode: Mode, teamShuffle: boolean, rand: ()
     p.held = {};
     p.stats.match = newStat();
     p.stats.round = newStat();
-    p.team = null;
+    if (!m.manualTeams) p.team = null;
   }
   m.asc = mode === 'ascension' ? newAsc(m.players.map((p) => p.id)) : undefined;
   if (m.asc) for (const p of m.players) p.gold = 0;
   Object.assign(m, { streaks: {}, mode, round: 0, winner: null, lastRoundWinner: null, emptyRounds: 0, steps: 0, vote: null, pendingMode: null, teamShuffle, pendingShuffle: null, winnerTeam: null, pendingOpts: {}, botDelta: 0 });
   // já sorteia na loja para cada um ver o time; com sorteio a cada rodada, a contagem sorteia de novo
-  if (mode === 'teams') shuffleTeams(m, rand);
+  if (mode === 'teams') m.manualTeams ? fillTeamChoices(m) : shuffleTeams(m, rand);
   // Campanha: noite nova (semente nova a cada tentativa); humanos no time 0, o Fumo no 1, ninguém com ouro
   m.night = mode === 'campaign' ? { seed: Math.floor(rand() * 2 ** 31), stage: 0, fight: null, wave: 0, since: 0, cracked: 0, done: [], result: null } : undefined;
   if (m.night) for (const p of m.players) Object.assign(p, { gold: 0, team: p.servo ? 1 : 0 });
@@ -583,6 +594,7 @@ export function kick(m: Match, id: string): boolean {
 // tira da partida e mata o mago, se a rodada estiver rolando
 function drop(m: Match, id: string) {
   m.players = m.players.filter((q) => q.id !== id);
+  ascOwner(m);
   // sandbox: o mago sai do mundo (o id pode voltar no próximo bot)
   if (m.sandbox && m.world) m.world.wizards = m.world.wizards.filter((z) => z.id !== id);
   const wz = m.world?.wizards.find((z) => z.id === id);
@@ -735,6 +747,11 @@ function difficultySkill(m: Match, bot: Player): BotSkill {
 }
 
 const teamSize = (m: Match, t: number) => playing(m).filter((p) => p.team === t).length;
+function fillTeamChoices(m: Match) {
+  for (const p of playing(m)) if (p.team === null || p.team >= m.opts.teams) {
+    p.team = Array.from({ length: m.opts.teams }, (_, i) => i).reduce((a, b) => teamSize(m, b) < teamSize(m, a) ? b : a);
+  }
+}
 
 function enterCountdown(m: Match, now: number, rand: () => number) {
   m.dmgOn = {};
@@ -749,6 +766,7 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   }
   if (m.pendingShuffle !== null) {
     m.teamShuffle = m.pendingShuffle;
+    if (m.pendingShuffle) m.manualTeams = false;
     m.pendingShuffle = null;
   }
   if (m.pendingOpts.teams !== undefined && m.pendingOpts.teams !== m.opts.teams) for (const p of playing(m)) p.team = null;
@@ -768,8 +786,8 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   m.botDelta = 0;
   if (m.mode === 'teams') {
     // a cada rodada: sorteia de novo; fixos: mantém, e quem entrou depois vai para o time menor
-    if (m.teamShuffle || playing(m).every((p) => p.team === null)) shuffleTeams(m, rand);
-    const count = Math.min(m.opts.teams, playing(m).length);
+    if (!m.manualTeams && (m.teamShuffle || playing(m).every((p) => p.team === null))) shuffleTeams(m, rand);
+    const count = m.manualTeams ? m.opts.teams : Math.min(m.opts.teams, playing(m).length);
     if (playing(m).some((p) => p.team !== null && p.team >= count)) shuffleTeams(m, rand);
     for (const p of playing(m)) if (p.team === null) p.team = Array.from({ length: count }, (_, i) => i).reduce((a, b) => teamSize(m, b) < teamSize(m, a) ? b : a);
     // um time inteiro saiu da sala: sorteia de novo, senão a rodada acabaria na hora

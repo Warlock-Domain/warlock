@@ -28,7 +28,7 @@ const LEGEND = t(
 );
 // capítulos: o texto mostrado também serve de chave nas comparações abaixo
 const CH = {
-  toc: t('Sumário', 'Contents'), spells: t('Magias', 'Spells'), items: t('Itens', 'Items'), statuses: t('Status negativos', 'Negative statuses'),
+  toc: t('Sumário', 'Contents'), spells: t('Magias', 'Spells'), items: t('Itens', 'Items'), statuses: t('Efeitos negativos', 'Negative effects'),
 };
 // a spell off the bar has no key in Q W E R D F mode nor on the controller (the bar slot decides)
 const keyText = (a: SpellId) => labelOf(a) !== '—' ? t(`tecla ${labelOf(a)}`, `key ${labelOf(a)}`) : isSlotMode() || isPadMode() ? t('tecla pela posição na barra', 'key by position in the bar') : t('sem tecla (escolha em Configurações > Lançamento)', 'no key (pick one in Settings > Casting)');
@@ -82,6 +82,8 @@ const PAGES: Page[] = [
   { chapter: CH.toc, title: CH.toc, body: () => [] },
   { chapter: CH.toc, title: t('Magias e itens', 'Spells and items'), body: () => [] },
   text(t('Como jogar', 'How to play'), t('Objetivo', 'Goal'), RULES.objetivo),
+  text(t('Como jogar', 'How to play'), t('Mecânicas básicas', 'Basic mechanics'), RULES.basico),
+  text(t('Como jogar', 'How to play'), t('Terreno e sobrevivência', 'Terrain and survival'), RULES.sobrevivencia),
   text(t('Como jogar', 'How to play'), t('Empurrão, lava e abates', 'Knockback, lava and kills'), RULES.empurrao),
   text(t('Controles', 'Controls'), t('No PC', 'On PC'), () => RULES.pc),
   ...MECHANIC_GUIDES.map((g): Page => ({ ...text(t('Controles', 'Controls'), g.title, [g.text]), demo: g.id, ref: g.id })),
@@ -99,6 +101,7 @@ const PAGES: Page[] = [
   text(t('Modos', 'Modes'), t('Rodadas', 'Rounds'), RULES.rodadas, () => [html(MODE_INFO())]),
   text(t('Modos', 'Modes'), 'Deathmatch', RULES.deathmatch),
   text(t('Modos', 'Modes'), t('Times', 'Teams'), RULES.times),
+  text(t('Modos', 'Modes'), t('Ascensão', 'Ascension'), RULES.ascensao),
   text(t('Modos', 'Modes'), t('Opções, votações e bots', 'Options, votes and bots'), RULES.opcoes, () => [el('h3', {}, t('Dificuldade dos bots', 'Bot difficulty')), html(OPT_INFO.difficulty('rounds'))]),
   text('Arenas', t('Arenas e obstáculos', 'Arenas and obstacles'), RULES.arenas, () => [el('div', { class: 'g-arenas' }, ...ARENA_IDS.map(arenaThumb)), html(OPT_INFO.arena('rounds'))]),
   text(t('Loja e ouro', 'Shop and gold'), t('Loja', 'Shop'), () => RULES.loja),

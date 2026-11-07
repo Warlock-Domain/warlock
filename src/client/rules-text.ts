@@ -4,6 +4,7 @@ import {
 } from '../shared/constants.ts';
 import { DEFAULT_OPTS, DM_GOALS, OPTION_CHOICES } from '../shared/match.ts';
 import { CLASH } from '../shared/sim.ts';
+import { ASC_ROUNDS } from '../shared/ascension.ts';
 import { ELEMENTAL_SPHERES } from '../shared/elemental-spheres.ts';
 import { ITEMS, MAX_ITEMS, type ItemId } from '../shared/items.ts';
 import { keyLabel, keyOf, padButtonName, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
@@ -12,8 +13,8 @@ import { LANG, LOCALE, spellName, t } from './i18n.ts';
 import { BASIC_ATTACK, BRACE, GUARD, KNOCK_RECOVERY, MELEE_ARC } from '../shared/constants.ts';
 
 export const ATTACK_TEXT = t(
-  `Atacar: aperte a tecla do ataque (A por padrão) e clique com o esquerdo num inimigo; no chão, escolhe o inimigo visível mais próximo de você dentro de ${BASIC_ATTACK.range} m. Até ${BASIC_ATTACK.melee.toLocaleString(LOCALE)} m usa corpo a corpo; mais longe, projétil direcionado. Preparo de ${BASIC_ATTACK.windup.toLocaleString(LOCALE)} s: S, movimento, conjuração ou stun cancelam antes do golpe, sem gastar recarga. Cada golpe exige nova ordem; não persegue nem repete sozinho. Causa ${BASIC_ATTACK.dmg} de dano; só o golpe corpo a corpo empurra, e o projétil não causa empurrão nem destrói magias.`,
-  `Attack: press the attack key (A by default), then left-click an enemy; on the ground, selects the visible enemy closest to you within ${BASIC_ATTACK.range} m. Within ${BASIC_ATTACK.melee} m uses melee; farther away, a targeted projectile. A ${BASIC_ATTACK.windup} s windup: S, movement, casting or stun cancel before release without spending the cooldown. Each hit requires a new order; no automatic chasing or repeating. Deals ${BASIC_ATTACK.dmg} damage; only melee applies knockback, and the projectile neither pushes nor destroys spells.`
+  `Atacar: aperte a tecla do ataque (A por padrão) e clique no ponto desejado. O projétil segue em linha reta por até ${BASIC_ATTACK.range} m, sem escolher nem perseguir alvos. Clicar num inimigo próximo usa corpo a corpo até ${BASIC_ATTACK.melee.toLocaleString(LOCALE)} m. Preparo de ${BASIC_ATTACK.windup.toLocaleString(LOCALE)} s: S, movimento, conjuração ou stun cancelam antes do golpe sem gastar recarga. Cada golpe exige nova ordem. Causa ${BASIC_ATTACK.dmg} de dano; só o corpo a corpo empurra, e o projétil não destrói magias.`,
+  `Attack: press the attack key (A by default), then click the desired ground point. The projectile travels straight for up to ${BASIC_ATTACK.range} m without selecting or chasing targets. Clicking a nearby enemy uses melee within ${BASIC_ATTACK.melee} m. A ${BASIC_ATTACK.windup} s windup: S, movement, casting or stun cancel before release without spending cooldown. Each hit requires a new order. Deals ${BASIC_ATTACK.dmg} damage; only melee applies knockback, and the projectile does not destroy spells.`
 );
 
 // versões alternativas só para teste, escolhidas na loja (issue #402); a de hoje continua o padrão
@@ -79,9 +80,12 @@ const INSTANT = join(SPELL_IDS.filter((s) => CAST_POINT[s] === 0).map((s) => spe
 
 // textos do grimório (Como jogar), por página; os números vêm do código
 const RULES_PT = {
-  objetivo: [
+  objetivo: ["Use suas magias para matar seus inimigos, empurrando-os para a lava ou zerando a vida deles.","Seja o último a restar em terra firme, custe o que custar!"],
+  basico: ["Use ataques básicos para causar um pouco de dano enquanto suas magias não estiverem prontas, ou assuma a postura de Manter base para resistir aos empurrões em direção à lava.","Ganhe ouro a cada rodada e use esse dinheiro para comprar magias e ficar mais forte.","Se estiver à deriva na lava, fuja para as ilhas flutuantes. Mas cuidado: elas só duram alguns segundos!"],
+  sobrevivencia: [
     `Empurre os outros magos para fora da pedra. Na lava a vida cai ${LAVA_DPS} por segundo; na pedra ela volta ${HP_REGEN} por segundo. Cada mago tem ${HP_MAX} de vida.`,
     `A arena encolhe uma faixa a cada ${SHRINK_EVERY} s até ${n1(ARENA_MIN)} m de raio; a faixa que vai afundar pisca em vermelho antes. Ela é maior quanto mais magos tiver (com 4, ${n1(ARENA_R0)} m de raio).`,
+    `Morte súbita: passados ${SUDDEN.at} s de rodada, a arena encolhe a cada ${SUDDEN.every} s em vez de ${SHRINK_EVERY}.`,
     `Com ${SUDDEN.collapse} s de rodada, o tamanho mínimo deixa de valer e a arena some aos poucos (nenhuma rodada fica sem fim).`,
     `O último vivo vence a rodada e ganha 1 ponto. Quem chega primeiro a ${DEFAULT_OPTS.goal} rodadas vence a partida (padrão; muda nas opções). Se os últimos caem juntos, vence quem tinha mais vida.`,
     `Nos ${INVULN_TIME} primeiros segundos de cada rodada ninguém leva dano.`,
@@ -130,13 +134,10 @@ const RULES_PT = {
     'No topo: o gráfico de barras abre o placar, o pergaminho abre a ficha do mago, o balão manda provocações, a urna (Votar) troca o modo ou expulsa alguém e a engrenagem abre as configurações.',
     'Neste grimório: deslize o dedo para os lados para virar a página.',
   ],
-  rodadas: [
-    `O último vivo ganha a rodada e 1 ponto. Meta padrão: ${DEFAULT_OPTS.goal} rodadas (${list(OPTION_CHOICES.goal)} nas opções).`,
-    `Morte súbita: passados ${SUDDEN.at} s de rodada, a arena encolhe a cada ${SUDDEN.every} s em vez de ${SHRINK_EVERY}.`,
-  ],
+  rodadas: ["Todos os jogadores se enfrentam por rodadas. Quem atingir primeiro a meta de vitórias vence a partida."],
   deathmatch: [
-    `Rodadas de ${DM_ROUND_MS / 1000} s e a arena não encolhe. Quem cai volta ${DM_RESPAWN} s depois, longe dos outros magos (tenta ${DM_SPAWN_GAP} m ou mais), com vida cheia e ${INVULN_TIME} s sem levar dano; magias e itens continuam.`,
-    `Cada abate vale 1 ponto (cair sozinho não vale). A partida acaba no fim da rodada em que alguém chega à meta (${list(Object.values(DM_GOALS))} abates; padrão ${DM_GOALS[DEFAULT_OPTS.goal]}); empate joga mais uma rodada.`,
+    `Uma batalha frenética em que o objetivo é conseguir mais abates. Rodadas de ${DM_ROUND_MS / 1000} s e a arena não encolhe. Quem cai volta ${DM_RESPAWN} s depois, longe dos outros magos (tenta ${DM_SPAWN_GAP} m ou mais), com vida cheia e ${INVULN_TIME} s sem levar dano; magias e itens continuam.`,
+    `Cada abate vale 1 ponto (cair sozinho não vale). A partida acaba no fim da rodada em que alguém chega à meta (${list(Object.values(DM_GOALS))} abates; padrão ${DM_GOALS[DEFAULT_OPTS.goal]}); empate no topo joga mais uma rodada.`,
   ],
   times: [
     'Azul contra Vermelho, times do mesmo tamanho (com número ímpar, um tem 1 a mais). Sorteados a cada rodada ou fixos na partida (escolha da sala, ou votação).',
@@ -195,12 +196,16 @@ const RULES_PT = {
     'Personagens e decoração: KayKit, de Kay Lousberg (kaylousberg.com). Texturas: ambientCG e Poly Haven. Partículas e sons: Kenney e OpenGameArt. Música: "Determined Pursuit", de Emma_MA. Tudo em domínio público (CC0). Ícones: game-icons.net, de Lorc, Delapouite, Skoll, Sbed e Caro Asercion (CC BY 3.0; lista em CREDITS.txt).',
     'Inspirado no Warlock do Warcraft 3 e no Warlock Brawl para Dota 2.',
   ],
+  ascensao: [`${ASC_ROUNDS} rodadas em que o caos domina e ninguém decide exatamente o que vai ganhar. Magias, aprimoramentos e equipamentos são oferecidos aleatoriamente ao final de cada rodada. Será que a sorte está do seu lado?`],
 };
 
 const RULES_EN: typeof RULES_PT = {
-  objetivo: [
+  objetivo: ["Use your spells to kill your enemies by pushing them into the lava or reducing their health to zero.","Be the last one standing on solid ground, whatever it takes!"],
+  basico: ["Use basic attacks to deal a little damage while your spells are on cooldown, or take the Hold Ground stance to resist being pushed into the lava.","Earn gold each round and spend it on spells to become stronger.","If you are stranded in the lava, escape to the floating islands. But be careful: they only last a few seconds!"],
+  sobrevivencia: [
     `Knock the other wizards off the rock. In the lava, health drops ${LAVA_DPS} per second; on the rock it comes back ${HP_REGEN} per second. Each wizard has ${HP_MAX} health.`,
     `The arena shrinks one ring every ${SHRINK_EVERY} s down to a radius of ${n1(ARENA_MIN)} m; the ring about to sink flashes red first. It is bigger the more wizards there are (with 4, a radius of ${n1(ARENA_R0)} m).`,
+    `Sudden death: after ${SUDDEN.at} s of the round, the arena shrinks every ${SUDDEN.every} s instead of ${SHRINK_EVERY}.`,
     `At ${SUDDEN.collapse} s into the round, the minimum size no longer applies and the arena crumbles away (no round goes on forever).`,
     `The last one alive wins the round and gets 1 point. First to ${DEFAULT_OPTS.goal} rounds wins the match (default; change it in the options). If the last ones fall together, whoever had more health wins.`,
     `For the first ${INVULN_TIME} seconds of each round nobody takes damage.`,
@@ -248,16 +253,13 @@ const RULES_EN: typeof RULES_PT = {
     'At the top: the bar chart opens the scoreboard, the scroll opens the wizard sheet, the speech bubble sends taunts, the ballot box (Vote) changes the mode or kicks someone and the gear opens the settings.',
     'In this grimoire: swipe sideways to turn the page.',
   ],
-  rodadas: [
-    `The last one alive wins the round and 1 point. Default goal: ${DEFAULT_OPTS.goal} rounds (${list(OPTION_CHOICES.goal)} in the options).`,
-    `Sudden death: after ${SUDDEN.at} s of the round, the arena shrinks every ${SUDDEN.every} s instead of ${SHRINK_EVERY}.`,
-  ],
+  rodadas: ["All players fight across rounds. The first player to reach the victory target wins the match."],
   deathmatch: [
-    `Rounds of ${DM_ROUND_MS / 1000} s and the arena does not shrink. Whoever falls comes back ${DM_RESPAWN} s later, away from the other wizards (tries ${DM_SPAWN_GAP} m or more), with full health and ${INVULN_TIME} s without taking damage; spells and items stay.`,
-    `Each kill is worth 1 point (falling on your own does not count). The match ends at the end of the round in which someone reaches the goal (${list(Object.values(DM_GOALS))} kills; default ${DM_GOALS[DEFAULT_OPTS.goal]}); a tie plays one more round.`,
+    `A frantic battle to score the most kills. Rounds of ${DM_ROUND_MS / 1000} s and the arena does not shrink. Whoever falls comes back ${DM_RESPAWN} s later, away from the other wizards (tries ${DM_SPAWN_GAP} m or more), with full health and ${INVULN_TIME} s without taking damage; spells and items stay.`,
+    `Each kill is worth 1 point (falling on your own does not count). The match ends at the end of the round in which someone reaches the goal (${list(Object.values(DM_GOALS))} kills; default ${DM_GOALS[DEFAULT_OPTS.goal]}); a tie at the top plays one more round.`,
   ],
   times: [
-    'Blue against Red, teams of the same size (with an odd number, one has 1 more). Shuffled every round or fixed for the match (room choice, or vote).',
+    `${list(OPTION_CHOICES.teams)} teams fight in the arena across rounds; with too few players, each one takes a team. Teams are shuffled every round or fixed for the match (room choice, or vote); when shuffled, sizes differ by at most 1 player.`,
     'The round ends when only one team has anyone left; all of them get 1 point and the victory gold.',
     'Spells on an ally only knock back: no damage and no kill. Homing Missile, Bouncer, Event Horizon and Grip only hit enemies; Swap with an ally works.',
   ],
@@ -313,6 +315,7 @@ const RULES_EN: typeof RULES_PT = {
     'Characters and decoration: KayKit, by Kay Lousberg (kaylousberg.com). Textures: ambientCG and Poly Haven. Particles and sounds: Kenney and OpenGameArt. Music: "Determined Pursuit", by Emma_MA. All public domain (CC0). Icons: game-icons.net, by Lorc, Delapouite, Skoll, Sbed and Caro Asercion (CC BY 3.0; list in CREDITS.txt).',
     'Inspired by Warlock from Warcraft 3 and Warlock Brawl for Dota 2.',
   ],
+  ascensao: [`${ASC_ROUNDS} rounds of chaos where nobody gets to choose exactly what they get. Spells, upgrades and equipment are offered at random after each round. Will luck be on your side?`],
 };
 export { RULES_EN, RULES_PT };
 export const RULES = LANG === 'en' ? RULES_EN : RULES_PT;
