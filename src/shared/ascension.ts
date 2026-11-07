@@ -94,7 +94,7 @@ export function liveLevel(xp: number, dmg: number, kills: number, alive: number)
 
 const lv = (a: AscState, id: string) => levelOf(a.xp[id] ?? 0);
 const groupOf = (c: Card) => (c.kind === 'item' ? 'item' : spellGroup(c.id));
-type Kit = Pick<Player, 'spells' | 'items'>;
+type Kit = Pick<Player, 'spells' | 'items' | 'transcendence'>;
 
 // até 3 cartas diferentes do tipo pedido que o mago pode usar, sorteadas com o rand da partida; magia nova de pelo menos 2 grupos;
 // cada carta de subir magia vira rara com a chance `rare`
@@ -133,6 +133,7 @@ export function applyCard(p: Kit, card: Card, swap?: SpellId): boolean {
     if (!swap || p.spells[swap] === 0) return false;
     level = Math.min(spellMax(card.id), p.spells[swap]);
     p.spells[swap] = 0;
+    if (swap === 'transcend') delete p.transcendence; // same rule as selling it (refit in match.ts): the bonuses leave with the spell
   }
   p.spells[card.id] = Math.min(level,spellMax(card.id));
   return true;

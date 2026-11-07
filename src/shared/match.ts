@@ -287,8 +287,10 @@ function enter(m: Match, p: Player, rand: () => number) {
 
 // sandbox: compra e venda valem na hora, no mago da rodada
 function refit(m: Match, p: Player) {
-  const z = m.sandbox && m.world?.wizards.find((q) => q.id === p.id);
-  if (z) Object.assign(z, gearOf(p.items), { spells: { ...p.spells, scourge: p.items.scourge } }); // Scourge: the item level, as in newWorld
+  const z = m.world?.wizards.find((q) => q.id === p.id);
+  // The ritual's bonuses belong to the spell. The round's wizard too (dead in Rounds, or Sandbox): tickMatch copies its state back to the Player
+  if (!p.spells.transcend) { delete p.transcendence; if (z) delete z.transcendence; }
+  if (m.sandbox && z) Object.assign(z, gearOf(p.items), { spells: { ...p.spells, scourge: p.items.scourge } }); // Scourge: the item level, as in newWorld
 }
 
 // bot novo com o primeiro id livre (bot-1…bot-8); undefined com a sala cheia

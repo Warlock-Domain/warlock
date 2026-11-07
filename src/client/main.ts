@@ -21,7 +21,7 @@ import { coachTip } from './coach.ts';
 import { PROFILE_KEY, addRound, toSkill, savedProfile } from './mimic.ts';
 import { cooldownNotice, n1 } from './rules-text.ts';
 import { aimOf, hitR, reachOf } from './reach.ts';
-import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, ICON, el, icon } from './icons.ts';
+import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, choice, el, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t, spellName } from './i18n.ts';
 import { cardName } from './ascension-ui.ts';
@@ -491,7 +491,8 @@ function startRoom(code: string, name: string) {
           const options = SPELL_IDS.filter(s => s !== 'elemental' && s !== 'transcend' && (mine?.spells[s] ?? 0) > 0);
           const chooser = dialog('settings', t('Escolher magia transcendida', 'Choose a transcended spell'), [
             el('p', {}, t('Os efeitos individuais ainda não foram definidos. Esta escolha apenas registra a magia.', 'Individual effects are not defined yet. This choice only records the spell.')),
-            el('div', { class: 'choices' }, ...options.map(s => el('button', { 'aria-pressed': state.spell === s, onclick: () => { command({ t: 'transcendSpell', spell: s }); chooser.close(); } }, icon(ICON[s]), spellName(s))))
+            // state.spell may still be unset: then no button is lit
+            choice(t('Magia transcendida', 'Transcended spell'), options.map((s): [SpellId, string] => [s, spellName(s)]), state.spell!, (s) => { command({ t: 'transcendSpell', spell: s }); chooser.close(); })
           ]);
           return false;
         }
