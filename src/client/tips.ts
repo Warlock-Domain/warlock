@@ -1,6 +1,7 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
+import { ELEMENTAL_SPHERES } from '../shared/elemental-spheres.ts';
 import { AEGIS, AFFLICT_SPELLS, CRIT, ITEMS, SHOCK_BOOTS, WIND_BOOTS, type ItemId } from '../shared/items.ts';
-import { BASIC_ATTACK, BRACE, DT, GUARD, MELEE_ARC, FRICTION, KB_SOFT_CAP, LAVA_DPS, STUN_SPEED } from '../shared/constants.ts';
+import { BASIC_ATTACK, BRACE, OBSTACLES, DT, GUARD, MELEE_ARC, FRICTION, KB_SOFT_CAP, LAVA_DPS, STUN_SPEED } from '../shared/constants.ts';
 import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { labelOf, uiLabel } from './keys.ts';
@@ -39,12 +40,14 @@ const knockMeters = (l: Level) => m(knockDistance(l.dmg, l.knock));
 // todo campo do nível que muda o jogo tem uma linha (o teste confere)
 export const SPELL_ROWS: Record<SpellId, Row[]> = {
   transcend: [[t('Duração do ritual', 'Ritual duration'), () => s(2.5)], [t('Cura ao concluir', 'Completion healing'), () => '300'], [t('Esferas iguais necessárias', 'Matching spheres required'), () => '5']],
-  elemental: [[CD, l => s(l.cd)], [DURATION, l => s(l.duration)], [t('Máximo de esferas', 'Maximum spheres'), () => '5']],
+  transfusion: [[t('Recargas do aliado', 'Ally cooldown speed'), (l) => '+' + n1(l.scale * 100) + '%'], [t('Duração', 'Duration'), () => t('Até interromper', 'Until interrupted')], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  elemental: [[CD, l => s(l.cd)], [DURATION, l => s(l.duration)], [t('Máximo de esferas', 'Maximum spheres'), () => String(ELEMENTAL_SPHERES.max)]],
   pix: [[t('Chuva de moedas', 'Coin rain'), () => s(PIX.rain)], [RADIUS, (l) => m(l.radius)], [t('Tempo dentro para controlar', 'Time inside to control'), () => s(PIX.soak)], [t('Tempo controlado', 'Time controlled'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   sniper: [[DMG,l=>n1(l.dmg)],[RANGE,l=>m(l.range)],[t('Canalização','Channel time'),()=>s(CAST_POINT.sniper)],[CD,l=>s(l.cd)]],
   channel: [[t('Preparo mínimo', 'Minimum charge'), () => '1 s'], [t('Carga máxima', 'Maximum charge'), () => '2 s'], [t('Bônus em 1 s / 2 s', 'Bonus at 1 s / 2 s'), () => '+50% / +100%'], [CD, () => '0 s']],
   closedbody: [[DURATION, l => s(l.duration)], [t('Redução de dano', 'Damage reduction'), () => '90%'], [t('Resistência a novos status', 'New status resistance'), () => '90%'], [t('Resistência a novo empurrão', 'New knockback resistance'), () => '90%'], [CD, l => s(l.cd)]],
   geyser: [[t('Suspensão e invulnerabilidade', 'Suspension and invulnerability'), l => s(l.duration)], [CD, l => s(l.cd)], [RANGE, l => m(l.range)], [t('Raio da área', 'Area radius'), l => m(l.radius)]],
+  nexus: [[t('Dano transferido', 'Transferred damage'), () => '125%'], [t('Status e empurrão', 'Statuses and knockback'), () => '50% / 50%'], [t('Duração', 'Duration'), () => t('Até cancelar ou sair do alcance', 'Until cancelled or out of range')], [CD, l => s(l.cd)], [RANGE, l => m(l.range)]],
   heal: [[t('Cura', 'Healing'), l => n1(l.heal)], [CD, l => s(l.cd)], [RANGE, l => m(l.range)]],
   fireball: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   lightning: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
@@ -59,7 +62,7 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   boomerang: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   thrust: [[t('Dano máximo', 'Max damage'), (l) => n1(l.dmg)], [t('Empurrão máximo', 'Max knockback'), (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   gravity: [[DPS, (l) => n1(l.dmg)], [PULL, (l) => `${n1(l.pull)} m/s²`], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
-  rockpillar: [[t('Dano em quem está embaixo', 'Damage to whoever is under it'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [DURATION, (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  rockpillar: [[t('Dano em quem está embaixo', 'Damage to whoever is under it'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [t('Vida da parede', 'Wall health'), () => n1(OBSTACLES.rockpillar.hp)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   bouncer: [[t('Dano no 1º', 'Damage on the 1st hit'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [t('Alcance por salto', 'Range per bounce'), (l) => m(l.range)]],
   drain: [[DMG, (l) => n1(l.dmg)], [t('Cura', 'Healing'), (l) => n1(l.heal)], [KNOCK, (l) => knockMeters(l)], [t('Lentidão ou pressa', 'Slow or haste'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [t('Alcance até virar', 'Range until it turns'), (l) => m(l.range)]],
   snowball: [[t('Dano por segundo encostado', 'Damage per second touching'), (l) => n1(l.dot)], [t('Explosão no centro', 'Center blast'), (l) => n1(l.dmg)], [t('Empurrão da explosão', 'Blast knockback'), (l) => knockMeters(l)], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
@@ -150,7 +153,7 @@ export function mechanicTip({ id, title: name }: (typeof MECHANIC_GUIDES)[number
   const text = basic
     ? alt
       ? t(`Aperte ${key} e bata na direção do cursor: golpe em arco de ${MELEE_ARC.angle}° e ${n1(MELEE_ARC.range)} m que acerta todos os inimigos dentro dele, sem cancelar a magia deles. Movimento, ${uiLabel('stop')} ou magia cancelam o preparo sem gastar a recarga.`, `Press ${key} and strike toward the cursor: a ${MELEE_ARC.angle}° arc of ${n1(MELEE_ARC.range)} m that hits every enemy in it, without cancelling their spell. Moving, ${uiLabel('stop')} or a spell cancel the windup without spending the cooldown.`)
-      : t(`Aperte ${key} e clique num inimigo: corpo a corpo até ${n1(BASIC_ATTACK.melee)} m, projétil mais longe. Movimento, ${uiLabel('stop')} ou magia cancelam o preparo sem gastar a recarga.`, `Press ${key} and click an enemy: melee within ${n1(BASIC_ATTACK.melee)} m, a projectile farther away. Moving, ${uiLabel('stop')} or a spell cancel the windup without spending the cooldown.`)
+      : t(`Aperte ${key} e clique no ponto desejado: projétil em linha reta, sem perseguir alvos. Clicar num inimigo próximo usa corpo a corpo até ${n1(BASIC_ATTACK.melee)} m. Movimento, ${uiLabel('stop')} ou magia cancelam o preparo sem gastar a recarga.`, `Press ${key} and click the desired point: a straight projectile without target tracking. Clicking a nearby enemy uses melee within ${n1(BASIC_ATTACK.melee)} m. Moving, ${uiLabel('stop')} or a spell cancel the windup without spending cooldown.`)
     : alt
       ? t(`Segure ${key}: para e defende na hora. Leva o mesmo dano; o empurrão recebido diminui de 0% a ${n1(GUARD.max * 100)}% em ${n1(GUARD.ramp)} s segurando e volta a 0% ao soltar. Não anda e as recargas de magias e do Atacar ficam paradas enquanto segura.`, `Hold ${key}: stops and guards at once. Same damage taken; knockback taken shrinks from 0% to ${n1(GUARD.max * 100)}% less over ${n1(GUARD.ramp)} s held and resets on release. You cannot walk and spell and Attack cooldowns stay frozen while held.`)
       : t(`Segure ${key}: para na hora e, depois do preparo, resiste a novos empurrões. Não anda e as recargas pausam enquanto segura; magias prontas continuam.`, `Hold ${key}: stops at once and, after the windup, resists new knockback. You cannot walk and cooldowns pause while held; ready spells still work.`);
