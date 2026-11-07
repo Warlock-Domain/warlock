@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { audioLevel } from '../src/client/audio-level.ts';
 import { createSound, previewTaunt, stopTauntPreview } from '../src/client/sound.ts';
 
 afterEach(() => { stopTauntPreview(); vi.unstubAllGlobals(); });
-describe('normalização na reprodução', () => {
-  it('mede arquivos, síntese e prévia pelo mesmo nível, preservando mudo', async () => {
+describe('playback normalization', () => {
+  it('measures files, synthesis and preview at the same level, keeping mute', async () => {
     const listeners = new Map<string, () => void>();
     const gains: { gain: { value: number } }[] = [];
     const sources: { buffer: unknown; start: ReturnType<typeof vi.fn>; next?: unknown }[] = [];
-    const sample = (amplitude: number) => ({ sampleRate: 1000, numberOfChannels: 1, length: 1000, duration: 1, getChannelData: () => new Float32Array(1000).fill(amplitude) });
+    // a 1 kHz tone: the K-weighted level filters out a constant signal
+    const sample = (amplitude: number) => ({ sampleRate: 48000, numberOfChannels: 1, length: 4800, duration: .1, getChannelData: () => Float32Array.from({ length: 4800 }, (_, i) => amplitude * Math.sin(2 * Math.PI * 1000 * i / 48000)) });
+    const fileGain = audioLevel(sample(.6)).gain, synthGain = audioLevel(sample(.04), Infinity).gain;
     const connect = function (this: { next?: unknown }, next: unknown) { this.next = next; return next; };
     const param = () => ({ value: 0, setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() });
     class Context {
@@ -34,27 +37,27 @@ describe('normalização na reprodução', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     sound.play('fireball');
     const recorded = sources.at(-1)!;
-    expect((recorded.next as { gain: { value: number } }).gain.value).toBeCloseTo(.2);
+    expect((recorded.next as { gain: { value: number } }).gain.value).toBeCloseTo(fileGain);
     sound.play('click');
-    expect((sources.at(-1)!.next as { gain: { value: number } }).gain.value).toBeCloseTo(3);
+    expect((sources.at(-1)!.next as { gain: { value: number } }).gain.value).toBeCloseTo(synthGain);
     const count = sources.length;
     sound.play('fireball', 0);
     expect(sources).toHaveLength(count);
     expect(await previewTaunt('laugh')).toBe(true);
-    expect(gains.at(-1)!.gain.value).toBeCloseTo(.12); // .2 de normalização × .6 do master da partida.
+    expect(gains.at(-1)!.gain.value).toBeCloseTo(.6 * fileGain); // file normalization × the match's .6 master.
     sound.setVolume('sfx', 0);
     sound.play('fireball');
     expect(sources).toHaveLength(count);
     sound.setVolume('taunts', .5);
     await sound.taunt('laugh');
-    expect(sources).toHaveLength(count + 1); // efeitos mudos não silenciam o canal de provocações.
+    expect(sources).toHaveLength(count + 1); // muted effects do not silence the taunt channel.
     const voiceGain = sources.at(-1)!.next as { next: { gain: { value: number } } };
     expect(voiceGain.next.gain.value).toBeCloseTo(.3);
     await sound.taunt('laugh', 0);
     expect(sources).toHaveLength(count + 1);
     let distanceGain = 1;
     const pendingVoice = sound.taunt('meow', () => distanceGain);
-    distanceGain = 0; // jogador se afastou enquanto a gravação era carregada.
+    distanceGain = 0; // the player walked away while the recording was loading.
     await pendingVoice;
     expect(sources).toHaveLength(count + 1);
     sound.setVolume('master', 0);

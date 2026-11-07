@@ -13,6 +13,12 @@ beforeEach(() => {
 });
 
 describe('interface shortcuts in the same panel as the spells', () => {
+  it('gives Transfusion an explicit empty default when swapping an occupied key', () => {
+    expect(keyOf('transfusion')).toBe('');
+    setKey('transfusion', 'KeyQ');
+    expect(keyOf('fireball')).toBe('');
+    expect(actionFor('KeyQ')).toBe('transfusion');
+  });
   it('taunts start on Y and on the D-pad left, and their button can be changed', () => {
     expect(keyOf('taunt')).toBe('KeyY');
     expect(padButtonOf('taunt')).toBe(BTN.LEFT);
@@ -129,6 +135,16 @@ describe('keys and buttons saved in the browser', () => {
     expect(new Set(assigned).size).toBe(assigned.length);
   });
 
+  it('a saved layout already using RT keeps it: Addicted Rings takes a free button', async () => {
+    Object.assign(globalThis, { localStorage: fake });
+    store.set('warlock:pad', JSON.stringify({ sheet: BTN.RT }));
+    vi.resetModules();
+    const k = await import('../src/client/keys.ts');
+    expect(k.padButtonOf('sheet')).toBe(BTN.RT);
+    expect(k.padButtonOf('item2')).not.toBe(BTN.RT);
+    expect(k.padButtonOf('item2')).toBeGreaterThanOrEqual(0);
+  });
+
   it('a saved key of a spell removed from the game (Twins) is ignored: J stays with Illusion', async () => {
     Object.assign(globalThis, { localStorage: fake });
     store.set('warlock:keys', JSON.stringify({ twin: 'KeyZ', taunt: 'KeyP' }));
@@ -139,9 +155,9 @@ describe('keys and buttons saved in the browser', () => {
 });
 
 describe('rebindable controller buttons', () => {
-  it('default: A B X Y LB RB spells, LT the Scourge item, L3 sheet, View scoreboard, ↓ shop, R3 camera, ← taunts; Start, ↑ and RT unused', () => {
+  it('default: A B X Y LB RB spells, LT the Scourge item, RT Addicted Rings, L3 sheet, View scoreboard, ↓ shop, R3 camera, ← taunts; Start and ↑ unused', () => {
     expect([BTN.A, BTN.RB, BTN.LT, BTN.RT, BTN.L3, BTN.VIEW, BTN.DOWN, BTN.R3, BTN.START, BTN.UP, BTN.LEFT].map(padActionAt))
-      .toEqual(['slot1', 'slot6', 'item', undefined, 'sheet', 'board', 'shop', 'center', undefined, undefined, 'taunt']);
+      .toEqual(['slot1', 'slot6', 'item', 'item2', 'sheet', 'board', 'shop', 'center', undefined, undefined, 'taunt']);
   });
 
   it('changing a button swaps with whoever used it; Start is refused', () => {

@@ -17,13 +17,24 @@ describe('stun and root: authoritative restrictions', () => {
   it.each(SPELL_IDS.filter(s => s !== 'elemental'))('Grip applies movement restrictions to %s', (spell) => {
     const w = world([[0, 0]], { ...noSpells(), [spell]: 1 }, [], () => .5);
     const z = w.wizards[0]; z.gripUntil = 5;
+    if (spell === 'transfusion' || spell === 'nexus') { const ally = world([[3, 0]], noSpells(), [], () => .5).wizards[0]; ally.id = 'ally'; ally.team = z.team = 0; w.wizards.push(ally); }
     if (spell === 'transcend') { z.spells.elemental = 1; z.lastElement = 'fire'; }
     if (spell === 'sniper') { const enemy = world([[3,0]], noSpells(), [], () => .5).wizards[0]; enemy.id='enemy'; w.wizards.push(enemy); }
     if (spell === 'closedbody') { z.braceReadyAt = 0; z.braceUntil = 1; }
+    if (spell === 'magnetize') w.projectiles.push({ id: w.nextId++, kind: 'fireball', owner: z.id, caster: z.id, pos: v(1, 1), vel: v(1, 0), level: 1, until: 5, target: null, dmgMult: 1 });
     stepWorld(w, [{ id: z.id, kind: 'cast', spell, at: spell === 'heal' ? z.pos : v(3, 0) }], () => .5);
-    const blocked = spellGroup(spell) === 'mobility';
+    const blocked = spellGroup(spell) === 'mobility' || spell === 'swap';
     expect(castBlocked(false, true, spell)).toBe(blocked);
     expect(w.events.some((e) => e.k === 'cast')).toBe(!blocked && spell !== 'channel');
+    expect(z.pos).toEqual(v(0, 0));
+  });
+  it('Grip holds Swap although it left the Mobility group', () => {
+    const w = world([[0, 0], [3, 0]], { ...noSpells(), swap: 1 }, [], () => .5);
+    const z = w.wizards[0]; z.gripUntil = 5;
+    run(w, 1, [{ id: z.id, kind: 'cast', spell: 'swap', at: v(3, 0) }]);
+    expect(castBlocked(false, true, 'swap')).toBe(true);
+    expect(z.cd.swap).toBe(0);
+    expect(w.projectiles).toHaveLength(0);
     expect(z.pos).toEqual(v(0, 0));
   });
   it('roots arriving during Fireball windup do not cancel it (only mobility is blocked)', () => {
