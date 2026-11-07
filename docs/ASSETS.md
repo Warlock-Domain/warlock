@@ -9,6 +9,8 @@ Transcend ritual (28/10 local): original canvas seal sprite, vertical light colu
 
 ## Identidade visual
 
+- **Arena readability (31/10 local):** the existing Poly Haven slate floor and normal map remain in use. Original shader shading in `scene.ts` neutralizes the center's warm cast and adds a shallow rim cut/lava reflection using the existing arena signed-distance texture. No new asset, geometry or collision boundary.
+
 - **Impact readability (31/10 local):** `scene.ts` reuses credited Kenney light/spark/flame textures for compact spell-colored contacts, original outward spark motion and procedural ground knockback streaks. No external asset added. Explosion/clash visuals remain separate from ordinary hit feedback; hidden targets still do not expose damage labels.
 
 - **Projectile readability (30/10 local):** extended original procedural factories in `src/client/proj-models.ts` for Fireball, Homing Missile, Snowball and the ordinary basic bolt. Short tapered tails in `scene.ts` reuse existing spell colors and Kenney residual particles. No external asset or generated concept image shipped; elemental spheres retain the existing round body and colors.
