@@ -48,11 +48,20 @@ export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
     return m;
   },
   fireball: () => {
-    const g = new THREE.Group(), mat = flat('#ffb347', '#ff6a00', 1.4);
-    g.add(new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.24, 1), 0.2), mat));
-    const tongue = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.55, 6), mat);
-    tongue.rotation.x = -Math.PI / 2; tongue.position.z = -0.3;
-    g.add(tongue);
+    const g = new THREE.Group(), core = flat('#ffcf79', '#ff940c', 0.75), flame = flat('#f86616', '#ff4b05', 0.8);
+    g.add(new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.24, 1), 0.16), core));
+    for (const side of [-1, 1]) {
+      const geometry = new THREE.ConeGeometry(0.11, 0.6, 7, 5).rotateX(-Math.PI / 2);
+      const points = geometry.attributes.position;
+      for (let i = 0; i < points.count; i++) {
+        const k = Math.max(0, Math.min(1, (0.3 - points.getZ(i)) / 0.6));
+        points.setX(i, points.getX(i) + side * Math.sin(k * Math.PI) * 0.09);
+        points.setY(i, points.getY(i) + Math.sin(k * Math.PI * 0.8) * 0.06);
+      }
+      geometry.computeVertexNormals();
+      const tongue = new THREE.Mesh(geometry, flame);
+      tongue.position.set(side * 0.07, 0, -0.25); g.add(tongue);
+    }
     return g;
   },
   cluster: () => new THREE.Mesh(new THREE.TetrahedronGeometry(0.2), flat('#ffe066', '#ff9a00', 1.2)),
@@ -117,9 +126,15 @@ export const SHAPES: Partial<Record<ProjKind, () => THREE.Object3D>> = {
   },
   snowball: () => {
     const g = new THREE.Group();
-    g.add(new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.42, 1), 0.1), flat('#f4fbff', '#9ad8ff', 0.35)));
-    const seam = new THREE.Mesh(new THREE.TorusGeometry(0.405, 0.025, 4, 16), flat('#9ad8ff', '#9ad8ff', 0.25));
-    seam.rotation.x = Math.PI / 3; g.add(seam);
+    const snow = flat('#e4f3ff', '#9ad8ff', 0.14), ice = flat('#c6e7ff', '#5faddb', 0.18);
+    snow.roughness = 0.85; ice.roughness = 0.18; ice.metalness = 0.1;
+    g.add(new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(0.42, 1), 0.1), snow));
+    for (const [x, y, z] of [[0.22, 0.18, 0.05], [-0.18, 0.06, 0.24], [0.02, -0.2, -0.23]]) {
+      const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.09), ice);
+      crystal.position.set(x, y, z).normalize().multiplyScalar(0.35);
+      crystal.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), crystal.position.clone().normalize());
+      crystal.scale.set(0.5, 1, 1.3); g.add(crystal);
+    }
     return g;
   },
   magnetize: () => {
