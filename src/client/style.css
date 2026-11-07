@@ -1,4 +1,8 @@
 :root {
+  --combat-slate: #171e25; --combat-raised: #242e38; --combat-line: #657078;
+  --combat-glass: color-mix(in srgb, var(--combat-slate) 94%, transparent);
+  --combat-slot: 60px; --combat-item: 52px; --combat-face-w: 88px; --combat-face-h: 100px;
+  --combat-vitals: 180px; --combat-button: 36px;
   /* fantasia sombria: pedra escura, lava e ouro. Toda cor do jogo sai daqui */
   --bg: #140806; --bg-glow: #5a1a08; --panel: #22110c; --panel2: #2e1710; --panel-top: #2c1610; --panel-bot: #1a0c08;
   --line: #4a2418; --bronze: #8a4a20; --fg: #f7ecdf; --muted: #c4a693;
@@ -1441,3 +1445,32 @@ body.forum-page {
 .forum-page :is(.fm-btn, .fm-input, .fm-brand):focus-visible { outline: 2px solid var(--fm-accent); outline-offset: 2px; }
 @media (hover: hover) { .forum-page .fm-btn:hover { background: var(--fm-bg); } .forum-page .fm-btn.primary:hover { background: var(--fm-accent-hi); } }
 @media (max-width: 600px) { .fm-brand > span:first-of-type, .fm-user-name { display: none; } }
+
+/* Desktop combat chrome stays separate from the shop, dialogs and touch controls. */
+@media (min-width: 601px) and (min-height: 501px) and (pointer: fine) {
+  .hud .dota-bar { gap: var(--sp-10); padding: var(--sp-8) var(--sp-12); background: linear-gradient(var(--combat-raised), var(--combat-glass)); border: 1px solid var(--combat-line); border-radius: var(--r-md); box-shadow: var(--shadow-md); }
+  .hud .skills { gap: var(--sp-10); }
+  .hud .hero-face { width: var(--combat-face-w); height: var(--combat-face-h); border: 1px solid var(--combat-line); }
+  .hud .hero-box .hpbar { width: var(--combat-vitals); }
+  .hud .hero-stats { color: var(--fg); }
+  .hud .spellbar { gap: var(--sp-6); }
+  .hud .spellbar .spell { width: var(--combat-slot); height: var(--combat-slot); }
+  .hud .item-grid { grid-template-columns: repeat(3, var(--combat-item)); grid-auto-rows: var(--combat-item); gap: var(--sp-4); }
+  .hud .item-grid .spell { width: var(--combat-item); height: var(--combat-item); }
+  .hud .dota-bar .spell { border-width: 1px; background: var(--combat-slate); box-shadow: inset 0 1px var(--tint); }
+  .hud .dota-bar .spell .ico { filter: drop-shadow(0 1px 1px var(--ink)); }
+  .hud .dota-bar .spell.cooling .ico { filter: grayscale(1) brightness(.6); }
+  .hud .dota-bar .spell.armed { border-color: var(--ember); box-shadow: 0 0 0 2px var(--ember); background: var(--sel-bg); }
+  .hud .dota-bar .spell:not(.cooling):not(:disabled):hover { box-shadow: inset 0 0 0 1px var(--gold-line); }
+  .hud .dota-bar .slot-empty { background: var(--combat-slate); border-color: color-mix(in srgb, var(--combat-line) 45%, transparent); }
+  .hud .dota-bar .key { background: var(--combat-slate); border-color: var(--combat-line); }
+  .hud .hud-top button { min-height: var(--combat-button); background: var(--combat-glass); border-color: var(--combat-line); box-shadow: var(--shadow-sm); }
+  .hud .hud-top button.icon { width: var(--combat-button); }
+  .hud .hud-right .icon.on { border-color: var(--ember); background: var(--sel-bg); }
+  .hud .top-p { background: var(--combat-glass); }
+  .hud .top-p.me { box-shadow: inset 0 0 0 1px var(--gold-line); }
+  @media (max-height: 800px) {
+    .hud { --combat-slot: 48px; --combat-item: 46px; --combat-face-w: 76px; --combat-face-h: 88px; }
+    .hud .dota-bar { padding: var(--sp-6) var(--sp-10); }
+  }
+}
