@@ -12,7 +12,7 @@ import { ODRAN } from '../shared/bosses.ts';
 import { CANDLE, SERVOS, nightXpAt } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
 import { inventoryOrder, ACTIVE_ITEM_SPELL, castLevel, itemStats } from '../shared/items.ts';
-import { CAST_POINT, SPELLS, SPELL_IDS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
+import { CAST_POINT, SPELLS, SPELL_IDS, UNIT_TARGET_SPELLS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
 import { channelPower } from '../shared/channeling.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
@@ -466,6 +466,7 @@ function startRoom(code: string, name: string) {
       const spell = id && ACTIVE_ITEM_SPELL[id];
       return spell && id ? { spell, id } : undefined;
     },
+    cancelNexus() { if ((myWizard(interp.latest())?.nexusTo ?? -1) < 0) return false; command({ t: 'cast', spell: 'nexus', x: 0, y: 0 }); return true; },
     canChannel: () => (room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0,
     channel(spell) {
       const mine = room?.players.find((p) => p.id === me);

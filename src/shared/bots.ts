@@ -212,7 +212,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     const r = sub(at, me.pos), c = Math.cos(turn), s = Math.sin(turn);
     // Channeling: a damage spell is charged to full first; the release uses this same aim (difficulty error, lead, slip),
     // and a dodge or walk in the meantime cancels the charge like a player's would
-    if (spell !== 'recharge' && me.spells.channel > 0 && spellLevel(spell, me.spells[spell]).dmg > 0) {
+    if (allowChannel && spell !== 'recharge' && me.spells.channel > 0 && spellLevel(spell, me.spells[spell]).dmg > 0) {
       if (!me.channel) return (cmds.length = 0, cmds.push({ id, kind: 'channel', spell }), cmds);
       if (me.channel.spell !== spell || w.t - me.channel.since < CHANNEL.max) return cmds;
     }

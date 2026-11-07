@@ -8,6 +8,7 @@ import type { Vec } from '../shared/vec.ts';
 
 export type InputHandlers = {
   itemAt?: (code: string) => { spell: SpellId; id: string } | undefined;
+  cancelNexus?: () => boolean;
   pick: (x: number, y: number, spell?: SpellId) => Vec | null;
   move: (to: Vec, held?: boolean) => void;
   holdMove?: (on: boolean) => void;
@@ -181,7 +182,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       const ability = item && 'item:' + item.id;
       const mode = getCastMode(action, e.code, ability);
       if (held && getCastMode(held.action, held.code, held.ability) !== mode) cancel();
-      if (action === 'heal' || action === 'sniper') { e.preventDefault(); cancel(); return arm(action); }
+      if (UNIT_TARGET_SPELLS.has(action)) { e.preventDefault(); cancel(); return arm(action); }
       if (held) release(); // modes differ per key: cast the held spell before another key takes over
       if (armed && UNIT_TARGET_SPELLS.has(armed)) arm(null);
       if (attackArmed) arm(null);

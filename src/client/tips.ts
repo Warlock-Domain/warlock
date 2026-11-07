@@ -1,4 +1,5 @@
 // Dica ao passar o mouse (ou focar com o teclado) em magias e itens: números do nível atual e o que muda no próximo.
+import { ELEMENTAL_SPHERES } from '../shared/elemental-spheres.ts';
 import { ACTIVE_ITEM_SPELL, AEGIS, AFFLICT_SPELLS, CRIT, ITEMS, SHOCK_BOOTS, WIND_BOOTS, type ItemId } from '../shared/items.ts';
 import { BASIC_ATTACK, BRACE, OBSTACLES, DT, GUARD, MELEE_ARC, FRICTION, KB_SOFT_CAP, LAVA_DPS, STUN_SPEED } from '../shared/constants.ts';
 import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';

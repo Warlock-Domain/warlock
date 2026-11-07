@@ -12,7 +12,7 @@ import { CAMPAIGN } from '../shared/campaign.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, isRoomMode, sellValue, type MatchOpts, type Mode, type RoomMode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { inventoryOrder, ACTIVE_ITEM_SPELL, ITEMS, ITEM_IDS, MAX_ITEMS, castLevel, itemPrice, type ItemId } from '../shared/items.ts';
-import { MAX_SPELLS, SPELL_IDS, isSpell, priceOf, spellCount, spellMax, type SpellId } from '../shared/spells.ts';
+import { MAX_SPELLS, SPELL_IDS, UNIT_TARGET_SPELLS, isSpell, priceOf, spellCount, spellMax, type SpellId } from '../shared/spells.ts';
 import { POS_ACTIONS, isSlotMode, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
 import { castModeControl, openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
 import { hideTip, itemTip, mechanicTip, spellTip, withTip } from './tips.ts';

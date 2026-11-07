@@ -1,6 +1,6 @@
 # Contributing to Warlock Wars
 
-30/10 local rework: equipment has fixed base attributes and no upgrades. Addicted Rings is active; Glitch Cape is passive. Bouncer/Swap are Utility; Mandinga is Support. Thrust converts damage received during its knockback-immune dash into stun; Closed Body can move in a weaker mode. Event Horizon and Magic Hook replace Gravity and Link names. Arc jumps are delayed0.25 s. Preserve the existing Transcend visual/pose, team spawns and Campaign choice gate.
+
 
 This is the contributor guide for humans and AI agents. It covers setup, coordination, implementation, testing, review, and publication. Read [CLAUDE.md](CLAUDE.md) for the current code rules and the index of smaller documents, [docs/DECISIONS.md](docs/DECISIONS.md) before changing gameplay or undoing a decision, then the `CLAUDE.md` in each area you change. Each `AGENTS.md` points to those same rules.
 

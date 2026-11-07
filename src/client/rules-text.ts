@@ -351,7 +351,7 @@ const SPELL_TIPS_PT: SpellTips = {
   recharge: [`Se acertar, ela volta até você e zera a recarga: lance de novo, com +${RECHARGE.perHit} de dano por acerto seguido.`, `Errar zera a sequência e a recarga é longa (${n1(L1('recharge').cd)} s no nível 1).`],
   alteration: [`Ligue quando um projétil estiver chegando: por ${n1(L1('alteration').duration)} s você troca de lugar com o primeiro que entrar na bolha.`, 'Não serve contra Eletrocutar, Meteoro, Flagelo e explosões, que não são projéteis.'],
   link: ["Gancho mágico: prende um jogador e o puxa até você. Causa dano periódico aos inimigos e cura aliados pelo mesmo valor por segundo. Ao prender num obstáculo, puxa você até ele.","Consulte os atributos e a recarga na ficha."],
-  windwalk: ['Fique invisível, chegue perto e encoste: o primeiro inimigo leva dano. Também serve para fugir sem ser visto.', `Lançar qualquer magia desfaz; dura ${n1(L1('windwalk').duration)} s.`],
+  windwalk: ['Corra mais rápido, sem ficar invisível: o primeiro inimigo em que encostar recebe dano. Também serve para escapar ou se aproximar.', `Lançar qualquer magia desfaz; dura ${n1(L1('windwalk').duration)} s.`],
   splitter: ['Estoura no ponto (ou no primeiro que tocar) em 8 projéteis em leque: cobre uma área ou acerta quem está atrás de obstáculo.', 'Cada filhote é fraco; de longe eles se espalham.'],
   warpzone: [`Ponha entre você e os projéteis: dentro dela os projéteis inimigos andam a ${pct(L1('warpzone').scale)} (nível 1) e os inimigos a ${pct(WARPZONE.wizMult)} da velocidade.`, 'Não para Eletrocutar nem áreas.'],
   scourge: [`Encostaram em você: explode em volta depois de ${n1(CAST_POINT.scourge)} s, empurra quem está perto e destrói Bolas de fogo e Mísseis inimigos. Ao explodir, o empurrão que você está sofrendo acaba.`, 'Dá para sair do raio durante o preparo; o Teleporte cancela o seu. O Escudo não segura.'],
@@ -390,7 +390,7 @@ const SPELL_TIPS_EN: SpellTips = {
   recharge: [`If it hits, it comes back to you and resets the cooldown: cast again, with +${RECHARGE.perHit} damage per consecutive hit.`, `A miss resets the streak and the cooldown is long (${n1(L1('recharge').cd)} s at level 1).`],
   alteration: [`Turn it on when a projectile is about to arrive: for ${n1(L1('alteration').duration)} s you swap places with the first one that enters the bubble.`, 'Useless against Electrocute, Meteor, Scourge and explosions, which are not projectiles.'],
   link: ["Magic Hook attaches to a player and pulls them toward you. Periodically damages enemies and heals allies for the same amount per second. Attaching to an obstacle pulls you toward it.","See the sheet for stats and cooldown."],
-  windwalk: ['Turn invisible, get close and touch: the first enemy takes damage. Also works to flee unseen.', `Casting any spell cancels it; lasts ${n1(L1('windwalk').duration)} s.`],
+  windwalk: ['Run faster without becoming invisible: the first enemy you touch takes damage. Use it to escape or close the distance.', `Casting any spell cancels it; lasts ${n1(L1('windwalk').duration)} s.`],
   splitter: ['Bursts at the point (or at the first thing it touches) into 8 projectiles in a fan: covers an area or hits someone behind an obstacle.', 'Each fragment is weak; from afar they spread out.'],
   warpzone: [`Place it between you and the projectiles: inside it enemy projectiles move at ${pct(L1('warpzone').scale)} (level 1) and enemies at ${pct(WARPZONE.wizMult)} of their speed.`, 'Does not stop Electrocute or areas.'],
   scourge: [`Someone got on top of you: it blasts around you after ${n1(CAST_POINT.scourge)} s, knocks back anyone close and destroys enemy Fireballs and Missiles. When it blasts, the knockback you are taking stops.`, 'You can leave the radius during the windup; Teleport cancels yours. The Shield does not stop it.'],
@@ -421,7 +421,7 @@ const SPELL_GROUPS_PT: SpellGroups = [
   ['Defesa', 'parar o que vem', [...G.defense]],
   ['Controle', 'prender, puxar, atrasar', [...G.control]],
   ['Suporte', 'cura e ajuda aos aliados', [...G.support]],
-  ['Utilidade', 'apoio e efeitos especiais', [...G.utility]],
+  ['Utilidade', 'ferramentas e efeitos diversos', [...G.utility]],
 ];
 export type GuideId = (typeof MECHANIC_GUIDES)[number]['id'] | (typeof NEGATIVE_GUIDES)[number]['id'];
 const SPELL_GROUPS_EN: SpellGroups = [
@@ -430,11 +430,11 @@ const SPELL_GROUPS_EN: SpellGroups = [
   ['Defense', 'stop what is coming', [...G.defense]],
   ['Control', 'grip, pull, slow', [...G.control]],
   ['Support', 'healing and helping allies', [...G.support]],
-  ['Utility', 'support and special effects', [...G.utility]],
+  ['Utility', 'tools and miscellaneous effects', [...G.utility]],
 ];
 export { SPELL_GROUPS_EN, SPELL_GROUPS_PT };
 export const SPELL_GROUPS = LANG === 'en' ? SPELL_GROUPS_EN : SPELL_GROUPS_PT;
-// classe de cor do grupo (Fernando, 19/10: uma cor por setor): g-ataque, g-mobilidade, g-defesa, g-controle (o rótulo em inglês cai na mesma classe)
+// group colour class (Fernando, 19/10: one colour per group): g-ataque, g-mobilidade, g-defesa, g-controle, g-suporte, g-utilidade (the English label maps to the same class)
 const GROUP_CLASS_EN: Record<string, string> = { attack: 'ataque', mobility: 'mobilidade', defense: 'defesa', control: 'controle', support: 'suporte', utility: 'utilidade' };
 export const groupClass = (name: string) => 'g-' + (GROUP_CLASS_EN[name.toLowerCase()] ?? name.toLowerCase());
 export const spellClass = (s: SpellId) => groupClass(SPELL_GROUPS.find(([, , ids]) => ids.includes(s))?.[0] ?? '');
@@ -474,7 +474,7 @@ const SPELL_USE_PT: Record<SpellId, string> = {
   swap: 'Põe o inimigo no seu lugar ruim.',
   rush: 'Correr e aguentar dano por um tempo.',
   thrust: "Avança, resiste a empurrões e transforma dano recebido em atordoamento.",
-  windwalk: 'Sumir, reposicionar e surpreender.',
+  windwalk: "Aumenta sua velocidade de movimento sem deixar você invisível; dura 3,6 s.",
   shield: 'Devolve projéteis para quem lançou.',
   alteration: 'Escapa trocando de lugar com um projétil.',
   illusion: 'Você fica invisível enquanto uma cópia sua engana mísseis e bots.',
@@ -512,7 +512,7 @@ const SPELL_USE_EN: Record<SpellId, string> = {
   swap: 'Puts the enemy in your bad spot.',
   rush: 'Run and shrug off damage for a while.',
   thrust: "Dashes, resists knockback and converts damage received into stun.",
-  windwalk: 'Vanish, reposition and surprise.',
+  windwalk: 'Run faster without becoming invisible; lasts 3.6 seconds.',
   shield: 'Sends projectiles back at whoever cast them.',
   alteration: 'Escape by swapping places with a projectile.',
   illusion: 'You turn invisible while a copy of you fools missiles and bots.',
@@ -561,7 +561,7 @@ geyser: `Invoca no chão um gêiser por ${n1(L1('geyser').duration)} s, a até $
   recharge: 'Se acertar, volta e zera a própria recarga; cada acerto seguido soma dano.',
   alteration: `Por ${n1(L1('alteration').duration)} s, troca de lugar com o primeiro projétil inimigo que chegar perto.`,
   link: "Gancho mágico: prende um jogador e o puxa até você. Causa dano periódico aos inimigos e cura aliados pelo mesmo valor por segundo. Ao prender num obstáculo, puxa você até ele.",
-  windwalk: `Invisível e mais rápido por ${n1(L1('windwalk').duration)} s; o primeiro inimigo em que encostar leva dano. Lançar magia desfaz.`,
+  windwalk: `Visível e mais rápido por ${n1(L1('windwalk').duration)} s; o primeiro inimigo em que encostar leva dano. Lançar magia desfaz.`,
   splitter: 'Estoura no ponto (ou no primeiro que tocar) em 8 projéteis que se abrem em leque.',
   warpzone: 'Esfera que deixa lentos os projéteis inimigos que passam por ela e os inimigos que andam dentro dela.',
   scourge: `Explode em volta depois de ${n1(CAST_POINT.scourge)} s: empurra quem está perto e destrói projéteis inimigos; ao explodir, acaba o empurrão que você está sofrendo.`,
@@ -599,7 +599,7 @@ const RULES_SHORT_EN: Record<SpellId, string> = {
   recharge: 'If it hits, it comes back and resets its own cooldown; each consecutive hit adds damage.',
   alteration: `For ${n1(L1('alteration').duration)} s, swaps places with the first enemy projectile that comes close.`,
   link: "Magic Hook attaches to a player and pulls them toward you. Periodically damages enemies and heals allies for the same amount per second. Attaching to an obstacle pulls you toward it.",
-  windwalk: `Invisible and faster for ${n1(L1('windwalk').duration)} s; the first enemy you touch takes damage. Casting a spell cancels it.`,
+  windwalk: `Visible and faster for ${n1(L1('windwalk').duration)} s; the first enemy you touch takes damage. Casting a spell cancels it.`,
   splitter: 'Bursts at the point (or at the first thing it touches) into 8 projectiles that fan out.',
   warpzone: 'Sphere that slows enemy projectiles passing through it and enemies walking inside it.',
   scourge: `Blasts around you after ${n1(CAST_POINT.scourge)} s: knocks back anyone close and destroys enemy projectiles; when it blasts, the knockback you are taking stops.`,
