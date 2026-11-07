@@ -1,4 +1,4 @@
-import { elementalBonuses } from '../shared/elemental-spheres.ts';
+import { ELEMENTAL_SPHERES, elementalBonuses } from '../shared/elemental-spheres.ts';
 import { inLavaAt, type ArenaId } from '../shared/arena.ts';
 import { ARENA_MIN, BASIC_ATTACK, BRACING_BIT, HP_MAX, HP_REGEN, RUNE, SHRINK_EVERY, SUDDEN, WIZ_R, type RuneKind } from '../shared/constants.ts';
 import { lookOf } from '../shared/characters.ts';
@@ -12,7 +12,7 @@ import { ODRAN } from '../shared/bosses.ts';
 import { CANDLE, SERVOS, nightXpAt } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
 import { castLevel, itemStats } from '../shared/items.ts';
-import { CAST_POINT, SPELLS, SPELL_IDS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
+import { CAST_POINT, SPELLS, SPELL_IDS, UNIT_TARGET_SPELLS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
 import { channelPower } from '../shared/channeling.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
 import { CHALLENGES, endRun, runText, saveBest, scoreOf, stepRun, type Challenge, type Run } from './challenges.ts';
@@ -20,7 +20,7 @@ import { LOOK_EVENT, saveLook, savedLook } from './avatar.ts';
 import { coachTip } from './coach.ts';
 import { PROFILE_KEY, addRound, toSkill, savedProfile } from './mimic.ts';
 import { cooldownNotice, n1 } from './rules-text.ts';
-import { aimOf, hitR, reachOf } from './reach.ts';
+import { aimOf, basicReach, hitR, reachOf } from './reach.ts';
 import { ITEM_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, choice, el, icon } from './icons.ts';
 import { createInput } from './input.ts';
 import { t, spellName } from './i18n.ts';
@@ -39,15 +39,16 @@ import { distanceVolume } from './sound-distance.ts';
 import { closedBodySound } from './closed-body-sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
+import { RoomLoadingGate } from './room-loading.ts';
 import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, dialog, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
-import { STAGE_NAME, USED_KEY, botLevel, boughtKeys, countBuys, readUsed, endResult, illusionCopies, maxHp, pickWatched, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
+import { STAGE_NAME, USED_KEY, attackAim, botLevel, boughtKeys, countBuys, readUsed, endResult, illusionCopies, maxHp, pickWatched, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { seenRooms } from './minimap.ts';
 import { ILSE_MOMENTS, ILSE_ROOMS, ilseNext, ilseOn, ilsePush, newIlseQueue, setIlse, type IlseCtx } from './ilse.ts';
 import { sniperFocusState } from './sniper-focus.ts';
 import { attackTarget, sniperTarget } from '../shared/sniper-target.ts';
 import { sniperShotSound } from './sniper-fx.ts';
-import { healTarget } from '../shared/heal-target.ts';
+import { allyTarget, healTarget } from '../shared/heal-target.ts';
 
 declare const __BRANCH__: string;
 declare const __BUILD__: string;
@@ -78,6 +79,8 @@ const IR_CONFIG = IR.find((p) => p.startsWith('config:'))?.slice(7);
 
 // som de cada magia: as novas reaproveitam os sons que já existem
 const SPELL_SOUND: Record<SpellId, SoundKind> = {
+  transfusion: 'lightning',
+  nexus: 'shield',
   transcend: 'shield',
   elemental: 'shield',
   sniper: 'hitHeavy',
@@ -103,6 +106,7 @@ const SERVER_EN: Record<string, string> = {
   'Sala aberta em outra aba.': 'Room open in another tab.',
   'Sala cheia.': 'Room full.',
   'Você foi removido da sala por votação.': 'You were removed from the room by vote.',
+  'Não deu para começar a partida.': 'Couldn’t start the match.',
 };
 
 // treino escolhido na tela inicial ('bots', 'shadow', 'sandbox' ou o id do desafio): atravessa o recarregar da página ao entrar na sala nova
@@ -175,7 +179,7 @@ async function main() {
   if (/^[A-Z]{4}$/.test(id)) startRoom(id, name);
   else startLobby(name);
   // Esc sem nada para cancelar ou fechar abre as configurações (pedido do Fernando, 18/10); por último, depois dos ouvintes da sala
-  onFreeEsc(() => !document.querySelector('.overlay') && openSettings());
+  onFreeEsc(() => !Array.from(document.querySelectorAll('.overlay')).some((p) => p.getClientRects().length > 0) && openSettings());
 }
 
 function startLobby(name: string) {
@@ -250,12 +254,29 @@ function startRoom(code: string, name: string) {
   let room: PublicRoom | null = null;
   // Campanha: lava é o chão ^ do mapa da noite
   const mapLava = (p: Vec) => !!room?.night && nightMap(room.night.seed, room.night.stage).ground[Math.floor(p.y)]?.[Math.floor(p.x)] === 'lava';
-  // fala da Ilse (Campanha): quais já saíram nesta noite (pela semente) e até quando a atual fica na tela
-  let ilseNight = '', ilseQ = newIlseQueue();
+  // Ilse's lines (Campaign): which ones this night already showed (by seed) and which one is on screen
+  let ilseNight = '', ilseQ = newIlseQueue(), readingSent: boolean | null = null;
+  const reading = () => !!room?.night && room.phase === 'playing' && !room.players.find((p) => p.id === me)?.watch && ilseQ.lines.length > 0;
+  // the server's list is the truth: after the reading cap the world runs again while the line stays on screen
+  const campaignPaused = () => !!room?.reading?.length;
+  const syncReading = () => {
+    const on = reading();
+    if (readingSent === on) return;
+    readingSent = on;
+    net.send({ t: 'reading', on });
+    input.setEnabled(!loadingGate.pending && !campaignPaused() && room?.phase === 'playing');
+  };
   let lvNight = '', lvShown = 1; // Campaign: last level announced on this night
   let seenNight = '', seen: number[] = []; // Campaign: rooms the group has seen on this night (fog and minimap)
   // a fala da frente fica até o botão; o botão passa para a próxima da fila
-  const ilseShow = (): void => view.ilse(ilseQ.lines[0] ?? null, () => (ilseNext(ilseQ), ilseShow()));
+  const ilseShow = (): void => {
+    const choosing = !reading() && !room?.reading?.length && !!room?.choosing?.length;
+    const names = choosing ? room!.players.filter(p => room!.choosing!.includes(p.id)).map(playerName).join(', ') : '';
+    view.ilse(reading() ? ilseQ.lines[0] : room?.reading?.length ? t('Aguardando os outros jogadores terminarem de ler…', 'Waiting for the other players to finish reading…') : choosing ? t(`Todos devem escolher suas magias antes de continuar. Aguardando: ${names}.`, `Everyone must choose their spells before continuing. Waiting for: ${names}.`) : null,
+      reading() ? () => { ilseNext(ilseQ); ilseShow(); } : undefined,
+      choosing ? t('Escolhas pendentes', 'Pending choices') : undefined, choosing);
+    syncReading();
+  };
   const ilseSay = (key: string, lines: string[]) => ilsePush(ilseQ, key, lines) && ilseShow();
   const ilseCtx = (): IlseCtx => ({ touch: TOUCH, fireKey: labelOf('fireball'), scourgeKey: labelOf('scourge'), stopKey: uiLabel('stop') });
   let me = playerId;
@@ -315,8 +336,10 @@ function startRoom(code: string, name: string) {
   const pixelOk = !matchMedia('(pointer: coarse)').matches;
 
   let autostart = takeAutostart();
+  const loadingGate = new RoomLoadingGate();
   const view = createRoomUi(ui, code, {
     start: (bots, mode, shuffle, opts, again) => {
+      startLoading();
       training = false; // partida normal depois de um treino: sem dicas
       run = pending = null;
       if (!again) {
@@ -327,7 +350,8 @@ function startRoom(code: string, name: string) {
       net.send({ t: 'start', bots: bots.length, mode, shuffle, opts, setup: bots.map((difficulty, i) => ({ ...trainSetup?.[i], difficulty })) });
     },
     buy: (spell) => net.send({ t: 'buy', spell }),
-    lobby: (bots, opts) => net.send({ t: 'lobby', bots, opts }),
+    lobby: (bots, opts, setup) => net.send(setup === undefined ? { t: 'lobby', bots, opts } : { t: 'teamSetup', bots, opts, setup }),
+    team: (team, bot) => net.send({ t: 'team', team, ...(bot === undefined ? {} : { bot }) }),
     buyItem: (item) => net.send({ t: 'buyItem', item }),
     kick: (target) => net.send({ t: 'kick', target }),
     vote: (kind, target) => net.send({ t: 'vote', kind, target }),
@@ -430,7 +454,14 @@ function startRoom(code: string, name: string) {
     command({ t: 'cast', spell: 'sniper', x: self.sniperAt.x, y: self.sniperAt.y });
     return true;
   }
+  function syncLoading() {
+    const pending = loadingGate.pending;
+    view.loading(pending);
+    input.setEnabled(!pending && !campaignPaused() && room?.phase === 'playing');
+  }
+  function startLoading() { loadingGate.start(); syncLoading(); }
   const input = createInput(canvas, {
+    cancelNexus() { if ((myWizard(interp.latest())?.nexusTo ?? -1) < 0) return false; command({ t: 'cast', spell: 'nexus', x: 0, y: 0 }); return true; },
     canChannel: () => (room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0,
     channel(spell) {
       const mine = room?.players.find((p) => p.id === me);
@@ -441,7 +472,7 @@ function startRoom(code: string, name: string) {
       predict.stop(); sound.play('shield'); return true;
     },
     pick: (x, y, spell) => {
-      if (spell === 'heal' || spell === 'sniper') {
+      if (spell && UNIT_TARGET_SPELLS.has(spell)) {
         const id = scene.pickMage(x, y);
         return interp.latest()?.wizards.find(w => w.id === id)?.pos ?? null;
       }
@@ -466,13 +497,10 @@ function startRoom(code: string, name: string) {
       if ((room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0) return toast(t('Canalização substitui Atacar: use Atacar + tecla da magia.', 'Channeling replaces Attack: use Attack + a spell key.'));
       if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       if ((myWizard(interp.latest())?.status ?? 0) & 16) return;
-      const target = clicked?.endsWith('~ilusao') ? interp.latest()?.projectiles.find((q) => q.kind === 'illusion' && room?.ids[q.vel.x] === clicked.slice(0, -7))?.id : clicked;
-      command({ t: 'basic', x: at.x, y: at.y, target });
-      // golpe em arco: a prévia aparece na hora, sem esperar o servidor, e dura o preparo
-      const from = myWizard(interp.latest())?.pos;
-      if (room?.players.find((p) => p.id === me)?.arc && from) arcPreview = { until: performance.now() + BASIC_ATTACK.windup * 1000, facing: Math.atan2(at.y - from.y, at.x - from.x) };
-      predict.stop();
-      predict.hold(BASIC_ATTACK.windup, true);
+      const snap = interp.latest();
+      if (snap) at = attackAim(snap.wizards.map((w) => ({ ...w, team: room?.players.find((p) => p.id === w.id)?.team })), snap.projectiles, room?.ids ?? [], me, at, clicked);
+      command({ t: 'basic', x: at.x, y: at.y });
+      // Send immediately, but let the authoritative windup stop movement: a blocked melee hit and cooldowns do not.
       scene.clickMarker(at, true);
     },
     stop() {
@@ -484,6 +512,7 @@ function startRoom(code: string, name: string) {
     cast(spell, at) {
       const self = myWizard(interp.latest());
       if ((self?.transcendLeft ?? 0) > 0) return false;
+      if (spell === 'nexus' && (myWizard(interp.latest())?.nexusTo ?? -1) >= 0) { command({ t: 'cast', spell, x: at.x, y: at.y }); return true; }
       if (spell === 'transcend' && self) {
         const state = self.transcendence;
         if (state?.complete) {
@@ -506,13 +535,20 @@ function startRoom(code: string, name: string) {
       if (spell === 'elemental') {
         const self = myWizard(interp.latest());
         if (self?.transcendence?.complete) { toast(t('Esferas elementais está bloqueada após transcender.', 'Elemental Spheres is unavailable after transcending.')); return false; }
-        if (((self?.transcendence?.saved ?? 0) + (self?.spheres?.length ?? 0)) >= 5) { toast(t('Você já tem 5 esferas ativas.', 'You already have 5 active spheres.')); return false; }
+        if (((self?.transcendence?.saved ?? 0) + (self?.spheres?.length ?? 0)) >= ELEMENTAL_SPHERES.max) { toast(t(`Você já tem ${ELEMENTAL_SPHERES.max} esferas ativas.`, `You already have ${ELEMENTAL_SPHERES.max} active spheres.`)); return false; }
         if (self) at = self.pos;
       }
       if (channelRequest?.spell === spell && ((myWizard(interp.latest())?.channelElapsed ?? 0) < 1)) { toast(t('Canalize por pelo menos 1 segundo.', 'Channel for at least 1 second.')); return false; }
       if ((myWizard(interp.latest())?.geyserLeft ?? 0) > 0) return;
       const mine = room?.players.find((p) => p.id === me);
       if (!mine || !castLevel(mine, spell)) return toast(t('Você ainda não tem essa magia. Compre na loja.', 'You don’t have that spell yet. Buy it in the shop.'));
+      if (spell === 'nexus') {
+        const units = interp.latest()?.wizards.filter(w => !(w.geyserLeft ?? 0)).map(w => ({ ...w, team: room?.players.find(p => p.id === w.id)?.team })) ?? [];
+        const self = units.find(w => w.id === me);
+        const target = self && allyTarget(units, self, at, reachOf(spell, mine.spells, mine.items, channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1, elementalBonuses(self.spheres, 0, self.transcendence)));
+        if (!target) return toast(t('Clique num aliado vivo dentro do alcance; não pode mirar em si mesmo.', 'Click a living ally in range; cannot target yourself.'));
+        at = target.pos;
+      }
       if (!checkCooldown(spell)) return;
       const state = myWizard(interp.latest())?.status ?? 0;
       if (spell === 'closedbody' && !(state & BRACING_BIT)) return toast(t('Ative Manter base antes de usar Corpo fechado.', 'Activate Hold Ground before using Closed Body.'));
@@ -523,6 +559,14 @@ function startRoom(code: string, name: string) {
         const target = self && sniperTarget(units,self,at,reachOf(spell, mine.spells, mine.items, 1, elementalBonuses(self.spheres, 0, self.transcendence)), input.hovered());
         if (!target) return toast(t('Clique em um inimigo visível dentro do alcance.', 'Click a visible enemy within range.'));
         at = target.pos;
+      }
+      if (spell === 'transfusion') {
+        const units = interp.latest()?.wizards.filter((w) => !(w.geyserLeft ?? 0)).map((w) => ({ ...w, team: room?.players.find((p) => p.id === w.id)?.team })) ?? [];
+        const self = units.find((w) => w.id === me);
+        const target = self && allyTarget(units, self, at, reachOf(spell, mine.spells, mine.items, channelRequest?.spell === spell ? channelPower(myWizard(interp.latest())?.channelElapsed ?? 0) || 1 : 1, elementalBonuses(self.spheres, 0, self.transcendence)));
+        if (!target) return toast(t('Clique num aliado vivo dentro do alcance; não pode mirar em si mesmo.', 'Click a living ally in range; cannot target yourself.'));
+        at = target.pos;
+        predict.stop();
       }
       if (spell === 'heal') {
         const units = interp.latest()?.wizards.map(w => ({ ...w, team: room?.players.find(p => p.id === w.id)?.team })) ?? [];
@@ -544,7 +588,7 @@ function startRoom(code: string, name: string) {
       // Sniper movement cancels its aim; ordinary casts retain queued movement.
       predict.hold(CAST_POINT[spell], spell === 'sniper');
       scene.castLocal(me, spell, at);
-      if (spell !== 'transcend' && spell !== 'elemental' && spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper') scene.clickMarker(at, true); // Support and aimed casts do not show the generic orange attack marker.
+      if (spell !== 'transcend' && spell !== 'elemental' && spell !== 'closedbody' && !UNIT_TARGET_SPELLS.has(spell)) scene.clickMarker(at, true); // Support and aimed casts do not show the generic orange attack marker.
       if (spell !== 'heal' && spell !== 'closedbody' && spell !== 'sniper') sound.play(SPELL_SOUND[spell]); // Heal and the sniper shot play only on authoritative confirmation.
       return true;
     },
@@ -554,7 +598,7 @@ function startRoom(code: string, name: string) {
     },
     zoom: (d) => scene.zoomBy(d),
     pan: (dx, dy) => scene.panBy(dx, dy),
-    armedChanged: (s) => { armed = s; canvas.style.cursor = (s === 'heal' || s === 'sniper') ? 'crosshair' : ''; },
+    armedChanged: (s) => { armed = s; canvas.style.cursor = s && UNIT_TARGET_SPELLS.has(s) ? 'crosshair' : ''; },
     preview: (s, at) => {
       held = s;
       const from = drawn.get(me);
@@ -568,6 +612,9 @@ function startRoom(code: string, name: string) {
   // a aparência escolhida fica salva e é reenviada ao entrar em qualquer sala; trocada nas Configurações, vale na hora
   const net = connect('/ws/room/' + code, parseServerMessage, onMsg, () => {
     rejoined = true;
+    readingSent = null;
+    loadingGate.cancelStart(); // a start sent while the socket was down never reached the server
+    syncLoading();
     net.send({ t: 'hello', playerId, name: myName, ...(watchJoin && { watch: true as const }) });
     net.send({ t: 'look', look: savedLook() });
   }, (on) => {
@@ -592,6 +639,7 @@ function startRoom(code: string, name: string) {
 
   // sombra: 1 bot que joga como você; o que não foi medido fica no Normal (mimic.ts)
   function startShadow(skill: Partial<BotSkill>) {
+    startLoading();
     training = true;
     run = pending = null;
     trainSetup = [{ skill }];
@@ -611,19 +659,22 @@ function startRoom(code: string, name: string) {
     else if (k === 'shadow' && skill) startShadow(skill);
     else if (k === 'sandbox') startSandbox();
     else if (k === 'partida' || k === 'partida:loja') {
+      startLoading();
       // ?ir= (só localhost): partida contra 1 bot já começada; 'partida' ainda clica Pronto e pula a loja
       net.send({ t: 'start', bots: 1, mode: 'rounds', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
       if (k === 'partida') net.send({ t: 'ready' });
     }
     else if (k === 'partida:ascensao') {
+      startLoading();
       // sala do Ascensão: o Começar usa os bots e as opções do dono (quem abriu o atalho)
       net.send({ t: 'lobby', bots: ['normal', 'normal', 'normal'], opts: { ...DEFAULT_OPTS, shop: 120 } });
       net.send({ t: 'start', bots: 3, mode: 'ascension', shuffle: true, opts: { ...DEFAULT_OPTS, shop: 120 } });
     }
-    else if (k === 'campanha') net.send({ t: 'start', bots: 0, mode: 'campaign', shuffle: true, opts: DEFAULT_OPTS }); // ?ir=campanha: the night, alone
+    else if (k === 'campanha') { startLoading(); net.send({ t: 'start', bots: 0, mode: 'campaign', shuffle: true, opts: DEFAULT_OPTS }); } // ?ir=campanha: the night, alone
   }
   // sandbox: começa com você e um boneco parado; o resto vem pelo painel
   function startSandbox() {
+    startLoading();
     training = shadow = false;
     run = pending = null;
     trainSetup = undefined;
@@ -632,6 +683,7 @@ function startRoom(code: string, name: string) {
   }
 
   function startChallenge(c: Challenge) {
+    startLoading();
     training = shadow = false;
     run = null;
     pending = c;
@@ -822,6 +874,9 @@ function startRoom(code: string, name: string) {
   let rejoined = false; // conexão (re)aberta: a primeira sala depois dela não conta compras
   function onMsg(m: ServerMsg) {
     if (m.t === 'error') {
+      loadingGate.cancelStart();
+      if (['not_found', 'other_tab', 'full', 'kicked'].includes(m.code)) loadingGate.fail();
+      syncLoading();
       if (m.code === 'not_found') return screen(ui, t('Sala não encontrada', 'Room not found'), t('Ela pode ter fechado por ficar vazia.', 'It may have closed for being empty.'), t('Ver salas', 'View rooms'), () => (location.hash = ''));
       // sem parar a conexão, ela se reconectaria sozinha e derrubaria a outra aba, num vaivém sem fim
       if (m.code === 'other_tab' || m.code === 'full' || m.code === 'kicked') net.stop();
@@ -838,6 +893,7 @@ function startRoom(code: string, name: string) {
       me = m.you;
       arenaId = room.arena ?? arenaId; // na loja não há rodada: fica a última arena
       view.update(room, me, online);
+      loadingGate.setRoom(room.phase, room.players.some((p) => p.id === me));
       begin(room);
       // alguém saiu no meio da partida e um bot assumiu o mago, ou a pessoa voltou (issue #223)
       if (prev) {
@@ -871,6 +927,7 @@ function startRoom(code: string, name: string) {
       scene.preload(room.players.map((p) => p.look));
       if (room.phase !== lastPhase) onPhase(prev);
       lastPhase = room.phase;
+      syncLoading();
       // Campanha: encontro abriu (alguém pisou no ponto de controle) ou acabou
       if (room.phase === 'playing' && room.night && prev?.night && room.night.fight !== prev.night.fight) {
         if (room.night.fight !== null) banner(t('A sala se fechou!', 'The room is sealed!'));
@@ -914,11 +971,16 @@ function startRoom(code: string, name: string) {
     }
     if (!room) return;
     const sv = decodeSnap(m, room.ids);
+    const ownAttack = myWizard(sv);
+    arcPreview = m.ack >= attackCancelSeq && ownAttack?.basicArc && (ownAttack.basicLeft ?? 0) > 0
+      ? { until: performance.now() + ownAttack.basicLeft! * 1000, facing: ownAttack.facing } : null;
     // the cue follows the authoritative Hold ground edge, never the windup
     const bracing = !!((sv.wizards.find((z) => z.id === me)?.status ?? 0) & BRACING_BIT);
     if (bracing && !wasBracing) sound.play('brace');
     wasBracing = bracing;
     interp.push(sv, performance.now() / 1000);
+    loadingGate.setSnapshot();
+    syncLoading();
     keepLast(ring, { s: sv, e: m.e ?? [] }, REPLAY_MAX); // antes do onEvents: o estado da queda entra no trecho
     if (m.e) onEvents(m.e);
   }
@@ -937,7 +999,7 @@ function startRoom(code: string, name: string) {
     const menu = (p: string) => p === 'lobby' || p === 'end';
     if (prev && menu(prev.phase) !== menu(room.phase)) curtain();
     // na contagem o servidor ainda não aceita comandos: liberar só quando a rodada começa
-    input.setEnabled(room.phase === 'playing');
+    input.setEnabled(!loadingGate.pending && !campaignPaused() && room.phase === 'playing');
     sound.setAmbience(room.phase !== 'lobby' && room.phase !== 'end');
     sound.duck(room.phase === 'shop');
     // Ascensão: o tempo acabou sem a escolha da pessoa e o jogo sorteou (#224)
@@ -998,7 +1060,7 @@ function startRoom(code: string, name: string) {
   function frame() {
     requestAnimationFrame(frame);
     const nowMs = performance.now();
-    const dt = Math.min(0.05, (nowMs - lastFrame) / 1000); // aba que volta do segundo plano não dá salto na previsão nem nas animações
+    const dt = campaignPaused() ? 0 : Math.min(0.05, (nowMs - lastFrame) / 1000); // a tab coming back from the background does not jump the prediction or the animations; a Campaign pause freezes both
     lastFrame = nowMs;
     const s = interp.sample(nowMs / 1000);
     const latest = interp.latest();
@@ -1055,6 +1117,7 @@ function startRoom(code: string, name: string) {
     const followingFocus=!ownFocus?.alive && watched && !watchCenter ? watched.id : null;
     const focusCaster=ownFocus?.alive?ownFocus:interp.latest()?.wizards.find(w=>w.id===followingFocus);
     scene.render({
+      paused: campaignPaused(),
       sniperFocus: sniperFocusState(me,focusCaster,room?.phase==='playing',!!rs,nowMs/1000-(sniperShotTimes.get(focusCaster?.id ?? '') ?? -Infinity),followingFocus),
       blindAt: !rs && meW?.alive && (myWizard(interp.latest())?.blindLeft ?? 0) > 0 ? myPos : null,
       arena: arenaId,
@@ -1084,7 +1147,7 @@ function startRoom(code: string, name: string) {
     // No Rápido a tecla é o piscar depois de lançar: a faixa fica parada onde a magia saiu (flashAim), e o mouse na barra não aponta
     // o chão: nada segue o mouse
     const frozen = armed || padAiming ? null : flashAim;
-    const aiming = showing && (armed ?? padAiming ?? (getCastMode() === 'release' || frozen ? held : null));
+    const aiming = showing && (armed ?? padAiming ?? (getCastMode(showing || undefined) === 'release' || frozen ? held : null));
     const aimAt = aiming ? (padAiming ? padAt : (frozen?.at ?? input.aimPoint())) : null;
     const shape = aiming && aimAt && meP && myPos ? aimOf(aiming, meP.spells, meP.items, frozen?.from ?? myPos, aimAt, channelBoost, elementalBonuses(meW?.spheres, 0, meW?.transcendence)) : null;
     scene.preview.range(showing && myPos ? myPos : null, reach);
@@ -1094,7 +1157,7 @@ function startRoom(code: string, name: string) {
     const lockFrom = room?.phase === 'playing' && meW?.alive && meP && (attackArmed || armed === 'sniper') ? drawWiz.filter((d) => !d.illusion).map((d) => ({ ...d, hidden: !!(d.status & 2048), suspended: (d.geyserLeft ?? 0) > 0 })) : null;
     const lockSelf = lockFrom?.find((d) => d.id === me), lockAt = lockSelf && input.aimPoint();
     const lockHover = lockAt ? input.hovered() : undefined;
-    scene.preview.lockOn(lockSelf && lockAt ? (armed === 'sniper' ? sniperTarget(lockFrom!, lockSelf, lockAt, reachOf('sniper', meP!.spells, meP!.items, channelBoost, elementalBonuses(meW?.spheres, 0, meW?.transcendence)), lockHover) : attackTarget(lockFrom!, lockSelf, lockAt, BASIC_ATTACK.range * (1 + elementalBonuses(meW?.spheres, 0, meW?.transcendence).water), lockHover))?.pos ?? null : null);
+    scene.preview.lockOn(lockSelf && lockAt ? (armed === 'sniper' ? sniperTarget(lockFrom!, lockSelf, lockAt, reachOf('sniper', meP!.spells, meP!.items, channelBoost, elementalBonuses(meW?.spheres, 0, meW?.transcendence)), lockHover) : attackTarget(lockFrom!, lockSelf, lockAt, basicReach(elementalBonuses(meW?.spheres, 0, meW?.transcendence)), lockHover))?.pos ?? null : null);
     // nas posições desenhadas (as mesmas da tela), para ver se o erro foi mira, desvio ou a bola no ar enganando
     scene.hitboxes(seeHit && room?.sandbox && shown ? [...drawWiz.filter((d) => d.alive).map((d) => ({ pos: d.pos, r: WIZ_R, wiz: true })), ...shown.projectiles.map((p) => ({ pos: p.pos, r: hitR(p.kind) * (p.size ?? 1), wiz: p.kind === 'illusion' })).filter((h) => h.r > 0)] : null);
     const respawnIn = room?.phase === 'playing' ? (lastSnap?.rs?.[room.ids.indexOf(me)] ?? 0) : 0;
@@ -1115,8 +1178,9 @@ function startRoom(code: string, name: string) {
     }
     // fora da noite (fim, sala) a fala sai da frente; a fila fica para a mesma noite
     if (!playing) view.ilse(null);
-    else if (ilseQ.lines.length) ilseShow();
-    if (nm && playing && room!.night!.stage === 0 && ilseOn()) {
+    else ilseShow();
+    syncReading();
+    if (nm && room?.phase === 'playing' && !meP?.watch && room.night!.stage === 0 && ilseOn()) {
       const here = myPos && nm.rooms.find((p) => myPos.x > p.x && myPos.y > p.y && myPos.x < p.x + p.room.w && myPos.y < p.y + p.room.h);
       const line = here && ILSE_ROOMS[here.room.id];
       if (here && line) ilseSay(here.room.id, line(ilseCtx()));
@@ -1163,7 +1227,7 @@ function startRoom(code: string, name: string) {
       const state = { ...renderWizardState(w, server) };
       if (live && w.id === me && (lastSnap?.ack ?? 0) < attackCancelSeq) state.basicLeft = 0;
       const status = sandboxVisibility(state.status, w.id === me, !!room?.sandbox, seeInvis);
-      const pos = w.id === me && server ? predict.frame(server, dt) : w.pos;
+      const pos = w.id === me && server ? campaignPaused() ? server.pos : predict.frame(server, dt, (lastSnap?.ack ?? 0) < attackCancelSeq) : w.pos;
       const prevDraw = prev.get(w.id);
       // Só um comando real pode ligar a corrida; empurrão e reconciliação não são caminhada.
       const moving = !!(state.status & WALKING_BIT) && state.alive && (!!(state.status & HOLDING_MOVE_BIT) || !prevDraw || dist(prevDraw, pos) > 0.004);
@@ -1177,7 +1241,15 @@ function startRoom(code: string, name: string) {
     scene.onEvents(events);
     for (const e of events) hitArrow(e, rs);
   }
-  void scene.ready.then(() => requestAnimationFrame(frame), () => toast(t('Não deu para carregar o mago. Recarregue a página.', 'Couldn’t load the wizard. Reload the page.')));
+  void scene.ready.then(() => {
+    loadingGate.setSceneReady();
+    requestAnimationFrame(frame);
+    syncLoading();
+  }, () => {
+    loadingGate.fail();
+    syncLoading();
+    screen(ui, t('Não deu para carregar o mago', 'Couldn’t load the wizard'), t('Recarregue a página para tentar novamente.', 'Reload the page to try again.'), t('Recarregar', 'Reload'), () => location.reload());
+  });
 }
 
 startPad(toast);
