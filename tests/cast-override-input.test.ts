@@ -28,7 +28,7 @@ it('honors key overrides but keeps Heal on click-to-confirm', async () => {
   input.setEnabled(false);
 });
 
-it('reserves inventory number keys and applies the active item preference', async () => {
+it('gives a number key to the active item in that slot and leaves the other numbers to their bindings', async () => {
   type Fn = (e: Record<string, unknown>) => void;
   const win = new Map<string, Fn[]>(), canvas = new Map<string, Fn[]>();
   const listen = (map: Map<string, Fn[]>) => (name: string, fn: Fn) => map.set(name, [...(map.get(name) ?? []), fn]);
@@ -43,7 +43,7 @@ it('reserves inventory number keys and applies the active item preference', asyn
   input.setEnabled(true); setSlotMode(false); setKey('fireball', 'Digit3'); setCastMode('click');
   setCastPreference('item:addicted_rings', 'quick');
   send('Digit2'); expect(cast).toHaveBeenCalledWith('recharge', { x: 3, y: 0 });
-  cast.mockClear(); send('Digit3'); expect(cast).not.toHaveBeenCalled();
+  cast.mockClear(); setCastMode('quick'); send('Digit3'); expect(cast).toHaveBeenCalledWith('fireball', { x: 3, y: 0 });
   input.setEnabled(false); setCastPreference('item:addicted_rings'); setKey('fireball', 'KeyQ');
 });
 

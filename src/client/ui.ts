@@ -1187,13 +1187,14 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const ROW = 4; // slots per row: the fixed pair goes right after Q W E R
   // grade 3×2 de itens à direita da barra, como a do Dota (MAX_ITEMS = 6): os comprados (todos passivos desde 21/10, #217) e o resto vazio
   const itemGrid = el('div', { class: 'item-grid', role: 'group', 'aria-label': t('Itens', 'Items') });
+  // the Scourge shows its own rebindable key (data-action refreshes it); another active item its slot number, or its controller button
+  const itemKey = (spell: SpellId, slot: number) => spell === 'scourge' ? el('span', { class: 'key', 'data-action': spell }, labelOf(spell)) : el('span', { class: 'key' }, isPadMode() ? labelOf(spell) : String(slot + 1));
   function refreshEquipment() {
     if (!mine) return setSlots([]); // espectador: teclas e controle não ficam com a ordem de antes
     if (slotDrag) return;
     const order = equipment(mine);
     const passive = inventoryOrder(mine.items);
-    const active = mine.items.scourge > 0 ? [buttons.get('scourge')!.b] : []; // the Scourge is the active item button, with key and cooldown (26/10, #227)
-    const sig = JSON.stringify([order, passive.map((i) => [i, mine!.items[i]]), active.length]);
+    const sig = JSON.stringify([order, passive.map((i) => [i, mine!.items[i]]), isPadMode()]);
     if (bar.dataset.order !== sig) {
       bar.dataset.order = sig;
       const empty = (index: number) => draggableSlot(el('span', { class: 'spell slot-empty', 'aria-label': t('Posição vazia', 'Empty slot') }, el('span', { class: 'key', 'data-position': index }, keyLabel(keyOf(POS_ACTIONS[index])))), index, false);
@@ -1206,7 +1207,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       bar.replaceChildren(...slots.slice(0, ROW), ...fixedBtns, ...slots.slice(ROW));
       itemGrid.replaceChildren(...passive.map((i, index) => {
         const active = ACTIVE_ITEM_SPELL[i];
-        return withTip(el(active ? 'button' : 'span', { class: 'spell g-itens' + (active ? '' : ' passive'), tabindex: 0, 'data-item': i, 'aria-label': itemName(i), ...(active && { onclick: () => act.spell(active) }) }, el('span', { class: 'key' }, String(index + 1)), el('span', { class: 'ico' }, icon(ITEM_ICON[i])), active ? el('span', { class: 'cd' }) : null), () => itemTip(i, mine?.items[i] ?? 0));
+        return withTip(el(active ? 'button' : 'span', { class: 'spell g-itens' + (active ? '' : ' passive'), tabindex: 0, 'data-item': i, 'aria-label': itemName(i), ...(active && { onclick: () => act.spell(active) }) }, active ? itemKey(active, index) : null, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), active ? el('span', { class: 'cd' }) : null), () => itemTip(i, mine?.items[i] ?? 0));
       }),
       ...Array.from({ length: Math.max(0, MAX_ITEMS - passive.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
       hideTip(bar); hideTip(itemGrid);

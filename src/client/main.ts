@@ -11,7 +11,7 @@ import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type SnapView, type WizView 
 import { ODRAN } from '../shared/bosses.ts';
 import { CANDLE, SERVOS, nightXpAt } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
-import { inventoryOrder, ACTIVE_ITEM_SPELL, castLevel, itemStats } from '../shared/items.ts';
+import { activeItemAt, castLevel, itemStats } from '../shared/items.ts';
 import { CAST_POINT, SPELLS, SPELL_IDS, UNIT_TARGET_SPELLS, castBlocked, spellLevel, type SpellId } from '../shared/spells.ts';
 import { channelPower } from '../shared/channeling.ts';
 import { add, dist, len, scale, type Vec } from '../shared/vec.ts';
@@ -460,11 +460,8 @@ function startRoom(code: string, name: string) {
   function startLoading() { loadingGate.start(); syncLoading(); }
   const input = createInput(canvas, {
     itemAt(code) {
-      const index = /^Digit[1-6]$/.test(code) ? Number(code.slice(5)) - 1 : -1;
       const mine = room?.players.find(p => p.id === me);
-      const id = mine && inventoryOrder(mine.items)[index];
-      const spell = id && ACTIVE_ITEM_SPELL[id];
-      return spell && id ? { spell, id } : undefined;
+      return mine && activeItemAt(mine.items, code);
     },
     cancelNexus() { if ((myWizard(interp.latest())?.nexusTo ?? -1) < 0) return false; command({ t: 'cast', spell: 'nexus', x: 0, y: 0 }); return true; },
     canChannel: () => (room?.players.find((p) => p.id === me)?.spells.channel ?? 0) > 0,

@@ -163,8 +163,6 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     if (!enabled || typing(e)) return;
     // teclas trocáveis pelo jogador (keys.ts)
     const item = h.itemAt?.(e.code);
-    if (h.itemAt && /^Digit[1-6]$/.test(e.code) && !item) { e.preventDefault(); return; }
-    if (item) e.stopImmediatePropagation();
     const action = item?.spell ?? actionFor(e.code);
     if (action) {
       if (action === 'nexus' && e.repeat) { e.preventDefault(); return; }

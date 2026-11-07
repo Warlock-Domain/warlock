@@ -68,8 +68,14 @@ export const AEGIS = { hp: 250, back: 0.6 };
 
 
 export const noItems = (): Record<ItemId, number> => Object.fromEntries(ITEM_IDS.map((i) => [i, 0])) as Record<ItemId, number>;
-// Keep the free Scourge in its established first slot across HUD, settings and number keys.
-export const inventoryOrder = (items: Partial<Record<ItemId, number>>): ItemId[] => [...(items.scourge ? ['scourge' as const] : []), ...ITEM_IDS.filter(id => id !== 'scourge' && (items[id] ?? 0) > 0)];
+// Active items first (the free Scourge, then Addicted Rings): their number keys stay on 1 and 2, clear of the Pact, Replay (5) and Camera (6) defaults.
+export const inventoryOrder = (items: Partial<Record<ItemId, number>>): ItemId[] => [...Object.keys(ACTIVE_ITEM_SPELL) as ItemId[], ...ITEM_IDS.filter(id => !ACTIVE_ITEM_SPELL[id])].filter(id => (items[id] ?? 0) > 0);
+// The active item a number key fires. The Scourge answers only to its own rebindable key (keys.ts), so saved bindings keep working.
+export function activeItemAt(items: Partial<Record<ItemId, number>>, code: string): { spell: SpellId; id: ItemId } | undefined {
+  const id = /^Digit[1-6]$/.test(code) ? inventoryOrder(items)[Number(code.slice(5)) - 1] : undefined;
+  const spell = id && id !== 'scourge' ? ACTIVE_ITEM_SPELL[id] : undefined;
+  return spell && id ? { spell, id } : undefined;
+}
 // every player's match start: the Scourge at level 1 for free (Campaign servants and the training turret use noItems)
 export const startItems = (): Record<ItemId, number> => ({ ...noItems(), scourge: 1 });
 // level a player casts with: the Scourge's lives in the items (26/10, #227), every other spell's in the spells
