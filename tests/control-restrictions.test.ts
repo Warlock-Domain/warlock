@@ -21,9 +21,18 @@ describe('stun and root: authoritative restrictions', () => {
     if (spell === 'sniper') { const enemy = world([[3,0]], noSpells(), [], () => .5).wizards[0]; enemy.id='enemy'; w.wizards.push(enemy); }
     if (spell === 'closedbody') { z.braceReadyAt = 0; z.braceUntil = 1; }
     stepWorld(w, [{ id: z.id, kind: 'cast', spell, at: spell === 'heal' ? z.pos : v(3, 0) }], () => .5);
-    const blocked = spellGroup(spell) === 'mobility';
+    const blocked = spellGroup(spell) === 'mobility' || spell === 'swap';
     expect(castBlocked(false, true, spell)).toBe(blocked);
     expect(w.events.some((e) => e.k === 'cast')).toBe(!blocked && spell !== 'channel');
+    expect(z.pos).toEqual(v(0, 0));
+  });
+  it('Grip holds Swap although it left the Mobility group', () => {
+    const w = world([[0, 0], [3, 0]], { ...noSpells(), swap: 1 }, [], () => .5);
+    const z = w.wizards[0]; z.gripUntil = 5;
+    run(w, 1, [{ id: z.id, kind: 'cast', spell: 'swap', at: v(3, 0) }]);
+    expect(castBlocked(false, true, 'swap')).toBe(true);
+    expect(z.cd.swap).toBe(0);
+    expect(w.projectiles).toHaveLength(0);
     expect(z.pos).toEqual(v(0, 0));
   });
   it('roots arriving during Fireball windup do not cancel it (only mobility is blocked)', () => {

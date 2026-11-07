@@ -65,7 +65,7 @@ New client message: variant in `ClientMsg` → `case` in `parseClientMessage` th
 
 - Post-knockback recovery (`kr`) only starts when a physical impulse crosses STUN_SPEED: zeroes the residual and resumes 50→100% in 1 s, +10 pp/0.2 s. Ending a stun without an impulse does not trigger recovery; a dedicated test covers this separation. The client rereads kr only from a new snapshot, never per frame.
 
-- Proposal under review: `stunLeft` is an action-block clock separate from physical speed (`st` in the snapshot, -1 uses the old rule). `castBlocked` blocks everything under stun and only Mobility spells under Grip. Changes neither Meteor, Shield nor the speed recovery rule at this stage.
+- Proposal under review: `stunLeft` is an action-block clock separate from physical speed (`st` in the snapshot, -1 uses the old rule). `castBlocked` blocks everything under stun and only Mobility spells and Swap under Grip. Changes neither Meteor, Shield nor the speed recovery rule at this stage.
 
 - Historical damage does not amplify knockback (`KNOCK_HP_SCALE=0`); it is still recorded for statistics. `WALKING_BIT` only marks a valid voluntary destination; physical displacement/reconciliation does not animate walking. The right button does not stay stuck after blur/pointercancel.
 

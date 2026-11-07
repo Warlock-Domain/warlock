@@ -21,7 +21,8 @@ export const SPELL_GROUP_IDS = {
 type SpellGroup = keyof typeof SPELL_GROUP_IDS;
 export const SHIELD = { statusDuration: .6, knock: .6 }; // proposta: reduz novos status/impulsos em40%, nunca recalcula os anteriores.
 // Servidor e entrada do cliente usam a mesma classificação de mobilidade para o agarramento.
-export const castBlocked = (stunned: boolean, rooted: boolean, spell: SpellId) => stunned || (rooted && spellGroup(spell) === 'mobility');
+// Swap sits in Utility since 30/10 but still moves the caster, so Grip keeps holding it like a mobility spell.
+export const castBlocked = (stunned: boolean, rooted: boolean, spell: SpellId) => stunned || (rooted && (spellGroup(spell) === 'mobility' || spell === 'swap'));
 export const spellGroup = (s: SpellId) => (Object.keys(SPELL_GROUP_IDS) as SpellGroup[]).find((g) => (SPELL_GROUP_IDS[g] as readonly SpellId[]).includes(s))!;
 
 // radius: raio da explosão do Meteoro (e do dano da Gravidade); dmgMin: dano na borda dele; absorb: dano que a Investida converte em velocidade;

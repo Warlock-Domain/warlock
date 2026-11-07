@@ -42,8 +42,8 @@ export const NEGATIVE_GUIDES = [
     'Impede caminhar, conjurar qualquer magia e preparar Atacar enquanto estiver ativo. Forças externas ainda podem deslocar o corpo. Ao terminar, as ações voltam a ficar disponíveis, respeitando outros efeitos que ainda estejam ativos.',
     'Prevents walking, casting any spell and winding up Attack while active. External forces can still displace the body. When it ends, actions become available again, subject to any other effects that remain active.') },
   { id: 'status-snare', title: t('Agarramento (snare/root)', 'Root (snare)'), text: t(
-    'Impede caminhar e usar magias de mobilidade, mas permite outras magias e Atacar. Forças externas ainda podem deslocar o alvo. A duração e as condições para encerrar a prisão são definidas pela fonte que aplica o efeito.',
-    'Prevents walking and mobility spells, but allows other spells and Attack. External forces can still displace the target. Duration and conditions for ending the root are defined by the source applying the effect.') },
+    'Impede caminhar e usar magias de mobilidade e a Troca, mas permite outras magias e Atacar. Forças externas ainda podem deslocar o alvo. A duração e as condições para encerrar a prisão são definidas pela fonte que aplica o efeito.',
+    'Prevents walking, mobility spells and Swap, but allows other spells and Attack. External forces can still displace the target. Duration and conditions for ending the root are defined by the source applying the effect.') },
   { id: 'status-slow', title: t('Lentidão (slow)', 'Slow'), text: t(
     'Reduz a velocidade de caminhada, sem bloquear conjurações nem pausar recargas por si só. Intensidade e duração dependem da fonte que aplica o efeito. Efeitos de uma área dependem de permanecer dentro dela; não confunda sua duração com a duração de uma lentidão aplicada ao alvo.',
     'Reduces walking speed without blocking casts or pausing cooldowns by itself. Strength and duration depend on the source applying the effect. Area effects depend on staying inside them; their lifetime is not the same as a timed slow applied to a target.') },
