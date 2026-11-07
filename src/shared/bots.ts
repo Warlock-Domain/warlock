@@ -46,7 +46,7 @@ const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'warpzone',
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize', 'pix'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
-const SITUATIONAL: SpellId[] = ['magnetize', 'bouncer', 'elemental', 'nexus', 'transfusion', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
+const SITUATIONAL: SpellId[] = ['magnetize', 'bouncer', 'transcend', 'elemental', 'nexus', 'transfusion', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
 const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);

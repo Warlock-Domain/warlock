@@ -53,7 +53,7 @@ describe('play style', () => {
     // Transcend intentionally changes seeded bot purchases and decisions.
     // Fixed equipment, revised abilities and delayed Lightning intentionally change seeded events; bots also stop drawing the spells that became items.
     // Homing slow, prepared Ricochet and direct Magnetize intentionally change seeded events.
-    expect(hash).toBe(2773707369);
+    expect(hash).toBe(336605390);
     // and it really measured in this same match
     const sum = (k: 'threats' | 'reactN' | 'nearN') => m.players.reduce((a, p) => a + p.stats.match[k], 0);
     expect([sum('threats') > 0, sum('reactN') > 0, sum('nearN') > 0]).toEqual([true, true, true]);

@@ -994,6 +994,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec, power = 1, aimedId?
 export function magneticProjectile(w: World, wz: Wizard, at: Vec, range: number) {
   return w.projectiles.filter(p => !fixed(p) && p.kind !== 'illusion' && p.waves === undefined && len(p.vel) > .001 && w.t < p.until && dist(wz.pos, p.pos) <= range && dist(at, p.pos) > .01).sort((a, b) => dist(a.pos, wz.pos) - dist(b.pos, wz.pos))[0];
 }
+const canTranscend = (wz: Wizard) => wz.spells.transcend > 0 && wz.spells.elemental > 0 && !wz.transcendence?.complete && !(wz.transcendLeft! > 0) && (wz.transcendence ? wz.transcendence.saved === 5 : wz.lastElement !== undefined);
 function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number, aimedId?: string, copy?: number) {
   if (spell === 'transcend' && !canTranscend(wz)) return;
   if (spell === 'channel') return;
@@ -1057,6 +1058,22 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
     redirected.lockOn = undefined; redirected.curve = undefined; redirected.turnAt = undefined;
     if (!returning(redirected)) { redirected.target = null; redirected.back = undefined; }
     redirected.dest = { ...at };
+    return;
+  }
+  if (spell === 'transcend') {
+    if (!wz.transcendence && wz.lastElement !== undefined) {
+      const saved = (wz.spheres ?? []).filter(s => s.until > w.t && s.element === wz.lastElement).length;
+      wz.transcendence = { element: wz.lastElement, saved, complete: false };
+      wz.spheres = (wz.spheres ?? []).filter(s => s.until > w.t && s.element !== wz.lastElement);
+    } else if (wz.transcendence?.saved === 5 && !wz.transcendence.complete) {
+      wz.transcendLeft = TRANSCEND.duration; wz.transcendAt = { ...wz.pos };
+      wz.invulnUntil = Math.max(wz.invulnUntil, w.t + TRANSCEND.duration);
+      wz.blindUntil = Math.max(wz.blindUntil ?? 0, w.t + TRANSCEND.duration);
+      wz.incapacitateUntil = Math.max(wz.incapacitateUntil ?? 0, w.t + TRANSCEND.duration);
+      wz.target = null; wz.vel = v(0, 0); wz.casting = null; wz.basicCasting = undefined;
+      wz.channel = undefined; wz.moveHeld = false; wz.braceUntil = 0;
+      wz.dashUntil = wz.thrustUntil = 0;
+    }
     return;
   }
   if (spell === 'elemental') {
@@ -1203,7 +1220,8 @@ function sniperVictim(w: World, wz: Wizard, at: Vec, range: number, aimedId?: st
 // começa a conjurar: confere nível e recarga agora; o efeito sai depois do tempo de conjuração
 function beginCast(w: World, wz: Wizard, spell: SpellId, at: Vec) {
   if (spell === 'magnetize' && !magneticProjectile(w, wz, at, wizardLevel(w, wz, spell, wz.channel?.spell === spell ? channelPower(w.t - wz.channel.since) || 1 : 1).range * wz.rangeF)) return;
-  if (spell === 'elemental' && (wz.spheres?.length ?? 0) >= ELEMENTAL_SPHERES.max) return;
+  if (spell === 'transcend' && !canTranscend(wz)) return;
+  if (spell === 'elemental' && (wz.transcendence?.complete || ((wz.transcendence?.saved ?? 0) + (wz.spheres?.filter(s => s.until > w.t).length ?? 0)) >= ELEMENTAL_SPHERES.max)) return;
   if (spell === 'channel') return;
   if (castBlocked(isStunned(wz), w.t < wz.gripUntil, spell)) return;
 
@@ -2082,7 +2100,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
 export function revive(w: World, wz: Wizard, pos: Vec) {
   Object.assign(wz, {
     alive: true, pos, vel: v(0, 0), target: null, casting: null, channel: undefined, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
-    ricochetRange: undefined, nexus: undefined, transfusion: undefined, thrustStats: undefined, windStats: undefined, spheres: undefined, closedBodyWeak: false, blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined, puppetBy: undefined, puppetUntil: 0,
+    ricochetRange: undefined, nexus: undefined, transfusion: undefined, transcendLeft: 0, transcendAt: undefined, thrustStats: undefined, windStats: undefined, spheres: undefined, closedBodyWeak: false, blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined, puppetBy: undefined, puppetUntil: 0,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
     rune: null, runeUntil: 0, braceUntil: 0, braceReadyAt: 0, electroUntil: 0, basicCasting: undefined,
