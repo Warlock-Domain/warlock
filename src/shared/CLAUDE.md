@@ -74,6 +74,8 @@ Flattened lists of numbers (layout in the `protocol.ts` comment), values with `r
 ## Appearance (`characters.ts`)
 
 The appearance code stores the **position** of each option (7 digits, one per piece), and it is saved in the browser and in rooms. A new option goes **at the end** of the piece's list; an option that leaves stays in place and becomes retired (`isRetired`): `decodeLook` swaps it for another (the hooded Rogue becomes Rogue + Hood, issue #107), the creator and the draw skip it. Every code input goes through `fixLook` (browser in `savedLook`, message in `parseClientMessage`, stored room in `resume`).
+
+- Bouncer is a server-owned next-projectile-spell buff, consumed only when a moving spell projectile releases. Homing slow and Magnetic redirection use ordinary defenses/ownership. Warp Zone remains unchanged.
 Teams supports 2, 3 or 4 teams through opts.teams (default2, capped by participant count). Preserve two-team RNG and opposite spawns; additional teams use separated safe anchors with compact allies. Fixed-team newcomers join the smallest team; count changes regroup next round. Other modes and Campaign teams remain unchanged.
 
 - team-lobby.ts validates manual Teams setup/ownership. Humans choose only themselves; only the creator assigns bot slots. Preserve explicit parties and fill Automatic slots, reject a single-team start, and keep manual team ids through rounds even when fewer players use nonadjacent colors. Leaving Teams deletes the lobby, so Rounds and Deathmatch stay ownerless. In Teams only, a dropped owner hands off and the returning creator takes the room back.

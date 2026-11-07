@@ -18,7 +18,7 @@ type ItemLevel = { hp?: number; regen?: number; kb?: number; speed?: number; deb
 // crítico da Lente Letal: +30% de dano; a Magia Perfurante soma por cima (Lente e Perfurante no nível 3: ×1,8). Antes dos ITEMS: o texto da Lente lê daqui
 export const CRIT = { dmg: 0.3 };
 // magias cujas lentidões e penalidades a Runa da aflição alonga: são todos os debuffs do jogo (decisão do Fernando, 22/10; o Relógio encurta os mesmos, menos a lentidão da Bola de neve, que não passa pelo debuffMult do alvo) e os 4 pontos com afflictBy em sim.ts; magia nova que deixe lento ou preso entra aqui e lá (mudou lá, muda aqui; a dica lê esta lista)
-export const AFFLICT_SPELLS: readonly SpellId[] = ['grip', 'drain', 'snowball', 'magnetize', 'pix'];
+export const AFFLICT_SPELLS: readonly SpellId[] = ['homing', 'grip', 'drain', 'snowball', 'pix'];
 
 type Item = { name: string; cost: number; text: string; en: string; textEn: string; levels: ItemLevel[] };
 

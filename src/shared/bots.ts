@@ -1,7 +1,7 @@
 // Bots: usam qualquer magia e item ativo que tiverem e compram seguindo um plano sorteado no começo da partida.
 import { edge, inArena, inward, middle, pathStep, roomAt, safeInside } from './arena.ts';
 import { BASIC_ATTACK, BRACE, DT, FRICTION, ISLAND, OBSTACLES, PROJ_R, WIZ_R } from './constants.ts';
-import type { Cmd, Projectile, Wizard, World } from './sim.ts';
+import { magneticProjectile, type Cmd, type Projectile, type Wizard, type World } from './sim.ts';
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
 import { BAR_SPELLS, CAST_POINT, FREE_SPELLS, GRIP, MAX_SPELLS, METEOR_DELAY, PIX, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
@@ -45,7 +45,7 @@ const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'warpzone',
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize', 'pix'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
-const SITUATIONAL: SpellId[] = ['transcend', 'elemental', 'nexus', 'transfusion', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
+const SITUATIONAL: SpellId[] = ['magnetize', 'bouncer', 'transcend', 'elemental', 'nexus', 'transfusion', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
 const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
@@ -423,6 +423,8 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   }
   // Casting ends Windwalk: keep running toward an enemy for the contact hit.
   if (w.t < me.windUntil) return enemy ? [...cmds.filter((c) => c.kind !== 'move'), { id, kind: 'move', to: enemy.pos }] : cmds;
+  if (!me.casting && enemy && ready('magnetize') && magneticProjectile(w, me, enemy.pos, spellLevel('magnetize', me.spells.magnetize).range * me.rangeF)) return cast('magnetize', enemy.pos);
+  if (!me.casting && !me.ricochetRange && ready('bouncer')) return cast('bouncer', me.pos);
   // Anima Nexus after the escape and dodge branches: link to an ally in range with less HP than the bot
   if (!me.casting && !me.nexus && ready('nexus')) {
     const range = spellLevel('nexus', me.spells.nexus).range * me.rangeF;
@@ -520,9 +522,10 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
       const to = add(me.pos, clampLen(scale(dir, d - 4), L.range));
       at = d > 7.5 && inside(to, 2) && rand() < 0.3 ? to : null;
     } else if (s === 'rockpillar') at = d > 3 && d < 7 && rand() < 0.25 ? add(me.pos, scale(dir, 1.3)) : null;
-    // Magnetizar no inimigo: os projéteis do bot (já voando ou os próximos) curvam para ele
+    // Redirect the nearest moving projectile toward the enemy.
     else if (s === 'magnetize') {
-      at = d < L.range * 0.8 && (incoming || loaded) ? lead(L.speed, cp) : null;
+      const target = d < L.range * 0.8 ? lead(L.speed, cp) : null;
+      at = target && magneticProjectile(w, me, target, L.range * me.rangeF) ? target : null;
       prio = true;
     }
     // Zona de dobra em cima do inimigo: os tiros dele saem em câmera lenta enquanto os do bot chegam

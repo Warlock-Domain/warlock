@@ -10,7 +10,7 @@ import { SCRIPTS, createDemo, drawStone, runDemo, type DemoId } from './demo.ts'
 import { ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, UI_ICON, actionIcon, actionName, choice, el, icon } from './icons.ts';
 import { ACTIONS, UI_ACTIONS, UI_NAMES, isPadMode, isSlotMode, isUiKey, labelOf, uiLabel } from './keys.ts';
 import { MODE_INFO, OPT_INFO } from './opt-info.ts';
-import { ITEM_GROUPS, ITEM_DEMO, MECHANIC_GUIDES, NEGATIVE_GUIDES, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, SPELL_USE, groupClass, n1, type GuideId } from './rules-text.ts';
+import { ITEM_GROUPS, ITEM_DEMO, MECHANIC_GUIDES, NEGATIVE_GUIDES, RULES, RULES_SHORT, SPELL_GROUPS, SPELL_TIPS, groupClass, n1, type GuideId } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 import { hideTip, itemLevels, itemTip, mechanicTip, spellLevels, spellTip, withTip } from './tips.ts';
 import { dialog, norm, searchFilter } from './ui.ts';
@@ -50,7 +50,7 @@ function spellPage(id: SpellId, group: string): Page {
     body: () => [
       el('div', { class: 'g-head' }, el('span', { class: 'g-medal' }, icon(ICON[id])),
         el('div', {}, el('h2', {}, spellName(id)), el('small', {}, `${group} · ${keyText(id)} · ${sp.cost ? t(`${sp.cost} de ouro`, `${sp.cost} gold`) : t('grátis no começo', 'free at the start')}`))),
-      el('p', { class: 'g-lead' }, RULES_SHORT[id], ' ', el('i', {}, SPELL_USE[id])),
+      el('p', { class: 'g-lead' }, RULES_SHORT[id]),
       null, // lugar da demonstração
       el('h3', {}, t('Números por nível', 'Numbers by level')), html(spellLevels(id)), el('small', { class: 'g-legend' }, LEGEND),
       el('h3', {}, t('Como usar', 'How to use')), el('p', {}, SPELL_TIPS[id][0]),
