@@ -116,7 +116,7 @@ export function setCastMode(m: CastMode) {
 }
 
 // controle (gamepad): botão de cada ação, trocável na aba Controle das configurações (pedido do Fernando, 18/10).
-// Default: A B X Y LB RB in bar order (6 spells since 25/10, #401; LT and RT left free); L3 sheet; View scoreboard; ↓ shop; R3 camera.
+// Default: A B X Y LB RB in bar order (6 spells since 25/10, #401); LT the Scourge, RT Addicted Rings; L3 sheet; View scoreboard; ↓ shop; R3 camera.
 // Start fica fora: é o Esc do controle. Índices do mapeamento padrão da Gamepad API (PlayStation nas mesmas posições).
 export const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Start', 'L3', 'R3', '↑', '↓', '←', '→'];
 const PAD_NAMES_PS = ['✕', '○', '□', '△', 'L1', 'R1', 'L2', 'R2', 'Share', 'Options', 'L3', 'R3', '↑', '↓', '←', '→'];

@@ -35,22 +35,22 @@ export const MECHANIC_GUIDES = [
 
 // Statuses describe the effect itself, with no spell or demo attached (general stats, no spell-pair rules)
 export const NEGATIVE_GUIDES = [
-  {id:'status-blindness',title:t('Cegueira','Blindness'),text:t('Reduz a visão a um círculo de 6 m de diâmetro (3 m de raio) centrado no jogador afetado, com vinheta escura gradual até preto no exterior. Só altera a visão de quem recebe o status; não impede andar, atacar ou conjurar por si só. Duração depende da fonte e das resistências.','Restricts sight to a 6 m diameter circle (3 m radius) centered on the affected player, with a soft dark vignette fading to black outside. Only affects the recipient’s vision; does not itself prevent movement, attacks or casting. Duration depends on the source and resistances.') },
-  { id: 'status-knockback', title: t('Empurrão (knockback)', 'Knockback'), text: t(
-    `Deslocamento forçado por um impacto. O dano histórico não aumenta sua força; impactos simultâneos e resistências ainda alteram o resultado. Ao terminar o impulso, o residual é encerrado: uma ordem de caminhada guardada usa a posição atual, sem ordem não há caminhada automática. A recuperação começa em ${KNOCK_RECOVERY.start * 100}% da velocidade e ganha ${KNOCK_RECOVERY.step * 100} pontos percentuais a cada ${KNOCK_RECOVERY.interval.toLocaleString(LOCALE)} s, voltando a 100% em ${KNOCK_RECOVERY.seconds} s. Essa recuperação não é um novo stun.`,
-    `Forced displacement from an impact. Historical damage does not increase its force; simultaneous impacts and resistances still affect it. When the impulse ends, residual momentum is cleared: a stored walking order uses your current position; without an order there is no automatic walking. Recovery starts at ${KNOCK_RECOVERY.start * 100}% speed and gains ${KNOCK_RECOVERY.step * 100} percentage points every ${KNOCK_RECOVERY.interval} s, returning to 100% in ${KNOCK_RECOVERY.seconds} s. This recovery is not a new stun.`) },
-  { id: 'status-stun', title: t('Atordoamento (stun)', 'Stun'), text: t(
-    'Impede caminhar, conjurar qualquer magia e preparar Atacar enquanto estiver ativo. Forças externas ainda podem deslocar o corpo. Ao terminar, as ações voltam a ficar disponíveis, respeitando outros efeitos que ainda estejam ativos.',
-    'Prevents walking, casting any spell and winding up Attack while active. External forces can still displace the body. When it ends, actions become available again, subject to any other effects that remain active.') },
-  { id: 'status-snare', title: t('Agarramento (snare/root)', 'Root (snare)'), text: t(
+  {id:'status-blindness',title:t('Cego','Blindness'),text:t('Reduz seu campo de visão a um círculo de 6 m de diâmetro (3 m de raio) centrado no jogador afetado, com vinheta escura gradual até preto no exterior. Só altera a visão de quem recebe o status; não impede andar, atacar ou conjurar por si só. Duração depende da fonte e das resistências.','Restricts your field of vision to a 6 m diameter circle (3 m radius) centered on the affected player, with a soft dark vignette fading to black outside. Only affects the recipient’s vision; does not itself prevent movement, attacks or casting. Duration depends on the source and resistances.') },
+  { id: 'status-knockback', title: t('Empurrão', 'Knockback'), text: t(
+    `Empurra os inimigos pelo mapa — de preferência, para a lava! Deslocamento forçado por um impacto. O dano histórico não aumenta sua força; impactos simultâneos e resistências ainda alteram o resultado. Ao terminar o impulso, o residual é encerrado: uma ordem de caminhada guardada usa a posição atual, sem ordem não há caminhada automática. A recuperação começa em ${KNOCK_RECOVERY.start * 100}% da velocidade e ganha ${KNOCK_RECOVERY.step * 100} pontos percentuais a cada ${KNOCK_RECOVERY.interval.toLocaleString(LOCALE)} s, voltando a 100% em ${KNOCK_RECOVERY.seconds} s. Essa recuperação não é um novo stun.`,
+    `Pushes enemies around the map — preferably into the lava! Forced displacement from an impact. Historical damage does not increase its force; simultaneous impacts and resistances still affect it. When the impulse ends, residual momentum is cleared: a stored walking order uses your current position; without an order there is no automatic walking. Recovery starts at ${KNOCK_RECOVERY.start * 100}% speed and gains ${KNOCK_RECOVERY.step * 100} percentage points every ${KNOCK_RECOVERY.interval} s, returning to 100% in ${KNOCK_RECOVERY.seconds} s. This recovery is not a new stun.`) },
+  { id: 'status-stun', title: t('Atordoamento', 'Stun'), text: t(
+    'Um jogador atordoado não pode se mover, usar magias ou preparar Atacar enquanto o efeito estiver ativo. Forças externas ainda podem deslocar o corpo. Ao terminar, as ações voltam a ficar disponíveis, respeitando outros efeitos que ainda estejam ativos.',
+    'A stunned player cannot move, use spells or wind up Attack while the effect is active. External forces can still displace the body. When it ends, actions become available again, subject to any other effects that remain active.') },
+  { id: 'status-snare', title: t('Agarramento', 'Root (snare)'), text: t(
     'Impede caminhar e usar magias de mobilidade e a Troca, mas permite outras magias e Atacar. Forças externas ainda podem deslocar o alvo. A duração e as condições para encerrar a prisão são definidas pela fonte que aplica o efeito.',
     'Prevents walking, mobility spells and Swap, but allows other spells and Attack. External forces can still displace the target. Duration and conditions for ending the root are defined by the source applying the effect.') },
-  { id: 'status-slow', title: t('Lentidão (slow)', 'Slow'), text: t(
-    'Reduz a velocidade de caminhada, sem bloquear conjurações nem pausar recargas por si só. Intensidade e duração dependem da fonte que aplica o efeito. Efeitos de uma área dependem de permanecer dentro dela; não confunda sua duração com a duração de uma lentidão aplicada ao alvo.',
-    'Reduces walking speed without blocking casts or pausing cooldowns by itself. Strength and duration depend on the source applying the effect. Area effects depend on staying inside them; their lifetime is not the same as a timed slow applied to a target.') },
-  { id: 'status-incapacitate', title: t('Incapacitar', 'Incapacitate'), text: t(
-    'Pausa o progresso das recargas enquanto estiver ativo. Magias que já estão prontas podem ser lançadas; não é silêncio e não impede caminhar por si só. Ao terminar, a recarga continua de onde parou.',
-    'Pauses cooldown progress while active. Spells that are already ready can be cast; this is not silence and does not prevent walking by itself. When it ends, cooldowns resume where they stopped.') },
+  { id: 'status-slow', title: t('Desacelerado', 'Slow'), text: t(
+    'Diminui a velocidade de movimentação, sem bloquear conjurações nem pausar recargas por si só. Intensidade e duração dependem da fonte que aplica o efeito. Efeitos de uma área dependem de permanecer dentro dela; não confunda sua duração com a duração de uma lentidão aplicada ao alvo.',
+    'Decreases movement speed without blocking casts or pausing cooldowns by itself. Strength and duration depend on the source applying the effect. Area effects depend on staying inside them; their lifetime is not the same as a timed slow applied to a target.') },
+  { id: 'status-incapacitate', title: t('Incapacitado', 'Incapacitate'), text: t(
+    'Impede que as magias recuperem suas recargas enquanto estiver ativo. Magias que já estão prontas podem ser lançadas; não é silêncio e não impede caminhar por si só. Ao terminar, a recarga continua de onde parou.',
+    'Stops spells from recovering their cooldowns while active. Spells that are already ready can be cast; this is not silence and does not prevent walking by itself. When it ends, cooldowns resume where they stopped.') },
   { id: 'status-burning', title: t('Queimadura', 'Burning'), text: t(
     'Dano contínuo enquanto permanece em chão de fogo ou na lava. Não bloqueia movimento ou conjurações por si só. Sair da área interrompe essa fonte de dano; o chão de fogo e a lava têm valores próprios.',
     'Continuous damage while standing in burning ground or lava. Does not block movement or casting by itself. Leaving the area stops that damage source; burning ground and lava have separate damage values.') },
@@ -140,8 +140,9 @@ const RULES_PT = {
     `Cada abate vale 1 ponto (cair sozinho não vale). A partida acaba no fim da rodada em que alguém chega à meta (${list(Object.values(DM_GOALS))} abates; padrão ${DM_GOALS[DEFAULT_OPTS.goal]}); empate no topo joga mais uma rodada.`,
   ],
   times: [
-    'Azul contra Vermelho, times do mesmo tamanho (com número ímpar, um tem 1 a mais). Sorteados a cada rodada ou fixos na partida (escolha da sala, ou votação).',
-    'A rodada acaba quando só sobra gente de um time; todos dele ganham 1 ponto e o ouro da vitória.',
+    `${list(OPTION_CHOICES.teams)} equipes se enfrentam na arena por rodadas; sem jogadores suficientes, cada um ocupa uma equipe. As equipes são sorteadas a cada rodada ou fixas na partida (escolha da sala, ou votação); no sorteio, os tamanhos diferem em no máximo 1 jogador.`,
+    'A rodada acaba quando só sobra gente de uma equipe; todos dela ganham 1 ponto e o ouro da vitória.',
+    'Com equipes fixas, vence a equipe que chegar à meta de rodadas. Sorteadas a cada rodada, os pontos ficam com cada jogador e vence quem chegar à meta (quem chega junto vence junto).',
     'Magia em aliado só empurra: não tira vida nem dá abate. Míssil, Ricochete, Horizonte de eventos e Agarrar só pegam inimigos; a Troca com aliado vale.',
   ],
   opcoes: [
@@ -261,6 +262,7 @@ const RULES_EN: typeof RULES_PT = {
   times: [
     `${list(OPTION_CHOICES.teams)} teams fight in the arena across rounds; with too few players, each one takes a team. Teams are shuffled every round or fixed for the match (room choice, or vote); when shuffled, sizes differ by at most 1 player.`,
     'The round ends when only one team has anyone left; all of them get 1 point and the victory gold.',
+    'With fixed teams, the team that reaches the round goal wins. Shuffled every round, the points stay with each player and whoever reaches the goal wins (players who reach it together win together).',
     'Spells on an ally only knock back: no damage and no kill. Homing Missile, Bouncer, Event Horizon and Grip only hit enemies; Swap with an ally works.',
   ],
   opcoes: [
@@ -306,7 +308,7 @@ const RULES_EN: typeof RULES_PT = {
     'Stay away from the edge: a hit can throw you into the lava.',
     'Keep moving: projectiles go straight, and anyone who stops walking becomes an easy target for the Meteor.',
     `Keep an escape spell (Teleport, Rush, Swap) for when you fall into the lava: that is ${LAVA_DPS} health per second.`,
-    'Pin them down (Grip, Link, Snowball) and follow up with your strongest spell: the hit that releases the Grip knocks back farther.',
+    'Pin them down (Grip, Magic Hook, Snowball) and follow up with your strongest spell: the hit that releases the Grip knocks back farther.',
     'Combine: Magnetize + projectiles, Event Horizon + Meteor, Pact + Fireball near the edge.',
     `Scourge: ${n1(CAST_POINT.scourge)} s of windup and ${n1(L1('scourge').cd)} s of cooldown; use it when someone gets on top of you. The blast also destroys enemy Fireballs and Missiles around you. Teleport cancels the windup.`,
     'In the shop, hover (or tap) a spell to see the numbers for the current and the next level.',
