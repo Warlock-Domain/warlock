@@ -9,6 +9,8 @@ Transcend ritual (28/10 local): original canvas seal sprite, vertical light colu
 
 ## Identidade visual
 
+- **Lava/islands (31/10 local):** original procedural crack texture in `src/client/isle-cracks.ts`, shared by refuge-island overlays in `scene.ts`; small procedural falling tetrahedra and a restrained lava shader pulse. Reuses existing stone/lava textures and KayKit rim rocks. No external asset; wear follows the authoritative island radius.
+
 - **Area readability (31/10 local):** existing procedural circles in `scene.ts` and `proj-models.ts` gain an inward dark backing and thinner colored border; existing Kenney textures use lower opacity. No new external asset. Every ground contour ends at the snapshot radius; gameplay geometry is unchanged.
 
 - **Arena readability (31/10 local):** the existing Poly Haven slate floor and normal map remain in use. Original shader shading in `scene.ts` neutralizes the center's warm cast and adds a shallow rim cut/lava reflection using the existing arena signed-distance texture. No new asset, geometry or collision boundary.

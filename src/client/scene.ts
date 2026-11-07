@@ -4,6 +4,7 @@ import { createTranscendFx, transcendLift } from './transcend-fx.ts';
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
 import * as THREE from 'three';
 import { characterRim, contactShadowTexture } from './character-readability.ts';
+import { isleCrackTexture } from './isle-cracks.ts';
 import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit, type Element, type Transcendence } from '../shared/elemental-spheres.ts';
 import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
@@ -329,7 +330,10 @@ void main(){
   float dome = (1.0 - smoothstep(br * 0.2, br, bd)) * ph * 0.55;
   float pop = smoothstep(0.94, 1.0, ph) * (1.0 - smoothstep(0.0, br * 1.6, bd)) * 1.6;
   col += vec3(1.0, 0.5, 0.12) * (dome + pop) * (0.2 + 0.8 * veins) * step(0.9, bh);
-  // junto da pedra: lava fresca e clara que lambe a borda em ondinhas, com crosta escura boiando; casa com a borda derretida da pedra
+  // Spatially offset breathing stays gentle, and lite mode disables the added pulse.
+  float breathe = 0.94 + 0.06 * sin(uTime * 0.9 + vnoise(vPos.xz * 0.12) * 4.0);
+  col *= mix(1.0, breathe, uLick);
+  // Fresh lava meets the existing stone seam; warning/round tint remains authoritative.
   float dO = shoreDist(vPos.xz) + shoreLick(vPos.xz);
   float shore = 1.0 - smoothstep(0.0, 1.3, dO);
   float ripple = 0.65 + 0.35 * sin(dO * 11.0 - uShoreTime * 2.4 * uLick + vnoise(vPos.xz * 1.4) * 5.0);
@@ -1438,9 +1442,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const lava005 = tex('/tex/lava005.jpg');
   // beira derretida: a crosta da textura escura e as rachaduras acesas (brilho da própria textura)
   const isleLava = new THREE.MeshStandardMaterial({ map: lava005, color: '#5a2a1a', emissive: '#ff5a14', emissiveMap: lava005, emissiveIntensity: 2.2, roughness: 1 });
-  const isleStone = new THREE.MeshStandardMaterial({ map: tex('/tex/stone.jpg'), color: '#b8aaa0', roughness: 1, emissive: '#3a0c02', emissiveIntensity: 0.4 });
+  const isleStone = new THREE.MeshStandardMaterial({ map: tex('/tex/stone.jpg'), color: '#9c9b96', roughness: 1, emissive: '#24140b', emissiveIntensity: 0.18 });
   const isleBaseGeo = new THREE.CylinderGeometry(1, 1.15, 0.6, 28);
   const isleTopGeo = new THREE.CylinderGeometry(1, 1, 0.06, 28);
+  const isleCrackGeo = new THREE.CircleGeometry(1, 40);
+  const isleCracks = isleCrackTexture();
   const rockModels: THREE.Object3D[] = [];
   // The five .gltf files define the same hexagons_medieval material, but each parse makes its own copy of the
   // 1024² atlas: sharing the first one keeps a single texture on the GPU (issue #378). Promise.all keeps A..E in order,
@@ -1452,7 +1458,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       rockModels.push(g.scene);
     }
   }).catch(() => {});
-  type IsleDraw = { g: THREE.Group; top: THREE.Mesh; rocks: THREE.Group; r: number; seen: number; shrinkAt: number };
+  type IsleDraw = { g: THREE.Group; top: THREE.Mesh; cracks: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>; rocks: THREE.Group; r: number; seen: number; shrinkAt: number; fragmentAt: number };
   const isleDraws: IsleDraw[] = [];
   function isleDraw(i: number): IsleDraw {
     const g = new THREE.Group();
@@ -1461,10 +1467,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const top = new THREE.Mesh(isleTopGeo, isleStone);
     top.position.y = 0.01; // pedra 4 cm acima do chão da arena: dá para ver que é pedra firme
     top.receiveShadow = true;
+    const cracks = ground(new THREE.Mesh(isleCrackGeo, new THREE.MeshBasicMaterial({ map: isleCracks, transparent: true, opacity: 0, depthWrite: false })), 0.042);
+    cracks.rotation.z = i * 1.3;
     const rocks = new THREE.Group();
-    g.add(base, top, rocks);
+    g.add(base, top, cracks, rocks);
     scene.add(g);
-    return { g, top, rocks, r: -1, seen: i, shrinkAt: -1 };
+    return { g, top, cracks, rocks, r: -1, seen: i, shrinkAt: -1, fragmentAt: 0 };
   }
   function syncIsles(list: Isle[], now: number, dt: number) {
     while (isleDraws.length < list.length) isleDraws.push(isleDraw(isleDraws.length));
@@ -1493,14 +1501,28 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       else d.g.position.lerp(to, Math.min(1, dt * 4));
       if (d.r >= 0 && it.r < d.r - 1e-4) d.shrinkAt = now;
       d.r = d.r < 0 ? it.r : d.r + (it.r - d.r) * Math.min(1, dt * 8);
-      const melt = 1 - d.r / ISLAND.r;
+      const melt = Math.max(0, Math.min(1, 1 - d.r / ISLAND.r));
       d.g.scale.set(d.r, 1, d.r);
-      // a lava come a pedra de fora para dentro: a beira de lava engrossa e a pedra afunda um pouco
+      // The existing rim thickens as the stone sinks; cracks follow that same visible top.
       const k = 0.84 - 0.34 * melt;
       d.top.scale.set(k, 1, k);
       d.top.position.y = 0.01 - 0.04 * melt;
+      d.cracks.scale.setScalar(k);
+      d.cracks.position.y = d.top.position.y + 0.032;
+      d.cracks.material.opacity = Math.max(0, melt - 0.08) * 1.1;
       d.rocks.children.forEach((o, n) => (o.position.y = -0.45 * melt - 0.08 * n * melt));
       d.rocks.visible = d.r > 0.3;
+      if (!lite && d.g.visible && melt > 0.12 && now - d.shrinkAt < 0.3 && now >= d.fragmentAt && fx.length < FX_CAP) {
+        const angle = now * 2.1 + i * 1.7, dx = Math.cos(angle), dz = Math.sin(angle);
+        const at = v(d.g.position.x + dx * d.r * k, d.g.position.z + dz * d.r * k);
+        const chip = new THREE.Mesh(new THREE.TetrahedronGeometry(0.09), new THREE.MeshBasicMaterial({ color: '#5b5149' }));
+        chip.position.copy(w3(at, 0.04));
+        addFx(chip, 0.55, (f) => {
+          chip.position.set(at.x + dx * f * 0.35, 0.04 + f * 0.15 - f * f * 0.9, at.y + dz * f * 0.35);
+          chip.rotation.set(f * 4, f * 6, 0);
+        });
+        d.fragmentAt = now + 0.25;
+      }
       // vapor enquanto encolhe (no modo leve, bem menos)
       if (now - d.shrinkAt < 0.3 && Math.random() < (lite ? 0.02 : 0.08)) {
         const a = Math.random() * Math.PI * 2;
