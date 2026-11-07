@@ -60,7 +60,7 @@ describe('protocol', () => {
 
   it('start: training bot setup', () => {
     // Fireball sold: 5 more and a free slot (#401; the Scourge is an item since 26/10, #227); items at fixed level one
-    const spells = { fireball: 0, rockpillar: 7, magnetize: 7, heal: 7, boomerang: 7, windwalk: 7 };
+    const spells = { fireball: 0, rockpillar: 1, magnetize: 7, heal: 7, boomerang: 7, windwalk: 7 };
     const items = { ring: 1, cursed_ring: 1, shock_boots: 1, lava_boots: 1, warden: 1, wind_boots: 1 };
     expect(p({ t: 'start', bots: 3, setup: [{ spells: { lightning: 3 } }, {}, { items: { armor: 1 }, skill: { aim: 0.8 } }] }))
       .toEqual({ t: 'start', bots: 3, setup: [{ spells: { lightning: 3 } }, {}, { items: { armor: 1 }, skill: { aim: 0.8 } }] });
@@ -93,7 +93,7 @@ describe('protocol', () => {
       .toEqual({ t: 'start', bots: 2, setup: [{ difficulty: 'easy' }, { spells: { lightning: 1 }, difficulty: 'auto' }] });
     for (const difficulty of ['insane', 1, null, '']) expect(p({ t: 'start', bots: 1, setup: [{ difficulty }] })).toBeNull();
     // 7 bots with spells, items and difficulty: still fits in the message
-    const spells = { fireball: 0, rockpillar: 7, magnetize: 7, heal: 7, boomerang: 7, windwalk: 7 };
+    const spells = { fireball: 0, rockpillar: 1, magnetize: 7, heal: 7, boomerang: 7, windwalk: 7 };
     const items = { ring: 1, cursed_ring: 1, shock_boots: 1, lava_boots: 1, warden: 1, wind_boots: 1 };
     expect(p({ t: 'start', bots: 7, mode: 'deathmatch', opts: { shop: 120, economy: 2, startGold: 100, goal: 7, difficulty: 'normal', arena: 'random' }, setup: Array(7).fill({ spells, items, difficulty: 'normal' }) })).not.toBeNull();
   });
@@ -147,7 +147,7 @@ describe('protocol', () => {
     Object.assign(w.wizards[0], { slowUntil: 12.5, rune: 'fury', runeUntil: 30 });
     Object.assign(w.wizards[1], { windUntil: 14 });
     expect(encodeSnap(w, 'a', 0, []).fx).toEqual([4, 2.5, 524288, 20]);
-    expect(encodeSnap(w, 'b', 0, []).fx).toEqual([1024, 4]);
+    expect(encodeSnap(w, 'b', 0, []).fx).toEqual([4096, 4]);
     w.t = 31;
     expect(encodeSnap(w, 'a', 0, []).fx).toBeUndefined();
   });

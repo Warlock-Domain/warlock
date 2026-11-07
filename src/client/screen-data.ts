@@ -3,7 +3,7 @@ import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { WizView } from '../shared/snapshot.ts';
 import { LEGACY_ITEM_MAX, ITEMS, ITEM_IDS, itemPrice, startItems, type ItemId } from '../shared/items.ts';
-import { FREE_SPELLS, MAX_SPELLS, spellMax, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
+import { BAR_SPELLS, FREE_SPELLS, MAX_SPELLS, spellMax, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { isRecord, readLevels, readNumberMap } from './saved-data.ts';
 import { store } from './store.ts';
 import type { ServoKind } from '../shared/campaign.ts';
@@ -11,6 +11,7 @@ import { HP_MAX } from '../shared/constants.ts';
 import { itemStats } from '../shared/items.ts';
 import { t } from './i18n.ts';
 import type { Vec } from '../shared/vec.ts';
+import { foe } from '../shared/sniper-target.ts';
 // Pulso suave; modo reduzido fica estático.
 export const electroPulse = (active: boolean, seconds: number, reduced: boolean) => active ? reduced ? .25 : .25 + .12 * Math.sin(seconds * Math.PI * 4) : 0;
 
@@ -172,7 +173,7 @@ export function readPresets(raw: string | null): (Preset | null)[] {
     const p: unknown = Array.isArray(list) ? list[i] : null;
     if (!isRecord(p)) return null;
     // vaga vazia da barra fica no lugar (null): sem ela as magias da build mudariam de tecla
-    return { spells: readLevels(p.spells, SPELL_IDS, spellMax), items: Object.fromEntries(Object.entries(readLevels(p.items, ITEM_IDS, id => LEGACY_ITEM_MAX[id])).map(([id, level]) => [id, level ? 1 : 0])), order: Array.isArray(p.order) ? p.order.slice(0, MAX_SPELLS).map((s: unknown) => (isSpell(s) ? s : null)) : [] };
+    return { spells: readLevels(p.spells, SPELL_IDS, spellMax), items: Object.fromEntries(Object.entries(readLevels(p.items, ITEM_IDS, id => LEGACY_ITEM_MAX[id])).map(([id, level]) => [id, level ? 1 : 0])), order: Array.isArray(p.order) ? p.order.slice(0, MAX_SPELLS).map((s: unknown) => (isSpell(s) && (BAR_SPELLS as readonly SpellId[]).includes(s) ? s : null)) : [] };
   });
 }
 
@@ -218,6 +219,15 @@ export function illusionCopies<D extends { id: string; status: number }>(project
   return projectiles.flatMap((q) => {
     const ownerId = q.kind === 'illusion' ? ids[q.vel.x] : undefined;
     const o = drawn.find((d) => d.id === ownerId);
-    return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(16 | 1024 | 2048 | 8388608), channelElapsed: undefined, channelSpell: undefined, sniperLeft: undefined, sniperAt: undefined, basicLeft: 0, moving: true, cheer: false, illusion: true, ghost: false }] : [];
+    return o ? [{ ...o, id: ownerId + '~ilusao', pos: q.pos, facing: q.vel.y, status: o.status & ~(16 | 1024 | 2048 | 8388608), transfusionTo: undefined, transfusionRate: undefined, channelElapsed: undefined, channelSpell: undefined, sniperLeft: undefined, sniperAt: undefined, basicLeft: 0, moving: true, cheer: false, illusion: true, ghost: false }] : [];
   });
+}
+
+// Attack click: the floor point under a tall model falls behind it, so the enemy model under the mouse (or its copy) gives the aim.
+// Floor, allies and the own copy keep the clicked point; the server picks melee from this point alone.
+export function attackAim<D extends { id: string; status: number; pos: Vec; alive: boolean; team?: number | null; geyserLeft?: number }>(wizards: D[], projectiles: { kind: string; pos: Vec; vel: Vec }[], ids: string[], me: string, at: Vec, clicked?: string): Vec {
+  const units = [...wizards, ...illusionCopies(projectiles, ids, wizards)].map((z) => ({ ...z, hidden: !!(z.status & 2048), suspended: (z.geyserLeft ?? 0) > 0 }));
+  const self = units.find((z) => z.id === me);
+  const body = self && clicked !== me + '~ilusao' ? units.find((z) => z.id === clicked && foe(z, self)) : undefined;
+  return body?.pos ?? at;
 }

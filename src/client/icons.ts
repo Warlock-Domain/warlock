@@ -52,7 +52,7 @@ export const ICON: Record<SpellId, string> = named<SpellId>({ fireball: ['fire-r
   teleport: ['teleport', '✨'], swap: ['body-swapping', '🔄'], grip: ['grab', '⛓️'], meteor: ['meteor-impact', '☄️'], rush: ['sprint', '💨'], cluster: ['striking-splinter', '🔱'],
   boomerang: ['boomerang', '🪃'], thrust: ['knife-thrust', '🗡️'], gravity: ['vortex', '🌀'], rockpillar: ['defensive-wall', '🧱'], bouncer: ['ricochet', '🏓'], drain: ['life-tap', '🧛'],
   snowball: ['frozen-orb', '❄️'], illusion: ['two-shadows', '👥'], magnetize: ['magnet', '🧲'], recharge: ['cycle', '🔋'], alteration: ['card-exchange', '🔀'], link: ['harpoon-chain', '🔗'],
-  windwalk: ['wind-slap', '👻'], splitter: ['split-arrows', '💠'], warpzone: ['time-trap', '⏳'], scourge: ['flail', '💥'], pact: ['chalice-drops', '🩸'], heal: ['healing-cross', '✚'], geyser: ['water-splash', '⛲'], closedbody: ['aura', '⬛'], channel: ['energise', '🔮'], sniper: ['sniper-rifle', '🎯'], pix: ['coins-pile', '🪙'] });
+  windwalk: ['wind-slap', '🌬️'], splitter: ['split-arrows', '💠'], warpzone: ['time-trap', '⏳'], scourge: ['flail', '💥'], pact: ['chalice-drops', '🩸'], heal: ['healing-cross', '✚'], geyser: ['water-splash', '⛲'], closedbody: ['aura', '⬛'], channel: ['energise', '🔮'], sniper: ['sniper-rifle', '🎯'], pix: ['coins-pile', '🪙'], transfusion: ['light-bulb', '🧠'], nexus: ['anima-nexus', '💞'], elemental: ['star-swirl', '🔮'] });
 // Armadura e Roubo de vida tinham o mesmo emoji de Agarrar e de Drenar; agora cada um tem desenho próprio
 export const ITEM_ICON: Record<ItemId, string> = named<ItemId>({ glitch_cape: ['card-exchange', '🧥'], addicted_rings: ['cycle', '💍'], ring: ['diamond-ring', '💍'], cursed_ring: ['skull-ring', '🧿'], cape: ['cape', '🧣'], armor: ['breastplate', '🦺'],
   boots: ['leather-boot', '👢'], watch: ['pocket-watch', '⏱️'], vampire: ['bat', '🦇'],
@@ -67,7 +67,7 @@ export const UI_ICON = named({ board: ['histogram', '📊'], sheet: ['scroll-unf
   help: ['help', '❓'], keys: ['keyboard', '⌨️'], kills: ['skull-crossed-bones', '☠'], dmg: ['spiky-explosion', '💥'], wins: ['trophy', '🏆'], aim: ['archery-target', '🎯'],
   gold: ['two-coins', '🪙'], tip: ['light-bulb', '💡'], bot: ['robot-antennas', '🤖'], person: ['character', '👤'], info: ['info', 'ℹ️'], shop: ['shop', '🏪'],
   gear: ['cog', '⚙️'], pad: ['gamepad', '🎮'], video: ['tv', '📺'], exit: ['exit-door', '🚪'], watch: ['eyeball', '👁️'],
-  buy: ['shopping-cart', '🛒'], upgrade: ['upgrade', '⏫'], undo: ['anticlockwise-rotation', '↩'] });
+  buy: ['shopping-cart', '🛒'], upgrade: ['upgrade', '⏫'], undo: ['anticlockwise-rotation', '↩'], forum: ['talk', '💬'] });
 // Attack and Hold ground (issue #401) reuse sprite icons already shipped: the hit burst and the standing stone, no new download
 export const MECHANIC_ICON = { basic: UI_ICON.dmg, brace: SOURCE_ICON.pillar };
 // ícone e nome de uma magia ou item (teclas, grimório, magia escolhida)

@@ -21,6 +21,19 @@ describe('Electric Arc jump timing', () => {
     expect(hits[2].damage).toBe(Math.round(hits[0].damage * .25));
   });
 
+  it('leaves a dead caster alone when a delayed jump is reflected by a Shield', () => {
+    const w = world([[0, 0], [3, 0], [3, 2]], { ...noSpells(), lightning: 1 }, [], () => .5);
+    for (const z of w.wizards) z.kbResist = 1;
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(3, 0) }], () => .5);
+    for (let i = 0; i < 12; i++) stepWorld(w, [], () => .5);
+    expect(w.lightningHops?.length).toBe(1);
+    const caster = w.wizards[0], hp = caster.hp;
+    caster.alive = false;
+    w.wizards[2].shieldUntil = w.t + 5;
+    for (let i = 0; i < 30; i++) stepWorld(w, [], () => .5);
+    expect(caster.hp).toBe(hp);
+  });
+
   it('does not hit a target that dies before its scheduled jump', () => {
     const w = world([[0, 0], [3, 0], [3, 2]], { ...noSpells(), lightning: 1 }, [], () => .5);
     for (const z of w.wizards) z.kbResist = 1;

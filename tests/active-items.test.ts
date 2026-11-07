@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ITEMS, ITEM_IDS, itemPrice, itemStats, noItems } from '../src/shared/items.ts';
+import { ITEMS, ITEM_IDS, activeItemAt, inventoryOrder, itemPrice, itemStats, noItems } from '../src/shared/items.ts';
 import { noSpells, priceOf, spellCount } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
 import { run, world } from './helpers.ts';
@@ -65,5 +65,17 @@ describe('Fixed equipment', () => {
       expect(itemPrice({ ...noItems(), [id]: 1 }, id), id).toBeNull();
       expect(itemStats({ ...noItems(), [id]: 7 }), id).toEqual(itemStats({ ...noItems(), [id]: 1 }));
     }
+  });
+});
+
+describe('Active item number keys', () => {
+  it('keeps Addicted Rings on a low slot even with every other slot full, clear of Replay (5) and Camera (6)', () => {
+    const items = { ...noItems(), scourge: 1, ring: 1, cape: 1, armor: 1, boots: 1, addicted_rings: 1 };
+    expect(inventoryOrder(items).slice(0, 2)).toEqual(['scourge', 'addicted_rings']);
+    expect(activeItemAt(items, 'Digit2')).toEqual({ spell: 'recharge', id: 'addicted_rings' });
+    for (const code of ['Digit3', 'Digit4', 'Digit5', 'Digit6', 'KeyQ']) expect(activeItemAt(items, code), code).toBeUndefined();
+  });
+  it('leaves the Scourge to its own rebindable key', () => {
+    expect(activeItemAt({ ...noItems(), scourge: 1 }, 'Digit1')).toBeUndefined();
   });
 });
