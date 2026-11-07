@@ -1,4 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import { UNIT_TARGET_SPELLS } from '../src/shared/spells.ts';
+import ui from '../src/client/ui.ts?raw';
 
 afterEach(() => { vi.resetModules(); vi.unstubAllGlobals(); });
 it('uses individual active-item preferences for the Scourge keyboard action', async () => {
@@ -11,15 +13,25 @@ it('uses individual active-item preferences for the Scourge keyboard action', as
   expect(getCastMode('scourge', 'Digit1')).toBe('click');
   setCastPreference('key:Digit1');
 });
-it('keeps Heal and Inelegant Solution on click whatever the preferences', async () => {
-  const { resolveCastMode, setCastPreference } = await import('../src/client/cast-preferences.ts');
+it('keeps every unit-target spell on click whatever the preferences', async () => {
+  const { clickOnly, resolveCastMode, setCastPreference } = await import('../src/client/cast-preferences.ts');
   setCastPreference('key:KeyQ', 'release');
-  for (const ability of ['spell:heal', 'spell:sniper']) {
+  for (const spell of UNIT_TARGET_SPELLS) {
+    const ability = 'spell:' + spell;
     setCastPreference(ability, 'quick');
+    expect(clickOnly(ability)).toBe(true);
     expect(resolveCastMode('quick', ability, 'KeyQ')).toBe('click');
     setCastPreference(ability);
   }
+  expect(clickOnly('spell:fireball')).toBe(false);
+  expect(clickOnly('item:heal')).toBe(false);
+  expect(clickOnly()).toBe(false);
   setCastPreference('key:KeyQ');
+});
+it('tells the player to click the target, not the ground, for unit-target spells', () => {
+  expect(ui).toContain("const onTarget = UNIT_TARGET_SPELLS.has(armed as SpellId);");
+  expect(ui).toContain("${onTarget ? 'no alvo' : 'no chão'}");
+  expect(ui).toContain("${onTarget ? 'a target' : 'the ground'}");
 });
 it('resolves individual spell/item, shortcut and global modes in priority order', async () => {
   const { castPreference, setCastPreference, resolveCastMode } = await import('../src/client/cast-preferences.ts');

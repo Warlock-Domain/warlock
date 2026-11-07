@@ -9,6 +9,8 @@ import { BLINDNESS, CAST_POINT, GRIP, METEOR_DELAY, PIX, SHIELD, isSpell, noSpel
 import { add, scale, v, type Vec } from '../shared/vec.ts';
 import { LOCALE, spellName, t } from './i18n.ts';
 import { n1 } from './rules-text.ts';
+import { mulberry32 } from '../shared/rng.ts';
+import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit } from '../shared/elemental-spheres.ts';
 import { channelPower } from '../shared/channeling.ts';
 import { electroPulse } from './screen-data.ts';
 import { HEAL_FX, healAura } from './heal-fx.ts';
@@ -36,6 +38,7 @@ const PIX_AT = .4 + CAST_POINT.pix + PIX.soak;
 
 // mago 0 é "você" (com a magia ou o item da página); 1 e 2 são de treino e só têm a Bola de fogo
 export const SCRIPTS: Partial<Record<DemoId, Script>> = {
+  elemental: { pos: [v(0, 0)], end: 31.5, steps: Array.from({ length: 6 }, (_, i): Step => [.4 + i * 5.05, A, 'elemental', A]), prep: w => { w.pillars = []; } },
   // you walk up and fire at the third wizard: the controlled one walks the same way and its copy converges on the same point (a V)
   pix: { pos: [v(-3, 0), v(2, 0), v(5, -3)], end: PIX_AT + 4.5, steps: [[.4, A, 'pix', v(2, 0)], [PIX_AT + .2, A, 'move', v(-3, 1.5)], [PIX_AT + 1.2, A, 'fireball', v(5, -3)]],
     prep: (w) => { w.pillars = []; w.wizards[C].regen = 0; } },
@@ -47,6 +50,8 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   geyser: { pos: [v(-1.5, 0), v(0, 0), v(1.5, 0), v(-4, 0)], end: 4.5,
     steps: [[.4,A,'geyser',v(0,0)],[.9,B,'move',v(0,4)],[.9,3,'fireball',v(4,0)],[1,B,'fireball',A],[3.3,B,'move',v(0,3)]],
     prep: w => { w.pillars=[]; w.wizards[A].team=w.wizards[B].team=0; w.wizards[C].team=1; } },
+  transfusion: { pos: [v(-3, 0), v(2, 0)], end: 3.8, steps: [[.4, A, 'transfusion', B], [2.6, B, 'move', v(12, 0)]], prep: (w) => { w.pillars = []; w.wizards[A].team = w.wizards[B].team = 0; w.wizards[B].cd.fireball = 8; w.wizards[A].cd.fireball = 8; } },
+  nexus: { pos: [v(-3, 0), v(0, 0), v(4, 0)], end: 5, steps: [[.4, A, 'nexus', B], [1, C, 'fireball', B], [3, A, 'nexus', B]], prep: w => { w.pillars = []; w.wizards[A].team = w.wizards[B].team = 0; for (const z of w.wizards) z.regen = 0; } },
   heal: { pos: [v(-3, 0), v(2, 0), v(2, 2)], end: 3, steps: [[.4, A, 'heal', B], [1.4, B, 'heal', B]],
     prep: w => { w.pillars = []; w.wizards[A].team = w.wizards[B].team = 0; w.wizards[C].team = 1; w.wizards[B].spells.heal = 1; for (const z of w.wizards) { z.hp = 700; z.regen = 0; } } },
   knockback: { pos: [v(-3, 0), v(0, 0)], end: 3.5, steps: [[.4, A, 'fireball', B], [.85, B, 'move', v(0, 4)]], prep: (w) => { w.pillars = []; } },
@@ -70,7 +75,7 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   thrust: { end: 2.6, steps: [[0.4, A, 'thrust', B]] },
   gravity: { end: 3.4, steps: [[0.4, A, 'gravity', v(2, 0.8)]] },
   // o terceiro fica onde a parede cai (#206): leva o golpe da queda e voa para o lado, e a parede ainda segura a Bola de fogo
-  rockpillar: { pos: [v(-3, 0), v(2, 0), v(-1.2, 0.3)], end: 2.6, steps: [[0.2, B, 'fireball', A], [0.3, A, 'rockpillar', v(-1.2, 0)]] },
+  rockpillar: { pos: [v(-3, 0), v(2, 0), v(-1.2, 0.3)], end: 8.5, steps: [[0.2, B, 'fireball', A], [0.3, A, 'rockpillar', v(-1.2, 0)], [6, A, 'fireball', v(-1.2, 0)], [7.3, A, 'fireball', v(-1.2, 0)]] },
   bouncer: { pos: [v(-3, 0), v(1.5, 0), v(2.5, 1.8)], end: 3, steps: [[0.4, A, 'bouncer', B]] },
   drain: { pos: [v(-3, 0), v(2, 0.6), v(2.6, -1.8)], end: 3.6, steps: [[0.4, A, 'drain', v(1.5, 0)]], prep: (w) => (w.wizards[A].hp = 700) },
   snowball: { pos: [v(-3, 0), v(-0.6, 0.1), v(0.3, -0.5)], end: 3, steps: [[0.4, A, 'snowball', v(1, 0)]] },
@@ -88,10 +93,12 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   clash: { pos: [v(-3, 0), v(2, 0), v(1, 2.4)], end: 3.8, steps: [[0.3, A, 'fireball', B], [0.3, B, 'fireball', A], [0.9, C, 'move', v(-0.5, 0)]] },
 };
 
-type DemoState = { w: World; script: Script; next: number; events: SimEvent[] };
+type DemoState = { w: World; script: Script; next: number; events: SimEvent[]; rand: () => number };
 
 // Rótulos seguem os estados reais para a prévia não sugerir que stun, prisão e postura têm o mesmo bloqueio.
 export function demoStatus(w: World, z: Wizard): string[] {
+  if (z.transfusion) return [t('Transfusão mental · incapacitado · recargas pausadas', 'Mental Transfusion · incapacitated · cooldowns paused')];
+  if (z.spheres?.length) return [t(`${z.spheres.length}/${ELEMENTAL_SPHERES.max} esferas · ${n1(Math.max(...z.spheres.map(s => s.until - w.t)))} s`, `${z.spheres.length}/${ELEMENTAL_SPHERES.max} spheres · ${n1(Math.max(...z.spheres.map(s => s.until - w.t)))} s`)];
   if(z.casting?.spell==='sniper') return [t(`mirando · ${n1(Math.max(0,z.casting.fireAt-w.t))} s · tiro ${spellLevel('sniper',1).dmg}`,`aiming · ${n1(Math.max(0,z.casting.fireAt-w.t))} s · shot ${spellLevel('sniper',1).dmg}`)];
   if (z.channel) {
     // below 1 s the charge is not ready (power 0): show no bonus until a click would actually fire
@@ -136,7 +143,8 @@ export function demoWorld(id: DemoId): DemoState {
   w.shrinkAt = Infinity;
   w.wizards.forEach((z, i) => Object.assign(z, { pos: pos[i], invulnUntil: 0, facing: i === A ? 0 : Math.PI }));
   script.prep?.(w);
-  return { w, script, next: 0, events: [] };
+  // This seed shows all five possible colors while still using the real random summon path.
+  return { w, script, next: 0, events: [], rand: id === 'elemental' ? mulberry32(18) : () => .5 };
 }
 
 // um passo de simulação; os eventos do passo ficam em s.events (desenho e teste)
@@ -149,7 +157,7 @@ export function demoStep(s: DemoState) {
     const to = typeof at === 'number' ? { ...w.wizards[at].pos } : at;
     cmds.push(what === 'charge' ? { id, kind: 'channel', spell: 'fireball' } : what === 'move' ? { id, kind: 'move', to } : what === 'braceOn' || what === 'braceOff' ? { id, kind: 'brace', on: what === 'braceOn' } : what === 'basic' ? { id, kind: 'basic', at: to, target: typeof at === 'number' ? w.wizards[at].id : undefined } : { id, kind: 'cast', spell: what, at: to });
   }
-  stepWorld(w, cmds, () => 0.5);
+  stepWorld(w, cmds, s.rand);
   s.events = w.events;
 }
 
@@ -282,11 +290,20 @@ export function createDemo(canvas: HTMLCanvasElement, id: DemoId, colors: string
       circle(z.pos, WIZ_R + .2, null, GEYSER_FX.color);
       text('↑', v(z.pos.x, z.pos.y - 1.3), GEYSER_FX.foam, .65);
     }
+    if (z.transfusion) {
+      const to = w.wizards.find((q) => q.id === z.transfusion!.target);
+      if (to) line(z.pos, to.pos, HEAL_FX.color, .05, true);
+    }
+    z.spheres?.forEach((sphere, i) => circle(add(z.pos, elementalOrbit(w.t, i, z.spheres!.length)), .16, ELEMENT_COLORS[sphere.element], '#a0a0a0'));
     if (z.casting?.spell === 'sniper') {
       const at=z.casting.at;
       line(z.pos,at,'#ff324e',.035,true); circle(at,.5,null,'#ff324e');
       const dir=v(Math.cos(z.facing),Math.sin(z.facing));
       line(add(z.pos,scale(dir,.3)),add(z.pos,scale(dir,1.35)),'#283447',.15);
+    }
+    if (z.nexus) {
+      const ally = w.wizards.find(q => q.id === z.nexus!.target && q.alive);
+      if (ally) line(z.pos, ally.pos, HEAL_FX.color, .07);
     }
     if (z.basicCasting) {
       circle(z.pos, .6, null, '#9be7ff');

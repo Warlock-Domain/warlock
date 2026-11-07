@@ -1,5 +1,6 @@
 import { store } from './store.ts';
 import { isRecord } from './saved-data.ts';
+import { UNIT_TARGET_SPELLS, type SpellId } from '../shared/spells.ts';
 
 export const CAST_MODES = ['quick', 'release', 'click'] as const;
 export type CastMode = (typeof CAST_MODES)[number];
@@ -17,8 +18,8 @@ export function setCastPreference(key: string, mode?: CastMode) {
   else overrides[key] = mode;
   store.set(KEY, JSON.stringify(overrides));
 }
-// Heal and Inelegant Solution always confirm on a clicked body (src/client/CLAUDE.md), so no preference reaches them;
+// Unit-target spells always confirm on a clicked body (src/client/CLAUDE.md), so no preference reaches them;
 // otherwise individual ability preferences win over keyboard preferences. Passive items only save future intent.
-export const clickOnly = (ability?: string) => ability === 'spell:heal' || ability === 'spell:sniper';
+export const clickOnly = (ability?: string) => !!ability?.startsWith('spell:') && UNIT_TARGET_SPELLS.has(ability.slice(6) as SpellId);
 export const resolveCastMode = (fallback: CastMode, ability?: string, code?: string): CastMode =>
   clickOnly(ability) ? 'click' : (ability && overrides[ability]) || (code && overrides['key:' + code]) || fallback;

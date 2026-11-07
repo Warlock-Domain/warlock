@@ -12,7 +12,7 @@ import { CAMPAIGN } from '../shared/campaign.ts';
 import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, isRoomMode, sellValue, type MatchOpts, type Mode, type RoomMode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { ITEMS, ITEM_IDS, MAX_ITEMS, castLevel, itemPrice, type ItemId } from '../shared/items.ts';
-import { MAX_SPELLS, SPELL_IDS, isSpell, priceOf, spellCount, spellMax, type SpellId } from '../shared/spells.ts';
+import { MAX_SPELLS, SPELL_IDS, UNIT_TARGET_SPELLS, isSpell, priceOf, spellCount, spellMax, type SpellId } from '../shared/spells.ts';
 import { POS_ACTIONS, isSlotMode, isPadMode, isUiKey, keyLabel, keyOf, labelOf, onKeysChange, setSlots, typing, uiLabel, type Action, type UiAction } from './keys.ts';
 import { castModeControl, openSettings, savedPixel, setSettingsCtx, settingsPage, type SettingsCtx } from './settings.ts';
 import { hideTip, itemTip, mechanicTip, spellTip, withTip } from './tips.ts';
@@ -2109,10 +2109,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (changed) drawCenter();
     },
     // A missing callback shows the party's waiting notice without an advance button.
-    ilse(text: string | null, done?: () => void) {
+    ilse(text: string | null, done?: () => void, title?: string, top = false) {
       ilseDone = done ?? null;
+      ilseBox.classList.toggle('notice-top', top);
       ilseSkip.hidden = !done;
-      const name = done ? 'Ilse' : t('Campanha pausada', 'Campaign paused');
+      const name = title ?? (done ? 'Ilse' : t('Campanha pausada', 'Campaign paused'));
       if (ilseName.textContent !== name) ilseName.textContent = name; // called every frame
       if (!text) return void (ilseBox.hidden = true);
       if (ilseText.textContent !== text || ilseBox.hidden) ilseText.textContent = text;
@@ -2251,7 +2252,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       if (armed !== shownArmed) {
         shownArmed = armed;
         armedHint.hidden = !armed;
-        if (armed) armedText.textContent = t(`${TOUCH ? 'Toque' : 'Clique'} no chão para lançar ${actionName(armed as Action)}`, `${TOUCH ? 'Tap' : 'Click'} the ground to cast ${actionName(armed as Action)}`);
+        const onTarget = UNIT_TARGET_SPELLS.has(armed as SpellId); // a click on the ground does nothing for these spells
+        if (armed) armedText.textContent = t(`${TOUCH ? 'Toque' : 'Clique'} ${onTarget ? 'no alvo' : 'no chão'} para lançar ${actionName(armed as Action)}`, `${TOUCH ? 'Tap' : 'Click'} ${onTarget ? 'a target' : 'the ground'} to cast ${actionName(armed as Action)}`);
       }
     },
   };
