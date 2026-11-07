@@ -50,6 +50,7 @@ describe('play style', () => {
     // Mental Transfusion intentionally adds support purchases and decisions to seeded bot matches.
     // 31/10 (PR #433, owner's rule for Leonard's PRs): bots may buy Anima Nexus; adding it to situational plans changes seeded shopping draws, even in FFA where buying it is skipped.
     // 31/10 (PR #432, accepted as proposed by Leonard): Elemental Spheres intentionally changes bot purchases, summon RNG and impact modifiers.
+    // Transcend intentionally changes seeded bot purchases and decisions.
     // Fixed equipment, revised abilities and delayed Lightning intentionally change seeded events; bots also stop drawing the spells that became items.
     // Homing slow, prepared Ricochet and direct Magnetize intentionally change seeded events.
     expect(hash).toBe(2773707369);

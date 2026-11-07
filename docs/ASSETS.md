@@ -1,6 +1,7 @@
 # Assets do Warlock Wars
 
 30/10 local: Addicted Rings reuses the existing credited cycle icon and Recharge projectile; Glitch Cape reuses card-exchange and Alteration effects. The original spell IDs remain internal for snapshot/simulation compatibility. No external assets added.
+Transcend ritual (28/10 local): original canvas seal sprite, vertical light column and rising motes in `transcend-fx.ts`, with an original belly-up suspended pose built from Idle: arms hang downward and the head falls back. Use the chosen element color, including white Ki and readable black Void. Ritual fades over the authoritative 2.5 s; completion removes the column and restores the model pose/height, leaving the persistent aura. Own textures/materials/geometries are disposed on removal. No external art copied or added.
 
 Índice de tudo o que existe de arte, som e fonte no projeto, para pessoas e IAs saberem o que já tem antes de procurar ou criar algo novo. **Todo asset novo entra aqui** (regra no fim da página).
 
@@ -8,6 +9,8 @@
 - Crédito e licença de cada arquivo publicado: [`public/CREDITS.txt`](../public/CREDITS.txt).
 
 ## Identidade visual
+
+- **Transcend (local prototype, 28/10):** reuses the credited `icons.svg#sunbeams` icon and Shield sound. Original procedural rising torus rings form the ritual and persistent chosen-element aura in `scene.ts`; the canvas demo uses the same element colors. No new external artwork, model or recording. Existing sphere colors, including white Ki, remain unchanged.
 
 - Rajada de areia/Cegueira24/10: partículas e cone3D/mira gerados em scene.ts; vinheta de raio3m via shader próprio blindness-fx.ts. Som de areia por ruído filtrado sintetizado em sound.ts. Sem imagens/gravações externas novas; referência visual do usuário usada apenas como direção.
 

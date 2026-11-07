@@ -4,6 +4,7 @@
 
 Addicted Rings is an active one-level accessory backed by the internal `recharge` simulation/snapshot id. Item ownership grants rank1 without occupying a spell slot. Keep keyboard item overrides ahead of key/global defaults and apply normal server cast/cooldown validation. New spell purchases/cards/shortcuts exclude Recharge; saved spell owners migrate to the item.
 - Campaign pending-choice warnings reuse the Ilse/PvP notice surface with optional `ilse(text,done,title,top)` heading/placement. Reading messages take priority; pending-choice notices list server-provided public participants and have no acknowledgement action. The passive top placement avoids covering the choice buttons. They block neither input nor choices; only the server's encounter gate waits.
+Transcend ritual (28/10 local): original canvas seal sprite, vertical light column and rising motes in `transcend-fx.ts`, with an original belly-up suspended pose built from Idle: arms hang downward and the head falls back. Use the chosen element color, including white Ki and readable black Void. Ritual fades over the authoritative 2.5 s; completion removes the column and restores the model pose/height, leaving the persistent aura. Own textures/materials/geometries are disposed on removal. No external art copied or added.
 
 Applies together with the root `CLAUDE.md`.
 

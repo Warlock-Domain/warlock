@@ -18,6 +18,7 @@ describe('stun and root: authoritative restrictions', () => {
     const w = world([[0, 0]], { ...noSpells(), [spell]: 1 }, [], () => .5);
     const z = w.wizards[0]; z.gripUntil = 5;
     if (spell === 'transfusion' || spell === 'nexus') { const ally = world([[3, 0]], noSpells(), [], () => .5).wizards[0]; ally.id = 'ally'; ally.team = z.team = 0; w.wizards.push(ally); }
+    if (spell === 'transcend') { z.spells.elemental = 1; z.lastElement = 'fire'; }
     if (spell === 'sniper') { const enemy = world([[3,0]], noSpells(), [], () => .5).wizards[0]; enemy.id='enemy'; w.wizards.push(enemy); }
     if (spell === 'closedbody') { z.braceReadyAt = 0; z.braceUntil = 1; }
     if (spell === 'magnetize') w.projectiles.push({ id: w.nextId++, kind: 'fireball', owner: z.id, caster: z.id, pos: v(1, 1), vel: v(1, 0), level: 1, until: 5, target: null, dmgMult: 1 });

@@ -3,10 +3,10 @@ import { SPELL_GROUP_IDS, BAR_SPELLS } from '../src/shared/spells.ts';
 import { SPELL_GROUPS_PT, SPELL_GROUPS_EN, groupClass } from '../src/client/rules-text.ts';
 
 describe('Utility category', () => {
-  it('groups Bouncer, Swap and Elemental Spheres in Utility while preserving Warp Zone', () => {
-    expect(SPELL_GROUP_IDS.utility).toEqual(['bouncer', 'swap', 'elemental']);
+  it('groups Bouncer, Swap, Elemental Spheres and Transcend in Utility while preserving Warp Zone', () => {
+    expect(SPELL_GROUP_IDS.utility).toEqual(['bouncer', 'swap', 'elemental', 'transcend']);
     for (const [groups, title] of [[SPELL_GROUPS_PT, 'Utilidade'], [SPELL_GROUPS_EN, 'Utility']] as const) {
-      expect(groups[5]).toEqual([title, expect.any(String), ['bouncer', 'swap', 'elemental']]);
+      expect(groups[5]).toEqual([title, expect.any(String), ['bouncer', 'swap', 'elemental', 'transcend']]);
       expect(groups.flatMap(([, , ids]) => ids).sort()).toEqual([...BAR_SPELLS].sort());
     }
   });
