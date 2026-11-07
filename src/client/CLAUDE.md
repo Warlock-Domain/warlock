@@ -5,6 +5,8 @@ Transcend ritual (28/10 local): original canvas seal sprite, vertical light colu
 
 Applies together with the root `CLAUDE.md`.
 
+- Character readability: `character-readability.ts` adds a neutral rim in each owned Standard material's shader without cloning geometry or skeletons. The procedural contact shadow stays on the floor during lift effects and follows authoritative hiding; the existing ring keeps player/team colors with a dark backing. Preserve Wardrobe materials and temporary effect restoration.
+
 ## Interface
 
 - `RoomLoadingGate` owns room startup readiness (scene, joined room, required snapshot). Its settings-independent cat overlay hides HUD/labels/scene and disables gameplay input until ready; when ready the overlay is detached, not hidden, because Esc, the controller and the taunt wheel treat any `.overlay` in the DOM as open.
