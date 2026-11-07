@@ -4,6 +4,9 @@ import { createTranscendFx, transcendLift } from './transcend-fx.ts';
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
 import * as THREE from 'three';
 import { characterRim, contactShadowTexture } from './character-readability.ts';
+import { isleCrackTexture } from './isle-cracks.ts';
+import { createStatusFx } from './status-fx.ts';
+import { elementSphereModel } from './element-sphere-model.ts';
 import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit, type Element, type Transcendence } from '../shared/elemental-spheres.ts';
 import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
@@ -51,7 +54,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { transcendence?: Transcendence; transcendLeft?: number; spheres?: { element: Element; left: number }[]; nexusTo?: number; transfusionTo?: number; transfusionRate?: number; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { blindLeft?: number; transcendence?: Transcendence; transcendLeft?: number; spheres?: { element: Element; left: number }[]; nexusTo?: number; transfusionTo?: number; transfusionRate?: number; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -250,6 +253,8 @@ type Mage = {
   botKey: string;
   tint: string; // cor do anel e da barra (do jogador, ou do time no modo Times)
   statusEl: HTMLSpanElement;
+  blindEl: HTMLElement;
+  statusFx: ReturnType<typeof createStatusFx>;
   statusKey: number;
   statusClocks: Map<number, HTMLElement>; // bit → reloginho em cima do ícone (só o meu mago tem tempo: d.fx)
   clock: ReturnType<typeof fxClock>;
@@ -329,7 +334,10 @@ void main(){
   float dome = (1.0 - smoothstep(br * 0.2, br, bd)) * ph * 0.55;
   float pop = smoothstep(0.94, 1.0, ph) * (1.0 - smoothstep(0.0, br * 1.6, bd)) * 1.6;
   col += vec3(1.0, 0.5, 0.12) * (dome + pop) * (0.2 + 0.8 * veins) * step(0.9, bh);
-  // junto da pedra: lava fresca e clara que lambe a borda em ondinhas, com crosta escura boiando; casa com a borda derretida da pedra
+  // Spatially offset breathing stays gentle, and lite mode disables the added pulse.
+  float breathe = 0.94 + 0.06 * sin(uTime * 0.9 + vnoise(vPos.xz * 0.12) * 4.0);
+  col *= mix(1.0, breathe, uLick);
+  // Fresh lava meets the existing stone seam; warning/round tint remains authoritative.
   float dO = shoreDist(vPos.xz) + shoreLick(vPos.xz);
   float shore = 1.0 - smoothstep(0.0, 1.3, dO);
   float ripple = 0.65 + 0.35 * sin(dO * 11.0 - uShoreTime * 2.4 * uLick + vnoise(vPos.xz * 1.4) * 5.0);
@@ -455,8 +463,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   );
   arena.receiveShadow = true;
   scene.add(arena);
-  // borda da pedra: escurece e racha nos últimos ~0,9 m, as rachaduras acendem em laranja e, colada na lava, a pedra derrete
-  // (a lava lambe uns centímetros para dentro); no aviso de encolhimento a borda puxa para o vermelho e pulsa
+  // The shared signed distance keeps the carved rim, lava seam and warning aligned on every arena shape.
   (arena.material as THREE.MeshStandardMaterial[])[0].onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, shoreU);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
@@ -467,12 +474,23 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       float nz = vnoise(vWPos.xz * 1.3);
       float band = 1.0 - smoothstep(0.0, 1.3, eIn - 0.4 * (nz - 0.5));
       diffuseColor.rgb *= mix(1.0, 0.3, band);
+      float rimCut = 1.0 - smoothstep(0.025, 0.11, abs(eIn - 0.65 + (nz - 0.5) * 0.08));
+      diffuseColor.rgb *= 1.0 - rimCut * 0.22;
       float crack = max(1.0 - smoothstep(0.0, 0.05, abs(vnoise(vWPos.xz * 1.6 + 7.0) - 0.5)), 0.6 * (1.0 - smoothstep(0.0, 0.04, abs(vnoise(vWPos.xz * 4.1 - 3.0) - 0.5))));
-      // a borda derretida da pedra também pega a cor do efeito da rodada (a lava pinta o lado dela com os mesmos uTint/uTintK)
+      // Round effects and the red shrink warning keep their existing shore colors.
       vec3 hot = mix(mix(vec3(1.0, 0.34, 0.05), uTint, uTintK), vec3(1.0, 0.1, 0.02), uWarn);
       float melt = 1.0 - smoothstep(0.0, 0.22, eIn - shoreLick(vWPos.xz) - 0.12 * (nz - 0.5));
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.08, 0.02, 0.0), melt);
-      totalEmissiveRadiance += hot * (crack * band * band * (0.9 + 1.2 * uWarn) + melt * (0.85 + 0.9 * uWarn));`);
+      float rimLight = smoothstep(0.2, 0.32, eIn) * (1.0 - smoothstep(0.32, 0.58, eIn));
+      totalEmissiveRadiance += hot * (crack * band * band * (0.9 + 1.2 * uWarn) + melt * (0.85 + 0.9 * uWarn) + rimLight * 0.12);`)
+      .replace('#include <opaque_fragment>', `
+      // Neutral slate in the fighting space; retain warm lava bounce only near the perimeter.
+      float arenaRim = 1.0 - smoothstep(0.15, 1.7, -shoreDist(vWPos.xz));
+      // outgoingLight already includes the emissive (cracks, round effect, shrink warning): grade only the lit stone or those colors go grey.
+      vec3 litStone = outgoingLight - totalEmissiveRadiance;
+      vec3 coolStone = dot(litStone, vec3(0.2126, 0.7152, 0.0722)) * vec3(0.72, 0.78, 0.88);
+      outgoingLight = mix(coolStone, litStone, arenaRim * 0.8) + totalEmissiveRadiance;
+      #include <opaque_fragment>`);
   };
   // ardósia de verdade (Poly Haven Slate Floor 02) quando a textura chegar
   loader.load('/tex/stone.jpg', (t) => {
@@ -483,6 +501,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     t.repeat.set(2.5, 2.5);
     top.map = t;
     top.normalMap = tex('/tex/stone_nor.jpg', false, 2.5);
+    top.normalScale.set(0.55, 0.55);
     top.color.set('#e6ddd6');
     top.needsUpdate = true;
   });
@@ -885,6 +904,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
     const root = new THREE.Group();
     root.add(model);
+    const statusFx = createStatusFx(); root.add(statusFx.root);
     const sniper=sniperRig(); root.add(sniper);
     const contactShadow = ground(new THREE.Mesh(contactShadowGeo, new THREE.MeshBasicMaterial({ map: contactShadowMap, transparent: true, depthWrite: false })), 0.012);
     const ringBacking = ground(new THREE.Mesh(ringBackingGeo, new THREE.MeshBasicMaterial({ color: '#140806', transparent: true, opacity: 0.8, depthWrite: false })), 0.022);
@@ -935,7 +955,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const extraEl = el('span', { class: 'hp-extra' });
     const shieldFill = el('div');
     const shieldBar = el('div', { class: 'shield-bar', hidden: true }, shieldFill);
-    const statusEl = el('span', { class: 'status-icons' });
+    const blindEl = el('i', { class: 'bad', title: t('cego', 'blinded'), hidden: true }, icon(UI_ICON.watch));
+    const statusEl = el('span', { class: 'status-icons' }, blindEl);
     // barrinha dourada do monte de ouro: enche a cada 2 s em cima dele
     const lootFill = el('div');
     const lootBar = el('div', { class: 'loot-bar', hidden: true }, lootFill);
@@ -944,7 +965,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, sniper, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, ringBacking, contactShadow, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { root, sniper, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, ringBacking, contactShadow, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, blindEl, statusFx, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   // animação de conjurar [clip, segundos, início no clip]; o resto atira (Spellcast_Shoot). Quando o gesto forte vem no meio
@@ -1322,17 +1343,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     };
   }
 
-  // chão dos choques, cada tipo com borda nítida no raio real, cor, movimento e ícone próprios; apaga no último 0,8 s
-  // queimando: brasa laranja tremulando; lento: névoa de gelo com borda tracejada; redemoinho: três braços roxos girando para o centro
+  // Exact-radius borders carry the area warning; translucent interiors preserve combat visibility.
   const ZONE_LOOK: Record<ZoneKind, { fill: string; edge: string; tex: THREE.Texture; texColor: string; icon: string; mark: string; add: boolean }> = {
     burn: { fill: '#ff3d0a', edge: '#ffb347', tex: FX.fire, texColor: '#ff5a10', icon: STATUS_ICONS.find(([b]) => b === 512)![1], mark: '#ffe0a0', add: true },
-    slow: { fill: '#2f8cff', edge: '#e2f4ff', tex: FX.smoke, texColor: '#7cc4ff', icon: STATUS_ICONS.find(([b]) => b === 4)![1], mark: '#0b2a4a', add: false },
+    slow: { fill: '#2f8cff', edge: '#e2f4ff', tex: FX.smoke, texColor: '#7cc4ff', icon: STATUS_ICONS.find(([b]) => b === 4)![1], mark: '#e2f4ff', add: false },
     pull: { fill: '#6a2cff', edge: '#c9a8ff', tex: FX.twirl, texColor: '#b48cff', icon: STATUS_ICONS.find(([b]) => b === 2097152)![1], mark: '#f0e6ff', add: true },
   };
-  const edgeGeo = new THREE.RingGeometry(0.93, 1, 64);
-  const dashGeo = mergeGeometries(Array.from({ length: 20 }, (_, i) => new THREE.RingGeometry(0.92, 1, 3, 1, (i / 20) * Math.PI * 2, ((Math.PI * 2) / 20) * 0.55)));
+  const edgeGeo = new THREE.RingGeometry(0.955, 1, 64);
+  const edgeBackingGeo = new THREE.RingGeometry(0.91, 1, 64);
+  const dashGeo = mergeGeometries(Array.from({ length: 20 }, (_, i) => new THREE.RingGeometry(0.95, 1, 3, 1, (i / 20) * Math.PI * 2, ((Math.PI * 2) / 20) * 0.55)));
   const texGeo = new THREE.PlaneGeometry(2, 2);
-  type ZoneDraw = { g: THREE.Group; fill: THREE.MeshBasicMaterial; edge: THREE.Mesh; dash: THREE.Mesh; edgeMat: THREE.MeshBasicMaterial; arms: THREE.Group; texMat: THREE.MeshBasicMaterial; mark: THREE.Mesh; markMat: THREE.MeshBasicMaterial; kind: ZoneKind | null };
+  type ZoneDraw = { g: THREE.Group; fill: THREE.MeshBasicMaterial; edge: THREE.Mesh; dash: THREE.Mesh; edgeMat: THREE.MeshBasicMaterial; backingMat: THREE.MeshBasicMaterial; arms: THREE.Group; texMat: THREE.MeshBasicMaterial; mark: THREE.Mesh; markMat: THREE.MeshBasicMaterial; kind: ZoneKind | null };
   const zoneDraws: ZoneDraw[] = [];
   // ícone do sprite (public/icons.svg) desenhado no chão, por baixo dos magos: um símbolo vira imagem branca uma vez só
   const iconTex = new Map<string, THREE.CanvasTexture>();
@@ -1358,10 +1379,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const flat = (geo: THREE.BufferGeometry, mat: THREE.Material, y: number) => ground(new THREE.Mesh(geo, mat), y);
     const fill = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
     const edgeMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
+    const backingMat = new THREE.MeshBasicMaterial({ color: '#140806', transparent: true, depthWrite: false });
     const texMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
     const edge = flat(edgeGeo, edgeMat, 0.04);
     const dash = flat(dashGeo, edgeMat, 0.04);
-    // gira em torno do centro; o redemoinho usa os três braços, os outros só o primeiro
+    // Pull keeps its three rotating arms; the other areas need only one texture layer.
     const arms = new THREE.Group();
     for (let i = 0; i < 3; i++) {
       const a = flat(texGeo, texMat, 0.037 + i * 0.001);
@@ -1371,9 +1393,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const markMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
     const mark = flat(texGeo, markMat, 0.042);
     const g = new THREE.Group();
-    g.add(flat(discGeo, fill, 0.033), arms, edge, dash, mark);
+    g.add(flat(discGeo, fill, 0.033), arms, flat(edgeBackingGeo, backingMat, 0.039), edge, dash, mark);
     scene.add(g);
-    return { g, fill, edge, dash, edgeMat, arms, texMat, mark, markMat, kind: null };
+    return { g, fill, edge, dash, edgeMat, backingMat, arms, texMat, mark, markMat, kind: null };
   }
   function syncZones(list: ZoneView[], now: number, dt: number) {
     while (zoneDraws.length < list.length) zoneDraws.push(zoneDraw());
@@ -1402,17 +1424,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       d.mark.scale.setScalar(0.42 / z.r); // ícone de ~0,84 m, qualquer que seja o raio
       const fade = Math.min(1, z.left / 0.8);
       const flicker = 0.8 + 0.2 * Math.sin(now * 13 + i) * Math.sin(now * 7.7 + i * 3);
-      d.fill.opacity = (z.kind === 'slow' ? (mobile ? 0.6 : 0.42) : 0.24) * fade;
-      d.edgeMat.opacity = (z.kind === 'burn' ? flicker : 0.95) * fade;
-      d.texMat.opacity = (z.kind === 'pull' ? 0.85 : z.kind === 'burn' ? 0.75 * flicker : 0.4) * fade;
+      d.fill.opacity = (z.kind === 'slow' ? 0.12 : z.kind === 'burn' ? 0.1 : 0.07) * fade;
+      d.backingMat.opacity = 0.7 * fade;
+      d.edgeMat.opacity = 0.95 * fade;
+      d.texMat.opacity = (z.kind === 'pull' ? 0.3 : z.kind === 'burn' ? 0.22 * flicker : 0.12) * fade * (lite ? 0.65 : 1);
       d.arms.rotation.y += (z.kind === 'pull' ? 2.6 : z.kind === 'slow' ? 0.15 : 0.4) * dt;
       if (z.kind === 'slow') d.dash.rotation.z += 0.25 * dt;
-      d.markMat.opacity = 0.9 * fade;
+      d.markMat.opacity = 0.65 * fade;
       // brasas subindo e brilhos de gelo (só no modo completo)
       if (!lite && fade > 0.5) {
         const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * z.r * 0.9;
         const at = v(z.pos.x + Math.cos(a) * rr, z.pos.y + Math.sin(a) * rr);
-        if (z.kind === 'burn' && Math.random() < 0.35 * z.r) burst(at, Math.random() < 0.5 ? '#ff7a1a' : '#ffb347', 0.35, 0.8, 0.1, FLAMES[Math.floor(Math.random() * FLAMES.length)], 0.7);
+        if (z.kind === 'burn' && Math.random() < 0.12 * z.r) burst(at, Math.random() < 0.5 ? '#ff7a1a' : '#ffb347', 0.35, 0.5, 0.1, FLAMES[Math.floor(Math.random() * FLAMES.length)], 0.7);
         else if (z.kind === 'slow' && Math.random() < 0.12 * z.r) burst(at, '#e2f4ff', 0.4, 0.7, 0.15, FX.star);
       }
     });
@@ -1425,9 +1448,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const lava005 = tex('/tex/lava005.jpg');
   // beira derretida: a crosta da textura escura e as rachaduras acesas (brilho da própria textura)
   const isleLava = new THREE.MeshStandardMaterial({ map: lava005, color: '#5a2a1a', emissive: '#ff5a14', emissiveMap: lava005, emissiveIntensity: 2.2, roughness: 1 });
-  const isleStone = new THREE.MeshStandardMaterial({ map: tex('/tex/stone.jpg'), color: '#b8aaa0', roughness: 1, emissive: '#3a0c02', emissiveIntensity: 0.4 });
+  const isleStone = new THREE.MeshStandardMaterial({ map: tex('/tex/stone.jpg'), color: '#9c9b96', roughness: 1, emissive: '#24140b', emissiveIntensity: 0.18 });
   const isleBaseGeo = new THREE.CylinderGeometry(1, 1.15, 0.6, 28);
   const isleTopGeo = new THREE.CylinderGeometry(1, 1, 0.06, 28);
+  const isleCrackGeo = new THREE.CircleGeometry(1, 40);
+  const isleCracks = isleCrackTexture();
   const rockModels: THREE.Object3D[] = [];
   // The five .gltf files define the same hexagons_medieval material, but each parse makes its own copy of the
   // 1024² atlas: sharing the first one keeps a single texture on the GPU (issue #378). Promise.all keeps A..E in order,
@@ -1439,7 +1464,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       rockModels.push(g.scene);
     }
   }).catch(() => {});
-  type IsleDraw = { g: THREE.Group; top: THREE.Mesh; rocks: THREE.Group; r: number; seen: number; shrinkAt: number };
+  type IsleDraw = { g: THREE.Group; top: THREE.Mesh; cracks: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>; rocks: THREE.Group; r: number; seen: number; shrinkAt: number; fragmentAt: number };
   const isleDraws: IsleDraw[] = [];
   function isleDraw(i: number): IsleDraw {
     const g = new THREE.Group();
@@ -1448,10 +1473,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const top = new THREE.Mesh(isleTopGeo, isleStone);
     top.position.y = 0.01; // pedra 4 cm acima do chão da arena: dá para ver que é pedra firme
     top.receiveShadow = true;
+    const cracks = ground(new THREE.Mesh(isleCrackGeo, new THREE.MeshBasicMaterial({ map: isleCracks, transparent: true, opacity: 0, depthWrite: false })), 0.042);
+    cracks.rotation.z = i * 1.3;
     const rocks = new THREE.Group();
-    g.add(base, top, rocks);
+    g.add(base, top, cracks, rocks);
     scene.add(g);
-    return { g, top, rocks, r: -1, seen: i, shrinkAt: -1 };
+    return { g, top, cracks, rocks, r: -1, seen: i, shrinkAt: -1, fragmentAt: 0 };
   }
   function syncIsles(list: Isle[], now: number, dt: number) {
     while (isleDraws.length < list.length) isleDraws.push(isleDraw(isleDraws.length));
@@ -1480,14 +1507,28 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       else d.g.position.lerp(to, Math.min(1, dt * 4));
       if (d.r >= 0 && it.r < d.r - 1e-4) d.shrinkAt = now;
       d.r = d.r < 0 ? it.r : d.r + (it.r - d.r) * Math.min(1, dt * 8);
-      const melt = 1 - d.r / ISLAND.r;
+      const melt = Math.max(0, Math.min(1, 1 - d.r / ISLAND.r));
       d.g.scale.set(d.r, 1, d.r);
-      // a lava come a pedra de fora para dentro: a beira de lava engrossa e a pedra afunda um pouco
+      // The existing rim thickens as the stone sinks; cracks follow that same visible top.
       const k = 0.84 - 0.34 * melt;
       d.top.scale.set(k, 1, k);
       d.top.position.y = 0.01 - 0.04 * melt;
+      d.cracks.scale.setScalar(k);
+      d.cracks.position.y = d.top.position.y + 0.032;
+      d.cracks.material.opacity = Math.max(0, melt - 0.08) * 1.1;
       d.rocks.children.forEach((o, n) => (o.position.y = -0.45 * melt - 0.08 * n * melt));
       d.rocks.visible = d.r > 0.3;
+      if (!lite && d.g.visible && melt > 0.12 && now - d.shrinkAt < 0.3 && now >= d.fragmentAt && fx.length < FX_CAP) {
+        const angle = now * 2.1 + i * 1.7, dx = Math.cos(angle), dz = Math.sin(angle);
+        const at = v(d.g.position.x + dx * d.r * k, d.g.position.z + dz * d.r * k);
+        const chip = new THREE.Mesh(new THREE.TetrahedronGeometry(0.09), new THREE.MeshBasicMaterial({ color: '#5b5149' }));
+        chip.position.copy(w3(at, 0.04));
+        addFx(chip, 0.55, (f) => {
+          chip.position.set(at.x + dx * f * 0.35, 0.04 + f * 0.15 - f * f * 0.9, at.y + dz * f * 0.35);
+          chip.rotation.set(f * 4, f * 6, 0);
+        });
+        d.fragmentAt = now + 0.25;
+      }
       // vapor enquanto encolhe (no modo leve, bem menos)
       if (now - d.shrinkAt < 0.3 && Math.random() < (lite ? 0.02 : 0.08)) {
         const a = Math.random() * Math.PI * 2;
@@ -1837,7 +1878,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     }
   }
 
-  const sphereLooks = Object.fromEntries(Object.entries(ELEMENT_COLORS).map(([element, color]) => [element, { ...LOOK.basic, mat: new THREE.MeshBasicMaterial({ color }), halo: element === 'void' ? '#777777' : color, trail: color, size: ELEMENTAL_SPHERES.radius / .28 }]));
+  const sphereLooks = Object.fromEntries(Object.entries(ELEMENT_COLORS).map(([element, color]) => [element, { ...LOOK.basic, halo: element === 'void' ? '#777777' : color, trail: color, size: ELEMENTAL_SPHERES.radius / .28 }]));
   const projectileLook = (p: ProjView) => p.element ? sphereLooks[p.element] : LOOK[p.kind as Exclude<ProjKind, 'illusion'>];
   const movingKinds = new Set<ProjKind>(['basic', 'fireball', 'homing', 'cluster', 'swap', 'boomerang', 'gravity', 'bouncer', 'drain', 'snowball', 'magnetize', 'recharge', 'splitter', 'shard']);
   const readableCores = new Set<ProjKind>(['basic', 'fireball', 'homing', 'snowball']);
@@ -1850,8 +1891,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!g) {
         g = new THREE.Group();
         const look = projectileLook(p);
-        const core = (!p.element && SHAPES[p.kind]?.()) || new THREE.Mesh(ballGeo, look.mat);
-        core.scale.multiplyScalar(look.size * (p.size ?? 1));
+        const core = p.element ? elementSphereModel(p.element) : SHAPES[p.kind]?.() ?? new THREE.Mesh(ballGeo, look.mat);
+        core.scale.multiplyScalar((p.element ? 1 : look.size) * (p.size ?? 1));
         const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: FX.light, color: look.halo, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
         halo.scale.setScalar(1.2 * look.size * (p.size ?? 1));
         halo.material.opacity = readableCores.has(p.kind) ? 0.4 : 0.7;
@@ -1873,9 +1914,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           flame.scale.setScalar(1.3 * look.size);
           g.add(flame);
         } else if (p.kind === 'gravity' || p.kind === 'warpzone') {
-          const swirl = new THREE.Sprite(new THREE.SpriteMaterial({ map: p.kind === 'gravity' ? FX.twirl : FX.twirl2, color: p.kind === 'gravity' ? '#7a5cff' : '#5ab0ff', transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+          const swirl = new THREE.Sprite(new THREE.SpriteMaterial({ map: p.kind === 'gravity' ? FX.twirl : FX.twirl2, color: p.kind === 'gravity' ? '#7a5cff' : '#5ab0ff', transparent: true, opacity: p.kind === 'gravity' ? 0.8 : 0.22, blending: THREE.AdditiveBlending, depthWrite: false }));
           swirl.name = 'swirl';
-          swirl.scale.setScalar(p.kind === 'gravity' ? 1.6 * look.size : p.vel.x * 2.2);
+          swirl.scale.setScalar(p.kind === 'gravity' ? 1.6 * look.size : p.vel.x * 1.9);
           g.add(swirl);
         }
         if (p.kind === 'link') {
@@ -1969,6 +2010,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (made && m) {
           unburn(m);
           scene.remove(m.root);
+          m.statusFx.dispose();
           dispose(m.sniper);
           dispose(m.vines); // Os cipós procedurais pertencem à aparência que está sendo substituída.
           for (const o of [m.ring, m.ringBacking, m.contactShadow, m.shield, m.aura]) (o.material as THREE.Material).dispose();
@@ -2059,6 +2101,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         mat.color.set(healing.visible ? HEAL_FX.color : (d.geyserLeft ?? 0) > 0 ? GEYSER_FX.color : invuln ? '#ffd36a' : RUNE_COLOR.shield);
         mat.opacity = healing.visible ? healing.opacity : invuln ? 0.55 + 0.3 * Math.sin(now * 8) : 0.8;
       }
+      m.statusFx.update(d.status, d.alive && !hidden && !ghost && !(d.transcendLeft ?? 0), m.model.position.y, now, lite, camera.quaternion);
+      m.blindEl.hidden = !d.alive || !(d.blindLeft ?? 0);
       m.ring.visible = d.alive;
       m.ringBacking.visible = d.alive;
       // Keep the contact cue on the floor while Geyser/Transcend lift the body.
@@ -2172,11 +2216,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.statusKey = d.status;
         m.statusClocks.clear();
         // Égide pronta (131072) não vira ícone: tem o selo próprio ao lado da barra (aegisEl)
-        m.statusEl.replaceChildren(...STATUS_ICONS.filter(([bit]) => d.status & bit && bit !== 131072).map(([bit, ico, name]) => {
+        m.statusEl.replaceChildren(...STATUS_ICONS.filter(([bit]) => d.status & bit && bit !== 131072 && bit !== 16).map(([bit, ico, name]) => {
           const c = el('b', { class: 'fx-clock', 'aria-hidden': 'true' });
           m.statusClocks.set(bit, c);
           return el('i', { title: name, class: BAD_STATUS.includes(bit) ? 'bad' : 'good' }, c, icon(ico));
         }));
+        m.statusEl.append(m.blindEl);
       }
       // reloginho em cima de cada efeito com prazo: os mesmos segundos da fileira acima da barra (mesma conta, fxClock)
       for (const [bit, c] of m.statusClocks) {
@@ -2288,22 +2333,25 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (!group) {
         group = new THREE.Group();
         for (let i = 0; i < ELEMENTAL_SPHERES.max; i++) {
-          const sphere = new THREE.Group();
-          sphere.add(new THREE.Mesh(new THREE.SphereGeometry(ELEMENTAL_SPHERES.radius, 16, 12), new THREE.MeshBasicMaterial()));
-          // A subtle silhouette keeps the black Void sphere readable against the dark arena.
-          sphere.add(new THREE.Mesh(new THREE.SphereGeometry(ELEMENTAL_SPHERES.radius * 1.1, 16, 12), new THREE.MeshBasicMaterial({ color: '#a0a0a0', side: THREE.BackSide, transparent: true, opacity: .5 })));
-          group.add(sphere);
+          group.add(new THREE.Group());
         }
         scene.add(group); elemental.set(d.id, group);
       }
       group.position.copy(w3(d.pos, (d.geyserLeft ?? 0) > 0 ? geyserHeight(d.geyserLeft!) : 0));
+      const orbitBlend = group.userData.orbitAt === undefined ? 1 : 1 - Math.exp(-Math.min(0.1, Math.max(0, now - group.userData.orbitAt)) * 14);
+      group.userData.orbitAt = now;
       group.children.forEach((node, i) => {
         const sphere = d.spheres![i];
         node.visible = !!sphere;
         if (!sphere) return;
+        if (node.userData.element !== sphere.element) {
+          node.children.forEach(dispose); node.clear();
+          node.add(elementSphereModel(sphere.element)); node.userData.element = sphere.element;
+        }
         const orbit = elementalOrbit(now, i, d.spheres!.length);
-        node.position.set(orbit.x, ELEMENTAL_SPHERES.height, orbit.y);
-        ((node.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).color.set(ELEMENT_COLORS[sphere.element]);
+        node.position.x += (orbit.x - node.position.x) * orbitBlend;
+        node.position.y += (ELEMENTAL_SPHERES.height - node.position.y) * orbitBlend;
+        node.position.z += (orbit.y - node.position.z) * orbitBlend;
       });
     }
     for (const [id, group] of elemental) if (!sphereOwners.has(id)) {
