@@ -1,6 +1,7 @@
 # Assets do Warlock Wars
 
 30/10 local: Addicted Rings reuses the existing credited cycle icon and Recharge projectile; Glitch Cape reuses card-exchange and Alteration effects. The original spell IDs remain internal for snapshot/simulation compatibility. No external assets added.
+Transcend ritual (28/10 local): original canvas seal sprite, vertical light column and rising motes in `transcend-fx.ts`, with an original belly-up suspended pose built from Idle: arms hang downward and the head falls back. Use the chosen element color, including white Ki and readable black Void. Ritual fades over the authoritative 2.5 s; completion removes the column and restores the model pose/height, leaving the persistent aura. Own textures/materials/geometries are disposed on removal. No external art copied or added.
 
 Índice de tudo o que existe de arte, som e fonte no projeto, para pessoas e IAs saberem o que já tem antes de procurar ou criar algo novo. **Todo asset novo entra aqui** (regra no fim da página).
 

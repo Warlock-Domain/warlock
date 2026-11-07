@@ -543,12 +543,12 @@ function externalMotion(w: World, target: Wizard, delta: Vec, field: 'pos' | 've
   target[field] = add(target[field], scale(delta, 1 - elementalBonuses(target.spheres, w.t, target.transcendence).void)); // each body in a Nexus chain applies its own black spheres
 }
 export const closedBodyActive = (w: World, wz: Wizard) => w.t < (wz.closedBodyUntil ?? 0) && (wz.closedBodyWeak || bracingActive(w, wz));
-export const damageFactor = (w: World, wz: Wizard) => (closedBodyActive(w, wz) ? closedBodyFactor(wz, CLOSED_BODY.damage) : 1) * (1 - elementalBonuses(wz.spheres, w.t).void);
+export const damageFactor = (w: World, wz: Wizard) => (closedBodyActive(w, wz) ? closedBodyFactor(wz, CLOSED_BODY.damage) : 1) * (1 - elementalBonuses(wz.spheres, w.t, wz.transcendence).void);
 export const bracingActive = (w: World, wz: Wizard) => w.t + 1e-8 >= (wz.braceReadyAt ?? Infinity) && w.t < (wz.braceUntil ?? 0);
-const positiveDuration = (w: World, wz: Wizard, seconds: number) => seconds * (1 + elementalBonuses(wz.spheres, w.t).ki);
+const positiveDuration = (w: World, wz: Wizard, seconds: number) => seconds * (1 + elementalBonuses(wz.spheres, w.t, wz.transcendence).ki);
 const closedBodyFactor = (wz: Wizard, factor: number) => wz.closedBodyWeak ? 1 - (1 - factor) * .25 : factor;
 const spellRank = (wz: Wizard, spell: SpellId) => castLevel(wz, spell);
-const wizardLevel = (w: World, wz: Wizard, spell: SpellId, power = 1) => elementalLevel(channelLevel(spellLevel(spell, spellRank(wz, spell)), power), elementalBonuses(wz.spheres, w.t));
+const wizardLevel = (w: World, wz: Wizard, spell: SpellId, power = 1) => elementalLevel(channelLevel(spellLevel(spell, spellRank(wz, spell)), power), elementalBonuses(wz.spheres, w.t, wz.transcendence));
 export const incapacitatedUntil = (wz: Wizard, now = Infinity) => Math.max(wz.transfusion ? now + DT : 0, wz.incapacitateUntil ?? 0, wz.electroUntil ?? 0, now + 1e-8 >= (wz.braceReadyAt ?? Infinity) ? wz.braceUntil ?? 0 : 0);
 export function applyElectrocution(w: World, wz: Wizard, durationFactor = 1) {
   if (w.t < wz.invulnUntil) return;
@@ -573,7 +573,7 @@ function addKnock(w: World, wz: Wizard, impulse: Vec, depth = 0) {
   if (bracingActive(w, wz)) impulse = scale(impulse, 1 - braceResistance(w, wz));
   if (shielded(w, wz)) impulse = scale(impulse, SHIELD.knock);
   if (closedBodyActive(w, wz)) impulse = scale(impulse, closedBodyFactor(wz, CLOSED_BODY.knock));
-  impulse = scale(impulse, 1 - elementalBonuses(wz.spheres, w.t).void);
+  impulse = scale(impulse, 1 - elementalBonuses(wz.spheres, w.t, wz.transcendence).void);
   wz.vel = add(wz.vel, impulse);
   if (len(impulse) <= 0 || !isSliding(wz)) return;
   // O relógio de controle não precisa carregar o resto do impulso depois do limite de caminhada.
@@ -945,10 +945,10 @@ function lightningHop(w: World, caster: Wizard, target: Wizard, hop: LightningHo
     w.events.push({ k: 'reflect', id: target.id, x: target.pos.x, y: target.pos.y }, { k: 'lightning', width, from: { ...target.pos }, to: { ...caster.pos } });
     if (!caster.alive) return; // a delayed hop can reach a Shield after its caster died: no hit or status on the dead body
     hit(w, caster, target.id, L.dmg * power, L.knock * power, sub(caster.pos, target.pos), 'lightning', L.dmg * hop.original);
-    applyElectrocution(w, caster, 1 + elementalBonuses(caster.spheres, w.t).earth); return;
+    applyElectrocution(w, caster, 1 + elementalBonuses(caster.spheres, w.t, caster.transcendence).earth); return;
   }
   hit(w, target, caster.id, L.dmg * power, L.knock * power, sub(target.pos, from), 'lightning', L.dmg * hop.original);
-  if (!allies(caster, target)) applyElectrocution(w, target, 1 + elementalBonuses(caster.spheres, w.t).earth);
+  if (!allies(caster, target)) applyElectrocution(w, target, 1 + elementalBonuses(caster.spheres, w.t, caster.transcendence).earth);
   if (!hop.landed) w.events.push({ k: 'land', id: caster.id, src: 'lightning' });
   let next: Wizard | undefined, closest = hop.reach;
   for (const other of w.wizards) {
@@ -988,7 +988,7 @@ const canTranscend = (wz: Wizard) => wz.spells.transcend > 0 && wz.spells.elemen
 function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number, aimedId?: string, copy?: number) {
   if (spell === 'transcend' && !canTranscend(wz)) return;
   if (spell === 'channel') return;
-  if (spell === 'elemental' && (wz.spheres?.length ?? 0) >= ELEMENTAL_SPHERES.max) return;
+  if (spell === 'elemental' && (wz.transcendence?.complete || ((wz.transcendence?.saved ?? 0) + (wz.spheres?.filter(s => s.until > w.t).length ?? 0)) >= ELEMENTAL_SPHERES.max)) return;
   const level = copy ?? spellRank(wz, spell);
   if (!level || (copy === undefined && w.t < wz.cd[spell])) return;
   const bonus = elementalBonuses(wz.spheres, w.t, wz.transcendence);
@@ -1708,7 +1708,7 @@ function linkHold(w: World, p: Projectile): boolean {
     const q = w.pillars[p.pillar];
     if (!q.alive || dist(owner.pos, q.pos) < OBSTACLES[q.kind].r + WIZ_R + LINK.pillarGap) return false;
     // the owner's own pull, not an external force (a Nexus protector never shares it), and a Thrust dash still ignores it
-    if (w.t >= owner.thrustUntil) owner.vel = add(owner.vel, scale(norm(sub(q.pos, owner.pos)), L.pull * DT * (1 - elementalBonuses(owner.spheres, w.t).void)));
+    if (w.t >= owner.thrustUntil) owner.vel = add(owner.vel, scale(norm(sub(q.pos, owner.pos)), L.pull * DT * (1 - elementalBonuses(owner.spheres, w.t, owner.transcendence).void)));
     return true;
   }
   const o = byId(w, p.target);
@@ -2062,7 +2062,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
 export function revive(w: World, wz: Wizard, pos: Vec) {
   Object.assign(wz, {
     alive: true, pos, vel: v(0, 0), target: null, casting: null, channel: undefined, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
-    nexus: undefined, transfusion: undefined, thrustStats: undefined, windStats: undefined, spheres: undefined, closedBodyWeak: false, blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined, puppetBy: undefined, puppetUntil: 0,
+    nexus: undefined, transfusion: undefined, transcendLeft: 0, transcendAt: undefined, thrustStats: undefined, windStats: undefined, spheres: undefined, closedBodyWeak: false, blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined, puppetBy: undefined, puppetUntil: 0,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
     slowUntil: 0, hasteUntil: 0, snow: null, magnetUntil: 0, alterUntil: 0, windUntil: 0, veilUntil: 0, shockUntil: 0, aegis: wz.items.aegis > 0,
     rune: null, runeUntil: 0, braceUntil: 0, braceReadyAt: 0, electroUntil: 0, basicCasting: undefined,
@@ -2418,7 +2418,7 @@ function prepWizards(w: World, rand: () => number) {
     }
     wz.speed = rooted ? 0 : Math.max(0.2, (wz.baseSpeed + extra) * (wz.zone & 1 ? ZONES.slow.mult : 1) * (w.map && cellAt(w.map, wz.pos.x, wz.pos.y) === CELL.wax ? ZONES.slow.mult : 1) * (inWarp(w, wz) ? WARPZONE.wizMult : 1) * haste * w.mods.speed);
     if (wz.closedBodyWeak && closedBodyActive(w, wz)) wz.speed *= .5;
-    wz.speed *= 1 - elementalPenalty(elementalBonuses(wz.spheres, w.t).ki);
+    wz.speed *= 1 - elementalPenalty(elementalBonuses(wz.spheres, w.t, wz.transcendence).ki, wz.transcendence?.complete);
     if (w.t < (wz.electroUntil ?? 0)) wz.speed *= 1 - LIGHTNING.slow;
     if (rooted) wz.target = null;
     if (bracingActive(w, wz)) {

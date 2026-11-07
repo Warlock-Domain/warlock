@@ -109,6 +109,8 @@ export function demoStatus(w: World, z: Wizard): string[] {
   if(w.t < (z.blindUntil ?? 0)) return [t('cegueira · visão 3 m','blindness · sight 3 m'), ...(w.t < (z.incapacitateUntil ?? 0) ? [t('incapacitado · recargas pausadas','incapacitated · cooldowns paused')] : [])];
   if (closedBodyActive(w, z) && z.closedBodyWeak) return [t('Corpo fechado fraco · 50% mais lento · dano/empurrão/status −22,5%', 'Weak Closed Body · 50% slower · damage/knockback/status −22.5%')];
   if (closedBodyActive(w, z)) return [t('Corpo fechado · direção mantida · dano/empurrão/status −90%', 'Closed Body · facing preserved · damage/knockback/status −90%')];
+  if ((z.transcendLeft ?? 0) > 0) return [t('transcendendo · invulnerável · sem ações', 'transcending · invulnerable · no actions')];
+  if (z.transcendence?.complete) return [t('transcendido · sem penalidades', 'transcended · no drawbacks')];
   if ((z.geyserLeft ?? 0) > 0) return [t('suspenso · invulnerável · sem ações', 'suspended · invulnerable · no actions')];
   const left = (until: number) => n1(Math.max(0, until - w.t));
   const labels: string[] = [];

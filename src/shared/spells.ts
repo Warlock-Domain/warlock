@@ -16,7 +16,7 @@ export const SPELL_GROUP_IDS = {
   defense: ['shield', 'warpzone', 'rockpillar', 'illusion', 'closedbody'],
   control: ['grip', 'gravity', 'link', 'magnetize', 'cluster', 'pix'],
   support: ['heal', 'geyser', 'drain', 'transfusion', 'nexus'],
-  utility: ['bouncer', 'swap', 'elemental'],
+  utility: ['bouncer', 'swap', 'elemental', 'transcend'],
 } as const satisfies Record<string, readonly SpellId[]>;
 type SpellGroup = keyof typeof SPELL_GROUP_IDS;
 export const SHIELD = { statusDuration: .6, knock: .6 }; // proposta: reduz novos status/impulsos em40%, nunca recalcula os anteriores.
