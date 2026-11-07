@@ -73,12 +73,16 @@ export function setAscLobby(m: Match, id: string, bots: AscLobby['bots'], opts: 
   return true;
 }
 
-// quem entra numa sala sem dono vira o dono; o dono que sai passa para o próximo humano da lista, de preferência um que joga
-// e está conectado (quem só assiste ou caiu fica por último)
+// Whoever joins an ownerless room owns it; a leaving owner passes it to the next human, preferably connected and playing.
+// Teams also hands off a dropped owner (nobody else could start or configure the next match) and gives the room back to its
+// returning creator. Ascension keeps a dropped owner: anyone starts there and nothing would give the post back.
 export function ascOwner(m: Match) {
   const L = m.lobby;
+  if (!L) return;
   const humans = m.players.filter((p) => !p.bot);
-  if (L && !m.players.some((p) => p.id === L.owner)) L.owner = (humans.find((p) => p.connected && !p.watch) ?? humans[0])?.id ?? null;
+  const creator = L.teams && humans.find((p) => p.id === m.teamCreator && p.connected && !p.watch);
+  if (creator) L.owner = creator.id;
+  else if (!humans.some((p) => p.id === L.owner && (p.connected || !L.teams))) L.owner = (humans.find((p) => p.connected && !p.watch) ?? humans.find((p) => p.connected) ?? humans[0])?.id ?? null;
 }
 
 export function xpGain(s: Stat): number {

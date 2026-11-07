@@ -92,7 +92,7 @@ export type PublicRoom = {
   // só na Campanha: semente (o navegador monta o mesmo mapa), sala do encontro aberto e a onda dele (contando de 0), salas com
   // o encontro vencido e como a noite acabou
   night?: { stage: number; seed: number; fight: number | null; wave: number; waves: number; done: number[]; result: Night['result']; opened: number[] }; // opened: chests already opened
-  lobby?: AscLobby; // só na sala do Ascensão: dono (id público) e os bots e opções que ele escolheu
+  lobby?: AscLobby; // Ascension and configured Teams rooms: owner (public id) and the bots and options they chose
 };
 
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits de estado (ver encodeSnap)

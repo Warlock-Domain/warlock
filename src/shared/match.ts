@@ -210,7 +210,7 @@ export type Match = {
   roundPaid?: string[]; // quem já recebeu o ouro garantido desta rodada (paga na queda)
   nextEffect?: RoundEffectId | null; // efeito da próxima rodada, sorteado antes da loja para cada um comprar sabendo
   asc?: AscState; // só no modo Ascensão: XP, escolhas de carta e ordem de queda (ascension.ts)
-  lobby?: AscLobby; // só na sala do Ascensão: o dono e os bots e opções que ele escolheu (ascension.ts)
+  lobby?: AscLobby; // Ascension and configured Teams rooms: the owner and the bots and options they chose (ascension.ts)
 };
 
 export const newMatch = (): Match => ({
@@ -248,6 +248,7 @@ export function addPlayer(m: Match, id: string, name: string, bot = false, watch
   if (known) {
     known.name = name;
     known.connected = true;
+    ascOwner(m);
     return true;
   }
   const full = playing(m).length >= MAX_PLAYERS;
@@ -263,7 +264,6 @@ export function addPlayer(m: Match, id: string, name: string, bot = false, watch
   m.players.push({ id, name, bot, color: freeColor(m), character, look: lookOf(character), score: 0, gold, economy: newEconomy(gold), spells: noSpells(), items: startItems(), stats: newStats(), bought: [], held: {}, ready: bot, connected: true, team: m.lobby?.teams && !bot && !watching ? m.teamChoices?.[id] ?? null : null, ...(watching && { watch: true }) });
   enter(m, m.players[m.players.length - 1], rand);
   ascOwner(m);
-  if (m.lobby?.teams && m.teamCreator === id && !watching) m.lobby.owner = id;
   return true;
 }
 
@@ -324,7 +324,7 @@ export function removePlayer(m: Match, id: string) {
     ascOwner(m);
   } else {
     const p = player(m, id);
-    if (p) { p.connected = false; delete p.reading; }
+    if (p) { p.connected = false; delete p.reading; ascOwner(m); }
   }
 }
 
@@ -592,6 +592,7 @@ export function kick(m: Match, id: string): boolean {
 // tira da partida e mata o mago, se a rodada estiver rolando
 function drop(m: Match, id: string) {
   m.players = m.players.filter((q) => q.id !== id);
+  ascOwner(m);
   // sandbox: o mago sai do mundo (o id pode voltar no próximo bot)
   if (m.sandbox && m.world) m.world.wizards = m.world.wizards.filter((z) => z.id !== id);
   const wz = m.world?.wizards.find((z) => z.id === id);
