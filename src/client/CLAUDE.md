@@ -147,3 +147,5 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - Teams supports four identities (Blue/Red/Green/Yellow). HUD standings and statistics iterate actual participating teams; never fold every non-blue player into Red. Keep team count in the existing match options picker and vote flow.
 
 - Teams creation reuses the choice/select controls for random or manual assignment. Shared setup comes from lobby.teams; own team uses the authenticated team message and bot selectors are creator-only. Preserve keyboard refocus via data-key and fit both bot selects in the existing column.
+- New proposal uses server-owned state, existing catalog/demos, PT/EN text and disposable renderer resources. Preserve current manual Sniper and item Scourge rules.
+- Elemental sphere models come from element-sphere-model.ts for both orbits and launched attacks. Their geometry already uses ELEMENTAL_SPHERES.radius; do not apply the ordinary basic-bolt size multiplier again. Preserve white Ki/black Void, visibility filters, sphere consumption and authoritative Transcend state. Keep the completed aura near the feet, without a Transcended overhead label.
