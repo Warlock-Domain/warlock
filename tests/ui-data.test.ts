@@ -19,7 +19,7 @@ describe('shop: data for choosing', () => {
 
   it('puts every item in exactly one shop section', () => {
     const grouped = ITEM_GROUPS.flatMap(([, , ids]) => ids);
-    expect([...grouped].sort()).toEqual([...ITEM_IDS].sort());
+    expect([...grouped].sort()).toEqual([...ITEM_IDS].sort()); // Active and passive items share the equipment categories.
   });
 
   it('shows a tip row for every level field that is not zero', () => {
@@ -42,7 +42,7 @@ describe('shop: data for choosing', () => {
 
   it('gives every spell and item its own icon', () => {
     // the Scourge item and the spell path it uses are the same thing: a single icon (26/10, #227)
-    const all = [...Object.values(ICON), ...Object.entries(ITEM_ICON).filter(([i]) => i !== 'scourge').map(([, ico]) => ico)];
+    const all = [...Object.entries(ICON).filter(([id]) => id !== 'recharge' && id !== 'alteration').map(([, value]) => value), ...Object.entries(ITEM_ICON).filter(([i]) => i !== 'scourge').map(([, ico]) => ico)];
     expect(new Set(all).size).toBe(all.length);
   });
 

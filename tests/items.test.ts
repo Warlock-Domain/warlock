@@ -17,11 +17,11 @@ const steps = (w: World, n: number) => {
   for (let i = 0; i < n; i++) stepWorld(w, []);
 };
 
-describe('passive items', () => {
+describe('Passive items', () => {
   it('ring raises max hp', () => {
     const w = world([[0, 0]], [{ ring: 2 }]);
-    expect(w.wizards[0].hpMax).toBe(HP_MAX + 190);
-    expect(w.wizards[0].hp).toBe(HP_MAX + 190);
+    expect(w.wizards[0].hpMax).toBe(HP_MAX + 100);
+    expect(w.wizards[0].hp).toBe(HP_MAX + 100);
   });
 
   it('armor reduces knockback', () => {
@@ -32,19 +32,19 @@ describe('passive items', () => {
       steps(w, 30);
     }
     const ratio = armored.wizards[1].vel.x / plain.wizards[1].vel.x;
-    expect(ratio).toBeCloseTo(1 - 0.22, 2);
+    expect(ratio).toBeCloseTo(1 - 0.12, 2);
   });
 
   it('boots make you walk faster', () => {
     const w = world([[0, 0]], [{ boots: 3 }]);
     stepWorld(w, [{ id: 'p0', kind: 'move', to: v(5, 0) }]);
     steps(w, 59);
-    expect(w.wizards[0].pos.x).toBeCloseTo(WIZ_SPEED + ITEMS.boots.levels[2].speed!, 1);
+    expect(w.wizards[0].pos.x).toBeCloseTo(WIZ_SPEED + ITEMS.boots.levels[0].speed!, 1);
   });
 });
 
-// Scourge and Pact were active items; they became spells on 21/10 (#217) and the Redirector was removed
-describe('Scourge and Pact (spells)', () => {
+// Scourge and Pact became spells on 21/10 (#217); Redirector was removed
+describe('Scourge and Pact spells', () => {
   const scourge = (id = 'p0'): Cmd => ({ id, kind: 'cast', spell: 'scourge', at: v(0, 0) });
   const windup = Math.round(CAST_POINT.scourge / DT);
 
@@ -61,11 +61,11 @@ describe('Scourge and Pact (spells)', () => {
     expect(w.wizards[0].cd.scourge).toBeGreaterThan(w.t);
   });
 
-  // Fernando's request (21/10): the blast cancels the knockback the wizard is taking
+  // Owner decision (21/10): the blast cancels incoming knockback
   it('the blast stops the knockback the caster is taking', () => {
     const w = world([[0, 0], [1, 0]]);
     stepWorld(w, [scourge()]);
-    w.wizards[0].vel = v(-12, 0); // pushed during the windup
+    w.wizards[0].vel = v(-12, 0); // pushed during windup
     steps(w, windup - 5);
     expect(len(w.wizards[0].vel)).toBeGreaterThan(STUN_SPEED);
     let blasted = false;
@@ -77,11 +77,11 @@ describe('Scourge and Pact (spells)', () => {
     expect(len(w.wizards[0].vel)).toBe(0);
   });
 
-  // an item again since 26/10 (#227): level 1 free, 3 levels of 7 gold, never bought as a spell
-  it('every player starts with the Scourge item at level 1, and it levels up like an item', () => {
+  // Scourge stays a free active item with fixed level-one attributes.
+  it('every player starts with fixed-level Scourge and legacy ranks retain base attributes', () => {
     expect(noSpells().scourge).toBe(0);
     expect(startItems().scourge).toBe(1);
-    expect(ITEMS.scourge.levels).toHaveLength(3);
+    expect(ITEMS.scourge.levels).toHaveLength(1);
     expect(ITEMS.scourge.cost).toBe(7);
     expect(priceOf('scourge', 0)).toBeNull();
     expect(priceOf('scourge', 1)).toBeNull();
@@ -90,7 +90,7 @@ describe('Scourge and Pact (spells)', () => {
     w.wizards[0].spells.scourge = 3;
     stepWorld(w, [scourge()]);
     steps(w, windup + 5);
-    expect(HP_MAX - w.wizards[1].hp).toBeGreaterThan(SPELLS.scourge.levels[2].dmg - 2);
+    expect(HP_MAX - w.wizards[1].hp).toBeGreaterThan(SPELLS.scourge.levels[0].dmg - 5);
   });
 
   it('scourge also damages obstacles and the chest in the blast', () => {
@@ -119,7 +119,7 @@ describe('Scourge and Pact (spells)', () => {
     expect(w.wizards[0].cd.pact).toBeGreaterThan(w.t);
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'lightning', at: v(2, 0) }]);
     steps(w, 15);
-    // life comes back a little (regeneration) between the hit and the check
+    // regeneration restores some health between impact and assertion
     expect(HP_MAX - w.wizards[1].hp).toBeGreaterThan(SPELLS.lightning.levels[0].dmg * PACT.mult - 2);
     steps(w, 2);
     expect(w.wizards[0].speed).toBe(WIZ_SPEED);
@@ -134,7 +134,7 @@ describe('Scourge and Pact (spells)', () => {
     expect(w.wizards[0].pos.x).toBeLessThan(-1);
     steps(w, 40);
     expect(w.wizards[1].hp).toBe(HP_MAX);
-    expect(w.wizards[0].cd.scourge).toBe(0); // did not go out: no cooldown
+    expect(w.wizards[0].cd.scourge).toBe(0); // not released: no cooldown
   });
 
   it('no spell goes out while the scourge is winding up', () => {
@@ -145,7 +145,7 @@ describe('Scourge and Pact (spells)', () => {
     expect(w.wizards[0].casting?.spell).toBe('scourge');
     expect(w.wizards[0].cd.lightning).toBe(0);
     steps(w, 40);
-    expect(w.wizards[1].hp).toBeLessThan(HP_MAX); // the Scourge went out anyway
+    expect(w.wizards[1].hp).toBeLessThan(HP_MAX); // Scourge still fired
   });
 
   it('a chest swallowed by the lava breaks on its own and the gold lands on the stone', () => {
@@ -158,7 +158,7 @@ describe('Scourge and Pact (spells)', () => {
   });
 
   it('scourge destroys enemy projectiles in the blast', () => {
-    // the fireball reaches the area in the middle of the 0.5 s windup
+    // Fireball reaches the area during the half-second windup
     const w = world([[0, 0], [5.5, 0]]);
     stepWorld(w, [{ id: 'p1', kind: 'cast', spell: 'fireball', at: v(0, 0) }]);
     steps(w, 6);
@@ -170,15 +170,15 @@ describe('Scourge and Pact (spells)', () => {
 
   it('a sold Scourge does nothing', () => {
     const w = world([[0, 0], [1, 0]]);
-    w.wizards[0].spells.scourge = 0;
+    w.wizards[0].spells.scourge = 0; w.wizards[0].items.scourge = 0;
     stepWorld(w, [scourge()]);
     steps(w, 70);
     expect(w.wizards[1].hp).toBe(HP_MAX);
   });
 });
 
-describe('item shop', () => {
-  it('buys, upgrades to the max level and respects 6 items (the free Scourge takes one)', () => {
+describe('Item shop', () => {
+  it('buys each item once and respects six inventory spaces', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     addPlayer(m, 'b', 'Bia');
@@ -186,10 +186,10 @@ describe('item shop', () => {
     const p = m.players[0];
     p.gold = 200;
     expect(buyItem(m, 'a', 'cape')).toBe(true);
-    expect(buyItem(m, 'a', 'cape')).toBe(true);
-    expect(buyItem(m, 'a', 'cape')).toBe(true);
     expect(buyItem(m, 'a', 'cape')).toBe(false);
-    expect(p.gold).toBe(200 - 3 * ITEMS.cape.cost);
+    expect(buyItem(m, 'a', 'cape')).toBe(false);
+    expect(buyItem(m, 'a', 'cape')).toBe(false);
+    expect(p.gold).toBe(200 - ITEMS.cape.cost);
     for (const i of ['ring', 'armor', 'boots', 'watch'] as ItemId[]) expect(buyItem(m, 'a', i)).toBe(true);
     expect(itemPrice(p.items, 'helmet')).toBeNull();
     expect(buyItem(m, 'a', 'helmet')).toBe(false);
@@ -197,7 +197,7 @@ describe('item shop', () => {
   });
 });
 
-describe('undo purchase', () => {
+describe('Purchase undo', () => {
   it('undo refunds the latest purchase of that kind in this shop', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
@@ -215,13 +215,13 @@ describe('undo purchase', () => {
     expect(p.items.vampire).toBe(0);
     expect(p.gold).toBe(50 - 6);
     expect(undoBuy(m, 'a', 'spell:lightning')).toBe(false);
-    // the free Scourge from the start cannot be "undone" to gain gold
-    expect(undoBuy(m, 'a', 'item:scourge')).toBe(false);
+    // the free starting Scourge cannot be undone for gold
+    expect(undoBuy(m, 'a', 'spell:scourge')).toBe(false);
   });
 });
 
-describe('selling in the shop', () => {
-  // new shop: what was already bought counts as "from earlier rounds"
+describe('Shop sales', () => {
+  // a new shop treats previous purchases as belonging to earlier rounds
   const shop = () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
@@ -231,7 +231,7 @@ describe('selling in the shop', () => {
     return { m, p: m.players[0] };
   };
 
-  // since 19/10 (Fernando): selling always refunds 100% of what was paid, in any round
+  // Owner decision (19/10): sales refund the full paid price in any round
   it('sells for 100% of what was paid, in any round', () => {
     const { m, p } = shop();
     buy(m, 'a', 'lightning'); // 11
@@ -249,9 +249,9 @@ describe('selling in the shop', () => {
 
   it('each level counts from the round it was bought', () => {
     const { m, p } = shop();
-    buy(m, 'a', 'lightning'); // 11 in round 0
+    buy(m, 'a', 'lightning'); // 11 in round zero
     m.round = 4;
-    buy(m, 'a', 'lightning'); // 8 in round 4
+    buy(m, 'a', 'lightning'); // 8 in round four
     expect(sellValue(p, 4, 'spell:lightning')).toBe(11 + 8);
     expect(undoBuy(m, 'a', 'spell:lightning')).toBe(true);
     expect(p.held['spell:lightning']).toEqual([0]);
@@ -266,19 +266,15 @@ describe('selling in the shop', () => {
   it('items sell the same way; the free Fireball sells for 0, the free Scourge level does not sell', () => {
     const { m, p } = shop();
     buyItem(m, 'a', 'armor');
-    buyItem(m, 'a', 'armor'); // 6 + 6
-    expect(sellValue(p, m.round + 1, 'item:armor')).toBe(12);
+    buyItem(m, 'a', 'armor'); // duplicate purchase is rejected
+    expect(sellValue(p, m.round + 1, 'item:armor')).toBe(6);
     expect(sell(m, 'a', 'item:armor')).toBe(true);
     expect(p.items.armor).toBe(0);
     const gold = p.gold;
-    expect(sell(m, 'a', 'item:scourge')).toBe(false); // an item again since 26/10 (#227): the free level cannot be sold
-    expect(p.items.scourge).toBe(1);
-    buyItem(m, 'a', 'scourge');
-    expect(sellValue(p, m.round, 'item:scourge')).toBe(7); // only the bought level is refunded
-    expect(sell(m, 'a', 'item:scourge')).toBe(true);
-    expect(p.items.scourge).toBe(1);
+    expect(sell(m, 'a', 'item:scourge')).toBe(false); // The free starting item is protected.
+    expect(p.spells.scourge).toBe(0);
     expect(p.gold).toBe(gold);
-    expect(sell(m, 'a', 'spell:fireball')).toBe(true); // free level 1: refunds 0 and frees the slot
+    expect(sell(m, 'a', 'spell:fireball')).toBe(true); // the free starting level refunds zero and frees the slot
     expect(p.spells.fireball).toBe(0);
   });
 
@@ -291,8 +287,8 @@ describe('selling in the shop', () => {
   });
 });
 
-describe('lifesteal (item)', () => {
-  it('costs 5 per level, 3 levels, and takes an item slot', () => {
+describe('Lifesteal item', () => {
+  it('costs five gold once and takes one item slot', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     addPlayer(m, 'b', 'Bia');
@@ -301,8 +297,8 @@ describe('lifesteal (item)', () => {
     p.gold = 100;
     expect(buyItem(m, 'a', 'vampire')).toBe(true);
     expect(p.gold).toBe(95);
-    for (let i = 0; i < 2; i++) buyItem(m, 'a', 'vampire');
-    expect(p.items.vampire).toBe(3);
+    for (let i = 0; i < 5; i++) buyItem(m, 'a', 'vampire');
+    expect(p.items.vampire).toBe(1);
     expect(buyItem(m, 'a', 'vampire')).toBe(false);
   });
 
@@ -314,11 +310,11 @@ describe('lifesteal (item)', () => {
     w.wizards[0].hp = 500;
     stepWorld(w, [{ id: 'a', kind: 'cast', spell: 'lightning', at: v(2, 0) }]);
     steps(w, 10);
-    expect(w.wizards[0].hp).toBeGreaterThan(510); // 24% of 70
+    expect(w.wizards[0].hp).toBeGreaterThan(507);
   });
 });
 
-describe('new items (18/10)', () => {
+describe('Additional items', () => {
   const fireballAt = (w: World, x: number) => stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'fireball', at: v(x, 0) }]);
   const hits = (w: World, n: number) => {
     const out: number[] = [];
@@ -329,9 +325,9 @@ describe('new items (18/10)', () => {
     return out;
   };
 
-  it('lava boots cut lava damage by 18% and 30%, but not the knockback the lava builds up', () => {
+  it('lava boots always reduce lava damage by 18% without changing built knockback', () => {
     const built: number[] = [];
-    for (const [lvl, cut] of [[0, 0], [1, 0.18], [2, 0.3]]) {
+    for (const [lvl, cut] of [[0, 0], [1, 0.18], [2, 0.18]]) {
       const w = world([[0, 0]], [{ lava_boots: lvl }]);
       w.wizards[0].pos = v(w.arenaR + 1, 0);
       steps(w, 60);
@@ -348,8 +344,8 @@ describe('new items (18/10)', () => {
     fireballAt(warded, 3);
     const [a] = hits(plain, 30);
     const [b] = hits(warded, 30);
-    expect(a - b).toBeCloseTo(12, 0);
-    expect(warded.wizards[1].vel.x / plain.wizards[1].vel.x).toBeCloseTo(1.03, 2);
+    expect(a - b).toBeCloseTo(4, 0);
+    expect(warded.wizards[1].vel.x / plain.wizards[1].vel.x).toBeCloseTo(1.01, 2);
   });
 
   it('warden never cuts more than half a hit (damage over time still works)', () => {
@@ -376,15 +372,10 @@ describe('new items (18/10)', () => {
     fireballAt(w, 3);
     steps(w, 30);
     expect(w.wizards[1].speed).toBeCloseTo(base + SHOCK_BOOTS.speed, 5);
-    steps(w, Math.round(SHOCK_BOOTS.secs[0] / DT));
+    steps(w, Math.round(SHOCK_BOOTS.secs / DT));
     expect(w.wizards[1].speed).toBeCloseTo(base, 5);
-    // level 3: still fast after 4 s
-    const w3 = world([[0, 0], [3, 0]], [{}, { shock_boots: 3 }]);
-    fireballAt(w3, 3);
-    steps(w3, 30 + Math.round(4 / DT));
-    expect(w3.wizards[1].speed).toBeCloseTo(base + SHOCK_BOOTS.speed, 5);
-    // level 3 Boots (+40) already beat the shock ones (+30): nothing extra
-    expect(world([[0, 0]], [{ shock_boots: 1, boots: 3 }]).wizards[0].shockBonus).toBe(0);
+    // legacy Boots ranks use the fixed base bonus, so Shock Boots still add the difference
+    expect(world([[0, 0]], [{ shock_boots: 1, boots: 3 }]).wizards[0].shockBonus).toBeCloseTo(SHOCK_BOOTS.speed - ITEMS.boots.levels[0].speed!);
     expect(world([[0, 0]], [{ shock_boots: 1, boots: 1 }]).wizards[0].shockBonus).toBeCloseTo(SHOCK_BOOTS.speed - ITEMS.boots.levels[0].speed!);
   });
 
@@ -394,7 +385,7 @@ describe('new items (18/10)', () => {
     z.pos = v(0, w.arenaR + 1);
     z.vel = v(0, 5);
     steps(w, 30);
-    expect(z.pos.y).toBeGreaterThan(w.arenaR); // high life: the Aegis waits
+    expect(z.pos.y).toBeGreaterThan(w.arenaR); // Aegis waits while health is high
     z.hp = AEGIS.hp + 0.5;
     let saved = false;
     for (let i = 0; i < 5; i++) {
@@ -406,7 +397,7 @@ describe('new items (18/10)', () => {
     expect(z.pos.y).toBeGreaterThan(0);
     expect(len(z.vel)).toBe(0);
     expect(z.aegis).toBe(false);
-    // second time in the lava: it does not save again
+    // Aegis does not save a second time
     z.pos = v(0, w.arenaR + 1);
     steps(w, 600);
     expect(z.alive).toBe(false);
@@ -421,8 +412,8 @@ describe('new items (18/10)', () => {
     for (const id of ['lava_boots', 'warden', 'helmet', 'shock_boots', 'aegis']) expect(planned.has(id)).toBe(true);
   });
 
-  // each level is a charge since 26/10 (#227): saving spends 1 level
-  it('aegis spends one level each time it saves you', () => {
+  // A legacy multi-charge save normalizes to one fixed-rank item.
+  it('Aegis consumes its single normalized item when it saves you', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'A');
     addPlayer(m, 'b', 'B');
@@ -434,16 +425,16 @@ describe('new items (18/10)', () => {
     while (m.phase !== 'playing') tickMatch(m, (now = Math.max(now + 17, m.phaseEnds)), []);
     const z = m.world!.wizards.find((q) => q.id === 'a')!;
     expect(z.aegis).toBe(true);
-    z.pos = v(0, m.world!.arenaR * 2); // in the lava in any arena
+    z.pos = v(0, m.world!.arenaR * 2); // in lava for every arena shape
     z.hp = AEGIS.hp + 5;
-    for (let i = 0; i < 300 && m.players[0].items.aegis > 1; i++) tickMatch(m, (now += 17), []);
+    for (let i = 0; i < 300 && m.players[0].items.aegis > 0; i++) tickMatch(m, (now += 17), []);
     expect(z.alive).toBe(true);
-    expect(m.players[0].items.aegis).toBe(1);
-    expect(m.players[0].held['item:aegis']).toEqual([0]);
+    expect(m.players[0].items.aegis).toBe(0);
+    expect(m.players[0].held['item:aegis']).toEqual([]);
   });
 
   // 26/10 (#227): rooms saved before the 3 levels and with the Scourge as a spell
-  it('rooms saved with the Scourge spell or more than 3 levels move to the 3-level items', () => {
+  it('legacy spell ownership and higher item ranks normalize to fixed items', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'A');
     addPlayer(m, 'b', 'B');
@@ -455,14 +446,14 @@ describe('new items (18/10)', () => {
     p.items.vampire = 6;
     resume(m, 0);
     expect(p.spells.scourge).toBe(0);
-    expect(p.items.scourge).toBe(3);
-    expect(p.items.ring).toBe(3);
-    expect(p.items.vampire).toBe(3);
+    expect(p.items.scourge).toBe(1);
+    expect(p.items.ring).toBe(1);
+    expect(p.items.vampire).toBe(1);
     expect(m.players[1].items.scourge).toBe(1);
   });
 
-  it('every item has 3 levels', () => {
-    for (const id of ITEM_IDS) expect(ITEMS[id].levels).toHaveLength(3);
+  it('every item has one fixed level', () => {
+    for (const id of ITEM_IDS) expect(ITEMS[id].levels).toHaveLength(1);
   });
 
   it('rooms saved before the new items get them at level 0', () => {

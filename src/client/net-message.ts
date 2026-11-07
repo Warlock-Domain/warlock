@@ -64,9 +64,13 @@ function room(x: unknown): x is PublicRoom {
     if (!object(sandbox) || !SANDBOX_KEYS.every((key) => typeof sandbox[key] === 'boolean')) return false;
   }
   if (x.night !== undefined && (!object(x.night) || !integer(x.night.stage) || !integer(x.night.seed) || !(x.night.fight === null || integer(x.night.fight)) || !integer(x.night.wave) || !integer(x.night.waves) || !Array.isArray(x.night.done) || !x.night.done.every(integer) || !Array.isArray(x.night.opened) || !x.night.opened.every(integer) || !(x.night.result === null || (NIGHT_RESULTS as readonly unknown[]).includes(x.night.result)))) return false;
+  const players = x.players;
+  if (x.reading !== undefined && (!x.night || x.phase !== 'playing' || !stringArray(x.reading) || new Set(x.reading).size !== x.reading.length || !x.reading.every((id) => players.some((p) => p.id === id && p.connected && !p.bot && !p.watch)))) return false;
+  if (x.choosing !== undefined && (!x.night || x.phase !== 'playing' || x.night.fight !== null || !stringArray(x.choosing) || new Set(x.choosing).size !== x.choosing.length || !x.choosing.every(id => players.some(p => p.id === id && p.connected && !p.bot && !p.watch && !!p.lv && (p.lv.owed > 0 || p.lv.offer.length > 0))))) return false;
   if (x.lobby !== undefined) {
     const lobby = x.lobby;
     if (!object(lobby) || !nullableString(lobby.owner) || !Array.isArray(lobby.bots) || !lobby.bots.every((d) => (OPTION_CHOICES.difficulty as readonly unknown[]).includes(d)) || !validOpts(lobby.opts, true)) return false;
+    if (lobby.teams !== undefined && (!object(lobby.teams) || typeof lobby.teams.manual !== 'boolean' || typeof lobby.teams.shuffle !== 'boolean' || !Array.isArray(lobby.teams.botTeams) || lobby.teams.botTeams.length !== lobby.bots.length || !lobby.teams.botTeams.every(team => team === null || (integer(team) && team >= 0 && team < 4)))) return false;
   }
   return true;
 }
@@ -108,6 +112,7 @@ function snap(x: Obj): x is Obj & Snap {
   const count = (x.w as number[]).length / 7;
   if (!Number.isInteger(count) || (x.p as number[]).length % 6 || (x.pl as number[]).length % 4 || (x.cd as number[]).length !== SPELL_IDS.length) return false;
   if (['rs', 'lp', 'em', 'ab', 'st', 'kr'].some((k) => x[k] !== undefined && (x[k] as number[]).length !== count) || ['ch', 'ru'].some((k) => x[k] !== undefined && (x[k] as number[]).length % 3) || (x.zn !== undefined && (x.zn as number[]).length % 5) || (x.il !== undefined && (x.il as number[]).length % 3) || (x.fx !== undefined && (x.fx as number[]).length % 2)) return false;
+  if (x.mt !== undefined && (!numericArray(x.mt) || x.mt.length !== count * 2 || x.mt.some((n, i) => i % 2 === 0 ? !Number.isInteger(n) || n < -1 || n >= count : n < 0 || n > 1.4))) return false;
   if (x.sr !== undefined && (!numericArray(x.sr) || x.sr.length !== count || x.sr.some(n => n < 0 || n > 20))) return false;
   if (x.pe !== undefined) {
     if (!numericArray(x.pe) || x.pe.length % 2 || x.pe.length > (x.p as number[]).length / 3) return false;
@@ -149,6 +154,7 @@ function snap(x: Obj): x is Obj & Snap {
     const cn = x.cn as number[];
     if (cn.length !== count * 2 || cn.some((n, i) => (i % 2 === 0 ? !Number.isInteger(n) || n < -1 || n >= SPELL_IDS.length : n < 0 || n > 2))) return false;
   }
+  if (x.nx !== undefined && (!numericArray(x.nx) || x.nx.length !== count || x.nx.some(n => !integer(n) || n < -1 || n >= count))) return false;
   if (x.sn !== undefined && ((x.sn as number[]).length !== count * 3 || (x.sn as number[]).some((n,i) => i % 3 === 0 && (n < 0 || n > CAST_POINT.sniper)))) return false;
   return x.e === undefined || Array.isArray(x.e);
 }

@@ -1,6 +1,6 @@
-import { parseForumPost } from '../shared/forum.ts';
 import { ROOM_MODE_PARAM, type RoomMode } from '../shared/match.ts';
 import { styleRows } from '../shared/telemetry.ts';
+import { forumApi } from './forum-api.ts';
 
 export { Forum } from './forum-do.ts';
 export { Lobby } from './lobby.ts';
@@ -24,16 +24,7 @@ export default {
     // jeito de jogar: uma linha por humano e por dificuldade dos bots (telemetry.ts styleRows)
     if (url.pathname === '/api/telemetry/style') return Response.json(styleRows(await lobby.telemetry()), { headers: { 'cache-control': 'no-store' } });
 
-    if (url.pathname === '/api/forum') {
-      const forum = env.FORUM.get(env.FORUM.idFromName('forum'));
-      const headers = { 'cache-control': 'no-store' };
-      if (req.method === 'GET') return Response.json(await forum.list(), { headers });
-      if (req.method === 'POST') {
-        const text = parseForumPost(await req.text());
-        return text === null ? new Response('bad forum post', { status: 400, headers }) : Response.json(await forum.add(text), { headers });
-      }
-      return new Response('method not allowed', { status: 405, headers: { allow: 'GET, POST' } });
-    }
+    if (url.pathname.startsWith('/api/forum/')) return forumApi(req, env, url);
 
     // a sala nasce no leste dos EUA (Fernando, 21/10: fixar no leste dos EUA): Durable Object não existe na América do Sul, e sem a
     // dica a sala nascia perto de onde entrou o pedido, às vezes Vancouver (medido do Brasil em 21/10: 0,2 s para conectar contra 0,1 s
