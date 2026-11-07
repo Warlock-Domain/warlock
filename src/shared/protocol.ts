@@ -7,14 +7,17 @@ import { fightOf, nightMap } from './levels.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type RuneKind } from './constants.ts';
 import { ITEMS, ITEM_IDS, type ItemId } from './items.ts';
-import { MODES, OPTION_CHOICES, TURRET_DIR, goalOf, parseOpt, votesNeeded, type BotSetup, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
+import { MODES, OPTION_CHOICES, TURRET_DIR, campaignReaders, campaignPickers, goalOf, parseOpt, votesNeeded, type BotSetup, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
 import { BAR_SPELLS, MAX_SPELLS, spellMax, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
 import { v, type Vec } from './vec.ts';
 
 export type ClientMsg =
+  | { t: 'team'; team: number | null; bot?: number }
+  | { t: 'teamSetup'; bots: MatchOpts['difficulty'][]; opts: Partial<MatchOpts>; setup: { manual: boolean; shuffle: boolean } | null }
   | { t: 'hello'; playerId: string; name: string; watch?: true } // watch: entra assistindo (botão Assistir da lista de salas)
+  | { t: 'reading'; on: boolean }
   | { t: 'watch'; on: boolean } // assistir (sem mago a partir da próxima rodada) ou voltar a jogar
   // shuffle: Times sorteados a cada rodada (padrão) ou fixos; opts: opções da partida; setup[i]: dificuldade do bot i+1 e a configuração dele no treino
   | { t: 'start'; bots: number; mode?: Mode; shuffle?: boolean; opts?: Partial<MatchOpts>; setup?: BotSetup[]; sandbox?: true }
@@ -66,6 +69,8 @@ export type PublicRoom = {
   phase: Phase;
   mode: Mode;
   round: number;
+  reading?: string[]; // Public ids of Campaign participants still reading tutorial messages.
+  choosing?: string[]; // Public ids whose pending choices block the next Campaign encounter.
   phaseLeft: number; // ms até a fase mudar sozinha
   players: PublicPlayer[];
   ids: string[]; // ordem dos magos no estado compacto ('snap')
@@ -87,7 +92,7 @@ export type PublicRoom = {
   // só na Campanha: semente (o navegador monta o mesmo mapa), sala do encontro aberto e a onda dele (contando de 0), salas com
   // o encontro vencido e como a noite acabou
   night?: { stage: number; seed: number; fight: number | null; wave: number; waves: number; done: number[]; result: Night['result']; opened: number[] }; // opened: chests already opened
-  lobby?: AscLobby; // só na sala do Ascensão: dono (id público) e os bots e opções que ele escolheu
+  lobby?: AscLobby; // Ascension and configured Teams rooms: owner (public id) and the bots and options they chose
 };
 
 // w: 7 números por mago na ordem de room.ids: x, y, vx, vy, vida, direção, bits de estado (ver encodeSnap)
@@ -101,11 +106,13 @@ export type PublicRoom = {
 // fx: efeitos com prazo de quem recebe, 2 números por efeito: bit de estado (como em w) e segundos que faltam
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
 // ba: dois números por mago: preparo de Atacar restante em segundos e corpo a corpo (1/0; 2 = golpe em arco da versão alternativa, na direção do mago); ausente = sem preparo.
-// mt: two numbers per wizard: linked ally index (-1 inactive), extra cooldown speed (0.2 to 1.4).
+// sr: shield radius per wizard while the Shield is up (0 = none or hidden).
 // eo: triples of wizard index, element index and seconds left; at most five spheres per visible wizard.
 // ps: projectile id/size pairs captured at launch; default size is one.
+// nx: only while some Anima Nexus is up, 1 number per wizard: index of the ally it protects (−1 none or hidden from this viewer)
+// mt: two numbers per wizard: linked ally index (-1 inactive), extra cooldown speed (0.2 to 1.4).
 // pe: projectile id/element index pairs; absent for ordinary projectiles.
-export type Snap = { pe?: number[]; sr?: number[]; ps?: number[]; eo?: number[]; t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; sn?: number[]; cn?: number[]; bl?: number[]; cb?: number[]; gy?: number[]; pz?: number[]; pk?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
+export type Snap = { pe?: number[]; mt?: number[]; sr?: number[]; ps?: number[]; eo?: number[]; t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; sn?: number[]; cn?: number[]; bl?: number[]; cb?: number[]; gy?: number[]; pz?: number[]; pk?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; nx?: number[]; ack: number; e?: SimEvent[] };
 
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
 export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
@@ -187,10 +194,10 @@ function parseSandbox(c: unknown): SandboxCmd | null {
   if (c.op === 'effect') return c.effect === null || ROUND_EFFECT_IDS.includes(c.effect as RoundEffectId) ? { op: 'effect', effect: c.effect as RoundEffectId | null } : null;
   if (c.op === 'restart') return { op: 'restart' };
   if (c.op === 'turret') return Object.hasOwn(TURRET_DIR, c.direction as string) ? { op: 'turret', direction: c.direction as TurretDir } : null;
-  if (c.op !== 'bot' || (c.dummy !== undefined && typeof c.dummy !== 'boolean')) return null;
+  if (c.op !== 'bot' || (c.dummy !== undefined && typeof c.dummy !== 'boolean') || (c.ally !== undefined && typeof c.ally !== 'boolean')) return null;
   const bot = c.bot === undefined ? undefined : parseSetup([c.bot])?.[0];
   if (bot === undefined && c.bot !== undefined) return null;
-  return { op: 'bot', ...(bot && { bot }), ...(c.dummy && { dummy: true }) };
+  return { op: 'bot', ...(bot && { bot }), ...(c.dummy && { dummy: true }), ...(c.ally && { ally: true }) };
 }
 
 export function parseClientMessage(raw: string): ClientMsg | null {
@@ -208,6 +215,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       if (typeof m.playerId !== 'string' || !/^[\w-]{8,64}$/.test(m.playerId)) return null;
       if (m.watch !== undefined && typeof m.watch !== 'boolean') return null;
       return { t: 'hello', playerId: m.playerId, name: cleanName(m.name), ...(m.watch === true && { watch: true as const }) };
+    case 'reading':
+      return typeof m.on === 'boolean' && Object.keys(m).every((k) => k === 't' || k === 'on') ? { t: 'reading', on: m.on } : null;
     case 'watch':
       return typeof m.on === 'boolean' ? { t: 'watch', on: m.on } : null;
     case 'start': {
@@ -264,6 +273,16 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       const opts = parseOpts(m.opts);
       const bots = Array.isArray(m.bots) && m.bots.length < MAX_PLAYERS && m.bots.every((d) => OPTION_CHOICES.difficulty.includes(d)) ? (m.bots as MatchOpts['difficulty'][]) : null;
       return opts && bots ? { t: 'lobby', bots, opts } : null;
+    }
+    case 'team':
+      return (m.team === null || (Number.isInteger(m.team) && (m.team as number) >= 0 && (m.team as number) < 4)) && (m.bot === undefined || (Number.isInteger(m.bot) && (m.bot as number) >= 0 && (m.bot as number) < MAX_PLAYERS - 1)) && Object.keys(m).every(k => ['t', 'team', 'bot'].includes(k))
+        ? { t: 'team', team: m.team as number | null, ...(m.bot === undefined ? {} : { bot: m.bot as number }) } : null;
+    case 'teamSetup': {
+      const opts = parseOpts(m.opts);
+      const bots = Array.isArray(m.bots) && m.bots.length < MAX_PLAYERS && m.bots.every(d => OPTION_CHOICES.difficulty.includes(d)) ? m.bots as MatchOpts['difficulty'][] : null;
+      const setup = m.setup;
+      if (!opts || !bots || !(setup === null || (typeof setup === 'object' && setup && 'manual' in setup && 'shuffle' in setup && typeof setup.manual === 'boolean' && typeof setup.shuffle === 'boolean' && Object.keys(setup).every(k => ['manual', 'shuffle'].includes(k))))) return null;
+      return { t: 'teamSetup', bots, opts, setup: setup === null ? null : { manual: setup.manual as boolean, shuffle: setup.shuffle as boolean } };
     }
     case 'taunt':
       return Number.isInteger(m.i) && (m.i as number) >= 0 && (m.i as number) < TAUNTS.length ? { t: 'taunt', i: m.i as number } : null;
@@ -344,6 +363,8 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     effect: (m.phase === 'shop' ? shopEffect(m) : m.world?.effect) ?? null,
     ...(m.sandbox && { sandbox: m.sandbox }),
     ...(m.night && { night: publicNight(m.night) }),
+    ...(campaignReaders(m).length && { reading: campaignReaders(m).map((p) => pub(p.id)) }),
+    ...(campaignPickers(m).length && { choosing: campaignPickers(m).map(p => pub(p.id)) }),
     ...(m.lobby && { lobby: { ...m.lobby, owner: m.lobby.owner && pub(m.lobby.owner) } }),
   };
 }

@@ -15,6 +15,15 @@ function setup(elements: Element[]) {
   return w;
 }
 describe('Elemental modifiers agree across simulation, snapshots and aiming', () => {
+  it('lets Water extend the Anima Nexus cast range on the server, like the range ring', () => {
+    for (const [spheres, linked] of [[0, false], [5, true]] as const) {
+      const w = world([[0, 0], [7.2, 0], [20, 0]], { ...noSpells(), nexus: 1 }, [], () => .5, false, [0, 0, 1]);
+      w.pillars = []; w.rules.runes = false; w.rules.chests = false; w.shrinkAt = 1000;
+      w.wizards[0].spheres = Array.from({ length: spheres }, () => ({ element: 'water' as const, until: 30 }));
+      stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'nexus', at: w.wizards[1].pos }], () => .5);
+      expect(!!w.wizards[0].nexus, `${spheres} Water spheres`).toBe(linked);
+    }
+  });
   it('captures Shield radius even after Earth expires and scales Drain/Snowball previews', () => {
     const w = setup(['earth', 'earth', 'earth', 'earth', 'earth']), caster = w.wizards[0];
     caster.spells.shield = 1;
@@ -53,15 +62,13 @@ describe('Elemental modifiers agree across simulation, snapshots and aiming', ()
     expect(aim.blastAt?.x).toBeCloseTo(reachOf('meteor', z.spells, noItems(), 1, bonus));
     expect(reachOf('heal', z.spells, noItems(), 1, bonus)).toBeCloseTo(10.5 * .97);
   });
-  it('locks the basic attack only on targets the simulation accepts', () => {
+  it('marks the basic attack only as far as the shot really flies', () => {
     for (const elements of [[], ['earth'], ['water'], ['earth', 'water']] as Element[][]) {
-      const w = setup(elements), z = w.wizards[0], reach = basicReach(elementalBonuses(z.spheres, w.t));
-      for (const d of [reach - .01, reach + .01]) {
-        w.wizards[1].pos = { x: d, y: 0 };
-        z.basicCasting = undefined;
-        stepWorld(w, [{ id: z.id, kind: 'basic', at: { x: d, y: 0 } }], () => .5);
-        expect(!!z.basicCasting, `${elements.join('+')} at ${d}`).toBe(d < reach);
-      }
+      const w = setup(['fire', ...elements]), z = w.wizards[0]; // the oldest sphere is thrown, the others set the flight
+      const reach = basicReach(elementalBonuses(z.spheres!.slice(1), w.t));
+      run(w, .4 + 1 / 60, [{ id: z.id, kind: 'basic', at: { x: -9, y: 0 } }]);
+      const shot = w.projectiles.find(p => p.kind === 'basic')!;
+      expect(Math.hypot(shot.vel.x, shot.vel.y) * (shot.until - shot.born!), elements.join('+')).toBeCloseTo(reach);
     }
   });
   it('earth no longer increases projectile size; snapshot validation still rejects invalid sizes', () => {

@@ -60,21 +60,29 @@ export function ascResume(a: AscState) {
 // sala do Ascensão: o dono (quem criou; se sair da sala, o próximo que entrou) escolhe os bots e as opções, e todos veem
 // na hora; só ele muda (Fernando, 21/10: todos veem o que o criador da sala escolhe e
 // só ele escolhe). O Começar usa estas escolhas, venha de quem vier
-export type AscLobby = { owner: string | null; bots: MatchOpts['difficulty'][]; opts: Partial<MatchOpts> };
+export type AscLobby = { owner: string | null; bots: MatchOpts['difficulty'][]; opts: Partial<MatchOpts>; teams?: { manual: boolean; shuffle: boolean; botTeams: (number | null)[] } };
 
 export function setAscLobby(m: Match, id: string, bots: AscLobby['bots'], opts: Partial<MatchOpts>): boolean {
   const L = m.lobby;
   if (!L || L.owner !== id || (m.phase !== 'lobby' && m.phase !== 'end')) return false;
   Object.assign(L, { bots, opts });
+  if (L.teams) L.teams.botTeams = bots.map((_, i) => {
+    const team = L.teams!.botTeams[i];
+    return team !== undefined && team !== null && team < (opts.teams ?? m.opts.teams) ? team : null;
+  });
   return true;
 }
 
-// quem entra numa sala sem dono vira o dono; o dono que sai passa para o próximo humano da lista, de preferência um que joga
-// e está conectado (quem só assiste ou caiu fica por último)
+// Whoever joins an ownerless room owns it; a leaving owner passes it to the next human, preferably connected and playing.
+// Teams also hands off a dropped owner (nobody else could start or configure the next match) and gives the room back to its
+// returning creator. Ascension keeps a dropped owner: anyone starts there and nothing would give the post back.
 export function ascOwner(m: Match) {
   const L = m.lobby;
+  if (!L) return;
   const humans = m.players.filter((p) => !p.bot);
-  if (L && !m.players.some((p) => p.id === L.owner)) L.owner = (humans.find((p) => p.connected && !p.watch) ?? humans[0])?.id ?? null;
+  const creator = L.teams && humans.find((p) => p.id === m.teamCreator && p.connected && !p.watch);
+  if (creator) L.owner = creator.id;
+  else if (!humans.some((p) => p.id === L.owner && (p.connected || !L.teams))) L.owner = (humans.find((p) => p.connected && !p.watch) ?? humans.find((p) => p.connected) ?? humans[0])?.id ?? null;
 }
 
 export function xpGain(s: Stat): number {
