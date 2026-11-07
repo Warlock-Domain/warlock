@@ -39,6 +39,38 @@ describe('Thrust damage-based stun', () => {
     } else expect(w.wizards[1].stunLeft ?? 0).toBe(0);
   });
 
+  it('with Anima Nexus stores only the damage each body really lost', () => {
+    const w = world([[-3, 0], [0, 0], [2.5, 0]], { ...noSpells(), nexus: 1, fireball: 1 }, [], () => .5, false, [0, 0, 1]);
+    w.pillars = []; w.runes = []; w.rules.runes = false; w.rules.chests = false; w.shrinkAt = 1000;
+    for (const z of w.wizards) z.regen = 0;
+    stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'nexus', at: w.wizards[1].pos }], () => .5);
+    const [protector, ally] = w.wizards;
+    protector.thrustUntil = ally.thrustUntil = w.t + 5;
+    stepWorld(w, [{ id: 'p2', kind: 'cast', spell: 'fireball', at: ally.pos }], () => .5);
+    for (let i = 0; i < 120 && protector.hp === 1000; i++) stepWorld(w, [], () => .5);
+    expect(ally.hp).toBe(1000);
+    expect(ally.thrustDamage ?? 0).toBe(0);
+    expect(protector.thrustDamage).toBeCloseTo(1000 - protector.hp);
+    // burn ground goes through the environmental path: same rule
+    const before = protector.thrustDamage!;
+    w.zones.push({ pos: ally.pos, r: 1, kind: 'burn', until: w.t + 1 });
+    for (let i = 0; i < 10; i++) stepWorld(w, [], () => .5);
+    expect(ally.thrustDamage ?? 0).toBe(0);
+    expect(protector.thrustDamage).toBeGreaterThan(before);
+  });
+
+  it('keeps the channeled power in the dash damage', () => {
+    const damage = (charged: boolean) => {
+      const w = world([[0, 0], [4, 0]], { ...noSpells(), thrust: 1, channel: 1 }, [], () => .5);
+      w.pillars = []; w.wizards[1].regen = 0;
+      if (charged) w.wizards[0].channel = { spell: 'thrust', since: w.t - 2 };
+      stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'thrust', at: v(4, 0) }], () => .5);
+      for (let i = 0; i < 90 && w.wizards[1].hp === 1000; i++) stepWorld(w, [], () => .5);
+      return 1000 - w.wizards[1].hp;
+    };
+    expect(damage(true)).toBeGreaterThan(damage(false));
+  });
+
   it('does not damage allies in its path', () => {
     const w = world([[0, 0], [2, 0], [4, 0]], { ...noSpells(), thrust: 1 }, [], () => .5, false, [0, 0, 1]);
     stepWorld(w, [{ id: 'p0', kind: 'cast', spell: 'thrust', at: v(4, 0) }], () => .5);

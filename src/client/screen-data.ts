@@ -3,7 +3,7 @@ import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { WizView } from '../shared/snapshot.ts';
 import { LEGACY_ITEM_MAX, ITEMS, ITEM_IDS, itemPrice, startItems, type ItemId } from '../shared/items.ts';
-import { FREE_SPELLS, MAX_SPELLS, spellMax, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
+import { BAR_SPELLS, FREE_SPELLS, MAX_SPELLS, spellMax, SPELL_IDS, isSpell, priceOf, spellCount, type SpellId } from '../shared/spells.ts';
 import { isRecord, readLevels, readNumberMap } from './saved-data.ts';
 import { store } from './store.ts';
 import type { ServoKind } from '../shared/campaign.ts';
@@ -172,7 +172,7 @@ export function readPresets(raw: string | null): (Preset | null)[] {
     const p: unknown = Array.isArray(list) ? list[i] : null;
     if (!isRecord(p)) return null;
     // vaga vazia da barra fica no lugar (null): sem ela as magias da build mudariam de tecla
-    return { spells: readLevels(p.spells, SPELL_IDS, spellMax), items: Object.fromEntries(Object.entries(readLevels(p.items, ITEM_IDS, id => LEGACY_ITEM_MAX[id])).map(([id, level]) => [id, level ? 1 : 0])), order: Array.isArray(p.order) ? p.order.slice(0, MAX_SPELLS).map((s: unknown) => (isSpell(s) ? s : null)) : [] };
+    return { spells: readLevels(p.spells, SPELL_IDS, spellMax), items: Object.fromEntries(Object.entries(readLevels(p.items, ITEM_IDS, id => LEGACY_ITEM_MAX[id])).map(([id, level]) => [id, level ? 1 : 0])), order: Array.isArray(p.order) ? p.order.slice(0, MAX_SPELLS).map((s: unknown) => (isSpell(s) && (BAR_SPELLS as readonly SpellId[]).includes(s) ? s : null)) : [] };
   });
 }
 

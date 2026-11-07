@@ -5,7 +5,7 @@ import { BASIC_ATTACK, BRACE, OBSTACLES, DT, GUARD, MELEE_ARC, FRICTION, KB_SOFT
 import { SCRIPTS, createDemo, runDemo, type DemoId } from './demo.ts';
 import { itemName, itemText, spellName, t } from './i18n.ts';
 import { labelOf, uiLabel } from './keys.ts';
-import { CAST_POINT, GRIP, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, PIX, RECHARGE, RUSH, SHIELD, SPELLS, WARPZONE, spellLevel, spellMax, type Level, type SpellId } from '../shared/spells.ts';
+import { CAST_POINT, GRIP, LIGHTNING, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, PIX, RECHARGE, RUSH, SHIELD, SPELLS, WARPZONE, spellLevel, spellMax, type Level, type SpellId } from '../shared/spells.ts';
 import { MECHANIC_GUIDES, RULES_SHORT, n1, n2 } from './rules-text.ts';
 import { COLORS } from './scene.ts';
 
@@ -44,12 +44,12 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   pix: [[t('Chuva de moedas', 'Coin rain'), () => s(PIX.rain)], [RADIUS, (l) => m(l.radius)], [t('Tempo dentro para controlar', 'Time inside to control'), () => s(PIX.soak)], [t('Tempo controlado', 'Time controlled'), (l) => s(l.duration)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   sniper: [[DMG,l=>n1(l.dmg)],[RANGE,l=>m(l.range)],[t('Canalização','Channel time'),()=>s(CAST_POINT.sniper)],[CD,l=>s(l.cd)]],
   channel: [[t('Preparo mínimo', 'Minimum charge'), () => '1 s'], [t('Carga máxima', 'Maximum charge'), () => '2 s'], [t('Bônus em 1 s / 2 s', 'Bonus at 1 s / 2 s'), () => '+50% / +100%'], [CD, () => '0 s']],
-  closedbody: [[t('Resistência sem postura', 'Resistance without stance'), () => '22,5%'], [t('Lentidão sem postura', 'Slow without stance'), () => '50%'], [DURATION, l => s(l.duration)], [t('Redução de dano', 'Damage reduction'), () => '90%'], [t('Resistência a novos status', 'New status resistance'), () => '90%'], [t('Resistência a novo empurrão', 'New knockback resistance'), () => '90%'], [CD, l => s(l.cd)]],
+  closedbody: [[t('Resistência sem postura', 'Resistance without stance'), () => `${n1(22.5)}%`], [t('Lentidão sem postura', 'Slow without stance'), () => '50%'], [DURATION, l => s(l.duration)], [t('Redução de dano', 'Damage reduction'), () => '90%'], [t('Resistência a novos status', 'New status resistance'), () => '90%'], [t('Resistência a novo empurrão', 'New knockback resistance'), () => '90%'], [CD, l => s(l.cd)]],
   geyser: [[t('Suspensão e invulnerabilidade', 'Suspension and invulnerability'), l => s(l.duration)], [CD, l => s(l.cd)], [RANGE, l => m(l.range)], [t('Raio da área', 'Area radius'), l => m(l.radius)]],
   nexus: [[t('Dano transferido', 'Transferred damage'), () => '125%'], [t('Status e empurrão', 'Statuses and knockback'), () => '50% / 50%'], [t('Duração', 'Duration'), () => t('Até cancelar ou sair do alcance', 'Until cancelled or out of range')], [CD, l => s(l.cd)], [RANGE, l => m(l.range)]],
   heal: [[t('Cura', 'Healing'), l => n1(l.heal)], [CD, l => s(l.cd)], [RANGE, l => m(l.range)]],
   fireball: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
-  lightning: [[t('Intervalo entre saltos', 'Jump interval'), () => '0,25 s'], [DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  lightning: [[t('Intervalo entre saltos', 'Jump interval'), () => `${n2(LIGHTNING.jumpDelay)} s`], [DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   homing: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [t('Tempo de voo', 'Flight time'), (l) => s(l.duration)]],
   shield: [[DURATION, (l) => s(l.duration)], [t('Dano recebido', 'Damage received'), () => '0'], [t('Novo empurrão recebido', 'New knockback received'), () => `${n1(SHIELD.knock * 100)}%`], [t('Duração dos novos status', 'New status duration'), () => `${n1(SHIELD.statusDuration * 100)}%`], [t('Raio da bolha', 'Bubble radius'), (l) => m(l.radius)], [CD, (l) => s(l.cd)]],
   teleport: [[RANGE, (l) => m(l.range)], [CD, (l) => s(l.cd)]],
@@ -59,7 +59,7 @@ export const SPELL_ROWS: Record<SpellId, Row[]> = {
   rush: [[t('Avanço', 'Dash'), () => m(RUSH.dash)], [t('Tempo do avanço', 'Dash time'), () => s(RUSH.dashTime)], [t('Dano do avanço', 'Dash damage'), () => n1(RUSH.dashDmg)], [DURATION, (l) => s(l.duration)], [t('Limite de dano absorvido', 'Damage absorption cap'), (l) => n1(l.absorb)], [CD, (l) => s(l.cd)]],
   cluster: [[DMG,l=>n1(l.dmg)], [t('Incapacitar','Incapacitate'),l=>s(l.incapacitate)], [t('Cegueira','Blindness'),l=>s(l.blind)], [t('Comprimento do cone','Cone length'),l=>m(l.range)], [t('Largura na ponta','Width at far end'),l=>m(l.width)], [CD,l=>s(l.cd)]],
   boomerang: [[DMG, (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
-  thrust: [[t('Atordoamento por 25 de dano recebido', 'Stun per 25 damage received'), () => '0,25 s'], [t('Dano base', 'Base damage'), (l) => n1(l.dmg)], [t('Empurrão máximo', 'Max knockback'), (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
+  thrust: [[t('Atordoamento por 25 de dano recebido', 'Stun per 25 damage received'), () => `${n2(.25)} s`], [t('Dano base', 'Base damage'), (l) => n1(l.dmg)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   gravity: [[DPS, (l) => n1(l.dmg)], [PULL, (l) => `${n1(l.pull)} m/s²`], [RADIUS, (l) => m(l.radius)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   rockpillar: [[t('Dano em quem está embaixo', 'Damage to whoever is under it'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [t('Vida da parede', 'Wall health'), () => n1(OBSTACLES.rockpillar.hp)], [CD, (l) => s(l.cd)], [RANGE, (l) => m(l.range)]],
   bouncer: [[t('Dano no 1º', 'Damage on the 1st hit'), (l) => n1(l.dmg)], [KNOCK, (l) => knockMeters(l)], [CD, (l) => s(l.cd)], [t('Alcance por salto', 'Range per bounce'), (l) => m(l.range)]],
@@ -111,8 +111,8 @@ const SLOWS = t('Lentidões', 'Slows');
 const WITH_BOOTS_RULE = t('vale a maior velocidade, não soma', 'the highest speed applies, no stacking');
 
 export const ITEM_ROWS: Partial<Record<ItemId, (lvl: number) => [string, string][]>> = {
-  glitch_cape: () => [[t('Recarga', 'Cooldown'), '19 s'], [t('Raio', 'Radius'), '0,78 m']],
-  addicted_rings: () => [[t('Dano', 'Damage'), '60'], [t('Recarga', 'Cooldown'), '23,5 s']],
+  glitch_cape: () => [[t('Recarga', 'Cooldown'), s(spellLevel('alteration', 1).cd)], [t('Raio', 'Radius'), `${n2(spellLevel('alteration', 1).radius)} m`]],
+  addicted_rings: () => [[t('Dano', 'Damage'), n1(spellLevel('recharge', 1).dmg)], [t('Recarga', 'Cooldown'), s(spellLevel('recharge', 1).cd)]],
   ring: (l) => [[t('Vida máxima', 'Max health'), '+' + n1(ITEMS.ring.levels[l].hp!)]],
   cursed_ring: (l) => [[t('Vida máxima', 'Max health'), '+' + n1(ITEMS.cursed_ring.levels[l].hp!)], [KNOCK_TAKEN, `−${n1(ITEMS.cursed_ring.levels[l].kb! * 100)}%`], [SLOWS, t(`+${n1(ITEMS.cursed_ring.levels[l].debuff! * 100)}% de duração`, `+${n1(ITEMS.cursed_ring.levels[l].debuff! * 100)}% duration`)]],
   cape: (l) => [[t('Vida por segundo', 'Health per second'), '+' + n1(ITEMS.cape.levels[l].regen!)]],

@@ -139,7 +139,7 @@ export const BOOMERANG = { side: 300 * UNIT, minDist: 300 * UNIT, back: 1000 * U
 // Raio: além do corpo do mago, pega quem passa a `width` da linha (21/10, exceção decidida pelo Fernando sem passar pelo simulador:
 // "o hitbox ainda está muito fino"; antes só quem o corpo cruzava a linha)
 // A ampliação visual da destruição fica na cena, sem alterar o feixe ou os eventos da simulação.
-export const LIGHTNING = { width: 0.15, destroysProjectiles: true, destroyFxRadius: .6, jumpPower: .5, jumpDelay: .25, debuffDuration: 2, slow: .25 }; // protótipo local: alcance fixo, potência×.5;2s de lentidão25% e pausa das recargas.
+export const LIGHTNING = { width: 0.15, destroysProjectiles: true, destroyFxRadius: .6, jumpPower: .5, jumpDelay: .25, debuffDuration: 2, slow: .25 }; // Local prototype: fixed range, power ×.5 per jump, 0.25 s between jumps, 2 s of 25% slow and paused cooldowns.
 // Stats gerais: null é efeito persistente; plain se anula; fragile some no choque sem destruir o outro projétil.
 // Os elementos antigos conservam seus efeitos; não há exceção entre pares de nomes de magia.
 export const PROJECTILE_COLLISION = {

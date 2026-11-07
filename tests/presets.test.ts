@@ -57,3 +57,10 @@ describe('Build presets', () => {
     expect(topUsed(u, 'spell')).toHaveLength(3);
   });
 });
+
+describe('saved builds from before fixed equipment', () => {
+  it('drops the spells that became items from the bar order, so the order can still be applied', () => {
+    const [saved] = readPresets(JSON.stringify([{ spells: { lightning: 1 }, items: {}, order: ['recharge', 'lightning', 'alteration'] }]));
+    expect(saved?.order).toEqual([null, 'lightning', null]);
+  });
+});

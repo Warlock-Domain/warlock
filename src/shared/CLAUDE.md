@@ -20,7 +20,7 @@ Applies together with the root `CLAUDE.md`.
 
 - Sand Blast (cluster) in Control: cone 3×2 m, damage 20+8/level, Incapacitate 1+0.25 s/level and Blindness 2+0.5 s/level. Independent statuses respect general resistances; no projectiles or knockback. Blindness limits vision to 3 m from the target (6 m diameter), AI included.
 
-- Closed Body in Defense: requires Hold ground active, ends when S is released or at the limit 3.5+0.75 s/level. Reduces damage, new negative durations and new impulses by 90%; never immunity nor retroactive cleansing. Expiring while holding S preserves Hold ground.
+- Closed Body in Defense: with Hold ground active it reduces damage, new negative durations and new impulses by 90% and ends when S is released or at the limit 3.5+0.75 s/level; without the stance it walks 50% slower with a quarter of those resistances and does not need S (`closedBodyWeak`). Never immunity nor retroactive cleansing. Expiring while holding S preserves Hold ground.
 
 - Geyser: target on the ground up to 10 m, area 25% smaller (radius 1.5×√0.75), lasts 2.5 s and suspends any living unit hit; invulnerable, immobile and without actions. Projectiles pass under suspended bodies, with no exception between spells.
 - Heal: Support spell with a target on yourself or a living ally (of a defined team). Heals 45 at level 1 and +6 per level, range 10 m, cooldown 20 s and −1 s per level, with the general heal cap and modifiers. An invalid target does not spend the cooldown, does not cancel another action and does not reveal the wizard. Instant cast; cost 12, upgrades 6 to 11.
@@ -42,7 +42,7 @@ Applies together with the root `CLAUDE.md`.
 
 - Meteor proposal under review: preserves damage/area and replaces knockback with duration=1.25 s at all levels. Uses the general stun block and the target's resistances; does not trigger post-knockback recovery without an impulse. Measurement/owner decision pending before integrating.
 
-- **Items have 3 levels each** (Fernando, 26/10, issue #227) and every level costs the item price (`itemPrice`); a new item gets 3 levels. Level-based constants of an item are arrays indexed by `level - 1` (`SHOCK_BOOTS.secs`, `WIND_BOOTS.calm/speed`).
+- **Items have one fixed level** (30/10 rework; 3 levels from 26/10, issue #227): one purchase at the item price (`itemPrice`), and higher ranks from old saves use the first level's stats (`LEGACY_ITEM_MAX` only reads them).
 - **The Scourge is an item that fires through the spell path** (26/10, #227): its level lives only in `items.scourge` (free level 1 from `startItems`), `newWorld` and `refit` copy it into `wizard.spells.scourge`, and `priceOf('scourge')` is always `null`. Lists of spells a player can own use `BAR_SPELLS`; cast, cooldown and snapshot code keep `SPELL_IDS`. Do not "fix" the copied level back into `player.spells`.
 - 7 levels via `L({...})`; irregular series with `zip([...], [...])`, linear ones with `steps(de, passo)`.
 - A balance adjustment stays **inline over the original number**, with a date and measurement comment: `cd: cd * 0.7 /* 18/10: … (0,86 → 0,97) */`.

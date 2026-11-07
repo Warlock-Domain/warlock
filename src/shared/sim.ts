@@ -971,7 +971,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec, power = 1, aimedId?
   // so a controlled wizard's own targets do not repeat the copy
   if (copy === undefined && wz.cd[spell] !== ready) for (const z of puppetsOf(w, wz)) {
     // the copy aims at the caster's point (the two shots make a V, Fernando 26/10); standing on it, the caster's direction
-    if (!isSuspended(z) && !castBlocked(isStunned(z), w.t < z.gripUntil, spell)) cast(w, z, spell, dist(at, z.pos) > .01 ? at : add(z.pos, sub(at, from)), power, aimedId, wz.spells[spell]);
+    if (!isSuspended(z) && !castBlocked(isStunned(z), w.t < z.gripUntil, spell)) cast(w, z, spell, dist(at, z.pos) > .01 ? at : add(z.pos, sub(at, from)), power, aimedId, spellRank(wz, spell));
   }
 }
 

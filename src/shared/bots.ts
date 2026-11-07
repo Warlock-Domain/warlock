@@ -41,8 +41,8 @@ export function randomPlan(rand: () => number): BotPlan {
 
 // a build that works (Normal and Hard, 18/10): 1 or 2 damage spells, 1 escape or defense spell, sometimes 1 control and 1 situational,
 // and 1 or 2 useful items; each pick is drawn inside its group so bots do not all look the same
-const DAMAGE: SpellId[] = ['lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'snowball', 'drain', 'splitter', 'gravity', 'thrust', 'recharge'];
-const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration', 'warpzone', 'rockpillar', 'illusion'];
+const DAMAGE: SpellId[] = ['lightning', 'homing', 'meteor', 'cluster', 'boomerang', 'bouncer', 'snowball', 'drain', 'splitter', 'gravity', 'thrust'];
+const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'warpzone', 'rockpillar', 'illusion'];
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize', 'pix'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
