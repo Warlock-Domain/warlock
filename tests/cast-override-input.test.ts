@@ -4,7 +4,7 @@ import { setCastMode, setKey, setSlotMode } from '../src/client/keys.ts';
 import type { InputHandlers } from '../src/client/input.ts';
 afterEach(() => {
   vi.unstubAllGlobals();
-  for (const key of ['key:KeyQ', 'key:KeyH', 'spell:heal', 'spell:fireball']) setCastPreference(key);
+  for (const key of ['key:KeyQ', 'key:KeyH', 'spell:heal', 'spell:fireball', 'spell:lightning']) setCastPreference(key);
 });
 it('honors key overrides but keeps Heal on click-to-confirm', async () => {
   type Fn = (e: Record<string, unknown>) => void;
@@ -67,5 +67,24 @@ it('lets an open dialog hold the keys, even when it was opened after the input s
   const dialog = { fn: (e: Record<string, unknown>) => (e.stopImmediatePropagation as () => void)(), capture: true };
   down.push(dialog); press(); expect(cast).not.toHaveBeenCalled();
   down.splice(down.indexOf(dialog), 1); press(); expect(cast).toHaveBeenCalledTimes(1);
+  input.setEnabled(false);
+});
+
+it('casts a held Release spell when a key with another cast mode takes over', async () => {
+  type Fn = (e: Record<string, unknown>) => void;
+  const win = new Map<string, Fn[]>();
+  vi.stubGlobal('addEventListener', (name: string, fn: Fn) => win.set(name, [...(win.get(name) ?? []), fn]));
+  vi.stubGlobal('innerWidth', 800); vi.stubGlobal('innerHeight', 600);
+  const { createInput } = await import('../src/client/input.ts');
+  const cast = vi.fn(() => true);
+  const input = createInput({ addEventListener() {} } as unknown as HTMLCanvasElement, {
+    pick: () => ({ x: 3, y: 0 }), move() {}, stop() {}, cast, center() {}, zoom() {}, pan() {}, armedChanged() {}, preview() {}, padRange() {}, me: () => ({ x: 0, y: 0 }), aim() {},
+  });
+  input.setEnabled(true); setSlotMode(false); setCastMode('quick'); setKey('fireball', 'KeyQ'); setKey('lightning', 'KeyW');
+  setCastPreference('spell:fireball', 'release'); setCastPreference('spell:lightning', 'quick');
+  const press = (code: string) => win.get('keydown')?.forEach(fn => fn({ code, repeat: false, preventDefault() {}, target: { tagName: 'CANVAS' } }));
+  press('KeyQ'); expect(cast).not.toHaveBeenCalled();
+  press('KeyW');
+  expect((cast.mock.calls as unknown as [string][]).map(([spell]) => spell)).toEqual(['fireball', 'lightning']);
   input.setEnabled(false);
 });

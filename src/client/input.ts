@@ -64,7 +64,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
     h.armedChanged(s);
   };
   // tecla de magia segurada: lança ao soltar, no ponto do cursor naquela hora
-  let held: { action: SpellId; code: string; ability?: string } | null = null;
+  let held: { action: SpellId; code: string } | null = null;
   let flash: ReturnType<typeof setTimeout> | undefined;
   const cancel = () => {
     held = null;
@@ -177,9 +177,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       if (channelArmed && action === armed) { e.preventDefault(); return; }
       // Heal and Inelegant Solution always require a click on the target body; Mental Transfusion too; a charged sniper aim fires on the key instead.
       if (action === 'sniper' && h.fireSniper?.()) { e.preventDefault(); return; }
-      const ability = item && 'item:' + item.id;
-      const mode = getCastMode(action, e.code, ability);
-      if (held && getCastMode(held.action, held.code, held.ability) !== mode) cancel();
+      const mode = getCastMode(action, e.code, item && 'item:' + item.id);
       if (UNIT_TARGET_SPELLS.has(action)) { e.preventDefault(); cancel(); return arm(action); }
       if (held) release(); // modes differ per key: cast the held spell before another key takes over
       if (armed && UNIT_TARGET_SPELLS.has(armed)) arm(null);
@@ -191,7 +189,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       }
       if (mode === 'release') {
         if (h.checkCooldown && !h.checkCooldown(action)) return;
-        held = { action, code: e.code, ability };
+        held = { action, code: e.code };
         return h.preview(action);
       }
       const p = h.pick(cursor.x, cursor.y, action);
