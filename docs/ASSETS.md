@@ -10,6 +10,16 @@ Transcend ritual (28/10 local): original canvas seal sprite, vertical light colu
 
 ## Identidade visual
 
+- **Stun stars (31/10 local):** original five-point `ShapeGeometry` in `status-fx.ts`, three camera-facing stars orbiting at head height. Replaces the small sprite glints; no new texture or external art. Existing Stun icon remains available for documentation/catalogue, not the combat status rows.
+
+- **Negative states (31/10 local):** original procedural arcs/pause symbol in `src/client/status-fx.ts`, with existing credited Kenney star sprites. Blindness reuses `icons.svg#eyeball` from the existing Spectate icon in the status row. No new external asset; visuals use existing snapshot status and blindness timer.
+
+- **Lava/islands (31/10 local):** original procedural crack texture in `src/client/isle-cracks.ts`, shared by refuge-island overlays in `scene.ts`; small procedural falling tetrahedra and a restrained lava shader pulse. Reuses existing stone/lava textures and KayKit rim rocks. No external asset; wear follows the authoritative island radius.
+
+- **Area readability (31/10 local):** existing procedural circles in `scene.ts` and `proj-models.ts` gain an inward dark backing and thinner colored border; existing Kenney textures use lower opacity. No new external asset. Every ground contour ends at the snapshot radius; gameplay geometry is unchanged.
+
+- **Arena readability (31/10 local):** the existing Poly Haven slate floor and normal map remain in use. Original shader shading in `scene.ts` neutralizes the center's warm cast and adds a shallow rim cut/lava reflection using the existing arena signed-distance texture. No new asset, geometry or collision boundary.
+
 - **Impact readability (31/10 local):** `scene.ts` reuses credited Kenney light/spark/flame textures for compact spell-colored contacts, original outward spark motion and procedural ground knockback streaks. No external asset added. Explosion/clash visuals remain separate from ordinary hit feedback; hidden targets still do not expose damage labels.
 
 - **Projectile readability (30/10 local):** extended original procedural factories in `src/client/proj-models.ts` for Fireball, Homing Missile, Snowball and the ordinary basic bolt. Short tapered tails in `scene.ts` reuse existing spell colors and Kenney residual particles. No external asset or generated concept image shipped; elemental spheres retain the existing round body and colors.
@@ -84,3 +94,7 @@ Decisão do Fernando em 21/10. Vale para quem contribui e para toda IA.
 2. **Explicado:** a linha diz o que é e para que serve no jogo.
 3. **Referenciado:** a linha diz onde o código usa o arquivo (`arquivo.ts`) e de onde ele veio, com a licença; o crédito vai em `public/CREDITS.txt`.
 4. Asset que sai do jogo sai daqui também. Tudo no mesmo PR do asset.
+
+- Elemental Spheres: procedural Three.js orbit spheres; fire red/water blue/earth brown/ki white/void black. Reuses credited star-swirl icon and Shield sound; no external assets.
+## Local elemental sphere visuals (31 October)
+Original procedural Three.js geometry in src/client/element-sphere-model.ts supplies fire tips, water highlights, faceted earth, white Ki rings and black Void silhouettes for orbiting and launched spheres. src/client/transcend-fx.ts reuses its original canvas seal for the persistent ground aura. No external artwork or new asset files.
