@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buy, canSell, newMatch, sell, sellValue, startMatch, addPlayer, undoBuy, type Match } from '../src/shared/match.ts';
 import { MAX_SPELLS, SPELLS, spellCount } from '../src/shared/spells.ts';
 
-// sala com uma pessoa e um bot, já na loja da rodada 1
+// room with one person and one bot, already in round 1's shop
 function shop(): Match {
   const m = newMatch();
   addPlayer(m, 'a', 'Ana');
@@ -10,8 +10,8 @@ function shop(): Match {
   return m;
 }
 
-describe('Bola de fogo à venda (pedido do Fernando, 18/10)', () => {
-  it('vende o nível 1 grátis por 0 de ouro, fica sem ela e libera a vaga', () => {
+describe('Fireball for sale (request by Fernando, 18/10)', () => {
+  it('sells the free level 1 for 0 gold, goes without it and frees the slot', () => {
     const m = shop();
     const p = m.players[0];
     const gold = p.gold;
@@ -20,17 +20,17 @@ describe('Bola de fogo à venda (pedido do Fernando, 18/10)', () => {
     expect(sell(m, 'a', 'spell:fireball')).toBe(true);
     expect(p.spells.fireball).toBe(0);
     expect(p.gold).toBe(gold);
-    expect(spellCount(p.spells)).toBe(1); // sobra o Flagelo, também de graça (21/10, #217)
-    expect(canSell(p, m.round, 'spell:fireball')).toBe(false); // nada mais para vender
-    // a vaga liberada: cabem 7 magias além do Flagelo, sem a Bola de fogo
+    expect(spellCount(p.spells)).toBe(0); // the free Scourge is an item since 26/10 (#227)
+    expect(canSell(p, m.round, 'spell:fireball')).toBe(false); // nothing left to sell
+    // the freed slot: 6 bought spells fit, without Fireball
     p.gold = 999;
     const others = (['lightning', 'homing', 'shield', 'teleport', 'swap', 'grip', 'meteor', 'rush'] as const);
     for (const s of others) buy(m, 'a', s);
     expect(spellCount(p.spells)).toBe(MAX_SPELLS);
-    expect(p.spells.rush).toBe(0); // a 9ª não cabe
+    expect(p.spells.rush).toBe(0); // the 9th does not fit
   });
 
-  it('compra de volta pelo preço normal (o nível 1 é grátis) e o nível comprado vende como os outros', () => {
+  it('buys it back at the normal price (level 1 is free) and the bought level sells like the others', () => {
     const m = shop();
     const p = m.players[0];
     sell(m, 'a', 'spell:fireball');
@@ -39,10 +39,10 @@ describe('Bola de fogo à venda (pedido do Fernando, 18/10)', () => {
     expect(buy(m, 'a', 'fireball')).toBe(true);
     expect(p.spells.fireball).toBe(1);
     expect(p.gold).toBe(gold);
-    expect(undoBuy(m, 'a', 'spell:fireball')).toBe(true); // desfazer a compra grátis também vale
+    expect(undoBuy(m, 'a', 'spell:fireball')).toBe(true); // undoing the free purchase works too
     expect(p.spells.fireball).toBe(0);
     buy(m, 'a', 'fireball');
-    buy(m, 'a', 'fireball'); // nível 2: 7 de ouro
+    buy(m, 'a', 'fireball'); // level 2: 7 gold
     expect(p.spells.fireball).toBe(2);
     expect(sellValue(p, m.round, 'spell:fireball')).toBe(SPELLS.fireball.up[0]);
     const before = p.gold;
@@ -51,7 +51,7 @@ describe('Bola de fogo à venda (pedido do Fernando, 18/10)', () => {
     expect(p.spells.fireball).toBe(0);
   });
 
-  it('o bot continua com a Bola de fogo', () => {
+  it('the bot keeps its Fireball', () => {
     const m = shop();
     const bot = m.players.find((q) => q.bot)!;
     expect(bot.spells.fireball).toBeGreaterThan(0);

@@ -34,12 +34,12 @@ describe('controller: sticks', () => {
 });
 
 describe('controller: buttons', () => {
-  it('maps A B X Y LB RB to the 6 bar slots; LT and RT are free', () => {
+  it('maps A B X Y LB RB to the 6 bar slots; LT is the Scourge item, RT is free', () => {
     setSlots(['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap']);
     const p = pad([0, 0, 0, 0], [BTN.X]);
     expect(padAction(p.buttons.findIndex((b) => b.pressed))).toBe('homing');
     expect([BTN.A, BTN.B, BTN.Y, BTN.LB, BTN.RB].map(padAction)).toEqual(['fireball', 'lightning', 'shield', 'teleport', 'swap']);
-    expect([BTN.LT, BTN.RT].map(padAction)).toEqual([undefined, undefined]);
+    expect([BTN.LT, BTN.RT].map(padAction)).toEqual(['scourge', undefined]); // the Scourge is an item since 26/10 (#227)
     expect([BTN.START, BTN.VIEW, BTN.DOWN, BTN.UP].map(padAction)).toEqual([undefined, undefined, undefined, undefined]);
     setSlots(['fireball']);
     expect(padAction(BTN.B)).toBeUndefined(); // an empty slot casts nothing
@@ -48,7 +48,7 @@ describe('controller: buttons', () => {
   it('shows the pad labels on the bar while the pad is in use', () => {
     setSlots(['fireball', 'homing', null, null, 'scourge', 'pact']);
     setPadMode(true);
-    expect([labelOf('fireball'), labelOf('homing'), labelOf('lightning'), labelOf('scourge'), labelOf('pact')]).toEqual(['A', 'B', '—', 'LB', 'RB']);
+    expect([labelOf('fireball'), labelOf('homing'), labelOf('lightning'), labelOf('scourge'), labelOf('pact')]).toEqual(['A', 'B', '—', 'LT', 'RB']); // Scourge: the item's button, outside the slots
     setPadMode(false);
     expect(labelOf('fireball')).toBe('Q');
   });

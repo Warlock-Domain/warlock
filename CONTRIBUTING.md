@@ -1,5 +1,7 @@
 # Contributing to Warlock Wars
 
+
+
 This is the contributor guide for humans and AI agents. It covers setup, coordination, implementation, testing, review, and publication. Read [CLAUDE.md](CLAUDE.md) for the current code rules and the index of smaller documents, [docs/DECISIONS.md](docs/DECISIONS.md) before changing gameplay or undoing a decision, then the `CLAUDE.md` in each area you change. Each `AGENTS.md` points to those same rules.
 
 - [Play the game](https://warlock.fernandorffdev.com): try a few matches, the grimoire (F1), and the spell/item library (F2) before changing gameplay.
@@ -37,6 +39,8 @@ Warlock Wars is a browser remake of Warlock / Warlock Brawl. Players use spells 
 | [`docs/ASSETS.md`](docs/ASSETS.md) | Asset catalog, origin, usage, licenses, and visual identity. |
 
 The server is authoritative. Shared gameplay runs at 60 steps per second, with snapshots sent at 30 per second. The client predicts its own movement and interpolates other entities. In the shared simulation, the world is intentionally mutated in place; preserve its RNG and operation order.
+
+The local Campaign prototype gates new encounters on pending spell choices from connected human participants. It keeps exploration running and uses the existing notice surface; see `campaignPickers` and `campaign-choice-gate.test.ts`. This is separate from the full simulation pause for unread tutorial messages.
 
 Use the decision register in [docs/DECISIONS.md](docs/DECISIONS.md) and the in-game rules as the current source for modes, controls, spell groups, items, and balance exceptions. Keep contributor instructions here, area-specific implementation guidance in the area's `CLAUDE.md`, and feature designs and plans in [`docs/plans/`](docs/plans/README.md). This avoids maintaining competing copies of changing gameplay tables.
 
@@ -93,7 +97,7 @@ The `master` branch requires a PR, green CI, and a valid title. Do not push dire
 
 ### Review and owner approval
 
-The automated Claude review posts its findings in English. It runs on Claude Opus 5.5 at high effort, and each comment carries a **Ruler** line quoting `.agents/skills/pr-review/SKILL.md` as proof that the shared checklist was read. The `review` status check is required by `master` protection and fails while any **Blocker** remains; **Nits** are optional and do not prevent merge. The bot never approves or merges. Mention `@claude` in a PR or issue for help. An authorized owner agent can adjust and merge collaborator PRs after blockers are resolved and required human gates pass.
+The automated Claude review posts its findings in English. It runs on Claude Opus 5.5 at medium effort, and each comment carries a **Ruler** line quoting `.agents/skills/pr-review/SKILL.md` as proof that the shared checklist was read. The `review` status check is required by `master` protection and fails while any **Blocker** remains; **Nits** are optional and do not prevent merge. The bot never approves or merges. Mention `@claude` in a PR or issue for help. An authorized owner agent can adjust and merge collaborator PRs after blockers are resolved and required human gates pass.
 
 - Small collaborator PRs can be approved/merged by review without waiting for Fernando.
 - Large collaborator PRs require Fernando's approval on the PR as well as the issue decision.
@@ -251,3 +255,4 @@ See [Actions logs](https://github.com/Warlock-Domain/warlock/actions) and [pipel
 - [ ] Diff reviewed for excess code and concrete correctness/lifecycle problems.
 
 Questions about intended game behavior belong in an issue labeled `precisa de decisão`.
+Teams supports 2, 3 or 4 teams selected in room options, with balanced membership and compact allied formations in separated safe regions. Two teams retain their opposite-side spawns; other modes keep their existing layouts.

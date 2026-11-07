@@ -7,7 +7,7 @@ import { BOT_NAMES, addPlayer, botSkill, buy, castBallot, endIdle, kick, newMatc
 import { newWorld } from '../src/shared/sim.ts';
 import { roundRecord } from '../src/shared/telemetry.ts';
 import { publicRoom } from '../src/shared/protocol.ts';
-import { noItems } from '../src/shared/items.ts';
+import { noItems, startItems } from '../src/shared/items.ts';
 import { noSpells } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
 import { STEP_MS, kill, toPlaying, until } from './helpers.ts';
@@ -21,7 +21,7 @@ function twoPlayers(): Match {
 }
 
 
-describe('partida', () => {
+describe('match', () => {
   it('needs two players to start', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
@@ -51,7 +51,7 @@ describe('partida', () => {
     expect(m.lastRoundWinner).toBe('a');
   });
 
-  // Fernando, 19/10: o ouro garantido da rodada chega na hora da queda (para comprar enquanto assiste), uma vez só
+  // Fernando, 19/10: the round's guaranteed gold arrives the moment you fall (to buy while watching), only once
   it('pays the round gold when you fall, not again at the end of the round', () => {
     const m = twoPlayers();
     addPlayer(m, 'c', 'Caio');
@@ -65,7 +65,7 @@ describe('partida', () => {
     kill(m, 'b', null);
     until(m, now, () => m.phase === 'roundEnd');
     expect(m.roundPaid).toContain('c');
-    // no fim da rodada o Caio só pode receber a recuperação, nunca outro ROUND_GOLD
+    // at the end of the round Caio can only get the catch-up, never another ROUND_GOLD
     expect(c.stats.round.gold - afterFall).toBeLessThan(ROUND_GOLD);
   });
 
@@ -244,7 +244,7 @@ describe('partida', () => {
     expect(m.players.length).toBe(2);
     expect(m.players[1].connected).toBe(false);
     tickMatch(m, 1, []);
-    expect(m.phase).toBe('shop'); // 'a' ainda não clicou pronto
+    expect(m.phase).toBe('shop'); // 'a' has not clicked ready yet
     setReady(m, 'a');
     tickMatch(m, 2, []);
     expect(m.phase).toBe('countdown');
@@ -256,7 +256,7 @@ describe('partida', () => {
     kill(m, 'b', null);
     until(m, now, () => m.phase === 'roundEnd');
     expect(m.players[0].gold).toBe(START_GOLD + ROUND_GOLD + WIN_GOLD);
-    // b ficou atrás da média da partida: recebe metade da diferença (recuperação)
+    // b is behind the match average: gets half the difference (catch-up)
     const avg = (ROUND_GOLD + WIN_GOLD + ROUND_GOLD) / 2;
     expect(m.players[1].gold).toBe(START_GOLD + ROUND_GOLD + Math.floor((avg - ROUND_GOLD) / 2));
     expect(ROUND_END_MS).toBeGreaterThan(0);
@@ -266,7 +266,7 @@ describe('partida', () => {
     const m = twoPlayers();
     addPlayer(m, 'c', 'Caio');
     let now = toPlaying(m, 0);
-    m.players.find((p) => p.id === 'b')!.score = 3; // b lidera: média 1, vantagem 2 → +6
+    m.players.find((p) => p.id === 'b')!.score = 3; // b leads: average 1, lead 2 → +6
     const before = m.players.find((p) => p.id === 'a')!.gold;
     kill(m, 'b', 'a');
     for (let i = 0; i < 600 && m.world!.wizards[1].alive; i++) tickMatch(m, (now += STEP_MS), [], () => 0.5);
@@ -286,7 +286,7 @@ describe('partida', () => {
     expect(evs.filter((e) => e.k === 'gold').map((e) => [e.id, e.n])).toEqual([['a', WIN_GOLD], ['b', TOP_DMG_GOLD]]);
   });
 
-  it('aparência troca em qualquer fase, até no meio da rodada; o personagem vira o da cabeça', () => {
+  it('look changes in any phase, even mid-round; the character becomes the head one', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     expect(m.players[0]).toMatchObject({ character: 'mage', look: lookOf('mage') });
@@ -296,21 +296,21 @@ describe('partida', () => {
     expect(new Set(bots.map((p) => p.look)).size).toBe(bots.length);
     for (const b of bots) expect(b.look).toBe(lookOf(b.character));
     toPlaying(m, 0);
-    expect(setLook(m, 'a', '5000000')).toBe(true); // cabeça do esqueleto mago no corpo do mago
+    expect(setLook(m, 'a', '5000000')).toBe(true); // skeleton mage head on the mage body
     expect(m.players[0]).toMatchObject({ character: 'skeleton_mage', look: '5000000' });
-    expect(setLook(m, 'a', '5000000')).toBe(false); // igual: nada a repassar
+    expect(setLook(m, 'a', '5000000')).toBe(false); // same: nothing to relay
     expect(setLook(m, 'zz', '5000000')).toBe(false);
     expect(publicRoom('r', m, 0).players[0]).toMatchObject({ character: 'skeleton_mage', look: '5000000' });
   });
 
-  it('sala gravada antes da aparência ganha a do personagem', () => {
+  it('a room saved before looks existed gets the character look', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     m.players[0].character = 'rogue_hooded';
     delete (m.players[0] as { look?: string }).look;
     resume(m, 0);
     expect(m.players[0].look).toBe(lookOf('rogue_hooded'));
-    // sala gravada com o código antigo da Ladina encapuzada: volta como Ladina + Capuz (#107)
+    // room saved with the old hooded Rogue code: comes back as Rogue + Hood (#107)
     m.players[0].look = '4044444';
     resume(m, 0);
     expect(m.players[0].look).toBe(lookOf('rogue_hooded'));
@@ -327,7 +327,7 @@ describe('partida', () => {
 describe('bots', () => {
   it('bot buys the next spell of its plan, saving gold for it', () => {
     expect(botBuy({ gold: 11, spells: noSpells(), items: noItems(), plan: CLASSIC_PLAN })).toEqual({ kind: 'spell', id: 'lightning' });
-    // sem dinheiro para o próximo do plano: guarda (não gasta em outra coisa)
+    // no money for the next one in the plan: saves (does not spend on something else)
     expect(botBuy({ gold: 10, spells: noSpells(), items: noItems(), plan: CLASSIC_PLAN })).toBeNull();
   });
 
@@ -336,7 +336,7 @@ describe('bots', () => {
     w.wizards[0].pos = v(ARENA_R0 - 0.5, 0);
     w.wizards[0].cd.fireball = 99;
     const move = botCmds(w, 'bot', () => 0.5).find((c) => c.kind === 'move');
-    expect(move && move.kind === 'move' && move.to.x < ARENA_R0 - 1.5).toBe(true); // para dentro (o primeiro ponto do caminho, ao menos 1 m)
+    expect(move && move.kind === 'move' && move.to.x < ARENA_R0 - 1.5).toBe(true); // inward (the first point of the path, at least 1 m)
   });
 
   it('bot casts fireball at nearest enemy', () => {
@@ -349,23 +349,23 @@ describe('bots', () => {
   });
 });
 
-describe('treino: magias dos bots', () => {
+describe('training: bot spells', () => {
   const cfg = [{ spells: { fireball: 0, lightning: 3, shield: 7 } }, {}, { items: { armor: 2 }, skill: { aim: 0.2 } }];
 
-  it('sala com uma pessoa: o bot entra exatamente com o que foi pedido, em toda rodada, sem comprar', () => {
+  it('room with one person: the bot joins with exactly what was asked, every round, without buying', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     expect(startMatch(m, 0, 3, 'rounds', true, Math.random, {}, cfg)).toBe(true);
     const bot = (n: number) => m.players.find((p) => p.id === 'bot-' + n)!;
     const want = { ...noSpells(), fireball: 0, lightning: 3, shield: 7 };
     expect(bot(1).spells).toEqual(want);
-    expect(bot(1).items).toEqual(noItems());
-    expect(bot(1).gold).toBe(START_GOLD); // não gastou nada
+    expect(bot(1).items).toEqual(startItems()); // the free Scourge (an item since 26/10, #227)
+    expect(bot(1).gold).toBe(START_GOLD); // spent nothing
     expect(bot(3).spells).toEqual(noSpells());
-    expect(bot(3).items).toEqual({ ...noItems(), armor: 2 });
+    expect(bot(3).items).toEqual({ ...startItems(), armor: 2 });
     let now = toPlaying(m, 0);
-    expect(m.world!.wizards.find((z) => z.id === 'bot-1')!.spells).toEqual(want);
-    // a rodada sai marcada na telemetria
+    expect(m.world!.wizards.find((z) => z.id === 'bot-1')!.spells).toEqual({ ...want, scourge: 1 }); // the wizard casts the Scourge at the item's level
+    // the round is flagged in the telemetry
     for (const id of ['a', 'bot-2', 'bot-3']) kill(m, id, 'bot-1');
     now = until(m, now, () => m.phase === 'roundEnd');
     expect(roundRecord(m, now).setup).toBe(true);
@@ -375,7 +375,7 @@ describe('treino: magias dos bots', () => {
     expect(bot(1).gold).toBeGreaterThan(START_GOLD);
   });
 
-  it('com duas pessoas a configuração é ignorada', () => {
+  it('with two people the setup is ignored', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     addPlayer(m, 'b', 'Bia');
@@ -387,7 +387,7 @@ describe('treino: magias dos bots', () => {
     expect(roundRecord(m, until(m, now, () => m.phase === 'roundEnd')).setup).toBeUndefined();
   });
 
-  it('botSkill: o skill parcial vai por cima da dificuldade', () => {
+  it('botSkill: the partial skill overrides the difficulty', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     startMatch(m, 0, 3, 'rounds', true, Math.random, { difficulty: 'hard' }, cfg);
@@ -397,8 +397,8 @@ describe('treino: magias dos bots', () => {
   });
 });
 
-describe('dificuldade por bot', () => {
-  it('vale em qualquer sala: cada bot com a sua, sem ela a da partida; com duas pessoas as magias do treino seguem ignoradas', () => {
+describe('difficulty per bot', () => {
+  it('works in any room: each bot with its own, without it the match one; with two people the training spells stay ignored', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     addPlayer(m, 'b', 'Bia');
@@ -408,11 +408,11 @@ describe('dificuldade por bot', () => {
     expect([1, 2, 3].map((n) => bot(n).name)).toEqual(BOT_NAMES.slice(0, 3));
     expect(m.players.some((p) => p.setup)).toBe(false);
     expect(bot(1).spells.lightning).toBeLessThan(7);
-    // a sala mostra a dificuldade de cada bot (a da partida quando ele não tem a sua); humano não leva o campo
+    // the room shows each bot's difficulty (the match one when it has none); a human gets no such field
     expect(publicRoom('ABCD', m, 0).players.map((p) => p.difficulty)).toEqual([undefined, undefined, 'easy', 'normal', 'hard']);
   });
 
-  it('sozinho, só a dificuldade não é treino: a rodada não sai marcada', () => {
+  it('alone, difficulty by itself is not training: the round is not flagged', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     startMatch(m, 0, 2, 'rounds', true, Math.random, {}, [{ difficulty: 'hard' }, { difficulty: 'easy' }]);
@@ -424,7 +424,7 @@ describe('dificuldade por bot', () => {
     expect(r.players.map((p) => p.difficulty)).toEqual([undefined, 'hard', 'easy']);
   });
 
-  it('Automático por bot: só o bot no Automático acompanha o placar', () => {
+  it('Automatic per bot: only the bot on Automatic follows the scoreboard', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     startMatch(m, 0, 2, 'rounds', true, Math.random, {}, [{ difficulty: 'auto' }, { difficulty: 'hard' }]);
@@ -434,7 +434,7 @@ describe('dificuldade por bot', () => {
     expect(botSkill(m, b2)).toBe(BOT_SKILL.hard);
   });
 
-  it('bot votado no meio da partida entra no padrão (Automático), mesmo com a partida em outra dificuldade', () => {
+  it('a bot voted in mid-match joins on the default (Automatic), even if the match is on another difficulty', () => {
     const m = newMatch();
     addPlayer(m, 'a', 'Ana');
     startMatch(m, 0, 1, 'rounds', true, Math.random, { difficulty: 'hard' }, [{ difficulty: 'easy' }]);
@@ -442,11 +442,11 @@ describe('dificuldade por bot', () => {
     toPlaying(m, 0);
     const added = m.players.find((p) => p.id === 'bot-2')!;
     expect(added.difficulty).toBe('auto');
-    expect(botSkill(m, added)).toEqual(skillAt(0)); // placar empatado: o meio do caminho
+    expect(botSkill(m, added)).toEqual(skillAt(0)); // tied scoreboard: halfway
   });
 });
 
-describe('votação', () => {
+describe('voting', () => {
   const threePlayers = (): Match => {
     const m = newMatch();
     for (const [id, name] of [['a', 'Ana'], ['b', 'Bia'], ['c', 'Caio']]) addPlayer(m, id, name);
@@ -480,7 +480,7 @@ describe('votação', () => {
     const m = threePlayers();
     startVote(m, 'a', 'mode', 'deathmatch', 0);
     expect(castBallot(m, 'b', false, 1)).toBe(true);
-    expect(castBallot(m, 'b', true, 2)).toBe(false); // um voto por pessoa
+    expect(castBallot(m, 'b', true, 2)).toBe(false); // one vote per person
     tickMatch(m, VOTE_MS - 1, []);
     expect(m.vote).not.toBeNull();
     tickMatch(m, VOTE_MS, []);
@@ -523,8 +523,8 @@ describe('votação', () => {
     startVote(m, 'a', 'mode', 'deathmatch', now);
     castBallot(m, 'b', true, now);
     expect(m.pendingMode).toBe('deathmatch');
-    expect(startVote(m, 'b', 'mode', 'deathmatch', now)).toBe(false); // já está votado
-    // a rodada atual segue nas regras de antes
+    expect(startVote(m, 'b', 'mode', 'deathmatch', now)).toBe(false); // already voted
+    // the current round keeps the old rules
     kill(m, 'b', null);
     now = until(m, now, () => m.phase === 'roundEnd');
     expect(m.mode).toBe('rounds');

@@ -248,9 +248,9 @@ describe('6-spell limit', () => {
   it('refuses a 7th different spell; undo frees the slot; upgrades keep working', () => {
     const m = shop();
     m.players[0].gold = 999;
-    // Fireball and Scourge come free: 4 more fill the 6 slots (Q W E R D F, 25/10, #401)
-    const four: SpellId[] = ['lightning', 'homing', 'shield', 'teleport'];
-    for (const s of four) expect(buy(m, 'a', s)).toBe(true);
+    // Fireball comes free: 5 more fill the 6 slots (Q W E R D F, 25/10, #401; the Scourge is an item since 26/10, #227)
+    const five: SpellId[] = ['lightning', 'homing', 'shield', 'teleport', 'swap'];
+    for (const s of five) expect(buy(m, 'a', s)).toBe(true);
     expect(MAX_SPELLS).toBe(6);
     const gold = m.players[0].gold;
     expect(buy(m, 'a', 'meteor')).toBe(false);
@@ -262,7 +262,7 @@ describe('6-spell limit', () => {
   });
 
   it('bots stop buying new spells at the limit but still upgrade', () => {
-    const spells = { ...noSpells(), lightning: 1, homing: 1, meteor: 1, cluster: 1 };
+    const spells = { ...noSpells(), lightning: 1, homing: 1, meteor: 1, cluster: 1, swap: 1 };
     const pick = botBuy({ gold: 99, spells });
     expect(pick?.kind).toBe('spell');
     expect(pick && pick.kind === 'spell' && spells[pick.id] > 0).toBe(true);
@@ -393,7 +393,7 @@ describe('Gravity', () => {
 });
 
 describe('Rock pillar', () => {
-  it('raises an obstacle at the click point (up to its range) that vanishes after 5 s', () => {
+  it('raises an obstacle at the click point (up to its range) that persists beyond five seconds', () => {
     const w = world([[0, 0], [0, -8]], ['rockpillar']);
     run(w, 0.1, [cast('p0', 'rockpillar', 3, 0)]);
     const p = w.pillars.find((q) => q.kind === 'rockpillar')!;
@@ -401,8 +401,9 @@ describe('Rock pillar', () => {
     expect(dist(p.pos, v(3, 0))).toBeLessThan(1e-9);
     const view = decodeSnap(encodeSnap(w, 'p0', 0, []), ['p0', 'p1']);
     expect(view.pillars.some((q) => q.kind === 'rockpillar' && q.hp > 0)).toBe(true);
-    run(w, 5); // 4 → 5 s in balancing cycle 1
-    expect(p.alive).toBe(false);
+    run(w, 5);
+    expect(p.alive).toBe(true);
+    expect(p.until).toBeUndefined();
     w.wizards[0].cd.rockpillar = 0;
     run(w, 0.1, [cast('p0', 'rockpillar', 50, 0)]);
     expect(len(w.pillars[w.pillars.length - 3].pos)).toBeCloseTo(SPELLS.rockpillar.levels[0].range, 5);
@@ -813,13 +814,16 @@ describe('Link', () => {
 });
 
 describe('Windwalk', () => {
-  it('invisible to enemies and faster; the first enemy touched takes the hit and it ends', () => {
+  it('stays visible and faster; the first enemy touched takes the hit and it ends', () => {
     const w = world([[0, 0], [3, 0]], ['windwalk']);
     run(w, 0.1, [cast('p0', 'windwalk', 0, 0), { id: 'p0', kind: 'move', to: v(6, 0) }]);
     expect(w.wizards[0].speed).toBeGreaterThan(WIZ_SPEED * 1.5);
     const ids = ['p0', 'p1'];
-    expect(decodeSnap(encodeSnap(w, 'p1', 0, []), ids).wizards[0].status & 2048).toBe(2048); // the enemy cannot see
-    expect(decodeSnap(encodeSnap(w, 'p0', 0, []), ids).wizards[0].status & 1024).toBe(1024); // the walker sees the effect
+    for (const viewer of ids) {
+      const status = decodeSnap(encodeSnap(w, viewer, 0, []), ids).wizards[0].status;
+      expect(status & (1024 | 2048)).toBe(0);
+      expect(status & 4096).toBe(4096);
+    }
     const ev = runEvents(w, 1.5);
     expect(hitsOf(ev, 'windwalk')[0]?.dmg).toBeCloseTo(spellLevel('windwalk', 1).dmg, 5);
     expect(w.wizards[1].pos.x).toBeGreaterThan(3); // there was knockback; the residual ends when control is released.

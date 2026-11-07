@@ -1,8 +1,15 @@
 # src/shared — game rules (run on the server and in the browser)
 
+
+Teams rounds spawn allies in compact formations on opposite sides of every arena; other modes keep their existing spawn layout.
+- Campaign checkpoints wait for `campaignPickers`: all connected human participants with owed/offered cards finish before the next encounter starts. Exclude bots,spectators and disconnected players; generate/clear offers before checking so exhausted upgrade pools cannot deadlock the group. Exploration keeps running; this is not the reading pause.
+
 Applies together with the root `CLAUDE.md`.
 
 ## Simulation
+
+- Sandbox allied bots are opt-in: validate `ally`, derive their team from the authenticated requester and preserve Player/Wizard teams through respawn, restart and Watch/Play. Default bots stay enemies.
+- Campaign reading is a transient authoritative pause until every connected human participant finishes, capped at `READ_CAP_MS` (20 s) per pause. Disconnect, spectating, restart and resume clear reader state; other modes do not pause.
 
 - **Obstacles take every attack** (Fernando, 25/10): a new blast calls `blastPillars` (falloff by closeness, a wall hit once); a projectile that hits or bounces off an obstacle calls `damagePillar` in `hitPillar`; burning in the lava uses `damagePillar(..., quiet)`. The Campaign rock is unbreakable through `obstaclesOf`, not through a mode check in `sim.ts`.
 
@@ -24,12 +31,16 @@ Applies together with the root `CLAUDE.md`.
 - **Events:** `w.events.push({ k: '...', ... })` during the step; a new type enters the `SimEvent` union and the client consumes it in `main.ts`. Secret ids become public in `publicEvents` (`snapshot.ts`).
 - Illusion receives forces through the same moveWizard as the real body; copy.walk and pushVel are separate. Gravity uses body pull, Magnetize does not turn the walk, Snowball uses drag on contact and explosion only when it explodes. Moves copies before impacts so they do not gain an extra step from list order. It neither kills nor hides the copy when it takes damage.
 
+- **Lula Pix / Squid Pix** (issue #416): the `pix` projectile is a fixed coin rain that keeps `soak` (seconds inside per wizard) until `PIX.soak`; `puppetBy`/`puppetUntil` on the target; `puppeteer` gives the living controller. `applyCmds` drops the target's own commands and repeats move, moveHold, stop and basic with the same offset; spells repeat only in `cast()` at the controller's target point (after a cast that started its cooldown, `copy` = the controller's level, no cooldown check or write). Credit goes through `actor` in `hit` and `mark`, `firstOnSegment` skips the owner's controller and `allies(body, controller)` is true (one way only), so no spell needs its own rule. One level only: a controlled wizard's own targets do not repeat copies.
+
 - **Test versions of Attack and Hold ground** (issue #402): `Wizard.arc` and `Wizard.guard` come only from `setAlt` (shop, `alt` message) and the round start in `match.ts`; bots never set them, so the style hash stays the same. Every change of behaviour sits behind these flags (`finishArc`, `braceResistance`, the extra freeze of `basicReadyAt`); the arc restores the target's `casting` after `hit` on purpose.
 
 ## Spell and item numbers (`spells.ts`, `items.ts`, `constants.ts`)
 
 - Meteor proposal under review: preserves damage/area and replaces knockback with duration=1.25 s at all levels. Uses the general stun block and the target's resistances; does not trigger post-knockback recovery without an impulse. Measurement/owner decision pending before integrating.
 
+- **Items have 3 levels each** (Fernando, 26/10, issue #227) and every level costs the item price (`itemPrice`); a new item gets 3 levels. Level-based constants of an item are arrays indexed by `level - 1` (`SHOCK_BOOTS.secs`, `WIND_BOOTS.calm/speed`).
+- **The Scourge is an item that fires through the spell path** (26/10, #227): its level lives only in `items.scourge` (free level 1 from `startItems`), `newWorld` and `refit` copy it into `wizard.spells.scourge`, and `priceOf('scourge')` is always `null`. Lists of spells a player can own use `BAR_SPELLS`; cast, cooldown and snapshot code keep `SPELL_IDS`. Do not "fix" the copied level back into `player.spells`.
 - 7 levels via `L({...})`; irregular series with `zip([...], [...])`, linear ones with `steps(de, passo)`.
 - A balance adjustment stays **inline over the original number**, with a date and measurement comment: `cd: cd * 0.7 /* 18/10: … (0,86 → 0,97) */`.
 - An extra mechanic constant becomes an object `NOME = { … * UNIT }` below the table, with the source `.lua` file in the comment. No magic numbers loose in `sim.ts`.
@@ -60,3 +71,6 @@ Flattened lists of numbers (layout in the `protocol.ts` comment), values with `r
 ## Appearance (`characters.ts`)
 
 The appearance code stores the **position** of each option (7 digits, one per piece), and it is saved in the browser and in rooms. A new option goes **at the end** of the piece's list; an option that leaves stays in place and becomes retired (`isRetired`): `decodeLook` swaps it for another (the hooded Rogue becomes Rogue + Hood, issue #107), the creator and the draw skip it. Every code input goes through `fixLook` (browser in `savedLook`, message in `parseClientMessage`, stored room in `resume`).
+Teams supports 2, 3 or 4 teams through opts.teams (default2, capped by participant count). Preserve two-team RNG and opposite spawns; additional teams use separated safe anchors with compact allies. Fixed-team newcomers join the smallest team; count changes regroup next round. Other modes and Campaign teams remain unchanged.
+
+30/10 local Windwalk revision: windUntil is a visible speed/contact buff, not concealment. Invisibility and targeting exclusions use veilUntil only. Snapshot4096/its clock show the Windwalk speed buff;1024/2048 remain Illusion. Base duration grows2.6s to3.6s at every level; preserve speed, contact damage and existing interruption rules.

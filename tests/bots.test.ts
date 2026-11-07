@@ -4,7 +4,7 @@ import { DT } from '../src/shared/constants.ts';
 import { ITEM_IDS, noItems } from '../src/shared/items.ts';
 import { newMatch, startMatch, tickMatch } from '../src/shared/match.ts';
 import { newWorld, type Cmd } from '../src/shared/sim.ts';
-import { FREE_SPELLS, SPELL_IDS, noSpells, type SpellId } from '../src/shared/spells.ts';
+import { BAR_SPELLS, FREE_SPELLS, SPELL_IDS, noSpells, type SpellId } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
 
 const casts = (cmds: Cmd[]) => cmds.filter((c) => c.kind === 'cast');
@@ -17,7 +17,7 @@ function seeded(seed: number) {
   };
 }
 
-// bot em (0,0) com as magias dadas e a Bola de fogo em recarga; inimigo em (4,0)
+// bot at (0,0) with the given spells and Fireball on cooldown; enemy at (4,0)
 function duel(own: Partial<Record<SpellId, number>>, items: Partial<Record<string, number>> = {}) {
   const w = newWorld(['bot', 'x'], { bot: { ...noSpells(), ...own }, x: noSpells() }, { bot: { ...noItems(), ...items } });
   w.wizards[0].pos = v(0, 0);
@@ -26,8 +26,8 @@ function duel(own: Partial<Record<SpellId, number>>, items: Partial<Record<strin
   return w;
 }
 
-describe('bots usam tudo', () => {
-  it('perto da borda, ainda na pedra, volta para dentro atirando (19/10: no duelo final só voltava)', () => {
+describe('bots use everything', () => {
+  it('near the edge, still on the stone, walks back in while shooting (19/10: in the final duel it only walked back)', () => {
     const w = newWorld(['bot', 'x'], { bot: noSpells(), x: noSpells() });
     w.wizards[0].pos = v(w.arenaR - 1, 0);
     w.wizards[1].pos = v(w.arenaR - 5, 0);
@@ -106,7 +106,7 @@ describe('bots usam tudo', () => {
   it('reacts to a homing missile by distance, even off a straight course', () => {
     const missile = (own: Partial<Record<SpellId, number>>, r: number) => {
       const w = duel(own);
-      // curvando: a reta passa a 2 m do bot, mas ele está a 2,5 m e chegando
+      // curving: the straight line passes 2 m from the bot, but it is 2.5 m away and closing
       w.projectiles.push({ id: 1, kind: 'homing', owner: 'x', caster: 'x', pos: v(2.5, 0), vel: v(-3, 5.7), level: 1, until: 9, target: 'bot', dmgMult: 1 });
       return casts(botCmds(w, 'bot', () => r))[0];
     };
@@ -125,14 +125,14 @@ describe('bots usam tudo', () => {
 
   it('grips only with damage ready to follow, and drops the Meteor on the gripped enemy', () => {
     const w = duel({ grip: 1 });
-    expect(casts(botCmds(w, 'bot', () => 0.3))).toHaveLength(0); // nada para emendar: não prende
-    // a Bola de fogo saiu da recarga em 0,5 s; com o atraso do Normal (1 + 0,3 s no sorteio de 0,3) vale em 1,8 s, menos de 1 s depois
+    expect(casts(botCmds(w, 'bot', () => 0.3))).toHaveLength(0); // nothing to follow up with: no grip
+    // Fireball came off cooldown at 0.5 s; with Normal's delay (1 + 0.3 s on a 0.3 draw) it is usable at 1.8 s, less than 1 s later
     w.wizards[0].cd.fireball = 0.5;
     w.t = 1;
     expect(casts(botCmds(w, 'bot', () => 0.3))[0]).toMatchObject({ kind: 'cast', spell: 'grip' });
     const g = duel({ meteor: 1, lightning: 1 });
     g.wizards[1].gripUntil = 2;
-    botCmds(g, 'bot', () => 0.99); // vê o alvo preso; emenda depois do tempo de reação
+    botCmds(g, 'bot', () => 0.99); // sees the gripped target; follows up after the reaction time
     g.t += 0.4;
     expect(casts(botCmds(g, 'bot', () => 0.1))[0]).toMatchObject({ kind: 'cast', spell: 'meteor' });
   });
@@ -161,12 +161,12 @@ describe('bots usam tudo', () => {
     const cmds = botCmds(w, 'bot', () => 0.9);
     expect(casts(cmds)[0]).toMatchObject({ kind: 'cast', spell: 'link' });
     expect(cmds.some((c) => c.kind === 'move' && Math.abs(c.to.y) > 2)).toBe(true);
-    // preso: só sai de lado
+    // stuck: only steps aside
     w.projectiles.push({ id: 1, kind: 'link', owner: 'bot', caster: 'bot', pos: w.wizards[1].pos, vel: v(0, 0), level: 1, until: 9, target: 'x', dmgMult: 1 });
     const held = botCmds(w, 'bot', () => 0.3);
     expect(held).toHaveLength(1);
     expect(held[0].kind === 'move' && Math.abs(held[0].to.y) > 2 && held[0].to.x < R - 2).toBe(true);
-    // inimigo mais perto da lava: nada de Elo
+    // enemy closer to the lava: no Link
     const w2 = duel({ link: 1 });
     w2.wizards[0].pos = v(R - 6, 0);
     w2.wizards[1].pos = v(R - 2, 0);
@@ -184,7 +184,7 @@ describe('bots usam tudo', () => {
     expect(edge({ grip: 1 }, R + 0.3, 4)).toMatchObject({ kind: 'cast', spell: 'grip' });
     expect(edge({ snowball: 1 }, R - 1.5, 3)).toMatchObject({ kind: 'cast', spell: 'snowball' });
     expect(edge({ gravity: 1 }, R - 1, 2.2)).toMatchObject({ kind: 'cast', spell: 'gravity' });
-    // longe da lava, o sorteio de 0,9 deixa passar
+    // far from the lava, the 0.9 draw lets it pass
     expect(edge({ snowball: 1 }, 0, 3)).toBeUndefined();
   });
 
@@ -211,16 +211,16 @@ describe('bots usam tudo', () => {
       const s = p.buys.filter((b) => b.kind === 'spell');
       expect(p.buys[0].kind).toBe('spell');
       expect(s.length).toBeGreaterThanOrEqual(2);
-      expect(s.length).toBeLessThanOrEqual(6); // até encher as 8 vagas com a Bola de fogo e o Flagelo
+      expect(s.length).toBeLessThanOrEqual(5); // until the 6 slots fill up with Fireball (the Scourge is an item since 26/10, #227)
       for (const b of p.buys) (b.kind === 'spell' ? spells : items).add(b.id);
     }
-    expect([...spells].sort()).toEqual(SPELL_IDS.filter((s) => !FREE_SPELLS.includes(s)).sort());
+    expect([...spells].sort()).toEqual(BAR_SPELLS.filter((s) => !FREE_SPELLS.includes(s)).sort());
     expect([...items].sort()).toEqual([...ITEM_IDS].sort());
   });
 
   it('a bots-only match ends and uses several different spells', () => {
     const rand = seeded(3);
-    // planos de compra com a semente (a quantidade de pilares ainda usa Math.random dentro da partida)
+    // purchase plans from the seed (the number of pillars still uses Math.random inside the match)
     botConfig.planner = () => randomPlan(rand);
     const m = newMatch();
     startMatch(m, 0, 6, 'rounds', true, rand);
@@ -233,5 +233,5 @@ describe('bots usam tudo', () => {
     botConfig.planner = null;
     expect(m.phase).toBe('end');
     expect(used.size).toBeGreaterThanOrEqual(6);
-  }, 30_000); // partida inteira com bots que planejam caminho: passa de 5 s com o processador ocupado
+  }, 30_000); // whole match with path-planning bots: exceeds 5 s with a busy CPU
 });

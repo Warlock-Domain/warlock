@@ -1,9 +1,10 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
+import { ELEMENTS, type Element } from './elemental-spheres.ts';
 import type { Snap } from './protocol.ts';
-import { PROJ_KINDS, bootsBonus, closedBodyActive, bracingActive, incapacitatedUntil, isSliding, isStunned, isSuspended, type ProjKind, type SimEvent, type World } from './sim.ts';
+import { PROJ_KINDS, projectileLevel, bootsBonus, closedBodyActive, bracingActive, incapacitatedUntil, isSliding, isStunned, isSuspended, puppeteer, type ProjKind, type SimEvent, type World } from './sim.ts';
 import { INCAPACITATED_BIT, ELECTROCUTED_BIT, BRACING_BIT } from './constants.ts';
 import { CHEST, OBSTACLES, OBSTACLE_KINDS, RUNE_KINDS, WIZ_R, type ObstacleKind, type RuneKind } from './constants.ts';
-import { BLINDNESS, SPELL_IDS, spellLevel } from './spells.ts';
+import { BLINDNESS, SPELL_IDS, spellLevel, type SpellId } from './spells.ts';
 import type { Isle } from './arena.ts';
 import { dist, v, type Vec } from './vec.ts';
 
@@ -36,15 +37,14 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   const linked = new Set(w.projectiles.filter((p) => p.kind === 'link' && p.target).map((p) => p.target));
   for (const z of w.wizards) {
     // bits: 1 vivo, 2 escudo, 4 lento (chão arcano, Drenar, Bola de neve), 512 queimando (chão de fogo), 16 atordoado (arremessado), 32 invulnerável, 64 Pacto armado, 128 preso (Agarrar), 256 Investida,
-    // 1024 Caminhada no vento (quem anda e os aliados veem), 2048 invisível para quem recebe (o cliente esconde), 4096 acelerado (Drenar, Botas de choque ou de vento),
+    // 1024: own Illusion veil, 2048: hidden from this recipient, 4096: speed effects (Windwalk, Drain and boots),
     // 8192 magnetizado atraindo, 16384 magnetizado repelindo, 32768 Alteração, 65536 preso pelo Elo, 131072 Égide pronta,
     // runas: 262144 Pressa, 524288 Fúria, 1048576 Escudo de runa (−30% de dano); 2097152 no redemoinho (mesma conta do puxão em sim.ts);
-    // Ilusão: só o dono recebe 1024 (Caminhada no vento); os outros recebem 2048, salvo a visão de teste da sandbox (8388608)
-    const hidden = !seeAll && z.id !== forId && !(me && me.team !== null && me.team === z.team);
+    // Illusion owns invisibility; Windwalk only accelerates.
     const bits = (z.alive ? 1 : 0) | (w.t < z.shieldUntil ? 2 : 0)
       | (isStunned(z) && !isSuspended(z) ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
       | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 || w.t < z.slowUntil ? 4 : 0) | (z.zone & 2 ? 512 : 0)
-      | (w.t < z.windUntil ? (hidden ? 2048 : 1024) : 0) | (w.t < z.hasteUntil || bootsBonus(w, z) > 0 ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)
+      | (w.t < z.windUntil || w.t < z.hasteUntil || bootsBonus(w, z) > 0 ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)
       | (w.t < z.alterUntil ? 32768 : 0) | (linked.has(z.id) ? 65536 : 0) | (z.aegis ? 131072 : 0)
       | (w.t < z.runeUntil && z.rune ? RUNE_BIT[z.rune] : 0)
       | (z.alive && w.zones.some((q) => q.kind === 'pull' && dist(q.pos, z.pos) < q.r + WIZ_R) ? 2097152 : 0)
@@ -66,9 +66,9 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   // Marcas de Meteoro, Agarrar e Zona não andam: no lugar da velocidade vão raio e segundos restantes;
   // o Elo manda a posição de quem lançou (o cliente desenha o fio até ela); a cópia da Ilusão, o índice do dono e para onde olha
   for (const q of w.projectiles) {
-    const still = q.kind === 'meteor' || q.kind === 'warpzone' || q.kind === 'grip' || q.kind === 'geyser' ? q.kind : null;
+    const still = q.kind === 'meteor' || q.kind === 'warpzone' || q.kind === 'grip' || q.kind === 'geyser' || q.kind === 'pix' ? q.kind : null;
     const tail = q.kind === 'link' ? w.wizards.find((z) => z.id === q.owner)?.pos : q.kind === 'illusion' ? v(w.wizards.findIndex((z) => z.id === q.owner), Math.atan2(q.vel.y, q.vel.x)) : undefined;
-    const a = still ? spellLevel(still, q.level).radius : (tail ?? q.vel).x;
+    const a = still ? projectileLevel(q).radius : (tail ?? q.vel).x;
     const b = still ? Math.max(0, q.until - w.t) : (tail ?? q.vel).y;
     p.push(q.id, PROJ_KINDS.indexOf(q.kind), r2(q.pos.x), r2(q.pos.y), r2(a), r2(b));
   }
@@ -80,13 +80,39 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     snap.ch = w.loots.flatMap((l) => [r2(l.pos.x), r2(l.pos.y), l.left]);
     snap.lp = w.wizards.map((z) => r2(z.lootProg / CHEST.goldEvery));
   }
+  const spheres = w.wizards.flatMap((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) ? (z.spheres ?? []).filter(s => s.until > w.t).flatMap(s => [i, ELEMENTS.indexOf(s.element), r2(s.until - w.t)]) : []);
+  if (spheres.length) snap.eo = spheres;
+  if (w.wizards.some(z => w.t < z.shieldUntil)) snap.sr = w.wizards.map((z, i) => w.t < z.shieldUntil && !(wz[i * 7 + 6] & 2048) ? r2(z.shieldR) : 0);
+  const sizes = w.projectiles.filter(q => (q.size ?? 1) !== 1).flatMap(q => [q.id, r2(q.size!)]);
+  if (sizes.length) snap.ps = sizes;
+  if (w.wizards.some(z => z.nexus)) snap.nx = w.wizards.map((z, i) => {
+    const target = z.nexus ? w.wizards.findIndex(q => q.id === z.nexus!.target) : -1;
+    // The owner can always cancel its own link; hidden endpoints still have no visible position/line.
+    return z.alive && target >= 0 && (z.id === forId || (!(wz[i * 7 + 6] & 2048) && !(wz[target * 7 + 6] & 2048))) ? target : -1;
+  });
+  // Authoritative aim never exposes a hidden caster's target.
+  if (w.wizards.some((z) => z.transfusion)) snap.mt = w.wizards.flatMap((z, i) => {
+    const target = z.transfusion ? w.wizards.findIndex((q) => q.id === z.transfusion!.target) : -1;
+    return z.alive && target >= 0 && !(wz[i * 7 + 6] & 2048) && !(wz[target * 7 + 6] & 2048) ? [target, r2(spellLevel('transfusion', z.transfusion!.level).scale)] : [-1, 0];
+  });
+  // Seconds left of the aim; 0.01 = charged, waiting for the key (0 means no aim)
+  if (w.wizards.some(z=>z.casting?.spell==='sniper')) snap.sn = w.wizards.flatMap((z,i)=>z.alive && !(wz[i*7+6]&2048) && z.casting?.spell==='sniper' ? [r2(Math.max(.01,z.casting.fireAt-w.t)),r2(z.casting.at.x),r2(z.casting.at.y)] : [0,0,0]);
   if (ab.some((x) => x > 0)) snap.ab = ab;
+  if (w.wizards.some((z) => z.channel)) snap.cn = w.wizards.flatMap((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) && z.channel ? [SPELL_IDS.indexOf(z.channel.spell), r2(Math.min(2, w.t - z.channel.since))] : [-1, 0]);
   // Campanha: brasa de cada mago (0 a 1 até reacender; −1 sem brasa ou apagada), na ordem de room.ids
   if (w.wizards.some((z) => z.ember && !z.ember.out)) snap.em = w.wizards.map((z) => (z.ember && !z.ember.out ? r2(Math.min(1, z.ember.prog / z.ember.need)) : -1));
   if (w.wizards.some((z) => closedBodyActive(w, z))) snap.cb = w.wizards.map((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) && closedBodyActive(w, z) ? r2(z.closedBodyUntil! - w.t) : 0);
   if (w.wizards.some((z) => w.t < (z.blindUntil ?? 0))) snap.bl = w.wizards.map((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) ? r2(Math.max(0, (z.blindUntil ?? 0) - w.t)) : 0);
   // Separate optional timer: suspension is not a stun and does not take another bit of the 32-bit status
   if (w.wizards.some(isSuspended)) snap.gy = w.wizards.map((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) ? r2(z.geyserLeft ?? 0) : 0);
+  // Squid Pix: index of the controller (−1 when hidden from this viewer, so the thread does not reveal them) and seconds left
+  if (w.wizards.some((z) => puppeteer(w, z))) snap.pz = w.wizards.flatMap((z, i) => {
+    const by = puppeteer(w, z), c = by ? w.wizards.indexOf(by) : -1;
+    return z.alive && by && !(wz[i * 7 + 6] & 2048) ? [wz[c * 7 + 6] & 2048 ? -1 : c, r2(z.puppetUntil! - w.t)] : [-1, 0];
+  });
+  // Lula Pix: seconds each wizard has spent inside a coin rain (the most of any rain), for the indicator over them
+  const soak = w.wizards.map((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) ? r2(Math.max(0, ...w.projectiles.map((q) => q.soak?.[z.id] ?? 0))) : 0);
+  if (soak.some((x) => x > 0)) snap.pk = soak;
   if (w.wizards.some((z) => z.basicCasting)) snap.ba = w.wizards.flatMap((z, i) => z.alive && !(wz[i * 7 + 6] & 2048) && z.basicCasting ? [r2(Math.max(0, z.basicCasting.fireAt - w.t)), z.basicCasting.arc !== undefined ? 2 : +z.basicCasting.melee] : [0, 0]);
   if (w.wizards.some((z) => (z.recoveryLeft ?? 0) > 0)) snap.kr = w.wizards.map((z) => r2(z.recoveryLeft ?? 0));
   if (w.wizards.some((z) => z.stunLeft !== undefined)) snap.st = w.wizards.map((z) => z.stunLeft === undefined ? -1 : r2(z.stunLeft));
@@ -102,8 +128,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     left(4, Math.max(me.slowUntil, me.electroUntil ?? 0));
     left(INCAPACITATED_BIT, incapacitatedUntil(me, w.t));
     left(2, me.shieldUntil);
-    left(1024, Math.max(me.windUntil, me.veilUntil)); // o dono da Ilusão recebe o mesmo bit 1024 (ver bits)
-    left(4096, Math.max(me.hasteUntil, me.shockUntil));
+    left(1024, me.veilUntil); // Invisibility belongs to Illusion, not Windwalk.
+    left(4096, Math.max(me.windUntil, me.hasteUntil, me.shockUntil));
     left(me.magnet > 0 ? 8192 : 16384, me.magnetUntil);
     left(32768, me.alterUntil);
     if (me.rune) left(RUNE_BIT[me.rune], me.runeUntil);
@@ -118,9 +144,9 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   return snap;
 }
 
-export type WizView = { id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number; blindLeft?: number; closedBodyLeft?: number; geyserLeft?: number; rushLeft?: number; recoveryLeft?: number; stunLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean };
+export type WizView = { shieldR?: number; spheres?: { element: Element; left: number }[]; nexusTo?: number; id: string; pos: Vec; vel: Vec; hp: number; facing: number; alive: boolean; shield: boolean; status: number; transfusionTo?: number; transfusionRate?: number; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; channelSpell?: SpellId; blindLeft?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; rushLeft?: number; recoveryLeft?: number; stunLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean };
 // meteor, grip e warpzone: vel = (raio, segundos que faltam); link: posição do dono; illusion: índice do dono e direção
-export type ProjView = { id: number; kind: ProjKind; pos: Vec; vel: Vec };
+export type ProjView = { size?: number; id: number; kind: ProjKind; pos: Vec; vel: Vec };
 export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
 export type RuneView = { pos: Vec; kind: RuneKind };
 export type ZoneView = { pos: Vec; r: number; kind: ZoneKind; left: number };
@@ -130,9 +156,15 @@ export type SnapView = { time: number; arenaR: number; shrinkAt: number; wizards
 const rows = (a: number[] | undefined, n: number) => Array.from({ length: Math.floor((a?.length ?? 0) / n) }, (_, i) => a!.slice(i * n, i * n + n));
 
 export function decodeSnap(s: Snap, ids: string[]): SnapView {
+  const spheres = new Map<number, { element: Element; left: number }[]>();
+  for (let k = 0; k < (s.eo?.length ?? 0); k += 3) {
+    const owner = s.eo![k], list = spheres.get(owner) ?? [];
+    list.push({ element: ELEMENTS[s.eo![k + 1]], left: s.eo![k + 2] }); spheres.set(owner, list);
+  }
   const wizards = rows(s.w, 7).slice(0, ids.length).map(([x, y, vx, vy, hp, facing, bits], i): WizView =>
-    ({ id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0, status: bits, blindLeft: s.bl?.[i] ?? 0, closedBodyLeft: s.cb?.[i] ?? 0, geyserLeft: s.gy?.[i] ?? 0, rushLeft: s.ab?.[i] ?? 0, recoveryLeft: s.kr?.[i] ?? 0, stunLeft: s.st && s.st[i] >= 0 ? s.st[i] : undefined, basicLeft: s.ba?.[i * 2] ?? 0, basicMelee: !!s.ba?.[i * 2 + 1], ...(s.ba?.[i * 2 + 1] === 2 && { basicArc: true }) }));
-  const projectiles = rows(s.p, 6).map(([id, kind, x, y, vx, vy]): ProjView => ({ id, kind: PROJ_KINDS[kind] ?? 'fireball', pos: v(x, y), vel: v(vx, vy) }));
+    ({ shieldR: s.sr?.[i], spheres: spheres.get(i), nexusTo: s.nx?.[i] ?? -1, id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0, status: bits, transfusionTo: s.mt?.[i * 2] ?? -1, transfusionRate: s.mt?.[i * 2 + 1] ?? 0, sniperLeft: s.sn?.[i*3] ?? 0, sniperAt: s.sn && s.sn[i*3]>0 ? v(s.sn[i*3+1],s.sn[i*3+2]) : undefined, channelElapsed: s.cn && s.cn[i*2] >= 0 ? s.cn[i*2+1] : undefined, channelSpell: s.cn && s.cn[i*2] >= 0 ? SPELL_IDS[s.cn[i*2]] : undefined, blindLeft: s.bl?.[i] ?? 0, closedBodyLeft: s.cb?.[i] ?? 0, geyserLeft: s.gy?.[i] ?? 0, puppetBy: s.pz?.[i * 2] ?? -1, puppetLeft: s.pz?.[i * 2 + 1] ?? 0, pixSoak: s.pk?.[i] ?? 0, rushLeft: s.ab?.[i] ?? 0, recoveryLeft: s.kr?.[i] ?? 0, stunLeft: s.st && s.st[i] >= 0 ? s.st[i] : undefined, basicLeft: s.ba?.[i * 2] ?? 0, basicMelee: !!s.ba?.[i * 2 + 1], ...(s.ba?.[i * 2 + 1] === 2 && { basicArc: true }) }));
+  const sizes = new Map(rows(s.ps ?? [], 2).map(([id, size]) => [id, size]));
+  const projectiles = rows(s.p, 6).map(([id, kind, x, y, vx, vy]): ProjView => ({ size: sizes.get(id), id, kind: PROJ_KINDS[kind] ?? 'fireball', pos: v(x, y), vel: v(vx, vy) }));
   const pillars = rows(s.pl, 4).map(([x, y, hp, k]): PillarView => ({ pos: v(x, y), hp, kind: OBSTACLE_KINDS[k] ?? 'pillar' }));
   const runes = rows(s.ru, 3).map(([x, y, k]): RuneView => ({ pos: v(x, y), kind: RUNE_KINDS[k] ?? 'haste' }));
   const zones = rows(s.zn, 5).map(([x, y, r, k, left]): ZoneView => ({ pos: v(x, y), r, kind: ZONE_KINDS[k] ?? 'burn', left }));

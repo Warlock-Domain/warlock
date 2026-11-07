@@ -124,7 +124,7 @@ describe('Q W E R D F slot keys', () => {
     expect(actionFor('KeyR')).toBeUndefined();
     expect(actionFor('KeyD')).toBe('pact');
     expect(actionFor('KeyF')).toBeUndefined();
-    expect(actionFor('Digit1')).toBeUndefined(); // the digits are no longer slot keys
+    expect(actionFor('Digit1')).toBe('scourge'); // the digits are no longer slot keys; 1 is the Scourge item's own key (26/10, #227)
     expect(labelOf('pact')).toBe('D');
     expect(labelOf('gravity')).toBe('W');
     setSlotMode(false);

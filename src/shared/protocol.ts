@@ -6,15 +6,16 @@ import { nightLevel, nightXpAt, type Night, type ServoKind } from './campaign.ts
 import { fightOf, nightMap } from './levels.ts';
 import { fixLook, isCharacter, isLook, type CharacterId } from './characters.ts';
 import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type RuneKind } from './constants.ts';
-import { ITEM_IDS, type ItemId } from './items.ts';
-import { MODES, OPTION_CHOICES, TURRET_DIR, goalOf, parseOpt, votesNeeded, type BotSetup, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
+import { ITEMS, ITEM_IDS, type ItemId } from './items.ts';
+import { MODES, OPTION_CHOICES, TURRET_DIR, campaignReaders, campaignPickers, goalOf, parseOpt, votesNeeded, type BotSetup, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
-import { MAX_SPELLS, MAX_SPELL_LEVEL, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
+import { BAR_SPELLS, MAX_SPELLS, spellMax, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
 import { v, type Vec } from './vec.ts';
 
 export type ClientMsg =
   | { t: 'hello'; playerId: string; name: string; watch?: true } // watch: entra assistindo (botão Assistir da lista de salas)
+  | { t: 'reading'; on: boolean }
   | { t: 'watch'; on: boolean } // assistir (sem mago a partir da próxima rodada) ou voltar a jogar
   // shuffle: Times sorteados a cada rodada (padrão) ou fixos; opts: opções da partida; setup[i]: dificuldade do bot i+1 e a configuração dele no treino
   | { t: 'start'; bots: number; mode?: Mode; shuffle?: boolean; opts?: Partial<MatchOpts>; setup?: BotSetup[]; sandbox?: true }
@@ -24,6 +25,7 @@ export type ClientMsg =
   | { t: 'stop'; seq: number }
   | { t: 'brace'; on: boolean; seq: number }
   | { t: 'basic'; x: number; y: number; target?: string | number; seq: number }
+  | { t: 'channel'; spell: SpellId; seq: number }
   | { t: 'cast'; spell: SpellId; x: number; y: number; seq: number }
   | { t: 'buy'; spell: SpellId }
   | { t: 'alt'; arc: boolean; guard: boolean } // issue #402: golpe em arco no Atacar e defesa no Manter base (versões alternativas da loja)
@@ -65,6 +67,8 @@ export type PublicRoom = {
   phase: Phase;
   mode: Mode;
   round: number;
+  reading?: string[]; // Public ids of Campaign participants still reading tutorial messages.
+  choosing?: string[]; // Public ids whose pending choices block the next Campaign encounter.
   phaseLeft: number; // ms até a fase mudar sozinha
   players: PublicPlayer[];
   ids: string[]; // ordem dos magos no estado compacto ('snap')
@@ -100,7 +104,12 @@ export type PublicRoom = {
 // fx: efeitos com prazo de quem recebe, 2 números por efeito: bit de estado (como em w) e segundos que faltam
 // a vida em w vai em pontos; a máxima sai dos itens do jogador (itemStats), que estão na mensagem 'room'
 // ba: dois números por mago: preparo de Atacar restante em segundos e corpo a corpo (1/0; 2 = golpe em arco da versão alternativa, na direção do mago); ausente = sem preparo.
-export type Snap = { t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; bl?: number[]; cb?: number[]; gy?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; ack: number; e?: SimEvent[] };
+// sr: shield radius per wizard while the Shield is up (0 = none or hidden).
+// eo: triples of wizard index, element index and seconds left; at most five spheres per visible wizard.
+// ps: projectile id/size pairs captured at launch; default size is one.
+// nx: only while some Anima Nexus is up, 1 number per wizard: index of the ally it protects (−1 none or hidden from this viewer)
+// mt: two numbers per wizard: linked ally index (-1 inactive), extra cooldown speed (0.2 to 1.4).
+export type Snap = { mt?: number[]; sr?: number[]; ps?: number[]; eo?: number[]; t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; sn?: number[]; cn?: number[]; bl?: number[]; cb?: number[]; gy?: number[]; pz?: number[]; pk?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; nx?: number[]; ack: number; e?: SimEvent[] };
 
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
 export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
@@ -158,8 +167,8 @@ function parseSetup(x: unknown): BotSetup[] | null {
     if (!isObj(b)) return null;
     const { spells, items, skill, difficulty } = b;
     if (difficulty !== undefined && !OPTION_CHOICES.difficulty.includes(difficulty as MatchOpts['difficulty'])) return null;
-    if (spells !== undefined && (!isObj(spells) || !Object.entries(spells).every(([k, n]) => isSpell(k) && level(n, MAX_SPELL_LEVEL)) || spellCount({ ...noSpells(), ...spells }) > MAX_SPELLS)) return null;
-    if (items !== undefined && (!isObj(items) || !Object.entries(items).every(([k, n]) => ITEM_IDS.includes(k as ItemId) && level(n, 6)))) return null;
+    if (spells !== undefined && (!isObj(spells) || !Object.entries(spells).every(([k, n]) => (BAR_SPELLS as readonly string[]).includes(k) && level(n, spellMax(k as SpellId))) || spellCount({ ...noSpells(), ...spells }) > MAX_SPELLS)) return null;
+    if (items !== undefined && (!isObj(items) || !Object.entries(items).every(([k, n]) => ITEM_IDS.includes(k as ItemId) && level(n, ITEMS[k as ItemId].levels.length)))) return null;
     if (skill !== undefined && (!isObj(skill) || !Object.entries(skill).every(([k, n]) => SKILL_KEYS.includes(k as keyof BotSkill) && typeof n === 'number' && Number.isFinite(n)))) return null;
     const clamp = (k: keyof BotSkill, n: number) => Math.min(Math.max(...Object.values(BOT_SKILL).map((s) => s[k])), Math.max(k === 'rate' ? BOT_SKILL.easy.rate : 0, n));
     out.push({
@@ -182,10 +191,10 @@ function parseSandbox(c: unknown): SandboxCmd | null {
   if (c.op === 'effect') return c.effect === null || ROUND_EFFECT_IDS.includes(c.effect as RoundEffectId) ? { op: 'effect', effect: c.effect as RoundEffectId | null } : null;
   if (c.op === 'restart') return { op: 'restart' };
   if (c.op === 'turret') return Object.hasOwn(TURRET_DIR, c.direction as string) ? { op: 'turret', direction: c.direction as TurretDir } : null;
-  if (c.op !== 'bot' || (c.dummy !== undefined && typeof c.dummy !== 'boolean')) return null;
+  if (c.op !== 'bot' || (c.dummy !== undefined && typeof c.dummy !== 'boolean') || (c.ally !== undefined && typeof c.ally !== 'boolean')) return null;
   const bot = c.bot === undefined ? undefined : parseSetup([c.bot])?.[0];
   if (bot === undefined && c.bot !== undefined) return null;
-  return { op: 'bot', ...(bot && { bot }), ...(c.dummy && { dummy: true }) };
+  return { op: 'bot', ...(bot && { bot }), ...(c.dummy && { dummy: true }), ...(c.ally && { ally: true }) };
 }
 
 export function parseClientMessage(raw: string): ClientMsg | null {
@@ -203,6 +212,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       if (typeof m.playerId !== 'string' || !/^[\w-]{8,64}$/.test(m.playerId)) return null;
       if (m.watch !== undefined && typeof m.watch !== 'boolean') return null;
       return { t: 'hello', playerId: m.playerId, name: cleanName(m.name), ...(m.watch === true && { watch: true as const }) };
+    case 'reading':
+      return typeof m.on === 'boolean' && Object.keys(m).every((k) => k === 't' || k === 'on') ? { t: 'reading', on: m.on } : null;
     case 'watch':
       return typeof m.on === 'boolean' ? { t: 'watch', on: m.on } : null;
     case 'start': {
@@ -233,6 +244,8 @@ export function parseClientMessage(raw: string): ClientMsg | null {
       if (!coord(m.x) || !coord(m.y) || !seq(m.seq) || !Object.keys(m).every((k) => ['t', 'x', 'y', 'seq', 'target'].includes(k))) return null;
       if (m.target !== undefined && !pubId(m.target) && !(typeof m.target === 'number' && seq(m.target))) return null;
       return { t: 'basic', x: m.x, y: m.y, seq: m.seq, ...(m.target === undefined ? {} : { target: m.target as string | number }) };
+    case 'channel':
+      return isSpell(m.spell) && m.spell !== 'channel' && seq(m.seq) && Object.keys(m).every((k) => ['t', 'spell', 'seq'].includes(k)) ? { t: 'channel', spell: m.spell, seq: m.seq } : null;
     case 'cast':
       return isSpell(m.spell) && coord(m.x) && coord(m.y) && seq(m.seq) ? { t: 'cast', spell: m.spell, x: m.x, y: m.y, seq: m.seq } : null;
     case 'alt':
@@ -337,6 +350,8 @@ export function publicRoom(id: string, m: Match, now: number): PublicRoom {
     effect: (m.phase === 'shop' ? shopEffect(m) : m.world?.effect) ?? null,
     ...(m.sandbox && { sandbox: m.sandbox }),
     ...(m.night && { night: publicNight(m.night) }),
+    ...(campaignReaders(m).length && { reading: campaignReaders(m).map((p) => pub(p.id)) }),
+    ...(campaignPickers(m).length && { choosing: campaignPickers(m).map(p => pub(p.id)) }),
     ...(m.lobby && { lobby: { ...m.lobby, owner: m.lobby.owner && pub(m.lobby.owner) } }),
   };
 }
