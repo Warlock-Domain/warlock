@@ -290,7 +290,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     const o = p.kind === 'illusion' && p.until > w.t ? w.wizards.find((z) => z.id === p.owner && z.alive && !ally(z)) : undefined;
     return o && dist(p.pos, me.pos) <= vision ? [{ ...o, id: decoyId(p), pos: p.pos, vel: v(0, 0) }] : [];
   });
-  const foes = [...w.wizards.filter((z) => z.alive && !ally(z) && w.t >= z.windUntil && w.t >= z.veilUntil && dist(z.pos, me.pos) <= vision), ...decoys];
+  const foes = [...w.wizards.filter((z) => z.alive && !ally(z) && w.t >= z.veilUntil && dist(z.pos, me.pos) <= vision), ...decoys];
   const nearest = (zs: Wizard[]) => zs.reduce<Wizard | null>((a, z) => (!a || dist(z.pos, me.pos) < dist(a.pos, me.pos) ? z : a), null);
   // o Difícil caça: quem está fraco, perto da lava ou na frente do placar (a até 8 m); senão, o mais perto
   const top = Math.max(0, ...Object.values(scores));
@@ -422,7 +422,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
       go(safeInside(w, add(middle(w), jitter(3)), D.edge + 0.5));
     }
   }
-  // na Caminhada no vento qualquer magia a encerra: só corre para encostar no inimigo
+  // Casting ends Windwalk: keep running toward an enemy for the contact hit.
   if (w.t < me.windUntil) return enemy ? [...cmds.filter((c) => c.kind !== 'move'), { id, kind: 'move', to: enemy.pos }] : cmds;
   // Anima Nexus after the escape and dodge branches: link to an ally in range with less HP than the bot
   if (!me.casting && !me.nexus && ready('nexus')) {
