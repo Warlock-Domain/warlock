@@ -46,7 +46,7 @@ const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'warpzone',
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize', 'pix'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
-const SITUATIONAL: SpellId[] = ['magnetize', 'bouncer', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
+const SITUATIONAL: SpellId[] = ['magnetize', 'bouncer', 'elemental', 'nexus', 'transfusion', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
 const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
@@ -426,6 +426,19 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   if (w.t < me.windUntil) return enemy ? [...cmds.filter((c) => c.kind !== 'move'), { id, kind: 'move', to: enemy.pos }] : cmds;
   if (!me.casting && enemy && ready('magnetize') && magneticProjectile(w, me, enemy.pos, spellLevel('magnetize', me.spells.magnetize).range * me.rangeF)) return cast('magnetize', enemy.pos);
   if (!me.casting && !me.ricochetRange && ready('bouncer')) return cast('bouncer', me.pos);
+  // Anima Nexus after the escape and dodge branches: link to an ally in range with less HP than the bot
+  if (!me.casting && !me.nexus && ready('nexus')) {
+    const range = spellLevel('nexus', me.spells.nexus).range * me.rangeF;
+    const target = w.wizards.find(z => z !== me && z.alive && ally(z) && z.hp < me.hp && dist(z.pos, me.pos) <= range);
+    if (target) return cast('nexus', target.pos);
+  }
+  if (!me.casting && ready('transfusion')) {
+    const L = spellLevel('transfusion', me.spells.transfusion);
+    const recipient = w.wizards.filter((z) => z !== me && z.alive && ally(z) && dist(z.pos, me.pos) <= L.range * me.rangeF)
+      .sort((a, b) => Object.values(b.cd).reduce((n, cd) => n + Math.max(0, cd - w.t), 0) - Object.values(a.cd).reduce((n, cd) => n + Math.max(0, cd - w.t), 0))[0];
+    if (recipient && Object.values(recipient.cd).some((cd) => cd - w.t > 2)) return cast('transfusion', recipient.pos);
+  }
+  if (!me.casting && !threat && ready('elemental') && (me.spheres?.length ?? 0) < ELEMENTAL_SPHERES.max) return cast('elemental', me.pos);
   // Heal after the escape and dodge branches: a hurt bot first gets out of danger, then heals the most hurt ally in range
   if (!me.casting && ready('heal')) {
     const L = spellLevel('heal', me.spells.heal);

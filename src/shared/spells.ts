@@ -64,8 +64,8 @@ export const SPELLS: Record<SpellId, Spell> = {
   thrust: { name: 'Estocada', en: 'Thrust', cost: 11, up: [6, 7, 8, 9, 10, 11], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [50, 55, 60, 65, 70, 75, 80]).map(([cd, d]) => L({ cd: cd * 1.25 /* 18/10: ×1,15 e depois ×1,25 (17% acima com as ilhas) */, dmg: d, kbf: 0, speed: 1300 * UNIT, range: 900 * UNIT })) },
   // gravidade: orbe de 450 u/s por 900 u; dmg = dano por segundo em quem está a 250 u; pull = força em 550 u (sem empurrão)
   gravity: { name: 'Horizonte de eventos', en: 'Event Horizon', cost: 12, up: [7, 8, 9, 10, 11, 12], levels: zip([21, 20.5, 20, 19.5, 19, 18.5, 18], [20, 33.33, 46.67, 60, 73.33, 86.67, 100]).map(([cd, d], i) => L({ cd, dmg: d * 2, kbf: 0, speed: 450 * UNIT, range: 900 * UNIT, radius: 250 * UNIT, /* 18/10: dano por segundo ×2 (0,89 → 0,97) */ pull: (500 + 30 * i) * UNIT })) },
-  // pilar de pedra: obstáculo de 4 s no original a até 650..1100 u; recarga = AbilityCooldown (o cooldown2 do mesmo arquivo diz 24..12 e só aparece na dica)
-  rockpillar: { name: 'Barricada', en: 'Barricade', cost: 13, up: [5, 6, 7, 8, 9, 10], levels: zip([26, 24, 22, 20, 18, 16, 14], [650, 725, 800, 875, 950, 1025, 1100]).map(([cd, r]) => L({ cd: cd * 0.7, duration: 5, range: r * UNIT, dmg: 50 })) /* 18/10: recarga ×0,7 e 5 s (0,86 → 0,97); 22/10 (#206): cai do céu e dá 50 em quem está embaixo, com o empurrão do dano */ },
+  // Permanent single-level wall; price, health and level-one cast stats are retained.
+  rockpillar: { name: 'Barricada', en: 'Barricade', cost: 13, up: [], levels: steps(18.2, 0).map(cd => L({ cd, range: 650 * UNIT, dmg: 50 })) }, // Single purchasable level; repeated stats keep previously saved higher levels compatible.
   // Prepare one extra bounce for the next moving projectile spell; damage comes from that spell.
   bouncer: { name: 'Ricochete', en: 'Bouncer', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(19, -1).map(cd => L({ cd, range: 900 * UNIT })) },
   // as dez restantes do Warlock Brawl (dono do jogo, 17/10): npc_abilities_custom.txt, base/shop.lua, spells/, projectiles/ e modifiers/

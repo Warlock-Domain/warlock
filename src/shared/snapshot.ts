@@ -40,8 +40,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     // 1024: own Illusion veil, 2048: hidden from this recipient, 4096: speed effects (Windwalk, Drain and boots),
     // 8192 magnetizado atraindo, 16384 magnetizado repelindo, 32768 Alteração, 65536 preso pelo Elo, 131072 Égide pronta,
     // runas: 262144 Pressa, 524288 Fúria, 1048576 Escudo de runa (−30% de dano); 2097152 no redemoinho (mesma conta do puxão em sim.ts);
-    // Ilusão: só o dono recebe 1024 (Caminhada no vento); os outros recebem 2048, salvo a visão de teste da sandbox (8388608)
-    const hidden = !seeAll && z.id !== forId && !(me && me.team !== null && me.team === z.team);
+    // Illusion owns invisibility; Windwalk only accelerates.
     const bits = (z.alive ? 1 : 0) | (z.alive && z.ricochetRange ? RICOCHET_READY_BIT : 0) | (w.t < z.shieldUntil ? 2 : 0)
       | (isStunned(z) && !isSuspended(z) ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
       | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 || w.t < z.slowUntil ? 4 : 0) | (z.zone & 2 ? 512 : 0)
