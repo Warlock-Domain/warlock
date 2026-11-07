@@ -4,9 +4,10 @@ import {
 } from '../shared/constants.ts';
 import { DEFAULT_OPTS, DM_GOALS, OPTION_CHOICES } from '../shared/match.ts';
 import { CLASH } from '../shared/sim.ts';
+import { ELEMENTAL_SPHERES } from '../shared/elemental-spheres.ts';
 import { ITEMS, MAX_ITEMS, type ItemId } from '../shared/items.ts';
 import { keyLabel, keyOf, padButtonName, padButtonOf, uiLabel, type PadAction, type UiAction } from './keys.ts';
-import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, PIX, RECHARGE, RUSH, SHIELD, SPELLS, SPELL_GROUP_IDS, SPELL_IDS, WARPZONE, type SpellId } from '../shared/spells.ts';
+import { BOUNCER, CAST_POINT, GRAVITY, GRIP, MAX_SPELLS, MAX_SPELL_LEVEL, METEOR_DELAY, PACT, PIX, RECHARGE, RUSH, SHIELD, SPELLS, SPELL_GROUP_IDS, SPELL_IDS, WARPZONE, spellLevel, type SpellId } from '../shared/spells.ts';
 import { LANG, LOCALE, spellName, t } from './i18n.ts';
 import { BASIC_ATTACK, BRACE, GUARD, KNOCK_RECOVERY, MELEE_ARC } from '../shared/constants.ts';
 
@@ -319,11 +320,14 @@ export const RULES = LANG === 'en' ? RULES_EN : RULES_PT;
 // grimório: como usar cada magia e contra o quê ela funciona (lido do comportamento em shared/sim.ts)
 type SpellTips = Record<SpellId, [use: string, vs: string]>;
 const SPELL_TIPS_PT: SpellTips = {
+  transfusion: ['Selecione Transfusão mental e clique num aliado vivo; não pode mirar inimigos nem você mesmo.', 'Mantém um vínculo que acelera as recargas do aliado. Você fica parado e incapacitado (suas recargas pausam). Movimento, S, ataque, outra magia, stun, morte ou alvo fora do alcance interrompem.'],
+  elemental: ['Invoca uma esfera aleatória que orbita você; não precisa escolher alvo.', `Fogo vermelho, água azul, terra marrom, ki branco e vazio preto. Cada esfera dura 30 s; até ${ELEMENTAL_SPHERES.max} simultâneas, com elementos repetidos possíveis. No limite, não invoca nem gasta recarga. Cada esfera soma 5% ao seu efeito: fogo — dano e empurrão; água — velocidade dos projéteis e alcance; terra — tamanho dos projéteis ou área da magia; ki — cura e duração de efeitos positivos das suas magias; vazio — recuperação das recargas mais lenta. Não há bônus geral de dano por esfera.`],
   pix: [`Marque o chão: cai uma chuva de moedas por ${n1(PIX.rain)} s. Quem somar ${n1(PIX.soak)} s dentro (aliados também, menos você) repete seus comandos por ${n1(L1('pix').duration)} s: anda como você e lança cada magia sua mirando o mesmo ponto que você, mesmo sem tê-la.`, 'Sair da chuva guarda o tempo já somado enquanto ela durar. As magias que saem do controlado são suas: não acertam você e o dano e os abates contam para você; se ele cair na lava, o abate é seu. Só acaba com o tempo ou com a sua morte; Escudo e Corpo fechado encurtam como qualquer status.'],
   sniper: [`Selecione a magia e clique num inimigo a até ${n1(L1('sniper').range)} m; o mago fica parado mirando por ${n1(CAST_POINT.sniper)} s; carregou, o botão Atacar (A) solta faíscas e apertar A atira no marcado.`, 'Linha vermelha e retículo indicam o alvo; linhas de tensão nas bordas aparecem para quem conjura e para espectadores seguindo esse jogador. Movimento/S/stun cancelam; alvo invisível, morto ou fora do alcance interrompe.'],
   channel: ['Atacar + tecla da magia inicia a carga; clique esquerdo lança após 1 s.', 'Aos 2 s mantém+100% e aguarda seu comando, sem disparo automático. Ataque básico desabilitado; S/movimento/stun cancelam.'],
   closedbody: ['Ative Manter base antes de lançar e continue segurando S. Mantém a direção da postura, sem virar para o mouse.', 'Duração máxima 3,5 s no nível 1, +0,75 s por nível, até 8 s no nível 7; soltar S encerra antes. Reduz dano, novos empurrões e duração dos novos status em 90%, sem remover efeitos anteriores. Ao expirar, Manter base continua se S estiver pressionado.'],
   geyser: ['Mire no chão: o jato sustenta você, aliados e inimigos que tocarem a área até o fim do gêiser.', 'Suspensos ficam imóveis e invulneráveis, sem atacar nem conjurar. O jato não causa dano; cuidado ao proteger também inimigos.'],
+  nexus: ["Cria um elo com um aliado vivo (nunca você mesmo). Todo o dano que ele sofreria é transferido a você com acréscimo de 25%, após as defesas do aliado; suas próprias defesas também se aplicam. Novos status negativos e empurrões são divididos pela metade entre os dois. Movimento e outras magias não encerram o elo. Aperte a magia novamente para cancelar, mesmo durante a recarga; sair do alcance ou morrer também encerra. Custa 25 de ouro; alcance 7 m +1 por nível, recarga 15 s −1 por nível. Só um elo protege cada alvo; um novo substitui o anterior, e ciclos são recusados.", 'Um aliado protegido não perde vida; o protetor pode morrer pelo dano transferido.'],
   heal: ['Aperte a tecla de Curar e clique com o botão esquerdo em você ou num aliado vivo dentro do alcance. Aura verde e coral curto confirmam a cura. Esc, S ou botão direito cancelam.', 'Atordoamento impede a conjuração. Não cura inimigos nem revive mortos; não causa dano nem empurrão.'],
   fireball: ['Mire um pouco à frente de quem anda. Perto da borda, um acerto já joga na lava.', 'O Escudo devolve; Teleporte e Troca escapam. Eletrocutar destrói a bola no ar e duas bolas que se chocam viram chão em chamas.'],
   lightning: ['Instantâneo: quica sem repetir alvos por lançamento, com alcance fixo e 50% menos dano e empurrão por salto. Por 2 s, aplica lentidão de 25% e Incapacitar: pausa recargas, sem impedir habilidades prontas. Destrói projéteis no trajeto.', `Obstáculos bloqueiam; o Escudo devolve a descarga para você e encerra a cadeia. Alcance de ${n1(L1('lightning').range)} m por trecho no nível 1. Outro lançamento pode acertar os mesmos alvos.`],
@@ -338,7 +342,7 @@ const SPELL_TIPS_PT: SpellTips = {
   boomerang: ['Acerta na ida e na volta: deixe o inimigo entre você e o ponto. Quica em obstáculos.', 'No Escudo ele quica e volta sem trocar de dono.'],
   thrust: ['O dano cheio vem com velocidade: comece de longe. Você para no primeiro inimigo que tocar.', 'No Escudo você quica. Se errar, freia no fim do caminho.'],
   gravity: [`Jogue no meio de um grupo: puxa inimigos até ${n1(GRAVITY.wizR)} m e queima quem fica a ${n1(L1('gravity').radius)} m. Também puxa projéteis de qualquer dono.`, `É lento (${n1(L1('gravity').speed)} m/s): dá para sair andando.`],
-  rockpillar: [`Erga entre você e um projétil: a parede (2 m, atravessada no caminho) segura magos e projéteis por ${n1(L1('rockpillar').duration)} s.`, `Magias quebram a parede (${OBSTACLES.rockpillar.hp} de vida para ela toda), e ela explode ao quebrar.`],
+  rockpillar: [`Erga entre você e um projétil: a parede (2 m, atravessada no caminho) bloqueia magos e projéteis até ser destruída, sem tempo limite.`, `Magias quebram a parede (${OBSTACLES.rockpillar.hp} de vida para ela toda), e ela explode ao quebrar. Nível único, sem melhorias.`],
   bouncer: [`Melhor com inimigos juntos: pula para o mago mais perto, perdendo ${pct(1 - BOUNCER.decay)} do dano por inimigo.`, 'Contra um inimigo sozinho é só um acerto.'],
   drain: ['Mire perto do grupo: depois do ponto, vira para o mago mais perto. No inimigo, dano, lentidão e a vida volta para você; no aliado, cura e pressa.', `É lento (${n1(L1('drain').speed)} m/s) e o Escudo devolve.`],
   snowball: ['Quem encosta é arrastado junto: role na direção da lava. No fim do caminho ela explode.', `Muito lenta (${n1(L1('snowball').speed)} m/s) e de alcance curto: dá para sair da frente.`],
@@ -347,7 +351,7 @@ const SPELL_TIPS_PT: SpellTips = {
   recharge: [`Se acertar, ela volta até você e zera a recarga: lance de novo, com +${RECHARGE.perHit} de dano por acerto seguido.`, `Errar zera a sequência e a recarga é longa (${n1(L1('recharge').cd)} s no nível 1).`],
   alteration: [`Ligue quando um projétil estiver chegando: por ${n1(L1('alteration').duration)} s você troca de lugar com o primeiro que entrar na bolha.`, 'Não serve contra Eletrocutar, Meteoro, Flagelo e explosões, que não são projéteis.'],
   link: ['Puxe o inimigo para perto (e para o seu Meteoro), ou prenda num obstáculo e puxe-se até ele para fugir.', 'O Escudo faz o Elo quicar e voltar.'],
-  windwalk: ['Fique invisível, chegue perto e encoste: o primeiro inimigo leva dano. Também serve para fugir sem ser visto.', `Lançar qualquer magia desfaz; dura ${n1(L1('windwalk').duration)} s.`],
+  windwalk: ['Corra mais rápido, sem ficar invisível: o primeiro inimigo em que encostar recebe dano. Também serve para escapar ou se aproximar.', `Lançar qualquer magia desfaz; dura ${n1(L1('windwalk').duration)} s.`],
   splitter: ['Estoura no ponto (ou no primeiro que tocar) em 8 projéteis em leque: cobre uma área ou acerta quem está atrás de obstáculo.', 'Cada filhote é fraco; de longe eles se espalham.'],
   warpzone: [`Ponha entre você e os projéteis: dentro dela os projéteis inimigos andam a ${pct(L1('warpzone').scale)} (nível 1) e os inimigos a ${pct(WARPZONE.wizMult)} da velocidade.`, 'Não para Eletrocutar nem áreas.'],
   scourge: [`Encostaram em você: explode em volta depois de ${n1(CAST_POINT.scourge)} s, empurra quem está perto e destrói Bolas de fogo e Mísseis inimigos. Ao explodir, o empurrão que você está sofrendo acaba.`, 'Dá para sair do raio durante o preparo; o Teleporte cancela o seu. O Escudo não segura.'],
@@ -355,11 +359,14 @@ const SPELL_TIPS_PT: SpellTips = {
 };
 
 const SPELL_TIPS_EN: SpellTips = {
+  transfusion: ['Select Mental Transfusion and click a living ally; cannot target enemies or yourself.', 'Maintains a link that accelerates allied cooldowns. You stand still and are incapacitated (your cooldowns pause). Movement, Stop, attack, another spell, stun, death or an out-of-range target interrupts.'],
+  elemental: ['Summons a random sphere orbiting you; no target required.', `Red fire, blue water, brown earth, white ki and black void. Each lasts 30 s; up to ${ELEMENTAL_SPHERES.max} at once, allowing repeated elements. At the cap, does not summon or spend cooldown. Each sphere adds 5% to its own effect: fire — damage and knockback; water — projectile speed and range; earth — projectile size or spell area; ki — healing and positive effect duration from your spells; void — slower cooldown recovery. There is no generic damage bonus per sphere.`],
   pix: [`Mark the ground: coins rain on it for ${n1(PIX.rain)} s. Whoever adds up ${n1(PIX.soak)} s inside (allies too, never you) repeats your commands for ${n1(L1('pix').duration)} s: walks like you and casts each of your spells at the same point you aim, even without owning it.`, 'Leaving the rain keeps the time already added up while it lasts. Spells coming out of the controlled wizard are yours: they never hit you, and their damage and kills count for you; if they fall into the lava, the kill is yours. It only ends with time or your death; Shield and Closed Body shorten it like any status.'],
   sniper: [`Select the spell and click an enemy within ${n1(L1('sniper').range)} m; stand still and aim for ${n1(CAST_POINT.sniper)} s; once charged, the Attack button (A) sparks and pressing A fires at the marked enemy.`, 'A red line and reticle mark the target; tension lines along the screen edges appear for the caster and spectators following that player. Movement/Stop/stun cancel; invisible, dead or out-of-range target interrupts.'],
   channel: ['Attack + a spell key starts charging; left-click casts after 1 s.', 'At 2 s holds+100% and awaits your command; never fires automatically. Basic attacks disabled; Stop/movement/stun cancels.'],
   closedbody: ['Activate Hold Ground before casting and keep holding S. Preserves the stance facing without turning toward the mouse.', 'Maximum duration 3.5 s at level 1, +0.75 s per level, up to 8 s at level 7; releasing S ends it early. Reduces damage, new knockback and new status duration by 90%, without cleansing existing effects. Hold Ground remains active after expiry if S stays held.'],
   geyser: ['Aim at the ground: the jet suspends you, allies and enemies touching its area until the geyser ends.', 'Suspended units are immobile and invulnerable, unable to attack or cast. Deals no damage; beware of protecting enemies too.'],
+  nexus: ["Link to a living ally (never yourself). All damage they would take is transferred to you with a 25% increase after their defenses; your own defenses also apply. New negative statuses and knockback split equally between both units. Moving and other spells do not end the link. Press the spell again to cancel, even during cooldown; leaving range or either unit dying also ends it. Costs 25 gold; range 7 m +1 per level, cooldown 15 s −1 per level. Only one link protects each target; a new link replaces the previous one, and cycles are refused.", 'The protected ally loses no health; the protector may die from transferred damage.'],
   heal: ['Press Heal, then left-click yourself or a living ally within range. A green aura and a short choir confirm healing. Esc, S or right-click cancels.', 'Stun prevents casting. Cannot heal enemies or revive the dead; deals no damage or knockback.'],
   fireball: ['Aim a little ahead of anyone who is moving. Near the edge, one hit already sends them into the lava.', 'The Shield reflects it; Teleport and Swap escape it. Electrocute destroys the ball in the air and two balls that collide become burning ground.'],
   lightning: ['Instant: jumps without repeating targets per cast, with fixed range and 50% less damage and knockback per jump. For 2 s, applies 25% slow and Incapacitate: pauses cooldowns without blocking ready abilities. Destroys projectiles along its path.', `Obstacles block it; Shield sends the bolt back at you and ends the chain. Range per segment: ${n1(L1('lightning').range)} m at level 1. A new cast can hit the same targets again.`],
@@ -374,7 +381,7 @@ const SPELL_TIPS_EN: SpellTips = {
   boomerang: ['Hits on the way out and on the way back: leave the enemy between you and the point. Bounces off obstacles.', 'On the Shield it bounces and comes back without changing owner.'],
   thrust: ['Full damage comes with speed: start from afar. You stop at the first enemy you touch.', 'On the Shield you bounce off. If you miss, you brake at the end of the path.'],
   gravity: [`Throw it into the middle of a group: it pulls enemies within ${n1(GRAVITY.wizR)} m and burns anyone within ${n1(L1('gravity').radius)} m. It also pulls projectiles from any owner.`, `It is slow (${n1(L1('gravity').speed)} m/s): you can walk away.`],
-  rockpillar: [`Raise it between you and a projectile: the wall (2 m, across the path) holds wizards and projectiles for ${n1(L1('rockpillar').duration)} s.`, `Spells break the wall (${OBSTACLES.rockpillar.hp} health for the whole thing), and it explodes when broken.`],
+  rockpillar: [`Raise it between you and a projectile: the wall (2 m, across the path) blocks wizards and projectiles until destroyed, with no time limit.`, `Spells break the wall (${OBSTACLES.rockpillar.hp} health for the whole thing), and it explodes when broken. Single level, no upgrades.`],
   bouncer: [`Best with enemies grouped: it jumps to the nearest wizard, losing ${pct(1 - BOUNCER.decay)} of the damage per enemy.`, 'Against a lone enemy it is just one hit.'],
   drain: ['Aim near the group: after the point, it turns to the nearest wizard. On an enemy, damage, slow and the health comes back to you; on an ally, heal and haste.', `It is slow (${n1(L1('drain').speed)} m/s) and the Shield reflects it.`],
   snowball: ['Anyone it touches is dragged along: roll toward the lava. At the end of the path it explodes.', `Very slow (${n1(L1('snowball').speed)} m/s) and short range: you can step out of the way.`],
@@ -383,7 +390,7 @@ const SPELL_TIPS_EN: SpellTips = {
   recharge: [`If it hits, it comes back to you and resets the cooldown: cast again, with +${RECHARGE.perHit} damage per consecutive hit.`, `A miss resets the streak and the cooldown is long (${n1(L1('recharge').cd)} s at level 1).`],
   alteration: [`Turn it on when a projectile is about to arrive: for ${n1(L1('alteration').duration)} s you swap places with the first one that enters the bubble.`, 'Useless against Electrocute, Meteor, Scourge and explosions, which are not projectiles.'],
   link: ['Pull the enemy close (and into your Meteor), or latch onto an obstacle and pull yourself to it to escape.', 'The Shield makes the Link bounce and come back.'],
-  windwalk: ['Turn invisible, get close and touch: the first enemy takes damage. Also works to flee unseen.', `Casting any spell cancels it; lasts ${n1(L1('windwalk').duration)} s.`],
+  windwalk: ['Run faster without becoming invisible: the first enemy you touch takes damage. Use it to escape or close the distance.', `Casting any spell cancels it; lasts ${n1(L1('windwalk').duration)} s.`],
   splitter: ['Bursts at the point (or at the first thing it touches) into 8 projectiles in a fan: covers an area or hits someone behind an obstacle.', 'Each fragment is weak; from afar they spread out.'],
   warpzone: [`Place it between you and the projectiles: inside it enemy projectiles move at ${pct(L1('warpzone').scale)} (level 1) and enemies at ${pct(WARPZONE.wizMult)} of their speed.`, 'Does not stop Electrocute or areas.'],
   scourge: [`Someone got on top of you: it blasts around you after ${n1(CAST_POINT.scourge)} s, knocks back anyone close and destroys enemy Fireballs and Missiles. When it blasts, the knockback you are taking stops.`, 'You can leave the radius during the windup; Teleport cancels yours. The Shield does not stop it.'],
@@ -414,6 +421,7 @@ const SPELL_GROUPS_PT: SpellGroups = [
   ['Defesa', 'parar o que vem', [...G.defense]],
   ['Controle', 'prender, puxar, atrasar', [...G.control]],
   ['Suporte', 'cura e ajuda aos aliados', [...G.support]],
+  ['Utilidade', 'ferramentas e efeitos diversos', [...G.utility]],
 ];
 export type GuideId = (typeof MECHANIC_GUIDES)[number]['id'] | (typeof NEGATIVE_GUIDES)[number]['id'];
 const SPELL_GROUPS_EN: SpellGroups = [
@@ -422,11 +430,12 @@ const SPELL_GROUPS_EN: SpellGroups = [
   ['Defense', 'stop what is coming', [...G.defense]],
   ['Control', 'grip, pull, slow', [...G.control]],
   ['Support', 'healing and helping allies', [...G.support]],
+  ['Utility', 'tools and miscellaneous effects', [...G.utility]],
 ];
 export { SPELL_GROUPS_EN, SPELL_GROUPS_PT };
 export const SPELL_GROUPS = LANG === 'en' ? SPELL_GROUPS_EN : SPELL_GROUPS_PT;
-// classe de cor do grupo (Fernando, 19/10: uma cor por setor): g-ataque, g-mobilidade, g-defesa, g-controle (o rótulo em inglês cai na mesma classe)
-const GROUP_CLASS_EN: Record<string, string> = { attack: 'ataque', mobility: 'mobilidade', defense: 'defesa', control: 'controle', support: 'suporte' };
+// group colour class (Fernando, 19/10: one colour per group): g-ataque, g-mobilidade, g-defesa, g-controle, g-suporte, g-utilidade (the English label maps to the same class)
+const GROUP_CLASS_EN: Record<string, string> = { attack: 'ataque', mobility: 'mobilidade', defense: 'defesa', control: 'controle', support: 'suporte', utility: 'utilidade' };
 export const groupClass = (name: string) => 'g-' + (GROUP_CLASS_EN[name.toLowerCase()] ?? name.toLowerCase());
 export const spellClass = (s: SpellId) => groupClass(SPELL_GROUPS.find(([, , ids]) => ids.includes(s))?.[0] ?? '');
 // Visual equipment categories do not add exclusive slots or change purchase rules.
@@ -442,11 +451,14 @@ export const ITEM_GROUPS = LANG === 'en' ? ITEM_GROUPS_EN : ITEM_GROUPS_PT;
 
 // para que serve, em uma linha (cartão da loja)
 const SPELL_USE_PT: Record<SpellId, string> = {
+  transfusion: 'Acelera as recargas de um aliado enquanto você fica incapacitado.',
+  elemental: `Invoca até ${ELEMENTAL_SPHERES.max} esferas elementais aleatórias que orbitam você.`,
   pix: 'O inimigo repete seus passos e magias por um tempo.',
   sniper: `Mira com uma sniper e carrega por ${n1(CAST_POINT.sniper)} s e dispara ${n1(L1('sniper').dmg)} de dano quando você apertar A.`,
   channel: 'Carrega outra magia para aumentar dano, alcance, velocidade e empurrão.',
   closedbody: 'Resiste a dano, empurrões e novos status enquanto mantém a base.',
   geyser: 'Sustenta unidades num jato d’água invulnerável.',
+  nexus: "Cria um elo entre você e um aliado, fazendo com que você receba todo o dano e uma parte dos efeitos negativos que ele receber.",
   heal: 'Cura você ou um aliado.',
   fireball: 'Ataque básico: empurra de longe.',
   lightning: 'Acerta na hora e quica sem repetir inimigo no mesmo lançamento. Alcance fixo; cada salto perde 50% do dano e empurrão. Por 2 s: lentidão de 25% e Incapacitar (pausa recargas, sem bloquear habilidades prontas). Destrói projéteis no caminho.',
@@ -462,7 +474,7 @@ const SPELL_USE_PT: Record<SpellId, string> = {
   swap: 'Põe o inimigo no seu lugar ruim.',
   rush: 'Correr e aguentar dano por um tempo.',
   thrust: 'Avançar e acertar quem estiver no caminho.',
-  windwalk: 'Sumir, reposicionar e surpreender.',
+  windwalk: "Aumenta sua velocidade de movimento sem deixar você invisível; dura 3,6 s.",
   shield: 'Devolve projéteis para quem lançou.',
   alteration: 'Escapa trocando de lugar com um projétil.',
   illusion: 'Você fica invisível enquanto uma cópia sua engana mísseis e bots.',
@@ -477,11 +489,14 @@ const SPELL_USE_PT: Record<SpellId, string> = {
   pact: 'Dobra o próximo golpe de dano.',
 };
 const SPELL_USE_EN: Record<SpellId, string> = {
+  transfusion: 'Speeds up an ally’s cooldowns while you are incapacitated.',
+  elemental: `Summons up to ${ELEMENTAL_SPHERES.max} random elemental spheres orbiting you.`,
   pix: 'The enemy repeats your steps and spells for a while.',
   sniper: `Aim a sniper rifle and charge for ${n1(CAST_POINT.sniper)} s, then fire for ${n1(L1('sniper').dmg)} damage when you press A.`,
   channel: 'Charges another spell to increase damage, range, speed and knockback.',
   closedbody: 'Resists damage, knockback and new status effects while holding ground.',
   geyser: 'Suspends units in an invulnerable water jet.',
+  nexus: "Creates a link between you and an ally, making you receive all their damage and part of their negative effects.",
   heal: 'Heals you or an ally.',
   fireball: 'Basic attack: knocks back from afar.',
   lightning: 'Hits instantly and jumps without repeating enemies in the same cast. Fixed range; each jump loses 50% of damage and knockback. For 2 s: 25% slow and Incapacitate (pauses cooldowns without blocking ready abilities). Destroys projectiles along its path.',
@@ -497,7 +512,7 @@ const SPELL_USE_EN: Record<SpellId, string> = {
   swap: 'Puts the enemy in your bad spot.',
   rush: 'Run and shrug off damage for a while.',
   thrust: 'Dash and hit whoever is in the way.',
-  windwalk: 'Vanish, reposition and surprise.',
+  windwalk: 'Run faster without becoming invisible; lasts 3.6 seconds.',
   shield: 'Sends projectiles back at whoever cast them.',
   alteration: 'Escape by swapping places with a projectile.',
   illusion: 'You turn invisible while a copy of you fools missiles and bots.',
@@ -515,11 +530,14 @@ export { SPELL_USE_EN, SPELL_USE_PT };
 export const SPELL_USE = LANG === 'en' ? SPELL_USE_EN : SPELL_USE_PT;
 
 const RULES_SHORT_PT: Record<SpellId, string> = {
+  transfusion: `Precisa de um aliado: não faz nada em todos contra todos. Clique num aliado vivo a até ${n1(L1('transfusion').range)} m (nunca em você nem em inimigos). O vínculo dura até ser interrompido ou o alvo sair do alcance. Acelera as recargas das magias do aliado em +${n1(L1('transfusion').scale * 100)}% no nível 1 e mais ${n1(L1('transfusion').scale * 100)} pontos percentuais por nível (até +${n1(spellLevel('transfusion', MAX_SPELL_LEVEL).scale * 100)}%); não diminui o cooldown-base. Custa ${SPELLS.transfusion.cost} de ouro. Recarga de ${n1(L1('transfusion').cd)} s, −1 s por nível; alcance +1 m por nível. Você fica parado e incapacitado, com suas recargas pausadas. Movimento, S, ataque, outra magia ou stun no conjurador encerram. Morte ou suspensão de qualquer participante também encerram. Incapacitar no aliado continua pausando as recargas dele.`,
+  elemental: `Invoca uma esfera aleatória entre fogo (vermelha), água (azul), terra (marrom), ki (branca) e vazio (preta). Ela orbita seu herói por ${n1(L1('elemental').duration)} s, independentemente das outras. Máximo de ${ELEMENTAL_SPHERES.max} esferas; sorteios podem repetir elementos. Com ${ELEMENTAL_SPHERES.max} ativas, o uso é recusado sem gastar recarga nem renovar as anteriores. Recarga ${n1(L1('elemental').cd)} s; custa ${SPELLS.elemental.cost} de ouro, sem progressão de nível neste teste. As esferas não colidem nem bloqueiam projéteis. Cada esfera acumula 5% do efeito do seu elemento: fogo aumenta dano e empurrão; água aumenta velocidade dos projéteis e alcance; terra aumenta tamanho dos projéteis ou a área real da magia; ki aumenta a cura e a duração de efeitos positivos das magias de quem conjura (ex.: Curar e Escudo), nunca efeitos negativos; vazio reduz a velocidade de recuperação de todas as recargas. Ki não amplia os 30 s das esferas. Não há bônus geral de dano.`,
   pix: `Marque o chão: cai uma chuva de moedas de ${n1(L1('pix').radius)} m de raio por ${n1(PIX.rain)} s. Quem somar ${n1(PIX.soak)} s dentro dela (aliados também, menos você; sair guarda o tempo) repete seus comandos por ${n1(L1('pix').duration)} s. Anda com o mesmo deslocamento que você, para quando você para, usa o Ataque e lança cada magia sua mirando o mesmo ponto que você (os dois tiros fazem um V), no seu nível e sem gastar recarga dele. O que sai dele é seu: não acerta você, e dano e abates (lava incluída) contam para você. Um fio vermelho liga vocês. Acaba só com o tempo ou se você morrer.`,
   sniper: `Linhas de tensão animadas nas bordas da tela aparecem para quem usa a magia e espectadores seguindo esse jogador. Saca uma sniper e acompanha o inimigo selecionado por ${n1(CAST_POINT.sniper)} s, parado. Carregado, o botão Atacar (A) solta faíscas e apertar A dispara um tiro instantâneo de ${n1(L1('sniper').dmg)} de dano base, sem empurrão. Alcance ${n1(L1('sniper').range)} m; custo ${SPELLS.sniper.cost} de ouro e recarga ${n1(L1('sniper').cd)} s após o disparo. Sem progressão de nível. Movimento, S, stun ou suspensão interrompem; perder o alvo (morto, invisível ou fora do alcance) cancela sem gastar recarga. Obstáculos bloqueiam o tiro; respeita invulnerabilidade, Escudo e reduções gerais de dano.`,
   channel: 'Compre Canalização e pressione Atacar + tecla de outra magia que possui. Fica parado carregando; clique esquerdo lança após pelo menos 1 s. Aos 1 s: +50% de dano, alcance, velocidade do projétil e empurrão; cresce linearmente até +100% aos 2 s. Não lança sozinha: mantém a carga máxima até você lançar. S, movimento ou stun cancelam. Sem recarga própria; a magia escolhida usa sua recarga normal. Comprar Canalização desabilita o ataque básico. Só modifica atributos existentes, sem aumentar cura, duração ou tempo de status.',
 closedbody: `Só pode ser ativada com Manter base ativo. Por até ${n1(L1('closedbody').duration)} s no nível 1 (+0,75 s por nível, até 8 s no nível 7), reduz o dano recebido, a força dos novos empurrões e a duração dos novos status negativos em 90%. Não remove efeitos nem impulsos anteriores; combina com as resistências existentes. Ainda recebe 10% do dano: não é invulnerabilidade. Soltar S encerra antes; ao expirar com S pressionado, Manter base continua. O corpo fica bem escuro e mantém a direção de Manter base, sem virar para o mouse. Recarga ${n1(L1('closedbody').cd)} s.`,
 geyser: `Invoca no chão um gêiser por ${n1(L1('geyser').duration)} s, a até ${n1(L1('geyser').range)} m, numa área de ${n1(L1('geyser').radius)} m de raio. Atinge você, aliados e inimigos: ficam sustentados pelo jato, imóveis e invulneráveis, sem atacar ou conjurar, até o jato terminar. Quem entra depois fica suspenso apenas pelo tempo restante. Projéteis passam por baixo das unidades suspensas sem colidir com elas. Não causa dano nem empurrão. Recarga ${n1(L1('geyser').cd)} s.`,
+  nexus: "Cria um elo entre você e um aliado, fazendo com que você receba todo o dano e uma parte dos efeitos negativos que ele receber.",
   heal: `Selecione Curar pela tecla ou pela barra e clique com o botão esquerdo no corpo do alvo (point and click), mesmo no modo Rápido/Ao soltar. Cura instantaneamente ${n1(L1('heal').heal)} de vida em você ou um aliado a até ${n1(L1('heal').range)} m, sem ultrapassar a vida máxima. +6 de cura e −1 s de recarga por nível (20→14 s). Não cura inimigos, cópias ou mortos; clicar no chão não lança. Segue modificadores gerais de cura e alcance.`,
   fireball: 'Projétil reto. Dano e empurrão médios.',
   lightning: 'Instantâneo. Do primeiro mago na linha, quica para inimigos próximos sem repetir alvo no mesmo lançamento e sem limite fixo de saltos. Alcance fixo; cada salto conserva 50% do dano e empurrão anteriores. Por 2 s: efeito elétrico, lentidão de 25% e Incapacitar, que pausa recargas sem impedir habilidades prontas. Outro lançamento pode acertar os mesmos alvos. Destrói projéteis no trajeto.',
@@ -534,7 +552,7 @@ geyser: `Invoca no chão um gêiser por ${n1(L1('geyser').duration)} s, a até $
   boomerang: 'Vai em curva até o ponto e volta para você; acerta na ida e na volta.',
   thrust: 'Você dispara até o ponto; o primeiro inimigo que tocar leva dano conforme a sua velocidade.',
   gravity: 'Orbe lento que puxa magos inimigos e projéteis e queima quem fica perto.',
-  rockpillar: `Uma barricada baixa (2 m) cai do céu atravessada no caminho e fica ${n1(L1('rockpillar').duration)} s: bloqueia magos e projéteis, e quem estiver embaixo leva ${n1(L1('rockpillar').dmg)} de dano e é jogado para o lado.`,
+  rockpillar: `Uma barricada baixa (2 m) cai do céu atravessada no caminho e permanece até ser destruída, sem tempo limite: bloqueia magos e projéteis, e quem estiver embaixo leva ${n1(L1('rockpillar').dmg)} de dano e é jogado para o lado.`,
   bouncer: `Acerta e pula para o mago mais perto, perdendo ${pct(1 - BOUNCER.decay)} do dano a cada inimigo.`,
   drain: 'Vai até o ponto e vira para o mago mais perto: no inimigo, dano, lentidão e a vida volta para você; no aliado, cura e acelera.',
   snowball: 'Bola lenta que atravessa e arrasta quem encosta, com dano, e explode no fim do caminho.',
@@ -543,18 +561,21 @@ geyser: `Invoca no chão um gêiser por ${n1(L1('geyser').duration)} s, a até $
   recharge: 'Se acertar, volta e zera a própria recarga; cada acerto seguido soma dano.',
   alteration: `Por ${n1(L1('alteration').duration)} s, troca de lugar com o primeiro projétil inimigo que chegar perto.`,
   link: 'Prende num mago e o puxa até você (com dano no inimigo); num obstáculo, puxa você até ele.',
-  windwalk: `Invisível e mais rápido por ${n1(L1('windwalk').duration)} s; o primeiro inimigo em que encostar leva dano. Lançar magia desfaz.`,
+  windwalk: `Visível e mais rápido por ${n1(L1('windwalk').duration)} s; o primeiro inimigo em que encostar leva dano. Lançar magia desfaz.`,
   splitter: 'Estoura no ponto (ou no primeiro que tocar) em 8 projéteis que se abrem em leque.',
   warpzone: 'Esfera que deixa lentos os projéteis inimigos que passam por ela e os inimigos que andam dentro dela.',
   scourge: `Explode em volta depois de ${n1(CAST_POINT.scourge)} s: empurra quem está perto e destrói projéteis inimigos; ao explodir, acaba o empurrão que você está sofrendo.`,
   pact: `A próxima magia de dano em ${n1(L1('pact').duration)} s faz ${n1(PACT.mult)}× de dano e empurrão.`,
 };
 const RULES_SHORT_EN: Record<SpellId, string> = {
+  transfusion: `Needs an ally: does nothing in free-for-all. Click a living ally within ${n1(L1('transfusion').range)} m (never yourself or enemies). The link lasts until interrupted or the target leaves range. Allied spell cooldowns recover +${n1(L1('transfusion').scale * 100)}% faster at level 1 and ${n1(L1('transfusion').scale * 100)} more percentage points per level (up to +${n1(spellLevel('transfusion', MAX_SPELL_LEVEL).scale * 100)}%); base cooldown values do not change. Costs ${SPELLS.transfusion.cost} gold. Cooldown ${n1(L1('transfusion').cd)} s, −1 s per level; range +1 m per level. You stand still and are incapacitated, pausing your cooldowns. Moving, Stop, attacking, another spell or caster stun ends it. Either participant dying or being suspended also ends it. An incapacitated ally still has paused cooldowns.`,
+  elemental: `Summons a random sphere: fire (red), water (blue), earth (brown), ki (white) or void (black). It orbits your hero for ${n1(L1('elemental').duration)} s independently of the others. Up to ${ELEMENTAL_SPHERES.max} spheres; elements can repeat. With ${ELEMENTAL_SPHERES.max} active, the cast is rejected without spending cooldown or refreshing existing spheres. Cooldown ${n1(L1('elemental').cd)} s; costs ${SPELLS.elemental.cost} gold, no level progression in this test. The spheres have no collisions and do not block projectiles. Each sphere stacks 5% of its own element effect: fire increases damage and knockback; water increases projectile speed and range; earth increases projectile size or actual spell area; ki increases the caster's outgoing spell healing and positive effect duration (e.g. Heal and Shield), never negative effects; void reduces all spell cooldown recovery speed. Ki does not extend the spheres' 30 s lifetime. No generic damage bonus.`,
   pix: `Mark the ground: coins rain on a ${n1(L1('pix').radius)} m radius for ${n1(PIX.rain)} s. Whoever adds up ${n1(PIX.soak)} s inside (allies too, never you; leaving keeps the time) repeats your commands for ${n1(L1('pix').duration)} s. They walk with the same offset as you, stop when you stop, use the Attack and cast each of your spells at the same point you aim (the two shots make a V), at your level and without spending their cooldown. What comes out of them is yours: it never hits you, and damage and kills (lava included) count for you. A red thread ties you together. It ends only with time or if you die.`,
   sniper: `Animated tension lines along the screen edges appear for the caster and spectators following that player. Draw a sniper rifle and track the selected enemy for ${n1(CAST_POINT.sniper)} s while stationary. Once charged, the Attack button (A) sparks and pressing A fires an instant shot for ${n1(L1('sniper').dmg)} base damage, with no knockback. Range ${n1(L1('sniper').range)} m; costs ${SPELLS.sniper.cost} gold with a ${n1(L1('sniper').cd)} s cooldown after firing. No level progression. Movement, Stop, stun or suspension interrupts; losing the target (dead, invisible or out of range) cancels without cooldown. Obstacles block the shot; respects invulnerability, Shield and general damage reductions.`,
   channel: 'Buy Channeling and press Attack + the key of another owned spell. Stand still while charging; left-click to cast after at least 1 s. At 1 s: +50% damage, range, projectile speed and knockback, increasing linearly to +100% at 2 s. Never fires automatically: holds maximum charge until you cast. Stop, movement or stun cancels. No cooldown of its own; the selected spell uses its normal cooldown. Buying Channeling disables basic attacks. Only existing attributes change, not healing, duration or status time.',
   closedbody: `Requires active Hold Ground. For up to ${n1(L1('closedbody').duration)} s at level 1 (+0.75 s per level, up to 8 s at level 7), reduces incoming damage, new knockback force and newly received negative status durations by 90%. Does not remove existing effects or impulses; stacks with existing resistances. Still takes 10% damage: not invulnerability. Releasing S ends it early; Hold Ground remains active after expiry while S stays held. Darkens the body and preserves Hold Ground facing, without turning toward the mouse. Cooldown ${n1(L1('closedbody').cd)} s.`,
   geyser: `Summons a ground geyser for ${n1(L1('geyser').duration)} s within ${n1(L1('geyser').range)} m, covering a ${n1(L1('geyser').radius)} m radius. Hits yourself, allies and enemies: the jet suspends them, immobile and invulnerable, unable to attack or cast until it ends. Units entering later are suspended only for the remaining time. Projectiles pass beneath suspended units without colliding with them. Deals no damage or knockback. Cooldown ${n1(L1('geyser').cd)} s.`,
+  nexus: "Creates a link between you and an ally, making you receive all their damage and part of their negative effects.",
   heal: `Select Heal using its key or the spell bar, then left-click the target's body (point and click), even in Quick/On release mode. Instantly restores ${n1(L1('heal').heal)} health to yourself or an ally within ${n1(L1('heal').range)} m, up to their maximum health. +6 healing and −1 s cooldown per level (20→14 s). Cannot heal enemies, copies or dead units; clicking the ground does not cast. Uses general healing and range modifiers.`,
   fireball: 'Straight projectile. Medium damage and knockback.',
   lightning: 'Instant. From the first wizard in line, jumps to nearby enemies without repeating targets in the same cast or a fixed jump limit. Fixed range; each jump keeps 50% of the previous damage and knockback. For 2 s: electrical effect, 25% slow and Incapacitate, which pauses cooldowns without blocking ready abilities. A new cast can hit the same targets. Destroys projectiles along its path.',
@@ -569,7 +590,7 @@ const RULES_SHORT_EN: Record<SpellId, string> = {
   boomerang: 'Curves to the point and comes back to you; hits on the way out and on the way back.',
   thrust: 'You dash to the point; the first enemy you touch takes damage based on your speed.',
   gravity: 'Slow orb that pulls enemy wizards and projectiles and burns anyone close.',
-  rockpillar: `A low barricade (2 m) falls from the sky across the path and stays ${n1(L1('rockpillar').duration)} s: it blocks wizards and projectiles, and whoever is under it takes ${n1(L1('rockpillar').dmg)} damage and is thrown aside.`,
+  rockpillar: `A low barricade (2 m) falls from the sky across the path and remains until destroyed, with no time limit: it blocks wizards and projectiles, and whoever is under it takes ${n1(L1('rockpillar').dmg)} damage and is thrown aside.`,
   bouncer: `Hits and jumps to the nearest wizard, losing ${pct(1 - BOUNCER.decay)} of the damage per enemy.`,
   drain: 'Goes to the point and turns to the nearest wizard: on an enemy, damage, slow and the health comes back to you; on an ally, heal and haste.',
   snowball: 'Slow ball that passes through and drags anyone it touches, with damage, and explodes at the end of the path.',
@@ -578,7 +599,7 @@ const RULES_SHORT_EN: Record<SpellId, string> = {
   recharge: 'If it hits, it comes back and resets its own cooldown; each consecutive hit adds damage.',
   alteration: `For ${n1(L1('alteration').duration)} s, swaps places with the first enemy projectile that comes close.`,
   link: 'Latches onto a wizard and pulls them to you (damaging the enemy); on an obstacle, pulls you to it.',
-  windwalk: `Invisible and faster for ${n1(L1('windwalk').duration)} s; the first enemy you touch takes damage. Casting a spell cancels it.`,
+  windwalk: `Visible and faster for ${n1(L1('windwalk').duration)} s; the first enemy you touch takes damage. Casting a spell cancels it.`,
   splitter: 'Bursts at the point (or at the first thing it touches) into 8 projectiles that fan out.',
   warpzone: 'Sphere that slows enemy projectiles passing through it and enemies walking inside it.',
   scourge: `Blasts around you after ${n1(CAST_POINT.scourge)} s: knocks back anyone close and destroys enemy projectiles; when it blasts, the knockback you are taking stops.`,
