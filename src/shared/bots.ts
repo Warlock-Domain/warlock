@@ -5,12 +5,13 @@ import type { Cmd, Projectile, Wizard, World } from './sim.ts';
 import { ITEM_IDS, itemPrice, type ItemId } from './items.ts';
 import { BAR_SPELLS, CAST_POINT, FREE_SPELLS, GRIP, MAX_SPELLS, METEOR_DELAY, PIX, SPELL_IDS, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { add, clampLen, dist, dot, len, norm, scale, sub, v, type Vec } from './vec.ts';
+import { ELEMENTAL_SPHERES } from './elemental-spheres.ts';
 import { CHANNEL, channelLevel, channelPower } from './channeling.ts';
 
 export type BotPick = { kind: 'spell'; id: SpellId } | { kind: 'item'; id: ItemId };
 // plano de compras: o que comprar, na ordem; depois da lista, como gastar o resto (menor nível, ordem do plano ou sorteio)
 export type BotPlan = { buys: BotPick[]; upgrade: 'lowest' | 'first' | 'random' };
-type Buyer = { gold: number; spells: Record<SpellId, number>; items?: Record<ItemId, number>; plan?: BotPlan };
+type Buyer = { gold: number; team?: number | null; spells: Record<SpellId, number>; items?: Record<ItemId, number>; plan?: BotPlan };
 
 // o bot antigo: 5 magias fixas, depois defesa, depois a magia de menor nível
 export const CLASSIC_PLAN: BotPlan = {
@@ -45,7 +46,7 @@ const ESCAPE: SpellId[] = ['shield', 'teleport', 'rush', 'windwalk', 'alteration
 const CONTROL: SpellId[] = ['grip', 'link', 'magnetize', 'pix'];
 // Situational spells (issue #373): bots cast them only in specific moments (hurt ally, enemy channelling, Hold ground, lava edge),
 // so they come on top of the escape spell instead of replacing it
-const SITUATIONAL: SpellId[] = ['channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
+const SITUATIONAL: SpellId[] = ['elemental', 'nexus', 'transfusion', 'channel', 'heal', 'geyser', 'closedbody', 'swap', 'sniper'];
 const GEAR: ItemId[] = ['armor', 'ring', 'boots', 'cape', 'vampire', 'lava_boots', 'warden'];
 export function smartPlan(rand: () => number): BotPlan {
   const take = <T>(a: T[], n: number) => shuffle([...a], rand).slice(0, n);
@@ -68,7 +69,7 @@ export function botBuy(p: Buyer, rand: () => number = Math.random, D: BotSkill =
   const plan = (p.plan ??= (botConfig.planner ?? (rand() < D.smart ? smartPlan : randomPlan))(rand));
   const level = (b: BotPick) => (b.kind === 'spell' ? p.spells[b.id] : (p.items?.[b.id] ?? 0));
   const price = (b: BotPick) =>
-    b.kind === 'spell' ? (p.spells[b.id] === 0 && spellCount(p.spells) >= MAX_SPELLS ? null : priceOf(b.id, p.spells[b.id])) : p.items ? itemPrice(p.items, b.id) : null;
+    b.kind === 'spell' ? ((b.id === 'transfusion' || b.id === 'nexus') && p.team == null || p.spells[b.id] === 0 && spellCount(p.spells) >= MAX_SPELLS ? null : priceOf(b.id, p.spells[b.id])) : p.items ? itemPrice(p.items, b.id) : null;
   const next = plan.buys.find((b) => level(b) === 0 && price(b) !== null);
   if (next) return price(next)! <= p.gold ? next : null;
   const seen = new Set<string>();
@@ -206,12 +207,12 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // erro humano nesta decisão: lança torto (até 45°) ou fica parado 0,5 s
   const slip = rand() < D.slip ? (rand() < 0.5 ? 'freeze' : 'turn') : null;
   const turn = slip === 'turn' ? ((rand() * 2 - 1) * Math.PI) / 4 : 0;
-  // um só lançamento por chamada: um segundo comando de magia no mesmo passo cancelaria o primeiro
-  const cast = (spell: SpellId, at: Vec) => {
+  // Only one spell per call: a second spell command in the same step would cancel the first.
+  const cast = (spell: SpellId, at: Vec, allowChannel = false) => {
     const r = sub(at, me.pos), c = Math.cos(turn), s = Math.sin(turn);
     // Channeling: a damage spell is charged to full first; the release uses this same aim (difficulty error, lead, slip),
     // and a dodge or walk in the meantime cancels the charge like a player's would
-    if (me.spells.channel > 0 && spellLevel(spell, me.spells[spell]).dmg > 0) {
+    if (allowChannel && me.spells.channel > 0 && spellLevel(spell, me.spells[spell]).dmg > 0) {
       if (!me.channel) return (cmds.length = 0, cmds.push({ id, kind: 'channel', spell }), cmds);
       if (me.channel.spell !== spell || w.t - me.channel.since < CHANNEL.max) return cmds;
     }
@@ -234,7 +235,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // A charged aim fires at once (the key costs no movement; the dodge comes on the next think). Before that, keep aiming while
   // nothing is coming; with a shot on the way the usual dodge runs and its move cancels the aim, as for a player.
   if (me.casting?.spell === 'sniper' && w.t + 1e-8 >= me.casting.fireAt) return [{ id, kind: 'cast', spell: 'sniper', at: me.casting.at }];
-  if (me.casting?.spell === 'sniper' && !th) return [];
+  if ((me.casting?.spell === 'sniper' || me.transfusion) && !th) return [];
   // Hold ground (Fernando's decision, 24/10, in the CLAUDE.md register): with no escape spell ready the bot holds S like a player.
   // The 0.5 s windup must finish before the hit, so it looks up to 0.9 s ahead (windup + one Normal think, 0.4 s); the old 0.6 s
   // trigger almost never finished the windup (6 bots: 28 uses, 0 active ticks). Once holding it renews without a new roll while the
@@ -289,7 +290,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     const o = p.kind === 'illusion' && p.until > w.t ? w.wizards.find((z) => z.id === p.owner && z.alive && !ally(z)) : undefined;
     return o && dist(p.pos, me.pos) <= vision ? [{ ...o, id: decoyId(p), pos: p.pos, vel: v(0, 0) }] : [];
   });
-  const foes = [...w.wizards.filter((z) => z.alive && !ally(z) && w.t >= z.windUntil && w.t >= z.veilUntil && dist(z.pos, me.pos) <= vision), ...decoys];
+  const foes = [...w.wizards.filter((z) => z.alive && !ally(z) && w.t >= z.veilUntil && dist(z.pos, me.pos) <= vision), ...decoys];
   const nearest = (zs: Wizard[]) => zs.reduce<Wizard | null>((a, z) => (!a || dist(z.pos, me.pos) < dist(a.pos, me.pos) ? z : a), null);
   // o Difícil caça: quem está fraco, perto da lava ou na frente do placar (a até 8 m); senão, o mais perto
   const top = Math.max(0, ...Object.values(scores));
@@ -421,8 +422,21 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
       go(safeInside(w, add(middle(w), jitter(3)), D.edge + 0.5));
     }
   }
-  // na Caminhada no vento qualquer magia a encerra: só corre para encostar no inimigo
+  // Casting ends Windwalk: keep running toward an enemy for the contact hit.
   if (w.t < me.windUntil) return enemy ? [...cmds.filter((c) => c.kind !== 'move'), { id, kind: 'move', to: enemy.pos }] : cmds;
+  // Anima Nexus after the escape and dodge branches: link to an ally in range with less HP than the bot
+  if (!me.casting && !me.nexus && ready('nexus')) {
+    const range = spellLevel('nexus', me.spells.nexus).range * me.rangeF;
+    const target = w.wizards.find(z => z !== me && z.alive && ally(z) && z.hp < me.hp && dist(z.pos, me.pos) <= range);
+    if (target) return cast('nexus', target.pos);
+  }
+  if (!me.casting && ready('transfusion')) {
+    const L = spellLevel('transfusion', me.spells.transfusion);
+    const recipient = w.wizards.filter((z) => z !== me && z.alive && ally(z) && dist(z.pos, me.pos) <= L.range * me.rangeF)
+      .sort((a, b) => Object.values(b.cd).reduce((n, cd) => n + Math.max(0, cd - w.t), 0) - Object.values(a.cd).reduce((n, cd) => n + Math.max(0, cd - w.t), 0))[0];
+    if (recipient && Object.values(recipient.cd).some((cd) => cd - w.t > 2)) return cast('transfusion', recipient.pos);
+  }
+  if (!me.casting && !threat && ready('elemental') && (me.spheres?.length ?? 0) < ELEMENTAL_SPHERES.max) return cast('elemental', me.pos);
   // Heal after the escape and dodge branches: a hurt bot first gets out of danger, then heals the most hurt ally in range
   if (!me.casting && ready('heal')) {
     const L = spellLevel('heal', me.spells.heal);
@@ -452,10 +466,10 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     return add(p, scale(v(-side.y, side.x), (rand() * 2 - 1) * D.aim));
   };
 
-  // Drenar ferido: cura com o dano que causar
+  // Drain when hurt: heal with the damage dealt.
   if (ready('drain') && me.hp < me.hpMax * 0.7) {
     const L = spellLevel('drain', me.spells.drain);
-    if (d < L.range) return cast('drain', lead(L.speed, CAST_POINT.drain));
+    if (d < L.range) return cast('drain', lead(L.speed, CAST_POINT.drain), true);
   }
   // projétil próprio a caminho do alvo (para Magnetizar e Zona de dobra)
   const incoming = w.projectiles.some((p) => p.owner === id && p.kind !== 'meteor' && p.kind !== 'warpzone' && p.kind !== 'illusion' && dist(p.pos, E.pos) < 4 && dot(p.vel, sub(E.pos, p.pos)) > 0);
@@ -478,7 +492,7 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
   // Atacar (decisão do Fernando, 24/10): sem nenhuma magia pronta, com o inimigo a até 6 m e sem obstáculo no meio, o bot usa o
   // ataque livre como o jogador; sem isso o humano teria um golpe que o bot nunca usa e o simulador não mediria o Atacar.
   // Desvio já decidido neste comando vem antes: parar 0,4 s para atacar jogaria fora a esquiva
-  if (!veiled && !me.basicCasting && w.t >= (me.basicReadyAt ?? 0) && d <= BASIC_ATTACK.range && !blocked(E.pos) && !SPELL_IDS.some((x) => x !== 'closedbody' && ready(x))) { // Closed body waits for Hold ground, so it never blocks the Attack
+  if (!veiled && !me.basicCasting && w.t >= (me.basicReadyAt ?? 0) && d <= BASIC_ATTACK.range && !blocked(E.pos) && !SPELL_IDS.some((x) => x !== 'closedbody' && x !== 'elemental' && ready(x))) { // Closed body waits for Hold ground, so it never blocks the Attack
     return [...cmds, { id, kind: 'basic', at: E.pos, target: E.id }];
   }
   let damage = false;
@@ -540,17 +554,23 @@ export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = 
     else if (L.dmg > 0) at = d < (L.range || 6) ? lead(L.speed, cp) : null;
     if (!at) continue;
     const to = at;
+    const attackAndMove = (move: () => Cmd) => {
+      cast(s, to, true);
+      // Keep follow-up movement with the released spell; sending it during charge cancels the charge immediately.
+      if (cmds.some((c) => c.kind === 'cast' && c.spell === s)) cmds.push(move());
+      return cmds;
+    };
     const opt =
-      s === 'windwalk' ? () => (cast(s, to), cmds.push({ id, kind: 'move', to: E.pos }), cmds)
-      : s === 'link' ? () => (cast(s, to), cmds.push(aside(E)), cmds) // já sai de lado enquanto o Elo voa
-      : () => cast(s, to);
+      s === 'windwalk' ? () => attackAndMove(() => ({ id, kind: 'move', to: E.pos }))
+      : s === 'link' ? () => attackAndMove(() => aside(E)) // Step aside after the charged Link releases.
+      : () => cast(s, to, true);
     if (prio) now ??= opt;
     if (s === 'meteor') meteor = opt;
     options.push({ run: opt, dmg: L.dmg > 0 });
     if (L.dmg > 0) damage = true;
   }
   if (!me.channel && free('scourge') && d < spellLevel('scourge', me.spells.scourge).radius * 0.8) {
-    options.push({ run: () => cast('scourge', me.pos), dmg: true });
+    options.push({ run: () => cast('scourge', me.pos, true), dmg: true });
     damage = true;
   }
   if (now) return now();

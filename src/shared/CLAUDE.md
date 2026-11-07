@@ -1,6 +1,8 @@
 # src/shared — game rules (run on the server and in the browser)
 
 
+Teams rounds spawn allies in compact formations on opposite sides of every arena; other modes keep their existing spawn layout.
+- Campaign checkpoints wait for `campaignPickers`: all connected human participants with owed/offered cards finish before the next encounter starts. Exclude bots,spectators and disconnected players; generate/clear offers before checking so exhausted upgrade pools cannot deadlock the group. Exploration keeps running; this is not the reading pause.
 
 Applies together with the root `CLAUDE.md`.
 
@@ -72,3 +74,4 @@ The appearance code stores the **position** of each option (7 digits, one per pi
 Teams supports 2, 3 or 4 teams through opts.teams (default2, capped by participant count). Preserve two-team RNG and opposite spawns; additional teams use separated safe anchors with compact allies. Fixed-team newcomers join the smallest team; count changes regroup next round. Other modes and Campaign teams remain unchanged.
 
 - team-lobby.ts validates manual Teams setup/ownership. Humans choose only themselves; only the creator assigns bot slots. Preserve explicit parties and fill Automatic slots, reject a single-team start, and keep manual team ids through rounds even when fewer players use nonadjacent colors.
+30/10 local Windwalk revision: windUntil is a visible speed/contact buff, not concealment. Invisibility and targeting exclusions use veilUntil only. Snapshot4096/its clock show the Windwalk speed buff;1024/2048 remain Illusion. Base duration grows2.6s to3.6s at every level; preserve speed, contact damage and existing interruption rules.
