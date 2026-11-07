@@ -987,8 +987,7 @@ function cast(w: World, wz: Wizard, spell: SpellId, at: Vec, power = 1, aimedId?
 const canTranscend = (wz: Wizard) => wz.spells.transcend > 0 && wz.spells.elemental > 0 && !wz.transcendence?.complete && !(wz.transcendLeft! > 0) && (wz.transcendence ? wz.transcendence.saved === 5 : wz.lastElement !== undefined);
 function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number, aimedId?: string, copy?: number) {
   if (spell === 'transcend' && !canTranscend(wz)) return;
-  if (spell === 'channel') return;
-  if (spell === 'elemental' && (wz.transcendence?.complete || ((wz.transcendence?.saved ?? 0) + (wz.spheres?.filter(s => s.until > w.t).length ?? 0)) >= ELEMENTAL_SPHERES.max)) return;
+  if (spell === 'channel' || spell === 'elemental') return;
   const level = copy ?? spellRank(wz, spell);
   if (!level || (copy === undefined && w.t < wz.cd[spell])) return;
   const bonus = elementalBonuses(wz.spheres, w.t, wz.transcendence);
@@ -2577,6 +2576,17 @@ export function stepWorld(w: World, cmds: Cmd[], rand: () => number = Math.rando
   for (const z of w.wizards) if (z.nexus && !nexusAlly(w, z)) z.nexus = undefined;
   prepWizards(w, rand);
   advanceLightning(w);
+  for (const z of w.wizards) {
+    if (!z.alive || isSuspended(z) || !z.spells.elemental || z.transcendence?.complete || w.t < z.cd.elemental) continue;
+    const spheres = z.spheres = (z.spheres ?? []).filter(s => s.until > w.t);
+    if (spheres.length + (z.transcendence?.saved ?? 0) >= ELEMENTAL_SPHERES.max) continue;
+    const L = wizardLevel(w, z, 'elemental');
+    const element = z.lastElement = ELEMENTS[Math.floor(w.rand() * ELEMENTS.length)];
+    if (z.transcendence?.element === element) z.transcendence.saved++;
+    else spheres.push({ element, until: w.t + L.duration });
+    z.cd.elemental = w.t + L.cd;
+    w.events.push({ k: 'fire', id: z.id, src: 'elemental' });
+  }
   shrinkArena(w);
   w.zones = w.zones.filter((z) => z.until > w.t);
   stepIsles(w);
