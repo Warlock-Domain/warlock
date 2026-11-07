@@ -1,7 +1,7 @@
 import { FRICTION, KB_PER_DMG, UNIT, WIZ_SPEED } from './constants.ts';
 
 export const SPELL_IDS = ['fireball', 'lightning', 'homing', 'shield', 'teleport', 'swap', 'grip', 'meteor', 'rush', 'cluster', 'boomerang', 'thrust', 'gravity', 'rockpillar', 'bouncer',
-  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone', 'scourge', 'pact', 'heal', 'geyser', 'closedbody', 'channel', 'sniper', 'pix', 'elemental', 'transcend'] as const;
+  'drain', 'snowball', 'illusion', 'magnetize', 'recharge', 'alteration', 'link', 'windwalk', 'splitter', 'warpzone', 'scourge', 'pact', 'heal', 'geyser', 'closedbody', 'channel', 'sniper', 'pix', 'transfusion', 'nexus', 'elemental', 'transcend'] as const;
 export type SpellId = (typeof SPELL_IDS)[number];
 export const isSpell = (x: unknown): x is SpellId => SPELL_IDS.includes(x as SpellId);
 // spells anyone can have on the bar: the Scourge is an item again (26/10, #227) and only fires through the spell path
@@ -15,7 +15,7 @@ export const SPELL_GROUP_IDS = {
   mobility: ['teleport', 'swap', 'rush', 'thrust', 'windwalk'],
   defense: ['shield', 'alteration', 'warpzone', 'rockpillar', 'illusion', 'closedbody'],
   control: ['grip', 'gravity', 'link', 'magnetize', 'drain', 'cluster', 'pix'],
-  support: ['heal', 'geyser'],
+  support: ['heal', 'geyser', 'transfusion', 'nexus'],
   utility: ['elemental', 'transcend'],
 } as const satisfies Record<string, readonly SpellId[]>;
 type SpellGroup = keyof typeof SPELL_GROUP_IDS;
@@ -64,8 +64,8 @@ export const SPELLS: Record<SpellId, Spell> = {
   thrust: { name: 'Estocada', en: 'Thrust', cost: 11, up: [6, 7, 8, 9, 10, 11], levels: zip([16.5, 14.5, 13, 12, 11, 10, 9], [50, 55, 60, 65, 70, 75, 80]).map(([cd, d]) => L({ cd: cd * 1.25 /* 18/10: ×1,15 e depois ×1,25 (17% acima com as ilhas) */, dmg: d, kbf: 1.2, speed: 1300 * UNIT, range: 900 * UNIT })) },
   // gravidade: orbe de 450 u/s por 900 u; dmg = dano por segundo em quem está a 250 u; pull = força em 550 u (sem empurrão)
   gravity: { name: 'Gravidade', en: 'Gravity', cost: 12, up: [7, 8, 9, 10, 11, 12], levels: zip([21, 20.5, 20, 19.5, 19, 18.5, 18], [20, 33.33, 46.67, 60, 73.33, 86.67, 100]).map(([cd, d], i) => L({ cd, dmg: d * 2, kbf: 0, speed: 450 * UNIT, range: 900 * UNIT, radius: 250 * UNIT, /* 18/10: dano por segundo ×2 (0,89 → 0,97) */ pull: (500 + 30 * i) * UNIT })) },
-  // pilar de pedra: obstáculo de 4 s no original a até 650..1100 u; recarga = AbilityCooldown (o cooldown2 do mesmo arquivo diz 24..12 e só aparece na dica)
-  rockpillar: { name: 'Barricada', en: 'Barricade', cost: 13, up: [5, 6, 7, 8, 9, 10], levels: zip([26, 24, 22, 20, 18, 16, 14], [650, 725, 800, 875, 950, 1025, 1100]).map(([cd, r]) => L({ cd: cd * 0.7, duration: 5, range: r * UNIT, dmg: 50 })) /* 18/10: recarga ×0,7 e 5 s (0,86 → 0,97); 22/10 (#206): cai do céu e dá 50 em quem está embaixo, com o empurrão do dano */ },
+  // Permanent single-level wall; price, health and level-one cast stats are retained.
+  rockpillar: { name: 'Barricada', en: 'Barricade', cost: 13, up: [], levels: steps(18.2, 0).map(cd => L({ cd, range: 650 * UNIT, dmg: 50 })) }, // Single purchasable level; repeated stats keep previously saved higher levels compatible.
   // ricochete: 900 u/s, vive 1 s e renova a cada mago tocado; perde 30% a cada inimigo acertado; empurrão 1,2
   bouncer: { name: 'Ricochete', en: 'Bouncer', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([19, 18, 17, 16, 15, 14, 13], [54, 62, 70, 78, 86, 94, 102]).map(([cd, d]) => L({ cd, dmg: d, kbf: 1.2, speed: 900 * UNIT, range: 900 * UNIT })) },
   // as dez restantes do Warlock Brawl (dono do jogo, 17/10): npc_abilities_custom.txt, base/shop.lua, spells/, projectiles/ e modifiers/
@@ -85,7 +85,7 @@ export const SPELLS: Record<SpellId, Spell> = {
   // AbilityCooldown do original tem só 6 valores (17 a 7): o nível 7 repete o 7, como o Dota faz
   link: { name: 'Elo', en: 'Link', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: zip([17, 15, 13, 11, 9, 7, 7], [12, 20, 28, 36, 44, 52, 60]).map(([cd, d]) => L({ cd: cd * 0.64, dmg: d * 2.5, kbf: 0, speed: 950 * UNIT, range: 860 * UNIT, pull: 1550 * 1.4 * UNIT })) /* 18/10: damage ×5, pull ×1.4 and cooldown ×0.64 (20% below fair against human-like bots); 24/10: damage halved (×2.5, 30 to 150 per second), owner exception without the simulator: held behind an obstacle, Link never released and killed */ },
   // caminhada no vento: 2,6 s invisível e +200 u/s; o primeiro inimigo encostado leva o dano (empurrão normal)
-  windwalk: { name: 'Caminhada no vento', en: 'Windwalk', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([29, 26, 23.5, 21, 19.5, 18.5, 17.5], [54, 60, 66, 72, 78, 84, 90]).map(([cd, d]) => L({ cd: cd * 1.25, dmg: d, duration: 2.6 })) }, // 18/10 bots humanos: recarga ×1,25 (16% e depois 19% acima no Normal)
+  windwalk: { name: 'Caminhada no vento', en: 'Windwalk', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: zip([29, 26, 23.5, 21, 19.5, 18.5, 17.5], [54, 60, 66, 72, 78, 84, 90]).map(([cd, d]) => L({ cd: cd * 1.25, dmg: d, duration: 3.6 })) }, // 18/10 bots humanos: recarga ×1,25 (16% e depois 19% acima no Normal)
   // divisor: 700 u/s por até 1 s (ou até o ponto); dmg = dano de cada um dos 8 filhotes
   splitter: { name: 'Divisor', en: 'Splitter', cost: 15, up: [7, 8, 9, 10, 11, 12], levels: steps(24, -1).map((cd, i) => L({ cd, dmg: 30 + 5 * i, speed: 700 * UNIT, range: 700 * UNIT })) },
   // zona de dobra: esfera de 4,5 s a até 700 u; scale = tempo dos projéteis inimigos dentro dela
@@ -100,9 +100,12 @@ export const SPELLS: Record<SpellId, Spell> = {
   sniper: { name: 'Solução deselegante', en: 'Inelegant Solution', cost: 30, up: [], levels: steps(35,0).map(cd => L({ cd, dmg: 350, kbf: 0, range: 20 })) },
   // Lula Pix (issue #416, Fernando's grill of 25 and 26/10): a 2.5 m coin rain up to 11 m away, 3 s of control at every level, upgrades only cut the cooldown; owner exception, measured later in the batch
   pix: { name: 'Lula Pix', en: 'Squid Pix', cost: 14, up: [6, 7, 8, 9, 10, 11], levels: steps(30, -1).map((cd) => L({ cd, duration: 3, radius: 2.5, range: 1100 * UNIT })) },
+  // Anima Nexus (Leonard's proposal, accepted as proposed on 31/10, PR #433): upgrades change only range and cooldown; measured in the next batch
+  nexus: { name: 'Anima nexus', en: 'Anima Nexus', cost: 25, up: [6, 7, 8, 9, 10, 11], levels: steps(15, -1).map((cd, i) => L({ cd, range: 7 + i })) },
   // Heal: measured on 24/10 (1.07 on Normal and Hard) and approved by Fernando; cost follows the other Support spells
   elemental: { name: 'Esferas elementais', en: 'Elemental Spheres', cost: 12, up: [], levels: steps(5, 0).map(cd => L({ cd, duration: 30 })) },
   heal: { name: 'Curar', en: 'Heal', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(45, 6).map((heal, i) => L({ heal, cd: 20 - i, range: 10 })) },
+  transfusion: { name: 'Transfusão mental', en: 'Mental Transfusion', cost: 25, up: [6, 7, 8, 9, 10, 11], levels: steps(22, -1).map((cd, i) => L({ cd, range: 10 + i, scale: (i + 1) / 5 })) }, // scale: extra ally cooldown seconds per second of the link; Leonard's numbers, owner exception of 31/10, measured later in the batch
   //24/10: área−25% pede raio×√0,75, não raio−25%; alcance reduzido a10m. CD/preço continuam provisórios.
   closedbody: { name: 'Corpo fechado', en: 'Closed Body', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(3.5, .75).map(duration => L({ cd: 20, duration })) }, // duration per level as requested; cost and cooldown under the owner exception, measured later in the batch
   geyser: { name: 'Gêiser', en: 'Geyser', cost: 12, up: [6, 7, 8, 9, 10, 11], levels: steps(20, -1).map(cd => L({ cd, duration: 2.5, radius: 1.5 * Math.sqrt(.75), range: 10 })) }, // −1 s cooldown per level like Heal, so upgrades buy something (owner exception: measured later in the batch)
@@ -172,7 +175,10 @@ export const SPLITTER = { spawnSpeed: 250 * UNIT, spawnLife: 0.48, waves: 4, chi
 // tempo de conjuração: a magia sai esse tempo depois da tecla (AbilityCastPoint do original era 0,2 s)
 export const CAST_POINT: Record<SpellId, number> = { fireball: 0.1, lightning: 0.1, homing: 0.1, shield: 0, teleport: 0, swap: 0, grip: 0.1, meteor: 0.1, rush: 0, cluster: 0.1, boomerang: 0.1, thrust: 0, gravity: 0.1, rockpillar: 0, bouncer: 0.1,
   drain: 0.1, snowball: 0.1, illusion: 0, magnetize: 0.1, recharge: 0.1, alteration: 0, link: 0.1, windwalk: 0, splitter: 0, warpzone: 0.1,
-  scourge: 0.5, pact: 0.1, heal: 0, geyser: 0.1, closedbody: 0, channel: 0, sniper: 3 /* 26/10: 4.5 → 3, Fernando's request, no simulator (same exception as 25/10) */, pix: 0.1, elemental: 0, transcend: 0 }; // Heal and Closed body are instant; Scourge keeps its windup; Geyser uses the common 0.1 s windup.
+  scourge: 0.5, pact: 0.1, heal: 0, geyser: 0.1, closedbody: 0, channel: 0, sniper: 3 /* 26/10: 4.5 → 3, Fernando's request, no simulator (same exception as 25/10) */, pix: 0.1, transfusion: 0, nexus: 0, elemental: 0, transcend: 0 }; // Heal and Closed body are instant; Scourge keeps its windup; Geyser uses the common 0.1 s windup.
+
+// Spells aimed at a wizard's body rather than a ground point: they stay armed until a valid click and show the crosshair.
+export const UNIT_TARGET_SPELLS: ReadonlySet<SpellId> = new Set<SpellId>(['heal', 'sniper', 'transfusion', 'nexus']);
 
 export const spellLevel = (id: SpellId, level: number): Level => SPELLS[id].levels[Math.max(1, Math.min(MAX_SPELL_LEVEL, level)) - 1];
 // highest level a spell can reach: one more than its upgrade prices (Channeling has a single level)
