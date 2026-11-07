@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CAMPAIGN, NIGHT_XP, SERVOS, nightCount, nightLevel, roomWaves, servoHp, xpShare } from '../src/shared/campaign.ts';
 import { fightOf, nightMap, type NightMap } from '../src/shared/levels.ts';
 import { WIZ_SPEED } from '../src/shared/constants.ts';
-import { addPlayer, endIdle, setWatch, kick, newMatch, removePlayer, resume, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
+import { addPlayer, campaignPickers, nightPick, endIdle, setWatch, kick, newMatch, removePlayer, resume, startMatch, startVote, tickMatch, type Match } from '../src/shared/match.ts';
 import { parseClientMessage, publicRoom } from '../src/shared/protocol.ts';
 import { mulberry32 } from '../src/shared/rng.ts';
 import { dist, v } from '../src/shared/vec.ts';
@@ -174,6 +174,12 @@ describe('Campaign: match on the map', () => {
     let now = toPlaying(m, 0);
     const n = mapOf(m);
     now = stepOn(m, now, 'a', checkpoint(n, i));
+    // This seed puts a chest near the checkpoint; finish its reward before testing combat waves.
+    for (let k = 0; k < 10 && m.night!.fight === null && campaignPickers(m).length; k++) {
+      for (const p of campaignPickers(m)) nightPick(m, p.id, 0);
+      now = step(m, now);
+    }
+    expect(m.night!.fight).toBe(i);
     shelter(m);
     const standing = () => m.world!.pillars.filter((q) => q.alive && inside(n, i, q.pos)).length;
     const before = standing();
