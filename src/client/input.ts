@@ -231,7 +231,7 @@ export function createInput(canvas: HTMLCanvasElement, h: InputHandlers) {
       cancel();
       arm(null);
     }
-  }, { capture: true });
+  }); // no capture: dialog() and the taunt wheel hold keys in the capture phase, and this listener must stay behind them
 
   return {
     setChannelState(on: boolean) { if (!on && channelArmed) arm(null); },

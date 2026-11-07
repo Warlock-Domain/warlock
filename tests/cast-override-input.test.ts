@@ -46,3 +46,26 @@ it('reserves inventory number keys and applies the active item preference', asyn
   cast.mockClear(); send('Digit3'); expect(cast).not.toHaveBeenCalled();
   input.setEnabled(false); setCastPreference('item:addicted_rings'); setKey('fireball', 'KeyQ');
 });
+
+it('lets an open dialog hold the keys, even when it was opened after the input started', async () => {
+  type Fn = (e: Record<string, unknown>) => void;
+  const down: { fn: Fn; capture: boolean }[] = [];
+  vi.stubGlobal('addEventListener', (name: string, fn: Fn, o?: { capture?: boolean }) => { if (name === 'keydown') down.push({ fn, capture: !!o?.capture }); });
+  vi.stubGlobal('innerWidth', 800); vi.stubGlobal('innerHeight', 600);
+  const { createInput } = await import('../src/client/input.ts');
+  const cast = vi.fn(() => true);
+  const input = createInput({ addEventListener() {} } as unknown as HTMLCanvasElement, {
+    pick: () => ({ x: 3, y: 0 }), move() {}, stop() {}, cast, center() {}, zoom() {}, pan() {}, armedChanged() {}, preview() {}, padRange() {}, me: () => ({ x: 0, y: 0 }), aim() {},
+  });
+  input.setEnabled(true); setSlotMode(false); setKey('fireball', 'KeyQ'); setCastMode('quick');
+  // same order as a real window: capture listeners first, each phase in registration order, stopped by stopImmediatePropagation
+  const press = () => {
+    let stopped = false;
+    const e = { code: 'KeyQ', repeat: false, preventDefault() {}, stopImmediatePropagation() { stopped = true; }, target: { tagName: 'CANVAS' } };
+    for (const l of [...down.filter(l => l.capture), ...down.filter(l => !l.capture)]) { if (stopped) return; l.fn(e); }
+  };
+  const dialog = { fn: (e: Record<string, unknown>) => (e.stopImmediatePropagation as () => void)(), capture: true };
+  down.push(dialog); press(); expect(cast).not.toHaveBeenCalled();
+  down.splice(down.indexOf(dialog), 1); press(); expect(cast).toHaveBeenCalledTimes(1);
+  input.setEnabled(false);
+});
