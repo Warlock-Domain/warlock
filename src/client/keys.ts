@@ -1,4 +1,6 @@
 // Teclas de cada magia e atalho da interface, trocáveis pelo jogador (guardadas no navegador), e os botões do controle.
+import { CAST_MODES, resolveCastMode, type CastMode } from './cast-preferences.ts';
+export { CAST_MODES, type CastMode } from './cast-preferences.ts';
 import { SPELL_IDS, type SpellId } from '../shared/spells.ts';
 import { t } from './i18n.ts';
 import { isRecord } from './saved-data.ts';
@@ -18,8 +20,8 @@ const DEFAULTS: Record<string, string> = {
   boomerang: 'KeyB', thrust: 'KeyX', gravity: 'KeyH', rockpillar: 'KeyZ', bouncer: '', basic: 'KeyA',
   // as dez últimas: sobraram 9 letras livres; a Zona de dobra fica sem tecla padrão (teclas por posição ou painel de teclas)
   drain: 'KeyN', snowball: 'KeyO', illusion: 'KeyJ', magnetize: 'KeyM', recharge: 'KeyK', alteration: 'KeyL', link: 'KeyU', windwalk: 'KeyI', splitter: 'KeyP', warpzone: '',
-  // Flagelo e Pacto ficam nas teclas que tinham como item (viraram magia em 21/10, #217)
-  scourge: 'Digit1', pact: 'Digit3', heal: '', geyser: '', closedbody: '', channel: '', sniper: '', pix: '', elemental: '', transcend: '',
+  // Scourge and Pact keep the keys they had as items (they became spells on 21/10, #217); the Scourge is an item again since 26/10 (#227) and stays on 1
+  scourge: 'Digit1', pact: 'Digit3', heal: '', geyser: '', closedbody: '', channel: '', sniper: '', pix: '', transfusion: '', nexus: '', elemental: '', transcend: '',
   // Shop: Dota's B belongs to Boomerang and all 26 letters are taken; 1 to 4 were position keys from 21/10 to 25/10 (#217), hence 7
   // (5 was already Replay the fall and 6 the camera, #235); sheet: the key left of 1 (' on ABNT2); Grimoire on F1 (H is Gravity) and the library on F2
   shop: 'Digit7', board: 'Tab', sheet: 'Backquote', taunt: 'KeyY', rules: 'F1', library: 'F2', stop: 'KeyS', vote: '', replay: 'Digit5', camera: 'Digit6',
@@ -103,12 +105,10 @@ export const slotSpell = (i: number): SpellId | undefined => slots[i] ?? undefin
 // jeito de lançar pela tecla no PC (decisão do Fernando, 18/10; os três do Dota), guardado no navegador:
 // quick = lança na hora (padrão, como sempre foi); release = segurar mostra o alcance, soltar lança;
 // click = a tecla escolhe a magia e mostra o alcance, o clique esquerdo lança (direito ou Esc cancelam)
-export const CAST_MODES = ['quick', 'release', 'click'] as const;
-export type CastMode = (typeof CAST_MODES)[number];
 const CAST_STORE = 'warlock:castmode';
 const savedCast = store.get(CAST_STORE);
 let castMode: CastMode = (CAST_MODES as readonly string[]).includes(savedCast ?? '') ? (savedCast as CastMode) : 'quick';
-export const getCastMode = () => castMode;
+export const getCastMode = (spell?: SpellId, code?: string) => resolveCastMode(castMode, spell && (spell === 'scourge' ? 'item:scourge' : 'spell:' + spell), code ?? (spell && keyOf(spell)));
 export function setCastMode(m: CastMode) {
   castMode = m;
   store.set(CAST_STORE, m);

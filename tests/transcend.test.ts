@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { elementalBonuses, elementalLevel, elementalPenalty, type Element } from '../src/shared/elemental-spheres.ts';
-import { addPlayer, buy, newMatch, startMatch, tickMatch, sandboxCmd } from '../src/shared/match.ts';
+import { applyCard } from '../src/shared/ascension.ts';
+import { addPlayer, buy, newMatch, sell, startMatch, tickMatch, sandboxCmd, undoBuy } from '../src/shared/match.ts';
 import { parseClientMessage } from '../src/shared/protocol.ts';
 import { encodeSnap, decodeSnap } from '../src/shared/snapshot.ts';
 import { parseServerMessage } from '../src/client/net-message.ts';
 import { demoWorld, demoStep } from '../src/client/demo.ts';
 import { createPredict } from '../src/client/predict.ts';
 import { damageFactor, isSuspended, stepWorld } from '../src/shared/sim.ts';
+import { noItems } from '../src/shared/items.ts';
 import { noSpells, SPELLS, spellLevel } from '../src/shared/spells.ts';
 import { v } from '../src/shared/vec.ts';
 import { run, world, toPlaying } from './helpers.ts';
@@ -147,6 +149,52 @@ describe('Transcend resource and ritual', () => {
     expect(JSON.parse(JSON.stringify(m.players[0])).transcendence).toEqual(z.transcendence);
     expect(sandboxCmd(m, { op: 'restart' }, now, 'p', () => .5)).toBe(true);
     expect(m.world!.wizards.find(z => z.id === 'p')!.transcendence).toEqual(z.transcendence);
+  });
+  describe('when the player gives up the spell', () => {
+    // Sandbox: the shop stays open during the round, and tickMatch copies the wizard's state back to the Player
+    function transcended() {
+      const m = newMatch(); addPlayer(m, 'p', 'Player', false, false, () => .5);
+      startMatch(m, 0, 0, 'rounds', true, () => .5, {}, [], true);
+      const now = toPlaying(m, 0, () => .5), p = m.players[0];
+      p.gold = 100; buy(m, 'p', 'elemental'); buy(m, 'p', 'transcend');
+      const z = m.world!.wizards.find(z => z.id === 'p')!;
+      z.transcendence = { element: 'fire', saved: 5, complete: true };
+      tickMatch(m, now + 17, [], () => .5);
+      expect(p.transcendence?.complete).toBe(true);
+      return { m, p, z, now: now + 34 };
+    }
+    it.each([['selling', sell], ['undoing the purchase of', undoBuy]])('%s Transcend removes the ritual for good', (_, giveUp) => {
+      const { m, p, z, now } = transcended();
+      expect(giveUp(m, 'p', 'spell:transcend')).toBe(true);
+      tickMatch(m, now, [], () => .5);
+      expect(p.transcendence).toBeUndefined(); expect(z.transcendence).toBeUndefined();
+      expect(elementalBonuses(z.spheres, m.world!.t, z.transcendence).fire).toBe(0);
+    });
+    it('removes it from a dead wizard shopping during Rounds', () => {
+      const m = newMatch(); for (const id of ['p', 'q', 'r']) addPlayer(m, id, id, false, false, () => .5);
+      startMatch(m, 0, 1, 'rounds', true, () => .5);
+      toPlaying(m, 0, () => .5);
+      const p = m.players[0], z = m.world!.wizards.find(z => z.id === 'p')!;
+      p.spells = { ...p.spells, elemental: 1, transcend: 1 };
+      p.transcendence = z.transcendence = { element: 'fire', saved: 5, complete: true };
+      z.alive = false;
+      expect(sell(m, 'p', 'spell:transcend')).toBe(true);
+      expect(p.transcendence).toBeUndefined(); expect(z.transcendence).toBeUndefined();
+    });
+    it('keeps the ritual when only Elemental Spheres is sold', () => {
+      const { m, p, now } = transcended();
+      expect(sell(m, 'p', 'spell:elemental')).toBe(true);
+      tickMatch(m, now, [], () => .5);
+      expect(p.transcendence?.complete).toBe(true);
+    });
+    it('removes it when an Ascension card swaps Transcend out', () => {
+      const kit = () => ({ spells: { ...noSpells(), fireball: 1, meteor: 1, boomerang: 1, lightning: 1, elemental: 1, transcend: 1 }, items: noItems(), transcendence: { element: 'fire' as Element, saved: 5, complete: true } });
+      const other = kit(), swapped = kit();
+      expect(applyCard(other, { kind: 'spell', id: 'heal' }, 'meteor')).toBe(true);
+      expect(other.transcendence).toBeDefined();
+      expect(applyCard(swapped, { kind: 'spell', id: 'heal' }, 'transcend')).toBe(true);
+      expect(swapped.transcendence).toBeUndefined();
+    });
   });
   it('demonstrates the ritual and permanent colored ranged attack using the real simulation', () => {
     const state = demoWorld('transcend'); let ritual = false, shot = false;
