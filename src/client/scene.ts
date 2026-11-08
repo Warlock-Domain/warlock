@@ -1,4 +1,9 @@
 import { createTranscendClip } from './transcend-pose.ts';
+import { createRockFootprint } from './rock-footprint.ts';
+import { createShieldMaterial, updateShieldMaterial, shieldImpact } from './shield-material.ts';
+import { createStoneImpactFx } from './stone-impact-fx.ts';
+import { createWallWear } from './wall-wear.ts';
+import { createWallBreakFx } from './wall-break-fx.ts';
 import { createTranscendFx, transcendLift } from './transcend-fx.ts';
 // Cena 3D: lava, arena de pedra que encolhe, magos (KayKit), projéteis e efeitos.
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
@@ -37,7 +42,7 @@ import type { NightMap } from '../shared/levels.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
-import { add, clampLen, len, scale, sub, v, type Vec } from '../shared/vec.ts';
+import { add, clampLen, len, norm, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 import { cellHash, nightProps } from './night-decor.ts';
 import { CANDLE } from '../shared/campaign.ts';
@@ -551,7 +556,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   let shake = 0; // tremor da câmera nos choques
   let warnR = -1;
   // Efeitos "Leve": sem tremor, sem hit-stop e sem partículas extras (PC fraco ou quem enjoa)
-  let lite = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  let lite = reducedMotion.matches;
   let celebrate = 0; // 0..1: zoom da câmera no vencedor no fim da rodada
 
   const glow = glowTexture();
@@ -833,6 +839,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     obj.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh && !(o as THREE.Line).isLine && !(o as THREE.Sprite).isSprite) return;
+      if (mesh instanceof THREE.InstancedMesh) mesh.dispose();
       if (!(o as THREE.Sprite).isSprite && mesh.geometry && !SHARED.has(mesh.geometry)) mesh.geometry.dispose();
       const mat = mesh.material as THREE.Material | THREE.Material[];
       (Array.isArray(mat) ? mat : [mat]).forEach((x) => x?.dispose());
@@ -956,7 +963,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: COLORS[d.color], transparent: true, opacity: 0.85, depthWrite: false }));
     ground(ring, 0.03);
     root.add(ring);
-    const shield = new THREE.Mesh(shieldGeo, new THREE.MeshBasicMaterial({ color: '#8fd3ff', transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending }));
+    const shield = new THREE.Mesh(shieldGeo, createShieldMaterial());
+    shield.name = 'Shield_Volume';
     shield.position.y = 0.8;
     shield.visible = false;
     root.add(shield);
@@ -1201,6 +1209,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   // Só recursos registrados na criação são próprios; clones GLTF e texturas continuam no cache.
   class ObstacleVisual {
+    updateWear?: (percent: number) => void;
     private readonly owned = new Set<THREE.BufferGeometry | THREE.Material>();
     constructor(readonly obj: THREE.Object3D = new THREE.Group()) {}
     own<T extends THREE.BufferGeometry | THREE.Material>(resource: T): T {
@@ -1232,10 +1241,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     // a origem do modelo fica numa ponta: centra no pedaço do meio e apoia no chão
     o.position.set((-(box.min.x + box.max.x) / 2) * k, -box.min.y * k, (-(box.min.z + box.max.z) / 2) * k);
     g.add(o);
+    const wear = createWallWear(o); g.add(wear.root); visual.updateWear = wear.update;
+    for (const resource of wear.owned) visual.own(resource);
     g.rotation.y = -Math.atan2(along.y, along.x); // o comprimento (x do modelo) no rumo dos pedaços
     return visual;
   }
-  const pillarMeshes: { visual: ObstacleVisual; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number; fallAt?: number }[] = [];
+  const pillarMeshes: { visual: ObstacleVisual; kind: PillarView['kind']; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number; fallAt?: number; hitAt?: number }[] = [];
   // baú: caixa simples com tampa dourada e brilho (é um obstáculo: as magias quebram)
   const chestWood = new THREE.MeshStandardMaterial({ color: '#7a4a22', roughness: 0.7 });
   const chestGold = new THREE.MeshStandardMaterial({ color: '#ffcc33', emissive: '#a06a00', metalness: 0.6, roughness: 0.3 });
@@ -1255,6 +1266,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   function makeObstacle(p: PillarView) {
     if (p.kind === 'chest') return makeChest();
     const model = decor.clone(OBSTACLE_MODEL[p.kind]);
+    if (p.kind === 'rock') {
+      const rock = createRockFootprint(model, OBSTACLES.rock.r), visual = new ObstacleVisual(rock.root);
+      for (const resource of rock.owned) visual.own(resource);
+      return visual;
+    }
     if (model) return new ObstacleVisual(model);
     const visual = new ObstacleVisual();
     visual.obj.add(new THREE.Mesh(visual.own(new THREE.CylinderGeometry(OBSTACLES[p.kind].r, OBSTACLES[p.kind].r, 2.2, 12)), visual.own(new THREE.MeshStandardMaterial({ color: '#6b625c' }))));
@@ -1619,7 +1635,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           const box = new THREE.Box3().setFromObject(obj);
           const width = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) || 1;
           // árvore é fina no tronco e larga nos galhos: mede pelo tronco (menos que a copa)
-          obj.scale.multiplyScalar((radius(p) * (p.kind === 'tree' ? 6 : 2.3)) / width);
+          if (p.kind !== 'rock') obj.scale.multiplyScalar((radius(p) * (p.kind === 'tree' ? 6 : 2.3)) / width);
         }
         const obj = visual.obj;
         obj.position.copy(w3(p.pos, 0));
@@ -1633,7 +1649,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         }
         const height = new THREE.Box3().setFromObject(obj).max.y;
         const fallAt = wall && p.hp > 0 && !before.has(`${p.pos.x},${p.pos.y}`) ? performance.now() / 1000 : undefined;
-        pillarMeshes.push({ visual, pos: p.pos, bar, fill, height, fallAt });
+        pillarMeshes.push({ visual, kind: p.kind, pos: p.pos, bar, fill, height, fallAt });
         // a lista muda no meio da rodada (baú, Pilar de pedra): o que já tinha quebrado não afunda de novo
         if (p.hp <= 0) obj.position.y = -3;
       });
@@ -1641,6 +1657,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     list.forEach((p, i) => {
       const m = pillarMeshes[i];
       const obj = m.visual.obj;
+      m.visual.updateWear?.(p.hp);
       if (p.hp <= 0) {
         obj.position.y = Math.max(-3, obj.position.y - 0.05);
         obj.visible = obj.position.y > -2.9;
@@ -1844,8 +1861,22 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (e.dmg > 0) impact(e.id, v(e.x, e.y), e.dmg);
       } else if (e.k === 'gold') goldNumber(v(e.x, e.y), e.n);
       else if (e.k === 'reflect') {
-        burst(v(e.x, e.y), '#8fd3ff', 2.4, 0.3, 0.8, FX.circle);
-        burst(v(e.x, e.y), '#cfeaff', 1.6, 0.25, 0.8, FX.light);
+        const mage = mages.get(e.id);
+        let shellHit = false;
+        if (mage && !mage.dead && mage.root.visible && mage.shield.visible) {
+          const centre = mage.shield.getWorldPosition(new THREE.Vector3());
+          // The simulation collides in the ground plane; map its contact onto the shell's equator.
+          if (Math.hypot(e.x - centre.x, e.y - centre.z) > .01) {
+            const local = mage.shield.worldToLocal(new THREE.Vector3(e.x, centre.y, e.y));
+            shieldImpact(mage.shield.material as THREE.ShaderMaterial, local, performance.now() / 1000);
+            shellHit = true;
+          }
+        }
+        if (shellHit) burst(v(e.x, e.y), '#cfeaff', .45, .16, .8, FX.light);
+        else {
+          burst(v(e.x, e.y), '#8fd3ff', 2.4, 0.3, 0.8, FX.circle);
+          burst(v(e.x, e.y), '#cfeaff', 1.6, 0.25, 0.8, FX.light);
+        }
       }
       else if (e.k === 'lightning') bolt(e.from, e.to, e.width);
       else if (e.k === 'vines') {
@@ -1871,10 +1902,33 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       } else if (e.k === 'scourge') {
         shockwave(v(e.x, e.y), e.r, '#ff7a1a');
         explosion(v(e.x, e.y));
+      } else if (e.k === 'wallBreak') {
+        const at = v(e.x, e.y);
+        const quiet = lite || reducedMotion.matches;
+        for (const offset of [-.6, 0, .6]) burst(v(e.x + e.dx * offset, e.y + e.dy * offset), '#b8a58c', quiet ? .65 : .95, quiet ? .45 : .8, .35, FX.smoke, quiet ? 0 : .35);
+        if (!lite && !reducedMotion.matches && fx.length < FX_CAP) {
+          const debris = createWallBreakFx(e.dx, e.dy);
+          debris.root.position.copy(w3(at)); debris.update(0); addFx(debris.root, 1.1, debris.update);
+          shockwave(at, 1.25, '#a99a84');
+        }
       } else if (e.k === 'pillar') {
-        // projétil batendo em obstáculo também explode
-        explosion(v(e.x, e.y));
-        burst(v(e.x, e.y), '#d8c8b8', 1.4, 0.3, 1.2, FX.smoke);
+        const stone = pillarMeshes[e.i], now = performance.now() / 1000;
+        if (stone && (stone.kind === 'rock' || stone.kind === 'pillar')) {
+          if (now - (stone.hitAt ?? -99) >= .08 && fx.length < FX_CAP) {
+            stone.hitAt = now;
+            const direction = norm(sub(v(camera.position.x, camera.position.z), stone.pos));
+            const at = add(stone.pos, scale(direction, OBSTACLES[stone.kind].r * 1.02));
+            const height = Math.max(.1, Math.min(.65, stone.height * .6));
+            burst(at, '#b8a58c', .65, .3, height, FX.smoke);
+            if (!lite && !reducedMotion.matches) {
+              const chips = createStoneImpactFx(); chips.root.position.copy(w3(at, height)); chips.update(0);
+              addFx(chips.root, .55, chips.update);
+            }
+          }
+        } else {
+          explosion(v(e.x, e.y));
+          burst(v(e.x, e.y), '#d8c8b8', 1.4, 0.3, 1.2, FX.smoke);
+        }
       } else if (e.k === 'clash') {
         const at = v(e.x, e.y);
         // Amplia só a destruição no ponto do projétil, nunca o feixe nem o raio das regras da magia.
@@ -2143,7 +2197,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.shield.visible = d.shield && d.alive;
       if (d.shieldR) m.shield.scale.setScalar(d.shieldR / 0.85);
       const shieldLeft = Math.max(0, 1 - (now - m.shieldSince) / SHIELD_SECS);
-      (m.shield.material as THREE.MeshBasicMaterial).opacity = 0.12 + 0.28 * shieldLeft;
+      updateShieldMaterial(m.shield.material as THREE.ShaderMaterial, .12 + .28 * shieldLeft, now, lite || reducedMotion.matches);
       m.shieldBar.hidden = !m.shield.visible;
       if (m.shield.visible) m.shieldFill.style.width = `${shieldLeft * 100}%`;
       // anel no chão: dourado pulsando invulnerável (começo da rodada), azul da runa com Escudo de runa

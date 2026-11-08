@@ -168,3 +168,14 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - Moving projectile trails use soft textured planes in the world ground plane, aligned to authoritative velocity. Keep them off fixed areas and Magic Hook vectors; do not apply Fireball/Snowball factories to elemental attacks. Cold-impact mist follows positive damage and is skipped in lite mode. Preserve the shared particle cap, visibility rules, source colors and ordinary simulation behavior.
 
 - Desktop combat chrome is scoped to the HUD and fine pointers: compact slate frame/slots use combat variables from style.css. Preserve category colors, armed/cooldown/focus/drag states, QWER/ASDF layout, touch media queries and existing shop/dialog components.
+
+- Arena/Campaign rock obstacles use rock-footprint.ts, centred inside OBSTACLES.rock.r with a visible stone base at that radius. Do not apply the generic max-width scale again. Own/dispose only the new base/fallback geometry/material; cached rubble resources stay shared. Preserve gameplay collision, HP and spell barricades.
+
+- Shield_Volume uses shield-material.ts on the existing shared sphere. Preserve authoritative scale/centre, fade and visibility. Clear centre and rim/reflection give volume without another shell/light; lite/reduced motion disables the subtle wave. Material is per-mage and disposed with other owned mage materials; geometry stays shared.
+
+- wall-wear.ts applies only to the spell Barricade central visual: cloned owned materials and static crack stages use authoritative hp percent. Register new materials/buffers with ObstacleVisual; keep cached textures/geometries shared. Preserve200HP, permanent duration, no upgrades and original collision.
+
+- wallBreak is authoritative and decoded before dispatch. Its cosmetic stone fragments/dust use the shared wall centre/axis, once per destroyed wall; no gameplay colliders. Omit ballistic fragments in lite/reduced motion and use existing FX disposal/cap.
+
+
+- Shield impact uniforms use confirmed reflect contacts transformed into shield-local coordinates. Keep the same shell geometry/draw call and authoritative radius; hidden/dead/expired shells must not show a ripple. Rock/pillar chips own one instanced geometry/material, expire in0.55s and use the FX cap/disposal; no chip colliders. Lite/reduced motion keeps dust/static fading shell highlight only.
