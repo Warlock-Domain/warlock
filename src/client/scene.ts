@@ -1,6 +1,11 @@
 import { createTranscendClip } from './transcend-pose.ts';
 import { createRockFootprint } from './rock-footprint.ts';
 import { createTrunkRoots } from './trunk-roots.ts';
+import { createLavaLandscape } from './lava-landscape.ts';
+import { restoreLavaDepth } from './background-depth.ts';
+import { mountainFootFragments } from './mountain-fragments.ts';
+import { lavaBasinGeometry } from './lava-basin.ts';
+import { createLavaChasm, CHASM_GLSL } from './lava-chasm.ts';
 import { createShieldMaterial, updateShieldMaterial, shieldImpact } from './shield-material.ts';
 import { createStoneImpactFx } from './stone-impact-fx.ts';
 import { createWallWear } from './wall-wear.ts';
@@ -315,6 +320,7 @@ const LAVA_VERT = `varying vec2 vUv; varying vec3 vPos; void main(){ vUv = uv; v
 const LAVA_FRAG = `
 uniform float uTime; uniform sampler2D uMap; uniform float uHas; uniform float uHeat; varying vec2 vUv; varying vec3 vPos;
 ${SHORE_GLSL}
+${CHASM_GLSL}
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.0-2.0*f);
   return mix(mix(hash(i), hash(i+vec2(1,0)), u.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), u.x), u.y); }
@@ -332,6 +338,7 @@ vec2 lavaCells(vec2 p){
   return vec2(closest.x, closest.y - closest.x);
 }
 void main(){
+  if(vPos.z>chasmEdge(vPos.x)) discard;
   vec2 p = vPos.xz * 0.28;
   float t = uTime * 0.025 * mix(0.25, 1.0, uLick);
   vec2 flow = vec2(fbm(p * 1.4 + t), fbm(p * 1.4 - t + 11.3));
@@ -452,10 +459,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     lavaMat.uniforms.uMap.value = t;
     lavaMat.uniforms.uHas.value = 1;
   });
-  const lava = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), lavaMat);
+  const lava = new THREE.Mesh(lavaBasinGeometry(), lavaMat);
   lava.renderOrder = -3;
   ground(lava, -0.02); // a pedra fica só 2 cm acima
   scene.add(lava);
+  const landscape = createLavaLandscape(); scene.add(landscape.root);
+  const chasm = createLavaChasm(landscape.cliffMaterial); scene.add(chasm.root);
+  landscape.root.add(mountainFootFragments([...landscape.rocks,...chasm.rocks],landscape.cliffMaterial,lava));
+  restoreLavaDepth(lava);
 
   // arena: a forma em escala 1 escalada pelo raio; o topo de pedra, a lateral brilha com a lava
   const meadow = createMeadowGround();
@@ -2658,7 +2669,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const k = (lastDist * 1.1) / innerHeight;
       pan.x -= dx * k;
       pan.z -= dy * k * 1.3;
-      pan.clampLength(0, 30);
+      pan.clampLength(0, curMap ? 30 : 65);
     },
     resetCamera() {
       pan.set(0, 0, 0);
@@ -2717,6 +2728,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       decor.night(state.map ? `${mapKey}|${state.map.opened.join()}` : '', () => (state.map ? nightProps(state.map.night, state.map.opened) : null)); // same key: nothing to do; an opened chest rebuilds the props (twice a night)
       mapGroup.visible = voidPlane.visible = onMap;
       lava.visible = arena.visible = warn.visible = !onMap;
+      landscape.update(now, !onMap, lite || reducedMotion.matches);
+      chasm.update(now, !onMap, lite || reducedMotion.matches);
       rim.visible = fissures.visible = !onMap;
       for (const c of cpMarks) c.mat.opacity = state.map?.done.includes(c.room) ? 0.15 : 0.55 + 0.35 * Math.sin(now * 3);
       fogs.forEach((f, i) => {

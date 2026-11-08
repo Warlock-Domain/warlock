@@ -116,3 +116,34 @@ The grass/earth/path/paving/glyph albedo and low shrub/clover/flower/pebble geom
 
 ## Original forest scenery models (2026-11-06)
 The leafy tree, separate bare tree, cut stump and angular gray rock in src/client/forest-obstacles.ts are original procedural models. Their canopy reuses the original procedural leaf texture; no model or image was extracted from the user reference. Dungeon keeps the credited existing KayKit models and slate textures.
+
+## Original distant lava landscape (2026-11-06)
+The faceted weathered cliffs, conifers and flowing lava ribbon in src/client/lava-landscape.ts are original procedural artwork. User-supplied waterfall photographs guide composition only and are not copied or bundled. The existing ambientCG lava surface remains credited above; its client shader now adds a west-to-east cosmetic flow around the arena.
+
+## Original lower lava chasm (2026-11-06)
+The32m cliff wall, valley bed, talus, lower lava pool and inlet/outlet ribbons in src/client/lava-chasm.ts are original procedural artwork. Both waterfalls share the original animated lava ribbon shader. Reference screenshots guide composition only; no artwork was extracted or imported.
+
+## Original mountain rock variations (2026-11-06)
+Four asymmetric rock geometries in src/client/mountain-rock.ts provide broad bases, irregular shoulders, ledges and uneven crests. They share the original procedural weathering/fissure material and are cached/instanced across the exterior landscape. No external models or textures were added.
+
+The lava waterline uses original procedural scorching in the same mountain material, without orange seams or glowing faults. No textures, models or lights were added.
+
+## Original waterfall landing effects (2026-11-07)
+`src/client/lava-fall-contact.ts` uses original procedural vapor/ripple shaders and low-poly instanced molten droplets at the three waterfall feet. No external images, models, textures or lights were added.
+
+The three waterfall ribbons use original asymmetric procedural edge shapes and small shader cutouts in `lava-landscape.ts`. No external artwork was added.
+
+## Original mountain atmosphere (2026-11-07)
+`src/client/mountain-haze.ts` adds original procedural atmospheric depth inside the existing exterior rock/tree materials, including instances. No textures, models, fog planes or lights were added.
+
+## Original mountain conifer crowns (2026-11-07)
+`src/client/mountain-tree.ts` supplies three original procedural tiered conifer crowns with asymmetric edges and vertex face shading. The shared geometry replaces the repeated plain cones on distant mountain trees; no external assets were added.
+
+## Original mountain ledge greenery (2026-11-07)
+`src/client/mountain-greenery.ts` reuses the original rounded shrubs from `meadow-plants.ts`, with original vertex shading and static placement on rock faces. Subdued moss patches reuse the existing procedural mountain noise in `lava-landscape.ts`. No external artwork, textures or lights were added.
+
+## Original mountain foot fragments (2026-11-07)
+`src/client/mountain-fragments.ts` uses original low-poly deformed stones and vertex shading with the existing mountain material. Sparse static instances blend the interior mountain feet into lava; no external assets were added.
+
+## Original mountain surface detail (2026-11-07)
+The mountain material in `src/client/lava-landscape.ts` uses original procedural grain, mineral chips and sparse angular cell seams, projected in world space with distant detail fading. No external texture, image, model or light was added.

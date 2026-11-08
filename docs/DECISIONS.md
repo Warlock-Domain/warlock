@@ -262,5 +262,62 @@ Add small tapered, uneven bark roots where forest trunks and cut stumps meet the
 ## Cave dead-tree grounding (2026-11-06)
 Extend the small tapered roots to the original dead tree in dungeon arena scenery, with darker bark. Preserve the original tree model, dimensions, pose and collision. Roots follow the tree's cosmetic yaw and damage animation without rescaling its canopy. Campaign retains its existing tree presentation.
 
+## Distant lava source landscape (2026-11-06)
+Add an original rocky escarpment with trees and a lava waterfall west of the arena, outside a30m clear radius. It supplies a cosmetic left-to-right current that bends around the arena. Scenery is visual only: no terrain, collision, targets, damage, pushes, lights or simulation RNG changes. Draw after lava but before the arena with depth writes disabled, so distant scenery cannot cover combat objects. Campaign remains unchanged; quiet/lite mode freezes the added waterfall motion.
+
+## Lower lava chasm (2026-11-06)
+After the western source, add a second waterfall south of the arena: a branch of the lower current spills over an irregular rocky lip more than33m from the arena centre and drops32m into a lower valley, continuing rightward. Match the top lava shader cutoff to the cosmetic wall lip; gameplay lava remains unchanged. Keep all added scenery behind combat objects and hidden in Campaign. Extend exterior arena camera dragging from30m to65m to inspect the tall drop; automatic battle framing, zoom and Space reset remain unchanged, and Campaign retains its30m limit.
+
+## Restore the still lava surface (2026-11-06)
+Remove the west-to-east surface current and its arena-wrapping distortion. Restore the exact pre-landscape surface mapping and subtle ambient behavior; keep the cliffs, lava cutoff and two descending waterfalls. Horizontal lower inlet/runout ribbons remain still. No gameplay changes.
+
+## Rocky banks around the lower spillway (2026-11-06)
+Add continuous low rocky chains with scattered trees along the left and right lower cliff lip. Keep only the central waterfall mouth open, visually containing the still lava elsewhere. Follow the existing lip, stay outside the combat area, reuse instanced geometry and add no collision or gameplay barriers. Campaign and the two waterfalls remain unchanged.
+
+## Upper-right lava source (2026-11-06)
+Keep the northeastern mountains and add a lava waterfall descending between their rocky ledges into the distant lava basin. Reuse the original lava ribbon effect and quiet/Campaign lifecycle; preserve the still surface, lower rocky banks and central spillway. No gameplay or collision changes.
+
+## Larger rounded lower mountain chains (2026-11-06)
+Replace the undersized lower-bank boulders with overlapping stratified rock masses roughly7–10m tall, matching the user's scale montage. Both sides follow smooth rounded curves into the lateral mountains instead of right-angle corners. Preserve the central waterfall opening and trees on the crests, still lava and unchanged gameplay. Rock weathering must use instance transforms so strata retain world scale.
+
 ## Cosmetic dungeon/forest scenery and object yaw (2026-11-06)
 Draw dungeon or forest scenery per room/round using a deterministic cosmetic hash shared by clients; never consume simulation RNG or change terrain geometry, obstacle types, HP, damage, collision radii or rewards. Dungeon restores the slate ground and original bones/candles/decorated columns/reddish rubble/dead-tree asset. Forest retains grass/earth and low plants, hides dungeon floor props, and maps pillar to leafy tree, shrine to cut stump, rock to angular gray rock and tree to a new original bare tree. The old bare-tree model is dungeon-only outside Campaign; Campaign art remains unchanged. New models expose the same ground footprint despite different silhouettes. Randomize visual yaw from the same room/round seed plus kind/position for arena-generated objects and dungeon floor props; keep it stable across snapshots/rebuilds/reconnects and leave spell Barricade orientation and Campaign objects intact. Preserve three-second damage HP bars across visual rebuilds.
+
+## Correct the third waterfall corner (2026-11-06)
+Remove the incorrectly placed eastern-side waterfall and place the third source in the referenced gap between the western cliffs and northern mountain ridge. Close that corner with overlapping mountain masses and trees so the scene has no empty gap. Keep the other waterfalls, still lava and gameplay unchanged.
+
+## Mountain-bounded exterior lava (2026-11-06)
+Replace the160m square exterior lava sheet with a polygon bounded inside the mountain chain, including the shared rounded lower-bank curves and central spillway. Remove lava behind the mountains and close the northeastern mountain connection. Preserve the complete31m arena/refuge surroundings, still surface appearance, waterfall contact points and all authoritative gameplay.
+
+## Natural mountain forms (2026-11-06)
+Refine the exterior mountains using four cached asymmetric rock variants with broken shoulders, ledges and subtle faults. Replace regular wavy bands with irregular weathering and dark fissures. Preserve the established chain scale and curves, broad ground coverage, waterfall openings, trees, bounded still lava and Campaign behavior. Use shared instanced variants for lower banks; no colliders or simulation changes.
+
+## Lava–rock contact (2026-11-06)
+Add a narrow irregular scorched band and sparse incandescent fissures where exterior mountain faces meet the upper lava surface. Keep the effect static and limited to the waterline, using existing rock materials/draw calls. Preserve stagnant lava, mountain forms and placement, waterfalls, gameplay and Campaign.
+
+## Remove orange mountain bases (2026-11-06)
+Remove the orange seams and incandescent faults from mountain bases following the user's screenshot. Retain the narrow dark scorched contact band and all existing scenery/gameplay.
+
+## Waterfall landing effects (2026-11-07)
+Add bounded heavy droplets, short ripples and low subdued vapor where the three decorative lava waterfalls land. Keep these details local to the landing points; the surrounding lava remains stagnant and mountain bases remain dark. Preserve waterfall placement, all gameplay and Campaign. Quiet/lite mode hides droplets and freezes the remaining detail.
+
+## Irregular waterfall edges (2026-11-07)
+Break the three waterfalls' straight strip silhouettes with asymmetric inward-only width variation and small irregular edge cutouts. Preserve the original center paths, maximum footprint, bank openings, landing effects and molten colors. Do not reshape horizontal inlet/runout ribbons or add motion to stagnant lava. Geometry remains static in quiet/lite mode; no gameplay changes.
+
+## Distant mountain haze (2026-11-07)
+Add subtle static atmospheric depth to distant exterior mountains and their trees, with reduced contrast and a muted cool gray tint. Anchor it to distance from the arena and height so camera inspection/zoom does not change the art. Preserve dark bases, the lower valley, lava, waterfalls, combat readability and Campaign. Reuse existing material draw calls without fog planes or lights.
+
+## Varied mountain tree crowns (2026-11-07)
+Give exterior mountain conifers three crown silhouettes with different proportions, asymmetric branches and subdued face shading. Keep tree positions and trunk anchors, use stable coordinate-based selection/yaw without consuming the placement RNG, and preserve haze. Arena forest trees and Campaign remain unchanged. Merge crown tiers per tree and use three instanced crown batches on the lower banks.
+
+## Sparse mountain ledge greenery (2026-11-07)
+Add small rounded shrubs on actual upper rock faces and subdued patches of moss on mountain ledges. Keep placement sparse, static and outside the combat surroundings, without consuming placement RNG. Reuse existing shrub geometry and mountain materials/haze; preserve dark lava-contact bases, waterfalls, all gameplay and Campaign.
+
+## Solid mountain occlusion (2026-11-07)
+Fix rear mountain faces appearing through front rocks by enabling depth writes for solid exterior rocks, trees and shrubs. Keep background depth separate from combat: after scenery, clear depth and redraw only the exact shared lava depth mask without color before the arena. Preserve lava clipping/cooling, Campaign visibility and pixel/normal passes; no geometry, placement or gameplay changes.
+
+## Mountain foot fragments (2026-11-07)
+Scatter small irregular rock fragments in sparse groups at the interior mountain feet, partly submerged in lava. Use actual rock intersections and the bounded lava mesh to avoid floating stones or exterior-map decoration. Leave combat surroundings and waterfall corridors clear, retain solid occlusion and hide in Campaign. No continuous base, colliders, gameplay RNG or lava flow changes.
+
+## Subtle mountain surface texture (2026-11-07)
+Refine exterior mountain materials with low-contrast mineral grain, small chips and broken irregular fissures instead of repeated stripe-like cracks. Use world-space dominant-face projection and derivative-based fading for fine detail. Preserve rock silhouettes, solid occlusion, dark bases, moss, haze, waterfalls and all gameplay. Add no textures, draw calls or motion.
