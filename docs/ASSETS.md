@@ -110,3 +110,9 @@ Original procedural hemispheres and expanding ripple rings in src/client/lava-bu
 
 ## Organic spell effects (31 October local)
 Original curved flame geometry and small ice facets in src/client/proj-models.ts. scene.ts reuses credited Kenney flame/smoke/light/star textures for soft directional trails and a short cold-impact mist. No new external artwork. Elemental sphere geometry and colors stay unchanged.
+
+## Original meadow arena artwork (2026-11-06)
+The grass/earth/path/paving/glyph albedo and low shrub/clover/flower/pebble geometries and leaf texture in src/client/meadow-ground.ts and src/client/meadow-plants.ts are original procedural artwork. User-provided landscape screenshots supplied visual direction only; no external image or texture is copied or bundled. Detail layout uses a private fixed visual seed, not simulation randomness.
+
+## Original forest scenery models (2026-11-06)
+The leafy tree, separate bare tree, cut stump and angular gray rock in src/client/forest-obstacles.ts are original procedural models. Their canopy reuses the original procedural leaf texture; no model or image was extracted from the user reference. Dungeon keeps the credited existing KayKit models and slate textures.

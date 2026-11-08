@@ -1121,6 +1121,7 @@ function startRoom(code: string, name: string) {
     const followingFocus=!ownFocus?.alive && watched && !watchCenter ? watched.id : null;
     const focusCaster=ownFocus?.alive?ownFocus:interp.latest()?.wizards.find(w=>w.id===followingFocus);
     scene.render({
+      scenerySeed: `${code}:${room?.round ?? 0}`,
       paused: campaignPaused(),
       sniperFocus: sniperFocusState(me,focusCaster,room?.phase==='playing',!!rs,nowMs/1000-(sniperShotTimes.get(focusCaster?.id ?? '') ?? -Infinity),followingFocus),
       blindAt: !rs && meW?.alive && (myWizard(interp.latest())?.blindLeft ?? 0) > 0 ? myPos : null,
