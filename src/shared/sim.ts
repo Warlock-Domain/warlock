@@ -190,6 +190,7 @@ export type Cmd =
   | { id: string; kind: 'transcendSpell'; spell: SpellId }
 
 export type SimEvent =
+  | { k: 'wallBreak'; x: number; y: number; dx: number; dy: number }
   | { k: 'sand'; id: string; x: number; y: number; dx: number; dy: number; length: number; width: number }
   | { k: 'heal'; id: string; x: number; y: number; amount: number }
   | { k: 'attack'; id: string; melee: boolean }
@@ -799,6 +800,10 @@ function damagePillar(w: World, i: number, dmg: number, by: string | null, quiet
   if (p.hp > 0) return;
   for (const q of mates) q.alive = false;
   const at = p.wall === undefined ? p.pos : w.pillars[p.wall].pos;
+  if (p.kind === 'rockpillar' && p.wall !== undefined && !quiet && by !== null) {
+    const along = mates.length >= 3 ? norm(sub(mates[2].pos, mates[1].pos)) : v(1, 0);
+    w.events.push({ k: 'wallBreak', x: at.x, y: at.y, dx: along.x, dy: along.y });
+  }
   const o = OBSTACLES[p.kind];
   // o ouro cai na pedra: baú que a lava pegou espalha o monte na beira de dentro
   if (p.kind === 'chest') w.loots.push({ pos: safeInside(w, p.pos, 0.6), left: p.gold ?? CHEST.pile[1], until: w.t + CHEST.pileSecs });
