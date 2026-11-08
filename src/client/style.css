@@ -281,6 +281,11 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .spell .cd { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: var(--fs-120); text-shadow: 0 1px 3px var(--ink); pointer-events: none; }
 /* recarga em varredura: a parte que falta (--cd, de 1 a 0, ui.ts) fica escura e a pronta clareia no sentido do relógio a partir do topo */
 .spell.cooling .cd, .spell.charging .cd { background: conic-gradient(rgba(0, 0, 0, .25) calc((1 - var(--cd, 1)) * 360deg), rgba(0, 0, 0, .68) 0); }
+.dota-bar .spell.cooling .cd-number { padding: var(--sp-2) var(--sp-4); border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--panel-solid); color: var(--fg); font-family: system-ui, sans-serif; font-variant-numeric: tabular-nums; font-size: var(--fs-100); line-height: 1; box-shadow: var(--shadow-sm); }
+.dota-bar .spell.cooldown-soon .cd-number { border-color: var(--gold); color: var(--gold-pale); }
+.dota-bar .spell.cooling .cd::after { content: ''; position: absolute; bottom: 0; left: 0; height: var(--sp-3); width: calc((1 - var(--cd, 1)) * 100%); background: var(--silver); }
+.dota-bar .spell.cooldown-soon .cd::after { background: var(--gold); }
+.dota-bar .spell:not(.cooling):not(.charging):not(.locked):not(.slot-empty):not(.passive):not([aria-disabled="true"]):not(:disabled)::after { content: ''; position: absolute; inset: auto var(--sp-4) 0; height: var(--sp-2); border-radius: var(--r-xs); background: var(--gold-line); pointer-events: none; }
 .spell.locked { opacity: .35; filter: grayscale(1); }
 .spell.armed { box-shadow: 0 0 0 2px var(--ember), 0 0 18px rgba(255, 179, 71, .6); }
 
@@ -288,6 +293,10 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .wiz-label { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); font-size: var(--fs-78); font-weight: 700; text-shadow: 0 1px 3px var(--ink), 0 0 2px var(--ink); white-space: nowrap; will-change: transform; }
 .dmg { position: absolute; left: 0; top: 0; font-family: var(--display); font-size: var(--fs-170); font-weight: 800; color: var(--red); -webkit-text-stroke: 1px var(--red-ink); text-shadow: var(--text-shadow), 0 0 3px var(--ink); pointer-events: none; will-change: transform, opacity; }
 .dmg.big { color: var(--gold); font-size: var(--fs-220); }
+.labels .dmg.combat-number { display: flex; align-items: baseline; gap: var(--sp-3); font-family: system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; -webkit-text-stroke: 0; text-shadow: -1px -1px 0 var(--ink), 1px -1px 0 var(--ink), -1px 1px 0 var(--ink), 1px 1px 0 var(--ink), 0 2px 4px var(--ink); }
+.combat-number .combat-count { padding: 0 var(--sp-2); border-radius: var(--r-xs); background: var(--panel-solid); color: var(--fg); font-size: var(--fs-68); font-weight: 700; }
+.combat-number { transform-origin: 100% 50%; }
+.combat-number.heal { transform-origin: 0 50%; }
 .wiz-label .bubble { background: var(--cream); color: var(--cream-ink); font-weight: 700; font-size: var(--fs-85); padding: 3px 9px; border-radius: var(--r-md); margin-bottom: 4px; white-space: nowrap; box-shadow: var(--shadow-sm); animation: pop .18s ease-out; }
 @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 /* roda de provocações por cima da arena, translúcida; sem panel-in, que sobrescreve o transform da centralização até terminar */
@@ -830,6 +839,13 @@ html.pad .shop-item:focus-within .shop-tile { border-color: var(--pad-focus); }
 .end-title { margin: 0; font-family: var(--display); font-size: clamp(2.6rem, 9vw, 4.2rem); line-height: 1; letter-spacing: .06em; color: var(--fg); }
 .end-title.win { background: linear-gradient(180deg, var(--gold-pale), var(--gold) 45%, var(--lava-hi)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 4px 18px rgba(255, 150, 30, .55)) drop-shadow(0 0 2px var(--ink)); }
 .end-title.loss { color: var(--silver); }
+.match-result { --result-tint: var(--silver); border-top: 3px solid var(--result-tint); }
+.match-result.win { --result-tint: var(--gold); }
+.match-result.loss { --result-tint: #aab9cb; }
+.match-result .end-head { padding: 22px 12px 18px; border-bottom: 1px solid var(--line); background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--result-tint) 15%, transparent), transparent 72%); }
+.end-emblem { display: grid; place-items: center; width: 64px; height: 64px; margin-bottom: 8px; border: 1px solid var(--result-tint); outline: 1px solid color-mix(in srgb, var(--result-tint) 25%, transparent); outline-offset: 5px; border-radius: 50%; background: var(--panel2); color: var(--result-tint); box-shadow: 0 0 24px color-mix(in srgb, var(--result-tint) 15%, transparent); }
+.end-emblem .gi { width: 34px; height: 34px; }
+@media (max-width: 600px) { .match-result .end-head { padding: 12px 8px; } .end-emblem { width: 46px; height: 46px; } .end-emblem .gi { width: 26px; height: 26px; } }
 .end-winner { font-family: var(--display); font-size: var(--fs-125); }
 @media (max-width: 420px) { .end-actions { grid-template-columns: 1fr; } }
 /* modo treino: botão na sala de espera e a dica do momento no alto da tela */

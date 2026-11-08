@@ -231,3 +231,15 @@ Every new decision gets a row here (date, decision, why) in the same PR as the c
 31/10 local art-direction pass, stage3: balance arena lighting with a near-neutral warm key, cool sky/back fill and four bounded shadowless warm shore lights. Reduce the strong central orange bounce so wardrobe colors and materials remain readable; warm light is strongest near lava. Follow shape/shrink, attenuate during cooling and tiny arenas, keep the existing single shadow caster, and restore the exact prior Campaign sky/key palette with extra lights hidden there. Preserve terrain, all graphical effects and gameplay. Local user authorization; no master integration or publication.
 
 31/10 local art-direction pass, stage4: soften moving-projectile trails with translucent textured planes aligned to received velocity; animate fire trails with existing credited frames. Give Fireball curved flame tongues and a less overexposed core; replace Snowball's regular seam ring with ice facets and a short low-opacity cold mist on positive damage. Preserve projectile/elemental identities, original size scaling, fixed-area borders, trajectory, reflection, spell numbers, zero-damage behavior, visibility and effect cap. Lite mode shortens/fades trails and omits extra mist. Local user authorization; no master integration or publication.
+
+## Local match result presentation (2026-11-05)
+The end screen uses its existing authoritative win/loss/neutral result for a framed emblem, matching colour and soft header light. Keep winner text, podium order, statistics and replay/lobby actions unchanged. Neutral/spectator results use the board emblem instead of a victory trophy.
+
+## Local HUD cooldown readability (2026-11-06)
+Improve countdown contrast with a compact plate and tabular digits, a bottom progress edge and static gold emphasis in the final second. Keep existing ready flash/audio, authoritative cooldown values, keys, spell slots, category colours and cast settings. No new sounds or gameplay changes.
+
+## Meteor landing warning (2026-11-06)
+Remove the repeated ground-height flame bursts while Meteor is airborne. Keep the falling rock and attached flame, authoritative ground warning circle, impact explosion and all gameplay timing/radius/damage unchanged. Magic Hook retains its own existing trail. User-requested local visual correction only.
+
+## Local combat number readability (2026-11-06)
+Floating damage/healing uses outlined tabular digits and separate left/right screen-space lanes. Immediately display each existing eligible value; merge same-target/same-kind values within a fixed180ms window, with an occurrence count. Critical/strong-hit styling depends on individual hits, never an accumulated total; keep critical groups separate. Cap each target/kind at3live labels, expire after the original1.2s, clear labels for hidden/missing targets and preserve blindness. Existing sub5damage suppression and healing HP-gain/regeneration thresholds stay unchanged. Lite/reduced motion keeps static labels with a fade. Gold labels and all simulation remain unchanged.
