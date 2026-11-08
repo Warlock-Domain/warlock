@@ -168,3 +168,7 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - Moving projectile trails use soft textured planes in the world ground plane, aligned to authoritative velocity. Keep them off fixed areas and Magic Hook vectors; do not apply Fireball/Snowball factories to elemental attacks. Cold-impact mist follows positive damage and is skipped in lite mode. Preserve the shared particle cap, visibility rules, source colors and ordinary simulation behavior.
 
 - Desktop combat chrome is scoped to the HUD and fine pointers: compact slate frame/slots use combat variables from style.css. Preserve category colors, armed/cooldown/focus/drag states, QWER/ASDF layout, touch media queries and existing shop/dialog components.
+
+- Casting cues use confirmed cast/fire events and basic/channel snapshots. casting-fx owns hand sprite materials, never the shared texture. Undo its torso quaternion layer before mixer sampling; omit it for specialized poses and lite/reduced motion. Clear cues when hidden/dead or removed and dispose on appearance replacement.
+
+- movement-pose.ts adjusts only wardrobe animation rate and a reversible model quaternion layer from bounded observed travel. Undo its layer before mixer sampling; keep the actor root/facing exact. Restrict lean to ordinary idle/running, reset on discontinuities/special poses, and omit lean in lite/reduced motion.
