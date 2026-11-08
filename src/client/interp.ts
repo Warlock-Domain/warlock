@@ -55,7 +55,7 @@ export class SnapshotInterpolator {
     if (!a || t >= b.time) return b;
     if (t <= a.time) return a;
     const k = (t - a.time) / (b.time - a.time || 1);
-    const wizards: WizView[] = b.wizards.map((wb, j) => {
+    const wizards: SnapView['wizards'] = b.wizards.map((wb, j) => {
       const wa = a.wizards[j];
       if (!wa || !wa.alive || !wb.alive) return wb;
       return { ...wb, pos: v(lerp(wa.pos.x, wb.pos.x, k), lerp(wa.pos.y, wb.pos.y, k)), facing: lerpAngle(wa.facing, wb.facing, k) };

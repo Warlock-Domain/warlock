@@ -1,4 +1,5 @@
 // Simulação 2D da arena. Pura: o servidor roda a 60 passos/s; o cliente usa moveWizard para prever o próprio mago.
+import { ABYSS, DARKNESS, HEARTH_CLEAR_RADIUS, ICE, hasWorldHearth, type WorldEnd } from './world-end.ts';
 import {
   ARENA_MIN, ARENA_STEP, CHEST, CREDIT_WINDOW, ZONES, DM_RESPAWN, DM_SPAWN_GAP, OBSTACLES, OBSTACLE_KINDS, PILLAR, type ObstacleKind, DT, FRICTION, HP_MAX, HP_REGEN, INVULN_TIME, KB_PER_DMG, KB_SOFT_CAP, KNOCK_HP_SCALE, LAVA_DPS, LAVA_KB_FACTOR, PROJ_R, SHRINK_EVERY, SPAWN_INSET, STUN_SPEED,
   ISLAND, NO_MODS, PIT, PROJ_SPAWN, RUNE, RUNE_KINDS, SUDDEN, SWORDS, WALL_GAP, WIZ_R, WIZ_SPEED, arenaRadius, type RoundEffectId, type RoundMods, type RuneKind,
@@ -47,6 +48,10 @@ export type Wizard = {
   puppetBy?: string; // Squid Pix: who controls this wizard until puppetUntil
   puppetUntil?: number;
   target: Vec | null;
+  torchLeft?: number;
+  darkLeft?: number;
+  ledge?: { left: number; progress: number; spot: Vec; rescuer?: string };
+  hazardDeath?: 'cold' | 'darkness' | 'abyss';
   moveHeld?: boolean; // direito pressionado preserva tentativa contra obstáculo.
   blockedMove?: boolean; // destino de clique único cancelado por colisão.
   facing: number;
@@ -245,6 +250,7 @@ export type Zone = { pos: Vec; r: number; kind: 'burn' | 'slow' | 'pull'; until:
 
 type LightningHop = { at: number; caster: string; target: string; from: Vec; fromId?: string; struck: string[]; power: number; original: number; reach: number; width: number; stats: Level; landed: boolean };
 export type World = {
+  worldEnd?: WorldEnd;
   lightningHops?: LightningHop[];
   t: number;
   arena: ArenaId; // formato desta rodada (arena.ts)
@@ -392,7 +398,11 @@ export function newWorld(
 }
 
 // no mapa da Campanha a lava é chão desenhado (^): o mesmo dano, crédito e queima da arena (Lucas, 22/10)
-export const inLava = (w: World, p: Vec) => (w.map ? cellAt(w.map, p.x, p.y) === CELL.lava : inLavaAt(w.arena, w.arenaR, w.isles, p));
+const outsideSafeGround = (w: World, p: Vec) => inLavaAt(w.arena, w.arenaR, w.isles, p);
+export const inLava = (w: World, p: Vec) => w.map
+  ? cellAt(w.map, p.x, p.y) === CELL.lava
+  : (!w.worldEnd || w.worldEnd === 'lava') && outsideSafeGround(w, p);
+export const inBlizzard = (w: World, p: Vec) => !w.map && w.worldEnd === 'ice' && outsideSafeGround(w, p);
 
 // ilhas: com alguém em cima a lava come a borda; vazia, a pedra volta a crescer (menos quando a arena já está sumindo: a rodada tem de acabar)
 function stepIsles(w: World) {
@@ -605,6 +615,7 @@ function mark(w: World, target: Wizard, by: string, src: string) {
 const afflictBy = (w: World, id: string) => byId(w, id)?.afflict ?? 1;
 
 function hit(w: World, target: Wizard, by: string, dmg: number, knock: number, dir: Vec, src: string, knockDmg = dmg, transferred = false, depth = 0, originAttacker?: Wizard) {
+  if (target.ledge) return;
   // a controlled body never hurts its controller (Fernando's grill of 25/10: "everything is yours")
   if (!transferred && by !== target.id && actor(w, by) === target.id) return;
   by = actor(w, by);
@@ -822,6 +833,11 @@ function blockPillars(w: World, walking?: ReadonlySet<Wizard>) {
       else if (w.pillars[p.wall] === p) w.events.push({ k: 'clash', x: p.pos.x, y: p.pos.y, combo: 'pillar', r: 1.1 });
     }
     if (!p.alive) continue;
+    if (!w.map && w.worldEnd === 'abyss' && outsideSafeGround(w, p.pos)) {
+      p.alive = false;
+      if (p.wall !== undefined) for (const part of w.pillars) if (part.wall === p.wall) part.alive = false;
+      continue;
+    }
     // baú na lava quebra sozinho (Fernando, 18/10)
     if (p.kind === 'chest' && edge(w, p.pos) < 0) {
       damagePillar(w, w.pillars.indexOf(p), p.hp, null);
@@ -830,9 +846,9 @@ function blockPillars(w: World, walking?: ReadonlySet<Wizard>) {
     // An obstacle the shrinking arena left in the lava burns at a wizard's lava rate (round effect included) until it breaks;
     // quiet: no hit flash or sound every step, only the usual break effect at the end (Fernando, 25/10).
     // The wall's pieces share one health, so it burns once per step however many pieces are in the lava
-    if (inLava(w, p.pos) && (p.wall === undefined || !burnt.has(p.wall))) {
+    if ((inLava(w, p.pos) || inBlizzard(w, p.pos)) && (p.wall === undefined || !burnt.has(p.wall))) {
       if (p.wall !== undefined) burnt.add(p.wall);
-      damagePillar(w, w.pillars.indexOf(p), LAVA_DPS * DT * w.mods.lava, null, true);
+      damagePillar(w, w.pillars.indexOf(p), LAVA_DPS * DT * (inBlizzard(w, p.pos) ? ICE.damageRatio : w.mods.lava), null, true);
       if (!p.alive) continue;
     }
     for (const wz of w.wizards) {
@@ -2047,7 +2063,7 @@ function stepProjectiles(w: World) {
 const ELASTICITY = 0.5;
 
 function separate(w: World) {
-  const alive = w.wizards.filter((z) => z.alive && !isSuspended(z));
+  const alive = w.wizards.filter((z) => z.alive && !z.ledge && !isSuspended(z));
   for (let i = 0; i < alive.length; i++) {
     for (let j = i + 1; j < alive.length; j++) {
       const a = alive[i];
@@ -2094,6 +2110,7 @@ function respawn(w: World, wz: Wizard, rand: () => number) {
 // volta vivo em pos (deathmatch e as ondas da Campanha): vida cheia, parado e invulnerável; magias, itens e recargas ficam
 export function revive(w: World, wz: Wizard, pos: Vec) {
   Object.assign(wz, {
+    torchLeft: undefined, darkLeft: undefined, ledge: undefined, hazardDeath: undefined,
     alive: true, pos, vel: v(0, 0), target: null, casting: null, channel: undefined, stunLeft: undefined, recoveryLeft: 0, moveHeld: false, blockedMove: false, hp: wz.hpMax, dmgTaken: 0, lastHitBy: null,
     ricochetRange: undefined, nexus: undefined, transfusion: undefined, transcendLeft: 0, transcendAt: undefined, thrustStats: undefined, windStats: undefined, spheres: undefined, closedBodyWeak: false, blindUntil: 0, incapacitateUntil: 0, closedBodyUntil: 0, geyserLeft: 0, geyserAt: undefined, puppetBy: undefined, puppetUntil: 0,
     shieldUntil: 0, pactUntil: 0, dashUntil: 0, thrustUntil: 0, invulnUntil: w.t + INVULN_TIME,
@@ -2104,11 +2121,13 @@ export function revive(w: World, wz: Wizard, pos: Vec) {
 
 // ponto sorteado na pedra longe dos obstáculos e dos magos (baú e runa); null se 20 sorteios não acharem
 // (a margem da borda nunca recusa no círculo: lá o sorteio já fica a 40% do raio da borda)
-function freeSpot(w: World, rand: () => number, spread: number): Vec | null {
+function freeSpot(w: World, rand: () => number, spread: number, objectRadius: number): Vec | null {
+  const clearance = hasWorldHearth(w.worldEnd) ? HEARTH_CLEAR_RADIUS + objectRadius : 0;
   for (let i = 0; i < 20; i++) {
     const a = rand() * Math.PI * 2;
     const r = Math.sqrt(rand()) * w.arenaR * spread * SHAPES[w.arena].reach;
     const p = v(Math.cos(a) * r, Math.sin(a) * r);
+    if (r < clearance) continue;
     if (inArena(w, p, Math.min(1, w.arenaR * 0.2)) && w.pillars.every((q) => !q.alive || dist(q.pos, p) > 1.2) && w.wizards.every((z) => !z.alive || dist(z.pos, p) > 1)) return p;
   }
   return null;
@@ -2120,7 +2139,7 @@ function stepRunes(w: World, rand: () => number) {
   if (kept.length < w.runes.length) w.runeAt = w.t + RUNE.every;
   w.runes = kept;
   if (!w.runes.length && w.t >= w.runeAt) {
-    const at = freeSpot(w, rand, RUNE.spread);
+    const at = freeSpot(w, rand, RUNE.spread, RUNE.reach);
     if (at) {
       const kind = RUNE_KINDS[Math.floor(rand() * RUNE_KINDS.length)];
       w.runes.push({ pos: at, kind });
@@ -2142,7 +2161,8 @@ function stepRunes(w: World, rand: () => number) {
 export function placeRune(w: World, kind: RuneKind, near: Vec | null, rand: () => number = Math.random): boolean {
   const side = near && len(near) > 1.5 ? scale(norm(near), -1.5) : v(1.5, 0);
   const close = near && add(near, side);
-  const at = close && inArena(w, close, 0.3) ? close : freeSpot(w, rand, RUNE.spread);
+  const clear = !hasWorldHearth(w.worldEnd) || close && len(close) >= HEARTH_CLEAR_RADIUS + RUNE.reach;
+  const at = close && clear && inArena(w, close, 0.3) ? close : freeSpot(w, rand, RUNE.spread, RUNE.reach);
   if (!at) return false;
   w.runes = [{ pos: at, kind }];
   w.events.push({ k: 'rune', kind, x: at.x, y: at.y });
@@ -2331,12 +2351,12 @@ function applyCmds(w: World, cmds: Cmd[]) {
   for (const c of cmds) {
     const wz = byId(w, c.id);
     if (wz && c.kind === 'cast' && c.spell === 'nexus' && wz.nexus) { wz.nexus = undefined; continue; }
-    if (!wz || isSuspended(wz) || puppeteer(w, wz)) continue; // a controlled wizard's own commands do nothing
+    if (!wz || wz.ledge || isSuspended(wz) || puppeteer(w, wz)) continue; // a controlled wizard's own commands do nothing
     applyCmd(w, wz, c);
     // Squid Pix: walking, stopping and the Attack repeat with the same offset (spells repeat in cast()); Hold ground and Channeling
     // stay out so the controller cannot freeze the target in place (grill of 25/10)
     if (c.kind === 'move' || c.kind === 'moveHold' || c.kind === 'stop' || c.kind === 'basic') for (const z of puppetsOf(w, wz)) {
-      if (isSuspended(z)) continue;
+      if (z.ledge || isSuspended(z)) continue;
       if (c.kind === 'move') applyCmd(w, z, { ...c, to: add(z.pos, sub(c.to, wz.pos)) });
       else if (c.kind === 'basic') applyCmd(w, z, { ...c, at: add(z.pos, sub(c.at, wz.pos)), target: c.target === z.id ? undefined : c.target });
       else applyCmd(w, z, c);
@@ -2443,7 +2463,8 @@ function prepWizards(w: World, rand: () => number) {
       wz.snow = null;
       hit(w, wz, s.by, s.dmg, 0, v(0, 0), 'snowball');
     }
-    const extra = (w.t < wz.rushUntil ? wz.rushBonus : 0) + (w.t < wz.hasteUntil ? wz.haste : 0) + (w.t < wz.windUntil ? WINDWALK.speed : 0) + bootsBonus(w, wz) - (w.t < wz.slowUntil ? wz.slow : 0);
+    const slow = Math.max(w.t < wz.slowUntil ? wz.slow : 0, inBlizzard(w, wz.pos) ? wz.baseSpeed * ICE.slow : 0);
+    const extra = (w.t < wz.rushUntil ? wz.rushBonus : 0) + (w.t < wz.hasteUntil ? wz.haste : 0) + (w.t < wz.windUntil ? WINDWALK.speed : 0) + bootsBonus(w, wz) - slow;
     const haste = wz.rune === 'haste' && w.t < wz.runeUntil ? 1 + RUNE.haste : 1;
     // Recharge rune advances cooldowns at 1/(1 − 30%) speed while active
     if (wz.rune === 'recharge' && w.t < wz.runeUntil && w.t >= incapacitatedUntil(wz, w.t)) {
@@ -2463,6 +2484,16 @@ function prepWizards(w: World, rand: () => number) {
   }
 }
 
+export function nextArenaRadius(w: World) {
+  if (w.map || (w.dm && !w.shrink)) return;
+  const collapsing = w.t >= SUDDEN.collapse;
+  const minR = collapsing && !w.dm ? 0 : ARENA_MIN;
+  // Spikes arena keeps more ground until the final collapse.
+  const start = arenaRadius(w.wizards.length);
+  const floor = w.mods.shrink < 1 && !collapsing ? Math.max(ARENA_MIN, start - (start - ARENA_MIN) * w.mods.shrink) : minR;
+  if (w.arenaR > floor) return Math.max(floor, w.arenaR - ARENA_STEP);
+}
+
 // Arena shrink and sudden death
 function shrinkArena(w: World) {
   // Sudden death accelerates shrinking in long rounds; the next shrink is at most 5 s away
@@ -2471,16 +2502,12 @@ function shrinkArena(w: World) {
     w.shrinkAt = Math.min(w.shrinkAt, w.t + SUDDEN.every);
     w.events.push({ k: 'sudden' });
   }
-  // After SUDDEN.collapse, remove the minimum size and gradually collapse the arena even with sudden death disabled
   const collapsing = w.t >= SUDDEN.collapse;
-  const minR = collapsing && !w.dm ? 0 : ARENA_MIN; // Sandbox shrinks to the minimum without disappearing
-  // Spikes arena stops at mods.shrink of the initial-to-minimum distance, then collapses after SUDDEN.collapse
-  // as usual; without lava nobody falls, and simulated rounds exceeded 10 minutes without this ending
-  const start = arenaRadius(w.wizards.length);
-  const floor = w.mods.shrink < 1 && !collapsing ? Math.max(ARENA_MIN, start - (start - ARENA_MIN) * w.mods.shrink) : minR;
   if (!w.dm && collapsing && w.shrinkAt > w.t + SUDDEN.every) w.shrinkAt = w.t + SUDDEN.every;
-  if (!w.map && (!w.dm || w.shrink) && w.t >= w.shrinkAt && w.arenaR > floor) {
-    resizeArena(w, Math.max(floor, w.arenaR - ARENA_STEP));
+  if (w.t < w.shrinkAt) return;
+  const next = nextArenaRadius(w);
+  if (next !== undefined) {
+    resizeArena(w, next);
     w.shrinkAt += w.sudden || collapsing ? SUDDEN.every : SHRINK_EVERY;
   }
 }
@@ -2489,7 +2516,7 @@ function stepChests(w: World, rand: () => number) {
   // Chests spawn at random positions away from obstacles; spells break them into gold piles
   const chestsUp = w.pillars.filter((q) => q.kind === 'chest' && q.alive).length;
   if (w.rules.chests && chestsUp < CHEST.maxUp && w.chestsLeft > 0 && w.t >= w.chestAt) {
-    const at = freeSpot(w, rand, CHEST.spread);
+    const at = freeSpot(w, rand, CHEST.spread, OBSTACLES.chest.r);
     if (at) {
       const gold = CHEST.pile[0] + Math.floor(rand() * (CHEST.pile[1] - CHEST.pile[0] + 1));
       w.pillars.push({ pos: at, hp: OBSTACLES.chest.hp, alive: true, kind: 'chest', gold });
@@ -2519,7 +2546,7 @@ function stepChests(w: World, rand: () => number) {
 function moveAll(w: World): Set<Wizard> {
   const walking = new Set<Wizard>();
   for (const wz of w.wizards) {
-    if (!wz.alive) continue;
+    if (!wz.alive || wz.ledge) continue;
     if (isSuspended(wz)) { moveWizard(wz, DT); continue; }
     if (w.t < wz.dashUntil) {
       wz.pos = add(wz.pos, scale(wz.dashVel, DT)); // Dashing disables walking but still adds knockback
@@ -2552,7 +2579,50 @@ function moveAll(w: World): Set<Wizard> {
   return walking;
 }
 
-// After impacts: spikes, lava, pits, regeneration and death
+function stepDarkness(wz: Wizard, outside: boolean) {
+  if (!outside) {
+    wz.darkLeft = undefined;
+    return;
+  }
+  const fuel = wz.torchLeft ?? DARKNESS.fuel;
+  wz.torchLeft = Math.max(0, fuel - DT);
+  if (wz.torchLeft > 1e-8) return;
+  wz.darkLeft = Math.max(0, (wz.darkLeft ?? DARKNESS.grace) - Math.max(0, DT - fuel));
+  if (wz.darkLeft <= 1e-8) { wz.hp = 0; wz.hazardDeath = 'darkness'; }
+}
+
+function stepAbyss(w: World, wz: Wizard) {
+  if (!wz.ledge && !outsideSafeGround(w, wz.pos)) return false;
+  if (!wz.ledge && w.arenaR > .15 && wz.team !== null && w.wizards.some(ally => ally !== wz && ally.alive && ally.hp > 0 && ally.team === wz.team)) {
+    wz.ledge = { left: ABYSS.hang, progress: 0, spot: wz.pos };
+    Object.assign(wz, { target: null, vel: v(0, 0), casting: null, basicCasting: undefined, channel: undefined, dashUntil: 0, thrustUntil: 0, stunLeft: undefined, recoveryLeft: 0, moveHeld: false });
+  }
+  if (wz.ledge && w.arenaR > .15) {
+    const ledge = wz.ledge;
+    const lip = safeInside(w, wz.pos, .08);
+    const normal = inward(w, lip);
+    wz.pos = sub(lip, scale(normal, .26));
+    ledge.spot = safeInside(w, lip, .85);
+    ledge.left -= DT;
+    const helper = w.wizards.find(ally => ally !== wz && ally.alive && ally.hp > 0 && !ally.ledge
+      && ally.team === wz.team && !isSuspended(ally) && !outsideSafeGround(w, ally.pos) && dist(ally.pos, ledge.spot) <= ABYSS.reach);
+    if (!helper || helper.id !== ledge.rescuer) ledge.progress = 0;
+    ledge.rescuer = helper?.id;
+    if (helper) ledge.progress += DT;
+    if (ledge.progress >= ABYSS.rescue && ledge.left > 0) {
+      wz.pos = ledge.spot;
+      wz.ledge = undefined;
+      return true;
+    }
+    if (ledge.left > 1e-8) return true;
+  }
+  wz.ledge = undefined;
+  wz.hazardDeath = 'abyss';
+  wz.hp = 0;
+  return true;
+}
+
+// After impacts: arena hazards, regeneration and death.
 function stepGround(w: World) {
   for (const wz of w.wizards) {
     if (!wz.alive) continue;
@@ -2578,10 +2648,18 @@ function stepGround(w: World) {
       if (c === CELL.pit) fall(w, wz);
       else if (c !== CELL.lava) wz.safe = wz.pos; // Falling into a pit must not return a wizard to lava
     }
-    if (inLava(w, wz.pos)) {
+    if (!w.map && wz.hp > 0 && w.worldEnd === 'abyss' && stepAbyss(w, wz)) continue;
+    if (!w.map && wz.hp > 0 && w.worldEnd === 'darkness') {
+      const outside = outsideSafeGround(w, wz.pos);
+      stepDarkness(wz, outside);
+      if (outside) continue;
+    }
+    const cold = inBlizzard(w, wz.pos);
+    if (cold || inLava(w, wz.pos)) {
       if (w.t < wz.invulnUntil || shielded(w, wz)) continue;
-      const dmg = LAVA_DPS * DT * (1 - wz.lavaCut) * w.mods.lava * damageFactor(w, wz);
+      const dmg = LAVA_DPS * DT * (cold ? ICE.damageRatio : (1 - wz.lavaCut) * w.mods.lava) * damageFactor(w, wz);
       const [victim, lost] = environmentalDamage(w, wz, dmg), burn = Math.min(Math.max(0, victim.hp + lost), lost);
+      if (cold && burn > 0 && victim.hp <= 0) victim.hazardDeath = 'cold';
       wz.calmSince = w.t;
       // Half of lava HP loss counts as damage from the last attacker within the kill-credit window; Match adds it to the scoreboard
       if (victim.lastHitBy && victim.lastHitBy !== victim.id && w.t - victim.lastHitAt <= CREDIT_WINDOW) {
@@ -2606,7 +2684,7 @@ function stepGround(w: World) {
     wz.respawnAt = w.t + DM_RESPAWN;
     const credited = wz.lastHitBy !== null && w.t - wz.lastHitAt <= CREDIT_WINDOW;
     const by = credited ? wz.lastHitBy : null;
-    w.events.push({ k: 'death', id: wz.id, by, src: credited ? wz.lastHitSrc : 'lava' });
+    w.events.push({ k: 'death', id: wz.id, by, src: credited ? wz.lastHitSrc : wz.hazardDeath ?? 'lava' });
   }
 }
 

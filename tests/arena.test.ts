@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ARENA_IDS, SHAPES, edge, edgeAt, inArena, pathStep, safeInside, type ArenaId } from '../src/shared/arena.ts';
+import { ARENA_CHOICES, ARENA_IDS, SHAPES, edge, edgeAt, inArena, pathStep, safeInside, type ArenaId } from '../src/shared/arena.ts';
 import { botCmds } from '../src/shared/bots.ts';
 import { ARENA_R0, DT, SHRINK_EVERY, arenaRadius } from '../src/shared/constants.ts';
 import { addPlayer, newMatch, parseOpt, startMatch, tickMatch } from '../src/shared/match.ts';
@@ -28,8 +28,9 @@ describe('formatos da arena', () => {
       ring: [[v(0, 0), false], [v(0.3, 0), false], [v(0.72, 0), true], [v(0, -0.72), true], [v(1.1, 0), false]],
       islands: [[v(0.95, 0), true], [v(-0.95, 0.6), true], [v(0, 0), true], [v(0, 0.3), false], [v(0, 0.8), false], [v(1.7, 0), false]],
       cross: [[v(0, 0), true], [v(1.1, 0), true], [v(0, -1.1), true], [v(0.8, 0.8), false], [v(1.2, 0), false]],
+      bridge: [[v(0, 0), true], [v(1.45, .4), true], [v(0, .6), false], [v(1.6, 0), false]],
     };
-    for (const id of ARENA_IDS) for (const [u, inside] of cases[id]) expect([id, u, edgeAt(id, R, v(u.x * R, u.y * R)) > 0]).toEqual([id, u, inside]);
+    for (const id of ARENA_CHOICES) for (const [u, inside] of cases[id]) expect([id, u, edgeAt(id, R, v(u.x * R, u.y * R)) > 0]).toEqual([id, u, inside]);
   });
 
   it('o círculo segue a regra de sempre: fora do raio é lava', () => {

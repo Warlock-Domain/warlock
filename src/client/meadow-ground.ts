@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { edgeAt, type ArenaId } from '../shared/arena.ts';
+import { HEARTH_CLEAR_RADIUS } from '../shared/world-end.ts';
 import { cloverGeometry, roundedShrubGeometry, shrubLeafTexture } from './meadow-plants.ts';
 
 const SPAN = 32;
@@ -84,7 +85,7 @@ export function createMeadowGround() {
   const add = (name: string, geometry: THREE.BufferGeometry, count: number, colors: string[], scale: THREE.Vector3, grass: boolean, near?: { x: number; z: number }[]) => {
     const material = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, side: THREE.DoubleSide, flatShading: !name.startsWith('Meadow_Shrubs') });
     if (name === 'Meadow_Shrubs') { material.map = material.bumpMap = shrubLeaves; material.bumpScale = .035; }
-    const mesh = new THREE.InstancedMesh(geometry, material, count); mesh.name = name;
+    const mesh = new THREE.InstancedMesh(geometry, material, count * 9); mesh.name = name;
     mesh.receiveShadow = true; mesh.frustumCulled = false;
     const points = [];
     for (let i = 0; i < count; i++) {
@@ -109,17 +110,19 @@ export function createMeadowGround() {
   const dummy = new THREE.Object3D(); let last = '';
   return {
     root, texture,
-    update(arena: ArenaId, radius: number, visible: boolean, lite: boolean) {
+    update(arena: ArenaId, radius: number, visible: boolean, lite: boolean, continuous: boolean, keepHearthClear: boolean) {
       root.visible = visible;
       if (!visible) return;
-      const key = `${arena}|${radius.toFixed(2)}|${lite}`;
+      const key = `${arena}|${radius.toFixed(2)}|${lite}|${continuous}|${keepHearthClear}`;
       if (key === last) return; last = key;
       for (const { mesh, points, scale } of batches) {
         let count = 0;
-        for (let i = 0; i < points.length; i++) {
+        const offsets = continuous ? [-SPAN, 0, SPAN] : [0];
+        for (const x of offsets) for (const z of offsets) for (let i = 0; i < points.length; i++) {
           const p = points[i];
-          if (lite && i % 2 || edgeAt(arena, radius, p.pos) < .8) continue;
-          dummy.position.set(p.x, mesh.name === 'Meadow_Flowers' ? .07 : .014, p.z); dummy.rotation.set(0, p.angle, 0);
+          if (lite && i % 2 || !continuous && edgeAt(arena, radius, p.pos) < .8) continue;
+          if (keepHearthClear && Math.hypot(p.x + x, p.z + z) < HEARTH_CLEAR_RADIUS + .25) continue;
+          dummy.position.set(p.x + x, mesh.name === 'Meadow_Flowers' ? .07 : .014, p.z + z); dummy.rotation.set(0, p.angle, 0);
           dummy.scale.copy(scale).multiplyScalar(p.size); dummy.updateMatrix(); mesh.setMatrixAt(count, dummy.matrix);
           // Compact instance colors with their transforms when the shoreline removes a sample.
           mesh.setColorAt(count, p.color);

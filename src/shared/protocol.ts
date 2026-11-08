@@ -1,5 +1,5 @@
 // Mensagens entre o navegador e a sala. A única validação do jogo fica aqui: formato e tamanho.
-import { ARENA_IDS, type ArenaId, type Terrain } from './arena.ts';
+import { ARENA_CHOICES, type ArenaId, type Terrain } from './arena.ts';
 import { ascOf, type AscLobby, type Card, type Choice, type Kind } from './ascension.ts';
 import { BOT_SKILL, type BotSkill } from './bots.ts';
 import { nightLevel, nightXpAt, type Night, type ServoKind } from './campaign.ts';
@@ -9,6 +9,7 @@ import { MAX_PLAYERS, ROUND_EFFECT_IDS, RUNE_KINDS, type RoundEffectId, type Run
 import { ITEMS, ITEM_IDS, type ItemId } from './items.ts';
 import { MODES, OPTION_CHOICES, TURRET_DIR, campaignReaders, campaignPickers, goalOf, parseOpt, votesNeeded, type BotSetup, type Match, type MatchOpts, type Mode, type Phase, type Sandbox, type SandboxCmd, type Stats, type TurretDir, type Vote } from './match.ts';
 import type { SimEvent } from './sim.ts';
+import { SCENERY_CHOICES, type SceneryChoice, type WorldEnd } from './world-end.ts';
 import { BAR_SPELLS, MAX_SPELLS, spellMax, isSpell, noSpells, spellCount, type SpellId } from './spells.ts';
 import { TAUNTS } from './taunts.ts';
 import { v, type Vec } from './vec.ts';
@@ -113,7 +114,7 @@ export type PublicRoom = {
 // nx: only while some Anima Nexus is up, 1 number per wizard: index of the ally it protects (−1 none or hidden from this viewer)
 // mt: two numbers per wizard: linked ally index (-1 inactive), extra cooldown speed (0.2 to 1.4).
 // pe: projectile id/element index pairs; absent for ordinary projectiles.
-export type Snap = { tc?: number[]; pe?: number[]; mt?: number[]; sr?: number[]; ps?: number[]; eo?: number[]; t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; sn?: number[]; cn?: number[]; bl?: number[]; cb?: number[]; gy?: number[]; pz?: number[]; pk?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; nx?: number[]; ack: number; e?: SimEvent[] };
+export type Snap = { hz?: WorldEnd; hzPlayers?: number[]; shrinkTo?: number; tc?: number[]; pe?: number[]; mt?: number[]; sr?: number[]; ps?: number[]; eo?: number[]; t: 'snap'; time: number; r: number; s: number; w: number[]; p: number[]; cd: number[]; sp: number; pl: number[]; sn?: number[]; cn?: number[]; bl?: number[]; cb?: number[]; gy?: number[]; pz?: number[]; pk?: number[]; ba?: number[]; st?: number[]; kr?: number[]; rs?: number[]; ch?: number[]; lp?: number[]; em?: number[]; ru?: number[]; ab?: number[]; zn?: number[]; il?: number[]; fx?: number[]; nx?: number[]; ack: number; e?: SimEvent[] };
 
 // lista de salas do lobby; mode, round e bots entraram depois: salas gravadas antes não têm (o cliente aceita sem)
 export type RoomInfo = { id: string; players: number; phase: string; mode?: string; round?: number; bots?: number };
@@ -121,7 +122,8 @@ export type LobbyMessage = { t: 'rooms'; rooms: RoomInfo[] };
 
 export const ERROR_CODES = ['not_found', 'other_tab', 'full', 'bad_msg', 'kicked'] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
-export const SANDBOX_KEYS: (keyof Sandbox)[] = ['god', 'noCd', 'shrink'];
+export const SANDBOX_KEYS = ['god', 'noCd', 'shrink'] as const;
+export type SandboxToggle = (typeof SANDBOX_KEYS)[number];
 
 export type ServerMsg =
   | { t: 'room'; room: PublicRoom; you: string }
@@ -188,8 +190,10 @@ function parseSetup(x: unknown): BotSetup[] | null {
 // comando do painel da sandbox: só as operações e os valores conhecidos (o bot passa pela mesma checagem do treino)
 function parseSandbox(c: unknown): SandboxCmd | null {
   if (!isObj(c)) return null;
-  if (c.op === 'set') return SANDBOX_KEYS.includes(c.key as keyof Sandbox) && typeof c.on === 'boolean' ? { op: 'set', key: c.key as keyof Sandbox, on: c.on } : null;
-  if (c.op === 'arena') return ARENA_IDS.includes(c.arena as ArenaId) ? { op: 'arena', arena: c.arena as ArenaId } : null; // 'random' não entra: a sandbox nunca sorteia
+  if (c.op === 'set') return SANDBOX_KEYS.includes(c.key as SandboxToggle) && typeof c.on === 'boolean' ? { op: 'set', key: c.key as SandboxToggle, on: c.on } : null;
+  if (c.op === 'arena') return ARENA_CHOICES.includes(c.arena as ArenaId) ? { op: 'arena', arena: c.arena as ArenaId } : null;
+  if (c.op === 'worldEnd') return OPTION_CHOICES.worldEnd.includes(c.worldEnd as MatchOpts['worldEnd']) ? { op: 'worldEnd', worldEnd: c.worldEnd as MatchOpts['worldEnd'] } : null;
+  if (c.op === 'scenery') return SCENERY_CHOICES.includes(c.scenery as SceneryChoice) ? { op: 'scenery', scenery: c.scenery as SceneryChoice } : null;
   if (c.op === 'radius') return c.step === 1 || c.step === -1 ? { op: 'radius', step: c.step } : null;
   if (c.op === 'rune') return RUNE_KINDS.includes(c.kind as RuneKind) ? { op: 'rune', kind: c.kind as RuneKind } : null;
   if (c.op === 'effect') return c.effect === null || ROUND_EFFECT_IDS.includes(c.effect as RoundEffectId) ? { op: 'effect', effect: c.effect as RoundEffectId | null } : null;

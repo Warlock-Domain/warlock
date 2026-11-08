@@ -1,7 +1,8 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
 import { ELEMENTS, type Element, type Transcendence } from './elemental-spheres.ts';
 import type { Snap } from './protocol.ts';
-import { PROJ_KINDS, projectileLevel, bootsBonus, closedBodyActive, bracingActive, incapacitatedUntil, isSliding, isStunned, isSuspended, puppeteer, type ProjKind, type SimEvent, type World } from './sim.ts';
+import { DARKNESS, type WorldEnd } from './world-end.ts';
+import { PROJ_KINDS, projectileLevel, bootsBonus, closedBodyActive, bracingActive, incapacitatedUntil, isSliding, isStunned, isSuspended, inBlizzard, nextArenaRadius, puppeteer, type ProjKind, type SimEvent, type World } from './sim.ts';
 import { INCAPACITATED_BIT, ELECTROCUTED_BIT, BRACING_BIT, RICOCHET_READY_BIT } from './constants.ts';
 import { CHEST, OBSTACLES, OBSTACLE_KINDS, RUNE_KINDS, WIZ_R, type ObstacleKind, type RuneKind } from './constants.ts';
 import { BLINDNESS, SPELL_IDS, spellLevel, type SpellId } from './spells.ts';
@@ -43,7 +44,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     // Illusion owns invisibility; Windwalk only accelerates.
     const bits = (z.alive ? 1 : 0) | (z.alive && z.ricochetRange ? RICOCHET_READY_BIT : 0) | (w.t < z.shieldUntil ? 2 : 0)
       | (isStunned(z) && !isSuspended(z) ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
-      | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 || w.t < z.slowUntil ? 4 : 0) | (z.zone & 2 ? 512 : 0)
+      | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 || w.t < z.slowUntil || inBlizzard(w, z.pos) ? 4 : 0) | (z.zone & 2 ? 512 : 0)
       | (w.t < z.windUntil || w.t < z.hasteUntil || bootsBonus(w, z) > 0 ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)
       | (w.t < z.alterUntil || z.items.glitch_cape > 0 && w.t >= z.cd.alteration ? 32768 : 0) | (linked.has(z.id) ? 65536 : 0) | (z.aegis ? 131072 : 0)
       | (w.t < z.runeUntil && z.rune ? RUNE_BIT[z.rune] : 0)
@@ -74,6 +75,17 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
   }
   const cd = SPELL_IDS.map((s) => (me ? r2(Math.max(0, me.cd[s] - w.t)) : 0));
   const snap: Snap = { t: 'snap', time: r2(w.t * 1000) / 1000, r: r2(w.arenaR), s: r2(w.shrinkAt), w: wz, p, cd, sp: r2(me?.speed ?? 0), pl: w.pillars.flatMap((q) => [r2(q.pos.x), r2(q.pos.y), q.alive ? (Number.isFinite(q.hp) ? Math.ceil((q.hp / OBSTACLES[q.kind].hp) * 100) : 100) : 0, OBSTACLE_KINDS.indexOf(q.kind)]), ack };
+  if (w.worldEnd && w.worldEnd !== 'lava' && !w.map) snap.hz = w.worldEnd;
+  if (snap.hz === 'darkness') snap.hzPlayers = w.wizards.flatMap(z => [r2(z.torchLeft ?? DARKNESS.fuel), r2(z.darkLeft ?? 0), Number(z.hazardDeath === 'darkness')]);
+  if (snap.hz === 'abyss') {
+    snap.hzPlayers = w.wizards.flatMap(z => [
+      r2(z.ledge?.left ?? 0), r2(z.ledge?.progress ?? 0), r2(z.ledge?.spot.x ?? 0), r2(z.ledge?.spot.y ?? 0), Number(z.hazardDeath === 'abyss'),
+    ]);
+  }
+  if (snap.hz === 'abyss' || snap.hz === 'ice') {
+    const next = nextArenaRadius(w);
+    if (next !== undefined) snap.shrinkTo = r2(next);
+  }
   // deathmatch: segundos até cada mago voltar (0 = vivo), na ordem de room.ids; o limite cobre o expulso, que não volta
   if (w.dm) snap.rs = w.wizards.map((z) => (z.alive ? 0 : r2(Math.min(99, Math.max(0, z.respawnAt - w.t)))));
   if (w.loots.length) {
@@ -158,7 +170,8 @@ export type ProjView = { element?: Element; size?: number; id: number; kind: Pro
 export type PillarView = { pos: Vec; hp: number; kind: ObstacleKind };
 export type RuneView = { pos: Vec; kind: RuneKind };
 export type ZoneView = { pos: Vec; r: number; kind: ZoneKind; left: number };
-export type SnapView = { time: number; arenaR: number; shrinkAt: number; wizards: WizView[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[] };
+export type HazardView = { torchLeft?: number; darkLeft?: number; ledge?: { left: number; progress: number; spot: Vec }; hazardDeath?: 'abyss' | 'darkness' };
+export type SnapView = { worldEnd?: WorldEnd; time: number; arenaR: number; shrinkAt: number; shrinkTo?: number; wizards: (WizView & HazardView)[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[] };
 
 // lista achatada → linhas de n números
 const rows = (a: number[] | undefined, n: number) => Array.from({ length: Math.floor((a?.length ?? 0) / n) }, (_, i) => a!.slice(i * n, i * n + n));
@@ -171,6 +184,19 @@ export function decodeSnap(s: Snap, ids: string[]): SnapView {
   }
   const wizards = rows(s.w, 7).slice(0, ids.length).map(([x, y, vx, vy, hp, facing, bits], i): WizView =>
         ({ lastElement: s.tc && s.tc[i * 5] >= 0 ? ELEMENTS[s.tc[i * 5]] : undefined, transcendLeft: s.tc?.[i * 5 + 3] ?? 0, transcendence: s.tc && s.tc[i * 5 + 2] > 0 ? { element: ELEMENTS[s.tc[i * 5]], saved: s.tc[i * 5 + 1], complete: s.tc[i * 5 + 2] === 3, spell: SPELL_IDS[s.tc[i * 5 + 4]] } : undefined, shieldR: s.sr?.[i], spheres: spheres.get(i), nexusTo: s.nx?.[i] ?? -1, id: ids[i], pos: v(x, y), vel: v(vx, vy), hp, facing, alive: (bits & 1) > 0, shield: (bits & 2) > 0, status: bits, transfusionTo: s.mt?.[i * 2] ?? -1, transfusionRate: s.mt?.[i * 2 + 1] ?? 0, sniperLeft: s.sn?.[i*3] ?? 0, sniperAt: s.sn && s.sn[i*3]>0 ? v(s.sn[i*3+1],s.sn[i*3+2]) : undefined, channelElapsed: s.cn && s.cn[i*2] >= 0 ? s.cn[i*2+1] : undefined, channelSpell: s.cn && s.cn[i*2] >= 0 ? SPELL_IDS[s.cn[i*2]] : undefined, blindLeft: s.bl?.[i] ?? 0, closedBodyLeft: s.cb?.[i] ?? 0, geyserLeft: s.gy?.[i] ?? 0, puppetBy: s.pz?.[i * 2] ?? -1, puppetLeft: s.pz?.[i * 2 + 1] ?? 0, pixSoak: s.pk?.[i] ?? 0, rushLeft: s.ab?.[i] ?? 0, recoveryLeft: s.kr?.[i] ?? 0, stunLeft: s.st && s.st[i] >= 0 ? s.st[i] : undefined, basicLeft: s.ba?.[i * 2] ?? 0, basicMelee: !!s.ba?.[i * 2 + 1], ...(s.ba?.[i * 2 + 1] === 2 && { basicArc: true }) }));
+  const hazard = s.hzPlayers;
+  const hazardWizards = hazard ? wizards.map((wizard, i): WizView & HazardView => {
+    if (s.hz === 'darkness') {
+      const at = i * 3;
+      return { ...wizard, torchLeft: hazard[at], darkLeft: hazard[at + 1], ...(hazard[at + 2] && { hazardDeath: 'darkness' as const }) };
+    }
+    if (s.hz === 'abyss') {
+      const at = i * 5;
+      const [left, progress, x, y, dead] = hazard.slice(at, at + 5);
+      return { ...wizard, ...(left > 0 && { ledge: { left, progress, spot: v(x, y) } }), ...(dead && { hazardDeath: 'abyss' as const }) };
+    }
+    return wizard;
+  }) : wizards;
   const sizes = new Map(rows(s.ps ?? [], 2).map(([id, size]) => [id, size]));
   const elements = new Map(rows(s.pe, 2).map(([id, element]) => [id, ELEMENTS[element]]));
   const projectiles = rows(s.p, 6).map(([id, kind, x, y, vx, vy]): ProjView => ({ element: elements.get(id), size: sizes.get(id), id, kind: PROJ_KINDS[kind] ?? 'fireball', pos: v(x, y), vel: v(vx, vy) }));
@@ -179,5 +205,5 @@ export function decodeSnap(s: Snap, ids: string[]): SnapView {
   const zones = rows(s.zn, 5).map(([x, y, r, k, left]): ZoneView => ({ pos: v(x, y), r, kind: ZONE_KINDS[k] ?? 'burn', left }));
   const isles = rows(s.il, 3).map(([x, y, r]): Isle => ({ pos: v(x, y), r }));
   const loots = rows(s.ch, 3).map(([x, y, left]) => ({ pos: v(x, y), left }));
-  return { time: s.time, arenaR: s.r, shrinkAt: s.s, wizards, projectiles, pillars, runes, zones, isles, loots };
+  return { ...(s.hz && { worldEnd: s.hz }), ...(s.shrinkTo !== undefined && { shrinkTo: s.shrinkTo }), time: s.time, arenaR: s.r, shrinkAt: s.s, wizards: hazardWizards, projectiles, pillars, runes, zones, isles, loots };
 }

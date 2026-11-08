@@ -177,13 +177,20 @@ export function threatTo(w: World, me: Wizard, visible: (p: Projectile) => boole
 
 export function botCmds(w: World, id: string, rand: () => number, D: BotSkill = BOT_SKILL.normal, scores: Record<string, number> = {}): Cmd[] {
   const me = w.wizards.find((z) => z.id === id && z.alive);
-  if (!me) return [];
+  if (!me || me.ledge) return [];
   if ((me.geyserLeft ?? 0) > 0 || (me.transcendLeft ?? 0) > 0) return [];
   const vision = w.t < (me.blindUntil ?? 0) ? 3 : D.vision;
   const M = mind(w);
   if (w.t < (M.frozen.get(id) ?? -1)) return []; // parado por erro
   const cmds: Cmd[] = [];
   const ally = (z: Wizard) => z === me || (me.team !== null && z.team === me.team);
+  if (w.worldEnd === 'abyss' && inArena(w, me.pos)) {
+    const rescue = w.wizards.find(z => z.alive && z.ledge && ally(z) && dist(z.ledge.spot, me.pos) < 5)?.ledge;
+    if (rescue) {
+      const next = pathStep(w, me.pos, rescue.spot, .28);
+      if (next) return [{ id, kind: 'move', to: next }];
+    }
+  }
   // a magia só entra em jogo um tempo depois que a recarga acaba; a que ainda não foi lançada na rodada já vale
   const usableAt = (s: SpellId) => {
     if (me.cd[s] <= 0) return me.cd[s];
