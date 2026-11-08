@@ -20,7 +20,7 @@ import { hideTip, itemTip, mechanicTip, spellTip, withTip } from './tips.ts';
 import { EFFECT_NAME, MODE_INFO, OPT_INFO, PACE_NAME, SKILL_NAME, effectName, effectText, infoButton } from './opt-info.ts';
 import { COLORS, TEAM_COLORS } from './scene.ts';
 import { ALT_TEXT, ITEM_GROUPS, MECHANIC_GUIDES, SPELL_GROUPS, SPELL_USE, groupClass, n1, pct, spellClass } from './rules-text.ts';
-import { BAD_STATUS, ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, choice, el, fxClock, icon, iconButton, type Child } from './icons.ts';
+import { BAD_STATUS, ICON, ITEM_ICON, MECHANIC_ICON, RUNE_ICON, RUNE_NAME, SOURCE_ICON, STATUS_ICONS, UI_ICON, actionName, choice, el, fxClock, icon, iconButton, teamCrest, type Child } from './icons.ts';
 import { BASE, diff, sheet, type Change, type SheetRow } from './sheet.ts';
 import { store } from './store.ts';
 import { isAudioMuted, type Volumes, type VolumeKind } from './sound.ts';
@@ -28,7 +28,7 @@ import { botSetupPanel, savedBotSetup } from './train.ts';
 import { CHALLENGES, bestOf, goalText } from './challenges.ts';
 import { toSkill, savedProfile } from './mimic.ts';
 import { TAUNTS } from '../shared/taunts.ts';
-import { botLevel, endResult, moveLoadout, myLoadout, nightLine, playerName, presetQueue, PRESETS_KEY, readPresets, readShopSize, readUsed, roomGroups, saveLoadout, topUsed, USED_KEY, type Preset } from './screen-data.ts';
+import { botLevel, endResult, leadingTeam, teamScore, moveLoadout, myLoadout, nightLine, playerName, presetQueue, PRESETS_KEY, readPresets, readShopSize, readUsed, roomGroups, saveLoadout, topUsed, USED_KEY, type Preset } from './screen-data.ts';
 import { LOCALE, arenaName, itemName, itemText, spellName, t } from './i18n.ts';
 import { radialPicker } from './radial-picker.ts';
 import { radialHold, tauntWheelSlots } from './taunt-wheel.ts';
@@ -424,9 +424,14 @@ type RoomActions = {
 
 type Level = MatchOpts['difficulty'];
 const MODE_NAME: Record<Mode, string> = { rounds: t('Rodadas', 'Rounds'), deathmatch: 'Deathmatch', teams: t('Times', 'Teams'), ascension: t('Ascensão', 'Ascension'), campaign: t('Campanha', 'Campaign') };
-export const TEAM_NAMES = [t('Azul', 'Blue'), t('Vermelho', 'Red'), t('Verde', 'Green'), t('Amarelo', 'Yellow')];
+export const TEAM_NAMES = [t('Rosa-choque', 'Hot pink'), t('Roxo', 'Purple'), t('Azul-claro', 'Light blue'), t('Amarelo', 'Yellow')];
 const activeTeams = (players: PublicPlayer[]) => [...new Set(players.filter((p) => !p.watch && p.team !== null).map((p) => p.team!))].sort((a, b) => a - b);
 const teamLabel = (i: number) => t(`Time ${TEAM_NAMES[i]}`, `${TEAM_NAMES[i]} team`);
+const leaderBadge = () => el('small', { class: 'team-leader', title: t('Liderança em vitórias', 'Leading in wins') }, icon(UI_ICON.wins), ' ', t('Líder', 'Leader'));
+const teamWins = (room: PublicRoom, team: number) => {
+  const score = teamScore(room.players, team);
+  return `${score} ${score === 1 ? t('vitória', 'win') : t('vitórias', 'wins')}`;
+};
 const SHUFFLE_NAME =(shuffle: boolean) => (shuffle ? t('sorteados a cada rodada', 'shuffled every round') : t('fixos na partida', 'fixed for the match'));
 // opções da partida: nome de cada uma e o texto de cada valor (a meta depende do modo)
 type OptKey = keyof MatchOpts;
@@ -481,7 +486,7 @@ function voteText(v: { kind: Vote['kind']; target: string }, mode: Mode, name: (
 const dot = (color: number) => el('span', { class: 'dot', style: `background:${COLORS[color]}` });
 // modo Times: quadradinho com a cor do time antes do nome; a lista fica agrupada por time
 const teamTag = (room: PublicRoom, p: PublicPlayer) =>
-  room.mode === 'teams' && p.team !== null ? el('span', { class: 'dot', title: teamLabel(p.team), style: `background:${TEAM_COLORS[p.team]};border-radius:2px` }) : null;
+  room.mode === 'teams' && p.team !== null ? teamCrest(p.team, teamLabel(p.team), TEAM_COLORS[p.team]) : null;
 const byTeam = (room: PublicRoom, a: PublicPlayer, b: PublicPlayer) => (room.mode === 'teams' ? (a.team ?? 4) - (b.team ?? 4) : 0) || b.score - a.score;
 // bolinhas de nível: as primeiras lvl acesas, de max
 const pipsOf = (lvl: number, max: number) => Array.from({ length: max }, (_, n) => el('i', { class: n < lvl ? 'on' : '' }));
@@ -490,7 +495,7 @@ const botTag = (p: PublicPlayer, r: Pick<PublicRoom, 'opts'>) => {
   const lvl = botLevel(p, r);
   return lvl ? el('small', { class: 'muted' }, ' ', icon(UI_ICON.bot), ` bot · ${SKILL_NAME[lvl]}`) : null;
 };
-const nameOf = (p: PublicPlayer, me: string, r: Pick<PublicRoom, 'opts'>) => el('span', {}, playerName(p) + (p.id === me ? t(' (você)', ' (you)') : ''), botTag(p, r));
+const nameOf = (p: PublicPlayer, me: string, r: Pick<PublicRoom, 'opts'>) => el('span', { style: `color:${COLORS[p.color]}` }, playerName(p) + (p.id === me ? t(' (você)', ' (you)') : ''), botTag(p, r));
 
 // placar de estatísticas: ouro ganho, dano causado e precisão de cada magia de dano (acertos / lançamentos)
 type Scope = 'round' | 'match' | 'room';
@@ -541,6 +546,7 @@ export function dialog(cls: string, title: string, body: Node[], o: { ico?: stri
 
 // kick: só no fim da partida, onde a tabela substitui a lista de jogadores
 function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Scope) => void, view: View, setView: (v: View) => void, kick?: (id: string) => void) {
+  const leading = leadingTeam(room);
   const st = (p: PublicPlayer) => p.stats[scope];
   const rows = room.players.filter((p) => !p.servo).sort((a, b) => byTeam(room, a, b) || st(b).dmg - st(a).dmg); // em Times, agrupado por time
   const used = [...new Set(rows.flatMap((p) => Object.keys(st(p).fired ?? {})))].sort((a, b) => Number(UTILITY.has(a)) - Number(UTILITY.has(b)));
@@ -590,10 +596,10 @@ function statsBoard(room: PublicRoom, me: string, scope: Scope, setScope: (s: Sc
   // modo Times: placar de abates dos dois times no topo e um cabeçalho por time na tabela
   const teamKills = (t: number) => rows.filter((p) => p.team === t).reduce((a, p) => a + (st(p).kills ?? 0), 0);
   const teamHead = room.mode === 'teams' && rows.some((p) => p.team !== null)
-    ? el('p', { class: 'team-score' }, ...activeTeams(rows).map((team) => el('b', { style: `color:${TEAM_COLORS[team]}` }, `${teamLabel(team)}: ${teamKills(team)} `)), el('small', {}, t(' · abates', ' · kills')))
+    ? el('p', { class: 'team-score' }, ...activeTeams(rows).map((team) => el('span', { class: 'team-summary' }, el('b', { style: `color:${TEAM_COLORS[team]}` }, teamLabel(team)), !room.teamShuffle ? el('small', {}, teamWins(room, team)) : null, el('small', {}, t(`${teamKills(team)} abates`, `${teamKills(team)} kills`)), team === leading ? leaderBadge() : null)))
     : null;
   const teamRow = (p: PublicPlayer, i: number, n: number) =>
-    room.mode === 'teams' && p.team !== null && rows[i - 1]?.team !== p.team ? el('tr', { class: 'team-row' }, el('td', { colspan: n, style: `border-left:3px solid ${TEAM_COLORS[p.team]}` }, teamLabel(p.team))) : null;
+    room.mode === 'teams' && p.team !== null && rows[i - 1]?.team !== p.team ? el('tr', { class: 'team-row' }, el('td', { colspan: n, style: `border-left:3px solid ${TEAM_COLORS[p.team]}` }, teamLabel(p.team), p.team === leading ? leaderBadge() : null)) : null;
   const body = (cells: (p: PublicPlayer) => HTMLElement[], n: number) =>
     el('tbody', {}, ...rows.flatMap((p, i) => [teamRow(p, i, n), el('tr', { class: p.id === me ? 'me' : '' }, el('td', { class: 'player' }, who(p), kickBtn(p, kick)), ...cells(p))]));
   const summary = () => el('table', { class: 'stats-table summary' },
@@ -693,8 +699,13 @@ const readyTag = (p: PublicPlayer, mode: Mode) => el('span', { class: 'ready-tag
 
 function board(room: PublicRoom, me: string, kick?: (id: string) => void) {
   const sorted = [...room.players].sort((a, b) => byTeam(room, a, b));
-  return el('ol', { class: 'board' }, ...sorted.map((p) =>
-    el('li', { class: p.id === room.winner || (room.winnerTeam !== null && p.team === room.winnerTeam) ? 'win' : '' }, el('span', {}, teamTag(room, p), dot(p.color), ' ', nameOf(p, me, room), p.connected || p.bot ? '' : t(' · caiu', ' · dropped')), el('span', { class: 'board-right' }, room.phase === 'shop' ? readyTag(p, room.mode) : null, ascLevel(room, p), el('b', {}, room.mode === 'deathmatch' || room.mode === 'ascension' ? `${p.score} ${p.score === 1 ? t('ponto', 'point') : t('pontos', 'points')}` : `${p.score} ${p.score === 1 ? t('vitória', 'win') : t('vitórias', 'wins')}`), kickBtn(p, kick))),
+  const leading = leadingTeam(room), seenTeams = new Set<number>();
+  return el('ol', { class: 'board' }, ...sorted.flatMap((p) => {
+    const header = room.mode === 'teams' && !p.watch && p.team !== null && !seenTeams.has(p.team)
+      ? el('li', { class: 'board-team', style: `--tc:${TEAM_COLORS[p.team]}` }, el('b', {}, teamLabel(p.team)), p.team === leading ? leaderBadge() : null) : null;
+    if (p.team !== null && !p.watch) seenTeams.add(p.team);
+    return [header, el('li', { class: (p.id === room.winner || (room.winnerTeam !== null && p.team === room.winnerTeam) ? 'win' : '') + (p.id === me ? ' me' : '') }, el('span', {}, teamTag(room, p), dot(p.color), ' ', nameOf(p, me, room), p.connected || p.bot ? '' : t(' · caiu', ' · dropped')), el('span', { class: 'board-right' }, room.phase === 'shop' ? readyTag(p, room.mode) : null, ascLevel(room, p), el('b', {}, room.mode === 'deathmatch' || room.mode === 'ascension' ? `${p.score} ${p.score === 1 ? t('ponto', 'point') : t('pontos', 'points')}` : `${p.score} ${p.score === 1 ? t('vitória', 'win') : t('vitórias', 'wins')}`), kickBtn(p, kick)))];
+  }
   ));
 }
 
@@ -1970,7 +1981,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   function drawTops() {
     if (!room) return;
     const r = room;
-    const sig = [me, r.mode, ...r.players.map((p) => [p.id, p.name, p.character, p.color, p.team, p.score, p.asc?.level, p.connected].join(':'))].join();
+    const sig = [me, r.mode, r.teamShuffle, ...r.players.map((p) => [p.id, p.name, p.character, p.color, p.team, p.score, p.asc?.level, p.connected, p.watch, p.servo].join(':'))].join();
     if (sig === tops.dataset.sig) return;
     tops.dataset.sig = sig;
     topCells.clear();
@@ -1982,13 +1993,15 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const dmg = el('span', {}, String(Math.round(live[p.id]?.dmg ?? 0)));
       const kills = el('span', {}, String(live[p.id]?.kills ?? 0));
       const c = el('li', { class: 'top-p' + (p.id === me ? ' me' : ''), style: `--pc:${COLORS[p.color]}`, title: name, 'aria-label': name },
-        el('span', { class: 'top-name' }, playerName(p), lvl ? icon(UI_ICON.bot) : null), ascLevel(r, p), r.night ? null : el('b', { class: 'top-wins', title: unit(p.score) }, String(p.score)),
+        el('span', { class: 'top-name' }, playerName(p), p.id === me ? el('small', { class: 'self-badge' }, t('Você', 'You')) : null, lvl ? icon(UI_ICON.bot) : null), ascLevel(r, p), r.night ? null : el('b', { class: 'top-wins', title: unit(p.score) }, String(p.score)),
         el('span', { class: 'top-stat', title: t('Dano na rodada', 'Damage this round') }, icon(UI_ICON.dmg), dmg),
         el('span', { class: 'top-stat', title: t('Abates na rodada', 'Kills this round') }, icon(UI_ICON.kills), kills));
       topCells.set(p.id, { c, name, dmg, kills });
       return c;
     };
-    const row = (list: PublicPlayer[], team?: number) => el('ul', team === undefined ? {} : { class: 'team', style: `--tc:${TEAM_COLORS[team]}`, 'aria-label': teamLabel(team) }, ...list.map(cell));
+    const leading = leadingTeam(r);
+    const row = (list: PublicPlayer[], team?: number) => el('ul', team === undefined ? {} : { class: 'team' + (team === leading ? ' leading' : ''), style: `--tc:${TEAM_COLORS[team]}`, 'aria-label': teamLabel(team) },
+      team === undefined ? null : el('li', { class: 'team-heading' }, el('b', {}, teamLabel(team)), !r.teamShuffle ? el('small', {}, teamWins(r, team)) : null, team === leading ? leaderBadge() : null), ...list.map(cell));
     tops.replaceChildren(...(r.mode === 'teams'
       ? activeTeams(r.players).map((team) => row(r.players.filter((p) => !p.watch && p.team === team), team))
       : [row(r.players.filter((p) => !p.servo))]));

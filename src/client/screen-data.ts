@@ -10,6 +10,28 @@ import type { ServoKind } from '../shared/campaign.ts';
 import { HP_MAX } from '../shared/constants.ts';
 import { itemStats } from '../shared/items.ts';
 import { t } from './i18n.ts';
+
+export function healthRelation(subject: Pick<PublicPlayer, 'id' | 'team'>, viewer: Pick<PublicPlayer, 'id' | 'team' | 'watch'> | undefined, teams: boolean): 'ally' | 'enemy' | 'neutral' {
+  if (!viewer || viewer.watch) return 'neutral';
+  return subject.id === viewer.id || teams && subject.team != null && subject.team === viewer.team ? 'ally' : 'enemy';
+}
+
+// Snapshot HP is a percentage; observing a baseline or a respawn must not look like damage.
+export function obstacleHpUntil(previous: number | undefined, hp: number, until: number, now: number): number {
+  if (previous === undefined || hp <= 0 || previous <= 0 || hp >= 100 && hp > previous) return 0;
+  return hp < previous ? now + 3 : until;
+}
+
+// Team wins are shared, so summing members would favour larger rosters.
+export const teamScore = (players: PublicPlayer[], team: number) => Math.max(0, ...players.filter(p => !p.watch && !p.servo && p.team === team).map(p => p.score));
+export function leadingTeam(room: Pick<PublicRoom, 'mode' | 'teamShuffle' | 'players'>): number | null {
+  if (room.mode !== 'teams' || room.teamShuffle) return null;
+  const teams = [...new Set(room.players.filter(p => !p.watch && !p.servo && p.team !== null).map(p => p.team!))];
+  if (teams.length < 2) return null;
+  const best = Math.max(...teams.map(team => teamScore(room.players, team)));
+  const leaders = teams.filter(team => teamScore(room.players, team) === best);
+  return best > 0 && leaders.length === 1 ? leaders[0] : null;
+}
 import type { Vec } from '../shared/vec.ts';
 import { foe } from '../shared/sniper-target.ts';
 // Pulso suave; modo reduzido fica estático.

@@ -1,4 +1,6 @@
 :root {
+  --team-symbol-size: 18px;
+  --hp-ally: #98ed62; --hp-enemy: #f42b46;
   --combat-slate: #171e25; --combat-raised: #242e38; --combat-line: #657078;
   --combat-glass: color-mix(in srgb, var(--combat-slate) 94%, transparent);
   --combat-slot: 60px; --combat-item: 52px; --combat-face-w: 88px; --combat-face-h: 100px;
@@ -132,6 +134,20 @@ h2.title::before { content: '◆'; content: '◆' / ''; margin-right: .4em; font
 .tops .vs { display: none; }
 .top-p { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: var(--sp-8); padding: 3px 8px; border-radius: var(--r-sm); background: var(--panel-glass); border-left: 3px solid var(--pc); font-size: var(--fs-85); font-variant-numeric: tabular-nums; }
 .top-p.me { box-shadow: inset 0 0 0 1px var(--gold); }
+.tops .top-p.me { background: var(--sel-bg); }
+.tops .team-heading { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-4); padding: var(--sp-3) var(--sp-6); background: var(--panel-glass); border-radius: var(--r-xs); font-size: var(--fs-75); color: var(--tc); }
+.tops .team-heading > small { color: var(--fg); }
+.tops .team-heading > .team-leader { color: var(--gold); }
+.tops ul.leading .team-heading { box-shadow: inset 0 0 0 1px var(--gold-line); }
+.team-leader { display: inline-flex; align-items: center; gap: var(--sp-3); margin-left: var(--sp-4); color: var(--gold); font-size: var(--fs-70); font-weight: 700; white-space: nowrap; }
+.team-leader .gi { width: 12px; height: 12px; }
+.self-badge { margin-left: var(--sp-4); padding: 0 var(--sp-3); border-radius: var(--r-xs); background: var(--gold); color: var(--ink); font-size: var(--fs-62); font-weight: 700; text-shadow: none; }
+.team-score { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
+.team-summary { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--sp-6); padding: var(--sp-4) var(--sp-6); border-radius: var(--r-xs); background: var(--tint); }
+.team-summary > small { color: var(--muted); }
+.team-summary > .team-leader { color: var(--gold); }
+.board li.me { box-shadow: inset 0 0 0 1px var(--gold); }
+.board li.board-team { border-left: 3px solid var(--tc); color: var(--tc); background: var(--panel-glass); font-size: var(--fs-85); }
 .top-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--pc); font-weight: 700; text-shadow: var(--text-shadow); }
 .top-wins { min-width: 1.5ch; text-align: right; color: var(--gold); }
 .top-stat { display: inline-flex; align-items: center; gap: var(--sp-3); color: var(--muted); }
@@ -236,13 +252,13 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 /* sem a pílula escura atrás (o disco dentro dela parecia um alvo, pedido do Sky): só os discos soltos, com 16 px entre eles para os anéis não se tocarem */
 .barwrap .hud-status { gap: var(--sp-16); padding: var(--sp-4); pointer-events: none; }
 .hud-status:empty { display: none; }
-.barwrap .hud-status i { font-size: var(--fs-130); position: relative; isolation: isolate; filter: none; }
-/* ícone do buff num disco de cor, igual ao do aviso (1,3rem e .2em de borda): o aviso da runa vira este ícone (flyToast em ui.ts) */
+.barwrap .hud-status i { font-size: calc(var(--fs-130) * 1.3); position: relative; isolation: isolate; filter: none; }
+/* Enlarge the existing HUD effect disc and duration ring together by 30%. */
 .barwrap .hud-status .gi { box-sizing: content-box; padding: .2em; border-radius: 50%; background: var(--toast-good); color: var(--ink); box-shadow: var(--shadow-sm); }
 .barwrap .hud-status i.bad .gi { background: var(--toast-bad); color: var(--white); }
 /* duração do efeito: anel claro de 3 px em volta do disco que esvazia no sentido horário (--left vem de ui.ts), sem o número (escolha do Sky entre número, anel e os dois);
    sem prazo (Égide pronta) fica só o aro escuro, que separa o disco da arena */
-.barwrap .hud-status i::after { content: ''; position: absolute; inset: -3px; z-index: -1; border-radius: 50%; background: conic-gradient(var(--cream) calc(var(--left, 0) * 1turn), color-mix(in srgb, var(--ink) 85%, transparent) 0); }
+.barwrap .hud-status i::after { content: ''; position: absolute; inset: calc(-3px * 1.3); z-index: -1; border-radius: 50%; background: conic-gradient(var(--cream) calc(var(--left, 0) * 1turn), color-mix(in srgb, var(--ink) 85%, transparent) 0); }
 @media (min-width: 601px) and (min-height: 501px) {
   /* a vida some na contagem e morto: o lugar fica, para a barra não pular */
   .hero-box .vitals[hidden] { display: flex !important; visibility: hidden; }
@@ -340,14 +356,20 @@ button.kick:hover { background: rgba(255, 106, 77, .15); }
 .wiz-label.ember .loot-bar > div { background: var(--ember); }
 .hp-text { position: absolute; inset: 0; display: grid; place-items: center; font-size: var(--fs-70); font-weight: 800; line-height: 1; color: var(--white); text-shadow: 0 1px 2px var(--ink), 0 0 2px var(--ink); font-variant-numeric: tabular-nums; }
 .hp-fill { height: 100%; width: 100%; }
-.wiz-label .hp { display: flex; transition: box-shadow .2s, border-color .2s; }
-.wiz-label .hp-fill { flex: none; }
+.wiz-label .hp { display: flex; background: var(--combat-slate); border-color: var(--combat-line); box-shadow: 0 0 0 2px var(--ink), 0 2px 5px var(--ink); transition: box-shadow .2s, border-color .2s; }
+.wiz-label .wiz-name { color: var(--white); text-shadow: -1px -1px var(--ink), 1px -1px var(--ink), -1px 1px var(--ink), 1px 1px var(--ink), 0 2px 3px var(--ink); }
+.wiz-label .wiz-name .bot-tag { color: inherit; }
+.wiz-label .hp[data-relation="ally"] { --hp-color: var(--hp-ally); }
+.wiz-label .hp[data-relation="enemy"] { --hp-color: var(--hp-enemy); }
+.wiz-label .hp-fill { flex: none; background: linear-gradient(color-mix(in srgb, var(--hp-color, var(--hp-team)) 85%, var(--white)), var(--hp-color, var(--hp-team))); }
+.wiz-label .hp-segments { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, transparent calc(100% - 1px), var(--ink) 0) 0 0 / var(--hp-step, 20%) 100% repeat-x; }
 /* escudos na barra: o que o Escudo de runa e a Investida ainda absorvem, depois da vida */
 .hp-abs { flex: none; height: 100%; min-width: 4px; }
 .hp-abs.rush { background: repeating-linear-gradient(135deg, var(--rush-hi) 0 3px, var(--rush) 3px 6px); }
-.wiz-label .hp.heal { border-color: var(--heal-line); box-shadow: 0 0 4px rgba(61, 220, 132, .45); }
-.wiz-label .hp.invuln { border-color: var(--gold); box-shadow: 0 0 6px 1px rgba(255, 211, 106, .7); }
-.wiz-label .hp-row { position: relative; }
+.wiz-label .hp.heal { border-color: var(--heal-line); box-shadow: 0 0 0 2px var(--ink), 0 0 4px color-mix(in srgb, var(--heal-line) 45%, transparent); }
+.wiz-label .hp.invuln { border-color: var(--gold); box-shadow: 0 0 0 2px var(--ink), 0 0 6px 1px color-mix(in srgb, var(--gold) 70%, transparent); }
+.wiz-label .hp-row { position: relative; display: flex; align-items: center; gap: var(--sp-4); }
+.wiz-label .hp-row .team-crest { margin: 0; }
 .wiz-label .aegis { position: absolute; right: 100%; top: 50%; margin-right: 2px; transform: translateY(-50%); display: flex; font-size: var(--fs-85); color: var(--gold-pale); filter: drop-shadow(0 1px 2px var(--ink)) drop-shadow(0 0 1px var(--ink)); }
 .wiz-label .shield-bar { width: 64px; height: 4px; margin-top: 2px; border-radius: 2px; background: rgba(0, 0, 0, .6); overflow: hidden; }
 .wiz-label .shield-bar > div { height: 100%; background: var(--shield-hp); }
@@ -831,6 +853,11 @@ html.pad .shop-item:focus-within .shop-tile { border-color: var(--pad-focus); }
 .end-title.win { background: linear-gradient(180deg, var(--gold-pale), var(--gold) 45%, var(--lava-hi)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 4px 18px rgba(255, 150, 30, .55)) drop-shadow(0 0 2px var(--ink)); }
 .end-title.loss { color: var(--silver); }
 .end-winner { font-family: var(--display); font-size: var(--fs-125); }
+.team-crest { display: inline-block; flex: none; width: var(--team-symbol-size); height: var(--team-symbol-size); margin-right: var(--sp-4); padding: 0; border: 0; background: transparent; color: var(--team-tint); vertical-align: middle; text-shadow: none; filter: drop-shadow(0 1px 1px var(--ink)) drop-shadow(0 0 1px var(--ink)); }
+.team-crest::before { content: ''; display: block; width: 100%; height: 100%; background: currentColor; }
+.team-crest[data-team="0"]::before { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.team-crest[data-team="2"]::before { border-radius: 50%; }
+.team-crest[data-team="3"]::before { clip-path: polygon(50% 0, 61.8% 38.2%, 100% 38.2%, 69.1% 61.8%, 80.9% 100%, 50% 76.4%, 19.1% 100%, 30.9% 61.8%, 0 38.2%, 38.2% 38.2%); }
 @media (max-width: 420px) { .end-actions { grid-template-columns: 1fr; } }
 /* modo treino: botão na sala de espera e a dica do momento no alto da tela */
 button.train { flex-direction: column; gap: 0; border-style: dashed; border-color: var(--bronze); }
