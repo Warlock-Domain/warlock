@@ -3,9 +3,13 @@ import { createRockFootprint } from './rock-footprint.ts';
 import { createTrunkRoots } from './trunk-roots.ts';
 import { createLavaLandscape } from './lava-landscape.ts';
 import { restoreLavaDepth } from './background-depth.ts';
+import { createHazardMarkers, createWorldHearth, snowCover } from './world-end-scene.ts';
+import { createAbyssLandscape } from './abyss-landscape.ts';
+import { BLIZZARD_WHITEOUT_DEPTH, createDarknessEyes, hazardVignette, torchRadius } from './darkness-fx.ts';
+import type { WorldEnd } from '../shared/world-end.ts';
 import { mountainFootFragments } from './mountain-fragments.ts';
 import { lavaBasinGeometry } from './lava-basin.ts';
-import { createLavaChasm, CHASM_GLSL } from './lava-chasm.ts';
+import { chasmFallPath, createLavaChasm, CHASM_GLSL } from './lava-chasm.ts';
 import { createShieldMaterial, updateShieldMaterial, shieldImpact } from './shield-material.ts';
 import { createStoneImpactFx } from './stone-impact-fx.ts';
 import { createWallWear } from './wall-wear.ts';
@@ -21,7 +25,7 @@ import { elementSphereModel } from './element-sphere-model.ts';
 import { arenaRimGeometry } from './arena-rim.ts';
 import { createLavaBubbles } from './lava-bubbles.ts';
 import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit, type Element, type Transcendence } from '../shared/elemental-spheres.ts';
-import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
+import { ELECTROCUTED_BIT, BRACING_BIT, arenaRadius } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
 import { createAttackClip, playAnimation as play } from './attack-pose.ts';
 import { electroPulse } from './screen-data.ts';
@@ -47,7 +51,7 @@ import { lookBody, lookOf, lookPieces, type CharacterId } from '../shared/charac
 import type { NightMap } from '../shared/levels.ts';
 import type { MatchOpts } from '../shared/match.ts';
 import type { ProjKind, SimEvent } from '../shared/sim.ts';
-import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
+import type { HazardView, PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
 import { add, clampLen, len, norm, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
 import { createMeadowGround } from './meadow-ground.ts';
@@ -70,7 +74,7 @@ export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fá
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { blindLeft?: number; transcendence?: Transcendence; transcendLeft?: number; spheres?: { element: Element; left: number }[]; nexusTo?: number; transfusionTo?: number; transfusionRate?: number; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { local?: boolean; blindLeft?: number; transcendence?: Transcendence; transcendLeft?: number; spheres?: { element: Element; left: number }[]; nexusTo?: number; transfusionTo?: number; transfusionRate?: number; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -175,7 +179,7 @@ function floorGeo(id: ArenaId) {
   const [outer, ...holes] = ARENAS[id].outline; // toda forma tem um contorno de fora (o anel tem um buraco)
   const shape = new THREE.Shape(outer.map((p) => new THREE.Vector2(p.x, p.y)));
   shape.holes = holes.map((h) => new THREE.Path(h.map((p) => new THREE.Vector2(p.x, p.y))));
-  const g = new THREE.ExtrudeGeometry(shape, { depth: 0.04, bevelEnabled: false });
+  const g = new THREE.ExtrudeGeometry(shape, { depth: id === 'bridge' ? .55 : .04, bevelEnabled: false });
   g.rotateX(Math.PI / 2); // (x, y) da forma vira (x, z) do mundo, a espessura para baixo; o topo em y = 0
   return g;
 }
@@ -198,12 +202,47 @@ function sdfTexture(id: ArenaId) {
 const SHORE_GLSL = `
 uniform sampler2D uSdf; uniform float uSpan; uniform float uR; uniform float uShoreTime; uniform float uLick; uniform float uWarn;
 uniform vec3 uTint; uniform float uTintK;
-float shoreDist(vec2 xz){ vec2 uv = (xz / uR + uSpan) / (2.0 * uSpan); return (texture2D(uSdf, uv).r * 2.0 - 1.0) * ${SDF_CLAMP.toFixed(2)} * uR; }
+float shoreDistAt(vec2 xz, float radius){ vec2 uv = (xz / radius + uSpan) / (2.0 * uSpan); return (texture2D(uSdf, uv).r * 2.0 - 1.0) * ${SDF_CLAMP.toFixed(2)} * radius; }
+float shoreDist(vec2 xz){ return shoreDistAt(xz, uR); }
 float shash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(shash(i), shash(i + vec2(1, 0)), u.x), mix(shash(i + vec2(0, 1)), shash(i + vec2(1, 1)), u.x), u.y); }
 // lava lambendo a borda: a linha onde a pedra derrete sobe e desce uns centímetros, devagar (parada no modo leve)
 float shoreLick(vec2 xz){ return uLick * (0.08 + 0.07 * sin(uShoreTime * 1.6 + xz.x * 1.7 + xz.y * 1.3) * sin(uShoreTime * 0.9 - xz.x * 0.8 + xz.y * 2.1)); }
+`;
+const ICE_FIELD_GLSL = `
+vec3 iceField(vec2 at) {
+  vec2 p = at * .49;
+  float drifts = .5 * vnoise(p) + .25 * vnoise(p * 2.03 + 1.7)
+    + .125 * vnoise((p * 2.03 + 1.7) * 2.03 + 1.7);
+  float rim = exp(-max(0.0, shoreDist(at)) * .46);
+  return mix(vec3(.09, .20, .32), vec3(.32, .52, .67), drifts) + vec3(.13, .20, .27) * rim;
+}
+`;
+const EDGE_WARNING_GLSL = `
+uniform float uWorldEnd;
+uniform vec2 uEdgeWarning;
+vec3 weatheredEdge(vec3 lit, vec2 ground, float inside) {
+  float outsideNext = uEdgeWarning.x < .01 ? 1.0 : shoreDistAt(ground, uEdgeWarning.x);
+  if (outsideNext <= 0.0) return lit;
+  float across = outsideNext / max(.025, max(0.0, inside) + outsideNext);
+  float growth = smoothstep(.85 - uEdgeWarning.y, 1.13 - uEdgeWarning.y, across);
+  if (uWorldEnd < 1.5) {
+    float grain = vnoise(ground * 2.1);
+    float crystals = 1.0 - smoothstep(.025, .14, abs(vnoise(ground * 5.2 + grain * .6) - .5));
+    float frost = smoothstep(0.0, .07, outsideNext) * growth * smoothstep(0.0, .4, uEdgeWarning.y)
+      * smoothstep(.004, .025, 1.0 - length(ground) / uR);
+    vec3 ice = mix(vec3(.37, .64, .82), vec3(.70, .84, .94), grain * .65 + crystals * .35);
+    return mix(lit, ice, frost * (.60 + .23 * crystals));
+  }
+  float fracture = abs(vnoise(ground * 2.9 + vnoise(ground * 8.0) * .58) - .5);
+  float edge = smoothstep(.0, .045, outsideNext) * growth * smoothstep(0.0, .33, uEdgeWarning.y);
+  float core = 1.0 - smoothstep(.034, .077, fracture);
+  float lip = (1.0 - smoothstep(.085, .16, fracture)) * (1.0 - core);
+  vec3 powder = mix(lit, vec3(.30, .31, .35), edge * .11);
+  vec3 chipped = mix(powder, vec3(.48, .46, .42), lip * edge * .83);
+  return mix(chipped, vec3(.012, .012, .018), core * edge * .93);
+}
 `;
 // faixa no chão entre dois contornos de mesmo número de pontos (a e b); keep diz se o quadrilátero entra (pelo meio dele)
 function bandGeo(pairs: [Vec[], Vec[]][], keep: (m: Vec) => boolean = () => true) {
@@ -288,6 +327,7 @@ type Mage = {
   motionAt?: number;
   motionFxAt?: number;
   burning: boolean; // vivo e na lava (issue #225): o corpo pulsa em brasa e solta faíscas
+  hazardFallAt?: number;
   electro?: boolean;
   freezeUntil: number; // hit-stop: animação parada até este instante
   cheering: boolean;
@@ -318,9 +358,10 @@ type Fx = { obj: THREE.Object3D; until: number; born: number; update?: (k: numbe
 
 const LAVA_VERT = `varying vec2 vUv; varying vec3 vPos; void main(){ vUv = uv; vec4 wp = modelMatrix * vec4(position,1.0); vPos = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`;
 const LAVA_FRAG = `
-uniform float uTime; uniform sampler2D uMap; uniform float uHas; uniform float uHeat; varying vec2 vUv; varying vec3 vPos;
+uniform float uTime; uniform sampler2D uMap; uniform float uHas; uniform float uHeat; uniform float uWorldEnd; varying vec2 vUv; varying vec3 vPos;
 ${SHORE_GLSL}
 ${CHASM_GLSL}
+${ICE_FIELD_GLSL}
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.0-2.0*f);
   return mix(mix(hash(i), hash(i+vec2(1,0)), u.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), u.x), u.y); }
@@ -338,7 +379,16 @@ vec2 lavaCells(vec2 p){
   return vec2(closest.x, closest.y - closest.x);
 }
 void main(){
-  if(vPos.z>chasmEdge(vPos.x)) discard;
+  if(vPos.z>chasmEdge(vPos.x) || uWorldEnd > 2.5) discard;
+  if (uWorldEnd > 0.5) {
+    float earth = fbm(vPos.xz * .8);
+    vec3 exterior = mix(vec3(.055, .047, .040), vec3(.11, .10, .085), earth);
+    if (uWorldEnd < 1.5) exterior = iceField(vPos.xz);
+    gl_FragColor = vec4(exterior, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+    return;
+  }
   vec2 p = vPos.xz * 0.28;
   float t = uTime * 0.025 * mix(0.25, 1.0, uLick);
   vec2 flow = vec2(fbm(p * 1.4 + t), fbm(p * 1.4 - t + 11.3));
@@ -428,7 +478,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   fill.position.set(10, 9, -8);
   const shoreLights = Array.from({ length: 4 }, () => new THREE.PointLight('#ff6928', 7, 8, 2));
   scene.add(fill, ...shoreLights);
-  let lightingMap: boolean | undefined;
+  let lightingStyle: WorldEnd | 'campaign' | undefined;
 
   // assets CC0 em public/ (créditos em public/CREDITS.txt); enquanto não carregam, fica o visual gerado por código
   const loader = new THREE.TextureLoader();
@@ -453,7 +503,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const FIRE_KINDS = new Set<string>(['fireball', 'cluster', 'meteor']);
   // distância até a borda e relógio da borda derretida, divididos pela lava e pela pedra
   const shoreU = { uSdf: { value: sdfTexture('circle') }, uSpan: { value: sdfSpan('circle') }, uR: { value: 11 }, uShoreTime: { value: 0 }, uLick: { value: 1 }, uWarn: { value: 0 }, uTint: { value: new THREE.Color() }, uTintK: { value: 0 } };
-  const lavaMat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uMap: { value: null }, uHas: { value: 0 }, uHeat: { value: 1 }, ...shoreU }, vertexShader: LAVA_VERT, fragmentShader: LAVA_FRAG });
+  const exteriorStyle = { value: 0 };
+  const lavaMat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uMap: { value: null }, uHas: { value: 0 }, uHeat: { value: 1 }, uWorldEnd: exteriorStyle, ...shoreU }, vertexShader: LAVA_VERT, fragmentShader: LAVA_FRAG });
   loader.load('/tex/lava_emit.jpg', (t) => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     lavaMat.uniforms.uMap.value = t;
@@ -463,10 +514,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   lava.renderOrder = -3;
   ground(lava, -0.02); // a pedra fica só 2 cm acima
   scene.add(lava);
-  const landscape = createLavaLandscape(); scene.add(landscape.root);
-  const chasm = createLavaChasm(landscape.cliffMaterial); scene.add(chasm.root);
+  const lowerLavaFall = chasmFallPath();
+  const landscape = createLavaLandscape(lowerLavaFall); scene.add(landscape.root);
+  const chasm = createLavaChasm(landscape.cliffMaterial, lowerLavaFall); scene.add(chasm.root);
+  const abyss = createAbyssLandscape(); scene.add(abyss.root);
   landscape.root.add(mountainFootFragments([...landscape.rocks,...chasm.rocks],landscape.cliffMaterial,lava));
   restoreLavaDepth(lava);
+  const snowAmount = { value: 0 };
+  const hearthHeat = { value: 0 };
+  const coverSnow = snowCover(snowAmount, hearthHeat);
+  const hearth = createWorldHearth(FLAMES);
+  const hazardMarkers = createHazardMarkers(FLAMES[0], FX.light);
+  scene.add(hearth.root, hazardMarkers.root);
 
   // arena: a forma em escala 1 escalada pelo raio; o topo de pedra, a lateral brilha com a lava
   const meadow = createMeadowGround();
@@ -474,6 +533,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   const stone = meadow.texture;
   const dungeonStone = tex('/tex/stone.jpg', true, 2.5), dungeonNormal = tex('/tex/stone_nor.jpg', false, 2.5);
   const forestFloor = { value: 1 };
+  const edgeWarning = { value: new THREE.Vector2() }; // next radius and warning progress
   let scenery: ArenaScenery = 'forest', scenerySeed = '';
   let shownArena: ArenaId = 'circle';
   const arena = new THREE.Mesh(
@@ -486,6 +546,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   scene.add(arena);
   const rimGeometry = arenaRimGeometry(shownArena);
   const rim = new THREE.Mesh(rimGeometry.stone, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, side: THREE.DoubleSide, flatShading: true, depthWrite: false }));
+  // The bevel overlays the floor, so the terrain warning needs to cover both surfaces.
+  rim.material.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, shoreU, { uWorldEnd: exteriorStyle, uEdgeWarning: edgeWarning });
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vEdgeRim;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvEdgeRim = (modelMatrix * vec4(transformed, 1.0)).xz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vEdgeRim;\n' + SHORE_GLSL + EDGE_WARNING_GLSL)
+      .replace('#include <opaque_fragment>', `
+        #include <opaque_fragment>
+        if (uEdgeWarning.y > 0.0) gl_FragColor.rgb = weatheredEdge(gl_FragColor.rgb, vEdgeRim, -shoreDist(vEdgeRim));`);
+  };
   const fissures = new THREE.LineSegments(rimGeometry.fissures, new THREE.LineBasicMaterial({ color: '#ff7934', depthWrite: false }));
   const fissureWarning = new THREE.Color('#ff270a');
   // Decorative relief follows the floor but never masks actors or transparent combat cues.
@@ -495,12 +565,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // The shared signed distance keeps the carved rim, lava seam and warning aligned on every arena shape.
   (arena.material as THREE.MeshStandardMaterial[])[0].onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, shoreU);
+    sh.uniforms.uWorldEnd = exteriorStyle;
     sh.uniforms.uForestFloor = forestFloor;
+    sh.uniforms.uEdgeWarning = edgeWarning;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nuniform float uForestFloor;\n' + SHORE_GLSL)
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nuniform float uForestFloor;\n' + SHORE_GLSL + EDGE_WARNING_GLSL + ICE_FIELD_GLSL)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       float eIn = -shoreDist(vWPos.xz);
+      if (uWorldEnd < 0.5) {
       float nz = vnoise(vWPos.xz * 1.3);
       float band = 1.0 - smoothstep(0.0, 1.3, eIn - 0.4 * (nz - 0.5));
       diffuseColor.rgb *= mix(1.0, 0.3, band);
@@ -512,29 +585,73 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       float melt = 1.0 - smoothstep(0.0, 0.22, eIn - shoreLick(vWPos.xz) - 0.12 * (nz - 0.5));
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.08, 0.02, 0.0), melt);
       float rimLight = smoothstep(0.2, 0.32, eIn) * (1.0 - smoothstep(0.32, 0.58, eIn));
-      totalEmissiveRadiance += hot * (crack * band * band * (0.5 + 1.2 * uWarn) + melt * (0.35 + 0.9 * uWarn) + rimLight * 0.08);`)
+      totalEmissiveRadiance += hot * (crack * band * band * (0.5 + 1.2 * uWarn) + melt * (0.35 + 0.9 * uWarn) + rimLight * 0.08);
+      }`)
       .replace('#include <map_fragment>', `
       // World coordinates keep paths and vegetation anchored while the arena shrinks.
       #ifdef USE_MAP
-        diffuseColor *= texture2D(map, mix(vMapUv, vWPos.xz / 32.0 + 0.5, uForestFloor));
+        vec2 groundUv = uWorldEnd > 1.5 && uWorldEnd < 2.5 ? vWPos.xz / 8.0 : vMapUv;
+        diffuseColor *= texture2D(map, mix(groundUv, vWPos.xz / 32.0 + 0.5, uForestFloor));
       #endif`)
       .replace('#include <opaque_fragment>', `
       if (uForestFloor < 0.5) {
         // Neutral slate in the fighting space; retain warm lava bounce only near the perimeter.
         float arenaRim = 1.0 - smoothstep(0.15, 1.7, -shoreDist(vWPos.xz));
-        // outgoingLight already includes the emissive (cracks, round effect, shrink warning): grade only the lit stone or those colors go grey.
         vec3 litStone = outgoingLight - totalEmissiveRadiance;
-        vec3 coolStone = dot(litStone, vec3(0.2126, 0.7152, 0.0722)) * vec3(0.72, 0.78, 0.88);
-        outgoingLight = mix(coolStone, litStone, arenaRim * 0.8) + totalEmissiveRadiance;
+        float stoneLight = dot(litStone, vec3(0.2126, 0.7152, 0.0722));
+        float edgeTint = uWorldEnd > 1.5 && uWorldEnd < 2.5 ? 0.0 : arenaRim * 0.8;
+        outgoingLight = mix(stoneLight * vec3(0.72, 0.78, 0.88), litStone, edgeTint);
+        // Anchor the weathering to the ground so it does not slide with the arena.
+        vec2 stoneAt = mat2(.985, .17, -.17, .985) * vWPos.xz;
+        float damp = vnoise(stoneAt * .63);
+        vec2 courses = stoneAt / vec2(1.85, 1.16);
+        courses += .16 * vec2(damp - .5, vnoise(stoneAt * .92 + 7.1) - .5);
+        float pixel = max(fwidth(courses.x), fwidth(courses.y));
+        courses.x += floor(courses.y) * .46;
+        vec2 insideSlab = .5 - abs(fract(courses) - .5);
+        float joint = min(insideSlab.x, insideSlab.y);
+        float detail = 1.0 - smoothstep(.022, .11, pixel);
+        float wear = mix(.91, 1.08, shash(floor(courses)));
+        float seam = (1.0 - smoothstep(.012, .04 + pixel, joint)) * detail;
+        float moss = (1.0 - smoothstep(.035, .115, joint))
+          * smoothstep(.58, .79, damp * .72 + vnoise(stoneAt * 2.6) * .28) * detail;
+        outgoingLight *= mix(1.0, wear, detail) * (1.0 - seam * .18);
+        outgoingLight = mix(outgoingLight, outgoingLight * vec3(.65, 1.08, .59) + vec3(.008, .023, .005), moss * .62);
+        outgoingLight += totalEmissiveRadiance;
       }
-      #include <opaque_fragment>`);
+      #include <opaque_fragment>
+      if (uWorldEnd > .5 && uWorldEnd < 1.5) {
+        // Match the snow field at the mesh edge, where the whiteout is still translucent.
+        float insideIce = 1.0 - length(vWPos.xz) / uR;
+        float fadeWidth = .088 + (vnoise(vWPos.xz * .9) - .5) * .026;
+        gl_FragColor.rgb = mix(iceField(vWPos.xz), gl_FragColor.rgb, smoothstep(.004, fadeWidth, insideIce));
+      }
+      if (uEdgeWarning.y > 0.0) gl_FragColor.rgb = weatheredEdge(gl_FragColor.rgb, vWPos.xz, eIn);`);
   };
+  const continuousGround = new THREE.Mesh(
+    new THREE.PlaneGeometry(110, 110).rotateX(-Math.PI / 2), arena.material[0],
+  );
+  continuousGround.name = 'Darkness_Continuous_Ground';
+  continuousGround.renderOrder = -2;
+  continuousGround.receiveShadow = true;
+  continuousGround.visible = false;
+  scene.add(continuousGround);
+  coverSnow(arena, arena.material[0]);
+  coverSnow(rim);
+  coverSnow(meadow.root);
+  coverSnow(landscape.root);
+  coverSnow(chasm.root);
   // faixa que pisca em vermelho onde a pedra vai afundar
   const warnMat = new THREE.MeshBasicMaterial({ color: '#ff2a00', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
   const warn = new THREE.Mesh(new THREE.BufferGeometry(), warnMat);
   warn.position.y = 0.02;
   scene.add(warn);
   let shownR = 11;
+  let shownEnding: WorldEnd = 'lava';
+  let hearthRadius = 1, hearthSeed = '';
+  let previousAbyssRadius: number | undefined;
+  let shedAbyssAt: number | undefined;
+  let abyssCollapseAt = -Infinity;
   let shownIsles: Isle[] = []; // ilhas de refúgio do último quadro (morrer em cima de uma não é cair na lava)
   // decoração arrumada para esta arena e este tamanho (rodada nova = arena maior)
   let decorArena: ArenaId | null = null;
@@ -681,7 +798,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   });
 
   const mages = new Map<string, Mage>();
-  const decor = createDecor(scene, ready.then(() => mageScale), FX.flame);
+  const decor = createDecor(scene, ready.then(() => mageScale), FX.flame, coverSnow);
 
   // mapa explorável da Campanha (levels.ts): ladrilhos de ardósia, paredes, muretas e cera em malhas instanciadas, sobre um
   // vazio escuro (o abismo). Montado uma vez por noite; os pontos de controle acendem até o encontro deles ser vencido
@@ -702,7 +819,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   let mapKey = '';
   // mapa da Campanha em cena: lá a lava é o chão desenhado (^), não a borda da arena (as coordenadas do mapa ficam longe do centro)
   let curMap: NightMap | null = null;
-  const lavaAt = (p: Vec, pad = 0) => (curMap ? curMap.ground[Math.floor(p.y)]?.[Math.floor(p.x)] === 'lava' : inLavaAt(shownArena, shownR, shownIsles, p, pad));
+  const lavaAt = (p: Vec, pad = 0) => (curMap ? curMap.ground[Math.floor(p.y)]?.[Math.floor(p.x)] === 'lava' : shownEnding === 'lava' && inLavaAt(shownArena, shownR, shownIsles, p, pad));
   const bubbleAllowed = (p: Vec) => edgeAt(shownArena, shownR, p) < -1.3 && shownIsles.every(i => Math.hypot(p.x - i.pos.x, p.y - i.pos.y) > i.r + 1.3);
   const lavaBubbles = createLavaBubbles(() => {
     const span = shownR * ARENAS[shownArena].reach + 5;
@@ -1517,11 +1634,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       rockModels.push(g.scene);
     }
   }).catch(() => {});
-  type IsleDraw = { g: THREE.Group; top: THREE.Mesh; cracks: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>; rocks: THREE.Group; r: number; seen: number; shrinkAt: number; fragmentAt: number };
+  const normalIsleBase = [isleSide, isleLava, isleSide], dryIsleBase = [isleSide, isleStone, isleSide];
+  const abyssIsleSide = new THREE.MeshStandardMaterial({ color: '#354155', roughness: 1 });
+  const abyssIsleBase = [abyssIsleSide, isleStone, abyssIsleSide];
+  type IsleDraw = { g: THREE.Group; base: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshStandardMaterial[]>; top: THREE.Mesh; cracks: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>; rocks: THREE.Group; r: number; seen: number; shrinkAt: number; fragmentAt: number };
   const isleDraws: IsleDraw[] = [];
   function isleDraw(i: number): IsleDraw {
     const g = new THREE.Group();
-    const base = new THREE.Mesh(isleBaseGeo, [isleSide, isleLava, isleSide]);
+    const base = new THREE.Mesh(isleBaseGeo, normalIsleBase);
     base.position.y = -0.305; // topo de lava 0,5 cm acima da lava do mar
     const top = new THREE.Mesh(isleTopGeo, isleStone);
     top.position.y = 0.01; // pedra 4 cm acima do chão da arena: dá para ver que é pedra firme
@@ -1530,14 +1650,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     cracks.rotation.z = i * 1.3;
     const rocks = new THREE.Group();
     g.add(base, top, cracks, rocks);
+    coverSnow(g);
     scene.add(g);
-    return { g, top, cracks, rocks, r: -1, seen: i, shrinkAt: -1, fragmentAt: 0 };
+    return { g, base, top, cracks, rocks, r: -1, seen: i, shrinkAt: -1, fragmentAt: 0 };
   }
   function syncIsles(list: Isle[], now: number, dt: number) {
     while (isleDraws.length < list.length) isleDraws.push(isleDraw(isleDraws.length));
     isleDraws.forEach((d, i) => {
       const it = list[i];
-      d.g.visible = !!it && it.r > 0.02;
+      d.g.visible = !!it && it.r > 0.02 && shownEnding !== 'darkness';
       if (!it) {
         d.r = -1;
         return;
@@ -1553,6 +1674,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           o.rotation.y = a * 3;
           d.rocks.add(o);
         }
+        coverSnow(d.rocks);
       }
       // a ilha chega junto com a borda: anda devagar até o lugar novo, e o raio acompanha sem saltos
       const to = w3(it.pos);
@@ -1569,6 +1691,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       d.cracks.scale.setScalar(k);
       d.cracks.position.y = d.top.position.y + 0.032;
       d.cracks.material.opacity = Math.max(0, melt - 0.08) * 1.1;
+      d.cracks.visible = shownEnding === 'lava';
+      d.base.material = shownEnding === 'lava' ? normalIsleBase : shownEnding === 'abyss' ? abyssIsleBase : dryIsleBase;
       d.rocks.children.forEach((o, n) => (o.position.y = -0.45 * melt - 0.08 * n * melt));
       d.rocks.visible = d.r > 0.3;
       if (!lite && d.g.visible && melt > 0.12 && now - d.shrinkAt < 0.3 && now >= d.fragmentAt && fx.length < FX_CAP) {
@@ -1642,6 +1766,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         obj.position.copy(w3(p.pos, 0));
         if (!wall && !side && !curMap) obj.rotation.y = objectYaw(scenerySeed, p.kind, p.pos);
         obj.userData.obstacleKind = p.kind; obj.userData.scenery = scenery;
+        coverSnow(obj);
         scene.add(obj);
         // barra de vida em tudo que quebra (pedido do Fernando, 17/10: sempre visível)
         let bar: HTMLDivElement | null = null, fill: HTMLDivElement | null = null;
@@ -2110,7 +2235,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     }
   }
 
-  function syncWizards(list: WizDraw[], now: number) {
+  function syncWizards(list: (WizDraw & HazardView)[], now: number) {
     const seen = new Set<string>();
     for (const d of list) {
       let m = mages.get(d.id);
@@ -2144,6 +2269,16 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // Held aim: a charge bar instead of a countdown (Fernando, 26/10).
       if(d.alive && (d.sniperLeft ?? 0)>0) chargeBubble(m,'sniper-clock',t('Mirando','Aiming'),1-d.sniperLeft!/CAST_POINT.sniper);
       else m.label.querySelector('.sniper-clock')?.remove();
+      const hazardLabel = m.label.querySelector('.hazard-clock');
+      const hazardText = !d.alive ? '' : d.ledge
+        ? t(`Resgate · ${Math.ceil(d.ledge.left)} s`, `Rescue · ${Math.ceil(d.ledge.left)} s`)
+        : d.local && (d.darkLeft ?? 0) > 0 ? t(`Volte à luz · ${n1(d.darkLeft!)} s`, `Return to the light · ${n1(d.darkLeft!)} s`)
+        : d.local && d.torchLeft !== undefined ? t(`Tocha · ${n1(d.torchLeft)} s`, `Torch · ${n1(d.torchLeft)} s`) : '';
+      if (hazardText) {
+        const label = hazardLabel ?? el('span', { class: 'bubble hazard-clock' });
+        label.textContent = hazardText;
+        if (!hazardLabel) m.label.prepend(label);
+      } else hazardLabel?.remove();
       const mindLabel = m.label.querySelector('.mind-clock');
       if (d.alive && (d.transfusionTo ?? -1) >= 0) {
         const label = mindLabel ?? el('span', { class: 'bubble mind-clock' });
@@ -2169,7 +2304,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const hidden = !d.illusion && (d.status & 2048) > 0; // a cópia é sempre visível; os inimigos não veem o jogador velado
       m.root.visible = !hidden;
       const ritualLift = d.alive ? transcendLift(d.transcendLeft ?? 0) : 0;
-      m.model.position.y = d.alive ? Math.max(geyserHeight(d.geyserLeft ?? 0), ritualLift) : 0;
+      if (d.alive || !d.hazardDeath) m.hazardFallAt = undefined;
+      else m.hazardFallAt ??= now;
+      const falling = m.hazardFallAt === undefined ? 0 : now - m.hazardFallAt;
+      m.model.position.y = d.ledge ? -.95 : d.alive ? Math.max(geyserHeight(d.geyserLeft ?? 0), ritualLift)
+        : d.hazardDeath === 'abyss' ? -Math.min(20, falling * falling * 12) : d.hazardDeath === 'darkness' ? -Math.min(4, falling * 6) : 0;
       if (!(d.transcendLeft ?? 0) && m.current === 'Transcend_Float') {
         m.actions.Transcend_Float.stop(); m.current = '';
       }
@@ -2215,10 +2354,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       m.statusFx.update(d.status, d.alive && !hidden && !ghost && !(d.transcendLeft ?? 0), m.model.position.y, now, lite, camera.quaternion);
       m.blindEl.hidden = !d.alive || !(d.blindLeft ?? 0);
-      m.ring.visible = d.alive;
-      m.ringBacking.visible = d.alive;
+      m.ring.visible = d.alive && !d.ledge;
+      m.ringBacking.visible = d.alive && !d.ledge;
       // Keep the contact cue on the floor while Geyser/Transcend lift the body.
-      m.contactShadow.visible = d.alive && !lavaAt(d.pos);
+      m.contactShadow.visible = d.alive && !d.ledge && !lavaAt(d.pos);
       m.contactShadow.scale.setScalar(1 + m.model.position.y * 0.12);
       (m.contactShadow.material as THREE.MeshBasicMaterial).opacity = (ghost ? 0.4 : 1) / (1 + m.model.position.y * 0.4);
       if (!d.alive) {
@@ -2556,6 +2695,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   let lastFrame = performance.now() / 1000;
   const blindMask = blindnessMask(camera); scene.add(blindMask);
+  const worldEndMask = hazardVignette(camera, shoreU); scene.add(worldEndMask.mesh);
+  const weatherOverlay = new THREE.Scene();
+  const darknessEyes = createDarknessEyes(); scene.add(darknessEyes.root);
   const sniperScreen=sniperFocusMask(); scene.add(sniperScreen);
   const preview = new AimPreview(scene);
   const hits: THREE.Mesh[] = []; // discos do "Ver hitbox", criados conforme precisa
@@ -2691,7 +2833,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { scenerySeed?: string; paused?: boolean; sniperFocus?: {left:number;shot:number}; blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[]; seen: number[] } | null }) {
+    render(state: { scenerySeed?: string; scenery?: ArenaScenery; worldEnd?: WorldEnd; paused?: boolean; sniperFocus?: {left:number;shot:number}; blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; terrainShrink?: { in: number; radius: number }; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[]; seen: number[] } | null }) {
       const now = performance.now() / 1000;
       const dt = state.paused ? 0 : Math.min(0.05, now - lastFrame);
       lastFrame = now;
@@ -2708,7 +2850,31 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // Campanha: o mapa no lugar da arena e da lava
       const onMap = !!state.map;
       const nextSeed = state.scenerySeed ?? '';
-      const nextScenery = onMap ? 'dungeon' : nextSeed ? sceneryFor(nextSeed) : 'forest';
+      const nextScenery = onMap ? 'dungeon' : state.scenery ?? (nextSeed ? sceneryFor(nextSeed) : 'forest');
+      shownEnding = onMap ? 'lava' : state.worldEnd ?? 'lava';
+      const torchLights = state.wizards
+        .filter(actor => actor.alive && !(actor.status & 2048) && !actor.illusion)
+        .map(actor => ({ pos: actor.pos, radius: torchRadius((actor as WizDraw & HazardView).torchLeft ?? 15) }))
+        .filter(light => light.radius > 0);
+      const quiet = lite || reducedMotion.matches;
+      worldEndMask.update(shownEnding === 'darkness' || shownEnding === 'ice' ? shownEnding : null, state.arena, torchLights, quiet ? 0 : now);
+      const maskLayer = shownEnding === 'ice' ? weatherOverlay : scene;
+      if (worldEndMask.mesh.parent !== maskLayer) maskLayer.add(worldEndMask.mesh);
+      const showLava = !onMap && shownEnding === 'lava';
+      const showAbyss = !onMap && shownEnding === 'abyss';
+      const showIce = !onMap && shownEnding === 'ice';
+      const continuousDarkness = !onMap && shownEnding === 'darkness';
+      exteriorStyle.value = { lava: 0, ice: 1, darkness: 2, abyss: 3 }[shownEnding];
+      snowAmount.value = shownEnding === 'ice' ? 1 : 0;
+      if (hearthSeed !== nextSeed) {
+        hearthSeed = nextSeed;
+        // Reconnecting after a shrink must not relight the fire at full strength.
+        hearthRadius = arenaRadius(state.wizards.filter(wizard => !wizard.illusion).length);
+        previousAbyssRadius = undefined;
+        shedAbyssAt = undefined;
+        abyssCollapseAt = -Infinity;
+      }
+      hearthRadius = Math.max(hearthRadius, state.arenaR);
       const sceneryChanged = nextScenery !== scenery || nextSeed !== scenerySeed;
       if (sceneryChanged) {
         scenery = nextScenery; scenerySeed = nextSeed;
@@ -2728,9 +2894,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       decor.night(state.map ? `${mapKey}|${state.map.opened.join()}` : '', () => (state.map ? nightProps(state.map.night, state.map.opened) : null)); // same key: nothing to do; an opened chest rebuilds the props (twice a night)
       mapGroup.visible = voidPlane.visible = onMap;
       lava.visible = arena.visible = warn.visible = !onMap;
-      landscape.update(now, !onMap, lite || reducedMotion.matches);
-      chasm.update(now, !onMap, lite || reducedMotion.matches);
-      rim.visible = fissures.visible = !onMap;
+      if (showAbyss) lava.visible = false;
+      continuousGround.visible = continuousDarkness;
+      if (continuousDarkness) arena.visible = warn.visible = false;
+      landscape.update(now, !onMap && !showAbyss, quiet, showLava);
+      chasm.update(now, !onMap && !showAbyss, quiet, showLava);
+      rim.visible = !onMap && !continuousDarkness && !showIce;
+      arena.material[1].visible = !showIce;
+      fissures.visible = showLava;
       for (const c of cpMarks) c.mat.opacity = state.map?.done.includes(c.room) ? 0.15 : 0.55 + 0.35 * Math.sin(now * 3);
       fogs.forEach((f, i) => {
         const mat = f.material as THREE.MeshBasicMaterial, goal = state.map?.seen.includes(i) ? 0 : 0.97;
@@ -2740,6 +2911,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
       // arena nova (sorteada a cada rodada): troca o chão e a borda
       if (state.arena !== shownArena) {
+        previousAbyssRadius = shedAbyssAt = undefined;
+        abyssCollapseAt = -Infinity;
         shownArena = state.arena;
         arena.geometry.dispose();
         arena.geometry = floorGeo(shownArena);
@@ -2756,13 +2929,77 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       decorR = state.arena !== decorArena || state.arenaR > decorR + 0.3 ? state.arenaR : Math.min(decorR, state.arenaR);
       decorArena = state.arena;
       shownR += (state.arenaR - shownR) * Math.min(1, dt * 4);
+      const localTorchBearer = continuousDarkness
+        ? state.wizards.find(wizard => wizard.local && wizard.alive && !wizard.illusion) as (WizDraw & HazardView) | undefined
+        : undefined;
+      const localTorch = localTorchBearer && inLavaAt(state.arena, state.arenaR, state.isles, localTorchBearer.pos)
+        ? { pos: localTorchBearer.pos, fuel: localTorchBearer.torchLeft ?? 15 }
+        : undefined;
+      const darknessShape = ARENAS[shownArena];
+      darknessEyes.update(continuousDarkness, now, shownR, shownR * darknessShape.reach, darknessShape.outline[0], pos =>
+        inLavaAt(shownArena, shownR, state.isles, pos)
+        && !torchLights.some(light => Math.hypot(pos.x - light.pos.x, pos.y - light.pos.y) < light.radius), quiet, localTorch);
+      const hearthStrength = hearth.update(shownEnding, shownR, hearthRadius, now, quiet);
+      hearthHeat.value = showIce ? hearthStrength : 0;
+      hazardMarkers.update(shownEnding, state.wizards, pos => inLavaAt(shownArena, shownR, state.isles, pos));
+      const upcoming = showAbyss || showIce ? state.terrainShrink : undefined;
+      const progress = upcoming && upcoming.in > 0 && upcoming.in < SHRINK_WARN && upcoming.radius < state.arenaR
+        ? 1 - upcoming.in / SHRINK_WARN : 0;
+      edgeWarning.value.set(upcoming?.radius ?? 0, progress && quiet ? .92 : progress);
+      if (!showAbyss) {
+        shedAbyssAt = undefined;
+        abyssCollapseAt = -Infinity;
+      }
+      // The rendered radius can interpolate one shrink across several frames.
+      const falling = showAbyss && previousAbyssRadius !== undefined
+        && state.arenaR < previousAbyssRadius - .001 && now - abyssCollapseAt >= 1;
+      const shedding = showAbyss && !falling && upcoming && progress >= .63 && shedAbyssAt !== upcoming.radius;
+      if (!quiet && (shedding || falling)) {
+        if (shedding) shedAbyssAt = upcoming.radius;
+        if (falling) abyssCollapseAt = now;
+        const outline = ARENAS[shownArena].outline[0];
+        const count = shedding ? 8 : Math.max(16, Math.min(22, outline.length));
+        const r = shedding ? shownR : ((previousAbyssRadius ?? state.arenaR) + state.arenaR) * .5;
+        for (let i = 0; i < count && fx.length < FX_CAP; i++) {
+          const at = (i + (shedding ? .4 : 0)) * outline.length / count;
+          const start = outline[Math.floor(at)], end = outline[(Math.floor(at) + 1) % outline.length];
+          const p = add(start, scale(sub(end, start), at % 1));
+          const size = shedding ? .075 + i % 3 * .03 : .16 + i % 4 * .07;
+          const chip = new THREE.Mesh(new THREE.DodecahedronGeometry(size), new THREE.MeshStandardMaterial({ color: '#68646d', roughness: 1, flatShading: true }));
+          chip.name = shedding ? 'Abyss_Edge_Chip' : 'Abyss_Collapse_Chip';
+          addFx(chip, (shedding ? .46 : .75) + i % 3 * .13, f => {
+            chip.position.set(p.x * (r + f * .7), .09 - f * f * 5, p.y * (r + f * .7));
+            chip.rotation.set(f * (i % 5 + 2), f * 4, f * 3);
+          });
+          chip.position.set(p.x * r, .09, p.y * r);
+          if (falling && i % 2 === 0 && fx.length < FX_CAP) {
+            const cloud = new THREE.Sprite(new THREE.SpriteMaterial({
+              map: PUFFS[(i / 2) % PUFFS.length], color: '#b6aca0', transparent: true, opacity: 0,
+              depthWrite: false, rotation: .27 * Math.sin(i * 1.8),
+            }));
+            cloud.name = 'Abyss_Collapse_Dust';
+            cloud.position.set(p.x * r, .16, p.y * r);
+            const scaleWithRadius = THREE.MathUtils.clamp(r / 5, .45, 1);
+            addFx(cloud, .67 + (i % 3) * .08, f => {
+              const size = (.58 + 1.38 * f) * scaleWithRadius;
+              const drift = r + .66 * f;
+              cloud.scale.set(size * 1.26, size * .68, 1);
+              cloud.position.set(p.x * drift, .16 + .75 * f - 1.15 * f * f, p.y * drift);
+              cloud.material.opacity = !lite && !reducedMotion.matches
+                ? .46 * Math.min(1, f * 8) * Math.pow(1 - f, 1.55) : 0;
+            });
+          }
+        }
+      }
+      previousAbyssRadius = showAbyss ? state.arenaR : undefined;
       arena.scale.set(shownR, 1, shownR);
+      abyss.update(showAbyss, shownArena, shownR, now, quiet);
       rim.scale.set(shownR, Math.min(1, shownR / 4), shownR);
       fissures.scale.copy(rim.scale);
-      meadow.update(shownArena, shownR, !onMap && scenery === 'forest', lite);
+      meadow.update(shownArena, shownR, !onMap && scenery === 'forest', lite, continuousDarkness, hearth.root.visible);
       shoreU.uR.value = Math.max(0.01, shownR);
       shoreU.uShoreTime.value = now;
-      shoreU.uLick.value = lite ? 0 : 1;
+      shoreU.uLick.value = (shownEnding === 'ice' ? quiet : lite) ? 0 : 1;
       // Tempo chuvoso: a lava esfria aos poucos (~1 s) para 55% do brilho, por cima e por baixo da borda
       heat += ((state.effect === 'lava' ? 0.55 : 1) - heat) * Math.min(1, dt * 3);
       const arcane = state.arcane && state.effect === 'gold';
@@ -2772,18 +3009,24 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       shoreU.uTintK.value = tintK;
       lavaMat.uniforms.uHeat.value = heat;
       // Preserve Campaign's established lighting; the new palette belongs to the arena.
-      if (lightingMap !== onMap) {
-        lightingMap = onMap;
+      const style = onMap ? 'campaign' : shownEnding;
+      if (lightingStyle !== style) {
+        lightingStyle = style;
+        const cold = style === 'ice';
+        (scene.background as THREE.Color).set(cold ? '#3e637d' : style === 'abyss' ? '#304057' : style === 'darkness' ? '#080d18' : '#1a0603');
+        arena.material[1].color.set(showAbyss ? '#3a4e46' : '#d2480c');
         sky.color.set(onMap ? '#ffd2b0' : '#b6ceef');
-        sky.groundColor.set(onMap ? '#ff4a10' : '#5a1c12');
-        sky.intensity = onMap ? 0.45 : 0.65;
-        sun.color.set(onMap ? '#ffe6c8' : '#fff0d8');
+        sky.groundColor.set(onMap ? '#ff4a10' : showLava ? '#5a1c12' : '#354864');
+        sky.intensity = onMap ? .45 : .65;
+        sun.color.set(onMap ? '#ffe6c8' : cold ? '#e0f2ff' : '#fff0d8');
         sun.intensity = onMap ? 1.7 : 1.5;
         fill.visible = !onMap;
-        for (const light of shoreLights) light.visible = !onMap;
+        for (const light of shoreLights) light.visible = showLava;
+        (arena.material[1] as THREE.MeshBasicMaterial).color.set(showLava ? '#d2480c' : cold ? '#8ea8ba' : '#302d35');
+        warnMat.color.set(showLava ? '#ff2a00' : cold ? '#93d6ff' : '#c4b2ff');
       }
-      under.intensity = onMap ? 0 : (10 + (lite ? 0 : Math.sin(now * 1.2) * 0.8)) * heat;
-      if (!onMap) {
+      under.intensity = showLava ? (10 + (lite ? 0 : Math.sin(now * 1.2) * 0.8)) * heat : 0;
+      if (showLava) {
         const shape = ARENAS[shownArena], loop = shape.outline[0];
         shoreLights.forEach((light, i) => {
           const p = loop[Math.floor(i * loop.length / shoreLights.length)], e = 0.001;
@@ -2798,7 +3041,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (ec) emberMat.color.set(ec);
       else emberMat.color.copy(emberBase);
       const lift = state.effect === 'speed' ? 1.5 : 1; // Vendaval: brasas sobem mais soltas
-      const warning = state.shrinkIn > 0 && state.shrinkIn < SHRINK_WARN && state.arenaR > 0;
+      const warning = !showAbyss && !showIce && state.shrinkIn > 0 && state.shrinkIn < SHRINK_WARN && state.arenaR > 0;
       warnMat.opacity = warning ? 0.25 + 0.25 * Math.sin(now * 14) : 0;
       // borda derretida puxa para o vermelho e pulsa quando a arena vai encolher
       shoreU.uWarn.value = warning ? 0.5 + 0.5 * Math.sin(now * 14) : 0;
@@ -2808,7 +3051,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       fissures.material.color.multiplyScalar((lite ? 0.5 : 0.65) * heat);
       // brasas: sobem da lava em volta da pedra, cada uma com seu ritmo
       if (!lite) for (const s of embers) {
-        if (onMap) {
+        if (!showLava) {
           s.visible = false; // no mapa não há lava
           continue;
         }
@@ -2967,11 +3210,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       });
       syncZones(state.zones ?? [], now, dt);
       shownIsles = state.isles ?? [];
-      lavaBubbles.update(now, !onMap, lite, heat);
+      lavaBubbles.update(now, showLava, lite, heat);
       syncIsles(shownIsles, now, dt);
       // hit-stop: quem acabou de apanhar fica com a animação parada por ~60 ms
-      for (const m of mages.values()) if (now >= m.freezeUntil) m.mixer.update(dt);
-      decor.update((p) => (onMap ? -1 : edgeAt(shownArena, shownR, p)), now); // no mapa a decoração da arena afunda
+       decor.update((p) => (onMap ? -1 : continuousDarkness ? 1 : edgeAt(shownArena, shownR, p)), now);
       for (let i = fx.length - 1; i >= 0; i--) {
         const f = fx[i];
         const k = (now - f.born) / (f.until - f.born);
@@ -3044,8 +3286,15 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const q = p.project(camera);
         return [(q.x * innerWidth) / 2 + innerWidth / 2, (-q.y * innerHeight) / 2 + innerHeight / 2];
       };
-      const obscured = (p: THREE.Vector3) => !!state.blindAt && Math.hypot(p.x-state.blindAt.x,p.z-state.blindAt.y)>BLINDNESS.radius;
-      // números de dano: sobem 1,2 m em 0,9 s e somem
+      const obscured = (p: THREE.Vector3) => {
+        if (state.blindAt && Math.hypot(p.x-state.blindAt.x,p.z-state.blindAt.y)>BLINDNESS.radius) return true;
+        if (shownEnding === 'ice') return edgeAt(shownArena, shownR, v(p.x, p.z)) < -BLIZZARD_WHITEOUT_DEPTH * shownR;
+        if (shownEnding !== 'darkness') return false;
+        const at = v(p.x, p.z);
+        return inLavaAt(shownArena, shownR, state.isles, at)
+          && !torchLights.some(light => Math.hypot(p.x - light.pos.x, p.z - light.pos.y) < light.radius);
+      };
+      // Floating damage numbers rise and fade.
       for (let i = numbers.length - 1; i >= 0; i--) {
         const d = numbers[i];
         const k = (now - d.born) / 1.2;
@@ -3078,6 +3327,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
       if (composer) composer.render();
       else renderer.render(scene, camera);
+      if (shownEnding === 'ice') {
+        // Draw after bloom so the white exterior cannot bleed into the playable interior.
+        const autoClear = renderer.autoClear;
+        renderer.autoClear = false;
+        renderer.render(weatherOverlay, camera);
+        renderer.autoClear = autoClear;
+      }
     },
   };
 }

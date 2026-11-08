@@ -1,6 +1,6 @@
 import { ELEMENTS, ELEMENTAL_SPHERES } from '../shared/elemental-spheres.ts';
 import { CARD_KINDS } from '../shared/ascension.ts';
-import { ARENA_IDS } from '../shared/arena.ts';
+import { ARENA_CHOICES } from '../shared/arena.ts';
 import { isCharacter } from '../shared/characters.ts';
 import { MODES, OPTION_CHOICES, PHASES, STAT_MAP_KEYS, STAT_NUMBER_KEYS, VOTE_KINDS } from '../shared/match.ts';
 import { RUNE_KINDS, ROUND_EFFECT_IDS } from '../shared/constants.ts';
@@ -10,6 +10,7 @@ import { NIGHT_RESULTS, SERVO_KINDS } from '../shared/campaign.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { CAST_POINT, SPELL_IDS, isSpell } from '../shared/spells.ts';
 import { BOSS_EVENT_KINDS, COMBO_KINDS, EMBER_EVENT_KINDS, STREAK_KINDS, type SimEvent } from '../shared/sim.ts';
+import { SCENERY_CHOICES, WORLD_ENDS } from '../shared/world-end.ts';
 
 type Obj = Record<string, unknown>;
 const object = (x: unknown): x is Obj => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -50,18 +51,19 @@ function player(x: unknown): x is PublicPlayer {
 function validOpts(x: unknown, partial = false) {
   if (!object(x)) return false;
   const entries = Object.entries(x);
-  if (!partial && entries.length !== Object.keys(OPTION_CHOICES).length) return false;
+  if (!partial && Object.keys(OPTION_CHOICES).some(key => key !== 'worldEnd' && !Object.hasOwn(x, key))) return false;
   return entries.every(([key, value]) => Object.entries(OPTION_CHOICES).some(([known, choices]) => known === key && choices.some((choice) => choice === value)));
 }
 
 function room(x: unknown): x is PublicRoom {
   if (!object(x) || !string(x.id) || !phase(x.phase) || !mode(x.mode) || !integer(x.round) || !finite(x.phaseLeft) || !Array.isArray(x.players) || !x.players.every(player) || !stringArray(x.ids)) return false;
   if (!nullableString(x.winner) || !nullableString(x.lastRoundWinner) || !(x.pendingMode === null || mode(x.pendingMode)) || typeof x.teamShuffle !== 'boolean' || !(x.pendingShuffle === null || typeof x.pendingShuffle === 'boolean') || !(x.winnerTeam === null || integer(x.winnerTeam))) return false;
-  if (!validOpts(x.opts) || !validOpts(x.pendingOpts, true) || !integer(x.botDelta) || !integer(x.goal) || !(x.arena === null || (ARENA_IDS as readonly unknown[]).includes(x.arena)) || !(x.effect === null || (ROUND_EFFECT_IDS as readonly unknown[]).includes(x.effect))) return false;
+  if (!validOpts(x.opts) || !validOpts(x.pendingOpts, true) || !integer(x.botDelta) || !integer(x.goal) || !(x.arena === null || (ARENA_CHOICES as readonly unknown[]).includes(x.arena)) || !(x.effect === null || (ROUND_EFFECT_IDS as readonly unknown[]).includes(x.effect))) return false;
   if (x.vote !== null && (!object(x.vote) || !(VOTE_KINDS as readonly unknown[]).includes(x.vote.kind) || !string(x.vote.target) || !string(x.vote.by) || !stringArray(x.vote.yes) || !stringArray(x.vote.no) || !finite(x.vote.left) || !integer(x.vote.need))) return false;
   if (x.sandbox !== undefined) {
     const sandbox = x.sandbox;
-    if (!object(sandbox) || !SANDBOX_KEYS.every((key) => typeof sandbox[key] === 'boolean')) return false;
+    if (!object(sandbox) || !SANDBOX_KEYS.every((key) => typeof sandbox[key] === 'boolean') ||
+      (sandbox.scenery !== undefined && !(SCENERY_CHOICES as readonly unknown[]).includes(sandbox.scenery))) return false;
   }
   if (x.night !== undefined && (!object(x.night) || !integer(x.night.stage) || !integer(x.night.seed) || !(x.night.fight === null || integer(x.night.fight)) || !integer(x.night.wave) || !integer(x.night.waves) || !Array.isArray(x.night.done) || !x.night.done.every(integer) || !Array.isArray(x.night.opened) || !x.night.opened.every(integer) || !(x.night.result === null || (NIGHT_RESULTS as readonly unknown[]).includes(x.night.result)))) return false;
   const players = x.players;
@@ -111,6 +113,11 @@ function event(x: unknown): x is SimEvent {
 function snap(x: Obj): x is Obj & Snap {
   if (!finite(x.time) || !finite(x.r) || !finite(x.s) || !finite(x.sp) || !integer(x.ack) || !fields(x, ['w', 'p', 'cd', 'pl'], ['st', 'kr', 'rs', 'ch', 'lp', 'em', 'ru', 'ab', 'zn', 'il', 'fx', 'cn', 'sn'])) return false;
   const count = (x.w as number[]).length / 7;
+  if (x.hz !== undefined && !(WORLD_ENDS as readonly unknown[]).includes(x.hz)) return false;
+  if (x.hzPlayers !== undefined) {
+    const stride = x.hz === 'darkness' ? 3 : x.hz === 'abyss' ? 5 : 0;
+    if (!stride || !numericArray(x.hzPlayers) || x.hzPlayers.length !== count * stride) return false;
+  }
   if (!Number.isInteger(count) || (x.p as number[]).length % 6 || (x.pl as number[]).length % 4 || (x.cd as number[]).length !== SPELL_IDS.length) return false;
   if (['rs', 'lp', 'em', 'ab', 'st', 'kr'].some((k) => x[k] !== undefined && (x[k] as number[]).length !== count) || ['ch', 'ru'].some((k) => x[k] !== undefined && (x[k] as number[]).length % 3) || (x.zn !== undefined && (x.zn as number[]).length % 5) || (x.il !== undefined && (x.il as number[]).length % 3) || (x.fx !== undefined && (x.fx as number[]).length % 2)) return false;
   if (x.mt !== undefined && (!numericArray(x.mt) || x.mt.length !== count * 2 || x.mt.some((n, i) => i % 2 === 0 ? !Number.isInteger(n) || n < -1 || n >= count : n < 0 || n > 1.4))) return false;

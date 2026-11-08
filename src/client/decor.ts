@@ -26,7 +26,7 @@ const shadows = (o: THREE.Object3D) => o.traverse((m) => {
 });
 
 // unitScale: escala do mago (os pacotes KayKit usam a mesma medida), conhecida depois que o mago carrega
-export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow: THREE.Texture) {
+export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow: THREE.Texture, coverArenaProp?: (object: THREE.Object3D) => void) {
   const props: Prop[] = [];
   const models = new Map<string, THREE.Object3D>();
   let unit = 1;
@@ -78,6 +78,7 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
       scene.add(holder);
       const o = place(name, Math.cos(a) * r, Math.sin(a) * r, deg, holder);
       if (o) {
+        coverArenaProp?.(o);
         const pos = v(Math.cos(a) * r, Math.sin(a) * r);
         o.rotation.y = objectYaw(scenerySeed, name, pos);
         props.push({ obj: holder, pos, model: o, kind: name });

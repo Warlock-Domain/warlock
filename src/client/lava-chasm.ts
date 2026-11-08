@@ -16,7 +16,15 @@ export function lowerBankCurves() {
   ].map(points=>new THREE.CatmullRomCurve3(points.map(([x,z])=>new THREE.Vector3(x,0,z))));
 }
 
-export function createLavaChasm(stone: THREE.Material) {
+export function chasmFallPath() {
+  const edge = chasmEdge(4);
+  return [
+    new THREE.Vector3(4,.025,edge-2),new THREE.Vector3(4,.025,edge),new THREE.Vector3(4.8,-3,edge+1.2),
+    new THREE.Vector3(5.5,-12,edge+2.7),new THREE.Vector3(7,-23,edge+4.8),new THREE.Vector3(9,-32,edge+7),
+  ];
+}
+
+export function createLavaChasm(stone: THREE.Material, fallPath = chasmFallPath()) {
   const root=new THREE.Group(); root.name='Arena_Distant_Chasm';
   const positions:number[]=[], indices:number[]=[];
   const columns=64, rows=6;
@@ -42,10 +50,7 @@ export function createLavaChasm(stone: THREE.Material) {
   bedGeometry.setAttribute('color',new THREE.Float32BufferAttribute(Array.from({length:bedGeometry.getAttribute('position').count*3},()=>.12),3));
   const bed=new THREE.Mesh(bedGeometry,stone); bed.name='Chasm_Valley_Floor'; bed.position.set(0,-32.3,80); bed.renderOrder=-2.95; root.add(bed);
   const edge=chasmEdge(4);
-  const fall=createLavaRibbon([
-    new THREE.Vector3(4,.025,edge-2),new THREE.Vector3(4,.025,edge),new THREE.Vector3(4.8,-3,edge+1.2),
-    new THREE.Vector3(5.5,-12,edge+2.7),new THREE.Vector3(7,-23,edge+4.8),new THREE.Vector3(9,-32,edge+7),
-  ],3.4,new THREE.Vector3(1,0,0),true);
+  const fall=createLavaRibbon(fallPath,3.4,new THREE.Vector3(1,0,0),true);
   const fallPositions=fall.geometry.getAttribute('position');
   for(let i=0;i<fallPositions.count;i++) fallPositions.setZ(i,fallPositions.getZ(i)+chasmEdge(fallPositions.getX(i))-edge);
   fallPositions.needsUpdate=true; fall.geometry.computeVertexNormals();
@@ -106,5 +111,14 @@ export function createLavaChasm(stone: THREE.Material) {
   }
   const ribbons=[fall,inlet,runout];
   const contact=createLavaFallContact(new THREE.Vector3(9,-32.01,edge+7),2);root.add(contact.root);
-  return {root,rocks:bankRocks,update(now:number,enabled:boolean,quiet:boolean){root.visible=enabled;for(const ribbon of ribbons){ribbon.material.uniforms.clock.value=now;ribbon.material.uniforms.motion.value=!quiet&&ribbon===fall?1:0;}contact.update(now,enabled,quiet);}};
+  return { root, rocks: bankRocks, update(now: number, enabled: boolean, quiet: boolean, showLava = true) {
+    root.visible = enabled;
+    pool.visible = showLava;
+    for (const ribbon of ribbons) {
+      ribbon.visible = showLava;
+      ribbon.material.uniforms.clock.value = now;
+      ribbon.material.uniforms.motion.value = !quiet && ribbon === fall ? 1 : 0;
+    }
+    contact.update(now, enabled && showLava, quiet);
+  } };
 }

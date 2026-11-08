@@ -6,9 +6,10 @@ import { SPAWN_INSET } from './constants.ts';
 import { add, dist, len, norm, scale, sub, v, type Vec } from './vec.ts';
 
 export const ARENA_IDS = ['circle', 'ring', 'islands', 'cross'] as const;
-export type ArenaId = (typeof ARENA_IDS)[number];
-export const ARENA_NAMES: Record<ArenaId, string> = { circle: 'Círculo', ring: 'Anel', islands: 'Ilhas', cross: 'Cruz' };
-export const ARENA_EN: Record<ArenaId, string> = { circle: 'Circle', ring: 'Ring', islands: 'Islands', cross: 'Cross' };
+export const ARENA_CHOICES = [...ARENA_IDS, 'bridge'] as const;
+export type ArenaId = (typeof ARENA_CHOICES)[number];
+export const ARENA_NAMES: Record<ArenaId, string> = { circle: 'Círculo', ring: 'Anel', islands: 'Ilhas', cross: 'Cruz', bridge: 'Ponte' };
+export const ARENA_EN: Record<ArenaId, string> = { circle: 'Circle', ring: 'Ring', islands: 'Islands', cross: 'Cross', bridge: 'Bridge' };
 
 type Shape = {
   sdf: (x: number, y: number) => number; // distância com sinal até a borda, em escala 1 (negativa dentro da pedra)
@@ -36,6 +37,7 @@ const A = 0.68, C = 0.95, H = 0.15;
 const BRIDGE = Math.asin(H / A);
 // cruz: braços de meio comprimento L e meia largura W (área 8LW − 4W² ≈ 3,04)
 const L = 1.15, W = 0.4;
+const BRIDGE_LENGTH = 1.55, BRIDGE_WIDTH = .51;
 
 export const SHAPES: Record<ArenaId, Shape> = {
   circle: {
@@ -83,6 +85,13 @@ export const SHAPES: Record<ArenaId, Shape> = {
     },
     obstacles: [around(4, 0.62), [v(0, 0), ...around(4, 0.4, Math.PI / 4)]],
   },
+  bridge: {
+    sdf: (x, y) => box(x, y, BRIDGE_LENGTH, BRIDGE_WIDTH),
+    reach: Math.hypot(BRIDGE_LENGTH, BRIDGE_WIDTH),
+    outline: [[v(BRIDGE_LENGTH, -BRIDGE_WIDTH), v(BRIDGE_LENGTH, BRIDGE_WIDTH), v(-BRIDGE_LENGTH, BRIDGE_WIDTH), v(-BRIDGE_LENGTH, -BRIDGE_WIDTH)]],
+    spawn: (i, n, R) => v(R * (n === 1 ? 0 : 1.2 * (2 * i / (n - 1) - 1)), R * (i % 2 ? .24 : -.24)),
+    obstacles: [[v(-.8, -.23), v(-.35, .25), v(.35, -.25), v(.8, .23)], [v(-.6, .23), v(0, -.23), v(.6, .23)]],
+  },
 };
 
 // distância até a borda em metros, positiva dentro da pedra; R = raio atual da arena
@@ -99,6 +108,7 @@ export function teamSpawns(arena: ArenaId, R: number, ids: string[], teams: Reco
   return ids.map((id) => {
     const allies = ids.filter((other) => teams[other] === teams[id]);
     const y = (allies.indexOf(id) - (allies.length - 1) / 2) * 1.2;
+    if (arena === 'bridge') return v(R * 1.13 * (2 * sides.indexOf(teams[id]) / (sides.length - 1) - 1), y);
     if (sides.length > 2) {
       const anchor = SHAPES[arena].spawn(sides.indexOf(teams[id]), sides.length, R);
       const tangent = norm(v(-anchor.y, anchor.x));

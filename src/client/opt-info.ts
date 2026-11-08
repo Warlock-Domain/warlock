@@ -1,7 +1,7 @@
 // Botão "i" das opções da partida (pedido do Fernando, 18/10): o que cada opção faz e o que muda em cada valor,
 // com os números lidos do código. Clique ou toque fixa a explicação (✕, Esc ou toque fora fecham); mouse em cima e foco pelo teclado mostram.
 import { BOT_SKILL } from '../shared/bots.ts';
-import { ARENA_IDS } from '../shared/arena.ts';
+import { ARENA_CHOICES } from '../shared/arena.ts';
 import { ASC_MODE_TEXT } from './ascension-ui.ts';
 import { ASSIST_GOLD, CHEST, COUNTDOWN_MS, DM_RESPAWN, DM_ROUND_MS, KILL_GOLD, RECOVERY, ROUND_EFFECT_IDS, ROUND_EFFECTS, ROUND_END_MS, ROUND_GOLD, RUNE, SUDDEN, TOP_DMG_GOLD, WIN_GOLD, type RoundEffectId } from '../shared/constants.ts';
 import { DM_GOALS, OPTION_CHOICES, PACE, type MatchOpts, type Mode } from '../shared/match.ts';
@@ -12,11 +12,12 @@ import { n1, pct } from './rules-text.ts';
 const s = (ms: number) => `${n1(ms / 1000)} s`;
 const list = (rows: string[]) => `<ul>${rows.map((r) => `<li>${r}</li>`).join('')}</ul>`;
 
-const ARENA_TEXT: Record<(typeof ARENA_IDS)[number], string> = {
+const ARENA_TEXT: Record<(typeof ARENA_CHOICES)[number], string> = {
   circle: t('a pedra redonda de sempre', 'the usual round rock'),
   ring: t('anel com lava no meio: quem cai no buraco também queima', 'a ring with lava in the middle: falling into the hole burns too'),
   islands: t('duas ilhas ligadas por uma ponte estreita', 'two islands joined by a narrow bridge'),
   cross: t('cruz de quatro braços: os cantos são lava', 'a four-armed cross: the corners are lava'),
+  bridge: t('ponte longa, com espaço para lutar dos dois lados. É o formato padrão do Abismo.', 'a long bridge with room to fight from either side. It is the default shape for the Abyss.'),
 };
 // nomes do ritmo e da dificuldade (aqui e nas opções da sala)
 export const PACE_NAME: Record<MatchOpts['pace'], string> = { short: t('Curto', 'Short'), normal: 'Normal', long: t('Longo', 'Long') };
@@ -42,6 +43,13 @@ const EFFECT_TEXT: Record<RoundEffectId, string> = {
 
 // explicação de cada opção (HTML curto); a meta depende do modo
 export const OPT_INFO: Record<keyof MatchOpts, (mode: Mode) => string> = {
+  worldEnd: () => `<p>${t('Define o perigo fora da arena, independente do cenário visual. Aleatório sorteia um perigo a cada rodada.', 'Sets the danger outside the arena, independently of the visual theme. Random draws one danger each round.')}</p>${list([
+    t('Lava: o calor causa dano.', 'Lava: the heat deals damage.'),
+    t('Gelo: a nevasca branca reduz a visibilidade, causa dano e reduz a velocidade.', 'Ice: the whiteout reduces visibility, deals damage and slows movement.'),
+    t('Escuridão: a tocha pessoal dura 15 s no escuro. Depois, volte à luz em até 2 s.', 'Darkness: your personal torch lasts 15 s in the dark. Then get back to the light within 2 s.'),
+    t('Abismo: a queda é fatal. Em equipe, um aliado pode resgatar quem ficar pendurado.', 'Abyss: falls are fatal. A teammate can rescue a hanging player.'),
+    t('Gelo e Escuridão sempre usam a arena circular.', 'Ice and Darkness always use the circular arena.'),
+  ])}`,
   teams: () => `<p>${t('Escolha 2, 3 ou 4 equipes. Sem jogadores suficientes, cada participante ocupa uma equipe. Aliados começam juntos em regiões afastadas. Mudar esta opção reorganiza as equipes na próxima rodada.', 'Choose 2, 3 or 4 teams. With fewer players, each participant occupies a team. Allies start together in separated regions. Changing this option regroups teams next round.')}</p>`,
   shop: () => `<p>${t('Tempo da loja entre as rodadas. A loja fecha antes quando todos clicam Pronto.', 'Shop time between rounds. The shop closes early when everyone clicks Ready.')}</p>${list(OPTION_CHOICES.shop.map((v) => `${v >= 120 ? '2 min' : `${v} s`}`))}`,
   pace: () => `<p>${t('Espera antes de cada rodada (contagem) e depois dela (fim de rodada).', 'Wait before each round (countdown) and after it (round end).')}</p>${list((['short', 'normal', 'long'] as const).map((k) =>
@@ -68,7 +76,7 @@ export const OPT_INFO: Record<keyof MatchOpts, (mode: Mode) => string> = {
     'Auto: each bot sits between Easy and Hard depending on the score: a human losing makes the bots weaker, winning makes them stronger')])}`,
   effect: (mode) => `<p>${t('Uma regra a mais em cada rodada, igual para todos. A loja já mostra o efeito da próxima rodada, para comprar sabendo.', 'One extra rule each round, the same for everyone. The shop already shows the next round’s effect, so you can buy for it.')}</p>${list([
     t('Sortear: um efeito diferente a cada rodada (nunca o mesmo duas vezes seguidas)', 'Random: a different effect every round (never the same twice in a row)'), ...ROUND_EFFECT_IDS.map((e) => `${effectName(e, mode)}: ${effectText(e, mode)}`)])}<small>${t('Desligado: rodadas normais.', 'Off: normal rounds.')}</small>`,
-  arena: () => `<p>${t('Formato da pedra. Todas têm área parecida e encolhem igual.', 'Shape of the rock. All have a similar area and shrink the same way.')}</p>${list([t('Sortear: uma arena diferente a cada rodada', 'Random: a different arena every round'), ...ARENA_IDS.map((a) => `${arenaName(a)}: ${ARENA_TEXT[a]}`)])}`,
+  arena: () => `<p>${t('Formato da pedra. Todas têm área parecida e encolhem igual.', 'Shape of the rock. All have a similar area and shrink the same way.')}</p>${list([t('Sortear: uma arena a cada rodada. No Abismo, usa a Ponte.', 'Random: draw one arena each round. The Abyss uses the Bridge.'), ...ARENA_CHOICES.map((a) => `${arenaName(a)}: ${ARENA_TEXT[a]}`)])}`,
 };
 export const MODE_INFO = () => list([
   t('Rodadas: o último vivo ganha a rodada e 1 ponto.', 'Rounds: the last one alive wins the round and 1 point.'),

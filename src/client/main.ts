@@ -7,7 +7,7 @@ import type { PublicPlayer, PublicRoom, RoomInfo, ServerMsg, Snap } from '../sha
 import type { BotSkill } from '../shared/bots.ts';
 import { DEFAULT_OPTS, ROOM_MODE_PARAM, type BotSetup, type RoomMode } from '../shared/match.ts';
 import type { SimEvent } from '../shared/sim.ts';
-import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type SnapView, type WizView } from '../shared/snapshot.ts';
+import { HOLDING_MOVE_BIT, WALKING_BIT, decodeSnap, type HazardView, type SnapView, type WizView } from '../shared/snapshot.ts';
 import { ODRAN } from '../shared/bosses.ts';
 import { CANDLE, SERVOS, nightXpAt } from '../shared/campaign.ts';
 import { nightMap, roomRect } from '../shared/levels.ts';
@@ -40,7 +40,7 @@ import { closedBodySound } from './closed-body-sound.ts';
 import { store } from './store.ts';
 import { SANDBOX_START } from './train.ts';
 import { RoomLoadingGate } from './room-loading.ts';
-import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, dialog, banner, createRoomUi, curtain, renderLobby, screen, srcName, toast } from './ui.ts';
+import { TEAM_NAMES, TOUCH, WATCH_JOIN, askName, dialog, banner, createRoomUi, curtain, fallText, renderLobby, screen, srcName, toast } from './ui.ts';
 import { STAGE_NAME, USED_KEY, attackAim, botLevel, boughtKeys, countBuys, readUsed, endResult, illusionCopies, maxHp, pickWatched, playerName, renderWizardState, sandboxVisibility, seatChanges, showHitDamage } from './screen-data.ts';
 import { TAUNTS } from '../shared/taunts.ts';
 import { seenRooms } from './minimap.ts';
@@ -845,7 +845,7 @@ function startRoom(code: string, name: string) {
         // fora da pedra: mergulho na lava (chiado e bolhas) em vez da explosão
         const snap = interp.latest();
         const w = snap?.wizards.find((z) => z.id === e.id);
-        sound.play(w && snap && (room?.night ? mapLava(w.pos) : inLavaAt(arenaId, snap.arenaR, snap.isles, w.pos, 0.3)) ? 'splash' : 'death', volumeOf(e.id));
+        sound.play(w && snap && (room?.night ? mapLava(w.pos) : !snap.worldEnd && inLavaAt(arenaId, snap.arenaR, snap.isles, w.pos, 0.3)) ? 'splash' : 'death', volumeOf(e.id));
         const dead = who.get(e.id) ?? '?';
         if (e.id === me) {
           clip = ring.slice();
@@ -1081,7 +1081,7 @@ function startRoom(code: string, name: string) {
     const xp = meW?.alive && meP ? xpOf(meP) : null; // Ascensão: XP ao vivo na barra embaixo da vida
     const low = !!meW?.alive && !!meP && meW.hp < 0.25 * meMax;
     const lava = !!meW?.alive && !!latest && (room?.night ? mapLava(meW.pos) : inLavaAt(arenaId, latest.arenaR, latest.isles, meW.pos));
-    view.danger(low, lava);
+    view.danger(low, lava, latest?.worldEnd);
     const shrinkIn = s && room?.phase === 'playing' && room.mode !== 'deathmatch' && !room.night && (!room.sandbox || room.sandbox.shrink) ? s.shrinkAt - s.time : null;
     // Spectators follow the living wizard with the most HP; arrows or buttons switch targets.
     // Exclude wizards hidden from this viewer (2048), since following them would reveal their position.
@@ -1099,7 +1099,7 @@ function startRoom(code: string, name: string) {
     document.body.classList.toggle('replaying', !!rs); // a loja de quem caiu sai da frente enquanto o replay passa
     if (rp && rs) for (; rp.next < clip.length && clip[rp.next].s.time <= rt; rp.next++) replayEvents(clip[rp.next].e, rs);
     const killer = rs && fall.by && fall.by !== me ? fall.by : null;
-    view.replay(canReplay && !rp, rs ? (killer ? t(`Replay · ${names().get(killer) ?? '?'} te derrubou com ${srcName(fall.src)}`, `Replay · ${names().get(killer) ?? '?'} took you down with ${srcName(fall.src)}`) : room?.night ? t('Replay · Você caiu', 'Replay · You fell') : t('Replay · Você caiu na lava sozinho', 'Replay · You fell into the lava on your own')) : null);
+    view.replay(canReplay && !rp, rs ? (killer ? t(`Replay · ${names().get(killer) ?? '?'} te derrubou com ${srcName(fall.src)}`, `Replay · ${names().get(killer) ?? '?'} took you down with ${srcName(fall.src)}`) : room?.night ? t('Replay · Você caiu', 'Replay · You fell') : t('Replay · Você ', 'Replay · You ') + fallText(fall.src)) : null);
     const shown = rs ?? (playing ? s : null);
     const drawWiz = rs ? wizardsOf(rs, false, dt) : wizards;
     if (nm && room?.night) {
@@ -1115,19 +1115,23 @@ function startRoom(code: string, name: string) {
     // o desafio conta o tempo só com a rodada rolando; o progresso dele fica no lugar da dica do treino
     if (run?.state === 'on' && room?.phase === 'playing') finishRun(stepRun(run, dt, [], me, meW?.alive !== false));
     if (run) view.coach(runText(run), run.state === 'on' ? undefined : again, quit);
-    else if (training && room) view.coach(meP ? coachTip({ phase: room.phase, round: room.round, playingFor: (nowMs - playingAt) / 1000, shrinkIn, low, lava, alive: !!meW?.alive, touch: TOUCH, fireKey: isPadMode() ? 'A' : labelOf('fireball'), fire: meP.spells.fireball > 0 }) : null);
+    else if (training && room && !latest?.worldEnd) view.coach(meP ? coachTip({ phase: room.phase, round: room.round, playingFor: (nowMs - playingAt) / 1000, shrinkIn, low, lava, alive: !!meW?.alive, touch: TOUCH, fireKey: isPadMode() ? 'A' : labelOf('fireball'), fire: meP.spells.fireball > 0 }) : null);
     else view.coach(null);
     const ownFocus=myWizard(interp.latest());
     const followingFocus=!ownFocus?.alive && watched && !watchCenter ? watched.id : null;
     const focusCaster=ownFocus?.alive?ownFocus:interp.latest()?.wizards.find(w=>w.id===followingFocus);
     scene.render({
       scenerySeed: `${code}:${room?.round ?? 0}`,
+      scenery: room?.sandbox?.scenery === 'random' ? undefined : room?.sandbox?.scenery,
+      worldEnd: shown?.worldEnd,
       paused: campaignPaused(),
       sniperFocus: sniperFocusState(me,focusCaster,room?.phase==='playing',!!rs,nowMs/1000-(sniperShotTimes.get(focusCaster?.id ?? '') ?? -Infinity),followingFocus),
       blindAt: !rs && meW?.alive && (myWizard(interp.latest())?.blindLeft ?? 0) > 0 ? myPos : null,
       arena: arenaId,
       arenaR: (rs ?? s)?.arenaR ?? 11,
       shrinkIn: shrinkIn ?? SHRINK_EVERY,
+      terrainShrink: shown?.shrinkTo !== undefined && (rs || room?.phase === 'playing')
+        ? { in: shown.shrinkAt - shown.time, radius: shown.shrinkTo } : undefined,
       wizards: [...drawWiz, ...copies],
       projectiles: shown ? shown.projectiles : [],
       pillars: shown ? shown.pillars : [],
@@ -1219,7 +1223,7 @@ function startRoom(code: string, name: string) {
   };
   // colocação no placar para a medalha em cima do mago: só quem já fez ponto; empate divide a colocação; fora na sandbox
   const placeOf = (p?: PublicPlayer) => (!p?.score || !room || room.sandbox ? undefined : 1 + room.players.filter((q) => !q.watch && q.score > p.score).length);
-  function wizardsOf(s: SnapView, live: boolean, dt: number): WizDraw[] {
+  function wizardsOf(s: SnapView, live: boolean, dt: number): (WizDraw & HazardView)[] {
     const byId = new Map(room?.players.map((p) => [p.id, p]) ?? []);
     // modo Times: cor do time no anel e na barra; no fim da rodada o time vencedor inteiro comemora
     // Campanha: as mesmas cores (Acesos no Azul, o Fumo no Vermelho)
@@ -1232,13 +1236,15 @@ function startRoom(code: string, name: string) {
       const state = { ...renderWizardState(w, server) };
       if (live && w.id === me && (lastSnap?.ack ?? 0) < attackCancelSeq) state.basicLeft = 0;
       const status = sandboxVisibility(state.status, w.id === me, !!room?.sandbox, seeInvis);
-      const pos = w.id === me && server ? campaignPaused() ? server.pos : predict.frame(server, dt, (lastSnap?.ack ?? 0) < attackCancelSeq) : w.pos;
+      const pos = w.id === me && server ? campaignPaused() || server.ledge ? server.pos : predict.frame(server, dt, (lastSnap?.ack ?? 0) < attackCancelSeq) : w.pos;
       const prevDraw = prev.get(w.id);
       // Só um comando real pode ligar a corrida; empurrão e reconciliação não são caminhada.
       const moving = !!(state.status & WALKING_BIT) && state.alive && (!!(state.status & HOLDING_MOVE_BIT) || !prevDraw || dist(prevDraw, pos) > 0.004);
       prev.set(w.id, pos);
       if (live && w.alive && room?.phase === 'playing') aliveAt[w.id] = s.time;
-      return { ...state, xp: live && p ? xpOf(p) : null, status, pos, hpMax: maxHp(p), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p && room ? botLevel(p, room) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p ? playerName(p) : '?', place: placeOf(p), shieldR: state.shieldR ?? (p?.spells.shield ? spellLevel('shield', p.spells.shield).radius : 0), loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, ember: live && !w.alive ? lastSnap?.em?.[room?.ids.indexOf(w.id) ?? -1] : undefined, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined, size: p?.servo && SERVOS[p.servo].boss ? ODRAN.size : undefined, guard: !!p?.guard };
+      const hazard = w.id === me && server ? server : w;
+      return { ...state, torchLeft: hazard.torchLeft, darkLeft: hazard.darkLeft, ledge: hazard.ledge, hazardDeath: hazard.hazardDeath,
+        local: live && w.id === me, xp: live && p ? xpOf(p) : null, status, pos, hpMax: maxHp(p), regen: HP_REGEN + (p ? itemStats(p.items).regen : 0), bot: p && room ? botLevel(p, room) : null, color: p?.color ?? 0, character: p?.character ?? 'mage', look: p?.look, name: p ? playerName(p) : '?', place: placeOf(p), shieldR: state.shieldR ?? (p?.spells.shield ? spellLevel('shield', p.spells.shield).radius : 0), loot: live ? (lastSnap?.lp?.[room?.ids.indexOf(w.id) ?? -1] ?? 0) : 0, ember: live && !w.alive ? lastSnap?.em?.[room?.ids.indexOf(w.id) ?? -1] : undefined, moving, cheer: live && room?.phase === 'roundEnd' && (room.lastRoundWinner === w.id || (teams && p?.team != null && p.team === winTeam)), team: teams ? p?.team : null, fx: live && w.id === me ? (lastSnap?.fx ?? []) : undefined, size: p?.servo && SERVOS[p.servo].boss ? ODRAN.size : undefined, guard: !!p?.guard };
     });
   }
   // eventos do replay: só a cena (clarão, explosão) e a seta do golpe que eu levei

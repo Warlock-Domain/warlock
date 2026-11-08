@@ -47,12 +47,16 @@ export function createLavaRibbon(path: THREE.Vector3[], width: number, across = 
 }
 
 // Distant artwork only: never contributes terrain, colliders, lights or gameplay RNG.
-export function createLavaLandscape() {
+export function createLavaLandscape(lowerFallPath?: THREE.Vector3[]) {
   const root = new THREE.Group(); root.name = 'Arena_Distant_Landscape';
   const cliffs = new THREE.Group(); cliffs.name = 'Distant_Cliffs'; root.add(cliffs);
   const rock = new THREE.MeshBasicMaterial({ color: '#8c868d', vertexColors: true, fog: false });
   const darkRock = new THREE.MeshBasicMaterial({ color: '#6b6670', vertexColors: true, fog: false });
+  const fallStrength = { value: new THREE.Vector3() };
   for (const material of [rock, darkRock]) material.onBeforeCompile = shader => {
+    shader.uniforms.uLavaFallStart = fallStart;
+    shader.uniforms.uLavaFallEnd = fallEnd;
+    shader.uniforms.uLavaFallStrength = fallStrength;
     shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 cliffAt;').replace('#include <begin_vertex>',`#include <begin_vertex>
 vec4 cliffVertex=vec4(position,1.);
 #ifdef USE_INSTANCING
@@ -61,6 +65,17 @@ cliffVertex=instanceMatrix*cliffVertex;
 cliffAt=(modelMatrix*cliffVertex).xyz;`);
     shader.fragmentShader=shader.fragmentShader.replace('#include <common>',`#include <common>
 varying vec3 cliffAt;
+uniform vec3 uLavaFallStart[3];
+uniform vec3 uLavaFallEnd[3];
+uniform vec3 uLavaFallStrength;
+float lavaBounce(vec3 start, vec3 end, vec3 normal){
+  vec3 axis=end-start;
+  vec3 toward=start+axis*clamp(dot(cliffAt-start,axis)/dot(axis,axis),0.,1.)-cliffAt;
+  float d2=dot(toward,toward);
+  if(d2>=72.25)return 0.;
+  float facing=max(0.,dot(normal,toward*inversesqrt(max(.03,d2))));
+  return (1.-smoothstep(1.44,72.25,d2))*(.22+.78*facing);
+}
 float rockHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float rockNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(rockHash(i),rockHash(i+vec2(1,0)),f.x),mix(rockHash(i+vec2(0,1)),rockHash(i+vec2(1,1)),f.x),f.y);}
 float rockSeam(vec2 p){
@@ -76,7 +91,8 @@ float rockSeam(vec2 p){
       .replace('#include <color_fragment>',`#include <color_fragment>
 float weather=rockNoise(cliffAt.xz*1.3+cliffAt.y*.12);
 float layers=rockNoise(vec2(cliffAt.y*.42,(cliffAt.x+cliffAt.z)*.08));
-vec3 rockFacing=abs(normalize(cross(dFdx(cliffAt),dFdy(cliffAt))));
+vec3 rockNormal=normalize(cross(dFdx(cliffAt),dFdy(cliffAt)));
+vec3 rockFacing=abs(rockNormal);
 vec2 face=rockFacing.y>max(rockFacing.x,rockFacing.z)?cliffAt.xz:(rockFacing.x>rockFacing.z?cliffAt.zy:cliffAt.xy);
 float fault=rockSeam(face*.8);
 float aa=max(fwidth(fault),.003);
@@ -95,7 +111,12 @@ diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.035,.06,.026)*( .78+weather*.22),mos
 // World height keeps the scorched seam level across scaled and instanced rocks.
 float contactHeight=cliffAt.y+rockNoise(cliffAt.xz*2.1)*.16;
 float contact=(1.-smoothstep(.12,.85,contactHeight))*smoothstep(-.2,-.04,cliffAt.y);
-diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.028,.016,.012),contact*.82);`);
+diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.028,.016,.012),contact*.82);
+if(uLavaFallStrength.x>0.){
+  float bounce=0.;
+  for(int i=0;i<3;i++)bounce+=uLavaFallStrength[i]*lavaBounce(uLavaFallStart[i],uLavaFallEnd[i],rockNormal);
+  diffuseColor.rgb+=vec3(.34,.091,.019)*min(1.,bounce)*(1.-contact);
+}`);
   };
   const bark = new THREE.MeshBasicMaterial({ color: '#342e29', fog: false });
   const leaves = new THREE.MeshBasicMaterial({ color: '#334c42', vertexColors:true, fog: false });
@@ -135,11 +156,15 @@ diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.028,.016,.012),contact*.82);`);
   column(57,-28,6,10,6,false);
   const path = [new THREE.Vector3(-39, 10, -17), new THREE.Vector3(-36, 10, -14), new THREE.Vector3(-34, 8, -11), new THREE.Vector3(-33, 4, -7), new THREE.Vector3(-32, .04, -4)];
   const fall = createLavaRibbon(path,2.1,new THREE.Vector3(0,0,1),true); fall.name = 'Distant_Lava_Waterfall'; root.add(fall);
-  const corner=createLavaRibbon([
+  const cornerPath=[
     new THREE.Vector3(-39,12,-40),new THREE.Vector3(-36.5,12,-38),new THREE.Vector3(-35,9,-36),
     new THREE.Vector3(-33,4,-34),new THREE.Vector3(-31,.04,-31),
-  ],2.2,new THREE.Vector3(1,0,-.75).normalize(),true);
+  ];
+  const corner=createLavaRibbon(cornerPath,2.2,new THREE.Vector3(1,0,-.75).normalize(),true);
   corner.name='Corner_Lava_Waterfall'; root.add(corner);
+  const paths=[path,cornerPath,lowerFallPath??path];
+  const fallStart={value:paths.map(points=>points[1])};
+  const fallEnd={value:paths.map(points=>points[points.length-1])};
   const materials=[fall.material,corner.material];
   root.traverse(o => {
     if (o instanceof THREE.Mesh) {
@@ -152,5 +177,18 @@ diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.028,.016,.012),contact*.82);`);
   root.add(mountainShrubs(shrubRocks));
   const contacts=[createLavaFallContact(new THREE.Vector3(-32,.06,-4)),createLavaFallContact(new THREE.Vector3(-31,.06,-31),1.2)];
   for(const contact of contacts)root.add(contact.root);
-  return { root, rocks:shrubRocks, cliffMaterial:rock, update(now: number, enabled: boolean, quiet: boolean) { root.visible = enabled; for(const material of materials){material.uniforms.clock.value = now; material.uniforms.motion.value = quiet ? 0 : 1;} for(const contact of contacts)contact.update(now,enabled,quiet); } };
+  return { root, rocks:shrubRocks, cliffMaterial:rock, update(now: number, enabled: boolean, quiet: boolean, showLava = true) {
+    root.visible = enabled;
+    fall.visible = corner.visible = showLava;
+    for(let i=0;i<3;i++){
+      const phase=now*2.1+i*2.35;
+      const glow=quiet?.64:.64+.14*Math.sin(phase)+.075*Math.sin(phase*1.73+.7);
+      fallStrength.value.setComponent(i,enabled&&showLava&&(i<2||lowerFallPath)?glow:0);
+    }
+    for (const material of materials) {
+      material.uniforms.clock.value = now;
+      material.uniforms.motion.value = quiet ? 0 : 1;
+    }
+    for (const contact of contacts) contact.update(now, enabled && showLava, quiet);
+  } };
 }

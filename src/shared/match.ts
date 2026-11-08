@@ -1,5 +1,5 @@
 // Partida: fases, rodadas, pontos, ouro e loja. Pura; a sala chama tickMatch a cada passo da simulação.
-import { ARENA_IDS, type ArenaId } from './arena.ts';
+import { ARENA_CHOICES, ARENA_IDS, type ArenaId } from './arena.ts';
 import { afterBoss, bossCmds, bossHp, newBoss, ODRAN } from './bosses.ts';
 import { CAMPAIGN, CANDLE, CHEST_REACH, EMBER, SERVOS, nightCards, nightCount, nightLevel, servoHp, xpShare, type Night, type ServoKind } from './campaign.ts';
 import { fightOf, nightMap, obstaclesOf, roomRect, terrainOf, type NightMap, type Spawn } from './levels.ts';
@@ -8,12 +8,13 @@ import { BOT_SKILL, botBuy, botCmds, botThinks, botWatch, skillAt, threatTo, typ
 import { CHARACTERS, fixLook, lookHead, lookOf, type CharacterId } from './characters.ts';
 import {
   ARENA_MIN, ARENA_STEP, ASSIST_GOLD, DT, INVULN_TIME, ASSIST_MIN_DMG, BOUNTY, STREAK, COUNTDOWN_MS, LEADER_WIN_GOLD, RECOVERY, DM_ROUND_MS, KILL_GOLD, MAX_PLAYERS, MAX_WATCHERS, PILLAR, PROJ_R, ROUND_EFFECT_IDS, ROUND_END_MS, ROUND_GOLD, SELL_DECAY, SELL_FLOOR, TOP_DMG_GOLD, VOTE_MS, WIN_GOLD, WIZ_R, WIZ_SPEED, arenaRadius,
-  roundMods, type RoundEffectId, type RuneKind,
+  OBSTACLES, roundMods, type RoundEffectId, type RuneKind,
 } from './constants.ts';
 import { ITEMS, ITEM_IDS, itemPrice, noItems, startItems, type ItemId } from './items.ts';
 import type { Transcendence } from './elemental-spheres.ts';
 import { nightRand } from './rng.ts';
 import { gearOf, newWorld, inLava, placeRune, resizeArena, revive, stepWorld, type Cmd, type Projectile, type SimEvent, type World } from './sim.ts';
+import { HEARTH_CLEAR_RADIUS, WORLD_ENDS, hasWorldHearth, worldEndUsesCircle, type SceneryChoice } from './world-end.ts';
 import { FREE_SPELLS, MAX_SPELLS, SPELL_IDS, isSpell, noSpells, priceOf, spellCount, spellLevel, type SpellId } from './spells.ts';
 import { dist, len, v, type Vec } from './vec.ts';
 
@@ -81,6 +82,7 @@ export type Vote = { kind: (typeof VOTE_KINDS)[number]; target: string; by: stri
 // por quem começa a partida: segundos de loja, ritmo da contagem e do fim de rodada, multiplicador de toda renda de ouro,
 // ouro inicial (também multiplicado) e rodadas para vencer (no Deathmatch vira DM_GOALS abates)
 export const OPTION_CHOICES = {
+  worldEnd: [...WORLD_ENDS, 'random'],
   shop: [30, 45, 60, 90, 120], // a loja ainda acaba antes quando todos clicam Pronto
   pace: ['short', 'normal', 'long'],
   economy: [0.6, 1, 1.5, 2], // Fernando, 20/10 (issue #88): antes ×1,6 e ×2,5
@@ -94,7 +96,7 @@ export const OPTION_CHOICES = {
   // dificuldade dos bots (pedido do Fernando, 18/10); 'auto' ajusta cada bot pelo placar dos humanos
   difficulty: ['easy', 'casual', 'normal', 'veteran', 'hard', 'auto'],
   // formato da arena (pedido do Fernando, 18/10): sorteado a cada rodada ou fixo
-  arena: ['random', ...ARENA_IDS],
+  arena: ['random', ...ARENA_CHOICES],
   // efeito de rodada (pedido do Fernando, 21/10: ativável na criação da sala, issue #189): desligado, sorteado a cada rodada ou fixo
   effect: ['off', 'random', ...ROUND_EFFECT_IDS],
 } as const;
@@ -103,7 +105,7 @@ export type MatchOpts = { [K in keyof typeof OPTION_CHOICES]: (typeof OPTION_CHO
 // difficulty: this bot's difficulty, chosen in the room (applies in any room)
 export type BotSetup = { spells?: Partial<Record<SpellId, number>>; items?: Partial<Record<ItemId, number>>; skill?: Partial<BotSkill>; difficulty?: MatchOpts['difficulty'] };
 // os padrões são os números de sempre (SHOP_MS, START_GOLD, WINS_TO_WIN), para o simulador e as salas antigas
-export const DEFAULT_OPTS: MatchOpts = { shop: 30, pace: 'normal', economy: 1, startGold: 30, goal: 5, teams: 2, runes: true, sudden: true, chests: true, difficulty: 'auto', arena: 'random', effect: 'off' };
+export const DEFAULT_OPTS: MatchOpts = { shop: 30, pace: 'normal', economy: 1, startGold: 30, goal: 5, teams: 2, runes: true, sudden: true, chests: true, difficulty: 'auto', arena: 'random', effect: 'off', worldEnd: 'lava' };
 // 'chave:valor' de um voto de opção → [chave, valor] válidos, ou null
 export function parseOpt(target: string): [keyof MatchOpts, MatchOpts[keyof MatchOpts]] | null {
   const [k, raw] = target.split(':');
@@ -166,12 +168,14 @@ export type TurretDir = keyof typeof TURRET_DIR;
 
 // Sandbox (pedido do Fernando, 19/10): sala para testar magias e interações, sem fim de rodada nem telemetria.
 // god: vida infinita para os humanos; noCd: magias e itens dos humanos sem recarga; shrink: a arena encolhe
-export type Sandbox = { god: boolean; noCd: boolean; shrink: boolean };
+export type Sandbox = { god: boolean; noCd: boolean; shrink: boolean; scenery?: SceneryChoice };
 export type SandboxCmd =
-  | { op: 'set'; key: keyof Sandbox; on: boolean }
+  | { op: 'set'; key: 'god' | 'noCd' | 'shrink'; on: boolean }
   | { op: 'bot'; bot?: BotSetup; dummy?: boolean; ally?: boolean }
   | { op: 'turret'; direction: TurretDir }
   | { op: 'arena'; arena: ArenaId } // forma escolhida: reinicia a rodada e fica nos reinícios seguintes (pedido do Fernando, 20/10)
+  | { op: 'worldEnd'; worldEnd: MatchOpts['worldEnd'] }
+  | { op: 'scenery'; scenery: SceneryChoice }
   | { op: 'radius'; step: 1 | -1 } // pedra uma faixa maior ou menor, na hora (volta ao padrão no reinício)
   | { op: 'rune'; kind: RuneKind } // runa escolhida ao lado de quem pediu (pedido do Sky, 20/10)
   | { op: 'effect'; effect: RoundEffectId | null } // efeito de rodada na hora, sem reiniciar; fica nos reinícios seguintes
@@ -807,8 +811,17 @@ function enterCountdown(m: Match, now: number, rand: () => number) {
   const ids = playing(m).map((p) => p.id);
   const teams = m.mode === 'teams' || m.sandbox ? Object.fromEntries(playing(m).filter((p) => p.team !== null).map((p) => [p.id, p.team!])) : {};
   // arena fixa pela sala ou sorteada a cada rodada (o sorteio só gasta número aleatório quando é 'random')
-  const arena = m.opts.arena === 'random' ? ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)] : m.opts.arena;
+  const worldEnd = m.opts.worldEnd === 'random' ? WORLD_ENDS[Math.floor(rand() * WORLD_ENDS.length)] : m.opts.worldEnd ?? 'lava';
+  const chosenArena = m.opts.arena === 'random'
+    ? worldEnd === 'abyss' ? 'bridge' : ARENA_IDS[Math.floor(rand() * ARENA_IDS.length)]
+    : m.opts.arena;
+  const arena = worldEndUsesCircle(worldEnd) ? 'circle' : chosenArena;
   m.world = newWorld(ids, Object.fromEntries(playing(m).map((p) => [p.id, p.spells])), Object.fromEntries(playing(m).map((p) => [p.id, p.items])), PILLAR.min + Math.floor(rand() * (PILLAR.max - PILLAR.min + 1)), rand, m.mode === 'deathmatch' || !!m.sandbox, teams, { runes: m.opts.runes, sudden: m.opts.sudden, chests: m.opts.chests && !m.asc }, arena, m.mode === 'teams');
+  m.world.worldEnd = worldEnd;
+  if (worldEnd !== 'lava') m.world.isles = [];
+  if (hasWorldHearth(worldEnd)) {
+    m.world.pillars = m.world.pillars.filter(p => len(p.pos) >= HEARTH_CLEAR_RADIUS + OBSTACLES[p.kind].r);
+  }
   for (const z of m.world.wizards) { const p = player(m, z.id); if (p?.arc || p?.guard) Object.assign(z, { arc: p.arc, guard: p.guard }); } // só quem escolheu: o mundo dos outros fica igual
   for (const z of m.world.wizards) z.transcendence = player(m, z.id)?.transcendence;
   if (m.asc) ascMark(m);
@@ -1283,6 +1296,11 @@ export function sandboxCmd(m: Match, cmd: SandboxCmd, now: number, id = '', rand
     return false;
   }
   if (cmd.op === 'arena') m.opts = { ...m.opts, arena: cmd.arena };
+  if (cmd.op === 'worldEnd') m.opts = { ...m.opts, worldEnd: cmd.worldEnd };
+  if (cmd.op === 'scenery') {
+    sb.scenery = cmd.scenery;
+    return true;
+  }
   // reiniciar (e trocar a arena): mundo novo com todos no ponto de partida e vida cheia, depois da contagem
   enterCountdown(m, now, rand);
   return true;

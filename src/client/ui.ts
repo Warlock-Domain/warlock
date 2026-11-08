@@ -6,10 +6,11 @@ import { drawMinimap, type MiniColors, type MiniDot } from './minimap.ts';
 import type { NightMap } from '../shared/levels.ts';
 import { avatarPanel } from './avatar.ts';
 import { ASSIST_GOLD, BOUNTY, CHEST, HP_MAX, KNOCK_HP_SCALE, KILL_GOLD, STREAK, LEADER_WIN_GOLD, RECOVERY, MAX_PLAYERS, ROUND_EFFECT_IDS, ROUND_GOLD, RUNE_KINDS, TOP_DMG_GOLD, WIN_GOLD, type RoundEffectId } from '../shared/constants.ts';
-import { ARENA_IDS, type ArenaId } from '../shared/arena.ts';
+import { ARENA_CHOICES, type ArenaId } from '../shared/arena.ts';
 import { PRESETS, lookHead, lookOf, type CharacterId } from '../shared/characters.ts';
 import { CAMPAIGN } from '../shared/campaign.ts';
-import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, isRoomMode, sellValue, type MatchOpts, type Mode, type RoomMode, type Sandbox, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
+import { BOT_NAMES, DEFAULT_OPTS, DM_GOALS, MODES, OPTION_CHOICES, VOTE_PHASES, canSell, isRoomMode, sellValue, type MatchOpts, type Mode, type RoomMode, type SandboxCmd, type TurretDir, type Vote } from '../shared/match.ts';
+import { SCENERY_CHOICES, worldEndUsesCircle, type SceneryChoice, type WorldEnd } from '../shared/world-end.ts';
 import type { PublicPlayer, PublicRoom, RoomInfo } from '../shared/protocol.ts';
 import { lobbyOwner, replayTeams, teamStartLocked } from '../shared/team-lobby.ts';
 import { inventoryOrder, ACTIVE_ITEM_SPELL, ITEMS, ITEM_IDS, MAX_ITEMS, castLevel, itemPrice, type ItemId } from '../shared/items.ts';
@@ -436,9 +437,14 @@ const FIXED: Partial<MatchOpts> = { pace: DEFAULT_OPTS.pace, sudden: DEFAULT_OPT
 const OPT_KEYS = (Object.keys(OPTION_CHOICES) as OptKey[]).filter((k) => !(k in FIXED));
 // Ascensão: sem ouro, loja, baús e meta (9 rodadas fixas), então essas opções somem da sala
 const ASC_OFF: OptKey[] = ['shop', 'economy', 'startGold', 'goal', 'chests'];
-const optKeys = (mode: Mode) => OPT_KEYS.filter((k) => (k !== 'teams' || mode === 'teams') && (mode !== 'ascension' || !ASC_OFF.includes(k)));
-const OPT_NAME: Record<OptKey, string> = { teams: t('Número de equipes', 'Number of teams'), shop: t('Tempo de loja', 'Shop time'), pace: t('Contagem e fim de rodada', 'Countdown and round end'), economy: t('Ouro ganho', 'Gold earned'), startGold: t('Ouro inicial', 'Starting gold'), goal: t('Vence com', 'Wins with'), runes: t('Runas', 'Runes'), sudden: t('Morte súbita', 'Sudden death'), chests: t('Baús de ouro', 'Gold chests'), difficulty: t('Dificuldade dos bots', 'Bot difficulty'), arena: 'Arena', effect: t('Efeito de rodada', 'Round effect') };
+const optKeys = (mode: Mode) => OPT_KEYS.filter((k) => (k !== 'teams' || mode === 'teams') && (k !== 'worldEnd' || mode !== 'campaign') && (mode !== 'ascension' || !ASC_OFF.includes(k)));
+const OPT_NAME: Record<OptKey, string> = { worldEnd: t('Fim do mundo', 'World ending'), teams: t('Número de equipes', 'Number of teams'), shop: t('Tempo de loja', 'Shop time'), pace: t('Contagem e fim de rodada', 'Countdown and round end'), economy: t('Ouro ganho', 'Gold earned'), startGold: t('Ouro inicial', 'Starting gold'), goal: t('Vence com', 'Wins with'), runes: t('Runas', 'Runes'), sudden: t('Morte súbita', 'Sudden death'), chests: t('Baús de ouro', 'Gold chests'), difficulty: t('Dificuldade dos bots', 'Bot difficulty'), arena: 'Arena', effect: t('Efeito de rodada', 'Round effect') };
+const worldEndName = (id: MatchOpts['worldEnd']) => ({
+  lava: 'Lava', ice: t('Gelo', 'Ice'), darkness: t('Escuridão', 'Darkness'), abyss: t('Abismo', 'Abyss'), random: t('Aleatório', 'Random'),
+})[id];
+const sceneryName = (id: SceneryChoice) => ({ random: t('Aleatório', 'Random'), forest: t('Floresta', 'Forest'), dungeon: t('Calabouço', 'Dungeon') })[id];
 function optText(k: OptKey, val: MatchOpts[OptKey], mode: Mode): string {
+  if (k === 'worldEnd') return worldEndName(val as MatchOpts['worldEnd']);
   if (k === 'teams') return t(`${val} equipes`, `${val} teams`);
   if (k === 'shop') return (val as number) >= 120 ? '2 min' : `${val} s`;
   if (k === 'pace') return PACE_NAME[val as MatchOpts['pace']];
@@ -456,12 +462,13 @@ const optLabel = (k: OptKey, mode: Mode) => el('div', { class: 'opt-label' }, el
 function optsLine(o: MatchOpts, mode: Mode): string {
   const off = (['runes', 'sudden', 'chests'] as const).filter((k) => !o[k] && !(mode === 'ascension' && k === 'chests')).map((k) => t('sem ', 'no ') + OPT_NAME[k].toLowerCase());
   const bots = o.difficulty !== 'auto' ? [{ easy: t('bots fáceis', 'easy bots'), casual: t('bots casuais', 'casual bots'), normal: t('bots normais', 'normal bots'), veteran: t('bots veteranos', 'veteran bots'), hard: t('bots difíceis', 'hard bots') }[o.difficulty]] : [];
-  const arena = o.arena !== 'random' ? [t('arena ' + arenaName(o.arena), arenaName(o.arena) + ' arena')] : [];
+  const shape = mode !== 'campaign' && worldEndUsesCircle(o.worldEnd) ? 'circle' : o.arena;
+  const arena = shape !== 'random' ? [t('arena ' + arenaName(shape), arenaName(shape) + ' arena')] : [];
   const effect = o.effect === 'random' ? [t('efeito sorteado', 'random effect')] : o.effect !== 'off' ? [effectName(o.effect, mode)] : [];
   // Ascensão: sem loja, ouro nem meta (9 rodadas fixas)
   const head = mode === 'ascension' ? [t(`${ASC_ROUNDS} rodadas`, `${ASC_ROUNDS} rounds`)]
     : [t(`Loja ${optText('shop', o.shop, mode)}`, `Shop ${optText('shop', o.shop, mode)}`), t(`Ouro ×${n1(o.economy)}`, `Gold ×${n1(o.economy)}`), t(`Vence com ${optText('goal', o.goal, mode)}`, `Wins with ${optText('goal', o.goal, mode)}`)];
-  return [...head, ...(mode === 'teams' ? [optText('teams', o.teams, mode)] : []), ...arena, ...effect, ...bots, ...off].join(' · ');
+  return [...head, ...(mode === 'teams' ? [optText('teams', o.teams, mode)] : []), ...arena, ...(mode === 'campaign' || !o.worldEnd || o.worldEnd === 'lava' ? [] : [worldEndName(o.worldEnd)]), ...effect, ...bots, ...off].join(' · ');
 }
 // texto de uma votação aberta
 function voteText(v: { kind: Vote['kind']; target: string }, mode: Mode, name: (id: string) => string): string {
@@ -500,7 +507,11 @@ const n0 = (x: number) => Math.round(x).toLocaleString(LOCALE);
 const UTILITY = new Set(['teleport', 'shield', 'rush', 'pact', 'thrust', 'rockpillar', 'magnetize', 'alteration', 'warpzone']);
 const srcIcon = (k: string) => icon(k === 'lava' ? SOURCE_ICON.lava : k in ICON ? ICON[k as SpellId] : k in ITEM_ICON ? ITEM_ICON[k as ItemId] : k.startsWith('choque') ? SOURCE_ICON.shock : k === 'pillar' ? SOURCE_ICON.pillar : SOURCE_ICON.unknown);
 const gold = (n: number) => el('span', {}, icon(UI_ICON.gold), ' ' + n);
-export const srcName = (k: string) => (k === 'lava' ? 'lava' : isSpell(k) ? spellName(k) : k in ITEMS ? itemName(k as ItemId) : k);
+export const srcName = (k: string) => ({ cold: t('nevasca', 'blizzard'), darkness: t('escuridão', 'darkness'), abyss: t('abismo', 'abyss') } as Record<string, string>)[k]
+  ?? (isSpell(k) ? spellName(k) : k in ITEMS ? itemName(k as ItemId) : k);
+export const fallText = (src: string) => src === 'cold' ? t('congelou', 'froze')
+  : src === 'darkness' ? t('foi devorado no escuro', 'was devoured in the dark')
+  : src === 'abyss' ? t('caiu no abismo', 'fell into the abyss') : t('caiu na lava', 'fell into the lava');
 
 // placar (pedido do Fernando, 17/10; refeito em 18/10): abas Resumo e Magias, destaques com retrato e o melhor de cada coluna em dourado
 type View = 'summary' | 'spells';
@@ -934,12 +945,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const sbPanel = el('div', { class: 'vol-panel sandbox-panel', hidden: true });
   const sbBtn = el('button', { type: 'button', class: 'vote-btn', hidden: true, 'aria-expanded': 'false', title: t('Painel da sandbox', 'Sandbox panel'), 'aria-label': t('Painel da sandbox', 'Sandbox panel'), onclick: () => toggle(sbPanel, sbBtn) },
     icon(UI_ICON.bot), el('span', { class: 'vote-label' }, ' Sandbox'));
-  const sbChecks = new Map<keyof Sandbox, HTMLInputElement>();
+  type Toggle = Extract<SandboxCmd, { op: 'set' }>['key'];
+  const sbChecks = new Map<Toggle, HTMLInputElement>();
   const check = (label: string, on: boolean, change: (on: boolean) => void) => {
     const box = el('input', { type: 'checkbox', checked: on, onchange: (e: Event) => change((e.target as HTMLInputElement).checked) }) as HTMLInputElement;
     return { row: el('label', { class: 'sandbox-check' }, box, ' ' + label), box };
   };
-  const rule = (key: keyof Sandbox, label: string) => {
+  const rule = (key: Toggle, label: string) => {
     const { row, box } = check(label, false, (on) => act.sandbox({ op: 'set', key, on }));
     sbChecks.set(key, box);
     return row;
@@ -956,9 +968,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     ...([['east', t('Direita', 'Right')], ['west', t('Esquerda', 'Left')], ['north', t('Cima', 'Up')], ['south', t('Baixo', 'Down')]] as const)
       .map(([value, label]) => el('option', { value }, label))) as HTMLSelectElement;
   const sbArena = el('select', { 'aria-label': t('Forma da arena', 'Arena shape'), title: t('Trocar a forma recomeça a rodada; ela fica nos próximos reinícios', 'Changing the shape restarts the round; it stays for the next restarts'), onchange: (e: Event) => act.sandbox({ op: 'arena', arena: (e.target as HTMLSelectElement).value as ArenaId }) },
-    ...ARENA_IDS.map((a) => el('option', { value: a }, arenaName(a)))) as HTMLSelectElement;
+    ...ARENA_CHOICES.map((a) => el('option', { value: a }, arenaName(a)))) as HTMLSelectElement;
   const sbEffect = el('select', { 'aria-label': t('Efeito de rodada', 'Round effect'), title: t('Vale na hora; Campo aberto tira os obstáculos até reiniciar', 'Applies right away; Open field removes the obstacles until a restart'), onchange: (e: Event) => { const v = (e.target as HTMLSelectElement).value; act.sandbox({ op: 'effect', effect: v ? (v as RoundEffectId) : null }); } },
     el('option', { value: '' }, t('Nenhum', 'None')), ...ROUND_EFFECT_IDS.map((x) => el('option', { value: x }, EFFECT_NAME[x]))) as HTMLSelectElement;
+  const sbWorldEnd = el('select', { 'aria-label': OPT_NAME.worldEnd, title: t('Trocar o fim do mundo reinicia a rodada', 'Changing the world ending restarts the round'), onchange: (e: Event) => act.sandbox({ op: 'worldEnd', worldEnd: (e.target as HTMLSelectElement).value as MatchOpts['worldEnd'] }) },
+    ...OPTION_CHOICES.worldEnd.map(id => el('option', { value: id }, worldEndName(id)))) as HTMLSelectElement;
+  const sbScenery = el('select', { 'aria-label': t('Cenário visual', 'Visual theme'), onchange: (e: Event) => act.sandbox({ op: 'scenery', scenery: (e.target as HTMLSelectElement).value as SceneryChoice }) },
+    ...SCENERY_CHOICES.map(id => el('option', { value: id }, sceneryName(id)))) as HTMLSelectElement;
   sbPanel.append(
     el('b', {}, 'Sandbox'),
     el('small', { class: 'muted' }, t('Nada daqui conta nos dados do jogo.', 'Nothing here counts toward the game data.')),
@@ -977,6 +993,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     botSetupPanel(1, savedBotSetup(), () => {}),
     sbBots,
     el('div', { class: 'sandbox-row' }, t('Arena', 'Arena'), sbArena),
+    el('div', { class: 'sandbox-row' }, OPT_NAME.worldEnd, sbWorldEnd),
+    el('div', { class: 'sandbox-row' }, t('Cenário visual', 'Visual theme'), sbScenery),
+    el('small', { class: 'muted' }, t('Desative Vida infinita para testar o perigo no seu mago.', 'Turn off Infinite health to test the hazard on your wizard.')),
     el('div', { class: 'sandbox-row' }, t('Efeito', 'Effect'), sbEffect),
     el('div', { class: 'sandbox-row', role: 'group', 'aria-label': t('Tamanho da pedra', 'Stone size') }, t('Pedra', 'Stone'),
       el('button', { type: 'button', title: t('Pedra uma faixa menor (volta ao tamanho normal ao reiniciar)', 'Stone one ring smaller (back to normal size on restart)'), onclick: () => act.sandbox({ op: 'radius', step: -1 }) }, t('− Menor', '− Smaller')),
@@ -999,8 +1018,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       toggle(sbPanel, sbBtn, true);
     }
     if (document.activeElement !== sbEffect) sbEffect.value = r.effect ?? '';
+    if (document.activeElement !== sbWorldEnd) sbWorldEnd.value = r.opts.worldEnd ?? 'lava';
+    if (document.activeElement !== sbScenery) sbScenery.value = r.sandbox.scenery ?? 'random';
     for (const [k, box] of sbChecks) box.checked = r.sandbox[k];
-    if (r.arena && document.activeElement !== sbArena) sbArena.value = r.arena;
+    sbArena.disabled = worldEndUsesCircle(r.opts.worldEnd);
+    if (r.arena && (sbArena.disabled || document.activeElement !== sbArena)) sbArena.value = r.arena;
     // lista dos bots com o ✕ (tirar): só redesenha quando muda
     const mine = r.players.find((p) => p.id === me);
     sbAlly.disabled = !mine || !!mine.watch || !mine.connected || r.players.filter((p) => !p.watch).length >= MAX_PLAYERS;
@@ -1553,9 +1575,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('small', { class: 'muted' }, modes.find(([k]) => k === mode)![2]), shufflePicker);
     // opções da partida: uma fileira de botões por opção, como o seletor de modo; vão junto com o "Começar"
     // abertas por padrão: quem cria a sala vê as opções sem procurar (fechar fica guardado até sair da sala)
+    const circular = mode !== 'campaign' && worldEndUsesCircle(o.worldEnd);
     const optsBlock = el('details', { class: 'match-opts', open: optsOpen, ontoggle: (e: Event) => (optsOpen = (e.target as HTMLDetailsElement).open) }, el('summary', {}, t('Opções da partida', 'Match options') + ' · ', el('small', { class: 'muted' }, optsLine(o, mode))),
-      el('div', { class: 'opt-grid' }, ...optKeys(mode).map((k) => el('div', { class: 'opt-row' }, optLabel(k, mode),
-        choice(OPT_NAME[k], (OPTION_CHOICES[k] as readonly MatchOpts[OptKey][]).map((val): [MatchOpts[OptKey], string] => [val, optText(k, val, mode)]), o[k], (val) => (Object.assign(o, { [k]: val }), drawCenter()), locked ? () => true : undefined)))));
+      el('div', { class: 'opt-grid' }, ...optKeys(mode).map((k) => {
+        const forced = k === 'arena' && circular;
+        return el('div', { class: 'opt-row' }, optLabel(k, mode),
+          choice(OPT_NAME[k], (OPTION_CHOICES[k] as readonly MatchOpts[OptKey][]).map((val): [MatchOpts[OptKey], string] => [val, optText(k, val, mode)]), forced ? 'circle' : o[k], (val) => (Object.assign(o, { [k]: val }), drawCenter()), locked || forced ? () => true : undefined));
+      })));
     const owner = r.players.find((p) => p.id === L?.owner);
     const ownerName = owner ? playerName(owner) : '';
     const whoPicks = L && el('small', { class: 'muted' }, locked ? t(`Quem escolhe os bots e as opções é ${ownerName}, que criou a sala.`, `${ownerName}, who created the room, picks the bots and options.`)
@@ -2015,7 +2041,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       };
       const killer = by && by !== id ? by : null;
       const li = el('li', { class: killer === me || id === me ? 'me' : '' }, killer ? who(killer) : null,
-        el('span', { class: 'feed-ico', title: killer ? srcName(src) : 'lava' }, srcIcon(killer ? src : 'lava')), who(id), killer ? null : el('small', {}, room?.night ? t('caiu', 'fell') : t('caiu na lava', 'fell into the lava')));
+        el('span', { class: 'feed-ico', title: srcName(src) }, srcIcon(src)), who(id), killer ? null : el('small', {}, room?.night ? t('caiu', 'fell') : fallText(src)));
       feed.append(li);
       while (feed.children.length > 5) feed.firstElementChild!.remove();
       setTimeout(() => li.remove(), 5000);
@@ -2061,10 +2087,12 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     toRoom() {
       if (room) toRoom(room);
     },
-    danger(low: boolean, lava: boolean) {
+    danger(low: boolean, outside: boolean, ending: WorldEnd = 'lava') {
       danger.classList.toggle('low', low);
-      danger.classList.toggle('lava', lava);
-      document.body.classList.toggle('in-lava', lava);
+      danger.classList.toggle('lava', outside && ending === 'lava');
+      danger.classList.toggle('cold', outside && ending === 'ice');
+      danger.classList.toggle('darkness', outside && ending === 'darkness');
+      document.body.classList.toggle('in-lava', outside && ending === 'lava');
     },
     // seta na borda da tela apontando para quem bateu (ângulo em radianos, 0 = direita, cresce para baixo)
     hitFrom(angle: number) {
