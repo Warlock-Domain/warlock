@@ -472,15 +472,15 @@ describe('Drain', () => {
     expect(w.wizards[0].hp).toBeGreaterThan(800 + L.dmg - 1); // heal + regeneration
   });
 
-  it('on an ally (Times): heals and hastes instead of hurting', () => {
+  it('on an ally (Teams): passes through without healing or haste', () => {
     const own = { ...noSpells(), drain: 1 };
     const w = newWorld(['a', 'b'], { a: own, b: own }, {}, 0, Math.random, false, { a: 0, b: 0 });
     [w.wizards[0].pos, w.wizards[1].pos] = [v(0, 0), v(3, 0)];
     for (const z of w.wizards) z.invulnUntil = 0;
-    w.wizards[1].hp = 700;
+    w.wizards[1].hp = 700; w.wizards[1].regen = 0;
     run(w, 0.8, [cast('a', 'drain', 3, 0)]);
-    expect(w.wizards[1].hp).toBeGreaterThan(700 + spellLevel('drain', 1).dmg - 1);
-    expect(w.wizards[1].speed).toBeGreaterThan(WIZ_SPEED);
+    expect(w.wizards[1].hp).toBe(700);
+    expect(w.wizards[1].hasteUntil).toBe(0);
   });
 });
 

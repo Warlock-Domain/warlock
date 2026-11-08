@@ -78,7 +78,7 @@ export const SCRIPTS: Partial<Record<DemoId, Script>> = {
   // o terceiro fica onde a parede cai (#206): leva o golpe da queda e voa para o lado, e a parede ainda segura a Bola de fogo
   rockpillar: { pos: [v(-3, 0), v(2, 0), v(-1.2, 0.3)], end: 8.5, steps: [[0.2, B, 'fireball', A], [0.3, A, 'rockpillar', v(-1.2, 0)], [6, A, 'fireball', v(-1.2, 0)], [7.3, A, 'fireball', v(-1.2, 0)]] },
   bouncer: { pos: [v(-3, 0), v(1.5, 0), v(2.5, 1.8)], end: 3, steps: [[0.1, A, 'bouncer', A], [0.4, A, 'fireball', B]] },
-  drain: { pos: [v(-3, 0), v(2, 0.6), v(2.6, -1.8)], end: 3.6, steps: [[0.4, A, 'drain', v(1.5, 0)]], prep: (w) => (w.wizards[A].hp = 700) },
+  drain: { pos: [v(-3, 0), v(2, 0.6), v(2.6, -1.8)], end: 3.6, steps: [[0.4, A, 'drain', B]], prep: (w) => (w.wizards[A].hp = 700) },
   snowball: { pos: [v(-3, 0), v(-0.6, 0.1), v(0.3, -0.5)], end: 3, steps: [[0.4, A, 'snowball', v(1, 0)]] },
   illusion: { end: 3.2, steps: [[.1, A, 'move', v(-3, 3)], [.5, A, 'illusion', B], [.65, A, 'move', v(-1, -2)], [.8, B, 'homing', A]], prep: (w) => { w.pillars = []; w.wizards[B].spells.homing = 1; } }, // dono muda o destino; a cópia continua reta e engana o míssil.
   magnetize: { end: 3.4, steps: [[0.1, A, 'fireball', B], [0.4, A, 'magnetize', v(0, 4)]] },

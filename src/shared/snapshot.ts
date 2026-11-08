@@ -1,7 +1,7 @@
 // Estado compacto enviado 30 vezes por segundo, e a leitura dele no navegador.
 import { ELEMENTS, type Element, type Transcendence } from './elemental-spheres.ts';
 import type { Snap } from './protocol.ts';
-import { PROJ_KINDS, projectileLevel, bootsBonus, closedBodyActive, bracingActive, incapacitatedUntil, isSliding, isStunned, isSuspended, puppeteer, type ProjKind, type SimEvent, type World } from './sim.ts';
+import { PROJ_KINDS, projectileLevel, speedStatusBits, closedBodyActive, bracingActive, incapacitatedUntil, isSliding, isStunned, isSuspended, puppeteer, type ProjKind, type SimEvent, type World } from './sim.ts';
 import { INCAPACITATED_BIT, ELECTROCUTED_BIT, BRACING_BIT, RICOCHET_READY_BIT } from './constants.ts';
 import { CHEST, OBSTACLES, OBSTACLE_KINDS, RUNE_KINDS, WIZ_R, type ObstacleKind, type RuneKind } from './constants.ts';
 import { BLINDNESS, SPELL_IDS, spellLevel, type SpellId } from './spells.ts';
@@ -43,8 +43,8 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
     // Illusion owns invisibility; Windwalk only accelerates.
     const bits = (z.alive ? 1 : 0) | (z.alive && z.ricochetRange ? RICOCHET_READY_BIT : 0) | (w.t < z.shieldUntil ? 2 : 0)
       | (isStunned(z) && !isSuspended(z) ? 16 : 0) | (w.t < z.invulnUntil ? 32 : 0) | (w.t < z.pactUntil ? 64 : 0)
-      | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 1 || w.t < z.slowUntil ? 4 : 0) | (z.zone & 2 ? 512 : 0)
-      | (w.t < z.windUntil || w.t < z.hasteUntil || bootsBonus(w, z) > 0 ? 4096 : 0) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)
+      | (w.t < z.gripUntil ? 128 : 0) | (w.t < z.rushUntil ? 256 : 0) | (z.zone & 2 ? 512 : 0)
+      | speedStatusBits(w, z) | (w.t < z.magnetUntil ? (z.magnet > 0 ? 8192 : 16384) : 0)
       | (w.t < z.alterUntil || z.items.glitch_cape > 0 && w.t >= z.cd.alteration ? 32768 : 0) | (linked.has(z.id) ? 65536 : 0) | (z.aegis ? 131072 : 0)
       | (w.t < z.runeUntil && z.rune ? RUNE_BIT[z.rune] : 0)
       | (z.alive && w.zones.some((q) => q.kind === 'pull' && dist(q.pos, z.pos) < q.r + WIZ_R) ? 2097152 : 0)
@@ -53,7 +53,7 @@ export function encodeSnap(w: World, forId: string, ack: number, events: SimEven
       | (z.alive && z.target && dist(z.target, z.pos) > .01 && z.speed > 0 && !z.casting && !isStunned(z) && w.t >= z.dashUntil && w.t >= z.thrustUntil ? WALKING_BIT : 0)
       | (z.moveHeld ? HOLDING_MOVE_BIT : 0) | (z.blockedMove ? BLOCKED_MOVE_BIT : 0)
       | (w.t < incapacitatedUntil(z, w.t) ? INCAPACITATED_BIT : 0)
-      | (w.t < (z.electroUntil ?? 0) ? ELECTROCUTED_BIT | 4 : 0)
+      | (w.t < (z.electroUntil ?? 0) ? ELECTROCUTED_BIT : 0)
       | (z.alive && bracingActive(w, z) ? BRACING_BIT : 0)
       | (me?.alive && w.t < (me.blindUntil ?? 0) && z !== me && dist(z.pos,me.pos) > BLINDNESS.radius ? 2048 : 0);
     // avançando (Investida): a velocidade enviada inclui o avanço, e o cliente segue o servidor como num empurrão

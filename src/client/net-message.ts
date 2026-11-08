@@ -83,6 +83,7 @@ function event(x: unknown): x is SimEvent {
   switch (x.k) {
     case 'sudden': return true;
     case 'cast': return id() && isSpell(x.spell);
+    case 'heal': return id() && num('x', 'y') && finite(x.amount) && x.amount >= 0;
     case 'hit': return id() && id('by') && num('x', 'y', 'dmg') && string(x.src) && (x.crit === undefined || x.crit === true);
     case 'reflect': case 'grip': case 'scourge': case 'loot': return id() && num('x', 'y') && (x.k !== 'scourge' || num('r'));
     case 'lightning': return vector(x.from) && vector(x.to) && (x.width === undefined || finite(x.width) && x.width > 0 && x.width < 1);

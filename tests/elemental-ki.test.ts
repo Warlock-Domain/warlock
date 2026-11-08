@@ -49,16 +49,17 @@ describe('Ki sphere positive spell effects', () => {
   });
 
 
-  it('captures outgoing Drain healing and ally haste without using recipient ki or fire damage', () => {
-    const w = setup(['ki', 'ki', 'fire']), [caster, ally] = w.wizards;
+  it('captures caster Ki for enemy-damage healing and returned haste without borrowing recipient Ki', () => {
+    const w = setup(['ki', 'ki', 'fire']), [caster, ally, enemy] = w.wizards;
+    enemy.pos = { x: 4, y: 0 };
     ally.spheres = Array.from({ length: 5 }, () => ({ element: 'ki' as const, until: 30 }));
-    run(w, .2, [{ id: caster.id, kind: 'cast', spell: 'drain', at: ally.pos }]);
+    run(w, .2, [{ id: caster.id, kind: 'cast', spell: 'drain', at: enemy.pos }]);
     const projectile = w.projectiles.find(p => p.kind === 'drain');
     expect(projectile).toBeDefined();
     expect(projectile!.ki).toBeCloseTo(1.1);
     caster.spheres = [];
     while (ally.hasteUntil === 0 && w.t < 2) stepWorld(w, [], () => .5);
-    expect(ally.hp).toBeCloseTo(566);
+    expect(ally.hp).toBeCloseTo(500 + (500 - enemy.hp) * 1.1);
     expect(ally.hasteUntil - w.t).toBeCloseTo(spellLevel('drain', 1).duration * 1.1 - 1 / 60);
   });
 });
