@@ -20,6 +20,10 @@ export function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<
   for (const c of children) if (c) e.append(c);
   return e;
 }
+
+// CSS silhouettes share one size instead of relying on font-specific symbol metrics.
+export const teamCrest = (team: number, label: string, tint: string) =>
+  el('span', { class: 'team-crest', 'data-team': team, role: 'img', title: label, 'aria-label': label, style: `--team-tint:${tint}` });
 // botão só de ícone (✕, ⋯, ‹ ›, engrenagem): o nome vira title e aria-label. props sobrescreve (class 'icon …', title com a tecla,
 // aria-expanded, hidden). Outros visuais do ✕ só pela class: 'kick' (pequeno e vermelho, na linha do placar), 'info-close' (canto do ⓘ)
 export const iconButton = (child: Child, name: string, onclick: () => void, props: Record<string, unknown> = {}) =>

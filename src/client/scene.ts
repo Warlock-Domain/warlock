@@ -13,7 +13,7 @@ import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit, type Element, type T
 import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
 import { createBraceClip } from './brace-pose.ts';
 import { createAttackClip, playAnimation as play } from './attack-pose.ts';
-import { electroPulse } from './screen-data.ts';
+import { electroPulse, obstacleHpUntil } from './screen-data.ts';
 import { sniperRig, updateSniperRig, SNIPER_FX } from './sniper-fx.ts';
 import { HEAL_FX, healAura } from './heal-fx.ts';
 import { sniperFocusMask } from './sniper-focus.ts';
@@ -43,20 +43,20 @@ import { cellHash, nightProps } from './night-decor.ts';
 import { CANDLE } from '../shared/campaign.ts';
 import { t } from './i18n.ts';
 import { n1 } from './rules-text.ts';
-import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, el, fxClock, icon } from './icons.ts';
+import { BAD_STATUS, ICON, ITEM_ICON, RUNE_ICON, STATUS_ICONS, UI_ICON, teamCrest, el, fxClock, icon } from './icons.ts';
 import { BLINDNESS, CAST_POINT, LIGHTNING, PIX, SPELLS } from '../shared/spells.ts';
 import type { TAUNTS } from '../shared/taunts.ts';
 
-// cor de cada lugar (0..7) e o giro de matiz que leva o roxo do mago até ela
-export const COLORS = ['#e5484d', '#3e8ef7', '#30a46c', '#f5d90a', '#a26bf5', '#12c7c7', '#f76b15', '#e93d82'];
-// modo Times: Azul e Vermelho (anel no chão e barra de vida)
-export const TEAM_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#eab308'];
+// Personal slot colors (0..7), shared by lobby markers, names and non-team rings.
+export const COLORS = ['#ff5a5f', '#70a5ff', '#6ee76a', '#ffe44d', '#c19aff', '#42e4e4', '#ffad43', '#f5f5f5'];
+// Team identity is independent of ally/enemy health colors.
+export const TEAM_COLORS = ['#ff1493', '#a855f7', '#38bdf8', '#facc15'];
 // dificuldade dos bots, curta (rótulo em cima do mago e placar do canto)
 export const BOT_LEVEL: Record<MatchOpts['difficulty'], string> = { easy: t('Fácil', 'Easy'), casual: 'Casual', normal: 'Normal', veteran: t('Veterano', 'Veteran'), hard: t('Difícil', 'Hard'), auto: 'Auto' };
 
 // xp: Ascensão, nível e quanto do nível já encheu (liveLevel), para a barrinha embaixo da vida
 // place: colocação no placar (1 a 3) para a medalha à esquerda do nome (todos os modos, fora da sandbox)
-export type WizDraw = { blindLeft?: number; transcendence?: Transcendence; transcendLeft?: number; spheres?: { element: Element; left: number }[]; nexusTo?: number; transfusionTo?: number; transfusionRate?: number; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
+export type WizDraw = { local?: boolean; relation?: 'ally' | 'enemy' | 'neutral'; blindLeft?: number; transcendence?: Transcendence; transcendLeft?: number; spheres?: { element: Element; left: number }[]; nexusTo?: number; transfusionTo?: number; transfusionRate?: number; sniperLeft?: number; sniperAt?: Vec; channelElapsed?: number; closedBodyLeft?: number; geyserLeft?: number; puppetBy?: number; puppetLeft?: number; pixSoak?: number; place?: number; xp?: { level: number; frac: number } | null; id: string; pos: Vec; facing: number; hp: number; hpMax: number; status: number; alive: boolean; shield: boolean; shieldR?: number; rushLeft?: number; basicLeft?: number; basicMelee?: boolean; basicArc?: boolean; guard?: boolean; regen?: number; bot?: MatchOpts['difficulty'] | null; loot?: number; color: number; character: string; look?: string; name: string; moving: boolean; cheer: boolean; team?: number | null; illusion?: boolean; ghost?: boolean; fx?: number[]; ember?: number; size?: number }; // size: body scale (the giant Campaign boss); ghost: meio transparente; fx: tempo dos meus efeitos (snap.fx), só no meu mago; ember: Campanha, caído com brasa (progresso do reacender 0 a 1; −1 ou sem o campo = sem brasa)
 
 // personagens KayKit: cada GLB carrega na primeira vez que alguém usa uma peça dele
 export type Model = { scene: THREE.Group; clips: THREE.AnimationClip[] };
@@ -248,7 +248,7 @@ type Mage = {
   lootFill: HTMLDivElement;
   label: HTMLDivElement;
   hpFill: HTMLDivElement;
-  hpText: HTMLSpanElement;
+
   nameEl: HTMLSpanElement;
   nameText: Text; // the name alone, between the medal and the bot tag
   botEl: HTMLElement; // bot: robô e a dificuldade ao lado do nome
@@ -818,6 +818,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // geometrias de efeito compartilhadas: criar uma por efeito vazava memória de vídeo
   const ringGeo = new THREE.RingGeometry(WIZ_R * 0.9, WIZ_R * 1.25, 40);
   const ringBackingGeo = new THREE.RingGeometry(WIZ_R * 0.84, WIZ_R * 1.32, 40);
+  const ownRingGeo = new THREE.RingGeometry(WIZ_R * 0.75, WIZ_R * 1.25, 40);
+  const ownRingBackingGeo = new THREE.RingGeometry(WIZ_R * 0.69, WIZ_R * 1.32, 40);
   const contactShadowGeo = new THREE.PlaneGeometry(1.9, 1.9);
   const contactShadowMap = contactShadowTexture();
   const discGeo = new THREE.CircleGeometry(1, 48);
@@ -952,8 +954,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const sniper=sniperRig(); root.add(sniper);
     const contactShadow = ground(new THREE.Mesh(contactShadowGeo, new THREE.MeshBasicMaterial({ map: contactShadowMap, transparent: true, depthWrite: false })), 0.012);
     const ringBacking = ground(new THREE.Mesh(ringBackingGeo, new THREE.MeshBasicMaterial({ color: '#140806', transparent: true, opacity: 0.8, depthWrite: false })), 0.022);
+    ringBacking.name = 'Player_Ring_Backing';
     root.add(contactShadow, ringBacking);
     const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: COLORS[d.color], transparent: true, opacity: 0.85, depthWrite: false }));
+    ring.name = 'Player_Ring';
     ground(ring, 0.03);
     root.add(ring);
     const shield = new THREE.Mesh(shieldGeo, new THREE.MeshBasicMaterial({ color: '#8fd3ff', transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -986,14 +990,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       a.clampWhenFinished = true;
     }
     actions.Idle?.play();
-    const hpFill = el('div', { class: 'hp-fill', style: `background: ${COLORS[d.color]}` });
+    const hpFill = el('div', { class: 'hp-fill' });
     const botEl = el('small', { class: 'bot-tag', hidden: true });
     const medalEl = el('b', { class: 'wiz-medal', hidden: true });
     const nameText = document.createTextNode(d.name);
-    const nameEl = el('span', {}, medalEl, nameText, botEl);
-    const hpText = el('span', { class: 'hp-text' });
+    const nameEl = el('span', { class: 'wiz-name' }, medalEl, nameText, botEl);
+    const hpSegments = el('div', { class: 'hp-segments', 'aria-hidden': 'true' });
     const absRush = el('div', { class: 'hp-abs rush' });
-    const bar = el('div', { class: 'hp' }, hpFill, absRush, hpText);
+    const bar = el('div', { class: 'hp', role: 'progressbar', 'aria-label': t('Vida', 'Health'), 'aria-valuemin': '0' }, hpFill, absRush, hpSegments);
     // selo da Égide ao lado da barra, enquanto não usada
     const aegisEl = el('i', { class: 'aegis', title: t('Égide pronta', 'Aegis ready'), hidden: true }, icon(ITEM_ICON.aegis));
     const extraEl = el('span', { class: 'hp-extra' });
@@ -1009,7 +1013,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, sniper, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, ringBacking, contactShadow, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, blindEl, statusFx, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { root, sniper, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, ringBacking, contactShadow, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, blindEl, statusFx, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   // animação de conjurar [clip, segundos, início no clip]; o resto atira (Spellcast_Shoot). Quando o gesto forte vem no meio
@@ -1235,7 +1239,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     g.rotation.y = -Math.atan2(along.y, along.x); // o comprimento (x do modelo) no rumo dos pedaços
     return visual;
   }
-  const pillarMeshes: { visual: ObstacleVisual; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number; fallAt?: number }[] = [];
+  const pillarMeshes: { visual: ObstacleVisual; kind: PillarView['kind']; pos: Vec; bar: HTMLDivElement | null; fill: HTMLDivElement | null; height: number; fallAt?: number; hitAt?: number; hp?: number; hpUntil: number }[] = [];
   // baú: caixa simples com tampa dourada e brilho (é um obstáculo: as magias quebram)
   const chestWood = new THREE.MeshStandardMaterial({ color: '#7a4a22', roughness: 0.7 });
   const chestGold = new THREE.MeshStandardMaterial({ color: '#ffcc33', emissive: '#a06a00', metalness: 0.6, roughness: 0.3 });
@@ -1593,10 +1597,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
   }
 
-  function syncPillars(list: PillarView[]) {
-    const changed = list.length !== pillarMeshes.length || list.some((p, i) => p.pos.x !== pillarMeshes[i].pos.x || p.pos.y !== pillarMeshes[i].pos.y);
+  function syncPillars(list: PillarView[], now: number) {
+    const changed = list.length !== pillarMeshes.length || list.some((p, i) => p.kind !== pillarMeshes[i].kind || p.pos.x !== pillarMeshes[i].pos.x || p.pos.y !== pillarMeshes[i].pos.y);
     const radius = (p: PillarView) => OBSTACLES[p.kind].r;
     if (changed) {
+      // Preserve damage visibility when a new obstacle rebuilds the visual list.
+      const health = new Map(pillarMeshes.map(m => [`${m.kind}:${m.pos.x},${m.pos.y}`, { hp: m.hp, until: m.hpUntil }]));
       // paredes que já estavam na tela: só a que acabou de surgir cai do céu (issue #206)
       const before = new Set(pillarMeshes.map((m) => `${m.pos.x},${m.pos.y}`));
       for (const p of pillarMeshes) {
@@ -1624,16 +1630,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         const obj = visual.obj;
         obj.position.copy(w3(p.pos, 0));
         scene.add(obj);
-        // barra de vida em tudo que quebra (pedido do Fernando, 17/10: sempre visível)
+        // Destructible map objects show HP only for three seconds after observed damage.
         let bar: HTMLDivElement | null = null, fill: HTMLDivElement | null = null;
         if (Number.isFinite(OBSTACLES[p.kind].hp) && !side && !(p.kind === 'rock' && curMap)) { // the Campaign rock never breaks (levels.ts obstaclesOf)
           fill = el('div');
-          bar = el('div', { class: 'obstacle-hp' + (p.kind === 'chest' ? ' chest' : '') }, fill);
+          bar = el('div', { class: 'obstacle-hp' + (p.kind === 'chest' ? ' chest' : ''), hidden: true }, fill);
           labels.append(bar);
         }
         const height = new THREE.Box3().setFromObject(obj).max.y;
         const fallAt = wall && p.hp > 0 && !before.has(`${p.pos.x},${p.pos.y}`) ? performance.now() / 1000 : undefined;
-        pillarMeshes.push({ visual, pos: p.pos, bar, fill, height, fallAt });
+        const previous = health.get(`${p.kind}:${p.pos.x},${p.pos.y}`);
+        pillarMeshes.push({ visual, kind: p.kind, pos: p.pos, bar, fill, height, fallAt, hp: previous?.hp, hpUntil: previous?.until ?? 0 });
         // a lista muda no meio da rodada (baú, Pilar de pedra): o que já tinha quebrado não afunda de novo
         if (p.hp <= 0) obj.position.y = -3;
       });
@@ -1641,6 +1648,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     list.forEach((p, i) => {
       const m = pillarMeshes[i];
       const obj = m.visual.obj;
+      m.hpUntil = obstacleHpUntil(m.hp, p.hp, m.hpUntil, now);
+      m.hp = p.hp;
+      if (m.bar) m.bar.hidden = p.hp <= 0 || now >= m.hpUntil;
       if (p.hp <= 0) {
         obj.position.y = Math.max(-3, obj.position.y - 0.05);
         obj.visible = obj.position.y > -2.9;
@@ -2076,14 +2086,26 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       if (!m) continue;
       seen.add(d.id);
-      // modo Times: anel e barra na cor do time (pode mudar a cada rodada); o nome fica com a cor do jogador
-      const tint = d.team != null ? (TEAM_COLORS[d.team] ?? COLORS[d.color]) : COLORS[d.color]; // Sandbox allies can go past the two Teams colours
+      // Keep team identity readable without replacing the player's personal colour.
+      const tint = d.team != null ? (TEAM_COLORS[d.team] ?? COLORS[d.color]) : COLORS[d.color];
+      let crest = m.bar.parentElement!.querySelector<HTMLElement>('.team-crest');
+      if (d.team != null) {
+        if (!crest) { crest = teamCrest(d.team, '', tint); m.bar.before(crest); }
+        crest.dataset.team = String(d.team);
+        crest.title = t(`Time ${d.team + 1}`, `Team ${d.team + 1}`);
+        crest.setAttribute('aria-label', crest.title);
+        crest.style.setProperty('--team-tint', tint);
+      } else crest?.remove();
       if (m.tint !== tint) {
         m.tint = tint;
         (m.ring.material as THREE.MeshBasicMaterial).color.set(tint);
-        m.hpFill.style.background = tint;
-        m.nameEl.style.color = d.team != null ? COLORS[d.color] : '';
+
+
       }
+      m.bar.dataset.relation = d.relation ?? 'neutral';
+      m.bar.style.setProperty('--hp-team', tint);
+      m.nameEl.hidden = !!d.local;
+      m.nameEl.style.color = COLORS[d.color];
       // Held aim: a charge bar instead of a countdown (Fernando, 26/10).
       if(d.alive && (d.sniperLeft ?? 0)>0) chargeBubble(m,'sniper-clock',t('Mirando','Aiming'),1-d.sniperLeft!/CAST_POINT.sniper);
       else m.label.querySelector('.sniper-clock')?.remove();
@@ -2160,6 +2182,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       m.blindEl.hidden = !d.alive || !(d.blindLeft ?? 0);
       m.ring.visible = d.alive;
       m.ringBacking.visible = d.alive;
+      // Identify only the live local body; copies and concealed/ghost states keep the ordinary ring.
+      const ownRing = !!d.local && d.alive && !d.illusion && !hidden && !ghost;
+      const ringShape = ownRing ? ownRingGeo : ringGeo;
+      if (m.ring.geometry !== ringShape) {
+        m.ring.geometry = ringShape;
+        m.ringBacking.geometry = ownRing ? ownRingBackingGeo : ringBackingGeo;
+        (m.ring.material as THREE.MeshBasicMaterial).opacity = ownRing ? 1 : 0.85;
+        const backing = m.ringBacking.material as THREE.MeshBasicMaterial;
+        backing.color.set(ownRing ? '#fff4dc' : '#140806');
+        backing.opacity = ownRing ? 0.95 : 0.8;
+      }
       // Keep the contact cue on the floor while Geyser/Transcend lift the body.
       m.contactShadow.visible = d.alive && !lavaAt(d.pos);
       m.contactShadow.scale.setScalar(1 + m.model.position.y * 0.12);
@@ -2286,7 +2319,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       // Investida na barra (estilo Overwatch): o que ainda absorve vem depois da vida; passando do máximo, a barra inteira encolhe
       const rush = d.rushLeft ?? 0;
-      const total = Math.max(d.hpMax, d.hp + rush);
+      const total = Math.max(1, d.hpMax, d.hp + rush);
+      m.bar.style.setProperty('--hp-step', `${(200 / total) * 100}%`);
       m.hpFill.style.width = `${Math.max(0, Math.min(100, (d.hp / total) * 100))}%`;
       m.absRush.hidden = !rush;
       if (rush) m.absRush.style.width = `${(rush / total) * 100}%`;
@@ -2323,7 +2357,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       m.prevHp = d.hp;
       m.prevAlive = d.alive;
-      m.hpText.textContent = `${Math.max(0, Math.ceil(d.hp))}/${d.hpMax}`;
+      m.bar.setAttribute('aria-valuenow', String(Math.max(0, Math.ceil(d.hp))));
+      m.bar.setAttribute('aria-valuemax', String(d.hpMax));
       // The label is built once, but the name changes mid-round: "(BOT)" while the server bot plays for a disconnected
       // player, gone on reconnect (issue #367). Replacing only the text node keeps the medal and bot tag.
       if (m.nameText.data !== d.name) m.nameText.data = d.name;
@@ -2866,7 +2901,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
       syncWizards(state.wizards, now);
       syncProjectiles(state.projectiles);
-      syncPillars(state.pillars);
+      syncPillars(state.pillars, now);
       // montes de ouro: um clone do monte por baú quebrado
       while (piles.length < state.loots.length) {
         const c = pile.clone();

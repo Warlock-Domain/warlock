@@ -231,3 +231,30 @@ Every new decision gets a row here (date, decision, why) in the same PR as the c
 31/10 local art-direction pass, stage3: balance arena lighting with a near-neutral warm key, cool sky/back fill and four bounded shadowless warm shore lights. Reduce the strong central orange bounce so wardrobe colors and materials remain readable; warm light is strongest near lava. Follow shape/shrink, attenuate during cooling and tiny arenas, keep the existing single shadow caster, and restore the exact prior Campaign sky/key palette with extra lights hidden there. Preserve terrain, all graphical effects and gameplay. Local user authorization; no master integration or publication.
 
 31/10 local art-direction pass, stage4: soften moving-projectile trails with translucent textured planes aligned to received velocity; animate fire trails with existing credited frames. Give Fireball curved flame tongues and a less overexposed core; replace Snowball's regular seam ring with ice facets and a short low-opacity cold mist on positive damage. Preserve projectile/elemental identities, original size scaling, fixed-area borders, trajectory, reflection, spell numbers, zero-damage behavior, visibility and effect cap. Lite mode shortens/fades trails and omits extra mist. Local user authorization; no master integration or publication.
+
+## Local team identity polish (2026-11-05)
+Team labels pair blue/red/green/yellow with diamond/triangle/circle/square and numbers1–4. Keep existing team assignment, targeting, ground rings and personal name colour. This is local visual feedback only.
+
+## Team scoreboard readability (2026-11-06)
+Group the mini scoreboard and roster with named team headings, retain individual metrics and clearly mark the local player. Show a single leadership badge only for fixed teams with a positive unique lead in shared match wins. Use the maximum member score, not the sum, so larger rosters do not gain fake wins. Ties, zero scores, shuffled teams and non-team modes have no collective leader. Spectators/servants do not determine team wins. Keep the detailed scoreboard's team kills and add the wins context; no scoring or ordering rule changes.
+
+## HUD effect icon size (2026-11-06)
+Keep the existing circular HUD effect icons and draining duration ring, without adding a bar or countdown. Increase the icon/disc and ring dimensions by 30% at the user's request. Actor labels, toast icons and effect duration rules retain their sizes and behavior.
+
+## Overhead health bar contrast (2026-11-06)
+Use an opaque dark empty track, a contrasting frame and dark outer keyline for overhead health bars so they remain distinguishable over rock and luminous effects. Strengthen the numeric text outline while preserving team/player fill colors, dimensions, health values and absorption layout. Healing and invulnerability retain their colored frames/glows and the same dark keyline. No HUD health bar or gameplay changes.
+
+## Local player ground ring (2026-11-06)
+Make only the live local player's ground ring thicker inward and fully opaque, with a thin neutral cream backing edge. Preserve the team/player color and existing outer radius, collision size and ground placement. Reuse the existing two meshes with shared geometries; no pulse or extra particles. Illusions, replay actors, death, hidden and ghost states do not receive the local emphasis. Keep the existing concealment rules and all other actors' rings unchanged.
+
+## Overhead names and segmented health (2026-11-06)
+All overhead player names are white with a black outline. Overhead HP has no visible numeric value and uses divisions every 200 HP, with a proportional final partial segment for nonmultiples. Keep the existing HP/absorption fractions and maximum-health scaling; the main HUD's numeric HP remains unchanged. The local player and same-team allies have vibrant light-green HP, while opponents have equally vivid blood-red HP. FFA treats other players as opponents. Spectators/replay without an active owner retain neutral team-colored HP rather than inventing an allegiance. Move the colored team geometry/number badge next to the HP bar to distinguish opposing teams; rings and team identity retain their existing colors.
+
+## Map object HP after damage (2026-11-06)
+Destructible map object health bars start hidden and appear only after an observed HP decrease, from any damage source. Hide three seconds after the latest decrease; a subsequent hit restarts the interval. Baseline/reconnect snapshots, new objects, list rebuilds and respawns do not create false damage. Preserve an existing object's interval across list rebuilds, hide destroyed objects immediately and retain Campaign's unbreakable-rock exclusion. This supersedes always-visible obstacle HP.
+
+## Team palette and symbol-only badges (2026-11-06)
+Team identity uses hot pink, purple, light blue and yellow, in that order, for the existing diamond, triangle, circle and square. Overhead and UI team badges show only the shape, without an adjacent team number. Keep accessible team identification and bilingual color names across headings, choices and banners. Rings and team UI share the palette; HP still uses green for allies and blood red for opponents. No team assignment, scoring or personal wardrobe color changes.
+
+## Larger team silhouettes and personal names (2026-11-06)
+Replace the framed glyphs with unframed triangle, square, circle and star silhouettes, in that order. Each shape fills the same18px square, with a subtle black silhouette shadow rather than a rectangular frame. Keep the team palette. Use the shared `teamCrest` DOM helper for overhead and UI markers, with accessible labels. Hide the local owner's overhead name (including own copies); other overhead names match their individual lobby colors and retain the black outline. Use eight distinct personal swatches: red, blue, green, yellow, violet, cyan, orange and white. Lobby/roster names share the palette; do not hide self in those menus or change HP relation colors, geometry, team assignment or concealment.
