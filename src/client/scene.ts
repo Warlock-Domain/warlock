@@ -1,4 +1,6 @@
 import { createTranscendClip } from './transcend-pose.ts';
+import { createCastingFx } from './casting-fx.ts';
+import { createMovementPose } from './movement-pose.ts';
 import { createTranscendFx, transcendLift } from './transcend-fx.ts';
 // Cena 3D: lava, arena de pedra que encolhe, magos (KayKit), projéteis e efeitos.
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
@@ -10,7 +12,8 @@ import { elementSphereModel } from './element-sphere-model.ts';
 import { arenaRimGeometry } from './arena-rim.ts';
 import { createLavaBubbles } from './lava-bubbles.ts';
 import { ELEMENT_COLORS, ELEMENTAL_SPHERES, elementalOrbit, type Element, type Transcendence } from '../shared/elemental-spheres.ts';
-import { ELECTROCUTED_BIT, BRACING_BIT } from '../shared/constants.ts';
+import { BASIC_ATTACK, ELECTROCUTED_BIT, BRACING_BIT, MELEE_ARC } from '../shared/constants.ts';
+import { WALKING_BIT } from '../shared/snapshot.ts';
 import { createBraceClip } from './brace-pose.ts';
 import { createAttackClip, playAnimation as play } from './attack-pose.ts';
 import { electroPulse } from './screen-data.ts';
@@ -218,6 +221,9 @@ const TAUNT_ANIM: Record<(typeof TAUNTS)[number]['id'], [string, number]> = {
 const TP = 0.12, TP_SLIDE = 0.6;
 
 type Mage = {
+  walkUntil?: number;
+  movementPose: ReturnType<typeof createMovementPose>;
+  castingFx: ReturnType<typeof createCastingFx>;
   root: THREE.Group;
   sniper: THREE.Group;
   mixer: THREE.AnimationMixer;
@@ -551,7 +557,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   let shake = 0; // tremor da câmera nos choques
   let warnR = -1;
   // Efeitos "Leve": sem tremor, sem hit-stop e sem partículas extras (PC fraco ou quem enjoa)
-  let lite = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  let lite = reducedMotion.matches;
   let celebrate = 0; // 0..1: zoom da câmera no vencedor no fim da rodada
 
   const glow = glowTexture();
@@ -931,6 +938,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     if (!src) return null;
     const model = cloneAppearance(src.scene);
     model.scale.setScalar(mageScale);
+    const castingFx = createCastingFx(model, FX.light, mageScale);
     const mats: Mage['mats'] = [];
     const ghostMats: Mage['ghostMats'] = [];
     model.traverse((o) => {
@@ -972,6 +980,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const mixer = new THREE.AnimationMixer(model);
     const actions: Record<string, THREE.AnimationAction> = {};
     for (const c of src.clips) actions[c.name] = mixer.clipAction(c);
+    const movementPose = createMovementPose(model, actions.Running_A);
     const idle = src.clips.find((c) => c.name === 'Idle');
     if (idle && !braceClips.has(src)) braceClips.set(src, createBraceClip(model, idle));
     const brace = braceClips.get(src);
@@ -1009,7 +1018,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, sniper, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, ringBacking, contactShadow, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, blindEl, statusFx, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { movementPose, castingFx, root, sniper, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, ringBacking, contactShadow, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, blindEl, statusFx, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   // animação de conjurar [clip, segundos, início no clip]; o resto atira (Spellcast_Shoot). Quando o gesto forte vem no meio
@@ -1037,6 +1046,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     if (frac !== undefined) (bar.firstElementChild as HTMLElement).style.width = `${Math.min(100, frac * 100)}%`;
   }
   const castAnim = (spell: string) => CAST_ANIM[spell] ?? (['Spellcast_Shoot', 0.55] as const);
+  const castTint = (spell: string) => LOOK[spell as keyof typeof LOOK]?.halo ?? '#d9d1ff';
+  const hasCastCue = (spell: string) => spell !== 'sniper' && ['Spellcast_Shoot', 'Throw', 'Ranged_Magic_Summon'].includes(castAnim(spell)[0]);
   // golpe em arco (issue #402) pela arma do criador; os modelos não têm 1H_Melee_Attack_* nem soco, então vai o clip mais parecido,
   // começando onde o gesto forte cai perto do fim do preparo de 0,4 s: cajado gira o 2H, espada/machado/facas descem o braço, sem arma chuta
   const meleeAnim = (look?: string): [string, number, number] => {
@@ -1795,6 +1806,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   function onEvents(events: SimEvent[], hiddenDamageTargets: readonly string[] = []) {
     for (const e of events) {
+      // Only server-confirmed casts/shots start the new hand and shoulder cues.
+      if (e.k === 'cast' && hasCastCue(e.spell)) mages.get(e.id)?.castingFx.begin(castTint(e.spell), CAST_POINT[e.spell], performance.now() / 1000);
+      if (e.k === 'fire' && hasCastCue(e.src)) mages.get(e.id)?.castingFx.release(castTint(e.src), performance.now() / 1000);
       if (e.k === 'snipe') {
         const from=w3(e.from,.95),to=w3(e.to,.95),delta=to.clone().sub(from);
         const mat=new THREE.MeshBasicMaterial({color:SNIPER_FX.flash,transparent:true,depthWrite:false});
@@ -2066,6 +2080,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           unburn(m);
           scene.remove(m.root);
           m.statusFx.dispose();
+          m.castingFx.dispose();
           dispose(m.sniper);
           dispose(m.vines); // Os cipós procedurais pertencem à aparência que está sendo substituída.
           for (const o of [m.ring, m.ringBacking, m.contactShadow, m.shield, m.aura]) (o.material as THREE.Material).dispose();
@@ -2110,6 +2125,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         if (!channelLabel) m.label.prepend(c);
       } else channelLabel?.remove();
       const hidden = !d.illusion && (d.status & 2048) > 0; // a cópia é sempre visível; os inimigos não veem o jogador velado
+      const specialCast = (d.transcendLeft ?? 0) > 0 || (d.geyserLeft ?? 0) > 0 || (d.sniperLeft ?? 0) > 0 || (d.transfusionTo ?? -1) >= 0 || d.channelElapsed !== undefined;
+      const castingCharge = !d.basicArc && (d.basicLeft ?? 0) > 0 ? .25 + .75 * Math.max(0, 1 - d.basicLeft! / BASIC_ATTACK.windup) : d.channelElapsed !== undefined ? Math.min(1, .3 + d.channelElapsed / 2) : 0;
       m.root.visible = !hidden;
       const ritualLift = d.alive ? transcendLift(d.transcendLeft ?? 0) : 0;
       m.model.position.y = d.alive ? Math.max(geyserHeight(d.geyserLeft ?? 0), ritualLift) : 0;
@@ -2118,6 +2135,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       }
       // A cópia é sólida e visível; a invisibilidade vale somente para o jogador real.
       const ghost = !!d.ghost || (d.status & (1024 | 8388608)) > 0; // Caminhada no vento e o véu visto por si ou pela visão de teste da sandbox
+      m.castingFx.sync(d.alive && !hidden && !ghost && !(d.status & 16) && !(d.transcendLeft ?? 0) && !(d.geyserLeft ?? 0), castingCharge, specialCast);
       // Teleporte: tk de 0 a 1 sumindo e deslizando rumo ao destino, de 1 a 2 chegando de um pouco atrás; 2 = sem efeito
       const tk = Math.min(2, (now - m.tpAt) / TP), fade = tk < 1 ? 1 - tk : tk - 1, faded = fade < 1;
       if (m.ghost !== ghost || faded || m.faded) {
@@ -2129,6 +2147,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const motionDt = now - (m.motionAt ?? now);
       const motionX = d.pos.x - m.root.position.x, motionY = d.pos.y - m.root.position.z;
       const pushSpeed = motionDt > 0 ? Math.hypot(motionX, motionY) / motionDt : 0;
+      // Bridge rounded/interpolated subframes only while the snapshot still confirms walking.
+      if (d.moving) m.walkUntil = now + .08;
+      const walking = d.moving || !!(d.status & WALKING_BIT) && now < (m.walkUntil ?? 0);
+      m.movementPose.sample(Math.hypot(motionX, motionY), d.facing, motionDt, walking && d.alive && !specialCast && tk >= 2 && !(d.status & 16), d.size ?? 1);
       if (!lite && !hidden && d.alive && m.prevAlive && !ghost && (d.status & 16) && tk >= 2 && !m.model.position.y && motionDt > 0 && motionDt < 0.1 && pushSpeed > 3 && pushSpeed < 40 && now >= (m.motionFxAt ?? 0)) {
         pushStreak(d.pos, motionX, motionY, pushSpeed);
         m.motionFxAt = now + 0.08;
@@ -2213,7 +2235,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           action.paused = true;
           action.time = Math.max(0, action.getClip().duration - d.basicLeft!);
           m.oneShotUntil = 0; // o snapshot encerra a pose na soltura ou no cancelamento, sem terminar o gesto à força.
-        } else if (m.current === 'Attack_Invoke' || now > m.oneShotUntil) play(m, d.cheer ? 'Cheer' : d.status & BRACING_BIT && d.guard && m.actions.Block ? 'Block' : d.status & BRACING_BIT && m.actions.Brace ? 'Brace' : d.status & 16 ? 'Jump_Idle' : d.moving ? 'Running_A' : 'Idle');
+        } else if (m.current === 'Attack_Invoke' || now > m.oneShotUntil) {
+          const clip = d.cheer ? 'Cheer' : d.status & BRACING_BIT && d.guard && m.actions.Block ? 'Block' : d.status & BRACING_BIT && m.actions.Brace ? 'Brace' : d.status & 16 ? 'Jump_Idle' : walking ? 'Running_A' : 'Idle';
+          play(m, clip, clip === 'Running_A' ? .12 : clip === 'Idle' && m.current === 'Running_A' ? .20 : .15);
+        }
         // vencedor: estouro dourado ao começar a comemorar e faíscas subindo enquanto dura
         if (d.cheer && !m.cheering) victoryBurst(d.pos);
         if (d.cheer && !lite && Math.random() < 0.2) burst(v(d.pos.x + (Math.random() - 0.5) * 1.4, d.pos.y + (Math.random() - 0.5) * 1.4), Math.random() < 0.5 ? '#ffd84a' : '#fff2a0', 0.7, 1.2, 0.4, FX.star, 2.6);
@@ -2362,6 +2387,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (prog !== undefined) m.lootFill.style.width = `${Math.min(100, prog * 100)}%`;
     }
     for (const [id, m] of mages) if (!seen.has(id)) {
+      m.castingFx.sync(false, 0, false);
       m.root.visible = false;
       m.label.hidden = true;
     }
@@ -2897,7 +2923,14 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       lavaBubbles.update(now, !onMap, lite, heat);
       syncIsles(shownIsles, now, dt);
       // hit-stop: quem acabou de apanhar fica com a animação parada por ~60 ms
-      for (const m of mages.values()) if (now >= m.freezeUntil) m.mixer.update(dt);
+      // Camera/UI remain responsive during tutorial pauses, including the initial camera settle.
+      for (const m of mages.values()) {
+        m.movementPose.beforeMixer();
+        m.castingFx.beforeMixer();
+        if (now >= m.freezeUntil) m.mixer.update(dt);
+        m.movementPose.update(now < m.freezeUntil ? 0 : dt, !m.dead && m.root.visible && (m.current === 'Running_A' || m.current === 'Idle'), lite || reducedMotion.matches);
+        m.castingFx.afterMixer(now, lite, reducedMotion.matches);
+      }
       decor.update((p) => (onMap ? -1 : edgeAt(shownArena, shownR, p)), now); // no mapa a decoração da arena afunda
       for (let i = fx.length - 1; i >= 0; i--) {
         const f = fx[i];
