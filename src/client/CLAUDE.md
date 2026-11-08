@@ -168,3 +168,9 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - Moving projectile trails use soft textured planes in the world ground plane, aligned to authoritative velocity. Keep them off fixed areas and Magic Hook vectors; do not apply Fireball/Snowball factories to elemental attacks. Cold-impact mist follows positive damage and is skipped in lite mode. Preserve the shared particle cap, visibility rules, source colors and ordinary simulation behavior.
 
 - Desktop combat chrome is scoped to the HUD and fine pointers: compact slate frame/slots use combat variables from style.css. Preserve category colors, armed/cooldown/focus/drag states, QWER/ASDF layout, touch media queries and existing shop/dialog components.
+
+- Shop comparison reuses Offer.bought/sold and sheet/diff. Inspection is cosmetic, persists by item key across redraws and never sends a purchase. Disabled/owned cards remain keyboard inspectable. Main/peek comparison IDs stay distinct; leave Ready, buy/sell/undo and read-only rules unchanged.
+
+- Tooltip tables wrap long labels/values instead of forcing nowrap overflow. Preview tables use fixed layout with42%labels; retain the original326px outer width and respect viewport margins. Do not clip item values to fix layout.
+
+- Inventory purchase feedback compares authoritative item counts plus bought markers after the initial/connection baseline. Maintain expiry outside DOM so slot rebuilds do not restart it. Clear on removal/disconnect; markPurchases uses the existing tick, with no new timers. Reduced motion disables animation while retaining a static confirmation.

@@ -1193,6 +1193,17 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   const itemGrid = el('div', { class: 'item-grid', role: 'group', 'aria-label': t('Itens', 'Items') });
   // the Scourge shows its own rebindable key (data-action refreshes it); another active item its slot number, or its controller button
   const itemKey = (spell: SpellId, slot: number) => spell === 'scourge' ? el('span', { class: 'key', 'data-action': spell }, labelOf(spell)) : el('span', { class: 'key' }, isPadMode() ? labelOf(spell) : String(slot + 1));
+  const purchaseUntil = new Map<ItemId, number>();
+  let purchaseBaseline = true;
+  function markPurchases() {
+    const now = performance.now();
+    for (const node of itemGrid.querySelectorAll<HTMLElement>('[data-item]')) {
+      const confirmed = now < (purchaseUntil.get(node.dataset.item as ItemId) ?? 0);
+      node.classList.toggle('purchase-confirmed', confirmed);
+      const badge = node.querySelector<HTMLElement>('.purchase-badge');
+      if (badge) badge.hidden = !confirmed;
+    }
+  }
   function refreshEquipment() {
     if (!mine) return setSlots([]); // espectador: teclas e controle não ficam com a ordem de antes
     if (slotDrag) return;
@@ -1211,7 +1222,8 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       bar.replaceChildren(...slots.slice(0, ROW), ...fixedBtns, ...slots.slice(ROW));
       itemGrid.replaceChildren(...passive.map((i, index) => {
         const active = ACTIVE_ITEM_SPELL[i];
-        return withTip(el(active ? 'button' : 'span', { class: 'spell g-itens' + (active ? '' : ' passive'), tabindex: 0, 'data-item': i, 'aria-label': itemName(i), ...(active && { onclick: () => act.spell(active) }) }, active ? itemKey(active, index) : null, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), active ? el('span', { class: 'cd' }) : null), () => itemTip(i, mine?.items[i] ?? 0));
+        return withTip(el(active ? 'button' : 'span', { class: 'spell g-itens' + (active ? '' : ' passive'), tabindex: 0, 'data-item': i, 'aria-label': itemName(i), ...(active && { onclick: () => act.spell(active) }) }, active ? itemKey(active, index) : null, el('span', { class: 'ico' }, icon(ITEM_ICON[i])), active ? el('span', { class: 'cd' }) : null,
+          el('span', { class: 'purchase-badge', hidden: true, 'aria-hidden': 'true', title: t('Compra confirmada', 'Purchase confirmed') }, '✓')), () => itemTip(i, mine?.items[i] ?? 0));
       }),
       ...Array.from({ length: Math.max(0, MAX_ITEMS - passive.length) }, () => el('span', { class: 'slot-empty', 'aria-hidden': 'true' })));
       hideTip(bar); hideTip(itemGrid);
@@ -1344,6 +1356,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
   // queda de conexão: faixa no topo (aparece depois de 1,5 s, para não piscar ao entrar) e botões da sala e da loja desligados
   let online = false;
   function setOnline(on: boolean) {
+    if (!on) { purchaseBaseline = true; purchaseUntil.clear(); markPurchases(); }
     online = on;
     status.className = 'dot ' + (on ? 'on' : 'off');
     offline.hidden = on;
@@ -1626,6 +1639,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
 
   // estado da loja que sobrevive ao redesenho (a sala manda o estado a cada compra de qualquer jogador)
   let goldOpen = false;
+  let shopInspection: string | null = null;
   let sheetOpen = false; // Ficha começa recolhida para a loja caber sem rolagem no PC; abrir/fechar sobrevive ao redesenho
   let altOpen = true; // Versões para teste (issue #402) começa aberta: é o único lugar onde o jogador descobre a escolha
   let buildsOpen = false; // Builds também começa recolhida: menos informação na loja (pedido do Fernando na #185)
@@ -1686,6 +1700,28 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       // a ficha depois de comprar mais um nível e depois de vender tudo (prévia na dica)
       bought: () => SheetRow[]; sold: () => SheetRow[] };
     const now = sheet(mine.spells, mine.items);
+    const inspectedTiles = new Map<string, HTMLElement>();
+    const comparison = el('section', { class: 'shop-comparison', id: `shop-comparison-${look ? 'peek' : 'main'}`, 'aria-label': t('Comparação de item', 'Item comparison') },
+      el('h4', {}, t('Comparação de item', 'Item comparison')),
+      el('p', { class: 'muted' }, t('Passe o mouse, foque um item ou use ⓘ para comparar.', 'Hover, focus an item or use ⓘ to compare.')));
+    const inspect = (o: Offer) => {
+      if (!o.key.startsWith('item-')) return;
+      shopInspection = o.key;
+      for (const [key, tile] of inspectedTiles) {
+        tile.classList.toggle('inspected', key === o.key);
+        if (key === o.key) tile.setAttribute('aria-current', 'true'); else tile.removeAttribute('aria-current');
+      }
+      const changes = diff(now, o.lvl ? o.sold() : o.bought());
+      comparison.replaceChildren(
+        el('h4', {}, icon(o.ico), ' ', o.name),
+        el('small', { class: 'comparison-status' }, o.lvl ? t('Você já possui este item', 'You already own this item') : o.blocked ?? (o.price! > mine.gold ? t('Ouro insuficiente', 'Not enough gold') : t('Disponível para comprar', 'Available to buy'))),
+        el('p', {}, o.use),
+        changes.length ? el('table', {},
+          el('thead', {}, el('tr', {}, el('th', { scope: 'col' }, t('Atributo', 'Attribute')), el('th', { scope: 'col' }, t('Atual', 'Current')), el('th', { scope: 'col' }, o.lvl ? t('Sem o item', 'Without item') : t('Com o item', 'With item')))),
+          el('tbody', {}, ...changes.map(c => el('tr', { class: c.worse ? 'worse' : 'better' }, el('th', { scope: 'row' }, c.label), el('td', {}, c.before ?? '—'), el('td', {}, c.after ?? '—')))))
+          : el('p', { class: 'muted' }, t('Sem alteração nos atributos desta ficha.', 'No change to the attributes on this sheet.')),
+        el('small', { class: 'muted' }, o.lvl ? t('Veja a contribuição deste item comparando sua ficha sem ele.', 'See this item’s contribution by comparing your sheet without it.') : t('A prévia inclui os itens que você já possui.', 'The preview includes the items you already own.')));
+    };
     if (presetOrder && presetOrder.round !== r.round) presetOrder = null; // o ouro não deu para tudo: não mexe na barra da próxima loja
     // gravar no desenho é seguro: o myLoadout (barra e teclas) já grava a ordem durante o desenho, e este é o primeiro desenho com as magias da build
     if (presetOrder?.order.every((s) => !s || mine.spells[s] > 0)) {
@@ -1771,7 +1807,10 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       const face = [el('span', { class: 'ico' }, icon(o.ico)), el('span', { class: 'tile-name' }, o.name), el('span', { class: 'pips' }, ...pipsOf(o.lvl, o.max)),
         el('span', { class: 'tile-price' + (o.blocked ? ' off' : can ? ' can' : ' cant') }, ...(o.blocked ? [o.blocked] : [o.lvl ? el('span', { class: 'lvl' }, t(`Nv ${o.lvl + 1} `, `Lv ${o.lvl + 1} `)) : null, icon(UI_ICON.gold), o.price === 0 ? t(' grátis', ' free') : ` ${o.price}`]))];
       // clique compra; clique direito também (como no Dota); só ver: o ícone não compra
-      return withTip(el('div', { class: 'shop-item' + (o.key.startsWith('item') ? ' is-item' : '') + (o.lvl ? ' owned' : '') + (can && !peek ? ' can' : '') + (o.blocked && !o.lvl ? ' locked' : ''),
+      const tile = withTip(el('div', { class: 'shop-item' + (o.key.startsWith('item') ? ' is-item' : '') + (o.lvl ? ' owned' : '') + (can && !peek ? ' can' : '') + (o.blocked && !o.lvl ? ' locked' : ''),
+        tabindex: o.key.startsWith('item-') && (!can || peek) ? 0 : undefined,
+        'data-key': o.key.startsWith('item-') ? 'inspect-' + o.key : undefined,
+        onpointerenter: () => inspect(o), onfocusin: () => inspect(o),
         oncontextmenu: (e: Event) => {
           e.preventDefault();
           if (can && !peek) o.buy();
@@ -1782,7 +1821,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         o.lvl && o.hotkey ? el('span', { class: 'key', 'aria-hidden': 'true' }, o.hotkey) : null,
         favs.has(o.key) ? el('span', { class: 'key fav', 'aria-hidden': 'true' }, '★') : null,
         // comprar ou subir de nível, vender e desfazer numa coluna à direita do cartão (Fernando, 21/10); o clique no cartão continua comprando
-        el('div', { class: 'tile-acts' }, !peek && open ? iconButton(icon(o.lvl ? UI_ICON.upgrade : UI_ICON.buy), full, o.buy, { class: 'buy', 'data-key': 'buy-' + o.key, disabled: !can }) : null, sellBtn(key), undoBtn(key)),
+        el('div', { class: 'tile-acts' }, !peek && open ? iconButton(icon(o.lvl ? UI_ICON.upgrade : UI_ICON.buy), full, o.buy, { class: 'buy', 'data-key': 'buy-' + o.key, disabled: !can }) : null,
+          o.key.startsWith('item-') ? iconButton(icon(UI_ICON.info), t(`Comparar ${o.name}`, `Compare ${o.name}`), () => { inspect(o); comparison.scrollIntoView({ block: 'nearest' }); }, { class: 'compare-item', 'data-key': 'compare-' + o.key, 'aria-controls': comparison.id }) : null,
+          sellBtn(key), undoBtn(key)),
       ), () => {
         const sell = peek ? 0 : sellValue(mine, r.round, key);
         return o.tip() + (favs.has(o.key) ? `<p class="up">★ ${t('Um dos que você mais compra', 'One of the ones you buy the most')}</p>` : '') + (o.key.startsWith('spell') ? `<p><i>${o.use}</i></p>` : '')
@@ -1791,6 +1832,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
           + (o.key.startsWith('spell') || o.blocked ? '' : previewHtml(o.lvl ? t('Se subir de nível', 'If you level up') : t('Se comprar', 'If you buy'), diff(now, o.bought())))
           + (sell > 0 ? previewHtml(t('Se vender', 'If you sell'), diff(now, o.sold()), `<small>${t(`Volta ${sell} de ouro.`, `Refunds ${sell} gold.`)}</small>`) : '');
       });
+      if (o.key.startsWith('item-')) {
+        inspectedTiles.set(o.key, tile);
+        if (shopInspection === o.key) inspect(o);
+      }
+      return tile;
     };
     const spellOffer = (s: SpellId) => {
       const lvl = mine.spells[s];
@@ -1824,7 +1870,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       el('div', { class: 'shop-head' }, el('h2', { class: 'title' }, r.sandbox ? t('Loja · sandbox', 'Shop · sandbox') : deadShop ? t('Loja · você caiu: monte a build', 'Shop · you fell: build your kit') : t('Loja · só para ver', 'Shop · view only')), el('small', {}, t(`${spellCount(mine.spells)} de ${MAX_SPELLS} magias · ${r.sandbox ? 'ouro sem fim: compre e venda, vale na hora' : deadShop ? 'compre e venda já; o ouro da rodada entra quando ela acabar' : 'a compra abre entre as rodadas'}`, `${spellCount(mine.spells)} of ${MAX_SPELLS} spells · ${r.sandbox ? 'endless gold: buy and sell, it applies right away' : deadShop ? 'buy and sell now; the round gold arrives when it ends' : 'buying opens between rounds'}`)),
         iconButton('✕', t('Fechar a loja', 'Close the shop'), () => togglePeek(false), { class: 'icon peek-close', title: t(`Fechar (${uiLabel('shop')} ou Esc)`, `Close (${uiLabel('shop')} or Esc)`) })),
       ...grid),
-      el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), peek ? null : buildsBox(), peek ? null : altBox(), sheetBox()));
+        el('aside', { class: 'shop-side' }, el('span', { class: 'gold big' }, gold(mine.gold)), comparison, peek ? null : buildsBox(), peek ? null : altBox(), sheetBox()));
     readyBtn = el('button', { type: 'button', class: 'primary big', 'data-key': 'ready', disabled: mine.ready, onclick: () => {
       if (r.round === 0) seeFirst();
       act.ready();
@@ -1840,6 +1886,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         el('span', { class: 'gold big' }, gold(mine.gold)),
         readyBtn,
         el('button', { type: 'button', 'data-key': 'placar', onclick: () => pinTab(true) }, icon(UI_ICON.board), ' ' + t('Placar', 'Scoreboard')),
+        comparison,
         buildsBox(),
         altBox(),
         sheetBox(),
@@ -2112,6 +2159,13 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       tops.hidden = !PEEK_PHASES.includes(r.phase); // contagem, rodada e fim da rodada
       drawTops();
       mine = r.players.find((p) => p.id === you);
+      const beforePurchase = prev?.players.find(p => p.id === you);
+      for (const id of ITEM_IDS) {
+        if (!mine?.items[id]) purchaseUntil.delete(id);
+        else if (!purchaseBaseline && isOnline && beforePurchase?.connected && prev?.round === r.round && prev.phase === r.phase
+          && mine.items[id] > beforePurchase.items[id] && mine.bought.includes('item:' + id)) purchaseUntil.set(id, performance.now() + 1200);
+      }
+      purchaseBaseline = !isOnline;
       // meu retrato na barra: só troca quando muda o personagem ou o nome
       const face = mine ? `/chars/${mine.character}.webp` : '';
       if (mine && heroFace.getAttribute('src') !== face) heroFace.src = face;
@@ -2125,6 +2179,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       }
       barOff = r.phase === 'lobby' || r.phase === 'end' || (r.phase === 'shop' && !SHOP_BAR.matches) || !mine;
       syncBar();
+      markPurchases();
       goldNow.replaceChildren(r.mode === 'ascension' || r.night ? '' : gold(mine?.gold ?? 0)); // Ascension and Campaign: no gold
       const stats = mine ? sheet(mine.spells, mine.items).filter((row) => row.key! in STAT_ICON) : [];
       const statSig = JSON.stringify(stats);
@@ -2260,6 +2315,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
         attackBtn.classList.toggle('charging', sniperCharge !== null && sniperCharge < .99);
         if (sniperCharge !== null) attackBtn.style.setProperty('--cd', Math.max(0, 1 - sniperCharge).toFixed(3));
       }
+      markPurchases();
       if (!room) return;
       // fps e ping: atualizam 2 vezes por segundo; fps verde a partir de 50, dourado a partir de 30; ping verde até 80 ms, dourado até 150, vermelho acima
       frames++;
