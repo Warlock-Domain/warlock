@@ -1,4 +1,6 @@
 import { createTranscendClip } from './transcend-pose.ts';
+import { createHealTargetFx } from './heal-target-fx.ts';
+import { createSpeedFx } from './speed-fx.ts';
 import { createTranscendFx, transcendLift } from './transcend-fx.ts';
 // Cena 3D: lava, arena de pedra que encolhe, magos (KayKit), projéteis e efeitos.
 // Coordenadas: o plano da simulação (x, y) vira (x, 0, y) no Three.js.
@@ -218,6 +220,8 @@ const TAUNT_ANIM: Record<(typeof TAUNTS)[number]['id'], [string, number]> = {
 const TP = 0.12, TP_SLIDE = 0.6;
 
 type Mage = {
+  speedFx: ReturnType<typeof createSpeedFx>;
+  healTargetFx: ReturnType<typeof createHealTargetFx>;
   root: THREE.Group;
   sniper: THREE.Group;
   mixer: THREE.AnimationMixer;
@@ -551,7 +555,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   let shake = 0; // tremor da câmera nos choques
   let warnR = -1;
   // Efeitos "Leve": sem tremor, sem hit-stop e sem partículas extras (PC fraco ou quem enjoa)
-  let lite = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  let lite = reducedMotion.matches;
   let celebrate = 0; // 0..1: zoom da câmera no vencedor no fim da rodada
 
   const glow = glowTexture();
@@ -948,6 +953,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
     const root = new THREE.Group();
     root.add(model);
+    const healTargetFx = createHealTargetFx(FX.light); root.add(healTargetFx.root);
+    const speedFx = createSpeedFx(FX.light); root.add(speedFx.root);
     const statusFx = createStatusFx(); root.add(statusFx.root);
     const sniper=sniperRig(); root.add(sniper);
     const contactShadow = ground(new THREE.Mesh(contactShadowGeo, new THREE.MeshBasicMaterial({ map: contactShadowMap, transparent: true, depthWrite: false })), 0.012);
@@ -1009,7 +1016,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     const xpEl = el('div', { class: 'wiz-xp', hidden: true }, xpLv, el('div', { class: 'xp-track' }, xpFill));
     const label = el('div', { class: 'wiz-label' }, statusEl, nameEl, el('div', { class: 'hp-row' }, aegisEl, bar, extraEl), xpEl, shieldBar, lootBar);
     labels.append(label);
-    return { root, sniper, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, ringBacking, contactShadow, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, blindEl, statusFx, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
+    return { speedFx, healTargetFx, root, sniper, mixer, actions, current: 'Idle', oneShotUntil: 0, ring, ringBacking, contactShadow, shield, aura, vines, bar, absRush, extraEl, extraKey: '', aegisEl, shieldBar, shieldFill, shieldSince: 0, prevHp: 0, prevAlive: false, healAt: -9, healSum: 0, healFlushAt: 0, label, hpFill, hpText, nameEl, nameText, medalEl, botEl, botKey: '', tint: COLORS[d.color], lootBar, lootFill, statusEl, blindEl, statusFx, statusKey: -1, statusClocks: new Map(), clock: fxClock(), ghost: false, dead: false, color: d.color, look, mats, ghostMats, model, burnAt: -1, bones: null, flash: 0, burning: false, freezeUntil: 0, cheering: false, xpEl, xpLv, xpFill, level: 0, invuln: false, faded: false, tpAt: -9, tpFrom: v(0, 0), tpTo: v(0, 0), tpDir: v(0, 0) };
   }
 
   // animação de conjurar [clip, segundos, início no clip]; o resto atira (Spellcast_Shoot). Quando o gesto forte vem no meio
@@ -2066,6 +2073,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           unburn(m);
           scene.remove(m.root);
           m.statusFx.dispose();
+          m.healTargetFx.dispose();
+          m.speedFx.dispose();
           dispose(m.sniper);
           dispose(m.vines); // Os cipós procedurais pertencem à aparência que está sendo substituída.
           for (const o of [m.ring, m.ringBacking, m.contactShadow, m.shield, m.aura]) (o.material as THREE.Material).dispose();
@@ -2149,6 +2158,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // anel no chão: dourado pulsando invulnerável (começo da rodada), azul da runa com Escudo de runa
       const invuln = (d.status & 32) > 0, armor = (d.status & 1048576) > 0; // runa do Escudo: −30% de dano
       const healing = healAura(m.healingUntil ?? 0, now);
+      m.healTargetFx.root.position.y = m.model.position.y;
+      m.healTargetFx.update(m.healingUntil ?? 0, now, d.alive && !hidden && !ghost, lite || reducedMotion.matches);
       m.aura.visible = d.alive && (healing.visible || invuln || armor);
       m.aura.scale.setScalar(healing.visible ? healing.scale : 1.45);
       if (m.aura.visible) {
@@ -2157,6 +2168,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         mat.opacity = healing.visible ? healing.opacity : invuln ? 0.55 + 0.3 * Math.sin(now * 8) : 0.8;
       }
       m.statusFx.update(d.status, d.alive && !hidden && !ghost && !(d.transcendLeft ?? 0), m.model.position.y, now, lite, camera.quaternion);
+      m.speedFx.update(d.status, d.alive && !hidden && !d.ghost && !d.illusion, m.model.position.y, now, lite, reducedMotion.matches, camera.quaternion);
       m.blindEl.hidden = !d.alive || !(d.blindLeft ?? 0);
       m.ring.visible = d.alive;
       m.ringBacking.visible = d.alive;
@@ -2362,6 +2374,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (prog !== undefined) m.lootFill.style.width = `${Math.min(100, prog * 100)}%`;
     }
     for (const [id, m] of mages) if (!seen.has(id)) {
+      m.healTargetFx.root.visible = false;
+      m.speedFx.root.visible = false;
       m.root.visible = false;
       m.label.hidden = true;
     }

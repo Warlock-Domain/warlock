@@ -168,3 +168,9 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - Moving projectile trails use soft textured planes in the world ground plane, aligned to authoritative velocity. Keep them off fixed areas and Magic Hook vectors; do not apply Fireball/Snowball factories to elemental attacks. Cold-impact mist follows positive damage and is skipped in lite mode. Preserve the shared particle cap, visibility rules, source colors and ordinary simulation behavior.
 
 - Desktop combat chrome is scoped to the HUD and fine pointers: compact slate frame/slots use combat variables from style.css. Preserve category colors, armed/cooldown/focus/drag states, QWER/ASDF layout, touch media queries and existing shop/dialog components.
+
+- Heal_Target is a per-mage effect activated by the confirmed recipient heal event, not local cast input. Keep it attached to the recipient root/body lift, bounded to1.5s and hidden with unavailable actors. Dispose its owned geometry/materials on appearance replacement; never dispose the shared light texture. Lite/reduced motion uses static rings/glow.
+
+- The room event decoder must retain valid heal events (recipient id, finite x/y and nonnegative finite amount). HP updates alone do not trigger the confirmed aura/sound; a zero-amount full-health heal still needs feedback.
+
+- Speed_Energy uses bounded batched straight vertical beams: up for bit4096, down for bit4, both for simultaneous modifiers, continuously while active. Keep original shared light texture ownership, follow body lift, hide with invisible/dead/absent actors, allow known Wind Walk allies/owner, dispose on appearance replacement. Lite draws four lines; reduced motion freezes them. No GIF asset reuse.

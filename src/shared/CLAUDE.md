@@ -83,3 +83,9 @@ Teams supports 2, 3 or 4 teams through opts.teams (default2, capped by participa
 - Proposal under review: Utility spell,12 gold,one level,5 s cooldown,30 s per randomly chosen sphere,maximum5. Fire/red +5pp damage/knockback;Water/blue +5pp projectile speed/range;Earth/brown +5pp projectile size/actual area;Ki/white +5pp outgoing healing/positive spell duration;Void/black slows spell cooldown recovery5pp. Duplicate elements stack. Capture outgoing stats and sizes at launch; no collision bodies or generic damage bonus. Barricade structure dimensions remain fixed.
 
 - Elemental Spheres is server-owned passive generation on its existing cooldown, preserving Transcend and the combined cap. Manual casts are rejected without interrupting movement.
+
+- A Mandinga healing return emits heal only on recipient arrival, using the actual capped HP gain and recipient position. Reuse the client's confirmed Heal feedback; never trigger it at enemy impact or on a miss.
+
+- speedStatusBits reports existing speed modifiers for snapshot bits4096/4 without modifying simulation state. Cover temporary buffs/debuffs, conditional boot procs, runes, timed zones/Warp Zone and weak Closed Body; exclude permanent item stats, passive Ki penalties, wax terrain and round multipliers; preserve simultaneous flags and do not classify ordinary stops/roots or innate NPC speed as slows/haste.
+
+- Latest Mandinga rule05/11: outgoing projectile ignores allied bodies/shields. Enemy damage/slow creates a healing return at2x impact speed. Healing AND haste apply only on allied arrival, with Heal feedback. Earlier direct-allied-hit guidance is superseded.

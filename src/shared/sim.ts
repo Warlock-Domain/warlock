@@ -138,6 +138,7 @@ export type Projectile = {
   redirected?: boolean;
   ricochetRange?: number;
   healAmount?: number;
+  returnSpeed?: number; // Captured from Mandinga's actual outgoing impact speed.
   element?: ElementalSphere['element']; // Captured sphere identity survives launch and reflection.
   id: number;
   born?: number; // w.t em que surgiu (os bots só reagem depois do tempo de reação deles)
@@ -668,12 +669,13 @@ function segT(a: Vec, d: Vec, p: Vec): [t: number, gap: number] {
 }
 
 // primeiro mago (fora os excluídos) que o segmento a→b toca; t em [0,1] ao longo do segmento
-function firstOnSegment(w: World, a: Vec, b: Vec, radius: number, skip: string, only?: string): { wz: Wizard; t: number } | null {
+function firstOnSegment(w: World, a: Vec, b: Vec, radius: number, skip: string, only?: string, enemiesOnly = false): { wz: Wizard; t: number } | null {
   const d = sub(b, a);
   let best: { wz: Wizard; t: number } | null = null;
   for (const wz of w.wizards) {
     // A suspended body is out of the projectiles' plane, Shield collision bubble included
     if (!wz.alive || isSuspended(wz) || wz.id === skip || wz === puppeteer(w, anyById(w, skip)) || (only !== undefined && wz.id !== only)) continue;
+    if (enemiesOnly && allies(anyById(w, skip), wz)) continue;
     const [t, gap] = segT(a, d, wz.pos);
     // com escudo, a bolha (maior que o mago) é que encosta
     if (gap > radius + bubble(w, wz) + (bodyR(wz) - WIZ_R)) continue; // radius already counts a WIZ_R body; the parentheses add exactly 0 in PvP
@@ -1149,7 +1151,7 @@ function castSpell(w: World, wz: Wizard, spell: SpellId, at: Vec, power: number,
   } else if (spell === 'rockpillar') {
     castRockpillar(w, wz, L, at, dmgMult);
   } else if (spell === 'drain') {
-    // drain.lua: reto até o ponto (no máximo o alcance), depois vira para o mago mais perto e voa mais 1,2 s
+    // Keep the original flight phases, but never steer the outgoing shot toward a wizard.
     const turn = Math.min(len(sub(at, wz.pos)), L.range * wz.rangeF) / L.speed;
     launch('drain', dir, turn + DRAIN.extra * wz.rangeF).turnAt = w.t + turn;
   } else if (spell === 'illusion') {
@@ -1534,6 +1536,18 @@ function timeScale(w: World, p: Projectile): number {
 // mago dentro da zona de um inimigo anda mais devagar (zonas juntas não somam)
 const inWarp = (w: World, wz: Wizard) => enemyWarps(w, wz.id, wz.pos).length > 0;
 
+// Report temporary modifiers separately; equipment base stats and passive penalties have no beams.
+export function speedStatusBits(w: World, wz: Wizard): number {
+  const faster = w.t < wz.rushUntil && wz.rushBonus > 0
+    || w.t < wz.hasteUntil && wz.haste > 0 || w.t < wz.windUntil || bootsBonus(w, wz) > 0
+    || wz.rune === 'haste' && w.t < wz.runeUntil;
+  const slower = !!(wz.zone & 1) || w.t < wz.slowUntil && wz.slow > 0
+    || inWarp(w, wz)
+    || wz.closedBodyWeak && closedBodyActive(w, wz)
+    || w.t < (wz.electroUntil ?? 0);
+  return (faster ? 4096 : 0) | (slower ? 4 : 0);
+}
+
 // tempo lento: todos os prazos do projétil andam junto
 function delay(p: Projectile, d: number) {
   p.until += d;
@@ -1581,25 +1595,26 @@ function flyBack(w: World, p: Projectile, dt: number): boolean {
   if (!to || w.t >= p.until) return false;
   const drain = p.kind === 'drain';
   if (dist(to.pos, p.pos) < (drain ? DRAIN.reach : RECHARGE.reach)) {
-    if (drain) heal(w, to, p.healAmount ?? projectileLevel(p).heal * p.dmgMult);
+    if (drain) {
+      const before = to.hp;
+      heal(w, to, p.healAmount ?? projectileLevel(p).heal * p.dmgMult);
+      to.haste = DRAIN.haste;
+      to.hasteUntil = w.t + projectileLevel(p).duration * (p.ki ?? 1);
+      w.events.push({ k: 'heal', id: to.id, x: to.pos.x, y: to.pos.y, amount: to.hp - before });
+    }
     else to.cd.recharge = w.t;
     return false;
   }
-  if (!p.redirected) p.vel = scale(norm(sub(to.pos, p.pos)), (drain ? DRAIN.back : RECHARGE.back) * (p.power ?? 1) * (p.water ?? 1));
+  if (!p.redirected) p.vel = scale(norm(sub(to.pos, p.pos)), drain && p.returnSpeed !== undefined ? p.returnSpeed : (drain ? DRAIN.back : RECHARGE.back) * (p.power ?? 1) * (p.water ?? 1));
   p.pos = add(p.pos, scale(p.vel, dt));
   return true;
 }
 
-// Drenar: no inimigo, dano (empurrão 0,2), lentidão e uma bolinha de cura que volta a quem lançou; no aliado, cura e pressa
+// Mandinga requires an enemy hit; only its return heals and hastes a living ally.
 function drainHit(w: World, p: Projectile, wz: Wizard, L: Level) {
   const owner = anyById(w, p.owner);
   const amount = L.dmg * p.dmgMult;
-  if (allies(owner, wz)) {
-    heal(w, wz, L.heal * p.dmgMult);
-    wz.haste = DRAIN.haste;
-    wz.hasteUntil = w.t + L.duration * (p.ki ?? 1);
-    return;
-  }
+  if (allies(owner, wz)) return;
   const before = wz.hp;
   hit(w, wz, p.owner, amount, L.knock * p.dmgMult, p.vel, 'drain');
   const dealt = Math.min(before, Math.max(0, before - wz.hp));
@@ -1607,7 +1622,7 @@ function drainHit(w: World, p: Projectile, wz: Wizard, L: Level) {
   land(w, p, 'drain');
   const recipient = owner && w.wizards.filter(z => z.alive && !isSuspended(z) && (z === owner || allies(owner, z))).sort((a, b) => dist(a.pos, wz.pos) - dist(b.pos, wz.pos))[0];
   if (!recipient || dealt <= 0) return;
-  w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'drain', healAmount: dealt, power: p.power, owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + DRAIN.life, target: recipient.id, dmgMult: p.dmgMult, caster: p.caster, ...inherit(p), back: true });
+  w.projectiles.push({ id: w.nextId++, born: w.t, kind: 'drain', healAmount: dealt * (p.ki ?? 1), returnSpeed: len(p.vel) * 2, power: p.power, owner: p.owner, pos: p.pos, vel: v(0, 0), level: p.level, until: w.t + DRAIN.life, target: recipient.id, dmgMult: p.dmgMult, caster: p.caster, ...inherit(p), back: true });
 }
 
 export const snowR = (level: number) => SNOWBALL.coll + SNOWBALL.perLevel * (level - 1);
@@ -1753,11 +1768,9 @@ function steer(w: World, p: Projectile, L: Level, dt: number): boolean {
     p.vel = scale(norm(sub(owner.pos, p.pos)), L.speed);
   }
   if (p.kind === 'drain' && w.t >= (p.turnAt ?? Infinity)) {
-    // Drain turns toward the nearest wizard, ally or enemy (drainprojectile.lua)
+    // Preserve the post-aim speed phase without changing the outgoing direction.
     p.turnAt = undefined;
-    let to: Wizard | null = null;
-    for (const z of w.wizards) if (z.alive && !isSuspended(z) && z.id !== p.owner && (!to || dist(z.pos, p.pos) < dist(to.pos, p.pos))) to = z;
-    p.vel = scale(to ? norm(sub(to.pos, p.pos)) : norm(p.vel), DRAIN.turnSpeed * (p.power ?? 1) * (p.water ?? 1));
+    p.vel = scale(norm(p.vel), DRAIN.turnSpeed * (p.power ?? 1) * (p.water ?? 1));
   }
   // Illusion redirects a missile chasing its owner toward the copy while it exists
   const chase = p.kind === 'homing' ? byId(w, p.target) : undefined;
@@ -1992,7 +2005,7 @@ function stepProjectiles(w: World) {
     // a Gravidade não bate em mago; o Ricochete não repete o último mago tocado (pode voltar em quem lançou);
     // o Magnetizar só pega quem lançou depois de quicar; a Bola de neve é grande
     const r = projectileRadius(p);
-    let found = p.kind === 'gravity' ? null : firstOnSegment(w, p.pos, next, WIZ_R + r, p.kind === 'bouncer' || p.kind === 'magnetize' ? (p.prev ?? p.owner) : p.owner, p.lockOn === undefined ? undefined : typeof p.lockOn === 'string' ? p.lockOn : '');
+    let found = p.kind === 'gravity' ? null : firstOnSegment(w, p.pos, next, WIZ_R + r, p.kind === 'bouncer' || p.kind === 'magnetize' ? (p.prev ?? p.owner) : p.owner, p.lockOn === undefined ? undefined : typeof p.lockOn === 'string' ? p.lockOn : '', p.kind === 'drain');
     const pil = firstPillarOnSegment(w, p.pos, next, r);
     // Ilusão: projéteis não a destroem; ao acertá-la, transferem o empurrão e continuam o trajeto
     let fake = p.kind === 'gravity' ? null : decoyOnSegment(w, p, next, WIZ_R + r);
