@@ -168,3 +168,11 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 - Moving projectile trails use soft textured planes in the world ground plane, aligned to authoritative velocity. Keep them off fixed areas and Magic Hook vectors; do not apply Fireball/Snowball factories to elemental attacks. Cold-impact mist follows positive damage and is skipped in lite mode. Preserve the shared particle cap, visibility rules, source colors and ordinary simulation behavior.
 
 - Desktop combat chrome is scoped to the HUD and fine pointers: compact slate frame/slots use combat variables from style.css. Preserve category colors, armed/cooldown/focus/drag states, QWER/ASDF layout, touch media queries and existing shop/dialog components.
+
+- match-result styles follow endResult without inferring wins locally; keep neutral/spectator presentation distinct and all result actions reachable on mobile.
+
+- HUD cooldown readability reuses authoritative cooldown seconds/fraction. Keep cd-number nodes stable, the circular sweep and completion sound; static last-second emphasis and a slim progress edge add no timers or gameplay state. Do not mark passive/locked/fixed skills ready.
+
+- Meteor must not emit flame bursts at ground height before landing. Its attached airborne flame and warning circle remain; impact FX still comes from the confirmed landing event.
+
+- combatNumber groups only the same target, kind and critical classification within180ms of first creation; do not extend birth time. Style by biggest individual hit, not sum. Fixed left/right lanes,3labels per target/kind, hide/remove for missing/hidden actors and keep blindness. Existing HP-gain healing and suppression thresholds remain authoritative. Gold keeps its previous presentation.

@@ -551,7 +551,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   let shake = 0; // tremor da câmera nos choques
   let warnR = -1;
   // Efeitos "Leve": sem tremor, sem hit-stop e sem partículas extras (PC fraco ou quem enjoa)
-  let lite = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  let lite = reducedMotion.matches;
   let celebrate = 0; // 0..1: zoom da câmera no vencedor no fim da rodada
 
   const glow = glowTexture();
@@ -1101,26 +1102,42 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     addFx(m, 7, (k) => ((m.material as THREE.MeshBasicMaterial).opacity = 0.7 * Math.min(1, (1 - k) * 3)));
   }
 
-  // texto que sobe e some (dano, cura, ouro); pop = quanto ele pula ao nascer
-  const numbers: { el: HTMLDivElement; at: THREE.Vector3; born: number; pop?: number }[] = [];
+  // Floating labels retain their first birth time when rapid hits join a group.
+  const numbers: { el: HTMLDivElement; at: THREE.Vector3; born: number; pop?: number; combat?: { id: string; kind: 'damage' | 'heal'; amount: number; hits: number; biggest: number; crit: boolean; lane: number } }[] = [];
   function floatText(cls: string, at: THREE.Vector3, size: string, pop: number | undefined, ...body: (string | Node)[]) {
     const e = el('div', { class: cls, style: size && `font-size: ${size}` }, ...body);
     labels.append(e);
-    numbers.push({ el: e, at, born: performance.now() / 1000, pop });
-  }
-  // em cima de quem levou ou se curou, com um pouco de espalhamento de lado
-  const overHead = (at: Vec) => w3(at, 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, 0));
-
-  // número de dano: o tamanho cresce com o golpe (30 de dano ≈ 1,3rem, 170 ≈ 2,9rem)
-  // golpe crítico de verdade (Lente Letal, #184) usa o mesmo destaque do golpe muito forte
-  function damageNumber(at: Vec, dmg: number, critHit = false) {
-    if (dmg < 5) return;
-    const crit = critHit || dmg >= CRIT_HIT;
-    floatText('dmg' + (crit ? ' crit' : dmg >= BIG_HIT ? ' big' : ''), overHead(at), `${Math.min(3, 0.95 + dmg / 90).toFixed(2)}rem`, crit ? 0.9 : dmg >= BIG_HIT ? 0.55 : 0.3, '-' + Math.round(dmg) + (crit ? '!' : ''));
+    const number: (typeof numbers)[number] = { el: e, at, born: performance.now() / 1000, pop };
+    numbers.push(number);
+    return number;
   }
 
-  // cura que sobe em verde em cima de quem se curou
-  const healNumber = (at: Vec, n: number) => floatText('dmg heal', overHead(at), `${Math.min(2.2, 0.95 + n / 90).toFixed(2)}rem`, undefined, '+' + Math.round(n));
+  function combatNumber(id: string, at: Vec, amount: number, kind: 'damage' | 'heal', critHit = false) {
+    if (kind === 'damage' && amount < 5) return;
+    const now = performance.now() / 1000, crit = kind === 'damage' && (critHit || amount >= CRIT_HIT);
+    let number = numbers.find(n => n.combat?.id === id && n.combat.kind === kind && n.combat.crit === crit && now - n.born < .18);
+    if (!number) {
+      const active = numbers.filter(n => n.combat?.id === id && n.combat.kind === kind);
+      if (active.length >= 3) {
+        const oldest = active.shift()!; oldest.el.remove(); numbers.splice(numbers.indexOf(oldest), 1);
+      }
+      const lane = [0, 1, 2].find(l => !active.some(n => n.combat!.lane === l)) ?? 0;
+      number = floatText('dmg combat-number', w3(at, 1.6), '', undefined, el('span', { class: 'combat-total' }), el('small', { class: 'combat-count', hidden: true }));
+      number.combat = { id, kind, amount: 0, hits: 0, biggest: 0, crit, lane };
+    }
+    const group = number.combat!;
+    group.amount += amount; group.hits++; group.biggest = Math.max(group.biggest, amount);
+    const big = kind === 'damage' && group.biggest >= BIG_HIT;
+    number.el.className = `dmg combat-number${kind === 'heal' ? ' heal' : crit ? ' crit' : big ? ' big' : ''}`;
+    number.el.style.fontSize = `${Math.min(kind === 'heal' ? 2.2 : 3, .95 + group.biggest / 90).toFixed(2)}rem`;
+    number.pop = kind === 'heal' ? .12 : crit ? .9 : big ? .55 : .3;
+    number.el.querySelector('.combat-total')!.textContent = (kind === 'heal' ? '+' : '-') + Math.round(group.amount) + (crit ? '!' : '');
+    const count = number.el.querySelector<HTMLElement>('.combat-count')!;
+    count.hidden = group.hits < 2; count.textContent = `×${group.hits}`;
+  }
+
+  const damageNumber = (id: string, at: Vec, n: number, crit = false) => combatNumber(id, at, n, 'damage', crit);
+  const healNumber = (id: string, at: Vec, n: number) => combatNumber(id, at, n, 'heal');
 
   // Character flash, short hit-stop and the existing capped camera response.
   function impact(id: string, at: Vec, dmg: number) {
@@ -1839,7 +1856,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         else hitBurst(v(e.x, e.y), e.src, e.dmg);
         if (e.dmg > 0 && FIRE_KINDS.has(e.src)) scorch(v(e.x, e.y));
         // Public impacts must not reveal a hidden target's damage number.
-        if (!hiddenDamageTargets.includes(e.id)) damageNumber(v(e.x, e.y), e.dmg, e.crit);
+        if (!hiddenDamageTargets.includes(e.id)) damageNumber(e.id, v(e.x, e.y), e.dmg, e.crit);
         // Zero damage never shakes or flashes the character.
         if (e.dmg > 0) impact(e.id, v(e.x, e.y), e.dmg);
       } else if (e.k === 'gold') goldNumber(v(e.x, e.y), e.n);
@@ -2044,7 +2061,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       // Short-lived wisps complement the stable directional tail without hiding nearby bodies.
       const look = projectileLook(p);
       if (movingKinds.has(p.kind) && Math.random() < (lite ? 0.18 : 0.4)) burst(p.pos, look.trail, 0.65 * look.size * (p.size ?? 1), 0.18, 0.9, FIRE_KINDS.has(p.kind) ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
-      else if ((p.kind === 'meteor' || p.kind === 'link') && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, p.kind === 'meteor' ? FLAMES[Math.floor(Math.random() * FLAMES.length)] : look.tex);
+      // The meteor is still airborne; only its warning circle belongs at the landing point.
+      else if (p.kind === 'link' && Math.random() < (lite ? 0.35 : 0.7)) burst(p.pos, look.trail, 1.1 * look.size, 0.35, 0.9, look.tex);
     }
     for (const [id, g] of projs) if (!seen.has(id)) {
       scene.remove(g);
@@ -2296,12 +2314,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (d.alive && m.prevAlive && !invuln && !hidden && d.hp > m.prevHp) {
         const gain = d.hp - m.prevHp;
         if (gain >= HEAL_NOW) {
-          healNumber(d.pos, gain);
+          healNumber(d.id, d.pos, gain);
           m.healAt = now;
         } else m.healSum += gain;
       }
       if (now >= m.healFlushAt) {
-        if (m.healSum >= HEAL_SUM && d.alive && !hidden) healNumber(d.pos, m.healSum);
+        if (m.healSum >= HEAL_SUM && d.alive && !hidden) healNumber(d.id, d.pos, m.healSum);
         m.healSum = 0;
         m.healFlushAt = now + 1;
       }
@@ -2972,17 +2990,21 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         return [(q.x * innerWidth) / 2 + innerWidth / 2, (-q.y * innerHeight) / 2 + innerHeight / 2];
       };
       const obscured = (p: THREE.Vector3) => !!state.blindAt && Math.hypot(p.x-state.blindAt.x,p.z-state.blindAt.y)>BLINDNESS.radius;
-      // números de dano: sobem 1,2 m em 0,9 s e somem
+      // Damage drifts left and healing right in screen space, independently of camera angle.
       for (let i = numbers.length - 1; i >= 0; i--) {
         const d = numbers[i];
         const k = (now - d.born) / 1.2;
-        if (k >= 1) {
+        const owner = d.combat && state.wizards.find(w => w.id === d.combat!.id);
+        if (k >= 1 || d.combat && (!owner || (owner.status & 2048))) {
           d.el.remove();
           numbers.splice(i, 1);
           continue;
         }
-        const [x, y] = toScreen(d.at.clone().setY(d.at.y + k * 1.2));
-        d.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${1 + (d.pop ?? 0.3) * Math.max(0, 0.2 - k) * 5})`;
+        const quiet = !!d.combat && (lite || reducedMotion.matches);
+        const [x, y] = toScreen(d.at.clone().setY(d.at.y + (quiet ? 0 : k * 1.2)));
+        const drift = d.combat ? (d.combat.kind === 'heal' ? 1 : -1) * (26 + d.combat.lane * 20 + (quiet ? 0 : k * 16)) : 0;
+        const anchor = d.combat ? d.combat.kind === 'heal' ? '0%' : '-100%' : '-50%';
+        d.el.style.transform = `translate(${x + drift}px, ${y + (d.combat?.lane ?? 0) * 18}px) translate(${anchor}, -50%) scale(${quiet ? 1 : 1 + (d.pop ?? 0.3) * Math.max(0, 0.2 - k) * 5})`;
         d.el.style.opacity = String(Math.min(1, (1 - k) * 2.5));
         d.el.style.visibility = obscured(d.at) ? 'hidden' : '';
       }

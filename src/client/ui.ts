@@ -1173,7 +1173,7 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     return node;
   }
   const bar = el('div', { class: 'spellbar' }, ...SPELL_IDS.map((s) => {
-    const cd = el('span', { class: 'cd' });
+    const cd = el('span', { class: 'cd' }, el('span', { class: 'cd-number' }));
     const pips = el('span', { class: 'pips' });
     const b = withTip(el('button', { type: 'button', class: 'spell ' + spellClass(s), 'aria-label': spellName(s), 'aria-disabled': s === 'elemental' ? 'true' : 'false', onclick: () => { if (s !== 'elemental') act.spell(s); }, onpointerenter: (e: PointerEvent) => e.pointerType === 'mouse' && act.hover(s), onpointerleave: () => act.hover(null) },
       el('span', { class: 'key', 'data-action': s }, labelOf(s)), el('span', { class: 'ico' }, icon(ICON[s])), pips, cd), () => (s === 'scourge' ? itemTip(s, mine?.items.scourge ?? 0) : spellTip(s, mine?.spells[s] ?? 0)));
@@ -1611,8 +1611,9 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
     // cabeçalho grande: Vitória (eu ou meu time), Derrota (outro venceu) ou Fim de jogo (sem vencedor ou só assistindo)
     const res = endResult(r, me);
     const noWinner = !r.night && !r.winner && r.winnerTeam === null; // a Campanha sempre tem desfecho (winTitle)
-    return el('div', { class: 'card' },
+    return el('div', { class: `card match-result ${res}` },
       el('div', { class: 'end-head' },
+        el('div', { class: 'end-emblem', 'aria-hidden': 'true' }, icon(res === 'win' ? UI_ICON.wins : res === 'loss' ? UI_ICON.kills : UI_ICON.board)),
         el('h2', { class: 'end-title ' + res }, res === 'win' ? t('Vitória', 'Victory') : res === 'loss' ? t('Derrota', 'Defeat') : t('Fim de jogo', 'Game over')),
         el('p', { class: 'end-winner' }, ...(noWinner ? [t('Partida encerrada sem vencedor (empate ou ninguém fez ponto).', 'Match ended with no winner (a draw, or nobody scored).')] : winTitle(r)))),
       podium(r, me),
@@ -2240,7 +2241,11 @@ export function createRoomUi(root: HTMLElement, code: string, act: RoomActions) 
       }
       // recarga de cada botão (itens ativos e magias): número, varredura circular (--cd: fração que falta) e a marca da escolhida
       const tick = (a: string, { b, cd: c }: { b: HTMLElement; cd: HTMLElement }, left = 0) => {
-        c.textContent = left > 0.05 ? left.toFixed(left < 1 ? 1 : 0) : '';
+        let number = c.querySelector<HTMLElement>('.cd-number');
+        if (!number) { number = el('span', { class: 'cd-number' }); c.append(number); }
+        const text = left > 0.05 ? left.toFixed(left < 1 ? 1 : 0) : '';
+        if (number.textContent !== text) number.textContent = text;
+        b.classList.toggle('cooldown-soon', left > 0.05 && left <= 1);
         if (left > (cdLeft.get(a) ?? 0) + 0.05) cdTotal.set(a, left);
         cdLeft.set(a, left);
         const frac = left > 0.05 ? Math.min(1, left / (cdTotal.get(a) ?? left)).toFixed(3) : '0';
