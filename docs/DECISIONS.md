@@ -243,3 +243,24 @@ Every new decision gets a row here (date, decision, why) in the same PR as the c
 
 ## Local material impact feedback (2026-11-06)
 Confirmed projectile reflections with a surface contact create a short angular ripple in the existing shield shader; the ground-plane collision maps to the shell equator. Other reflect events retain their original cue. Rock and stone-pillar impacts use five small cosmetic chips and dust instead of generic fire, with a per-obstacle80ms cap and existing global FX cap/disposal. Surface chips originate on the visible stone rim because the event supplies the obstacle centre, not an exact contact. Lite/reduced motion omits chips and freezes ripple expansion. Preserve damage, HP, reflection, collision, RNG, snapshots and Barricade destruction effects.
+
+## Meadow and weathered ruins arena floor (2026-11-06)
+Replace the arena's neutral slate top with a mix of low green grass and brown earth, winding dirt paths, scattered aged paving and carved matte glyphs. Original procedural art follows the user's landscape references without importing their textures. Sparse low grass, small flowers and pebbles add volume; no decorative collider, tall cover or glowing spell-like ground marks. Anchor the artwork to world coordinates as the arena shrinks. Existing shared terrain geometry, holes, lava boundary, warning/tint/cooling behavior and rock rim remain authoritative. Keep decorative details at least0.8m inside the current outline, hide them in Campaign and halve their density in lite mode. Campaign floors and refuge islands retain their existing art.
+
+## Subtle ground decoration (2026-11-06)
+Blend paving and glyph stones halfway with the underlying grass/soil, thin and soften their outlines/highlights, and mute flower/pebble colors. Ground decoration should not compete with characters, HP, spell cues or the lava boundary. Preserve placement, scale, density and terrain geometry.
+
+## Rounded shrubs and clover (2026-11-06)
+Remove the pointed upright grass detail meshes. Replace them with sparse low rounded shrubs of varied sizes and heart-shaped three-/four-leaf clovers clustered nearby. Keep the grass/earth albedo, subdued paving, flowers and pebbles. Shared instanced geometries remain below0.22m, clear of lava/holes, density-reduced in lite mode and hidden in Campaign. No new colliders or gameplay cover.
+
+## Arena obstacle pedestals (2026-11-06)
+Remove circular bases from forest trees, stumps and rocks, and from dungeon arena rubble, as requested. Keep rubble fitting, physical collision and HP unchanged; Campaign retains its existing presentation.
+
+## Forest trunk grounding (2026-11-06)
+Add small tapered, uneven bark roots where forest trunks and cut stumps meet the ground. Roots stay inside the existing obstacle footprint, share its pose and material, and add no collider or circular base. Dungeon and Campaign models remain unchanged.
+
+## Cave dead-tree grounding (2026-11-06)
+Extend the small tapered roots to the original dead tree in dungeon arena scenery, with darker bark. Preserve the original tree model, dimensions, pose and collision. Roots follow the tree's cosmetic yaw and damage animation without rescaling its canopy. Campaign retains its existing tree presentation.
+
+## Cosmetic dungeon/forest scenery and object yaw (2026-11-06)
+Draw dungeon or forest scenery per room/round using a deterministic cosmetic hash shared by clients; never consume simulation RNG or change terrain geometry, obstacle types, HP, damage, collision radii or rewards. Dungeon restores the slate ground and original bones/candles/decorated columns/reddish rubble/dead-tree asset. Forest retains grass/earth and low plants, hides dungeon floor props, and maps pillar to leafy tree, shrine to cut stump, rock to angular gray rock and tree to a new original bare tree. The old bare-tree model is dungeon-only outside Campaign; Campaign art remains unchanged. New models expose the same ground footprint despite different silhouettes. Randomize visual yaw from the same room/round seed plus kind/position for arena-generated objects and dungeon floor props; keep it stable across snapshots/rebuilds/reconnects and leave spell Barricade orientation and Campaign objects intact. Preserve three-second damage HP bars across visual rebuilds.

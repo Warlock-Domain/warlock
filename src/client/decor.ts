@@ -4,8 +4,9 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { v, type Vec } from '../shared/vec.ts';
 import type { NightProp } from './night-decor.ts';
+import { objectYaw, type ArenaScenery } from './arena-scenery.ts';
 
-type Prop = { obj: THREE.Object3D; pos: Vec };
+type Prop = { obj: THREE.Object3D; pos: Vec; model: THREE.Object3D; kind: string };
 // distância até a borda da arena (positiva na pedra), da forma desta rodada
 type EdgeOf = (p: Vec) => number;
 
@@ -31,6 +32,7 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
   let unit = 1;
   const flames: THREE.Sprite[] = [];
   let edgeOf: EdgeOf | null = null;
+  let scenery: ArenaScenery = 'forest', scenerySeed = '';
   // ossos fora da pedra já afundados
   const arrange = () => {
     if (!edgeOf) return;
@@ -40,7 +42,7 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
   const settle = (edge: EdgeOf, k: number) => {
     for (const p of props) {
       p.obj.position.y += ((edge(p.pos) < 0.2 ? -1.5 : 0) - p.obj.position.y) * k;
-      p.obj.visible = p.obj.position.y > -1.4;
+      p.obj.visible = scenery === 'dungeon' && p.obj.position.y > -1.4;
     }
   };
   Promise.all([new GLTFLoader().loadAsync('/models/decor.glb'), unitScale]).then(([g, k]) => {
@@ -72,9 +74,14 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
     for (const [name, r, deg] of FLOOR) {
       const a = (deg * Math.PI) / 180;
       const holder = new THREE.Group();
+      holder.name = 'Dungeon_Floor_Decor';
       scene.add(holder);
       const o = place(name, Math.cos(a) * r, Math.sin(a) * r, deg, holder);
-      if (o) props.push({ obj: holder, pos: v(Math.cos(a) * r, Math.sin(a) * r) });
+      if (o) {
+        const pos = v(Math.cos(a) * r, Math.sin(a) * r);
+        o.rotation.y = objectYaw(scenerySeed, name, pos);
+        props.push({ obj: holder, pos, model: o, kind: name });
+      }
     }
     arrange();
   }).catch(() => console.warn('decoração não carregou; a arena segue sem ela'));
@@ -99,6 +106,11 @@ export function createDecor(scene: THREE.Scene, unitScale: Promise<number>, glow
   };
 
   return {
+    get version() { return models.size; },
+    scenery(kind: ArenaScenery, seed: string) {
+      scenery = kind; scenerySeed = seed;
+      for (const p of props) { p.model.rotation.y = objectYaw(seed, p.kind, p.pos); p.obj.visible = kind === 'dungeon' && p.obj.position.y > -1.4; }
+    },
     // Campaign: puts the props of this map (null takes them away); models and textures stay shared with the GLB, never disposed
     night(key: string, propsOf: () => NightProp[] | null) {
       if (key === nightKey) return;

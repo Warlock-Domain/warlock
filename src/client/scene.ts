@@ -1,5 +1,6 @@
 import { createTranscendClip } from './transcend-pose.ts';
 import { createRockFootprint } from './rock-footprint.ts';
+import { createTrunkRoots } from './trunk-roots.ts';
 import { createShieldMaterial, updateShieldMaterial, shieldImpact } from './shield-material.ts';
 import { createStoneImpactFx } from './stone-impact-fx.ts';
 import { createWallWear } from './wall-wear.ts';
@@ -44,6 +45,9 @@ import type { ProjKind, SimEvent } from '../shared/sim.ts';
 import type { PillarView, ProjView, RuneView, ZoneKind, ZoneView } from '../shared/snapshot.ts';
 import { add, clampLen, len, norm, scale, sub, v, type Vec } from '../shared/vec.ts';
 import { createDecor } from './decor.ts';
+import { createMeadowGround } from './meadow-ground.ts';
+import { objectYaw, sceneryFor, type ArenaScenery } from './arena-scenery.ts';
+import { createForestObstacles } from './forest-obstacles.ts';
 import { cellHash, nightProps } from './night-decor.ts';
 import { CANDLE } from '../shared/campaign.ts';
 import { t } from './i18n.ts';
@@ -374,35 +378,6 @@ void main(){
   #include <colorspace_fragment>
 }`;
 
-function stoneTexture(): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = c.height = 1024;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#3b3633';
-  g.fillRect(0, 0, 1024, 1024);
-  // lajes irregulares com rejunte escuro (Math.random aqui e nos enfeites desta cena é só visual: não entra na simulação nem no hash)
-  for (let i = 0; i < 2600; i++) {
-    const x = Math.random() * 1024, y = Math.random() * 1024, r = 8 + Math.random() * 30;
-    const l = 24 + Math.random() * 18;
-    g.fillStyle = `hsl(20, 6%, ${l}%)`;
-    g.beginPath();
-    g.ellipse(x, y, r, r * (0.6 + Math.random() * 0.5), Math.random() * 3, 0, Math.PI * 2);
-    g.fill();
-  }
-  g.strokeStyle = 'rgba(20,16,14,.55)';
-  g.lineWidth = 2;
-  for (let i = 0; i < 140; i++) {
-    g.beginPath();
-    let x = Math.random() * 1024, y = Math.random() * 1024;
-    g.moveTo(x, y);
-    for (let k = 0; k < 4; k++) g.lineTo((x += (Math.random() - 0.5) * 70), (y += (Math.random() - 0.5) * 70));
-    g.stroke();
-  }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
 function glowTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
@@ -483,7 +458,12 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   scene.add(lava);
 
   // arena: a forma em escala 1 escalada pelo raio; o topo de pedra, a lateral brilha com a lava
-  const stone = stoneTexture();
+  const meadow = createMeadowGround();
+  scene.add(meadow.root);
+  const stone = meadow.texture;
+  const dungeonStone = tex('/tex/stone.jpg', true, 2.5), dungeonNormal = tex('/tex/stone_nor.jpg', false, 2.5);
+  const forestFloor = { value: 1 };
+  let scenery: ArenaScenery = 'forest', scenerySeed = '';
   let shownArena: ArenaId = 'circle';
   const arena = new THREE.Mesh(
     floorGeo(shownArena),
@@ -504,9 +484,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   // The shared signed distance keeps the carved rim, lava seam and warning aligned on every arena shape.
   (arena.material as THREE.MeshStandardMaterial[])[0].onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, shoreU);
+    sh.uniforms.uForestFloor = forestFloor;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\n' + SHORE_GLSL)
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nuniform float uForestFloor;\n' + SHORE_GLSL)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       float eIn = -shoreDist(vWPos.xz);
       float nz = vnoise(vWPos.xz * 1.3);
@@ -521,28 +502,22 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.08, 0.02, 0.0), melt);
       float rimLight = smoothstep(0.2, 0.32, eIn) * (1.0 - smoothstep(0.32, 0.58, eIn));
       totalEmissiveRadiance += hot * (crack * band * band * (0.5 + 1.2 * uWarn) + melt * (0.35 + 0.9 * uWarn) + rimLight * 0.08);`)
+      .replace('#include <map_fragment>', `
+      // World coordinates keep paths and vegetation anchored while the arena shrinks.
+      #ifdef USE_MAP
+        diffuseColor *= texture2D(map, mix(vMapUv, vWPos.xz / 32.0 + 0.5, uForestFloor));
+      #endif`)
       .replace('#include <opaque_fragment>', `
-      // Neutral slate in the fighting space; retain warm lava bounce only near the perimeter.
-      float arenaRim = 1.0 - smoothstep(0.15, 1.7, -shoreDist(vWPos.xz));
-      // outgoingLight already includes the emissive (cracks, round effect, shrink warning): grade only the lit stone or those colors go grey.
-      vec3 litStone = outgoingLight - totalEmissiveRadiance;
-      vec3 coolStone = dot(litStone, vec3(0.2126, 0.7152, 0.0722)) * vec3(0.72, 0.78, 0.88);
-      outgoingLight = mix(coolStone, litStone, arenaRim * 0.8) + totalEmissiveRadiance;
+      if (uForestFloor < 0.5) {
+        // Neutral slate in the fighting space; retain warm lava bounce only near the perimeter.
+        float arenaRim = 1.0 - smoothstep(0.15, 1.7, -shoreDist(vWPos.xz));
+        // outgoingLight already includes the emissive (cracks, round effect, shrink warning): grade only the lit stone or those colors go grey.
+        vec3 litStone = outgoingLight - totalEmissiveRadiance;
+        vec3 coolStone = dot(litStone, vec3(0.2126, 0.7152, 0.0722)) * vec3(0.72, 0.78, 0.88);
+        outgoingLight = mix(coolStone, litStone, arenaRim * 0.8) + totalEmissiveRadiance;
+      }
       #include <opaque_fragment>`);
   };
-  // ardósia de verdade (Poly Haven Slate Floor 02) quando a textura chegar
-  loader.load('/tex/stone.jpg', (t) => {
-    const top = (arena.material as THREE.MeshStandardMaterial[])[0];
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    // o topo usa as coordenadas da forma (-1 a 1 no círculo): 2,5 por unidade = os 5 ladrilhos de lado a lado de antes
-    t.repeat.set(2.5, 2.5);
-    top.map = t;
-    top.normalMap = tex('/tex/stone_nor.jpg', false, 2.5);
-    top.normalScale.set(0.55, 0.55);
-    top.color.set('#e6ddd6');
-    top.needsUpdate = true;
-  });
   // faixa que pisca em vermelho onde a pedra vai afundar
   const warnMat = new THREE.MeshBasicMaterial({ color: '#ff2a00', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
   const warn = new THREE.Mesh(new THREE.BufferGeometry(), warnMat);
@@ -1211,7 +1186,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   class ObstacleVisual {
     updateWear?: (percent: number) => void;
     private readonly owned = new Set<THREE.BufferGeometry | THREE.Material>();
-    constructor(readonly obj: THREE.Object3D = new THREE.Group()) {}
+    constructor(readonly obj: THREE.Object3D = new THREE.Group(), readonly fixedFootprint = false) {}
     own<T extends THREE.BufferGeometry | THREE.Material>(resource: T): T {
       this.owned.add(resource);
       return resource;
@@ -1225,6 +1200,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   // obstáculos da rodada: modelo KayKit de cada tipo, treme quando apanha e afunda ao quebrar
   const OBSTACLE_MODEL: Record<string, string> = { pillar: 'pillar_decorated', rock: 'rubble_large', tree: 'tree_dead_large', shrine: 'shrine_candles' };
+  const forestObstacle = createForestObstacles();
+  const caveTreeRoots = createTrunkRoots(OBSTACLES.tree.r, new THREE.MeshStandardMaterial({ color: '#514135', roughness: 1, flatShading: true }));
+  caveTreeRoots.name = 'Cave_Tree_Roots';
   // parede do Pilar de pedra (KayKit Dungeon barrier_half): um modelo no pedaço do meio, atravessado como os 3 círculos da simulação
   let wallModel: THREE.Object3D | null = null;
   void loadFile('barrier_half').then((g) => (wallModel = g?.scene ?? null));
@@ -1265,9 +1243,13 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
   }
   function makeObstacle(p: PillarView) {
     if (p.kind === 'chest') return makeChest();
+    if (scenery === 'forest' && !curMap) {
+      const model = forestObstacle(p.kind);
+      if (model) return new ObstacleVisual(model, true);
+    }
     const model = decor.clone(OBSTACLE_MODEL[p.kind]);
     if (p.kind === 'rock') {
-      const rock = createRockFootprint(model, OBSTACLES.rock.r), visual = new ObstacleVisual(rock.root);
+      const rock = createRockFootprint(model, OBSTACLES.rock.r, !!curMap), visual = new ObstacleVisual(rock.root);
       for (const resource of rock.owned) visual.own(resource);
       return visual;
     }
@@ -1609,8 +1591,10 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     });
   }
 
-  function syncPillars(list: PillarView[]) {
-    const changed = list.length !== pillarMeshes.length || list.some((p, i) => p.pos.x !== pillarMeshes[i].pos.x || p.pos.y !== pillarMeshes[i].pos.y);
+  let obstacleDecorVersion = -1;
+  function syncPillars(list: PillarView[], sceneryChanged: boolean) {
+    const changed = sceneryChanged || obstacleDecorVersion !== decor.version || list.length !== pillarMeshes.length || list.some((p, i) => p.kind !== pillarMeshes[i].kind || p.pos.x !== pillarMeshes[i].pos.x || p.pos.y !== pillarMeshes[i].pos.y);
+    obstacleDecorVersion = decor.version;
     const radius = (p: PillarView) => OBSTACLES[p.kind].r;
     if (changed) {
       // paredes que já estavam na tela: só a que acabou de surgir cai do céu (issue #206)
@@ -1635,10 +1619,18 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           const box = new THREE.Box3().setFromObject(obj);
           const width = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) || 1;
           // árvore é fina no tronco e larga nos galhos: mede pelo tronco (menos que a copa)
-          if (p.kind !== 'rock') obj.scale.multiplyScalar((radius(p) * (p.kind === 'tree' ? 6 : 2.3)) / width);
+          if (p.kind !== 'rock' && !visual.fixedFootprint) obj.scale.multiplyScalar((radius(p) * (p.kind === 'tree' ? 6 : 2.3)) / width);
+          if (p.kind === 'tree' && scenery === 'dungeon' && !curMap) {
+            const roots = caveTreeRoots.clone(true);
+            // Keep the roots in world metres after the legacy tree's model-unit scaling.
+            roots.scale.set(1 / obj.scale.x, 1 / obj.scale.y, 1 / obj.scale.z);
+            obj.add(roots);
+          }
         }
         const obj = visual.obj;
         obj.position.copy(w3(p.pos, 0));
+        if (!wall && !side && !curMap) obj.rotation.y = objectYaw(scenerySeed, p.kind, p.pos);
+        obj.userData.obstacleKind = p.kind; obj.userData.scenery = scenery;
         scene.add(obj);
         // barra de vida em tudo que quebra (pedido do Fernando, 17/10: sempre visível)
         let bar: HTMLDivElement | null = null, fill: HTMLDivElement | null = null;
@@ -2688,7 +2680,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([w3(hand, 0.9), w3(at, 0.1)]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
       addFx(line, 0.35, (k) => ((line.material as THREE.LineBasicMaterial).opacity = 0.35 * (1 - k)));
     },
-    render(state: { paused?: boolean; sniperFocus?: {left:number;shot:number}; blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[]; seen: number[] } | null }) {
+    render(state: { scenerySeed?: string; paused?: boolean; sniperFocus?: {left:number;shot:number}; blindAt?: Vec | null; arena: ArenaId; arenaR: number; shrinkIn: number; wizards: WizDraw[]; projectiles: ProjView[]; pillars: PillarView[]; loots: { pos: Vec; left: number }[]; runes: RuneView[]; zones?: ZoneView[]; isles?: Isle[]; follow: Vec | null; lock?: boolean; effect?: RoundEffectId | null; arcane?: boolean; map?: { night: NightMap; key: string; done: number[]; opened: number[]; seen: number[] } | null }) {
       const now = performance.now() / 1000;
       const dt = state.paused ? 0 : Math.min(0.05, now - lastFrame);
       lastFrame = now;
@@ -2704,6 +2696,19 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       lavaMat.uniforms.uTime.value = now;
       // Campanha: o mapa no lugar da arena e da lava
       const onMap = !!state.map;
+      const nextSeed = state.scenerySeed ?? '';
+      const nextScenery = onMap ? 'dungeon' : nextSeed ? sceneryFor(nextSeed) : 'forest';
+      const sceneryChanged = nextScenery !== scenery || nextSeed !== scenerySeed;
+      if (sceneryChanged) {
+        scenery = nextScenery; scenerySeed = nextSeed;
+        forestFloor.value = scenery === 'forest' ? 1 : 0;
+        const top = (arena.material as THREE.MeshStandardMaterial[])[0];
+        top.map = scenery === 'forest' ? meadow.texture : dungeonStone;
+        top.normalMap = scenery === 'forest' ? null : dungeonNormal;
+        top.normalScale.set(.55, .55); top.color.set(scenery === 'forest' ? '#ffffff' : '#e6ddd6'); top.needsUpdate = true;
+        decor.scenery(scenery, scenerySeed);
+      }
+      arena.userData.scenery = scenery;
       curMap = state.map ? state.map.night : null;
       if (state.map && state.map.key !== mapKey) {
         mapKey = state.map.key;
@@ -2741,6 +2746,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       arena.scale.set(shownR, 1, shownR);
       rim.scale.set(shownR, Math.min(1, shownR / 4), shownR);
       fissures.scale.copy(rim.scale);
+      meadow.update(shownArena, shownR, !onMap && scenery === 'forest', lite);
       shoreU.uR.value = Math.max(0.01, shownR);
       shoreU.uShoreTime.value = now;
       shoreU.uLick.value = lite ? 0 : 1;
@@ -2920,7 +2926,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
       syncWizards(state.wizards, now);
       syncProjectiles(state.projectiles);
-      syncPillars(state.pillars);
+      syncPillars(state.pillars, sceneryChanged);
       // montes de ouro: um clone do monte por baú quebrado
       while (piles.length < state.loots.length) {
         const c = pile.clone();

@@ -1,13 +1,15 @@
 import * as T from 'three';
 
 // The rubble asset is much wider than deep; its original silhouette cannot describe a circular collider.
-export function createRockFootprint(model: T.Object3D | null, radius: number) {
+export function createRockFootprint(model: T.Object3D | null, radius: number, withBase = true) {
   const root = new T.Group(); root.name = 'Rock_Obstacle';
   const owned: (T.BufferGeometry | T.Material)[] = [];
   const material = new T.MeshStandardMaterial({ color: '#514638', roughness: 1, flatShading: true }); owned.push(material);
-  const geometry = new T.CylinderGeometry(radius * .97, radius, .12, 20); owned.push(geometry);
-  const base = new T.Mesh(geometry, material); base.name = 'Rock_Base'; base.position.y = .06;
-  base.castShadow = base.receiveShadow = true; root.add(base);
+  if (withBase) {
+    const geometry = new T.CylinderGeometry(radius * .97, radius, .12, 20); owned.push(geometry);
+    const base = new T.Mesh(geometry, material); base.name = 'Rock_Base'; base.position.y = .06;
+    base.castShadow = base.receiveShadow = true; root.add(base);
+  }
   if (!model) {
     const fallback = new T.IcosahedronGeometry(radius * .85, 1); owned.push(fallback);
     const rock = new T.Mesh(fallback, material); rock.scale.y = .65; rock.position.y = radius * .55;
