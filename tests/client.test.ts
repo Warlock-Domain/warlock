@@ -6,9 +6,31 @@ import { WIZ_SPEED } from '../src/shared/constants.ts';
 import { v } from '../src/shared/vec.ts';
 import { actionFor, labelOf, setSlotMode, setSlots } from '../src/client/keys.ts';
 import { fxClock } from '../src/client/icons.ts';
+import { projectileDarknessLights } from '../src/client/darkness-fx.ts';
+import type { ProjView } from '../src/shared/snapshot.ts';
 
 const wiz = (x: number, extra: Partial<WizView> = {}): WizView => ({ id: 'a', pos: v(x, 0), vel: v(0, 0), hp: 100, facing: 0, alive: true, shield: false, status: 1, ...extra });
 const snap = (time: number, x: number): SnapView => ({ time, arenaR: 11, shrinkAt: 15, wizards: [wiz(x)], projectiles: [], pillars: [], loots: [], runes: [] });
+const projectile = (kind: ProjView['kind'], remaining = 0, radius = 0): ProjView => ({ id: 1, kind, pos: v(2, 3), vel: v(radius, remaining) });
+
+describe('Darkness projectile lights', () => {
+  it('moves a bounded half-strength light with naturally luminous projectiles', () => {
+    expect(projectileDarknessLights([projectile('fireball')])).toEqual([{ pos: v(2, 3), radius: 2.45, strength: .5 }]);
+    expect(projectileDarknessLights([projectile('snowball')])).toEqual([]);
+    expect(projectileDarknessLights(Array.from({ length: 9 }, (_, id) => ({ ...projectile('homing'), id })))).toHaveLength(6);
+  });
+
+  it('reveals progressively more of the warning ring as a meteor descends', () => {
+    const high = projectileDarknessLights([projectile('meteor', 1.15, 3)])[0];
+    const middle = projectileDarknessLights([projectile('meteor', .55, 3)])[0];
+    const low = projectileDarknessLights([projectile('meteor', .05, 3)])[0];
+    expect(high.radius).toBeCloseTo(.8);
+    expect(middle.radius).toBeGreaterThan(high.radius);
+    expect(low.radius).toBeGreaterThan(middle.radius);
+    expect(low.radius).toBeLessThanOrEqual(3.42);
+    expect(low.strength).toBe(.5);
+  });
+});
 
 describe('snapshot interpolation', () => {
   it('preserves detached callbacks through reset and a new clock', () => {

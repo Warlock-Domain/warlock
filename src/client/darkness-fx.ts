@@ -1,13 +1,45 @@
 import * as THREE from 'three';
 import { SHAPES, type ArenaId } from '../shared/arena.ts';
+import { METEOR_DELAY } from '../shared/spells.ts';
+import type { ProjKind } from '../shared/sim.ts';
+import type { ProjView } from '../shared/snapshot.ts';
 import { DARKNESS } from '../shared/world-end.ts';
 import type { Vec } from '../shared/vec.ts';
 
 export const torchRadius = (fuel: number) => DARKNESS.torchRadius * THREE.MathUtils.clamp(fuel / DARKNESS.fuel, 0, 1);
 export const BLIZZARD_WHITEOUT_DEPTH = .055;
 const GUST_SLOTS = 3;
-const HAZARD_LIGHT_SLOTS = 10;
+const HAZARD_LIGHT_SLOTS = 16;
 const FLASH_SECONDS = 1;
+const PROJECTILE_LIGHT_SLOTS = 6;
+const SPELL_LIGHT_STRENGTH = .5;
+
+const PROJECTILE_LIGHT_RADIUS: Partial<Record<ProjKind, number>> = {
+  fireball: 2.45,
+  homing: 2,
+  cluster: 1.55,
+  swap: 1.7,
+  gravity: 1.85,
+  bouncer: 1.45,
+  magnetize: 1.45,
+  recharge: 1.6,
+  splitter: 1.7,
+  shard: 1.2,
+};
+
+export function projectileDarknessLights(projectiles: readonly ProjView[]) {
+  return projectiles.flatMap(projectile => {
+    if (projectile.kind === 'meteor') {
+      const descent = THREE.MathUtils.clamp(1 - projectile.vel.y / METEOR_DELAY, 0, 1);
+      const ringLightRadius = projectile.vel.x + .42;
+      return [{ pos: projectile.pos, radius: THREE.MathUtils.lerp(.8, ringLightRadius, THREE.MathUtils.smoothstep(descent, 0, 1)), strength: SPELL_LIGHT_STRENGTH }];
+    }
+    const base = projectile.kind === 'basic' && projectile.element && projectile.element !== 'void'
+      ? 1.45
+      : PROJECTILE_LIGHT_RADIUS[projectile.kind];
+    return base ? [{ pos: projectile.pos, radius: base * THREE.MathUtils.clamp(projectile.size ?? 1, .7, 1.6), strength: SPELL_LIGHT_STRENGTH }] : [];
+  }).sort((a, b) => b.radius - a.radius).slice(0, PROJECTILE_LIGHT_SLOTS);
+}
 
 function gustHash(seed: number) {
   const value = Math.sin(seed * 127.1) * 43758.5453;
@@ -128,6 +160,7 @@ export function createDarknessEyes() {
     return sprite;
   });
   let flashes: { at: Vec; born: number; radius: number; direction: number }[] = [];
+  let rays: { from: Vec; to: Vec; born: number }[] = [];
   let approach: { wave: number; direction: number } | undefined;
   const flashRadius = (flash: (typeof flashes)[number], time: number) => {
     const age = time - flash.born;
@@ -142,13 +175,29 @@ export function createDarknessEyes() {
       flashes.push({ at: { ...at }, born: time, radius, direction: outward + (gustHash(at.x * 11.1 - at.y * 7.3) - .5) * .65 });
       if (flashes.length > startled.length) flashes.shift();
     },
+    ray(from: Vec, to: Vec, time: number) {
+      rays.push({ from: { ...from }, to: { ...to }, born: time });
+      if (rays.length > 2) rays.shift();
+    },
     lights(time: number) {
       flashes = flashes.filter(flash => time - flash.born < FLASH_SECONDS);
-      return flashes.map(flash => ({ pos: flash.at, radius: flashRadius(flash, time) })).filter(light => light.radius > .02);
+      rays = rays.filter(ray => time - ray.born < .14);
+      const rayLights = rays.flatMap(ray => {
+        const count = THREE.MathUtils.clamp(Math.ceil(Math.hypot(ray.to.x - ray.from.x, ray.to.y - ray.from.y) / 2), 2, 7);
+        return Array.from({ length: count }, (_, i) => {
+          const progress = count === 1 ? 0 : i / (count - 1);
+          return { pos: { x: THREE.MathUtils.lerp(ray.from.x, ray.to.x, progress), y: THREE.MathUtils.lerp(ray.from.y, ray.to.y, progress) }, radius: .38, strength: .08 };
+        });
+      });
+      const flashLights = flashes.map(flash => {
+        const radius = flashRadius(flash, time);
+        return { pos: flash.at, radius, strength: SPELL_LIGHT_STRENGTH * THREE.MathUtils.clamp(radius / flash.radius, 0, 1) };
+      }).filter(light => light.radius > .02);
+      return [...flashLights, ...rayLights];
     },
     update(enabled: boolean, time: number, radius: number, reach: number, outline: Vec[], darkAt: (position: Vec) => boolean, quiet: boolean, torch?: { pos: Vec; fuel: number }) {
     root.visible = enabled;
-    if (!enabled) { approach = undefined; flashes = []; return; }
+    if (!enabled) { approach = undefined; flashes = []; rays = []; return; }
     eyes.forEach(({ sprite, width }, i) => {
       const angle = i * 2.39996 + .43;
       const distance = reach + 2.5 + (i * 3.7) % 9;
@@ -258,7 +307,7 @@ function hearthRadiusTexture(arena: ArenaId) {
 }
 
 export function hazardVignette(camera: THREE.PerspectiveCamera, shore: Shore) {
-  const lamps = Array.from({ length: HAZARD_LIGHT_SLOTS }, () => new THREE.Vector3());
+  const lamps = Array.from({ length: HAZARD_LIGHT_SLOTS }, () => new THREE.Vector4());
   const gusts = Array.from({ length: GUST_SLOTS }, () => new THREE.Vector4());
   const gustStyle = Array.from({ length: GUST_SLOTS }, () => new THREE.Vector2());
   const radii = new Map<ArenaId, THREE.DataTexture>();
@@ -278,7 +327,7 @@ export function hazardVignette(camera: THREE.PerspectiveCamera, shore: Shore) {
       uniform mat4 invProjection, cameraWorld;
       uniform sampler2D uSdf, hearthRadii;
       uniform float uSpan, uR;
-      uniform vec3 lamps[${HAZARD_LIGHT_SLOTS}];
+      uniform vec4 lamps[${HAZARD_LIGHT_SLOTS}];
       uniform int lampCount;
       uniform bool whiteout;
       uniform vec4 gusts[${GUST_SLOTS}];
@@ -359,11 +408,12 @@ export function hazardVignette(camera: THREE.PerspectiveCamera, shore: Shore) {
         float torchWarmth = 0.;
         for (int i = 0; i < ${HAZARD_LIGHT_SLOTS}; i++) {
           if (i >= lampCount) break;
-          vec3 lamp = lamps[i];
+          vec4 lamp = lamps[i];
           float distanceToLamp = length(at - lamp.xy);
-          float feather = min(.45, lamp.z * .35);
-          torchShade = min(torchShade, smoothstep(lamp.z - feather, lamp.z, distanceToLamp));
-          torchWarmth = max(torchWarmth, 1. - smoothstep(.12, .88, distanceToLamp / lamp.z));
+          float softReveal = 1. - smoothstep(0., 1., distanceToLamp / lamp.z);
+          float lampShade = 1. - softReveal * lamp.w;
+          torchShade = min(torchShade, lampShade);
+          torchWarmth = max(torchWarmth, (1. - smoothstep(.12, .88, distanceToLamp / lamp.z)) * lamp.w);
         }
         float torchDim = mix(hearthDim(.65), 1., torchShade);
         float darkness = min(shade, torchDim);
@@ -381,7 +431,7 @@ export function hazardVignette(camera: THREE.PerspectiveCamera, shore: Shore) {
   mesh.visible = false;
   return {
     mesh,
-    update(mode: 'ice' | 'darkness' | null, arena: ArenaId, lights: { pos: Vec; radius: number }[], time: number) {
+    update(mode: 'ice' | 'darkness' | null, arena: ArenaId, lights: { pos: Vec; radius: number; strength?: number }[], time: number) {
       mesh.visible = mode !== null;
       material.uniforms.whiteout.value = mode === 'ice';
       if (mode === 'ice') for (let i = 0; i < GUST_SLOTS; i++) {
@@ -406,7 +456,7 @@ export function hazardVignette(camera: THREE.PerspectiveCamera, shore: Shore) {
       }
       material.uniforms.hearthRadii.value = radius;
       material.uniforms.lampCount.value = Math.min(lamps.length, lights.length);
-      lights.slice(0, lamps.length).forEach((light, i) => lamps[i].set(light.pos.x, light.pos.y, light.radius));
+      lights.slice(0, lamps.length).forEach((light, i) => lamps[i].set(light.pos.x, light.pos.y, light.radius, light.strength ?? 1));
     },
   };
 }

@@ -5,7 +5,7 @@ import { createLavaLandscape } from './lava-landscape.ts';
 import { restoreLavaDepth } from './background-depth.ts';
 import { createHazardMarkers, createWorldHearth, snowCover } from './world-end-scene.ts';
 import { createAbyssLandscape } from './abyss-landscape.ts';
-import { BLIZZARD_WHITEOUT_DEPTH, createDarknessEyes, hazardVignette, torchRadius } from './darkness-fx.ts';
+import { BLIZZARD_WHITEOUT_DEPTH, createDarknessEyes, hazardVignette, projectileDarknessLights, torchRadius } from './darkness-fx.ts';
 import type { WorldEnd } from '../shared/world-end.ts';
 import { mountainFootFragments } from './mountain-fragments.ts';
 import { lavaBasinGeometry } from './lava-basin.ts';
@@ -1888,7 +1888,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     burst(at, '#e6f4ff', 1.4, 0.2, 1, FX.spark);
   }
 
-  function bolt(from: Vec, to: Vec, width = LIGHTNING.width) {
+  function bolt(from: Vec, to: Vec, width = LIGHTNING.width, fleeting = false) {
     const hand = add(from, clampLen(sub(to, from), 0.45));
     const pts: THREE.Vector3[] = [];
     const n = 28;
@@ -1906,6 +1906,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
     for (const [r, color, op] of [[0.025, '#ffffff', 1], [0.07, '#9fd0ff', 0.45]] as const) {
       const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false });
       const g = new THREE.Group();
+      if (fleeting) { g.name = 'Darkness_Lightning'; g.renderOrder = 10002; }
       for (let i = 0; i < n; i++) {
         const [a, b] = [pts[i], pts[i + 1]];
         const m = new THREE.Mesh(boltGeo, mat);
@@ -1914,7 +1915,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         m.scale.set(r * width / LIGHTNING.width, a.distanceTo(b), r * width / LIGHTNING.width);
         g.add(m);
       }
-      addFx(g, 0.35, (k) => (mat.opacity = op * (1 - k)));
+      addFx(g, fleeting ? .14 : .35, (k) => (mat.opacity = op * (1 - k)));
     }
     burst(to, '#9fd0ff', 2.4, 0.3, 0.25, FX.light);
     burst(to, '#e6f4ff', 1.4, 0.35, 0.25, FX.spark);
@@ -1943,11 +1944,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       if (shownEnding === 'darkness' && !curMap) {
         if (e.k === 'hit' && e.src === 'fireball') {
           const at = v(e.x, e.y);
-          darknessEyes.flash(at, 4.2, performance.now() / 1000);
+          darknessEyes.flash(at, 4.2 * .7, performance.now() / 1000);
           burst(at, '#fff0c2', 3.2, .18, .75, FX.light);
         } else if (e.k === 'clash' && e.combo === 'fire') {
           const at = v(e.x, e.y);
-          darknessEyes.flash(at, THREE.MathUtils.clamp(e.r * 1.45, 4.8, 7.2), performance.now() / 1000);
+          darknessEyes.flash(at, THREE.MathUtils.clamp(e.r * 1.45, 4.8, 7.2) * .7, performance.now() / 1000);
           burst(at, '#fff2c8', Math.max(3.8, e.r * 1.5), .2, .8, FX.light);
         }
       }
@@ -2017,7 +2018,11 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
           burst(v(e.x, e.y), '#cfeaff', 1.6, 0.25, 0.8, FX.light);
         }
       }
-      else if (e.k === 'lightning') bolt(e.from, e.to, e.width);
+      else if (e.k === 'lightning') {
+        const inDarkness = shownEnding === 'darkness' && !curMap;
+        if (inDarkness) darknessEyes.ray(e.from, e.to, performance.now() / 1000);
+        bolt(e.from, e.to, e.width, inDarkness);
+      }
       else if (e.k === 'vines') {
         const vines = vineModel(e.r);
         vines.position.copy(w3(v(e.x, e.y), .03));
@@ -2868,7 +2873,9 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         .map(actor => ({ pos: actor.pos, radius: torchRadius((actor as WizDraw & HazardView).torchLeft ?? 15) }))
         .filter(light => light.radius > 0);
       const quiet = lite || reducedMotion.matches;
-      const darknessLights = shownEnding === 'darkness' ? [...darknessEyes.lights(now), ...torchLights] : torchLights;
+      const projectileLights = shownEnding === 'darkness' ? projectileDarknessLights(state.projectiles) : [];
+      const revealingLights = [...torchLights, ...projectileLights];
+      const darknessLights = shownEnding === 'darkness' ? [...darknessEyes.lights(now), ...revealingLights] : torchLights;
       worldEndMask.update(shownEnding === 'darkness' || shownEnding === 'ice' ? shownEnding : null, state.arena, darknessLights, quiet ? 0 : now);
       const maskLayer = shownEnding === 'ice' ? weatherOverlay : scene;
       if (worldEndMask.mesh.parent !== maskLayer) maskLayer.add(worldEndMask.mesh);
@@ -2950,7 +2957,7 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
       const darknessShape = ARENAS[shownArena];
       darknessEyes.update(continuousDarkness, now, shownR, shownR * darknessShape.reach, darknessShape.outline[0], pos =>
         inLavaAt(shownArena, shownR, state.isles, pos)
-        && !torchLights.some(light => Math.hypot(pos.x - light.pos.x, pos.y - light.pos.y) < light.radius), quiet, localTorch);
+        && !revealingLights.some(light => Math.hypot(pos.x - light.pos.x, pos.y - light.pos.y) < light.radius), quiet, localTorch);
       const hearthStrength = hearth.update(shownEnding, shownR, hearthRadius, now, quiet);
       hearthHeat.value = showIce ? hearthStrength : 0;
       hazardMarkers.update(shownEnding, state.wizards, pos => inLavaAt(shownArena, shownR, state.isles, pos));
