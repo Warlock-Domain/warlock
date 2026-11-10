@@ -109,6 +109,8 @@ Keys by position (default): spells use the key of the **position** on the bar (`
 
 - `status-fx.ts` owns per-character stun/slow/incapacitation markers and disposes its own geometries/materials on appearance replacement, never the shared star texture. Markers inherit authoritative hiding, vanish on death/ghost/Transcend ritual, follow lift and become static in lite mode. Blindness uses the existing received `blindLeft` and status row, without inventing a protocol bit or changing vision.
 
+- In Darkness, confirmed Fireball hits and the Meteor's fire landing briefly join the vignette's bounded light list. `createDarknessEyes` reuses its procedural silhouette in two capped slots to flee outward from that reveal; lite/reduced motion keeps the entity static. The flash is cosmetic only: no target, collision, protocol or gameplay visibility changes.
+
 - Refuge-island cracks are a shared original texture with per-island opacity from the received radius. Chips are capped, short-lived visual effects; never change island timing or collision to match art. Lite mode skips chips and the added lava pulse. Keep heat, warning and round tint paths intact.
 
 - Area readability keeps contours inside the authoritative radius, with a dark inward backing and translucent fill. Preserve dashed Slow versus solid Burn/Pull and the existing final0.8-second fade. Area projectile radius vectors are not motion; transparency changes must not change gameplay, aim or lifetime.

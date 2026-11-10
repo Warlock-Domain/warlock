@@ -6,6 +6,8 @@ import type { Vec } from '../shared/vec.ts';
 export const torchRadius = (fuel: number) => DARKNESS.torchRadius * THREE.MathUtils.clamp(fuel / DARKNESS.fuel, 0, 1);
 export const BLIZZARD_WHITEOUT_DEPTH = .055;
 const GUST_SLOTS = 3;
+const HAZARD_LIGHT_SLOTS = 10;
+const FLASH_SECONDS = 1;
 
 function gustHash(seed: number) {
   const value = Math.sin(seed * 127.1) * 43758.5453;
@@ -68,10 +70,34 @@ export function createDarknessEyes() {
   const shadow = overlay(silhouetteTexture, '#ffffff', true);
   shadow.name = 'Darkness_Passing_Shadow';
   shadow.scale.set(1.15, 2.1, 1);
+  const startled = Array.from({ length: 2 }, (_, i) => {
+    const sprite = overlay(silhouetteTexture, '#0d1219', true);
+    sprite.name = `Darkness_Startled_Entity_${i + 1}`;
+    sprite.scale.set(1.08, 1.95, 1);
+    return sprite;
+  });
+  let flashes: { at: Vec; born: number; radius: number; direction: number }[] = [];
   let approach: { wave: number; direction: number } | undefined;
-  return { root, update(enabled: boolean, time: number, radius: number, reach: number, outline: Vec[], darkAt: (position: Vec) => boolean, quiet: boolean, torch?: { pos: Vec; fuel: number }) {
+  const flashRadius = (flash: (typeof flashes)[number], time: number) => {
+    const age = time - flash.born;
+    return flash.radius * THREE.MathUtils.smoothstep(age, 0, .075)
+      * (1 - THREE.MathUtils.smoothstep(age, .22, .86));
+  };
+  return {
+    root,
+    flash(at: Vec, radius: number, time: number) {
+      if (flashes.some(entry => time - entry.born < .12 && Math.hypot(entry.at.x - at.x, entry.at.y - at.y) < 1.2)) return;
+      const outward = Math.hypot(at.x, at.y) > .5 ? Math.atan2(at.y, at.x) : gustHash(at.x * 17.3 + at.y * 31.7) * Math.PI * 2;
+      flashes.push({ at: { ...at }, born: time, radius, direction: outward + (gustHash(at.x * 11.1 - at.y * 7.3) - .5) * .65 });
+      if (flashes.length > startled.length) flashes.shift();
+    },
+    lights(time: number) {
+      flashes = flashes.filter(flash => time - flash.born < FLASH_SECONDS);
+      return flashes.map(flash => ({ pos: flash.at, radius: flashRadius(flash, time) })).filter(light => light.radius > .02);
+    },
+    update(enabled: boolean, time: number, radius: number, reach: number, outline: Vec[], darkAt: (position: Vec) => boolean, quiet: boolean, torch?: { pos: Vec; fuel: number }) {
     root.visible = enabled;
-    if (!enabled) { approach = undefined; return; }
+    if (!enabled) { approach = undefined; flashes = []; return; }
     eyes.forEach(({ sprite, width }, i) => {
       const angle = i * 2.39996 + .43;
       const distance = reach + 2.5 + (i * 3.7) % 9;
@@ -99,6 +125,21 @@ export function createDarknessEyes() {
       shadow.position.set(at.x, .95, at.y);
       shadow.material.opacity = Math.sin(Math.PI * progress) * .78;
     }
+
+    startled.forEach(sprite => { sprite.visible = false; });
+    flashes = flashes.filter(flash => time - flash.born < FLASH_SECONDS);
+    flashes.forEach((flash, i) => {
+      const sprite = startled[i], age = time - flash.born, progress = THREE.MathUtils.clamp(age / FLASH_SECONDS, 0, 1);
+      const start = flash.radius * .42, travel = quiet ? 0 : flash.radius * .72 * progress * progress;
+      const distance = start + travel;
+      const at = { x: flash.at.x + Math.cos(flash.direction) * distance, y: flash.at.y + Math.sin(flash.direction) * distance };
+      const revealed = flashRadius(flash, time) > start * .7;
+      sprite.visible = revealed && darkAt(at);
+      sprite.position.set(at.x, .92 + (quiet ? 0 : .12 * Math.sin(progress * Math.PI * 5)), at.y);
+      sprite.scale.set((Math.cos(flash.direction) < 0 ? -1 : 1) * (1.08 - progress * .12), 1.95 + progress * .12, 1);
+      sprite.material.rotation = quiet ? 0 : (Math.cos(flash.direction) < 0 ? -.16 : .16) * Math.sin(Math.PI * progress);
+      sprite.material.opacity = Math.sin(Math.PI * Math.min(1, progress * 1.18)) * (1 - THREE.MathUtils.smoothstep(progress, .58, 1)) * .88;
+    });
 
     rushing.visible = false;
     if (!torch || torch.fuel >= 5 || torch.fuel <= 0) { approach = undefined; return; }
@@ -165,7 +206,7 @@ function hearthRadiusTexture(arena: ArenaId) {
 }
 
 export function hazardVignette(camera: THREE.PerspectiveCamera, shore: Shore) {
-  const lamps = Array.from({ length: 8 }, () => new THREE.Vector3());
+  const lamps = Array.from({ length: HAZARD_LIGHT_SLOTS }, () => new THREE.Vector3());
   const gusts = Array.from({ length: GUST_SLOTS }, () => new THREE.Vector4());
   const gustStyle = Array.from({ length: GUST_SLOTS }, () => new THREE.Vector2());
   const radii = new Map<ArenaId, THREE.DataTexture>();
@@ -185,7 +226,7 @@ export function hazardVignette(camera: THREE.PerspectiveCamera, shore: Shore) {
       uniform mat4 invProjection, cameraWorld;
       uniform sampler2D uSdf, hearthRadii;
       uniform float uSpan, uR;
-      uniform vec3 lamps[8];
+      uniform vec3 lamps[${HAZARD_LIGHT_SLOTS}];
       uniform int lampCount;
       uniform bool whiteout;
       uniform vec4 gusts[${GUST_SLOTS}];
@@ -264,7 +305,7 @@ export function hazardVignette(camera: THREE.PerspectiveCamera, shore: Shore) {
         float shade = hearthShade(at, edge);
         float torchShade = 1.;
         float torchWarmth = 0.;
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < ${HAZARD_LIGHT_SLOTS}; i++) {
           if (i >= lampCount) break;
           vec3 lamp = lamps[i];
           float distanceToLamp = length(at - lamp.xy);

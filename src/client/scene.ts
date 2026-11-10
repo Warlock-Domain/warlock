@@ -1940,6 +1940,17 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
 
   function onEvents(events: SimEvent[], hiddenDamageTargets: readonly string[] = []) {
     for (const e of events) {
+      if (shownEnding === 'darkness' && !curMap) {
+        if (e.k === 'hit' && e.src === 'fireball') {
+          const at = v(e.x, e.y);
+          darknessEyes.flash(at, 4.2, performance.now() / 1000);
+          burst(at, '#fff0c2', 3.2, .18, .75, FX.light);
+        } else if (e.k === 'clash' && e.combo === 'fire') {
+          const at = v(e.x, e.y);
+          darknessEyes.flash(at, THREE.MathUtils.clamp(e.r * 1.45, 4.8, 7.2), performance.now() / 1000);
+          burst(at, '#fff2c8', Math.max(3.8, e.r * 1.5), .2, .8, FX.light);
+        }
+      }
       if (e.k === 'snipe') {
         const from=w3(e.from,.95),to=w3(e.to,.95),delta=to.clone().sub(from);
         const mat=new THREE.MeshBasicMaterial({color:SNIPER_FX.flash,transparent:true,depthWrite:false});
@@ -2857,7 +2868,8 @@ export function createScene(canvas: HTMLCanvasElement, labels: HTMLElement) {
         .map(actor => ({ pos: actor.pos, radius: torchRadius((actor as WizDraw & HazardView).torchLeft ?? 15) }))
         .filter(light => light.radius > 0);
       const quiet = lite || reducedMotion.matches;
-      worldEndMask.update(shownEnding === 'darkness' || shownEnding === 'ice' ? shownEnding : null, state.arena, torchLights, quiet ? 0 : now);
+      const darknessLights = shownEnding === 'darkness' ? [...darknessEyes.lights(now), ...torchLights] : torchLights;
+      worldEndMask.update(shownEnding === 'darkness' || shownEnding === 'ice' ? shownEnding : null, state.arena, darknessLights, quiet ? 0 : now);
       const maskLayer = shownEnding === 'ice' ? weatherOverlay : scene;
       if (worldEndMask.mesh.parent !== maskLayer) maskLayer.add(worldEndMask.mesh);
       const showLava = !onMap && shownEnding === 'lava';
